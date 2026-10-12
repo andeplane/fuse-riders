@@ -224,6 +224,9 @@ export interface LobbyModel {
   note: string;
   canAddBot: boolean;
   removable: string[];
+  /** The AI level, which the host sets while there are bots. */
+  level: number;
+  canSetLevel: boolean;
   /** This device's goal picks, and whether it may change them. */
   goals: number[];
   canPickGoals: boolean;
@@ -259,6 +262,10 @@ export interface ScreenModel {
   /** Where a tap on a place sends this player, or nothing when they cannot walk now. */
   walk?: (place: number) => unknown[];
   headline: string;
+  /** Online, once your week is over: who the week still waits for. */
+  waiting?: string;
+  /** The shared screen's clock while a week runs: everyone's week, at once. */
+  tv?: { headline: string; seconds: number; timer: number; line: string };
 }
 
 const money = (value: number) =>
@@ -956,7 +963,10 @@ function ticker(economy: Economy): Ticker[] {
 function lobby(view: FuseLaneView, viewer: Viewer): LobbyModel {
   const players = view.players,
     host = viewer.host && !viewer.display;
-  const mine = view.goals[viewer.me] ?? [50, 50, 50, 50];
+  // Until you pick, you play for the first person's picks (as the rules do), else the defaults.
+  const leader = players.find((player) => !player.bot && view.goals[player.id]);
+  const mine = view.goals[viewer.me] ??
+    (leader ? view.goals[leader.id] : undefined) ?? [50, 50, 50, 50];
   const seated = players.some((player) => player.id === viewer.me);
   return {
     members: players.map((player) => ({
@@ -980,6 +990,8 @@ function lobby(view: FuseLaneView, viewer: Viewer): LobbyModel {
           ? "Waiting for players"
           : "Add a bot or invite a friend: two players start a match",
     canAddBot: host && players.length < CAPACITY,
+    level: view.level,
+    canSetLevel: host,
     removable: host
       ? players.filter((player) => player.bot).map((player) => player.id)
       : [],
@@ -1044,11 +1056,14 @@ export function present(view: FuseLaneView, viewer: Viewer): ScreenModel {
   const seated = you !== undefined && !viewer.display;
   const playing = view.phase === "running";
   const inWeek = playing && view.part === "week";
-  const layout: ScreenModel["layout"] = viewer.display
-    ? "tv"
-    : viewer.shared && seated
-      ? "controller"
-      : "board";
+  // A shared-screen room's creator holds no seat: its screen is the TV, and it keeps the host's buttons.
+  const tvHost = viewer.shared && viewer.host && !viewer.local && !seated;
+  const layout: ScreenModel["layout"] =
+    viewer.display || (tvHost && view.phase !== "lobby")
+      ? "tv"
+      : viewer.shared && seated
+        ? "controller"
+        : "board";
   const me = seated ? you.state : undefined;
   const board = boardModel(view, viewer);
   const scores: ScoreRow[] = players.map((player) => ({
@@ -1152,7 +1167,7 @@ export function present(view: FuseLaneView, viewer: Viewer): ScreenModel {
           : "game",
     layout,
     seated,
-    askName: !seated && !viewer.display && viewer.me !== "",
+    askName: !seated && !viewer.display && !tvHost && viewer.me !== "",
     ...(me && view.part !== "handoff"
       ? { hud: hud(view, you!, sharedDevice) }
       : {}),
@@ -1177,6 +1192,8 @@ export function present(view: FuseLaneView, viewer: Viewer): ScreenModel {
       : briefing && (viewer.local ? !briefing.ready : me && !me.ready)
         ? { readyEntry: [READY, view.week] }
         : {}),
+    ...waitingFor(view, viewer, players, me),
+    ...(layout === "tv" && inWeek ? { tv: tvClock(view, players) } : {}),
     headline:
       view.phase === "lobby"
         ? "PICK YOUR GOALS"
@@ -1185,6 +1202,63 @@ export function present(view: FuseLaneView, viewer: Viewer): ScreenModel {
           : inWeek
             ? `WEEK ${view.week}`
             : "",
+  };
+}
+
+/** Names as a sentence: "Ada", "Ada and Bo", "Ada, Bo and Cy". */
+export function listNames(names: readonly string[]): string {
+  return names.length < 2
+    ? (names[0] ?? "")
+    : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+/** Online, everyone plays the week at once: once yours is over, who it still waits for and for how long. */
+function waitingFor(
+  view: FuseLaneView,
+  viewer: Viewer,
+  players: readonly FuseLanePlayerView[],
+  me: PlayerState | undefined,
+): { waiting: string } | Record<string, never> {
+  if (
+    viewer.local ||
+    view.turns ||
+    view.phase !== "running" ||
+    view.part !== "week" ||
+    !me?.done
+  )
+    return {};
+  // Nobody waits for someone who is not here.
+  const left = players.filter(
+    (player) => !player.state.done && player.present && player.id !== viewer.me,
+  );
+  const seconds = Math.ceil(view.timerTicks / TICKS_PER_SECOND);
+  const people = left.filter((player) => !player.bot).map((p) => p.name);
+  return {
+    waiting:
+      left.length === 0
+        ? "Your week is over. Monday is coming"
+        : people.length === 0
+          ? "Your week is over. The AI are finishing theirs"
+          : `Your week is over. Waiting for ${listNames(people)} · ${seconds}s`,
+  };
+}
+
+/** The TV's clock: the week, the real seconds left and how many have finished. */
+function tvClock(
+  view: FuseLaneView,
+  players: readonly FuseLanePlayerView[],
+): NonNullable<ScreenModel["tv"]> {
+  const done = players.filter(
+    (player) => player.state.done || !player.present,
+  ).length;
+  return {
+    headline: `WEEK ${view.week}`,
+    seconds: Math.ceil(view.timerTicks / TICKS_PER_SECOND),
+    timer: Math.max(0, Math.min(1, view.timerTicks / (view.partTicks || 1))),
+    line:
+      done === 0
+        ? "Everyone is out in Fusetown"
+        : `${done} of ${players.length} done for the week`,
   };
 }
 

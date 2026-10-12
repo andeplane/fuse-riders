@@ -7,6 +7,7 @@ import QRCode from "qrcode";
 import {
   PeerTransport,
   createEndpoints,
+  createRoom,
   installRoomLifecycle,
   validRoomCode,
 } from "fuse-network-fe";
@@ -14,18 +15,12 @@ import { MAX_PACKET_BYTES, uuid } from "fuse-netcode";
 import {
   button,
   createAppPortal,
-  createInviteCard,
   createNameEntry,
   createNotice,
-  createRoster,
   el,
 } from "fuse-ui";
 import {
   DEFAULT_SETTINGS,
-  GOAL_MAX,
-  GOAL_MIN,
-  GOAL_NAMES,
-  WEEK_SECONDS,
   CITY,
   PLACES,
   fuseLaneGame,
@@ -46,6 +41,8 @@ import {
   type MenuChoice,
 } from "./menu.js";
 import { present, type Viewer } from "./presenter.js";
+import { createOnlineSheet, nextFace, storedFace } from "./online-menu.js";
+import { createRoomLobby } from "./room-lobby.js";
 import { dueReports, sendReport } from "./reports.js";
 import { FuseLaneRuntime, type FuseLaneCallbacks } from "./runtime.js";
 import { markToured, owesTour, tourSteps } from "./tour.js";
@@ -185,6 +182,33 @@ function menu(): void {
         else menu();
       },
       onDiscard: () => LocalRuntime.forget(store),
+      online: {
+        sheet: createOnlineSheet({
+          art,
+          store,
+          keys: names,
+          valid: validRoomCode,
+          async onCreate(mode) {
+            const room = await createRoom(endpoints.apiUrl, fetch, GAME).catch(
+              (error: unknown) => {
+                throw new Error(
+                  roomFailure(
+                    error instanceof Error ? error.message : String(error),
+                  ),
+                );
+              },
+            );
+            store.setItem(names.host(room.code), room.token);
+            store.setItem(names.shared, mode === "shared" ? "1" : "0");
+            location.href = endpoints.appUrl(`?room=${room.code}`);
+          },
+          onJoin: (code) => {
+            location.href = endpoints.appUrl(`?room=${code}`);
+          },
+        }),
+        mode: store.getItem(names.mode) === "online" ? "online" : "local",
+        onMode: (mode) => store.setItem(names.mode, mode),
+      },
     }),
   );
   app.querySelector(".fl-hero")?.append(cityPicture());
@@ -373,7 +397,10 @@ function room(): void {
   }
   const { code, role } = session,
     display = role === "display";
+  if (!display) store.setItem(names.last, code);
   document.body.classList.toggle("fl-display", display);
+  // A shared-screen room's creator is the TV: it seats nobody and keeps START and REMATCH.
+  const sharedHost = role === "host" && store.getItem(names.shared) === "1";
   const viewer: Viewer = {
     me: "",
     host: false,
@@ -391,70 +418,71 @@ function room(): void {
   };
   const top = header([el("strong", code, "fl-code"), status.element, leave]);
 
-  // Lobby: invitation, roster, goals, week length, start.
-  const lobby = el("section", "", "fl-lobby fl-sheet"),
-    roster = createRoster({ emptyText: "Nobody has joined yet" }),
-    addBot = button("+ ADD BOT", "fl-add-bot"),
-    start = button("START MATCH", "fui-button-primary fl-start"),
-    lobbyNote = el("p", "", "fui-lobby-note");
-  lobby.append(
-    createInviteCard({
-      code,
-      link: endpoints.appUrl(`?room=${code}`),
-      qr: (value) => QRCode.toDataURL(value, { margin: 1, width: 360 }),
-    }).element,
-  );
-  const goalPicker = el("div", "", "fl-goal-picker");
-  const goalInputs = GOAL_NAMES.map((name) => {
-    const row = el("label", "", "fl-goal-pick"),
-      input = el("input"),
-      value = el("b", "");
-    input.type = "range";
-    input.min = String(GOAL_MIN);
-    input.max = String(GOAL_MAX);
-    input.step = "10";
-    input.oninput = () => text(value, input.value);
-    input.onchange = () =>
-      runtime.setGoals(goalInputs.map((goal) => Number(goal.input.value)));
-    row.append(el("span", name), input, value);
-    goalPicker.append(row);
-    return { input, value };
+  const tvLink = button("OPEN A TV SCREEN", "fl-tv-link");
+  tvLink.title =
+    "The town on another screen: a TV or a laptop everyone can see";
+  tvLink.onclick = () =>
+    window.open(endpoints.appUrl(`?room=${code}&display=1`), "_blank");
+  const lobby = createRoomLobby({
+    art,
+    code,
+    link: endpoints.appUrl(`?room=${code}`),
+    qr: (value) => QRCode.toDataURL(value, { margin: 1, width: 360 }),
+    tv: sharedHost || display,
+    extra: [tvLink],
+    actions: {
+      addBot: () => runtime.command({ type: "bot", action: "add" }),
+      removeBot: (id) => runtime.command({ type: "bot", action: "remove", id }),
+      start: () => runtime.command({ type: "action", action: "start" }),
+      goal: (goal) => runtime.setGoals([goal, goal, goal, goal]),
+      level: (level) =>
+        runtime.command({ type: "settings", settings: { ...settings, level } }),
+      weekSeconds: (weekSeconds) =>
+        runtime.command({
+          type: "settings",
+          settings: { ...settings, weekSeconds },
+        }),
+    },
   });
-  const weekPicker = el("div", "", "fl-segmented");
-  const weekButtons = WEEK_SECONDS.map((seconds) => {
-    const choice = button(`${seconds}s`, "fl-segment");
-    choice.onclick = () =>
-      runtime.command({
-        type: "settings",
-        settings: { ...settings, weekSeconds: seconds },
-      });
-    weekPicker.append(choice);
-    return { seconds, choice };
-  });
+
+  // Your face and name, then JOIN.
+  let face = storedFace(store, names.avatar);
+  const faceButton = button("", "fl-person-face");
+  const drawFace = () => {
+    faceButton.replaceChildren(art.element(`avatar-${face}-portrait`, 44));
+    faceButton.setAttribute("aria-label", "Change your character");
+  };
+  faceButton.type = "button";
+  faceButton.onclick = () => {
+    face = nextFace(face);
+    store.setItem(names.avatar, face);
+    drawFace();
+  };
+  drawFace();
+  const join = (name: string) =>
+    runtime.command({
+      type: "join",
+      name,
+      avatarId: face,
+    });
   const nameEntry = createNameEntry({
     normalize: (raw) => seatName(raw) ?? "",
     initial: store.getItem(names.name) ?? "",
     onInput: (value) => store.setItem(names.name, value),
     buttonText: "JOIN",
+    placeholder: "Your name",
     onSubmit: (name) => {
       store.setItem(names.name, name);
-      runtime.command({ type: "join", name });
+      join(name);
     },
   });
-  const lobbyActions = el("div", "", "fl-actions");
-  lobbyActions.append(addBot, start);
-  lobby.append(
-    el("h2", "PLAYERS", "fui-lobby-title"),
-    roster.element,
-    el("h2", "YOUR GOALS", "fui-lobby-title"),
-    goalPicker,
-    el("h2", "WEEK LENGTH", "fui-lobby-title"),
-    weekPicker,
-    lobbyNote,
-    lobbyActions,
+  nameEntry.input.before(faceButton);
+  const joinCard = el("section", "", "fl-sheet fl-join-card");
+  joinCard.append(
+    el("h2", "JOIN THE GAME", "fl-menu-title"),
+    el("p", "Tap the face to pick your character.", "fl-hint"),
+    nameEntry.form,
   );
-  addBot.onclick = () => runtime.command({ type: "bot", action: "add" });
-  start.onclick = () => runtime.command({ type: "action", action: "start" });
 
   const leaveGame = button("", "fl-icon-button fl-quit");
   leaveGame.setAttribute("aria-label", "Leave the room");
@@ -474,14 +502,20 @@ function room(): void {
         label: "LOBBY",
         run: () => runtime.command({ type: "action", action: "lobby" }),
       },
+      tvNote: `Join on your phone: ${endpoints.appUrl(`?room=${code}`).replace(/^https?:\/\//, "")}`,
     },
     screenOptions,
   );
+  // Nothing shows but this line until the room's first frame says who this device is and where the room is at.
+  const connecting = el("p", "Connecting to the room…", "fl-connecting");
+  connecting.setAttribute("role", "status");
+  joinCard.hidden = lobby.element.hidden = screen.game.hidden = true;
   const main = el("main", "", "fl-room");
-  main.append(nameEntry.form, lobby, ...screen.elements);
+  main.append(connecting, joinCard, lobby.element, ...screen.elements);
   app.replaceChildren(top, main);
 
   const sent = new Set<string>();
+  // A name this device used before joins by itself, with its face; a new device asks first.
   const remembered = seatName(store.getItem(names.name) ?? "");
   let joinSent = false;
   const callbacks: FuseLaneCallbacks = {
@@ -492,41 +526,16 @@ function room(): void {
       main.dataset.phase = frame.phase;
       main.dataset.week = String(frame.week);
       main.dataset.part = frame.part;
-      lobby.hidden = model.screen !== "lobby";
+      main.dataset.layout = model.layout;
+      connecting.hidden = true;
+      lobby.element.hidden = model.screen !== "lobby";
       screen.game.hidden = model.screen === "lobby";
-      nameEntry.form.hidden = !model.askName;
-      roster.update(model.lobby.members);
-      for (const [id, row] of roster.entries()) {
-        let remove = row.querySelector<HTMLButtonElement>(".fl-remove");
-        const removable = model.lobby.removable.includes(id);
-        if (removable && !remove) {
-          remove = button("×", "fl-remove");
-          remove.setAttribute("aria-label", "Remove bot");
-          remove.onclick = () =>
-            runtime.command({ type: "bot", action: "remove", id });
-          row.append(remove);
-        }
-        if (remove) remove.hidden = !removable;
-      }
-      addBot.hidden = !model.lobby.canAddBot;
-      start.hidden = !model.lobby.showStart;
-      start.disabled = !model.lobby.canStart;
-      text(lobbyNote, model.lobby.note);
-      lobbyNote.hidden = !model.lobby.note;
-      goalInputs.forEach((goal, index) => {
-        goal.input.disabled = !model.lobby.canPickGoals;
-        if (document.activeElement !== goal.input) {
-          goal.input.value = String(model.lobby.goals[index]);
-          text(goal.value, String(model.lobby.goals[index]));
-        }
-      });
-      for (const { seconds, choice } of weekButtons) {
-        choice.classList.toggle("on", model.lobby.weekSeconds === seconds);
-        choice.disabled = !model.lobby.canSetWeek;
-      }
+      joinCard.hidden = !model.askName;
+      lobby.render(model.lobby, sharedHost);
+      tvLink.hidden = !(viewer.host && !viewer.shared && !display);
       if (model.askName && remembered && !joinSent) {
         joinSent = true;
-        runtime.command({ type: "join", name: remembered });
+        join(remembered);
       }
       if (model.seated) joinSent = false;
       screen.render(model);
@@ -575,10 +584,7 @@ function room(): void {
   };
   const runtime = new FuseLaneRuntime(
     code,
-    {
-      ...DEFAULT_SETTINGS,
-      display: role === "host" && store.getItem(names.shared) === "1",
-    },
+    { ...DEFAULT_SETTINGS, display: sharedHost },
     callbacks,
     {
       transport: (events) =>

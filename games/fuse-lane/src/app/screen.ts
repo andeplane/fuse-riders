@@ -58,6 +58,8 @@ export interface ScreenHooks {
   back: { label: string; run(): void };
   /** Small buttons for the HUD's corner (pause, menu, leave). */
   controls?: HTMLElement[];
+  /** The shared screen's line under its clock, e.g. how to join. */
+  tvNote?: string;
   /** The "Getting started" checklist was folded or unfolded, or hidden or brought back. */
   checklist?: {
     fold(open: boolean): void;
@@ -489,6 +491,25 @@ export function createGameScreen(
     if (place >= 0) walk(place);
   };
 
+  // Online, once your week is over: who it still waits for, where the tip was.
+  const waiting = el("p", "", "fl-waiting");
+  waiting.setAttribute("role", "status");
+  waiting.hidden = true;
+
+  // The shared screen's clock: the week, the seconds left, how many are done, and how to join.
+  const tvBar = el("section", "", "fl-tvbar"),
+    tvHeadline = el("strong", "", "fl-tv-week"),
+    tvSeconds = el("b", "", "fl-tv-seconds"),
+    tvLine = el("span", "", "fl-tv-line"),
+    tvMeter = el("i", "", "fl-tv-meter"),
+    tvFill = el("b");
+  tvMeter.append(tvFill);
+  const tvWords = el("span", "", "fl-tv-words");
+  tvWords.append(tvHeadline, tvLine);
+  tvBar.append(tvSeconds, tvWords, tvMeter);
+  if (hooks.tvNote) tvBar.append(el("small", hooks.tvNote, "fl-tv-note"));
+  tvBar.hidden = true;
+
   // ---- the tour: a card that points at a HUD piece or frames places on the map, over everything else ----
   const tourLayer = el("div", "", "fl-tour"),
     tourSpot = el("div", "", "fl-tour-spot"),
@@ -622,6 +643,8 @@ export function createGameScreen(
     hud,
     checklist,
     tip,
+    waiting,
+    tvBar,
     toast,
     tourLayer,
   );
@@ -804,6 +827,9 @@ export function createGameScreen(
       go.disabled = !next.walk;
     });
     renderPanel(next.panel, modal || youOpen);
+    // A controller's place buttons step aside for what opens over them (a place, you, Monday).
+    strip.hidden =
+      next.layout === "controller" && (modal || youOpen || !panel.hidden);
     showToast(next.toast);
     renderChecklist(next, modal || youOpen || !panel.hidden);
     tip.hidden = !next.tip || modal || youOpen || !panel.hidden;
@@ -820,7 +846,18 @@ export function createGameScreen(
     rivals.render(next.scores);
     panelStandings.render(next.scores);
     // An open panel covers the middle, so the rivals in the corners step aside (the panel shows them on phones).
-    rivals.element.hidden = !h || modal || !panel.hidden || !you.hidden;
+    rivals.element.hidden =
+      !(h || next.layout === "tv") || modal || !panel.hidden || !you.hidden;
+    waiting.hidden = !next.waiting || modal || youOpen;
+    if (next.waiting) text(waiting, next.waiting);
+    tvBar.hidden = !next.tv || modal;
+    if (next.tv) {
+      text(tvHeadline, next.tv.headline);
+      text(tvSeconds, `${next.tv.seconds}s`);
+      text(tvLine, next.tv.line);
+      tvFill.style.width = `${(next.tv.timer * 100).toFixed(1)}%`;
+      tvBar.classList.toggle("low", next.tv.timer < 0.2);
+    }
     // Briefing.
     briefing.hidden = !next.briefing;
     if (next.briefing) {
