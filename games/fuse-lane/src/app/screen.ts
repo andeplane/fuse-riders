@@ -286,22 +286,21 @@ export function createGameScreen(
   controls.append(...(hooks.controls ?? []));
   hud.append(youButton, cash, hudGoals.element, endWeek, controls);
   endWeek.onclick = () => play(model?.endWeekEntry);
-  // The cash counts to its new value and says by how much; a new player's (or a new turn's) cash simply shows.
+  // The cash counts to its new value (stepped by the board's frames) and says by how much; a new player's, a new
+  // week's or a new match's cash simply shows.
   let cashOwner = "",
-    cashShown = 0,
     cashTarget = 0,
-    cashTween = 0;
+    cashTween: { from: number; start: number } | undefined;
   const showCash = (owner: string, value: number) => {
     if (owner === cashOwner && value === cashTarget) return;
     const same = owner === cashOwner;
     cashOwner = owner;
-    cancelAnimationFrame(cashTween);
-    cashTween = 0;
     const still =
       typeof matchMedia === "function" &&
       matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (!same || still) {
-      cashShown = cashTarget = value;
+      cashTarget = value;
+      cashTween = undefined;
       text(cashValue, money(value));
       return;
     }
@@ -311,16 +310,23 @@ export function createGameScreen(
       `${delta > 0 ? "+" : "−"}${money(Math.abs(delta))}`,
       `fl-pop ${delta > 0 ? "good" : "bad"}`,
     );
-    const from = cashShown,
-      start = performance.now();
-    cashTarget = value;
-    const step = () => {
-      const t = Math.min(1, (performance.now() - start) / 500);
-      cashShown = from + (value - from) * (1 - (1 - t) ** 3);
-      text(cashValue, money(t < 1 ? cashShown : value));
-      cashTween = t < 1 ? requestAnimationFrame(step) : 0;
+    cashTween = {
+      from: cashShown(performance.now()),
+      start: performance.now(),
     };
-    cashTween = requestAnimationFrame(step);
+    cashTarget = value;
+  };
+  /** The cash on show at `now`: on its way from where it was to its new value over half a second. */
+  const cashShown = (now: number): number => {
+    if (!cashTween) return cashTarget;
+    const t = Math.min(1, (now - cashTween.start) / 500);
+    return cashTween.from + (cashTarget - cashTween.from) * (1 - (1 - t) ** 3);
+  };
+  const tickCash = (now: number) => {
+    if (!cashTween) return;
+    const shown = cashShown(now);
+    if (now - cashTween.start >= 500) cashTween = undefined;
+    text(cashValue, money(cashTween ? shown : cashTarget));
   };
 
   // ---- rivals in the corners (wide screens) ----
@@ -1167,6 +1173,7 @@ export function createGameScreen(
     if (game.hidden || !game.isConnected || game.getClientRects().length === 0)
       return;
     resize();
+    tickCash(performance.now());
     const timing = driver().frameTiming();
     if (!timing || !view) return;
     const { newer, older } = timing;

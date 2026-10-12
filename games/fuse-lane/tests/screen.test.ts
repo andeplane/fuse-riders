@@ -295,6 +295,39 @@ test("the HUD: hours, week, clock, money and goal rings; CALL IT A WEEK logs thi
   assert.equal(h.$(".fl-corners").hidden, true);
 });
 
+test("the cash counts to a new value with a pop saying by how much, a goal's gain bumps its ring, and a new player's simply show", () => {
+  const h = harness();
+  const model = h.render();
+  const hud = model.hud!;
+  const pops = () => h.$$(".fl-pop").map((pop) => pop.textContent);
+  h.render({
+    ...model,
+    hud: {
+      ...hud,
+      cash: hud.cash + 40,
+      goals: hud.goals.map((goal, k) =>
+        k === 0 ? { ...goal, value: goal.value + 2 } : goal,
+      ),
+    },
+  });
+  assert.deepEqual(pops(), ["+$40", "+2"]);
+  assert.ok(h.$(".fl-money").classList.contains("bump"));
+  assert.ok(h.$$(".fl-goal-ring")[0]!.classList.contains("bump"));
+  h.frame(250);
+  const midway = Number(h.$(".fl-cash").textContent!.replace(/[$,]/g, ""));
+  assert.ok(midway > hud.cash && midway < hud.cash + 40, `${midway}`);
+  h.frame(300);
+  assert.equal(h.$(".fl-cash").textContent, money(hud.cash + 40));
+  h.render({ ...model, hud: { ...hud, cash: hud.cash + 40 - 34 } });
+  assert.equal(h.$$(".fl-money .fl-pop").at(-1)!.textContent, "−$34");
+
+  // Another player's turn (or a new week) is not a change anyone made: no pop.
+  const before = pops().length;
+  h.render({ ...model, hud: { ...hud, name: "Someone else", cash: 999 } });
+  assert.equal(pops().length, before);
+  assert.equal(h.$(".fl-cash").textContent, "$999");
+});
+
 test("place buttons walk there; inside a place its panel opens, cards log their entry, and × closes it for this visit", () => {
   const h = harness();
   h.render();
