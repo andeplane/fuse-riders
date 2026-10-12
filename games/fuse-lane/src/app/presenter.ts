@@ -75,6 +75,8 @@ import {
   sellValue,
   shelfPrice,
   walkSteps,
+  doorOf,
+  STREETS,
   type Economy,
   type FuseLanePlayerView,
   type FuseLaneView,
@@ -84,6 +86,7 @@ import {
   PICKPOCKETS,
   eventChip,
 } from "../game/index.js";
+import { route } from "./layout.js";
 import { tips, type Tip } from "./tips.js";
 import type { ChecklistModel } from "./checklist.js";
 
@@ -1178,6 +1181,26 @@ function lobby(view: FuseLaneView, viewer: Viewer): LobbyModel {
 }
 
 /** What the board draws from one frame: every avatar where it is, and the places marked for this device. */
+/**
+ * Where a player is in the replay of their week at clock unit `at`, from their trail: on a step of one of their walks,
+ * or in the place it ended at. Undefined before their first walk, so they stay where they are.
+ */
+export function replayAt(
+  trail: readonly number[],
+  at: number,
+): { pos: number; dest: number; inside: number } | undefined {
+  let found = -1;
+  for (let k = 0; k + 2 < trail.length && trail[k]! <= at; k += 3) found = k;
+  if (found < 0) return undefined;
+  const from = trail[found + 1]!,
+    place = trail[found + 2]!,
+    path = route(from, doorOf(place), place, STREETS.size) ?? [from],
+    step = Math.floor(at - trail[found]!);
+  return step < path.length - 1
+    ? { pos: path[step]!, dest: place, inside: -1 }
+    : { pos: doorOf(place), dest: -1, inside: place };
+}
+
 export function boardModel(
   view: FuseLaneView,
   viewer: Viewer,
@@ -1185,19 +1208,36 @@ export function boardModel(
   const id = viewer.local ? view.current : viewer.me;
   const you = view.players.find((player) => player.id === id);
   const me = you && !viewer.display ? you.state : undefined;
+  // The week's clock for the replays: your hours, or the real time gone if that is further on.
+  const clock =
+    view.part === "week"
+      ? Math.max(
+          me?.time ?? 0,
+          (1 - view.timerTicks / Math.max(1, view.partTicks)) *
+            WEEK_HOURS *
+            UNITS_PER_HOUR,
+        )
+      : -1;
   return {
-    // A hot-seat week shows the player on the move; the others wait at home or where their week ended.
-    players: view.players.map((player) => ({
-      id: player.id,
-      name: player.name,
-      color: colorOf(player.slot),
-      avatar: player.avatarId,
-      pos: player.state.pos,
-      dest: player.state.dest,
-      inside: player.state.inside,
-      done: player.state.done,
-      you: player.id === id,
-    })),
+    // The one on the move walks live; whoever has already played this week (a bot, or someone who passed the phone)
+    // walks their week again beside them, hour for hour.
+    players: view.players.map((player) => {
+      const replay =
+        clock >= 0 && player.id !== id && player.state.done
+          ? replayAt(player.state.trail, clock)
+          : undefined;
+      return {
+        id: player.id,
+        name: player.name,
+        color: colorOf(player.slot),
+        avatar: player.avatarId,
+        pos: replay?.pos ?? player.state.pos,
+        dest: replay?.dest ?? player.state.dest,
+        inside: replay?.inside ?? player.state.inside,
+        done: player.state.done && !(replay && replay.dest >= 0),
+        you: player.id === id,
+      };
+    }),
     places: PLACES.map((place, index) => ({
       index,
       id: place.id,

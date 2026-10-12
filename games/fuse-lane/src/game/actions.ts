@@ -55,6 +55,7 @@ import {
   say,
   spendHours,
   type PlayerState,
+  TRAIL_WALKS,
 } from "./state.js";
 
 /**
@@ -112,6 +113,8 @@ const busy = (player: PlayerState) => player.done || player.time >= WEEK_UNITS;
 export function walkTo(player: PlayerState, place: number): void {
   if (busy(player) || place < 0 || place >= PLACES.length) return;
   if (player.inside === place) return;
+  if (player.trail.length < TRAIL_WALKS * 3)
+    player.trail.push(player.time, player.pos, place);
   player.inside = -1;
   player.dest = place;
   if (player.pos === doorOf(place)) arrive(player);
