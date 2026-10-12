@@ -12,6 +12,7 @@ import {
   NEOBANK,
   READY,
   RESALE,
+  buyCost,
   ROOMSHARE,
   WALK,
   type FuseLaneView,
@@ -21,8 +22,14 @@ import {
   DEFAULT_CHOICE,
   chooseSetup,
   maxBots,
+  PLAYED_KEY,
+  SETUP_KEY,
+  nextAvatar,
   normalizeChoice,
   parseStoredSetup,
+  playedChoice,
+  rememberPlayed,
+  renamed,
 } from "../src/app/menu.js";
 import {
   present,
@@ -401,4 +408,66 @@ test("Neobank lends from a card and FreshCo sells scratch cards", () => {
   model = present(match.view(), LOCAL);
   assert.equal(match.room.players.p1!.scratched, 1);
   assert.ok(model.toast!.text.length > 0);
+});
+
+test("changing a face keeps a rename, and neither edit touches the defaults", () => {
+  const before = JSON.stringify(DEFAULT_CHOICE);
+  let choice = normalizeChoice({
+    ...DEFAULT_CHOICE,
+    humans: [...DEFAULT_CHOICE.humans, { name: "Player 2", avatar: "fox" }],
+  });
+  choice = renamed(choice, 1, "Zed");
+  choice = nextAvatar(choice, 1);
+  assert.equal(choice.humans[1]!.name, "Zed");
+  assert.notEqual(choice.humans[1]!.avatar, "fox");
+  // A rename that clashes is made unique.
+  choice = renamed(choice, 0, "Zed");
+  assert.deepEqual(
+    choice.humans.map((human) => human.name),
+    ["Zed", "Zed 2"],
+  );
+  assert.equal(JSON.stringify(DEFAULT_CHOICE), before);
+});
+
+test("PLAY AGAIN replays the group a match started with, not the menu's later edits", () => {
+  const items = new Map<string, string>();
+  const store = {
+    getItem: (key: string) => items.get(key) ?? null,
+    setItem: (key: string, value: string) => void items.set(key, value),
+    removeItem: (key: string) => void items.delete(key),
+  };
+  const four = normalizeChoice({
+    ...DEFAULT_CHOICE,
+    humans: ["Ann", "Bo", "Cy", "Di"].map((name) => ({ name, avatar: "fox" })),
+    bots: 0,
+  });
+  rememberPlayed(store, "match-1", four);
+  items.set(SETUP_KEY, JSON.stringify(DEFAULT_CHOICE));
+  assert.deepEqual(playedChoice(store, "match-1"), four);
+  // Another match, or a damaged record: the menu's setup.
+  assert.deepEqual(playedChoice(store, "match-2"), DEFAULT_CHOICE);
+  items.set(PLAYED_KEY, "{oops");
+  assert.deepEqual(playedChoice(store, "match-1"), DEFAULT_CHOICE);
+});
+
+test("a market card's price is what the tap charges: the whole order, which the cash covers", () => {
+  const match = LocalMatch.create(setup(1, 0));
+  match.play([WALK, 1, NEOBANK]);
+  until(match, () => match.room.players.p1!.inside === NEOBANK);
+  const me = match.room.players.p1!;
+  const cash = me.cash;
+  const cards = present(match.view(), LOCAL).panel!.sections.flatMap(
+    (section) => section.cards,
+  );
+  const buy = cards.find((card) => card.title === "Buy MEGA")!;
+  const units = buy.entry![5] as number;
+  assert.ok(units > 1, "a cheap stock buys several units");
+  assert.equal(buy.note, `${units} units`);
+  const cost = buyCost(match.room.economy, buy.entry![4] as number, units);
+  assert.equal(buy.price, `$${cost}`);
+  assert.ok(cost <= cash);
+  match.play(buy.entry!);
+  match.step();
+  assert.equal(me.cash, cash - cost);
+  assert.match(present(match.view(), LOCAL).toast!.text, /Bought/);
 });

@@ -2,7 +2,7 @@ import { UNITS_PER_HOUR, WALK_SPEED, WEEK_UNITS } from "./basics.js";
 import { COMPANIES, ECONOMY, EDUCATION, HOUSING } from "./data/economy.js";
 import { FESTIVAL } from "./data/events.js";
 import { ITEMS } from "./data/items.js";
-import { COURSES, JOBS, type JobData } from "./data/jobs.js";
+import { COURSES, JOBS, LESSONS, type JobData } from "./data/jobs.js";
 import { borrow, garnishLoan, repay, scratch } from "./credit.js";
 import { buyUsed, pawn, redeem } from "./resale.js";
 import {
@@ -50,6 +50,7 @@ import {
   dressedFor,
   hasDegree,
   hoursLeft,
+  owns,
   lessonsNeeded,
   say,
   spendHours,
@@ -246,9 +247,14 @@ function apply(room: FuseLaneRoom, id: string, index: number): void {
       "You already work there. Ask for a raise instead.",
       true,
     );
+  // What the posting already shows (a freeze, what you're missing, turned down this week) is said at once, free:
+  // tapping through postings you can't get must not burn the week. An interview costs the hours, also one lost
+  // to a rival who applied in the same moment.
   const taken = holder(room, index);
-  spendHours(player, HOURS.apply);
-  if (taken) return say(player, `${nameOf(room, taken)} holds that job.`, true);
+  if (taken) {
+    spendHours(player, HOURS.apply);
+    return say(player, `${nameOf(room, taken)} holds that job.`, true);
+  }
   if (!hiring(room.economy, job.employer))
     return say(player, `${EMPLOYERS[job.employer]} has a hiring freeze.`, true);
   const reasons = missing(player, job);
@@ -256,6 +262,7 @@ function apply(room: FuseLaneRoom, id: string, index: number): void {
     return say(player, `Not yet: you need ${reasons.join(", ")}.`, true);
   if (player.failed.includes(index))
     return say(player, "Still no openings. Try next week.", true);
+  spendHours(player, HOURS.apply);
   if (!job.sure && randInt(room, 1, 100) > hireOdds(room.economy, player)) {
     player.failed.push(index);
     return say(player, "No openings right now. Try another posting.", true);
@@ -416,7 +423,9 @@ export function act(
     }
     case ENROLL: {
       const course = COURSES[a];
-      if (place !== COLLEGE || !course || player.courses[a]! >= 0) return;
+      if (place !== COLLEGE || !course) return;
+      if (player.courses[a]! >= 0)
+        return say(player, `You're already enrolled in ${course.name}.`, true);
       if (course.prereq >= 0 && !hasDegree(player, course.prereq))
         return say(
           player,
@@ -432,12 +441,18 @@ export function act(
         lessons = player.courses[a] ?? -1;
       if (place !== COLLEGE || !course) return;
       if (lessons < 0) return say(player, "Enroll first.", true);
-      if (lessons >= lessonsNeeded(player) || lessons >= 10) return;
-      player.courses[a] = lessons + 1;
-      player.weekClasses++;
-      spendHours(player, HOURS.class);
-      if (lessons + 1 >= lessonsNeeded(player)) {
-        player.courses[a] = 10;
+      if (lessons >= LESSONS)
+        return say(player, `You already hold ${course.name}.`, true);
+      // Study books or a laptop bought late can leave a course already at the
+      // (now lower) bar: that counts as done, with no class to sit.
+      const caughtUp = lessons >= lessonsNeeded(player);
+      if (!caughtUp) {
+        player.courses[a] = lessons + 1;
+        player.weekClasses++;
+        spendHours(player, HOURS.class);
+      }
+      if (caughtUp || lessons + 1 >= lessonsNeeded(player)) {
+        player.courses[a] = LESSONS;
         addHappiness(player, 5);
         player.dep += 5;
         player.eduCredit += 5;
@@ -452,19 +467,28 @@ export function act(
     case BUY:
       return buy(room, player, place, a);
     case PAY_RENT: {
-      if (place !== KEYNEST || player.rentWeeks >= MAX_PREPAID - 3) return;
+      if (place !== KEYNEST) return;
+      if (player.rentWeeks >= MAX_PREPAID - 3)
+        return say(
+          player,
+          `Rent is paid ${player.rentWeeks} weeks ahead. KeyNest won't take more yet.`,
+          true,
+        );
       const weeks = player.rentWeeks === 0 ? 4 - (room.week % 4) : 4;
       if (!pay(room, player, player.rent, place, HOUSING)) return;
       player.rentWeeks += weeks;
       return say(player, `Rent paid: ${player.rentWeeks} weeks covered.`);
     }
     case EXTEND: {
-      if (
-        place !== KEYNEST ||
-        player.rentWeeks > 0 ||
-        (player.flags & TRIED_EXTENSION) !== 0
-      )
-        return;
+      if (place !== KEYNEST) return;
+      if (player.rentWeeks > 0)
+        return say(player, "Your rent is paid. Nothing to extend.", true);
+      if ((player.flags & TRIED_EXTENSION) !== 0)
+        return say(
+          player,
+          "You already asked this week. Try again next week.",
+          true,
+        );
       player.flags |= TRIED_EXTENSION;
       const bar = [0, 3, 6, 9][Math.min(3, player.rentExt)] ?? 12;
       if (player.rentExt >= 0 && randInt(room, 1, 12) > bar) {
@@ -483,18 +507,25 @@ export function act(
       return say(player, "Arrears cleared. KeyNest smiles (briefly).");
     }
     case MOVE: {
-      if (place !== KEYNEST || (a !== 0 && a !== 1) || a === player.home)
-        return;
+      if (place !== KEYNEST || (a !== 0 && a !== 1)) return;
+      if (a === player.home)
+        return say(
+          player,
+          `You already live at ${PLACES[homePlace(a)]!.name}.`,
+          true,
+        );
       const price = rentPrice(economy, a),
         penalty = room.week < player.leaseEnd ? player.rent : 0;
       if (!pay(room, player, price + penalty, place, HOUSING)) return;
       player.home = a;
       player.rent = price;
-      player.rentWeeks = 4;
+      // Rent days are on everyone's 4-week grid; a lease off it fell into arrears with no
+      // rent-day notice. The first payment covers at least 4 weeks and runs on to a rent day.
+      player.rentWeeks = 4 + ((4 - (room.week % 4)) % 4);
       player.leaseEnd = room.week + 12;
       return say(
         player,
-        `Moved to ${PLACES[homePlace(a)]!.name}: $${price} per 4 weeks, locked 12 weeks${penalty ? `, $${penalty} lease break fee` : ""}.`,
+        `Moved to ${PLACES[homePlace(a)]!.name}: $${price} per 4 weeks, locked 12 weeks${penalty ? `, $${penalty} lease break fee` : ""}. ${player.rentWeeks} weeks covered.`,
       );
     }
     case DEPOSIT:
@@ -588,6 +619,9 @@ function buy(
       `That takes ${item.hours} hours. Not enough left this week.`,
       true,
     );
+  // Without a fridge more than a week of groceries spoils on Monday: the shop won't sell what can only be wasted.
+  if (item.kind === "groceries" && item.weeks! > 1 && !owns(player, "fridge"))
+    return say(player, "That needs a fridge. MegaMart sells them.", true);
   const price = shelfPrice(room.economy, item);
   if (!pay(room, player, price, place, item.category)) return;
   if (item.hours) spendHours(player, item.hours);

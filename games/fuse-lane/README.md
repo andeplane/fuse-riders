@@ -55,7 +55,7 @@ Cities are data: `src/game/data/cities/fusetown.ts` holds the map's size, the st
 
 2. **A week** has 60 hours. Tap a building on the board to walk there (keyboards can Tab to a hidden list of the places). You walk the streets the shortest way; it costs 1 hour per 15 steps (the longest walk across town is 86 steps, under 6 hours), and entering a place costs 2 hours. Inside, the place's cards are what you can do there:
    - work a shift: 6 hours, paid as 8;
-   - apply for a job: 4 hours;
+   - apply for a job: 4 hours for the interview (a posting you are not qualified for, or that turned you down this week, says why at once and costs nothing);
    - attend a class: 6 hours;
    - relax at home: 6 hours;
    - buy food, clothes and goods, or go out for karaoke at Mono Burger (4 hours, once a week);
