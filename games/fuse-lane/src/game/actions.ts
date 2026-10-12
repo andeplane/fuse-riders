@@ -1,14 +1,19 @@
 import { UNITS_PER_HOUR, WALK_SPEED, WEEK_UNITS } from "./basics.js";
 import { COMPANIES, ECONOMY, EDUCATION, HOUSING } from "./data/economy.js";
+import { FESTIVAL } from "./data/events.js";
 import { ITEMS } from "./data/items.js";
 import { COURSES, JOBS, LESSONS, type JobData } from "./data/jobs.js";
+import { borrow, garnishLoan, repay, scratch } from "./credit.js";
+import { buyUsed, pawn, redeem } from "./resale.js";
 import {
   COLLEGE,
   EMPLOYERS,
+  FRESHCO,
   JOBHUB,
   KEYNEST,
   NEOBANK,
   PLACES,
+  RESALE,
   WORKPLACE,
   hiresAtGate,
 } from "./data/places.js";
@@ -23,15 +28,17 @@ import {
   rentPrice,
   sellValue,
   shelfPrice,
+  shiftBonus,
   type Economy,
 } from "./economy.js";
-import { randInt } from "./random.js";
+import { r2, randInt } from "./random.js";
 import { nameOf, type FuseLaneRoom } from "./room.js";
 import { doorOf, nextStep } from "./streets.js";
 import {
   ASKED_RAISE,
   DRINK_HAPPY,
   EXTENDED,
+  FUN_HAPPY,
   GROCERY_HAPPY,
   homePlace,
   MEAL_HAPPY,
@@ -72,7 +79,13 @@ export const RELAX = 1,
   TRADE_BUY = 15,
   TRADE_SELL = 16,
   QUIT = 17,
-  LAST_ACTION = 17;
+  BORROW = 18,
+  REPAY = 19,
+  SCRATCH = 20,
+  PAWN = 21,
+  REDEEM = 22,
+  BUY_USED = 23,
+  LAST_ACTION = 23;
 
 /** Hours each action costs (`HOURS.enter` to walk in the door). */
 export const HOURS = {
@@ -182,7 +195,8 @@ function hire(room: FuseLaneRoom, player: PlayerState, index: number): void {
   player.job = index;
   player.raises = 0;
   player.exp += 2;
-  player.maxExp = job.exp === 0 ? 20 : job.exp + 10;
+  // Experience keeps growing on the job well past its bar: it opens seniority raises and the next rung.
+  player.maxExp = job.exp + 25;
   player.minDep = job.dep;
   player.dep = Math.max(player.dep, 10);
   player.wage = marketWage(room.economy, job);
@@ -256,6 +270,20 @@ function apply(room: FuseLaneRoom, id: string, index: number): void {
   hire(room, player, index);
 }
 
+/** Seniority steps a position pays on top of the market, at most. */
+export const MAX_SENIORITY = 4;
+/**
+ * The wage a seniority raise would give: +8% for each step, with experience past the job's bar (6 a step) and at
+ * most `MAX_SENIORITY` steps; the current wage when no step is due. Hard work pays without a degree, slowly.
+ */
+export function seniorityRaise(player: PlayerState, job: JobData): number {
+  const steps = Math.min(
+    MAX_SENIORITY,
+    Math.floor(Math.max(0, player.exp - job.exp) / 6),
+  );
+  return player.raises < steps ? r2(player.wage * 1.08) : player.wage;
+}
+
 // ---- shifts --------------------------------------------------------------------------------------------------
 
 /** Pay for one shift worth `full` dollars with `left` hours on the clock: prorated when under 6 remain. */
@@ -282,7 +310,9 @@ function work(room: FuseLaneRoom, player: PlayerState): void {
   if (player.dep < player.minDep + 20 + player.eduCredit) player.dep++;
   player.flags |= WORKED;
   const gross = prorate(
-    Math.round(player.wage * PAID_HOURS),
+    Math.round(
+      player.wage * PAID_HOURS * shiftBonus(room.economy, job.employer),
+    ),
     hoursLeft(player),
   );
   let net = gross;
@@ -296,6 +326,9 @@ function work(room: FuseLaneRoom, player: PlayerState): void {
     player.rentExt = -1;
     room.economy.companies[7]!.spend += garnished;
   }
+  // A loan in arrears: Neobank takes half of what is left.
+  const toBank = garnishLoan(player, net);
+  net -= toBank;
   player.cash += net;
   player.shifts++;
   player.weekShifts++;
@@ -307,12 +340,14 @@ function work(room: FuseLaneRoom, player: PlayerState): void {
   }
   say(
     player,
-    garnished
-      ? `Shift done: $${net} (KeyNest garnished $${garnished}).`
-      : warn
-        ? `Shift done: $${net}. Your boss says: show up more, or else.`
-        : `Shift done: +$${net}.`,
-    garnished > 0 || warn,
+    toBank
+      ? `Shift done: $${net} (Neobank took $${toBank} for your loan${garnished ? `, KeyNest $${garnished}` : ""}).`
+      : garnished
+        ? `Shift done: $${net} (KeyNest garnished $${garnished}).`
+        : warn
+          ? `Shift done: $${net}. Your boss says: show up more, or else.`
+          : `Shift done: +$${net}.${shiftBonus(room.economy, job.employer) > 1 ? " Rush pay!" : ""}`,
+    garnished > 0 || toBank > 0 || warn,
   );
 }
 
@@ -351,17 +386,20 @@ export function act(
         market = marketWage(economy, job);
       player.flags |= ASKED_RAISE;
       spendHours(player, HOURS.raise);
-      if (market <= player.wage)
-        return say(
-          player,
-          `The market pays $${market.toFixed(2)}/h. You already get more.`,
-          true,
-        );
       if (player.dep < job.dep + 5 * player.raises)
         return say(player, "Not now. Show up more and ask again.", true);
-      player.wage = market;
+      // Behind the market: matched to it. At or above it: a loyal, experienced hand earns a seniority step on top.
+      const senior = seniorityRaise(player, job);
+      const wage = market > player.wage ? market : senior;
+      if (wage <= player.wage)
+        return say(
+          player,
+          `The market pays $${market.toFixed(2)}/h. You already get more. Put in more shifts first.`,
+          true,
+        );
+      player.wage = wage;
       player.raises++;
-      return say(player, `Raise! Now $${market.toFixed(2)}/h.`);
+      return say(player, `Raise! Now $${wage.toFixed(2)}/h.`);
     }
     case QUIT: {
       if (place !== JOBHUB || player.job < 0) return;
@@ -375,9 +413,13 @@ export function act(
         Math.round(gigWage(economy) * PAID_HOURS),
         hoursLeft(player),
       );
-      player.cash += gross;
+      const toBank = garnishLoan(player, gross);
+      player.cash += gross - toBank;
       spendHours(player, HOURS.gig);
-      return say(player, `Delivered 14 burritos: +$${gross}.`);
+      return say(
+        player,
+        `Delivered 14 burritos: +$${gross - toBank}.${toBank ? ` Neobank took $${toBank} for the loan.` : ""}`,
+      );
     }
     case ENROLL: {
       const course = COURSES[a];
@@ -390,7 +432,7 @@ export function act(
           `${course.name} needs ${COURSES[course.prereq]!.name} first.`,
           true,
         );
-      if (!pay(room, player, enrollFee(economy), place, EDUCATION)) return;
+      if (!pay(room, player, enrollFee(economy, a), place, EDUCATION)) return;
       player.courses[a] = 0;
       return say(player, `Enrolled in ${course.name}.`);
     }
@@ -496,6 +538,28 @@ export function act(
       player.bank += deposit ? a : -a;
       return say(player, deposit ? `Saved $${a}.` : `Withdrew $${a}.`);
     }
+    case BORROW: {
+      if (place !== NEOBANK || !Number.isSafeInteger(a) || a <= 0) return;
+      const before = player.loan;
+      borrow(room, player, a);
+      if (player.loan > before) spendHours(player, HOURS.trade);
+      return;
+    }
+    case REPAY:
+      if (place !== NEOBANK || !Number.isSafeInteger(a)) return;
+      return repay(player, a);
+    case SCRATCH:
+      if (place !== FRESHCO) return;
+      return scratch(room, player);
+    case PAWN:
+      if (place !== RESALE) return;
+      return pawn(player, a, room.week);
+    case REDEEM:
+      if (place !== RESALE) return;
+      return redeem(player, a);
+    case BUY_USED:
+      if (place !== RESALE) return;
+      return buyUsed(room, player, a, b);
     case TRADE_BUY:
     case TRADE_SELL: {
       if (
@@ -547,11 +611,20 @@ function buy(
   if (!item || item.place !== place) return;
   if (item.durable && (player.durables[item.durable]?.n ?? 0) > 0)
     return say(player, "You already own one.", true);
+  if (item.kind === "fun" && (player.flags & FUN_HAPPY) !== 0)
+    return say(player, "You already had your night out this week.", true);
+  if (item.hours && hoursLeft(player) < item.hours)
+    return say(
+      player,
+      `That takes ${item.hours} hours. Not enough left this week.`,
+      true,
+    );
   // Without a fridge more than a week of groceries spoils on Monday: the shop won't sell what can only be wasted.
   if (item.kind === "groceries" && item.weeks! > 1 && !owns(player, "fridge"))
     return say(player, "That needs a fridge. MegaMart sells them.", true);
   const price = shelfPrice(room.economy, item);
   if (!pay(room, player, price, place, item.category)) return;
+  if (item.hours) spendHours(player, item.hours);
   let happy = 0;
   switch (item.kind) {
     case "groceries":
@@ -567,6 +640,12 @@ function buy(
       if (item.happy && (player.flags & MEAL_HAPPY) === 0) {
         player.flags |= MEAL_HAPPY;
         happy = item.happy;
+      }
+      break;
+    case "fun":
+      if ((player.flags & FUN_HAPPY) === 0) {
+        player.flags |= FUN_HAPPY;
+        happy = item.happy * (room.economy.event === FESTIVAL ? 2 : 1);
       }
       break;
     case "drink":

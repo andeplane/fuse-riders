@@ -145,7 +145,7 @@ test("a room snapshot carries the Fusetown room whole, and a tampered one is ref
   source.receive("b", plan, 4, 400, 400);
   source.advance(400);
   const chunks = encodeSnapshot(source, 4);
-  assert.equal(chunks[0]!.rules, "fuse-lane-3");
+  assert.equal(chunks[0]!.rules, "fuse-lane-4");
   const assembler = new SnapshotAssembler(fuseLaneGame, 4);
   let complete: { tick: number; bytes: Uint8Array } | undefined;
   for (const chunk of chunks) complete = assembler.accept(chunk);

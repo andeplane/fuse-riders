@@ -48,6 +48,7 @@ import {
 } from "./room.js";
 import { createPlayer, defaultGoals, type Goals } from "./state.js";
 import { endWeek } from "./week.js";
+import { startingShelf } from "./resale.js";
 export * from "./basics.js";
 export * from "./room.js";
 
@@ -260,6 +261,7 @@ export function createRoom(
     goals: {},
     roster: {},
     headlines: [],
+    shelf: [],
     ranking: [],
     winners: [],
   };
@@ -404,6 +406,7 @@ function resetMatch(room: FuseLaneRoom, matchId: string): void {
   room.players = {};
   room.roster = {};
   room.headlines = [];
+  room.shelf = [];
   room.ranking = [];
   room.winners = [];
 }
@@ -414,6 +417,7 @@ function startMatch(room: FuseLaneRoom, matchId: string): void {
   room.week = 1;
   enrol(room, tick);
   room.headlines = ["Welcome to Fusetown. Rent is due in four weeks"];
+  room.shelf = startingShelf();
   beginWeek(room, tick, []);
 }
 

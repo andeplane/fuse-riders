@@ -175,7 +175,7 @@ test("the entry parser accepts play entries and the shared management entries, a
     [0, 1, 2, 1],
     [1, 0, 2, 1],
     [1, 1, 1, 1, 4, 0, 0, 0],
-    [1, 1, 1, 1, 4, 18, 0, 0],
+    [1, 1, 1, 1, 4, 24, 0, 0],
     [1, 1, 1, 1, 4, 15, -1, 0],
     [1, 1, 1, 1, 4, 15, 1.5, 0],
     [1, 1, 2, 1, "extra"],
