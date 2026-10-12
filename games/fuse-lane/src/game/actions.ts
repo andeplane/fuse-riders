@@ -596,7 +596,7 @@ function buy(
   addHappiness(player, happy);
   say(
     player,
-    `${item.name}: -$${price}${happy > 0 ? `, +${happy} happiness` : happy < 0 ? `, ${happy} happiness. Regret.` : ""}.`,
+    `${item.name}: -$${price}${happy > 0 ? `, +${happy} happiness` : happy < 0 ? `, ${happy} happiness. Regret` : ""}.`,
     happy < 0,
   );
 }
