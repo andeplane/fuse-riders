@@ -231,6 +231,11 @@ export function createMenu(options: MenuOptions): HTMLElement {
       "Live a week in Fusetown against the clock: work, study, shop and invest in a harbour town whose economy answers back. First to reach all four goals wins.",
       "fl-hero-tagline",
     ),
+    el(
+      "p",
+      "An unofficial homage, inspired by Jones in the Fast Lane (Sierra On-Line, 1990).",
+      "fl-hero-credit",
+    ),
   );
   root.append(hero);
 

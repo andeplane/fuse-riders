@@ -1540,6 +1540,14 @@ body.fl-display .fl-hud {
   font-weight: 600;
   line-height: 1.45;
 }
+.fl-hero-credit {
+  margin: 0;
+  max-width: 30rem;
+  color: #5a6672;
+  font-size: 0.85rem;
+  font-style: italic;
+  line-height: 1.4;
+}
 .fl-setup,
 .fl-resume {
   display: grid;

@@ -97,7 +97,11 @@ const localDeps = {
   store,
 };
 
-function header(extra: HTMLElement[] = []): HTMLElement {
+/**
+ * The top bar. `allGames` adds an "ALL GAMES" button that opens the app portal's list of games: the site root is
+ * Fuse Riders itself, not a list of games, so the button must not link there.
+ */
+function header(extra: HTMLElement[] = [], allGames = false): HTMLElement {
   const bar = el("header", "", "fl-top"),
     brand = el("a", "", "fl-brand");
   brand.href = endpoints.appUrl();
@@ -109,6 +113,12 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     search: location.search,
   });
   bar.append(portal.element, brand, ...extra);
+  if (allGames) {
+    const button = el("button", "ALL GAMES", "fl-back");
+    button.type = "button";
+    button.addEventListener("click", () => portal.open());
+    bar.append(button);
+  }
   return bar;
 }
 
@@ -169,10 +179,8 @@ function summary(match: LocalMatch): string {
 
 function menu(): void {
   const saved = LocalRuntime.saved(store);
-  const back = el("a", "← ALL GAMES", "fl-back");
-  back.href = BASE;
   app.replaceChildren(
-    header([back]),
+    header([], true),
     createMenu({
       art,
       store,
