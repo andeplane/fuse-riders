@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { ACTION } from "fuse-netcode";
 import {
   BRIEFING,
+  HANDOFF,
   createRoom,
   decodeRoom,
   encodeRoom,
@@ -13,6 +14,7 @@ import {
 } from "../src/game/index.js";
 import {
   FAST,
+  TURNS,
   addBot,
   fold,
   runWhile,
@@ -168,4 +170,27 @@ test("the entry parser accepts play entries and the shared management entries, a
     null,
   ])
     assert.equal(isFuseLaneEntry(bad), false, JSON.stringify(bad));
+});
+
+test("a hot-seat room round-trips at a handoff, and turn state that does not fit its mode is refused", () => {
+  const room = started(TURNS, [addBot("bot:1", 2)]);
+  runWhile(room, () => room.phase !== HANDOFF, 50);
+  assert.equal(room.phase, HANDOFF);
+  const copy = roundTrip(room);
+  assert.equal(hashRoom(copy), hashRoom(room));
+  assert.deepEqual(copy.order, room.order);
+  assert.equal(copy.turn, room.turn);
+  const fields = JSON.parse(JSON.stringify(encodeRoom(room))) as unknown[];
+  const game = fields[3] as Record<string, unknown>;
+  for (const broken of [
+    { turns: false },
+    { turn: 9 },
+    { order: [...room.order, room.order[0]] },
+    { order: ["nobody"] },
+    { level: 5 },
+  ]) {
+    const bad = [...fields];
+    bad[3] = { ...game, ...broken };
+    assert.equal(decodeRoom(bad, room.tick), undefined, JSON.stringify(broken));
+  }
 });
