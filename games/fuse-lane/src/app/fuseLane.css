@@ -1651,3 +1651,94 @@ body.fl-page .fl-start-game {
   width: 100%;
   height: 100%;
 }
+
+/* The first-play tour: the board dims except for a spotlight on what the card is about; the card sits in the half of
+   the screen the spotlight is not in (or the middle when it points at nothing). It takes every tap until it is done. */
+.fl-tour {
+  position: absolute;
+  z-index: 6;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: auto;
+}
+.fl-tour.plain {
+  background: rgba(14, 24, 30, 0.5);
+}
+.fl-tour-spot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border: 3px solid #fff;
+  border-radius: 1.1rem;
+  box-shadow:
+    0 0 0 4px rgba(243, 178, 60, 0.85),
+    0 0 0 200vmax rgba(14, 24, 30, 0.5);
+  transition:
+    transform 0.25s ease,
+    width 0.25s ease,
+    height 0.25s ease;
+  pointer-events: none;
+}
+.fl-tour.plain .fl-tour-spot {
+  display: none;
+}
+.fl-tour-card {
+  position: absolute;
+  left: 50%;
+  display: grid;
+  gap: 0.4rem;
+  width: min(26rem, calc(100% - 24px));
+  padding: 1rem 1.1rem 0.9rem;
+  transform: translateX(-50%);
+}
+.fl-tour-card[data-at="middle"] {
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.fl-tour-card[data-at="bottom"] {
+  bottom: max(16px, env(safe-area-inset-bottom));
+}
+.fl-tour-card[data-at="top"] {
+  top: max(16px, env(safe-area-inset-top));
+}
+.fl-tour-count {
+  color: var(--fl-ink-soft);
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.fl-tour-title {
+  margin: 0;
+  color: var(--fl-forest);
+  font-size: 1.35rem;
+  font-weight: 900;
+}
+.fl-tour-body {
+  margin: 0;
+  line-height: 1.45;
+}
+.fl-tour-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.4rem;
+}
+body.fl-page .fl-tour-skip {
+  margin-right: auto;
+  min-height: 2.5rem;
+  padding: 0 0.5rem;
+  color: var(--fl-ink-soft);
+  background: none;
+  border: 0;
+  box-shadow: none;
+  font-weight: 800;
+}
+.fl-tour-next {
+  min-width: 7rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fl-tour-spot {
+    transition: none;
+  }
+}
