@@ -3,6 +3,7 @@ import {
   COLLEGE,
   COURSES,
   EMPLOYERS,
+  EXTENDED,
   FRESHCO,
   GADGET,
   HOURS,
@@ -13,6 +14,7 @@ import {
   NEOBANK,
   PLACES,
   THREADS,
+  TRIED_EXTENSION,
   WORKPLACE,
   education,
   enrollFee,
@@ -106,7 +108,7 @@ export function tips(view: FuseLaneView, you: string): Tip[] {
 
   if (me.rentOwed > 0)
     add(`You owe ${usd(me.rentOwed)} in back rent at KeyNest.`, KEYNEST);
-  else if (me.rentWeeks === 0) {
+  else if (me.rentWeeks === 0 && (me.flags & EXTENDED) === 0) {
     if (me.cash >= me.rent)
       add(`Rent is due: pay ${usd(me.rent)} at KeyNest this week.`, KEYNEST);
     else if (me.cash + me.bank >= me.rent)
@@ -114,8 +116,13 @@ export function tips(view: FuseLaneView, you: string): Tip[] {
         `Rent of ${usd(me.rent)} is due: take cash out at Neobank, then pay at KeyNest.`,
         NEOBANK,
       );
-    else
+    else if ((me.flags & TRIED_EXTENSION) === 0 && me.rentExt >= 0)
       add("Rent is due and you are short: ask KeyNest for more time.", KEYNEST);
+    else
+      add(
+        `Rent is due and you are ${usd(me.rent - me.cash - me.bank)} short: earn it this week, or it goes on your arrears.`,
+        job ? WORKPLACE[job.employer]! : JOBHUB,
+      );
   }
 
   if (!fed(me))
