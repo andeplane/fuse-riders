@@ -207,6 +207,48 @@ test("the streets are built the same every time, and a broken city is refused", 
   );
 });
 
+test("edges that round unevenly to whole steps are re-cut until the longest trip is the one asked for", () => {
+  // A straight road of four stretches, 43 px in all: at 25/43 steps a pixel they round to 26 steps.
+  let x = 0;
+  const lengths = [10, 10, 10, 13];
+  const tap: [number, number][] = [
+    [0, 0],
+    [1, 0],
+    [0, 1],
+  ];
+  const road: City = {
+    id: "road",
+    name: "Road",
+    map: { art: "board-road", width: 100, height: 10 },
+    nodes: [
+      { id: "n0", at: [0, 0] },
+      ...lengths.map((length, index) => ({
+        id: `n${index + 1}`,
+        at: [(x += length), 0] as [number, number],
+      })),
+    ],
+    edges: lengths.map((_, index) => ({
+      from: `n${index}`,
+      to: `n${index + 1}`,
+      via: [],
+      kind: "road" as const,
+    })),
+    places: [
+      { id: "x", door: "n0", tap, label: [0, 0] },
+      { id: "y", door: "n4", tap, label: [0, 0] },
+    ],
+    start: "n0",
+    occluders: [],
+  };
+  const firstCut = lengths.reduce(
+    (sum, length) => sum + Math.round((length * 25) / 43),
+    0,
+  );
+  assert.equal(firstCut, 26);
+  const streets = buildStreets(road, 25);
+  assert.equal(streets.distance[1]![streets.doors[0]!], 25);
+});
+
 test("the docks are Fusetown Port's workplace: its jobs are hireable at the gate and at the Job Hub", () => {
   assert.equal(PLACES[DOCKS]!.id, "docks");
   assert.equal(PLACES[DOCKS]!.name, "Fusetown Docks");

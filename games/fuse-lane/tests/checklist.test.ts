@@ -98,8 +98,23 @@ test("steps stay ticked once done, per player, and save on the device per match"
   );
   store.setItem(CHECKLIST_KEY, "{not json");
   assert.deepEqual(loadChecklist(store, "lane-a").done, {});
-  store.setItem(CHECKLIST_KEY, JSON.stringify({ match: "lane-a", open: 3 }));
-  assert.deepEqual(loadChecklist(store, "lane-a").done, {});
+  const valid = { match: "lane-a", done: { p1: ["job"] }, closed: ["p2"] };
+  for (const broken of [
+    { ...valid, open: 3 },
+    { ...valid, done: { p1: 1 } },
+    { ...valid, done: { p1: [2] } },
+    { ...valid, done: ["job"] },
+    { ...valid, closed: [1] },
+  ]) {
+    store.setItem(CHECKLIST_KEY, JSON.stringify(broken));
+    assert.deepEqual(
+      loadChecklist(store, "lane-a"),
+      { match: "lane-a", done: {}, closed: [] },
+      JSON.stringify(broken),
+    );
+  }
+  store.setItem(CHECKLIST_KEY, JSON.stringify(valid));
+  assert.deepEqual(loadChecklist(store, "lane-a"), valid);
 });
 
 test("the model lists every step with its place, and the player can hide it any time", () => {
