@@ -12,7 +12,14 @@ import {
   type FuseLaneSettings,
 } from "../../src/game/index.js";
 
-export const FAST: FuseLaneSettings = { weekSeconds: 45, display: false };
+export const FAST: FuseLaneSettings = {
+  weekSeconds: 45,
+  display: false,
+  turns: false,
+  level: 2,
+};
+/** A hot-seat match on one device. */
+export const TURNS: FuseLaneSettings = { ...FAST, turns: true };
 
 /** Entry bodies (everything after seq and tick) each member logs at the next tick. */
 export type Bodies = Record<string, readonly unknown[][]>;

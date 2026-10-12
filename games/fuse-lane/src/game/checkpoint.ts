@@ -14,6 +14,7 @@ import { PLACES, RING } from "./data/places.js";
 import type { CompanyState, Economy } from "./economy.js";
 import {
   BRIEFING,
+  HANDOFF,
   MAX_PARTICIPANTS,
   MAX_WATCHERS,
   WEEK,
@@ -63,6 +64,10 @@ export function encodeRoom(room: FuseLaneRoom): unknown[] {
       phase: room.phase,
       phaseStart: room.phaseStart,
       phaseEnd: room.phaseEnd,
+      turns: room.turns,
+      level: room.level,
+      order: room.order,
+      turn: room.turn,
       economy: room.economy,
       players: room.players,
       goals: room.goals,
@@ -465,6 +470,10 @@ const GAME_KEYS = [
   "phase",
   "phaseStart",
   "phaseEnd",
+  "turns",
+  "level",
+  "order",
+  "turn",
   "economy",
   "players",
   "goals",
@@ -521,7 +530,7 @@ export function decodeRoom(
   if (
     !int(week, 0, MAX_WEEKS + 2) ||
     (stage === "lobby") !== (week === 0) ||
-    (phase !== WEEK && phase !== BRIEFING) ||
+    (phase !== WEEK && phase !== BRIEFING && phase !== HANDOFF) ||
     !int(phaseStart, 0, tick) ||
     !int(phaseEnd, 0, tick + Math.max(weekTicks as number, BRIEFING_TICKS)) ||
     (running && phaseEnd < phaseStart)
@@ -590,6 +599,20 @@ export function decodeRoom(
     !winners.every((id) => ranking.includes(id))
   )
     return;
+  // A hot-seat week: each player once, and a turn inside it (or -1); only a turns match has one, and only it hands off.
+  const order = ids(game.order),
+    { turn, turns, level } = game;
+  if (
+    !order ||
+    typeof turns !== "boolean" ||
+    !int(level, 0, 2) ||
+    new Set(order).size !== order.length ||
+    !(Number.isSafeInteger(turn) && (turn as number) >= -1) ||
+    (turn as number) >= Math.max(order.length, 1) ||
+    (!turns && (order.length > 0 || turn !== -1)) ||
+    (phase === HANDOFF && (!turns || turn === -1))
+  )
+    return;
 
   return {
     tick,
@@ -603,6 +626,10 @@ export function decodeRoom(
     phase,
     phaseStart,
     phaseEnd,
+    turns,
+    level: level as number,
+    order,
+    turn: turn as number,
     economy,
     players,
     goals: picked,

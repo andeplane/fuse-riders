@@ -7,6 +7,7 @@ import {
   AVATARS,
   BOT_PREFIX,
   BRIEFING,
+  HANDOFF,
   CAPACITY,
   MAX_WATCHERS,
   createRoom,
@@ -57,8 +58,12 @@ export interface FuseLanePlayerView {
 export interface FuseLaneView {
   tick: number;
   phase: Stage;
-  /** "week" while the week runs, "briefing" on Monday. */
-  part: "week" | "briefing";
+  /** "week" while the week runs, "briefing" on Monday, "handoff" while a hot-seat week waits for the next player. */
+  part: "week" | "briefing" | "handoff";
+  /** Hot-seat weeks: the play order this week and whose turn it is ("" when nobody's). */
+  turns: boolean;
+  order: string[];
+  current: string;
   week: number;
   /** Ticks left in the current part, and the part's length. */
   timerTicks: number;
@@ -119,11 +124,21 @@ export function fuseLaneView(room: FuseLaneRoom): FuseLaneView {
   return {
     tick: room.tick,
     phase: room.stage,
-    part: room.phase === BRIEFING ? "briefing" : "week",
+    part:
+      room.phase === BRIEFING
+        ? "briefing"
+        : room.phase === HANDOFF
+          ? "handoff"
+          : "week",
+    turns: lobby ? room.settings.turns : room.turns,
+    order: [...room.order],
+    current:
+      running && room.phase !== BRIEFING ? (room.order[room.turn] ?? "") : "",
     week: room.week,
     timerTicks: running ? Math.max(0, room.phaseEnd - room.tick) : 0,
     partTicks: running ? Math.max(1, room.phaseEnd - room.phaseStart) : 1,
-    weekSeconds: room.weekTicks / 20,
+    // The lobby shows the setting the next match will start with; a match shows the one it started with.
+    weekSeconds: lobby ? room.settings.weekSeconds : room.weekTicks / 20,
     players,
     watchers: [...room.seats.values()]
       .filter((seat) => seat.watcher)

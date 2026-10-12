@@ -38,6 +38,7 @@ import { createEconomy } from "./economy.js";
 import { seedOf } from "./random.js";
 import {
   BRIEFING,
+  HANDOFF,
   WEEK,
   active,
   playerOrder,
@@ -97,6 +98,8 @@ export type FuseLaneEntry = ManagementEntry<FuseLaneSettings> | PlayEntry;
 export type FuseLaneEvent =
   | { type: "week"; week: number }
   | { type: "briefing"; week: number }
+  /** A hot-seat week moves on to this human's turn. */
+  | { type: "turn"; id: string }
   | { type: "over"; winners: string[] };
 
 export const MAX_WATCHERS = 8;
@@ -108,7 +111,11 @@ export const MAX_AMOUNT = 1_000_000_000;
 export const DEFAULT_SETTINGS: FuseLaneSettings = {
   weekSeconds: 60,
   display: false,
+  turns: false,
+  level: 2,
 };
+/** Bot levels: easy, normal, hard. */
+export const LEVELS = ["Easy", "Normal", "Hard"] as const;
 
 const CONTROL = /[\u0000-\u001f\u007f]/;
 /** What a player typed, as it is seated: trimmed and cut to `MAX_NAME` code points, or refused. */
@@ -147,16 +154,20 @@ export const validGoal = (value: unknown): value is number =>
 export function parseSettings(raw: unknown): FuseLaneSettings | undefined {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return;
   const keys = Object.keys(raw);
-  const { weekSeconds, display } = raw as Partial<FuseLaneSettings>;
+  const { weekSeconds, display, turns, level } =
+    raw as Partial<FuseLaneSettings>;
   if (
-    keys.length !== 2 ||
-    !keys.includes("weekSeconds") ||
-    !keys.includes("display") ||
+    keys.length !== 4 ||
+    !["weekSeconds", "display", "turns", "level"].every((key) =>
+      keys.includes(key),
+    ) ||
     !(WEEK_SECONDS as readonly unknown[]).includes(weekSeconds) ||
-    typeof display !== "boolean"
+    typeof display !== "boolean" ||
+    typeof turns !== "boolean" ||
+    !small(level, LEVELS.length - 1)
   )
     return;
-  return { weekSeconds: weekSeconds!, display };
+  return { weekSeconds: weekSeconds!, display, turns, level: level! };
 }
 
 const payloads = {
@@ -231,6 +242,10 @@ export function createRoom(
     phase: WEEK,
     phaseStart: 0,
     phaseEnd: 0,
+    turns: settings.turns,
+    level: settings.level,
+    order: [],
+    turn: -1,
     economy: createEconomy(),
     players: {},
     goals: {},
@@ -269,6 +284,19 @@ function beginWeek(
   tick: number,
   events: FuseLaneEvent[],
 ): void {
+  events.push({ type: "week", week: room.week });
+  if (room.turns) {
+    // A hot-seat week: one player after another, the first seat moving one along each week.
+    const ids = playerOrder(room),
+      // The match id picks who opens week 1, so no seat always gets the first pick of the job board.
+      shift = ids.length
+        ? (room.week - 1 + (seedOf(room.matchId) % ids.length)) % ids.length
+        : 0;
+    room.order = [...ids.slice(shift), ...ids.slice(0, shift)];
+    room.turn = -1;
+    nextTurn(room, tick, events);
+    return;
+  }
   room.phase = WEEK;
   room.phaseStart = tick;
   room.phaseEnd = tick + room.weekTicks;
@@ -278,7 +306,78 @@ function beginWeek(
       tick +
       BOT_DELAY +
       (((room.roster[id]?.slot ?? 0) * 3 + room.week + (room.rng % 5)) % 5) * 2;
-  events.push({ type: "week", week: room.week });
+}
+
+/** The humans who play this match's weeks on their own turn (seated, here, not bots). */
+const humans = (room: FuseLaneRoom): number =>
+  seated(room).filter((seat) => !seat.bot && active(seat)).length;
+
+/**
+ * The next turn of a hot-seat week: an absent seat sleeps through it, a bot plays its whole week at once, a human
+ * starts at once when they are the only one, or else the device waits on a handoff until they tap READY. When nobody
+ * is left the week ends.
+ */
+function nextTurn(
+  room: FuseLaneRoom,
+  tick: number,
+  events: FuseLaneEvent[],
+): void {
+  while (++room.turn < room.order.length) {
+    const id = room.order[room.turn]!,
+      seat = room.seats.get(id),
+      player = room.players[id]!;
+    if (!active(seat)) player.done = true;
+    else if (seat!.bot) botWeek(room, id, seat!.slot);
+    else {
+      if (humans(room) > 1) {
+        room.phase = HANDOFF;
+        room.phaseStart = room.phaseEnd = tick;
+      } else startTurn(room, tick);
+      events.push({ type: "turn", id });
+      return;
+    }
+  }
+  closeWeek(room, tick, events);
+}
+function startTurn(room: FuseLaneRoom, tick: number): void {
+  room.phase = WEEK;
+  room.phaseStart = tick;
+  room.phaseEnd = tick + room.weekTicks;
+}
+/** A bot's whole week in one go: the same moves it would make tick by tick, applied back to back. */
+function botWeek(room: FuseLaneRoom, id: string, slot: number): void {
+  const player = room.players[id]!;
+  while (!player.done && player.time < WEEK_UNITS) {
+    player.botActs++;
+    const move = botMove(room, id);
+    if (move.kind === "end") break;
+    if (move.kind === "walk") {
+      walkTo(player, move.place);
+      while (player.dest >= 0 && player.time < WEEK_UNITS) walkTick(player);
+    } else if (move.action === APPLY)
+      resolveApplications(room, [{ id, job: move.a, slot }]);
+    else act(room, player, move.place, move.action, move.a, move.b);
+  }
+  player.done = true;
+}
+/** Everyone has played: sleep, the economy, the goal check, then Monday's briefing or the end of the match. */
+function closeWeek(
+  room: FuseLaneRoom,
+  tick: number,
+  events: FuseLaneEvent[],
+): void {
+  for (const player of Object.values(room.players)) player.done = true;
+  room.turn = -1;
+  if (endWeek(room)) {
+    // The tick the match ended at: its result is final once every device has confirmed this far.
+    room.phaseStart = room.phaseEnd = tick;
+    events.push({ type: "over", winners: [...room.winners] });
+  } else {
+    room.phase = BRIEFING;
+    room.phaseStart = tick;
+    room.phaseEnd = tick + BRIEFING_TICKS;
+    events.push({ type: "briefing", week: room.week });
+  }
 }
 function resetMatch(room: FuseLaneRoom, matchId: string): void {
   room.matchId = matchId;
@@ -288,6 +387,10 @@ function resetMatch(room: FuseLaneRoom, matchId: string): void {
   room.phase = WEEK;
   room.phaseStart = 0;
   room.phaseEnd = 0;
+  room.turns = room.settings.turns;
+  room.level = room.settings.level;
+  room.order = [];
+  room.turn = -1;
   room.economy = createEconomy();
   room.players = {};
   room.roster = {};
@@ -371,69 +474,133 @@ export function foldTick(
             room.goals[seat.id] = [entry[4], entry[5], entry[6], entry[7]];
   } else if (room.stage === "running") {
     enrol(room, tick);
-    const applications: { id: string; job: number; slot: number }[] = [];
+    if (room.turns) turnsTick(room, seats, streams, tick, events);
+    else togetherTick(room, seats, streams, tick, events);
+  }
+  room.tick = tick;
+  return events;
+}
+
+/** A week everyone plays at once: every seat's entries in slot order, the tick's applications together, walking. */
+function togetherTick(
+  room: FuseLaneRoom,
+  seats: SeatRecord[],
+  streams: ReadonlyMap<string, StreamEntries<FuseLaneEntry>>,
+  tick: number,
+  events: FuseLaneEvent[],
+): void {
+  const applications: { id: string; job: number; slot: number }[] = [];
+  for (const seat of seats) {
+    const player = room.players[seat.id]!;
+    const entries = seat.bot
+      ? botEntries(room, seat.id, tick)
+      : seat.connected
+        ? playEntries(seat, streams, tick)
+        : [];
+    for (const entry of entries) {
+      if (entry[2] === GOALS || entry[3] !== room.week) continue;
+      if (room.phase === BRIEFING) {
+        if (entry[2] === READY) player.ready = true;
+        continue;
+      }
+      if (entry[2] === WALK) walkTo(player, entry[4]);
+      else if (entry[2] === END_WEEK) player.done = true;
+      else if (entry[2] === ACT) {
+        if (entry[5] === APPLY) {
+          if (player.inside === entry[4] && !player.done)
+            applications.push({ id: seat.id, job: entry[6], slot: seat.slot });
+        } else act(room, player, entry[4], entry[5], entry[6], entry[7]);
+      }
+    }
+  }
+  if (room.phase === WEEK) {
+    resolveApplications(
+      room,
+      applications.filter(
+        (application) => application.job >= 0 && application.job < JOBS.length,
+      ),
+    );
+    for (const id of playerOrder(room)) {
+      const player = room.players[id]!;
+      walkTick(player);
+      // A player who is not here plays no week: nothing waits for an absent seat.
+      if (player.time >= WEEK_UNITS || !active(room.seats.get(id)))
+        player.done = true;
+    }
+    const everyone = playerOrder(room).every((id) => room.players[id]!.done);
+    if (everyone || tick >= room.phaseEnd) closeWeek(room, tick, events);
+  } else briefingTick(room, seats, tick, events);
+}
+
+/**
+ * A hot-seat week: only the player whose turn it is plays (their READY ends the handoff and starts their clock); the
+ * turn ends when they call it a week, run out of hours or the clock runs out, and unspent hours are sleep as ever.
+ */
+function turnsTick(
+  room: FuseLaneRoom,
+  seats: SeatRecord[],
+  streams: ReadonlyMap<string, StreamEntries<FuseLaneEntry>>,
+  tick: number,
+  events: FuseLaneEvent[],
+): void {
+  if (room.phase === BRIEFING) {
     for (const seat of seats) {
-      const player = room.players[seat.id]!;
       const entries = seat.bot
         ? botEntries(room, seat.id, tick)
         : seat.connected
           ? playEntries(seat, streams, tick)
           : [];
-      for (const entry of entries) {
-        if (entry[2] === GOALS || entry[3] !== room.week) continue;
-        if (room.phase === BRIEFING) {
-          if (entry[2] === READY) player.ready = true;
-          continue;
-        }
-        if (entry[2] === WALK) walkTo(player, entry[4]);
-        else if (entry[2] === END_WEEK) {
-          if (!player.done) player.done = true;
-        } else if (entry[2] === ACT) {
-          if (entry[5] === APPLY) {
-            if (player.inside === entry[4] && !player.done)
-              applications.push({
-                id: seat.id,
-                job: entry[6],
-                slot: seat.slot,
-              });
-          } else act(room, player, entry[4], entry[5], entry[6], entry[7]);
-        }
-      }
+      if (entries.some((entry) => entry[2] === READY && entry[3] === room.week))
+        room.players[seat.id]!.ready = true;
     }
-    if (room.phase === WEEK) {
-      resolveApplications(
-        room,
-        applications.filter(
-          (application) =>
-            application.job >= 0 && application.job < JOBS.length,
-        ),
-      );
-      for (const id of playerOrder(room)) {
-        const player = room.players[id]!;
-        walkTick(player);
-        // A player who is not here plays no week: nothing waits for an absent seat.
-        if (player.time >= WEEK_UNITS || !active(room.seats.get(id)))
-          player.done = true;
-      }
-      const everyone = playerOrder(room).every((id) => room.players[id]!.done);
-      if (everyone || tick >= room.phaseEnd) {
-        for (const player of Object.values(room.players)) player.done = true;
-        if (endWeek(room))
-          events.push({ type: "over", winners: [...room.winners] });
-        else {
-          room.phase = BRIEFING;
-          room.phaseStart = tick;
-          room.phaseEnd = tick + BRIEFING_TICKS;
-          events.push({ type: "briefing", week: room.week });
-        }
-      }
-    } else {
-      const ready = seats.every(
-        (seat) => !active(seat) || room.players[seat.id]?.ready,
-      );
-      if (ready || tick >= room.phaseEnd) beginWeek(room, tick, events);
+    briefingTick(room, seats, tick, events);
+    return;
+  }
+  const id = room.order[room.turn];
+  if (id === undefined) return;
+  const seat = room.seats.get(id),
+    player = room.players[id]!;
+  if (!active(seat)) {
+    player.done = true;
+    nextTurn(room, tick, events);
+    return;
+  }
+  const entries = playEntries(seat!, streams, tick).filter(
+    (entry) => entry[2] !== GOALS && entry[3] === room.week,
+  );
+  if (room.phase === HANDOFF) {
+    if (entries.some((entry) => entry[2] === READY)) startTurn(room, tick);
+    return;
+  }
+  for (const entry of entries) {
+    if (entry[2] === WALK) walkTo(player, entry[4]);
+    else if (entry[2] === END_WEEK) player.done = true;
+    else if (entry[2] === ACT) {
+      if (entry[5] !== APPLY)
+        act(room, player, entry[4], entry[5], entry[6], entry[7]);
+      else if (
+        player.inside === entry[4] &&
+        !player.done &&
+        entry[6] >= 0 &&
+        entry[6] < JOBS.length
+      )
+        resolveApplications(room, [{ id, job: entry[6], slot: seat!.slot }]);
     }
   }
-  room.tick = tick;
-  return events;
+  walkTick(player);
+  if (player.time >= WEEK_UNITS || tick >= room.phaseEnd) player.done = true;
+  if (player.done) nextTurn(room, tick, events);
+}
+
+/** Monday: the next week starts once every seat that is here has tapped READY, or when the briefing runs out. */
+function briefingTick(
+  room: FuseLaneRoom,
+  seats: SeatRecord[],
+  tick: number,
+  events: FuseLaneEvent[],
+): void {
+  const ready = seats.every(
+    (seat) => !active(seat) || room.players[seat.id]?.ready,
+  );
+  if (ready || tick >= room.phaseEnd) beginWeek(room, tick, events);
 }
