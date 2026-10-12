@@ -26,6 +26,10 @@ The town is the picture: the city's map fills the screen, and the game is drawn 
 - **Phone (portrait):** the map is as tall as the screen and pans sideways. The camera follows you while you walk; drag to look around (a new walk picks you up again). The clock, money and buttons sit at the top, the goals and CALL IT A WEEK at the bottom. The rivals are on the streets but not on the HUD: their standings (portrait, four goal bars, what they are doing) head every place panel.
 - **Wide screen:** the map covers the screen, centred, with one HUD bar along the top and the rivals in the corners (they step aside while a panel is open). A short screen (a phone on its side) pans up and down and shows the rivals in the panels instead.
 
+The town is alive while you play (`src/app/ambience.ts`, looks only): the sun glints on the bay, cloud shadows drift over the roofs, and the light turns golden and then dusky over the last 40 % of your hours. While you walk, a dotted line in your colour shows the rest of the way to the door, and a ring bursts when anyone walks into a place. The cash counts to its new value with a "+$40" rising out of it, a goal ring bumps with "+2" when it grows, and the toast drops in just above the tip. With reduced motion the clouds, glints, pops and bumps stay still.
+
+![The way to the Job Hub](docs/screenshots/phone-route.png) ![Cash counting up after a gig](docs/screenshots/phone-cash-pop.png) ![The evening light at the end of a week](docs/screenshots/desktop-evening.png)
+
 The map never shows an empty edge. `?debug-roads` draws the street graph, the doors and the tap outlines over it.
 
 Cities are data: `src/game/data/cities/fusetown.ts` holds the map's size, the street graph traced over the picture (nodes and bending edges in map pixels), each place's door, tap outline and label, and the parts of the picture that stand in front of the streets. `src/game/streets.ts` cuts the graph into unit steps for the rules, and `src/app/layout.ts` (pure and unit-tested) does the camera, the hit tests and where each player stands. The other city concepts wait in [docs/cities/](docs/cities/) as future city types.
