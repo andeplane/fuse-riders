@@ -54,18 +54,32 @@ const portalGames = (): PortalGame[] =>
 
 /**
  * Emits `games/<id>/index.html` as `<id>/index.html`, so a game is served at `<base><id>/` beside Fuse Riders (the
- * dev room service, GitHub Pages). Its script and style URLs are absolute from the base, so the move keeps them.
+ * dev room service, GitHub Pages). Its script and style URLs are absolute from the base, so the move keeps them;
+ * under a relative base (`--base ./`, a static preview) they are relative to the page and lose one `../`.
  */
-const gamePages = (): Plugin => ({
-  name: "game-pages",
-  enforce: "post",
-  generateBundle(_options, bundle) {
-    for (const id of games) {
-      const page = bundle[`games/${id}/index.html`];
-      if (page) page.fileName = `${id}/index.html`;
-    }
-  },
-});
+const gamePages = (): Plugin => {
+  let relative = false;
+  return {
+    name: "game-pages",
+    enforce: "post",
+    configResolved(config) {
+      relative = !config.base.startsWith("/") && !/^[a-z]+:/i.test(config.base);
+    },
+    generateBundle(_options, bundle) {
+      for (const id of games) {
+        const page = bundle[`games/${id}/index.html`];
+        if (!page) continue;
+        page.fileName = `${id}/index.html`;
+        if (
+          relative &&
+          page.type === "asset" &&
+          typeof page.source === "string"
+        )
+          page.source = page.source.replaceAll('"../../', '"../');
+      }
+    },
+  };
+};
 
 export default defineConfig({
   build: {
