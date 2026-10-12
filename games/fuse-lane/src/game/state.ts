@@ -110,6 +110,12 @@ export interface PlayerState {
   botAt: number;
   /** Actions a bot took this week, a runaway guard. */
   botActs: number;
+  /**
+   * Looks only: this week's walks, three numbers each (the clock unit it set off, the step it set off from and the
+   * place it headed for), so the board can replay a finished player's week beside the one still playing. At most
+   * `TRAIL_WALKS` walks.
+   */
+  trail: number[];
   /** Shifts and classes this week. */
   weekShifts: number;
   weekClasses: number;
@@ -118,6 +124,9 @@ export interface PlayerState {
   shifts: number;
   bestWorth: number;
 }
+
+/** The most walks a week's trail keeps. */
+export const TRAIL_WALKS = 64;
 
 export const HOME_PLACE = [ROOMSHARE, TOWER] as const;
 /** The place a home index (0 Roomshare, 1 The Tower) is. */
@@ -172,6 +181,7 @@ export function createPlayer(
     msgBad: false,
     botAt: 0,
     botActs: 0,
+    trail: [],
     weekShifts: 0,
     weekClasses: 0,
     shifts: 0,

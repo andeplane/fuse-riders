@@ -1201,8 +1201,9 @@ export function createGameScreen(
     const { newer, older } = timing;
     const span = older ? newer.tick - older.tick : 0;
     const before = new Map<string, number>();
-    for (const player of (older ?? newer).players)
-      before.set(player.id, player.state.pos);
+    // Where everyone was drawn in the older frame (a replayed week included), to walk smoothly from there.
+    for (const player of boardModel(older ?? newer, viewer).players)
+      before.set(player.id, player.pos);
     const now = performance.now();
     const frame: BoardFrame = {
       ...boardModel(newer, viewer),
