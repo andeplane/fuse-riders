@@ -23,11 +23,11 @@ export interface ArtAsset {
 }
 
 export const STYLE =
-  "Bright modern flat vector illustration with soft cel shading and gentle gradients, one consistent dark navy " +
-  "outline (about 3% of the canvas width), rounded friendly shapes, cheerful saturated palette (teal #2ec4b6, " +
-  "coral #ff6b6b, sunflower #ffd23f, sky #4cc9f0, mint #3ddc84, plum #7b2cbf, warm cream #fff4e0), light from the " +
-  "top left, no text, no letters, no logos, no watermark, crisp edges, readable at 64 px on a phone. Same art " +
-  "direction for every asset of the set, like one mobile game's sticker sheet.";
+  "Pixel art in the style of a 1990 Sierra VGA adventure game: a 256-colour palette, chunky visible pixels (drawn " +
+  "at about a quarter of the canvas resolution and scaled up with nearest-neighbour, no blur, no anti-aliasing), " +
+  "hand-placed dithering for shading, dark one-pixel outlines, warm saturated colours, slightly caricatured cartoon " +
+  "proportions with expressive faces, light from the top left. No text, no letters, no numbers, no logos, no " +
+  "watermark. Same art direction for every asset of the set, as if painted by one artist for one game.";
 
 const BASE = "fuse-lane";
 
@@ -36,16 +36,17 @@ const building = (
   color: string,
   label: string,
   subject: string,
+  ground: string,
 ): ArtAsset => ({
   id: `building-${id}`,
   file: `${BASE}/buildings/${id}.png`,
   width: 512,
   height: 512,
-  anchor: [0.5, 0.92],
-  transparent: true,
+  anchor: [0.5, 0.5],
+  transparent: false,
   color,
   label,
-  prompt: `${subject} Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background.`,
+  prompt: `One square board tile of a city board game: ${subject} Seen from the front and slightly above, the building fills the upper two thirds of the tile with its door facing the viewer. It stands on its own patch of ${ground}, with a winding footpath from the door to the bottom edge, a few trees and shrubs. The scene fills the whole square edge to edge so tiles can sit side by side. A blank signboard over the door (no letters). Opaque, no border, no frame.`,
 });
 
 const AVATAR_CHARACTERS: Record<string, string> = {
@@ -75,7 +76,7 @@ const avatarAssets = (id: string, index: number): ArtAsset[] => {
       transparent: true,
       color,
       label: id[0]!.toUpperCase(),
-      prompt: `Full-body game character: ${who}, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Chibi proportions (head about 40% of height). Transparent background.`,
+      prompt: `Full-body game character: ${who}, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Caricatured cartoon proportions: a big head and a big nose. Transparent background.`,
     },
     {
       id: `avatar-${id}-walk`,
@@ -87,7 +88,7 @@ const avatarAssets = (id: string, index: number): ArtAsset[] => {
       transparent: true,
       color,
       label: id[0]!.toUpperCase(),
-      prompt: `Two-frame walk cycle sprite sheet, side by side, each frame 256x256: ${who}, walking to the right, frame 1 left foot forward, frame 2 right foot forward, identical scale and baseline in both frames, small soft oval shadow under the feet. Chibi proportions. Transparent background.`,
+      prompt: `Two-frame walk cycle sprite sheet, side by side, each frame 256x256: ${who}, walking to the right, frame 1 left foot forward, frame 2 right foot forward, clearly different leg and arm positions between the two frames, identical scale and baseline in both frames, small soft oval shadow under the feet. Caricatured cartoon proportions. Transparent background.`,
     },
     {
       id: `avatar-${id}-portrait`,
@@ -156,106 +157,135 @@ const ui = (
 
 export const ART: readonly ArtAsset[] = [
   {
-    id: "board-ground",
-    file: `${BASE}/board/ground.png`,
-    width: 2048,
-    height: 1536,
+    id: "board-center",
+    file: `${BASE}/board/center.png`,
+    width: 1024,
+    height: 1024,
     anchor: [0.5, 0.5],
     transparent: false,
     color: "#bfe8c9",
     label: "",
     prompt:
-      "Top-down view of a tidy city block seen from directly above: soft green lawns, a few round trees, flower beds, a small pond and footpaths, with an empty light-grey margin all round where a ring road and buildings will be drawn on top. Calm, low-contrast so characters and buildings read clearly over it. Opaque background, no road, no buildings.",
+      "The town park at the centre of a city board game, seen from slightly above: lawns, a pond with ducks, round trees, flower beds, benches and a bandstand, footpaths crossing it. Calm and low-contrast, because panels and text are drawn over it. Fills the whole square edge to edge. Opaque.",
   },
-  {
-    id: "board-plaza",
-    file: `${BASE}/board/plaza.png`,
-    width: 1024,
-    height: 768,
+  ...[
+    "a small grove of round trees with a picnic table",
+    "a flower garden with a fountain and benches",
+    "a playground with swings and a sandpit",
+  ].map((subject, index): ArtAsset => ({
+    id: `tile-park-${index + 1}`,
+    file: `${BASE}/board/park-${index + 1}.png`,
+    width: 512,
+    height: 512,
     anchor: [0.5, 0.5],
-    transparent: true,
-    color: "#e8f6ee",
+    transparent: false,
+    color: "#9ed89a",
     label: "",
-    prompt:
-      "Top-down view of a small round town plaza for the centre of the city block: a fountain, benches, a news kiosk and a big clock post, seen from directly above. Transparent background outside the plaza.",
-  },
+    prompt: `One square filler tile of a city board game, with no building: ${subject} on green lawn, a winding footpath crossing it. The scene fills the whole square edge to edge so tiles can sit side by side. Opaque, no border, no frame.`,
+  })),
   building(
     "roomshare",
     "#ffb4a2",
     "ROOM",
     "A tired but charming three-storey shared house with mismatched curtains, bikes chained outside and a recycling bin overflowing with takeaway boxes.",
+
+    "lilac paving stones",
   ),
   building(
     "keynest",
     "#ffd23f",
     "KEY",
     "A small modern letting-agency office with a huge key-shaped sign shape above the door (no letters) and a glass front with house listings as coloured cards.",
+
+    "soft blue lawn",
   ),
   building(
     "tower",
     "#4cc9f0",
     "TWR",
     "A sleek glass residential tower with a doorman canopy, potted plants and warm lights in the windows.",
+
+    "pale grey plaza tiles with planters",
   ),
   building(
     "freshco",
     "#3ddc84",
     "FRSH",
     "A bright neighbourhood grocery store with a striped awning, crates of fruit and vegetables outside and a shopping cart.",
+
+    "pink brick paving",
   ),
   building(
     "neobank",
     "#7b2cbf",
     "BANK",
     "A minimalist fintech bank branch with a curved glass facade, a big app-icon-like sign shape and an ATM by the door.",
+
+    "bright green lawn",
   ),
   building(
     "gigafactory",
     "#8d99ae",
     "GIGA",
     "A huge clean modern factory with saw-tooth roofs, solar panels, a chimney with a puff of white steam and a robot arm visible through a window.",
+
+    "dusty purple tarmac",
   ),
   building(
     "jobhub",
     "#2ec4b6",
     "JOBS",
     "A friendly job centre with a speech-bubble sign shape, a notice board of job cards outside and a queue line rope.",
+
+    "teal-green lawn",
   ),
   building(
     "college",
     "#ff9f1c",
     "COLL",
     "A small red-brick city college with columns, a clock above the entrance, steps and a tree with a bench.",
+
+    "warm yellow gravel and lawn",
   ),
   building(
     "gadget",
     "#00b4d8",
     "GADG",
     "An electronics store with a giant plug-shaped sign shape, glowing screens in the window and a delivery van.",
+
+    "sky-blue paving",
   ),
   building(
     "threads",
     "#ff6b9e",
     "THRD",
     "A stylish clothing boutique with mannequins in the window, a hanger-shaped sign shape and a pink awning.",
+
+    "terracotta orange paving",
   ),
   building(
     "mono",
     "#ff6b6b",
     "MONO",
     "A retro drive-thru burger joint with a giant burger on the roof, a drive-thru lane and a neon-style menu board.",
+
+    "red-orange tarmac with parking lines",
   ),
   building(
     "megamart",
     "#f9c74f",
     "MEGA",
     "A big-box discount warehouse store with a huge flat roof, stacked pallets, a cart corral and bargain banners without text.",
+
+    "lime green lawn",
   ),
   building(
     "resale",
     "#b5838d",
     "2ND",
     "A quirky second-hand shop with a cluttered window of lamps, guitars and teapots, and a hand-painted sign shape.",
+
+    "mint green paving",
   ),
   ...Object.keys(AVATAR_CHARACTERS).flatMap(avatarAssets),
   keeper(
