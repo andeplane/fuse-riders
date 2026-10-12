@@ -1,9 +1,7 @@
 /**
- * The city: 13 places on a loop road of `RING` steps. Ring positions are the original's (turn-engine notes §2.2),
- * the names are Fuse Lane's (modern-game.md §3).
+ * The 14 places of Fusetown: the original's 13 (turn-engine notes §2.2) with Fuse Lane's names (modern-game.md §3),
+ * and the docks. Where each one stands, and the streets between them, are the city's (`./cities/`).
  */
-export const RING = 170;
-
 export type PlaceKind =
   | "home"
   | "rent"
@@ -16,14 +14,13 @@ export type PlaceKind =
   | "clothes"
   | "food"
   | "discount"
-  | "resale";
+  | "resale"
+  | "port";
 
 export interface PlaceData {
   id: string;
   name: string;
   kind: PlaceKind;
-  /** Index on the ring road. */
-  ring: number;
   /** The listed company that runs it (`COMPANIES` index), or -1. */
   company: number;
   /** The employer whose staff work here (`EMPLOYERS` index), or -1. */
@@ -42,9 +39,10 @@ export const ROOMSHARE = 0,
   THREADS = 9,
   MONO = 10,
   MEGAMART = 11,
-  RESALE = 12;
+  RESALE = 12,
+  DOCKS = 13;
 
-/** Employers: the eight companies in `COMPANIES` order, then City College. */
+/** Employers: the nine companies in `COMPANIES` order, then City College. */
 export const EMPLOYERS = [
   "Gigafactory",
   "Neobank",
@@ -54,16 +52,16 @@ export const EMPLOYERS = [
   "Threads",
   "MegaMart",
   "KeyNest",
+  "Fusetown Port",
   "City College",
 ] as const;
-export const COLLEGE_EMPLOYER = 8;
+export const COLLEGE_EMPLOYER = 9;
 
 export const PLACES: readonly PlaceData[] = [
   {
     id: "roomshare",
     name: "Roomshare",
     kind: "home",
-    ring: 1,
     company: -1,
     employer: -1,
   },
@@ -71,7 +69,6 @@ export const PLACES: readonly PlaceData[] = [
     id: "keynest",
     name: "KeyNest",
     kind: "rent",
-    ring: 164,
     company: 7,
     employer: 7,
   },
@@ -79,7 +76,6 @@ export const PLACES: readonly PlaceData[] = [
     id: "tower",
     name: "The Tower",
     kind: "home",
-    ring: 151,
     company: -1,
     employer: -1,
   },
@@ -87,7 +83,6 @@ export const PLACES: readonly PlaceData[] = [
     id: "freshco",
     name: "FreshCo",
     kind: "grocery",
-    ring: 134,
     company: 2,
     employer: 2,
   },
@@ -95,7 +90,6 @@ export const PLACES: readonly PlaceData[] = [
     id: "neobank",
     name: "Neobank",
     kind: "bank",
-    ring: 120,
     company: 1,
     employer: 1,
   },
@@ -103,7 +97,6 @@ export const PLACES: readonly PlaceData[] = [
     id: "gigafactory",
     name: "Gigafactory",
     kind: "factory",
-    ring: 107,
     company: 0,
     employer: 0,
   },
@@ -111,7 +104,6 @@ export const PLACES: readonly PlaceData[] = [
     id: "jobhub",
     name: "Job Hub",
     kind: "jobs",
-    ring: 99,
     company: -1,
     employer: -1,
   },
@@ -119,15 +111,13 @@ export const PLACES: readonly PlaceData[] = [
     id: "college",
     name: "City College",
     kind: "college",
-    ring: 75,
     company: -1,
-    employer: 8,
+    employer: 9,
   },
   {
     id: "gadget",
     name: "Gadget Garage",
     kind: "gadgets",
-    ring: 66,
     company: 4,
     employer: 4,
   },
@@ -135,7 +125,6 @@ export const PLACES: readonly PlaceData[] = [
     id: "threads",
     name: "Threads",
     kind: "clothes",
-    ring: 47,
     company: 5,
     employer: 5,
   },
@@ -143,7 +132,6 @@ export const PLACES: readonly PlaceData[] = [
     id: "mono",
     name: "Mono Burger",
     kind: "food",
-    ring: 35,
     company: 3,
     employer: 3,
   },
@@ -151,7 +139,6 @@ export const PLACES: readonly PlaceData[] = [
     id: "megamart",
     name: "MegaMart",
     kind: "discount",
-    ring: 24,
     company: 6,
     employer: 6,
   },
@@ -159,9 +146,15 @@ export const PLACES: readonly PlaceData[] = [
     id: "resale",
     name: "Second Life",
     kind: "resale",
-    ring: 14,
     company: -1,
     employer: -1,
+  },
+  {
+    id: "docks",
+    name: "Fusetown Docks",
+    kind: "port",
+    company: 8,
+    employer: 8,
   },
 ];
 
@@ -170,16 +163,9 @@ export const WORKPLACE: readonly number[] = EMPLOYERS.map((_, employer) =>
   PLACES.findIndex((place) => place.employer === employer),
 );
 
-/** Steps between two ring positions the short way round. */
-export function ringDistance(a: number, b: number): number {
-  const gap = Math.abs(a - b) % RING;
-  return Math.min(gap, RING - gap);
-}
-/** The direction (+1 or −1) of the shorter way from `from` to `to`; +1 on a tie. */
-export function ringDirection(from: number, to: number): 1 | -1 {
-  const forward = (to - from + RING) % RING;
-  return forward <= RING - forward ? 1 : -1;
-}
+/** The places where an employer also takes applications for its own jobs, at the gate (the Job Hub takes them all). */
+export const hiresAtGate = (place: number): boolean =>
+  PLACES[place]?.kind === "factory" || PLACES[place]?.kind === "port";
 
 /** One line per place, picked by the week: the shopkeepers' deadpan greetings. */
 export const GREETINGS: readonly (readonly string[])[] = [
@@ -214,4 +200,9 @@ export const GREETINGS: readonly (readonly string[])[] = [
     "Today's deal: aisle-cleanup surprise.",
   ],
   ["Someone's treasure, slightly used.", "Back next season. Probably."],
+  [
+    "The sea is calm. The paperwork is not.",
+    "Mind the ropes. They have seniority.",
+    "Containers in, containers out. Feelings stay on the quay.",
+  ],
 ];

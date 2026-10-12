@@ -3,9 +3,13 @@ import assert from "node:assert/strict";
 import {
   ACT,
   APPLY,
+  DOCKS,
   END_WEEK,
+  HOURS,
   JOBHUB,
+  JOBS,
   READY,
+  ROOMSHARE,
   WALK,
   type FuseLaneView,
 } from "../src/game/index.js";
@@ -74,6 +78,39 @@ test("the Job Hub panel offers the sure-thing job as a card that logs APPLY", ()
   const after = present(match.view(), LOCAL);
   assert.match(after.hud!.job, /Line Cook/);
   assert.match(after.toast!.text, /Hired/);
+});
+
+test("the docks panel lists Fusetown Port's ladder with apply cards; the board shows walking hours", () => {
+  const match = LocalMatch.create(setup(1, 0));
+  const board = present(match.view(), LOCAL).board;
+  const docks = board.places[DOCKS]!;
+  assert.equal(docks.name, "Fusetown Docks");
+  assert.ok(docks.hours > 2, "a walk across town and the door");
+  assert.equal(board.places[ROOMSHARE]!.hours, HOURS.enter, "home is the door");
+  match.play([WALK, 1, DOCKS]);
+  until(match, () => match.room.players.p1!.inside === DOCKS);
+  const panel = present(match.view(), LOCAL).panel!;
+  assert.equal(panel.name, "Fusetown Docks");
+  const gate = panel.sections.find(
+    (section) => section.title === "Jobs at Fusetown Port",
+  )!;
+  for (const title of [
+    "Deckhand",
+    "Forklift Driver",
+    "Crane Operator",
+    "Harbour Master",
+  ])
+    assert.ok(
+      gate.cards.some((card) => card.title.startsWith(title)),
+      title,
+    );
+  const deckhand = gate.cards.find((card) =>
+    card.title.startsWith("Deckhand"),
+  )!;
+  const index = JOBS.findIndex((job) => job.title === "Deckhand");
+  assert.ok(deckhand.enabled);
+  assert.deepEqual(deckhand.entry, [ACT, 1, DOCKS, APPLY, index, 0]);
+  assert.equal(gate.cards.length, 4);
 });
 
 test("hot-seat: the handoff hides the HUD and the panel, names who is next and its tap starts their week", () => {

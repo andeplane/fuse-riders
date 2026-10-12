@@ -11,10 +11,9 @@ import {
   MEGAMART,
   MONO,
   NEOBANK,
-  PLACES,
   THREADS,
   WORKPLACE,
-  ringDistance,
+  hiresAtGate,
 } from "./data/places.js";
 import {
   APPLY,
@@ -47,6 +46,7 @@ import {
   shelfPrice,
 } from "./economy.js";
 import type { FuseLaneRoom } from "./room.js";
+import { walkSteps } from "./streets.js";
 import {
   ASKED_RAISE,
   homePlace,
@@ -149,8 +149,7 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
   const travel = (place: number) =>
     player.inside === place
       ? 0
-      : ringDistance(player.pos, PLACES[place]!.ring) / UNITS_PER_HOUR +
-        HOURS.enter;
+      : walkSteps(player.pos, place) / UNITS_PER_HOUR + HOURS.enter;
   const fits = (place: number, hours: number) =>
     travel(place) + hours <= left + 0.001;
   const go = (
@@ -169,12 +168,19 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
   const goals = player.goals;
   const job = player.job >= 0 ? JOBS[player.job]! : undefined;
   const workplace = job ? WORKPLACE[job.employer]! : -1;
+  /** Where to apply for a position: its employer's gate when that hires and is no further than the Job Hub. */
+  const office = (index: number) => {
+    const gate = WORKPLACE[JOBS[index]!.employer]!;
+    return gate >= 0 && hiresAtGate(gate) && travel(gate) <= travel(JOBHUB)
+      ? gate
+      : JOBHUB;
+  };
 
   // 1. Get a job.
   if (!job) {
     const best = bestJob(room, id, player);
     if (best >= 0) {
-      const move = go(JOBHUB, APPLY, best, 0, HOURS.apply);
+      const move = go(office(best), APPLY, best, 0, HOURS.apply);
       if (move) return move;
     }
   }
@@ -257,7 +263,7 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
   if (job && level.climb) {
     const best = bestJob(room, id, player);
     if (best >= 0 && player.exp >= player.maxExp - 2) {
-      const move = go(JOBHUB, APPLY, best, 0, HOURS.apply);
+      const move = go(office(best), APPLY, best, 0, HOURS.apply);
       if (move) return move;
     }
   }

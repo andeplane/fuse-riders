@@ -333,6 +333,12 @@ body.fl-page .fl-remove {
   position: absolute;
   inset: 0;
   display: block;
+  /* The board pans by drag and walks by tap; the page itself never scrolls under it. */
+  touch-action: none;
+  cursor: grab;
+}
+.fl-stage canvas.dragging {
+  cursor: grabbing;
 }
 .fl-game.modal .fl-stage::after,
 .fl-game.paused .fl-stage::after {
@@ -546,6 +552,24 @@ body.fl-page .fl-clock:enabled:hover {
 .fl-goal-ring.met b {
   color: var(--fl-green-deep);
 }
+/* A narrower wide screen (a phone on its side, a small laptop): the goals' values go under their dials. */
+@media (max-width: 62rem) {
+  .fl-game:not(.compact) .fl-hud-goals {
+    gap: 0.3rem;
+  }
+  .fl-game:not(.compact) .fl-goal-ring {
+    flex-direction: column;
+    gap: 0;
+    min-width: 2.4rem;
+  }
+  .fl-game:not(.compact) .fl-goal-ring b {
+    font-size: 0.66rem;
+  }
+  .fl-game:not(.compact) .fl-dial {
+    width: 1.9rem;
+    height: 1.9rem;
+  }
+}
 body.fl-page .fl-end-week {
   min-height: 2.9rem;
   padding: 0.4rem 1.1rem;
@@ -660,7 +684,7 @@ body.fl-page .fl-pause {
 .fl-panel-head {
   position: relative;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 0.75rem 0.85rem;
@@ -687,6 +711,22 @@ body.fl-page .fl-pause {
 }
 .fl-keeper .fl-art {
   border-radius: 0;
+}
+/* The place's building sticker, the same one the menu shows, on the right of a place panel's head. */
+.fl-panel-building {
+  align-self: end;
+  width: 5.5rem;
+  height: 5.5rem;
+  margin: -0.75rem 0 -0.95rem;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
+  pointer-events: none;
+}
+.fl-panel-building .fl-art {
+  width: 100%;
+  height: 100%;
+}
+.fl-you .fl-panel-head {
+  grid-template-columns: auto minmax(0, 1fr) auto;
 }
 .fl-panel-titles {
   display: grid;
@@ -927,7 +967,7 @@ body.fl-page .fl-card:disabled .fl-card-icon {
   margin-top: 0.3rem;
 }
 
-/* Rivals: chips in the park's corners on a wide screen, a row in every place panel on a phone */
+/* Rivals: chips in the corners on a wide screen, a row in every place panel on a phone */
 .fl-standings {
   display: flex;
   gap: 0.5rem;
@@ -1000,10 +1040,10 @@ body.fl-page .fl-card:disabled .fl-card-icon {
 .fl-corners {
   position: absolute;
   z-index: 1;
-  left: var(--park-x);
-  top: var(--park-y);
-  width: var(--park-w);
-  height: var(--park-h);
+  left: var(--free-x);
+  top: var(--free-y);
+  width: var(--free-w);
+  height: var(--free-h);
   pointer-events: none;
 }
 .fl-corners .fl-rival {
@@ -1018,21 +1058,25 @@ body.fl-page .fl-card:disabled .fl-card-icon {
   right: 0.5rem;
   top: 0.5rem;
 }
+/* The third rival takes the bottom right, so the bottom left (the town's welcome sign) stays clear longest. */
 .fl-corners [data-corner="2"] {
-  left: 0.5rem;
+  right: 0.5rem;
   bottom: 0.5rem;
 }
 .fl-corners [data-corner="3"] {
-  right: 0.5rem;
+  left: 0.5rem;
   bottom: 0.5rem;
 }
 .fl-panel-standings {
   display: none;
 }
-.fl-game.compact .fl-corners {
+/* A tall phone, or a short screen (a phone on its side): the rivals show in the place panels instead. */
+.fl-game.compact .fl-corners,
+.fl-game.short .fl-corners {
   display: none;
 }
-.fl-game.compact .fl-panel-standings:not(:empty) {
+.fl-game.compact .fl-panel-standings:not(:empty),
+.fl-game.short .fl-panel-standings:not(:empty) {
   display: flex;
   flex: none;
   padding: 0.55rem 0.7rem;
@@ -1361,6 +1405,33 @@ body.fl-page .fl-game.compact .fl-end-week {
   width: 3.75rem;
   height: 3.75rem;
 }
+.fl-game.compact .fl-panel-head,
+.fl-game.short .fl-panel-head {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+.fl-game.compact .fl-panel-building,
+.fl-game.short .fl-panel-building {
+  display: none;
+}
+/* A short screen keeps the panel head low, so the cards get the room. */
+.fl-game.short .fl-panel-head {
+  padding: 0.45rem 0.6rem;
+}
+.fl-game.short .fl-keeper {
+  width: 3rem;
+  height: 3rem;
+  border-width: 2px;
+}
+.fl-game.short .fl-banner {
+  font-size: 0.95rem;
+}
+.fl-game.short .fl-greeting {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.78rem;
+}
+.fl-game.short .fl-panel-standings:not(:empty) {
+  padding: 0.35rem 0.6rem;
+}
 .fl-game.compact .fl-banner {
   font-size: 1rem;
 }
@@ -1565,7 +1636,7 @@ body.fl-page .fl-start-game {
   }
 }
 .fl-city {
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 3 / 2;
   margin-top: var(--fui-space-2);
   overflow: hidden;
   background: #6f9e4b;

@@ -165,10 +165,10 @@ export function createMenu(options: MenuOptions): HTMLElement {
   const root = el("main", "", "fl-menu");
   const hero = el("section", "", "fl-hero");
   hero.append(
-    el("h1", "FUSE LANE", "fl-hero-title"),
+    el("h1", "FUSETOWN", "fl-hero-title"),
     el(
       "p",
-      "Live a week against the clock: work, study, shop and invest in a city whose economy answers back. First to reach all four goals wins.",
+      "Live a week in Fusetown against the clock: work, study, shop and invest in a harbour town whose economy answers back. First to reach all four goals wins.",
       "fl-hero-tagline",
     ),
   );

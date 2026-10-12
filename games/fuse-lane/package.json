@@ -2,7 +2,7 @@
   "name": "fuse-lane",
   "version": "0.1.0",
   "private": true,
-  "description": "Fuse Lane: a simultaneous-week life sim on a loop road. Work, study, shop and invest in a living economy; first to meet all four goals wins. Its rules run on fuse-netcode, its page (src/app/) on fuse-ui and fuse-network-fe.",
+  "description": "Fusetown (game id fuse-lane): a simultaneous-week life sim on the streets of a harbour town. Work, study, shop and invest in a living economy; first to meet all four goals wins. Its rules run on fuse-netcode, its page (src/app/) on fuse-ui and fuse-network-fe.",
   "type": "module",
   "engines": {
     "node": ">=22.12.0"

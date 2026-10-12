@@ -9,5 +9,7 @@ export * from "./data/economy.js";
 export * from "./data/items.js";
 export * from "./data/jobs.js";
 export * from "./data/places.js";
+export * from "./data/cities/index.js";
+export * from "./streets.js";
 export { botMove, bestJob } from "./bot.js";
 export { random, randInt, seedOf, ln, clamp } from "./random.js";

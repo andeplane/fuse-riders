@@ -1,12 +1,26 @@
 import { button, el } from "fuse-ui";
-import { GOAL_NAMES, PLACES, type FuseLaneView } from "../game/index.js";
-import type { Art } from "./art.js";
-import { drawBoard } from "./board.js";
 import {
-  geometry,
+  CITY,
+  GOAL_NAMES,
+  PLACES,
+  type FuseLaneView,
+  type MapPoint,
+} from "../game/index.js";
+import type { Art } from "./art.js";
+import { FONT, drawBoard, labelFont, type BoardFrame } from "./board.js";
+import {
+  boardView,
+  centreOn,
+  clampCamera,
+  easeCamera,
   placeAt,
-  type Geometry,
+  SHORT,
+  toMap,
+  walkerAt,
+  type BoardView,
+  type Camera,
   type Insets,
+  type LabelSize,
   type Rect,
 } from "./layout.js";
 import {
@@ -21,12 +35,13 @@ import {
 } from "./presenter.js";
 
 /**
- * The game screen, shared by a match on this device and an online room. The board fills the screen; a slim HUD
+ * The game screen, shared by a match on this device and an online room. The city's map fills the screen; a slim HUD
  * floats over its edges (hours, money, goals, CALL IT A WEEK, pause and menu); everything else opens in the middle
  * of the board: the place panels, the "you" panel, the Monday briefing, the hot-seat handoff and the result. On a
- * wide screen the rivals sit in the corners of the park; on a phone they show at the top of every place panel. It
- * renders a `ScreenModel` and hands every tap back as a play entry body; the board is drawn each animation frame
- * from the driver's two newest frames.
+ * wide screen the rivals sit in the corners; on a phone they show at the top of every place panel. The camera follows
+ * this device's player and can be dragged (on a phone held upright the map is as tall as the screen and pans
+ * sideways); a tap on a building walks there. It renders a `ScreenModel` and hands every tap back as a play entry
+ * body; the board is drawn each animation frame from the driver's two newest frames.
  */
 export interface Driver {
   play(body: readonly unknown[]): boolean;
@@ -180,11 +195,20 @@ function createStandings(art: Art, className: string) {
   };
 }
 
+export interface ScreenOptions {
+  /** Draw the street graph and the tap outlines over the map (`?debug-roads`). */
+  debugRoads?: boolean;
+}
+
+/** A pointer that moved less than this (px) between down and up is a tap, not a drag. */
+const TAP_SLOP = 8;
+
 export function createGameScreen(
   art: Art,
   viewer: Viewer,
   driver: () => Driver,
   hooks: ScreenHooks,
+  options: ScreenOptions = {},
 ) {
   const play = (body: readonly unknown[] | undefined) => {
     if (body) driver().play(body);
@@ -232,7 +256,7 @@ export function createGameScreen(
   hud.append(youButton, cash, hudGoals.element, endWeek, controls);
   endWeek.onclick = () => play(model?.endWeekEntry);
 
-  // ---- rivals in the park's corners (wide screens) ----
+  // ---- rivals in the corners (wide screens) ----
   const rivals = createStandings(art, "fl-corners");
 
   // ---- the middle of the board: every panel and card opens here ----
@@ -243,12 +267,14 @@ export function createGameScreen(
     panelKeeper = el("div", "", "fl-keeper"),
     panelName = el("h2", "", "fl-banner"),
     panelGreeting = el("p", "", "fl-greeting"),
+    panelBuilding = el("div", "", "fl-panel-building"),
     panelClose = button("×", "fl-close"),
     panelBody = el("div", "", "fl-panel-body");
   panelClose.setAttribute("aria-label", "Back to the street");
   const panelTitles = el("div", "", "fl-panel-titles");
   panelTitles.append(panelName, panelGreeting);
-  panelHead.append(panelKeeper, panelTitles, panelClose);
+  panelBuilding.setAttribute("aria-hidden", "true");
+  panelHead.append(panelKeeper, panelTitles, panelBuilding, panelClose);
   const panelStandings = createStandings(art, "fl-panel-standings");
   panel.append(panelHead, panelStandings.element, panelBody);
   panel.hidden = true;
@@ -397,6 +423,11 @@ export function createGameScreen(
     panelKey = key;
     panel.dataset.place = String(view.place);
     panelKeeper.replaceChildren(art.element(view.keeper, 72, "fl-keeper-art"));
+    const building = `building-${PLACES[view.place]?.id ?? ""}`;
+    if (panelBuilding.dataset.art !== building) {
+      panelBuilding.dataset.art = building;
+      panelBuilding.replaceChildren(art.element(building, 88));
+    }
     text(panelName, view.name);
     text(panelGreeting, view.greeting);
     panelBody.replaceChildren(
@@ -515,7 +546,7 @@ export function createGameScreen(
     showToast(next.toast);
     rivals.render(next.scores);
     panelStandings.render(next.scores);
-    // An open panel covers the park, so the rivals in its corners step aside (the panel shows them on phones).
+    // An open panel covers the middle, so the rivals in the corners step aside (the panel shows them on phones).
     rivals.element.hidden = !h || modal || !panel.hidden || !you.hidden;
     // Briefing.
     briefing.hidden = !next.briefing;
@@ -596,16 +627,25 @@ export function createGameScreen(
   }
 
   // ---- the board, drawn every animation frame from the two newest frames ----
-  const rings = PLACES.map((place) => place.ring);
-  let shape: Geometry | undefined,
-    shapeKey = "",
+  let view: BoardView | undefined,
+    viewKey = "",
+    camera: Camera | undefined,
+    labels: LabelSize[] = [],
     ratio = 1,
     hover = -1,
     running = true,
     insets: Insets = { top: 0, bottom: 0, left: 0, right: 0 };
+  /** The camera follows this device's player until a drag; a new walk or a new turn picks them up again. */
+  let follow = true,
+    followKey = "",
+    lastFrame = 0;
+  /** The pointer that is down on the board: where it went down and where the camera was, and whether it dragged. */
+  let press:
+    | { id: number; x: number; y: number; camera: Camera; dragged: boolean }
+    | undefined;
   /** The screen edges the HUD covers: its pieces in the top half push the board down, those in the bottom half up. */
   const measureInsets = (box: DOMRect): Insets => {
-    if (hud.classList.contains("bare") && shape) return insets;
+    if (hud.classList.contains("bare") && view) return insets;
     let top = 0,
       bottom = 0;
     for (const child of hud.children) {
@@ -628,6 +668,15 @@ export function createGameScreen(
     game.style.setProperty(`--${prefix}-w`, `${Math.round(rect.w)}px`);
     game.style.setProperty(`--${prefix}-h`, `${Math.round(rect.h)}px`);
   };
+  /** The labels' half sizes in map px, so a tap on a name label opens its place. */
+  const measureLabels = (next: BoardView): LabelSize[] => {
+    const font = labelFont(next);
+    context.font = `800 ${font}px ${FONT}`;
+    return PLACES.map((place) => ({
+      w: (context.measureText(place.name).width + font * 1.2) / 2 / next.scale,
+      h: (font * 1.7) / 2 / next.scale,
+    }));
+  };
   const resize = () => {
     const box = game.getBoundingClientRect();
     ratio = Math.min(2, window.devicePixelRatio || 1);
@@ -635,33 +684,115 @@ export function createGameScreen(
       height = Math.max(1, Math.round(box.height));
     insets = measureInsets(box);
     const key = [width, height, ratio, insets.top, insets.bottom].join(",");
-    if (key === shapeKey && shape) return;
-    shapeKey = key;
+    if (key === viewKey && view) return;
+    viewKey = key;
     canvas.width = width * ratio;
     canvas.height = height * ratio;
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
-    shape = geometry(width, height, rings, insets);
-    game.classList.toggle("compact", shape.compact);
-    setRect(shape.panel, "panel");
-    setRect(shape.park, "park");
+    const before = view;
+    view = boardView(width, height, CITY.map, insets);
+    // Keep the middle of the screen on the same spot of the map.
+    if (before && camera)
+      camera = centreOn(
+        view,
+        toMap(
+          before,
+          camera,
+          before.free.x + before.free.w / 2,
+          before.free.y + before.free.h / 2,
+        ),
+      );
+    labels = measureLabels(view);
+    game.classList.toggle("compact", view.compact);
+    // A short screen has no room for rival chips in its corners.
+    game.classList.toggle("short", !view.compact && view.height < SHORT);
+    setRect(view.panel, "panel");
+    setRect(view.free, "free");
   };
+  /** The place under a pointer, or -1. */
   const pointer = (event: MouseEvent) => {
-    if (!shape) return -1;
+    if (!view || !camera) return -1;
     const box = canvas.getBoundingClientRect();
-    return placeAt(shape, event.clientX - box.left, event.clientY - box.top);
+    return placeAt(
+      toMap(view, camera, event.clientX - box.left, event.clientY - box.top),
+      labels,
+    );
   };
+  const pan = (dx: number, dy: number, from: Camera) => {
+    if (!view) return;
+    follow = false;
+    camera = clampCamera(view, { x: from.x + dx, y: from.y + dy });
+  };
+  canvas.addEventListener("pointerdown", (event) => {
+    if (press || !camera || (event.pointerType === "mouse" && event.button))
+      return;
+    press = {
+      id: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      camera,
+      dragged: false,
+    };
+    canvas.setPointerCapture?.(event.pointerId);
+  });
   canvas.addEventListener("pointermove", (event) => {
+    if (press && press.id === event.pointerId) {
+      const dx = event.clientX - press.x,
+        dy = event.clientY - press.y;
+      if (!press.dragged && dx * dx + dy * dy > TAP_SLOP * TAP_SLOP) {
+        press.dragged = true;
+        canvas.classList.add("dragging");
+        hover = -1;
+      }
+      if (press.dragged) pan(dx, dy, press.camera);
+      return;
+    }
+    if (event.pointerType !== "mouse") return;
     hover = model?.walk ? pointer(event) : -1;
     canvas.style.cursor = hover >= 0 ? "pointer" : "";
   });
-  canvas.addEventListener("pointerleave", () => {
-    hover = -1;
-  });
-  canvas.addEventListener("click", (event) => {
+  const release = (event: PointerEvent, cancelled: boolean) => {
+    if (!press || press.id !== event.pointerId) return;
+    const tapped = !press.dragged && !cancelled;
+    press = undefined;
+    canvas.classList.remove("dragging");
+    if (!tapped) return;
     const at = pointer(event);
     if (at >= 0) walk(at);
+  };
+  canvas.addEventListener("pointerup", (event) => release(event, false));
+  canvas.addEventListener("pointercancel", (event) => release(event, true));
+  canvas.addEventListener("pointerleave", (event) => {
+    if (event.pointerType === "mouse" && !press) hover = -1;
   });
+  canvas.addEventListener(
+    "wheel",
+    (event) => {
+      if (!camera || event.ctrlKey) return;
+      event.preventDefault();
+      pan(-event.deltaX, -event.deltaY, camera);
+    },
+    { passive: false },
+  );
+
+  /** Where this device's player is on the map this frame (or undefined: nobody plays here). */
+  const myPoint = (frame: BoardFrame): MapPoint | undefined => {
+    const me = frame.players.find((player) => player.you);
+    if (!me) return undefined;
+    const key = `${me.id}:${me.dest}`;
+    if (key !== followKey) {
+      // A new walk, or a new turn: the camera picks this player up again.
+      if (me.dest >= 0 || !followKey.startsWith(`${me.id}:`)) follow = true;
+      followKey = key;
+    }
+    return walkerAt(
+      frame.before.get(me.id) ?? me.pos,
+      me.pos,
+      me.dest >= 0 ? me.dest : me.inside,
+      frame.fraction,
+    ).at;
+  };
   const started = performance.now();
   const frameLoop = () => {
     if (!running) return;
@@ -670,26 +801,38 @@ export function createGameScreen(
       return;
     resize();
     const timing = driver().frameTiming();
-    if (!timing || !shape) return;
+    if (!timing || !view) return;
     const { newer, older } = timing;
     const span = older ? newer.tick - older.tick : 0;
     const before = new Map<string, number>();
     for (const player of (older ?? newer).players)
       before.set(player.id, player.state.pos);
+    const now = performance.now();
+    const frame: BoardFrame = {
+      ...boardModel(newer, viewer),
+      before,
+      fraction: span > 0 ? (timing.tick - older!.tick) / span : 1,
+      time: (now - started) / 1000,
+      hover,
+    };
+    const mine = myPoint(frame);
+    const middle: MapPoint = [CITY.map.width / 2, CITY.map.height / 2];
+    if (!camera) camera = centreOn(view, mine ?? middle);
+    else if (follow && mine && !press?.dragged)
+      camera = easeCamera(
+        camera,
+        centreOn(view, mine),
+        Math.min(0.1, (now - (lastFrame || now)) / 1000),
+      );
+    camera = clampCamera(view, camera);
+    lastFrame = now;
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    drawBoard(
-      context,
-      shape,
-      {
-        ...boardModel(newer, viewer),
-        before,
-        fraction: span > 0 ? (timing.tick - older!.tick) / span : 1,
-        time: (performance.now() - started) / 1000,
-        hover,
-      },
-      art,
-      ratio,
-    );
+    drawBoard(context, view, camera, frame, art, ratio, {
+      debug: Boolean(options.debugRoads),
+    });
+    // With `?debug-roads`, the camera is readable from the page too, so a browser test can tap a building.
+    if (options.debugRoads)
+      game.dataset.camera = `${camera.x},${camera.y},${view.scale}`;
   };
   requestAnimationFrame(frameLoop);
 

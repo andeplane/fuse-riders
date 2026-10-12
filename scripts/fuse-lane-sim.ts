@@ -1,5 +1,5 @@
 /**
- * Headless Fuse Lane: runs whole bot-only games through the real rules fold and prints how long they take and where
+ * Headless Fusetown (game id `fuse-lane`): runs whole bot-only games through the real rules fold and prints how long they take and where
  * the economy wanders, for balance checks (economy-sim.md §9). Usage:
  *
  *   pnpm exec tsx scripts/fuse-lane-sim.ts [games=200] [players=4] [goal=50] [mode=turns|together] [level=2]
@@ -11,6 +11,7 @@
  */
 import { ACTION, BOT, SETTINGS, type StreamEntries } from "fuse-netcode";
 import {
+  ASSET_COUNT,
   ASSET_NAMES,
   CATEGORIES,
   CYCLES,
@@ -80,8 +81,8 @@ const pct = (values: number[], p: number) => {
 function main(): void {
   const weeks: number[] = [];
   const winsBySlot = Array.from({ length: seats }, () => 0);
-  const lows = Array.from({ length: 12 }, () => Infinity),
-    highs = Array.from({ length: 12 }, () => 0);
+  const lows = Array.from({ length: ASSET_COUNT }, () => Infinity),
+    highs = Array.from({ length: ASSET_COUNT }, () => 0);
   const priceLows = CATEGORIES.map(() => Infinity),
     priceHighs = CATEGORIES.map(() => 0);
   const cycles = CYCLES.map(() => 0);
@@ -117,7 +118,7 @@ function main(): void {
   }
   rates = rates.sort((a, b) => a - b);
   console.log(
-    `Fuse Lane sim: ${games} games, ${seats} ${["easy", "normal", "hard"][level]} bots, ${turns ? "hot-seat" : "simultaneous"} weeks, goals ${goal}/${goal}/${goal}/${goal} (${((Date.now() - started) / 1000).toFixed(1)} s)`,
+    `Fusetown sim: ${games} games, ${seats} ${["easy", "normal", "hard"][level]} bots, ${turns ? "hot-seat" : "simultaneous"} weeks, goals ${goal}/${goal}/${goal}/${goal} (${((Date.now() - started) / 1000).toFixed(1)} s)`,
   );
   console.log(
     `weeks to finish: min ${Math.min(...weeks)}  p10 ${pct(weeks, 0.1)}  median ${pct(weeks, 0.5)}  p90 ${pct(weeks, 0.9)}  max ${Math.max(...weeks)}  (no winner: ${unfinished})`,

@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { ACTION } from "fuse-netcode";
 import {
   BRIEFING,
+  DOCKS,
   HANDOFF,
+  STEPS,
   WEEK,
   createRoom,
   decodeRoom,
@@ -46,6 +48,11 @@ test("every stage of a room survives the checkpoint whole: the same hash, and it
   fold(lobby, { a: [[10, "a", "Ada", 0, "fox", 1], addBot("bot:1", 1)] });
   const walking = started();
   fold(walking, { a: [walk(walking, 5)] });
+  // Halfway down a street to the docks, between two nodes of the city graph.
+  const docks = started();
+  fold(docks, { a: [walk(docks, DOCKS)] });
+  for (let tick = 0; tick < 12; tick++) fold(docks);
+  assert.equal(docks.players.a!.dest, DOCKS);
   const briefing = lived(3);
   runWhile(briefing, () => briefing.phase !== BRIEFING, 5000);
   const over = started(FAST, [addBot("bot:1", 2)]);
@@ -62,7 +69,7 @@ test("every stage of a room survives the checkpoint whole: the same hash, and it
   runWhile(over, () => over.stage === "running", 5000);
   assert.equal(over.stage, "over");
 
-  for (const room of [lobby, walking, lived(6), briefing, over]) {
+  for (const room of [lobby, walking, docks, lived(6), briefing, over]) {
     const copy = roundTrip(room);
     assert.equal(hashRoom(copy), hashRoom(room));
     assert.deepEqual(fuseLaneView(copy), fuseLaneView(room));
@@ -98,6 +105,13 @@ test("a corrupt or hostile checkpoint is refused whole", () => {
       (f) => Object.assign(someone(f), { dest: 3, inside: 4 }),
     ],
     ["time past the week", (f) => (someone(f).time = 901)],
+    ["position off the streets", (f) => (someone(f).pos = STEPS)],
+    ["negative position", (f) => (someone(f).pos = -1)],
+    ["fractional position", (f) => (someone(f).pos = 2.5)],
+    [
+      "walking to no place",
+      (f) => Object.assign(someone(f), { dest: 14, inside: -1 }),
+    ],
     [
       "unknown durable",
       (f) => (someone(f).durables.yacht = { n: 1, paid: 1, cheap: false }),
@@ -150,13 +164,13 @@ test("a corrupt or hostile checkpoint is refused whole", () => {
 });
 
 test("the entry parser accepts play entries and the shared management entries, and nothing else", () => {
-  assert.ok(isFuseLaneEntry([1, 1, 0, 1, 12]));
+  assert.ok(isFuseLaneEntry([1, 1, 0, 1, 13]));
   assert.ok(isFuseLaneEntry([1, 1, 1, 1, 4, 15, 9, 100]));
   assert.ok(isFuseLaneEntry([1, 1, 2, 3]));
   assert.ok(isFuseLaneEntry([1, 1, 3, 3]));
   assert.ok(isFuseLaneEntry([1, 1, ACTION, "start", "m1"]));
   for (const bad of [
-    [1, 1, 0, 1, 13],
+    [1, 1, 0, 1, 14],
     [1, 1, 0, 1],
     [0, 1, 2, 1],
     [1, 0, 2, 1],

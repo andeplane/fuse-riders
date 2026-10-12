@@ -9,9 +9,8 @@ import {
   KEYNEST,
   NEOBANK,
   PLACES,
-  RING,
   WORKPLACE,
-  ringDirection,
+  hiresAtGate,
 } from "./data/places.js";
 import {
   applyTrade,
@@ -28,6 +27,7 @@ import {
 } from "./economy.js";
 import { randInt } from "./random.js";
 import { nameOf, type FuseLaneRoom } from "./room.js";
+import { doorOf, nextStep } from "./streets.js";
 import {
   ASKED_RAISE,
   DRINK_HAPPY,
@@ -50,7 +50,7 @@ import {
 } from "./state.js";
 
 /**
- * Everything a player does during a week: walking the loop road and the actions inside each place. Each function
+ * Everything a player does during a week: walking Fusetown's streets and the actions inside each place. Each function
  * validates against the room and does nothing (or answers why not) when the action does not apply, so a stale or
  * hostile entry can never corrupt the room.
  */
@@ -100,7 +100,7 @@ export function walkTo(player: PlayerState, place: number): void {
   if (player.inside === place) return;
   player.inside = -1;
   player.dest = place;
-  if (player.pos === PLACES[place]!.ring) arrive(player);
+  if (player.pos === doorOf(place)) arrive(player);
 }
 function arrive(player: PlayerState): void {
   const place = player.dest;
@@ -109,13 +109,13 @@ function arrive(player: PlayerState): void {
   player.inside = place;
   spendHours(player, HOURS.enter);
 }
-/** One log tick of walking: up to `WALK_SPEED` steps the short way, each a clock unit. */
+/** One log tick of walking: up to `WALK_SPEED` steps along the shortest way through the streets, each a clock unit. */
 export function walkTick(player: PlayerState): void {
   if (player.dest < 0 || busy(player)) return;
-  const target = PLACES[player.dest]!.ring;
+  const target = doorOf(player.dest);
   for (let step = 0; step < WALK_SPEED && player.pos !== target; step++) {
     if (player.time >= WEEK_UNITS) return;
-    player.pos = (player.pos + ringDirection(player.pos, target) + RING) % RING;
+    player.pos = nextStep(player.pos, player.dest);
     player.time++;
   }
   if (player.pos === target) arrive(player);
@@ -218,10 +218,14 @@ export function resolveApplications(
     for (const { id } of list) apply(room, id, job);
   }
 }
+/** Where a player can apply for a job: the Job Hub, or the gate of an employer that hires there (the factory, the docks). */
+export const appliesAt = (place: number, job: JobData): boolean =>
+  place === JOBHUB || (place === WORKPLACE[job.employer] && hiresAtGate(place));
+
 function apply(room: FuseLaneRoom, id: string, index: number): void {
   const player = room.players[id]!,
     job = JOBS[index]!;
-  if (busy(player) || player.inside !== JOBHUB) return;
+  if (busy(player) || !appliesAt(player.inside, job)) return;
   if (player.job === index)
     return say(
       player,

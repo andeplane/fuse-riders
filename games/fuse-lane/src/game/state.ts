@@ -2,8 +2,9 @@ import { GOAL_DEFAULT, UNITS_PER_HOUR, WEEK_UNITS } from "./basics.js";
 import { ASSET_COUNT } from "./data/economy.js";
 import { DURABLES, RENT, type DurableId } from "./data/items.js";
 import { COURSES, JOBS, LESSONS } from "./data/jobs.js";
-import { PLACES, ROOMSHARE, TOWER } from "./data/places.js";
+import { ROOMSHARE, TOWER } from "./data/places.js";
 import type { Economy } from "./economy.js";
+import { STREETS } from "./streets.js";
 
 /** One owned durable: how many, what the last one cost and whether it came from the discount store. */
 export interface Owned {
@@ -34,7 +35,7 @@ export const GOAL_NAMES = [
 
 export interface PlayerState {
   // Where they are this week.
-  /** Ring position, 0..RING-1. */
+  /** The step of the streets they stand on, 0..STEPS-1 (`streets.ts`). */
   pos: number;
   /** The place they are walking to, or -1. */
   dest: number;
@@ -128,7 +129,7 @@ export function createPlayer(
   rent: number = RENT[0],
 ): PlayerState {
   return {
-    pos: PLACES[ROOMSHARE]!.ring,
+    pos: STREETS.start,
     dest: -1,
     inside: -1,
     time: 0,
