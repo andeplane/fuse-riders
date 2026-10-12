@@ -16,20 +16,22 @@ export interface CourseData {
   name: string;
   /** The degree needed before enrolling, or -1. */
   prereq: number;
+  /** Tuition, paid when enrolling (× the education price index): the higher the degree, the dearer. */
+  fee: number;
 }
 export const LESSONS = 10;
 export const COURSES: readonly CourseData[] = [
-  { name: "Trade Cert", prereq: -1 },
-  { name: "IoT Technician", prereq: 0 },
-  { name: "Pre-Engineering", prereq: 0 },
-  { name: "Engineering", prereq: 2 },
-  { name: "Community College", prereq: -1 },
-  { name: "Business (MBA)", prereq: 4 },
-  { name: "Liberal Arts", prereq: 4 },
-  { name: "Grad School", prereq: 6 },
-  { name: "PhD", prereq: 7 },
-  { name: "Research", prereq: 8 },
-  { name: "Publishing", prereq: 9 },
+  { name: "Trade Cert", prereq: -1, fee: 110 },
+  { name: "IoT Technician", prereq: 0, fee: 180 },
+  { name: "Pre-Engineering", prereq: 0, fee: 160 },
+  { name: "Engineering", prereq: 2, fee: 280 },
+  { name: "Community College", prereq: -1, fee: 110 },
+  { name: "Business (MBA)", prereq: 4, fee: 320 },
+  { name: "Liberal Arts", prereq: 4, fee: 160 },
+  { name: "Grad School", prereq: 6, fee: 260 },
+  { name: "PhD", prereq: 7, fee: 340 },
+  { name: "Research", prereq: 8, fee: 340 },
+  { name: "Publishing", prereq: 9, fee: 260 },
 ];
 
 export interface JobData {
