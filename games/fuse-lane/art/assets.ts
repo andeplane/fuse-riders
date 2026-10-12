@@ -23,11 +23,12 @@ export interface ArtAsset {
 }
 
 export const STYLE =
-  "Pixel art in the style of a 1990 Sierra VGA adventure game: a 256-colour palette, chunky visible pixels (drawn " +
-  "at about a quarter of the canvas resolution and scaled up with nearest-neighbour, no blur, no anti-aliasing), " +
-  "hand-placed dithering for shading, dark one-pixel outlines, warm saturated colours, slightly caricatured cartoon " +
-  "proportions with expressive faces, light from the top left. No text, no letters, no numbers, no logos, no " +
-  "watermark. Same art direction for every asset of the set, as if painted by one artist for one game.";
+  "High-detail stylised 3D render, like a premium isometric city-builder or management game: physically based " +
+  "materials with real texture (brick, weathered paint, glass reflections, concrete, worn asphalt, foliage), soft " +
+  "global illumination, ambient occlusion, warm late-afternoon sun from the top left casting soft shadows to the " +
+  "bottom right, lived-in small details (wear, stains, plants, clutter, signage shapes), rich but natural colours, " +
+  "gentle depth of field. Characters are stylised but believable, with a dry sense of humour. No text, no letters, " +
+  "no numbers, no logos, no watermark. One consistent camera and art direction across the whole set.";
 
 const BASE = "fuse-lane";
 
@@ -36,17 +37,16 @@ const building = (
   color: string,
   label: string,
   subject: string,
-  ground: string,
 ): ArtAsset => ({
   id: `building-${id}`,
   file: `${BASE}/buildings/${id}.png`,
   width: 512,
   height: 512,
-  anchor: [0.5, 0.5],
-  transparent: false,
+  anchor: [0.5, 0.9],
+  transparent: true,
   color,
   label,
-  prompt: `One square board tile of a city board game: ${subject} Seen from the front and slightly above, the building fills the upper two thirds of the tile with its door facing the viewer. It stands on its own patch of ${ground}, with a winding footpath from the door to the bottom edge, a few trees and shrubs. The scene fills the whole square edge to edge so tiles can sit side by side. A blank signboard over the door (no letters). Opaque, no border, no frame.`,
+  prompt: `${subject} Isometric three-quarter view from about 35 degrees above, front door facing the viewer and the street. The building stands on its own small lot with a strip of sidewalk in front, a few plants and small street details, centred and filling about 85% of the canvas. Blank sign shapes only, no letters. Transparent background outside the lot.`,
 });
 
 const AVATAR_CHARACTERS: Record<string, string> = {
@@ -76,7 +76,7 @@ const avatarAssets = (id: string, index: number): ArtAsset[] => {
       transparent: true,
       color,
       label: id[0]!.toUpperCase(),
-      prompt: `Full-body game character: ${who}, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Caricatured cartoon proportions: a big head and a big nose. Transparent background.`,
+      prompt: `Full-body game character: ${who}, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Stylised but believable proportions (slightly large head). Transparent background.`,
     },
     {
       id: `avatar-${id}-walk`,
@@ -88,7 +88,7 @@ const avatarAssets = (id: string, index: number): ArtAsset[] => {
       transparent: true,
       color,
       label: id[0]!.toUpperCase(),
-      prompt: `Two-frame walk cycle sprite sheet, side by side, each frame 256x256: ${who}, walking to the right, frame 1 left foot forward, frame 2 right foot forward, clearly different leg and arm positions between the two frames, identical scale and baseline in both frames, small soft oval shadow under the feet. Caricatured cartoon proportions. Transparent background.`,
+      prompt: `Two-frame walk cycle sprite sheet, side by side, each frame 256x256: ${who}, walking to the right, frame 1 left foot forward, frame 2 right foot forward, clearly different leg and arm positions between the two frames, identical scale and baseline in both frames, small soft oval shadow under the feet. Stylised but believable proportions. Transparent background.`,
     },
     {
       id: `avatar-${id}-portrait`,
@@ -160,132 +160,259 @@ export const ART: readonly ArtAsset[] = [
     id: "board-center",
     file: `${BASE}/board/center.png`,
     width: 1024,
-    height: 1024,
+    height: 768,
     anchor: [0.5, 0.5],
-    transparent: false,
+    transparent: true,
     color: "#bfe8c9",
     label: "",
     prompt:
-      "The town park at the centre of a city board game, seen from slightly above: lawns, a pond with ducks, round trees, flower beds, benches and a bandstand, footpaths crossing it. Calm and low-contrast, because panels and text are drawn over it. Fills the whole square edge to edge. Opaque.",
+      "The park in the middle of a small city block, isometric three-quarter view: a lawn with a pond, a fountain, a bandstand, flower beds, trees and benches, footpaths, a few tiny people relaxing. An irregular rounded shape, transparent outside the park.",
   },
-  ...[
-    "a small grove of round trees with a picnic table",
-    "a flower garden with a fountain and benches",
-    "a playground with swings and a sandpit",
-  ].map((subject, index): ArtAsset => ({
-    id: `tile-park-${index + 1}`,
-    file: `${BASE}/board/park-${index + 1}.png`,
+  {
+    id: "tex-asphalt",
+    file: `${BASE}/board/asphalt.png`,
     width: 512,
     height: 512,
     anchor: [0.5, 0.5],
     transparent: false,
-    color: "#9ed89a",
+    color: "#9aa0a6",
     label: "",
-    prompt: `One square filler tile of a city board game, with no building: ${subject} on green lawn, a winding footpath crossing it. The scene fills the whole square edge to edge so tiles can sit side by side. Opaque, no border, no frame.`,
-  })),
+    prompt:
+      "Seamless tileable texture seen straight from above, evenly lit with no shadows or vignette, edges wrap perfectly: worn dark-grey asphalt road surface with fine aggregate, a few faint patched cracks and oil stains, no markings.",
+  },
+  {
+    id: "tex-sidewalk",
+    file: `${BASE}/board/sidewalk.png`,
+    width: 512,
+    height: 512,
+    anchor: [0.5, 0.5],
+    transparent: false,
+    color: "#9aa0a6",
+    label: "",
+    prompt:
+      "Seamless tileable texture seen straight from above, evenly lit with no shadows or vignette, edges wrap perfectly: light concrete sidewalk slabs in a square grid with subtle wear and a little moss in the joints.",
+  },
+  {
+    id: "tex-grass",
+    file: `${BASE}/board/grass.png`,
+    width: 512,
+    height: 512,
+    anchor: [0.5, 0.5],
+    transparent: false,
+    color: "#9aa0a6",
+    label: "",
+    prompt:
+      "Seamless tileable texture seen straight from above, evenly lit with no shadows or vignette, edges wrap perfectly: healthy short park lawn grass with slight colour variation and a few tiny clover patches.",
+  },
+  {
+    id: "tex-paving",
+    file: `${BASE}/board/paving.png`,
+    width: 512,
+    height: 512,
+    anchor: [0.5, 0.5],
+    transparent: false,
+    color: "#9aa0a6",
+    label: "",
+    prompt:
+      "Seamless tileable texture seen straight from above, evenly lit with no shadows or vignette, edges wrap perfectly: warm beige and terracotta brick plaza paving in a herringbone pattern.",
+  },
+  {
+    id: "prop-tree-1",
+    file: `${BASE}/props/tree-1.png`,
+    width: 256,
+    height: 256,
+    anchor: [0.5, 0.92],
+    transparent: true,
+    color: "#7fb069",
+    label: "",
+    prompt:
+      "Street prop for an isometric city scene: a big leafy round street tree with a small round grate at its base. Same isometric three-quarter camera as the buildings, standing on the bottom centre, no ground and no cast shadow (the game draws shadows). Transparent background.",
+  },
+  {
+    id: "prop-tree-2",
+    file: `${BASE}/props/tree-2.png`,
+    width: 256,
+    height: 256,
+    anchor: [0.5, 0.92],
+    transparent: true,
+    color: "#7fb069",
+    label: "",
+    prompt:
+      "Street prop for an isometric city scene: a tall slender cypress-like tree in a square planter bed. Same isometric three-quarter camera as the buildings, standing on the bottom centre, no ground and no cast shadow (the game draws shadows). Transparent background.",
+  },
+  {
+    id: "prop-lamp",
+    file: `${BASE}/props/lamp.png`,
+    width: 256,
+    height: 256,
+    anchor: [0.5, 0.92],
+    transparent: true,
+    color: "#7fb069",
+    label: "",
+    prompt:
+      "Street prop for an isometric city scene: a classic black cast-iron street lamp, lit with a warm glow. Same isometric three-quarter camera as the buildings, standing on the bottom centre, no ground and no cast shadow (the game draws shadows). Transparent background.",
+  },
+  {
+    id: "prop-bench",
+    file: `${BASE}/props/bench.png`,
+    width: 256,
+    height: 256,
+    anchor: [0.5, 0.92],
+    transparent: true,
+    color: "#7fb069",
+    label: "",
+    prompt:
+      "Street prop for an isometric city scene: a wooden park bench with cast-iron legs. Same isometric three-quarter camera as the buildings, standing on the bottom centre, no ground and no cast shadow (the game draws shadows). Transparent background.",
+  },
+  {
+    id: "prop-car-1",
+    file: `${BASE}/props/car-1.png`,
+    width: 256,
+    height: 256,
+    anchor: [0.5, 0.92],
+    transparent: true,
+    color: "#7fb069",
+    label: "",
+    prompt:
+      "Street prop for an isometric city scene: a small red city hatchback car parked, seen from the side at three-quarter angle. Same isometric three-quarter camera as the buildings, standing on the bottom centre, no ground and no cast shadow (the game draws shadows). Transparent background.",
+  },
+  {
+    id: "prop-car-2",
+    file: `${BASE}/props/car-2.png`,
+    width: 256,
+    height: 256,
+    anchor: [0.5, 0.92],
+    transparent: true,
+    color: "#7fb069",
+    label: "",
+    prompt:
+      "Street prop for an isometric city scene: a white delivery van parked, three-quarter angle. Same isometric three-quarter camera as the buildings, standing on the bottom centre, no ground and no cast shadow (the game draws shadows). Transparent background.",
+  },
+  {
+    id: "prop-car-3",
+    file: `${BASE}/props/car-3.png`,
+    width: 256,
+    height: 256,
+    anchor: [0.5, 0.92],
+    transparent: true,
+    color: "#7fb069",
+    label: "",
+    prompt:
+      "Street prop for an isometric city scene: a teal compact electric car parked, three-quarter angle. Same isometric three-quarter camera as the buildings, standing on the bottom centre, no ground and no cast shadow (the game draws shadows). Transparent background.",
+  },
+  {
+    id: "prop-hydrant",
+    file: `${BASE}/props/hydrant.png`,
+    width: 256,
+    height: 256,
+    anchor: [0.5, 0.92],
+    transparent: true,
+    color: "#7fb069",
+    label: "",
+    prompt:
+      "Street prop for an isometric city scene: a red fire hydrant. Same isometric three-quarter camera as the buildings, standing on the bottom centre, no ground and no cast shadow (the game draws shadows). Transparent background.",
+  },
+  {
+    id: "prop-bus-stop",
+    file: `${BASE}/props/bus-stop.png`,
+    width: 256,
+    height: 256,
+    anchor: [0.5, 0.92],
+    transparent: true,
+    color: "#7fb069",
+    label: "",
+    prompt:
+      "Street prop for an isometric city scene: a glass bus shelter with a bench. Same isometric three-quarter camera as the buildings, standing on the bottom centre, no ground and no cast shadow (the game draws shadows). Transparent background.",
+  },
+  {
+    id: "prop-planter",
+    file: `${BASE}/props/planter.png`,
+    width: 256,
+    height: 256,
+    anchor: [0.5, 0.92],
+    transparent: true,
+    color: "#7fb069",
+    label: "",
+    prompt:
+      "Street prop for an isometric city scene: a concrete planter with flowers and a small shrub. Same isometric three-quarter camera as the buildings, standing on the bottom centre, no ground and no cast shadow (the game draws shadows). Transparent background.",
+  },
   building(
     "roomshare",
     "#ffb4a2",
     "ROOM",
     "A tired but charming three-storey shared house with mismatched curtains, bikes chained outside and a recycling bin overflowing with takeaway boxes.",
-
-    "lilac paving stones",
   ),
   building(
     "keynest",
     "#ffd23f",
     "KEY",
     "A small modern letting-agency office with a huge key-shaped sign shape above the door (no letters) and a glass front with house listings as coloured cards.",
-
-    "soft blue lawn",
   ),
   building(
     "tower",
     "#4cc9f0",
     "TWR",
     "A sleek glass residential tower with a doorman canopy, potted plants and warm lights in the windows.",
-
-    "pale grey plaza tiles with planters",
   ),
   building(
     "freshco",
     "#3ddc84",
     "FRSH",
     "A bright neighbourhood grocery store with a striped awning, crates of fruit and vegetables outside and a shopping cart.",
-
-    "pink brick paving",
   ),
   building(
     "neobank",
     "#7b2cbf",
     "BANK",
     "A minimalist fintech bank branch with a curved glass facade, a big app-icon-like sign shape and an ATM by the door.",
-
-    "bright green lawn",
   ),
   building(
     "gigafactory",
     "#8d99ae",
     "GIGA",
     "A huge clean modern factory with saw-tooth roofs, solar panels, a chimney with a puff of white steam and a robot arm visible through a window.",
-
-    "dusty purple tarmac",
   ),
   building(
     "jobhub",
     "#2ec4b6",
     "JOBS",
     "A friendly job centre with a speech-bubble sign shape, a notice board of job cards outside and a queue line rope.",
-
-    "teal-green lawn",
   ),
   building(
     "college",
     "#ff9f1c",
     "COLL",
     "A small red-brick city college with columns, a clock above the entrance, steps and a tree with a bench.",
-
-    "warm yellow gravel and lawn",
   ),
   building(
     "gadget",
     "#00b4d8",
     "GADG",
     "An electronics store with a giant plug-shaped sign shape, glowing screens in the window and a delivery van.",
-
-    "sky-blue paving",
   ),
   building(
     "threads",
     "#ff6b9e",
     "THRD",
     "A stylish clothing boutique with mannequins in the window, a hanger-shaped sign shape and a pink awning.",
-
-    "terracotta orange paving",
   ),
   building(
     "mono",
     "#ff6b6b",
     "MONO",
     "A retro drive-thru burger joint with a giant burger on the roof, a drive-thru lane and a neon-style menu board.",
-
-    "red-orange tarmac with parking lines",
   ),
   building(
     "megamart",
     "#f9c74f",
     "MEGA",
     "A big-box discount warehouse store with a huge flat roof, stacked pallets, a cart corral and bargain banners without text.",
-
-    "lime green lawn",
   ),
   building(
     "resale",
     "#b5838d",
     "2ND",
     "A quirky second-hand shop with a cluttered window of lamps, guitars and teapots, and a hand-painted sign shape.",
-
-    "mint green paving",
   ),
   ...Object.keys(AVATAR_CHARACTERS).flatMap(avatarAssets),
   keeper(
