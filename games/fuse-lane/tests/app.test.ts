@@ -21,7 +21,13 @@ import {
   normalizeChoice,
   parseStoredSetup,
 } from "../src/app/menu.js";
-import { present, sparkline, type Viewer } from "../src/app/presenter.js";
+import {
+  present,
+  sparkline,
+  toastTracker,
+  type Card,
+  type Viewer,
+} from "../src/app/presenter.js";
 import { dueReports } from "../src/app/reports.js";
 import { siteBase } from "../src/app/art.js";
 
@@ -78,6 +84,75 @@ test("the Job Hub panel offers the sure-thing job as a card that logs APPLY", ()
   const after = present(match.view(), LOCAL);
   assert.match(after.hud!.job, /Line Cook/);
   assert.match(after.toast!.text, /Hired/);
+});
+
+test("the toast is there from your first frame, before any message, so your first message is news", () => {
+  const match = LocalMatch.create(setup(1, 0));
+  const fresh = toastTracker();
+  const before = present(match.view(), LOCAL).toast!;
+  assert.deepEqual([before.owner, before.n], ["p1", 0]);
+  assert.equal(fresh(before), false, "the first frame is the baseline");
+  match.play([WALK, 1, JOBHUB]);
+  until(match, () => match.room.players.p1!.inside === JOBHUB);
+  const cook = present(match.view(), LOCAL)
+    .panel!.sections.flatMap((section) => section.cards)
+    .find((card) => card.title.startsWith("Line Cook"))!;
+  match.play(cook.entry!);
+  match.step();
+  const hired = present(match.view(), LOCAL).toast!;
+  assert.match(hired.text, /Hired/);
+  assert.equal(fresh(hired), true, "the very first message shows");
+  assert.equal(fresh(hired), false, "and only once");
+});
+
+test("toastTracker: each player's first frame is their baseline, later messages are news", () => {
+  const fresh = toastTracker();
+  const toast = (owner: string, n: number) => ({
+    owner,
+    n,
+    text: "",
+    bad: false,
+  });
+  assert.equal(fresh(toast("p1", 4)), false, "old news when the page loads");
+  assert.equal(fresh(toast("p1", 5)), true);
+  assert.equal(fresh(toast("p2", 2)), false, "p2's turn starts: a baseline");
+  assert.equal(fresh(toast("p2", 2)), false);
+  assert.equal(fresh(toast("p1", 6)), true, "p1's count is kept apart");
+});
+
+test("a posting you apply for stays where you tapped it and shows the answer", () => {
+  const titles = (cards: Card[]) => cards.map((card) => card.title);
+  const postingsOf = (match: LocalMatch) =>
+    present(match.view(), LOCAL).panel!.sections.find(
+      (section) => section.title === "Postings",
+    )!.cards;
+  let turnedDown = false,
+    hired = false;
+  for (let seed = 0; seed < 40 && !(turnedDown && hired); seed++) {
+    const match = LocalMatch.create({ ...setup(1, 0), seed: `apply-${seed}` });
+    match.play([WALK, 1, JOBHUB]);
+    until(match, () => match.room.players.p1!.inside === JOBHUB);
+    const before = postingsOf(match);
+    const at = before.findIndex((card) => card.note.endsWith("% odds"));
+    const tried = before[at]!;
+    match.play(tried.entry!);
+    match.step();
+    const after = postingsOf(match);
+    assert.deepEqual(titles(after), titles(before), "nothing moves");
+    const answer = after[at]!;
+    assert.equal(answer.enabled, false);
+    const toast = present(match.view(), LOCAL).toast!;
+    if (answer.note === "Your job") {
+      hired = true;
+      assert.match(toast.text, /Hired/);
+    } else {
+      turnedDown = true;
+      assert.equal(answer.note, "No openings this week");
+      assert.ok(toast.bad);
+      assert.match(toast.text, /No openings/);
+    }
+  }
+  assert.ok(turnedDown && hired, "both answers came up");
 });
 
 test("the docks panel lists Fusetown Port's ladder with apply cards; the board shows walking hours", () => {

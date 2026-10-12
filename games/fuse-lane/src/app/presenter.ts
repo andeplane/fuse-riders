@@ -240,7 +240,11 @@ export interface ScreenModel {
   scores: ScoreRow[];
   result?: ResultModel;
   lobby: LobbyModel;
-  toast?: { key: string; text: string; bad: boolean };
+  /**
+   * Your latest message: `n` counts every message you have had, so the screen shows one when it goes up. Present
+   * whenever you play, also before your first message, so the screen knows where your count started.
+   */
+  toast?: { owner: string; n: number; text: string; bad: boolean };
   canEndWeek: boolean;
   endWeekEntry?: unknown[];
   readyEntry?: unknown[];
@@ -394,6 +398,22 @@ function jobHub(
 }
 
 /**
+ * Whether a toast is news on this page: each player's message count as last seen here, where their first frame is the
+ * baseline (a message from before the page loaded, or from before their turn came round, is old news) and every
+ * message after that is new.
+ */
+export function toastTracker(): (
+  toast: NonNullable<ScreenModel["toast"]>,
+) => boolean {
+  const seen = new Map<string, number>();
+  return ({ owner, n }) => {
+    const last = seen.get(owner);
+    seen.set(owner, n);
+    return last !== undefined && n > last;
+  };
+}
+
+/**
  * Job postings as cards, the ones you qualify for first, then by wage: every job at the Job Hub, an employer's own at
  * its gate (the factory, the docks).
  */
@@ -407,7 +427,7 @@ function postings(
   const economy = view.economy;
   const nameOf = (id: string) =>
     players.find((player) => player.id === id)?.name ?? "someone";
-  const cards = [...jobs].map((index) => {
+  const rows = [...jobs].map((index) => {
     const job = JOBS[index]!;
     const held = view.holders[index],
       reasons = missing(me, job),
@@ -421,7 +441,7 @@ function postings(
       `exp ${job.exp}`,
       CLOTHING_NAMES[job.uniform]!.toLowerCase(),
     ].filter(Boolean);
-    return card({
+    const posting = card({
       key: `job-${index}`,
       title: `${job.title} · ${EMPLOYERS[job.employer]}`,
       detail: `Needs ${needs.join(", ")}`,
@@ -449,14 +469,14 @@ function postings(
                     ? "Sure thing"
                     : `${Math.max(0, Math.min(100, hireOdds(economy, me)))}% odds`,
     });
+    return { posting, qualified: reasons.length === 0, wage };
   });
-  cards.sort(
-    (a, b) =>
-      Number(b.enabled && !b.note.startsWith("Missing")) -
-        Number(a.enabled && !a.note.startsWith("Missing")) ||
-      parseFloat(b.price.slice(1)) - parseFloat(a.price.slice(1)),
+  // Ordered by what you qualify for, never by whether you just applied: a posting you tried stays where you tapped it
+  // and shows the answer, rather than jumping away.
+  rows.sort(
+    (a, b) => Number(b.qualified) - Number(a.qualified) || b.wage - a.wage,
   );
-  return cards;
+  return rows.map((row) => row.posting);
 }
 
 /** An employer's gate: its own jobs, applied for on the spot. */
@@ -1105,10 +1125,9 @@ export function present(view: FuseLaneView, viewer: Viewer): ScreenModel {
       step: `Turn ${index + 1} of ${view.order.length}`,
     };
   }
-  const toast =
-    me && me.msgN > 0
-      ? { key: `${view.week}:${me.msgN}`, text: me.msg, bad: me.msgBad }
-      : undefined;
+  const toast = me
+    ? { owner: you!.id, n: me.msgN, text: me.msg, bad: me.msgBad }
+    : undefined;
   const canAct = inWeek && me !== undefined && !me.done;
   return {
     screen:
