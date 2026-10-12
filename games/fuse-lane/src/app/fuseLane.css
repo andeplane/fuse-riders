@@ -1146,8 +1146,8 @@ body.fl-page .fl-card:disabled .fl-card-icon {
   border-top: 1px solid var(--fl-line);
 }
 .fl-ticker {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5.6rem, 1fr));
   gap: 0.4rem;
 }
 .fl-tick {
@@ -1176,27 +1176,36 @@ body.fl-page .fl-card:disabled .fl-card-icon {
   color: var(--fl-coral);
 }
 .fl-chart {
-  position: relative;
-}
-.fl-chart svg {
-  display: block;
-  width: 100%;
-  height: 4.5rem;
+  --trend: var(--fl-green);
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.5rem 0.6rem 0.4rem;
   background: linear-gradient(180deg, #fff, #f6fbf7);
   border: 1px solid var(--fl-line);
   border-radius: 0.8rem;
 }
+.fl-chart[data-trend="down"] {
+  --trend: var(--fl-coral);
+}
+.fl-chart svg {
+  display: block;
+  width: 100%;
+  height: 3.6rem;
+  overflow: visible;
+}
 .fl-chart polyline {
   fill: none;
-  stroke: var(--fl-green);
+  stroke: var(--trend);
   stroke-width: 2.5;
+  stroke-linecap: round;
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
 }
+.fl-chart polygon {
+  fill: var(--trend);
+  opacity: 0.12;
+}
 .fl-chart small {
-  position: absolute;
-  top: 0.35rem;
-  left: 0.6rem;
   color: var(--fl-ink-soft);
   font-size: 0.65rem;
   font-weight: 900;
@@ -1275,16 +1284,21 @@ body.fl-page .fl-handoff-go {
 .fl-toast {
   position: absolute;
   z-index: 4;
-  left: 50%;
-  top: calc(var(--panel-y, 80px) + 0.5rem);
+  left: calc(var(--free-x, 0px) + var(--free-w, 100%) / 2);
+  /* Just above where the tip floats, so the two never cover each other. */
+  top: calc(var(--free-y, 0px) + var(--free-h, 100%) - 4rem);
+  width: max-content;
   max-width: min(28rem, calc(100% - 2rem));
-  padding: 0.6rem 1rem;
+  padding: 0.5rem 1.1rem;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  font-size: 0.92rem;
+  line-height: 1.25;
   color: #fff;
   border-radius: 999px;
   box-shadow: var(--fl-shadow);
   font-weight: 800;
   text-align: center;
-  transform: translateX(-50%);
+  transform: translate(-50%, -100%);
   pointer-events: none;
 }
 .fl-toast[data-tone="warn"] {
@@ -1923,4 +1937,140 @@ body.fl-page .fl-checklist-step:disabled {
 }
 .fl-checklist li.done .fl-checklist-mark {
   background: var(--fl-green);
+}
+
+/* Feedback for what the player just did: the cash counts and a "+$40" rises out of it, a goal ring bumps and says
+   "+2", a card gives under the finger, and the toast drops in. */
+.fl-money,
+.fl-goal-ring {
+  position: relative;
+}
+.fl-pop {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  top: 100%;
+  padding: 0.12rem 0.5rem;
+  color: #fff;
+  background: var(--fl-green);
+  border: 2px solid #fff;
+  border-radius: 999px;
+  box-shadow: 0 4px 10px -4px rgba(16, 26, 34, 0.5);
+  font-size: 0.82rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: fl-pop-down 1.25s ease-out forwards;
+}
+.fl-pop.bad {
+  background: var(--fl-coral);
+}
+@keyframes fl-pop-down {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -0.6rem) scale(0.6);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, 0.2rem) scale(1.08);
+  }
+  30% {
+    transform: translate(-50%, 0.2rem) scale(1);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 0.9rem);
+  }
+}
+/* On a phone the goals sit at the bottom, so theirs rise. */
+.fl-game.compact .fl-goal-ring .fl-pop {
+  top: auto;
+  bottom: 100%;
+  animation-name: fl-pop-up;
+}
+@keyframes fl-pop-up {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0.6rem) scale(0.6);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -0.2rem) scale(1.08);
+  }
+  30% {
+    transform: translate(-50%, -0.2rem) scale(1);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -0.9rem);
+  }
+}
+.fl-money.bump {
+  animation: fl-bump 420ms cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.fl-goal-ring.bump .fl-dial {
+  animation: fl-bump 520ms cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+@keyframes fl-bump {
+  40% {
+    transform: scale(1.14);
+  }
+}
+/* The goal rings and the clock fill smoothly instead of jumping. */
+@property --share {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+@property --left {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+.fl-dial {
+  transition: --share 600ms ease-out;
+}
+.fl-clock-dial {
+  transition: --left 500ms ease-out;
+}
+body.fl-page .fl-card {
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease;
+}
+body.fl-page .fl-card:enabled:active {
+  transform: translateY(1px) scale(0.985);
+  box-shadow: 0 1px 0 rgba(29, 39, 51, 0.08);
+}
+.fl-toast:not([hidden]) {
+  animation: fl-toast-in 260ms cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+@keyframes fl-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-100% + 0.8rem)) scale(0.9);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fl-pop,
+  .fl-money.bump,
+  .fl-goal-ring.bump .fl-dial,
+  .fl-toast:not([hidden]) {
+    animation: none;
+  }
+  .fl-pop {
+    display: none;
+  }
+  body.fl-page .fl-card,
+  .fl-dial,
+  .fl-clock-dial {
+    transition: none;
+  }
 }

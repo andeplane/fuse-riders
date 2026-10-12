@@ -8,6 +8,7 @@ import {
 } from "../game/index.js";
 import type { Art } from "./art.js";
 import { FONT, drawBoard, labelFont, type BoardFrame } from "./board.js";
+import { BURST } from "./ambience.js";
 import {
   boardView,
   centreOn,
@@ -68,6 +69,20 @@ export interface ScreenHooks {
 export const money = (value: number) =>
   `${value < 0 ? "-" : ""}$${Math.abs(Math.round(value)).toLocaleString("en-US")}`;
 
+/**
+ * A little "+$40" or "+2" that rises out of a HUD piece and fades, and a bump of the piece itself: the feedback
+ * for a change the player caused. Restarts the bump when changes come quickly.
+ */
+export function pop(host: HTMLElement, label: string, className: string): void {
+  const chip = el("span", label, className);
+  chip.setAttribute("aria-hidden", "true");
+  host.append(chip);
+  setTimeout(() => chip.remove(), 1300);
+  host.classList.remove("bump");
+  void host.offsetWidth;
+  host.classList.add("bump");
+}
+
 /** Sets text only when it changed, so a per-frame render leaves the DOM (and a screen reader) alone. */
 export function text(element: HTMLElement, value: string): void {
   if (element.textContent !== value) element.textContent = value;
@@ -118,11 +133,19 @@ function createGoalRings(art: Art) {
     element.append(item);
     return { item, dial, value, name };
   });
+  let owner = "";
+  const seen: number[] = [];
   return {
     element,
-    render(goals: readonly GoalBar[]) {
+    /** `who` is whose goals they are: a gain bumps the ring, but a new player's goals simply show. */
+    render(goals: readonly GoalBar[], who = "") {
+      const same = who === owner;
+      owner = who;
       goals.forEach((goal, index) => {
         const ring = rings[index]!;
+        const gain = goal.value - (seen[index] ?? goal.value);
+        seen[index] = goal.value;
+        if (same && gain > 0) pop(ring.item, `+${gain}`, "fl-pop good");
         ring.dial.style.setProperty("--share", share(goal).toFixed(3));
         ring.item.classList.toggle("met", goal.met);
         text(ring.value, `${goal.value}/${goal.goal}`);
@@ -263,6 +286,39 @@ export function createGameScreen(
   controls.append(...(hooks.controls ?? []));
   hud.append(youButton, cash, hudGoals.element, endWeek, controls);
   endWeek.onclick = () => play(model?.endWeekEntry);
+  // The cash counts to its new value and says by how much; a new player's (or a new turn's) cash simply shows.
+  let cashOwner = "",
+    cashShown = 0,
+    cashTarget = 0,
+    cashTween = 0;
+  const showCash = (owner: string, value: number) => {
+    if (owner === cashOwner && value === cashTarget) return;
+    const same = owner === cashOwner;
+    cashOwner = owner;
+    cancelAnimationFrame(cashTween);
+    cashTween = 0;
+    if (!same) {
+      cashShown = cashTarget = value;
+      text(cashValue, money(value));
+      return;
+    }
+    const delta = value - cashTarget;
+    pop(
+      cash,
+      `${delta > 0 ? "+" : "−"}${money(Math.abs(delta))}`,
+      `fl-pop ${delta > 0 ? "good" : "bad"}`,
+    );
+    const from = cashShown,
+      start = performance.now();
+    cashTarget = value;
+    const step = () => {
+      const t = Math.min(1, (performance.now() - start) / 500);
+      cashShown = from + (value - from) * (1 - (1 - t) ** 3);
+      text(cashValue, money(t < 1 ? cashShown : value));
+      cashTween = t < 1 ? requestAnimationFrame(step) : 0;
+    };
+    cashTween = requestAnimationFrame(step);
+  };
 
   // ---- rivals in the corners (wide screens) ----
   const rivals = createStandings(art, "fl-corners");
@@ -757,9 +813,9 @@ export function createGameScreen(
       );
       timerText.classList.toggle("low", h.timer > 0 && h.timer < 0.2);
       text(timerText, h.seconds ? `${h.seconds}s left` : "Week over");
-      text(cashValue, money(h.cash));
+      showCash(h.name, h.cash);
       text(bankValue, `bank ${money(h.bank)}`);
-      hudGoals.render(h.goals);
+      hudGoals.render(h.goals, h.name);
       endWeek.disabled = !next.canEndWeek;
       text(endWeek, h.done ? "WEEK OVER" : "CALL IT A WEEK");
     }
@@ -806,8 +862,14 @@ export function createGameScreen(
           }),
         );
         const points = sparkline(b.history, 300, 60);
+        // The index over the last weeks: a line over a soft fill, green when it rose and coral when it fell.
+        const trend =
+          (b.history[b.history.length - 1] ?? 0) >= (b.history[0] ?? 0)
+            ? "up"
+            : "down";
+        briefingChart.dataset.trend = trend;
         briefingChart.innerHTML = points
-          ? `<svg viewBox="-4 -4 308 68" preserveAspectRatio="none" aria-label="City500 index, last weeks"><polyline points="${points}" /></svg><small>CITY500</small>`
+          ? `<small>CITY500 · last ${b.history.length} weeks</small><svg viewBox="0 -6 300 72" preserveAspectRatio="none" aria-label="City500 index, last weeks"><polygon points="0,66 ${points} 300,66" /><polyline points="${points}" /></svg>`
           : "";
         briefingHeadlines.replaceChildren(
           ...b.headlines.map((line) => el("li", line)),
@@ -1034,6 +1096,22 @@ export function createGameScreen(
     ).at;
   };
   const started = performance.now();
+  // Reduced motion: the board keeps still (no drifting clouds, twinkling water or marching route).
+  const calm =
+    typeof matchMedia === "function" &&
+    matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Who is in which place, to burst a ring when someone walks in (not on the first frame, or a new turn's).
+  const insideSeen = new Map<string, number>();
+  let arrivals: { id: string; at: number }[] = [];
+  const noticeArrivals = (frame: BoardFrame, now: number) => {
+    for (const player of frame.players) {
+      const was = insideSeen.get(player.id);
+      if (was !== undefined && was < 0 && player.inside >= 0 && !calm)
+        arrivals.push({ id: player.id, at: now });
+      insideSeen.set(player.id, player.inside);
+    }
+    arrivals = arrivals.filter((one) => now - one.at < BURST * 1000);
+  };
   const frameLoop = () => {
     if (!running) return;
     requestAnimationFrame(frameLoop);
@@ -1054,7 +1132,13 @@ export function createGameScreen(
       fraction: span > 0 ? (timing.tick - older!.tick) / span : 1,
       time: (now - started) / 1000,
       hover,
+      daylight: model?.hud ? 1 - model.hud.ring : undefined,
     };
+    noticeArrivals(frame, now);
+    frame.arrivals = arrivals.map((one) => ({
+      id: one.id,
+      age: (now - one.at) / 1000,
+    }));
     const mine = myPoint(frame);
     const middle: MapPoint = [CITY.map.width / 2, CITY.map.height / 2];
     if (!camera) camera = centreOn(view, mine ?? middle);
@@ -1075,6 +1159,7 @@ export function createGameScreen(
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     drawBoard(context, view, camera, frame, art, ratio, {
       debug: Boolean(options.debugRoads),
+      calm,
     });
     if (tour) placeTourSpot();
     // With `?debug-roads`, the camera is readable from the page too, so a browser test can tap a building.
