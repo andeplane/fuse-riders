@@ -204,3 +204,31 @@ test("a store that refuses writes leaves the game playing unsaved; a finished ma
   over.start(true);
   assert.equal(over.paused, false);
 });
+
+test("late intervals catch up, a little at a time, so a week lasts as long on a slow phone; paused time is not owed", () => {
+  const deps = new FakeDeps();
+  const { runtime } = runtimeFor(LocalMatch.create(setup(1, 1)), deps);
+  const room = runtime.match.room;
+  runtime.start();
+  // A browser firing the 50 ms interval every 100 ms: two folds per interval.
+  let tick = room.tick;
+  for (let n = 0; n < 10; n++) {
+    deps.time += 100;
+    deps.fire();
+  }
+  assert.equal(room.tick, tick + 20);
+  // A long stall is not made up in one go: at most 4 folds an interval.
+  tick = room.tick;
+  deps.time += 5000;
+  deps.fire();
+  assert.equal(room.tick, tick + 4);
+  // Time spent paused is not owed after RESUME.
+  runtime.setPaused(true);
+  deps.time += 5000;
+  deps.fire();
+  runtime.setPaused(false);
+  tick = room.tick;
+  deps.time += 50;
+  deps.fire();
+  assert.equal(room.tick, tick + 1);
+});

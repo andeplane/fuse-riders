@@ -268,6 +268,7 @@ export interface ScreenModel {
   tv?: { headline: string; seconds: number; timer: number; line: string };
 }
 
+const unitsOf = (n: number) => `${n} unit${n === 1 ? "" : "s"}`;
 const money = (value: number) =>
   `${value < 0 ? "-" : ""}$${Math.abs(Math.round(value)).toLocaleString("en-US")}`;
 const hours = (value: number) => `${value}h`;
@@ -313,7 +314,11 @@ function shopCards(view: FuseLaneView, me: PlayerState, place: number): Card[] {
       owned =
         item.durable !== undefined && (me.durables[item.durable]?.n ?? 0) > 0,
       firstTime =
-        item.durable !== undefined && me.durables[item.durable] === undefined;
+        item.durable !== undefined && me.durables[item.durable] === undefined,
+      needsFridge =
+        item.kind === "groceries" &&
+        (item.weeks ?? 1) > 1 &&
+        (me.durables.fridge?.n ?? 0) === 0;
     const happy =
       item.happy > 0 && (item.kind !== "durable" || firstTime)
         ? ` · +${item.happy} ☺`
@@ -328,8 +333,14 @@ function shopCards(view: FuseLaneView, me: PlayerState, place: number): Card[] {
         price: money(price),
         icon: `icon-${item.icon}`,
         entry: actEntry(view, place, BUY, index),
-        enabled: !owned && me.cash >= price,
-        note: owned ? "Owned" : me.cash < price ? "Not enough cash" : "",
+        enabled: !owned && !needsFridge && me.cash >= price,
+        note: owned
+          ? "Owned"
+          : needsFridge
+            ? "Needs a fridge"
+            : me.cash < price
+              ? "Not enough cash"
+              : "",
       }),
     ];
   });
@@ -695,7 +706,15 @@ function neobank(
   const assets = ASSET_NAMES.map((name, asset) => {
     const price = quote(economy, asset),
       held = me.holdings[asset]!,
-      cost = buyCost(economy, asset, 1);
+      // One tap buys as many units as up to $1000 of cash pays for, along the order's own price impact; the card
+      // shows what that whole order costs, not one unit.
+      budget = Math.min(me.cash, 1000);
+    let units = Math.max(
+      1,
+      Math.floor(budget / Math.max(1, buyCost(economy, asset, 1))),
+    );
+    while (units > 1 && buyCost(economy, asset, units) > budget) units--;
+    const cost = buyCost(economy, asset, units);
     const company =
       asset < COMPANIES.length
         ? COMPANIES[asset]!.name
@@ -706,28 +725,19 @@ function neobank(
       card({
         key: `buy-${asset}`,
         title: `Buy ${name}`,
-        detail: `${company} · ${money(price)}${held ? ` · you hold ${held}` : ""}`,
+        detail: `${company} · ${money(price)} a unit${held ? ` · you hold ${held}` : ""}`,
         price: money(cost),
         icon: "ui-stocks",
-        entry: actEntry(
-          view,
-          place,
-          TRADE_BUY,
-          asset,
-          Math.max(1, Math.floor(Math.min(me.cash, 1000) / Math.max(1, cost))),
-        ),
+        entry: actEntry(view, place, TRADE_BUY, asset, units),
         enabled: me.cash >= cost,
-        note:
-          me.cash >= cost
-            ? `${Math.max(1, Math.floor(Math.min(me.cash, 1000) / Math.max(1, cost)))} units`
-            : "Not enough cash",
+        note: me.cash >= cost ? unitsOf(units) : "Not enough cash",
       }),
       ...(held
         ? [
             card({
               key: `sell-${asset}`,
               title: `Sell all ${name}`,
-              detail: `${held} units`,
+              detail: unitsOf(held),
               price: `+${money(sellValue(economy, asset, held))}`,
               icon: "ui-stocks",
               entry: actEntry(view, place, TRADE_SELL, asset, held),

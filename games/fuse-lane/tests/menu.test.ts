@@ -197,7 +197,11 @@ test("a saved game offers CONTINUE and DISCARD", () => {
   assert.equal(m.$(".fl-resume-line").textContent, "Week 4 · You vs 1 AI");
   m.$<HTMLButtonElement>(".fl-resume-go").click();
   assert.equal(m.resumed(), 1);
-  m.$<HTMLButtonElement>(".fl-resume-discard").click();
+  const discard = m.$<HTMLButtonElement>(".fl-resume-discard");
+  discard.click();
+  assert.equal(m.discarded(), 0, "one stray tap loses nothing");
+  assert.equal(discard.textContent, "TAP AGAIN TO DISCARD");
+  discard.click();
   assert.equal(m.discarded(), 1);
   assert.equal(m.root.querySelector(".fl-resume"), null, "gone once discarded");
 });
@@ -242,4 +246,34 @@ test("ADD A PLAYER does nothing past four, even if pressed while hidden", () => 
   const add = m.$<HTMLButtonElement>(".fl-add-person");
   for (let n = 0; n < 5; n++) add.click();
   assert.deepEqual(m.names(), ["You", "Player 2", "Player 3", "Player 4"]);
+});
+
+test("a rename survives a change of face, the other field shows a clash, and a name still being typed counts at START", () => {
+  const before = JSON.stringify(DEFAULT_CHOICE);
+  const m = menu();
+  m.$<HTMLButtonElement>(".fl-add-person").click();
+  const inputs = () => dom.$$<HTMLInputElement>(".fl-person-name", m.root);
+  inputs()[1]!.value = "Zed";
+  inputs()[1]!.onchange!(dom.event("change"));
+  m.label("Change Zed's character").click();
+  assert.deepEqual(
+    m.names(),
+    ["You", "Zed"],
+    "the face changes, the name stays",
+  );
+  inputs()[0]!.value = "Zed";
+  inputs()[0]!.onchange!(dom.event("change"));
+  assert.deepEqual(m.names(), ["Zed", "Zed 2"], "both fields show the clash");
+  // Typed but never blurred, as a phone keyboard leaves it when START is tapped.
+  inputs()[0]!.value = "Ann";
+  m.$<HTMLButtonElement>(".fl-start-game").click();
+  assert.deepEqual(
+    m.started[0]!.humans.map((human) => human.name),
+    ["Ann", "Zed 2"],
+  );
+  assert.equal(
+    JSON.stringify(DEFAULT_CHOICE),
+    before,
+    "the defaults untouched",
+  );
 });
