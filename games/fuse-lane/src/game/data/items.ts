@@ -55,6 +55,8 @@ export interface ItemData {
   cheap?: boolean;
   /** What the card says it does. */
   effect: string;
+  /** Its picture: an icon id in the art manifest (`art/assets.ts`), drawn without the `icon-` prefix. */
+  icon: string;
 }
 
 export const ITEMS: readonly ItemData[] = [
@@ -67,6 +69,7 @@ export const ITEMS: readonly ItemData[] = [
     weeks: 1,
     happy: 1,
     effect: "1 week of food",
+    icon: "groceries",
   },
   {
     name: "Groceries · 2 weeks",
@@ -77,6 +80,7 @@ export const ITEMS: readonly ItemData[] = [
     weeks: 2,
     happy: 2,
     effect: "2 weeks of food (needs a fridge)",
+    icon: "groceries",
   },
   {
     name: "Groceries · 4 weeks",
@@ -87,6 +91,7 @@ export const ITEMS: readonly ItemData[] = [
     weeks: 4,
     happy: 4,
     effect: "4 weeks of food (needs a fridge)",
+    icon: "groceries",
   },
   {
     name: "Mono Burger",
@@ -96,6 +101,7 @@ export const ITEMS: readonly ItemData[] = [
     kind: "meal",
     happy: 0,
     effect: "Feeds you this week",
+    icon: "burger",
   },
   {
     name: "Double Mono",
@@ -105,6 +111,7 @@ export const ITEMS: readonly ItemData[] = [
     kind: "meal",
     happy: 1,
     effect: "Feeds you this week",
+    icon: "double-burger",
   },
   {
     name: "Thick shake",
@@ -114,6 +121,7 @@ export const ITEMS: readonly ItemData[] = [
     kind: "drink",
     happy: 1,
     effect: "A treat, no food value",
+    icon: "shake",
   },
   {
     name: "Casual clothes",
@@ -125,6 +133,7 @@ export const ITEMS: readonly ItemData[] = [
     level: CASUAL,
     happy: 0,
     effect: "11 weeks of casual wear",
+    icon: "clothes-casual",
   },
   {
     name: "Smart casual",
@@ -136,6 +145,7 @@ export const ITEMS: readonly ItemData[] = [
     level: SMART,
     happy: 1,
     effect: "13 weeks, smart jobs",
+    icon: "clothes-smart",
   },
   {
     name: "Business suit",
@@ -147,6 +157,7 @@ export const ITEMS: readonly ItemData[] = [
     level: BUSINESS,
     happy: 2,
     effect: "13 weeks, any job",
+    icon: "clothes-business",
   },
   {
     name: "Smart fridge",
@@ -157,6 +168,7 @@ export const ITEMS: readonly ItemData[] = [
     durable: "fridge",
     happy: 1,
     effect: "Stores 6 weeks of groceries",
+    icon: "fridge",
   },
   {
     name: "Chest freezer",
@@ -167,6 +179,7 @@ export const ITEMS: readonly ItemData[] = [
     durable: "freezer",
     happy: 2,
     effect: "With a fridge: 12 weeks",
+    icon: "freezer",
   },
   {
     name: "Induction stove",
@@ -177,6 +190,7 @@ export const ITEMS: readonly ItemData[] = [
     durable: "stove",
     happy: 1,
     effect: "+1 happiness a week",
+    icon: "stove",
   },
   {
     name: "Smart TV",
@@ -187,6 +201,7 @@ export const ITEMS: readonly ItemData[] = [
     durable: "tv",
     happy: 2,
     effect: "Binge responsibly",
+    icon: "tv",
   },
   {
     name: "Game console",
@@ -197,6 +212,7 @@ export const ITEMS: readonly ItemData[] = [
     durable: "console",
     happy: 2,
     effect: "One more level",
+    icon: "console",
   },
   {
     name: "Speakers",
@@ -207,6 +223,7 @@ export const ITEMS: readonly ItemData[] = [
     durable: "speakers",
     happy: 2,
     effect: "The neighbours love it",
+    icon: "speakers",
   },
   {
     name: "Air fryer",
@@ -217,6 +234,7 @@ export const ITEMS: readonly ItemData[] = [
     durable: "airfryer",
     happy: 2,
     effect: "+1 happiness a week",
+    icon: "airfryer",
   },
   {
     name: "Hot tub",
@@ -227,6 +245,7 @@ export const ITEMS: readonly ItemData[] = [
     durable: "hottub",
     happy: 3,
     effect: "You never lose rest",
+    icon: "hottub",
   },
   {
     name: "Laptop",
@@ -237,6 +256,7 @@ export const ITEMS: readonly ItemData[] = [
     durable: "laptop",
     happy: 3,
     effect: "1 lesson less per degree, side gigs",
+    icon: "laptop",
   },
   {
     name: "Smart fridge (budget)",
@@ -248,6 +268,7 @@ export const ITEMS: readonly ItemData[] = [
     happy: 1,
     cheap: true,
     effect: "Stores 6 weeks, breaks more",
+    icon: "fridge",
   },
   {
     name: "Induction stove (budget)",
@@ -259,6 +280,7 @@ export const ITEMS: readonly ItemData[] = [
     happy: 1,
     cheap: true,
     effect: "+1 happiness a week",
+    icon: "stove",
   },
   {
     name: "Speakers (budget)",
@@ -270,6 +292,7 @@ export const ITEMS: readonly ItemData[] = [
     happy: 1,
     cheap: true,
     effect: "Louder, not better",
+    icon: "speakers",
   },
   {
     name: "Smart TV (budget)",
@@ -281,6 +304,7 @@ export const ITEMS: readonly ItemData[] = [
     happy: 1,
     cheap: true,
     effect: "Mostly smart",
+    icon: "tv",
   },
   {
     name: "Air fryer (budget)",
@@ -292,6 +316,7 @@ export const ITEMS: readonly ItemData[] = [
     happy: 1,
     cheap: true,
     effect: "+1 happiness a week",
+    icon: "airfryer",
   },
   {
     name: "Game console (budget)",
@@ -303,6 +328,7 @@ export const ITEMS: readonly ItemData[] = [
     happy: 1,
     cheap: true,
     effect: "Last year's model",
+    icon: "console",
   },
   {
     name: "Casual clothes (budget)",
@@ -314,6 +340,7 @@ export const ITEMS: readonly ItemData[] = [
     level: CASUAL,
     happy: 0,
     effect: "9 weeks of casual wear",
+    icon: "clothes-casual",
   },
   {
     name: "Smart casual (budget)",
@@ -325,6 +352,7 @@ export const ITEMS: readonly ItemData[] = [
     level: SMART,
     happy: 0,
     effect: "9 weeks, smart jobs",
+    icon: "clothes-smart",
   },
   {
     name: "Study books",
@@ -335,6 +363,7 @@ export const ITEMS: readonly ItemData[] = [
     durable: "books",
     happy: 1,
     effect: "1 lesson less per degree",
+    icon: "books",
   },
   {
     name: "Glitter phone case",
@@ -344,6 +373,7 @@ export const ITEMS: readonly ItemData[] = [
     kind: "joke",
     happy: -1,
     effect: "Why though",
+    icon: "joke-phonecase",
   },
   {
     name: "Sandwich NFT",
@@ -353,6 +383,7 @@ export const ITEMS: readonly ItemData[] = [
     kind: "joke",
     happy: -1,
     effect: "Proof you own a picture",
+    icon: "joke-nft",
   },
   {
     name: "Hustle audiobook box",
@@ -362,6 +393,7 @@ export const ITEMS: readonly ItemData[] = [
     kind: "joke",
     happy: -2,
     effect: "Wake up at 4am, it says",
+    icon: "joke-audiobook",
   },
 ];
 
