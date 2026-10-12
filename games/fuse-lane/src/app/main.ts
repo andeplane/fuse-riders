@@ -43,6 +43,8 @@ import {
   chooseSetup,
   createMenu,
   parseStoredSetup,
+  playedChoice,
+  rememberPlayed,
   type MenuChoice,
 } from "./menu.js";
 import { present, type Viewer } from "./presenter.js";
@@ -195,7 +197,9 @@ function menu(): void {
 
 const seed = () => `lane-${uuid().slice(0, 12)}`;
 function startLocal(choice: MenuChoice): void {
-  local(LocalMatch.create(chooseSetup(choice, seed())));
+  const match = LocalMatch.create(chooseSetup(choice, seed()));
+  rememberPlayed(store, match.room.matchId, choice);
+  local(match);
 }
 
 let leaveLocal: (() => void) | undefined;
@@ -233,7 +237,7 @@ function local(match: LocalMatch, resumed = false): void {
       },
       again: {
         label: "PLAY AGAIN",
-        run: () => startLocal(parseStoredSetup(store.getItem(SETUP_KEY))),
+        run: () => startLocal(playedChoice(store, match.room.matchId)),
       },
       back: { label: "MENU", run: () => toMenu() },
     },
@@ -258,6 +262,28 @@ function local(match: LocalMatch, resumed = false): void {
   screen.centre.append(paused);
   const main = el("main", "", "fl-room fl-playing");
   main.append(...screen.elements);
+  // The clock is stopped: a tap on the map, a place or CALL IT A WEEK would do nothing, so it points at RESUME
+  // instead of being swallowed. The pause and menu buttons and the checklist and tip still work.
+  main.addEventListener(
+    "click",
+    (event) => {
+      if (!runtime.paused || screen.touring() || paused.hidden) return;
+      const target = event.target as Element | null;
+      if (
+        !target?.closest?.(
+          ".fl-stage, .fl-strip, .fl-end-week, .fl-clock, .fl-panel",
+        )
+      )
+        return;
+      event.stopPropagation();
+      event.preventDefault();
+      paused.classList.remove("nudge");
+      void paused.offsetWidth; // restart the animation
+      paused.classList.add("nudge");
+      resume.focus();
+    },
+    true,
+  );
   app.replaceChildren(main);
   window.scrollTo(0, 0);
 
@@ -331,12 +357,16 @@ function local(match: LocalMatch, resumed = false): void {
         screen.keydown(event);
       return;
     }
+    // Typing in a field, or Enter/Space pressing a focused button, is not a game key.
     if (
       event.target instanceof HTMLInputElement ||
-      event.target instanceof HTMLButtonElement
+      (event.target instanceof HTMLButtonElement &&
+        (event.key === "Enter" || event.key === " "))
     )
       return;
-    if (event.key === "p") setPaused(!runtime.paused);
+    if (event.key === "p") {
+      if (match.room.stage === "running") setPaused(!runtime.paused);
+    }
     // The clock is stopped: no key plays (or skips a handoff) until RESUME.
     else if (!runtime.paused) screen.keydown(event);
   };
@@ -609,7 +639,10 @@ function room(): void {
 
 const query = new URLSearchParams(location.search);
 if (query.has("room")) room();
-else if (query.get("solo") === "1")
+else if (query.get("solo") === "1") {
   // A quick game with the remembered setup (or one player against one AI): the menu's START without the menu.
-  startLocal(parseStoredSetup(store.getItem(SETUP_KEY)));
-else menu();
+  // A reload (pull to refresh, a discarded tab) picks the saved game up again rather than overwriting it.
+  const saved = LocalRuntime.saved(store);
+  if (saved) local(saved, true);
+  else startLocal(parseStoredSetup(store.getItem(SETUP_KEY)));
+} else menu();

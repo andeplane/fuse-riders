@@ -458,11 +458,17 @@ body.fl-page .fl-clock:enabled:hover {
 }
 .fl-clock-words {
   display: grid;
+  min-width: 0;
   line-height: 1.15;
 }
 .fl-week {
+  overflow: hidden;
   font-size: 0.95rem;
   font-weight: 900;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.fl-bank {
   white-space: nowrap;
 }
 .fl-timer-text {
@@ -1130,6 +1136,25 @@ body.fl-page .fl-card:disabled .fl-card-icon {
 .fl-paused > p {
   margin: 0 1rem;
 }
+.fl-paused.nudge {
+  animation: fl-nudge 0.4s ease-in-out;
+}
+@keyframes fl-nudge {
+  20%,
+  60% {
+    transform: translateX(-8px);
+  }
+  40%,
+  80% {
+    transform: translateX(8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fl-paused.nudge {
+    animation: none;
+    outline: 3px solid var(--fl-forest);
+  }
+}
 .fl-sheet-body {
   display: grid;
   gap: 0.75rem;
@@ -1302,7 +1327,8 @@ body.fl-page .fl-handoff-go {
   left: 8px;
   right: 8px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  /* The clock gives way to the money: a long name is cut short, the cash never covered. */
+  grid-template-columns: minmax(0, 1fr) auto auto;
   grid-template-rows: auto 1fr auto;
   grid-template-areas:
     "clock money controls"
@@ -1337,6 +1363,8 @@ body.fl-page .fl-handoff-go {
 }
 body.fl-page .fl-game.compact .fl-clock {
   grid-area: clock;
+  justify-self: start;
+  max-width: 100%;
   gap: 0.4rem;
   min-width: 0;
   padding: 0.25rem 0.65rem 0.25rem 0.25rem;
@@ -1923,4 +1951,11 @@ body.fl-page .fl-checklist-step:disabled {
 }
 .fl-checklist li.done .fl-checklist-mark {
   background: var(--fl-green);
+}
+
+/* DISCARD asks once before a saved game is lost */
+.fl-resume-discard.confirm {
+  color: #fff;
+  background: #c0392b;
+  border-color: #c0392b;
 }
