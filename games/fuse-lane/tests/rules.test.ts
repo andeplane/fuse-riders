@@ -9,12 +9,15 @@ import {
   CLASS,
   END_WEEK,
   ENROLL,
+  FRESHCO,
+  ITEMS,
   GOALS,
   JOBHUB,
   JOBS,
   KEYNEST,
   MAX_NET_WORTH,
   MONO,
+  MOVE,
   COLLEGE,
   PAY_RENT,
   PLACES,
@@ -416,4 +419,85 @@ test("a match result clamps net worth to what the history boundary accepts", () 
   const row = matchResult(room)!.players.find((p) => p.playerId === "a")!;
   assert.equal(row.netWorth, MAX_NET_WORTH);
   assert.ok(parseFuseLaneStats({ ...row, playerId: "a".repeat(24) }, 1));
+});
+
+test("a course already at the lower bar after study books graduates on the next class, at no hours", () => {
+  const room = started();
+  enter(room, "a", COLLEGE);
+  const a = room.players.a!;
+  a.courses[0] = 9;
+  a.durables.books = { n: 1, paid: 30, cheap: false };
+  const time = a.time;
+  fold(room, { a: [act(room, COLLEGE, CLASS, 0)] });
+  assert.equal(a.courses[0], 10, "graduated, not stuck at 9 of 9");
+  assert.equal(a.time, time, "no class to sit");
+  assert.match(a.msg, /Graduated/);
+  fold(room, { a: [act(room, COLLEGE, CLASS, 0)] });
+  assert.match(a.msg, /already hold/);
+});
+
+test("moving off the rent grid lands the lease on a rent day, so rent comes due with a notice", () => {
+  const room = started();
+  nextWeek(room);
+  assert.equal(room.week, 2);
+  const a = room.players.a!;
+  a.cash = 5000;
+  enter(room, "a", KEYNEST);
+  fold(room, { a: [act(room, KEYNEST, MOVE, 1)] });
+  assert.equal(a.home, 1);
+  assert.equal(
+    a.rentWeeks,
+    6,
+    "at least the 4 weeks paid for, to the week-8 rent day",
+  );
+  for (let week = 2; week < 8; week++) {
+    nextWeek(room);
+    assert.equal(a.rentOwed, 0, `no silent arrears in week ${room.week}`);
+  }
+  assert.equal(a.rentWeeks, 0);
+  assert.ok(a.notices.some((line) => /Rent day/.test(line)));
+  enter(room, "a", KEYNEST);
+  fold(room, { a: [act(room, KEYNEST, MOVE, 1)] });
+  assert.match(a.msg, /already live/);
+});
+
+test("a meal out covers Monday, so the groceries keep", () => {
+  const room = started();
+  const a = room.players.a!;
+  a.durables.fridge = { n: 1, paid: 876, cheap: false };
+  a.groceries = 3;
+  a.meal = 1;
+  nextWeek(room);
+  assert.equal(a.groceries, 3);
+});
+
+test("more than a week of groceries needs a fridge: refused with a reason, not sold to spoil", () => {
+  const room = started();
+  enter(room, "a", FRESHCO);
+  const a = room.players.a!;
+  const twoWeeks = ITEMS.findIndex(
+    (item) => item.kind === "groceries" && item.weeks === 2,
+  );
+  const cash = a.cash;
+  fold(room, { a: [act(room, FRESHCO, BUY, twoWeeks)] });
+  assert.equal(a.cash, cash);
+  assert.equal(a.groceries, 0);
+  assert.match(a.msg, /needs a fridge/);
+  a.durables.fridge = { n: 1, paid: 876, cheap: false };
+  fold(room, { a: [act(room, FRESHCO, BUY, twoWeeks)] });
+  assert.equal(a.groceries, 2);
+});
+
+test("a posting you can't get says why for free: tapping through them does not burn the week", () => {
+  const room = started();
+  enter(room, "a", JOBHUB);
+  const a = room.players.a!;
+  const top = JOBS.findIndex((job) => job.title === "Plant Director");
+  const time = a.time;
+  fold(room, { a: [act(room, JOBHUB, APPLY, top)] });
+  assert.match(a.msg, /Not yet/);
+  assert.equal(a.time, time);
+  fold(room, { a: [act(room, JOBHUB, APPLY, COOK)] });
+  assert.equal(a.job, COOK);
+  assert.ok(a.time > time, "a real interview takes its hours");
 });
