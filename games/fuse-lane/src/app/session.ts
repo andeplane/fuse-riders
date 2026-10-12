@@ -10,6 +10,8 @@ export const keys = (gameId: string) => ({
   name: `${gameId}-player-name`,
   avatar: `${gameId}-player-avatar`,
   shared: `${gameId}-shared-screen`,
+  /** Set by CREATE ROOM for a shared-TV room: this browser, its creator, is that room's TV. */
+  tvRoom: (code: string) => `${gameId}-tv-${code}`,
   /** The last room this browser was in, for the menu's REJOIN. */
   last: `${gameId}-last-room`,
   /** Which way the menu was last used: "local" (this device) or "online". */
