@@ -7,6 +7,8 @@ export const SAVE_KEY = "fuse-lane-local-save";
 /** Ticks between saves while a week runs (5 s), besides every change of phase or turn. */
 const SAVE_EVERY = 100;
 const TICK_MS = 50;
+/** At most this many extra folds per interval when catching up. */
+const MAX_CATCH_UP = 3;
 
 export interface LocalDeps {
   now(): number;
@@ -33,6 +35,9 @@ export class LocalRuntime {
   private stopLoop: (() => void) | undefined;
   private savedAt = -Infinity;
   private moment = "";
+  /** When the loop last ran, and the time it has fallen behind since (late intervals), to catch up on. */
+  private ranAt = 0;
+  private behind = 0;
   paused = false;
 
   constructor(
@@ -88,8 +93,29 @@ export class LocalRuntime {
   start(paused = false): void {
     if (paused && this.match.room.stage === "running") this.paused = true;
     this.newerAt = this.deps.now();
+    this.ranAt = this.newerAt;
+    this.behind = 0;
     this.onFrame(this.newer);
-    this.stopLoop ??= this.deps.every(() => this.tick(), TICK_MS);
+    this.stopLoop ??= this.deps.every(() => this.run(), TICK_MS);
+  }
+
+  /**
+   * One interval: a fold, plus up to MAX_CATCH_UP more when the intervals came late (a busy phone, a browser that
+   * slows timers), so a 60 s week lasts 60 s on every device. Paused time is not owed.
+   */
+  private run(): void {
+    const now = this.deps.now();
+    this.behind = Math.min(
+      MAX_CATCH_UP * TICK_MS,
+      Math.max(0, this.behind + now - this.ranAt - TICK_MS),
+    );
+    this.ranAt = now;
+    if (this.paused) this.behind = 0;
+    this.tick();
+    for (let n = 0; n < MAX_CATCH_UP && this.behind >= TICK_MS; n++) {
+      this.behind -= TICK_MS;
+      this.tick();
+    }
   }
 
   stop(): void {
@@ -117,6 +143,10 @@ export class LocalRuntime {
   setPaused(paused: boolean): void {
     this.paused = paused;
     if (paused) this.save();
+    else {
+      this.ranAt = this.deps.now();
+      this.behind = 0;
+    }
     this.onFrame(this.newer);
   }
 

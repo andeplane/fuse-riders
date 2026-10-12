@@ -95,6 +95,60 @@ export function chooseSetup(choice: MenuChoice, seed: string): LocalSetup {
   return validSetup(setup) ? setup : setupOf(DEFAULT_CHOICE);
 }
 
+/** The choice with one person renamed (names stay unique), leaving `choice` itself as it was. */
+export function renamed(
+  choice: MenuChoice,
+  index: number,
+  name: string,
+): MenuChoice {
+  return normalizeChoice({
+    ...choice,
+    humans: choice.humans.map((person, at) =>
+      at === index ? { ...person, name } : person,
+    ),
+  });
+}
+
+/** The choice with one person on the next character, keeping their name. */
+export function nextAvatar(choice: MenuChoice, index: number): MenuChoice {
+  return normalizeChoice({
+    ...choice,
+    humans: choice.humans.map((person, at) => {
+      if (at !== index) return person;
+      const from = AVATARS.indexOf(person.avatar as (typeof AVATARS)[number]);
+      return { ...person, avatar: AVATARS[(from + 1) % AVATARS.length]! };
+    }),
+  });
+}
+
+/** The setup a match was started with, so PLAY AGAIN replays that group, not the menu's later edits. */
+export const PLAYED_KEY = "fuse-lane-played";
+export function rememberPlayed(
+  store: Store,
+  matchId: string,
+  choice: MenuChoice,
+): void {
+  try {
+    store.setItem(PLAYED_KEY, JSON.stringify({ matchId, choice }));
+  } catch {
+    /* not remembered: PLAY AGAIN falls back to the menu's setup */
+  }
+}
+/** The setup `matchId` was started with, or the menu's remembered one. */
+export function playedChoice(store: Store, matchId: string): MenuChoice {
+  try {
+    const played = JSON.parse(store.getItem(PLAYED_KEY) ?? "null") as {
+      matchId?: unknown;
+      choice?: unknown;
+    } | null;
+    if (played && played.matchId === matchId)
+      return parseStoredSetup(JSON.stringify(played.choice));
+  } catch {
+    /* unreadable: the menu's setup instead */
+  }
+  return parseStoredSetup(safeGet(store, SETUP_KEY));
+}
+
 /** What the device remembered, or the defaults. */
 export function parseStoredSetup(raw: string | null): MenuChoice {
   if (!raw) return DEFAULT_CHOICE;
@@ -185,7 +239,13 @@ export function createMenu(options: MenuOptions): HTMLElement {
     const go = button("CONTINUE", "fui-button-primary fl-resume-go"),
       discard = button("DISCARD", "fl-resume-discard");
     go.onclick = () => options.onResume();
+    // One stray tap must not lose a game: the first asks, the second discards.
     discard.onclick = () => {
+      if (!discard.classList.contains("confirm")) {
+        discard.classList.add("confirm");
+        discard.textContent = "TAP AGAIN TO DISCARD";
+        return;
+      }
       options.onDiscard();
       resume.remove();
     };
@@ -219,6 +279,23 @@ export function createMenu(options: MenuOptions): HTMLElement {
     });
     update(true);
   };
+  /** Renames one person; names stay unique, so the other fields show what normalizing made of theirs. */
+  function rename(index: number, value: string): void {
+    choice = renamed(choice, index, value);
+    // Values and labels only: rebuilding the rows here would pull an input out from under another's blur.
+    root.querySelectorAll<HTMLElement>(".fl-person").forEach((row, i) => {
+      const person = choice.humans[i];
+      if (!person) return;
+      const input = row.querySelector<HTMLInputElement>(".fl-person-name");
+      if (input && input.value !== person.name) input.value = person.name;
+      row
+        .querySelector(".fl-person-face")
+        ?.setAttribute("aria-label", `Change ${person.name}'s character`);
+      row
+        .querySelector(".fl-person-remove")
+        ?.setAttribute("aria-label", `Remove ${person.name}`);
+    });
+  }
   function personRow(index: number): HTMLElement {
     const human = choice.humans[index]!;
     const row = el("div", "", "fl-person");
@@ -226,12 +303,8 @@ export function createMenu(options: MenuOptions): HTMLElement {
     face.setAttribute("aria-label", `Change ${human.name}'s character`);
     face.append(art.element(`avatar-${human.avatar}-portrait`, 44));
     face.onclick = () => {
-      const at = AVATARS.indexOf(human.avatar as (typeof AVATARS)[number]);
-      choice.humans[index] = {
-        ...human,
-        avatar: AVATARS[(at + 1) % AVATARS.length]!,
-      };
-      choice = normalizeChoice(choice);
+      // From the person as they are now: a rename since this row was built must stay.
+      choice = nextAvatar(choice, index);
       update(true);
     };
     const name = el("input", "", "fl-person-name");
@@ -240,10 +313,7 @@ export function createMenu(options: MenuOptions): HTMLElement {
     name.autocomplete = "off";
     name.setAttribute("aria-label", `Player ${index + 1} name`);
     name.onchange = () => {
-      choice.humans[index] = { ...choice.humans[index]!, name: name.value };
-      choice = normalizeChoice(choice);
-      // Only this field changes: rebuilding the rows here would pull an input out from under another's blur.
-      name.value = choice.humans[index]!.name;
+      rename(index, name.value);
       update(false);
     };
     row.append(face, name);
@@ -308,6 +378,13 @@ export function createMenu(options: MenuOptions): HTMLElement {
   const summary = el("p", "", "fl-setup-summary");
   const start = button("START", "fui-button-primary fl-start-game");
   start.onclick = () => {
+    // A name still being typed (a phone keyboard need not blur it before START) counts.
+    root
+      .querySelectorAll<HTMLInputElement>(".fl-person-name")
+      .forEach((input, index) => {
+        if (input.value !== choice.humans[index]?.name)
+          rename(index, input.value);
+      });
     remember();
     options.onStart(choice);
   };
