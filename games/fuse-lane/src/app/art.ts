@@ -31,6 +31,18 @@ export interface Art {
   element(id: string, size: number, className?: string): HTMLElement;
 }
 
+/**
+ * The site's root path for URLs built at run time (art, links). Vite's `BASE_URL` is that path for an absolute base,
+ * but "./" for a relative one (`vite build --base ./`, a static copy served from any folder), which would resolve
+ * against the game's own page (`<root>/fuse-lane/`). The built script lives in `<root>/assets/`, so a relative base
+ * is resolved from the script's own URL instead.
+ */
+export function siteBase(baseUrl: string, moduleUrl: string): string {
+  if (baseUrl.startsWith("/") || /^[a-z][a-z0-9+.-]*:/i.test(baseUrl))
+    return baseUrl;
+  return new URL("../", moduleUrl).pathname;
+}
+
 export function createArt(
   base: string,
   makeImage: () => ArtImage,

@@ -31,7 +31,7 @@ import {
   seatName,
   type FuseLaneSettings,
 } from "../game/index.js";
-import { createArt, type ArtImage } from "./art.js";
+import { createArt, siteBase, type ArtImage } from "./art.js";
 import { drawBoard } from "./board.js";
 import { geometry } from "./layout.js";
 import { LocalMatch } from "./local.js";
@@ -61,9 +61,11 @@ import {
  * helpers, the local match and the board's geometry; this file wires them to the page.
  */
 const GAME = fuseLaneGame.id;
+/** The site root, also under a relative base (a static preview copied to any folder). */
+const BASE = siteBase(import.meta.env.BASE_URL, import.meta.url);
 const endpoints = createEndpoints(
   {
-    basePath: `${import.meta.env.BASE_URL}${GAME}/`,
+    basePath: `${BASE}${GAME}/`,
     apiOrigin: import.meta.env.VITE_API_ORIGIN,
   },
   location.origin,
@@ -71,10 +73,7 @@ const endpoints = createEndpoints(
 const store = safeStore(() => localStorage);
 const names = keys(GAME);
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
-const art = createArt(
-  import.meta.env.BASE_URL,
-  () => new Image() as unknown as ArtImage,
-);
+const art = createArt(BASE, () => new Image() as unknown as ArtImage);
 const app = document.querySelector<HTMLElement>("#app")!;
 const localDeps = {
   now: () => performance.now(),
@@ -93,7 +92,7 @@ function header(extra: HTMLElement[] = []): HTMLElement {
   const portal = createAppPortal({
     document,
     current: GAME,
-    base: import.meta.env.BASE_URL,
+    base: BASE,
     search: location.search,
   });
   bar.append(portal.element, brand, ...extra);
@@ -163,7 +162,7 @@ function summary(match: LocalMatch): string {
 function menu(): void {
   const saved = LocalRuntime.saved(store);
   const back = el("a", "← ALL GAMES", "fl-back");
-  back.href = import.meta.env.BASE_URL;
+  back.href = BASE;
   app.replaceChildren(
     header([back]),
     createMenu({
