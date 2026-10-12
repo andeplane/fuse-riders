@@ -343,6 +343,7 @@ export function endWeek(room: FuseLaneRoom): boolean {
     player.flags = 0;
     player.failed = [];
     player.botActs = 0;
+    player.trail = [];
     player.weekShifts = 0;
     player.weekClasses = 0;
     player.scratched = 0;
