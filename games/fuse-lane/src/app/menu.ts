@@ -276,13 +276,19 @@ export function createMenu(options: MenuOptions): HTMLElement {
   /** Renames one person; names stay unique, so the other fields show what normalizing made of theirs. */
   function rename(index: number, value: string): void {
     choice = renamed(choice, index, value);
-    // Values only: rebuilding the rows here would pull an input out from under another's blur.
-    root
-      .querySelectorAll<HTMLInputElement>(".fl-person-name")
-      .forEach((input, i) => {
-        const person = choice.humans[i];
-        if (person && input.value !== person.name) input.value = person.name;
-      });
+    // Values and labels only: rebuilding the rows here would pull an input out from under another's blur.
+    root.querySelectorAll<HTMLElement>(".fl-person").forEach((row, i) => {
+      const person = choice.humans[i];
+      if (!person) return;
+      const input = row.querySelector<HTMLInputElement>(".fl-person-name");
+      if (input && input.value !== person.name) input.value = person.name;
+      row
+        .querySelector(".fl-person-face")
+        ?.setAttribute("aria-label", `Change ${person.name}'s character`);
+      row
+        .querySelector(".fl-person-remove")
+        ?.setAttribute("aria-label", `Remove ${person.name}`);
+    });
   }
   function personRow(index: number): HTMLElement {
     const human = choice.humans[index]!;
