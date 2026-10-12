@@ -95,6 +95,9 @@ export interface ChecklistModel {
   hidden: boolean;
 }
 
+const names = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === "string");
+
 /** This match's checklist from the device, or a fresh one (another match's, or nothing readable). */
 export function loadChecklist(store: Store, match: string): ChecklistSave {
   const fresh: ChecklistSave = { match, done: {}, closed: [] };
@@ -107,7 +110,9 @@ export function loadChecklist(store: Store, match: string): ChecklistSave {
       (saved.open === undefined || typeof saved.open === "boolean") &&
       saved.done &&
       typeof saved.done === "object" &&
-      Array.isArray(saved.closed)
+      !Array.isArray(saved.done) &&
+      Object.values(saved.done).every(names) &&
+      names(saved.closed)
     )
       return saved;
   } catch {

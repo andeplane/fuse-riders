@@ -434,6 +434,13 @@ export function createGameScreen(
     // Until the player chooses, it starts open on a wide screen and folded on a phone held upright (the layout's
     // `compact`), where the map is narrow.
     const box = game.getBoundingClientRect();
+    // It stands on the fourth rival's card (bottom left, wide screens) rather than covering it.
+    const rival =
+      rivals.element.querySelector<HTMLElement>('[data-corner="3"]');
+    checklist.style.setProperty(
+      "--fl-under",
+      `${rival?.offsetHeight ? rival.offsetHeight + 8 : 0}px`,
+    );
     const open =
       checkOpen ?? list.open ?? !(box.width < 700 && box.height > box.width);
     text(checkTitle, list.complete ? "All set!" : "Getting started");
@@ -518,11 +525,17 @@ export function createGameScreen(
     placeTourSpot();
     tourNext.focus({ preventScroll: true });
   }
+  /** While the tour is up, nothing under it takes a tap, a click or the keyboard's focus. */
+  function underTour(inert: boolean): void {
+    for (const part of game.children)
+      if (part !== tourLayer) part.toggleAttribute("inert", inert);
+  }
   function endTour(): void {
     const finished = tour;
     tour = undefined;
     tourAt = undefined;
     tourLayer.hidden = true;
+    underTour(false);
     follow = true;
     finished?.done();
   }
@@ -638,10 +651,21 @@ export function createGameScreen(
     root.onclick = () => play(card.entry);
     return root;
   }
+  // While you stay at a place its cards keep the rows they had when you arrived: a hire that qualifies you for more
+  // jobs doesn't shuffle the postings under your finger. Cards that appear later go after.
+  const cardRow = new Map<string, number>();
+  const inRows = (cards: Card[]): Card[] => {
+    for (const card of cards)
+      if (!cardRow.has(card.key)) cardRow.set(card.key, cardRow.size);
+    return [...cards].sort((a, b) => cardRow.get(a.key)! - cardRow.get(b.key)!);
+  };
   function renderPanel(view: PanelModel | undefined, blocked: boolean): void {
     if (!view || hiddenPanel === panelId(view) || blocked) {
       panel.hidden = true;
-      if (!view) hiddenPanel = "";
+      if (!view) {
+        hiddenPanel = "";
+        cardRow.clear();
+      }
       return;
     }
     panel.hidden = false;
@@ -650,6 +674,7 @@ export function createGameScreen(
     const scroll = panelBody.scrollTop,
       same = panel.dataset.place === String(view.place);
     panelKey = key;
+    if (!same) cardRow.clear();
     panel.dataset.place = String(view.place);
     panelKeeper.replaceChildren(art.element(view.keeper, 72, "fl-keeper-art"));
     const building = `building-${PLACES[view.place]?.id ?? ""}`;
@@ -666,7 +691,7 @@ export function createGameScreen(
         if (section.info)
           block.append(el("p", section.info, "fl-section-info"));
         const grid = el("div", "", "fl-cards");
-        grid.append(...section.cards.map(renderCard));
+        grid.append(...inRows(section.cards).map(renderCard));
         block.append(grid);
         return block;
       }),
@@ -1099,6 +1124,7 @@ export function createGameScreen(
       youOpen = false;
       if (model) render(model);
       tourLayer.hidden = false;
+      underTour(true);
       showTourStep();
     },
     /** Whether the tour is up: the page's own keys and cards stand aside. */

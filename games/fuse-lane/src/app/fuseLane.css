@@ -1815,7 +1815,10 @@ body.fl-page .fl-tip:disabled {
   position: absolute;
   z-index: 2;
   left: calc(var(--free-x, 0px) + 0.5rem);
-  bottom: calc(100% - var(--free-y, 0px) - var(--free-h, 100%) + 0.5rem);
+  bottom: calc(
+    100% - var(--free-y, 0px) - var(--free-h, 100%) + 0.5rem +
+      var(--fl-under, 0px)
+  );
   width: min(15rem, calc(100% - 1rem));
   color: var(--fl-ink);
   background: var(--fl-glass);
