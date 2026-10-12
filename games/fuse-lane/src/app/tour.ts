@@ -26,7 +26,7 @@ import { bounds, type Rect } from "./layout.js";
 export const TOUR_KEY = "fuse-lane-toured";
 
 /** A HUD piece a card points at. */
-export type TourHud = "clock" | "goals" | "end" | "tip";
+export type TourHud = "clock" | "goals" | "tip" | "list";
 
 export interface TourStep {
   title: string;
@@ -62,7 +62,7 @@ export function tourSteps(
     },
     {
       title: "Your week",
-      body: `Every week has ${WEEK_HOURS} hours and ${view.weekSeconds} real seconds. Walking and everything you do costs hours. When either runs out, your week is over.`,
+      body: `Every week has ${WEEK_HOURS} hours and ${view.weekSeconds} real seconds. Walking and everything you do costs hours. When either runs out, or you tap Call it a week, your week is over and the hours left become sleep.`,
       hud: "clock",
     },
     {
@@ -101,9 +101,9 @@ export function tourSteps(
       places: [NEOBANK, GADGET],
     },
     {
-      title: "Call it a week",
-      body: "Done early? Call it a week, and the hours left become sleep.",
-      hud: "end",
+      title: "Getting started",
+      body: "Your first steps: find a job, eat, study and more. They tick themselves off as you do them, and a tap on one walks you there.",
+      hud: "list",
     },
     {
       title: "Tips",

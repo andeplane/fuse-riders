@@ -82,7 +82,7 @@ test("every card points at the HUD, at places it names, or at nothing", () => {
   const steps = tourSteps(LocalMatch.create(setup(1, 2)).view());
   assert.deepEqual(
     steps.filter((step) => step.hud).map((step) => step.hud),
-    ["clock", "goals", "end", "tip"],
+    ["clock", "goals", "list", "tip"],
   );
   const framed = steps.flatMap((step) => step.places ?? []);
   assert.ok(framed.includes(JOBHUB), "the Job Hub is on the tour");
