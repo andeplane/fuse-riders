@@ -2,7 +2,10 @@
  * Headless Fuse Lane: runs whole bot-only games through the real rules fold and prints how long they take and where
  * the economy wanders, for balance checks (economy-sim.md §9). Usage:
  *
- *   pnpm exec tsx scripts/fuse-lane-sim.ts [games=200] [players=4] [goal=50]
+ *   pnpm exec tsx scripts/fuse-lane-sim.ts [games=200] [players=4] [goal=50] [mode=turns|together] [level=2]
+
+ * `turns` is the hot-seat week (each bot plays its week in turn, all at once); `together` is the online room's
+ * simultaneous week. `level` is the bots' difficulty: 0 easy, 1 normal, 2 hard.
  *
  * Every game is seeded by its index, so a run is reproducible.
  */
@@ -23,7 +26,9 @@ import {
 
 const games = Number(process.argv[2] ?? 200),
   seats = Number(process.argv[3] ?? 4),
-  goal = Number(process.argv[4] ?? 50);
+  goal = Number(process.argv[4] ?? 50),
+  turns = (process.argv[5] ?? "turns") === "turns",
+  level = Number(process.argv[6] ?? 2);
 
 let seq = 0;
 function fold(room: FuseLaneRoom, host: unknown[][] = []): void {
@@ -42,7 +47,11 @@ export function playGame(
   players = seats,
   goals = goal,
 ): FuseLaneRoom {
-  const room = createRoom(`sim-${seed}`, DEFAULT_SETTINGS);
+  const room = createRoom(`sim-${seed}`, {
+    ...DEFAULT_SETTINGS,
+    turns,
+    level,
+  });
   void SETTINGS;
   void GOALS;
   fold(
@@ -108,7 +117,7 @@ function main(): void {
   }
   rates = rates.sort((a, b) => a - b);
   console.log(
-    `Fuse Lane sim: ${games} games, ${seats} bots, goals ${goal}/${goal}/${goal}/${goal} (${((Date.now() - started) / 1000).toFixed(1)} s)`,
+    `Fuse Lane sim: ${games} games, ${seats} ${["easy", "normal", "hard"][level]} bots, ${turns ? "hot-seat" : "simultaneous"} weeks, goals ${goal}/${goal}/${goal}/${goal} (${((Date.now() - started) / 1000).toFixed(1)} s)`,
   );
   console.log(
     `weeks to finish: min ${Math.min(...weeks)}  p10 ${pct(weeks, 0.1)}  median ${pct(weeks, 0.5)}  p90 ${pct(weeks, 0.9)}  max ${Math.max(...weeks)}  (no winner: ${unfinished})`,

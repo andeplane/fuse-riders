@@ -24,6 +24,7 @@ import {
   rentPrice,
   sellValue,
   shelfPrice,
+  type Economy,
 } from "./economy.js";
 import { randInt } from "./random.js";
 import { nameOf, type FuseLaneRoom } from "./room.js";
@@ -168,9 +169,8 @@ export function missing(player: PlayerState, job: JobData): string[] {
 export const strength = (player: PlayerState): number =>
   player.dep + player.exp + 8 * degrees(player);
 /** The luck roll's bar: (dep + exp + 8 × degrees + 10) / 3 + 30, harder when unemployment is high. */
-export function hireOdds(room: FuseLaneRoom, player: PlayerState): number {
-  const slack =
-    Math.max(0, room.economy.unemployment - 5) * ECONOMY.hiringSlack;
+export function hireOdds(economy: Economy, player: PlayerState): number {
+  const slack = Math.max(0, economy.unemployment - 5) * ECONOMY.hiringSlack;
   return Math.floor((strength(player) + 10) / 3) + 30 - Math.floor(slack);
 }
 
@@ -236,7 +236,7 @@ function apply(room: FuseLaneRoom, id: string, index: number): void {
     return say(player, `Not yet: you need ${reasons.join(", ")}.`, true);
   if (player.failed.includes(index))
     return say(player, "Still no openings. Try next week.", true);
-  if (!job.sure && randInt(room, 1, 100) > hireOdds(room, player)) {
+  if (!job.sure && randInt(room, 1, 100) > hireOdds(room.economy, player)) {
     player.failed.push(index);
     return say(player, "No openings right now. Try another posting.", true);
   }

@@ -75,6 +75,16 @@ export type BotMove =
 export const BOT_DELAY = 5;
 /** A bot that has acted this often in one week calls it a week. */
 export const BOT_MAX_ACTS = 60;
+/**
+ * What each bot level (`room.level`: easy, normal, hard) does with its week: how many moves before it calls it a
+ * week, the shifts and classes it aims for, and whether it asks for raises, chases better jobs and buys comfort, and
+ * whether it trades.
+ */
+export const BOT_LEVELS = [
+  { acts: 14, shifts: 2, classes: 1, climb: false, trade: false },
+  { acts: 30, shifts: 3, classes: 2, climb: true, trade: false },
+  { acts: BOT_MAX_ACTS, shifts: 3, classes: 3, climb: true, trade: true },
+] as const;
 
 /** Courses in the order a bot studies them: the ones that open the most jobs first. */
 const STUDY_ORDER = [4, 0, 5, 2, 3, 1, 6, 7, 8, 9, 10];
@@ -134,7 +144,8 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
     economy = room.economy,
     left = hoursLeft(player),
     cash = player.cash;
-  if (player.botActs >= BOT_MAX_ACTS) return { kind: "end" };
+  const level = BOT_LEVELS[room.level] ?? BOT_LEVELS[2];
+  if (player.botActs >= level.acts) return { kind: "end" };
   const travel = (place: number) =>
     player.inside === place
       ? 0
@@ -222,13 +233,18 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
 
   // 5. Work three shifts a week (more while broke).
   const dressed = job !== undefined && wearing(player) >= job.uniform;
-  if (job && dressed && (player.weekShifts < 3 || cash < 150)) {
+  if (job && dressed && (player.weekShifts < level.shifts || cash < 150)) {
     const move = go(workplace, WORK, 0, 0, Math.min(HOURS.work, left));
     if (move && left >= 1) return move;
   }
 
   // 6. A raise, or a better job.
-  if (job && (player.flags & ASKED_RAISE) === 0 && player.raises < 3) {
+  if (
+    level.climb &&
+    job &&
+    (player.flags & ASKED_RAISE) === 0 &&
+    player.raises < 3
+  ) {
     const market = marketWage(economy, job);
     if (
       market > player.wage * 1.05 &&
@@ -238,7 +254,7 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
       if (move) return move;
     }
   }
-  if (job) {
+  if (job && level.climb) {
     const best = bestJob(room, id, player);
     if (best >= 0 && player.exp >= player.maxExp - 2) {
       const move = go(JOBHUB, APPLY, best, 0, HOURS.apply);
@@ -247,7 +263,7 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
   }
 
   // 7. Study, while education is short of the goal.
-  if (education(player) < goals[2] && player.weekClasses < 3) {
+  if (education(player) < goals[2] && player.weekClasses < level.classes) {
     const active = player.courses.findIndex(
       (lessons) => lessons >= 0 && lessons < 10,
     );
@@ -285,7 +301,7 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
     const move = go(homePlace(player.home), RELAX, 0, 0, HOURS.relax);
     if (move) return move;
   }
-  if (player.happiness < goals[1] && cash > 900) {
+  if (level.climb && player.happiness < goals[1] && cash > 900) {
     const want = APPLIANCES.find(
       (durable) => player.durables[durable] === undefined,
     );
@@ -309,7 +325,11 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
   }
 
   // 9. Save and invest the surplus.
-  if (economy.sentiment < -0.3 && player.holdings[INDEX_FUND]! > 0) {
+  if (
+    level.trade &&
+    economy.sentiment < -0.3 &&
+    player.holdings[INDEX_FUND]! > 0
+  ) {
     const move = go(
       NEOBANK,
       TRADE_SELL,
@@ -322,6 +342,7 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
     const fund = quote(economy, INDEX_FUND);
     const units = Math.floor((cash - 900) / 2 / fund);
     if (
+      level.trade &&
       economy.sentiment > 0.15 &&
       units > 0 &&
       buyCost(economy, INDEX_FUND, units) < cash - 600

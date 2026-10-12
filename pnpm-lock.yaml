@@ -41,6 +41,9 @@ importers:
       fuse-freight:
         specifier: workspace:*
         version: link:games/fuse-freight
+      fuse-lane:
+        specifier: workspace:*
+        version: link:games/fuse-lane
       fuse-network-be:
         specifier: workspace:*
         version: link:packages/fuse-network-be

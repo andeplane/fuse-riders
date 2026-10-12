@@ -7,10 +7,20 @@ export interface FuseLaneSettings {
   weekSeconds: number;
   /** One shared screen with phones as controllers. */
   display: boolean;
+  /**
+   * Hot-seat weeks: players take turns playing the same week, one after another, each with their own clock (bots play
+   * theirs at once). Off, everyone plays the week at the same time (an online room).
+   */
+  turns: boolean;
+  /** How well the bots play: 0 easy, 1 normal, 2 hard. */
+  level: number;
 }
 
+/** The week runs; the Monday briefing; a hot-seat week waiting for the next player to take the device. */
 export const WEEK = 0,
-  BRIEFING = 1;
+  BRIEFING = 1,
+  HANDOFF = 2;
+export type Phase = typeof WEEK | typeof BRIEFING | typeof HANDOFF;
 
 export interface RosterEntry {
   name: string;
@@ -28,10 +38,16 @@ export interface FuseLaneRoom extends ManagedRoom<FuseLaneSettings> {
   /** The generator's state (mulberry32), seeded from the match id. */
   rng: number;
   week: number;
-  phase: typeof WEEK | typeof BRIEFING;
+  phase: Phase;
   /** The tick the phase began and the tick it ends at the latest. */
   phaseStart: number;
   phaseEnd: number;
+  /** The match's mode and bot level, from the settings at its start (settings may change mid-match; these do not). */
+  turns: boolean;
+  level: number;
+  /** A hot-seat week: who plays it, in order (the first seat rotates weekly), and whose turn it is (-1 before any). */
+  order: string[];
+  turn: number;
   economy: Economy;
   /** Every player of this match, departed seats included, by id. */
   players: Record<string, PlayerState>;

@@ -2,7 +2,7 @@
   "name": "fuse-lane",
   "version": "0.1.0",
   "private": true,
-  "description": "Pig, the template game: roll a d6 or hold, first to 50 wins the round and two rounds win the match. Its rules run on fuse-netcode, its page (src/app/) on fuse-ui and fuse-network-fe.",
+  "description": "Fuse Lane: a simultaneous-week life sim on a loop road. Work, study, shop and invest in a living economy; first to meet all four goals wins. Its rules run on fuse-netcode, its page (src/app/) on fuse-ui and fuse-network-fe.",
   "type": "module",
   "engines": {
     "node": ">=22.12.0"
