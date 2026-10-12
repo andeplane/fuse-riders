@@ -262,8 +262,9 @@ function local(match: LocalMatch, resumed = false): void {
   screen.centre.append(paused);
   const main = el("main", "", "fl-room fl-playing");
   main.append(...screen.elements);
-  // The clock is stopped: a tap on the map, a place or CALL IT A WEEK would do nothing, so it points at RESUME
-  // instead of being swallowed. The pause and menu buttons and the checklist and tip still work.
+  // The clock is stopped: a tap on the map, a place, a place's card or CALL IT A WEEK would do nothing, so it points
+  // at RESUME instead of being swallowed. The pause and menu buttons, the you panel, closing a panel, the checklist
+  // and the tip still work.
   main.addEventListener(
     "click",
     (event) => {
@@ -271,7 +272,7 @@ function local(match: LocalMatch, resumed = false): void {
       const target = event.target as Element | null;
       if (
         !target?.closest?.(
-          ".fl-stage, .fl-strip, .fl-end-week, .fl-clock, .fl-panel",
+          ".fl-stage, .fl-strip, .fl-end-week, .fl-panel:not(.fl-you) .fl-card",
         )
       )
         return;

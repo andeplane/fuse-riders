@@ -1128,6 +1128,9 @@ body.fl-page .fl-card:disabled .fl-card-icon {
   text-align: center;
 }
 .fl-paused {
+  /* Above an open panel, whose card art would otherwise show through. */
+  position: relative;
+  z-index: 3;
   width: min(24rem, 100%);
   padding: 0 0 1rem;
   text-align: center;
