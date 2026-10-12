@@ -150,7 +150,13 @@ export interface MenuOptions {
   onStart(choice: MenuChoice): void;
   onResume(): void;
   onDiscard(): void;
+  /**
+   * The PLAY ONLINE side. Given, the menu opens with two tabs, this device and online, on the one `mode` names;
+   * `onMode` hears each switch so the page can remember it.
+   */
+  online?: { sheet: HTMLElement; mode: MenuMode; onMode(mode: MenuMode): void };
 }
+export type MenuMode = "local" | "online";
 
 export function createMenu(options: MenuOptions): HTMLElement {
   const { art, store } = options;
@@ -332,6 +338,35 @@ export function createMenu(options: MenuOptions): HTMLElement {
     start,
   );
   root.append(form);
+  if (options.online) {
+    const { sheet, onMode } = options.online;
+    let mode = options.online.mode;
+    const tabs = el("div", "", "fl-segmented fl-mode-tabs");
+    tabs.setAttribute("role", "tablist");
+    const tab = (value: MenuMode, label: string) => {
+      const choice = button(label, "fl-segment");
+      choice.setAttribute("role", "tab");
+      choice.onclick = () => {
+        mode = value;
+        onMode(value);
+        drawTabs();
+      };
+      tabs.append(choice);
+      return { value, choice };
+    };
+    const all = [tab("local", "ON THIS DEVICE"), tab("online", "PLAY ONLINE")];
+    const drawTabs = () => {
+      for (const { value, choice } of all) {
+        choice.classList.toggle("on", value === mode);
+        choice.setAttribute("aria-selected", String(value === mode));
+      }
+      form.hidden = mode !== "local";
+      sheet.hidden = mode !== "online";
+    };
+    form.before(tabs);
+    root.append(sheet);
+    drawTabs();
+  }
 
   function update(rebuildPeople: boolean): void {
     remember();

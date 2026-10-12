@@ -536,11 +536,13 @@ function togetherTick(
     for (const id of playerOrder(room)) {
       const player = room.players[id]!;
       walkTick(player);
-      // A player who is not here plays no week: nothing waits for an absent seat.
-      if (player.time >= WEEK_UNITS || !active(room.seats.get(id)))
-        player.done = true;
+      if (player.time >= WEEK_UNITS) player.done = true;
     }
-    const everyone = playerOrder(room).every((id) => room.players[id]!.done);
+    // Nothing waits for a seat that is not here, but its week is not over: a phone that drops out (a refresh, a
+    // tunnel) and comes back before the week ends plays on from where it was.
+    const everyone = playerOrder(room).every(
+      (id) => room.players[id]!.done || !active(room.seats.get(id)),
+    );
     if (everyone || tick >= room.phaseEnd) closeWeek(room, tick, events);
   } else briefingTick(room, seats, tick, events);
 }
