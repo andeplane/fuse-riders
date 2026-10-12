@@ -302,12 +302,22 @@ export function createGameScreen(
     youJob = el("p", "", "fl-job"),
     youChips = el("div", "", "fl-chips"),
     youNews = el("ul", "", "fl-news"),
+    youTips = el("section", "", "fl-tips"),
+    youTipList = el("ul"),
     youGoals = createGoalBars(art, "fl-you-goals");
+  youTips.append(el("h3", "Tips", "fl-tips-title"), youTipList);
   youClose.setAttribute("aria-label", "Close");
   const youTitles = el("div", "", "fl-panel-titles");
   youTitles.append(youName, youWhere);
   youHead.append(youFace, youTitles, youClose);
-  youBody.append(youMoney, youJob, youChips, youGoals.element, youNews);
+  youBody.append(
+    youMoney,
+    youJob,
+    youChips,
+    youTips,
+    youGoals.element,
+    youNews,
+  );
   you.append(youHead, youBody);
   you.hidden = true;
   let youOpen = false,
@@ -379,6 +389,15 @@ export function createGameScreen(
   centre.append(panel, you, briefing, handoff, result);
   const toast = el("div", "", "fl-toast");
   toast.hidden = true;
+  // The most pressing tip, on the board while you stand in the street; a tap walks you there.
+  const tip = button("", "fl-tip"),
+    tipText = el("span", "", "fl-tip-text");
+  tip.append(el("b", "TIP", "fl-tip-badge"), tipText);
+  tip.hidden = true;
+  tip.onclick = () => {
+    const place = model?.tip?.place ?? -1;
+    if (place >= 0) walk(place);
+  };
 
   // ---- the tour: a card that points at a HUD piece or frames places on the map, over everything else ----
   const tourLayer = el("div", "", "fl-tour"),
@@ -400,8 +419,8 @@ export function createGameScreen(
   const tourTargets: Record<TourHud, HTMLElement> = {
     clock: youButton,
     goals: hudGoals.element,
-    money: cash,
     end: endWeek,
+    tip,
   };
   let tour: { steps: TourStep[]; index: number; done: () => void } | undefined;
   /** Where the camera heads while a tour card frames places, in map px. */
@@ -498,7 +517,7 @@ export function createGameScreen(
     tourCard.style.left = `${Math.round(middle)}px`;
   }
 
-  game.append(stage, strip, rivals.element, centre, hud, toast, tourLayer);
+  game.append(stage, strip, rivals.element, centre, hud, tip, toast, tourLayer);
 
   let model: ScreenModel | undefined;
   function walk(place: number): void {
@@ -612,7 +631,7 @@ export function createGameScreen(
       );
     }
     text(youJob, h.job);
-    const chipKey = JSON.stringify([h.chips, h.notices]);
+    const chipKey = JSON.stringify([h.chips, h.notices, h.tips]);
     if (youChips.dataset.key !== chipKey) {
       youChips.dataset.key = chipKey;
       youChips.replaceChildren(
@@ -622,6 +641,8 @@ export function createGameScreen(
       );
       youNews.replaceChildren(...h.notices.map((line) => el("li", line)));
       youNews.hidden = h.notices.length === 0;
+      youTipList.replaceChildren(...h.tips.map((line) => el("li", line)));
+      youTips.hidden = h.tips.length === 0;
     }
     youGoals.render(h.goals);
   }
@@ -663,6 +684,17 @@ export function createGameScreen(
     });
     renderPanel(next.panel, modal || youOpen);
     showToast(next.toast);
+    tip.hidden = !next.tip || modal || youOpen || !panel.hidden;
+    if (next.tip) {
+      text(tipText, next.tip.text);
+      tip.disabled = next.tip.place < 0 || !next.walk;
+      tip.setAttribute(
+        "aria-label",
+        next.tip.place >= 0
+          ? `Tip: ${next.tip.text} Tap to walk to ${PLACES[next.tip.place]!.name}.`
+          : `Tip: ${next.tip.text}`,
+      );
+    }
     rivals.render(next.scores);
     panelStandings.render(next.scores);
     // An open panel covers the middle, so the rivals in the corners step aside (the panel shows them on phones).
