@@ -1,0 +1,1067 @@
+/* The Fuse Lane page, on fuse-ui's tokens and components: a navy frame around a bright city board and cream cards.
+   Phone first; a wide screen puts the HUD and the scores beside the board. */
+body.fl-page {
+  --fl-cream: #fff8ec;
+  --fl-ink: #16213e;
+  --fl-ink-soft: #4a5571;
+  --fl-mint: #3ddc84;
+  --fl-sun: #ffd23f;
+  --fl-coral: #ff6b6b;
+  --fl-sky: #4cc9f0;
+  --fl-line: #16213e1f;
+  padding: 0;
+  font-family: var(--fui-font-sans);
+}
+#app {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  min-height: 100dvh;
+  padding: 0 max(var(--fui-space-3), env(safe-area-inset-left))
+    env(safe-area-inset-bottom);
+}
+
+/* Header */
+.fl-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--fui-space-2) var(--fui-space-3);
+  padding: var(--fui-space-2) 0;
+}
+.fl-brand {
+  display: grid;
+  color: var(--fl-mint);
+  text-decoration: none;
+  font: 800 1.25rem/1 var(--fui-font-sans);
+  letter-spacing: 0.06em;
+}
+.fl-brand small {
+  margin-top: 0.15rem;
+  color: var(--fui-text-dim);
+  font-size: 0.55rem;
+  letter-spacing: 0.18em;
+}
+.fl-back {
+  margin-left: auto;
+  color: var(--fui-cyan);
+  font: 700 0.75rem var(--fui-font-sans);
+}
+.fl-code {
+  padding: 0.2rem 0.5rem;
+  color: var(--fl-ink);
+  background: var(--fl-mint);
+  border-radius: var(--fui-radius-small);
+  font: 800 0.8rem var(--fui-font-sans);
+  letter-spacing: 0.08em;
+}
+.fl-status {
+  flex: 1 1 10rem;
+  min-width: 0;
+  min-height: 1.25rem;
+  overflow: hidden;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fui-app .fl-status[hidden] {
+  display: block !important;
+  visibility: hidden;
+}
+.fl-top .fl-leave {
+  margin-left: auto;
+}
+.fui-app .fl-leave {
+  min-height: 2.25rem;
+  font: 700 0.75rem var(--fui-font-sans);
+}
+@media (max-width: 34rem) {
+  .fl-status {
+    order: 1;
+    flex-basis: 100%;
+  }
+}
+
+.fl-error {
+  color: var(--fui-pink-soft);
+  text-align: center;
+}
+
+/* Room and lobby */
+.fl-room {
+  display: grid;
+  align-content: start;
+  gap: var(--fui-space-3);
+  width: 100%;
+  margin: 0 auto;
+  padding-bottom: var(--fui-space-4);
+}
+.fl-room > .fui-name-entry {
+  width: min(32rem, 100%);
+  margin: 0 auto;
+}
+.fl-sheet {
+  padding: var(--fui-space-4);
+  background: var(--fui-panel);
+  border: var(--fui-border);
+  border-radius: var(--fui-radius-panel);
+}
+.fl-lobby {
+  display: grid;
+  gap: var(--fui-space-3);
+  width: min(34rem, 100%);
+  margin: 0 auto;
+}
+.fl-hint {
+  margin: -0.5rem 0 0;
+  color: var(--fui-text-muted);
+  font-size: 0.85rem;
+}
+.fl-goal-picker {
+  display: grid;
+  gap: var(--fui-space-2);
+}
+.fl-goal-pick {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr) 2.5rem;
+  align-items: center;
+  gap: var(--fui-space-2);
+}
+.fui-app .fl-goal-pick input {
+  min-height: 0;
+  padding: 0;
+  accent-color: var(--fl-mint);
+}
+.fl-goal-pick b {
+  text-align: right;
+  color: var(--fl-sun);
+}
+.fl-goal-picker.locked {
+  opacity: 0.6;
+}
+.fl-lobby .fui-roster-row {
+  position: relative;
+}
+.fui-app .fl-remove {
+  margin-left: auto;
+  min-height: 2rem;
+  padding: 0 var(--fui-space-3);
+  color: var(--fui-pink-soft);
+}
+.fl-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--fui-space-2);
+}
+.fl-actions button {
+  flex: 1 1 9rem;
+}
+
+/* Art: a picture once its file loads, a coloured block with a label until then. */
+.fl-art {
+  --art-size: 24px;
+  --art-color: #8d99ae;
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--art-size);
+  height: var(--art-size);
+  color: var(--fl-ink);
+  background: var(--art-color);
+  border-radius: 28%;
+  font: 800 calc(var(--art-size) * 0.32) / 1 var(--fui-font-sans);
+  overflow: hidden;
+}
+.fl-art::before {
+  content: attr(data-label);
+}
+.fl-art.loaded {
+  background: none;
+}
+.fl-art.loaded::before {
+  content: none;
+}
+.fl-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* The game: phone first, one column. */
+.fl-game {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--fui-space-2);
+}
+.fl-side {
+  display: contents;
+}
+.fl-hud {
+  order: 0;
+}
+.fl-stage {
+  order: 1;
+  position: relative;
+}
+.fl-strip {
+  order: 2;
+}
+.fl-scores {
+  order: 3;
+}
+
+/* HUD */
+.fl-hud {
+  display: grid;
+  gap: var(--fui-space-2);
+  padding: var(--fui-space-3);
+  color: var(--fl-ink);
+  background: var(--fl-cream);
+  border-radius: var(--fui-radius-panel);
+  box-shadow: 0 0.25rem 0 #0006;
+}
+.fl-hud-top {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--fui-space-3);
+}
+.fl-ring {
+  --ring: 0;
+  display: grid;
+  place-content: center;
+  width: 4rem;
+  height: 4rem;
+  text-align: center;
+  border-radius: 50%;
+  background:
+    radial-gradient(closest-side, var(--fl-cream) 74%, transparent 76%),
+    conic-gradient(var(--fl-line) calc(var(--ring) * 360deg), var(--fl-mint) 0);
+}
+.fl-ring b {
+  font: 800 1.35rem/1 var(--fui-font-sans);
+}
+.fl-ring small {
+  color: var(--fl-ink-soft);
+  font: 700 0.42rem/1.1 var(--fui-font-sans);
+  letter-spacing: 0.06em;
+}
+.fl-hud-clock {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+.fl-week {
+  font: 800 1rem/1 var(--fui-font-sans);
+  letter-spacing: 0.04em;
+}
+.fl-timer {
+  height: 0.5rem;
+  background: var(--fl-line);
+  border-radius: 0.25rem;
+  overflow: hidden;
+}
+.fl-timer span {
+  display: block;
+  height: 100%;
+  background: var(--fl-sky);
+  transition: width 0.1s linear;
+}
+.fl-timer.low span {
+  background: var(--fl-coral);
+}
+.fl-timer-text {
+  color: var(--fl-ink-soft);
+  font-size: 0.75rem;
+}
+.fl-money {
+  display: grid;
+  gap: 0.25rem;
+  justify-items: end;
+}
+.fl-money span {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.fl-cash b {
+  font: 800 1.15rem var(--fui-font-sans);
+  color: #13804a;
+}
+.fl-bank b {
+  font: 700 0.85rem var(--fui-font-sans);
+  color: var(--fl-ink-soft);
+}
+.fl-goals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem var(--fui-space-3);
+}
+.fl-goal {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "icon name value" "icon meter meter";
+  align-items: center;
+  gap: 0.1rem 0.4rem;
+}
+.fl-goal .fl-art {
+  grid-area: icon;
+}
+.fl-goal-name {
+  grid-area: name;
+  overflow: hidden;
+  font: 700 0.7rem var(--fui-font-sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fl-goal-value {
+  grid-area: value;
+  font: 700 0.7rem var(--fui-font-sans);
+}
+.fl-goal-meter {
+  grid-area: meter;
+  height: 0.4rem;
+  background: var(--fl-line);
+  border-radius: 0.2rem;
+  overflow: hidden;
+}
+.fl-goal-meter i {
+  display: block;
+  height: 100%;
+  background: var(--fl-sun);
+  transition: width 0.3s;
+}
+.fl-goal.met .fl-goal-meter i {
+  background: var(--fl-mint);
+}
+.fl-goal.met .fl-goal-value::after {
+  content: " ✓";
+  color: #13804a;
+}
+.fl-where,
+.fl-job {
+  margin: 0;
+  font-size: 0.8rem;
+}
+.fl-where {
+  font-weight: 700;
+}
+.fl-job {
+  color: var(--fl-ink-soft);
+}
+.fl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.fl-chip {
+  padding: 0.15rem 0.5rem;
+  background: #3ddc8433;
+  border-radius: 1rem;
+  font: 700 0.7rem var(--fui-font-sans);
+}
+.fl-chip.warn {
+  background: #ff6b6b40;
+  color: #a1161a;
+}
+.fui-app .fl-end-week {
+  min-height: 2.5rem;
+  color: var(--fl-ink);
+  background: var(--fl-sun);
+  border-color: var(--fl-ink);
+  font: 800 0.85rem var(--fui-font-sans);
+}
+.fui-app .fl-end-week:disabled {
+  opacity: 0.5;
+}
+
+/* Board */
+.fl-board {
+  position: relative;
+  /* On a phone the HUD, the board and the place strip share one screen. */
+  height: min(150vw, max(18rem, calc(100dvh - 26rem)));
+  min-height: 18rem;
+  border-radius: var(--fui-radius-panel);
+  overflow: hidden;
+  box-shadow: 0 0.25rem 0 #0006;
+  touch-action: manipulation;
+}
+.fl-board canvas {
+  display: block;
+}
+
+/* Place strip: every place as a button, for a quick tap and for keyboards and screen readers. */
+.fl-strip {
+  display: flex;
+  gap: 0.35rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+  scrollbar-width: thin;
+}
+.fui-app .fl-place {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.5rem;
+  padding: 0.25rem 0.6rem 0.25rem 0.3rem;
+  color: var(--fl-ink);
+  background: var(--fl-cream);
+  border: 2px solid transparent;
+  font: 700 0.75rem var(--fui-font-sans);
+}
+.fui-app .fl-place.here {
+  border-color: var(--fl-mint);
+  background: #dff8e9;
+}
+.fui-app .fl-place.dest {
+  border-color: var(--fl-sun);
+}
+.fui-app .fl-place.work span::after {
+  content: " · W";
+  color: #b07d00;
+}
+.fui-app .fl-place:disabled {
+  opacity: 0.55;
+}
+
+/* Place panel: a sheet over the board. */
+.fl-panel {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: var(--fui-z-panel);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  max-height: 72dvh;
+  color: var(--fl-ink);
+  background: var(--fl-cream);
+  border-radius: 1.25rem 1.25rem 0 0;
+  box-shadow: 0 -0.5rem 2rem #0008;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.fl-panel[hidden] {
+  display: none;
+}
+.fl-panel-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--fui-space-3);
+  padding: var(--fui-space-3) var(--fui-space-3) var(--fui-space-2);
+  border-bottom: 2px solid var(--fl-line);
+}
+.fl-panel-head h2 {
+  margin: 0;
+  font: 800 1.2rem var(--fui-font-sans);
+}
+.fl-keeper .fl-art {
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px var(--fl-ink);
+}
+.fl-greeting {
+  margin: 0.15rem 0 0;
+  color: var(--fl-ink-soft);
+  font-style: italic;
+  font-size: 0.85rem;
+}
+.fui-app .fl-panel-close {
+  min-height: 2.25rem;
+  min-width: 2.25rem;
+  padding: 0;
+  color: var(--fl-ink);
+  background: transparent;
+  border-color: var(--fl-line);
+  font-size: 1.25rem;
+}
+.fl-panel-body {
+  overflow-y: auto;
+  padding: var(--fui-space-2) var(--fui-space-3) var(--fui-space-4);
+  overscroll-behavior: contain;
+}
+.fl-section h3 {
+  margin: var(--fui-space-3) 0 var(--fui-space-1);
+  color: var(--fl-ink-soft);
+  font: 800 0.7rem var(--fui-font-sans);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.fl-section-info {
+  margin: 0 0 var(--fui-space-2);
+  font-size: 0.8rem;
+  color: var(--fl-ink-soft);
+}
+.fl-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: var(--fui-space-2);
+}
+.fui-app .fl-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--fui-space-2);
+  min-height: 4rem;
+  padding: var(--fui-space-2);
+  color: var(--fl-ink);
+  text-align: left;
+  text-transform: none;
+  letter-spacing: 0;
+  background: #fff;
+  border: 2px solid var(--fl-ink);
+  border-radius: 0.9rem;
+  box-shadow: 0 0.2rem 0 var(--fl-ink);
+  font: 500 0.85rem/1.3 var(--fui-font-sans);
+  transition:
+    transform 0.08s,
+    box-shadow 0.08s;
+}
+.fui-app .fl-card:enabled:hover {
+  background: #f1fff6;
+}
+.fui-app .fl-card:enabled:active {
+  transform: translateY(0.15rem);
+  box-shadow: 0 0.05rem 0 var(--fl-ink);
+}
+.fui-app .fl-card:disabled {
+  opacity: 0.55;
+  box-shadow: none;
+  border-color: #16213e55;
+}
+.fl-card-body {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.fl-card-title {
+  font-weight: 800;
+}
+.fl-card-detail {
+  color: var(--fl-ink-soft);
+  font-size: 0.75rem;
+}
+.fl-card-note {
+  color: #b0331f;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 700;
+}
+.fl-card-meta {
+  display: grid;
+  justify-items: end;
+  gap: 0.2rem;
+}
+.fl-card-price {
+  font-weight: 800;
+  white-space: nowrap;
+}
+.fl-card-hours {
+  padding: 0.05rem 0.4rem;
+  color: var(--fl-ink);
+  background: #4cc9f044;
+  border-radius: 1rem;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+/* Scores */
+.fl-scores {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--fui-space-2);
+}
+.fl-score {
+  --player: var(--fl-sky);
+  display: grid;
+  gap: 0.35rem;
+  padding: var(--fui-space-2) var(--fui-space-3);
+  color: var(--fl-ink);
+  background: var(--fl-cream);
+  border-left: 0.4rem solid var(--player);
+  border-radius: var(--fui-radius-small);
+}
+.fl-score.you {
+  box-shadow: 0 0 0 2px var(--player);
+}
+.fl-score.away {
+  opacity: 0.5;
+}
+.fl-score-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--fui-space-2);
+}
+.fl-score-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fl-score-percent {
+  color: #13804a;
+}
+.fl-score-detail {
+  color: var(--fl-ink-soft);
+}
+.fl-score.done .fl-score-detail::before {
+  content: "💤 ";
+}
+.fl-score-goals .fl-goal-name {
+  font-size: 0.65rem;
+}
+
+/* Overlays: the Monday briefing, the handoff, the pause and the result. */
+.fl-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--fui-z-dialog);
+  display: grid;
+  place-items: center;
+  padding: max(var(--fui-space-3), env(safe-area-inset-top)) var(--fui-space-3)
+    max(var(--fui-space-3), env(safe-area-inset-bottom));
+  background: #04091acc;
+  overflow-y: auto;
+}
+.fl-overlay[hidden] {
+  display: none;
+}
+.fl-briefing-card {
+  display: grid;
+  gap: var(--fui-space-3);
+  width: min(36rem, 100%);
+  color: var(--fl-ink);
+  background: var(--fl-cream);
+  border: none;
+}
+.fl-briefing-card h2 {
+  margin: 0;
+  font: 800 1.35rem var(--fui-font-sans);
+}
+.fl-ticker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.fl-tick {
+  display: grid;
+  padding: 0.25rem 0.55rem;
+  background: #fff;
+  border: 2px solid var(--fl-line);
+  border-radius: 0.6rem;
+}
+.fl-tick small {
+  color: var(--fl-ink-soft);
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.fl-tick b {
+  font-size: 0.9rem;
+  text-transform: capitalize;
+}
+.fl-tick.up b::after {
+  content: " ▲";
+  color: #13804a;
+}
+.fl-tick.down b::after {
+  content: " ▼";
+  color: #c0392b;
+}
+.fl-chart {
+  position: relative;
+}
+.fl-chart svg {
+  display: block;
+  width: 100%;
+  height: 4rem;
+  background: #fff;
+  border-radius: 0.6rem;
+}
+.fl-chart polyline {
+  fill: none;
+  stroke: #13804a;
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.fl-chart small {
+  position: absolute;
+  top: 0.3rem;
+  left: 0.5rem;
+  color: var(--fl-ink-soft);
+  font-size: 0.6rem;
+  font-weight: 800;
+}
+.fl-headlines,
+.fl-notices {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.9rem;
+}
+.fl-notices {
+  padding: var(--fui-space-2) var(--fui-space-2) var(--fui-space-2) 1.8rem;
+  background: #ffd23f33;
+  border-radius: 0.6rem;
+}
+.fui-app .fl-ready {
+  min-height: 3rem;
+  font: 800 1rem var(--fui-font-sans);
+}
+.fl-ready-note {
+  margin: -0.5rem 0 0;
+  color: var(--fl-ink-soft);
+  font-size: 0.8rem;
+  text-align: center;
+}
+.fl-result-card,
+.fl-paused-card {
+  display: grid;
+  gap: var(--fui-space-3);
+  width: min(32rem, 100%);
+}
+.fl-result-title {
+  margin: 0;
+  color: var(--fl-sun);
+  font: 800 1.6rem/1.3 var(--fui-font-sans);
+  text-align: center;
+}
+.fl-result-lines {
+  margin: 0;
+  padding: var(--fui-space-3) var(--fui-space-3) var(--fui-space-3) 2rem;
+  color: var(--fl-ink);
+  background: var(--fl-cream);
+  border-radius: var(--fui-radius);
+  line-height: 1.7;
+}
+
+/* Toast: over the top of the board. */
+.fl-toast {
+  position: absolute;
+  left: 50%;
+  top: var(--fui-space-2);
+  z-index: var(--fui-z-alert);
+  max-width: calc(100% - 2rem);
+  transform: translateX(-50%);
+  padding: var(--fui-space-2) var(--fui-space-3);
+  color: var(--fl-ink);
+  background: #fff;
+  border: 2px solid var(--fl-ink);
+  border-radius: 0.8rem;
+  box-shadow: 0 0.2rem 0 var(--fl-ink);
+  font: 700 0.85rem/1.4 var(--fui-font-sans);
+  text-align: center;
+}
+.fl-toast[data-tone="warn"] {
+  background: #ffe4e1;
+}
+.fl-toast[data-tone="good"] {
+  background: #e3fbec;
+}
+
+/* A wide screen: board and panel on the left, HUD and scores on the right. */
+@media (min-width: 60rem) {
+  .fl-room {
+    width: min(90rem, 100%);
+  }
+  .fl-game {
+    grid-template-columns: minmax(0, 1fr) 22rem;
+    grid-template-rows: auto auto;
+    align-items: start;
+  }
+  .fl-side {
+    display: grid;
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    gap: var(--fui-space-2);
+  }
+  .fl-stage {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .fl-strip {
+    grid-column: 1;
+    grid-row: 2;
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+  .fl-scores {
+    grid-template-columns: 1fr;
+  }
+  .fl-board {
+    height: calc(100dvh - 9.5rem);
+    min-height: 28rem;
+  }
+  .fl-panel {
+    position: absolute;
+    inset: var(--fui-space-3) var(--fui-space-3) var(--fui-space-3) auto;
+    width: min(30rem, 60%);
+    max-height: none;
+    border-radius: 1.25rem;
+    box-shadow: 0 0.5rem 2rem #0007;
+  }
+  .fl-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* A phone in a shared-screen room is a controller: no board, the places as big buttons, the panel inline. */
+.fl-room[data-layout="controller"] .fl-board,
+.fl-room[data-layout="controller"] .fl-scores {
+  display: none;
+}
+.fl-room[data-layout="controller"] .fl-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  overflow: visible;
+}
+.fl-room[data-layout="controller"] .fl-place {
+  min-height: 3.25rem;
+}
+.fl-room[data-layout="controller"] .fl-panel {
+  position: static;
+  max-height: none;
+  border-radius: 1.25rem;
+  width: auto;
+}
+
+/* The shared screen: the board and the scoreboard, nothing to press. */
+body.fl-display .fl-strip,
+body.fl-display .fl-hud {
+  display: none;
+}
+body.fl-display .fl-board {
+  height: calc(100dvh - 6rem);
+}
+@media (min-width: 60rem) {
+  body.fl-display .fl-game {
+    grid-template-columns: minmax(0, 1fr) 26rem;
+  }
+  body.fl-display .fl-score {
+    padding: var(--fui-space-3);
+    font-size: 1.1rem;
+  }
+}
+
+/* Hot-seat handoff: opaque, in the next player's colour, so nobody sees the last player's week. */
+.fl-handoff {
+  --player: var(--fl-mint);
+  background: radial-gradient(
+    circle at 50% 30%,
+    color-mix(in srgb, var(--player) 45%, #04091a),
+    #04091a 70%
+  );
+}
+.fl-handoff-card {
+  display: grid;
+  justify-items: center;
+  gap: var(--fui-space-3);
+  width: min(26rem, 100%);
+  text-align: center;
+}
+.fl-handoff-avatar .fl-art {
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 0.3rem var(--player),
+    0 0 2.5rem color-mix(in srgb, var(--player) 60%, transparent);
+}
+.fl-handoff-pass {
+  margin: 0;
+  color: var(--fui-text-muted);
+  font: 800 0.8rem var(--fui-font-sans);
+  letter-spacing: 0.16em;
+}
+.fl-handoff-name {
+  margin: 0;
+  color: var(--player);
+  font: 900 clamp(2.2rem, 11vw, 3.5rem) / 1 var(--fui-font-sans);
+  overflow-wrap: anywhere;
+}
+.fl-handoff-step,
+.fl-handoff-note {
+  margin: 0;
+  color: var(--fui-text-muted);
+}
+.fui-app .fl-handoff-go {
+  width: 100%;
+  min-height: 4rem;
+  font: 900 1.05rem var(--fui-font-sans);
+}
+
+/* HUD extras: this Monday's news on your own turn, and the foot with the week's end. */
+.fl-news {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: var(--fui-space-2) var(--fui-space-2) var(--fui-space-2) 1.6rem;
+  background: #ffd23f40;
+  border-radius: 0.6rem;
+  font-size: 0.8rem;
+}
+.fl-news[hidden] {
+  display: none;
+}
+.fl-hud {
+  border-top: 0.35rem solid var(--player, var(--fl-mint));
+}
+.fl-hud-foot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--fui-space-2);
+}
+.fl-hud-lines {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.fui-app .fl-end-week {
+  min-height: 3rem;
+  padding: 0 var(--fui-space-3);
+}
+.fl-score-turn {
+  margin-left: auto;
+  padding: 0 0.45rem;
+  border-radius: 1rem;
+  font: 800 0.65rem/1.5rem var(--fui-font-sans);
+  text-transform: uppercase;
+}
+.fl-score-turn:empty {
+  display: none;
+}
+.fl-score-turn[data-turn="Playing"],
+.fl-score-turn[data-turn="Up next"] {
+  background: var(--player);
+}
+.fl-score-turn[data-turn="Done"] {
+  color: var(--fl-ink-soft);
+}
+
+/* The menu: phone first, one column of big controls. */
+.fl-menu {
+  display: grid;
+  align-content: start;
+  gap: var(--fui-space-3);
+  width: min(34rem, 100%);
+  margin: 0 auto;
+  padding-bottom: var(--fui-space-5);
+}
+.fl-hero {
+  padding: var(--fui-space-3) 0 0;
+  text-align: center;
+}
+.fl-hero-title {
+  margin: 0;
+  color: var(--fl-mint);
+  font: 900 clamp(2.4rem, 13vw, 3.6rem) / 1 var(--fui-font-sans);
+  letter-spacing: 0.04em;
+  text-shadow: 0 0.2rem 0 #0b5d33;
+}
+.fl-hero-tagline {
+  margin: var(--fui-space-2) auto 0;
+  max-width: 28rem;
+  color: var(--fui-text-muted);
+  line-height: 1.5;
+}
+.fl-setup,
+.fl-resume {
+  display: grid;
+  gap: var(--fui-space-4);
+}
+.fl-resume {
+  gap: var(--fui-space-2);
+  border-color: var(--fl-mint);
+}
+.fl-resume-line {
+  margin: 0;
+}
+.fl-menu-title {
+  margin: 0 0 var(--fui-space-1);
+  color: var(--fui-text-dim);
+  font: 800 0.72rem var(--fui-font-sans);
+  letter-spacing: 0.14em;
+}
+.fl-field {
+  display: grid;
+  gap: var(--fui-space-2);
+}
+.fl-field[hidden] {
+  display: none;
+}
+.fl-field .fl-hint {
+  margin: -0.35rem 0 0;
+}
+.fl-people {
+  display: grid;
+  gap: var(--fui-space-2);
+}
+.fl-person {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--fui-space-2);
+}
+.fui-app .fl-person-face {
+  min-height: 3.25rem;
+  min-width: 3.25rem;
+  padding: 0.2rem;
+  border-radius: 50%;
+}
+.fl-person-face .fl-art {
+  border-radius: 50%;
+}
+.fui-app .fl-person-name {
+  min-height: 3.25rem;
+  font-size: 1.05rem;
+}
+.fui-app .fl-person-remove {
+  min-height: 3.25rem;
+  min-width: 3.25rem;
+  font-size: 1.3rem;
+}
+.fui-app .fl-add-person {
+  min-height: 3rem;
+  font: 800 0.8rem var(--fui-font-sans);
+}
+.fl-stepper {
+  display: grid;
+  grid-template-columns: 4rem 1fr 4rem;
+  align-items: center;
+  text-align: center;
+}
+.fui-app .fl-stepper-button {
+  min-height: 3.25rem;
+  font-size: 1.5rem;
+}
+.fl-stepper-value {
+  font: 900 1.8rem var(--fui-font-sans);
+}
+.fl-segmented {
+  display: flex;
+  gap: var(--fui-space-1);
+}
+.fui-app .fl-segment {
+  flex: 1;
+  min-height: 3rem;
+  padding: 0 0.4rem;
+  font: 800 0.8rem var(--fui-font-sans);
+}
+.fui-app .fl-segment.on {
+  color: var(--fl-ink);
+  background: var(--fl-mint);
+  border-color: var(--fl-mint);
+}
+.fl-setup-summary {
+  margin: 0;
+  color: var(--fui-text-muted);
+  text-align: center;
+}
+.fui-app .fl-start-game {
+  min-height: 4rem;
+  font: 900 1.25rem var(--fui-font-sans);
+  letter-spacing: 0.08em;
+}

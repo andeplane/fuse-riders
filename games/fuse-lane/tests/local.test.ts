@@ -19,12 +19,10 @@ import { LocalMatch, validSetup, type LocalSetup } from "../src/app/local.js";
 
 const GOALS: Goals = [50, 50, 50, 50];
 const setup = (humans: number, bots: number, level = 2): LocalSetup => ({
-  humans: ["Ada", "Bo", "Cy", "Di"]
-    .slice(0, humans)
-    .map((name, index) => ({
-      name,
-      avatar: ["fox", "cat", "owl", "robot"][index]!,
-    })),
+  humans: ["Ada", "Bo", "Cy", "Di"].slice(0, humans).map((name, index) => ({
+    name,
+    avatar: ["fox", "cat", "owl", "robot"][index]!,
+  })),
   bots,
   level,
   goals: GOALS,
