@@ -1,26 +1,28 @@
+import { CITY, STREETS, type MapPoint } from "../game/index.js";
 import { roundRect, type Art } from "./art.js";
 import {
-  doorPoint,
-  ringBetween,
-  ringToT,
-  streetPoint,
-  walkPoint,
-  type Geometry,
+  bounds,
+  standingPoints,
+  stepPoint,
+  toScreen,
+  walkerAt,
+  type BoardView,
+  type Camera,
   type Point,
 } from "./layout.js";
 import type { BoardPlace, BoardPlayer } from "./presenter.js";
 
 /**
- * The city on a 2D canvas, in the soft sticker style of the art set: a calm lawn, a smooth flowing loop road with a
- * dashed centre line, the park (the ground picture and the plaza) inside it, and the 13 buildings as stickers along
- * the outside of the curve, each on a short path to the sidewalk, with a name label. Everything flat is drawn once
- * per layout into an offscreen canvas; each frame only the buildings, their highlights and the walkers are drawn
- * over it. The geometry is `layout.ts`; this file only draws.
+ * The city on a 2D canvas: the city's map picture (Fusetown, the harbour town) covering the board, with the game laid
+ * over it: a glow on the place you are in, walking to or pointing at, every player walking the streets (or waiting in
+ * front of the place they are in), the parts of the picture that stand in front of the streets, and the places' name
+ * labels. The picture is scaled once per layout into an offscreen canvas; each frame blits it at the camera and draws
+ * the rest on top. The geometry is `layout.ts`; this file only draws.
  */
 export interface BoardFrame {
   places: BoardPlace[];
   players: BoardPlayer[];
-  /** Each player's ring position in the frame before, to walk smoothly between log ticks. */
+  /** Each player's step in the frame before, to walk smoothly between log ticks. */
   before: ReadonlyMap<string, number>;
   /** How far from the frame before to this one, 0..1. */
   fraction: number;
@@ -29,18 +31,20 @@ export interface BoardFrame {
   /** A place to outline (the pointer is over it). */
   hover: number;
 }
+export interface BoardOptions {
+  /** Draw the street graph, the doors and the tap outlines over the picture (`?debug-roads`). */
+  debug?: boolean;
+}
 
 const INK = "#26304a";
-const FONT = `"Nunito Variable", "Nunito", ui-rounded, system-ui, sans-serif`;
-const COLORS = {
-  lawn: "#93cf5f",
-  lawnEdge: "#7fbf55",
-  outline: "#2f3a52",
-  asphalt: "#5d6679",
-  walk: "#f1ece0",
-  curb: "#d9d2c2",
-  dash: "#f7f4ea",
-};
+const OUTLINE = "#2f3a52";
+export const FONT = `"Nunito Variable", "Nunito", ui-rounded, system-ui, sans-serif`;
+/** An avatar's height in map px. */
+const AVATAR = 56;
+
+/** The label's font size on screen for a view. */
+export const labelFont = (view: BoardView): number =>
+  Math.max(11, Math.min(15, 15.5 * view.scale));
 
 function makeCanvas(width: number, height: number): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
@@ -49,20 +53,77 @@ function makeCanvas(width: number, height: number): HTMLCanvasElement {
   return canvas;
 }
 
-/** The street's centre line moved `offset` px outward, as a closed path. */
-function loopPath(
-  context: CanvasRenderingContext2D,
-  g: Geometry,
-  offset = 0,
+/** While the picture is missing: a lawn with the streets drawn as roads and the buildings as labelled blocks. */
+function drawPlaceholder(
+  c: CanvasRenderingContext2D,
+  scale: number,
+  art: Art,
 ): void {
-  const steps = 240;
-  context.beginPath();
-  for (let i = 0; i < steps; i++) {
-    const p = streetPoint(g, i / steps, offset);
-    if (i === 0) context.moveTo(p.x, p.y);
-    else context.lineTo(p.x, p.y);
+  c.fillStyle = "#8cc363";
+  c.fillRect(0, 0, CITY.map.width * scale, CITY.map.height * scale);
+  c.lineCap = "round";
+  c.lineJoin = "round";
+  for (const [width, color] of [
+    [46, "#e9e1cf"],
+    [36, "#5d6679"],
+  ] as const) {
+    c.lineWidth = width * scale;
+    c.strokeStyle = color;
+    for (const edge of CITY.edges) {
+      const from = CITY.nodes.find((node) => node.id === edge.from)!.at,
+        to = CITY.nodes.find((node) => node.id === edge.to)!.at;
+      c.beginPath();
+      for (const [k, [x, y]] of [from, ...edge.via, to].entries())
+        if (k === 0) c.moveTo(x * scale, y * scale);
+        else c.lineTo(x * scale, y * scale);
+      c.stroke();
+    }
   }
-  context.closePath();
+  for (const place of CITY.places) {
+    const box = bounds(place.tap),
+      asset = art.asset(`building-${place.id}`);
+    c.fillStyle = asset?.color ?? "#9ab";
+    c.strokeStyle = OUTLINE;
+    c.lineWidth = Math.max(1.5, 3 * scale);
+    roundRect(
+      c,
+      (box.x + box.w * 0.12) * scale,
+      (box.y + box.h * 0.2) * scale,
+      box.w * 0.76 * scale,
+      box.h * 0.6 * scale,
+      14 * scale,
+    );
+    c.fill();
+    c.stroke();
+  }
+}
+
+const pictureCache = new WeakMap<
+  BoardView,
+  { canvas: HTMLCanvasElement; key: string }
+>();
+
+/** The map scaled to the view (once per layout, and again when the picture loads). */
+function picture(view: BoardView, art: Art, ratio: number): HTMLCanvasElement {
+  const image = art.image(CITY.map.art),
+    key = `${ratio},${image ? 1 : 0}`,
+    known = pictureCache.get(view);
+  if (known && known.key === key) return known.canvas;
+  const canvas = makeCanvas(view.mapWidth * ratio, view.mapHeight * ratio),
+    c = canvas.getContext("2d")!;
+  c.imageSmoothingEnabled = true;
+  c.imageSmoothingQuality = "high";
+  if (image)
+    c.drawImage(
+      image as unknown as CanvasImageSource,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
+  else drawPlaceholder(c, view.scale * ratio, art);
+  pictureCache.set(view, { canvas, key });
+  return canvas;
 }
 
 /** A soft dark patch right under something standing on the ground. */
@@ -74,246 +135,20 @@ function contactShadow(
   ry: number,
   alpha: number,
 ): void {
-  const gradient = context.createRadialGradient(x, y, 0, x, y, rx);
-  gradient.addColorStop(0, `rgba(30, 50, 40, ${alpha})`);
-  gradient.addColorStop(1, "rgba(30, 50, 40, 0)");
   context.save();
   context.translate(x, y);
   context.scale(1, ry / rx);
-  context.translate(-x, -y);
+  const gradient = context.createRadialGradient(0, 0, 0, 0, 0, rx);
+  gradient.addColorStop(0, `rgba(20, 30, 40, ${alpha})`);
+  gradient.addColorStop(1, "rgba(20, 30, 40, 0)");
   context.fillStyle = gradient;
   context.beginPath();
-  context.arc(x, y, rx, 0, Math.PI * 2);
+  context.arc(0, 0, rx, 0, Math.PI * 2);
   context.fill();
   context.restore();
 }
 
-/** The park's picture: the ground art covering the inside of the loop (turned for a tall loop), or a plain lawn. */
-function drawPark(c: CanvasRenderingContext2D, g: Geometry, art: Art): void {
-  const ground = art.image("board-ground");
-  const inner = g.road / 2 + g.walk;
-  c.save();
-  loopPath(c, g, -inner);
-  c.clip();
-  c.fillStyle = "#97d35a";
-  c.fillRect(0, 0, g.width, g.height);
-  if (ground) {
-    // The green part of the picture (inside its grey margin), scaled to cover the loop's box.
-    const sx = 230,
-      sy = 190,
-      sw = 1590,
-      sh = 1140;
-    const x0 = g.left + inner,
-      y0 = g.top + inner,
-      w = g.right - g.left - 2 * inner,
-      h = g.bottom - g.top - 2 * inner;
-    const tall = h > w;
-    const [bw, bh] = tall ? [h, w] : [w, h];
-    const scale = Math.max(bw / sw, bh / sh);
-    c.translate(x0 + w / 2, y0 + h / 2);
-    if (tall) c.rotate(Math.PI / 2);
-    c.drawImage(
-      ground as unknown as CanvasImageSource,
-      sx,
-      sy,
-      sw,
-      sh,
-      (-sw * scale) / 2,
-      (-sh * scale) / 2,
-      sw * scale,
-      sh * scale,
-    );
-  }
-  c.restore();
-  // A soft shade inside the curb, so the park sits a little lower than the sidewalk.
-  c.save();
-  loopPath(c, g, -inner);
-  c.clip();
-  loopPath(c, g, -inner);
-  c.lineWidth = Math.max(6, g.size * 0.1);
-  c.strokeStyle = "rgba(40, 70, 40, 0.16)";
-  c.stroke();
-  c.restore();
-  // The plaza in the middle.
-  const plaza = art.asset("board-plaza"),
-    image = art.image("board-plaza"),
-    p = g.park;
-  if (plaza && image && p.w > 40 && p.h > 40) {
-    const scale = Math.min(
-      (p.w * 0.92) / plaza.width,
-      (p.h * 0.62) / plaza.height,
-    );
-    const w = plaza.width * scale,
-      h = plaza.height * scale,
-      cx = p.x + p.w / 2,
-      cy = p.y + p.h / 2;
-    contactShadow(c, cx + w * 0.03, cy + h * 0.12, w * 0.5, h * 0.42, 0.28);
-    c.drawImage(
-      image as unknown as CanvasImageSource,
-      cx - w / 2,
-      cy - h / 2,
-      w,
-      h,
-    );
-  }
-}
-
-const groundCache = new WeakMap<
-  Geometry,
-  { canvas: HTMLCanvasElement; key: string }
->();
-
-/** Everything flat, drawn once per layout (and again when a picture loads) into an offscreen canvas. */
-function ground(
-  g: Geometry,
-  art: Art,
-  ratio: number,
-  places: readonly BoardPlace[],
-): HTMLCanvasElement {
-  const key = [
-      ratio,
-      art.image("board-ground") ? 1 : 0,
-      art.image("board-plaza") ? 1 : 0,
-      places.map((place) => place.index).join("."),
-    ].join(","),
-    known = groundCache.get(g);
-  if (known && known.key === key) return known.canvas;
-  const canvas = makeCanvas(g.width * ratio, g.height * ratio),
-    c = canvas.getContext("2d")!;
-  c.setTransform(ratio, 0, 0, ratio, 0, 0);
-  const { width, height } = g,
-    s = g.size;
-  // The lawn: one calm green, a touch lighter in the middle.
-  const lawn = c.createRadialGradient(
-    width / 2,
-    height / 2,
-    Math.min(width, height) * 0.2,
-    width / 2,
-    height / 2,
-    Math.hypot(width, height) * 0.6,
-  );
-  lawn.addColorStop(0, COLORS.lawn);
-  lawn.addColorStop(1, COLORS.lawnEdge);
-  c.fillStyle = lawn;
-  c.fillRect(0, 0, width, height);
-  // A few broad, barely-there swells of light and shade, so the lawn is not a flat sheet.
-  for (let k = 0; k < 7; k++) {
-    const x = width * ((k * 0.37 + 0.11) % 1),
-      y = height * ((k * 0.61 + 0.23) % 1),
-      r = Math.max(width, height) * (0.16 + (k % 3) * 0.05);
-    const swell = c.createRadialGradient(x, y, 0, x, y, r);
-    swell.addColorStop(
-      0,
-      k % 2 ? "rgba(255, 255, 220, 0.09)" : "rgba(40, 90, 40, 0.07)",
-    );
-    swell.addColorStop(1, "rgba(0, 0, 0, 0)");
-    c.fillStyle = swell;
-    c.fillRect(0, 0, width, height);
-  }
-
-  // Short paved paths from each building to the sidewalk.
-  const outer = g.road / 2 + g.walk;
-  for (const place of places) {
-    const lot = g.lots[g.placeLot[place.index]!]!;
-    const door = streetPoint(g, lot.t, outer - 1),
-      from = { x: lot.x, y: lot.y + s * 0.2 };
-    const pathWidth = Math.max(5, s * 0.16);
-    c.lineCap = "round";
-    c.beginPath();
-    c.moveTo(from.x, from.y);
-    c.lineTo(door.x, door.y);
-    c.lineWidth = pathWidth + 3;
-    c.strokeStyle = "rgba(47, 58, 82, 0.35)";
-    c.stroke();
-    c.lineWidth = pathWidth;
-    c.strokeStyle = COLORS.walk;
-    c.stroke();
-    // The building's soft footprint.
-    contactShadow(c, lot.x + s * 0.03, lot.y + s * 0.3, s * 0.5, s * 0.2, 0.3);
-  }
-  c.lineCap = "butt";
-
-  // The road: a soft shadow, an ink outline, sidewalks, curbs, asphalt and a dashed centre line.
-  c.lineJoin = "round";
-  c.save();
-  c.translate(s * 0.02, s * 0.04);
-  loopPath(c, g);
-  c.lineWidth = g.road + 2 * g.walk + 6;
-  c.strokeStyle = "rgba(30, 60, 40, 0.18)";
-  c.stroke();
-  c.restore();
-  loopPath(c, g);
-  c.lineWidth = g.road + 2 * g.walk + 3;
-  c.strokeStyle = COLORS.outline;
-  c.stroke();
-  loopPath(c, g);
-  c.lineWidth = g.road + 2 * g.walk;
-  c.strokeStyle = COLORS.walk;
-  c.stroke();
-  loopPath(c, g);
-  c.lineWidth = g.road + Math.max(2, g.walk * 0.35);
-  c.strokeStyle = COLORS.curb;
-  c.stroke();
-  loopPath(c, g);
-  c.lineWidth = g.road + 2;
-  c.strokeStyle = COLORS.outline;
-  c.stroke();
-  loopPath(c, g);
-  c.lineWidth = g.road;
-  c.strokeStyle = COLORS.asphalt;
-  c.stroke();
-  // A faint sheen along the far edge of the asphalt.
-  loopPath(c, g, -g.road * 0.3);
-  c.lineWidth = g.road * 0.25;
-  c.strokeStyle = "rgba(255, 255, 255, 0.05)";
-  c.stroke();
-  loopPath(c, g);
-  c.setLineDash([g.road * 0.5, g.road * 0.6]);
-  c.lineCap = "round";
-  c.lineWidth = Math.max(1.5, g.road * 0.08);
-  c.strokeStyle = COLORS.dash;
-  c.stroke();
-  c.setLineDash([]);
-  c.lineCap = "butt";
-
-  drawPark(c, g, art);
-  groundCache.set(g, { canvas, key });
-  return canvas;
-}
-
-interface Sprite {
-  /** Draw order: the ground line, back to front. */
-  y: number;
-  draw(context: CanvasRenderingContext2D): void;
-}
-
-/** A building sticker, or a simple block in its colour while the picture is missing. */
-function drawBuilding(
-  c: CanvasRenderingContext2D,
-  art: Art,
-  id: string,
-  x: number,
-  y: number,
-  s: number,
-): void {
-  if (art.image(id)) {
-    art.draw(c, id, x, y, s);
-    return;
-  }
-  const asset = art.asset(id),
-    w = s * 0.62,
-    h = s * 0.5;
-  c.save();
-  c.fillStyle = asset?.color ?? "#9ab";
-  c.strokeStyle = COLORS.outline;
-  c.lineWidth = Math.max(1.5, s * 0.02);
-  roundRect(c, x - w / 2, y - s * 0.12 - h, w, h, s * 0.06);
-  c.fill();
-  c.stroke();
-  c.restore();
-}
-
-/** One walker: an avatar sprite (or a disc with an initial), a coloured ring at the feet, a marker over yours. */
+/** One walker: an avatar sprite (or a disc with an initial) and a coloured ring at the feet. */
 function drawWalker(
   c: CanvasRenderingContext2D,
   art: Art,
@@ -325,12 +160,12 @@ function drawWalker(
   time: number,
 ): void {
   const id = `avatar-${player.avatar}-${walking ? "walk" : "idle"}`;
-  contactShadow(c, at.x, at.y, size * 0.28, size * 0.1, 0.35);
+  contactShadow(c, at.x, at.y, size * 0.3, size * 0.11, 0.45);
   c.save();
   c.strokeStyle = player.color;
   c.lineWidth = player.you ? 3 : 2;
   c.beginPath();
-  c.ellipse(at.x, at.y, size * 0.26, size * 0.09, 0, 0, Math.PI * 2);
+  c.ellipse(at.x, at.y, size * 0.27, size * 0.1, 0, 0, Math.PI * 2);
   c.stroke();
   if (player.done) c.globalAlpha = 0.6;
   if (art.image(id)) {
@@ -357,7 +192,16 @@ function drawWalker(
     c.fillText((player.name[0] ?? "?").toUpperCase(), at.x, at.y - r - bob + 1);
   }
   c.restore();
-  if (!player.you) return;
+}
+
+/** The marker over this device's player: drawn last, so no label hides it. */
+function drawMarker(
+  c: CanvasRenderingContext2D,
+  player: BoardPlayer,
+  at: Point,
+  size: number,
+  time: number,
+): void {
   const y = at.y - size * 1.02 + Math.sin(time * 4) * 2;
   c.save();
   c.beginPath();
@@ -376,173 +220,272 @@ function drawWalker(
   c.restore();
 }
 
-/**
- * Where each player stands: walking on the inner sidewalk, or waiting at the door of the place they are in. Players
- * at the same door, or at the same spot of the sidewalk, fan out side by side along the street.
- */
-export function standingPoints(
-  g: Geometry,
-  players: readonly { id: string; pos: number; inside: number }[],
-  rings: readonly number[],
-  avatar: number,
-): Point[] {
-  const groups = new Map<string, number[]>();
-  players.forEach((player, index) => {
-    const key =
-      player.inside >= 0
-        ? `in${player.inside}`
-        : `at${Math.round(rings[index]! * 2)}`;
-    groups.set(key, [...(groups.get(key) ?? []), index]);
+/** A glow round a place's building: green inside, pulsing amber on the way, white under the pointer. */
+function drawGlow(
+  c: CanvasRenderingContext2D,
+  view: BoardView,
+  camera: Camera,
+  place: BoardPlace,
+  time: number,
+): void {
+  const box = bounds(CITY.places[place.index]!.tap);
+  const at = toScreen(view, camera, [box.x, box.y]),
+    w = box.w * view.scale,
+    h = box.h * view.scale;
+  const pulse = place.dest ? 0.5 + 0.5 * Math.sin(time * 5) : 1;
+  const color = place.here
+    ? "46, 204, 113"
+    : place.dest
+      ? "255, 196, 61"
+      : "255, 255, 255";
+  c.save();
+  roundRect(c, at.x, at.y, w, h, Math.min(w, h) * 0.12);
+  c.fillStyle = `rgba(${color}, ${0.1 + 0.08 * pulse})`;
+  c.fill();
+  c.lineWidth = 3;
+  c.strokeStyle = `rgba(${color}, ${0.6 + 0.4 * pulse})`;
+  c.shadowColor = `rgb(${color})`;
+  c.shadowBlur = 14;
+  c.stroke();
+  c.restore();
+}
+
+const hoursText = (value: number) => {
+  const rounded = Math.round(value * 2) / 2;
+  return `${rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(1)}h`;
+};
+
+/** The places' name labels: white pills with an ink outline (green inside, amber on the way, the walk on hover). */
+function drawLabels(
+  c: CanvasRenderingContext2D,
+  view: BoardView,
+  camera: Camera,
+  places: readonly BoardPlace[],
+  hover: number,
+): void {
+  const font = labelFont(view);
+  const plate = `800 ${font}px ${FONT}`;
+  c.textAlign = "center";
+  c.textBaseline = "middle";
+  for (const place of places) {
+    const at = toScreen(view, camera, CITY.places[place.index]!.label);
+    const name =
+      place.index === hover && place.hours > 0
+        ? `${place.name} · ${hoursText(place.hours)}`
+        : place.name;
+    c.font = plate;
+    const tw = c.measureText(name).width + font * 1.2,
+      th = font * 1.7;
+    if (
+      at.x + tw / 2 < 0 ||
+      at.x - tw / 2 > view.width ||
+      at.y + th < 0 ||
+      at.y - th > view.height
+    )
+      continue;
+    c.save();
+    c.shadowColor = "rgba(20, 30, 50, 0.3)";
+    c.shadowBlur = 5;
+    c.shadowOffsetY = 1.5;
+    roundRect(c, at.x - tw / 2, at.y - th / 2, tw, th, th / 2);
+    c.fillStyle = place.here ? "#2ecc71" : place.dest ? "#ffc43d" : "#fffdf6";
+    c.fill();
+    c.restore();
+    roundRect(c, at.x - tw / 2, at.y - th / 2, tw, th, th / 2);
+    c.lineWidth = 1.5;
+    c.strokeStyle = OUTLINE;
+    c.stroke();
+    c.fillStyle = INK;
+    c.fillText(name, at.x, at.y + 0.5);
+    if (place.work) {
+      const bx = at.x + tw / 2 - 2,
+        by = at.y - th / 2 - 2;
+      c.beginPath();
+      c.arc(bx, by, font * 0.72, 0, Math.PI * 2);
+      c.fillStyle = "#ffc43d";
+      c.fill();
+      c.lineWidth = 1.5;
+      c.strokeStyle = OUTLINE;
+      c.stroke();
+      c.fillStyle = INK;
+      c.font = `900 ${font * 0.8}px ${FONT}`;
+      c.fillText("W", bx, by + 0.5);
+    }
+  }
+}
+
+/** The street graph, the doors and the tap outlines over the picture, to check the tracing (`?debug-roads`). */
+function drawDebug(
+  c: CanvasRenderingContext2D,
+  view: BoardView,
+  camera: Camera,
+): void {
+  const screen = (at: MapPoint) => toScreen(view, camera, at);
+  c.save();
+  c.lineWidth = 1.5;
+  c.font = `700 11px ${FONT}`;
+  for (const place of CITY.places) {
+    c.beginPath();
+    for (const [k, point] of place.tap.entries()) {
+      const p = screen(point);
+      if (k === 0) c.moveTo(p.x, p.y);
+      else c.lineTo(p.x, p.y);
+    }
+    c.closePath();
+    c.strokeStyle = "rgba(255, 64, 160, 0.9)";
+    c.setLineDash([6, 4]);
+    c.stroke();
+    c.setLineDash([]);
+  }
+  for (const occluder of CITY.occluders) {
+    c.beginPath();
+    for (const [k, point] of occluder.shape.entries()) {
+      const p = screen(point);
+      if (k === 0) c.moveTo(p.x, p.y);
+      else c.lineTo(p.x, p.y);
+    }
+    c.closePath();
+    c.strokeStyle = "#ff3b30";
+    c.stroke();
+  }
+  c.lineWidth = 3;
+  c.strokeStyle = "rgba(255, 230, 0, 0.95)";
+  STREETS.neighbours.forEach((around, step) => {
+    const a = screen(stepPoint(step));
+    for (const other of around)
+      if (other > step) {
+        const b = screen(stepPoint(other));
+        c.beginPath();
+        c.moveTo(a.x, a.y);
+        c.lineTo(b.x, b.y);
+        c.stroke();
+      }
   });
-  const points: Point[] = [];
-  for (const members of groups.values())
-    members.forEach((index, k) => {
-      const player = players[index]!;
-      const base =
-        player.inside >= 0
-          ? doorPoint(g, player.inside)
-          : streetPoint(
-              g,
-              ringToT(g, rings[index]!),
-              -(g.road / 2 + g.walk * 0.5),
-            );
-      // Side by side along the street: the tangent is the normal turned a quarter.
-      const spread = (k - (members.length - 1) / 2) * avatar * 0.5;
-      points[index] = {
-        x: base.x - base.ny * spread,
-        y: base.y + base.nx * spread,
-      };
-    });
-  return points;
+  STREETS.points.forEach((point, step) => {
+    const p = screen(point),
+      node = step < CITY.nodes.length;
+    c.beginPath();
+    c.arc(p.x, p.y, node ? 5 : 2.5, 0, Math.PI * 2);
+    c.fillStyle = node ? "#1e90ff" : "#ffe600";
+    c.fill();
+    c.strokeStyle = "#000";
+    c.lineWidth = 1;
+    c.stroke();
+  });
+  c.textAlign = "left";
+  c.textBaseline = "bottom";
+  CITY.places.forEach((place, index) => {
+    const p = screen(stepPoint(STREETS.doors[index]!));
+    c.beginPath();
+    c.arc(p.x, p.y, 6, 0, Math.PI * 2);
+    c.fillStyle = "#ff3b30";
+    c.fill();
+    c.lineWidth = 3;
+    c.strokeStyle = "#000";
+    c.strokeText(place.id, p.x + 7, p.y - 4);
+    c.fillStyle = "#fff";
+    c.fillText(place.id, p.x + 7, p.y - 4);
+  });
+  c.restore();
 }
 
 export function drawBoard(
   context: CanvasRenderingContext2D,
-  g: Geometry,
+  view: BoardView,
+  camera: Camera,
   frame: BoardFrame,
   art: Art,
   ratio = 1,
+  options: BoardOptions = {},
 ): void {
-  const { width, height } = g;
-  const s = g.size;
-  context.clearRect(0, 0, width, height);
-  context.drawImage(ground(g, art, ratio, frame.places), 0, 0, width, height);
+  const map = picture(view, art, ratio);
+  context.clearRect(0, 0, view.width, view.height);
+  context.drawImage(map, camera.x, camera.y, view.mapWidth, view.mapHeight);
 
-  const sprites: Sprite[] = [];
-  for (const place of frame.places) {
-    const lot = g.lots[g.placeLot[place.index]!]!,
-      id = `building-${place.id}`,
-      ax = lot.x,
-      ay = lot.y + s * 0.42;
-    sprites.push({
-      y: ay,
-      draw: (c) => {
-        if (place.here || place.dest || place.index === frame.hover) {
-          // A glowing ring on the ground around the building.
-          const pulse = place.dest ? 0.5 + 0.5 * Math.sin(frame.time * 5) : 1;
-          c.save();
-          c.beginPath();
-          c.ellipse(
-            lot.x,
-            lot.y + s * 0.3,
-            s * 0.5,
-            s * 0.2,
-            0,
-            0,
-            Math.PI * 2,
-          );
-          const color = place.here
-            ? "46, 204, 113"
-            : place.dest
-              ? "255, 196, 61"
-              : "255, 255, 255";
-          c.fillStyle = `rgba(${color}, ${0.18 + 0.12 * pulse})`;
-          c.fill();
-          c.lineWidth = Math.max(2.5, s * 0.03);
-          c.strokeStyle = `rgba(${color}, ${0.55 + 0.45 * pulse})`;
-          c.shadowColor = `rgb(${color})`;
-          c.shadowBlur = s * 0.1;
-          c.stroke();
-          c.restore();
-        }
-        drawBuilding(c, art, id, ax, ay, s);
-      },
-    });
-  }
-  const avatar = Math.max(24, s * 0.42);
-  const rings = frame.players.map((player) =>
-    ringBetween(
-      frame.before.get(player.id) ?? player.pos,
-      player.pos,
-      frame.fraction,
-    ),
-  );
-  const points = standingPoints(g, frame.players, rings, avatar);
-  frame.players.forEach((player, index) => {
+  for (const place of frame.places)
+    if (place.here || place.dest || place.index === frame.hover)
+      drawGlow(context, view, camera, place, frame.time);
+
+  // The walkers, back to front.
+  const size = Math.max(28, AVATAR * view.scale);
+  const moves = frame.players.map((player) => {
     const before = frame.before.get(player.id) ?? player.pos;
-    const walking =
-      player.inside < 0 && player.dest >= 0 && before !== player.pos;
-    const ahead = walkPoint(
-      g,
-      ringBetween(before, player.pos, Math.min(1, frame.fraction + 0.15)),
-    );
-    const left = walking && ahead.x < walkPoint(g, rings[index]!).x - 0.01;
-    const at = points[index]!;
-    sprites.push({
-      y: at.y + (player.you ? 0.5 : 0),
-      draw: (c) =>
-        drawWalker(c, art, player, at, avatar, walking, left, frame.time),
-    });
+    return {
+      before,
+      ...walkerAt(
+        before,
+        player.pos,
+        player.dest >= 0 ? player.dest : player.inside,
+        frame.fraction,
+      ),
+    };
   });
-  sprites.sort((a, b) => a.y - b.y);
-  for (const item of sprites) item.draw(context);
+  const spots = standingPoints(
+    frame.players.map((player, index) => ({
+      at: moves[index]!.at,
+      step: player.pos,
+      inside: player.inside,
+    })),
+    (size * 0.55) / view.scale,
+  );
+  const walkers = frame.players
+    .map((player, index) => ({
+      player,
+      ground: spots[index]![1],
+      at: toScreen(view, camera, spots[index]!),
+      walking:
+        player.inside < 0 &&
+        player.dest >= 0 &&
+        moves[index]!.before !== player.pos,
+      left: moves[index]!.facing < 0,
+    }))
+    .sort(
+      (a, b) =>
+        a.ground - b.ground || Number(a.player.you) - Number(b.player.you),
+    );
+  for (const walker of walkers)
+    drawWalker(
+      context,
+      art,
+      walker.player,
+      walker.at,
+      size,
+      walker.walking,
+      walker.left,
+      frame.time,
+    );
 
-  // Name labels: white pills with an ink outline, under each building.
-  const font = Math.max(10, Math.min(15, s * 0.12));
-  const plate = `800 ${font}px ${FONT}`;
-  context.font = plate;
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  // Too small to read (the menu's picture): the buildings speak for themselves.
-  const labels = s >= 64 ? frame.places : [];
-  for (const place of labels) {
-    const lot = g.lots[g.placeLot[place.index]!]!;
-    const tw = context.measureText(place.name).width + font * 1.1,
-      th = font * 1.6,
-      x = Math.min(width - tw / 2 - 3, Math.max(tw / 2 + 3, lot.x)),
-      y = lot.y + s * 0.44;
+  // The parts of the picture in front of the streets, over the walkers behind them.
+  for (const occluder of CITY.occluders) {
+    const box = bounds(occluder.shape),
+      top = toScreen(view, camera, [box.x, box.y]);
+    const covered = walkers.some(
+      (walker) =>
+        walker.ground < occluder.base &&
+        walker.at.x + size * 0.4 > top.x &&
+        walker.at.x - size * 0.4 < top.x + box.w * view.scale &&
+        walker.at.y > top.y &&
+        walker.at.y - size < top.y + box.h * view.scale,
+    );
+    if (!covered) continue;
     context.save();
-    context.shadowColor = "rgba(20, 30, 50, 0.25)";
-    context.shadowBlur = 4;
-    context.shadowOffsetY = 1.5;
-    roundRect(context, x - tw / 2, y - th / 2, tw, th, th / 2);
-    context.fillStyle = place.here
-      ? "#2ecc71"
-      : place.dest
-        ? "#ffc43d"
-        : "#fff";
-    context.fill();
-    context.restore();
-    roundRect(context, x - tw / 2, y - th / 2, tw, th, th / 2);
-    context.lineWidth = 1.5;
-    context.strokeStyle = COLORS.outline;
-    context.stroke();
-    context.fillStyle = INK;
-    context.fillText(place.name, x, y + 0.5);
-    if (place.work) {
-      const bx = x + tw / 2 - 2,
-        by = y - th / 2 - 2;
-      context.beginPath();
-      context.arc(bx, by, font * 0.72, 0, Math.PI * 2);
-      context.fillStyle = "#ffc43d";
-      context.fill();
-      context.lineWidth = 1.5;
-      context.strokeStyle = COLORS.outline;
-      context.stroke();
-      context.fillStyle = INK;
-      context.font = `900 ${font * 0.8}px ${FONT}`;
-      context.fillText("W", bx, by + 0.5);
-      context.font = plate;
+    context.beginPath();
+    for (const [k, point] of occluder.shape.entries()) {
+      const p = toScreen(view, camera, point);
+      if (k === 0) context.moveTo(p.x, p.y);
+      else context.lineTo(p.x, p.y);
     }
+    context.closePath();
+    context.clip();
+    context.drawImage(map, camera.x, camera.y, view.mapWidth, view.mapHeight);
+    context.restore();
   }
+
+  if (options.debug) drawDebug(context, view, camera);
+  // Labels on top, except on a picture too small to read (the menu's), and your marker over everything.
+  if (view.scale >= 0.42)
+    drawLabels(context, view, camera, frame.places, frame.hover);
+  for (const walker of walkers)
+    if (walker.player.you)
+      drawMarker(context, walker.player, walker.at, size, frame.time);
 }

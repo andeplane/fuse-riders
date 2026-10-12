@@ -140,12 +140,12 @@ test("dropped, duplicated and reordered entries converge on the on-time room", (
   assert.equal(fuseLaneGame.hash(lossy.state), fuseLaneGame.hash(onTime.state));
 });
 
-test("a room snapshot carries the Fuse Lane room whole, and a tampered one is refused", () => {
+test("a room snapshot carries the Fusetown room whole, and a tampered one is refused", () => {
   const source = replica();
   source.receive("b", plan, 4, 400, 400);
   source.advance(400);
   const chunks = encodeSnapshot(source, 4);
-  assert.equal(chunks[0]!.rules, "fuse-lane-2");
+  assert.equal(chunks[0]!.rules, "fuse-lane-3");
   const assembler = new SnapshotAssembler(fuseLaneGame, 4);
   let complete: { tick: number; bytes: Uint8Array } | undefined;
   for (const chunk of chunks) complete = assembler.accept(chunk);

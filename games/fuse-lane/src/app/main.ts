@@ -26,6 +26,7 @@ import {
   GOAL_MIN,
   GOAL_NAMES,
   WEEK_SECONDS,
+  CITY,
   PLACES,
   fuseLaneGame,
   seatName,
@@ -33,7 +34,7 @@ import {
 } from "../game/index.js";
 import { createArt, siteBase, type ArtImage } from "./art.js";
 import { drawBoard } from "./board.js";
-import { geometry } from "./layout.js";
+import { boardView, centreOn } from "./layout.js";
 import { LocalMatch } from "./local.js";
 import { LocalRuntime } from "./local-runtime.js";
 import {
@@ -56,7 +57,7 @@ import {
 } from "./session.js";
 
 /**
- * The Fuse Lane page: the menu, a match on this device (solo or pass-and-play, driven by `LocalRuntime`) and, by
+ * The Fusetown page (game id `fuse-lane`): the menu, a match on this device (solo or pass-and-play, driven by `LocalRuntime`) and, by
  * link only for now, an online room on the shared netcode. The decisions live in the presenter, the menu's pure
  * helpers, the local match and the board's geometry; this file wires them to the page.
  */
@@ -71,6 +72,10 @@ const endpoints = createEndpoints(
   location.origin,
 );
 const store = safeStore(() => localStorage);
+/** `?debug-roads`: draw the street graph and the tap outlines over the map. */
+const screenOptions = {
+  debugRoads: new URLSearchParams(location.search).has("debug-roads"),
+};
 const names = keys(GAME);
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 const art = createArt(BASE, () => new Image() as unknown as ArtImage);
@@ -88,7 +93,7 @@ function header(extra: HTMLElement[] = []): HTMLElement {
   const bar = el("header", "", "fl-top"),
     brand = el("a", "", "fl-brand");
   brand.href = endpoints.appUrl();
-  brand.append(el("span", "FUSE LANE"), el("small", "A FUSE GAME"));
+  brand.append(el("span", "FUSETOWN"), el("small", "A FUSE GAME"));
   const portal = createAppPortal({
     document,
     current: GAME,
@@ -109,7 +114,7 @@ function cityPicture(): HTMLElement {
     index,
     id: place.id,
     name: place.name,
-    ring: place.ring,
+    hours: 0,
     here: false,
     dest: false,
     work: false,
@@ -123,16 +128,11 @@ function cityPicture(): HTMLElement {
     const context = canvas.getContext("2d");
     if (!context) return;
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    const shape = geometry(
-      box.width,
-      box.height,
-      places.map((place) => place.ring),
-      undefined,
-      false,
-    );
+    const view = boardView(box.width, box.height, CITY.map, undefined, false);
     drawBoard(
       context,
-      shape,
+      view,
+      centreOn(view, [CITY.map.width / 2, CITY.map.height / 2]),
       {
         places,
         players: [],
@@ -205,14 +205,20 @@ function local(match: LocalMatch, resumed = false): void {
     quit = button("", "fl-icon-button fl-quit");
   quit.setAttribute("aria-label", "Save and go to the menu");
   quit.append(el("span", "", "fl-icon-menu"));
-  const screen = createGameScreen(art, viewer, () => runtime, {
-    controls: [pause, quit],
-    again: {
-      label: "PLAY AGAIN",
-      run: () => startLocal(parseStoredSetup(store.getItem(SETUP_KEY))),
+  const screen = createGameScreen(
+    art,
+    viewer,
+    () => runtime,
+    {
+      controls: [pause, quit],
+      again: {
+        label: "PLAY AGAIN",
+        run: () => startLocal(parseStoredSetup(store.getItem(SETUP_KEY))),
+      },
+      back: { label: "MENU", run: () => toMenu() },
     },
-    back: { label: "MENU", run: () => toMenu() },
-  });
+    screenOptions,
+  );
   const paused = el("section", "", "fl-sheet fl-paused"),
     resume = button("RESUME", "fl-primary"),
     saveQuit = button("SAVE AND QUIT");
@@ -399,17 +405,23 @@ function room(): void {
   leaveGame.setAttribute("aria-label", "Leave the room");
   leaveGame.append(el("span", "", "fl-icon-menu"));
   leaveGame.onclick = () => leave.click();
-  const screen = createGameScreen(art, viewer, () => runtime, {
-    controls: [leaveGame],
-    again: {
-      label: "REMATCH",
-      run: () => runtime.command({ type: "action", action: "rematch" }),
+  const screen = createGameScreen(
+    art,
+    viewer,
+    () => runtime,
+    {
+      controls: [leaveGame],
+      again: {
+        label: "REMATCH",
+        run: () => runtime.command({ type: "action", action: "rematch" }),
+      },
+      back: {
+        label: "LOBBY",
+        run: () => runtime.command({ type: "action", action: "lobby" }),
+      },
     },
-    back: {
-      label: "LOBBY",
-      run: () => runtime.command({ type: "action", action: "lobby" }),
-    },
-  });
+    screenOptions,
+  );
   const main = el("main", "", "fl-room");
   main.append(nameEntry.form, lobby, ...screen.elements);
   app.replaceChildren(top, main);

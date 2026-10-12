@@ -32,7 +32,7 @@ import {
 } from "./random.js";
 
 /**
- * The city's economy (economy-sim.md §1–§5): a weekly macro step, category prices that players' demand pushes, eight
+ * The city's economy (economy-sim.md §1–§5): a weekly macro step, category prices that players' demand pushes, nine
  * companies whose revenue includes players' spending and whose health sets wages and hiring, and tradable assets.
  * Pure functions over plain data; randomness comes from the room's generator.
  */
@@ -70,7 +70,7 @@ export interface Economy {
   /** Asset prices before market impact, and the impact (a fraction of the price) trades have left on each. */
   price: number[];
   impact: number[];
-  /** The index fund's divisor: the eight companies' starting market cap. */
+  /** The index fund's divisor: the nine companies' starting market cap. */
   indexBase: number;
   /** The index fund's price over the last weeks, oldest first. */
   history: number[];
@@ -517,7 +517,7 @@ export function stepEconomy(
   if (news.headlines.length === 0)
     news.headlines.push(
       [
-        "Quiet week on Lane Street. Suspiciously quiet",
+        "Quiet week in Fusetown. Suspiciously quiet",
         `City500 ${economy.price[INDEX_FUND]! >= (economy.history.at(-2) ?? 100) ? "edges up" : "drifts down"}; analysts shrug`,
         `Unemployment at ${economy.unemployment.toFixed(1)}%`,
         `Crypto ${economy.price[CRYPTO]! >= k.start ? "moons" : "naps"}, influencers ${randInt(seeded, 0, 1) ? "thrilled" : "silent"}`,

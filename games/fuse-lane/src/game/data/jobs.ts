@@ -1,7 +1,9 @@
 /**
  * The 37 positions and 11 courses of the original (jobs-education notes §2 and §6), reskinned to Fuse Lane's
- * employers and degrees. Numbers are the original's: base wage $/h, the dependability and experience a hire needs,
- * the degrees (course indices) it needs and the clothing level it is worked in.
+ * employers and degrees, and the four jobs at Fusetown's docks after them. Numbers are the original's: base wage $/h,
+ * the dependability and experience a hire needs, the degrees (course indices) it needs and the clothing level it is
+ * worked in. The docks' ladder sits between the store and factory ladders: a casual start, then a trade, then a
+ * degree.
  */
 
 /** Clothing levels: a better outfit always qualifies for a lower requirement. */
@@ -71,7 +73,8 @@ const GIGA = 0,
   THREADS = 5,
   MEGA = 6,
   KEYNEST = 7,
-  COLLEGE = 8;
+  PORT = 8,
+  COLLEGE = 9;
 
 export const JOBS: readonly JobData[] = [
   job(MEGA, "Floor Associate", 4, 10, 10, [], CASUAL),
@@ -111,4 +114,8 @@ export const JOBS: readonly JobData[] = [
   job(FRESH, "Store Manager", 18, 50, 50, [5], BUSINESS),
   job(KEYNEST, "Groundskeeper", 6, 20, 20, [], CASUAL),
   job(KEYNEST, "Property Manager", 8, 30, 30, [4], CASUAL),
+  job(PORT, "Deckhand", 5, 10, 10, [], CASUAL),
+  job(PORT, "Forklift Driver", 9, 20, 20, [0], CASUAL),
+  job(PORT, "Crane Operator", 16, 40, 40, [1], CASUAL),
+  job(PORT, "Harbour Master", 21, 60, 60, [5], SMART),
 ];

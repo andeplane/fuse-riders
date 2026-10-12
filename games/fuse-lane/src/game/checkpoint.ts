@@ -10,7 +10,8 @@ import {
 import { ASSET_COUNT, CATEGORIES, COMPANIES, HISTORY } from "./data/economy.js";
 import { DURABLES, type DurableId } from "./data/items.js";
 import { COURSES, JOBS, LESSONS } from "./data/jobs.js";
-import { PLACES, RING } from "./data/places.js";
+import { PLACES } from "./data/places.js";
+import { STEPS } from "./streets.js";
 import {
   IMPACT_MAX,
   IMPACT_MIN,
@@ -375,7 +376,7 @@ export function decodePlayer(
     !notices ||
     !durables ||
     !picked ||
-    !int(r.pos, 0, RING - 1) ||
+    !int(r.pos, 0, STEPS - 1) ||
     !place(r.dest) ||
     !place(r.inside) ||
     (r.dest !== -1 && r.inside !== -1) ||

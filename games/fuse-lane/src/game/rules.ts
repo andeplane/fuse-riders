@@ -413,7 +413,7 @@ function startMatch(room: FuseLaneRoom, matchId: string): void {
   room.stage = "running";
   room.week = 1;
   enrol(room, tick);
-  room.headlines = ["Welcome to Lane Street. Rent is due in four weeks"];
+  room.headlines = ["Welcome to Fusetown. Rent is due in four weeks"];
   beginWeek(room, tick, []);
 }
 

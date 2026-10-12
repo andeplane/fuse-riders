@@ -34,6 +34,7 @@ import {
   RENT,
   TICKS_PER_SECOND,
   TRADE_BUY,
+  UNITS_PER_HOUR,
   TRADE_SELL,
   TRIED_EXTENSION,
   WALK,
@@ -54,6 +55,7 @@ import {
   rentPrice,
   sellValue,
   shelfPrice,
+  walkSteps,
   type Economy,
   type FuseLanePlayerView,
   type FuseLaneView,
@@ -156,7 +158,8 @@ export interface BoardPlace {
   index: number;
   id: string;
   name: string;
-  ring: number;
+  /** Hours to walk there and go in, for this device's player (0 inside or when nobody plays here). */
+  hours: number;
   /** This device's player is inside, or walking there. */
   here: boolean;
   dest: boolean;
@@ -343,8 +346,6 @@ function jobHub(
   place: number,
 ): Section[] {
   const economy = view.economy;
-  const nameOf = (id: string) =>
-    players.find((player) => player.id === id)?.name ?? "someone";
   const mine = me.job >= 0 ? JOBS[me.job]! : undefined;
   const yours: Card[] = [
     card({
@@ -379,7 +380,35 @@ function jobHub(
       }),
     );
   }
-  const postings = JOBS.map((job, index) => {
+  const list = postings(view, me, players, place, JOBS.keys());
+  return [
+    {
+      title: "You",
+      cards: yours,
+      info: mine
+        ? `${mine.title} at ${EMPLOYERS[mine.employer]}, $${me.wage.toFixed(2)}/h`
+        : "Unemployed",
+    },
+    { title: "Postings", cards: list },
+  ];
+}
+
+/**
+ * Job postings as cards, the ones you qualify for first, then by wage: every job at the Job Hub, an employer's own at
+ * its gate (the factory, the docks).
+ */
+function postings(
+  view: FuseLaneView,
+  me: PlayerState,
+  players: FuseLanePlayerView[],
+  place: number,
+  jobs: Iterable<number>,
+): Card[] {
+  const economy = view.economy;
+  const nameOf = (id: string) =>
+    players.find((player) => player.id === id)?.name ?? "someone";
+  const cards = [...jobs].map((index) => {
+    const job = JOBS[index]!;
     const held = view.holders[index],
       reasons = missing(me, job),
       wage = marketWage(economy, job);
@@ -421,22 +450,32 @@ function jobHub(
                     : `${Math.max(0, Math.min(100, hireOdds(economy, me)))}% odds`,
     });
   });
-  // Postings you qualify for first, then by wage.
-  postings.sort(
+  cards.sort(
     (a, b) =>
       Number(b.enabled && !b.note.startsWith("Missing")) -
         Number(a.enabled && !a.note.startsWith("Missing")) ||
       parseFloat(b.price.slice(1)) - parseFloat(a.price.slice(1)),
   );
+  return cards;
+}
+
+/** An employer's gate: its own jobs, applied for on the spot. */
+function gate(
+  view: FuseLaneView,
+  me: PlayerState,
+  players: FuseLanePlayerView[],
+  place: number,
+): Section[] {
+  const employer = PLACES[place]!.employer;
+  const ladder = [...JOBS.keys()].filter(
+    (index) => JOBS[index]!.employer === employer,
+  );
   return [
     {
-      title: "You",
-      cards: yours,
-      info: mine
-        ? `${mine.title} at ${EMPLOYERS[mine.employer]}, $${me.wage.toFixed(2)}/h`
-        : "Unemployed",
+      title: `Jobs at ${EMPLOYERS[employer]}`,
+      info: "Apply here, or for any job at the Job Hub.",
+      cards: postings(view, me, players, place, ladder),
     },
-    { title: "Postings", cards: postings },
   ];
 }
 
@@ -745,13 +784,8 @@ export function panelFor(
       sections = college(view, me, place);
       break;
     case "factory":
-      sections = [
-        {
-          title: "Gigafactory",
-          info: "Apply for jobs here at the Job Hub.",
-          cards: [],
-        },
-      ];
+    case "port":
+      sections = gate(view, me, players, place);
       break;
     case "resale":
       sections = [
@@ -791,7 +825,7 @@ function hud(
       ? `Walking to ${PLACES[me.dest]!.name}`
       : me.inside >= 0
         ? `At ${PLACES[me.inside]!.name}`
-        : "On Lane Street";
+        : "Out in Fusetown";
   const fedNext = me.groceries > 0 || me.meal > 0;
   const best = [2, 1, 0].find((level) => me.clothes[level]! > 0);
   return {
@@ -950,7 +984,10 @@ export function boardModel(
       index,
       id: place.id,
       name: place.name,
-      ring: place.ring,
+      hours:
+        me === undefined || me.inside === index
+          ? 0
+          : walkSteps(me.pos, index) / UNITS_PER_HOUR + HOURS.enter,
       here: me?.inside === index,
       dest: me?.dest === index,
       work:

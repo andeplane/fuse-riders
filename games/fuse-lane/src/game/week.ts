@@ -2,11 +2,12 @@ import { MAX_WEEKS, WEEK_UNITS } from "./basics.js";
 import { COMPANIES } from "./data/economy.js";
 import { BOLTED_DOWN, DURABLES, DURABLE_NAMES } from "./data/items.js";
 import { CLOTHING_NAMES, JOBS } from "./data/jobs.js";
-import { COLLEGE_EMPLOYER, PLACES } from "./data/places.js";
+import { COLLEGE_EMPLOYER } from "./data/places.js";
 import { sleep } from "./actions.js";
 import { interest, stepEconomy } from "./economy.js";
 import { chance, randInt } from "./random.js";
 import { active, playerOrder, type FuseLaneRoom } from "./room.js";
+import { doorOf } from "./streets.js";
 import {
   EXTENDED,
   homePlace,
@@ -276,7 +277,7 @@ export function endWeek(room: FuseLaneRoom): boolean {
     const player = room.players[id]!;
     upkeep(room, player);
     // Monday: home, a fresh clock (minus hunger or the doctor), and the week's flags cleared.
-    player.pos = PLACES[homePlace(player.home)]!.ring;
+    player.pos = doorOf(homePlace(player.home));
     player.dest = -1;
     player.inside = -1;
     player.time = Math.min(WEEK_UNITS, player.penalty * 15);

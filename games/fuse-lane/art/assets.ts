@@ -1,5 +1,5 @@
 /**
- * Every raster image Fuse Lane draws, with the prompt to generate it. This table is the single source: the page loads
+ * Every raster image Fusetown (game id `fuse-lane`) draws, with the prompt to generate it. This table is the single source: the page loads
  * images by `id` from `file` (under `public/`, served from the site base) and falls back to a plain shape and label
  * when a file is missing, and `scripts/fuse-lane-art.ts` writes `art/manifest.json` and `art/prompts.md` from it.
  */
@@ -156,28 +156,19 @@ const ui = (
 
 export const ART: readonly ArtAsset[] = [
   {
-    id: "board-ground",
-    file: `${BASE}/board/ground.png`,
-    width: 2048,
-    height: 1536,
-    anchor: [0.5, 0.5],
+    // The city every match is played in: the whole board, label-free (the game draws the name labels). The street
+    // graph in `src/game/data/cities/fusetown.ts` is traced over it in 1536 × 1024 map px, so any size of this
+    // picture with the same composition fits.
+    id: "board-fusetown",
+    file: `${BASE}/cities/fusetown.jpg`,
+    width: 3072,
+    height: 2048,
+    anchor: [0, 0],
     transparent: false,
-    color: "#bfe8c9",
+    color: "#8cc363",
     label: "",
     prompt:
-      "Top-down view of a tidy city block seen from directly above: soft green lawns, a few round trees, flower beds, a small pond and footpaths, with an empty light-grey margin all round where a ring road and buildings will be drawn on top. Calm, low-contrast so characters and buildings read clearly over it. Opaque background, no road, no buildings.",
-  },
-  {
-    id: "board-plaza",
-    file: `${BASE}/board/plaza.png`,
-    width: 1024,
-    height: 768,
-    anchor: [0.5, 0.5],
-    transparent: true,
-    color: "#e8f6ee",
-    label: "",
-    prompt:
-      "Top-down view of a small round town plaza for the centre of the city block: a fountain, benches, a news kiosk and a big clock post, seen from directly above. Transparent background outside the plaza.",
+      "A whole little harbour town seen from above at a three-quarter angle (about 35 degrees), as one cheerful mobile game board in landscape 3:2: a town square with a clock tower in the middle; curvy, imperfect asphalt streets with white dashes and crossings winding between the buildings, with several bends and a crossroads, no ring road; a bay with a quay, a pier, a wharf with cranes and containers, boats, a canal crossed by a footbridge, and a lighthouse in the bottom right. Fourteen buildings face the streets: a shared house, a letting agency, a glass residential tower, a grocery store, a fintech bank, a modern factory, a job centre, a red-brick college, an electronics store, a clothing boutique, a drive-thru burger joint, a big-box discount store, a second-hand shop and the port with its harbour office. Buildings, streets and water fill the frame edge to edge, only small patches of lawn and trees between them. Opaque, no text, no labels, no signs with letters.",
   },
   building(
     "roomshare",
@@ -257,6 +248,12 @@ export const ART: readonly ArtAsset[] = [
     "2ND",
     "A quirky second-hand shop with a cluttered window of lamps, guitars and teapots, and a hand-painted sign shape.",
   ),
+  building(
+    "docks",
+    "#3a86c8",
+    "PORT",
+    "A small harbour office on a wooden quay with a stack of colourful shipping containers, a little yellow crane, coiled ropes, a bollard and the edge of the water with a moored tugboat.",
+  ),
   ...Object.keys(AVATAR_CHARACTERS).flatMap(avatarAssets),
   keeper(
     "roomshare",
@@ -335,6 +332,12 @@ export const ART: readonly ArtAsset[] = [
     "#b5838d",
     "2ND",
     "an eccentric collector with a monocle and a vintage scarf.",
+  ),
+  keeper(
+    "docks",
+    "#3a86c8",
+    "PORT",
+    "a weathered harbour master in a navy cap and a yellow rain jacket holding a clipboard, a coil of rope over one shoulder.",
   ),
   icon(
     "groceries",

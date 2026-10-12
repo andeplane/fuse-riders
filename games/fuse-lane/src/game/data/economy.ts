@@ -43,7 +43,7 @@ export interface CompanyData {
   shares: number;
 }
 
-/** The eight listed employers, in the order assets and companies are indexed. City College is public and not listed. */
+/** The nine listed employers, in the order assets and companies are indexed. City College is public and not listed. */
 export const COMPANIES: readonly CompanyData[] = [
   {
     id: "gigafactory",
@@ -125,14 +125,25 @@ export const COMPANIES: readonly CompanyData[] = [
     beta: 0.5,
     shares: 45_000,
   },
+  {
+    // The harbour moves other companies' goods: trade swings with the cycle harder than almost anything in town.
+    id: "port",
+    name: "Fusetown Port",
+    ticker: "PORT",
+    category: -1,
+    baseline: 55_000,
+    margin: 0.12,
+    beta: 1.4,
+    shares: 55_000,
+  },
 ];
 
-/** Tradable assets: the eight shares, then these, in this order. */
-export const INDEX_FUND = 8,
-  BONDS = 9,
-  GOLD = 10,
-  CRYPTO = 11,
-  ASSET_COUNT = 12;
+/** Tradable assets: the nine shares, then these, in this order. */
+export const INDEX_FUND = 9,
+  BONDS = 10,
+  GOLD = 11,
+  CRYPTO = 12,
+  ASSET_COUNT = 13;
 export const ASSET_NAMES = [
   ...COMPANIES.map((company) => company.ticker),
   "CITY500",
@@ -257,8 +268,8 @@ export const ECONOMY = {
   savings: { below: 1 },
   /** Bid/ask spread per asset, as a fraction (half each side). */
   spread: [
-    0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0, 0.01,
-    0.03,
+    0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0,
+    0.01, 0.03,
   ] as const,
   /**
    * Market impact: a trade of value v (at the impact-free price) moves the quote by impact × v / liquidity and fills
@@ -266,8 +277,8 @@ export const ECONOMY = {
    */
   impact: 0.04,
   liquidity: [
-    20_000, 20_000, 20_000, 20_000, 20_000, 20_000, 20_000, 20_000, 100_000,
-    200_000, 50_000, 12_000,
+    20_000, 20_000, 20_000, 20_000, 20_000, 20_000, 20_000, 20_000, 20_000,
+    100_000, 200_000, 50_000, 12_000,
   ] as const,
   impactDecay: 0.5,
   wages: {

@@ -26,6 +26,9 @@ import {
   WEEK_UNITS,
   WORK,
   createRoom,
+  doorOf,
+  nextStep,
+  walkSteps,
   decodeRoom,
   encodeRoom,
   hashRoom,
@@ -59,7 +62,7 @@ test("a match starts everyone at home in week 1 with the original's starting kit
   assert.equal(room.phase, WEEK);
   for (const id of ["a", "b"]) {
     const player = room.players[id]!;
-    assert.equal(player.pos, PLACES[ROOMSHARE]!.ring);
+    assert.equal(player.pos, doorOf(ROOMSHARE));
     assert.equal(player.cash, 200);
     assert.deepEqual(player.clothes, [6, 0, 0]);
     assert.equal(player.rentWeeks, 3);
@@ -69,17 +72,19 @@ test("a match starts everyone at home in week 1 with the original's starting kit
   assert.equal(room.phaseEnd - room.phaseStart, FAST.weekSeconds * 20);
 });
 
-test("walking costs one hour per 15 steps and entering costs 2 hours; avatars move 2 steps a tick the short way", () => {
+test("walking costs one hour per 15 steps and entering costs 2 hours; avatars move 2 steps a tick along the streets", () => {
   const room = started();
   fold(room, { a: [walk(room, KEYNEST)] });
   const a = room.players.a!;
-  // Roomshare (ring 1) to KeyNest (ring 164) is 7 steps backwards round the loop.
-  assert.equal(a.pos, 169);
+  // Roomshare to KeyNest is 13 steps west along the main road.
+  const home = doorOf(ROOMSHARE);
+  assert.equal(walkSteps(home, KEYNEST), 13);
+  assert.equal(a.pos, nextStep(nextStep(home, KEYNEST), KEYNEST));
   assert.equal(a.dest, KEYNEST);
   runWhile(room, () => a.inside !== KEYNEST, 20);
-  assert.equal(a.pos, 164);
-  assert.equal(a.time, 7 + 2 * UNITS_PER_HOUR);
-  assert.equal(room.tick, 6, "4 ticks of walking after the start");
+  assert.equal(a.pos, doorOf(KEYNEST));
+  assert.equal(a.time, 13 + 2 * UNITS_PER_HOUR);
+  assert.equal(room.tick, 9, "7 ticks of walking after the start");
   // Walking to the place you stand at enters it at once, for the entry fee only.
   fold(room, { a: [walk(room, ROOMSHARE)] });
   const before = a.time;
@@ -226,7 +231,7 @@ test("Monday upkeep: hunger costs 20 hours, fast food feeds one week, clothes an
     assert.equal(player.dep, 17);
     assert.equal(player.clothes[0], 5);
     assert.equal(player.rentWeeks, 2);
-    assert.equal(player.pos, PLACES[ROOMSHARE]!.ring);
+    assert.equal(player.pos, doorOf(ROOMSHARE));
   }
 });
 
