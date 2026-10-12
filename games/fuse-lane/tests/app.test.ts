@@ -19,6 +19,7 @@ import {
 } from "../src/app/menu.js";
 import { present, sparkline, type Viewer } from "../src/app/presenter.js";
 import { dueReports } from "../src/app/reports.js";
+import { siteBase } from "../src/app/art.js";
 
 const LOCAL: Viewer = {
   me: "",
@@ -222,4 +223,19 @@ test("a finished match is reported once confirmed; a bot id or an unconfirmed en
   const view = present(match.view(), LOCAL);
   assert.equal(view.screen, "over");
   assert.ok(view.result!.title.length > 0);
+});
+
+test("art and links resolve from the site root, also under a relative base", () => {
+  assert.equal(siteBase("/", "http://x/assets/a.js"), "/");
+  assert.equal(siteBase("/fuse/", "http://x/fuse/assets/a.js"), "/fuse/");
+  assert.equal(
+    siteBase("https://cdn.example/", "http://x/assets/a.js"),
+    "https://cdn.example/",
+  );
+  // `vite build --base ./`: the script sits in <root>/assets/, wherever <root> is served from.
+  assert.equal(
+    siteBase("./", "http://x/previews/pr-505/assets/fuse-lane-1.js"),
+    "/previews/pr-505/",
+  );
+  assert.equal(siteBase("", "http://x/assets/a.js"), "/");
 });

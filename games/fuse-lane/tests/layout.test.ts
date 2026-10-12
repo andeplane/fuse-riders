@@ -7,7 +7,8 @@ import {
   doorPoint,
   geometry,
   lotBox,
-  lotRing,
+  lotsAlong,
+  makeStreet,
   nearestT,
   placeAt,
   ringBetween,
@@ -139,32 +140,58 @@ test("a tap on a building finds that place, a tap on the road finds none", () =>
   );
 });
 
-test("the street path: points on the rounded rectangle, normals pointing out", () => {
-  const g = { left: 100, top: 100, right: 500, bottom: 300, radius: 40 };
+test("the street path: a smooth closed loop filling its box, normals pointing out", () => {
+  const g = { street: makeStreet(100, 100, 500, 300) };
+  const points = Array.from({ length: 400 }, (_, i) => streetPoint(g, i / 400));
+  const xs = points.map((p) => p.x),
+    ys = points.map((p) => p.y);
+  assert.ok(
+    Math.abs(Math.min(...xs) - 100) < 1 && Math.abs(Math.max(...xs) - 500) < 1,
+  );
+  assert.ok(
+    Math.abs(Math.min(...ys) - 100) < 1 && Math.abs(Math.max(...ys) - 300) < 1,
+  );
+  // Starts at the top middle, heading right (clockwise), normal up.
   const start = streetPoint(g, 0);
-  assert.deepEqual([start.x, start.y, start.nx, start.ny], [140, 100, 0, -1]);
-  const right = streetPoint(g, 0.25);
-  assert.ok(right.nx > 0.99 || right.ny !== 0);
+  assert.ok(start.y < 120 && start.ny < -0.9);
+  assert.ok(streetPoint(g, 0.01).x > start.x);
+  // Every normal points away from the middle, and an offset moves along it.
+  for (const p of points)
+    assert.ok(p.nx * (p.x - 300) + p.ny * (p.y - 200) > 0);
   const out = streetPoint(g, 0.6, 10),
     centre = streetPoint(g, 0.6);
   assert.ok(
     Math.abs(Math.hypot(out.x - centre.x, out.y - centre.y) - 10) < 1e-9,
   );
+  // Smooth: neighbouring samples are close, and the loop closes.
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i]!,
+      b = points[(i + 1) % points.length]!;
+    assert.ok(Math.hypot(a.x - b.x, a.y - b.y) < 6);
+  }
   // Wrapping and negative positions.
   assert.deepEqual(streetPoint(g, 1.25), streetPoint(g, 0.25));
   assert.deepEqual(streetPoint(g, -0.75), streetPoint(g, 0.25));
-  // Nearest point: a point just above the top edge.
-  assert.ok(Math.abs(nearestT(g, { x: 140, y: 90 })) < 0.01);
-  // The corners are arcs.
-  const corner = streetPoint(g, 0.4);
-  assert.ok(corner.x >= g.left && corner.x <= g.right);
+  // Nearest point: a point just outside the loop at a quarter of the way round.
+  const quarter = streetPoint(g, 0.25, 8);
+  assert.ok(Math.abs(nearestT(g, quarter) - 0.25) < 0.01);
 });
 
-test("lot ring and lot assignment", () => {
-  const lots = lotRing(0, 0, 300, 200, 100);
-  assert.equal(lots.length, 4 + 1 + 4 + 1);
-  assert.deepEqual(lots[0], { x: 0, y: 0, side: "top" });
-  assert.equal(lots.filter((lot) => lot.side === "right").length, 1);
+test("lots along the street and lot assignment", () => {
+  const g = { street: makeStreet(100, 100, 500, 300) };
+  const lots = lotsAlong(g, 40, 60);
+  assert.ok(lots.length >= 12);
+  // In order around the loop, outside it, and apart.
+  for (let i = 0; i < lots.length; i++) {
+    const a = lots[i]!,
+      b = lots[(i + 1) % lots.length]!;
+    if (i < lots.length - 1) assert.ok(b.t > a.t);
+    assert.ok(Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y)) > 50);
+  }
+  assert.deepEqual(
+    new Set(lots.map((lot) => lot.side)),
+    new Set(["top", "right", "bottom", "left"]),
+  );
   // Three places on six lots: each takes the nearest lot, in order.
   const assigned = assignLots(
     [0, 85, 120],

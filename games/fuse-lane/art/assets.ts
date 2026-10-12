@@ -23,12 +23,11 @@ export interface ArtAsset {
 }
 
 export const STYLE =
-  "High-detail stylised 3D render, like a premium isometric city-builder or management game: physically based " +
-  "materials with real texture (brick, weathered paint, glass reflections, concrete, worn asphalt, foliage), soft " +
-  "global illumination, ambient occlusion, warm late-afternoon sun from the top left casting soft shadows to the " +
-  "bottom right, lived-in small details (wear, stains, plants, clutter, signage shapes), rich but natural colours, " +
-  "gentle depth of field. Characters are stylised but believable, with a dry sense of humour. No text, no letters, " +
-  "no numbers, no logos, no watermark. One consistent camera and art direction across the whole set.";
+  "Bright modern flat vector illustration with soft cel shading and gentle gradients, one consistent dark navy " +
+  "outline (about 3% of the canvas width), rounded friendly shapes, cheerful saturated palette (teal #2ec4b6, " +
+  "coral #ff6b6b, sunflower #ffd23f, sky #4cc9f0, mint #3ddc84, plum #7b2cbf, warm cream #fff4e0), light from the " +
+  "top left, no text, no letters, no logos, no watermark, crisp edges, readable at 64 px on a phone. Same art " +
+  "direction for every asset of the set, like one mobile game's sticker sheet.";
 
 const BASE = "fuse-lane";
 
@@ -42,11 +41,11 @@ const building = (
   file: `${BASE}/buildings/${id}.png`,
   width: 512,
   height: 512,
-  anchor: [0.5, 0.9],
+  anchor: [0.5, 0.92],
   transparent: true,
   color,
   label,
-  prompt: `${subject} Isometric three-quarter view from about 35 degrees above, front door facing the viewer and the street. The building stands on its own small lot with a strip of sidewalk in front, a few plants and small street details, centred and filling about 85% of the canvas. Blank sign shapes only, no letters. Transparent background outside the lot.`,
+  prompt: `${subject} Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background.`,
 });
 
 const AVATAR_CHARACTERS: Record<string, string> = {
@@ -76,7 +75,7 @@ const avatarAssets = (id: string, index: number): ArtAsset[] => {
       transparent: true,
       color,
       label: id[0]!.toUpperCase(),
-      prompt: `Full-body game character: ${who}, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Stylised but believable proportions (slightly large head). Transparent background.`,
+      prompt: `Full-body game character: ${who}, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Chibi proportions (head about 40% of height). Transparent background.`,
     },
     {
       id: `avatar-${id}-walk`,
@@ -88,7 +87,7 @@ const avatarAssets = (id: string, index: number): ArtAsset[] => {
       transparent: true,
       color,
       label: id[0]!.toUpperCase(),
-      prompt: `Two-frame walk cycle sprite sheet, side by side, each frame 256x256: ${who}, walking to the right, frame 1 left foot forward, frame 2 right foot forward, clearly different leg and arm positions between the two frames, identical scale and baseline in both frames, small soft oval shadow under the feet. Stylised but believable proportions. Transparent background.`,
+      prompt: `Two-frame walk cycle sprite sheet, side by side, each frame 256x256: ${who}, walking to the right, frame 1 left foot forward, frame 2 right foot forward, identical scale and baseline in both frames, small soft oval shadow under the feet. Chibi proportions. Transparent background.`,
     },
     {
       id: `avatar-${id}-portrait`,
@@ -157,184 +156,28 @@ const ui = (
 
 export const ART: readonly ArtAsset[] = [
   {
-    id: "board-center",
-    file: `${BASE}/board/center.png`,
+    id: "board-ground",
+    file: `${BASE}/board/ground.png`,
+    width: 2048,
+    height: 1536,
+    anchor: [0.5, 0.5],
+    transparent: false,
+    color: "#bfe8c9",
+    label: "",
+    prompt:
+      "Top-down view of a tidy city block seen from directly above: soft green lawns, a few round trees, flower beds, a small pond and footpaths, with an empty light-grey margin all round where a ring road and buildings will be drawn on top. Calm, low-contrast so characters and buildings read clearly over it. Opaque background, no road, no buildings.",
+  },
+  {
+    id: "board-plaza",
+    file: `${BASE}/board/plaza.png`,
     width: 1024,
     height: 768,
     anchor: [0.5, 0.5],
     transparent: true,
-    color: "#bfe8c9",
+    color: "#e8f6ee",
     label: "",
     prompt:
-      "The park in the middle of a small city block, isometric three-quarter view: a lawn with a pond, a fountain, a bandstand, flower beds, trees and benches, footpaths, a few tiny people relaxing. An irregular rounded shape, transparent outside the park.",
-  },
-  {
-    id: "tex-asphalt",
-    file: `${BASE}/board/asphalt.png`,
-    width: 512,
-    height: 512,
-    anchor: [0.5, 0.5],
-    transparent: false,
-    color: "#9aa0a6",
-    label: "",
-    prompt:
-      "Seamless tileable texture seen straight from above, evenly lit with no shadows or vignette, edges wrap perfectly: worn dark-grey asphalt road surface with fine aggregate, a few faint patched cracks and oil stains, no markings.",
-  },
-  {
-    id: "tex-sidewalk",
-    file: `${BASE}/board/sidewalk.png`,
-    width: 512,
-    height: 512,
-    anchor: [0.5, 0.5],
-    transparent: false,
-    color: "#9aa0a6",
-    label: "",
-    prompt:
-      "Seamless tileable texture seen straight from above, evenly lit with no shadows or vignette, edges wrap perfectly: light concrete sidewalk slabs in a square grid with subtle wear and a little moss in the joints.",
-  },
-  {
-    id: "tex-grass",
-    file: `${BASE}/board/grass.png`,
-    width: 512,
-    height: 512,
-    anchor: [0.5, 0.5],
-    transparent: false,
-    color: "#9aa0a6",
-    label: "",
-    prompt:
-      "Seamless tileable texture seen straight from above, evenly lit with no shadows or vignette, edges wrap perfectly: healthy short park lawn grass with slight colour variation and a few tiny clover patches.",
-  },
-  {
-    id: "tex-paving",
-    file: `${BASE}/board/paving.png`,
-    width: 512,
-    height: 512,
-    anchor: [0.5, 0.5],
-    transparent: false,
-    color: "#9aa0a6",
-    label: "",
-    prompt:
-      "Seamless tileable texture seen straight from above, evenly lit with no shadows or vignette, edges wrap perfectly: warm beige and terracotta brick plaza paving in a herringbone pattern.",
-  },
-  {
-    id: "prop-tree-1",
-    file: `${BASE}/props/tree-1.png`,
-    width: 256,
-    height: 256,
-    anchor: [0.5, 0.92],
-    transparent: true,
-    color: "#7fb069",
-    label: "",
-    prompt:
-      "Street prop for an isometric city scene: a big leafy round street tree with a small round grate at its base. Same isometric three-quarter camera as the buildings, standing on the bottom centre, no ground and no cast shadow (the game draws shadows). Transparent background.",
-  },
-  {
-    id: "prop-tree-2",
-    file: `${BASE}/props/tree-2.png`,
-    width: 256,
-    height: 256,
-    anchor: [0.5, 0.92],
-    transparent: true,
-    color: "#7fb069",
-    label: "",
-    prompt:
-      "Street prop for an isometric city scene: a tall slender cypress-like tree in a square planter bed. Same isometric three-quarter camera as the buildings, standing on the bottom centre, no ground and no cast shadow (the game draws shadows). Transparent background.",
-  },
-  {
-    id: "prop-lamp",
-    file: `${BASE}/props/lamp.png`,
-    width: 256,
-    height: 256,
-    anchor: [0.5, 0.92],
-    transparent: true,
-    color: "#7fb069",
-    label: "",
-    prompt:
-      "Street prop for an isometric city scene: a classic black cast-iron street lamp, lit with a warm glow. Same isometric three-quarter camera as the buildings, standing on the bottom centre, no ground and no cast shadow (the game draws shadows). Transparent background.",
-  },
-  {
-    id: "prop-bench",
-    file: `${BASE}/props/bench.png`,
-    width: 256,
-    height: 256,
-    anchor: [0.5, 0.92],
-    transparent: true,
-    color: "#7fb069",
-    label: "",
-    prompt:
-      "Street prop for an isometric city scene: a wooden park bench with cast-iron legs. Same isometric three-quarter camera as the buildings, standing on the bottom centre, no ground and no cast shadow (the game draws shadows). Transparent background.",
-  },
-  {
-    id: "prop-car-1",
-    file: `${BASE}/props/car-1.png`,
-    width: 256,
-    height: 256,
-    anchor: [0.5, 0.92],
-    transparent: true,
-    color: "#7fb069",
-    label: "",
-    prompt:
-      "Street prop for an isometric city scene: a small red city hatchback car parked, seen from the side at three-quarter angle. Same isometric three-quarter camera as the buildings, standing on the bottom centre, no ground and no cast shadow (the game draws shadows). Transparent background.",
-  },
-  {
-    id: "prop-car-2",
-    file: `${BASE}/props/car-2.png`,
-    width: 256,
-    height: 256,
-    anchor: [0.5, 0.92],
-    transparent: true,
-    color: "#7fb069",
-    label: "",
-    prompt:
-      "Street prop for an isometric city scene: a white delivery van parked, three-quarter angle. Same isometric three-quarter camera as the buildings, standing on the bottom centre, no ground and no cast shadow (the game draws shadows). Transparent background.",
-  },
-  {
-    id: "prop-car-3",
-    file: `${BASE}/props/car-3.png`,
-    width: 256,
-    height: 256,
-    anchor: [0.5, 0.92],
-    transparent: true,
-    color: "#7fb069",
-    label: "",
-    prompt:
-      "Street prop for an isometric city scene: a teal compact electric car parked, three-quarter angle. Same isometric three-quarter camera as the buildings, standing on the bottom centre, no ground and no cast shadow (the game draws shadows). Transparent background.",
-  },
-  {
-    id: "prop-hydrant",
-    file: `${BASE}/props/hydrant.png`,
-    width: 256,
-    height: 256,
-    anchor: [0.5, 0.92],
-    transparent: true,
-    color: "#7fb069",
-    label: "",
-    prompt:
-      "Street prop for an isometric city scene: a red fire hydrant. Same isometric three-quarter camera as the buildings, standing on the bottom centre, no ground and no cast shadow (the game draws shadows). Transparent background.",
-  },
-  {
-    id: "prop-bus-stop",
-    file: `${BASE}/props/bus-stop.png`,
-    width: 256,
-    height: 256,
-    anchor: [0.5, 0.92],
-    transparent: true,
-    color: "#7fb069",
-    label: "",
-    prompt:
-      "Street prop for an isometric city scene: a glass bus shelter with a bench. Same isometric three-quarter camera as the buildings, standing on the bottom centre, no ground and no cast shadow (the game draws shadows). Transparent background.",
-  },
-  {
-    id: "prop-planter",
-    file: `${BASE}/props/planter.png`,
-    width: 256,
-    height: 256,
-    anchor: [0.5, 0.92],
-    transparent: true,
-    color: "#7fb069",
-    label: "",
-    prompt:
-      "Street prop for an isometric city scene: a concrete planter with flowers and a small shrub. Same isometric three-quarter camera as the buildings, standing on the bottom centre, no ground and no cast shadow (the game draws shadows). Transparent background.",
+      "Top-down view of a small round town plaza for the centre of the city block: a fountain, benches, a news kiosk and a big clock post, seen from directly above. Transparent background outside the plaza.",
   },
   building(
     "roomshare",

@@ -8,18 +8,27 @@ Every image is a PNG saved at `public/<file>` (the page serves `public/` from th
 
 Append this to every prompt:
 
-> High-detail stylised 3D render, like a premium isometric city-builder or management game: physically based materials with real texture (brick, weathered paint, glass reflections, concrete, worn asphalt, foliage), soft global illumination, ambient occlusion, warm late-afternoon sun from the top left casting soft shadows to the bottom right, lived-in small details (wear, stains, plants, clutter, signage shapes), rich but natural colours, gentle depth of field. Characters are stylised but believable, with a dry sense of humour. No text, no letters, no numbers, no logos, no watermark. One consistent camera and art direction across the whole set.
+> Bright modern flat vector illustration with soft cel shading and gentle gradients, one consistent dark navy outline (about 3% of the canvas width), rounded friendly shapes, cheerful saturated palette (teal #2ec4b6, coral #ff6b6b, sunflower #ffd23f, sky #4cc9f0, mint #3ddc84, plum #7b2cbf, warm cream #fff4e0), light from the top left, no text, no letters, no logos, no watermark, crisp edges, readable at 64 px on a phone. Same art direction for every asset of the set, like one mobile game's sticker sheet.
 
 ## Board
 
-### `board-center`
+### `board-ground`
 
-- File: `public/fuse-lane/board/center.png`
+- File: `public/fuse-lane/board/ground.png`
+- Canvas: 2048 × 1536 px
+- Anchor: (0.5, 0.5)
+- Background: opaque
+
+Top-down view of a tidy city block seen from directly above: soft green lawns, a few round trees, flower beds, a small pond and footpaths, with an empty light-grey margin all round where a ring road and buildings will be drawn on top. Calm, low-contrast so characters and buildings read clearly over it. Opaque background, no road, no buildings.
+
+### `board-plaza`
+
+- File: `public/fuse-lane/board/plaza.png`
 - Canvas: 1024 × 768 px
 - Anchor: (0.5, 0.5)
 - Background: transparent
 
-The park in the middle of a small city block, isometric three-quarter view: a lawn with a pond, a fountain, a bandstand, flower beds, trees and benches, footpaths, a few tiny people relaxing. An irregular rounded shape, transparent outside the park.
+Top-down view of a small round town plaza for the centre of the city block: a fountain, benches, a news kiosk and a big clock post, seen from directly above. Transparent background outside the plaza.
 
 ## Buildings
 
@@ -27,118 +36,118 @@ The park in the middle of a small city block, isometric three-quarter view: a la
 
 - File: `public/fuse-lane/buildings/roomshare.png`
 - Canvas: 512 × 512 px
-- Anchor: (0.5, 0.9)
+- Anchor: (0.5, 0.92)
 - Background: transparent
 
-A tired but charming three-storey shared house with mismatched curtains, bikes chained outside and a recycling bin overflowing with takeaway boxes. Isometric three-quarter view from about 35 degrees above, front door facing the viewer and the street. The building stands on its own small lot with a strip of sidewalk in front, a few plants and small street details, centred and filling about 85% of the canvas. Blank sign shapes only, no letters. Transparent background outside the lot.
+A tired but charming three-storey shared house with mismatched curtains, bikes chained outside and a recycling bin overflowing with takeaway boxes. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background.
 
 ### `building-keynest`
 
 - File: `public/fuse-lane/buildings/keynest.png`
 - Canvas: 512 × 512 px
-- Anchor: (0.5, 0.9)
+- Anchor: (0.5, 0.92)
 - Background: transparent
 
-A small modern letting-agency office with a huge key-shaped sign shape above the door (no letters) and a glass front with house listings as coloured cards. Isometric three-quarter view from about 35 degrees above, front door facing the viewer and the street. The building stands on its own small lot with a strip of sidewalk in front, a few plants and small street details, centred and filling about 85% of the canvas. Blank sign shapes only, no letters. Transparent background outside the lot.
+A small modern letting-agency office with a huge key-shaped sign shape above the door (no letters) and a glass front with house listings as coloured cards. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background.
 
 ### `building-tower`
 
 - File: `public/fuse-lane/buildings/tower.png`
 - Canvas: 512 × 512 px
-- Anchor: (0.5, 0.9)
+- Anchor: (0.5, 0.92)
 - Background: transparent
 
-A sleek glass residential tower with a doorman canopy, potted plants and warm lights in the windows. Isometric three-quarter view from about 35 degrees above, front door facing the viewer and the street. The building stands on its own small lot with a strip of sidewalk in front, a few plants and small street details, centred and filling about 85% of the canvas. Blank sign shapes only, no letters. Transparent background outside the lot.
+A sleek glass residential tower with a doorman canopy, potted plants and warm lights in the windows. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background.
 
 ### `building-freshco`
 
 - File: `public/fuse-lane/buildings/freshco.png`
 - Canvas: 512 × 512 px
-- Anchor: (0.5, 0.9)
+- Anchor: (0.5, 0.92)
 - Background: transparent
 
-A bright neighbourhood grocery store with a striped awning, crates of fruit and vegetables outside and a shopping cart. Isometric three-quarter view from about 35 degrees above, front door facing the viewer and the street. The building stands on its own small lot with a strip of sidewalk in front, a few plants and small street details, centred and filling about 85% of the canvas. Blank sign shapes only, no letters. Transparent background outside the lot.
+A bright neighbourhood grocery store with a striped awning, crates of fruit and vegetables outside and a shopping cart. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background.
 
 ### `building-neobank`
 
 - File: `public/fuse-lane/buildings/neobank.png`
 - Canvas: 512 × 512 px
-- Anchor: (0.5, 0.9)
+- Anchor: (0.5, 0.92)
 - Background: transparent
 
-A minimalist fintech bank branch with a curved glass facade, a big app-icon-like sign shape and an ATM by the door. Isometric three-quarter view from about 35 degrees above, front door facing the viewer and the street. The building stands on its own small lot with a strip of sidewalk in front, a few plants and small street details, centred and filling about 85% of the canvas. Blank sign shapes only, no letters. Transparent background outside the lot.
+A minimalist fintech bank branch with a curved glass facade, a big app-icon-like sign shape and an ATM by the door. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background.
 
 ### `building-gigafactory`
 
 - File: `public/fuse-lane/buildings/gigafactory.png`
 - Canvas: 512 × 512 px
-- Anchor: (0.5, 0.9)
+- Anchor: (0.5, 0.92)
 - Background: transparent
 
-A huge clean modern factory with saw-tooth roofs, solar panels, a chimney with a puff of white steam and a robot arm visible through a window. Isometric three-quarter view from about 35 degrees above, front door facing the viewer and the street. The building stands on its own small lot with a strip of sidewalk in front, a few plants and small street details, centred and filling about 85% of the canvas. Blank sign shapes only, no letters. Transparent background outside the lot.
+A huge clean modern factory with saw-tooth roofs, solar panels, a chimney with a puff of white steam and a robot arm visible through a window. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background.
 
 ### `building-jobhub`
 
 - File: `public/fuse-lane/buildings/jobhub.png`
 - Canvas: 512 × 512 px
-- Anchor: (0.5, 0.9)
+- Anchor: (0.5, 0.92)
 - Background: transparent
 
-A friendly job centre with a speech-bubble sign shape, a notice board of job cards outside and a queue line rope. Isometric three-quarter view from about 35 degrees above, front door facing the viewer and the street. The building stands on its own small lot with a strip of sidewalk in front, a few plants and small street details, centred and filling about 85% of the canvas. Blank sign shapes only, no letters. Transparent background outside the lot.
+A friendly job centre with a speech-bubble sign shape, a notice board of job cards outside and a queue line rope. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background.
 
 ### `building-college`
 
 - File: `public/fuse-lane/buildings/college.png`
 - Canvas: 512 × 512 px
-- Anchor: (0.5, 0.9)
+- Anchor: (0.5, 0.92)
 - Background: transparent
 
-A small red-brick city college with columns, a clock above the entrance, steps and a tree with a bench. Isometric three-quarter view from about 35 degrees above, front door facing the viewer and the street. The building stands on its own small lot with a strip of sidewalk in front, a few plants and small street details, centred and filling about 85% of the canvas. Blank sign shapes only, no letters. Transparent background outside the lot.
+A small red-brick city college with columns, a clock above the entrance, steps and a tree with a bench. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background.
 
 ### `building-gadget`
 
 - File: `public/fuse-lane/buildings/gadget.png`
 - Canvas: 512 × 512 px
-- Anchor: (0.5, 0.9)
+- Anchor: (0.5, 0.92)
 - Background: transparent
 
-An electronics store with a giant plug-shaped sign shape, glowing screens in the window and a delivery van. Isometric three-quarter view from about 35 degrees above, front door facing the viewer and the street. The building stands on its own small lot with a strip of sidewalk in front, a few plants and small street details, centred and filling about 85% of the canvas. Blank sign shapes only, no letters. Transparent background outside the lot.
+An electronics store with a giant plug-shaped sign shape, glowing screens in the window and a delivery van. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background.
 
 ### `building-threads`
 
 - File: `public/fuse-lane/buildings/threads.png`
 - Canvas: 512 × 512 px
-- Anchor: (0.5, 0.9)
+- Anchor: (0.5, 0.92)
 - Background: transparent
 
-A stylish clothing boutique with mannequins in the window, a hanger-shaped sign shape and a pink awning. Isometric three-quarter view from about 35 degrees above, front door facing the viewer and the street. The building stands on its own small lot with a strip of sidewalk in front, a few plants and small street details, centred and filling about 85% of the canvas. Blank sign shapes only, no letters. Transparent background outside the lot.
+A stylish clothing boutique with mannequins in the window, a hanger-shaped sign shape and a pink awning. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background.
 
 ### `building-mono`
 
 - File: `public/fuse-lane/buildings/mono.png`
 - Canvas: 512 × 512 px
-- Anchor: (0.5, 0.9)
+- Anchor: (0.5, 0.92)
 - Background: transparent
 
-A retro drive-thru burger joint with a giant burger on the roof, a drive-thru lane and a neon-style menu board. Isometric three-quarter view from about 35 degrees above, front door facing the viewer and the street. The building stands on its own small lot with a strip of sidewalk in front, a few plants and small street details, centred and filling about 85% of the canvas. Blank sign shapes only, no letters. Transparent background outside the lot.
+A retro drive-thru burger joint with a giant burger on the roof, a drive-thru lane and a neon-style menu board. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background.
 
 ### `building-megamart`
 
 - File: `public/fuse-lane/buildings/megamart.png`
 - Canvas: 512 × 512 px
-- Anchor: (0.5, 0.9)
+- Anchor: (0.5, 0.92)
 - Background: transparent
 
-A big-box discount warehouse store with a huge flat roof, stacked pallets, a cart corral and bargain banners without text. Isometric three-quarter view from about 35 degrees above, front door facing the viewer and the street. The building stands on its own small lot with a strip of sidewalk in front, a few plants and small street details, centred and filling about 85% of the canvas. Blank sign shapes only, no letters. Transparent background outside the lot.
+A big-box discount warehouse store with a huge flat roof, stacked pallets, a cart corral and bargain banners without text. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background.
 
 ### `building-resale`
 
 - File: `public/fuse-lane/buildings/resale.png`
 - Canvas: 512 × 512 px
-- Anchor: (0.5, 0.9)
+- Anchor: (0.5, 0.92)
 - Background: transparent
 
-A quirky second-hand shop with a cluttered window of lamps, guitars and teapots, and a hand-painted sign shape. Isometric three-quarter view from about 35 degrees above, front door facing the viewer and the street. The building stands on its own small lot with a strip of sidewalk in front, a few plants and small street details, centred and filling about 85% of the canvas. Blank sign shapes only, no letters. Transparent background outside the lot.
+A quirky second-hand shop with a cluttered window of lamps, guitars and teapots, and a hand-painted sign shape. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background.
 
 ## Characters
 
@@ -149,7 +158,7 @@ A quirky second-hand shop with a cluttered window of lamps, guitars and teapots,
 - Anchor: (0.5, 0.94)
 - Background: transparent
 
-Full-body game character: a friendly boxy robot with an antenna and a tote bag, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Stylised but believable proportions (slightly large head). Transparent background.
+Full-body game character: a friendly boxy robot with an antenna and a tote bag, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Chibi proportions (head about 40% of height). Transparent background.
 
 ### `avatar-robot-walk`
 
@@ -158,7 +167,7 @@ Full-body game character: a friendly boxy robot with an antenna and a tote bag, 
 - Anchor: (0.5, 0.94)
 - Background: transparent
 
-Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a friendly boxy robot with an antenna and a tote bag, walking to the right, frame 1 left foot forward, frame 2 right foot forward, clearly different leg and arm positions between the two frames, identical scale and baseline in both frames, small soft oval shadow under the feet. Stylised but believable proportions. Transparent background.
+Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a friendly boxy robot with an antenna and a tote bag, walking to the right, frame 1 left foot forward, frame 2 right foot forward, identical scale and baseline in both frames, small soft oval shadow under the feet. Chibi proportions. Transparent background.
 
 ### `avatar-robot-portrait`
 
@@ -176,7 +185,7 @@ Head-and-shoulders portrait of a friendly boxy robot with an antenna and a tote 
 - Anchor: (0.5, 0.94)
 - Background: transparent
 
-Full-body game character: an orange tabby cat in a hoodie and sneakers, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Stylised but believable proportions (slightly large head). Transparent background.
+Full-body game character: an orange tabby cat in a hoodie and sneakers, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Chibi proportions (head about 40% of height). Transparent background.
 
 ### `avatar-cat-walk`
 
@@ -185,7 +194,7 @@ Full-body game character: an orange tabby cat in a hoodie and sneakers, standing
 - Anchor: (0.5, 0.94)
 - Background: transparent
 
-Two-frame walk cycle sprite sheet, side by side, each frame 256x256: an orange tabby cat in a hoodie and sneakers, walking to the right, frame 1 left foot forward, frame 2 right foot forward, clearly different leg and arm positions between the two frames, identical scale and baseline in both frames, small soft oval shadow under the feet. Stylised but believable proportions. Transparent background.
+Two-frame walk cycle sprite sheet, side by side, each frame 256x256: an orange tabby cat in a hoodie and sneakers, walking to the right, frame 1 left foot forward, frame 2 right foot forward, identical scale and baseline in both frames, small soft oval shadow under the feet. Chibi proportions. Transparent background.
 
 ### `avatar-cat-portrait`
 
@@ -203,7 +212,7 @@ Head-and-shoulders portrait of an orange tabby cat in a hoodie and sneakers, smi
 - Anchor: (0.5, 0.94)
 - Background: transparent
 
-Full-body game character: a red fox in a denim jacket with a backpack, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Stylised but believable proportions (slightly large head). Transparent background.
+Full-body game character: a red fox in a denim jacket with a backpack, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Chibi proportions (head about 40% of height). Transparent background.
 
 ### `avatar-fox-walk`
 
@@ -212,7 +221,7 @@ Full-body game character: a red fox in a denim jacket with a backpack, standing 
 - Anchor: (0.5, 0.94)
 - Background: transparent
 
-Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a red fox in a denim jacket with a backpack, walking to the right, frame 1 left foot forward, frame 2 right foot forward, clearly different leg and arm positions between the two frames, identical scale and baseline in both frames, small soft oval shadow under the feet. Stylised but believable proportions. Transparent background.
+Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a red fox in a denim jacket with a backpack, walking to the right, frame 1 left foot forward, frame 2 right foot forward, identical scale and baseline in both frames, small soft oval shadow under the feet. Chibi proportions. Transparent background.
 
 ### `avatar-fox-portrait`
 
@@ -230,7 +239,7 @@ Head-and-shoulders portrait of a red fox in a denim jacket with a backpack, smil
 - Anchor: (0.5, 0.94)
 - Background: transparent
 
-Full-body game character: a small green alien with big eyes, wearing a bomber jacket, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Stylised but believable proportions (slightly large head). Transparent background.
+Full-body game character: a small green alien with big eyes, wearing a bomber jacket, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Chibi proportions (head about 40% of height). Transparent background.
 
 ### `avatar-alien-walk`
 
@@ -239,7 +248,7 @@ Full-body game character: a small green alien with big eyes, wearing a bomber ja
 - Anchor: (0.5, 0.94)
 - Background: transparent
 
-Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a small green alien with big eyes, wearing a bomber jacket, walking to the right, frame 1 left foot forward, frame 2 right foot forward, clearly different leg and arm positions between the two frames, identical scale and baseline in both frames, small soft oval shadow under the feet. Stylised but believable proportions. Transparent background.
+Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a small green alien with big eyes, wearing a bomber jacket, walking to the right, frame 1 left foot forward, frame 2 right foot forward, identical scale and baseline in both frames, small soft oval shadow under the feet. Chibi proportions. Transparent background.
 
 ### `avatar-alien-portrait`
 
@@ -257,7 +266,7 @@ Head-and-shoulders portrait of a small green alien with big eyes, wearing a bomb
 - Anchor: (0.5, 0.94)
 - Background: transparent
 
-Full-body game character: a kid-sized astronaut in a white suit with the visor up, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Stylised but believable proportions (slightly large head). Transparent background.
+Full-body game character: a kid-sized astronaut in a white suit with the visor up, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Chibi proportions (head about 40% of height). Transparent background.
 
 ### `avatar-astronaut-walk`
 
@@ -266,7 +275,7 @@ Full-body game character: a kid-sized astronaut in a white suit with the visor u
 - Anchor: (0.5, 0.94)
 - Background: transparent
 
-Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a kid-sized astronaut in a white suit with the visor up, walking to the right, frame 1 left foot forward, frame 2 right foot forward, clearly different leg and arm positions between the two frames, identical scale and baseline in both frames, small soft oval shadow under the feet. Stylised but believable proportions. Transparent background.
+Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a kid-sized astronaut in a white suit with the visor up, walking to the right, frame 1 left foot forward, frame 2 right foot forward, identical scale and baseline in both frames, small soft oval shadow under the feet. Chibi proportions. Transparent background.
 
 ### `avatar-astronaut-portrait`
 
@@ -284,7 +293,7 @@ Head-and-shoulders portrait of a kid-sized astronaut in a white suit with the vi
 - Anchor: (0.5, 0.94)
 - Background: transparent
 
-Full-body game character: a cheerful skeleton in a beanie and a striped shirt, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Stylised but believable proportions (slightly large head). Transparent background.
+Full-body game character: a cheerful skeleton in a beanie and a striped shirt, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Chibi proportions (head about 40% of height). Transparent background.
 
 ### `avatar-skull-walk`
 
@@ -293,7 +302,7 @@ Full-body game character: a cheerful skeleton in a beanie and a striped shirt, s
 - Anchor: (0.5, 0.94)
 - Background: transparent
 
-Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a cheerful skeleton in a beanie and a striped shirt, walking to the right, frame 1 left foot forward, frame 2 right foot forward, clearly different leg and arm positions between the two frames, identical scale and baseline in both frames, small soft oval shadow under the feet. Stylised but believable proportions. Transparent background.
+Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a cheerful skeleton in a beanie and a striped shirt, walking to the right, frame 1 left foot forward, frame 2 right foot forward, identical scale and baseline in both frames, small soft oval shadow under the feet. Chibi proportions. Transparent background.
 
 ### `avatar-skull-portrait`
 
@@ -311,7 +320,7 @@ Head-and-shoulders portrait of a cheerful skeleton in a beanie and a striped shi
 - Anchor: (0.5, 0.94)
 - Background: transparent
 
-Full-body game character: a purple octopus walking on two tentacles, holding a coffee cup, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Stylised but believable proportions (slightly large head). Transparent background.
+Full-body game character: a purple octopus walking on two tentacles, holding a coffee cup, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Chibi proportions (head about 40% of height). Transparent background.
 
 ### `avatar-octopus-walk`
 
@@ -320,7 +329,7 @@ Full-body game character: a purple octopus walking on two tentacles, holding a c
 - Anchor: (0.5, 0.94)
 - Background: transparent
 
-Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a purple octopus walking on two tentacles, holding a coffee cup, walking to the right, frame 1 left foot forward, frame 2 right foot forward, clearly different leg and arm positions between the two frames, identical scale and baseline in both frames, small soft oval shadow under the feet. Stylised but believable proportions. Transparent background.
+Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a purple octopus walking on two tentacles, holding a coffee cup, walking to the right, frame 1 left foot forward, frame 2 right foot forward, identical scale and baseline in both frames, small soft oval shadow under the feet. Chibi proportions. Transparent background.
 
 ### `avatar-octopus-portrait`
 
@@ -338,7 +347,7 @@ Head-and-shoulders portrait of a purple octopus walking on two tentacles, holdin
 - Anchor: (0.5, 0.94)
 - Background: transparent
 
-Full-body game character: a small teal dragon in a cardigan with tiny wings, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Stylised but believable proportions (slightly large head). Transparent background.
+Full-body game character: a small teal dragon in a cardigan with tiny wings, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Chibi proportions (head about 40% of height). Transparent background.
 
 ### `avatar-dragon-walk`
 
@@ -347,7 +356,7 @@ Full-body game character: a small teal dragon in a cardigan with tiny wings, sta
 - Anchor: (0.5, 0.94)
 - Background: transparent
 
-Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a small teal dragon in a cardigan with tiny wings, walking to the right, frame 1 left foot forward, frame 2 right foot forward, clearly different leg and arm positions between the two frames, identical scale and baseline in both frames, small soft oval shadow under the feet. Stylised but believable proportions. Transparent background.
+Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a small teal dragon in a cardigan with tiny wings, walking to the right, frame 1 left foot forward, frame 2 right foot forward, identical scale and baseline in both frames, small soft oval shadow under the feet. Chibi proportions. Transparent background.
 
 ### `avatar-dragon-portrait`
 
@@ -365,7 +374,7 @@ Head-and-shoulders portrait of a small teal dragon in a cardigan with tiny wings
 - Anchor: (0.5, 0.94)
 - Background: transparent
 
-Full-body game character: a round brown owl with glasses and a messenger bag, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Stylised but believable proportions (slightly large head). Transparent background.
+Full-body game character: a round brown owl with glasses and a messenger bag, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Chibi proportions (head about 40% of height). Transparent background.
 
 ### `avatar-owl-walk`
 
@@ -374,7 +383,7 @@ Full-body game character: a round brown owl with glasses and a messenger bag, st
 - Anchor: (0.5, 0.94)
 - Background: transparent
 
-Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a round brown owl with glasses and a messenger bag, walking to the right, frame 1 left foot forward, frame 2 right foot forward, clearly different leg and arm positions between the two frames, identical scale and baseline in both frames, small soft oval shadow under the feet. Stylised but believable proportions. Transparent background.
+Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a round brown owl with glasses and a messenger bag, walking to the right, frame 1 left foot forward, frame 2 right foot forward, identical scale and baseline in both frames, small soft oval shadow under the feet. Chibi proportions. Transparent background.
 
 ### `avatar-owl-portrait`
 
@@ -392,7 +401,7 @@ Head-and-shoulders portrait of a round brown owl with glasses and a messenger ba
 - Anchor: (0.5, 0.94)
 - Background: transparent
 
-Full-body game character: a cute lime-green slime blob wearing a baseball cap, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Stylised but believable proportions (slightly large head). Transparent background.
+Full-body game character: a cute lime-green slime blob wearing a baseball cap, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Chibi proportions (head about 40% of height). Transparent background.
 
 ### `avatar-slime-walk`
 
@@ -401,7 +410,7 @@ Full-body game character: a cute lime-green slime blob wearing a baseball cap, s
 - Anchor: (0.5, 0.94)
 - Background: transparent
 
-Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a cute lime-green slime blob wearing a baseball cap, walking to the right, frame 1 left foot forward, frame 2 right foot forward, clearly different leg and arm positions between the two frames, identical scale and baseline in both frames, small soft oval shadow under the feet. Stylised but believable proportions. Transparent background.
+Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a cute lime-green slime blob wearing a baseball cap, walking to the right, frame 1 left foot forward, frame 2 right foot forward, identical scale and baseline in both frames, small soft oval shadow under the feet. Chibi proportions. Transparent background.
 
 ### `avatar-slime-portrait`
 

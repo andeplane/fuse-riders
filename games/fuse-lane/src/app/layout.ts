@@ -30,153 +30,258 @@ export interface Lot extends Point {
   t: number;
 }
 
+/**
+ * The street's centre line: a smooth closed curve (a rounded, gently wobbling loop), sampled densely and walked by
+ * arc length. `t` runs 0..1 clockwise from the top middle; every sample has its outward normal.
+ */
+export interface Street {
+  xs: number[];
+  ys: number[];
+  nxs: number[];
+  nys: number[];
+  /** Arc length from the start to each sample; the last entry closes the loop. */
+  lengths: number[];
+  total: number;
+}
+
 export interface Geometry {
   width: number;
   height: number;
-  /** The street's centre line: a rounded rectangle and its corner radius. */
+  /** The street's centre line and its bounding box. */
+  street: Street;
   left: number;
   top: number;
   right: number;
   bottom: number;
-  radius: number;
   /** Width of the asphalt, of each sidewalk, and of a building sprite. */
   road: number;
   walk: number;
   size: number;
   /** Portrait phone: a tall loop, and panels that use the full width. */
   compact: boolean;
-  /** Inside the inner sidewalk. */
+  /** The biggest rectangle inside the inner sidewalk. */
   park: Rect;
   /** Where place panels, the briefing, the handoff and the result open. */
   panel: Rect;
-  /** Every lot around the loop, clockwise from the top left corner. */
+  /** Every lot around the loop, clockwise from the top middle. */
   lots: Lot[];
-  /** The lot of each place (by place index); the other lots are little parks. */
+  /** The lot of each place (by place index); the other lots stay lawn. */
   placeLot: number[];
   /** Places sorted by ring position, with their ring and street position: `ringToT` interpolates between them. */
   knots: { ring: number; t: number }[];
 }
 
 const NO_INSETS: Insets = { top: 0, bottom: 0, left: 0, right: 0 };
-/** Fewest lots a layout may have: every place plus a couple of little parks. */
+/** Fewest lots a layout may have: every place plus a couple of empty ones. */
 export const MIN_LOTS = 15;
+/** Samples on the street's centre line. */
+const SAMPLES = 960;
 
 /** The street's dimensions for building size `size`. */
 function streetFor(size: number) {
   return {
-    road: Math.max(16, size * 0.3),
-    walk: Math.max(7, size * 0.11),
-    gap: size * 0.04,
+    road: Math.max(14, size * 0.26),
+    walk: Math.max(5, size * 0.08),
+    gap: size * 0.1,
   };
 }
 
-/** Lot centres around the rectangle (x0, y0)–(x1, y1), clockwise from its top left corner, at least `spacing` apart. */
-export function lotRing(
-  x0: number,
-  y0: number,
-  x1: number,
-  y1: number,
-  spacing: number,
-): { x: number; y: number; side: Side }[] {
-  const lots: { x: number; y: number; side: Side }[] = [];
-  const across = Math.max(1, Math.floor((x1 - x0) / spacing)),
-    down = Math.max(1, Math.floor((y1 - y0) / spacing));
-  for (let i = 0; i <= across; i++)
-    lots.push({ x: x0 + ((x1 - x0) * i) / across, y: y0, side: "top" });
-  for (let i = 1; i < down; i++)
-    lots.push({ x: x1, y: y0 + ((y1 - y0) * i) / down, side: "right" });
-  for (let i = 0; i <= across; i++)
-    lots.push({ x: x1 - ((x1 - x0) * i) / across, y: y1, side: "bottom" });
-  for (let i = 1; i < down; i++)
-    lots.push({ x: x0, y: y1 - ((y1 - y0) * i) / down, side: "left" });
-  return lots;
-}
-
-/** The street's length segments: top, corner, right, corner, bottom, corner, left, corner. */
-function segments(
-  g: Pick<Geometry, "left" | "right" | "top" | "bottom" | "radius">,
-) {
-  const r = g.radius,
-    w = g.right - g.left - 2 * r,
-    h = g.bottom - g.top - 2 * r,
-    arc = (Math.PI / 2) * r;
-  return [w, arc, h, arc, w, arc, h, arc];
+/**
+ * The loop for the box (left, top)–(right, bottom): a squircle (rounder than a rectangle, fuller than an ellipse)
+ * with a few slow bends, scaled back to fill the box exactly.
+ */
+export function makeStreet(
+  left: number,
+  top: number,
+  right: number,
+  bottom: number,
+  samples = SAMPLES,
+): Street {
+  const cx = (left + right) / 2,
+    cy = (top + bottom) / 2;
+  const raw: [number, number][] = [];
+  for (let i = 0; i < samples; i++) {
+    const angle = -Math.PI / 2 + (i / samples) * Math.PI * 2,
+      c = Math.cos(angle),
+      s = Math.sin(angle);
+    // Exponent 2/3 of a superellipse (n = 3), plus gentle bends that change along the loop.
+    const bend =
+      1 +
+      0.05 * Math.sin(3 * angle + 0.6) +
+      0.03 * Math.sin(5 * angle + 2.1) +
+      0.015 * Math.cos(2 * angle);
+    raw.push([
+      Math.sign(c) * Math.abs(c) ** (2 / 3) * bend,
+      Math.sign(s) * Math.abs(s) ** (2 / 3) * bend,
+    ]);
+  }
+  let minX = Infinity,
+    maxX = -Infinity,
+    minY = Infinity,
+    maxY = -Infinity;
+  for (const [x, y] of raw) {
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+  }
+  const xs = raw.map(
+      ([x]) => left + ((x - minX) / (maxX - minX)) * (right - left),
+    ),
+    ys = raw.map(
+      ([, y]) => top + ((y - minY) / (maxY - minY)) * (bottom - top),
+    );
+  const nxs: number[] = [],
+    nys: number[] = [],
+    lengths: number[] = [0];
+  for (let i = 0; i < samples; i++) {
+    const a = (i - 1 + samples) % samples,
+      b = (i + 1) % samples;
+    const dx = xs[b]! - xs[a]!,
+      dy = ys[b]! - ys[a]!,
+      d = Math.hypot(dx, dy) || 1;
+    // Clockwise on screen (y down): the outward normal is the tangent turned a quarter to the left.
+    let nx = dy / d,
+      ny = -dx / d;
+    if (nx * (xs[i]! - cx) + ny * (ys[i]! - cy) < 0) [nx, ny] = [-nx, -ny];
+    nxs.push(nx);
+    nys.push(ny);
+    const next = (i + 1) % samples;
+    lengths.push(
+      lengths[i]! + Math.hypot(xs[next]! - xs[i]!, ys[next]! - ys[i]!),
+    );
+  }
+  return { xs, ys, nxs, nys, lengths, total: lengths[samples]! };
 }
 
 /**
- * The point on the street at position `t` (0..1, wrapping), clockwise from where the top straight begins, moved
- * `offset` px outward (negative: toward the park), with the outward normal there.
+ * The point on the street at position `t` (0..1, wrapping), clockwise from the top middle, moved `offset` px outward
+ * (negative: toward the park), with the outward normal there.
  */
 export function streetPoint(
-  g: Pick<Geometry, "left" | "right" | "top" | "bottom" | "radius">,
+  g: Pick<Geometry, "street">,
   t: number,
   offset = 0,
 ): Point & { nx: number; ny: number } {
-  const r = g.radius,
-    parts = segments(g),
-    total = parts.reduce((sum, length) => sum + length, 0);
-  let d = (((t % 1) + 1) % 1) * total;
-  const corners = [
-    { x: g.right - r, y: g.top + r, from: -Math.PI / 2 },
-    { x: g.right - r, y: g.bottom - r, from: 0 },
-    { x: g.left + r, y: g.bottom - r, from: Math.PI / 2 },
-    { x: g.left + r, y: g.top + r, from: Math.PI },
-  ];
-  for (let index = 0; index < 8; index++) {
-    const length = parts[index]!;
-    if (d <= length || index === 7) {
-      const f = length > 0 ? Math.min(1, d / length) : 0;
-      const w = parts[0]!,
-        h = parts[2]!;
-      let x: number, y: number, nx: number, ny: number;
-      switch (index) {
-        case 0:
-          [x, y, nx, ny] = [g.left + r + f * w, g.top, 0, -1];
-          break;
-        case 2:
-          [x, y, nx, ny] = [g.right, g.top + r + f * h, 1, 0];
-          break;
-        case 4:
-          [x, y, nx, ny] = [g.right - r - f * w, g.bottom, 0, 1];
-          break;
-        case 6:
-          [x, y, nx, ny] = [g.left, g.bottom - r - f * h, -1, 0];
-          break;
-        default: {
-          const corner = corners[(index - 1) / 2]!,
-            angle = corner.from + (f * Math.PI) / 2;
-          nx = Math.cos(angle);
-          ny = Math.sin(angle);
-          x = corner.x + nx * r;
-          y = corner.y + ny * r;
-        }
-      }
-      return { x: x + nx * offset, y: y + ny * offset, nx, ny };
-    }
-    d -= length;
+  const { xs, ys, nxs, nys, lengths, total } = g.street,
+    n = xs.length;
+  const d = (((t % 1) + 1) % 1) * total;
+  let lo = 0,
+    hi = n;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (lengths[mid]! <= d) lo = mid;
+    else hi = mid;
   }
-  /* c8 ignore next */
-  return { x: g.left, y: g.top, nx: 0, ny: -1 };
+  const a = lo % n,
+    b = (lo + 1) % n,
+    span = lengths[lo + 1]! - lengths[lo]!,
+    f = span > 0 ? (d - lengths[lo]!) / span : 0;
+  let nx = nxs[a]! + (nxs[b]! - nxs[a]!) * f,
+    ny = nys[a]! + (nys[b]! - nys[a]!) * f;
+  const norm = Math.hypot(nx, ny) || 1;
+  nx /= norm;
+  ny /= norm;
+  const x = xs[a]! + (xs[b]! - xs[a]!) * f,
+    y = ys[a]! + (ys[b]! - ys[a]!) * f;
+  return { x: x + nx * offset, y: y + ny * offset, nx, ny };
 }
 
-/** The street position nearest to a point (sampled finely: the board asks once per layout). */
-export function nearestT(
-  g: Pick<Geometry, "left" | "right" | "top" | "bottom" | "radius">,
-  point: Point,
-  samples = 720,
-): number {
+/** The street position nearest to a point. */
+export function nearestT(g: Pick<Geometry, "street">, point: Point): number {
+  const { xs, ys, lengths, total } = g.street;
   let best = 0,
     bestDistance = Infinity;
-  for (let i = 0; i < samples; i++) {
-    const t = i / samples,
-      p = streetPoint(g, t),
-      distance = (p.x - point.x) ** 2 + (p.y - point.y) ** 2;
+  for (let i = 0; i < xs.length; i++) {
+    const distance = (xs[i]! - point.x) ** 2 + (ys[i]! - point.y) ** 2;
     if (distance < bestDistance) {
-      best = t;
+      best = i;
       bestDistance = distance;
     }
   }
-  return best;
+  return lengths[best]! / total;
+}
+
+/**
+ * Lot centres `reach` px outside the street, as many as fit with neighbouring square lots at least `spacing` apart
+ * (the larger of the x and y distance, so axis-aligned lots never touch, on the bends too), spread out evenly.
+ */
+export function lotsAlong(
+  g: Pick<Geometry, "street">,
+  reach: number,
+  spacing: number,
+): Lot[] {
+  const steps = 1440,
+    points = Array.from({ length: steps }, (_, i) => {
+      const t = i / steps;
+      return { ...streetPoint(g, t, reach), t };
+    });
+  const apart = (a: Point, b: Point) =>
+    Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+  /** Greedy lots at `gap` apart from the first sample; the gap that closes the loop comes last. */
+  const greedy = (gap: number) => {
+    const picked = [0];
+    for (let i = 1; i < steps; i++)
+      if (apart(points[i]!, points[picked[picked.length - 1]!]!) >= gap)
+        picked.push(i);
+    while (
+      picked.length > 1 &&
+      apart(points[picked[picked.length - 1]!]!, points[0]!) < gap
+    )
+      picked.pop();
+    return picked;
+  };
+  // The widest gap that still fits as many lots as `spacing` does: the lots spread evenly round the loop.
+  const count = greedy(spacing).length;
+  let low = spacing,
+    high = spacing * 2;
+  for (let k = 0; k < 24; k++) {
+    const mid = (low + high) / 2;
+    if (greedy(mid).length >= count) low = mid;
+    else high = mid;
+  }
+  return greedy(low).map((index) => {
+    const p = points[index]!;
+    const side: Side =
+      Math.abs(p.nx) > Math.abs(p.ny)
+        ? p.nx > 0
+          ? "right"
+          : "left"
+        : p.ny > 0
+          ? "bottom"
+          : "top";
+    return { x: p.x, y: p.y, side, t: p.t };
+  });
+}
+
+/** The biggest centred rectangle inside the street's inner sidewalk (`inner` px in from the centre line). */
+function parkFor(g: Pick<Geometry, "street">, inner: number): Rect {
+  const edge = Array.from({ length: 360 }, (_, i) =>
+    streetPoint(g, i / 360, -inner),
+  );
+  const cx = edge.reduce((sum, p) => sum + p.x, 0) / edge.length,
+    cy = edge.reduce((sum, p) => sum + p.y, 0) / edge.length;
+  const reachX = Math.max(...edge.map((p) => Math.abs(p.x - cx)));
+  const candidates: { hw: number; hh: number }[] = [];
+  for (let k = 1; k <= 60; k++) {
+    const hw = (reachX * k) / 60;
+    // No edge point may fall inside the rectangle: those within the half width cap the half height.
+    let hh = Infinity;
+    for (const p of edge)
+      if (Math.abs(p.x - cx) < hw) hh = Math.min(hh, Math.abs(p.y - cy));
+    candidates.push({ hw, hh });
+  }
+  // The widest that keeps most of the height: the rivals sit in its corners and the panel centres on it.
+  const tallest = candidates[0]!.hh;
+  let best = candidates[0]!;
+  for (const candidate of candidates)
+    if (
+      candidate.hh >= tallest * 0.6 &&
+      candidate.hw * candidate.hh >= best.hw * best.hh * 0.9 &&
+      candidate.hw > best.hw
+    )
+      best = candidate;
+  return { x: cx - best.hw, y: cy - best.hh, w: 2 * best.hw, h: 2 * best.hh };
 }
 
 const wrap = (value: number) => ((value % 1) + 1) % 1;
@@ -246,34 +351,42 @@ function layoutFor(
   // Lot centres: half a sprite in from the free edges (the sprite reaches a little higher than its lot).
   const x0 = insets.left + size * 0.52,
     x1 = width - insets.right - size * 0.52,
-    y0 = insets.top + size * 0.5,
+    y0 = insets.top + size * 0.53,
     y1 = height - insets.bottom - size * 0.52;
   const left = x0 + reach,
     right = x1 - reach,
     top = y0 + reach,
     bottom = y1 - reach;
   const inner = road / 2 + walk;
-  const park: Rect = {
-    x: left + inner,
-    y: top + inner,
-    w: right - left - 2 * inner,
-    h: bottom - top - 2 * inner,
-  };
   const minimum = compact ? [0.22, 0.3] : [0.34, 0.34];
   if (
-    park.w < Math.max(60, width * minimum[0]!) ||
-    park.h < Math.max(60, height * minimum[1]!)
+    right - left - 2 * inner < Math.max(60, width * minimum[0]!) ||
+    bottom - top - 2 * inner < Math.max(60, height * minimum[1]!)
   )
     return;
-  const radius = Math.min(
-    Math.max(road * 1.4, Math.min(park.w, park.h) * 0.12),
-    (right - left) / 2,
-    (bottom - top) / 2,
-  );
-  const street = { left, right, top, bottom, radius };
-  const ring = lotRing(x0, y0, x1, y1, size * 1.04);
-  if (ring.length < Math.max(MIN_LOTS, rings.length)) return;
-  const lots: Lot[] = ring.map((lot) => ({ ...lot, t: nearestT(street, lot) }));
+  const street = { street: makeStreet(left, top, right, bottom) };
+  const lots = lotsAlong(street, reach, size * 1.08);
+  if (lots.length < Math.max(MIN_LOTS, rings.length)) return;
+  // Every lot on the screen, clear of the HUD, and no two lots touching.
+  const boxes = lots.map((lot) => lotBox({ size }, lot));
+  for (const box of boxes)
+    if (
+      box.x < insets.left - 1 ||
+      box.x + box.w > width - insets.right + 1 ||
+      box.y < insets.top - 1 ||
+      box.y + box.h > height - insets.bottom + 1
+    )
+      return;
+  for (let i = 0; i < boxes.length; i++) {
+    const a = boxes[i]!,
+      b = boxes[(i + 1) % boxes.length]!;
+    if (
+      Math.abs(a.x - b.x) < size * 0.995 &&
+      Math.abs(a.y - b.y) < size * 1.015
+    )
+      return;
+  }
+  const park = parkFor(street, inner);
   const placeLot = assignLots(rings, lots);
   const knots = rings
     .map((ring, index) => ({ ring, t: lots[placeLot[index]!]!.t }))
@@ -305,6 +418,10 @@ function layoutFor(
     width,
     height,
     ...street,
+    left,
+    top,
+    right,
+    bottom,
     road,
     walk,
     size,
@@ -329,7 +446,7 @@ export function geometry(
   compact = width < 700 && height > width,
 ): Geometry {
   const short = Math.min(width, height);
-  const biggest = Math.max(40, Math.min(190, short * (compact ? 0.3 : 0.2)));
+  const biggest = Math.max(40, Math.min(190, short * (compact ? 0.3 : 0.17)));
   for (let size = biggest; size >= 24; size -= 2) {
     const layout = layoutFor(width, height, insets, size, compact, rings);
     if (layout) return layout;

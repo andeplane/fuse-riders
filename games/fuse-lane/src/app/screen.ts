@@ -515,7 +515,8 @@ export function createGameScreen(
     showToast(next.toast);
     rivals.render(next.scores);
     panelStandings.render(next.scores);
-    rivals.element.hidden = !h || modal;
+    // An open panel covers the park, so the rivals in its corners step aside (the panel shows them on phones).
+    rivals.element.hidden = !h || modal || !panel.hidden || !you.hidden;
     // Briefing.
     briefing.hidden = !next.briefing;
     if (next.briefing) {
