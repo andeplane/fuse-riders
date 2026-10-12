@@ -2,6 +2,8 @@
 
 _Game id and routes: `fuse-lane`._
 
+Fusetown is an unofficial homage inspired by _Jones in the Fast Lane_ (Sierra On-Line, 1990). It borrows the original's idea of a week against the clock and four goals; the code, art and text are our own, and it is not affiliated with or endorsed by the original's rights holders.
+
 You live a week against the clock in Fusetown, a little harbour town with 14 places. You work, study, shop and invest in a town whose economy reacts to what you do. The first player to reach all four goals (wealth, happiness, education and career) in the same week wins; when several get there the same Monday, the one furthest past the goals wins (then the richest). The game is played on **one device**:
 
 - **Solo against 1–3 AI opponents.** Their level is easy, normal or hard.
