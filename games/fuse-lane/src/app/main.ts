@@ -1,3 +1,4 @@
+import "@fontsource-variable/nunito";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
@@ -25,11 +26,14 @@ import {
   GOAL_MIN,
   GOAL_NAMES,
   WEEK_SECONDS,
+  PLACES,
   fuseLaneGame,
   seatName,
   type FuseLaneSettings,
 } from "../game/index.js";
 import { createArt, type ArtImage } from "./art.js";
+import { drawBoard } from "./board.js";
+import { geometry } from "./layout.js";
 import { LocalMatch } from "./local.js";
 import { LocalRuntime } from "./local-runtime.js";
 import {
@@ -96,6 +100,56 @@ function header(extra: HTMLElement[] = []): HTMLElement {
   return bar;
 }
 
+/** A still picture of the city for the menu: the board with nobody on it, redrawn while its pictures load. */
+function cityPicture(): HTMLElement {
+  const frame = el("div", "", "fl-city"),
+    canvas = el("canvas");
+  canvas.setAttribute("aria-hidden", "true");
+  frame.append(canvas);
+  const places = PLACES.map((place, index) => ({
+    index,
+    id: place.id,
+    name: place.name,
+    ring: place.ring,
+    here: false,
+    dest: false,
+    work: false,
+  }));
+  const paint = () => {
+    const box = frame.getBoundingClientRect();
+    if (box.width < 10 || box.height < 10) return;
+    const ratio = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.round(box.width * ratio);
+    canvas.height = Math.round(box.height * ratio);
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    const shape = geometry(
+      box.width,
+      box.height,
+      places.map((place) => place.ring),
+      undefined,
+      false,
+    );
+    drawBoard(
+      context,
+      shape,
+      {
+        places,
+        players: [],
+        before: new Map(),
+        fraction: 1,
+        time: 0,
+        hover: -1,
+      },
+      art,
+      ratio,
+    );
+  };
+  for (const ms of [0, 250, 800, 2000, 4000]) setTimeout(paint, ms);
+  return frame;
+}
+
 // ---- the menu --------------------------------------------------------------------------------------------------
 
 function summary(match: LocalMatch): string {
@@ -125,6 +179,7 @@ function menu(): void {
       onDiscard: () => LocalRuntime.forget(store),
     }),
   );
+  app.querySelector(".fl-hero")?.append(cityPicture());
   window.scrollTo(0, 0);
 }
 
@@ -147,22 +202,23 @@ function local(match: LocalMatch, resumed = false): void {
     shared: false,
     local: true,
   };
-  const pause = button("PAUSE", "fl-leave fl-pause"),
-    quit = button("MENU", "fl-leave");
-  const top = header([pause, quit]);
+  const pause = button("", "fl-icon-button fl-pause"),
+    quit = button("", "fl-icon-button fl-quit");
+  quit.setAttribute("aria-label", "Save and go to the menu");
+  quit.append(el("span", "", "fl-icon-menu"));
   const screen = createGameScreen(art, viewer, () => runtime, {
+    controls: [pause, quit],
     again: {
       label: "PLAY AGAIN",
       run: () => startLocal(parseStoredSetup(store.getItem(SETUP_KEY))),
     },
     back: { label: "MENU", run: () => toMenu() },
   });
-  const paused = el("section", "", "fl-overlay fl-paused"),
-    pausedCard = el("div", "", "fl-sheet fl-paused-card"),
-    resume = button("RESUME", "fui-button-primary"),
+  const paused = el("section", "", "fl-sheet fl-paused"),
+    resume = button("RESUME", "fl-primary"),
     saveQuit = button("SAVE AND QUIT");
-  pausedCard.append(
-    el("h2", "PAUSED", "fl-result-title"),
+  paused.append(
+    el("h2", "PAUSED", "fl-banner"),
     el(
       "p",
       "The clock is stopped. Your game is saved on this device.",
@@ -171,11 +227,11 @@ function local(match: LocalMatch, resumed = false): void {
     resume,
     saveQuit,
   );
-  paused.append(pausedCard);
   paused.hidden = true;
-  const main = el("main", "", "fl-room");
-  main.append(...screen.elements, paused);
-  app.replaceChildren(top, main);
+  screen.centre.append(paused);
+  const main = el("main", "", "fl-room fl-playing");
+  main.append(...screen.elements);
+  app.replaceChildren(main);
   window.scrollTo(0, 0);
 
   const runtime = new LocalRuntime(
@@ -188,7 +244,12 @@ function local(match: LocalMatch, resumed = false): void {
       main.dataset.current = view.current;
       screen.render(model);
       paused.hidden = !runtime.paused;
-      text(pause, runtime.paused ? "RESUME" : "PAUSE");
+      screen.game.classList.toggle("paused", runtime.paused);
+      pause.classList.toggle("on", runtime.paused);
+      pause.setAttribute(
+        "aria-label",
+        runtime.paused ? "Resume the clock" : "Pause the clock",
+      );
       pause.hidden = view.phase !== "running";
     },
     localDeps,
@@ -335,7 +396,12 @@ function room(): void {
   addBot.onclick = () => runtime.command({ type: "bot", action: "add" });
   start.onclick = () => runtime.command({ type: "action", action: "start" });
 
+  const leaveGame = button("", "fl-icon-button fl-quit");
+  leaveGame.setAttribute("aria-label", "Leave the room");
+  leaveGame.append(el("span", "", "fl-icon-menu"));
+  leaveGame.onclick = () => leave.click();
   const screen = createGameScreen(art, viewer, () => runtime, {
+    controls: [leaveGame],
     again: {
       label: "REMATCH",
       run: () => runtime.command({ type: "action", action: "rematch" }),
