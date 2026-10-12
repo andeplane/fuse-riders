@@ -79,6 +79,10 @@ import {
   type FuseLanePlayerView,
   type FuseLaneView,
   type PlayerState,
+  FLU,
+  NO_EVENT,
+  PICKPOCKETS,
+  eventChip,
 } from "../game/index.js";
 import { tips, type Tip } from "./tips.js";
 import type { ChecklistModel } from "./checklist.js";
@@ -159,6 +163,8 @@ export interface HudModel {
   job: string;
   /** Short life status chips: food, clothes, rent. */
   chips: { label: string; warn: boolean }[];
+  /** This week's town event under the clock, or "" (`warn` for a hazard). */
+  event: { label: string; warn: boolean };
   /** What to do next, most pressing first (the you panel's Tips). */
   tips: string[];
   /** Whose week this is (hot-seat), and this Monday's private news for them. */
@@ -1062,6 +1068,14 @@ function hud(
         ? [{ label: `Loan ${money(me.loan)}`, warn: me.loanLate > 0 }]
         : []),
     ],
+    // This week's town event, all week: a hazard warns, an opportunity does not.
+    event: {
+      label:
+        view.economy.event === NO_EVENT
+          ? ""
+          : eventChip(view.economy.event, view.economy.eventArg),
+      warn: view.economy.event === PICKPOCKETS || view.economy.event === FLU,
+    },
   };
 }
 

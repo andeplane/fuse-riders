@@ -4,6 +4,16 @@ import {
   COURSES,
   EMPLOYERS,
   EXTENDED,
+  FESTIVAL,
+  FLU,
+  FLU_REST,
+  FUN_HAPPY,
+  JOB_FAIR,
+  OPEN_WEEK,
+  OVERTIME,
+  PICKPOCKETS,
+  POCKET_SAFE,
+  SALE,
   FRESHCO,
   GADGET,
   HOURS,
@@ -136,6 +146,20 @@ export function tips(view: FuseLaneView, you: string): Tip[] {
       NEOBANK,
     );
 
+  // This week's town event, when it touches you: hazards first, opportunities after the week's first shift.
+  const event = economy.event,
+    eventArg = economy.eventArg;
+  if (event === PICKPOCKETS && me.cash > POCKET_SAFE + 200)
+    add(
+      "Pickpockets about: bank your cash at Neobank before the weekend.",
+      NEOBANK,
+    );
+  if (event === FLU && me.relax < FLU_REST)
+    add(
+      `Flu going round: relax at ${PLACES[homePlace(me.home)]!.name} this week, or risk urgent care.`,
+      homePlace(me.home),
+    );
+
   if (!fed(me))
     add(
       owns(me, "fridge")
@@ -168,6 +192,26 @@ export function tips(view: FuseLaneView, you: string): Tip[] {
     add(
       `Work a shift at ${PLACES[workplace]!.name}: ${HOURS.work} hours, paid as 8.`,
       workplace,
+    );
+
+  if (job && event === OVERTIME && eventArg === job.employer)
+    add(
+      `Rush pay: shifts at ${PLACES[workplace]!.name} pay 50% more this week.`,
+      workplace,
+    );
+  if (event === JOB_FAIR && !job)
+    add("Job fair: every employer is hiring this week.", JOBHUB);
+  if (event === OPEN_WEEK && education(me) < me.goals[2]!)
+    add("Open week: tuition is half price at City College.", COLLEGE);
+  if (event === SALE && me.cash >= 300)
+    add(
+      `Sale at ${PLACES[eventArg]!.name}: everything 25% off this week.`,
+      eventArg,
+    );
+  if (event === FESTIVAL && (me.flags & FUN_HAPPY) === 0 && me.cash >= 60)
+    add(
+      "Harbour festival: a night out at Mono Burger cheers twice as much.",
+      MONO,
     );
 
   if (job) {

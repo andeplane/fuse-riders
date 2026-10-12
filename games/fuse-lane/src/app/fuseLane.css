@@ -473,6 +473,22 @@ body.fl-page .fl-clock:enabled:hover {
 .fl-timer-text.low {
   color: var(--fl-coral);
 }
+/* This week's town event, under the clock. */
+.fl-event-text {
+  max-width: 8.5rem;
+  overflow: hidden;
+  color: var(--fl-forest);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fl-event-text.warn {
+  color: var(--fl-coral);
+}
+.fl-event-text[hidden] {
+  display: none;
+}
 .fl-badge {
   position: absolute;
   top: 2px;
@@ -505,6 +521,7 @@ body.fl-page .fl-clock:enabled:hover {
   color: #b9c7d2;
   font-size: 0.72rem;
   font-weight: 700;
+  white-space: nowrap;
 }
 .fl-hud-goals {
   display: flex;

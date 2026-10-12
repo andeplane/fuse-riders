@@ -16,6 +16,21 @@ import {
   RECESSION,
   type Cycle,
 } from "./data/economy.js";
+import {
+  EVENT_COUNT,
+  EVENT_ODDS,
+  JOB_FAIR,
+  NO_EVENT,
+  OPEN_WEEK,
+  OPEN_WEEK_SHARE,
+  OVERTIME,
+  OVERTIME_PAY,
+  OVERTIME_EMPLOYERS,
+  SALE,
+  SALE_PLACES,
+  SALE_SHARE,
+  eventHeadline,
+} from "./data/events.js";
 import { RENT, type ItemData } from "./data/items.js";
 import { COLLEGE_EMPLOYER } from "./data/places.js";
 import { COURSES, type JobData } from "./data/jobs.js";
@@ -76,6 +91,9 @@ export interface Economy {
   history: number[];
   /** Weeks stepped. */
   weeks: number;
+  /** This week's town event (`data/events.ts`, `NO_EVENT` for none) and its place or employer. */
+  event: number;
+  eventArg: number;
 }
 
 /** What one weekly step did, for headlines and for the player effects the week applies. */
@@ -154,6 +172,8 @@ export function createEconomy(): Economy {
     indexBase: 1,
     history: [],
     weeks: 0,
+    event: NO_EVENT,
+    eventArg: 0,
   };
   COMPANIES.forEach((_, index) => {
     economy.price[index] = r2(targetPrice(economy, index));
@@ -184,16 +204,54 @@ export function healthFactor(economy: Economy, employer: number): number {
   );
 }
 export const hiring = (economy: Economy, employer: number): boolean =>
+  economy.event === JOB_FAIR ||
   healthFactor(economy, employer) >= C.companies.freezeBelow;
 
-/** A shelf price: base × the category's index, at least $1. */
+/** A shelf price: base × the category's index, less a sale's discount, at least $1. */
 export const shelfPrice = (economy: Economy, item: ItemData): number =>
-  Math.max(1, Math.round(item.price * economy.prices[item.category]!));
+  Math.max(
+    1,
+    Math.round(
+      item.price *
+        economy.prices[item.category]! *
+        (economy.event === SALE && economy.eventArg === item.place
+          ? SALE_SHARE
+          : 1),
+    ),
+  );
 export const rentPrice = (economy: Economy, home: number): number =>
   Math.round(RENT[home]! * economy.prices[HOUSING]!);
 /** A course's tuition now: its fee × the education price index. */
 export const enrollFee = (economy: Economy, course: number): number =>
-  Math.round((COURSES[course]?.fee ?? 0) * economy.prices[EDUCATION]!);
+  Math.round(
+    (COURSES[course]?.fee ?? 0) *
+      economy.prices[EDUCATION]! *
+      (economy.event === OPEN_WEEK ? OPEN_WEEK_SHARE : 1),
+  );
+/** What a shift at `employer` pays this week, as a share of the wage. */
+export const shiftBonus = (economy: Economy, employer: number): number =>
+  economy.event === OVERTIME && economy.eventArg === employer
+    ? OVERTIME_PAY
+    : 1;
+
+/** Next week's town event: none some weeks, never the same kind twice running. */
+function nextEvent(economy: Economy, seeded: Seeded): void {
+  const last = economy.event;
+  if (randInt(seeded, 1, 100) > EVENT_ODDS) {
+    economy.event = NO_EVENT;
+    economy.eventArg = 0;
+    return;
+  }
+  let event = randInt(seeded, 0, EVENT_COUNT - 2);
+  if (last >= 0 && event >= last) event++;
+  economy.event = event;
+  economy.eventArg =
+    event === SALE
+      ? SALE_PLACES[randInt(seeded, 0, SALE_PLACES.length - 1)]!
+      : event === OVERTIME
+        ? randInt(seeded, 0, OVERTIME_EMPLOYERS - 1)
+        : 0;
+}
 /** What an employer offers for a position now: base × wage index × its health. */
 export const marketWage = (economy: Economy, job: JobData): number =>
   r2(
@@ -523,6 +581,9 @@ export function stepEconomy(
   if (economy.history.length > HISTORY) economy.history.shift();
   if (oldGrowth > 0 && economy.growth < 0 && cycle !== RECESSION)
     news.headlines.push("Growth dips below zero this week");
+  nextEvent(economy, seeded);
+  if (economy.event !== NO_EVENT)
+    news.headlines.unshift(eventHeadline(economy.event, economy.eventArg));
   if (news.headlines.length === 0)
     news.headlines.push(
       [

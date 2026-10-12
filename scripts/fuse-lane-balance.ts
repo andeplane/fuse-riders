@@ -5,10 +5,20 @@
  *
  *   pnpm exec tsx scripts/fuse-lane-balance.ts [--games 200] [--bots 4] [--level 2] [--goal 50]
  *   pnpm exec tsx scripts/fuse-lane-balance.ts --games 1 --trace 1 [--style Hustler]   # one bot's weeks
+ *   pnpm exec tsx scripts/fuse-lane-balance.ts --hero 2 --bots 3 --level 1 [--seconds 60] [--tap 10]
+ *
+ * `--hero LEVEL` seats a person in slot 0 against `--bots` rivals: the bot brain of that level plays the person's
+ * moves through ordinary entries, one tap every `--tap` ticks, under the real-time week clock, so it stands in for a
+ * sensible human who knows the game. Its win rate is the answer to "can a person beat these bots?".
  */
-import { ACTION, BOT, type StreamEntries } from "fuse-netcode";
-import { botStyle } from "../games/fuse-lane/src/game/bot.js";
+import { ACTION, BOT, JOIN, type StreamEntries } from "fuse-netcode";
+import { botMove, botStyle } from "../games/fuse-lane/src/game/bot.js";
+import { BRIEFING, WEEK } from "../games/fuse-lane/src/game/room.js";
 import {
+  ACT,
+  END_WEEK,
+  READY,
+  WALK,
   createRoom,
   foldTick,
   stats,
@@ -33,6 +43,10 @@ const GAMES = arg("games", 200),
   TRACE_STYLE = process.argv.includes("--style")
     ? process.argv[process.argv.indexOf("--style") + 1]
     : "";
+const HERO = arg("hero", -1),
+  SECONDS = arg("seconds", 60),
+  TAP = arg("tap", 10);
+const HERO_ID = "a";
 
 let seq = 0;
 function fold(room: FuseLaneRoom, bodies: Record<string, unknown[][]> = {}) {
@@ -47,7 +61,7 @@ function fold(room: FuseLaneRoom, bodies: Record<string, unknown[][]> = {}) {
 }
 
 const settings: FuseLaneSettings = {
-  weekSeconds: 45,
+  weekSeconds: HERO >= 0 ? SECONDS : 45,
   display: false,
   turns: true,
   level: LEVEL,
@@ -65,31 +79,59 @@ const winsByStyle = new Map<string, number>(),
 const runnerUp: number[] = [];
 const weeksByStyle = new Map<string, number[]>();
 const markets: number[][] = [];
+let heroWins = 0;
 let borrowers = 0,
   scratchCards = 0,
   usedBuys = 0,
   rich = 0;
+/**
+ * The person's next tap: READY on a briefing, otherwise the move the bot brain of level `HERO` would make, sent as the
+ * same entry a tap sends. A walk takes ticks; a tap waits `TAP` ticks after the last, like a person reading the panel.
+ */
+function heroEntries(room: FuseLaneRoom): unknown[][] {
+  const player = room.players[HERO_ID];
+  if (!player || room.stage !== "running") return [];
+  if (room.phase === BRIEFING) return player.ready ? [] : [[READY, room.week]];
+  if (room.phase !== WEEK || player.done || player.dest >= 0) return [];
+  if (room.tick < heroTap) return [];
+  heroTap = room.tick + TAP;
+  const level = room.level;
+  room.level = HERO;
+  const move = botMove(room, HERO_ID);
+  room.level = level;
+  if (move.kind === "walk") return [[WALK, room.week, move.place]];
+  if (move.kind === "act")
+    return [[ACT, room.week, move.place, move.action, move.a, move.b]];
+  return [[END_WEEK, room.week]];
+}
+let heroTap = 0;
+
 for (let game = 0; game < GAMES; game++) {
   const room = createRoom(`balance-${game}`, settings);
+  const first = HERO >= 0 ? 1 : 0;
   fold(room, {
-    a: Array.from({ length: BOTS }, (_, slot) => [
-      BOT,
-      "add",
-      `bot:${slot + 1}`,
-      `Bot ${slot + 1}`,
-      slot,
-    ]),
+    a: [
+      ...(HERO >= 0 ? [[JOIN, HERO_ID, "Hero", 0, "fox", 1]] : []),
+      ...Array.from({ length: BOTS }, (_, slot) => [
+        BOT,
+        "add",
+        `bot:${slot + 1}`,
+        `Bot ${slot + 1}`,
+        slot + first,
+      ]),
+    ],
   });
   room.goals = {};
   fold(room, { a: [[ACTION, "start", `g${game}`]] });
   for (const player of Object.values(room.players))
     player.goals = [GOAL, GOAL, GOAL, GOAL];
-  const first: Record<string, number[]> = {};
+  const reached: Record<string, number[]> = {};
+  heroTap = 0;
   let lastWeek = 0;
   const borrowed = new Set<string>();
   const seen: Record<string, number> = {};
   for (let n = 0; n < 20_000 && room.stage === "running"; n++) {
-    fold(room);
+    fold(room, HERO >= 0 ? { [HERO_ID]: heroEntries(room) } : {});
     for (const [id, player] of Object.entries(room.players)) {
       if (player.loan > 0) borrowed.add(id);
       if (player.msgN !== seen[id]) {
@@ -104,7 +146,7 @@ for (let game = 0; game < GAMES; game++) {
       lastWeek = room.week;
       for (const [id, player] of Object.entries(room.players)) {
         const s = stats(player, room.economy);
-        const f = (first[id] ??= [0, 0, 0, 0]);
+        const f = (reached[id] ??= [0, 0, 0, 0]);
         s.forEach((v, i) => {
           if (!f[i] && v >= GOAL) f[i] = room.week;
         });
@@ -131,7 +173,8 @@ for (let game = 0; game < GAMES; game++) {
     const second = room.ranking[1];
     if (second) runnerUp.push(progress(room.players[second]!, room.economy));
     winsBySlot.set(slot, (winsBySlot.get(slot) ?? 0) + 1);
-    const f = first[w]!;
+    if (room.winners.includes(HERO_ID)) heroWins++;
+    const f = reached[w]!;
     f.forEach((week, i) => {
       if (week) {
         reachedWeek[i]! += week;
@@ -157,6 +200,10 @@ for (let game = 0; game < GAMES; game++) {
     jobsHeld.set(title, (jobsHeld.get(title) ?? 0) + 1);
   }
 }
+if (HERO >= 0)
+  console.log(
+    `hero (level ${HERO}, ${SECONDS}s weeks, a tap every ${TAP} ticks): won ${heroWins} of ${GAMES} (${((100 * heroWins) / GAMES).toFixed(0)}%; a fair share is ${(100 / (BOTS + 1)).toFixed(0)}%)`,
+  );
 const sorted = [...weeksToWin].sort((a, b) => a - b);
 const q = (p: number) => sorted[Math.floor((sorted.length - 1) * p)];
 console.log(
