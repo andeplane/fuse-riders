@@ -8,6 +8,7 @@ import {
 } from "../game/index.js";
 import type { Art } from "./art.js";
 import { FONT, drawBoard, labelFont, type BoardFrame } from "./board.js";
+import { BURST } from "./ambience.js";
 import {
   boardView,
   centreOn,
@@ -68,6 +69,20 @@ export interface ScreenHooks {
 export const money = (value: number) =>
   `${value < 0 ? "-" : ""}$${Math.abs(Math.round(value)).toLocaleString("en-US")}`;
 
+/**
+ * A little "+$40" or "+2" that rises out of a HUD piece and fades, and a bump of the piece itself: the feedback
+ * for a change the player caused. Restarts the bump when changes come quickly.
+ */
+export function pop(host: HTMLElement, label: string, className: string): void {
+  const chip = el("span", label, className);
+  chip.setAttribute("aria-hidden", "true");
+  host.append(chip);
+  setTimeout(() => chip.remove(), 1300);
+  host.classList.remove("bump");
+  void host.offsetWidth;
+  host.classList.add("bump");
+}
+
 /** Sets text only when it changed, so a per-frame render leaves the DOM (and a screen reader) alone. */
 export function text(element: HTMLElement, value: string): void {
   if (element.textContent !== value) element.textContent = value;
@@ -118,11 +133,19 @@ function createGoalRings(art: Art) {
     element.append(item);
     return { item, dial, value, name };
   });
+  let owner = "";
+  const seen: number[] = [];
   return {
     element,
-    render(goals: readonly GoalBar[]) {
+    /** `who` is whose goals they are: a gain bumps the ring, but a new player's goals simply show. */
+    render(goals: readonly GoalBar[], who = "") {
+      const same = who === owner;
+      owner = who;
       goals.forEach((goal, index) => {
         const ring = rings[index]!;
+        const gain = goal.value - (seen[index] ?? goal.value);
+        seen[index] = goal.value;
+        if (same && gain > 0) pop(ring.item, `+${gain}`, "fl-pop good");
         ring.dial.style.setProperty("--share", share(goal).toFixed(3));
         ring.item.classList.toggle("met", goal.met);
         text(ring.value, `${goal.value}/${goal.goal}`);
@@ -264,6 +287,48 @@ export function createGameScreen(
   controls.append(...(hooks.controls ?? []));
   hud.append(youButton, cash, hudGoals.element, endWeek, controls);
   endWeek.onclick = () => play(model?.endWeekEntry);
+  // The cash counts to its new value (stepped by the board's frames) and says by how much; a new player's, a new
+  // week's or a new match's cash simply shows.
+  let cashOwner = "",
+    cashTarget = 0,
+    cashTween: { from: number; start: number } | undefined;
+  const showCash = (owner: string, value: number) => {
+    if (owner === cashOwner && value === cashTarget) return;
+    const same = owner === cashOwner;
+    cashOwner = owner;
+    const still =
+      typeof matchMedia === "function" &&
+      matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!same || still) {
+      cashTarget = value;
+      cashTween = undefined;
+      text(cashValue, money(value));
+      return;
+    }
+    const delta = value - cashTarget;
+    pop(
+      cash,
+      `${delta > 0 ? "+" : "−"}${money(Math.abs(delta))}`,
+      `fl-pop ${delta > 0 ? "good" : "bad"}`,
+    );
+    cashTween = {
+      from: cashShown(performance.now()),
+      start: performance.now(),
+    };
+    cashTarget = value;
+  };
+  /** The cash on show at `now`: on its way from where it was to its new value over half a second. */
+  const cashShown = (now: number): number => {
+    if (!cashTween) return cashTarget;
+    const t = Math.min(1, (now - cashTween.start) / 500);
+    return cashTween.from + (cashTarget - cashTween.from) * (1 - (1 - t) ** 3);
+  };
+  const tickCash = (now: number) => {
+    if (!cashTween) return;
+    const shown = cashShown(now);
+    if (now - cashTween.start >= 500) cashTween = undefined;
+    text(cashValue, money(cashTween ? shown : cashTarget));
+  };
 
   // ---- rivals in the corners (wide screens) ----
   const rivals = createStandings(art, "fl-corners");
@@ -683,7 +748,12 @@ export function createGameScreen(
     panelKey = key;
     if (!same) cardRow.clear();
     panel.dataset.place = String(view.place);
-    panelKeeper.replaceChildren(art.element(view.keeper, 72, "fl-keeper-art"));
+    if (panelKeeper.dataset.art !== view.keeper) {
+      panelKeeper.dataset.art = view.keeper;
+      panelKeeper.replaceChildren(
+        art.element(view.keeper, 72, "fl-keeper-art"),
+      );
+    }
     const building = `building-${PLACES[view.place]?.id ?? ""}`;
     if (panelBuilding.dataset.art !== building) {
       panelBuilding.dataset.art = building;
@@ -704,7 +774,24 @@ export function createGameScreen(
       }),
     );
     if (same) panelBody.scrollTop = scroll;
+    else {
+      // Walking in: the keeper pops up, says hello, the building drops in and the cards follow one by one.
+      panelBody
+        .querySelectorAll<HTMLElement>(".fl-card")
+        .forEach((card, k) =>
+          card.style.setProperty("--k", String(Math.min(k, 10))),
+        );
+      panel.classList.remove("entering");
+      void panel.offsetWidth;
+      panel.classList.add("entering");
+      clearTimeout(enteringTimer);
+      enteringTimer = setTimeout(
+        () => panel.classList.remove("entering"),
+        1000,
+      );
+    }
   }
+  let enteringTimer: ReturnType<typeof setTimeout> | undefined;
 
   const freshToast = toastTracker();
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -794,9 +881,10 @@ export function createGameScreen(
       text(eventText, h.event.label);
       eventText.hidden = h.event.label === "";
       eventText.classList.toggle("warn", h.event.warn);
-      text(cashValue, money(h.cash));
+      // Keyed by player and week: a new turn, a new week's bills or a new match simply show.
+      showCash(`${h.name}:${h.week}`, h.cash);
       text(bankValue, `bank ${money(h.bank)}`);
-      hudGoals.render(h.goals);
+      hudGoals.render(h.goals, `${h.name}:${h.week}`);
       endWeek.disabled = !next.canEndWeek;
       text(endWeek, h.done ? "WEEK OVER" : "CALL IT A WEEK");
     }
@@ -843,8 +931,14 @@ export function createGameScreen(
           }),
         );
         const points = sparkline(b.history, 300, 60);
+        // The index over the last weeks: a line over a soft fill, green when it rose and coral when it fell.
+        const trend =
+          (b.history[b.history.length - 1] ?? 0) >= (b.history[0] ?? 0)
+            ? "up"
+            : "down";
+        briefingChart.dataset.trend = trend;
         briefingChart.innerHTML = points
-          ? `<svg viewBox="-4 -4 308 68" preserveAspectRatio="none" aria-label="City500 index, last weeks"><polyline points="${points}" /></svg><small>CITY500</small>`
+          ? `<small>CITY500 · last ${b.history.length} weeks</small><svg viewBox="0 -6 300 72" preserveAspectRatio="none" aria-label="City500 index, last weeks"><polygon points="0,66 ${points} 300,66" /><polyline points="${points}" /></svg>`
           : "";
         briefingHeadlines.replaceChildren(
           ...b.headlines.map((line) => el("li", line)),
@@ -1071,19 +1165,49 @@ export function createGameScreen(
     ).at;
   };
   const started = performance.now();
+  // Reduced motion: the board keeps still (no drifting clouds, twinkling water or marching route).
+  const calm =
+    typeof matchMedia === "function" &&
+    matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Who is in which place, to burst a ring when someone walks in (not on the first frame, or a new turn's).
+  const insideSeen = new Map<string, number>();
+  let arrivals: { id: string; at: number }[] = [];
+  const noticeArrivals = (frame: BoardFrame, now: number) => {
+    for (const player of frame.players) {
+      const was = insideSeen.get(player.id);
+      if (was !== undefined && was < 0 && player.inside >= 0 && !calm)
+        arrivals.push({ id: player.id, at: now });
+      insideSeen.set(player.id, player.inside);
+    }
+    arrivals = arrivals.filter((one) => now - one.at < BURST * 1000);
+  };
+  // The week's light eases to its target, so a new week (or the next player's turn) dawns instead of snapping.
+  let daylight = 1,
+    daylightAt = 0;
+  const easeDaylight = (target: number, now: number) => {
+    const dt = daylightAt ? Math.min(0.1, (now - daylightAt) / 1000) : 1;
+    daylightAt = now;
+    daylight =
+      calm || dt >= 1
+        ? target
+        : daylight + (target - daylight) * Math.min(1, dt * 4);
+    return daylight;
+  };
   const frameLoop = () => {
     if (!running) return;
     requestAnimationFrame(frameLoop);
     if (game.hidden || !game.isConnected || game.getClientRects().length === 0)
       return;
     resize();
+    tickCash(performance.now());
     const timing = driver().frameTiming();
     if (!timing || !view) return;
     const { newer, older } = timing;
     const span = older ? newer.tick - older.tick : 0;
     const before = new Map<string, number>();
-    for (const player of (older ?? newer).players)
-      before.set(player.id, player.state.pos);
+    // Where everyone was drawn in the older frame (a replayed week included), to walk smoothly from there.
+    for (const player of boardModel(older ?? newer, viewer).players)
+      before.set(player.id, player.pos);
     const now = performance.now();
     const frame: BoardFrame = {
       ...boardModel(newer, viewer),
@@ -1091,7 +1215,13 @@ export function createGameScreen(
       fraction: span > 0 ? (timing.tick - older!.tick) / span : 1,
       time: (now - started) / 1000,
       hover,
+      daylight: easeDaylight(model?.hud ? 1 - model.hud.ring : 1, now),
     };
+    noticeArrivals(frame, now);
+    frame.arrivals = arrivals.map((one) => ({
+      id: one.id,
+      age: (now - one.at) / 1000,
+    }));
     const mine = myPoint(frame);
     const middle: MapPoint = [CITY.map.width / 2, CITY.map.height / 2];
     if (!camera) camera = centreOn(view, mine ?? middle);
@@ -1112,6 +1242,7 @@ export function createGameScreen(
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     drawBoard(context, view, camera, frame, art, ratio, {
       debug: Boolean(options.debugRoads),
+      calm,
     });
     if (tour) placeTourSpot();
     // With `?debug-roads`, the camera is readable from the page too, so a browser test can tap a building.
