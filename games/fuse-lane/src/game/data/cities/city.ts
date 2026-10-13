@@ -71,4 +71,9 @@ export interface City {
   /** Where a new player starts (the first home's door). */
   start: string;
   occluders: readonly CityOccluder[];
+  /** Looks only: the open water, where the board lets the light glint (`holes`: boats, piers and rocks on it). */
+  water?: {
+    shape: readonly MapPoint[];
+    holes: readonly (readonly MapPoint[])[];
+  };
 }
