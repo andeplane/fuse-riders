@@ -58,7 +58,7 @@ function search(
 const has = (player: PlayerState, pattern: RegExp) =>
   player.notices.some((line) => pattern.test(line));
 
-test("a stove or an air fryer cheers you each Monday, a hot tub keeps your rest, a laptop lands side gigs", () => {
+test("a kitchen gadget and a hot tub cheer you each Monday, a hot tub keeps your rest, a laptop lands side gigs", () => {
   const { a, b } = monday(1, (room) => {
     const a = room.players.a!,
       b = room.players.b!;
@@ -67,7 +67,7 @@ test("a stove or an air fryer cheers you each Monday, a hot tub keeps your rest,
     a.durables.hottub = { n: 1, paid: 1255, cheap: false };
     b.durables.airfryer = { n: 1, paid: 330, cheap: false };
   });
-  assert.equal(a.happiness, 1);
+  assert.equal(a.happiness, 2, "one for the kitchen, one for the tub");
   assert.equal(b.happiness, 1);
   assert.equal(a.relax, 30, "a hot tub: no rest lost");
   assert.equal(b.relax, 29);
@@ -126,6 +126,7 @@ test("a freezer doubles what a fridge keeps, and the rest goes off", () => {
   const { a, b } = monday(3, (room) => {
     for (const player of [room.players.a!, room.players.b!]) {
       player.home = 1;
+      player.meal = 0; // groceries are this week's food (a meal out would leave them)
       player.groceries = 20;
       player.happiness = 10;
       player.durables.fridge = { n: 1, paid: 876, cheap: false };
