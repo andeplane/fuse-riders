@@ -311,7 +311,10 @@ export function showRoom(
     roundControls.update({
       round: shown,
       visible:
-        !!frame && frame.stage === "running" && frame.startAt > frame.logTick,
+        !menu.isOpen() &&
+        !!frame &&
+        frame.stage === "running" &&
+        frame.startAt > frame.logTick,
       touch,
       display,
       spectator: display || next.follow === undefined,

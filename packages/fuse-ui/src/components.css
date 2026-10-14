@@ -425,6 +425,7 @@
   min-height: 2.75rem;
 }
 .fui-game-menu-panel {
+  box-sizing: border-box;
   position: absolute;
   right: 0;
   top: calc(100% + 0.5rem);
@@ -517,6 +518,14 @@
   display: none !important;
 }
 @media (max-width: 480px) {
+  .fui-game-menu-panel {
+    position: fixed;
+    left: 0.75rem;
+    right: 0.75rem;
+    top: max(4rem, calc(env(safe-area-inset-top) + 3rem));
+    width: auto;
+    max-height: calc(100dvh - 5rem);
+  }
   .fui-round-controls {
     padding: 0.6rem 0.75rem;
   }
