@@ -2,7 +2,9 @@
 
 An illustrated 2D grappling-platformer experiment for the Fuse party pack.
 
-## Current milestone
+The current combined build uses `hook-havok-16`, with thrown bombs, playable bots, power-ups v2 and Neon Spire together. Refresh every client and create a fresh room; older clients cannot share its checkpoint contract. Earlier rule numbers below describe the original milestones.
+
+## Development milestones
 
 Phase 11C adds [playable bots](docs/bots.md). **Room & match → Bots** seats up to four AI keepers in the free seats and **Bot level** makes them easy, normal or hard; only the room manager changes either, and new rooms have none. Bots run the same physics as you inside the shared simulation on every device: they climb with jumps, drops and the hook, chase a rival, take pads, pop orbs, throw bombs at you, hook you off ledges, dodge blasts and hook their way back from a fall, and they keep playing while they hold a power-up. They wear a BOT tag on their cards and in the results, and one person plus a bot is enough for a competitive round. Rules are `hook-havok-15`; refresh all clients and create a fresh room.
 
