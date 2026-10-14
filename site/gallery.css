@@ -1,0 +1,238 @@
+@import "@fontsource/press-start-2p/latin-400.css";
+
+:root {
+  color-scheme: dark;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  color: #edf4ff;
+  background: #060b16;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background:
+    radial-gradient(ellipse at 80% 0%, #13263b 0, transparent 45%), #060b16;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+a:focus-visible {
+  outline: 3px solid #16e7ff;
+  outline-offset: 6px;
+}
+.arcade {
+  max-width: 1440px;
+  padding: 0 56px;
+  margin: auto;
+}
+.arcade-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 36px 0;
+  border-bottom: 1px solid #263344;
+  gap: 20px;
+}
+.arcade-brand {
+  font:
+    26px "Press Start 2P",
+    monospace;
+  color: #16e7ff;
+  letter-spacing: -2px;
+  text-shadow: 3px 3px #164964;
+}
+.arcade-label,
+.arcade-eyebrow,
+.arcade-count,
+.arcade-collection-title,
+.arcade-footer {
+  font:
+    11px/1.6 ui-monospace,
+    monospace;
+  letter-spacing: 2px;
+}
+.arcade-label {
+  color: #91a6bd;
+}
+.arcade-intro {
+  padding: 70px 0 60px;
+}
+.arcade-eyebrow {
+  color: #c8ff69;
+  margin: 0 0 22px;
+}
+.arcade-title {
+  font-size: clamp(38px, 5vw, 70px);
+  font-weight: 760;
+  letter-spacing: -3px;
+  line-height: 1.1;
+  margin: 0 0 24px;
+}
+.arcade-description {
+  font-size: 18px;
+  line-height: 1.6;
+  color: #9bacbf;
+  margin: 0;
+}
+.arcade-collection-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+.arcade-collection-title {
+  font-weight: 600;
+  margin: 0;
+}
+.arcade-count {
+  color: #9bacbf;
+  letter-spacing: 1px;
+}
+.arcade-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+}
+.arcade-game {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  background: #0d1523;
+  border: 1px solid #263344;
+  border-radius: 12px;
+  overflow: hidden;
+  transition:
+    border-color 160ms,
+    transform 160ms;
+}
+.arcade-game:hover {
+  border-color: var(--game-accent);
+  transform: translateY(-4px);
+}
+.arcade-media {
+  grid-column: 1 / -1;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: #101e2c;
+  border-bottom: 1px solid #263344;
+}
+.arcade-media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.arcade-placeholder {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--game-accent);
+  font:
+    48px "Press Start 2P",
+    monospace;
+}
+.arcade-game-info {
+  padding: 24px;
+  min-width: 0;
+}
+.arcade-game-name {
+  font-size: 24px;
+  line-height: 1.2;
+  margin: 0 0 10px;
+  letter-spacing: -0.5px;
+}
+.arcade-game-tagline {
+  margin: 0;
+  color: #9bacbf;
+  font-size: 14px;
+  line-height: 1.55;
+  max-width: 400px;
+}
+.arcade-play {
+  align-self: start;
+  margin: 27px 24px 0 0;
+  color: var(--game-accent);
+  font:
+    12px/1.5 ui-monospace,
+    monospace;
+  white-space: nowrap;
+}
+.arcade-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  color: #9bacbf;
+  padding: 36px 0;
+  margin-top: 60px;
+  border-top: 1px solid #263344;
+}
+@media (min-width: 1300px) {
+  .arcade-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .arcade-game-name {
+    font-size: 22px;
+  }
+  .arcade-game-info {
+    padding: 22px 18px;
+  }
+  .arcade-play {
+    margin-right: 18px;
+  }
+}
+@media (max-width: 700px) {
+  .arcade {
+    padding: 0 20px;
+  }
+  .arcade-header {
+    padding: 28px 0;
+  }
+  .arcade-label {
+    font-size: 9px;
+    letter-spacing: 1px;
+  }
+  .arcade-brand {
+    font-size: 22px;
+  }
+  .arcade-intro {
+    padding: 48px 0 40px;
+  }
+  .arcade-title {
+    letter-spacing: -1.7px;
+  }
+  .arcade-description {
+    font-size: 16px;
+  }
+  .arcade-grid {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+  .arcade-collection-bar {
+    align-items: start;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .arcade-game-info {
+    padding: 22px 18px;
+  }
+  .arcade-game-name {
+    font-size: 22px;
+  }
+  .arcade-play {
+    margin-right: 18px;
+  }
+  .arcade-footer {
+    font-size: 9px;
+    letter-spacing: 1px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .arcade-game {
+    transition: none;
+  }
+  .arcade-game:hover {
+    transform: none;
+  }
+}

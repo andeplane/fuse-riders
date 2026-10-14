@@ -32,6 +32,8 @@ export interface Model {
   askName: boolean;
   seated: boolean;
   flying: boolean;
+  /** Controller guidance returns for every round's countdown, on TVs and phones too. */
+  controlsVisible: boolean;
   lobby: {
     members: {
       id: string;
@@ -198,6 +200,7 @@ export function present(view: View, viewer: Viewer): Model {
     askName: !seated && !viewer.display && !viewer.solo && !mine,
     seated,
     flying: chopper?.state === "flying",
+    controlsVisible: view.stage === "running" && world?.phase === "countdown",
     lobby: {
       members: seats.map((seat) => ({
         id: seat.id,
