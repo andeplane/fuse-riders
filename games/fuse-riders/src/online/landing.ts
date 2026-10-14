@@ -1,10 +1,11 @@
 /**
  * The landing page: what an online page shows before any room exists (#255 P1). CREATE ROOM, JOIN ROOM, REJOIN,
- * PLAY SOLO, SETTINGS, MORE GAMES and the account panel all live here. The room itself is `ui.ts`'s: the landing
+ * PLAY SOLO, SETTINGS, the app portal and the account panel all live here. The room itself is `ui.ts`'s: the landing
  * page talks to it through `LandingHost`, and leaving for a room keeps the document (and so the music) alive.
  */
 import {
   button,
+  createAppPortal,
   createDialog,
   createJoinByCode,
   createRadioGroup,
@@ -47,11 +48,19 @@ export interface LandingHost {
   /** Where Ctrl+A goes while the landing page is up. */
   setRadioToggle: (toggle: () => void) => void;
   /** Sign-in, match history and the leaderboard (`createAccountPanel` with the page's endpoints). */
-  accountPanel: () => {
+  accountPanel: (friendButton: (publicId: string) => HTMLElement) => {
     button: HTMLElement;
     matchesButton: HTMLElement;
     leaderboardButton: HTMLElement;
     dialog: HTMLDialogElement;
+    dispose: () => void;
+  };
+  /** Friends, presence and invites (`createFriendsPanel`); `join` opens an invited room in this document. */
+  friendsPanel: (join: (code: string) => void) => {
+    button: HTMLElement;
+    dialog: HTMLDialogElement;
+    banner: HTMLElement;
+    friendButton: (publicId: string) => HTMLElement;
     dispose: () => void;
   };
   /** Starts the room the URL now names, in this document. */
@@ -83,8 +92,18 @@ export function showLanding(host: LandingHost): void {
     musicButton,
     muteButton,
   );
+  const topStart = node("div", "", "landing-top-start");
+  topStart.append(
+    createAppPortal({
+      document,
+      current: GAME_ID,
+      base: import.meta.env.BASE_URL,
+      search: location.search,
+    }).element,
+    brand,
+  );
   const top = node("header", "", "landing-top");
-  top.append(brand, topEnd);
+  top.append(topStart, topEnd);
   const eyebrow = node("p", "", "landing-eyebrow");
   eyebrow.append(node("span"), " A NEON ARENA PARTY GAME");
   const headline = node("h1");
@@ -110,19 +129,7 @@ export function showLanding(host: LandingHost): void {
     "On the same Wi-Fi? Even better.",
   );
   const content = node("section", "", "landing-content");
-  content.append(
-    eyebrow,
-    headline,
-    intro,
-    soloLink,
-    form,
-    hint,
-    link(
-      `${appUrl()}dice/`,
-      "landing-more",
-      document.createTextNode("MORE GAMES: PIG ›"),
-    ),
-  );
+  content.append(eyebrow, headline, intro, soloLink, form, hint);
   const live = node("aside", "", "landing-live");
   live.append(
     node("span", "", "live-dot"),
@@ -224,6 +231,7 @@ export function showLanding(host: LandingHost): void {
     ended = true;
     cleanup?.();
     accountPanel.dispose();
+    friendsPanel.dispose();
     window.addEventListener("popstate", () => location.reload(), {
       once: true,
     });
@@ -291,20 +299,23 @@ export function showLanding(host: LandingHost): void {
         });
         return true;
       },
-      () => landingDialog.close(),
     );
     landingDialog.showModal();
   };
   topEnd.append(landingSettings);
   card.append(landingDialog);
   // Optional sign-in and match history. A guest who never opens it never downloads the sign-in SDK.
-  const accountPanel = host.accountPanel();
+  const friendsPanel = host.friendsPanel((code) => enter(roomQuery(code)));
+  const accountPanel = host.accountPanel(friendsPanel.friendButton);
   topEnd.append(
     accountPanel.matchesButton,
     accountPanel.leaderboardButton,
+    friendsPanel.button,
     accountPanel.button,
   );
-  card.append(accountPanel.dialog);
+  friendsPanel.banner.classList.add("friends-invite-banner");
+  card.append(accountPanel.dialog, friendsPanel.dialog);
+  app.append(friendsPanel.banner);
   window.addEventListener("pagehide", accountPanel.dispose, { once: true });
   // The attract loop stays Fuse Riders' own: it runs the game's engine and renderer behind the landing page.
   void startAttract(arena, attractToggle)

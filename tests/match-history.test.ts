@@ -13,6 +13,7 @@ import {
   GUEST_MATCH_TTL_MS,
   HistoryStore,
   PENDING_TTL_MS,
+  feedlessMatchStamps,
   matchRecordId,
 } from "fuse-platform";
 import {
@@ -789,6 +790,62 @@ test("a listed game is dated when it ended, not when it became public", async ()
     (await f.history.feed("viewer", undefined, 9_000)).matches,
     [],
     "the cursor still pages on the feed time the service ordered by",
+  );
+});
+
+test("a game confirmed before the feed existed is only in YOURS, until the backfill stamps it", async () => {
+  const f = await room(2),
+    result = parseMatchResult(resultOf([f.ids[0]!, "bot:1"], "before-feed"))!;
+  // What the gateway wrote before `feedAt` existed: confirmed, ended, owned by an account, and no feed time. The
+  // storage layer orders the feed by `feedAt`, so a record without one is missing from EVERYONE without failing it.
+  const record: MatchRecord = {
+    gameId: GAME_ID,
+    version: 1,
+    id: "d".repeat(40),
+    roomCode: f.code,
+    status: "confirmed",
+    result,
+    attesters: [f.ids[0]!, "bot:1"],
+    uidByPlayer: { [f.ids[0]!]: "alice" },
+    avatars: {},
+    participantUids: ["alice"],
+    createdAt: 10,
+    endedAt: 4_000,
+  };
+  const store = (match: MatchRecord) =>
+    f.matches.transactMatch(GAME_ID, match.id, () => ({
+      match,
+      result: undefined,
+    }));
+  await store(record);
+  const listed = async () =>
+    (await f.history.feed("viewer", undefined, undefined)).matches.map(
+      (entry) => entry.id,
+    );
+  assert.deepEqual(await listed(), [], "nobody's feed has it");
+  assert.deepEqual(
+    (await f.history.history("alice", undefined)).matches.map((m) => m.id),
+    [record.id],
+    "its own player's history does: that is the asymmetry",
+  );
+
+  // The backfill reads stored fields, exactly as it does out of Firestore, and stamps the feed time from `endedAt`.
+  const stamps = feedlessMatchStamps([{ id: record.id, data: { ...record } }]);
+  assert.deepEqual(stamps, [{ id: record.id, feedAt: 4_000 }]);
+  await store({ ...record, feedAt: stamps[0]!.feedAt });
+  assert.deepEqual(await listed(), [record.id], "now everyone's feed has it");
+  assert.equal(
+    (await f.history.feed("viewer", undefined, undefined)).matches[0]!.endedAt,
+    4_000,
+    "and it is still dated by when the game ended, not by the backfill",
+  );
+
+  // A second pass over the stamped record asks for nothing, so rerunning the script cannot move a game in the feed.
+  assert.deepEqual(
+    feedlessMatchStamps([
+      { id: record.id, data: { ...record, feedAt: stamps[0]!.feedAt } },
+    ]),
+    [],
   );
 });
 

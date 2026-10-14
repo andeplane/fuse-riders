@@ -4,6 +4,7 @@ import { BOTH_ENGINES, launchBrowser } from "./lib/browser.js";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { smokeTimeout } from "./smoke-timeout.js";
+import { openTopMenu } from "./lib/top-menu.js";
 const base = process.env.ONLINE_URL ?? "http://127.0.0.1:8796/";
 await mkdir("artifacts", { recursive: true });
 const results: object[] = [];
@@ -150,6 +151,7 @@ for (const { name, kind } of BOTH_ENGINES) {
             false,
             "no truncated join URL on a phone",
           );
+          await openTopMenu(phone);
           await phone
             .getByRole("button", { name: "SETTINGS", exact: true })
             .click();
@@ -385,9 +387,10 @@ for (const { name, kind } of BOTH_ENGINES) {
         .getByText("QR guest", { exact: true });
       await me.scrollIntoViewIfNeeded();
       const rider = (await me.boundingBox())!;
+      // Scroll offsets are whole pixels and layout is not, so a row scrolled into view can sit a fraction past any edge.
       assert.ok(
-        rider.x >= 0 &&
-          rider.y >= 0 &&
+        rider.x >= -1 &&
+          rider.y >= -1 &&
           rider.x + rider.width <= viewport.width + 1 &&
           rider.y + rider.height <= viewport.height + 1,
         `rider row must be on screen: ${JSON.stringify(rider)}`,
@@ -571,9 +574,13 @@ for (const { name, kind } of BOTH_ENGINES) {
       false,
       "ended room must not keep live-looking controls",
     );
+    // ROOM is a bar action, and the ended phone's bar is one ☰ MENU at this height; the sheet is shut again before
+    // the screenshot so the artifact shows the ended screen itself.
+    await openTopMenu(guest);
     await guest
       .getByRole("button", { name: "ROOM", exact: true })
       .waitFor({ state: "visible" });
+    await guest.keyboard.press("Escape");
     await guest.screenshot({
       path: `artifacts/shared-ended-phone-${name}.png`,
     });

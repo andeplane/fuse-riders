@@ -170,6 +170,25 @@
       ]
     },
     {
+      "collectionGroup": "fuse-production-invites",
+      "fieldPath": "cleanupAt",
+      "ttl": true,
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "arrayConfig": "CONTAINS",
+          "queryScope": "COLLECTION"
+        }
+      ]
+    },
+    {
       "collectionGroup": "fuse-production-matches",
       "fieldPath": "result",
       "indexes": []
