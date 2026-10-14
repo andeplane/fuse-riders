@@ -513,10 +513,10 @@ test("room screen follows lobby, own identity, controls, corrected results, rema
 
 test("product metrics observe actual room frames while previews and drawing emit nothing", async () => {
   const preview = screen(false);
-  await flush();
   preview.draw();
   assert.deepEqual(preview.metrics, []);
   preview.destroy();
+  await flush();
   const s = screen();
   await flush();
   assert.equal(s.metrics.length, 1);
