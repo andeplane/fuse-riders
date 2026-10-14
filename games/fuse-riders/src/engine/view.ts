@@ -17,7 +17,11 @@ import { edgesOpen } from "./arena-map.js";
 import { effectDeadlines, effectUntil } from "./effects.js";
 import { isArmed } from "./weapons.js";
 import { GUN_HEADSHOT_RADIUS, GUN_HOLE_RADIUS, GUN_RADIUS } from "./gun.js";
-import { PORTAL_WALL_HALF_WIDTH } from "./portal.js";
+import {
+  PORTAL_WALL_HALF_WIDTH,
+  PORTAL_LIFETIME_TICKS,
+  PORTAL_WARMUP_TICKS,
+} from "./portal.js";
 import { TRAIL_DECAY_PAUSE_TICKS } from "./trail-lifecycle.js";
 import {
   MAX_VOLLEY_BOMBS,
@@ -28,7 +32,7 @@ import { snapshotMatchStats } from "./match-stats.js";
 import { sortedLeaderboard } from "./leaderboard.js";
 import type { PortalPair } from "./portal.js";
 import type { ArenaMapId, Obstacle } from "./arena-map.js";
-import { mapTracks, type Track } from "./scenery-motion.js";
+import type { Track } from "./scenery-motion.js";
 import type { RoundPlacement, SessionLeaderboardEntry } from "./leaderboard.js";
 import type { MatchPlayerStats } from "./match-stats.js";
 import type { FlightPoint } from "./launch-modifiers.js";
@@ -71,6 +75,8 @@ export interface ViewRules {
   gunHeadshotRadius: number;
   /** Half the thickness of a portal gate: a ray stops this far plus its own radius from the gate's line. */
   portalWallHalfWidth: number;
+  portalLifetimeTicks: number;
+  portalWarmupTicks: number;
 }
 
 /** One rider as a screen sees it. */
@@ -159,7 +165,7 @@ export interface WorldView {
   /** The round's ground, and the scenery standing on it: lethal to touch, and cleared by a blast unless it moves. */
   map: ArenaMapId;
   obstacles: ReadonlyArray<Obstacle>;
-  /** The loops the map's trains run round, for the rails to be drawn under them. Decoration: nothing collides with a track. */
+  /** The loops this round's trains run round, for the rails to be drawn under them. Decoration: nothing collides with a track. */
   tracks: ReadonlyArray<Track>;
   /** Whether the board's edges are open right now (a wrapping map whose overtime walls have not come in yet). */
   openEdges: boolean;
@@ -236,6 +242,8 @@ const RULES_VIEW: ViewRules = Object.freeze({
   gunHoleRadius: GUN_HOLE_RADIUS,
   gunHeadshotRadius: GUN_HEADSHOT_RADIUS,
   portalWallHalfWidth: PORTAL_WALL_HALF_WIDTH,
+  portalLifetimeTicks: PORTAL_LIFETIME_TICKS,
+  portalWarmupTicks: PORTAL_WARMUP_TICKS,
 });
 
 /** What a screen is given of the state. Read-only over `GameState`; callers ask for it when they need one. */
@@ -262,7 +270,7 @@ export function toView(state: GameState): WorldView {
       ...obstacle,
       ...(obstacle.motion ? { motion: { ...obstacle.motion } } : {}),
     })),
-    tracks: mapTracks(state.map),
+    tracks: state.tracks,
     openEdges: edgesOpen(state),
     players: sortedPlayers(state).map((player) => ({
       id: player.id,

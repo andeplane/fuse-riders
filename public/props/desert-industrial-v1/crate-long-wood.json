@@ -6,23 +6,23 @@
   "description": "Long wooden shipping crate with distinct planks and two reinforcement bars.",
   "image": {
     "file": "crate-long-wood.png",
-    "width": 1254,
-    "height": 1254,
-    "sha256": "280a8ad3ed3f2d685d31514fb91dbcb3ec8414bf31c620a9f106c03bddd1194a"
+    "width": 268,
+    "height": 268,
+    "sha256": "1dba36a173cedee9129530c2cfc0e8b7c6e3779d2d708af2d80c4d81944c56c7"
   },
   "anchorPixels": {
-    "x": 627.0,
-    "y": 649.0
+    "x": 134.0,
+    "y": 138.7017543859649
   },
   "hitboxPixels": {
     "shape": "rectangle",
-    "centerX": 627.0,
-    "centerY": 649.0,
-    "width": 1124,
-    "height": 490
+    "centerX": 134.0,
+    "centerY": 138.7017543859649,
+    "width": 240.21690590111643,
+    "height": 104.72089314194578
   },
   "recommendedWorld": {
-    "unitsPerPixel": 0.0711743772241993,
+    "unitsPerPixel": 0.3330323471609922,
     "rotationDegrees": 0,
     "hitbox": {
       "shape": "rectangle",
@@ -35,5 +35,11 @@
   "collisionFit": {
     "method": "alpha-128-bounds",
     "silhouetteIoU": 0.988897
+  },
+  "source": {
+    "width": 1254,
+    "height": 1254,
+    "sha256": "280a8ad3ed3f2d685d31514fb91dbcb3ec8414bf31c620a9f106c03bddd1194a",
+    "note": "Original generated art; this pack serves a resized copy."
   }
 }

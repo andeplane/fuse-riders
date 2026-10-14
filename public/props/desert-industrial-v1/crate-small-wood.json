@@ -6,23 +6,23 @@
   "description": "Small wooden crate with X-braced top and inset corner bolts.",
   "image": {
     "file": "crate-small-wood.png",
-    "width": 1254,
-    "height": 1254,
-    "sha256": "8fc12d4c1ef3ff440800e72247bd4ea3caff24a3f5272f080af5fb5703396913"
+    "width": 145,
+    "height": 145,
+    "sha256": "9273872cb43db41ca7329bce54a4eaa96f31d290a49ec566bd07f3720ab2f2d8"
   },
   "anchorPixels": {
-    "x": 626.5,
-    "y": 628.5
+    "x": 72.44218500797447,
+    "y": 72.67344497607655
   },
   "hitboxPixels": {
     "shape": "rectangle",
-    "centerX": 626.5,
-    "centerY": 628.5,
-    "width": 933,
-    "height": 901
+    "centerX": 72.44218500797447,
+    "centerY": 72.67344497607655,
+    "width": 107.88277511961721,
+    "height": 104.18261562998404
   },
   "recommendedWorld": {
-    "unitsPerPixel": 0.03858520900321544,
+    "unitsPerPixel": 0.33369553165539423,
     "rotationDegrees": 0,
     "hitbox": {
       "shape": "rectangle",
@@ -35,5 +35,11 @@
   "collisionFit": {
     "method": "alpha-128-bounds",
     "silhouetteIoU": 0.996631
+  },
+  "source": {
+    "width": 1254,
+    "height": 1254,
+    "sha256": "8fc12d4c1ef3ff440800e72247bd4ea3caff24a3f5272f080af5fb5703396913",
+    "note": "Original generated art; this pack serves a resized copy."
   }
 }

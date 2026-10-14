@@ -1,0 +1,2 @@
+{"name":"baseline","worldHash":"f3c1d5d0","tick":18100,"calls":50,"warmup":5,"medianMs":5.68912499999999,"p95Ms":6.135458000000028,"maxMs":6.4422910000000115,"commands":[{"type":"queueConstruction","kind":"neuron","cell":67}]}
+{"name":"candidate","worldHash":"f3c1d5d0","tick":18100,"calls":50,"warmup":5,"medianMs":6.456166999999823,"p95Ms":7.197375000000079,"maxMs":8.386084000000096,"commands":[{"type":"queueConstruction","kind":"siege","cell":160}]}
