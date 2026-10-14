@@ -74,4 +74,6 @@ This makes coverage scope explicit; it does not claim these excluded modules are
 
 ## Player stats rendering
 
+`games/fuse-riders/src/engine/primitives.ts` is an exact-file exemption because it contains only TypeScript types and interfaces. Its emitted JavaScript has no executable behavior; add coverage and remove the exemption if runtime code is introduced.
+
 `games/fuse-riders/src/online/player-stats.ts` creates DOM/SVG only and is exercised by `scripts/player-stats-smoke.ts` in Chromium and WebKit at desktop and phone widths. Its aggregation, Elo and parsing logic lives in covered shared/service modules. Remove this exact-file exemption when the Node coverage harness supports the browser DOM/SVG fixture; browser coverage is not implied by the unit percentage.
