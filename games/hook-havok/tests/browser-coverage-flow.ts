@@ -87,6 +87,10 @@ async function saveFailure(
     );
     return {
       tick: data?.tick,
+      logTick: data?.logTick,
+      inputTick: data?.inputTick,
+      inputBomb: data?.inputBomb,
+      inputCancelled: data?.inputCancelled,
       map: data?.map,
       controls: data?.controls,
       charge: data?.charge,
