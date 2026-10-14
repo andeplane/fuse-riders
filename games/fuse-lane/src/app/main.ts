@@ -1,3 +1,4 @@
+import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
 import "@fontsource-variable/nunito";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
@@ -73,6 +74,8 @@ import {
  * helpers, the local match and the board's geometry; this file wires them to the page.
  */
 const GAME = fuseLaneGame.id;
+const analytics = startGameAnalytics(GAME);
+const reportPlay = createPlayMetrics(analytics.track, () => performance.now());
 /** The site root, also under a relative base (a static preview copied to any folder). */
 const BASE = siteBase(import.meta.env.BASE_URL, import.meta.url);
 const endpoints = createEndpoints(
@@ -310,6 +313,15 @@ function local(match: LocalMatch, resumed = false): void {
   const runtime = new LocalRuntime(
     match,
     (view) => {
+      reportPlay({
+        matchId: match.room.matchId,
+        active: view.phase === "running",
+        ended: view.phase === "over",
+        playerCount: view.players.length,
+        botCount: view.players.filter((player) => player.bot).length,
+        seated: match.humans.length > 0,
+        mode: match.humans.length > 1 ? "local" : "solo",
+      });
       const model = present(view, viewer);
       // Whoever plays on this device now ticks off their own "Getting started" steps.
       const who =
@@ -525,6 +537,15 @@ function room(): void {
   let joinSent = false;
   const callbacks: FuseLaneCallbacks = {
     state(frame, roomSettings) {
+      reportPlay({
+        matchId: frame.matchId,
+        active: frame.phase === "running",
+        ended: frame.phase === "over",
+        playerCount: frame.players.length,
+        botCount: frame.players.filter((seat) => seat.bot).length,
+        seated: frame.players.some((seat) => seat.id === viewer.me),
+        mode: roomSettings.display ? "shared" : "online",
+      });
       settings = roomSettings;
       viewer.shared = roomSettings.display;
       const model = present(frame, viewer);

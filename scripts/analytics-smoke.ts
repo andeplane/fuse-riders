@@ -60,7 +60,7 @@ await page.addInitScript(
     localStorage.setItem(key as string, JSON.stringify(settings)),
   [SETTINGS_KEY, oneRound],
 );
-await page.goto(`${base}?solo=1&analytics=1`);
+await page.goto(`${base}?solo=1&analytics=1&mute`);
 // Tap fire through the countdown and the first seconds of play, so the rider pulls the trigger at least once before
 // it rides into a wall: a tap during the countdown is dropped, and one mid-reload is simply refused.
 for (let tap = 0; tap < 16; tap += 1) {
@@ -95,14 +95,13 @@ const closeDialog = () =>
 await closeDialog();
 // Tab B: the landing page in the same browser, analytics on (the `?analytics=1` override is sticky).
 const other = await context.newPage();
-await other.goto(base);
+await other.goto(`${base}?mute`);
 for (let waited = 0; waited < 15000; waited += 250) {
-  if (reported.filter((e) => e.event === "FlowRiders.App Opened").length > 1)
-    break;
+  if (reported.filter((e) => e.event === "fuse.App Opened").length > 1) break;
   await other.waitForTimeout(250);
 }
 assert.equal(
-  reported.filter((e) => e.event === "FlowRiders.App Opened").length,
+  reported.filter((e) => e.event === "fuse.App Opened").length,
   2,
   "tab B is reporting too",
 );
@@ -164,7 +163,7 @@ assert.deepEqual(sdkFetches, [], "an opted-out page never downloads the SDK");
 await browser.close();
 
 const named = (name: string) =>
-  soloReported.filter((event) => event.event === `FlowRiders.${name}`);
+  soloReported.filter((event) => event.event === `fuse.${name}`);
 const only = (name: string) => {
   const found = named(name);
   assert.equal(
@@ -261,6 +260,10 @@ for (const forbidden of ["$current_url", "$referrer", "$initial_referrer"]) {
     !payload.includes(forbidden),
     `${forbidden} would ship the room invite link to Mixpanel`,
   );
+}
+for (const event of reported) {
+  assert.ok(event.event.startsWith("fuse."));
+  assert.equal(event.properties.gameId, "fuse-riders");
 }
 assert.ok(
   !payload.includes("solo=1"),
