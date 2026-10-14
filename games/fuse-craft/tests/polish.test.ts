@@ -81,23 +81,27 @@ test("neuron anatomy varies with location and remains identical across ghost, wo
 
 test("spectators hear shared events without personal victory or defeat cues", () => {
   const w = world(),
-    cues = createCueTracker();
-  assert.deepEqual(cues(w, ""), []);
+    track = createCueTracker(),
+    cues = (local: string) => track(w, local).map((e) => e.cue);
+  assert.deepEqual(cues(""), ["matchStart"]);
   w.tick++;
   w.outcomes = [
     { type: "constructed", tick: w.tick, playerId: "other", cell: 1 },
   ];
-  assert.deepEqual(cues(w, ""), ["build"]);
+  assert.deepEqual(cues(""), ["build"]);
   w.tick++;
+  w.outcomes = [];
   w.finished = true;
   w.winnerId = "solo";
-  assert.deepEqual(cues(w, ""), []);
+  assert.deepEqual(cues(""), []);
 });
 
 test("audio cues follow resolved events once, remain bounded and ignore rollback bursts", () => {
   const w = world();
-  const cues = createCueTracker();
-  assert.deepEqual(cues(w, "solo"), []);
+  const track = createCueTracker();
+  const cues = (world: typeof w, local: string) =>
+    track(world, local).map((e) => e.cue);
+  assert.deepEqual(cues(w, "solo"), ["matchStart"]);
   w.tick++;
   w.outcomes = Array.from({ length: 100 }, () => ({
     type: "damage",
@@ -117,6 +121,7 @@ test("audio cues follow resolved events once, remain bounded and ignore rollback
   w.tick = 0;
   assert.deepEqual(cues(w, "solo"), []);
   w.tick = 1;
+  w.outcomes = [];
   w.finished = true;
   w.winnerId = "solo";
   assert.deepEqual(cues(w, "solo"), ["victory"]);
