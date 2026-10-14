@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync, readdirSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { launchBrowser } from "./lib/browser.js";
 import { startRoomService, startViteServer } from "./lib/server.js";
@@ -10,6 +11,10 @@ const browser = await launchBrowser(
   process.env.BROWSER === "webkit" ? "webkit" : "chrome",
 );
 const root = process.env.GALLERY_URL ?? server.url;
+const gamesRoot = new URL("../games/", import.meta.url);
+const expectedGames = readdirSync(gamesRoot)
+  .filter((id) => existsSync(new URL(`${id}/portal.json`, gamesRoot)))
+  .sort();
 const errors: string[] = [];
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 page.on("pageerror", (error) => errors.push(error.message));
@@ -18,7 +23,7 @@ try {
   await page.goto(`${root}?mute`);
   await page.getByRole("heading", { name: "What are we playing?" }).waitFor();
   const cards = page.locator(".arcade-game");
-  assert.equal(await cards.count(), 8);
+  assert.equal(await cards.count(), expectedGames.length);
   await page.locator(".arcade-footer").scrollIntoViewIfNeeded();
   await page.waitForFunction(() =>
     [...document.querySelectorAll<HTMLImageElement>(".arcade-media img")].every(
@@ -32,6 +37,10 @@ try {
   });
   const hrefs = await cards.evaluateAll((links) =>
     links.map((link) => (link as HTMLAnchorElement).href),
+  );
+  assert.deepEqual(
+    hrefs.map((href) => new URL(href).pathname.split("/").at(-2)).sort(),
+    expectedGames,
   );
   for (const href of hrefs) {
     console.log(`Gallery navigation: ${new URL(href).pathname}`);
@@ -82,7 +91,7 @@ try {
   await page.locator('canvas[data-renderer^="phaser-"]').first().waitFor();
   assert.deepEqual(errors, []);
   console.log(
-    "Gallery: eight loaded screenshots, every game and return link, 320/390px layout, legacy room/display/solo and dedicated Riders solo passed.",
+    `Gallery: ${expectedGames.length} games, loaded screenshots and return links, 320/390px layout, legacy room/display/solo and dedicated Riders solo passed.`,
   );
 } finally {
   await browser.close();
