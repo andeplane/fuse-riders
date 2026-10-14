@@ -961,7 +961,7 @@ export class RoomRuntime<
     if (this.transport || !this.world || !this.localPlayerIds.includes(id))
       return false;
     this.world.streams.get(id)!.append(this.recorder.next(), body);
-    this.lastPacketTick = -1;
+    this.recorder.lastPacketTick = -1;
     return true;
   }
   /** A game's held controls go neutral: a fresh world, a resync that carried no own entries. */
