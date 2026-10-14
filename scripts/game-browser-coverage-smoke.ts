@@ -10,6 +10,10 @@ interface Flow {
   gameId: string;
   play(page: Page): Promise<void>;
 }
+interface HookKeeper {
+  id: string;
+  tally: { thrown: number };
+}
 const flows: Flow[] = [
   {
     gameId: "fuse-birds",
@@ -90,14 +94,26 @@ const flows: Flow[] = [
             document.querySelector<HTMLElement>("#scene")?.dataset.charge ?? 0,
           ) > 0,
       );
+      const before = await page.locator("#scene").evaluate((element) => {
+        const data = (element as HTMLElement).dataset;
+        const keepers = JSON.parse(data.keepers ?? "[]") as HookKeeper[];
+        const keeper = keepers.find(
+          (candidate) => candidate.id === data.playerId,
+        );
+        if (!keeper) throw new Error("The local Hook keeper is missing");
+        return keeper.tally.thrown;
+      });
       await page.keyboard.up("k");
-      await page.waitForFunction(
-        () =>
-          JSON.parse(
-            document.querySelector<HTMLElement>("#scene")?.dataset.bombs ??
-              "[]",
-          ).length > 0,
-      );
+      // Flight can end between rendered frames; the engine's throw tally persists.
+      await page.waitForFunction((count) => {
+        const data = document.querySelector<HTMLElement>("#scene")?.dataset;
+        if (!data) return false;
+        const keepers = JSON.parse(data.keepers ?? "[]") as HookKeeper[];
+        const keeper = keepers.find(
+          (candidate) => candidate.id === data.playerId,
+        );
+        return keeper?.tally.thrown === count + 1;
+      }, before);
     },
   },
   {
