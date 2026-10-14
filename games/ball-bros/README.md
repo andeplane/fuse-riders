@@ -2,7 +2,9 @@
 
 An unranked experiment for two to five players and bots, or solo against four bots. Defend colored cores with orbital paddles, break enemy armor and be the last core standing. Ball ownership changes on a paddle hit, but your own ball can still destroy your core.
 
-Run `pnpm dev`, then open the printed server URL at `/ball-bros/?mute`. The Fuse Riders landing page also links here. `service/dev.ts` chooses a free port if the requested one is occupied.
+Run `pnpm dev`, then open the printed server URL at `/ball-bros/?mute`, or choose Ball Bros from the shared app portal. `service/dev.ts` chooses a free port if the requested one is occupied.
+
+Product events use the shared `fuse-ui/analytics` and `fuse-ui/play-metrics` contract with the `ball-bros` game id. Membership and match transitions come from actual runtime frames; drawing or preview frames do not emit play events.
 
 - **A / D** or left/right arrows: counterclockwise / clockwise.
 - **W / S** or up/down arrows: reach outward / pull inward. Combine with A/D. The paddle stays the same length: reaching out intercepts earlier, pulling in covers a wider angle.

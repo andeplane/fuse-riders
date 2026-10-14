@@ -13,7 +13,8 @@ try {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(new URL("?mute", origin).href);
-  await page.getByRole("link", { name: "BALL BROS · PLAY ›" }).click();
+  await page.getByRole("button", { name: "Fuse games", exact: true }).click();
+  await page.getByRole("link", { name: /Ball Bros/ }).click();
   // Preserve ephemeral mute when navigating from another game's landing.
   await page.goto(new URL("ball-bros/?mute", origin).href);
   await page

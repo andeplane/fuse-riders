@@ -1,4 +1,5 @@
 import { createLandingCard, elementsFor } from "fuse-ui";
+import { createAppPortal } from "fuse-ui/portal";
 import { validRoomCode } from "fuse-network-fe";
 import {
   chosenMap,
@@ -66,6 +67,16 @@ export function landing(
   );
   const back = el("a", "← FUSE ARCADE", "back");
   back.href = "../";
-  root.replaceChildren(back, card.element, help);
+  const top = el("header", "", "topbar");
+  top.append(
+    createAppPortal({
+      document: root.ownerDocument,
+      current: "ball-bros",
+      base: "../",
+      search: root.ownerDocument.defaultView?.location.search,
+    }).element,
+    back,
+  );
+  root.replaceChildren(top, card.element, help);
   return card;
 }
