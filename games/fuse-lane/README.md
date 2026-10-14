@@ -105,6 +105,14 @@ Weekly upkeep (food, clothes wearing out, rent every 4 weeks, garnishment) and t
 
 Every coefficient lives in `src/game/data/economy.ts`.
 
+## Online smoke check
+
+Run `pnpm build`, then `pnpm exec tsx scripts/fuse-lane-online-smoke.ts` from the repository root. The Chromium check starts its own in-memory room service on a free port, plays a room through week 2, then checks a shared TV with two phone viewports and a phone refresh inside a shop mid-week. Screenshots and the service log go in `artifacts/`. This checks browser behavior; it does not qualify physical phones or production room availability.
+
+The reconnect rule uses `fuse-lane-5`: clients with older rules cannot join the same room.
+
+![Shared TV with two phone players](docs/screenshots/online-shared-tv.png) ![A phone refreshed inside FreshCo](docs/screenshots/online-rejoined-phone.png)
+
 ## Layout
 
 | Path                                                                   | What it is                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
