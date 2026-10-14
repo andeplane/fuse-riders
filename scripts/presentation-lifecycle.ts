@@ -145,6 +145,7 @@ export async function checkPresentationLifecycle(): Promise<void> {
         if (!node) return undefined;
         const fill = node.querySelector<HTMLElement>(".graphics-progress-fill");
         return {
+          label: node.getAttribute("aria-label"),
           value: node.getAttribute("aria-valuenow"),
           indeterminate: node.classList.contains("is-indeterminate"),
           width: fill?.style.width ?? "",
@@ -373,7 +374,9 @@ export async function checkPresentationLifecycle(): Promise<void> {
     h.render();
     const waiting = h.bar();
     check(
-      waiting?.indeterminate === true && waiting.value === null,
+      waiting?.indeterminate === true &&
+        waiting.value === null &&
+        waiting.label === "Loading graphics",
       "No indeterminate bar while the module downloads",
     );
     h.loads[0]!.resolve(h.module);

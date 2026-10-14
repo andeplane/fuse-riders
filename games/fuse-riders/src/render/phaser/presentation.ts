@@ -84,6 +84,7 @@ export function mountArenaPresentation(
   const progress = document.createElement("div");
   progress.className = "graphics-progress";
   progress.setAttribute("role", "progressbar");
+  progress.setAttribute("aria-label", "Loading graphics");
   progress.setAttribute("aria-valuemin", "0");
   progress.setAttribute("aria-valuemax", "100");
   const progressFill = document.createElement("div");
