@@ -195,6 +195,8 @@ export interface AppDependencies {
   };
   /** The Fuse app portal, placed first in every page header. */
   portal?: () => HTMLElement;
+  /** Shared account and friends controls. */
+  social?: () => HTMLElement;
   /** Draws random openings; Math.random unless a test injects one. */
   random?: () => number;
   animationClock: () => number;
@@ -1445,6 +1447,7 @@ export function mountFuseCraft(
     // One portal element survives re-renders, so an open grid stays open.
     // Reconciling a header drops it, so it goes back first in each header.
     const head = root.querySelector(".nd-header");
+    if (head && dependencies.social) head.append(dependencies.social());
     if (head && dependencies.portal) {
       portal ??= dependencies.portal();
       if (head.firstElementChild !== portal) head.prepend(portal);

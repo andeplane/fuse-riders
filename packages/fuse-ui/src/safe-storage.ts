@@ -26,7 +26,7 @@ export function createMemoryStorage(): SafeStorage {
  * ever called lazily, inside a try/catch, at each get/set/remove, never at construction time. Falls
  * back to an in-memory store scoped to this wrapper instance.
  */
-export function safeStorage(access: () => Storage): SafeStorage {
+export function safeStorage(access: () => SafeStorage): SafeStorage {
   const fallback = createMemoryStorage();
   return {
     getItem(key) {
