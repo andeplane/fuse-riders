@@ -177,11 +177,18 @@ try {
   events = await observeControls(page);
   initialTick =
     (await page.locator("#scene").getAttribute("data-tick")) ?? undefined;
+  stage = "visible room controls select Neon Spire";
+  await page.getByRole("button", { name: "MENU", exact: true }).click();
+  await page
+    .getByRole("button", { name: "BACK TO LOBBY", exact: true })
+    .click();
+  await page.locator("#map").selectOption("spire");
+  await page.getByText("NEON SPIRE", { exact: true }).waitFor();
+  await page.waitForFunction(
+    () =>
+      document.querySelector<HTMLElement>("#scene")?.dataset.map === "spire",
+  );
   stage = "menu controls and focus restoration";
-  // Arena switching is quarantined under flaky-test epic #250: the unchanged
-  // Spire transition timed out on main while passing locally, including CPU
-  // throttling. Keep menu and input coverage in the room's default arena until
-  // that race is reproduced and fixed, then restore the arena-switch case.
   await page.getByRole("button", { name: "MENU", exact: true }).click();
   await page.getByRole("button", { name: "CONTROLS", exact: true }).click();
   const menu = page.locator(".fui-game-menu-panel");
