@@ -268,7 +268,7 @@ export function permitted(
 
 /**
  * Who runs the room for the players: the one name the screens show as HOST, and the one the room commands are gated on.
- * It is the log's own answer — the creator while the room counts it present, otherwise whoever the duties fall to — so
+ * It is the log's own answer — the creator while present or voluntarily away, otherwise whoever the duties fall to — so
  * every replica names the same member from the same fold.
  *
  * It does not try to be cleverer than the log about a creator the room has no record of, which is a host driving a
