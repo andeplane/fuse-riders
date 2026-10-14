@@ -473,3 +473,36 @@ h2 {
     display: none;
   }
 }
+
+/* Familiar menu and round guidance retain the belfry's slate and lantern palette. */
+.playground .fui-game-menu {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  z-index: 90;
+  font:
+    13px/1.5 system-ui,
+    sans-serif;
+}
+.playground .fui-game-menu-panel {
+  background: #17202f;
+  border-color: #b9a47f;
+}
+.playground .fui-round-controls {
+  position: fixed;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(600px, calc(100vw - 24px));
+  z-index: 30;
+  background: #17202fed;
+  border-color: #b9a47f;
+  font:
+    13px/1.5 system-ui,
+    sans-serif;
+}
+.touch-trial .fui-round-controls {
+  top: max(60px, calc(env(safe-area-inset-top) + 48px));
+  bottom: auto;
+  width: min(420px, calc(100vw - 24px));
+}

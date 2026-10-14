@@ -57,6 +57,11 @@ Build with `pnpm build`, then run `node --import tsx service/dev.ts --port 8787`
 
 The **Art showcase** link opens the previous authored study at `?showcase=1&mute`.
 
+During play, **MENU** offers the shared game navigation: return to play, open **CONTROLS**, return to the room lounge,
+or leave the room. The lounge retains arena, round and personal settings. Controls appear throughout each competitive
+round countdown and for the opening five seconds of every free-play trial. Touch mode and shared displays show the
+two thumb-pad instructions. Opening the menu releases held input; the room keeps running.
+
 To hear the playground, remove `?mute` and interact with the page. Effects unlock on a key or pointer gesture; **Play radio** explicitly starts music. Music/effects have independent volume sliders and pause on focus loss. The muted preview does not change saved preferences.
 
 Use **Planted idle** to inspect the fix: one stable source pose, a 0.9% vertical breath and an unchanged foot baseline. The second generated idle drawing remains in the source sheet but is not played. A later rig can keep boots completely rigid while moving knees/chest/scarf independently.

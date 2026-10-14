@@ -19,7 +19,8 @@ interface Snapshot {
 }
 await mkdir("artifacts", { recursive: true });
 const browser = await launchSelected("chromium", { headless: true });
-const base = process.env.ONLINE_URL ?? "http://localhost:8787/";
+import { ridersPageUrl } from "./lib/riders-url.js";
+const base = ridersPageUrl(process.env.ONLINE_URL ?? "http://localhost:8787/");
 const phone = {
   viewport: { width: 844, height: 390 },
   isMobile: true,
