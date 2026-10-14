@@ -22,3 +22,13 @@ account ownership. Past round receipts cannot establish that an entire match fin
 
 The accompanying code change adds authenticated completed-solo-game reporting and leaves historical round receipts
 intact. That change requires the reviewed PR to be merged and deployed before production solo recording is fixed.
+
+Local validation: the full unit suite passed (3,384 tests); focused history/report tests passed after the quota
+correction, and typecheck/build plus focused lint passed. `scripts/solo-history-smoke.ts` played real one-round
+signed-in and guest solo matches against the local service, using a typed test account adapter. The signed-in game
+reported one confirmed whole game, appeared once in YOURS and EVERYONE, and opened its results; career count was
+one and Elo stayed 1000. Guest play submitted no completed-game report. This does not verify production Google OAuth.
+
+![Live EVERYONE after the data repair](matches-live-repaired-2026-10-14.png)
+
+![Completed solo game in YOURS during the local browser smoke](solo-history-yours-2026-10-14.png)
