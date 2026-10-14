@@ -1,5 +1,13 @@
 # Fuse Craft
 
+Failed battlefield image requests show readable fallback art immediately, then
+share up to two fresh decode attempts per source. Successful recovery restores
+the original art; permanent failures keep the fallback without retrying every
+frame. This changes presentation only. Run
+`FUSE_CRAFT_URL=http://127.0.0.1:PORT/fuse-craft/?mute pnpm exec tsx scripts/fuse-craft-asset-recovery-smoke.ts`
+against a local Vite preview to verify dropped requests, permanent failures,
+sprite decoding and startup-controls dismissal in Chromium and WebKit.
+
 See the [current tech tree](TECH_TREE.md) for all research branches, structure and particle unlocks, costs, timings, and construction requirements.
 
 The [expansion and balance report](BALANCE_REPORT.md) records the strategy tournament, reproducible command replay, browser evidence and remaining balance limits.
