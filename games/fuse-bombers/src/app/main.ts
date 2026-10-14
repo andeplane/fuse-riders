@@ -84,7 +84,19 @@ async function boot(): Promise<void> {
       location.assign(
         `${import.meta.env.BASE_URL}${GAME}/?${carry(location.search, "")}`,
       ),
-    onOpenChange: (open) => flow?.setSharedMenuOpen(open),
+    onOpenChange: (open) => {
+      flow?.setSharedMenuOpen(open);
+      // Resume at the arena: Space on the menu trigger would reopen it instead of firing.
+      if (
+        !open &&
+        flow &&
+        !flow.paused &&
+        (flow.screen.kind === "playing" || flow.screen.kind === "countdown")
+      ) {
+        game.canvas.tabIndex = -1;
+        game.canvas.focus({ preventScroll: true });
+      }
+    },
   });
   const corner = document.createElement("div");
   corner.className = "fb-local-menu";
