@@ -26,6 +26,18 @@ try {
   await page.locator('#status[data-state="ready"]').waitFor();
   await page.locator("#start").click();
   await page.locator('#status[data-state="playing"]').waitFor();
+  // Room status can precede the first local rendered frame. Initial round and
+  // phase transitions cancel held input, so wait for the playable keeper before
+  // exercising a single key press through the menu.
+  await page.waitForFunction(() => {
+    const data = document.querySelector<HTMLElement>("#scene")?.dataset;
+    return (
+      !!data?.playerId &&
+      (JSON.parse(data.keepers ?? "[]") as HookKeeper[]).some(
+        (keeper) => keeper.id === data.playerId,
+      )
+    );
+  });
   // Arena switching is quarantined under flaky-test epic #250: the unchanged
   // Spire transition timed out on main while passing locally, including CPU
   // throttling. Keep menu and input coverage in the room's default arena until
