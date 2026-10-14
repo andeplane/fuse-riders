@@ -72,6 +72,7 @@ function fixture(
   let sessionOptions: SessionOptions | undefined;
   let createdMapId: string | null = null;
   const actions: Action[] = [];
+  let acceptBatches = true;
   const summary: MapSummary = {
     id: world.map.id,
     title: "Test map",
@@ -110,6 +111,11 @@ function fixture(
         dispatch(action) {
           actions.push(action);
         },
+        dispatchBatch(batch) {
+          if (!acceptBatches) return false;
+          actions.push(...batch);
+          return true;
+        },
         subscribe(callback) {
           listener = callback;
           return () => {
@@ -139,6 +145,11 @@ function fixture(
   };
   const app = mountFuseCraft(root, dependencies);
   function click(action: string) {
+    if (action === "leave") {
+      root.querySelector<HTMLButtonElement>(".fui-game-menu-trigger")!.click();
+      root.querySelector<HTMLButtonElement>(".fui-game-menu-leave")!.click();
+      return;
+    }
     const button = root.querySelector<HTMLButtonElement>(
       `[data-action="${action}"]`,
     );
@@ -170,6 +181,9 @@ function fixture(
     createdMapId: () => createdMapId,
     summary,
     actions,
+    setBatchAcceptance(accept: boolean) {
+      acceptBatches = accept;
+    },
     selectCell(cell: number, shiftKey = false) {
       class ClickEvent extends EventConstructor {
         readonly shiftKey = shiftKey;
@@ -213,6 +227,53 @@ function fixture(
     },
   };
 }
+
+test("Craft shows touch controls for a touch input surface", async () => {
+  const f = fixture(undefined, () => 0, undefined, { touch: true });
+  await f.start();
+  const hint = f.root.querySelector(".fui-round-controls")!;
+  assert.match(hint.textContent!, /Pinch/);
+  assert.doesNotMatch(hint.textContent!, /Arrow keys/);
+  f.app.dispose();
+});
+
+test("Craft shows controls at every match start and keeps them available from MENU", async () => {
+  const f = fixture();
+  await f.start();
+  const hint = () => f.root.querySelector<HTMLElement>(".fui-round-controls")!;
+  assert.equal(hint().hidden, false);
+  assert.match(hint().textContent!, /Click \/ tap/);
+  assert.match(hint().textContent!, /choose Build/);
+  f.world.tick = 160;
+  f.publish();
+  assert.equal(hint().hidden, true);
+  f.world.matchId = "another-match";
+  f.world.tick = 0;
+  f.publish();
+  assert.equal(hint().hidden, false);
+  assert.equal(hint().dataset.round, "another-match");
+  f.root.querySelector<HTMLButtonElement>(".fui-game-menu-trigger")!.click();
+  const controls = Array.from(
+    f.root.querySelectorAll<HTMLButtonElement>(".fui-game-menu-action"),
+  ).find((button) => button.textContent === "CONTROLS")!;
+  controls.click();
+  const openMenu = f.root.querySelector(".fui-game-menu-panel");
+  f.world.tick++;
+  f.publish();
+  assert.equal(f.root.querySelector(".fui-game-menu-panel"), openMenu);
+  assert.equal(
+    f.root.querySelector<HTMLElement>(".fui-game-menu-controls")!.hidden,
+    false,
+  );
+  assert.match(
+    f.root.querySelector(".fui-game-menu-controls")!.textContent!,
+    /Shift \+ click/,
+  );
+  // Command shortcuts must not send game actions behind the menu.
+  f.press("q");
+  assert.deepEqual(f.actions, []);
+  f.app.dispose();
+});
 
 test("watch mode shows both openings, inspection and neutral results without gameplay controls", async () => {
   const f = fixture();
@@ -506,12 +567,11 @@ test("build commands arm placement, reject occupied tiles, place once, and cance
     f.root.querySelector(".placement-preview")?.getAttribute("data-valid"),
     "false",
   );
-  const open = f.world.map.cells.findIndex(
-    (c, i) =>
-      c.terrain === "open" &&
-      !f.world.structures.some((s) => s.cell === i) &&
-      !f.world.players.some((p) => p.queue.some((j) => j.cell === i)),
-  );
+  const open = connectedFrontier(
+    f.world,
+    f.world.players.find((p) => p.id === "coral")!,
+    "neuron",
+  )[0]!;
   f.selectCell(open);
   assert.deepEqual(f.actions, [
     { type: "queueConstruction", kind: "neuron", cell: open },
@@ -529,7 +589,33 @@ test("build commands arm placement, reject occupied tiles, place once, and cance
   f.app.dispose();
 });
 
-test("placement outlines hexes touching the network and says when a plan cannot connect", async () => {
+test("busy batch delivery keeps placement armed and lets the player retry", async () => {
+  const f = fixture();
+  await f.start();
+  const cell = connectedFrontier(
+    f.world,
+    f.world.players.find((p) => p.id === "coral")!,
+    "neuron",
+  )[0]!;
+  f.click("panel-build");
+  f.click("build-neuron");
+  f.setBatchAcceptance(false);
+  f.selectCell(cell);
+  assert.deepEqual(f.actions, []);
+  assert.match(
+    f.root.querySelector(".placement-instructions")!.textContent!,
+    /Build orders are busy. Try again/,
+  );
+  f.setBatchAcceptance(true);
+  f.selectCell(cell);
+  assert.deepEqual(f.actions, [
+    { type: "queueConstruction", kind: "neuron", cell },
+  ]);
+  assert.equal(f.root.querySelector(".placement-instructions"), null);
+  f.app.dispose();
+});
+
+test("placement outlines the frontier and queues connecting neurons for distant sites", async () => {
   const f = fixture();
   await f.start();
   const player = f.world.players.find((p) => p.id === "coral")!;
@@ -559,11 +645,11 @@ test("placement outlines hexes touching the network and says when a plan cannot 
   });
   const hint = () =>
     f.root.querySelector(".placement-instructions small")?.textContent ?? "";
-  assert.match(hint(), /Not connected/);
+  assert.match(hint(), /connecting neuron/);
   assert.doesNotMatch(hint(), /Needs 1 connected/);
   assert.equal(
     f.root.querySelector(".placement-preview")?.getAttribute("data-support"),
-    "unsupported",
+    "chained",
   );
   f.selectCell(frontier[0]!, true);
   assert.doesNotMatch(hint(), /Not connected/);
@@ -586,12 +672,10 @@ test("placement outlines hexes touching the network and says when a plan cannot 
 test("Shift placement queues repeatedly until ordinary placement or cancel", async () => {
   const f = fixture();
   await f.start();
-  const open = f.world.map.cells.flatMap((c, i) =>
-    c.terrain === "open" &&
-    !f.world.structures.some((s) => s.cell === i) &&
-    !f.world.players.some((p) => p.queue.some((j) => j.cell === i))
-      ? [i]
-      : [],
+  const open = connectedFrontier(
+    f.world,
+    f.world.players.find((p) => p.id === "coral")!,
+    "neuron",
   );
   f.click("panel-build");
   f.click("build-neuron");

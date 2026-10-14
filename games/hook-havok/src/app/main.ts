@@ -1,3 +1,4 @@
+import { analytics } from "./analytics.js";
 const page = new URLSearchParams(location.search).has("showcase")
   ? import("./showcase.js")
   : import("./playground.js");
@@ -6,7 +7,8 @@ void page
     document.getElementById("boot-style")?.remove();
     document.getElementById("boot-status")?.remove();
   })
-  .catch(() => {
+  .catch((error: unknown) => {
+    analytics.reportBootFailure(error);
     const status = document.getElementById("boot-status");
     if (!status) return;
     status.textContent = "The entrance could not load. Please try again.";
