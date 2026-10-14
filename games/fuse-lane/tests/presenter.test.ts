@@ -852,3 +852,93 @@ test("a leader the view no longer lists is Someone, and never a finisher", () =>
     `SOMEONE LEADS AFTER ${room.week} WEEKS`,
   );
 });
+
+test("online, once your week is over: who it still waits for, never someone who is not here, and the AI", () => {
+  const room = started(FAST, [
+    [JOIN, "c", "Cy", 2, "owl", 1],
+    addBot("bot:1", 3),
+  ]);
+  assert.equal(present(fuseLaneView(room), ADA).waiting, undefined);
+  fold(room, { a: [endWeekEntry(room)] });
+  const left = present(fuseLaneView(room), ADA).waiting ?? "";
+  assert.match(left, /^Your week is over\. Waiting for Bo and Cy · \d+s$/);
+  assert.equal(present(fuseLaneView(room), BO).waiting, undefined);
+  fold(room, { a: [[PRESENCE, "c", false, 1]] });
+  assert.match(
+    present(fuseLaneView(room), ADA).waiting ?? "",
+    /Waiting for Bo ·/,
+    "nobody waits for Cy, who dropped out",
+  );
+  // Bo finishes too, the AI is still playing: the week waits for nobody but the bot.
+  room.players["bot:1"]!.done = false;
+  room.players.b!.done = true;
+  assert.equal(
+    present(fuseLaneView(room), ADA).waiting,
+    "Your week is over. The AI are finishing theirs",
+  );
+  // On one device the handoff card says who is next instead.
+  assert.equal(
+    present(fuseLaneView(room), { ...ADA, local: true }).waiting,
+    undefined,
+  );
+});
+
+test("a shared-screen room's creator is the TV: it asks no name, keeps START, and shows everyone's week on a clock", () => {
+  const room = createRoom("m0", { ...FAST, display: true });
+  const host: Viewer = { ...ADA, me: "h", shared: true };
+  fold(room, { a: [[JOIN, "a", "Ada", 0, "fox", 1]] });
+  let tv = present(fuseLaneView(room), host);
+  assert.equal(tv.askName, false, "the TV holds no seat");
+  assert.equal(tv.layout, "board", "the lobby is the lobby");
+  fold(room, { a: [[JOIN, "b", "Bo", 1, "cat", 1]] });
+  tv = present(fuseLaneView(room), host);
+  assert.deepEqual([tv.lobby.showStart, tv.lobby.canStart], [true, true]);
+  assert.equal(tv.lobby.canPickGoals, false);
+  fold(room, { a: [[ACTION, "start", "m1"]] });
+  tv = present(fuseLaneView(room), host);
+  assert.equal(tv.layout, "tv");
+  assert.equal(tv.hud, undefined);
+  assert.equal(tv.tv?.headline, "WEEK 1");
+  assert.equal(tv.tv?.line, "Everyone is out in Fusetown");
+  assert.ok((tv.tv?.seconds ?? 0) > 0 && (tv.tv?.timer ?? 0) > 0.9);
+  fold(room, { a: [endWeekEntry(room)] });
+  assert.equal(
+    present(fuseLaneView(room), host).tv?.line,
+    "1 of 2 done for the week",
+  );
+  // The phones in that room are controllers; a joined creator would be one too.
+  assert.equal(
+    present(fuseLaneView(room), { ...BO, shared: true }).layout,
+    "controller",
+  );
+  assert.equal(
+    present(fuseLaneView(room), { ...ADA, shared: true }).layout,
+    "controller",
+  );
+});
+
+test("the lobby shows the goals you will play for: your picks, else the first person's, and the AI level", () => {
+  const room = createRoom("m0", FAST);
+  fold(room, {
+    a: [
+      [JOIN, "a", "Ada", 0, "fox", 1],
+      [JOIN, "b", "Bo", 1, "cat", 1],
+      [4, 0, 30, 30, 30, 30],
+    ],
+  });
+  assert.deepEqual(
+    present(fuseLaneView(room), BO).lobby.goals,
+    [30, 30, 30, 30],
+  );
+  fold(room, { b: [[4, 0, 80, 80, 80, 80]] });
+  assert.deepEqual(
+    present(fuseLaneView(room), BO).lobby.goals,
+    [80, 80, 80, 80],
+  );
+  const lobby = present(fuseLaneView(room), ADA).lobby;
+  assert.deepEqual([lobby.level, lobby.canSetLevel], [FAST.level, true]);
+  assert.equal(present(fuseLaneView(room), BO).lobby.canSetLevel, false);
+  fold(room, { a: [[ACTION, "start", "m1"]] });
+  assert.deepEqual(room.players.b!.goals, [80, 80, 80, 80]);
+  assert.deepEqual(room.players.a!.goals, [30, 30, 30, 30]);
+});

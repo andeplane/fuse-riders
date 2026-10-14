@@ -88,8 +88,15 @@ export function refreshSpriteImages(root: Element, sprites: Sprites): void {
     const paint = image.getAttribute("data-sprite-paint") as SpritePaint | null;
     const painted = paint ? sprites[paintedSpriteKey(name, paint)] : undefined;
     const url = painted ?? sprites[`${name}-v2`] ?? sprites[name];
-    if (url && image.getAttribute("href") !== url)
+    // A recovered source (or its fallback) stays until the raster tier changes.
+    if (
+      url &&
+      image.getAttribute("data-sprite-source") !== url &&
+      image.getAttribute("href") !== url
+    ) {
+      image.removeAttribute("data-sprite-source");
       image.setAttribute("href", url);
+    }
     const filter = image.getAttribute("data-sprite-filter");
     if (filter) {
       const desired = painted ? "none" : filter;
