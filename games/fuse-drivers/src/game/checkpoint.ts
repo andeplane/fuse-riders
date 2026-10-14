@@ -150,7 +150,7 @@ const encodeRace = (race: RaceState): unknown[] => [
 
 export function encodeRoom(room: FuseDriversRoom): unknown[] {
   return [
-    [room.matchId, room.round, room.stage],
+    [room.matchId, room.round, room.stage, room.finishTick],
     players(room)
       .concat([...room.seats.values()].filter((seat) => seat.watcher))
       .map((seat) => [
@@ -161,6 +161,7 @@ export function encodeRoom(room: FuseDriversRoom): unknown[] {
         seat.connected,
         seat.watcher === true ? "watcher" : seat.bot,
         seat.generation ?? null,
+        seat.away === true,
       ]),
     { ...room.settings },
     [...room.grid],
@@ -175,6 +176,12 @@ export function encodeRoom(room: FuseDriversRoom): unknown[] {
       memory.reverseUntilTick,
     ]),
     room.race ? encodeRace(room.race) : null,
+    room.finishSeats.map((seat) => [
+      seat.id,
+      seat.name,
+      seat.slot,
+      seat.connected,
+    ]),
   ];
 }
 
@@ -198,8 +205,8 @@ const controlBits = (value: unknown): value is number =>
   uint32(value) && (value & ~CONTROL_BITS) === 0;
 
 function decodeSeat(raw: unknown): SeatRecord | undefined {
-  if (!Array.isArray(raw) || raw.length !== 7) return;
-  const [id, name, slot, avatarId, connected, role, generation] = raw;
+  if (!Array.isArray(raw) || raw.length !== 8) return;
+  const [id, name, slot, avatarId, connected, role, generation, away] = raw;
   const watcher = role === "watcher";
   if (
     !playerKey(id) ||
@@ -208,6 +215,8 @@ function decodeSeat(raw: unknown): SeatRecord | undefined {
     !(watcher ? avatarId === "" : isAvatar(avatarId)) ||
     typeof connected !== "boolean" ||
     (!watcher && typeof role !== "boolean") ||
+    typeof away !== "boolean" ||
+    (away && (connected || role === true)) ||
     // A bot follows no stream; every human seat and watcher follows one.
     (role === true ? generation !== null : !uint32(generation))
   )
@@ -221,6 +230,7 @@ function decodeSeat(raw: unknown): SeatRecord | undefined {
     bot: role === true,
     ...(watcher ? { watcher } : {}),
     ...(generation === null ? {} : { generation }),
+    ...(away ? { away: true } : {}),
   };
 }
 
@@ -602,7 +612,7 @@ export function decodeRoom(
   fields: readonly unknown[],
   tick: number,
 ): FuseDriversRoom | undefined {
-  if (fields.length !== 7 || !uint32(tick)) return;
+  if (fields.length !== 8 || !uint32(tick)) return;
   const [
     header,
     rawSeats,
@@ -611,10 +621,11 @@ export function decodeRoom(
     rawControls,
     rawBots,
     rawRace,
+    rawFinishSeats,
   ] = fields;
   if (
     !Array.isArray(header) ||
-    header.length !== 3 ||
+    header.length !== 4 ||
     !Array.isArray(rawSeats) ||
     rawSeats.length > CAPACITY + MAX_WATCHERS ||
     !Array.isArray(rawGrid) ||
@@ -622,10 +633,12 @@ export function decodeRoom(
     !Array.isArray(rawControls) ||
     rawControls.length > CAPACITY ||
     !Array.isArray(rawBots) ||
-    rawBots.length > CAPACITY
+    rawBots.length > CAPACITY ||
+    !Array.isArray(rawFinishSeats) ||
+    rawFinishSeats.length > CAPACITY
   )
     return;
-  const [matchId, round, stage] = header;
+  const [matchId, round, stage, finishTick] = header;
   const settings = parseSettings(rawSettings);
   if (
     !validMatchId(matchId) ||
@@ -633,6 +646,10 @@ export function decodeRoom(
     round < 1 ||
     round > MAX_ROUNDS ||
     !STAGES.includes(stage as Stage) ||
+    !uint32(finishTick) ||
+    (stage === "over"
+      ? finishTick < 1 || finishTick > tick
+      : finishTick !== 0) ||
     !settings
   )
     return;
@@ -658,6 +675,30 @@ export function decodeRoom(
     if (stage === "running" && !seats.has(id)) return;
     grid.push(id);
   }
+  const finishSeats: FuseDriversRoom["finishSeats"] = [];
+  const finishSlots = new Set<number>();
+  for (const [index, raw] of rawFinishSeats.entries()) {
+    if (!Array.isArray(raw) || raw.length !== 4) return;
+    const [id, name, slot, connected] = raw;
+    if (
+      id !== grid[index] ||
+      !playerKey(id) ||
+      !validName(name) ||
+      !uint32(slot) ||
+      slot >= CAPACITY ||
+      finishSlots.has(slot) ||
+      typeof connected !== "boolean"
+    )
+      return;
+    finishSlots.add(slot);
+    finishSeats.push({ id, name, slot, connected });
+  }
+  if (
+    stage === "over"
+      ? finishSeats.length !== grid.length
+      : finishSeats.length > 0
+  )
+    return;
 
   const controls: Record<string, number> = {};
   for (const raw of rawControls) {
@@ -726,6 +767,8 @@ export function decodeRoom(
       grid,
       controls,
       bots,
+      finishSeats,
+      finishTick,
     };
   }
   if (!racing) return;
@@ -743,6 +786,8 @@ export function decodeRoom(
     grid,
     controls,
     bots,
+    finishSeats,
+    finishTick,
   };
 }
 

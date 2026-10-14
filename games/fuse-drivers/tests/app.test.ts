@@ -2,7 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { fuseDriversView } from "../src/game/index.js";
 import { presentTable, type Viewer } from "../src/app/presenter.js";
-import { dueReports, sendReport, type DueReport } from "../src/app/reports.js";
+import {
+  createReportDispatcher,
+  dueReports,
+  sendReport,
+  type DueReport,
+} from "../src/app/reports.js";
 import {
   NOT_OPEN,
   keys,
@@ -129,6 +134,13 @@ test("a device owes its report once the race is confirmed, and owes it once", ()
     "not while a rollback could still change it",
   );
   const due = dueReports(room, "a", room.tick, sent);
+  const finishTick = room.finishTick;
+  runTo(room, room.tick + 10);
+  assert.deepEqual(
+    dueReports(room, "a", finishTick, sent),
+    due,
+    "ongoing management ticks do not postpone a frozen receipt",
+  );
   assert.deepEqual(
     due.map((report) => report.path),
     ["round-results", "results"],
@@ -288,7 +300,7 @@ test("a report the service took is done, and it travels with the room's token", 
     authorization: "Bearer t0ken",
   });
   assert.equal(
-    JSON.parse(String(init.body)).matchId,
+    JSON.parse(String(init.body)).result.matchId,
     "m1",
     "the receipt itself is the body",
   );
@@ -331,4 +343,56 @@ test("a network that refuses the report keeps it for the next try", async () => 
     await sendReport("https://rooms/results", report(), { fetch }),
     false,
   );
+});
+
+test("report delivery deduplicates pending frames and retries frozen receipts after a rematch", async () => {
+  let now = 0;
+  const calls: DueReport[] = [];
+  const answers: ((done: boolean) => void)[] = [];
+  const dispatcher = createReportDispatcher({
+    now: () => now,
+    send: (due) => {
+      calls.push(due);
+      return new Promise<boolean>((resolve) => answers.push(resolve));
+    },
+  });
+  const due = report();
+  dispatcher.tick([due]);
+  dispatcher.tick([due]);
+  assert.equal(calls.length, 1);
+  assert.equal(dispatcher.completed.has(due.key), false);
+  answers.shift()!(false);
+  await new Promise<void>((resolve) => queueMicrotask(resolve));
+  now = 999;
+  dispatcher.tick([]);
+  assert.equal(calls.length, 1);
+  now = 1000;
+  dispatcher.tick([]);
+  assert.equal(calls.length, 2, "a rematch did not discard the receipt");
+  assert.deepEqual(calls[1], due);
+  answers.shift()!(true);
+  await new Promise<void>((resolve) => queueMicrotask(resolve));
+  assert.equal(dispatcher.completed.has(due.key), true);
+  dispatcher.tick([due]);
+  assert.equal(calls.length, 2);
+});
+
+test("a broken report service gets three bounded attempts", async () => {
+  let now = 0,
+    calls = 0;
+  const dispatcher = createReportDispatcher({
+    now: () => now,
+    send: async () => {
+      calls++;
+      throw new Error("offline");
+    },
+  });
+  const due = report();
+  for (const time of [0, 1000, 3000, 7000]) {
+    now = time;
+    dispatcher.tick([due]);
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+  }
+  assert.equal(calls, 3);
+  assert.equal(dispatcher.completed.has(due.key), true);
 });

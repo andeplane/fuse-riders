@@ -1,5 +1,5 @@
 import type { MatchResult } from "fuse-platform";
-import { players, type FuseDriversRoom } from "./rules.js";
+import { type FuseDriversRoom } from "./rules.js";
 import type { FuseDriversStats } from "../platform.js";
 
 /**
@@ -14,7 +14,7 @@ export function matchResult(
   const race = room.race;
   if (!race || room.stage !== "over") return;
 
-  const seats = players(room);
+  const seats = room.finishSeats;
   const byId = new Map(seats.map((seat) => [seat.id, seat]));
   const stats: FuseDriversStats[] = [];
 

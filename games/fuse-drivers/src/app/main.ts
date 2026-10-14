@@ -28,7 +28,7 @@ import { DEFAULT_SETTINGS, fuseDriversGame, seatName } from "../game/index.js";
 import { NEUTRAL_INPUT, type TruckInput } from "../game/sim/input.js";
 import { mountArena, type MountedArena } from "./arena/index.js";
 import { presentTable, type TableModel, type Viewer } from "./presenter.js";
-import { dueReports, sendReport } from "./reports.js";
+import { createReportDispatcher, dueReports, sendReport } from "./reports.js";
 import { FuseDriversRuntime, type FuseDriversCallbacks } from "./runtime.js";
 import { keys, roomFailure, safeStore, sessionFor } from "./session.js";
 import { playFrame } from "./play-metrics.js";
@@ -314,7 +314,17 @@ function room(solo: boolean): void {
   const board = keyboardControls();
   let arena: MountedArena | undefined;
   let stopped = false;
-  const sent = new Set<string>();
+  const reports = createReportDispatcher({
+    now: () => performance.now(),
+    send: (report) =>
+      session.kind === "room"
+        ? sendReport(
+            endpoints.apiUrl(`/api/games/${GAME}/rooms/${code}/${report.path}`),
+            report,
+            { fetch, roomToken: session.token },
+          )
+        : Promise.resolve(true),
+  });
 
   const frame = () => {
     if (stopped) return;
@@ -364,19 +374,14 @@ function room(solo: boolean): void {
         ),
       );
     if (room && session.kind === "room")
-      for (const report of dueReports(
-        room,
-        runtime.self,
-        runtime.confirmedTick(),
-        sent,
-      )) {
-        sent.add(report.key);
-        void sendReport(
-          endpoints.apiUrl(`/api/games/${GAME}/rooms/${code}/${report.path}`),
-          report,
-          { fetch, roomToken: session.token },
-        );
-      }
+      reports.tick(
+        dueReports(
+          room,
+          runtime.self,
+          runtime.confirmedTick(),
+          reports.completed,
+        ),
+      );
   };
   requestAnimationFrame(frame);
 
