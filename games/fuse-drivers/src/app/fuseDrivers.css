@@ -6,7 +6,7 @@ body.fuseDrivers-page {
   display: grid;
   /* The column is the screen, never the widest unbreakable line in it: a phone must not scroll sideways. */
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto minmax(0, 1fr);
   min-height: 100dvh;
   padding: 0 max(var(--fui-space-3), env(safe-area-inset-left))
     env(safe-area-inset-bottom);
@@ -435,17 +435,31 @@ body.fuseDrivers-display .fuseDrivers-die {
   width: min(100%, 44rem);
 }
 .fd-race {
+  --fd-arena-ui: 16rem;
   display: flex;
   flex-direction: column;
   gap: var(--fui-space-2);
   align-items: center;
   width: 100%;
 }
-/* The arena keeps the simulation's 16:9, and never grows past the viewport it has to share with the pad. */
-.fd-arena {
-  width: min(100%, 90rem);
-  max-height: 70vh;
+.fd-race.fd-display {
+  --fd-arena-ui: 10rem;
+}
+/* FIT measures only the arena box, never the adjacent HUD or controller pad. */
+.fd-arena-box {
+  position: relative;
+  width: min(
+    100%,
+    90rem,
+    max(10rem, calc((100dvh - var(--fd-arena-ui)) * 16 / 9))
+  );
   aspect-ratio: 16 / 9;
+  flex-shrink: 0;
+}
+.fd-arena {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
   background: #06121f;
   border: var(--fui-border);
   image-rendering: pixelated;

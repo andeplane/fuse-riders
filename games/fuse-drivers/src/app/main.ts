@@ -195,7 +195,10 @@ function room(solo: boolean): void {
   const hud = el("p", "", "fd-hud");
   const results = el("section", "", "fd-results");
   const race = el("section", "", "fd-race");
-  race.append(canvas, hud);
+  race.classList.toggle("fd-display", display);
+  const arenaBox = el("div", "", "fd-arena-box");
+  arenaBox.append(canvas);
+  race.append(arenaBox, hud);
 
   // Touch drivers steer with the same controls the keyboard writes, held while a finger is down.
   const touch = { ...NEUTRAL_INPUT };
@@ -241,6 +244,7 @@ function room(solo: boolean): void {
     results.hidden = model.screen !== "results";
     nameEntry.form.hidden = !model.askName;
     canvas.hidden = viewer.shared && !display && !solo;
+    arenaBox.hidden = canvas.hidden;
     roster.update(model.lobby.members);
     start.hidden = !model.lobby.showStart;
     start.disabled = !model.lobby.canStart;
@@ -319,6 +323,9 @@ function room(solo: boolean): void {
     const drawArena = !viewer.shared || display || solo;
     if (!arena && drawArena)
       arena = mountArena(canvas, {
+        onReady: () => {
+          canvas.dataset.ready = "true";
+        },
         assetBase: `${import.meta.env.BASE_URL}${GAME}/assets/`,
         onError: (error: unknown) => {
           // The race keeps running without a picture; say so rather than leaving a black rectangle.
