@@ -50,6 +50,14 @@ Room settings offer **3 ROUNDS · QUICK** and **5 ROUNDS · STANDARD**, plus a c
 
 Every device in a room simulates the game from one shared input log, so no browser owns the world: the creator's stream carries the room management entries (seats, settings, start, AI riders), and if the creator goes quiet for five seconds the lowest connected rider marks it absent so play continues. A refreshed creator or guest rejoins the running match with a validated snapshot from any peer; nothing is persisted locally. A tab you switch away from steps away by its own entry: it neutralises its controls, stops being waited on, and stops being asked for a world — but it keeps its seat, is placed in the next round and is still rated, so glancing at another tab no longer costs the seat. Coming back brings it straight in. These mechanisms have regression tests (`games/fuse-riders/tests/room-runtime.test.ts`, `games/fuse-riders/tests/hidden-tabs.test.ts`), while sustained recovery on real phones and networks remains unqualified.
 
+## Menus and round controls
+
+Games keep their own visual style while following the same navigation pattern: play or join from the home screen, open **MENU** during a game, read **Controls**, return to the lobby when allowed, or leave the game. Fuse Riders keeps its existing menu with room settings, account and radio controls; the other games use the shared `fuse-ui` menu alongside their game-specific settings.
+
+Control reminders appear at each round's countdown or opening phase. Games without a countdown use their stage, turn or week start. They describe keyboard and touch input and the immediate objective; shared TV displays explain that players use their phones. Open **MENU → Controls** to read them again. The reminders do not pause the simulation or change round timing.
+
+`createGameMenu` and `createRoundControls` in `packages/fuse-ui` provide the shared behavior. Pig is the new-game template, so generated games inherit this navigation and onboarding. Run `ONLINE_URL=http://localhost:PORT/ pnpm exec tsx scripts/shared-menu-controls-smoke.ts` against a fresh local service to check the real flows.
+
 ## Pig, the second game
 
 The same service serves **Pig**, a dice game for 2–5 players and bots, at `/dice/` (locally **http://localhost:8787/dice/**). It is the platform's demo, so the app portal (the dot-grid button at the top left of every game, listing each game with a `portal.json`) leaves it out. Roll a die as often as you like, every roll adding to your turn; a 1 loses the turn, **HOLD** banks it. First to 50 wins the round, two rounds win the match. It has solo against bots, rooms with a QR invite, and a shared TV (`?room=CODE&display=1`) with phones as ROLL/HOLD controllers. It is the template for new games: see [games/dice/README.md](games/dice/README.md). Production serves its rooms only once `EXTRA_GAME_IDS=dice` is set ([GCP deploy](docs/online/GCP-DEPLOY.md)); until then its page offers solo only.
