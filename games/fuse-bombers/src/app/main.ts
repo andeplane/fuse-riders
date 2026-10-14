@@ -18,7 +18,13 @@ import {
 import { createAudio } from "./audio/index.js";
 import { Flow } from "./flow.js";
 import { createBrowserInput } from "./input/index.js";
-import { GAME, showLanding, showRoom } from "./online.js";
+import {
+  GAME,
+  analytics,
+  reportPlay,
+  showLanding,
+  showRoom,
+} from "./online.js";
 import { carry, safeStore, sessionFor } from "./session.js";
 import { GOAL, ONLINE_CONTROLS } from "./controls.js";
 
@@ -109,6 +115,7 @@ async function boot(): Promise<void> {
   roundControls.element.classList.add("fb-round-controls");
   document.body.append(roundControls.element);
   flow = new Flow({
+    playMetrics: reportPlay,
     input: createBrowserInput(window, { forceTouch: params.has("touch") }),
     root,
     seed: Number(params.get("seed")) || Math.floor(Math.random() * 2 ** 31),
@@ -167,6 +174,7 @@ else if (session.kind === "invalid")
   showLanding(store, `${session.code} is not a room code`);
 else
   boot().catch((error: unknown) => {
+    analytics.reportBootFailure(error);
     console.error("Fuse Bombers failed to start", error);
   });
 

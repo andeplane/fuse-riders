@@ -14,6 +14,7 @@ import {
 } from "../src/app/input/gamepad.js";
 import { InputHub, type Command, type DeviceId } from "../src/app/input/hub.js";
 import type { TouchPadStyle } from "../src/app/input/index.js";
+import { createPlayMetrics } from "fuse-ui/play-metrics";
 import {
   attachKeyboard,
   type KeyEventLike,
@@ -242,8 +243,13 @@ function fakeFlow(touch = false) {
   };
   const uiStates: { countdown: boolean; round: number }[] = [];
   let keyListener: ((event: KeyboardEvent) => void) | undefined;
+  const metricEvents: string[] = [];
   const flow = new Flow({
     uiState: (state) => uiStates.push(state),
+    playMetrics: createPlayMetrics(
+      (event) => metricEvents.push(event),
+      () => pads.time,
+    ),
     input: {
       hub,
       touchEnabled: touch,
@@ -292,6 +298,7 @@ function fakeFlow(touch = false) {
     key,
     pads,
     uiStates,
+    metricEvents,
     ...touchPads,
   };
 }
@@ -546,7 +553,8 @@ test("the touch pads stay off the results screen and come back with the next rou
 });
 
 test("the touch pads stay off the winner screen, and the lobby brings them back", () => {
-  const { flow, zones, frame, click, tap } = fakeFlow(true);
+  const { flow, zones, frame, click, tap, metricEvents } = fakeFlow(true);
+  assert.deepEqual(metricEvents, [], "the attract scene is not play");
   const shown = () => zones.at(-1)?.map((z) => z !== undefined);
   tap(0, "fire");
   flow.lobby.setWinsToWin(1);
@@ -554,7 +562,23 @@ test("the touch pads stay off the winner screen, and the lobby brings them back"
   for (let i = 0; i < 40000 && flow.screen.kind !== "winner"; i++)
     frame(undefined, 100);
   assert.equal(flow.screen.kind, "winner", "one round win takes the match");
+  assert.deepEqual(metricEvents, [
+    "Seat Taken",
+    "Match Started",
+    "Match Ended",
+  ]);
+  frame(undefined, 100);
+  assert.equal(
+    metricEvents.length,
+    3,
+    "repeated winner frames do not repeat results",
+  );
   assert.deepEqual(shown(), [false, false], "no pad over PLAY AGAIN");
   click("lobby");
+  assert.equal(
+    metricEvents.length,
+    3,
+    "returning to attract play sends nothing",
+  );
   assert.deepEqual(shown(), [true, true], "the lobby's JOIN pads");
 });

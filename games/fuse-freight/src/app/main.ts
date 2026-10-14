@@ -1,3 +1,4 @@
+import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
@@ -99,6 +100,8 @@ const controllerGuide = {
  * steering bits. The decisions live in the presenter, the renderer and the engine.
  */
 const GAME = freightGame.id;
+const analytics = startGameAnalytics(GAME);
+const reportPlay = createPlayMetrics(analytics.track, () => performance.now());
 const endpoints = createEndpoints(
   {
     basePath: `${import.meta.env.BASE_URL}${GAME}/`,
@@ -1080,6 +1083,18 @@ function room(solo: boolean): void {
   let joinSent = false;
   const callbacks: FreightCallbacks = {
     state(frame, roomSettings) {
+      reportPlay({
+        matchId: frame.matchId,
+        active: frame.stage === "running",
+        ended: frame.stage === "over",
+        round: frame.round,
+        playerCount: frame.seats.filter((seat) => !seat.watcher).length,
+        botCount: frame.seats.filter((seat) => seat.bot).length,
+        seated: frame.seats.some(
+          (seat) => seat.id === viewer.me && !seat.watcher,
+        ),
+        mode: solo ? "solo" : roomSettings.display ? "shared" : "online",
+      });
       settings = roomSettings;
       const next = present(frame, viewer);
       main.dataset.round = String(frame.round);
