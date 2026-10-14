@@ -18,11 +18,28 @@ try {
       roomRequests.push(request.url());
   });
   await page.goto(`${base}/fuse-birds/?mute`);
+  assert.equal(
+    await page.locator(".birds-top > :first-child").getAttribute("class"),
+    "fui-portal",
+  );
+  await page.getByRole("button", { name: "Fuse games", exact: true }).click();
+  const birdsLink = page.getByRole("link", { name: "Fuse Birds", exact: true });
+  assert.equal(await birdsLink.getAttribute("aria-current"), "page");
+  assert.match(
+    (await birdsLink.getAttribute("href")) ?? "",
+    /fuse-birds\/\?mute$/,
+  );
+  assert.ok((await page.locator(".fui-portal-game").count()) > 1);
+  await page.keyboard.press("Escape");
   await page
     .getByRole("button", { name: "1 PLAYER PRACTICE", exact: true })
     .click();
   await page.locator('canvas[data-ready="true"]').waitFor({ timeout: 60_000 });
   assert.ok(page.url().includes("practice=1"));
+  assert.equal(
+    await page.locator(".birds-top > :first-child").getAttribute("class"),
+    "fui-portal",
+  );
   assert.equal(await page.locator(".birds-player").count(), 1);
   assert.equal(await page.locator(".birds-lobby").isHidden(), true);
   assert.match(await page.locator(".birds-turn").innerText(), /SOLO PRACTICE/);
