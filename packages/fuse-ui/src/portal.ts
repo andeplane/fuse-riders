@@ -10,12 +10,14 @@ export interface PortalEntry {
   accent: string;
   /** Lower sorts first; games without one sort after those with one, by name. */
   order: number;
+  /** Site-relative gameplay capture, used by the landing gallery. */
+  screenshot?: string;
 }
 
 /** A portal entry as the build hands it to the page: the game id and its path under the site base. */
 export interface PortalGame extends PortalEntry {
   id: string;
-  /** "" for the root page, otherwise `<id>/`. */
+  /** `<id>/` under the site base. */
   path: string;
 }
 
@@ -33,17 +35,27 @@ const text = (value: unknown, max: number): value is string =>
 /** Validates a parsed `portal.json`; null when a field is missing or malformed. */
 export function parsePortalEntry(raw: unknown): PortalEntry | null {
   if (typeof raw !== "object" || raw === null) return null;
-  const { name, tagline, mark, accent, order } = raw as Record<string, unknown>;
+  const { name, tagline, mark, accent, order, screenshot } = raw as Record<
+    string,
+    unknown
+  >;
   if (!text(name, 40) || !text(tagline, 80) || !text(mark, 3)) return null;
   if (typeof accent !== "string" || !/^#[0-9a-f]{6}$/i.test(accent))
     return null;
   if (order !== undefined && !Number.isFinite(order)) return null;
+  if (
+    screenshot !== undefined &&
+    (typeof screenshot !== "string" ||
+      !/^gallery\/[a-z0-9-]+\.(jpg|webp|png)$/.test(screenshot))
+  )
+    return null;
   return {
     name,
     tagline,
     mark,
     accent,
     order: typeof order === "number" ? order : DEFAULT_ORDER,
+    ...(typeof screenshot === "string" ? { screenshot } : {}),
   };
 }
 
@@ -70,7 +82,10 @@ export interface AppPortal {
  * their header, top left; it renders nothing when the build lists no games.
  */
 export function createAppPortal(options: AppPortalOptions): AppPortal {
-  const { document, current, base } = options;
+  const { document, current } = options;
+  // Every game page lives one level below the gallery, including static --base ./ builds.
+  const base =
+    options.base === "./" || options.base === "" ? "../" : options.base;
   const games = options.games ?? PORTAL_GAMES;
   const muted = new URLSearchParams(options.search ?? "").has("mute");
   const element = document.createElement("div");
@@ -94,9 +109,10 @@ export function createAppPortal(options: AppPortalOptions): AppPortal {
   panel.setAttribute("aria-label", "Fuse games");
   panel.setAttribute("hidden", "");
   toggle.setAttribute("aria-controls", panel.id);
-  const heading = document.createElement("p");
+  const heading = document.createElement("a");
   heading.className = "fui-portal-heading";
-  heading.textContent = "FUSE GAMES";
+  heading.textContent = "ALL GAMES ↗";
+  heading.href = `${base}${muted ? "?mute" : ""}`;
   const grid = document.createElement("ul");
   grid.className = "fui-portal-grid";
   for (const game of games) {
