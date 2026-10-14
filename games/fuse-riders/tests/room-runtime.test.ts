@@ -46,12 +46,7 @@ function room(
   };
   return { net, join };
 }
-const world = (runtime: RoomRuntime) =>
-  (
-    runtime as unknown as {
-      world: { state: Parameters<typeof hashRoomState>[0]; tick: number };
-    }
-  ).world;
+const world = (runtime: RoomRuntime) => runtime.sync.world!;
 const hashes = (net: FakeNetwork, ids: string[]) =>
   new Set(ids.map((id) => hashRoomState(world(net.runtimes.get(id)!).state)));
 
@@ -165,11 +160,7 @@ test("five riders and a TV keep one world through 5% loss, 100 ms jitter and reo
     net.step(50);
     for (const [id, runtime] of net.runtimes)
       for (const [from, stream] of world(runtime).state.folds.size
-        ? (
-            runtime as unknown as {
-              world: { streams: Map<string, { gap: boolean }> };
-            }
-          ).world.streams
+        ? world(runtime).streams
         : []) {
         const key = `${id}<${from}`;
         if (stream.gap) {
@@ -287,9 +278,7 @@ test("a silent rider is marked absent after one second, play continues, and its 
     world(host).tick > stalled + 40,
     "the world keeps running past the absent rider",
   );
-  net.ticks.set(GUESTS[0]!, () =>
-    (guest as unknown as { tickLoop(): void }).tickLoop(),
-  );
+  net.ticks.set(GUESTS[0]!, () => guest.tickLoop());
   net.step(3000);
   assert.equal(
     net.frame(HOST)!.players.find((p) => p.id === GUESTS[0])!.connected,
@@ -394,11 +383,9 @@ test("a divergence resync re-installs the world without restarting the member's 
     bomb: false,
   });
   net.step(300);
-  const before = (
-    world(host) as unknown as { streams: Map<string, { contiguous: number }> }
-  ).streams.get(GUESTS[0]!)!.contiguous;
+  const before = world(host).streams.get(GUESTS[0]!)!.contiguous;
   assert.ok(before >= 1);
-  (guest as unknown as { requestSnapshot(): void }).requestSnapshot();
+  guest.requestSnapshot();
   net.step(600);
   assert.equal(
     guest.metrics().snapshotRequest,
@@ -422,10 +409,7 @@ test("a divergence resync re-installs the world without restarting the member's 
   });
   net.step(600);
   assert.ok(
-    (
-      world(host) as unknown as { streams: Map<string, { contiguous: number }> }
-    ).streams.get(GUESTS[0]!)!.contiguous >=
-      before + 2,
+    world(host).streams.get(GUESTS[0]!)!.contiguous >= before + 2,
     "the host keeps applying the guest's entries after the resync",
   );
   assert.equal(hashes(net, [HOST, GUESTS[0]!]).size, 1);
@@ -848,13 +832,7 @@ test("presses keep working after a rider was marked absent and returned", () => 
   );
   net.step(300);
   assert.equal(
-    (
-      net.runtimes.get(HOST)! as unknown as {
-        world: { streams: Map<string, { latestOrdinal(): number }> };
-      }
-    ).world.streams
-      .get(GUESTS[0]!)!
-      .latestOrdinal(),
+    world(net.runtimes.get(HOST)!).streams.get(GUESTS[0]!)!.latestOrdinal(),
     2,
     "the new gesture id continues the sequence and every replica accepted it",
   );
@@ -1093,9 +1071,7 @@ test("once both humans are out every member runs three steps per log tick while 
   );
   // The clocks may sit a tick apart when sampled, so compare the world both members have already simulated.
   const hashAt = (runtime: RoomRuntime, tick: number) =>
-    (
-      world(runtime) as unknown as { hashAt(tick: number): string | undefined }
-    ).hashAt(tick);
+    world(runtime).hashAt(tick);
   const shared =
     Math.floor(
       (Math.min(world(host).tick, world(guest).tick) - 1) / SNAPSHOT_INTERVAL,

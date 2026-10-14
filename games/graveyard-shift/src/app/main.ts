@@ -1,9 +1,9 @@
+import { createGameSocial } from "fuse-ui/social";
+import "fuse-ui/social.css";
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
-import { createGameSocial } from "fuse-ui/social";
-import "fuse-ui/social.css";
 import "./style.css";
 import QRCode from "qrcode";
 import {
