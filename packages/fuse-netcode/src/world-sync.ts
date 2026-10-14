@@ -173,7 +173,12 @@ export class WorldSync<
    */
   private diverge(): void {
     if (!("world" in this.sync)) return;
-    this.sync = { at: "Diverged", world: this.sync.world };
+    const request = this.request;
+    this.sync = {
+      at: "Diverged",
+      world: this.sync.world,
+      ...(request ? { request } : {}),
+    };
   }
 
   // ---- divergence ---------------------------------------------------------------------------------------------------

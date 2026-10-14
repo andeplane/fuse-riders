@@ -4,39 +4,33 @@ import assert from "node:assert/strict";
 // only the types that name `RoomRuntime.sync`. A test inside the package reaches the class directly.
 import { WorldSync, type WorldSyncState } from "../src/world-sync.js";
 import { SnapshotAssembler } from "../src/snapshot.js";
-import type { World } from "../src/rollback.js";
-import type { LogEntry, RollbackGame, RoomClock } from "../src/game.js";
+import { World } from "../src/rollback.js";
+import {
+  counterGame,
+  type CounterRoom,
+  type CounterEntry,
+  type CounterView,
+  type CounterEvent,
+  type CounterSettings,
+} from "./fixtures/counter-game.js";
 
-type Room = RoomClock;
-type Entry = LogEntry;
-type View = { tick: number };
-type Sync = WorldSync<Room, Entry, View, unknown, unknown>;
+type Sync = WorldSync<
+  CounterRoom,
+  CounterEntry,
+  CounterView,
+  CounterEvent,
+  CounterSettings
+>;
 
-/**
- * The state machine reads a tick, the streams' gaps and one hash off its world; nothing here folds, so a stand-in
- * carries exactly those. `hashAt` answers `mine`, which the tests compare against a different authority hash.
- */
-const world = (
-  tick = 0,
-  hash: string | undefined = "mine",
-): World<Room, Entry, View, unknown, unknown> =>
-  ({
-    tick,
-    streams: new Map(),
-    completeTick: () => tick,
-    hashAt: () => hash,
-  }) as unknown as World<Room, Entry, View, unknown, unknown>;
+/** Exercise lifecycle transitions with the real typed world and game contract. */
+const world = (tick = 0) => {
+  const state = counterGame.createRoom("test", { target: 1000 });
+  state.tick = tick;
+  state.clock = tick;
+  return new World(counterGame, state, "creator", "self");
+};
 const assembler = (): SnapshotAssembler =>
-  new SnapshotAssembler(
-    { id: "test" } as unknown as RollbackGame<
-      Room,
-      Entry,
-      View,
-      unknown,
-      unknown
-    >,
-    0,
-  );
+  new SnapshotAssembler(counterGame, 0);
 const fresh = (): Sync => new WorldSync("test");
 const asked = (sync: Sync, to = "peer", at = 0): Sync => {
   sync.requestFrom(to, at, assembler());
@@ -158,6 +152,42 @@ test("divergence latches on the third mismatch inside the window and absorbs eve
   assert.equal(sync.requesting, false);
   sync.abandonRequest();
   assert.equal(sync.state, "Diverged");
+});
+
+test("divergence retains an in-flight snapshot and later repair requests", () => {
+  const sync = fresh();
+  sync.open(world());
+  asked(sync, "peer", 0);
+  const pending = sync.request;
+  const assembling = pending?.assembler;
+  assert.ok(pending);
+  for (let miss = 0; miss < 3; miss++) sync.compareHash(0, "theirs", miss * 10);
+  assert.equal(sync.state, "Diverged");
+  assert.equal(sync.request, pending, "the current fetch remains owned");
+  assert.equal(
+    sync.request?.assembler,
+    assembling,
+    "received chunks remain owned",
+  );
+
+  asked(sync, "repair", 30);
+  const repair = sync.request;
+  assert.ok(repair);
+  sync.compareHash(0, "theirs", 40);
+  assert.equal(
+    sync.request,
+    repair,
+    "later mismatches preserve a repair fetch",
+  );
+  const recovered = world(9);
+  sync.installed(recovered);
+  assert.equal(sync.world, recovered);
+  assert.equal(
+    sync.requesting,
+    false,
+    "installation completes the retained fetch",
+  );
+  assert.equal(sync.state, "Diverged", "the existing divergence latch remains");
 });
 
 test("mismatches older than the window do not count toward the limit", () => {
