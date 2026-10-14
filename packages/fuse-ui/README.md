@@ -1,5 +1,9 @@
 # fuse-ui
 
+`fuse-ui/modal-input` provides `createModalInputGate({ isOpen, observe, cancel })` for game input boundaries.
+Supply native dialog observation and the game's cancellation callback; cancel held controls when a dialog opens,
+and check `blocked()` before dispatching gameplay keys or pointer inputs. Dispose the observer with the game.
+
 Shared menus, social controls and neon/pixel styles for the room games in this repo. DOM components import no game or network code. The separate browser adapters use the shared network/platform contracts; sign-in downloads Firebase lazily, and analytics downloads `mixpanel-browser` only when analytics is enabled.
 
 ## Shared accounts and friends
