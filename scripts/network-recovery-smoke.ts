@@ -38,6 +38,7 @@ const pages = await Promise.all(
       await browser.newContext({ viewport: { width: 1100, height: 760 } })
     ).newPage();
     page.on("pageerror", (error) => errors.push(error.message));
+    page.setDefaultTimeout(20_000);
     await instrument(page, false);
     return page;
   }),
@@ -143,6 +144,14 @@ try {
   );
   const renders = trace.renders.filter(
     (render) => render.epochAt >= start && render.phase === "playing",
+  );
+  assert.ok(
+    renders.every((render) =>
+      render.players.every(
+        (player) => Object.keys(player.shown).sort().join(",") === "angle,x,y",
+      ),
+    ),
+    "render diagnostics contain compact poses, never whole riders or trail history",
   );
   let rawDegrees = 0,
     shownDegrees = 0,

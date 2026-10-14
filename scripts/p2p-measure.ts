@@ -115,6 +115,9 @@ export async function instrument(page: Page, impaired: boolean): Promise<void> {
 }
 
 async function run(impaired: boolean): Promise<Record<string, unknown>> {
+  console.log(
+    `Measurement starting: ${impaired ? "seeded impairment" : "local"}`,
+  );
   const browser = await chromium.launch({ headless: true });
   const pages: Page[] = [];
   try {
@@ -122,6 +125,7 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
       await browser.newContext({ viewport: { width: 1000, height: 700 } })
     ).newPage();
     pages.push(host);
+    host.setDefaultTimeout(20_000);
     await instrument(host, impaired);
     // The room is the join screen: the creator seats itself on arrival, like every other rider below.
     await host.addInitScript(() =>
@@ -146,6 +150,7 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
         await browser.newContext({ viewport: { width: 1000, height: 700 } })
       ).newPage();
       pages.push(page);
+      page.setDefaultTimeout(20_000);
       await instrument(page, impaired);
       // The room is the join screen: each rider seats itself under the name this browser remembers.
       await page.addInitScript(
@@ -162,6 +167,7 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
       await browser.newContext({ viewport: { width: 1280, height: 800 } })
     ).newPage();
     pages.push(tv);
+    tv.setDefaultTimeout(20_000);
     await instrument(tv, impaired);
     await tv.goto(invite + "&display=1");
     await tv
@@ -169,6 +175,7 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
       .getByText("Rider 4", { exact: false })
       .waitFor();
     await readyRoom(host);
+    console.log("Six peers seated and ready; waiting for play");
     for (const page of pages)
       await page.waitForFunction(
         () => {
@@ -182,6 +189,7 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
       );
     const started = performance.now(),
       players = pages.slice(0, 5);
+    console.log(`Recording ${seconds} seconds of play`);
     // Scripted steering: each rider alternates turns on its own cadence and fires now and then, so rounds keep ending and restarting.
     let step = 0;
     while (performance.now() - started < seconds * 1000) {
@@ -216,6 +224,7 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
       step++;
     }
     const traces: Trace[] = [];
+    console.log("Collecting traces");
     for (const page of pages)
       traces.push(
         await page.evaluate(() => {
@@ -326,20 +335,26 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
       rounds: Math.max(...traces.map((trace) => trace.snapshots.at(-1)!.round)),
     };
   } catch (error) {
+    console.error("Measurement failed", error);
     for (const [index, page] of pages.entries())
       console.error(
         `MEASURE DIAGNOSTIC ${index}`,
-        await page
-          .evaluate(() => ({
-            status: document.querySelector(".online-status")?.textContent,
-            notice: document.querySelector(".online-notice")?.textContent,
-            metrics:
-              document.querySelector<HTMLElement>("#app")?.dataset.metrics,
-            latest: (
-              Reflect.get(window, "__trace") as { snapshots: Snapshot[] }
-            ).snapshots.at(-1),
-          }))
-          .catch(() => "unavailable"),
+        await Promise.race([
+          page
+            .evaluate(() => ({
+              status: document.querySelector(".online-status")?.textContent,
+              notice: document.querySelector(".online-notice")?.textContent,
+              metrics:
+                document.querySelector<HTMLElement>("#app")?.dataset.metrics,
+              latest: (
+                Reflect.get(window, "__trace") as { snapshots: Snapshot[] }
+              ).snapshots.at(-1),
+            }))
+            .catch(() => "unavailable"),
+          new Promise((resolve) =>
+            setTimeout(() => resolve("diagnostic timed out"), 2000),
+          ),
+        ]),
       );
     throw error;
   } finally {

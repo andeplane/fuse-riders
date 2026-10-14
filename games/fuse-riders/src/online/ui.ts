@@ -2454,13 +2454,16 @@ export async function startOnline(): Promise<void> {
           inputSeq: benchmarkInput?.seq,
           inputAt: benchmarkInput?.at,
           pose: p ? { x: p.x, y: p.y, angle: p.angle } : undefined,
-          players: predicted.players.map((player) => ({
-            id: player.id,
-            alive: player.alive,
-            canonical: { x: player.x, y: player.y, angle: player.angle },
-            shown: riderPoses.get(player.id),
-            heldMotion: runtime.heldControls(player.id),
-          })),
+          players: predicted.players.map((player) => {
+            const shown = riderPoses.get(player.id)!;
+            return {
+              id: player.id,
+              alive: player.alive,
+              canonical: { x: player.x, y: player.y, angle: player.angle },
+              shown: { x: shown.x, y: shown.y, angle: shown.angle },
+              heldMotion: runtime.heldControls(player.id),
+            };
+          }),
         });
         benchmarkInput = undefined;
       }
