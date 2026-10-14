@@ -1,0 +1,559 @@
+import type { Arena, Keeper } from "./arena.js";
+import { sweep } from "./collision.js";
+import { splitBall } from "./combat.js";
+import { MAPS, type MapId, type Platform } from "./maps.js";
+import { BALL_RADII, BODY, HALF, S, type Tuning, type World } from "./world.js";
+import { knockout } from "./knockout.js";
+import { field, pull } from "./zones.js";
+import { clearPower } from "./power-ups.js";
+import {
+  BLAST_RADIUS,
+  BOMB_CEILING,
+  BOMB_DROP,
+  BOMB_RADIUS,
+  BOMBLET_BLAST,
+  BOMBLET_FUSE,
+  BOMBLET_POP,
+  BOMBLET_SPREAD,
+  BOMBLETS,
+  BOUNCE_FRICTION,
+  CARRY,
+  CHAIN_TICKS,
+  CHARGE_TICKS,
+  COOLDOWN_TICKS,
+  EVENT_TICKS,
+  FULL_SPEED,
+  FUSE_TICKS,
+  MAX_BOMBS,
+  MAX_BOMB_SPEED,
+  MAX_EVENTS,
+  REST_SPEED,
+  RESTITUTION,
+  ROLL_FRICTION,
+  STILL_SPEED,
+  TAP_SPEED,
+} from "./bomb-rules.js";
+
+/** A live bomb. Position is its centre; velocity is subunits per tick. */
+export interface Bomb {
+  /**
+   * Tick × 32 + owner slot × 4: a throw adds 0, the bomblets of a split 1–3.
+   * Unique and ascending in creation order.
+   */
+  id: number;
+  owner: string;
+  /** A cluster bomb splits into bomblets on its first contact (11D). */
+  kind: "plain" | "cluster" | "bomblet";
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  /** Ticks left; a blast nearby shortens it to CHAIN_TICKS. */
+  fuse: number;
+}
+export interface Blast {
+  tick: number;
+  id: number;
+  owner: string;
+  kind: Bomb["kind"];
+  x: number;
+  y: number;
+}
+/** Blast radius in world units: a bomblet's is 0.6× a bomb's. */
+export const blastRadius = (kind: Bomb["kind"]): number =>
+  kind === "bomblet" ? BOMBLET_BLAST : BLAST_RADIUS;
+export interface Knockout {
+  tick: number;
+  /** The thrower, or the rival credited with a hazard push; "" for nobody. */
+  by: string;
+  target: string;
+  /** The victim's chest where the blast or hazard caught them. */
+  x: number;
+  y: number;
+  cause: "bomb" | "hazard";
+}
+/** Per keeper supply and round tally; `fate` is how they last went down. */
+export interface BombKit {
+  cooldown: number;
+  thrown: number;
+  /** Knockouts credited to this keeper: bombs and hazard pushes. */
+  knockouts: number;
+  selfKnockouts: number;
+  bombed: number;
+  /** Times knocked out by a hazard (12B). */
+  zapped: number;
+  fate: "" | "fall" | "bomb" | "self" | "hazard";
+  /** The rival whose bomb it was, or who pushed them into a hazard; otherwise "". */
+  by: string;
+}
+export function freshKit(): BombKit {
+  return {
+    cooldown: 0,
+    thrown: 0,
+    knockouts: 0,
+    selfKnockouts: 0,
+    bombed: 0,
+    zapped: 0,
+    fate: "",
+    by: "",
+  };
+}
+const saturate = (n: number) => Math.min(0xffffffff, n + 1);
+const clamp = (v: number, lo: number, hi: number) =>
+  Math.max(lo, Math.min(hi, v));
+/**
+ * Launch velocity toward an absolute aim point, before any clamping by
+ * flight. A tap throws at TAP_SPEED, a full charge at FULL_SPEED, plus CARRY
+ * of the keeper's velocity. Aim on the chest lobs forward at 45°. Subunits;
+ * only +, −, ×, ÷ and sqrt, so every peer rounds identically.
+ */
+export function bombLaunch(
+  charge: number,
+  sx: number,
+  sy: number,
+  vx: number,
+  vy: number,
+  aimX: number,
+  aimY: number,
+  facing: -1 | 1,
+): { vx: number; vy: number } {
+  const t = clamp((charge - 1) / (CHARGE_TICKS - 1), 0, 1);
+  const speed = ((TAP_SPEED + (FULL_SPEED - TAP_SPEED) * t) * S) / 60;
+  let dx = aimX * S - sx,
+    dy = aimY * S - sy,
+    d = Math.sqrt(dx * dx + dy * dy);
+  if (d < S) {
+    dx = facing;
+    dy = -1;
+    d = Math.SQRT2;
+  }
+  const cap = MAX_BOMB_SPEED * S;
+  return {
+    vx: clamp(Math.round((dx / d) * speed + vx * CARRY), -cap, cap),
+    vy: clamp(Math.round((dy / d) * speed + vy * CARRY), -cap, cap),
+  };
+}
+const solidCache = new Map<MapId, Platform[]>();
+/** Ledges are solid to bombs from every side, like orbs; walls and a far ceiling bound them. */
+function solids(map: MapId): Platform[] {
+  let list = solidCache.get(map);
+  if (!list) {
+    const r = BOMB_RADIUS,
+      { width, height } = MAPS[map],
+      tall = height - BOMB_CEILING + 1100;
+    list = [
+      ...MAPS[map].platforms,
+      [-100, BOMB_CEILING - 100, 100, tall],
+      [width, BOMB_CEILING - 100, 100, tall],
+      [-100, BOMB_CEILING - 100, width + 200, 100],
+    ].map(
+      ([x, y, w, h]) => [x! - r, y! - r, w! + 2 * r, h! + 2 * r] as Platform,
+    );
+    solidCache.set(map, list);
+  }
+  return list;
+}
+const holds = ([px, py, w, h]: Platform, x: number, y: number) =>
+  x > px * S && x < (px + w) * S && y > py * S && y < (py + h) * S;
+/**
+ * Where a bomb held at (x, y) enters flight, in subunits. A keeper rising
+ * through a one-way ledge can hold it inside stone (or within a bomb radius
+ * of it), and a sweep ignores a box it starts in, so the bomb starts one
+ * subunit outside a face instead, like a resting bomb. Inflated boxes overlap
+ * where stone meets stone (Neon Spire's pylons on the crown deck, the core
+ * through the decks beside it, the hurdle on the floor), so a face of one box
+ * can lie inside another: the bomb takes the nearest face of any box holding
+ * it that no box holds, ties going to the earlier box, then up, down, left
+ * and right. Where every such face is held it moves to the nearest and looks
+ * again, at most four times, and then rises straight up out of each box in
+ * turn, which always ends in the open. Where one box holds the point and its
+ * nearest face is open, as everywhere on the 11B maps, this is 11B's rule.
+ */
+export function bombSpawn(
+  x: number,
+  y: number,
+  map: MapId,
+): { x: number; y: number } {
+  const boxes = solids(map);
+  for (let pass = 0; pass < 4; pass++) {
+    let near: [number, number, number] | undefined,
+      open: [number, number, number] | undefined;
+    for (const box of boxes) {
+      if (!holds(box, x, y)) continue;
+      const [px, py, w, h] = box,
+        left = px * S,
+        right = (px + w) * S,
+        top = py * S,
+        bottom = (py + h) * S;
+      const exits: [number, number, number][] = [
+        [y - top, x, top - 1],
+        [bottom - y, x, bottom + 1],
+        [x - left, left - 1, y],
+        [right - x, right + 1, y],
+      ];
+      for (const exit of exits) {
+        if (!near || exit[0] < near[0]) near = exit;
+        if (
+          (!open || exit[0] < open[0]) &&
+          !boxes.some((b) => holds(b, exit[1], exit[2]))
+        )
+          open = exit;
+      }
+    }
+    if (!near) return { x, y };
+    if (open) return { x: open[1], y: open[2] };
+    x = near[1];
+    y = near[2];
+  }
+  // Each rise ends above that box's top and y only falls, so no box holds
+  // the bomb twice: this ends within one step per box.
+  for (
+    let box = boxes.find((b) => holds(b, x, y));
+    box;
+    box = boxes.find((b) => holds(b, x, y))
+  )
+    y = box[1] * S - 1;
+  return { x, y };
+}
+/** Bombs below this line (subunits) fizzle. */
+export const bombFloor = (map: MapId) => (MAPS[map].height + BOMB_DROP) * S;
+/**
+ * Gravity (or a lift beam, or the low-gravity wing), then up to four
+ * contacts: bounce, friction, roll and rest.
+ */
+function fly(bomb: Bomb, gravity: number, tuning: Tuning): boolean {
+  const cap = MAX_BOMB_SPEED * S,
+    map = tuning.map;
+  bomb.vy = Math.max(
+    -cap,
+    Math.min(cap, pull(bomb.vy, field(tuning, bomb.x, bomb.y), gravity)),
+  );
+  let remaining = 1,
+    touched = false;
+  for (let i = 0; i < 4 && remaining > 0; i++) {
+    const dx = Math.round(bomb.vx * remaining),
+      dy = Math.round(bomb.vy * remaining);
+    if (!dx && !dy) break;
+    const hit = sweep(bomb.x, bomb.y, dx, dy, false, solids(map));
+    if (!hit) {
+      bomb.x += dx;
+      bomb.y += dy;
+      break;
+    }
+    touched = true;
+    bomb.x += Math.round(dx * hit.time) + hit.nx;
+    bomb.y += Math.round(dy * hit.time) + hit.ny;
+    // Every bounce keeps RESTITUTION of the normal speed and BOUNCE_FRICTION
+    // of the tangential speed; only a floor contact can rest or roll.
+    if (hit.nx) {
+      bomb.vx = -Math.round(bomb.vx * RESTITUTION);
+      bomb.vy = Math.round(bomb.vy * BOUNCE_FRICTION);
+    } else if (hit.ny < 0) {
+      const up = Math.round(bomb.vy * RESTITUTION),
+        bouncing = up > REST_SPEED * S;
+      bomb.vy = bouncing ? -up : 0;
+      bomb.vx = Math.round(
+        bomb.vx * (bouncing ? BOUNCE_FRICTION : ROLL_FRICTION),
+      );
+      if (Math.abs(bomb.vx) < STILL_SPEED * S) bomb.vx = 0;
+    } else {
+      bomb.vy = -Math.round(bomb.vy * RESTITUTION);
+      bomb.vx = Math.round(bomb.vx * BOUNCE_FRICTION);
+    }
+    remaining *= 1 - hit.time;
+  }
+  return touched;
+}
+/**
+ * A cluster bomb's first contact: bomblets leave the bounce spread sideways
+ * and popping up, as many as the live-bomb cap allows. Their ids follow the
+ * owner's slot for this tick, so they stay unique: the parent id's slot part
+ * is its owner's, which a checkpoint must show (`ownedBomb` in arena.ts).
+ */
+function split(bomb: Bomb, tick: number, room: number): Bomb[] {
+  const cap = MAX_BOMB_SPEED * S,
+    base = tick * 32 + (Math.floor(bomb.id / 4) % 8) * 4,
+    spread = [0, -1, 1].slice(0, Math.max(0, Math.min(BOMBLETS, room)));
+  return spread.map((side, i) => ({
+    id: base + 1 + i,
+    owner: bomb.owner,
+    kind: "bomblet" as const,
+    x: bomb.x,
+    y: bomb.y,
+    vx: clamp(bomb.vx + side * BOMBLET_SPREAD * S, -cap, cap),
+    vy: clamp(Math.min(bomb.vy, 0) - BOMBLET_POP * S, -cap, cap),
+    fuse: BOMBLET_FUSE,
+  }));
+}
+/**
+ * Where a bomb will be after each of the next `ticks` flights, by the same
+ * flight as the fold, without touching it: index i is after i + 1 ticks.
+ * Stops early once it would fizzle below the arena. `contact` is the index of
+ * the first flight that touches stone, where a cluster bomb splits (11D), or
+ * −1. Bots read it (11C).
+ */
+export function bombPath(
+  bomb: Pick<Bomb, "x" | "y" | "vx" | "vy">,
+  ticks: number,
+  tuning: Tuning,
+): { path: { x: number; y: number }[]; contact: number } {
+  const ghost: Bomb = {
+      ...bomb,
+      id: 0,
+      owner: "",
+      kind: "plain",
+      fuse: ticks,
+    },
+    g = Math.round((tuning.gravity * S) / 3600),
+    path: { x: number; y: number }[] = [];
+  let contact = -1;
+  for (let t = 0; t < ticks && ghost.y <= bombFloor(tuning.map); t++) {
+    const touched = fly(ghost, g, tuning);
+    if (ghost.y > bombFloor(tuning.map)) break;
+    if (touched && contact < 0) contact = path.length;
+    path.push({ x: ghost.x, y: ghost.y });
+  }
+  return { path, contact };
+}
+/** Circle against a keeper's body box. */
+export function touches(
+  w: Pick<World, "x" | "feet">,
+  x: number,
+  y: number,
+  r: number,
+): boolean {
+  const dx = x - clamp(x, w.x - HALF, w.x + HALF),
+    dy = y - clamp(y, w.feet - BODY, w.feet);
+  return dx * dx + dy * dy <= r * r;
+}
+function detonate(
+  arena: Arena,
+  bomb: Bomb,
+  canPlay: (k: Keeper) => boolean,
+  fresh: Set<number>,
+  sheltered: Set<string>,
+): void {
+  arena.blasts.push({
+    tick: arena.tick,
+    id: bomb.id,
+    owner: bomb.owner,
+    kind: bomb.kind,
+    x: bomb.x,
+    y: bomb.y,
+  });
+  const r = blastRadius(bomb.kind) * S;
+  // Stable slot order; a keeper already down this tick is not knocked out twice.
+  for (const k of arena.keepers) {
+    if (
+      !canPlay(k) ||
+      k.world.respawn ||
+      k.spawnGuard ||
+      !touches(k.world, bomb.x, bomb.y, r)
+    )
+      continue;
+    // A Shield absorbs the blast, the thrower's own included, and pops. It
+    // shelters its keeper from the rest of that tick's blasts (a cluster's
+    // bomblets go off together); a later blast knocks them out.
+    if (k.power.kind === "shield") {
+      clearPower(k);
+      sheltered.add(k.id);
+      arena.shieldPops.push({
+        tick: arena.tick,
+        target: k.id,
+        x: k.world.x,
+        y: k.world.feet - BODY / 2,
+      });
+      continue;
+    }
+    if (!sheltered.has(k.id)) knockout(arena, k, bomb.owner, "bomb");
+  }
+  const holder = arena.keepers[0]?.world,
+    c = arena.combat;
+  if (holder)
+    for (const ball of [...c.balls]) {
+      // Children from an earlier blast this tick wait for the next one.
+      if (fresh.has(ball.id)) continue;
+      const reach = r + BALL_RADII[ball.tier]! * S,
+        dx = ball.x - bomb.x,
+        dy = ball.y - bomb.y;
+      if (dx * dx + dy * dy > reach * reach) continue;
+      c.hits = saturate(c.hits);
+      c.impact = { tick: arena.tick, x: ball.x, y: ball.y };
+      holder.combat = c;
+      splitBall(holder, ball);
+      for (const child of c.balls)
+        if (child.id >> 1 === ball.id) fresh.add(child.id);
+    }
+  const chain = r + BOMB_RADIUS * S;
+  for (const other of arena.bombs) {
+    const dx = other.x - bomb.x,
+      dy = other.y - bomb.y;
+    if (other.fuse > 0 && dx * dx + dy * dy <= chain * chain)
+      other.fuse = Math.min(other.fuse, CHAIN_TICKS);
+  }
+}
+/**
+ * Runs after keepers move, hooks hit and orbs step. Live bombs fly and burn
+ * first, blasts resolve in bomb id order, then keepers in slot order charge
+ * and throw, so a keeper knocked out this tick throws nothing and a new bomb
+ * first moves next tick.
+ */
+export function stepBombs(arena: Arena, canPlay: (k: Keeper) => boolean): void {
+  const tuning = arena.tuning;
+  if (tuning.bomb === "off") return;
+  const gravity = Math.round((tuning.gravity * S) / 3600);
+  const flown: Bomb[] = [],
+    born: Bomb[] = [];
+  arena.bombs.forEach((bomb, i) => {
+    if (fly(bomb, gravity, tuning) && bomb.kind === "cluster") {
+      // Bomblets start their own fuse this tick; the parent is gone.
+      const others = flown.length + born.length + arena.bombs.length - 1 - i;
+      born.push(...split(bomb, arena.tick, MAX_BOMBS - others));
+      return;
+    }
+    bomb.fuse--;
+    flown.push(bomb);
+  });
+  // Out of the bottom of the arena: it fizzles. Blasts resolve in id order.
+  arena.bombs = [...flown, ...born]
+    .filter((b) => b.y <= bombFloor(tuning.map))
+    .sort(byId);
+  // Only a rival the blast could reach sets an impact bomb off, so a
+  // spawn-protected keeper is passed by like the thrower.
+  if (tuning.bomb === "impact")
+    for (const bomb of arena.bombs)
+      if (
+        arena.keepers.some(
+          (k) =>
+            k.id !== bomb.owner &&
+            canPlay(k) &&
+            !k.world.respawn &&
+            !k.spawnGuard &&
+            touches(k.world, bomb.x, bomb.y, BOMB_RADIUS * S),
+        )
+      )
+        bomb.fuse = 0;
+  const fresh = new Set<number>(),
+    sheltered = new Set<string>();
+  for (const bomb of arena.bombs.filter((b) => b.fuse <= 0))
+    detonate(arena, bomb, canPlay, fresh, sheltered);
+  arena.bombs = arena.bombs.filter((b) => b.fuse > 0);
+  for (const keeper of arena.keepers) {
+    if (!canPlay(keeper)) continue;
+    const kit = keeper.bomb,
+      w = keeper.world;
+    kit.cooldown = Math.max(0, kit.cooldown - 1);
+    if (w.respawn || w.input.cancelBomb) {
+      w.charge = 0;
+      continue;
+    }
+    if (w.input.bomb) {
+      // Holding through the end of a cooldown starts the charge then.
+      if (!kit.cooldown) w.charge = Math.min(CHARGE_TICKS, w.charge + 1);
+      continue;
+    }
+    if (!w.charge) continue;
+    const charge = w.charge;
+    w.charge = 0;
+    if (
+      arena.bombs.length >= MAX_BOMBS ||
+      arena.bombs.some((b) => b.owner === keeper.id)
+    )
+      continue;
+    // Cluster bomb: this throw is one of the next three.
+    const power = keeper.power,
+      cluster = power.kind === "cluster";
+    if (cluster && --power.charges <= 0) clearPower(keeper);
+    // Aimed from the chest; it enters flight outside any stone the chest is in.
+    const sx = w.x,
+      sy = w.feet - Math.round(BODY * 0.6),
+      start = bombSpawn(sx, sy, tuning.map),
+      v = bombLaunch(
+        charge,
+        sx,
+        sy,
+        w.vx,
+        w.vy,
+        w.input.aimX,
+        w.input.aimY,
+        w.facing,
+      );
+    arena.bombs.push({
+      id: arena.tick * 32 + keeper.slot * 4,
+      owner: keeper.id,
+      kind: cluster ? "cluster" : "plain",
+      x: start.x,
+      y: start.y,
+      vx: v.vx,
+      vy: v.vy,
+      fuse: FUSE_TICKS,
+    });
+    kit.cooldown = COOLDOWN_TICKS;
+    kit.thrown = saturate(kit.thrown);
+  }
+  // Throws this tick can land between bomblets born this tick.
+  if (born.length) arena.bombs.sort(byId);
+  arena.blasts = arena.blasts.slice(-MAX_EVENTS);
+  arena.knockouts = arena.knockouts.slice(-MAX_EVENTS);
+  arena.shieldPops = arena.shieldPops.slice(-MAX_EVENTS);
+}
+const byId = (a: Bomb, b: Bomb) => a.id - b.id;
+/** Drop presentation events once they are EVENT_TICKS old. */
+export function pruneBombEvents(arena: Arena): void {
+  const fresh = (e: { tick: number }) => arena.tick - e.tick < EVENT_TICKS;
+  if (!arena.blasts.every(fresh)) arena.blasts = arena.blasts.filter(fresh);
+  if (!arena.knockouts.every(fresh))
+    arena.knockouts = arena.knockouts.filter(fresh);
+  if (!arena.shieldPops.every(fresh))
+    arena.shieldPops = arena.shieldPops.filter(fresh);
+}
+/**
+ * Presentation preview of the throw a release would make now: the same launch
+ * and pull (gravity, lift beams, the low-gravity wing), sampled every other
+ * tick until it meets stone, leaves the arena or the fuse would end. Bounces
+ * are not predicted. World units.
+ */
+export function bombArc(
+  charge: number,
+  x: number,
+  y: number,
+  vx: number,
+  vy: number,
+  aimX: number,
+  aimY: number,
+  facing: -1 | 1,
+  gravity: number,
+  zones: Pick<Tuning, "map" | "lifts" | "lowGravity">,
+): { x: number; y: number }[] {
+  const map = zones.map;
+  const v = bombLaunch(
+    charge,
+    Math.round(x * S),
+    Math.round(y * S),
+    Math.round((vx * S) / 60),
+    Math.round((vy * S) / 60),
+    aimX,
+    aimY,
+    facing,
+  );
+  const start = bombSpawn(x * S, y * S, map);
+  let px = start.x,
+    py = start.y,
+    dx = v.vx,
+    dy = v.vy;
+  const g = Math.round((gravity * S) / 3600),
+    cap = MAX_BOMB_SPEED * S,
+    points: { x: number; y: number }[] = [];
+  for (let t = 0; t < FUSE_TICKS && py <= bombFloor(map); t++) {
+    dy = Math.max(-cap, Math.min(cap, pull(dy, field(zones, px, py), g)));
+    const hit = sweep(px, py, dx, dy, false, solids(map));
+    if (hit) {
+      points.push({ x: (px + dx * hit.time) / S, y: (py + dy * hit.time) / S });
+      break;
+    }
+    px += dx;
+    py += dy;
+    if (t % 2) points.push({ x: px / S, y: py / S });
+  }
+  return points;
+}

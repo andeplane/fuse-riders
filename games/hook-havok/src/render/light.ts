@@ -64,6 +64,12 @@ export function createLight(scene: Phaser.Scene): Light {
     setMap(map) {
       source = SOURCES[map] ?? SOURCES.crossroads!;
       lastRays = -1;
+      // Shafts, motes and paper grain belong to the painted maps; the neon
+      // grey box keeps only the keepers' halos.
+      const painted = map in SOURCES;
+      rays.setVisible(painted);
+      motes.setVisible(painted);
+      grain.setVisible(painted);
     },
     update(ms, animate, keepers) {
       // Shafts breathe slowly; redraw at 10 fps.

@@ -16,7 +16,7 @@ There is no additional game loop, simulation change, automatic quality downgrade
 
 ## Reproducible local workload
 
-The new [browser workload](../preview/cohesion-check.mjs) creates five real players in its own room: Crossroads, surge balls, double jump and spiked wire. Seed 1707 produces the retained keyboard schedule over 24 steps of 30 observed game ticks. It exercises moving/jumping keepers and repeated hooks, without injecting game state. Every recorded sample observed five simultaneous hooks and three live balls; it is not an exhaustive maximum-complexity workload. Network delivery, wall-clock timing and exact collisions can vary despite the seeded key schedule.
+The new [browser workload](../preview/cohesion-check.mjs) creates five real players in its own room: Crossroads, surge balls, double jump and spiked wire. Seed 1707 produces the retained keyboard schedule over 24 steps of 30 observed game ticks. It exercises moving/jumping keepers and repeated hooks, without injecting game state. Since [11B](bombs.md#controls) the workload jumps with Space and hooks with J, and pins **Bombs → Off** (recorded as `bomb` and `keys` in new reports); the retained reports below predate that, and their schedules name j for jump and k for hook. Every recorded sample observed five simultaneous hooks and three live balls; it is not an exhaustive maximum-complexity workload. Network delivery, wall-clock timing and exact collisions can vary despite the seeded key schedule.
 
 Recorded on Windows, AMD Ryzen 9 9950X3D, approximately 62 GiB usable RAM, headless Chrome 154.0.8037.57. Each sample has about 12 seconds of activity after setup/warmup. All five clients run on the same machine; only the host's main-thread metrics are recorded.
 
