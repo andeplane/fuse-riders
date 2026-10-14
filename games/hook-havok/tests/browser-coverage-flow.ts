@@ -26,7 +26,23 @@ try {
   await page.locator('#status[data-state="ready"]').waitFor();
   await page.locator("#start").click();
   await page.locator('#status[data-state="playing"]').waitFor();
+  // The room auto-starts. Its status precedes the renderer's first local
+  // frame, so reach the real room controls after the keeper is rendered.
+  await page.waitForFunction(() => {
+    const data = document.querySelector<HTMLElement>("#scene")?.dataset;
+    return (
+      !!data?.playerId &&
+      (JSON.parse(data.keepers ?? "[]") as HookKeeper[]).some(
+        (keeper) => keeper.id === data.playerId,
+      )
+    );
+  });
+  await page.getByRole("button", { name: "MENU", exact: true }).click();
+  await page
+    .getByRole("button", { name: "BACK TO LOBBY", exact: true })
+    .click();
   await page.locator("#map").selectOption("spire");
+  await page.getByText("NEON SPIRE", { exact: true }).waitFor();
   await page.waitForFunction(
     () =>
       document.querySelector<HTMLElement>("#scene")?.dataset.map === "spire",
