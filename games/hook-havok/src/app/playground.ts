@@ -390,9 +390,9 @@ function bombAim(): { x: number; y: number } | undefined {
 }
 let roomDeadline: ReturnType<typeof setTimeout> | undefined;
 /**
- * Releases everything held. The protocol has no cancel, so a charging bomb is
- * thrown: along where it is aimed now (keys, touch or the mouse's last
- * position), not where the press was.
+ * Cancels everything held through the logged lifecycle edge. Preserve the
+ * current aim (keys, touch or the mouse's last position) without throwing
+ * the discarded charge; ordinary button releases still throw.
  */
 function clear() {
   const aim = bombAim() ?? { x: input.aimX, y: input.aimY };
