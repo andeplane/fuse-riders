@@ -158,7 +158,7 @@ try {
         page.on("pageerror", (error) => errors.push(error.message));
         // tsx keepNames helper for functions serialized into page.evaluate; no game API is patched.
         await page.addInitScript("window.__name = value => value");
-        await page.goto(new URL("?mute", origin).href);
+        await page.goto(new URL("fuse-riders/?mute", origin).href);
         await page.locator(".online-app").waitFor();
         await page.evaluate(
           async ({ api }) => {
