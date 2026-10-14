@@ -40,6 +40,12 @@ test("new-game copies the dice template to a renamed game whose own tests pass",
     const written = newGame("snake-eyes", dir);
     assert.ok(written.includes("package.json"));
     assert.ok(written.includes("src/game/index.ts"));
+    const entry = readFileSync(
+      join(dir, "snake-eyes", "src/app/main.ts"),
+      "utf8",
+    );
+    assert.match(entry, /startGameAnalytics\(GAME\)/);
+    assert.match(entry, /createPlayMetrics\(analytics.track/);
     assert.ok(written.includes("tests/fixtures/snakeEyes.ts"));
     // A new game is on the app portal from the start.
     assert.deepEqual(
