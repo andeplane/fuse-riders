@@ -1,4 +1,7 @@
 import { elementsFor } from "fuse-ui";
+import { createAppPortal } from "fuse-ui/portal";
+import type { PlayFrame } from "fuse-ui/play-metrics";
+import { playFrame } from "./play-metrics.js";
 import type { BallRuntime } from "../online/runtime.js";
 import type { ArenaRenderer } from "../render/arena.js";
 import type { Callbacks } from "fuse-netcode";
@@ -29,6 +32,9 @@ export type Client = Pick<
   | "canManage"
 >;
 export interface ScreenOptions {
+  base?: string;
+  search?: string;
+  observePlay?(frame: PlayFrame): void;
   online?: {
     code: string;
     display: boolean;
@@ -78,7 +84,17 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
     },
     { signal },
   );
-  top.append(home, badge, sound);
+  top.append(
+    createAppPortal({
+      document,
+      current: "ball-bros",
+      base: options.base ?? "../",
+      search: options.search,
+    }).element,
+    home,
+    badge,
+    sound,
+  );
   if (options.radio) top.append(options.radio.element);
   const retry = el("button", "RECONNECT", "quiet-button");
   retry.hidden = !options.online;
@@ -401,6 +417,19 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
         state: (f, settings) => {
           activeSettings = settings;
           shared = settings.display;
+          options.observePlay?.(
+            playFrame(
+              f,
+              runtime?.self ?? "",
+              !options.online
+                ? "solo"
+                : options.online.display
+                  ? "display"
+                  : shared
+                    ? "controller"
+                    : "online",
+            ),
+          );
           update(f);
         },
         event: (e) => {

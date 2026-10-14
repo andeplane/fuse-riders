@@ -1,5 +1,7 @@
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
+import "fuse-ui/portal.css";
+import { createPlayMetrics, startGameAnalytics } from "fuse-ui/play-metrics";
 import "./style.css";
 import QRCode from "qrcode";
 import {
@@ -20,6 +22,8 @@ import { chosenAvatar } from "./avatars.js";
 import { createRadio } from "./radio.js";
 
 const root = document.querySelector<HTMLElement>("#app")!;
+const analytics = startGameAnalytics("ball-bros");
+const observePlay = createPlayMetrics(analytics.track, () => performance.now());
 const endpoints = createEndpoints(
   {
     basePath: `${import.meta.env.BASE_URL}ball-bros/`,
@@ -101,6 +105,9 @@ function render() {
       events: window,
       home: () => navigate(),
       retry: render,
+      base: import.meta.env.BASE_URL,
+      search: location.search,
+      observePlay,
     });
   }
 }
