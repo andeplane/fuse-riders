@@ -208,13 +208,16 @@ try {
     await page
       .locator('main[data-phase="countdown"]')
       .waitFor({ timeout: 20_000 });
-  // LOBBY mid-match asks twice.
-  await host.locator(".ff-to-lobby").click();
-  assert.equal(
-    await host.locator(".ff-to-lobby").textContent(),
-    "END MATCH? TAP AGAIN",
-  );
-  await host.locator(".ff-to-lobby").click();
+  // MENU's lobby action requires explicit confirmation mid-match.
+  await host.getByRole("button", { name: "MENU", exact: true }).click();
+  await host
+    .getByRole("button", { name: "BACK TO LOBBY", exact: true })
+    .click();
+  await host.locator(".ff-lobby-confirm[open]").waitFor();
+  await host
+    .locator(".ff-lobby-confirm")
+    .getByRole("button", { name: "BACK TO LOBBY", exact: true })
+    .click();
   for (const page of [host, guest])
     await page
       .locator('main[data-screen="lobby"]')
