@@ -266,10 +266,25 @@ async function checkBombersLocalResume(): Promise<void> {
       new URL("fuse-bombers/?local&mute&debug&seed=42", base).href,
     );
     await page.locator("#screen[data-screen='lobby']").waitFor();
+    const trigger = page.locator(".fui-game-menu-trigger");
+    for (const close of ["resume", "escape"] as const) {
+      await trigger.click();
+      if (close === "escape") await page.keyboard.press("Escape");
+      else
+        await page
+          .getByRole("button", { name: "BACK TO GAME", exact: true })
+          .click();
+      await page.keyboard.press("Space");
+      await page.waitForFunction((joined) => {
+        const flow = (window as Window & { fuseBombers?: { flow: Flow } })
+          .fuseBombers!.flow;
+        return flow.lobby.devices.includes("key:WASD") === joined;
+      }, close === "resume");
+      assert.equal(await trigger.getAttribute("aria-expanded"), "false");
+    }
     await page.keyboard.press("Space");
     await page.keyboard.press("Enter");
     await page.locator("#screen[data-screen='playing']").waitFor();
-    const trigger = page.locator(".fui-game-menu-trigger");
     for (const close of ["resume", "escape"] as const) {
       await page.waitForFunction(() => {
         const flow = (window as Window & { fuseBombers?: { flow: Flow } })

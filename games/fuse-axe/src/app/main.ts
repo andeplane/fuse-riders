@@ -232,7 +232,18 @@ function room(solo: boolean): void {
       runtime.stop();
       location.href = withFlags(endpoints.appUrl());
     },
-    onOpenChange: () => letGo(),
+    onOpenChange: (open) => {
+      letGo();
+      if (
+        !open &&
+        !model?.askName &&
+        (model?.screen === "play" || model?.screen === "controller")
+      ) {
+        // Menu closure returns keys to the run, including J/Z on its continue card.
+        // A focused MENU button would reopen the menu on Enter instead.
+        main.focus({ preventScroll: true });
+      }
+    },
   });
   const roundControls = createRoundControls({
     controls: AXE_CONTROLS,
@@ -399,7 +410,7 @@ function room(solo: boolean): void {
   for (const side of ["up", "down", "left", "right"])
     dpadPad.append(el("i", "", `fa-dpad-${side}`));
   const dpad = new DPad(dpadPad, (bits) => {
-    if (menu.isOpen()) return;
+    if (menu.isOpen() && bits !== 0) return;
     controls.hold("dpad", bits);
     dpadPad.dataset.dir = directionName(bits);
   });
@@ -466,6 +477,7 @@ function room(solo: boolean): void {
     },
   });
   const main = el("main", "", "fa-room");
+  main.tabIndex = -1;
   main.append(connecting, closed, nameEntry.form, lobby, stage, controller);
   app.replaceChildren(top, main, roundControls.element);
   for (const part of [

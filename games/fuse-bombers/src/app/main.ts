@@ -93,12 +93,7 @@ async function boot(): Promise<void> {
     onOpenChange: (open) => {
       flow?.setSharedMenuOpen(open);
       // Resume at the arena: Space on the menu trigger would reopen it instead of firing.
-      if (
-        !open &&
-        flow &&
-        !flow.paused &&
-        (flow.screen.kind === "playing" || flow.screen.kind === "countdown")
-      ) {
+      if (!open && flow) {
         game.canvas.tabIndex = -1;
         game.canvas.focus({ preventScroll: true });
       }
