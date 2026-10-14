@@ -305,6 +305,9 @@ h1 {
   color: #eaf6ff;
   border-width: 1px;
 }
+.room-panel .fui-invite .fui-room-code {
+  color: #eaf6ff;
+}
 .room-panel .fui-invite-copy {
   background: #17394c;
   color: #eaf6ff;
