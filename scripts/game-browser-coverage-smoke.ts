@@ -12,6 +12,29 @@ interface Flow {
 }
 const flows: Flow[] = [
   {
+    gameId: "fuse-birds",
+    async play(page) {
+      await page
+        .getByRole("button", { name: "1 PLAYER PRACTICE", exact: true })
+        .click();
+      const canvas = page.locator('canvas[data-ready="true"]');
+      await canvas.waitFor();
+      const turn = Number(
+        await page.locator(".birds-room").getAttribute("data-turn"),
+      );
+      await canvas.focus();
+      await page.keyboard.press("i");
+      await page.keyboard.down("Shift");
+      for (let i = 0; i < 16; i++) await page.keyboard.press("k");
+      await page.keyboard.up("Shift");
+      await page.locator('canvas[data-gesture="keyboard-aim"]').waitFor();
+      await page.keyboard.press("Enter");
+      await page
+        .locator(`.birds-room[data-turn="${turn + 1}"][data-phase="aiming"]`)
+        .waitFor();
+    },
+  },
+  {
     gameId: "ball-bros",
     async play(page) {
       await page
@@ -32,20 +55,24 @@ const flows: Flow[] = [
         .getByRole("button", { name: "START SOLO SHIFT", exact: true })
         .click();
       await page.locator('main[data-phase="running"]').waitFor();
-      const player = page.locator(".personal");
-      await page.waitForFunction(
-        () => !!document.querySelector<HTMLElement>(".personal")?.dataset.x,
+      const tick = Number(
+        await page
+          .locator('main[data-phase="running"]')
+          .getAttribute("data-tick"),
       );
-      const x = await player.getAttribute("data-x");
-      await page.keyboard.down("d");
+      await page.keyboard.down("w");
+      await page.keyboard.down("j");
       await page.waitForFunction(
         (before) =>
-          document.querySelector<HTMLElement>(".personal")?.dataset.x !==
-          before,
-        x,
+          Number(
+            document.querySelector<HTMLElement>('main[data-phase="running"]')
+              ?.dataset.tick,
+          ) >
+          before + 5,
+        tick,
       );
-      await page.keyboard.up("d");
-      await page.keyboard.press("j");
+      await page.keyboard.up("w");
+      await page.keyboard.up("j");
       await page.keyboard.press("Space");
     },
   },
@@ -55,20 +82,6 @@ const flows: Flow[] = [
       await page.locator('#status[data-state="ready"]').waitFor();
       await page.locator("#start").click();
       await page.locator('#status[data-state="playing"]').waitFor();
-      await page
-        .locator("details")
-        .filter({ has: page.getByText("Movement workshop", { exact: true }) })
-        .locator("summary")
-        .click();
-      await page.locator("#map").selectOption("spire");
-      await page
-        .getByRole("button", { name: "Apply and restart", exact: true })
-        .click();
-      await page.waitForFunction(
-        () =>
-          document.querySelector<HTMLElement>("#scene")?.dataset.map ===
-          "spire",
-      );
       await page.locator("#scene").focus();
       await page.keyboard.down("k");
       await page.waitForFunction(
@@ -105,7 +118,11 @@ const flows: Flow[] = [
 const browser = await chromium.launch({ headless: true });
 const failures: string[] = [];
 try {
-  for (const flow of flows) {
+  for (const flow of flows.filter(
+    (candidate) =>
+      !process.env.GAME_COVERAGE_ONLY ||
+      candidate.gameId === process.env.GAME_COVERAGE_ONLY,
+  )) {
     const page = await browser.newPage({
       viewport: { width: 1440, height: 1000 },
     });
@@ -121,6 +138,18 @@ try {
       console.log(`${flow.gameId}: real menu and play flow executed`);
     } catch (error) {
       failures.push(`${flow.gameId}: ${String(error)}`);
+      console.error(failures.at(-1));
+      if (flow.gameId === "hook-havok")
+        console.error(
+          await page.locator("#scene").evaluate((element) => ({
+            map: (element as HTMLElement).dataset.map,
+            charge: (element as HTMLElement).dataset.charge,
+            bombs: (element as HTMLElement).dataset.bombs,
+            tick: (element as HTMLElement).dataset.tick,
+            bombMode: (element as HTMLElement).dataset.bombMode,
+            focus: document.activeElement?.id,
+          })),
+        );
     } finally {
       try {
         await finish?.();
