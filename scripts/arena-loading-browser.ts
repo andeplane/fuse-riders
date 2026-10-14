@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { launchSelected } from "./lib/browser.js";
 import { startViteServer } from "./lib/server.js";
+import { ridersPageUrl } from "./lib/riders-url.js";
 
 const server = await startViteServer();
 // Desktop Chrome smoke of the actual landing flow; this does not qualify physical phones or train networks.
@@ -20,7 +21,9 @@ try {
     await artwork;
     await route.continue();
   });
-  await page.goto(server.url + "?mute", { waitUntil: "domcontentloaded" });
+  await page.goto(`${ridersPageUrl(server.url)}?mute`, {
+    waitUntil: "domcontentloaded",
+  });
   const progress = page.getByRole("progressbar", { name: "Loading graphics" });
   await progress.waitFor();
   assert.equal(await progress.getAttribute("aria-valuemin"), "0");
