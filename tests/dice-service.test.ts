@@ -52,6 +52,7 @@ test("the service hosts dice rooms beside Fuse Riders, and a room refuses the ot
     "fuse-bombers",
     "fuse-lane",
     "fuse-drivers",
+    "ball-bros",
   ]);
   assert.equal(platform.game("fuse-lane").parseStats({}, 1), undefined);
   assert.equal(platform.game("fuse-choppers").parseStats({}, 1), undefined);
@@ -102,6 +103,10 @@ test("the service hosts dice rooms beside Fuse Riders, and a room refuses the ot
   try {
     const dice = await create("dice"),
       riders = await create(GAME_ID);
+    const ballBros = await create("ball-bros");
+    assert.deepEqual(await open(ballBros.code, ballBros.token, "ball-bros"), {
+      welcomed: true,
+    });
     const hook = await create("hook-havok");
     assert.deepEqual(await open(hook.code, hook.token, "hook-havok"), {
       welcomed: true,
@@ -138,6 +143,8 @@ test("the service hosts dice rooms beside Fuse Riders, and a room refuses the ot
     assert.deepEqual(await open(hook.code, token(), GAME_ID), refused);
     assert.deepEqual(await open(dice.code, token()), refused);
     assert.deepEqual(await open(riders.code, token(), "dice"), refused);
+    assert.deepEqual(await open(ballBros.code, token(), "dice"), refused);
+    assert.deepEqual(await open(dice.code, token(), "ball-bros"), refused);
 
     // Two signed-in players finish a rated dice round and the match.
     const guest = token();

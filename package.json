@@ -23,6 +23,7 @@
     "config:plan": "tsx scripts/deploy-configuration.ts --plan"
   },
   "dependencies": {
+    "ball-bros": "workspace:*",
     "@google-cloud/firestore": "^9.1.0",
     "@google-cloud/pubsub": "^6.0.1",
     "@stdlib/math-base-special-atan2": "0.3.1",
