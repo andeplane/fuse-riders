@@ -124,7 +124,7 @@ test("the coverage gate runs the release steps, on a pull request only while mai
 
 /** What each of verify's `env:` values must be read from: the script below is only as right as its inputs. */
 const VERIFY_ENV: Record<string, string> = {
-  GATE: "${{ needs.checks.result }} ${{ needs.unit.result }} ${{ needs.main-health.result }}",
+  GATE: "${{ needs.checks.result }} ${{ needs.build.result }} ${{ needs.unit.result }} ${{ needs.main-health.result }}",
   MAIN_RED: "${{ needs.main-health.outputs.red }}",
   DEPLOY_RED: "${{ needs.main-health.outputs.deploy-red }}",
   REASON: "${{ needs.main-health.outputs.reason }}",
@@ -151,7 +151,7 @@ function verifyPasses(env: Record<string, string>): boolean {
 
 test("verify passes a green main's pull request on the gate alone, and a red main's only with proof", () => {
   const ok = {
-    GATE: "success success success",
+    GATE: "success success success success",
     MAIN_RED: "false",
     DEPLOY_RED: "false",
     REASON: "main is green",
@@ -159,8 +159,24 @@ test("verify passes a green main's pull request on the gate alone, and a red mai
     CD_FIX: "false",
   };
   assert.equal(verifyPasses(ok), true, "green main: the gate is enough");
-  assert.equal(verifyPasses({ ...ok, GATE: "success failure success" }), false);
-  assert.equal(verifyPasses({ ...ok, GATE: "success success failure" }), false);
+  // One slot per job in GATE, in order: checks, build, unit, main-health. A failure in any of them
+  // must fail the gate, so each slot is checked rather than just the first and the last.
+  assert.equal(
+    verifyPasses({ ...ok, GATE: "failure success success success" }),
+    false,
+  );
+  assert.equal(
+    verifyPasses({ ...ok, GATE: "success failure success success" }),
+    false,
+  );
+  assert.equal(
+    verifyPasses({ ...ok, GATE: "success success failure success" }),
+    false,
+  );
+  assert.equal(
+    verifyPasses({ ...ok, GATE: "success success success failure" }),
+    false,
+  );
   // A push leaves main-health's outputs empty: main counts as green.
   assert.equal(verifyPasses({ ...ok, MAIN_RED: "", DEPLOY_RED: "" }), true);
   const red = { ...ok, MAIN_RED: "true", REASON: "CI failure on 1234abcd" };
