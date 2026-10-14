@@ -126,6 +126,7 @@ try {
       .isVisible(),
   );
   await first.keyboard.press("j");
+  await first.locator('canvas[data-gesture="keyboard-aim"]').waitFor();
   await first.keyboard.press("Enter");
   await first
     .getByRole("button", { name: "Scatter Bomb, 2 shots remaining" })
@@ -146,6 +147,13 @@ try {
   await second
     .locator('.birds-room[data-phase="aiming"]')
     .waitFor({ timeout: 30_000 });
+  // A recovered world can arrive before the manager has logged the returning seat.
+  // Observe automatic admission before sending any play action; a rejected play must not be needed to repair it.
+  await second
+    .locator(".birds-roster li")
+    .filter({ hasText: /^EMBER · YOU$/ })
+    .waitFor({ state: "attached", timeout: 30_000 });
+  await second.locator('canvas[data-ready="true"]').waitFor();
   assert.deepEqual(
     await second.locator(".birds-player").allTextContents(),
     before,
