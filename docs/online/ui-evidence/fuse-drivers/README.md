@@ -1,6 +1,6 @@
 # Fuse Drivers cleanup browser evidence
 
-Captured on 2026-10-14 from the individual Drivers PR build at source `52eec2bb`, served by `service/dev.ts` at `http://localhost:4923/`. Chrome screenshots use a 1440 × 900 desktop viewport; the same smoke also exercised a 390 × 844 phone emulation.
+Captured on 2026-10-14 from the individual Drivers PR build at source `c9bbdceb`, after integrating main `bdd0c792`, served by `service/dev.ts` at `http://localhost:4923/`. Chrome screenshots use a 1440 × 900 desktop viewport; the same smoke also exercised a 390 × 844 phone emulation.
 
 Command: `ONLINE_URL=http://localhost:4923/ pnpm exec tsx scripts/fuse-drivers-smoke.ts`.
 
