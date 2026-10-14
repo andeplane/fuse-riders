@@ -1397,6 +1397,7 @@ export class RoomRuntime<
     if (this.transport || !this.world || !this.localPlayerIds.includes(id))
       return false;
     this.world.streams.get(id)!.append(this.ownTick(), body);
+    this.lastPacketTick = -1;
     return true;
   }
   /**

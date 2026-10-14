@@ -17,7 +17,7 @@ declare global {
 }
 const browser = await launchSelected("chromium", { headless: true });
 console.log("Controller smoke: browser launched");
-const base = process.env.BASE_URL ?? "http://localhost:4887";
+const base = `${(process.env.BASE_URL ?? "http://localhost:4887").replace(/\/$/, "")}/fuse-riders`;
 const pad = (index: number, buttons: number[] = [], axis = 0): PadSnapshot => ({
   index,
   id: "Simulated standard controller",

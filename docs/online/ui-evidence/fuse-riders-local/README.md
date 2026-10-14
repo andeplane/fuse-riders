@@ -16,3 +16,5 @@ Later screenshot-refresh attempts timed out during a new charge assertion and th
 The harness substitutes only `navigator.getGamepads`, with typed snapshots. These results establish browser integration, not physical-controller or physical-phone qualification. The dialog blocks controls; gameplay continues rather than pausing its clock.
 
 Screenshots are grouped by browser in the adjacent directories. The setup panel scrolls when the roster exceeds the viewport height.
+
+The original PR was separately integrated with main at `01266922`. Its 43 focused controller, local-runtime, setup and dialog tests, typecheck, build and targeted lint passed. The local-gamepad smoke now opens Riders' dedicated `/fuse-riders/` route because `/` serves the game gallery. A fresh Chromium attempt reached local setup but timed out waiting for play with host load above 400; this attempt is incomplete and does not replace the browser passes or screenshots above.
