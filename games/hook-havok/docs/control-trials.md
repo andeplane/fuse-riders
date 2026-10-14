@@ -4,15 +4,18 @@ These selectable experiments let players compare the new mechanics with the orig
 
 ## Try it
 
-Create a room, then open **Development workshop** to select **Jump → Double jump** and **Tether → Spiked wire**. In **Room & match**, select **Your controls → Keyboard · J / K** and a ball experiment to try splitting orbs. Jump and Tether are manager-controlled shared settings; changing either restarts the trial. Keyboard mode is local to each device and is also available in the splash Settings dialog.
+Create a room, then open **Development workshop** to select **Jump → Double jump** and **Tether → Spiked wire**. In **Room & match**, select **Your controls → Keyboard · J hook / K bomb** and a ball experiment to try splitting orbs. Jump, Tether and Bombs are manager-controlled shared settings; changing any of them restarts the trial. Keyboard mode is local to each device and is also available in the splash Settings dialog.
+
+Since [11B](bombs.md#controls) the keyboard scheme is **Keyboard · J hook / K bomb**:
 
 | Action               | Keyboard mode                                   |
 | -------------------- | ----------------------------------------------- |
 | Move                 | A / D or left / right arrows                    |
 | Aim                  | WASD / arrows; combine directions for diagonals |
-| Jump / air jump      | J or Space; release between jumps               |
-| Fire and pull        | Hold K; release to let go and rearm             |
-| Drop through a ledge | Shift+S or Shift+Down                           |
+| Jump / air jump      | Space; release between jumps (J before 11B)     |
+| Fire and pull        | Hold J; release to let go and rearm (K before)  |
+| Bomb                 | Hold K to charge, release to throw              |
+| Drop through a ledge | Down + Space, Shift+S or Shift+Down             |
 
 The last nonzero aim direction remains selected, initially up. A small arrow shows it. Down alone aims downward, so it does not accidentally drop the keeper. Mouse mode retains its existing aiming, Space jump and S/Down drop. This is a keyboard experiment, not a native gamepad integration. Switching modes and losing focus release held input. Touch remains available and can also use the shared double-jump and wire settings.
 
@@ -20,7 +23,7 @@ The last nonzero aim direction remains selected, initially up. A small arrow sho
 
 Double jump gives one extra airborne launch per landing, including after a deliberate drop or walking off a ledge. Ground/coyote jumps take priority without consuming the reserve. Holding jump does not trigger it; a fresh press does. A blue ring marks the available reserve and a brief airborne burst marks its use. Landing, respawn and round reset restore it; hook attachment, cancellation and checkpoint recovery do not grant another jump.
 
-Spiked wire adds a luminous spine and alternating metal barbs. A ball touching the active flying or attached wire splits/pops, then that shot retracts. One shot consumes one ball; retracting or released wire is harmless. Rival knockback and the brass target retain tip-only contact. The wire clips at the first solid platform, and a source inside stone is inactive, so the visible lethal segment does not pass through a ledge.
+Spiked wire adds a luminous spine and alternating metal barbs. Since [11A](bombs.md#11a-spiked-wire-everywhere) it is the default, and the lethal wire is the whole visible rope in every phase, the retract included, through ledges and with the chest inside stone. A pop ends the shot at once, so one shot still consumes one ball. Rival knockback and the brass target retain tip-only contact. (Before 11A only a flying or attached wire with fire held popped, it clipped at the first platform, and a retracting rope was harmless.)
 
 The engine sweeps each ball motion segment against a capsule around the current wire spine (three logical units of thickness plus ball radius). This traces fast ball crossings, not just endpoint overlap. Wire geometry uses the keeper's post-movement position for the tick; it does not sweep the wire's previous shape across time. Terrain wins equal-time ball contacts, stable keeper slots break competing-wire ties, and ascending ball IDs order processing. New wire-split children wait until the next tick. Population and family-conservation guards remain unchanged. Input aim bounds now support all eight directional endpoints even when the keeper is above the arena. Presentation consumes the engine's clipped segment and never decides contact.
 

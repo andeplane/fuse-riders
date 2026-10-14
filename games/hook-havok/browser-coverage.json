@@ -1,0 +1,3 @@
+{
+  "scripts": ["tests/browser-coverage-flow.ts"]
+}
