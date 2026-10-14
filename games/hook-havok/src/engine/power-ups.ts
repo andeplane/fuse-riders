@@ -125,8 +125,9 @@ export function tickPower(keeper: Keeper): void {
   if (p.kind && --p.ticks <= 0) clearPower(keeper);
 }
 /**
- * Post-movement contact: earlier rival hits stand, and a new power works from
- * the next tick. Pads resolve in index order, keepers in slot order.
+ * Post-movement contact: earlier rival hits stand. A new power affects the
+ * bomb phase later this tick and movement from the next tick. Pads resolve
+ * in index order, keepers in slot order.
  */
 export function stepPowerUps(
   arena: Arena,
