@@ -133,6 +133,11 @@ Validate admission, signalling and stored records at runtime; bound queues, dedu
 
 ## Verification boundaries
 
+Every game exposes the shared account and friends dialogs. `fuse-ui/browser-account` owns the lazy Firebase
+adapter and existing session cache; `fuse-ui/social` composes account history, ratings, room presence and friends
+for the other games, while Riders keeps its detailed stats renderers. Cross-game invites preserve the destination
+game ID. No game imports another game's client to use accounts. See [shared social](design/shared-social.md).
+
 Product analytics lives in `packages/fuse-ui/src/analytics.ts` (guarded Mixpanel adapter, `fuse.*` names and `gameId`)
 and `play-metrics.ts` (observed seat/match lifecycle). Every game supplies its own view adapter at the application
 boundary; no simulation or transport code sends analytics. Fuse Riders retains its detailed funnel and match/weapon

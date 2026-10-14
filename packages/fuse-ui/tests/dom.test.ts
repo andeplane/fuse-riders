@@ -100,7 +100,7 @@ test("copyText reports a clipboard write, and falls back to execCommand when the
   assert.equal(document.querySelector("textarea"), null);
 });
 
-test("the package stays self-contained except for the optional lazy Mixpanel adapter", () => {
+test("DOM components stay self-contained; browser adapters use explicit shared boundaries", () => {
   const root = path.resolve("packages/fuse-ui/src");
   const files = readdirSync(root).filter((name) => name.endsWith(".ts"));
   assert.ok(files.length > 0);
@@ -119,6 +119,20 @@ test("the package stays self-contained except for the optional lazy Mixpanel ada
         assert.match(text, /\bimport\(["']mixpanel-browser["']\)/);
         continue;
       }
+      if (
+        name === "browser-account.ts" &&
+        ["firebase/app", "firebase/auth"].includes(specifier!)
+      ) {
+        assert.doesNotMatch(text, /\bfrom\s+["']firebase\//);
+        assert.match(text, /\bimport\(["']firebase\//);
+        continue;
+      }
+      const adapters: Record<string, readonly string[]> = {
+        "friends-client.ts": ["fuse-platform/friends-api"],
+        "friends-notify.ts": ["fuse-platform/friends-api"],
+        "social.ts": ["fuse-network-fe", "fuse-platform/rating"],
+      };
+      if (adapters[name]?.includes(specifier!)) continue;
       assert.match(
         specifier!,
         /^\.\/[\w-]+\.js$/,

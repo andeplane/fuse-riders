@@ -1,3 +1,5 @@
+import { createGameSocial } from "fuse-ui/social";
+import "fuse-ui/social.css";
 import QRCode from "qrcode";
 import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
 import { observeLocalPlay, observeOnlinePlay } from "./analytics.js";
@@ -38,6 +40,15 @@ const endpoints = createEndpoints(
   },
   location.origin,
 );
+const social = createGameSocial({
+  gameId: GAME,
+  base: import.meta.env.BASE_URL,
+  apiOrigin: import.meta.env.VITE_API_ORIGIN,
+  document,
+  window,
+  fetch: (input, init) => fetch(input, init),
+  track: analytics.track,
+});
 /** Storage that never throws; a browser that refuses it keeps values for this page's life. */
 const memory = new Map<string, string>();
 const store = {
@@ -95,6 +106,7 @@ mountFuseCraft(root, {
       base: import.meta.env.BASE_URL,
       search: location.search,
     }).element,
+  social: () => social.element(),
   maps: createBrowserMapRepository(fetch.bind(globalThis)),
   preferences: createPreferencesStore(localStorage),
   createSession: (map, slot, mode, settings, options) =>
@@ -130,14 +142,18 @@ mountFuseCraft(root, {
       }
       const member = token;
       return observeOnlinePlay(
-        createOnlineSession(
-          code,
-          (events) =>
-            new PeerTransport(code, member, events, {
-              apiUrl: endpoints.apiUrl,
-              gameId: GAME,
-              maxFastBytes: MAX_PACKET_BYTES,
-            }),
+        createOnlineSession(code, (events) =>
+          social.transport(
+            code,
+            member,
+            events,
+            (events) =>
+              new PeerTransport(code, member, events, {
+                apiUrl: endpoints.apiUrl,
+                gameId: GAME,
+                maxFastBytes: MAX_PACKET_BYTES,
+              }),
+          ),
         ),
         reportPlay,
       );
@@ -147,7 +163,7 @@ mountFuseCraft(root, {
     enterRoom: (code) => history.replaceState(null, "", address(code)),
     leaveRoom: () => history.replaceState(null, "", address(null)),
     qr: (text) => QRCode.toDataURL(text, { margin: 1, width: 280 }),
-    savedName: () => store.get(`${GAME}-player-name`) ?? "",
+    savedName: () => social.playerName(store.get(`${GAME}-player-name`)) ?? "",
     saveName: (name) => store.set(`${GAME}-player-name`, name),
   },
   ...(initialRoom ? { initialRoom } : {}),

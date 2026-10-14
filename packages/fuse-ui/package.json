@@ -8,6 +8,13 @@
     "node": ">=22.12.0"
   },
   "exports": {
+    "./browser-account": "./src/browser-account.ts",
+    "./firebase-config": "./src/firebase-config.ts",
+    "./friends-client": "./src/friends-client.ts",
+    "./friends-notify": "./src/friends-notify.ts",
+    "./social-friends": "./src/social-friends.ts",
+    "./social": "./src/social.ts",
+    "./social.css": "./src/social.css",
     "./analytics": "./src/analytics.ts",
     "./analytics-text": "./src/analytics-text.ts",
     "./safe-storage": "./src/safe-storage.ts",
@@ -21,6 +28,9 @@
     "./portal.css": "./src/portal.css"
   },
   "dependencies": {
+    "firebase": "^12.19.0",
+    "fuse-network-fe": "workspace:*",
+    "fuse-platform": "workspace:*",
     "mixpanel-browser": "^2.83.0"
   }
 }
