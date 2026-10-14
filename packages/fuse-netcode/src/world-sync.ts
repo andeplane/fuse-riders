@@ -70,7 +70,7 @@ export class WorldSync<
   };
   /** Peers that answered a snapshot request with `noWorld`, and when: an answer older than the retry interval is asked again. */
   private readonly noWorldAt = new Map<string, number>();
-  /** Until when a resync that brought no newer world keeps this replica catching up rather than fetching again. */
+  /** Until when a resync that still requires local catch-up keeps this replica stepping rather than fetching again. */
   private catchUpUntil = -Infinity;
   private mismatches: number[] = [];
   /** Authority hashes this replica could compare with its own state, whatever the outcome. */
@@ -226,7 +226,7 @@ export class WorldSync<
   }
 
   // ---- catching up rather than fetching --------------------------------------------------------------------------------
-  /** A resync that is not ahead of this world says nobody is: catch the backlog up for `holdMs` instead of fetching again. */
+  /** Give an installed world bounded catch-up time when another fetch would still leave the replica behind. */
   holdCatchUp(until: number): void {
     this.catchUpUntil = until;
   }
