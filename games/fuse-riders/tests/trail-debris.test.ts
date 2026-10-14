@@ -180,3 +180,14 @@ test("erosion emits no flying fragments even under a newly observed blast", () =
     "blasts still launch expired-age debris",
   );
 });
+
+test("the retained prior frame holds the view's own segments and never writes to them", () => {
+  const debris = new TrailDebris(240, fixedRandom);
+  const frozen = Object.freeze({ ...segment });
+  const before = frame(95, [frozen]);
+  // A frozen view would throw on any write; the cache keeps references rather than per-segment clones.
+  debris.update(before, 1000, "match");
+  const strokes = debris.update(frame(96, [], [blast]), 1050, "match");
+  assert.ok(strokes.length > 0, "the removed segment still becomes debris");
+  assert.deepEqual(frozen, { ...segment }, "the supplied segment is untouched");
+});

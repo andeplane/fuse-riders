@@ -89,6 +89,21 @@ export {
   type PhoneStage,
 } from "./phone-layout.js";
 export {
+  createFriendsPanel,
+  type FriendsNotifications,
+  type FriendsPanel,
+  type FriendsPanelActions,
+  type FriendsPanelCard,
+  type FriendsPanelFriend,
+  type FriendsPanelInvite,
+  type FriendsPanelOptions,
+  type FriendsPanelRelation,
+  type FriendsPanelState,
+  type FriendsPanelView,
+  type FriendsPart,
+  type FriendsText,
+} from "./friends.js";
+export {
   createAccountDialog,
   dayLabel,
   type AccountAuth,
@@ -102,3 +117,12 @@ export {
   type AccountText,
   type AccountView,
 } from "./account.js";
+export {
+  createAppPortal,
+  parsePortalEntry,
+  PORTAL_GAMES,
+  type AppPortal,
+  type AppPortalOptions,
+  type PortalEntry,
+  type PortalGame,
+} from "./portal.js";

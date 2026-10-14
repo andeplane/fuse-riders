@@ -1,0 +1,70 @@
+.friends-panel {
+  display: grid;
+  gap: 14px;
+}
+.friends-panel .fui-friends-heading {
+  color: #9cbad4;
+}
+.friends-panel .fui-friends-row {
+  background: var(--ui-surface, #0b1933);
+  border: 1px solid #2b3a52;
+  border-left-width: 4px;
+}
+.friends-panel .fui-friends-row .avatar-portrait {
+  width: 32px;
+  height: 32px;
+  flex: none;
+}
+.friends-panel .fui-friends-note {
+  color: #b6cce3;
+  font-size: 13px;
+}
+.friends-panel .fui-friends-error {
+  color: #ffa6c9;
+  font-size: 13px;
+}
+.landing-top .friends-button[data-waiting="true"],
+.game-top-menu .friends-button[data-waiting="true"] {
+  color: #b6ff4d;
+  border-color: #b6ff4d;
+}
+.friend-add {
+  font-size: 9px;
+  letter-spacing: 1px;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+.friend-add[data-relation="friend"] {
+  color: #b6ff4d;
+  border-color: #b6ff4d55;
+}
+.friend-add[data-relation="incoming"] {
+  color: #050c1a;
+  background: #b6ff4d;
+}
+.stats-leaderboard td .friend-add,
+.account-riders .friend-add {
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.recap-rider-name .friend-add {
+  margin-left: 8px;
+}
+.room-rider .friend-add,
+.online-roster .friend-add {
+  margin-left: auto;
+}
+.friends-invite-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 40;
+  max-width: min(92vw, 34rem);
+  box-shadow: 0 0 24px #b6ff4d33;
+}
+.landing-invite-friends,
+.room-invite-friends {
+  font-size: 10px;
+  letter-spacing: 1px;
+}
