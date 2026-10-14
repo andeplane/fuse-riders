@@ -42,6 +42,14 @@
     ),
     linear-gradient(0deg, #080d18d9, transparent 25%);
 }
+/* The app portal, then the way home; above the art and shade. */
+.entrance-bar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .entrance-home {
   color: #c6c8ce;
   font:
@@ -112,7 +120,8 @@
     14px system-ui,
     sans-serif;
 }
-#entrance button {
+/* The app portal's toggle keeps fuse-ui's own look. */
+#entrance button:not(.fui-portal-toggle) {
   border: 1px solid #887656;
   border-radius: 3px;
   background: #111b2adc;
@@ -127,7 +136,7 @@
     background 0.2s,
     border-color 0.2s;
 }
-#entrance button:hover:not(:disabled) {
+#entrance button:not(.fui-portal-toggle):hover:not(:disabled) {
   background: #263144;
   border-color: #e9ce93;
 }
