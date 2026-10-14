@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { smokeTimeout } from "./smoke-timeout.js";
 import { openTopMenu } from "./lib/top-menu.js";
-const base = process.env.HOME_URL ?? "http://127.0.0.1:4188/";
+import { ridersPageUrl } from "./lib/riders-url.js";
+const base = ridersPageUrl(process.env.HOME_URL ?? "http://127.0.0.1:4188/");
 // WebKit on the CI runner sometimes reports a same-origin sprite XHR as an access-control failure; Phaser retries and the page is fine.
 const results: object[] = [];
 await mkdir("artifacts", { recursive: true });

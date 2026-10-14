@@ -38,6 +38,9 @@ function fixture(options: { manager?: boolean; initialRoom?: string } = {}) {
     canControl: true,
     view: () => world,
     dispatch() {},
+    dispatchBatch() {
+      return true;
+    },
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -228,9 +231,12 @@ test("the room moves between its lobby and the battlefield, and leaving clears t
     room.stage = "running";
   });
   assert.ok(f.root.querySelector("#nd-board"), "the match is shown");
-  assert.equal(
-    f.root.querySelector('[data-action="reset"]')?.textContent,
-    "Lobby",
+  assert.ok(
+    Array.from(
+      f.root.querySelectorAll<HTMLButtonElement>(".fui-game-menu-action"),
+    ).find(
+      (button) => button.textContent === "BACK TO LOBBY" && !button.hidden,
+    ),
   );
   f.update((room) => {
     room.stage = "lobby";

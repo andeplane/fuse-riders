@@ -623,12 +623,12 @@ test("every event carries the one prefix, in call order, and only the first star
   analytics.track("Seat Taken", { avatarId: "fox", playerCount: 2 });
   analytics.start({});
   await settle();
-  assert.equal(EVENT_PREFIX, "FlowRiders.");
+  assert.equal(EVENT_PREFIX, "fuse.");
   assert.deepEqual(fake.tracked, [
-    { event: "FlowRiders.App Opened" },
+    { event: "fuse.App Opened", properties: { gameId: "fuse-riders" } },
     {
-      event: "FlowRiders.Seat Taken",
-      properties: { avatarId: "fox", playerCount: 2 },
+      event: "fuse.Seat Taken",
+      properties: { avatarId: "fox", playerCount: 2, gameId: "fuse-riders" },
     },
   ]);
   assert.equal(loads(), 1);
@@ -684,7 +684,7 @@ test("switching analytics off in SETTINGS stops every request at once, including
   assert.equal(transport.length, 1, "nothing after the opt-out");
   assert.deepEqual(
     fake.tracked.map((entry) => entry.event),
-    ["FlowRiders.App Opened", "FlowRiders.Seat Taken"],
+    ["fuse.App Opened", "fuse.Seat Taken"],
   );
 
   // And back on, in the same page: the SDK is told, and events flow again.
@@ -693,7 +693,7 @@ test("switching analytics off in SETTINGS stops every request at once, including
   await settle();
   fake.flush();
   assert.equal(environment.storage.getItem(OPT_OUT_KEY), null);
-  assert.deepEqual(transport[1]?.events, ["FlowRiders.Match Ended"]);
+  assert.deepEqual(transport[1]?.events, ["fuse.Match Ended"]);
 });
 
 test("an opt-out that lands while the SDK is still downloading wins over the calls made before it", async () => {
@@ -733,9 +733,7 @@ test("the choice survives a reload: a page that loads opted out never downloads 
   assert.deepEqual(reloaded.fake.registered, [
     { role: "host", mode: "shared" },
   ]);
-  assert.deepEqual(reloaded.transport[0]?.events, [
-    "FlowRiders.Recap Reopened",
-  ]);
+  assert.deepEqual(reloaded.transport[0]?.events, ["fuse.Recap Reopened"]);
 
   // Switching on a page that never asked for analytics to start does not start it.
   const idle = page({ storage });
@@ -793,8 +791,9 @@ test("a boot failure leaves as a class, a code and a scrubbed message, without r
   await settle();
   assert.deepEqual(fake.tracked, [
     {
-      event: "FlowRiders.Boot Failed",
+      event: "fuse.Boot Failed",
       properties: {
+        gameId: "fuse-riders",
         name: "TypeError",
         code: "module-load",
         message:
@@ -817,13 +816,16 @@ test("the arena's renderer is an event and a super property from then on; a fail
   assert.deepEqual(
     fake.tracked.map(({ event }) => event),
     [
-      "FlowRiders.Seat Taken",
-      "FlowRiders.Graphics Ready",
-      "FlowRiders.Match Ended",
-      "FlowRiders.Graphics Failed",
+      "fuse.Seat Taken",
+      "fuse.Graphics Ready",
+      "fuse.Match Ended",
+      "fuse.Graphics Failed",
     ],
   );
-  assert.deepEqual(fake.tracked.at(-1)!.properties, { stage: "context" });
+  assert.deepEqual(fake.tracked.at(-1)!.properties, {
+    stage: "context",
+    gameId: "fuse-riders",
+  });
   assert.deepEqual(fake.registered.at(-1), {
     role: "solo",
     renderer: "canvas",
@@ -853,6 +855,7 @@ test("free text in any event is scrubbed of this page's room code on the way out
     { role: "joiner", note: "room [redacted]" },
   ]);
   assert.deepEqual(fake.tracked[0]?.properties, {
+    gameId: "fuse-riders",
     status: "Room [redacted]: no link to [url]",
     secondsWaiting: 20,
   });
@@ -968,7 +971,7 @@ test("a second tab stops sending when another tab opts out: at the next flush, a
   assert.deepEqual(tabA.fake.calls, ["init", "opt_out", "clear_opt"]);
   assert.deepEqual(
     tabA.transport.map((hit) => hit.events),
-    [["FlowRiders.Recap Reopened"]],
+    [["fuse.Recap Reopened"]],
   );
   assert.equal(rendered, 2);
 

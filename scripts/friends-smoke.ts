@@ -36,7 +36,7 @@ const POLL_MS = 500;
 /** Put a friends panel with `user`'s identity on the landing page of `page`, in place of the real one. */
 async function mountPanel(page: Page, user: string, name: string) {
   await page.addInitScript("window.__name = value => value");
-  await page.goto(new URL("?mute", origin).href);
+  await page.goto(new URL("fuse-riders/?mute", origin).href);
   await page.locator(".online-app").waitFor();
   await page.evaluate(
     async ({ api, user, name, pollMs }) => {
