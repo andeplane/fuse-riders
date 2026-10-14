@@ -116,7 +116,11 @@ try {
       "scripts/game-browser-coverage-smoke.ts",
       url.replace(/\/$/, ""),
     ],
-    { ...process.env, FUSE_GAME_COVERAGE_DIR: resolve(root, "coverage/tmp") },
+    {
+      ...process.env,
+      GAME_COVERAGE_ONLY: undefined,
+      FUSE_GAME_COVERAGE_DIR: resolve(root, "coverage/tmp"),
+    },
   );
   browserExit ||= gamesExit;
 } finally {

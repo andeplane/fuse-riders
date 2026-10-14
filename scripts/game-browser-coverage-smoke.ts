@@ -115,14 +115,16 @@ const flows: Flow[] = [
   },
 ];
 
+const selectedGame = process.env.GAME_COVERAGE_ONLY;
+if (selectedGame && !flows.some((flow) => flow.gameId === selectedGame))
+  throw new Error(`Unknown coverage game: ${selectedGame}`);
+const selectedFlows = selectedGame
+  ? flows.filter((flow) => flow.gameId === selectedGame)
+  : flows;
 const browser = await chromium.launch({ headless: true });
 const failures: string[] = [];
 try {
-  for (const flow of flows.filter(
-    (candidate) =>
-      !process.env.GAME_COVERAGE_ONLY ||
-      candidate.gameId === process.env.GAME_COVERAGE_ONLY,
-  )) {
+  for (const flow of selectedFlows) {
     const page = await browser.newPage({
       viewport: { width: 1440, height: 1000 },
     });
