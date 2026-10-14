@@ -1,0 +1,10 @@
+{
+  "about": "Source files the coverage report shows at 0%: no test loads them by any path. scripts/coverage-floor.ts fails on any file at zero that is not listed here, and fails again once a listed file is covered, so this list only shrinks. It is not an exemption — these modules are unproven, and each row says what it would take to prove one. Empty is the goal, as tests/fixtures/layer-allowlist.json reached in #254.",
+  "files": {
+    "games/fuse-riders/src/online/pickup-labels.ts": "One record of power-up names. Reached only from the landing page and ROOM SETTINGS, both outside the gate, so nothing loads it. A test that asserts every PickupType has a label would cover it and catch a missing one.",
+    "games/fuse-riders/src/online/dialogs/rider-name.ts": "The rename dialog's DOM. Its sibling dialogs are covered; this one needs the same DOM fixture.",
+    "games/fuse-riders/src/online/voice-chat.ts": "475 statements of browser microphone, track and peer-audio handling, evidenced only by scripts/voice-smoke.ts. Needs injected media and RTC seams, like packages/fuse-network-fe/src/peer-transport.ts (#258).",
+    "games/fuse-riders/src/render/phaser/beveled-trails.ts": "Phaser trail geometry. Pure enough to test on its own once the drawing calls are separated from the shape it computes.",
+    "games/fuse-riders/src/render/phaser/bomb-aim.ts": "Phaser aim indicator, same split as beveled-trails."
+  }
+}
