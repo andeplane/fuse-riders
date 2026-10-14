@@ -10,6 +10,13 @@
   "exclude": [
     "**/*.d.ts",
     "games/dice/src/app/main.ts",
+    "games/fuse-drivers/src/app/main.ts",
+    "games/fuse-drivers/src/app/arena/index.ts",
+    "games/fuse-drivers/src/app/arena/scene.ts",
+    "games/fuse-drivers/src/app/arena/race-scene.ts",
+    "games/fuse-drivers/src/app/arena/hud-scene.ts",
+    "games/fuse-drivers/src/app/arena/track-art.ts",
+    "games/fuse-drivers/src/app/arena/assets.ts",
     "games/fuse-bombers/src/app/main.ts",
     "games/fuse-bombers/src/app/audio/index.ts",
     "games/fuse-bombers/src/app/audio/web-backend.ts",
