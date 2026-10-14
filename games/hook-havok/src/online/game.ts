@@ -169,6 +169,9 @@ const lifecycle: LifecycleHooks<Room, Tuning> = {
  * - A step that releases the bomb aims where the releasing input aimed: the
  *   engine reads a throw's aim on its release, and a later input in the same
  *   tick (lifting a direction key after K, say) must not steer it.
+ * - Lifecycle cancellation has its own ordered bomb step. It drops a charge
+ *   before a later press, while a release before it still throws. Repeated
+ *   cancellation states add no extra edge.
  * Other buttons keep press edges only: a hook released and pressed again
  * inside one tick stays held, and keeps its rope.
  */
@@ -182,7 +185,8 @@ export function stepInputs(
   for (const input of inputs) {
     for (const key of ["jump", "drop", "fire", "reset"] as const)
       pulse[key] ||= input[key] && !final[key];
-    if (input.bomb !== final.bomb) changes.push(input);
+    if ((input.cancelBomb && !final.cancelBomb) || input.bomb !== final.bomb)
+      changes.push(input);
     final = input;
   }
   // Each step's bomb state and the input that set it.
@@ -195,8 +199,13 @@ export function stepInputs(
         fire: final.fire || pulse.fire,
         reset: final.reset || pulse.reset,
         bomb: changes[0]?.bomb ?? final.bomb,
+        cancelBomb: changes[0]?.cancelBomb ?? final.cancelBomb,
       },
-      { ...final, bomb: changes[1]?.bomb ?? final.bomb },
+      {
+        ...final,
+        bomb: changes[1]?.bomb ?? final.bomb,
+        cancelBomb: changes[1]?.cancelBomb ?? final.cancelBomb,
+      },
       { ...final },
     ];
   let before = held.bomb;

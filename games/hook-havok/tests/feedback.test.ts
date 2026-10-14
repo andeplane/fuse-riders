@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Feedback } from "../src/render/feedback.js";
-import { CLASSIC_TUNING, createWorld } from "../src/engine/world.js";
+import { CLASSIC_TUNING, createWorld, NEUTRAL } from "../src/engine/world.js";
 import { toView, type KeeperView, type WorldView } from "../src/engine/view.js";
 import {
   EffectsAudio,
@@ -11,6 +11,31 @@ import {
   type ToneSink,
 } from "../src/app/audio.js";
 import { KnockoutLog, MAX_ROWS, SHOW_MS } from "../src/app/knockout-feed.js";
+import { hookGame } from "../src/online/game.js";
+import { Mesh } from "./fixtures/mesh.js";
+test("a cancelled logged charge has no throw follow-through", () => {
+  const mesh = new Mesh(),
+    a = mesh.join("a"),
+    feedback = new Feedback();
+  mesh.run(500);
+  a.command({ type: "join", name: "A" });
+  mesh.run(500);
+  a.command({ type: "action", action: "start" });
+  mesh.run(500);
+  a.command({
+    type: "settings",
+    settings: { ...CLASSIC_TUNING, bomb: "fuse" },
+  });
+  mesh.run(1500);
+  feedback.update(hookGame.view(a.state()!), 0);
+  a.input({ ...NEUTRAL, bomb: true });
+  mesh.run(300);
+  feedback.update(hookGame.view(a.state()!), 50);
+  a.clear();
+  mesh.run(300);
+  feedback.update(hookGame.view(a.state()!), 100);
+  assert.ok(!feedback.active().some((burst) => burst.kind === "throw"));
+});
 test("power feedback belongs to its subject and never replays repeated events", () => {
   const f = new Feedback();
   const v = { ...toView(createWorld(CLASSIC_TUNING)), localId: "a" };

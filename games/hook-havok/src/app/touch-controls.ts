@@ -8,7 +8,7 @@ export interface TouchControls {
 }
 export function createTouchControls(
   root: HTMLElement,
-  changed: (state: TouchState) => void,
+  changed: (state: TouchState, cancelled?: boolean) => void,
   activate: () => void,
 ): TouchControls {
   const model = new TouchInput(),
@@ -31,9 +31,9 @@ export function createTouchControls(
       ? `translate(${state.direction.x * 32}px, ${state.direction.y * 32}px)`
       : "";
   };
-  const emit = () => {
+  const emit = (cancelled = false) => {
     paint();
-    changed(model.state);
+    changed(model.state, cancelled);
   };
   const clear = () => {
     model.clear();
@@ -88,7 +88,7 @@ export function createTouchControls(
       if (model.end(pad, event.pointerId)) {
         knob.style.transform = "";
         root.dataset.active = String(model.active);
-        emit();
+        emit(event.type !== "pointerup");
       }
     };
     for (const name of [

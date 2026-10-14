@@ -82,7 +82,17 @@ export class Feedback {
         y: Math.min(view.size.height - 30, old.feet),
         at: ms,
       });
-    if (old.charge > 0 && !view.charge && !view.respawn && !blasted)
+    const beforeThrows = old.keepers.find((k) => k.id === subject)?.tally
+      .thrown;
+    const afterThrows = view.keepers.find((k) => k.id === subject)?.tally
+      .thrown;
+    if (
+      old.charge > 0 &&
+      !view.charge &&
+      !view.respawn &&
+      !blasted &&
+      (beforeThrows === undefined || (afterThrows ?? 0) > beforeThrows)
+    )
       this.bursts.push({ kind: "throw", x: view.x, y: view.feet, at: ms });
     const cues: Cue[] = [];
     // Power-ups: a pickup, a Shield that popped, or one that ran out or was spent.

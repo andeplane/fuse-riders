@@ -201,7 +201,7 @@ function decodeCombat(
 export function parseInput(raw: unknown): Input | undefined {
   if (
     !plain(raw) ||
-    Object.keys(raw).length !== 8 ||
+    Object.keys(raw).length !== 9 ||
     !integer(raw.move, -1, 1) ||
     !integer(raw.aimX, -2000, 3600) ||
     !integer(raw.aimY, -4000, 3000) ||
@@ -209,6 +209,8 @@ export function parseInput(raw: unknown): Input | undefined {
     typeof raw.drop !== "boolean" ||
     typeof raw.fire !== "boolean" ||
     typeof raw.bomb !== "boolean" ||
+    typeof raw.cancelBomb !== "boolean" ||
+    (raw.cancelBomb && raw.bomb) ||
     typeof raw.reset !== "boolean"
   )
     return;
@@ -218,6 +220,7 @@ export function parseInput(raw: unknown): Input | undefined {
     drop: raw.drop,
     fire: raw.fire,
     bomb: raw.bomb,
+    cancelBomb: raw.cancelBomb,
     reset: raw.reset,
     aimX: raw.aimX,
     aimY: raw.aimY,

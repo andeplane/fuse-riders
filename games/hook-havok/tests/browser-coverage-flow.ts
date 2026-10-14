@@ -57,6 +57,30 @@ try {
     if (!keeper) throw new Error("The local Hook keeper is missing");
     return keeper.tally.thrown;
   });
+  await page.getByRole("button", { name: "MENU", exact: true }).click();
+  await page.waitForFunction(
+    () =>
+      Number(document.querySelector<HTMLElement>("#scene")?.dataset.charge) ===
+      0,
+  );
+  const cancelled = await page.locator("#scene").evaluate((element) => {
+    const data = (element as HTMLElement).dataset;
+    return (JSON.parse(data.keepers ?? "[]") as HookKeeper[]).find(
+      (candidate) => candidate.id === data.playerId,
+    )?.tally.thrown;
+  });
+  assert.equal(
+    cancelled,
+    before,
+    "opening the menu cancels instead of throwing",
+  );
+  await page.keyboard.up("k");
+  await page.getByRole("button", { name: "BACK TO GAME", exact: true }).click();
+  await page.keyboard.down("k");
+  await page.waitForFunction(
+    () =>
+      Number(document.querySelector<HTMLElement>("#scene")?.dataset.charge) > 0,
+  );
   await page.keyboard.up("k");
   // The bomb can finish between rendered frames; its throw tally persists.
   await page.waitForFunction((count) => {
@@ -71,7 +95,7 @@ try {
   assert.deepEqual(errors, []);
   await finishCoverage();
   console.log(
-    "PASS Hook: real Spire room, current bomb guide, menu focus restoration, charged K release increments persistent throw tally; no page errors",
+    "PASS Hook: real Spire room, current bomb guide, menu focus restoration, menu cancels charge, ordinary K release increments persistent throw tally; no page errors",
   );
 } finally {
   await browser.close();
