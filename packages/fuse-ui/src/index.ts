@@ -126,3 +126,13 @@ export {
   type PortalEntry,
   type PortalGame,
 } from "./portal.js";
+export {
+  createGameMenu,
+  createRoundControls,
+  type ControlHint,
+  type GameMenu,
+  type GameMenuOptions,
+  type GameMenuState,
+  type RoundControls,
+  type RoundControlsState,
+} from "./game-menu.js";

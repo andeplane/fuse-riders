@@ -15,8 +15,11 @@ import {
 } from "../src/engine/index.js";
 import { aiCommands } from "../src/engine/ai.js";
 import { createSession } from "../src/online/session.js";
+import { planNeuronPlacement } from "../src/app/neuron-placement.js";
+import { bundledMap, DEFAULT_MAP } from "../src/online/maps.js";
 import {
   neuralGame,
+  COMMANDS_PER_SEAT,
   isEntry,
   parseSettings,
   type NeuralSettings,
@@ -144,14 +147,25 @@ class Clock implements RuntimeDependencies {
   serial = 0;
   loops = new Set<() => void>();
   now = () => this.time;
-  hidden = () => false;
+  hiddenState = false;
+  private visibility = new Set<() => void>();
+  hidden = () => this.hiddenState;
   token = () => `test-${++this.serial}`;
   generation = () => 1;
   schedule = (callback: () => void) => {
     this.loops.add(callback);
     return () => this.loops.delete(callback);
   };
-  onVisibilityChange = () => () => {};
+  onVisibilityChange = (callback: () => void) => {
+    this.visibility.add(callback);
+    return () => {
+      this.visibility.delete(callback);
+    };
+  };
+  setHidden(hidden: boolean) {
+    this.hiddenState = hidden;
+    for (const callback of this.visibility) callback();
+  }
   run(ms: number) {
     for (let i = 0; i < ms; i += 10) {
       this.time += 10;
@@ -202,6 +216,122 @@ test("one human starts without bots, advances through shared runtime, and dispos
   assert.ok(session.view().tick < initial);
   session.dispose();
   assert.equal(clock.loops.size, 0);
+});
+
+test("a full connecting path reaches the actual solo runtime across its per-tick command limit", () => {
+  const clock = new Clock();
+  const session = createSession(
+    loadMap(bundledMap(DEFAULT_MAP)),
+    0,
+    "sandbox",
+    {},
+    clock,
+  );
+  clock.run(200);
+  const player = session.view().players[0]!;
+  const plan = planNeuronPlacement(session.view(), player, 549);
+  assert.equal(plan.cells.length, 32);
+  assert.ok(plan.cells.length > COMMANDS_PER_SEAT);
+  assert.equal(
+    session.dispatchBatch(
+      plan.cells.map((cell) => ({
+        type: "queueConstruction",
+        kind: "neuron",
+        cell,
+      })),
+    ),
+    true,
+  );
+  clock.run(500);
+  assert.deepEqual(
+    session.view().players[0]!.queue.map((job) => job.cell),
+    plan.cells,
+  );
+  assert.ok(session.view().players[0]!.queue.some((job) => job.cell === 549));
+  session.dispose();
+});
+
+test("a cancellation after a long build batch stays after its target order", () => {
+  const clock = new Clock();
+  const session = createSession(
+    loadMap(bundledMap(DEFAULT_MAP)),
+    0,
+    "sandbox",
+    {},
+    clock,
+  );
+  clock.run(200);
+  const plan = planNeuronPlacement(
+    session.view(),
+    session.view().players[0]!,
+    549,
+  );
+  session.dispatchBatch(
+    plan.cells.map((cell) => ({
+      type: "queueConstruction",
+      kind: "neuron",
+      cell,
+    })),
+  );
+  session.dispatch({ type: "cancelConstruction", cell: 549 });
+  clock.run(500);
+  assert.deepEqual(
+    session.view().players[0]!.queue.map((job) => job.cell),
+    plan.cells.slice(0, -1),
+  );
+  session.dispose();
+});
+
+test("pending action batches reject overflow atomically and reset never carries deferred orders", () => {
+  const clock = new Clock();
+  const session = createSession(map, 0, "sandbox", {}, clock);
+  clock.run(200);
+  const orders = Array.from({ length: 64 }, () => ({
+    type: "setAutoExpand" as const,
+    enabled: false,
+  }));
+  const before = session.view().players[0]!.sequence;
+  assert.equal(session.dispatchBatch(orders), true);
+  assert.equal(
+    session.dispatchBatch(orders),
+    false,
+    "nothing from the second batch is accepted",
+  );
+  clock.run(500);
+  assert.equal(session.view().players[0]!.sequence - before, orders.length);
+  assert.equal(session.dispatchBatch(orders), true);
+  session.reset();
+  clock.run(500);
+  assert.equal(
+    session.view().players[0]!.sequence,
+    before,
+    "old queued actions cannot reach the fresh match",
+  );
+  session.dispose();
+  assert.equal(session.dispatchBatch(orders), false);
+  assert.equal(clock.loops.size, 0);
+});
+
+test("hiding a device discards deferred actions without replaying them on return", () => {
+  const clock = new Clock();
+  const session = createSession(map, 0, "sandbox", {}, clock);
+  clock.run(200);
+  const before = session.view().players[0]!.sequence;
+  assert.equal(
+    session.dispatchBatch(
+      Array.from({ length: 64 }, () => ({
+        type: "setAutoExpand" as const,
+        enabled: false,
+      })),
+    ),
+    true,
+  );
+  clock.setHidden(true);
+  clock.run(200);
+  clock.setHidden(false);
+  clock.run(500);
+  assert.equal(session.view().players[0]!.sequence - before, COMMANDS_PER_SEAT);
+  session.dispose();
 });
 test("wire rejects malformed commands and checkpoints include management state in hash", () => {
   assert.equal(

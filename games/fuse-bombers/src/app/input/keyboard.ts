@@ -102,12 +102,35 @@ function ownedByPage(
 export function attachKeyboard(
   target: KeyboardTarget,
   hold: (device: DeviceId, bits: number) => void,
+  options: { arrowsPrimary?: () => boolean } = {},
 ): InputSource {
-  const clusterOf = new Map(
-    KEY_BINDINGS.flatMap((cluster) =>
-      Object.keys(cluster.keys).map((code) => [code, cluster] as const),
-    ),
-  );
+  let primary = options.arrowsPrimary?.() ?? false;
+  const bindings = (): readonly KeyCluster[] =>
+    primary
+      ? KEY_BINDINGS.map((binding) =>
+          binding.device === "key:WASD"
+            ? {
+                ...binding,
+                keys: {
+                  ...binding.keys,
+                  ArrowUp: UP,
+                  ArrowDown: DOWN,
+                  ArrowLeft: LEFT,
+                  ArrowRight: RIGHT,
+                },
+              }
+            : binding.device === "key:ARROWS"
+              ? { ...binding, keys: { Slash: FIRE } }
+              : binding,
+        )
+      : KEY_BINDINGS;
+  const mapping = () =>
+    new Map(
+      bindings().flatMap((cluster) =>
+        Object.keys(cluster.keys).map((code) => [code, cluster] as const),
+      ),
+    );
+  let clusterOf = mapping();
   const held = new Set<string>();
   const report = (cluster: KeyCluster): void => {
     let bits = 0;
@@ -120,8 +143,17 @@ export function attachKeyboard(
     held.clear();
     for (const cluster of clusters) if (cluster) report(cluster);
   };
+  // Seating an arrows rider changes ownership. Drop held keys rather than steering two seats or transferring a hold.
+  const refresh = (): void => {
+    const next = options.arrowsPrimary?.() ?? false;
+    if (primary === next) return;
+    releaseAll();
+    primary = next;
+    clusterOf = mapping();
+  };
 
   const onKeyDown = (event: KeyEventLike): void => {
+    refresh();
     if (event.ctrlKey || event.metaKey || event.altKey) return releaseAll();
     const cluster = clusterOf.get(event.code);
     if (!cluster || ownedByPage(event.code, event.target)) return;
@@ -131,6 +163,7 @@ export function attachKeyboard(
     report(cluster);
   };
   const onKeyUp = (event: KeyEventLike): void => {
+    refresh();
     const cluster = clusterOf.get(event.code);
     if (!held.delete(event.code) || !cluster) return;
     report(cluster);
@@ -141,6 +174,7 @@ export function attachKeyboard(
   target.addEventListener("blur", releaseAll);
   target.addEventListener("visibilitychange", releaseAll);
   return {
+    poll: refresh,
     dispose: () => {
       target.removeEventListener("keydown", onKeyDown);
       target.removeEventListener("keyup", onKeyUp);
