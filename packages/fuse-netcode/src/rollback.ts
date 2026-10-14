@@ -97,6 +97,8 @@ export class World<
   private worked = 0;
   rollbacks = 0;
   rollbackTicks = 0;
+  /** Increments when corrected frames are published, after any paced replay has completed. */
+  revision = 0;
   /** Simulation steps run since this world was created: a log tick runs one, or several in a fast phase. */
   steps = 0;
   constructor(
@@ -146,20 +148,24 @@ export class World<
   stream(id: string, generation: number, base?: StreamBase): StreamLog<Entry> {
     const existing = this.streams.get(id);
     if (existing && existing.generation === generation) return existing;
-    if (existing)
-      this.retired.set(id, [
-        ...(this.retired.get(id) ?? []).filter(
-          (old) => old.generation !== generation,
-        ),
-        existing,
-      ]);
     const stream = new StreamLog(
       this.game,
       generation,
       base ?? { seq: 0, tick: 0 },
     );
-    this.streams.set(id, stream);
+    this.adoptStream(id, stream);
     return stream;
+  }
+  private adoptStream(id: string, stream: StreamLog<Entry>): void {
+    const existing = this.streams.get(id);
+    if (existing)
+      this.retired.set(id, [
+        ...(this.retired.get(id) ?? []).filter(
+          (old) => old.generation !== stream.generation,
+        ),
+        existing,
+      ]);
+    this.streams.set(id, stream);
   }
   private frame(state: Room): Frame<View> {
     return {
@@ -272,8 +278,18 @@ export class World<
     lastSeq: number,
     through: number,
     localTick: number,
+    generation?: number,
   ): WorldReceive<Entry, Event> {
-    const stream = this.streams.get(id);
+    const existing = this.streams.get(id);
+    // A packet proposing a replacement page must validate before it can retire healthy history.
+    const replacing =
+      generation !== undefined && existing?.generation !== generation;
+    const stream = replacing
+      ? new StreamLog(this.game, generation, {
+          seq: 0,
+          tick: Math.max(0, this.tick - STALL_TICKS),
+        })
+      : existing;
     if (!stream)
       return {
         status: "invalid",
@@ -290,6 +306,9 @@ export class World<
       // Late means at or before what has been simulated: an entry the owed re-run has not reached yet is folded when it does.
       this.work.tick,
     );
+    if (result.status === "invalid")
+      return { ...result, events: [], rollbackTicks: 0 };
+    if (replacing) this.adoptStream(id, stream);
     if (result.status !== "accepted" || result.rollbackTo === undefined)
       return { ...result, events: [], rollbackTicks: 0 };
     const events: WorldEvent<Event>[] = [],
@@ -343,6 +362,7 @@ export class World<
     if (!this.settled && this.work.tick >= this.state.tick) {
       this.state = this.work;
       this.frames = this.replayFrames;
+      this.revision++;
       this.showNewest();
       events.push(...this.replayEvents.map((held) => held.event));
       this.replayFrames = [];
@@ -483,6 +503,7 @@ export class World<
   }
   /** Replace the world wholesale from a validated snapshot; the caller re-creates streams from its metadata. */
   install(state: Room): void {
+    this.revision++;
     this.state = this.work = state;
     this.snapshots = new Map([[state.tick, structuredClone(state)]]);
     this.gameTicks = new Map([[state.tick, this.game.clock(state)]]);

@@ -1,4 +1,5 @@
 import type { WorldView } from "../../engine/view.js";
+import type { RiderPoses } from "../time/reconcile.js";
 import type { ThemeDefinition } from "../themes.js";
 import type { PhaserArena, createPhaserArena } from "./arena.js";
 
@@ -52,6 +53,7 @@ export function mountArenaPresentation(
     selfId?: string,
     /** A replayed moment is not the round opening for the viewer, so it never points them out. */
     replay?: boolean,
+    riderPoses?: RiderPoses,
   ): void;
   destroy(): void;
 } {
@@ -70,6 +72,7 @@ export function mountArenaPresentation(
         scope: string;
         selfId?: string;
         replay?: boolean;
+        riderPoses?: RiderPoses;
       }
     | undefined;
   const status = document.createElement("div");
@@ -158,6 +161,7 @@ export function mountArenaPresentation(
         latest.scope,
         latest.selfId,
         latest.replay,
+        latest.riderPoses,
       );
       if (latest.now - metricsAt > 500) {
         canvas.dataset.rendererMetrics = JSON.stringify(engine.metrics());
@@ -248,9 +252,9 @@ export function mountArenaPresentation(
     initialize();
   };
   return {
-    render(snapshot, now, theme, scope, selfId, replay) {
+    render(snapshot, now, theme, scope, selfId, replay, riderPoses) {
       if (state === "disposed") return;
-      latest = { snapshot, now, theme, scope, selfId, replay };
+      latest = { snapshot, now, theme, scope, selfId, replay, riderPoses };
       initialize();
       paint();
     },

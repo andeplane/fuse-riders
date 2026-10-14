@@ -2,6 +2,14 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { chromium, type Page } from "playwright";
+import { ridersPageUrl } from "./lib/riders-url.js";
+import { readyRoom } from "./lib/ready-room.js";
+import {
+  responseLatencies,
+  withinLatencyBudget,
+  type SteeringInput,
+  type ControlSample,
+} from "./lib/response-latency.js";
 
 // Phase 5: five scripted players plus a TV, one local run and one with injected 40 ms delay, 20 ms jitter and 2% loss.
 // Reports per peer: bytes per second each way on the wire, rollbacks per minute and ticks per rollback, input to own
@@ -18,7 +26,12 @@ interface Snapshot {
   tick: number;
   phase: string;
   playerId: string;
-  players: Array<{ id: string; alive: boolean; angle: number }>;
+  players: Array<{
+    id: string;
+    alive: boolean;
+    angle: number;
+    heldMotion?: { left: boolean; right: boolean };
+  }>;
   metrics: {
     rollbacks: number;
     rollbackTicks: number;
@@ -26,7 +39,7 @@ interface Snapshot {
     sentBytes: number;
   };
 }
-interface Input {
+interface Input extends SteeringInput {
   kind: "input";
   at: number;
   epochAt: number;
@@ -52,7 +65,7 @@ interface Trace {
   inputs: Input[];
   deaths: Death[];
   wire: Wire;
-  renders: Array<{ epochAt: number; angles: Record<string, number> }>;
+  renders: ControlSample[];
 }
 const percentile = (values: number[], p: number) => {
   const sorted = [...values].sort((a, b) => a - b);
@@ -73,20 +86,25 @@ export async function instrument(page: Page, impaired: boolean): Promise<void> {
     const snapshots = [], inputs = [], deaths = [], renders = [], wire = { sent: 0, received: 0 };
     window.__trace = { snapshots, inputs, deaths, renders, wire };
     const epoch = () => performance.timeOrigin + performance.now();
+    let seed = 7;
+    const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+    window.__trace.dropFastUntil = 0;
     window.addEventListener('fuse-benchmark', event => {
       const detail = event.detail; const stamped = { ...detail, epochAt: epoch() };
       if (detail.kind === 'snapshot') { snapshots.push(stamped); if (snapshots.length > 4000) snapshots.shift(); }
       else if (detail.kind === 'input') inputs.push(stamped);
+      else if (detail.kind === 'prediction') { renders.push(stamped); if (renders.length > 10000) renders.shift(); }
       else if (detail.kind === 'event' && detail.event && detail.event.type === 'playerEliminated') deaths.push({ kind: 'event', epochAt: stamped.epochAt, playerId: detail.event.playerId, matchId: detail.matchId, round: detail.round, tick: detail.tick });
     });
     // Wire accounting and sender-side impairment on the input channel: dropped packets never leave the page.
     const originalSend = RTCDataChannel.prototype.send;
     RTCDataChannel.prototype.send = function (data) {
       const bytes = typeof data === 'string' ? data.length : (data.byteLength || 0);
+      if (this.label === 'input' && epoch() < window.__trace.dropFastUntil) return;
       if (this.label === 'input' && ${delayMs} > 0) {
-        if (Math.random() < ${loss}) return;
+        if (random() < ${loss}) return;
         const copy = data.slice();
-        setTimeout(() => { if (this.readyState === 'open') { wire.sent += bytes; try { originalSend.call(this, copy); } catch (e) {} } }, ${delayMs} + Math.random() * ${jitterMs});
+        setTimeout(() => { if (this.readyState === 'open') { wire.sent += bytes; try { originalSend.call(this, copy); } catch (e) {} } }, ${delayMs} + random() * ${jitterMs});
         return;
       }
       wire.sent += bytes; return originalSend.call(this, data);
@@ -97,6 +115,9 @@ export async function instrument(page: Page, impaired: boolean): Promise<void> {
 }
 
 async function run(impaired: boolean): Promise<Record<string, unknown>> {
+  console.log(
+    `Measurement starting: ${impaired ? "seeded impairment" : "local"}`,
+  );
   const browser = await chromium.launch({ headless: true });
   const pages: Page[] = [];
   try {
@@ -104,16 +125,20 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
       await browser.newContext({ viewport: { width: 1000, height: 700 } })
     ).newPage();
     pages.push(host);
+    host.setDefaultTimeout(20_000);
     await instrument(host, impaired);
     // The room is the join screen: the creator seats itself on arrival, like every other rider below.
     await host.addInitScript(() =>
       localStorage.setItem("fuse-riders-player-name", "Host"),
     );
-    await host.goto(base);
+    const entrance = new URL(ridersPageUrl(base));
+    entrance.searchParams.set("mute", "");
+    await host.goto(entrance.href);
     await host
       .getByRole("button", { name: "CREATE ROOM", exact: true })
       .click();
     await host.waitForURL(/room=/);
+    await host.locator(".room-riders > .room-rider").first().waitFor();
     const target = new URL(host.url());
     target.searchParams.set("benchmark", "1");
     target.searchParams.set("renderer", "phaser-canvas");
@@ -125,6 +150,7 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
         await browser.newContext({ viewport: { width: 1000, height: 700 } })
       ).newPage();
       pages.push(page);
+      page.setDefaultTimeout(20_000);
       await instrument(page, impaired);
       // The room is the join screen: each rider seats itself under the name this browser remembers.
       await page.addInitScript(
@@ -141,13 +167,15 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
       await browser.newContext({ viewport: { width: 1280, height: 800 } })
     ).newPage();
     pages.push(tv);
+    tv.setDefaultTimeout(20_000);
     await instrument(tv, impaired);
     await tv.goto(invite + "&display=1");
     await tv
       .locator(":is(.online-roster,.room-riders):visible")
       .getByText("Rider 4", { exact: false })
       .waitFor();
-    await host.getByRole("button", { name: "START RACE", exact: true }).click();
+    await readyRoom(host);
+    console.log("Six peers seated and ready; waiting for play");
     for (const page of pages)
       await page.waitForFunction(
         () => {
@@ -161,9 +189,27 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
       );
     const started = performance.now(),
       players = pages.slice(0, 5);
+    console.log(`Recording ${seconds} seconds of play`);
     // Scripted steering: each rider alternates turns on its own cadence and fires now and then, so rounds keep ending and restarting.
     let step = 0;
     while (performance.now() - started < seconds * 1000) {
+      const phase = await host.evaluate(
+        () =>
+          (
+            Reflect.get(window, "__trace") as { snapshots: Snapshot[] }
+          ).snapshots.at(-1)?.phase,
+      );
+      if (phase === "roundOver" || phase === "matchOver") {
+        const canReady = await host
+          .getByRole("button", {
+            name: /^(READY|READY FOR REMATCH|NOT READY)$/,
+            includeHidden: true,
+          })
+          .evaluateAll((nodes) =>
+            nodes.some((node) => !(node as HTMLButtonElement).hidden),
+          );
+        if (canReady) await readyRoom(host);
+      }
       const index = step % 5,
         page = players[index]!,
         key =
@@ -178,6 +224,7 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
       step++;
     }
     const traces: Trace[] = [];
+    console.log("Collecting traces");
     for (const page of pages)
       traces.push(
         await page.evaluate(() => {
@@ -202,48 +249,38 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
           last.metrics.rollbacks - (first?.metrics.rollbacks ?? 0),
         rollbackTicks =
           last.metrics.rollbackTicks - (first?.metrics.rollbackTicks ?? 0);
-      const ownLatency: number[] = [],
-        remoteLatency: number[] = [];
-      for (const input of trace.inputs) {
-        if (!input.left && !input.right) continue;
-        const before = trace.snapshots
-          .filter((s) => s.epochAt <= input.epochAt)
-          .at(-1);
-        if (!before) continue;
-        const rider = before.players.find((p) => p.id === trace.id);
-        if (before.phase !== "playing" || !rider?.alive) continue;
-        const changed = trace.snapshots.find(
-          (s) =>
-            s.epochAt > input.epochAt &&
-            (s.players.find((p) => p.id === trace.id)?.angle ?? rider.angle) !==
-              rider.angle,
+      const ownResponse = responseLatencies(
+        trace.inputs,
+        trace.snapshots,
+        trace.snapshots,
+        trace.id,
+      );
+      const remoteResponse = traces
+        .filter((other) => other !== trace)
+        .map((other) =>
+          responseLatencies(
+            trace.inputs,
+            trace.snapshots,
+            other.snapshots,
+            trace.id,
+          ),
         );
-        // Only a heading that changed while the round was still running measures the input path.
-        if (
-          changed &&
-          changed.phase === "playing" &&
-          changed.epochAt - input.epochAt < 2000
-        )
-          ownLatency.push(changed.epochAt - input.epochAt);
-        for (const other of traces) {
-          if (other === trace) continue;
-          const seen = other.snapshots.find(
-            (s) =>
-              s.epochAt > input.epochAt &&
-              (s.players.find((p) => p.id === trace.id)?.angle ??
-                rider.angle) !== rider.angle,
-          );
-          if (
-            seen &&
-            seen.phase === "playing" &&
-            seen.epochAt - input.epochAt < 2000
-          )
-            remoteLatency.push(seen.epochAt - input.epochAt);
-        }
-      }
+      const ownLatency = [...ownResponse.press, ...ownResponse.release];
+      const remoteLatency = remoteResponse.flatMap((response) => [
+        ...response.press,
+        ...response.release,
+      ]);
       return {
         id: trace.id,
-        bytesPerSecond: {
+        playingRider: trace.snapshots.some(
+          (sample) =>
+            sample.phase === "playing" &&
+            sample.players.some(
+              (player) => player.id === trace.id && player.alive,
+            ),
+        ),
+        ownInputs: ownResponse.eligible,
+        payloadBytesPerSecond: {
           sent: Math.round(trace.wire.sent / elapsed),
           received: Math.round(trace.wire.received / elapsed),
         },
@@ -253,6 +290,26 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
           : 0,
         inputToOwnStateMs: stats(ownLatency),
         inputToRemoteStateMs: stats(remoteLatency),
+        pressToRemoteStateMs: stats(
+          remoteResponse.flatMap((response) => response.press),
+        ),
+        releaseToRemoteStateMs: stats(
+          remoteResponse.flatMap((response) => response.release),
+        ),
+        responses: {
+          eligible:
+            ownResponse.eligible +
+            remoteResponse.reduce(
+              (sum, response) => sum + response.eligible,
+              0,
+            ),
+          timedOut:
+            ownResponse.timedOut +
+            remoteResponse.reduce(
+              (sum, response) => sum + response.timedOut,
+              0,
+            ),
+        },
         rtt: last.metrics.rtt,
       };
     });
@@ -278,20 +335,26 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
       rounds: Math.max(...traces.map((trace) => trace.snapshots.at(-1)!.round)),
     };
   } catch (error) {
+    console.error("Measurement failed", error);
     for (const [index, page] of pages.entries())
       console.error(
         `MEASURE DIAGNOSTIC ${index}`,
-        await page
-          .evaluate(() => ({
-            status: document.querySelector(".online-status")?.textContent,
-            notice: document.querySelector(".online-notice")?.textContent,
-            metrics:
-              document.querySelector<HTMLElement>("#app")?.dataset.metrics,
-            latest: (
-              Reflect.get(window, "__trace") as { snapshots: Snapshot[] }
-            ).snapshots.at(-1),
-          }))
-          .catch(() => "unavailable"),
+        await Promise.race([
+          page
+            .evaluate(() => ({
+              status: document.querySelector(".online-status")?.textContent,
+              notice: document.querySelector(".online-notice")?.textContent,
+              metrics:
+                document.querySelector<HTMLElement>("#app")?.dataset.metrics,
+              latest: (
+                Reflect.get(window, "__trace") as { snapshots: Snapshot[] }
+              ).snapshots.at(-1),
+            }))
+            .catch(() => "unavailable"),
+          new Promise((resolve) =>
+            setTimeout(() => resolve("diagnostic timed out"), 2000),
+          ),
+        ]),
       );
     throw error;
   } finally {
@@ -312,7 +375,7 @@ async function main(): Promise<void> {
     }).trim(),
     url: base,
     method:
-      "Five scripted Chromium players plus a TV on one desktop. Impairment injects 40 ms delay, 20 ms jitter and 2% loss at the sender's input-channel send; wire bytes count data-channel payloads. Latencies are input event to the first simulated state showing the changed heading, stamped with page clocks on one machine.",
+      "Five scripted Chromium players plus a TV on one desktop. Seed 7 injects 40–60 ms delay and 2% application-message loss. Bytes are data-channel payload bytes. Latencies match applied press/release controls within the same match and round; missing or superseded responses are counted explicitly. This is not physical-network or touch-to-photon evidence.",
     runs: [] as Record<string, unknown>[],
   };
   for (const impaired of [false, true]) {
@@ -326,10 +389,25 @@ async function main(): Promise<void> {
   );
   for (const result of report.runs)
     assert.ok(
-      (result.peers as Array<{ bytesPerSecond: { sent: number } }>).every(
-        (peer) => peer.bytesPerSecond.sent < 15_000 * 5,
+      (
+        result.peers as Array<{
+          playingRider: boolean;
+          ownInputs: number;
+          payloadBytesPerSecond: { sent: number };
+          inputToRemoteStateMs: { p95: number | null };
+          responses: { eligible: number; timedOut: number };
+        }>
+      ).every(
+        (peer) =>
+          peer.payloadBytesPerSecond.sent < 15_000 * 5 &&
+          withinLatencyBudget({
+            playingRider: peer.playingRider,
+            ownInputs: peer.ownInputs,
+            ...peer.responses,
+            p95: peer.inputToRemoteStateMs.p95,
+          }),
       ),
-      "under 15 KB/s per link each way",
+      "under 15 KB/s per link, remote control p95 under 600 ms, at least 80% of eligible transitions observed",
     );
   console.log("Measurements written to artifacts/p2p-measure.json");
 }

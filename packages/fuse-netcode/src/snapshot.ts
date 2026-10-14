@@ -1,7 +1,7 @@
 import type { LogEntry, RollbackGame, RoomClock } from "./game.js";
 import { packMessage, unpackMessage } from "./packet.js";
 import type { World } from "./rollback.js";
-import type { StreamLog } from "./stream.js";
+import { StreamLog, PACKET_ENTRIES } from "./stream.js";
 import { memberId, uint32 } from "./wire.js";
 
 export const SNAPSHOT_CHUNK_BYTES = 16_000,
@@ -27,6 +27,35 @@ export interface SnapshotStream<Entry extends LogEntry = LogEntry> {
 export interface DecodedSnapshot<Room, Entry extends LogEntry = LogEntry> {
   state: Room;
   streams: SnapshotStream<Entry>[];
+}
+
+/** Validate replay metadata with the same stream rules used for live packets, before touching a world. */
+export function restoreSnapshotStream<Entry extends LogEntry>(
+  rules: import("./game.js").EntryRules<Entry>,
+  stream: SnapshotStream<Entry>,
+  tick: number,
+  localTick = tick + 60,
+  lastSeq = stream.entries.at(-1)?.[0] ?? stream.seq,
+): StreamLog<Entry> | undefined {
+  const log = new StreamLog(rules, stream.generation, {
+    seq: stream.seq,
+    tick,
+    ordinal: stream.ordinal,
+  });
+  for (
+    let offset = 0;
+    offset < stream.entries.length;
+    offset += PACKET_ENTRIES
+  ) {
+    const part = stream.entries.slice(offset, offset + PACKET_ENTRIES);
+    if (
+      log.receive(part, part.at(-1)![0], tick, localTick, tick).status !==
+      "accepted"
+    )
+      return;
+  }
+  log.lastSeq = Math.max(log.lastSeq, lastSeq);
+  return log;
 }
 
 const toBase64 = (bytes: Uint8Array): string => {
@@ -232,7 +261,15 @@ export function decodeSnapshot<
     if (previousGeneration !== undefined && previousGeneration >= generation)
       return;
     seen.add(`${id}:${generation}`);
-    streams.push({ id, generation, seq, ordinal, entries: entries as Entry[] });
+    const stream = {
+      id,
+      generation,
+      seq,
+      ordinal,
+      entries: entries as Entry[],
+    };
+    if (!restoreSnapshotStream(game, stream, tick)) return;
+    streams.push(stream);
   }
   return { state, streams };
 }

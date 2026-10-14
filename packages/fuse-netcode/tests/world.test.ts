@@ -429,10 +429,16 @@ test("a step budget paces catch-up and rollback re-runs, and history never goes 
 
   // A late entry at tick 10: the re-run is owed, and until it finishes the world still shows tick 30.
   const entry: CounterEntry = [1, 10, ADD, 5];
+  const revision = paced.revision;
   paced.refill(8);
   const late = paced.receive("b", [entry], 1, 40, 40);
   assert.equal(late.status, "accepted");
   assert.equal(paced.settled, false);
+  assert.equal(
+    paced.revision,
+    revision,
+    "pending replay has not replaced displayed history",
+  );
   assert.equal(paced.tick, 30);
   assert.equal(paced.view()[0]!.logTick, 30);
   assert.deepEqual(
@@ -446,6 +452,17 @@ test("a step budget paces catch-up and rollback re-runs, and history never goes 
     events.push(...paced.advance(30).events.map(({ event }) => event));
   }
   assert.ok(paced.settled);
+  assert.equal(
+    paced.revision,
+    revision + 1,
+    "corrected frames publish one revision",
+  );
+  paced.advance(30);
+  assert.equal(
+    paced.revision,
+    revision + 1,
+    "ordinary advances do not restart reconciliation",
+  );
   assert.deepEqual(events, [{ type: "add", id: "b", amount: 5 }]);
   reference.receive("b", [entry], 1, 40, 40);
   assert.equal(hashCounter(paced.state), hashCounter(reference.state));

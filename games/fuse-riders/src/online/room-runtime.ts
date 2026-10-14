@@ -48,6 +48,7 @@ export type RoomCommand =
 export type Callbacks = NetCallbacks<FuseView, GameEvent, RoomSettings>;
 /** What `presentation()` hands the screen: frames and times, not a finished picture. */
 export interface PresentationFrames {
+  revision: number;
   /** The tick before `newer`, when there is one to interpolate from. */
   older?: Frame;
   newer: Frame;
@@ -248,6 +249,7 @@ export class RoomRuntime extends NetRuntime<
       };
     return {
       ...shown,
+      revision: frames.revision ?? 0,
       ...(player && this.held.flags >= 0 && this.localPlayerIds.length < 2
         ? { local: { id: this.id, controls, lead } }
         : {}),

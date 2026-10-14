@@ -1,0 +1,537 @@
+{
+  "revision": "7568f1bc3554929ffcc03131ef89f621927abb0a",
+  "url": "http://localhost:8796/",
+  "method": "Five scripted Chromium players plus a TV on one desktop. Seed 7 injects 40–60 ms delay and 2% application-message loss. Bytes are data-channel payload bytes. Latencies match applied press/release controls within the same match and round; missing or superseded responses are counted explicitly. This is not physical-network or touch-to-photon evidence.",
+  "runs": [
+    {
+      "impaired": false,
+      "seconds": 19.477556291,
+      "peers": [
+        {
+          "id": "f862995b0293687712d62e0e",
+          "playingRider": true,
+          "ownInputs": 8,
+          "payloadBytesPerSecond": {
+            "sent": 23129,
+            "received": 20283
+          },
+          "rollbacksPerMinute": 8,
+          "ticksPerRollback": 1.5,
+          "inputToOwnStateMs": {
+            "count": 8,
+            "p50": 39.699951171875,
+            "p95": 49.800048828125
+          },
+          "inputToRemoteStateMs": {
+            "count": 40,
+            "p50": 39.800048828125,
+            "p95": 51.2001953125
+          },
+          "pressToRemoteStateMs": {
+            "count": 20,
+            "p50": 44.900146484375,
+            "p95": 51.500244140625
+          },
+          "releaseToRemoteStateMs": {
+            "count": 20,
+            "p50": 39.800048828125,
+            "p95": 47.000244140625
+          },
+          "responses": {
+            "eligible": 48,
+            "timedOut": 0
+          },
+          "rtt": {
+            "d9dca6dcdee0b534ef84732c": 2,
+            "891c415642f785c108746058": 2,
+            "6dc19a055d5f063f645257a5": 3,
+            "48db5bbc15f0935b149e2ad0": 4,
+            "4ca37da482f157c421235f90": 3
+          }
+        },
+        {
+          "id": "d9dca6dcdee0b534ef84732c",
+          "playingRider": true,
+          "ownInputs": 8,
+          "payloadBytesPerSecond": {
+            "sent": 21818,
+            "received": 21439
+          },
+          "rollbacksPerMinute": 0,
+          "ticksPerRollback": 0,
+          "inputToOwnStateMs": {
+            "count": 8,
+            "p50": 32.300048828125,
+            "p95": 45.39990234375
+          },
+          "inputToRemoteStateMs": {
+            "count": 40,
+            "p50": 35.099853515625,
+            "p95": 50.5
+          },
+          "pressToRemoteStateMs": {
+            "count": 20,
+            "p50": 38.89990234375,
+            "p95": 48.699951171875
+          },
+          "releaseToRemoteStateMs": {
+            "count": 20,
+            "p50": 33.199951171875,
+            "p95": 50.60009765625
+          },
+          "responses": {
+            "eligible": 48,
+            "timedOut": 0
+          },
+          "rtt": {
+            "f862995b0293687712d62e0e": 2,
+            "891c415642f785c108746058": 2,
+            "6dc19a055d5f063f645257a5": 2,
+            "48db5bbc15f0935b149e2ad0": 1,
+            "4ca37da482f157c421235f90": 2
+          }
+        },
+        {
+          "id": "891c415642f785c108746058",
+          "playingRider": true,
+          "ownInputs": 8,
+          "payloadBytesPerSecond": {
+            "sent": 22297,
+            "received": 21886
+          },
+          "rollbacksPerMinute": 10.8,
+          "ticksPerRollback": 2,
+          "inputToOwnStateMs": {
+            "count": 8,
+            "p50": 16.5,
+            "p95": 46.599853515625
+          },
+          "inputToRemoteStateMs": {
+            "count": 40,
+            "p50": 18.60009765625,
+            "p95": 45.400146484375
+          },
+          "pressToRemoteStateMs": {
+            "count": 20,
+            "p50": 15.300048828125,
+            "p95": 46.699951171875
+          },
+          "releaseToRemoteStateMs": {
+            "count": 20,
+            "p50": 32.5,
+            "p95": 45.400146484375
+          },
+          "responses": {
+            "eligible": 48,
+            "timedOut": 0
+          },
+          "rtt": {
+            "f862995b0293687712d62e0e": 1,
+            "d9dca6dcdee0b534ef84732c": 1,
+            "6dc19a055d5f063f645257a5": 0,
+            "48db5bbc15f0935b149e2ad0": 1,
+            "4ca37da482f157c421235f90": 1
+          }
+        },
+        {
+          "id": "6dc19a055d5f063f645257a5",
+          "playingRider": true,
+          "ownInputs": 5,
+          "payloadBytesPerSecond": {
+            "sent": 22833,
+            "received": 22077
+          },
+          "rollbacksPerMinute": 0,
+          "ticksPerRollback": 0,
+          "inputToOwnStateMs": {
+            "count": 5,
+            "p50": 13.2001953125,
+            "p95": 50.5
+          },
+          "inputToRemoteStateMs": {
+            "count": 25,
+            "p50": 12.7001953125,
+            "p95": 51.800048828125
+          },
+          "pressToRemoteStateMs": {
+            "count": 10,
+            "p50": 11.900146484375,
+            "p95": 19.2001953125
+          },
+          "releaseToRemoteStateMs": {
+            "count": 15,
+            "p50": 39.89990234375,
+            "p95": 52.099853515625
+          },
+          "responses": {
+            "eligible": 30,
+            "timedOut": 0
+          },
+          "rtt": {
+            "f862995b0293687712d62e0e": 2,
+            "d9dca6dcdee0b534ef84732c": 1,
+            "891c415642f785c108746058": 1,
+            "48db5bbc15f0935b149e2ad0": 1,
+            "4ca37da482f157c421235f90": 2
+          }
+        },
+        {
+          "id": "48db5bbc15f0935b149e2ad0",
+          "playingRider": true,
+          "ownInputs": 7,
+          "payloadBytesPerSecond": {
+            "sent": 22221,
+            "received": 22240
+          },
+          "rollbacksPerMinute": 3.3,
+          "ticksPerRollback": 1,
+          "inputToOwnStateMs": {
+            "count": 7,
+            "p50": 45.199951171875,
+            "p95": 54.10009765625
+          },
+          "inputToRemoteStateMs": {
+            "count": 35,
+            "p50": 43.89990234375,
+            "p95": 53.699951171875
+          },
+          "pressToRemoteStateMs": {
+            "count": 20,
+            "p50": 41.999755859375,
+            "p95": 50.10009765625
+          },
+          "releaseToRemoteStateMs": {
+            "count": 15,
+            "p50": 47.89990234375,
+            "p95": 54.5
+          },
+          "responses": {
+            "eligible": 42,
+            "timedOut": 0
+          },
+          "rtt": {
+            "f862995b0293687712d62e0e": 3,
+            "d9dca6dcdee0b534ef84732c": 5,
+            "891c415642f785c108746058": 2,
+            "6dc19a055d5f063f645257a5": 2,
+            "4ca37da482f157c421235f90": 2
+          }
+        },
+        {
+          "id": "4ca37da482f157c421235f90",
+          "playingRider": false,
+          "ownInputs": 0,
+          "payloadBytesPerSecond": {
+            "sent": 17560,
+            "received": 21717
+          },
+          "rollbacksPerMinute": 6.4,
+          "ticksPerRollback": 2.5,
+          "inputToOwnStateMs": {
+            "count": 0,
+            "p50": null,
+            "p95": null
+          },
+          "inputToRemoteStateMs": {
+            "count": 0,
+            "p50": null,
+            "p95": null
+          },
+          "pressToRemoteStateMs": {
+            "count": 0,
+            "p50": null,
+            "p95": null
+          },
+          "releaseToRemoteStateMs": {
+            "count": 0,
+            "p50": null,
+            "p95": null
+          },
+          "responses": {
+            "eligible": 0,
+            "timedOut": 0
+          },
+          "rtt": {
+            "f862995b0293687712d62e0e": 1,
+            "d9dca6dcdee0b534ef84732c": 1,
+            "891c415642f785c108746058": 3,
+            "6dc19a055d5f063f645257a5": 2,
+            "48db5bbc15f0935b149e2ad0": 3
+          }
+        }
+      ],
+      "crashToDeathShownMs": {
+        "count": 40,
+        "p50": 3.80029296875,
+        "p95": 6.500244140625
+      },
+      "deathsObserved": 8,
+      "rounds": 3
+    },
+    {
+      "impaired": true,
+      "seconds": 19.532762875000007,
+      "peers": [
+        {
+          "id": "c37ac632b053a2eb45a157c9",
+          "playingRider": true,
+          "ownInputs": 8,
+          "payloadBytesPerSecond": {
+            "sent": 22184,
+            "received": 18303
+          },
+          "rollbacksPerMinute": 414.3,
+          "ticksPerRollback": 2.5,
+          "inputToOwnStateMs": {
+            "count": 8,
+            "p50": 27.7001953125,
+            "p95": 56.39990234375
+          },
+          "inputToRemoteStateMs": {
+            "count": 40,
+            "p50": 57.699951171875,
+            "p95": 66.599853515625
+          },
+          "pressToRemoteStateMs": {
+            "count": 20,
+            "p50": 58.199951171875,
+            "p95": 67.900146484375
+          },
+          "releaseToRemoteStateMs": {
+            "count": 20,
+            "p50": 53.400146484375,
+            "p95": 66.5
+          },
+          "responses": {
+            "eligible": 48,
+            "timedOut": 0
+          },
+          "rtt": {
+            "a69dcd9a959e5fc55ff13f11": 96,
+            "ee87075f434fd046e5b16f45": 89,
+            "6b339f560d61ae5959bf04bd": 99,
+            "1489960f41d26edc19e02e80": 98,
+            "3612547fc9a40ad6d82d4c93": 116
+          }
+        },
+        {
+          "id": "a69dcd9a959e5fc55ff13f11",
+          "playingRider": true,
+          "ownInputs": 10,
+          "payloadBytesPerSecond": {
+            "sent": 19801,
+            "received": 19803
+          },
+          "rollbacksPerMinute": 398.8,
+          "ticksPerRollback": 2.6,
+          "inputToOwnStateMs": {
+            "count": 10,
+            "p50": 27.599853515625,
+            "p95": 58.39990234375
+          },
+          "inputToRemoteStateMs": {
+            "count": 49,
+            "p50": 53.2001953125,
+            "p95": 65.7001953125
+          },
+          "pressToRemoteStateMs": {
+            "count": 25,
+            "p50": 56.5,
+            "p95": 64.400146484375
+          },
+          "releaseToRemoteStateMs": {
+            "count": 24,
+            "p50": 53.2001953125,
+            "p95": 70.699951171875
+          },
+          "responses": {
+            "eligible": 60,
+            "timedOut": 1
+          },
+          "rtt": {
+            "c37ac632b053a2eb45a157c9": 103,
+            "ee87075f434fd046e5b16f45": 117,
+            "6b339f560d61ae5959bf04bd": 93,
+            "1489960f41d26edc19e02e80": 107,
+            "3612547fc9a40ad6d82d4c93": 97
+          }
+        },
+        {
+          "id": "ee87075f434fd046e5b16f45",
+          "playingRider": true,
+          "ownInputs": 8,
+          "payloadBytesPerSecond": {
+            "sent": 19596,
+            "received": 19943
+          },
+          "rollbacksPerMinute": 392.9,
+          "ticksPerRollback": 2.6,
+          "inputToOwnStateMs": {
+            "count": 8,
+            "p50": 30.199951171875,
+            "p95": 51.300048828125
+          },
+          "inputToRemoteStateMs": {
+            "count": 40,
+            "p50": 54.499755859375,
+            "p95": 65.699951171875
+          },
+          "pressToRemoteStateMs": {
+            "count": 20,
+            "p50": 54.2998046875,
+            "p95": 66.300048828125
+          },
+          "releaseToRemoteStateMs": {
+            "count": 20,
+            "p50": 56.7998046875,
+            "p95": 64.800048828125
+          },
+          "responses": {
+            "eligible": 48,
+            "timedOut": 0
+          },
+          "rtt": {
+            "c37ac632b053a2eb45a157c9": 101,
+            "a69dcd9a959e5fc55ff13f11": 100,
+            "6b339f560d61ae5959bf04bd": 118,
+            "1489960f41d26edc19e02e80": 106,
+            "3612547fc9a40ad6d82d4c93": 102
+          }
+        },
+        {
+          "id": "6b339f560d61ae5959bf04bd",
+          "playingRider": true,
+          "ownInputs": 10,
+          "payloadBytesPerSecond": {
+            "sent": 19488,
+            "received": 19428
+          },
+          "rollbacksPerMinute": 372.3,
+          "ticksPerRollback": 2.5,
+          "inputToOwnStateMs": {
+            "count": 10,
+            "p50": 24.5,
+            "p95": 49.10009765625
+          },
+          "inputToRemoteStateMs": {
+            "count": 50,
+            "p50": 53.10009765625,
+            "p95": 67.500244140625
+          },
+          "pressToRemoteStateMs": {
+            "count": 25,
+            "p50": 53.699951171875,
+            "p95": 67.500244140625
+          },
+          "releaseToRemoteStateMs": {
+            "count": 25,
+            "p50": 52.699951171875,
+            "p95": 64.7001953125
+          },
+          "responses": {
+            "eligible": 60,
+            "timedOut": 0
+          },
+          "rtt": {
+            "c37ac632b053a2eb45a157c9": 90,
+            "a69dcd9a959e5fc55ff13f11": 115,
+            "ee87075f434fd046e5b16f45": 109,
+            "1489960f41d26edc19e02e80": 122,
+            "3612547fc9a40ad6d82d4c93": 103
+          }
+        },
+        {
+          "id": "1489960f41d26edc19e02e80",
+          "playingRider": true,
+          "ownInputs": 6,
+          "payloadBytesPerSecond": {
+            "sent": 19666,
+            "received": 19389
+          },
+          "rollbacksPerMinute": 349.2,
+          "ticksPerRollback": 2.6,
+          "inputToOwnStateMs": {
+            "count": 6,
+            "p50": 25.300048828125,
+            "p95": 45.89990234375
+          },
+          "inputToRemoteStateMs": {
+            "count": 30,
+            "p50": 56.699951171875,
+            "p95": 72.10009765625
+          },
+          "pressToRemoteStateMs": {
+            "count": 15,
+            "p50": 58.300048828125,
+            "p95": 72.10009765625
+          },
+          "releaseToRemoteStateMs": {
+            "count": 15,
+            "p50": 56.5,
+            "p95": 87.60009765625
+          },
+          "responses": {
+            "eligible": 36,
+            "timedOut": 0
+          },
+          "rtt": {
+            "c37ac632b053a2eb45a157c9": 87,
+            "a69dcd9a959e5fc55ff13f11": 104,
+            "ee87075f434fd046e5b16f45": 114,
+            "6b339f560d61ae5959bf04bd": 94,
+            "3612547fc9a40ad6d82d4c93": 98
+          }
+        },
+        {
+          "id": "3612547fc9a40ad6d82d4c93",
+          "playingRider": false,
+          "ownInputs": 0,
+          "payloadBytesPerSecond": {
+            "sent": 16331,
+            "received": 19933
+          },
+          "rollbacksPerMinute": 427.9,
+          "ticksPerRollback": 2.6,
+          "inputToOwnStateMs": {
+            "count": 0,
+            "p50": null,
+            "p95": null
+          },
+          "inputToRemoteStateMs": {
+            "count": 0,
+            "p50": null,
+            "p95": null
+          },
+          "pressToRemoteStateMs": {
+            "count": 0,
+            "p50": null,
+            "p95": null
+          },
+          "releaseToRemoteStateMs": {
+            "count": 0,
+            "p50": null,
+            "p95": null
+          },
+          "responses": {
+            "eligible": 0,
+            "timedOut": 0
+          },
+          "rtt": {
+            "c37ac632b053a2eb45a157c9": 107,
+            "a69dcd9a959e5fc55ff13f11": 109,
+            "ee87075f434fd046e5b16f45": 99,
+            "6b339f560d61ae5959bf04bd": 112,
+            "1489960f41d26edc19e02e80": 108
+          }
+        }
+      ],
+      "crashToDeathShownMs": {
+        "count": 40,
+        "p50": 6.800048828125,
+        "p95": 11.599853515625
+      },
+      "deathsObserved": 8,
+      "rounds": 3
+    }
+  ]
+}
