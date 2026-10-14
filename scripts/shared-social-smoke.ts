@@ -280,6 +280,62 @@ try {
         );
       }
       if (game === "graveyard-shift") {
+        if (width === 390) {
+          const landscape = await browser.newPage({
+            viewport: { width: 844, height: 390 },
+            hasTouch: true,
+            isMobile: true,
+          });
+          const landscapeErrors: string[] = [];
+          landscape.on("pageerror", (error) =>
+            landscapeErrors.push(error.message),
+          );
+          await landscape.goto(new URL(`${game}/?solo=1&mute`, origin).href);
+          await landscape.locator('[data-phase="running"]').waitFor();
+          for (const selector of ["canvas", ".up", ".vacuum", ".pulse"]) {
+            const box = await landscape.locator(selector).boundingBox();
+            assert.ok(
+              box &&
+                box.x >= 0 &&
+                box.y >= 0 &&
+                box.x + box.width <= 844 &&
+                box.y + box.height <= 390,
+              `${selector}: landscape phone control fits before interaction`,
+            );
+          }
+          await landscape.screenshot({
+            path: "artifacts/shared-social/graveyard-landscape-play.png",
+          });
+          for (const kind of ["friends", "account"] as const) {
+            const controls = landscape.locator(".fui-social");
+            if (kind === "friends")
+              await controls
+                .getByRole("button", { name: "FRIENDS", exact: true })
+                .click();
+            else await controls.getByRole("button").first().click();
+            const modal = landscape.locator("dialog[open]");
+            await modal.waitFor();
+            const box = (await modal.boundingBox())!;
+            assert.ok(
+              box.x >= 0 &&
+                box.y >= 0 &&
+                box.x + box.width <= 844 &&
+                box.y + box.height <= 390,
+              `${kind}: landscape phone dialog fits`,
+            );
+            await landscape.screenshot({
+              path: `artifacts/shared-social/graveyard-landscape-${kind}.png`,
+            });
+            await modal
+              .getByRole("button", { name: "CLOSE", exact: true })
+              .click();
+          }
+          assert.deepEqual(landscapeErrors, []);
+          await landscape.close();
+          console.log(
+            "OK graveyard-shift: arena/thumbs and social dialogs fit844x390 before interaction",
+          );
+        }
         await page.goto(new URL(`${game}/?solo=1&mute`, origin).href);
         await page.locator('[data-phase="running"]').waitFor();
         const personal = page.locator(".personal");
