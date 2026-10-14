@@ -16,6 +16,8 @@ Keyboard: focus the battlefield, then use **I/K** to aim up/down and **J/L** to 
 
 After a refresh, controls stay disabled with a reconnect hint until the room admits the returning page. A recovered turn or the previous page's connected seat does not enable play. Admission happens automatically while a peer remains; a rejected action is not required to recover. The app and play submission share the runtime's admission check, and solo practice implements the same session interface without a room.
 
+The landing header and in-room **MENU** expose the shared account, friends, matches and leaderboard controls. Account identity and friendships follow you between games through the same backend. Room presence follows admission and closure; account credentials never enter gameplay packets. Opening an account or friends dialog clears queued aim and held gestures, and that dialog owns keyboard input until it closes.
+
 ## Public headless API
 
 ```ts
