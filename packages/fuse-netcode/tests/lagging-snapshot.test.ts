@@ -70,10 +70,12 @@ test("a temporary stream stall preserves catch-up time until delayed packets arr
     );
     assert.ok(a.add(4));
     mesh.run(2000);
+    assert.equal(a.roomState()!.totals.a, 4);
     assert.equal(b.roomState()!.totals.a, 4);
     const tick =
       Math.floor((Math.min(a.roomState()!.tick, b.roomState()!.tick) - 4) / 4) *
       4;
+    assert.ok(a.hashAt(tick));
     assert.equal(a.hashAt(tick), b.hashAt(tick));
   } finally {
     a.stop();
