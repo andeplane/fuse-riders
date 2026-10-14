@@ -1,4 +1,6 @@
+import "fuse-ui/portal.css";
 import "./entrance.css";
+import { createAppPortal } from "fuse-ui/portal";
 
 interface EntranceOptions {
   main: HTMLElement;
@@ -39,9 +41,22 @@ export function createEntrance(o: EntranceOptions) {
   trialHelp.textContent =
     "Controls: Keyboard · J hook / K bomb (standard) aims with WASD / arrows, jumps with Space and drops with ↓ + Space; the mouse still hooks with a left click and bombs with a right click. Mouse aim is the classic scheme where S / ↓ alone drops. Inside the room, the manager can change Jump, Tether and Bombs (off, fuse or impact) for everyone.";
   root.querySelector("#entrance-help")!.append(trialHelp);
-  root.querySelector<HTMLAnchorElement>(".entrance-home")!.href =
+  const home = root.querySelector<HTMLAnchorElement>(".entrance-home")!;
+  home.href =
     import.meta.env.BASE_URL +
     (new URLSearchParams(location.search).has("mute") ? "?mute" : "");
+  const bar = document.createElement("div");
+  bar.className = "entrance-bar";
+  home.before(bar);
+  bar.append(
+    createAppPortal({
+      document,
+      current: "hook-havok",
+      base: import.meta.env.BASE_URL,
+      search: location.search,
+    }).element,
+    home,
+  );
   const placements = Object.entries({
     start: o.start,
     status: o.status,

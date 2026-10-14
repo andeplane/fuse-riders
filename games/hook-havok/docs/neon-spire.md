@@ -1,6 +1,6 @@
 # Neon Spire: arena foundation, zones and hazards (12A–12B)
 
-Rules are now **`hook-havok-15`** (11B was `hook-havok-12`; 11C bots claim 13 and 11D power-ups 14, and whichever of the three merges later takes the next free number). Refresh every client and create a fresh room: older clients cannot read the new settings or checkpoints.
+Rules are now **`hook-havok-16`**, combining bombs (12), power-ups v2 (14), playable bots (15), and the Spire. Refresh every client and create a fresh room: older clients cannot read the new settings or checkpoints.
 
 **Playtest:** refresh, create a fresh room, then **Room & match → Arena → Neon Spire**. The zone switches are in **Development workshop → Neon Spire zones**; **Follow keepers** is with your own controls under Room & match. Lantern Belfry and Crossroads play exactly as before.
 
@@ -26,7 +26,7 @@ Neon Spire is **2240 × 1260** (1.4×, still 16:9) and is shown whole on a TV. T
 | Crown deck  | 900–1340 (y 240)                                                                                                                                                                                          |
 | Solid       | the core pillar [1080, 440, 80, 368] that splits the tower, a hurdle [1080, 980, 80, 130], two overhangs [120 / 1860, 560, 260, 24], crown pylons [880 / 1340, 190, 20, 78] and a roof [900, 60, 440, 20] |
 
-The core's top is flush with the top bridges, so the top tier connects across while the middle tier is split. Five spawns sit on the middle tier (x 260, 1980, 940, 1300, 440): supported, clear of every block, lift, pad, laser band and the crown, and above the floor's sudden-death cap. Power-up pads (the existing format until 11D replaces it) are Lift on the right top tier and Ward on the left bottom deck. `target`, `ballField`, `ballSpawn` and the ricochet orb's start (`arenaBall`) are map data as before. The arena is selectable in the picker and is not the default.
+The core's top is flush with the top bridges, so the top tier connects across while the middle tier is split. Five spawns sit on the middle tier (x 260, 1980, 940, 1300, 440): supported, clear of every block, lift, pad, laser band and the crown, and above the floor's sudden-death cap. Four power-up pads use the seeded v2 pool: the right top tier, left bottom deck, left top ledge lip, and crown. `target`, `ballField`, `ballSpawn` and the ricochet orb's start (`arenaBall`) are map data as before. The arena is selectable in the picker and is not the default.
 
 ### Grey-box render and camera
 
@@ -79,6 +79,13 @@ Settings gain six exact keys; knockout events a seventh field, `cause`; each kee
 - A pad launch past the speed cap is clipped back to the cap by a rival's hook knockback, like any other impulse.
 - On a phone in landscape the whole spire is small between the touch pads; Follow keepers helps there. It is off by default everywhere, as asked.
 - Zones do not act on the brass target, and lasers do not pop orbs or detonate bombs.
-- 11D replaces the power-up pads with a random pool; the spire's two pads are placeholders in the old format.
+- Bots use the selected map's dimensions and include jump-pad, lift and low-gravity settings in the navigation cache key. They follow the same bomb flight through zones as the simulation. Their goals remain ledges and rivals; they do not specifically plan laser avoidance or crown scoring.
+
+## Integration contract
+
+The combined rules retain one seeded power pool and checkpointed bot mind on every map. A hazard knockout clears the victim's power, bonus jumps and dash before the checkpoint is published; spawn protection is `spawnGuard` throughout. The Shield power absorbs bomb blasts and does not protect against hazards. Dash movement keeps its velocity through a zone until the dash ends, then the usual zone field applies.
+
+Navigation remains a derived cache of the real movement kernel. Its key includes the three settings that alter that kernel, so room configuration order cannot make peers choose different graphs. Bomb forecasts receive the full tuning rather than a separate gravity and map, ensuring lifts and low gravity agree with actual flight. `tests/spire-integration.test.ts` covers wide-map goals and lower landings, cache ordering, lift flight, clearing each power on a hazard, and five bots replaying through chained restores with bombs, powers and hazards.
+
 - The render is procedural vector neon. **12C** would add moving lifts carrying keepers, bombs and hook anchors, only if the grey box is fun. **12E** replaces the grey box with generated night-city art and a neon keeper rim once the geometry settles.
 - Browser checks run in headless Chrome on Windows; this is not physical-phone or TV evidence.

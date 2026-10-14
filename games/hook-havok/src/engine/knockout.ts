@@ -3,6 +3,7 @@ import { MAPS } from "./maps.js";
 import { BODY, S, cancel, readyHook } from "./world.js";
 import { KO_RESPAWN } from "./bomb-rules.js";
 import { gain } from "./zones.js";
+import { clearPower } from "./power-ups.js";
 
 const saturate = (n: number) => Math.min(0xffffffff, n + 1);
 /**
@@ -41,7 +42,7 @@ export function knockout(
     charge: 0,
     hook: readyHook(),
   });
-  victim.ward = 0;
+  clearPower(victim);
   victim.pushed = 0;
   victim.pushedBy = "";
   const kit = victim.bomb,
