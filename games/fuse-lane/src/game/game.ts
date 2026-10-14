@@ -72,6 +72,8 @@ export interface FuseLaneView {
   timerTicks: number;
   partTicks: number;
   weekSeconds: number;
+  /** The AI level: the lobby's pick, then the match's. */
+  level: number;
   players: FuseLanePlayerView[];
   watchers: { id: string; name: string; connected: boolean }[];
   economy: Economy;
@@ -145,6 +147,7 @@ export function fuseLaneView(room: FuseLaneRoom): FuseLaneView {
     partTicks: running ? Math.max(1, room.phaseEnd - room.phaseStart) : 1,
     // The lobby shows the setting the next match will start with; a match shows the one it started with.
     weekSeconds: lobby ? room.settings.weekSeconds : room.weekTicks / 20,
+    level: lobby ? room.settings.level : room.level,
     players,
     watchers: [...room.seats.values()]
       .filter((seat) => seat.watcher)
@@ -172,7 +175,7 @@ export const fuseLaneGame: RollbackGame<
   FuseLaneSettings
 > = {
   id: "fuse-lane",
-  rules: "fuse-lane-4",
+  rules: "fuse-lane-5",
   isEntry: isFuseLaneEntry,
   createRoom,
   createTicker: () => foldTick,
