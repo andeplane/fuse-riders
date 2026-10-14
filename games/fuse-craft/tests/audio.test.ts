@@ -50,6 +50,35 @@ test("a hit on the player's network sounds the alarm, then rests", () => {
   assert.ok(!names(next([hit("blue", 50, 60)])).includes("alarm"));
 });
 
+test("rollback replay stays silent and preserves alarm and result suppression", () => {
+  const w = match();
+  const track = createCueTracker();
+  place(w, 10, "red", "tower");
+  place(w, 50, "blue", "neuron");
+  track(w, "blue");
+  w.tick = 10;
+  w.outcomes = [hit("red", 10, 50)];
+  assert.ok(names(track(w, "blue")).includes("alarm"));
+  for (const replay of [5, 6, 10, 10]) {
+    w.tick = replay;
+    assert.deepEqual(track(w, "blue"), []);
+  }
+  w.tick = 11;
+  assert.deepEqual(names(track(w, "blue")), ["zap"]);
+  w.tick = 10 + ALARM_TICKS;
+  assert.ok(names(track(w, "blue")).includes("alarm"));
+  w.tick++;
+  w.finished = true;
+  w.winnerId = "blue";
+  assert.ok(names(track(w, "blue")).includes("victory"));
+  w.tick -= 5;
+  w.finished = false;
+  assert.deepEqual(track(w, "blue"), []);
+  w.tick += 6;
+  w.finished = true;
+  assert.ok(!names(track(w, "blue")).includes("victory"));
+});
+
 test("losses and kills sound different, and elimination is the biggest", () => {
   const { w, next } = duel();
   const cues = next([

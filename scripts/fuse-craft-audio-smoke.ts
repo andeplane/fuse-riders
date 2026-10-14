@@ -55,17 +55,44 @@ try {
       adapter.play("victory");
       const playing = active;
       const victoryLayers = audio.cueRecipe("victory", Math.random).length;
-      // Every cue plays without throwing, then releases its sources on its own.
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      // Isolate each recipe so the voice cap cannot silently skip later cues.
       const errors: string[] = [];
-      for (const cue of [...audio.UI_CUES, ...audio.EVENT_CUES])
+      for (const cue of [...audio.UI_CUES, ...audio.EVENT_CUES]) {
+        const individual = audio.createBrowserAudio(false);
         try {
-          adapter.play(cue, { pan: -0.5, gain: 0.5 });
+          individual.configure({
+            mute: false,
+            volume: 0.5,
+            reducedMotion: false,
+            edgeScroll: true,
+          });
+          individual.unlock();
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          individual.play(cue, { pan: -0.5, gain: 0.5 });
+          const recipe = audio.cueRecipe(cue, Math.random);
+          if (active !== recipe.length)
+            errors.push(
+              `${cue}: expected ${recipe.length} layers, got ${active}`,
+            );
+          const duration = Math.max(
+            ...recipe.map((layer) => (layer.at ?? 0) + layer.dur),
+          );
+          await new Promise((resolve) =>
+            setTimeout(resolve, duration * 1000 + 150),
+          );
+          if (active !== 0) errors.push(`${cue}: sources did not drain`);
         } catch (error) {
           errors.push(`${cue}: ${String(error)}`);
+        } finally {
+          individual.dispose();
         }
-      const everyCue = active > playing;
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      }
+      const everyCue = errors.length === 0;
       const drained = active;
+      for (const cue of [...audio.UI_CUES, ...audio.EVENT_CUES])
+        adapter.play(cue);
+      const voiceCap = active >= 48 && active <= 72;
       adapter.configure({
         mute: true,
         volume: 0.5,
@@ -121,6 +148,7 @@ try {
       return {
         playing: playing === victoryLayers,
         everyCue,
+        voiceCap,
         errors,
         drained,
         muted,
@@ -138,6 +166,7 @@ try {
   assert.deepEqual(result, {
     playing: true,
     everyCue: true,
+    voiceCap: true,
     errors: [],
     drained: 0,
     muted: 0,
