@@ -611,7 +611,7 @@ function room(): void {
   app.replaceChildren(top, main);
 
   const sent = new Set<string>();
-  // A name this device used before joins by itself, with its face; a new device asks first.
+  // Prefer the shared account name; otherwise reuse this device's previous room name and face.
   const remembered = seatName(
     social.playerName(store.getItem(names.name)) ?? "",
   );
