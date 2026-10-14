@@ -4,6 +4,7 @@ import {
   isGrantIdentity,
   type RoomRecord,
   type Member,
+  digest,
 } from "./room-store.js";
 import {
   BUS_FRAME_TTL_MS,
@@ -11,7 +12,7 @@ import {
   type RoutedMessage,
 } from "./room-bus.js";
 import { validSignal } from "./signal.js";
-import { ROOM_PROTOCOL_VERSION } from "fuse-network-protocol";
+import { ROOM_PROTOCOL_VERSION, readLinkReport } from "fuse-network-protocol";
 export interface GatewaySocket {
   send(raw: string): void;
   close(code: number, reason: string): void;
@@ -21,6 +22,7 @@ export interface GatewayDependencies {
   now: () => number;
   id: () => string;
   error: (kind: string, error: unknown) => void;
+  log?: (entry: Record<string, unknown>) => void;
   schedule?: (callback: () => void, delayMs: number) => () => void;
 }
 interface Client {
@@ -38,6 +40,7 @@ interface Client {
   signals: Map<string, Bucket>;
   /** `time` frames: each is a database transaction. */
   times: Bucket;
+  diagnostics: Bucket;
   /** Spent by each refused frame; running out is what a flood looks like. */
   refusals: Bucket;
   refused: number;
@@ -235,6 +238,7 @@ export class RoomGateway {
           pendingBytes: 0,
           signals: new Map(),
           times: { tokens: TIME_BURST, at: this.deps.now() },
+          diagnostics: { tokens: 2, at: this.deps.now() },
           refusals: { tokens: FLOOD_BURST, at: this.deps.now() },
           refused: 0,
           noticeAt: -Infinity,
@@ -438,6 +442,36 @@ export class RoomGateway {
       throw new RoomError(409, "Connection replaced");
     if (!seat || seat.expiresAt <= this.deps.now())
       throw new RoomError(410, "Connection lease expired");
+    if (m.type === "link-report") {
+      // No database read or bus publication. At most two reports initially, then one every ten seconds.
+      if (!take(client.diagnostics, this.deps.now(), 2, 0.1)) return;
+      const report = readLinkReport(m);
+      if (!report) return;
+      const links = report.links.filter(
+        (link) =>
+          room.members[link.peerId]?.connectionId === link.connectionId &&
+          room.members[link.peerId]!.expiresAt > this.deps.now() &&
+          link.peerId !== client.member.id,
+      );
+      try {
+        this.deps.log?.({
+          kind: "room-link-report",
+          severity: "INFO",
+          version: 1,
+          roomKey: digest(client.room),
+          incarnation: client.incarnation,
+          gameId: room.gameId,
+          memberId: client.member.id,
+          connectionId: client.member.connectionId,
+          role: client.member.id === room.hostId ? "host" : "client",
+          hidden: report.hidden,
+          links,
+        });
+      } catch {
+        // Operational telemetry must not interrupt a room if the log sink fails.
+      }
+      return;
+    }
     if (m.type === "time") {
       if (!take(client.times, this.deps.now(), TIME_BURST, TIME_PER_SECOND)) {
         this.refuse(client, this.deps.now());

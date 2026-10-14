@@ -1,5 +1,7 @@
 # Coverage exclusions
 
+Fuse Drivers excludes its browser composition root (`src/app/main.ts`) and Phaser adapters (`src/app/arena/index.ts`, `scene.ts`, `race-scene.ts`, `hud-scene.ts`, `track-art.ts`, `assets.ts`) from Node coverage. Pure interpolation, framing, reports, sessions, runtime and rules are covered by its focused suite; browser smoke covers the mounted arena and room flow.
+
 The unit gate includes `service/**`, `packages/*/src/**` and `games/*/src/**` by default. New source files automatically join the gate. `.c8rc.json` lists exact-file exemptions so an untested module cannot silently exempt its whole directory. Declaration files (`**/*.d.ts`) contain no executable behavior.
 
 This makes coverage scope explicit; it does not claim these excluded modules are safe or tested. Browser smokes and production-adapter checks are separate evidence. Existing line/statements/functions and branch thresholds are unchanged. Six already-tested helpers previously omitted from the gate are now included: arena announcements, blast animation, trail debris, status copy, pickup rarity and room-code validation.

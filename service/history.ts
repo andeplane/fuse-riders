@@ -1,10 +1,12 @@
 import { diceRegistration } from "dice/platform";
+import { fuseDriversRegistration } from "fuse-drivers/platform";
 import { hookRegistration } from "hook-havok/platform";
 import { axeRegistration } from "fuse-axe/platform";
 import { bombersRegistration } from "fuse-bombers/platform";
 import { choppersRegistration } from "fuse-choppers/platform";
 import { craftRegistration } from "fuse-craft/platform";
 import { freightRegistration } from "fuse-freight/platform";
+import { graveyardRegistration } from "graveyard-shift/platform";
 import { fuseLaneRegistration } from "fuse-lane/platform";
 import { ballBrosRegistration } from "ball-bros/platform";
 import {
@@ -36,6 +38,8 @@ export const GAMES = [
   bombersRegistration,
   fuseLaneRegistration,
   ballBrosRegistration,
+  graveyardRegistration,
+  fuseDriversRegistration,
 ] as const;
 
 /**

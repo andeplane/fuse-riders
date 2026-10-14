@@ -166,35 +166,42 @@ test("round controls: every countdown announces once, never hijacks focus and hi
   assert.equal(controls.element.hidden, true);
   assert.equal(controls.element.getAttribute("role"), "status");
   controls.update({ round: 1, visible: true });
-  const first = controls.element.firstElementChild;
+  const first = controls.element.querySelector("strong");
   assert.equal(controls.element.hidden, false);
   assert.equal(controls.element.dataset.round, "1");
   assert.equal(controls.element.querySelector("dt")!.textContent, "← / →");
-  assert.equal(
-    controls.element.querySelector("button"),
-    null,
-    "the countdown guidance needs no dismiss or acknowledgement",
-  );
+  const dismiss = controls.element.querySelector<HTMLButtonElement>("button")!;
+  assert.equal(dismiss.getAttribute("aria-label"), "Dismiss controls");
   controls.update({ round: 1, visible: true });
   assert.equal(
-    controls.element.firstElementChild,
+    controls.element.querySelector("strong"),
     first,
     "repeated frames do not reannounce",
+  );
+  dismiss.click();
+  assert.equal(controls.element.hidden, true);
+  controls.update({ round: 1, visible: true });
+  controls.update({ round: 1, visible: true, touch: true });
+  assert.equal(
+    controls.element.hidden,
+    true,
+    "ticks and device changes do not reopen dismissed controls",
   );
   controls.update({ round: 1, visible: false });
   assert.equal(controls.element.hidden, true);
   controls.update({ round: 2, visible: true });
   assert.equal(controls.element.hidden, false);
   assert.notEqual(
-    controls.element.firstElementChild,
+    controls.element.querySelector("strong"),
     first,
     "a new round refreshes the live announcement",
   );
-  const second = controls.element.firstElementChild;
+  const second = controls.element.querySelector("strong");
+  dismiss.click();
   controls.update({ round: 2, visible: false });
   controls.update({ round: 2, visible: true });
   assert.notEqual(
-    controls.element.firstElementChild,
+    controls.element.querySelector("strong"),
     second,
     "a fresh countdown with a reused round id also refreshes",
   );

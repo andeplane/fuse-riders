@@ -25,7 +25,17 @@ import {
   sendMatchReport,
 } from "./match-report.js";
 import { ControllerInputState } from "../client/controller-state.js";
-import { ControllerKeyboardBindings } from "../client/controller-keyboard.js";
+import {
+  ControllerKeyboardBindings,
+  keyboardKeyLabel,
+} from "../client/controller-keyboard.js";
+import {
+  ControllerGamepadBindings,
+  readGamepads,
+  STANDARD_PAD,
+} from "../client/controller-gamepad.js";
+import { setupLocalPlayers } from "./local-gamepads.js";
+import "./local-gamepads.css";
 import { createControllerLayoutSetting } from "../client/controller-layout.js";
 import "./mobile-play-layout.css";
 import "./arcade-pads.css";
@@ -236,6 +246,10 @@ export async function startOnline(): Promise<void> {
     return;
   }
   const { code, solo, displayOnly, role, hostToken } = route;
+  const localPlayers =
+    solo && new URLSearchParams(location.search).get("local") === "1"
+      ? await setupLocalPlayers(app)
+      : undefined;
   const token = solo ? "" : displayOnly ? secret() : hostToken || peerToken();
   function peerToken() {
     const key = `fuse-peer-${code}`;
@@ -438,11 +452,11 @@ export async function startOnline(): Promise<void> {
    */
   const SEATING_GRACE_MS = 8000;
   booting.append(bootNote);
-  // A room that never sends a snapshot must stop claiming progress: the note escalates to the same-network hint once the link stalls or ICE fails.
+  // A stalled arrival shows its actual transport reason and diagnostics guidance.
   const bootAt = performance.now();
   let connectFailed = false,
     booted = false;
-  // 20s is where connectHint gives up on progress and says "different network": the one drop-off the funnel cannot otherwise see.
+  // Record the stalled connection at 20 seconds without guessing its network topology.
   const bootTick = () => {
     const waited = performance.now() - bootAt;
     bootNote.textContent = connectHint(rawStatus, waited);
@@ -741,6 +755,18 @@ export async function startOnline(): Promise<void> {
       { label: "▶", keys: "ArrowRight D", title: "Steer right (ArrowRight D)" },
     ],
   });
+  if (localPlayers) {
+    for (const [button, control, title] of [
+      [leftButton, "left", "Steer left"],
+      [rightButton, "right", "Steer right"],
+      [fireButton, "bomb", "Hold to charge, release to fire"],
+    ] as const) {
+      const key = localPlayers[0]?.keys?.[control]?.replace(/^(Key|Digit)/, "");
+      if (key) button.setAttribute("aria-keyshortcuts", key);
+      else button.removeAttribute("aria-keyshortcuts");
+      button.title = key ? `${title} (${key})` : title;
+    }
+  }
   leftButton.classList.add("pad-left");
   rightButton.classList.add("pad-right");
   fireButton.classList.add("pad-bomb");
@@ -908,6 +934,32 @@ export async function startOnline(): Promise<void> {
     mac,
     solo,
     canConfigure: () => manages || solo,
+    driving: localPlayers?.map((player) => ({
+      title: player.name,
+      entries: player.keys
+        ? [
+            [keyboardKeyLabel(player.keys.left), "Steer left"],
+            [keyboardKeyLabel(player.keys.right), "Steer right"],
+            [
+              keyboardKeyLabel(player.keys.bomb),
+              "Hold to charge, release to fire",
+            ],
+          ]
+        : [
+            [
+              player.pad.mapping === STANDARD_PAD
+                ? "D-pad / left stick"
+                : "Configured left / right",
+              "Steer",
+            ],
+            [
+              player.pad.mapping === STANDARD_PAD
+                ? "Bottom face button"
+                : "Configured fire button",
+              "Hold to charge, release to fire",
+            ],
+          ],
+    })),
   });
   help.onclick = () => shortcutsDialog.open();
   // Move the existing actions, keeping their handlers and mobile/lobby destinations intact.
@@ -1020,7 +1072,7 @@ export async function startOnline(): Promise<void> {
     roundControls.update({
       state: snapshot,
       scope: renderScope,
-      joined,
+      joined: joined && !localPlayers,
       displayOnly,
       ended: next.kind === "ended",
       touch: next.mobile.active || next.arenaController,
@@ -1235,6 +1287,8 @@ export async function startOnline(): Promise<void> {
     },
     // The change guard compares raw wordings, not the displayed one: three flattened states would log a "change" for every distinct runtime message and hide the one that actually changed.
     status: (text) => {
+      if (localPlayers && text.startsWith("Solo"))
+        text = `Local · ${localPlayers.length} players on this computer`;
       if (rawStatus !== text) telemetry.log("status", { text });
       rawStatus = text;
       const view = presentStatus(text);
@@ -1327,7 +1381,7 @@ export async function startOnline(): Promise<void> {
         rules,
       });
       const roundReport =
-        solo && !remembersSignIn()
+        localPlayers || (solo && !remembersSignIn())
           ? undefined
           : buildRoundReport(state.decidedRound, id, runtime.confirmedTick());
       const ratingKey = roundReport
@@ -1412,7 +1466,7 @@ export async function startOnline(): Promise<void> {
       }
       // What this rider actually wears is what the browser remembers, so the next room opens on the name, colour and
       // head it wore rather than on ones it asked for and did not get.
-      if (player) {
+      if (player && !localPlayers) {
         joinForm.colors.sync(player.color as RiderColorId);
         joinForm.picker.sync(player.avatarId);
         if (read("fuse-riders-player-name") !== player.name)
@@ -1583,7 +1637,7 @@ export async function startOnline(): Promise<void> {
         // Every rider's device reports the result it computed; the room service keeps one that a majority agree on
         // (README, "Login and match history"). Only state the match froze goes in: devices open the recap at different moments.
         const report =
-          solo && !remembersSignIn()
+          localPlayers || (solo && !remembersSignIn())
             ? undefined
             : buildMatchReport(
                 {
@@ -1615,7 +1669,17 @@ export async function startOnline(): Promise<void> {
       setIfChanged(powerStatus, "textContent", view.power.text);
       fireButton.classList.toggle("gun-armed", view.fire.gunReady);
       hudFire.classList.toggle("gun-armed", view.fire.gunReady);
-      setIfChanged(fireButton, "title", view.fire.title);
+      const localBombKey = localPlayers?.[0]?.keys?.bomb;
+      setIfChanged(
+        fireButton,
+        "title",
+        localPlayers
+          ? view.fire.title.replace(
+              / \(Space\)$/,
+              localBombKey ? ` (${keyboardKeyLabel(localBombKey)})` : "",
+            )
+          : view.fire.title,
+      );
       const weapon = view.fire.weapon;
       const artwork = legendSrc(
         theme.id,
@@ -1704,7 +1768,12 @@ export async function startOnline(): Promise<void> {
           : row.entry;
         if (row.remove.parentElement !== removeParent)
           removeParent.append(row.remove);
-        showRemove(row.remove, p.remove);
+        showRemove(
+          row.remove,
+          localPlayers && runtime.localPlayerIds.includes(p.id)
+            ? { ...p.remove, hidden: true }
+            : p.remove,
+        );
       }
       setIfChanged(addAI, "disabled", view.actions.addAIDisabled);
       if (startLabel !== view.actions.start.label)
@@ -1791,7 +1860,12 @@ export async function startOnline(): Promise<void> {
     settings,
     callbacks,
     solo
-      ? { humanName: read("fuse-riders-player-name") ?? undefined }
+      ? {
+          humanName: read("fuse-riders-player-name") ?? undefined,
+          ...(localPlayers
+            ? { localPlayers: localPlayers.map((p) => p.name) }
+            : {}),
+        }
       : {
           transport: (events) =>
             new PeerTransport(code, token, events, {
@@ -1928,7 +2002,7 @@ export async function startOnline(): Promise<void> {
   colorButton.onclick = colorDialog.open;
   const nameDialog = createNameDialog(dialogs, {
     current: () => snapshot?.players.find((p) => p.id === id)?.name ?? "",
-    fixed: () => accountUsername() ?? undefined,
+    fixed: () => (localPlayers ? undefined : (accountUsername() ?? undefined)),
     // A rename is the ordinary join command sent again with a different name: the runtime turns it into a `JOIN` over
     // the seat this rider already holds, and says why when it will not (ready, or the round has started). What this
     // browser remembers is what the room accepted rather than what was asked for — the frame loop writes it once the
@@ -2082,6 +2156,7 @@ export async function startOnline(): Promise<void> {
     inputState,
     () =>
       joined &&
+      !localPlayers &&
       !roomEnded &&
       !mobileLayout.blocked() &&
       dialogs.current() === undefined &&
@@ -2106,8 +2181,74 @@ export async function startOnline(): Promise<void> {
   window.addEventListener("keyup", (event) => keyboard.up(event));
   const clearControls = () => {
     keyboard.clear();
+    for (const localKeyboard of localKeyboards) localKeyboard.clear();
     bindings.clear(true, true);
+    for (const gamepad of gamepads) gamepad.clear();
   };
+  const localKeyboards = (localPlayers ?? []).flatMap((player, index) => {
+    if (!player.keys) return [];
+    const state =
+      index === 0
+        ? inputState
+        : new ControllerInputState({
+            send: (message) =>
+              !roomEnded &&
+              runtime.localInput(runtime.localPlayerIds[index]!, message),
+          });
+    return [
+      new ControllerKeyboardBindings(
+        state,
+        () =>
+          joined &&
+          !roomEnded &&
+          !mobileLayout.blocked() &&
+          dialogs.current() === undefined &&
+          !roomAccount.dialog.open &&
+          !document.hidden &&
+          !Boolean(
+            document.activeElement?.closest(
+              'input,textarea,select,[contenteditable]:not([contenteditable="false"])',
+            ),
+          ),
+        () => {},
+        player.keys,
+      ),
+    ];
+  });
+  window.addEventListener("keydown", (event) => {
+    for (const localKeyboard of localKeyboards) localKeyboard.down(event);
+  });
+  window.addEventListener("keyup", (event) => {
+    for (const localKeyboard of localKeyboards) localKeyboard.up(event);
+  });
+  const gamepads = (localPlayers ?? []).flatMap((player, index) => {
+    if (!player.pad) return [];
+    const state =
+      index === 0
+        ? inputState
+        : new ControllerInputState({
+            send: (message) =>
+              !roomEnded &&
+              runtime.localInput(runtime.localPlayerIds[index]!, message),
+          });
+    return [
+      new ControllerGamepadBindings(player.pad, state, () => {
+        if (snapshot?.phase === "matchOver" || snapshot?.phase === "lobby")
+          start.click();
+      }),
+    ];
+  });
+  const gamepadStatus = node("p", "", "local-gamepads-status");
+  gamepadStatus.setAttribute("role", "status");
+  gamepadStatus.hidden = true;
+  if (localPlayers) app.append(gamepadStatus);
+  let gamepadFocused = document.hasFocus();
+  window.addEventListener("blur", () => {
+    gamepadFocused = false;
+  });
+  window.addEventListener("focus", () => {
+    gamepadFocused = true;
+  });
   const mobileLayout = installMobilePlayLayout(
     app,
     clearControls,
@@ -2126,7 +2267,7 @@ export async function startOnline(): Promise<void> {
         'input,textarea,select,[contenteditable]:not([contenteditable="false"])',
       )
     )
-      keyboard.clear();
+      clearControls();
   });
   // Opening any dialog lets go of held controls: ours say so through the registry, the account panel's through its `open`.
   dialogs.onChange((open) => {
@@ -2242,6 +2383,31 @@ export async function startOnline(): Promise<void> {
     return true;
   }
   function frame() {
+    if (gamepads.length) {
+      const { pads, error } = readGamepads(navigator);
+      const allowed =
+        gamepadFocused &&
+        !document.hidden &&
+        !roomEnded &&
+        dialogs.current() === undefined &&
+        !roomAccount.dialog.open &&
+        !Boolean(
+          document.activeElement?.closest(
+            'input,textarea,select,[contenteditable]:not([contenteditable="false"])',
+          ),
+        );
+      for (const gamepad of gamepads) gamepad.update(pads, allowed);
+      const missing = gamepads
+        .filter((pad) => !pad.connected)
+        .map((pad) => `Pad ${pad.assignment.index + 1}`);
+      const message =
+        error ??
+        (missing.length
+          ? `${missing.join(", ")} disconnected — reconnect and release all controls to resume.`
+          : "");
+      setIfChanged(gamepadStatus, "textContent", message);
+      setIfChanged(gamepadStatus, "hidden", !message);
+    }
     const now = performance.now();
     frameTimes.push(now - previousFrame);
     previousFrame = now;

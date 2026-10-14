@@ -4,11 +4,7 @@ import { FakeNetwork, type NetworkOptions } from "./fixtures/fake-room.js";
 import { CREATOR_SILENCE_MS } from "fuse-netcode";
 import { type RoomRuntime } from "../src/online/room-runtime.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
-import {
-  MAX_SPECTATORS,
-  actingCreator,
-  type RoomState,
-} from "../src/engine/apply-tick.js";
+import { MAX_SPECTATORS, actingCreator } from "../src/engine/apply-tick.js";
 import { MAX_PLAYERS } from "../src/engine/game.js";
 import { ROOM_LIMITS } from "../../../service/room-limits.js";
 
@@ -48,8 +44,7 @@ function room(
     },
   };
 }
-const world = (runtime: RoomRuntime) =>
-  (runtime as unknown as { world: { state: RoomState; tick: number } }).world;
+const world = (runtime: RoomRuntime) => runtime.sync.world!;
 const watching = (net: FakeNetwork, id: string) =>
   (net.frame(id)?.spectators ?? []).map((seat) => seat.name);
 
