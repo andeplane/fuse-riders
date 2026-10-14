@@ -110,8 +110,11 @@ try {
     browserExit ||= exit;
   }
 } finally {
-  await server.close();
-  await roomService.close();
+  try {
+    await server.close();
+  } finally {
+    await roomService.close();
+  }
 }
 const reportExit = await run([
   "exec",
