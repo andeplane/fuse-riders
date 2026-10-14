@@ -387,9 +387,10 @@ for (const { name, kind } of BOTH_ENGINES) {
         .getByText("QR guest", { exact: true });
       await me.scrollIntoViewIfNeeded();
       const rider = (await me.boundingBox())!;
+      // Scroll offsets are whole pixels and layout is not, so a row scrolled into view can sit a fraction past any edge.
       assert.ok(
-        rider.x >= 0 &&
-          rider.y >= 0 &&
+        rider.x >= -1 &&
+          rider.y >= -1 &&
           rider.x + rider.width <= viewport.width + 1 &&
           rider.y + rider.height <= viewport.height + 1,
         `rider row must be on screen: ${JSON.stringify(rider)}`,

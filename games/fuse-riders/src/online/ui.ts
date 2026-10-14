@@ -116,7 +116,7 @@ import {
 } from "./room-presenter.js";
 import { connectHint } from "./connect-hint.js";
 import { createJoinCard, createJoinForm } from "./join-form.js";
-import { createNameEntry } from "fuse-ui";
+import { createAppPortal, createNameEntry } from "fuse-ui";
 import { MAX_LOGGED_NAME_UNITS, seatRiderName } from "../engine/rider-name.js";
 import { safeStorage } from "../client/safe-storage.js";
 import { reportGraphics, startAnalytics, track } from "./analytics.js";
@@ -330,7 +330,19 @@ export async function startOnline(): Promise<void> {
   };
   results.hidden = true;
   results.title = "Reopen the match results";
-  header.append(title, status, statusAction, roundChip, results);
+  header.append(
+    createAppPortal({
+      document,
+      current: GAME_ID,
+      base: import.meta.env.BASE_URL,
+      search: location.search,
+    }).element,
+    title,
+    status,
+    statusAction,
+    roundChip,
+    results,
+  );
   const joinForm = createJoinForm(
     storage,
     (playerName, avatarId, colorIndex) => {

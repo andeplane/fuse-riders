@@ -168,7 +168,7 @@ export function showRoomSettings(
       ),
       element(
         "p",
-        "Drifting cross is Wrap-around with a cross of walls on it that slides around like a screensaver logo, bouncing off the edges. Trains keeps the classic walls and runs three trains round two loops of track: the rails are safe to cross, the trains are not, and neither bombs nor the closing walls stop them.",
+        "Drifting cross is Wrap-around with a cross of walls on it that slides around like a screensaver logo, bouncing off the edges. Trains keeps the classic walls and lays a new railway every round: winding loops of track with five to seven fast trains on them. The rails are safe to cross, the trains are not, and neither bombs nor the closing walls stop them.",
       ),
     );
     const lengthLabel = element("label", "Match length"),
