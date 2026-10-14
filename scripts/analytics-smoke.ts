@@ -2,6 +2,7 @@ import { chromium, webkit } from "playwright";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
+import { ridersPageUrl } from "./lib/riders-url.js";
 import {
   defaultRoomSettings,
   SETTINGS_KEY,
@@ -13,9 +14,9 @@ import {
  * This exists because the failure mode is silent by construction. Mixpanel answers `200` to a request whose
  * properties it dropped, so a bad payload looks exactly like a good one from inside the game — a property named
  * `length` once erased every property on `Match Started`, including the super properties, and nothing noticed.
- * HOME_URL is the served app; BROWSER=webkit selects WebKit.
+ * HOME_URL is the served site root; BROWSER=webkit selects WebKit.
  */
-const base = process.env.HOME_URL ?? "http://127.0.0.1:4188/";
+const base = ridersPageUrl(process.env.HOME_URL ?? "http://127.0.0.1:4188/");
 const browserName = process.env.BROWSER === "webkit" ? "webkit" : "chrome";
 const oneRound = {
   ...defaultRoomSettings(),

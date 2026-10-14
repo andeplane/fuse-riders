@@ -1385,6 +1385,7 @@ export async function startOnline(): Promise<void> {
             fetch: (input, init) => fetch(input, init),
             roomToken: token,
             identityToken: signedInToken,
+            identityRequired: solo,
           },
         ).then(() => roomAccount.refresh());
       }
@@ -1628,27 +1629,34 @@ export async function startOnline(): Promise<void> {
         if (!screen.controllerOnly) openRecap();
         // Every rider's device reports the result it computed; the room service keeps one that a majority agree on
         // (README, "Login and match history"). Only state the match froze goes in: devices open the recap at different moments.
-        const report = solo
-          ? undefined
-          : buildMatchReport(
-              {
-                matchId,
-                matchLength: state.matchLength,
-                ...(state.matchWinnerId === undefined
-                  ? {}
-                  : { matchWinnerId: state.matchWinnerId }),
-                matchStats: state.matchStats,
-                matchFinishers: state.matchFinishers,
-                players: state.players,
-              },
-              id,
-            );
+        const report =
+          solo && !remembersSignIn()
+            ? undefined
+            : buildMatchReport(
+                {
+                  matchId,
+                  matchLength: state.matchLength,
+                  ...(state.matchWinnerId === undefined
+                    ? {}
+                    : { matchWinnerId: state.matchWinnerId }),
+                  matchStats: state.matchStats,
+                  matchFinishers: state.matchFinishers,
+                  players: state.players,
+                },
+                id,
+                solo ? accountUsername() : undefined,
+              );
         if (report)
-          void sendMatchReport(apiUrl(`/api/rooms/${code}/results`), report, {
-            fetch: (input, init) => fetch(input, init),
-            roomToken: token,
-            identityToken: signedInToken,
-          });
+          void sendMatchReport(
+            apiUrl(solo ? "/api/me/results" : `/api/rooms/${code}/results`),
+            report,
+            {
+              fetch: (input, init) => fetch(input, init),
+              roomToken: token,
+              identityToken: signedInToken,
+              identityRequired: solo,
+            },
+          );
       }
       setIfChanged(powerStatus, "hidden", view.power.hidden);
       setIfChanged(powerStatus, "textContent", view.power.text);
