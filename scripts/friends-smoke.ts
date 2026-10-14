@@ -242,7 +242,77 @@ try {
       await alice.getByRole("button", { name: "INVITE", exact: true }).count(),
       0,
     );
-    // Unfriend from Alice's side; Bob's list empties on his next poll.
+    // The same accounts in two other real game pages see the existing friendship.
+    async function switchGame(
+      page: Page,
+      gameId: string,
+      user: string,
+      name: string,
+    ) {
+      await page.goto(new URL(`${gameId}/?mute`, origin).href);
+      await page.locator(".fui-social").waitFor();
+      await page.evaluate(
+        async ({ api, gameId, user, name, pollMs }) => {
+          const path = "/packages/fuse-ui/src/social.ts";
+          const { createGameSocial } = (await import(
+            path
+          )) as typeof import("../packages/fuse-ui/src/social.js");
+          for (const old of document.querySelectorAll(
+            ".fui-social, .fui-social-layer",
+          ))
+            old.remove();
+          const social = createGameSocial({
+            gameId,
+            base: "/",
+            apiOrigin: api,
+            document,
+            window,
+            notifications: undefined,
+            pollMs,
+            fetch: (input, init) => fetch(input, init),
+            track() {},
+            auth: {
+              watch(listener) {
+                listener({ name });
+                return () => {};
+              },
+              token: async () => `smoke:${user}`,
+              ready: async () => {},
+              warm() {},
+              signIn: async () => {},
+              signOut: async () => {},
+              remember() {},
+              failure: () => "",
+            },
+          });
+          document.querySelector("header")!.append(social.element());
+        },
+        { api, gameId, user, name, pollMs: POLL_MS },
+      );
+      await page.locator(".fui-social .friends-button").click();
+      await page
+        .locator(".friends-dialog")
+        .getByRole("button", { name: "REMOVE", exact: true })
+        .waitFor();
+    }
+    await switchGame(alice, "fuse-craft", "alice", "Alice");
+    console.log("shared friends visible in Fuse Craft");
+    await switchGame(bob, "fuse-lane", "bob", "Bob");
+    console.log("shared friends and invite visible in Fuse Lane");
+    await bob
+      .locator(".friends-dialog")
+      .getByRole("button", { name: "JOIN", exact: true })
+      .click();
+    await bob.waitForURL(
+      (url) =>
+        url.pathname === "/fuse-riders/" &&
+        url.searchParams.get("room") === created.code,
+    );
+    assert.equal(new URL(bob.url()).searchParams.has("mute"), true);
+    console.log("cross-game invite navigated to Fuse Riders");
+    // Return to the other game; the friend graph is unchanged.
+    await switchGame(bob, "fuse-lane", "bob", "Bob");
+    // Unfriend from Alice's side; Bob's list empties on his next poll, across games.
     await alice.getByRole("button", { name: "REMOVE", exact: true }).click();
     await alice
       .locator(".friends-dialog")

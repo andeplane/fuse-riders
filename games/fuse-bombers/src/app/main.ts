@@ -20,6 +20,7 @@ import { Flow } from "./flow.js";
 import { createBrowserInput } from "./input/index.js";
 import {
   GAME,
+  social,
   analytics,
   reportPlay,
   showLanding,
@@ -80,6 +81,7 @@ async function boot(): Promise<void> {
   document.body.append(root);
   audio.mountToggle(); // After `#screen`, so screens.css can hide it mid-round.
   const portal = mountPortal();
+  portal.element.append(social.element());
   let flow: Flow | undefined;
   const menu = createGameMenu({
     title: "FUSE BOMBERS",

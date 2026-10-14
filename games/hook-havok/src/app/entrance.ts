@@ -1,3 +1,4 @@
+import { social } from "./social.js";
 import "fuse-ui/portal.css";
 import "./entrance.css";
 import { createAppPortal } from "fuse-ui/portal";
@@ -46,6 +47,7 @@ export function createEntrance(o: EntranceOptions) {
     import.meta.env.BASE_URL +
     (new URLSearchParams(location.search).has("mute") ? "?mute" : "");
   const bar = document.createElement("div");
+  const roomSocialParent = social.element().parentElement;
   bar.className = "entrance-bar";
   home.before(bar);
   bar.append(
@@ -56,6 +58,7 @@ export function createEntrance(o: EntranceOptions) {
       search: location.search,
     }).element,
     home,
+    social.element(),
   );
   const placements = Object.entries({
     start: o.start,
@@ -121,6 +124,7 @@ export function createEntrance(o: EntranceOptions) {
   atmosphere();
   loadArt();
   function show() {
+    bar.append(social.element());
     root.hidden = false;
     root.setAttribute("role", "main");
     o.main.inert = true;
@@ -152,6 +156,7 @@ export function createEntrance(o: EntranceOptions) {
       if (root.hidden) return;
       close();
       placements.forEach((p) => p.marker.after(p.node));
+      roomSocialParent?.append(social.element());
       root.hidden = true;
       root.removeAttribute("role");
       o.main.inert = false;

@@ -1,6 +1,19 @@
 # fuse-ui
 
-Shared menus and neon/pixel styles for the room games in this repo. It holds CSS tokens, one element factory and small DOM components for the screens every room game has. It imports no game or network code. Its optional analytics entry downloads `mixpanel-browser` only when analytics is enabled.
+Shared menus, social controls and neon/pixel styles for the room games in this repo. DOM components import no game or network code. The separate browser adapters use the shared network/platform contracts; sign-in downloads Firebase lazily, and analytics downloads `mixpanel-browser` only when analytics is enabled.
+
+## Shared accounts and friends
+
+Import `createGameSocial` from `fuse-ui/social` and `fuse-ui/social.css`. Supply the game ID, site base,
+API origin, browser/document, fetch and analytics callback. Put `social.element()` in each header; it survives
+page redraws. Wrap the online transport factory with `social.transport(code, token, events, create)` so presence
+is announced after admission and cleared on closure or revocation. Pass `social.reportFetch` to existing result
+reporters so the account identity accompanies their room capability. `social.playerName(fallback)` supplies
+the shared username for seating. The dice template shows the complete setup.
+
+Riders keeps its rich statistics adapter while importing the same `browser-account`, friends client,
+notifications and `social-friends` composition. Existing sign-in and alert storage keys remain in place for
+current players. Games never import another game's client for these features.
 
 ## Product metrics
 

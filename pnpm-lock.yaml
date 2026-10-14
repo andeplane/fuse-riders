@@ -369,6 +369,15 @@ importers:
 
   packages/fuse-ui:
     dependencies:
+      firebase:
+        specifier: ^12.19.0
+        version: 12.19.0
+      fuse-network-fe:
+        specifier: workspace:*
+        version: link:../fuse-network-fe
+      fuse-platform:
+        specifier: workspace:*
+        version: link:../fuse-platform
       mixpanel-browser:
         specifier: ^2.83.0
         version: 2.83.0

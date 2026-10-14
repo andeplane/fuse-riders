@@ -1,3 +1,5 @@
+import { createGameSocial } from "fuse-ui/social";
+import "fuse-ui/social.css";
 import "fuse-ui/components.css";
 import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
 import "./online.css";
@@ -45,6 +47,15 @@ const endpoints = net.createEndpoints(
   },
   location.origin,
 );
+export const social = createGameSocial({
+  gameId: GAME,
+  base: import.meta.env.BASE_URL,
+  apiOrigin: import.meta.env.VITE_API_ORIGIN,
+  document,
+  window,
+  fetch: (input, init) => fetch(input, init),
+  track: analytics.track,
+});
 const names = keys(GAME);
 const flags = new URLSearchParams(location.search);
 /** A page of this game, keeping `?mute` and `?calm`. */
@@ -70,7 +81,7 @@ function page(...parts: HTMLElement[]): HTMLElement {
     base: import.meta.env.BASE_URL,
     search: location.search,
   });
-  bar.append(portal.element, brand);
+  bar.append(portal.element, brand, social.element());
   root.append(bar, ...parts);
   document.body.append(root);
   return bar;
@@ -155,7 +166,7 @@ export function showRoom(
   card.append(cardTitle, cardText, back);
   const nameEntry = ui.createNameEntry({
     normalize: (raw) => seatName(raw) ?? "",
-    initial: store.getItem(names.name) ?? "",
+    initial: social.playerName(store.getItem(names.name)) ?? "",
     onInput: (value) => store.setItem(names.name, value),
     buttonText: "JOIN",
     onSubmit: (name) => runtime.command({ type: "join", name }),
@@ -509,14 +520,20 @@ export function showRoom(
     { ...DEFAULT_SETTINGS, display: shared },
     callbacks,
     session.kind === "solo"
-      ? { humanName: store.getItem(names.name) ?? undefined }
+      ? { humanName: social.playerName(store.getItem(names.name)) ?? undefined }
       : {
           transport: (events) =>
-            new net.PeerTransport(code, session.token, events, {
-              apiUrl: endpoints.apiUrl,
-              gameId: GAME,
-              maxFastBytes: MAX_PACKET_BYTES,
-            }),
+            social.transport(
+              code,
+              session.token,
+              events,
+              (events) =>
+                new net.PeerTransport(code, session.token, events, {
+                  apiUrl: endpoints.apiUrl,
+                  gameId: GAME,
+                  maxFastBytes: MAX_PACKET_BYTES,
+                }),
+            ),
           displayOnly: display,
         },
   );

@@ -1,3 +1,4 @@
+import { social } from "./social.js";
 import "fuse-ui/portal.css";
 import "fuse-ui/components.css";
 import { reportPlay } from "./analytics.js";
@@ -192,6 +193,7 @@ homeBar.append(
     search: location.search,
   }).element,
   el("home"),
+  social.element(),
 );
 el<HTMLAnchorElement>("study").href = `?showcase=1${muted ? "&mute" : ""}`;
 const tuning = el<HTMLFormElement>("tuning");
@@ -580,8 +582,9 @@ const enterRoom = async () => {
             joined = !!runtime?.command({
               type: "join",
               name:
-                el<HTMLInputElement>("keeper-name").value.trim() ||
-                "Lantern keeper",
+                social.playerName(
+                  el<HTMLInputElement>("keeper-name").value.trim(),
+                ) || "Lantern keeper",
             });
           }
           if (restartRequested && frame.stage === "lobby") {
@@ -715,21 +718,27 @@ const enterRoom = async () => {
       {
         displayOnly: display,
         transport: (events) =>
-          new PeerTransport(
+          social.transport(
             room.code,
             room.token,
-            {
-              ...events,
-              welcome(id, creator) {
-                creatorId = creator;
-                events.welcome(id, creator);
-              },
-            },
-            {
-              apiUrl: endpoints.apiUrl,
-              gameId: "hook-havok",
-              maxFastBytes: MAX_PACKET_BYTES,
-            },
+            events,
+            (events) =>
+              new PeerTransport(
+                room.code,
+                room.token,
+                {
+                  ...events,
+                  welcome(id, creator) {
+                    creatorId = creator;
+                    events.welcome(id, creator);
+                  },
+                },
+                {
+                  apiUrl: endpoints.apiUrl,
+                  gameId: "hook-havok",
+                  maxFastBytes: MAX_PACKET_BYTES,
+                },
+              ),
           ),
       },
     );
