@@ -8,6 +8,7 @@ import {
 import type { Movement } from "./context.js";
 import {
   PORTAL_WALL_HALF_WIDTH,
+  isPortalActive,
   type PortalPoint,
   type PortalTransit,
 } from "../portal.js";
@@ -20,7 +21,8 @@ import { segmentIntersectsDisk } from "../blast-geometry.js";
 
 /**
  * Clearance from live portal walls, for two callers with different exemptions. Placement passes no
- * exemption, so a new pair is never laid over a running one. A transit exempts the pair being used,
+ * exemption, so a new pair is never laid over a running or forming one. A transit ignores forming
+ * gates and exempts the pair being used,
  * whose own gate the exit deliberately hugs at PORTAL_WALL_HALF_WIDTH + RIDER_RADIUS + 1, and so
  * covers the foreign walls that placement clearance alone does not put out of an exit's reach.
  */
@@ -33,6 +35,7 @@ export function isClearOfPortalWalls(
   return state.portalPairs.every(
     (pair) =>
       pair.id === exemptPairId ||
+      (exemptPairId !== undefined && !isPortalActive(pair, state.tick)) ||
       pair.gates.every(
         (gate) =>
           pointSegmentDistanceSquared(

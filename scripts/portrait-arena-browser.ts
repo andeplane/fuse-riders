@@ -248,16 +248,30 @@ try {
       path: `artifacts/portrait-solo-${browserName}-${hasTouch ? "touch" : "mouse"}.png`,
     });
     const buttons = solo.locator(".online-controls > button");
+    const [leftBox, bombBox, rightBox] = await Promise.all(
+      [0, 1, 2].map((index) => buttons.nth(index).boundingBox()),
+    );
+    assert.ok(leftBox && bombBox && rightBox);
+    assert.ok(bombBox.y < leftBox.y && leftBox.x < rightBox.x);
+    assert.ok(Math.abs(bombBox.width - leftBox.width * 2) < 5);
     for (let column = 0; column < 3; column++) {
       const button = buttons.nth(column);
       const box = await button.boundingBox();
+      assert.ok(box);
       assert.deepEqual(
         box,
-        { x: column * 130, y: 0, width: 130, height: 844 },
-        "each portrait control covers one full-height third",
+        [
+          { x: 0, y: 422, width: 195, height: 422 },
+          { x: 0, y: 0, width: 390, height: 422 },
+          { x: 195, y: 422, width: 195, height: 422 },
+        ][column],
       );
-      for (const y of [1, 100, 422, 843]) {
-        const x = column * 130 + 65;
+      for (const y of [
+        box.y + 100,
+        box.y + box.height / 2,
+        box.y + box.height - 6,
+      ]) {
+        const x = box.x + box.width / 2;
         assert.ok(
           await button.evaluate(
             (element, { x, y }) => {
@@ -276,7 +290,7 @@ try {
             (element) => getComputedStyle(element).backgroundColor,
           ),
           "rgba(0, 0, 0, 0)",
-          "held touch zones stay invisible",
+          "held touch regions stay invisible",
         );
         await solo.mouse.up();
         assert.doesNotMatch(
@@ -296,7 +310,7 @@ try {
     assert.equal(
       armedFireShadow,
       "none",
-      "an armed weapon does not outline the invisible bomb zone",
+      "weapon readiness does not obscure the arena with a glow",
     );
     await solo.mouse.move(zone.x + zone.width / 2, zone.y + zone.height / 2);
     await solo.mouse.down();

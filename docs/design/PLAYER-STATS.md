@@ -43,7 +43,12 @@ room tokens are free, so a game is published only once **a second rider attests 
 round receipt never gets a `feedAt` at all, and the storage parser refuses a record that claims one while pending or
 while carrying a round. `feedAt` is stamped from `endedAt`, which is what makes a listed `endedAt` a usable page
 cursor; the row itself is always dated by `endedAt`, never by when it became public. Games confirmed before this
-existed have no `feedAt` and so are not in EVERYONE; they are still in YOURS.
+existed have no `feedAt`, and Firestore returns no document that lacks the field its query orders by, so EVERYONE
+comes back empty — not failed — while those same games are still in YOURS. That asymmetry is what
+`scripts/backfill-match-feed-at.ts` closes: it stamps `feedAt` from `endedAt` on every stored record that passes
+confirmation's own published test (`feedlessMatchStamps` in `packages/fuse-platform/src/backfill.ts`), skips any
+record that already has one, and so is safe to repeat. A database that also predates `gameId` needs
+`scripts/backfill-match-game-id.ts` first, because the feed filters on `gameId` before it orders.
 
 Two known limits, both accepted:
 
