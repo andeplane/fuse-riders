@@ -1620,7 +1620,7 @@ export async function startOnline(): Promise<void> {
         // Every rider's device reports the result it computed; the room service keeps one that a majority agree on
         // (README, "Login and match history"). Only state the match froze goes in: devices open the recap at different moments.
         const report =
-          solo && !remembersSignIn()
+          localPlayers || (solo && !remembersSignIn())
             ? undefined
             : buildMatchReport(
                 {
