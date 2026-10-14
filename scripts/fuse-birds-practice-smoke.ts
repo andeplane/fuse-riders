@@ -1,17 +1,24 @@
-import { chromium } from "playwright";
+import { launchSelected } from "./lib/browser.js";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
+import { startGameCoverage } from "./lib/game-browser-coverage.js";
 
-const base = process.argv[2] ?? "http://localhost:8893";
+const base =
+  process.argv[2] ??
+  process.env.ONLINE_URL?.replace(/\/$/, "") ??
+  "http://localhost:8893";
 const output = process.argv[3] ?? "/tmp/fuse-birds-practice";
 await mkdir(output, { recursive: true });
-const browser = await chromium.launch({ headless: true });
+const browser = await launchSelected("chrome", { headless: true });
 try {
   const page = await browser.newPage({
     viewport: { width: 1400, height: 900 },
   });
   const errors: string[] = [],
     roomRequests: string[] = [];
+  const finishCoverage = await startGameCoverage(page, {
+    gameId: "fuse-birds",
+  });
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("request", (request) => {
     if (new URL(request.url()).pathname.startsWith("/api/rooms"))
@@ -85,6 +92,7 @@ try {
   console.log(
     `Solo practice: one bird, Pebble and Scatter shots, next shot, new map/refill and direct-link reload pass. ${output}`,
   );
+  await finishCoverage();
 } finally {
   await browser.close();
 }

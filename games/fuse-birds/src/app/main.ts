@@ -34,7 +34,7 @@ import {
   type BirdsSettings,
   type BirdsView,
 } from "../online/game.js";
-import { BirdsRuntime, type Play } from "../online/runtime.js";
+import { BirdsRuntime, type Play, type Session } from "../online/runtime.js";
 import { createArena } from "../render/arena.js";
 import { constrainCamera, followShot, zoomAt } from "../render/camera.js";
 import {
@@ -345,7 +345,7 @@ function room(code: string, display: boolean, practice = false): void {
     cancelGesture(gestures);
   };
   const canPlay = () =>
-    canPlayTurn(currentFrame, me, display, battlefieldReady);
+    canPlayTurn(currentFrame, me, display, battlefieldReady, runtime);
   const abandonInput = () => {
     cancel();
     resetGesture(gestures);
@@ -508,6 +508,8 @@ function room(code: string, display: boolean, practice = false): void {
       view = frame.world;
       page.dataset.phase = view?.phase ?? frame.stage;
       page.dataset.turn = String(view?.turn ?? 0);
+      page.dataset.match = view?.id ?? "";
+      page.dataset.round = String(view?.round ?? 0);
       const seated = frame.seats.some((s) => s.id === me && !s.watcher),
         inLobby = frame.stage === "lobby";
       observePlay(
@@ -570,6 +572,8 @@ function room(code: string, display: boolean, practice = false): void {
             cards.set(p.id, card);
           }
           card.style.setProperty("--bird", COLORS[p.slot]!);
+          card.dataset.playerId = p.id;
+          card.dataset.appliedOrdinal = String(p.ordinal);
           card.classList.toggle("current", p.id === player.id);
           card.classList.toggle("eliminated", p.hp === 0);
           card.replaceChildren(
@@ -598,12 +602,9 @@ function room(code: string, display: boolean, practice = false): void {
         ? "Scan the room QR on your phone to play."
         : !battlefieldReady
           ? "Preparing the battlefield…"
-          : frame.seats.some(
-                (seat) =>
-                  seat.id === me &&
-                  (!seat.connected || seat.away) &&
-                  !seat.watcher,
-              )
+          : view.phase === "aiming" &&
+              view.players[view.active]?.id === me &&
+              !runtime.admitted
             ? "Waiting for your seat to reconnect…"
             : canPlay()
               ? "Pull your bird backwards to aim. Release to fire. Drag elsewhere to pan."
@@ -626,7 +627,7 @@ function room(code: string, display: boolean, practice = false): void {
       rematch.hidden = toLobby.hidden = !host || view.phase === "preparing";
     },
   };
-  const runtime = practice
+  const runtime: Session = practice
     ? new PracticeRuntime(callbacks, {
         name: seatName(store.get(storageKeys.name) ?? "") ?? "YOU",
         seed: crypto.getRandomValues(new Uint32Array(1))[0]!,

@@ -1,10 +1,13 @@
-import { chromium } from "playwright";
+import { launchSelected } from "./lib/browser.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 import { advance, createMatch } from "../games/fuse-birds/src/engine/index.js";
-import { startBirdsCoverage } from "./lib/fuse-birds-browser-coverage.js";
+import { startGameCoverage } from "./lib/game-browser-coverage.js";
 
-const base = process.argv[2] ?? "http://localhost:5181",
+const base =
+    process.argv[2] ??
+    process.env.ONLINE_URL?.replace(/\/$/, "") ??
+    "http://localhost:5181",
   output = process.argv[3] ?? "/tmp/fuse-birds-render";
 await mkdir(output, { recursive: true });
 const match = createMatch("render-check", 123, [
@@ -18,13 +21,15 @@ const shot = match.preparation.witnesses.find(
   (w) => w.from === "cyan" && w.to === "pink" && w.wind === 0,
 );
 assert.ok(shot, "initial map has a verified shot");
-const browser = await chromium.launch({ headless: true });
+const browser = await launchSelected("chrome", { headless: true });
 try {
   const page = await browser.newPage({
     viewport: { width: 1600, height: 1000 },
   });
   const errors: string[] = [];
-  const finishCoverage = await startBirdsCoverage(page);
+  const finishCoverage = await startGameCoverage(page, {
+    gameId: "fuse-birds",
+  });
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(`${base}/games/fuse-birds/render-slice.html?mute`);
   await page.waitForFunction(

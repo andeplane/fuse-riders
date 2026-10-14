@@ -7,13 +7,7 @@
     { "id": "build", "command": "pnpm build", "job": "build" },
     { "id": "unit", "command": "pnpm test", "job": "unit" }
   ],
-  "release": [
-    {
-      "id": "coverage-browser-install",
-      "command": "pnpm exec playwright install --with-deps chromium"
-    },
-    { "id": "coverage", "command": "pnpm test:coverage" }
-  ],
+  "release": [{ "id": "coverage", "command": "pnpm test:coverage" }],
   "smokes": [
     {
       "id": "birds-replay",

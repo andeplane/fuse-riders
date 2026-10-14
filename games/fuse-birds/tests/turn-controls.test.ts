@@ -3,11 +3,12 @@ import assert from "node:assert/strict";
 import type { Frame } from "fuse-netcode";
 import { createMatch, getView } from "../src/engine/index.js";
 import type { BirdsView } from "../src/online/game.js";
+import type { Session } from "../src/online/runtime.js";
 import { canPlayTurn } from "../src/app/turn-controls.js";
 
-function recoveredTurn(): Frame<BirdsView> {
+test("controls require runtime admission even when a recovered frame reports the old seat connected", () => {
   const world = getView(createMatch("match", 42, [{ id: "a", name: "Skye" }]));
-  return {
+  const frame: Frame<BirdsView> = {
     tick: 3,
     logTick: 1,
     managerId: "a",
@@ -20,56 +21,22 @@ function recoveredTurn(): Frame<BirdsView> {
         name: "Skye",
         slot: 0,
         avatarId: "owl",
-        connected: false,
-        away: true,
+        connected: true,
+        generation: 1,
         bot: false,
       },
     ],
   };
-}
-
-test("a recovered active turn cannot accept controls until the returning seat is connected", () => {
-  const frame = recoveredTurn();
-  assert.equal(canPlayTurn(frame, "a", false, true), false);
-  const connected = {
-    ...frame,
-    seats: frame.seats.map((seat) => ({
-      ...seat,
-      connected: true,
-      away: false,
-    })),
-  };
-  assert.equal(canPlayTurn(connected, "a", false, true), true);
+  const blocked: Pick<Session, "admitted"> = { admitted: false };
+  const admitted: Pick<Session, "admitted"> = { admitted: true };
+  assert.equal(canPlayTurn(frame, "a", false, true, blocked), false);
+  assert.equal(canPlayTurn(frame, "a", false, true, admitted), true);
+  assert.equal(canPlayTurn(frame, "a", true, true, admitted), false);
+  assert.equal(canPlayTurn(frame, "a", false, false, admitted), false);
+  assert.equal(canPlayTurn(frame, "b", false, true, admitted), false);
   assert.equal(
-    canPlayTurn(
-      {
-        ...connected,
-        seats: connected.seats.map((seat) => ({ ...seat, away: true })),
-      },
-      "a",
-      false,
-      true,
-    ),
+    canPlayTurn({ ...frame, world: null }, "a", false, true, admitted),
     false,
   );
-  assert.equal(canPlayTurn(connected, "a", true, true), false);
-  assert.equal(canPlayTurn(connected, "a", false, false), false);
-  assert.equal(canPlayTurn(connected, "b", false, true), false);
-  assert.equal(
-    canPlayTurn(
-      {
-        ...connected,
-        seats: connected.seats.map((seat) => ({ ...seat, watcher: true })),
-      },
-      "a",
-      false,
-      true,
-    ),
-    false,
-  );
-  assert.equal(
-    canPlayTurn({ ...connected, world: null }, "a", false, true),
-    false,
-  );
-  assert.equal(canPlayTurn(null, "a", false, true), false);
+  assert.equal(canPlayTurn(null, "a", false, true, admitted), false);
 });
