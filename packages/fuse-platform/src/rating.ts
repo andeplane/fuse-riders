@@ -99,6 +99,8 @@ export function parseRating(raw: unknown): Rating | undefined {
 }
 export interface LeaderboardEntry {
   rank: number;
+  /** The account's public id, for adding the player as a friend (fuse-platform/friends-api). */
+  publicId?: string;
   name: string;
   avatarId?: string;
   elo: number;

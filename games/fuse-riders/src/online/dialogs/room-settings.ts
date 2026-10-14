@@ -9,7 +9,7 @@ export interface RoomSettingsDialogOptions {
   labels: Record<PickupType, string>;
   /** The settings the draft starts from. */
   settings: () => RoomSettings;
-  /** Sends a draft to the room; false keeps the dialog open with the draft. */
+  /** Sends a draft to the room on every change; false shows the failure and keeps the draft for the next change. */
   save: (draft: RoomSettings) => boolean;
 }
 
@@ -32,7 +32,6 @@ export function createRoomSettingsDialog(
         options.solo,
         options.labels,
         options.save,
-        () => dialogs.close("roomSettings"),
         start,
       );
       dialogs.open("roomSettings");

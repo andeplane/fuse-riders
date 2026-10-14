@@ -3,6 +3,7 @@
  * field. Anything that reads a Map or an array where order decides an outcome goes through the `sorted*` readers.
  */
 import type { ArenaMapId, Obstacle } from "./arena-map.js";
+import type { Track } from "./scenery-motion.js";
 import type {
   RoundParticipant,
   RoundPlacement,
@@ -179,6 +180,11 @@ export interface GameState {
   map: ArenaMapId;
   /** Solid scenery: lethal on contact, cleared by a blast, and gone once the overtime walls pass it. */
   obstacles: Obstacle[];
+  /**
+   * The loops this round's trains run round, laid by `layRailway` in `prepareRound` on the `trains` map and empty on
+   * every other. Paint: nothing collides with a track; a car's `motion.track` indexes this list.
+   */
+  tracks: Track[];
   players: Map<PlayerId, PlayerState>;
   bombs: Map<number, BombState>;
   /** Gun bullet traces, in id order. */

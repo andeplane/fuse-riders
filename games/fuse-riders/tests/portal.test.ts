@@ -5,6 +5,8 @@ import {
   findPortalTransit,
   fitPortalPair,
   MAX_PORTAL_PAIRS,
+  PORTAL_WARMUP_TICKS,
+  PORTAL_LIFETIME_TICKS,
   type PortalPair,
   type PortalTransitOptions,
 } from "../src/engine/portal.ts";
@@ -61,7 +63,10 @@ test("placement sizes walls to one third of field, caps at 300 and reserves full
     assert.equal(result.gates[0].x, 32);
     assert.equal(result.gates[1].x, 1568);
     assert.equal(result.gates[0].y, 32 + length / 2);
-    assert.equal(result.expiresAtTick, 245);
+    assert.equal(
+      result.expiresAtTick,
+      45 + PORTAL_WARMUP_TICKS + PORTAL_LIFETIME_TICKS,
+    );
     assert.ok(checked.length > 20);
     assert.ok(
       checked.every((check) => check.radius >= 12 && check.radius <= 18),
@@ -130,6 +135,20 @@ test("full wall safety catches a hazard between sampled center and endpoints", (
   });
   assert.equal(result, undefined);
   assert.ok(checks > 24);
+});
+
+test("forming gates are passable until the exact activation tick and expire without a fade", () => {
+  const pairs = [{ ...pair, expiresAtTick: 30 + PORTAL_LIFETIME_TICKS }];
+  for (const tick of [0, 15, 29])
+    assert.equal(transit({ pairs, tick }), undefined);
+  assert.ok(transit({ pairs, tick: 30 }));
+  assert.ok(transit({ pairs, tick: 229 }));
+  assert.equal(transit({ pairs, tick: 230 }), undefined);
+  // A rider already overlapping when the gate opens is allowed to leave it.
+  assert.equal(
+    transit({ pairs, tick: 30, from: { x: 200, y: 200 } }),
+    undefined,
+  );
 });
 
 test("swept wall entry preserves heading and relative linked height", () => {

@@ -73,6 +73,14 @@ test("portal pairs flash together only when matching resolved segments cross the
   };
   const state = { ...base, bombs: [incoming, outgoing], portalPairs: [pair] };
   const pulses = gunPortalPulses(state, 100);
+  assert.deepEqual(
+    gunPortalPulses(
+      { ...state, portalPairs: [{ ...pair, expiresAtTick: 301 }] },
+      101,
+    ),
+    [],
+    "a shot before activation must not start flashing the gate when it opens",
+  );
   assert.equal(pulses.length, 1);
   assert.deepEqual(pulses[0]!.entry, { x: 594, y: 450 });
   assert.deepEqual(pulses[0]!.exit, { x: 1007, y: 350 });
