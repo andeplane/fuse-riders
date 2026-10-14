@@ -150,6 +150,14 @@ for (const [name, type] of [
     await guest.locator(".online-arena").waitFor({ state: "hidden" });
     await host.locator(".online-arena").waitFor({ state: "hidden" });
     result.sharedPhoneViewsHidden = true;
+    // Room entry replaces its query; keep the refresh muted without persisting an audio preference.
+    const refreshUrl = new URL(host.url());
+    refreshUrl.searchParams.set("mute", "");
+    refreshUrl.searchParams.set("analytics", "0");
+    await host.evaluate(
+      (url) => history.replaceState(null, "", url),
+      refreshUrl.href,
+    );
     await host.reload();
     await host
       .locator(":is(.online-roster,.room-riders):visible")
@@ -196,7 +204,7 @@ for (const [name, type] of [
       }),
       display = await displayContext.newPage();
     observe(display);
-    await display.goto(invite + "&display=1");
+    await display.goto(invite + "&display=1&analytics=0&mute");
     await display
       .locator(":is(.online-roster,.room-riders):visible")
       .getByText("Public host", { exact: false })
