@@ -175,7 +175,7 @@ export const fuseLaneGame: RollbackGame<
   FuseLaneSettings
 > = {
   id: "fuse-lane",
-  rules: "fuse-lane-4",
+  rules: "fuse-lane-5",
   isEntry: isFuseLaneEntry,
   createRoom,
   createTicker: () => foldTick,

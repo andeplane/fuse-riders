@@ -66,7 +66,7 @@ import {
 
 /**
  * The Fusetown page (game id `fuse-lane`): the menu, a match on this device (solo or pass-and-play, driven by `LocalRuntime`) and, by
- * link only for now, an online room on the shared netcode. The decisions live in the presenter, the menu's pure
+ * an online room on the shared netcode. The decisions live in the presenter, the menu's pure
  * helpers, the local match and the board's geometry; this file wires them to the page.
  */
 const GAME = fuseLaneGame.id;
@@ -420,7 +420,7 @@ function local(match: LocalMatch, resumed = false): void {
   runtime.start(resumed || document.hidden);
 }
 
-// ---- an online room (by link: ?room=CODE) ---------------------------------------------------------------------
+// ---- an online room (?room=CODE) -----------------------------------------------------------------------------
 
 function room(): void {
   const session = sessionFor(
