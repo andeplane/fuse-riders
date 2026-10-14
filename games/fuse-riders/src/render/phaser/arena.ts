@@ -1168,6 +1168,18 @@ class ArenaScene extends Phaser.Scene {
     );
     const portalTints = portalPalettes(livePortals.map((pair) => pair.id));
     for (const [pairIndex, pair] of livePortals.entries()) {
+      const activatesAt = pair.expiresAtTick - s.rules.portalLifetimeTicks;
+      // The phase follows the authoritative tick; interpolation only eases its appearance.
+      const forming = s.tick < activatesAt;
+      const time = s.presentationTick ?? s.tick;
+      const warmup = Math.max(
+        0,
+        Math.min(1, 1 - (activatesAt - time) / s.rules.portalWarmupTicks),
+      );
+      const remaining = Math.max(
+        0,
+        Math.min(1, (pair.expiresAtTick - time) / s.rules.portalLifetimeTicks),
+      );
       const tints = portalTints[pairIndex]!.map(color) as [number, number];
       const shotPulses = portalPulses.filter(
         (pulse) => pulse.pairId === pair.id,
@@ -1183,7 +1195,7 @@ class ArenaScene extends Phaser.Scene {
             .fillRect(point.x - 8, point.y - 2, 16, 4);
 
       // The faint tether keeps the two ends of one pair readable when several pairs are open.
-      g.lineStyle(2, tints[0], 0.18).lineBetween(
+      g.lineStyle(2, tints[0], forming ? 0.07 : 0.18).lineBetween(
         pair.gates[0].x,
         pair.gates[0].y,
         pair.gates[1].x,
@@ -1191,6 +1203,38 @@ class ArenaScene extends Phaser.Scene {
       );
       for (const [index, gate] of pair.gates.entries()) {
         const tint = tints[index]!;
+        const bar = uprightOffset(
+          gate.x,
+          gate.y,
+          0,
+          this.rotated ? -22 : -gate.halfLength - 18,
+          this.rotated,
+        );
+        if (forming) {
+          // Broken, translucent silhouettes cannot be mistaken for the solid active gates.
+          for (let y = -gate.halfLength; y < gate.halfLength; y += 24)
+            g.lineStyle(5, tint, 0.15 + 0.4 * warmup).lineBetween(
+              gate.x,
+              gate.y + y,
+              gate.x,
+              gate.y + Math.min(gate.halfLength, y + 12),
+            );
+          this.label("FORMING", bar.x, bar.y, "#a7b5c8", 8);
+          continue;
+        }
+        const start = uprightOffset(bar.x, bar.y, -24, 0, this.rotated);
+        const end = uprightOffset(bar.x, bar.y, 24, 0, this.rotated);
+        const fill = uprightOffset(
+          bar.x,
+          bar.y,
+          -24 + 48 * remaining,
+          0,
+          this.rotated,
+        );
+        g.lineStyle(8, 0x08101d, 1)
+          .lineBetween(start.x, start.y, end.x, end.y)
+          .lineStyle(4, tint, 1)
+          .lineBetween(start.x, start.y, fill.x, fill.y);
         g.lineStyle(22, tint, 0.12)
           .lineBetween(
             gate.x,
