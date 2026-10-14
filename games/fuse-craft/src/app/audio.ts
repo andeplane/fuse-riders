@@ -80,6 +80,7 @@ const WEAPON_CUES: Partial<Record<StructureKind, SoundCue>> = {
 export function createCueTracker() {
   let match = "";
   let tick = -1;
+  let heardThrough = -1;
   let ended = false;
   let alarmAt = -Infinity;
   let powerupSerial = 0;
@@ -98,23 +99,47 @@ export function createCueTracker() {
     powerupSerial = world.powerupSerial;
   };
   return (world: Readonly<World>, local: string): CueEvent[] => {
-    if (world.matchId !== match || world.tick < tick) {
-      const fresh = world.matchId !== match;
+    if (world.matchId !== match) {
       match = world.matchId;
       tick = world.tick;
+      heardThrough = world.tick;
       ended = world.finished;
       alarmAt = -Infinity;
       remember(world);
       // Only a match seen from its first seconds gets an opening sting.
-      return fresh && !world.finished && world.tick < 40
+      return !world.finished && world.tick < 40
         ? [{ cue: "matchStart", cells: [] }]
         : [];
     }
-    if (world.tick === tick) return [];
+    if (world.tick <= heardThrough) {
+      // Keep attribution current while replay catches up, without replaying
+      // heard cues or resetting alarm/result suppression.
+      tick = world.tick;
+      remember(world);
+      // A corrected replay may finish before its previous high-water tick.
+      // Finished worlds stop advancing, so publish its first result now.
+      if (world.finished && !ended) {
+        ended = true;
+        if (local)
+          return [
+            {
+              cue:
+                world.winnerId === null
+                  ? "draw"
+                  : world.winnerId === local
+                    ? "victory"
+                    : "defeat",
+              cells: [],
+            },
+          ];
+      }
+      return [];
+    }
     // A frame can skip ticks (a background tab catching up, an online
     // resync); only the newest tick's outcomes are visible then.
     const skipped = world.tick - tick > 1;
     tick = world.tick;
+    heardThrough = world.tick;
     const cues = new Map<SoundCue, number[]>();
     const add = (cue: SoundCue, cell?: number) => {
       const cells = cues.get(cue) ?? [];
