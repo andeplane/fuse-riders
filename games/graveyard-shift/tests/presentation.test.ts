@@ -37,7 +37,7 @@ test("fresh name edits wait for submission across room frames; a remembered name
   admission.observe(false);
   store.setItem("name", "Ada");
   admission.observe(false);
-  assert.deepEqual(submitted, []);
+  assert.equal(submitted.length, 0);
   admission.submit("Ada");
   admission.observe(false);
   admission.observe(true);

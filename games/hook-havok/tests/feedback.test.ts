@@ -50,6 +50,7 @@ test("power-ups cue their holder once: expiry, a Shield pop at its place, a dash
       knockouts: 0,
       selfKnockouts: 0,
       bombed: 0,
+      zapped: 0,
       falls: 0,
       fate: "" as const,
       by: "",

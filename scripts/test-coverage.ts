@@ -36,13 +36,16 @@ for (const parent of ["packages", "games"])
     if (entry.isDirectory())
       files.push(...(await tests(`${parent}/${entry.name}/tests`)));
 // Bound test-process contention; service startup tests still use their original deadlines.
+const concurrency = process.env.TEST_CONCURRENCY ?? "4";
+if (!/^[1-9]\d*$/.test(concurrency))
+  throw new Error("TEST_CONCURRENCY must be a positive integer");
 const unitExit = await run([
   "exec",
   "c8",
   "--check-coverage=false",
   "tsx",
   "--test",
-  "--test-concurrency=4",
+  `--test-concurrency=${concurrency}`,
   ...files.sort(),
 ]);
 let browserExit = 1;

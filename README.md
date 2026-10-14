@@ -162,6 +162,8 @@ pnpm build
 pnpm exec playwright install chrome chromium webkit
 ```
 
+On a busy shared host, use `TEST_CONCURRENCY=2 pnpm test` and `TEST_CONCURRENCY=2 pnpm test:coverage` to limit test workers without changing the test set or coverage gates.
+
 Online smoke uses bundled Chromium by default and needs `pnpm dev:online` running in another terminal:
 
 ```sh
