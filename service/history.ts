@@ -1,5 +1,11 @@
 import { diceRegistration } from "dice/platform";
 import { hookRegistration } from "hook-havok/platform";
+import { axeRegistration } from "fuse-axe/platform";
+import { bombersRegistration } from "fuse-bombers/platform";
+import { choppersRegistration } from "fuse-choppers/platform";
+import { craftRegistration } from "fuse-craft/platform";
+import { freightRegistration } from "fuse-freight/platform";
+import { fuseLaneRegistration } from "fuse-lane/platform";
 import {
   ACCOUNT_RULES,
   fuseRiders,
@@ -18,7 +24,17 @@ import {
  */
 
 /** Every game this repo can serve; Fuse Riders is always served, the others when a service enables them. */
-export const GAMES = [fuseRiders, diceRegistration, hookRegistration] as const;
+export const GAMES = [
+  fuseRiders,
+  diceRegistration,
+  hookRegistration,
+  choppersRegistration,
+  craftRegistration,
+  freightRegistration,
+  axeRegistration,
+  bombersRegistration,
+  fuseLaneRegistration,
+] as const;
 
 /**
  * The games named by `EXTRA_GAME_IDS` (comma-separated), beside Fuse Riders. Cloud Run serves only Fuse Riders until

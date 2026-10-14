@@ -117,3 +117,12 @@ export {
   type AccountText,
   type AccountView,
 } from "./account.js";
+export {
+  createAppPortal,
+  parsePortalEntry,
+  PORTAL_GAMES,
+  type AppPortal,
+  type AppPortalOptions,
+  type PortalEntry,
+  type PortalGame,
+} from "./portal.js";
