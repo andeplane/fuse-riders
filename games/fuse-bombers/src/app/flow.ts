@@ -1,3 +1,4 @@
+import type { PlayFrame } from "fuse-ui/play-metrics";
 import type { RoundView, TickEvent } from "../engine/index.js";
 import type { MusicKind } from "./audio/index.js";
 import { css } from "../render/palette.js";
@@ -24,6 +25,7 @@ type Screen =
 export type MenuState = Screen["kind"] | "paused";
 
 export interface FlowOptions {
+  playMetrics?: (frame: PlayFrame) => void;
   input: BrowserInput;
   /** The overlay element the screens are drawn into. */
   root: HTMLElement;
@@ -114,6 +116,7 @@ export class Flow implements RoundSource {
   private html = "";
   /** Whether the touch pads were last set to give way to a menu (`menuOpen`). */
   private padsYielded = false;
+  private playMatch = 0;
 
   constructor(private readonly options: FlowOptions) {
     this.seed = options.seed;
@@ -175,6 +178,16 @@ export class Flow implements RoundSource {
 
   private render(): void {
     const { runner, seats, screen } = this;
+    if (screen.kind !== "lobby")
+      this.options.playMetrics?.({
+        matchId: `local:${this.playMatch}`,
+        active: screen.kind === "countdown" || screen.kind === "playing",
+        ended: screen.kind === "winner",
+        playerCount: seats.length,
+        botCount: seats.filter((seat) => !seat.device).length,
+        seated: seats.some((seat) => !!seat.device),
+        mode: "local",
+      });
     if (this.menuOpen !== this.padsYielded) this.updateTouchPads(); // A menu opened or closed on its own.
     const info = { seats, match: runner.match, view: runner.view };
     let html = "";
@@ -296,6 +309,7 @@ export class Flow implements RoundSource {
   }
 
   private startMatch(): void {
+    this.playMatch += 1;
     const { hub } = this.options.input;
     this.seats = this.lobby.seats();
     const seed = this.seed++;

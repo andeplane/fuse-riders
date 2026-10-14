@@ -1,8 +1,24 @@
 # Product analytics
 
-[`games/fuse-riders/src/online/analytics.ts`](../games/fuse-riders/src/online/analytics.ts) reports twelve product events to Mixpanel. It answers two
-questions — do riders get from the landing page into a match and what happened when they did, and which powerups
-kill and how often they miss — and nothing else.
+Every game reports product events to Mixpanel through [`fuse-ui/analytics`](../packages/fuse-ui/src/analytics.ts).
+All event names start with `fuse.` and every event carries `gameId`, the stable platform id
+(`fuse-riders`, `dice`, `fuse-axe`, `fuse-bombers`, `fuse-choppers`, `fuse-craft`, `fuse-freight`, `fuse-lane` or `hook-havok`).
+Use the same events for cross-game dashboards, and filter or break down by `gameId`.
+The rename from `FlowRiders.*` is an intentional breaking change: existing dashboards must switch to `fuse.*`;
+historical events are not renamed and there is no dual reporting.
+
+All pages report `fuse.App Opened`. Actual play reports `fuse.Seat Taken`, `fuse.Match Started` and
+`fuse.Match Ended` through [`play-metrics`](../packages/fuse-ui/src/play-metrics.ts), with player/bot/human counts,
+`played` and `mode`. Counts are observations **per browser**, not one global event per room: TV displays and
+spectators report `played: false`, and a shared-screen match can appear on several devices.
+Repeated frames and round transitions do not repeat match events. Seat Taken is the first seat observed on the
+page. A mid-match join after round one does not invent a start; duration is present only when a start was observed.
+Open-ended Craft sandbox/combat-lab and Hook Havok free play report a start, but no fabricated end.
+Bombers' local multiplayer and Fusetown's solo/pass-and-play paths are included; attract scenes and showcases only report opening.
+The Pig template contains the integration, so `scripts/new-game.ts` includes it in new games.
+
+[`games/fuse-riders/src/online/analytics.ts`](../games/fuse-riders/src/online/analytics.ts) also reports its detailed
+funnel, weapon and match properties, using the same prefix and game property.
 It is unrelated to [`games/fuse-riders/src/online/telemetry.ts`](../games/fuse-riders/src/online/telemetry.ts), which posts raw runtime diagnostics
 (inputs, packets, repairs, rewinds) to `/telemetry` on whatever origin served the page. It too is on only for a ported address or `?telemetry=1`,
 but the receiver lived in the LAN server removed by #271, so nothing records those posts today.
@@ -115,8 +131,9 @@ a Mixpanel that cannot start may break boot.
 
 ## The events
 
-Every name is prefixed `FlowRiders.` — one constant, `EVENT_PREFIX`. It is the game's former name and it stays
-until the project owner decides otherwise: renaming it would split the Mixpanel project's history in two. `role` (`landing` / `solo` / `display` / `host` / `joiner` / `boot`) is a
+Every name is prefixed `fuse.` — one shared constant, `EVENT_PREFIX`. `gameId` is attached at the shared send boundary,
+so an individual event cannot override its game. The remaining event details below describe Fuse Riders.
+`role` (`landing` / `solo` / `display` / `host` / `joiner` / `boot`) is a
 super property on every event. `mode` and `solo` are registered only on the room path, so the landing page's
 `App Opened` and `Room Created` and the boot path's `Boot Failed` carry `role` alone.
 
