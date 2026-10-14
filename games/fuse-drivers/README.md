@@ -4,9 +4,13 @@ Top-down offroad racing for two to five drivers and bots, in the spirit of Ivan 
 Off Road: the whole track on one screen, four laps, dirt, mud, water, oil, ramps and moguls, and Mario
 Kart style weapons. Served at `/fuse-drivers/` (locally **http://localhost:8787/fuse-drivers/**).
 
+Open it from the shared app portal. Product events use the shared `fuse-ui/analytics` and `fuse-ui/play-metrics` contract with the `fuse-drivers` game id.
+
 Drive with the arrows or `A`/`D`, brake with `S`, nitro on `Shift`, use an item with `Space`, and hold
 `Down` with `Space` to use it the other way: a mine lobbed ahead, a missile fired backwards. The throttle
 is always on. On a phone the same controls are the four buttons under the arena.
+
+For shared-screen play, select **Shared TV + phone controllers** before creating a room and open the lobby's **OPEN TV DISPLAY** link on the TV. The TV shows the arena and phones show controls.
 
 ## How it fits the shared packages
 
@@ -33,6 +37,7 @@ after editing a map. `npx tsx scripts/fuse-drivers-tick-cost.ts` reports what a 
 
 ```sh
 npx tsx --test games/fuse-drivers/tests/*.test.ts
+ONLINE_URL=http://localhost:PORT/ pnpm exec tsx scripts/fuse-drivers-smoke.ts
 ```
 
 `sim-*.test.ts` are the simulation's own suite, carried over from the game's first home, including a
