@@ -251,7 +251,7 @@ export interface RoundControls {
   update(state: RoundControlsState): void;
 }
 
-/** Noninteractive countdown guidance. The caller owns round timing; this has no clock or game state. */
+/** Dismissible countdown guidance. The caller owns round timing; this has no clock or game state. */
 export function createRoundControls(options: ControlsOptions): RoundControls {
   const doc = options.document ?? document;
   const element = el("aside", "", "fui-round-controls", doc);
@@ -261,9 +261,24 @@ export function createRoundControls(options: ControlsOptions): RoundControls {
   element.setAttribute("aria-atomic", "true");
   let identity = "";
   let visible = false;
+  let round: string | number | undefined;
+  let dismissed = false;
+  const dismiss = button("×", "fui-round-controls-dismiss", doc);
+  dismiss.setAttribute("aria-label", "Dismiss controls");
+  dismiss.onclick = () => {
+    dismissed = true;
+    element.hidden = true;
+    dismiss.blur?.();
+  };
+  // A close click must not become an arena input in the surrounding game.
+  element.addEventListener("pointerdown", (event) => event.stopPropagation());
+  element.addEventListener("click", (event) => event.stopPropagation());
   return {
     element,
     update(state) {
+      if (round !== state.round || (!visible && state.visible))
+        dismissed = false;
+      round = state.round;
       const current = {
         ...options,
         controls: state.controls ?? options.controls,
@@ -279,6 +294,7 @@ export function createRoundControls(options: ControlsOptions): RoundControls {
       ]);
       if (state.visible && (!visible || identity !== nextIdentity)) {
         element.replaceChildren(
+          dismiss,
           el(
             "strong",
             state.display
@@ -301,7 +317,7 @@ export function createRoundControls(options: ControlsOptions): RoundControls {
         identity = nextIdentity;
       }
       visible = state.visible;
-      element.hidden = !state.visible;
+      element.hidden = !state.visible || dismissed;
     },
   };
 }

@@ -15,6 +15,8 @@ const games = [
   "fuse-axe",
   "fuse-bombers",
   "fuse-lane",
+  "fuse-drivers",
+  "graveyard-shift",
 ];
 const browser = await chromium.launch({ headless: true });
 await mkdir("artifacts/shared-social", { recursive: true });
