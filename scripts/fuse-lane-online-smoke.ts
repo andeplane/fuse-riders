@@ -21,7 +21,8 @@ async function page(phone = false): Promise<Page> {
   return result;
 }
 async function create(host: Page, shared: boolean): Promise<string> {
-  await host.goto(`${service.url}fuse-lane/?mute`);
+  await host.goto(`${service.url}?mute`);
+  await host.locator('.arcade-game[href*="fuse-lane/"]').click();
   await host.getByRole("tab", { name: "PLAY ONLINE" }).click();
   await host.getByRole("textbox", { name: "Your name" }).fill("Host");
   if (shared)
@@ -52,6 +53,11 @@ try {
   await host.getByRole("button", { name: "START MATCH", exact: true }).click();
   await running(host, "board");
   await running(guest, "board");
+  await guest.getByRole("button", { name: "MENU", exact: true }).click();
+  await guest.getByRole("button", { name: "CONTROLS", exact: true }).click();
+  await guest.locator(".fui-game-menu-controls .fui-controls-list").waitFor();
+  await guest.keyboard.press("Escape");
+  await guest.locator(".fui-game-menu-panel").waitFor({ state: "hidden" });
   await host
     .getByRole("button", { name: "CALL IT A WEEK", exact: true })
     .click();
@@ -82,11 +88,28 @@ try {
   await running(tv, "tv");
   await running(first, "controller");
   await running(second, "controller");
+  await tv.getByRole("button", { name: "MENU", exact: true }).click();
+  await tv.getByRole("button", { name: "CONTROLS", exact: true }).click();
+  await tv
+    .getByText(
+      "Shared screen: watch here. Players use their own phones or devices.",
+    )
+    .waitFor();
+  await tv.locator(".fui-game-menu-controls .fui-controls-list").waitFor();
+  await tv.keyboard.press("Escape");
   await first.getByRole("button", { name: "FreshCo", exact: true }).click();
   await first.locator(".fl-panel:not([hidden])").waitFor();
+  await first
+    .locator(".fl-panel:not([hidden]) .fl-card:not([disabled])")
+    .first()
+    .waitFor();
   await first.reload();
   await running(first, "controller");
   await first.locator(".fl-panel:not([hidden])").waitFor();
+  await first
+    .locator(".fl-panel:not([hidden]) .fl-card:not([disabled])")
+    .first()
+    .waitFor();
   await first
     .locator(".fl-panel:not([hidden])")
     .screenshot({ path: "artifacts/fuse-lane-rejoined-phone.png" });
@@ -99,6 +122,7 @@ try {
     .getByRole("button", { name: "CALL IT A WEEK", exact: true })
     .click();
   await tv.locator('.fl-room[data-week="2"]').waitFor();
+  await tv.getByText("GET READY · PHONE CONTROLS", { exact: true }).waitFor();
   assert.deepEqual(errors, [], "no browser exceptions");
   console.log(
     "Chromium: device room to week 2; shared TV + two phone viewports; shop refresh recovers mid-week; shared week 2; no page errors",

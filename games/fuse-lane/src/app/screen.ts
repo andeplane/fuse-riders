@@ -909,13 +909,13 @@ export function createGameScreen(
         next.hud && next.hud.timer > 0.9 && !next.hud.done && !modal,
       ),
       spectator: !next.seated && !viewer.local,
-      display: viewer.display,
+      display: viewer.display || next.layout === "tv",
     });
     briefingControls.update({
       round: next.briefing?.week ?? "",
       visible: Boolean(next.briefing),
       spectator: !next.seated && !viewer.local,
-      display: viewer.display,
+      display: viewer.display || next.layout === "tv",
     });
     handoffControls.update({
       round: `${next.handoff?.week}:${next.handoff?.name}`,

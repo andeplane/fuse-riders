@@ -253,6 +253,15 @@ test("controls appear at the start of every week and every pass-device handoff",
   assert.match(handoffGuide.textContent ?? "", /Click \/ tap a choice/);
 });
 
+test("a shared-TV creator's Monday briefing shows phone controls without a display role", () => {
+  const h = harness({ bots: 0 });
+  h.render({ ...monday(h), layout: "tv", seated: false });
+  const guide = h.$(".fl-briefing .fui-round-controls");
+  assert.equal(guide.hidden, false);
+  assert.match(guide.textContent ?? "", /GET READY · PHONE CONTROLS/);
+  assert.match(guide.textContent ?? "", /CALL IT A WEEK/);
+});
+
 test("the HUD: hours, week, clock, money and goal rings; CALL IT A WEEK logs this week's entry", () => {
   const h = harness();
   const model = h.render();

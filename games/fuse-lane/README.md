@@ -109,7 +109,7 @@ Every coefficient lives in `src/game/data/economy.ts`.
 
 ## Online smoke check
 
-Run `pnpm build`, then `pnpm exec tsx scripts/fuse-lane-online-smoke.ts` from the repository root. The Chromium check starts its own in-memory room service on a free port, plays a room through week 2, then checks a shared TV with two phone viewports and a phone refresh inside a shop mid-week. Screenshots and the service log go in `artifacts/`. This checks browser behavior; it does not qualify physical phones or production room availability.
+Run `pnpm build`, then `pnpm exec tsx scripts/fuse-lane-online-smoke.ts` from the repository root. The Chromium check starts its own in-memory room service on a free port, opens Fusetown from the landing gallery, checks the phone and shared-TV menu controls, and plays a room through week 2. It then checks a shared TV with two phone viewports, a phone refresh inside a shop mid-week, and the TV's Monday phone guidance. Screenshots and the service log go in `artifacts/`. This checks browser behavior; it does not qualify physical phones or production room availability.
 
 The reconnect rule uses `fuse-lane-5`: clients with older rules cannot join the same room.
 
