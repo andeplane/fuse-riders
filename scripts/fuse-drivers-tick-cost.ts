@@ -48,7 +48,12 @@ const TICKS = 2000;
 const turn = packControls({ ...NEUTRAL_INPUT, right: true });
 const start = performance.now();
 for (let i = 0; i < TICKS; i++)
-  fold(room, i % 40 === 0 ? { a: [[CONTROLS, i % 80 === 0 ? turn : 0]] } : {});
+  fold(
+    room,
+    i % 40 === 0
+      ? { a: [[CONTROLS, room.matchId, room.round, i % 80 === 0 ? turn : 0]] }
+      : {},
+  );
 const ms = performance.now() - start;
 const perTick = ms / TICKS;
 console.log(`five trucks, ${TICKS} log ticks in ${ms.toFixed(0)} ms`);

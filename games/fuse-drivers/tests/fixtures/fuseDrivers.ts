@@ -72,7 +72,13 @@ export const addBot = (id: string, slot: number): unknown[] => [
 ];
 
 /** The body of a controls entry, for a driver holding `input`. */
-export const drive = (input: Partial<TruckInput>): unknown[] => [
+export const drive = (
+  input: Partial<TruckInput>,
+  matchId = "m1",
+  round = 1,
+): unknown[] => [
   CONTROLS,
+  matchId,
+  round,
   packControls({ ...NEUTRAL_INPUT, ...input }),
 ];

@@ -88,6 +88,8 @@ const entry = (seq: number, { tick, input }: Press): FuseDriversEntry => [
   seq,
   tick,
   CONTROLS,
+  "m1",
+  1,
   packControls({ ...NEUTRAL_INPUT, ...input }),
 ];
 

@@ -127,3 +127,21 @@ test("the runtime names this device and hands out the room its own replica folde
   assert.equal(room?.seats.get("b")?.name, "Bo");
   assert.equal(room?.stage, "running");
 });
+
+test("holding a key across a new match logs it again after the race clears controls", () => {
+  const { me, mesh } = wheel();
+  me.drive({ ...NEUTRAL_INPUT, left: true });
+  mesh.run(200);
+  const originalMatch = me.roomState()!.matchId;
+  const host = mesh.runtimes.get("a")!;
+  assert.equal(host.command({ type: "action", action: "lobby" }), true);
+  mesh.run(300);
+  assert.equal(me.roomState()!.stage, "lobby");
+  assert.equal(host.command({ type: "action", action: "start" }), true);
+  mesh.run(300);
+  assert.notEqual(me.roomState()!.matchId, originalMatch);
+  me.drive({ ...NEUTRAL_INPUT, left: true });
+  mesh.run(200);
+  assert.deepEqual(me.loggedControls(), [LEFT, LEFT]);
+  assert.equal(me.roomState()!.controls.b, LEFT);
+});
