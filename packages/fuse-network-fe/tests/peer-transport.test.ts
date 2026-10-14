@@ -5,6 +5,7 @@ import {
   CLOSE_ROOM_ENDED,
   ROOM_PROTOCOL_VERSION,
   authFrame,
+  readLinkReport,
 } from "fuse-network-protocol";
 import { browserTransportDependencies } from "../src/index.js";
 import { FakeDataChannel, TransportHarness } from "./fixtures/fake-rtc.js";
@@ -145,6 +146,31 @@ test("the health check stands down while the page is hidden", async () => {
   await harness.run(200);
   assert.ok(game.envelopes().length > before);
   harness.transport.close();
+});
+
+test("link reports use injected time and visibility while hidden health checks stand down", async () => {
+  const harness = new TransportHarness();
+  await harness.admit("a", ["b"]);
+  await harness.run(200);
+  const initial = harness.socket.frames("link-report");
+  assert.equal(initial.length, 1);
+  assert.equal(initial[0]!.hidden, false);
+  assert.equal(initial[0]!.version, 1);
+
+  await harness.setHidden(true);
+  await harness.run(9800);
+  assert.equal(harness.socket.frames("link-report").length, 1);
+  await harness.run(200);
+  const reports = harness.socket.frames("link-report");
+  assert.equal(reports.length, 2);
+  const report = readLinkReport(reports[1]);
+  assert.ok(report);
+  assert.equal(report.hidden, true);
+  assert.equal(report.links[0]!.ageMs, 10200);
+  assert.equal(report.links[0]!.offerer, true);
+  harness.transport.close();
+  await harness.run(10000);
+  assert.equal(harness.socket.frames("link-report").length, 2);
 });
 
 test("a peer's linkBye drains the link before the channel reports it closed", async () => {
