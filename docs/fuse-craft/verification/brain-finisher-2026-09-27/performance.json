@@ -1,0 +1,164 @@
+{
+  "node": "v22.20.0",
+  "platform": "darwin",
+  "arch": "arm64",
+  "cpu": "Apple M4 Max",
+  "method": "100 individual calls per implementation per fixed state; 20 warmup pairs; alternating implementation order; no simulations started by this runner while timing; timing includes synchronous aiCommands only",
+  "rows": [
+    {
+      "label": "earlyIdle",
+      "name": "baseline",
+      "worldHash": "b6f389b3",
+      "tick": 0,
+      "structures": 2,
+      "worker": "idle",
+      "queue": 0,
+      "warmup": 20,
+      "calls": 100,
+      "medianMs": 0.44170800000000554,
+      "p95Ms": 0.622333000000026,
+      "maxMs": 1.9632079999999519,
+      "commands": [
+        {
+          "type": "setPriority",
+          "cell": 50,
+          "weight": 3
+        },
+        {
+          "type": "queueConstruction",
+          "kind": "neuron",
+          "cell": 51
+        }
+      ]
+    },
+    {
+      "label": "earlyIdle",
+      "name": "candidate",
+      "worldHash": "b6f389b3",
+      "tick": 0,
+      "structures": 2,
+      "worker": "idle",
+      "queue": 0,
+      "warmup": 20,
+      "calls": 100,
+      "medianMs": 0.43762499999999704,
+      "p95Ms": 0.59699999999998,
+      "maxMs": 1.5685840000000155,
+      "commands": [
+        {
+          "type": "setPriority",
+          "cell": 50,
+          "weight": 3
+        },
+        {
+          "type": "queueConstruction",
+          "kind": "neuron",
+          "cell": 51
+        }
+      ]
+    },
+    {
+      "label": "earlyBusy",
+      "name": "baseline",
+      "worldHash": "4a13417b",
+      "tick": 20,
+      "structures": 2,
+      "worker": "building",
+      "queue": 1,
+      "warmup": 20,
+      "calls": 100,
+      "medianMs": 0.3734169999999608,
+      "p95Ms": 0.487041999999974,
+      "maxMs": 1.1447919999999954,
+      "commands": []
+    },
+    {
+      "label": "earlyBusy",
+      "name": "candidate",
+      "worldHash": "4a13417b",
+      "tick": 20,
+      "structures": 2,
+      "worker": "building",
+      "queue": 1,
+      "warmup": 20,
+      "calls": 100,
+      "medianMs": 0.36887500000000273,
+      "p95Ms": 0.490208999999993,
+      "maxMs": 2.148249999999962,
+      "commands": []
+    },
+    {
+      "label": "lateIdle",
+      "name": "baseline",
+      "worldHash": "321b1f97",
+      "tick": 18040,
+      "structures": 73,
+      "worker": "idle",
+      "queue": 0,
+      "warmup": 20,
+      "calls": 100,
+      "medianMs": 3.2732919999999694,
+      "p95Ms": 3.56574999999998,
+      "maxMs": 3.924250000000029,
+      "commands": [
+        {
+          "type": "queueConstruction",
+          "kind": "neuron",
+          "cell": 357
+        }
+      ]
+    },
+    {
+      "label": "lateIdle",
+      "name": "candidate",
+      "worldHash": "321b1f97",
+      "tick": 18040,
+      "structures": 73,
+      "worker": "idle",
+      "queue": 0,
+      "warmup": 20,
+      "calls": 100,
+      "medianMs": 2.331625000000031,
+      "p95Ms": 2.6117909999999256,
+      "maxMs": 4.194291000000021,
+      "commands": [
+        {
+          "type": "queueConstruction",
+          "kind": "siege",
+          "cell": 357
+        }
+      ]
+    },
+    {
+      "label": "lateBusy",
+      "name": "baseline",
+      "worldHash": "740fe458",
+      "tick": 18060,
+      "structures": 74,
+      "worker": "outbound",
+      "queue": 1,
+      "warmup": 20,
+      "calls": 100,
+      "medianMs": 0.58199999999988,
+      "p95Ms": 0.84112499999992,
+      "maxMs": 2.010833000000048,
+      "commands": []
+    },
+    {
+      "label": "lateBusy",
+      "name": "candidate",
+      "worldHash": "740fe458",
+      "tick": 18060,
+      "structures": 74,
+      "worker": "outbound",
+      "queue": 1,
+      "warmup": 20,
+      "calls": 100,
+      "medianMs": 0.43491599999993014,
+      "p95Ms": 0.6138330000001133,
+      "maxMs": 0.6801250000000891,
+      "commands": []
+    }
+  ],
+  "limitations": "Single-process microbenchmark on four fixed worlds; external machine load not controlled. Busy-path timing differences do not establish a semantic optimization. No whole-match or multiplayer performance claim."
+}

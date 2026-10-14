@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Spore lab</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #07161d;
+      }
+      #nd-board {
+        width: 100vw;
+        height: 100vh;
+        display: block;
+      }
+      .controls {
+        position: fixed;
+        top: 8px;
+        left: 8px;
+        color: #fff;
+        font: 12px monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="board-scroll" style="position: fixed; inset: 0">
+      <svg id="nd-board"></svg><canvas id="nd-light" class="nd-light"></canvas>
+    </div>
+    <div class="controls">
+      <button id="grow">grow one</button> <button id="cut">cut one</button>
+      <button id="kill">kill one</button> <button id="site">site</button>
+    </div>
+    <script type="module" src="./spore.ts"></script>
+  </body>
+</html>
