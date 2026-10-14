@@ -15,6 +15,7 @@ import {
   TERRITORY,
 } from "../engine/index.js";
 import { updateContent } from "./dom-update.js";
+import { planNeuronPlacement } from "./neuron-placement.js";
 import { minimapMarkup, minimapCell } from "../render/minimap.js";
 import { battleFocusCell } from "../render/battle-focus.js";
 import { structureArt, teamArtFilter } from "../render/art.js";
@@ -198,6 +199,7 @@ export function mountFuseCraft(
   let selectedCell: number | null = null;
   let placement: BuildKind | null = null;
   let placementCell: number | null = null;
+  let placementMessage = "";
   let pending: "reset" | "leave" | null = null;
   let lightTarget: HTMLCanvasElement | null = null;
   let online: OnlineSession | null = null;
@@ -901,8 +903,12 @@ export function mountFuseCraft(
       placement &&
       placementCell !== null &&
       constructionUpgradeSource(world, player, placement, placementCell);
+    const neuronPlan =
+      placement === "neuron" && placementCell !== null
+        ? planNeuronPlacement(world, player, placementCell)
+        : null;
     const contextDetail = placement
-      ? `<div class="placement-instructions" role="status"><strong>${upgrading ? "Upgrade neuron to" : "Place"} ${BUILD_PRESENTATION[placement].label}</strong><p>Shift: queue more · Esc / S: cancel</p><small>${(placementRequirements?.allowed && placement && placementCell !== null ? waitingText(placementHints, planSupport(world, player, { cell: placementCell, kind: placement }).get(placementCell)) : placementHints.map(requirementText)).map(escape).join(" ") || (upgrading ? "Neuron stays connected during work. Damage carries over." : CONSTRUCTIONS[placement].upgradesFrom?.length ? "Choose open ground or upgrade your neuron." : "Click or tap open ground.")}</small></div>`
+      ? `<div class="placement-instructions" role="status"><strong>${upgrading ? "Upgrade neuron to" : "Place"} ${BUILD_PRESENTATION[placement].label}</strong><p>Shift: queue more · Esc / S: cancel</p><small>${escape(placementMessage) || escape(neuronPlan?.hint ?? "") || (placementRequirements?.allowed && placement && placementCell !== null ? waitingText(placementHints, planSupport(world, player, { cell: placementCell, kind: placement }).get(placementCell)) : placementHints.map(requirementText)).map(escape).join(" ") || (upgrading ? "Neuron stays connected during work. Damage carries over." : CONSTRUCTIONS[placement].upgradesFrom?.length ? "Choose open ground or upgrade your neuron." : "Click or tap open ground.")}</small></div>`
       : panel === "inspect" || panel === "build"
         ? `${detail}<span class="construction-summary">${player.queue.length}/${RULES.queueLimit} queued · builder ${escape(worker.mode)}</span>`
         : panel === "particles"
@@ -1047,18 +1053,23 @@ export function mountFuseCraft(
             .join("")}</g>`
         : "";
     if (placement && placementCell !== null && owner) {
-      const valid = constructionQueueAvailability(
-        world,
-        owner,
-        placement,
-        placementCell,
-      ).allowed;
+      const plan =
+        placement === "neuron"
+          ? planNeuronPlacement(world, owner, placementCell)
+          : null;
+      const valid =
+        constructionQueueAvailability(world, owner, placement, placementCell)
+          .allowed &&
+        (!plan || plan.cells.length > 0);
       preview.setAttribute("data-valid", String(valid));
       preview.setAttribute(
         "data-support",
-        planSupport(world, owner, { cell: placementCell, kind: placement }).get(
-          placementCell,
-        ) ?? "connected",
+        plan?.hint && plan.cells.length > 0
+          ? "chained"
+          : (planSupport(world, owner, {
+              cell: placementCell,
+              kind: placement,
+            }).get(placementCell) ?? "connected"),
       );
       preview.setAttribute(
         "data-upgrade",
@@ -1067,7 +1078,15 @@ export function mountFuseCraft(
         ),
       );
       const artwork = `<g opacity="0.55">${structureArtwork(world.map.width, placementCell, placement, owner.slot, dependencies.sprites)}</g>`;
-      preview.innerHTML = `${frontier}<polygon points="${hexPoints(world.map.width, placementCell, 1.5)}"/>${artwork}`;
+      const bridge =
+        plan?.cells
+          .slice(0, -1)
+          .map(
+            (cell) =>
+              `<polygon class="placement-bridge" data-cell="${cell}" points="${hexPoints(world.map.width, cell, 1.5)}"/>`,
+          )
+          .join("") ?? "";
+      preview.innerHTML = `${frontier}${bridge}<polygon points="${hexPoints(world.map.width, placementCell, 1.5)}"/>${artwork}`;
     } else {
       if (frontier) preview.innerHTML = frontier;
       else preview.replaceChildren();
@@ -1603,9 +1622,11 @@ export function mountFuseCraft(
   }
 
   function placeAt(cell: number, keepPlacing = false) {
+    if (!session?.canControl) return;
     const world = session?.view();
     const owner = world?.players.find((p) => p.id === session?.localPlayerId);
     placementCell = cell;
+    placementMessage = "";
     if (
       placement &&
       world &&
@@ -1613,11 +1634,27 @@ export function mountFuseCraft(
       constructionQueueAvailability(world, owner, placement, cell).allowed
     ) {
       const kind = placement;
+      const plan =
+        kind === "neuron" ? planNeuronPlacement(world, owner, cell) : null;
+      if (plan && !plan.cells.length) {
+        renderGame();
+        return;
+      }
+      const orders: Action[] = (plan?.cells ?? [cell]).map((next) => ({
+        type: "queueConstruction",
+        kind,
+        cell: next,
+      }));
+      if (!session.dispatchBatch(orders)) {
+        placementMessage = "Build orders are busy. Try again.";
+        renderGame();
+        return;
+      }
       if (!keepPlacing) {
         placement = null;
         placementCell = null;
       }
-      dispatch({ type: "queueConstruction", kind, cell });
+      renderGame();
     } else renderGame();
   }
 
@@ -1637,6 +1674,7 @@ export function mountFuseCraft(
     const cell = tile ? Number(tile.dataset.cell) : null;
     if (cell !== placementCell) {
       placementCell = cell;
+      placementMessage = "";
       renderGame();
     }
   }

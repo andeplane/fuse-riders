@@ -72,6 +72,7 @@ function fixture(
   let sessionOptions: SessionOptions | undefined;
   let createdMapId: string | null = null;
   const actions: Action[] = [];
+  let acceptBatches = true;
   const summary: MapSummary = {
     id: world.map.id,
     title: "Test map",
@@ -109,6 +110,11 @@ function fixture(
         view: () => world,
         dispatch(action) {
           actions.push(action);
+        },
+        dispatchBatch(batch) {
+          if (!acceptBatches) return false;
+          actions.push(...batch);
+          return true;
         },
         subscribe(callback) {
           listener = callback;
@@ -170,6 +176,9 @@ function fixture(
     createdMapId: () => createdMapId,
     summary,
     actions,
+    setBatchAcceptance(accept: boolean) {
+      acceptBatches = accept;
+    },
     selectCell(cell: number, shiftKey = false) {
       class ClickEvent extends EventConstructor {
         readonly shiftKey = shiftKey;
@@ -506,12 +515,11 @@ test("build commands arm placement, reject occupied tiles, place once, and cance
     f.root.querySelector(".placement-preview")?.getAttribute("data-valid"),
     "false",
   );
-  const open = f.world.map.cells.findIndex(
-    (c, i) =>
-      c.terrain === "open" &&
-      !f.world.structures.some((s) => s.cell === i) &&
-      !f.world.players.some((p) => p.queue.some((j) => j.cell === i)),
-  );
+  const open = connectedFrontier(
+    f.world,
+    f.world.players.find((p) => p.id === "coral")!,
+    "neuron",
+  )[0]!;
   f.selectCell(open);
   assert.deepEqual(f.actions, [
     { type: "queueConstruction", kind: "neuron", cell: open },
@@ -529,7 +537,33 @@ test("build commands arm placement, reject occupied tiles, place once, and cance
   f.app.dispose();
 });
 
-test("placement outlines hexes touching the network and says when a plan cannot connect", async () => {
+test("busy batch delivery keeps placement armed and lets the player retry", async () => {
+  const f = fixture();
+  await f.start();
+  const cell = connectedFrontier(
+    f.world,
+    f.world.players.find((p) => p.id === "coral")!,
+    "neuron",
+  )[0]!;
+  f.click("panel-build");
+  f.click("build-neuron");
+  f.setBatchAcceptance(false);
+  f.selectCell(cell);
+  assert.deepEqual(f.actions, []);
+  assert.match(
+    f.root.querySelector(".placement-instructions")!.textContent!,
+    /Build orders are busy. Try again/,
+  );
+  f.setBatchAcceptance(true);
+  f.selectCell(cell);
+  assert.deepEqual(f.actions, [
+    { type: "queueConstruction", kind: "neuron", cell },
+  ]);
+  assert.equal(f.root.querySelector(".placement-instructions"), null);
+  f.app.dispose();
+});
+
+test("placement outlines the frontier and queues connecting neurons for distant sites", async () => {
   const f = fixture();
   await f.start();
   const player = f.world.players.find((p) => p.id === "coral")!;
@@ -559,11 +593,11 @@ test("placement outlines hexes touching the network and says when a plan cannot 
   });
   const hint = () =>
     f.root.querySelector(".placement-instructions small")?.textContent ?? "";
-  assert.match(hint(), /Not connected/);
+  assert.match(hint(), /connecting neuron/);
   assert.doesNotMatch(hint(), /Needs 1 connected/);
   assert.equal(
     f.root.querySelector(".placement-preview")?.getAttribute("data-support"),
-    "unsupported",
+    "chained",
   );
   f.selectCell(frontier[0]!, true);
   assert.doesNotMatch(hint(), /Not connected/);
@@ -586,12 +620,10 @@ test("placement outlines hexes touching the network and says when a plan cannot 
 test("Shift placement queues repeatedly until ordinary placement or cancel", async () => {
   const f = fixture();
   await f.start();
-  const open = f.world.map.cells.flatMap((c, i) =>
-    c.terrain === "open" &&
-    !f.world.structures.some((s) => s.cell === i) &&
-    !f.world.players.some((p) => p.queue.some((j) => j.cell === i))
-      ? [i]
-      : [],
+  const open = connectedFrontier(
+    f.world,
+    f.world.players.find((p) => p.id === "coral")!,
+    "neuron",
   );
   f.click("panel-build");
   f.click("build-neuron");
