@@ -387,6 +387,9 @@ function fixture(options: FixtureOptions = {}) {
     canControl: mode !== "watch",
     view: () => world,
     dispatch() {},
+    dispatchBatch() {
+      return true;
+    },
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -422,6 +425,9 @@ function fixture(options: FixtureOptions = {}) {
     },
     view: () => world,
     dispatch() {},
+    dispatchBatch() {
+      return true;
+    },
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

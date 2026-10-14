@@ -17,6 +17,9 @@ test("local play observes results; watching reports bots without a seat", () => 
     canControl: true,
     view: () => world,
     dispatch() {},
+    dispatchBatch() {
+      return true;
+    },
     reset() {},
     dispose: () => listeners.clear(),
     subscribe: (listener) => {
