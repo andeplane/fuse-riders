@@ -51,6 +51,7 @@ import {
   createSeatAdmission,
 } from "./session.js";
 import { NightAudio } from "./audio.js";
+import { createModalInputGate } from "fuse-ui/modal-input";
 import { createPlayMetrics, startGameAnalytics } from "fuse-ui/play-metrics";
 const GAME = "graveyard-shift",
   app = document.querySelector<HTMLElement>("#app")!,
@@ -316,6 +317,7 @@ function room() {
   const sources = new Map<string, number>();
   let bits = 0;
   const update = () => {
+    if (modalInput.blocked()) return;
     bits = [...sources.values()].reduce((a, b) => a | b, 0);
     runtime?.input(bits);
   };
@@ -324,6 +326,19 @@ function room() {
     bits = 0;
     runtime?.cancel();
   };
+  const modalInput = createModalInputGate({
+    isOpen: () => Boolean(document.querySelector("dialog[open]")),
+    observe(change) {
+      const observer = new MutationObserver(change);
+      observer.observe(document.body, {
+        attributes: true,
+        attributeFilter: ["open"],
+        subtree: true,
+      });
+      return () => observer.disconnect();
+    },
+    cancel: clear,
+  });
   const hold = (
     label: string,
     bit: number,
@@ -370,6 +385,7 @@ function room() {
     " ": PULSE,
   };
   document.addEventListener("keydown", (e) => {
+    if (modalInput.blocked()) return;
     if (
       e.target instanceof HTMLInputElement ||
       e.target instanceof HTMLTextAreaElement ||
@@ -594,6 +610,7 @@ function room() {
       runtime?.stop();
     },
     destroy: () => {
+      modalInput.dispose();
       alive = false;
       audio.stop();
     },

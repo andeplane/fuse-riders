@@ -1,9 +1,9 @@
 /** Real game menus at desktop and phone widths; no real OAuth credentials or production data. */
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
-import { chromium } from "playwright";
+import { chromium, type Browser } from "playwright";
+import { startRoomService } from "./lib/server.js";
 
-const origin = process.env.ONLINE_URL ?? "http://127.0.0.1:5180/";
 const games = [
   "fuse-riders",
   "ball-bros",
@@ -23,9 +23,14 @@ assert.ok(
   selected.length > 0,
   "ONLY must name a game in the social smoke catalog",
 );
-const browser = await chromium.launch({ headless: true });
-await mkdir("artifacts/shared-social", { recursive: true });
+const service = process.env.ONLINE_URL
+  ? undefined
+  : await startRoomService({ logFile: "artifacts/shared-social-service.log" });
+const origin = process.env.ONLINE_URL ?? service!.url;
+let browser: Browser | undefined;
 try {
+  browser = await chromium.launch({ headless: true });
+  await mkdir("artifacts/shared-social", { recursive: true });
   for (const width of [1280, 390]) {
     for (const game of selected) {
       const page = await browser.newPage({ viewport: { width, height: 900 } });
@@ -75,11 +80,101 @@ try {
         .getByRole("button", { name: "EVERYONE", exact: true })
         .waitFor();
       await account.getByRole("button", { name: "CLOSE", exact: true }).click();
+      if (game === "graveyard-shift") {
+        await page.goto(new URL(`${game}/?solo=1&mute`, origin).href);
+        await page.locator('[data-phase="running"]').waitFor();
+        const personal = page.locator(".personal");
+        for (const kind of ["friends", "account"] as const) {
+          await page.locator("canvas").click();
+          const readyTick = Number(
+            await page.locator("main[data-tick]").getAttribute("data-tick"),
+          );
+          await page.waitForFunction(
+            (at) =>
+              Number(
+                document.querySelector<HTMLElement>("main[data-tick]")?.dataset
+                  .tick,
+              ) >=
+              at + 2,
+            readyTick,
+          );
+          const before = Number(await personal.getAttribute("data-x"));
+          await page.keyboard.down("ArrowRight");
+          await page.waitForFunction(
+            (x) =>
+              Number(
+                document.querySelector<HTMLElement>(".personal")?.dataset.x,
+              ) >
+              x + 5,
+            before,
+            { timeout: 5000 },
+          );
+          const controls = page.locator(".fui-social");
+          if (kind === "friends")
+            await controls
+              .getByRole("button", { name: "FRIENDS", exact: true })
+              .click();
+          else await controls.getByRole("button").first().click();
+          const modal = page.locator("dialog[open]");
+          await modal.waitFor();
+          const tick = Number(
+            await page.locator("main[data-tick]").getAttribute("data-tick"),
+          );
+          await page.waitForFunction(
+            (at) =>
+              Number(
+                document.querySelector<HTMLElement>("main[data-tick]")?.dataset
+                  .tick,
+              ) >=
+              at + 2,
+            tick,
+          );
+          const stopped = Number(await personal.getAttribute("data-x"));
+          assert.equal(
+            await page.evaluate(() => {
+              const key = new KeyboardEvent("keydown", {
+                key: "ArrowRight",
+                bubbles: true,
+                cancelable: true,
+              });
+              document.querySelector("dialog[open] button")!.dispatchEvent(key);
+              return key.defaultPrevented;
+            }),
+            false,
+            "dialog arrow keys retain their native default",
+          );
+          await page.waitForFunction(
+            (at) =>
+              Number(
+                document.querySelector<HTMLElement>("main[data-tick]")?.dataset
+                  .tick,
+              ) >=
+              at + 22,
+            tick,
+          );
+          assert.equal(
+            Number(await personal.getAttribute("data-x")),
+            stopped,
+            `${kind}: opening the dialog releases held movement`,
+          );
+          await page.keyboard.up("ArrowRight");
+          await modal
+            .getByRole("button", { name: "CLOSE", exact: true })
+            .click();
+        }
+        console.log(
+          `OK ${game}: held movement cleared by friends/account; dialog arrows stay native at ${width}px`,
+        );
+      }
       assert.deepEqual(errors, [], `${game}: no runtime errors at ${width}px`);
       console.log(`OK ${game}: friends → sign-in → matches at ${width}px`);
       await page.close();
     }
   }
 } finally {
-  await browser.close();
+  try {
+    await browser?.close();
+  } finally {
+    await service?.stop();
+  }
 }
