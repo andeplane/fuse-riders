@@ -34,7 +34,9 @@ import {
   STAR_DURATION_TICKS,
   TRAIL_LIFETIME_TICKS,
   addPlayer,
+  BOTS_ONLY_MAX_STEPS_PER_TICK,
   BOTS_ONLY_STEPS_PER_TICK,
+  botsOnlySteps,
   stepsPerTick,
   createGame,
   riderMotionStep,
@@ -93,7 +95,14 @@ test("spawns two through five players evenly on a circle with clockwise tangent 
   for (let count = 2; count <= 5; count += 1) {
     const state = gameWithPlayers(count);
     startMatch(state);
-    const players = [...state.players.values()].sort((a, b) => a.slot - b.slot);
+    const spawnIndex = (player: { x: number; y: number }) =>
+      (Math.atan2(player.y - state.height / 2, player.x - state.width / 2) +
+        Math.PI / 2 +
+        Math.PI * 2) %
+      (Math.PI * 2);
+    const players = [...state.players.values()].sort(
+      (a, b) => spawnIndex(a) - spawnIndex(b),
+    );
     const expectedRadius = 0.28 * Math.min(state.width, state.height);
     players.forEach((player, index) => {
       const radial = Math.atan2(
@@ -125,6 +134,92 @@ test("spawns two through five players evenly on a circle with clockwise tangent 
       );
     });
   }
+});
+
+test("round spawns shuffle neighbors deterministically without changing identity", () => {
+  for (let count = 2; count <= 5; count += 1) {
+    const first = gameWithPlayers(count, "spawn-shuffle", 353);
+    const second = gameWithPlayers(count, "spawn-shuffle", 353);
+    // Map insertion order must not influence the RNG-to-rider assignment.
+    second.players = new Map([...second.players].reverse());
+    const identities = [...first.players.values()].map(
+      ({ id, slot, color, name }) => ({
+        id,
+        slot,
+        color,
+        name,
+      }),
+    );
+    const poses = (state: GameState) =>
+      [...state.players.values()]
+        .sort((a, b) => a.slot - b.slot)
+        .map(({ id, x, y, angle }) => ({ id, x, y, angle }));
+    const arrangements = new Set<string>();
+    const neighbors = new Set<string>();
+    startMatch(first);
+    startMatch(second);
+    for (let round = 0; round < 12; round += 1) {
+      assert.deepEqual(poses(first), poses(second));
+      assert.equal(first.randomState, second.randomState);
+      assert.deepEqual(
+        [...first.players.values()].map(({ id, slot, color, name }) => ({
+          id,
+          slot,
+          color,
+          name,
+        })),
+        identities,
+      );
+      arrangements.add(JSON.stringify(poses(first)));
+      const order = [...first.players.values()].sort(
+        (a, b) =>
+          Math.atan2(a.y - first.height / 2, a.x - first.width / 2) -
+          Math.atan2(b.y - first.height / 2, b.x - first.width / 2),
+      );
+      const riderIndex = order.findIndex(({ id }) => id === "p0");
+      neighbors.add(order[(riderIndex + 1) % count]!.id);
+      // Draw each round through the public API, also covering rematches.
+      for (const state of [first, second]) {
+        for (const player of state.players.values())
+          eliminatePlayer(state, player.id);
+        while (state.phase === "countdown" || state.phase === "playing")
+          step(state, new Map());
+        while (state.tick < state.phaseEndsAtTick!) step(state, new Map());
+        if (state.phase === "matchOver") resetMatch(state, `rematch-${round}`);
+        else startNextRound(state);
+      }
+    }
+    assert.ok(
+      arrangements.size > 1,
+      "rounds must not retain slot-based spawns",
+    );
+    if (count > 2)
+      assert.ok(
+        neighbors.size > 1,
+        "shuffle must change neighbors, not just rotate",
+      );
+  }
+});
+
+test("spawn shuffling uses the match seed and excludes disconnected riders", () => {
+  const arrangements = new Set<string>();
+  for (let seed = 1; seed <= 12; seed += 1) {
+    const state = gameWithPlayers(5, "seeded-spawns", seed);
+    setPlayerConnected(state, "p2", false);
+    startMatch(state);
+    assert.equal(state.players.get("p2")!.alive, false);
+    assert.equal(state.roundParticipants.has("p2"), false);
+    const living = [...state.players.values()].filter(({ alive }) => alive);
+    assert.equal(living.length, 4);
+    assert.equal(new Set(living.map(({ x, y }) => `${x},${y}`)).size, 4);
+    arrangements.add(
+      JSON.stringify(living.map(({ id, x, y }) => ({ id, x, y }))),
+    );
+  }
+  assert.ok(
+    arrangements.size > 1,
+    "different seeds must affect spawn assignment",
+  );
 });
 
 test("replaying the same accepted inputs produces the same snapshots and events", () => {
@@ -2614,4 +2709,56 @@ test("a tick runs three steps only while a round is live, a human rode in it and
   step(state, new Map());
   assert.notEqual(state.phase, "playing");
   assert.equal(stepsPerTick(state, bots), 1, "the round is over");
+});
+
+test("a bots-only endgame climbs from three steps per tick to six: three seconds at 3×, then a step more every two seconds", () => {
+  // Each stage spans seconds × TICK_HZ × count game ticks, since the game's clock runs `count` ticks per log tick.
+  const stages: [elapsed: number, count: number][] = [
+    [0, 3],
+    [179, 3],
+    [180, 4],
+    [339, 4],
+    [340, 5],
+    [539, 5],
+    [540, 6],
+    [10_000, 6],
+  ];
+  for (const [elapsed, count] of stages)
+    assert.equal(botsOnlySteps(elapsed), count, `${elapsed} game ticks in`);
+  assert.equal(BOTS_ONLY_MAX_STEPS_PER_TICK, 6);
+
+  const state = createGame("bots-only-ramp", classicSettings()),
+    bots = new Set(["bot:1", "bot:2"]);
+  for (const [id, slot] of [
+    ["human", 0],
+    ["late", 1],
+    ["bot:1", 2],
+    ["bot:2", 3],
+  ] as const)
+    addPlayer(state, { id, name: id, slot, color: "#fff", connected: true });
+  startMatch(state);
+  for (let i = 0; i < COUNTDOWN_TICKS; i++) step(state, new Map());
+  assert.equal(state.phase, "playing");
+  eliminatePlayer(state, "human");
+  state.tick += 200;
+  assert.equal(
+    stepsPerTick(state, bots),
+    1,
+    "one human still rides, whatever the clock says",
+  );
+  eliminatePlayer(state, "late");
+  const out = state.tick;
+  for (const [elapsed, count] of stages) {
+    state.tick = out + elapsed;
+    assert.equal(
+      stepsPerTick(state, bots),
+      count,
+      `${elapsed} game ticks after the last human went out`,
+    );
+  }
+  assert.equal(
+    stepsPerTick(state, new Set(["human", "late", "bot:1", "bot:2"])),
+    1,
+    "an all-bot showcase never speeds up",
+  );
 });

@@ -2,6 +2,8 @@ export const PORTAL_WALL_HALF_WIDTH = 4;
 export const PORTAL_MAX_LENGTH = 300;
 export const PORTAL_MIN_SEPARATION = 400;
 export const PORTAL_LIFETIME_TICKS = 200;
+/** 1.5 seconds of warning before the ten-second active lifetime. */
+export const PORTAL_WARMUP_TICKS = 30;
 export const PORTAL_COOLDOWN_TICKS = 15;
 export const PORTAL_GRACE_TICKS = 10;
 export const PORTAL_PLACEMENT_ATTEMPTS = 24;
@@ -26,6 +28,14 @@ export interface PortalPair {
   id: string;
   gates: readonly [PortalGate, PortalGate];
   expiresAtTick: number;
+}
+
+/** Activation is derived from the deadline so checkpoints and rollback need no extra clock. */
+export function isPortalActive(pair: PortalPair, tick: number): boolean {
+  return (
+    tick >= pair.expiresAtTick - PORTAL_LIFETIME_TICKS &&
+    tick < pair.expiresAtTick
+  );
 }
 export type PortalSafetyCheck = (point: PortalPoint, radius: number) => boolean;
 /** Exit safety also names the pair in use, whose own walls the exit is allowed to hug. */
@@ -88,7 +98,8 @@ export function createPortalPair(
       return {
         id: options.id,
         gates: [partner, gate],
-        expiresAtTick: options.tick + PORTAL_LIFETIME_TICKS,
+        expiresAtTick:
+          options.tick + PORTAL_WARMUP_TICKS + PORTAL_LIFETIME_TICKS,
       };
     candidates.push(gate);
   }
@@ -204,7 +215,7 @@ export function findPortalTransit(
   if (tick < options.cooldownUntilTick) return undefined;
   let entry: { pair: PortalPair; index: 0 | 1; fraction: number } | undefined;
   for (const candidate of pairs) {
-    if (tick >= candidate.expiresAtTick) continue;
+    if (!isPortalActive(candidate, tick)) continue;
     for (const [index, gate] of candidate.gates.entries()) {
       const fraction = entryFraction(
         from,

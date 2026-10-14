@@ -1,0 +1,37 @@
+{
+  "complete": true,
+  "rows": 210,
+  "drift": [],
+  "rejections": 0,
+  "timeouts": [
+    "narrow-front-pressure-relay-0",
+    "narrow-front-pressure-relay-1"
+  ],
+  "newTimeouts": [],
+  "resolvedTimeouts": [
+    {
+      "key": "narrow-front-balanced-balanced-0",
+      "result": "draw",
+      "seconds": 572
+    },
+    {
+      "key": "narrow-front-balanced-balanced-1",
+      "result": "draw",
+      "seconds": 572
+    }
+  ],
+  "changedWinners": [],
+  "seatDifferences": [
+    {
+      "pair": "narrow-front-balanced-defensive",
+      "seat0": {
+        "result": "beta",
+        "seconds": 540
+      },
+      "seat1": {
+        "result": "beta",
+        "seconds": 568
+      }
+    }
+  ]
+}

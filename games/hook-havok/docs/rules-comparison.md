@@ -1,0 +1,13 @@
+# Phase 6D: compare round rules
+
+Keep free play as the default. Add Last keeper standing (a fall eliminates) and Hook score (one point per player hit, minus two per fall, respawns enabled). Both competitive trials last at most 60 seconds. Scores may be negative. Dummy and ball hits do not award points. This isolates the player-versus-player loop without changing geometry or movement tuning.
+
+Two connected keepers trigger a three-second countdown. The roster locks when play starts; late joins watch until the next round. Disconnecting during a competitive round forfeits that round, including on refresh. Free-play refresh recovery remains unchanged. Either competitive mode ends early if only one entrant remains after forfeits (or falls in elimination). A tied score or several elimination survivors at timeout yields shared winners; no survivors is a draw. Results freeze until the manager restarts or changes rules. Personal reset is disabled during competitive trials, so it cannot erase penalties or bypass elimination. Score hits grant the victim half a second of protection to limit repeated point farming; spawn protection is unchanged.
+
+Round timing, locked entrants, scores, elimination and results belong to the deterministic engine checkpoint. The room stays in its existing running lifecycle while the engine's trial moves through waiting/countdown/active/over. Manager restart already creates a fresh input scope; no second timer or simulation authority is added. No match history, ranking, cumulative tournament score or automatic rematch is introduced.
+
+Verification should cover simultaneous falls/ties, timed scoring, late joins, disconnects, reset suppression, replay/checkpoint restoration, invalid result state and real browser selection/countdown/result/restart. Physical-phone feel and final balance remain playtest questions.
+
+Implemented checks: `tests/rules.test.ts` covers those engine cases plus active round → lobby → disconnected peer → refreshed peer checkpoint recovery. `preview/rules-check.mjs` uses real LAN WebRTC rooms to test waiting, countdown, locked late joins, elimination, disabled reset, manager restart, hit scoring, a full 60-second score round with peer result agreement, and return to free play. Browser evidence: `docs/evidence/elimination-result.png` and `score-result.png`.
+
+To compare: enter a room, choose **Round rules**, and invite a second player. The manager can switch rules at any time, which restarts the trial for everyone. **Restart shared trial** begins the next round. Props remain selectable in each mode but award no score; the first comparison should use Movement course to keep the player contest easy to read. Results are local experiments, not published rankings.

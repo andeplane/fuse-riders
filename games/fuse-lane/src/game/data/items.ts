@@ -1,0 +1,417 @@
+import { CLOTHING, EDUCATION, FOOD, GADGETS, SERVICES } from "./economy.js";
+import { BUSINESS, CASUAL, SMART } from "./jobs.js";
+import { FRESHCO, GADGET, MEGAMART, MONO, THREADS } from "./places.js";
+
+/**
+ * What the shops sell (shops-housing notes §2–§7, reskinned). `price` is the base: the shelf price is base × the
+ * category's price index. Happiness on durables is a first-time-owner bonus (the original meant it and never paid it).
+ */
+export type ItemKind =
+  "groceries" | "meal" | "drink" | "fun" | "clothes" | "durable" | "joke";
+
+/** Durable goods a player can own. */
+export const DURABLES = [
+  "fridge",
+  "freezer",
+  "stove",
+  "tv",
+  "console",
+  "speakers",
+  "airfryer",
+  "hottub",
+  "laptop",
+  "books",
+] as const;
+export type DurableId = (typeof DURABLES)[number];
+export const DURABLE_NAMES: Record<DurableId, string> = {
+  fridge: "Smart fridge",
+  freezer: "Chest freezer",
+  stove: "Induction stove",
+  tv: "Smart TV",
+  console: "Game console",
+  speakers: "Speakers",
+  airfryer: "Air fryer",
+  hottub: "Hot tub",
+  laptop: "Laptop",
+  books: "Study books",
+};
+/** A durable's name mid-sentence: "smart fridge", "smart TV". */
+export const durableName = (id: DurableId): string =>
+  DURABLE_NAMES[id].charAt(0).toLowerCase() + DURABLE_NAMES[id].slice(1);
+/** Never stolen in a break-in (too heavy to carry off). */
+export const BOLTED_DOWN: readonly DurableId[] = ["fridge", "freezer", "stove"];
+
+export interface ItemData {
+  name: string;
+  place: number;
+  category: number;
+  price: number;
+  kind: ItemKind;
+  /** Weeks of food or clothing it gives. */
+  weeks?: number;
+  /** Clothing level. */
+  level?: number;
+  durable?: DurableId;
+  /** Happiness: first purchase of the week (food), first ownership (durables) or every purchase (clothes, jokes). */
+  happy: number;
+  /** Hours it takes (a night out), 0 for shopping. */
+  hours?: number;
+  /** Sold at the discount store: breaks down more often. */
+  cheap?: boolean;
+  /** What the card says it does. */
+  effect: string;
+  /** Its picture: an icon id in the art manifest (`art/assets.ts`), drawn without the `icon-` prefix. */
+  icon: string;
+}
+
+export const ITEMS: readonly ItemData[] = [
+  {
+    name: "Groceries · 1 week",
+    place: FRESHCO,
+    category: FOOD,
+    price: 55,
+    kind: "groceries",
+    weeks: 1,
+    happy: 1,
+    effect: "1 week of food",
+    icon: "groceries",
+  },
+  {
+    name: "Groceries · 2 weeks",
+    place: FRESHCO,
+    category: FOOD,
+    price: 100,
+    kind: "groceries",
+    weeks: 2,
+    happy: 2,
+    effect: "2 weeks of food (needs a fridge)",
+    icon: "groceries",
+  },
+  {
+    name: "Groceries · 4 weeks",
+    place: FRESHCO,
+    category: FOOD,
+    price: 190,
+    kind: "groceries",
+    weeks: 4,
+    happy: 4,
+    effect: "4 weeks of food (needs a fridge)",
+    icon: "groceries",
+  },
+  {
+    name: "Mono Burger",
+    place: MONO,
+    category: SERVICES,
+    price: 34,
+    kind: "meal",
+    happy: 0,
+    effect: "Feeds you this week",
+    icon: "burger",
+  },
+  {
+    name: "Double Mono",
+    place: MONO,
+    category: SERVICES,
+    price: 46,
+    kind: "meal",
+    happy: 1,
+    effect: "Feeds you this week",
+    icon: "double-burger",
+  },
+  {
+    name: "Thick shake",
+    place: MONO,
+    category: SERVICES,
+    price: 9,
+    kind: "drink",
+    happy: 1,
+    effect: "A treat, no food value",
+    icon: "shake",
+  },
+  {
+    name: "Casual clothes",
+    place: THREADS,
+    category: CLOTHING,
+    price: 73,
+    kind: "clothes",
+    weeks: 11,
+    level: CASUAL,
+    happy: 0,
+    effect: "11 weeks of casual wear",
+    icon: "clothes-casual",
+  },
+  {
+    name: "Smart casual",
+    place: THREADS,
+    category: CLOTHING,
+    price: 125,
+    kind: "clothes",
+    weeks: 13,
+    level: SMART,
+    happy: 1,
+    effect: "13 weeks, smart jobs",
+    icon: "clothes-smart",
+  },
+  {
+    name: "Business suit",
+    place: THREADS,
+    category: CLOTHING,
+    price: 295,
+    kind: "clothes",
+    weeks: 13,
+    level: BUSINESS,
+    happy: 2,
+    effect: "13 weeks, any job",
+    icon: "clothes-business",
+  },
+  {
+    name: "Smart fridge",
+    place: GADGET,
+    category: GADGETS,
+    price: 876,
+    kind: "durable",
+    durable: "fridge",
+    happy: 1,
+    effect: "Stores 6 weeks of groceries",
+    icon: "fridge",
+  },
+  {
+    name: "Chest freezer",
+    place: GADGET,
+    category: GADGETS,
+    price: 513,
+    kind: "durable",
+    durable: "freezer",
+    happy: 2,
+    effect: "With a fridge: 12 weeks",
+    icon: "freezer",
+  },
+  {
+    name: "Induction stove",
+    place: GADGET,
+    category: GADGETS,
+    price: 570,
+    kind: "durable",
+    durable: "stove",
+    happy: 1,
+    effect: "+1 happiness a week",
+    icon: "stove",
+  },
+  {
+    name: "Smart TV",
+    place: GADGET,
+    category: GADGETS,
+    price: 525,
+    kind: "durable",
+    durable: "tv",
+    happy: 2,
+    effect: "Binge responsibly",
+    icon: "tv",
+  },
+  {
+    name: "Game console",
+    place: GADGET,
+    category: GADGETS,
+    price: 333,
+    kind: "durable",
+    durable: "console",
+    happy: 2,
+    effect: "One more level",
+    icon: "console",
+  },
+  {
+    name: "Speakers",
+    place: GADGET,
+    category: GADGETS,
+    price: 412,
+    kind: "durable",
+    durable: "speakers",
+    happy: 2,
+    effect: "The neighbours love it",
+    icon: "speakers",
+  },
+  {
+    name: "Air fryer",
+    place: GADGET,
+    category: GADGETS,
+    price: 330,
+    kind: "durable",
+    durable: "airfryer",
+    happy: 2,
+    effect: "+1 happiness a week",
+    icon: "airfryer",
+  },
+  {
+    name: "Hot tub",
+    place: GADGET,
+    category: GADGETS,
+    price: 1255,
+    kind: "durable",
+    durable: "hottub",
+    happy: 3,
+    effect: "You never lose rest",
+    icon: "hottub",
+  },
+  {
+    name: "Laptop",
+    place: GADGET,
+    category: GADGETS,
+    price: 1599,
+    kind: "durable",
+    durable: "laptop",
+    happy: 3,
+    effect: "1 lesson less per degree, side gigs",
+    icon: "laptop",
+  },
+  {
+    name: "Smart fridge (budget)",
+    place: MEGAMART,
+    category: GADGETS,
+    price: 650,
+    kind: "durable",
+    durable: "fridge",
+    happy: 1,
+    cheap: true,
+    effect: "Stores 6 weeks, breaks more",
+    icon: "fridge",
+  },
+  {
+    name: "Induction stove (budget)",
+    place: MEGAMART,
+    category: GADGETS,
+    price: 490,
+    kind: "durable",
+    durable: "stove",
+    happy: 1,
+    cheap: true,
+    effect: "+1 happiness a week",
+    icon: "stove",
+  },
+  {
+    name: "Speakers (budget)",
+    place: MEGAMART,
+    category: GADGETS,
+    price: 450,
+    kind: "durable",
+    durable: "speakers",
+    happy: 1,
+    cheap: true,
+    effect: "Louder, not better",
+    icon: "speakers",
+  },
+  {
+    name: "Smart TV (budget)",
+    place: MEGAMART,
+    category: GADGETS,
+    price: 349,
+    kind: "durable",
+    durable: "tv",
+    happy: 1,
+    cheap: true,
+    effect: "Mostly smart",
+    icon: "tv",
+  },
+  {
+    name: "Air fryer (budget)",
+    place: MEGAMART,
+    category: GADGETS,
+    price: 220,
+    kind: "durable",
+    durable: "airfryer",
+    happy: 1,
+    cheap: true,
+    effect: "+1 happiness a week",
+    icon: "airfryer",
+  },
+  {
+    name: "Game console (budget)",
+    place: MEGAMART,
+    category: GADGETS,
+    price: 250,
+    kind: "durable",
+    durable: "console",
+    happy: 1,
+    cheap: true,
+    effect: "Last year's model",
+    icon: "console",
+  },
+  {
+    name: "Casual clothes (budget)",
+    place: MEGAMART,
+    category: CLOTHING,
+    price: 35,
+    kind: "clothes",
+    weeks: 9,
+    level: CASUAL,
+    happy: 0,
+    effect: "9 weeks of casual wear",
+    icon: "clothes-casual",
+  },
+  {
+    name: "Smart casual (budget)",
+    place: MEGAMART,
+    category: CLOTHING,
+    price: 90,
+    kind: "clothes",
+    weeks: 9,
+    level: SMART,
+    happy: 0,
+    effect: "9 weeks, smart jobs",
+    icon: "clothes-smart",
+  },
+  {
+    name: "Study books",
+    place: MEGAMART,
+    category: EDUCATION,
+    price: 160,
+    kind: "durable",
+    durable: "books",
+    happy: 1,
+    effect: "1 lesson less per degree",
+    icon: "books",
+  },
+  {
+    name: "Glitter phone case",
+    place: MEGAMART,
+    category: GADGETS,
+    price: 18,
+    kind: "joke",
+    happy: -1,
+    effect: "Why though",
+    icon: "joke-phonecase",
+  },
+  {
+    name: "Sandwich NFT",
+    place: MEGAMART,
+    category: GADGETS,
+    price: 75,
+    kind: "joke",
+    happy: -1,
+    effect: "Proof you own a picture",
+    icon: "joke-nft",
+  },
+  {
+    name: "Hustle audiobook box",
+    place: MEGAMART,
+    category: EDUCATION,
+    price: 100,
+    kind: "joke",
+    happy: -2,
+    effect: "Wake up at 4am, it says",
+    icon: "joke-audiobook",
+  },
+  {
+    name: "Karaoke night",
+    place: MONO,
+    category: SERVICES,
+    price: 40,
+    kind: "fun",
+    hours: 4,
+    happy: 4,
+    effect: "A night out with friends, once a week",
+    icon: "shake",
+  },
+];
+
+/** Base rent per 4 weeks: Roomshare, The Tower. */
+export const RENT = [325, 475] as const;

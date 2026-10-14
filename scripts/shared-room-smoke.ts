@@ -4,6 +4,7 @@ import { BOTH_ENGINES, launchBrowser } from "./lib/browser.js";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { smokeTimeout } from "./smoke-timeout.js";
+import { openTopMenu } from "./lib/top-menu.js";
 const base = process.env.ONLINE_URL ?? "http://127.0.0.1:8796/";
 await mkdir("artifacts", { recursive: true });
 const results: object[] = [];
@@ -23,7 +24,9 @@ for (const { name, kind } of BOTH_ENGINES) {
   let releaseConnection = () => {};
   let diagnosticPages: Record<string, Page> = {};
   try {
-    // #134/#138: a host on a phone gets the phone lobby before taking a seat — join form, QR card, one menu and every host action on screen — in both orientations.
+    // #134/#138: a host on a phone gets the phone lobby — its own rider controls, QR card, one menu and every host
+    // action on screen — in both orientations. This block creates an "each device" room (it picks no mode), so the
+    // phone is seated on arrival; the shared-TV host further down is the one that still chooses TV or rider.
     {
       const pc = await browser.newContext({
         viewport: { width: 320, height: 568 },
@@ -73,7 +76,7 @@ for (const { name, kind } of BOTH_ENGINES) {
           assert.equal(
             await phone.locator(".mobile-play").count(),
             0,
-            "a host phone before joining is not the controller",
+            "a host phone in the lobby is not the controller, seat or no seat",
           );
           assert.equal(
             await phone.locator(".mobile-rotate-gate").isVisible(),
@@ -92,13 +95,16 @@ for (const { name, kind } of BOTH_ENGINES) {
             await phone.locator(".shared-room-code").first().textContent(),
             phoneCode,
           );
+          // What the join form used to ask for is the action bar beside READY: who this rider is, and which side of
+          // the room it is on. All of it has to fit a 320-wide phone.
+          for (const label of ["READY", "NAME", "AVATAR", "COLOUR"])
+            await onScreen(
+              label,
+              phone.getByRole("button", { name: label, exact: true }),
+            );
           await onScreen(
-            "join name field",
-            phone.getByPlaceholder("Your name"),
-          );
-          await onScreen(
-            "JOIN AS PLAYER",
-            phone.getByRole("button", { name: "JOIN AS PLAYER", exact: true }),
+            "SWAP TO SPECTATOR",
+            phone.locator(".online-host > button.room-switch"),
           );
           await onScreen(
             "COPY LINK",
@@ -116,7 +122,7 @@ for (const { name, kind } of BOTH_ENGINES) {
             false,
             "a phone is never the TV: no TV VIEW in the phone lobby",
           );
-          // #142: the yellow hint clears the lobby card, the avatar grid stays folded behind CHANGE, no truncated URL, and ⛶ only where fullscreen exists.
+          // #142: the yellow hint clears the lobby card, the head grid stays behind AVATAR, no truncated URL, and ⛶ only where fullscreen exists.
           const hintBox = (await phone
               .locator(".online-notice")
               .boundingBox())!,
@@ -129,20 +135,23 @@ for (const { name, kind } of BOTH_ENGINES) {
             `lobby hint must sit above the lobby card: ${JSON.stringify({ hintBox, lobbyBox })}`,
           );
           assert.equal(
-            await phone.locator(".online-join .avatar-options").isVisible(),
+            await phone
+              .getByRole("dialog", { name: "Avatar", exact: true })
+              .isVisible(),
             false,
-            "avatar grid folded",
+            "the head grid stays behind AVATAR rather than sitting open in the lobby",
           );
           assert.equal(
             await phone.locator(".online-controls").isVisible(),
             false,
-            "no ◀ FIRE ▶ controls before a seat",
+            "no ◀ FIRE ▶ controls behind the lobby card",
           );
           assert.equal(
             await phone.locator(".room-qr-url").isVisible(),
             false,
             "no truncated join URL on a phone",
           );
+          await openTopMenu(phone);
           await phone
             .getByRole("button", { name: "SETTINGS", exact: true })
             .click();
@@ -160,26 +169,22 @@ for (const { name, kind } of BOTH_ENGINES) {
             path: `artifacts/shared-phone-host-${name}-${viewport.width}x${viewport.height}.png`,
           });
         }
+        // The head is changed in the room, on the seat this phone already holds: AVATAR opens the grid, a pick closes
+        // it, and the phone's own row wears it.
         await phone
-          .getByRole("button", { name: /^Avatar · .*, change$/ })
+          .getByRole("button", { name: "AVATAR", exact: true })
           .click();
         await phone.getByRole("button", { name: "Owl", exact: true }).click();
         await phone
-          .getByRole("button", { name: "Avatar · Owl, change" })
+          .locator(".room-rider .avatar-portrait[data-avatar-id=owl]")
           .waitFor();
         assert.equal(
-          await phone.locator(".online-join .avatar-options").isVisible(),
+          await phone
+            .getByRole("dialog", { name: "Avatar", exact: true })
+            .isVisible(),
           false,
-          "a pick folds the grid again",
+          "a pick closes the grid again",
         );
-        // An empty JOIN says what is missing instead of doing nothing (#132).
-        await phone
-          .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
-          .click();
-        await phone
-          .getByRole("alert")
-          .filter({ hasText: "Enter your name to join" })
-          .waitFor();
       } finally {
         await pc.close();
       }
@@ -382,9 +387,10 @@ for (const { name, kind } of BOTH_ENGINES) {
         .getByText("QR guest", { exact: true });
       await me.scrollIntoViewIfNeeded();
       const rider = (await me.boundingBox())!;
+      // Scroll offsets are whole pixels and layout is not, so a row scrolled into view can sit a fraction past any edge.
       assert.ok(
-        rider.x >= 0 &&
-          rider.y >= 0 &&
+        rider.x >= -1 &&
+          rider.y >= -1 &&
           rider.x + rider.width <= viewport.width + 1 &&
           rider.y + rider.height <= viewport.height + 1,
         `rider row must be on screen: ${JSON.stringify(rider)}`,
@@ -568,9 +574,13 @@ for (const { name, kind } of BOTH_ENGINES) {
       false,
       "ended room must not keep live-looking controls",
     );
+    // ROOM is a bar action, and the ended phone's bar is one ☰ MENU at this height; the sheet is shut again before
+    // the screenshot so the artifact shows the ended screen itself.
+    await openTopMenu(guest);
     await guest
       .getByRole("button", { name: "ROOM", exact: true })
       .waitFor({ state: "visible" });
+    await guest.keyboard.press("Escape");
     await guest.screenshot({
       path: `artifacts/shared-ended-phone-${name}.png`,
     });
