@@ -27,6 +27,7 @@ export default defineConfig(
     // Everything tsconfig.json includes, so the type-aware rules see the same program as `tsc`.
     files: [
       "service/**/*.ts",
+      "site/**/*.ts",
       "tests/**/*.ts",
       "scripts/**/*.ts",
       "packages/*/src/**/*.ts",

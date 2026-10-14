@@ -1,7 +1,8 @@
 /**
  * Starts a new game from the template: `pnpm exec tsx scripts/new-game.ts <id>` copies `games/dice` to `games/<id>` with
  * its ids and names renamed (`"dice"` → `"<id>"`, `dice-1` rules → `<id>-1`, `Dice…`/`dice…` identifiers and file
- * names → the id in PascalCase/camelCase). The copy is Pig under a new name, with its tests; change the rules from
+ * names → the id in PascalCase/camelCase). The copy is Pig under a new name, with its tests and the shared menu and
+ * round controls guide; change the rules and control descriptions from
  * there. It also writes `portal.json`, which lists the game on the app portal (Pig itself is not listed). Afterwards run `pnpm install` (the root workspaces include `games/*`) and add the new manifest to
  * Dockerfile.cloud beside `games/dice/package.json`, since `pnpm install --frozen-lockfile` in the service image needs every workspace.
  */

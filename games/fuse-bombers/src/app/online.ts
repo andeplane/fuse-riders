@@ -1,4 +1,5 @@
 import "fuse-ui/components.css";
+import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
 import "./online.css";
 import QRCode from "qrcode";
 import * as net from "fuse-network-fe";
@@ -24,6 +25,7 @@ import {
   type Viewer,
 } from "./presenter.js";
 import { carry, keys, type Session, type Store } from "./session.js";
+import { GOAL, ONLINE_CONTROLS, TOUCH_CONTROLS } from "./controls.js";
 
 /**
  * The online pages' glue: the landing card, and a room (created, joined by code, or solo against bots) built from
@@ -32,6 +34,10 @@ import { carry, keys, type Session, type Store } from "./session.js";
  */
 const { el, button } = ui;
 export const GAME = bombersGame.id;
+export const analytics = startGameAnalytics(GAME);
+export const reportPlay = createPlayMetrics(analytics.track, () =>
+  performance.now(),
+);
 const endpoints = net.createEndpoints(
   {
     basePath: `${import.meta.env.BASE_URL}${GAME}/`,
@@ -118,7 +124,10 @@ export function showRoom(
 ): void {
   const solo = session.kind === "solo",
     code = solo ? "SOLO" : session.code;
-  const input = createBrowserInput(window, { forceTouch: flags.has("touch") });
+  const input = createBrowserInput(window, {
+    forceTouch: flags.has("touch"),
+    singleKeyboard: true,
+  });
   const touch = input.touchEnabled,
     display = !solo && session.role === "display";
   document.body.classList.toggle("fb-display", display);
@@ -207,10 +216,41 @@ export function showRoom(
   meters.append(el("span", "HULL"), padHull, el("span", "LAUNCHER"), padReload);
   padActions.append(rematch, toLobby);
   pad.append(head, meters, padState, padLine, padActions);
-  if (!touch) pad.append(el("p", "WASD TO FLY · SPACE TO FIRE"));
+  if (!touch) pad.append(el("p", "WASD OR ARROW KEYS TO FLY · SPACE TO FIRE"));
   pad.hidden = true;
   const bar = page(card, nameEntry.form, note, lobby, pad);
   bar.append(el("strong", code), status.element, leave);
+  const menu = ui.createGameMenu({
+    title: "FUSE BOMBERS",
+    controls: ONLINE_CONTROLS,
+    touchControls: TOUCH_CONTROLS,
+    goal: GOAL,
+    onLobby: () => runtime.command({ type: "action", action: "lobby" }),
+    onLeave: () => {
+      runtime.stop();
+      go();
+    },
+    onOpenChange: (open) => {
+      if (dead) return;
+      if (open) runtime.input(0);
+      shownPads = "";
+      if (model) render(model);
+      if (!open && model?.flying) {
+        // Phone controllers have no visible canvas; both surfaces keep gameplay keys off MENU.
+        const play = model.controller ? pad : game.canvas;
+        play.tabIndex = -1;
+        play.focus({ preventScroll: true });
+      }
+    },
+  });
+  bar.append(menu.element);
+  const roundControls = ui.createRoundControls({
+    controls: ONLINE_CONTROLS,
+    touchControls: TOUCH_CONTROLS,
+    goal: GOAL,
+  });
+  roundControls.element.classList.add("fb-round-controls");
+  document.body.append(roundControls.element);
   const root = bar.parentElement!;
   root.dataset.screen = "card";
   // The round's overlay (badges, countdown, results) over the canvas, laid out by screens.css as the local game's.
@@ -233,6 +273,9 @@ export function showRoom(
   const deadEnd = (title: string, text: string) => {
     if (dead) return;
     dead = true;
+    menu.close();
+    menu.update({ canLobby: false, touch, spectator: true });
+    roundControls.update({ round: shown, visible: false });
     runtime.stop();
     input.setTouchPads([]);
     audio.music(null);
@@ -270,6 +313,23 @@ export function showRoom(
     model = next;
     showStatus();
     const controller = next.controller;
+    menu.update({
+      canLobby: next.host && next.screen !== "lobby",
+      touch,
+      display,
+      spectator: display || next.follow === undefined,
+    });
+    roundControls.update({
+      round: shown,
+      visible:
+        !menu.isOpen() &&
+        !!frame &&
+        frame.stage === "running" &&
+        frame.startAt > frame.logTick,
+      touch,
+      display,
+      spectator: display || next.follow === undefined,
+    });
     card.hidden = true;
     root.dataset.screen = overlay.dataset.screen = next.screen;
     root.classList.toggle("fb-match", next.screen !== "lobby" && !controller);
@@ -346,7 +406,9 @@ export function showRoom(
     if (padsKey !== shownPads) {
       shownPads = padsKey;
       input.setTouchPads(
-        next.flying ? [{ label, color: css(color ?? 0) }] : [],
+        next.flying && !menu.isOpen()
+          ? [{ label, color: css(color ?? 0) }]
+          : [],
         controller ? controllerPadLayout : undefined,
       );
     }
@@ -362,6 +424,18 @@ export function showRoom(
   const callbacks: BombersCallbacks = {
     state(next, roomSettings) {
       if (dead) return;
+      reportPlay({
+        matchId: next.matchId,
+        active: next.stage === "running",
+        ended: next.stage === "over",
+        round: next.round,
+        playerCount: next.seats.filter((seat) => !seat.watcher).length,
+        botCount: next.seats.filter((seat) => seat.bot).length,
+        seated: next.seats.some(
+          (seat) => seat.id === viewer.me && !seat.watcher,
+        ),
+        mode: solo ? "solo" : roomSettings.display ? "shared" : "online",
+      });
       frame = next;
       settings = roomSettings;
       shown = `${next.matchId}:${next.round}`;
@@ -454,11 +528,17 @@ export function showRoom(
     device === "key:WASD" || !device.startsWith("key:");
   const pads = [0, 1, 2, 3].map((i): DeviceId => `pad:${i}`);
   const steering: DeviceId[] = ["key:WASD", "touch:0", ...pads];
-  input.hub.onPress((device) => !dead && flies(device) && runtime.fire());
+  input.hub.onPress(
+    (device) => !dead && !menu.isOpen() && flies(device) && runtime.fire(),
+  );
   const poll = () => {
     if (dead) return;
     input.hub.poll();
-    runtime.input(steering.reduce((bits, d) => bits | input.hub.heldBy(d), 0));
+    runtime.input(
+      menu.isOpen()
+        ? 0
+        : steering.reduce((bits, d) => bits | input.hub.heldBy(d), 0),
+    );
     requestAnimationFrame(poll);
   };
   requestAnimationFrame(poll);
@@ -475,6 +555,7 @@ export function showRoom(
     stop: () => runtime.stop(),
     destroy: () => {
       input.hub.dispose();
+      menu.dispose();
       window.removeEventListener("blur", release);
       document.removeEventListener("visibilitychange", hide);
     },

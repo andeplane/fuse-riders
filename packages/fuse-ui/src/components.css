@@ -411,3 +411,126 @@
   font-size: 0.625rem;
   line-height: 1.6;
 }
+
+/* Common game navigation, deliberately inheriting each game's type and accent. */
+.fui-game-menu {
+  position: relative;
+  flex: 0 0 auto;
+  z-index: 40;
+  color: inherit;
+  font-family: inherit;
+}
+.fui-game-menu button {
+  font-family: inherit;
+  min-height: 2.75rem;
+}
+.fui-game-menu-panel {
+  box-sizing: border-box;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  width: min(22rem, calc(100vw - 1.5rem));
+  max-height: calc(100dvh - 5.5rem);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 1rem;
+  color: inherit;
+  background: var(--fui-panel, #101827);
+  border: 1px solid currentColor;
+  border-radius: var(--fui-radius-panel, 0.75rem);
+  box-shadow: 0 1rem 3rem #0009;
+}
+.fui-game-menu-title {
+  margin: 0 0 0.75rem;
+  font: inherit;
+  font-weight: bold;
+  font-size: 0.8em;
+  letter-spacing: 0.08em;
+}
+.fui-game-menu-navigation {
+  display: grid;
+  gap: 0.5rem;
+}
+.fui-game-menu-action {
+  width: 100%;
+  text-align: left;
+  white-space: normal;
+}
+.fui-game-menu-controls > button {
+  margin-bottom: 1rem;
+}
+.fui-game-menu-leave {
+  margin-top: 0.5rem;
+}
+.fui-controls-goal,
+.fui-controls-note {
+  margin: 0 0 0.75rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.fui-controls-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+}
+.fui-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  align-items: baseline;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.fui-controls-row dt {
+  font-weight: bold;
+}
+.fui-controls-row dd {
+  margin: 0;
+}
+.fui-round-controls {
+  position: absolute;
+  z-index: 20;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(40rem, calc(100% - 1.5rem));
+  padding: 0.75rem 1rem;
+  color: inherit;
+  background: var(--fui-panel, #101827);
+  border: 1px solid currentColor;
+  border-radius: var(--fui-radius-panel, 0.75rem);
+  box-shadow: 0 0.5rem 2rem #0009;
+  pointer-events: none;
+}
+.fui-round-controls-title {
+  display: block;
+  margin-bottom: 0.5rem;
+  font: inherit;
+  font-weight: bold;
+  font-size: 0.75em;
+  line-height: 1.5;
+  letter-spacing: 0.05em;
+}
+.fui-game-menu [hidden],
+.fui-round-controls[hidden] {
+  display: none !important;
+}
+@media (max-width: 480px) {
+  .fui-game-menu-panel {
+    position: fixed;
+    left: 0.75rem;
+    right: 0.75rem;
+    top: max(4rem, calc(env(safe-area-inset-top) + 3rem));
+    width: auto;
+    max-height: calc(100dvh - 5rem);
+  }
+  .fui-round-controls {
+    padding: 0.6rem 0.75rem;
+  }
+  .fui-round-controls .fui-controls-row {
+    font-size: 0.7rem;
+    gap: 0.1rem 0.5rem;
+  }
+}

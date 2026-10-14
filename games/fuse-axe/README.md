@@ -17,6 +17,11 @@ Clearing a stage shows each hero's tally; when every hero is out, any hero may p
 continue once per stage, or the run is over. Beating Vorhal wins the run. The host sets out again with **REMATCH** or
 goes back to the lobby.
 
+**MENU** uses the same navigation as the other games: return to play, open **CONTROLS**, return to the lobby when
+you manage the room, or leave. Opening it releases held input. Keyboard/gamepad or phone guidance appears for the
+opening five seconds of every stage and camp; the shared display shows phone controls. Play continues while the
+menu or guidance is visible.
+
 A gamepad (`src/app/gamepad.ts`, polled each animation frame) drives this device's hero too: the d-pad or the left
 stick walks, A (Cross) attacks, B (Circle) jumps and X (Square) or Y (Triangle) casts magic. With several pads, the one
 last pressed drives, so a pad whose axis rests off centre cannot lock a real one out. Blur, a hidden page or the phone's

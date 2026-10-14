@@ -23,3 +23,12 @@ test("assets resolve once under a Pages base and preserve external URLs", () => 
   ])
     assert.equal(resolveAssetUrl(source, base), source);
 });
+
+test("Riders' relative asset paths reach the shared public directory from its game page", () => {
+  const page = "https://example.com/preview/fuse-riders/";
+  const path = resolveAssetUrl("/themes/neon-pixel/bomb.svg", "../");
+  assert.equal(
+    new URL(path, page).href,
+    "https://example.com/preview/themes/neon-pixel/bomb.svg",
+  );
+});
