@@ -2,6 +2,8 @@ import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
+import { createGameSocial } from "fuse-ui/social";
+import "fuse-ui/social.css";
 import "./style.css";
 import QRCode from "qrcode";
 import {
@@ -57,6 +59,15 @@ const GAME = "graveyard-shift",
   query = new URLSearchParams(location.search);
 const analytics = startGameAnalytics(GAME);
 const observePlay = createPlayMetrics(analytics.track, () => performance.now());
+const social = createGameSocial({
+  gameId: GAME,
+  base: import.meta.env.BASE_URL,
+  apiOrigin: import.meta.env.VITE_API_ORIGIN,
+  document,
+  window,
+  fetch: (input, init) => fetch(input, init),
+  track: analytics.track,
+});
 const endpoints = createEndpoints(
   {
     basePath: `${import.meta.env.BASE_URL}${GAME}/`,
@@ -94,7 +105,13 @@ function header() {
     audio.toggle();
     sound.textContent = audio.prefs.muted.music ? "SOUND OFF" : "SOUND ON";
   };
-  h.append(portal.element, brand, el("span", "A FUSE GAME", "eyebrow"), sound);
+  h.append(
+    portal.element,
+    brand,
+    social.element(),
+    el("span", "A FUSE GAME", "eyebrow"),
+    sound,
+  );
   return h;
 }
 function handbook() {
@@ -260,7 +277,7 @@ function room() {
     });
     lobby.append(invite.element);
   }
-  const rememberedName = store.getItem(names.name);
+  const rememberedName = social.playerName(store.getItem(names.name)) ?? null;
   const admission = createSeatAdmission(rememberedName, (name) =>
     runtime?.command({ type: "join", name }),
   );
@@ -553,14 +570,20 @@ function room() {
     session.kind === "room"
       ? {
           transport: (events) =>
-            new PeerTransport(code, session.token, events, {
-              apiUrl: endpoints.apiUrl,
-              gameId: GAME,
-              maxFastBytes: MAX_PACKET_BYTES,
-            }),
+            social.transport(
+              code,
+              session.token,
+              events,
+              (events) =>
+                new PeerTransport(code, session.token, events, {
+                  apiUrl: endpoints.apiUrl,
+                  gameId: GAME,
+                  maxFastBytes: MAX_PACKET_BYTES,
+                }),
+            ),
           displayOnly: display,
         }
-      : { humanName: store.getItem(names.name) ?? "Hunter" },
+      : { humanName: social.playerName(store.getItem(names.name)) ?? "Hunter" },
   );
   const retry = button("RECONNECT", "retry");
   retry.onclick = () => location.reload();
