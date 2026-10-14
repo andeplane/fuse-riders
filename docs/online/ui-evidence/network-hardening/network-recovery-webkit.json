@@ -1,0 +1,11 @@
+{
+  "revision": "7568f1bc3554929ffcc03131ef89f621927abb0a",
+  "browser": "webkit",
+  "scenario": "two browser contexts, 500 ms sender-side input-channel blackout on steering release",
+  "foregroundStallMs": 100,
+  "sampled": 66,
+  "rawDegrees": 80.49818289173427,
+  "shownDegrees": 12.07472743376013,
+  "mismatches": 0,
+  "errors": []
+}
