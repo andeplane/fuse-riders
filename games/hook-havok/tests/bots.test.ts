@@ -8,6 +8,7 @@ import {
   LEAVE,
   PRESENCE,
   SPECTATOR,
+  actingCreator,
   roomManager,
   type StreamEntries,
 } from "fuse-netcode";
@@ -490,9 +491,12 @@ test("BOT entries seat bots in free slots; bots never manage, stay through succe
     [false, true, false, true],
   );
   assert.equal(roomManager(r.seats.values(), host), host);
-  // The host steps away: the crown passes to the guest, never to the bot in the lower slot.
+  // Stepping away keeps the host's crown; log duties delegate to the guest,
+  // never to the bot in the lower slot. Bots keep planning on every peer.
   foldTick(r, host, stream([[7, 2, PRESENCE, host, false, 1]]));
-  assert.equal(roomManager(r.seats.values(), host), "guest");
+  assert.equal(roomManager(r.seats.values(), host), host);
+  assert.equal(actingCreator(r.seats.values(), host), "guest");
+  assert.equal(r.seats.get(host)!.away, true);
   const x = keeper(r, "bot:1").world.x;
   for (let t = 3; t < 60; t++) idle(r);
   assert.ok(r.seats.get("bot:1")?.connected, "bots stay through succession");
