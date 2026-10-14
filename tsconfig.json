@@ -13,6 +13,7 @@
   },
   "include": [
     "service",
+    "site",
     "tests",
     "scripts",
     "packages",

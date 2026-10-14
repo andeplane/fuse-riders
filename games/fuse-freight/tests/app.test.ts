@@ -114,6 +114,23 @@ test("in a round: the depot on devices and the TV, a two-button controller on ph
   );
 });
 
+test("controller guidance returns every countdown for drivers, shared phones and the TV", () => {
+  for (const round of [1, 2, 3]) {
+    const r = room({ ...DEFAULT_SETTINGS, display: true });
+    r.round = round;
+    for (const viewer of [host, guest, tv])
+      assert.equal(present(view(r), viewer).controlsVisible, true);
+    assert.equal(present(view(r), guest).screen, "controller");
+    toPlay(r);
+    for (const viewer of [host, guest, tv])
+      assert.equal(present(view(r), viewer).controlsVisible, false);
+  }
+  assert.equal(
+    present(view(room(DEFAULT_SETTINGS, true)), host).controlsVisible,
+    false,
+  );
+});
+
 test("banners: the countdown, GO, the last ten seconds, and who won the round", () => {
   const r = room();
   assert.equal(present(view(r), host).banner!.title, "3");

@@ -1,4 +1,6 @@
 import QRCode from "qrcode";
+import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
+import { observeLocalPlay, observeOnlinePlay } from "./analytics.js";
 import {
   PeerTransport,
   createEndpoints,
@@ -27,6 +29,8 @@ import "fuse-ui/portal.css";
 import "./fuse-craft.css";
 
 const GAME = "fuse-craft";
+const analytics = startGameAnalytics(GAME);
+const reportPlay = createPlayMetrics(analytics.track, () => performance.now());
 const endpoints = createEndpoints(
   {
     basePath: `${import.meta.env.BASE_URL}${GAME}/`,
@@ -82,6 +86,7 @@ const buildingSprites = createBuildingSprites(
 const fullscreen = createFullscreenControl(document, root);
 
 mountFuseCraft(root, {
+  touch: matchMedia("(pointer: coarse)").matches,
   // The shared portal of every Fuse game, first in each header.
   portal: () =>
     createAppPortal({
@@ -93,7 +98,11 @@ mountFuseCraft(root, {
   maps: createBrowserMapRepository(fetch.bind(globalThis)),
   preferences: createPreferencesStore(localStorage),
   createSession: (map, slot, mode, settings, options) =>
-    createSession(map, slot, mode, settings, undefined, options),
+    observeLocalPlay(
+      createSession(map, slot, mode, settings, undefined, options),
+      mode,
+      reportPlay,
+    ),
   online: {
     async createRoom() {
       const room = await createRoom(endpoints.apiUrl, fetch, GAME).catch(
@@ -120,14 +129,17 @@ mountFuseCraft(root, {
         store.set(`${GAME}-peer-${code}`, token);
       }
       const member = token;
-      return createOnlineSession(
-        code,
-        (events) =>
-          new PeerTransport(code, member, events, {
-            apiUrl: endpoints.apiUrl,
-            gameId: GAME,
-            maxFastBytes: MAX_PACKET_BYTES,
-          }),
+      return observeOnlinePlay(
+        createOnlineSession(
+          code,
+          (events) =>
+            new PeerTransport(code, member, events, {
+              apiUrl: endpoints.apiUrl,
+              gameId: GAME,
+              maxFastBytes: MAX_PACKET_BYTES,
+            }),
+        ),
+        reportPlay,
       );
     },
     validCode: validRoomCode,

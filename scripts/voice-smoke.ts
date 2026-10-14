@@ -24,7 +24,8 @@ const browser = await launchBrowser("chromium", {
     "--use-fake-ui-for-media-stream",
   ],
 });
-const base = process.env.ONLINE_URL ?? "http://localhost:8787/";
+import { ridersPageUrl } from "./lib/riders-url.js";
+const base = ridersPageUrl(process.env.ONLINE_URL ?? "http://localhost:8787/");
 const errors: string[] = [];
 async function instrument(page: Page) {
   page.on("console", (message) => {

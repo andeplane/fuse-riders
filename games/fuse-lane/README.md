@@ -32,6 +32,8 @@ The town is alive while you play (`src/app/ambience.ts`, looks only): the sun gl
 
 The map never shows an empty edge. `?debug-roads` draws the street graph, the doors and the tap outlines over it.
 
+**MENU** uses the same navigation as the other Fuse games: **Back to game**, **Controls** and **Leave game**, plus **Back to lobby** for the online room's host. On this device, opening MENU pauses the clock; leaving saves the match for Continue. Pause and the guided tutorial remain available. Click/tap controls appear at the beginning of every turn, in every Monday briefing and on every pass-device handoff.
+
 Cities are data: `src/game/data/cities/fusetown.ts` holds the map's size, the street graph traced over the picture (nodes and bending edges in map pixels), each place's door, tap outline and label, and the parts of the picture that stand in front of the streets. `src/game/streets.ts` cuts the graph into unit steps for the rules, and `src/app/layout.ts` (pure and unit-tested) does the camera, the hit tests and where each player stands. The other city concepts wait in [docs/cities/](docs/cities/) as future city types.
 
 ![Menu on a phone](docs/screenshots/phone-menu.png) ![A week on a phone](docs/screenshots/phone-week.png) ![Walking on a phone, the camera following](docs/screenshots/phone-walking.png) ![The docks on a phone, rivals on top](docs/screenshots/phone-docks.png) ![The you panel](docs/screenshots/phone-you.png) ![The Monday briefing](docs/screenshots/phone-briefing.png) ![The handoff between players](docs/screenshots/phone-handoff.png)
