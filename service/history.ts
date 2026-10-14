@@ -1,5 +1,6 @@
 import { diceRegistration } from "dice/platform";
 import { fuseDriversRegistration } from "fuse-drivers/platform";
+import { birdsRegistration } from "fuse-birds-game/platform";
 import { hookRegistration } from "hook-havok/platform";
 import { axeRegistration } from "fuse-axe/platform";
 import { bombersRegistration } from "fuse-bombers/platform";
@@ -38,6 +39,7 @@ export const GAMES = [
   fuseLaneRegistration,
   fuseDriversRegistration,
   ballBrosRegistration,
+  birdsRegistration,
 ] as const;
 
 /**
