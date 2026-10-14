@@ -1,0 +1,160 @@
+.fui-social {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+.fui-social > button {
+  font: inherit;
+  font-size: 10px;
+  color: var(--fui-cyan, #16e7ff);
+  background: #10182c;
+  border: 1px solid #35425f;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: pre-line;
+}
+.fui-social-dialog {
+  color: #e5edff;
+  font-family: monospace;
+  background: #10182c;
+  z-index: 10000;
+}
+.fui-social-dialog button {
+  cursor: pointer;
+}
+.fui-account-tabs,
+.fui-account-scope,
+.fui-account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.fui-account-tabs {
+  min-width: 0;
+}
+.fui-account-tabs button,
+.fui-account-scope button {
+  font-size: 12px;
+  padding: 8px;
+}
+.fui-account-tabs button[aria-current],
+.fui-account-scope button[aria-pressed="true"] {
+  border-color: #16e7ff;
+  color: #16e7ff;
+}
+.fui-account-note {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #b6cce3;
+}
+.fui-account-error {
+  font-size: 14px;
+  color: #ffa6c9;
+}
+.fui-account-username {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.fui-account-username input {
+  min-width: 0;
+  flex: 1;
+}
+.fui-account-matches {
+  padding: 0;
+  list-style: none;
+}
+.fui-account-matches li {
+  margin: 10px 0;
+}
+.fui-account-matches button {
+  width: 100%;
+  text-align: left;
+  line-height: 1.5;
+}
+.fui-account-day {
+  margin-top: 20px;
+  color: #a3c5dc;
+  font-size: 13px;
+}
+.fui-social-results {
+  padding: 0;
+  list-style: none;
+}
+.fui-social-results li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+}
+.fui-social-banner:not([hidden]) {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  width: min(90vw, 600px);
+  background: #10182c;
+  border: 1px solid #16e7ff;
+}
+@media (max-width: 600px) {
+  .fui-social {
+    gap: 4px;
+  }
+  .fui-social > button {
+    font-size: 9px;
+    padding: 8px;
+  }
+}
+.fui-app.fui-social-layer {
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  background: none;
+}
+.fui-social,
+.fui-app.fui-social-layer {
+  --fui-text: #d7e7ef;
+  --fui-text-bright: #eefaff;
+  --fui-text-muted: #b6cce3;
+  --fui-text-dim: #a3bdd5;
+  --fui-panel: #10182c;
+  --fui-surface: #15243b;
+  --fui-border: 1px solid #43536b;
+  --fui-cyan: #16e7ff;
+  --fui-font-body: ui-monospace, monospace;
+  --fui-font-pixel: "Press Start 2P", ui-monospace, monospace;
+  --fui-pink-soft: #b03570;
+  --fui-radius: 8px;
+  --fui-radius-panel: 16px;
+}
+.fui-app.fui-social-layer .fui-dialog {
+  color: #e5edff;
+  background: #10182c;
+}
+.fui-app.fui-social-layer .fui-dialog-body {
+  background: #10182c;
+  color: #e5edff;
+}
+.fui-app.fui-social-layer .fui-dialog button,
+.fui-app.fui-social-layer .fui-dialog input {
+  font-family: ui-monospace, monospace;
+  color: #e5edff;
+  background: #15243b;
+  border: 1px solid #43536b;
+  box-shadow: none;
+}
+.fui-app.fui-social-layer .fui-dialog .fui-button-primary {
+  color: #051126;
+  background: #16e7ff;
+  border-color: #16e7ff;
+}
+.fui-app.fui-social-layer .fui-dialog-close {
+  color: #ffa6c9;
+  background: #3b1734;
+}

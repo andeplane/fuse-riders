@@ -21,6 +21,8 @@ There is one tick driver. `driveGameTick` (`games/fuse-riders/src/engine/tick-dr
 
 ## Source ownership
 
+Fuse Drivers (`games/fuse-drivers/`) owns its offroad racing simulation and fold in `src/game/`, Phaser arena and room page in `src/app/`, and stats registration in `src/platform.ts`. Its page is served at `/fuse-drivers/` and appears in the shared app portal.
+
 | Location                                                                                           | Owns                                                                                                                                                                                                                                                                                                                                                   |
 | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `games/fuse-riders/src/engine/game.ts`, `state.ts`                                                 | Lifecycle commands and `step` (a loop over `PHASES`); plain game state and its ordered readers                                                                                                                                                                                                                                                         |
@@ -141,6 +143,11 @@ Validate admission, signalling and stored records at runtime; bound queues, dedu
 `games/fuse-birds/` is the stationary-bird artillery game at `/fuse-birds/`. Its headless `fuse-birds-game` package owns seeded destructible maps, scoped launch/pass actions, weapons, crates and fixed-step rounds; the renderer reads its public view contract. `online/` adapts the library to shared `RoomRuntime` rooms, including a seatless TV and independent phone cameras. The local practice adapter uses the same engine without a room or opponent. Current-generation seat admission gates both controls and play submission after refresh. Actual play reports shared analytics, and game-local coverage entrypoints collect native browser execution through the shared runner. The service registration is gated by `EXTRA_GAME_IDS=fuse-birds`. See [the game README](../games/fuse-birds/README.md).
 
 ## Verification boundaries
+
+Every game exposes the shared account and friends dialogs. `fuse-ui/browser-account` owns the lazy Firebase
+adapter and existing session cache; `fuse-ui/social` composes account history, ratings, room presence and friends
+for the other games, while Riders keeps its detailed stats renderers. Cross-game invites preserve the destination
+game ID. No game imports another game's client to use accounts. See [shared social](design/shared-social.md).
 
 Product analytics lives in `packages/fuse-ui/src/analytics.ts` (guarded Mixpanel adapter, `fuse.*` names and `gameId`)
 and `play-metrics.ts` (observed seat/match lifecycle). Every game supplies its own view adapter at the application

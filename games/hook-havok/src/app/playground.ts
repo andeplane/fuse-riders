@@ -1,3 +1,5 @@
+import { social } from "./social.js";
+import { createModalInputGate } from "fuse-ui/modal-input";
 import "fuse-ui/portal.css";
 import "fuse-ui/components.css";
 import { reportPlay } from "./analytics.js";
@@ -23,16 +25,22 @@ import {
   type Input,
 } from "../engine/world.js";
 import { TUNING_BOUNDS, parseTuning } from "../engine/codec.js";
-import { toView, type WorldView } from "../engine/view.js";
+import { toView, POWER_KINDS, type WorldView } from "../engine/view.js";
+import { ALL_POWERS } from "../engine/power-rules.js";
+import { POWER_STYLE } from "../render/power-ups.js";
+import { ZONE_KEYS, type ZoneKey } from "../engine/zones.js";
 import type { ShowcaseHandle } from "../render/scene.js";
 import { interpolate } from "../render/interpolation.js";
 import { createTouchControls, type TouchControls } from "./touch-controls.js";
-import { touchAim } from "./touch-input.js";
+import { bombDirection, touchAim, type TouchState } from "./touch-input.js";
+import { ButtonMerge, mouseAims, touchInput } from "./input-merge.js";
 import { createRoster } from "./roster.js";
 import { createEntrance } from "./entrance.js";
 import { KeyboardInput } from "./keyboard-input.js";
 import { assistAim } from "./aim-assist.js";
 import { createMatchShell } from "./match-shell.js";
+import { createKnockoutFeed } from "./knockout-feed.js";
+import { botsToRemove, chooseBots, removalInterrupts } from "./bot-count.js";
 import {
   HOOK_CONTROLS,
   HOOK_TOUCH_CONTROLS,
@@ -52,7 +60,7 @@ document.querySelector("main")!.innerHTML =
 <section id="invitation" class="controls" hidden><label>Invite <input id="invite-url" readonly aria-label="Room invite link"></label><button id="copy-invite">Copy link</button><a id="display-link" target="_blank" rel="noopener">Open shared display</a><button id="restart-room" disabled>Restart shared trial</button><button id="leave-room">Leave room</button></section><p id="roster" aria-live="polite"></p>
 <section class="controls experiment-controls"><label>Experiment <select id="experiment" name="experiment" form="tuning" disabled><option value="movement">Movement course</option><option value="target">Knockback target</option><option value="ball">Splitting ball</option></select></label><label><input id="touch-toggle" type="checkbox"> Touch controls</label><label id="aim-label" hidden>Aim <select id="aim-mode"><option value="eight">8 directions</option><option value="free">Free aim</option></select></label><span id="experiment-help">Explore the eight ledges with jump and grapple.</span></section>
 <div class="play-surface"><section class="stage"><div id="scene" tabindex="0" aria-label="Hook Havok playground"></div><div class="stage-caption"><span id="phase">Preparing the belfry…</span><span id="counter">SOLO EXPERIMENT</span></div></section>
-<section id="touch-deck" aria-label="Touch controls" hidden><div class="thumb-control move-control"><div class="thumb-pad" data-pad="move" aria-label="Move pad: slide left or right, slide up to jump"><span class="pad-cross">↔</span><span class="thumb-knob"></span></div><span>MOVE · UP TO JUMP</span></div><div class="thumb-control aim-control"><div class="thumb-pad" data-pad="aim" aria-label="Hook pad: drag from center to aim and fire, release to let go"><span class="pad-cross">✧</span><span class="thumb-knob"></span></div><span>AIM · HOLD TO HOOK</span></div></section></div>
+<section id="touch-deck" aria-label="Touch controls" hidden><div class="thumb-control move-control"><div class="thumb-pad" data-pad="move" aria-label="Move pad: slide left or right, slide up to jump"><span class="pad-cross">↔</span><span class="thumb-knob"></span></div><span>MOVE · UP TO JUMP</span></div><div class="thumb-control bomb-control"><div class="bomb-button" data-pad="bomb" role="button" aria-label="Bomb: hold to charge, release to throw along your last aim"><span class="thumb-knob"></span></div><span>BOMB · HOLD</span></div><div class="thumb-control aim-control"><div class="thumb-pad" data-pad="aim" aria-label="Hook pad: drag from center to aim and fire, release to let go"><span class="pad-cross">✧</span><span class="thumb-knob"></span></div><span>AIM · HOLD TO HOOK</span></div></section></div>
 <p id="touch-help" class="intro" hidden>Left thumb: slide sideways to move, up to jump; hold up for height. Right thumb: start near the center and drag toward your target to fire, keep holding to pull, release to let go. Release and drag again for another shot.</p>
 <section class="controls"><button id="start" disabled>Enter the belfry</button><button id="reset" disabled>Restart experiment</button><label><input id="debug" type="checkbox"> Show collision shapes</label><label><input id="atmosphere" type="checkbox" checked> Atmosphere</label><a id="study">Art showcase</a><button id="retry" hidden>Retry graphics</button></section>
 <p id="status" role="status" data-state="loading">Loading the belfry…</p>
@@ -95,12 +103,13 @@ document
 document.querySelector(".move-control > span")!.textContent =
   "MOVE · UP JUMP · DOWN DROP";
 el("touch-help").textContent =
-  "Left thumb: sideways to move, up to jump, down to drop through a ledge. Release down before dropping again. Right thumb: drag from center to aim and fire, hold to pull, release to let go.";
+  "Left thumb: sideways to move, up to jump, down to drop through a ledge. Release down before dropping again. Right thumb: drag from center to aim and fire, hold to pull, release to let go. Bomb button: hold to charge, release to throw along your last aim (forward and up before you have aimed).";
 const mouseHelp =
-  "A / D or ← / → to move · Space to jump through ledges · S / ↓ to drop through (one press per ledge) · Mouse to aim · Hold left mouse to hook and pull · Release to let go · R to reset. Click the scene to focus.";
-const KEYS_SHORT = "WASD aims · J jumps · K or click hooks · ↓ + J drops.";
+  "A / D or ← / → to move · Space to jump through ledges · S / ↓ to drop through (one press per ledge) · Mouse to aim · Hold left mouse to hook and pull · Hold right mouse to charge a bomb, release to throw · R to reset. Click the scene to focus.";
+const KEYS_SHORT =
+  "WASD aims · Space jumps · J or left click hooks · K or right click bombs · ↓ + Space drops.";
 const KEYS_HELP =
-  "A / D or ← / → to move · WASD / arrows aim in eight directions · J / Space to jump, twice for an air jump · Hold K to hook and reel in, or click to hook where the mouse points · Steer to swing · Jump while hooked to leap off · Release to let go · ↓ + jump (or Shift+↓) to drop · R to reset. Click the scene to focus.";
+  "A / D or ← / → to move · WASD / arrows aim in eight directions · Space to jump, twice for an air jump · Hold J to hook and reel in, or left click to hook where the mouse points · Steer to swing · Jump while hooked to leap off · Release to let go · Hold K (or right click) to charge a bomb, release to throw · ↓ + Space (or Shift+↓) to drop · R to reset. Click the scene to focus.";
 document.querySelector(".desktop-help")!.textContent = KEYS_HELP;
 document.querySelector("details > p")!.textContent =
   "Apply restarts the exercise. Platforms catch players from above; hooks still attach to every surface. Dropping releases your hook.";
@@ -108,32 +117,125 @@ rulesPanel.className = "controls rules-controls";
 rulesPanel.innerHTML = `<label>Round rules <select id="rules" name="rules" form="tuning" disabled><option value="free">Free play</option><option value="elimination">Last keeper standing</option><option value="score">Hook score</option></select></label><span id="rules-help">Respawn freely and explore.</span><p id="round-status" role="status"></p>`;
 el("experiment").closest("section")!.after(rulesPanel);
 const mapLabel = document.createElement("label");
-mapLabel.innerHTML = `Arena <select id="map" name="map" form="tuning" disabled><option value="belfry">Lantern Belfry</option><option value="crossroads">Crossroads</option></select>`;
+mapLabel.innerHTML = `Arena <select id="map" name="map" form="tuning" disabled><option value="belfry">Lantern Belfry</option><option value="crossroads">Crossroads</option><option value="spire">Neon Spire</option></select>`;
 const mapHelp = document.createElement("span");
 mapHelp.id = "map-help";
 mapHelp.textContent = "Changing arena restarts the shared trial.";
 rulesPanel.prepend(mapLabel, mapHelp);
 const trials = document.createElement("section");
 trials.className = "controls experiment-controls";
-trials.innerHTML = `<label>Jump <select id="jump-mode" name="jumpMode" form="tuning" disabled><option value="single">Single jump</option><option value="double">Double jump</option></select></label><label>Tether <select id="wire-mode" name="wire" form="tuning" disabled><option value="tip">Hook tip only</option><option value="spiked">Spiked wire</option></select></label><label>Your controls <select id="keyboard-mode"><option value="keyboard">Keyboard · J / K</option><option value="mouse">Mouse aim</option></select></label><span id="control-help">${KEYS_SHORT}</span>`;
+trials.innerHTML = `<label>Jump <select id="jump-mode" name="jumpMode" form="tuning" disabled><option value="single">Single jump</option><option value="double">Double jump</option></select></label><label>Tether <select id="wire-mode" name="wire" form="tuning" disabled><option value="tip">Hook tip only</option><option value="spiked">Spiked wire</option></select></label><label>Bombs <select id="bomb-mode" name="bomb" form="tuning" disabled><option value="off">Off</option><option value="fuse">Fuse · 1.5 s</option><option value="impact">Impact on a rival</option></select></label><label>Your controls <select id="keyboard-mode"><option value="keyboard">Keyboard · J hook / K bomb</option><option value="mouse">Mouse aim</option></select></label><span id="control-help">${KEYS_SHORT}</span>`;
 rulesPanel.after(trials);
 const trialHelp = document.createElement("span");
 trialHelp.textContent =
-  "Jump / Tether changes restart the shared trial. Double jump: one extra leap before landing. Spiked wire: balls split on contact and the shot ends; rivals and the brass target still need the tip.";
+  "Jump / Tether / Bombs changes restart the shared trial. Double jump: one extra leap before landing. Spiked wire (default): the whole visible rope pops balls, retract included, and a pop ends the shot; rivals and the brass target still need the tip. Bombs: hold to charge (full at 0.6 s), release to throw; the blast knocks out every keeper in reach, you included. Impact goes off on touching a rival, or at the fuse.";
 trials.append(trialHelp);
 const jumpMode = el<HTMLSelectElement>("jump-mode"),
   wireMode = el<HTMLSelectElement>("wire-mode"),
+  bombMode = el<HTMLSelectElement>("bomb-mode"),
   keyboardMode = el<HTMLSelectElement>("keyboard-mode");
+// 12B: each zone is a shared setting; only Neon Spire has zones.
+const ZONE_LABELS: Record<ZoneKey, string> = {
+  jumpPads: "Jump pads",
+  lifts: "Lift beams",
+  lowGravity: "Low-gravity wing",
+  electricFloor: "Electrified floor",
+  lasers: "Laser gates",
+  bonusZone: "Crown 3× zone",
+};
+const zonePanel = document.createElement("section");
+zonePanel.id = "zone-controls";
+zonePanel.className = "controls experiment-controls";
+zonePanel.setAttribute("aria-label", "Neon Spire zones");
+zonePanel.innerHTML = `<strong>Neon Spire zones</strong>${ZONE_KEYS.map(
+  (key) =>
+    `<label><input type="checkbox" id="zone-${key}" data-zone="${key}" checked disabled> ${ZONE_LABELS[key]}</label>`,
+).join(
+  "",
+)}<span id="zone-help">Neon Spire only; a change restarts the shared trial. Pads launch 2.5× a jump · lift beams rise at 300 units/s · the right wing keeps 40% gravity · the floor and lasers knock you out, credited to a rival whose hook hit you in the last 2 s · in timed rounds the floor rises over the last 20 s · Hook score gains inside the crown count 3×.</span>`;
+trials.after(zonePanel);
+const zoneBoxes = ZONE_KEYS.map((key) => el<HTMLInputElement>(`zone-${key}`));
+const followLabel = document.createElement("label");
+followLabel.innerHTML = `<input id="follow-cam" type="checkbox"> Follow keepers`;
+followLabel.title =
+  "Zoom to frame the living keepers on a large arena. Local display only.";
+trials.append(followLabel);
+const followCam = el<HTMLInputElement>("follow-cam");
+// 11D power-up pool: off, all five, or any mix. One hidden field carries the
+// validated bit mask to the settings form; the select and boxes only edit it.
 const powerLabel = document.createElement("label");
-powerLabel.innerHTML = `Power-ups <select id="power-ups" name="powerUps" form="tuning" disabled><option value="off">Off</option><option value="on">Lift & Ward</option></select>`;
-rulesPanel.append(powerLabel);
-const powerMode = el<HTMLSelectElement>("power-ups");
-const powerHelp = document.createElement("p");
+powerLabel.innerHTML = `Power-ups <select id="power-ups" disabled><option value="${ALL_POWERS}">All five</option><option value="0">Off</option><option value="custom" disabled hidden>Some</option></select><input type="hidden" id="power-mask" name="powerUps" form="tuning" value="${DEFAULT_TUNING.powerUps}">`;
+const powerBoxes = document.createElement("span");
+powerBoxes.className = "power-pool";
+powerBoxes.setAttribute("role", "group");
+powerBoxes.setAttribute("aria-label", "Power-ups in the pool");
+for (const [i, kind] of POWER_KINDS.entries()) {
+  const box = document.createElement("label");
+  box.style.setProperty("--power-color", POWER_STYLE[kind].css);
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.id = `power-${kind}`;
+  input.dataset.bit = String(1 << i);
+  input.disabled = true;
+  box.append(input, ` ${POWER_STYLE[kind].name}`);
+  powerBoxes.append(box);
+}
+const powerHelp = document.createElement("span");
 powerHelp.id = "power-help";
 powerHelp.textContent =
-  "Lift: touch the green rune for an upward burst. Ward: blue rune blocks rival hooks for 5 seconds, not falls. Pads return after 10 seconds of active play. Changing this setting restarts everyone.";
-powerHelp.hidden = true;
-rulesPanel.append(powerHelp);
+  "Pads show a random power-up from the pool and return 10 s after pickup with a new one. One at a time; a new pickup replaces yours. Triple jump: two air jumps for 8 s. Shield: survives one bomb blast, your own included (8 s, bombs only). Cluster bomb: your next 3 bombs split into 3 small bomblets when they land. Harpoon: for 8 s your hook pulls a hit rival in. Dash bump: for 8 s your air jump dashes along your aim and knocks rivals away. Shield and Cluster need bombs on. Changing the pool restarts everyone.";
+trials.append(powerLabel, powerBoxes, powerHelp);
+const powerMode = el<HTMLSelectElement>("power-ups"),
+  powerMask = el<HTMLInputElement>("power-mask"),
+  powerInputs = [...powerBoxes.querySelectorAll("input")];
+const somePowers = powerMode.querySelector<HTMLOptionElement>(
+  'option[value="custom"]',
+)!;
+/** The room's pool last shown; boxes a manager clicks stay until it changes. */
+let shownPowers = -1;
+/** Show a pool without submitting it. */
+function showPowers(mask: number) {
+  if (mask === shownPowers) return;
+  shownPowers = mask;
+  powerMask.value = String(mask);
+  const mixed = mask !== 0 && mask !== ALL_POWERS;
+  // "Some" only names a mixed pool; it is not a choice of its own.
+  somePowers.hidden = !mixed;
+  powerMode.value = mixed ? "custom" : String(mask);
+  for (const input of powerInputs)
+    input.checked = (mask & Number(input.dataset.bit)) !== 0;
+}
+function enablePowers(enabled: boolean) {
+  powerMode.disabled = !enabled;
+  for (const input of powerInputs) input.disabled = !enabled;
+}
+showPowers(DEFAULT_TUNING.powerUps);
+// 11C: AI keepers. The count is seats (BOT entries); the level is a shared setting.
+const botLabel = document.createElement("label");
+botLabel.innerHTML = `Bots <select id="bot-count" disabled>${[0, 1, 2, 3, 4]
+  .map((n) => `<option value="${n}">${n || "None"}</option>`)
+  .join("")}</select>`;
+const levelLabel = document.createElement("label");
+levelLabel.innerHTML = `Bot level <select id="bot-level" name="botLevel" form="tuning" disabled><option value="easy">Easy</option><option value="normal">Normal</option><option value="hard">Hard</option></select>`;
+const botHelp = document.createElement("span");
+botHelp.id = "bot-help";
+botHelp.textContent =
+  "Bots fill free seats and play on every device from the shared state. Adding one is instant; removing one or changing the level restarts the shared trial. Easy bots are slow to aim, notice bombs late and hesitate; hard ones rarely miss.";
+rulesPanel.append(botLabel, levelLabel, botHelp);
+const botCount = el<HTMLSelectElement>("bot-count"),
+  botLevel = el<HTMLSelectElement>("bot-level");
+/** Bot seats the manager wants once the room is back in the lobby (removal waits for it). */
+let botTarget: number | undefined;
+let seatsNow: { id: string; slot: number; bot: boolean }[] = [];
+/** A competitive round is under way, so removing bots asks first. */
+let roundLive = false;
+/** The lower count waiting on the confirm dialog. */
+let pendingBots: number | undefined;
+const botConfirm = document.createElement("dialog");
+botConfirm.id = "bot-confirm";
+botConfirm.setAttribute("aria-labelledby", "bot-confirm-title");
+botConfirm.innerHTML = `<p class="dialog-kicker">ROOM &amp; MATCH</p><h2 id="bot-confirm-title">End this round?</h2><p id="bot-confirm-text"></p><div class="dialog-choices"><button id="bot-confirm-cancel" type="button">Keep playing</button><button id="bot-confirm-yes" type="button">Remove and restart</button></div>`;
+document.body.append(botConfirm);
 const host = el<HTMLDivElement>("scene"),
   status = el<HTMLParagraphElement>("status"),
   start = el<HTMLButtonElement>("start"),
@@ -192,6 +294,7 @@ homeBar.append(
     search: location.search,
   }).element,
   el("home"),
+  social.element(),
 );
 el<HTMLAnchorElement>("study").href = `?showcase=1${muted ? "&mute" : ""}`;
 const tuning = el<HTMLFormElement>("tuning");
@@ -247,57 +350,112 @@ let runtime: HookRuntime | undefined,
 let input: Input = { ...NEUTRAL };
 let touch: TouchControls | undefined;
 let mousePointer: number | undefined;
+const buttons = new ButtonMerge();
+let touchState: TouchState | undefined;
 const keyboard = new KeyboardInput();
 host.dataset.controls = keyboard.mode;
-let keyFire = false;
-/** Merges keyboard intent; in the standard scheme K and a mouse click both hold the hook. */
-function sampleKeys() {
-  const chest = latest.feet - latest.body.height * 0.6;
-  const sampled = keyboard.sample(latest.x, chest, (dx, dy) =>
-    assistAim(latest.platforms, latest.x, chest, dx, dy, latest.range),
+const chest = () => latest.feet - latest.body.height * 0.6;
+const sampleKeyboard = () =>
+  keyboard.sample(
+    latest.x,
+    chest(),
+    (dx, dy) =>
+      assistAim(latest.platforms, latest.x, chest(), dx, dy, latest.range),
+    performance.now(),
   );
-  keyFire = sampled.fire ?? false;
+/** Merges keyboard intent; J or a left click holds the hook, K or a right click the bomb. */
+function sampleKeys() {
+  const sampled = sampleKeyboard();
   Object.assign(input, sampled);
-  if (keyboard.mode === "keyboard")
-    input.fire = keyFire || mousePointer !== undefined;
+  Object.assign(
+    input,
+    buttons.keys(sampled.fire ?? false, sampled.bomb ?? false),
+  );
+}
+/** Where a bomb released now would be aimed; drives the local arc preview only. */
+function bombAim(): { x: number; y: number } | undefined {
+  if (display) return;
+  if (touchDeck.dataset.active === "true" && touchState) {
+    const aim = touchAim(
+      latest.x,
+      chest(),
+      bombDirection(touchState, latest.facing),
+      latest.size,
+    );
+    return { x: aim.aimX, y: aim.aimY };
+  }
+  if (keyboard.mode === "keyboard" && keyboard.aimSource === "keys") {
+    const sampled = sampleKeyboard();
+    if (sampled.aimX !== undefined && sampled.aimY !== undefined)
+      return { x: sampled.aimX, y: sampled.aimY };
+  }
+  return { x: input.aimX, y: input.aimY };
 }
 let roomDeadline: ReturnType<typeof setTimeout> | undefined;
+/**
+ * Cancels everything held through the logged lifecycle edge. Preserve the
+ * current aim (keys, touch or the mouse's last position) without throwing
+ * the discarded charge; ordinary button releases still throw.
+ */
 function clear() {
+  const aim = bombAim() ?? { x: input.aimX, y: input.aimY };
   const captured = mousePointer;
   mousePointer = undefined;
+  buttons.clear();
   if (captured !== undefined && host.hasPointerCapture(captured))
     host.releasePointerCapture(captured);
   touch?.clear();
   keyboard.clear();
-  input = { ...NEUTRAL, aimX: input.aimX, aimY: input.aimY };
-  runtime?.clear();
+  input = { ...NEUTRAL, aimX: aim.x, aimY: aim.y };
+  runtime?.clear(input);
 }
 function send() {
+  if (modalInput.blocked()) return;
   runtime?.input(input);
 }
 const touchToggle = el<HTMLInputElement>("touch-toggle"),
-  touchDeck = el("touch-deck");
+  touchDeck = el("touch-deck"),
+  bombButton = touchDeck.querySelector<HTMLElement>('[data-pad="bomb"]')!;
+/** The bomb button dims while recharging and hides when bombs are off. */
+function paintBombButton(view: WorldView) {
+  const local = view.keepers.find((k) => k.id === selfId),
+    off = view.bombMode === "off",
+    ready = String(!!local && !local.cooldown);
+  const control = bombButton.closest<HTMLElement>(".bomb-control")!;
+  if (control.hidden !== off) control.hidden = off;
+  if (bombButton.dataset.ready !== ready) bombButton.dataset.ready = ready;
+}
 touch = createTouchControls(
   touchDeck,
-  (state) => {
-    const wasFiring = input.fire;
-    input.move = state.move;
-    input.jump = state.jump;
-    input.drop = state.drop;
-    input.fire = state.fire;
-    if (state.fire && !wasFiring)
-      Object.assign(
-        input,
-        touchAim(
-          latest.x,
-          latest.feet - latest.body.height * 0.6,
-          state.direction,
-        ),
-      );
+  (state, cancelled) => {
+    if (cancelled) {
+      clear();
+      return;
+    }
+    touchState = state;
+    input = touchInput(input, state, {
+      x: latest.x,
+      y: chest(),
+      facing: latest.facing,
+      size: latest.size,
+    });
     send();
   },
   clear,
 );
+const modalInput = createModalInputGate({
+  isOpen: () => !!document.querySelector("dialog[open]"),
+  observe: (change) => {
+    const observer = new MutationObserver(change);
+    observer.observe(document.body, {
+      attributes: true,
+      subtree: true,
+      attributeFilter: ["open"],
+    });
+    return () => observer.disconnect();
+  },
+  cancel: clear,
+});
 function touchLayout() {
   clear();
   const enabled = touchToggle.checked;
@@ -307,6 +465,7 @@ function touchLayout() {
   el("touch-help").hidden = !enabled;
   touch?.enable(
     enabled &&
+      !modalInput.blocked() &&
       status.dataset.state === "playing" &&
       (!graphicsReady || !menu.isOpen()),
   );
@@ -322,7 +481,8 @@ el<HTMLSelectElement>("aim-mode").onchange = (event) => {
   );
 };
 touchLayout();
-window.addEventListener("resize", clear);
+// Not on resize: a phone's URL bar and rotation resize mid-charge, and a
+// clear would throw the bomb.
 function sample(): WorldView {
   const timing = runtime?.frameTiming();
   if (!timing) return latest;
@@ -339,13 +499,21 @@ function localView(view: WorldView): WorldView {
     keepers: view.keepers,
     hit: view.hit,
     contest: view.contest,
+    powers: view.powers,
     pickups: view.pickups,
     pickupEvents: view.pickupEvents,
+    shieldPops: view.shieldPops,
+    bombs: view.bombs,
+    blasts: view.blasts,
+    knockouts: view.knockouts,
+    // Arena-wide: the rising floor follows the room's contest clock.
+    zones: view.zones,
     localId: local?.id,
   };
 }
 function stopRoom() {
   matchShell.reset();
+  knockoutFeed.reset();
   menu.close();
   menu.update({ canLobby: false, canLeave: false });
   roundControls.update({ round: "ended", visible: false });
@@ -362,6 +530,9 @@ function stopRoom() {
   clear();
   runtime?.stop();
   runtime = undefined;
+  // A removal asked of this room must not land in the next one.
+  botTarget = undefined;
+  botConfirm.close();
   latest = toView(createWorld());
   paintRoster(latest, "");
   reset.disabled = true;
@@ -369,8 +540,9 @@ function stopRoom() {
   experiment.disabled = true;
   rulesSelect.disabled = true;
   mapSelect.disabled = true;
-  jumpMode.disabled = wireMode.disabled = true;
-  powerMode.disabled = true;
+  jumpMode.disabled = wireMode.disabled = bombMode.disabled = true;
+  enablePowers(false);
+  for (const box of zoneBoxes) box.disabled = true;
   touch?.enable(false);
   el<HTMLButtonElement>("restart-room").disabled = true;
   el("invitation").hidden = true;
@@ -415,8 +587,9 @@ async function graphics() {
         !display &&
         keyboard.mode === "keyboard" &&
         keyboard.aimSource === "keys"
-          ? keyboard.direction
+          ? keyboard.aimDirection(performance.now())
           : undefined,
+      bombAim,
       cue: (cue) => effects.cue(cue),
       ready() {
         if (token !== attempt) return;
@@ -447,6 +620,7 @@ async function graphics() {
       phase: (label) => (el("phase").textContent = label),
       time: () => {},
     });
+    scene.setFollow(followCam.checked);
   } catch {
     clearTimeout(deadline);
     if (token === attempt) {
@@ -471,7 +645,10 @@ const enterRoom = async () => {
   mapSelect.value = DEFAULT_TUNING.map;
   jumpMode.value = DEFAULT_TUNING.jumpMode;
   wireMode.value = DEFAULT_TUNING.wire;
-  powerMode.value = DEFAULT_TUNING.powerUps;
+  bombMode.value = DEFAULT_TUNING.bomb;
+  shownPowers = -1;
+  showPowers(DEFAULT_TUNING.powerUps);
+  for (const box of zoneBoxes) box.checked = true;
   for (const key of Object.keys(TUNING_BOUNDS)) {
     const field = tuning.elements.namedItem(key) as HTMLInputElement;
     field.value = String(DEFAULT_TUNING[key as keyof typeof DEFAULT_TUNING]);
@@ -574,20 +751,39 @@ const enterRoom = async () => {
               frame.stage === "running" &&
               controllable &&
               !!local?.connected &&
+              !modalInput.blocked() &&
               !menu.isOpen(),
           );
+          paintBombButton(frame);
           if (!display && !joined) {
             joined = !!runtime?.command({
               type: "join",
               name:
-                el<HTMLInputElement>("keeper-name").value.trim() ||
-                "Lantern keeper",
+                social.playerName(
+                  el<HTMLInputElement>("keeper-name").value.trim(),
+                ) || "Lantern keeper",
             });
           }
           if (restartRequested && frame.stage === "lobby") {
             started = false;
             restartRequested = false;
           }
+          seatsNow = frame.seats;
+          roundLive = removalInterrupts(frame.stage, c);
+          const botSeats = frame.seats.filter((s) => s.bot);
+          if (botTarget !== undefined && manager && frame.stage === "lobby") {
+            // Between rounds: remove bots from the last seat down, then start below.
+            for (const id of botsToRemove(frame.seats, botTarget))
+              runtime?.command({ type: "bot", action: "remove", id });
+            botTarget = undefined;
+          }
+          if (botTarget === undefined)
+            botCount.value = String(Math.min(4, botSeats.length));
+          const free = 5 - frame.seats.filter((s) => !s.watcher).length;
+          for (const option of botCount.options)
+            option.disabled =
+              Number(option.value) > botSeats.length + Math.max(0, free);
+          botCount.disabled = botLevel.disabled = !manager;
           if (manager && frame.stage === "lobby" && frame.seated && !started) {
             started = !!runtime?.command({ type: "action", action: "start" });
           }
@@ -618,8 +814,12 @@ const enterRoom = async () => {
             experiment.disabled = !manager;
             rulesSelect.disabled = !manager;
             mapSelect.disabled = !manager;
-            jumpMode.disabled = wireMode.disabled = !manager;
-            powerMode.disabled = !manager;
+            jumpMode.disabled =
+              wireMode.disabled =
+              bombMode.disabled =
+                !manager;
+            enablePowers(!!manager);
+            for (const box of zoneBoxes) box.disabled = !manager;
             el<HTMLButtonElement>("restart-room").disabled = !manager;
             setText(
               start,
@@ -638,21 +838,26 @@ const enterRoom = async () => {
           mapSelect.value = settings.map;
           jumpMode.value = settings.jumpMode;
           wireMode.value = settings.wire;
-          powerMode.value = settings.powerUps;
-          powerHelp.hidden = settings.powerUps !== "on";
+          bombMode.value = settings.bomb;
+          showPowers(settings.powerUps);
+          botLevel.value = settings.botLevel;
+          for (const box of zoneBoxes)
+            box.checked = settings[box.dataset.zone as ZoneKey] === "on";
           setText(
             mapHelp,
             settings.map === "crossroads"
               ? "Crossroads · separated starts, outer climbs and a central grapple route. Changing arena restarts everyone."
-              : "Lantern Belfry · the original climbing course. Changing arena restarts everyone.",
+              : settings.map === "spire"
+                ? "Neon Spire · a 1.4× tower: solid walls and ceilings, pads, lifts, a low-gravity wing, lasers, an electrified floor and a 3× crown. Zone switches are in the Development workshop. Changing arena restarts everyone."
+                : "Lantern Belfry · the original climbing course. Changing arena restarts everyone.",
           );
           setText(
             el("rules-help"),
             c.rules === "free"
               ? "Respawn freely and explore."
               : c.rules === "elimination"
-                ? "A fall puts you out. Last keeper wins · 60-second limit."
-                : "Player hit +1 · fall −2 · respawn · highest score after 60 seconds. Props give no points. Last remaining entrant wins if others forfeit.",
+                ? "A fall, a bomb or a hazard puts you out. Last keeper wins · 60-second limit."
+                : "Hook hit +1 · bomb knockout +1 · pushing a rival into a hazard +1 · own bomb −1 more · fall or knockout −2 · respawn · highest score after 60 seconds · gains inside Neon Spire's crown count 3×. Props give no points. Last remaining entrant wins if others forfeit.",
           );
           const names = (ids: string[]) =>
             ids
@@ -666,7 +871,7 @@ const enterRoom = async () => {
             c.rules === "free"
               ? ""
               : c.phase === "waiting"
-                ? "Waiting for a second keeper…"
+                ? "Waiting for a second keeper… invite a friend or add a bot."
                 : c.phase === "countdown"
                   ? `Get ready · ${c.seconds}`
                   : c.phase === "over"
@@ -676,6 +881,7 @@ const enterRoom = async () => {
           host.dataset.contest = JSON.stringify(c);
           host.dataset.round = String(frame.round);
           paintRoster(frame, selfId);
+          knockoutFeed.update(frame, frame.round);
           matchShell.update(
             frame,
             selfId,
@@ -715,21 +921,27 @@ const enterRoom = async () => {
       {
         displayOnly: display,
         transport: (events) =>
-          new PeerTransport(
+          social.transport(
             room.code,
             room.token,
-            {
-              ...events,
-              welcome(id, creator) {
-                creatorId = creator;
-                events.welcome(id, creator);
-              },
-            },
-            {
-              apiUrl: endpoints.apiUrl,
-              gameId: "hook-havok",
-              maxFastBytes: MAX_PACKET_BYTES,
-            },
+            events,
+            (events) =>
+              new PeerTransport(
+                room.code,
+                room.token,
+                {
+                  ...events,
+                  welcome(id, creator) {
+                    creatorId = creator;
+                    events.welcome(id, creator);
+                  },
+                },
+                {
+                  apiUrl: endpoints.apiUrl,
+                  gameId: "hook-havok",
+                  maxFastBytes: MAX_PACKET_BYTES,
+                },
+              ),
           ),
       },
     );
@@ -804,18 +1016,27 @@ function resetExercise() {
 reset.onclick = resetExercise;
 tuning.onsubmit = (e) => {
   e.preventDefault();
-  const settings = parseTuning(
-    Object.fromEntries(
+  const settings = parseTuning({
+    ...Object.fromEntries(
       [...new FormData(tuning)].map(([k, v]) => [
         k,
-        ["experiment", "rules", "map", "jumpMode", "wire", "powerUps"].includes(
-          k,
-        )
+        [
+          "experiment",
+          "rules",
+          "map",
+          "jumpMode",
+          "wire",
+          "bomb",
+          "botLevel",
+        ].includes(k)
           ? v
           : Number(v),
       ]),
     ),
-  );
+    ...Object.fromEntries(
+      zoneBoxes.map((box) => [box.dataset.zone, box.checked ? "on" : "off"]),
+    ),
+  });
   if (settings) {
     scene?.resetFeedback();
     clear();
@@ -826,15 +1047,88 @@ tuning.onsubmit = (e) => {
 experiment.onchange = () => tuning.requestSubmit();
 rulesSelect.onchange = () => tuning.requestSubmit();
 mapSelect.onchange = () => tuning.requestSubmit();
-jumpMode.onchange = wireMode.onchange = () => tuning.requestSubmit();
-powerMode.onchange = () => tuning.requestSubmit();
+jumpMode.onchange =
+  wireMode.onchange =
+  bombMode.onchange =
+    () => tuning.requestSubmit();
+botLevel.onchange = () => tuning.requestSubmit();
+const seatedBots = () => seatsNow.filter((s) => s.bot).length;
+/** Adding seats a bot at once; removing waits for the lobby, then restarts. */
+const applyBots = (want: number) => {
+  const choice = chooseBots(want, seatedBots());
+  for (let n = 0; n < choice.add; n++)
+    runtime?.command({ type: "bot", action: "add" });
+  botTarget = choice.target;
+  if (choice.lobby) {
+    clear();
+    restartRequested = !!runtime?.command({ type: "action", action: "lobby" });
+    if (!restartRequested) botTarget = undefined;
+  }
+};
+botCount.onchange = () => {
+  const want = Number(botCount.value),
+    have = seatedBots();
+  if (want < have && roundLive) {
+    // The lobby trip ends the round for everyone: ask first.
+    pendingBots = want;
+    el("bot-confirm-text").textContent =
+      `Going down to ${want ? `${want} bot${want > 1 ? "s" : ""}` : "no bots"} ends this round for everyone: the room returns to the lobby, the last bot seats go, and a new round starts.`;
+    clear();
+    botConfirm.showModal();
+    el("bot-confirm-cancel").focus();
+    return;
+  }
+  applyBots(want);
+  host.focus();
+};
+el("bot-confirm-yes").onclick = () => {
+  const want = pendingBots;
+  pendingBots = undefined;
+  botConfirm.close();
+  if (want !== undefined) applyBots(want);
+};
+/** Escape, Keep playing or leaving the room: the count stays as it is. */
+const keepBots = () => {
+  if (pendingBots === undefined) return;
+  pendingBots = undefined;
+  botCount.value = String(Math.min(4, seatedBots()));
+};
+el("bot-confirm-cancel").onclick = () => {
+  keepBots();
+  botConfirm.close();
+};
+botConfirm.addEventListener("close", () => {
+  keepBots();
+  host.focus();
+});
+powerMode.onchange = () => {
+  // "Some" only names a mixed pool; the boxes change it.
+  if (powerMode.value === "custom") return;
+  powerMask.value = powerMode.value;
+  tuning.requestSubmit();
+};
+for (const input of powerInputs)
+  input.onchange = () => {
+    powerMask.value = String(
+      powerInputs.reduce(
+        (mask, box) => (box.checked ? mask | Number(box.dataset.bit) : mask),
+        0,
+      ),
+    );
+    tuning.requestSubmit();
+  };
+for (const box of zoneBoxes) box.onchange = () => tuning.requestSubmit();
+followCam.onchange = () => {
+  scene?.setFollow(followCam.checked);
+  host.focus();
+};
 keyboardMode.onchange = () => {
   clear();
   keyboard.mode = keyboardMode.value === "keyboard" ? "keyboard" : "mouse";
   el("control-help").textContent =
     keyboard.mode === "keyboard"
       ? KEYS_SHORT
-      : "Mouse aims · Space jumps · S / ↓ drops.";
+      : "Mouse aims · left click hooks · right click bombs · Space jumps · S / ↓ drops.";
   host.dataset.controls = keyboard.mode;
   document.querySelector(".desktop-help")!.textContent =
     keyboard.mode === "keyboard" ? KEYS_HELP : mouseHelp;
@@ -852,13 +1146,13 @@ host.addEventListener("keydown", (e) => {
   e.preventDefault();
   if (e.repeat) return;
   if (touchDeck.dataset.active === "true") clear();
-  keyboard.key(e.code, true);
+  keyboard.key(e.code, true, performance.now());
   sampleKeys();
   send();
 });
 host.addEventListener("keyup", (e) => {
   if (!keyboard.accepts(e.code)) return;
-  keyboard.key(e.code, false);
+  keyboard.key(e.code, false, performance.now());
   if (touchDeck.dataset.active === "true") return;
   sampleKeys();
   send();
@@ -866,21 +1160,32 @@ host.addEventListener("keyup", (e) => {
 function aim(e: PointerEvent) {
   const box = host.querySelector("canvas")?.getBoundingClientRect();
   if (!box) return;
-  input.aimX = Math.round(
-    Math.max(0, Math.min(1600, ((e.clientX - box.left) * 1600) / box.width)),
-  );
-  input.aimY = Math.round(
-    Math.max(0, Math.min(900, ((e.clientY - box.top) * 900) / box.height)),
-  );
+  // Through the camera: a larger arena is fitted, or followed (12A).
+  const u = (e.clientX - box.left) / box.width,
+    v = (e.clientY - box.top) / box.height,
+    point = scene?.toWorld(u, v) ?? {
+      x: u * latest.size.width,
+      y: v * latest.size.height,
+    };
+  input.aimX = Math.round(Math.max(0, Math.min(latest.size.width, point.x)));
+  input.aimY = Math.round(Math.max(0, Math.min(latest.size.height, point.y)));
 }
 host.addEventListener("pointermove", (e) => {
-  if (e.pointerType !== "mouse") return;
-  if (keyboard.mode === "keyboard" && keyboard.aimSource === "keys") return;
-  aim(e);
+  if (e.pointerType === "mouse" && mouseAims(keyboard)) aim(e);
 });
+/**
+ * Left holds the hook, right charges a bomb (`ButtonMerge`). Aim travels
+ * with each change while the mouse owns it: the hook reads it on the press,
+ * the bomb on the release.
+ */
+function mouseButtons(mask: number): void {
+  const held = buttons.pointer(mask);
+  if (held) Object.assign(input, held);
+}
+host.addEventListener("contextmenu", (e) => e.preventDefault());
 host.addEventListener("pointerdown", (e) => {
   if (menu.isOpen()) return;
-  if (e.button !== 0 || e.pointerType !== "mouse") return;
+  if ((e.button !== 0 && e.button !== 2) || e.pointerType !== "mouse") return;
   if (touchDeck.dataset.active === "true") clear();
   e.preventDefault();
   host.focus();
@@ -888,13 +1193,26 @@ host.addEventListener("pointerdown", (e) => {
   mousePointer = e.pointerId;
   host.setPointerCapture(e.pointerId);
   aim(e);
-  input.fire = true;
+  mouseButtons(ButtonMerge.pressed(e.button, e.buttons));
+  send();
+});
+// A chord: the second button pressed or released while the first is held.
+host.addEventListener("pointermove", (e) => {
+  if (e.pointerId !== mousePointer || (e.buttons & 3) === buttons.buttons)
+    return;
+  if (mouseAims(keyboard)) aim(e);
+  mouseButtons(e.buttons);
   send();
 });
 function releaseMouse(e: PointerEvent) {
   if (e.pointerId !== mousePointer) return;
+  if (e.type !== "pointerup") {
+    clear();
+    return;
+  }
   mousePointer = undefined;
-  input.fire = keyboard.mode === "keyboard" && keyFire;
+  if (e.type === "pointerup" && mouseAims(keyboard)) aim(e);
+  mouseButtons(0);
   send();
 }
 host.addEventListener("pointerup", releaseMouse);
@@ -914,6 +1232,7 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 window.addEventListener("pagehide", () => {
+  modalInput.dispose();
   effects.destroy();
   radio.destroy();
   disposed = true;
@@ -929,6 +1248,7 @@ window.addEventListener("pageshow", (e) => {
   if (e.persisted) location.reload();
 });
 const matchShell = createMatchShell();
+const knockoutFeed = createKnockoutFeed(document.querySelector(".stage")!);
 const menu = createGameMenu({
   controls: HOOK_CONTROLS,
   touchControls: HOOK_TOUCH_CONTROLS,
@@ -951,6 +1271,7 @@ const menu = createGameMenu({
     const local = latest.keepers.find((keeper) => keeper.id === selfId);
     touch?.enable(
       !open &&
+        !modalInput.blocked() &&
         !display &&
         touchToggle.checked &&
         !!runtime &&

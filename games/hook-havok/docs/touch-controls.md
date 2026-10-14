@@ -11,7 +11,7 @@ Touch controls appear automatically for a coarse pointer, or enable **Touch cont
 - Compare **8 directions** (default) with **Free aim**. Switching aim mode releases controls. It does not change the simulation or restart the trial.
 - Restart uses the existing button. Experiment changes restart the trial as before.
 
-Each pad owns one pointer ID. Extra fingers cannot steal an active pad. Pointer up, cancellation and lost capture release that pad; blur, hidden page, resize/orientation change, mode change, restart and room stop clear both. Pointer capture failure safely declines the press. No aim-move traffic is sent once a hook's direction is captured; unchanged inputs are deduplicated by the existing runtime.
+Each pad owns one pointer ID. Extra fingers cannot steal an active pad. Pointer up, cancellation and lost capture release that pad; blur, hidden page, mode change, restart and room stop clear both. Since [11B](bombs.md#limits) a resize or orientation change no longer does: a clear releases a charging bomb, which throws it. Pointer capture failure safely declines the press. No aim-move traffic is sent once a hook's direction is captured; unchanged inputs are deduplicated by the existing runtime.
 
 ## Physical-phone trial
 

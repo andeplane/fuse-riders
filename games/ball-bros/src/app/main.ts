@@ -1,6 +1,8 @@
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
+import "fuse-ui/social.css";
+import { createGameSocial } from "fuse-ui/social";
 import { createPlayMetrics, startGameAnalytics } from "fuse-ui/play-metrics";
 import "./style.css";
 import QRCode from "qrcode";
@@ -16,7 +18,7 @@ import { createRenderer } from "../render/arena.js";
 import { Audio } from "./audio.js";
 import { mountGame } from "./game-screen.js";
 import { landing } from "./landing.js";
-import { chosenMap, safeStore, session } from "./session.js";
+import { chosenMap, safeStore, session, NAME_KEY } from "./session.js";
 import { installLifecycle } from "./lifecycle.js";
 import { chosenAvatar } from "./avatars.js";
 import { createRadio } from "./radio.js";
@@ -32,6 +34,22 @@ const endpoints = createEndpoints(
   location.origin,
 );
 const store = safeStore(() => localStorage);
+const social = createGameSocial({
+  gameId: "ball-bros",
+  base: import.meta.env.BASE_URL,
+  apiOrigin: import.meta.env.VITE_API_ORIGIN,
+  document,
+  window,
+  fetch: (input, init) => fetch(input, init),
+  track: analytics.track,
+});
+const playerStore = {
+  getItem: (key: string) =>
+    key === NAME_KEY
+      ? (social.playerName(store.getItem(key)) ?? null)
+      : store.getItem(key),
+  setItem: (key: string, value: string) => store.setItem(key, value),
+};
 const muted = new URLSearchParams(location.search).has("mute");
 const link = (query = "") =>
   endpoints.appUrl(`${query}${muted ? (query ? "&mute" : "?mute") : ""}`);
@@ -53,7 +71,7 @@ function render() {
     const screen = landing(root, {
       base: import.meta.env.BASE_URL,
       search: location.search,
-      store,
+      store: playerStore,
       create: () => createRoom(endpoints.apiUrl, fetch, "ball-bros"),
       navigate,
       active: () => generation === mounted,
@@ -73,7 +91,7 @@ function render() {
         link: link(`?room=${online.code}`),
         displayLink: link(`?room=${online.code}&display=1`),
       },
-      store,
+      store: playerStore,
       settings,
       qr: (text) => QRCode.toDataURL(text, { margin: 1, width: 240 }),
       audio: new Audio(muted),
@@ -90,11 +108,17 @@ function render() {
             ? {
                 displayOnly: online.display,
                 transport: (events) =>
-                  new PeerTransport(online.code, online.token, events, {
-                    apiUrl: endpoints.apiUrl,
-                    gameId: "ball-bros",
-                    maxFastBytes: MAX_PACKET_BYTES,
-                  }),
+                  social.transport(
+                    online.code,
+                    online.token,
+                    events,
+                    (events) =>
+                      new PeerTransport(online.code, online.token, events, {
+                        apiUrl: endpoints.apiUrl,
+                        gameId: "ball-bros",
+                        maxFastBytes: MAX_PACKET_BYTES,
+                      }),
+                  ),
               }
             : {},
           online?.code,
@@ -112,6 +136,7 @@ function render() {
       observePlay,
     });
   }
+  root.querySelector("header")?.append(social.element());
 }
 window.addEventListener("popstate", render);
 installLifecycle(window, {

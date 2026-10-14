@@ -1,11 +1,11 @@
 import {
   BODY,
   HALF,
-  HEIGHT,
   HOOK_SPEED,
   ROPE_MIN,
   S,
   createWorld,
+  endDash,
   readyHook,
   resetWorld,
   type Hook,
@@ -13,7 +13,34 @@ import {
 } from "./world.js";
 import { movePlayer, supported, sweep } from "./collision.js";
 import { stepCombat, strike, type CombatContext } from "./combat.js";
-import { MAPS } from "./maps.js";
+import { MAPS, blocks, ledges } from "./maps.js";
+import { PAD_VY, field, onPad, pull } from "./zones.js";
+import { DASH_SPEED, DASH_TICKS } from "./power-rules.js";
+/** What a keeper's power changes in the movement kernel (11D). */
+export interface Boost {
+  /** Extra air actions restored on landing or a rope jump. */
+  refill: number;
+  /** Dash bump: an air action dashes along the aim instead of jumping. */
+  dash: boolean;
+}
+/** Toward the aim from the chest at a fixed speed; an aim on the chest dashes forward. */
+function startDash(world: World): void {
+  const sx = world.x,
+    sy = world.feet - Math.round(BODY * 0.6);
+  let dx = world.input.aimX * S - sx,
+    dy = world.input.aimY * S - sy,
+    d = Math.sqrt(dx * dx + dy * dy);
+  if (d < S) {
+    dx = world.facing;
+    dy = 0;
+    d = 1;
+  }
+  const speed = Math.round((DASH_SPEED * S) / 60);
+  world.vx = Math.round((dx / d) * speed);
+  world.vy = Math.round((dy / d) * speed);
+  world.dash = DASH_TICKS;
+  if (world.vx) world.facing = world.vx < 0 ? -1 : 1;
+}
 const approach = (value: number, target: number, change: number) =>
   value < target
     ? Math.min(target, value + change)
@@ -142,7 +169,11 @@ function grapple(world: World, context?: CombatContext): void {
     if (--h.life <= 0) world.hook = readyHook();
   }
 }
-export function step(world: World, context?: CombatContext): void {
+export function step(
+  world: World,
+  context?: CombatContext,
+  boost?: Boost,
+): void {
   world.tick++;
   if (world.input.reset && !world.previous.reset) {
     resetWorld(world);
@@ -157,11 +188,15 @@ export function step(world: World, context?: CombatContext): void {
     world.previous = { ...world.input };
     return;
   }
+  const map = world.tuning.map,
+    entryVy = world.vy;
+  // Only a one-way ledge drops a keeper through; a solid block never does.
   const dropping =
     world.input.drop &&
     !world.previous.drop &&
     world.grounded &&
-    supported(world.x, world.feet, MAPS[world.tuning.map].platforms);
+    supported(world.x, world.feet, ledges(map)) &&
+    !supported(world.x, world.feet, blocks(map));
   if (dropping) {
     world.feet += 2;
     world.vy = Math.max(world.vy, 2 * S);
@@ -175,56 +210,75 @@ export function step(world: World, context?: CombatContext): void {
       ? 6
       : Math.max(0, world.buffer - 1);
   const hooked = world.hook.phase === "attached";
-  const target = Math.round((world.input.move * world.tuning.speed * S) / 60);
-  const acceleration = Math.round(
-    ((2600 * S) / 3600) * (world.grounded ? 1 : world.tuning.air / 100),
-  );
-  // Swing and knockback momentum is not replaced with ordinary running speed:
-  // air steering never brakes a keeper already moving faster the held way.
-  const coasting =
-    !world.grounded &&
-    world.input.move * world.vx > 0 &&
-    Math.abs(world.vx) > Math.abs(target);
-  if (
-    (world.input.move || world.grounded) &&
-    (world.grounded || !hooked) &&
-    !coasting
-  )
-    world.vx = approach(world.vx, target, acceleration);
-  if (world.input.move) world.facing = world.input.move;
-  world.vy += Math.round((world.tuning.gravity * S) / 3600);
-  const launch = -Math.round((world.tuning.jump * S) / 60),
-    fresh = !dropping && world.input.jump && !world.previous.jump;
-  if (world.buffer && world.coyote) {
-    world.vy = launch;
-    world.buffer = world.coyote = 0;
-    world.grounded = false;
-    if (hooked) retract(world.hook);
-  } else if (fresh && hooked) {
-    // Rope jump: let go with a launch that keeps a stronger upward swing, and
-    // restore the air-jump reserve.
-    world.vy = Math.min(world.vy, launch);
-    world.buffer = world.coyote = 0;
-    world.airJump = world.tuning.jumpMode === "double";
-    retract(world.hook);
-  } else if (fresh && world.airJump) {
-    world.vy = launch;
-    world.airJump = false;
-    world.buffer = world.coyote = 0;
+  if (world.dash > 0) {
+    // A dash holds its velocity: no steering, gravity, jumps or jump cut.
+    if (world.dash === 1) endDash(world);
+    else world.dash--;
+  } else {
+    const target = Math.round((world.input.move * world.tuning.speed * S) / 60);
+    const acceleration = Math.round(
+      ((2600 * S) / 3600) * (world.grounded ? 1 : world.tuning.air / 100),
+    );
+    // Swing and knockback momentum is not replaced with ordinary running speed:
+    // air steering never brakes a keeper already moving faster the held way.
+    const coasting =
+      !world.grounded &&
+      world.input.move * world.vx > 0 &&
+      Math.abs(world.vx) > Math.abs(target);
+    if (
+      (world.input.move || world.grounded) &&
+      (world.grounded || !hooked) &&
+      !coasting
+    )
+      world.vx = approach(world.vx, target, acceleration);
+    if (world.input.move) world.facing = world.input.move;
+    world.vy = pull(
+      world.vy,
+      field(world.tuning, world.x, world.feet - BODY / 2),
+      Math.round((world.tuning.gravity * S) / 3600),
+    );
+    const launch = -Math.round((world.tuning.jump * S) / 60),
+      fresh = !dropping && world.input.jump && !world.previous.jump;
+    if (world.buffer && world.coyote) {
+      world.vy = launch;
+      world.buffer = world.coyote = 0;
+      world.grounded = false;
+      if (hooked) retract(world.hook);
+    } else if (fresh && hooked) {
+      // Rope jump: let go with a launch that keeps a stronger upward swing, and
+      // restore the air-jump reserve.
+      world.vy = Math.min(world.vy, launch);
+      world.buffer = world.coyote = 0;
+      world.airJump = world.tuning.jumpMode === "double";
+      world.bonusJumps = boost?.refill ?? 0;
+      retract(world.hook);
+    } else if (fresh && (world.airJump || world.bonusJumps > 0)) {
+      // The ordinary air jump goes first, then any a power added.
+      if (world.airJump) world.airJump = false;
+      else world.bonusJumps--;
+      world.buffer = world.coyote = 0;
+      if (boost?.dash) startDash(world);
+      else world.vy = launch;
+    }
+    // A held rope's upward swing is not a jump to cut short, nor is a dash.
+    if (
+      !world.input.jump &&
+      world.previous.jump &&
+      world.vy < 0 &&
+      !world.dash &&
+      world.hook.phase !== "attached"
+    )
+      world.vy = Math.round(world.vy * 0.48);
   }
-  // A held rope's upward swing is not a jump to cut short.
-  if (
-    !world.input.jump &&
-    world.previous.jump &&
-    world.vy < 0 &&
-    world.hook.phase !== "attached"
-  )
-    world.vy = Math.round(world.vy * 0.48);
   if (!dropping) grapple(world, context);
+  // A rope that catches ends the dash; the swing takes over.
+  if (world.hook.phase === "attached") endDash(world);
   const cap = Math.round((1000 * S) / 60);
   world.vx = Math.max(-cap, Math.min(cap, world.vx));
-  world.vy = Math.max(-cap, Math.min(cap, world.vy));
-  movePlayer(world, MAPS[world.tuning.map].platforms);
+  // A pad launch is the only rise past the cap at a tick boundary; it may
+  // decay under gravity but never grow, so the upward bound follows it down.
+  world.vy = Math.max(Math.min(-cap, entryVy), Math.min(cap, world.vy));
+  movePlayer(world, ledges(map), blocks(map), MAPS[map].width);
   if (world.hook.phase === "attached") {
     // When the speed cap clips the rope's correction, the rope gives rather
     // than yanking the keeper next tick.
@@ -245,14 +299,29 @@ export function step(world: World, context?: CombatContext): void {
     )
       retract(h);
   }
-  if (world.grounded) world.airJump = world.tuning.jumpMode === "double";
-  if (world.feet - BODY > HEIGHT * S) {
+  if (world.grounded) {
+    world.airJump = world.tuning.jumpMode === "double";
+    world.bonusJumps = boost?.refill ?? 0;
+    endDash(world);
+  }
+  if (world.grounded && onPad(world.tuning, world.x, world.feet)) {
+    // Touching a pad's top launches at a fixed speed and refills the air jump.
+    world.vy = PAD_VY;
+    world.grounded = false;
+    world.coyote = world.buffer = 0;
+    world.airJump = world.tuning.jumpMode === "double";
+    world.bonusJumps = boost?.refill ?? 0;
+    if (world.hook.phase === "attached") retract(world.hook);
+  }
+  if (world.feet - BODY > MAPS[map].height * S) {
     world.respawn = 30;
     world.deaths++;
     world.hook = readyHook();
     world.vx = world.vy = 0;
     world.buffer = world.coyote = 0;
     world.airJump = false;
+    world.bonusJumps = world.dash = 0;
+    world.charge = 0;
   }
   if (!context) stepCombat(world);
   world.previous = { ...world.input };
