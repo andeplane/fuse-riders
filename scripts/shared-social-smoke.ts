@@ -15,12 +15,19 @@ const games = [
   "fuse-axe",
   "fuse-bombers",
   "fuse-lane",
+  "graveyard-shift",
 ];
+const only = process.env.ONLY?.split(",").filter(Boolean);
+const selected = only ? games.filter((game) => only.includes(game)) : games;
+assert.ok(
+  selected.length > 0,
+  "ONLY must name a game in the social smoke catalog",
+);
 const browser = await chromium.launch({ headless: true });
 await mkdir("artifacts/shared-social", { recursive: true });
 try {
   for (const width of [1280, 390]) {
-    for (const game of games) {
+    for (const game of selected) {
       const page = await browser.newPage({ viewport: { width, height: 900 } });
       const errors: string[] = [];
       page.on("pageerror", (error) => errors.push(error.message));
