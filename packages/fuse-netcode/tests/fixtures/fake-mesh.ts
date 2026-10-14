@@ -4,6 +4,7 @@ import {
   type RoomTransport,
   type RuntimeDependencies,
   type TransportEvents,
+  type SnapshotChunk,
 } from "../../src/index.js";
 import {
   ADD,
@@ -79,8 +80,7 @@ export class FakeMesh {
   fast: (from: string, to: string, sent: number) => FastFate = () => ({
     delayMs: 20,
   });
-  snapshot: (chunk: { data: string; chunk: number }, to: string) => void =
-    () => {};
+  snapshot: (chunk: SnapshotChunk, to: string) => void = () => {};
   sentFast = 0;
   constructor(
     readonly hostId: string,
@@ -171,8 +171,7 @@ export class FakeMesh {
   private reliable(from: string, to: string, data: unknown): boolean {
     if (!this.online.has(from) || !this.online.has(to)) return false;
     const copy = structuredClone(data) as { type?: string };
-    if (copy?.type === "snapshot")
-      this.snapshot(copy as { data: string; chunk: number }, to);
+    if (copy?.type === "snapshot") this.snapshot(copy as SnapshotChunk, to);
     const key = `${from}>${to}`,
       at = Math.max(this.now + 15, this.lastReliable.get(key) ?? 0);
     this.lastReliable.set(key, at);
@@ -196,6 +195,10 @@ export class FakeMesh {
     this.at(fate.delayMs, deliver);
     if (fate.duplicateMs !== undefined) this.at(fate.duplicateMs, deliver);
     return true;
+  }
+  /** A busy event loop lets wall time elapse while every injected timer and delivery remains queued. */
+  elapseWithoutLoops(ms: number): void {
+    this.now += ms;
   }
   /** Advances the shared clock in 10 ms steps: deliveries due, then every member's loop. */
   run(ms: number): void {
