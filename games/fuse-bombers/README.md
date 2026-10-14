@@ -12,7 +12,7 @@ button at the top left of every Fuse game's lobby): online in rooms, solo agains
 ## Play online
 
 The first page offers CREATE ROOM, JOIN by code (or `?room=CODE`), SOLO VS BOTS and EVERYONE AT THIS SCREEN (the
-local lobby, also `?local`). In a room each device flies its own gunship (WASD and Space, a gamepad or the touch pad)
+local lobby, also `?local`). In a room each device flies its own gunship (WASD or arrow keys and Space, a gamepad or the touch pad)
 and its camera follows it; the host adds bots, sets rounds to win and bot level, and starts at two gunships. Run it
 with `pnpm build` and `pnpm exec tsx service/dev.ts`. A device that joins someone else's room (or reloads, or arrives
 mid-round) loads the world from a peer's validated checkpoint (`src/engine/codec.ts`) and flies from the next round.
@@ -75,6 +75,14 @@ go on a lost focus and keeps its header clear of the pads turned on its side.
   N is 3 by default and set in the lobby (up to 9).
 
 ## Controls
+
+Every round starts with a controls card for your device. MENU remains available during play with CONTROLS,
+BACK TO GAME, BACK TO LOBBY (for the room host) and LEAVE GAME. Opening the menu pauses a local match;
+online rooms keep playing, and your controls are released while the menu is open.
+
+In solo and online play, arrow keys and WASD both steer your gunship; Space fires. In local play, the WASD
+rider can also use arrows while no separate arrows rider has joined. Once an arrows rider joins with `/`,
+arrows control only that rider so two people never steer each other's gunships.
 
 In the lobby, press your fire key or button to join and press it again to leave. Seats up to the player count that
 nobody holds are played by bots. One keyboard seats four riders and one touch screen two, so a lobby of six humans

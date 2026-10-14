@@ -54,7 +54,7 @@ export function gameRoute(pathname: string): { gameId: string; path: string } {
     : { gameId: LEGACY_GAME_ID, path: pathname };
 }
 const HISTORY_ROUTE =
-  /^\/api\/(?:rooms\/[A-Z]{2}[0-9]{2}\/(?:results|round-results)|me\/round-results|leaderboard|matches|me|me\/matches)$/;
+  /^\/api\/(?:rooms\/[A-Z]{2}[0-9]{2}\/(?:results|round-results)|me\/(?:results|round-results)|leaderboard|matches|me|me\/matches)$/;
 
 /**
  * Match history, accounts and ratings, mounted behind the networking service's Origin and error boundaries. The
@@ -109,15 +109,31 @@ export function createHistoryHttp(
         json(await history.submit(reporter, body, uid));
         return true;
       }
-      if (pathname === "/api/me/round-results" && req.method === "POST") {
+      if (
+        (pathname === "/api/me/round-results" ||
+          pathname === "/api/me/results") &&
+        req.method === "POST"
+      ) {
         const header = req.headers["x-fuse-identity"];
         if (typeof header !== "string" || !header)
           throw new RoomError(401, "Sign in first");
         const uid = await identity(header);
         if (!uid)
-          throw new RoomError(503, "Identity unavailable; retry round report");
-        const reporter = await history.admitSolo(uid, clientAddress);
-        json(await history.submitSolo(reporter, await readJson(req), uid));
+          throw new RoomError(503, "Identity unavailable; retry solo report");
+        const roundReport = pathname === "/api/me/round-results";
+        const reporter = await history.admitSolo(
+          uid,
+          clientAddress,
+          roundReport,
+        );
+        json(
+          await history.submitSolo(
+            reporter,
+            await readJson(req),
+            uid,
+            roundReport,
+          ),
+        );
         return true;
       }
       // Public like the leaderboard: no sign-in, and an optional one only names the caller's own seat.

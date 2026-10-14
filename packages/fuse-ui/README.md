@@ -1,6 +1,13 @@
 # fuse-ui
 
-Shared menus and neon/pixel styles for the room games in this repo. It holds CSS tokens, one element factory and small DOM components for the screens every room game has. It imports nothing outside itself: no game code, no network code, no npm dependencies.
+Shared menus and neon/pixel styles for the room games in this repo. It holds CSS tokens, one element factory and small DOM components for the screens every room game has. It imports no game or network code. Its optional analytics entry downloads `mixpanel-browser` only when analytics is enabled.
+
+## Product metrics
+
+Each game starts one client with `startGameAnalytics(gameId)` from `fuse-ui/play-metrics`, which reports `fuse.App Opened`.
+Pass its `track` and an injected clock to `createPlayMetrics` and feed it actual rendered match state for seat/start/end events.
+The shared `fuse-ui/analytics` client attaches `gameId` on every event and owns consent, SDK loading and text scrubbing.
+Fuse Riders uses its more detailed funnel with that same client. See [the event contract](../../docs/ANALYTICS.md).
 
 ## Styles
 
