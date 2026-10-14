@@ -134,6 +134,7 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
       .getByRole("button", { name: "CREATE ROOM", exact: true })
       .click();
     await host.waitForURL(/room=/);
+    await host.locator(".room-riders > .room-rider").first().waitFor();
     const target = new URL(host.url());
     target.searchParams.set("benchmark", "1");
     target.searchParams.set("renderer", "phaser-canvas");
@@ -190,7 +191,17 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
             Reflect.get(window, "__trace") as { snapshots: Snapshot[] }
           ).snapshots.at(-1)?.phase,
       );
-      if (phase === "roundOver" || phase === "matchOver") await readyRoom(host);
+      if (phase === "roundOver" || phase === "matchOver") {
+        const canReady = await host
+          .getByRole("button", {
+            name: /^(READY|READY FOR REMATCH|NOT READY)$/,
+            includeHidden: true,
+          })
+          .evaluateAll((nodes) =>
+            nodes.some((node) => !(node as HTMLButtonElement).hidden),
+          );
+        if (canReady) await readyRoom(host);
+      }
       const index = step % 5,
         page = players[index]!,
         key =
