@@ -6,8 +6,10 @@ presence, succession, visibility, the tick loop, NACKs, status copy and metrics.
 consequence rather than the size: **the world's lifecycle was derived from a combination of flags on every tick**, and
 sentinels doubled as dirty flags, so a reader had to reconstruct the state machine in their head each time.
 
-This note records the split. It is behaviour-preserving — no wire change, no protocol change, no `RULES` bump, and the
-golden hash is unchanged.
+This note records the split, which preserves the deterministic fold and game rules. The same PR also fixes repeated
+snapshot fetching when valid peer checkpoints remain behind the log clock; the bounded catch-up policy and its
+regressions are described in [lagging snapshot catch-up](lagging-snapshot-catchup.md). Neither change alters the wire
+contract or requires a `RULES` bump, and the golden hash is unchanged.
 
 ## What moved where
 
