@@ -2,6 +2,9 @@ import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
+import "fuse-ui/social.css";
+import { createGameSocial } from "fuse-ui/social";
+import { createModalInputGate } from "fuse-ui/modal-input";
 import { createAppPortal } from "fuse-ui/portal";
 import { createPlayMetrics, startGameAnalytics } from "fuse-ui/play-metrics";
 import "./fuseDrivers.css";
@@ -48,6 +51,15 @@ const endpoints = createEndpoints(
   },
   location.origin,
 );
+const social = createGameSocial({
+  gameId: GAME,
+  base: import.meta.env.BASE_URL,
+  apiOrigin: import.meta.env.VITE_API_ORIGIN,
+  document,
+  window,
+  fetch: (input, init) => fetch(input, init),
+  track: analytics.track,
+});
 const store = safeStore(() => localStorage);
 const names = keys(GAME);
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
@@ -65,6 +77,7 @@ function header(): HTMLElement {
       search: location.search,
     }).element,
     brand,
+    social.element(),
   );
   return bar;
 }
@@ -104,10 +117,15 @@ function landing(): void {
 }
 
 /** The keys a driver holds, read every frame rather than on each event, so a held turn keeps turning. */
-function keyboardControls(): { read: () => TruckInput; stop: () => void } {
+function keyboardControls(blocked: () => boolean): {
+  read: () => TruckInput;
+  clear: () => void;
+  stop: () => void;
+} {
   const down = new Set<string>();
   const key = (event: KeyboardEvent) => event.key.toLowerCase();
   const onDown = (event: KeyboardEvent) => {
+    if (blocked()) return;
     if (
       event.target instanceof HTMLInputElement ||
       event.target instanceof HTMLButtonElement
@@ -123,6 +141,7 @@ function keyboardControls(): { read: () => TruckInput; stop: () => void } {
   addEventListener("keyup", onUp);
   addEventListener("blur", clear);
   return {
+    clear,
     read: () => ({
       left: down.has("arrowleft") || down.has("a"),
       right: down.has("arrowright") || down.has("d"),
@@ -181,7 +200,7 @@ function room(solo: boolean): void {
 
   const nameEntry = createNameEntry({
     normalize: (raw) => seatName(raw) ?? "",
-    initial: store.getItem(names.name) ?? "",
+    initial: social.playerName(store.getItem(names.name)) ?? "",
     onInput: (value) => store.setItem(names.name, value),
     buttonText: "JOIN THE GRID",
     onSubmit: (name) => {
@@ -207,22 +226,30 @@ function room(solo: boolean): void {
     buttons: [
       {
         label: "◀",
-        onPress: () => (touch.left = true),
+        onPress: () => {
+          if (!modalInput.blocked()) touch.left = true;
+        },
         onRelease: () => (touch.left = false),
       },
       {
         label: "ITEM",
-        onPress: () => (touch.item = true),
+        onPress: () => {
+          if (!modalInput.blocked()) touch.item = true;
+        },
         onRelease: () => (touch.item = false),
       },
       {
         label: "NITRO",
-        onPress: () => (touch.nitro = true),
+        onPress: () => {
+          if (!modalInput.blocked()) touch.nitro = true;
+        },
         onRelease: () => (touch.nitro = false),
       },
       {
         label: "▶",
-        onPress: () => (touch.right = true),
+        onPress: () => {
+          if (!modalInput.blocked()) touch.right = true;
+        },
         onRelease: () => (touch.right = false),
       },
     ] as const,
@@ -273,6 +300,13 @@ function room(solo: boolean): void {
     state(frame, settings) {
       viewer.shared = settings.display;
       latest = frame;
+      main.dataset.tick = String(frame.tick);
+      const slot = frame.drivers.find(
+        (driver) => driver.id === viewer.me,
+      )?.truck;
+      main.dataset.turn = String(
+        frame.race?.trucks.find((truck) => truck.slot === slot)?.turnDir ?? 0,
+      );
       viewAt = performance.now();
       render(presentTable(frame, viewer));
     },
@@ -301,17 +335,42 @@ function room(solo: boolean): void {
     session.kind === "room"
       ? {
           transport: (events) =>
-            new PeerTransport(code, session.token, events, {
-              apiUrl: endpoints.apiUrl,
-              gameId: GAME,
-              maxFastBytes: MAX_PACKET_BYTES,
-            }),
+            social.transport(
+              code,
+              session.token,
+              events,
+              (wrapped) =>
+                new PeerTransport(code, session.token, wrapped, {
+                  apiUrl: endpoints.apiUrl,
+                  gameId: GAME,
+                  maxFastBytes: MAX_PACKET_BYTES,
+                }),
+            ),
           displayOnly: display,
         }
-      : { humanName: store.getItem(names.name) ?? undefined },
+      : {
+          humanName: social.playerName(store.getItem(names.name)) ?? undefined,
+        },
   );
 
-  const board = keyboardControls();
+  const board = keyboardControls(() => modalInput.blocked());
+  const modalInput = createModalInputGate({
+    isOpen: () => !!document.querySelector("dialog[open]"),
+    observe: (change) => {
+      const observer = new MutationObserver(change);
+      observer.observe(document.body, {
+        attributes: true,
+        subtree: true,
+        attributeFilter: ["open"],
+      });
+      return () => observer.disconnect();
+    },
+    cancel: () => {
+      board.clear();
+      Object.assign(touch, NEUTRAL_INPUT);
+      runtime.drive(NEUTRAL_INPUT);
+    },
+  });
   let arena: MountedArena | undefined;
   let stopped = false;
   const reports = createReportDispatcher({
@@ -321,7 +380,7 @@ function room(solo: boolean): void {
         ? sendReport(
             endpoints.apiUrl(`/api/games/${GAME}/rooms/${code}/${report.path}`),
             report,
-            { fetch, roomToken: session.token },
+            { fetch: social.reportFetch, roomToken: session.token },
           )
         : Promise.resolve(true),
   });
@@ -350,14 +409,18 @@ function room(solo: boolean): void {
     );
     if (drawArena) arena?.render(latest, alpha, runtime.self);
     if (!display)
-      runtime.drive({
-        left: board.read().left || touch.left,
-        right: board.read().right || touch.right,
-        brake: board.read().brake || touch.brake,
-        nitro: board.read().nitro || touch.nitro,
-        item: board.read().item || touch.item,
-        itemAlt: board.read().itemAlt || touch.itemAlt,
-      });
+      runtime.drive(
+        modalInput.blocked()
+          ? NEUTRAL_INPUT
+          : {
+              left: board.read().left || touch.left,
+              right: board.read().right || touch.right,
+              brake: board.read().brake || touch.brake,
+              nitro: board.read().nitro || touch.nitro,
+              item: board.read().item || touch.item,
+              itemAlt: board.read().itemAlt || touch.itemAlt,
+            },
+      );
     const room = runtime.roomState();
     if (room)
       observePlay(
@@ -388,6 +451,7 @@ function room(solo: boolean): void {
   installRoomLifecycle(window, {
     stop: () => {
       stopped = true;
+      modalInput.dispose();
       board.stop();
       runtime.stop();
     },
