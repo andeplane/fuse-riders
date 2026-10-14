@@ -15,6 +15,13 @@ const browser = await launchSelected("chrome", { headless: true });
 const errors: string[] = [];
 const finishCoverage: (() => Promise<void>)[] = [];
 function inspect(page: Page): void {
+  let failedResponses = 0;
+  page.on("response", (response) => {
+    if (response.status() >= 400 && failedResponses++ < 20)
+      console.error(
+        `HTTP ${response.status()} ${new URL(response.url()).pathname}`,
+      );
+  });
   page.on("pageerror", (e) => {
     errors.push(e.message);
     console.error(e.message);
