@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { smokeTimeout } from "./smoke-timeout.js";
 import { openTopMenu } from "./lib/top-menu.js";
-const base = process.env.ONLINE_URL ?? "http://127.0.0.1:8796/";
+import { ridersPageUrl } from "./lib/riders-url.js";
+const base = ridersPageUrl(process.env.ONLINE_URL ?? "http://127.0.0.1:8796/");
 await mkdir("artifacts", { recursive: true });
 const results: object[] = [];
 async function qr(page: Page) {
