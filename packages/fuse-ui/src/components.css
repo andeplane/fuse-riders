@@ -502,7 +502,7 @@
   border: 1px solid currentColor;
   border-radius: var(--fui-radius-panel, 0.75rem);
   box-shadow: 0 0.5rem 2rem #0009;
-  pointer-events: none;
+  pointer-events: auto;
 }
 .fui-round-controls-title {
   display: block;
@@ -512,6 +512,21 @@
   font-size: 0.75em;
   line-height: 1.5;
   letter-spacing: 0.05em;
+  padding-right: 1.75rem;
+}
+.fui-round-controls-dismiss {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  min-width: 2rem;
+  min-height: 2rem;
+  padding: 0.25rem;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  pointer-events: auto;
 }
 .fui-game-menu [hidden],
 .fui-round-controls[hidden] {

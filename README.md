@@ -60,7 +60,7 @@ Every device in a room simulates the game from one shared input log, so no brows
 
 Games keep their own visual style while following the same navigation pattern: play or join from the home screen, open **MENU** during a game, read **Controls**, return to the lobby when allowed, or leave the game. Fuse Riders keeps its existing menu with room settings, account and radio controls; the other games use the shared `fuse-ui` menu alongside their game-specific settings.
 
-Control reminders appear at each round's countdown or opening phase. Games without a countdown use their stage, turn or week start. They describe keyboard and touch input and the immediate objective; shared TV displays explain that players use their phones. Open **MENU → Controls** to read them again. The reminders do not pause the simulation or change round timing.
+Control reminders appear at each round's countdown or opening phase. Games without a countdown use their stage, turn or week start. They describe keyboard and touch input and the immediate objective; shared TV displays explain that players use their phones. Click **×** to dismiss a reminder for this startup period; game frames and device changes keep it dismissed. Open **MENU → Controls** to read them again. The reminders do not pause the simulation or change round timing.
 
 `createGameMenu` and `createRoundControls` in `packages/fuse-ui` provide the shared behavior. Pig is the new-game template, so generated games inherit this navigation and onboarding. Run `ONLINE_URL=http://localhost:PORT/ pnpm exec tsx scripts/shared-menu-controls-smoke.ts` against a fresh local service to check the real flows.
 
