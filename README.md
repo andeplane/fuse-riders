@@ -1,6 +1,8 @@
 # Fuse Riders
 
-## [Play it now →](https://andeplane.github.io/fuse-riders/)
+## [Browse all games →](https://andeplane.github.io/fuse-riders/)
+
+The site root is the **Fuse Games** gallery, with gameplay screenshots and a play link for each game listed in `games/<id>/portal.json`. [Play Fuse Riders directly](https://andeplane.github.io/fuse-riders/fuse-riders/). Every game's app launcher has an **ALL GAMES** link back to the gallery. Existing root `?room=…`, `?solo=1` and `?display=1` links still open Riders.
 
 **Play solo or with friends.** Choose **PLAY SOLO** for an immediate local game against four AI riders, or create a room and share its invite. Solo uses no room service or WebRTC; refreshing starts a fresh run. In a room every device simulates the game, so any rider can refresh or drop and rejoin while the others keep playing. Gameplay requires a direct WebRTC connection; unsupported networks show a retry state. Physical-phone qualification is still pending.
 
