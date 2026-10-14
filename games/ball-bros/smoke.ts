@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { launchSelected } from "../../scripts/lib/browser.js";
+import { startGameCoverage } from "../../scripts/lib/game-browser-coverage.js";
 
 /** Real page only: no state injection or accelerated simulation. Run against the built dev server. */
 const origin = process.env.ONLINE_URL ?? "http://localhost:8792/";
@@ -11,8 +12,9 @@ try {
     viewport: { width: 1440, height: 1000 },
   });
   const errors: string[] = [];
+  const finishCoverage = await startGameCoverage(page, { gameId: "ball-bros" });
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto(new URL("?mute", origin).href);
+  await page.goto(new URL("fuse-riders/?mute", origin).href);
   await page.getByRole("button", { name: "Fuse games", exact: true }).click();
   await page.getByRole("link", { name: /Ball Bros/ }).click();
   // Preserve ephemeral mute when navigating from another game's landing.
@@ -126,6 +128,7 @@ try {
   console.log(
     "PASS: menu, Ricochet map, solo controls, Space launch, damage, restart, Frenzy, full round, rematch and phone layout; muted screenshots saved.",
   );
+  await finishCoverage();
 } finally {
   await browser.close();
 }

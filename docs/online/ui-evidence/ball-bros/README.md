@@ -17,3 +17,7 @@ Commands: `pnpm exec tsx games/ball-bros/smoke.ts`, `pnpm exec tsx games/ball-br
 - [Arena selection](maps-lobby.png): authoritative lobby map selection with five occupied seats before an online match.
 
 The solo run selected Ricochet Reactor and an avatar, observed bumper collisions and an active power effect, reached Fuse Frenzy without clock injection, completed a round, rematched, restarted and exercised combined orbit/reach controls. The online run changed maps through the room log and covered create failure/retry, reload recovery, identical results/rematch, creator departure, shared TV/phone mode and refused-storage creation/reconnect. Radio remained off; typed media-player tests cover play/rejection/teardown. No injected game state or accelerated clock was used. Phone screenshots are browser emulation, not physical-phone or cross-network evidence.
+
+## 2026-10-14 individual PR validation
+
+After merging main `01266922`, the real muted presentation smoke passed avatar selection, portrait-request failure and a fresh seated room with a bot. [The corrected lobby](cleanup-lobby.png) captures the readable invite code after the contrast fix `29673907`. The flow ran against this worktree's fresh Vite source server (`ONLINE_URL=http://127.0.0.1:5173/`), with native Chromium executed ranges collected and accepted only after each source map's content matched the current source files exactly. This is desktop browser emulation and local room evidence.
