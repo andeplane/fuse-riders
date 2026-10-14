@@ -21,6 +21,8 @@ There is one tick driver. `driveGameTick` (`games/fuse-riders/src/engine/tick-dr
 
 ## Source ownership
 
+Fuse Drivers (`games/fuse-drivers/`) owns its offroad racing simulation and fold in `src/game/`, Phaser arena and room page in `src/app/`, and stats registration in `src/platform.ts`. Its page is served at `/fuse-drivers/` and appears in the shared app portal.
+
 | Location                                                                                     | Owns                                                                                                                                                                                                                                                                                                                                                   |
 | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `games/fuse-riders/src/engine/game.ts`, `state.ts`                                           | Lifecycle commands and `step` (a loop over `PHASES`); plain game state and its ordered readers                                                                                                                                                                                                                                                         |
