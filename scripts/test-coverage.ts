@@ -104,6 +104,7 @@ try {
   for (const script of browserFlows.sort()) {
     const exit = await run(["exec", "tsx", script], {
       ...process.env,
+      BROWSER: "chrome",
       ONLINE_URL: url,
       FUSE_GAME_COVERAGE_DIR: resolve(root, "coverage/tmp"),
     });
