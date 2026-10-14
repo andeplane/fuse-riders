@@ -1,7 +1,9 @@
 import { MAPS, type MapId } from "./maps.js";
+import { ALL_POWERS, DASH_KEEP } from "./power-rules.js";
 /** All authoritative lengths/velocities use integer subunits (1024 per world unit). */
-export const RULES = "hook-havok-10";
+export const RULES = "hook-havok-17";
 export const S = 1024;
+/** Lantern Belfry's size; every map carries its own (`MAPS[map].width`, `height`). */
 export const WIDTH = 1600,
   HEIGHT = 900,
   HALF = 16 * S,
@@ -11,8 +13,14 @@ export const HOOK_SPEED = 32,
   ROPE_MIN = 40;
 /** Original belfry geometry, retained for its traversal fixtures. Runtime uses tuning.map. */
 export const PLATFORMS = MAPS.belfry.platforms;
+type Switch = "off" | "on";
 export interface Tuning {
-  powerUps: "off" | "on";
+  /** How well AI keepers play (11C); only rooms with bots feel it. */
+  botLevel: "easy" | "normal" | "hard";
+  /** Thrown bomb trial (11B): off, a timed fuse, or impact on a rival. */
+  bomb: "off" | "fuse" | "impact";
+  /** Power-up pool (11D): a bit per kind in POWER_KINDS order, 0 off, ALL_POWERS all. */
+  powerUps: number;
   jumpMode: "single" | "double";
   wire: "tip" | "spiked";
   map: MapId;
@@ -24,11 +32,20 @@ export interface Tuning {
   air: number;
   pull: number;
   range: number;
+  /** Zones and hazards (12B), each switchable; maps without the zone ignore it. */
+  jumpPads: Switch;
+  lifts: Switch;
+  lowGravity: Switch;
+  electricFloor: Switch;
+  lasers: Switch;
+  bonusZone: Switch;
 }
 export const DEFAULT_TUNING: Tuning = {
-  powerUps: "off",
+  botLevel: "normal",
+  bomb: "fuse",
+  powerUps: ALL_POWERS,
   jumpMode: "double",
-  wire: "tip",
+  wire: "spiked",
   map: "crossroads",
   rules: "free",
   experiment: "ricochet",
@@ -39,10 +56,19 @@ export const DEFAULT_TUNING: Tuning = {
   /** Rope reel-in speed, units/s, while the hook is held. */
   pull: 850,
   range: 650,
+  jumpPads: "on",
+  lifts: "on",
+  lowGravity: "on",
+  electricFloor: "on",
+  lasers: "on",
+  bonusZone: "on",
 };
-/** The pre-10A trial defaults: belfry, no balls, single jump. Fixtures pin it. */
+/** The pre-10A trial defaults: belfry, no balls, single jump, tip-only hook, no bombs or power-ups. Fixtures pin it. */
 export const CLASSIC_TUNING: Tuning = {
   ...DEFAULT_TUNING,
+  bomb: "off",
+  powerUps: 0,
+  wire: "tip",
   jumpMode: "single",
   map: "belfry",
   experiment: "movement",
@@ -52,6 +78,10 @@ export interface Input {
   move: -1 | 0 | 1;
   jump: boolean;
   fire: boolean;
+  /** Held to charge a bomb; the release throws toward that tick's aim. */
+  bomb: boolean;
+  /** Lifecycle cancellation drops a held charge rather than throwing it. */
+  cancelBomb: boolean;
   reset: boolean;
   aimX: number;
   aimY: number;
@@ -61,6 +91,8 @@ export const NEUTRAL: Input = {
   move: 0,
   jump: false,
   fire: false,
+  bomb: false,
+  cancelBomb: false,
   reset: false,
   aimX: 800,
   aimY: 100,
@@ -77,6 +109,10 @@ export interface Hook {
 }
 export interface World {
   airJump: boolean;
+  /** Air actions a power adds on top of the air jump (Triple jump, Dash bump). */
+  bonusJumps: number;
+  /** Ticks left in a Dash bump; the dash holds its velocity until 0. */
+  dash: number;
   slot: number;
   combat: Combat;
   tick: number;
@@ -89,6 +125,8 @@ export interface World {
   buffer: number;
   respawn: number;
   deaths: number;
+  /** Ticks the bomb button has been held while armed; 0 when not charging. */
+  charge: number;
   facing: -1 | 1;
   input: Input;
   previous: Input;
@@ -126,7 +164,8 @@ export function ballField(
   mode: Tuning["experiment"],
   map: MapId,
 ): readonly [number, number, number, number] {
-  return mode === "ball" ? MAPS[map].ballField : [0, 0, WIDTH, 870];
+  const { width, height } = MAPS[map];
+  return mode === "ball" ? MAPS[map].ballField : [0, 0, width, height - 30];
 }
 export function ballSpeed(mode: Tuning["experiment"], tier: number): number {
   return (4 - tier) * S * (mode === "surge" ? 2 : 1);
@@ -156,8 +195,8 @@ export function createCombat(
           {
             id: 1,
             tier: 2,
-            x: MAPS[map].ballSpawn[0] * S,
-            y: (mode === "ball" ? MAPS[map].ballSpawn[1] : 740) * S,
+            x: MAPS[map][mode === "ball" ? "ballSpawn" : "arenaBall"][0] * S,
+            y: MAPS[map][mode === "ball" ? "ballSpawn" : "arenaBall"][1] * S,
             vx: ballSpeed(mode, 2),
             vy: 0,
           },
@@ -185,6 +224,8 @@ export function createWorld(tuning: Tuning = DEFAULT_TUNING, slot = 0): World {
   return {
     slot,
     airJump: tuning.jumpMode === "double",
+    bonusJumps: 0,
+    dash: 0,
     combat: createCombat(tuning.experiment, tuning.map),
     tick: 0,
     x: x * S,
@@ -196,6 +237,7 @@ export function createWorld(tuning: Tuning = DEFAULT_TUNING, slot = 0): World {
     buffer: 0,
     respawn: 0,
     deaths: 0,
+    charge: 0,
     facing: 1,
     input: { ...NEUTRAL },
     previous: { ...NEUTRAL },
@@ -216,5 +258,16 @@ export function cancel(world: World): void {
   world.input = { ...NEUTRAL, aimX: world.input.aimX, aimY: world.input.aimY };
   world.previous = { ...world.input };
   world.buffer = 0;
+  // A cancelled charge is dropped, never thrown.
+  world.charge = 0;
   world.hook = readyHook();
+  world.bonusJumps = 0;
+  endDash(world);
+}
+/** A dash ends keeping part of its speed; nothing happens outside a dash. */
+export function endDash(world: World): void {
+  if (!world.dash) return;
+  world.dash = 0;
+  world.vx = Math.round(world.vx * DASH_KEEP);
+  world.vy = Math.round(world.vy * DASH_KEEP);
 }

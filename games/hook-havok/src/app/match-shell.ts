@@ -1,5 +1,6 @@
 import type { WorldView } from "../engine/view.js";
 import { keeperColor } from "../render/identity.js";
+import { botBadge } from "./roster.js";
 import "./match-shell.css";
 
 /** Presentation of replicated facts. All actions reuse the room's existing controls. */
@@ -25,6 +26,7 @@ export function createMatchShell() {
   get("experiment").closest("section")!.append(get("reset"));
   workshop.append(
     get("jump-mode").closest("section")!,
+    get("zone-controls"),
     controls,
     document.querySelector(".room-entry")!,
   );
@@ -32,7 +34,13 @@ export function createMatchShell() {
   preferences.className = "controls personal-controls";
   preferences.setAttribute("aria-label", "Your controls and atmosphere");
   content.append(preferences);
-  for (const id of ["keyboard-mode", "touch-toggle", "aim-mode", "atmosphere"])
+  for (const id of [
+    "keyboard-mode",
+    "touch-toggle",
+    "aim-mode",
+    "atmosphere",
+    "follow-cam",
+  ])
     preferences.append(get(id).closest("label")!);
   preferences.append(get("control-help"));
   content.append(document.querySelector("[data-radio]")!);
@@ -45,7 +53,7 @@ export function createMatchShell() {
   const overlay = document.createElement("section");
   overlay.id = "match-overlay";
   overlay.hidden = true;
-  overlay.innerHTML = `<div id="countdown-card" role="status" hidden><span>GET READY</span><strong id="countdown-number"></strong></div><section id="result-card" aria-labelledby="result-title" hidden><p class="result-kicker">THE BELFRY REMEMBERS</p><h2 id="result-title"></h2><div id="winner-portraits" aria-hidden="true"></div><p id="result-detail" role="status"></p><div class="result-actions"><button id="rematch">Play again</button><button id="result-free">Free play</button><button id="dismiss-results">View arena</button></div><p id="rematch-help"></p></section>`;
+  overlay.innerHTML = `<div id="countdown-card" role="status" hidden><span>GET READY</span><strong id="countdown-number"></strong></div><section id="result-card" aria-labelledby="result-title" hidden><p class="result-kicker">THE BELFRY REMEMBERS</p><h2 id="result-title"></h2><div id="winner-portraits" aria-hidden="true"></div><p id="result-detail" role="status"></p><ol id="result-tally" aria-label="Round tally"></ol><div class="result-actions"><button id="rematch">Play again</button><button id="result-free">Free play</button><button id="dismiss-results">View arena</button></div><p id="rematch-help"></p></section>`;
   document.querySelector(".stage")!.append(overlay);
   get("rematch").onclick = () => {
     get<HTMLButtonElement>("restart-room").click();
@@ -95,7 +103,17 @@ export function createMatchShell() {
         c.entries,
         c.winners,
         view.map,
-        view.keepers.map((k) => [k.id, k.name, k.slot, k.connected, k.playing]),
+        view.keepers.map((k) => [
+          k.id,
+          k.name,
+          k.bot,
+          k.slot,
+          k.connected,
+          k.playing,
+          c.phase === "over" ? k.tally : null,
+        ]),
+        view.bombMode,
+        view.powers.length,
         selfId,
         manager,
         display,
@@ -117,7 +135,11 @@ export function createMatchShell() {
           ? "You manage this room. Explore now; choose a round mode to compete. Match choices restart the shared trial."
           : "The room manager chooses the arena and starts the next round. You can explore during free play.";
       get("match-map").textContent =
-        view.map === "crossroads" ? "THE CROSSROADS" : "LANTERN BELFRY";
+        view.map === "crossroads"
+          ? "THE CROSSROADS"
+          : view.map === "spire"
+            ? "NEON SPIRE"
+            : "LANTERN BELFRY";
       get("match-mode").textContent =
         c.rules === "free"
           ? "Free play"
@@ -145,7 +167,7 @@ export function createMatchShell() {
         : !local?.connected
           ? "Joining keepers…"
           : c.phase === "waiting"
-            ? "Invite a second keeper to begin"
+            ? "Invite a second keeper, or add a bot, to begin"
             : c.rules !== "free" && c.phase === "active" && !local.playing
               ? "WATCHING · back next round"
               : `P${local.slot + 1} · ${local.name}`;
@@ -169,9 +191,65 @@ export function createMatchShell() {
             : c.winners.length > 1
               ? "A shared victory"
               : "A keeper stands tall";
+        const bot = (id: string) =>
+          !!view.keepers.find((k) => k.id === id)?.bot;
         get("result-detail").textContent = c.winners.length
-          ? c.winners.map(name).join(" & ")
+          ? c.winners
+              .map((id) => `${name(id)}${bot(id) ? " (bot)" : ""}`)
+              .join(" & ")
           : "The round ends in a draw.";
+        // Knockouts, self-knockouts, bombs thrown and how each keeper went down.
+        const bombs = view.bombMode !== "off";
+        const fate = (t: (typeof view.keepers)[number]["tally"]) =>
+          t.fate === "fall"
+            ? "fell"
+            : t.fate === "self"
+              ? "own bomb"
+              : t.fate === "bomb"
+                ? `bombed by ${name(t.by)}`
+                : t.fate === "hazard"
+                  ? t.by
+                    ? `pushed into a hazard by ${name(t.by)}`
+                    : "zapped"
+                  : "";
+        get("result-tally").replaceChildren(
+          ...c.entries.map((entry) => {
+            const k = view.keepers.find((k) => k.id === entry.id);
+            const li = document.createElement("li");
+            li.style.setProperty("--keeper-color", keeperColor(entry.slot));
+            const who = document.createElement("strong");
+            who.textContent = name(entry.id);
+            const facts: string[] = [];
+            if (k && bombs)
+              facts.push(
+                `${k.tally.knockouts} KO`,
+                `${k.tally.selfKnockouts} self`,
+                `${k.tally.thrown} bombs`,
+              );
+            if (k && view.powers.length)
+              facts.push(
+                `${k.tally.powerUps} power-up${k.tally.powerUps === 1 ? "" : "s"}`,
+              );
+            if (c.rules === "elimination")
+              facts.push(
+                entry.out
+                  ? `out · ${(k && fate(k.tally)) || "left"}`
+                  : "standing",
+              );
+            else if (k)
+              facts.push(
+                `${k.tally.falls} falls`,
+                ...(bombs ? [`${k.tally.bombed} bombed`] : []),
+                ...(k.tally.zapped ? [`${k.tally.zapped} zapped`] : []),
+                ...(k.tally.fate ? [`last: ${fate(k.tally)}`] : []),
+              );
+            const detail = document.createElement("span");
+            detail.textContent = facts.join(" · ");
+            if (k?.bot) li.append(botBadge());
+            li.append(who, " ", detail);
+            return li;
+          }),
+        );
         get("winner-portraits").replaceChildren(
           ...c.winners.map((id) => {
             const p = document.createElement("span");
