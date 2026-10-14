@@ -1,3 +1,5 @@
+import { social } from "./social.js";
+import { createModalInputGate } from "fuse-ui/modal-input";
 import "fuse-ui/portal.css";
 import "fuse-ui/components.css";
 import { reportPlay } from "./analytics.js";
@@ -292,6 +294,7 @@ homeBar.append(
     search: location.search,
   }).element,
   el("home"),
+  social.element(),
 );
 el<HTMLAnchorElement>("study").href = `?showcase=1${muted ? "&mute" : ""}`;
 const tuning = el<HTMLFormElement>("tuning");
@@ -404,10 +407,21 @@ function clear() {
   touch?.clear();
   keyboard.clear();
   input = { ...NEUTRAL, aimX: aim.x, aimY: aim.y };
-  runtime?.clear(input);
+  const tick = runtime?.clear(input);
+  if (tick !== undefined) {
+    host.dataset.inputTick = String(tick);
+    host.dataset.inputBomb = "false";
+    host.dataset.inputCancelled = "true";
+  }
 }
 function send() {
-  runtime?.input(input);
+  if (modalInput.blocked()) return;
+  const tick = runtime?.input(input);
+  if (tick !== undefined) {
+    host.dataset.inputTick = String(tick);
+    host.dataset.inputBomb = String(input.bomb);
+    host.dataset.inputCancelled = String(input.cancelBomb);
+  }
 }
 const touchToggle = el<HTMLInputElement>("touch-toggle"),
   touchDeck = el("touch-deck"),
@@ -439,6 +453,19 @@ touch = createTouchControls(
   },
   clear,
 );
+const modalInput = createModalInputGate({
+  isOpen: () => !!document.querySelector("dialog[open]"),
+  observe: (change) => {
+    const observer = new MutationObserver(change);
+    observer.observe(document.body, {
+      attributes: true,
+      subtree: true,
+      attributeFilter: ["open"],
+    });
+    return () => observer.disconnect();
+  },
+  cancel: clear,
+});
 function touchLayout() {
   clear();
   const enabled = touchToggle.checked;
@@ -448,6 +475,7 @@ function touchLayout() {
   el("touch-help").hidden = !enabled;
   touch?.enable(
     enabled &&
+      !modalInput.blocked() &&
       status.dataset.state === "playing" &&
       (!graphicsReady || !menu.isOpen()),
   );
@@ -702,6 +730,7 @@ const enterRoom = async () => {
             mode: frame.contest.rules,
           });
           latest = localView(frame);
+          host.dataset.logTick = String(frame.logTick);
           const c = frame.contest;
           const localKeeper = frame.keepers.find((k) => k.id === selfId);
           const controllable =
@@ -733,6 +762,7 @@ const enterRoom = async () => {
               frame.stage === "running" &&
               controllable &&
               !!local?.connected &&
+              !modalInput.blocked() &&
               !menu.isOpen(),
           );
           paintBombButton(frame);
@@ -740,8 +770,9 @@ const enterRoom = async () => {
             joined = !!runtime?.command({
               type: "join",
               name:
-                el<HTMLInputElement>("keeper-name").value.trim() ||
-                "Lantern keeper",
+                social.playerName(
+                  el<HTMLInputElement>("keeper-name").value.trim(),
+                ) || "Lantern keeper",
             });
           }
           if (restartRequested && frame.stage === "lobby") {
@@ -901,21 +932,27 @@ const enterRoom = async () => {
       {
         displayOnly: display,
         transport: (events) =>
-          new PeerTransport(
+          social.transport(
             room.code,
             room.token,
-            {
-              ...events,
-              welcome(id, creator) {
-                creatorId = creator;
-                events.welcome(id, creator);
-              },
-            },
-            {
-              apiUrl: endpoints.apiUrl,
-              gameId: "hook-havok",
-              maxFastBytes: MAX_PACKET_BYTES,
-            },
+            events,
+            (events) =>
+              new PeerTransport(
+                room.code,
+                room.token,
+                {
+                  ...events,
+                  welcome(id, creator) {
+                    creatorId = creator;
+                    events.welcome(id, creator);
+                  },
+                },
+                {
+                  apiUrl: endpoints.apiUrl,
+                  gameId: "hook-havok",
+                  maxFastBytes: MAX_PACKET_BYTES,
+                },
+              ),
           ),
       },
     );
@@ -1206,6 +1243,7 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 window.addEventListener("pagehide", () => {
+  modalInput.dispose();
   effects.destroy();
   radio.destroy();
   disposed = true;
@@ -1244,6 +1282,7 @@ const menu = createGameMenu({
     const local = latest.keepers.find((keeper) => keeper.id === selfId);
     touch?.enable(
       !open &&
+        !modalInput.blocked() &&
         !display &&
         touchToggle.checked &&
         !!runtime &&
