@@ -100,7 +100,7 @@ test("copyText reports a clipboard write, and falls back to execCommand when the
   assert.equal(document.querySelector("textarea"), null);
 });
 
-test("the package imports nothing outside itself", () => {
+test("the package stays self-contained except for the optional lazy Mixpanel adapter", () => {
   const root = path.resolve("packages/fuse-ui/src");
   const files = readdirSync(root).filter((name) => name.endsWith(".ts"));
   assert.ok(files.length > 0);
@@ -108,11 +108,22 @@ test("the package imports nothing outside itself", () => {
     const text = readFileSync(path.join(root, name), "utf8");
     for (const [, specifier] of text.matchAll(
       /(?:\bfrom\s+|\bimport\s*\(?\s*)["']([^"']+)["']/g,
-    ))
+    )) {
+      if (name === "analytics.ts" && specifier === "mixpanel-browser") {
+        // The shared product-metrics entry is the only SDK boundary. Both its type query and its lazy loader
+        // use import(); a static SDK import would download it even on opted-out and local-dev pages.
+        assert.doesNotMatch(
+          text,
+          /\bfrom\s+["']mixpanel-browser["']|\bimport\s+["']mixpanel-browser["']/,
+        );
+        assert.match(text, /\bimport\(["']mixpanel-browser["']\)/);
+        continue;
+      }
       assert.match(
         specifier!,
         /^\.\/[\w-]+\.js$/,
         `${name} imports ${specifier}`,
       );
+    }
   }
 });
