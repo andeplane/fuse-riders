@@ -1,6 +1,16 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { launchSelected } from "./lib/browser.js";
+import type { Page } from "playwright";
+
+async function renderedArena(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>(".fd-arena");
+    if (canvas?.dataset.ready !== "true") return false;
+    const box = canvas.getBoundingClientRect();
+    return box.width > innerWidth * 0.6 && box.bottom <= innerHeight;
+  });
+}
 
 const origin = process.env.ONLINE_URL ?? "http://localhost:8797/";
 const browser = await launchSelected("chrome");
@@ -28,6 +38,7 @@ try {
   await host.goto(new URL("fuse-drivers/?solo=1&mute", origin).href);
   await host.locator(".fd-hud").filter({ hasText: "LAP" }).waitFor();
   await host.locator(".fd-arena").waitFor({ state: "visible" });
+  await renderedArena(host);
   await host.screenshot({ path: "artifacts/fuse-drivers/solo.png" });
   await host.goto(new URL("fuse-drivers/?mute", origin).href);
   await host
@@ -58,6 +69,7 @@ try {
     ),
   );
   await tv.locator(".fd-arena").waitFor({ state: "visible" });
+  await renderedArena(tv);
   await host.locator(".fd-arena").waitFor({ state: "hidden" });
   await peer.locator(".fd-arena").waitFor({ state: "hidden" });
   await tv.locator(".fd-pad").waitFor({ state: "hidden" });
