@@ -1,3 +1,4 @@
+import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
 import "@fontsource-variable/nunito";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
@@ -15,6 +16,7 @@ import { MAX_PACKET_BYTES, uuid } from "fuse-netcode";
 import {
   button,
   createAppPortal,
+  createGameMenu,
   createNameEntry,
   createNotice,
   el,
@@ -56,6 +58,7 @@ import {
   saveChecklist,
 } from "./checklist.js";
 import { createGameScreen, text } from "./screen.js";
+import { TOWN_CONTROLS, TOWN_GOAL } from "./control-guide.js";
 import {
   NOT_OPEN,
   keys,
@@ -70,6 +73,8 @@ import {
  * helpers, the local match and the board's geometry; this file wires them to the page.
  */
 const GAME = fuseLaneGame.id;
+const analytics = startGameAnalytics(GAME);
+const reportPlay = createPlayMetrics(analytics.track, () => performance.now());
 /** The site root, also under a relative base (a static preview copied to any folder). */
 const BASE = siteBase(import.meta.env.BASE_URL, import.meta.url);
 const endpoints = createEndpoints(
@@ -246,17 +251,39 @@ function local(match: LocalMatch, resumed = false): void {
     shared: false,
     local: true,
   };
-  const pause = button("", "fl-icon-button fl-pause"),
-    quit = button("", "fl-icon-button fl-quit");
-  quit.setAttribute("aria-label", "Save and go to the menu");
-  quit.append(el("span", "", "fl-icon-menu"));
+  const pause = button("", "fl-icon-button fl-pause");
+  let pausedBeforeMenu = false;
+  const gameMenu = createGameMenu({
+    controls: [
+      ...TOWN_CONTROLS,
+      {
+        keys: "P / pause button",
+        action: "Pause or resume this device's game",
+      },
+    ],
+    goal: `${TOWN_GOAL} Leaving saves your game on this device.`,
+    onLeave: () => toMenu(),
+    onOpenChange(open) {
+      pause.disabled = open;
+      if (open) {
+        pausedBeforeMenu = runtime.paused;
+        runtime.setPaused(true);
+      } else runtime.setPaused(pausedBeforeMenu);
+      showPaused();
+      if (!open && !runtime.paused && match.room.stage === "running") {
+        screen.game.tabIndex = -1;
+        screen.game.focus({ preventScroll: true });
+      }
+    },
+  });
+  gameMenu.update({ canLobby: false });
   const checks = loadChecklist(store, match.room.matchId);
   const screen = createGameScreen(
     art,
     viewer,
     () => runtime,
     {
-      controls: [pause, quit],
+      controls: [pause, gameMenu.element],
       checklist: {
         fold: (open) => {
           checks.open = open;
@@ -328,12 +355,21 @@ function local(match: LocalMatch, resumed = false): void {
   };
   const showPaused = () => {
     const touring = screen.touring();
-    paused.hidden = !runtime.paused || touring;
+    paused.hidden = !runtime.paused || touring || gameMenu.isOpen();
     screen.game.classList.toggle("paused", runtime.paused && !touring);
   };
   const runtime = new LocalRuntime(
     match,
     (view) => {
+      reportPlay({
+        matchId: match.room.matchId,
+        active: view.phase === "running",
+        ended: view.phase === "over",
+        playerCount: view.players.length,
+        botCount: view.players.filter((player) => player.bot).length,
+        seated: match.humans.length > 0,
+        mode: match.humans.length > 1 ? "local" : "solo",
+      });
       const model = present(view, viewer);
       // Whoever plays on this device now ticks off their own "Getting started" steps.
       const who =
@@ -376,7 +412,6 @@ function local(match: LocalMatch, resumed = false): void {
     cleanup();
     menu();
   };
-  quit.onclick = toMenu;
   saveQuit.onclick = toMenu;
   // A phone that locks or switches app pauses the clock rather than burning a turn.
   const onVisibility = () => {
@@ -384,6 +419,7 @@ function local(match: LocalMatch, resumed = false): void {
   };
   const onKey = (event: KeyboardEvent) => {
     if (event.repeat) return;
+    if (gameMenu.isOpen()) return;
     if (screen.touring()) {
       // The tour's own keys (arrows, Escape); Enter on its focused button already presses it.
       if (!(event.key === "Enter" && event.target instanceof HTMLButtonElement))
@@ -408,6 +444,7 @@ function local(match: LocalMatch, resumed = false): void {
   document.addEventListener("keydown", onKey);
   window.addEventListener("pagehide", onHide);
   const cleanup = () => {
+    gameMenu.dispose();
     screen.destroy();
     document.removeEventListener("visibilitychange", onVisibility);
     document.removeEventListener("keydown", onKey);
@@ -524,16 +561,25 @@ function room(): void {
     nameEntry.form,
   );
 
-  const leaveGame = button("", "fl-icon-button fl-quit");
-  leaveGame.setAttribute("aria-label", "Leave the room");
-  leaveGame.append(el("span", "", "fl-icon-menu"));
-  leaveGame.onclick = () => leave.click();
+  const gameMenu = createGameMenu({
+    controls: TOWN_CONTROLS,
+    touchControls: TOWN_CONTROLS,
+    goal: TOWN_GOAL,
+    onLeave: () => leave.click(),
+    onLobby: () => runtime.command({ type: "action", action: "lobby" }),
+    onOpenChange(open) {
+      if (!open && main.dataset.phase === "running") {
+        screen.game.tabIndex = -1;
+        screen.game.focus({ preventScroll: true });
+      }
+    },
+  });
   const screen = createGameScreen(
     art,
     viewer,
     () => runtime,
     {
-      controls: [leaveGame],
+      controls: [gameMenu.element],
       again: {
         label: "REMATCH",
         run: () => runtime.command({ type: "action", action: "rematch" }),
@@ -560,9 +606,23 @@ function room(): void {
   let joinSent = false;
   const callbacks: FuseLaneCallbacks = {
     state(frame, roomSettings) {
+      reportPlay({
+        matchId: frame.matchId,
+        active: frame.phase === "running",
+        ended: frame.phase === "over",
+        playerCount: frame.players.length,
+        botCount: frame.players.filter((seat) => seat.bot).length,
+        seated: frame.players.some((seat) => seat.id === viewer.me),
+        mode: roomSettings.display ? "shared" : "online",
+      });
       settings = roomSettings;
       viewer.shared = roomSettings.display;
       const model = present(frame, viewer);
+      gameMenu.update({
+        canLobby: viewer.host && frame.phase !== "lobby",
+        spectator: !model.seated,
+        display: viewer.display,
+      });
       main.dataset.phase = frame.phase;
       main.dataset.week = String(frame.week);
       main.dataset.part = frame.part;
@@ -642,10 +702,14 @@ function room(): void {
   );
   installRoomLifecycle(window, {
     stop: () => runtime.stop(),
-    destroy: () => {},
+    destroy: () => {
+      gameMenu.dispose();
+      screen.destroy();
+    },
     reload: () => location.reload(),
   });
   document.addEventListener("keydown", (event) => {
+    if (gameMenu.isOpen()) return;
     if (
       event.target instanceof HTMLInputElement ||
       event.target instanceof HTMLButtonElement ||

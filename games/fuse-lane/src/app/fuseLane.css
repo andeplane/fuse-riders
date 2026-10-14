@@ -581,6 +581,42 @@ body.fl-page .fl-end-week {
   display: flex;
   gap: 0.4rem;
 }
+.fl-game .fui-game-menu-panel,
+.fl-game .fui-round-controls {
+  font-family: inherit;
+  border-radius: 1rem;
+  background: var(--fl-paper, #fff9e9);
+  color: #263b4b;
+  border-color: #c7aa83;
+}
+.fl-game .fui-controls-list {
+  font-size: 0.8rem;
+}
+.fl-startup-controls {
+  position: absolute;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(30rem, calc(100% - 2rem));
+  z-index: 5;
+  pointer-events: none;
+}
+.fl-game.modal .fl-startup-controls,
+.fl-game.paused .fl-startup-controls,
+.fl-game.touring .fl-startup-controls {
+  display: none;
+}
+.fl-briefing .fui-round-controls,
+.fl-handoff .fui-round-controls {
+  position: static;
+  left: auto;
+  bottom: auto;
+  transform: none;
+  width: auto;
+  max-width: none;
+  margin: 0.7rem 0;
+  box-shadow: none;
+}
 body.fl-page .fl-icon-button {
   position: relative;
   display: grid;

@@ -12,7 +12,8 @@ import { chromium, type Page } from "playwright";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 
-const url = process.env.LANDING_URL ?? "http://127.0.0.1:5173/";
+import { ridersPageUrl } from "./lib/riders-url.js";
+const url = ridersPageUrl(process.env.LANDING_URL ?? "http://127.0.0.1:5173/");
 const KEY = "fuse-riders-audio";
 // CHROMIUM_PATH lets a sandbox with a mismatched Playwright download point at its own build.
 const binary = process.env.CHROMIUM_PATH

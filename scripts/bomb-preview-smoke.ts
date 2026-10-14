@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { ridersPageUrl } from "./lib/riders-url.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { launchSelected } from "./lib/browser.js";
 import { startViteServer } from "./lib/server.js";
@@ -15,7 +16,7 @@ try {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript("window.__name = value => value");
-  await page.goto(`${server.url}?mute`);
+  await page.goto(`${ridersPageUrl(server.url)}?mute`);
   const results = await page.evaluate(async () => {
     const { createPhaserArena } = (await import(
       String("/games/fuse-riders/src/render/phaser/arena.ts")

@@ -7,7 +7,7 @@ import {
 } from "./packages/fuse-ui/src/portal.ts";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
-/** Every game with a page of its own (`games/<id>/index.html`); Fuse Riders is the root page. */
+/** Every game with a page of its own (`games/<id>/index.html`); the root is the gallery. */
 const games = readdirSync(new URL("games/", import.meta.url), {
   withFileTypes: true,
 })
@@ -23,7 +23,6 @@ const games = readdirSync(new URL("games/", import.meta.url), {
  * The app portal's games: every `games/<id>/portal.json`, ordered by `order` then name. A game without one (the
  * dice demo) stays off the portal; AGENTS.md says which games belong on it.
  */
-const ROOT_GAME = "fuse-riders";
 const portalGames = (): PortalGame[] =>
   readdirSync(new URL("games/", import.meta.url), { withFileTypes: true })
     .filter(
@@ -42,8 +41,7 @@ const portalGames = (): PortalGame[] =>
         ),
       );
       if (!parsed) throw new Error(`games/${id}/portal.json is invalid`);
-      // Fuse Riders is the root page; every other game is served at `<base><id>/` and must have that page.
-      if (id === ROOT_GAME) return { ...parsed, id, path: "" };
+      // All games are served at `<base><id>/`; the root belongs to the gallery.
       if (!games.includes(id))
         throw new Error(
           `games/${id}/portal.json lists a game with no index.html`,
@@ -53,7 +51,7 @@ const portalGames = (): PortalGame[] =>
     .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
 
 /**
- * Emits `games/<id>/index.html` as `<id>/index.html`, so a game is served at `<base><id>/` beside Fuse Riders (the
+ * Emits `games/<id>/index.html` as `<id>/index.html`, so a game is served at `<base><id>/` beside the gallery (the
  * dev room service, GitHub Pages). Its script and style URLs are absolute from the base, so the move keeps them;
  * under a relative base (`--base ./`, a static preview) they are relative to the page and lose one `../`.
  */
@@ -62,6 +60,18 @@ const gamePages = (): Plugin => {
   return {
     name: "game-pages",
     enforce: "post",
+    configureServer(server) {
+      // Source previews use the same public game URLs as the emitted site.
+      server.middlewares.use((request, _response, next) => {
+        const url = new URL(request.url ?? "/", "http://localhost");
+        const id = games.find((game) =>
+          url.pathname.startsWith(`${server.config.base}${game}/`),
+        );
+        if (id)
+          request.url = `${server.config.base}games/${id}/${url.pathname.slice(`${server.config.base}${id}/`.length) || "index.html"}${url.search}`;
+        next();
+      });
+    },
     configResolved(config) {
       relative = !config.base.startsWith("/") && !/^[a-z]+:/i.test(config.base);
     },
