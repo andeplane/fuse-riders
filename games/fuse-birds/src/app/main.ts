@@ -11,7 +11,12 @@ import {
   installRoomLifecycle,
   validRoomCode,
 } from "fuse-network-fe";
-import { MAX_PACKET_BYTES, uuid, type Callbacks } from "fuse-netcode";
+import {
+  MAX_PACKET_BYTES,
+  uuid,
+  type Callbacks,
+  type Frame,
+} from "fuse-netcode";
 import { button, createInviteCard, createNameEntry, el } from "fuse-ui";
 import { createAppPortal } from "fuse-ui/portal";
 import { createPlayMetrics, startGameAnalytics } from "fuse-ui/play-metrics";
@@ -44,6 +49,7 @@ import { roomFailure, roomToken, safeStore, storageKeys } from "./session.js";
 import { BirdsAudio } from "./audio.js";
 import { PracticeRuntime } from "./practice.js";
 import { birdsPlayFrame } from "./play-metrics.js";
+import { canPlayTurn } from "./turn-controls.js";
 
 const GAME = "fuse-birds",
   COLORS = ["#6df4ed", "#ff6ec7", "#bded76", "#ffb75e", "#b797ff"];
@@ -317,6 +323,7 @@ function room(code: string, display: boolean, practice = false): void {
     stopped = false,
     frameId = 0;
   let keyboardAim: Vector | undefined;
+  let currentFrame: Frame<BirdsView> | null = null;
   const arena = createArena(
     canvas,
     `${import.meta.env.BASE_URL}games/fuse-birds/art/v1`,
@@ -338,10 +345,7 @@ function room(code: string, display: boolean, practice = false): void {
     cancelGesture(gestures);
   };
   const canPlay = () =>
-    battlefieldReady &&
-    !display &&
-    view?.phase === "aiming" &&
-    view.players[view.active]?.id === me;
+    canPlayTurn(currentFrame, me, display, battlefieldReady);
   const abandonInput = () => {
     cancel();
     resetGesture(gestures);
@@ -499,6 +503,7 @@ function room(code: string, display: boolean, practice = false): void {
           : "Supply collected. Scatter ammunition is already full.";
     },
     state(frame, settings) {
+      currentFrame = frame;
       host = frame.managerId === me;
       view = frame.world;
       page.dataset.phase = view?.phase ?? frame.stage;
@@ -593,9 +598,16 @@ function room(code: string, display: boolean, practice = false): void {
         ? "Scan the room QR on your phone to play."
         : !battlefieldReady
           ? "Preparing the battlefield…"
-          : canPlay()
-            ? "Pull your bird backwards to aim. Release to fire. Drag elsewhere to pan."
-            : `Watch ${player.name}. You can still explore the map.`;
+          : frame.seats.some(
+                (seat) =>
+                  seat.id === me &&
+                  (!seat.connected || seat.away) &&
+                  !seat.watcher,
+              )
+            ? "Waiting for your seat to reconnect…"
+            : canPlay()
+              ? "Pull your bird backwards to aim. Release to fire. Drag elsewhere to pan."
+              : `Watch ${player.name}. You can still explore the map.`;
       overlay.hidden = !["preparing", "over", "fault"].includes(view.phase);
       overlayTitle.textContent =
         view.phase === "preparing"
