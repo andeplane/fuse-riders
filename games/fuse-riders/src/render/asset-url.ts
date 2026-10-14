@@ -11,5 +11,7 @@ export function resolveAssetUrl(path: string, base: string): string {
   return `${prefix}${path.replace(/^\//, "")}`;
 }
 export function assetUrl(path: string): string {
-  return resolveAssetUrl(path, import.meta.env?.BASE_URL ?? "/");
+  const base = import.meta.env?.BASE_URL ?? "/";
+  // Riders' page now lives one directory below the shared public assets.
+  return resolveAssetUrl(path, base === "./" || base === "" ? "../" : base);
 }

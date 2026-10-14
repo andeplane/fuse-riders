@@ -1,3 +1,4 @@
+import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
@@ -16,15 +17,22 @@ import {
   button,
   createAppPortal,
   createControllerRow,
+  createGameMenu,
   createInviteCard,
   createLandingCard,
   createNameEntry,
   createNotice,
   createRoster,
+  createRoundControls,
   el,
 } from "fuse-ui";
 import { DEFAULT_SETTINGS, diceGame, seatName } from "../game/index.js";
-import { presentTable, type TableModel, type Viewer } from "./presenter.js";
+import {
+  createRoundControlGuide,
+  presentTable,
+  type TableModel,
+  type Viewer,
+} from "./presenter.js";
 import { dueReports, sendReport } from "./reports.js";
 import { DiceRuntime, type DiceCallbacks } from "./runtime.js";
 import {
@@ -41,6 +49,8 @@ import {
  * the reports and the session modules, which are unit-tested; this file only puts their answers on the page.
  */
 const GAME = diceGame.id;
+const analytics = startGameAnalytics(GAME);
+const reportPlay = createPlayMetrics(analytics.track, () => performance.now());
 const endpoints = createEndpoints(
   {
     basePath: `${import.meta.env.BASE_URL}${GAME}/`,
@@ -53,6 +63,16 @@ const names = keys(GAME);
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 const COLORS = ["#16e7ff", "#ff2e9d", "#b6ff4d", "#ffe46b", "#a78bfa"];
 const app = document.querySelector<HTMLElement>("#app")!;
+const CONTROLS = [
+  { keys: "Space / R", action: "Roll the die" },
+  { keys: "H / Enter", action: "Hold to bank your turn total" },
+];
+const TOUCH_CONTROLS = [
+  { keys: "ROLL", action: "Roll the die" },
+  { keys: "HOLD", action: "Bank your turn total" },
+];
+const GOAL =
+  "Roll to build your total; a 1 loses it. Hold to bank points. First to 50 wins the round.";
 
 function header(extra: HTMLElement[] = []): HTMLElement {
   const bar = el("header", "", "dice-top"),
@@ -159,14 +179,30 @@ function room(solo: boolean): void {
 
   // ---- the page ----
   const status = createNotice({ className: "dice-status" }),
-    toast = createNotice({ holdMs: 2200, className: "dice-toast" }),
-    leave = button(solo ? "EXIT" : "LEAVE", "dice-leave");
-  leave.onclick = () => {
-    runtime.stop();
-    location.href = endpoints.appUrl();
-  };
+    toast = createNotice({ holdMs: 2200, className: "dice-toast" });
+  const menu = createGameMenu({
+    controls: CONTROLS,
+    touchControls: TOUCH_CONTROLS,
+    goal: GOAL,
+    onLobby: () => runtime.command({ type: "action", action: "lobby" }),
+    onLeave: () => {
+      runtime.stop();
+      location.href = endpoints.appUrl();
+    },
+    onOpenChange: (open) => {
+      // The table owns Space/Enter after resuming; MENU must not consume the next roll or hold.
+      if (!open && main.dataset.phase === "running")
+        main.focus({ preventScroll: true });
+    },
+  });
+  const roundControls = createRoundControls({
+    controls: CONTROLS,
+    touchControls: TOUCH_CONTROLS,
+    goal: GOAL,
+  });
+  const showRoundControls = createRoundControlGuide();
   const codeChip = el("strong", solo ? "SOLO" : code, "dice-code");
-  const top = header([codeChip, status.element, leave]);
+  const top = header([codeChip, status.element, menu.element]);
 
   // Lobby: invitation, roster with bot controls, name entry, start.
   const lobby = el("section", "", "dice-lobby"),
@@ -246,6 +282,7 @@ function room(solo: boolean): void {
   holdButton.classList.add("dice-hold");
   table.append(
     roundLine,
+    roundControls.element,
     headline,
     detail,
     board,
@@ -272,6 +309,7 @@ function room(solo: boolean): void {
   toLobby.onclick = () => runtime.command({ type: "action", action: "lobby" });
 
   const main = el("main", "", "dice-room");
+  main.tabIndex = -1;
   main.append(nameEntry.form, lobby, table, result);
   app.replaceChildren(top, main);
   table.hidden = true;
@@ -382,8 +420,34 @@ function room(solo: boolean): void {
     joinSent = false;
   const callbacks: DiceCallbacks = {
     state(frame, settings) {
+      reportPlay({
+        matchId: frame.matchId,
+        active: frame.phase === "running",
+        ended: frame.phase === "over",
+        round: frame.round,
+        playerCount: frame.players.length,
+        botCount: frame.players.filter((seat) => seat.bot).length,
+        seated: frame.players.some((seat) => seat.id === viewer.me),
+        mode: solo ? "solo" : settings.display ? "shared" : "online",
+      });
       viewer.shared = settings.display;
       const model = presentTable(frame, viewer);
+      const state = runtime.roomState();
+      const touch =
+        viewer.shared || window.matchMedia("(pointer: coarse)").matches;
+      menu.update({
+        canLobby: viewer.host && !display && frame.phase !== "lobby",
+        display,
+        touch,
+        spectator: display || !model.seated,
+      });
+      roundControls.update({
+        round: `${state?.matchId ?? code}:${frame.round}`,
+        visible: showRoundControls(frame, state?.matchId),
+        display,
+        touch,
+        spectator: display || !model.seated,
+      });
       // For the browser smoke (scripts/dice-smoke.ts) and the stylesheet.
       main.dataset.phase = frame.phase;
       main.dataset.round = String(frame.round);
@@ -398,7 +462,6 @@ function room(solo: boolean): void {
       }
       if (model.seated) joinSent = false;
       render(model);
-      const state = runtime.roomState();
       if (session.kind === "room" && role !== "display" && state)
         for (const report of dueReports(
           state,
@@ -462,7 +525,7 @@ function room(solo: boolean): void {
   );
   installRoomLifecycle(window, {
     stop: () => runtime.stop(),
-    destroy: () => {},
+    destroy: () => menu.dispose(),
     reload: () => location.reload(),
   });
   document.addEventListener("keydown", (event) => {
@@ -471,6 +534,7 @@ function room(solo: boolean): void {
     if (
       event.target instanceof HTMLInputElement ||
       event.target instanceof HTMLButtonElement ||
+      menu.isOpen() ||
       event.repeat
     )
       return;

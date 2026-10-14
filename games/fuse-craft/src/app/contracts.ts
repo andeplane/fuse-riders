@@ -77,6 +77,8 @@ export interface NeuralSession {
   readonly canControl: boolean;
   view(): Readonly<World>;
   dispatch(action: Action): void;
+  /** Accept all orders locally, or none. Acceptance is not peer application. */
+  dispatchBatch(actions: readonly Action[]): boolean;
   subscribe(listener: () => void): () => void;
   reset(): void;
   dispose(): void;

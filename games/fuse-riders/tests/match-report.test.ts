@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   beginMatchParticipant,
   snapshotMatchStats,
+  recordDeath,
   type MatchStatsState,
 } from "../src/engine/match-stats.js";
 import {
@@ -24,6 +25,80 @@ import {
 } from "../src/online/match-report.js";
 import { parseMatchResult } from "../src/platform.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
+import { SOLO_RATING_PLAYER_ID } from "fuse-platform/rating";
+
+test("completed solo games normalize the winner, finisher and combat references without mutating the recap", () => {
+  const stats: MatchStatsState = new Map();
+  ["solo", "bot:1"].forEach((id, slot) =>
+    beginMatchParticipant(stats, {
+      id,
+      slot,
+      name: slot ? "AI Hopper" : "Andeplane",
+      color: RIDER_COLORS[slot]!,
+    }),
+  );
+  recordDeath(stats, "bot:1", "explosion", "solo", "bomb");
+  recordDeath(stats, "solo", "trail", "bot:1");
+  const match: FinishedMatch = {
+    matchId: "solo-game",
+    matchLength: 1,
+    matchWinnerId: "solo",
+    matchFinishers: ["solo"],
+    matchStats: snapshotMatchStats(stats),
+    players: [{ id: "solo", avatarId: "cat" }],
+  };
+  const before = structuredClone(match);
+  const report = buildMatchReport(match, "solo", "Smoke Rider")!;
+  assert.ok(parseMatchResult(report.result));
+  assert.equal(report.result.round, undefined);
+  assert.equal(report.result.players[0]!.name, "Smoke Rider");
+  assert.equal(report.result.winnerId, SOLO_RATING_PLAYER_ID);
+  assert.deepEqual(report.result.finishers, [SOLO_RATING_PLAYER_ID]);
+  assert.equal(
+    report.result.players[1]!.combat!.killers[SOLO_RATING_PLAYER_ID],
+    1,
+  );
+  assert.equal(
+    report.result.players[1]!.combat!.victims[SOLO_RATING_PLAYER_ID],
+    1,
+  );
+  assert.equal(report.avatarId, "cat");
+  assert.deepEqual(match, before);
+});
+
+test("a solo game's report waits for sign-in recovery instead of sending an unlinked game", async () => {
+  let attempts = 0,
+    sent = 0;
+  assert.equal(
+    await sendMatchReport(
+      "https://api.example/api/me/results",
+      buildMatchReport(finished(), RIDER)!,
+      {
+        roomToken: "",
+        identityRequired: true,
+        identityToken: async () => {
+          if (++attempts === 1) throw new Error("temporary identity failure");
+          return "id-token";
+        },
+        fetch: async (_input, init) => {
+          sent++;
+          assert.equal(
+            new Headers(init?.headers).get("X-Fuse-Identity"),
+            "id-token",
+          );
+          return new Response(
+            JSON.stringify({ status: "confirmed", linked: true }),
+          );
+        },
+        wait: async () => {},
+        random: () => 0,
+      },
+    ),
+    "confirmed",
+  );
+  assert.equal(attempts, 2);
+  assert.equal(sent, 1);
+});
 
 const RIDER = "a".repeat(24),
   OTHER = "b".repeat(24);
