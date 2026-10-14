@@ -253,6 +253,15 @@ test("controls appear at the start of every week and every pass-device handoff",
   assert.match(handoffGuide.textContent ?? "", /Click \/ tap a choice/);
 });
 
+test("a shared-TV creator's Monday briefing shows phone controls without a display role", () => {
+  const h = harness({ bots: 0 });
+  h.render({ ...monday(h), layout: "tv", seated: false });
+  const guide = h.$(".fl-briefing .fui-round-controls");
+  assert.equal(guide.hidden, false);
+  assert.match(guide.textContent ?? "", /GET READY · PHONE CONTROLS/);
+  assert.match(guide.textContent ?? "", /CALL IT A WEEK/);
+});
+
 test("the HUD: hours, week, clock, money and goal rings; CALL IT A WEEK logs this week's entry", () => {
   const h = harness();
   const model = h.render();
@@ -1518,4 +1527,58 @@ test("keys: Escape closes the you panel, then the place panel; Enter taps READY 
   h.render({ ...model, panel: undefined });
   h.screen.keydown(key("Escape"));
   assert.equal(h.plays.length, logged);
+});
+
+test("a controller's place buttons step aside for a place's panel; online, a finished week says who it waits for", () => {
+  const h = harness();
+  const strip = h.$(".fl-strip");
+  const controller = (model: ScreenModel): ScreenModel => ({
+    ...model,
+    layout: "controller",
+  });
+  h.render(controller(h.model()));
+  assert.equal(strip.hidden, false, "the controller's place buttons");
+  const inside = walkInto(h, JOBHUB);
+  h.render(controller(inside));
+  assert.equal(placePanel(h).hidden, false);
+  assert.equal(strip.hidden, true, "nothing covers the panel");
+  h.render(inside);
+  assert.equal(strip.hidden, false, "the board's hidden keyboard list stays");
+
+  const waiting = h.$(".fl-waiting");
+  assert.equal(waiting.hidden, true);
+  h.render({
+    ...h.model(),
+    waiting: "Your week is over. Waiting for Bo · 12s",
+  });
+  assert.equal(waiting.hidden, false);
+  assert.equal(waiting.textContent, "Your week is over. Waiting for Bo · 12s");
+});
+
+test("the shared screen's clock: the week, the seconds left, who is done, and everyone in the corners", () => {
+  const h = harness({ humans: 2, bots: 1 });
+  const bar = h.$(".fl-tvbar");
+  assert.equal(bar.hidden, true);
+  const model = h.model();
+  h.render({
+    ...model,
+    layout: "tv",
+    hud: undefined,
+    handoff: undefined,
+    scores: model.scores.map((score) => ({ ...score, you: false })),
+    tv: {
+      headline: "WEEK 3",
+      seconds: 8,
+      timer: 0.1,
+      line: "1 of 3 done for the week",
+    },
+  });
+  assert.equal(bar.hidden, false);
+  assert.equal(h.$(".fl-tv-week").textContent, "WEEK 3");
+  assert.equal(h.$(".fl-tv-seconds").textContent, "8s");
+  assert.equal(h.$(".fl-tv-line").textContent, "1 of 3 done for the week");
+  assert.ok(bar.classList.contains("low"), "the last seconds turn red");
+  const corners = h.$(".fl-corners");
+  assert.equal(corners.hidden, false, "the TV has no HUD, but shows everyone");
+  assert.equal(corners.querySelectorAll(".fl-rival").length, 3);
 });
