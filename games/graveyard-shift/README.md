@@ -31,6 +31,6 @@ Product metrics use `fuse-ui/play-metrics` and the shared analytics adapter. Pag
 
 Focused regressions: `pnpm exec tsx --test games/graveyard-shift/tests/*.test.ts`.
 
-Browser smoke against a running local service: `node games/graveyard-shift/preview/smoke.mjs http://localhost:8797/`. It exercises the menu/tutorial, keyboard solo, mixed online crew, guest reload, shared TV, phone controls, result agreement and rematch. Real-flow screenshots are under `preview/screenshots/`.
+Browser smoke against a running local service: `pnpm exec tsx games/graveyard-shift/preview/smoke.mjs http://localhost:8797/`. It exercises the menu/tutorial, keyboard solo, mixed online crew, guest reload, shared TV, phone controls, result agreement and rematch. Real-flow screenshots are under `preview/screenshots/`. `pnpm test:coverage` also runs this real flow through the source preview and merges Chromium's native coverage ranges after checking that its source maps match the current files.
 
 POC limits: one arena, two ghost types, synthesized audio, and simple directional bot navigation. Platform integration provides room admission; persistent career statistics are deferred. Phone coverage uses Chromium touch emulation, not physical phones or WAN qualification.

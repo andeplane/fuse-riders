@@ -2,11 +2,19 @@ import { chromium } from "playwright";
 import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-const base = process.argv[2] ?? "http://localhost:8797/";
-const shots = process.argv[3] ?? "games/graveyard-shift/preview/screenshots";
+import { startGameCoverage } from "../../../scripts/lib/game-browser-coverage.ts";
+const base =
+  process.env.ONLINE_URL ?? process.argv[2] ?? "http://localhost:8797/";
+const shots =
+  process.env.SMOKE_SHOTS ??
+  process.argv[3] ??
+  (process.env.FUSE_GAME_COVERAGE_DIR
+    ? "/tmp/graveyard-shift-coverage-shots"
+    : "games/graveyard-shift/preview/screenshots");
 mkdirSync(shots, { recursive: true });
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 const errors = [];
+const coverage = [];
 async function open(path, phone = false) {
   const ctx = await browser.newContext({
     viewport: phone
@@ -16,6 +24,7 @@ async function open(path, phone = false) {
     isMobile: phone,
   });
   const p = await ctx.newPage();
+  coverage.push(await startGameCoverage(p, { gameId: "graveyard-shift" }));
   p.on("pageerror", (e) => errors.push(e.message));
   await p.goto(base + "graveyard-shift/" + path);
   return p;
@@ -185,5 +194,9 @@ try {
   assert.deepEqual(errors, []);
   console.log("PASS no browser errors");
 } finally {
-  await browser.close();
+  try {
+    for (const finish of coverage) await finish();
+  } finally {
+    await browser.close();
+  }
 }

@@ -375,6 +375,18 @@ test("wire and room checkpoint guards reject malformed values", () => {
   const r = seated();
   const encoded = encode(r);
   assert.ok(decode(encoded, r.tick));
+  fold(r, {
+    a: [[3, 2, READY, "lobby", true]],
+    b: [[1, 2, READY, "lobby", true]],
+  });
+  assert.equal(r.stage, "running");
+  const running = encode(r);
+  assert.ok(decode(running, r.tick));
+  for (const stage of [["running"], ["lobby"], ["over"], {}, null, 0]) {
+    const malformed = [...running];
+    malformed[2] = stage;
+    assert.equal(decode(malformed, r.tick), undefined);
+  }
   assert.equal(decode(encoded.slice(1), r.tick), undefined);
   const bad = structuredClone(encoded);
   bad[7] = world();
