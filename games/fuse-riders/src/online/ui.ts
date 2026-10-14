@@ -6,6 +6,7 @@ import { VoiceChat } from "./voice-chat.js";
 import { uuid } from "fuse-netcode";
 import { mountArenaPresentation } from "../render/phaser/presentation.js";
 import { presentFrames } from "../render/time/present.js";
+import { RiderReconciler } from "../render/time/reconcile.js";
 import { apiUrl, appUrl } from "./endpoints.js";
 import { GAME_ID } from "../shared/game-id.js";
 import { createAccountPanel } from "./account-panel.js";
@@ -314,10 +315,11 @@ export async function startOnline(): Promise<void> {
     read("fuse-riders-player-name") ??
     `Rider ${seated + 1}`;
   const benchmark = url.searchParams.get("benchmark") === "1";
+  const reconciler = new RiderReconciler();
   let benchmarkInput: { seq: number; at: number } | undefined,
-    lastBenchmarkRender = 0,
     lastBackdropRender = 0,
     lastControls = "";
+  let lastSteering = "";
   const sample = (detail: object) => {
     if (benchmark)
       window.dispatchEvent(new CustomEvent("fuse-benchmark", { detail }));
@@ -1434,6 +1436,7 @@ export async function startOnline(): Promise<void> {
           x: p.x,
           y: p.y,
           angle: p.angle,
+          heldMotion: runtime.heldControls(p.id),
           bombReadyAtTick: p.bombReadyAtTick,
           bombChargeStartedTick: p.bombChargeStartedTick,
         })),
@@ -2110,7 +2113,8 @@ export async function startOnline(): Promise<void> {
         lastControls = controlsKey;
       }
       const sent = runtime.command(message);
-      if (benchmark)
+      if (benchmark) {
+        const steering = `${message.left}:${message.right}`;
         sample({
           kind: "input",
           at: performance.now(),
@@ -2120,8 +2124,13 @@ export async function startOnline(): Promise<void> {
           bomb: message.bomb,
           bombAction: message.bombAction,
           sent,
+          steeringChanged: steering !== lastSteering,
+          matchId: runtime.presentation()?.newer.matchId,
+          round: snapshot?.round,
           tick: runtime.tick,
         });
+        lastSteering = steering;
+      }
       if (changed || message.bombAction)
         telemetry.log("input", {
           seq: message.seq,
@@ -2420,6 +2429,7 @@ export async function startOnline(): Promise<void> {
     const frames = runtime.presentation();
     const predicted = frames && presentFrames(frames);
     if (replayFrame(now, predicted)) {
+      reconciler.reset();
       requestAnimationFrame(frame);
       return;
     }
@@ -2433,19 +2443,46 @@ export async function startOnline(): Promise<void> {
       !(backdrop && now - lastBackdropRender < BACKDROP_FRAME_MS)
     ) {
       if (backdrop) lastBackdropRender = now;
-      presentation.render(predicted, now, theme, renderScope, id);
-      if (benchmark && (benchmarkInput || now - lastBenchmarkRender >= 100)) {
+      const riderPoses = reconciler.sample(
+        predicted,
+        now,
+        renderScope,
+        frames!.revision,
+        id,
+      );
+      presentation.render(
+        predicted,
+        now,
+        theme,
+        renderScope,
+        id,
+        false,
+        riderPoses,
+      );
+      if (benchmark) {
         const p = predicted.players.find((p) => p.id === id);
         sample({
           kind: "prediction",
+          matchId: frames!.newer.matchId,
+          round: predicted.round,
+          phase: predicted.phase,
           renderAt: now,
           tick: predicted.tick,
           inputSeq: benchmarkInput?.seq,
           inputAt: benchmarkInput?.at,
           pose: p ? { x: p.x, y: p.y, angle: p.angle } : undefined,
+          players: predicted.players.map((player) => {
+            const shown = riderPoses.get(player.id)!;
+            return {
+              id: player.id,
+              alive: player.alive,
+              canonical: { x: player.x, y: player.y, angle: player.angle },
+              shown: { x: shown.x, y: shown.y, angle: shown.angle },
+              heldMotion: runtime.heldControls(player.id),
+            };
+          }),
         });
         benchmarkInput = undefined;
-        lastBenchmarkRender = now;
       }
     }
     requestAnimationFrame(frame);

@@ -7,6 +7,7 @@ import {
 import { assetUrl } from "../asset-url.js";
 import Phaser from "phaser";
 import type { WorldView } from "../../engine/view.js";
+import type { RiderPoses } from "../time/reconcile.js";
 import { themes, type ThemeDefinition } from "../themes.js";
 import { AVATAR_ATLAS } from "../avatar-atlas.js";
 import { bombPreviewDistance } from "../bomb-preview.js";
@@ -93,6 +94,7 @@ export interface PhaserArena {
     matchId: string,
     selfId?: string,
     replay?: boolean,
+    riderPoses?: RiderPoses,
   ): void;
   resize(width: number, height: number): void;
   reset(): void;
@@ -146,6 +148,7 @@ function guardDefaultTextures(game: Phaser.Game, failed: () => void): boolean {
 
 /** What every draw step of one frame reads: the view, the clock, the two dynamic layers and the board's shape. */
 interface Frame {
+  riderPoses?: RiderPoses;
   s: WorldView;
   now: number;
   theme: ThemeDefinition;
@@ -305,11 +308,11 @@ export function createPhaserArena(
   };
   return {
     ready,
-    render(snapshot, now, theme, matchId, selfId, replay) {
+    render(snapshot, now, theme, matchId, selfId, replay, riderPoses) {
       if (!booted || destroyed || lost || document.hidden) return;
       const start = performance.now();
       resize(snapshot.width, snapshot.height, snapshot.map === "cross");
-      scene.paint(snapshot, now, theme, matchId, selfId, replay);
+      scene.paint(snapshot, now, theme, matchId, selfId, replay, riderPoses);
       game.step(
         now,
         lastNow ? Math.min(50, Math.max(0, now - lastNow)) : 16.667,
@@ -841,12 +844,14 @@ class ArenaScene extends Phaser.Scene {
     matchId: string,
     selfId?: string,
     replay = false,
+    riderPoses?: RiderPoses,
   ): void {
     this.imageIndex = 0;
     this.labelIndex = 0;
     const { width: w, height: h, boundaryInset: b } = s;
     const open = s.openEdges;
     const frame: Frame = {
+      riderPoses,
       s,
       now,
       theme,
@@ -1535,7 +1540,10 @@ class ArenaScene extends Phaser.Scene {
     // A replayed moment is not the round opening for the viewer, so it never points them out.
     const locate = replay ? 0 : selfLocatorStrength(s);
     // Near an open edge a rider is drawn on both sides of it, so it arrives as it leaves rather than popping across.
-    for (const rider of s.players)
+    for (const rider of s.players.map((rider) => {
+      const pose = frame.riderPoses?.get(rider.id);
+      return pose ? { ...rider, ...pose } : rider;
+    }))
       for (const ghost of rider.alive ? ghosts(rider.x, rider.y, 40) : []) {
         const p =
           ghost.dx || ghost.dy
