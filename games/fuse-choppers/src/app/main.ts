@@ -16,11 +16,13 @@ import { MAX_PACKET_BYTES, uuid } from "fuse-netcode";
 import {
   button,
   createAppPortal,
+  createGameMenu,
   createInviteCard,
   createLandingCard,
   createNameEntry,
   createNotice,
   createRoster,
+  createRoundControls,
   el,
 } from "fuse-ui";
 import {
@@ -89,6 +91,48 @@ const setText = (node: HTMLElement, value: string) => {
   if (node.textContent !== value) node.textContent = value;
 };
 const coarse = () => matchMedia("(pointer: coarse)").matches;
+const controllerGuide = {
+  controls: [
+    { keys: "SPACE / W / ↑", action: "Hold to climb; release to fall" },
+    { keys: "A D / ← →", action: "Fly left and right" },
+    { keys: "F / J / K / ENTER / CLICK", action: "Fire at rivals and drones" },
+    { keys: "S / ↓", action: "Dive in the W/S thrust trial only" },
+  ],
+  touchControls: [
+    {
+      keys: "LIFT",
+      action: "Hold to climb; release to fall (UP in the thrust trial)",
+    },
+    { keys: "◀ / ▶", action: "Fly left and right" },
+    { keys: "FIRE", action: "Fire at rivals and drones" },
+    { keys: "DIVE", action: "Fly down in the W/S thrust trial only" },
+  ],
+  goal: "Stay out of the crush zone. Be the last chopper flying, or first through the exit.",
+} as const;
+const flightGuide = (lift: Settings["lift"]) => ({
+  ...controllerGuide,
+  controls: controllerGuide.controls
+    .filter((hint) => lift === "thrust" || hint.keys !== "S / ↓")
+    .map((hint, index) =>
+      index === 0 && lift === "thrust"
+        ? { ...hint, action: "Hold to fly up; release to hover" }
+        : hint,
+    ),
+  touchControls: controllerGuide.touchControls
+    .filter((hint) => lift === "thrust" || hint.keys !== "DIVE")
+    .map((hint, index) =>
+      index === 0
+        ? {
+            ...hint,
+            keys: lift === "thrust" ? "UP" : "LIFT",
+            action:
+              lift === "thrust"
+                ? "Hold to fly up; release to hover"
+                : "Hold to climb; release to fall",
+          }
+        : hint,
+    ),
+});
 
 /**
  * Developer switches for the room a page creates (or plays solo): `?lift=thrust` starts on the W/S thrust trial,
@@ -178,7 +222,9 @@ function landing(): void {
   card.element.append(keyHelp());
   const back = el("a", "← FUSE RIDERS", "fc-back");
   back.href = import.meta.env.BASE_URL + (muted ? "?mute" : "");
-  app.replaceChildren(header([back]), card.element);
+  const menu = createGameMenu(flightGuide(devSettings().lift));
+  menu.update({ canLobby: false, touch: coarse() });
+  app.replaceChildren(header([back, menu.element]), card.element);
 }
 
 /** A button that holds `bits` while a pointer is down on it. */
@@ -234,22 +280,23 @@ function room(solo: boolean): void {
   const sfx = createSfx(muted);
 
   // ---- the page ----
-  const status = createNotice({ className: "fc-status" }),
-    leave = button(solo ? "EXIT" : "LEAVE", "fc-leave");
-  leave.onclick = () => {
-    runtime.stop();
-    location.href = withFlags(endpoints.appUrl());
-  };
-  // The host can go back to the lobby (and its flight rules) mid-match; in solo that is the only way to them.
-  const backToLobby = button("LOBBY", "fc-to-lobby");
-  backToLobby.onclick = () =>
-    runtime.command({ type: "action", action: "lobby" });
-  backToLobby.hidden = true;
+  const status = createNotice({ className: "fc-status" });
+  const menu = createGameMenu({
+    ...controllerGuide,
+    onLobby: () => runtime.command({ type: "action", action: "lobby" }),
+    onLeave: () => {
+      runtime.stop();
+      location.href = withFlags(endpoints.appUrl());
+    },
+    onOpenChange: (open) => {
+      if (open) controls.clear();
+    },
+  });
+  const roundControls = createRoundControls(controllerGuide);
   const top = header([
     el("strong", solo ? "SOLO" : code, "fc-code"),
     status.element,
-    backToLobby,
-    leave,
+    menu.element,
   ]);
 
   // Lobby.
@@ -490,6 +537,7 @@ function room(solo: boolean): void {
   closed.hidden = true;
   const main = el("main", "", "fc-room");
   // The name form stands above every screen: a newcomer mid-match picks a name and flies from the next round.
+  screen.append(roundControls.element);
   main.append(connecting, closed, nameEntry.form, lobby, stage, controller);
   app.replaceChildren(top, main);
   lobby.hidden = true;
@@ -640,7 +688,30 @@ function room(solo: boolean): void {
     showPowerUps(view.settings.powerUps, next.lobby.editable);
     showWins(view.settings.wins, next.lobby.editable);
     lobbySide.hidden = display;
-    backToLobby.hidden = !(viewer.host && view.stage !== "lobby" && !display);
+    const touchGuide = coarse() || next.screen === "controller";
+    const guide = flightGuide(
+      view.stage === "lobby" ? view.settings.lift : view.play.lift,
+    );
+    menu.update({
+      controls: guide.controls,
+      touchControls: guide.touchControls,
+      canLobby: viewer.host && view.stage !== "lobby" && !display,
+      touch: touchGuide,
+      spectator: display || !next.seated,
+      display,
+    });
+    roundControls.update({
+      controls: guide.controls,
+      touchControls: guide.touchControls,
+      round: view.round,
+      visible: next.controlsVisible,
+      touch: touchGuide,
+      spectator: display || !next.seated,
+      display,
+    });
+    const guideParent = next.screen === "controller" ? controller : screen;
+    if (roundControls.element.parentElement !== guideParent)
+      guideParent.append(roundControls.element);
     // HUD.
     renderCards(next.cards);
     setText(timeValue, next.time);
@@ -836,7 +907,13 @@ function room(solo: boolean): void {
   const captured = new Set<string>();
   document.addEventListener("keydown", (event) => {
     sfx.resume();
-    if (typing(event.target) || event.metaKey || event.ctrlKey || event.altKey)
+    if (
+      menu.isOpen() ||
+      typing(event.target) ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.altKey
+    )
       return;
     if (controls.press(event.code)) {
       captured.add(event.code);
@@ -855,6 +932,7 @@ function room(solo: boolean): void {
     passive: true,
   });
   canvas.addEventListener("pointerdown", (event) => {
+    if (menu.isOpen()) return;
     if (event.pointerType !== "mouse" || event.button !== 0) return;
     canvas.setPointerCapture(event.pointerId);
     controls.hold("mouse", FIRE);

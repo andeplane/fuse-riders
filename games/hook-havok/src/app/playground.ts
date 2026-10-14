@@ -1,8 +1,10 @@
 import "fuse-ui/portal.css";
+import "fuse-ui/components.css";
 import { reportPlay } from "./analytics.js";
 import "./style.css";
 import "./presentation.css";
 import { createAppPortal } from "fuse-ui/portal";
+import { createGameMenu, createRoundControls } from "fuse-ui";
 import { createRadio } from "fuse-ui/radio";
 import { EffectsAudio, browserToneSink } from "./audio.js";
 import {
@@ -31,6 +33,12 @@ import { createEntrance } from "./entrance.js";
 import { KeyboardInput } from "./keyboard-input.js";
 import { assistAim } from "./aim-assist.js";
 import { createMatchShell } from "./match-shell.js";
+import {
+  HOOK_CONTROLS,
+  HOOK_TOUCH_CONTROLS,
+  HOOK_GOAL,
+  showHookRoundControls,
+} from "./control-guide.js";
 import {
   sessionStore,
   sessionToken,
@@ -297,7 +305,12 @@ function touchLayout() {
   touchDeck.hidden = !enabled;
   el("aim-label").hidden = !enabled;
   el("touch-help").hidden = !enabled;
-  touch?.enable(enabled && status.dataset.state === "playing");
+  touch?.enable(
+    enabled &&
+      status.dataset.state === "playing" &&
+      (!graphicsReady || !menu.isOpen()),
+  );
+  refreshGuides();
 }
 touchToggle.checked =
   query.has("touch") || matchMedia("(any-pointer: coarse)").matches;
@@ -333,6 +346,9 @@ function localView(view: WorldView): WorldView {
 }
 function stopRoom() {
   matchShell.reset();
+  menu.close();
+  menu.update({ canLobby: false, canLeave: false });
+  roundControls.update({ round: "ended", visible: false });
   connecting = false;
   document.body.classList.remove("arena-focused");
   focusButton.textContent = "Focus arena";
@@ -557,7 +573,8 @@ const enterRoom = async () => {
               touchToggle.checked &&
               frame.stage === "running" &&
               controllable &&
-              !!local?.connected,
+              !!local?.connected &&
+              !menu.isOpen(),
           );
           if (!display && !joined) {
             joined = !!runtime?.command({
@@ -667,6 +684,20 @@ const enterRoom = async () => {
             frame.round,
             room.code,
           );
+          menu.update({
+            canLobby: !display,
+            canLeave: true,
+            display,
+            touch: touchToggle.checked,
+            spectator: display || !local?.connected,
+          });
+          roundControls.update({
+            round: frame.round,
+            visible: frame.stage === "running" && showHookRoundControls(frame),
+            display,
+            touch: display || touchToggle.checked,
+            spectator: !display && !local?.connected,
+          });
           host.dataset.playerId = selfId;
           setText(el("experiment-help"), descriptions[frame.experiment]);
           setText(
@@ -816,6 +847,7 @@ el<HTMLInputElement>("atmosphere").checked = !matchMedia(
 el<HTMLInputElement>("atmosphere").onchange = (e) =>
   scene?.setAtmosphere((e.target as HTMLInputElement).checked);
 host.addEventListener("keydown", (e) => {
+  if (menu.isOpen()) return;
   if (!keyboard.accepts(e.code)) return;
   e.preventDefault();
   if (e.repeat) return;
@@ -847,6 +879,7 @@ host.addEventListener("pointermove", (e) => {
   aim(e);
 });
 host.addEventListener("pointerdown", (e) => {
+  if (menu.isOpen()) return;
   if (e.button !== 0 || e.pointerType !== "mouse") return;
   if (touchDeck.dataset.active === "true") clear();
   e.preventDefault();
@@ -890,11 +923,66 @@ window.addEventListener("pagehide", () => {
   touch?.destroy();
   scene?.destroy();
   entrance.destroy();
+  menu.dispose();
 });
 window.addEventListener("pageshow", (e) => {
   if (e.persisted) location.reload();
 });
 const matchShell = createMatchShell();
+const menu = createGameMenu({
+  controls: HOOK_CONTROLS,
+  touchControls: HOOK_TOUCH_CONTROLS,
+  goal: HOOK_GOAL,
+  onLobby() {
+    clear();
+    document.body.classList.remove("arena-focused");
+    focusButton.textContent = "Focus arena";
+    focusButton.setAttribute("aria-pressed", "false");
+    const lounge = el<HTMLDetailsElement>("room-lounge");
+    lounge.open = true;
+    lounge.scrollIntoView({ block: "start", behavior: "smooth" });
+    lounge.querySelector("summary")?.focus();
+  },
+  onLeave: () => el<HTMLButtonElement>("leave-room").click(),
+  onOpenChange(open) {
+    clear();
+    // Movement keys are handled on the arena, so resuming must return keyboard focus there.
+    if (!open && runtime && !display) host.focus({ preventScroll: true });
+    const local = latest.keepers.find((keeper) => keeper.id === selfId);
+    touch?.enable(
+      !open &&
+        !display &&
+        touchToggle.checked &&
+        !!runtime &&
+        (latest.contest.rules === "free" ||
+          (latest.contest.phase === "active" && !!local?.playing)),
+    );
+  },
+});
+const roundControls = createRoundControls({
+  controls: HOOK_CONTROLS,
+  touchControls: HOOK_TOUCH_CONTROLS,
+  goal: HOOK_GOAL,
+});
+function refreshGuides() {
+  // Touch preferences can change between replicated frames.
+  if (!graphicsReady) return;
+  menu.update({
+    canLobby: !!runtime && !display,
+    canLeave: !!runtime,
+    display,
+    touch: touchToggle.checked,
+  });
+  roundControls.update({
+    round,
+    visible: !!runtime && showHookRoundControls(latest),
+    display,
+    touch: display || touchToggle.checked,
+  });
+}
+document.querySelector("header")!.append(menu.element);
+document.querySelector("main")!.append(roundControls.element);
+menu.update({ canLobby: false, canLeave: false, touch: touchToggle.checked });
 const entrance = createEntrance({
   main: document.querySelector("main")!,
   start,

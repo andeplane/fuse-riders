@@ -81,7 +81,11 @@ test("a finished online match shows the loser a defeat", () => {
   f.finish("coral");
   assert.match(f.root.querySelector("#match-result")!.textContent!, /Defeat/);
   assert.ok(
-    f.root.querySelector('.session-controls [data-action="reset"]'),
+    Array.from(
+      f.root.querySelectorAll<HTMLButtonElement>(".fui-game-menu-action"),
+    ).find(
+      (button) => button.textContent === "BACK TO LOBBY" && !button.hidden,
+    ),
     "the host keeps its Lobby control",
   );
   f.app.dispose();
