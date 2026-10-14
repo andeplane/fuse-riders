@@ -16,3 +16,5 @@ pnpm exec tsx scripts/fuse-birds-online-smoke.ts http://127.0.0.1:4917 /tmp/bird
 ```
 
 The practice command passed. The original online command failed at the first Scatter-ammunition assertion. Temporary passive diagnostic copies observed a real Scatter launch reaching all three replicas, phone refresh restoring the same health/turn, and ordinary PASS actions progressing through turn 14, but did not prove result/rematch. A further diagnostic exposed a controller whose recovered seat was still `away`: the UI enabled PASS while the runtime rejected it. Its document was visible and canvas ready, so this is a seat-readiness defect, not evidence of a finished online round. The source fix and a successful repeat remain required before claiming the complete online flow passes.
+
+A separate actual two-player refresh check observed the returning phone's roster initially marked `away`, then automatic seat admission on both peers without any gameplay action or rejected play after reload. Disabling controls until admission therefore does not require the user to trigger repair with a rejected action. The updated online smoke waits for this admission before playing.
