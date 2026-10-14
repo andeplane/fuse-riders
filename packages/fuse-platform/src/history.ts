@@ -265,18 +265,23 @@ export class GameHistory<
     };
   }
 
-  /** Local solo play has no room transport. Only an authenticated zero-change round can use this path. */
-  async admitSolo(uid: string, address: string): Promise<Reporter> {
+  /** Local solo play has no room transport. Reports require an account and never move Elo against bots. */
+  async admitSolo(
+    uid: string,
+    address: string,
+    roundReport = true,
+  ): Promise<Reporter> {
+    const kind = roundReport ? "solo-round" : "solo-results";
     const allowed =
       (await this.rooms.database.allowance(
-        this.limit(`solo-round:${uid}`),
+        this.limit(`${kind}:${uid}`),
         this.now(),
-        600,
+        roundReport ? 600 : SUBMISSIONS_PER_HOUR,
       )) &&
       (await this.rooms.database.allowance(
-        this.limit(`solo-round-address:${address}`),
+        this.limit(`${kind}-address:${address}`),
         this.now(),
-        3000,
+        roundReport ? 3000 : SUBMISSIONS_PER_ADDRESS_PER_HOUR,
       ));
     if (!allowed) throw new RoomError(429, "Too many solo rounds; try later");
     return {
@@ -291,11 +296,12 @@ export class GameHistory<
     reporter: Reporter,
     body: unknown,
     uid: string,
+    roundReport = true,
   ): Promise<SubmitOutcome> {
     const result = plain(body) ? this.parseResult(body.result) : undefined;
     if (
       !result ||
-      result.round === undefined ||
+      (result.round !== undefined) !== roundReport ||
       humansOf(this.game, result).length !== 1 ||
       humansOf(this.game, result)[0] !== SOLO_RATING_PLAYER_ID ||
       result.finishers.length !== 1 ||
@@ -304,9 +310,9 @@ export class GameHistory<
     )
       throw new RoomError(
         400,
-        "Solo reports must contain one signed-in human round",
+        "Solo reports must contain one signed-in human and the correct result kind",
       );
-    return this.submit(reporter, body, uid);
+    return this.submit(reporter, body, uid, true);
   }
 
   /** One player's report. `uid` is that player's own verified account, or undefined for a guest; nothing in the body can name one. */
@@ -314,6 +320,7 @@ export class GameHistory<
     reporter: Reporter,
     body: unknown,
     uid: string | undefined,
+    requireAccount = false,
   ): Promise<SubmitOutcome> {
     const { code, rider } = reporter,
       game = this.game;
@@ -348,11 +355,16 @@ export class GameHistory<
         ? uid
         : undefined;
     if (
-      result.round !== undefined &&
+      (result.round !== undefined || requireAccount) &&
       uid !== undefined &&
       account === undefined
     )
-      throw new RoomError(429, "Too many rated rounds; try later");
+      throw new RoomError(
+        429,
+        result.round !== undefined
+          ? "Too many rated rounds; try later"
+          : "Too many account results; try later",
+      );
     const id = matchRecordId(reporter.incarnation, result),
       player = result.players.find((entry) => entry.playerId === rider)!;
     const creditFor = (

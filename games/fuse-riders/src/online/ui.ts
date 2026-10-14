@@ -115,6 +115,7 @@ import {
   type SwitchView,
 } from "./room-presenter.js";
 import { connectHint } from "./connect-hint.js";
+import { createRiderRoundControls } from "./round-controls.js";
 import { createJoinCard, createJoinForm } from "./join-form.js";
 import { createAppPortal, createNameEntry } from "fuse-ui";
 import { MAX_LOGGED_NAME_UNITS, seatRiderName } from "../engine/rider-name.js";
@@ -857,18 +858,8 @@ export async function startOnline(): Promise<void> {
   // Every menu is its own dialog (dialogs/*), and which one is open is the registry's state: never read from a
   // dialog's title, classes or contents. They sit where the one shared dialog used to, right after the phone HUD.
   const dialogs = createDialogRegistry<RoomDialogId>();
-  // Desktop hides the on-screen controls entirely, so a first-timer has only the ? button. One fading reminder on the first countdown of the session.
-  const keyHint = node("div", "", "key-hint");
-  keyHint.hidden = true;
-  keyHint.setAttribute("aria-hidden", "true");
-  keyHint.append(
-    node("span", "◀ ▶  —  STEER"),
-    node("span", "SPACE  —  HOLD TO CHARGE, RELEASE TO FIRE"),
-  );
-  keyHint.addEventListener("animationend", () => {
-    keyHint.hidden = true;
-  });
-  let keyHintShown = false;
+  // Every countdown teaches the controls on this device; this follows shared round state rather than a local timer.
+  const roundControls = createRiderRoundControls();
   const scoreboard = node("div", "", "online-scoreboard");
   scoreboard.append(notice, roster);
   const footer = node("footer", "", "online-footer");
@@ -879,7 +870,7 @@ export async function startOnline(): Promise<void> {
   // `header`, `booting` and `joinPanel` are app's only children here; nothing else attaches before this point.
   if (role === "joiner") {
     header.after(canvas, sharedLobby, scoreboard);
-    joinPanel.after(footer, keyHint, announcer, feed, hud);
+    joinPanel.after(footer, roundControls.element, announcer, feed, hud);
   } else
     app.replaceChildren(
       header,
@@ -889,7 +880,7 @@ export async function startOnline(): Promise<void> {
       scoreboard,
       joinPanel,
       footer,
-      keyHint,
+      roundControls.element,
       announcer,
       feed,
       hud,
@@ -1009,6 +1000,15 @@ export async function startOnline(): Promise<void> {
       resized,
       next.controllerOnly,
     );
+    roundControls.update({
+      state: snapshot,
+      scope: renderScope,
+      joined,
+      displayOnly,
+      ended: next.kind === "ended",
+      touch: next.mobile.active || next.arenaController,
+      spectator: watching,
+    });
     const controllerResults = next.controllerOnly && next.kind === "recap";
     setIfChanged(controllerRematch, "hidden", !controllerResults);
     if (controllerResults) {
@@ -1331,6 +1331,7 @@ export async function startOnline(): Promise<void> {
             fetch: (input, init) => fetch(input, init),
             roomToken: token,
             identityToken: signedInToken,
+            identityRequired: solo,
           },
         ).then(() => roomAccount.refresh());
       }
@@ -1558,42 +1559,40 @@ export async function startOnline(): Promise<void> {
         }
       if (!screen.arenaHidden)
         replay.observe(state, state.matchId, performance.now());
-      if (
-        state.phase === "countdown" &&
-        joined &&
-        !keyHintShown &&
-        screen.desktop
-      ) {
-        keyHintShown = true;
-        keyHint.hidden = false;
-      }
       // Opened after the layout above so the close button can say where it lands.
       if (recapIsReady && lastRecap !== String(state.phaseEndsAtTick)) {
         lastRecap = String(state.phaseEndsAtTick);
         if (!screen.controllerOnly) openRecap();
         // Every rider's device reports the result it computed; the room service keeps one that a majority agree on
         // (README, "Login and match history"). Only state the match froze goes in: devices open the recap at different moments.
-        const report = solo
-          ? undefined
-          : buildMatchReport(
-              {
-                matchId,
-                matchLength: state.matchLength,
-                ...(state.matchWinnerId === undefined
-                  ? {}
-                  : { matchWinnerId: state.matchWinnerId }),
-                matchStats: state.matchStats,
-                matchFinishers: state.matchFinishers,
-                players: state.players,
-              },
-              id,
-            );
+        const report =
+          solo && !remembersSignIn()
+            ? undefined
+            : buildMatchReport(
+                {
+                  matchId,
+                  matchLength: state.matchLength,
+                  ...(state.matchWinnerId === undefined
+                    ? {}
+                    : { matchWinnerId: state.matchWinnerId }),
+                  matchStats: state.matchStats,
+                  matchFinishers: state.matchFinishers,
+                  players: state.players,
+                },
+                id,
+                solo ? accountUsername() : undefined,
+              );
         if (report)
-          void sendMatchReport(apiUrl(`/api/rooms/${code}/results`), report, {
-            fetch: (input, init) => fetch(input, init),
-            roomToken: token,
-            identityToken: signedInToken,
-          });
+          void sendMatchReport(
+            apiUrl(solo ? "/api/me/results" : `/api/rooms/${code}/results`),
+            report,
+            {
+              fetch: (input, init) => fetch(input, init),
+              roomToken: token,
+              identityToken: signedInToken,
+              identityRequired: solo,
+            },
+          );
       }
       setIfChanged(powerStatus, "hidden", view.power.hidden);
       setIfChanged(powerStatus, "textContent", view.power.text);
