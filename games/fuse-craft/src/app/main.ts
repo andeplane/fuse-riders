@@ -15,6 +15,10 @@ import { createPreferencesStore } from "./preferences.js";
 import { createOnlineSession, createSession } from "../online/session.js";
 import { spriteUrls } from "../render/sprites.js";
 import {
+  createBrowserSpriteImageLoader,
+  installSpriteRecovery,
+} from "../render/sprite-recovery.js";
+import {
   createBuildingSprites,
   createBrowserSpriteRasterizer,
 } from "../render/sprite-raster.js";
@@ -72,6 +76,10 @@ const initialRoom = new URLSearchParams(location.search)
 
 const root = document.getElementById("app");
 if (!root) throw new Error("Fuse Craft mount point is missing");
+installSpriteRecovery(
+  root,
+  createBrowserSpriteImageLoader(() => new Image()),
+);
 const buildingSprites = createBuildingSprites(
   spriteUrls,
   createBrowserSpriteRasterizer(

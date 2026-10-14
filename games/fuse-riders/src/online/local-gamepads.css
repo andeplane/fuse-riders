@@ -1,0 +1,94 @@
+.local-setup {
+  width: min(46rem, calc(100% - 2rem));
+  margin: 2rem auto;
+  padding: 1.5rem;
+  background: #111323;
+  border: 2px solid #58e3ef;
+  border-radius: 12px;
+  color: #eef6ff;
+  max-height: calc(100dvh - 4rem);
+  overflow-y: auto;
+}
+.local-setup h1 {
+  font-size: 1.2rem;
+  color: #58e3ef;
+}
+.local-setup p {
+  line-height: 1.7;
+  font-family: system-ui, sans-serif;
+}
+.local-setup-list {
+  display: grid;
+  gap: 0.8rem;
+  margin: 1rem 0;
+}
+.local-pad {
+  padding: 0.8rem;
+  border: 1px solid #555b7e;
+  border-radius: 8px;
+}
+.local-pad label {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.local-pad input[type="text"] {
+  width: 12rem;
+  max-width: 55%;
+}
+.local-pad small {
+  display: block;
+  margin: 0.5rem 0;
+  overflow-wrap: anywhere;
+  font-family: system-ui, sans-serif;
+}
+.local-setup-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 1.2rem;
+}
+.local-setup button,
+.local-setup a {
+  padding: 0.8rem;
+}
+.local-setup a {
+  color: #58e3ef;
+}
+.local-keys {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin: 0.8rem 0;
+}
+.local-keys label {
+  display: grid;
+  gap: 0.35rem;
+  font:
+    13px system-ui,
+    sans-serif;
+}
+.local-keys select {
+  min-width: 5rem;
+}
+.local-gamepads-status {
+  position: fixed;
+  z-index: 20;
+  bottom: 0.6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 90vw;
+  padding: 0.7rem;
+  background: #111323;
+  border: 1px solid #ffce58;
+  color: #fff;
+  font:
+    14px system-ui,
+    sans-serif;
+}
+.local-gamepads-status[hidden] {
+  display: none;
+}
+.local-cta {
+  margin-top: 0.7rem;
+}
