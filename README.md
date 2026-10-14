@@ -289,8 +289,11 @@ shows it and is not editable there. It is changed under **Account settings** in 
 - It is a client-side convention: joining a room is peer-to-peer and the gateway never sees the join, so it cannot
   force a signed-in rider's in-game name to match. Each stored match keeps the name it was actually played under.
 
-Signed-in PLAY SOLO records each round at `POST /api/me/round-results`, with zero Elo change. This authenticated
-endpoint accepts one human only; bots cannot move Elo. Guest solo play sends no account report. The account button
+Signed-in PLAY SOLO records each round at `POST /api/me/round-results`, with zero Elo change, and each completed
+game at `POST /api/me/results` for permanent match history and career totals. Both authenticated endpoints accept
+one human plus bots; only round receipts enter the rating graph. Guest solo play sends no account report. Run
+`pnpm exec tsx scripts/solo-history-smoke.ts` for the actual solo recap-to-history browser flow with a test account
+and local HTTP settlement (no Google OAuth or production Firestore). The account button
 shows nickname and Elo; the leaderboard button shows global rank. These controls are available in home, lobby and
 play, with a compact account button during phone play. Round completion coalesces profile refreshes at most once
 per 15 seconds rather than polling continuously.

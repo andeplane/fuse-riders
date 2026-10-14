@@ -1232,7 +1232,7 @@ test("the HTTP surface: a report needs a seat, history needs a sign-in, and a ba
   }
 });
 
-test("solo HTTP rounds authenticate, remain zero-change, isolate accounts and settle once", async () => {
+test("solo HTTP rounds and finished games authenticate, isolate accounts and credit history once", async () => {
   const service = createDevRoomService({
     identity: async (value) =>
       value.startsWith("id:") ? value.slice(3) : undefined,
@@ -1308,6 +1308,71 @@ test("solo HTTP rounds authenticate, remain zero-change, isolate accounts and se
       })
     ).json()) as { matches: unknown[] };
     assert.equal(history.matches.length, 0);
+    const whole = structuredClone(result);
+    delete whole.round;
+    const finish = (candidate: unknown, identity?: string) =>
+      fetch(`${origin}/api/me/results`, {
+        method: "POST",
+        headers: {
+          origin,
+          ...(identity ? { "X-Fuse-Identity": identity } : {}),
+        },
+        body: JSON.stringify({ result: candidate }),
+      });
+    assert.equal((await finish(whole)).status, 401);
+    assert.equal((await finish(whole, "invalid")).status, 503);
+    assert.equal(
+      (await finish(result, "id:a")).status,
+      400,
+      "a round cannot be credited as a finished game",
+    );
+    assert.equal(
+      (await finish({ ...whole, players: secondHuman.players }, "id:a")).status,
+      400,
+    );
+    assert.equal(
+      (await finish({ ...whole, finishers: [] }, "id:a")).status,
+      400,
+    );
+    const ratingBefore = (await profile("a")).profile!.rating;
+    for (let retry = 0; retry < 2; retry++)
+      assert.equal((await finish(whole, "id:a")).status, 200);
+    const after = (await profile("a")).profile!;
+    assert.equal(after.totals.matches, 1);
+    assert.deepEqual(
+      after.rating,
+      ratingBefore,
+      "whole games cannot award Elo or a second round receipt",
+    );
+    const personal = (await (
+      await fetch(`${origin}/api/me/matches`, {
+        headers: { origin, authorization: "Bearer id:a" },
+      })
+    ).json()) as { matches: { result: MatchResult }[] };
+    assert.equal(personal.matches.length, 1);
+    assert.deepEqual(personal.matches[0]!.result, whole);
+    const feed = (await (
+      await fetch(`${origin}/api/matches`, { headers: { origin } })
+    ).json()) as { matches: unknown[] };
+    assert.equal(feed.matches.length, 1);
+    // Exhausting account links must not silently turn authenticated solo games into unlisted guest records.
+    for (let retry = 2; retry < 30; retry++)
+      assert.equal((await finish(whole, "id:a")).status, 200);
+    assert.equal(
+      (await finish({ ...whole, matchId: "over-budget" }, "id:a")).status,
+      429,
+    );
+    assert.equal((await profile("a")).profile!.totals.matches, 1);
+    assert.equal(
+      (await report({ result: { ...result, round: 3 } }, "id:a")).status,
+      200,
+      "round reports have their own budget",
+    );
+    assert.equal(
+      (await profile("b")).profile!.totals.matches,
+      0,
+      "only the authenticated caller gets career credit",
+    );
   } finally {
     await service.close();
   }
