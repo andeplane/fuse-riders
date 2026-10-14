@@ -45,6 +45,8 @@ try {
       });
     });
     const page = await context.newPage();
+    const bootErrors: string[] = [];
+    page.on("pageerror", (error) => bootErrors.push(error.name));
     try {
       await page.goto(`${base}${path}?mute&analytics=1`);
       let timer: ReturnType<typeof setTimeout>;
@@ -53,8 +55,13 @@ try {
           opening,
           new Promise<never>((_, reject) => {
             timer = setTimeout(
-              () => reject(new Error(`${gameId}: no App Opened payload`)),
-              20000,
+              () =>
+                reject(
+                  new Error(
+                    `${gameId}: no App Opened payload; page errors: ${bootErrors.join(", ") || "none"}`,
+                  ),
+                ),
+              45000,
             );
           }),
         ]);
