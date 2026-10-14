@@ -53,8 +53,8 @@ is the shape of it.
 - **The match.** First to the room's round wins (1, 2 or 3; default 2) with 60, 75 or 90 second rounds (default 75).
   Level on round wins at the end, the most wagons delivered over the match decides; level on those too, the win is
   shared. Wagons still pulled at the whistle score nothing. Three rounds in a row with no delivery at all end the
-  match with no winner, so a room of absent drivers does not run on. The host's LOBBY button mid-match asks for a
-  second tap, since it ends the match for everyone; on a shared screen the host's phone gets REMATCH and LOBBY.
+  match with no winner, so a room of absent drivers does not run on. The host's MENU → Back to lobby action asks for
+  confirmation, since it ends the match for everyone; on a shared screen the host's phone gets REMATCH and LOBBY.
 
 ## Design notes
 

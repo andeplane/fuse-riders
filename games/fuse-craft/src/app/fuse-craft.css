@@ -492,6 +492,33 @@ select {
   background: radial-gradient(ellipse at 50% 45%, #102343, var(--fui-ink) 75%);
   overflow: hidden;
 }
+.nd-app .fui-round-controls {
+  bottom: calc(var(--dock-height) + 16px);
+  max-width: min(640px, calc(100% - 32px));
+  border-color: #507385;
+  border-radius: 8px;
+  background: #0b1824f2;
+  font-family: inherit;
+}
+.nd-app .fui-game-menu-trigger,
+.nd-app .fui-game-menu-panel {
+  font-family: inherit;
+  border-radius: 6px;
+}
+.nd-app .fui-game-menu-panel {
+  background: #0b1824f5;
+}
+#craft-menu {
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  z-index: 40;
+}
+.nd-app .fui-game-menu-trigger {
+  min-height: 32px;
+  padding: 0.4rem 0.65rem;
+  font-size: 10px;
+}
 .board-scroll {
   position: absolute;
   inset: var(--topbar-height) 0 var(--dock-height);
@@ -953,6 +980,7 @@ select {
 }
 .session-controls {
   margin-left: auto;
+  padding-right: 64px;
   display: flex;
   gap: 0.5rem;
   flex-shrink: 0;

@@ -1,6 +1,8 @@
 # Fuse Riders
 
-## [Play it now →](https://andeplane.github.io/fuse-riders/)
+## [Browse all games →](https://andeplane.github.io/fuse-riders/)
+
+The site root is the **Fuse Games** gallery, with gameplay screenshots and a play link for each game listed in `games/<id>/portal.json`. [Play Fuse Riders directly](https://andeplane.github.io/fuse-riders/fuse-riders/). Every game's app launcher has an **ALL GAMES** link back to the gallery. Existing root `?room=…`, `?solo=1` and `?display=1` links still open Riders.
 
 **Play solo or with friends.** Choose **PLAY SOLO** for an immediate local game against four AI riders, **PLAY LOCAL** for game controllers on one computer, or create a room and share its invite. Solo and local controller play use no room service or WebRTC; refreshing starts a fresh run. In a room every device simulates the game, so any rider can refresh or drop and rejoin while the others keep playing. Online gameplay requires a direct WebRTC connection; unsupported networks show a retry state. Physical-phone qualification is still pending.
 
@@ -53,6 +55,14 @@ Room settings offer **3 ROUNDS · QUICK** and **5 ROUNDS · STANDARD**, plus a c
 **ROOM SETTINGS → Bomb aim time (seconds)** adjusts how quickly a held bomb reaches maximum distance in solo and online rooms: 0.1–2 seconds in 0.05-second steps, default 0.4 seconds. Try 1.2 seconds for the original pace. It applies next round; the room shares one active aim time for players, AI and previews. With aim bounce on, the aiming marker moves at a steady speed through the middle 75% of its range, smoothly slowing into each end and accelerating away. It pauses for 100 ms at maximum reach to make full-range throws easier. The range and time to maximum stay the same; each full cycle gains that 100 ms pause.
 
 Every device in a room simulates the game from one shared input log, so no browser owns the world: the creator's stream carries the room management entries (seats, settings, start, AI riders), and if the creator goes quiet for five seconds the lowest connected rider marks it absent so play continues. A refreshed creator or guest rejoins the running match with a validated snapshot from any peer; nothing is persisted locally. A tab you switch away from steps away by its own entry: it neutralises its controls, stops being waited on, and stops being asked for a world — but it keeps its seat, is placed in the next round and is still rated, so glancing at another tab no longer costs the seat. Coming back brings it straight in. These mechanisms have regression tests (`games/fuse-riders/tests/room-runtime.test.ts`, `games/fuse-riders/tests/hidden-tabs.test.ts`), while sustained recovery on real phones and networks remains unqualified.
+
+## Menus and round controls
+
+Games keep their own visual style while following the same navigation pattern: play or join from the home screen, open **MENU** during a game, read **Controls**, return to the lobby when allowed, or leave the game. Fuse Riders keeps its existing menu with room settings, account and radio controls; the other games use the shared `fuse-ui` menu alongside their game-specific settings.
+
+Control reminders appear at each round's countdown or opening phase. Games without a countdown use their stage, turn or week start. They describe keyboard and touch input and the immediate objective; shared TV displays explain that players use their phones. Open **MENU → Controls** to read them again. The reminders do not pause the simulation or change round timing.
+
+`createGameMenu` and `createRoundControls` in `packages/fuse-ui` provide the shared behavior. Pig is the new-game template, so generated games inherit this navigation and onboarding. Run `ONLINE_URL=http://localhost:PORT/ pnpm exec tsx scripts/shared-menu-controls-smoke.ts` against a fresh local service to check the real flows.
 
 ## Pig, the second game
 
@@ -197,13 +207,20 @@ Tests should use typed injected clocks, schedulers, transports and seeded random
 
 ## Product analytics
 
-The deployed site reports twelve `FlowRiders.`-prefixed product events to Mixpanel, including one `Kill` per kill
-and one `Miss` per shot that killed nobody, sent by the shooter's own device once each round is decided and confirmed. Local dev (any address with a port, a LAN address included) is off
+Every game reports Mixpanel product events with the shared `fuse.` prefix and a `gameId` property for cross-game dashboards.
+Opening, seating, match starts and match ends are tracked from real play; Fuse Riders also reports one `Kill` per kill
+and one `Miss` per shot that killed nobody, sent by the shooter's own device once each round is decided and confirmed.
+The rename from `FlowRiders.*` intentionally breaks existing dashboards; there is no dual reporting.
+Local dev (any address with a port, a LAN address included) is off
 by default, `?analytics=1` forces them on and `?analytics=0` forces them off; either choice sticks for the
 browser, so it survives the navigation into a room. See [product analytics](docs/ANALYTICS.md)
 for the event list and what is deliberately not tracked.
 
-`HOME_URL=http://127.0.0.1:8899/ pnpm exec tsx scripts/analytics-smoke.ts` (and `BROWSER=webkit`) plays a one-round
+After `pnpm build`, `pnpm exec tsx scripts/all-games-analytics-smoke.ts` starts a local room service on a free port
+and verifies the real SDK's opening event, shared prefix, game id and URL exclusions on every game page.
+All Mixpanel requests are intercepted; results go to `artifacts/all-games-analytics.json`.
+
+`HOME_URL=http://127.0.0.1:8899/ pnpm exec tsx scripts/analytics-smoke.ts` (and `BROWSER=webkit`) takes the site root, enters `/fuse-riders/` and plays a one-round
 solo match with Mixpanel intercepted — never delivered — and asserts what each event carried, writing
 `artifacts/analytics-<browser>.json`. It exists because the failure mode is silent: Mixpanel answers `200` to a
 request whose properties it dropped, so a bad payload looks exactly like a good one from inside the game. It ends
@@ -295,8 +312,11 @@ shows it and is not editable there. It is changed under **Account settings** in 
 - It is a client-side convention: joining a room is peer-to-peer and the gateway never sees the join, so it cannot
   force a signed-in rider's in-game name to match. Each stored match keeps the name it was actually played under.
 
-Signed-in PLAY SOLO records each round at `POST /api/me/round-results`, with zero Elo change. This authenticated
-endpoint accepts one human only; bots cannot move Elo. Guest solo play sends no account report. The account button
+Signed-in PLAY SOLO records each round at `POST /api/me/round-results`, with zero Elo change, and each completed
+game at `POST /api/me/results` for permanent match history and career totals. Both authenticated endpoints accept
+one human plus bots; only round receipts enter the rating graph. Guest solo play sends no account report. Run
+`pnpm exec tsx scripts/solo-history-smoke.ts` for the actual solo recap-to-history browser flow with a test account
+and local HTTP settlement (no Google OAuth or production Firestore). The account button
 shows nickname and Elo; the leaderboard button shows global rank. These controls are available in home, lobby and
 play, with a compact account button during phone play. Round completion coalesces profile refreshes at most once
 per 15 seconds rather than polling continuously.
