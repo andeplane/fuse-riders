@@ -1,0 +1,193 @@
+{
+  "hash": "360884a1",
+  "finished": false,
+  "tick": 18000,
+  "players": [
+    {
+      "id": "alpha",
+      "stats": {
+        "biomassEarned": 7878250,
+        "insightEarned": 2533000,
+        "built": 84,
+        "damage": 1514,
+        "lost": 10,
+        "sitesLost": 2
+      },
+      "last60": {
+        "biomassEarned": 664450,
+        "insightEarned": 225450,
+        "built": 6,
+        "damage": 0,
+        "lost": 0,
+        "sitesLost": 0
+      },
+      "biomass": 5798250,
+      "queue": [
+        {
+          "cell": 66,
+          "kind": "neuron",
+          "paid": true,
+          "progress": 60,
+          "duration": 80,
+          "hp": 60
+        }
+      ],
+      "worker": {
+        "mode": "building",
+        "cell": 89,
+        "from": 89,
+        "to": 89,
+        "departedAt": 17938,
+        "arrivesAt": 17941,
+        "recoverAt": 8281
+      },
+      "priorities": {
+        "137": 3,
+        "161": 3,
+        "222": 3,
+        "246": 3
+      },
+      "brain": {
+        "id": 1,
+        "cell": 50,
+        "ownerId": "alpha",
+        "kind": "brain",
+        "hp": 240,
+        "connected": true
+      },
+      "connected": {
+        "brain": 1,
+        "neuron": 67,
+        "tower": 6
+      },
+      "guns": [
+        {
+          "c": 161,
+          "k": "tower",
+          "hp": 120,
+          "priority": 3,
+          "ammo": 32,
+          "targets": []
+        },
+        {
+          "c": 137,
+          "k": "tower",
+          "hp": 120,
+          "priority": 3,
+          "ammo": 32,
+          "targets": []
+        },
+        {
+          "c": 222,
+          "k": "tower",
+          "hp": 120,
+          "priority": 3,
+          "ammo": 32,
+          "targets": []
+        },
+        {
+          "c": 246,
+          "k": "tower",
+          "hp": 120,
+          "priority": 3,
+          "ammo": 32,
+          "targets": []
+        }
+      ],
+      "next": []
+    },
+    {
+      "id": "beta",
+      "stats": {
+        "biomassEarned": 7909700,
+        "insightEarned": 2965525,
+        "built": 85,
+        "damage": 912,
+        "lost": 12,
+        "sitesLost": 3
+      },
+      "last60": {
+        "biomassEarned": 672400,
+        "insightEarned": 270000,
+        "built": 6,
+        "damage": 0,
+        "lost": 0,
+        "sitesLost": 0
+      },
+      "biomass": 5764700,
+      "queue": [
+        {
+          "cell": 414,
+          "kind": "neuron",
+          "paid": true,
+          "progress": 0,
+          "duration": 80,
+          "hp": 60
+        }
+      ],
+      "worker": {
+        "mode": "outbound",
+        "cell": 354,
+        "from": 354,
+        "to": 353,
+        "departedAt": 17999,
+        "arrivesAt": 18002,
+        "recoverAt": 0
+      },
+      "priorities": {
+        "233": 3,
+        "317": 3,
+        "318": 3,
+        "319": 3
+      },
+      "brain": {
+        "id": 130,
+        "cell": 429,
+        "ownerId": "beta",
+        "kind": "brain",
+        "hp": 240,
+        "connected": true
+      },
+      "connected": {
+        "brain": 1,
+        "neuron": 66,
+        "relay": 6
+      },
+      "guns": [
+        {
+          "c": 319,
+          "k": "relay",
+          "hp": 90,
+          "priority": 3,
+          "ammo": 32,
+          "targets": []
+        },
+        {
+          "c": 233,
+          "k": "relay",
+          "hp": 90,
+          "priority": 3,
+          "ammo": 32,
+          "targets": []
+        },
+        {
+          "c": 318,
+          "k": "relay",
+          "hp": 42,
+          "priority": 3,
+          "ammo": 32,
+          "targets": []
+        },
+        {
+          "c": 317,
+          "k": "neuron",
+          "hp": 60,
+          "priority": 3,
+          "ammo": 32,
+          "targets": []
+        }
+      ],
+      "next": []
+    }
+  ]
+}

@@ -1,0 +1,185 @@
+/* The online pages (fuse-ui inside `.fui-app`). Mid-match a room's page lets touches through, but to its bar and form. */
+.fb-online {
+  position: fixed;
+  inset: 0;
+  z-index: var(--fui-z-bar);
+  overflow: auto;
+  touch-action: auto;
+}
+.fb-online.fb-match {
+  background: none;
+  pointer-events: none;
+}
+.fb-online > * {
+  pointer-events: auto;
+}
+.fb-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--fui-space-3);
+  padding: max(8px, env(safe-area-inset-top)) 0 8px;
+  font: 0.8rem var(--fui-font-pixel);
+}
+.fb-bar a {
+  color: var(--fui-yellow);
+  text-decoration: none;
+}
+.fb-status {
+  flex: 1;
+}
+/* Mid-match the bar keeps only LEAVE, and the status while a link is being retried, clear of the HUD. */
+.fb-match .fb-bar {
+  width: fit-content;
+  font-size: 0.6rem;
+}
+.fb-match .fb-bar > :not(.fb-status, button),
+.fb-match .fb-status:not([data-tone="error"]) {
+  display: none;
+}
+.fb-lobby {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: var(--fui-space-3) var(--fui-space-6);
+  align-items: start;
+  max-width: 60rem;
+  margin: var(--fui-space-4) auto 0;
+}
+.fb-lobby > *,
+.fb-card {
+  display: grid;
+  gap: var(--fui-space-3);
+}
+.fb-online .fui-name-entry,
+.fb-card {
+  max-width: 30rem;
+  margin: var(--fui-space-4) auto 0;
+  text-align: center;
+}
+.fb-shared {
+  display: flex;
+  gap: var(--fui-space-2);
+  align-items: center;
+  font-size: 0.875rem;
+}
+
+/* The shared TV: a QR code to scan from the sofa, and badges to read across the room. */
+.fb-display .fui-invite-qr {
+  width: min(38vh, 22rem);
+}
+#screen[data-display] .badge {
+  padding: 0.6cqw 1.1cqw;
+  font-size: 1.2cqw;
+}
+#screen[data-display] .badge small {
+  font-size: 0.85cqw;
+}
+#screen[data-display] .pips i {
+  width: 1cqw;
+  height: 1cqw;
+}
+
+/* A phone's controller: this in the top 30% (`CONTROLLER_TOP`), the input layer's D-pad and FIRE below. */
+.fb-pad {
+  --c: var(--fui-cyan);
+  display: grid;
+  gap: var(--fui-space-2);
+  width: min(100%, 36rem);
+  margin: 0 auto;
+  font: 0.7rem var(--fui-font-pixel);
+  text-align: center;
+}
+.fb-pad header {
+  display: flex;
+  gap: var(--fui-space-2);
+  align-items: baseline;
+  color: var(--c);
+}
+.fb-pad header b {
+  flex: 1;
+  overflow: hidden;
+  font-size: 1rem;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fb-pad-meters {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 10px;
+  align-items: center;
+  font-size: 0.55rem;
+  text-align: left;
+}
+.fb-pad-meters i {
+  height: 12px;
+  background: linear-gradient(
+    90deg,
+    var(--c) var(--v, 0%),
+    color-mix(in srgb, var(--c) 18%, transparent) 0
+  );
+  border: 1px solid var(--c);
+}
+.fb-pad p {
+  margin: 0;
+}
+.fb-pad[data-state="ghost"] .fb-pad-meters i:first-of-type {
+  opacity: 0.3;
+}
+.fb-pad-line {
+  min-height: 1.4em;
+  font-size: 1rem;
+  color: var(--fui-yellow);
+}
+.fb-pad-actions {
+  display: flex;
+  gap: var(--fui-space-2);
+  justify-content: center;
+}
+/* The pads over the page (the input layer sits under it otherwise), and a bar that fits a phone. */
+body.fb-controller > [data-input="touch-pads"] {
+  z-index: calc(var(--fui-z-bar) + 1) !important;
+}
+/* A controller keeps its room code and LEAVE: the app portal and the brand lead out of the room mid-play. */
+.fb-controller .fb-bar > a,
+.fb-controller .fb-bar > .fui-portal,
+.fb-controller .fb-status:not([data-tone="error"]) {
+  display: none;
+}
+/* The bar and its LEAVE are slim: the pads below take 70% of the screen, the header the 30% above them. */
+.fb-controller .fb-bar {
+  padding-block: 4px;
+}
+.fb-controller .fb-bar button {
+  min-height: 0;
+  padding: 3px 10px;
+  font-size: 0.6rem;
+}
+/* A short landscape phone (a 375 px tall screen gives the header 112 px, bar included): the header folds into three
+   short rows (name; hull and launcher side by side; launcher state and the round's word). */
+@media (orientation: landscape) and (max-height: 480px) {
+  .fb-pad {
+    grid-template-columns: 1fr 1fr;
+    gap: 4px var(--fui-space-3);
+  }
+  .fb-pad > * {
+    grid-column: 1 / -1;
+  }
+  .fb-pad > .fb-pad-state,
+  .fb-pad > .fb-pad-line {
+    grid-column: auto;
+    min-height: 0;
+    font-size: 0.65rem;
+  }
+  .fb-pad > .fb-pad-state {
+    text-align: left;
+  }
+  .fb-pad > .fb-pad-line {
+    text-align: right;
+  }
+  .fb-pad header b {
+    font-size: 0.85rem;
+  }
+  .fb-pad-meters {
+    grid-template-columns: auto 1fr auto 1fr;
+  }
+}
