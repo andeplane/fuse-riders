@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import {
   jobSteps,
@@ -21,6 +22,8 @@ import { devBanner } from "../service/dev.js";
 const manifest = loadManifest();
 const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
 const local = readFileSync("scripts/ci-local.sh", "utf8");
+/** The condition that adds coverage and the browser matrix to a pull request while main is red. */
+const RED = "needs.main-health.outputs.red == 'true'";
 
 /** The text of one job, without a YAML parser: jobs are the two-space keys after `jobs:`. */
 function job(name: string): string {
@@ -65,8 +68,10 @@ test("each gate job runs exactly the manifest's steps for it, in order", () => {
 test("verify is the one check name, and it reports every gate job", () => {
   const verify = job("verify");
   assert.ok(
-    verify.includes(`    needs: [${verifyJobs(manifest).join(", ")}]\n`),
-    "verify must need exactly the gate jobs",
+    verify.includes(
+      `    needs: [${[...verifyJobs(manifest), "main-health", "coverage", "e2e"].join(", ")}]\n`,
+    ),
+    "verify must need the gate jobs, main-health and, for a red main, coverage and e2e",
   );
   // Without `always()` a failed gate job would leave verify skipped, which a branch rule reads as not-failed.
   assert.ok(verify.includes("    if: always()\n"));
@@ -104,19 +109,90 @@ test("the unit shards cover the whole suite, and only a pull request thins the r
   );
 });
 
-test("the coverage gate runs the release steps and no pull request waits on it", () => {
+test("the coverage gate runs the release steps, on a pull request only while main is red", () => {
   assert.deepEqual(runsIn(job("coverage")), [
     "pnpm install --frozen-lockfile",
     ...manifest.release.map((step) => step.command),
   ]);
+  assert.ok(job("coverage").includes("    needs: main-health\n"));
   assert.ok(
-    job("coverage").includes("    if: github.event_name != 'pull_request'\n"),
+    job("coverage").includes(
+      `    if: github.event_name != 'pull_request' || ${RED}\n`,
+    ),
   );
-  // Comments stripped: the block a job split yields carries the next job's leading comment.
-  assert.doesNotMatch(
-    withoutComments(job("verify")),
-    /coverage/,
-    "the pull-request gate must not wait on coverage",
+});
+
+/** What each of verify's `env:` values must be read from: the script below is only as right as its inputs. */
+const VERIFY_ENV: Record<string, string> = {
+  GATE: "${{ needs.checks.result }} ${{ needs.unit.result }} ${{ needs.main-health.result }}",
+  MAIN_RED: "${{ needs.main-health.outputs.red }}",
+  DEPLOY_RED: "${{ needs.main-health.outputs.deploy-red }}",
+  REASON: "${{ needs.main-health.outputs.reason }}",
+  PROOF: "${{ needs.coverage.result }} ${{ needs.e2e.result }}",
+  CD_FIX: "${{ contains(github.event.pull_request.labels.*.name, 'cd-fix') }}",
+};
+
+/** verify's script, run by bash with the values its `env:` would carry; true when it passes. */
+function verifyPasses(env: Record<string, string>): boolean {
+  const script = /run: \|\n((?: {10}.*\n?)+)/.exec(job("verify"))?.[1];
+  assert.ok(script, "verify has one multi-line run step");
+  for (const name of Object.keys(env))
+    assert.ok(
+      job("verify").includes(`          ${name}: ${VERIFY_ENV[name]}\n`),
+      `verify's ${name} must be ${VERIFY_ENV[name]}`,
+    );
+  return (
+    spawnSync("bash", ["-e", "-c", script.replace(/^ {10}/gm, "")], {
+      env: { PATH: process.env.PATH, ...env },
+      stdio: "ignore",
+    }).status === 0
+  );
+}
+
+test("verify passes a green main's pull request on the gate alone, and a red main's only with proof", () => {
+  const ok = {
+    GATE: "success success success",
+    MAIN_RED: "false",
+    DEPLOY_RED: "false",
+    REASON: "main is green",
+    PROOF: "skipped skipped",
+    CD_FIX: "false",
+  };
+  assert.equal(verifyPasses(ok), true, "green main: the gate is enough");
+  assert.equal(verifyPasses({ ...ok, GATE: "success failure success" }), false);
+  assert.equal(verifyPasses({ ...ok, GATE: "success success failure" }), false);
+  // A push leaves main-health's outputs empty: main counts as green.
+  assert.equal(verifyPasses({ ...ok, MAIN_RED: "", DEPLOY_RED: "" }), true);
+  const red = { ...ok, MAIN_RED: "true", REASON: "CI failure on 1234abcd" };
+  assert.equal(
+    verifyPasses(red),
+    false,
+    "red main: the gate alone is not enough",
+  );
+  assert.equal(verifyPasses({ ...red, PROOF: "success failure" }), false);
+  assert.equal(verifyPasses({ ...red, PROOF: "failure success" }), false);
+  assert.equal(verifyPasses({ ...red, PROOF: "success success" }), true);
+  const deploy = { ...red, DEPLOY_RED: "true", PROOF: "success success" };
+  assert.equal(verifyPasses(deploy), false, "a failed deployment needs cd-fix");
+  assert.equal(verifyPasses({ ...deploy, CD_FIX: "true" }), true);
+});
+
+test("main-health asks GitHub only on a pull request, with read access to runs", () => {
+  const health = job("main-health");
+  assert.ok(health.includes("      actions: read\n"));
+  assert.ok(health.includes("        run: node scripts/main-health.ts\n"));
+  for (const output of ["red", "deploy-red", "reason"])
+    assert.ok(
+      health.includes(
+        `      ${output}: \${{ steps.health.outputs.${output} }}\n`,
+      ),
+      output,
+    );
+  // Every step is pull-request only, so a main push does not wait on GitHub's API before coverage and the matrix.
+  assert.equal(
+    (health.match(/^ {8}if: github\.event_name == 'pull_request'$/gm) ?? [])
+      .length,
+    (health.match(/^ {6}- /gm) ?? []).length,
   );
 });
 
@@ -185,6 +261,7 @@ test("the browser matrix is built from the manifest, one job per smoke", () => {
 
 test("no smoke is written out in the workflow or in the local mirror", () => {
   assert.deepEqual(scriptsIn(workflow), [
+    "scripts/main-health.ts",
     "scripts/ci-manifest.json",
     "scripts/ci-run.ts",
   ]);
@@ -196,16 +273,18 @@ test("no smoke is written out in the workflow or in the local mirror", () => {
 test("the matrix keeps its triggers and one stable result", () => {
   assert.match(
     workflow,
-    /pull_request:\n(?: +#.*\n)* +types: \[opened, synchronize, reopened, labeled\]/,
+    /pull_request:\n(?: +#.*\n)* +types: \[opened, synchronize, reopened, labeled, unlabeled\]/,
   );
-  const gate = `github.event_name != 'pull_request' ||\n      contains(github.event.pull_request.labels.*.name, 'full-ci')`;
+  // The matrix runs on a push, on `full-ci`, and on every pull request while main is red.
+  const gate = `github.event_name != 'pull_request' ||\n      contains(github.event.pull_request.labels.*.name, 'full-ci') ||\n      ${RED}`;
+  assert.ok(job("plan").includes("    needs: main-health\n"));
   assert.ok(job("plan").includes(`    if: >-\n      ${gate}\n`));
   const e2e = job("e2e");
   assert.ok(
     e2e.includes(`    if: >-\n      always() &&\n      (${gate})\n`),
     "e2e must report even when a smoke failed, and only when the matrix was asked for",
   );
-  assert.ok(e2e.includes("    needs: smoke\n"));
+  assert.ok(e2e.includes("    needs: [main-health, smoke]\n"));
   assert.ok(e2e.includes('run: test "${{ needs.smoke.result }}" = success'));
 });
 

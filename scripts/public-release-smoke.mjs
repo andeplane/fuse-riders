@@ -143,9 +143,8 @@ for (const [name, type] of [
     await host
       .getByRole("button", { name: "← BACK TO ROOM SETTINGS", exact: true })
       .click();
-    await host
-      .getByRole("button", { name: "SAVE SETTINGS", exact: true })
-      .click();
+    // Every change saved as it was made; CLOSE only closes the dialog.
+    await host.getByRole("button", { name: "CLOSE", exact: true }).click();
     await guest.locator(".online-arena").waitFor({ state: "hidden" });
     await host.locator(".online-arena").waitFor({ state: "hidden" });
     result.sharedPhoneViewsHidden = true;
