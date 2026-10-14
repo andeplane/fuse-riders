@@ -4,6 +4,8 @@ This is the system map for the source tree: what exists on `main` today. Module 
 
 ## One play path: online rooms
 
+The site root is the screenshot gallery (`site/main.ts`, `fuse-ui/src/gallery.ts`). Vite builds its catalog and the in-game launcher from each game's `portal.json`, including its optional `screenshot` path. Every game has a dedicated page at `<base><game-id>/`, including Fuse Riders at `<base>fuse-riders/`. Root links with `room`, `solo` or `display` parameters still boot Riders for existing invites and bookmarks. The gallery loads no simulation or room connection; the launcher offers an **ALL GAMES** link back to it.
+
 ```text
 browser replica <------ WebRTC mesh ------> browser replica
          \                                 /
