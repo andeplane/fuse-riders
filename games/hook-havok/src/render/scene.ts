@@ -19,10 +19,24 @@ import {
 } from "./art.js";
 import { createEchoes, paintEchoes } from "./echoes.js";
 import { paintBalls } from "./balls.js";
-import { paintPowerUps } from "./power-ups.js";
+import {
+  paintKeeperPower,
+  paintPowerUps,
+  POWER_ICON_RISE,
+  POWER_STYLE,
+} from "./power-ups.js";
 import { createFrame, type Frame } from "./frame.js";
 import { createLight, keelTexture, type Light } from "./light.js";
 import { createJuice, type Juice } from "./juice.js";
+import { createBombs, type BombKeeper, type Bombs } from "./bombs.js";
+import { createNeon, type Neon } from "./neon.js";
+import {
+  canvasToWorld,
+  easeFrame,
+  followKeepers,
+  wholeArena,
+  type CameraFrame,
+} from "./camera.js";
 import {
   animateShrine,
   dressShrine,
@@ -38,9 +52,15 @@ export interface ShowcaseHandle {
   setIdle(value: boolean): void;
   setAtmosphere(value: boolean): void;
   seek(time: number): void;
+  /** Local display option: frame the living keepers instead of the whole arena. */
+  setFollow(value: boolean): void;
+  /** A canvas point, as fractions (0–1) of its box, in world units under the current camera. */
+  toWorld(u: number, v: number): { x: number; y: number };
 }
 interface Options {
   keyboardAim?(): { x: number; y: number } | undefined;
+  /** Where the local keeper's bomb would be aimed on release (arc preview only). */
+  bombAim?(): { x: number; y: number } | undefined;
   cue?(cue: Cue): void;
   view?(): WorldView;
   debug?(): boolean;
@@ -80,12 +100,27 @@ export function createShowcase(
 ): ShowcaseHandle {
   let paused = options.paused,
     idleOnly = options.idleOnly,
-    atmosphere = options.atmosphere;
+    atmosphere = options.atmosphere,
+    follow = false,
+    view: CameraFrame = wholeArena({ width: 1600, height: 900 }),
+    viewAt = -1;
   let elapsed = 800,
     destroyed = false;
   const feedback = new Feedback();
   const res = renderScale();
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+  /** Diagnostic lists for the browser checks, written only when they change. */
+  const written = new Map<string, string>();
+  const writeList = (key: string, list: readonly unknown[]) => {
+    const last = written.get(key);
+    if (!list.length && last === "[]") return;
+    const text = list.length ? JSON.stringify(list) : "[]";
+    if (text === last) return;
+    written.set(key, text);
+    host.dataset[key] = text;
+  };
+  /** Reused every frame: the bomb layer's keepers. */
+  const bombKeepers: BombKeeper[] = [];
   class Belfry extends Phaser.Scene {
     private peers = new Map<
       string,
@@ -127,6 +162,10 @@ export function createShowcase(
     private frame?: Frame;
     private light?: Light;
     private juice?: Juice;
+    private bombs?: Bombs;
+    private neon?: Neon;
+    private tint?: Phaser.GameObjects.Rectangle;
+    private mist?: Phaser.GameObjects.Image;
     constructor() {
       super("belfry");
     }
@@ -204,11 +243,14 @@ export function createShowcase(
         .image(800, 450, "background")
         .setDisplaySize(1600, 900)
         .setTint(0x9da9c9);
-      this.add.rectangle(800, 450, 1600, 900, 0x11172e, 0.19);
+      this.tint = this.add.rectangle(800, 450, 1600, 900, 0x11172e, 0.19);
       this.light = createLight(this);
       this.glowTexture("mist", "rgba(149,157,196,0.32)");
       this.glowTexture("warm", "rgba(255,174,70,0.5)");
-      this.add.image(370, 140, "mist").setDisplaySize(1000, 650).setAlpha(0.28);
+      this.mist = this.add
+        .image(370, 140, "mist")
+        .setDisplaySize(1000, 650)
+        .setAlpha(0.28);
       for (let i = 0; i < 5; i++)
         this.fog.push(
           this.add
@@ -264,9 +306,19 @@ export function createShowcase(
         .setVisible(false);
       this.effects = this.add.graphics().setDepth(14);
       this.juice = createJuice(this, res);
+      this.bombs = createBombs(this);
       // Inked foreground framing, never a playable surface.
       this.frame = createFrame(this);
+      this.scenery();
       this.paint();
+    }
+    /** The painted maps' backdrop, fog and frame; the neon grey box has its own. */
+    private scenery(): void {
+      const painted = this.terrainMap !== "spire";
+      this.background?.setVisible(painted);
+      this.tint?.setVisible(painted);
+      this.mist?.setVisible(painted);
+      this.frame?.setVisible(painted);
     }
     private rebuildTerrain(world?: WorldView): void {
       this.terrain?.destroy();
@@ -275,7 +327,11 @@ export function createShowcase(
       this.shrineDressing = [];
       this.terrainMap = world?.map ?? "belfry";
       this.ambientState = "";
-      const cathedral = this.terrainMap === "crossroads";
+      const cathedral = this.terrainMap === "crossroads",
+        neon = this.terrainMap === "spire";
+      this.neon?.destroy();
+      this.neon = neon ? createNeon(this, res) : undefined;
+      this.scenery();
       this.light?.setMap(this.terrainMap);
       this.background
         ?.setTexture(cathedral ? "cathedral" : "background")
@@ -284,8 +340,10 @@ export function createShowcase(
       const lantern = this.lanternCrop!;
       const lanternSlots =
         this.terrainMap === "crossroads" ? [5, 7, 8, 10, 13] : [0, 2, 4, 5, 6];
-      for (const [index, [x, y, width, height]] of (
-        world?.platforms ?? PLATFORMS
+      // Neon Spire draws its own panels (render/neon.ts); no stone ledges.
+      for (const [index, [x, y, width, height]] of (neon
+        ? []
+        : (world?.platforms ?? PLATFORMS)
       ).entries()) {
         const shrine = cathedral;
         const variant = [0, 4, 6, 8, 10, 11].includes(index) ? 1 : 0;
@@ -385,18 +443,20 @@ export function createShowcase(
         this.children.list.filter((child) => child.name === "terrain").length,
       );
       host.dataset.terrain = JSON.stringify(
-        this.terrain.list
-          .filter(
-            (child): child is Phaser.GameObjects.Image =>
-              child instanceof Phaser.GameObjects.Image &&
-              child.name === "platform",
-          )
-          .map((sprite) => [
-            sprite.x,
-            sprite.y,
-            sprite.displayWidth,
-            sprite.displayHeight,
-          ]),
+        neon
+          ? (world?.platforms ?? [])
+          : this.terrain.list
+              .filter(
+                (child): child is Phaser.GameObjects.Image =>
+                  child instanceof Phaser.GameObjects.Image &&
+                  child.name === "platform",
+              )
+              .map((sprite) => [
+                sprite.x,
+                sprite.y,
+                sprite.displayWidth,
+                sprite.displayHeight,
+              ]),
       );
       feedback.reset();
       this.resetPeerFeedback();
@@ -405,13 +465,69 @@ export function createShowcase(
       if (!paused && !document.hidden) elapsed += Math.min(delta, 50);
       this.paint();
     }
+    /**
+     * Fit the whole arena, or with "Follow keepers" frame the living ones,
+     * easing towards it; the 10D zoom punch rides on top. Cosmetic only.
+     */
+    private aim(
+      world: WorldView | undefined,
+      points: { x: number; y: number }[],
+    ): void {
+      const size = world?.size ?? { width: 1600, height: 900 },
+        target =
+          follow && world ? followKeepers(size, points) : wholeArena(size),
+        dt = viewAt < 0 ? 1000 : Math.max(0, elapsed - viewAt),
+        jump =
+          Math.abs(target.zoom - view.zoom) > 0.5 ||
+          world?.map !== host.dataset.cameraMap;
+      viewAt = elapsed;
+      // A map change snaps; otherwise ease with a ~0.25 s time constant.
+      view = jump ? target : easeFrame(view, target, 1 - Math.exp(-dt / 250));
+      host.dataset.cameraMap = world?.map ?? "";
+      const camera = this.cameras.main;
+      camera
+        .setZoom(res * view.zoom * (1 + (this.juice?.punch(elapsed) ?? 0)))
+        .centerOn(view.x, view.y);
+      host.dataset.camera = JSON.stringify({
+        x: Math.round(view.x),
+        y: Math.round(view.y),
+        zoom: Math.round(view.zoom * 1000) / 1000,
+        follow,
+      });
+    }
     teardown(): void {
+      this.neon?.destroy();
       this.frame?.destroy();
       this.light?.destroy();
       this.juice?.destroy();
+      this.bombs?.destroy();
     }
     resetPeerFeedback(): void {
       for (const peer of this.peers.values()) peer.feedback.reset();
+      this.bombs?.reset();
+    }
+    /** The bomb layer's keepers, in pooled objects: this runs every frame. */
+    private bombKeepers(
+      world: WorldView,
+      focused: string | undefined,
+      pose: { x: number; feet: number; alpha: number },
+      own: number,
+    ): readonly BombKeeper[] {
+      bombKeepers.length = world.keepers.length;
+      world.keepers.forEach((k, i) => {
+        const mine = k.id === focused,
+          entry = (bombKeepers[i] ??= {} as BombKeeper);
+        entry.id = k.id;
+        entry.x = mine ? pose.x : k.body.x;
+        entry.feet = mine ? pose.feet : k.body.feet;
+        entry.facing = mine ? world.facing : k.body.facing;
+        entry.charge = mine ? world.charge : k.body.charge;
+        entry.color = KEEPER_COLORS[k.slot] ?? own;
+        entry.alpha = mine
+          ? pose.alpha
+          : (this.peers.get(k.id)?.actor.alpha ?? 1);
+      });
+      return bombKeepers;
     }
     private paint(): void {
       if (!this.actor || !this.hook || !this.tether || !this.effects) return;
@@ -446,11 +562,15 @@ export function createShowcase(
               spark: 0,
               label: world.respawn
                 ? "Returning to the belfry…"
-                : world.hook.phase === "attached"
-                  ? "Release to keep your momentum"
-                  : world.grounded
-                    ? "Find your next foothold"
-                    : "In the air",
+                : world.charge > 0
+                  ? world.charge >= 1
+                    ? "Full charge · release to throw"
+                    : "Charging · release to throw"
+                  : world.hook.phase === "attached"
+                    ? "Release to keep your momentum"
+                    : world.grounded
+                      ? "Find your next foothold"
+                      : "In the air",
             }
           : showcasePose(elapsed, idleOnly),
         frame = (motion?.texture === "run" ? this.runFrames : this.frames)[
@@ -558,6 +678,9 @@ export function createShowcase(
               keepers: world.keepers,
               contest: world.contest,
               pickupEvents: world.pickupEvents,
+              shieldPops: world.shieldPops,
+              // A peer body's own lists are empty; its "blasted" cue needs the room's.
+              knockouts: world.knockouts,
             },
             elapsed,
           );
@@ -601,17 +724,26 @@ export function createShowcase(
             .setScale(body.facing * remotePose.scaleX, remotePose.scaleY)
             .setRotation(remotePose.rotation)
             .setAlpha(peer.actor.alpha);
+          // One setText per frame: Phaser re-renders a label whose text changes.
+          const held = keeper.power.kind
+            ? ` · ${POWER_STYLE[keeper.power.kind].short} ${keeper.power.kind === "cluster" ? `×${keeper.power.charges}` : `${keeper.power.seconds}s`}`
+            : "";
           peer.label
             .setText(
-              `P${keeper.slot + 1}${keeper.id === world.localId ? " · YOU" : ""}${!keeper.playing ? " · WATCHING" : keeper.connected ? "" : " · AWAY"}`,
+              `P${keeper.slot + 1}${keeper.id === world.localId ? " · YOU" : ""}${!keeper.playing ? " · WATCHING" : keeper.connected ? "" : " · AWAY"}${held}`,
             )
             .setColor(keeperColor(keeper.slot))
             .setPosition(
-              Math.max(85, Math.min(1515, body.x)),
-              Math.max(35, body.feet - 94),
-            );
-          if (keeper.ward)
-            peer.label.setText(`${peer.label.text} · WARD ${keeper.ward}s`);
+              Math.max(85, Math.min(world.size.width - 85, body.x)),
+              Math.max(
+                35,
+                body.feet -
+                  (keeper.power.kind && !body.respawn
+                    ? POWER_ICON_RISE + 16
+                    : 94),
+              ),
+            )
+            .setScale(1 / view.zoom);
           peer.tether.clear();
           if (body.grounded)
             peer.tether
@@ -619,22 +751,12 @@ export function createShowcase(
               .fillEllipse(body.x, body.feet + 3, 44, 8);
           peer.tether
             .lineStyle(
-              keeper.shield ? 3 : 2,
+              keeper.spawnGuard ? 3 : 2,
               color,
               keeper.connected ? 0.9 : 0.3,
             )
             .strokeEllipse(body.x, body.feet + 2, 36, 9);
-          if (
-            keeper.ward &&
-            keeper.playing &&
-            keeper.connected &&
-            !body.respawn
-          )
-            peer.tether
-              .fillStyle(0x89d9ff, 0.1)
-              .fillEllipse(body.x, body.feet - 28, 48, 65)
-              .lineStyle(2, 0x89d9ff, 0.8)
-              .strokeEllipse(body.x, body.feet - 28, 48, 65);
+          paintKeeperPower(peer.tether, keeper, body, elapsed, reduced.matches);
           if (keeper.id !== focused && body.hook.phase !== "ready") {
             paintTether(
               peer.tether,
@@ -659,9 +781,28 @@ export function createShowcase(
                 paintBurst(this.effects, burst, elapsed, reduced.matches);
         }
         const own = color;
+        const bombFrame = this.bombs?.update(
+          world,
+          elapsed,
+          reduced.matches,
+          this.bombKeepers(world, focused, pose, own),
+          (owner) =>
+            KEEPER_COLORS[
+              world.keepers.find((k) => k.id === owner)?.slot ?? 0
+            ] ?? own,
+          world.localId
+            ? {
+                view: world,
+                aim: world.charge > 0 ? options.bombAim?.() : undefined,
+              }
+            : undefined,
+        );
+        if (!document.hidden)
+          for (const cue of bombFrame?.cues ?? []) options.cue?.(cue);
         this.juice?.update(
           elapsed,
           [
+            ...(bombFrame?.bursts ?? []),
             ...feedback.active().map((burst) => ({
               burst,
               color: own,
@@ -699,6 +840,7 @@ export function createShowcase(
           world.keepers.map((k) => ({
             id: k.id,
             slot: k.slot,
+            bot: k.bot,
             connected: k.connected,
             hits: k.hits,
             x: k.body.x,
@@ -706,8 +848,16 @@ export function createShowcase(
             hook: k.body.hook.phase,
             deaths: k.body.deaths,
             costume: k.slot,
-            shield: k.shield,
-            ward: k.ward,
+            spawnGuard: k.spawnGuard,
+            power: k.power.kind,
+            powerLeft: k.power.left,
+            charges: k.power.charges,
+            airJumps: Number(k.body.airJump) + k.body.bonusJumps,
+            dash: k.body.dash,
+            respawn: k.body.respawn,
+            charge: k.body.charge,
+            cooldown: k.cooldown,
+            tally: k.tally,
             atlas: this.peers.get(k.id)?.actor.texture.key,
             frame: this.peers.get(k.id)?.actor.frame.name,
             motion: this.peers.get(k.id)?.motion,
@@ -739,14 +889,14 @@ export function createShowcase(
             .setDepth(9));
           label
             .setVisible(true)
-            .setPosition(p.x, p.y - 22)
-            .setColor(p.kind === "lift" ? "#96f1b9" : "#89d9ff")
-            .setText(
-              `${p.kind.toUpperCase()}${p.cooldown ? ` · ${p.cooldown}s` : ""}`,
-            );
+            .setPosition(p.x, p.y - 28)
+            .setScale(1 / view.zoom)
+            .setColor(p.kind ? POWER_STYLE[p.kind].css : "#8d96b8")
+            .setText(p.kind ? POWER_STYLE[p.kind].short : `${p.cooldown}s`);
         });
         host.dataset.pickups = JSON.stringify(world.pickups);
         host.dataset.pickupEvents = JSON.stringify(world.pickupEvents);
+        host.dataset.shieldPops = JSON.stringify(world.shieldPops);
       }
       if (world && this.combat) {
         const g = this.combat,
@@ -838,6 +988,11 @@ export function createShowcase(
             .strokeEllipse(world.x, world.feet + 5, 22, 5);
         host.dataset.airJump = String(world.airJump);
         host.dataset.wire = JSON.stringify(world.wire);
+        host.dataset.charge = String(world.charge);
+        host.dataset.bombMode = world.bombMode;
+        writeList("bombs", world.bombs);
+        writeList("blasts", world.blasts);
+        writeList("knockouts", world.knockouts);
         host.dataset.hookX = String(world.hook.x);
         host.dataset.hookY = String(world.hook.y);
         host.dataset.aimDirection = JSON.stringify(aim ?? null);
@@ -859,7 +1014,7 @@ export function createShowcase(
           .lineStyle(1, 0xffffff, 0.6)
           .strokeCircle(world.aim.x, world.aim.y, 8);
       }
-      if (atmosphere && !reduced.matches && this.terrainMap !== "crossroads") {
+      if (atmosphere && !reduced.matches && this.terrainMap === "belfry") {
         for (let i = 0; i < 26; i++) {
           const x = (i * 137 + elapsed * (0.006 + (i % 3) * 0.003)) % 1600;
           const y = (i * 83 + elapsed * 0.008) % 900;
@@ -892,6 +1047,23 @@ export function createShowcase(
         }
       }
       const ambientMotion = atmosphere && !reduced.matches;
+      if (world && this.neon) {
+        this.neon.update(world, elapsed, ambientMotion);
+        host.dataset.zones = JSON.stringify(world.zones);
+      }
+      if (world) this.juice?.setBottom(world.size.height);
+      this.aim(
+        world,
+        world
+          ? world.keepers
+              .filter((k) => k.playing && k.connected && !k.body.respawn)
+              .map((k) =>
+                k.id === focused
+                  ? { x: pose.x, y: pose.feet - 30 }
+                  : { x: k.body.x, y: k.body.feet - 30 },
+              )
+          : [],
+      );
       this.frame?.update(elapsed, ambientMotion);
       this.light?.update(
         elapsed,
@@ -921,7 +1093,7 @@ export function createShowcase(
           );
         this.fog.forEach((fog, i) =>
           fog
-            .setVisible(atmosphere)
+            .setVisible(atmosphere && this.terrainMap !== "spire")
             .setX(i * 390 + Math.sin(ambientTime / 7000 + i) * 75),
         );
         this.glows.forEach((light, i) =>
@@ -1009,6 +1181,12 @@ export function createShowcase(
     },
     seek(time) {
       if (Number.isFinite(time)) elapsed = Math.max(0, Math.min(11999, time));
+    },
+    setFollow(value) {
+      follow = value;
+    },
+    toWorld(u, v) {
+      return canvasToWorld(view, u, v);
     },
     destroy() {
       if (destroyed) return;

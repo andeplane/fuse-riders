@@ -8,6 +8,7 @@ import {
   decodeArena,
 } from "../src/engine/arena.js";
 import { CLASSIC_TUNING, NEUTRAL, S } from "../src/engine/world.js";
+import { ALL_POWERS } from "../src/engine/power-rules.js";
 import { decode, encode, hash } from "../src/online/game.js";
 import { Mesh } from "./fixtures/mesh.js";
 import {
@@ -119,7 +120,7 @@ test("real runtime repairs loss/reorder/duplicates, restores a refreshed member 
         map: "crossroads",
         experiment: "surge",
         jumpMode: "double",
-        powerUps: "on",
+        powerUps: ALL_POWERS,
         wire: "spiked",
       },
     }),
@@ -218,4 +219,85 @@ test("session refresh retains credentials, display is separate and public links 
     sessionToken(denied, "ABCDEF", false, () => "different"),
     "fallback",
   );
+});
+test("duplicate cancellation survives dropped and reordered delivery and reconnects without affecting a rival", () => {
+  const mesh = new Mesh(),
+    a = mesh.join("a"),
+    b = mesh.join("b");
+  mesh.run(500);
+  a.command({ type: "join", name: "A" });
+  b.command({ type: "join", name: "B" });
+  mesh.run(500);
+  a.command({ type: "action", action: "start" });
+  mesh.run(500);
+  a.command({
+    type: "settings",
+    settings: { ...CLASSIC_TUNING, bomb: "fuse" },
+  });
+  mesh.run(2000);
+  a.input({ ...NEUTRAL, bomb: true });
+  b.input({ ...NEUTRAL, bomb: true });
+  mesh.run(300);
+  let packet = 0;
+  mesh.fast = () => ({
+    drop: ++packet % 3 === 0,
+    delay: packet % 2 ? 150 : 20,
+    duplicate: 190,
+  });
+  b.clear();
+  b.clear();
+  mesh.run(1500);
+  mesh.fast = () => ({ delay: 20 });
+  mesh.run(2000);
+  const keeper = (id: string) =>
+    a.state()!.simulation.keepers.find((k) => k.id === id)!;
+  assert.equal(keeper("b").world.charge, 0);
+  assert.equal(keeper("b").bomb.thrown, 0);
+  assert.ok(keeper("a").world.charge > 0, "cancel belongs only to its sender");
+  const common = Math.min(a.state()!.tick, b.state()!.tick) - 10;
+  assert.equal(a.hashAt(common), b.hashAt(common));
+  b.stop();
+  mesh.run(1200);
+  const returning = mesh.join("b");
+  mesh.run(2500);
+  assert.equal(returning.state()!.seats.get("b")!.generation, 2);
+  assert.equal(keeper("b").world.charge, 0);
+  assert.equal(keeper("b").bomb.thrown, 0);
+});
+
+test("clearing held input cancels a charging bomb and preserves the supplied aim", () => {
+  const mesh = new Mesh(),
+    a = mesh.join("a");
+  mesh.run(500);
+  a.command({ type: "join", name: "A" });
+  mesh.run(500);
+  assert.equal(a.command({ type: "action", action: "start" }), true);
+  mesh.run(500);
+  a.command({
+    type: "settings",
+    settings: { ...CLASSIC_TUNING, bomb: "fuse" },
+  });
+  mesh.run(1500);
+  const keeper = () => a.state()!.simulation.keepers[0]!;
+  // Pressed aiming up-left, then the page loses focus mid-charge.
+  a.input({ ...NEUTRAL, bomb: true, aimX: 100, aimY: 100 });
+  mesh.run(300);
+  assert.ok(keeper().world.charge > 0, "charging");
+  a.clear({ aimX: 1500, aimY: 400 });
+  mesh.run(300);
+  assert.equal(a.state()!.simulation.bombs.length, 0);
+  assert.equal(keeper().world.charge, 0);
+  assert.equal(keeper().bomb.thrown, 0);
+  assert.deepEqual(
+    [
+      keeper().world.input.aimX,
+      keeper().world.input.aimY,
+      keeper().world.input.bomb,
+    ],
+    [1500, 400, false],
+  );
+  // Without an aim the last sent one stands.
+  a.clear();
+  mesh.run(100);
+  assert.equal(keeper().world.input.aimX, 1500);
 });
