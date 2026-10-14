@@ -67,6 +67,13 @@ is in `EXTRA_GAME_IDS` ([GCP deploy](docs/online/GCP-DEPLOY.md)); until then its
 
 ## Menus and round controls
 
+Every game shares one Google sign-in, username and friends list on the same backend. Open **FRIENDS** to add a player
+by their player ID, accept requests, find friends in other games or invite them into your room. Account history and
+ratings remain specific to the game. Guest play is still available. The Pig template includes this setup for new games.
+Run `ONLINE_URL=http://localhost:PORT/ pnpm exec tsx scripts/shared-social-smoke.ts` to check all game menus at desktop
+and phone widths; `pnpm exec tsx scripts/friends-smoke.ts` checks requests, acceptance, presence and invitations against
+the real local backend with injected test identities.
+
 Games keep their own visual style while following the same navigation pattern: play or join from the home screen, open **MENU** during a game, read **Controls**, return to the lobby when allowed, or leave the game. Fuse Riders keeps its existing menu with room settings, account and radio controls; the other games use the shared `fuse-ui` menu alongside their game-specific settings.
 
 Control reminders appear at each round's countdown or opening phase. Games without a countdown use their stage, turn or week start. They describe keyboard and touch input and the immediate objective; shared TV displays explain that players use their phones. Click **×** to dismiss a reminder for this startup period; game frames and device changes keep it dismissed. Open **MENU → Controls** to read them again. The reminders do not pause the simulation or change round timing.

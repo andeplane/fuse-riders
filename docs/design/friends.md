@@ -74,17 +74,18 @@ means here.
 - The account: the ID token still goes in a request header and nowhere else.
 - The trust model: every member is trusted with the shared log; a public id in a room is what its own device claimed
   for its own seat, which is as trustworthy as the seat's name.
-- Pig (`games/dice`) has no sign-in and so no friends; the fuse-ui dialog is optional for a game without accounts.
+- Every game, including Pig and generated games, uses the same sign-in and friend graph.
+  The shared browser composition is described in [shared-social.md](shared-social.md).
 
 ## Modules
 
-| Where                                            | What                                                                            |
-| ------------------------------------------------ | ------------------------------------------------------------------------------- |
-| `packages/fuse-platform/src/friends-api.ts`      | Wire types and constants, browser-safe (`fuse-platform/friends-api`)            |
-| `packages/fuse-platform/src/friends.ts`          | `FriendsStore`, `FriendsDatabase`, `MemoryFriendsDatabase`, `publicIdOf`        |
-| `packages/fuse-platform/src/firestore.ts`        | `FirestoreFriendsDatabase`                                                      |
-| `packages/fuse-platform/src/http.ts`             | `createFriendsHttp`, `composeHttp`, `createPlatformHttp` (history then friends) |
-| `packages/fuse-ui/src/friends.ts`                | The dialog, the invite banner and `friendButton`, over a state the game renders |
-| `games/fuse-riders/src/online/friends-client.ts` | The poll, its coalescing and the actions                                        |
-| `games/fuse-riders/src/online/friends-notify.ts` | Invite notifications over an injected `Notification` API                        |
-| `games/fuse-riders/src/online/friends-panel.ts`  | The game's composition: endpoints, sign-in, avatars, tracking                   |
+| Where                                           | What                                                                            |
+| ----------------------------------------------- | ------------------------------------------------------------------------------- |
+| `packages/fuse-platform/src/friends-api.ts`     | Wire types and constants, browser-safe (`fuse-platform/friends-api`)            |
+| `packages/fuse-platform/src/friends.ts`         | `FriendsStore`, `FriendsDatabase`, `MemoryFriendsDatabase`, `publicIdOf`        |
+| `packages/fuse-platform/src/firestore.ts`       | `FirestoreFriendsDatabase`                                                      |
+| `packages/fuse-platform/src/http.ts`            | `createFriendsHttp`, `composeHttp`, `createPlatformHttp` (history then friends) |
+| `packages/fuse-ui/src/friends.ts`               | The dialog, the invite banner and `friendButton`, over a state the game renders |
+| `packages/fuse-ui/src/friends-client.ts`        | The poll, its coalescing and the actions                                        |
+| `packages/fuse-ui/src/friends-notify.ts`        | Invite notifications over an injected `Notification` API                        |
+| `games/fuse-riders/src/online/friends-panel.ts` | The game's composition: endpoints, sign-in, avatars, tracking                   |

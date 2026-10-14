@@ -1,3 +1,5 @@
+import { createGameSocial } from "fuse-ui/social";
+import "fuse-ui/social.css";
 import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
 import "@fontsource-variable/nunito";
 import "fuse-ui/tokens.css";
@@ -84,6 +86,15 @@ const endpoints = createEndpoints(
   },
   location.origin,
 );
+const social = createGameSocial({
+  gameId: GAME,
+  base: import.meta.env.BASE_URL,
+  apiOrigin: import.meta.env.VITE_API_ORIGIN,
+  document,
+  window,
+  fetch: (input, init) => fetch(input, init),
+  track: analytics.track,
+});
 const store = safeStore(() => localStorage);
 /** `?debug-roads`: draw the street graph and the tap outlines over the map. */
 const screenOptions = {
@@ -116,7 +127,7 @@ function header(extra: HTMLElement[] = [], allGames = false): HTMLElement {
     base: BASE,
     search: location.search,
   });
-  bar.append(portal.element, brand, ...extra);
+  bar.append(portal.element, brand, social.element(), ...extra);
   if (allGames) {
     const button = el("button", "ALL GAMES", "fl-back");
     button.type = "button";
@@ -543,7 +554,7 @@ function room(): void {
     });
   const nameEntry = createNameEntry({
     normalize: (raw) => seatName(raw) ?? "",
-    initial: store.getItem(names.name) ?? "",
+    initial: social.playerName(store.getItem(names.name)) ?? "",
     onInput: (value) => store.setItem(names.name, value),
     buttonText: "JOIN",
     placeholder: "Your name",
@@ -600,8 +611,10 @@ function room(): void {
   app.replaceChildren(top, main);
 
   const sent = new Set<string>();
-  // A name this device used before joins by itself, with its face; a new device asks first.
-  const remembered = seatName(store.getItem(names.name) ?? "");
+  // Prefer the shared account name; otherwise reuse this device's previous room name and face.
+  const remembered = seatName(
+    social.playerName(store.getItem(names.name)) ?? "",
+  );
   let joinSent = false;
   const callbacks: FuseLaneCallbacks = {
     state(frame, roomSettings) {
@@ -651,7 +664,7 @@ function room(): void {
             endpoints.apiUrl(`/api/games/${GAME}/rooms/${code}/${report.path}`),
             report,
             {
-              fetch: (input, init) => fetch(input, init),
+              fetch: social.reportFetch,
               roomToken: session.token,
             },
           );
@@ -691,11 +704,17 @@ function room(): void {
     callbacks,
     {
       transport: (events) =>
-        new PeerTransport(code, session.token, events, {
-          apiUrl: endpoints.apiUrl,
-          gameId: GAME,
-          maxFastBytes: MAX_PACKET_BYTES,
-        }),
+        social.transport(
+          code,
+          session.token,
+          events,
+          (events) =>
+            new PeerTransport(code, session.token, events, {
+              apiUrl: endpoints.apiUrl,
+              gameId: GAME,
+              maxFastBytes: MAX_PACKET_BYTES,
+            }),
+        ),
       displayOnly: display,
     },
   );

@@ -1,3 +1,6 @@
+import { friendRoomUrl } from "fuse-ui/social";
+import { PORTAL_GAMES } from "fuse-ui/portal";
+import "fuse-ui/social.css";
 import { legendSrc } from "../client/legend-src.js";
 import { VoiceChat } from "./voice-chat.js";
 import { uuid } from "fuse-netcode";
@@ -195,7 +198,21 @@ const createPlayerFriendsPanel = (join: (code: string) => void) =>
         ...(isRiderAvatarId(avatarId) ? { avatarId } : {}),
       };
     },
-    join,
+    join: (code, gameId) => {
+      if (gameId === "fuse-riders") join(code);
+      else
+        location.assign(
+          friendRoomUrl(
+            {
+              base: import.meta.env.BASE_URL,
+              pageUrl: location.href,
+              games: PORTAL_GAMES,
+            },
+            code,
+            gameId,
+          ),
+        );
+    },
     signIn: () => openSignIn?.(),
     track,
   });

@@ -31,6 +31,7 @@ export interface FriendsPanelView {
   incoming: FriendsPanelCard[];
   outgoing: FriendsPanelCard[];
   invites: FriendsPanelInvite[];
+  roomPlayers?: (FriendsPanelCard & { memberId: string })[];
 }
 export type FriendsNotifications = "unsupported" | "off" | "on" | "denied";
 export interface FriendsPanelState {
@@ -46,7 +47,7 @@ export interface FriendsPanelActions {
   add(publicId: string): void;
   remove(publicId: string): void;
   invite(publicIds: readonly string[]): void;
-  join(code: string): void;
+  join(code: string, gameId: string): void;
   dismiss(inviteId: string): void;
   notifications(enable: boolean): void;
   /** Called when the dialog opens, so the list is fresh. */
@@ -307,7 +308,7 @@ export function createFriendsPanel(options: FriendsPanelOptions): FriendsPanel {
           .replace("{code}", invite.code),
         c("bannerText"),
       ),
-      action(text.join, "primary", () => on.join(invite.code)),
+      action(text.join, "primary", () => on.join(invite.code, invite.gameId)),
       action("✕", "action", () => on.dismiss(invite.id)),
     );
     banner.hidden = false;
@@ -343,6 +344,42 @@ export function createFriendsPanel(options: FriendsPanelOptions): FriendsPanel {
       toggle.setAttribute("aria-pressed", String(enabled));
       parts.push(toggle);
     }
+    const connect = node("form", "", c("actions"));
+    const publicId = node("input");
+    publicId.placeholder = "Friend's player ID";
+    publicId.setAttribute("aria-label", "Friend's player ID");
+    publicId.maxLength = 20;
+    publicId.required = true;
+    publicId.pattern = "[0-9a-f]{20}";
+    const add = action(text.add, "action", () => {});
+    add.type = "submit";
+    connect.onsubmit = (event) => {
+      event.preventDefault();
+      const id = publicId.value.trim();
+      if (/^[0-9a-f]{20}$/.test(id)) on.add(id);
+    };
+    connect.append(publicId, add);
+    parts.push(
+      node("p", `Your player ID: ${view.me.publicId}`, c("note")),
+      connect,
+    );
+    const roomPlayers =
+      view.roomPlayers?.filter(
+        (player) => player.publicId !== view.me.publicId,
+      ) ?? [];
+    if (roomPlayers.length) {
+      const section = node("section", "", c("section"));
+      section.append(node("h3", "IN THIS ROOM", c("heading")));
+      for (const player of roomPlayers) {
+        const row = node("div", "", c("row"));
+        row.append(
+          node("span", player.name, c("name")),
+          friendButtonFor(player.publicId),
+        );
+        section.append(row);
+      }
+      parts.push(section);
+    }
     const invitable = view.friends.filter(
       (friend) => friend.online && friend.room?.code !== state.roomCode,
     );
@@ -367,7 +404,11 @@ export function createFriendsPanel(options: FriendsPanelOptions): FriendsPanel {
               [
                 ...(invite.code === state.roomCode
                   ? []
-                  : [action(text.join, "primary", () => on.join(invite.code))]),
+                  : [
+                      action(text.join, "primary", () =>
+                        on.join(invite.code, invite.gameId),
+                      ),
+                    ]),
                 action("✕", "action", () => on.dismiss(invite.id)),
               ],
             ),
@@ -403,7 +444,9 @@ export function createFriendsPanel(options: FriendsPanelOptions): FriendsPanel {
               friend.room.code !== state.roomCode
             )
               actions.push(
-                action(text.join, "primary", () => on.join(friend.room!.code)),
+                action(text.join, "primary", () =>
+                  on.join(friend.room!.code, friend.room!.gameId),
+                ),
               );
             if (state.roomCode && invitable.includes(friend))
               actions.push(
@@ -434,6 +477,24 @@ export function createFriendsPanel(options: FriendsPanelOptions): FriendsPanel {
       );
     body.replaceChildren(...parts);
   };
+  function friendButtonFor(publicId: string): HTMLButtonElement {
+    const result = node("button", "", c("friend"));
+    result.type = "button";
+    result.dataset.publicId = publicId;
+    result.onclick = () => {
+      if (!state.signedIn) {
+        open();
+        return;
+      }
+      const relation = relationOf(publicId);
+      if (relation === "outgoing") on.remove(publicId);
+      else if (relation === "none" || relation === "incoming") on.add(publicId);
+    };
+    const entry = { button: result, publicId, at: renders };
+    handed.push(entry);
+    styleFriendButton(entry);
+    return result;
+  }
   return {
     button,
     dialog,
@@ -463,24 +524,6 @@ export function createFriendsPanel(options: FriendsPanelOptions): FriendsPanel {
       rendered = key;
       renderBody();
     },
-    friendButton(publicId) {
-      const result = node("button", "", c("friend"));
-      result.type = "button";
-      result.dataset.publicId = publicId;
-      result.onclick = () => {
-        if (!state.signedIn) {
-          open();
-          return;
-        }
-        const relation = relationOf(publicId);
-        if (relation === "outgoing") on.remove(publicId);
-        else if (relation === "none" || relation === "incoming")
-          on.add(publicId);
-      };
-      const entry = { button: result, publicId, at: renders };
-      handed.push(entry);
-      styleFriendButton(entry);
-      return result;
-    },
+    friendButton: friendButtonFor,
   };
 }
