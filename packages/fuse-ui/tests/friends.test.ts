@@ -153,6 +153,7 @@ test("friends are listed online first with their room, then requests and sent on
   // Out of a room: JOIN a friend's room, no INVITE anywhere, no INVITE EVERYONE.
   assert.deepEqual(f.texts(".fui-friends-action"), [
     "🔕 INVITE ALERTS OFF",
+    "+ ADD FRIEND",
     "ACCEPT",
     "DECLINE",
     "REMOVE",
@@ -178,8 +179,9 @@ test("friends are listed online first with their room, then requests and sent on
 test("in a room, online friends elsewhere get INVITE and INVITE EVERYONE ONLINE covers them", () => {
   const f = fixture();
   f.panel.render(state({ roomCode: "AB12", notifications: "on" }));
-  assert.deepEqual(f.texts(".fui-friends-action").slice(0, 2), [
+  assert.deepEqual(f.texts(".fui-friends-action").slice(0, 3), [
     "🔔 INVITE ALERTS ON",
+    "+ ADD FRIEND",
     "INVITE EVERYONE ONLINE",
   ]);
   f.click("INVITE EVERYONE ONLINE");

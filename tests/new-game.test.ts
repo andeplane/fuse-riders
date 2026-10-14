@@ -46,6 +46,9 @@ test("new-game copies the dice template to a renamed game whose own tests pass",
     );
     assert.match(entry, /startGameAnalytics\(GAME\)/);
     assert.match(entry, /createPlayMetrics\(analytics.track/);
+    assert.match(entry, /createGameSocial\(/);
+    assert.match(entry, /social\.transport\(/);
+    assert.match(entry, /fetch: social\.reportFetch/);
     assert.ok(written.includes("tests/fixtures/snakeEyes.ts"));
     // A new game is on the app portal from the start.
     assert.deepEqual(

@@ -1,3 +1,5 @@
+import { createGameSocial } from "fuse-ui/social";
+import "fuse-ui/social.css";
 import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
@@ -70,6 +72,15 @@ const endpoints = createEndpoints(
   },
   location.origin,
 );
+const social = createGameSocial({
+  gameId: GAME,
+  base: import.meta.env.BASE_URL,
+  apiOrigin: import.meta.env.VITE_API_ORIGIN,
+  document,
+  window,
+  fetch: (input, init) => fetch(input, init),
+  track: analytics.track,
+});
 const store = safeStore(() => localStorage);
 const names = keys(GAME);
 const query = new URLSearchParams(location.search);
@@ -170,7 +181,7 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     base: import.meta.env.BASE_URL,
     search: location.search,
   });
-  bar.append(portal.element, logo(), ...extra);
+  bar.append(portal.element, logo(), social.element(), ...extra);
   return bar;
 }
 
@@ -318,7 +329,7 @@ function room(solo: boolean): void {
   }
   const nameEntry = createNameEntry({
     normalize: (raw) => seatName(raw) ?? "",
-    initial: store.getItem(names.name) ?? "",
+    initial: social.playerName(store.getItem(names.name)) ?? "",
     onInput: (value) => store.setItem(names.name, value),
     buttonText: "JOIN",
     onSubmit: (name) => {
@@ -805,7 +816,9 @@ function room(solo: boolean): void {
   };
 
   // ---- the runtime ----
-  const remembered = seatName(store.getItem(names.name) ?? "");
+  const remembered = seatName(
+    social.playerName(store.getItem(names.name)) ?? "",
+  );
   let joinSent = false;
   const callbacks: ChopperCallbacks = {
     state(frame, roomSettings) {
@@ -882,14 +895,22 @@ function room(solo: boolean): void {
     session.kind === "room"
       ? {
           transport: (events) =>
-            new PeerTransport(code, session.token, events, {
-              apiUrl: endpoints.apiUrl,
-              gameId: GAME,
-              maxFastBytes: MAX_PACKET_BYTES,
-            }),
+            social.transport(
+              code,
+              session.token,
+              events,
+              (events) =>
+                new PeerTransport(code, session.token, events, {
+                  apiUrl: endpoints.apiUrl,
+                  gameId: GAME,
+                  maxFastBytes: MAX_PACKET_BYTES,
+                }),
+            ),
           displayOnly: display,
         }
-      : { humanName: store.getItem(names.name) ?? undefined },
+      : {
+          humanName: social.playerName(store.getItem(names.name)) ?? undefined,
+        },
   );
   installRoomLifecycle(window, {
     stop: () => runtime.stop(),
