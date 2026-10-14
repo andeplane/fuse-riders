@@ -14,7 +14,7 @@ import {
   type Stage,
   type StreamEntries,
 } from "fuse-netcode";
-import { CAPACITY, MAX_WATCHERS, validName } from "./basics.js";
+import { CAPACITY, MAX_ROUNDS, MAX_WATCHERS, validName } from "./basics.js";
 import { botInput, createBotMemory, type BotMemory } from "./sim/bot.js";
 import { BASE_STATS } from "./sim/config.js";
 import { NEUTRAL_INPUT, type TruckInput } from "./sim/input.js";
@@ -68,6 +68,8 @@ export type ControlsEntry = [
   seq: number,
   tick: number,
   kind: typeof CONTROLS,
+  matchId: string,
+  round: number,
   bits: number,
 ];
 export type FuseDriversEntry =
@@ -153,14 +155,18 @@ export function isFuseDriversEntry(raw: unknown): raw is FuseDriversEntry {
   }
   return (
     Array.isArray(raw) &&
-    raw.length === 4 &&
+    raw.length === 6 &&
     uint32(raw[0]) &&
     raw[0] > 0 &&
     uint32(raw[1]) &&
     raw[1] > 0 &&
     raw[2] === CONTROLS &&
-    uint32(raw[3]) &&
-    (raw[3] & ~CONTROL_BITS) === 0
+    validMatchId(raw[3]) &&
+    uint32(raw[4]) &&
+    raw[4] > 0 &&
+    raw[4] <= MAX_ROUNDS &&
+    uint32(raw[5]) &&
+    (raw[5] & ~CONTROL_BITS) === 0
   );
 }
 
@@ -265,7 +271,18 @@ export function foldTick(
 ): FuseDriversEvent[] {
   const tick = room.tick + 1;
   const events: FuseDriversEvent[] = [];
+  const generations = new Map(
+    [...room.seats.values()].map((seat) => [seat.id, seat.generation]),
+  );
   applyManagementTick(room, tick, creatorId, streams, lifecycle);
+
+  // Held input belongs to the page generation that logged it. Admission of a new
+  // page must release the previous page even when no disconnect was received.
+  for (const id of Object.keys(room.controls)) {
+    const seat = room.seats.get(id);
+    if (!seat || seat.watcher || generations.get(id) !== seat.generation)
+      room.controls[id] = 0;
+  }
 
   const race = room.race;
   if (race && room.stage === "running") {
@@ -273,7 +290,8 @@ export function foldTick(
     for (const seat of grid) {
       if (seat.bot) continue;
       for (const entry of controlEntries(seat, streams, tick))
-        room.controls[seat.id] = entry[3];
+        if (entry[3] === room.matchId && entry[4] === room.round)
+          room.controls[seat.id] = entry[5];
       if (!seat.connected) room.controls[seat.id] = 0;
     }
     const inputs: TruckInput[] = room.grid.map((id) => {
@@ -294,13 +312,13 @@ export function foldTick(
           next,
           slot,
           memory,
-          trackFor(room.settings.track),
+          trackFor(next.trackName),
           "normal",
         );
         room.bots[id] = nextMemory;
         return botControls;
       });
-      const result = step(next, withBots, trackFor(room.settings.track));
+      const result = step(next, withBots, trackFor(next.trackName));
       next = result.state;
       for (const event of result.events) {
         const id = "slot" in event ? (room.grid[event.slot] ?? "") : "";

@@ -50,7 +50,7 @@ export function fuseDriversView(room: FuseDriversRoom): FuseDriversView {
     tick: room.tick,
     phase: room.stage,
     round: room.round,
-    track: room.settings.track,
+    track: room.race?.trackName ?? room.settings.track,
     drivers: players(room).map((seat) => ({
       id: seat.id,
       name: seat.name,
@@ -82,7 +82,7 @@ export const fuseDriversGame: RollbackGame<
   FuseDriversSettings
 > = {
   id: "fuse-drivers",
-  rules: "fuse-drivers-1",
+  rules: "fuse-drivers-2",
   isEntry: isFuseDriversEntry,
   createRoom,
   createTicker: () => foldTick,

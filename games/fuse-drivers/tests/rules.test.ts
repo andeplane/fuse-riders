@@ -71,6 +71,33 @@ test("a driver's controls hold until they log a change", () => {
   assert.equal(room.controls.a, 0);
 });
 
+test("track settings apply to the next race while the current race keeps its map", () => {
+  const original = DEFAULT_SETTINGS.track;
+  const next = trackNames().find((track) => track !== original)!;
+  const changed = started(DEFAULT_SETTINGS, [addBot("bot:1", 2)]);
+  const baseline = started(DEFAULT_SETTINGS, [addBot("bot:1", 2)]);
+  runTo(changed, 80);
+  runTo(baseline, 80);
+  fold(changed, { a: [[SETTINGS, { ...DEFAULT_SETTINGS, track: next }]] });
+  fold(baseline);
+  runTo(changed, 150);
+  runTo(baseline, 150);
+  assert.equal(changed.settings.track, next);
+  assert.equal(fuseDriversView(changed).track, original);
+  assert.deepEqual(changed.race, baseline.race);
+  assert.deepEqual(changed.bots, baseline.bots);
+  const race = defined(changed.race);
+  changed.race = {
+    ...race,
+    phase: "finished",
+    trucks: race.trucks.map((truck) => ({ ...truck, finishedTick: race.tick })),
+  };
+  fold(changed);
+  fold(changed, { a: [[ACTION, "rematch", "m2"]] });
+  assert.equal(changed.race?.trackName, next);
+  assert.equal(fuseDriversView(changed).track, next);
+});
+
 test("a race that finishes ends the match, and only then may it be replayed", () => {
   const room = started();
   const race = defined(room.race, "race");

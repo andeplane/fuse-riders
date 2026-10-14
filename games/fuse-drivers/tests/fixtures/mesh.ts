@@ -11,6 +11,7 @@ import {
   type FuseDriversRoom,
   type FuseDriversSettings,
   type FuseDriversView,
+  type ControlsEntry,
 } from "../../src/game/index.js";
 import { FuseDriversRuntime } from "../../src/app/runtime.js";
 import { NEUTRAL_INPUT, type TruckInput } from "../../src/game/sim/input.js";
@@ -38,8 +39,8 @@ export class TestFuseDriversRuntime extends FuseDriversRuntime {
   /** Every controls bitmask this device has logged, in the order it logged them. */
   loggedControls(): number[] {
     return [...this.own().entries.values()]
-      .filter((entry) => entry[2] === CONTROLS)
-      .map((entry) => entry[3]);
+      .filter((entry): entry is ControlsEntry => entry[2] === CONTROLS)
+      .map((entry) => entry[5]);
   }
 
   /** The three hooks the netcode calls on this device's own lifecycle, which no packet can reach. */

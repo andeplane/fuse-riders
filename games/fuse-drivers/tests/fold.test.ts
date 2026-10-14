@@ -48,12 +48,30 @@ test("controls pack into a bitmask and come back unchanged", () => {
 });
 
 test("an entry is refused unless it is a known kind with bits in range", () => {
-  assert.ok(isFuseDriversEntry([1, 1, CONTROLS, LEFT | NITRO]));
-  assert.ok(isFuseDriversEntry([1, 1, CONTROLS, 0]));
-  assert.ok(!isFuseDriversEntry([1, 1, CONTROLS, 64]), "an unknown bit");
-  assert.ok(!isFuseDriversEntry([0, 1, CONTROLS, 0]), "seq starts at one");
-  assert.ok(!isFuseDriversEntry([1, 0, CONTROLS, 0]), "tick starts at one");
+  assert.ok(isFuseDriversEntry([1, 1, CONTROLS, "m1", 1, LEFT | NITRO]));
+  assert.ok(isFuseDriversEntry([1, 1, CONTROLS, "m1", 1, 0]));
+  assert.ok(
+    !isFuseDriversEntry([1, 1, CONTROLS, "m1", 1, 64]),
+    "an unknown bit",
+  );
+  assert.ok(
+    !isFuseDriversEntry([0, 1, CONTROLS, "m1", 1, 0]),
+    "seq starts at one",
+  );
+  assert.ok(
+    !isFuseDriversEntry([1, 0, CONTROLS, "m1", 1, 0]),
+    "tick starts at one",
+  );
   assert.ok(!isFuseDriversEntry([1, 1, CONTROLS]), "no bits");
+  assert.ok(
+    !isFuseDriversEntry([1, 1, CONTROLS, LEFT]),
+    "legacy unscoped controls",
+  );
+  assert.ok(!isFuseDriversEntry([1, 1, CONTROLS, "", 1, LEFT]), "no match");
+  assert.ok(
+    !isFuseDriversEntry([1, 1, CONTROLS, "m1", 0, LEFT]),
+    "round starts at one",
+  );
   assert.ok(!isFuseDriversEntry([1, 1, 99, 0]), "an unknown kind");
 });
 
@@ -61,6 +79,50 @@ test("three steps per two log ticks is exactly the race's 30 Hz", () => {
   let steps = 0;
   for (let tick = 1; tick <= 20; tick++) steps += stepsForTick(tick);
   assert.equal(steps, 30, "twenty log ticks is one second");
+});
+
+test("controls from another match or round cannot change the active race", () => {
+  const { room, fold } = roomWithDriver();
+  fold({ a: stream([[3, 3, ACTION, "start", "m2"]]) });
+  fold({
+    a: stream([
+      [4, 4, CONTROLS, "m1", 1, LEFT],
+      [5, 4, CONTROLS, "m2", 2, LEFT],
+    ]),
+  });
+  assert.equal(room.controls.a ?? 0, 0);
+  fold({ a: stream([[6, 5, CONTROLS, "m2", 1, LEFT]]) });
+  assert.equal(room.controls.a, LEFT);
+  room.stage = "over";
+  fold({
+    a: stream([
+      [7, 6, ACTION, "rematch", "m3"],
+      [8, 6, CONTROLS, "m2", 1, LEFT],
+    ]),
+  });
+  assert.equal(room.matchId, "m3");
+  assert.equal(
+    room.controls.a ?? 0,
+    0,
+    "old controls at the transition tick are ignored",
+  );
+});
+
+test("admission of a new page generation releases the old page's held input", () => {
+  const { room, fold } = roomWithDriver();
+  fold({ a: stream([[3, 3, ACTION, "start", "m2"]]) });
+  fold({ a: stream([[4, 4, CONTROLS, "m2", 1, LEFT]]) });
+  fold({ a: stream([[5, 5, PRESENCE, "a", true, 2]]) });
+  assert.equal(room.seats.get("a")?.generation, 2);
+  assert.equal(
+    room.controls.a,
+    0,
+    "no disconnect was needed to release the old page",
+  );
+  fold({ a: stream([[6, 6, CONTROLS, "m2", 1, LEFT]]) });
+  assert.equal(room.controls.a, 0, "retired input cannot turn the truck");
+  fold({ a: stream([[1, 7, CONTROLS, "m2", 1, LEFT]], 2) });
+  assert.equal(room.controls.a, LEFT, "the admitted page can steer");
 });
 
 test("starting a match seeds a race, grids every seat and runs it", () => {
@@ -82,18 +144,18 @@ test("starting a match seeds a race, grids every seat and runs it", () => {
 test("a seat keeps driving on its last logged controls until it changes them", () => {
   const { room, fold } = roomWithDriver();
   fold({ a: stream([[3, 3, ACTION, "start", "m2"]]) });
-  fold({ a: stream([[4, 4, CONTROLS, LEFT]]) });
+  fold({ a: stream([[4, 4, CONTROLS, "m2", 1, LEFT]]) });
   assert.equal(room.controls.a, LEFT);
   fold();
   assert.equal(room.controls.a, LEFT, "silence is not a release");
-  fold({ a: stream([[5, 6, CONTROLS, 0]]) });
+  fold({ a: stream([[5, 6, CONTROLS, "m2", 1, 0]]) });
   assert.equal(room.controls.a, 0);
 });
 
 test("a seat that drops off is released rather than left holding a turn", () => {
   const { room, fold } = roomWithDriver();
   fold({ a: stream([[3, 3, ACTION, "start", "m2"]]) });
-  fold({ a: stream([[4, 4, CONTROLS, LEFT]]) });
+  fold({ a: stream([[4, 4, CONTROLS, "m2", 1, LEFT]]) });
   assert.equal(room.controls.a, LEFT);
   defined(room.seats.get("a"), "seat").connected = false;
   fold();
@@ -112,7 +174,11 @@ test("the same log folds to the same race on two peers", () => {
     for (let tick = 4; tick < 60; tick++)
       fold(
         tick % 7 === 0
-          ? { a: stream([[tick, tick, CONTROLS, tick % 14 === 0 ? LEFT : 0]]) }
+          ? {
+              a: stream([
+                [tick, tick, CONTROLS, "m2", 1, tick % 14 === 0 ? LEFT : 0],
+              ]),
+            }
           : {},
       );
     return room;

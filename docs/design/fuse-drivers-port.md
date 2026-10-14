@@ -1,5 +1,7 @@
 # Porting Fuse Drivers onto the shared netcode
 
+The `fuse-drivers-2` contract scopes control edges to match id and round, then applies them only from the admitted seat generation. A new page generation releases the old page's held controls; a new match causes the runtime to log even an unchanged held key again. Active physics, bots and rendering use the race's frozen track name while settings configure the next race.
+
 Fuse Drivers is a top-down offroad racer (Super Off Road with Mario Kart items) built outside this repo at
 `~/projects/personal/fuse-man`, on its own architecture: one authoritative Node server ran the simulation and
 phones were thin controllers. This note records how it becomes `games/fuse-drivers`, a peer of Pig, on

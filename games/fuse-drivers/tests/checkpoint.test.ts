@@ -71,8 +71,8 @@ function racing(ticks = 80): FuseDriversRoom {
       room,
       at % 5 === 0
         ? {
-            a: [[CONTROLS, at % 10 === 0 ? LEFT | NITRO : RIGHT]],
-            b: [[CONTROLS, at % 15 === 0 ? BRAKE : ITEM]],
+            a: [[CONTROLS, "m1", 1, at % 10 === 0 ? LEFT | NITRO : RIGHT]],
+            b: [[CONTROLS, "m1", 1, at % 15 === 0 ? BRAKE : ITEM]],
           }
         : {},
     );

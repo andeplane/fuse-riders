@@ -83,6 +83,8 @@ const drivingLog: readonly FuseDriversEntry[] = DRIVING.map((bits, index) => [
   index + 1,
   index === 0 ? 5 : index * 30,
   CONTROLS,
+  "m1",
+  1,
   bits,
 ]);
 const LAST_SEQ = defined(drivingLog.at(-1))[0];
@@ -181,12 +183,12 @@ test("dropped, reordered and duplicated packets converge on the on-time race", (
     four = defined(drivingLog[3]);
   lossy.receive("b", [one, two], two[0], two[1], two[1]);
   lossy.advance(70);
-  assert.equal(lossy.state.controls.b, two[3], "b is steering on seq 2");
+  assert.equal(lossy.state.controls.b, two[5], "b is steering on seq 2");
 
   // Seq 3 is dropped and seq 4 arrives in its place: the gap holds seq 4 back and caps how far the world may run.
   lossy.receive("b", [four], four[0], four[1] - 1, four[1]);
   lossy.advance(95);
-  assert.equal(lossy.state.controls.b, two[3], "seq 4 is still behind the gap");
+  assert.equal(lossy.state.controls.b, two[5], "seq 4 is still behind the gap");
   // A duplicate of a packet already held changes nothing at all.
   const duplicate = lossy.receive("b", [four], four[0], four[1] - 1, four[1]);
   assert.equal(duplicate.status, "accepted");
@@ -197,7 +199,7 @@ test("dropped, reordered and duplicated packets converge on the on-time race", (
   const repaired = lossy.receive("b", [three, four], four[0], four[1], 95);
   assert.equal(repaired.status, "accepted");
   assert.ok(repaired.rollbackTicks > 0, "the repair rolled the world back");
-  assert.equal(lossy.state.controls.b, four[3], "and seq 4 is folded in");
+  assert.equal(lossy.state.controls.b, four[5], "and seq 4 is folded in");
 
   deliver(lossy, "b", drivingLog.slice(4));
   // The whole log once more, which every packet's rotating tail does in the real transport.
@@ -216,8 +218,8 @@ test("dropped, reordered and duplicated packets converge on the on-time race", (
 
 test("a late entry inside the rollback window rewrites history and every replica agrees afterwards", () => {
   // `b` brakes into a corner at tick 60; on the late replica that entry is still in flight at tick 99.
-  const brake: FuseDriversEntry = [1, 60, CONTROLS, BRAKE | LEFT];
-  const after: FuseDriversEntry = [2, 130, CONTROLS, NITRO];
+  const brake: FuseDriversEntry = [1, 60, CONTROLS, "m1", 1, BRAKE | LEFT];
+  const after: FuseDriversEntry = [2, 130, CONTROLS, "m1", 1, NITRO];
 
   const onTime = replica();
   onTime.receive("b", [brake], 1, 120, 120);
@@ -245,7 +247,7 @@ test("a late entry inside the rollback window rewrites history and every replica
     "history was re-simulated from the entry's own tick",
   );
   late.advance(120);
-  assert.equal(late.state.controls.b, brake[3]);
+  assert.equal(late.state.controls.b, brake[5]);
   assert.equal(
     fuseDriversGame.hash(late.state),
     fuseDriversGame.hash(onTime.state),
@@ -282,7 +284,7 @@ test("a replica far behind recovers the race from a snapshot and folds on identi
   assert.ok(progress(source, 1) > 1, "there is a real race to carry");
 
   const chunks = encodeSnapshot(source, ROOM);
-  assert.equal(defined(chunks[0]).rules, "fuse-drivers-1");
+  assert.equal(defined(chunks[0]).rules, "fuse-drivers-2");
   const assembler = new SnapshotAssembler(fuseDriversGame, ROOM);
   let complete: { tick: number; bytes: Uint8Array } | undefined;
   for (const chunk of chunks) complete = assembler.accept(chunk);
@@ -356,6 +358,8 @@ test("controls stamped beyond the future window are refused, and the race is unc
     LAST_SEQ + 1,
     200 + FUTURE_TICKS + 1,
     CONTROLS,
+    "m1",
+    1,
     LEFT,
   ];
   const refused = world.receive("b", [beyond], beyond[0], 340, 200);
@@ -369,6 +373,8 @@ test("controls stamped beyond the future window are refused, and the race is unc
     LAST_SEQ + 1,
     200 + FUTURE_TICKS,
     CONTROLS,
+    "m1",
+    1,
     LEFT,
   ];
   const taken = world.receive("b", [inside], inside[0], 340, 200);
