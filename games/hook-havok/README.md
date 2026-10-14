@@ -2,7 +2,7 @@
 
 An illustrated 2D grappling-platformer experiment for the Fuse party pack.
 
-The current combined build uses `hook-havok-16`, with thrown bombs, playable bots, power-ups v2 and Neon Spire together. Refresh every client and create a fresh room; older clients cannot share its checkpoint contract. Earlier rule numbers below describe the original milestones.
+The current combined build uses `hook-havok-17`, with thrown bombs, playable bots, power-ups v2 and Neon Spire together. Menu opening, focus loss and cancelled pointers discard a charge; ordinary button release throws it. Refresh every client and create a fresh room; older clients cannot share its checkpoint contract. Earlier rule numbers below describe the original milestones.
 
 ## Development milestones
 

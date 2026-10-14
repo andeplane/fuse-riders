@@ -43,11 +43,16 @@ export class HookRuntime extends RoomRuntime<Room, Entry, View, never, Tuning> {
     this.sendPackets(this.deps.now());
   }
   /**
-   * Releases every button. A release is a throw, so a caller that knows the
-   * current aim passes it; otherwise the last sent aim stands.
+   * Cancels every button through the same match/round-scoped log as input.
+   * Unlike an ordinary release, lifecycle clearing never throws a charge.
    */
   clear(aim: Pick<Input, "aimX" | "aimY"> = this.held): void {
-    this.input({ ...NEUTRAL, aimX: aim.aimX, aimY: aim.aimY });
+    this.input({
+      ...NEUTRAL,
+      cancelBomb: true,
+      aimX: aim.aimX,
+      aimY: aim.aimY,
+    });
   }
   protected resetControls(): void {
     this.held = { ...NEUTRAL };

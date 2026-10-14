@@ -443,7 +443,7 @@ export function stepBombs(arena: Arena, canPlay: (k: Keeper) => boolean): void {
     const kit = keeper.bomb,
       w = keeper.world;
     kit.cooldown = Math.max(0, kit.cooldown - 1);
-    if (w.respawn) {
+    if (w.respawn || w.input.cancelBomb) {
       w.charge = 0;
       continue;
     }

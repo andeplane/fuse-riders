@@ -220,7 +220,52 @@ test("session refresh retains credentials, display is separate and public links 
     "fallback",
   );
 });
-test("clearing held input throws a charging bomb along the aim it is given, not the press's", () => {
+test("duplicate cancellation survives dropped and reordered delivery and reconnects without affecting a rival", () => {
+  const mesh = new Mesh(),
+    a = mesh.join("a"),
+    b = mesh.join("b");
+  mesh.run(500);
+  a.command({ type: "join", name: "A" });
+  b.command({ type: "join", name: "B" });
+  mesh.run(500);
+  a.command({ type: "action", action: "start" });
+  mesh.run(500);
+  a.command({
+    type: "settings",
+    settings: { ...CLASSIC_TUNING, bomb: "fuse" },
+  });
+  mesh.run(2000);
+  a.input({ ...NEUTRAL, bomb: true });
+  b.input({ ...NEUTRAL, bomb: true });
+  mesh.run(300);
+  let packet = 0;
+  mesh.fast = () => ({
+    drop: ++packet % 3 === 0,
+    delay: packet % 2 ? 150 : 20,
+    duplicate: 190,
+  });
+  b.clear();
+  b.clear();
+  mesh.run(1500);
+  mesh.fast = () => ({ delay: 20 });
+  mesh.run(2000);
+  const keeper = (id: string) =>
+    a.state()!.simulation.keepers.find((k) => k.id === id)!;
+  assert.equal(keeper("b").world.charge, 0);
+  assert.equal(keeper("b").bomb.thrown, 0);
+  assert.ok(keeper("a").world.charge > 0, "cancel belongs only to its sender");
+  const common = Math.min(a.state()!.tick, b.state()!.tick) - 10;
+  assert.equal(a.hashAt(common), b.hashAt(common));
+  b.stop();
+  mesh.run(1200);
+  const returning = mesh.join("b");
+  mesh.run(2500);
+  assert.equal(returning.state()!.seats.get("b")!.generation, 2);
+  assert.equal(keeper("b").world.charge, 0);
+  assert.equal(keeper("b").bomb.thrown, 0);
+});
+
+test("clearing held input cancels a charging bomb and preserves the supplied aim", () => {
   const mesh = new Mesh(),
     a = mesh.join("a");
   mesh.run(500);
@@ -240,8 +285,9 @@ test("clearing held input throws a charging bomb along the aim it is given, not 
   assert.ok(keeper().world.charge > 0, "charging");
   a.clear({ aimX: 1500, aimY: 400 });
   mesh.run(300);
-  const [bomb] = a.state()!.simulation.bombs;
-  assert.ok(bomb && bomb.vx > 0, "thrown toward the aim at the clear");
+  assert.equal(a.state()!.simulation.bombs.length, 0);
+  assert.equal(keeper().world.charge, 0);
+  assert.equal(keeper().bomb.thrown, 0);
   assert.deepEqual(
     [
       keeper().world.input.aimX,

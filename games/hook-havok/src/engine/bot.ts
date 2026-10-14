@@ -159,6 +159,7 @@ function sanitize(i: Input): Input {
     drop: !!i.drop,
     fire: !!i.fire,
     bomb: !!i.bomb,
+    cancelBomb: false,
     reset: false,
     aimX: aim(i.aimX, -2000, 3600),
     aimY: aim(i.aimY, -4000, 3000),

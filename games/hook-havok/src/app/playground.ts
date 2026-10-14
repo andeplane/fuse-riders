@@ -423,7 +423,11 @@ function paintBombButton(view: WorldView) {
 }
 touch = createTouchControls(
   touchDeck,
-  (state) => {
+  (state, cancelled) => {
+    if (cancelled) {
+      clear();
+      return;
+    }
     touchState = state;
     input = touchInput(input, state, {
       x: latest.x,
@@ -1176,6 +1180,10 @@ host.addEventListener("pointermove", (e) => {
 });
 function releaseMouse(e: PointerEvent) {
   if (e.pointerId !== mousePointer) return;
+  if (e.type !== "pointerup") {
+    clear();
+    return;
+  }
   mousePointer = undefined;
   if (e.type === "pointerup" && mouseAims(keyboard)) aim(e);
   mouseButtons(0);

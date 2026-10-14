@@ -447,6 +447,78 @@ const at = (tick: number, input: Partial<Input>, seq = 0): Entry => [
   1,
   { ...NEUTRAL, ...input },
 ];
+test("cancellation from an old match, round or sender generation cannot drop a new charge", () => {
+  const wrongMatch: Entry = [
+    22,
+    3,
+    0,
+    "old-match",
+    1,
+    { ...NEUTRAL, cancelBomb: true },
+  ];
+  const wrongRound: Entry = [
+    22,
+    3,
+    0,
+    "match",
+    2,
+    { ...NEUTRAL, cancelBomb: true },
+  ];
+  for (const [entry, generation] of [
+    [wrongMatch, 1],
+    [wrongRound, 1],
+    [at(3, { cancelBomb: true }), 2],
+  ] as const) {
+    const r = room();
+    foldTick(r, host, stream([at(2, { bomb: true })]));
+    foldTick(r, host, stream([entry], generation));
+    assert.ok(r.simulation.keepers[0]!.world.charge > 0);
+    assert.equal(r.simulation.keepers[0]!.bomb.thrown, 0);
+  }
+});
+
+test("logged bomb cancellation preserves ordering and duplicate cancellation is harmless", () => {
+  const charged = () => {
+    const r = room();
+    foldTick(r, host, stream([at(2, { bomb: true })]));
+    assert.ok(r.simulation.keepers[0]!.world.charge > 0);
+    return r;
+  };
+  const cancelled = charged();
+  foldTick(
+    cancelled,
+    host,
+    stream([
+      at(3, { cancelBomb: true }),
+      at(3, { cancelBomb: true }, 1),
+      at(3, {}, 2),
+    ]),
+  );
+  assert.equal(cancelled.simulation.keepers[0]!.world.charge, 0);
+  assert.equal(cancelled.simulation.keepers[0]!.bomb.thrown, 0);
+  const released = charged();
+  foldTick(
+    released,
+    host,
+    stream([at(3, { aimX: 1400 }), at(3, { cancelBomb: true, aimX: 100 }, 1)]),
+  );
+  assert.equal(released.simulation.keepers[0]!.bomb.thrown, 1);
+  assert.ok(
+    released.simulation.bombs[0]!.vx > 0,
+    "release keeps its own aim before cancel",
+  );
+  const restarted = charged();
+  foldTick(
+    restarted,
+    host,
+    stream([at(3, { cancelBomb: true }), at(3, { bomb: true }, 1)]),
+  );
+  assert.equal(restarted.simulation.keepers[0]!.bomb.thrown, 0);
+  assert.equal(restarted.simulation.keepers[0]!.world.charge, 2);
+  foldTick(restarted, host, stream([at(4, {})]));
+  assert.equal(restarted.simulation.keepers[0]!.bomb.thrown, 1);
+});
+
 test("a press and release inside one log tick still throws; held and cancelled charges do not", () => {
   const r = room();
   foldTick(r, host, stream([at(2, { bomb: true }), at(2, { aimX: 900 }, 1)]));
@@ -478,6 +550,22 @@ test("inputs and settings carry the bomb field strictly", () => {
   const { bomb: _bomb, ...old } = NEUTRAL;
   assert.equal(parseInput(old), undefined, "a pre-12 input is rejected");
   assert.equal(parseInput({ ...NEUTRAL, bomb: 1 }), undefined);
+  const { cancelBomb: omitted, ...legacy } = NEUTRAL;
+  assert.equal(omitted, false);
+  assert.equal(
+    parseInput(legacy),
+    undefined,
+    "pre-17 checkpoint inputs are rejected",
+  );
+  assert.equal(parseInput({ ...NEUTRAL, cancelBomb: 1 }), undefined);
+  assert.equal(
+    parseInput({ ...NEUTRAL, cancelBomb: true, bomb: true }),
+    undefined,
+  );
+  assert.deepEqual(parseInput({ ...NEUTRAL, cancelBomb: true }), {
+    ...NEUTRAL,
+    cancelBomb: true,
+  });
   assert.equal(parseTuning({ ...DEFAULT_TUNING, bomb: "sticky" }), undefined);
   assert.equal(DEFAULT_TUNING.bomb, "fuse");
 });

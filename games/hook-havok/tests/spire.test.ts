@@ -1187,7 +1187,7 @@ test("a live Neon Spire room rejects corrupt or out-of-bounds zone state and kee
 
 test("the rules are a fresh number", async () => {
   const { RULES } = await import("../src/engine/world.js");
-  assert.equal(RULES, "hook-havok-16");
+  assert.equal(RULES, "hook-havok-17");
   const ids: MapId[] = ["belfry", "crossroads", "spire"];
   for (const id of ids) assert.ok(MAPS[id].spawns.length === 5);
 });

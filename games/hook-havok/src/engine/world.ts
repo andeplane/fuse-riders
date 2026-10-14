@@ -1,7 +1,7 @@
 import { MAPS, type MapId } from "./maps.js";
 import { ALL_POWERS, DASH_KEEP } from "./power-rules.js";
 /** All authoritative lengths/velocities use integer subunits (1024 per world unit). */
-export const RULES = "hook-havok-16";
+export const RULES = "hook-havok-17";
 export const S = 1024;
 /** Lantern Belfry's size; every map carries its own (`MAPS[map].width`, `height`). */
 export const WIDTH = 1600,
@@ -80,6 +80,8 @@ export interface Input {
   fire: boolean;
   /** Held to charge a bomb; the release throws toward that tick's aim. */
   bomb: boolean;
+  /** Lifecycle cancellation drops a held charge rather than throwing it. */
+  cancelBomb: boolean;
   reset: boolean;
   aimX: number;
   aimY: number;
@@ -90,6 +92,7 @@ export const NEUTRAL: Input = {
   jump: false,
   fire: false,
   bomb: false,
+  cancelBomb: false,
   reset: false,
   aimX: 800,
   aimY: 100,

@@ -1,6 +1,12 @@
 # Spiked wire everywhere and a thrown bomb (11A–11B)
 
-Rules are now **`hook-havok-12`** (11A was `hook-havok-11`). Refresh every client and create a fresh room: older clients cannot read the new input, settings or checkpoints.
+This milestone originally used `hook-havok-12` (11A was `hook-havok-11`). The combined stack now uses **`hook-havok-17`**. Refresh every client and create a fresh room: older clients cannot read the new input, settings or checkpoints.
+
+## Lifecycle cancellation
+
+The validated input includes a `cancelBomb` boolean distinct from an ordinary bomb release. Menu opening, blur, page hiding, pointer cancellation and lost capture log that edge with the existing sender generation, match and round scope. The engine drops the charge; it leaves already-thrown bombs intact. Ordinary K, right-button and touch-button releases still throw. Cancellation stays ordered with press/release within the three engine steps of a log tick, so release followed by cancel preserves its throw, while cancel followed by a new press starts a fresh charge. Duplicate cancellation is harmless. The app never mutates authoritative charge state.
+
+The checkpoint input now requires nine exact fields, and contradictory charge/cancel values are rejected. Pre-17 input shapes are refused rather than upgraded or partly installed. This changes only Hook's game contract; the shared transport and room protocol stay unchanged.
 
 ## 11A. Spiked wire everywhere
 
