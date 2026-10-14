@@ -33,9 +33,9 @@ try {
   );
   await page.getByRole("button", { name: "MENU", exact: true }).click();
   await page.getByRole("button", { name: "CONTROLS", exact: true }).click();
-  await page.getByText("WASD / ARROWS + K", { exact: true }).waitFor();
-  await page.getByText("MOUSE + RIGHT CLICK", { exact: true }).waitFor();
-  await page.keyboard.press("Escape");
+  const menu = page.locator(".fui-game-menu-panel");
+  await menu.getByText("WASD / ARROWS + K", { exact: true }).waitFor();
+  await menu.getByText("MOUSE + RIGHT CLICK", { exact: true }).waitFor();
   await page.keyboard.press("Escape");
   assert.equal(
     await page
