@@ -6,23 +6,23 @@
   "description": "Small sandstone pyramid with four faces and a screen-aligned base.",
   "image": {
     "file": "pyramid-small-sandstone.png",
-    "width": 1254,
-    "height": 1254,
-    "sha256": "88abfff6580dae89af309ceca6f1d6f566617001d0115e29f640e9a4517e014f"
+    "width": 312,
+    "height": 312,
+    "sha256": "c831b71bab32adf833a8b2e950c3a6d8812d8c5a487330742c3d6caaee1c5363"
   },
   "anchorPixels": {
-    "x": 627.0,
-    "y": 631.5
+    "x": 156.0,
+    "y": 157.1196172248804
   },
   "hitboxPixels": {
     "shape": "rectangle",
-    "centerX": 627.0,
-    "centerY": 631.5,
-    "width": 868,
-    "height": 847
+    "centerX": 156.0,
+    "centerY": 157.1196172248804,
+    "width": 215.96172248803825,
+    "height": 210.73684210526315
   },
   "recommendedWorld": {
-    "unitsPerPixel": 0.08294930875576037,
+    "unitsPerPixel": 0.33339241403757536,
     "rotationDegrees": 0,
     "hitbox": {
       "shape": "rectangle",
@@ -35,5 +35,11 @@
   "collisionFit": {
     "method": "alpha-128-bounds",
     "silhouetteIoU": 0.998181
+  },
+  "source": {
+    "width": 1254,
+    "height": 1254,
+    "sha256": "88abfff6580dae89af309ceca6f1d6f566617001d0115e29f640e9a4517e014f",
+    "note": "Original generated art; this pack serves a resized copy."
   }
 }

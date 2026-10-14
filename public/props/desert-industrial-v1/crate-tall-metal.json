@@ -6,23 +6,23 @@
   "description": "Tall gray metal cargo crate with five top panels and reinforced corners.",
   "image": {
     "file": "crate-tall-metal.png",
-    "width": 934,
-    "height": 1684,
-    "sha256": "38edaeeee5af14839cbe641593a1f2afde8454e53eab27378b8987b9ec65fd88"
+    "width": 151,
+    "height": 272,
+    "sha256": "5118694304bda293c2bf1c6776966ead72bdcbbdffa48f1f5f7824f1475ba3bf"
   },
   "anchorPixels": {
-    "x": 467.5,
-    "y": 866.0
+    "x": 75.58083511777302,
+    "y": 140.00642398286936
   },
   "hitboxPixels": {
     "shape": "rectangle",
-    "centerX": 467.5,
-    "centerY": 866.0,
-    "width": 783,
-    "height": 1338
+    "centerX": 75.58083511777302,
+    "centerY": 140.00642398286936,
+    "width": 126.5877944325482,
+    "height": 216.31477516059957
   },
   "recommendedWorld": {
-    "unitsPerPixel": 0.053811659192825115,
+    "unitsPerPixel": 0.3328482760668785,
     "rotationDegrees": 0,
     "hitbox": {
       "shape": "rectangle",
@@ -35,5 +35,11 @@
   "collisionFit": {
     "method": "alpha-128-bounds",
     "silhouetteIoU": 0.968178
+  },
+  "source": {
+    "width": 934,
+    "height": 1684,
+    "sha256": "38edaeeee5af14839cbe641593a1f2afde8454e53eab27378b8987b9ec65fd88",
+    "note": "Original generated art; this pack serves a resized copy."
   }
 }

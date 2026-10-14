@@ -5,7 +5,7 @@ Verified 2026-09-14. The initial backend and Pages artifact are deployed; final 
 - Project: `andershaf-87`; operator: `andershaf@gmail.com` (active gcloud account verified).
 - Region: `europe-west1`.
 - Firestore: named native database `fuse-riders`, created and verified in `europe-west1`. Existing `(default)` Datastore database in `nam5` is untouched. The new database reports `freeTier: false`; database operations are billable, not promised free.
-- Firestore TTL: `cleanupAt` is ACTIVE on collection groups `fuse-production-rooms` and `fuse-production-creation-limits`; application expiry checks remain immediate and independent.
+- Firestore TTL: `cleanupAt` is ACTIVE on collection groups `fuse-production-rooms` and `fuse-production-creation-limits`; application expiry checks remain immediate and independent. `fuse-production-matches` and `fuse-production-invites` declare the same policy in `firestore.indexes.json`; the configuration deploy creates it.
 - Pub/Sub: `fuse-riders-signalling`, created with 10-minute topic retention. Only SDP/ICE signalling is allowed. The earlier unused `fuse-riders-relay` topic was deleted after the direct-only decision.
 - Runtime service account: `fuse-riders-runtime@andershaf-87.iam.gserviceaccount.com`.
 - Runtime database IAM: `roles/datastore.user`, condition limited to `projects/andershaf-87/databases/fuse-riders`.

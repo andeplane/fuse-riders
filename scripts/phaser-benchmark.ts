@@ -134,7 +134,8 @@ try {
             function frame(now: number) {
               try {
                 const elapsed = now - start;
-                const snapshot = visualFixture(Math.floor(elapsed / 50));
+                // A fractional tick, as presentation hands a renderer: 20 Hz of world under frames that come faster.
+                const snapshot = visualFixture(elapsed / 50);
                 const before = performance.now();
                 engine.render(snapshot, now, defaultTheme, "benchmark");
                 const cost = performance.now() - before;
@@ -244,7 +245,7 @@ try {
         revision,
         sourceHashes,
         method:
-          "Synthetic 5 riders, 800 segments, 24 projectiles, 5 bursts; sequential Phaser Canvas/WebGL, 1s warmup, no landing animation. Configured viewport/DPR and fitted CSS board; Both Phaser backends follow the configured resolution mode. Read actual backing sizes before comparing costs. Desktop browser emulation only, not physical-phone evidence.",
+          "Synthetic 5 riders lapping at rider speed, 800 established segments plus a fractional tip, 24 projectiles, 5 bursts; trails append at the tail and expire at the head, drawn at a fractional tick so established geometry is stable between the 20 Hz ticks (fixture revised 2026-09-20: not comparable with runs recorded before it). Sequential Phaser Canvas/WebGL, 1s warmup, no landing animation. Configured viewport/DPR and fitted CSS board; Both Phaser backends follow the configured resolution mode. Read actual backing sizes before comparing costs. Desktop browser emulation only, not physical-phone evidence.",
         ...result,
         errors,
       },

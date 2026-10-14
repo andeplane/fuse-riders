@@ -6,22 +6,22 @@
   "description": "Large round warm-gray boulder with three central cracks.",
   "image": {
     "file": "rock-large-cracked.png",
-    "width": 1254,
-    "height": 1254,
-    "sha256": "fb6b316cca76e2096093a2fc94d50fa6efc85fe1aeeaf2f2b41e567389d73036"
+    "width": 428,
+    "height": 428,
+    "sha256": "14bf8fb6fa92e6f7b43d9b66a6bab90da5301b1b47e8c6ff4265f4fc1287190e"
   },
   "anchorPixels": {
-    "x": 627.0,
-    "y": 623.0
+    "x": 214.0,
+    "y": 212.6347687400319
   },
   "hitboxPixels": {
     "shape": "circle",
-    "centerX": 627.0,
-    "centerY": 623.0,
-    "radius": 440.0
+    "centerX": 214.0,
+    "centerY": 212.6347687400319,
+    "radius": 150.17543859649123
   },
   "recommendedWorld": {
-    "unitsPerPixel": 0.11363636363636363,
+    "unitsPerPixel": 0.33294392523364486,
     "rotationDegrees": 0,
     "hitbox": {
       "shape": "circle",
@@ -33,5 +33,11 @@
   "collisionFit": {
     "method": "circle-at-alpha-128-bounds-center-with-mean-diameter",
     "silhouetteIoU": 0.987088
+  },
+  "source": {
+    "width": 1254,
+    "height": 1254,
+    "sha256": "fb6b316cca76e2096093a2fc94d50fa6efc85fe1aeeaf2f2b41e567389d73036",
+    "note": "Original generated art; this pack serves a resized copy."
   }
 }

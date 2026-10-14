@@ -1,7 +1,7 @@
 {
   "tool": "built-in image_gen",
   "created": "2026-09-18",
-  "workflow": "Each prop independently generated from the approved style reference. Original PNG bytes preserved, no sheet slicing or texture stretching.",
+  "workflow": "Each prop independently generated from the approved style reference, with no sheet slicing and no texture stretching. The originals were then resized once, uniformly, to delivery size; each sidecar's `source` block records the dimensions and hash it was generated at.",
   "assets": [
     {
       "id": "building-small-sandstone",
@@ -68,5 +68,12 @@
       "id": "pyramid-tall-obsidian",
       "generationPrompt": "Use case: stylized-concept. Asset type: ONE standalone PNG game prop sprite, not a sheet.\nReference: supplied sprite sheet is STYLE REFERENCE ONLY. Generate the ONE object described below independently, with newly drawn details at its native proportions.\nStyle: match reference faithfully: polished simple top-down arcade prop, warm sandstone / dusty warm-gray stone / muted slate metal / medium-brown timber as appropriate, tiny amber accents, soft bevels, broad readable surface details, subtle upper-left light and lower-right shading. Simple restrained textures, not realistic, no extra decoration. \nCamera: exactly overhead, each prop centered, top dominates, slight 3D depth. Buildings and crates have inset tops with thin shallow outward-flaring wall bands visible on ALL FOUR sides. No isometric projection, no large front wall. Pyramid edges horizontal and vertical, never rotated diamonds.\nCollision silhouette: one clean filled axis-aligned rectangle (with only tiny corner bevels) or circle, as specified. All detail must lie inside this silhouette. No projecting doors, pipes, stones or bolts. No ground plate, detached parts, debris, scenery, cast shadows outside footprint, glow outside footprint, floating pixels, labels, text, UI or watermark.\nBackground: actual fully TRANSPARENT alpha, clean edges, never a painted checkerboard or opaque background. Center sprite with at least 7% transparent margin each side; fill about 80% of canvas longest dimension. Prefer 1024x1024 canvas. Keep object's specified aspect ratio even on square canvas. Output only the one sprite.\n\nSubject: Tall rectangular dark stone pyramid, width:height 5:7, four triangular faces around centered apex with thin restrained warm amber seams from four corners to center and small amber apex, screen-aligned rectangular base, no diamond rotation.\nRequired collision footprint: rectangle."
     }
-  ]
+  ],
+  "delivery": {
+    "resizedOn": "2026-09-20",
+    "targetDevicePixelsPerWorldUnit": 3.0,
+    "rationale": "The renderer caps its backing buffer at 2.4 device pixels per world unit (`arenaBacking`), so art carrying more than that can never be displayed.",
+    "filter": "Lanczos, one uniform scale per prop, alpha preserved",
+    "worldGeometry": "Unchanged. The collider is in source pixels and scales with the image while `unitsPerPixel` scales inversely; their product, the world footprint, is held exactly equal."
+  }
 }

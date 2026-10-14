@@ -6,6 +6,10 @@ import { presentFrames } from "../render/time/present.js";
 import { apiUrl, appUrl } from "./endpoints.js";
 import { GAME_ID } from "../shared/game-id.js";
 import { createAccountPanel } from "./account-panel.js";
+import { createFriendsPanel } from "./friends-panel.js";
+import { isRiderAvatarId } from "../engine/avatar-id.js";
+import { validRiderName } from "../engine/rider-name.js";
+import { createTopMenuToggle } from "./top-menu-toggle.js";
 import {
   accountUsername,
   fetchUsername,
@@ -54,6 +58,7 @@ import {
   hostTokenKey,
   LAST_ROOM_KEY,
   onlineRoute,
+  roomQuery,
 } from "./landing-route.js";
 import { PICKUP_LABELS } from "./pickup-labels.js";
 import { createAvatarDialog } from "./dialogs/avatar.js";
@@ -111,7 +116,7 @@ import {
 } from "./room-presenter.js";
 import { connectHint } from "./connect-hint.js";
 import { createJoinCard, createJoinForm } from "./join-form.js";
-import { createNameEntry } from "fuse-ui";
+import { createAppPortal, createNameEntry } from "fuse-ui";
 import { MAX_LOGGED_NAME_UNITS, seatRiderName } from "../engine/rider-name.js";
 import { safeStorage } from "../client/safe-storage.js";
 import { reportGraphics, startAnalytics, track } from "./analytics.js";
@@ -142,8 +147,13 @@ const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 let pageAudio: GameAudio | undefined, radioToggle: (() => void) | undefined;
 // One wording for both views, since the same instance now serves whichever one is up: a room entered from the landing
 // page would otherwise keep the label the landing page created it with.
-const createPlayerAccountPanel = () =>
-  createAccountPanel({
+// The friends dialog's SIGN IN hands off to the account button of whichever view is up, which owns the sign-in popup.
+let openSignIn: (() => void) | undefined;
+const createPlayerAccountPanel = (
+  friendButton?: (publicId: string) => HTMLElement,
+) => {
+  const panel = createAccountPanel({
+    ...(friendButton ? { friendButton } : {}),
     historyUrl: (before) =>
       apiUrl(
         `/api/me/matches${before === undefined ? "" : `?before=${before}`}`,
@@ -154,6 +164,27 @@ const createPlayerAccountPanel = () =>
     leaderboardUrl: apiUrl("/api/leaderboard"),
     localName: () => read("fuse-riders-player-name"),
     fetch: (input, init) => fetch(input, init),
+    track,
+  });
+  openSignIn = () => panel.button.click();
+  return panel;
+};
+/** The friends panel with the page's endpoints; the name and head it reports are the ones this browser rides under. */
+const createPlayerFriendsPanel = (join: (code: string) => void) =>
+  createFriendsPanel({
+    fetch: (input, init) => fetch(input, init),
+    apiUrl,
+    storage,
+    identity: () => {
+      const name = accountUsername() ?? read("fuse-riders-player-name"),
+        avatarId = read("fuse-riders-avatar");
+      return {
+        ...(validRiderName(name) ? { name } : {}),
+        ...(isRiderAvatarId(avatarId) ? { avatarId } : {}),
+      };
+    },
+    join,
+    signIn: () => openSignIn?.(),
     track,
   });
 
@@ -177,6 +208,7 @@ export async function startOnline(): Promise<void> {
         radioToggle = toggle;
       },
       accountPanel: createPlayerAccountPanel,
+      friendsPanel: createPlayerFriendsPanel,
       startRoom: () => void startOnline(),
     });
     return;
@@ -206,6 +238,23 @@ export async function startOnline(): Promise<void> {
     watching = false,
     settings = loadRoomSettings(storage),
     snapshot: WorldView | undefined;
+  /**
+   * This device takes its own seat the moment the room's first frame arrives, rather than filling in a form first.
+   * An invited one has since #376; the creator's page does now too, because the screen it used to stop on asked for
+   * nothing the room cannot change afterwards — a name, a head and a colour that all stay changeable until READY, and
+   * a choice of side that is a button beside it. Almost everyone opening a room means to ride in it.
+   *
+   * The exception is the creator of a **shared-TV** room, whose page is the room's screen rather than one of its
+   * riders: it shows the arena the whole table watches, and taking a seat would turn it into a controller (ADR 042),
+   * which has no arena, no QR and no room code at all. That page has a real choice to make — am I the TV, or am I
+   * playing? — and it is the one place left where a form earns its keep. The phones in that room are unaffected: they
+   * arrive by invite, as joiners. The mode is this browser's own stored setting, which is the one CREATE ROOM just
+   * wrote; a joiner never consults it, so a stale copy of it cannot keep an invited device out of a seat.
+   *
+   * `display` is not a member and takes no seat; solo is seated by the runtime itself, with no room to arrive at.
+   */
+  const seatsItself =
+    role === "joiner" || (role === "host" && settings.mode !== "shared");
   let readyPlayers: readonly string[] = [];
   startAnalytics({ role, mode: settings.mode, solo });
   track("App Opened");
@@ -281,7 +330,19 @@ export async function startOnline(): Promise<void> {
   };
   results.hidden = true;
   results.title = "Reopen the match results";
-  header.append(title, status, statusAction, roundChip, results);
+  header.append(
+    createAppPortal({
+      document,
+      current: GAME_ID,
+      base: import.meta.env.BASE_URL,
+      search: location.search,
+    }).element,
+    title,
+    status,
+    statusAction,
+    roundChip,
+    results,
+  );
   const joinForm = createJoinForm(
     storage,
     (playerName, avatarId, colorIndex) => {
@@ -566,6 +627,38 @@ export async function startOnline(): Promise<void> {
   });
   const lobbyRiders = lobbyRoster.element;
   const lobbyCount = node("span", "Waiting for riders");
+  const inviteFriends = node("button", "INVITE FRIENDS", "room-invite-friends");
+  inviteFriends.type = "button";
+  inviteFriends.hidden = solo;
+  /** ADD FRIEND on each lobby row whose seat the service has matched to an account. */
+  const lobbyFriendButtons = new Map<
+    string,
+    { publicId: string; button: HTMLElement }
+  >();
+  const placeFriendButton = (
+    row: HTMLElement,
+    memberId: string,
+    buttons: Map<string, { publicId: string; button: HTMLElement }>,
+  ) => {
+    const publicId = roomFriends.publicIdOfMember(memberId);
+    const current = buttons.get(memberId);
+    if (!publicId || memberId === id) {
+      if (current) {
+        current.button.remove();
+        buttons.delete(memberId);
+      }
+      return;
+    }
+    if (current?.publicId === publicId && current.button.parentElement === row)
+      return;
+    current?.button.remove();
+    const button = roomFriends.friendButton(publicId);
+    // Before the row's × when it has one, so the remove button stays where it was.
+    const remove = row.querySelector(".room-remove");
+    if (remove) remove.before(button);
+    else row.append(button);
+    buttons.set(memberId, { publicId, button });
+  };
   // The watching list: the rider row's height in neutral grey, no colour, no avatar and no READY, so the five seats stay
   // the thing being read. It lives inside the rider column (the lobby grid has one cell per column) and CSS `order` keeps it last.
   const watchers = createRoster({
@@ -604,7 +697,7 @@ export async function startOnline(): Promise<void> {
     ],
     invite: qrCard,
     roster: lobbyRiders,
-    footer: [lobbyCount],
+    footer: [lobbyCount, inviteFriends],
     classes: {
       root: "shared-lobby room-lobby",
       intro: "room-lobby-copy",
@@ -660,7 +753,20 @@ export async function startOnline(): Promise<void> {
   readyButton.type = "button";
   readyButton.className = "room-ready-button";
   readyButton.hidden = true;
-  hostControls.append(readyButton, start, reset, settingsButton, share, addAI);
+  // Which side of the room this device is on, beside READY rather than at the end of its roster row: the two are the
+  // same kind of choice — what this device is doing here — and a row's buttons read as things done to that rider.
+  const switchButton = node("button", "", "room-switch");
+  switchButton.type = "button";
+  switchButton.hidden = true;
+  hostControls.append(
+    readyButton,
+    switchButton,
+    start,
+    reset,
+    settingsButton,
+    share,
+    addAI,
+  );
   const controllerRematch = node("section", "", "controller-rematch");
   controllerRematch.hidden = true;
   controllerRematch.setAttribute("aria-label", "Ready for another race");
@@ -722,20 +828,6 @@ export async function startOnline(): Promise<void> {
     // A button that just went away or went dead must not stay armed: the next tap would kick without asking.
     if (view.hidden || view.disabled) disarm(button);
   };
-  /**
-   * This device's own change-sides button, one per row it has ever appeared on. The roster diffs its rows and never
-   * rebuilds them, so the button is built once, parented into the row it belongs to and updated in place.
-   */
-  const sideSwitches = new Map<string, HTMLButtonElement>();
-  const sideSwitch = (key: string, act: () => void): HTMLButtonElement => {
-    let button = sideSwitches.get(key);
-    if (!button) {
-      button = node("button", "", "room-switch");
-      button.onclick = act;
-      sideSwitches.set(key, button);
-    }
-    return button;
-  };
   const showSwitch = (button: HTMLButtonElement, view: SwitchView) => {
     setIfChanged(button, "hidden", view.hidden);
     setIfChanged(button, "disabled", view.disabled);
@@ -743,26 +835,25 @@ export async function startOnline(): Promise<void> {
     setAttributeIfChanged(button, "aria-label", view.title);
     setIfChanged(button, "title", view.title);
   };
-  /** Buttons for rows the lobby no longer lists go with them, so a member that left leaves nothing behind. */
-  const pruneSwitches = (live: ReadonlySet<string>) => {
-    for (const [key, button] of sideSwitches)
-      if (!live.has(key)) {
-        button.remove();
-        sideSwitches.delete(key);
-      }
-  };
   const help = node("button", "?", "desktop-help");
   help.setAttribute("aria-label", "Keyboard controls");
   help.title = "Keyboard controls";
+  // Who this device is riding as: name, head and colour. They live with READY and the side switch rather than up in
+  // the header, where they sat among the room's own controls (RADIO, SETTINGS, LEADERBOARD) and read as more of the
+  // same page furniture. Everything a rider decides about itself is now in one place, at the point where it says it
+  // is ready — which is also the moment all of it stops being changeable.
+  const riderControls = node("div", "", "room-rider-controls");
   const avatarButton = node("button", "AVATAR");
-  avatarButton.hidden = true;
   // Colour sits beside the avatar and follows the same rule: a lobby choice, gone once the round starts.
   const colorButton = node("button", "COLOUR");
-  colorButton.hidden = true;
   // And the name, which nothing asks for before the seat any more: the room is where a rider settles all three.
   const nameButton = node("button", "NAME");
-  nameButton.hidden = true;
-  header.append(nameButton, avatarButton, colorButton, prefsButton, menu, help);
+  for (const button of [nameButton, avatarButton, colorButton])
+    button.type = "button";
+  riderControls.append(nameButton, avatarButton, colorButton);
+  riderControls.hidden = true;
+  switchButton.before(riderControls);
+  header.append(prefsButton, menu, help);
   // Every menu is its own dialog (dialogs/*), and which one is open is the registry's state: never read from a
   // dialog's title, classes or contents. They sit where the one shared dialog used to, right after the phone HUD.
   const dialogs = createDialogRegistry<RoomDialogId>();
@@ -879,7 +970,7 @@ export async function startOnline(): Promise<void> {
     // An arrival on its way to a seat, not a device waiting at the door: the same condition the auto-join fires on,
     // so the join card comes up only for one the room will not seat.
     seating:
-      role === "joiner" &&
+      seatsItself &&
       !everInRoom &&
       !displayOnly &&
       !kickedFromRoom &&
@@ -906,7 +997,11 @@ export async function startOnline(): Promise<void> {
     // VISUAL STYLE only changes the arena, which a shared-TV controller never draws, lobby included.
     setIfChanged(styleHeading, "hidden", next.arenaController);
     setIfChanged(styleRow, "hidden", next.arenaController);
-    setIfChanged(controllerLayoutSetting, "hidden", !next.arenaController);
+    setIfChanged(
+      controllerLayoutSetting,
+      "hidden",
+      !next.arenaController && !next.mobile.active && !next.mobile.lobby,
+    );
     mobileLayout.update(
       next.mobile,
       snapshot?.phase ?? "lobby",
@@ -933,9 +1028,15 @@ export async function startOnline(): Promise<void> {
   window.visualViewport?.addEventListener("resize", resizeScreen);
   desktopQuery.addEventListener("change", resizeScreen);
 
-  const roomAccount = createPlayerAccountPanel();
+  // Friends: JOIN from inside a room is a navigation, since this document is this room's.
+  const roomFriends = createPlayerFriendsPanel((target) => {
+    location.href = appUrl(roomQuery(target));
+  });
+  roomFriends.banner.classList.add("friends-invite-banner");
+  const roomAccount = createPlayerAccountPanel(roomFriends.friendButton);
   roomAccount.button.classList.add("player-account");
-  app.append(roomAccount.dialog);
+  app.append(roomAccount.dialog, roomFriends.dialog, roomFriends.banner);
+  inviteFriends.onclick = roomFriends.open;
   const topMenu = node("nav", "", "game-top-menu");
   topMenu.setAttribute("aria-label", "Player menu");
   const topRadio = node("button", "♫ RADIO"),
@@ -950,10 +1051,15 @@ export async function startOnline(): Promise<void> {
     prefsButton,
     roomAccount.matchesButton,
     roomAccount.leaderboardButton,
+    roomFriends.button,
     roomAccount.button,
   );
   header.append(topMenu);
-  topMenu.append(results, nameButton, avatarButton, colorButton, menu, help);
+  // One ☰ instead of two wrapped rows of buttons where the viewport is too short to spare them; top-menu.css decides
+  // where that is, and the sheet it opens floats over the page so the lobby keeps its height either way.
+  const topMenuToggle = createTopMenuToggle(header, topMenu);
+  header.append(topMenuToggle.button);
+  topMenu.append(results, menu, help);
   for (const extra of [
     topRadio,
     topMusic,
@@ -972,6 +1078,7 @@ export async function startOnline(): Promise<void> {
     "pagehide",
     () => {
       roomAccount.dispose();
+      topMenuToggle.dispose();
       window.removeEventListener("focus", refreshAccount);
       document.removeEventListener("visibilitychange", refreshAccount);
     },
@@ -1055,6 +1162,12 @@ export async function startOnline(): Promise<void> {
     recapDialog.open(
       renderMatchRecap(snapshot.matchStats, snapshot.moments, {
         playerId: id,
+        friendButton: (playerId) => {
+          const publicId = roomFriends.publicIdOfMember(playerId);
+          return publicId && playerId !== id
+            ? roomFriends.friendButton(publicId)
+            : undefined;
+        },
         canWatch: (key) => !screen.arenaHidden && !!replay.recorder.clip(key),
         watch: (key) => {
           const clip = replay.recorder.clip(key);
@@ -1087,6 +1200,9 @@ export async function startOnline(): Promise<void> {
       }
       id = peerId;
       isHost = host;
+      // A display has no account and solo has no room; a rider tells friends where it is, and can invite them.
+      if (!displayOnly && !solo)
+        roomFriends.setRoom({ code, memberId: peerId, gameId: GAME_ID, token });
       joinForm.ready();
       hostControls.hidden = !host;
       telemetry.identify({
@@ -1328,10 +1444,9 @@ export async function startOnline(): Promise<void> {
       // Every write below goes through setIfChanged: the view is rewritten each frame, and an unchanged value must not touch the DOM.
       setIfChanged(joinPanel, "hidden", view.joinPanelHidden);
       // Name, head and colour are one choice in three parts: all three are offered while this rider is in the lobby
-      // and not yet ready, all three leave together, and a picker left open closes when the round starts.
-      setIfChanged(avatarButton, "hidden", view.avatarHidden);
-      setIfChanged(colorButton, "hidden", view.avatarHidden);
-      setIfChanged(nameButton, "hidden", view.avatarHidden);
+      // and not yet ready, all three leave together, and a picker left open closes when the round starts. They are
+      // one element now, so the group goes rather than three buttons agreeing to.
+      setIfChanged(riderControls, "hidden", view.avatarHidden);
       if (view.avatarHidden) {
         dialogs.close("avatar");
         dialogs.close("riderColor");
@@ -1355,9 +1470,10 @@ export async function startOnline(): Promise<void> {
           runtime.command({ type: "spectate", name: watcher.name });
         }
       } else if (
-        // The room is the join screen: an invited device the room does not list yet takes a seat by itself, wearing
-        // whatever it wore last, and settles its name, head, colour and side in the room rather than in a form in
-        // front of it (`docs/design/room-is-the-join-screen.md`).
+        // The room is the join screen: a device the room does not list yet takes a seat by itself, wearing whatever
+        // it wore last, and settles its name, head, colour and side in the room rather than in a form in front of it
+        // (`docs/design/room-is-the-join-screen.md`). The creator's page arrives this way too — it has no more to
+        // decide before riding than an invited one does.
         //
         // Only on arrival, which is what `wasInRoom` says: a device this page has already seen listed and no longer
         // does was taken out of the room, and taking itself straight back in would undo that. A kick is the case that
@@ -1367,7 +1483,7 @@ export async function startOnline(): Promise<void> {
         // the room dropped (a phone asleep across a round boundary, `dropAbsentSpectators`) from coming back as a
         // rider it never asked to be. Both land on the join card instead, which is what that card is for now. A page
         // reload clears this and seats the device again: reloading is asking to come back.
-        role === "joiner" &&
+        seatsItself &&
         !joined &&
         !watching &&
         !everInRoom &&
@@ -1397,28 +1513,16 @@ export async function startOnline(): Promise<void> {
           host: p.host,
         })),
       );
-      // The two sides of the room are one command apart: the rider gives its seat up, the watcher takes a free one,
-      // and neither leaves the room to do it. Only this device's own row carries the button (`switchSide.hidden`).
-      const liveSwitches = new Set<string>();
-      for (const rider of view.lobby.riders) {
-        const row = lobbyRoster.row(rider.id);
-        if (!row) continue;
-        const key = `rider:${rider.id}`,
-          riderId = rider.id,
-          fallback = rider.name;
-        // The name is read when the button is pressed, not when its row was first drawn: a rider may rename itself
-        // while it sits there, and carrying the name it had at boot into the watching list would undo that.
-        const button = sideSwitch(key, () =>
-          runtime.command({
-            type: "spectate",
-            name:
-              snapshot?.players.find((p) => p.id === riderId)?.name ?? fallback,
-          }),
-        );
-        liveSwitches.add(key);
-        if (button.parentElement !== row) row.append(button);
-        showSwitch(button, rider.switchSide);
+      for (const p of view.lobby.riders) {
+        const row = lobbyRoster.row(p.id);
+        if (row) placeFriendButton(row, p.id, lobbyFriendButtons);
       }
+      for (const [memberId, entry] of lobbyFriendButtons)
+        if (!view.lobby.riders.some((p) => p.id === memberId)) {
+          entry.button.remove();
+          lobbyFriendButtons.delete(memberId);
+        }
+      showSwitch(switchButton, view.actions.switchSide);
       latestWatchers = view.lobby.watchers;
       setIfChanged(lobbyWatchers, "hidden", view.lobby.watchersHidden);
       watchers.update(
@@ -1446,26 +1550,7 @@ export async function startOnline(): Promise<void> {
         }
         if (remove.parentElement !== row) row.append(remove);
         showRemove(remove, seat.remove);
-        const key = `watcher:${seat.id}`,
-          watcherId = seat.id,
-          fallbackName = seat.name;
-        // The remembered avatar, since the watching list carries none: the seat is taken as this device always rides.
-        // The name is read on the press for the same reason the rider's is: it may have changed since this row was
-        // drawn, and the seat should be taken under the name the room shows now.
-        const take = sideSwitch(key, () =>
-          runtime.command({
-            type: "join",
-            name:
-              latestWatchers.find((w) => w.id === watcherId)?.name ??
-              fallbackName,
-            avatarId: joinForm.picker.selected(),
-          }),
-        );
-        liveSwitches.add(key);
-        if (take.parentElement !== row) row.append(take);
-        showSwitch(take, seat.switchSide);
       }
-      pruneSwitches(liveSwitches);
       for (const [watcherId, button] of watcherRemoves)
         if (!view.lobby.watchers.some((seat) => seat.id === watcherId)) {
           button.remove();
@@ -1612,7 +1697,11 @@ export async function startOnline(): Promise<void> {
       const waitingRiders = state.players.filter(
         (p) => p.connected && !p.id.startsWith("bot:"),
       );
-      const readyText = `${waitingRiders.filter((p) => readyPlayers.includes(p.id)).length}/${waitingRiders.length} ready`;
+      // The count, or why counting is beside the point: a room a rider short cannot race again whatever it votes, so
+      // the line that would say "1/1 ready" says what is actually needed instead, and BACK TO LOBBY is what is left.
+      const readyText =
+        view.actions.rematchBlocked ??
+        `${waitingRiders.filter((p) => readyPlayers.includes(p.id)).length}/${waitingRiders.length} ready`;
       const recapOpen = dialogs.current() === "recap";
       // The crown can move while the results are up: BACK TO LOBBY follows whoever holds it without reopening the
       // card. READY is not its to hold — every rider votes for itself.
@@ -1702,6 +1791,38 @@ export async function startOnline(): Promise<void> {
   readyButton.onclick = () => {
     void audio.unlock();
     runtime.command({ type: "ready", ready: !readyPlayers.includes(id) });
+  };
+  // The two sides of the room are one command apart, and neither leaves the room to cross. Which direction this is
+  // comes from the room's own lists on the press rather than from the label the button was last drawn with, and so
+  // does the name: a rider may rename itself while it sits here, and carrying a stale name across would undo that.
+  // The head is the remembered one, since the watching list carries none — a seat is taken as this device rides.
+  switchButton.onclick = () => {
+    const name =
+      snapshot?.players.find((p) => p.id === id)?.name ??
+      latestWatchers.find((seat) => seat.id === id)?.name;
+    if (name === undefined) return;
+    if (!watching) {
+      runtime.command({ type: "spectate", name });
+      return;
+    }
+    // Coming back to a seat asks for the colour this device last wore, exactly as an arriving one does: the join
+    // itself carries no colour and hands out the lowest free one, so without this a rider that stepped out to watch
+    // for a round would come back in whatever was free. `joinForm.colors` holds what the fold last gave this device
+    // (the frame loop syncs it, and nothing can change it while watching — the picker is not offered), and
+    // `wantedColor` is the arrival path's own single follow-up, sent once the room lists a seat here.
+    //
+    // `command` answers false only where this device writes the log itself; a guest's join is posted to the manager
+    // and answered true whatever the manager goes on to decide. So this is not a "the join was accepted" guard, and
+    // nothing here needs one: `wantedColor` is only ever spent on this device's own row, in the colour this device
+    // was already wearing, and it is dropped after one attempt whether or not the fold takes it.
+    const sent = runtime.command({
+      type: "join",
+      name,
+      avatarId: joinForm.picker.selected(),
+    });
+    wantedColor = sent
+      ? riderColorIndex(joinForm.colors.selected())
+      : undefined;
   };
   start.onclick = () => {
     void audio.unlock();

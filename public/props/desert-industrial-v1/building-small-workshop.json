@@ -6,23 +6,23 @@
   "description": "Small wide concrete workshop with two roof grilles and an amber doorway.",
   "image": {
     "file": "building-small-workshop.png",
-    "width": 1659,
-    "height": 948,
-    "sha256": "61b9d72afdb0190de5822573b8206fa9e1c556fa30a5b8f8ce088b81cdcafb68"
+    "width": 452,
+    "height": 258,
+    "sha256": "72934eb011c2a219c0f7b00f19ea6f9506adfc94bcabec83d80dc7218bbbcad3"
   },
   "anchorPixels": {
-    "x": 830.0,
-    "y": 462.0
+    "x": 226.13622664255576,
+    "y": 125.87341772151899
   },
   "hitboxPixels": {
     "shape": "rectangle",
-    "centerX": 830.0,
-    "centerY": 462.0,
-    "width": 1234,
-    "height": 546
+    "centerX": 226.13622664255576,
+    "centerY": 125.87341772151899,
+    "width": 336.2073538276073,
+    "height": 148.75949367088623
   },
   "recommendedWorld": {
-    "unitsPerPixel": 0.09076175040518639,
+    "unitsPerPixel": 0.3331277520402745,
     "rotationDegrees": 0,
     "hitbox": {
       "shape": "rectangle",
@@ -35,5 +35,11 @@
   "collisionFit": {
     "method": "alpha-128-bounds",
     "silhouetteIoU": 0.986397
+  },
+  "source": {
+    "width": 1659,
+    "height": 948,
+    "sha256": "61b9d72afdb0190de5822573b8206fa9e1c556fa30a5b8f8ce088b81cdcafb68",
+    "note": "Original generated art; this pack serves a resized copy."
   }
 }

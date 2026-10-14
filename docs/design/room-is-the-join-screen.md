@@ -11,12 +11,12 @@ last — or the nearest free ones when someone already has them. There is no scr
 Everything the join card used to settle is settled **in the room instead**, on the device's own rider row, and stays
 changeable until that rider presses READY:
 
-| Choice           | How it is made now                             |
-| ---------------- | ---------------------------------------------- |
-| Name             | `NAME` in the header, beside AVATAR and COLOUR |
-| Head             | `AVATAR`, as Phase F built it                  |
-| Colour           | `COLOUR`, as Phase F built it                  |
-| Player / watcher | `WATCH` and `TAKE A SEAT`, as O4 built them    |
+| Choice           | How it is made now                                   |
+| ---------------- | ---------------------------------------------------- |
+| Name             | `NAME`, beside READY (see _Where they ended up_)     |
+| Head             | `AVATAR`, as Phase F built it                        |
+| Colour           | `COLOUR`, as Phase F built it                        |
+| Player / watcher | `SWAP TO SPECTATOR` / `SWAP TO PLAYER`, beside READY |
 
 READY is the line. After it the room is only waiting on everyone else, so a rider still editing itself is a rider not
 yet ready; un-readying opens all four again.
@@ -83,10 +83,49 @@ card, which says why and offers the way back in. What changed is that it is no l
 — an invited device now waits on the boot card and is seated the moment the room arrives, so a player who can be
 seated never sees it at all.
 
+## Where they ended up
+
+> Follow-up. The choices above were reachable but not findable: `NAME`, `AVATAR` and `COLOUR` sat in the page header
+> among the room's own controls (RADIO, SETTINGS, LEADERBOARD, ROOM), where they read as more page furniture, and the
+> side switch was a small button at the end of a roster row, where it read as something done _to_ that rider — the
+> row's other button kicks them.
+
+All four now sit in the action bar with READY, which is the one place a rider looks at itself:
+
+    READY   NAME  AVATAR  COLOUR   SWAP TO SPECTATOR   [the host's own actions]
+
+READY is the bar's call to action and keeps the cyan fill; the rest take the quieter outline treatment, because they
+are exactly the things that stay changeable until it is pressed. The three identity buttons are one group, so the
+whole of it leaves on READY in a single write and comes back on un-READY.
+
+The side switch is **one button about this device**, not one per row: the room lists a device exactly once, so only
+one direction can ever apply, and it reads that direction from the room's own lists when pressed rather than from the
+label it was last drawn with. A watcher gets the action bar for it — and nothing else in the bar, since READY belongs
+to a rider. Coming back to a seat re-asks for the colour this device last wore, the same single refusable follow-up an
+arrival makes; without it a rider that stepped out to watch for a round came back in whatever colour was free.
+
+## The creator arrives the same way
+
+> Follow-up. The creator's page was the last one that stopped at a form.
+
+Creating a room seats the creator in it, with no screen in between. The form it used to stop on asked for nothing the
+room cannot now change — a name, a head and a colour that all stay changeable until READY, and a choice of side that
+is a button beside it. Almost everyone opening a room means to ride in it, and the few who do not are one tap from the
+watching list once they are there.
+
+One thing had to move with it. Taking a seat in a **shared-TV** room makes a device a controller (ADR 042): no arena,
+because the TV draws it — and no QR, no room code and no COPY LINK either. On the page that just opened the room that
+would mean nobody could be asked in at all, so the creator keeps the lobby card while the room is in the lobby, which
+is exactly what that page showed before taking a seat was automatic. A rider that _joined_ a shared room from a laptop
+still gets the bare controller: the TV in front of it is the one showing the lobby. Once the race starts the creator
+is a controller like everyone else.
+
+The join card keeps its job for the creator too, in the one shape it can take there: the `JOIN THE RACE` panel inside
+its own lobby, for a creator the room will not seat — a page reloading into a room whose five seats filled while it
+was away.
+
 ## Not in this change
 
-- The creator's own page is unchanged: it boots, then takes a seat from the form in its own lobby. Only the invited
-  device's journey changes here.
-- Renaming from the phone lobby uses the same header button; there is no per-row name control yet.
+- Renaming from the phone lobby uses the same button; there is no per-row name control yet.
 - A `?display=1` TV is unchanged: it is an unlisted viewer, it takes no seat, and it never had the join card.
 - Names are not unique across rooms or accounts; the rule is per-room, like colour and head.
