@@ -455,6 +455,40 @@ test("SHORTCUTS lists the key groups, ROOM SETTINGS keys only for whoever may co
   assert.notEqual(text(), guest);
 });
 
+test("SHORTCUTS shows the configured local players instead of default driving keys", () => {
+  const { document, dialogs } = modules();
+  const shortcuts = createShortcutsDialog(dialogs, {
+    document,
+    mac: true,
+    solo: true,
+    canConfigure: () => true,
+    driving: [
+      {
+        title: "Keyboard 2",
+        entries: [
+          ["E", "Steer left"],
+          ["F", "Steer right"],
+          ["M", "Fire"],
+        ],
+      },
+      {
+        title: "Keyboard 3",
+        entries: [
+          ["I", "Steer left"],
+          ["G", "Steer right"],
+          ["K", "Fire"],
+        ],
+      },
+    ],
+  });
+  shortcuts.open();
+  const text = shortcuts.element.textContent!;
+  assert.match(text, /Keyboard 2/);
+  assert.match(text, /Keyboard 3/);
+  assert.doesNotMatch(text, /← \/ A/);
+  assert.match(text, /Esc/);
+});
+
 function menuOptions(
   document: Document,
   over: Partial<MenuDialogOptions> = {},
