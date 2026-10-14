@@ -38,6 +38,10 @@ try {
   );
   assert.ok((await page.locator(".fui-portal-game").count()) > 1);
   await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "FRIENDS", exact: true }).click();
+  const friends = page.locator("dialog[open]");
+  await friends.getByRole("button", { name: "SIGN IN", exact: true }).waitFor();
+  await page.keyboard.press("Escape");
   await page
     .getByRole("button", { name: "1 PLAYER PRACTICE", exact: true })
     .click();
@@ -51,6 +55,52 @@ try {
   assert.equal(await page.locator(".birds-lobby").isHidden(), true);
   assert.match(await page.locator(".birds-turn").innerText(), /SOLO PRACTICE/);
   const canvas = page.locator("canvas");
+  // An ordinary modal must own keyboard input even when the battlefield has an aim queued.
+  for (const name of ["FRIENDS", "SIGN IN"]) {
+    await page.locator(".birds-menu summary").click();
+    await canvas.focus();
+    await page.keyboard.press("i");
+    await page.getByRole("button", { name, exact: true }).click();
+    const modal = page.locator("dialog[open]");
+    await modal.waitFor();
+    if (name === "SIGN IN")
+      await modal.getByRole("button", { name: "MATCHES", exact: true }).click();
+    await modal.evaluate((dialog) => {
+      if (dialog instanceof HTMLDialogElement) {
+        dialog.tabIndex = -1;
+        dialog.focus();
+      }
+    });
+    for (const key of ["i", "j", "k", "l", "Enter"])
+      await page.keyboard.press(key);
+    assert.equal(
+      await page.locator(".birds-room").getAttribute("data-turn"),
+      "1",
+    );
+    await page.screenshot({
+      path: `${output}/${name === "FRIENDS" ? "friends" : "account"}-in-practice.png`,
+    });
+    await page.keyboard.press("Escape");
+    const tick = Number(
+      await page.locator(".birds-room").getAttribute("data-tick"),
+    );
+    await canvas.focus();
+    await page.keyboard.press("Enter");
+    await page.waitForFunction(
+      (before) =>
+        Number(
+          document.querySelector<HTMLElement>(".birds-room")?.dataset.tick,
+        ) >
+        before + 5,
+      tick,
+    );
+    assert.equal(
+      await page.locator(".birds-room").getAttribute("data-turn"),
+      "1",
+      "opening a modal clears queued aim rather than firing it after close",
+    );
+    await page.locator(".birds-menu summary").click();
+  }
   for (const [weapon, turn] of [
     ["Pebble, unlimited ammunition", 2],
     ["Scatter Bomb, 3 shots remaining", 3],

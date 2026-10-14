@@ -2,6 +2,7 @@ import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
+import "fuse-ui/social.css";
 import "./birds.css";
 import QRCode from "qrcode";
 import {
@@ -19,6 +20,8 @@ import {
 } from "fuse-netcode";
 import { button, createInviteCard, createNameEntry, el } from "fuse-ui";
 import { createAppPortal } from "fuse-ui/portal";
+import { createGameSocial } from "fuse-ui/social";
+import { createModalInputGate } from "fuse-ui/modal-input";
 import { createPlayMetrics, startGameAnalytics } from "fuse-ui/play-metrics";
 import {
   UNIT,
@@ -63,6 +66,17 @@ const endpoints = createEndpoints(
 );
 const app = document.querySelector<HTMLElement>("#app")!,
   store = safeStore(() => localStorage);
+const social = createGameSocial({
+  gameId: GAME,
+  base: import.meta.env.BASE_URL,
+  apiOrigin: import.meta.env.VITE_API_ORIGIN,
+  document,
+  window,
+  fetch: (input, init) => fetch(input, init),
+  track: analytics.track,
+});
+const playerName = () =>
+  seatName(social.playerName(store.get(storageKeys.name)) ?? "");
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 const muted = new URLSearchParams(location.search).has("mute");
 function brand(): HTMLElement {
@@ -180,7 +194,7 @@ function landing(): void {
     back,
   );
   const header = el("header", "", "birds-top");
-  header.append(portal(), brand());
+  header.append(portal(), brand(), social.element());
   page.append(header, card);
   app.replaceChildren(page);
 }
@@ -207,7 +221,7 @@ function room(code: string, display: boolean, practice = false): void {
   const menu = el("details", "", "birds-menu"),
     menuTitle = el("summary", "MENU"),
     menuItems = el("div", "", "birds-menu-items");
-  menuItems.append(sound, retry, leave);
+  menuItems.append(social.element(), sound, retry, leave);
   menu.append(menuTitle, menuItems);
   menu.addEventListener("toggle", () => {
     if (menu.open) cancel();
@@ -228,7 +242,7 @@ function room(code: string, display: boolean, practice = false): void {
     qr: (text) => QRCode.toDataURL(text, { margin: 1, width: 300 }),
   });
   const nameEntry = createNameEntry({
-    initial: store.get(storageKeys.name) ?? "",
+    initial: playerName() ?? "",
     normalize: (raw) => seatName(raw) ?? "",
     buttonText: "JOIN BATTLE",
     onSubmit(name) {
@@ -345,13 +359,28 @@ function room(code: string, display: boolean, practice = false): void {
     cancelGesture(gestures);
   };
   const canPlay = () =>
+    !modalInput.blocked() &&
     canPlayTurn(currentFrame, me, display, battlefieldReady, runtime);
   const abandonInput = () => {
     cancel();
     resetGesture(gestures);
   };
+  const modalInput = createModalInputGate({
+    isOpen: () => Boolean(document.querySelector("dialog[open]")),
+    observe(change) {
+      const observer = new MutationObserver(change);
+      observer.observe(document.body, {
+        attributes: true,
+        attributeFilter: ["open"],
+        subtree: true,
+      });
+      return () => observer.disconnect();
+    },
+    cancel: abandonInput,
+  });
   const canAim = canPlay;
   const play = (action: Play) => {
+    if (modalInput.blocked()) return;
     if (!runtime.play(action))
       message.textContent = "Wait for your turn before playing.";
   };
@@ -508,6 +537,7 @@ function room(code: string, display: boolean, practice = false): void {
       view = frame.world;
       page.dataset.phase = view?.phase ?? frame.stage;
       page.dataset.turn = String(view?.turn ?? 0);
+      page.dataset.tick = String(frame.tick);
       page.dataset.match = view?.id ?? "";
       page.dataset.round = String(view?.round ?? 0);
       const seated = frame.seats.some((s) => s.id === me && !s.watcher),
@@ -629,7 +659,7 @@ function room(code: string, display: boolean, practice = false): void {
   };
   const runtime: Session = practice
     ? new PracticeRuntime(callbacks, {
-        name: seatName(store.get(storageKeys.name) ?? "") ?? "YOU",
+        name: playerName() ?? "YOU",
         seed: crypto.getRandomValues(new Uint32Array(1))[0]!,
         active: () => !document.hidden,
       })
@@ -644,22 +674,26 @@ function room(code: string, display: boolean, practice = false): void {
         callbacks,
         {
           displayOnly: display,
-          transport: (events) =>
-            new PeerTransport(
+          transport: (events) => {
+            const token = roomToken(store, code, display, secret);
+            return social.transport(
               code,
-              roomToken(store, code, display, secret),
+              token,
               events,
-              {
-                apiUrl: endpoints.apiUrl,
-                gameId: GAME,
-                maxFastBytes: MAX_PACKET_BYTES,
-              },
-            ),
+              (events) =>
+                new PeerTransport(code, token, events, {
+                  apiUrl: endpoints.apiUrl,
+                  gameId: GAME,
+                  maxFastBytes: MAX_PACKET_BYTES,
+                }),
+            );
+          },
         },
       );
   const stop = () => {
     stopped = true;
     cancel();
+    modalInput.dispose();
     cancelAnimationFrame(frameId);
     runtime.stop();
     arena.destroy();
@@ -680,6 +714,7 @@ function room(code: string, display: boolean, practice = false): void {
     if (document.hidden) abandonInput();
   });
   window.addEventListener("keydown", (e) => {
+    if (modalInput.blocked()) return;
     if (e.key === "Escape") {
       cancel();
       return;
