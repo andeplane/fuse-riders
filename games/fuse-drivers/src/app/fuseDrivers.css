@@ -474,3 +474,12 @@ body.fuseDrivers-display .fuseDrivers-die {
 .fd-error {
   color: var(--fui-pink);
 }
+/* Shared-screen rooms leave the racing arena to the TV. */
+.fd-shared-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 0;
+  font-size: 0.65rem;
+  line-height: 1.6;
+}

@@ -1,6 +1,9 @@
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
+import "fuse-ui/portal.css";
+import { createAppPortal } from "fuse-ui/portal";
+import { createPlayMetrics, startGameAnalytics } from "fuse-ui/play-metrics";
 import "./fuseDrivers.css";
 import QRCode from "qrcode";
 import {
@@ -28,6 +31,7 @@ import { presentTable, type TableModel, type Viewer } from "./presenter.js";
 import { dueReports, sendReport } from "./reports.js";
 import { FuseDriversRuntime, type FuseDriversCallbacks } from "./runtime.js";
 import { keys, roomFailure, safeStore, sessionFor } from "./session.js";
+import { playFrame } from "./play-metrics.js";
 
 /**
  * The page's glue: it reads the query, builds the screens from fuse-ui, wires the runtime to the transport,
@@ -35,6 +39,8 @@ import { keys, roomFailure, safeStore, sessionFor } from "./session.js";
  * session modules, which are unit-tested; this file only puts their answers on the page.
  */
 const GAME = fuseDriversGame.id;
+const analytics = startGameAnalytics(GAME);
+const observePlay = createPlayMetrics(analytics.track, () => performance.now());
 const endpoints = createEndpoints(
   {
     basePath: `${import.meta.env.BASE_URL}${GAME}/`,
@@ -51,11 +57,24 @@ function header(): HTMLElement {
   const bar = el("header", "", "fd-top");
   const brand = el("a", "FUSE DRIVERS", "fd-brand");
   (brand as HTMLAnchorElement).href = import.meta.env.BASE_URL;
-  bar.append(brand);
+  bar.append(
+    createAppPortal({
+      document,
+      current: GAME,
+      base: import.meta.env.BASE_URL,
+      search: location.search,
+    }).element,
+    brand,
+  );
   return bar;
 }
 
 function landing(): void {
+  const shared = document.createElement("input");
+  shared.type = "checkbox";
+  shared.checked = store.getItem(names.shared) === "1";
+  const choice = el("label", "", "fd-shared-choice");
+  choice.append(shared, el("span", "Shared TV + phone controllers"));
   const card = createLandingCard({
     title: "FUSE DRIVERS",
     tagline: "Offroad racing with weapons. Two to five drivers, one screen.",
@@ -68,6 +87,7 @@ function landing(): void {
           );
         },
       );
+      store.setItem(names.shared, shared.checked ? "1" : "0");
       store.setItem(names.host(room.code), room.token);
       location.href = endpoints.appUrl(`?room=${room.code}`);
     },
@@ -79,6 +99,7 @@ function landing(): void {
       location.href = endpoints.appUrl(`?room=${code}`);
     },
   });
+  card.create.before(choice);
   app.replaceChildren(header(), card.element);
 }
 
@@ -150,6 +171,13 @@ function room(solo: boolean): void {
       }).element,
     );
   lobby.append(roster.element, start);
+  if (!solo) {
+    const tv = el("a", "OPEN TV DISPLAY", "fui-button");
+    (tv as HTMLAnchorElement).href = endpoints.appUrl(
+      `?room=${code}&display=1`,
+    );
+    lobby.append(tv);
+  }
 
   const nameEntry = createNameEntry({
     normalize: (raw) => seatName(raw) ?? "",
@@ -212,6 +240,7 @@ function room(solo: boolean): void {
     race.hidden = model.screen === "lobby";
     results.hidden = model.screen !== "results";
     nameEntry.form.hidden = !model.askName;
+    canvas.hidden = viewer.shared && !display && !solo;
     roster.update(model.lobby.members);
     start.hidden = !model.lobby.showStart;
     start.disabled = !model.lobby.canStart;
@@ -225,7 +254,7 @@ function room(solo: boolean): void {
         ...(model.results.host ? [rematch] : []),
       );
     // A phone that is only a controller has no room for the arena.
-    pad.element.hidden = model.screen !== "race";
+    pad.element.hidden = model.screen !== "race" || display;
   };
 
   const rematch = button("RACE AGAIN", "fui-button-primary");
@@ -287,7 +316,8 @@ function room(solo: boolean): void {
     if (stopped) return;
     requestAnimationFrame(frame);
     if (!latest) return;
-    if (!arena)
+    const drawArena = !viewer.shared || display || solo;
+    if (!arena && drawArena)
       arena = mountArena(canvas, {
         assetBase: `${import.meta.env.BASE_URL}${GAME}/assets/`,
         onError: (error: unknown) => {
@@ -301,7 +331,7 @@ function room(solo: boolean): void {
       1,
       Math.max(0, (performance.now() - viewAt) / TICK_MS),
     );
-    arena.render(latest, alpha, runtime.self);
+    if (drawArena) arena?.render(latest, alpha, runtime.self);
     if (!display)
       runtime.drive({
         left: board.read().left || touch.left,
@@ -312,6 +342,20 @@ function room(solo: boolean): void {
         itemAlt: board.read().itemAlt || touch.itemAlt,
       });
     const room = runtime.roomState();
+    if (room)
+      observePlay(
+        playFrame(
+          room,
+          runtime.self,
+          solo
+            ? "solo"
+            : display
+              ? "display"
+              : viewer.shared
+                ? "controller"
+                : "online",
+        ),
+      );
     if (room && session.kind === "room")
       for (const report of dueReports(
         room,

@@ -2,7 +2,7 @@
   "name": "fuse-drivers",
   "version": "0.1.0",
   "private": true,
-  "description": "Pig, the template game: roll a d6 or hold, first to 50 wins the round and two rounds win the match. Its rules run on fuse-netcode, its page (src/app/) on fuse-ui and fuse-network-fe.",
+  "description": "Deterministic offroad racing with weapons, bots and online rooms on the shared Fuse platform.",
   "type": "module",
   "engines": {
     "node": ">=22.12.0"
