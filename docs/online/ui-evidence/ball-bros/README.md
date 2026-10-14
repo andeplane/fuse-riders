@@ -21,3 +21,5 @@ The solo run selected Ricochet Reactor and an avatar, observed bumper collisions
 ## 2026-10-14 individual PR validation
 
 After merging main `01266922`, the real muted presentation smoke passed avatar selection, portrait-request failure and a fresh seated room with a bot. [The corrected lobby](cleanup-lobby.png) captures the readable invite code after the contrast fix `29673907`. The flow ran against this worktree's fresh Vite source server (`ONLINE_URL=http://127.0.0.1:5173/`), with native Chromium executed ranges collected and accepted only after each source map's content matched the current source files exactly. This is desktop browser emulation and local room evidence.
+
+The same source server at candidate `49fd45e2` passed the complete solo flow (portal, Ricochet, controls/launch, damage, natural Frenzy, result/rematch and phone fit) and online flow (create retry, real WebRTC peers, reload recovery, agreed results/rematch, shared TV/controller roles and refused-storage reconnect). All three game smokes collected native executed ranges; no game-state or clock injection was used.
