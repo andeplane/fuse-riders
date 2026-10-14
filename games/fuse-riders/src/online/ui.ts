@@ -435,11 +435,11 @@ export async function startOnline(): Promise<void> {
    */
   const SEATING_GRACE_MS = 8000;
   booting.append(bootNote);
-  // A room that never sends a snapshot must stop claiming progress: the note escalates to the same-network hint once the link stalls or ICE fails.
+  // A stalled arrival shows its actual transport reason and diagnostics guidance.
   const bootAt = performance.now();
   let connectFailed = false,
     booted = false;
-  // 20s is where connectHint gives up on progress and says "different network": the one drop-off the funnel cannot otherwise see.
+  // Record the stalled connection at 20 seconds without guessing its network topology.
   const bootTick = () => {
     const waited = performance.now() - bootAt;
     bootNote.textContent = connectHint(rawStatus, waited);
