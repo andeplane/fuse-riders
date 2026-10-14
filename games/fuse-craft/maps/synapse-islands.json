@@ -1,0 +1,1753 @@
+{
+  "schemaVersion": 1,
+  "id": "synapse-islands",
+  "width": 26,
+  "height": 22,
+  "layout": "odd-r",
+  "cells": [
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "insight"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "biomass"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "insight"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "biomass"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "insight"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "biomass"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "biomass"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "biomass"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "insight"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "insight"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "biomass"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "biomass"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "biomass"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "insight"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "biomass"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "insight"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "biomass"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "insight"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    }
+  ],
+  "spawns": [
+    {
+      "slot": 0,
+      "cellIndex": 108
+    },
+    {
+      "slot": 1,
+      "cellIndex": 463
+    }
+  ]
+}
