@@ -106,7 +106,12 @@ try {
       url.replace(/\/$/, ""),
       "/tmp/fuse-birds-online-coverage",
     ],
-    { ...process.env, FUSE_BIRDS_COVERAGE_DIR: resolve(root, "coverage/tmp") },
+    {
+      ...process.env,
+      FUSE_BIRDS_COVERAGE_DIR: resolve(root, "coverage/tmp"),
+      FUSE_BIRDS_INPUT_PROBE: "1",
+      FUSE_BIRDS_WIRE_PROBE: "1",
+    },
   );
   browserExit ||= onlineExit;
   const gamesExit = await run(

@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import { writeFile } from "node:fs/promises";
-import { SnapshotAssembler, decodeSnapshot } from "fuse-netcode";
+import { SnapshotAssembler, decodeSnapshot, decodePacket } from "fuse-netcode";
 import {
   birdsGame,
   type BirdsRoom,
@@ -15,6 +15,30 @@ export async function wireProbe(
 ): Promise<void> {
   let count = 0;
   const assemblers = new Map<string, SnapshotAssembler>();
+  const observedPasses = new Set<string>();
+  await page.exposeBinding(
+    "birdsPassPacketProbe",
+    async (_source, channel: string, bytes: number[]) => {
+      const decoded = decodePacket(birdsGame, Uint8Array.from(bytes));
+      if (!decoded || !("packet" in decoded)) return;
+      const packet = decoded.packet;
+      for (const entry of packet.entries) {
+        if (entry[2] !== 0 || entry[4].type !== "pass") continue;
+        const key = `${channel}:${packet.from}:${packet.generation}:${entry[0]}`;
+        if (observedPasses.has(key) || observedPasses.size >= 200) continue;
+        observedPasses.add(key);
+        console.log("PASS packet probe", label, channel, {
+          from: packet.from,
+          generation: packet.generation,
+          seq: entry[0],
+          tick: entry[1],
+          through: packet.through,
+          clockTick: packet.clockTick,
+          action: entry[4],
+        });
+      }
+    },
+  );
   await page.exposeBinding(
     "birdsWireProbe",
     async (_source, channel: string, raw: unknown) => {
@@ -62,6 +86,15 @@ export async function wireProbe(
         bytes: complete.bytes.length,
         decoded: !!decoded,
         phase: decoded?.state.match?.phase,
+        turn: decoded?.state.match?.turn,
+        seats:
+          decoded &&
+          [...decoded.state.seats.values()].map((seat) => ({
+            id: seat.id,
+            generation: seat.generation,
+            connected: seat.connected,
+            away: seat.away === true,
+          })),
       });
       if (!decoded)
         await writeFile(
@@ -73,10 +106,25 @@ export async function wireProbe(
   await page.addInitScript({
     content: `(() => {
     let next = 0;
+    let passPackets = 0;
     const observe = channel => {
       const id = String(next++) + ":" + channel.label;
       const report = (direction, data) => {
-        if (typeof data !== "string") return;
+        if (typeof data !== "string") {
+          // Observe only bounded input datagrams containing MessagePack's encoded "pass" token.
+          // This diagnostic never changes the bytes, channel readiness or delivery order.
+          const bytes = data instanceof ArrayBuffer ? new Uint8Array(data)
+            : ArrayBuffer.isView(data) ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength) : null;
+          if (!bytes || bytes.length > 1100 || passPackets >= 200) return;
+          for (let at = 0; at < bytes.length - 4; at++) {
+            if (bytes[at] === 164 && bytes[at + 1] === 112 && bytes[at + 2] === 97 && bytes[at + 3] === 115 && bytes[at + 4] === 115) {
+              passPackets++;
+              void window.birdsPassPacketProbe(id + direction, Array.from(bytes)).catch(() => {});
+              break;
+            }
+          }
+          return;
+        }
         try { void window.birdsWireProbe(id + direction, JSON.parse(data).data).catch(() => {}); } catch {}
       };
       const send = channel.send.bind(channel);

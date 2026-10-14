@@ -80,11 +80,26 @@ try {
         console.log(label, JSON.stringify(detail)),
       );
       await page.addInitScript(`(() => {
+        let passAt = -Infinity;
+        let lastStatus = '';
+        let statuses = 0;
+        document.addEventListener('DOMContentLoaded', () => {
+          new MutationObserver(() => {
+            if (performance.now() - passAt > 6000 || statuses >= 40) return;
+            const text = document.querySelector('.birds-room .birds-notice')?.textContent;
+            if (text && text !== lastStatus) {
+              lastStatus = text;
+              statuses++;
+              window.reportBirdsInput({type: 'status', text, at: performance.now()});
+            }
+          }).observe(document.body, {subtree: true, childList: true, characterData: true});
+        });
         for (const type of ['pointerdown', 'pointerup', 'click']) {
           document.addEventListener(type, event => {
             const button = event.target.closest?.('button');
             if (button?.textContent !== 'PASS') return;
-            window.reportBirdsInput({type, disabled: button.disabled, turn: document.querySelector('.birds-room')?.dataset.turn, phase: document.querySelector('.birds-room')?.dataset.phase, at: performance.now()});
+            passAt = performance.now();
+            window.reportBirdsInput({type, disabled: button.disabled, visibility: document.visibilityState, turn: document.querySelector('.birds-room')?.dataset.turn, phase: document.querySelector('.birds-room')?.dataset.phase, at: passAt});
           }, true);
         }
       })()`);

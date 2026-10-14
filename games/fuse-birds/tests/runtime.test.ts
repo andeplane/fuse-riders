@@ -109,6 +109,60 @@ test("rapid alternating passes remain actionable through crate drops and sudden 
     for (const runtime of mesh.runtimes.values()) runtime.stop();
   }
 });
+test("a three-device room applies the recovered phone's first PASS after a Scatter launch", () => {
+  const mesh = new BirdsMesh("a", { display: true }),
+    a = mesh.join("a");
+  let b = mesh.join("b", 1);
+  const tv = mesh.join("tv");
+  try {
+    mesh.run(200);
+    a.command({ type: "join", name: "Alpha" });
+    b.command({ type: "join", name: "Beta" });
+    mesh.run(3000);
+    a.command({ type: "action", action: "start" });
+    for (
+      let wait = 0;
+      wait < 1000 && a.roomState()?.match?.phase !== "aiming";
+      wait++
+    )
+      mesh.run(10);
+    mesh.run(300);
+    const match = a.roomState()!.match!,
+      witness = match.preparation.witnesses.find(
+        (w) => w.from === "a" && w.wind === match.wind,
+      )!;
+    assert.equal(
+      a.play({
+        type: "launch",
+        weapon: "scatter",
+        vx: witness.vx,
+        vy: witness.vy,
+      }),
+      true,
+    );
+    for (let wait = 0; wait < 1000 && a.roomState()!.match!.turn === 1; wait++)
+      mesh.run(10);
+    assert.equal(a.roomState()!.match!.turn, 2);
+    b.stop();
+    mesh.reliableBytesPerSecond = 48_000;
+    b = mesh.join("b", 2);
+    for (let wait = 0; wait < 3000 && !b.admitted; wait++) mesh.run(10);
+    assert.equal(b.admitted, true);
+    assert.equal(b.roomState()!.match!.turn, 2);
+    const recovered = b.roomState()!.match!;
+    assert.ok(
+      recovered.deadline - recovered.tick > 100,
+      "the five-second check must finish before an automatic turn deadline",
+    );
+    assert.equal(b.play({ type: "pass" }), true);
+    mesh.run(5000);
+    assert.ok(a.roomState()!.match!.turn > 2);
+    converge(a, b);
+    converge(a, tv);
+  } finally {
+    for (const runtime of mesh.runtimes.values()) runtime.stop();
+  }
+});
 test("real runtime scopes a Scatter launch, repairs reordered input, and recovers a late display", () => {
   const mesh = new BirdsMesh("a"),
     a = mesh.join("a"),
