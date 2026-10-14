@@ -4,7 +4,8 @@ import { launchSelected } from "./lib/browser.js";
 import { readyRoom } from "./lib/ready-room.js";
 
 const browser = await launchSelected("chromium", { headless: true });
-const base = process.env.ONLINE_URL ?? "http://localhost:8791/";
+import { ridersPageUrl } from "./lib/riders-url.js";
+const base = ridersPageUrl(process.env.ONLINE_URL ?? "http://localhost:8791/");
 const errors: string[] = [];
 try {
   const tv = await browser.newPage({ viewport: { width: 1280, height: 800 } });
