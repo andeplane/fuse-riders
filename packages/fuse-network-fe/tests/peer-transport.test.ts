@@ -150,7 +150,7 @@ test("the health check stands down while the page is hidden", async () => {
 
 test("link reports use injected time and visibility while hidden health checks stand down", async () => {
   const harness = new TransportHarness();
-  await harness.admit("a", ["b"]);
+  await harness.admit("a".repeat(24), ["b".repeat(24)]);
   await harness.run(200);
   const initial = harness.socket.frames("link-report");
   assert.equal(initial.length, 1);
