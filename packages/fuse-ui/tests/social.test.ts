@@ -20,7 +20,7 @@ const settle = async () => {
     await new Promise((resolve) => setImmediate(resolve));
 };
 
-function fixture(gameId = "fuse-craft") {
+function fixture(gameId = "fuse-craft", holdHydration = false) {
   const { document } = page();
   const events = new EventTarget();
   let reloads = 0;
@@ -50,7 +50,18 @@ function fixture(gameId = "fuse-craft") {
       listener(value ? { name: "Ada" } : undefined);
   }
   const calls: { url: string; headers: Headers; body?: string }[] = [];
+  let profileReads = 0,
+    releaseHydration: (() => void) | undefined;
   const request: typeof fetch = async (url, init) => {
+    if (
+      String(url).endsWith("/me") &&
+      (!init?.method || init.method === "GET") &&
+      ++profileReads === 2 &&
+      holdHydration
+    )
+      await new Promise<void>((resolve) => {
+        releaseHydration = resolve;
+      });
     calls.push({
       url: String(url),
       headers: new Headers(init?.headers),
@@ -108,6 +119,7 @@ function fixture(gameId = "fuse-craft") {
     },
   });
   return {
+    releaseHydration: () => releaseHydration?.(),
     events,
     reloads: () => reloads,
     social,
@@ -210,7 +222,7 @@ test("result identity stays in headers and is restricted to this game's backend"
 });
 
 test("a successful account rename updates the name used by rooms without reloading", async () => {
-  const f = fixture();
+  const f = fixture("fuse-craft", true);
   f.change(true);
   await settle();
   const dialog =
@@ -225,16 +237,21 @@ test("a successful account rename updates the name used by rooms without reloadi
   await settle();
   dialog.querySelector<HTMLInputElement>("#account-username")!.value =
     "Beatrice";
-  dialog
-    .querySelector("form")!
-    .dispatchEvent(
-      new f.document.defaultView!.Event("submit", {
-        bubbles: true,
-        cancelable: true,
-      }),
-    );
+  dialog.querySelector("form")!.dispatchEvent(
+    new f.document.defaultView!.Event("submit", {
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
   await settle();
   assert.equal(f.social.playerName("Local"), "Beatrice");
+  f.releaseHydration();
+  await settle();
+  assert.equal(
+    f.social.playerName("Local"),
+    "Beatrice",
+    "a delayed old profile cannot undo the rename",
+  );
   f.social.dispose();
 });
 
