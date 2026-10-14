@@ -191,11 +191,18 @@ Tests should use typed injected clocks, schedulers, transports and seeded random
 
 ## Product analytics
 
-The deployed site reports twelve `FlowRiders.`-prefixed product events to Mixpanel, including one `Kill` per kill
-and one `Miss` per shot that killed nobody, sent by the shooter's own device once each round is decided and confirmed. Local dev (any address with a port, a LAN address included) is off
+Every game reports Mixpanel product events with the shared `fuse.` prefix and a `gameId` property for cross-game dashboards.
+Opening, seating, match starts and match ends are tracked from real play; Fuse Riders also reports one `Kill` per kill
+and one `Miss` per shot that killed nobody, sent by the shooter's own device once each round is decided and confirmed.
+The rename from `FlowRiders.*` intentionally breaks existing dashboards; there is no dual reporting.
+Local dev (any address with a port, a LAN address included) is off
 by default, `?analytics=1` forces them on and `?analytics=0` forces them off; either choice sticks for the
 browser, so it survives the navigation into a room. See [product analytics](docs/ANALYTICS.md)
 for the event list and what is deliberately not tracked.
+
+After `pnpm build`, `pnpm exec tsx scripts/all-games-analytics-smoke.ts` starts a local room service on a free port
+and verifies the real SDK's opening event, shared prefix, game id and URL exclusions on every game page.
+All Mixpanel requests are intercepted; results go to `artifacts/all-games-analytics.json`.
 
 `HOME_URL=http://127.0.0.1:8899/ pnpm exec tsx scripts/analytics-smoke.ts` (and `BROWSER=webkit`) plays a one-round
 solo match with Mixpanel intercepted — never delivered — and asserts what each event carried, writing
