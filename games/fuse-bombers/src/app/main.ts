@@ -1,11 +1,13 @@
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/portal.css";
+import "fuse-ui/components.css";
 import "./style.css";
 import "./screens.css";
 import { validRoomCode } from "fuse-network-fe";
 import { uuid } from "fuse-netcode";
 import { createAppPortal, type AppPortal } from "fuse-ui/portal";
+import { createGameMenu, createRoundControls } from "fuse-ui";
 import Phaser from "phaser";
 import {
   RoundScene,
@@ -16,8 +18,15 @@ import {
 import { createAudio } from "./audio/index.js";
 import { Flow } from "./flow.js";
 import { createBrowserInput } from "./input/index.js";
-import { GAME, showLanding, showRoom } from "./online.js";
-import { safeStore, sessionFor } from "./session.js";
+import {
+  GAME,
+  analytics,
+  reportPlay,
+  showLanding,
+  showRoom,
+} from "./online.js";
+import { carry, safeStore, sessionFor } from "./session.js";
+import { GOAL, ONLINE_CONTROLS } from "./controls.js";
 
 const params = new URLSearchParams(window.location.search);
 /** Music and effects; `?mute` disables them for this load. */
@@ -71,11 +80,54 @@ async function boot(): Promise<void> {
   document.body.append(root);
   audio.mountToggle(); // After `#screen`, so screens.css can hide it mid-round.
   const portal = mountPortal();
-  const flow = new Flow({
+  let flow: Flow | undefined;
+  const menu = createGameMenu({
+    title: "FUSE BOMBERS",
+    controls: ONLINE_CONTROLS,
+    goal: GOAL,
+    onLobby: () => flow?.returnToLobby(),
+    onLeave: () =>
+      location.assign(
+        `${import.meta.env.BASE_URL}${GAME}/?${carry(location.search, "")}`,
+      ),
+    onOpenChange: (open) => {
+      flow?.setSharedMenuOpen(open);
+      // Resume at the arena: Space on the menu trigger would reopen it instead of firing.
+      if (!open && flow) {
+        game.canvas.tabIndex = -1;
+        game.canvas.focus({ preventScroll: true });
+      }
+    },
+  });
+  const corner = document.createElement("div");
+  corner.className = "fb-local-menu";
+  corner.append(menu.element);
+  document.body.append(corner);
+  const roundControls = createRoundControls({
+    controls: ONLINE_CONTROLS,
+    goal: GOAL,
+  });
+  roundControls.element.classList.add("fb-round-controls");
+  document.body.append(roundControls.element);
+  flow = new Flow({
+    playMetrics: reportPlay,
     input: createBrowserInput(window, { forceTouch: params.has("touch") }),
     root,
     seed: Number(params.get("seed")) || Math.floor(Math.random() * 2 ** 31),
     speed: Number(params.get("speed")) || 1,
+    uiState: (state) => {
+      menu.update({
+        canLobby: !state.lobby,
+        spectator: state.spectator,
+        controls: state.controls,
+      });
+      roundControls.update({
+        round: state.round,
+        visible: state.countdown && !menu.isOpen(),
+        spectator: state.spectator,
+        controls: state.controls,
+      });
+    },
     show: (source, players, attract) => {
       if (!attract) portal.close(); // A match started; screens.css hides the portal until the lobby.
       const data: RoundSceneData = { source, players };
@@ -117,6 +169,7 @@ else if (session.kind === "invalid")
   showLanding(store, `${session.code} is not a room code`);
 else
   boot().catch((error: unknown) => {
+    analytics.reportBootFailure(error);
     console.error("Fuse Bombers failed to start", error);
   });
 

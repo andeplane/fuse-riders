@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { LEFT, RIGHT } from "../src/engine/input.js";
+import { FIRE, LEFT, RIGHT } from "../src/engine/input.js";
 import {
   Flow,
   menuAction,
@@ -14,6 +14,7 @@ import {
 } from "../src/app/input/gamepad.js";
 import { InputHub, type Command, type DeviceId } from "../src/app/input/hub.js";
 import type { TouchPadStyle } from "../src/app/input/index.js";
+import { createPlayMetrics } from "fuse-ui/play-metrics";
 import {
   attachKeyboard,
   type KeyEventLike,
@@ -240,7 +241,15 @@ function fakeFlow(touch = false) {
     innerHTML: "",
     addEventListener: (type: string, l: Listener) => listeners.set(type, l),
   };
+  const uiStates: { countdown: boolean; round: number }[] = [];
+  let keyListener: ((event: KeyboardEvent) => void) | undefined;
+  const metricEvents: string[] = [];
   const flow = new Flow({
+    uiState: (state) => uiStates.push(state),
+    playMetrics: createPlayMetrics(
+      (event) => metricEvents.push(event),
+      () => pads.time,
+    ),
     input: {
       hub,
       touchEnabled: touch,
@@ -250,7 +259,11 @@ function fakeFlow(touch = false) {
       },
     },
     root: root as unknown as HTMLElement,
-    keys: { addEventListener: () => undefined },
+    keys: {
+      addEventListener: (_type, listener) => {
+        keyListener = listener;
+      },
+    },
     show: () => undefined,
     seed: 1,
   });
@@ -264,8 +277,139 @@ function fakeFlow(touch = false) {
     (listeners.get("click") as (e: object) => void)({
       target: { closest: () => ({ getAttribute: () => action }) },
     });
-  return { flow, hub, frame, root, zones, click, ...touchPads };
+  const key = (code: string, prevented = false) => {
+    const event = Object.assign(new Event("keydown", { cancelable: true }), {
+      code,
+      ctrlKey: false,
+      metaKey: false,
+      altKey: false,
+      repeat: false,
+    }) as KeyboardEvent;
+    if (prevented) event.preventDefault();
+    keyListener?.(event);
+  };
+  return {
+    flow,
+    hub,
+    frame,
+    root,
+    zones,
+    click,
+    key,
+    pads,
+    uiStates,
+    metricEvents,
+    ...touchPads,
+  };
 }
+
+test("the shared menu suppresses lobby joins, settings and start commands", () => {
+  const { flow, frame, key, click, pads } = fakeFlow();
+  flow.setSharedMenuOpen(true);
+  flow.setSharedMenuOpen(true); // Repeated updates cannot replace the saved pause state.
+  frame([pad(0, [0, 9])]);
+  frame([pad(0, [0])], HOLD_MS);
+  for (const code of ["Enter", "Digit6", "KeyR", "KeyB"]) key(code);
+  click("start");
+  assert.equal(flow.screen.kind, "lobby");
+  assert.deepEqual(flow.lobby.devices, Array(6).fill(undefined));
+  assert.equal(flow.lobby.playerCount, 4);
+  assert.equal(flow.lobby.winsToWin, 3);
+  pads.pads = [pad(1, [0, 9])]; // A pad input that has not been polled yet must also stay in the menu.
+  flow.setSharedMenuOpen(false);
+  assert.equal(flow.screen.kind, "lobby");
+  assert.equal(flow.paused, false);
+  frame([pad(1, [0, 9])]);
+  assert.deepEqual(flow.lobby.devices, Array(6).fill(undefined));
+  frame([pad(1)]);
+  frame([pad(1, [0])]);
+  assert.equal(
+    flow.lobby.devices[0],
+    "pad:1",
+    "a fresh press joins after closing",
+  );
+});
+
+test("closing the shared menu discards fire presses and preserves a pre-existing pause", () => {
+  const { flow, frame, click, hub, key } = fakeFlow();
+  frame([pad(0, [0]), pad(1, [0])]);
+  frame([pad(0), pad(1)]);
+  click("start");
+  frame(undefined, 4000);
+  assert.equal(flow.screen.kind, "playing");
+  const tick = flow.view.tick;
+  hub.press("pad:0"); // A queued press at the time of opening must not survive either.
+  flow.setSharedMenuOpen(true);
+  frame([pad(0, [0, 9]), pad(1)], 1000);
+  key("Enter");
+  key("Escape");
+  assert.equal(flow.paused, true);
+  assert.equal(flow.view.tick, tick);
+  hub.press("pad:0"); // A tap between the last menu frame and close is discarded as well.
+  flow.setSharedMenuOpen(false);
+  key("Escape", true); // The shared menu's document handler has already consumed the closing key.
+  assert.equal(flow.paused, false);
+  frame([pad(0, [0]), pad(1)], 20);
+  assert.equal(
+    (flow.view.lastHeld[0] ?? 0) & FIRE,
+    0,
+    "holding through close does not fire",
+  );
+  frame([pad(0), pad(1)], 17);
+  frame([pad(0, [0]), pad(1)], 17);
+  assert.equal(
+    (flow.view.lastHeld[0] ?? 0) & FIRE,
+    FIRE,
+    "a new press still fires",
+  );
+  click("pause");
+  flow.setSharedMenuOpen(true);
+  flow.setSharedMenuOpen(false);
+  assert.equal(
+    flow.paused,
+    true,
+    "closing the menu cannot resume an already paused game",
+  );
+  click("resume");
+  assert.equal(flow.paused, false);
+});
+
+test("the shared menu hides local touch pads and returning to the lobby restores lobby input", () => {
+  const { flow, zones, frame, click, tap, press } = fakeFlow(true);
+  tap(0, "fire");
+  click("start");
+  frame(undefined, 4000);
+  flow.setSharedMenuOpen(true);
+  assert.deepEqual(zones.at(-1), [undefined, undefined]);
+  assert.equal(press(0, "fire"), false);
+  flow.returnToLobby();
+  flow.setSharedMenuOpen(false);
+  assert.equal(flow.screen.kind, "lobby");
+  assert.equal(flow.paused, false);
+  assert.deepEqual(
+    zones.at(-1)?.map((zone) => zone?.label),
+    ["RED", "JOIN"],
+  );
+  tap(1, "fire");
+  assert.equal(flow.lobby.devices[1], "touch:1");
+});
+
+test("control guidance appears at every round countdown and disappears after play starts", () => {
+  const { flow, click, frame, uiStates } = fakeFlow();
+  click("start");
+  frame(undefined, 16);
+  assert.equal(uiStates.at(-1)?.countdown, true);
+  const first = uiStates.at(-1)?.round;
+  frame(undefined, 4000);
+  assert.equal(uiStates.at(-1)?.countdown, false);
+  for (let i = 0; i < 4000 && flow.screen.kind === "playing"; i++)
+    frame(undefined, 100);
+  assert.equal(flow.screen.kind, "results");
+  click("next");
+  frame(undefined, 16);
+  assert.equal(uiStates.at(-1)?.countdown, true);
+  assert.notEqual(uiStates.at(-1)?.round, first);
+});
 
 test("a gamepad-only group joins, starts with Start and pauses and resumes with Start", () => {
   const { flow, frame } = fakeFlow();
@@ -409,7 +553,8 @@ test("the touch pads stay off the results screen and come back with the next rou
 });
 
 test("the touch pads stay off the winner screen, and the lobby brings them back", () => {
-  const { flow, zones, frame, click, tap } = fakeFlow(true);
+  const { flow, zones, frame, click, tap, metricEvents } = fakeFlow(true);
+  assert.deepEqual(metricEvents, [], "the attract scene is not play");
   const shown = () => zones.at(-1)?.map((z) => z !== undefined);
   tap(0, "fire");
   flow.lobby.setWinsToWin(1);
@@ -417,7 +562,23 @@ test("the touch pads stay off the winner screen, and the lobby brings them back"
   for (let i = 0; i < 40000 && flow.screen.kind !== "winner"; i++)
     frame(undefined, 100);
   assert.equal(flow.screen.kind, "winner", "one round win takes the match");
+  assert.deepEqual(metricEvents, [
+    "Seat Taken",
+    "Match Started",
+    "Match Ended",
+  ]);
+  frame(undefined, 100);
+  assert.equal(
+    metricEvents.length,
+    3,
+    "repeated winner frames do not repeat results",
+  );
   assert.deepEqual(shown(), [false, false], "no pad over PLAY AGAIN");
   click("lobby");
+  assert.equal(
+    metricEvents.length,
+    3,
+    "returning to attract play sends nothing",
+  );
   assert.deepEqual(shown(), [true, true], "the lobby's JOIN pads");
 });

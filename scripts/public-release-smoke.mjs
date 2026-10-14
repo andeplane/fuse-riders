@@ -51,7 +51,9 @@ for (const [name, type] of [
     );
     result.release = await release.json();
     // ?analytics=0 sticks for the browser context, so the whole smoke — room included — stays out of the production project.
-    await host.goto("https://andeplane.github.io/fuse-riders/?analytics=0");
+    await host.goto(
+      "https://andeplane.github.io/fuse-riders/fuse-riders/?analytics=0&mute",
+    );
     await host
       .getByRole("button", { name: "CREATE ROOM", exact: true })
       .click();
@@ -67,7 +69,7 @@ for (const [name, type] of [
     await host.getByRole("button", { name: "ADD AI", exact: true }).click();
     await host.getByRole("button", { name: /Remove AI/ }).waitFor();
     result.aiAdded = true;
-    await guest.goto(`${invite}&analytics=0`);
+    await guest.goto(`${invite}&analytics=0&mute`);
     await host
       .locator(":is(.online-roster,.room-riders):visible")
       .getByText("Public guest", { exact: false })
@@ -148,6 +150,14 @@ for (const [name, type] of [
     await guest.locator(".online-arena").waitFor({ state: "hidden" });
     await host.locator(".online-arena").waitFor({ state: "hidden" });
     result.sharedPhoneViewsHidden = true;
+    // Room entry replaces its query; keep the refresh muted without persisting an audio preference.
+    const refreshUrl = new URL(host.url());
+    refreshUrl.searchParams.set("mute", "");
+    refreshUrl.searchParams.set("analytics", "0");
+    await host.evaluate(
+      (url) => history.replaceState(null, "", url),
+      refreshUrl.href,
+    );
     await host.reload();
     await host
       .locator(":is(.online-roster,.room-riders):visible")
@@ -194,7 +204,7 @@ for (const [name, type] of [
       }),
       display = await displayContext.newPage();
     observe(display);
-    await display.goto(invite + "&display=1");
+    await display.goto(invite + "&display=1&analytics=0&mute");
     await display
       .locator(":is(.online-roster,.room-riders):visible")
       .getByText("Public host", { exact: false })
