@@ -8,6 +8,8 @@ import {
   validRiderName,
   suggestRiderName,
 } from "../games/fuse-riders/src/engine/rider-name.js";
+import { validName as validGraveyardName } from "../games/graveyard-shift/src/online/names.js";
+import { validName as validDriverName } from "../games/fuse-drivers/src/game/basics.js";
 test("shared username UI agrees with existing engine and backend name rules", () => {
   for (const name of [
     "Ada",
@@ -21,6 +23,8 @@ test("shared username UI agrees with existing engine and backend name rules", ()
     "<b>Ada</b>",
   ]) {
     assert.equal(validAccountName(name), validRiderName(name), name);
+    assert.equal(validAccountName(name), validGraveyardName(name), name);
+    assert.equal(validAccountName(name), validDriverName(name), name);
     assert.equal(suggestAccountName(name), suggestRiderName(name), name);
   }
 });
