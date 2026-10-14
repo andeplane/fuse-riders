@@ -157,8 +157,19 @@ for (const [name, engine] of [
     await page.locator("#map-picker").selectOption("cortex-crossing");
     await page.locator('[data-action="start"]').click();
     await page.locator("#nd-board").waitFor();
-    await page.mouse.move(600, 350);
-    await page.mouse.wheel(0, 4000);
+    const minimapPoint = await page
+      .locator('.terrain-layer [data-cell="549"] > polygon')
+      .first()
+      .evaluate((node) => {
+        const box = (node as SVGGraphicsElement).getBBox();
+        const minimap = document.querySelector<SVGSVGElement>("#nd-minimap")!;
+        const point = new DOMPoint(
+          box.x + box.width / 2,
+          box.y + box.height / 2,
+        ).matrixTransform(minimap.getScreenCTM()!);
+        return { x: point.x, y: point.y };
+      });
+    await page.mouse.click(minimapPoint.x, minimapPoint.y);
     await page.keyboard.press("w");
     await page.keyboard.press("q");
     await page.locator(".placement-instructions").waitFor();
