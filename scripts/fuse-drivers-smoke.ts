@@ -79,6 +79,16 @@ try {
   await tv.screenshot({ path: "artifacts/fuse-drivers/tv-race.png" });
   await peer.reload();
   await peer.locator(".fd-hud").filter({ hasText: "LAP" }).waitFor();
+  assert.equal(
+    await peer.getByPlaceholder("Your name").isVisible(),
+    false,
+    "the refreshed controller retains its existing seat",
+  );
+  assert.equal(
+    await peer.locator(".fui-roster-name").filter({ hasText: "Bo" }).count(),
+    1,
+    "recovery does not duplicate the driver's roster row",
+  );
   assert.deepEqual(failures, []);
   console.log(
     "Fuse Drivers solo, portal, two-peer room and reload smoke passed",
