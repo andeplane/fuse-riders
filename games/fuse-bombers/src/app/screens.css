@@ -12,6 +12,36 @@
   font-size: 1cqw;
   line-height: 1.5;
 }
+
+/* The same menu actions as every game, retaining Bombers' pixel/neon appearance. */
+.fb-local-menu {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  z-index: calc(var(--fui-z-overlay) + 2);
+}
+.fb-local-menu .fui-game-menu-panel {
+  left: auto;
+  right: 0;
+}
+.fb-round-controls {
+  position: fixed;
+  bottom: auto;
+  top: max(64px, calc(env(safe-area-inset-top) + 48px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(42rem, calc(100vw - 24px));
+  max-height: 45vh;
+  overflow: auto;
+  z-index: calc(var(--fui-z-overlay) + 1);
+  font: 0.75rem/1.6 var(--fui-font-pixel);
+}
+@media (max-width: 600px) {
+  .fb-round-controls {
+    font-size: 0.6rem;
+    max-height: 40vh;
+  }
+}
 #screen button {
   font: inherit;
   font-size: 0.9cqw;

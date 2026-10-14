@@ -10,7 +10,12 @@ import {
   type DiceRoom,
   type DiceView,
 } from "../src/game/index.js";
-import { pips, presentTable, type Viewer } from "../src/app/presenter.js";
+import {
+  createRoundControlGuide,
+  pips,
+  presentTable,
+  type Viewer,
+} from "../src/app/presenter.js";
 import { dueReports, sendReport, type DueReport } from "../src/app/reports.js";
 import { DiceRuntime } from "../src/app/runtime.js";
 import {
@@ -41,6 +46,67 @@ function win(room: DiceRoom, id: string): void {
 }
 
 // ---- presenter ----
+
+test("round control guidance stays readable for four seconds and returns for each round and rematch", () => {
+  const guide = createRoundControlGuide();
+  const room = started({ turnTicks: 200, display: false });
+  assert.equal(guide(frame(room)), true);
+  runTo(room, room.tick + 79);
+  assert.equal(guide(frame(room)), true);
+  fold(room);
+  assert.equal(guide(frame(room)), false, "four seconds bound the guide");
+
+  win(room, "a");
+  assert.equal(guide(frame(room)), false, "between rounds shows no controls");
+  runTo(room, room.resumeAt);
+  assert.equal(
+    guide(frame(room)),
+    true,
+    "the next round teaches controls again",
+  );
+  const openingTurn = room.turnNo;
+  rig(room, 4);
+  fold(room, { [room.turn]: [[ROLL, openingTurn]] });
+  assert.equal(
+    guide(frame(room)),
+    true,
+    "a quick roll does not hide the guide",
+  );
+  fold(room, { [room.turn]: [[HOLD, openingTurn]] });
+  assert.equal(
+    guide(frame(room)),
+    true,
+    "the guide survives a quick turn change",
+  );
+  runTo(room, room.tick + 80);
+  assert.equal(guide(frame(room)), false);
+
+  guide(frame(createRoom("lobby", FAST)));
+  assert.equal(
+    guide(frame(started())),
+    true,
+    "a new match starts with guidance",
+  );
+});
+
+test("quick idle turns do not restart the four-second control guidance window", () => {
+  const guide = createRoundControlGuide();
+  const room = started();
+  assert.equal(guide(frame(room)), true);
+  runTo(room, room.deadline);
+  assert.equal(guide(frame(room)), true);
+  runTo(room, room.deadline);
+  assert.equal(guide(frame(room)), false, "cycling back cannot reopen it");
+});
+
+test("a rematch reopens guidance even when rendering skips the completed-match frame", () => {
+  const guide = createRoundControlGuide();
+  const room = started({ turnTicks: 200, display: false });
+  assert.equal(guide(frame(room), "first"), true);
+  runTo(room, room.tick + 80);
+  assert.equal(guide(frame(room), "first"), false);
+  assert.equal(guide(frame(started()), "rematch"), true);
+});
 
 test("the lobby: roster, start and bots for the host, a wait for everyone else", () => {
   const room = createRoom("m0", FAST);

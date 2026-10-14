@@ -1,6 +1,8 @@
 # Fuse Riders
 
-## [Play it now →](https://andeplane.github.io/fuse-riders/)
+## [Browse all games →](https://andeplane.github.io/fuse-riders/)
+
+The site root is the **Fuse Games** gallery, with gameplay screenshots and a play link for each game listed in `games/<id>/portal.json`. [Play Fuse Riders directly](https://andeplane.github.io/fuse-riders/fuse-riders/). Every game's app launcher has an **ALL GAMES** link back to the gallery. Existing root `?room=…`, `?solo=1` and `?display=1` links still open Riders.
 
 **Play solo or with friends.** Choose **PLAY SOLO** for an immediate local game against four AI riders, or create a room and share its invite. Solo uses no room service or WebRTC; refreshing starts a fresh run. In a room every device simulates the game, so any rider can refresh or drop and rejoin while the others keep playing. Gameplay requires a direct WebRTC connection; unsupported networks show a retry state. Physical-phone qualification is still pending.
 
@@ -48,7 +50,17 @@ Room settings offer **3 ROUNDS · QUICK** and **5 ROUNDS · STANDARD**, plus a c
 
 Every device in a room simulates the game from one shared input log, so no browser owns the world: the creator's stream carries the room management entries (seats, settings, start, AI riders), and if the creator goes quiet for five seconds the lowest connected rider marks it absent so play continues. A refreshed creator or guest rejoins the running match with a validated snapshot from any peer; nothing is persisted locally. A tab you switch away from steps away by its own entry: it neutralises its controls, stops being waited on, and stops being asked for a world — but it keeps its seat, is placed in the next round and is still rated, so glancing at another tab no longer costs the seat. Coming back brings it straight in. These mechanisms have regression tests (`games/fuse-riders/tests/room-runtime.test.ts`, `games/fuse-riders/tests/hidden-tabs.test.ts`), while sustained recovery on real phones and networks remains unqualified.
 
+## Menus and round controls
+
+Games keep their own visual style while following the same navigation pattern: play or join from the home screen, open **MENU** during a game, read **Controls**, return to the lobby when allowed, or leave the game. Fuse Riders keeps its existing menu with room settings, account and radio controls; the other games use the shared `fuse-ui` menu alongside their game-specific settings.
+
+Control reminders appear at each round's countdown or opening phase. Games without a countdown use their stage, turn or week start. They describe keyboard and touch input and the immediate objective; shared TV displays explain that players use their phones. Open **MENU → Controls** to read them again. The reminders do not pause the simulation or change round timing.
+
+`createGameMenu` and `createRoundControls` in `packages/fuse-ui` provide the shared behavior. Pig is the new-game template, so generated games inherit this navigation and onboarding. Run `ONLINE_URL=http://localhost:PORT/ pnpm exec tsx scripts/shared-menu-controls-smoke.ts` against a fresh local service to check the real flows.
+
 ## Pig, the second game
+
+**Ball Bros POC** is also available at `/ball-bros/`, listed in the shared app portal: solo against four bots or online rooms for up to five players, with orbital/radial paddles, destructible bases, power-ups and one-hit cores. Shared-screen rooms offer a TV view and phone controllers. Classic Circuit keeps the field clean, Crossfire opens attack lanes in the armor, and Ricochet Reactor adds five neutral center bumpers. At 01:00 remaining, Fuse Frenzy moves the base formation and adds neutral pressure balls. See [its controls and verification](games/ball-bros/README.md). It remains unranked. Production rooms remain gated by `EXTRA_GAME_IDS=ball-bros`.
 
 The same service serves **Pig**, a dice game for 2–5 players and bots, at `/dice/` (locally **http://localhost:8787/dice/**). It is the platform's demo, so the app portal (the dot-grid button at the top left of every game, listing each game with a `portal.json`) leaves it out. Roll a die as often as you like, every roll adding to your turn; a 1 loses the turn, **HOLD** banks it. First to 50 wins the round, two rounds win the match. It has solo against bots, rooms with a QR invite, and a shared TV (`?room=CODE&display=1`) with phones as ROLL/HOLD controllers. It is the template for new games: see [games/dice/README.md](games/dice/README.md). Production serves its rooms only once `EXTRA_GAME_IDS=dice` is set ([GCP deploy](docs/online/GCP-DEPLOY.md)); until then its page offers solo only.
 
@@ -176,7 +188,7 @@ The same Phaser scene stays visible behind the lobby and end-of-match overview, 
 
 [CI](.github/workflows/ci.yml) has two parts. The gate a pull request waits on is `verify`, which is green only when `checks` (formatting, lint, configuration), `build` (`tsc --noEmit` and the production build), the eight `unit` test shards and `main-health` all passed; they run side by side, so the gate is the slowest of them rather than the sum. The shard count is measured — `node --test` splits files round-robin by index rather than by cost, so the balance does not improve smoothly with more shards; re-measure before changing it, and measure the queueing the extra jobs draw as well as their work, because runner availability is not a fixed number. Coverage is not normally in it: `coverage` runs the same tests instrumented on a main push and on the release suite, and on a pull request only while main is red (below), and so do the full whole-recording replay checks (see [`replay-budget.ts`](games/fuse-riders/tests/fixtures/replay-budget.ts)). The browser matrix runs on a push to main, on a manual dispatch, or on a pull request labelled `full-ci`: one parallel `smoke: …` job per entry of [`scripts/ci-manifest.json`](scripts/ci-manifest.json), each retried once with the flake reported, summed up by one `e2e` job that is green only when every smoke passed. A push to main deploys only once all of it passes; the backend then redeploys only when something it is built from changed ([`scripts/lib/backend-paths.ts`](scripts/lib/backend-paths.ts)). Run the affected local smoke when practical and report any untested browser flow. Reserve `full-ci` for explicit requests or changes whose failure would be expensive to unwind; routine PRs do not wait on the full browser matrix. The exception is a red main: while main's latest CI run or a deployment has failed, the `main-health` job ([`scripts/main-health.ts`](scripts/main-health.ts)) has every pull request run coverage and the browser matrix on top of main, and `verify` requires them, so only a change that turns main green can merge (a failed deployment also needs the `cd-fix` label).
 
-To run the whole CI suite locally in the same order and with the same env, use `scripts/ci-local.sh`. It runs the same manifest through the same runner as CI (`scripts/ci-run.ts`), so there is no second list to keep in step; to add or change a smoke, edit `scripts/ci-manifest.json`. It stops at the first failing step, prints a `PASS`/`FAIL` line with wall time per step, starts the local room service itself (log in `artifacts/room-service.log`) and always stops it on exit. The room service takes a free port, or starts its search at `PORT`, so parallel worktrees do not collide. `ONLY` runs a comma-separated subset of steps (`format`, `lint`, `config`, `build`, `unit`, `coverage`, `keyboard`, `desktop`, `online`, `voice`, `preview`, `phaser`, `home`, `landscape`, `phase`, `recap`, `shared`, `spectator`, `determinism`, `mesh`, `dice`; `core` expands to every `verify` step and `release` to the coverage gate, and a single variant such as `online-webkit` also works) and starts the room service only when a selected step needs it. Steps CI runs in both Chrome and WebKit still run both. Unlike CI, a local run does not retry a failed smoke; `pnpm exec tsx scripts/ci-run.ts --smoke <id>` runs one smoke exactly as its CI job does, retry included. The script assumes `pnpm install --frozen-lockfile` and `pnpm exec playwright install chrome chromium webkit` have run; the room-service steps serve `dist/`, so run `build` (or `core`) first:
+To run the whole CI suite locally in the same order and with the same env, use `scripts/ci-local.sh`. It runs the same manifest through the same runner as CI (`scripts/ci-run.ts`), so there is no second list to keep in step; to add or change a smoke, edit `scripts/ci-manifest.json`. It stops at the first failing step, prints a `PASS`/`FAIL` line with wall time per step, starts the local room service itself (log in `artifacts/room-service.log`) and always stops it on exit. The room service takes a free port, or starts its search at `PORT`, so parallel worktrees do not collide. `ONLY` runs a comma-separated subset of steps (`format`, `lint`, `config`, `build`, `unit`, `coverage-browser`, `coverage`, `keyboard`, `desktop`, `online`, `voice`, `preview`, `phaser`, `home`, `landscape`, `phase`, `recap`, `shared`, `spectator`, `determinism`, `mesh`, `dice`; `core` expands to every `verify` step and `release` to the coverage gate and its browser setup, and a single variant such as `online-webkit` also works) and starts the room service only when a selected step needs it. Steps CI runs in both Chrome and WebKit still run both. Unlike CI, a local run does not retry a failed smoke; `pnpm exec tsx scripts/ci-run.ts --smoke <id>` runs one smoke exactly as its CI job does, retry included. The script assumes `pnpm install --frozen-lockfile` and `pnpm exec playwright install chrome chromium webkit` have run; the room-service steps serve `dist/`, so run `build` (or `core`) first:
 
 ```sh
 PORT=8801 scripts/ci-local.sh
@@ -191,13 +203,20 @@ Tests should use typed injected clocks, schedulers, transports and seeded random
 
 ## Product analytics
 
-The deployed site reports twelve `FlowRiders.`-prefixed product events to Mixpanel, including one `Kill` per kill
-and one `Miss` per shot that killed nobody, sent by the shooter's own device once each round is decided and confirmed. Local dev (any address with a port, a LAN address included) is off
+Every game reports Mixpanel product events with the shared `fuse.` prefix and a `gameId` property for cross-game dashboards.
+Opening, seating, match starts and match ends are tracked from real play; Fuse Riders also reports one `Kill` per kill
+and one `Miss` per shot that killed nobody, sent by the shooter's own device once each round is decided and confirmed.
+The rename from `FlowRiders.*` intentionally breaks existing dashboards; there is no dual reporting.
+Local dev (any address with a port, a LAN address included) is off
 by default, `?analytics=1` forces them on and `?analytics=0` forces them off; either choice sticks for the
 browser, so it survives the navigation into a room. See [product analytics](docs/ANALYTICS.md)
 for the event list and what is deliberately not tracked.
 
-`HOME_URL=http://127.0.0.1:8899/ pnpm exec tsx scripts/analytics-smoke.ts` (and `BROWSER=webkit`) plays a one-round
+After `pnpm build`, `pnpm exec tsx scripts/all-games-analytics-smoke.ts` starts a local room service on a free port
+and verifies the real SDK's opening event, shared prefix, game id and URL exclusions on every game page.
+All Mixpanel requests are intercepted; results go to `artifacts/all-games-analytics.json`.
+
+`HOME_URL=http://127.0.0.1:8899/ pnpm exec tsx scripts/analytics-smoke.ts` (and `BROWSER=webkit`) takes the site root, enters `/fuse-riders/` and plays a one-round
 solo match with Mixpanel intercepted — never delivered — and asserts what each event carried, writing
 `artifacts/analytics-<browser>.json`. It exists because the failure mode is silent: Mixpanel answers `200` to a
 request whose properties it dropped, so a bad payload looks exactly like a good one from inside the game. It ends
@@ -289,8 +308,11 @@ shows it and is not editable there. It is changed under **Account settings** in 
 - It is a client-side convention: joining a room is peer-to-peer and the gateway never sees the join, so it cannot
   force a signed-in rider's in-game name to match. Each stored match keeps the name it was actually played under.
 
-Signed-in PLAY SOLO records each round at `POST /api/me/round-results`, with zero Elo change. This authenticated
-endpoint accepts one human only; bots cannot move Elo. Guest solo play sends no account report. The account button
+Signed-in PLAY SOLO records each round at `POST /api/me/round-results`, with zero Elo change, and each completed
+game at `POST /api/me/results` for permanent match history and career totals. Both authenticated endpoints accept
+one human plus bots; only round receipts enter the rating graph. Guest solo play sends no account report. Run
+`pnpm exec tsx scripts/solo-history-smoke.ts` for the actual solo recap-to-history browser flow with a test account
+and local HTTP settlement (no Google OAuth or production Firestore). The account button
 shows nickname and Elo; the leaderboard button shows global rank. These controls are available in home, lobby and
 play, with a compact account button during phone play. Round completion coalesces profile refreshes at most once
 per 15 seconds rather than polling continuously.

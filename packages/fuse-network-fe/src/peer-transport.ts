@@ -14,7 +14,11 @@ import {
   type AuthorityGrant,
 } from "fuse-network-protocol";
 import { ICE_FETCH_TIMEOUT_MS, IceConfig } from "./ice-config.js";
-import { fetchIceServers, openRoomSocket } from "./room-api.js";
+import {
+  fetchIceServers,
+  openRoomSocket,
+  type RoomSocket,
+} from "./room-api.js";
 import { candidateType, sameCertificate } from "./ice-signal.js";
 import { RemoteSignal } from "./remote-signal.js";
 import { LinkRestartPolicy } from "./link-restart.js";
@@ -40,6 +44,80 @@ export const DEFAULT_TRANSPORT_COPY: TransportCopy = {
   roomFull: "Room full",
   hostAbsent: "the host is not in the room yet",
 };
+/**
+ * What `PeerTransport` does with the room socket. A browser `WebSocket` satisfies it, so
+ * `browserTransportDependencies` hands one straight over; a test passes a typed fake it drives itself.
+ */
+export interface RoomServiceSocket extends RoomSocket {
+  readonly readyState: number;
+  readonly bufferedAmount: number;
+  /** The frame handler is asynchronous, so a test can await the work one delivered frame starts. */
+  onmessage: ((event: MessageEvent) => void | Promise<void>) | null;
+  onclose: ((event: CloseEvent) => void) | null;
+  onerror: ((event: Event) => void) | null;
+  close(code?: number, reason?: string): void;
+}
+/** `WebSocket.OPEN`, named here so the transport reads no browser global. */
+const SOCKET_OPEN = 1;
+/**
+ * Every browser surface the mesh reaches for: the RTC factory, the timers, the clock, page visibility, the room
+ * socket and the ICE fetch. It defaults to the real globals, so no caller passes one; a test passes typed fakes and
+ * owns time, so no unit test waits on a real 200 ms interval.
+ */
+export interface TransportDependencies {
+  /** Monotonic milliseconds. */
+  now(): number;
+  /** The page is hidden: the health check stands down and the time probe does not renew. */
+  hidden(): boolean;
+  /** Subscribes to page visibility changes; the returned function unsubscribes. */
+  onVisibilityChange(callback: () => void): () => void;
+  /** A repeating timer; the returned function cancels it. */
+  schedule(callback: () => void, intervalMs: number): () => void;
+  /** A one-shot timer; the returned function cancels it. */
+  delay(callback: () => void, ms: number): () => void;
+  /** Runs `callback` in one macrotask that background timer throttling cannot delay (see `PeerTransport.defer`). */
+  defer(callback: () => void): void;
+  connection(configuration: RTCConfiguration): RTCPeerConnection;
+  socket(url: string): RoomServiceSocket;
+  /** Used for the room service's ICE list only. */
+  fetcher: typeof fetch;
+}
+/**
+ * The real browser surfaces. It is a factory, not a shared constant, because the deferral channel belongs to one
+ * transport: the channel is created on first use and lives as long as the page's transport does.
+ */
+export function browserTransportDependencies(): TransportDependencies {
+  let port: MessagePort | undefined;
+  const queued: Array<() => void> = [];
+  return {
+    now: () => performance.now(),
+    hidden: () => document.hidden,
+    onVisibilityChange: (callback) => {
+      document.addEventListener("visibilitychange", callback);
+      return () => document.removeEventListener("visibilitychange", callback);
+    },
+    schedule: (callback, intervalMs) => {
+      const timer = setInterval(callback, intervalMs);
+      return () => clearInterval(timer);
+    },
+    delay: (callback, ms) => {
+      const timer = setTimeout(callback, ms);
+      return () => clearTimeout(timer);
+    },
+    defer: (callback) => {
+      if (!port) {
+        const channel = new MessageChannel();
+        channel.port1.onmessage = () => queued.shift()?.();
+        port = channel.port2;
+      }
+      queued.push(callback);
+      port.postMessage(null);
+    },
+    connection: (configuration) => new RTCPeerConnection(configuration),
+    socket: (url) => new WebSocket(url),
+    fetcher: (input, init) => fetch(input, init),
+  };
+}
 /** Optional application-owned media on the same peer connections; no game dependency. */
 export interface PeerTransportExtension {
   attach(id: string, pc: RTCPeerConnection, offerer: boolean): void;
@@ -63,6 +141,8 @@ export interface PeerTransportOptions {
   /** Jitter source for the room socket's reconnect backoff, in [0, 1). Defaults to `Math.random`. */
   random?: () => number;
   extension?: PeerTransportExtension;
+  /** The browser surfaces the transport uses. Defaults to the real globals; tests pass typed fakes. */
+  dependencies?: TransportDependencies;
 }
 interface Link {
   pc: RTCPeerConnection;
@@ -100,15 +180,16 @@ export class PeerTransport implements RoomTransport {
   connectionId = "";
   sentBytes = 0;
   grant?: AuthorityGrant;
-  private authorityClock = new AuthorityClock(() => performance.now());
+  private authorityClock = new AuthorityClock(() => this.deps.now());
   private connections = new Map<string, string>();
   private probes = new Map<number, number>();
   private nextProbe = 0;
-  private timeInterval?: ReturnType<typeof setInterval>;
-  private healthInterval?: ReturnType<typeof setInterval>;
+  private cancelTime?: () => void;
+  private cancelHealth?: () => void;
+  private cancelVisibility?: () => void;
   private readonly visibility = () => {
     this.authorityClock.invalidate();
-    if (!document.hidden) this.sampleTime();
+    if (!this.deps.hidden()) this.sampleTime();
   };
   private acceptGrant(raw: unknown): void {
     if (!isAuthorityGrant(raw)) return;
@@ -124,9 +205,9 @@ export class PeerTransport implements RoomTransport {
   }
   /** Service time keeps the room alive and, for the creator, renews the lease that resolves duplicate creator tabs. */
   private sampleTime(renew = true): void {
-    if (this.stopped || this.socket?.readyState !== WebSocket.OPEN) return;
+    if (this.stopped || this.socket?.readyState !== SOCKET_OPEN) return;
     const id = ++this.nextProbe,
-      sentAt = performance.now();
+      sentAt = this.deps.now();
     this.probes.set(id, sentAt);
     for (const [key, at] of this.probes)
       if (sentAt - at > 4000) this.probes.delete(key);
@@ -148,23 +229,18 @@ export class PeerTransport implements RoomTransport {
       // reconnect, takes over.
     }
   }
-  private socket?: WebSocket;
+  private socket?: RoomServiceSocket;
   private links = new Map<string, Link>();
   // Macrotask deferral that background timer throttling cannot delay (a throttled setTimeout would pong a
   // screen-off phone a second late, fail LinkHealth and force-re-offer a healthy channel every 8 s).
   private readonly deferred: Array<() => void> = [];
-  private readonly deferPort = (() => {
-    const channel = new MessageChannel();
-    channel.port1.onmessage = () => this.deferred.shift()?.();
-    return channel.port2;
-  })();
   private defer(task: () => void): void {
     this.deferred.push(task);
-    this.deferPort.postMessage(null);
+    this.deps.defer(() => this.deferred.shift()?.());
   }
   private seq = 0;
   private stopped = false;
-  private retry?: ReturnType<typeof setTimeout>;
+  private cancelRetry?: () => void;
   private readonly backoff: ReconnectBackoff;
   private ice = new IceConfig();
   private readonly apiUrl: (path: string) => string;
@@ -173,12 +249,14 @@ export class PeerTransport implements RoomTransport {
   private readonly copy: TransportCopy;
   private readonly extension?: PeerTransportExtension;
   private extensionSentAt = -Infinity;
+  private readonly deps: TransportDependencies;
   constructor(
     readonly code: string,
     readonly token: string,
     private callbacks: TransportCallbacks,
     options: PeerTransportOptions,
   ) {
+    this.deps = options.dependencies ?? browserTransportDependencies();
     this.extension = options.extension;
     this.apiUrl = options.apiUrl;
     this.gameId = options.gameId;
@@ -192,17 +270,17 @@ export class PeerTransport implements RoomTransport {
   }
   connect(): void {
     this.authorityClock.invalidate();
-    if (!this.healthInterval)
-      this.healthInterval = setInterval(() => this.checkLinks(), 200);
-    if (!this.timeInterval) {
-      this.timeInterval = setInterval(() => this.sampleTime(), 2000);
-      document.addEventListener("visibilitychange", this.visibility);
+    if (!this.cancelHealth)
+      this.cancelHealth = this.deps.schedule(() => this.checkLinks(), 200);
+    if (!this.cancelTime) {
+      this.cancelTime = this.deps.schedule(() => this.sampleTime(), 2000);
+      this.cancelVisibility = this.deps.onVisibilityChange(this.visibility);
     }
     const ws = openRoomSocket(
       this.apiUrl,
       this.code,
       this.token,
-      (url) => new WebSocket(url),
+      (url) => this.deps.socket(url),
       this.gameId,
     );
     this.socket = ws;
@@ -241,7 +319,13 @@ export class PeerTransport implements RoomTransport {
           // Offers and signals can arrive during this fetch; link() awaits the ICE config so no peer connection is built without STUN (#27).
           await this.ice.load(
             (signal) =>
-              fetchIceServers(this.apiUrl, this.code, this.token, signal),
+              fetchIceServers(
+                this.apiUrl,
+                this.code,
+                this.token,
+                signal,
+                this.deps.fetcher,
+              ),
             AbortSignal.timeout(ICE_FETCH_TIMEOUT_MS),
           );
           if (ws !== this.socket) return;
@@ -311,7 +395,7 @@ export class PeerTransport implements RoomTransport {
         full: () => this.terminate(event.reason || this.copy.roomFull),
         // A refusal before the upgrade (HTTP 429) reads as a plain drop here; it backs off like one.
         retry: (refused) => {
-          this.retry = setTimeout(
+          this.cancelRetry = this.deps.delay(
             () => this.connect(),
             this.backoff.next(refused),
           );
@@ -332,7 +416,7 @@ export class PeerTransport implements RoomTransport {
   }
   private relay(type: string, to: string, data: unknown): boolean {
     if (
-      this.socket?.readyState !== WebSocket.OPEN ||
+      this.socket?.readyState !== SOCKET_OPEN ||
       this.socket.bufferedAmount > 256000
     )
       return false;
@@ -362,8 +446,8 @@ export class PeerTransport implements RoomTransport {
     if (socket !== this.socket || this.stopped) return undefined;
     const concurrent = this.links.get(id);
     if (concurrent) return concurrent;
-    const pc = new RTCPeerConnection({ iceServers });
-    const now = performance.now();
+    const pc = this.deps.connection({ iceServers });
+    const now = this.deps.now();
     const link: Link = {
       pc,
       remote: new RemoteSignal(pc),
@@ -411,7 +495,7 @@ export class PeerTransport implements RoomTransport {
         pc.connectionState === "failed" ||
         pc.connectionState === "disconnected"
       ) {
-        link.health.fail(performance.now());
+        link.health.fail(this.deps.now());
         this.callbacks.status(
           `Direct connection interrupted — ${this.explain(id)}`,
         );
@@ -521,7 +605,7 @@ export class PeerTransport implements RoomTransport {
   }
   /** Same RTCPeerConnection, new ICE credentials; the answerer recognises the unchanged DTLS certificate and answers on its existing connection. */
   private async restartIce(id: string, link: Link): Promise<void> {
-    const attempt = link.restart.begin(performance.now());
+    const attempt = link.restart.begin(this.deps.now());
     try {
       await link.pc.setLocalDescription(
         await link.pc.createOffer({ iceRestart: true }),
@@ -609,7 +693,7 @@ export class PeerTransport implements RoomTransport {
         if (probe.type === "linkPong")
           this.links
             .get(id)
-            ?.health.acknowledge(probe.probeId!, performance.now());
+            ?.health.acknowledge(probe.probeId!, this.deps.now());
         else {
           // libwebrtc delivers the probe before the closing state change that follows it (WebKit posts OnMessage, then
           // OnStateChange). Answering inside this onmessage task would hand the pong to an already-dead transport, so
@@ -649,7 +733,7 @@ export class PeerTransport implements RoomTransport {
     if (
       link?.gate.permits(link.game, bufferLimit) &&
       link.pc.connectionState === "connected" &&
-      link.health.direct(performance.now())
+      link.health.direct(this.deps.now())
     ) {
       try {
         const text = JSON.stringify(envelope);
@@ -698,7 +782,7 @@ export class PeerTransport implements RoomTransport {
       !!link &&
       !link.gate.draining &&
       link.game?.readyState === "open" &&
-      link.health.direct(performance.now())
+      link.health.direct(this.deps.now())
     );
   }
   private sendDirectProbe(id: string, data: unknown): boolean {
@@ -722,8 +806,8 @@ export class PeerTransport implements RoomTransport {
     if (this.extension) this.sendDirectProbe(id, this.extension.status());
   }
   private checkLinks(): void {
-    if (this.stopped || document.hidden) return;
-    const now = performance.now();
+    if (this.stopped || this.deps.hidden()) return;
+    const now = this.deps.now();
     if (now - this.extensionSentAt >= 1000) {
       this.extensionSentAt = now;
       for (const id of this.links.keys()) this.sendExtensionStatus(id);
@@ -741,7 +825,7 @@ export class PeerTransport implements RoomTransport {
       if (
         !link.health.shouldRestart(now) ||
         !this.initiator(id) ||
-        this.socket?.readyState !== WebSocket.OPEN ||
+        this.socket?.readyState !== SOCKET_OPEN ||
         !link.restart.due(now)
       )
         continue;
@@ -777,17 +861,19 @@ export class PeerTransport implements RoomTransport {
     this.stopped = true;
     this.deferred.length = 0;
     this.authorityClock.invalidate();
-    clearInterval(this.timeInterval);
-    clearInterval(this.healthInterval);
-    document.removeEventListener("visibilitychange", this.visibility);
-    clearTimeout(this.retry);
+    // The handles are kept, not cleared: as before, a `connect()` after a `close()` does not start a second pair of
+    // intervals. Cancelling twice is as harmless as the `clearInterval` pair it replaces.
+    this.cancelTime?.();
+    this.cancelHealth?.();
+    this.cancelVisibility?.();
+    this.cancelRetry?.();
     this.socket?.close();
     const connections = [...this.links.values()].map((link) => link.pc);
     this.links.clear();
     const closeAll = () => {
       for (const pc of connections) pc.close();
     };
-    if (byes.length) setTimeout(closeAll, LINK_BYE_GRACE_MS);
+    if (byes.length) this.deps.delay(closeAll, LINK_BYE_GRACE_MS);
     else closeAll();
   }
   private summary(id: string, link: Link, now: number): LinkDiagnostic {
@@ -816,7 +902,7 @@ export class PeerTransport implements RoomTransport {
   }
   /** Why the link to `id` is not carrying gameplay, for header status; redacted. */
   explain(id: string): string {
-    if (this.socket?.readyState !== WebSocket.OPEN)
+    if (this.socket?.readyState !== SOCKET_OPEN)
       return "room service connection down — reconnecting";
     if (!this.hostId) return "waiting for room admission";
     const link = this.links.get(id);
@@ -826,7 +912,7 @@ export class PeerTransport implements RoomTransport {
           ? "offer not sent yet — waiting for the room service"
           : "no offer received yet — signalling has not delivered the offer"
         : this.copy.hostAbsent;
-    return explainLink(this.summary(id, link, performance.now()));
+    return explainLink(this.summary(id, link, this.deps.now()));
   }
   /** Redacted per-link diagnostics including the selected candidate pair from getStats. */
   async diagnostics(): Promise<{
@@ -835,7 +921,7 @@ export class PeerTransport implements RoomTransport {
     socket: string;
   }> {
     const links: LinkDiagnostic[] = [];
-    const now = performance.now();
+    const now = this.deps.now();
     for (const [id, link] of this.links) {
       const summary = this.summary(id, link, now);
       try {

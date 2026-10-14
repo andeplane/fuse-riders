@@ -242,7 +242,7 @@ const padsFit = (page) =>
       a.bottom > b.top;
     const problems = [],
       canvas = box(".fa-canvas"),
-      menu = box(".fui-tools-toggle");
+      menu = box(".fui-game-menu-trigger");
     if (document.documentElement.scrollWidth > innerWidth)
       problems.push("the page is wider than the screen");
     for (const selector of [".fa-dpad", ".fa-buttons"]) {
@@ -305,6 +305,26 @@ try {
   await landing.getByRole("button", { name: "START" }).click();
   await landing.locator('main[data-screen="play"]').waitFor({ timeout: 5_000 });
   await landing.waitForTimeout(500);
+  // Menu closure returns the keyboard to the run. Enter must not reopen MENU;
+  // the hero still responds to movement after both BACK TO GAME and Escape.
+  for (const close of ["resume", "escape"]) {
+    await landing.getByRole("button", { name: "MENU", exact: true }).click();
+    if (close === "resume")
+      await landing
+        .getByRole("button", { name: "BACK TO GAME", exact: true })
+        .click();
+    else await landing.keyboard.press("Escape");
+    await landing.keyboard.press("Enter");
+    assert.equal(
+      await landing.locator(".fui-game-menu-panel").isVisible(),
+      false,
+      `Enter after ${close} leaves the run visible`,
+    );
+    const parked = await hero(landing, P1);
+    await hold(landing, "ArrowRight", 350);
+    const moved = await hero(landing, P1);
+    assert.ok(moved.x > parked.x + 5, `keyboard moves after ${close}`);
+  }
   const before = await hero(landing, P1);
   assert.ok(before, "P1 is drawn");
   assert.ok(before.scale >= 2 && Number.isInteger(before.scale), "whole scale");
@@ -496,11 +516,25 @@ try {
     "the TV stores no room token",
   );
   // The host's controller (a desktop page here, its header showing) can still call the room back to the lobby.
+  await lead.getByRole("button", { name: "MENU", exact: true }).click();
   assert.ok(
-    await lead.locator(".fa-to-lobby").isVisible(),
+    await lead
+      .getByRole("button", { name: "BACK TO LOBBY", exact: true })
+      .isVisible(),
     "the host's controller offers the lobby",
   );
-  assert.equal(await phone.locator(".fa-to-lobby").isVisible(), false);
+  await lead.keyboard.press("Escape");
+  await phone.getByRole("button", { name: "MENU", exact: true }).click();
+  assert.equal(
+    await phone
+      .getByRole("button", { name: "BACK TO LOBBY", exact: true })
+      .isVisible(),
+    false,
+    "a guest's menu cannot return the room to the lobby",
+  );
+  await phone
+    .getByRole("button", { name: "BACK TO GAME", exact: true })
+    .click();
   assert.equal(await phone.locator(".fa-canvas").isVisible(), false);
   assert.match(
     await phone.locator(".fa-controller-head").textContent(),
@@ -562,7 +596,18 @@ try {
     await thumb.locator(".fa-dpad:visible").getAttribute("data-dir"),
     "right",
   );
-  await thumb.evaluate(() => document.querySelector(".fa-to-lobby").click());
+  // DOM clicks leave the original CDP touch down, so the menu must cancel it itself.
+  await thumb.evaluate(() =>
+    document.querySelector(".fui-game-menu-trigger").click(),
+  );
+  assert.equal(
+    await thumb.locator(".fa-dpad:visible").getAttribute("data-dir"),
+    "",
+    "opening MENU clears the held d-pad's direction",
+  );
+  await thumb
+    .getByRole("button", { name: "BACK TO LOBBY", exact: true })
+    .evaluate((button) => button.click());
   await thumb.locator('main[data-screen="lobby"]').waitFor({ timeout: 5_000 });
   assert.equal(
     await thumb.locator(".fa-dpad").getAttribute("data-dir"),

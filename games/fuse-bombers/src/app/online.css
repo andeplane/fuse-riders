@@ -20,6 +20,16 @@
   padding: max(8px, env(safe-area-inset-top)) 0 8px;
   font: 0.8rem var(--fui-font-pixel);
 }
+.fb-bar .fui-game-menu-panel {
+  left: 0;
+  right: auto;
+}
+@media (max-width: 480px) {
+  .fb-bar .fui-game-menu-panel {
+    left: 0.75rem;
+    right: 0.75rem;
+  }
+}
 .fb-bar a {
   color: var(--fui-yellow);
   text-decoration: none;
@@ -32,7 +42,7 @@
   width: fit-content;
   font-size: 0.6rem;
 }
-.fb-match .fb-bar > :not(.fb-status, button),
+.fb-match .fb-bar > :not(.fb-status, button, .fui-game-menu),
 .fb-match .fb-status:not([data-tone="error"]) {
   display: none;
 }
