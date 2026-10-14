@@ -14,7 +14,7 @@ export function createTouchControls(
   const model = new TouchInput(),
     abort = new AbortController();
   let enabled = false;
-  const pads = (["move", "aim"] as const).map((pad) => {
+  const pads = (["move", "aim", "bomb"] as const).map((pad) => {
     const element = root.querySelector<HTMLElement>(`[data-pad="${pad}"]`)!;
     const knob = element.querySelector<HTMLElement>(".thumb-knob")!;
     return { pad, element, knob };
@@ -24,7 +24,9 @@ export function createTouchControls(
     root.dataset.move = String(state.move);
     root.dataset.jump = String(state.jump);
     root.dataset.fire = String(state.fire);
+    root.dataset.bomb = String(state.bomb);
     pads[1]!.element.dataset.firing = String(state.fire);
+    pads[2]!.element.dataset.charging = String(state.bomb);
     pads[1]!.knob.style.transform = state.fire
       ? `translate(${state.direction.x * 32}px, ${state.direction.y * 32}px)`
       : "";
