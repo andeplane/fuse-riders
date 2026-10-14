@@ -43,11 +43,14 @@ import { draw, COLORS } from "../render/scene.js";
 import { toView } from "../engine/view.js";
 import { keys, safeStore, sessionFor, roomFailure } from "./session.js";
 import { NightAudio } from "./audio.js";
+import { createPlayMetrics, startGameAnalytics } from "fuse-ui/play-metrics";
 const GAME = "graveyard-shift",
   app = document.querySelector<HTMLElement>("#app")!,
   store = safeStore(() => localStorage),
   names = keys(GAME),
   query = new URLSearchParams(location.search);
+const analytics = startGameAnalytics(GAME);
+const observePlay = createPlayMetrics(analytics.track, () => performance.now());
 const endpoints = createEndpoints(
   {
     basePath: `${import.meta.env.BASE_URL}${GAME}/`,
@@ -409,6 +412,16 @@ function room() {
         shared = settings.display;
         runtime?.flush();
         const mine = frame.seats.find((s) => s.id === self && !s.watcher);
+        const players = frame.seats.filter((s) => !s.watcher);
+        observePlay({
+          matchId: frame.matchId,
+          active: frame.stage === "running",
+          ended: frame.stage === "over",
+          playerCount: players.length,
+          botCount: players.filter((s) => s.bot).length,
+          seated: !!mine,
+          mode: solo ? "solo" : shared ? "shared" : "online",
+        });
         main.dataset.phase = frame.stage;
         main.dataset.tick = String(frame.tick);
         main.dataset.layout =

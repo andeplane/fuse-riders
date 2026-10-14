@@ -5,7 +5,7 @@ const int = (v: unknown, min: number, max: number): v is number =>
   Number.isInteger(v) && Number(v) >= min && Number(v) <= max;
 const id = (v: unknown): v is string =>
   typeof v === "string" &&
-  /^[a-zA-Z0-9:_-]{1,80}$/.test(v) &&
+  /^[a-zA-Z0-9:_.-]{1,64}$/.test(v) &&
   !(v in Object.prototype);
 /** Validate bounds and ownership together, then clone so rejection/installation is atomic. */
 export function decodeWorld(raw: unknown): World | undefined {

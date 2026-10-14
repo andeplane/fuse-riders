@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { JOIN, PRESENCE, type StreamEntries } from "fuse-netcode";
+import { ACTION, JOIN, PRESENCE, type StreamEntries } from "fuse-netcode";
 import {
   CAPACITY,
   DURATION,
@@ -283,6 +283,31 @@ function fold(r: Room, entries: Record<string, Entry[]>, generation = 1) {
   );
   foldTick(r, "a", streams);
 }
+test("valid dotted member ids survive a running checkpoint and continued replay", () => {
+  const r = createRoom("dotted-crew", { display: false });
+  fold(r, {
+    a: [
+      [1, 1, JOIN, "hunter.one", "Ada", 0, "hunter", 1],
+      [2, 1, JOIN, "hunter.two", "Bo", 1, "hunter", 1],
+      [3, 1, ACTION, "start", "dotted-shift"],
+    ],
+  });
+  assert.equal(r.stage, "running");
+  const w = r.world!;
+  const hunter = w.hunters[0]!;
+  const ghost = w.ghosts[0]!;
+  hunter.tank.push(ghost.id);
+  ghost.carrier = hunter.id;
+  const copy = decode(encode(r), r.tick);
+  assert.ok(copy);
+  assert.equal(hash(copy), hash(r));
+  fold(r, {});
+  fold(copy, {});
+  assert.equal(hash(copy), hash(r));
+  const invalid = structuredClone(w);
+  invalid.hunters[0]!.id = "h".repeat(65);
+  assert.equal(decodeWorld(invalid), undefined);
+});
 function seated() {
   const r = createRoom("lobby", { display: false });
   fold(r, {
