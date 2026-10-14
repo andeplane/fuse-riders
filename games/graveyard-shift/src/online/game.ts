@@ -229,7 +229,7 @@ export function decode(a: readonly unknown[], tick: number): Room | undefined {
     a.length !== 8 ||
     !uint32(tick) ||
     !validMatchId(a[0]) ||
-    !["lobby", "running", "over"].includes(String(a[2]))
+    (a[2] !== "lobby" && a[2] !== "running" && a[2] !== "over")
   )
     return;
   const settings = parseSettings(a[3]);
@@ -243,7 +243,7 @@ export function decode(a: readonly unknown[], tick: number): Room | undefined {
     return;
   const r = createRoom(a[0], settings);
   r.tick = tick;
-  r.stage = a[2] as Stage;
+  r.stage = a[2];
   r.round = a[1] as number;
   if (r.round !== (r.stage === "lobby" ? 0 : 1)) return;
   const slots = new Set<number>();
