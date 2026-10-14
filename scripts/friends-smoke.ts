@@ -318,7 +318,6 @@ try {
       .locator(".friends-dialog")
       .getByText("No friends yet")
       .waitFor();
-    await bob.locator(".friends-button").click();
     await bob.locator(".friends-dialog").getByText("No friends yet").waitFor();
     assert.deepEqual(errors, []);
     console.log("friends smoke passed");
