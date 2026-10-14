@@ -17,3 +17,11 @@ Commands: `pnpm exec tsx games/ball-bros/smoke.ts`, `pnpm exec tsx games/ball-br
 - [Arena selection](maps-lobby.png): authoritative lobby map selection with five occupied seats before an online match.
 
 The solo run selected Ricochet Reactor and an avatar, observed bumper collisions and an active power effect, reached Fuse Frenzy without clock injection, completed a round, rematched, restarted and exercised combined orbit/reach controls. The online run changed maps through the room log and covered create failure/retry, reload recovery, identical results/rematch, creator departure, shared TV/phone mode and refused-storage creation/reconnect. Radio remained off; typed media-player tests cover play/rejection/teardown. No injected game state or accelerated clock was used. Phone screenshots are browser emulation, not physical-phone or cross-network evidence.
+
+# 2026-10-14 cleanup evidence
+
+During backlog integration, the actual muted solo smoke passed portal navigation, Ricochet selection, movement/launch, damage, natural Frenzy, a complete round, rematch and phone fit. The online smoke passed create retry, bots, two real WebRTC peers, controls, reload recovery, agreed results/rematch, shared TV/controller roles and same-page reconnect with refused storage.
+
+Commands: `ONLINE_URL=http://127.0.0.1:4917/ pnpm exec tsx games/ball-bros/smoke.ts` and `ONLINE_URL=http://127.0.0.1:4917/ pnpm exec tsx games/ball-bros/online-smoke.ts`.
+
+Screenshot inspection found a dark room code on the dark invite card. [The corrected lobby](cleanup-lobby.png) was captured after rebuilding source `236c043c`; a fresh real room and seat rendered the code in `rgb(234, 246, 255)`, with no page errors. Earlier full-flow captures remain in ignored `artifacts/`. Browser emulation and local peers do not establish physical-phone or cross-network behavior.
