@@ -8,6 +8,62 @@ function converge(a: TestBirdsRuntime, b: TestBirdsRuntime): void {
   assert.ok(a.hashAt(tick));
   assert.equal(a.hashAt(tick), b.hashAt(tick));
 }
+test("a returning page refuses its connected old-generation seat until automatic admission, then applies play", () => {
+  const mesh = new BirdsMesh("b");
+  const b = mesh.join("b");
+  let a = mesh.join("a", 1);
+  try {
+    mesh.run(200);
+    b.command({ type: "join", name: "Beta" });
+    a.command({ type: "join", name: "Alpha" });
+    mesh.run(3000);
+    b.command({ type: "action", action: "start" });
+    mesh.run(4000);
+    mesh.setHidden("a", true);
+    mesh.run(300);
+    assert.equal(a.admitted, false, "an away seat cannot submit ordinary play");
+    assert.equal(a.play({ type: "pass" }), false);
+    mesh.setHidden("a", false);
+    mesh.run(1000);
+    assert.equal(a.admitted, true);
+    assert.equal(b.play({ type: "pass" }), true);
+    mesh.run(1000);
+    assert.equal(a.admitted, true);
+    a.stop();
+    a = mesh.join("a", 2);
+    let observedOldSeat = false;
+    for (let wait = 0; wait < 500; wait++) {
+      mesh.run(10);
+      const seat = a.roomState()?.seats.get("a");
+      if (seat?.connected && seat.generation === 1) {
+        observedOldSeat = true;
+        assert.equal(a.admitted, false);
+        assert.equal(a.play({ type: "pass" }), false);
+        break;
+      }
+    }
+    assert.equal(
+      observedOldSeat,
+      true,
+      "a real recovered checkpoint still owns the previous generation",
+    );
+    for (let wait = 0; wait < 500 && !a.admitted; wait++) mesh.run(10);
+    assert.equal(a.roomState()?.seats.get("a")?.generation, 2);
+    assert.equal(
+      a.admitted,
+      true,
+      "normal PRESENCE admission needs no rejected play to recover",
+    );
+    const turn = a.roomState()!.match!.turn;
+    assert.equal(a.play({ type: "pass" }), true);
+    mesh.run(1000);
+    assert.ok(a.roomState()!.match!.turn > turn);
+    assert.equal(b.roomState()!.match!.turn, a.roomState()!.match!.turn);
+    converge(a, b);
+  } finally {
+    for (const runtime of mesh.runtimes.values()) runtime.stop();
+  }
+});
 test("rapid alternating passes remain actionable through crate drops and sudden death", () => {
   const mesh = new BirdsMesh("a"),
     a = mesh.join("a"),
@@ -103,6 +159,8 @@ test("real runtime scopes a Scatter launch, repairs reordered input, and recover
     mesh.reliableBytesPerSecond = 48_000;
     const display = mesh.join("display");
     mesh.run(4000);
+    assert.equal(display.admitted, false);
+    assert.equal(display.play({ type: "pass" }), false);
     converge(a, display);
     assert.equal(display.roomState()!.match!.players[0]!.ammo, 2);
     assert.ok(display.roomState()!.match!.terrain.version > 0);

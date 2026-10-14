@@ -1,5 +1,6 @@
 import type { Frame } from "fuse-netcode";
 import type { BirdsView } from "../online/game.js";
+import type { Session } from "../online/runtime.js";
 
 /** Rendering a recovered turn does not mean the returning device has reclaimed its seat yet. */
 export function canPlayTurn(
@@ -7,13 +8,11 @@ export function canPlayTurn(
   memberId: string,
   displayOnly: boolean,
   battlefieldReady: boolean,
+  session: Pick<Session, "admitted">,
 ): boolean {
-  if (!frame || displayOnly || !battlefieldReady) return false;
-  const seat = frame.seats.find((candidate) => candidate.id === memberId);
+  if (!frame || displayOnly || !battlefieldReady || !session.admitted)
+    return false;
   return (
-    !!seat?.connected &&
-    !seat.away &&
-    !seat.watcher &&
     frame.world?.phase === "aiming" &&
     frame.world.players[frame.world.active]?.id === memberId
   );

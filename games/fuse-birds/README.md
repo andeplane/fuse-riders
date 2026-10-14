@@ -14,6 +14,8 @@ Drag back from your bird and release to shoot. Drag elsewhere to pan; pinch or u
 
 Keyboard: focus the battlefield, then use **I/K** to aim up/down and **J/L** to aim left/right. Hold **Shift** for larger adjustments, **Enter** to fire, or **Escape** to cancel. **+/−** zoom. Off-screen bird and ammo labels show their direction while zoomed; the TV always retains the full map.
 
+After a refresh, controls stay disabled with a reconnect hint until the room admits the returning page. A recovered turn or the previous page's connected seat does not enable play. Admission happens automatically while a peer remains; a rejected action is not required to recover. The app and play submission share the runtime's admission check, and solo practice implements the same session interface without a room.
+
 ## Public headless API
 
 ```ts
