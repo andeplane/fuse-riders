@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { launchSelected } from "../../scripts/lib/browser.js";
+import { startGameCoverage } from "../../scripts/lib/game-browser-coverage.js";
 
 const origin = process.env.ONLINE_URL ?? "http://localhost:8792/";
 const browser = await launchSelected("chrome");
@@ -8,6 +9,7 @@ try {
     viewport: { width: 1440, height: 1000 },
   });
   const errors: string[] = [];
+  const finishCoverage = await startGameCoverage(page, { gameId: "ball-bros" });
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(new URL("ball-bros/?mute", origin).href);
   await page
@@ -44,6 +46,7 @@ try {
   console.log(
     "PASS: avatar picker, optional portrait failure, radio remains off and live room lobby; muted screenshots saved.",
   );
+  await finishCoverage();
 } finally {
   await browser.close();
 }

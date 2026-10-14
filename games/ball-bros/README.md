@@ -79,4 +79,6 @@ The online check covers create retry, real WebRTC peers, bot seating, reload rec
 
 The presentation check covers core selection and aborts the optional avatar request to verify that gameplay still starts. All browser runs stay muted. Unit tests cover radio playback/rejection/teardown through a typed media player.
 
+`pnpm test:coverage` combines the unit suite with these real Chromium flows against a fresh source server. `browser-coverage.json` opts this game into the shared runner. Native executed ranges are mapped only after the served source matches the current files exactly; the existing repository coverage thresholds and exclusions remain unchanged.
+
 The `ball-bros-6` golden in `tests/engine.test.ts` records a complete deterministic five-bot match including authoritative map state, powers, Frenzy motion/pressure and complete checkpoints. Old Ball Bros clients must refresh before joining this version. Change the game rules version and review/refresh its hash for intended physics changes. Fuse Riders' rules and golden remain unchanged.

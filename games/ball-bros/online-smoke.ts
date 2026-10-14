@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import type { Page } from "playwright";
 import { launchSelected } from "../../scripts/lib/browser.js";
+import { startGameCoverage } from "../../scripts/lib/game-browser-coverage.js";
 
 // Real room service + WebRTC, no injected game state or accelerated clocks.
 const origin = process.env.ONLINE_URL ?? "http://localhost:8792/";
@@ -19,6 +20,9 @@ const contexts = await Promise.all([
 ]);
 const [host, guest, tv] = await Promise.all(contexts.map((c) => c.newPage()));
 const tabs = [host!, guest!, tv!];
+const finishCoverage = await Promise.all(
+  tabs.map((page) => startGameCoverage(page, { gameId: "ball-bros" })),
+);
 for (const page of tabs) page.on("pageerror", (e) => errors.push(e.message));
 await mkdir("artifacts", { recursive: true });
 const phase = (p: Page, value: string, timeout = 30000) =>
@@ -236,6 +240,7 @@ try {
   console.log(
     "PASS storage refusal: creator identity survives room entry and same-page reconnect.",
   );
+  await Promise.all(finishCoverage.map((finish) => finish()));
 } catch (error) {
   await Promise.all(
     tabs.map((p, i) =>
