@@ -206,6 +206,7 @@ try {
     console.log(`Pass-loop CPU slowdown: ${cpuRate}x on every page`);
   }
   // Finish a real room without changing clocks or injecting game state. Sudden-death water bounds all-pass play.
+  let recoveredPhonePasses = 0;
   for (let turns = 0; turns < 100; turns++) {
     await first.waitForFunction(() =>
       ["aiming", "over"].includes(
@@ -294,7 +295,12 @@ try {
       oldTurn,
       { timeout: 5000 },
     );
+    if (active === second) recoveredPhonePasses++;
   }
+  assert.ok(
+    recoveredPhonePasses > 0,
+    "the automatically readmitted phone must apply a PASS; ordinary deadlines alone cannot prove recovery",
+  );
   for (const p of [first, second, tv])
     await p.locator('.birds-room[data-phase="over"]').waitFor();
   await first.screenshot({ path: `${output}/result.png` });
