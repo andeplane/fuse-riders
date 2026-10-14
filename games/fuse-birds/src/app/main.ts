@@ -1,6 +1,7 @@
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
+import "fuse-ui/portal.css";
 import "./birds.css";
 import QRCode from "qrcode";
 import {
@@ -12,6 +13,7 @@ import {
 } from "fuse-network-fe";
 import { MAX_PACKET_BYTES, uuid, type Callbacks } from "fuse-netcode";
 import { button, createInviteCard, createNameEntry, el } from "fuse-ui";
+import { createAppPortal } from "fuse-ui/portal";
 import {
   UNIT,
   type Fact,
@@ -59,6 +61,14 @@ function brand(): HTMLElement {
   title.href = endpoints.appUrl();
   title.append(el("span", "FUSE"), el("span", "BIRDS"));
   return title;
+}
+function portal(): HTMLElement {
+  return createAppPortal({
+    document,
+    current: GAME,
+    base: import.meta.env.BASE_URL,
+    search: location.search,
+  }).element;
 }
 function notice(text: string): HTMLElement {
   const p = el("p", text, "birds-notice");
@@ -160,7 +170,9 @@ function landing(): void {
     message,
     back,
   );
-  page.append(brand(), card);
+  const header = el("header", "", "birds-top");
+  header.append(portal(), brand());
+  page.append(header, card);
   app.replaceChildren(page);
 }
 function room(code: string, display: boolean, practice = false): void {
@@ -189,7 +201,7 @@ function room(code: string, display: boolean, practice = false): void {
     if (menu.open) cancel();
   });
   page.addEventListener("pointerdown", () => audio.unlock());
-  header.append(brand(), codeLabel, message, menu);
+  header.append(portal(), brand(), codeLabel, message, menu);
   const lobby = el("section", "", "birds-lobby birds-card"),
     members = el("ul", "", "birds-roster"),
     start = button("START BATTLE", "fui-button-primary");
