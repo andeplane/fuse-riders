@@ -230,7 +230,7 @@ export class RoomRuntime extends NetRuntime<
       append(CANCEL, held.active);
       held.active = 0;
     }
-    if (this.lastPacketTick === -1) this.sendPackets(this.deps.now());
+    if (this.recorder.lastPacketTick === -1) this.sendPackets(this.deps.now());
     return true;
   }
   /**
