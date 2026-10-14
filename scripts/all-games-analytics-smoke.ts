@@ -6,7 +6,7 @@ import { startRoomService } from "./lib/server.js";
 /** Intercept real SDK requests from every shipped page; never send test metrics to Mixpanel. Build first. */
 const server = process.env.HOME_URL ? undefined : await startRoomService();
 const base = process.env.HOME_URL ?? server!.url;
-const pages = [{ gameId: "fuse-riders", path: "" }];
+const pages = [{ gameId: "fuse-riders", path: "fuse-riders/" }];
 for (const gameId of await readdir("games")) {
   if (gameId === "fuse-riders") continue;
   try {
