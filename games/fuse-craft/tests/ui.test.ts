@@ -244,6 +244,10 @@ test("Craft shows controls at every match start and keeps them available from ME
   assert.equal(hint().hidden, false);
   assert.match(hint().textContent!, /Click \/ tap/);
   assert.match(hint().textContent!, /choose Build/);
+  hint().querySelector<HTMLButtonElement>("button")!.click();
+  f.world.tick++;
+  f.publish();
+  assert.equal(hint().hidden, true, "dismissal survives the next game frame");
   f.world.tick = 160;
   f.publish();
   assert.equal(hint().hidden, true);
