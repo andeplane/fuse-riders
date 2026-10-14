@@ -1,6 +1,8 @@
 # Fuse Riders
 
-## [Play it now →](https://andeplane.github.io/fuse-riders/)
+## [Browse all games →](https://andeplane.github.io/fuse-riders/)
+
+The site root is the **Fuse Games** gallery, with gameplay screenshots and a play link for each game listed in `games/<id>/portal.json`. [Play Fuse Riders directly](https://andeplane.github.io/fuse-riders/fuse-riders/). Every game's app launcher has an **ALL GAMES** link back to the gallery. Existing root `?room=…`, `?solo=1` and `?display=1` links still open Riders.
 
 **Play solo or with friends.** Choose **PLAY SOLO** for an immediate local game against four AI riders, or create a room and share its invite. Solo uses no room service or WebRTC; refreshing starts a fresh run. In a room every device simulates the game, so any rider can refresh or drop and rejoin while the others keep playing. Gameplay requires a direct WebRTC connection; unsupported networks show a retry state. Physical-phone qualification is still pending.
 
@@ -191,13 +193,20 @@ Tests should use typed injected clocks, schedulers, transports and seeded random
 
 ## Product analytics
 
-The deployed site reports twelve `FlowRiders.`-prefixed product events to Mixpanel, including one `Kill` per kill
-and one `Miss` per shot that killed nobody, sent by the shooter's own device once each round is decided and confirmed. Local dev (any address with a port, a LAN address included) is off
+Every game reports Mixpanel product events with the shared `fuse.` prefix and a `gameId` property for cross-game dashboards.
+Opening, seating, match starts and match ends are tracked from real play; Fuse Riders also reports one `Kill` per kill
+and one `Miss` per shot that killed nobody, sent by the shooter's own device once each round is decided and confirmed.
+The rename from `FlowRiders.*` intentionally breaks existing dashboards; there is no dual reporting.
+Local dev (any address with a port, a LAN address included) is off
 by default, `?analytics=1` forces them on and `?analytics=0` forces them off; either choice sticks for the
 browser, so it survives the navigation into a room. See [product analytics](docs/ANALYTICS.md)
 for the event list and what is deliberately not tracked.
 
-`HOME_URL=http://127.0.0.1:8899/ pnpm exec tsx scripts/analytics-smoke.ts` (and `BROWSER=webkit`) plays a one-round
+After `pnpm build`, `pnpm exec tsx scripts/all-games-analytics-smoke.ts` starts a local room service on a free port
+and verifies the real SDK's opening event, shared prefix, game id and URL exclusions on every game page.
+All Mixpanel requests are intercepted; results go to `artifacts/all-games-analytics.json`.
+
+`HOME_URL=http://127.0.0.1:8899/ pnpm exec tsx scripts/analytics-smoke.ts` (and `BROWSER=webkit`) takes the site root, enters `/fuse-riders/` and plays a one-round
 solo match with Mixpanel intercepted — never delivered — and asserts what each event carried, writing
 `artifacts/analytics-<browser>.json`. It exists because the failure mode is silent: Mixpanel answers `200` to a
 request whose properties it dropped, so a bad payload looks exactly like a good one from inside the game. It ends
@@ -289,8 +298,11 @@ shows it and is not editable there. It is changed under **Account settings** in 
 - It is a client-side convention: joining a room is peer-to-peer and the gateway never sees the join, so it cannot
   force a signed-in rider's in-game name to match. Each stored match keeps the name it was actually played under.
 
-Signed-in PLAY SOLO records each round at `POST /api/me/round-results`, with zero Elo change. This authenticated
-endpoint accepts one human only; bots cannot move Elo. Guest solo play sends no account report. The account button
+Signed-in PLAY SOLO records each round at `POST /api/me/round-results`, with zero Elo change, and each completed
+game at `POST /api/me/results` for permanent match history and career totals. Both authenticated endpoints accept
+one human plus bots; only round receipts enter the rating graph. Guest solo play sends no account report. Run
+`pnpm exec tsx scripts/solo-history-smoke.ts` for the actual solo recap-to-history browser flow with a test account
+and local HTTP settlement (no Google OAuth or production Firestore). The account button
 shows nickname and Elo; the leaderboard button shows global rank. These controls are available in home, lobby and
 play, with a compact account button during phone play. Round completion coalesces profile refreshes at most once
 per 15 seconds rather than polling continuously.
