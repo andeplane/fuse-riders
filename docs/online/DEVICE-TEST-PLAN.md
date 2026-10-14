@@ -130,7 +130,8 @@ fail and needs a new issue with the press count, timing and screenshots.
 #134 replaced the lobby half of #13: on a phone the **lobby** is a plain
 screen (room code with join link and QR, riders, and for the host START
 RACE / ADD AI / ROOM SETTINGS — no TV VIEW, a phone is never the TV — with
-the join form inline before taking a seat) in either orientation, with no
+READY and this rider's own NAME / AVATAR / COLOUR / SWAP TO SPECTATOR beside
+it, since the room seats a creator on arrival) in either orientation, with no
 rotate gate and one ROOM button. It is the desktop lobby stacked (headline,
 QR card, riders, actions) rather than a card of its own. From **countdown** through **matchOver** `mobilePlayPolicy` is
 active: the full-screen thirds are the only controller and roster/host
@@ -155,8 +156,9 @@ quality.
    strip — START RACE, ROOM SETTINGS and ADD AI reachable by normal page
    scrolling, and no TV VIEW button. No "Rotate your phone" gate.
 3. Rotate to landscape and back: the same lobby screen both times, nothing
-   hidden. JOIN AS PLAYER, then add an AI opponent and set a short match
-   length so a match can complete quickly.
+   hidden — the phone is already seated, so confirm its own row is in the
+   roster and that AVATAR and COLOUR change it. Then add an AI opponent and
+   set a short match length so a match can complete quickly.
 4. Start the race; screenshot during **countdown**. Portrait shows the complete
    arena rotated 90°, with upright avatars/labels and bottom touch thirds;
    landscape keeps full-screen thirds. The ☰ MENU pill stays accessible in
@@ -170,7 +172,7 @@ quality.
    control surface, the ☰ MENU overlay auto-opened for the phone host with
    REMATCH, BACK TO LOBBY, ROOM SETTINGS, TV VIEW and ADD AI all readable (none
    clipped), and that rotating keeps the overlay open.
-7. BACK TO LOBBY returns to the lobby screen of step 2. Leaving the room entirely is ROOM → LEAVE ROOM — behind ☰ MENU while the phone is the controller, in the header on the lobby screen. The room keeps running for whoever stays, and the rider in the next seat takes over as host; END ROOM, under it and only on the creator's device, closes the room for everyone.
+7. BACK TO LOBBY returns to the lobby screen of step 2. Leaving the room entirely is ROOM → LEAVE ROOM — behind ☰ MENU while the phone is the controller, and on the lobby screen either in the header or, where the viewport is too short for the header to spend two rows on buttons (a phone held sideways), behind that screen's own ☰ MENU. The room keeps running for whoever stays, and the rider in the next seat takes over as host; END ROOM, under it and only on the creator's device, closes the room for everyone.
 
 **Capture**: revision, device/OS/browser, one screenshot per phase (lobby
 portrait + landscape, countdown, playing, matchOver), and a short note of

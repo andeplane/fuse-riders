@@ -1,0 +1,59 @@
+{
+  "source": "03a28e62727697ac2adbe64d420d11ee1d0aee75",
+  "map": "cortex-crossing",
+  "players": 4,
+  "seconds": 900,
+  "matches": 420,
+  "outcomes": {
+    "elimination": 183,
+    "dominance": 236,
+    "draw": 0,
+    "timeout": 1
+  },
+  "medianSeconds": 506,
+  "winsByOpening": {
+    "balanced": {
+      "games": 240,
+      "wins": 104,
+      "share": 0.433
+    },
+    "pressure": {
+      "games": 240,
+      "wins": 45,
+      "share": 0.188
+    },
+    "economy": {
+      "games": 240,
+      "wins": 64,
+      "share": 0.267
+    },
+    "siege": {
+      "games": 240,
+      "wins": 54,
+      "share": 0.225
+    },
+    "relay": {
+      "games": 240,
+      "wins": 7,
+      "share": 0.029
+    },
+    "defensive": {
+      "games": 240,
+      "wins": 88,
+      "share": 0.367
+    },
+    "swarm": {
+      "games": 240,
+      "wins": 57,
+      "share": 0.237
+    }
+  },
+  "winsBySeat": [
+    104,
+    98,
+    114,
+    103
+  ],
+  "simulationSource": "f504deef",
+  "note": "source is HEAD when the run finished; commits after f504deef changed only app, render, scripts and docs"
+}

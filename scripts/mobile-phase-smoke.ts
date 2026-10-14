@@ -2,8 +2,8 @@ import { BOTH_ENGINES, launchBrowser } from "./lib/browser.js";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { smokeTimeout } from "./smoke-timeout.js";
-// #13: a joined phone shows one controller presentation (full-screen thirds, hint labels, ☰ MENU pill) in countdown, playing and matchOver.
-// #134: the lobby is a phone screen instead — riders, START RACE and one menu on screen in both orientations, no thirds, no rotate gate.
+// #13: a joined phone shows one controller presentation (invisible arcade regions, hint labels, ☰ MENU pill) in countdown, playing and matchOver.
+// #134: the lobby is a phone screen instead — riders, START RACE and one menu on screen in both orientations, no controls, no rotate gate.
 const base = process.env.HOME_URL ?? "http://127.0.0.1:4188/";
 const results: object[] = [];
 await mkdir("artifacts", { recursive: true });
@@ -133,7 +133,7 @@ for (const { name, kind } of BOTH_ENGINES) {
       await onScreen(name, label);
   };
   try {
-    await page.goto(new URL("?solo=1", base).href);
+    await page.goto(new URL("?solo=1&mute", base).href);
     await page.locator(".mobile-play").waitFor();
     await page.waitForFunction(() =>
       document.querySelector("canvas")?.dataset.renderer?.startsWith("phaser-"),
@@ -160,10 +160,17 @@ for (const { name, kind } of BOTH_ENGINES) {
       0,
       "countdown closes the tools overlay",
     );
-    assert.ok((await hintsOpacity()) > 0, "hints visible at countdown start");
+    assert.equal(await hintsOpacity(), 1, "outlines visible during countdown");
+    assert.equal(
+      await page
+        .locator(".mobile-control-hints")
+        .evaluate((element) => getComputedStyle(element).animationName),
+      "none",
+      "outlines remain visible for the whole countdown, without a fade timer",
+    );
     seen.countdown = await capture("countdown");
     await notice(/^$/);
-    assert.ok((await hintsOpacity()) > 0, "hints visible at play start");
+    assert.equal(await hintsOpacity(), 0, "outlines disappear as play starts");
     seen.playing = await capture("playing");
     await notice(/MATCH COMPLETE/, 180000);
     await page.getByRole("button", { name: "CLOSE", exact: true }).click();

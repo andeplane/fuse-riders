@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AVATARS, avatarCell } from "../src/shared/avatars.ts";
+import { AVATARS, RIDER_AVATARS, avatarCell } from "../src/shared/avatars.ts";
 import { isAvatarId } from "../src/engine/avatar-id.ts";
 import { parseClientMessage } from "../src/shared/protocol.ts";
 import { addPlayer, createGame, toView } from "../src/engine/game.ts";
 import { classicSettings } from "./fixtures/classic-settings.ts";
 
-test("ten distinct avatar ids address exactly ten atlas cells", () => {
-  assert.equal(AVATARS.length, 10);
+test("every avatar id addresses its own atlas cell, and ten of the eleven are a rider's", () => {
+  // Eleven heads: the ten a person may pick from, and the robot, which is the AI riders' alone.
+  assert.equal(AVATARS.length, 11);
+  assert.equal(RIDER_AVATARS.length, 10);
   const cells = new Set<string>();
   AVATARS.forEach(({ id }, index) => {
     assert.ok(isAvatarId(id));
@@ -23,7 +25,7 @@ test("ten distinct avatar ids address exactly ten atlas cells", () => {
       { type: "join", name: "Rider", avatarId: id },
     );
   });
-  assert.equal(cells.size, 10);
+  assert.equal(cells.size, AVATARS.length);
   for (const invalid of [
     undefined,
     null,

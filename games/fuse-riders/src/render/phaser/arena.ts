@@ -14,13 +14,8 @@ import { drawBombAim } from "./bomb-aim.js";
 import { drawInkClouds } from "../ink-renderer.js";
 import { portalPalettes } from "../portal-palettes.js";
 import { EffectTransitions, bombPose } from "./effects.js";
-import {
-  completeTrailStrokes,
-  trailColor,
-  TrailHistoryCache,
-  trailTip,
-  type TrailPoint,
-} from "./trails.js";
+import { trailColor, trailTip, type TrailPoint } from "./trails.js";
+import { TrailHistory } from "./trail-history.js";
 import { arenaWall, trailStuds } from "../arena-wall.js";
 import {
   mapGround,
@@ -84,6 +79,8 @@ export interface ArenaMetrics {
   renderMs: number;
   automaticLoopRunning: boolean;
   trailHistoryBuilds: number;
+  /** Established trail segments whose path geometry was built, summed over every frame drawn. */
+  trailSegmentsBuilt: number;
   /** False when Phaser's texture READY listeners changed shape and the #127 guard could not install. */
   defaultTextureGuard: boolean;
 }
@@ -344,6 +341,7 @@ export function createPhaserArena(
       renderMs,
       automaticLoopRunning: game.loop.running,
       trailHistoryBuilds: scene.trailHistoryBuilds,
+      trailSegmentsBuilt: scene.trailSegmentsBuilt,
       defaultTextureGuard,
     }),
   };
@@ -370,8 +368,9 @@ class ArenaScene extends Phaser.Scene {
   private labels: Phaser.GameObjects.Text[] = [];
   private imageIndex = 0;
   private labelIndex = 0;
-  private trailHistory = new TrailHistoryCache();
+  private trailHistory = new TrailHistory();
   trailHistoryBuilds = 0;
+  trailSegmentsBuilt = 0;
   private floorKey = "";
   private backgroundKey = "";
   private transitions = new EffectTransitions();
@@ -1051,23 +1050,14 @@ class ArenaScene extends Phaser.Scene {
             s.decidedRound?.round === s.round
           ? s.decidedRound.tick
           : s.tick;
-    const history = this.trailHistory.update(
-      s.players,
-      `${matchId}:${s.round}:${theme.id}`,
-      trailColorTick,
-      s.rules,
-    );
-    if (history.changed) {
-      this.trailHistoryBuilds++;
-      this.trails.clear();
-      for (const stroke of this.beveledTrails ? [] : history.strokes)
-        this.strokeTrail(this.trails, stroke.paths, color(stroke.color), theme);
-    }
+    const scope = `${matchId}:${s.round}:${theme.id}`;
     this.trailTips.clear();
-    if (this.beveledTrails)
+    if (this.beveledTrails) {
+      // History and moving tip travel in one ribbon here, so the Graphics layers of this backend stay empty.
       this.beveledTrails.updateTrails(
-        completeTrailStrokes(
+        this.trailHistory.complete(
           s.players,
+          scope,
           s.tick,
           s.phase,
           s.rules,
@@ -1075,7 +1065,26 @@ class ArenaScene extends Phaser.Scene {
         ),
         s.rules.trailWidth,
       );
-    for (const player of this.beveledTrails ? [] : s.players)
+      this.trailSegmentsBuilt += this.trailHistory.builtLastFrame();
+      if (this.trailHistory.changedLastFrame()) this.trailHistoryBuilds++;
+      return;
+    }
+    const history = this.trailHistory.update(
+      s.players,
+      scope,
+      trailColorTick,
+      s.rules,
+    );
+    this.trailSegmentsBuilt += history.built;
+    if (history.changed) {
+      this.trailHistoryBuilds++;
+      // Three passes with translucent glow and a cap at each end: stroking only the new segments into the
+      // retained Graphics would blend differently where a trail crosses itself, so a change repaints.
+      this.trails.clear();
+      for (const stroke of history.strokes)
+        this.strokeTrail(this.trails, stroke.paths, color(stroke.color), theme);
+    }
+    for (const player of s.players)
       this.strokeTrail(
         this.trailTips,
         [trailTip(player, s.tick, s.phase)],
@@ -1176,6 +1185,18 @@ class ArenaScene extends Phaser.Scene {
     );
     const portalTints = portalPalettes(livePortals.map((pair) => pair.id));
     for (const [pairIndex, pair] of livePortals.entries()) {
+      const activatesAt = pair.expiresAtTick - s.rules.portalLifetimeTicks;
+      // The phase follows the authoritative tick; interpolation only eases its appearance.
+      const forming = s.tick < activatesAt;
+      const time = s.presentationTick ?? s.tick;
+      const warmup = Math.max(
+        0,
+        Math.min(1, 1 - (activatesAt - time) / s.rules.portalWarmupTicks),
+      );
+      const remaining = Math.max(
+        0,
+        Math.min(1, (pair.expiresAtTick - time) / s.rules.portalLifetimeTicks),
+      );
       const tints = portalTints[pairIndex]!.map(color) as [number, number];
       const shotPulses = portalPulses.filter(
         (pulse) => pulse.pairId === pair.id,
@@ -1191,7 +1212,7 @@ class ArenaScene extends Phaser.Scene {
             .fillRect(point.x - 8, point.y - 2, 16, 4);
 
       // The faint tether keeps the two ends of one pair readable when several pairs are open.
-      g.lineStyle(2, tints[0], 0.18).lineBetween(
+      g.lineStyle(2, tints[0], forming ? 0.07 : 0.18).lineBetween(
         pair.gates[0].x,
         pair.gates[0].y,
         pair.gates[1].x,
@@ -1199,6 +1220,38 @@ class ArenaScene extends Phaser.Scene {
       );
       for (const [index, gate] of pair.gates.entries()) {
         const tint = tints[index]!;
+        const bar = uprightOffset(
+          gate.x,
+          gate.y,
+          0,
+          this.rotated ? -22 : -gate.halfLength - 18,
+          this.rotated,
+        );
+        if (forming) {
+          // Broken, translucent silhouettes cannot be mistaken for the solid active gates.
+          for (let y = -gate.halfLength; y < gate.halfLength; y += 24)
+            g.lineStyle(5, tint, 0.15 + 0.4 * warmup).lineBetween(
+              gate.x,
+              gate.y + y,
+              gate.x,
+              gate.y + Math.min(gate.halfLength, y + 12),
+            );
+          this.label("FORMING", bar.x, bar.y, "#a7b5c8", 8);
+          continue;
+        }
+        const start = uprightOffset(bar.x, bar.y, -24, 0, this.rotated);
+        const end = uprightOffset(bar.x, bar.y, 24, 0, this.rotated);
+        const fill = uprightOffset(
+          bar.x,
+          bar.y,
+          -24 + 48 * remaining,
+          0,
+          this.rotated,
+        );
+        g.lineStyle(8, 0x08101d, 1)
+          .lineBetween(start.x, start.y, end.x, end.y)
+          .lineStyle(4, tint, 1)
+          .lineBetween(start.x, start.y, fill.x, fill.y);
         g.lineStyle(22, tint, 0.12)
           .lineBetween(
             gate.x,
