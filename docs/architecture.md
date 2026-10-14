@@ -2,7 +2,7 @@
 
 This is the system map for the source tree: what exists on `main` today. Module definitions and tests are authoritative for rules, limits and wire fields; release records describe what was deployed. The [architecture epic #259](https://github.com/andeplane/fuse-riders/issues/259) and the [refactor plan](reviews/refactor-plan-2026-09-17.md) it came from still have open stages — where this map names one, it says so. A stage that is named there and not here has not landed.
 
-## One play path: online rooms
+## One runtime for local and online play
 
 The site root is the screenshot gallery (`site/main.ts`, `fuse-ui/src/gallery.ts`). Vite builds its catalog and the in-game launcher from each game's `portal.json`, including its optional `screenshot` path. Every game has a dedicated page at `<base><game-id>/`, including Fuse Riders at `<base>fuse-riders/`. Root links with `room`, `solo` or `display` parameters still boot Riders for existing invites and bookmarks. The gallery loads no simulation or room connection; the launcher offers an **ALL GAMES** link back to it.
 
@@ -13,7 +13,7 @@ browser replica <------ WebRTC mesh ------> browser replica
                Firestore metadata / Pub/Sub routing
 ```
 
-Every game is an online room, including solo play (a room with no peers) and a shared screen (a room in shared mode: the TV opens `?room=CODE&display=1` as a display-only member and phones join the same room as controllers). Authority is the shared input log: every device simulates the same deterministic rules locally, and late inputs trigger rollback. The creator supplies initial clock and management authority; the runtime also supports delegated management and peer snapshot recovery. The service never simulates or relays gameplay. `pnpm dev` runs the same room protocol over in-memory metadata (`service/dev.ts`).
+Every game uses the room runtime and input log. Solo play and local gamepads run without a transport; local gamepads give each human a separate input stream on the same clock ([local gamepads](design/local-gamepads.md)). Online rooms include shared screens: the TV opens `?room=CODE&display=1` as a display-only member and phones join the same room as controllers. Authority is the shared input log: every device simulates the same deterministic rules locally, and late inputs trigger rollback. The creator supplies initial clock and management authority; the runtime also supports delegated management and peer snapshot recovery. The service never simulates or relays gameplay. `pnpm dev` runs the same room protocol over in-memory metadata (`service/dev.ts`).
 
 The separate LAN server (`src/server/`, a Node process that simulated the game for a TV at `/display` and phones at `/controller`) was removed in [#271](https://github.com/andeplane/fuse-riders/pull/271); those routes no longer exist.
 
@@ -62,6 +62,8 @@ Fuse Drivers (`games/fuse-drivers/`) owns its offroad racing simulation and fold
 Packages (`packages/*`) must not import `src/` or `games/`; a game in `games/` may import any package and never another game. The game composes them through `RoomTransport` and related interfaces. Rendering lives in `games/fuse-riders/src/render/` and imports only `games/fuse-riders/src/engine/view.ts` (types) and `games/fuse-riders/src/engine/view-kit.ts`; the rule values it needs travel as data in the `WorldView`, and netcode no longer imports presentation code. See the [render boundary](design/render-boundary.md).
 
 The target is `engine` (pure rules), `net` (simulation coordination), `render` (engine view contract only), and `app` (composition). Renaming folders alone does not establish this boundary. The engine half of that is in place: the simulation lives in `games/fuse-riders/src/engine/`, imports nothing outside itself, and runs each tick as the ordered `PHASES` list ([engine pipeline](design/engine-pipeline.md)). Since #254 the migration allowlist is empty, so the layer-boundary test fails a new cross-layer import rather than pinning it: what the log or the checkpoint guard validates against is the engine's (the rider-name rule in `engine/rider-name.ts`, the avatar ids in `engine/avatar-id.ts`), and `games/fuse-riders/src/shared/` keeps the presentation and the wire vocabulary — avatar labels and atlas cells, the game id, the account and career types, and `protocol.ts`, which re-exports the engine's own primitives rather than owning them. The render half is too ([render boundary](design/render-boundary.md)). The single tick driver ([note](design/engine-tick-driver.md)), the effect, pickup and weapon registries ([note](design/engine-registries.md)) and the app layer with its shared UI (`packages/fuse-ui/`) have all landed. What remains of the layer work is the direction of the imports: app, net and render code deep-imports individual engine modules rather than going through `games/fuse-riders/src/engine/index.ts`.
+
+Graveyard Shift (`games/graveyard-shift/`) adds a ghost-catching POC through the same `RollbackGame`, `RoomRuntime`, platform admission and portfolio menu. Its integer engine, validated checkpoints, Canvas view renderer and app are separate modules. See its [rules and controls](../games/graveyard-shift/README.md) and [design note](design/graveyard-shift.md). Persistent career reports are deferred for this POC.
 
 ## Online data flow and recovery
 

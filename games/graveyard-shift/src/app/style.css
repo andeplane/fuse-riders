@@ -1,0 +1,542 @@
+:root {
+  color-scheme: dark;
+  --fui-accent: #7cf3cc;
+  font-family: Arial, sans-serif;
+  color: #d5e9e1;
+  background: #0c1420;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: radial-gradient(ellipse at 50% 0, #23383e, #0c1420 75%);
+  min-height: 100vh;
+}
+button,
+input {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+  border: 1px solid #54736d;
+  border-radius: 5px;
+  background: #1c3039;
+  color: #d9eee4;
+  padding: 13px 18px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+button:hover {
+  background: #304c50;
+  border-color: #9bdbc5;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+a {
+  color: inherit;
+}
+[hidden] {
+  display: none !important;
+}
+.top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 3vw;
+  border-bottom: 1px solid #354b4f;
+  min-height: 76px;
+}
+.brand {
+  font:
+    bold 13px "Press Start 2P",
+    monospace;
+  text-decoration: none;
+  letter-spacing: -1px;
+  color: #b9efd7;
+}
+.eyebrow {
+  font: bold 10px monospace;
+  letter-spacing: 3px;
+  color: #86b3a9;
+}
+.sound {
+  margin-left: auto;
+}
+.top button {
+  font-size: 10px;
+  padding: 10px;
+}
+.status {
+  font: 11px monospace;
+  max-width: 250px;
+}
+.room-code {
+  color: #edce8c;
+}
+.landing {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr);
+  max-width: 1440px;
+  margin: 6vh auto;
+  padding: 24px;
+  gap: 34px;
+  align-items: center;
+}
+.hero {
+  position: relative;
+  min-height: 560px;
+  border: 1px solid #56776c;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 30px 70px #0008;
+}
+.hero canvas {
+  position: absolute;
+  width: 140%;
+  height: 100%;
+  max-height: none;
+  object-fit: cover;
+  left: -20%;
+  filter: brightness(0.63);
+}
+.hero:after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(#0a152244, transparent 65%, #08121bbb);
+  pointer-events: none;
+}
+.hero-title {
+  position: absolute;
+  z-index: 1;
+  top: 45px;
+  left: 38px;
+  right: 20px;
+  pointer-events: none;
+}
+.hero h1 {
+  white-space: pre-line;
+  font:
+    clamp(28px, 3.4vw, 52px)/1.35 "Press Start 2P",
+    monospace;
+  letter-spacing: -3px;
+  color: #b8f3d8;
+  text-shadow:
+    0 5px #183b42,
+    0 10px 30px #071019;
+}
+.tagline {
+  white-space: pre-line;
+  font-size: 20px;
+  line-height: 1.6;
+  color: #e2e4ce;
+}
+.landing .fui-landing {
+  width: 100%;
+  max-width: none;
+  border: 1px solid #46635e;
+  background: #13242ae8;
+  padding: 32px;
+  border-radius: 12px;
+}
+.landing h1,
+.landing h2 {
+  color: #d4eee2;
+}
+.landing .fui-landing-title {
+  font-size: 26px;
+}
+.landing p {
+  line-height: 1.7;
+}
+.shared {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+  margin: 15px 0;
+}
+.guide {
+  width: 100%;
+  margin-top: 15px;
+}
+.meta {
+  font: 9px monospace;
+  letter-spacing: 1px;
+  color: #8aa89f;
+  margin-top: 24px;
+}
+.primary,
+.fui-button-primary {
+  background: #e2c582 !important;
+  color: #16242b !important;
+  border-color: #f2dc9b !important;
+}
+.room {
+  max-width: 1240px;
+  margin: auto;
+  padding: 18px;
+}
+.lobby {
+  max-width: 720px;
+  margin: 35px auto;
+  padding: 25px;
+  border: 1px solid #41605c;
+  border-radius: 14px;
+  background: #15262de8;
+}
+.lobby h1 {
+  font-size: 30px;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+.hud {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin: 0 0 13px;
+}
+.scores {
+  display: flex;
+  gap: 9px;
+  flex: 1;
+}
+.score {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 5px;
+  padding: 10px 13px;
+  background: #1b2c34;
+  border-top: 3px solid var(--hunter);
+  border-radius: 5px;
+}
+.score span {
+  font: bold 11px monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--hunter);
+}
+.score strong {
+  font: 20px monospace;
+  grid-row: span 2;
+  color: #edf4df;
+}
+.score small {
+  font: 10px monospace;
+  color: #8cabaa;
+}
+.clock {
+  font:
+    26px "Press Start 2P",
+    monospace;
+  color: #ecd293;
+}
+.arena {
+  display: block;
+  width: 100%;
+  max-height: calc(100vh - 245px);
+  object-fit: contain;
+  border: 1px solid #49645e;
+  border-radius: 9px;
+  background: #111c29;
+  touch-action: none;
+}
+.hint {
+  text-align: center;
+  font: 11px monospace;
+  color: #b2c7bc;
+  letter-spacing: 0.04em;
+}
+.personal {
+  text-align: center;
+  font: 12px monospace;
+  color: #edd491;
+}
+.pad {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  max-width: 700px;
+  margin: auto;
+}
+.directions {
+  display: grid;
+  grid-template: repeat(2, 48px) / repeat(3, 52px);
+  gap: 5px;
+}
+.directions .up {
+  grid-column: 2;
+}
+.directions .left {
+  grid-column: 1;
+  grid-row: 2;
+}
+.directions .down {
+  grid-column: 2;
+  grid-row: 2;
+}
+.directions .right {
+  grid-column: 3;
+  grid-row: 2;
+}
+.pad button {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.abilities {
+  display: flex;
+  gap: 12px;
+}
+.abilities button {
+  min-height: 78px;
+  min-width: 115px;
+}
+.vacuum {
+  border-color: #7df5d0;
+  color: #9bffdb;
+  background: #234c48;
+}
+.pulse {
+  border-color: #dbbd83;
+  color: #edd294;
+}
+.result {
+  text-align: center;
+  padding: 25px;
+  margin: 20px auto;
+  background: #183039;
+  border: 1px solid #789f86;
+  border-radius: 12px;
+  max-width: 600px;
+}
+.result button {
+  margin: 6px;
+}
+.ranks p {
+  font: 16px monospace;
+}
+.handbook {
+  max-width: 600px;
+  padding: 34px;
+  border: 1px solid #719e8f;
+  border-radius: 12px;
+  background: #14242e;
+  color: #d6e8de;
+}
+.handbook::backdrop {
+  background: #050d17cc;
+}
+.handbook p {
+  font:
+    14px/1.6 Arial,
+    sans-serif;
+}
+.handbook h3 {
+  font: 12px monospace;
+  color: #f0d18b;
+  margin-top: 25px;
+}
+.handbook button {
+  width: 100%;
+  margin-top: 15px;
+}
+.remove {
+  margin-left: auto;
+  padding: 4px 10px;
+}
+.room form {
+  max-width: 500px;
+  margin: 20px auto;
+}
+[data-layout="controller"] .pad {
+  margin: 30px auto;
+}
+[data-layout="controller"] .directions {
+  grid-template: repeat(2, 70px) / repeat(3, 70px);
+}
+[data-layout="controller"] .abilities button {
+  min-height: 120px;
+}
+.fui-roster {
+  margin: 20px 0;
+}
+@media (min-width: 1000px) and (pointer: fine) {
+  [data-layout="arena"] .pad {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .top {
+    padding: 12px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .top > .eyebrow {
+    display: none;
+  }
+  .brand {
+    font-size: 9px;
+  }
+  .status {
+    max-width: 160px;
+    font-size: 9px;
+  }
+  .landing {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 15px;
+    gap: 16px;
+  }
+  .hero {
+    min-height: 320px;
+    width: 100%;
+  }
+  .hero-title {
+    top: 24px;
+    left: 24px;
+  }
+  .hero h1 {
+    font-size: 29px;
+  }
+  .tagline {
+    font-size: 15px;
+  }
+  .landing .fui-landing {
+    padding: 22px;
+  }
+  .room {
+    padding: 10px;
+  }
+  .hud {
+    gap: 8px;
+  }
+  .scores {
+    gap: 4px;
+  }
+  .score {
+    padding: 7px 5px;
+    display: flex;
+    flex-direction: column;
+  }
+  .score span {
+    font-size: 9px;
+  }
+  .score strong {
+    font-size: 17px;
+  }
+  .score small {
+    font-size: 8px;
+  }
+  .clock {
+    font-size: 15px;
+  }
+  .arena {
+    max-height: 48vh;
+  }
+  .abilities button {
+    min-width: 90px;
+    padding: 10px;
+    font-size: 11px;
+  }
+  .hint {
+    font-size: 9px;
+  }
+  .lobby {
+    margin: 10px auto;
+  }
+  .personal {
+    font-size: 10px;
+  }
+  [data-layout="controller"] .directions {
+    grid-template: repeat(2, 60px) / repeat(3, 58px);
+  }
+  [data-layout="controller"] .abilities button {
+    min-height: 90px;
+  }
+  .result h1 {
+    font-size: 24px;
+  }
+}
+@media (max-height: 550px) {
+  .top {
+    min-height: 45px;
+    padding: 7px;
+  }
+  .room {
+    padding: 7px;
+  }
+  .arena {
+    max-height: 65vh;
+  }
+  .pad {
+    max-width: none;
+  }
+  .personal {
+    margin: 4px;
+  }
+  .hud {
+    margin: 0 0 5px;
+  }
+  .hint {
+    margin: 5px;
+  }
+}
+/* Landscape play keeps both thumbs and the arena visible together. */
+@media (max-height: 550px) and (pointer: coarse) {
+  [data-layout="arena"] .play {
+    display: grid;
+    grid-template-columns: 150px minmax(0, 1fr) 145px;
+    grid-template-rows: 58px minmax(0, 1fr);
+    gap: 6px;
+    height: calc(100dvh - 77px);
+  }
+  [data-layout="arena"] .hud {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  [data-layout="arena"] .arena {
+    grid-column: 2;
+    grid-row: 2;
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+  }
+  [data-layout="arena"] .pad {
+    display: contents;
+  }
+  [data-layout="arena"] .directions {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: center;
+    grid-template: repeat(2, 55px) / repeat(3, 46px);
+    gap: 4px;
+  }
+  [data-layout="arena"] .abilities {
+    grid-column: 3;
+    grid-row: 2;
+    align-self: center;
+    flex-direction: column;
+    gap: 8px;
+  }
+  [data-layout="arena"] .abilities button {
+    min-height: 67px;
+    font-size: 12px;
+  }
+  [data-layout="arena"] .hint,
+  [data-layout="arena"] .personal {
+    display: none;
+  }
+}
