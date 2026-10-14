@@ -238,12 +238,19 @@ try {
           const room = document.querySelector<HTMLElement>(".birds-room");
           const label =
             document.querySelector(".birds-turn")?.textContent ?? "";
+          const actor = room?.querySelector<HTMLElement>(
+            ".birds-player.current",
+          );
           const pass = [
             ...(room?.querySelectorAll<HTMLButtonElement>("button") ?? []),
           ].find((button) => button.textContent === "PASS");
           return {
             turn: room?.dataset.turn,
             phase: room?.dataset.phase,
+            match: room?.dataset.match,
+            round: room?.dataset.round,
+            actor: actor?.dataset.playerId,
+            ordinal: Number(actor?.dataset.appliedOrdinal),
             mine: label.includes("YOUR TURN"),
             seconds: Number(label.match(/(\d+)s/)?.[1] ?? 0),
             playable:
@@ -261,6 +268,12 @@ try {
       !a ||
       !b ||
       a.turn !== b.turn ||
+      a.match !== b.match ||
+      a.round !== b.round ||
+      a.actor !== b.actor ||
+      !a.actor ||
+      !Number.isSafeInteger(a.ordinal) ||
+      a.ordinal !== b.ordinal ||
       a.phase !== "aiming" ||
       b.phase !== "aiming" ||
       a.mine === b.mine
@@ -300,17 +313,53 @@ try {
       .locator(`.birds-room[data-turn="${oldTurn}"][data-phase="aiming"]`)
       .getByRole("button", { name: "PASS", exact: true })
       .click({ timeout: 3000 });
+    // The engine increments a player's ordinal only when that player's scoped action is applied.
+    // Observe the receiving replica's copied view; neither a queued packet nor a turn deadline can satisfy this.
+    // Ordinal gaps are allowed, and this isolated flow submits only this PASS after the paired baseline.
     await first.waitForFunction(
-      (previous) => {
+      (expected) => {
         const room = document.querySelector<HTMLElement>(".birds-room");
+        const actor = [
+          ...(room?.querySelectorAll<HTMLElement>(".birds-player") ?? []),
+        ].find((card) => card.dataset.playerId === expected.actor);
         return (
-          room?.dataset.turn !== previous || room?.dataset.phase === "over"
+          !!room &&
+          room.dataset.match === expected.match &&
+          room.dataset.round === expected.round &&
+          Number(actor?.dataset.appliedOrdinal) >= expected.ordinal
         );
       },
-      oldTurn,
-      { timeout: 5000 },
+      {
+        actor: a.actor,
+        match: a.match,
+        round: a.round,
+        ordinal: a.ordinal + 1,
+      },
+      { timeout: 30_000 },
+    );
+    assert.ok(
+      Number(
+        await first
+          .locator(`.birds-player[data-player-id="${a.actor}"]`)
+          .getAttribute("data-applied-ordinal"),
+      ) > a.ordinal,
+      "the receiving replica applied the ordinary PASS; deadlines never increment the actor ordinal",
     );
     if (active === second) recoveredPhonePasses++;
+    await Promise.all(
+      [first, second].map((page) =>
+        page.waitForFunction(
+          (previous) => {
+            const room = document.querySelector<HTMLElement>(".birds-room");
+            return (
+              room?.dataset.turn !== previous || room?.dataset.phase === "over"
+            );
+          },
+          oldTurn,
+          { timeout: 30_000 },
+        ),
+      ),
+    );
   }
   assert.ok(
     recoveredPhonePasses > 0,

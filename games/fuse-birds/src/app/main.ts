@@ -508,6 +508,8 @@ function room(code: string, display: boolean, practice = false): void {
       view = frame.world;
       page.dataset.phase = view?.phase ?? frame.stage;
       page.dataset.turn = String(view?.turn ?? 0);
+      page.dataset.match = view?.id ?? "";
+      page.dataset.round = String(view?.round ?? 0);
       const seated = frame.seats.some((s) => s.id === me && !s.watcher),
         inLobby = frame.stage === "lobby";
       observePlay(
@@ -570,6 +572,8 @@ function room(code: string, display: boolean, practice = false): void {
             cards.set(p.id, card);
           }
           card.style.setProperty("--bird", COLORS[p.slot]!);
+          card.dataset.playerId = p.id;
+          card.dataset.appliedOrdinal = String(p.ordinal);
           card.classList.toggle("current", p.id === player.id);
           card.classList.toggle("eliminated", p.hp === 0);
           card.replaceChildren(

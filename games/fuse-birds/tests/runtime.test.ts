@@ -154,11 +154,51 @@ test("a three-device room applies the recovered phone's first PASS after a Scatt
       recovered.deadline - recovered.tick > 100,
       "the five-second check must finish before an automatic turn deadline",
     );
+    const ordinal = a
+      .roomState()!
+      .match!.players.find((p) => p.id === "b")!.ordinal;
     assert.equal(b.play({ type: "pass" }), true);
     mesh.run(5000);
     assert.ok(a.roomState()!.match!.turn > 2);
+    assert.equal(
+      a.roomState()!.match!.players.find((p) => p.id === "b")!.ordinal,
+      ordinal + 1,
+    );
     converge(a, b);
     converge(a, tv);
+  } finally {
+    for (const runtime of mesh.runtimes.values()) runtime.stop();
+  }
+});
+test("automatic room deadlines advance turns without a receiver-applied action ordinal", () => {
+  const mesh = new BirdsMesh("a"),
+    a = mesh.join("a"),
+    b = mesh.join("b");
+  try {
+    mesh.run(200);
+    a.command({ type: "join", name: "Alpha" });
+    b.command({ type: "join", name: "Beta" });
+    mesh.run(3000);
+    a.command({ type: "action", action: "start" });
+    for (
+      let wait = 0;
+      wait < 1000 && a.roomState()?.match?.phase !== "aiming";
+      wait++
+    )
+      mesh.run(10);
+    const match = a.roomState()!.match!;
+    assert.equal(match.turn, 1);
+    mesh.run((match.deadline - match.tick) * 50 + 1000);
+    assert.ok(a.roomState()!.match!.turn > 1);
+    assert.deepEqual(
+      a.roomState()!.match!.players.map((p) => p.ordinal),
+      [0, 0],
+    );
+    assert.deepEqual(
+      b.roomState()!.match!.players.map((p) => p.ordinal),
+      [0, 0],
+    );
+    converge(a, b);
   } finally {
     for (const runtime of mesh.runtimes.values()) runtime.stop();
   }
