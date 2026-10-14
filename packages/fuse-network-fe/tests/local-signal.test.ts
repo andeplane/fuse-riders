@@ -118,3 +118,20 @@ test("early trickle is bounded and concurrent descriptions cannot share its buff
   await pending;
   assert.equal(frames.length, 65);
 });
+
+test("a restart superseded during setLocalDescription cannot publish its description or candidates", async () => {
+  const pc = new Peer(),
+    frames: LocalSignalFrame[] = [];
+  let current = true;
+  const out = new LocalSignal(pc, (frame) => {
+    frames.push(frame);
+    return true;
+  });
+  const pending = out.describe(description, () => current);
+  out.candidate(candidate);
+  current = false;
+  pc.release!();
+  await pending;
+  out.candidate(candidate);
+  assert.deepEqual(frames, []);
+});

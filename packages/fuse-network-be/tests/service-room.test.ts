@@ -251,17 +251,26 @@ test("host and client reports are correlated, sanitized, bounded and never publi
   assert.equal(f.database.reads, reads);
   assert.equal(f.database.transactions, writes);
   assert.equal(f.aBus.queued.length, published);
-  f.failLog();
-  f.advance(10000);
-  await f.a.receive(j.hostConnection, raw([link]));
-  assert.equal(
-    j.host.closes.length,
-    0,
-    "diagnostic sink failure must not interrupt the room",
-  );
   await f.a.disconnect(j.hostConnection);
   await f.a.receive(j.hostConnection, raw([link]));
   assert.equal(f.logs.length, 4, "retired admission cannot report");
+});
+
+test("a failed diagnostic sink leaves the admitted room connection healthy", async () => {
+  const f = fixture(),
+    j = await joined(f);
+  f.failLog();
+  await f.a.receive(
+    j.hostConnection,
+    JSON.stringify({
+      type: "link-report",
+      version: 1,
+      hidden: false,
+      links: [],
+    }),
+  );
+  assert.equal(j.host.closes.length, 0);
+  assert.equal(f.a.connections, 1);
 });
 
 test("service transaction retries keep one logical connection/grant and fenced replacement", async () => {
