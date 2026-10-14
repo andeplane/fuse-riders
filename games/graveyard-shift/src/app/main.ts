@@ -41,7 +41,13 @@ import type { View } from "../online/game.js";
 import { seatName } from "../online/names.js";
 import { draw, COLORS } from "../render/scene.js";
 import { toView } from "../engine/view.js";
-import { keys, safeStore, sessionFor, roomFailure } from "./session.js";
+import {
+  keys,
+  safeStore,
+  sessionFor,
+  roomFailure,
+  createSeatAdmission,
+} from "./session.js";
 import { NightAudio } from "./audio.js";
 import { createPlayMetrics, startGameAnalytics } from "fuse-ui/play-metrics";
 const GAME = "graveyard-shift",
@@ -254,14 +260,18 @@ function room() {
     });
     lobby.append(invite.element);
   }
+  const rememberedName = store.getItem(names.name);
+  const admission = createSeatAdmission(rememberedName, (name) =>
+    runtime?.command({ type: "join", name }),
+  );
   const name = createNameEntry({
-    initial: store.getItem(names.name) ?? "",
+    initial: rememberedName ?? "",
     normalize: (v) => seatName(v) ?? "",
     onInput: (v) => store.setItem(names.name, v),
     buttonText: "JOIN CREW",
     onSubmit: (v) => {
       store.setItem(names.name, v);
-      runtime?.command({ type: "join", name: v });
+      admission.submit(v);
     },
   });
   const actions = el("div", "", "actions");
@@ -395,7 +405,6 @@ function room() {
   name.form.hidden = true;
   app.append(main);
   let previous: World | undefined;
-  let joined = false;
   runtime = new GraveyardRuntime(
     code,
     {
@@ -442,10 +451,7 @@ function room() {
           ? "WAITING FOR CREW…"
           : "READY FOR ANOTHER SHIFT";
         back.hidden = !host;
-        if (!mine && !display && !joined && store.getItem(names.name)) {
-          joined = true;
-          runtime?.command({ type: "join", name: store.getItem(names.name)! });
-        }
+        if (!display) admission.observe(!!mine);
         roster.update(
           frame.seats
             .filter((s) => !s.watcher)

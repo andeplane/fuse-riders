@@ -64,6 +64,21 @@ try {
   await host.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
   await host.waitForURL(/room=/);
   await host.locator("input.fui-name-input").fill("Ada");
+  const beforeJoinTick = Number(
+    await host.locator("main.room").getAttribute("data-tick"),
+  );
+  await host.waitForFunction(
+    (tick) =>
+      Number(document.querySelector("main.room")?.getAttribute("data-tick")) >
+      tick,
+    beforeJoinTick,
+  );
+  assert.ok(
+    await host
+      .getByRole("button", { name: "JOIN CREW", exact: true })
+      .isVisible(),
+    "typing a fresh name must not submit it on the next room frame",
+  );
   await host.getByRole("button", { name: "JOIN CREW", exact: true }).click();
   await host.getByRole("button", { name: "READY", exact: true }).waitFor();
   const code = new URL(host.url()).searchParams.get("room");
