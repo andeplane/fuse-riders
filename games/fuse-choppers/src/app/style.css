@@ -751,6 +751,23 @@ body {
   gap: 14px;
 }
 
+.fc-controller > .fui-round-controls {
+  position: relative;
+  inset: auto;
+  transform: none;
+  width: 100%;
+  order: -1;
+}
+
+.fc-top .fui-game-menu-panel {
+  background: var(--fc-panel);
+}
+
+.fc-screen .fui-round-controls,
+.fc-controller .fui-round-controls {
+  background: var(--fc-panel);
+}
+
 .fc-controller-head {
   display: flex;
   flex-wrap: wrap;

@@ -88,6 +88,31 @@ export interface TableModel {
   lobby: LobbyModel;
 }
 
+/** Pig has no countdown: teach controls for four simulation seconds when a new round first reaches this page. */
+export function createRoundControlGuide(): (
+  view: DiceView,
+  matchId?: string,
+) => boolean {
+  let round = 0;
+  let match = "";
+  let openedAtTick = 0;
+  let finished = false;
+  return (view, matchId = "") => {
+    if (view.phase !== "running") {
+      round = 0;
+      return false;
+    }
+    if (view.round !== round || matchId !== match) {
+      round = view.round;
+      match = matchId;
+      openedAtTick = view.tick;
+      finished = false;
+    }
+    if (view.tick - openedAtTick >= 4 * TICKS_PER_SECOND) finished = true;
+    return !finished;
+  };
+}
+
 const PIPS: Record<number, number[]> = {
   1: [4],
   2: [2, 6],
