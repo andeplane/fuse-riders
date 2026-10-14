@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fuse Bombers · gunships</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #050912;
+      }
+      #app canvas {
+        display: block;
+      }
+      .view {
+        position: absolute;
+        left: 1056px;
+        font: 13px monospace;
+        color: #fff;
+        text-shadow: 0 1px 2px #000;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div class="view" style="top: 18px">0.35× · night sky</div>
+    <div class="view" style="top: 473px">0.35× · day sky</div>
+    <script type="module" src="./gunships.ts"></script>
+  </body>
+</html>
