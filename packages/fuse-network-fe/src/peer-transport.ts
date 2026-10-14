@@ -12,6 +12,7 @@ import {
   ROOM_PROTOCOL_VERSION,
   isAuthorityGrant,
   type AuthorityGrant,
+  type LinkReportFrame,
 } from "fuse-network-protocol";
 import { ICE_FETCH_TIMEOUT_MS, IceConfig } from "./ice-config.js";
 import {
@@ -21,6 +22,7 @@ import {
 } from "./room-api.js";
 import { candidateType, sameCertificate } from "./ice-signal.js";
 import { RemoteSignal } from "./remote-signal.js";
+import { LocalSignal } from "./local-signal.js";
 import { LinkRestartPolicy } from "./link-restart.js";
 import { ReconnectBackoff } from "./reconnect-backoff.js";
 import { explainLink, type LinkDiagnostic } from "./link-diagnostics.js";
@@ -149,6 +151,7 @@ interface Link {
   game?: RTCDataChannel;
   input?: RTCDataChannel;
   remote: RemoteSignal;
+  outbound: LocalSignal;
   health: LinkHealth;
   gate: LinkSendGate;
   restart: LinkRestartPolicy;
@@ -249,6 +252,7 @@ export class PeerTransport implements RoomTransport {
   private readonly copy: TransportCopy;
   private readonly extension?: PeerTransportExtension;
   private extensionSentAt = -Infinity;
+  private reportAt = -Infinity;
   private readonly deps: TransportDependencies;
   constructor(
     readonly code: string,
@@ -298,6 +302,7 @@ export class PeerTransport implements RoomTransport {
             return;
           }
           this.backoff.reset();
+          this.reportAt = -Infinity;
           this.received.clear();
           // Peers that left while our socket was down never produce a peer-offline message; reconcile against the roster first.
           const roster = new Set<string>(
@@ -331,9 +336,9 @@ export class PeerTransport implements RoomTransport {
           if (ws !== this.socket) return;
           this.callbacks.status(this.copy.linking);
           this.callbacks.welcome(this.id, this.hostId);
-          for (const peer of message.peers) {
-            this.callbacks.peer(peer.id, true);
-            if (this.initiator(peer.id)) await this.offer(peer.id);
+          for (const id of this.connections.keys()) {
+            this.callbacks.peer(id, true);
+            if (this.initiator(id)) await this.offer(id);
           }
         } else if (message.type === "time") {
           const sent = this.probes.get(message.id);
@@ -442,8 +447,15 @@ export class PeerTransport implements RoomTransport {
     const existing = this.links.get(id);
     if (existing) return existing;
     const socket = this.socket;
+    const targetConnection = this.connections.get(id);
+    if (!targetConnection) return undefined;
     const iceServers = await this.ice.iceServers();
-    if (socket !== this.socket || this.stopped) return undefined;
+    if (
+      socket !== this.socket ||
+      this.stopped ||
+      this.connections.get(id) !== targetConnection
+    )
+      return undefined;
     const concurrent = this.links.get(id);
     if (concurrent) return concurrent;
     const pc = this.deps.connection({ iceServers });
@@ -451,6 +463,15 @@ export class PeerTransport implements RoomTransport {
     const link: Link = {
       pc,
       remote: new RemoteSignal(pc),
+      outbound: new LocalSignal(pc, (data) => {
+        if (!isCurrentLinkCallback(this.links.get(id), link)) return false;
+        const sent = this.relay("signal", id, data);
+        if (!sent) link.counts.relayFailed++;
+        else if ("candidate" in data) link.counts.candidatesOut++;
+        else if (data.description.type === "offer") link.counts.offersOut++;
+        else link.counts.answersOut++;
+        return sent;
+      }),
       health: new LinkHealth(now),
       gate: new LinkSendGate(),
       restart: restart ?? new LinkRestartPolicy(now, RESTART_ATTEMPTS),
@@ -473,9 +494,7 @@ export class PeerTransport implements RoomTransport {
         return;
       const type = candidateType(event.candidate.candidate);
       link.local[type] = (link.local[type] ?? 0) + 1;
-      if (this.relay("signal", id, { candidate: event.candidate.toJSON() }))
-        link.counts.candidatesOut++;
-      else link.counts.relayFailed++;
+      link.outbound.candidate(event.candidate.toJSON());
     };
     pc.ondatachannel = (event) => {
       if (!isCurrentLinkCallback(this.links.get(id), link)) {
@@ -583,8 +602,9 @@ export class PeerTransport implements RoomTransport {
   /** `force` replaces a drained link with a fresh RTCPeerConnection and gate; the restart budget carries over. */
   private async offer(id: string, force = false): Promise<void> {
     const old = this.links.get(id);
-    if (!force && old?.game?.readyState === "open") return;
-    if (old) {
+    // Repeated roster notifications must not tear down an offer whose channel is still connecting.
+    if (!force && old?.game) return;
+    if (old && force) {
       this.extension?.drop(id);
       old.pc.close();
       this.links.delete(id);
@@ -597,27 +617,23 @@ export class PeerTransport implements RoomTransport {
       link,
       link.pc.createDataChannel("input", { ordered: false, maxRetransmits: 0 }),
     );
-    await link.pc.setLocalDescription(await link.pc.createOffer());
-    if (!isCurrentLinkCallback(this.links.get(id), link)) return;
-    if (this.relay("signal", id, { description: link.pc.localDescription }))
-      link.counts.offersOut++;
-    else link.counts.relayFailed++;
+    await link.outbound.describe(await link.pc.createOffer());
   }
   /** Same RTCPeerConnection, new ICE credentials; the answerer recognises the unchanged DTLS certificate and answers on its existing connection. */
   private async restartIce(id: string, link: Link): Promise<void> {
     const attempt = link.restart.begin(this.deps.now());
     try {
-      await link.pc.setLocalDescription(
+      await link.outbound.describe(
         await link.pc.createOffer({ iceRestart: true }),
+        () =>
+          isCurrentLinkCallback(this.links.get(id), link) &&
+          link.restart.complete(attempt),
       );
       if (
         !isCurrentLinkCallback(this.links.get(id), link) ||
         !link.restart.complete(attempt)
       )
         return;
-      if (this.relay("signal", id, { description: link.pc.localDescription }))
-        link.counts.offersOut++;
-      else link.counts.relayFailed++;
     } catch (error) {
       link.lastFailure = `restart: ${error instanceof Error ? error.name : "error"}`;
       link.restart.complete(attempt);
@@ -651,13 +667,8 @@ export class PeerTransport implements RoomTransport {
         if (!isCurrentLinkCallback(this.links.get(id), link)) return;
         if (data.description.type === "offer") {
           this.extension?.answer(id);
-          await link.pc.setLocalDescription(await link.pc.createAnswer());
+          await link.outbound.describe(await link.pc.createAnswer());
           if (!isCurrentLinkCallback(this.links.get(id), link)) return;
-          if (
-            this.relay("signal", id, { description: link.pc.localDescription })
-          )
-            link.counts.answersOut++;
-          else link.counts.relayFailed++;
         }
       } else if (data.candidate) {
         const type = candidateType(data.candidate.candidate);
@@ -806,8 +817,51 @@ export class PeerTransport implements RoomTransport {
     if (this.extension) this.sendDirectProbe(id, this.extension.status());
   }
   private checkLinks(): void {
-    if (this.stopped || this.deps.hidden()) return;
+    if (this.stopped) return;
     const now = this.deps.now();
+    // Uses synchronous summaries: a hung getStats must never block operational reports or link recovery.
+    if (
+      now >= this.reportAt &&
+      this.socket?.readyState === SOCKET_OPEN &&
+      this.socket.bufferedAmount <= 256000 &&
+      this.id
+    ) {
+      const report: LinkReportFrame = {
+        type: "link-report",
+        version: 1,
+        hidden: this.deps.hidden(),
+        links: [...this.links].map(([id, link]) => {
+          const d = this.summary(id, link, now);
+          return {
+            peerId: id,
+            connectionId: this.connections.get(id)!,
+            offerer: this.initiator(id),
+            healthy: d.healthy,
+            ageMs: Math.round(d.ageMs),
+            ice: d.ice,
+            connection: d.connection,
+            gathering: d.gathering,
+            signaling: d.signaling,
+            channel: d.channel,
+            local: { ...d.local } as Record<string, number>,
+            remote: { ...d.remote } as Record<string, number>,
+            signalling: { ...d.signalling },
+            attempts: d.restarts.attempts,
+          };
+        }),
+      };
+      this.reportAt =
+        now +
+        (report.links.length > 0 && report.links.every((link) => link.healthy)
+          ? 60000
+          : 10000);
+      try {
+        this.socket.send(JSON.stringify(report));
+      } catch {
+        /* Best effort, bounded by reportAt. */
+      }
+    }
+    if (this.deps.hidden()) return;
     if (now - this.extensionSentAt >= 1000) {
       this.extensionSentAt = now;
       for (const id of this.links.keys()) this.sendExtensionStatus(id);
@@ -879,6 +933,7 @@ export class PeerTransport implements RoomTransport {
   private summary(id: string, link: Link, now: number): LinkDiagnostic {
     return {
       peer: id === this.hostId ? "host" : "guest",
+      offerer: this.initiator(id),
       local: link.local,
       remote: link.remoteTypes,
       gathering: link.pc.iceGatheringState,

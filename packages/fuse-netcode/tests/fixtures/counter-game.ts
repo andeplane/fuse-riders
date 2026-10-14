@@ -140,8 +140,8 @@ const record = (value: unknown): value is Record<string, number> =>
   !Array.isArray(value) &&
   Object.entries(value).every(([key, count]) => memberId(key) && uint32(count));
 function decodeSeat(raw: unknown): SeatRecord | undefined {
-  if (!Array.isArray(raw) || raw.length !== 7) return;
-  const [id, name, slot, avatarId, connected, role, generation] = raw;
+  if (!Array.isArray(raw) || raw.length !== 8) return;
+  const [id, name, slot, avatarId, connected, role, generation, away] = raw;
   const watcher = role === "watcher";
   if (
     !memberId(id) ||
@@ -150,7 +150,8 @@ function decodeSeat(raw: unknown): SeatRecord | undefined {
     typeof avatarId !== "string" ||
     typeof connected !== "boolean" ||
     (!watcher && typeof role !== "boolean") ||
-    (generation !== null && !uint32(generation))
+    (generation !== null && !uint32(generation)) ||
+    (away !== null && typeof away !== "boolean")
   )
     return;
   return {
@@ -162,6 +163,7 @@ function decodeSeat(raw: unknown): SeatRecord | undefined {
     bot: role === true,
     ...(watcher ? { watcher } : {}),
     ...(generation === null ? {} : { generation }),
+    ...(away === null ? {} : { away }),
   };
 }
 const STAGES: readonly Stage[] = ["lobby", "running", "between", "over"];
@@ -246,6 +248,7 @@ export const counterGame: RollbackGame<
         seat.connected,
         seat.watcher === true ? "watcher" : seat.bot,
         seat.generation ?? null,
+        seat.away ?? null,
       ]),
       room.settings,
       room.totals,

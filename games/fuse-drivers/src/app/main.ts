@@ -1,9 +1,9 @@
+import { createGameSocial } from "fuse-ui/social";
+import "fuse-ui/social.css";
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
-import "fuse-ui/social.css";
-import { createGameSocial } from "fuse-ui/social";
 import { createModalInputGate } from "fuse-ui/modal-input";
 import { createAppPortal } from "fuse-ui/portal";
 import { createPlayMetrics, startGameAnalytics } from "fuse-ui/play-metrics";
@@ -44,13 +44,6 @@ import { playFrame } from "./play-metrics.js";
 const GAME = fuseDriversGame.id;
 const analytics = startGameAnalytics(GAME);
 const observePlay = createPlayMetrics(analytics.track, () => performance.now());
-const endpoints = createEndpoints(
-  {
-    basePath: `${import.meta.env.BASE_URL}${GAME}/`,
-    apiOrigin: import.meta.env.VITE_API_ORIGIN,
-  },
-  location.origin,
-);
 const social = createGameSocial({
   gameId: GAME,
   base: import.meta.env.BASE_URL,
@@ -60,6 +53,13 @@ const social = createGameSocial({
   fetch: (input, init) => fetch(input, init),
   track: analytics.track,
 });
+const endpoints = createEndpoints(
+  {
+    basePath: `${import.meta.env.BASE_URL}${GAME}/`,
+    apiOrigin: import.meta.env.VITE_API_ORIGIN,
+  },
+  location.origin,
+);
 const store = safeStore(() => localStorage);
 const names = keys(GAME);
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
@@ -339,8 +339,8 @@ function room(solo: boolean): void {
               code,
               session.token,
               events,
-              (wrapped) =>
-                new PeerTransport(code, session.token, wrapped, {
+              (events) =>
+                new PeerTransport(code, session.token, events, {
                   apiUrl: endpoints.apiUrl,
                   gameId: GAME,
                   maxFastBytes: MAX_PACKET_BYTES,

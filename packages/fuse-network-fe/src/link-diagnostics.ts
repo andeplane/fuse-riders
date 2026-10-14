@@ -2,6 +2,7 @@ import type { SignalCounts } from "./remote-signal.js";
 /** Redacted per-link view: candidate types, states and counts only; never addresses, tokens or links. */
 export interface LinkDiagnostic {
   peer: "host" | "guest";
+  offerer?: boolean;
   local: Partial<Record<string, number>>;
   remote: Partial<Record<string, number>>;
   gathering: string;
@@ -26,7 +27,7 @@ export interface LinkDiagnostic {
   lastFailure?: string;
 }
 const NAT =
-  "candidates exchanged, ICE failed — likely symmetric NAT/CGNAT on one side (no TURN relay; try the host's Wi-Fi)";
+  "candidates exchanged, direct connection failed — the networks may block direct WebRTC (no TURN relay; try another connection)";
 export function explainLink(d: LinkDiagnostic): string {
   const total = (record: Partial<Record<string, number>>) =>
     Object.entries(record).reduce(
@@ -35,18 +36,22 @@ export function explainLink(d: LinkDiagnostic): string {
     );
   if (d.healthy) return "direct link healthy";
   // Chrome stops gathering once a pair connects, so a connected LAN link legitimately shows host candidates only.
-  if (d.connection === "connected" && d.channel === "open")
+  if (
+    d.connection === "connected" &&
+    (d.channel === "open" || d.channel.startsWith("open/"))
+  )
     return "direct link connected — waiting for gameplay probe acknowledgements";
   if (d.connection === "connected")
     return `ICE connected, data channel ${d.channel} (DTLS ${d.dtls ?? "?"}, SCTP ${d.sctp ?? "?"})`;
-  if (d.peer === "host" && d.signalling.offersIn === 0)
-    return "no offer received from host — signalling never delivered the offer";
-  if (d.peer === "guest" && d.signalling.offersOut === 0)
+  const offerer = d.offerer ?? d.peer === "guest";
+  if (!offerer && d.signalling.offersIn === 0)
+    return "no offer received from peer — signalling never delivered the offer";
+  if (offerer && d.signalling.offersOut === 0)
     return "offer not sent yet — waiting for the room service";
   if (!d.local.srflx && !d.local.relay && d.gathering !== "new")
     return "no reflexive candidate from STUN — this device cannot reach the STUN servers (UDP blocked?)";
-  if (d.peer === "guest" && d.signalling.answersIn === 0)
-    return "no answer received from guest — signalling never delivered the answer";
+  if (offerer && d.signalling.answersIn === 0)
+    return "no answer received from peer — signalling never delivered the answer";
   if (total(d.remote) === 0)
     return "no remote candidates — signalling delivered no ICE candidates";
   if (!d.remote.srflx && !d.remote.relay)
