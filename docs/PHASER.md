@@ -1,5 +1,7 @@
 # Phaser presentation and renderer evidence
 
+Remote rollback corrections use a separate portrait/heading pose that settles over 120 ms. Canonical trails, trail tips, weapons, deaths and the local rider keep their supplied geometry. Scope, portal, identity and long-frame discontinuities reset the cosmetic offset. See [multiplayer hardening](design/multiplayer-hardening.md) for the contract and real-browser recovery smoke.
+
 For proposed optimization work and independently assignable experiments, see the [performance exploration brief](performance/EXPLORATION-BRIEF.md). Its hypotheses and suggested selection criteria are separate from the completed measurements below.
 
 Fuse Riders uses **Phaser 4.2.1 for arena presentation** (migrated from 3.90.0; see the [Phaser 4 migration note](design/phaser-4-migration.md) for what changed, why, and how it was verified). The shared TypeScript simulation remains the authority; Phaser physics, input and audio systems do not own game rules. DOM menus, pointer controls and the existing audio director remain outside the scene.

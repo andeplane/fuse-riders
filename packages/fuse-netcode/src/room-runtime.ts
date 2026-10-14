@@ -7,7 +7,7 @@ import {
   type WorldEvent,
 } from "./rollback.js";
 import { STALL_TICKS } from "./rollback.js";
-import { PACKET_ENTRIES, type StreamLog } from "./stream.js";
+import { PACKET_ENTRIES, StreamLog } from "./stream.js";
 import {
   decodePacket,
   encodeNack,
@@ -89,6 +89,8 @@ export interface Callbacks<
 }
 /** What `frameTiming()` hands the screen: frames and times, not a finished picture. */
 export interface FrameTiming<View extends { tick: number } = { tick: number }> {
+  /** Changes only when rollback or snapshot recovery replaces displayed history. */
+  revision?: number;
   /** The tick before `newer`, when there is one to interpolate from. */
   older?: Frame<View>;
   newer: Frame<View>;
@@ -271,6 +273,7 @@ export class RoomRuntime<
     this.recorder = new InputRecorder(
       () => this.own(),
       () => this.clock.tick(),
+      () => this.world?.tick ?? 0,
     );
     this.generation = this.deps.generation();
     const runtime = this;
@@ -643,8 +646,52 @@ export class RoomRuntime<
     const packet = decoded.packet;
     if (packet.room !== this.room || packet.from !== id) return;
     if (packet.generation < member.generation) return;
+    if (!this.world) {
+      // Bootstrap has no retained prefix yet. Validate the bounded slice it carries before trusting
+      // its generation or time; missing earlier history will arrive in the requested snapshot.
+      const first = Math.min(
+        packet.lastSeq + 1,
+        ...packet.entries.map((entry) => entry[0]),
+      );
+      const bootstrap = new StreamLog(this.game, packet.generation, {
+        seq: first - 1,
+        tick: 0,
+      });
+      if (
+        bootstrap.receive(
+          packet.entries,
+          packet.lastSeq,
+          packet.through,
+          Math.floor(packet.clockTick),
+          0,
+        ).status === "invalid"
+      ) {
+        member.rejected++;
+        return;
+      }
+    }
+    const result = this.world?.receive(
+      id,
+      packet.entries,
+      packet.lastSeq,
+      packet.through,
+      Math.floor(this.clock.tick()),
+      packet.generation,
+    );
+    if (result?.status === "invalid") {
+      member.rejected++;
+      // Out-of-window traffic may be honest: keep its bounded recovery grace, but never adopt its
+      // generation, clock, RTT or echo timestamps. A protocol violation is not a sign of life.
+      if (result.refusal === "window") {
+        if (member.windowSince === -Infinity) member.windowSince = now;
+        if (now - member.windowSince <= WINDOW_GRACE_MS)
+          member.lastPacketAt = now;
+      }
+      return;
+    }
+    // Commit peer metadata only after the stream has accepted this packet. In particular, a refused
+    // replacement generation must not retire the healthy stream or poison the authority clock.
     this.bump(id, member, packet.generation);
-    const heardAt = member.lastPacketAt;
     member.lastPacketAt = now;
     member.lastSentAt = packet.sentAt;
     member.lastSentReceivedAt = now;
@@ -656,33 +703,10 @@ export class RoomRuntime<
         if (id === this.authority()) this.clock.sample(packet.clockTick, rtt);
       }
     }
-    if (!this.world) return;
-    const result = this.world.receive(
-      id,
-      packet.entries,
-      packet.lastSeq,
-      packet.through,
-      Math.floor(this.clock.tick()),
-    );
-    if (result.status !== "invalid") member.windowSince = -Infinity;
+    if (!this.world || !result) return;
+    member.windowSince = -Infinity;
     if (result.status === "unrepairable") {
       this.requestSnapshot();
-      return;
-    }
-    if (result.status === "invalid") {
-      member.rejected++;
-      // A packet no unmodified client sends is not a sign of life: a member whose stream cannot be folded is marked
-      // absent like a silent one, so the room plays on instead of waiting for completeness it will never accept.
-      // A packet outside this replica's own window says nothing about its sender, which stays heard while the usual
-      // recovery runs (a resync, a gap closing, this clock catching up) — but only for so long: a member that never
-      // comes back inside the window is then treated as silent too, rather than stalling the room for good.
-      if (result.refusal === "window" && member.windowSince === -Infinity)
-        member.windowSince = now;
-      if (
-        result.refusal !== "window" ||
-        now - member.windowSince > WINDOW_GRACE_MS
-      )
-        member.lastPacketAt = heardAt;
       return;
     }
     this.deliverEvents(result.events);
@@ -714,20 +738,26 @@ export class RoomRuntime<
       );
   }
   private bump(id: string, member: Member, generation: number): void {
+    const changed = generation > member.generation;
     if (generation > member.generation) member.generation = generation;
-    this.ensureStream(id, member);
+    const created = this.ensureStream(id, member);
+    // Packet validation may already have adopted the stream. The creator still has to move the
+    // seat's fold to that generation, including when the fast packet overtook its reliable hello.
+    if (changed && !created && this.world && this.creator && !this.hiddenState)
+      this.management.ensurePresence(id, member);
   }
   /** Every known member with a generation has a stream in the world, whichever of hello, packet or snapshot came first. */
-  private ensureStream(id: string, member: Member): void {
-    if (!this.world || member.generation === 0) return;
+  private ensureStream(id: string, member: Member): boolean {
+    if (!this.world || member.generation === 0) return false;
     const existing = this.world.streams.get(id);
-    if (existing && existing.generation === member.generation) return;
+    if (existing && existing.generation === member.generation) return false;
     this.world.stream(id, member.generation, {
       seq: 0,
       tick: Math.max(0, this.world.tick - STALL_TICKS),
     });
     if (this.creator && !this.hiddenState)
       this.management.ensurePresence(id, member);
+    return true;
   }
 
   // ---- world lifecycle --------------------------------------------------------------------------------------------
@@ -826,41 +856,29 @@ export class RoomRuntime<
     );
     this.transport.send(to, { type: "snapshotRequest" });
   }
+  private snapshotRevision = 0;
   private acceptSnapshotChunk(id: string, raw: unknown): void {
     const request = this.sync.request;
     if (!request || request.to !== id) return;
     const complete = request.assembler.accept(raw);
     if (!complete) return;
     const decoded = decodeSnapshot(this.game, complete.bytes, this.room);
-    // A snapshot that fails validation is retried on the timer, rotating peers; asking again at once would storm a peer that keeps serving the same bad state.
-    if (!decoded) {
+    const reject = () =>
       this.sync.restartAssembly(
         this.deps.now(),
         new SnapshotAssembler(this.game, this.room),
       );
+    // A snapshot that fails validation is retried on the timer, rotating peers; asking again at once would storm a peer that keeps serving the same bad state.
+    if (!decoded) {
+      reject();
       return;
     }
     const tick = decoded.state.tick,
       existing = this.sync.world,
       previous = existing?.streams.get(this.id);
-    // A peer may be only marginally ahead while the whole room is behind the clock. Give the installed world
-    // bounded local catch-up time; immediately fetching another similarly lagging snapshot would prevent stepping.
-    const stillBehind =
-      (Math.floor(this.clock.tick()) - tick) * this.game.steps(decoded.state) >
-      BEHIND_STEPS;
-    if (existing !== undefined && (tick <= existing.tick || stillBehind))
-      this.sync.holdCatchUp(this.deps.now() + CATCH_UP_HOLD_MS);
-    else this.sync.releaseCatchUp();
-    let world = existing;
-    if (world) world.install(decoded.state);
-    else {
-      world = new World(this.game, decoded.state, this.hostId, this.id);
-      world.refill(CATCHUP_STEPS, this.windowTime);
-      // Not on a resync: a replica that already judged its members keeps the waits it started.
-      this.members.judgingSince = this.deps.now();
-    }
-    // Live (or still Diverged) from here: the fetch is over, and the streams below are rebuilt in the installed world.
-    this.sync.installed(world);
+    // Build the complete candidate, including replay tails and own continuity, before replacing healthy state.
+    const world = new World(this.game, decoded.state, this.hostId, this.id);
+    world.refill(CATCHUP_STEPS, this.windowTime);
     for (const stream of decoded.streams) {
       // My own current stream is rebuilt below with its continuity; my retired generations (the previous page's entries before
       // its presence switched) install like anyone else's, and the own-stream creation then retires them in order.
@@ -871,16 +889,19 @@ export class RoomRuntime<
         tick,
         ordinal: stream.ordinal,
       });
-      const member = this.members.get(stream.id);
-      if (member && member.generation < stream.generation)
-        member.generation = stream.generation;
       for (
         let offset = 0;
         offset < stream.entries.length;
         offset += PACKET_ENTRIES
       ) {
         const part = stream.entries.slice(offset, offset + PACKET_ENTRIES);
-        log.receive(part, part.at(-1)![0], tick, tick + 60, tick);
+        if (
+          log.receive(part, part.at(-1)![0], tick, tick + 60, tick).status !==
+          "accepted"
+        ) {
+          reject();
+          return;
+        }
       }
     }
     // The own stream keeps its seq numbering: peers already hold everything up to lastSeq, and entries after the
@@ -900,9 +921,40 @@ export class RoomRuntime<
         : [];
     for (let offset = 0; offset < carried.length; offset += PACKET_ENTRIES) {
       const part = carried.slice(offset, offset + PACKET_ENTRIES);
-      own.receive(part, previous!.lastSeq, tick, tick + 60, tick);
+      if (
+        own.receive(
+          part,
+          previous!.lastSeq,
+          tick,
+          Math.max(tick, Math.floor(this.clock.tick())),
+          tick,
+        ).status !== "accepted"
+      ) {
+        reject();
+        return;
+      }
     }
     own.lastSeq = Math.max(own.lastSeq, previous?.lastSeq ?? 0);
+    // A peer may be only marginally ahead while the room is behind the clock. Preserve bounded local catch-up.
+    const stillBehind =
+      (Math.floor(this.clock.tick()) - tick) * this.game.steps(decoded.state) >
+      BEHIND_STEPS;
+    if (existing !== undefined && (tick <= existing.tick || stillBehind))
+      this.sync.holdCatchUp(this.deps.now() + CATCH_UP_HOLD_MS);
+    else this.sync.releaseCatchUp();
+    if (existing) {
+      world.rollbacks = existing.rollbacks;
+      world.rollbackTicks = existing.rollbackTicks;
+      world.revision = existing.revision;
+      world.steps = existing.steps;
+    } else this.members.judgingSince = this.deps.now();
+    this.sync.installed(world);
+    this.snapshotRevision++;
+    for (const stream of decoded.streams) {
+      const member = this.members.get(stream.id);
+      if (member && member.generation < stream.generation)
+        member.generation = stream.generation;
+    }
     for (const [id, member] of this.members) this.ensureStream(id, member);
     this.recorder.resumeAfter(tick);
     if (!carried.length) this.resetControls();
@@ -1591,6 +1643,7 @@ export class RoomRuntime<
             ((at - older.logTick) / span) * (newer.tick - older.tick)
           : newer.tick;
     return {
+      revision: this.snapshotRevision + this.world!.revision,
       ...(older ? { older } : {}),
       newer,
       tick: presentation,
