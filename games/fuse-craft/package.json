@@ -1,0 +1,20 @@
+{
+  "name": "fuse-craft",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/engine/index.ts",
+    "./platform": "./src/platform.ts"
+  },
+  "dependencies": {
+    "fuse-netcode": "workspace:*",
+    "fuse-network-fe": "workspace:*",
+    "fuse-platform": "workspace:*",
+    "fuse-ui": "workspace:*"
+  },
+  "description": "Fuse Craft: grow a living network, race for powerups and destroy the rival brain.",
+  "devDependencies": {
+    "qrcode": "^1.5.4"
+  }
+}

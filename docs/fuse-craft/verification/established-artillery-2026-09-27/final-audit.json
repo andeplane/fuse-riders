@@ -1,0 +1,123 @@
+{
+  "rows": 210,
+  "rejections": 0,
+  "engineDrift": [],
+  "initialResultsUnchanged": true,
+  "totalTimeouts": 10,
+  "timeouts": [
+    "narrow-front-pressure-relay-0",
+    "narrow-front-pressure-relay-1",
+    "open-front-defensive-defensive-0",
+    "narrow-front-balanced-balanced-0",
+    "narrow-front-relay-relay-0",
+    "narrow-front-defensive-defensive-0",
+    "open-front-defensive-defensive-1",
+    "narrow-front-balanced-balanced-1",
+    "narrow-front-relay-relay-1",
+    "narrow-front-defensive-defensive-1"
+  ],
+  "resolvedTimeouts": [
+    {
+      "key": "narrow-front-balanced-defensive-0",
+      "result": "alpha",
+      "seconds": 737
+    },
+    {
+      "key": "narrow-front-balanced-defensive-1",
+      "result": "alpha",
+      "seconds": 616
+    },
+    {
+      "key": "skirmish-24-defensive-defensive-0",
+      "result": "draw",
+      "seconds": 688
+    },
+    {
+      "key": "lean-resources-pressure-pressure-0",
+      "result": "draw",
+      "seconds": 833
+    },
+    {
+      "key": "lean-resources-relay-relay-0",
+      "result": "draw",
+      "seconds": 775.5
+    },
+    {
+      "key": "lean-resources-defensive-defensive-0",
+      "result": "draw",
+      "seconds": 584
+    },
+    {
+      "key": "skirmish-24-defensive-defensive-1",
+      "result": "draw",
+      "seconds": 688
+    },
+    {
+      "key": "lean-resources-pressure-pressure-1",
+      "result": "draw",
+      "seconds": 833
+    },
+    {
+      "key": "lean-resources-relay-relay-1",
+      "result": "draw",
+      "seconds": 775.5
+    },
+    {
+      "key": "lean-resources-defensive-defensive-1",
+      "result": "draw",
+      "seconds": 584
+    }
+  ],
+  "newTimeouts": [],
+  "changedNonTimeoutWinners": [
+    {
+      "key": "open-front-pressure-defensive-0",
+      "result": "beta",
+      "seconds": 388,
+      "baseline": {
+        "result": "alpha",
+        "seconds": 548
+      }
+    },
+    {
+      "key": "narrow-front-economy-defensive-0",
+      "result": "beta",
+      "seconds": 747,
+      "baseline": {
+        "result": "alpha",
+        "seconds": 569
+      }
+    },
+    {
+      "key": "open-front-pressure-defensive-1",
+      "result": "beta",
+      "seconds": 388,
+      "baseline": {
+        "result": "alpha",
+        "seconds": 548
+      }
+    },
+    {
+      "key": "narrow-front-economy-defensive-1",
+      "result": "beta",
+      "seconds": 747,
+      "baseline": {
+        "result": "alpha",
+        "seconds": 569
+      }
+    }
+  ],
+  "seatDifferences": [
+    {
+      "pair": "narrow-front-balanced-defensive",
+      "seat0": {
+        "result": "alpha",
+        "seconds": 737
+      },
+      "seat1": {
+        "result": "alpha",
+        "seconds": 616
+      }
+    }
+  ]
+}

@@ -158,28 +158,59 @@ export function roundSpeedMultiplier(elapsedTicks: number): number {
 /**
  * Once every human rider is out, the rest of the round is bots racing each other, and each shared tick steps the
  * simulation this many times (`driveGameTick`) until the round ends. The clock keeps its rate; the game runs faster.
+ * The count then climbs (`botsOnlySteps`): it holds for `BOTS_ONLY_HOLD_SECONDS`, then rises by one step every
+ * `BOTS_ONLY_STEP_UP_SECONDS` until it reaches `BOTS_ONLY_MAX_STEPS_PER_TICK`, so a bots-only endgame that drags on
+ * gets faster and faster instead of keeping the humans waiting.
  */
 export const BOTS_ONLY_STEPS_PER_TICK = 3;
+export const BOTS_ONLY_MAX_STEPS_PER_TICK = 6;
+export const BOTS_ONLY_HOLD_SECONDS = 3;
+export const BOTS_ONLY_STEP_UP_SECONDS = 2;
 /**
- * How many steps the next log tick runs, from the state before it: `BOTS_ONLY_STEPS_PER_TICK` while a round is
- * playing, at least one human rider is seated, none is alive and a bot is; otherwise one. A pure function of folded
- * state, so every replica takes the same count, and a rollback that changes it replays the ticks after it with theirs.
+ * Steps per log tick `elapsed` game ticks after the last human went out: `BOTS_ONLY_STEPS_PER_TICK` for the first
+ * `BOTS_ONLY_HOLD_SECONDS` of wall time, one more every `BOTS_ONLY_STEP_UP_SECONDS` after that, capped at
+ * `BOTS_ONLY_MAX_STEPS_PER_TICK`. The schedule is in wall seconds and the clock is in game ticks, so each stage spans
+ * `seconds × TICK_HZ × count` game ticks: 3 s at 3× is 180 game ticks, 2 s at 4× is 160, 2 s at 5× is 200, and from
+ * 540 game ticks (9 s) on the round runs at 6×.
+ */
+export function botsOnlySteps(elapsed: number): number {
+  let count = BOTS_ONLY_STEPS_PER_TICK;
+  let boundary = BOTS_ONLY_HOLD_SECONDS * TICK_HZ * count;
+  while (count < BOTS_ONLY_MAX_STEPS_PER_TICK && elapsed >= boundary) {
+    count++;
+    boundary += BOTS_ONLY_STEP_UP_SECONDS * TICK_HZ * count;
+  }
+  return count;
+}
+/**
+ * How many steps the next log tick runs, from the state before it: `botsOnlySteps` of the game ticks since the last
+ * human rider went out (`roundParticipants[].eliminatedAtTick`, or the round's start for a human seated dead) while a
+ * round is playing, at least one human rider is seated, none is alive and a bot is; otherwise one. A pure function of
+ * folded state, so every replica takes the same count, and a rollback that changes it replays the ticks after it with
+ * theirs.
  */
 export function stepsPerTick(
-  state: Pick<GameState, "phase" | "players">,
+  state: Pick<
+    GameState,
+    "phase" | "players" | "tick" | "roundStartedTick" | "roundParticipants"
+  >,
   bots: ReadonlySet<string>,
 ): number {
   if (state.phase !== "playing") return 1;
   let humans = 0,
-    botsAlive = 0;
+    botsAlive = 0,
+    humansOutTick = state.roundStartedTick ?? state.tick;
   for (const player of sortedPlayers(state)) {
     if (!bots.has(player.id)) {
       if (player.alive) return 1;
       humans++;
+      const out = state.roundParticipants.get(player.id)?.eliminatedAtTick;
+      if (out !== undefined && out > humansOutTick) humansOutTick = out;
     } else if (player.alive) botsAlive++;
   }
   // A room with no human rider at all is a showcase, not a wait: it keeps its pace.
-  return humans > 0 && botsAlive > 0 ? BOTS_ONLY_STEPS_PER_TICK : 1;
+  if (humans === 0 || botsAlive === 0) return 1;
+  return botsOnlySteps(state.tick - humansOutTick);
 }
 /** Every speed pickup in force on `tick`, multiplied together: one factor per unexpired Nitro or Snail deadline. */
 export function riderSpeedMultiplier(

@@ -16,3 +16,6 @@
 !games/*/package.json
 !games/*/src/
 !games/*/src/**
+# Browser-only art: the service imports each game's src/platform.ts and the rules behind it, never images.
+games/*/src/assets
+games/*/src/assets/**
