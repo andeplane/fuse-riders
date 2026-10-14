@@ -180,7 +180,7 @@ export function successionOrder(
 }
 /**
  * Who runs the room for the players: the one name the screens show as HOST, and the one the room commands are gated on.
- * It is the log's own answer — the creator while the room counts it present, otherwise whoever the duties fall to — so
+ * It is the log's own answer — the creator while present or voluntarily away, otherwise whoever the duties fall to — so
  * every replica names the same member from the same fold.
  *
  * It does not try to be cleverer than the log about a creator the room has no record of, which is a host driving a
@@ -193,11 +193,27 @@ export function successionOrder(
  */
 export function roomManager(seats: Iterable<Seat>, creatorId: string): string {
   const all = [...seats];
+  // Looking at another window is not leaving the room. A creator that stepped away (ADR 047 §12: its page is hidden,
+  // so it logged its own `PRESENCE false`) keeps the crown, because the crown is a claim about a person — whose room
+  // this is — and an alt-tab says nothing about that. Without this the badge moved to the next rider a second after
+  // the host glanced at their mail, and that rider's page grew ROOM SETTINGS, ADD AI and START RACE while the host
+  // still had them too: two devices both running one room.
+  //
+  // The log duties are not the crown and still delegate on the same step away (`actingCreator`, and the `manager`
+  // that reads it), because those are a claim about a *page*: a hidden one's world is frozen where it hid, so it
+  // cannot seat a joiner or log a departure and something else must. That split is the whole point of this function
+  // existing beside `actingCreator`.
+  //
+  // A creator that is genuinely gone still hands the crown on, because `away` is the member's own mark and only its
+  // own entry sets it: when a page really goes, the manager logs `PRESENCE false` *about* it, and that rewrites the
+  // fold without the mark (or frees the seat outright in the lobby). So this cannot strand a room on a member no
+  // device answers for — the case the paragraph above refuses to risk.
+  if (all.some((seat) => seat.id === creatorId && seat.away)) return creatorId;
   return actingCreator(all, creatorId) ?? creatorId;
 }
 /**
  * Which non-creator stream may carry management entries right now: the delegate, only while the creator is disconnected.
- * A creator present in a seat or in the watching list keeps the crown; a creator with no record at all (a display host
+ * A creator present in a seat or in the watching list keeps these duties; a creator with no record at all (a display host
  * that never took a seat) makes the next member a manager beside it.
  */
 export function actingCreator(
