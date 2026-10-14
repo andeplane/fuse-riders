@@ -46,25 +46,48 @@ try {
   await ticks(40); // spawn protection over, standing on the start ledge
 
   // A throw's range: how far from the keeper it first lands.
-  const landing = async () => {
-    await page.waitForFunction(
-      () => JSON.parse(document.querySelector("#scene").dataset.bombs).length,
+  const landing = () =>
+    page.evaluate(
+      () =>
+        new Promise((resolve, reject) => {
+          const scene = document.querySelector("#scene");
+          let start,
+            falling = false,
+            seen = false;
+          const observer = new MutationObserver(() => {
+            const d = scene.dataset;
+            const [bomb] = JSON.parse(d.bombs);
+            if (!bomb) {
+              if (seen) finish(undefined);
+              return;
+            }
+            seen = true;
+            start ??= Number(d.actorX);
+            if (bomb.vy > 0) falling = true;
+            else if (falling)
+              finish({
+                range: Math.abs(bomb.x - start),
+                keeper: JSON.parse(d.keepers).find((k) => k.id === d.playerId),
+              });
+          });
+          const timeout = setTimeout(() => finish(undefined), 30000);
+          function finish(result) {
+            observer.disconnect();
+            clearTimeout(timeout);
+            if (result) resolve(result);
+            else reject(new Error("the bomb lands before it goes off"));
+          }
+          observer.observe(scene, {
+            attributes: true,
+            attributeFilter: ["data-bombs"],
+          });
+        }),
     );
-    const start = Number((await data()).actorX);
-    let falling = false;
-    for (;;) {
-      const [bomb] = JSON.parse((await data()).bombs);
-      assert.ok(bomb, "the bomb lands before it goes off");
-      if (bomb.vy > 0) falling = true;
-      else if (falling) return Math.abs(bomb.x - start);
-      await page.waitForTimeout(16);
-    }
-  };
   // Aim right (D is retained once released), then tap K: a short throw.
   await page.keyboard.press("d");
+  const shortLanding = landing();
   await page.keyboard.press("k");
-  const short = await landing();
-  const cooling = await me();
+  const { range: short, keeper: cooling } = await shortLanding;
   assert.ok(
     cooling.cooldown > 0.8,
     `cooldown after the throw ${cooling.cooldown}`,
@@ -90,8 +113,9 @@ try {
     () => Number(document.querySelector("#scene").dataset.charge) >= 1,
   );
   await scene.screenshot({ path: evidence("bombs-charge-arc") });
+  const fullLanding = landing();
   await page.keyboard.up("k");
-  const full = await landing();
+  const { range: full } = await fullLanding;
   // Level from the chest the ranges scale with speed: 950 / 450.
   assert.ok(full > short * 1.7, `full ${full} vs short ${short}`);
   console.log(
@@ -106,6 +130,24 @@ try {
       !JSON.parse(d.bombs).length
     );
   });
+  // Observe the short-lived blast and return before taking screenshots:
+  // screenshot encoding can outlast either event on a busy host.
+  const knockedOut = page.waitForFunction(() => {
+    const d = document.querySelector("#scene").dataset;
+    const keeper = JSON.parse(d.keepers).find((k) => k.id === d.playerId);
+    return JSON.parse(d.blasts).length && keeper.tally.selfKnockouts === 1
+      ? { keeper, feed: document.querySelectorAll("#knockout-feed li").length }
+      : false;
+  });
+  const returned = page.waitForFunction(() => {
+    const d = document.querySelector("#scene").dataset;
+    const keeper = JSON.parse(d.keepers).find((k) => k.id === d.playerId);
+    return keeper.tally.selfKnockouts === 1 &&
+      keeper.respawn === 0 &&
+      keeper.spawnGuard > 0
+      ? keeper
+      : false;
+  });
   await page.keyboard.down("s");
   await page.keyboard.press("k");
   await page.keyboard.up("s");
@@ -114,21 +156,26 @@ try {
       JSON.parse(document.querySelector("#scene").dataset.bombs)[0]?.fuse <= 24,
   );
   await scene.screenshot({ path: evidence("bombs-fuse-ring") });
-  await page.waitForFunction(
-    () => JSON.parse(document.querySelector("#scene").dataset.blasts).length,
-  );
+  const observed = await (
+    await knockedOut.catch(async (error) => {
+      const d = await data();
+      console.error("Self-knockout observation failed", {
+        actorX: d.actorX,
+        feet: d.feet,
+        bombs: JSON.parse(d.bombs),
+        keepers: JSON.parse(d.keepers),
+      });
+      throw error;
+    })
+  ).jsonValue();
   await page.waitForTimeout(60);
   await scene.screenshot({ path: evidence("bombs-blast") });
-  const down = await me();
+  const down = observed.keeper;
   assert.equal(down.tally.selfKnockouts, 1);
   assert.equal(down.tally.fate, "self");
   assert.ok(down.respawn > 0, "knocked out by their own bomb");
-  assert.ok(await page.locator("#knockout-feed li").count());
-  await page.waitForFunction(() => {
-    const d = document.querySelector("#scene").dataset;
-    return JSON.parse(d.keepers).find((k) => k.id === d.playerId).respawn === 0;
-  });
-  const back = await me();
+  assert.ok(observed.feed);
+  const back = await (await returned).jsonValue();
   assert.ok(back.spawnGuard > 40, `a second of protection, ${back.spawnGuard}`);
   console.log(
     "PASS self-knockout, fuse ring, blast, feed and 1 s return with protection",

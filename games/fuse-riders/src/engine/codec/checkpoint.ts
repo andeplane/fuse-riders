@@ -56,10 +56,11 @@ import {
 import { parseRoomSettings, type RoomSettings } from "../room-settings.js";
 import {
   MAX_MOVER_SPEED,
-  MAX_TRAINS,
-  TRAIN_TRACKS,
+  TRAIN_CAR_HALF_SIZE,
   trackLength,
+  type Track,
 } from "../scenery-motion.js";
+import { MAX_TRACK_POINTS, MAX_TRACKS, MAX_TRAINS } from "../railway.js";
 import { loggedRiderName } from "../rider-name.js";
 import type { MatchPlayerStatsState } from "../match-stats.js";
 import { MAX_ROUND_SHOTS, WEAPONS, type RoundShot } from "../shot-log.js";
@@ -330,13 +331,22 @@ const bounceMotion: Guard = shape({
 });
 const railMotion: Guard = shape({
   kind: (v) => v === "rail",
-  track: count(TRAIN_TRACKS.length - 1),
-  // Loose here; the walk over the decoded state below holds it to the loop's own length.
+  // Loose here; the walk over the decoded state below holds both to the round's own railway.
+  track: count(MAX_TRACKS - 1),
   along: range(0, ARENA_WIDTH * 4),
   speed: moverSpeed,
   train: count(MAX_TRAINS - 1),
 });
 const motion: Guard = (v) => bounceMotion(v) || railMotion(v);
+/** Every rail point keeps a car centred on it wholly on the board, so no admitted track can carry a car off it. */
+const railPoint: Guard = shape({
+  x: range(TRAIN_CAR_HALF_SIZE, ARENA_WIDTH - TRAIN_CAR_HALF_SIZE),
+  y: range(TRAIN_CAR_HALF_SIZE, ARENA_HEIGHT - TRAIN_CAR_HALF_SIZE),
+});
+const track: Guard = shape({
+  points: (v) =>
+    array(railPoint, MAX_TRACK_POINTS)(v) && (v as unknown[]).length >= 3,
+} satisfies Record<keyof Track, Guard>);
 const obstacleShape: Guard = shape({
   id: (v) => integer(v) && v !== 0,
   kind: (v) =>
@@ -379,6 +389,7 @@ const gameShape = shape({
   map: (v) =>
     typeof v === "string" && (ARENA_MAPS as readonly string[]).includes(v),
   obstacles: array(obstacle, MAX_OBSTACLES),
+  tracks: array(track, MAX_TRACKS),
   players: map(text, player, 5),
   bombs: map(integer, bomb, 256),
   tracers: array(tracer, 256),
@@ -670,6 +681,9 @@ function gameInvariants(game: GameState): boolean {
       return false;
     portalIds.add(pair.id);
   }
+  // A railway belongs to the trains map, and every loop of it is long enough to run along.
+  if (game.tracks.length > 0 && game.map !== "trains") return false;
+  if (game.tracks.some((loop) => !(trackLength(loop) > 0))) return false;
   // IDs select fixed catalog variants and identify destroyed pieces for the renderer.
   // Validate their dimensions and keep every obstacle inside the arena.
   const obstacleIds = new Set<number>();
@@ -690,11 +704,12 @@ function gameInvariants(game: GameState): boolean {
       return false;
     if (piece.kind === "wall" && game.map !== "drift") return false;
     if (piece.kind === "train" && game.map !== "trains") return false;
-    // A car is somewhere on a loop of the map it is on: the track index passed the shape, so the loop exists.
+    // A car is somewhere on a loop of the round's railway.
     if (
       piece.motion?.kind === "rail" &&
       (piece.kind !== "train" ||
-        piece.motion.along > trackLength(TRAIN_TRACKS[piece.motion.track]!))
+        piece.motion.track >= game.tracks.length ||
+        piece.motion.along > trackLength(game.tracks[piece.motion.track]!))
     )
       return false;
     // A bouncing piece's step fits inside the room it has to bounce in, so it cannot overshoot the far edge.

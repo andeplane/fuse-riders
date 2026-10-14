@@ -1,0 +1,352 @@
+[
+  {
+    "key": "narrow-front-pressure-relay-0",
+    "production": {
+      "result": "timeout",
+      "seconds": 900
+    },
+    "candidate": {
+      "result": "beta",
+      "seconds": 599,
+      "rejected": 0,
+      "hash": "894ab88c"
+    },
+    "statisticsUnchanged": false
+  },
+  {
+    "key": "narrow-front-pressure-relay-1",
+    "production": {
+      "result": "timeout",
+      "seconds": 900
+    },
+    "candidate": {
+      "result": "beta",
+      "seconds": 599,
+      "rejected": 0,
+      "hash": "a296db4d"
+    },
+    "statisticsUnchanged": false
+  },
+  {
+    "key": "close-quarters-pressure-relay-0",
+    "production": {
+      "result": "beta",
+      "seconds": 141.5
+    },
+    "candidate": {
+      "result": "beta",
+      "seconds": 141.5,
+      "rejected": 0,
+      "hash": "6a5835fc"
+    },
+    "statisticsUnchanged": false
+  },
+  {
+    "key": "close-quarters-balanced-defensive-0",
+    "production": {
+      "result": "beta",
+      "seconds": 171
+    },
+    "candidate": {
+      "result": "beta",
+      "seconds": 160,
+      "rejected": 0,
+      "hash": "8dcae863"
+    },
+    "statisticsUnchanged": false
+  },
+  {
+    "key": "close-quarters-economy-defensive-0",
+    "production": {
+      "result": "alpha",
+      "seconds": 296
+    },
+    "candidate": {
+      "result": "alpha",
+      "seconds": 296,
+      "rejected": 0,
+      "hash": "dc36b857"
+    },
+    "statisticsUnchanged": true
+  },
+  {
+    "key": "narrow-front-balanced-defensive-0",
+    "production": {
+      "result": "timeout",
+      "seconds": 900
+    },
+    "candidate": {
+      "result": "alpha",
+      "seconds": 737,
+      "rejected": 0,
+      "hash": "726b0465"
+    },
+    "statisticsUnchanged": false
+  },
+  {
+    "key": "narrow-front-balanced-defensive-1",
+    "production": {
+      "result": "timeout",
+      "seconds": 900
+    },
+    "candidate": {
+      "result": "alpha",
+      "seconds": 616,
+      "rejected": 0,
+      "hash": "763046dc"
+    },
+    "statisticsUnchanged": false
+  },
+  {
+    "key": "close-quarters-balanced-balanced-0",
+    "production": {
+      "result": "draw",
+      "seconds": 351
+    },
+    "candidate": {
+      "result": "draw",
+      "seconds": 351,
+      "rejected": 0,
+      "hash": "d4905d48"
+    },
+    "statisticsUnchanged": true
+  },
+  {
+    "key": "close-quarters-balanced-pressure-0",
+    "production": {
+      "result": "alpha",
+      "seconds": 174
+    },
+    "candidate": {
+      "result": "alpha",
+      "seconds": 174,
+      "rejected": 0,
+      "hash": "382ef771"
+    },
+    "statisticsUnchanged": true
+  },
+  {
+    "key": "close-quarters-balanced-economy-0",
+    "production": {
+      "result": "alpha",
+      "seconds": 281
+    },
+    "candidate": {
+      "result": "alpha",
+      "seconds": 281,
+      "rejected": 0,
+      "hash": "979e6d1d"
+    },
+    "statisticsUnchanged": true
+  },
+  {
+    "key": "close-quarters-balanced-siege-0",
+    "production": {
+      "result": "beta",
+      "seconds": 142
+    },
+    "candidate": {
+      "result": "beta",
+      "seconds": 142,
+      "rejected": 0,
+      "hash": "6c8fcb48"
+    },
+    "statisticsUnchanged": true
+  },
+  {
+    "key": "close-quarters-balanced-relay-0",
+    "production": {
+      "result": "alpha",
+      "seconds": 186
+    },
+    "candidate": {
+      "result": "alpha",
+      "seconds": 186,
+      "rejected": 0,
+      "hash": "56cb6fa2"
+    },
+    "statisticsUnchanged": true
+  },
+  {
+    "key": "close-quarters-pressure-pressure-0",
+    "production": {
+      "result": "draw",
+      "seconds": 467
+    },
+    "candidate": {
+      "result": "draw",
+      "seconds": 467,
+      "rejected": 0,
+      "hash": "c2c27533"
+    },
+    "statisticsUnchanged": true
+  },
+  {
+    "key": "close-quarters-pressure-economy-0",
+    "production": {
+      "result": "alpha",
+      "seconds": 92
+    },
+    "candidate": {
+      "result": "alpha",
+      "seconds": 92,
+      "rejected": 0,
+      "hash": "dacbd1f3"
+    },
+    "statisticsUnchanged": true
+  },
+  {
+    "key": "close-quarters-pressure-siege-0",
+    "production": {
+      "result": "beta",
+      "seconds": 142
+    },
+    "candidate": {
+      "result": "beta",
+      "seconds": 142,
+      "rejected": 0,
+      "hash": "14d88229"
+    },
+    "statisticsUnchanged": true
+  },
+  {
+    "key": "close-quarters-pressure-defensive-0",
+    "production": {
+      "result": "beta",
+      "seconds": 184
+    },
+    "candidate": {
+      "result": "beta",
+      "seconds": 184,
+      "rejected": 0,
+      "hash": "0d152e83"
+    },
+    "statisticsUnchanged": true
+  },
+  {
+    "key": "close-quarters-economy-economy-0",
+    "production": {
+      "result": "draw",
+      "seconds": 264
+    },
+    "candidate": {
+      "result": "draw",
+      "seconds": 264,
+      "rejected": 0,
+      "hash": "d66daf9e"
+    },
+    "statisticsUnchanged": true
+  },
+  {
+    "key": "close-quarters-economy-siege-0",
+    "production": {
+      "result": "alpha",
+      "seconds": 244
+    },
+    "candidate": {
+      "result": "alpha",
+      "seconds": 244,
+      "rejected": 0,
+      "hash": "feba1e06"
+    },
+    "statisticsUnchanged": true
+  },
+  {
+    "key": "close-quarters-economy-relay-0",
+    "production": {
+      "result": "alpha",
+      "seconds": 281
+    },
+    "candidate": {
+      "result": "alpha",
+      "seconds": 282,
+      "rejected": 0,
+      "hash": "d31fd278"
+    },
+    "statisticsUnchanged": false
+  },
+  {
+    "key": "close-quarters-siege-siege-0",
+    "production": {
+      "result": "draw",
+      "seconds": 340
+    },
+    "candidate": {
+      "result": "draw",
+      "seconds": 340,
+      "rejected": 0,
+      "hash": "db6723e8"
+    },
+    "statisticsUnchanged": true
+  },
+  {
+    "key": "close-quarters-siege-relay-0",
+    "production": {
+      "result": "alpha",
+      "seconds": 161
+    },
+    "candidate": {
+      "result": "alpha",
+      "seconds": 161,
+      "rejected": 0,
+      "hash": "bd6ba4be"
+    },
+    "statisticsUnchanged": true
+  },
+  {
+    "key": "close-quarters-siege-defensive-0",
+    "production": {
+      "result": "alpha",
+      "seconds": 204
+    },
+    "candidate": {
+      "result": "alpha",
+      "seconds": 204,
+      "rejected": 0,
+      "hash": "958be6b8"
+    },
+    "statisticsUnchanged": false
+  },
+  {
+    "key": "close-quarters-relay-relay-0",
+    "production": {
+      "result": "draw",
+      "seconds": 287
+    },
+    "candidate": {
+      "result": "draw",
+      "seconds": 287,
+      "rejected": 0,
+      "hash": "89276cd9"
+    },
+    "statisticsUnchanged": true
+  },
+  {
+    "key": "close-quarters-relay-defensive-0",
+    "production": {
+      "result": "alpha",
+      "seconds": 164.5
+    },
+    "candidate": {
+      "result": "alpha",
+      "seconds": 164.5,
+      "rejected": 0,
+      "hash": "44f7e016"
+    },
+    "statisticsUnchanged": true
+  },
+  {
+    "key": "close-quarters-defensive-defensive-0",
+    "production": {
+      "result": "draw",
+      "seconds": 326
+    },
+    "candidate": {
+      "result": "draw",
+      "seconds": 326,
+      "rejected": 0,
+      "hash": "f664b9d8"
+    },
+    "statisticsUnchanged": true
+  }
+]

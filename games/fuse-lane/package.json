@@ -1,0 +1,25 @@
+{
+  "name": "fuse-lane",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fusetown (game id fuse-lane): a simultaneous-week life sim on the streets of a harbour town. Work, study, shop and invest in a living economy; first to meet all four goals wins. Its rules run on fuse-netcode, its page (src/app/) on fuse-ui and fuse-network-fe.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "exports": {
+    ".": "./src/game/index.ts",
+    "./platform": "./src/platform.ts"
+  },
+  "dependencies": {
+    "fuse-netcode": "workspace:*",
+    "fuse-platform": "workspace:*"
+  },
+  "devDependencies": {
+    "@fontsource-variable/nunito": "^5.3.0",
+    "@fontsource/press-start-2p": "^5.3.0",
+    "fuse-network-fe": "workspace:*",
+    "fuse-ui": "workspace:*",
+    "qrcode": "^1.5.4"
+  }
+}
