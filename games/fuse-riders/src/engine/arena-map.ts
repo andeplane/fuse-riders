@@ -34,7 +34,8 @@ export type ArenaMapId = (typeof ARENA_MAPS)[number];
  *
  * Two more put scenery that moves on the board (`scenery-motion.ts`). `drift` is the wrapping board with a cross of
  * walls on it that wanders like a screensaver logo, turned back by the board's edges. `trains` keeps the classic
- * walls and runs trains round two loops of track; the track is decoration, the trains kill. Both are opt-in too.
+ * walls and lays a new railway every round (`railway.ts`); the track is decoration, the trains kill. Both are
+ * opt-in too.
  */
 export type ArenaMapChoice = ArenaMapId | "rotate";
 export const ARENA_MAP_CHOICES = ["rotate", ...ARENA_MAPS] as const;

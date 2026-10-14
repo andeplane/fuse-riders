@@ -46,10 +46,17 @@ test("the service hosts dice rooms beside Fuse Riders, and a room refuses the ot
     diceGame.id,
     "hook-havok",
     "fuse-choppers",
+    "fuse-craft",
     "fuse-freight",
+    "fuse-axe",
+    "fuse-bombers",
+    "fuse-lane",
     "graveyard-shift",
   ]);
+  assert.equal(platform.game("fuse-lane").parseStats({}, 1), undefined);
   assert.equal(platform.game("fuse-choppers").parseStats({}, 1), undefined);
+  assert.equal(platform.game("fuse-axe").parseStats({}, 1), undefined);
+  assert.equal(platform.game("fuse-bombers").parseStats({}, 1), undefined);
   assert.equal(platform.game("fuse-freight").parseStats({}, 1), undefined);
   assert.equal(platform.game("hook-havok").parseStats({}, 1), undefined);
   assert.equal(diceRegistration.id, diceGame.id);
@@ -104,8 +111,16 @@ test("the service hosts dice rooms beside Fuse Riders, and a room refuses the ot
       await open(choppers.code, choppers.token, "fuse-choppers"),
       { welcomed: true },
     );
+    const axe = await create("fuse-axe");
+    assert.deepEqual(await open(axe.code, axe.token, "fuse-axe"), {
+      welcomed: true,
+    });
     const freight = await create("fuse-freight");
     assert.deepEqual(await open(freight.code, freight.token, "fuse-freight"), {
+      welcomed: true,
+    });
+    const bombers = await create("fuse-bombers");
+    assert.deepEqual(await open(bombers.code, bombers.token, "fuse-bombers"), {
       welcomed: true,
     });
     assert.deepEqual(await open(dice.code, dice.token, "dice"), {
