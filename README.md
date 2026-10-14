@@ -58,6 +58,7 @@ throttle is always on, and weapons, ramps, mud and oil decide as much as the rac
 against the computer, rooms with a QR invite, and a shared TV with phones as controllers. See
 [games/fuse-drivers/README.md](games/fuse-drivers/README.md). Production serves its rooms only once its id
 is in `EXTRA_GAME_IDS` ([GCP deploy](docs/online/GCP-DEPLOY.md)); until then its page offers solo only.
+
 ## Menus and round controls
 
 Games keep their own visual style while following the same navigation pattern: play or join from the home screen, open **MENU** during a game, read **Controls**, return to the lobby when allowed, or leave the game. Fuse Riders keeps its existing menu with room settings, account and radio controls; the other games use the shared `fuse-ui` menu alongside their game-specific settings.
