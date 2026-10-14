@@ -2,6 +2,8 @@
 
 Verified on macOS with Chromium and a local in-memory room service on 2026-10-14, after merging `origin/main` (`01266922`). Original PR head `9559854f` remains an ancestor; this update preserves the existing PR history.
 
+After Ball Bros and PeerTransport dependency injection landed, merge `b78c5f97` integrates main `bdd0c792`. The three shared adjacency conflicts retain both games in dependencies, registrations and service assertions. Graveyard source is unchanged from `6d4a25b8`; the generic coverage runner, collector, existing game manifests and PeerTransport match main exactly. Fresh independent review found no actionable issues. All 71 focused Graveyard, service/image, isolation, CI-manifest and peer transport tests pass, as do TypeScript, build and affected lint. The completed full-suite and native browser evidence below is retained; no full suite or browser run was repeated for this adjacency-only merge.
+
 - `pnpm build`: pass, including TypeScript. Existing Vite large-chunk warnings remain.
 - Affected source/test ESLint: pass.
 - `pnpm config:check`: pass.
