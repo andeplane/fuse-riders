@@ -19,10 +19,27 @@ export const AVATAR_IDS = [
   "dragon",
   "owl",
   "slime",
+  "mushroom",
 ] as const;
 export type AvatarId = (typeof AVATAR_IDS)[number];
 /** The head an AI rider wears, and the one a rider seated with no head at all falls back to. */
 export const DEFAULT_AVATAR: AvatarId = "robot";
+/**
+ * The AI riders' head, and theirs alone. Every AI wears it and they share it (ADR 027), which is exactly why no human
+ * may: a room where a person and an AI both wear the robot cannot be read, and that is what happened whenever someone
+ * joined before the host added one — the room handed out heads in `AVATAR_IDS` order, the human took the first, and the
+ * AI arrived in the same one a moment later. A human is given and allowed the rest (`RIDER_AVATAR_IDS`), and the
+ * `mushroom` is what fills the place the robot used to hold in the picker.
+ */
+export const BOT_AVATAR: AvatarId = "robot";
+/** The heads a human rider may be given or choose: every id but the AI's. */
+export const RIDER_AVATAR_IDS: readonly AvatarId[] = AVATAR_IDS.filter(
+  (id) => id !== BOT_AVATAR,
+);
 export function isAvatarId(value: unknown): value is AvatarId {
   return typeof value === "string" && AVATAR_IDS.some((id) => id === value);
+}
+/** Whether a human rider may wear this head: an id, and not the AI's. */
+export function isRiderAvatarId(value: unknown): value is AvatarId {
+  return isAvatarId(value) && value !== BOT_AVATAR;
 }

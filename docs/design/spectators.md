@@ -87,9 +87,11 @@ run full.
 
 ## Changing sides
 
-A member switches without leaving the room: **WATCH** on its own rider row, **TAKE A SEAT** on its own watcher row.
-Both are the ordinary `join` and `spectate` commands sent again by a member the room already lists, so nothing new
-reaches the wire. `RoomRuntime.join` and `RoomRuntime.spectate` (`packages/fuse-netcode/src/room-runtime.ts`) answer
+A member switches without leaving the room, from one button beside READY: **SWAP TO SPECTATOR** while it holds a seat,
+**SWAP TO PLAYER** while it is watching. There is one of it per page rather than one per roster row — the room lists a
+device exactly once, so only one direction can ever apply — and it reads the direction, and the name it carries, from
+the room's own lists when pressed rather than from the label it was last drawn with. Both directions are the ordinary
+`join` and `spectate` commands sent again by a member the room already lists, so nothing new reaches the wire. `RoomRuntime.join` and `RoomRuntime.spectate` (`packages/fuse-netcode/src/room-runtime.ts`) answer
 them with the ordered pair above, written at one `ownTick()` so the fold sees one transition; `claimSlot` runs first,
 so a switch that cannot be seated writes nothing and the member stays where it was. `pending()` already counted both
 halves — a `JOIN` over a listed watcher as a seat taken, a `SPECTATOR leave` as one watcher fewer — so a switch in

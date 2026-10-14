@@ -12,6 +12,7 @@ import {
   type PickupType,
 } from "../engine/game.js";
 import { DRUNK_DURATION_TICKS } from "../engine/drunk.js";
+import { PORTAL_WARMUP_TICKS } from "../engine/portal.js";
 import { PICKUP_WEIGHTS } from "../engine/pickups.js";
 import { POWER_TUNING } from "../engine/power-progression.js";
 
@@ -52,7 +53,7 @@ const copy: Record<PickupType, readonly [name: string, description: string]> = {
   orbitShield: ["SHIELD", "blocks one crash"],
   portal: [
     "PORTAL",
-    "opens a pair of linked gates; shells and gun shots come through them too",
+    `linked gates form for ${seconds(PORTAL_WARMUP_TICKS)} before opening; bars show time left; shells and gun shots come through too`,
   ],
   beer: ["BEER", `rivals wobble for ${seconds(DRUNK_DURATION_TICKS)}`],
   ink: ["INK", `clouds rivals' view for ${seconds(INK_DURATION_TICKS)}`],

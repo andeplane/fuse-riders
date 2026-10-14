@@ -38,7 +38,7 @@
   aspect-ratio: 1;
   height: auto;
   background-image: url("/avatars/neon-heads.png");
-  background-size: 500% 200%;
+  background-size: 500% 300%;
   background-repeat: no-repeat;
   image-rendering: pixelated;
 }
