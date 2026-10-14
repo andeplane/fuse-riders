@@ -1007,6 +1007,37 @@ body.fui-app button {
   background: rgba(6, 8, 18, 0.9);
   box-shadow: 0 0 1rem color-mix(in srgb, var(--c) 40%, transparent);
 }
+
+.ff-controller > .fui-round-controls {
+  position: relative;
+  inset: auto;
+  transform: none;
+  width: 100%;
+  order: -1;
+}
+
+.ff-top .fui-game-menu-panel,
+.ff-screen .fui-round-controls,
+.ff-controller .fui-round-controls,
+.ff-lobby-confirm {
+  background: #151420;
+  border-color: var(--ff-brass);
+  color: var(--ff-cream);
+  border-radius: 0.7rem;
+}
+
+.ff-lobby-confirm {
+  max-width: min(32rem, calc(100vw - 2rem));
+  padding: 1.5rem;
+}
+
+.ff-lobby-confirm::backdrop {
+  background: #060812b3;
+}
+
+.ff-lobby-confirm button {
+  margin: 0.5rem 0.5rem 0 0;
+}
 .ff-controller-head b {
   font-family: var(--ff-pixel);
   font-size: 0.8rem;
