@@ -19,6 +19,7 @@ import {
 import { MAPS, blocks, isMapId } from "./maps.js";
 import { CHARGE_TICKS, FALL_RESPAWN, KO_RESPAWN } from "./bomb-rules.js";
 import { PAD_VY, ZONE_KEYS, hazardsLive, padsLive } from "./zones.js";
+import { ALL_POWERS, DASH_TICKS } from "./power-rules.js";
 export const plain = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === "object" && !Array.isArray(v);
 export const integer = (v: unknown, min: number, max: number): v is number =>
@@ -35,14 +36,17 @@ const onOff = (v: unknown): v is "on" | "off" => v === "on" || v === "off";
 export function parseTuning(raw: unknown): Tuning | undefined {
   if (
     !plain(raw) ||
-    Object.keys(raw).length !== 13 + ZONE_KEYS.length ||
+    Object.keys(raw).length !== 14 + ZONE_KEYS.length ||
     !isMapId(raw.map) ||
-    ZONE_KEYS.some((key) => !onOff(raw[key]))
+    ZONE_KEYS.some((key) => !onOff(raw[key])) ||
+    (raw.botLevel !== "easy" &&
+      raw.botLevel !== "normal" &&
+      raw.botLevel !== "hard")
   )
     return;
   if (raw.bomb !== "off" && raw.bomb !== "fuse" && raw.bomb !== "impact")
     return;
-  if (raw.powerUps !== "off" && raw.powerUps !== "on") return;
+  if (!integer(raw.powerUps, 0, ALL_POWERS)) return;
   if (raw.jumpMode !== "single" && raw.jumpMode !== "double") return;
   if (raw.wire !== "tip" && raw.wire !== "spiked") return;
   if (
@@ -62,6 +66,7 @@ export function parseTuning(raw: unknown): Tuning | undefined {
   for (const [key, [min, max]] of Object.entries(TUNING_BOUNDS))
     if (!integer(raw[key], min, max)) return;
   return {
+    botLevel: raw.botLevel,
     bomb: raw.bomb,
     powerUps: raw.powerUps,
     jumpMode: raw.jumpMode,
@@ -257,6 +262,11 @@ export function decodeWorld(raw: unknown): World | undefined {
     (tuning.jumpMode === "single" && raw.airJump) ||
     (raw.respawn && raw.airJump) ||
     (raw.grounded && tuning.jumpMode === "double" && !raw.airJump) ||
+    // Power-granted air actions and dashes; the arena checks the power.
+    !integer(raw.bonusJumps, 0, 2) ||
+    !integer(raw.dash, 0, DASH_TICKS) ||
+    ((raw.respawn || raw.grounded) && raw.dash) ||
+    (raw.respawn && raw.bonusJumps) ||
     !integer(raw.coyote, 0, 6) ||
     !integer(raw.buffer, 0, 6) ||
     // Only a bomb or hazard knockout keeps a keeper out longer than a fall.
@@ -341,6 +351,8 @@ export function decodeWorld(raw: unknown): World | undefined {
     vy: raw.vy,
     grounded: raw.grounded,
     airJump: raw.airJump,
+    bonusJumps: raw.bonusJumps,
+    dash: raw.dash,
     coyote: raw.coyote,
     buffer: raw.buffer,
     respawn: raw.respawn,

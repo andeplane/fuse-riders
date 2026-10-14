@@ -91,6 +91,24 @@
 #development-workshop .controls {
   margin: 16px 0;
 }
+/* 11D: the power-up pool, one box per kind in its pad colour. */
+.power-pool {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.power-pool label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  color: var(--power-color);
+  font-weight: 600;
+}
+#power-help {
+  flex-basis: 100%;
+  color: #aaaabd;
+}
 #development-workshop #start {
   display: none;
 }
@@ -447,6 +465,40 @@
   background: #fff2c4;
   filter: drop-shadow(0 0 6px #fff2c4);
 }
+/* 11D: the active power-up on each keeper card, and the time it has left. */
+.keeper-card .power-chip {
+  position: absolute;
+  top: 3px;
+  right: 26px;
+  width: 20px;
+  color: var(--power-color);
+}
+.keeper-card .power-chip[hidden] {
+  display: none;
+}
+.keeper-card .power-chip svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin: 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 4px var(--power-color));
+}
+.keeper-card .power-chip i {
+  display: block;
+  height: 3px;
+  margin-top: 2px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--power-color) calc(var(--power-left, 0) * 100%),
+    #ffffff26 0
+  );
+}
 /* Knockout feed: both keepers of each bomb knockout, briefly. */
 #knockout-feed {
   position: absolute;
@@ -489,4 +541,67 @@
 }
 #result-tally strong {
   color: var(--keeper-color);
+}
+/* 11C: AI keepers wear a BOT tag on their card and in the results. */
+.bot-badge {
+  display: inline-block;
+  margin-right: 5px;
+  padding: 0 4px;
+  font:
+    800 9px/14px system-ui,
+    sans-serif;
+  letter-spacing: 0.08em;
+  color: #0c1220;
+  background: #8fe3ff;
+  border-radius: 3px;
+  vertical-align: 1px;
+  box-shadow: 0 0 6px #8fe3ff80;
+}
+#result-tally .bot-badge {
+  vertical-align: 2px;
+}
+/* Removing bots during a competitive round asks first (the entrance dialogs' look). */
+#bot-confirm {
+  color: #e9dfce;
+  background: linear-gradient(145deg, #202637, #111724);
+  border: 1px solid #9b8255;
+  border-radius: 6px;
+  padding: 30px;
+  width: min(460px, calc(100vw - 32px));
+  box-shadow: 0 20px 100px #000b;
+}
+#bot-confirm::backdrop {
+  background: #050911c9;
+  backdrop-filter: blur(5px);
+}
+#bot-confirm .dialog-kicker {
+  margin: 0 0 6px;
+  font:
+    700 11px system-ui,
+    sans-serif;
+  letter-spacing: 0.2em;
+  color: #b7975c;
+}
+#bot-confirm h2 {
+  margin: 0 0 14px;
+  font-size: 28px;
+  font-weight: 400;
+}
+#bot-confirm p:not(.dialog-kicker) {
+  font:
+    13px/1.6 system-ui,
+    sans-serif;
+  color: #bdc3cf;
+}
+#bot-confirm .dialog-choices {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 22px;
+}
+#bot-confirm-yes {
+  background: #d6af72;
+  border-color: #f9dcac;
+  color: #201a29;
 }

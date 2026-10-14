@@ -58,6 +58,7 @@ import {
   type Entry,
 } from "../src/online/game.js";
 import { ACTION, JOIN, type StreamEntries } from "fuse-netcode";
+import { canonArena } from "./fixtures/canon.js";
 
 const SPIRE: Tuning = {
   ...DEFAULT_TUNING,
@@ -108,7 +109,7 @@ function arena(n = 1, tuning: Tuning = SPIRE, tick = 0): Arena {
     for (let i = 0; i < COUNTDOWN_TICKS; i++) stepArena(a);
     assert.equal(a.contest.phase, "active");
   }
-  for (const k of a.keepers) k.shield = 0;
+  for (const k of a.keepers) k.spawnGuard = 0;
   return a;
 }
 function stand(k: Keeper, x: number, feet: number): void {
@@ -534,7 +535,7 @@ test("the electrified floor knocks out through the bomb path, respecting spawn p
       grounded: false,
     });
   }
-  guard.shield = 5;
+  guard.spawnGuard = 5;
   stepArena(a);
   assert.equal(k.world.respawn, KO_RESPAWN, "knocked out");
   assert.equal(k.bomb.fate, "hazard");
@@ -550,7 +551,11 @@ test("the electrified floor knocks out through the bomb path, respecting spawn p
   assert.ok(roundTrip(a), "a hazard knockout checkpoints");
   for (let i = 0; i < KO_RESPAWN; i++) stepArena(a);
   assert.equal(k.world.respawn, 0);
-  assert.equal(k.shield, KO_SHIELD, "returns protected like a bomb knockout");
+  assert.equal(
+    k.spawnGuard,
+    KO_SHIELD,
+    "returns protected like a bomb knockout",
+  );
   const view = toView(k.world);
   assert.equal(view.respawn, 0);
   // Off: the same drop is an ordinary fall out of the bottom.
@@ -684,7 +689,7 @@ function hookHit(
 ): void {
   stand(by, byX, byFeet);
   stand(target, byX + 160, byFeet);
-  target.shield = 0;
+  target.spawnGuard = 0;
   const hits = by.hits;
   for (let i = 0; i < 20 && by.hits === hits; i++) {
     stand(target, byX + 160, byFeet);
@@ -731,7 +736,7 @@ test("a hazard credits the rival whose hook hit the victim within 2 s, else nobo
       vy: 8 * S,
       grounded: false,
     });
-    k.shield = 0;
+    k.spawnGuard = 0;
     stepArena(a);
   };
   const a = arena(2, score);
@@ -757,7 +762,7 @@ test("a hazard credits the rival whose hook hit the victim within 2 s, else nobo
   hookHit(b, amber2, blue2, 1200, 780);
   for (let i = 0; i < PUSH_TICKS; i++) {
     stand(blue2, 1360, 780);
-    blue2.shield = 0;
+    blue2.spawnGuard = 0;
     stepArena(b);
   }
   assert.equal(blue2.pushedBy, "");
@@ -904,10 +909,10 @@ test("deterministic replay on Neon Spire with checkpoints taken inside every zon
     const before = a.knockouts.length;
     stepArena(a);
     stepArena(b);
-    assert.deepEqual(encodeArena(a), encodeArena(b), `tick ${tick}`);
+    assert.equal(canonArena(a), canonArena(b), `tick ${tick}`);
     const restored = roundTrip(a);
     assert.ok(restored, `tick ${tick} checkpoints`);
-    assert.deepEqual(encodeArena(restored), encodeArena(a));
+    assert.equal(canonArena(restored), canonArena(a));
     if (tick % 17 === 0) b = restored;
     for (const k of a.keepers) {
       const f = field(tuning, k.world.x, k.world.feet - BODY / 2);
@@ -1182,7 +1187,7 @@ test("a live Neon Spire room rejects corrupt or out-of-bounds zone state and kee
 
 test("the rules are a fresh number", async () => {
   const { RULES } = await import("../src/engine/world.js");
-  assert.equal(RULES, "hook-havok-15");
+  assert.equal(RULES, "hook-havok-16");
   const ids: MapId[] = ["belfry", "crossroads", "spire"];
   for (const id of ids) assert.ok(MAPS[id].spawns.length === 5);
 });

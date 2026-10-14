@@ -27,7 +27,7 @@ export function stepHazards(
   if (top === undefined && !bands.length) return;
   for (const k of arena.keepers) {
     const w = k.world;
-    if (!canPlay(k) || w.respawn || k.shield) continue;
+    if (!canPlay(k) || w.respawn || k.spawnGuard) continue;
     if (
       (top !== undefined && w.feet > top) ||
       bands.some((b) => touchesBand(b, w.x, w.feet))

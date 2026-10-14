@@ -19,7 +19,12 @@ import {
 } from "./art.js";
 import { createEchoes, paintEchoes } from "./echoes.js";
 import { paintBalls } from "./balls.js";
-import { paintPowerUps } from "./power-ups.js";
+import {
+  paintKeeperPower,
+  paintPowerUps,
+  POWER_ICON_RISE,
+  POWER_STYLE,
+} from "./power-ups.js";
 import { createFrame, type Frame } from "./frame.js";
 import { createLight, keelTexture, type Light } from "./light.js";
 import { createJuice, type Juice } from "./juice.js";
@@ -673,6 +678,7 @@ export function createShowcase(
               keepers: world.keepers,
               contest: world.contest,
               pickupEvents: world.pickupEvents,
+              shieldPops: world.shieldPops,
               // A peer body's own lists are empty; its "blasted" cue needs the room's.
               knockouts: world.knockouts,
             },
@@ -718,19 +724,26 @@ export function createShowcase(
             .setScale(body.facing * remotePose.scaleX, remotePose.scaleY)
             .setRotation(remotePose.rotation)
             .setAlpha(peer.actor.alpha);
+          // One setText per frame: Phaser re-renders a label whose text changes.
+          const held = keeper.power.kind
+            ? ` · ${POWER_STYLE[keeper.power.kind].short} ${keeper.power.kind === "cluster" ? `×${keeper.power.charges}` : `${keeper.power.seconds}s`}`
+            : "";
           peer.label
             .setText(
-              `P${keeper.slot + 1}${keeper.id === world.localId ? " · YOU" : ""}${!keeper.playing ? " · WATCHING" : keeper.connected ? "" : " · AWAY"}`,
+              `P${keeper.slot + 1}${keeper.id === world.localId ? " · YOU" : ""}${!keeper.playing ? " · WATCHING" : keeper.connected ? "" : " · AWAY"}${held}`,
             )
             .setColor(keeperColor(keeper.slot))
             .setPosition(
               Math.max(85, Math.min(world.size.width - 85, body.x)),
-              Math.max(35, body.feet - 94),
+              Math.max(
+                35,
+                body.feet -
+                  (keeper.power.kind && !body.respawn
+                    ? POWER_ICON_RISE + 16
+                    : 94),
+              ),
             )
-            // Names keep their screen size when a large arena is fitted.
             .setScale(1 / view.zoom);
-          if (keeper.ward)
-            peer.label.setText(`${peer.label.text} · WARD ${keeper.ward}s`);
           peer.tether.clear();
           if (body.grounded)
             peer.tether
@@ -738,22 +751,12 @@ export function createShowcase(
               .fillEllipse(body.x, body.feet + 3, 44, 8);
           peer.tether
             .lineStyle(
-              keeper.shield ? 3 : 2,
+              keeper.spawnGuard ? 3 : 2,
               color,
               keeper.connected ? 0.9 : 0.3,
             )
             .strokeEllipse(body.x, body.feet + 2, 36, 9);
-          if (
-            keeper.ward &&
-            keeper.playing &&
-            keeper.connected &&
-            !body.respawn
-          )
-            peer.tether
-              .fillStyle(0x89d9ff, 0.1)
-              .fillEllipse(body.x, body.feet - 28, 48, 65)
-              .lineStyle(2, 0x89d9ff, 0.8)
-              .strokeEllipse(body.x, body.feet - 28, 48, 65);
+          paintKeeperPower(peer.tether, keeper, body, elapsed, reduced.matches);
           if (keeper.id !== focused && body.hook.phase !== "ready") {
             paintTether(
               peer.tether,
@@ -837,6 +840,7 @@ export function createShowcase(
           world.keepers.map((k) => ({
             id: k.id,
             slot: k.slot,
+            bot: k.bot,
             connected: k.connected,
             hits: k.hits,
             x: k.body.x,
@@ -844,8 +848,12 @@ export function createShowcase(
             hook: k.body.hook.phase,
             deaths: k.body.deaths,
             costume: k.slot,
-            shield: k.shield,
-            ward: k.ward,
+            spawnGuard: k.spawnGuard,
+            power: k.power.kind,
+            powerLeft: k.power.left,
+            charges: k.power.charges,
+            airJumps: Number(k.body.airJump) + k.body.bonusJumps,
+            dash: k.body.dash,
             respawn: k.body.respawn,
             charge: k.body.charge,
             cooldown: k.cooldown,
@@ -881,15 +889,14 @@ export function createShowcase(
             .setDepth(9));
           label
             .setVisible(true)
-            .setPosition(p.x, p.y - 22)
+            .setPosition(p.x, p.y - 28)
             .setScale(1 / view.zoom)
-            .setColor(p.kind === "lift" ? "#96f1b9" : "#89d9ff")
-            .setText(
-              `${p.kind.toUpperCase()}${p.cooldown ? ` · ${p.cooldown}s` : ""}`,
-            );
+            .setColor(p.kind ? POWER_STYLE[p.kind].css : "#8d96b8")
+            .setText(p.kind ? POWER_STYLE[p.kind].short : `${p.cooldown}s`);
         });
         host.dataset.pickups = JSON.stringify(world.pickups);
         host.dataset.pickupEvents = JSON.stringify(world.pickupEvents);
+        host.dataset.shieldPops = JSON.stringify(world.shieldPops);
       }
       if (world && this.combat) {
         const g = this.combat,
