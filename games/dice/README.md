@@ -16,7 +16,7 @@ npm run dev          # builds, then serves every game; open the printed URL plus
 - **PLAY SOLO VS BOTS**: one bot, no room service. **LOBBY** on the result screen lets you add more bots.
 - **CREATE ROOM**: a room with a QR invite. Others join by the code or the link, the creator adds bots and starts. Tick **Shared TV** first to play on one screen: **OPEN TV SCREEN** opens `?room=CODE&display=1`, and every phone becomes a big ROLL/HOLD controller.
 
-Space or R rolls and H or Enter holds on a keyboard. A refreshed device rejoins the running match from a peer.
+Space or R rolls and H or Enter holds on a keyboard. Each round opens with a brief controls guide; **MENU** keeps the controls available during play and offers the host **LOBBY**, plus **LEAVE ROOM** for every device. The menu does not pause the shared game. A refreshed device rejoins the running match from a peer.
 
 ## Layout
 
@@ -49,5 +49,6 @@ This copies this folder to `games/snake-eyes` with every id and name renamed (`"
 3. Register its backend: add `snakeEyesRegistration` from `snake-eyes/platform` to `GAMES` in `service/history.ts`. The dev service then serves its rooms. In production, add its id to `EXTRA_GAME_IDS` once it may go live ([GCP deploy](../../docs/online/GCP-DEPLOY.md)).
 4. Change the rules in `src/game/`, keep `rules` in `game.ts` at `<id>-<n>`, and bump `n` when a change would make two builds disagree.
 5. Edit `portal.json` (name, tagline, a one-to-three-character `mark`, `accent` colour). It puts the game on the app portal, the dot-grid button top left in every game. Pig has none because it is the demo.
+6. Update `CONTROLS`, `TOUCH_CONTROLS` and `GOAL` in `src/app/main.ts` for the new game. Keep the shared menu and round controls guide so players can learn its controls at each round start.
 
 `npm run build` emits its page at `dist/snake-eyes/index.html` without any configuration, and the dev service serves it at `/snake-eyes/`.

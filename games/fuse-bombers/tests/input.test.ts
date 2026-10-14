@@ -206,6 +206,54 @@ test("four keyboard riders, each with all five bits, share no key and use no men
       assert.equal(menuAction(state, code), undefined, `${code} in ${state}`);
 });
 
+test("primary arrows and WASD combine held keys, release independently, and cancel on blur", () => {
+  const target = new FakeTarget();
+  const hub = new InputHub();
+  hub.bind(0, "key:WASD");
+  attachKeyboard(target as KeyboardTarget, (d, bits) => hub.setHeld(d, bits), {
+    arrowsPrimary: () => true,
+  });
+  target.dispatch("keydown", keyEvent("ArrowLeft"));
+  assert.equal(hub.heldBits(0), LEFT);
+  assert.equal(hub.heldBy("key:ARROWS"), 0);
+  target.dispatch("keydown", keyEvent("KeyA"));
+  target.dispatch("keyup", keyEvent("ArrowLeft"));
+  assert.equal(hub.heldBits(0), LEFT, "WASD is still held");
+  target.dispatch("keydown", keyEvent("ArrowRight"));
+  assert.deepEqual(thrustDirection(hub.heldBits(0)), { x: 0, y: 0 });
+  target.dispatch("keyup", keyEvent("KeyA"));
+  assert.equal(hub.heldBits(0), RIGHT);
+  target.dispatch("keydown", keyEvent("Space"));
+  assert.deepEqual(hub.takePresses(1), [true]);
+  target.dispatch("blur");
+  assert.equal(hub.heldBits(0), 0);
+});
+
+test("seating a dedicated arrows rider releases primary holds and keeps the two seats independent", () => {
+  const target = new FakeTarget();
+  const hub = new InputHub();
+  hub.bind(0, "key:WASD");
+  const source = attachKeyboard(
+    target as KeyboardTarget,
+    (d, bits) => hub.setHeld(d, bits),
+    {
+      arrowsPrimary: () => hub.slotOf("key:ARROWS") === undefined,
+    },
+  );
+  target.dispatch("keydown", keyEvent("ArrowUp"));
+  assert.equal(hub.heldBits(0), UP);
+  hub.bind(1, "key:ARROWS");
+  source.poll?.();
+  assert.deepEqual([hub.heldBits(0), hub.heldBits(1)], [0, 0]);
+  target.dispatch("keydown", keyEvent("ArrowDown"));
+  target.dispatch("keydown", keyEvent("KeyW"));
+  target.dispatch("keydown", keyEvent("Slash"));
+  assert.deepEqual([hub.heldBits(0), hub.heldBits(1)], [UP, DOWN | FIRE]);
+  assert.deepEqual(hub.takePresses(2), [false, true]);
+  target.dispatch("visibilitychange");
+  assert.deepEqual([hub.heldBits(0), hub.heldBits(1)], [0, 0]);
+});
+
 test("keyboard: each fire key presses its rider once per keydown, ignoring repeat", () => {
   const target = new FakeTarget();
   const { presses, hold } = recorder();

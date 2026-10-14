@@ -8,6 +8,7 @@ import {
 } from "../engine/match-stats.js";
 import { SOLO_RATING_PLAYER_ID } from "fuse-platform/rating";
 import type { DecidedRound } from "../engine/shot-log.js";
+import { validRiderName } from "../engine/rider-name.js";
 
 /**
  * What a device tells the room service when a match ends. The service keeps a result once a majority of its riders
@@ -39,6 +40,7 @@ export interface FinishedMatch {
 export function buildMatchReport(
   match: FinishedMatch,
   riderId: string,
+  soloName?: string,
 ): MatchReport | undefined {
   if (
     !match.matchFinishers ||
@@ -49,17 +51,40 @@ export function buildMatchReport(
   const avatarId = match.players.find(
     (player) => player.id === riderId,
   )?.avatarId;
+  // The local solo seat is not a wire id. Normalize references as well as the seat itself so combat attribution
+  // and the winner remain valid when the completed game reaches the same parser as an online game's result.
+  const wireId = (id: string) => (id === "solo" ? SOLO_RATING_PLAYER_ID : id);
+  const references = (counts: Record<string, number>) =>
+    Object.fromEntries(
+      Object.entries(counts).map(([id, count]) => [wireId(id), count]),
+    );
   return {
     result: {
       matchId: match.matchId,
       length: match.matchLength,
       ...(match.matchWinnerId === undefined
         ? {}
-        : { winnerId: match.matchWinnerId }),
+        : { winnerId: wireId(match.matchWinnerId) }),
       finishers: match.matchFinishers
         .filter((id) => !id.startsWith(BOT_ID_PREFIX))
+        .map(wireId)
         .sort(),
-      players: match.matchStats.map((entry) => structuredClone(entry)),
+      players: match.matchStats.map((entry) => {
+        const player = structuredClone(entry);
+        // The local solo avatar is labelled "You". Public history needs the account's remembered rider name.
+        if (
+          riderId === "solo" &&
+          entry.playerId === riderId &&
+          validRiderName(soloName)
+        )
+          player.name = soloName;
+        player.playerId = wireId(player.playerId);
+        if (player.combat) {
+          player.combat.victims = references(player.combat.victims);
+          player.combat.killers = references(player.combat.killers);
+        }
+        return player;
+      }),
     },
     ...(avatarId === undefined ? {} : { avatarId }),
   };
@@ -122,6 +147,8 @@ export interface ReportTransport {
    * career reports can go in unlinked and be resent to link the account.
    */
   identityToken: () => Promise<string | undefined>;
+  /** Solo reports require a verified account; wait for identity recovery before sending them. */
+  identityRequired?: boolean;
   /** Waits between attempts; injected so tests do not sleep. */
   wait?: (ms: number) => Promise<void>;
   random?: () => number;
@@ -156,7 +183,11 @@ export async function sendMatchReport(
         tokenFailed = true;
         return undefined;
       });
-      if (tokenFailed && report.result.round !== undefined) continue;
+      if (
+        (tokenFailed && report.result.round !== undefined) ||
+        (transport.identityRequired && !identity)
+      )
+        continue;
       const payload = JSON.stringify(report);
       const response = await transport.fetch(url, {
         method: "POST",

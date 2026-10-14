@@ -13,7 +13,8 @@ interface Snapshot {
   phase: string;
   tick: number;
 }
-const base = process.env.ONLINE_URL ?? "http://127.0.0.1:8787/";
+import { ridersPageUrl } from "./lib/riders-url.js";
+const base = ridersPageUrl(process.env.ONLINE_URL ?? "http://127.0.0.1:8787/");
 await mkdir("artifacts", { recursive: true });
 
 const recording = (page: Page) =>

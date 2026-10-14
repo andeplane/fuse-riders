@@ -1,6 +1,73 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Mesh } from "./fixtures/mesh.js";
+import { planNeuronPlacement } from "../src/app/neuron-placement.js";
+
+test("a long construction batch reaches both online seats without truncation", () => {
+  const mesh = new Mesh("host");
+  const host = mesh.open("host"),
+    friend = mesh.open("friend");
+  mesh.until(() => friend.room().stage === "lobby");
+  host.join("Host");
+  friend.join("Friend");
+  mesh.until(() => friend.room().seats.length === 2);
+  host.configure({ mapId: "cortex-crossing", powerups: false });
+  mesh.until(() => friend.room().mapId === "cortex-crossing");
+  host.start();
+  mesh.until(() => host.canControl && friend.canControl);
+  const player = host.view().players.find((p) => p.id === "host")!;
+  const plan = planNeuronPlacement(host.view(), player, 549);
+  assert.equal(plan.cells.length, 32);
+  assert.equal(
+    host.dispatchBatch(
+      plan.cells.map((cell) => ({
+        type: "queueConstruction",
+        kind: "neuron",
+        cell,
+      })),
+    ),
+    true,
+  );
+  mesh.until(() =>
+    [host, friend].every((m) =>
+      m
+        .view()
+        .players.find((p) => p.id === "host")!
+        .queue.some((j) => j.cell === 549),
+    ),
+  );
+  for (const member of [host, friend])
+    assert.deepEqual(
+      member
+        .view()
+        .players.find((p) => p.id === "host")!
+        .queue.map((j) => j.cell),
+      plan.cells,
+    );
+  // Lobby/rematch cancels any accepted but not yet logged actions.
+  host.dispatchBatch(
+    Array.from({ length: 32 }, () => ({
+      type: "setAutoExpand" as const,
+      enabled: true,
+    })),
+  );
+  host.lobby();
+  mesh.until(() => friend.room().stage === "lobby");
+  host.start();
+  mesh.until(() => host.canControl && friend.canControl);
+  mesh.run(500);
+  for (const member of [host, friend]) {
+    assert.equal(
+      member.view().players.find((p) => p.id === "host")!.autoExpand,
+      false,
+    );
+    assert.equal(
+      member.view().players.find((p) => p.id === "host")!.queue.length,
+      0,
+    );
+    member.dispose();
+  }
+});
 
 test("two members share a Versus room: seats, rules, bots, a match and the lobby", () => {
   const mesh = new Mesh("host");
