@@ -1,4 +1,5 @@
 import { social } from "./social.js";
+import { createModalInputGate } from "fuse-ui/modal-input";
 import "fuse-ui/portal.css";
 import "fuse-ui/components.css";
 import { reportPlay } from "./analytics.js";
@@ -409,6 +410,7 @@ function clear() {
   runtime?.clear(input);
 }
 function send() {
+  if (modalInput.blocked()) return;
   runtime?.input(input);
 }
 const touchToggle = el<HTMLInputElement>("touch-toggle"),
@@ -441,6 +443,19 @@ touch = createTouchControls(
   },
   clear,
 );
+const modalInput = createModalInputGate({
+  isOpen: () => !!document.querySelector("dialog[open]"),
+  observe: (change) => {
+    const observer = new MutationObserver(change);
+    observer.observe(document.body, {
+      attributes: true,
+      subtree: true,
+      attributeFilter: ["open"],
+    });
+    return () => observer.disconnect();
+  },
+  cancel: clear,
+});
 function touchLayout() {
   clear();
   const enabled = touchToggle.checked;
@@ -450,6 +465,7 @@ function touchLayout() {
   el("touch-help").hidden = !enabled;
   touch?.enable(
     enabled &&
+      !modalInput.blocked() &&
       status.dataset.state === "playing" &&
       (!graphicsReady || !menu.isOpen()),
   );
@@ -735,6 +751,7 @@ const enterRoom = async () => {
               frame.stage === "running" &&
               controllable &&
               !!local?.connected &&
+              !modalInput.blocked() &&
               !menu.isOpen(),
           );
           paintBombButton(frame);
@@ -1215,6 +1232,7 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 window.addEventListener("pagehide", () => {
+  modalInput.dispose();
   effects.destroy();
   radio.destroy();
   disposed = true;
@@ -1253,6 +1271,7 @@ const menu = createGameMenu({
     const local = latest.keepers.find((keeper) => keeper.id === selfId);
     touch?.enable(
       !open &&
+        !modalInput.blocked() &&
         !display &&
         touchToggle.checked &&
         !!runtime &&

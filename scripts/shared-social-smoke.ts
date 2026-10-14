@@ -16,6 +16,7 @@ const games = [
   "fuse-bombers",
   "fuse-lane",
   "graveyard-shift",
+  "fuse-drivers",
 ];
 const only = process.env.ONLY?.split(",").filter(Boolean);
 const selected = only ? games.filter((game) => only.includes(game)) : games;
@@ -33,7 +34,10 @@ try {
   await mkdir("artifacts/shared-social", { recursive: true });
   for (const width of [1280, 390]) {
     for (const game of selected) {
-      const page = await browser.newPage({ viewport: { width, height: 900 } });
+      const page = await browser.newPage({
+        viewport: { width, height: 1100 },
+        hasTouch: true,
+      });
       const errors: string[] = [];
       page.on("pageerror", (error) => errors.push(error.message));
       await page.goto(new URL(`${game}/?mute`, origin).href);
@@ -80,6 +84,201 @@ try {
         .getByRole("button", { name: "EVERYONE", exact: true })
         .waitFor();
       await account.getByRole("button", { name: "CLOSE", exact: true }).click();
+      if (game === "hook-havok") {
+        await page.goto(new URL(`${game}/?mute&play&touch`, origin).href);
+        await page.locator('#status[data-state="ready"]').waitFor();
+        await page.locator("#start").click();
+        await page.locator('#status[data-state="playing"]').waitFor();
+        await page.locator("#map").selectOption("spire");
+        await page.waitForFunction(
+          () =>
+            document.querySelector<HTMLElement>("#scene")?.dataset.map ===
+            "spire",
+        );
+        const cdp = await page.context().newCDPSession(page);
+        const thrown = (): Promise<number> =>
+          page.locator("#scene").evaluate((element) => {
+            const data = (element as HTMLElement).dataset;
+            return (
+              JSON.parse(data.keepers ?? "[]") as {
+                id: string;
+                tally: { thrown: number };
+              }[]
+            ).find((keeper) => keeper.id === data.playerId)!.tally.thrown;
+          });
+        for (const kind of ["friends", "account"] as const) {
+          await page.locator("#touch-toggle").focus();
+          const pad = page.locator('[data-pad="bomb"]');
+          await pad.scrollIntoViewIfNeeded();
+          const box = (await pad.boundingBox())!;
+          const point = {
+            id: 1,
+            x: box.x + box.width / 2,
+            y: box.y + box.height / 2,
+          };
+          const before: number = await thrown();
+          await cdp.send("Input.dispatchTouchEvent", {
+            type: "touchStart",
+            touchPoints: [point],
+          });
+          await page.waitForFunction(
+            () =>
+              Number(
+                document.querySelector<HTMLElement>("#scene")?.dataset.charge,
+              ) > 0,
+          );
+          const controls = page.locator(".fui-social");
+          const button =
+            kind === "friends"
+              ? controls.getByRole("button", { name: "FRIENDS", exact: true })
+              : controls.getByRole("button").first();
+          await button.scrollIntoViewIfNeeded();
+          const socialBox = (await button.boundingBox())!;
+          assert.ok(
+            socialBox.y >= 0 && socialBox.y + socialBox.height <= 1100,
+            "social controls remain reachable while touch is held",
+          );
+          // Chromium does not synthesize a button click from a second simultaneous touch.
+          // A native mouse click opens the real dialog while the touch pointer stays held.
+          await button.click();
+          const modal = page.locator("dialog[open]");
+          await modal.waitFor();
+          await page.waitForFunction(
+            () =>
+              Number(
+                document.querySelector<HTMLElement>("#scene")?.dataset.charge,
+              ) === 0,
+          );
+          assert.equal(
+            await thrown(),
+            before,
+            `${kind}: held touch charge cancels without throwing`,
+          );
+          await page.screenshot({
+            path: `artifacts/shared-social/hook-havok-${kind}-held-touch-${width}.png`,
+          });
+          await cdp.send("Input.dispatchTouchEvent", {
+            type: "touchCancel",
+            touchPoints: [],
+          });
+          await modal
+            .getByRole("button", { name: "CLOSE", exact: true })
+            .click();
+        }
+        // A fresh ordinary touch release still throws after the dialogs have closed.
+        await page.locator('[data-pad="bomb"]').scrollIntoViewIfNeeded();
+        const box = (await page.locator('[data-pad="bomb"]').boundingBox())!;
+        const before: number = await thrown();
+        await cdp.send("Input.dispatchTouchEvent", {
+          type: "touchStart",
+          touchPoints: [
+            { id: 3, x: box.x + box.width / 2, y: box.y + box.height / 2 },
+          ],
+        });
+        await page.waitForFunction(
+          () =>
+            Number(
+              document.querySelector<HTMLElement>("#scene")?.dataset.charge,
+            ) > 0,
+        );
+        await cdp.send("Input.dispatchTouchEvent", {
+          type: "touchEnd",
+          touchPoints: [],
+        });
+        await page.waitForFunction((count: number) => {
+          const data = document.querySelector<HTMLElement>("#scene")!.dataset;
+          return (
+            (
+              JSON.parse(data.keepers ?? "[]") as {
+                id: string;
+                tally: { thrown: number };
+              }[]
+            ).find((keeper) => keeper.id === data.playerId)?.tally.thrown ===
+            count + 1
+          );
+        }, before);
+        await cdp.detach();
+        console.log(
+          `OK ${game}: held touch charge cancelled by friends/account, normal release throws at ${width}px`,
+        );
+      }
+      if (game === "fuse-drivers") {
+        await page.goto(new URL(`${game}/?solo=1&mute`, origin).href);
+        await page.locator(".fd-pad").waitFor();
+        const main = page.locator("main[data-tick]");
+        const cdp = await page.context().newCDPSession(page);
+        for (const kind of ["friends", "account"] as const) {
+          await page.locator("canvas").click();
+          await page.keyboard.down("ArrowRight");
+          await page.waitForFunction(
+            () =>
+              document.querySelector<HTMLElement>("main[data-turn]")?.dataset
+                .turn === "1",
+          );
+          const pad = page
+            .locator(".fd-pad")
+            .getByRole("button", { name: "▶", exact: true });
+          await pad.scrollIntoViewIfNeeded();
+          const box = (await pad.boundingBox())!;
+          await cdp.send("Input.dispatchTouchEvent", {
+            type: "touchStart",
+            touchPoints: [
+              { id: 1, x: box.x + box.width / 2, y: box.y + box.height / 2 },
+            ],
+          });
+          const controls = page.locator(".fui-social");
+          if (kind === "friends")
+            await controls
+              .getByRole("button", { name: "FRIENDS", exact: true })
+              .click();
+          else await controls.getByRole("button").first().click();
+          const modal = page.locator("dialog[open]");
+          await modal.waitFor();
+          await page.waitForFunction(
+            () =>
+              document.querySelector<HTMLElement>("main[data-turn]")?.dataset
+                .turn === "0",
+          );
+          const tick = Number(await main.getAttribute("data-tick"));
+          await page.waitForFunction(
+            (at: number) =>
+              Number(
+                document.querySelector<HTMLElement>("main[data-tick]")?.dataset
+                  .tick,
+              ) >=
+              at + 8,
+            tick,
+          );
+          assert.equal(
+            await main.getAttribute("data-turn"),
+            "0",
+            `${kind}: held steering cleared`,
+          );
+          await page.screenshot({
+            path: `artifacts/shared-social/fuse-drivers-${kind}-held-steering-${width}.png`,
+          });
+          await page.keyboard.up("ArrowRight");
+          await cdp.send("Input.dispatchTouchEvent", {
+            type: "touchCancel",
+            touchPoints: [],
+          });
+          await modal
+            .getByRole("button", { name: "CLOSE", exact: true })
+            .click();
+        }
+        await page.locator("canvas").click();
+        await page.keyboard.down("ArrowRight");
+        await page.waitForFunction(
+          () =>
+            document.querySelector<HTMLElement>("main[data-turn]")?.dataset
+              .turn === "1",
+        );
+        await page.keyboard.up("ArrowRight");
+        await cdp.detach();
+        console.log(
+          `OK ${game}: held steering cancelled by friends/account, resumes after close at ${width}px`,
+        );
+      }
       if (game === "graveyard-shift") {
         await page.goto(new URL(`${game}/?solo=1&mute`, origin).href);
         await page.locator('[data-phase="running"]').waitFor();
@@ -90,7 +289,7 @@ try {
             await page.locator("main[data-tick]").getAttribute("data-tick"),
           );
           await page.waitForFunction(
-            (at) =>
+            (at: number) =>
               Number(
                 document.querySelector<HTMLElement>("main[data-tick]")?.dataset
                   .tick,
@@ -101,7 +300,7 @@ try {
           const before = Number(await personal.getAttribute("data-x"));
           await page.keyboard.down("ArrowRight");
           await page.waitForFunction(
-            (x) =>
+            (x: number) =>
               Number(
                 document.querySelector<HTMLElement>(".personal")?.dataset.x,
               ) >
@@ -121,7 +320,7 @@ try {
             await page.locator("main[data-tick]").getAttribute("data-tick"),
           );
           await page.waitForFunction(
-            (at) =>
+            (at: number) =>
               Number(
                 document.querySelector<HTMLElement>("main[data-tick]")?.dataset
                   .tick,
@@ -144,7 +343,7 @@ try {
             "dialog arrow keys retain their native default",
           );
           await page.waitForFunction(
-            (at) =>
+            (at: number) =>
               Number(
                 document.querySelector<HTMLElement>("main[data-tick]")?.dataset
                   .tick,
