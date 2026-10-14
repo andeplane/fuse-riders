@@ -840,9 +840,12 @@ export class RoomRuntime<
     const tick = decoded.state.tick,
       existing = this.sync.world,
       previous = existing?.streams.get(this.id);
-    // A resync that is not ahead of this world says nobody is: the room is behind everywhere (a returning hidden page
-    // that was the only world holder, for one), so the backlog is caught up at the step budget instead of fetched again.
-    if (existing !== undefined && tick <= existing.tick)
+    // A peer may be only marginally ahead while the whole room is behind the clock. Give the installed world
+    // bounded local catch-up time; immediately fetching another similarly lagging snapshot would prevent stepping.
+    const stillBehind =
+      (Math.floor(this.clock.tick()) - tick) * this.game.steps(decoded.state) >
+      BEHIND_STEPS;
+    if (existing !== undefined && (tick <= existing.tick || stillBehind))
       this.sync.holdCatchUp(this.deps.now() + CATCH_UP_HOLD_MS);
     else this.sync.releaseCatchUp();
     let world = existing;
