@@ -2,6 +2,7 @@ import { chromium, webkit } from "playwright";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
+import { ridersPageUrl } from "./lib/riders-url.js";
 import {
   defaultRoomSettings,
   SETTINGS_KEY,
@@ -13,9 +14,9 @@ import {
  * This exists because the failure mode is silent by construction. Mixpanel answers `200` to a request whose
  * properties it dropped, so a bad payload looks exactly like a good one from inside the game — a property named
  * `length` once erased every property on `Match Started`, including the super properties, and nothing noticed.
- * HOME_URL is the served app; BROWSER=webkit selects WebKit.
+ * HOME_URL is the served site root; BROWSER=webkit selects WebKit.
  */
-const base = process.env.HOME_URL ?? "http://127.0.0.1:4188/";
+const base = ridersPageUrl(process.env.HOME_URL ?? "http://127.0.0.1:4188/");
 const browserName = process.env.BROWSER === "webkit" ? "webkit" : "chrome";
 const oneRound = {
   ...defaultRoomSettings(),
@@ -60,7 +61,7 @@ await page.addInitScript(
     localStorage.setItem(key as string, JSON.stringify(settings)),
   [SETTINGS_KEY, oneRound],
 );
-await page.goto(`${base}?solo=1&analytics=1`);
+await page.goto(`${base}?solo=1&analytics=1&mute`);
 // Tap fire through the countdown and the first seconds of play, so the rider pulls the trigger at least once before
 // it rides into a wall: a tap during the countdown is dropped, and one mid-reload is simply refused.
 for (let tap = 0; tap < 16; tap += 1) {
@@ -95,7 +96,7 @@ const closeDialog = () =>
 await closeDialog();
 // Tab B: the landing page in the same browser, analytics on (the `?analytics=1` override is sticky).
 const other = await context.newPage();
-await other.goto(base);
+await other.goto(`${base}?mute`);
 for (let waited = 0; waited < 15000; waited += 250) {
   if (reported.filter((e) => e.event === "FlowRiders.App Opened").length > 1)
     break;

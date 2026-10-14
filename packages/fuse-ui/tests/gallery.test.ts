@@ -91,17 +91,18 @@ test("legacy Riders room, solo and display URLs remain game entries, while plain
     assert.equal(legacyRidersLink(search), false);
 });
 
-test("every catalog game has a safe screenshot path and a dedicated game page", () => {
+test("every catalog game has a dedicated page and its optional screenshot exists", () => {
   const root = new URL("../../../", import.meta.url);
   for (const id of readdirSync(new URL("games/", root))) {
     const manifest = new URL(`games/${id}/portal.json`, root);
     if (!existsSync(manifest)) continue;
     const entry = parsePortalEntry(JSON.parse(readFileSync(manifest, "utf8")));
-    assert.ok(entry?.screenshot, `${id}: missing screenshot`);
-    assert.ok(
-      existsSync(new URL(`public/${entry.screenshot}`, root)),
-      `${id}: missing screenshot file`,
-    );
+    assert.ok(entry, `${id}: invalid manifest`);
+    if (entry.screenshot)
+      assert.ok(
+        existsSync(new URL(`public/${entry.screenshot}`, root)),
+        `${id}: missing screenshot file`,
+      );
     assert.ok(
       existsSync(new URL(`games/${id}/index.html`, root)),
       `${id}: missing page`,

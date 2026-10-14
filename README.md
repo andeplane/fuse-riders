@@ -199,7 +199,7 @@ by default, `?analytics=1` forces them on and `?analytics=0` forces them off; ei
 browser, so it survives the navigation into a room. See [product analytics](docs/ANALYTICS.md)
 for the event list and what is deliberately not tracked.
 
-`HOME_URL=http://127.0.0.1:8899/ pnpm exec tsx scripts/analytics-smoke.ts` (and `BROWSER=webkit`) plays a one-round
+`HOME_URL=http://127.0.0.1:8899/ pnpm exec tsx scripts/analytics-smoke.ts` (and `BROWSER=webkit`) takes the site root, enters `/fuse-riders/` and plays a one-round
 solo match with Mixpanel intercepted — never delivered — and asserts what each event carried, writing
 `artifacts/analytics-<browser>.json`. It exists because the failure mode is silent: Mixpanel answers `200` to a
 request whose properties it dropped, so a bad payload looks exactly like a good one from inside the game. It ends
