@@ -38,6 +38,9 @@ function fixture(options: { manager?: boolean; initialRoom?: string } = {}) {
     canControl: true,
     view: () => world,
     dispatch() {},
+    dispatchBatch() {
+      return true;
+    },
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
