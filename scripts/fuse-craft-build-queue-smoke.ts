@@ -150,6 +150,27 @@ for (const [name, engine] of [
     console.log(
       `${name}: distant placement bridges hidden hex91 and both neurons finish growing`,
     );
+    // A path larger than one tick's input budget must include its final hex.
+    await page.goto(url);
+    await page.locator('[data-action="new-game"]').click();
+    await page.locator('[data-action="mode-sandbox"]').click();
+    await page.locator("#map-picker").selectOption("cortex-crossing");
+    await page.locator('[data-action="start"]').click();
+    await page.locator("#nd-board").waitFor();
+    await page.mouse.move(600, 350);
+    await page.mouse.wheel(0, 4000);
+    await page.keyboard.press("w");
+    await page.keyboard.press("q");
+    await page.locator(".placement-instructions").waitFor();
+    await clickCell(549);
+    await page.locator('.queue-mark[data-cell="549"]').waitFor();
+    assert.ok(
+      (await page.locator(".queue-mark, .structure-neuron").count()) >= 32,
+    );
+    assert.equal(await page.locator(".placement-instructions").count(), 0);
+    console.log(
+      `${name}: full 32-neuron path reaches its target through the actual runtime`,
+    );
   } finally {
     await browser.close();
   }

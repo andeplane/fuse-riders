@@ -199,6 +199,7 @@ export function mountFuseCraft(
   let selectedCell: number | null = null;
   let placement: BuildKind | null = null;
   let placementCell: number | null = null;
+  let placementMessage = "";
   let pending: "reset" | "leave" | null = null;
   let lightTarget: HTMLCanvasElement | null = null;
   let online: OnlineSession | null = null;
@@ -907,7 +908,7 @@ export function mountFuseCraft(
         ? planNeuronPlacement(world, player, placementCell)
         : null;
     const contextDetail = placement
-      ? `<div class="placement-instructions" role="status"><strong>${upgrading ? "Upgrade neuron to" : "Place"} ${BUILD_PRESENTATION[placement].label}</strong><p>Shift: queue more · Esc / S: cancel</p><small>${escape(neuronPlan?.hint ?? "") || (placementRequirements?.allowed && placement && placementCell !== null ? waitingText(placementHints, planSupport(world, player, { cell: placementCell, kind: placement }).get(placementCell)) : placementHints.map(requirementText)).map(escape).join(" ") || (upgrading ? "Neuron stays connected during work. Damage carries over." : CONSTRUCTIONS[placement].upgradesFrom?.length ? "Choose open ground or upgrade your neuron." : "Click or tap open ground.")}</small></div>`
+      ? `<div class="placement-instructions" role="status"><strong>${upgrading ? "Upgrade neuron to" : "Place"} ${BUILD_PRESENTATION[placement].label}</strong><p>Shift: queue more · Esc / S: cancel</p><small>${escape(placementMessage) || escape(neuronPlan?.hint ?? "") || (placementRequirements?.allowed && placement && placementCell !== null ? waitingText(placementHints, planSupport(world, player, { cell: placementCell, kind: placement }).get(placementCell)) : placementHints.map(requirementText)).map(escape).join(" ") || (upgrading ? "Neuron stays connected during work. Damage carries over." : CONSTRUCTIONS[placement].upgradesFrom?.length ? "Choose open ground or upgrade your neuron." : "Click or tap open ground.")}</small></div>`
       : panel === "inspect" || panel === "build"
         ? `${detail}<span class="construction-summary">${player.queue.length}/${RULES.queueLimit} queued · builder ${escape(worker.mode)}</span>`
         : panel === "particles"
@@ -1625,6 +1626,7 @@ export function mountFuseCraft(
     const world = session?.view();
     const owner = world?.players.find((p) => p.id === session?.localPlayerId);
     placementCell = cell;
+    placementMessage = "";
     if (
       placement &&
       world &&
@@ -1638,12 +1640,20 @@ export function mountFuseCraft(
         renderGame();
         return;
       }
+      const orders: Action[] = (plan?.cells ?? [cell]).map((next) => ({
+        type: "queueConstruction",
+        kind,
+        cell: next,
+      }));
+      if (!session.dispatchBatch(orders)) {
+        placementMessage = "Build orders are busy. Try again.";
+        renderGame();
+        return;
+      }
       if (!keepPlacing) {
         placement = null;
         placementCell = null;
       }
-      for (const next of plan?.cells ?? [cell])
-        session?.dispatch({ type: "queueConstruction", kind, cell: next });
       renderGame();
     } else renderGame();
   }
@@ -1664,6 +1674,7 @@ export function mountFuseCraft(
     const cell = tile ? Number(tile.dataset.cell) : null;
     if (cell !== placementCell) {
       placementCell = cell;
+      placementMessage = "";
       renderGame();
     }
   }

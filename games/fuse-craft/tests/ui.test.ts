@@ -72,6 +72,7 @@ function fixture(
   let sessionOptions: SessionOptions | undefined;
   let createdMapId: string | null = null;
   const actions: Action[] = [];
+  let acceptBatches = true;
   const summary: MapSummary = {
     id: world.map.id,
     title: "Test map",
@@ -109,6 +110,11 @@ function fixture(
         view: () => world,
         dispatch(action) {
           actions.push(action);
+        },
+        dispatchBatch(batch) {
+          if (!acceptBatches) return false;
+          actions.push(...batch);
+          return true;
         },
         subscribe(callback) {
           listener = callback;
@@ -170,6 +176,9 @@ function fixture(
     createdMapId: () => createdMapId,
     summary,
     actions,
+    setBatchAcceptance(accept: boolean) {
+      acceptBatches = accept;
+    },
     selectCell(cell: number, shiftKey = false) {
       class ClickEvent extends EventConstructor {
         readonly shiftKey = shiftKey;
@@ -524,6 +533,32 @@ test("build commands arm placement, reject occupied tiles, place once, and cance
   assert.equal(f.actions.length, 1);
   f.click("build-neuron");
   f.press("Escape");
+  assert.equal(f.root.querySelector(".placement-instructions"), null);
+  f.app.dispose();
+});
+
+test("busy batch delivery keeps placement armed and lets the player retry", async () => {
+  const f = fixture();
+  await f.start();
+  const cell = connectedFrontier(
+    f.world,
+    f.world.players.find((p) => p.id === "coral")!,
+    "neuron",
+  )[0]!;
+  f.click("panel-build");
+  f.click("build-neuron");
+  f.setBatchAcceptance(false);
+  f.selectCell(cell);
+  assert.deepEqual(f.actions, []);
+  assert.match(
+    f.root.querySelector(".placement-instructions")!.textContent!,
+    /Build orders are busy. Try again/,
+  );
+  f.setBatchAcceptance(true);
+  f.selectCell(cell);
+  assert.deepEqual(f.actions, [
+    { type: "queueConstruction", kind: "neuron", cell },
+  ]);
   assert.equal(f.root.querySelector(".placement-instructions"), null);
   f.app.dispose();
 });
