@@ -22,6 +22,38 @@ function inspect(page: Page): void {
     }
   });
 }
+/** A recovered turn label can precede current-generation admission and the first complete render. */
+async function waitForPlayControls(
+  page: Page,
+  turn: string | null = null,
+): Promise<void> {
+  await page.bringToFront();
+  await page.waitForFunction(
+    (previous) => {
+      const room = document.querySelector<HTMLElement>(".birds-room");
+      if (!room) return false;
+      // A normal deadline can move the turn while admission/rendering catches up. Reacquire it before acting.
+      if (
+        previous !== null &&
+        (room.dataset.turn !== previous || room.dataset.phase !== "aiming")
+      )
+        return true;
+      const pass = [...room.querySelectorAll<HTMLButtonElement>("button")].find(
+        (button) => button.textContent === "PASS",
+      );
+      return (
+        !document.hidden &&
+        room.dataset.phase === "aiming" &&
+        document.querySelector<HTMLElement>("canvas")?.dataset.ready ===
+          "true" &&
+        !!pass &&
+        !pass.disabled
+      );
+    },
+    turn,
+    { timeout: 30_000 },
+  );
+}
 try {
   const a = await browser.newContext({
       viewport: { width: 1400, height: 900 },
@@ -83,6 +115,7 @@ try {
       .waitFor({ timeout: 60_000 });
   for (const p of [first, second, tv])
     await p.locator('canvas[data-ready="true"]').waitFor();
+  await waitForPlayControls(first);
   await first.screenshot({ path: `${output}/desktop.png` });
   await second.screenshot({ path: `${output}/phone.png` });
   await tv.screenshot({ path: `${output}/tv.png` });
@@ -154,6 +187,8 @@ try {
     .filter({ hasText: /^EMBER · YOU$/ })
     .waitFor({ state: "attached", timeout: 30_000 });
   await second.locator('canvas[data-ready="true"]').waitFor();
+  // This public control gate also proves automatic current-generation admission, before any play is submitted.
+  await waitForPlayControls(second);
   assert.deepEqual(
     await second.locator(".birds-player").allTextContents(),
     before,
@@ -187,11 +222,20 @@ try {
           const room = document.querySelector<HTMLElement>(".birds-room");
           const label =
             document.querySelector(".birds-turn")?.textContent ?? "";
+          const pass = [
+            ...(room?.querySelectorAll<HTMLButtonElement>("button") ?? []),
+          ].find((button) => button.textContent === "PASS");
           return {
             turn: room?.dataset.turn,
             phase: room?.dataset.phase,
             mine: label.includes("YOUR TURN"),
             seconds: Number(label.match(/(\d+)s/)?.[1] ?? 0),
+            playable:
+              !document.hidden &&
+              document.querySelector<HTMLElement>("canvas")?.dataset.ready ===
+                "true" &&
+              !!pass &&
+              !pass.disabled,
           };
         }),
       ),
@@ -215,6 +259,12 @@ try {
       continue;
     }
     const oldTurn = a.turn!;
+    const active = a.mine ? first : second;
+    if (!(a.mine ? a.playable : b.playable)) {
+      await waitForPlayControls(active, oldTurn);
+      // Sample both replicas and their remaining deadlines again after readiness; do not click from a stale label.
+      continue;
+    }
     if (Math.min(a.seconds, b.seconds) < 12) {
       console.log(
         `Turn ${oldTurn} too close to deadline for a causal PASS check; waiting for the next turn`,
@@ -227,7 +277,6 @@ try {
       );
       continue;
     }
-    const active = a.mine ? first : second;
     console.log(
       `Passing turn ${oldTurn} on ${active === first ? "SKYE" : "EMBER"}`,
     );
@@ -266,6 +315,22 @@ try {
   let index = 0;
   for (const context of browser.contexts())
     for (const page of context.pages()) {
+      console.error(
+        "Control readiness",
+        await page.evaluate(() => ({
+          visibility: document.visibilityState,
+          ready: document.querySelector<HTMLElement>("canvas")?.dataset.ready,
+          turn: document.querySelector<HTMLElement>(".birds-room")?.dataset
+            .turn,
+          phase:
+            document.querySelector<HTMLElement>(".birds-room")?.dataset.phase,
+          buttons: [...document.querySelectorAll<HTMLButtonElement>("button")]
+            .filter((button) => button.textContent === "PASS")
+            .map((button) => ({ disabled: button.disabled })),
+          hint: document.querySelector(".birds-hint")?.textContent,
+          roster: document.querySelector(".birds-roster")?.textContent,
+        })),
+      );
       console.error(
         "Browser state",
         index,
