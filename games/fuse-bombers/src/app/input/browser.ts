@@ -44,11 +44,18 @@ const ARROWS: readonly [cell: number, glyph: string, bit: number][] = [
  */
 export function createBrowserInput(
   win: Window = window,
-  options: { forceTouch?: boolean } = {},
+  options: { forceTouch?: boolean; singleKeyboard?: boolean } = {},
 ): BrowserInput {
   const hub = new InputHub();
   const hold = hub.setHeld.bind(hub);
-  hub.addSource(attachKeyboard(win, hold));
+  hub.addSource(
+    attachKeyboard(win, hold, {
+      arrowsPrimary: () =>
+        options.singleKeyboard === true ||
+        (hub.slotOf("key:WASD") !== undefined &&
+          hub.slotOf("key:ARROWS") === undefined),
+    }),
+  );
   hub.addSource(
     attachGamepads(
       (): readonly (GamepadLike | null)[] => {

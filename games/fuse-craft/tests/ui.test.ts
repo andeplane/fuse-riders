@@ -139,6 +139,11 @@ function fixture(
   };
   const app = mountFuseCraft(root, dependencies);
   function click(action: string) {
+    if (action === "leave") {
+      root.querySelector<HTMLButtonElement>(".fui-game-menu-trigger")!.click();
+      root.querySelector<HTMLButtonElement>(".fui-game-menu-leave")!.click();
+      return;
+    }
     const button = root.querySelector<HTMLButtonElement>(
       `[data-action="${action}"]`,
     );
@@ -213,6 +218,53 @@ function fixture(
     },
   };
 }
+
+test("Craft shows touch controls for a touch input surface", async () => {
+  const f = fixture(undefined, () => 0, undefined, { touch: true });
+  await f.start();
+  const hint = f.root.querySelector(".fui-round-controls")!;
+  assert.match(hint.textContent!, /Pinch/);
+  assert.doesNotMatch(hint.textContent!, /Arrow keys/);
+  f.app.dispose();
+});
+
+test("Craft shows controls at every match start and keeps them available from MENU", async () => {
+  const f = fixture();
+  await f.start();
+  const hint = () => f.root.querySelector<HTMLElement>(".fui-round-controls")!;
+  assert.equal(hint().hidden, false);
+  assert.match(hint().textContent!, /Click \/ tap/);
+  assert.match(hint().textContent!, /choose Build/);
+  f.world.tick = 160;
+  f.publish();
+  assert.equal(hint().hidden, true);
+  f.world.matchId = "another-match";
+  f.world.tick = 0;
+  f.publish();
+  assert.equal(hint().hidden, false);
+  assert.equal(hint().dataset.round, "another-match");
+  f.root.querySelector<HTMLButtonElement>(".fui-game-menu-trigger")!.click();
+  const controls = Array.from(
+    f.root.querySelectorAll<HTMLButtonElement>(".fui-game-menu-action"),
+  ).find((button) => button.textContent === "CONTROLS")!;
+  controls.click();
+  const openMenu = f.root.querySelector(".fui-game-menu-panel");
+  f.world.tick++;
+  f.publish();
+  assert.equal(f.root.querySelector(".fui-game-menu-panel"), openMenu);
+  assert.equal(
+    f.root.querySelector<HTMLElement>(".fui-game-menu-controls")!.hidden,
+    false,
+  );
+  assert.match(
+    f.root.querySelector(".fui-game-menu-controls")!.textContent!,
+    /Shift \+ click/,
+  );
+  // Command shortcuts must not send game actions behind the menu.
+  f.press("q");
+  assert.deepEqual(f.actions, []);
+  f.app.dispose();
+});
 
 test("watch mode shows both openings, inspection and neutral results without gameplay controls", async () => {
   const f = fixture();

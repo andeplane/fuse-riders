@@ -103,6 +103,27 @@ import type {
   OpeningChoice,
 } from "./contracts.js";
 import { isOpeningChoice } from "./contracts.js";
+import { createGameMenu, createRoundControls } from "fuse-ui";
+
+const CRAFT_CONTROLS = [
+  {
+    keys: "Click / tap",
+    action:
+      "Select your brain or a neuron, choose Build, then place on open ground",
+  },
+  {
+    keys: "Q W E / A S D",
+    action: "Use the commands shown in the command dock",
+  },
+  {
+    keys: "Arrow keys · drag · minimap",
+    action: "Move around the battlefield; scroll to zoom",
+  },
+  { keys: "Shift + click", action: "Queue more buildings" },
+  { keys: "Esc", action: "Cancel placement or close a command panel" },
+] as const;
+const CRAFT_GOAL =
+  "Grow a connected network beside resources. Destroy rival brains or hold dominant territory.";
 
 type Screen =
   "menu" | "settings" | "setup" | "game" | "multiplayer" | "room" | "guide";
@@ -183,6 +204,8 @@ export interface AppDependencies {
   createLightRenderer?: (canvas: HTMLCanvasElement) => LightRenderer | null;
   audio?: PresentationAudio;
   forcedMute?: boolean;
+  /** Input surface used for control guidance; supplied by the browser adapter. */
+  touch?: boolean;
 }
 
 export function mountFuseCraft(
@@ -245,6 +268,41 @@ export function mountFuseCraft(
   let panel: CommandPanel = "inspect";
   let commandPage = 0;
   const attractScene = createAttractScene();
+  const controlsOptions = {
+    document: root.ownerDocument,
+    controls: CRAFT_CONTROLS,
+    touchControls: [
+      {
+        keys: "Tap",
+        action:
+          "Select your brain or a neuron, choose Build, then tap open ground",
+      },
+      {
+        keys: "Command dock",
+        action: "Tap Build, Research or Charge for the selected structure",
+      },
+      { keys: "Drag / minimap", action: "Move around the battlefield" },
+      { keys: "Pinch", action: "Zoom in or out" },
+    ],
+    goal: CRAFT_GOAL,
+  };
+  const gameMenu = createGameMenu({
+    ...controlsOptions,
+    onLobby: () => online?.lobby(),
+    onLeave: () => {
+      if (session?.view().finished) showMenu();
+      else {
+        pending = "leave";
+        render();
+      }
+    },
+    onOpenChange: (open) => {
+      for (const direction of ["left", "right", "up", "down"] as const)
+        camera?.hold(direction, false);
+      camera?.setEdgeScroll(!open && preferences.edgeScroll);
+    },
+  });
+  const roundControls = createRoundControls(controlsOptions);
 
   function stopAnimation() {
     if (frame !== null) dependencies.cancelFrame(frame);
@@ -325,6 +383,7 @@ export function mountFuseCraft(
   }
 
   function showMenu() {
+    gameMenu.close();
     cancelLoads();
     if (online) dependencies.online?.leaveRoom();
     disposeSession();
@@ -677,7 +736,7 @@ export function mountFuseCraft(
       <div id="nd-viewport" class="board-scroll"><svg id="nd-board" class="nd-board" tabindex="0" aria-label="Hex board. Use arrow keys to move selection."></svg><canvas id="nd-light" class="nd-light" aria-hidden="true"></canvas></div>
       <div id="dominance-banner" class="dominance-banner" role="status" hidden></div><div id="match-result" class="match-result" role="status" hidden></div><aside id="tutorial-coach" class="tutorial-coach" aria-live="polite" hidden></aside>
       </section>
-      <aside id="game-sidebar" class="game-sidebar"></aside></main><div id="game-modal">${modal()}</div>`;
+      <aside id="game-sidebar" class="game-sidebar"></aside><div id="craft-menu"></div></main><div id="game-modal">${modal()}</div>`;
   }
 
   function fullscreenButton(): string {
@@ -779,7 +838,7 @@ export function mountFuseCraft(
         ? '<button data-action="reset" class="secondary">Lobby</button>'
         : ""
       : '<button data-action="reset" class="secondary">Restart</button>';
-    return `<div class="battle-topbar watch-topbar"><div class="resource-row">${resources}</div><div class="hud-mini"></div><div class="session-controls">${fullscreenButton()}<button data-action="help" class="secondary" aria-label="How to play" title="How to play">?</button>${restart}<button data-action="leave" class="secondary">${online ? "Leave" : "Menu"}</button></div></div><div class="command-dock watch-dock">${minimapMarkup(world)}<section class="inspector" aria-label="Selected hex"><div class="selection-details"><strong>${escape(selected)}</strong><span>${structure ? (structure.connected ? "Connected to its brain" : "Disconnected") : "Watch either network grow and adapt."}</span><small>Pan, zoom and inspect · Select a player to follow its brain</small></div><button data-action="find-battle" class="secondary" title="Jump to fighting or the nearest opposing networks">Find battle</button></section><nav class="watch-players" aria-label="${online ? "Players" : "AI players"}">${cards}</nav></div>`;
+    return `<div class="battle-topbar watch-topbar"><div class="resource-row">${resources}</div><div class="hud-mini"></div><div class="session-controls">${fullscreenButton()}<button data-action="help" class="secondary" aria-label="How to play" title="How to play">?</button>${online ? "" : restart}</div></div><div class="command-dock watch-dock">${minimapMarkup(world)}<section class="inspector" aria-label="Selected hex"><div class="selection-details"><strong>${escape(selected)}</strong><span>${structure ? (structure.connected ? "Connected to its brain" : "Disconnected") : "Watch either network grow and adapt."}</span><small>Pan, zoom and inspect · Select a player to follow its brain</small></div><button data-action="find-battle" class="secondary" title="Jump to fighting or the nearest opposing networks">Find battle</button></section><nav class="watch-players" aria-label="${online ? "Players" : "AI players"}">${cards}</nav></div>`;
   }
 
   function sidebarMarkup(world: Readonly<World>): string {
@@ -910,7 +969,7 @@ export function mountFuseCraft(
           : panel === "research"
             ? `<div class="command-context"><strong>Research</strong><p>${player.researchJob ? `${researchNames[player.researchJob.kind]} · researching` : "Choose an upgrade"}</p><small>${player.research.length ? `Complete: ${player.research.map((r) => researchNames[r]).join(", ")}` : "Hover or focus a command for its requirements."}</small></div>`
             : `<div class="command-context"><strong>Recent activity</strong><ul class="event-list" aria-live="polite">${outcomes || "<li>No recent activity.</li>"}</ul></div>`;
-    return `<div class="battle-topbar"><div class="resource-row"><div><small>BIOMASS</small><strong>◈ ${units(player.biomass)}</strong></div><div><small>INSIGHT</small><strong>◇ ${units(player.insight)}</strong></div>${territoryChips(world, player)}${buffChips(world, player)}</div><div class="hud-mini"></div>${dependencies.debug ? '<div class="debug-note"></div>' : ""}<div class="session-controls">${fullscreenButton()}<button data-action="help" class="secondary" aria-label="How to play" title="How to play">?</button>${online ? (online.room().manager ? '<button data-action="reset" class="secondary">Lobby</button>' : "") : '<button data-action="reset" class="secondary">Reset</button>'}<button data-action="leave" class="secondary">${online ? "Leave" : "Menu"}</button></div></div>
+    return `<div class="battle-topbar"><div class="resource-row"><div><small>BIOMASS</small><strong>◈ ${units(player.biomass)}</strong></div><div><small>INSIGHT</small><strong>◇ ${units(player.insight)}</strong></div>${territoryChips(world, player)}${buffChips(world, player)}</div><div class="hud-mini"></div>${dependencies.debug ? '<div class="debug-note"></div>' : ""}<div class="session-controls">${fullscreenButton()}<button data-action="help" class="secondary" aria-label="How to play" title="How to play">?</button>${online ? "" : '<button data-action="reset" class="secondary">Reset</button>'}</div></div>
       <div class="command-dock">${minimapMarkup(world)}<section class="inspector" aria-label="${panel === "inspect" || panel === "build" ? "Selected hex" : panel === "research" ? "Research" : "Recent activity"}">${portrait ? `<div class="selection-portrait"><img style="filter:${structure && structure.kind !== "neuron" && structure.kind !== "spore" ? teamArtFilter(world.players.find((p) => p.id === structure.ownerId)?.slot ?? 0) : "none"}" src="${escape(portrait)}" alt="" draggable="false"></div>` : ""}<div class="selection-details">${contextDetail}</div></section><nav class="command-card" data-panel="${panel}" aria-label="${panel === "research" ? "Research commands" : panel === "build" ? "Build commands" : panel === "activity" ? "Activity commands" : "Commands"}">${commands}</nav></div>`;
   }
 
@@ -980,6 +1039,24 @@ export function mountFuseCraft(
       }
     }
     updateContent(sidebar, sidebarMarkup(world));
+    // Keep the menu outside the reconciled HUD so focused controls survive ticks.
+    const menuHost = root.querySelector("#craft-menu");
+    if (menuHost && menuHost.firstElementChild !== gameMenu.element)
+      menuHost.append(gameMenu.element);
+    gameMenu.update({
+      canLobby: !!online?.room().manager,
+      spectator: !playing,
+      touch: dependencies.touch,
+    });
+    const boardShell = root.querySelector(".board-shell");
+    if (boardShell && roundControls.element.parentElement !== boardShell)
+      boardShell.append(roundControls.element);
+    roundControls.update({
+      round: world.matchId,
+      visible: !world.finished && world.tick < RULES.ticksPerSecond * 8,
+      spectator: !playing,
+      touch: dependencies.touch,
+    });
     renderCoach(world);
     renderDominance(world);
     const rate = sidebar.querySelector<HTMLElement>(".hud-mini");
@@ -1158,6 +1235,7 @@ export function mountFuseCraft(
       return;
     }
     if (screen === "game" && (!playing || room.closed)) {
+      gameMenu.close();
       camera?.dispose();
       camera = null;
       pending = null;
@@ -1745,6 +1823,7 @@ export function mountFuseCraft(
   }
 
   function onKeyDown(event: KeyboardEvent) {
+    if (gameMenu.isOpen()) return;
     // How to play is modal: no game shortcut acts behind it.
     if (helpOpen && screen === "game") return;
     if (pending) {
@@ -1909,6 +1988,7 @@ export function mountFuseCraft(
       disposed = true;
       cancelLoads();
       disposeSession();
+      gameMenu.dispose();
       dependencies.audio?.dispose();
       root.removeEventListener("click", onClick);
       root.removeEventListener("pointermove", onPointerMove);

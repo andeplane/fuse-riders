@@ -3021,41 +3021,34 @@
 .online-announce.final ~ .online-feed {
   display: none;
 }
-/* One-shot keyboard reminder over the arena: fades itself out, never takes clicks.
-   Hidden until shown by the `hidden` attribute via `.online-app [hidden]{display:none!important}` above.
-   The countdown is 3.0s (COUNTDOWN_TICKS/TPS), so the fade is well under way before riders move. */
-.key-hint {
+/* The shared controls card stays readable for every countdown, without intercepting input. */
+.rider-round-controls {
   position: fixed;
   left: 50%;
   bottom: 7%;
   transform: translateX(-50%);
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.375rem 1.25rem;
-  padding: 0.625rem 1.125rem;
   background: #030d1fe8;
   border: 0.0625rem solid var(--player-color);
+  border-radius: 0;
   color: var(--fui-text);
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  text-align: center;
-  pointer-events: none;
   z-index: var(--fui-z-hint);
-  animation: key-hint-fade 3.5s ease-out forwards;
 }
-@keyframes key-hint-fade {
-  0% {
-    opacity: 0;
+.mobile-play .rider-round-controls {
+  bottom: max(1rem, env(safe-area-inset-bottom));
+}
+.mobile-play.controller-only .rider-round-controls {
+  top: max(5rem, calc(env(safe-area-inset-top) + 4.75rem));
+  bottom: auto;
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .mobile-play .rider-round-controls {
+    padding: 0.5rem 0.75rem;
   }
-  10% {
-    opacity: 1;
+  .mobile-play .rider-round-controls .fui-controls-list {
+    gap: 0.125rem;
   }
-  55% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
+  .mobile-play .rider-round-controls .fui-controls-goal {
+    margin-bottom: 0.25rem;
   }
 }
 .match-recap-report .watch-again {
@@ -3326,7 +3319,7 @@
 }
 .side-standings .online-announce,
 .side-standings .online-feed,
-.side-standings .key-hint,
+.side-standings .rider-round-controls,
 .side-standings .online-power-status {
   left: calc(50% - var(--standings-width) / 2);
 }

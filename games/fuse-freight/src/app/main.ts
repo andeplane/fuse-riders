@@ -15,11 +15,13 @@ import { MAX_PACKET_BYTES, uuid } from "fuse-netcode";
 import {
   button,
   createAppPortal,
+  createGameMenu,
   createInviteCard,
   createLandingCard,
   createNameEntry,
   createNotice,
   createRoster,
+  createRoundControls,
   el,
 } from "fuse-ui";
 import {
@@ -68,6 +70,28 @@ import {
   safeStore,
   sessionFor,
 } from "./session.js";
+
+const controllerGuide = {
+  controls: [
+    { keys: "A / ←", action: "Hold to steer left relative to your train" },
+    { keys: "D / →", action: "Hold to steer right" },
+    {
+      keys: "RELEASE BOTH",
+      action: "Drive straight; your train moves automatically",
+    },
+  ],
+  touchControls: [
+    {
+      keys: "◀ LEFT / RIGHT ▶",
+      action: "Hold to steer relative to your train",
+    },
+    {
+      keys: "RELEASE BOTH",
+      action: "Drive straight; your train moves automatically",
+    },
+  ],
+  goal: "Collect loose wagons, steal rivals' tails, and drive into a DELIVER dock to bank them. Deliver the most before the whistle.",
+} as const;
 
 /**
  * The page's glue: it reads the query, builds the screens from fuse-ui components and its own HUD, wires the runtime
@@ -370,7 +394,13 @@ function landing(): void {
   const front = el("div", "", "ff-splash-front");
   front.append(title, card.element);
   splash.append(canvas, front);
-  app.replaceChildren(header([soundToggles(), back]), splash, howToPlay());
+  const menu = createGameMenu(controllerGuide);
+  menu.update({ canLobby: false, touch: coarse() });
+  app.replaceChildren(
+    header([soundToggles(), back, menu.element]),
+    splash,
+    howToPlay(),
+  );
 }
 
 function attractWorld(): World {
@@ -448,41 +478,39 @@ function room(solo: boolean): void {
   };
 
   // ---- the page ----
-  const status = createNotice({ className: "ff-status" }),
-    leave = button(solo ? "EXIT" : "LEAVE", "ff-leave");
-  leave.onclick = () => {
-    runtime.stop();
-    location.href = withFlags(endpoints.appUrl());
+  const status = createNotice({ className: "ff-status" });
+  // Returning to the lobby ends play for everyone, so keep an explicit second action.
+  const lobbyConfirm = el("dialog", "", "ff-lobby-confirm");
+  const cancelLobby = button("CANCEL"),
+    endMatch = button("BACK TO LOBBY", "fui-button-primary");
+  cancelLobby.onclick = () => lobbyConfirm.close();
+  endMatch.onclick = () => {
+    lobbyConfirm.close();
+    runtime.command({ type: "action", action: "lobby" });
   };
-  // The host can go back to the lobby (and the depot rules) mid-match; in solo that is the only way to them.
-  const backToLobby = button("LOBBY", "ff-to-lobby");
-  let lobbyArmed = 0;
-  const disarm = () => {
-    lobbyArmed = 0;
-    setText(backToLobby, "LOBBY");
-    backToLobby.classList.remove("armed");
-  };
-  // Mid-match it asks twice: one stray tap would end the match for everyone.
-  backToLobby.onclick = () => {
-    if (lobbyArmed && performance.now() - lobbyArmed < 3000) {
-      disarm();
-      runtime.command({ type: "action", action: "lobby" });
-      return;
-    }
-    lobbyArmed = performance.now();
-    setText(backToLobby, "END MATCH? TAP AGAIN");
-    backToLobby.classList.add("armed");
-    setTimeout(() => {
-      if (lobbyArmed && performance.now() - lobbyArmed >= 3000) disarm();
-    }, 3100);
-  };
-  backToLobby.hidden = true;
+  lobbyConfirm.append(
+    el("h2", "END THIS MATCH?"),
+    el("p", "Returning to the lobby ends the current match for everyone."),
+    cancelLobby,
+    endMatch,
+  );
+  const menu = createGameMenu({
+    ...controllerGuide,
+    onLobby: () => lobbyConfirm.showModal(),
+    onLeave: () => {
+      runtime.stop();
+      location.href = withFlags(endpoints.appUrl());
+    },
+    onOpenChange: (open) => {
+      if (open) controls.clear();
+    },
+  });
+  const roundControls = createRoundControls(controllerGuide);
   const top = header([
     el("strong", solo ? "SOLO" : code, "ff-code"),
     status.element,
     soundToggles(display),
-    backToLobby,
-    leave,
+    menu.element,
   ]);
 
   // Lobby.
@@ -723,7 +751,8 @@ function room(solo: boolean): void {
     stage,
     controller,
   );
-  app.replaceChildren(top, main);
+  screen.append(roundControls.element);
+  app.replaceChildren(top, main, lobbyConfirm);
   lobby.hidden = true;
   lobbyRules.hidden = true;
   stage.hidden = true;
@@ -872,7 +901,24 @@ function room(solo: boolean): void {
     );
     showWins(view.settings.wins, next.lobby.editable);
     showSeconds(view.settings.seconds, next.lobby.editable);
-    backToLobby.hidden = !(viewer.host && view.stage !== "lobby" && !display);
+    const touchGuide = coarse() || next.screen === "controller";
+    menu.update({
+      canLobby: viewer.host && view.stage !== "lobby" && !display,
+      touch: touchGuide,
+      spectator: display || !next.seated,
+      display,
+    });
+    roundControls.update({
+      round: view.round,
+      visible: next.controlsVisible,
+      touch: touchGuide,
+      spectator: display || !next.seated,
+      display,
+    });
+    const guideParent = next.screen === "controller" ? controller : screen;
+    if (roundControls.element.parentElement !== guideParent)
+      guideParent.append(roundControls.element);
+    if (view.stage === "lobby" && lobbyConfirm.open) lobbyConfirm.close();
     // HUD.
     // A new round empties every train: that is not a theft.
     const round = `${view.matchId}:${view.round}:${view.world?.seed ?? ""}`;
@@ -1126,7 +1172,14 @@ function room(solo: boolean): void {
     (target instanceof HTMLButtonElement && !model?.driving);
   const captured = new Set<string>();
   document.addEventListener("keydown", (event) => {
-    if (typing(event.target) || event.metaKey || event.ctrlKey || event.altKey)
+    if (
+      menu.isOpen() ||
+      lobbyConfirm.open ||
+      typing(event.target) ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.altKey
+    )
       return;
     if (controls.press(event.code)) {
       captured.add(event.code);

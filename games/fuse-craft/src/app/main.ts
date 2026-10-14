@@ -82,6 +82,7 @@ const buildingSprites = createBuildingSprites(
 const fullscreen = createFullscreenControl(document, root);
 
 mountFuseCraft(root, {
+  touch: matchMedia("(pointer: coarse)").matches,
   // The shared portal of every Fuse game, first in each header.
   portal: () =>
     createAppPortal({

@@ -16,6 +16,7 @@ import {
   button,
   createAppPortal,
   createControllerRow,
+  createGameMenu,
   createInviteCard,
   createKeyList,
   createLandingCard,
@@ -24,6 +25,7 @@ import {
   createPhoneLayout,
   createPicker,
   createRoster,
+  createRoundControls,
   el,
 } from "fuse-ui";
 import { HERO_KINDS, type HeroKind } from "../engine/index.js";
@@ -36,6 +38,12 @@ import type { MakeSurface } from "../render/surface.js";
 import { AxeAudio } from "./audio/director.js";
 import { WebAudioBackend } from "./audio/web-backend.js";
 import { HeldControls, KEY_HELP } from "./controls.js";
+import {
+  AXE_CONTROLS,
+  AXE_TOUCH_CONTROLS,
+  AXE_GOAL,
+  showAxeRoundControls,
+} from "./control-guide.js";
 import { PendingPick, SoloOpening } from "./flow.js";
 import { GamepadInput, browserGamepads } from "./gamepad.js";
 import { drawn } from "./interpolate.js";
@@ -127,6 +135,16 @@ function badge(hero: string): HTMLElement {
 }
 
 function landing(): void {
+  const menu = createGameMenu({
+    controls: AXE_CONTROLS,
+    touchControls: AXE_TOUCH_CONTROLS,
+    goal: AXE_GOAL,
+  });
+  menu.update({
+    canLobby: false,
+    canLeave: false,
+    touch: matchMedia("(pointer: coarse)").matches,
+  });
   const card = createLandingCard({
     title: "FUSE AXE",
     tagline:
@@ -154,7 +172,7 @@ function landing(): void {
   card.element.append(keyHelp());
   const back = el("a", "← FUSE RIDERS", "fa-back");
   back.href = import.meta.env.BASE_URL + (query.has("mute") ? "?mute" : "");
-  app.replaceChildren(header([back]), card.element);
+  app.replaceChildren(header([back, menu.element]), card.element);
 }
 
 function room(solo: boolean): void {
@@ -189,8 +207,6 @@ function room(solo: boolean): void {
 
   // ---- the page ----
   const status = createNotice({ className: "fa-status" }),
-    toLobby = button("LOBBY", "fa-to-lobby"),
-    leave = button(solo ? "EXIT" : "LEAVE", "fa-leave"),
     tvInvite = el("div", "", "fa-tv-invite"),
     tvQr = el("img", "", "fa-tv-qr");
   tvQr.alt = `QR code to join room ${code}`;
@@ -204,11 +220,22 @@ function room(solo: boolean): void {
       () => tvInvite.remove(),
     );
   // The host can take the room back to the lobby, and its hero picker, from a run.
-  toLobby.onclick = () => runtime.command({ type: "action", action: "lobby" });
-  leave.onclick = () => {
-    runtime.stop();
-    location.href = withFlags(endpoints.appUrl());
-  };
+  const menu = createGameMenu({
+    controls: AXE_CONTROLS,
+    touchControls: AXE_TOUCH_CONTROLS,
+    goal: AXE_GOAL,
+    onLobby: () => runtime.command({ type: "action", action: "lobby" }),
+    onLeave: () => {
+      runtime.stop();
+      location.href = withFlags(endpoints.appUrl());
+    },
+    onOpenChange: () => letGo(),
+  });
+  const roundControls = createRoundControls({
+    controls: AXE_CONTROLS,
+    touchControls: AXE_TOUCH_CONTROLS,
+    goal: AXE_GOAL,
+  });
   // Sound: this browser's MUSIC and EFFECTS choices, kept; `?mute` silences the page and leaves them alone.
   const muted = query.has("mute"),
     audio = new AxeAudio(new WebAudioBackend(), store, names, muted);
@@ -252,8 +279,7 @@ function room(solo: boolean): void {
       () => audio.effects,
       (on) => audio.setEffects(on),
     ),
-    toLobby,
-    leave,
+    menu.element,
   ]);
 
   // The lobby: who is here and which hero each plays; this device's pick, and the host's START.
@@ -370,6 +396,7 @@ function room(solo: boolean): void {
   for (const side of ["up", "down", "left", "right"])
     dpadPad.append(el("i", "", `fa-dpad-${side}`));
   const dpad = new DPad(dpadPad, (bits) => {
+    if (menu.isOpen()) return;
     controls.hold("dpad", bits);
     dpadPad.dataset.dir = directionName(bits);
   });
@@ -377,7 +404,9 @@ function room(solo: boolean): void {
   for (const type of ["pointerup", "pointercancel"] as const)
     window.addEventListener(type, (event) => dpad.lift(event.pointerId));
   const fightPads = createControllerRow({
-    buttons: padButtons((source, bits) => controls.hold(source, bits)),
+    buttons: padButtons((source, bits) => {
+      if (!menu.isOpen()) controls.hold(source, bits);
+    }),
     className: "fui-controller fa-buttons",
   }).element;
   touch.append(dpadPad, fightPads);
@@ -435,14 +464,13 @@ function room(solo: boolean): void {
   });
   const main = el("main", "", "fa-room");
   main.append(connecting, closed, nameEntry.form, lobby, stage, controller);
-  app.replaceChildren(top, main);
+  app.replaceChildren(top, main, roundControls.element);
   for (const part of [
     closed,
     nameEntry.form,
     lobby,
     stage,
     controller,
-    toLobby,
     tvInvite,
   ])
     part.hidden = true;
@@ -461,10 +489,14 @@ function room(solo: boolean): void {
     clearControls: letGo,
     hints: ["SLIDE TO WALK · DOUBLE-TAP TO RUN", "ATTACK · JUMP · MAGIC"],
   });
+  // Both phone and desktop use the same menu; the phone layout still owns sizing and pad hints.
+  phone.toggle.hidden = true;
   let phase = { phase: "", live: false, results: false };
   const layOut = (resized: boolean) => {
     if (!model) return;
     document.body.classList.toggle("fa-phone", model.phone);
+    const menuHome = model.phone ? app : top;
+    if (menu.element.parentElement !== menuHome) menuHome.append(menu.element);
     phone.update(
       { active: model.phone, portrait: portrait.matches },
       phase,
@@ -504,7 +536,7 @@ function room(solo: boolean): void {
     // A room that has ended draws nothing more, so its loop ends with it.
     if (over) return;
     // A hidden page, or the phone's MENU open over the pads, reads no gamepad: it must not steer from behind them.
-    gamepads.poll(!document.hidden && !phone.blocked());
+    gamepads.poll(!document.hidden && !phone.blocked() && !menu.isOpen());
     const world = stage.hidden ? null : drawn(runtime.frameTiming());
     if (world) {
       scene.draw(native, world, Math.floor((now * 60) / 1000), model?.hud);
@@ -568,7 +600,19 @@ function room(solo: boolean): void {
     lobby.hidden = next.screen !== "lobby";
     stage.hidden = next.screen !== "play";
     nameEntry.form.hidden = !next.askName;
-    toLobby.hidden = !next.canReturn;
+    menu.update({
+      canLobby: next.canReturn,
+      display,
+      touch: next.pads && viewer.touch,
+      spectator: display || !next.seated,
+    });
+    roundControls.update({
+      round: `${view.matchId}:${view.round}:${!!view.world?.camp}`,
+      visible: showAxeRoundControls(view),
+      display,
+      touch: display || (next.pads && viewer.touch),
+      spectator: !display && !next.seated,
+    });
     roster.update(
       next.members.map((member) => ({
         id: member.id,
@@ -699,13 +743,15 @@ function room(solo: boolean): void {
       over = true;
       audio.stop();
       controls.close();
+      menu.close();
+      menu.update({ canLobby: false });
+      roundControls.update({ round: "ended", visible: false });
       for (const part of [
         connecting,
         nameEntry.form,
         lobby,
         stage,
         controller,
-        toLobby,
         tvInvite,
       ])
         part.hidden = true;
@@ -758,7 +804,8 @@ function room(solo: boolean): void {
     target instanceof HTMLTextAreaElement ||
     (target instanceof HTMLButtonElement && !model?.playing);
   document.addEventListener("keydown", (event) => {
-    if (controls.down(event, typing(event.target))) event.preventDefault();
+    if (controls.down(event, menu.isOpen() || typing(event.target)))
+      event.preventDefault();
   });
   document.addEventListener("keyup", (event) => {
     if (controls.up(event.code)) event.preventDefault();
