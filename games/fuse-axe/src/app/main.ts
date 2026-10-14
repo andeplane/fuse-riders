@@ -1,3 +1,4 @@
+import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
@@ -73,6 +74,8 @@ import {
  * engine.
  */
 const GAME = axeGame.id;
+const analytics = startGameAnalytics(GAME);
+const reportPlay = createPlayMetrics(analytics.track, () => performance.now());
 /** The renderer's surfaces in the browser: a canvas and its 2D context, smoothing off, `putImageData` the fast path. */
 const canvasSurface: MakeSurface<HTMLCanvasElement> = (width, height) => {
   const image = el("canvas");
@@ -699,6 +702,19 @@ function room(solo: boolean): void {
         )
       )
         return;
+
+      reportPlay({
+        matchId: frame.matchId,
+        active: frame.stage === "running",
+        ended: frame.stage === "over",
+        round: frame.round,
+        playerCount: frame.seats.filter((seat) => !seat.watcher).length,
+        botCount: frame.seats.filter((seat) => seat.bot).length,
+        seated: frame.seats.some(
+          (seat) => seat.id === viewer.me && !seat.watcher,
+        ),
+        mode: solo ? "solo" : frame.settings.display ? "shared" : "online",
+      });
       viewer.touch = coarse.matches;
       const next = present(frame, viewer);
       // The frames shown are what is heard: the cues come from them, never from the simulation. A phone that is only
