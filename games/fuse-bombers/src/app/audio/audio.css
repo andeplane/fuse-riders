@@ -1,0 +1,23 @@
+.audio-toggle {
+  position: fixed;
+  right: max(8px, env(safe-area-inset-right));
+  bottom: max(8px, env(safe-area-inset-bottom));
+  z-index: 10;
+  padding: 6px 8px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  background: rgb(4 9 26 / 60%);
+  color: var(--fui-text);
+  font: 8px var(--fui-font-pixel);
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+.audio-toggle:hover,
+.audio-toggle:focus-visible {
+  opacity: 1;
+}
+
+.audio-toggle[aria-pressed="false"] {
+  color: var(--fui-text-muted);
+}
