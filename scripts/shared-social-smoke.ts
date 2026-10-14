@@ -6,6 +6,7 @@ import { chromium } from "playwright";
 const origin = process.env.ONLINE_URL ?? "http://127.0.0.1:5180/";
 const games = [
   "fuse-riders",
+  "ball-bros",
   "dice",
   "hook-havok",
   "fuse-choppers",

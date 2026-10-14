@@ -102,6 +102,7 @@ export function createGameSocial(options: GameSocialOptions) {
     win = options.window;
   const storage = options.storage ?? safeStorage(() => win.localStorage);
   let username: string | undefined;
+  let nameRevision = 0;
   const baseAuth = options.auth ?? {
     watch: account.watchAccount,
     token: account.identityToken,
@@ -115,6 +116,7 @@ export function createGameSocial(options: GameSocialOptions) {
   const auth = {
     ...baseAuth,
     remember(name: string) {
+      nameRevision++;
       username = name;
       baseAuth.remember(name);
       friends.refresh();
@@ -289,6 +291,7 @@ export function createGameSocial(options: GameSocialOptions) {
   const stopAuth = auth.watch((value) => {
     signedIn = value !== undefined;
     const mine = ++generation;
+    const revision = nameRevision;
     username = undefined;
     if (!value) return;
     void auth
@@ -302,7 +305,12 @@ export function createGameSocial(options: GameSocialOptions) {
         const body: unknown = response.ok ? await response.json() : undefined;
         const name = (body as { profile?: { username?: unknown } } | undefined)
           ?.profile?.username;
-        if (!disposed && mine === generation && validAccountName(name)) {
+        if (
+          !disposed &&
+          mine === generation &&
+          revision === nameRevision &&
+          validAccountName(name)
+        ) {
           username = name;
           auth.remember(name);
           friends.refresh();
