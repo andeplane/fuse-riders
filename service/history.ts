@@ -5,7 +5,9 @@ import { bombersRegistration } from "fuse-bombers/platform";
 import { choppersRegistration } from "fuse-choppers/platform";
 import { craftRegistration } from "fuse-craft/platform";
 import { freightRegistration } from "fuse-freight/platform";
+import { graveyardRegistration } from "graveyard-shift/platform";
 import { fuseLaneRegistration } from "fuse-lane/platform";
+import { ballBrosRegistration } from "ball-bros/platform";
 import {
   ACCOUNT_RULES,
   fuseRiders,
@@ -34,6 +36,8 @@ export const GAMES = [
   axeRegistration,
   bombersRegistration,
   fuseLaneRegistration,
+  ballBrosRegistration,
+  graveyardRegistration,
 ] as const;
 
 /**
