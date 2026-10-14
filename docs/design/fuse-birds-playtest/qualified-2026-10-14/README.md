@@ -34,3 +34,15 @@ physical-phone, WAN, OAuth sign-in, gamepad or audible-sound acceptance. The
 qualification source is recorded explicitly rather than relabelling earlier
 captures or failed coverage maps. This local result is separate from GitHub CI
 and production deployment.
+
+The final author reconciliation was subsequently checked at
+`8cf89b9d1ab345eb8c32e543446f44e4c24245dc`. The complete unit suite from `pnpm test`
+ran with explicit `--test-concurrency=2`: all 3,941 passed in 147.713 seconds.
+Typecheck, lint and diff checks passed. Compared with the coverage source above,
+the only production changes are Drivers/Graveyard social import ordering,
+Drivers' pure-endpoint initialization order and event parameter name, and the
+original author's Graveyard viewport CSS. The shared-social smoke's catalog
+order also changed. These reconciliations were independently reviewed; the
+author checked the landscape layout. Birds and shared network sources are
+unchanged. The captures and combined coverage above retain their original
+revision; the full unit result records the later integration explicitly.
