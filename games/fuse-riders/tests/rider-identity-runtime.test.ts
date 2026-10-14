@@ -15,12 +15,7 @@ const settings = { ...defaultRoomSettings(), map: "classic" as const };
 const HOST = "a-host",
   GUESTS = ["b-guest", "c-guest", "d-guest"];
 
-const world = (runtime: RoomRuntime) =>
-  (
-    runtime as unknown as {
-      world: { state: Parameters<typeof hashRoomState>[0] };
-    }
-  ).world;
+const world = (runtime: RoomRuntime) => runtime.sync.world!;
 const hashes = (net: FakeNetwork, ids: string[]) =>
   new Set(ids.map((id) => hashRoomState(world(net.runtimes.get(id)!).state)));
 const colorOf = (net: FakeNetwork, viewer: string, rider: string) =>

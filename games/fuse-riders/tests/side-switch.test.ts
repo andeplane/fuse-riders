@@ -11,7 +11,6 @@ import {
   createRoomState,
   hashRoomState,
   roomManager,
-  type RoomState,
 } from "../src/engine/apply-tick.js";
 import { BotController } from "../src/engine/bot-controller.js";
 import { MAX_PLAYERS } from "../src/engine/game.js";
@@ -65,16 +64,7 @@ function room(
     },
   };
 }
-const world = (runtime: RoomRuntime) =>
-  (
-    runtime as unknown as {
-      world: {
-        state: RoomState;
-        tick: number;
-        streams: Map<string, { entries: Map<number, Entry> }>;
-      };
-    }
-  ).world;
+const world = (runtime: RoomRuntime) => runtime.sync.world!;
 const watching = (net: FakeNetwork, id: string) =>
   (net.frame(id)?.spectators ?? []).map((seat) => seat.name);
 const riders = (net: FakeNetwork, id: string) =>
