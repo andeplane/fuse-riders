@@ -103,8 +103,7 @@ const localDeps = {
 };
 
 /**
- * The top bar. `allGames` adds an "ALL GAMES" button that opens the app portal's list of games: the site root is
- * Fuse Riders itself, not a list of games, so the button must not link there.
+ * The top bar. `allGames` adds an "ALL GAMES" button that opens the app portal's list of games.
  */
 function header(extra: HTMLElement[] = [], allGames = false): HTMLElement {
   const bar = el("header", "", "fl-top"),
@@ -621,7 +620,7 @@ function room(): void {
       gameMenu.update({
         canLobby: viewer.host && frame.phase !== "lobby",
         spectator: !model.seated,
-        display: viewer.display,
+        display: viewer.display || sharedHost,
       });
       main.dataset.phase = frame.phase;
       main.dataset.week = String(frame.week);
