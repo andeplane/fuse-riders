@@ -1055,7 +1055,7 @@ export async function startOnline(): Promise<void> {
     roundControls.update({
       state: snapshot,
       scope: renderScope,
-      joined,
+      joined: joined && !localPlayers,
       displayOnly,
       ended: next.kind === "ended",
       touch: next.mobile.active || next.arenaController,
