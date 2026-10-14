@@ -80,6 +80,7 @@ export function startGcpRoomService(options: GcpRoomServiceOptions): Server {
   const bus = new PubSubRoomBus(pubsub, topic, gatewayId, prefix);
   // Never log requests, query strings, room tokens or raw transport frames.
   const gateway = new RoomGateway(gatewayId, store, bus, {
+    log: (entry) => console.log(JSON.stringify(entry)),
     now: () => Date.now(),
     id: randomUUID,
     error: (kind, error) =>
