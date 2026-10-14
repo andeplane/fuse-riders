@@ -198,6 +198,11 @@ export class FakeDataChannel extends EventTarget implements RTCDataChannel {
     this.readyState = "open";
     this.onopen?.call(this, new Event("open"));
   }
+  /** The channel began closing, before its eventual close callback. */
+  closing(): void {
+    this.readyState = "closing";
+    this.onclosing?.call(this, new Event("closing"));
+  }
   /** The peer closed its side. */
   shut(): void {
     this.readyState = "closed";

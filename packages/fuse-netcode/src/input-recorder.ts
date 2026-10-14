@@ -6,7 +6,7 @@ import type { StreamLog } from "./stream.js";
  *
  * Every entry this replica appends — a rider's controls, a management entry, its own presence — is stamped with a log
  * tick chosen here. The rule the whole runtime rests on is that the stamp never goes backwards and never lands on a
- * tick already folded: `next()` takes the clock's tick plus one, or the last stamp, whichever is later. A transition
+ * tick already folded: `next()` takes the next clock tick, the next world tick, or the last stamp, whichever is later. A transition
  * that needs two entries (a side switch, a reclaimed seat) takes one `next()` and calls `at()` twice, so it lands whole
  * or not at all — `applyTick` runs a tick's entries in the order they were written, on every replica alike.
  *
@@ -22,6 +22,7 @@ export class InputRecorder<Entry extends LogEntry> {
   constructor(
     private readonly stream: () => StreamLog<Entry>,
     private readonly clockTick: () => number,
+    private readonly worldTick: () => number,
   ) {}
   /** The last stamp handed out: where a fresh world's first fold must reach for this device's own entries to apply. */
   get tick(): number {
@@ -38,7 +39,11 @@ export class InputRecorder<Entry extends LogEntry> {
   }
   /** The tick to stamp the next entry (or the next group of entries) with. */
   next(): number {
-    this.stamp = Math.max(Math.floor(this.clockTick()) + 1, this.stamp);
+    this.stamp = Math.max(
+      Math.floor(this.clockTick()) + 1,
+      this.worldTick() + 1,
+      this.stamp,
+    );
     return this.stamp;
   }
   /** One entry at the next tick. */
