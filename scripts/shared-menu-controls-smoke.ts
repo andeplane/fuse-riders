@@ -33,7 +33,7 @@ interface GameFlow {
   solo?: boolean;
 }
 const games: readonly GameFlow[] = [
-  { id: "fuse-riders", route: "", start: "", solo: true },
+  { id: "fuse-riders", route: "fuse-riders/", start: "", solo: true },
   { id: "fuse-bombers", route: "fuse-bombers/", start: "START", solo: true },
   {
     id: "fuse-choppers",
