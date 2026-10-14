@@ -71,6 +71,8 @@ Action logs have `{ "rules": "<current RULES>", "entries": [{ "tick": 10, "actio
 
 ## Focused verification
 
+Fuse Birds appears in the shared game portal on the landing page and room header. Actual seat and match frames report the shared `fuse.` analytics funnel with `gameId: "fuse-birds"`, including solo practice. Shared analytics applies the device opt-out, Do Not Track, development-address guard and property scrubbing; names, room codes and invite links are never event properties.
+
 ```sh
 pnpm exec tsx --test games/fuse-birds/tests/*.test.ts
 pnpm typecheck

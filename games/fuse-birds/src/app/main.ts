@@ -14,6 +14,7 @@ import {
 import { MAX_PACKET_BYTES, uuid, type Callbacks } from "fuse-netcode";
 import { button, createInviteCard, createNameEntry, el } from "fuse-ui";
 import { createAppPortal } from "fuse-ui/portal";
+import { createPlayMetrics, startGameAnalytics } from "fuse-ui/play-metrics";
 import {
   UNIT,
   type Fact,
@@ -42,9 +43,11 @@ import {
 import { roomFailure, roomToken, safeStore, storageKeys } from "./session.js";
 import { BirdsAudio } from "./audio.js";
 import { PracticeRuntime } from "./practice.js";
+import { birdsPlayFrame } from "./play-metrics.js";
 
 const GAME = "fuse-birds",
   COLORS = ["#6df4ed", "#ff6ec7", "#bded76", "#ffb75e", "#b797ff"];
+const analytics = startGameAnalytics(GAME);
 const endpoints = createEndpoints(
   {
     basePath: `${import.meta.env.BASE_URL}${GAME}/`,
@@ -176,6 +179,9 @@ function landing(): void {
   app.replaceChildren(page);
 }
 function room(code: string, display: boolean, practice = false): void {
+  const observePlay = createPlayMetrics(analytics.track, () =>
+    performance.now(),
+  );
   const page = el("main", "", "birds-room"),
     header = el("header", "", "birds-top"),
     message = notice("Connecting…");
@@ -499,6 +505,14 @@ function room(code: string, display: boolean, practice = false): void {
       page.dataset.turn = String(view?.turn ?? 0);
       const seated = frame.seats.some((s) => s.id === me && !s.watcher),
         inLobby = frame.stage === "lobby";
+      observePlay(
+        birdsPlayFrame(frame, settings, {
+          memberId: me,
+          displayOnly: display,
+          practice,
+          roomScope: code,
+        }),
+      );
       lobby.hidden = !inLobby;
       board.hidden = inLobby;
       nameEntry.form.hidden = display || seated || !inLobby;
