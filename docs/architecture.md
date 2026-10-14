@@ -62,6 +62,8 @@ The target is `engine` (pure rules), `net` (simulation coordination), `render` (
 
 Shared product analytics live in `packages/fuse-ui/src/analytics.ts` and `play-metrics.ts`. Games report actual play through the shared client using the `fuse.` event prefix and the stable game id in `gameId`; the client owns opt-out, Do Not Track, local-development suppression and property scrubbing. See [ANALYTICS.md](ANALYTICS.md).
 
+The additional games follow the same package boundaries: Fuse Drivers keeps racing rules in `games/fuse-drivers/src/game/`, Ball Bros keeps rules in `games/ball-bros/src/engine/`, Fuse Birds keeps artillery rules in `games/fuse-birds/src/engine/`, and Graveyard Shift keeps rules in `games/graveyard-shift/src/engine/`. Each owns its presentation and platform registration. Their `portal.json` manifests make them reachable through the shared game portal; production room enablement remains controlled by `EXTRA_GAME_IDS`.
+
 ## Online data flow and recovery
 
 1. The browser creates or joins a short-code room through the room service. A member token identifies its seat; the creator capability authorizes room termination. Public room codes are rendezvous identifiers, not secrets. A member may take a seat or a place in the room's watching list (five each, plus a TV display); a spectator is a folded, listed member with no seat and no inputs ([design note](design/spectators.md)).
