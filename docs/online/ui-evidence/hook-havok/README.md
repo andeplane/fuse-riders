@@ -1,5 +1,15 @@
 # Hook Havok browser evidence — 2026-10-14
 
+## Current cancellation contract
+
+At source `13a45aaf`, `TEST_CONCURRENCY=2 pnpm test:coverage` completed with 3,707 tests passing, no failures or skips, and all five current browser-manifest flows passing. The final combined report was 97.36% lines/statements, 95.41% branches and 97.32% functions. Native Chromium ranges were collected against the exact Vite source; no earlier probe or cross-worktree maps were reused, and no coverage thresholds or exemptions changed.
+
+Hook's own `tests/browser-coverage-flow.ts` selected Neon Spire through the real room controls, checked the current keyboard/right-click guide and restored arena focus after the menu. It then charged K, opened the menu, observed the charge drop without increasing the local keeper's persistent throw tally, resumed play and verified that ordinary K release increased the tally once. Browser output and the page were muted; there were no page errors. [Current real-flow screenshot](rules17-menu-cancel.png).
+
+This uses `hook-havok-17`: lifecycle/pointer cancellation is a validated, scope-bound log edge distinct from release. Pre-17 input/checkpoint shapes are refused. The following screenshots and broader gameplay checks are retained evidence from the earlier combined Rule16 client.
+
+## Earlier combined gameplay evidence
+
 These screenshots come from actual rooms served by the compiled combined client at `http://localhost:4917/`, source commit `236c043c6d0ae704e14bd3da8cfcf29d83a6f75c`, using `hook-havok-16`. The browser used ordinary menus, keyboard, mouse and emulated touch input; no game state or clocks were injected. All audio was muted by the URL.
 
 Both commands completed successfully, without browser page errors:
