@@ -815,7 +815,12 @@ export function createAccountDialog<
         if (mine === generation)
           body.replaceChildren(options.leaderboard(page.players));
       } catch {
-        if (mine === generation) message.textContent = text.leaderboardFailed;
+        if (mine === generation) {
+          message.textContent = text.leaderboardFailed;
+          const retry = plainButton(text.tryAgain);
+          retry.onclick = () => renderLeaderboard();
+          body.append(retry);
+        }
       }
     })();
   }

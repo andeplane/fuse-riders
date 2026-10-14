@@ -164,11 +164,14 @@ test("rollback: a clone taken mid-round, bot memory and all, continues bit for b
 
 test("cost: six hard bots flying and fighting stay cheap (a runaway check, not a benchmark)", () => {
   const s = createRound(botRound(3, ...Array<BotDifficulty>(6).fill("hard")));
-  const start = performance.now();
+  const start = process.cpuUsage();
   while (!s.result) step(s);
-  const perStep = (performance.now() - start) / s.tick;
+  const elapsed = process.cpuUsage(start);
+  const perStep = (elapsed.user + elapsed.system) / 1000 / s.tick;
   // About 0.05 ms a step on a desktop (preview/step-cost.ts); 2 ms only catches a runaway.
-  assert.ok(perStep < 2, `${perStep.toFixed(3)} ms a step`);
+  // Count this process's work, including runtime/coverage overhead, rather than time waiting
+  // for a CPU while other test workers run. The synchronous loop cannot hide work in a wait.
+  assert.ok(perStep < 2, `${perStep.toFixed(3)} CPU ms a step`);
 });
 
 test("the flyway: open sky with room, each point in sight of the next along a gunship-wide lane", () => {
