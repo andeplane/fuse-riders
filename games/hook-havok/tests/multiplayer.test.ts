@@ -18,6 +18,39 @@ import {
   inviteUrl,
 } from "../src/app/session.js";
 
+test("runtime input reports its queued log tick and charges only after catch-up reaches it", () => {
+  const mesh = new Mesh(),
+    runtime = mesh.join("a");
+  mesh.run(500);
+  runtime.command({ type: "join", name: "A" });
+  mesh.run(500);
+  runtime.command({
+    type: "settings",
+    settings: { ...CLASSIC_TUNING, bomb: "fuse", map: "crossroads" },
+  });
+  mesh.run(100);
+  runtime.command({ type: "action", action: "start" });
+  mesh.run(500);
+  const keeper = () => runtime.state()!.simulation.keepers[0]!;
+  // A stalled event loop leaves simulation behind the injected monotonic clock.
+  mesh.now += 12_000;
+  const tick = runtime.input({ ...NEUTRAL, bomb: true });
+  assert.ok(tick !== undefined && tick > runtime.metrics().tick);
+  assert.equal(runtime.input({ ...NEUTRAL, bomb: true }), undefined);
+  runtime.tickLoop();
+  assert.ok(runtime.metrics().tick < tick);
+  assert.equal(keeper().world.charge, 0, "the press is queued, not discarded");
+  mesh.run(1500);
+  assert.ok(runtime.metrics().tick >= tick);
+  assert.ok(
+    keeper().world.charge > 0,
+    "the queued press charges after catch-up",
+  );
+  assert.ok(runtime.input({ ...NEUTRAL }) !== undefined);
+  mesh.run(100);
+  assert.equal(keeper().bomb.thrown, 1, "the ordinary release still throws");
+});
+
 test("simultaneous opposed hooks hit both keepers, preserve ownership and replay identically", () => {
   const a = createArena(CLASSIC_TUNING);
   syncKeepers(a, [
