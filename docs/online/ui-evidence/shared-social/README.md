@@ -19,6 +19,16 @@ and verifies fresh steering after closing. Shared modal gates cancel held inputs
 dialog keys. The focused integration has 30 passing shared social, modal, name-contract and Drivers app tests;
 typecheck, build and scoped lint also pass. The original PR's 3547-test baseline predates these integrations.
 
+The combined browser qualification found that adding social controls made Graveyard's landscape header
+126px tall at 844×390, while its arena reserved only 77px for the header. The active landscape layout now
+fills the actual space left below the header. Its existing preview verifies arena and thumb controls fit
+before interaction, held touch movement, temporary mute, peer reload, TV/controller play and rematch.
+The social smoke also checks the real 844×390 mobile layout and both dialogs within the viewport.
+
+![Graveyard landscape phone arena and thumb controls](graveyard-landscape-play.png)
+
+![Graveyard landscape phone account](graveyard-landscape-account.png)
+
 ![Graveyard account at phone width](graveyard-account-phone.png)
 
 ![Graveyard friends at desktop width](graveyard-friends-desktop.png)
