@@ -37,6 +37,8 @@ try {
     console.log(`Gallery navigation: ${new URL(href).pathname}`);
     const response = await page.goto(href);
     assert.equal(response?.status(), 200, href);
+    if (new URL(href).pathname.endsWith("/fuse-riders/"))
+      await page.locator('canvas[data-renderer^="phaser-"]').first().waitFor();
     await page
       .getByRole("button", { name: "Fuse games", exact: true })
       .first()
@@ -75,9 +77,9 @@ try {
   await page.goto(`${root}?room=INVALID&display=1&mute`);
   await page.getByText("Invalid room code", { exact: true }).waitFor();
   await page.goto(`${root}?solo=1&mute`);
-  await page.locator("canvas").first().waitFor();
+  await page.locator('canvas[data-renderer^="phaser-"]').first().waitFor();
   await page.goto(`${root}fuse-riders/?solo=1&mute`);
-  await page.locator("canvas").first().waitFor();
+  await page.locator('canvas[data-renderer^="phaser-"]').first().waitFor();
   assert.deepEqual(errors, []);
   console.log(
     "Gallery: eight loaded screenshots, every game and return link, 320/390px layout, legacy room/display/solo and dedicated Riders solo passed.",
