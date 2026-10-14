@@ -8,17 +8,19 @@ import { smokeTimeout } from "./smoke-timeout.js";
 /** Real, isolated play paths. Run against the built local room service with ONLINE_URL.
  * Screenshots are actual play, and phone emulation is not physical-device evidence.
  * BROWSER=webkit selects WebKit; SMOKE_SHOTS selects the ignored evidence directory.
+ * SMOKE_GAMES is an optional comma-separated game list for a focused follow-up.
+ * SMOKE_EVIDENCE can explicitly save representative screenshots for a pull request.
  */
 const base = process.env.ONLINE_URL ?? "http://127.0.0.1:8787/";
 const shots = process.env.SMOKE_SHOTS ?? "artifacts/shared-menu-controls";
-const evidence = "docs/evidence/shared-menu-controls";
+const evidence = process.env.SMOKE_EVIDENCE ?? shots;
 await Promise.all([
   mkdir(shots, { recursive: true }),
   mkdir(evidence, { recursive: true }),
 ]);
 const browser = await launchSelected("chrome", {
   headless: true,
-  args: ["--mute-audio"],
+  ...(process.env.BROWSER === "webkit" ? {} : { args: ["--mute-audio"] }),
 });
 const results: object[] = [];
 const failures: string[] = [];
@@ -50,6 +52,11 @@ const games: readonly GameFlow[] = [
   { id: "fuse-lane", route: "fuse-lane/", start: "START" },
   { id: "hook-havok", route: "hook-havok/", start: "" },
 ];
+const selected = process.env.SMOKE_GAMES?.split(",");
+assert.ok(
+  !selected || selected.every((id) => games.some((game) => game.id === id)),
+  "SMOKE_GAMES names current games",
+);
 
 async function start(page: Page, game: GameFlow): Promise<void> {
   const url = new URL(game.route, base);
@@ -223,7 +230,9 @@ async function checkBombersDisplay(): Promise<void> {
 }
 
 try {
-  for (const game of games) {
+  for (const game of games.filter(
+    (game) => !selected || selected.includes(game.id),
+  )) {
     const context = await browser.newContext({
       viewport: { width: 1440, height: 900 },
     });
@@ -275,6 +284,7 @@ try {
   // A narrow, touch-enabled browser exercises the actual phone control wording and menu geometry.
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
+    isMobile: true,
     hasTouch: true,
   });
   const phone = await context.newPage();

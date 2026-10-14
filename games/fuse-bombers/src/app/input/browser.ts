@@ -74,7 +74,9 @@ export function createBrowserInput(
   );
 
   const touchEnabled =
-    options.forceTouch === true || win.navigator.maxTouchPoints > 0;
+    options.forceTouch === true ||
+    win.navigator.maxTouchPoints > 0 ||
+    win.matchMedia("(pointer: coarse)").matches;
   if (!touchEnabled)
     return { hub, touchEnabled, setTouchPads: () => undefined };
 

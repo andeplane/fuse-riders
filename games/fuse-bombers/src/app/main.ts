@@ -109,7 +109,7 @@ async function boot(): Promise<void> {
       });
       roundControls.update({
         round: state.round,
-        visible: state.countdown,
+        visible: state.countdown && !menu.isOpen(),
         spectator: state.spectator,
         controls: state.controls,
       });
