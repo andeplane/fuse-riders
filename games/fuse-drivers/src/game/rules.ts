@@ -94,6 +94,10 @@ export const DEFAULT_SETTINGS: FuseDriversSettings = {
 };
 
 export interface FuseDriversRoom extends ManagedRoom<FuseDriversSettings> {
+  /** Roster at the finish, retained even when a driver leaves or renames afterwards. */
+  finishSeats: FinishSeat[];
+  /** Log tick that decided the result; later lobby management cannot delay its confirmation. */
+  finishTick: number;
   /** The log tick, which is the netcode's clock; the race keeps its own simulation tick. */
   tick: number;
   matchId: string;
@@ -107,6 +111,13 @@ export interface FuseDriversRoom extends ManagedRoom<FuseDriversSettings> {
   controls: Record<string, number>;
   /** Bot memory rides in the room so a rollback reproduces the same driving. */
   bots: Record<string, BotMemory>;
+}
+
+export interface FinishSeat {
+  id: string;
+  name: string;
+  slot: number;
+  connected: boolean;
 }
 
 export const isAvatar = (value: unknown): value is string =>
@@ -193,6 +204,8 @@ export function createRoom(
     grid: [],
     controls: {},
     bots: {},
+    finishSeats: [],
+    finishTick: 0,
   };
 }
 
@@ -203,6 +216,8 @@ function startRace(room: FuseDriversRoom, matchId: string): void {
   room.grid = grid.map((seat) => seat.id);
   room.controls = {};
   room.bots = {};
+  room.finishSeats = [];
+  room.finishTick = 0;
   let seed = 0x811c9dc5;
   for (let i = 0; i < matchId.length; i++)
     seed = Math.imul(seed ^ matchId.charCodeAt(i), 0x01000193) >>> 0;
@@ -238,6 +253,8 @@ export const lifecycle: LifecycleHooks<FuseDriversRoom, FuseDriversSettings> = {
     room.grid = [];
     room.controls = {};
     room.bots = {};
+    room.finishSeats = [];
+    room.finishTick = 0;
   },
 };
 
@@ -334,7 +351,23 @@ export function foldTick(
       }
     }
     room.race = next;
-    if (next.phase === "finished") room.stage = "over";
+    if (next.phase === "finished") {
+      room.finishTick = tick;
+      room.finishSeats = room.grid.flatMap((id) => {
+        const seat = room.seats.get(id);
+        return seat
+          ? [
+              {
+                id,
+                name: seat.name,
+                slot: seat.slot,
+                connected: seat.connected,
+              },
+            ]
+          : [];
+      });
+      room.stage = "over";
+    }
   }
 
   room.tick = tick;

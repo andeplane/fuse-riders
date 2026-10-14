@@ -4,12 +4,15 @@ import {
   ACTION,
   BOT,
   JOIN,
+  LEAVE,
+  PRESENCE,
   SPECTATOR,
   packMessage,
   unpackMessage,
   type StreamEntries,
 } from "fuse-netcode";
 import { decodeRoom, encodeRoom, hashRoom } from "../src/game/checkpoint.js";
+import { matchResult } from "../src/game/result.js";
 import {
   BRAKE,
   CONTROLS,
@@ -83,8 +86,13 @@ function racing(ticks = 80): FuseDriversRoom {
 /** The same race once it has been decided, as the fold leaves it: the room is over when the race is finished. */
 function over(): FuseDriversRoom {
   const room = racing();
-  room.race = { ...defined(room.race, "race"), phase: "finished" };
-  room.stage = "over";
+  const race = defined(room.race, "race");
+  room.race = {
+    ...race,
+    phase: "finished",
+    trucks: race.trucks.map((truck) => ({ ...truck, finishedTick: race.tick })),
+  };
+  fold(room);
   return room;
 }
 
@@ -99,12 +107,12 @@ test("the four leading fields are the ones the snapshot puts before the streams"
   const fields = encodeRoom(racing(3));
   assert.equal(
     fields.length,
-    7,
+    8,
     "scalars, seats, settings, grid, then the rest",
   );
   assert.deepEqual(
     at(fields, 0),
-    ["m1", 1, "running"],
+    ["m1", 1, "running", 0],
     "the scalars, less the tick",
   );
   assert.ok(Array.isArray(fields[1]), "the seats");
@@ -155,6 +163,38 @@ function tampered(change: (fields: unknown[]) => void, tick?: number) {
   change(fields);
   return decodeRoom(fields, tick ?? room.tick);
 }
+
+test("hidden-seat checkpoints preserve the authoritative away flag and return behavior", () => {
+  const room = racing();
+  fold(room, { b: [[PRESENCE, "b", false, 1]] });
+  assert.equal(room.seats.get("b")?.away, true);
+  const restored = defined(roundTrip(room));
+  assert.equal(hashRoom(restored), hashRoom(room));
+  assert.equal(restored.seats.get("b")?.away, true);
+  for (const replica of [room, restored])
+    fold(replica, { a: [[PRESENCE, "b", true, 1]] });
+  assert.equal(restored.seats.get("b")?.connected, true);
+  assert.equal(restored.seats.get("b")?.away, undefined);
+  assert.equal(hashRoom(restored), hashRoom(room));
+});
+
+test("the finished roster survives departures and checkpoint recovery without changing receipts", () => {
+  const room = over();
+  const before = matchResult(room);
+  fold(room, { a: [[LEAVE, "b"]] });
+  assert.equal(room.seats.has("b"), false);
+  assert.deepEqual(matchResult(room), before);
+  const restored = defined(roundTrip(room));
+  assert.equal(hashRoom(restored), hashRoom(room));
+  assert.deepEqual(matchResult(restored), before);
+  const fields = wire(room);
+  (fields[7] as unknown[]).pop();
+  assert.equal(
+    decodeRoom(fields, room.tick),
+    undefined,
+    "an incomplete finish roster is refused",
+  );
+});
 
 test("a corrupt or hostile checkpoint is refused whole", () => {
   assert.ok(

@@ -5,6 +5,7 @@ These JPEGs are resized copies of existing browser gameplay captures in the repo
 | Image             | Source                                                                       |
 | ----------------- | ---------------------------------------------------------------------------- |
 | fuse-riders.jpg   | docs/gameplay-phaser.png                                                     |
+| fuse-drivers.png  | docs/online/ui-evidence/fuse-drivers/cleanup-solo.png                        |
 | fuse-axe.jpg      | games/fuse-axe/docs/images/app-play-bots.png                                 |
 | fuse-bombers.jpg  | games/fuse-bombers/docs/images/online-round.png                              |
 | fuse-choppers.jpg | games/fuse-choppers/docs/evidence/cave-mid-round.png                         |

@@ -284,7 +284,7 @@ test("a replica far behind recovers the race from a snapshot and folds on identi
   assert.ok(progress(source, 1) > 1, "there is a real race to carry");
 
   const chunks = encodeSnapshot(source, ROOM);
-  assert.equal(defined(chunks[0]).rules, "fuse-drivers-2");
+  assert.equal(defined(chunks[0]).rules, "fuse-drivers-3");
   const assembler = new SnapshotAssembler(fuseDriversGame, ROOM);
   let complete: { tick: number; bytes: Uint8Array } | undefined;
   for (const chunk of chunks) complete = assembler.accept(chunk);

@@ -82,7 +82,7 @@ export const fuseDriversGame: RollbackGame<
   FuseDriversSettings
 > = {
   id: "fuse-drivers",
-  rules: "fuse-drivers-2",
+  rules: "fuse-drivers-3",
   isEntry: isFuseDriversEntry,
   createRoom,
   createTicker: () => foldTick,

@@ -32,6 +32,7 @@ try {
   for (const page of [host, peer, tv])
     page.on("pageerror", (error) => failures.push(error.message));
   await host.goto(new URL("?mute", origin).href);
+  await host.getByRole("link", { name: /Fuse Drivers/ }).click();
   await host.getByRole("button", { name: "Fuse games", exact: true }).click();
   await host.getByRole("link", { name: /Fuse Drivers/ }).click();
   assert.equal(new URL(host.url()).searchParams.has("mute"), true);
@@ -82,6 +83,16 @@ try {
   console.log(
     "Fuse Drivers solo, portal, two-peer room and reload smoke passed",
   );
+} catch (error) {
+  for (const [index, context] of contexts.entries())
+    for (const page of context.pages()) {
+      console.error(`Drivers page ${index}: ${page.url()}`);
+      console.error(await page.locator("body").innerText());
+      await page.screenshot({
+        path: `artifacts/fuse-drivers/failure-${index}.png`,
+      });
+    }
+  throw error;
 } finally {
   await Promise.all(contexts.map((context) => context.close()));
   await browser.close();
