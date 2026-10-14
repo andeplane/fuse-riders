@@ -407,11 +407,21 @@ function clear() {
   touch?.clear();
   keyboard.clear();
   input = { ...NEUTRAL, aimX: aim.x, aimY: aim.y };
-  runtime?.clear(input);
+  const tick = runtime?.clear(input);
+  if (tick !== undefined) {
+    host.dataset.inputTick = String(tick);
+    host.dataset.inputBomb = "false";
+    host.dataset.inputCancelled = "true";
+  }
 }
 function send() {
   if (modalInput.blocked()) return;
-  runtime?.input(input);
+  const tick = runtime?.input(input);
+  if (tick !== undefined) {
+    host.dataset.inputTick = String(tick);
+    host.dataset.inputBomb = String(input.bomb);
+    host.dataset.inputCancelled = String(input.cancelBomb);
+  }
 }
 const touchToggle = el<HTMLInputElement>("touch-toggle"),
   touchDeck = el("touch-deck"),
@@ -720,6 +730,7 @@ const enterRoom = async () => {
             mode: frame.contest.rules,
           });
           latest = localView(frame);
+          host.dataset.logTick = String(frame.logTick);
           const c = frame.contest;
           const localKeeper = frame.keepers.find((k) => k.id === selfId);
           const controllable =

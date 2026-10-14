@@ -29,7 +29,8 @@ export class HookRuntime extends RoomRuntime<Room, Entry, View, never, Tuning> {
     }
     return super.command(command);
   }
-  input(input: Input): void {
+  /** Returns the recorded log tick; undefined when no new input was accepted. */
+  input(input: Input): number | undefined {
     const r = this.world?.state;
     if (
       !r ||
@@ -39,15 +40,16 @@ export class HookRuntime extends RoomRuntime<Room, Entry, View, never, Tuning> {
     )
       return;
     this.held = { ...input };
-    this.append(0, r.matchId, r.round, { ...input });
+    const tick = this.append(0, r.matchId, r.round, { ...input });
     this.sendPackets(this.deps.now());
+    return tick;
   }
   /**
    * Cancels every button through the same match/round-scoped log as input.
    * Unlike an ordinary release, lifecycle clearing never throws a charge.
    */
-  clear(aim: Pick<Input, "aimX" | "aimY"> = this.held): void {
-    this.input({
+  clear(aim: Pick<Input, "aimX" | "aimY"> = this.held): number | undefined {
+    return this.input({
       ...NEUTRAL,
       cancelBomb: true,
       aimX: aim.aimX,
