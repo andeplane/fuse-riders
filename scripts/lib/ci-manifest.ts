@@ -63,7 +63,7 @@ export function jobSteps(manifest: CiManifest, job: string): VerifyStep[] {
 export const MANIFEST_PATH = fileURLToPath(
   new URL("../ci-manifest.json", import.meta.url),
 );
-const BROWSERS: readonly string[] = ["chrome", "chromium", "webkit"];
+const BROWSERS: readonly string[] = ["chrome", "chromium", "firefox", "webkit"];
 const NAME = /^[a-z][a-z0-9-]*$/;
 /** Nothing a shell would interpret: the runner splits on spaces and ci.yml interpolates `name` into a step. */
 const PLAIN_COMMAND = /^[A-Za-z0-9_@:./=-]+( [A-Za-z0-9_@:./=-]+)*$/;
