@@ -2,19 +2,45 @@ import {
   createWorld,
   createCombat,
   cancel,
+  endDash,
   S,
+  BODY,
+  HALF,
   type World,
   type Tuning,
   type Combat,
 } from "./world.js";
-import { step } from "./step.js";
+import { MAPS } from "./maps.js";
+import { step, type Boost } from "./step.js";
+import { stepHazards } from "./hazards.js";
+import { bonusLive, gain, hazardsLive } from "./zones.js";
+import { BONUS, PUSH_TICKS } from "./zone-rules.js";
 import { stepCombat } from "./combat.js";
 import {
+  clearPower,
+  freshPads,
+  freshPower,
   stepPowerUps,
-  POWER_COOLDOWN,
-  WARD_TICKS,
+  tickPower,
+  POWER_PADS,
+  type Pad,
   type PickupEvent,
+  type PowerState,
+  type ShieldPop,
 } from "./power-ups.js";
+import {
+  CLUSTER_CHARGES,
+  DASH_KNOCK,
+  DASH_LIFT,
+  HARPOON_LIFT,
+  HARPOON_PULL,
+  PAD_TICKS,
+  bonusRefill,
+  isPowerKind,
+  powerPool,
+  powerTicks,
+  type PowerKind,
+} from "./power-rules.js";
 import { decodeWorld, parseTuning, plain, integer } from "./codec.js";
 import {
   createContest,
@@ -24,15 +50,47 @@ import {
   ROUND_TICKS,
   type Contest,
 } from "./contest.js";
+import {
+  bombFloor,
+  freshKit,
+  pruneBombEvents,
+  stepBombs,
+  type Blast,
+  type Bomb,
+  type BombKit,
+  type Knockout,
+} from "./bomb.js";
+import {
+  BOMB_CEILING,
+  BOMBLET_FUSE,
+  BOMBLETS,
+  COOLDOWN_TICKS,
+  EVENT_TICKS,
+  FALL_SHIELD,
+  FUSE_TICKS,
+  KO_SHIELD,
+  MAX_BOMBS,
+  MAX_BOMB_SPEED,
+  MAX_EVENTS,
+} from "./bomb-rules.js";
+import { decodeMind, freshMind, type Mind } from "./bot-mind.js";
 
 export interface Keeper {
   id: string;
   slot: number;
   generation: number;
   connected: boolean;
-  shield: number;
-  ward: number;
+  /** An AI keeper's memory (11C); null for a person. */
+  mind: Mind | null;
+  /** Spawn protection ticks: hooks, dashes and blasts pass through. */
+  spawnGuard: number;
+  power: PowerState;
   hits: number;
+  bomb: BombKit;
+  /** The rival whose hook tip last hit this keeper, while `pushed` > 0. */
+  pushedBy: string;
+  /** Ticks left to credit `pushedBy` with a hazard knockout (12B). */
+  pushed: number;
   world: World;
 }
 export interface HitEvent {
@@ -43,37 +101,80 @@ export interface HitEvent {
   y: number;
 }
 export interface Arena {
-  powerCooldowns: number[];
+  /** Mixed into every pad draw; fixed for the arena's life. */
+  seed: number;
+  pads: Pad[];
   pickupEvents: PickupEvent[];
+  shieldPops: ShieldPop[];
   contest: Contest;
   tick: number;
   tuning: Tuning;
   combat: Combat;
   keepers: Keeper[];
   hit: HitEvent | null;
+  bombs: Bomb[];
+  blasts: Blast[];
+  knockouts: Knockout[];
 }
 export interface Member {
   id: string;
   slot: number;
   generation: number;
   connected: boolean;
+  /** An AI seat: the fold drives it (11C). */
+  bot?: boolean;
 }
-export function createArena(tuning: Tuning, tick = 0): Arena {
+/** Whether a keeper is playing right now: connected, and an entrant still in during a competitive round. */
+export function inPlay(arena: Arena, k: Keeper): boolean {
+  const c = arena.contest;
+  return (
+    k.connected &&
+    (arena.tuning.rules === "free" ||
+      (c.phase === "active" && c.entries.some((e) => e.id === k.id && !e.out)))
+  );
+}
+export function createArena(tuning: Tuning, tick = 0, seed = 0): Arena {
   return {
-    powerCooldowns: [0, 0],
+    seed: seed >>> 0,
+    pads: freshPads(tuning.map),
     pickupEvents: [],
+    shieldPops: [],
     contest: createContest(tuning.rules),
     tick,
     tuning: { ...tuning },
     combat: createCombat(tuning.experiment, tuning.map),
     keepers: [],
     hit: null,
+    bombs: [],
+    blasts: [],
+    knockouts: [],
   };
 }
+/**
+ * A bomb outlives neither its owner's seat nor its owner's cooldown. The
+ * throw sets the cooldown to the fuse plus 60 ticks and both then count down
+ * together (a keeper out of play keeps their cooldown, a chain only shortens
+ * the fuse), so a live bomb's owner always has at least that much left. A
+ * cluster splits on contact with at least one fuse tick left, so the owner has
+ * at least 60 left when its bomblets start their 36-tick fuse: a bomblet's
+ * owner keeps at least 24 more than its fuse. The id carries the owner's slot
+ * (tick × 32 + slot × 4 + 0–3), which keeps a split's bomblet ids unique.
+ */
+const ownedBomb = (arena: Arena, b: Bomb) =>
+  arena.keepers.some(
+    (k) =>
+      k.id === b.owner &&
+      Math.floor(b.id / 4) % 8 === k.slot &&
+      k.bomb.cooldown >=
+        b.fuse +
+          COOLDOWN_TICKS -
+          FUSE_TICKS -
+          (b.kind === "bomblet" ? BOMBLET_FUSE : 0),
+  );
 export function syncKeepers(arena: Arena, members: readonly Member[]): void {
   arena.keepers = [...members]
     .sort((a, b) => a.slot - b.slot)
-    .map((member) => {
+    .map(({ bot = false, ...member }) => {
       const old = arena.keepers.find(
         (k) => k.id === member.id && k.slot === member.slot,
       );
@@ -88,19 +189,64 @@ export function syncKeepers(arena: Arena, members: readonly Member[]): void {
         }
         if (!member.connected || old.generation !== member.generation) {
           cancel(old.world);
-          old.ward = 0;
+          clearPower(old);
         }
-        return { ...old, ...member };
+        return {
+          ...old,
+          ...member,
+          mind: bot ? (old.mind ?? freshMind()) : null,
+        };
       }
       const world = createWorld(arena.tuning, member.slot);
       world.tick = arena.tick;
       world.combat = arena.combat;
-      return { ...member, world, shield: 30, ward: 0, hits: 0 };
+      return {
+        ...member,
+        mind: bot ? freshMind() : null,
+        world,
+        spawnGuard: FALL_SHIELD,
+        power: freshPower(),
+        hits: 0,
+        bomb: freshKit(),
+        pushedBy: "",
+        pushed: 0,
+      };
     });
+  if (!arena.bombs.every((b) => ownedBomb(arena, b)))
+    arena.bombs = arena.bombs.filter((b) => ownedBomb(arena, b));
+}
+/** What a keeper's power does in the movement kernel; a fresh object every call. */
+export function boostOf(
+  keeper: Pick<Keeper, "power">,
+  jumpMode: Tuning["jumpMode"],
+): Boost {
+  const kind = keeper.power.kind;
+  if (kind !== "triple" && kind !== "dash") return { refill: 0, dash: false };
+  return { refill: bonusRefill(kind, jumpMode), dash: kind === "dash" };
+}
+/** Body boxes touch, with a little slack so a fast dash cannot skip a rival. */
+function bodiesTouch(a: World, b: World): boolean {
+  const slack = 4 * S;
+  return (
+    Math.abs(a.x - b.x) < 2 * HALF + slack &&
+    a.feet - BODY < b.feet + slack &&
+    b.feet - BODY < a.feet + slack
+  );
+}
+interface Impact {
+  by: Keeper;
+  target: string;
+  vx: number;
+  vy: number;
+  x: number;
+  y: number;
+  /** A Harpoon hit: pull toward `by` instead of the pushed impulse. */
+  pull: boolean;
 }
 /** Stable slot order owns contested props; player impulses use pre-step hurt shapes and commit together. */
 export function stepArena(arena: Arena, running = true): void {
   arena.tick++;
+  pruneBombEvents(arena);
   const competitive = arena.tuning.rules !== "free",
     c = arena.contest;
   if (competitive && running) {
@@ -121,14 +267,26 @@ export function stepArena(arena: Arena, running = true): void {
         }));
         arena.combat = createCombat(arena.tuning.experiment, arena.tuning.map);
         arena.hit = null;
-        arena.powerCooldowns = [0, 0];
+        // Every pad is ready with a fresh draw for the round.
+        for (const pad of arena.pads) {
+          pad.cooldown = 0;
+          pad.cycle = (pad.cycle + 1) >>> 0;
+        }
         arena.pickupEvents = [];
+        arena.shieldPops = [];
+        arena.bombs = [];
+        arena.blasts = [];
+        arena.knockouts = [];
         for (const k of arena.keepers) {
           k.world = createWorld(arena.tuning, k.slot);
           k.world.tick = arena.tick - 1;
           k.hits = 0;
-          k.shield = 30;
-          k.ward = 0;
+          k.spawnGuard = FALL_SHIELD;
+          k.power = freshPower();
+          k.bomb = freshKit();
+          k.pushedBy = "";
+          k.pushed = 0;
+          if (k.mind) k.mind = freshMind();
         }
       }
     }
@@ -138,40 +296,50 @@ export function stepArena(arena: Arena, running = true): void {
           entry.out = true;
     }
   }
-  const canPlay = (k: Keeper) =>
-    k.connected &&
-    (!competitive ||
-      (c.phase === "active" && c.entries.some((e) => e.id === k.id && !e.out)));
+  const canPlay = (k: Keeper) => inPlay(arena, k);
   const playing = running && (!competitive || c.phase === "active");
+  const open = (k: Keeper) => canPlay(k) && !k.world.respawn && !k.spawnGuard;
   const victims = arena.keepers
-    .filter((k) => canPlay(k) && !k.world.respawn && !k.shield && !k.ward)
+    .filter(open)
     .map((k) => ({ id: k.id, x: k.world.x, feet: k.world.feet }));
-  const pending: {
-    by: Keeper;
-    target: string;
-    vx: number;
-    vy: number;
-    x: number;
-    y: number;
-  }[] = [];
+  const pending: Impact[] = [];
+  const dashers: Keeper[] = [];
   for (const keeper of arena.keepers) {
     const w = keeper.world;
     if (competitive) w.input.reset = false;
     w.combat = arena.combat;
+    keeper.pushed = Math.max(0, keeper.pushed - 1);
+    if (!keeper.pushed) keeper.pushedBy = "";
     const oldDeaths = w.deaths;
     const wasReturning = w.respawn > 0,
+      wasDashing = w.dash > 0,
       reset = w.input.reset && !w.previous.reset;
     if (playing && canPlay(keeper)) {
-      step(w, {
-        rivals: victims.filter((v) => v.id !== keeper.id),
-        hit: (target, vx, vy, x, y) =>
-          pending.push({ by: keeper, target, vx, vy, x, y }),
-      });
-      keeper.shield =
-        (wasReturning && !w.respawn) || reset
-          ? 30
-          : Math.max(0, keeper.shield - 1);
-      keeper.ward = reset || w.respawn ? 0 : Math.max(0, keeper.ward - 1);
+      const pull = keeper.power.kind === "harpoon";
+      step(
+        w,
+        {
+          rivals: victims.filter((v) => v.id !== keeper.id),
+          hit: (target, vx, vy, x, y) =>
+            pending.push({ by: keeper, target, vx, vy, x, y, pull }),
+        },
+        boostOf(keeper, arena.tuning.jumpMode),
+      );
+      if (wasDashing || w.dash > 0) dashers.push(keeper);
+      const blasted =
+        keeper.bomb.fate === "bomb" ||
+        keeper.bomb.fate === "self" ||
+        keeper.bomb.fate === "hazard";
+      keeper.spawnGuard =
+        wasReturning && !w.respawn
+          ? blasted
+            ? KO_SHIELD
+            : FALL_SHIELD
+          : reset
+            ? FALL_SHIELD
+            : Math.max(0, keeper.spawnGuard - 1);
+      if (reset || w.respawn) clearPower(keeper);
+      else tickPower(keeper);
     } else {
       cancel(w);
       w.tick++;
@@ -179,6 +347,13 @@ export function stepArena(arena: Arena, running = true): void {
     // A personal return does not reset shared props. With one keeper, retain the solo reset behavior.
     if (reset && arena.keepers.length === 1) arena.combat = w.combat;
     w.combat = arena.combat;
+    if (w.deaths > oldDeaths) {
+      keeper.bomb.fate = "fall";
+      keeper.bomb.by = "";
+      // A push is never credited across a death.
+      keeper.pushed = 0;
+      keeper.pushedBy = "";
+    }
     if (competitive && w.deaths > oldDeaths) {
       const entry = c.entries.find((e) => e.id === keeper.id)!;
       if (arena.tuning.rules === "elimination") {
@@ -187,30 +362,71 @@ export function stepArena(arena: Arena, running = true): void {
       } else entry.score -= 2;
     }
   }
+  // Dash bump: a dash that touches rivals after everyone moved knocks each of
+  // them away from the dasher once, and ends.
+  for (const dasher of dashers) {
+    const w = dasher.world;
+    if (w.respawn || !canPlay(dasher)) continue;
+    let bumped = false;
+    for (const rival of arena.keepers) {
+      if (rival === dasher || !open(rival) || !bodiesTouch(w, rival.world))
+        continue;
+      // sqrt of an exact integer sum rounds alike on every engine; hypot need not.
+      const dx = rival.world.x - w.x,
+        dy = rival.world.feet - w.feet,
+        d = Math.sqrt(dx * dx + dy * dy),
+        ux = d ? dx / d : w.facing,
+        uy = d ? dy / d : 0;
+      pending.push({
+        by: dasher,
+        target: rival.id,
+        vx: Math.round(ux * DASH_KNOCK * S),
+        vy: Math.min(
+          -DASH_LIFT * S,
+          Math.round(uy * DASH_KNOCK * S) - DASH_LIFT * S,
+        ),
+        x: Math.round((w.x + rival.world.x) / 2),
+        y: Math.max(
+          -2000 * S,
+          Math.round((w.feet + rival.world.feet) / 2 - BODY / 2),
+        ),
+        pull: false,
+      });
+      bumped = true;
+    }
+    if (bumped) endDash(w);
+  }
   for (const impact of pending) {
     const victim = arena.keepers.find((k) => k.id === impact.target)!;
-    if (
-      victim.world.respawn ||
-      victim.shield ||
-      victim.ward ||
-      !canPlay(victim)
-    )
-      continue;
+    if (victim.world.respawn || victim.spawnGuard || !canPlay(victim)) continue;
+    let { vx, vy } = impact;
+    // Toward the hooking keeper instead of away, lifted off the ground. A
+    // hooker who fell out this step is already below the arena, so the rival
+    // gets the ordinary push instead of a pull into the pit.
+    if (impact.pull && !impact.by.world.respawn) {
+      const by = impact.by.world,
+        dx = by.x - victim.world.x,
+        dy = by.feet - victim.world.feet,
+        d = Math.sqrt(dx * dx + dy * dy) || 1;
+      vx = Math.round((dx / d) * HARPOON_PULL * S);
+      vy = Math.round((dy / d) * HARPOON_PULL * S) - HARPOON_LIFT * S;
+    }
     const cap = Math.round((1000 * S) / 60);
-    victim.world.vx = Math.max(
-      -cap,
-      Math.min(cap, victim.world.vx + impact.vx),
-    );
-    victim.world.vy = Math.max(
-      -cap,
-      Math.min(cap, victim.world.vy + impact.vy),
-    );
+    victim.world.vx = Math.max(-cap, Math.min(cap, victim.world.vx + vx));
+    victim.world.vy = Math.max(-cap, Math.min(cap, victim.world.vy + vy));
     victim.world.grounded = false;
     victim.world.coyote = 0;
+    victim.pushedBy = impact.by.id;
+    victim.pushed = PUSH_TICKS;
     impact.by.hits = Math.min(0xffffffff, impact.by.hits + 1);
     if (competitive && arena.tuning.rules === "score") {
-      c.entries.find((e) => e.id === impact.by.id)!.score++;
-      victim.shield = 30;
+      // Three times from inside the crown zone (12B).
+      c.entries.find((e) => e.id === impact.by.id)!.score += gain(
+        arena.tuning,
+        impact.by.world.x,
+        impact.by.world.feet,
+      );
+      victim.spawnGuard = FALL_SHIELD;
     }
     arena.hit = {
       tick: arena.tick,
@@ -228,6 +444,8 @@ export function stepArena(arena: Arena, running = true): void {
       arena.keepers.filter(canPlay).map((k) => k.world),
     );
     stepPowerUps(arena, canPlay);
+    stepBombs(arena, canPlay);
+    stepHazards(arena, canPlay);
   }
   for (const k of arena.keepers) k.world.combat = arena.combat;
   if (competitive && playing) {
@@ -237,19 +455,29 @@ export function stepArena(arena: Arena, running = true): void {
       c.entries.filter((e) => !e.out).length <= 1
     ) {
       finishContest(c, arena.tuning.rules);
-      for (const k of arena.keepers) cancel(k.world);
+      // Powers end with the round; the pickup tally stays for the results.
+      for (const k of arena.keepers) {
+        cancel(k.world);
+        clearPower(k);
+      }
+      arena.bombs = [];
     }
   }
 }
 export function encodeArena(arena: Arena): unknown {
   return {
-    powerCooldowns: [...arena.powerCooldowns],
+    seed: arena.seed,
+    pads: arena.pads.map((p) => ({ ...p })),
     pickupEvents: arena.pickupEvents.map((e) => ({ ...e })),
+    shieldPops: arena.shieldPops.map((e) => ({ ...e })),
     contest: structuredClone(arena.contest),
     tick: arena.tick,
     tuning: { ...arena.tuning },
     combat: structuredClone(arena.combat),
     hit: arena.hit && { ...arena.hit },
+    bombs: arena.bombs.map((b) => ({ ...b })),
+    blasts: arena.blasts.map((e) => ({ ...e })),
+    knockouts: arena.knockouts.map((e) => ({ ...e })),
     keepers: arena.keepers.map((k) => {
       const {
         tick: _tick,
@@ -262,9 +490,13 @@ export function encodeArena(arena: Arena): unknown {
         slot: k.slot,
         generation: k.generation,
         connected: k.connected,
-        shield: k.shield,
-        ward: k.ward,
+        spawnGuard: k.spawnGuard,
+        power: { ...k.power },
         hits: k.hits,
+        bomb: { ...k.bomb },
+        pushedBy: k.pushedBy,
+        pushed: k.pushed,
+        mind: k.mind && { ...k.mind },
         body: structuredClone(body),
       };
     }),
@@ -275,11 +507,165 @@ const id = (v: unknown): v is string =>
   v.length > 0 &&
   v.length <= 128 &&
   !/[\x00-\x1f\x7f]/.test(v);
-export function decodeArena(raw: unknown): Arena | undefined {
+const count = (v: unknown): v is number => integer(v, 0, 0xffffffff);
+function decodeKit(raw: unknown, tuning: Tuning): BombKit | undefined {
+  const bombs = tuning.bomb !== "off",
+    hazards = hazardsLive(tuning);
   if (
     !plain(raw) ||
     Object.keys(raw).length !== 8 ||
+    !integer(raw.cooldown, 0, bombs ? COOLDOWN_TICKS : 0) ||
+    !count(raw.thrown) ||
+    !count(raw.knockouts) ||
+    !count(raw.selfKnockouts) ||
+    !count(raw.bombed) ||
+    !count(raw.zapped) ||
+    (raw.fate !== "" &&
+      raw.fate !== "fall" &&
+      raw.fate !== "bomb" &&
+      raw.fate !== "self" &&
+      raw.fate !== "hazard") ||
+    // A bomb has a thrower; a hazard may credit a pusher; nothing else names anyone.
+    (raw.fate === "bomb"
+      ? !id(raw.by)
+      : raw.fate === "hazard"
+        ? raw.by !== "" && !id(raw.by)
+        : raw.by !== "") ||
+    (!bombs &&
+      (raw.thrown ||
+        raw.selfKnockouts ||
+        raw.bombed ||
+        raw.fate === "bomb" ||
+        raw.fate === "self")) ||
+    (!hazards && (raw.zapped || raw.fate === "hazard")) ||
+    (!bombs && !hazards && raw.knockouts)
+  )
+    return;
+  return {
+    cooldown: raw.cooldown,
+    thrown: raw.thrown,
+    knockouts: raw.knockouts,
+    selfKnockouts: raw.selfKnockouts,
+    bombed: raw.bombed,
+    zapped: raw.zapped,
+    fate: raw.fate,
+    by: raw.by as string,
+  };
+}
+/** Only a kind in the room's pool, with its own duration and charges. */
+function decodePower(
+  raw: unknown,
+  pool: readonly PowerKind[],
+): PowerState | undefined {
+  if (
+    !plain(raw) ||
+    Object.keys(raw).length !== 4 ||
+    !count(raw.taken) ||
+    (!pool.length && raw.taken)
+  )
+    return;
+  if (raw.kind === "") {
+    if (raw.ticks !== 0 || raw.charges !== 0) return;
+  } else if (
+    !isPowerKind(raw.kind) ||
+    !pool.includes(raw.kind) ||
+    !integer(raw.ticks, 1, powerTicks(raw.kind)) ||
+    (raw.kind === "cluster"
+      ? !integer(raw.charges, 1, CLUSTER_CHARGES)
+      : raw.charges !== 0)
+  )
+    return;
+  return {
+    kind: raw.kind,
+    ticks: raw.ticks as number,
+    charges: raw.charges as number,
+    taken: raw.taken,
+  };
+}
+/** Chronological presentation events inside the retention window. */
+function decodeEvents<T>(
+  raw: unknown,
+  tick: number,
+  keys: number,
+  parse: (e: Record<string, unknown>) => T | undefined,
+): T[] | undefined {
+  if (!Array.isArray(raw) || raw.length > MAX_EVENTS) return;
+  const out: T[] = [];
+  let last = 0;
+  for (const e of raw) {
+    if (
+      !plain(e) ||
+      Object.keys(e).length !== keys ||
+      !integer(e.tick, Math.max(1, tick - EVENT_TICKS + 1), tick) ||
+      e.tick < last
+    )
+      return;
+    last = e.tick;
+    const parsed = parse(e);
+    if (!parsed) return;
+    out.push(parsed);
+  }
+  return out;
+}
+const bombKind = (v: unknown, cluster: boolean): v is Bomb["kind"] =>
+  v === "plain" || (cluster && (v === "cluster" || v === "bomblet"));
+/**
+ * Ids from tick × 32 + slot × 4 (+ 1–3 for bomblets): unique and ascending.
+ * That the slot is the owner's is checked once the keepers decode.
+ */
+function decodeBombs(
+  raw: unknown,
+  tick: number,
+  cluster: boolean,
+  map: Tuning["map"],
+): Bomb[] | undefined {
+  if (!Array.isArray(raw) || raw.length > MAX_BOMBS) return;
+  const bombs: Bomb[] = [],
+    speed = MAX_BOMB_SPEED * S,
+    bombX = (v: unknown): v is number => integer(v, 0, MAPS[map].width * S),
+    bombY = (v: unknown): v is number =>
+      integer(v, BOMB_CEILING * S, bombFloor(map));
+  for (const b of raw) {
+    if (
+      !plain(b) ||
+      Object.keys(b).length !== 8 ||
+      !integer(b.id, 0, tick * 32 + 31) ||
+      !id(b.owner) ||
+      !bombKind(b.kind, cluster) ||
+      // A thrown bomb takes the slot's first id; bomblets the three after it.
+      (b.id % 4 === 0) !== (b.kind !== "bomblet") ||
+      !bombX(b.x) ||
+      !bombY(b.y) ||
+      !integer(b.vx, -speed, speed) ||
+      !integer(b.vy, -speed, speed) ||
+      !integer(b.fuse, 1, b.kind === "bomblet" ? BOMBLET_FUSE : FUSE_TICKS) ||
+      bombs.some((old) => old.id >= (b.id as number)) ||
+      bombs.filter(
+        (old) =>
+          old.owner === b.owner &&
+          (old.kind === "bomblet") === (b.kind === "bomblet"),
+      ).length >= (b.kind === "bomblet" ? BOMBLETS : 1)
+    )
+      return;
+    bombs.push({
+      id: b.id,
+      owner: b.owner,
+      kind: b.kind,
+      x: b.x,
+      y: b.y,
+      vx: b.vx,
+      vy: b.vy,
+      fuse: b.fuse,
+    });
+  }
+  return bombs;
+}
+export function decodeArena(raw: unknown): Arena | undefined {
+  if (
+    !plain(raw) ||
+    Object.keys(raw).length !== 13 ||
     !integer(raw.tick, 0, 0xffffffff * 3) ||
+    !integer(raw.seed, 0, 0xffffffff) ||
     !Array.isArray(raw.keepers) ||
     raw.keepers.length > 5
   )
@@ -292,39 +678,67 @@ export function decodeArena(raw: unknown): Arena | undefined {
     combat: raw.combat,
   });
   if (!probe) return;
-  const arena = createArena(tuning, raw.tick);
-  const contest = decodeContest(raw.contest, tuning.rules);
+  const arena = createArena(tuning, raw.tick, raw.seed),
+    { width, height } = MAPS[tuning.map],
+    inX = (v: unknown): v is number => integer(v, 0, width * S),
+    chestY = (v: unknown): v is number =>
+      integer(v, -3000 * S, (height + 100) * S);
+  const contest = decodeContest(
+    raw.contest,
+    tuning.rules,
+    bonusLive(tuning) ? BONUS : 1,
+  );
   if (!contest) return;
   arena.contest = contest;
   arena.combat = probe.combat;
+  const pool = powerPool(tuning),
+    layout = POWER_PADS[tuning.map];
   if (
-    !Array.isArray(raw.powerCooldowns) ||
-    raw.powerCooldowns.length !== 2 ||
-    raw.powerCooldowns.some((n) => !integer(n, 0, POWER_COOLDOWN)) ||
+    !Array.isArray(raw.pads) ||
+    raw.pads.length !== layout.length ||
     !Array.isArray(raw.pickupEvents) ||
-    raw.pickupEvents.length > 2
+    raw.pickupEvents.length > layout.length
   )
     return;
-  arena.powerCooldowns = [...raw.powerCooldowns] as number[];
+  arena.pads = [];
+  for (const p of raw.pads) {
+    if (
+      !plain(p) ||
+      Object.keys(p).length !== 2 ||
+      !integer(p.cooldown, 0, pool.length ? PAD_TICKS : 0) ||
+      !integer(p.cycle, 0, 0xffffffff)
+    )
+      return;
+    arena.pads.push({ cooldown: p.cooldown, cycle: p.cycle });
+  }
   for (const e of raw.pickupEvents) {
     if (
       !plain(e) ||
-      Object.keys(e).length !== 3 ||
+      Object.keys(e).length !== 4 ||
       !integer(e.tick, 1, arena.tick) ||
       !id(e.by) ||
-      !integer(e.pad, 0, 1) ||
+      !integer(e.pad, 0, layout.length - 1) ||
+      !isPowerKind(e.kind) ||
+      !pool.includes(e.kind) ||
       arena.pickupEvents.some(
         (old) => old.pad >= (e.pad as number) || old.tick !== e.tick,
       )
     )
       return;
-    arena.pickupEvents.push({ tick: e.tick, by: e.by, pad: e.pad });
+    arena.pickupEvents.push({
+      tick: e.tick,
+      by: e.by,
+      pad: e.pad,
+      kind: e.kind,
+    });
   }
-  if (
-    tuning.powerUps === "off" &&
-    (arena.powerCooldowns.some(Boolean) || arena.pickupEvents.length)
-  )
-    return;
+  const shieldPops = decodeEvents(raw.shieldPops, arena.tick, 4, (e) =>
+    id(e.target) && inX(e.x) && chestY(e.y)
+      ? { tick: e.tick as number, target: e.target, x: e.x, y: e.y }
+      : undefined,
+  );
+  if (!shieldPops || (!pool.includes("shield") && shieldPops.length)) return;
+  arena.shieldPops = shieldPops;
   const h = raw.hit;
   if (h !== null) {
     if (
@@ -334,23 +748,81 @@ export function decodeArena(raw: unknown): Arena | undefined {
       !id(h.by) ||
       !id(h.target) ||
       h.by === h.target ||
-      !integer(h.x, 0, 1600 * S) ||
-      !integer(h.y, -2000 * S, 1000 * S)
+      !integer(h.x, 0, width * S) ||
+      !integer(h.y, -2000 * S, (height + 100) * S)
     )
       return;
     arena.hit = { tick: h.tick, by: h.by, target: h.target, x: h.x, y: h.y };
   }
+  const tick = arena.tick,
+    inY = (v: unknown): v is number =>
+      integer(v, BOMB_CEILING * S, bombFloor(tuning.map)),
+    cluster = pool.includes("cluster"),
+    bombs = decodeBombs(raw.bombs, tick, cluster, tuning.map),
+    blasts = decodeEvents(raw.blasts, tick, 6, (e) =>
+      integer(e.id, 0, tick * 32 + 31) &&
+      id(e.owner) &&
+      bombKind(e.kind, cluster) &&
+      inX(e.x) &&
+      inY(e.y)
+        ? {
+            tick: e.tick as number,
+            id: e.id,
+            owner: e.owner,
+            kind: e.kind,
+            x: e.x,
+            y: e.y,
+          }
+        : undefined,
+    ),
+    knockouts = decodeEvents(raw.knockouts, tick, 6, (e) =>
+      (e.cause === "bomb"
+        ? tuning.bomb !== "off" && id(e.by)
+        : e.cause === "hazard" &&
+          hazardsLive(tuning) &&
+          (e.by === "" || (id(e.by) && e.by !== e.target))) &&
+      id(e.target) &&
+      inX(e.x) &&
+      integer(e.y, -3000 * S, (height + 100) * S)
+        ? {
+            tick: e.tick as number,
+            by: e.by as string,
+            target: e.target,
+            x: e.x,
+            y: e.y,
+            cause: e.cause as Knockout["cause"],
+          }
+        : undefined,
+    );
+  if (
+    !bombs ||
+    !blasts ||
+    !knockouts ||
+    (tuning.bomb === "off" && (bombs.length || blasts.length))
+  )
+    return;
+  arena.bombs = bombs;
+  arena.blasts = blasts;
+  arena.knockouts = knockouts;
   for (const k of raw.keepers) {
     if (
       !plain(k) ||
-      Object.keys(k).length !== 8 ||
+      Object.keys(k).length !== 12 ||
       !id(k.id) ||
+      !integer(k.pushed, 0, PUSH_TICKS) ||
+      // A push names another keeper for exactly as long as it lasts. The
+      // pusher may have left since (the push still credits them), so the name
+      // need not be a keeper or, in free play, an entry.
+      (k.pushed ? !id(k.pushedBy) || k.pushedBy === k.id : k.pushedBy !== "") ||
       !integer(k.slot, 0, 4) ||
       !integer(k.generation, 0, 0xffffffff) ||
       typeof k.connected !== "boolean" ||
-      !integer(k.shield, 0, 30) ||
-      !integer(k.ward, 0, tuning.powerUps === "on" ? WARD_TICKS : 0) ||
-      (!k.connected && !!k.ward) ||
+      // Only a bomb or hazard knockout's return protects for longer than a fall's.
+      !integer(
+        k.spawnGuard,
+        0,
+        tuning.bomb === "off" && !hazardsLive(tuning) ? FALL_SHIELD : KO_SHIELD,
+      ) ||
       !integer(k.hits, 0, 0xffffffff) ||
       !plain(k.body) ||
       Object.hasOwn(k.body, "tick") ||
@@ -361,26 +833,71 @@ export function decodeArena(raw: unknown): Arena | undefined {
       )
     )
       return;
+    const kit = decodeKit(k.bomb, tuning),
+      power = decodePower(k.power, pool);
+    const mind = k.mind === null ? null : decodeMind(k.mind, tuning);
+    if (mind === undefined) return;
     const world = decodeWorld({
       ...k.body,
       tick: raw.tick,
       tuning,
       combat: raw.combat,
     });
-    if (!world || world.slot !== k.slot || (world.respawn && k.ward)) return;
+    if (
+      !kit ||
+      !power ||
+      !world ||
+      world.slot !== k.slot ||
+      // A power ends with the keeper's connection or life.
+      (power.kind && (!k.connected || world.respawn)) ||
+      // Extra air actions and dashes only come from the power that grants them.
+      world.bonusJumps > bonusRefill(power.kind, tuning.jumpMode) ||
+      (world.dash && power.kind !== "dash") ||
+      // Charging needs an armed keeper; tallies and fate follow the deaths.
+      (world.charge && kit.cooldown) ||
+      kit.bombed + kit.selfKnockouts + kit.zapped > world.deaths ||
+      !world.deaths !== (kit.fate === "") ||
+      // A push dies with the keeper.
+      (world.respawn && k.pushed)
+    )
+      return;
     world.combat = arena.combat;
     arena.keepers.push({
       id: k.id,
       slot: k.slot,
       generation: k.generation,
       connected: k.connected,
-      shield: k.shield,
-      ward: k.ward,
+      mind,
+      spawnGuard: k.spawnGuard,
+      power,
       hits: k.hits,
+      bomb: kit,
+      pushedBy: k.pushedBy as string,
+      pushed: k.pushed,
       world,
     });
   }
+  if (!arena.bombs.every((b) => ownedBomb(arena, b))) return;
   if (arena.contest.elapsed > arena.tick) return;
+  // Bombs fly and charges grow only in play. A round's start clears bomb
+  // state and its end clears bombs and cancels charges, so outside an active
+  // round there are no bombs or charges, and before one no bomb events either
+  // (the last blasts of a round stay briefly for presentation).
+  const competitive = tuning.rules !== "free",
+    phase = arena.contest.phase,
+    inPlay = (k: Keeper) =>
+      k.connected &&
+      (!competitive ||
+        (phase === "active" &&
+          arena.contest.entries.some((e) => e.id === k.id && !e.out)));
+  if (
+    (competitive && phase !== "active" && arena.bombs.length) ||
+    (competitive &&
+      (phase === "waiting" || phase === "countdown") &&
+      (arena.blasts.length || arena.knockouts.length)) ||
+    arena.keepers.some((k) => k.world.charge && !inPlay(k))
+  )
+    return;
   if (
     arena.contest.phase === "active" &&
     tuning.rules !== "free" &&

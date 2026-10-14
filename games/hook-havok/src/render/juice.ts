@@ -24,6 +24,10 @@ export interface Juice {
   ): void;
   /** True for the victim's first frames after a hit: draw them white. */
   flashing(id: string, ms: number): boolean;
+  /** The camera's zoom punch now, as a share on top of its zoom (0 when none). */
+  punch(ms: number): number;
+  /** The arena's bottom, where knockout streaks rise from. */
+  setBottom(y: number): void;
   destroy(): void;
 }
 interface Particle {
@@ -51,6 +55,8 @@ export function createJuice(scene: Phaser.Scene, zoom: number): Juice {
     trails = new Map<string, { x: number; y: number }[]>();
   let particles: Particle[] = [],
     punchUntil = 0,
+    punchAmount = 0,
+    bottom = 900,
     still = false;
   const spawn = (p: Omit<Particle, "seed">, count: number) => {
     // Reduced motion keeps only the static crack decal; paintBurst still
@@ -70,7 +76,7 @@ export function createJuice(scene: Phaser.Scene, zoom: number): Juice {
       if (reduced) return;
       camera.shake(duration, intensity / zoom);
       if (punch) {
-        camera.setZoom(zoom * (1 + punch));
+        punchAmount = punch;
         punchUntil = burst.at + 90;
       }
     };
@@ -191,6 +197,55 @@ export function createJuice(scene: Phaser.Scene, zoom: number): Juice {
         );
         kick(260, local ? 0.014 : 0.007, local ? 0.03 : 0);
         break;
+      case "boom":
+        // Every blast shakes the room; one near you punches the zoom too.
+        kick(local ? 320 : 220, local ? 0.02 : 0.009, local ? 0.04 : 0.012);
+        break;
+      case "shield":
+        // A Shield that absorbed a blast bursts into shards of its bubble.
+        spawn(
+          {
+            kind: "ring",
+            x: burst.x,
+            y: burst.y - 28,
+            vx: 0,
+            vy: 0,
+            at: burst.at,
+            life: 420,
+            color: burst.color ?? color,
+          },
+          1,
+        );
+        spawn(
+          {
+            kind: "spark",
+            x: burst.x,
+            y: burst.y - 28,
+            vx: 0,
+            vy: 0,
+            at: burst.at,
+            life: 520,
+            color: burst.color ?? color,
+          },
+          14,
+        );
+        break;
+      case "blasted":
+        hits.set(burst.target ?? "", burst.at);
+        spawn(
+          {
+            kind: "spark",
+            x: burst.x,
+            y: burst.y,
+            vx: 0,
+            vy: 0,
+            at: burst.at,
+            life: 520,
+            color,
+          },
+          18,
+        );
+        break;
       default:
         break;
     }
@@ -206,11 +261,7 @@ export function createJuice(scene: Phaser.Scene, zoom: number): Juice {
         react(burst, color, local, reduced);
       }
       for (const [key, at] of seen) if (ms - at > 1000) seen.delete(key);
-      const camera = scene.cameras.main;
-      if (punchUntil && ms > punchUntil) {
-        camera.setZoom(zoom);
-        punchUntil = 0;
-      }
+      if (punchUntil && ms > punchUntil) punchUntil = 0;
       g.clear();
       glow.clear();
       // Swing ribbons: fading, tapered, additive trails behind fast swings.
@@ -298,10 +349,10 @@ export function createJuice(scene: Phaser.Scene, zoom: number): Juice {
             const height = 520 * Math.min(1, age * 3);
             glow
               .fillStyle(p.color, 0.55 * fade)
-              .fillRect(p.x - 10 * fade, 900 - height, 20 * fade, height);
+              .fillRect(p.x - 10 * fade, bottom - height, 20 * fade, height);
             glow
               .fillStyle(0xffffff, 0.7 * fade)
-              .fillRect(p.x - 3 * fade, 900 - height, 6 * fade, height);
+              .fillRect(p.x - 3 * fade, bottom - height, 6 * fade, height);
             break;
           }
         }
@@ -311,6 +362,12 @@ export function createJuice(scene: Phaser.Scene, zoom: number): Juice {
       const at = hits.get(id);
       // No white flash under reduced motion.
       return !still && at !== undefined && ms - at >= 0 && ms - at < 70;
+    },
+    punch(ms) {
+      return punchUntil && ms <= punchUntil ? punchAmount : 0;
+    },
+    setBottom(y) {
+      bottom = y;
     },
     destroy() {
       g.destroy();

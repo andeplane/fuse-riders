@@ -2,7 +2,16 @@
 
 An illustrated 2D grappling-platformer experiment for the Fuse party pack.
 
-## Current milestone
+The current combined build uses `hook-havok-17`, with thrown bombs, playable bots, power-ups v2 and Neon Spire together. Menu opening, focus loss and cancelled pointers discard a charge; ordinary button release throws it. Refresh every client and create a fresh room; older clients cannot share its checkpoint contract. Earlier rule numbers below describe the original milestones.
+
+## Development milestones
+
+Phase 11C adds [playable bots](docs/bots.md). **Room & match → Bots** seats up to four AI keepers in the free seats and **Bot level** makes them easy, normal or hard; only the room manager changes either, and new rooms have none. Bots run the same physics as you inside the shared simulation on every device: they climb with jumps, drops and the hook, chase a rival, take pads, pop orbs, throw bombs at you, hook you off ledges, dodge blasts and hook their way back from a fall, and they keep playing while they hold a power-up. They wear a BOT tag on their cards and in the results, and one person plus a bot is enough for a competitive round. Rules are `hook-havok-15`; refresh all clients and create a fresh room.
+
+Phase 11D adds [power-ups v2](docs/power-ups.md). Four pads per map, on ledge lips, corners and summits, each show a random power-up from the room's pool and return 10 s after pickup with a new one: **Triple jump** (two air jumps), **Shield** (survives one bomb blast, your own included), **Cluster bomb** (your next three bombs split into bomblets), **Harpoon** (your hook pulls a hit rival in) and **Dash bump** (your air jump dashes along your aim and knocks rivals away). You hold one at a time, for 8 s (a Cluster bomb for three throws within 15 s); the icon over your keeper and on your card shows what you hold and the time left. **Development workshop → Power-ups** picks all five (the default), off or any mix. Rules are `hook-havok-14`; refresh all clients and create a fresh room.
+Phases 12A–12B add [Neon Spire](docs/neon-spire.md), a 1.4× (2240 × 1260) neon tower drawn as a procedural grey box, with per-map world sizes, solid walls and ceilings beside the one-way ledges, and switchable zones: jump pads, lift beams, a low-gravity wing, telegraphed laser gates, an electrified floor that rises over a timed round's last 20 s, and a 3× crown in Hook score. Hazards knock out like bombs and credit a rival whose hook hit you in the last 2 s. Pick **Room & match → Arena → Neon Spire**; the zone switches are in **Development workshop → Neon Spire zones**, and **Follow keepers** zooms your own view onto the living keepers. Rules are `hook-havok-16`; refresh all clients and create a fresh room.
+
+Phases 11A–11B add [the spiked wire everywhere and a thrown bomb](docs/bombs.md). The spikes now pop orbs along the whole visible rope, the retract included, and spiked is the default. Controls change: **Space** jumps, **J** (or left click) hooks, **K** (or right click) charges a bomb, **↓ + Space** drops; on touch a bomb button sits beside the aim pad. Hold to charge (full at 0.6 s) and release to throw; after 1.5 s the blast knocks out every keeper in its red ring, you included, then you are back in a second. **Development workshop → Bombs** switches between off, fuse and impact. Rules are `hook-havok-12`; refresh all clients and create a fresh room.
 
 Phases 10B–10D are a [look and feel pass](docs/look-and-feel.md): sharp high-density rendering, a full-screen arena in **Focus arena** with an inked foreground frame, a hand-drawn rope, light shafts and lantern halos, painted stone keels under the ledges, and flashier hits, pops, knockouts and swings. Rules are unchanged from 10A. Add `?res=1` to compare against the old rendering cost.
 
@@ -46,7 +55,7 @@ The working direction combines **A's belfry/character identity with B's denser p
 
 ## Open the movement playground
 
-Build with `pnpm build`, then run `node --import tsx service/dev.ts --port 8787` (or `pnpm dev` in a shell supporting the repository's scripts). The existing server selects a free port if needed. Open `/hook-havok/?mute` on the printed origin, or follow the landing-page link. Click **Create room**. A/D or arrows move; J / Space jumps (release early for a shorter jump, press again in the air); WASD / arrows aim and holding K hooks and reels, or hold left mouse to hook where you point; jump while hooked to leap off; Down + Jump drops; R resets. The **Development workshop** changes settings and restarts the exercise. For Vite source development, the page is `/games/hook-havok/`; built output is `/hook-havok/`.
+Build with `pnpm build`, then run `node --import tsx service/dev.ts --port 8787` (or `pnpm dev` in a shell supporting the repository's scripts). The existing server selects a free port if needed. Open `/hook-havok/?mute` on the printed origin, or follow the landing-page link. Click **Create room**. A/D or arrows move; Space jumps (release early for a shorter jump, press again in the air); WASD / arrows aim; hold J to hook and reel, or hold left mouse to hook where you point; jump while hooked to leap off; hold K (or right mouse) to charge a bomb and release to throw; Down + Space drops; R resets. On touch, the bomb button sits beside the aim pad. The **Development workshop** changes settings and restarts the exercise. For Vite source development, the page is `/games/hook-havok/`; built output is `/hook-havok/`.
 
 The **Art showcase** link opens the previous authored study at `?showcase=1&mute`.
 
@@ -63,6 +72,12 @@ Use the sequence slider to inspect attachment, pull and landing. **Atmosphere** 
 
 ```sh
 node games/hook-havok/preview/showcase-check.mjs http://localhost:PORT/
+```
+
+The bots smoke plays a real room against four bots (about four minutes: free play at each level, two elimination rounds and a score round) and writes `docs/evidence/bots-*.png`:
+
+```sh
+node games/hook-havok/preview/bots-check.mjs http://localhost:PORT/
 ```
 
 ## Previous source-animation study

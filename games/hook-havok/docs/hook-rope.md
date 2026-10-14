@@ -22,13 +22,15 @@ Both causes were structural. Every ledge is one-way for keepers, yet the tether 
 - **Steering** while hooked and airborne pumps the swing tangentially at 1100 units/s² instead of normal air control.
 - **Rope jump.** A fresh jump while hooked lets go with a jump launch that keeps any stronger upward swing, and restores the air jump in double-jump mode. A held hook does not refire; press again.
 - **Momentum.** After letting go, air steering never brakes a keeper already moving faster than running speed in the held direction. Steering the other way still brakes.
-- **Release** happens when the hook is released, on a rope jump, on dropping, on respawn or reset, when a Lift fires, and when the keeper lands on top of the ledge they hooked (arrival). The rope may pass through one-way stone on the way. Rope wrapping remains out of scope.
+- **Release** happens when the hook is released, on a rope jump, on dropping, on respawn or reset, and when the keeper lands on top of the ledge they hooked (arrival). The rope may pass through one-way stone on the way. Rope wrapping remains out of scope.
 - **Hook flight** is 32 units per tick (was 20), so a full-range shot lands in about 20 ticks.
 - Checkpoints reject hook velocities above the new flight speed, and attached ropes shorter than the minimum or longer than the range.
 
 ## Defaults and controls
 
 New rooms start on **Crossroads** with **double jump** and **gentle arena ricochets**. `CLASSIC_TUNING` (Belfry, single jump, no balls) keeps the older fixtures pinned.
+
+(Since [11B](bombs.md#controls), Space alone jumps, J hooks and K throws a bomb; Down + Space drops. The paragraph below describes 10A.)
 
 **Keyboard + mouse** is the standard control scheme. J / Space jump. WASD / arrows aim in eight directions, and K hooks along that direction. A left click hooks where the mouse points. Whichever hook button was used last owns the aim. Down alone aims down; **Down + Jump** (or Shift + Down) drops through a ledge. **Classic mouse** keeps S / Down alone as drop.
 

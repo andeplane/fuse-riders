@@ -38,6 +38,15 @@ export function interpolate(
       : after;
   return {
     ...newer,
+    // Usually no bombs are out: keep the array rather than copy it every frame.
+    bombs: newer.bombs.length
+      ? newer.bombs.map((b) => {
+          const a = older.bombs.find((a) => a.id === b.id);
+          return a && Math.hypot(b.x - a.x, b.y - a.y) < 80
+            ? { ...b, x: lerp(a.x, b.x), y: lerp(a.y, b.y) }
+            : b;
+        })
+      : newer.bombs,
     keepers: newer.keepers.map((k) => {
       const old = older.keepers.find((p) => p.id === k.id && p.slot === k.slot);
       return { ...k, body: interpolate(old?.body, k.body, tick) };
@@ -54,12 +63,14 @@ export function interpolate(
     combat: {
       ...newer.combat,
       target,
-      balls: newer.combat.balls.map((b) => {
-        const a = older.combat.balls.find((a) => a.id === b.id);
-        return a && Math.hypot(b.x - a.x, b.y - a.y) < 80
-          ? { ...b, x: lerp(a.x, b.x), y: lerp(a.y, b.y) }
-          : b;
-      }),
+      balls: newer.combat.balls.length
+        ? newer.combat.balls.map((b) => {
+            const a = older.combat.balls.find((a) => a.id === b.id);
+            return a && Math.hypot(b.x - a.x, b.y - a.y) < 80
+              ? { ...b, x: lerp(a.x, b.x), y: lerp(a.y, b.y) }
+              : b;
+          })
+        : newer.combat.balls,
     },
   };
 }
