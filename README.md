@@ -65,6 +65,14 @@ against the computer, rooms with a QR invite, and a shared TV with phones as con
 [games/fuse-drivers/README.md](games/fuse-drivers/README.md). Production serves its rooms only once its id
 is in `EXTRA_GAME_IDS` ([GCP deploy](docs/online/GCP-DEPLOY.md)); until then its page offers solo only.
 
+## Menus and round controls
+
+Games keep their own visual style while following the same navigation pattern: play or join from the home screen, open **MENU** during a game, read **Controls**, return to the lobby when allowed, or leave the game. Fuse Riders keeps its existing menu with room settings, account and radio controls; the other games use the shared `fuse-ui` menu alongside their game-specific settings.
+
+Control reminders appear at each round's countdown or opening phase. Games without a countdown use their stage, turn or week start. They describe keyboard and touch input and the immediate objective; shared TV displays explain that players use their phones. Open **MENU → Controls** to read them again. The reminders do not pause the simulation or change round timing.
+
+`createGameMenu` and `createRoundControls` in `packages/fuse-ui` provide the shared behavior. Pig is the new-game template, so generated games inherit this navigation and onboarding. Run `ONLINE_URL=http://localhost:PORT/ pnpm exec tsx scripts/shared-menu-controls-smoke.ts` against a fresh local service to check the real flows.
+
 ## Pig, the second game
 
 **Ball Bros POC** is also available at `/ball-bros/`, listed in the shared app portal: solo against four bots or online rooms for up to five players, with orbital/radial paddles, destructible bases, power-ups and one-hit cores. Shared-screen rooms offer a TV view and phone controllers. Classic Circuit keeps the field clean, Crossfire opens attack lanes in the armor, and Ricochet Reactor adds five neutral center bumpers. At 01:00 remaining, Fuse Frenzy moves the base formation and adds neutral pressure balls. See [its controls and verification](games/ball-bros/README.md). It remains unranked. Production rooms remain gated by `EXTRA_GAME_IDS=ball-bros`.

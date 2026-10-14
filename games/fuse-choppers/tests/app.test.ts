@@ -176,6 +176,32 @@ test("banners: the countdown, GO, a round's winner, a draw and the break between
   assert.equal(present(drawn, guest).banner!.title, "DRAW");
 });
 
+test("controller guidance returns every countdown for pilots, shared phones and the TV", () => {
+  for (const round of [1, 2, 3]) {
+    const counting = room("running", {
+      round,
+      play: { ...DEFAULT_SETTINGS, display: true },
+    });
+    counting.world = {
+      ...counting.world!,
+      phase: "countdown",
+      remaining: 100,
+      played: 0,
+    };
+    for (const viewer of [host, guest, tv]) {
+      assert.equal(present(counting, viewer).controlsVisible, true);
+      const activeRound: View = {
+        ...counting,
+        world: { ...counting.world!, phase: "play" },
+      };
+      assert.equal(present(activeRound, viewer).controlsVisible, false);
+    }
+    assert.equal(present(counting, guest).screen, "controller");
+  }
+  assert.equal(present(room("lobby"), host).controlsVisible, false);
+  assert.equal(present(room("between"), host).controlsVisible, false);
+});
+
 test("notes for a crashed, escaped, waiting or watching pilot", () => {
   const running = room("running");
   const crashed = {

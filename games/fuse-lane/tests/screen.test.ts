@@ -231,6 +231,28 @@ test("money and text helpers: whole dollars with a sign, and text written only w
   assert.equal(span.textContent, "b");
 });
 
+test("controls appear at the start of every week and every pass-device handoff", () => {
+  const h = harness({ bots: 0 });
+  const initial = h.step(0);
+  const startup = h.$(".fl-startup-controls");
+  assert.equal(startup.hidden, false);
+  assert.match(startup.textContent ?? "", /Click \/ tap a building/);
+  h.render({ ...initial, hud: { ...initial.hud!, timer: 0.5 } });
+  assert.equal(startup.hidden, true);
+  const secondWeek = monday(h);
+  const briefingGuide = h.$(".fl-briefing .fui-round-controls");
+  assert.equal(briefingGuide.hidden, false);
+  assert.equal(briefingGuide.dataset.round, "2");
+  assert.match(briefingGuide.textContent ?? "", /CALL IT A WEEK/);
+  h.render({ ...secondWeek, briefing: { ...secondWeek.briefing!, week: 3 } });
+  assert.equal(briefingGuide.dataset.round, "3");
+  const pass = harness({ humans: 2, bots: 0 });
+  pass.render();
+  const handoffGuide = pass.$(".fl-handoff .fui-round-controls");
+  assert.equal(handoffGuide.hidden, false);
+  assert.match(handoffGuide.textContent ?? "", /Click \/ tap a choice/);
+});
+
 test("the HUD: hours, week, clock, money and goal rings; CALL IT A WEEK logs this week's entry", () => {
   const h = harness();
   const model = h.render();
