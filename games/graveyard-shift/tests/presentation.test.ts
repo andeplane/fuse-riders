@@ -10,6 +10,7 @@ import {
   keys,
   roomFailure,
   NOT_OPEN,
+  createSeatAdmission,
   type Store,
 } from "../src/app/session.js";
 import { graveyardRegistration } from "../src/platform.js";
@@ -25,6 +26,29 @@ function storage(): Store {
     },
   };
 }
+test("fresh name edits wait for submission across room frames; a remembered name restores once", () => {
+  const store = storage();
+  const submitted: string[] = [];
+  const admission = createSeatAdmission(store.getItem("name"), (name) =>
+    submitted.push(name),
+  );
+  admission.observe(false);
+  store.setItem("name", "A");
+  admission.observe(false);
+  store.setItem("name", "Ada");
+  admission.observe(false);
+  assert.deepEqual(submitted, []);
+  admission.submit("Ada");
+  admission.observe(false);
+  admission.observe(true);
+  assert.deepEqual(submitted, ["Ada"]);
+  const restored = createSeatAdmission(store.getItem("name"), (name) =>
+    submitted.push(name),
+  );
+  restored.observe(false);
+  restored.observe(false);
+  assert.deepEqual(submitted, ["Ada", "Ada"]);
+});
 test("renderer draws live state labels, tanks, resistance, tug, emergence, pulse and deposits without mutating it", () => {
   const text: string[] = [],
     coords: number[] = [];
