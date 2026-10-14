@@ -929,6 +929,8 @@ const menu = createGameMenu({
   onLeave: () => el<HTMLButtonElement>("leave-room").click(),
   onOpenChange(open) {
     clear();
+    // Movement keys are handled on the arena, so resuming must return keyboard focus there.
+    if (!open && runtime && !display) host.focus({ preventScroll: true });
     const local = latest.keepers.find((keeper) => keeper.id === selfId);
     touch?.enable(
       !open &&

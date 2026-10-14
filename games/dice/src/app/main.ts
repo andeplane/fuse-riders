@@ -186,6 +186,11 @@ function room(solo: boolean): void {
       runtime.stop();
       location.href = endpoints.appUrl();
     },
+    onOpenChange: (open) => {
+      // The table owns Space/Enter after resuming; MENU must not consume the next roll or hold.
+      if (!open && main.dataset.phase === "running")
+        main.focus({ preventScroll: true });
+    },
   });
   const roundControls = createRoundControls({
     controls: CONTROLS,
@@ -301,6 +306,7 @@ function room(solo: boolean): void {
   toLobby.onclick = () => runtime.command({ type: "action", action: "lobby" });
 
   const main = el("main", "", "dice-room");
+  main.tabIndex = -1;
   main.append(nameEntry.form, lobby, table, result);
   app.replaceChildren(top, main);
   table.hidden = true;

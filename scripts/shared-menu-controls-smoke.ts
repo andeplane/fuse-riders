@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import type { Page } from "playwright";
 import type { BombersRuntime } from "../games/fuse-bombers/src/online/runtime.js";
+import type { Flow } from "../games/fuse-bombers/src/app/flow.js";
 import { launchSelected } from "./lib/browser.js";
 import { smokeTimeout } from "./smoke-timeout.js";
 
@@ -136,6 +137,176 @@ async function checkRidersMenu(page: Page): Promise<void> {
   await page.locator(".fui-round-controls").waitFor({ state: "hidden" });
 }
 
+/** Close by both supported paths, then use gameplay keys without clicking the arena first. */
+async function checkKeyboardResume(page: Page, game: string): Promise<void> {
+  const trigger = page.locator(".fui-game-menu-trigger");
+  for (const close of ["resume", "escape"] as const) {
+    let bombersShots = 0;
+    if (game === "fuse-bombers") {
+      await page.waitForFunction(() => {
+        const runtime = (
+          window as Window & { fuseBombers?: { runtime: BombersRuntime } }
+        ).fuseBombers!.runtime;
+        const room = runtime.roomState()!;
+        const ship = room.ships.indexOf(runtime.self);
+        const castle = room.world?.castles[ship];
+        const ghost = room.world?.ghosts.find((ghost) => ghost.owner === ship);
+        return castle?.alive
+          ? castle.reloadTicks === 0
+          : ghost?.reloadTicks === 0;
+      });
+      bombersShots = await page.evaluate(() => {
+        const runtime = (
+          window as Window & { fuseBombers?: { runtime: BombersRuntime } }
+        ).fuseBombers!.runtime;
+        const room = runtime.roomState()!;
+        const stats =
+          room.world!.castles[room.ships.indexOf(runtime.self)]!.stats;
+        return stats.rocketsFired + stats.ghostBombs;
+      });
+    }
+    if (game === "dice") await page.locator(".dice-roll").waitFor();
+    await trigger.click();
+    if (close === "escape") await page.keyboard.press("Escape");
+    else
+      await page
+        .locator(".fui-game-menu-panel")
+        .getByRole("button", { name: "BACK TO GAME", exact: true })
+        .click();
+    const play =
+      game === "dice"
+        ? ".dice-room"
+        : game === "hook-havok"
+          ? "#scene"
+          : game === "fuse-lane"
+            ? ".fl-game"
+            : "canvas";
+    assert.equal(
+      await page
+        .locator(play)
+        .evaluate((element) => document.activeElement === element),
+      true,
+      `${game}: ${close} returns focus to gameplay`,
+    );
+    if (game === "fuse-bombers") {
+      await page.keyboard.press("Space");
+      await page.waitForFunction((shots) => {
+        const runtime = (
+          window as Window & { fuseBombers?: { runtime: BombersRuntime } }
+        ).fuseBombers!.runtime;
+        const room = runtime.roomState()!;
+        const stats =
+          room.world!.castles[room.ships.indexOf(runtime.self)]!.stats;
+        return stats.rocketsFired + stats.ghostBombs > shots;
+      }, bombersShots);
+    } else if (game === "dice" && close === "resume") {
+      await page.waitForFunction(() => {
+        const roll = document.querySelector<HTMLButtonElement>(".dice-roll");
+        return roll && !roll.disabled;
+      });
+      await page.keyboard.press("Space");
+      await page.waitForFunction(
+        () =>
+          document.querySelector(".dice-die")?.getAttribute("aria-label") !==
+          "No roll yet",
+      );
+    } else if (game === "dice") {
+      // A first roll can bust. When it leaves a total to bank, Enter must HOLD rather than reopen MENU.
+      const hold = page.locator(".dice-hold");
+      if (await hold.isEnabled()) {
+        await page.keyboard.press("Enter");
+        await page.waitForFunction(
+          () =>
+            document.querySelector(".dice-total strong")?.textContent === "0",
+        );
+      } else await page.keyboard.press("Space");
+    } else if (game === "hook-havok") {
+      const before = await page.locator("#scene").evaluate((host) => {
+        const scene = host as HTMLElement;
+        const keepers = JSON.parse(scene.dataset.keepers!) as {
+          id: string;
+          x: number;
+        }[];
+        return keepers.find((keeper) => keeper.id === scene.dataset.playerId)!
+          .x;
+      });
+      await page.keyboard.down("ArrowRight");
+      await page.waitForFunction((x) => {
+        const scene = document.querySelector<HTMLElement>("#scene")!;
+        const keepers = JSON.parse(scene.dataset.keepers!) as {
+          id: string;
+          x: number;
+        }[];
+        return (
+          keepers.find((keeper) => keeper.id === scene.dataset.playerId)!.x >
+          x + 5
+        );
+      }, before);
+      await page.keyboard.up("ArrowRight");
+    } else if (game === "fuse-lane") {
+      const ready = page.locator(".fl-ready");
+      if ((await ready.isVisible()) && (await ready.isEnabled())) {
+        await page.keyboard.press("Enter");
+        await page.locator(".fl-briefing").waitFor({ state: "hidden" });
+      }
+    }
+    assert.equal(await trigger.getAttribute("aria-expanded"), "false");
+  }
+  results.push({ game, keyboardAfterResumeAndEscape: true });
+}
+
+async function checkBombersLocalResume(): Promise<void> {
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(smokeTimeout(20_000));
+  try {
+    await page.goto(
+      new URL("fuse-bombers/?local&mute&debug&seed=42", base).href,
+    );
+    await page.locator("#screen[data-screen='lobby']").waitFor();
+    await page.keyboard.press("Space");
+    await page.keyboard.press("Enter");
+    await page.locator("#screen[data-screen='playing']").waitFor();
+    const trigger = page.locator(".fui-game-menu-trigger");
+    for (const close of ["resume", "escape"] as const) {
+      await page.waitForFunction(() => {
+        const flow = (window as Window & { fuseBombers?: { flow: Flow } })
+          .fuseBombers!.flow;
+        return (
+          flow.view.castles[0]?.alive && flow.view.castles[0].reloadTicks === 0
+        );
+      });
+      const before = await page.evaluate(
+        () =>
+          (window as Window & { fuseBombers?: { flow: Flow } }).fuseBombers!
+            .flow.view.castles[0]!.stats.rocketsFired,
+      );
+      await trigger.click();
+      if (close === "escape") await page.keyboard.press("Escape");
+      else
+        await page
+          .getByRole("button", { name: "BACK TO GAME", exact: true })
+          .click();
+      await page.keyboard.press("Space");
+      await page.waitForFunction(
+        (shots) =>
+          (window as Window & { fuseBombers?: { flow: Flow } }).fuseBombers!
+            .flow.view.castles[0]!.stats.rocketsFired > shots,
+        before,
+      );
+      assert.equal(await trigger.getAttribute("aria-expanded"), "false");
+    }
+    results.push({
+      game: "fuse-bombers",
+      localKeyboardAfterResumeAndEscape: true,
+    });
+  } finally {
+    await context.close();
+  }
+}
+
 async function checkBombersArrows(page: Page): Promise<void> {
   // Existing read-only ?debug surface: observe ordinary authoritative inputs and motion,
   // without injecting controls, mutating state or treating a queued send as applied input.
@@ -229,6 +400,59 @@ async function checkBombersDisplay(): Promise<void> {
   }
 }
 
+async function checkTownOnlineResume(): Promise<void> {
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(smokeTimeout(20_000));
+  try {
+    // Fusetown exposes its online room by link only. Create a real room through the production API,
+    // store only the host capability, then join/start through the actual lobby; no world is injected.
+    const response = await context.request.post(
+      new URL("api/rooms?gameId=fuse-lane", base).href,
+    );
+    assert.ok(response.ok(), "Fusetown room is created by the service");
+    const room = (await response.json()) as { code: string; token: string };
+    await page.addInitScript(({ code, token }) => {
+      localStorage.setItem(`fuse-lane-room-${code}`, token);
+    }, room);
+    await page.goto(new URL(`fuse-lane/?room=${room.code}&mute`, base).href);
+    await page.getByPlaceholder("Your name").fill("Menu smoke");
+    await page.getByRole("button", { name: "JOIN", exact: true }).click();
+    await page.getByRole("button", { name: "+ ADD BOT", exact: true }).click();
+    await page
+      .getByRole("button", { name: "START MATCH", exact: true })
+      .click();
+    await page.locator(".fl-room[data-phase='running']").waitFor();
+    const trigger = page.locator(".fui-game-menu-trigger");
+    for (const close of ["resume", "escape"] as const) {
+      await trigger.click();
+      if (close === "escape") await page.keyboard.press("Escape");
+      else
+        await page
+          .getByRole("button", { name: "BACK TO GAME", exact: true })
+          .click();
+      assert.equal(
+        await page
+          .locator(".fl-game")
+          .evaluate((game) => document.activeElement === game),
+        true,
+        `Fusetown online: ${close} focuses play`,
+      );
+    }
+    await page.keyboard.press("Enter");
+    await page.locator(".fl-briefing").waitFor({ state: "hidden" });
+    assert.equal(await trigger.getAttribute("aria-expanded"), "false");
+    results.push({
+      game: "fuse-lane",
+      onlineKeyboardAfterResumeAndEscape: true,
+    });
+  } finally {
+    await context.close();
+  }
+}
+
 try {
   for (const game of games.filter(
     (game) => !selected || selected.includes(game.id),
@@ -258,6 +482,8 @@ try {
           path: `${evidence}/bombers-round-controls.png`,
         });
       await guide.waitFor({ state: "hidden", timeout: smokeTimeout(30_000) });
+      if (["fuse-bombers", "dice", "hook-havok", "fuse-lane"].includes(game.id))
+        await checkKeyboardResume(page, game.id);
       if (game.id === "fuse-bombers") await checkBombersArrows(page);
       if (game.id === "fuse-riders") await checkRidersMenu(page);
       else await checkSharedMenu(page);
@@ -337,6 +563,22 @@ try {
     failures.push(
       `shared TV: ${error instanceof Error ? error.message : String(error)}`,
     );
+  }
+  try {
+    await checkBombersLocalResume();
+  } catch (error) {
+    failures.push(
+      `local Bombers: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  if (!selected || selected.includes("fuse-lane")) {
+    try {
+      await checkTownOnlineResume();
+    } catch (error) {
+      failures.push(
+        `online Fusetown: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 } finally {
   await browser.close();

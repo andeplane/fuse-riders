@@ -243,6 +243,10 @@ function local(match: LocalMatch, resumed = false): void {
         runtime.setPaused(true);
       } else runtime.setPaused(pausedBeforeMenu);
       showPaused();
+      if (!open && !runtime.paused && match.room.stage === "running") {
+        screen.game.tabIndex = -1;
+        screen.game.focus({ preventScroll: true });
+      }
     },
   });
   gameMenu.update({ canLobby: false });
@@ -522,6 +526,12 @@ function room(): void {
     goal: TOWN_GOAL,
     onLeave: () => leave.click(),
     onLobby: () => runtime.command({ type: "action", action: "lobby" }),
+    onOpenChange(open) {
+      if (!open && main.dataset.phase === "running") {
+        screen.game.tabIndex = -1;
+        screen.game.focus({ preventScroll: true });
+      }
+    },
   });
   const screen = createGameScreen(
     art,

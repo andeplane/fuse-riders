@@ -230,6 +230,12 @@ export function showRoom(
       if (open) runtime.input(0);
       shownPads = "";
       if (model) render(model);
+      if (!open && model?.flying) {
+        // Phone controllers have no visible canvas; both surfaces keep gameplay keys off MENU.
+        const play = model.controller ? pad : game.canvas;
+        play.tabIndex = -1;
+        play.focus({ preventScroll: true });
+      }
     },
   });
   bar.append(menu.element);
