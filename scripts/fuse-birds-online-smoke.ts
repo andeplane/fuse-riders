@@ -289,6 +289,7 @@ try {
     }
     const oldTurn = a.turn!;
     const active = a.mine ? first : second;
+    const receiver = active === first ? second : first;
     if (!(a.mine ? a.playable : b.playable)) {
       await waitForPlayControls(active, oldTurn);
       // Sample both replicas and their remaining deadlines again after readiness; do not click from a stale label.
@@ -316,7 +317,7 @@ try {
     // The engine increments a player's ordinal only when that player's scoped action is applied.
     // Observe the receiving replica's copied view; neither a queued packet nor a turn deadline can satisfy this.
     // Ordinal gaps are allowed, and this isolated flow submits only this PASS after the paired baseline.
-    await first.waitForFunction(
+    await receiver.waitForFunction(
       (expected) => {
         const room = document.querySelector<HTMLElement>(".birds-room");
         const actor = [
@@ -339,7 +340,7 @@ try {
     );
     assert.ok(
       Number(
-        await first
+        await receiver
           .locator(`.birds-player[data-player-id="${a.actor}"]`)
           .getAttribute("data-applied-ordinal"),
       ) > a.ordinal,
