@@ -1,8 +1,12 @@
 import type { WorldView } from "../engine/view.js";
 import { idleBreath } from "./showcase-timeline.js";
 import { ballColor } from "./balls.js";
+import { POWER_STYLE } from "./power-ups.js";
 export type Cue =
   | "power"
+  | "expire"
+  | "shield"
+  | "dash"
   | "jump"
   | "land"
   | "fire"
@@ -10,9 +14,12 @@ export type Cue =
   | "release"
   | "respawn"
   | "impact"
-  | "pop";
+  | "pop"
+  | "hiss"
+  | "clink"
+  | "boom";
 export interface Burst {
-  kind: Cue | "vanish" | "air-jump";
+  kind: Cue | "vanish" | "air-jump" | "throw" | "blasted";
   x: number;
   y: number;
   at: number;
@@ -57,16 +64,67 @@ export class Feedback {
     }
     const wasIn = old.contest.entries.find((entry) => entry.id === subject);
     const nowOut = view.contest.entries.find((entry) => entry.id === subject);
-    if (view.deaths > old.deaths || (wasIn && !wasIn.out && nowOut?.out))
+    const blasted = view.knockouts.find(
+      (k) => k.target === subject && k.tick > old.tick,
+    );
+    if (blasted)
+      this.bursts.push({
+        kind: "blasted",
+        x: blasted.x,
+        y: blasted.y,
+        at: ms,
+        target: subject,
+      });
+    else if (view.deaths > old.deaths || (wasIn && !wasIn.out && nowOut?.out))
       this.bursts.push({
         kind: "vanish",
         x: old.x,
-        y: Math.min(870, old.feet),
+        y: Math.min(view.size.height - 30, old.feet),
         at: ms,
       });
+    const beforeThrows = old.keepers.find((k) => k.id === subject)?.tally
+      .thrown;
+    const afterThrows = view.keepers.find((k) => k.id === subject)?.tally
+      .thrown;
+    if (
+      old.charge > 0 &&
+      !view.charge &&
+      !view.respawn &&
+      !blasted &&
+      (beforeThrows === undefined || (afterThrows ?? 0) > beforeThrows)
+    )
+      this.bursts.push({ kind: "throw", x: view.x, y: view.feet, at: ms });
     const cues: Cue[] = [];
-    if (view.pickupEvents.some((e) => e.by === subject && e.tick > old.tick))
-      cues.push("power");
+    // Power-ups: a pickup, a Shield that popped, or one that ran out or was spent.
+    const pickup = view.pickupEvents.find(
+        (e) => e.by === subject && e.tick > old.tick,
+      ),
+      popped = view.shieldPops.find(
+        (e) => e.target === subject && e.tick > old.tick,
+      ),
+      was = old.keepers.find((k) => k.id === subject)?.power.kind,
+      now = view.keepers.find((k) => k.id === subject)?.power.kind;
+    const powerColor = (kind: typeof was) =>
+      kind ? POWER_STYLE[kind].color : undefined;
+    if (pickup) cues.push("power");
+    if (popped) {
+      cues.push("shield");
+      this.bursts.push({
+        kind: "shield",
+        x: popped.x,
+        y: popped.y + 28,
+        at: ms,
+        color: POWER_STYLE.shield.color,
+      });
+    } else if (
+      was &&
+      !now &&
+      !pickup &&
+      view.deaths === old.deaths &&
+      !view.respawn
+    )
+      cues.push("expire");
+    if (!old.dash && view.dash > 0) cues.push("dash");
     if (
       old.experiment === view.experiment &&
       view.combat.hits > old.combat.hits &&
@@ -79,7 +137,13 @@ export class Feedback {
       Math.hypot(view.x - old.x, view.feet - old.feet) < 100
     ) {
       if (old.grounded && !view.grounded && view.vy < 0) cues.push("jump");
-      if (old.airJump && !view.airJump && view.vy < 0) {
+      // An air jump, the ordinary one or one a power added; a dash is not a jump.
+      if (
+        !view.dash &&
+        view.vy < 0 &&
+        ((old.airJump && !view.airJump) ||
+          (!!now && view.bonusJumps < old.bonusJumps))
+      ) {
         cues.push("jump");
         this.bursts.push({ kind: "air-jump", x: view.x, y: view.feet, at: ms });
       }
@@ -94,18 +158,26 @@ export class Feedback {
       if (old.hook.phase === "attached" && view.hook.phase !== "attached")
         cues.push("release");
     }
-    for (const kind of cues)
+    for (const kind of cues) {
+      // The Shield's burst is where it popped, pushed above.
+      if (kind === "shield") continue;
+      const color =
+        kind === "pop"
+          ? ballColor(
+              old.combat.balls.find(
+                (b) => !view.combat.balls.some((n) => n.id === b.id),
+              )?.id ?? 1,
+            )
+          : kind === "power"
+            ? powerColor(pickup?.kind)
+            : kind === "expire"
+              ? powerColor(was)
+              : kind === "dash"
+                ? POWER_STYLE.dash.color
+                : undefined;
       this.bursts.push({
         kind,
-        ...(kind === "pop"
-          ? {
-              color: ballColor(
-                old.combat.balls.find(
-                  (b) => !view.combat.balls.some((n) => n.id === b.id),
-                )?.id ?? 1,
-              ),
-            }
-          : {}),
+        ...(color === undefined ? {} : { color }),
         x:
           kind === "impact" || kind === "pop"
             ? view.combat.impact.x
@@ -120,6 +192,7 @@ export class Feedback {
               : view.feet,
         at: ms,
       });
+    }
     if (view.hit && view.hit.tick > old.tick) {
       cues.push("impact");
       const victim = view.keepers.find(
@@ -149,6 +222,7 @@ export class Feedback {
       jumped: Burst | undefined,
       released: Burst | undefined,
       arrived: Burst | undefined,
+      threw: Burst | undefined,
       struck: Burst | undefined;
     // Keep the newest cue of each kind without allocating reversed copies per keeper.
     for (let i = this.bursts.length - 1; i >= 0; i--) {
@@ -169,6 +243,9 @@ export class Feedback {
         case "respawn":
           arrived ??= burst;
           break;
+        case "throw":
+          threw ??= burst;
+          break;
         case "impact":
           if (burst.target !== undefined && burst.target === this.subject)
             struck ??= burst;
@@ -183,26 +260,31 @@ export class Feedback {
     const hit = struck ? Math.max(0, 1 - (ms - struck.at) / 200) : 0;
     const release = released ? Math.max(0, 1 - (ms - released.at) / 160) : 0;
     const takeoff = jumped ? Math.max(0, 1 - (ms - jumped.at) / 130) : 0;
+    const throwing = threw ? Math.max(0, 1 - (ms - threw.at) / 180) : 0;
     const moving = view.grounded && Math.abs(view.vx) > 20;
     const state = view.respawn
       ? "respawn"
       : hit > 0
         ? "hit"
-        : firing > 0
-          ? "fire"
-          : view.hook.phase === "attached"
-            ? "pull"
-            : entry > 0
-              ? "arrive"
-              : compression > 0
-                ? "land"
-                : !view.grounded
-                  ? view.vy < 0
-                    ? "rise"
-                    : "fall"
-                  : moving
-                    ? "run"
-                    : "idle";
+        : view.charge > 0
+          ? "windup"
+          : throwing > 0
+            ? "throw"
+            : firing > 0
+              ? "fire"
+              : view.hook.phase === "attached"
+                ? "pull"
+                : entry > 0
+                  ? "arrive"
+                  : compression > 0
+                    ? "land"
+                    : !view.grounded
+                      ? view.vy < 0
+                        ? "rise"
+                        : "fall"
+                      : moving
+                        ? "run"
+                        : "idle";
     // Integrate only presentation time; idle/action transitions restart at contact.
     const delta = Math.max(0, Math.min(50, ms - (this.poseAt ?? ms)));
     this.poseAt = ms;
@@ -215,10 +297,11 @@ export class Feedback {
       this.stride = 0;
       this.running = false;
     }
+    // The wind-up holds the bomb on the raised arm; the throw follows through.
     const frame =
-      state === "fire"
+      state === "fire" || state === "throw"
         ? 7
-        : state === "pull"
+        : state === "pull" || state === "windup"
           ? 8
           : state === "rise"
             ? 5
@@ -249,11 +332,15 @@ export class Feedback {
         ? 0
         : hit
           ? Math.cos(struck!.direction ?? 0) * hit * 0.13
-          : state === "pull"
-            ? view.facing * 0.065
-            : state === "run"
-              ? Math.max(-0.045, Math.min(0.045, view.vx / 8000))
-              : -view.facing * (recoil * 0.055 + release * 0.04),
+          : state === "windup"
+            ? -view.facing * (0.04 + view.charge * 0.1)
+            : state === "throw"
+              ? view.facing * 0.12 * throwing
+              : state === "pull"
+                ? view.facing * 0.065
+                : state === "run"
+                  ? Math.max(-0.045, Math.min(0.045, view.vx / 8000))
+                  : -view.facing * (recoil * 0.055 + release * 0.04),
     };
   }
 }
