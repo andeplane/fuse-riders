@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { Feedback } from "../src/render/feedback.js";
 import { CLASSIC_TUNING, createWorld } from "../src/engine/world.js";
-import { toView, type WorldView } from "../src/engine/view.js";
+import { toView, type KeeperView, type WorldView } from "../src/engine/view.js";
 import {
   EffectsAudio,
   MAX_VOICES,
@@ -34,7 +34,10 @@ test("power feedback belongs to its subject and never replays repeated events", 
 });
 test("power-ups cue their holder once: expiry, a Shield pop at its place, a dash and a bonus air jump", () => {
   const base = toView(createWorld(CLASSIC_TUNING));
-  const holder = (id: string, kind: "" | "shield" | "triple" | "dash") => ({
+  const holder = (
+    id: string,
+    kind: "" | "shield" | "triple" | "dash",
+  ): KeeperView => ({
     id,
     slot: id === "a" ? 0 : 1,
     name: id,
@@ -50,6 +53,7 @@ test("power-ups cue their holder once: expiry, a Shield pop at its place, a dash
       knockouts: 0,
       selfKnockouts: 0,
       bombed: 0,
+      zapped: 0,
       falls: 0,
       fate: "" as const,
       by: "",

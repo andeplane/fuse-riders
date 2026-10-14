@@ -1,0 +1,3 @@
+{
+  "scripts": ["preview/coverage-flow.ts"]
+}
