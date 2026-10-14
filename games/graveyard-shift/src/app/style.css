@@ -496,12 +496,26 @@ a {
 }
 /* Landscape play keeps both thumbs and the arena visible together. */
 @media (max-height: 550px) and (pointer: coarse) {
+  #app:has([data-layout="arena"][data-phase="running"]) {
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+  #app:has([data-layout="arena"][data-phase="running"]) > .top {
+    flex-shrink: 0;
+  }
+  [data-layout="arena"][data-phase="running"] {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+  }
   [data-layout="arena"] .play {
     display: grid;
     grid-template-columns: 150px minmax(0, 1fr) 145px;
     grid-template-rows: 58px minmax(0, 1fr);
     gap: 6px;
-    height: calc(100dvh - 77px);
+    /* The live header may wrap account, room and menu controls onto several rows. */
+    height: 100%;
   }
   [data-layout="arena"] .hud {
     grid-column: 1 / -1;
