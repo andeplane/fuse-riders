@@ -1,0 +1,13 @@
+{
+  "browser": "26.6",
+  "result": {
+    "worldUnchanged": true,
+    "groupPreserved": true,
+    "imagePreserved": true,
+    "asyncReadyRefreshed": true,
+    "closeZoomOriginal": true,
+    "newTierReady": true,
+    "cachedTierRestored": true
+  },
+  "errors": []
+}

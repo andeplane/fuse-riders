@@ -1,0 +1,9 @@
+# Crossroads cathedral source
+
+Generated with built-in ImageGen on 2026-09-24. Original full-bleed backdrop for the Crossroads map, not a gameplay screenshot. PNG source is copied unchanged; the renderer supplies platforms, players, lights and environmental movement. No reference image was edited.
+
+Exact prompt:
+
+```text
+Paint an ORIGINAL detailed 2D side-view game background for Hook Havok, landscape 16:9. A vast ruined gothic lantern cathedral interior at night. Hand-painted slate-blue stone, inked chipped edges, aged brass accents, muted plum fabric, warm tiny candles contrasting cool moonlight. Strong architectural depth: close massive weathered pilasters and broken pointed arch ribs framing only the extreme outer 8 percent of left and right edges and top corners; middle-distance slender columns and high pointed window tracery at left and right thirds; far distance a soft hazy central monumental robed lantern-bearer statue beneath a tall round rose window, its head around upper quarter and base vanishing in shadow and low mist. Original anonymous hooded stone figure, no horns or recognizable franchise motifs. The wide central 75 percent is OPEN EMPTY VERTICAL PLAY SPACE with low-contrast muted blue-gray architectural shapes receding deeply into shadow; crisp rich detail concentrated at edges. Subtle moonbeams through broken windows. Few tiny warm lamps tucked in side niches, sparse hanging dark chains at extreme edges. No floating platforms, no ledges crossing the playfield, no floor surface, no spikes, no playable characters, no balls, no effects, no labels, no text, no UI, no border. Bottom dissolves into a dark blue abyss with subdued mist. Perfectly straight-on side elevation without a tilted camera. Rich textured illustrated fantasy craftsmanship, quiet values behind future gameplay. Opaque full-bleed background, not transparent.
+```

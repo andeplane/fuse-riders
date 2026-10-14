@@ -135,7 +135,10 @@ export const OBSTACLE_STYLES: Record<MoverObstacleKind, ObstacleStyle> = {
   },
 };
 
-/** One livery per train of the map, by the `train` index its cars carry: red, yellow and blue, in that order. */
+/**
+ * One livery per train of the round, by the `train` index its cars carry: red, yellow, blue, green, magenta, orange,
+ * cyan and violet, in that order, one for each train a railway can hold (`MAX_TRAINS`).
+ */
 export const TRAIN_LIVERIES: readonly {
   body: string;
   top: string;
@@ -144,12 +147,17 @@ export const TRAIN_LIVERIES: readonly {
   { body: "#e63946", top: "#ff9aa2", shade: "#3d0a11" },
   { body: "#ffc531", top: "#ffe79a", shade: "#4a3400" },
   { body: "#3a86ff", top: "#9cc3ff", shade: "#0b2a5e" },
+  { body: "#2ec27e", top: "#9af0c4", shade: "#06331d" },
+  { body: "#ff4fd8", top: "#ffb0ef", shade: "#4a0a3c" },
+  { body: "#ff8c1a", top: "#ffc58a", shade: "#4a2400" },
+  { body: "#22d3ee", top: "#a5f3fc", shade: "#073b45" },
+  { body: "#9b5cff", top: "#cdb0ff", shade: "#25104d" },
 ];
 
 /**
  * What a car is doing, for the lights: which way its rails run where it stands, and whether it leads or ends its
  * train. Static scenery has none; a screen works it out from the track and the ids (the lowest id of a train is its
- * locomotive, the highest its last car: `fixedScenery` lays them head first).
+ * locomotive, the highest its last car: `railwayCars` lays them head first).
  */
 export interface MoverPose {
   dx: number;
