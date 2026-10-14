@@ -4,6 +4,7 @@ import {
   RoomStore,
   RoomError,
   peerId,
+  digest,
   parseRoomRecord,
   type RoomDatabase,
   type RoomRecord,
@@ -147,9 +148,18 @@ function fixture(
     aBus = new Bus(network, "a"),
     bBus = new Bus(network, "b");
   const deps = { now: () => now, id: () => `id-${++n}`, error: () => {} };
+  const logs: Record<string, unknown>[] = [];
+  let brokenLog = false;
+  const loggingDeps = {
+    ...deps,
+    log: (entry: Record<string, unknown>) => {
+      if (brokenLog) throw new Error("Log sink unavailable");
+      logs.push(entry);
+    },
+  };
   const store = makeStore(database, deps);
-  const a = new RoomGateway("a", store, aBus, deps),
-    b = new RoomGateway("b", store, bBus, deps);
+  const a = new RoomGateway("a", store, aBus, loggingDeps),
+    b = new RoomGateway("b", store, bBus, loggingDeps);
   return {
     database,
     store,
@@ -157,6 +167,10 @@ function fixture(
     b,
     aBus,
     bBus,
+    logs,
+    failLog: () => {
+      brokenLog = true;
+    },
     advance: (ms: number) => {
       now += ms;
     },
@@ -177,6 +191,87 @@ const signal = (to: string, target: string, sdp = "v=0") =>
     targetConnectionId: target,
     data: { description: { type: "offer", sdp } },
   });
+
+test("host and client reports are correlated, sanitized, bounded and never published or persisted", async () => {
+  const f = fixture(),
+    j = await joined(f);
+  const link = {
+    peerId: peerId(GUEST),
+    connectionId: j.guestConnection,
+    offerer: true,
+    healthy: false,
+    ageMs: 1000,
+    attempts: 1,
+    ice: "checking",
+    connection: "connecting",
+    gathering: "complete",
+    signaling: "stable",
+    channel: "connecting/connecting",
+    local: { host: 1, srflx: 1, address: "secret" },
+    remote: { host: 1 },
+    signalling: { offersOut: 1 },
+    token: "secret",
+    sdp: "secret",
+  };
+  const raw = (links: unknown[]) =>
+    JSON.stringify({
+      type: "link-report",
+      version: 1,
+      hidden: false,
+      links,
+      url: "secret",
+    });
+  const reads = f.database.reads,
+    writes = f.database.transactions,
+    published = f.aBus.queued.length;
+  await f.a.receive(j.hostConnection, raw([link]));
+  await f.b.receive(
+    j.guestConnection,
+    raw([{ ...link, peerId: peerId(HOST), connectionId: j.hostConnection }]),
+  );
+  assert.equal(f.logs.length, 2);
+  assert.equal(f.logs[0]!.role, "host");
+  assert.equal(f.logs[1]!.role, "client");
+  assert.equal(f.logs[0]!.roomKey, digest(CODE));
+  assert.equal(f.logs[0]!.incarnation, f.logs[1]!.incarnation);
+  assert.equal(JSON.stringify(f.logs).includes("secret"), false);
+  await f.a.receive(
+    j.hostConnection,
+    raw([{ ...link, connectionId: "old-connection" }]),
+  );
+  assert.deepEqual(f.logs[2]!.links, []);
+  await f.a.receive(j.hostConnection, raw([link]));
+  assert.equal(f.logs.length, 3, "bucket exhausted");
+  f.advance(10000);
+  await f.a.receive(j.hostConnection, raw([{ ...link, channel: "secret" }]));
+  assert.equal(f.logs.length, 3, "invalid records never logged");
+  f.advance(10000);
+  await f.a.receive(j.hostConnection, raw([link]));
+  assert.equal(f.logs.length, 4);
+  assert.equal(f.database.reads, reads);
+  assert.equal(f.database.transactions, writes);
+  assert.equal(f.aBus.queued.length, published);
+  await f.a.disconnect(j.hostConnection);
+  await f.a.receive(j.hostConnection, raw([link]));
+  assert.equal(f.logs.length, 4, "retired admission cannot report");
+});
+
+test("a failed diagnostic sink leaves the admitted room connection healthy", async () => {
+  const f = fixture(),
+    j = await joined(f);
+  f.failLog();
+  await f.a.receive(
+    j.hostConnection,
+    JSON.stringify({
+      type: "link-report",
+      version: 1,
+      hidden: false,
+      links: [],
+    }),
+  );
+  assert.equal(j.host.closes.length, 0);
+  assert.equal(f.a.connections, 1);
+});
 
 test("service transaction retries keep one logical connection/grant and fenced replacement", async () => {
   const f = fixture();

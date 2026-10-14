@@ -2,13 +2,18 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { connectHint } from "../src/online/connect-hint.js";
 
-test("connect hint escalates from progress to the network advice", () => {
+test("connect hint shows the actual stalled reason without guessing a network requirement", () => {
   assert.equal(connectHint("Connecting…", 0), "Warming up the arena…");
   assert.equal(connectHint("Connecting…", 7000), "Still reaching the host…");
-  assert.match(connectHint("Connecting…", 21000), /different network/);
+  assert.match(connectHint("Connecting…", 21000), /across the internet/);
+  assert.match(connectHint("Connecting…", 21000), /ROOM → LINK DIAGNOSTICS/);
+  assert.doesNotMatch(
+    connectHint("Connecting…", 21000),
+    /different network|host.s Wi-Fi/,
+  );
   assert.match(
     connectHint("ICE failed — likely symmetric NAT/CGNAT on one side", 1000),
-    /different network/,
+    /ICE failed/,
   );
 });
 
@@ -30,7 +35,7 @@ test("a connected link never shows the different-network advice", () => {
   );
   assert.match(
     connectHint("Waiting for room authority — try again when connected", 21000),
-    /different network/,
+    /Waiting for room authority/,
   );
 });
 
