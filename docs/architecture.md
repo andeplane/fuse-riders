@@ -2,7 +2,7 @@
 
 This is the system map for the source tree: what exists on `main` today. Module definitions and tests are authoritative for rules, limits and wire fields; release records describe what was deployed. The [architecture epic #259](https://github.com/andeplane/fuse-riders/issues/259) and the [refactor plan](reviews/refactor-plan-2026-09-17.md) it came from still have open stages — where this map names one, it says so. A stage that is named there and not here has not landed.
 
-## One play path: online rooms
+## One runtime for local and online play
 
 The site root is the screenshot gallery (`site/main.ts`, `fuse-ui/src/gallery.ts`). Vite builds its catalog and the in-game launcher from each game's `portal.json`, including its optional `screenshot` path. Every game has a dedicated page at `<base><game-id>/`, including Fuse Riders at `<base>fuse-riders/`. Root links with `room`, `solo` or `display` parameters still boot Riders for existing invites and bookmarks. The gallery loads no simulation or room connection; the launcher offers an **ALL GAMES** link back to it.
 
@@ -13,7 +13,7 @@ browser replica <------ WebRTC mesh ------> browser replica
                Firestore metadata / Pub/Sub routing
 ```
 
-Every game is an online room, including solo play (a room with no peers) and a shared screen (a room in shared mode: the TV opens `?room=CODE&display=1` as a display-only member and phones join the same room as controllers). Authority is the shared input log: every device simulates the same deterministic rules locally, and late inputs trigger rollback. The creator supplies initial clock and management authority; the runtime also supports delegated management and peer snapshot recovery. The service never simulates or relays gameplay. `pnpm dev` runs the same room protocol over in-memory metadata (`service/dev.ts`).
+Every game uses the room runtime and input log. Solo play and local gamepads run without a transport; local gamepads give each human a separate input stream on the same clock ([local gamepads](design/local-gamepads.md)). Online rooms include shared screens: the TV opens `?room=CODE&display=1` as a display-only member and phones join the same room as controllers. Authority is the shared input log: every device simulates the same deterministic rules locally, and late inputs trigger rollback. The creator supplies initial clock and management authority; the runtime also supports delegated management and peer snapshot recovery. The service never simulates or relays gameplay. `pnpm dev` runs the same room protocol over in-memory metadata (`service/dev.ts`).
 
 The separate LAN server (`src/server/`, a Node process that simulated the game for a TV at `/display` and phones at `/controller`) was removed in [#271](https://github.com/andeplane/fuse-riders/pull/271); those routes no longer exist.
 
