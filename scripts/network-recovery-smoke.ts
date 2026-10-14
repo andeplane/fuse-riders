@@ -60,6 +60,12 @@ try {
   await host.goto(entrance.href);
   await host.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
   await host.waitForURL(/room=/);
+  // Admission awaits ICE configuration. Let it finish before a parameter-normalizing navigation,
+  // otherwise WebKit reports the cancelled fetch as a page error from the departing document.
+  await host
+    .locator(".room-rider strong")
+    .filter({ hasText: "Anchor" })
+    .waitFor();
   const invite = new URL(host.url());
   for (const [key, value] of entrance.searchParams)
     invite.searchParams.set(key, value);
@@ -107,6 +113,31 @@ try {
     );
   }, peerId);
   await host.waitForTimeout(250);
+  // A short foreground main-thread stall is application impairment, not IP packet loss.
+  await guest.keyboard.down("ArrowRight");
+  await host.waitForFunction(
+    (id) =>
+      (Reflect.get(window, "__trace") as Trace).snapshots
+        .at(-1)
+        ?.players.find((p) => p.id === id)?.heldMotion?.right === true,
+    peerId,
+  );
+  await Promise.all([
+    host.evaluate(() => {
+      const end = performance.now() + 100;
+      while (performance.now() < end) {
+        /* deliberate 100 ms browser workload */
+      }
+    }),
+    guest.keyboard.up("ArrowRight"),
+  ]);
+  await host.waitForFunction((id) => {
+    const motion = (Reflect.get(window, "__trace") as Trace).snapshots
+      .at(-1)
+      ?.players.find((p) => p.id === id)?.heldMotion;
+    return motion && !motion.left && !motion.right;
+  }, peerId);
+  await host.waitForTimeout(250);
   const trace = await host.evaluate(
     () => Reflect.get(window, "__trace") as Trace,
   );
@@ -150,6 +181,7 @@ try {
     browser: name,
     scenario:
       "two browser contexts, 500 ms sender-side input-channel blackout on steering release",
+    foregroundStallMs: 100,
     sampled,
     rawDegrees,
     shownDegrees,
