@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 const base = process.argv[2];
 if (!/^http:\/\/(localhost|127\.0\.0\.1):\d+\/$/.test(base))
   throw new Error("Pass local service URL");
-const evidence = (name) => `games/hook-havok/docs/evidence/${name}.png`;
+const evidenceDirectory = process.argv[3] ?? "games/hook-havok/docs/evidence";
+const evidence = (name) => `${evidenceDirectory}/${name}.png`;
 const browser = await chromium.launch({
   channel: process.env.BROWSER_CHANNEL || "chrome",
   headless: true,
@@ -16,7 +17,7 @@ try {
     viewport: { width: 1440, height: 1100 },
   });
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto(base + "hook-havok/?mute");
+  await page.goto(base + "hook-havok/?mute&play");
   await page.locator('#status[data-state="ready"]').waitFor();
   await page.locator("#start").click();
   await page.locator('#status[data-state="playing"]').waitFor();
