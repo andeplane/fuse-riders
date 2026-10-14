@@ -240,3 +240,28 @@ test("browser Back resumes setup detection without restarting a completed setup"
   f.update([]);
   assert.equal(f.button("START LOCAL GAME").disabled, false);
 });
+
+test("starting revalidates edits made since the last setup frame", async () => {
+  const f = setup([pad()]);
+  assert.equal(f.button("START LOCAL GAME").disabled, false);
+  f.input("Controller 1 player name").value = " ";
+  f.press(f.button("START LOCAL GAME"));
+  assert.equal(f.cancelled(), 0, "invalid edits must not complete setup");
+  f.input("Controller 1 player name").value = "Alice";
+  f.addKeyboard();
+  f.addKeyboard();
+  const select = f.app.querySelectorAll<HTMLSelectElement>("select")[3]!;
+  for (const option of select.querySelectorAll("option"))
+    option.removeAttribute("selected");
+  select.querySelector<HTMLOptionElement>('option[value="KeyA"]')!.selected =
+    true;
+  f.press(f.button("START LOCAL GAME"));
+  assert.equal(f.cancelled(), 0, "conflicting keys must not complete setup");
+  for (const option of select.querySelectorAll("option"))
+    option.removeAttribute("selected");
+  select.querySelector<HTMLOptionElement>('option[value="KeyZ"]')!.selected =
+    true;
+  f.press(f.button("START LOCAL GAME"));
+  assert.equal((await f.result).length, 3);
+  assert.equal(f.cancelled(), 1);
+});

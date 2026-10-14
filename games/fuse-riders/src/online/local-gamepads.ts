@@ -115,6 +115,21 @@ export function setupLocalPlayers(
     };
     const selected = () =>
       [...rows.values()].filter((r) => r.enabled.checked && r.pad.connected);
+    const setupState = () => {
+      const players = selected(),
+        count = players.length + keyboards.size;
+      const keyCodes = [...keyboards.values()].flatMap((row) =>
+        Object.values(row.controls).map((select) => select.value),
+      );
+      const conflictingKeys = new Set(keyCodes).size !== keyCodes.length;
+      const ready =
+        count > 0 &&
+        count <= MAX_PLAYERS &&
+        !conflictingKeys &&
+        [...keyboards.values()].every((r) => seatRiderName(r.name.value)) &&
+        players.every((r) => r.mapping && seatRiderName(r.name.value));
+      return { count, conflictingKeys, ready };
+    };
     addKeyboard.onclick = () => {
       if (selected().length + keyboards.size >= MAX_PLAYERS) return;
       let slot = 0;
@@ -265,18 +280,7 @@ export function setupLocalPlayers(
           setIfChanged(row.status, "textContent", message);
         }
       }
-      const players = selected(),
-        count = players.length + keyboards.size;
-      const keyCodes = [...keyboards.values()].flatMap((row) =>
-        Object.values(row.controls).map((select) => select.value),
-      );
-      const conflictingKeys = new Set(keyCodes).size !== keyCodes.length;
-      const ready =
-        count > 0 &&
-        count <= MAX_PLAYERS &&
-        !conflictingKeys &&
-        [...keyboards.values()].every((r) => seatRiderName(r.name.value)) &&
-        players.every((r) => r.mapping && seatRiderName(r.name.value));
+      const { count, conflictingKeys, ready } = setupState();
       setIfChanged(start, "disabled", !ready);
       setIfChanged(addKeyboard, "disabled", count >= MAX_PLAYERS);
       setIfChanged(
@@ -295,7 +299,8 @@ export function setupLocalPlayers(
       frame = env.requestFrame(poll);
     };
     start.onclick = () => {
-      if (start.disabled) return;
+      // A form edit and click can arrive before the next animation frame updates the button.
+      if (done || !setupState().ready) return;
       const players: LocalPlayer[] = [...keyboards.values()].map((row) => ({
         name: seatRiderName(row.name.value)!,
         keys: {
