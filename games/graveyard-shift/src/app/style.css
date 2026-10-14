@@ -496,15 +496,16 @@ a {
 }
 /* Landscape play keeps both thumbs and the arena visible together. */
 @media (max-height: 550px) and (pointer: coarse) {
-  #app:has([data-layout="arena"][data-phase="running"]) {
-    height: 100dvh;
+  #app:has(> [data-layout="arena"]) {
     display: flex;
     flex-direction: column;
+    height: 100dvh;
   }
-  #app:has([data-layout="arena"][data-phase="running"]) > .top {
+  #app:has(> [data-layout="arena"]) .top {
     flex-shrink: 0;
+    flex-wrap: wrap;
   }
-  [data-layout="arena"][data-phase="running"] {
+  [data-layout="arena"].room {
     flex: 1;
     min-height: 0;
     width: 100%;
@@ -514,7 +515,6 @@ a {
     grid-template-columns: 150px minmax(0, 1fr) 145px;
     grid-template-rows: 58px minmax(0, 1fr);
     gap: 6px;
-    /* The live header may wrap account, room and menu controls onto several rows. */
     height: 100%;
   }
   [data-layout="arena"] .hud {
