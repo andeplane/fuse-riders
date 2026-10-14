@@ -32,6 +32,7 @@ COPY games/fuse-freight/package.json ./games/fuse-freight/
 COPY games/fuse-bombers/package.json ./games/fuse-bombers/
 COPY games/fuse-axe/package.json ./games/fuse-axe/
 COPY games/fuse-lane/package.json ./games/fuse-lane/
+COPY games/graveyard-shift/package.json ./games/graveyard-shift/
 # node_modules hardlinks into the store, so removing the store afterwards keeps the installed files.
 RUN pnpm install --prod --frozen-lockfile && rm -rf "$(pnpm store path)"
 COPY --chown=node:node service ./service
