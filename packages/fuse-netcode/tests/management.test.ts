@@ -13,6 +13,7 @@ import {
   disconnects,
   isManagementEntry,
   permitted,
+  roomManager,
   successionOrder,
   type LogEntry,
   type Seat,
@@ -81,6 +82,17 @@ test("management entries have one shape for every game; payloads are the game's"
   assert.equal(disconnects([1, 1, PRESENCE, "a", true, 1]), undefined);
   assert.equal(disconnects([1, 1, LEAVE, "b"]), "b");
   assert.equal(disconnects([1, 1, JOIN, "a", "A", 0, "fox", 1]), undefined);
+});
+
+test("a voluntarily away creator keeps the crown while duties delegate; absence hands both over", () => {
+  const creator: Seat = { ...seat("creator", false), away: true };
+  const guest = seat("guest");
+  assert.equal(roomManager([creator, guest], "creator"), "creator");
+  assert.equal(actingCreator([creator, guest], "creator"), "guest");
+  const absent: Seat = { ...seat("creator", false) };
+  assert.equal(roomManager([absent, guest], "creator"), "guest");
+  assert.equal(roomManager([guest], "creator"), "guest");
+  assert.equal(roomManager([seat("creator"), guest], "creator"), "creator");
 });
 
 test("succession: the creator, then the connected humans by id; the delegate manages only while the creator is absent", () => {

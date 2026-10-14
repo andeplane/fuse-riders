@@ -180,7 +180,7 @@ export function successionOrder(
 }
 /**
  * Who runs the room for the players: the one name the screens show as HOST, and the one the room commands are gated on.
- * It is the log's own answer — the creator while the room counts it present, otherwise whoever the duties fall to — so
+ * It is the log's own answer — the creator while present or voluntarily away, otherwise whoever the duties fall to — so
  * every replica names the same member from the same fold.
  *
  * It does not try to be cleverer than the log about a creator the room has no record of, which is a host driving a
@@ -213,7 +213,7 @@ export function roomManager(seats: Iterable<Seat>, creatorId: string): string {
 }
 /**
  * Which non-creator stream may carry management entries right now: the delegate, only while the creator is disconnected.
- * A creator present in a seat or in the watching list keeps the crown; a creator with no record at all (a display host
+ * A creator present in a seat or in the watching list keeps these duties; a creator with no record at all (a display host
  * that never took a seat) makes the next member a manager beside it.
  */
 export function actingCreator(
