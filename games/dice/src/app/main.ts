@@ -16,15 +16,22 @@ import {
   button,
   createAppPortal,
   createControllerRow,
+  createGameMenu,
   createInviteCard,
   createLandingCard,
   createNameEntry,
   createNotice,
   createRoster,
+  createRoundControls,
   el,
 } from "fuse-ui";
 import { DEFAULT_SETTINGS, diceGame, seatName } from "../game/index.js";
-import { presentTable, type TableModel, type Viewer } from "./presenter.js";
+import {
+  createRoundControlGuide,
+  presentTable,
+  type TableModel,
+  type Viewer,
+} from "./presenter.js";
 import { dueReports, sendReport } from "./reports.js";
 import { DiceRuntime, type DiceCallbacks } from "./runtime.js";
 import {
@@ -53,6 +60,16 @@ const names = keys(GAME);
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 const COLORS = ["#16e7ff", "#ff2e9d", "#b6ff4d", "#ffe46b", "#a78bfa"];
 const app = document.querySelector<HTMLElement>("#app")!;
+const CONTROLS = [
+  { keys: "Space / R", action: "Roll the die" },
+  { keys: "H / Enter", action: "Hold to bank your turn total" },
+];
+const TOUCH_CONTROLS = [
+  { keys: "ROLL", action: "Roll the die" },
+  { keys: "HOLD", action: "Bank your turn total" },
+];
+const GOAL =
+  "Roll to build your total; a 1 loses it. Hold to bank points. First to 50 wins the round.";
 
 function header(extra: HTMLElement[] = []): HTMLElement {
   const bar = el("header", "", "dice-top"),
@@ -159,14 +176,25 @@ function room(solo: boolean): void {
 
   // ---- the page ----
   const status = createNotice({ className: "dice-status" }),
-    toast = createNotice({ holdMs: 2200, className: "dice-toast" }),
-    leave = button(solo ? "EXIT" : "LEAVE", "dice-leave");
-  leave.onclick = () => {
-    runtime.stop();
-    location.href = endpoints.appUrl();
-  };
+    toast = createNotice({ holdMs: 2200, className: "dice-toast" });
+  const menu = createGameMenu({
+    controls: CONTROLS,
+    touchControls: TOUCH_CONTROLS,
+    goal: GOAL,
+    onLobby: () => runtime.command({ type: "action", action: "lobby" }),
+    onLeave: () => {
+      runtime.stop();
+      location.href = endpoints.appUrl();
+    },
+  });
+  const roundControls = createRoundControls({
+    controls: CONTROLS,
+    touchControls: TOUCH_CONTROLS,
+    goal: GOAL,
+  });
+  const showRoundControls = createRoundControlGuide();
   const codeChip = el("strong", solo ? "SOLO" : code, "dice-code");
-  const top = header([codeChip, status.element, leave]);
+  const top = header([codeChip, status.element, menu.element]);
 
   // Lobby: invitation, roster with bot controls, name entry, start.
   const lobby = el("section", "", "dice-lobby"),
@@ -246,6 +274,7 @@ function room(solo: boolean): void {
   holdButton.classList.add("dice-hold");
   table.append(
     roundLine,
+    roundControls.element,
     headline,
     detail,
     board,
@@ -384,6 +413,22 @@ function room(solo: boolean): void {
     state(frame, settings) {
       viewer.shared = settings.display;
       const model = presentTable(frame, viewer);
+      const state = runtime.roomState();
+      const touch =
+        viewer.shared || window.matchMedia("(pointer: coarse)").matches;
+      menu.update({
+        canLobby: viewer.host && !display && frame.phase !== "lobby",
+        display,
+        touch,
+        spectator: display || !model.seated,
+      });
+      roundControls.update({
+        round: `${state?.matchId ?? code}:${frame.round}`,
+        visible: showRoundControls(frame, state?.matchId),
+        display,
+        touch,
+        spectator: display || !model.seated,
+      });
       // For the browser smoke (scripts/dice-smoke.ts) and the stylesheet.
       main.dataset.phase = frame.phase;
       main.dataset.round = String(frame.round);
@@ -398,7 +443,6 @@ function room(solo: boolean): void {
       }
       if (model.seated) joinSent = false;
       render(model);
-      const state = runtime.roomState();
       if (session.kind === "room" && role !== "display" && state)
         for (const report of dueReports(
           state,
@@ -462,7 +506,7 @@ function room(solo: boolean): void {
   );
   installRoomLifecycle(window, {
     stop: () => runtime.stop(),
-    destroy: () => {},
+    destroy: () => menu.dispose(),
     reload: () => location.reload(),
   });
   document.addEventListener("keydown", (event) => {
@@ -471,6 +515,7 @@ function room(solo: boolean): void {
     if (
       event.target instanceof HTMLInputElement ||
       event.target instanceof HTMLButtonElement ||
+      menu.isOpen() ||
       event.repeat
     )
       return;

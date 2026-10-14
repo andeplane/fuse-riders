@@ -12,6 +12,8 @@ import {
 import { Lobby, type Seat } from "./lobby.js";
 import { RoundRunner } from "./round-runner.js";
 import * as screens from "./screens.js";
+import { localControls } from "./controls.js";
+import type { ControlHint } from "fuse-ui";
 
 type Screen =
   | { kind: "lobby" }
@@ -38,6 +40,13 @@ export interface FlowOptions {
   seed: number;
   /** `?speed=N`: run the game and its timers N times as fast (for tests). */
   speed?: number;
+  uiState?(state: {
+    lobby: boolean;
+    countdown: boolean;
+    round: number;
+    controls: readonly ControlHint[];
+    spectator: boolean;
+  }): void;
   /** Where menu keys come from; `window` by default, a fake in tests. */
   keys?: {
     addEventListener(
@@ -114,6 +123,8 @@ export class Flow implements RoundSource {
   private html = "";
   /** Whether the touch pads were last set to give way to a menu (`menuOpen`). */
   private padsYielded = false;
+  private sharedMenuOpen = false;
+  private pausedBeforeSharedMenu = false;
 
   constructor(private readonly options: FlowOptions) {
     this.seed = options.seed;
@@ -143,6 +154,7 @@ export class Flow implements RoundSource {
   advance(deltaMs: number): readonly TickEvent[] {
     const { hub } = this.options.input;
     hub.poll();
+    if (this.sharedMenuOpen) hub.clearPresses();
     const events: TickEvent[] = [];
     if (!this.paused) {
       const dt = ((Number.isFinite(deltaMs) ? deltaMs : 0) / 1000) * this.speed;
@@ -177,6 +189,17 @@ export class Flow implements RoundSource {
     const { runner, seats, screen } = this;
     if (this.menuOpen !== this.padsYielded) this.updateTouchPads(); // A menu opened or closed on its own.
     const info = { seats, match: runner.match, view: runner.view };
+    this.options.uiState?.({
+      lobby: screen.kind === "lobby",
+      countdown: screen.kind === "countdown" && screen.left > 0 && !this.paused,
+      round: runner.view.config.seed,
+      controls: localControls(
+        screen.kind === "lobby" ? this.lobby.seats() : seats,
+      ),
+      spectator: !(screen.kind === "lobby" ? this.lobby.seats() : seats).some(
+        (seat) => seat.device,
+      ),
+    });
     let html = "";
     if (screen.kind === "lobby")
       html = screens.lobbyHtml(this.lobby, this.options.input.touchEnabled);
@@ -201,6 +224,7 @@ export class Flow implements RoundSource {
   }
 
   private onPress(device: DeviceId): void {
+    if (this.sharedMenuOpen) return;
     if (this.screen.kind !== "lobby") return;
     const { hub } = this.options.input;
     const seat = this.lobby.press(device);
@@ -215,6 +239,8 @@ export class Flow implements RoundSource {
   }
 
   private onKey(event: KeyboardEvent): void {
+    if (this.sharedMenuOpen) return;
+    if (event.defaultPrevented) return;
     if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
     if (pressesFocusedControl(event.code, event.target, this.options.root))
       return;
@@ -226,6 +252,7 @@ export class Flow implements RoundSource {
 
   /** A pad's Start or Back button; holding a seated player's button in the lobby starts too. */
   private onCommand(device: DeviceId, command: Command): void {
+    if (this.sharedMenuOpen) return;
     if (command !== "hold") {
       const action = menuAction(this.menuState, command);
       if (action) this.act(action);
@@ -237,6 +264,7 @@ export class Flow implements RoundSource {
   }
 
   private act(action: string): void {
+    if (this.sharedMenuOpen) return;
     const lobby = this.lobby;
     const [name, arg = ""] = action.split(":");
     /** `+`/`-` steps `value`, a number sets it. */
@@ -273,6 +301,33 @@ export class Flow implements RoundSource {
       case "lobby":
         return this.toLobby();
     }
+    this.updateTouchPads();
+  }
+
+  /** Shared menu navigation uses the same local lobby transition as the existing pause menu. */
+  returnToLobby(): void {
+    this.toLobby();
+    if (this.sharedMenuOpen) {
+      this.pausedBeforeSharedMenu = false;
+      this.paused = true;
+    }
+  }
+
+  /**
+   * Pause local play while the shared menu owns input, restoring an existing pause when it closes. Keep physical
+   * held fire recorded: the runner fires only on presses, so a button held through the menu needs a release and
+   * fresh press to fire again. Dropping held bits here would manufacture a rising edge on the next device poll.
+   */
+  setSharedMenuOpen(open: boolean): void {
+    if (open === this.sharedMenuOpen) return;
+    // Sample a pad pressed since the last frame while the menu still suppresses its joins and commands.
+    if (!open) this.options.input.hub.poll();
+    this.sharedMenuOpen = open;
+    if (open) {
+      this.pausedBeforeSharedMenu = this.paused;
+      this.paused = true;
+    } else this.paused = this.pausedBeforeSharedMenu;
+    this.options.input.hub.clearPresses();
     this.updateTouchPads();
   }
 
@@ -331,7 +386,12 @@ export class Flow implements RoundSource {
   /** Whether a menu panel (pause, results, the match winner) is up, with buttons where the pads would sit. */
   private get menuOpen(): boolean {
     const { kind } = this.screen;
-    return this.paused || kind === "results" || kind === "winner";
+    return (
+      this.sharedMenuOpen ||
+      this.paused ||
+      kind === "results" ||
+      kind === "winner"
+    );
   }
 
   /**
