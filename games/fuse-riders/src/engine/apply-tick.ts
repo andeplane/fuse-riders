@@ -268,7 +268,7 @@ export function permitted(
 
 /**
  * Who runs the room for the players: the one name the screens show as HOST, and the one the room commands are gated on.
- * It is the log's own answer — the creator while the room counts it present, otherwise whoever the duties fall to — so
+ * It is the log's own answer — the creator while present or voluntarily away, otherwise whoever the duties fall to — so
  * every replica names the same member from the same fold.
  *
  * It does not try to be cleverer than the log about a creator the room has no record of, which is a host driving a
@@ -280,6 +280,10 @@ export function permitted(
  * A creator that means to hand the room over for good is ADR 047 N5.
  */
 export function roomManager(state: RoomState, creatorId: string): string {
+  // Stepping away is not leaving: a creator whose page is merely hidden keeps the crown, while the log duties still
+  // pass to the delegate below (ADR 047 §12, and `roomManager` in `packages/fuse-netcode/src/management.ts`, which is
+  // the copy the screens actually read — this one answers the same so the two can be compared).
+  if (memberAway(state, creatorId)) return creatorId;
   return actingCreator(state, creatorId) ?? creatorId;
 }
 
