@@ -337,7 +337,7 @@ const MAX_WATCHERS = 4;
  * the cap keeps a flooding peer from pushing the tick past the engine's limit
  * of 256 commands, which would stop the match for everyone.
  */
-const COMMANDS_PER_SEAT = 16;
+export const COMMANDS_PER_SEAT = 16;
 export const neuralGame: RollbackGame<
   NeuralRoom,
   NeuralEntry,
