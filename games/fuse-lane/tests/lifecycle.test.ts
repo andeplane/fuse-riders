@@ -62,12 +62,11 @@ function winning(room: FuseLaneRoom, id: string): void {
   player.dep = 30;
 }
 
-test("a player who drops out mid-week plays no more of it: the others' week goes on, and Monday does not wait", () => {
+test("nobody waits for a player who drops out mid-week: the others' week goes on, and Monday does not wait", () => {
   const room = started();
   fold(room, { a: [[PRESENCE, "b", false, 1]] });
   const b = room.players.b!;
   assert.equal(room.seats.get("b")!.connected, false);
-  assert.ok(b.done, "an absent seat plays no week");
   const pos = b.pos;
   fold(room, { b: [walk(room, JOBHUB)] });
   assert.equal(b.pos, pos, "a dropped seat's entries are not read");
@@ -84,6 +83,20 @@ test("a player who drops out mid-week plays no more of it: the others' week goes
   fold(room, { a: [ready(room)] });
   assert.equal(room.phase, WEEK, "the briefing waits only for who is here");
   assert.equal(room.week, 2);
+});
+
+test("a player who drops out and comes back before the week ends plays on from where they were", () => {
+  const room = started();
+  fold(room, { a: [[PRESENCE, "b", false, 1]] });
+  fold(room, { a: [[PRESENCE, "b", true, 1]] });
+  const b = room.players.b!;
+  assert.equal(b.done, false, "a refresh does not end your week");
+  fold(room, { b: [walk(room, JOBHUB)] });
+  assert.equal(b.dest, JOBHUB, "the returning seat's entries are read again");
+  fold(room, { a: [endWeekEntry(room)] });
+  assert.equal(room.phase, WEEK, "the week now waits for b, who is back");
+  fold(room, { b: [endWeekEntry(room)] });
+  assert.equal(room.phase, BRIEFING);
 });
 
 test("back to the lobby clears the match and keeps the seats; a rematch after the end starts afresh", () => {
