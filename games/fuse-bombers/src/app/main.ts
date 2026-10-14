@@ -16,7 +16,13 @@ import {
 import { createAudio } from "./audio/index.js";
 import { Flow } from "./flow.js";
 import { createBrowserInput } from "./input/index.js";
-import { GAME, showLanding, showRoom } from "./online.js";
+import {
+  GAME,
+  analytics,
+  reportPlay,
+  showLanding,
+  showRoom,
+} from "./online.js";
 import { safeStore, sessionFor } from "./session.js";
 
 const params = new URLSearchParams(window.location.search);
@@ -72,6 +78,7 @@ async function boot(): Promise<void> {
   audio.mountToggle(); // After `#screen`, so screens.css can hide it mid-round.
   const portal = mountPortal();
   const flow = new Flow({
+    playMetrics: reportPlay,
     input: createBrowserInput(window, { forceTouch: params.has("touch") }),
     root,
     seed: Number(params.get("seed")) || Math.floor(Math.random() * 2 ** 31),
@@ -117,6 +124,7 @@ else if (session.kind === "invalid")
   showLanding(store, `${session.code} is not a room code`);
 else
   boot().catch((error: unknown) => {
+    analytics.reportBootFailure(error);
     console.error("Fuse Bombers failed to start", error);
   });
 

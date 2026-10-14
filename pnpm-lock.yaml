@@ -367,7 +367,11 @@ importers:
         specifier: ^6.2.12
         version: 6.2.12
 
-  packages/fuse-ui: {}
+  packages/fuse-ui:
+    dependencies:
+      mixpanel-browser:
+        specifier: ^2.83.0
+        version: 2.83.0
 
 packages:
 

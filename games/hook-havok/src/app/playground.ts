@@ -1,4 +1,5 @@
 import "fuse-ui/portal.css";
+import { reportPlay } from "./analytics.js";
 import "./style.css";
 import "./presentation.css";
 import { createAppPortal } from "fuse-ui/portal";
@@ -509,6 +510,22 @@ const enterRoom = async () => {
           status.textContent = text;
         },
         state(frame, settings) {
+          reportPlay({
+            matchId: frame.matchId,
+            active:
+              frame.stage === "running" &&
+              (frame.contest.phase === "countdown" ||
+                frame.contest.phase === "active"),
+            ended:
+              frame.contest.rules !== "free" && frame.contest.phase === "over",
+            round: frame.round,
+            playerCount: frame.seats.filter((seat) => !seat.watcher).length,
+            botCount: frame.seats.filter((seat) => seat.bot).length,
+            seated: frame.seats.some(
+              (seat) => seat.id === selfId && !seat.watcher,
+            ),
+            mode: frame.contest.rules,
+          });
           latest = localView(frame);
           const c = frame.contest;
           const localKeeper = frame.keepers.find((k) => k.id === selfId);
