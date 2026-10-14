@@ -486,7 +486,7 @@ export class RoomRuntime<
       return;
     }
     switch (data.type) {
-      case "hello":
+      case "hello": {
         if (data.rules !== this.game.rules) {
           member.refused = true;
           member.rules =
@@ -504,14 +504,17 @@ export class RoomRuntime<
         )
           this.bump(id, member, data.generation);
         member.full = data.full === true;
+        const wasUnavailable = member.hidden || this.saidNoWorld(id);
         member.hidden = data.hidden === true;
         // A peer announcing a world is worth asking again, whatever it answered before.
         if (data.world === true) {
           this.sync.forgetNoWorld(id);
-          // A source that may hold a newer world: worth one fetch again, whatever the last resync brought.
-          if (!member.hidden) this.sync.releaseCatchUp();
+          // An unavailable source returning is worth another fetch. Repeated hellos from a holder already serving
+          // lagging snapshots must not interrupt the bounded local catch-up those snapshots granted.
+          if (!member.hidden && wasUnavailable) this.sync.releaseCatchUp();
         }
         return;
+      }
       case "join":
         if (
           this.manager &&
@@ -1287,7 +1290,9 @@ export class RoomRuntime<
       // long stall must end by catching up, never by fetching a snapshot from a peer that waited just as long.
       const reachable = Math.min(tick, world.stallBound().tick),
         behind = this.behind(reachable);
-      if (!behind) this.sync.releaseCatchUp();
+      // A temporary stream stall limits what can be reached, not the actual backlog. Keep the local catch-up grace
+      // while the log clock is still far ahead so repaired packets resume stepping rather than another fetch.
+      if (!this.behind(tick)) this.sync.releaseCatchUp();
       // Fetched only from someone who can have a newer world: with every source hidden or without one, or after a
       // resync that brought nothing newer, the backlog is caught up here at the step budget.
       if (
