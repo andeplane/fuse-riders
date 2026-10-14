@@ -1,4 +1,5 @@
-import { button, el } from "fuse-ui";
+import { button, createRoundControls, el } from "fuse-ui";
+import { TOWN_CONTROLS, TOWN_GOAL } from "./control-guide.js";
 import {
   CITY,
   GOAL_NAMES,
@@ -245,6 +246,13 @@ export function createGameScreen(
     if (body) driver().play(body);
   };
   const game = el("section", "", "fl-game");
+  const startupControls = createRoundControls({
+    controls: TOWN_CONTROLS,
+    touchControls: TOWN_CONTROLS,
+    goal: TOWN_GOAL,
+  });
+  startupControls.element.classList.add("fl-startup-controls");
+  game.append(startupControls.element);
 
   // ---- the board ----
   const stage = el("div", "", "fl-stage"),
@@ -414,7 +422,13 @@ export function createGameScreen(
     readyButton = button("READY", "fl-primary fl-ready"),
     readyNote = el("p", "", "fl-ready-note");
   const briefingBody = el("div", "", "fl-sheet-body");
+  const briefingControls = createRoundControls({
+    controls: TOWN_CONTROLS,
+    touchControls: TOWN_CONTROLS,
+    goal: TOWN_GOAL,
+  });
   briefingBody.append(
+    briefingControls.element,
     briefingTicker,
     briefingChart,
     briefingHeadlines,
@@ -434,11 +448,17 @@ export function createGameScreen(
     handoffStep = el("p", "", "fl-handoff-step"),
     handoffGo = button("", "fl-primary fl-handoff-go"),
     handoffNote = el("p", "", "fl-handoff-note");
+  const handoffControls = createRoundControls({
+    controls: TOWN_CONTROLS,
+    touchControls: TOWN_CONTROLS,
+    goal: TOWN_GOAL,
+  });
   handoff.append(
     handoffAvatar,
     handoffPass,
     handoffName,
     handoffStep,
+    handoffControls.element,
     handoffGo,
     handoffNote,
   );
@@ -860,6 +880,24 @@ export function createGameScreen(
     model = next;
     game.dataset.layout = next.layout;
     const modal = Boolean(next.briefing || next.handoff || next.result);
+    startupControls.update({
+      round: `${next.hud?.week}:${next.hud?.name}`,
+      visible: Boolean(
+        next.hud && next.hud.timer > 0.9 && !next.hud.done && !modal,
+      ),
+      spectator: !next.seated && !viewer.local,
+      display: viewer.display,
+    });
+    briefingControls.update({
+      round: next.briefing?.week ?? "",
+      visible: Boolean(next.briefing),
+      spectator: !next.seated && !viewer.local,
+      display: viewer.display,
+    });
+    handoffControls.update({
+      round: `${next.handoff?.week}:${next.handoff?.name}`,
+      visible: Boolean(next.handoff),
+    });
     game.classList.toggle("modal", modal);
     // HUD.
     const h = next.hud;
