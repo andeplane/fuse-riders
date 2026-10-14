@@ -12,7 +12,7 @@ import {
   type BirdsSettings,
   type BirdsView,
 } from "../online/game.js";
-import type { BirdsRuntime, Play } from "../online/runtime.js";
+import type { BirdsRuntime, Play, Session } from "../online/runtime.js";
 
 interface Options {
   name: string;
@@ -22,7 +22,7 @@ interface Options {
 }
 
 /** Local caller of the same library used online; no room, transport or dummy opponents. */
-export class PracticeRuntime {
+export class PracticeRuntime implements Session {
   private match;
   private pending: Action[] = [];
   private cancelTimer: (() => void) | undefined;
@@ -65,12 +65,11 @@ export class PracticeRuntime {
     this.cancelTimer = undefined;
     this.pending = [];
   }
+  get admitted(): boolean {
+    return !!this.cancelTimer;
+  }
   play(play: Play): boolean {
-    if (
-      !this.cancelTimer ||
-      this.pending.length ||
-      this.match.phase !== "aiming"
-    )
+    if (!this.admitted || this.pending.length || this.match.phase !== "aiming")
       return false;
     const player = this.match.players[0]!;
     const action = {
