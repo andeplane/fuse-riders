@@ -7,6 +7,39 @@
   color-scheme: dark;
 }
 
+/* Shared menu behavior, with Axe's gold and ember presentation. */
+.fui-game-menu {
+  --fui-menu-bg: var(--fa-panel);
+  --fui-menu-accent: var(--fa-gold);
+}
+body.fa-phone #app > .fui-game-menu {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  right: max(8px, env(safe-area-inset-right));
+  z-index: 60;
+}
+.fa-top .fui-game-menu-panel,
+#app > .fui-game-menu .fui-game-menu-panel {
+  border-color: var(--fa-edge);
+  background: #140a22;
+}
+#app > .fui-round-controls {
+  position: fixed;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(600px, calc(100vw - 24px));
+  z-index: 20;
+  border-color: var(--fa-edge);
+  background: #140a22ed;
+}
+body.fa-phone #app > .fui-round-controls {
+  top: max(54px, calc(env(safe-area-inset-top) + 46px));
+  bottom: auto;
+  width: min(420px, calc(100vw - 24px));
+  font-size: 12px;
+}
+
 * {
   box-sizing: border-box;
 }

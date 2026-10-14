@@ -11,6 +11,7 @@ import {
   type World,
   type MapDefinition,
   type MatchSettings,
+  RULES,
 } from "../engine/index.js";
 import type {
   NeuralSession,
@@ -22,6 +23,7 @@ import type {
 } from "../app/contracts.js";
 import {
   neuralGame,
+  COMMANDS_PER_SEAT,
   settingsMap,
   type NeuralRoom,
   type NeuralEntry,
@@ -35,9 +37,78 @@ class NeuralRuntime extends RoomRuntime<
   never,
   NeuralSettings
 > {
+  private pendingActions: Action[] = [];
+  private pendingMatch = "";
+  private readonly pendingLimit = RULES.queueLimit * 2;
+
   dispatch(action: Action): void {
+    if (!this.dispatchBatch([action]))
+      this.status.notice("Game orders are busy. Try again.");
+  }
+  dispatchBatch(actions: readonly Action[]): boolean {
     const scope = this.frameTiming()?.newer;
-    if (scope) this.append(1, scope.matchId, action);
+    if (
+      !scope ||
+      scope.finished ||
+      this.roomState()?.stage !== "running" ||
+      !this.player()?.connected
+    )
+      return false;
+    if (this.pendingMatch !== scope.matchId) this.clearPending();
+    if (this.pendingActions.length + actions.length > this.pendingLimit)
+      return false;
+    this.pendingMatch = scope.matchId;
+    this.pendingActions.push(...structuredClone(actions));
+    this.flushPending();
+    return true;
+  }
+  /** Pace ordinary entries at the fold's existing per-seat limit. */
+  flushPending(): void {
+    if (!this.pendingActions.length) return;
+    const scope = this.frameTiming()?.newer;
+    if (
+      !scope ||
+      scope.finished ||
+      this.roomState()?.stage !== "running" ||
+      !this.player()?.connected ||
+      scope.matchId !== this.pendingMatch
+    ) {
+      this.clearPending();
+      return;
+    }
+    // ownTick is monotonic, including clock corrections. The stream's latest
+    // tick covers already-written future entries; management does not spend
+    // the game's action budget. append may choose a later, unused tick.
+    const tick = Math.max(
+      Math.floor(this.clock.tick()) + 1,
+      this.own().latestTick(),
+    );
+    const used = this.own()
+      .entriesAt(tick)
+      .filter((entry) => entry[2] === 1).length;
+    for (
+      let available = COMMANDS_PER_SEAT - used;
+      available > 0 && this.pendingActions.length;
+      available--
+    )
+      this.append(1, scope.matchId, this.pendingActions.shift()!);
+  }
+  private clearPending(): void {
+    this.pendingActions = [];
+    this.pendingMatch = "";
+  }
+  protected override resetControls(): void {
+    this.clearPending();
+  }
+  protected override absentControls(): void {
+    this.clearPending();
+  }
+  protected override releaseControls(): void {
+    this.clearPending();
+  }
+  override stop(): void {
+    this.clearPending();
+    super.stop();
   }
   /** The newest folded room, for the lobby; the board renders from frames. */
   roomState(): NeuralRoom | undefined {
@@ -80,6 +151,7 @@ export function createSession(
       {
         state(frame) {
           view = frame;
+          runtime.flushPending();
           for (const listener of listeners) listener();
         },
         event() {},
@@ -98,6 +170,8 @@ export function createSession(
     dispatch: (action) => {
       if (!disposed && mode !== "watch") runtime.dispatch(action);
     },
+    dispatchBatch: (actions) =>
+      !disposed && mode !== "watch" && runtime.dispatchBatch(actions),
     subscribe: (listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -161,6 +235,7 @@ export function createOnlineSession(
     {
       state(frame) {
         view = frame;
+        runtime.flushPending();
         notify();
       },
       event() {},
@@ -209,6 +284,8 @@ export function createOnlineSession(
     dispatch: (action) => {
       if (!disposed && seated()) runtime.dispatch(action);
     },
+    dispatchBatch: (actions) =>
+      !disposed && seated() && runtime.dispatchBatch(actions),
     subscribe: (listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);

@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { launchSelected, browserKind } from "./lib/browser.js";
 
-const base = process.env.ONLINE_URL ?? "http://localhost:8787/";
+import { ridersPageUrl } from "./lib/riders-url.js";
+const base = ridersPageUrl(process.env.ONLINE_URL ?? "http://localhost:8787/");
 const browser = await launchSelected("chromium", { headless: true });
 const kind = browserKind("chromium");
 await mkdir("artifacts", { recursive: true });
