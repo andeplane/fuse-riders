@@ -1,3 +1,4 @@
+import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
@@ -41,6 +42,8 @@ import {
  * the reports and the session modules, which are unit-tested; this file only puts their answers on the page.
  */
 const GAME = diceGame.id;
+const analytics = startGameAnalytics(GAME);
+const reportPlay = createPlayMetrics(analytics.track, () => performance.now());
 const endpoints = createEndpoints(
   {
     basePath: `${import.meta.env.BASE_URL}${GAME}/`,
@@ -382,6 +385,16 @@ function room(solo: boolean): void {
     joinSent = false;
   const callbacks: DiceCallbacks = {
     state(frame, settings) {
+      reportPlay({
+        matchId: frame.matchId,
+        active: frame.phase === "running",
+        ended: frame.phase === "over",
+        round: frame.round,
+        playerCount: frame.players.length,
+        botCount: frame.players.filter((seat) => seat.bot).length,
+        seated: frame.players.some((seat) => seat.id === viewer.me),
+        mode: solo ? "solo" : settings.display ? "shared" : "online",
+      });
       viewer.shared = settings.display;
       const model = presentTable(frame, viewer);
       // For the browser smoke (scripts/dice-smoke.ts) and the stylesheet.
