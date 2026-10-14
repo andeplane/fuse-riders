@@ -1,9 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseHTML } from "linkedom";
-import { mountFuseCraft, type AppDependencies } from "../src/app/app.js";
+import {
+  actionCue,
+  mountFuseCraft,
+  type AppDependencies,
+} from "../src/app/app.js";
 import { createAttractScene } from "../src/app/attract-scene.js";
-import { createCueTracker, type PresentationAudio } from "../src/app/audio.js";
+import {
+  createCueTracker,
+  type PresentationAudio,
+  type SoundCue,
+} from "../src/app/audio.js";
 import type {
   NeuralSession,
   OnlineDependencies,
@@ -41,7 +49,44 @@ test("a draw plays its own neutral cue, not the defeat", () => {
   world.tick++;
   world.finished = true;
   world.winnerId = null;
-  assert.deepEqual(track(world, "blue"), ["draw"]);
+  const cues = track(world, "blue").map((e) => e.cue);
+  assert.ok(cues.includes("draw"));
+  assert.ok(!cues.includes("defeat"));
+});
+
+test("the match bar mutes and unmutes sound and saves the choice", async () => {
+  const f = fixture();
+  await f.startSkirmish();
+  const button = () =>
+    f.root.querySelector<HTMLElement>('[data-action="toggle-mute"]')!;
+  assert.equal(button().getAttribute("aria-label"), "Unmute sound");
+  f.click('[data-action="toggle-mute"]');
+  assert.deepEqual(f.written, [false]);
+  assert.equal(button().getAttribute("aria-label"), "Mute sound");
+  assert.ok(f.played.includes("toggle"));
+  f.click('[data-action="toggle-mute"]');
+  assert.deepEqual(f.written, [false, true]);
+});
+
+test("dialogs open and close with their own interface cues", async () => {
+  const f = fixture();
+  await f.startSkirmish();
+  f.played.length = 0;
+  f.click('[data-action="help"]');
+  f.click('[role="dialog"] [data-action="close-help"]');
+  assert.deepEqual(f.played, ["panel", "back"]);
+});
+
+test("each interface action picks a fitting cue", () => {
+  assert.equal(actionCue("back-menu"), "back");
+  assert.equal(actionCue("cancel-research"), "cancel");
+  assert.equal(actionCue("particle-heavy"), "toggle");
+  assert.equal(actionCue("mode-watch"), "panel");
+  assert.equal(actionCue("start"), "select");
+  assert.equal(actionCue(undefined), "select");
+  // Placement and mute sound from their own handlers.
+  assert.equal(actionCue("build-tower"), null);
+  assert.equal(actionCue("toggle-mute"), null);
 });
 
 test("a finished online match shows a seated player their own victory", () => {
@@ -323,10 +368,14 @@ function fixture(options: FixtureOptions = {}) {
   let requested = 0;
   const cancelled = new Set<number>();
   let audioLocal: string | undefined;
+  const played: SoundCue[] = [];
+  const written: boolean[] = [];
   const audio: PresentationAudio = {
     configure() {},
     unlock() {},
-    play() {},
+    play(cue) {
+      played.push(cue);
+    },
     present(_world, local) {
       audioLocal = local;
     },
@@ -441,7 +490,9 @@ function fixture(options: FixtureOptions = {}) {
         reducedMotion: true,
         edgeScroll: true,
       }),
-      write() {},
+      write(value) {
+        written.push(value.mute);
+      },
     },
     createSession(_map, _slot, mode) {
       created++;
@@ -480,6 +531,9 @@ function fixture(options: FixtureOptions = {}) {
     portal: () => portal,
     created: () => created,
     audioLocal: () => audioLocal,
+    played,
+    /** Each saved preference's mute setting, in order. */
+    written,
     resolveCreate: () => resolveCreate(),
     active: () => focused,
     focus(element: Element | null) {
