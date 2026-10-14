@@ -216,12 +216,25 @@ test("the creator hides, then the acting creator: management moves down the orde
   const r = room(3);
   const [acting, third] = GUESTS as [string, string];
   enter(r, "playing");
+  assert.equal(
+    frame(r, acting).managerId,
+    HOST,
+    "the crown starts on the host",
+  );
   r.net.setHidden(HOST, true);
   const creatorAway = watch(r, acting, HOST, 10_000);
   assert.equal(creatorAway.flips, 0);
   assert.ok(
     creatorAway.advanced >= 180,
     "the room plays on without the creator",
+  );
+  // The crown is the other half of this, and it does not move: a hidden page is a page that stopped drawing, not a
+  // host that left, and every rider's screen must go on naming the same one. The duties below moving while this
+  // stays put is the whole distinction (`roomManager` vs `actingCreator`).
+  assert.equal(
+    frame(r, acting).managerId,
+    HOST,
+    "a creator that only stepped away keeps the crown on every screen",
   );
   // A joiner is seated by the acting creator while the creator is hidden.
   const late = "e-late";
