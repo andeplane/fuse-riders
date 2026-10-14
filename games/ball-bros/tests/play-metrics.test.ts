@@ -15,8 +15,8 @@ test("play metrics report actual room membership and match state without names",
     avatarId: "fox",
     generation: 1,
   });
-  room.seats.set("bot:1", {
-    id: "bot:1",
+  room.seats.set("bot-1", {
+    id: "bot-1",
     name: "CPU",
     slot: 1,
     bot: true,

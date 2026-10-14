@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { parseHTML } from "linkedom";
 import type { Callbacks, Frame, RoomCommand } from "fuse-netcode";
+import type { PlayFrame } from "fuse-ui/play-metrics";
 import {
   mountGame,
   type Client,
@@ -251,6 +252,7 @@ function screen(online = true, display = false, shared = false, fail = "") {
   const { root, document, window } = dom();
   const inputs: [Steering, Steering, boolean][] = [],
     commands: RoomCommand<Settings>[] = [];
+  const metrics: PlayFrame[] = [];
   let callbacks!: Callbacks<RoomView, Impact, Settings>,
     paint!: (now: number) => void;
   let current = frame(),
@@ -292,6 +294,7 @@ function screen(online = true, display = false, shared = false, fail = "") {
     frameTiming: () => ({ newer: current, tick: current.tick, lead: 0 }),
   };
   const options: ScreenOptions = {
+    observePlay: (observed) => metrics.push(observed),
     online: online
       ? {
           code: "AB42",
@@ -353,6 +356,7 @@ function screen(online = true, display = false, shared = false, fail = "") {
     client,
     inputs,
     commands,
+    metrics,
     events,
     store,
     destroy,
@@ -505,6 +509,26 @@ test("room screen follows lobby, own identity, controls, corrected results, rema
   s.destroy();
   assert.equal(s.counters().disposed, 2);
   assert.equal(s.counters().impacts, 1);
+});
+
+test("product metrics observe actual room frames while previews and drawing emit nothing", async () => {
+  const preview = screen(false);
+  await flush();
+  preview.draw();
+  assert.deepEqual(preview.metrics, []);
+  preview.destroy();
+  const s = screen();
+  await flush();
+  assert.equal(s.metrics.length, 1);
+  assert.equal(s.metrics[0]!.active, false);
+  s.draw();
+  assert.equal(s.metrics.length, 1);
+  s.update(frame("running"));
+  assert.equal(s.metrics.at(-1)!.active, true);
+  assert.equal(s.metrics.at(-1)!.seated, true);
+  s.update(frame("over"));
+  assert.equal(s.metrics.at(-1)!.ended, true);
+  s.destroy();
 });
 
 test("shared phones show a controller, displays never play, and eliminated players stop sending", async () => {

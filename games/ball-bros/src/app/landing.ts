@@ -14,6 +14,8 @@ import { ARENA_MAPS, MAP_IDS, type MapId } from "../engine/maps.js";
 export function landing(
   root: HTMLElement,
   options: {
+    base?: string;
+    search?: string;
     store: Store;
     create(): Promise<{ code: string; token: string }>;
     navigate(query: string): void;
@@ -72,8 +74,8 @@ export function landing(
     createAppPortal({
       document: root.ownerDocument,
       current: "ball-bros",
-      base: "../",
-      search: root.ownerDocument.defaultView?.location.search,
+      base: options.base ?? "../",
+      search: options.search,
     }).element,
     back,
   );

@@ -51,6 +51,8 @@ function render() {
   const mode = session(location.search, store, memberToken);
   if (mode.kind === "landing" || mode.kind === "invalid") {
     const screen = landing(root, {
+      base: import.meta.env.BASE_URL,
+      search: location.search,
       store,
       create: () => createRoom(endpoints.apiUrl, fetch, "ball-bros"),
       navigate,
