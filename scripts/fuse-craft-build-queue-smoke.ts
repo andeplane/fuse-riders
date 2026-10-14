@@ -24,8 +24,32 @@ for (const [name, engine] of [
     await page.locator('[data-action="new-game"]').click();
     await page.locator('[data-action="mode-sandbox"]').click();
     await page.locator('[data-action="start"]').click();
+    await page.locator("#nd-board").waitFor();
     await page.keyboard.press("w");
     await page.keyboard.press("q");
+    await page.locator(".placement-instructions").waitFor();
+    async function waitSite(cell: number) {
+      try {
+        await page
+          .locator(
+            `.queue-mark[data-cell="${cell}"], .structure-neuron[data-cell="${cell}"]`,
+          )
+          .first()
+          .waitFor();
+      } catch (error) {
+        await page.screenshot({
+          path: `/tmp/fuse-craft-queue-failure-${name}.png`,
+        });
+        console.error(
+          name,
+          cell,
+          await page
+            .locator(".placement-instructions, .construction-summary")
+            .allTextContents(),
+        );
+        throw error;
+      }
+    }
     async function clickCell(cell: number, shift = false) {
       // Queue art updates every tick. Target its stable ground coordinates
       // with real mouse input instead of waiting for the animated SVG to stop.
@@ -58,7 +82,7 @@ for (const [name, engine] of [
     }
     for (const cell of [14, 15]) {
       await clickCell(cell, true);
-      await page.locator(`.queue-mark[data-cell="${cell}"]`).waitFor();
+      await waitSite(cell);
       assert.equal(await page.locator(".placement-instructions").count(), 1);
     }
     // Neurons sprout without the builder and finish in six seconds, so a plan
@@ -75,7 +99,7 @@ for (const [name, engine] of [
     );
     assert.equal(await page.locator(".placement-instructions").count(), 1);
     await clickCell(26);
-    await page.locator('.queue-mark[data-cell="26"]').waitFor();
+    await waitSite(26);
     assert.equal(
       await page.locator(".placement-instructions").count(),
       0,
@@ -89,6 +113,42 @@ for (const [name, engine] of [
     await page.screenshot({ path: `/tmp/neural-shift-queue-${name}.png` });
     console.log(
       `${name}: Shift queues consecutive plans, rejects duplicates/occupied cells, ordinary click exits`,
+    );
+    // Reproduce the reported gap hidden under Cortex Crossing's brain art.
+    await page.goto(url);
+    await page.locator('[data-action="new-game"]').click();
+    await page.locator('[data-action="mode-sandbox"]').click();
+    await page.locator("#map-picker").selectOption("cortex-crossing");
+    await page.locator('[data-action="start"]').click();
+    await page.locator("#nd-board").waitFor();
+    await page.keyboard.press("w");
+    await page.keyboard.press("q");
+    await page.locator(".placement-instructions").waitFor();
+    await clickCell(92, true);
+    // On a busy host a six-second sprout can finish before the locator is
+    // observed. Accept either its active plan or its completed structure.
+    await page
+      .locator('.queue-mark[data-cell="91"], .structure-neuron[data-cell="91"]')
+      .first()
+      .waitFor();
+    await page
+      .locator('.queue-mark[data-cell="92"], .structure-neuron[data-cell="92"]')
+      .first()
+      .waitFor();
+    assert.equal(await page.locator(".queue-unsupported").count(), 0);
+    await page.keyboard.press("Escape");
+    await page.screenshot({
+      path: `/tmp/fuse-craft-connecting-queue-${name}.png`,
+    });
+    await page
+      .locator('.structure-neuron[data-cell="91"]')
+      .waitFor({ timeout: 20_000 });
+    await page
+      .locator('.structure-neuron[data-cell="92"]')
+      .waitFor({ timeout: 20_000 });
+    assert.equal(await page.locator('.queue-mark[data-cell="92"]').count(), 0);
+    console.log(
+      `${name}: distant placement bridges hidden hex91 and both neurons finish growing`,
     );
   } finally {
     await browser.close();
