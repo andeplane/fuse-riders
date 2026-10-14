@@ -62,14 +62,13 @@ const server = await createServer({
   root,
   plugins: [
     {
-      name: "birds-coverage-route",
+      name: "game-coverage-routes",
       configureServer(server) {
         server.middlewares.use((request, _response, next) => {
-          if (request.url?.startsWith("/fuse-birds/"))
-            request.url = request.url.replace(
-              "/fuse-birds/",
-              "/games/fuse-birds/",
-            );
+          request.url = request.url?.replace(
+            /^\/(fuse-birds|ball-bros|graveyard-shift|hook-havok|fuse-craft)\//,
+            "/games/$1/",
+          );
           next();
         });
       },
@@ -110,6 +109,16 @@ try {
     { ...process.env, FUSE_BIRDS_COVERAGE_DIR: resolve(root, "coverage/tmp") },
   );
   browserExit ||= onlineExit;
+  const gamesExit = await run(
+    [
+      "exec",
+      "tsx",
+      "scripts/game-browser-coverage-smoke.ts",
+      url.replace(/\/$/, ""),
+    ],
+    { ...process.env, FUSE_GAME_COVERAGE_DIR: resolve(root, "coverage/tmp") },
+  );
+  browserExit ||= gamesExit;
 } finally {
   await server.close();
   await roomService.close();
