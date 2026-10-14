@@ -5,9 +5,7 @@ import {
   HOOK_SPEED,
   ROPE_MIN,
   HALF,
-  WIDTH,
   BODY,
-  HEIGHT,
   BALL_RADII,
   isBallMode,
   ballField,
@@ -18,7 +16,10 @@ import {
   type Tuning,
   type World,
 } from "./world.js";
-import { MAPS, isMapId } from "./maps.js";
+import { MAPS, blocks, isMapId } from "./maps.js";
+import { CHARGE_TICKS, FALL_RESPAWN, KO_RESPAWN } from "./bomb-rules.js";
+import { PAD_VY, ZONE_KEYS, hazardsLive, padsLive } from "./zones.js";
+import { ALL_POWERS, DASH_TICKS } from "./power-rules.js";
 export const plain = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === "object" && !Array.isArray(v);
 export const integer = (v: unknown, min: number, max: number): v is number =>
@@ -31,10 +32,21 @@ export const TUNING_BOUNDS = {
   pull: [300, 1800],
   range: [250, 1000],
 } as const;
+const onOff = (v: unknown): v is "on" | "off" => v === "on" || v === "off";
 export function parseTuning(raw: unknown): Tuning | undefined {
-  if (!plain(raw) || Object.keys(raw).length !== 12 || !isMapId(raw.map))
+  if (
+    !plain(raw) ||
+    Object.keys(raw).length !== 14 + ZONE_KEYS.length ||
+    !isMapId(raw.map) ||
+    ZONE_KEYS.some((key) => !onOff(raw[key])) ||
+    (raw.botLevel !== "easy" &&
+      raw.botLevel !== "normal" &&
+      raw.botLevel !== "hard")
+  )
     return;
-  if (raw.powerUps !== "off" && raw.powerUps !== "on") return;
+  if (raw.bomb !== "off" && raw.bomb !== "fuse" && raw.bomb !== "impact")
+    return;
+  if (!integer(raw.powerUps, 0, ALL_POWERS)) return;
   if (raw.jumpMode !== "single" && raw.jumpMode !== "double") return;
   if (raw.wire !== "tip" && raw.wire !== "spiked") return;
   if (
@@ -54,6 +66,8 @@ export function parseTuning(raw: unknown): Tuning | undefined {
   for (const [key, [min, max]] of Object.entries(TUNING_BOUNDS))
     if (!integer(raw[key], min, max)) return;
   return {
+    botLevel: raw.botLevel,
+    bomb: raw.bomb,
     powerUps: raw.powerUps,
     jumpMode: raw.jumpMode,
     wire: raw.wire,
@@ -66,6 +80,12 @@ export function parseTuning(raw: unknown): Tuning | undefined {
     air: raw.air as number,
     pull: raw.pull as number,
     range: raw.range as number,
+    jumpPads: raw.jumpPads as Tuning["jumpPads"],
+    lifts: raw.lifts as Tuning["lifts"],
+    lowGravity: raw.lowGravity as Tuning["lowGravity"],
+    electricFloor: raw.electricFloor as Tuning["electricFloor"],
+    lasers: raw.lasers as Tuning["lasers"],
+    bonusZone: raw.bonusZone as Tuning["bonusZone"],
   };
 }
 function decodeCombat(
@@ -86,8 +106,8 @@ function decodeCombat(
     !plain(raw.impact) ||
     Object.keys(raw.impact).length !== 3 ||
     !integer(raw.impact.tick, 0, tick) ||
-    !integer(raw.impact.x, 0, WIDTH * S) ||
-    !integer(raw.impact.y, -2000 * S, 1000 * S)
+    !integer(raw.impact.x, 0, map.width * S) ||
+    !integer(raw.impact.y, -2000 * S, (map.height + 100) * S)
   )
     return;
   const impact = { tick: raw.impact.tick, x: raw.impact.x, y: raw.impact.y };
@@ -102,14 +122,14 @@ function decodeCombat(
     if (
       !plain(t) ||
       Object.keys(t).length !== 6 ||
-      !integer(t.x, HALF, WIDTH * S - HALF) ||
-      !integer(t.feet, -2000 * S, 1000 * S) ||
+      !integer(t.x, HALF, map.width * S - HALF) ||
+      !integer(t.feet, -2000 * S, (map.height + 100) * S) ||
       !integer(t.vx, -9 * S, 9 * S) ||
       !integer(t.vy, -10 * S, 16 * S) ||
       typeof t.grounded !== "boolean" ||
       !integer(t.respawn, 0, 30) ||
       (!t.respawn && overlaps(t.x, t.feet, map.platforms)) ||
-      (t.respawn && (t.feet - BODY <= HEIGHT * S || t.vx || t.vy)) ||
+      (t.respawn && (t.feet - BODY <= map.height * S || t.vx || t.vy)) ||
       raw.balls.length ||
       raw.falls > raw.hits
     )
@@ -173,10 +193,7 @@ function decodeCombat(
     balls.push({ id: b.id, tier: b.tier, x: bx, y: by, vx: b.vx, vy: b.vy });
   }
   if (isBallMode(mode)) {
-    if (
-      raw.hits !==
-      7 - balls.reduce((sum, b) => sum + 2 ** (b.tier + 1) - 1, 0)
-    )
+    if (raw.hits !== 7 - balls.reduce((sum, b) => sum + (2 << b.tier) - 1, 0))
       return;
   } else if (balls.length || (mode === "movement" && raw.hits)) return;
   return { target, balls, hits: raw.hits, falls: raw.falls, impact };
@@ -184,13 +201,16 @@ function decodeCombat(
 export function parseInput(raw: unknown): Input | undefined {
   if (
     !plain(raw) ||
-    Object.keys(raw).length !== 7 ||
+    Object.keys(raw).length !== 9 ||
     !integer(raw.move, -1, 1) ||
     !integer(raw.aimX, -2000, 3600) ||
     !integer(raw.aimY, -4000, 3000) ||
     typeof raw.jump !== "boolean" ||
     typeof raw.drop !== "boolean" ||
     typeof raw.fire !== "boolean" ||
+    typeof raw.bomb !== "boolean" ||
+    typeof raw.cancelBomb !== "boolean" ||
+    (raw.cancelBomb && raw.bomb) ||
     typeof raw.reset !== "boolean"
   )
     return;
@@ -199,6 +219,8 @@ export function parseInput(raw: unknown): Input | undefined {
     jump: raw.jump,
     drop: raw.drop,
     fire: raw.fire,
+    bomb: raw.bomb,
+    cancelBomb: raw.cancelBomb,
     reset: raw.reset,
     aimX: raw.aimX,
     aimY: raw.aimY,
@@ -223,30 +245,51 @@ export function decodeWorld(raw: unknown): World | undefined {
     Object.keys(h).length !== 8
   )
     return;
+  // Positions are bounded by the selected map's size (12A).
+  const { width, height } = MAPS[tuning.map];
   if (
     !integer(raw.slot, 0, 4) ||
     !integer(raw.tick, 0, 0xffffffff * 3) ||
-    !integer(raw.x, HALF, WIDTH * S - HALF) ||
-    !integer(raw.feet, -2000 * S, (HEIGHT + 100) * S) ||
+    !integer(raw.x, HALF, width * S - HALF) ||
+    !integer(raw.feet, -2000 * S, (height + 100) * S) ||
     !integer(raw.vx, -18000, 18000) ||
-    !integer(raw.vy, -18000, 18000) ||
+    // Only a pad launch rises faster than the speed cap, and it leaves the
+    // ground: every landing zeroes vy and a pad launch clears grounded.
+    !integer(
+      raw.vy,
+      padsLive(tuning) && raw.grounded === false ? PAD_VY : -18000,
+      18000,
+    ) ||
     typeof raw.grounded !== "boolean" ||
     typeof raw.airJump !== "boolean" ||
     (tuning.jumpMode === "single" && raw.airJump) ||
     (raw.respawn && raw.airJump) ||
     (raw.grounded && tuning.jumpMode === "double" && !raw.airJump) ||
+    // Power-granted air actions and dashes; the arena checks the power.
+    !integer(raw.bonusJumps, 0, 2) ||
+    !integer(raw.dash, 0, DASH_TICKS) ||
+    ((raw.respawn || raw.grounded) && raw.dash) ||
+    (raw.respawn && raw.bonusJumps) ||
     !integer(raw.coyote, 0, 6) ||
     !integer(raw.buffer, 0, 6) ||
-    !integer(raw.respawn, 0, 30) ||
+    // Only a bomb or hazard knockout keeps a keeper out longer than a fall.
+    !integer(
+      raw.respawn,
+      0,
+      tuning.bomb === "off" && !hazardsLive(tuning) ? FALL_RESPAWN : KO_RESPAWN,
+    ) ||
     !integer(raw.deaths, 0, 0xffffffff) ||
+    !integer(raw.charge, 0, tuning.bomb === "off" ? 0 : CHARGE_TICKS) ||
+    // A charge only grows while the button is held, and dies with the keeper.
+    (raw.charge && (raw.respawn || !input.bomb)) ||
     (raw.facing !== -1 && raw.facing !== 1)
   )
     return;
   if (
     typeof h.phase !== "string" ||
     !["ready", "flying", "attached", "retracting"].includes(h.phase) ||
-    !integer(h.x, -2000 * S, 3000 * S) ||
-    !integer(h.y, -3000 * S, 3000 * S) ||
+    !integer(h.x, -2000 * S, (width + 1400) * S) ||
+    !integer(h.y, -3000 * S, (height + 2100) * S) ||
     !integer(h.vx, -HOOK_SPEED * S, HOOK_SPEED * S) ||
     !integer(h.vy, -HOOK_SPEED * S, HOOK_SPEED * S) ||
     !integer(h.life, 0, 60) ||
@@ -260,6 +303,8 @@ export function decodeWorld(raw: unknown): World | undefined {
     !supported(raw.x, raw.feet, MAPS[tuning.map].platforms)
   )
     return;
+  // A keeper in play never rests inside a solid block.
+  if (!raw.respawn && overlaps(raw.x, raw.feet, blocks(tuning.map))) return;
   if (h.phase === "attached") {
     const p = MAPS[tuning.map].platforms[h.platform];
     if (!p || h.vx !== 0 || h.vy !== 0) return;
@@ -289,7 +334,7 @@ export function decodeWorld(raw: unknown): World | undefined {
   if (h.phase === "retracting" && (!h.life || h.life > 6)) return;
   if (
     raw.respawn &&
-    (raw.feet - BODY <= HEIGHT * S || raw.vx || raw.vy || h.phase !== "ready")
+    (raw.feet - BODY <= height * S || raw.vx || raw.vy || h.phase !== "ready")
   )
     return;
   const combat = decodeCombat(
@@ -309,10 +354,13 @@ export function decodeWorld(raw: unknown): World | undefined {
     vy: raw.vy,
     grounded: raw.grounded,
     airJump: raw.airJump,
+    bonusJumps: raw.bonusJumps,
+    dash: raw.dash,
     coyote: raw.coyote,
     buffer: raw.buffer,
     respawn: raw.respawn,
     deaths: raw.deaths,
+    charge: raw.charge,
     facing: raw.facing,
     input,
     previous,

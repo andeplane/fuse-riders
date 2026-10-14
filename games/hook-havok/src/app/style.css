@@ -218,7 +218,7 @@ h2 {
 #touch-deck {
   display: flex;
   justify-content: space-between;
-  gap: 24px;
+  gap: 12px;
   padding: 16px 10px 4px;
 }
 .thumb-control {
@@ -232,9 +232,11 @@ h2 {
   letter-spacing: 0.06em;
   color: #e0c18f;
 }
+/* Two pads and the bomb button share a phone's width: the pads shrink below
+   about 470 px so a 360 px portrait screen never scrolls sideways. */
 .thumb-pad {
-  width: 132px;
-  height: 132px;
+  width: min(132px, 28vw);
+  height: min(132px, 28vw);
   border: 2px solid #bda16e;
   border-radius: 50%;
   background: radial-gradient(circle, #32334a, #191e30);
@@ -271,6 +273,55 @@ h2 {
 .thumb-pad[data-firing="true"] {
   border-color: #fff0c6;
   box-shadow: 0 0 16px #e0b56c44;
+}
+/* 11B: the bomb button sits beside the aim pad. Hold to charge, release to throw. */
+.bomb-control {
+  margin-left: auto;
+  align-self: flex-end;
+}
+.bomb-button {
+  width: 60px;
+  height: 60px;
+  border: 2px solid #d6765a;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 34%, #4b3a45, #1a1622 70%);
+  position: relative;
+  display: grid;
+  place-items: center;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.bomb-button::before {
+  content: "";
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 32%, #6b7089, #262b3d 55%);
+  box-shadow: 0 0 0 2px #0b0e18;
+}
+.bomb-button::after {
+  content: "";
+  position: absolute;
+  top: 14px;
+  left: 35px;
+  width: 9px;
+  height: 3px;
+  background: #ffc56b;
+  box-shadow: 4px -1px 6px #ffb347;
+  transform: rotate(-40deg);
+}
+.bomb-button .thumb-knob {
+  display: none;
+}
+.bomb-button[data-ready="false"] {
+  opacity: 0.55;
+  border-color: #6e5b5b;
+}
+.bomb-button[data-charging="true"] {
+  border-color: #ffe0a0;
+  box-shadow: 0 0 20px #ff9d5c99;
 }
 #touch-deck[data-enabled="false"] {
   opacity: 0.4;
@@ -354,9 +405,11 @@ h2 {
   .touch-trial select {
     padding: 6px 8px;
   }
+  /* The bomb button has a column of its own beside the aim pad, so a short
+     screen never stacks the two over each other. */
   .touch-trial .play-surface {
     display: grid;
-    grid-template-columns: 112px minmax(0, 1fr) 112px;
+    grid-template-columns: 112px minmax(0, 1fr) auto 112px;
     gap: 12px;
     align-items: center;
   }
@@ -374,8 +427,19 @@ h2 {
     grid-row: 1;
   }
   .touch-trial .aim-control {
+    grid-column: 4;
+    grid-row: 1;
+    align-self: end;
+  }
+  .touch-trial .bomb-control {
     grid-column: 3;
     grid-row: 1;
+    align-self: end;
+    margin: 0;
+  }
+  .touch-trial .bomb-button {
+    width: 58px;
+    height: 58px;
   }
   .touch-trial .thumb-pad {
     width: 106px;
