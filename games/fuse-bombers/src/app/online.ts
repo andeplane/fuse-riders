@@ -1,4 +1,5 @@
 import "fuse-ui/components.css";
+import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
 import "./online.css";
 import QRCode from "qrcode";
 import * as net from "fuse-network-fe";
@@ -32,6 +33,10 @@ import { carry, keys, type Session, type Store } from "./session.js";
  */
 const { el, button } = ui;
 export const GAME = bombersGame.id;
+export const analytics = startGameAnalytics(GAME);
+export const reportPlay = createPlayMetrics(analytics.track, () =>
+  performance.now(),
+);
 const endpoints = net.createEndpoints(
   {
     basePath: `${import.meta.env.BASE_URL}${GAME}/`,
@@ -362,6 +367,18 @@ export function showRoom(
   const callbacks: BombersCallbacks = {
     state(next, roomSettings) {
       if (dead) return;
+      reportPlay({
+        matchId: next.matchId,
+        active: next.stage === "running",
+        ended: next.stage === "over",
+        round: next.round,
+        playerCount: next.seats.filter((seat) => !seat.watcher).length,
+        botCount: next.seats.filter((seat) => seat.bot).length,
+        seated: next.seats.some(
+          (seat) => seat.id === viewer.me && !seat.watcher,
+        ),
+        mode: solo ? "solo" : roomSettings.display ? "shared" : "online",
+      });
       frame = next;
       settings = roomSettings;
       shown = `${next.matchId}:${next.round}`;
