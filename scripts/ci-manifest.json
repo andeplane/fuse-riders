@@ -16,6 +16,16 @@
   ],
   "smokes": [
     {
+      "id": "birds-replay",
+      "group": "birds-replay",
+      "name": "Fuse Birds deterministic browser replay",
+      "command": "pnpm exec tsx scripts/fuse-birds-replay-check.ts",
+      "browsers": ["chromium", "firefox", "webkit"],
+      "env": {},
+      "timeoutMinutes": 15,
+      "retries": 0
+    },
+    {
       "id": "keyboard",
       "group": "keyboard",
       "name": "Desktop keyboard steering and firing",

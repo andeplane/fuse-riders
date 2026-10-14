@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "theme": "neon-burrow",
+  "provenance": "Original assets generated for this project with OpenAI image generation. Prompts are retained in docs/design/fuse-birds-concepts/asset-prompts.md.",
+  "assets": [
+    {
+      "file": "neon-rock.png",
+      "role": "world-anchored terrain material",
+      "width": 1254,
+      "height": 1254,
+      "sampling": "linear",
+      "pivot": [0, 0],
+      "trim": [0, 0, 1254, 1254]
+    },
+    {
+      "file": "neon-sky.png",
+      "role": "non-colliding distant scenery",
+      "width": 1672,
+      "height": 941,
+      "sampling": "linear",
+      "pivot": [0.5, 0.5],
+      "trim": [0, 0, 1672, 941]
+    }
+  ],
+  "proceduralArt": "Bird and supply-crate textures are original Canvas artwork in games/fuse-birds/src/render/arena.ts. They do not define physics geometry."
+}
