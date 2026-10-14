@@ -1,0 +1,583 @@
+{
+  "sourceRevision": "ab772448553fea0780b708e1bfab6c93dd25a258",
+  "scope": "Local real WebRTC with delayed ICE, duplicated membership, phone refresh and server logs. Not cellular/WAN qualification.",
+  "browsers": [
+    {
+      "kind": "chromium",
+      "logs": [
+        {
+          "kind": "room-link-report",
+          "severity": "INFO",
+          "version": 1,
+          "roomKey": "c9e005b863cdb68071fcf478101ebdf2b1c04c42429c4c42ab5449a4a7d71c8a",
+          "incarnation": "21ede0f9-5f18-4463-84cc-6b8b1966d5ba",
+          "gameId": "fuse-riders",
+          "memberId": "41b5bb5d9078858ba55e494a",
+          "connectionId": "588dfc5a-75d0-4be7-bc38-70990023f0db",
+          "role": "host",
+          "hidden": false,
+          "links": [
+            {
+              "peerId": "d9a82cee1e069c3b34ff6d1d",
+              "connectionId": "b3858bff-7958-48dc-85ae-c636ebf8db9f",
+              "offerer": true,
+              "healthy": false,
+              "ageMs": 129,
+              "attempts": 0,
+              "ice": "connected",
+              "connection": "connected",
+              "gathering": "complete",
+              "signaling": "stable",
+              "channel": "open/open",
+              "local": {
+                "host": 4
+              },
+              "remote": {
+                "host": 2
+              },
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 2,
+                "applied": 2,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 1,
+                "offersIn": 0,
+                "answersOut": 0,
+                "answersIn": 1,
+                "candidatesOut": 4,
+                "relayFailed": 0
+              }
+            }
+          ]
+        },
+        {
+          "kind": "room-link-report",
+          "severity": "INFO",
+          "version": 1,
+          "roomKey": "c9e005b863cdb68071fcf478101ebdf2b1c04c42429c4c42ab5449a4a7d71c8a",
+          "incarnation": "21ede0f9-5f18-4463-84cc-6b8b1966d5ba",
+          "gameId": "fuse-riders",
+          "memberId": "d9a82cee1e069c3b34ff6d1d",
+          "connectionId": "b3858bff-7958-48dc-85ae-c636ebf8db9f",
+          "role": "client",
+          "hidden": false,
+          "links": [
+            {
+              "peerId": "41b5bb5d9078858ba55e494a",
+              "connectionId": "588dfc5a-75d0-4be7-bc38-70990023f0db",
+              "offerer": false,
+              "healthy": false,
+              "ageMs": 166,
+              "attempts": 0,
+              "ice": "connected",
+              "connection": "connected",
+              "gathering": "complete",
+              "signaling": "stable",
+              "channel": "open/open",
+              "local": {
+                "host": 2
+              },
+              "remote": {
+                "host": 4
+              },
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 4,
+                "applied": 4,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 0,
+                "offersIn": 1,
+                "answersOut": 1,
+                "answersIn": 0,
+                "candidatesOut": 2,
+                "relayFailed": 0
+              }
+            }
+          ]
+        },
+        {
+          "kind": "room-link-report",
+          "severity": "INFO",
+          "version": 1,
+          "roomKey": "c9e005b863cdb68071fcf478101ebdf2b1c04c42429c4c42ab5449a4a7d71c8a",
+          "incarnation": "21ede0f9-5f18-4463-84cc-6b8b1966d5ba",
+          "gameId": "fuse-riders",
+          "memberId": "d9a82cee1e069c3b34ff6d1d",
+          "connectionId": "bf50e023-c841-447d-ae7b-a5ae16da24b4",
+          "role": "client",
+          "hidden": false,
+          "links": [
+            {
+              "peerId": "41b5bb5d9078858ba55e494a",
+              "connectionId": "588dfc5a-75d0-4be7-bc38-70990023f0db",
+              "offerer": false,
+              "healthy": false,
+              "ageMs": 75,
+              "attempts": 0,
+              "ice": "new",
+              "connection": "new",
+              "gathering": "gathering",
+              "signaling": "stable",
+              "channel": "none/none",
+              "local": {
+                "host": 2,
+                "srflx": 1
+              },
+              "remote": {},
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 0,
+                "applied": 0,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 0,
+                "offersIn": 1,
+                "answersOut": 1,
+                "answersIn": 0,
+                "candidatesOut": 3,
+                "relayFailed": 0
+              }
+            }
+          ]
+        },
+        {
+          "kind": "room-link-report",
+          "severity": "INFO",
+          "version": 1,
+          "roomKey": "c9e005b863cdb68071fcf478101ebdf2b1c04c42429c4c42ab5449a4a7d71c8a",
+          "incarnation": "21ede0f9-5f18-4463-84cc-6b8b1966d5ba",
+          "gameId": "fuse-riders",
+          "memberId": "41b5bb5d9078858ba55e494a",
+          "connectionId": "588dfc5a-75d0-4be7-bc38-70990023f0db",
+          "role": "host",
+          "hidden": false,
+          "links": [
+            {
+              "peerId": "d9a82cee1e069c3b34ff6d1d",
+              "connectionId": "bf50e023-c841-447d-ae7b-a5ae16da24b4",
+              "offerer": true,
+              "healthy": false,
+              "ageMs": 3500,
+              "attempts": 0,
+              "ice": "connected",
+              "connection": "connected",
+              "gathering": "complete",
+              "signaling": "stable",
+              "channel": "open/open",
+              "local": {
+                "host": 2,
+                "srflx": 1
+              },
+              "remote": {
+                "host": 2,
+                "srflx": 3
+              },
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 5,
+                "applied": 5,
+                "buffered": 3,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 1,
+                "offersIn": 0,
+                "answersOut": 0,
+                "answersIn": 1,
+                "candidatesOut": 3,
+                "relayFailed": 0
+              }
+            }
+          ]
+        },
+        {
+          "kind": "room-link-report",
+          "severity": "INFO",
+          "version": 1,
+          "roomKey": "c9e005b863cdb68071fcf478101ebdf2b1c04c42429c4c42ab5449a4a7d71c8a",
+          "incarnation": "21ede0f9-5f18-4463-84cc-6b8b1966d5ba",
+          "gameId": "fuse-riders",
+          "memberId": "d9a82cee1e069c3b34ff6d1d",
+          "connectionId": "bf50e023-c841-447d-ae7b-a5ae16da24b4",
+          "role": "client",
+          "hidden": false,
+          "links": [
+            {
+              "peerId": "41b5bb5d9078858ba55e494a",
+              "connectionId": "588dfc5a-75d0-4be7-bc38-70990023f0db",
+              "offerer": false,
+              "healthy": false,
+              "ageMs": 10438,
+              "attempts": 0,
+              "ice": "connected",
+              "connection": "connected",
+              "gathering": "complete",
+              "signaling": "stable",
+              "channel": "open/open",
+              "local": {
+                "host": 2,
+                "srflx": 3
+              },
+              "remote": {
+                "host": 2,
+                "srflx": 1
+              },
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 3,
+                "applied": 3,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 0,
+                "offersIn": 1,
+                "answersOut": 1,
+                "answersIn": 0,
+                "candidatesOut": 5,
+                "relayFailed": 0
+              }
+            }
+          ]
+        },
+        {
+          "kind": "room-link-report",
+          "severity": "INFO",
+          "version": 1,
+          "roomKey": "c9e005b863cdb68071fcf478101ebdf2b1c04c42429c4c42ab5449a4a7d71c8a",
+          "incarnation": "21ede0f9-5f18-4463-84cc-6b8b1966d5ba",
+          "gameId": "fuse-riders",
+          "memberId": "41b5bb5d9078858ba55e494a",
+          "connectionId": "588dfc5a-75d0-4be7-bc38-70990023f0db",
+          "role": "host",
+          "hidden": false,
+          "links": [
+            {
+              "peerId": "d9a82cee1e069c3b34ff6d1d",
+              "connectionId": "bf50e023-c841-447d-ae7b-a5ae16da24b4",
+              "offerer": true,
+              "healthy": true,
+              "ageMs": 13563,
+              "attempts": 0,
+              "ice": "connected",
+              "connection": "connected",
+              "gathering": "complete",
+              "signaling": "stable",
+              "channel": "open/open",
+              "local": {
+                "host": 2,
+                "srflx": 1
+              },
+              "remote": {
+                "host": 2,
+                "srflx": 3
+              },
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 5,
+                "applied": 5,
+                "buffered": 3,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 1,
+                "offersIn": 0,
+                "answersOut": 0,
+                "answersIn": 1,
+                "candidatesOut": 3,
+                "relayFailed": 0
+              }
+            }
+          ]
+        },
+        {
+          "kind": "room-link-report",
+          "severity": "INFO",
+          "version": 1,
+          "roomKey": "c9e005b863cdb68071fcf478101ebdf2b1c04c42429c4c42ab5449a4a7d71c8a",
+          "incarnation": "21ede0f9-5f18-4463-84cc-6b8b1966d5ba",
+          "gameId": "fuse-riders",
+          "memberId": "d9a82cee1e069c3b34ff6d1d",
+          "connectionId": "bf50e023-c841-447d-ae7b-a5ae16da24b4",
+          "role": "client",
+          "hidden": false,
+          "links": [
+            {
+              "peerId": "41b5bb5d9078858ba55e494a",
+              "connectionId": "588dfc5a-75d0-4be7-bc38-70990023f0db",
+              "offerer": false,
+              "healthy": true,
+              "ageMs": 20555,
+              "attempts": 0,
+              "ice": "connected",
+              "connection": "connected",
+              "gathering": "complete",
+              "signaling": "stable",
+              "channel": "open/open",
+              "local": {
+                "host": 2,
+                "srflx": 3
+              },
+              "remote": {
+                "host": 2,
+                "srflx": 1
+              },
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 3,
+                "applied": 3,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 0,
+                "offersIn": 1,
+                "answersOut": 1,
+                "answersIn": 0,
+                "candidatesOut": 5,
+                "relayFailed": 0
+              }
+            }
+          ]
+        }
+      ],
+      "errors": [],
+      "command": "pnpm exec tsx scripts/internet-join-smoke.ts"
+    },
+    {
+      "kind": "webkit",
+      "logs": [
+        {
+          "kind": "room-link-report",
+          "severity": "INFO",
+          "version": 1,
+          "roomKey": "11567a99fb3152e4486def5e19ada325c63d5be80c35699bd307ea8b1af1545f",
+          "incarnation": "478ed3da-f6ff-43b9-81c6-a30675047ec6",
+          "gameId": "fuse-riders",
+          "memberId": "07a22f09b06a3700c466ace6",
+          "connectionId": "716edab5-50a8-4bb8-9c53-20b88018b0a0",
+          "role": "host",
+          "hidden": false,
+          "links": [
+            {
+              "peerId": "38532b5c34132ae82097bd62",
+              "connectionId": "7b6af795-d407-4fd5-8bea-9306cff350da",
+              "offerer": true,
+              "healthy": false,
+              "ageMs": 44,
+              "attempts": 0,
+              "ice": "new",
+              "connection": "new",
+              "gathering": "gathering",
+              "signaling": "have-local-offer",
+              "channel": "connecting/connecting",
+              "local": {},
+              "remote": {},
+              "signalling": {
+                "descriptions": 0,
+                "candidates": 0,
+                "applied": 0,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 1,
+                "offersIn": 0,
+                "answersOut": 0,
+                "answersIn": 0,
+                "candidatesOut": 0,
+                "relayFailed": 0
+              }
+            }
+          ]
+        },
+        {
+          "kind": "room-link-report",
+          "severity": "INFO",
+          "version": 1,
+          "roomKey": "11567a99fb3152e4486def5e19ada325c63d5be80c35699bd307ea8b1af1545f",
+          "incarnation": "478ed3da-f6ff-43b9-81c6-a30675047ec6",
+          "gameId": "fuse-riders",
+          "memberId": "38532b5c34132ae82097bd62",
+          "connectionId": "7b6af795-d407-4fd5-8bea-9306cff350da",
+          "role": "client",
+          "hidden": false,
+          "links": [
+            {
+              "peerId": "07a22f09b06a3700c466ace6",
+              "connectionId": "716edab5-50a8-4bb8-9c53-20b88018b0a0",
+              "offerer": false,
+              "healthy": false,
+              "ageMs": 76,
+              "attempts": 0,
+              "ice": "new",
+              "connection": "new",
+              "gathering": "gathering",
+              "signaling": "stable",
+              "channel": "none/none",
+              "local": {},
+              "remote": {},
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 0,
+                "applied": 0,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 0,
+                "offersIn": 1,
+                "answersOut": 1,
+                "answersIn": 0,
+                "candidatesOut": 0,
+                "relayFailed": 0
+              }
+            }
+          ]
+        },
+        {
+          "kind": "room-link-report",
+          "severity": "INFO",
+          "version": 1,
+          "roomKey": "11567a99fb3152e4486def5e19ada325c63d5be80c35699bd307ea8b1af1545f",
+          "incarnation": "478ed3da-f6ff-43b9-81c6-a30675047ec6",
+          "gameId": "fuse-riders",
+          "memberId": "38532b5c34132ae82097bd62",
+          "connectionId": "0e59b7b5-553f-4fff-aca8-ea8f59196a0b",
+          "role": "client",
+          "hidden": false,
+          "links": [
+            {
+              "peerId": "07a22f09b06a3700c466ace6",
+              "connectionId": "716edab5-50a8-4bb8-9c53-20b88018b0a0",
+              "offerer": false,
+              "healthy": false,
+              "ageMs": 171,
+              "attempts": 0,
+              "ice": "connected",
+              "connection": "connected",
+              "gathering": "complete",
+              "signaling": "stable",
+              "channel": "open/open",
+              "local": {
+                "host": 2
+              },
+              "remote": {
+                "host": 4
+              },
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 4,
+                "applied": 4,
+                "buffered": 3,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 0,
+                "offersIn": 1,
+                "answersOut": 1,
+                "answersIn": 0,
+                "candidatesOut": 2,
+                "relayFailed": 0
+              }
+            }
+          ]
+        },
+        {
+          "kind": "room-link-report",
+          "severity": "INFO",
+          "version": 1,
+          "roomKey": "11567a99fb3152e4486def5e19ada325c63d5be80c35699bd307ea8b1af1545f",
+          "incarnation": "478ed3da-f6ff-43b9-81c6-a30675047ec6",
+          "gameId": "fuse-riders",
+          "memberId": "07a22f09b06a3700c466ace6",
+          "connectionId": "716edab5-50a8-4bb8-9c53-20b88018b0a0",
+          "role": "host",
+          "hidden": false,
+          "links": [
+            {
+              "peerId": "38532b5c34132ae82097bd62",
+              "connectionId": "0e59b7b5-553f-4fff-aca8-ea8f59196a0b",
+              "offerer": true,
+              "healthy": true,
+              "ageMs": 7069,
+              "attempts": 0,
+              "ice": "connected",
+              "connection": "connected",
+              "gathering": "complete",
+              "signaling": "stable",
+              "channel": "open/open",
+              "local": {
+                "host": 4
+              },
+              "remote": {
+                "host": 2
+              },
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 2,
+                "applied": 2,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 1,
+                "offersIn": 0,
+                "answersOut": 0,
+                "answersIn": 1,
+                "candidatesOut": 4,
+                "relayFailed": 0
+              }
+            }
+          ]
+        },
+        {
+          "kind": "room-link-report",
+          "severity": "INFO",
+          "version": 1,
+          "roomKey": "11567a99fb3152e4486def5e19ada325c63d5be80c35699bd307ea8b1af1545f",
+          "incarnation": "478ed3da-f6ff-43b9-81c6-a30675047ec6",
+          "gameId": "fuse-riders",
+          "memberId": "38532b5c34132ae82097bd62",
+          "connectionId": "0e59b7b5-553f-4fff-aca8-ea8f59196a0b",
+          "role": "client",
+          "hidden": false,
+          "links": [
+            {
+              "peerId": "07a22f09b06a3700c466ace6",
+              "connectionId": "716edab5-50a8-4bb8-9c53-20b88018b0a0",
+              "offerer": false,
+              "healthy": true,
+              "ageMs": 10194,
+              "attempts": 0,
+              "ice": "connected",
+              "connection": "connected",
+              "gathering": "complete",
+              "signaling": "stable",
+              "channel": "open/open",
+              "local": {
+                "host": 2
+              },
+              "remote": {
+                "host": 4
+              },
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 4,
+                "applied": 4,
+                "buffered": 3,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 0,
+                "offersIn": 1,
+                "answersOut": 1,
+                "answersIn": 0,
+                "candidatesOut": 2,
+                "relayFailed": 0
+              }
+            }
+          ]
+        }
+      ],
+      "errors": [],
+      "command": "BROWSER=webkit pnpm exec tsx scripts/internet-join-smoke.ts"
+    }
+  ]
+}

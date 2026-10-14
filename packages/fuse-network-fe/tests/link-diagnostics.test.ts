@@ -35,6 +35,18 @@ const base = (over: Partial<LinkDiagnostic> = {}): LinkDiagnostic => ({
 });
 
 test("the reason names the first missing step in the direct-link pipeline", () => {
+  assert.match(
+    explainLink(base({ peer: "guest", offerer: false })),
+    /ICE checking/,
+  );
+  assert.match(
+    explainLink(base({ peer: "host", offerer: true })),
+    /offer not sent/,
+  );
+  assert.match(
+    explainLink(base({ connection: "connected", channel: "open/open" })),
+    /waiting for gameplay probe/,
+  );
   assert.equal(explainLink(base({ healthy: true })), "direct link healthy");
   assert.match(
     explainLink(
@@ -94,9 +106,12 @@ test("the reason names the first missing step in the direct-link pipeline", () =
   );
   assert.match(
     explainLink(base({ ice: "failed" })),
-    /symmetric NAT\/CGNAT.*no TURN/,
+    /networks may block direct WebRTC.*no TURN/,
   );
-  assert.match(explainLink(base({ connection: "failed" })), /symmetric NAT/);
+  assert.match(
+    explainLink(base({ connection: "failed" })),
+    /direct connection failed/,
+  );
   assert.match(explainLink(base({ ageMs: 9000 })), /still checking after 9s/);
   assert.match(
     explainLink(base({ restarts: { attempts: 4, max: 4, exhausted: true } })),

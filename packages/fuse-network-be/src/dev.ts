@@ -75,6 +75,7 @@ export function createDevRoomService(
     {
       now,
       id: randomUUID,
+      log: options.log ?? ((entry) => console.log(JSON.stringify(entry))),
       error: (kind, error) =>
         console.error(
           JSON.stringify({
