@@ -27,8 +27,10 @@ Create a room, join the crew, invite friends, and optionally add bots. Every con
 
 The integer engine owns gameplay. Rendering reads detached views; it cannot advance the simulation. The existing `RoomRuntime`, shared management entries, WebRTC transport, rollback, snapshot protocol and platform admission are reused. Held controls are scoped to match, round and member generation; cancellation clears pending pulse taps. Checkpoints validate bounds and unique ghost ownership atomically. Bots emit ordinary inputs.
 
+Product metrics use `fuse-ui/play-metrics` and the shared analytics adapter. Page opening and actual seat, running-shift and completed-shift observations report the common `fuse.` events with `gameId: "graveyard-shift"`; repeated frames are deduplicated. The shared opt-out, Do Not Track and local-development guard apply, and match ids, names and room codes are not sent.
+
 Focused regressions: `pnpm exec tsx --test games/graveyard-shift/tests/*.test.ts`.
 
 Browser smoke against a running local service: `node games/graveyard-shift/preview/smoke.mjs http://localhost:8797/`. It exercises the menu/tutorial, keyboard solo, mixed online crew, guest reload, shared TV, phone controls, result agreement and rematch. Real-flow screenshots are under `preview/screenshots/`.
 
-POC limits: one arena, two ghost types, synthesized audio, and simple directional bot navigation. Platform integration provides room admission; persistent career statistics are deferred. Phone coverage uses Chromium touch emulation, not physical phones or WAN qualification. Nothing in this PR is merged or deployed.
+POC limits: one arena, two ghost types, synthesized audio, and simple directional bot navigation. Platform integration provides room admission; persistent career statistics are deferred. Phone coverage uses Chromium touch emulation, not physical phones or WAN qualification.
