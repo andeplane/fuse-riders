@@ -15,8 +15,8 @@ const games = [
   "fuse-axe",
   "fuse-bombers",
   "fuse-lane",
-  "graveyard-shift",
   "fuse-drivers",
+  "graveyard-shift",
 ];
 const only = process.env.ONLY?.split(",").filter(Boolean);
 const selected = only ? games.filter((game) => only.includes(game)) : games;
