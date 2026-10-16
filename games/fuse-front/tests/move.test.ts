@@ -14,6 +14,7 @@ import {
   createWorld,
   flowField,
   hashWorld,
+  isqrt,
   loadMap,
   openTile,
   step,
@@ -265,6 +266,18 @@ test("movement is deterministic, and a cold cache gives what a warm one does", (
   const warm = play(false);
   assert.equal(play(false), warm);
   assert.equal(play(true), warm);
+});
+
+test("isqrt is the exact floor square root at the edges", () => {
+  for (let n = 0; n <= 70_000; n++) {
+    const root = isqrt(n);
+    assert.ok(root * root <= n && (root + 1) * (root + 1) > n, `isqrt(${n})`);
+  }
+  for (const root of [255, 4096, 65_535, 1 << 20, 94_906_264]) {
+    assert.equal(isqrt(root * root), root);
+    assert.equal(isqrt(root * root - 1), root - 1);
+    assert.equal(isqrt(root * root + 2 * root), root);
+  }
 });
 
 test("300 units step 40 times well inside a generous budget", () => {
