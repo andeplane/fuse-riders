@@ -171,9 +171,11 @@ for (const { name, kind } of BOTH_ENGINES) {
       // Start measuring only once the authority reports this direction as applied.
       await wait(
         () =>
-          latest().heldMotion?.left === sign < 0 &&
-          latest().heldMotion?.right === sign > 0,
+          !actor().alive ||
+          (latest().heldMotion?.left === sign < 0 &&
+            latest().heldMotion?.right === sign > 0),
       );
+      if (!actor().alive) return undefined;
       const before = actor().angle,
         tick = latest().tick,
         scope = latest().authorityScope;
