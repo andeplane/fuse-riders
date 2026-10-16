@@ -163,7 +163,9 @@ jobs:
     needs: main-health
     if: github.event_name != 'pull_request' || needs.main-health.outputs.red == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Unit tests plus every game's instrumented browser flows took 19m55s on main at a075fd1e and hit
+    # 20 minutes on a pull request, so the limit sits well above the current run.
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

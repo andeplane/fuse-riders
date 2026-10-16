@@ -65,6 +65,35 @@ async function waitForPlayControls(
     { timeout: 30_000 },
   );
 }
+/**
+ * A turn lasts TURN_TICKS (25 s) of game time, and under native coverage on CI the multi-step aim checks
+ * outlasted it, so the deadline handed the turn to EMBER mid-sequence (main run 38647662723; flaky-test
+ * epic #250). Act only with at least `seconds` left on this page's own turn, waiting out the opponent's
+ * turn when there is not.
+ */
+async function waitForOwnTurn(page: Page, seconds: number): Promise<void> {
+  await page.bringToFront();
+  await page.waitForFunction(
+    (minimum) => {
+      const room = document.querySelector<HTMLElement>(".birds-room");
+      const left = /^YOUR TURN\s+·\s+(\d+)s/.exec(
+        document.querySelector(".birds-turn")?.textContent ?? "",
+      );
+      const pass = [
+        ...(room?.querySelectorAll<HTMLButtonElement>("button") ?? []),
+      ].find((button) => button.textContent === "PASS");
+      return (
+        room?.dataset.phase === "aiming" &&
+        !!left &&
+        Number(left[1]) >= minimum &&
+        !!pass &&
+        !pass.disabled
+      );
+    },
+    seconds,
+    { timeout: 90_000 },
+  );
+}
 try {
   const a = await browser.newContext({
       viewport: { width: 1400, height: 900 },
@@ -153,6 +182,7 @@ try {
     0,
     "Slingshot controls must not offer walking or hopping",
   );
+  await waitForOwnTurn(first, 15);
   await first
     .getByRole("button", { name: "Scatter Bomb, 3 shots remaining" })
     .click();
@@ -174,6 +204,7 @@ try {
       .getByRole("button", { name: "Scatter Bomb, 3 shots remaining" })
       .isVisible(),
   );
+  await waitForOwnTurn(first, 10);
   await first.locator("canvas").focus();
   await first.keyboard.press("i");
   await first.locator('canvas[data-gesture="keyboard-aim"]').waitFor();
@@ -185,6 +216,8 @@ try {
       .getByRole("button", { name: "Scatter Bomb, 3 shots remaining" })
       .isVisible(),
   );
+  await waitForOwnTurn(first, 8);
+  await first.locator("canvas").focus();
   await first.keyboard.press("j");
   await first.locator('canvas[data-gesture="keyboard-aim"]').waitFor();
   await first.keyboard.press("Enter");

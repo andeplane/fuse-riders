@@ -138,6 +138,32 @@ for (const { name, kind } of BOTH_ENGINES) {
       await page.waitForTimeout(25);
     }
   };
+  // Solo play keeps bots and walls live, so the rider can crash during a timed trial on a slow runner
+  // (flaky-test epic #250). A death says nothing about steering or cancellation: the trial is redone in a
+  // fresh round through the real menu, and only a live rider's outcome is asserted.
+  const freshRound = async () => {
+    const scope = latest().authorityScope;
+    await page
+      .getByRole("button", { name: "BACK TO LOBBY", exact: true })
+      .click();
+    await wait(() => latest().phase === "lobby");
+    await page.getByRole("button", { name: "START RACE", exact: true }).click();
+    await wait(
+      () => latest().phase === "playing" && latest().authorityScope !== scope,
+    );
+    const playingTick = latest().tick;
+    await wait(() => latest().tick >= playingTick + 2);
+  };
+  const survived = async <T>(
+    trial: () => Promise<T | undefined>,
+  ): Promise<T> => {
+    for (let attempt = 1; ; attempt++) {
+      const outcome = await trial();
+      if (outcome !== undefined) return outcome;
+      assert.ok(attempt < 3, "actor died in three consecutive trials");
+      await freshRound();
+    }
+  };
   const turn = async (key: string, sign: number) => {
     await page.keyboard.down(key);
     try {
@@ -152,6 +178,7 @@ for (const { name, kind } of BOTH_ENGINES) {
         tick = latest().tick,
         scope = latest().authorityScope;
       await wait(() => latest().tick >= tick + 3);
+      if (latest().authorityScope === scope && !actor().alive) return undefined;
       assert.equal(
         latest().phase,
         "playing",
@@ -162,7 +189,6 @@ for (const { name, kind } of BOTH_ENGINES) {
         scope,
         "steering trial must stay in the same round",
       );
-      assert.ok(actor().alive, "actor died during steering trial");
       const delta = Math.atan2(
         Math.sin(actor().angle - before),
         Math.cos(actor().angle - before),
@@ -187,22 +213,10 @@ for (const { name, kind } of BOTH_ENGINES) {
       document.querySelector("canvas")?.dataset.renderer?.startsWith("phaser-"),
     );
     await wait(() => snapshots.length > 0 && latest().phase === "playing");
-    const steering = [await turn("ArrowLeft", -1), await turn("ArrowRight", 1)];
-    const freshRound = async () => {
-      const scope = latest().authorityScope;
-      await page
-        .getByRole("button", { name: "BACK TO LOBBY", exact: true })
-        .click();
-      await wait(() => latest().phase === "lobby");
-      await page
-        .getByRole("button", { name: "START RACE", exact: true })
-        .click();
-      await wait(
-        () => latest().phase === "playing" && latest().authorityScope !== scope,
-      );
-      const playingTick = latest().tick;
-      await wait(() => latest().tick >= playingTick + 2);
-    };
+    const steering = [
+      await survived(() => turn("ArrowLeft", -1)),
+      await survived(() => turn("ArrowRight", 1)),
+    ];
     await freshRound();
     const beforeShot = actor().bombReadyAtTick,
       shotScope = latest().authorityScope;
@@ -225,25 +239,29 @@ for (const { name, kind } of BOTH_ENGINES) {
     );
     // Reset through the real menu action to obtain a fresh bomb cooldown and safe spawn.
     await freshRound();
-    const beforeCancel = actor().bombReadyAtTick,
-      cancelScope = latest().authorityScope;
-    await page.keyboard.down("Space");
-    await fire
-      .getByText("RELEASE!", { exact: true })
-      .waitFor({ state: "attached" });
-    await wait(() => actor().bombChargeStartedTick !== undefined);
-    await page.getByRole("button", { name: /^(ROOM|EXIT)$/ }).click();
-    await page.keyboard.up("Space");
-    await page.getByRole("button", { name: "CLOSE", exact: true }).click();
-    const cancelTick = latest().tick;
-    await wait(() => latest().tick >= cancelTick + 6);
-    assert.equal(latest().authorityScope, cancelScope);
-    assert.ok(actor().alive);
-    assert.equal(
-      actor().bombReadyAtTick,
-      beforeCancel,
-      "opening modal must cancel, not fire",
-    );
+    await survived(async () => {
+      const beforeCancel = actor().bombReadyAtTick,
+        cancelScope = latest().authorityScope;
+      await page.keyboard.down("Space");
+      await fire
+        .getByText("RELEASE!", { exact: true })
+        .waitFor({ state: "attached" });
+      await wait(() => actor().bombChargeStartedTick !== undefined);
+      await page.getByRole("button", { name: /^(ROOM|EXIT)$/ }).click();
+      await page.keyboard.up("Space");
+      await page.getByRole("button", { name: "CLOSE", exact: true }).click();
+      const cancelTick = latest().tick;
+      await wait(() => latest().tick >= cancelTick + 6);
+      if (latest().authorityScope === cancelScope && !actor().alive)
+        return undefined;
+      assert.equal(latest().authorityScope, cancelScope);
+      assert.equal(
+        actor().bombReadyAtTick,
+        beforeCancel,
+        "opening modal must cancel, not fire",
+      );
+      return true;
+    });
     await page
       .getByRole("button", { name: "BACK TO LOBBY", exact: true })
       .click();
