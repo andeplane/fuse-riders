@@ -50,6 +50,13 @@ function fortTile(map: GameMap, seat: number): number {
   return site === undefined ? -1 : site.y * map.width + site.x;
 }
 
+/** Whether a stance can send a unit to `tile`: a flag's tile or a fort's. TODO(hero): FOLLOW adds the hero's tile. */
+export const isGoalTile = (map: GameMap, tile: number): boolean =>
+  flagOnTile(map, tile) >= 0 ||
+  map.sites.some(
+    (site) => site.kind === "fort" && site.y * map.width + site.x === tile,
+  );
+
 /** The cheapest of `goals` to walk to from `from`, plus `extra`; ties to the first listed, -1 when none is reachable. */
 function nearest(
   map: GameMap,
