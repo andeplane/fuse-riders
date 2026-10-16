@@ -218,6 +218,33 @@ test("both teams losing their last fort on one step is a draw; one team alone ne
   assert.equal(step(map, createWorld(map, [0, 2], 1)).winner, NO_WINNER);
 });
 
+const deepFreeze = <T>(value: T): T => {
+  if (typeof value === "object" && value !== null) {
+    for (const each of Object.values(value)) deepFreeze(each);
+    Object.freeze(value);
+  }
+  return value;
+};
+
+test("fighting and won steps leave the world they are given untouched", () => {
+  let world = createWorld(map, [0, 1], 1);
+  world = {
+    ...world,
+    sectors: world.sectors.map((o, i) => (i === TINY.middle ? 0 : o)),
+  };
+  world = withBuilding(world, TINY.fort1, 1);
+  world = add(world, 1, "grunt", at(9), at(6), 1);
+  world = add(world, 0, "torch", at(11), at(2));
+  const frozen = deepFreeze(structuredClone(world));
+  const next = stepTick(map, frozen);
+  assert.deepEqual(frozen, world);
+  assert.equal(next.winner, 0);
+  assert.ok(next.events.some((e) => e.type === "death"));
+  const won = deepFreeze(structuredClone(next));
+  stepTick(map, won);
+  assert.deepEqual(won, next);
+});
+
 test("a finished match round-trips through its checkpoint, events left out", () => {
   let world = createWorld(map, [0, 1, 2], 3);
   world = withBuilding(world, TINY.fort1, 1);

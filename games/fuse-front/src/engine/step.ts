@@ -119,7 +119,7 @@ function applyCommands(
 /**
  * A robot standing on a flag takes its sector for its owner. A flag robots of both teams stand on stays as it is, and
  * a team never takes a flag from itself; when one team's robots stand on another's flag, the lowest-id one takes it.
- * A captured factory starts its default order from scratch.
+ * A captured factory starts its default order from scratch, and a captured turret starts loaded.
  */
 function capture(map: GameMap, world: World): void {
   const taker = new Map<number, number>();
@@ -142,6 +142,7 @@ function capture(map: GameMap, world: World): void {
       if (site.sector !== flag || site.kind === "fort") continue;
       building.order = defaultOrder(site.kind);
       building.progress = 0;
+      building.cooldown = 0;
     }
   }
 }

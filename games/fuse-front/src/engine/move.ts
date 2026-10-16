@@ -64,15 +64,6 @@ function enemyForts(map: GameMap, world: World, team: number): number[] {
   return tiles;
 }
 
-/** Whether `tile` holds a fort of a seat not on `team`. */
-const enemyFortAt = (map: GameMap, tile: number, team: number): boolean =>
-  map.sites.some(
-    (site) =>
-      site.kind === "fort" &&
-      teamOf(site.seat) !== team &&
-      site.y * map.width + site.x === tile,
-  );
-
 /** Whether a stance can send a unit to `tile`: a flag's tile or a fort's. TODO(hero): FOLLOW adds the hero's tile. */
 export const isGoalTile = (map: GameMap, tile: number): boolean =>
   flagOnTile(map, tile) >= 0 ||
@@ -183,7 +174,9 @@ function seek(map: GameMap, world: World, unit: Unit): [number, number] {
     flag >= 0 &&
     !ours(world.sectors[flag]!, teamOf(unit.owner));
   // A sieging unit closes until it is in range of something and stands to fight (`moveUnits`).
-  const sieging = enemyFortAt(map, unit.goal, teamOf(unit.owner));
+  const sieging =
+    !capturing &&
+    enemyForts(map, world, teamOf(unit.owner)).includes(unit.goal);
   if (!capturing && !sieging && cost <= HOLD_RADIUS) return [0, 0];
   let target = unit.goal;
   if (cost > 0) {
