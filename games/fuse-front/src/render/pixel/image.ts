@@ -55,24 +55,37 @@ export class Img {
   px(x: number, y: number, colour: Colour | null | undefined): void {
     if (!colour) return;
     const c = rgba(colour);
-    x = Math.floor(x);
-    y = Math.floor(y);
+    this.over(Math.floor(x), Math.floor(y), c[0], c[1], c[2], c[3]);
+  }
+
+  /** Source-over composites one colour onto the pixel at integer (x, y); out of bounds draws nothing. */
+  private over(
+    x: number,
+    y: number,
+    r: number,
+    g: number,
+    b: number,
+    alpha: number,
+  ): void {
     if (x < 0 || y < 0 || x >= this.w || y >= this.h) return;
     const i = (y * this.w + x) * 4;
     const d = this.d;
-    const a = c[3] / 255;
-    if (a >= 1) {
-      d[i] = c[0];
-      d[i + 1] = c[1];
-      d[i + 2] = c[2];
+    if (alpha >= 255) {
+      d[i] = r;
+      d[i + 1] = g;
+      d[i + 2] = b;
       d[i + 3] = 255;
       return;
     }
-    d[i] = (d[i] ?? 0) * (1 - a) + c[0] * a;
-    d[i + 1] = (d[i + 1] ?? 0) * (1 - a) + c[1] * a;
-    d[i + 2] = (d[i + 2] ?? 0) * (1 - a) + c[2] * a;
-    const da = d[i + 3] ?? 0;
-    d[i + 3] = Math.min(255, da + c[3] * (1 - da / 255));
+    // Straight (non-premultiplied) alpha, as in Canvas ImageData: over a transparent pixel the colour is the source's.
+    const sa = alpha / 255;
+    const da = ((d[i + 3] ?? 0) / 255) * (1 - sa);
+    const oa = sa + da;
+    if (oa <= 0) return;
+    d[i] = (r * sa + (d[i] ?? 0) * da) / oa;
+    d[i + 1] = (g * sa + (d[i + 1] ?? 0) * da) / oa;
+    d[i + 2] = (b * sa + (d[i + 2] ?? 0) * da) / oa;
+    d[i + 3] = oa * 255;
   }
 
   /** A filled w×h rectangle with its top-left at (x, y). */
@@ -101,15 +114,16 @@ export class Img {
   ): void {
     const m = Math.max(rx, ry);
     const step = 0.4 / m;
-    let last = "";
+    let lastX = NaN;
+    let lastY = NaN;
     for (let t = 0; t < Math.PI * 2; t += step) {
       if (dash && Math.floor((t * m) / dash + phase) % 2) continue;
       const x = Math.round(cx + Math.cos(t) * rx);
       const y = Math.round(cy + Math.sin(t) * ry);
-      const k = `${x},${y}`;
-      if (k !== last) {
+      if (x !== lastX || y !== lastY) {
         this.px(x, y, c);
-        last = k;
+        lastX = x;
+        lastY = y;
       }
     }
   }
@@ -162,17 +176,21 @@ export class Img {
 
   /** Composites another image's non-transparent pixels at (x, y). */
   blit(src: Img, x: number, y: number): void {
+    x = Math.floor(x);
+    y = Math.floor(y);
     for (let j = 0; j < src.h; j++)
       for (let i = 0; i < src.w; i++) {
         const k = (j * src.w + i) * 4;
         const a = src.d[k + 3] ?? 0;
         if (a)
-          this.px(x + i, y + j, [
+          this.over(
+            x + i,
+            y + j,
             src.d[k] ?? 0,
             src.d[k + 1] ?? 0,
             src.d[k + 2] ?? 0,
             a,
-          ]);
+          );
       }
   }
 
