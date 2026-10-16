@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  TILE,
   UNIT_CAP,
   centreOf,
   createWorld,
@@ -87,6 +88,11 @@ const corruptions: [string, (wire: Wire) => unknown][] = [
   ["overfull hit points", (w) => ((w[5][0]![1] = 99999), w)],
   ["a unit of an absent seat", (w) => ((w[6][0]![2] = 3), w)],
   ["a unit off the map", (w) => ((w[6][0]![3] = -1), w)],
+  [
+    "a unit standing in rock",
+    (w) => ((w[6][0]![3] = 6 * TILE + 8), (w[6][0]![4] = 3 * TILE + 8), w),
+  ],
+  ["a seat with no fort on the map", (w) => (w[3].push([3, 1, 0]), w)],
   ["a dead unit", (w) => ((w[6][0]![5] = 0), w)],
   ["units out of order", (w) => (w[6].reverse(), w)],
   ["a unit id from the future", (w) => ((w[2] = 2), w)],

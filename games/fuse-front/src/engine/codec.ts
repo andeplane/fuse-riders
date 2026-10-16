@@ -4,7 +4,8 @@
  * and the rules, then the invariants that span records, and returns a whole new world or nothing: a bad checkpoint is
  * refused without touching anything.
  */
-import type { GameMap } from "./map.js";
+import { sectorAt, type GameMap } from "./map.js";
+import { div } from "./math.js";
 import { fnv1a } from "./rng.js";
 import {
   BUILDING_HP,
@@ -108,6 +109,8 @@ function unit(raw: unknown, map: GameMap): Unit | undefined {
   if (!isInt(x, 0, map.width * TILE - 1) || !isInt(y, 0, map.height * TILE - 1))
     return;
   if (!isInt(hp, 1, stats.hp) || !isInt(cooldown, 0, stats.cooldown)) return;
+  // Units stand on ground something walks on, never in rock or water.
+  if (sectorAt(map, div(x, TILE), div(y, TILE)) < 0) return;
   return { id, kind: UNIT_KINDS[kind]!, owner, x, y, hp, cooldown };
 }
 
@@ -146,6 +149,10 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
   if (!players || players.length < 2 || !ascending(players, (p) => p.seat))
     return;
   const seats = new Set(players.map((p) => p.seat));
+  // Every seat in play has a fort on this map, as `createWorld` requires.
+  for (const seat of seats)
+    if (!map.sites.some((site) => site.kind === "fort" && site.seat === seat))
+      return;
   const sectors = list(rawSectors, map.flags.length, (each) =>
     each === NEUTRAL || (isInt(each, 0, MAX_SEATS - 1) && seats.has(each))
       ? (each as number)

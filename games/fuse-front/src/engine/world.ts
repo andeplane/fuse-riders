@@ -1,6 +1,6 @@
 /**
  * One match's world: plain integer records in flat arrays, so the netcode can checkpoint and hash it (`codec.ts`)
- * and `step` can copy the few records it changes instead of cloning everything. What never changes — terrain,
+ * and `step` copies the (small) arrays and records and leaves the map out. What never changes — terrain,
  * sectors, flags and building sites — lives in the `GameMap`, which every peer loads identically.
  */
 import type { GameMap } from "./map.js";
