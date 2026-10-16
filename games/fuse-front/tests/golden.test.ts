@@ -16,21 +16,21 @@ import { dustBasin } from "./fixtures/maps.js";
 
 /**
  * The engine's safety net: six seats on Dust Basin for 1500 log ticks with scripted factory orders and stances, the
- * units walking their stances' flow fields and taking flags. The world's hash is compared every 250 ticks. A refactor must keep these; a change
+ * units walking their stances' flow fields, taking flags and fighting. The world's hash is compared every 250 ticks. A refactor must keep these; a change
  * to the rules must bump `RULES` in `src/engine/tuning.ts` and re-record them in the same commit: `GOLDEN_RECORD=1`
  * prints the new ones.
  */
 const GOLDEN = {
-  rules: "fuse-front-2",
+  rules: "fuse-front-3",
   seed: "fuse-front golden",
   ticks: 1500,
   hashes: [
-    "916718d1",
-    "d6768f87",
-    "ac6f6c56",
-    "de8dab24",
-    "44138d86",
-    "392d1084",
+    "ae6a55b7",
+    "876901e8",
+    "7ef9c4c5",
+    "6f2a25de",
+    "8f96eb22",
+    "bb77dbfc",
   ],
 };
 
