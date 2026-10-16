@@ -4,6 +4,7 @@
  * sectors, flags and building sites — lives in the `GameMap`, which every peer loads identically.
  */
 import type { GameMap, Site } from "./map.js";
+import type { SpellEffect } from "./spells.js";
 import {
   BUILDING_HP,
   FACTORY_KINDS,
@@ -46,6 +47,9 @@ export interface Unit {
   cooldown: number;
   /** The tile index (`y * width + x`) the unit's stance sends it to, or -1 until it picks one (`move.ts`). */
   goal: number;
+  /** Steps left stunned by SHOCKWAVE and rallied by RALLY CRY (`spells.ts`); 0 when not. */
+  stun: number;
+  rally: number;
 }
 
 /**
@@ -66,6 +70,8 @@ export interface Hero {
   goal: number;
   steerX: number;
   steerY: number;
+  /** Steps until each slot (`spells.ts`) can be cast again. */
+  spells: number[];
 }
 
 export interface World {
@@ -117,6 +123,14 @@ export type CombatEvent =
   | { type: "heroDeath"; seat: number; killer: number; x: number; y: number }
   | { type: "respawn"; seat: number; x: number; y: number }
   | { type: "levelUp"; seat: number; level: number }
+  | {
+      type: "cast";
+      seat: number;
+      slot: number;
+      effect: SpellEffect;
+      x: number;
+      y: number;
+    }
   | { type: "won"; winner: number };
 
 export const NEUTRAL = -1;
@@ -218,6 +232,7 @@ export function freshHero(map: GameMap, seat: number): Hero {
     goal: -1,
     steerX: 0,
     steerY: 0,
+    spells: [0, 0, 0, 0],
   };
 }
 

@@ -8,7 +8,8 @@
  * - A shooter fires when its cooldown is 0 and then waits its kind's `cooldown` steps; the timer counts down every step.
  * - A unit with a target in range stands still to fight (`moveUnits` skips its seek), even while reloading. A hero
  *   shoots whether it stands or walks.
- * - A robot within `AURA_RADIUS` of its owner's living hero does `AURA_DAMAGE` percent damage.
+ * - A robot within `AURA_RADIUS` of its owner's living hero does `AURA_DAMAGE` percent damage. Spells (`spells.ts`): a
+ *   stunned unit holds fire, a rallied one reloads faster, and IRON HIDE cuts the damage a covered hero or vehicle takes.
  * - A kill is credited to the owner of the first shot (in shooter order: units by id, heroes by seat, turrets) that hit
  *   the victim this step, and earns XP (`award`).
  * - Units at 0 hit points are removed, in id order; heroes at 0 wait to respawn (`hero.ts`). A turret or fort at 0
@@ -24,6 +25,7 @@ import {
 } from "./hero.js";
 import type { GameMap } from "./map.js";
 import { ceilDiv, div } from "./math.js";
+import { RALLY_PERCENT, hideOf } from "./spells.js";
 import { centreOf } from "./move.js";
 import {
   AURA_DAMAGE,
@@ -160,17 +162,28 @@ export function fight(map: GameMap, world: World): Set<number> {
         ? heroShot(levelOf(hero.xp))
         : { ...TURRET, siege: 100 };
     if (shooter.cooldown > 0) shooter.cooldown--;
+    // A stunned unit neither shoots nor stands to fight.
+    if (unit !== undefined && unit.stun > 0) continue;
     const victim = nearest(from, stats.range);
     if (victim === undefined) continue;
     if (unit !== undefined) engaged.add(unit.id);
     if (shooter.cooldown > 0) continue;
-    shooter.cooldown = stats.cooldown;
+    shooter.cooldown =
+      unit !== undefined && unit.rally > 0
+        ? div(stats.cooldown * 100, 100 + RALLY_PERCENT)
+        : stats.cooldown;
     let damage = stats.damage;
     if (unit !== undefined && UNITS[unit.kind].robot && inAura(from))
       damage = div(damage * AURA_DAMAGE, 100);
     if (victim.of === "building") damage = div(damage * stats.siege, 100);
     if (hero !== undefined)
       hero.facing = facingOf(victim.x - hero.x, victim.y - hero.y, hero.facing);
+    if (victim.of !== "building") {
+      const struck = (victim.of === "hero" ? world.heroes : world.units)[
+        victim.index
+      ]!;
+      damage = div(damage * hideOf(world, struck, victim.team), 100);
+    }
     victim.taken += damage;
     if (victim.killer < 0) victim.killer = from.owner;
     world.events.push({

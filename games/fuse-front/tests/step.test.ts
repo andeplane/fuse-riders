@@ -21,6 +21,7 @@ import {
   type UnitKind,
   type World,
 } from "../src/engine/index.js";
+import { benchHeroes } from "./fixtures/heroes.js";
 import { TINY, dustBasin, tiny } from "./fixtures/maps.js";
 
 /** A world with `kind` units of `owner` placed on a tile, ids continuing the world's. */
@@ -43,6 +44,8 @@ function place(
       hp: UNITS[kind].hp,
       cooldown: 0,
       goal: -1,
+      stun: 0,
+      rally: 0,
     });
   return { ...world, units, nextId };
 }
@@ -185,7 +188,12 @@ test("a player at the unit cap pauses, and a batch is cut to the room left under
   const parking = { x: 12, y: 4 };
   let world = step(
     map,
-    place(createWorld(map, [0, 1], 1), 0, "grunt", map.flags[TINY.middle]!),
+    place(
+      benchHeroes(createWorld(map, [0, 1], 1)),
+      0,
+      "grunt",
+      map.flags[TINY.middle]!,
+    ),
   );
   world = place(world, 0, "grunt", parking, UNIT_CAP - 2);
   world = run(map, world, buildSteps("grunt", 2));
