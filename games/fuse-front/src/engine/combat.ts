@@ -31,6 +31,9 @@ interface Target extends Mark {
   index: number;
 }
 
+/** An empty cell, shared so the 5 × 5 scan allocates nothing for cells nobody stands in. */
+const NO_TARGETS: readonly Target[] = [];
+
 /** Whether `a` is a better target than `b` at squared distances `da` and `db`. */
 const better = (a: Target, da: number, b: Target, db: number): boolean =>
   da !== db ? da < db : a.building !== b.building ? !a.building : a.id < b.id;
@@ -82,7 +85,7 @@ export function fight(map: GameMap, world: World): Set<number> {
     for (let y = cy - reach; y <= cy + reach; y++)
       for (let x = cx - reach; x <= cx + reach; x++) {
         if (x < 0 || y < 0 || x >= columns || y >= rows) continue;
-        for (const target of cells.get(y * columns + x) ?? []) {
+        for (const target of cells.get(y * columns + x) ?? NO_TARGETS) {
           if (target.team === from.team) continue;
           const dx = target.x - from.x,
             dy = target.y - from.y;
