@@ -60,8 +60,19 @@ export const CONCRETE = {
   lo: "#4e4c46",
 } as const;
 
-/** The robot sprite palette for a team. */
+const robotPalettes = new Map<TeamId, SpritePalette>();
+
+/** The robot sprite palette for a team (built once per team: sprites are drawn every frame). */
 export function robotPalette(tm: TeamId): SpritePalette {
+  let pal = robotPalettes.get(tm);
+  if (!pal) {
+    pal = buildRobotPalette(tm);
+    robotPalettes.set(tm, pal);
+  }
+  return pal;
+}
+
+function buildRobotPalette(tm: TeamId): SpritePalette {
   const T = TEAM[tm];
   return {
     k: "#101010",
