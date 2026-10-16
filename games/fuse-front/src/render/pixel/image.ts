@@ -35,11 +35,20 @@ export const SHADOW: Rgba = [0, 0, 0, 85];
 export class Img {
   readonly d: Uint8ClampedArray;
 
+  /**
+   * A transparent w×h image, or a view over an existing RGBA buffer of exactly w×h×4 bytes (such as a Canvas
+   * `ImageData.data`) so drawing lands in it directly.
+   */
   constructor(
     readonly w: number,
     readonly h: number,
+    data?: Uint8ClampedArray,
   ) {
-    this.d = new Uint8ClampedArray(w * h * 4);
+    if (data && data.length !== w * h * 4)
+      throw new RangeError(
+        `Img ${w}x${h} needs ${w * h * 4} bytes, got ${data.length}`,
+      );
+    this.d = data ?? new Uint8ClampedArray(w * h * 4);
   }
 
   /** Plots one pixel (coordinates are floored), alpha-blending translucent colours. A missing colour draws nothing. */
@@ -66,6 +75,7 @@ export class Img {
     d[i + 3] = Math.min(255, da + c[3] * (1 - da / 255));
   }
 
+  /** A filled w×h rectangle with its top-left at (x, y). */
   rect(x: number, y: number, w: number, h: number, c: Colour): void {
     for (let j = 0; j < h; j++)
       for (let i = 0; i < w; i++) this.px(x + i, y + j, c);
@@ -166,7 +176,7 @@ export class Img {
       }
   }
 
-  /** The opaque colour at the clamped pixel (x, y). */
+  /** The colour at the clamped pixel (x, y), with its alpha forced to 255. */
   sample(x: number, y: number): Rgba {
     x = Math.max(0, Math.min(this.w - 1, Math.floor(x)));
     y = Math.max(0, Math.min(this.h - 1, Math.floor(y)));

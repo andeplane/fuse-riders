@@ -113,6 +113,14 @@ test("frame tiles have opaque dark corners for nine-slice borders", () => {
   }
 });
 
+test("an image can draw into a caller's buffer of the right size", () => {
+  const buffer = new Uint8ClampedArray(12 * 12 * 4);
+  const view = new Img(12, 12, buffer);
+  view.rect(0, 0, 1, 1, "#ff0000");
+  assert.deepEqual([...buffer.subarray(0, 4)], [255, 0, 0, 255]);
+  assert.throws(() => new Img(12, 11, buffer), RangeError);
+});
+
 test("team colour tints a portrait", () => {
   const red = new Img(PORTRAIT_SIZE, PORTRAIT_SIZE);
   const blue = new Img(PORTRAIT_SIZE, PORTRAIT_SIZE);

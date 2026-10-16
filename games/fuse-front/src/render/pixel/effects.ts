@@ -2,10 +2,10 @@
 import { type Colour, Img } from "./image.js";
 import { hash } from "./noise.js";
 
-/** A rising column of `n` smoke puffs starting at (x, y). */
-export function puffs(img: Img, x: number, y: number, n = 4, s = 1): void {
+/** A rising column of `n` smoke puffs starting at (x, y), jittered by `seed`. */
+export function puffs(img: Img, x: number, y: number, n = 4, seed = 1): void {
   for (let i = 0; i < n; i++) {
-    const px = x + i * 3 + Math.round(hash(i, 0, s) * 3);
+    const px = x + i * 3 + Math.round(hash(i, 0, seed) * 3);
     const py = y - i * 4;
     const r = 2 + i * 0.9;
     img.ell(px, py, r, r * 0.85, [70, 70, 70, 170 - i * 30]);
