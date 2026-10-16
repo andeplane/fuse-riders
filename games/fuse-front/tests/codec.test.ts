@@ -30,6 +30,7 @@ function played(): World {
         y: centreOf(flag.y),
         hp: 60,
         cooldown: 0,
+        goal: -1,
       },
     ],
   };
@@ -92,6 +93,8 @@ const corruptions: [string, (wire: Wire) => unknown][] = [
     "a unit standing in rock",
     (w) => ((w[6][0]![3] = 6 * TILE + 8), (w[6][0]![4] = 3 * TILE + 8), w),
   ],
+  ["a goal in rock", (w) => ((w[6][0]![7] = 3 * 14 + 6), w)],
+  ["a goal off the map", (w) => ((w[6][0]![7] = 14 * 10), w)],
   ["a seat with no fort on the map", (w) => (w[3].push([3, 1, 0]), w)],
   ["a dead unit", (w) => ((w[6][0]![5] = 0), w)],
   ["units out of order", (w) => (w[6].reverse(), w)],

@@ -60,6 +60,7 @@ export function encodeWorld(world: World): unknown {
       u.y,
       u.hp,
       u.cooldown,
+      u.goal,
     ]),
   ];
 }
@@ -100,9 +101,9 @@ function building(raw: unknown, map: GameMap): Building | undefined {
 }
 
 function unit(raw: unknown, map: GameMap): Unit | undefined {
-  const t = tuple(raw, 7);
+  const t = tuple(raw, 8);
   if (!t) return;
-  const [id, kind, owner, x, y, hp, cooldown] = t;
+  const [id, kind, owner, x, y, hp, cooldown, goal] = t;
   if (!isInt(id, 1, COUNT) || !isInt(kind, 0, UNIT_KINDS.length - 1)) return;
   const stats = UNITS[UNIT_KINDS[kind]!];
   if (!isInt(owner, 0, MAX_SEATS - 1)) return;
@@ -111,7 +112,13 @@ function unit(raw: unknown, map: GameMap): Unit | undefined {
   if (!isInt(hp, 1, stats.hp) || !isInt(cooldown, 0, stats.cooldown)) return;
   // Units stand on ground something walks on, never in rock or water.
   if (sectorAt(map, div(x, TILE), div(y, TILE)) < 0) return;
-  return { id, kind: UNIT_KINDS[kind]!, owner, x, y, hp, cooldown };
+  // A goal is a tile something walks on, or -1 for none yet.
+  if (
+    goal !== -1 &&
+    !(isInt(goal, 0, map.width * map.height - 1) && map.sectorOf[goal]! >= 0)
+  )
+    return;
+  return { id, kind: UNIT_KINDS[kind]!, owner, x, y, hp, cooldown, goal };
 }
 
 function list<T>(

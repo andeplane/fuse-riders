@@ -20,3 +20,15 @@ export function imul(a: number, b: number): number {
     bh = (b >>> 16) & 0xffff;
   return (al * bl + (((ah * bl + al * bh) << 16) >>> 0)) | 0;
 }
+
+/** The whole square root of a non-negative whole number, rounded down (Newton's method in integers). */
+export function isqrt(n: number): number {
+  if (n < 2) return n;
+  let x = n,
+    y = div(n + 1, 2);
+  while (y < x) {
+    x = y;
+    y = div(x + div(n, x), 2);
+  }
+  return x;
+}
