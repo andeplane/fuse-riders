@@ -30,7 +30,7 @@ const GOLDEN = {
     "7ef9c4c5",
     "6f2a25de",
     "8f96eb22",
-    "bb77dbfc",
+    "c8bf3489",
   ],
 };
 
