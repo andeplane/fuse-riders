@@ -9,6 +9,7 @@ import { DIRS, openTile } from "./flow.js";
 import { MAX_XP, levelOf, maxEnergy, maxHp, respawnSteps } from "./hero.js";
 import { div } from "./math.js";
 import { FOLLOW_HERO, isGoalTile } from "./move.js";
+import { KITS, longest } from "./spells.js";
 import { fnv1a } from "./rng.js";
 import {
   BUILDING_HP,
@@ -74,6 +75,8 @@ export function encodeWorld(world: World): unknown {
       u.hp,
       u.cooldown,
       u.goal,
+      u.stun,
+      u.rally,
     ]),
     world.heroes.map((h) => [
       h.seat,
@@ -88,6 +91,7 @@ export function encodeWorld(world: World): unknown {
       h.goal,
       h.steerX,
       h.steerY,
+      [...h.spells],
     ]),
     world.winner,
   ];
@@ -133,9 +137,9 @@ function building(raw: unknown, map: GameMap): Building | undefined {
 }
 
 function unit(raw: unknown, map: GameMap): Unit | undefined {
-  const t = tuple(raw, 8);
+  const t = tuple(raw, 10);
   if (!t) return;
-  const [id, kind, owner, x, y, hp, cooldown, goal] = t;
+  const [id, kind, owner, x, y, hp, cooldown, goal, stun, rally] = t;
   if (!isInt(id, 1, COUNT) || !isInt(kind, 0, UNIT_KINDS.length - 1)) return;
   const stats = UNITS[UNIT_KINDS[kind]!];
   if (!isInt(owner, 0, MAX_SEATS - 1)) return;
@@ -151,11 +155,16 @@ function unit(raw: unknown, map: GameMap): Unit | undefined {
     !(isInt(goal, 0, COUNT) && isGoalTile(map, goal))
   )
     return;
-  return { id, kind: UNIT_KINDS[kind]!, owner, x, y, hp, cooldown, goal };
+  // Only robots take statuses, and none outlasts its spell at the top level.
+  const robot = stats.robot ? 1 : 0;
+  if (!isInt(stun, 0, robot * longest("shockwave"))) return;
+  if (!isInt(rally, 0, robot * longest("rally"))) return;
+  const unitKind = UNIT_KINDS[kind]!;
+  return { id, kind: unitKind, owner, x, y, hp, cooldown, goal, stun, rally };
 }
 
 function hero(raw: unknown, map: GameMap): Hero | undefined {
-  const t = tuple(raw, 12);
+  const t = tuple(raw, 13);
   if (!t) return;
   const [seat, x, y, hp, energy, xp, cooldown, respawn, facing, goal] = t;
   const [steerX, steerY] = [t[10], t[11]];
@@ -177,6 +186,11 @@ function hero(raw: unknown, map: GameMap): Hero | undefined {
   }
   if (!isInt(steerX, -STEER_MAX, STEER_MAX)) return;
   if (!isInt(steerY, -STEER_MAX, STEER_MAX)) return;
+  // One cooldown per slot, never above the slot's own (a passive's is 0).
+  const kit = KITS.brick;
+  const spells = tuple(t[12], kit.length);
+  if (!spells?.every((left, slot) => isInt(left, 0, kit[slot]!.cooldown)))
+    return;
   return {
     seat,
     x,
@@ -190,6 +204,7 @@ function hero(raw: unknown, map: GameMap): Hero | undefined {
     goal: goal as number,
     steerX,
     steerY,
+    spells: spells as number[],
   };
 }
 

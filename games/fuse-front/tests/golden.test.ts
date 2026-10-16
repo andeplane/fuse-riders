@@ -16,23 +16,23 @@ import {
 import { dustBasin } from "./fixtures/maps.js";
 
 /**
- * The engine's safety net: six seats on Dust Basin for 1500 log ticks with scripted factory orders, stances and hero
- * moves and steering, the units walking their stances' flow fields, taking flags and fighting, the heroes levelling,
+ * The engine's safety net: six seats on Dust Basin for 1500 log ticks with scripted factory orders, stances, hero
+ * moves, steering and casts (the ultimates refused below level 6), the units walking their stances' flow fields, taking flags and fighting, the heroes levelling,
  * dying and respawning. The world's hash is compared every 250 ticks. A refactor must keep these; a change to the
  * rules must bump `RULES` in `src/engine/tuning.ts` and re-record them in the same commit: `GOLDEN_RECORD=1` prints
  * the new ones.
  */
 const GOLDEN = {
-  rules: "fuse-front-4",
+  rules: "fuse-front-5",
   seed: "fuse-front golden",
   ticks: 1500,
   hashes: [
-    "78b08c34",
-    "11b9b080",
-    "8d600fd5",
-    "a76ba4fe",
-    "c84c2639",
-    "89d15acb",
+    "8ccfa88c",
+    "01016175",
+    "a86ce8e9",
+    "9f26d20f",
+    "a7bc62d0",
+    "caadd767",
   ],
 };
 
@@ -43,7 +43,11 @@ const SCRIPT = new Map<number, Command[]>([
   [60, [{ seat: 3, type: "steer", dx: -8, dy: 1 }]],
   [300, [{ seat: 3, type: "steer", dx: 0, dy: 0 }]],
   [320, [{ seat: 0, type: "move", x: 47, y: 27 }]],
+  [450, [{ seat: 0, type: "cast", slot: 1, x: 0, y: 0 }]],
   [500, [{ seat: 2, type: "move", x: 59, y: 15 }]],
+  [620, [{ seat: 0, type: "cast", slot: 0, x: 0, y: 0 }]],
+  [1200, [{ seat: 1, type: "cast", slot: 3, x: 0, y: 0 }]],
+  [1400, [{ seat: 4, type: "cast", slot: 3, x: 0, y: 0 }]],
   [700, [{ seat: 1, type: "stance", stance: "push" }]],
   [900, [{ seat: 5, type: "move", x: 36, y: 41 }]],
 ]);

@@ -6,6 +6,7 @@ import {
   FOLLOW_HERO,
   HERO,
   KILL_XP,
+  KITS,
   UNITS,
   centreOf,
   createWorld,
@@ -30,6 +31,11 @@ import { TINY, tiny } from "./fixtures/maps.js";
 
 const map = tiny();
 const at = centreOf;
+/** A grunt's shot on a level 1 Brick, under its IRON HIDE. */
+const HIDDEN_GRUNT = div(
+  UNITS.grunt.damage * (100 - KITS.brick[2]!.power),
+  100,
+);
 
 const withHero = (world: World, seat: number, patch: Partial<Hero>): World => ({
   ...world,
@@ -55,6 +61,8 @@ function add(
     hp,
     cooldown: 0,
     goal: -1,
+    stun: 0,
+    rally: 0,
   };
   return { ...world, units: [...world.units, unit], nextId: world.nextId + 1 };
 }
@@ -135,7 +143,7 @@ test("a hero shoots the nearest enemy while walking, and enemies shoot it", () =
   assert.deepEqual(
     shots.map((e) => [e.from.of, e.from.id, e.to.of, e.to.id, e.damage]),
     [
-      ["unit", 1, "hero", 0, UNITS.grunt.damage],
+      ["unit", 1, "hero", 0, HIDDEN_GRUNT],
       ["hero", 0, "unit", 1, heroShot(1).damage],
     ],
   );
@@ -153,7 +161,7 @@ test("a kill earns the killer's hero XP, a nearby teammate's hero half, and a le
   assert.equal(heroOf(next, 2).xp, KILL_XP.grunt / 2);
   assert.equal(
     heroOf(next, 0).hp,
-    maxHp(2) - UNITS.grunt.damage,
+    maxHp(2) - HIDDEN_GRUNT,
     "a level, less the grunt's last shot",
   );
   assert.deepEqual(

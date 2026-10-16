@@ -1,12 +1,13 @@
 /**
- * One engine step: the step's commands, the heroes' energy and respawns (`hero.ts`), goals (`move.ts`), combat
- * (`combat.ts`), movement of units then heroes, capture and production. `step` never mutates the world it is given: it
- * copies the arrays and records (players, sectors, buildings, units, heroes) and returns a new world, so the netcode
- * can keep the previous one as a snapshot. Once the match has a winner a step only advances the clock. Bots and
- * spells arrive in later rules.
+ * One engine step: spell timers (`spells.ts`), the step's commands (casts take effect here), the heroes' energy and
+ * respawns (`hero.ts`), goals (`move.ts`), combat (`combat.ts`), movement of units then heroes, capture and
+ * production. `step` never mutates the world it is given: it copies the arrays and records (players, sectors,
+ * buildings, units, heroes) and returns a new world, so the netcode can keep the previous one as a snapshot. Once the
+ * match has a winner a step only advances the clock. Bots arrive in later rules.
  */
 import { isInt } from "./codec.js";
 import { fight } from "./combat.js";
+import { cast, tickSpells } from "./spells.js";
 import { openTile } from "./flow.js";
 import { alive, gainXp, moveHeroes, tendHeroes } from "./hero.js";
 import { flagAt, type GameMap } from "./map.js";
@@ -42,13 +43,15 @@ import {
  * What a player sends: a factory's standing order, the stance of every unit that player's factories built, a walk
  * for the hero to a tile (`move`, in tiles), or the held stick direction (`steer`, each axis -STEER_MAX..STEER_MAX,
  * (0, 0) releasing it). A move releases the stick and a steer cancels the move, so the latest wins. Both apply to a
- * dead hero too: the stick stays held, and a move made while dead is walked after the respawn.
+ * dead hero too: the stick stays held, and a move made while dead is walked after the respawn. `cast` fires the
+ * hero's slot 0–3 (Q, W, E, R) aimed at a tile (`spells.ts`); one that cannot be cast does nothing.
  */
 export type Command =
   | { seat: number; type: "order"; factory: number; kind: UnitKind }
   | { seat: number; type: "stance"; stance: Stance }
   | { seat: number; type: "move"; x: number; y: number }
-  | { seat: number; type: "steer"; dx: number; dy: number };
+  | { seat: number; type: "steer"; dx: number; dy: number }
+  | { seat: number; type: "cast"; slot: number; x: number; y: number };
 
 export function step(
   map: GameMap,
@@ -64,9 +67,10 @@ export function step(
     sectors: [...world.sectors],
     buildings: world.buildings.map((building) => ({ ...building })),
     units: world.units.map((unit) => ({ ...unit })),
-    heroes: world.heroes.map((hero) => ({ ...hero })),
+    heroes: world.heroes.map((hero) => ({ ...hero, spells: [...hero.spells] })),
     events: [],
   };
+  tickSpells(next);
   applyCommands(map, next, commands);
   tendHeroes(map, next);
   chooseGoals(map, next);
@@ -132,6 +136,16 @@ function applyCommands(
         if (dx !== 0 || dy !== 0) hero.goal = -1;
         [hero.steerX, hero.steerY] = [dx, dy];
       }
+    } else if (command.type === "cast") {
+      const { slot, x, y } = command;
+      if (!isInt(slot, 0, 3) || !isInt(x, 0, map.width - 1)) continue;
+      if (!isInt(y, 0, map.height - 1)) continue;
+      cast(
+        map,
+        world,
+        world.heroes.find((h) => h.seat === player.seat)!,
+        slot,
+      );
     } else if (command.type === "order") {
       const building = world.buildings.find(
         (each) => each.id === command.factory,
@@ -219,6 +233,8 @@ function produce(map: GameMap, world: World): void {
         hp: stats.hp,
         cooldown: 0,
         goal: -1,
+        stun: 0,
+        rally: 0,
       });
     units.set(owner, count + batch);
   }
