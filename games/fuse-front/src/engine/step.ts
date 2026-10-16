@@ -1,6 +1,6 @@
 /**
  * One engine step: the step's commands, then capture, then production. `step` never mutates the world it is given:
- * it copies the arrays and records a step can change and returns a new world, so the netcode can keep the previous
+ * it copies the arrays and records (players, sectors, buildings, units) and returns a new world, so the netcode can keep the previous
  * one as a snapshot. Movement, combat, heroes and bots arrive in later rules; units stand where they spawn.
  */
 import { flagAt, type GameMap } from "./map.js";

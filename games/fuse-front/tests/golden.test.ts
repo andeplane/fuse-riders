@@ -6,6 +6,8 @@ import {
   UNITS,
   centreOf,
   createWorld,
+  decodeWorld,
+  encodeWorld,
   hashWorld,
   seedOf,
   stepTick,
@@ -80,12 +82,16 @@ function advance(map: GameMap, world: World): World {
   return { ...world, units };
 }
 
-test("the golden run hashes as recorded", () => {
-  assert.equal(RULES, GOLDEN.rules, "RULES changed: re-record the golden");
-  const map = dustBasin();
-  let world = createWorld(map, [0, 1, 2, 3, 4, 5], seedOf(GOLDEN.seed));
+/** Ticks `from + 1` to `to` of the scripted run, with the hash of every 250th tick. */
+function play(
+  map: GameMap,
+  start: World,
+  from: number,
+  to: number,
+): { world: World; hashes: string[] } {
+  let world = start;
   const hashes: string[] = [];
-  for (let tick = 1; tick <= GOLDEN.ticks; tick++) {
+  for (let tick = from + 1; tick <= to; tick++) {
     if (tick % 150 === 0) world = advance(map, world);
     world = stepTick(map, world, [
       ...(SCRIPT.get(tick) ?? []),
@@ -93,6 +99,16 @@ test("the golden run hashes as recorded", () => {
     ]);
     if (tick % 250 === 0) hashes.push(hashWorld(world));
   }
+  return { world, hashes };
+}
+
+const fresh = (map: GameMap): World =>
+  createWorld(map, [0, 1, 2, 3, 4, 5], seedOf(GOLDEN.seed));
+
+test("the golden run hashes as recorded", () => {
+  assert.equal(RULES, GOLDEN.rules, "RULES changed: re-record the golden");
+  const map = dustBasin();
+  const { world, hashes } = play(map, fresh(map), 0, GOLDEN.ticks);
   if (process.env.GOLDEN_RECORD) console.log(JSON.stringify(hashes));
   assert.ok(world.units.length > 30, "the run builds an army");
   assert.ok(
@@ -100,4 +116,19 @@ test("the golden run hashes as recorded", () => {
     "the run takes sectors",
   );
   assert.deepEqual(hashes, GOLDEN.hashes);
+});
+
+test("a run resumed from a decoded mid-match checkpoint reaches the same hashes", () => {
+  const map = dustBasin();
+  const early = play(map, fresh(map), 0, 750);
+  assert.deepEqual(early.hashes, GOLDEN.hashes.slice(0, 3));
+  // What a late joiner or a rollback restores: the wire form, not the live object.
+  const restored = decodeWorld(
+    JSON.parse(JSON.stringify(encodeWorld(early.world))),
+    map,
+  );
+  assert.ok(restored, "the checkpoint decodes");
+  assert.equal(hashWorld(restored), hashWorld(early.world));
+  const late = play(map, restored, 750, GOLDEN.ticks);
+  assert.deepEqual(late.hashes, GOLDEN.hashes.slice(3));
 });

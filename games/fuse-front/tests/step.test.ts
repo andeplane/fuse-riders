@@ -10,6 +10,7 @@ import {
   centreOf,
   clockRate,
   createWorld,
+  hashWorld,
   imul,
   step,
   stepTick,
@@ -327,4 +328,27 @@ test("imul matches Math.imul", () => {
   for (const a of values)
     for (const b of values)
       assert.equal(imul(a, b), Math.imul(a, b), `${a} × ${b}`);
+});
+
+test("seats' commands in one tick do not depend on the order they arrive in", () => {
+  const map = tiny();
+  let world = step(
+    map,
+    place(createWorld(map, [0, 1], 1), 0, "grunt", map.flags[TINY.middle]!),
+  );
+  world = run(map, world, 5);
+  const commands: Command[] = [
+    { seat: 0, type: "order", factory: TINY.robotFactory, kind: "torch" },
+    { seat: 1, type: "stance", stance: "hold" },
+    { seat: 0, type: "stance", stance: "follow" },
+    { seat: 1, type: "order", factory: TINY.robotFactory, kind: "grunt" },
+  ];
+  const forward = hashWorld(step(map, world, commands));
+  assert.equal(hashWorld(step(map, world, [...commands].reverse())), forward);
+  // Within one seat the order is the seat's own: the last stance wins.
+  const flipped = step(map, world, [
+    { seat: 0, type: "stance", stance: "hold" },
+    { seat: 0, type: "stance", stance: "follow" },
+  ]);
+  assert.equal(flipped.players[0]!.stance, "follow");
 });
