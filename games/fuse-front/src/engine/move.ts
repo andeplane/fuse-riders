@@ -199,6 +199,9 @@ function seek(map: GameMap, world: World, unit: Unit): [number, number] {
   return [div(dx * speed, length), div(dy * speed, length)];
 }
 
+/** An empty cell, shared so the 3 × 3 scan allocates nothing for tiles nobody stands on. */
+const NO_UNITS: readonly number[] = [];
+
 /**
  * The push away from units overlapping this one (closer than their radii summed), half the overlap each, capped at
  * the unit's speed. Two units on the very same sub-pixel part along a direction both derive from their ids.
@@ -218,7 +221,7 @@ function separate(
   for (let y = ty - 1; y <= ty + 1; y++)
     for (let x = tx - 1; x <= tx + 1; x++) {
       if (x < 0 || y < 0 || x >= map.width || y >= map.height) continue;
-      for (const other of cells.get(y * map.width + x) ?? []) {
+      for (const other of cells.get(y * map.width + x) ?? NO_UNITS) {
         if (other === index) continue;
         const them = units[other]!;
         const reach = UNITS[unit.kind].radius + UNITS[them.kind].radius;
