@@ -13,7 +13,7 @@ import {
   type Stance,
   type UnitKind,
 } from "./tuning.js";
-import { NEUTRAL, ownerOf, type World } from "./world.js";
+import { NEUTRAL, ownerOf, type CombatEvent, type World } from "./world.js";
 
 export interface FlagView {
   sector: number;
@@ -67,6 +67,10 @@ export interface WorldView {
   buildings: readonly BuildingView[];
   units: readonly UnitView[];
   players: readonly { seat: number; team: number; stance: Stance }[];
+  /** `NO_WINNER`, the winning team, or `DRAW`. */
+  winner: number;
+  /** What the last step or tick did (shots, deaths, ruins, the result), to animate; not part of the checkpoint. */
+  events: readonly CombatEvent[];
 }
 
 const teamOrNeutral = (seat: number): number =>
@@ -118,5 +122,7 @@ export function viewOf(map: GameMap, world: World): WorldView {
       maxHp: UNITS[unit.kind].hp,
     })),
     players: world.players.map((player) => ({ ...player })),
+    winner: world.winner,
+    events: structuredClone(world.events),
   };
 }

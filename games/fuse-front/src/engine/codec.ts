@@ -1,6 +1,6 @@
 /**
  * The world as checkpoint fields: nested integer tuples in a fixed order, so `JSON.stringify(encodeWorld(world))` is
- * canonical and `hashWorld` folds it with FNV-1a. `decodeWorld` checks every field's type and range against the map
+ * canonical and `hashWorld` folds it with FNV-1a. A step's presentation `events` are left out. `decodeWorld` checks every field's type and range against the map
  * and the rules, then the invariants that span records, and returns a whole new world or nothing: a bad checkpoint is
  * refused without touching anything.
  */
@@ -14,6 +14,7 @@ import {
   MAX_SEATS,
   STANCES,
   TILE,
+  TURRET,
   UNITS,
   UNIT_CAP,
   UNIT_KINDS,
@@ -25,6 +26,7 @@ import {
   type Player,
   type Unit,
   type World,
+  winnerOf,
 } from "./world.js";
 
 const UINT32 = 0xffff_ffff;
@@ -52,6 +54,7 @@ export function encodeWorld(world: World): unknown {
       b.hp,
       b.order === null ? -1 : UNIT_KINDS.indexOf(b.order),
       b.progress,
+      b.cooldown,
     ]),
     world.units.map((u) => [
       u.id,
@@ -63,6 +66,7 @@ export function encodeWorld(world: World): unknown {
       u.cooldown,
       u.goal,
     ]),
+    world.winner,
   ];
 }
 
@@ -82,12 +86,16 @@ function player(raw: unknown): Player | undefined {
 }
 
 function building(raw: unknown, map: GameMap): Building | undefined {
-  const t = tuple(raw, 4);
+  const t = tuple(raw, 5);
   if (!t) return;
-  const [id, hp, order, progress] = t;
+  const [id, hp, order, progress, cooldown] = t;
   if (!isInt(id, 0, map.sites.length - 1)) return;
   const kind = map.sites[id]!.kind;
-  if (!isInt(hp, 0, BUILDING_HP[kind])) return;
+  // Only turrets and forts are shot at, so only they can stand at 0 hit points (a ruin).
+  const lowest = kind === "turret" || kind === "fort" ? 0 : 1;
+  if (!isInt(hp, lowest, BUILDING_HP[kind])) return;
+  if (!isInt(cooldown, 0, kind === "turret" && hp > 0 ? TURRET.cooldown : 0))
+    return;
   const kinds = FACTORY_KINDS[kind];
   if (
     kinds.length === 0 ? order !== -1 : !isInt(order, 0, UNIT_KINDS.length - 1)
@@ -98,7 +106,7 @@ function building(raw: unknown, map: GameMap): Building | undefined {
   // A batch resets on completion, so stored work stays below a whole batch.
   const most = made === null ? 0 : UNITS[made].build * 100 - 1;
   if (!isInt(progress, 0, most)) return;
-  return { id, hp, order: made, progress };
+  return { id, hp, order: made, progress, cooldown };
 }
 
 function unit(raw: unknown, map: GameMap): Unit | undefined {
@@ -140,9 +148,10 @@ const ascending = <T>(items: readonly T[], key: (item: T) => number) =>
 
 /** A world from a checkpoint for `map`, or undefined when anything in it is out of place. */
 export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
-  const t = tuple(raw, 7);
+  const t = tuple(raw, 8);
   if (!t) return;
   const [step, rng, nextId, rawPlayers, rawSectors, rawBuildings, rawUnits] = t;
+  const winner = t[7];
   if (
     !isInt(step, 0, COUNT) ||
     !isInt(rng, 0, UINT32) ||
@@ -184,5 +193,18 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
     owned.set(u.owner, (owned.get(u.owner) ?? 0) + 1);
   }
   for (const count of owned.values()) if (count > UNIT_CAP) return;
-  return { step, rng, nextId, players, sectors, buildings, units };
+  // The recorded result is exactly the one the forts imply.
+  const result = winnerOf(map, players, buildings);
+  if (winner !== result) return;
+  return {
+    step,
+    rng,
+    nextId,
+    players,
+    sectors,
+    buildings,
+    units,
+    winner: result,
+    events: [],
+  };
 }
