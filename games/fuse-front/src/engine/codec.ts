@@ -6,6 +6,7 @@
  */
 import { sectorAt, type GameMap } from "./map.js";
 import { div } from "./math.js";
+import { isGoalTile } from "./move.js";
 import { fnv1a } from "./rng.js";
 import {
   BUILDING_HP,
@@ -112,12 +113,8 @@ function unit(raw: unknown, map: GameMap): Unit | undefined {
   if (!isInt(hp, 1, stats.hp) || !isInt(cooldown, 0, stats.cooldown)) return;
   // Units stand on ground something walks on, never in rock or water.
   if (sectorAt(map, div(x, TILE), div(y, TILE)) < 0) return;
-  // A goal is a tile something walks on, or -1 for none yet.
-  if (
-    goal !== -1 &&
-    !(isInt(goal, 0, map.width * map.height - 1) && map.sectorOf[goal]! >= 0)
-  )
-    return;
+  // A goal is a flag or fort tile, or -1 for none yet: a few dozen tiles, so their flow fields stay cached.
+  if (goal !== -1 && !(isInt(goal, 0, COUNT) && isGoalTile(map, goal))) return;
   return { id, kind: UNIT_KINDS[kind]!, owner, x, y, hp, cooldown, goal };
 }
 

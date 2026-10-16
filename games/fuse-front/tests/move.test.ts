@@ -200,7 +200,7 @@ test("holding units gather near their team's flags, spread over them, and take n
     ...world,
     sectors: world.sectors.map((owner, flag) => (flag === 3 ? 0 : owner)),
   };
-  const spots = [2, 3, 4, 5, 6, 7].map((y) => ({ x: 1, y }));
+  const spots = [1, 2, 4, 6, 7, 8].map((y) => ({ x: 5, y }));
   world = place(world, 0, "grunt", spots);
   world = step(map, world, [stance(0, "hold")]);
   world = run(map, world, 400);
@@ -215,7 +215,7 @@ test("holding units gather near their team's flags, spread over them, and take n
       ),
     );
     assert.ok(
-      cost <= HOLD_RADIUS + 2 * STRAIGHT,
+      cost <= HOLD_RADIUS + STRAIGHT,
       `unit ${unit.id} strayed ${cost}`,
     );
   }
@@ -241,7 +241,7 @@ test("separation parts units stacked on one sub-pixel", () => {
     for (const b of world.units.slice(index + 1)) {
       const d2 = (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
       assert.ok(
-        d2 >= UNITS.grunt.radius ** 2,
+        d2 >= (2 * UNITS.grunt.radius - 4) ** 2,
         `units ${a.id} and ${b.id} overlap`,
       );
     }

@@ -95,6 +95,7 @@ const corruptions: [string, (wire: Wire) => unknown][] = [
   ],
   ["a goal in rock", (w) => ((w[6][0]![7] = 3 * 14 + 6), w)],
   ["a goal off the map", (w) => ((w[6][0]![7] = 14 * 10), w)],
+  ["a goal on plain ground", (w) => ((w[6][0]![7] = 4 * 14 + 4), w)],
   ["a seat with no fort on the map", (w) => (w[3].push([3, 1, 0]), w)],
   ["a dead unit", (w) => ((w[6][0]![5] = 0), w)],
   ["units out of order", (w) => (w[6].reverse(), w)],
