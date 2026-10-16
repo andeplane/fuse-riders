@@ -6,6 +6,7 @@ export * from "./step.js";
 export * from "./flow.js";
 export * from "./move.js";
 export * from "./combat.js";
+export * from "./hero.js";
 export * from "./codec.js";
 export * from "./view.js";
 export { next, roll, fnv1a, seedOf } from "./rng.js";

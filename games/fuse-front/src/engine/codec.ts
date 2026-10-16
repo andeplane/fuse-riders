@@ -5,14 +5,18 @@
  * refused without touching anything.
  */
 import { sectorAt, type GameMap } from "./map.js";
+import { DIRS, openTile } from "./flow.js";
+import { MAX_XP, levelOf, maxEnergy, maxHp, respawnSteps } from "./hero.js";
 import { div } from "./math.js";
-import { isGoalTile } from "./move.js";
+import { FOLLOW_HERO, isGoalTile } from "./move.js";
 import { fnv1a } from "./rng.js";
 import {
   BUILDING_HP,
   FACTORY_KINDS,
   MAX_SEATS,
   STANCES,
+  HERO,
+  STEER_MAX,
   TILE,
   TURRET,
   UNITS,
@@ -23,6 +27,7 @@ import {
 import {
   NEUTRAL,
   type Building,
+  type Hero,
   type Player,
   type Unit,
   type World,
@@ -33,7 +38,11 @@ const UINT32 = 0xffff_ffff;
 /** Steps, ids and counters stay well inside exact integers. */
 const COUNT = 0xff_ffff_ffff;
 
-const isInt = (value: unknown, low: number, high: number): value is number =>
+export const isInt = (
+  value: unknown,
+  low: number,
+  high: number,
+): value is number =>
   typeof value === "number" &&
   Number.isInteger(value) &&
   value >= low &&
@@ -65,6 +74,20 @@ export function encodeWorld(world: World): unknown {
       u.hp,
       u.cooldown,
       u.goal,
+    ]),
+    world.heroes.map((h) => [
+      h.seat,
+      h.x,
+      h.y,
+      h.hp,
+      h.energy,
+      h.xp,
+      h.cooldown,
+      h.respawn,
+      h.facing,
+      h.goal,
+      h.steerX,
+      h.steerY,
     ]),
     world.winner,
   ];
@@ -122,8 +145,52 @@ function unit(raw: unknown, map: GameMap): Unit | undefined {
   // Units stand on ground something walks on, never in rock or water.
   if (sectorAt(map, div(x, TILE), div(y, TILE)) < 0) return;
   // A goal is a flag or fort tile, or -1 for none yet: a few dozen tiles, so their flow fields stay cached.
-  if (goal !== -1 && !(isInt(goal, 0, COUNT) && isGoalTile(map, goal))) return;
+  if (
+    goal !== -1 &&
+    goal !== FOLLOW_HERO &&
+    !(isInt(goal, 0, COUNT) && isGoalTile(map, goal))
+  )
+    return;
   return { id, kind: UNIT_KINDS[kind]!, owner, x, y, hp, cooldown, goal };
+}
+
+function hero(raw: unknown, map: GameMap): Hero | undefined {
+  const t = tuple(raw, 12);
+  if (!t) return;
+  const [seat, x, y, hp, energy, xp, cooldown, respawn, facing, goal] = t;
+  const [steerX, steerY] = [t[10], t[11]];
+  if (!isInt(seat, 0, MAX_SEATS - 1) || !isInt(xp, 0, MAX_XP)) return;
+  const level = levelOf(xp);
+  if (!isInt(x, 0, map.width * TILE - 1) || !isInt(y, 0, map.height * TILE - 1))
+    return;
+  if (!openTile(map, div(x, TILE), div(y, TILE))) return;
+  if (!isInt(hp, 0, maxHp(level)) || !isInt(energy, 0, maxEnergy(level)))
+    return;
+  // A living hero has no respawn timer; a dead one has one running and its gun at rest.
+  if (hp > 0 ? respawn !== 0 : !isInt(respawn, 1, respawnSteps(level))) return;
+  if (!isInt(cooldown, 0, hp > 0 ? HERO.cooldown : 0)) return;
+  if (!isInt(facing, 0, DIRS.length - 1)) return;
+  // A move goal is any open tile, at most one per hero, so the flow cache stays bounded.
+  if (goal !== -1) {
+    if (!isInt(goal, 0, map.width * map.height - 1)) return;
+    if (!openTile(map, goal % map.width, div(goal, map.width))) return;
+  }
+  if (!isInt(steerX, -STEER_MAX, STEER_MAX)) return;
+  if (!isInt(steerY, -STEER_MAX, STEER_MAX)) return;
+  return {
+    seat,
+    x,
+    y,
+    hp,
+    energy,
+    xp,
+    cooldown,
+    respawn: respawn as number,
+    facing,
+    goal: goal as number,
+    steerX,
+    steerY,
+  };
 }
 
 function list<T>(
@@ -148,10 +215,10 @@ const ascending = <T>(items: readonly T[], key: (item: T) => number) =>
 
 /** A world from a checkpoint for `map`, or undefined when anything in it is out of place. */
 export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
-  const t = tuple(raw, 8);
+  const t = tuple(raw, 9);
   if (!t) return;
   const [step, rng, nextId, rawPlayers, rawSectors, rawBuildings, rawUnits] = t;
-  const winner = t[7];
+  const [rawHeroes, winner] = [t[7], t[8]];
   if (
     !isInt(step, 0, COUNT) ||
     !isInt(rng, 0, UINT32) ||
@@ -193,6 +260,14 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
     owned.set(u.owner, (owned.get(u.owner) ?? 0) + 1);
   }
   for (const count of owned.values()) if (count > UNIT_CAP) return;
+  // One hero per player, in the players' order.
+  const heroes = list(rawHeroes, MAX_SEATS, (each) => hero(each, map));
+  if (
+    !heroes ||
+    heroes.length !== players.length ||
+    heroes.some((h, index) => h.seat !== players[index]!.seat)
+  )
+    return;
   // The recorded result is exactly the one the forts imply.
   const result = winnerOf(map, players, buildings);
   if (winner !== result) return;
@@ -204,6 +279,7 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
     sectors,
     buildings,
     units,
+    heroes,
     winner: result,
     events: [],
   };

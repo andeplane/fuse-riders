@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  HERO,
+  MAX_XP,
+  STEER_MAX,
+  maxEnergy,
+  maxHp,
+  respawnSteps,
   TILE,
   TURRET,
   UNIT_CAP,
@@ -67,13 +73,22 @@ type Wire = [
   number[],
   number[][],
   number[][],
+  number[][],
   number,
 ];
+/** Hero 0's field `at` (seat, x, y, hp, energy, xp, cooldown, respawn, facing, goal, steerX, steerY). */
+const hero =
+  (...fields: [at: number, value: number][]) =>
+  (w: Wire): Wire => {
+    for (const [at, value] of fields) w[7][0]![at] = value;
+    return w;
+  };
+const ROCK = 3 * 14 + 6;
 const corruptions: [string, (wire: Wire) => unknown][] = [
   ["not a tuple", () => ({})],
-  ["a short tuple", (w) => w.slice(0, 7)],
-  ["a winner while every fort stands", (w) => ((w[7] = 0), w)],
-  ["a string winner", (w) => ((w[7] = "-1" as unknown as number), w)],
+  ["a short tuple", (w) => w.slice(0, 8)],
+  ["a winner while every fort stands", (w) => ((w[8] = 0), w)],
+  ["a string winner", (w) => ((w[8] = "-1" as unknown as number), w)],
   [
     "a fallen fort with no winner recorded",
     (w) => ((w[5][TINY.fort1]![1] = 0), w),
@@ -90,7 +105,7 @@ const corruptions: [string, (wire: Wire) => unknown][] = [
   ],
   ["a unit cooling down too long", (w) => ((w[6][0]![6] = 9999), w)],
   ["a negative cooldown", (w) => ((w[6][0]![6] = -1), w)],
-  ["a draw recorded while a fort stands", (w) => ((w[7] = 2), w)],
+  ["a draw recorded while a fort stands", (w) => ((w[8] = 2), w)],
   ["a building missing its cooldown", (w) => (w[5][0]!.pop(), w)],
   ["a fractional step", (w) => ((w[0] = 1.5), w)],
   ["a string rng", (w) => ((w[1] = "7" as unknown as number), w)],
@@ -118,6 +133,28 @@ const corruptions: [string, (wire: Wire) => unknown][] = [
   ["a goal in rock", (w) => ((w[6][0]![7] = 3 * 14 + 6), w)],
   ["a goal off the map", (w) => ((w[6][0]![7] = 14 * 10), w)],
   ["a goal on plain ground", (w) => ((w[6][0]![7] = 4 * 14 + 4), w)],
+  ["a unit goal that is no goal", (w) => ((w[6][0]![7] = -3), w)],
+  ["a missing hero", (w) => ((w[7] = w[7].slice(1)), w)],
+  ["heroes out of order", (w) => (w[7].reverse(), w)],
+  ["a hero of another seat", hero([0, 3])],
+  ["a hero missing a field", (w) => (w[7][0]!.pop(), w)],
+  ["a hero in rock", hero([1, 6 * TILE + 8], [2, 3 * TILE + 8])],
+  ["a hero over its level's hit points", hero([5, 0], [3, maxHp(1) + 1])],
+  ["a hero over its level's energy", hero([5, 0], [4, maxEnergy(1) + 1])],
+  ["XP past the top level", hero([5, MAX_XP + 1])],
+  ["a living hero with a respawn timer", hero([7, 5])],
+  ["a dead hero with no respawn timer", hero([3, 0])],
+  [
+    "a respawn longer than the level's",
+    hero([5, 0], [3, 0], [7, respawnSteps(1) + 1]),
+  ],
+  ["a dead hero reloading", hero([3, 0], [7, 1], [6, 1])],
+  ["a hero reloading too long", hero([6, HERO.cooldown + 1])],
+  ["an unknown facing", hero([8, 8])],
+  ["a move goal in rock", hero([9, ROCK])],
+  ["a move goal off the map", hero([9, 14 * 10])],
+  ["a stick pushed too far", hero([10, STEER_MAX + 1])],
+  ["a fractional stick", hero([11, 0.5])],
   ["a seat with no fort on the map", (w) => (w[3].push([3, 1, 0]), w)],
   ["a dead unit", (w) => ((w[6][0]![5] = 0), w)],
   ["units out of order", (w) => (w[6].reverse(), w)],

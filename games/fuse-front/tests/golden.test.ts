@@ -6,6 +6,7 @@ import {
   decodeWorld,
   encodeWorld,
   hashWorld,
+  levelOf,
   seedOf,
   stepTick,
   type Command,
@@ -15,29 +16,36 @@ import {
 import { dustBasin } from "./fixtures/maps.js";
 
 /**
- * The engine's safety net: six seats on Dust Basin for 1500 log ticks with scripted factory orders and stances, the
- * units walking their stances' flow fields, taking flags and fighting. The world's hash is compared every 250 ticks. A refactor must keep these; a change
- * to the rules must bump `RULES` in `src/engine/tuning.ts` and re-record them in the same commit: `GOLDEN_RECORD=1`
- * prints the new ones.
+ * The engine's safety net: six seats on Dust Basin for 1500 log ticks with scripted factory orders, stances and hero
+ * moves and steering, the units walking their stances' flow fields, taking flags and fighting, the heroes levelling,
+ * dying and respawning. The world's hash is compared every 250 ticks. A refactor must keep these; a change to the
+ * rules must bump `RULES` in `src/engine/tuning.ts` and re-record them in the same commit: `GOLDEN_RECORD=1` prints
+ * the new ones.
  */
 const GOLDEN = {
-  rules: "fuse-front-3",
+  rules: "fuse-front-4",
   seed: "fuse-front golden",
   ticks: 1500,
   hashes: [
-    "ae6a55b7",
-    "876901e8",
-    "7ef9c4c5",
-    "6f2a25de",
-    "8f96eb22",
-    "c8bf3489",
+    "78b08c34",
+    "11b9b080",
+    "8d600fd5",
+    "a76ba4fe",
+    "c84c2639",
+    "89d15acb",
   ],
 };
 
 const SCRIPT = new Map<number, Command[]>([
   [5, [{ seat: 1, type: "stance", stance: "hold" }]],
+  [20, [{ seat: 2, type: "move", x: 36, y: 15 }]],
   [40, [{ seat: 2, type: "stance", stance: "follow" }]],
+  [60, [{ seat: 3, type: "steer", dx: -8, dy: 1 }]],
+  [300, [{ seat: 3, type: "steer", dx: 0, dy: 0 }]],
+  [320, [{ seat: 0, type: "move", x: 47, y: 27 }]],
+  [500, [{ seat: 2, type: "move", x: 59, y: 15 }]],
   [700, [{ seat: 1, type: "stance", stance: "push" }]],
+  [900, [{ seat: 5, type: "move", x: 36, y: 41 }]],
 ]);
 
 /** Each seat orders torches from every robot factory it holds on tick 400 and grunts again on tick 1000. */
@@ -84,6 +92,10 @@ test("the golden run hashes as recorded", () => {
   assert.ok(
     world.sectors.filter((owner) => owner >= 0).length > 6,
     "the run takes sectors",
+  );
+  assert.ok(
+    world.heroes.every((hero) => levelOf(hero.xp) > 1),
+    "every hero levels",
   );
   assert.deepEqual(hashes, GOLDEN.hashes);
 });

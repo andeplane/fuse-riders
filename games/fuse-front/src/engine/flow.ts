@@ -139,7 +139,10 @@ export function buildFlowField(map: GameMap, goal: number): FlowField {
   return { goal, cost, next };
 }
 
-/** Fields kept per map; more than the 64 flags and 6 forts a map can have, so a match never rebuilds one. */
+/**
+ * Fields kept per map: more than the 64 flags and 6 forts a map can have plus, per hero, its `move` goal and the tile
+ * FOLLOW units walk to (`FOLLOW_HERO`), so a match only rebuilds the fields of tiles its heroes have left.
+ */
 export const FLOW_CACHE_SIZE = 96;
 
 const caches = new WeakMap<GameMap, Map<number, FlowField>>();
