@@ -1,5 +1,5 @@
 /** 44×44 hero portraits for the HUD and hero select. */
-import { type Img, rgba } from "./image.js";
+import { Img, rgba } from "./image.js";
 import {
   DARK_METAL,
   GOLD,
@@ -17,8 +17,8 @@ export const HEROES: readonly HeroId[] = ["brick", "vix", "rivet", "tally"];
 export const PORTRAIT_SIZE = 44;
 
 function portraitBg(img: Img, x: number, y: number, T: TeamColours): void {
-  for (let j = 0; j < 44; j++)
-    for (let i = 0; i < 44; i++)
+  for (let j = 0; j < PORTRAIT_SIZE; j++)
+    for (let i = 0; i < PORTRAIT_SIZE; i++)
       img.px(x + i, y + j, j % 2 ? "#1a1e22" : "#20262c");
   const [r, g, b] = rgba(T.t);
   img.ell(x + 22, y + 22, 18, 18, [r, g, b, 50]);
@@ -157,7 +157,10 @@ const DRAW: Readonly<
   Record<HeroId, (img: Img, x: number, y: number, T: TeamColours) => void>
 > = { brick, vix, rivet, tally };
 
-/** Draws a hero's portrait with its top-left at (x, y), tinted for a team. */
+/**
+ * Draws a hero's portrait with its top-left at (x, y), tinted for a team. The art overhangs its square (shoulders run
+ * past the bottom edge), so it is drawn on a square of its own and only that square is composited onto `img`.
+ */
 export function portrait(
   img: Img,
   x: number,
@@ -166,7 +169,9 @@ export function portrait(
   tm: TeamId,
 ): void {
   const T = TEAM[tm];
-  portraitBg(img, x, y, T);
-  DRAW[who](img, x, y, T);
-  img.rect(x, y, 44, 1, [0, 0, 0, 120]);
+  const square = new Img(PORTRAIT_SIZE, PORTRAIT_SIZE);
+  portraitBg(square, 0, 0, T);
+  DRAW[who](square, 0, 0, T);
+  square.rect(0, 0, PORTRAIT_SIZE, 1, [0, 0, 0, 120]);
+  img.blit(square, x, y);
 }
