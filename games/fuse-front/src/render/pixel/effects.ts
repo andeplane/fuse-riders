@@ -122,8 +122,9 @@ export function hpBar(
   frac: number,
   col: Colour = "#6ad83a",
 ): void {
+  const fill = Math.round(w * Math.min(1, Math.max(0, frac || 0)));
   img.rect(x - 1, y - 1, w + 2, 4, "#101010");
   img.rect(x, y, w, 2, "#3a1010");
-  img.rect(x, y, Math.round(w * frac), 2, col);
-  img.rect(x, y, Math.round(w * frac), 1, "#b8ff90");
+  img.rect(x, y, fill, 2, col);
+  img.rect(x, y, fill, 1, "#b8ff90");
 }
