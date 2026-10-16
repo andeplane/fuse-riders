@@ -18,6 +18,7 @@ import {
   type World,
   viewOf,
 } from "../src/engine/index.js";
+import { benchHeroes } from "./fixtures/heroes.js";
 import { TINY, dustBasin, tiny } from "./fixtures/maps.js";
 
 const map = tiny();
@@ -62,8 +63,8 @@ test("a unit shoots the nearest enemy in range, the lower id on a tie", () => {
   assert.equal(shots(next, 1).length, 1);
   assert.deepEqual(shots(next, 1)[0], {
     type: "shot",
-    from: { building: false, id: 1, x: at(6), y: at(7) },
-    to: { building: false, id: 2, x: at(8), y: at(7) },
+    from: { of: "unit", id: 1, x: at(6), y: at(7) },
+    to: { of: "unit", id: 2, x: at(8), y: at(7) },
     damage: UNITS.grunt.damage,
   });
   world = add(world, 1, "torch", at(6), at(8)); // 4: one tile away
@@ -113,12 +114,12 @@ test("a held turret fires at enemies; a neutral one neither fires nor is shot", 
   };
   const next = step(map, held);
   const [shot] = next.events.filter(
-    (e) => e.type === "shot" && e.from.building,
+    (e) => e.type === "shot" && e.from.of === "building",
   );
   assert.deepEqual(shot, {
     type: "shot",
-    from: { building: true, id: TINY.turret, x: at(6), y: at(6) },
-    to: { building: false, id: 1, x: at(9), y: at(6) },
+    from: { of: "building", id: TINY.turret, x: at(6), y: at(6) },
+    to: { of: "unit", id: 1, x: at(9), y: at(6) },
     damage: TURRET.damage,
   });
   // The grunt shoots back at the turret at its siege rate.
@@ -209,7 +210,7 @@ test("PUSH with every flag taken marches on the enemy fort, and its fall wins th
 });
 
 test("both teams losing their last fort on one step is a draw; one team alone never wins", () => {
-  let world = createWorld(map, [0, 1], 1);
+  let world = benchHeroes(createWorld(map, [0, 1], 1));
   world = withBuilding(withBuilding(world, TINY.fort0, 1), TINY.fort1, 1);
   world = add(world, 1, "grunt", at(2), at(1));
   world = add(world, 0, "grunt", at(11), at(1));
@@ -227,7 +228,7 @@ const deepFreeze = <T>(value: T): T => {
 };
 
 test("fighting and won steps leave the world they are given untouched", () => {
-  let world = createWorld(map, [0, 1], 1);
+  let world = benchHeroes(createWorld(map, [0, 1], 1));
   world = {
     ...world,
     sectors: world.sectors.map((o, i) => (i === TINY.middle ? 0 : o)),
@@ -246,7 +247,7 @@ test("fighting and won steps leave the world they are given untouched", () => {
 });
 
 test("a finished match round-trips through its checkpoint, events left out", () => {
-  let world = createWorld(map, [0, 1, 2], 3);
+  let world = benchHeroes(createWorld(map, [0, 1, 2], 3));
   world = withBuilding(world, TINY.fort1, 1);
   world = add(world, 0, "grunt", at(11), at(2));
   world = step(map, world);

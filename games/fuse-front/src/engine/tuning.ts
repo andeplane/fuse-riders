@@ -5,7 +5,7 @@
 import { ceilDiv } from "./math.js";
 
 /** Bump on any change to the rules, with the golden in `tests/golden.test.ts` re-recorded in the same commit. */
-export const RULES = "fuse-front-3";
+export const RULES = "fuse-front-4";
 
 export const SUB = 16;
 export const TILE_PX = 8;
@@ -153,3 +153,47 @@ export const STRAIGHT = 10;
 export const DIAGONAL = 14;
 export const HOLD_RADIUS = 3 * STRAIGHT;
 export const HOLD_CROWD = 2 * STRAIGHT;
+
+/**
+ * The hero (`hero.ts`), Brick for now. Each player has one; it walks where it is sent (`move`) or steered (`steer`),
+ * shoots the nearest enemy in range whether idle or walking, captures flags like a robot and is a target like a unit.
+ * Its stats grow with its level; sub-pixels and steps, as `UnitStats`.
+ */
+export const HERO = {
+  speed: 12,
+  range: 4 * TILE,
+  cooldown: s(1),
+  siege: 50,
+  /** Hit points and damage at level 1, and what each level adds. */
+  hp: 420,
+  hpPerLevel: 45,
+  damage: 16,
+  damagePerLevel: 2,
+  /** Energy at level 1 and per level; one point regenerates every `energyEvery` steps. */
+  energy: 100,
+  energyPerLevel: 10,
+  energyEvery: 20,
+  /** Steps dead before respawning at the fort: `respawn + respawnPerLevel * level`. */
+  respawn: s(6),
+  respawnPerLevel: s(2),
+} as const;
+
+export const MAX_LEVEL = 10;
+/** Total XP each level needs: level n is reached at `XP_STEP * n * (n - 1) / 2`. */
+export const XP_STEP = 50;
+/** XP for killing a unit of each kind, a hero (plus `HERO_XP_PER_LEVEL` per victim level), and taking a flag. */
+export const KILL_XP: Readonly<Record<UnitKind, number>> = {
+  grunt: 12,
+  torch: 16,
+  lightTank: 30,
+};
+export const HERO_XP = 60;
+export const HERO_XP_PER_LEVEL = 15;
+export const CAPTURE_XP = 40;
+/** Teammates' living heroes this close to a kill get half its XP (sub-pixels). */
+export const ASSIST_RADIUS = 8 * TILE;
+/** A robot this close to its owner's living hero does `AURA_DAMAGE` percent damage. */
+export const AURA_RADIUS = 6 * TILE;
+export const AURA_DAMAGE = 115;
+/** `steer` takes each axis in -STEER_MAX..STEER_MAX; the hero walks at full speed from a magnitude of STEER_MAX. */
+export const STEER_MAX = 8;

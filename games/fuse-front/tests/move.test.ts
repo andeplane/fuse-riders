@@ -27,6 +27,7 @@ import {
   type UnitKind,
   type World,
 } from "../src/engine/index.js";
+import { benchHeroes } from "./fixtures/heroes.js";
 import { dustBasin, tiny } from "./fixtures/maps.js";
 
 /** An 8 × 8 room with a 2 × 2 rock in the middle; or, with `island`, a water channel cutting off the south. */
@@ -139,7 +140,9 @@ test("an unreachable goal leaves every tile across the water unreachable, and no
   assert.equal(field.cost[at(map, 1, 1)], UNREACHABLE);
   assert.equal(field.next[at(map, 1, 1)], -1);
   // Seat 0 pushes, but the only flag to take lies across the water: it holds its own instead.
-  let world = place(createWorld(map, [0, 1], 3), 0, "grunt", [{ x: 5, y: 2 }]);
+  let world = place(benchHeroes(createWorld(map, [0, 1], 3)), 0, "grunt", [
+    { x: 5, y: 2 },
+  ]);
   world = run(map, world, 200);
   const unit = world.units[0]!;
   assert.equal(unit.goal, at(map, 1, 1));
