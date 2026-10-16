@@ -84,6 +84,13 @@ const corruptions: [string, (wire: Wire) => unknown][] = [
     "a turret cooling down too long",
     (w) => ((w[5][TINY.turret]![4] = TURRET.cooldown + 1), w),
   ],
+  [
+    "a ruined turret still cooling down",
+    (w) => ((w[5][TINY.turret]![1] = 0), (w[5][TINY.turret]![4] = 1), w),
+  ],
+  ["a unit cooling down too long", (w) => ((w[6][0]![6] = 9999), w)],
+  ["a negative cooldown", (w) => ((w[6][0]![6] = -1), w)],
+  ["a draw recorded while a fort stands", (w) => ((w[7] = 2), w)],
   ["a building missing its cooldown", (w) => (w[5][0]!.pop(), w)],
   ["a fractional step", (w) => ((w[0] = 1.5), w)],
   ["a string rng", (w) => ((w[1] = "7" as unknown as number), w)],
