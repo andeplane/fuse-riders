@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 
@@ -31,22 +31,22 @@ const within = (base: string, target: string): boolean => {
   );
 };
 
-/** Every game's package name (`games/<id>/package.json`), by its directory id: Fuse Riders' is `fuse-riders-game`. */
+/**
+ * Every game's package name (`games/<id>/package.json`), by its directory id: Fuse Riders' is `fuse-riders-game`. A
+ * game still being scaffolded, with source but no package yet, is named by its directory so the guard still covers it.
+ */
 export function gamePackages(root = repoRoot): Map<string, string> {
   return new Map(
     readdirSync(path.join(root, "games"), { withFileTypes: true })
       .filter((entry) => entry.isDirectory())
-      .map((entry) => [
-        entry.name,
-        (
-          JSON.parse(
-            readFileSync(
-              path.join(root, "games", entry.name, "package.json"),
-              "utf8",
-            ),
-          ) as { name: string }
-        ).name,
-      ]),
+      .map((entry): [string, string] => {
+        const manifest = path.join(root, "games", entry.name, "package.json");
+        if (!existsSync(manifest)) return [entry.name, entry.name];
+        const { name } = JSON.parse(readFileSync(manifest, "utf8")) as {
+          name: string;
+        };
+        return [entry.name, name];
+      }),
   );
 }
 
