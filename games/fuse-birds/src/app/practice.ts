@@ -68,6 +68,8 @@ export class PracticeRuntime implements Session {
   get admitted(): boolean {
     return !!this.cancelTimer;
   }
+  /** Practice has no turn timer. */
+  readonly turnTimeLeft = undefined;
   play(play: Play): boolean {
     if (!this.admitted || this.pending.length || this.match.phase !== "aiming")
       return false;

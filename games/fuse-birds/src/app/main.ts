@@ -616,7 +616,7 @@ function room(code: string, display: boolean, practice = false): void {
       );
       turn.textContent = practice
         ? `SOLO PRACTICE · WIND ${view.wind}`
-        : `${player.id === me ? "YOUR TURN" : `${player.name}'S TURN`}  ·  ${view.phase === "aiming" ? `${Math.ceil(view.timeLeft)}s` : view.phase.toUpperCase()}  ·  WIND ${view.wind < 0 ? "←" : view.wind > 0 ? "→" : "—"} ${Math.abs(view.wind)}`;
+        : `${player.id === me ? "YOUR TURN" : `${player.name}'S TURN`}  ·  ${view.phase === "aiming" ? `${Math.ceil(runtime.turnTimeLeft ?? view.timeLeft)}s` : view.phase.toUpperCase()}  ·  WIND ${view.wind < 0 ? "←" : view.wind > 0 ? "→" : "—"} ${Math.abs(view.wind)}`;
       pebbleCount.textContent = "∞";
       scatterCount.textContent = `×${player.ammo}`;
       pebble.setAttribute("aria-label", "Pebble, unlimited ammunition");
