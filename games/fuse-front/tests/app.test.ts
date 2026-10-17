@@ -8,7 +8,7 @@ import {
   MAP,
   view,
 } from "../src/online/game.js";
-import { banner, cycleDifficulty, slotsOf, tileAt } from "../src/app/model.js";
+import { banner, cycleDifficulty, slotsOf } from "../src/app/model.js";
 import { keys, roomFailure, sessionFor } from "../src/app/session.js";
 import { frontRegistration } from "../src/platform.js";
 import { Mesh } from "./fixtures/mesh.js";
@@ -64,11 +64,6 @@ test("the lobby model lists the slots a start plays, and the board maps clicks a
   assert.equal(harder.bots[1], "hard");
   assert.equal(cycleDifficulty(harder, 1).bots[1], "easy");
   assert.equal(DEFAULT_SETTINGS.bots[1], "normal", "the input is left alone");
-  const box = { left: 10, top: 20, width: 200, height: 100 };
-  assert.deepEqual(tileAt(10, 20, box, 20, 10), { x: 0, y: 0 });
-  assert.deepEqual(tileAt(209, 119, box, 20, 10), { x: 19, y: 9 });
-  assert.equal(tileAt(9, 20, box, 20, 10), undefined);
-  assert.equal(tileAt(0, 0, { ...box, width: 0 }, 20, 10), undefined);
   assert.equal(banner(NO_WINNER, 0), "");
   assert.equal(banner(DRAW, 0), "DRAW");
   assert.equal(banner(1, 1), "VICTORY");

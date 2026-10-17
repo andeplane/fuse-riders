@@ -16,6 +16,11 @@ import {
 } from "./tuning.js";
 import { NEUTRAL, ownerOf, type CombatEvent, type World } from "./world.js";
 
+/** What the renderer needs besides the view itself, so it never reaches past this file into the engine. */
+export { SUB, TILE_PX } from "./tuning.js";
+export type { BuildingKind, UnitKind } from "./tuning.js";
+export type { CombatEvent, Mark } from "./world.js";
+
 export interface FlagView {
   sector: number;
   x: number;
@@ -52,6 +57,9 @@ export interface UnitView {
   y: number;
   hp: number;
   maxHp: number;
+  /** Under SHOCKWAVE's stun or RALLY CRY's boost this step. */
+  stunned: boolean;
+  rallied: boolean;
 }
 
 export interface HeroView {
@@ -135,6 +143,8 @@ export function viewOf(map: GameMap, world: World): WorldView {
       y: unit.y,
       hp: unit.hp,
       maxHp: UNITS[unit.kind].hp,
+      stunned: unit.stun > 0,
+      rallied: unit.rally > 0,
     })),
     players: world.players.map((player) => ({ ...player })),
     heroes: world.heroes.map((hero) => ({
