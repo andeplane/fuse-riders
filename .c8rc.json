@@ -33,6 +33,7 @@
     "games/fuse-bombers/src/render/terrain-layer.ts",
     "games/fuse-axe/src/app/main.ts",
     "games/fuse-front/src/app/main.ts",
+    "games/fuse-front/src/app/hud.ts",
     "games/fuse-front/src/render/battlefield.ts",
     "games/fuse-axe/src/app/audio/web-backend.ts",
     "games/fuse-choppers/src/app/main.ts",
