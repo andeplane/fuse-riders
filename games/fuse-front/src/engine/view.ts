@@ -4,6 +4,7 @@
  * can never write back into the simulation.
  */
 import type { GameMap } from "./map.js";
+import { levelOf, maxHp } from "./hero.js";
 import { div } from "./math.js";
 import {
   BUILDING_HP,
@@ -53,6 +54,18 @@ export interface UnitView {
   maxHp: number;
 }
 
+export interface HeroView {
+  seat: number;
+  team: number;
+  /** Sub-pixels. */
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  level: number;
+  respawn: number;
+}
+
 export interface WorldView {
   step: number;
   width: number;
@@ -67,6 +80,8 @@ export interface WorldView {
   buildings: readonly BuildingView[];
   units: readonly UnitView[];
   players: readonly { seat: number; team: number; stance: Stance }[];
+  /** One per seat in play; `hp` is 0 while it waits `respawn` steps at its fort. */
+  heroes: readonly HeroView[];
   /** `NO_WINNER`, the winning team, or `DRAW`. */
   winner: number;
   /** What the last step or tick did (shots, deaths, ruins, the result), to animate; not part of the checkpoint. */
@@ -122,6 +137,16 @@ export function viewOf(map: GameMap, world: World): WorldView {
       maxHp: UNITS[unit.kind].hp,
     })),
     players: world.players.map((player) => ({ ...player })),
+    heroes: world.heroes.map((hero) => ({
+      seat: hero.seat,
+      team: teamOf(hero.seat),
+      x: hero.x,
+      y: hero.y,
+      hp: hero.hp,
+      maxHp: maxHp(levelOf(hero.xp)),
+      level: levelOf(hero.xp),
+      respawn: hero.respawn,
+    })),
     winner: world.winner,
     events: structuredClone(world.events),
   };
