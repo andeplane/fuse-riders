@@ -221,6 +221,8 @@ test("pickHeroes keeps each hero once a team: picks first, then the rest from a 
   // prettier-ignore
   assert.deepEqual(pickHeroes([0, 1, 2, 3], { 2: "vix", 0: "vix", 1: "vix", 3: null }),
     { 0: "vix", 1: "vix", 2: "brick", 3: "brick" });
+  const stray = { 0: "nobody" } as unknown as Record<number, null>;
+  assert.deepEqual(pickHeroes([0, 1], stray), { 0: "brick", 1: "brick" });
   assert.deepEqual(pickHeroes([1, 0], { 1: "vix" }), {
     0: "brick",
     1: "vix",
