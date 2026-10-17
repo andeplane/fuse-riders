@@ -107,10 +107,15 @@ const pilotPicker = () => {
     art: portrait,
     onPick: (id) => store.setItem(avatarKey, id),
     fold: {
-      summary: (id) => [
-        portrait(id),
-        document.createTextNode(id.toUpperCase()),
-      ],
+      summary: (id) => {
+        const identity = el("span", "", "fc-pilot-identity");
+        identity.append(
+          el("small", "YOUR PILOT"),
+          el("strong", id.toUpperCase()),
+        );
+        return [portrait(id), identity];
+      },
+      changeText: "CHANGE ›",
       label: (id) => `Change pilot: ${id}`,
     },
   });
@@ -265,7 +270,7 @@ function landing(): void {
     },
   });
   card.create.after(shared);
-  card.element.prepend(pilotPicker());
+  card.create.parentElement!.before(pilotPicker());
   card.element.append(keyHelp());
   const back = el("a", "← FUSE RIDERS", "fc-back");
   back.href = import.meta.env.BASE_URL + (muted ? "?mute" : "");
