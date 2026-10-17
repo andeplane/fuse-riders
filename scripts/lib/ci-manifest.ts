@@ -37,6 +37,28 @@ export interface Smoke {
   timeoutMinutes: number;
   /** 1: through scripts/ci-smoke.sh in CI, which retries once and reports the flake. 0: a single attempt. */
   retries: 0 | 1;
+  /**
+   * CI runs smokes that share a batch one after another in one job (`smoke (<batch>)`), so a 12-45 s smoke does
+   * not pay a minute of checkout, install and browser setup of its own. Each keeps its own retry, output group
+   * and failure annotation. Absent: the smoke is a job of its own, named by its id.
+   */
+  batch?: string;
+}
+
+/** One `smoke` matrix job: a batch, or a smoke on its own. */
+export interface SmokeJob {
+  id: string;
+  smokes: Smoke[];
+}
+
+/** The `smoke` matrix jobs, in manifest order; ci.yml's `plan` computes the same list with jq. */
+export function smokeJobs(manifest: CiManifest): SmokeJob[] {
+  const jobs = new Map<string, Smoke[]>();
+  for (const smoke of manifest.smokes) {
+    const id = smoke.batch ?? smoke.id;
+    jobs.set(id, [...(jobs.get(id) ?? []), smoke]);
+  }
+  return [...jobs].map(([id, smokes]) => ({ id, smokes }));
 }
 
 export interface CiManifest {
@@ -136,7 +158,12 @@ export function parseManifest(value: unknown): CiManifest {
       bad("timeoutMinutes must be 1-40");
     if (smoke.retries !== 0 && smoke.retries !== 1)
       bad("retries must be 0 or 1");
+    if (smoke.batch !== undefined && !NAME.test(smoke.batch)) bad("bad batch");
   }
+  // A batch is a matrix id beside the unbatched smokes' ids, so it must not be any step's id.
+  for (const smoke of manifest.smokes)
+    if (smoke.batch !== undefined && ids.has(smoke.batch))
+      fail(`${smoke.id}: batch ${smoke.batch} is another step's id`);
   // A group that is also another smoke's id would make ONLY= ambiguous.
   for (const smoke of manifest.smokes)
     if (smoke.group !== smoke.id && ids.has(smoke.group))
