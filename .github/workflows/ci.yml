@@ -20,58 +20,67 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   # The pull-request gate is `checks` and the `unit` shards, side by side, with `verify` below as the one
-  # check name to wait on. It used to be a single job running the same steps in series, which took about
-  # seven minutes; three quarters of that was `test:coverage`, so coverage moved to `coverage` (main only)
-  # and the tests were split into shards. scripts/ci-manifest.json says which step belongs to which job, and
+  # check name to wait on. scripts/ci-manifest.json says which step belongs to which job, and
   # tests/ci-manifest.test.ts fails when these jobs stop matching it.
   #
-  # How wide to split it is a trade-off, and the runner side of it is not a fixed number. Do not read one
-  # run and conclude anything: within three hours this gate saw a sixth job wait 38 s (which looked like a
-  # five-runner cap and was not), then 17 jobs running at once on a main push, then every job waiting up to
-  # 116 s on a ten-job gate. The pool is shared with every other workflow, so availability swings.
+  # What sets this gate's wall clock is mostly not its work. Measured over 25 green pull-request runs
+  # (2026-10-11..17): the jobs' own work ended about 100-130 s after the run started, but `verify` finished at a
+  # median of about 600 s and up to 40 minutes, because each job first waits for a runner and the pool is shared
+  # with every main push (about 40 jobs each) and every other pull request. So this gate is shaped to need as few
+  # runner slots and runner-seconds as it can for the same checks:
   #
-  # What is stable is the work. On run 35514185047: slowest `unit` test step 37 s, `checks` 26 s, `build`
-  # 19 s — about 40 s of critical path. Observed wall clock for the same gate ranges 58 s to 169 s, and the
-  # difference is queueing, not tests.
-  #
-  # So more shards cut per-shard work but add jobs that each queue when the pool is busy, and past some
-  # width that trade goes the wrong way. Eight was chosen on work alone (slowest shard at the pull-request
-  # budget, locally on 4 cores, at 1852 tests: 3 shards 50.3 s, 4 shards 41.8 s, 6 shards 35.5 s, 8 shards
-  # 25.4 s — note 3 was worse than 4, because `node --test` splits files round-robin by index rather than by
-  # cost). Re-measured the same way at 2195 tests: 4 shards 59 s, 8 shards 44 s, 12 shards 43 s. Every number
-  # grew with the suite, and past eight the balance stopped improving at all, because one heavy file sets the
-  # floor however many shards there are — so eight stays, and twelve would buy a second while adding four
-  # more jobs to queue. Before changing the width, measure both halves: the shard balance AND how much
-  # queueing the extra jobs draw.
-  #
-  # `pnpm build` is `tsc --noEmit && vite build`, so it is the type check; there is no separate step for it.
+  # - `checks` runs format, lint, configuration and `pnpm build` (`tsc --noEmit && vite build`, so it is the type
+  #   check too) side by side in one job (scripts/ci-run.ts --job checks): each is mostly one core and a runner
+  #   has four. It was two jobs taking 110 s and 60 s; it also hands its dist/ to the smokes, which each built it.
+  # - `unit` shards are chosen by measured cost (scripts/lib/test-shards.ts, scripts/test-timings.json) rather
+  #   than round-robin by index, which left eight shards between 12 s and 95 s on the same run. Balanced, five
+  #   shards of about 60 s of tests each finish with `checks` (lint sets its floor), so more would add jobs to
+  #   queue for no gain. Before changing the width, measure both halves: the shard balance
+  #   AND how much queueing the extra jobs draw. Refresh the timings from a run's `test-timings-*` artifacts:
+  #   `gh run download <run> -p 'test-timings-*' -D t && pnpm exec tsx scripts/run-tests.ts --merge-timings t`.
+  # - Every checkout leaves out the screenshots, videos and recorded evidence under docs/ (about 410 of the
+  #   tree's 560 MB); nothing a check, test, build or smoke runs reads them. Coverage keeps its full checkout.
   checks:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/docs/**/*.png
+            !/docs/**/*.jpg
+            !/docs/**/*.gz
+            !/docs/**/*.mp4
+            !/games/*/docs/**/*.png
+            !/docs/online/evidence/*.json
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm format:check
-      - run: pnpm lint
-      - run: pnpm config:check
-
-  build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      # Prettier's content-keyed cache (`format:check` passes --cache-strategy content): a file is skipped only
+      # when its bytes, Prettier's version and the options all match a run that found it formatted, so this
+      # changes the time, not the verdict. Restored from main's latest run on a pull request.
+      - uses: actions/cache@v4
         with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+          path: node_modules/.cache/prettier
+          key: prettier-${{ github.sha }}
+          restore-keys: prettier-
+      - run: pnpm exec tsx scripts/ci-run.ts --job checks
+      # The smokes run this build rather than each making its own (22 builds of 30 s on every main push).
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+          # "Re-run all jobs" keeps the run id, and a second upload under the same name would fail.
+          overwrite: true
 
   unit:
     runs-on: ubuntu-latest
@@ -80,16 +89,29 @@ jobs:
       # Every shard reports, so one run shows everything that is broken rather than the first thing.
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [1, 2, 3, 4, 5]
     env:
-      # `node --test` splits the files; `pnpm test` with no TEST_SHARD is still the whole suite.
-      TEST_SHARD: ${{ matrix.shard }}/8
+      # scripts/run-tests.ts picks this shard's files by measured cost; `pnpm test` with no TEST_SHARD is still
+      # the whole suite.
+      TEST_SHARD: ${{ matrix.shard }}/5
+      TEST_TIMINGS_OUT: artifacts/test-timings-${{ matrix.shard }}.json
       # The two whole-recording replays fold all 15,776 ticks either way; on a pull request they check one tick
       # in ten instead of every one, which is a quarter of the time. A main push and the release suite leave
       # this at 1 and check every tick. See games/fuse-riders/tests/fixtures/replay-budget.ts.
       FUSE_REPLAY_STRIDE: ${{ github.event_name == 'pull_request' && '10' || '1' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/docs/**/*.png
+            !/docs/**/*.jpg
+            !/docs/**/*.gz
+            !/docs/**/*.mp4
+            !/games/*/docs/**/*.png
+            !/docs/online/evidence/*.json
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -97,6 +119,14 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-timings-${{ matrix.shard }}
+          path: artifacts/test-timings-${{ matrix.shard }}.json
+          if-no-files-found: ignore
+          retention-days: 7
+          overwrite: true
 
   # Whether main is red: its latest CI push run failed (which also withholds both deployments) or its latest
   # deployment failed. A pull request opened while main is red runs coverage and the whole browser matrix as if
@@ -116,6 +146,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         if: github.event_name == 'pull_request'
+        with:
+          # The one file it runs, not the 560 MB tree.
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: scripts/main-health.ts
       - uses: actions/setup-node@v4
         if: github.event_name == 'pull_request'
         with:
@@ -131,21 +166,21 @@ jobs:
   # coverage and every smoke passed too. A branch rule waits on this, never on the shards, so the matrix can be
   # resized without touching the rule.
   verify:
-    needs: [checks, build, unit, main-health, coverage, e2e]
+    needs: [checks, unit, main-health, coverage, e2e]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Every gate passed
         env:
-          GATE: ${{ needs.checks.result }} ${{ needs.build.result }} ${{ needs.unit.result }} ${{ needs.main-health.result }}
+          GATE: ${{ needs.checks.result }} ${{ needs.unit.result }} ${{ needs.main-health.result }}
           MAIN_RED: ${{ needs.main-health.outputs.red }}
           DEPLOY_RED: ${{ needs.main-health.outputs.deploy-red }}
           REASON: ${{ needs.main-health.outputs.reason }}
           PROOF: ${{ needs.coverage.result }} ${{ needs.e2e.result }}
           CD_FIX: ${{ contains(github.event.pull_request.labels.*.name, 'cd-fix') }}
         run: |
-          test "$GATE" = "success success success success"
+          test "$GATE" = "success success success"
           if [ "$MAIN_RED" = true ]; then
             echo "Main is red: $REASON. A pull request merges now only if coverage and every smoke pass on top of main."
             test "$PROOF" = "success success" || { echo "::error::Main is red and this pull request does not make it green (coverage, e2e: $PROOF)."; exit 1; }
@@ -277,7 +312,8 @@ jobs:
           printf 'byId=%s\n' "$(jq -c '.smokes | map({key: .id, value: .}) | from_entries' scripts/ci-manifest.json)" >> "$GITHUB_OUTPUT"
 
   smoke:
-    needs: plan
+    # `checks` builds dist/ once for every smoke; the room service serves it.
+    needs: [plan, checks]
     # The matrix is the ids alone and the job has no dynamic `name:`, so it reads `smoke (online-chrome)`
     # when it runs and plain `smoke` when a pull request without `full-ci` skips it. Everything else about
     # an entry is looked up by id.
@@ -304,15 +340,27 @@ jobs:
       SMOKE_TIMEOUT_SCALE: 3
     steps:
       - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/docs/**/*.png
+            !/docs/**/*.jpg
+            !/docs/**/*.gz
+            !/docs/**/*.mp4
+            !/games/*/docs/**/*.png
+            !/docs/online/evidence/*.json
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # Before the browser downloads, so a revision that does not compile fails in
-      # seconds rather than after a minute of Playwright installs. The room service serves dist/.
-      - run: pnpm build
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
       - run: pnpm exec playwright install --with-deps ${{ join(fromJson(needs.plan.outputs.byId)[matrix.id].browsers, ' ') }}
       # Starts the local room service on a free port when the smoke needs one (log in
       # artifacts/room-service.log), applies the entry's env and retries once through scripts/ci-smoke.sh.
