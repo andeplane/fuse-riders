@@ -18,16 +18,26 @@ import {
   validRoomCode,
 } from "fuse-network-fe";
 import { MAX_PACKET_BYTES } from "fuse-netcode";
-import { type WorldView } from "../engine/index.js";
+import { HERO_KINDS, type WorldView } from "../engine/index.js";
 import { DEFAULT_SETTINGS, type View } from "../online/game.js";
 import { FrontRuntime } from "../online/runtime.js";
 import { Battlefield } from "../render/battlefield.js";
 import type { Renderer } from "../render/renderer.js";
 import { Field3D } from "../render3d/field.js";
 import { edgePan, PAN_SPEED } from "../render/camera.js";
-import { Hud } from "./hud.js";
+import { Img } from "../render/pixel/image.js";
+import { PORTRAIT_SIZE, portrait } from "../render/pixel/portraits.js";
+import { Hud, pixels } from "./hud.js";
 import { factoryAt, heroTile, keyAction } from "./hud-state.js";
-import { SIZES, TEAMS, banner, cycleDifficulty, slotsOf } from "./model.js";
+import {
+  SIZES,
+  TEAMS,
+  banner,
+  cycleDifficulty,
+  pickHero,
+  slotsOf,
+  type SlotView,
+} from "./model.js";
 import { GAME_ID, keys, roomFailure, sessionFor } from "./session.js";
 
 const app = document.querySelector<HTMLElement>("#app")!;
@@ -256,6 +266,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
             });
           row.append(cycle);
         }
+        row.append(heroPicker(view, slot, host));
         column.append(row);
       }
       teams.append(column);
@@ -275,6 +286,26 @@ function room(code: string, token: string | undefined, display: boolean): void {
       footer: [host ? start : el("p", "Waiting for the host to start…")],
     });
     lobby.replaceChildren(shell.element);
+  }
+  /** A seat's four hero portraits, its hero lit; the host picks by clicking one (each hero once a team). */
+  function heroPicker(view: View, slot: SlotView, host: boolean): HTMLElement {
+    const row = el("div", "", "ff-heroes");
+    for (const kind of HERO_KINDS) {
+      const img = new Img(PORTRAIT_SIZE, PORTRAIT_SIZE);
+      portrait(img, 0, 0, kind, slot.team ? "blue" : "red");
+      const choice = el("button", "", "ff-hero");
+      choice.append(pixels(img), el("span", kind.toUpperCase()));
+      choice.classList.toggle("ff-on", slot.hero === kind);
+      choice.setAttribute("aria-pressed", String(slot.hero === kind));
+      choice.disabled = !host;
+      choice.onclick = () =>
+        runtime.command({
+          type: "settings",
+          settings: pickHero(view.settings, slot.slot, kind),
+        });
+      row.append(choice);
+    }
+    return row;
   }
   back.onclick = () => runtime.command({ type: "action", action: "lobby" });
   // The battlefield draws every animation frame from the runtime's newest frames; `show` only runs the DOM around it.
