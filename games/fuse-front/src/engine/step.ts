@@ -3,7 +3,7 @@
  * respawns (`hero.ts`), goals (`move.ts`), combat (`combat.ts`), movement of units then heroes, capture and
  * production. `step` never mutates the world it is given: it copies the arrays and records (players, sectors,
  * buildings, units, heroes) and returns a new world, so the netcode can keep the previous one as a snapshot. Once the
- * match has a winner a step only advances the clock. Bots arrive in later rules.
+ * match has a winner a step only advances the clock. Bots (`bot.ts`) send ordinary commands.
  */
 import { isInt } from "./codec.js";
 import { fight } from "./combat.js";
