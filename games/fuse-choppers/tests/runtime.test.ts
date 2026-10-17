@@ -2,6 +2,42 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_SETTINGS, UP } from "../src/engine/index.js";
 import { Mesh } from "./fixtures/mesh.js";
+import { hash, stepsPerTick } from "../src/online/game.js";
+
+test("accelerated bot play converges over loss and reordering and survives peer recovery", () => {
+  const mesh = new Mesh("host", DEFAULT_SETTINGS);
+  const host = mesh.join("host");
+  mesh.run(300);
+  host.command({ type: "join", name: "Host" });
+  mesh.run(500);
+  for (let i = 0; i < 3; i++) {
+    host.command({ type: "bot", action: "add" });
+    mesh.run(300);
+  }
+  const guest = mesh.join("guest");
+  mesh.run(1_000);
+  const random = seeded(533);
+  mesh.fast = () => {
+    const roll = random();
+    return roll < 0.1
+      ? { drop: true }
+      : { delayMs: Math.floor(random() * 80), duplicateMs: 100 };
+  };
+  host.command({ type: "action", action: "start" });
+  let accelerated = false;
+  for (let i = 0; i < 200 && !accelerated; i++) {
+    mesh.run(100);
+    accelerated = stepsPerTick(host.roomState()!) > 3;
+  }
+  assert.ok(accelerated, "the human crashes while multiple bots still fly");
+  const late = mesh.join("late");
+  mesh.run(2_000);
+  mesh.fast = () => ({ delayMs: 10 });
+  mesh.run(2_000);
+  assert.ok(host.roomState()!.simulationTick > host.roomState()!.tick * 3);
+  assert.equal(hash(guest.roomState()!), hash(host.roomState()!));
+  assert.equal(hash(late.roomState()!), hash(host.roomState()!));
+});
 
 /** A seeded generator, so a lossy mesh is the same mesh on every run. */
 function seeded(seed: number): () => number {

@@ -16,6 +16,20 @@
   ],
   "smokes": [
     {
+      "id": "birds-online",
+      "group": "birds-online",
+      "name": "Fuse Birds online controls and phone recovery",
+      "command": "pnpm exec tsx scripts/fuse-birds-online-smoke.ts",
+      "browsers": ["chrome"],
+      "env": {
+        "BIRDS_ONLINE_OUTPUT": "artifacts",
+        "FUSE_BIRDS_SKIP_TIMED_ROUND": "1"
+      },
+      "serviceUrlEnv": "ONLINE_URL",
+      "timeoutMinutes": 10,
+      "retries": 0
+    },
+    {
       "id": "birds-replay",
       "group": "birds-replay",
       "name": "Fuse Birds deterministic browser replay",
@@ -56,21 +70,6 @@
       "command": "pnpm exec tsx scripts/online-smoke.ts",
       "browsers": ["chromium"],
       "env": { "ROOM_RENDERER": "phaser-canvas" },
-      "serviceUrlEnv": "ONLINE_URL",
-      "timeoutMinutes": 25,
-      "retries": 1
-    },
-    {
-      "id": "online-webkit",
-      "group": "online",
-      "name": "Online WebKit room smoke (Phaser Canvas)",
-      "command": "pnpm exec tsx scripts/online-smoke.ts",
-      "browsers": ["webkit"],
-      "env": {
-        "SMOKE_RIDERS": "3",
-        "BROWSER": "webkit",
-        "ROOM_RENDERER": "phaser-canvas"
-      },
       "serviceUrlEnv": "ONLINE_URL",
       "timeoutMinutes": 25,
       "retries": 1

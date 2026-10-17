@@ -22,6 +22,7 @@ import {
   hash,
   isEntry,
   maxRounds,
+  stepsPerTick,
   view,
   type Entry,
   type Room,
@@ -33,6 +34,8 @@ import {
   OUTRO_STEPS,
   STEPS_PER_TICK,
   UP,
+  botInput,
+  stepWorld,
   type Settings,
 } from "../src/engine/index.js";
 import { LIFT } from "../src/engine/tuning.js";
@@ -70,6 +73,98 @@ function started(settings: Settings = DEFAULT_SETTINGS): Room {
 }
 const chopper = (room: Room, id: string) =>
   room.world!.choppers.find((c) => c.id === id)!;
+
+test("bots-only speed ramps from the last human crash and excludes normal phases and showcases", () => {
+  const room = started();
+  const world = room.world!;
+  world.phase = "play";
+  world.step = 200;
+  assert.equal(stepsPerTick(room), 3);
+  for (const id of ["a", "b"]) {
+    chopper(room, id).alive = false;
+    chopper(room, id).endedAt = id === "a" ? 150 : 200;
+  }
+  for (const [elapsed, expected] of [
+    [0, 9],
+    [539, 9],
+    [540, 12],
+    [1019, 12],
+    [1020, 15],
+    [1619, 15],
+    [1620, 18],
+    [9000, 18],
+  ]) {
+    world.step = 200 + elapsed!;
+    assert.equal(stepsPerTick(room), expected);
+  }
+  world.phase = "outro";
+  assert.equal(stepsPerTick(room), 3);
+  world.phase = "countdown";
+  assert.equal(stepsPerTick(room), 3);
+  world.phase = "play";
+  chopper(room, "bot:1").alive = false;
+  assert.equal(stepsPerTick(room), 3);
+  chopper(room, "bot:1").alive = true;
+  room.seats.get("a")!.bot = true;
+  room.seats.get("b")!.bot = true;
+  assert.equal(stepsPerTick(room), 3);
+});
+
+test("accelerated folds refresh bot controls, preserve checkpoints, and stop extras at the outro", () => {
+  const room = started();
+  fold(room, { a: [[ACTION, "lobby", "m2"]] });
+  fold(room, { a: [[BOT, "add", "bot:2", "Bot Two", 3]] });
+  fold(room, { a: [[ACTION, "start", "m3"]] });
+  run(room, COUNTDOWN_STEPS / STEPS_PER_TICK);
+  const world = room.world!;
+  for (const id of ["a", "b"]) {
+    chopper(room, id).x = world.crushX - 1000;
+  }
+  fold(room);
+  const expected = decode(encode(room), room.tick)!;
+  assert.ok(expected);
+  for (let batch = 0; batch < 3; batch++) {
+    const inputs = new Map(
+      expected.world!.choppers.map((c) => [
+        c.id,
+        expected.seats.get(c.id)?.bot ? botInput(expected.world!, c) : 0,
+      ]),
+    );
+    for (let step = 0; step < 3; step++) stepWorld(expected.world!, inputs);
+  }
+  const before = room.simulationTick;
+  fold(room);
+  assert.deepEqual(room.world, expected.world);
+  assert.equal(room.simulationTick - before, 9);
+  assert.equal(chopperGame.clock(room), view(room).tick);
+  const restored = decode(encode(room), room.tick)!;
+  assert.equal(hash(restored), hash(room));
+  run(room, 10);
+  run(restored, 10);
+  assert.equal(hash(restored), hash(room));
+  const malformed = encode(room);
+  malformed[12] = room.tick * 18 + 1;
+  assert.equal(decode(malformed, room.tick), undefined);
+  malformed[12] = room.tick * 3 - 1;
+  assert.equal(decode(malformed, room.tick), undefined);
+  world.phase = "play";
+  chopper(room, "bot:2").alive = false;
+  const stepBefore = world.step;
+  const clockBefore = room.simulationTick;
+  const budget = stepsPerTick(room);
+  fold(room);
+  assert.equal(world.phase, "outro");
+  assert.equal(world.step - stepBefore, 3);
+  assert.equal(room.simulationTick - clockBefore, budget);
+  assert.equal(stepsPerTick(room), 3);
+  world.phase = "play";
+  const resetClock = room.simulationTick;
+  const resetBudget = stepsPerTick(room);
+  fold(room, { a: [[ACTION, "lobby", "m4"]] });
+  assert.equal(room.stage, "lobby");
+  assert.equal(room.simulationTick - resetClock, resetBudget);
+  assert.ok(decode(encode(room), room.tick));
+});
 /** Ends the current round by crashing everyone but `survivor` into the crush zone. */
 function crashAllBut(room: Room, survivor: string): void {
   for (const c of room.world!.choppers)
