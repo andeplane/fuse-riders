@@ -18,6 +18,11 @@ export type Play =
 export interface Session {
   /** Whether this visible page owns an admitted seat (or a running local practice session). */
   readonly admitted: boolean;
+  /**
+   * Seconds the shared log leaves the current turn, or undefined where there is no turn timer (practice). Read against
+   * the log clock that stamps input, so every page shows the same countdown however far its own world lags.
+   */
+  readonly turnTimeLeft: number | undefined;
   start(): void;
   stop(): void;
   play(play: Play): boolean;
@@ -47,6 +52,27 @@ export class BirdsRuntime
       seat.generation === this.generation
     );
   }
+  /**
+   * Ticks of the turn left when this page's next entry lands: the log tick it is stamped with (the shared clock, or
+   * past it) against the deadline in the match's own ticks. A page's world can lag that clock by seconds under load, so
+   * its world's `deadline - tick` overstates the time left; an action stamped at or past the deadline is folded after
+   * the turn has already timed out and is dropped. 0 when the shared log has no aiming turn this page can see.
+   */
+  private turnTicksLeft(): number {
+    const world = this.world,
+      room = world?.state,
+      match = room?.match;
+    if (!world || !room || !match || match.phase !== "aiming") return 0;
+    const stamp = Math.max(
+      Math.floor(this.clock.tick()) + 1,
+      world.tick + 1,
+      this.recorder.tick,
+    );
+    return Math.max(0, match.deadline - (stamp - room.startedAt));
+  }
+  get turnTimeLeft(): number {
+    return this.turnTicksLeft() / 20;
+  }
   play(play: Play): boolean {
     const room = this.world?.state,
       match = room?.match,
@@ -57,7 +83,8 @@ export class BirdsRuntime
       !player ||
       !this.admitted ||
       match.phase !== "aiming" ||
-      player.id !== this.id
+      player.id !== this.id ||
+      this.turnTicksLeft() <= 0
     )
       return false;
     const ordinal = Math.max(this.ordinal, player.ordinal) + 1;

@@ -20,6 +20,10 @@ export class TestBirdsRuntime extends BirdsRuntime {
   hashAt(tick: number): string | undefined {
     return this.world?.hashAt(tick);
   }
+  /** The shared log clock, which every member's synced clock agrees on and which stamps this page's input. */
+  clockTick(): number {
+    return this.clock.tick();
+  }
 }
 export type FastFate =
   { drop: true } | { drop?: false; delayMs: number; duplicateMs?: number };
@@ -59,6 +63,8 @@ export class BirdsMesh {
   snapshot: (chunk: { data: string; chunk: number }, to: string) => void =
     () => {};
   sentFast = 0;
+  /** A starved page: its loop runs only every this many ms, as a CPU-bound browser's interval timer would. */
+  readonly starved = new Map<string, number>();
   constructor(
     readonly hostId: string,
     private readonly settings: BirdsSettings = { display: false },
@@ -182,7 +188,8 @@ export class BirdsMesh {
     while (this.now < end) {
       this.now += 10;
       this.flush();
-      for (const loop of [...this.loops.values()]) loop();
+      for (const [id, loop] of [...this.loops])
+        if (this.now % (this.starved.get(id) ?? 10) === 0) loop();
       this.flush();
     }
   }

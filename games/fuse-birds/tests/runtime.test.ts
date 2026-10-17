@@ -262,3 +262,72 @@ test("real runtime scopes a Scatter launch, repairs reordered input, and recover
     for (const runtime of mesh.runtimes.values()) runtime.stop();
   }
 });
+test("a starved page's lagging world neither fires into a turn the log has timed out nor shows a stale countdown", () => {
+  const mesh = new BirdsMesh("a"),
+    a = mesh.join("a"),
+    b = mesh.join("b");
+  // Whether `who`'s own world shows b's aiming turn `turn`, and how many seconds that world thinks are left.
+  const worldTurn = (who: TestBirdsRuntime, turn: number) => {
+    const match = who.roomState()?.match;
+    return match?.turn === turn &&
+      match.phase === "aiming" &&
+      match.players[match.active]!.id === "b"
+      ? (match.deadline - match.tick) / 20
+      : undefined;
+  };
+  const scatter = () => {
+    const match = b.roomState()!.match!,
+      w = match.preparation.witnesses.find(
+        (w) => w.from === "b" && w.wind === match.wind,
+      )!;
+    return b.play({ type: "launch", weapon: "scatter", vx: w.vx, vy: w.vy });
+  };
+  const until = (done: () => boolean, ms: number) => {
+    for (let wait = 0; wait < ms / 10 && !done(); wait++) {
+      mesh.run(10);
+      // Every page reads the same countdown off the shared clock, however far its own world lags it.
+      const left = a.turnTimeLeft,
+        lagging = b.turnTimeLeft;
+      if (a.roomState()?.match?.phase === "aiming" && left > 0.5 && lagging > 0)
+        assert.ok(Math.abs(left - lagging) <= 0.25, `${left}s vs ${lagging}s`);
+    }
+    assert.ok(done());
+  };
+  try {
+    mesh.run(200);
+    a.command({ type: "join", name: "Alpha" });
+    b.command({ type: "join", name: "Beta" });
+    mesh.run(3000);
+    a.command({ type: "action", action: "start" });
+    until(() => a.roomState()?.match?.phase === "aiming", 10_000);
+    // A CPU-bound browser runs its interval timer every 200 ms: its world falls seconds behind the clock that stamps
+    // its input before it is far enough behind to fetch a snapshot.
+    mesh.starved.set("b", 200);
+    // Turn 1 is a's and times out; on turn 2, b's world still shows seconds left after the log has timed it out.
+    until(() => (worldTurn(b, 2) ?? 0) >= 4 && b.turnTimeLeft === 0, 60_000);
+    assert.ok(
+      (worldTurn(a, 2) ?? 0) <= 0.05,
+      "the current world is out of time",
+    );
+    assert.equal(
+      scatter(),
+      false,
+      "a shot stamped past the deadline would be folded into a timed-out turn and dropped",
+    );
+    // On b's next turn, a shot the shared clock still has time for lands on every page.
+    until(() => worldTurn(b, 4) !== undefined && b.turnTimeLeft >= 3, 60_000);
+    assert.equal(b.roomState()!.match!.players[1]!.ammo, 3);
+    assert.equal(scatter(), true);
+    mesh.starved.delete("b");
+    until(() => (a.roomState()!.match!.turn ?? 0) > 4, 30_000);
+    mesh.run(3000);
+    for (const page of [a, b]) {
+      const bird = page.roomState()!.match!.players.find((p) => p.id === "b")!;
+      assert.equal(bird.ammo, 2);
+      assert.equal(bird.ordinal, 1);
+    }
+    converge(a, b);
+  } finally {
+    for (const runtime of mesh.runtimes.values()) runtime.stop();
+  }
+});
