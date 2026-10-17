@@ -141,9 +141,9 @@ test("an unreachable goal leaves every tile across the water unreachable, and no
   const field = buildFlowField(map, at(map, 6, 6));
   assert.equal(field.cost[at(map, 1, 1)], UNREACHABLE);
   assert.equal(field.next[at(map, 1, 1)], -1);
-  // Seat 0 pushes, but the only flag to take lies across the water: it holds its own instead.
+  // Seat 0 pushes, but the only flag to take lies across the water: it holds its own instead (out of the guns' reach).
   let world = place(benchHeroes(createWorld(map, [0, 1], 3)), 0, "grunt", [
-    { x: 5, y: 2 },
+    { x: 2, y: 1 },
   ]);
   world = run(map, world, 200);
   const unit = world.units[0]!;

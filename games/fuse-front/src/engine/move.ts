@@ -19,6 +19,7 @@ import { clamp, div, isqrt } from "./math.js";
 import {
   HOLD_CROWD,
   HOLD_RADIUS,
+  RALLY_SPEED,
   RETHINK_STEPS,
   TILE,
   UNITS,
@@ -195,7 +196,10 @@ function seek(map: GameMap, world: World, unit: Unit): [number, number] {
   const tx = target % map.width;
   const dx = centreOf(tx) - unit.x,
     dy = centreOf((target - tx) / map.width) - unit.y;
-  const speed = UNITS[unit.kind].speed;
+  const speed =
+    unit.rally > 0
+      ? div(UNITS[unit.kind].speed * (100 + RALLY_SPEED), 100)
+      : UNITS[unit.kind].speed;
   const length = isqrt(dx * dx + dy * dy);
   if (length <= speed) return [dx, dy];
   return [div(dx * speed, length), div(dy * speed, length)];

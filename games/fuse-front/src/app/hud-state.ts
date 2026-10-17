@@ -148,7 +148,9 @@ export function factoryPanel(
     ...b,
     choices: FACTORY_KINDS[b.kind],
     eta,
-    paused: units >= UNIT_CAP,
+    paused:
+      units >=
+      (world.players.find((p) => p.seat === seat)?.unitCap ?? UNIT_CAP),
   };
 }
 
