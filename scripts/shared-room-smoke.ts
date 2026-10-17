@@ -7,6 +7,11 @@ import { smokeTimeout } from "./smoke-timeout.js";
 import { openTopMenu } from "./lib/top-menu.js";
 import { ridersPageUrl } from "./lib/riders-url.js";
 const base = ridersPageUrl(process.env.ONLINE_URL ?? "http://127.0.0.1:8796/");
+// WebKit reports a fast-channel send on a transport that just died as an uncaught page error, although
+// PeerTransport.sendFast gates on connection state and catches the throw (flaky-test epic #250; the same
+// filter as online-smoke.ts). Every other page error still fails the smoke.
+const benign = (e: Error) =>
+  /Error sending (binary data|string) through RTCDataChannel/.test(e.message);
 await mkdir("artifacts", { recursive: true });
 const results: object[] = [];
 async function qr(page: Page) {
@@ -37,9 +42,9 @@ for (const { name, kind } of BOTH_ENGINES) {
       const phone = await pc.newPage();
       diagnosticPages = { phone };
       phone.setDefaultTimeout(smokeTimeout(25000));
-      phone.on("pageerror", (e) =>
-        errors.push(`phone: ${e.stack ?? e.message}`),
-      );
+      phone.on("pageerror", (e) => {
+        if (!benign(e)) errors.push(`phone: ${e.stack ?? e.message}`);
+      });
       try {
         await phone.goto(base);
         await phone
@@ -208,9 +213,9 @@ for (const { name, kind } of BOTH_ENGINES) {
     diagnosticPages = { host, guest, display };
     for (const [role, page] of Object.entries(diagnosticPages)) {
       page.setDefaultTimeout(smokeTimeout(25000));
-      page.on("pageerror", (e) =>
-        errors.push(`${role}: ${e.stack ?? e.message}`),
-      );
+      page.on("pageerror", (e) => {
+        if (!benign(e)) errors.push(`${role}: ${e.stack ?? e.message}`);
+      });
     }
     guest.on("websocket", () => guestSockets++);
     guest.on("framenavigated", (frame) => {
