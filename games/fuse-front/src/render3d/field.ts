@@ -101,6 +101,7 @@ export class Field3D implements Renderer {
   private buildings: THREE.Mesh[] = [];
   private flags: THREE.Mesh[] = [];
   private readonly slots = new Map<string, Slot>();
+  private readonly slotList: Slot[] = [];
   private readonly teamMat: THREE.MeshStandardMaterial[];
   private readonly neutralMat: THREE.MeshStandardMaterial;
   private readonly wreckMat: THREE.MeshStandardMaterial;
@@ -135,7 +136,7 @@ export class Field3D implements Renderer {
     this.scene.add(new THREE.HemisphereLight(0xc8dcf0, 0x9a7448, 1.1));
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
-    Object.assign(this.sun.shadow, { bias: -0.0005, normalBias: 0.03, radius: 3 });
+    Object.assign(this.sun.shadow, { bias: -0.0005, normalBias: 0.03 });
     this.scene.add(this.sun, this.sun.target, this.matchGroup);
 
     const std = (hex: number, roughness = 0.6, metalness = 0.35) =>
@@ -160,7 +161,7 @@ export class Field3D implements Renderer {
     const bar = new THREE.PlaneGeometry(1, 0.08).rotateX(-rig.PITCH);
     const ring = new THREE.RingGeometry(0.42, 0.52, 32).rotateX(-Math.PI / 2).translate(0, 0.05, 0);
     const add = (key: string, geometry: THREE.BufferGeometry, material: THREE.Material, shadow: boolean, order = 0) =>
-      this.slots.set(key, { batch: new Batch(), geometry: this.keep(geometry), material, shadow, order });
+      this.slotList.push(this.slots.set(key, { batch: new Batch(), geometry: this.keep(geometry), material, shadow, order }).get(key)!);
     for (const kind of ["grunt", "torch", "lightTank", "hero"] as const)
       add(kind, unitGeometry(kind), unitMat, true);
     add("ring", ring, flat(0), false);
@@ -249,8 +250,12 @@ export class Field3D implements Renderer {
 
   /** Copies the rig onto the camera, the sun's shadow box and the fog. */
   private place(): void {
-    const at = rig.eye(this.rig);
-    this.camera.position.set(at.x, at.y, at.z);
+    const { distance } = this.rig;
+    this.camera.position.set(
+      this.rig.x,
+      distance * Math.sin(rig.PITCH),
+      this.rig.z + distance * Math.cos(rig.PITCH),
+    );
     this.camera.lookAt(this.rig.x, 0, this.rig.z);
     this.camera.updateMatrixWorld();
     const reach = this.rig.distance * 0.9 + 6;
@@ -261,8 +266,12 @@ export class Field3D implements Renderer {
       cam.far = 120;
       cam.updateProjectionMatrix();
     }
-    this.sun.target.position.set(this.rig.x, 0, this.rig.z);
-    this.sun.position.set(this.rig.x - 24, 40, this.rig.z + 18);
+    // The sun moves in whole shadow texels, so shadow edges hold still while the camera glides.
+    const texel = (2 * reach) / 2048,
+      sx = Math.round(this.rig.x / texel) * texel,
+      sz = Math.round(this.rig.z / texel) * texel;
+    this.sun.target.position.set(sx, 0, sz);
+    this.sun.position.set(sx - 24, 40, sz + 18);
     const fog = this.scene.fog as THREE.Fog;
     fog.near = this.rig.distance * 1.1;
     fog.far = this.rig.distance * 3;
@@ -280,33 +289,27 @@ export class Field3D implements Renderer {
       for (const h of older?.heroes ?? []) this.heroBefore.set(h.seat, h);
       if (this.facing.size > world.units.length * 2 + 64) this.facing.clear();
     }
-    const lerp = (a: number, b: number) => (a + (b - a) * t) / TILE;
-    for (const slot of this.slots.values()) slot.batch.begin();
-    const bars = (x: number, y: number, z: number, frac: number, width: number) => {
-      const f = Math.max(0, Math.min(1, frac));
-      this.slot("barBack").batch.push(x, y, z, 0, width + 0.06, 1.6, 1, BAR_BACK);
-      this.slot("barFill").batch.push(x - ((1 - f) * width) / 2, y, z, 0, width * f, 1, 1, f > 0.5 ? GOOD! : f > 0.25 ? FAIR! : POOR!);
-    };
+    for (const slot of this.slotList) slot.batch.begin();
     for (const u of world.units) {
       const p = this.before.get(u.id) ?? u;
-      const x = lerp(p.x, u.x), z = lerp(p.y, u.y), y = standY(world, field, x, z);
+      const x = this.lerp(t, p.x, u.x), z = this.lerp(t, p.y, u.y), y = standY(world, field, x, z);
       if (Math.abs(u.x - p.x) + Math.abs(u.y - p.y) >= 2) this.facing.set(u.id, Math.atan2(u.x - p.x, u.y - p.y));
       const yaw = this.facing.get(u.id) ?? (u.team === 0 ? Math.PI / 2 : -Math.PI / 2);
       const s = u.stunned ? 0.85 : 1;
       this.slot(u.kind).batch.push(x, y, z, yaw, s, s, s, teamRgb(u.team));
-      if (u.hp < u.maxHp) bars(x, y + 0.85, z, u.hp / u.maxHp, 0.6);
+      if (u.hp < u.maxHp) this.bar(x, y + 0.85, z, u.hp / u.maxHp, 0.6);
     }
     for (const hero of world.heroes) {
       if (hero.hp <= 0) continue;
       const p = this.heroBefore.get(hero.seat) ?? hero;
-      const x = lerp(p.x, hero.x), z = lerp(p.y, hero.y), y = standY(world, field, x, z);
+      const x = this.lerp(t, p.x, hero.x), z = this.lerp(t, p.y, hero.y), y = standY(world, field, x, z);
       if (this.follow && hero.seat === self) {
         this.rig.x = x;
         this.rig.z = z;
       }
       this.slot("hero").batch.push(x, y, z, 0, 1, 1, 1, teamRgb(hero.team));
       this.slot("ring").batch.push(x, y, z, 0, 1, 1, 1, hero.seat === self ? SELF_RGB : teamRgb(hero.team));
-      bars(x, y + 1.45, z, hero.hp / hero.maxHp, 1);
+      this.bar(x, y + 1.45, z, hero.hp / hero.maxHp, 1);
     }
     rig.clampRig(this.rig, world.width, world.height);
     for (let i = 0; i < world.buildings.length; i++) {
@@ -317,7 +320,7 @@ export class Field3D implements Renderer {
       mesh.material = dead ? this.wreckMat : this.teamMat[b.team] ?? this.neutralMat;
       mesh.scale.y = dead ? 0.35 : 1;
       if (!dead && b.hp < b.maxHp)
-        bars(mesh.position.x, mesh.position.y + BUILDING_SIZE[b.kind][1] + 0.4, mesh.position.z, b.hp / b.maxHp, 1.4);
+        this.bar(mesh.position.x, mesh.position.y + BUILDING_SIZE[b.kind][1] + 0.4, mesh.position.z, b.hp / b.maxHp, 1.4);
     }
     for (let i = 0; i < world.flags.length; i++) {
       const f = world.flags[i]!;
@@ -326,10 +329,22 @@ export class Field3D implements Renderer {
       cloth.material = this.teamMat[f.team] ?? this.neutralMat;
       cloth.rotation.y = Math.sin(now / 400 + i) * 0.35;
     }
-    for (const slot of this.slots.values()) this.sync(slot);
+    for (const slot of this.slotList) this.sync(slot);
     this.waterNormal.offset.set((now / 60000) % 1, (now / 23000) % 1);
     this.place();
     this.gl.render(this.scene, this.camera);
+  }
+
+  private lerp(t: number, a: number, b: number): number {
+    return (a + (b - a) * t) / TILE;
+  }
+
+  /** A health bar: a dark back and a fill coloured by how much is left. */
+  // prettier-ignore
+  private bar(x: number, y: number, z: number, frac: number, width: number): void {
+    const f = Math.max(0, Math.min(1, frac));
+    this.slot("barBack").batch.push(x, y, z, 0, width + 0.06, 1.6, 1, BAR_BACK);
+    this.slot("barFill").batch.push(x - ((1 - f) * width) / 2, y, z, 0, width * f, 1, 1, f > 0.5 ? GOOD! : f > 0.25 ? FAIR! : POOR!);
   }
 
   private slot(key: string): Slot {
@@ -352,7 +367,13 @@ export class Field3D implements Renderer {
       this.scene.add((slot.mesh = mesh));
     }
     mesh.count = batch.count;
-    mesh.instanceMatrix.needsUpdate = mesh.instanceColor!.needsUpdate = true;
+    // Upload only this frame's instances, not the whole (never-shrinking) capacity.
+    const matrices = mesh.instanceMatrix, colors = mesh.instanceColor!;
+    matrices.clearUpdateRanges();
+    matrices.addUpdateRange(0, batch.count * 16);
+    colors.clearUpdateRanges();
+    colors.addUpdateRange(0, batch.count * 3);
+    matrices.needsUpdate = colors.needsUpdate = true;
   }
 
   /** A new match: frees the old ground and builds this map's, with the camera back on the hero. */
@@ -363,6 +384,9 @@ export class Field3D implements Renderer {
     this.matchId = matchId;
     this.follow = true;
     this.facing.clear();
+    this.before.clear();
+    this.heroBefore.clear();
+    this.olderSeen = undefined;
     this.rig.x = world.width / 2;
     this.rig.z = world.height / 2;
     const field = (this.field = heightField(world));
@@ -388,6 +412,7 @@ export class Field3D implements Renderer {
       })),
     );
     water.receiveShadow = true;
+    this.waterNormal.repeat.set(W / 4, H / 4);
     // An apron of plain desert around the map, so a camera at the edge sees ground rather than haze.
     const outer = new THREE.Shape([[-80, -80], [W + 80, -80], [W + 80, H + 80], [-80, H + 80]].map(([x, z]) => new THREE.Vector2(x, z)));
     outer.holes.push(new THREE.Path([[0, 0], [0, H], [W, H], [W, 0]].map(([x, z]) => new THREE.Vector2(x, z))));
@@ -466,8 +491,10 @@ export class Field3D implements Renderer {
 
   dispose(): void {
     this.clearMatch();
-    for (const slot of this.slots.values()) slot.mesh?.dispose();
+    for (const slot of this.slotList) slot.mesh?.dispose();
     for (const thing of this.owned) thing.dispose();
     this.gl.dispose();
+    // Release the context now: every room makes a new canvas, and browsers cap live WebGL contexts.
+    this.gl.forceContextLoss();
   }
 }

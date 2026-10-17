@@ -336,7 +336,9 @@ function room(code: string, token: string | undefined, display: boolean): void {
     "wheel",
     (event) => {
       event.preventDefault();
-      field.zoom(Math.exp(-event.deltaY * 0.0015));
+      // Lines (Firefox) and pages count as many pixels.
+      const pixels = event.deltaY * [1, 16, 400][event.deltaMode]!;
+      field.zoom(Math.exp(-pixels * 0.0015));
     },
     { passive: false },
   );
