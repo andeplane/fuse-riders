@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ACTION, JOIN, LEAVE } from "fuse-netcode";
+import { ACTION, BOT, JOIN, LEAVE } from "fuse-netcode";
 import { NO_WINNER, STEPS_PER_TICK } from "../src/engine/index.js";
 import {
   CAST,
@@ -99,7 +99,6 @@ test("bot fill is deterministic: two replicas of a 3v3 agree, and the bots play"
 
 test("a rider's controls count in its own match only, and at most four a tick", () => {
   const { room, entries } = match({ size: 1 });
-  const before = hash(room);
   log(room, entries, "host", STANCE, "old-match", 1);
   fold(room, entries, 1);
   assert.equal(room.world!.players[0]!.stance, "push", "a stale match");
@@ -119,8 +118,19 @@ test("a rider's controls count in its own match only, and at most four a tick", 
 });
 
 test("a friend who joins mid-match takes over a bot's slot, and hands it back on leaving", () => {
-  const { room, entries } = match({ size: 1 });
-  fold(room, entries, 50);
+  const room = createRoom("lobby", DEFAULT_SETTINGS);
+  const entries: Log = new Map();
+  log(room, entries, "host", JOIN, "host", "Host", 0, "brick", 1);
+  log(room, entries, "host", BOT, "add", "bot:1", "Rivet", 1);
+  fold(room, entries, 1);
+  assert.equal(room.seats.get("bot:1")?.slot, 1);
+  log(room, entries, "host", ACTION, "start", "match-1");
+  fold(room, entries, 50 + COUNTDOWN_TICKS);
+  assert.deepEqual(
+    [...room.seats.keys()],
+    ["host"],
+    "the added AI is fill now",
+  );
   log(room, entries, "host", JOIN, "friend", "Friend", 1, "brick", 1);
   fold(room, entries, 1);
   assert.deepEqual(view(room).bots, []);
