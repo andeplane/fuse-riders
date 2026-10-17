@@ -104,7 +104,16 @@ hero, with edge pan and a minimap jump.
 ground per match, paints each sprite variant (kind × team × facing × frame) once into an offscreen canvas, and turns
 engine events into tracers, flames, explosions, scorch decals and spell rings, accepting each event once per match by
 its step stamp so a rollback re-run never plays a cue twice. Positions between two frames are interpolated for display
-only. The HUD, minimap, factory panel and casting UI follow in R2.
+only.
+
+The HUD (R2, `src/app/hud.ts`) is DOM dressed in pixel art: the steel, frames, portrait, spell icons and unit cards
+are painted once by `render/pixel/` and scaled 2x with `image-rendering: pixelated`, while text, bars and buttons stay
+DOM so they read, click and tap well. `app/hud-state.ts` derives what it shows (cooldowns, the locked ultimate, the
+sector meter, the clock, factory ETAs) into one reused record, and the HUD writes only values that changed. The
+minimap (`render/minimap.ts`) is one pixel per tile, tinted by sector owner and redrawn every 10 steps or on a capture.
+Q/W/E/R cast at the hero's tile, 1/2/3 set the stance, and clicking one of your factories opens its orders panel.
+
+![HUD](images/hud.png)
 
 ## Art
 

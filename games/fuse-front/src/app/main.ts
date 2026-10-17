@@ -18,11 +18,13 @@ import {
   validRoomCode,
 } from "fuse-network-fe";
 import { MAX_PACKET_BYTES } from "fuse-netcode";
-import { STANCES, teamOf, type WorldView } from "../engine/index.js";
+import { type WorldView } from "../engine/index.js";
 import { DEFAULT_SETTINGS, type View } from "../online/game.js";
 import { FrontRuntime } from "../online/runtime.js";
 import { Battlefield } from "../render/battlefield.js";
 import { edgePan, PAN_SPEED } from "../render/camera.js";
+import { Hud } from "./hud.js";
+import { factoryAt, heroTile, keyAction } from "./hud-state.js";
 import { SIZES, TEAMS, banner, cycleDifficulty, slotsOf } from "./model.js";
 import { GAME_ID, keys, roomFailure, sessionFor } from "./session.js";
 
@@ -96,7 +98,7 @@ function landing(error = ""): void {
     card.element,
     el(
       "p",
-      "Click the map to move your hero · drag or edge to pan, Space to recentre · 1 / 2 / 3: push, hold, follow",
+      "Click the map to move your hero · Q W E R cast · 1 / 2 / 3: push, hold, follow · click a factory for its orders",
       "ff-help",
     ),
   );
@@ -107,18 +109,31 @@ function room(code: string, token: string | undefined, display: boolean): void {
   status.setAttribute("role", "status");
   const lobby = el("section", "", "ff-lobby");
   const play = el("section", "", "ff-play");
-  const hud = el("p", "", "ff-hud");
+  const hint = el("p", "", "ff-hud");
   const canvas = el("canvas", "", "ff-board");
-  const end = el("div", "", "ff-banner");
+  const end = el("div", "", "ff-end ff-frame");
   const endText = el("strong", "");
+  const endNote = el("p", "");
   const back = el("button", "BACK TO LOBBY", "fui-button fui-button-primary");
-  end.append(endText, back);
-  play.append(hud, canvas, end);
-  play.hidden = true;
-  app.replaceChildren(header(), status, lobby, play);
+  end.append(endText, endNote, back);
+  const stage = el("div", "", "ff-stage");
   const field = new Battlefield(canvas, (w, h) =>
     Object.assign(document.createElement("canvas"), { width: w, height: h }),
   );
+  let shown: WorldView | undefined;
+  const hud = new Hud({
+    cast(slot) {
+      const at = shown && heroTile(shown, runtime.slot());
+      if (at && hud.state.spells[slot]?.ready) runtime.cast(slot, at.x, at.y);
+    },
+    stance: (stance) => runtime.stance(stance),
+    order: (factory, kind) => runtime.order(factory, kind),
+    look: (fx, fy) => shown && field.lookAt(fx, fy, shown),
+  });
+  stage.append(canvas, hud.orders, end);
+  play.append(hud.top, stage, hud.bottom, hint);
+  play.hidden = true;
+  app.replaceChildren(header(), status, lobby, play);
   const name = () => store.getItem(keys.name) || "Commander";
   const online = token !== undefined;
   const runtime = new FrontRuntime(
@@ -162,19 +177,28 @@ function room(code: string, token: string | undefined, display: boolean): void {
       return;
     }
     const world = view.world!;
-    const mine = world.players.find((p) => p.seat === runtime.slot());
+    const slot = runtime.slot();
+    hud.update(world, slot, slotsOf(view, runtime.self));
     const countdown = Math.max(
       0,
       Math.ceil((view.startAt - view.logTick) / 20),
     );
-    hud.textContent = countdown
+    const text = countdown
       ? `Starting in ${countdown}…`
-      : mine
-        ? `${TEAMS[teamOf(mine.seat)]} · stance ${mine.stance.toUpperCase()} · click to move · drag or edge to pan · Space recentres · 1/2/3 stance`
+      : slot >= 0
+        ? `${TEAMS[slot % 2]} · click to move · Q W E R cast · 1/2/3 stance · click a factory for orders · Space recentres`
         : "Watching";
-    end.hidden = view.stage !== "over";
-    endText.textContent = banner(view.winner, runtime.slot());
+    if (hint.textContent !== text) hint.textContent = text;
+    const over = view.stage === "over";
+    end.hidden = !over;
+    if (!over) return;
+    const result = banner(view.winner, slot);
+    end.dataset.result = result.toLowerCase();
+    endText.textContent = result;
+    const { red, neutral, blue } = hud.state;
+    endNote.textContent = `${hud.state.time} · sectors ${red} red · ${neutral} neutral · ${blue} blue`;
     back.hidden = !runtime.creator && !runtime.solo;
+    hud.close();
   }
   function renderLobby(view: View): void {
     const host = runtime.creator || runtime.solo;
@@ -233,15 +257,18 @@ function room(code: string, token: string | undefined, display: boolean): void {
   }
   back.onclick = () => runtime.command({ type: "action", action: "lobby" });
   // The battlefield draws every animation frame from the runtime's newest frames; `show` only runs the DOM around it.
-  let shown: WorldView | undefined;
   let hover: { x: number; y: number } | undefined;
   let drag: { id: number; x: number; y: number; moved: boolean } | undefined;
   let last = performance.now();
   let raf = 0;
   const fit = (world: WorldView) => {
     const width = play.getBoundingClientRect().width - 6;
-    const top = canvas.getBoundingClientRect().top;
-    field.resize(width, innerHeight - top - 18, devicePixelRatio || 1, world);
+    const top = canvas.getBoundingClientRect().top + scrollY;
+    const below =
+      hud.bottom.getBoundingClientRect().height +
+      hint.getBoundingClientRect().height;
+    const height = Math.max(160, innerHeight - top - below - 30);
+    field.resize(width, height, devicePixelRatio || 1, world);
   };
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
@@ -273,6 +300,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
     }
     const before = older?.world ?? undefined;
     field.draw(newer.matchId, world, before, t, runtime.slot(), now);
+    hud.cameraBox(field.box(world));
   };
   raf = requestAnimationFrame(frame);
   const resized = () => shown && fit(shown);
@@ -305,19 +333,27 @@ function room(code: string, token: string | undefined, display: boolean): void {
     drag = undefined;
     if (!was || was.moved || !shown) return;
     const tile = field.tileAt(event.offsetX, event.offsetY, shown);
-    if (tile) runtime.move(tile.x, tile.y);
+    if (!tile) return;
+    // A left click on one of this device's factories opens its orders; anything else (or a right click) moves.
+    const factory =
+      event.button === 0 && factoryAt(shown, tile, runtime.slot());
+    if (factory) return hud.openFactory(factory.id);
+    hud.close();
+    runtime.move(tile.x, tile.y);
   });
   canvas.addEventListener("pointercancel", () => (drag = undefined));
   canvas.addEventListener("pointerleave", () => (hover = undefined));
   canvas.addEventListener("contextmenu", (event) => event.preventDefault());
   const keys123 = (event: KeyboardEvent) => {
-    if (event.key === " " && shown) {
-      event.preventDefault();
-      field.follow = true;
+    const action = keyAction(event.key);
+    if (!action || !shown || event.repeat || event.ctrlKey || event.metaKey)
       return;
-    }
-    const stance = STANCES[Number(event.key) - 1];
-    if (stance && !event.repeat) runtime.stance(stance);
+    if (event.target instanceof HTMLInputElement) return;
+    event.preventDefault();
+    if (action.kind === "recentre") field.follow = true;
+    else if (action.kind === "close") hud.close();
+    else if (action.kind === "stance") runtime.stance(action.stance);
+    else hud.actions.cast(action.slot);
   };
   window.addEventListener("keydown", keys123);
   runtime.start();
