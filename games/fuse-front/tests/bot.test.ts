@@ -51,7 +51,7 @@ function play(
 /**
  * Whether `command`, sent alone on `world`'s next step, does what it says: a stance or order holds, the hero walks
  * toward the tile (or has reached it), a cast is announced. An order's sector captured in the same step is the one
- * exception, since a capture resets the factory's order after commands apply.
+ * exception, since a capture resets the factory's order after commands apply; so is a hero killed on that step.
  */
 function takesEffect(board: GameMap, world: World, command: Command): boolean {
   const after = step(board, world, [command]);
@@ -76,7 +76,8 @@ function takesEffect(board: GameMap, world: World, command: Command): boolean {
     const hero = after.heroes.find((h) => h.seat === seat)!;
     const goal = command.y * board.width + command.x;
     const at = tileOf(hero.y) * board.width + tileOf(hero.x);
-    return hero.goal === goal || at === goal;
+    // A hero killed on that very step drops its move.
+    return hero.goal === goal || at === goal || hero.hp === 0;
   }
   return false;
 }

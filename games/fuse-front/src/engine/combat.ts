@@ -196,8 +196,8 @@ export function fight(map: GameMap, world: World): Set<number> {
       // The splash: every other enemy unit near the target, in id order, takes part of the shot.
       const splash = div(damage * HERO.splashPercent, 100);
       for (const near of targets) {
-        if (near.of !== "unit") break;
-        if (near === victim || near.team === from.team) continue;
+        if (near.of !== "unit" || near === victim) continue;
+        if (near.team === from.team) continue;
         const dx = near.x - victim.x,
           dy = near.y - victim.y;
         if (dx * dx + dy * dy > HERO.splash * HERO.splash) continue;
