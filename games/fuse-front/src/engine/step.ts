@@ -1,17 +1,23 @@
 /**
- * One engine step: the step's commands, then goals (`move.ts`), combat (`combat.ts`), movement, capture and
- * production. `step` never mutates the world it is given: it copies the arrays and records (players, sectors,
- * buildings, units) and returns a new world, so the netcode can keep the previous one as a snapshot. Once the match
- * has a winner a step only advances the clock. Heroes and bots arrive in later rules.
+ * One engine step: the step's commands, the heroes' energy and respawns (`hero.ts`), goals (`move.ts`), combat
+ * (`combat.ts`), movement of units then heroes, capture and production. `step` never mutates the world it is given: it
+ * copies the arrays and records (players, sectors, buildings, units, heroes) and returns a new world, so the netcode
+ * can keep the previous one as a snapshot. Once the match has a winner a step only advances the clock. Bots and
+ * spells arrive in later rules.
  */
+import { isInt } from "./codec.js";
 import { fight } from "./combat.js";
+import { openTile } from "./flow.js";
+import { alive, gainXp, moveHeroes, tendHeroes } from "./hero.js";
 import { flagAt, type GameMap } from "./map.js";
 import { div } from "./math.js";
 import { centreOf, chooseGoals, moveUnits, tileOf } from "./move.js";
 import {
+  CAPTURE_XP,
   COMMANDS_PER_SEAT,
   FACTORY_KINDS,
   STANCES,
+  STEER_MAX,
   STEPS_PER_TICK,
   TILE,
   UNITS,
@@ -32,10 +38,17 @@ import {
   type World,
 } from "./world.js";
 
-/** What a player sends: a factory's standing order, or the stance of every unit that player's factories built. */
+/**
+ * What a player sends: a factory's standing order, the stance of every unit that player's factories built, a walk
+ * for the hero to a tile (`move`, in tiles), or the held stick direction (`steer`, each axis -STEER_MAX..STEER_MAX,
+ * (0, 0) releasing it). A move releases the stick and a steer cancels the move, so the latest wins. Both apply to a
+ * dead hero too: the stick stays held, and a move made while dead is walked after the respawn.
+ */
 export type Command =
   | { seat: number; type: "order"; factory: number; kind: UnitKind }
-  | { seat: number; type: "stance"; stance: Stance };
+  | { seat: number; type: "stance"; stance: Stance }
+  | { seat: number; type: "move"; x: number; y: number }
+  | { seat: number; type: "steer"; dx: number; dy: number };
 
 export function step(
   map: GameMap,
@@ -51,12 +64,15 @@ export function step(
     sectors: [...world.sectors],
     buildings: world.buildings.map((building) => ({ ...building })),
     units: world.units.map((unit) => ({ ...unit })),
+    heroes: world.heroes.map((hero) => ({ ...hero })),
     events: [],
   };
   applyCommands(map, next, commands);
+  tendHeroes(map, next);
   chooseGoals(map, next);
   const engaged = fight(map, next);
   moveUnits(map, next, engaged);
+  moveHeroes(map, next);
   capture(map, next);
   produce(map, next);
   return next;
@@ -100,6 +116,22 @@ function applyCommands(
       // The player's units pick goals under the new stance this step.
       for (const unit of world.units)
         if (unit.owner === player.seat) unit.goal = -1;
+    } else if (command.type === "move" || command.type === "steer") {
+      const hero = world.heroes.find((each) => each.seat === player.seat)!;
+      if (command.type === "move") {
+        const { x, y } = command;
+        if (!isInt(x, 0, map.width - 1) || !isInt(y, 0, map.height - 1))
+          continue;
+        if (!openTile(map, x, y)) continue;
+        [hero.goal, hero.steerX, hero.steerY] = [y * map.width + x, 0, 0];
+      } else {
+        const { dx, dy } = command;
+        if (!isInt(dx, -STEER_MAX, STEER_MAX)) continue;
+        if (!isInt(dy, -STEER_MAX, STEER_MAX)) continue;
+        // Releasing the stick leaves a move alone; holding it cancels one.
+        if (dx !== 0 || dy !== 0) hero.goal = -1;
+        [hero.steerX, hero.steerY] = [dx, dy];
+      }
     } else if (command.type === "order") {
       const building = world.buildings.find(
         (each) => each.id === command.factory,
@@ -117,26 +149,35 @@ function applyCommands(
 }
 
 /**
- * A robot standing on a flag takes its sector for its owner. A flag robots of both teams stand on stays as it is, and
- * a team never takes a flag from itself; when one team's robots stand on another's flag, the lowest-id one takes it.
+ * A robot or living hero standing on a flag takes its sector for its owner, whose hero earns `CAPTURE_XP`. A flag
+ * both teams stand on stays as it is, and a team never takes a flag from itself; when one team stands on another's
+ * flag, the lowest-id robot takes it, or the lowest-seat hero when no robot of that team is there.
  * A captured factory starts its default order from scratch, and a captured turret starts loaded.
  */
 function capture(map: GameMap, world: World): void {
   const taker = new Map<number, number>();
   const contested = new Set<number>();
-  for (const unit of world.units) {
-    if (!UNITS[unit.kind].robot) continue;
-    const flag = flagAt(map, tileOf(unit.x), tileOf(unit.y));
-    if (flag < 0) continue;
+  const stand = (seat: number, x: number, y: number): void => {
+    const flag = flagAt(map, tileOf(x), tileOf(y));
+    if (flag < 0) return;
     const first = taker.get(flag);
-    if (first === undefined) taker.set(flag, unit.owner);
-    else if (teamOf(first) !== teamOf(unit.owner)) contested.add(flag);
-  }
+    if (first === undefined) taker.set(flag, seat);
+    else if (teamOf(first) !== teamOf(seat)) contested.add(flag);
+  };
+  for (const unit of world.units)
+    if (UNITS[unit.kind].robot) stand(unit.owner, unit.x, unit.y);
+  for (const hero of world.heroes)
+    if (alive(hero)) stand(hero.seat, hero.x, hero.y);
   for (const [flag, seat] of taker) {
     if (contested.has(flag)) continue;
     const owner = world.sectors[flag]!;
     if (owner !== NEUTRAL && teamOf(owner) === teamOf(seat)) continue;
     world.sectors[flag] = seat;
+    gainXp(
+      world,
+      world.heroes.find((hero) => hero.seat === seat)!,
+      CAPTURE_XP,
+    );
     for (const building of world.buildings) {
       const site = map.sites[building.id]!;
       if (site.sector !== flag || site.kind === "fort") continue;

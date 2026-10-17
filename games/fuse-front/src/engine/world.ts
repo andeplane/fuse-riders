@@ -3,10 +3,12 @@
  * and `step` copies the (small) arrays and records and leaves the map out. What never changes — terrain,
  * sectors, flags and building sites — lives in the `GameMap`, which every peer loads identically.
  */
-import type { GameMap } from "./map.js";
+import type { GameMap, Site } from "./map.js";
 import {
   BUILDING_HP,
   FACTORY_KINDS,
+  HERO,
+  TILE,
   MAX_SEATS,
   teamOf,
   type BuildingKind,
@@ -46,6 +48,26 @@ export interface Unit {
   goal: number;
 }
 
+/**
+ * A player's hero (`hero.ts`): sub-pixels, hit points (0 while dead), energy, total XP (its level is `levelOf(xp)`),
+ * steps to its next shot, steps until it respawns (0 while alive), the `DIRS` index (`flow.ts`) it last walked or
+ * shot toward, the tile `move` sent it to (or -1), and the held `steer` direction ((0, 0) when released).
+ */
+export interface Hero {
+  seat: number;
+  x: number;
+  y: number;
+  hp: number;
+  energy: number;
+  xp: number;
+  cooldown: number;
+  respawn: number;
+  facing: number;
+  goal: number;
+  steerX: number;
+  steerY: number;
+}
+
 export interface World {
   step: number;
   /** mulberry32 state (`rng.ts`). */
@@ -60,6 +82,8 @@ export interface World {
   buildings: Building[];
   /** By id, ascending. */
   units: Unit[];
+  /** One per player, by seat ascending. */
+  heroes: Hero[];
   /** `NO_WINNER` while the match runs, then the winning team or `DRAW` (`winnerOf`). */
   winner: number;
   /**
@@ -69,9 +93,9 @@ export interface World {
   events: CombatEvent[];
 }
 
-/** One end of a shot: a unit or a building (turret or fort), and where it stood, in sub-pixels. */
+/** One end of a shot: a unit, a hero (its id is its seat) or a building (turret or fort), and where it stood. */
 export interface Mark {
-  building: boolean;
+  of: "unit" | "hero" | "building";
   id: number;
   x: number;
   y: number;
@@ -89,6 +113,10 @@ export type CombatEvent =
       y: number;
     }
   | { type: "destroyed"; building: number; kind: BuildingKind }
+  /** `killer` is the seat credited with the kill. */
+  | { type: "heroDeath"; seat: number; killer: number; x: number; y: number }
+  | { type: "respawn"; seat: number; x: number; y: number }
+  | { type: "levelUp"; seat: number; level: number }
   | { type: "won"; winner: number };
 
 export const NEUTRAL = -1;
@@ -136,12 +164,7 @@ export function createWorld(
   for (const seat of playing) {
     if (seat < 0 || seat >= MAX_SEATS || !Number.isInteger(seat))
       throw new Error(`seat ${seat} is not 0 to ${MAX_SEATS - 1}`);
-    const fort = map.sites.find(
-      (site) => site.kind === "fort" && site.seat === seat,
-    );
-    if (fort === undefined)
-      throw new Error(`${map.name} has no fort for seat ${seat}`);
-    sectors[fort.sector] = seat;
+    sectors[fortSite(map, seat).sector] = seat;
   }
   return {
     step: 0,
@@ -163,8 +186,38 @@ export function createWorld(
         cooldown: 0,
       })),
     units: [],
+    heroes: playing.map((seat) => freshHero(map, seat)),
     winner: NO_WINNER,
     events: [],
+  };
+}
+
+/** A seat's fort site; throws when the map has none (`createWorld` and `decodeWorld` require one per seat). */
+export function fortSite(map: GameMap, seat: number): Readonly<Site> {
+  const fort = map.sites.find(
+    (site) => site.kind === "fort" && site.seat === seat,
+  );
+  if (fort === undefined)
+    throw new Error(`${map.name} has no fort for seat ${seat}`);
+  return fort;
+}
+
+/** A level 1 hero standing on its fort's tile (forts stand on open ground). */
+export function freshHero(map: GameMap, seat: number): Hero {
+  const fort = fortSite(map, seat);
+  return {
+    seat,
+    x: fort.x * TILE + TILE / 2,
+    y: fort.y * TILE + TILE / 2,
+    hp: HERO.hp,
+    energy: HERO.energy,
+    xp: 0,
+    cooldown: 0,
+    respawn: 0,
+    facing: 0,
+    goal: -1,
+    steerX: 0,
+    steerY: 0,
   };
 }
 

@@ -139,18 +139,33 @@ export function buildFlowField(map: GameMap, goal: number): FlowField {
   return { goal, cost, next };
 }
 
-/** Fields kept per map; more than the 64 flags and 6 forts a map can have, so a match never rebuilds one. */
+/**
+ * Fields kept per map in two bounded LRU caches. The fixed one serves the goals a map and its stances produce: at most
+ * its 64 flags and 6 forts. The roaming one serves tiles a player steers: each hero's `move` goal and the tile FOLLOW
+ * units walk to (`FOLLOW_HERO`). Keeping them apart means a player who sends a `move` to a new tile every tick can
+ * only churn the roaming cache, never evict the flag and fort fields every unit's stance uses.
+ */
 export const FLOW_CACHE_SIZE = 96;
+export const ROAMING_FLOW_CACHE_SIZE = 24;
 
-const caches = new WeakMap<GameMap, Map<number, FlowField>>();
+interface Caches {
+  fixed: Map<number, FlowField>;
+  roaming: Map<number, FlowField>;
+}
+const caches = new WeakMap<GameMap, Caches>();
 
-/** The field toward `goal` on `map`, from the cache (least recently used goes first when it is full). */
-export function flowField(map: GameMap, goal: number): FlowField {
-  let cache = caches.get(map);
-  if (cache === undefined) {
-    cache = new Map();
-    caches.set(map, cache);
+/** The field toward `goal` on `map`, from its cache (least recently used goes first when it is full). */
+export function flowField(
+  map: GameMap,
+  goal: number,
+  roaming = false,
+): FlowField {
+  let both = caches.get(map);
+  if (both === undefined) {
+    both = { fixed: new Map(), roaming: new Map() };
+    caches.set(map, both);
   }
+  const cache = roaming ? both.roaming : both.fixed;
   const hit = cache.get(goal);
   if (hit !== undefined) {
     cache.delete(goal);
@@ -158,7 +173,8 @@ export function flowField(map: GameMap, goal: number): FlowField {
     return hit;
   }
   const field = buildFlowField(map, goal);
-  if (cache.size >= FLOW_CACHE_SIZE) cache.delete(cache.keys().next().value!);
+  const size = roaming ? ROAMING_FLOW_CACHE_SIZE : FLOW_CACHE_SIZE;
+  if (cache.size >= size) cache.delete(cache.keys().next().value!);
   cache.set(goal, field);
   return field;
 }
@@ -168,6 +184,8 @@ export function clearFlowCache(map: GameMap): void {
   caches.delete(map);
 }
 
-/** How many fields the cache holds for a map. */
-export const cachedFlowFields = (map: GameMap): number =>
-  caches.get(map)?.size ?? 0;
+/** How many fields the caches hold for a map. */
+export const cachedFlowFields = (map: GameMap): number => {
+  const both = caches.get(map);
+  return both === undefined ? 0 : both.fixed.size + both.roaming.size;
+};

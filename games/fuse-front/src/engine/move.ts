@@ -10,7 +10,7 @@
  * - HOLD: the team's own flags, nearest first, counting `HOLD_CROWD` per teammate already bound there; it stops within
  *   `HOLD_RADIUS` of it. With no flag left it holds the owner's fort, as does PUSH with nothing left at all.
  * - A unit with an enemy in range (`combat.ts`) stands to fight instead of seeking; separation still applies.
- * - FOLLOW: holds the owner's fort until heroes arrive (see `followGoal`).
+ * - FOLLOW: stays within `HOLD_RADIUS` of the owner's hero, or holds the owner's fort while it is dead (`FOLLOW_HERO`).
  */
 import { DIRS, UNREACHABLE, flowField, openTile } from "./flow.js";
 import type { GameMap } from "./map.js";
@@ -64,7 +64,23 @@ function enemyForts(map: GameMap, world: World, team: number): number[] {
   return tiles;
 }
 
-/** Whether a stance can send a unit to `tile`: a flag's tile or a fort's. TODO(hero): FOLLOW adds the hero's tile. */
+/**
+ * FOLLOW's goal, kept in `Unit.goal` instead of a tile: the tile the owner's hero stands on, looked up every step, or
+ * the owner's fort while the hero is dead. So a unit's goal is a flag, a fort or this, and the fixed flow cache holds
+ * only flags and forts; one tile per hero (plus each hero's `move` goal) goes to the roaming cache (`flow.ts`).
+ */
+export const FOLLOW_HERO = -2;
+
+/** The tile a unit's goal points at now: its own tile index, or for `FOLLOW_HERO` its hero's (or fort's) tile. */
+function goalTile(map: GameMap, world: World, unit: Unit): number {
+  if (unit.goal !== FOLLOW_HERO) return unit.goal;
+  const hero = world.heroes.find((each) => each.seat === unit.owner);
+  return hero !== undefined && hero.hp > 0
+    ? tileOf(hero.y) * map.width + tileOf(hero.x)
+    : fortTile(map, unit.owner);
+}
+
+/** Whether a stance can send a unit to `tile`: a flag's tile or a fort's (FOLLOW uses `FOLLOW_HERO`). */
 export const isGoalTile = (map: GameMap, tile: number): boolean =>
   flagOnTile(map, tile) >= 0 ||
   map.sites.some(
@@ -90,14 +106,6 @@ function nearest(
   return best;
 }
 
-/**
- * FOLLOW's goal. TODO(hero): Engine III gives each player a hero; FOLLOW then targets the tile the owner's hero stands
- * on (re-picked on the same cadence). Until then it holds the owner's fort.
- */
-function followGoal(map: GameMap, from: number, unit: Unit): number {
-  return nearest(map, from, [fortTile(map, unit.owner)]);
-}
-
 function pickGoal(
   map: GameMap,
   world: World,
@@ -108,7 +116,7 @@ function pickGoal(
   const from = tileIndex(map, unit);
   const team = teamOf(unit.owner);
   const flags = map.flags.map((flag) => flag.y * map.width + flag.x);
-  if (stance === "follow") return followGoal(map, from, unit);
+  if (stance === "follow") return FOLLOW_HERO;
   if (stance === "push") {
     const goal = nearest(
       map,
@@ -148,7 +156,7 @@ export function chooseGoals(map: GameMap, world: World): void {
     const stance = stances.get(unit.owner)!;
     const flag = unit.goal < 0 ? -1 : flagOnTile(map, unit.goal);
     const due =
-      unit.goal < 0 ||
+      unit.goal === -1 ||
       (world.step + unit.id) % RETHINK_STEPS === 0 ||
       (stance === "push" &&
         flag >= 0 &&
@@ -163,22 +171,22 @@ export function chooseGoals(map: GameMap, world: World): void {
 
 /** The velocity toward the unit's goal: a capturing robot walks onto its flag's centre, others stop near the goal. */
 function seek(map: GameMap, world: World, unit: Unit): [number, number] {
-  if (unit.goal < 0) return [0, 0];
+  const goal = goalTile(map, world, unit);
+  if (goal < 0) return [0, 0];
   const at = tileIndex(map, unit);
-  const field = flowField(map, unit.goal);
+  const field = flowField(map, goal, unit.goal === FOLLOW_HERO);
   const cost = field.cost[at]!;
   if (cost === UNREACHABLE) return [0, 0];
-  const flag = flagOnTile(map, unit.goal);
+  const flag = flagOnTile(map, goal);
   const capturing =
     UNITS[unit.kind].robot &&
     flag >= 0 &&
     !ours(world.sectors[flag]!, teamOf(unit.owner));
   // A sieging unit closes until it is in range of something and stands to fight (`moveUnits`).
   const sieging =
-    !capturing &&
-    enemyForts(map, world, teamOf(unit.owner)).includes(unit.goal);
+    !capturing && enemyForts(map, world, teamOf(unit.owner)).includes(goal);
   if (!capturing && !sieging && cost <= HOLD_RADIUS) return [0, 0];
-  let target = unit.goal;
+  let target = goal;
   if (cost > 0) {
     const [dx, dy] = DIRS[field.next[at]!]!;
     target = at + dy * map.width + dx;
@@ -242,7 +250,7 @@ const openAt = (map: GameMap, x: number, y: number): boolean =>
   x >= 0 && y >= 0 && openTile(map, tileOf(x), tileOf(y));
 
 /** The furthest of the whole move, its x part and its y part that stays on open ground without cutting a corner. */
-function settle(
+export function settle(
   map: GameMap,
   x: number,
   y: number,
