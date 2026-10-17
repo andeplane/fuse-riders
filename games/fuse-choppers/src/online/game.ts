@@ -50,7 +50,7 @@ import {
 /**
  * Fuse Choppers behind the netcode's `RollbackGame`. The room keeps the seats, the match (crowns and round results)
  * and the current round's world; one log tick folds the management entries, each seat's held controls and the
- * bots' answers, then runs `STEPS_PER_TICK` simulation steps.
+ * bots' answers, then runs the simulation budget selected from the folded state.
  */
 export const PLAY = 0;
 /** A seat's held control bits from this tick on, for the match and round it names. */
@@ -88,6 +88,7 @@ export interface RoundResult {
 
 export interface Room extends ManagedRoom<Settings> {
   tick: number;
+  simulationTick: number;
   matchId: string;
   round: number;
   stage: Stage;
@@ -168,6 +169,7 @@ export function isEntry(raw: unknown): raw is Entry {
 export function createRoom(matchId: string, settings: Settings): Room {
   return {
     tick: 0,
+    simulationTick: 0,
     matchId,
     round: 0,
     stage: "lobby",
@@ -329,17 +331,38 @@ function endRound(room: Room, tick: number): void {
   }
 }
 
-/**
- * One log tick: management first; then, in a round, every chopper's controls (a seat's latest entry this tick, a
- * tap shorter than a tick still counted on the first step; a bot's answer to the world as it stands) and three
- * steps; then the round's end, or the start of the next.
- */
+export const MAX_STEPS_PER_TICK = STEPS_PER_TICK * 6;
+
+export function stepsPerTick(room: Room): number {
+  const world = room.world;
+  if (room.stage !== "running" || world?.phase !== "play")
+    return STEPS_PER_TICK;
+  const humans = world.choppers.filter((c) => !room.seats.get(c.id)?.bot);
+  if (
+    !humans.length ||
+    humans.some((c) => c.alive) ||
+    !world.choppers.some(
+      (c) => c.alive && !c.exited && room.seats.get(c.id)?.bot,
+    )
+  )
+    return STEPS_PER_TICK;
+  const elapsed = world.step - Math.max(...humans.map((c) => c.endedAt));
+  let speed = 3;
+  let boundary = 3 * 60 * speed;
+  while (speed < 6 && elapsed >= boundary) {
+    speed++;
+    boundary += 2 * 60 * speed;
+  }
+  return STEPS_PER_TICK * speed;
+}
+
 export function foldTick(
   room: Room,
   creatorId: string,
   streams: ReadonlyMap<string, StreamEntries<Entry>>,
 ): never[] {
   const tick = room.tick + 1;
+  const count = stepsPerTick(room);
   applyManagementTick(room, tick, creatorId, streams, lifecycle);
   const world = room.world;
   if (room.stage === "running" && world) {
@@ -363,12 +386,19 @@ export function foldTick(
       held.set(chopper.id, bits);
       first.set(chopper.id, bits | tapped);
     }
-    for (let step = 0; step < STEPS_PER_TICK; step++)
+    for (let step = 0; step < count; step++) {
+      if (step >= STEPS_PER_TICK && world.phase !== "play") break;
+      if (step > 0 && step % STEPS_PER_TICK === 0)
+        for (const chopper of world.choppers)
+          if (room.seats.get(chopper.id)?.bot)
+            held.set(chopper.id, botInput(world, chopper));
       stepWorld(world, step === 0 ? first : held);
+    }
     if (roundDone(world)) endRound(room, tick);
   } else if (room.stage === "between" && tick >= room.resumeAt)
     startRound(room);
   room.tick = tick;
+  room.simulationTick += count;
   return [];
 }
 
@@ -410,6 +440,7 @@ export function encode(room: Room): unknown[] {
     room.resumeAt,
     sortedEntries(room.held),
     room.world ? encodeWorld(room.world) : null,
+    room.simulationTick,
   ];
 }
 
@@ -494,7 +525,7 @@ export function decode(
   fields: readonly unknown[],
   tick: number,
 ): Room | undefined {
-  if (fields.length !== 12 || !uint32(tick)) return;
+  if (fields.length !== 13 || !uint32(tick)) return;
   const [
     matchId,
     round,
@@ -508,11 +539,15 @@ export function decode(
     resumeAt,
     rawHeld,
     rawWorld,
+    simulationTick,
   ] = fields;
   const settings = parseSettings(rawSettings),
     play = parseSettings(rawPlay);
   if (
     !validMatchId(matchId) ||
+    !uint32(simulationTick) ||
+    simulationTick < tick * STEPS_PER_TICK ||
+    simulationTick > tick * MAX_STEPS_PER_TICK ||
     !uint32(round) ||
     !STAGES.includes(stage as Stage) ||
     !settings ||
@@ -586,6 +621,7 @@ export function decode(
     return;
   return {
     tick,
+    simulationTick,
     matchId,
     round,
     stage: stage as Stage,
@@ -621,7 +657,7 @@ export function hash(room: Room): string {
 
 export function view(room: Room): View {
   return {
-    tick: room.tick * STEPS_PER_TICK,
+    tick: room.simulationTick,
     logTick: room.tick,
     stage: room.stage,
     matchId: room.matchId,
@@ -659,9 +695,9 @@ export const chopperGame: RollbackGame<Room, Entry, View, never, Settings> = {
   createRoom,
   createTicker: () => foldTick,
   scope: (room) => ({ matchId: room.matchId, round: room.round }),
-  clock: (room) => room.tick * STEPS_PER_TICK,
-  steps: () => STEPS_PER_TICK,
-  maxSteps: STEPS_PER_TICK,
+  clock: (room) => room.simulationTick,
+  steps: stepsPerTick,
+  maxSteps: MAX_STEPS_PER_TICK,
   view,
   hash,
   checkpoint: { leading: 5, encode, decode },
