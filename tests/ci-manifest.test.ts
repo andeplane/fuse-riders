@@ -245,7 +245,17 @@ test("verify passes a pull request on the gate alone, and a release run only wit
 
 test("CD runs this workflow for main pushes one at a time, and the deployment waits for CD", () => {
   // Called by CD: on a push the release jobs run, and the gate runs first.
-  assert.match(workflow, /^on:\n(?:.*\n)*? {2}workflow_call:$/m);
+  const on = workflow.slice(
+    workflow.indexOf("\non:\n"),
+    workflow.indexOf("\npermissions:\n"),
+  );
+  assert.match(on, /^ {2}workflow_call:$/m);
+  // Superseded pull-request runs are cancelled; a CD run never is, or its deployment would be withheld.
+  assert.ok(
+    workflow.includes(
+      "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
+    ),
+  );
   assert.doesNotMatch(
     workflow,
     /^ {2}push:/m,
@@ -259,12 +269,19 @@ test("CD runs this workflow for main pushes one at a time, and the deployment wa
   );
   assert.ok(cd.includes("    uses: ./.github/workflows/ci.yml\n"));
   // A called workflow gets no more than its caller grants, and the smokes report flakes to an issue.
-  assert.ok(cd.includes("      issues: write\n"));
+  assert.ok(
+    cd.includes(
+      "    uses: ./.github/workflows/ci.yml\n    permissions:\n      contents: read\n",
+    ) && /^ {4}permissions:\n(?: {6}.*\n)*? {6}issues: write$/m.test(cd),
+  );
   assert.ok(job("smoke").includes("      issues: write\n"));
   // The browser matrix leaves runners for pull requests.
   assert.match(job("smoke"), /^ {6}max-parallel: \d+$/m);
   const backend = readFileSync(".github/workflows/backend.yml", "utf8");
   assert.ok(backend.includes("  workflow_run:\n    workflows: [CD]\n"));
+  assert.ok(
+    backend.includes("      github.event.workflow_run.event == 'push' &&\n"),
+  );
   assert.ok(
     backend.includes("actions/workflows/cd.yml/runs?branch=main&event=push"),
   );
