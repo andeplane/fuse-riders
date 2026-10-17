@@ -1,6 +1,6 @@
 /**
  * The three.js battlefield: a heightmapped desert built once per match, a sun with soft shadows, a tilted RTS camera
- * and instanced placeholder meshes (G2 replaces them with real models). It reads a `WorldView` and interpolates
+ * and instanced procedural models (`models.ts`). It reads a `WorldView` and interpolates
  * positions between two frames for display only; nothing here writes to the simulation.
  */
 import * as THREE from "three";
@@ -15,7 +15,24 @@ import {
 } from "../engine/view.js";
 import { EventDedupe, type StampedEvent } from "../render/cues.js";
 import type { Renderer } from "../render/renderer.js";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { Batch } from "./instances.js";
+import {
+  HERO_KINDS,
+  RING,
+  approachAngle,
+  bob,
+  heroKindOf,
+  buildingModel,
+  paintMaterials,
+  ruinModel,
+  unitModel,
+  waveCloth,
+  type BuildingModel,
+  type Model,
+  type ModelKind,
+  type Paint,
+} from "./models.js";
 import * as rig from "./rig.js";
 import {
   WATER_Y,
@@ -44,31 +61,46 @@ const teamRgb = (team: number) => TEAM_RGB[team] ?? NEUTRAL_RGB;
 const SELF_RGB = rgb(SELF_HEX),
   BAR_BACK = rgb(0x101010),
   [GOOD, FAIR, POOR] = [0x6ad83a, 0xf8d030, 0xe8483c].map(rgb);
-const BUILDING_SIZE: Record<BuildingKind, [number, number, number]> = {
-  fort: [2, 1.4, 2],
-  robotFactory: [1.8, 1, 1.5],
-  vehicleFactory: [2, 0.9, 1.7],
-  turret: [0.7, 0.8, 0.7],
-};
+const UNIT_MODELS: readonly ModelKind[] = [
+  "grunt",
+  "torch",
+  "lightTank",
+  "tankTurret",
+  ...HERO_KINDS,
+];
+/** Turns per millisecond for a tank turret or a turret head swinging onto its aim. */
+const SLEW = 0.004;
+/** Steps a gun keeps its aim after its last shot. */
+const AIM_HOLD = 80;
+/** Heroes draw a size up from their models so they stand over the line at the default zoom. */
+const HERO_SCALE = 1.25;
 
-/** Placeholder bodies, forward along +z, standing on y = 0. */
-function unitGeometry(kind: UnitKind | "hero"): THREE.BufferGeometry {
-  if (kind === "grunt")
-    return new THREE.CapsuleGeometry(0.16, 0.22, 4, 8).translate(0, 0.3, 0);
-  if (kind === "torch")
-    return new THREE.ConeGeometry(0.22, 0.5, 8).translate(0, 0.25, 0);
-  if (kind === "lightTank")
-    return new THREE.BoxGeometry(0.44, 0.3, 0.62).translate(0, 0.17, 0);
-  return new THREE.CapsuleGeometry(0.26, 0.5, 4, 12).translate(0, 0.52, 0);
-}
-
-interface Slot {
-  batch: Batch;
+/** One mesh of a slot: a part of its model; only team-painted parts take the per-instance colour. */
+interface SlotPart {
   geometry: THREE.BufferGeometry;
   material: THREE.Material;
+  tinted: boolean;
   mesh?: THREE.InstancedMesh;
+}
+
+/** One batch of instances drawn by every part of a model, all sharing the batch's matrices and colours. */
+interface Slot {
+  batch: Batch;
+  parts: SlotPart[];
   shadow: boolean;
   order: number;
+  matrices?: THREE.InstancedBufferAttribute;
+  colors?: THREE.InstancedBufferAttribute;
+}
+
+interface BuildingNode {
+  alive: THREE.Group;
+  ruin: THREE.Group;
+  team: THREE.Mesh[];
+  pivot?: THREE.Group;
+  aims: boolean;
+  puffs: THREE.Mesh[];
+  height: number;
 }
 
 /** A tiling, mipmapped DataTexture of linear data (a normal map). */
@@ -98,14 +130,39 @@ export class Field3D implements Renderer {
   private matchId = "";
   private field: HeightField | undefined;
   private ground: THREE.Mesh | undefined;
-  private buildings: THREE.Mesh[] = [];
+  private buildings: BuildingNode[] = [];
   private flags: THREE.Mesh[] = [];
   private readonly slots = new Map<string, Slot>();
   private readonly slotList: Slot[] = [];
   private readonly teamMat: THREE.MeshStandardMaterial[];
   private readonly neutralMat: THREE.MeshStandardMaterial;
   private readonly wreckMat: THREE.MeshStandardMaterial;
-  private readonly buildingGeo = new Map<BuildingKind, THREE.BufferGeometry>();
+  private readonly paints: Record<Paint, THREE.MeshStandardMaterial>;
+  private readonly buildingModels = new Map<
+    BuildingKind,
+    BuildingModel & { ruins: Model[] }
+  >();
+  private readonly cloth = new THREE.PlaneGeometry(0.7, 0.45, 10, 1).translate(
+    0.35,
+    1.35,
+    0,
+  );
+  private readonly clothBase = Float32Array.from(
+    this.cloth.getAttribute("position").array,
+  );
+  private readonly puffGeo = new THREE.IcosahedronGeometry(0.12, 1);
+  private readonly puffMat = new THREE.MeshStandardMaterial({
+    color: 0x4a4440,
+    roughness: 1,
+    transparent: true,
+    opacity: 0.55,
+    depthWrite: false,
+  });
+  /** Where each tank and turret head last fired (yaw), and where its gun points now. */
+  private readonly aim = new Map<number, number>();
+  private readonly aimStep = new Map<number, number>();
+  private readonly gunYaw = new Map<number, number>();
+  private lastNow = 0;
   private readonly waterNormal: THREE.DataTexture;
   private readonly sandNormal: THREE.DataTexture;
   // Reused every frame so the hot path allocates nothing once the batches have grown.
@@ -144,29 +201,41 @@ export class Field3D implements Renderer {
     this.teamMat = TEAM_HEX.map((hex) => std(hex));
     this.neutralMat = std(NEUTRAL_HEX);
     this.wreckMat = std(WRECK_HEX, 0.9, 0.1);
-    for (const [kind, [w, h, d]] of Object.entries(BUILDING_SIZE))
-      this.buildingGeo.set(kind as BuildingKind, this.keep(kind === "turret"
-        ? new THREE.CylinderGeometry(w / 2, w / 2 + 0.08, h, 12)
-        : new THREE.BoxGeometry(w, h, d)).translate(0, h / 2, 0));
+    this.paints = paintMaterials();
+    for (const m of Object.values(this.paints)) this.owned.push(m, ...(m.map ? [m.map] : []));
+    this.owned.push(this.cloth, this.puffGeo, this.puffMat);
+    const parts = (model: Model) => model.map((p) => this.keep(p.geometry) && p);
+    for (const [i, kind] of (["fort", "robotFactory", "vehicleFactory", "turret"] as const).entries()) {
+      const model = buildingModel(kind);
+      const size = model.body.reduce((b, p) => b.union(p.geometry.boundingBox!), new THREE.Box3()).getSize(new THREE.Vector3());
+      parts(model.body);
+      if (model.pivot) parts(model.pivot.model);
+      this.buildingModels.set(kind, { ...model, ruins: [0, 1].map((v) => parts(ruinModel(size.x, size.z, i * 2 + v + 1))) });
+    }
 
     // Procedural detail, no image files: ripples for the water, fine grain for the sand.
     const size = 128;
     this.waterNormal = this.keep(dataTexture(normalMap(tileNoise(size, 8, 11), size, 6), size));
     this.sandNormal = this.keep(dataTexture(normalMap(tileNoise(size, 16, 5), size, 3), size));
 
-    const unitMat = this.keep(new THREE.MeshStandardMaterial({ roughness: 0.5, metalness: 0.4 }));
     const flat = (order: number) => this.keep(new THREE.MeshBasicMaterial({
       depthTest: order === 0, toneMapped: false, fog: false, transparent: order > 0,
     }));
     const bar = new THREE.PlaneGeometry(1, 0.08).rotateX(-rig.PITCH);
-    const ring = new THREE.RingGeometry(0.42, 0.52, 32).rotateX(-Math.PI / 2).translate(0, 0.05, 0);
-    const add = (key: string, geometry: THREE.BufferGeometry, material: THREE.Material, shadow: boolean, order = 0) =>
-      this.slotList.push(this.slots.set(key, { batch: new Batch(), geometry: this.keep(geometry), material, shadow, order }).get(key)!);
-    for (const kind of ["grunt", "torch", "lightTank", "hero"] as const)
-      add(kind, unitGeometry(kind), unitMat, true);
-    add("ring", ring, flat(0), false);
-    add("barBack", bar, flat(10), false, 10);
-    add("barFill", bar.clone().translate(0, 0, 0.01), flat(11), false, 11);
+    // Rings have radius 1 and scale per body; a hero's is doubled with a thin outer band so it reads apart.
+    const ring = new THREE.RingGeometry(0.78, 1, 40).rotateX(-Math.PI / 2).translate(0, 0.06, 0);
+    const band = new THREE.RingGeometry(1.12, 1.2, 40).rotateX(-Math.PI / 2).translate(0, 0.06, 0);
+    const heroRing = mergeGeometries([ring, band])!;
+    band.dispose();
+    const add = (key: string, model: { geometry: THREE.BufferGeometry; material: THREE.Material; tinted: boolean }[], shadow: boolean, order = 0) =>
+      this.slotList.push(this.slots.set(key, { batch: new Batch(), parts: model.map((p) => ({ ...p, geometry: this.keep(p.geometry) })), shadow, order }).get(key)!);
+    for (const kind of UNIT_MODELS)
+      add(kind, unitModel(kind).map((p) => ({ geometry: p.geometry, material: this.paints[p.paint], tinted: p.paint === "team" })), true);
+    const plain = (geometry: THREE.BufferGeometry, material: THREE.Material) => [{ geometry, material, tinted: true }];
+    add("ring", plain(ring, flat(0)), false);
+    add("heroRing", plain(heroRing, flat(0)), false);
+    add("barBack", plain(bar, flat(10)), false, 10);
+    add("barFill", plain(bar.clone().translate(0, 0, 0.01), flat(11)), false, 11);
   }
 
   private keep<T extends { dispose(): void }>(thing: T): T {
@@ -287,17 +356,31 @@ export class Field3D implements Renderer {
       this.heroBefore.clear();
       for (const u of older?.units ?? []) this.before.set(u.id, u);
       for (const h of older?.heroes ?? []) this.heroBefore.set(h.seat, h);
-      if (this.facing.size > world.units.length * 2 + 64) this.facing.clear();
+      if (this.facing.size > world.units.length * 2 + 64) this.forget();
     }
+    const dt = Math.min(100, Math.max(0, now - this.lastNow));
+    this.lastNow = now;
+    for (const e of world.events)
+      if (e.type === "shot" && e.from.of !== "hero")
+        this.aimAt((e.from.of === "unit" ? 1 : -1) * (e.from.id + 1), Math.atan2(e.to.x - e.from.x, e.to.y - e.from.y), world.step);
     for (const slot of this.slotList) slot.batch.begin();
     for (const u of world.units) {
       const p = this.before.get(u.id) ?? u;
       const x = this.lerp(t, p.x, u.x), z = this.lerp(t, p.y, u.y), y = standY(world, field, x, z);
-      if (Math.abs(u.x - p.x) + Math.abs(u.y - p.y) >= 2) this.facing.set(u.id, Math.atan2(u.x - p.x, u.y - p.y));
+      const moving = Math.abs(u.x - p.x) + Math.abs(u.y - p.y) >= 2;
+      if (moving) this.facing.set(u.id, Math.atan2(u.x - p.x, u.y - p.y));
       const yaw = this.facing.get(u.id) ?? (u.team === 0 ? Math.PI / 2 : -Math.PI / 2);
-      const s = u.stunned ? 0.85 : 1;
-      this.slot(u.kind).batch.push(x, y, z, yaw, s, s, s, teamRgb(u.team));
-      if (u.hp < u.maxHp) this.bar(x, y + 0.85, z, u.hp / u.maxHp, 0.6);
+      const s = u.stunned ? 0.85 : 1, tank = u.kind === "lightTank", lift = y + bob(moving, now, u.id, tank);
+      const tint = teamRgb(u.team);
+      this.slot(u.kind).batch.push(x, lift, z, yaw, s, s, s, tint);
+      if (tank) {
+        const gun = approachAngle(this.gunYaw.get(u.id + 1) ?? yaw, this.aimOf(u.id + 1, world.step) ?? yaw, SLEW * dt);
+        this.gunYaw.set(u.id + 1, gun);
+        this.slot("tankTurret").batch.push(x, lift, z, gun, s, s, s, tint);
+      }
+      const r = RING[u.kind];
+      this.slot("ring").batch.push(x, y, z, 0, r, 1, r, tint);
+      if (u.hp < u.maxHp) this.bar(x, y + (tank ? 0.6 : 0.75), z, u.hp / u.maxHp, 0.6);
     }
     for (const hero of world.heroes) {
       if (hero.hp <= 0) continue;
@@ -307,32 +390,65 @@ export class Field3D implements Renderer {
         this.rig.x = x;
         this.rig.z = z;
       }
-      this.slot("hero").batch.push(x, y, z, 0, 1, 1, 1, teamRgb(hero.team));
-      this.slot("ring").batch.push(x, y, z, 0, 1, 1, 1, hero.seat === self ? SELF_RGB : teamRgb(hero.team));
+      const moving = Math.abs(hero.x - p.x) + Math.abs(hero.y - p.y) >= 2, key = -1000 - hero.seat;
+      if (moving) this.facing.set(key, Math.atan2(hero.x - p.x, hero.y - p.y));
+      const yaw = this.facing.get(key) ?? (hero.team === 0 ? Math.PI / 2 : -Math.PI / 2);
+      this.slot(heroKindOf(hero)).batch.push(x, y + bob(moving, now, hero.seat, false), z, yaw, HERO_SCALE, HERO_SCALE, HERO_SCALE, teamRgb(hero.team));
+      const r = RING.hero;
+      this.slot("heroRing").batch.push(x, y, z, 0, r, 1, r, hero.seat === self ? SELF_RGB : teamRgb(hero.team));
       this.bar(x, y + 1.45, z, hero.hp / hero.maxHp, 1);
     }
     rig.clampRig(this.rig, world.width, world.height);
     for (let i = 0; i < world.buildings.length; i++) {
-      const b = world.buildings[i]!;
-      const mesh = this.buildings[i];
-      if (!mesh) continue;
+      const b = world.buildings[i]!, node = this.buildings[i];
+      if (!node) continue;
       const dead = b.hp <= 0;
-      mesh.material = dead ? this.wreckMat : this.teamMat[b.team] ?? this.neutralMat;
-      mesh.scale.y = dead ? 0.35 : 1;
-      if (!dead && b.hp < b.maxHp)
-        this.bar(mesh.position.x, mesh.position.y + BUILDING_SIZE[b.kind][1] + 0.4, mesh.position.z, b.hp / b.maxHp, 1.4);
+      node.alive.visible = !dead;
+      node.ruin.visible = dead;
+      if (dead) continue;
+      const mat = this.teamMat[b.team] ?? this.neutralMat;
+      for (const mesh of node.team) mesh.material = mat;
+      if (node.pivot) {
+        const key = -(b.id + 1), cur = node.pivot.rotation.y;
+        node.pivot.rotation.y = node.aims
+          ? approachAngle(cur, this.aimOf(key, world.step) ?? cur + 0.0004 * dt, SLEW * dt)
+          : (now / 1400) % (Math.PI * 2);
+      }
+      node.puffs.forEach((puff, k) => {
+        const f = ((now / 2600 + k / node.puffs.length + i * 0.37) % 1);
+        puff.position.set(f * 0.25, f * 1.1, -f * 0.15);
+        puff.scale.setScalar(0.5 + f * 1.6);
+      });
+      if (b.hp < b.maxHp) this.bar(node.alive.position.x, node.alive.position.y + node.height + 0.4, node.alive.position.z, b.hp / b.maxHp, 1.4);
+    }
+    if (this.flags.length) {
+      waveCloth(this.clothBase, this.cloth.getAttribute("position") as THREE.BufferAttribute, now);
+      this.cloth.getAttribute("position").needsUpdate = true;
+      this.cloth.computeVertexNormals();
     }
     for (let i = 0; i < world.flags.length; i++) {
       const f = world.flags[i]!;
       const cloth = this.flags[i];
       if (!cloth) continue;
       cloth.material = this.teamMat[f.team] ?? this.neutralMat;
-      cloth.rotation.y = Math.sin(now / 400 + i) * 0.35;
+      cloth.rotation.y = Math.sin(now / 1300 + i) * 0.25;
     }
     for (const slot of this.slotList) this.sync(slot);
     this.waterNormal.offset.set((now / 60000) % 1, (now / 23000) % 1);
     this.place();
     this.gl.render(this.scene, this.camera);
+  }
+
+  private aimAt(key: number, yaw: number, step: number): void {
+    this.aim.set(key, yaw);
+    this.aimStep.set(key, step);
+  }
+
+  /** Where a gun fired within the last couple of seconds, or undefined so it settles back. */
+  private aimOf(key: number, step: number): number | undefined {
+    // A step before the shot (a rollback re-shows an earlier world) counts as expired too.
+    const since = step - (this.aimStep.get(key) ?? -Infinity);
+    return since >= 0 && since < AIM_HOLD ? this.aim.get(key) : undefined;
   }
 
   private lerp(t: number, a: number, b: number): number {
@@ -351,29 +467,41 @@ export class Field3D implements Renderer {
     return this.slots.get(key)!;
   }
 
-  /** Points the slot's instanced mesh at its batch, rebuilding it when the batch outgrew it. */
+  /** Points the slot's instanced meshes at its batch, rebuilding them around new arrays when the batch outgrew them. */
   // prettier-ignore
   private sync(slot: Slot): void {
     const { batch } = slot;
-    let mesh = slot.mesh;
-    if (!mesh || mesh.instanceMatrix.array !== batch.matrices) {
-      if (mesh) { this.scene.remove(mesh); mesh.dispose(); }
-      mesh = new THREE.InstancedMesh(slot.geometry, slot.material, batch.capacity);
-      mesh.instanceMatrix = new THREE.InstancedBufferAttribute(batch.matrices, 16).setUsage(THREE.DynamicDrawUsage);
-      mesh.instanceColor = new THREE.InstancedBufferAttribute(batch.colors, 3).setUsage(THREE.DynamicDrawUsage);
-      mesh.frustumCulled = false;
-      mesh.castShadow = slot.shadow;
-      mesh.renderOrder = slot.order;
-      this.scene.add((slot.mesh = mesh));
+    if (slot.matrices?.array !== batch.matrices) {
+      // Every part of the model shares the slot's two attributes, so one upload serves them all.
+      const matrices = (slot.matrices = new THREE.InstancedBufferAttribute(batch.matrices, 16).setUsage(THREE.DynamicDrawUsage));
+      const colors = (slot.colors = new THREE.InstancedBufferAttribute(batch.colors, 3).setUsage(THREE.DynamicDrawUsage));
+      for (const part of slot.parts) {
+        if (part.mesh) { this.scene.remove(part.mesh); part.mesh.dispose(); }
+        const mesh = (part.mesh = new THREE.InstancedMesh(part.geometry, part.material, batch.capacity));
+        mesh.instanceMatrix = matrices;
+        mesh.instanceColor = part.tinted ? colors : null;
+        mesh.frustumCulled = false;
+        mesh.castShadow = slot.shadow;
+        mesh.renderOrder = slot.order;
+        this.scene.add(mesh);
+      }
     }
-    mesh.count = batch.count;
+    for (const part of slot.parts) {
+      part.mesh!.count = batch.count;
+      // Hero models nobody wears this match cost no draw call.
+      part.mesh!.visible = batch.count > 0;
+    }
     // Upload only this frame's instances, not the whole (never-shrinking) capacity.
-    const matrices = mesh.instanceMatrix, colors = mesh.instanceColor!;
-    matrices.clearUpdateRanges();
-    matrices.addUpdateRange(0, batch.count * 16);
-    colors.clearUpdateRanges();
-    colors.addUpdateRange(0, batch.count * 3);
-    matrices.needsUpdate = colors.needsUpdate = true;
+    for (const [attr, size] of [[slot.matrices, 16], [slot.colors!, 3]] as const) {
+      attr.clearUpdateRanges();
+      attr.addUpdateRange(0, batch.count * size);
+      attr.needsUpdate = true;
+    }
+  }
+
+  private forget(): void {
+    for (const map of [this.facing, this.aim, this.aimStep, this.gunYaw])
+      map.clear();
   }
 
   /** A new match: frees the old ground and builds this map's, with the camera back on the hero. */
@@ -383,7 +511,7 @@ export class Field3D implements Renderer {
     this.clearMatch();
     this.matchId = matchId;
     this.follow = true;
-    this.facing.clear();
+    this.forget();
     this.before.clear();
     this.heroBefore.clear();
     this.olderSeen = undefined;
@@ -458,25 +586,53 @@ export class Field3D implements Renderer {
     rockMesh.castShadow = rockMesh.receiveShadow = plankMesh.castShadow = plankMesh.receiveShadow = true;
     this.matchGroup.add(rockMesh, plankMesh);
 
-    this.buildings = world.buildings.map((b) => {
-      const mesh = new THREE.Mesh(this.buildingGeo.get(b.kind)!, this.neutralMat);
-      mesh.position.set(b.x + 0.5, standY(world, field, b.x + 0.5, b.y + 0.5), b.y + 0.5);
-      mesh.castShadow = mesh.receiveShadow = true;
-      this.matchGroup.add(mesh);
-      return mesh;
-    });
-    const poleGeo = this.own(new THREE.CylinderGeometry(0.04, 0.05, 1.6, 6).translate(0, 0.8, 0));
-    const clothGeo = this.own(new THREE.PlaneGeometry(0.7, 0.45).translate(0.35, 1.35, 0));
+    this.buildings = world.buildings.map((b) => this.building(b.kind, b.id, b.x + 0.5, standY(world, field, b.x + 0.5, b.y + 0.5), b.y + 0.5));
+    const poleGeo = this.own(new THREE.CylinderGeometry(0.035, 0.05, 1.6, 8).translate(0, 0.8, 0));
+    const baseGeo = this.own(new THREE.CylinderGeometry(0.14, 0.18, 0.12, 10).translate(0, 0.06, 0));
     this.flags = world.flags.map((f) => {
       const x = f.x + 0.5, z = f.y + 0.5, y = standY(world, field, x, z);
-      const pole = new THREE.Mesh(poleGeo, this.wreckMat);
-      const cloth = new THREE.Mesh(clothGeo, this.neutralMat);
-      pole.position.set(x, y, z);
-      cloth.position.set(x, y, z);
-      pole.castShadow = cloth.castShadow = true;
-      this.matchGroup.add(pole, cloth);
+      const pole = new THREE.Mesh(poleGeo, this.paints.steel);
+      const base = new THREE.Mesh(baseGeo, this.paints.concrete);
+      const cloth = new THREE.Mesh(this.cloth, this.neutralMat);
+      for (const m of [pole, base, cloth]) {
+        m.position.set(x, y, z);
+        m.castShadow = true;
+      }
+      this.matchGroup.add(pole, base, cloth);
       return cloth;
     });
+  }
+
+  /** A building's live model (team parts swapped per frame, a spinning or aiming pivot, chimney smoke) and its ruin. */
+  // prettier-ignore
+  private building(kind: BuildingKind, id: number, x: number, y: number, z: number): BuildingNode {
+    const model = this.buildingModels.get(kind)!;
+    const team: THREE.Mesh[] = [];
+    const meshes = (parts: Model) => parts.map((p) => {
+      const mesh = new THREE.Mesh(p.geometry, p.paint === "team" ? this.neutralMat : this.paints[p.paint]);
+      mesh.castShadow = mesh.receiveShadow = true;
+      if (p.paint === "team") team.push(mesh);
+      return mesh;
+    });
+    const alive = new THREE.Group().add(...meshes(model.body));
+    let pivot: THREE.Group | undefined;
+    if (model.pivot) {
+      pivot = new THREE.Group().add(...meshes(model.pivot.model));
+      pivot.position.set(model.pivot.x, model.pivot.y, model.pivot.z);
+      alive.add(pivot);
+    }
+    const puffs: THREE.Mesh[] = [];
+    if (model.smoke) {
+      const stack = new THREE.Group();
+      stack.position.set(...model.smoke);
+      for (let k = 0; k < 4; k++) puffs.push(new THREE.Mesh(this.puffGeo, this.puffMat));
+      alive.add(stack.add(...puffs));
+    }
+    const ruin = new THREE.Group().add(...meshes(model.ruins[id % model.ruins.length]!));
+    ruin.visible = false;
+    for (const g of [alive, ruin]) g.position.set(x, y, z);
+    this.matchGroup.add(alive, ruin);
+    return { alive, ruin, team, pivot, aims: model.pivot?.aims ?? false, puffs, height: model.height };
   }
 
   private clearMatch(): void {
@@ -491,7 +647,8 @@ export class Field3D implements Renderer {
 
   dispose(): void {
     this.clearMatch();
-    for (const slot of this.slotList) slot.mesh?.dispose();
+    for (const slot of this.slotList)
+      for (const part of slot.parts) part.mesh?.dispose();
     for (const thing of this.owned) thing.dispose();
     this.gl.dispose();
     // Release the context now: every room makes a new canvas, and browsers cap live WebGL contexts.
