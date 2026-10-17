@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   TILE,
+  TURRET,
   UNIT_CAP,
   centreOf,
   createWorld,
@@ -66,10 +67,31 @@ type Wire = [
   number[],
   number[][],
   number[][],
+  number,
 ];
 const corruptions: [string, (wire: Wire) => unknown][] = [
   ["not a tuple", () => ({})],
-  ["a short tuple", (w) => w.slice(0, 6)],
+  ["a short tuple", (w) => w.slice(0, 7)],
+  ["a winner while every fort stands", (w) => ((w[7] = 0), w)],
+  ["a string winner", (w) => ((w[7] = "-1" as unknown as number), w)],
+  [
+    "a fallen fort with no winner recorded",
+    (w) => ((w[5][TINY.fort1]![1] = 0), w),
+  ],
+  ["a factory at 0 hit points", (w) => ((w[5][TINY.robotFactory]![1] = 0), w)],
+  ["a reloading fort", (w) => ((w[5][TINY.fort0]![4] = 1), w)],
+  [
+    "a turret cooling down too long",
+    (w) => ((w[5][TINY.turret]![4] = TURRET.cooldown + 1), w),
+  ],
+  [
+    "a ruined turret still cooling down",
+    (w) => ((w[5][TINY.turret]![1] = 0), (w[5][TINY.turret]![4] = 1), w),
+  ],
+  ["a unit cooling down too long", (w) => ((w[6][0]![6] = 9999), w)],
+  ["a negative cooldown", (w) => ((w[6][0]![6] = -1), w)],
+  ["a draw recorded while a fort stands", (w) => ((w[7] = 2), w)],
+  ["a building missing its cooldown", (w) => (w[5][0]!.pop(), w)],
   ["a fractional step", (w) => ((w[0] = 1.5), w)],
   ["a string rng", (w) => ((w[1] = "7" as unknown as number), w)],
   ["one player", (w) => ((w[3] = w[3].slice(0, 1)), w)],

@@ -192,7 +192,9 @@ test("a player at the unit cap pauses, and a batch is cut to the room left under
   assert.equal(world.units.filter((u) => u.owner === 0).length, UNIT_CAP);
   const paused = run(map, world, 50);
   assert.equal(paused.units.length, world.units.length);
-  assert.deepEqual(paused.buildings, world.buildings);
+  // No factory makes progress (the grunts may be shooting seat 1's fort meanwhile).
+  const work = (w: World) => w.buildings.map((b) => [b.order, b.progress]);
+  assert.deepEqual(work(paused), work(world));
 });
 
 test("orders and stances: only the owner orders its factory, only kinds it builds, and a change restarts it", () => {

@@ -5,7 +5,7 @@
 import { ceilDiv } from "./math.js";
 
 /** Bump on any change to the rules, with the golden in `tests/golden.test.ts` re-recorded in the same commit. */
-export const RULES = "fuse-front-2";
+export const RULES = "fuse-front-3";
 
 export const SUB = 16;
 export const TILE_PX = 8;
@@ -43,6 +43,8 @@ export interface UnitStats {
   damage: number;
   /** Steps between shots. */
   cooldown: number;
+  /** Percent of `damage` a shot does to a turret or fort. */
+  siege: number;
 }
 
 const s = (seconds: number): number => seconds * STEPS_PER_SECOND;
@@ -58,6 +60,7 @@ export const UNITS: Readonly<Record<UnitKind, Readonly<UnitStats>>> = {
     range: 5 * TILE,
     damage: 6,
     cooldown: s(1),
+    siege: 50,
   },
   torch: {
     build: s(10),
@@ -69,6 +72,7 @@ export const UNITS: Readonly<Record<UnitKind, Readonly<UnitStats>>> = {
     range: 2 * TILE,
     damage: 4,
     cooldown: 8,
+    siege: 150,
   },
   lightTank: {
     build: s(16),
@@ -80,6 +84,7 @@ export const UNITS: Readonly<Record<UnitKind, Readonly<UnitStats>>> = {
     range: 6 * TILE,
     damage: 22,
     cooldown: s(2),
+    siege: 100,
   },
 };
 
@@ -107,6 +112,12 @@ export const BUILDING_HP: Readonly<Record<BuildingKind, number>> = {
   turret: 600,
   fort: 4000,
 };
+
+/**
+ * A turret held by a seat fires like a unit (`combat.ts`); a neutral one is idle and cannot be hit. Forts do not fire.
+ * Sub-pixels and steps, as `UnitStats`.
+ */
+export const TURRET = { range: 6 * TILE, damage: 18, cooldown: s(1) } as const;
 
 /** A player's factories pause while that player has this many units. */
 export const UNIT_CAP = 40;
