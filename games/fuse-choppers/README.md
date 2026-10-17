@@ -29,6 +29,14 @@ neither is held. `?combat=bump|shoot|off` likewise starts a room on another nudg
 At GO a chopper hovers for up to two seconds until its pilot first touches lift, so nobody falls out of the sky
 before they are ready.
 
+Choose **YOUR PILOT** on the landing page or join form to fly with one of the shared Fuse Riders avatars.
+The selected portrait appears inside the cockpit and on the pilot card on every device. Choppers remembers its
+own selection, initially using your saved Riders avatar when available. Bots get portraits by seat colour.
+Cockpit art is cosmetic; flight and collision geometry are unchanged. The room compatibility id now includes
+`-pilots-1`, so clients predating avatar selection cannot join these rooms.
+
+![Shared avatar pilots in a solo match](preview/screenshots/avatar-pilots.png)
+
 ## Rules at a glance
 
 The source is the rulebook; this is the shape of it.
@@ -93,5 +101,5 @@ screenshots only where told.
 ## Not yet
 
 Match history, ratings and leaderboards (the registration is admission-only), local multiplayer on one keyboard,
-authored art assets (every sprite is painted in code), and balance from real playtests: tune it in
+authored helicopter art (pilot portraits use the shared avatar atlas), and balance from real playtests: tune it in
 `src/engine/tuning.ts` and `level.ts`.

@@ -140,6 +140,7 @@ export interface RuntimeOptions {
   transport?: (events: TransportEvents) => RoomTransport;
   displayOnly?: boolean;
   humanName?: string;
+  humanAvatar?: string;
   /** Fixed human roster on this browser, without a transport. The remaining solo seats are AI. */
   localPlayers?: readonly string[];
   dependencies?: RuntimeDependencies;
@@ -382,7 +383,7 @@ export class RoomRuntime<
         seating.seatName(
           this.options.localPlayers?.[0] ?? this.options.humanName ?? "",
         ) ?? seating.solo.name;
-      this.management.join("solo", name, undefined);
+      this.management.join("solo", name, this.options.humanAvatar);
       if (this.options.localPlayers) {
         // Each local human is an ordinary seat with its own input stream, sharing this browser's clock.
         for (let index = 1; index < this.localPlayerIds.length; index++) {

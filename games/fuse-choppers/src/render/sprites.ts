@@ -21,6 +21,14 @@ export interface Sprite {
   height: number;
 }
 
+export interface PilotPortrait {
+  image: CanvasImageSource;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 function sprite(
   make: MakeSurface,
   width: number,
@@ -44,6 +52,7 @@ export function chopperSprite(
   make: MakeSurface,
   color: string,
   shade: string,
+  pilot?: PilotPortrait,
 ): Sprite {
   return sprite(make, 84, 52, 42, 28, (g) => {
     g.lineJoin = "round";
@@ -138,24 +147,44 @@ export function chopperSprite(
     glass.addColorStop(1, "#081630");
     g.fillStyle = glass;
     g.beginPath();
-    g.moveTo(3, -8);
-    g.bezierCurveTo(10, -10, 17, -6, 18, 1);
-    g.lineTo(5, 2);
+    g.moveTo(-5, -8);
+    g.bezierCurveTo(6, -12, 17, -6, 18, 1);
+    g.lineTo(16, 6);
+    g.lineTo(-3, 6);
     g.closePath();
     g.fill();
     g.strokeStyle = OUTLINE;
     g.lineWidth = 1.4;
     g.stroke();
-    // Helmet and visor.
-    g.fillStyle = shade;
-    g.beginPath();
-    g.arc(8, -3, 3.6, 0, Math.PI * 2);
-    g.fill();
-    g.fillStyle = "#0a0f22";
-    g.beginPath();
-    g.ellipse(9.8, -3, 1.8, 1.4, 0, 0, Math.PI * 2);
-    g.fill();
-    // Glint.
+    g.save();
+    g.clip();
+    if (pilot) {
+      g.fillStyle = shade;
+      g.fillRect(1, 2, 11, 6);
+      g.imageSmoothingEnabled = true;
+      g.imageSmoothingQuality = "high";
+      g.drawImage(
+        pilot.image,
+        pilot.x,
+        pilot.y,
+        pilot.width,
+        pilot.height,
+        -3,
+        -11,
+        19,
+        19,
+      );
+    } else {
+      g.fillStyle = shade;
+      g.beginPath();
+      g.arc(8, -3, 3.6, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = "#0a0f22";
+      g.beginPath();
+      g.ellipse(9.8, -3, 1.8, 1.4, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.restore();
     g.strokeStyle = "rgba(255,255,255,0.85)";
     g.lineWidth = 1.2;
     g.beginPath();
@@ -166,8 +195,8 @@ export function chopperSprite(
     g.strokeStyle = "rgba(7,9,20,0.45)";
     g.lineWidth = 1;
     g.beginPath();
-    g.moveTo(-2, -8);
-    g.lineTo(-2, 9);
+    g.moveTo(-6, -7);
+    g.lineTo(-6, 9);
     g.stroke();
     g.fillStyle = "rgba(255,255,255,0.7)";
     g.fillRect(-9, -3, 1.5, 1.5);

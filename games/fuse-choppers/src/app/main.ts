@@ -1,4 +1,6 @@
 import { createGameSocial } from "fuse-ui/social";
+import { AVATAR_ATLAS } from "fuse-ui/assets";
+import { pilotPosition } from "../render/pilots.js";
 import "fuse-ui/social.css";
 import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
 import "@fontsource/press-start-2p/latin.css";
@@ -22,6 +24,7 @@ import {
   createInviteCard,
   createLandingCard,
   createNameEntry,
+  createPicker,
   createNotice,
   createRoster,
   createRoundControls,
@@ -83,6 +86,38 @@ const social = createGameSocial({
 });
 const store = safeStore(() => localStorage);
 const names = keys(GAME);
+const avatarKey = `${GAME}-avatar`;
+const avatarUrl = `${import.meta.env.BASE_URL}${AVATAR_ATLAS.url.slice(1)}`;
+const chosenAvatar = () => {
+  const saved = store.getItem(avatarKey) ?? store.getItem("fuse-riders-avatar");
+  return AVATAR_ATLAS.frames.find((id) => id === saved) ?? "fox";
+};
+const portrait = (id: string, slot = 0) => {
+  const node = el("span", "", "fc-pilot");
+  node.style.backgroundImage = `url(${avatarUrl})`;
+  node.style.backgroundPosition = pilotPosition(id, slot);
+  node.setAttribute("aria-hidden", "true");
+  return node;
+};
+const pilotPicker = () => {
+  const picker = createPicker({
+    legend: "YOUR PILOT",
+    choices: AVATAR_ATLAS.frames.map((id) => ({ id, label: id.toUpperCase() })),
+    selected: chosenAvatar(),
+    art: portrait,
+    onPick: (id) => store.setItem(avatarKey, id),
+    fold: {
+      summary: (id) => [
+        portrait(id),
+        document.createTextNode(id.toUpperCase()),
+      ],
+      label: (id) => `Change pilot: ${id}`,
+    },
+  });
+  const container = el("div", "", "fc-pilot-picker");
+  container.append(picker.summary!, picker.element);
+  return container;
+};
 const query = new URLSearchParams(location.search);
 const muted = query.has("mute");
 const autopilot = query.has("autopilot");
@@ -230,6 +265,7 @@ function landing(): void {
     },
   });
   card.create.after(shared);
+  card.element.prepend(pilotPicker());
   card.element.append(keyHelp());
   const back = el("a", "← FUSE RIDERS", "fc-back");
   back.href = import.meta.env.BASE_URL + (muted ? "?mute" : "");
@@ -334,9 +370,10 @@ function room(solo: boolean): void {
     buttonText: "JOIN",
     onSubmit: (name) => {
       store.setItem(names.name, name);
-      runtime.command({ type: "join", name });
+      runtime.command({ type: "join", name, avatarId: chosenAvatar() });
     },
   });
+  nameEntry.form.prepend(pilotPicker());
   lobbyMain.append(
     el("h2", "PILOTS", "fui-lobby-title"),
     roster.element,
@@ -565,6 +602,11 @@ function room(solo: boolean): void {
     surface.height = height;
     return surface;
   });
+  const atlas = new Image();
+  atlas.onload = () =>
+    scene.setPilotAtlas(atlas, atlas.naturalWidth, atlas.naturalHeight);
+  atlas.src = avatarUrl;
+  let avatars = new Map<string, string>();
   let scale = 1;
   const fit = () => {
     const box = screen.getBoundingClientRect(),
@@ -590,6 +632,7 @@ function room(solo: boolean): void {
         world,
         me: viewer.me,
         labels: model?.labels ?? new Map(),
+        avatars,
         now,
         reducedMotion,
       });
@@ -616,9 +659,10 @@ function room(solo: boolean): void {
           name: el("span", "", "fc-card-name"),
           crowns: el("span", "", "fc-card-crowns"),
           dots: el("span", "", "fc-card-dots"),
+          portrait: portrait(""),
         };
         root.append(
-          el("span", "", "fc-helmet"),
+          card.portrait!,
           card.tag!,
           card.name!,
           card.crowns!,
@@ -631,6 +675,10 @@ function room(solo: boolean): void {
       const root = card.root!;
       root.style.setProperty("--c", seatColor(c.slot));
       root.style.order = String(c.slot);
+      card.portrait!.style.backgroundPosition = pilotPosition(
+        avatars.get(c.id) ?? "",
+        c.slot,
+      );
       root.dataset.state = c.state;
       root.classList.toggle("you", c.you);
       root.classList.toggle("away", c.away);
@@ -651,6 +699,7 @@ function room(solo: boolean): void {
   const render = (next: Model, view: View) => {
     if (over) return;
     model = next;
+    avatars = new Map(view.seats.map((seat) => [seat.id, seat.avatarId]));
     connecting.hidden = true;
     main.dataset.screen = next.screen;
     main.dataset.stage = view.stage;
@@ -839,7 +888,11 @@ function room(solo: boolean): void {
       main.dataset.round = String(frame.round);
       if (next.askName && remembered && !joinSent) {
         joinSent = true;
-        runtime.command({ type: "join", name: remembered });
+        runtime.command({
+          type: "join",
+          name: remembered,
+          avatarId: chosenAvatar(),
+        });
       }
       if (next.seated) joinSent = false;
       render(next, frame);
@@ -910,6 +963,7 @@ function room(solo: boolean): void {
         }
       : {
           humanName: social.playerName(store.getItem(names.name)) ?? undefined,
+          humanAvatar: chosenAvatar(),
         },
   );
   installRoomLifecycle(window, {
