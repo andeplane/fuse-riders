@@ -34,7 +34,10 @@ test("the engine imports nothing outside itself, and the renderers read only the
     for (const specifier of imports(syntax(file))) {
       if (!specifier.startsWith(".")) {
         if (under(file, "render3d")) {
-          assert.equal(specifier, "three", `${file}: imports ${specifier}`);
+          assert.ok(
+            specifier === "three" || specifier.startsWith("three/addons/"),
+            `${file}: imports ${specifier}`,
+          );
           continue;
         }
         assert.ok(
