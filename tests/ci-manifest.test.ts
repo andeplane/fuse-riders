@@ -380,6 +380,7 @@ test("the browser matrix is built from the manifest, one job per smoke or batch"
     "pnpm install --frozen-lockfile",
     "|",
     `pnpm exec playwright install --with-deps \${{ join(${entry}.browsers, ' ') }}`,
+    'sudo chown -R "$(id -u):$(id -g)" "$HOME/apt-archives"',
     'pnpm exec tsx scripts/ci-run.ts --smoke "${{ matrix.id }}"',
   ]);
   // Evidence is uploaded whether the smoke passed or not.

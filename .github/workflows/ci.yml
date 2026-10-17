@@ -396,6 +396,9 @@ jobs:
           path: ~/apt-archives
           key: apt-${{ steps.apt.outputs.image }}-${{ join(fromJson(needs.plan.outputs.byId)[matrix.id].browsers, '-') }}
       - run: pnpm exec playwright install --with-deps ${{ join(fromJson(needs.plan.outputs.byId)[matrix.id].browsers, ' ') }}
+      # apt leaves its lock and partial/ to root and _apt; the cache's post step saves the directory as the runner.
+      - name: Hand apt's downloads back to the runner for the cache
+        run: sudo chown -R "$(id -u):$(id -g)" "$HOME/apt-archives"
       # Starts the local room service on a free port when the smoke needs one (log in
       # artifacts/room-service.log), applies the entry's env and retries once through scripts/ci-smoke.sh.
       - name: ${{ fromJson(needs.plan.outputs.byId)[matrix.id].name }}
