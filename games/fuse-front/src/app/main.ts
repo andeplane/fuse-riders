@@ -18,18 +18,12 @@ import {
   validRoomCode,
 } from "fuse-network-fe";
 import { MAX_PACKET_BYTES } from "fuse-netcode";
-import { STANCES, teamOf } from "../engine/index.js";
+import { STANCES, teamOf, type WorldView } from "../engine/index.js";
 import { DEFAULT_SETTINGS, type View } from "../online/game.js";
 import { FrontRuntime } from "../online/runtime.js";
-import { CELL, drawBoard } from "./board.js";
-import {
-  SIZES,
-  TEAMS,
-  banner,
-  cycleDifficulty,
-  slotsOf,
-  tileAt,
-} from "./model.js";
+import { Battlefield } from "../render/battlefield.js";
+import { edgePan, PAN_SPEED } from "../render/camera.js";
+import { SIZES, TEAMS, banner, cycleDifficulty, slotsOf } from "./model.js";
 import { GAME_ID, keys, roomFailure, sessionFor } from "./session.js";
 
 const app = document.querySelector<HTMLElement>("#app")!;
@@ -102,7 +96,7 @@ function landing(error = ""): void {
     card.element,
     el(
       "p",
-      "Click the map to move your hero · 1 / 2 / 3: push, hold, follow",
+      "Click the map to move your hero · drag or edge to pan, Space to recentre · 1 / 2 / 3: push, hold, follow",
       "ff-help",
     ),
   );
@@ -122,7 +116,9 @@ function room(code: string, token: string | undefined, display: boolean): void {
   play.append(hud, canvas, end);
   play.hidden = true;
   app.replaceChildren(header(), status, lobby, play);
-  const ctx = canvas.getContext("2d")!;
+  const field = new Battlefield(canvas, (w, h) =>
+    Object.assign(document.createElement("canvas"), { width: w, height: h }),
+  );
   const name = () => store.getItem(keys.name) || "Commander";
   const online = token !== undefined;
   const runtime = new FrontRuntime(
@@ -133,7 +129,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
         if (online && !display) runtime.command({ type: "join", name: name() });
       },
       state: (frame) => show(frame),
-      event: () => {},
+      event: (event, matchId) => field.event(matchId, event, performance.now()),
       status: (text) => (status.textContent = roomFailure(text)),
       ended: () =>
         (status.textContent = "Room ended. Go back to create another room."),
@@ -166,11 +162,6 @@ function room(code: string, token: string | undefined, display: boolean): void {
       return;
     }
     const world = view.world!;
-    if (canvas.width !== world.width * CELL) {
-      canvas.width = world.width * CELL;
-      canvas.height = world.height * CELL;
-    }
-    drawBoard(ctx, world, runtime.slot());
     const mine = world.players.find((p) => p.seat === runtime.slot());
     const countdown = Math.max(
       0,
@@ -179,7 +170,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
     hud.textContent = countdown
       ? `Starting in ${countdown}…`
       : mine
-        ? `${TEAMS[teamOf(mine.seat)]} · stance ${mine.stance.toUpperCase()} · click the map to move · 1/2/3 stance`
+        ? `${TEAMS[teamOf(mine.seat)]} · stance ${mine.stance.toUpperCase()} · click to move · drag or edge to pan · Space recentres · 1/2/3 stance`
         : "Watching";
     end.hidden = view.stage !== "over";
     endText.textContent = banner(view.winner, runtime.slot());
@@ -241,26 +232,98 @@ function room(code: string, token: string | undefined, display: boolean): void {
     lobby.replaceChildren(shell.element);
   }
   back.onclick = () => runtime.command({ type: "action", action: "lobby" });
-  const order = (event: MouseEvent) => {
-    event.preventDefault();
-    const tile = tileAt(
-      event.clientX,
-      event.clientY,
-      canvas.getBoundingClientRect(),
-      canvas.width / CELL,
-      canvas.height / CELL,
-    );
-    if (tile) runtime.move(tile.x, tile.y);
+  // The battlefield draws every animation frame from the runtime's newest frames; `show` only runs the DOM around it.
+  let shown: WorldView | undefined;
+  let hover: { x: number; y: number } | undefined;
+  let drag: { id: number; x: number; y: number; moved: boolean } | undefined;
+  let last = performance.now();
+  let raf = 0;
+  const fit = (world: WorldView) => {
+    const width = play.getBoundingClientRect().width - 6;
+    const top = canvas.getBoundingClientRect().top;
+    field.resize(width, innerHeight - top - 18, devicePixelRatio || 1, world);
   };
-  canvas.addEventListener("pointerdown", order);
+  const frame = (now: number) => {
+    raf = requestAnimationFrame(frame);
+    const timing = runtime.frameTiming();
+    const newer = timing?.newer;
+    if (!timing || !newer?.world || newer.stage === "lobby") {
+      shown = undefined;
+      return;
+    }
+    const world = newer.world;
+    if (!shown) fit(world);
+    shown = world;
+    const older =
+      timing.older?.world && timing.older.matchId === newer.matchId
+        ? timing.older
+        : undefined;
+    const span = older ? newer.tick - older.tick : 0;
+    const t =
+      older && span > 0
+        ? Math.min(1, Math.max(0, (timing.tick - older.tick) / span))
+        : 1;
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    if (hover && !drag) {
+      const box = canvas.getBoundingClientRect();
+      const dir = edgePan(hover.x, hover.y, box.width, box.height);
+      if (dir.x || dir.y)
+        field.pan(dir.x * PAN_SPEED * dt, dir.y * PAN_SPEED * dt, world);
+    }
+    const before = older?.world ?? undefined;
+    field.draw(newer.matchId, world, before, t, runtime.slot(), now);
+  };
+  raf = requestAnimationFrame(frame);
+  const resized = () => shown && fit(shown);
+  window.addEventListener("resize", resized);
+  // A press that stays put is a MOVE order on release; one that travels drags the camera instead.
+  canvas.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    canvas.setPointerCapture?.(event.pointerId);
+    drag = {
+      id: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      moved: false,
+    };
+  });
+  canvas.addEventListener("pointermove", (event) => {
+    hover =
+      event.pointerType === "mouse"
+        ? { x: event.offsetX, y: event.offsetY }
+        : undefined;
+    if (!drag || drag.id !== event.pointerId || !shown) return;
+    const dx = event.clientX - drag.x,
+      dy = event.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) < 6) return;
+    drag = { ...drag, x: event.clientX, y: event.clientY, moved: true };
+    field.pan(-dx, -dy, shown);
+  });
+  canvas.addEventListener("pointerup", (event) => {
+    const was = drag;
+    drag = undefined;
+    if (!was || was.moved || !shown) return;
+    const tile = field.tileAt(event.offsetX, event.offsetY, shown);
+    if (tile) runtime.move(tile.x, tile.y);
+  });
+  canvas.addEventListener("pointercancel", () => (drag = undefined));
+  canvas.addEventListener("pointerleave", () => (hover = undefined));
   canvas.addEventListener("contextmenu", (event) => event.preventDefault());
   const keys123 = (event: KeyboardEvent) => {
+    if (event.key === " " && shown) {
+      event.preventDefault();
+      field.follow = true;
+      return;
+    }
     const stance = STANCES[Number(event.key) - 1];
     if (stance && !event.repeat) runtime.stance(stance);
   };
   window.addEventListener("keydown", keys123);
   runtime.start();
   teardown = () => {
+    cancelAnimationFrame(raf);
+    window.removeEventListener("resize", resized);
     window.removeEventListener("keydown", keys123);
     runtime.stop();
   };

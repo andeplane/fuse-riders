@@ -63,22 +63,6 @@ export function cycleDifficulty(settings: Settings, slot: number): Settings {
   return { ...settings, bots };
 }
 
-/** The map tile under a pointer on a canvas drawn `width × height` tiles across its whole box, or undefined. */
-export function tileAt(
-  x: number,
-  y: number,
-  box: { left: number; top: number; width: number; height: number },
-  width: number,
-  height: number,
-): { x: number; y: number } | undefined {
-  if (box.width <= 0 || box.height <= 0) return;
-  const tx = Math.floor(((x - box.left) / box.width) * width),
-    ty = Math.floor(((y - box.top) / box.height) * height);
-  return tx >= 0 && ty >= 0 && tx < width && ty < height
-    ? { x: tx, y: ty }
-    : undefined;
-}
-
 /** The banner over a decided match, from the seat's side when this device rode one (`slot` ≥ 0). */
 export function banner(winner: number, slot: number): string {
   if (winner === NO_WINNER) return "";
