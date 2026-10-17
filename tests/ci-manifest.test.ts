@@ -50,13 +50,17 @@ const scriptsIn = (text: string) => [
   ...new Set(withoutComments(text).match(/scripts\/[\w./-]+/g) ?? []),
 ];
 
-test("each gate job runs exactly the manifest's steps for it, in order", () => {
+test("each gate job runs exactly the manifest's steps for it", () => {
   for (const name of verifyJobs(manifest)) {
+    const steps = jobSteps(manifest, name);
+    // A job of several steps runs them side by side through the runner, which reads them from the manifest.
     assert.deepEqual(
       runsIn(job(name)),
       [
         "pnpm install --frozen-lockfile",
-        ...jobSteps(manifest, name).map((step) => step.command),
+        ...(steps.length > 1
+          ? [`pnpm exec tsx scripts/ci-run.ts --job ${name}`]
+          : steps.map((step) => step.command)),
       ],
       `the ${name} job`,
     );
@@ -178,7 +182,7 @@ test("coverage cannot pass with a failed or missing collector, and reports both 
 
 /** What each of verify's `env:` values must be read from: the script below is only as right as its inputs. */
 const VERIFY_ENV: Record<string, string> = {
-  GATE: "${{ needs.checks.result }} ${{ needs.build.result }} ${{ needs.unit.result }} ${{ needs.main-health.result }}",
+  GATE: "${{ needs.checks.result }} ${{ needs.unit.result }} ${{ needs.main-health.result }}",
   MAIN_RED: "${{ needs.main-health.outputs.red }}",
   DEPLOY_RED: "${{ needs.main-health.outputs.deploy-red }}",
   REASON: "${{ needs.main-health.outputs.reason }}",
@@ -205,7 +209,7 @@ function verifyPasses(env: Record<string, string>): boolean {
 
 test("verify passes a green main's pull request on the gate alone, and a red main's only with proof", () => {
   const ok = {
-    GATE: "success success success success",
+    GATE: "success success success",
     MAIN_RED: "false",
     DEPLOY_RED: "false",
     REASON: "main is green",
@@ -213,24 +217,12 @@ test("verify passes a green main's pull request on the gate alone, and a red mai
     CD_FIX: "false",
   };
   assert.equal(verifyPasses(ok), true, "green main: the gate is enough");
-  // One slot per job in GATE, in order: checks, build, unit, main-health. A failure in any of them
+  // One slot per job in GATE, in order: checks, unit, main-health. A failure in any of them
   // must fail the gate, so each slot is checked rather than just the first and the last.
-  assert.equal(
-    verifyPasses({ ...ok, GATE: "failure success success success" }),
-    false,
-  );
-  assert.equal(
-    verifyPasses({ ...ok, GATE: "success failure success success" }),
-    false,
-  );
-  assert.equal(
-    verifyPasses({ ...ok, GATE: "success success failure success" }),
-    false,
-  );
-  assert.equal(
-    verifyPasses({ ...ok, GATE: "success success success failure" }),
-    false,
-  );
+  assert.equal(verifyPasses({ ...ok, GATE: "failure success success" }), false);
+  assert.equal(verifyPasses({ ...ok, GATE: "success failure success" }), false);
+  assert.equal(verifyPasses({ ...ok, GATE: "success success failure" }), false);
+  assert.equal(verifyPasses({ ...ok, GATE: "success success skipped" }), false);
   // A push leaves main-health's outputs empty: main counts as green.
   assert.equal(verifyPasses({ ...ok, MAIN_RED: "", DEPLOY_RED: "" }), true);
   const red = { ...ok, MAIN_RED: "true", REASON: "CI failure on 1234abcd" };
@@ -301,7 +293,7 @@ test("the browser matrix is built from the manifest, one job per smoke", () => {
   const smoke = job("smoke");
   const entry = "fromJson(needs.plan.outputs.byId)[matrix.id]";
   for (const line of [
-    "    needs: plan",
+    "    needs: [plan, checks]",
     "      fail-fast: false",
     "        id: ${{ fromJson(needs.plan.outputs.ids) }}",
     `    timeout-minutes: \${{ ${entry}.timeoutMinutes }}`,
@@ -316,9 +308,21 @@ test("the browser matrix is built from the manifest, one job per smoke", () => {
   assert.doesNotMatch(smoke, /^ {4}name:/m);
   // The only commands in these jobs are the ones asserted above.
   assert.deepEqual(runsIn(plan), ["|"]);
+  // The smokes serve the dist/ that `checks` built and uploaded, rather than each building it again.
+  assert.match(
+    job("checks"),
+    /- uses: actions\/upload-artifact@v4\n {8}with:\n {10}name: dist\n {10}path: dist\/\n {10}if-no-files-found: error\n/,
+  );
+  assert.match(
+    smoke,
+    /- uses: actions\/download-artifact@v4\n {8}with:\n {10}name: dist\n {10}path: dist\/\n/,
+  );
+  assert.ok(
+    jobSteps(manifest, "checks").some((step) => step.command === "pnpm build"),
+    "the job that uploads dist/ must be the one that builds it",
+  );
   assert.deepEqual(runsIn(smoke), [
     "pnpm install --frozen-lockfile",
-    "pnpm build",
     `pnpm exec playwright install --with-deps \${{ join(${entry}.browsers, ' ') }}`,
     'pnpm exec tsx scripts/ci-run.ts --smoke "${{ matrix.id }}"',
   ]);
@@ -331,9 +335,9 @@ test("the browser matrix is built from the manifest, one job per smoke", () => {
 
 test("no smoke is written out in the workflow or in the local mirror", () => {
   assert.deepEqual(scriptsIn(workflow), [
+    "scripts/ci-run.ts",
     "scripts/main-health.ts",
     "scripts/ci-manifest.json",
-    "scripts/ci-run.ts",
   ]);
   assert.deepEqual(scriptsIn(local), ["scripts/ci-run.ts"]);
   assert.match(local, /^exec pnpm exec tsx scripts\/ci-run\.ts "\$@"$/m);
