@@ -228,9 +228,11 @@ try {
       round: room.dataset.round,
       actor: actor.dataset.playerId,
       ordinal: Number(actor.dataset.appliedOrdinal),
+      ammo: Number(actor.dataset.ammo),
     };
   });
   assert.ok(shot.actor && Number.isSafeInteger(shot.ordinal));
+  assert.equal(shot.ammo, 3);
   await first.keyboard.press("Enter");
   await Promise.all(
     [first, second, tv].map((page) =>
@@ -243,7 +245,8 @@ try {
           return (
             room?.dataset.match === expected.match &&
             room?.dataset.round === expected.round &&
-            Number(actor?.dataset.appliedOrdinal) > expected.ordinal
+            Number(actor?.dataset.appliedOrdinal) > expected.ordinal &&
+            Number(actor?.dataset.ammo) === expected.ammo - 1
           );
         },
         shot,
