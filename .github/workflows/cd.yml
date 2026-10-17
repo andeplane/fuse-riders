@@ -1,0 +1,24 @@
+name: CD
+# Everything a main push proves before it deploys: ci.yml's gate and then its release jobs (coverage, the whole
+# browser matrix, the whole-recording replays at full stride). backend.yml deploys on this workflow's success and
+# Pages follows the backend.
+#
+# One run at a time, newest commit wins: while a run is going, a further push waits, and a still newer push replaces
+# the waiting one. The newest commit contains every older one, so the run that goes ahead deploys them all; the
+# replaced runs end cancelled, which deploys nothing and counts as no verdict. That keeps CD to one suite's worth of
+# runners however fast main moves, so pull requests' gates are not queued behind it.
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: cd
+  cancel-in-progress: false
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      # ci.yml's smokes comment on the `flaky-test` issue when a smoke on main passes only on retry.
+      issues: write
