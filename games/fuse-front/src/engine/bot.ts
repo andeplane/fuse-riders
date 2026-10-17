@@ -12,8 +12,9 @@
  * - Hero: walk to the cheapest flag its team does not hold (enemy flags cost more), else the nearest enemy fort, and
  *   to that fort while its army FOLLOWs it. It shoots whatever it meets on the way (`combat.ts`). Shockwave a crowd of
  *   enemy robots, Rally Cry its robots in a fight, and Orbital Drop whenever it can. Vix hijacks and snipes the
- *   nearest tank (or hero), cloaks when hurt in a fight and mines its path when a tank is near. An easy bot casts only
- *   its first slot.
+ *   nearest tank (or hero), cloaks when hurt in a fight and mines its path when a tank is near; Rivet overclocks when
+ *   it can, repairs whatever is hurt near it, drops a turret and fortifies in a fight; Tally blitzes with its army,
+ *   flares the flag it heads for and dashes toward it. An easy bot casts only its first slot.
  * - Stance: HOLD when its fort's sector is invaded or the team is behind on sectors or army, else PUSH; a profile
  *   with `lead` set FOLLOWs its healthy hero onto a fort when well ahead (none does now).
  * - Orders: a robot factory builds grunts while flags lie neutral, torches against a robot swarm or enemy turrets and
@@ -23,7 +24,7 @@ import { UNREACHABLE, flowField } from "./flow.js";
 import { alive, levelOf, maxHp } from "./hero.js";
 import type { GameMap } from "./map.js";
 import { div } from "./math.js";
-import { tileOf } from "./move.js";
+import { centreOf, tileOf } from "./move.js";
 import { fnv1a, next } from "./rng.js";
 import { kitOf } from "./spells.js";
 import type { Command } from "./step.js";
@@ -258,6 +259,17 @@ function heroCommands(
           consider(each.x, each.y);
     return best;
   };
+  const toward: [number, number] | null =
+    goal >= 0 ? [goal % map.width, div(goal, map.width)] : null;
+  const lit =
+    toward !== null &&
+    near(
+      centreOf(toward[0]),
+      centreOf(toward[1]),
+      hero.x,
+      hero.y,
+      kit[1]!.range,
+    );
   // Per kit: [slot, whether it is called for, where to aim].
   const plans: [number, boolean, [number, number] | null][] =
     hero.kind === "vix"
@@ -267,11 +279,28 @@ function heroCommands(
           [1, fighting && hurt, own],
           [2, prey(NEAR, false) !== null, own],
         ]
-      : [
-          [0, profile.shockwave > 0 && crowd >= profile.shockwave, own],
-          [1, profile.rally > 0 && allies >= profile.rally && fighting, own],
-          [3, profile.drop && room, own],
-        ];
+      : hero.kind === "rivet"
+        ? [
+            [3, true, own],
+            [0, allies > 0 || hero.hp < maxHp(level, hero.kind), own],
+            [1, fighting && room, own],
+            [2, fighting, own],
+          ]
+        : hero.kind === "tally"
+          ? [
+              [3, allies >= profile.rally, own],
+              [1, allies > 0 && !fighting && lit, toward],
+              [0, !fighting && goal >= 0, toward],
+            ]
+          : [
+              [0, profile.shockwave > 0 && crowd >= profile.shockwave, own],
+              [
+                1,
+                profile.rally > 0 && allies >= profile.rally && fighting,
+                own,
+              ],
+              [3, profile.drop && room, own],
+            ];
   const plan = plans.find(
     ([slot, wanted, aim]) => ready(slot) && wanted && aim,
   );

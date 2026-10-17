@@ -53,7 +53,7 @@ export const respawnSteps = (level: number): number =>
 export const alive = (hero: Hero): boolean => hero.hp > 0;
 
 /**
- * A hero falls to `killer`'s seat: it waits to respawn with its gun at rest, its move and CLOAK gone.
+ * A hero falls to `killer`'s seat: it waits to respawn with its gun at rest, its move, CLOAK and BLITZ gone.
  * Returns the XP the kill is worth, for the caller to `award`.
  */
 export function fell(world: World, hero: Hero, killer: number): number {
@@ -66,6 +66,7 @@ export function fell(world: World, hero: Hero, killer: number): number {
     goal: -1,
     quiet: 0,
     cloak: 0,
+    blitz: 0,
   });
   world.events.push({ type: "heroDeath", seat, killer, x, y });
   return HERO_XP + HERO_XP_PER_LEVEL * level;
