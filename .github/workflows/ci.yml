@@ -1,22 +1,22 @@
 name: CI
+# The pull-request gate, kept under about two minutes. The heavy suite (coverage, the browser matrix and the
+# whole-recording replays at full stride) is CD's: cd.yml runs this same workflow for main pushes, one run at a
+# time, and both deployments wait for it. A pull request runs that suite too only when labelled `full-ci`.
 on:
-  push:
-    branches: [main]
   pull_request:
     # `labeled` is not a default type: without it, adding `full-ci` to an open pull
-    # request would not start the browser matrix until the next push. `unlabeled` re-checks
-    # `verify` when `cd-fix` comes off, so a stale pass cannot outlive the label.
+    # request would not start the release jobs until the next push. `unlabeled` re-checks
+    # `verify` when `full-ci` comes off.
     types: [opened, synchronize, reopened, labeled, unlabeled]
   workflow_dispatch:
+  # cd.yml. Called, `github.event_name` is the caller's (`push`), so the release jobs below run.
+  workflow_call:
 permissions:
   contents: read
 concurrency:
-  # One group per pushed commit: a shared main group lets only one run wait, so every further
-  # merge cancelled the waiting run, and on a busy day most commits never got a CI conclusion
-  # or a deployment. Push runs now overlap instead and each one completes.
-  group: ci-${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
-  # Cancel superseded pull-request runs, but never a push run: a cancelled CI run has no
-  # success conclusion, so cancelling main's run silently withholds that commit's deployment.
+  # Called from CD, `github.workflow` is "CD", whose own single group already serialises its runs.
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # Cancel superseded pull-request runs, never a CD run: a cancelled run withholds its deployment.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   # The pull-request gate is `checks` and the `unit` shards, side by side, with `verify` below as the one
@@ -25,8 +25,10 @@ jobs:
   #
   # What sets this gate's wall clock is mostly not its work. Measured over 25 green pull-request runs
   # (2026-10-11..17): the jobs' own work ended about 100-130 s after the run started, but `verify` finished at a
-  # median of about 600 s and up to 40 minutes, because each job first waits for a runner and the pool is shared
-  # with every main push (about 40 jobs each) and every other pull request. So this gate is shaped to need as few
+  # median of about 600 s and up to 40 minutes, because each job first waits for a runner. The account has about
+  # 20 runners, shared with every other pull request and with CD, whose release jobs alone were about 25 jobs per
+  # main push. So CD runs one main push at a time, its release jobs wait for this gate and the browser matrix is
+  # capped (`max-parallel`), leaving runners free for pull requests; and this gate is shaped to need as few
   # runner slots and runner-seconds as it can for the same checks:
   #
   # - `checks` runs format, lint, configuration and `pnpm build` (`tsc --noEmit && vite build`, so it is the type
@@ -38,6 +40,7 @@ jobs:
   #   queue for no gain. Before changing the width, measure both halves: the shard balance
   #   AND how much queueing the extra jobs draw. Refresh the timings from a run's `test-timings-*` artifacts:
   #   `gh run download <run> -p 'test-timings-*' -D t && pnpm exec tsx scripts/run-tests.ts --merge-timings t`.
+  #   Take them from a pull-request run: CD replays every tick, so its replay files look four times heavier.
   # - Every checkout leaves out the screenshots, videos and recorded evidence under docs/ (about 410 of the
   #   tree's 560 MB); nothing a check, test, build or smoke runs reads them. Coverage keeps its full checkout.
   checks:
@@ -128,71 +131,32 @@ jobs:
           retention-days: 7
           overwrite: true
 
-  # Whether main is red: its latest CI push run failed (which also withholds both deployments) or its latest
-  # deployment failed. A pull request opened while main is red runs coverage and the whole browser matrix as if
-  # it had `full-ci`, and `verify` requires them, so nothing merges on top of a broken main except a change
-  # that leaves it green. A failed deployment also needs the `cd-fix` label: pull-request CI cannot show that a
-  # deployment works. scripts/main-health.ts decides; on a push it does nothing and main counts as green.
-  main-health:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      actions: read
-    outputs:
-      red: ${{ steps.health.outputs.red }}
-      deploy-red: ${{ steps.health.outputs.deploy-red }}
-      reason: ${{ steps.health.outputs.reason }}
-    steps:
-      - uses: actions/checkout@v4
-        if: github.event_name == 'pull_request'
-        with:
-          # The one file it runs, not the 560 MB tree.
-          filter: blob:none
-          sparse-checkout-cone-mode: false
-          sparse-checkout: scripts/main-health.ts
-      - uses: actions/setup-node@v4
-        if: github.event_name == 'pull_request'
-        with:
-          node-version: 22
-      - name: Is main red?
-        id: health
-        if: github.event_name == 'pull_request'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: node scripts/main-health.ts
-
-  # One stable check name for the whole gate: green only when every job above passed and, while main is red,
-  # coverage and every smoke passed too. A branch rule waits on this, never on the shards, so the matrix can be
-  # resized without touching the rule.
+  # One stable check name for the whole gate: green only when `checks` and every shard passed and, when the release
+  # jobs ran (CD, a dispatch or `full-ci`), coverage and every smoke passed too. A branch rule waits on this, never
+  # on the shards, so the matrix can be resized without touching the rule. A red main does not hold pull requests
+  # back: CD's failure withholds the deployment, and the fix forward merges like any other change.
   verify:
-    needs: [checks, unit, main-health, coverage, e2e]
+    needs: [checks, unit, coverage, e2e]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Every gate passed
         env:
-          GATE: ${{ needs.checks.result }} ${{ needs.unit.result }} ${{ needs.main-health.result }}
-          MAIN_RED: ${{ needs.main-health.outputs.red }}
-          DEPLOY_RED: ${{ needs.main-health.outputs.deploy-red }}
-          REASON: ${{ needs.main-health.outputs.reason }}
+          GATE: ${{ needs.checks.result }} ${{ needs.unit.result }}
+          RELEASE: ${{ github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci') }}
           PROOF: ${{ needs.coverage.result }} ${{ needs.e2e.result }}
-          CD_FIX: ${{ contains(github.event.pull_request.labels.*.name, 'cd-fix') }}
         run: |
-          test "$GATE" = "success success success"
-          if [ "$MAIN_RED" = true ]; then
-            echo "Main is red: $REASON. A pull request merges now only if coverage and every smoke pass on top of main."
-            test "$PROOF" = "success success" || { echo "::error::Main is red and this pull request does not make it green (coverage, e2e: $PROOF)."; exit 1; }
-          fi
-          if [ "$DEPLOY_RED" = true ] && [ "$CD_FIX" != true ]; then
-            echo "::error::A main deployment failed ($REASON). Fix it first; a pull request that fixes it carries the cd-fix label."
-            exit 1
+          test "$GATE" = "success success"
+          if [ "$RELEASE" = true ]; then
+            test "$PROOF" = "success success" || { echo "::error::The release jobs did not pass (coverage, e2e: $PROOF)."; exit 1; }
           fi
 
+  # The release jobs: coverage and the browser matrix. CD runs them for every main push it verifies, after the
+  # gate above passed, and a pull request runs them only when labelled `full-ci`.
   coverage-unit:
-    needs: main-health
-    if: github.event_name != 'pull_request' || needs.main-health.outputs.red == 'true'
+    needs: [checks, unit]
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -223,8 +187,8 @@ jobs:
           overwrite: true
 
   coverage-browser:
-    needs: main-health
-    if: github.event_name != 'pull_request' || needs.main-health.outputs.red == 'true'
+    needs: [checks, unit]
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -256,8 +220,8 @@ jobs:
           overwrite: true
 
   coverage:
-    needs: [main-health, coverage-unit, coverage-browser]
-    if: always() && (github.event_name != 'pull_request' || needs.main-health.outputs.red == 'true')
+    needs: [coverage-unit, coverage-browser]
+    if: always() && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -297,14 +261,12 @@ jobs:
           retention-days: 7
 
   # The browser matrix. It runs on the way to production rather than in front of every push to a
-  # pull request. Deployment still waits for it: pages.yml and backend.yml gate on this whole
-  # workflow's conclusion for a main push, and jobs skipped on a pull request do not affect that
-  # conclusion.
+  # pull request. Deployment still waits for it: backend.yml (and Pages after it) gates on CD's
+  # conclusion for a main push.
   #
   # Run it on a pull request before merging, for a change to the renderer, the online runtime,
   # the controller or any other browser-facing path: add the `full-ci` label, dispatch this
-  # workflow on the branch, or run `scripts/ci-local.sh` locally. While main is red it runs on
-  # every pull request, and `verify` requires it.
+  # workflow on the branch, or run `scripts/ci-local.sh` locally.
   #
   # scripts/ci-manifest.json is the only list of smokes. `plan` reads it, `smoke` runs one job per
   # entry or per `batch` of short entries in parallel (its name, browsers, env and timeout all come from the entry), and `e2e`
@@ -312,11 +274,10 @@ jobs:
   # entries through the same runner, and tests/ci-manifest.test.ts fails when this file stops
   # doing so.
   plan:
-    needs: main-health
+    needs: [checks, unit]
     if: >-
       github.event_name != 'pull_request' ||
-      contains(github.event.pull_request.labels.*.name, 'full-ci') ||
-      needs.main-health.outputs.red == 'true'
+      contains(github.event.pull_request.labels.*.name, 'full-ci')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -342,6 +303,10 @@ jobs:
     strategy:
       # Every smoke reports, so one run shows everything that is broken rather than the first thing.
       fail-fast: false
+      # Leaves runners for pull requests' gates while CD runs: with coverage's six collectors this is twelve of
+      # the account's twenty. The longest smokes sort early (`home`, `determinism`), so the cap costs CD a minute
+      # or two rather than a wave.
+      max-parallel: 6
       matrix:
         id: ${{ fromJson(needs.plan.outputs.ids) }}
     # Setup plus the smoke, which may run twice (scripts/ci-smoke.sh).
@@ -421,12 +386,11 @@ jobs:
 
   # One stable check name for the whole matrix: green only when every smoke passed.
   e2e:
-    needs: [main-health, smoke]
+    needs: [smoke]
     if: >-
       always() &&
       (github.event_name != 'pull_request' ||
-      contains(github.event.pull_request.labels.*.name, 'full-ci') ||
-      needs.main-health.outputs.red == 'true')
+      contains(github.event.pull_request.labels.*.name, 'full-ci'))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

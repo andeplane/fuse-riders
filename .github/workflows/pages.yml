@@ -43,9 +43,9 @@ jobs:
         with:
           script: |
             const manual = context.eventName === 'workflow_dispatch';
-            // An automatic run publishes the revision the live backend reports, not the newest CI-verified one and
+            // An automatic run publishes the revision the live backend reports, not the newest CD-verified one and
             // not whichever run triggered this: a frontend is only safe to publish once the backend it was built
-            // against is serving. The backend deploys the newest CI-verified main revision, so this is that
+            // against is serving. The backend deploys the newest CD-verified main revision, so this is that
             // revision or, while a newer one is still building, the one before it; that one's own backend
             // deployment triggers this workflow again.
             let sha = context.payload.inputs?.revision;
@@ -63,17 +63,23 @@ jobs:
               if (!health.ok) throw new Error(`Backend health returned ${health.status}; refusing to publish a frontend it may not serve.`);
               sha = (await health.json()).revision;
               if (!/^[a-f0-9]{40}$/.test(sha ?? '')) throw new Error('The live backend does not report its revision; deploy a backend that does before publishing.');
-              // Look the revision's own CI runs up by commit and check the conclusion here: the runs API's `status`
-              // filter is eventually consistent and has answered wrongly right after a completion.
-              const { data } = await github.rest.actions.listWorkflowRuns({ ...context.repo, workflow_id: 'ci.yml', branch: 'main', event: 'push', head_sha: sha, per_page: 20 });
-              const verified = data.workflow_runs.filter((r) => r.head_sha === sha && r.conclusion === 'success').sort((a, b) => b.run_number - a.run_number)[0];
-              if (!verified) throw new Error(`No successful CI push run for the live backend revision ${sha}; refusing to publish it.`);
+              // Look the revision's own CD runs up by commit and check the conclusion here: the runs API's `status`
+              // filter is eventually consistent and has answered wrongly right after a completion. A revision from
+              // before CD (2026-10-17) was verified by a CI push run instead, and the backend skips a redeploy that
+              // changes nothing it is built from, so the live revision can still be one of those.
+              let verified;
+              for (const workflow_id of ['cd.yml', 'ci.yml']) {
+                const { data } = await github.rest.actions.listWorkflowRuns({ ...context.repo, workflow_id, branch: 'main', event: 'push', head_sha: sha, per_page: 20 });
+                verified = data.workflow_runs.filter((r) => r.head_sha === sha && r.conclusion === 'success').sort((a, b) => b.run_number - a.run_number)[0];
+                if (verified) break;
+              }
+              if (!verified) throw new Error(`No successful CD push run for the live backend revision ${sha}; refusing to publish it.`);
               core.setOutput('ci_run', String(verified.id));
             }
             if (!/^[a-f0-9]{40}$/.test(sha ?? '')) throw new Error('An exact full revision is required.');
             if (manual && !context.payload.inputs.local_verification?.trim()) throw new Error('Local verification evidence is required.');
             // The revision must still be on main — never publish one force-pushed away — but it need not still
-            // be main's head. CI takes about twelve minutes and main moves faster than that during active
+            // be main's head. CD takes about ten minutes and main moves faster than that during active
             // development, so demanding equality refused almost every verified revision and nothing deployed at
             // all. A newer commit's own run supersedes this one moments later, and the github-pages concurrency
             // group serialises them, so the worst case is a release a few commits behind rather than no release.
