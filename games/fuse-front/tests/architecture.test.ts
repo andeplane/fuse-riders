@@ -25,13 +25,18 @@ const inside = (base: string, target: string) => {
   );
 };
 
-// The walk covers whichever of engine/, render/, online/ and app/ exist yet; the rules below apply as each arrives.
-test("the engine imports nothing outside itself, and the renderer reads only the engine's view", () => {
+// The walk covers whichever of engine/, render/, render3d/, online/ and app/ exist yet; the rules below apply as each
+// arrives. render3d/ is a renderer too: it may also use three.js and the 2D renderer's presentation helpers.
+test("the engine imports nothing outside itself, and the renderers read only the engine's view", () => {
   const files = sourceFiles(path.join(game, "src"));
   assert.ok(files.some((file) => under(file, "engine")));
   for (const file of files) {
     for (const specifier of imports(syntax(file))) {
       if (!specifier.startsWith(".")) {
+        if (under(file, "render3d")) {
+          assert.equal(specifier, "three", `${file}: imports ${specifier}`);
+          continue;
+        }
         assert.ok(
           !under(file, "engine") && !under(file, "render"),
           `${file}: imports the package ${specifier}`,
@@ -56,7 +61,13 @@ test("the engine imports nothing outside itself, and the renderer reads only the
           inside(path.join(game, "src/engine"), target),
           `${file}: the engine leaves its layer`,
         );
-      if (under(file, "render")) {
+      const renderer = under(file, "render") || under(file, "render3d");
+      if (under(file, "render"))
+        assert.ok(
+          !inside(path.join(game, "src/render3d"), target),
+          `${file}: the 2D renderer imports the 3D one`,
+        );
+      if (renderer) {
         assert.ok(
           !inside(path.join(game, "src/app"), target),
           `${file}: the renderer imports the app`,
@@ -72,7 +83,9 @@ test("the engine imports nothing outside itself, and the renderer reads only the
           );
         else
           assert.ok(
-            inside(path.join(game, "src/render"), target),
+            inside(path.join(game, "src/render"), target) ||
+              (under(file, "render3d") &&
+                inside(path.join(game, "src/render3d"), target)),
             `${file}: the renderer imports ${specifier}`,
           );
       }
