@@ -234,37 +234,30 @@ try {
   assert.ok(shot.actor && Number.isSafeInteger(shot.ordinal));
   assert.equal(shot.ammo, 3);
   await first.keyboard.press("Enter");
-  // Native precise coverage runs each page's simulation well behind the room clock, so the turn timer a
-  // page shows can read 8 s while the authoritative deadline has already passed and the shot is never
-  // applied (main run 39024554193). Quarantined under flaky-test epic #250 only while collecting native
-  // coverage; ordinary runs keep the 3 -> 2 ammo check on every replica.
-  const nativeCoverage = !!process.env.FUSE_GAME_COVERAGE_DIR;
-  if (!nativeCoverage)
-    await Promise.all(
-      [first, second, tv].map((page) =>
-        page.waitForFunction(
-          (expected) => {
-            const room = document.querySelector<HTMLElement>(".birds-room");
-            const actor = [
-              ...(room?.querySelectorAll<HTMLElement>(".birds-player") ?? []),
-            ].find((card) => card.dataset.playerId === expected.actor);
-            return (
-              room?.dataset.match === expected.match &&
-              room?.dataset.round === expected.round &&
-              Number(actor?.dataset.appliedOrdinal) > expected.ordinal &&
-              Number(actor?.dataset.ammo) === expected.ammo - 1
-            );
-          },
-          shot,
-          { timeout: 30_000 },
-        ),
+  await Promise.all(
+    [first, second, tv].map((page) =>
+      page.waitForFunction(
+        (expected) => {
+          const room = document.querySelector<HTMLElement>(".birds-room");
+          const actor = [
+            ...(room?.querySelectorAll<HTMLElement>(".birds-player") ?? []),
+          ].find((card) => card.dataset.playerId === expected.actor);
+          return (
+            room?.dataset.match === expected.match &&
+            room?.dataset.round === expected.round &&
+            Number(actor?.dataset.appliedOrdinal) > expected.ordinal &&
+            Number(actor?.dataset.ammo) === expected.ammo - 1
+          );
+        },
+        shot,
+        { timeout: 30_000 },
       ),
-    );
+    ),
+  );
   await second
     .locator(".birds-turn")
     .filter({ hasText: "YOUR TURN" })
-    // A dropped coverage-run shot leaves SKYE's turn to run out first.
-    .waitFor({ timeout: nativeCoverage ? 60_000 : 30_000 });
+    .waitFor({ timeout: 30_000 });
   await second.screenshot({ path: `${output}/phone-next-turn.png` });
   const before = await second.locator(".birds-player").allTextContents();
   await second.reload();
@@ -287,187 +280,176 @@ try {
   assert.equal(await tv.locator(".birds-camera").isHidden(), true);
   await second.getByRole("button", { name: "Zoom in", exact: true }).click();
   await second.screenshot({ path: `${output}/phone-zoom.png` });
-  // This flow runs only in the native-coverage browser run, where each page's simulation trails the room
-  // clock, so a PASS clicked with time showing can land past the real deadline and never apply (main run
-  // 39028667137). The timed PASS loop, the bounded round and the rematch are quarantined there under
-  // flaky-test epic #250; a run without FUSE_GAME_COVERAGE_DIR keeps them.
-  if (!nativeCoverage) {
-    const cpuRate = Number(process.env.FUSE_BIRDS_CPU_RATE ?? 1);
-    assert.ok(Number.isFinite(cpuRate) && cpuRate >= 1 && cpuRate <= 6);
-    if (cpuRate > 1) {
-      for (const page of [first, second, tv]) {
-        const session = await page.context().newCDPSession(page);
-        await session.send("Emulation.setCPUThrottlingRate", { rate: cpuRate });
-      }
-      console.log(`Pass-loop CPU slowdown: ${cpuRate}x on every page`);
+  const cpuRate = Number(process.env.FUSE_BIRDS_CPU_RATE ?? 1);
+  assert.ok(Number.isFinite(cpuRate) && cpuRate >= 1 && cpuRate <= 6);
+  if (cpuRate > 1) {
+    for (const page of [first, second, tv]) {
+      const session = await page.context().newCDPSession(page);
+      await session.send("Emulation.setCPUThrottlingRate", { rate: cpuRate });
     }
-    // Finish a real room without changing clocks or injecting game state. Sudden-death water bounds all-pass play.
-    let recoveredPhonePasses = 0;
-    for (let turns = 0; turns < 100; turns++) {
-      await first.waitForFunction(() =>
-        ["aiming", "over"].includes(
-          document.querySelector<HTMLElement>(".birds-room")?.dataset.phase ??
-            "",
-        ),
-      );
-      if (
-        (await first.locator(".birds-room").getAttribute("data-phase")) ===
-        "over"
-      )
-        break;
-      const snapshots = await Promise.all(
-        [first, second].map((page) =>
-          page.evaluate(() => {
-            const room = document.querySelector<HTMLElement>(".birds-room");
-            const label =
-              document.querySelector(".birds-turn")?.textContent ?? "";
-            const actor = room?.querySelector<HTMLElement>(
-              ".birds-player.current",
-            );
-            const pass = [
-              ...(room?.querySelectorAll<HTMLButtonElement>("button") ?? []),
-            ].find((button) => button.textContent === "PASS");
-            return {
-              turn: room?.dataset.turn,
-              phase: room?.dataset.phase,
-              match: room?.dataset.match,
-              round: room?.dataset.round,
-              actor: actor?.dataset.playerId,
-              ordinal: Number(actor?.dataset.appliedOrdinal),
-              mine: label.includes("YOUR TURN"),
-              seconds: Number(label.match(/(\d+)s/)?.[1] ?? 0),
-              playable:
-                !document.hidden &&
-                document.querySelector<HTMLElement>("canvas")?.dataset.ready ===
-                  "true" &&
-                !!pass &&
-                !pass.disabled,
-            };
-          }),
-        ),
-      );
-      const [a, b] = snapshots;
-      if (
-        !a ||
-        !b ||
-        a.turn !== b.turn ||
-        a.match !== b.match ||
-        a.round !== b.round ||
-        a.actor !== b.actor ||
-        !a.actor ||
-        !Number.isSafeInteger(a.ordinal) ||
-        a.ordinal !== b.ordinal ||
-        a.phase !== "aiming" ||
-        b.phase !== "aiming" ||
-        a.mine === b.mine
-      ) {
-        // Reacquire current state rather than waiting forever for a turn a peer has already passed.
-        await first.evaluate(
-          () =>
-            new Promise<void>((resolve) =>
-              requestAnimationFrame(() => resolve()),
-            ),
-        );
-        continue;
-      }
-      const oldTurn = a.turn!;
-      const active = a.mine ? first : second;
-      const receiver = active === first ? second : first;
-      if (!(a.mine ? a.playable : b.playable)) {
-        await waitForPlayControls(active, oldTurn);
-        // Sample both replicas and their remaining deadlines again after readiness; do not click from a stale label.
-        continue;
-      }
-      if (Math.min(a.seconds, b.seconds) < 12) {
-        console.log(
-          `Turn ${oldTurn} too close to deadline for a causal PASS check; waiting for the next turn`,
-        );
-        await first.waitForFunction(
-          (previous) =>
-            document.querySelector<HTMLElement>(".birds-room")?.dataset.turn !==
-            previous,
-          oldTurn,
-        );
-        continue;
-      }
-      console.log(
-        `Passing turn ${oldTurn} on ${active === first ? "SKYE" : "EMBER"}`,
-      );
-      await active
-        .locator(`.birds-room[data-turn="${oldTurn}"][data-phase="aiming"]`)
-        .getByRole("button", { name: "PASS", exact: true })
-        .click({ timeout: 3000 });
-      // The engine increments a player's ordinal only when that player's scoped action is applied.
-      // Observe the receiving replica's copied view; neither a queued packet nor a turn deadline can satisfy this.
-      // Ordinal gaps are allowed, and this isolated flow submits only this PASS after the paired baseline.
-      await receiver.waitForFunction(
-        (expected) => {
-          const room = document.querySelector<HTMLElement>(".birds-room");
-          const actor = [
-            ...(room?.querySelectorAll<HTMLElement>(".birds-player") ?? []),
-          ].find((card) => card.dataset.playerId === expected.actor);
-          return (
-            !!room &&
-            room.dataset.match === expected.match &&
-            room.dataset.round === expected.round &&
-            Number(actor?.dataset.appliedOrdinal) >= expected.ordinal
-          );
-        },
-        {
-          actor: a.actor,
-          match: a.match,
-          round: a.round,
-          ordinal: a.ordinal + 1,
-        },
-        { timeout: 30_000 },
-      );
-      assert.ok(
-        Number(
-          await receiver
-            .locator(`.birds-player[data-player-id="${a.actor}"]`)
-            .getAttribute("data-applied-ordinal"),
-        ) > a.ordinal,
-        "the receiving replica applied the ordinary PASS; deadlines never increment the actor ordinal",
-      );
-      if (active === second) recoveredPhonePasses++;
-      await Promise.all(
-        [first, second].map((page) =>
-          page.waitForFunction(
-            (previous) => {
-              const room = document.querySelector<HTMLElement>(".birds-room");
-              return (
-                room?.dataset.turn !== previous ||
-                room?.dataset.phase === "over"
-              );
-            },
-            oldTurn,
-            { timeout: 30_000 },
-          ),
-        ),
-      );
-    }
-    assert.ok(
-      recoveredPhonePasses > 0,
-      "the automatically readmitted phone must apply a PASS; ordinary deadlines alone cannot prove recovery",
+    console.log(`Pass-loop CPU slowdown: ${cpuRate}x on every page`);
+  }
+  // Finish a real room without changing clocks or injecting game state. Sudden-death water bounds all-pass play.
+  let recoveredPhonePasses = 0;
+  for (let turns = 0; turns < 100; turns++) {
+    await first.waitForFunction(() =>
+      ["aiming", "over"].includes(
+        document.querySelector<HTMLElement>(".birds-room")?.dataset.phase ?? "",
+      ),
     );
-    for (const p of [first, second, tv])
-      await p.locator('.birds-room[data-phase="over"]').waitFor();
-    await first.screenshot({ path: `${output}/result.png` });
-    await first
-      .getByRole("button", { name: "PLAY AGAIN", exact: true })
-      .click();
-    for (const p of [first, second, tv]) {
-      await p
-        .locator('.birds-room[data-phase="aiming"]')
-        .waitFor({ timeout: 60_000 });
-      await p
-        .getByRole("button", { name: "Scatter Bomb, 3 shots remaining" })
-        .waitFor();
+    if (
+      (await first.locator(".birds-room").getAttribute("data-phase")) === "over"
+    )
+      break;
+    const snapshots = await Promise.all(
+      [first, second].map((page) =>
+        page.evaluate(() => {
+          const room = document.querySelector<HTMLElement>(".birds-room");
+          const label =
+            document.querySelector(".birds-turn")?.textContent ?? "";
+          const actor = room?.querySelector<HTMLElement>(
+            ".birds-player.current",
+          );
+          const pass = [
+            ...(room?.querySelectorAll<HTMLButtonElement>("button") ?? []),
+          ].find((button) => button.textContent === "PASS");
+          return {
+            turn: room?.dataset.turn,
+            phase: room?.dataset.phase,
+            match: room?.dataset.match,
+            round: room?.dataset.round,
+            actor: actor?.dataset.playerId,
+            ordinal: Number(actor?.dataset.appliedOrdinal),
+            mine: label.includes("YOUR TURN"),
+            seconds: Number(label.match(/(\d+)s/)?.[1] ?? 0),
+            playable:
+              !document.hidden &&
+              document.querySelector<HTMLElement>("canvas")?.dataset.ready ===
+                "true" &&
+              !!pass &&
+              !pass.disabled,
+          };
+        }),
+      ),
+    );
+    const [a, b] = snapshots;
+    if (
+      !a ||
+      !b ||
+      a.turn !== b.turn ||
+      a.match !== b.match ||
+      a.round !== b.round ||
+      a.actor !== b.actor ||
+      !a.actor ||
+      !Number.isSafeInteger(a.ordinal) ||
+      a.ordinal !== b.ordinal ||
+      a.phase !== "aiming" ||
+      b.phase !== "aiming" ||
+      a.mine === b.mine
+    ) {
+      // Reacquire current state rather than waiting forever for a turn a peer has already passed.
+      await first.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => resolve()),
+          ),
+      );
+      continue;
     }
+    const oldTurn = a.turn!;
+    const active = a.mine ? first : second;
+    const receiver = active === first ? second : first;
+    if (!(a.mine ? a.playable : b.playable)) {
+      await waitForPlayControls(active, oldTurn);
+      // Sample both replicas and their remaining deadlines again after readiness; do not click from a stale label.
+      continue;
+    }
+    if (Math.min(a.seconds, b.seconds) < 12) {
+      console.log(
+        `Turn ${oldTurn} too close to deadline for a causal PASS check; waiting for the next turn`,
+      );
+      await first.waitForFunction(
+        (previous) =>
+          document.querySelector<HTMLElement>(".birds-room")?.dataset.turn !==
+          previous,
+        oldTurn,
+      );
+      continue;
+    }
+    console.log(
+      `Passing turn ${oldTurn} on ${active === first ? "SKYE" : "EMBER"}`,
+    );
+    await active
+      .locator(`.birds-room[data-turn="${oldTurn}"][data-phase="aiming"]`)
+      .getByRole("button", { name: "PASS", exact: true })
+      .click({ timeout: 3000 });
+    // The engine increments a player's ordinal only when that player's scoped action is applied.
+    // Observe the receiving replica's copied view; neither a queued packet nor a turn deadline can satisfy this.
+    // Ordinal gaps are allowed, and this isolated flow submits only this PASS after the paired baseline.
+    await receiver.waitForFunction(
+      (expected) => {
+        const room = document.querySelector<HTMLElement>(".birds-room");
+        const actor = [
+          ...(room?.querySelectorAll<HTMLElement>(".birds-player") ?? []),
+        ].find((card) => card.dataset.playerId === expected.actor);
+        return (
+          !!room &&
+          room.dataset.match === expected.match &&
+          room.dataset.round === expected.round &&
+          Number(actor?.dataset.appliedOrdinal) >= expected.ordinal
+        );
+      },
+      {
+        actor: a.actor,
+        match: a.match,
+        round: a.round,
+        ordinal: a.ordinal + 1,
+      },
+      { timeout: 30_000 },
+    );
+    assert.ok(
+      Number(
+        await receiver
+          .locator(`.birds-player[data-player-id="${a.actor}"]`)
+          .getAttribute("data-applied-ordinal"),
+      ) > a.ordinal,
+      "the receiving replica applied the ordinary PASS; deadlines never increment the actor ordinal",
+    );
+    if (active === second) recoveredPhonePasses++;
+    await Promise.all(
+      [first, second].map((page) =>
+        page.waitForFunction(
+          (previous) => {
+            const room = document.querySelector<HTMLElement>(".birds-room");
+            return (
+              room?.dataset.turn !== previous || room?.dataset.phase === "over"
+            );
+          },
+          oldTurn,
+          { timeout: 30_000 },
+        ),
+      ),
+    );
+  }
+  assert.ok(
+    recoveredPhonePasses > 0,
+    "the automatically readmitted phone must apply a PASS; ordinary deadlines alone cannot prove recovery",
+  );
+  for (const p of [first, second, tv])
+    await p.locator('.birds-room[data-phase="over"]').waitFor();
+  await first.screenshot({ path: `${output}/result.png` });
+  await first.getByRole("button", { name: "PLAY AGAIN", exact: true }).click();
+  for (const p of [first, second, tv]) {
+    await p
+      .locator('.birds-room[data-phase="aiming"]')
+      .waitFor({ timeout: 60_000 });
+    await p
+      .getByRole("button", { name: "Scatter Bomb, 3 shots remaining" })
+      .waitFor();
   }
   assert.deepEqual(errors, []);
   console.log(
-    `Real room ${code}: two players and TV started, agreed on a Scatter launch, recovered a phone reload, ${nativeCoverage ? "timed shot, PASS loop and rematch quarantined under native coverage (#250)" : "finished a bounded round and rematched with fresh ammunition"}. Captures: ${output}`,
+    `Real room ${code}: two players and TV started, agreed on a Scatter launch, recovered a phone reload, finished a bounded round and rematched with fresh ammunition. Captures: ${output}`,
   );
 } catch (error) {
   let index = 0;

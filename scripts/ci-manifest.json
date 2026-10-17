@@ -26,6 +26,18 @@
       "retries": 0
     },
     {
+      "id": "birds-online",
+      "group": "birds-online",
+      "name": "Fuse Birds online room, TV and phone",
+      "why": "Its turn deadlines run on real time, so it stays out of native coverage, where the simulation trails the room clock (flaky-test epic #250).",
+      "command": "pnpm exec tsx scripts/fuse-birds-online-smoke.ts",
+      "browsers": ["chrome"],
+      "env": {},
+      "serviceUrlEnv": "ONLINE_URL",
+      "timeoutMinutes": 15,
+      "retries": 1
+    },
+    {
       "id": "keyboard",
       "group": "keyboard",
       "name": "Desktop keyboard steering and firing",

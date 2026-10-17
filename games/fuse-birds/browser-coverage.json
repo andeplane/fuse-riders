@@ -1,7 +1,3 @@
 {
-  "scripts": [
-    "coverage-practice.ts",
-    "coverage-online.ts",
-    "coverage-render.ts"
-  ]
+  "scripts": ["coverage-practice.ts", "coverage-render.ts"]
 }
