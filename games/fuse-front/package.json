@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Fuse Front: a territory-war hero RTS for 2–6 players crossing Z with Warcraft III. Seeded engine (src/engine/) and maps (maps/); online rollback, renderer and app follow.",
+  "description": "Fuse Front: a territory-war hero RTS for 2–6 players crossing Z with Warcraft III. Seeded engine (src/engine/) and maps (maps/); online rollback (src/online/), page and lobby (src/app/); the renderer follows.",
+  "exports": {
+    "./platform": "./src/platform.ts"
+  },
   "dependencies": {
     "fuse-netcode": "workspace:*",
     "fuse-network-fe": "workspace:*",
