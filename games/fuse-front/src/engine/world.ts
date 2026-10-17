@@ -40,6 +40,8 @@ export interface Unit {
   hp: number;
   /** Steps until the next shot. */
   cooldown: number;
+  /** The tile index (`y * width + x`) the unit's stance sends it to, or -1 until it picks one (`move.ts`). */
+  goal: number;
 }
 
 export interface World {

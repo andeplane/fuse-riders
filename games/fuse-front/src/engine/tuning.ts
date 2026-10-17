@@ -5,7 +5,7 @@
 import { ceilDiv } from "./math.js";
 
 /** Bump on any change to the rules, with the golden in `tests/golden.test.ts` re-recorded in the same commit. */
-export const RULES = "fuse-front-1";
+export const RULES = "fuse-front-2";
 
 export const SUB = 16;
 export const TILE_PX = 8;
@@ -36,6 +36,8 @@ export interface UnitStats {
   hp: number;
   /** Sub-pixels per step. */
   speed: number;
+  /** Sub-pixels: two units closer than the sum of their radii push apart. */
+  radius: number;
   /** Sub-pixels. */
   range: number;
   damage: number;
@@ -52,6 +54,7 @@ export const UNITS: Readonly<Record<UnitKind, Readonly<UnitStats>>> = {
     robot: true,
     hp: 60,
     speed: 10,
+    radius: 40,
     range: 5 * TILE,
     damage: 6,
     cooldown: s(1),
@@ -62,6 +65,7 @@ export const UNITS: Readonly<Record<UnitKind, Readonly<UnitStats>>> = {
     robot: true,
     hp: 90,
     speed: 9,
+    radius: 44,
     range: 2 * TILE,
     damage: 4,
     cooldown: 8,
@@ -72,6 +76,7 @@ export const UNITS: Readonly<Record<UnitKind, Readonly<UnitStats>>> = {
     robot: false,
     hp: 260,
     speed: 14,
+    radius: 64,
     range: 6 * TILE,
     damage: 22,
     cooldown: s(2),
@@ -125,3 +130,15 @@ export function clockRate(teamSectors: number): number {
 export function buildSteps(kind: UnitKind, teamSectors: number): number {
   return ceilDiv(UNITS[kind].build * 100, clockRate(teamSectors));
 }
+
+/**
+ * Stances (`move.ts`). A unit picks its goal every `RETHINK_STEPS` steps, staggered by id, and at once when it has
+ * none or its owner changes stance. Costs are flow-field units: `STRAIGHT` a tile across, `DIAGONAL` a tile corner to
+ * corner. A holding unit stops within `HOLD_RADIUS` of its flag, and counts `HOLD_CROWD` extra per teammate already
+ * holding a flag, so a team spreads over its flags instead of piling onto the nearest.
+ */
+export const RETHINK_STEPS = 20;
+export const STRAIGHT = 10;
+export const DIAGONAL = 14;
+export const HOLD_RADIUS = 3 * STRAIGHT;
+export const HOLD_CROWD = 2 * STRAIGHT;
