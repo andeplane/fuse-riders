@@ -9,6 +9,7 @@ import {
   select,
   smokeEnv,
   stepNames,
+  smokeJobs,
   verifyJobs,
   type CiManifest,
 } from "../scripts/lib/ci-manifest.js";
@@ -296,15 +297,54 @@ test("a named or multi-line step in a job is seen, not only `- run:` steps", () 
   ]);
 });
 
-test("the browser matrix is built from the manifest, one job per smoke", () => {
+test("the browser matrix is built from the manifest, one job per smoke or batch", () => {
   const plan = job("plan");
   for (const line of [
     "      ids: ${{ steps.manifest.outputs.ids }}",
     "      byId: ${{ steps.manifest.outputs.byId }}",
-    `          printf 'ids=%s\\n' "$(jq -c '[.smokes[].id]' scripts/ci-manifest.json)" >> "$GITHUB_OUTPUT"`,
-    `          printf 'byId=%s\\n' "$(jq -c '.smokes | map({key: .id, value: .}) | from_entries' scripts/ci-manifest.json)" >> "$GITHUB_OUTPUT"`,
   ])
     assert.ok(plan.split("\n").includes(line), `plan job lost: ${line}`);
+  // What plan's jq writes is what scripts/ci-run.ts --smoke runs: one entry per smokeJobs() job.
+  const jq = (name: string) => {
+    const line = plan
+      .split("\n")
+      .find((item) => item.trim().startsWith(`printf '${name}=`));
+    const filter = /jq -c '(.+)' scripts\/ci-manifest\.json/.exec(
+      line ?? "",
+    )?.[1];
+    assert.ok(filter, `plan has no jq for ${name}`);
+    const result = spawnSync("jq", ["-c", filter, "scripts/ci-manifest.json"], {
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    return JSON.parse(result.stdout) as unknown;
+  };
+  const jobs = smokeJobs(manifest);
+  assert.deepEqual(jq("ids"), jobs.map((item) => item.id).sort());
+  assert.deepEqual(
+    jq("byId"),
+    Object.fromEntries(
+      jobs.map((item) => [
+        item.id,
+        {
+          name: item.smokes.map((smoke) => smoke.name).join(" + "),
+          browsers: [
+            ...new Set(item.smokes.flatMap((smoke) => smoke.browsers)),
+          ].sort(),
+          timeoutMinutes: item.smokes.reduce(
+            (sum, smoke) => sum + smoke.timeoutMinutes,
+            0,
+          ),
+        },
+      ]),
+    ),
+  );
+  // A job's timeout covers every smoke in it twice (each may retry), within GitHub's six-hour cap.
+  for (const item of jobs)
+    assert.ok(
+      item.smokes.reduce((sum, smoke) => sum + smoke.timeoutMinutes, 0) <= 360,
+      item.id,
+    );
   const smoke = job("smoke");
   const entry = "fromJson(needs.plan.outputs.byId)[matrix.id]";
   for (const line of [
@@ -522,6 +562,15 @@ test("a manifest the workflow or the runner would misread is rejected", () => {
   assert.throws(
     broken((copy) => (copy.smokes[0]!.group = "online-chrome")),
     /another step's id/,
+  );
+  // A batch named like a smoke would make `ci-run.ts --smoke` and the matrix ambiguous.
+  assert.throws(
+    broken((copy) => (copy.smokes[0]!.batch = "online-chrome")),
+    /batch online-chrome is another step's id/,
+  );
+  assert.throws(
+    broken((copy) => (copy.smokes[0]!.batch = "Two Words")),
+    /bad batch/,
   );
 });
 
