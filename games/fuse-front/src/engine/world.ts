@@ -28,6 +28,8 @@ export interface Building {
   order: UnitKind | null;
   /** Work done toward the current batch, in clock units (`clockRate` per step, finishing at `build * 100`). */
   progress: number;
+  /** A turret's steps until its next shot; 0 for anything else. */
+  cooldown: number;
 }
 
 export interface Unit {
@@ -58,9 +60,61 @@ export interface World {
   buildings: Building[];
   /** By id, ascending. */
   units: Unit[];
+  /** `NO_WINNER` while the match runs, then the winning team or `DRAW` (`winnerOf`). */
+  winner: number;
+  /**
+   * What the last step (or tick) did, for presentation only: never encoded or hashed, empty after a decode, and
+   * rebuilt by every step, so it is bounded by one tick's shots, deaths and ruins.
+   */
+  events: CombatEvent[];
 }
 
+/** One end of a shot: a unit or a building (turret or fort), and where it stood, in sub-pixels. */
+export interface Mark {
+  building: boolean;
+  id: number;
+  x: number;
+  y: number;
+}
+
+/** Shots are instant hits, so a `shot` is also its hit. */
+export type CombatEvent =
+  | { type: "shot"; from: Mark; to: Mark; damage: number }
+  | {
+      type: "death";
+      id: number;
+      kind: UnitKind;
+      owner: number;
+      x: number;
+      y: number;
+    }
+  | { type: "destroyed"; building: number; kind: BuildingKind }
+  | { type: "won"; winner: number };
+
 export const NEUTRAL = -1;
+export const NO_WINNER = -1;
+/** Every team in play lost its last fort on the same step. */
+export const DRAW = 2;
+
+/**
+ * The match result the buildings imply: with two or more teams in play, the one team with a fort standing wins, or
+ * nobody when none has; otherwise the match runs on. A destroyed fort or turret keeps its record at 0 hit points.
+ */
+export function winnerOf(
+  map: GameMap,
+  players: readonly Player[],
+  buildings: readonly Building[],
+): number {
+  const teams = new Set(players.map((player) => player.team));
+  const standing = new Set<number>();
+  for (const building of buildings) {
+    const site = map.sites[building.id]!;
+    if (site.kind === "fort" && building.hp > 0)
+      standing.add(teamOf(site.seat));
+  }
+  if (teams.size < 2 || standing.size > 1) return NO_WINNER;
+  return standing.size === 1 ? [...standing][0]! : DRAW;
+}
 
 /** A building kind's order when it is built or changes hands. */
 export const defaultOrder = (kind: BuildingKind): UnitKind | null =>
@@ -106,8 +160,11 @@ export function createWorld(
         hp: BUILDING_HP[site.kind],
         order: defaultOrder(site.kind),
         progress: 0,
+        cooldown: 0,
       })),
     units: [],
+    winner: NO_WINNER,
+    events: [],
   };
 }
 

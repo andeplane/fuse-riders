@@ -4,9 +4,12 @@
  * Both work from where units stood when the phase began, in unit-id order, and no move ever lands on a tile nothing
  * walks on or cuts a blocked corner.
  *
- * - PUSH: the nearest flag (by walking cost) the unit's team does not own; a robot walks onto it and takes it.
+ * - PUSH: the nearest flag (by walking cost) the unit's team does not own; a robot walks onto it and takes it. With no
+ *   such flag reachable, the nearest standing enemy fort, walked up to until something is in range (flags first, so
+ *   a team takes the map before it sieges; a fort's own sector is taken like any other on the way).
  * - HOLD: the team's own flags, nearest first, counting `HOLD_CROWD` per teammate already bound there; it stops within
- *   `HOLD_RADIUS` of it. With no flag left it holds the owner's fort, as does PUSH with nothing left to take.
+ *   `HOLD_RADIUS` of it. With no flag left it holds the owner's fort, as does PUSH with nothing left at all.
+ * - A unit with an enemy in range (`combat.ts`) stands to fight instead of seeking; separation still applies.
  * - FOLLOW: holds the owner's fort until heroes arrive (see `followGoal`).
  */
 import { DIRS, UNREACHABLE, flowField, openTile } from "./flow.js";
@@ -48,6 +51,17 @@ function fortTile(map: GameMap, seat: number): number {
     (each) => each.kind === "fort" && each.seat === seat,
   );
   return site === undefined ? -1 : site.y * map.width + site.x;
+}
+
+/** The tiles of the standing forts of seats not on `team`. */
+function enemyForts(map: GameMap, world: World, team: number): number[] {
+  const tiles: number[] = [];
+  for (const building of world.buildings) {
+    const site = map.sites[building.id]!;
+    if (site.kind === "fort" && building.hp > 0 && teamOf(site.seat) !== team)
+      tiles.push(site.y * map.width + site.x);
+  }
+  return tiles;
 }
 
 /** Whether a stance can send a unit to `tile`: a flag's tile or a fort's. TODO(hero): FOLLOW adds the hero's tile. */
@@ -102,6 +116,8 @@ function pickGoal(
       flags.filter((_, index) => !ours(world.sectors[index]!, team)),
     );
     if (goal >= 0) return goal;
+    const fort = nearest(map, from, enemyForts(map, world, team));
+    if (fort >= 0) return fort;
   }
   const tiles = map.width * map.height;
   const goal = nearest(
@@ -157,7 +173,11 @@ function seek(map: GameMap, world: World, unit: Unit): [number, number] {
     UNITS[unit.kind].robot &&
     flag >= 0 &&
     !ours(world.sectors[flag]!, teamOf(unit.owner));
-  if (!capturing && cost <= HOLD_RADIUS) return [0, 0];
+  // A sieging unit closes until it is in range of something and stands to fight (`moveUnits`).
+  const sieging =
+    !capturing &&
+    enemyForts(map, world, teamOf(unit.owner)).includes(unit.goal);
+  if (!capturing && !sieging && cost <= HOLD_RADIUS) return [0, 0];
   let target = unit.goal;
   if (cost > 0) {
     const [dx, dy] = DIRS[field.next[at]!]!;
@@ -240,8 +260,15 @@ function settle(
   return [x, y];
 }
 
-/** Moves every unit one step: seek plus separation, computed from where every unit stood when the step began. */
-export function moveUnits(map: GameMap, world: World): void {
+/**
+ * Moves every unit one step: seek plus separation, computed from where every unit stood when the step began. Units
+ * in `engaged` (by id) stand to fight and only separate.
+ */
+export function moveUnits(
+  map: GameMap,
+  world: World,
+  engaged: ReadonlySet<number> = new Set(),
+): void {
   const units = world.units;
   // The spatial hash, rebuilt each step: unit indices by tile, in id order.
   const cells = new Map<number, number[]>();
@@ -252,7 +279,7 @@ export function moveUnits(map: GameMap, world: World): void {
     else cell.push(index);
   }
   const moved = units.map((unit, index) => {
-    const [vx, vy] = seek(map, world, unit);
+    const [vx, vy] = engaged.has(unit.id) ? [0, 0] : seek(map, world, unit);
     const [sx, sy] = separate(map, units, cells, index);
     return settle(map, unit.x, unit.y, unit.x + vx + sx, unit.y + vy + sy);
   });

@@ -1,8 +1,10 @@
 /**
- * One engine step: the step's commands, then goals and movement (`move.ts`), then capture, then production. `step` never mutates the world it is given:
- * it copies the arrays and records (players, sectors, buildings, units) and returns a new world, so the netcode can keep the previous
- * one as a snapshot. Combat, heroes and bots arrive in later rules.
+ * One engine step: the step's commands, then goals (`move.ts`), combat (`combat.ts`), movement, capture and
+ * production. `step` never mutates the world it is given: it copies the arrays and records (players, sectors,
+ * buildings, units) and returns a new world, so the netcode can keep the previous one as a snapshot. Once the match
+ * has a winner a step only advances the clock. Heroes and bots arrive in later rules.
  */
+import { fight } from "./combat.js";
 import { flagAt, type GameMap } from "./map.js";
 import { div } from "./math.js";
 import { centreOf, chooseGoals, moveUnits, tileOf } from "./move.js";
@@ -22,9 +24,11 @@ import {
 } from "./tuning.js";
 import {
   NEUTRAL,
+  NO_WINNER,
   defaultOrder,
   ownerOf,
   teamSectors,
+  type CombatEvent,
   type World,
 } from "./world.js";
 
@@ -38,6 +42,8 @@ export function step(
   world: World,
   commands: readonly Command[] = [],
 ): World {
+  if (world.winner !== NO_WINNER)
+    return { ...world, step: world.step + 1, events: [] };
   const next: World = {
     ...world,
     step: world.step + 1,
@@ -45,25 +51,30 @@ export function step(
     sectors: [...world.sectors],
     buildings: world.buildings.map((building) => ({ ...building })),
     units: world.units.map((unit) => ({ ...unit })),
+    events: [],
   };
   applyCommands(map, next, commands);
   chooseGoals(map, next);
-  moveUnits(map, next);
+  const engaged = fight(map, next);
+  moveUnits(map, next, engaged);
   capture(map, next);
   produce(map, next);
   return next;
 }
 
-/** One 50 ms log tick: the tick's commands apply at its first step. */
+/** One 50 ms log tick: the tick's commands apply at its first step, and its events are its steps' in order. */
 export function stepTick(
   map: GameMap,
   world: World,
   commands: readonly Command[] = [],
 ): World {
   let next = world;
-  for (let index = 0; index < STEPS_PER_TICK; index++)
+  const events: CombatEvent[] = [];
+  for (let index = 0; index < STEPS_PER_TICK; index++) {
     next = step(map, next, index === 0 ? commands : []);
-  return next;
+    events.push(...next.events);
+  }
+  return { ...next, events };
 }
 
 /**
@@ -108,7 +119,7 @@ function applyCommands(
 /**
  * A robot standing on a flag takes its sector for its owner. A flag robots of both teams stand on stays as it is, and
  * a team never takes a flag from itself; when one team's robots stand on another's flag, the lowest-id one takes it.
- * A captured factory starts its default order from scratch.
+ * A captured factory starts its default order from scratch, and a captured turret starts loaded.
  */
 function capture(map: GameMap, world: World): void {
   const taker = new Map<number, number>();
@@ -131,6 +142,7 @@ function capture(map: GameMap, world: World): void {
       if (site.sector !== flag || site.kind === "fort") continue;
       building.order = defaultOrder(site.kind);
       building.progress = 0;
+      building.cooldown = 0;
     }
   }
 }
