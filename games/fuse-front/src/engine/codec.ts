@@ -177,6 +177,8 @@ function hero(raw: unknown, map: GameMap): Hero | undefined {
   }
   if (!isInt(steerX, -STEER_MAX, STEER_MAX)) return;
   if (!isInt(steerY, -STEER_MAX, STEER_MAX)) return;
+  // A held stick cancels a move, and a move releases the stick, so a hero never has both.
+  if (goal !== -1 && (steerX !== 0 || steerY !== 0)) return;
   return {
     seat,
     x,
