@@ -22,6 +22,8 @@ import { type WorldView } from "../engine/index.js";
 import { DEFAULT_SETTINGS, type View } from "../online/game.js";
 import { FrontRuntime } from "../online/runtime.js";
 import { Battlefield } from "../render/battlefield.js";
+import type { Renderer } from "../render/renderer.js";
+import { Field3D } from "../render3d/field.js";
 import { edgePan, PAN_SPEED } from "../render/camera.js";
 import { Hud } from "./hud.js";
 import { factoryAt, heroTile, keyAction } from "./hud-state.js";
@@ -38,14 +40,37 @@ const endpoints = createEndpoints(
   location.origin,
 );
 const store = safeStorage(() => localStorage);
-const muted = new URLSearchParams(location.search).has("mute");
+// `?mute` and `?2d` (the pixel battlefield) stay on every link the page makes.
+const params = new URLSearchParams(location.search);
+const sticky = ["mute", "2d"].filter((flag) => params.has(flag));
 const link = (query = "") =>
-  endpoints.appUrl(`${query}${muted ? (query ? "&mute" : "?mute") : ""}`);
+  endpoints.appUrl(
+    sticky.reduce((url, flag) => `${url}${url ? "&" : "?"}${flag}`, query),
+  );
 let teardown = () => {};
 
 function navigate(query = ""): void {
   history.pushState(null, "", link(query));
   render();
+}
+
+/** The three.js battlefield when the device gives WebGL2 (and `?2d` does not ask for pixels), else the pixel one. */
+function battlefield(): { field: Renderer; canvas: HTMLCanvasElement } {
+  if (!sticky.includes("2d"))
+    try {
+      const canvas = el("canvas", "", "ff-board ff-board-3d");
+      return { field: new Field3D(canvas), canvas };
+    } catch (failure) {
+      console.warn(
+        "Fuse Front: WebGL2 unavailable, using the pixel battlefield",
+        failure,
+      );
+    }
+  const canvas = el("canvas", "", "ff-board");
+  const field = new Battlefield(canvas, (w, h) =>
+    Object.assign(document.createElement("canvas"), { width: w, height: h }),
+  );
+  return { field, canvas };
 }
 
 function header(): HTMLElement {
@@ -110,16 +135,13 @@ function room(code: string, token: string | undefined, display: boolean): void {
   const lobby = el("section", "", "ff-lobby");
   const play = el("section", "", "ff-play");
   const hint = el("p", "", "ff-hud");
-  const canvas = el("canvas", "", "ff-board");
   const end = el("div", "", "ff-end ff-frame");
   const endText = el("strong", "");
   const endNote = el("p", "");
   const back = el("button", "BACK TO LOBBY", "fui-button fui-button-primary");
   end.append(endText, endNote, back);
   const stage = el("div", "", "ff-stage");
-  const field = new Battlefield(canvas, (w, h) =>
-    Object.assign(document.createElement("canvas"), { width: w, height: h }),
-  );
+  const { field, canvas } = battlefield();
   let shown: WorldView | undefined;
   const hud = new Hud({
     cast(slot) {
@@ -304,10 +326,32 @@ function room(code: string, token: string | undefined, display: boolean): void {
   raf = requestAnimationFrame(frame);
   const resized = () => shown && fit(shown);
   window.addEventListener("resize", resized);
+  // Two fingers pinch the zoom; the wheel zooms too (the pixel battlefield keeps its scale).
+  const touches = new Map<number, { x: number; y: number }>();
+  const spread = () => {
+    const [a, b] = [...touches.values()];
+    return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+  };
+  canvas.addEventListener(
+    "wheel",
+    (event) => {
+      event.preventDefault();
+      // Lines (Firefox) and pages count as many pixels.
+      const pixels = event.deltaY * [1, 16, 400][event.deltaMode]!;
+      field.zoom(Math.exp(-pixels * 0.0015));
+    },
+    { passive: false },
+  );
   // A press that stays put is a MOVE order on release; one that travels drags the camera instead.
   canvas.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     canvas.setPointerCapture?.(event.pointerId);
+    if (event.pointerType === "touch")
+      touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (touches.size > 1) {
+      drag = undefined;
+      return;
+    }
     drag = {
       id: event.pointerId,
       x: event.clientX,
@@ -320,6 +364,11 @@ function room(code: string, token: string | undefined, display: boolean): void {
       event.pointerType === "mouse"
         ? { x: event.offsetX, y: event.offsetY }
         : undefined;
+    if (touches.has(event.pointerId)) {
+      const before = spread();
+      touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (touches.size > 1 && before > 0) return field.zoom(spread() / before);
+    }
     if (!drag || drag.id !== event.pointerId || !shown) return;
     const dx = event.clientX - drag.x,
       dy = event.clientY - drag.y;
@@ -328,6 +377,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
     field.pan(-dx, -dy, shown);
   });
   canvas.addEventListener("pointerup", (event) => {
+    touches.delete(event.pointerId);
     const was = drag;
     drag = undefined;
     if (!was || was.moved || !shown) return;
@@ -340,7 +390,10 @@ function room(code: string, token: string | undefined, display: boolean): void {
     hud.close();
     runtime.move(tile.x, tile.y);
   });
-  canvas.addEventListener("pointercancel", () => (drag = undefined));
+  canvas.addEventListener("pointercancel", (event) => {
+    touches.delete(event.pointerId);
+    drag = undefined;
+  });
   canvas.addEventListener("pointerleave", () => (hover = undefined));
   canvas.addEventListener("contextmenu", (event) => event.preventDefault());
   const keys123 = (event: KeyboardEvent) => {
@@ -365,6 +418,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
     window.removeEventListener("resize", resized);
     window.removeEventListener("keydown", keys123);
     runtime.stop();
+    field.dispose();
   };
 }
 

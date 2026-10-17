@@ -79,6 +79,10 @@
   image-rendering: pixelated;
   touch-action: none;
 }
+/* The three.js battlefield renders at device resolution: smooth, not pixelated. */
+.ff-board-3d {
+  image-rendering: auto;
+}
 /* The HUD: steel and frame textures are pixel art painted once (hud.ts) and scaled 2x, never smoothed. */
 .ff-stage,
 .ff-bay {
