@@ -88,3 +88,20 @@ export function edgePan(
     v < 0 || v > size ? 0 : v < edge ? -1 : v > size - edge ? 1 : 0;
   return { x: axis(dx, w), y: axis(dy, h) };
 }
+
+/** The camera centred on a minimap click at fractions `fx`, `fy` of the map, kept inside the map. */
+// prettier-ignore
+export function centreOn(fx: number, fy: number, view: Viewport, mapW: number, mapH: number): { x: number; y: number } {
+  return clampCamera(fx * mapW - view.w / 2, fy * mapH - view.h / 2, view, mapW, mapH);
+}
+
+/** The camera's box over the map in fractions of its width and height, for the minimap's rectangle. */
+// prettier-ignore
+export function cameraBox(camera: { x: number; y: number }, view: Viewport, mapW: number, mapH: number) {
+  return {
+    x: camera.x / mapW,
+    y: camera.y / mapH,
+    w: Math.min(1, view.w / mapW),
+    h: Math.min(1, view.h / mapH),
+  };
+}
