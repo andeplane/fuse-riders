@@ -10,5 +10,6 @@ export * from "./hero.js";
 export * from "./spells.js";
 export * from "./codec.js";
 export * from "./view.js";
+export * from "./bot.js";
 export { next, roll, fnv1a, seedOf } from "./rng.js";
 export { clamp, div, ceilDiv, imul, isqrt } from "./math.js";
