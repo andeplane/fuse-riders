@@ -230,10 +230,9 @@ const BUILDERS: Record<ModelKind, () => Model> = {
   grunt, torch, lightTank, tankTurret, brick, vix, rivet, tally,
 };
 
-/** Which hero model a hero wears: its `kind` once the view carries one (E2), Brick until then. */
+/** Which hero model a hero wears: its `kind`'s (Brick for one without a model). */
 export function heroKindOf(hero: HeroView): HeroKind {
-  const kind = "kind" in hero ? hero.kind : undefined;
-  return HERO_KINDS.find((k) => k === kind) ?? "brick";
+  return HERO_KINDS.find((k) => k === hero.kind) ?? "brick";
 }
 
 export function unitModel(kind: ModelKind): Model {

@@ -119,14 +119,11 @@ test("walkers hop, tanks barely shake, and idle bodies breathe gently", () => {
   }
 });
 
-test("a hero wears Brick until the view names its kind", () => {
+test("a hero wears the model of its kind", () => {
   // prettier-ignore
-  const hero: HeroView = { seat: 0, team: 0, x: 0, y: 0, hp: 1, maxHp: 1, level: 1, respawn: 0, energy: 0, maxEnergy: 0, xp: 0, spells: [] };
+  const hero: HeroView = { seat: 0, kind: "brick", team: 0, x: 0, y: 0, hp: 1, maxHp: 1, level: 1, respawn: 0, energy: 0, maxEnergy: 0, xp: 0, spells: [], cloaked: false };
   assert.equal(heroKindOf(hero), "brick");
-  const named = { ...hero, kind: "vix" };
-  assert.equal(heroKindOf(named), "vix");
-  const unknown = { ...hero, kind: "nobody" };
-  assert.equal(heroKindOf(unknown), "brick");
+  assert.equal(heroKindOf({ ...hero, kind: "vix" }), "vix");
 });
 
 test("the flag cloth waves but stays tied to the pole", () => {
