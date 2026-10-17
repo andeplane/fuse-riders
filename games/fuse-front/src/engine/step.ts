@@ -1,10 +1,11 @@
 /**
- * One engine step: the step's commands, then capture, then production. `step` never mutates the world it is given:
+ * One engine step: the step's commands, then goals and movement (`move.ts`), then capture, then production. `step` never mutates the world it is given:
  * it copies the arrays and records (players, sectors, buildings, units) and returns a new world, so the netcode can keep the previous
- * one as a snapshot. Movement, combat, heroes and bots arrive in later rules; units stand where they spawn.
+ * one as a snapshot. Combat, heroes and bots arrive in later rules.
  */
 import { flagAt, type GameMap } from "./map.js";
 import { div } from "./math.js";
+import { centreOf, chooseGoals, moveUnits, tileOf } from "./move.js";
 import {
   COMMANDS_PER_SEAT,
   FACTORY_KINDS,
@@ -32,11 +33,6 @@ export type Command =
   | { seat: number; type: "order"; factory: number; kind: UnitKind }
   | { seat: number; type: "stance"; stance: Stance };
 
-/** The tile a sub-pixel coordinate lies on. */
-export const tileOf = (sub: number): number => div(sub, TILE);
-/** A tile's centre in sub-pixels. */
-export const centreOf = (tile: number): number => tile * TILE + div(TILE, 2);
-
 export function step(
   map: GameMap,
   world: World,
@@ -51,6 +47,8 @@ export function step(
     units: world.units.map((unit) => ({ ...unit })),
   };
   applyCommands(map, next, commands);
+  chooseGoals(map, next);
+  moveUnits(map, next);
   capture(map, next);
   produce(map, next);
   return next;
@@ -85,8 +83,12 @@ function applyCommands(
     if (count >= COMMANDS_PER_SEAT) continue;
     used.set(player.seat, count + 1);
     if (command.type === "stance") {
-      if ((STANCES as readonly unknown[]).includes(command.stance))
-        player.stance = command.stance;
+      if (!(STANCES as readonly unknown[]).includes(command.stance)) continue;
+      if (player.stance === command.stance) continue;
+      player.stance = command.stance;
+      // The player's units pick goals under the new stance this step.
+      for (const unit of world.units)
+        if (unit.owner === player.seat) unit.goal = -1;
     } else if (command.type === "order") {
       const building = world.buildings.find(
         (each) => each.id === command.factory,
@@ -163,6 +165,7 @@ function produce(map: GameMap, world: World): void {
         y: centreOf(door.y),
         hp: stats.hp,
         cooldown: 0,
+        goal: -1,
       });
     units.set(owner, count + batch);
   }

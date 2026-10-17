@@ -42,6 +42,7 @@ function place(
       y: centreOf(tile.y),
       hp: UNITS[kind].hp,
       cooldown: 0,
+      goal: -1,
     });
   return { ...world, units, nextId };
 }
@@ -128,6 +129,8 @@ test("a captured factory builds its default order at the team's clock and spawns
   let world = step(
     map,
     place(createWorld(map, [0, 1], 1), 0, "grunt", map.flags[TINY.middle]!),
+    // Held, so the grunt stays on the middle flag rather than pushing on to take more.
+    [{ seat: 0, type: "stance", stance: "hold" }],
   );
   assert.equal(world.sectors[TINY.middle], 0);
   const factory = () =>
@@ -306,6 +309,8 @@ test("the view reports owners, progress in thousandths and units by team", () =>
   let world = step(
     map,
     place(createWorld(map, [0, 1], 1), 0, "grunt", map.flags[TINY.middle]!),
+    // Held, so the grunt stays on the middle flag rather than pushing on to take more.
+    [{ seat: 0, type: "stance", stance: "hold" }],
   );
   world = run(map, world, 99);
   const view = viewOf(map, world);
