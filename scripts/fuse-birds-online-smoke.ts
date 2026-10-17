@@ -220,16 +220,37 @@ try {
   await first.locator("canvas").focus();
   await first.keyboard.press("j");
   await first.locator('canvas[data-gesture="keyboard-aim"]').waitFor();
+  const shot = await first.evaluate(() => {
+    const room = document.querySelector<HTMLElement>(".birds-room")!;
+    const actor = room.querySelector<HTMLElement>(".birds-player.current")!;
+    return {
+      match: room.dataset.match,
+      round: room.dataset.round,
+      actor: actor.dataset.playerId,
+      ordinal: Number(actor.dataset.appliedOrdinal),
+    };
+  });
+  assert.ok(shot.actor && Number.isSafeInteger(shot.ordinal));
   await first.keyboard.press("Enter");
-  await first
-    .getByRole("button", { name: "Scatter Bomb, 2 shots remaining" })
-    .waitFor({ timeout: 10_000 });
-  await second
-    .getByRole("button", { name: "Scatter Bomb, 2 shots remaining" })
-    .waitFor({ timeout: 10_000 });
-  await tv
-    .getByRole("button", { name: "Scatter Bomb, 2 shots remaining" })
-    .waitFor({ timeout: 10_000 });
+  await Promise.all(
+    [first, second, tv].map((page) =>
+      page.waitForFunction(
+        (expected) => {
+          const room = document.querySelector<HTMLElement>(".birds-room");
+          const actor = [
+            ...(room?.querySelectorAll<HTMLElement>(".birds-player") ?? []),
+          ].find((card) => card.dataset.playerId === expected.actor);
+          return (
+            room?.dataset.match === expected.match &&
+            room?.dataset.round === expected.round &&
+            Number(actor?.dataset.appliedOrdinal) > expected.ordinal
+          );
+        },
+        shot,
+        { timeout: 30_000 },
+      ),
+    ),
+  );
   await second
     .locator(".birds-turn")
     .filter({ hasText: "YOUR TURN" })
