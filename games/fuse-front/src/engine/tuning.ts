@@ -5,7 +5,7 @@
 import { ceilDiv } from "./math.js";
 
 /** Bump on any change to the rules, with the golden in `tests/golden.test.ts` re-recorded in the same commit. */
-export const RULES = "fuse-front-6";
+export const RULES = "fuse-front-7";
 
 export const SUB = 16;
 export const TILE_PX = 8;
@@ -114,13 +114,25 @@ export const BUILDING_HP: Readonly<Record<BuildingKind, number>> = {
 };
 
 /**
- * A turret held by a seat fires like a unit (`combat.ts`); a neutral one is idle and cannot be hit. Forts do not fire.
- * Sub-pixels and steps, as `UnitStats`.
+ * A turret held by a seat fires like a unit (`combat.ts`); a neutral one is idle and cannot be hit. A standing fort
+ * fires its heavy gun at enemy units and heroes (never buildings), so a lone hero or a thin push cannot simply walk
+ * in; tanks outrange it, so they are the siege. Sub-pixels and steps, as `UnitStats`.
  */
 export const TURRET = { range: 6 * TILE, damage: 18, cooldown: s(1) } as const;
+export const FORT_GUN = {
+  range: 5 * TILE,
+  damage: 60,
+  cooldown: s(1.5),
+} as const;
 
-/** A player's factories pause while that player has this many units. */
-export const UNIT_CAP = 40;
+/**
+ * The unit cap grows with territory: a player's factories pause at `UNIT_CAP_BASE` plus `UNIT_CAP_PER_SECTOR` for
+ * each sector the team holds, shared among the team's players, never above `UNIT_CAP` (`unitCap` in `world.ts`). A
+ * cap that shrinks kills nothing; the player just builds nothing until it is under it again.
+ */
+export const UNIT_CAP_BASE = 10;
+export const UNIT_CAP_PER_SECTOR = 4;
+export const UNIT_CAP = 48;
 /** Commands a seat may apply per step; the rest are dropped. */
 export const COMMANDS_PER_SEAT = 4;
 
@@ -131,6 +143,14 @@ export const COMMANDS_PER_SEAT = 4;
  */
 export const CLOCK_PER_SECTOR = 15;
 export const CLOCK_MAX = 200;
+
+/**
+ * Overtime: from `OVERTIME_AFTER` steps into a match, the team holding more sectors than the other builds faster,
+ * `OVERTIME_GROWTH` percent more for each minute past it, up to `OVERTIME_MAX` percent (`productionRate`, `step.ts`).
+ */
+export const OVERTIME_AFTER = s(8 * 60);
+export const OVERTIME_GROWTH = 40;
+export const OVERTIME_MAX = 300;
 
 export function clockRate(teamSectors: number): number {
   const rate = 100 + CLOCK_PER_SECTOR * (teamSectors > 1 ? teamSectors - 1 : 0);
@@ -155,24 +175,33 @@ export const HOLD_RADIUS = 3 * STRAIGHT;
 export const HOLD_CROWD = 2 * STRAIGHT;
 
 /**
- * The hero (`hero.ts`), Brick for now. Each player has one; it walks where it is sent (`move`) or steered (`steer`),
- * shoots the nearest enemy in range whether idle or walking, captures flags like a robot and is a target like a unit.
- * Its stats grow with its level; sub-pixels and steps, as `UnitStats`.
+ * The hero (`hero.ts`), Brick for now: a powerhouse worth a squad. Each player has one; it walks where it is sent
+ * (`move`) or steered (`steer`), shoots the nearest enemy in range whether idle or walking, captures flags like a
+ * robot and is a target like a unit. Its stats grow with its level; sub-pixels and steps, as `UnitStats`.
  */
 export const HERO = {
   speed: 12,
-  range: 4 * TILE,
+  range: 5 * TILE,
   cooldown: s(1),
   siege: 50,
   /** Hit points and damage at level 1, and what each level adds. */
-  hp: 420,
-  hpPerLevel: 45,
-  damage: 16,
-  damagePerLevel: 2,
-  /** Energy at level 1 and per level; one point regenerates every `energyEvery` steps. */
+  hp: 900,
+  hpPerLevel: 70,
+  damage: 40,
+  damagePerLevel: 5,
+  /** Enemy units within `splash` of the hero's target also take `splashPercent` of the shot. */
+  splash: TILE,
+  splashPercent: 50,
+  /** Percent of a robot's (grunt's or torch's) damage a hero takes; tanks, turrets, forts and heroes hit in full. */
+  smallArms: 50,
+  /** Energy at level 1 and per level; one point regenerates every `energyEvery` steps, `calmEnergyEvery` when calm. */
   energy: 100,
   energyPerLevel: 10,
   energyEvery: 20,
+  calmEnergyEvery: 5,
+  /** Steps without shooting or being hit before a hero is calm, and the hit points a calm hero heals each step. */
+  calm: s(3),
+  regen: 1,
   /** Steps dead before respawning at the fort: `respawn + respawnPerLevel * level`. */
   respawn: s(6),
   respawnPerLevel: s(2),
@@ -180,7 +209,7 @@ export const HERO = {
 
 export const MAX_LEVEL = 10;
 /** Total XP each level needs: level n is reached at `XP_STEP * n * (n - 1) / 2`. */
-export const XP_STEP = 50;
+export const XP_STEP = 30;
 /** XP for killing a unit of each kind, a hero (plus `HERO_XP_PER_LEVEL` per victim level), and taking a flag. */
 export const KILL_XP: Readonly<Record<UnitKind, number>> = {
   grunt: 12,
@@ -195,5 +224,7 @@ export const ASSIST_RADIUS = 8 * TILE;
 /** A robot this close to its owner's living hero does `AURA_DAMAGE` percent damage. */
 export const AURA_RADIUS = 6 * TILE;
 export const AURA_DAMAGE = 115;
+/** A robot under RALLY CRY walks this many percent faster (`spells.ts`). */
+export const RALLY_SPEED = 40;
 /** `steer` takes each axis in -STEER_MAX..STEER_MAX; the hero walks at full speed from a magnitude of STEER_MAX. */
 export const STEER_MAX = 8;

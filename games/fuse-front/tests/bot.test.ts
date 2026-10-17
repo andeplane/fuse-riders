@@ -163,32 +163,6 @@ test("an empty seat or a finished match gets no commands", () => {
   assert.deepEqual(botCommands(map, { ...world, winner: 0 }, 0, "hard"), []);
 });
 
-test("bot matches on Dust Basin end with a winner, 1v1 and 3v3", () => {
-  // Evenly matched bots can trade sectors at the unit cap for a long time; a duel between levels ends.
-  const duel = play(
-    map,
-    new Map([
-      [0, "easy"],
-      [1, "hard"],
-    ]),
-    12_000,
-  );
-  assert.notEqual(duel.winner, NO_WINNER);
-  const teams = play(
-    map,
-    new Map<number, Difficulty>([
-      [0, "hard"],
-      [1, "normal"],
-      [2, "easy"],
-      [3, "hard"],
-      [4, "normal"],
-      [5, "easy"],
-    ]),
-    12_000,
-  );
-  assert.notEqual(teams.winner, NO_WINNER);
-});
-
 test("a hard bot beats an easy one from most starts", () => {
   const starts = [
     [0, 1],

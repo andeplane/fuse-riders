@@ -36,9 +36,9 @@ import { TINY, dustBasin, tiny } from "./fixtures/maps.js";
 
 const map = tiny();
 const at = centreOf;
-/** A grunt's shot on a level 1 Brick, under its IRON HIDE. */
+/** A grunt's shot on a level 1 Brick: small arms, then under its IRON HIDE. */
 const HIDDEN_GRUNT = div(
-  UNITS.grunt.damage * (100 - KITS.brick[2]!.power),
+  div(UNITS.grunt.damage * HERO.smallArms, 100) * (100 - KITS.brick[2]!.power),
   100,
 );
 
@@ -153,6 +153,45 @@ test("a hero shoots the nearest enemy while walking, and enemies shoot it", () =
     ],
   );
   assert.equal(heroOf(next, 0).x, at(4) + HERO.speed, "it kept walking");
+});
+
+test("a hero's shot splashes enemy units near its target; tanks hit it in full, robots at half", () => {
+  let world = createWorld(map, [0, 1], 1);
+  world = withHero(world, 0, { x: at(4), y: at(5) });
+  world = add(world, 1, "grunt", 7, 5, 200); // 1: the target
+  world = add(world, 1, "torch", 7, 6, 200); // 2: a tile from it, splashed
+  world = add(world, 1, "lightTank", 8, 7); // 3: further, untouched by the splash
+  const next = step(map, world);
+  const damage = heroShot(1).damage;
+  const hp = next.units.map((u) => u.hp);
+  assert.deepEqual(hp, [
+    200 - damage,
+    200 - div(damage * HERO.splashPercent, 100),
+    UNITS.lightTank.hp,
+  ]);
+  const taken = next.events.flatMap((e) =>
+    e.type === "shot" && e.to.of === "hero" ? [[e.from.id, e.damage]] : [],
+  );
+  const hide = 100 - KITS.brick[2]!.power;
+  assert.deepEqual(taken, [
+    [1, HIDDEN_GRUNT],
+    [3, div(UNITS.lightTank.damage * hide, 100)],
+  ]);
+});
+
+test("focused fire still kills a hero: a level 1 Brick under an enemy fort and two tanks falls in seconds", () => {
+  let world = createWorld(map, [0, 1], 1);
+  world = withHero(world, 0, { x: at(10), y: at(3) });
+  world = withHero(world, 1, { x: at(12), y: at(8) }); // out of reach
+  world = add(world, 1, "lightTank", 12, 4);
+  world = add(world, 1, "lightTank", 11, 5);
+  let steps = 0;
+  while (heroOf(world, 0).hp > 0 && steps < 60 * 40) {
+    world = step(map, world);
+    steps++;
+  }
+  assert.equal(heroOf(world, 0).hp, 0);
+  assert.ok(steps < 30 * 40, `${steps} steps`);
 });
 
 test("a kill earns the killer's hero XP, a nearby teammate's hero half, and a level brings hit points", () => {
@@ -284,12 +323,36 @@ test("a hero's move commands cannot evict the flag and fort fields every stance 
   assert.ok(cachedFlowFields(big) <= FLOW_CACHE_SIZE + ROAMING_FLOW_CACHE_SIZE);
 });
 
-test("a living hero regenerates energy up to its level's most", () => {
+test("a living hero regenerates energy up to its level's most, faster when calm", () => {
   let world = withHero(createWorld(map, [0, 1], 1), 0, { energy: 10 });
-  world = run(world, 10 * HERO.energyEvery);
+  world = run(world, 10 * HERO.calmEnergyEvery);
   assert.equal(heroOf(world, 0).energy, 20);
   world = run(withHero(world, 0, { energy: HERO.energy }), HERO.energyEvery);
   assert.equal(heroOf(world, 0).energy, HERO.energy);
+  // Fresh from a fight it regenerates at the slow rate until calm.
+  world = run(withHero(world, 0, { energy: 10, quiet: 0 }), HERO.calm);
+  assert.equal(heroOf(world, 0).energy, 10 + HERO.calm / HERO.energyEvery);
+});
+
+test("a calm hero heals to its most; one that shot or was hit waits until calm", () => {
+  let world = withHero(createWorld(map, [0, 1], 1), 0, { hp: 100, quiet: 0 });
+  world = run(world, HERO.calm);
+  assert.equal(heroOf(world, 0).hp, 100, "not calm yet");
+  world = run(world, 10);
+  assert.equal(heroOf(world, 0).hp, 100 + 10 * HERO.regen);
+  world = run(world, maxHp(1));
+  assert.equal(heroOf(world, 0).hp, maxHp(1));
+  // A shot taken resets it.
+  world = add(
+    withHero(world, 0, { hp: 500, x: at(4), y: at(5) }),
+    1,
+    "grunt",
+    7,
+    5,
+  );
+  world = run(world, 2);
+  assert.equal(heroOf(world, 0).quiet < HERO.calm, true);
+  assert.equal(heroOf(world, 0).hp < 500, true);
 });
 
 const deepFreeze = <T>(value: T): T => {

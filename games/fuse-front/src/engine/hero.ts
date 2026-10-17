@@ -137,13 +137,22 @@ export function moveHeroes(map: GameMap, world: World): void {
   }
 }
 
-/** Early in a step: living heroes regenerate energy, dead ones count down and respawn on their fort's tile. */
+/**
+ * Early in a step: living heroes regenerate energy, faster when calm (`HERO.calm` steps without shooting or being
+ * hit), and a calm hero heals; dead ones count down and respawn on their fort's tile.
+ */
 export function tendHeroes(map: GameMap, world: World): void {
   for (const hero of world.heroes) {
     const level = levelOf(hero.xp);
     if (alive(hero)) {
-      if (world.step % HERO.energyEvery === 0 && hero.energy < maxEnergy(level))
+      const calm = hero.quiet >= HERO.calm;
+      if (!calm) hero.quiet++;
+      const every = calm ? HERO.calmEnergyEvery : HERO.energyEvery;
+      if (world.step % every === 0 && hero.energy < maxEnergy(level))
         hero.energy++;
+      const healed = calm ? hero.hp + HERO.regen : hero.hp;
+      if (healed > hero.hp)
+        hero.hp = healed < maxHp(level) ? healed : maxHp(level);
       continue;
     }
     if (--hero.respawn > 0) continue;
