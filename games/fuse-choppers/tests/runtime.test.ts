@@ -3,6 +3,34 @@ import assert from "node:assert/strict";
 import { DEFAULT_SETTINGS, UP } from "../src/engine/index.js";
 import { Mesh } from "./fixtures/mesh.js";
 import { hash, stepsPerTick } from "../src/online/game.js";
+import { ChopperRuntime } from "../src/online/runtime.js";
+
+test("solo seats the selected pilot portrait", () => {
+  const runtime = new ChopperRuntime(
+    "SOLO",
+    DEFAULT_SETTINGS,
+    {
+      state: () => {},
+      event: () => {},
+      status: () => {},
+      ready: () => {},
+    },
+    {
+      humanAvatar: "mushroom",
+      dependencies: {
+        now: () => 0,
+        hidden: () => false,
+        token: () => "match",
+        generation: () => 1,
+        schedule: () => () => {},
+        onVisibilityChange: () => () => {},
+      },
+    },
+  );
+  runtime.start();
+  assert.equal(runtime.roomState()!.seats.get("solo")?.avatarId, "mushroom");
+  runtime.stop();
+});
 
 test("accelerated bot play converges over loss and reordering and survives peer recovery", () => {
   const mesh = new Mesh("host", DEFAULT_SETTINGS);

@@ -74,6 +74,33 @@ function started(settings: Settings = DEFAULT_SETTINGS): Room {
 const chopper = (room: Room, id: string) =>
   room.world!.choppers.find((c) => c.id === id)!;
 
+test("pilot portraits survive seating, checkpoint recovery and reconnect", () => {
+  for (const avatarId of [
+    "robot",
+    "cat",
+    "fox",
+    "alien",
+    "astronaut",
+    "skull",
+    "octopus",
+    "dragon",
+    "owl",
+    "slime",
+    "mushroom",
+  ]) {
+    const room = createRoom("pilots", DEFAULT_SETTINGS);
+    assert.ok(isEntry([1, 1, JOIN, "a", "Ada", 0, avatarId, 1]));
+    fold(room, { a: [[JOIN, "a", "Ada", 0, avatarId, 1]] });
+    const recovered = decode(encode(room), room.tick);
+    assert.ok(recovered);
+    assert.equal(view(recovered).seats[0]?.avatarId, avatarId);
+    fold(recovered, { a: [[PRESENCE, "a", false, 1]] });
+    fold(recovered, { a: [[PRESENCE, "a", true, 1]] });
+    assert.equal(view(recovered).seats[0]?.avatarId, avatarId);
+  }
+  assert.equal(isEntry([1, 1, JOIN, "a", "Ada", 0, "unknown-pilot", 1]), false);
+});
+
 test("bots-only speed ramps from the last human crash and excludes normal phases and showcases", () => {
   const room = started();
   const world = room.world!;
@@ -183,7 +210,7 @@ test("entries: play entries name a match and round and carry control bits; manag
   assert.ok(!isEntry([0, 5, PLAY, "m1", 1, 1]), "seq from 1");
   assert.ok(!isEntry([1, 5, PLAY, "", 1, 1]), "a match id");
   assert.ok(isEntry([1, 5, JOIN, "a", "Ada", 0, "chopper", 1]));
-  assert.ok(!isEntry([1, 5, JOIN, "a", "Ada", 0, "fox", 1]), "only choppers");
+  assert.ok(!isEntry([1, 5, JOIN, "a", "Ada", 0, "unknown-pilot", 1]));
   assert.ok(!isEntry([1, 5, JOIN, "a", "Ada", 5, "chopper", 1]), "five seats");
   assert.ok(!isEntry([1, 5, JOIN, "constructor", "Ada", 0, "chopper", 1]));
   assert.ok(isEntry([1, 5, SETTINGS, { ...DEFAULT_SETTINGS, lift: "thrust" }]));
@@ -380,7 +407,7 @@ test("the checkpoint carries a room whole in every stage, and a corrupt one is r
     [
       "a seat's avatar",
       (f: unknown[]) =>
-        ((f[4] as Record<string, unknown>[])[0]!.avatarId = "fox"),
+        ((f[4] as Record<string, unknown>[])[0]!.avatarId = "unknown-pilot"),
     ],
     [
       "an unknown seat key",

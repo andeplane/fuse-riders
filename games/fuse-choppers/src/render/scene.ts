@@ -1,4 +1,6 @@
 import type { ChopperView, WorldView } from "../engine/view.js";
+import { AVATAR_ATLAS } from "fuse-ui/assets";
+import { pilotFrame } from "./pilots.js";
 import {
   EXIT_X,
   PICKUP_KINDS,
@@ -41,6 +43,7 @@ export interface SceneInput {
   me: string;
   /** What to write over each chopper, by id. */
   labels: ReadonlyMap<string, string>;
+  avatars?: ReadonlyMap<string, string>;
   /** Wall time in milliseconds, for animation. */
   now: number;
   reducedMotion?: boolean;
@@ -80,16 +83,37 @@ export const effectKey = (fx: {
 
 export function createScene(g: Paint, make: MakeSurface) {
   const backdrop = createBackdrop(make);
-  const choppers = new Map<number, Sprite>(),
+  const choppers = new Map<string, Sprite>(),
     saws = new Map<number, Sprite>(),
     pickups = new Map<PickupKind, Sprite>();
   let drone: Sprite | undefined;
-  const chopperFor = (slot: number) => {
-    let s = choppers.get(slot);
+  let atlas:
+    { image: CanvasImageSource; width: number; height: number } | undefined;
+  const chopperFor = (slot: number, avatar: string) => {
+    const frame = pilotFrame(avatar, slot);
+    const key = `${slot}:${frame}`;
+    let s = choppers.get(key);
     if (!s)
       choppers.set(
-        slot,
-        (s = chopperSprite(make, seatColor(slot), seatShade(slot))),
+        key,
+        (s = chopperSprite(
+          make,
+          seatColor(slot),
+          seatShade(slot),
+          atlas
+            ? {
+                image: atlas.image,
+                x:
+                  ((frame % AVATAR_ATLAS.columns) * atlas.width) /
+                  AVATAR_ATLAS.columns,
+                y:
+                  (Math.floor(frame / AVATAR_ATLAS.columns) * atlas.height) /
+                  AVATAR_ATLAS.rows,
+                width: atlas.width / AVATAR_ATLAS.columns,
+                height: atlas.height / AVATAR_ATLAS.rows,
+              }
+            : undefined,
+        )),
       );
     return s;
   };
@@ -455,7 +479,7 @@ export function createScene(g: Paint, make: MakeSurface) {
     g.restore();
 
     if (c.state === "escaped") return;
-    const sprite = chopperFor(c.slot);
+    const sprite = chopperFor(c.slot, input.avatars?.get(c.id) ?? "");
     if (c.state === "crashed") {
       const since = Math.max(0, world.step - c.endedAt) * STEP_S;
       if (since > 4) return;
@@ -1010,7 +1034,13 @@ export function createScene(g: Paint, make: MakeSurface) {
     g.fillRect(0, 0, 260, VIEW_H);
   }
 
-  return { draw };
+  return {
+    draw,
+    setPilotAtlas(image: CanvasImageSource, width: number, height: number) {
+      atlas = { image, width, height };
+      choppers.clear();
+    },
+  };
 }
 
 function drawExit(g: Paint, camX: number, time: number): void {

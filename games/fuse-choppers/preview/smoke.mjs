@@ -65,7 +65,14 @@ const variety = (page) =>
 
 try {
   // ---- solo ----
-  const solo = await open("fuse-choppers/?solo=1&mute&autopilot");
+  const solo = await open("fuse-choppers/?mute&autopilot");
+  await solo
+    .getByRole("button", { name: "Change pilot: fox", exact: true })
+    .click();
+  await solo.getByRole("button", { name: "MUSHROOM", exact: true }).click();
+  await solo
+    .getByRole("button", { name: "PLAY SOLO VS BOTS", exact: true })
+    .click();
   await solo.locator('main[data-phase="play"]').waitFor({ timeout: 15_000 });
   await solo.waitForTimeout(6_000);
   const early = await timer(solo);
@@ -74,12 +81,24 @@ try {
   assert.notEqual(early, later, "the solo timer runs");
   assert.ok((await variety(solo)) > 40, "the cave is drawn");
   assert.equal(await solo.locator(".fc-card").count(), 4, "you and three bots");
+  assert.equal(
+    await solo
+      .locator(".fc-card.you .fc-pilot")
+      .evaluate((node) => node.style.backgroundPosition),
+    "0% 100%",
+    "solo uses the chosen pilot",
+  );
   await snap(solo, "solo-play");
   console.log(`solo: timer ${early} → ${later}, 4 pilots`);
   await solo.context().close();
 
   // ---- online: create, join by code, add a bot, take off ----
   const host = await open("fuse-choppers/?mute&autopilot");
+  await host
+    .getByRole("button", { name: "Change pilot: fox", exact: true })
+    .click();
+  assert.equal(await host.locator(".fui-picker-option").count(), 11);
+  await host.getByRole("button", { name: "CAT", exact: true }).click();
   await host.getByRole("button", { name: "CREATE ROOM" }).click();
   await host.waitForURL(/room=[A-Z0-9]+/);
   const code = new URL(host.url()).searchParams.get("room");
@@ -95,6 +114,10 @@ try {
   };
   await join(host, "Host");
   const guest = await open(`fuse-choppers/?room=${code}&mute&autopilot`);
+  await guest
+    .getByRole("button", { name: "Change pilot: fox", exact: true })
+    .click();
+  await guest.getByRole("button", { name: "ALIEN", exact: true }).click();
   await join(guest, "Guest");
   await host.locator(".fui-roster-row").nth(1).waitFor({ timeout: 20_000 });
   await host.getByRole("button", { name: "+ ADD BOT" }).click();
@@ -108,6 +131,18 @@ try {
     [host, guest].map((page) => page.locator(".fc-card").count()),
   );
   assert.deepEqual(pilots, [3, 3], "both pages show three pilots");
+  for (const page of [host, guest]) {
+    const positions = await page
+      .locator(".fc-card .fc-pilot")
+      .evaluateAll((nodes) =>
+        nodes.map((node) => node.style.backgroundPosition),
+      );
+    assert.deepEqual(
+      positions,
+      ["25% 0%", "75% 0%", "50% 0%"],
+      "selected pilots agree across peers",
+    );
+  }
   await snap(host, "online-host");
   await snap(guest, "online-guest");
   // Both replicas agree on how the round ends.

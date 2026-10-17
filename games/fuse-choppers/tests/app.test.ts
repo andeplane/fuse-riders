@@ -247,6 +247,7 @@ test("notes for a crashed, escaped, waiting or watching pilot", () => {
       {
         id: "w",
         name: "Wes",
+        avatarId: "",
         slot: -1,
         bot: false,
         connected: true,
