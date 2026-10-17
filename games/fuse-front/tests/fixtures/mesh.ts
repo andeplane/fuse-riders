@@ -1,38 +1,13 @@
-import {
-  RoomRuntime,
-  type RoomTransport,
-  type RuntimeDependencies,
-  type TransportEvents,
+import type {
+  RoomTransport,
+  RuntimeDependencies,
+  TransportEvents,
 } from "fuse-netcode";
-import {
-  frontGame,
-  type Entry,
-  type FrontEvent,
-  type Room,
-  type Settings,
-  type View,
-} from "../../src/online/game.js";
+import type { Settings } from "../../src/online/game.js";
+import { FrontRuntime } from "../../src/online/runtime.js";
 
-/** The bare runtime with one control: a test logs control entries for the match this device sees. */
-export class TestRuntime extends RoomRuntime<
-  Room,
-  Entry,
-  View,
-  FrontEvent,
-  Settings
-> {
-  /** Logs `[kind, matchId, ...args]` while the match runs; false otherwise. */
-  control(kind: number, ...args: number[]): boolean {
-    const room = this.world?.state;
-    if (room?.stage !== "running") return false;
-    this.append(kind, room.matchId, ...args);
-    this.sendPackets(this.deps.now());
-    return true;
-  }
-  roomState(): Room | undefined {
-    return this.world?.state;
-  }
-}
+/** The app's runtime: a test logs controls through its public methods. */
+export type TestRuntime = FrontRuntime;
 
 export type FastFate =
   { drop: true } | { drop?: false; delayMs: number; duplicateMs?: number };
@@ -81,19 +56,13 @@ export class Mesh {
       status: () => {},
       ready: () => {},
     };
-    const runtime = new TestRuntime(
-      frontGame,
-      "ROOM",
-      this.settings,
-      callbacks,
-      {
-        dependencies,
-        transport: (events) => {
-          this.events.set(id, events);
-          return this.transport(id);
-        },
+    const runtime = new FrontRuntime("ROOM", this.settings, callbacks, {
+      dependencies,
+      transport: (events) => {
+        this.events.set(id, events);
+        return this.transport(id);
       },
-    );
+    });
     runtime.start();
     return runtime;
   }

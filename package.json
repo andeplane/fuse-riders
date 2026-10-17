@@ -39,6 +39,7 @@
     "fuse-choppers": "workspace:*",
     "fuse-craft": "workspace:*",
     "fuse-freight": "workspace:*",
+    "fuse-front": "workspace:*",
     "fuse-lane": "workspace:*",
     "fuse-network-be": "workspace:*",
     "fuse-platform": "workspace:*",
