@@ -2,6 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   BUILDING_HP,
+  createWorld,
+  decodeWorld,
+  encodeWorld,
+  fell,
+  hashWorld,
   FLARE,
   KITS,
   SENTRY_DECAY,
@@ -187,4 +192,35 @@ test("BLITZ quickens the owner's robots in Tally's sector by half, and no others
   assert.ok(Math.abs(2 * quick - 3 * plain) <= 3, `${quick} v ${plain}`);
   assert.notEqual(sector(4, 6), sector(10, 2));
   assert.equal(walked(50, 10, 2), walked(0, 10, 2));
+});
+
+test("a FLARE goes out with Tally, and every world Rivet and Tally step through decodes to itself", () => {
+  const map2 = tiny();
+  let world = createWorld(map2, [0, 1], 1, { 0: "tally", 1: "rivet" });
+  Object.assign(world.heroes[0]!, {
+    x: centreOf(4),
+    y: centreOf(6),
+    energy: 100,
+  });
+  Object.assign(world.heroes[1]!, { x: centreOf(9), y: centreOf(6), hp: 100 });
+  addUnit(world, 0, "grunt", 3, 6, UNITS.grunt.hp);
+  world = step(map2, world, [
+    { seat: 0, type: "cast", slot: 1, x: 10, y: 6 },
+    { seat: 1, type: "cast", slot: 1, x: 0, y: 0 },
+    { seat: 1, type: "cast", slot: 0, x: 9, y: 6 },
+  ]);
+  assert.equal(world.units[0]!.goal, FLARE);
+  assert.ok(world.units.some((u) => u.kind === "sentry"));
+  for (let index = 0; index < 30; index++) {
+    world = step(map2, world);
+    const wire = JSON.parse(JSON.stringify(encodeWorld(world)));
+    assert.equal(hashWorld(decodeWorld(wire, map2)!), hashWorld(world));
+  }
+  assert.deepEqual(
+    [world.heroes[0]!.hp > 0, world.units[0]!.goal],
+    [true, FLARE],
+  );
+  fell(world, world.heroes[0]!, 1);
+  assert.deepEqual([world.heroes[0]!.flare, world.units[0]!.goal], [-1, -1]);
+  assert.ok(decodeWorld(encodeWorld(world), map2));
 });

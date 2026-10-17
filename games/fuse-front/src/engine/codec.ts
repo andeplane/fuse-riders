@@ -207,8 +207,7 @@ function hero(raw: unknown, map: GameMap): Hero | undefined {
     kitHas(kind, effect) && hp !== 0 ? longest(effect) : 0;
   if (!isInt(cloak, 0, most("cloak")) || !isInt(blitz, 0, most("blitz")))
     return;
-  if (!isInt(flareLeft, 0, kitHas(kind, "flare") ? longest("flare") : 0))
-    return;
+  if (!isInt(flareLeft, 0, most("flare"))) return;
   if (flareLeft === 0 ? flare !== -1 : !isInt(flare, 0, COUNT)) return;
   const marked = flare as number;
   if (

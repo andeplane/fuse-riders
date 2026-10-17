@@ -126,9 +126,10 @@ function pickGoal(
   const flags = map.flags.map((flag) => flag.y * map.width + flag.x);
   if (stance === "follow") return FOLLOW_HERO;
   if (stance === "push") {
+    // A flare the robot can walk to; one cut off from it leaves its usual goal.
     const flare = world.heroes.find((each) => each.seat === unit.owner)?.flare;
     if (flare !== undefined && flare >= 0 && UNITS[unit.kind].robot)
-      return FLARE;
+      if (flowField(map, flare, true).cost[from] !== UNREACHABLE) return FLARE;
     const goal = nearest(
       map,
       from,
