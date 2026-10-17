@@ -68,11 +68,11 @@ test("TEST_SHARD is i/n with i within 1..n, and empty means the whole suite", ()
     assert.throws(() => parseShard(bad), /TEST_SHARD/, bad);
 });
 
-test("merged timings keep the latest measurement, rounded and sorted", () => {
+test("merged timings are the mean of every measurement, rounded and sorted", () => {
   assert.deepEqual(
-    Object.entries(mergeTimings([{ b: 1, a: 2 }, { a: 3.14159 }])),
+    Object.entries(mergeTimings([{ b: 1, a: 2 }, { a: 3.14159 }, { a: 4 }])),
     [
-      ["a", 3.1],
+      ["a", 3],
       ["b", 1],
     ],
   );

@@ -94,12 +94,22 @@ export function partition(
   return shards.map((shard) => shard.files.sort());
 }
 
-/** Several shards' timing files folded into one: the latest measurement of each file wins, rounded to 0.1 s. */
+/**
+ * Timing files folded into one, rounded to 0.1 s: each file's seconds are the mean of every measurement of it.
+ * One measurement is noisy (a file's wall time depends on what shares its runner: the same file took 32 s on one
+ * run and 59 s on the next), so the table passed in first, the committed one, counts as one more sample.
+ */
 export function mergeTimings(parts: readonly Timings[]): Timings {
-  const merged: Timings = {};
+  const samples = new Map<string, number[]>();
   for (const part of parts)
     for (const [file, seconds] of Object.entries(part))
-      merged[file] = Math.round(seconds * 10) / 10;
+      samples.set(file, [...(samples.get(file) ?? []), seconds]);
+  const merged: Timings = {};
+  for (const [file, values] of samples)
+    merged[file] =
+      Math.round(
+        (values.reduce((sum, value) => sum + value, 0) / values.length) * 10,
+      ) / 10;
   return Object.fromEntries(
     Object.entries(merged).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
   );
