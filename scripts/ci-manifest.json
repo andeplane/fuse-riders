@@ -16,6 +16,17 @@
   ],
   "smokes": [
     {
+      "id": "birds-online",
+      "group": "birds-online",
+      "name": "Fuse Birds online controls, recovery and rematch",
+      "command": "pnpm exec tsx scripts/fuse-birds-online-smoke.ts",
+      "browsers": ["chrome"],
+      "env": { "BIRDS_ONLINE_OUTPUT": "artifacts" },
+      "serviceUrlEnv": "ONLINE_URL",
+      "timeoutMinutes": 10,
+      "retries": 0
+    },
+    {
       "id": "birds-replay",
       "group": "birds-replay",
       "name": "Fuse Birds deterministic browser replay",

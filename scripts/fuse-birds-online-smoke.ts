@@ -9,7 +9,10 @@ const base =
     process.argv[2] ??
     process.env.ONLINE_URL?.replace(/\/$/, "") ??
     "http://localhost:8893",
-  output = process.argv[3] ?? "/tmp/fuse-birds-online";
+  output =
+    process.argv[3] ??
+    process.env.BIRDS_ONLINE_OUTPUT ??
+    "/tmp/fuse-birds-online";
 await mkdir(output, { recursive: true });
 const browser = await launchSelected("chrome", { headless: true });
 const errors: string[] = [];
@@ -182,64 +185,59 @@ try {
     0,
     "Slingshot controls must not offer walking or hopping",
   );
-  await waitForOwnTurn(first, 15);
-  await first
-    .getByRole("button", { name: "Scatter Bomb, 3 shots remaining" })
-    .click();
-  await first.getByRole("button", { name: "FULL MAP", exact: true }).click();
-  const box = await first.locator("canvas").boundingBox();
-  assert.ok(box);
-  const scale = Math.min(box.width / 1536, box.height / 768),
-    x = box.x + box.width / 2 + (70 - 768) * scale,
-    y = box.y + box.height / 2 + (380 - 384) * scale;
-  await first.mouse.move(x, y);
-  await first.mouse.down();
-  await first.mouse.move(x - 100, y + 105, { steps: 10 });
-  await first.locator('canvas[data-gesture="aim"]').waitFor();
-  await first.keyboard.press("Escape");
-  await first.locator('canvas[data-gesture="idle"]').waitFor();
-  await first.mouse.up();
-  assert.ok(
+  if (!process.env.FUSE_GAME_COVERAGE_DIR) {
+    await waitForOwnTurn(first, 15);
     await first
       .getByRole("button", { name: "Scatter Bomb, 3 shots remaining" })
-      .isVisible(),
-  );
-  await waitForOwnTurn(first, 10);
-  await first.locator("canvas").focus();
-  await first.keyboard.press("i");
-  await first.locator('canvas[data-gesture="keyboard-aim"]').waitFor();
-  await first.screenshot({ path: `${output}/keyboard-aim.png` });
-  await first.keyboard.press("Escape");
-  await first.locator('canvas[data-gesture="idle"]').waitFor();
-  assert.ok(
-    await first
-      .getByRole("button", { name: "Scatter Bomb, 3 shots remaining" })
-      .isVisible(),
-  );
-  await waitForOwnTurn(first, 8);
-  await first.locator("canvas").focus();
-  await first.keyboard.press("j");
-  await first.locator('canvas[data-gesture="keyboard-aim"]').waitFor();
-  const shot = await first.evaluate(() => {
-    const room = document.querySelector<HTMLElement>(".birds-room")!;
-    const actor = room.querySelector<HTMLElement>(".birds-player.current")!;
-    return {
-      match: room.dataset.match,
-      round: room.dataset.round,
-      actor: actor.dataset.playerId,
-      ordinal: Number(actor.dataset.appliedOrdinal),
-      ammo: Number(actor.dataset.ammo),
-    };
-  });
-  assert.ok(shot.actor && Number.isSafeInteger(shot.ordinal));
-  assert.equal(shot.ammo, 3);
-  await first.keyboard.press("Enter");
-  // Native precise coverage runs each page's simulation well behind the room clock, so the turn timer a
-  // page shows can read 8 s while the authoritative deadline has already passed and the shot is never
-  // applied (main run 39024554193). Quarantined under flaky-test epic #250 only while collecting native
-  // coverage; ordinary runs keep the 3 -> 2 ammo check on every replica.
-  const nativeCoverage = !!process.env.FUSE_GAME_COVERAGE_DIR;
-  if (!nativeCoverage)
+      .click();
+    await first.getByRole("button", { name: "FULL MAP", exact: true }).click();
+    const box = await first.locator("canvas").boundingBox();
+    assert.ok(box);
+    const scale = Math.min(box.width / 1536, box.height / 768),
+      x = box.x + box.width / 2 + (70 - 768) * scale,
+      y = box.y + box.height / 2 + (380 - 384) * scale;
+    await first.mouse.move(x, y);
+    await first.mouse.down();
+    await first.mouse.move(x - 100, y + 105, { steps: 10 });
+    await first.locator('canvas[data-gesture="aim"]').waitFor();
+    await first.keyboard.press("Escape");
+    await first.locator('canvas[data-gesture="idle"]').waitFor();
+    await first.mouse.up();
+    assert.ok(
+      await first
+        .getByRole("button", { name: "Scatter Bomb, 3 shots remaining" })
+        .isVisible(),
+    );
+    await waitForOwnTurn(first, 10);
+    await first.locator("canvas").focus();
+    await first.keyboard.press("i");
+    await first.locator('canvas[data-gesture="keyboard-aim"]').waitFor();
+    await first.screenshot({ path: `${output}/keyboard-aim.png` });
+    await first.keyboard.press("Escape");
+    await first.locator('canvas[data-gesture="idle"]').waitFor();
+    assert.ok(
+      await first
+        .getByRole("button", { name: "Scatter Bomb, 3 shots remaining" })
+        .isVisible(),
+    );
+    await waitForOwnTurn(first, 8);
+    await first.locator("canvas").focus();
+    await first.keyboard.press("j");
+    await first.locator('canvas[data-gesture="keyboard-aim"]').waitFor();
+    const shot = await first.evaluate(() => {
+      const room = document.querySelector<HTMLElement>(".birds-room")!;
+      const actor = room.querySelector<HTMLElement>(".birds-player.current")!;
+      return {
+        match: room.dataset.match,
+        round: room.dataset.round,
+        actor: actor.dataset.playerId,
+        ordinal: Number(actor.dataset.appliedOrdinal),
+        ammo: Number(actor.dataset.ammo),
+      };
+    });
+    assert.ok(shot.actor && Number.isSafeInteger(shot.ordinal));
+    assert.equal(shot.ammo, 3);
+    await first.keyboard.press("Enter");
     await Promise.all(
       [first, second, tv].map((page) =>
         page.waitForFunction(
@@ -260,11 +258,15 @@ try {
         ),
       ),
     );
+  } else {
+    console.log(
+      "Native coverage: timed online aim/cancel/launch sequence quarantined under #250; birds-online CI runs it without instrumentation.",
+    );
+  }
   await second
     .locator(".birds-turn")
     .filter({ hasText: "YOUR TURN" })
-    // A dropped coverage-run shot leaves SKYE's turn to run out first.
-    .waitFor({ timeout: nativeCoverage ? 60_000 : 30_000 });
+    .waitFor({ timeout: 30_000 });
   await second.screenshot({ path: `${output}/phone-next-turn.png` });
   const before = await second.locator(".birds-player").allTextContents();
   await second.reload();
@@ -287,11 +289,10 @@ try {
   assert.equal(await tv.locator(".birds-camera").isHidden(), true);
   await second.getByRole("button", { name: "Zoom in", exact: true }).click();
   await second.screenshot({ path: `${output}/phone-zoom.png` });
-  // This flow runs only in the native-coverage browser run, where each page's simulation trails the room
-  // clock, so a PASS clicked with time showing can land past the real deadline and never apply (main run
-  // 39028667137). The timed PASS loop, the bounded round and the rematch are quarantined there under
-  // flaky-test epic #250; a run without FUSE_GAME_COVERAGE_DIR keeps them.
-  if (!nativeCoverage) {
+  const timedRound =
+    !process.env.FUSE_GAME_COVERAGE_DIR &&
+    process.env.FUSE_BIRDS_SKIP_TIMED_ROUND !== "1";
+  if (timedRound) {
     const cpuRate = Number(process.env.FUSE_BIRDS_CPU_RATE ?? 1);
     assert.ok(Number.isFinite(cpuRate) && cpuRate >= 1 && cpuRate <= 6);
     if (cpuRate > 1) {
@@ -467,7 +468,7 @@ try {
   }
   assert.deepEqual(errors, []);
   console.log(
-    `Real room ${code}: two players and TV started, agreed on a Scatter launch, recovered a phone reload, ${nativeCoverage ? "timed shot, PASS loop and rematch quarantined under native coverage (#250)" : "finished a bounded round and rematched with fresh ammunition"}. Captures: ${output}`,
+    `Real room ${code}: two players and TV started and recovered a phone reload; ${process.env.FUSE_GAME_COVERAGE_DIR ? "timed launch quarantined (#250)" : "agreed on a Scatter launch"}; ${timedRound ? "finished a bounded round and rematched with fresh ammunition" : "timed PASS/result/rematch sequence quarantined (#250)"}. Captures: ${output}`,
   );
 } catch (error) {
   let index = 0;
