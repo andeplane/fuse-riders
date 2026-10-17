@@ -5,7 +5,7 @@
 import { ceilDiv } from "./math.js";
 
 /** Bump on any change to the rules, with the golden in `tests/golden.test.ts` re-recorded in the same commit. */
-export const RULES = "fuse-front-7";
+export const RULES = "fuse-front-8";
 
 export const SUB = 16;
 export const TILE_PX = 8;
@@ -175,9 +175,10 @@ export const HOLD_RADIUS = 3 * STRAIGHT;
 export const HOLD_CROWD = 2 * STRAIGHT;
 
 /**
- * The hero (`hero.ts`), Brick for now: a powerhouse worth a squad. Each player has one; it walks where it is sent
- * (`move`) or steered (`steer`), shoots the nearest enemy in range whether idle or walking, captures flags like a
- * robot and is a target like a unit. Its stats grow with its level; sub-pixels and steps, as `UnitStats`.
+ * The hero (`hero.ts`), with Brick's profile (`HEROES` has the others'): a powerhouse worth a squad. Each player has
+ * one; it walks where it is sent (`move`) or steered (`steer`), shoots the nearest enemy in range whether idle or
+ * walking, captures flags like a robot and is a target like a unit. Its stats grow with its level; sub-pixels and
+ * steps, as `UnitStats`.
  */
 export const HERO = {
   speed: 12,
@@ -206,6 +207,27 @@ export const HERO = {
   respawn: s(6),
   respawnPerLevel: s(2),
 } as const;
+
+/**
+ * The heroes a player picks from, each with a profile over `HERO`'s shared rules: Brick the armoured frontliner and
+ * Vix the fast, fragile long-range infiltrator.
+ */
+export const HERO_KINDS = ["brick", "vix"] as const;
+export type HeroKind = (typeof HERO_KINDS)[number];
+export interface HeroStats {
+  hp: number;
+  hpPerLevel: number;
+  damage: number;
+  damagePerLevel: number;
+  /** Sub-pixels per step, and sub-pixels. */
+  speed: number;
+  range: number;
+}
+// prettier-ignore
+export const HEROES: Readonly<Record<HeroKind, Readonly<HeroStats>>> = {
+  brick: HERO,
+  vix: { hp: 600, hpPerLevel: 45, damage: 48, damagePerLevel: 6, speed: 15, range: 7 * TILE },
+};
 
 export const MAX_LEVEL = 10;
 /** Total XP each level needs: level n is reached at `XP_STEP * n * (n - 1) / 2`. */
