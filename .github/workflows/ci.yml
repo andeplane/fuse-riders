@@ -33,8 +33,9 @@ jobs:
   #   check too) side by side in one job (scripts/ci-run.ts --job checks): each is mostly one core and a runner
   #   has four. It was two jobs taking 110 s and 60 s; it also hands its dist/ to the smokes, which each built it.
   # - `unit` shards are chosen by measured cost (scripts/lib/test-shards.ts, scripts/test-timings.json) rather
-  #   than round-robin by index, which left eight shards between 12 s and 95 s on the same run. Balanced, fewer
-  #   shards finish as soon as the eight did. Before changing the width, measure both halves: the shard balance
+  #   than round-robin by index, which left eight shards between 12 s and 95 s on the same run. Balanced, five
+  #   shards of about 60 s of tests each finish with `checks` (lint sets its floor), so more would add jobs to
+  #   queue for no gain. Before changing the width, measure both halves: the shard balance
   #   AND how much queueing the extra jobs draw. Refresh the timings from a run's `test-timings-*` artifacts:
   #   `gh run download <run> -p 'test-timings-*' -D t && pnpm exec tsx scripts/run-tests.ts --merge-timings t`.
   # - Every checkout leaves out the screenshots, videos and recorded evidence under docs/ (about 410 of the
@@ -88,11 +89,11 @@ jobs:
       # Every shard reports, so one run shows everything that is broken rather than the first thing.
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6]
+        shard: [1, 2, 3, 4, 5]
     env:
       # scripts/run-tests.ts picks this shard's files by measured cost; `pnpm test` with no TEST_SHARD is still
       # the whole suite.
-      TEST_SHARD: ${{ matrix.shard }}/6
+      TEST_SHARD: ${{ matrix.shard }}/5
       TEST_TIMINGS_OUT: artifacts/test-timings-${{ matrix.shard }}.json
       # The two whole-recording replays fold all 15,776 ticks either way; on a pull request they check one tick
       # in ten instead of every one, which is a quarter of the time. A main push and the release suite leave

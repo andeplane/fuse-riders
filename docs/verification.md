@@ -9,7 +9,7 @@ This document explains how to verify the current source. It is not a claim that 
 | Job      | Steps                                                                                                                |
 | -------- | -------------------------------------------------------------------------------------------------------------------- |
 | `checks` | `pnpm format:check`, `pnpm lint`, `pnpm config:check`, `pnpm build`, side by side (`scripts/ci-run.ts --job checks`) |
-| `unit`   | `pnpm test`, in six shards (`TEST_SHARD=n/6`) balanced by measured file cost (`scripts/test-timings.json`)           |
+| `unit`   | `pnpm test`, in five shards (`TEST_SHARD=n/5`) balanced by measured file cost (`scripts/test-timings.json`)          |
 
 Two things follow that a reader of the old single-job gate would get wrong:
 
