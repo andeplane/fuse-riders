@@ -17,21 +17,21 @@ import {
   levelXp,
   teamOf,
   type BuildingView,
+  type HeroKind,
   type Stance,
   type UnitKind,
   type WorldView,
 } from "../engine/index.js";
 
-const KIT = KITS.brick;
-
 /**
- * The record `deriveHud` fills. Bars are shares 0 to 1, `respawn` is seconds (0 while alive), `red`/`neutral`/`blue`
+ * The record `deriveHud` fills, for the seat's hero `kind` (its kit names the spell slots). Bars are shares 0 to 1, `respawn` is seconds (0 while alive), `red`/`neutral`/`blue`
  * count sectors, `clock` is this team's production clock in percent and `time` the match time as `m:ss`. Each spell
  * slot has whole `seconds` of cooldown left and the `shade` share of it still to run, is `locked` below its unlock
  * level, and `ready` when a press would cast (alive, unlocked, cooled down, with the energy).
  */
 export function createHud() {
-  const spells = KIT.map((spell, i) => ({
+  const spells = KITS.brick.map((spell, i) => ({
+    effect: spell.effect as string,
     name: spell.name,
     key: "QWER"[i]!,
     seconds: 0,
@@ -41,7 +41,15 @@ export function createHud() {
     ultimate: spell.unlock > 1,
     ready: false,
   }));
-  const hero = { hp: 0, energy: 0, xp: 0, level: 1, respawn: 0, spells };
+  const hero = {
+    kind: "brick" as HeroKind,
+    hp: 0,
+    energy: 0,
+    xp: 0,
+    level: 1,
+    respawn: 0,
+    spells,
+  };
   const sectors = { red: 0, neutral: 0, blue: 0, clock: 100 };
   return { ...hero, ...sectors, stance: "" as Stance | "", time: "0:00" };
 }
@@ -76,8 +84,15 @@ export function deriveHud(
       ? 1
       : (hero.xp - from) / (levelXp(level + 1) - from);
   out.respawn = hero && hero.hp <= 0 ? seconds(hero.respawn) : 0;
-  KIT.forEach((spell, i) => {
+  out.kind = hero?.kind ?? "brick";
+  KITS[out.kind].forEach((spell, i) => {
     const slot = out.spells[i]!;
+    [slot.effect, slot.name, slot.passive] = [
+      spell.effect,
+      spell.name,
+      spell.passive,
+    ];
+    slot.ultimate = spell.unlock > 1;
     const left = hero?.spells[i] ?? 0;
     slot.seconds = seconds(left);
     slot.shade = spell.cooldown > 0 ? Math.min(1, left / spell.cooldown) : 0;
@@ -88,7 +103,7 @@ export function deriveHud(
   return out;
 }
 
-/** The tile the hero stands on, the aim point of Brick's self-centred spells. */
+/** The tile the hero stands on, where a cast aims until spells are aimed (E3). */
 export function heroTile(
   world: WorldView,
   seat: number,
