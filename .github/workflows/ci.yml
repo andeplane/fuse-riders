@@ -43,6 +43,11 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      # Lint is the slowest of the four side-by-side steps; ESLint worker threads split its files. Each worker
+      # builds its own TypeScript program for the type-aware rules, so this costs memory a runner has (16 GB)
+      # and a laptop may not, which is why `pnpm lint` stays single-threaded by default.
+      ESLINT_CONCURRENCY: 2
     steps:
       - uses: actions/checkout@v4
         with:
