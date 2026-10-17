@@ -61,6 +61,14 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Prettier's content-keyed cache (`format:check` passes --cache-strategy content): a file is skipped only
+      # when its bytes, Prettier's version and the options all match a run that found it formatted, so this
+      # changes the time, not the verdict. Restored from main's latest run on a pull request.
+      - uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/prettier
+          key: prettier-${{ github.sha }}
+          restore-keys: prettier-
       - run: pnpm exec tsx scripts/ci-run.ts --job checks
       # The smokes run this build rather than each making its own (22 builds of 30 s on every main push).
       - uses: actions/upload-artifact@v4
@@ -70,6 +78,8 @@ jobs:
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
+          # "Re-run all jobs" keeps the run id, and a second upload under the same name would fail.
+          overwrite: true
 
   unit:
     runs-on: ubuntu-latest
@@ -115,6 +125,7 @@ jobs:
           path: artifacts/test-timings-${{ matrix.shard }}.json
           if-no-files-found: ignore
           retention-days: 7
+          overwrite: true
 
   # Whether main is red: its latest CI push run failed (which also withholds both deployments) or its latest
   # deployment failed. A pull request opened while main is red runs coverage and the whole browser matrix as if

@@ -6,8 +6,8 @@
  *   pnpm exec tsx scripts/run-tests.ts --merge-timings <dir>  fold such files into scripts/test-timings.json
  */
 import { spawn } from "node:child_process";
-import { readdirSync, statSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   mergeTimings,
@@ -67,6 +67,7 @@ if (files.length === 0) {
 }
 
 const out = process.env.TEST_TIMINGS_OUT;
+if (out) mkdirSync(dirname(out), { recursive: true });
 const reporters = out
   ? [
       "--test-reporter=tap",
