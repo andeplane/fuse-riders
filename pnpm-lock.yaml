@@ -50,6 +50,9 @@ importers:
       fuse-freight:
         specifier: workspace:*
         version: link:games/fuse-freight
+      fuse-front:
+        specifier: workspace:*
+        version: link:games/fuse-front
       fuse-lane:
         specifier: workspace:*
         version: link:games/fuse-lane
@@ -363,6 +366,21 @@ importers:
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4
+
+  games/fuse-front:
+    dependencies:
+      fuse-netcode:
+        specifier: workspace:*
+        version: link:../../packages/fuse-netcode
+      fuse-network-fe:
+        specifier: workspace:*
+        version: link:../../packages/fuse-network-fe
+      fuse-platform:
+        specifier: workspace:*
+        version: link:../../packages/fuse-platform
+      fuse-ui:
+        specifier: workspace:*
+        version: link:../../packages/fuse-ui
 
   games/fuse-lane:
     dependencies:
