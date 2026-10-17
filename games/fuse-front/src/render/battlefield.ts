@@ -5,7 +5,13 @@
  */
 import { SUB, TILE_PX, type UnitKind, type WorldView } from "../engine/view.js";
 import * as cam from "./camera.js";
-import { EventDedupe, Effects, effectsOf, type StampedEvent } from "./cues.js";
+import {
+  EventDedupe,
+  Effects,
+  effectsOf,
+  type Effect,
+  type StampedEvent,
+} from "./cues.js";
 import { bakeGround } from "./ground.js";
 import type { Img } from "./pixel/image.js";
 import * as art from "./sprites.js";
@@ -28,6 +34,8 @@ export class Battlefield {
   private readonly dedupe = new EventDedupe();
   private readonly effects = new Effects();
   private ground: Surface | undefined;
+  /** Scorch decals waiting for the ground to be baked. */
+  private scorches: Effect[] = [];
   private matchId = "";
   private latest: WorldView | undefined;
   private kinds = new Map<number, UnitKind>();
@@ -79,8 +87,20 @@ export class Battlefield {
     return cam.artToTile(at.x, at.y, TILE_PX, world.width, world.height);
   }
 
+  /** A new match starts clean: no effects or decals, the camera back on the hero, the ground baked afresh. */
+  private adopt(matchId: string): void {
+    if (matchId === this.matchId) return;
+    this.matchId = matchId;
+    this.effects.clear();
+    this.facing.clear();
+    this.follow = true;
+    this.ground = undefined;
+    this.scorches = [];
+  }
+
   /** An engine event, once per match however often rollback delivers it. */
   event(matchId: string, stamped: StampedEvent, now: number): void {
+    this.adopt(matchId);
     if (!this.dedupe.accept(matchId, stamped)) return;
     const event = stamped.event;
     if (event.type === "shot" && event.to.x !== event.from.x)
@@ -95,13 +115,20 @@ export class Battlefield {
     const torch = (id: number) => this.kinds.get(id) === "torch";
     for (const e of effectsOf(event, now, site, torch))
       if (e.kind !== "scorch") this.effects.add([e]);
-      else if (this.ground) {
-        // Burnt into the baked ground for the rest of the match.
-        const s = this.sprites.get(art.scorchArt(e.size, (e.x + e.y) % 3));
-        this.ground
-          .getContext("2d")!
-          .drawImage(s.surface, Math.round(e.x - s.ax), Math.round(e.y - s.ay));
-      }
+      else if (this.scorches.length < 256) this.scorches.push(e);
+    this.burn();
+  }
+
+  /** Burns waiting scorch decals into the baked ground, for the rest of the match. */
+  private burn(): void {
+    const ctx = this.scorches.length && this.ground?.getContext("2d");
+    if (!ctx) return;
+    for (const e of this.scorches) {
+      const seed = Math.floor(e.x + e.y) % 3;
+      const s = this.sprites.get(art.scorchArt(e.size, seed));
+      ctx.drawImage(s.surface, Math.round(e.x - s.ax), Math.round(e.y - s.ay));
+    }
+    this.scorches = [];
   }
 
   /** Blits a sprite with its anchor at art pixel (x, y) on the map. */
@@ -119,11 +146,10 @@ export class Battlefield {
   /** Draws `world`, interpolated from `older` by `t` (0 to 1), for this device's `self` seat at wall-clock `now`. */
   // prettier-ignore
   draw(matchId: string, world: WorldView, older: WorldView | undefined, t: number, self: number, now: number): void {
-    if (matchId !== this.matchId || !this.ground) {
-      this.matchId = matchId;
-      this.effects.clear();
-      this.facing.clear();
+    this.adopt(matchId);
+    if (!this.ground) {
       this.ground = this.toCanvas(bakeGround(world));
+      this.burn();
     }
     if (world !== this.latest) {
       this.latest = world;
@@ -207,7 +233,8 @@ export class Battlefield {
   private drawEffects(now: number): void {
     this.effects.prune(now);
     for (const e of this.effects.live) {
-      const age = (now - e.born) / e.life,
+      // An event can stamp an effect a moment after the frame's clock read: start it at age 0.
+      const age = Math.max(0, (now - e.born) / e.life),
         dx = e.x2 - e.x, dy = e.y2 - e.y, n = Math.hypot(dx, dy);
       if (e.kind === "tracer") {
         // A dashed trail whose tail slides toward the target as the shot flies.
