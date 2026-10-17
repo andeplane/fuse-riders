@@ -138,3 +138,77 @@ pnpm exec tsx games/fuse-front/tools/art.ts
 8. Controls: mouse and keyboard, touch, gamepad, and the factory-order panel.
 9. Shared-TV display with phone controllers.
 10. More heroes, units and maps.
+
+## v2: powerhouse heroes, a real ending, bigger maps, 3D (2026-10-18)
+
+Playtest of v1 found four problems. First, evenly matched teams stall at the unit cap and trade sectors forever.
+Second, a hero feels like a bullet sponge rather than a powerhouse. Third, you cannot tell what your hero is
+attacking or what a spell does. Fourth, the maps are small and units are hard to tell apart. v2 answers them.
+
+**Ending the stalemate.**
+
+- **Territory caps the army.** A player's unit cap grows with the team's sectors (a base plus a share per sector),
+  so holding ground buys a bigger army, as Z's production did. An even trade at the cap tips toward the team that
+  holds more.
+- **Forts defend themselves** with a heavy gun.
+- **Overtime.** After a set match time the team ahead on sectors builds faster, and the gap grows the longer it
+  lasts.
+
+Bot-vs-bot matches at every difficulty pairing must end within about 15 minutes on every map; a test enforces it.
+
+**Heroes as powerhouses.**
+
+- A hero is worth a squad. It has several times a tank's hit points, regenerates out of combat, takes reduced damage
+  from robot small-arms fire, and hits hard with splash damage.
+- Spells change fights. Shockwave flattens a crowd, Rally doubles a push, and Orbital Drop lands a heavy tank.
+- Brick's kit is joined by Vix (infiltrator), Rivet (engineer) and Tally (scout), with the kits from the design
+  canvas, in the same data-driven spell table.
+- Each player picks a hero in the lobby, and bots pick a free one.
+
+**Legibility.**
+
+- **Focus fire.** A player can order the hero to attack a specific target: `attack(targetId)`, right-clicking an
+  enemy. An attack-move order engages anything on the way.
+- **What the view shows.** The view exposes each hero's current target, and the renderer draws a target line and
+  marker.
+- **Spells explain themselves.** Each spell carries its own metadata (name, one-line description, range, radius,
+  targeting mode: self, point or unit) for tooltips. While aiming, the range and area of effect are shown before the
+  cast. Aimed spells take a target point or unit.
+
+**Bigger maps.**
+
+- Maps grow to about the scale of Z and StarCraft: roughly 192×128 tiles for 1v1 and up to 256×192 for 3v3, with
+  30–50 sectors.
+- A deterministic map generator writes them as JSON from a seed and a template, with mirror symmetry for fairness.
+  Dust Basin stays as the small map.
+- Engine cost stays inside the rollback budget. Flow fields use typed arrays, the cache is sized to the map, and per-step
+  work stays roughly linear in unit count.
+
+**3D presentation (three.js).** The presentation moves from the 2D pixel canvas to a WebGL renderer on three.js. The
+engine, netcode, `WorldView` contract and HUD logic stay as they are. The look keeps Z's world (desert war,
+chunky robots, team-coloured forts and factories, the riveted steel HUD) but renders it realistically:
+
+- **Terrain.** A heightmapped mesh built from the tiles: plateaus and cliffs, a carved riverbed with animated water,
+  rocks. It uses procedural PBR materials (sand, rock, scorch decals) with triplanar texturing.
+- **Lighting.** A sun with soft shadow maps, hemisphere and ambient light, fog, tone mapping, and a light bloom on
+  muzzle flashes and explosions.
+- **Camera.** A tilted RTS camera with zoom, pan, edge-scroll and follow-hero.
+- **Models.** Units, heroes and buildings are procedural meshes built in code, with no downloaded assets. Each unit
+  kind has its own silhouette and scale, so units can be told apart at a glance: grunt, torch, longshot, buggy, light
+  tank and crawler, plus each hero with its own model and an always-visible team ring. Team colour goes on large
+  surfaces.
+- **Draw cost.** Instanced meshes per kind keep ~300 units cheap. Effects (tracers, explosions, smoke, spell visuals)
+  play from engine events, deduped by step as before.
+- **Fallback.** The 2D pixel renderer stays available as a fallback for devices without WebGL2 until the 3D one
+  covers them.
+
+**v2 delivery (each PR under ~1,000 lines).** The engine lane runs E1–E4. The 3D lane runs G1–G4 in parallel.
+
+- **E1:** powerhouse heroes and the stalemate breaker.
+- **E2:** the other three heroes and the hero pick.
+- **E3:** focus fire, attack-move, the target in the view, and spell metadata and aimed spells.
+- **E4:** the map generator, bigger maps and engine performance.
+- **G1:** three.js scaffolding, terrain, lighting, camera and placeholder meshes.
+- **G2:** procedural unit, hero and building models.
+- **G3:** effects, target lines, range and area-of-effect previews.
+- **G4:** HUD tooltips and polish.
