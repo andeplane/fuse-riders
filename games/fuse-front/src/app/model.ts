@@ -30,10 +30,12 @@ export function slotsOf(view: View, self: string): SlotView[] {
   const settings = view.stage === "lobby" ? view.settings : view.play;
   const riders = view.seats.filter((s) => !s.watcher && s.slot >= 0);
   const highest = Math.max(-1, ...riders.map((s) => s.slot));
-  const count = Math.min(
-    MAX_SEATS,
-    Math.max(2 * settings.size, highest + 1 + ((highest + 1) % 2)),
-  );
+  const count =
+    view.world?.players.length ??
+    Math.min(
+      MAX_SEATS,
+      Math.max(2 * settings.size, highest + 1 + ((highest + 1) % 2)),
+    );
   const out: SlotView[] = [];
   for (let slot = 0; slot < count; slot++) {
     const seat = riders.find((s) => s.slot === slot);
