@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer } from "vite";
 import { createDevRoomService } from "../service/dev.js";
+import { parseShard, partition, readTimings } from "./lib/test-shards.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const phase = process.env.COVERAGE_PHASE ?? "all";
@@ -81,6 +82,19 @@ for (const parent of ["packages", "games"])
     for (const script of manifest.scripts)
       browserFlows.push(`games/${entry.name}/${script}`);
   }
+// CI splits both collectors across runners: TEST_SHARD=i/n takes one cost-balanced share of the unit files
+// or of the browser flows (scripts/lib/test-shards.ts), and `report` merges every share's raw data before it
+// applies any threshold, so the gate is the same as one run over everything.
+const shard = parseShard(process.env.TEST_SHARD);
+const timings = readTimings(resolve(root, "scripts/test-timings.json"));
+const share = (all: string[]) =>
+  shard ? partition(all, timings, shard.total)[shard.index - 1]! : all;
+if (shard && phase !== "report") {
+  const all = phase === "browser" ? browserFlows : files;
+  console.log(
+    `Coverage shard ${shard.index}/${shard.total} (${phase}): ${share(all).length} of ${all.length}`,
+  );
+}
 const concurrency = process.env.TEST_CONCURRENCY ?? "4";
 if (!/^[1-9]\d*$/.test(concurrency))
   throw new Error("TEST_CONCURRENCY must be a positive integer");
@@ -94,7 +108,7 @@ const unitExit =
           "tsx",
           "--test",
           `--test-concurrency=${concurrency}`,
-          ...files.sort(),
+          ...share(files).sort(),
         ]),
       )
     : 0;
@@ -129,7 +143,7 @@ if (phase === "all" || phase === "browser")
       const url = server.resolvedUrls?.local[0];
       if (!url) throw new Error("Coverage Vite server has no local URL");
       exitCode = 0;
-      for (const script of browserFlows.sort()) {
+      for (const script of share(browserFlows).sort()) {
         const exit = await timed(script, () =>
           run(["exec", "tsx", script], {
             ...process.env,
