@@ -7,7 +7,8 @@
  * - SHOCKWAVE: enemy robots within its radius are stunned (no shooting or seeking) and knocked back one tile.
  * - RALLY CRY: friendly robots within its radius reload `power` percent faster while it lasts.
  * - IRON HIDE (passive): the hero and friendly vehicles within its radius take `power` percent less damage.
- * - ORBITAL DROP: a light tank joins the owner's army on the tile the hero faces (or its own). It counts toward
+ * - ORBITAL DROP: a light tank joins the owner's army on the tile the hero faces, or its own when that tile is blocked
+ *   or lies across a rock's corner. It counts toward
  *   `UNIT_CAP` like any unit, so a player at the cap cannot cast it (nothing is spent).
  *
  * Durations and powers grow by their `PerLevel` amount for each level above 1. Timers count down at the start of
@@ -190,8 +191,15 @@ export function cast(
     for (const unit of world.units) if (unit.owner === hero.seat) owned++;
     if (owned >= UNIT_CAP) return false;
     const [fx, fy] = DIRS[hero.facing]!;
-    let [tx, ty] = [tileOf(hero.x) + fx, tileOf(hero.y) + fy];
-    if (!openTile(map, tx, ty)) [tx, ty] = [tileOf(hero.x), tileOf(hero.y)];
+    const [hx, hy] = [tileOf(hero.x), tileOf(hero.y)];
+    let [tx, ty] = [hx + fx, hy + fy];
+    // The faced tile must be open and, across a diagonal, reachable without cutting a rock's corner.
+    const reachable =
+      openTile(map, tx, ty) &&
+      (fx === 0 ||
+        fy === 0 ||
+        (openTile(map, tx, hy) && openTile(map, hx, ty)));
+    if (!reachable) [tx, ty] = [hx, hy];
     world.units.push({
       id: world.nextId++,
       kind: "lightTank",

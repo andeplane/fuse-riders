@@ -155,6 +155,7 @@ const corruptions: [string, (wire: Wire) => unknown][] = [
   ["an unknown facing", hero([8, 8])],
   ["a move goal in rock", hero([9, ROCK])],
   ["a move goal off the map", hero([9, 14 * 10])],
+  ["a stick held while a move is pending", hero([9, 4 * 14 + 4], [10, 1])],
   ["a stick pushed too far", hero([10, STEER_MAX + 1])],
   ["a fractional stick", hero([11, 0.5])],
   ["a seat with no fort on the map", (w) => (w[3].push([3, 1, 0]), w)],

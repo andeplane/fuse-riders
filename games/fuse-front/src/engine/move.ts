@@ -67,8 +67,8 @@ function enemyForts(map: GameMap, world: World, team: number): number[] {
 
 /**
  * FOLLOW's goal, kept in `Unit.goal` instead of a tile: the tile the owner's hero stands on, looked up every step, or
- * the owner's fort while the hero is dead. So a unit's goal is a flag, a fort or this, and the flow cache holds at
- * most the flags, the forts and one tile per hero (plus each hero's `move` goal).
+ * the owner's fort while the hero is dead. So a unit's goal is a flag, a fort or this, and the fixed flow cache holds
+ * only flags and forts; one tile per hero (plus each hero's `move` goal) goes to the roaming cache (`flow.ts`).
  */
 export const FOLLOW_HERO = -2;
 
@@ -175,7 +175,7 @@ function seek(map: GameMap, world: World, unit: Unit): [number, number] {
   const goal = goalTile(map, world, unit);
   if (goal < 0) return [0, 0];
   const at = tileIndex(map, unit);
-  const field = flowField(map, goal);
+  const field = flowField(map, goal, unit.goal === FOLLOW_HERO);
   const cost = field.cost[at]!;
   if (cost === UNREACHABLE) return [0, 0];
   const flag = flagOnTile(map, goal);
