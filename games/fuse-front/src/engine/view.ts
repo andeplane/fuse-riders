@@ -14,7 +14,14 @@ import {
   type Stance,
   type UnitKind,
 } from "./tuning.js";
-import { NEUTRAL, ownerOf, type CombatEvent, type World } from "./world.js";
+import { DROP_HP } from "./spells.js";
+import {
+  NEUTRAL,
+  ownerOf,
+  unitCap,
+  type CombatEvent,
+  type World,
+} from "./world.js";
 
 /** What the renderer needs besides the view itself, so it never reaches past this file into the engine. */
 export { SUB, TILE_PX } from "./tuning.js";
@@ -92,7 +99,13 @@ export interface WorldView {
   flags: readonly FlagView[];
   buildings: readonly BuildingView[];
   units: readonly UnitView[];
-  players: readonly { seat: number; team: number; stance: Stance }[];
+  /** `unitCap`: the units the player's factories build up to, from the team's sectors. */
+  players: readonly {
+    seat: number;
+    team: number;
+    stance: Stance;
+    unitCap: number;
+  }[];
   /** One per seat in play; `hp` is 0 while it waits `respawn` steps at its fort. */
   heroes: readonly HeroView[];
   /** `NO_WINNER`, the winning team, or `DRAW`. */
@@ -147,11 +160,15 @@ export function viewOf(map: GameMap, world: World): WorldView {
       x: unit.x,
       y: unit.y,
       hp: unit.hp,
-      maxHp: UNITS[unit.kind].hp,
+      // A unit records no origin, so an Orbital Drop tank reads as one only while it is above a factory tank's most.
+      maxHp: unit.hp > UNITS[unit.kind].hp ? DROP_HP : UNITS[unit.kind].hp,
       stunned: unit.stun > 0,
       rallied: unit.rally > 0,
     })),
-    players: world.players.map((player) => ({ ...player })),
+    players: world.players.map((player) => ({
+      ...player,
+      unitCap: unitCap(world, player.seat),
+    })),
     heroes: world.heroes.map((hero) => ({
       seat: hero.seat,
       team: teamOf(hero.seat),

@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  DROP_HP,
+  FORT_GUN,
   HERO,
   MAX_XP,
   STEER_MAX,
@@ -43,7 +45,11 @@ function played(): World {
       },
     ],
   };
-  world = step(map, world, [{ seat: 1, type: "stance", stance: "follow" }]);
+  // Seat 0 holds the middle, out of reach of seat 1's hero and every fort's gun.
+  world = step(map, world, [
+    { seat: 1, type: "stance", stance: "follow" },
+    { seat: 0, type: "stance", stance: "hold" },
+  ]);
   for (let index = 0; index < 500; index++) world = step(map, world);
   return world;
 }
@@ -96,7 +102,22 @@ const corruptions: [string, (wire: Wire) => unknown][] = [
     (w) => ((w[5][TINY.fort1]![1] = 0), w),
   ],
   ["a factory at 0 hit points", (w) => ((w[5][TINY.robotFactory]![1] = 0), w)],
-  ["a reloading fort", (w) => ((w[5][TINY.fort0]![4] = 1), w)],
+  [
+    "a fort reloading too long",
+    (w) => ((w[5][TINY.fort0]![4] = FORT_GUN.cooldown + 1), w),
+  ],
+  [
+    "a ruined fort still reloading",
+    (w) => ((w[5][TINY.fort0]![1] = 0), (w[5][TINY.fort0]![4] = 1), w),
+  ],
+  ["a factory reloading", (w) => ((w[5][TINY.robotFactory]![4] = 1), w)],
+  [
+    "a tank tougher than an Orbital Drop's",
+    (w) => ((w[6][0]![1] = 2), (w[6][0]![5] = DROP_HP + 1), w),
+  ],
+  ["a grunt with a drop tank's armour", (w) => ((w[6][0]![5] = DROP_HP), w)],
+  ["a hero calmer than calm", hero([13, HERO.calm + 1])],
+  ["a hero with a negative calm", hero([13, -1])],
   [
     "a turret cooling down too long",
     (w) => ((w[5][TINY.turret]![4] = TURRET.cooldown + 1), w),

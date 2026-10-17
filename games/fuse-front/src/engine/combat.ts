@@ -1,13 +1,14 @@
 /**
- * Combat, between goals and movement in a step. Every unit, living hero and turret a seat holds takes the nearest
- * enemy in range: an enemy unit or hero, a turret held by the other team, or an enemy fort (factories are captured,
- * never shot). Ties go to units, then heroes, then buildings, then the lower id. Targets are picked from where
- * everything stood when the phase began and shots are instant hits applied together, so the order units fire in
- * cannot change who hits what.
+ * Combat, between goals and movement in a step. Every unit, living hero, turret and fort a seat holds takes the
+ * nearest enemy in range: an enemy unit or hero, a turret held by the other team, or an enemy fort (factories are
+ * captured, never shot; a fort's gun shoots only units and heroes). Ties go to units, then heroes, then buildings,
+ * then the lower id. Targets are picked from where everything stood when the phase began and shots are instant hits
+ * applied together, so the order units fire in cannot change who hits what.
  *
  * - A shooter fires when its cooldown is 0 and then waits its kind's `cooldown` steps; the timer counts down every step.
  * - A unit with a target in range stands still to fight (`moveUnits` skips its seek), even while reloading. A hero
- *   shoots whether it stands or walks.
+ *   shoots whether it stands or walks; its shot splashes every other enemy unit within `HERO.splash` of the target,
+ *   and robots' small arms do only `HERO.smallArms` percent to it. A hero that shoots or is hit is not calm.
  * - A robot within `AURA_RADIUS` of its owner's living hero does `AURA_DAMAGE` percent damage. Spells (`spells.ts`): a
  *   stunned unit holds fire, a rallied one reloads faster, and IRON HIDE cuts the damage a covered hero or vehicle takes.
  * - A kill is credited to the owner of the first shot (in shooter order: units by id, heroes by seat, turrets) that hit
@@ -30,6 +31,8 @@ import { centreOf } from "./move.js";
 import {
   AURA_DAMAGE,
   AURA_RADIUS,
+  FORT_GUN,
+  HERO,
   HERO_XP,
   HERO_XP_PER_LEVEL,
   KILL_XP,
@@ -118,7 +121,11 @@ export function fight(map: GameMap, world: World): Set<number> {
     else cell.push(target);
   }
   const rows = ceilDiv(map.height * TILE, CELL);
-  const nearest = (from: Target, range: number): Target | undefined => {
+  const nearest = (
+    from: Target,
+    range: number,
+    buildings: boolean,
+  ): Target | undefined => {
     const reach = ceilDiv(range, CELL);
     const cx = div(from.x, CELL),
       cy = div(from.y, CELL);
@@ -129,6 +136,7 @@ export function fight(map: GameMap, world: World): Set<number> {
         if (x < 0 || y < 0 || x >= columns || y >= rows) continue;
         for (const target of cells.get(y * columns + x) ?? NO_TARGETS) {
           if (target.team === from.team) continue;
+          if (!buildings && target.of === "building") continue;
           const dx = target.x - from.x,
             dy = target.y - from.y;
           const d = dx * dx + dy * dy;
@@ -148,23 +156,30 @@ export function fight(map: GameMap, world: World): Set<number> {
     return dx * dx + dy * dy <= AURA_RADIUS * AURA_RADIUS;
   };
 
+  /** A shot lands: its damage counts at the end of the phase, and a hero hit is no longer calm. */
+  const hit = (victim: Target, from: Target, damage: number): void => {
+    victim.taken += damage;
+    if (victim.killer < 0) victim.killer = from.owner;
+    if (victim.of === "hero") world.heroes[victim.index]!.quiet = 0;
+  };
+
   for (const from of targets) {
     const unit = from.of === "unit" ? world.units[from.index]! : undefined;
     const hero = from.of === "hero" ? world.heroes[from.index]! : undefined;
     const building =
       from.of === "building" ? world.buildings[from.index]! : undefined;
-    if (building !== undefined && map.sites[building.id]!.kind !== "turret")
-      continue;
+    const fort =
+      building !== undefined && map.sites[building.id]!.kind === "fort";
     const shooter = unit ?? hero ?? building!;
     const stats = unit
       ? UNITS[unit.kind]
       : hero
         ? heroShot(levelOf(hero.xp))
-        : { ...TURRET, siege: 100 };
+        : { ...(fort ? FORT_GUN : TURRET), siege: 100 };
     if (shooter.cooldown > 0) shooter.cooldown--;
     // A stunned unit neither shoots nor stands to fight.
     if (unit !== undefined && unit.stun > 0) continue;
-    const victim = nearest(from, stats.range);
+    const victim = nearest(from, stats.range, !fort);
     if (victim === undefined) continue;
     if (unit !== undefined) engaged.add(unit.id);
     if (shooter.cooldown > 0) continue;
@@ -173,19 +188,33 @@ export function fight(map: GameMap, world: World): Set<number> {
         ? div(stats.cooldown * 100, 100 + RALLY_PERCENT)
         : stats.cooldown;
     let damage = stats.damage;
-    if (unit !== undefined && UNITS[unit.kind].robot && inAura(from))
-      damage = div(damage * AURA_DAMAGE, 100);
-    if (victim.of === "building") damage = div(damage * stats.siege, 100);
-    if (hero !== undefined)
+    const robot = unit !== undefined && UNITS[unit.kind].robot;
+    if (robot && inAura(from)) damage = div(damage * AURA_DAMAGE, 100);
+    if (hero !== undefined) {
       hero.facing = facingOf(victim.x - hero.x, victim.y - hero.y, hero.facing);
-    if (victim.of !== "building") {
+      hero.quiet = 0;
+      // The splash: every other enemy unit near the target, in id order, takes part of the shot.
+      const splash = div(damage * HERO.splashPercent, 100);
+      for (const near of targets) {
+        if (near.of !== "unit" || near === victim) continue;
+        if (near.team === from.team) continue;
+        const dx = near.x - victim.x,
+          dy = near.y - victim.y;
+        if (dx * dx + dy * dy > HERO.splash * HERO.splash) continue;
+        const struck = world.units[near.index]!;
+        hit(near, from, div(splash * hideOf(world, struck, near.team), 100));
+      }
+    }
+    if (victim.of === "building") damage = div(damage * stats.siege, 100);
+    else {
       const struck = (victim.of === "hero" ? world.heroes : world.units)[
         victim.index
       ]!;
+      if (victim.of === "hero" && robot)
+        damage = div(damage * HERO.smallArms, 100);
       damage = div(damage * hideOf(world, struck, victim.team), 100);
     }
-    victim.taken += damage;
-    if (victim.killer < 0) victim.killer = from.owner;
+    hit(victim, from, damage);
     world.events.push({
       type: "shot",
       from: mark(from),
@@ -219,6 +248,7 @@ export function fight(map: GameMap, world: World): Set<number> {
       respawn: respawnSteps(level),
       cooldown: 0,
       goal: -1,
+      quiet: 0,
     });
     world.events.push({ type: "heroDeath", seat, killer, x, y });
     kills.push([
