@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  DROP_HP,
   HERO_XP,
+  decodeWorld,
+  encodeWorld,
+  hashWorld,
   KILL_XP,
   KITS,
   MINES_PER_HERO,
@@ -185,4 +189,23 @@ test("HIJACK turns an enemy tank to Vix's side at level 6, never at the cap, bel
   while (full.units.filter((u) => u.owner === 0).length < unitCap(full, 0))
     addUnit(full, 0, "grunt", 2, 4);
   assert.equal(fire(full, 3, 8, 6)[0], false);
+});
+
+test("every world a mine fight steps through decodes to itself, and no step touches the world before it", () => {
+  let [, world] = fire(arena("vix"), 2, 6, 6);
+  // Within what a checkpoint allows: a level 1 hero's energy and respawn, a drop tank's hit points.
+  Object.assign(world.heroes[0]!, { energy: 100 });
+  Object.assign(world.heroes[1]!, { respawn: 300 });
+  addUnit(world, 1, "lightTank", 7, 6, DROP_HP);
+  let stuck = false;
+  for (let index = 0; index < 120; index++) {
+    const before = JSON.stringify(encodeWorld(world));
+    const next = step(map, world);
+    assert.equal(JSON.stringify(encodeWorld(world)), before);
+    world = next;
+    stuck ||= world.mines.some((mine) => mine.stuck >= 0);
+    const wire = JSON.parse(JSON.stringify(encodeWorld(world)));
+    assert.equal(hashWorld(decodeWorld(wire, map)!), hashWorld(world));
+  }
+  assert.ok(stuck, "the tank picked the mine up");
 });
