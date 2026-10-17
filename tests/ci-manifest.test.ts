@@ -109,17 +109,71 @@ test("the unit shards cover the whole suite, and only a pull request thins the r
   );
 });
 
-test("the coverage gate runs the release steps, on a pull request only while main is red", () => {
-  assert.deepEqual(runsIn(job("coverage")), [
+test("coverage collectors run independently and preserve the release commands and timeout", () => {
+  assert.deepEqual(runsIn(job("coverage-unit")), [
+    "pnpm install --frozen-lockfile",
+    "pnpm test:coverage",
+  ]);
+  assert.deepEqual(runsIn(job("coverage-browser")), [
     "pnpm install --frozen-lockfile",
     ...manifest.release.map((step) => step.command),
   ]);
-  assert.ok(job("coverage").includes("    needs: main-health\n"));
+  for (const phase of ["unit", "browser"]) {
+    const collector = job(`coverage-${phase}`);
+    assert.ok(collector.includes("    needs: main-health\n"));
+    assert.ok(
+      collector.includes(
+        `    if: github.event_name != 'pull_request' || ${RED}\n`,
+      ),
+    );
+    assert.ok(collector.includes(`      COVERAGE_PHASE: ${phase}\n`));
+    assert.ok(collector.includes("    timeout-minutes: 20\n"));
+    assert.ok(collector.includes(`          name: coverage-${phase}-raw\n`));
+    assert.ok(collector.includes("          if-no-files-found: error\n"));
+  }
+});
+
+test("coverage cannot pass with a failed or missing collector, and reports both raw datasets", () => {
+  const gate = job("coverage");
   assert.ok(
-    job("coverage").includes(
-      `    if: github.event_name != 'pull_request' || ${RED}\n`,
+    gate.includes(
+      "    needs: [main-health, coverage-unit, coverage-browser]\n",
     ),
   );
+  assert.ok(
+    gate.includes(
+      `    if: always() && (github.event_name != 'pull_request' || ${RED})\n`,
+    ),
+  );
+  assert.ok(gate.includes("      COVERAGE_PHASE: report\n"));
+  assert.ok(gate.includes("    timeout-minutes: 20\n"));
+  assert.ok(gate.includes("UNIT: ${{ needs.coverage-unit.result }}"));
+  assert.ok(gate.includes("BROWSER: ${{ needs.coverage-browser.result }}"));
+  assert.equal(
+    (gate.match(/uses: actions\/download-artifact@v4/g) ?? []).length,
+    2,
+  );
+  for (const phase of ["unit", "browser"])
+    assert.ok(
+      gate.includes(
+        `          name: coverage-${phase}-raw\n          path: coverage/tmp/\n`,
+      ),
+    );
+  const commands = runsIn(gate);
+  assert.deepEqual(commands.slice(1), [
+    "pnpm install --frozen-lockfile",
+    "pnpm test:coverage",
+  ]);
+  for (const unit of ["success", "failure", "cancelled", "skipped"])
+    for (const browser of ["success", "failure", "cancelled", "skipped"]) {
+      const result = spawnSync("bash", ["-c", commands[0]!], {
+        env: { ...process.env, UNIT: unit, BROWSER: browser },
+      });
+      assert.equal(
+        result.status === 0,
+        unit === "success" && browser === "success",
+      );
+    }
 });
 
 /** What each of verify's `env:` values must be read from: the script below is only as right as its inputs. */
@@ -374,12 +428,8 @@ test("ONLY selects verify steps, groups, single smokes and core", () => {
     ids("release"),
     manifest.release.map((step) => step.id),
   );
-  assert.deepEqual(ids("online"), [
-    "online-chrome",
-    "online-webkit",
-    "ready-check",
-  ]);
-  assert.deepEqual(ids("online-webkit, build"), ["build", "online-webkit"]);
+  assert.deepEqual(ids("online"), ["online-chrome", "ready-check"]);
+  assert.deepEqual(ids("online-chrome, build"), ["build", "online-chrome"]);
   assert.throws(() => select(manifest, "lan"), /Unknown step 'lan'/);
 });
 
