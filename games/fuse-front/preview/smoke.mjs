@@ -5,7 +5,7 @@
  *
  * The landing page shows the portal first in the header; CREATE ROOM opens a lobby with the size picker, two team
  * columns and START; the host cycles the bot's difficulty, starts a 1v1 against it, sends its hero across the map and
- * sets HOLD, and the board keeps changing as the armies move. Run by hand; not in CI. Every page opens muted.
+ * sets HOLD, and the battlefield keeps changing as the armies move. Run by hand; not in CI. Every page opens muted.
  */
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
@@ -44,13 +44,19 @@ try {
     .waitFor({ timeout: 15_000 });
   const board = page.locator("canvas.ff-board");
   const box = (await board.boundingBox()) ?? assert.fail("no board");
-  // Open ground west of the river, between the red fort and the centre.
+  // The battlefield is art pixels scaled by a whole number, its camera on the hero by the red fort.
+  const scale = await board.evaluate(
+    (canvas) => canvas.getBoundingClientRect().width / canvas.width,
+  );
+  assert.equal(scale, Math.round(scale), "a whole-number scale");
+  // Open ground east of the red fort, toward the centre.
   await page.mouse.click(box.x + box.width * 0.38, box.y + box.height * 0.3);
   await page.keyboard.press("2");
   await page.locator(".ff-hud", { hasText: "HOLD" }).waitFor();
   const picture = () => board.evaluate((canvas) => canvas.toDataURL());
   const before = await picture();
-  await page.waitForTimeout(10_000);
+  // Long enough for the first batches to meet: shots, flames and explosions on screen.
+  await page.waitForTimeout(20_000);
   assert.notEqual(await picture(), before, "the armies move");
   await snap("match");
   assert.deepEqual(errors, []);

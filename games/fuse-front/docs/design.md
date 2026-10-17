@@ -100,6 +100,12 @@ are drawn at runtime by the pixel-art code in `src/render/pixel/`. The HUD uses 
 recessed bays, a hero portrait, spell icons, a stance switch and a minimap tinted by territory. The camera follows the
 hero, with edge pan and a minimap jump.
 
+`src/render/battlefield.ts` (R1) is that battlefield: it reads only `engine/view.ts` and `render/pixel/`, bakes the
+ground per match, paints each sprite variant (kind × team × facing × frame) once into an offscreen canvas, and turns
+engine events into tracers, flames, explosions, scorch decals and spell rings, accepting each event once per match by
+its step stamp so a rollback re-run never plays a cue twice. Positions between two frames are interpolated for display
+only. The HUD, minimap, factory panel and casting UI follow in R2.
+
 ## Art
 
 `src/render/pixel/` is the procedural pixel-art library: palettes, terrain, buildings, units, effects, portraits and
