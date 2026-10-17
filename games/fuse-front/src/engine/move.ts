@@ -9,7 +9,8 @@
  *   a team takes the map before it sieges; a fort's own sector is taken like any other on the way).
  * - HOLD: the team's own flags, nearest first, counting `HOLD_CROWD` per teammate already bound there; it stops within
  *   `HOLD_RADIUS` of it. With no flag left it holds the owner's fort, as does PUSH with nothing left at all.
- * - A unit with an enemy in range (`combat.ts`) stands to fight instead of seeking; separation still applies.
+ * - A unit with an enemy in range (`combat.ts`), or stunned (`spells.ts`), stands instead of seeking; separation still
+ *   applies.
  * - FOLLOW: stays within `HOLD_RADIUS` of the owner's hero, or holds the owner's fort while it is dead (`FOLLOW_HERO`).
  */
 import { DIRS, UNREACHABLE, flowField, openTile } from "./flow.js";
@@ -287,7 +288,8 @@ export function moveUnits(
     else cell.push(index);
   }
   const moved = units.map((unit, index) => {
-    const [vx, vy] = engaged.has(unit.id) ? [0, 0] : seek(map, world, unit);
+    const still = engaged.has(unit.id) || unit.stun > 0;
+    const [vx, vy] = still ? [0, 0] : seek(map, world, unit);
     const [sx, sy] = separate(map, units, cells, index);
     return settle(map, unit.x, unit.y, unit.x + vx + sx, unit.y + vy + sy);
   });

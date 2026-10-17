@@ -41,6 +41,8 @@ function add(
     hp,
     cooldown: 0,
     goal: -1,
+    stun: 0,
+    rally: 0,
   };
   return { ...world, units: [...world.units, unit], nextId: world.nextId + 1 };
 }

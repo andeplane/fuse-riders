@@ -38,6 +38,8 @@ function played(): World {
         hp: 60,
         cooldown: 0,
         goal: -1,
+        stun: 0,
+        rally: 0,
       },
     ],
   };
