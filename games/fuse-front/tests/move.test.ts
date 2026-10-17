@@ -80,6 +80,8 @@ function place(
       hp: UNITS[kind].hp,
       cooldown: 0,
       goal: -1,
+      stun: 0,
+      rally: 0,
     });
   return { ...world, units, nextId };
 }
