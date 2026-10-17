@@ -6,7 +6,13 @@
  *   pnpm exec tsx scripts/run-tests.ts --merge-timings <dir>  fold such files into scripts/test-timings.json
  */
 import { spawn } from "node:child_process";
-import { mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -37,10 +43,10 @@ if (args[0] === "--merge-timings") {
     readTimings(TIMINGS),
     ...found.map(readTimings),
   ]);
-  // Only files that still exist, so a deleted test does not linger in the table.
-  const live = new Set(testFiles());
+  // Only files that still exist, so a deleted test does not linger in the table. The browser coverage flows
+  // (games/*/browser-coverage.json) stay too: scripts/test-coverage.ts shards them by the same table.
   const kept = Object.fromEntries(
-    Object.entries(merged).filter(([file]) => live.has(file)),
+    Object.entries(merged).filter(([file]) => existsSync(file)),
   );
   writeFileSync(TIMINGS, `${JSON.stringify(kept, null, 2)}\n`);
   console.log(
