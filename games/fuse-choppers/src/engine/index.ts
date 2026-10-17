@@ -1,5 +1,5 @@
 /** Fuse Choppers' engine: deterministic rules with no imports from outside this folder. */
-export const RULES = "fuse-choppers-1";
+export const RULES = "fuse-choppers-2";
 export * from "./settings.js";
 export * from "./input.js";
 export * from "./world.js";
