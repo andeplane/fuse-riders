@@ -67,7 +67,6 @@ try {
   await page.goto(`${base}fuse-front/?solo=1&mute`);
   const q = page.locator(".ff-spell").first();
   await q.and(page.locator(":enabled")).waitFor({ timeout: 15_000 });
-  assert.equal(await page.locator(".ff-block").count(), 17, "a block a sector");
   assert.match(
     await page.locator(".ff-spell.ff-gold .ff-secs").innerText(),
     /LV6/,

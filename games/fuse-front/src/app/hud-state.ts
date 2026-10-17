@@ -24,65 +24,28 @@ import {
 
 const KIT = KITS.brick;
 
-export interface SpellSlot {
-  name: string;
-  key: string;
-  /** Whole seconds of cooldown left (0 when ready) and the share of it still to run, 0 to 1. */
-  seconds: number;
-  shade: number;
-  /** Below its unlock level (the ultimate until level 6). */
-  locked: boolean;
-  passive: boolean;
-  ultimate: boolean;
-  /** A press would cast: alive, unlocked, cooled down and with the energy. */
-  ready: boolean;
+/**
+ * The record `deriveHud` fills. Bars are shares 0 to 1, `respawn` is seconds (0 while alive), `red`/`neutral`/`blue`
+ * count sectors, `clock` is this team's production clock in percent and `time` the match time as `m:ss`. Each spell
+ * slot has whole `seconds` of cooldown left and the `shade` share of it still to run, is `locked` below its unlock
+ * level, and `ready` when a press would cast (alive, unlocked, cooled down, with the energy).
+ */
+export function createHud() {
+  const spells = KIT.map((spell, i) => ({
+    name: spell.name,
+    key: "QWER"[i]!,
+    seconds: 0,
+    shade: 0,
+    locked: false,
+    passive: spell.passive,
+    ultimate: spell.unlock > 1,
+    ready: false,
+  }));
+  const hero = { hp: 0, energy: 0, xp: 0, level: 1, respawn: 0, spells };
+  const sectors = { red: 0, neutral: 0, blue: 0, clock: 100 };
+  return { ...hero, ...sectors, stance: "" as Stance | "", time: "0:00" };
 }
-
-export interface HudState {
-  /** Shares 0 to 1. */
-  hp: number;
-  energy: number;
-  xp: number;
-  level: number;
-  /** Seconds until the hero respawns, 0 while alive. */
-  respawn: number;
-  spells: SpellSlot[];
-  stance: Stance | "";
-  /** Sectors held by red, neither, blue. */
-  red: number;
-  neutral: number;
-  blue: number;
-  /** This team's production clock in percent (100 is base speed). */
-  clock: number;
-  /** Elapsed match time, `m:ss`. */
-  time: string;
-}
-
-export function createHud(): HudState {
-  return {
-    hp: 0,
-    energy: 0,
-    xp: 0,
-    level: 1,
-    respawn: 0,
-    spells: KIT.map((spell, i) => ({
-      name: spell.name,
-      key: "QWER"[i]!,
-      seconds: 0,
-      shade: 0,
-      locked: false,
-      passive: spell.passive,
-      ultimate: spell.unlock > 1,
-      ready: false,
-    })),
-    stance: "",
-    red: 0,
-    neutral: 0,
-    blue: 0,
-    clock: 100,
-    time: "0:00",
-  };
-}
+export type HudState = ReturnType<typeof createHud>;
 
 const seconds = (steps: number) => Math.ceil(steps / STEPS_PER_SECOND);
 

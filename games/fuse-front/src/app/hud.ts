@@ -31,13 +31,18 @@ export interface HudActions {
 /** "lightTank" reads "LIGHT TANK". */
 const label = (id: string) => id.replace(/([A-Z])/g, " $1").toUpperCase();
 
+/** Copies `img` into a canvas of its size. */
+function draw(canvas: HTMLCanvasElement, img: Img): void {
+  const ctx = canvas.getContext("2d");
+  const data = ctx?.createImageData(img.w, img.h);
+  if (ctx && data) ctx.putImageData((data.data.set(img.d), data), 0, 0);
+}
+
 /** A canvas holding `img` at 2 CSS pixels per art pixel. */
 function pixels(img: Img): HTMLCanvasElement {
   const canvas = el("canvas");
   [canvas.width, canvas.height] = [img.w, img.h];
-  const ctx = canvas.getContext("2d");
-  const data = ctx?.createImageData(img.w, img.h);
-  if (ctx && data) ctx.putImageData((data.data.set(img.d), data), 0, 0);
+  draw(canvas, img);
   canvas.style.width = `${img.w * 2}px`;
   return canvas;
 }
@@ -51,12 +56,8 @@ function paintSkin(): void {
   const frames = (["steel", "lit", "gold", "bay"] as const).map(
     (k) => `--ff-frame-${k}: ${url(frame(k))};`,
   );
-  document.head.append(
-    el(
-      "style",
-      `:root { --ff-steel-tile: ${url(steelTile())}; ${frames.join(" ")} }`,
-    ),
-  );
+  const tile = `--ff-steel-tile: ${url(steelTile())};`;
+  document.head.append(el("style", `:root { ${tile} ${frames.join(" ")} }`));
 }
 
 export class Hud {
@@ -88,23 +89,19 @@ export class Hud {
   private readonly title = el("h3");
   private readonly choices = el("div", "", "ff-choices");
   private readonly build = el("i", "", "ff-fill ff-xp");
-  private readonly eta = el("p", "", "ff-eta");
+  private readonly eta = el("span", "", "ff-eta");
   private miniBase = new Img(1, 1);
   private miniImg = new Img(1, 1);
   private miniStep = -1;
   private open = -1;
   private world: WorldView | undefined;
   private seat = -1;
+  private box = { x: -1, y: -1, w: 0, h: 0 };
 
   constructor(readonly actions: HudActions) {
     paintSkin();
-    this.top.append(
-      this.meter,
-      el("span", "CLOCK", "ff-label"),
-      this.clock,
-      this.timer,
-      this.chips,
-    );
+    const clock = el("span", "CLOCK", "ff-label");
+    this.top.append(this.meter, clock, this.clock, this.timer, this.chips);
     const bars = el("div", "", "ff-bars ff-bay");
     ["HP", "EN", "XP"].forEach((name, i) => {
       const track = el("span", "", "ff-track");
@@ -119,6 +116,7 @@ export class Hud {
       const { key, name } = this.state.spells[slot]!;
       button.append(pixels(icon), shade, secs, el("kbd", key));
       button.title = name;
+      button.setAttribute("aria-label", `${name} (${key})`);
       button.onclick = () => this.actions.cast(slot);
       spells.append(button);
     });
@@ -148,14 +146,9 @@ export class Hud {
   }
 
   /** Writes `value` through `apply` only when it differs from the last value written under `key`. */
-  private put(
-    target: HTMLElement,
-    key: string,
-    value: string,
-    apply: () => void,
-  ): void {
-    let seen = this.written.get(target);
-    if (!seen) this.written.set(target, (seen = new Map()));
+  private put(t: HTMLElement, key: string, value: string, apply: () => void) {
+    let seen = this.written.get(t);
+    if (!seen) this.written.set(t, (seen = new Map()));
     if (seen.get(key) !== value) (apply(), seen.set(key, value));
   }
   private text(target: HTMLElement, value: string): void {
@@ -179,27 +172,24 @@ export class Hud {
       this.portrait.replaceChildren(pixels(img));
     });
     const blocks =
-      "r".repeat(s.red) + "n".repeat(s.neutral) + "b".repeat(s.blue);
+      "0".repeat(s.red) + "n".repeat(s.neutral) + "1".repeat(s.blue);
+    const block = (b: string) => el("i", "", `ff-block ff-t${b}`);
     this.put(this.meter, "blocks", blocks, () =>
-      this.meter.replaceChildren(
-        ...[...blocks].map((b) => el("i", "", `ff-block ff-block-${b}`)),
-      ),
+      this.meter.replaceChildren(...[...blocks].map(block)),
     );
     this.text(this.clock, `×${(s.clock / 100).toFixed(2)}`);
     this.text(this.timer, s.time);
     this.put(this.chips, "slots", JSON.stringify(slots), () =>
       this.chips.replaceChildren(
-        ...slots.map((slot) =>
-          el(
-            "span",
-            slot.bot ? `AI ${slot.difficulty}` : slot.name,
-            `ff-chip ff-chip-${slot.team}`,
-          ),
-        ),
+        ...slots.map((slot) => {
+          const name = slot.bot ? `AI ${slot.difficulty}` : slot.name;
+          return el("span", name, `ff-chip ff-t${slot.team}`);
+        }),
       ),
     );
+    const pct = (v: number) => `${Math.round(v * 100)}%`;
     [s.hp, s.energy, s.xp].forEach((v, i) =>
-      this.css(this.bars[i]!, "width", `${Math.round(v * 100)}%`),
+      this.css(this.bars[i]!, "width", pct(v)),
     );
     this.text(
       this.level,
@@ -207,17 +197,10 @@ export class Hud {
     );
     s.spells.forEach((spell, i) => {
       const { button, shade, secs } = this.spells[i]!;
-      this.css(
-        shade,
-        "height",
-        `${Math.round((spell.locked ? 1 : spell.shade) * 100)}%`,
-      );
-      this.text(
-        secs,
-        spell.locked ? "LV6" : spell.seconds ? String(spell.seconds) : "",
-      );
+      this.css(shade, "height", pct(spell.locked ? 1 : spell.shade));
+      const left = spell.seconds ? String(spell.seconds) : "";
+      this.text(secs, spell.locked ? "LV6" : left);
       this.flag(button, "ff-gold", spell.ultimate);
-      this.flag(button, "ff-passive", spell.passive);
       button.disabled = !spell.ready;
     });
     this.stances.forEach((button, i) =>
@@ -247,26 +230,26 @@ export class Hud {
       [this.mini.width, this.mini.height] = [world.width, world.height];
       this.miniStep = -1;
     }
-    this.put(
-      this.mini,
-      "owners",
-      world.sectorOwners.join(),
-      () => (this.miniStep = -1),
-    );
+    const owners = world.sectorOwners.join();
+    this.put(this.mini, "owners", owners, () => (this.miniStep = -1));
     if (this.miniStep >= 0 && world.step - this.miniStep < 10) return;
     this.miniStep = world.step;
     paintMinimap(this.miniImg, this.miniBase, world);
-    const ctx = this.mini.getContext("2d");
-    const data = ctx?.createImageData(world.width, world.height);
-    if (ctx && data)
-      ctx.putImageData((data.data.set(this.miniImg.d), data), 0, 0);
+    draw(this.mini, this.miniImg);
   }
 
   /** Moves the minimap's camera rectangle; called every animation frame but writes only on change. */
   cameraBox(box: { x: number; y: number; w: number; h: number }): void {
-    const sides = { left: box.x, top: box.y, width: box.w, height: box.h };
-    for (const [prop, v] of Object.entries(sides))
-      this.css(this.camera, prop, `${(v * 100).toFixed(2)}%`);
+    const { x, y, w, h } = this.box;
+    if (box.x === x && box.y === y && box.w === w && box.h === h) return;
+    this.box = box;
+    const pct = (v: number) => `${(v * 100).toFixed(2)}%`;
+    Object.assign(this.camera.style, {
+      left: pct(box.x),
+      top: pct(box.y),
+      width: pct(box.w),
+      height: pct(box.h),
+    });
   }
 
   /** Opens factory `id`'s orders panel; it follows the world until closed or the factory is lost. */

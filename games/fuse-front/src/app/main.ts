@@ -193,7 +193,6 @@ function room(code: string, token: string | undefined, display: boolean): void {
     end.hidden = !over;
     if (!over) return;
     const result = banner(view.winner, slot);
-    end.dataset.result = result.toLowerCase();
     endText.textContent = result;
     const { red, neutral, blue } = hud.state;
     endNote.textContent = `${hud.state.time} · sectors ${red} red · ${neutral} neutral · ${blue} blue`;
@@ -346,9 +345,13 @@ function room(code: string, token: string | undefined, display: boolean): void {
   canvas.addEventListener("contextmenu", (event) => event.preventDefault());
   const keys123 = (event: KeyboardEvent) => {
     const action = keyAction(event.key);
-    if (!action || !shown || event.repeat || event.ctrlKey || event.metaKey)
-      return;
-    if (event.target instanceof HTMLInputElement) return;
+    const held = event.ctrlKey || event.metaKey || event.altKey;
+    if (!action || !shown || event.repeat || held) return;
+    const typing =
+      event.target instanceof Element &&
+      event.target.closest("input, textarea, select, [contenteditable]");
+    if (typing) return;
+    // Also keeps Space from re-pressing a focused HUD button.
     event.preventDefault();
     if (action.kind === "recentre") field.follow = true;
     else if (action.kind === "close") hud.close();

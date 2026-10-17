@@ -106,12 +106,11 @@ engine events into tracers, flames, explosions, scorch decals and spell rings, a
 its step stamp so a rollback re-run never plays a cue twice. Positions between two frames are interpolated for display
 only.
 
-The HUD (R2, `src/app/hud.ts`) is DOM dressed in pixel art: the steel, frames, portrait, spell icons and unit cards
-are painted once by `render/pixel/` and scaled 2x with `image-rendering: pixelated`, while text, bars and buttons stay
-DOM so they read, click and tap well. `app/hud-state.ts` derives what it shows (cooldowns, the locked ultimate, the
-sector meter, the clock, factory ETAs) into one reused record, and the HUD writes only values that changed. The
-minimap (`render/minimap.ts`) is one pixel per tile, tinted by sector owner and redrawn every 10 steps or on a capture.
-Q/W/E/R cast at the hero's tile, 1/2/3 set the stance, and clicking one of your factories opens its orders panel.
+The HUD (R2, `src/app/hud.ts`) is DOM dressed in pixel art painted once by `render/pixel/` and scaled 2x, so text and
+buttons read, click and tap well; `app/hud-state.ts` derives its values into one reused record and only changes are
+written. The minimap (`render/minimap.ts`, a pixel per tile, tinted by owner) redraws every 10 steps or on a capture.
+Q/W/E/R cast at the hero's tile, 1/2/3 set the stance, and clicking one of your factories (on the map, or its HUD
+button) opens its orders panel; a click there never moves the hero.
 
 ![HUD](images/hud.png)
 
