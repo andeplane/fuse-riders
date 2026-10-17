@@ -150,7 +150,8 @@ export function pickHeroes(
   const taken = [new Set<HeroKind>(), new Set<HeroKind>()];
   const ordered = [...seats].sort((a, b) => a - b);
   for (const seat of ordered) {
-    const pick = picks[seat];
+    // A pick is checked here too: a kind outside `HERO_KINDS` counts as none.
+    const pick = HERO_KINDS.find((kind) => kind === picks[seat]);
     if (pick && !taken[teamOf(seat)]!.has(pick))
       taken[teamOf(seat)]!.add((out[seat] = pick));
   }
@@ -226,7 +227,8 @@ function heroCommands(
     if (alive(each) && teamOf(each.seat) !== team)
       if (near(each.x, each.y, hero.x, hero.y, NEAR)) foes += each.hp;
 
-  // At most one cast: the first slot that is ready and called for (an easy bot only ever casts its first).
+  // At most one cast: the first slot that is ready and called for. A profile without Rally Cry (easy) only ever
+  // casts its first slot, whatever its kit.
   const ready = (slot: number): boolean => {
     const spell = kit[slot]!;
     return (
