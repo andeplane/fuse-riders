@@ -202,6 +202,7 @@ chunky robots, team-coloured forts and factories, the riveted steel HUD) but ren
 
   ![Procedural models at the default zoom](images/models-3d.png)
   ![Zoomed in on grunts, a light tank and a turret](images/models-3d-zoom.png)
+  ![Brick in the fort's courtyard, the radar on a corner tower](images/models-3d-fort.png)
 
 - **Draw cost.** Instanced meshes per kind keep ~300 units cheap. Effects (tracers, explosions, smoke, spell visuals)
   play from engine events, deduped by step as before.
