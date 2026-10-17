@@ -132,8 +132,22 @@ test("coverage collectors run independently and preserve the release commands an
     );
     assert.ok(collector.includes(`      COVERAGE_PHASE: ${phase}\n`));
     assert.ok(collector.includes("    timeout-minutes: 20\n"));
-    assert.ok(collector.includes(`          name: coverage-${phase}-raw\n`));
+    assert.ok(
+      collector.includes(
+        `          name: coverage-${phase}-raw-\${{ matrix.shard }}\n`,
+      ),
+    );
     assert.ok(collector.includes("          if-no-files-found: error\n"));
+    // Drift between the list and the divisor would silently leave part of the files or flows out.
+    const list = / {8}shard: \[([\d, ]+)\]/.exec(collector)?.[1];
+    const divisor = / {6}TEST_SHARD: \$\{\{ matrix\.shard \}\}\/(\d+)/.exec(
+      collector,
+    )?.[1];
+    assert.ok(list && divisor, `coverage-${phase} must shard`);
+    assert.deepEqual(
+      list.split(",").map((item) => Number(item.trim())),
+      Array.from({ length: Number(divisor) }, (_, index) => index + 1),
+    );
   }
 });
 
@@ -157,10 +171,11 @@ test("coverage cannot pass with a failed or missing collector, and reports both 
     (gate.match(/uses: actions\/download-artifact@v4/g) ?? []).length,
     2,
   );
+  // Every share of each collector lands in the one directory the report and its thresholds read.
   for (const phase of ["unit", "browser"])
     assert.ok(
       gate.includes(
-        `          name: coverage-${phase}-raw\n          path: coverage/tmp/\n`,
+        `          pattern: coverage-${phase}-raw-*\n          path: coverage/tmp/\n          merge-multiple: true\n`,
       ),
     );
   const commands = runsIn(gate);
