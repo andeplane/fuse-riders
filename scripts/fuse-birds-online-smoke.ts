@@ -220,16 +220,35 @@ try {
   await first.locator("canvas").focus();
   await first.keyboard.press("j");
   await first.locator('canvas[data-gesture="keyboard-aim"]').waitFor();
+  const shotTurn = await first.locator(".birds-room").getAttribute("data-turn");
   await first.keyboard.press("Enter");
   await first
     .getByRole("button", { name: "Scatter Bomb, 2 shots remaining" })
     .waitFor({ timeout: 10_000 });
-  await second
-    .getByRole("button", { name: "Scatter Bomb, 2 shots remaining" })
-    .waitFor({ timeout: 10_000 });
-  await tv
-    .getByRole("button", { name: "Scatter Bomb, 2 shots remaining" })
-    .waitFor({ timeout: 10_000 });
+  // Watchers show the active bird's ammo, so "2 shots remaining" lasts only until the shot lands and the
+  // turn passes. Under native coverage the TV caught up after the turn had already moved to EMBER and never
+  // rendered it (PR #530 run 38976693650; flaky-test epic #250). Only while collecting coverage, a watcher
+  // that has moved past the shooting turn is accepted; ordinary runs keep the strict check.
+  for (const watcher of [second, tv]) {
+    if (!process.env.FUSE_GAME_COVERAGE_DIR) {
+      await watcher
+        .getByRole("button", { name: "Scatter Bomb, 2 shots remaining" })
+        .waitFor({ timeout: 10_000 });
+      continue;
+    }
+    await watcher.waitForFunction(
+      (turn) =>
+        [...document.querySelectorAll("button")].some(
+          (button) =>
+            button.getAttribute("aria-label") ===
+            "Scatter Bomb, 2 shots remaining",
+        ) ||
+        (document.querySelector<HTMLElement>(".birds-room")?.dataset.turn ??
+          turn) !== turn,
+      shotTurn,
+      { timeout: 10_000 },
+    );
+  }
   await second
     .locator(".birds-turn")
     .filter({ hasText: "YOUR TURN" })
