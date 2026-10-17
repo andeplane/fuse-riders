@@ -278,7 +278,7 @@ jobs:
 
   smoke:
     needs: plan
-    # The matrix is the ids alone and the job has no dynamic `name:`, so it reads `smoke (online-webkit)`
+    # The matrix is the ids alone and the job has no dynamic `name:`, so it reads `smoke (online-chrome)`
     # when it runs and plain `smoke` when a pull request without `full-ci` skips it. Everything else about
     # an entry is looked up by id.
     runs-on: ubuntu-latest

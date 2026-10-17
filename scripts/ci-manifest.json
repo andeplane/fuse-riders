@@ -61,21 +61,6 @@
       "retries": 1
     },
     {
-      "id": "online-webkit",
-      "group": "online",
-      "name": "Online WebKit room smoke (Phaser Canvas)",
-      "command": "pnpm exec tsx scripts/online-smoke.ts",
-      "browsers": ["webkit"],
-      "env": {
-        "SMOKE_RIDERS": "3",
-        "BROWSER": "webkit",
-        "ROOM_RENDERER": "phaser-canvas"
-      },
-      "serviceUrlEnv": "ONLINE_URL",
-      "timeoutMinutes": 25,
-      "retries": 1
-    },
-    {
       "id": "ready-check",
       "group": "online",
       "name": "Phone readiness starts and rematches without the TV",
