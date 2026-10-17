@@ -15,7 +15,7 @@ import {
  * bump `RULES` in `src/engine/index.ts` and re-record them in the same commit (`GOLDEN_RECORD=1` prints the new ones).
  */
 const GOLDEN: { rules: string; hashes: string[] } = {
-  rules: "fuse-choppers-1",
+  rules: "fuse-choppers-2",
   hashes: [
     "cf5d92d2",
     "eac86cbf",
