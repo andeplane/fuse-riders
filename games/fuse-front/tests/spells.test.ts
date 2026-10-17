@@ -1,16 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  DROP_HP,
+  HERO,
+  KILL_XP,
   KITS,
   RALLY_PERCENT,
   UNITS,
-  UNIT_CAP,
   centreOf,
   createWorld,
   decodeWorld,
   div,
   encodeWorld,
+  isqrt,
   levelXp,
+  unitCap,
   loadMap,
   step,
   tileOf,
@@ -106,7 +110,7 @@ test("a cast that cannot be made does nothing", () => {
   assert.deepEqual(encodeWorld(step(map, brick(), [cast(0, 2)])), plain);
 });
 
-test("SHOCKWAVE stuns and knocks back enemy robots near Brick, not tanks or friends", () => {
+test("SHOCKWAVE hurts enemy units near Brick and stuns and knocks back its robots, not tanks or friends", () => {
   let world = brick();
   world = add(world, 1, "grunt", 6, 6); // 1: two tiles east
   world = add(world, 1, "lightTank", 4, 8); // 2
@@ -117,6 +121,9 @@ test("SHOCKWAVE stuns and knocks back enemy robots near Brick, not tanks or frie
   assert.equal(grunt!.stun, Q!.duration);
   assert.equal(grunt!.x, at(6) + Q!.power, "pushed a tile east");
   assert.deepEqual([tank!.stun, friend!.stun, far!.stun], [0, 0, 0]);
+  // Guns fire after the cast in the same step, so the hurt ones may have lost more.
+  assert.ok(grunt!.hp <= 1000 - Q!.damage && tank!.hp <= 1000 - Q!.damage);
+  assert.deepEqual([friend!.hp, far!.hp], [1000, 1000]);
   // While stunned it neither shoots nor walks; then it fights again.
   for (let index = 1; index < Q!.duration; index++) {
     const before = world.units[0]!;
@@ -143,6 +150,24 @@ test("RALLY CRY makes friendly robots in reach reload faster while it lasts", ()
   assert.equal(world.units[0]!.cooldown, fast);
   world = step(map, world);
   assert.equal(world.units[0]!.rally, duration - 1);
+});
+
+test("RALLY CRY also speeds a rallied robot's walk", () => {
+  const walk = (rally: number): number => {
+    const world = add(brick(), 0, "grunt", 5, 8, 60);
+    world.units[0]!.rally = rally;
+    const moved = step(map, world).units[0]!;
+    return isqrt((moved.x - at(5)) ** 2 + (moved.y - at(8)) ** 2);
+  };
+  assert.ok(walk(0) > 0);
+  assert.ok(walk(10) > walk(0) + 2, `${walk(10)} vs ${walk(0)}`);
+});
+
+test("SHOCKWAVE kills what it outdamages at once, credited to Brick", () => {
+  const world = step(map, add(brick(), 1, "grunt", 5, 6, 60), [cast(0, 0)]);
+  assert.deepEqual(world.units, []);
+  assert.ok(world.events.some((e) => e.type === "death" && e.id === 1));
+  assert.equal(hero0(world).xp, KILL_XP.grunt);
 });
 
 test("IRON HIDE spares Brick and friendly vehicles near Brick, not robots or far tanks", () => {
@@ -173,14 +198,17 @@ test("ORBITAL DROP lands a light tank beside Brick from level 6, inside the unit
     [tank.kind, tank.owner, tileOf(tank.x), tileOf(tank.y)],
     ["lightTank", 0, 5, 6],
   );
+  assert.equal(tank.hp, DROP_HP, "tougher than a factory's");
+  assert.ok(DROP_HP > UNITS.lightTank.hp);
   assert.equal(hero0(world).spells[3], R!.cooldown);
   // At the cap nothing lands and nothing is spent.
   world = brick(6);
-  for (let index = 0; index < UNIT_CAP; index++)
+  const cap = unitCap(world, 0);
+  for (let index = 0; index < cap; index++)
     world = add(world, 0, "grunt", 1 + (index % 4), 2 + (index % 3));
   const capped = step(map, world, [cast(0, 3)]);
   assert.equal(hero0(capped).spells[3], 0);
-  assert.ok(capped.units.filter((u) => u.owner === 0).length <= UNIT_CAP);
+  assert.ok(capped.units.filter((u) => u.owner === 0).length <= cap);
 });
 
 test("ORBITAL DROP never lands across a rock's corner or on rock", () => {
@@ -206,8 +234,9 @@ test("ORBITAL DROP never lands across a rock's corner or on rock", () => {
 });
 
 test("statuses and spell cooldowns survive a checkpoint, and bad ones are refused", () => {
-  let world = brick(3);
-  world = add(world, 1, "grunt", 6, 6, 60);
+  // A torch lives through the shockwave's damage, so it stays stunned (Brick's gun is reloading).
+  let world = withHero(brick(), 0, { cooldown: HERO.cooldown });
+  world = add(world, 1, "torch", 6, 6, 90);
   world = add(world, 0, "grunt", 3, 6, 60);
   world = step(map, world, [cast(0, 0), cast(0, 1)]);
   const wire = () => structuredClone(encodeWorld(world)) as unknown[][][];

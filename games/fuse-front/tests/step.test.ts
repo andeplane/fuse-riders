@@ -3,10 +3,18 @@ import assert from "node:assert/strict";
 import {
   CLOCK_MAX,
   COMMANDS_PER_SEAT,
+  OVERTIME_AFTER,
+  OVERTIME_GROWTH,
+  OVERTIME_MAX,
+  STEPS_PER_SECOND,
   TILE,
   UNITS,
   UNIT_CAP,
+  UNIT_CAP_BASE,
+  UNIT_CAP_PER_SECTOR,
   buildSteps,
+  productionRate,
+  unitCap,
   centreOf,
   clockRate,
   createWorld,
@@ -114,9 +122,10 @@ test("a robot on a flag takes the sector; a tank does not", () => {
 
 test("capture: an enemy home flag flips, a teammate's does not, and a contested flag holds", () => {
   const map = tiny();
-  const world = createWorld(map, [0, 1, 2], 1);
+  const world = benchHeroes(createWorld(map, [0, 1, 2], 1));
   const home0 = map.flags[map.sites[TINY.fort0]!.sector]!;
-  assert.equal(step(map, place(world, 1, "grunt", home0)).sectors[0], 1);
+  // A torch outlasts the fort's first shot.
+  assert.equal(step(map, place(world, 1, "torch", home0)).sectors[0], 1);
   // Seat 2 is seat 0's teammate: re-taking a teammate's flag is a no-op.
   assert.equal(step(map, place(world, 2, "grunt", home0)).sectors[0], 0);
   const middle = map.flags[TINY.middle]!;
@@ -183,9 +192,9 @@ test("the production clock speeds up with team sectors and never below half the 
   );
 });
 
-test("a player at the unit cap pauses, and a batch is cut to the room left under the cap", () => {
+test("a player at its unit cap pauses, and a batch is cut to the room left under the cap", () => {
   const map = tiny();
-  const parking = { x: 12, y: 4 };
+  // Held, so nobody takes another flag and moves the cap.
   let world = step(
     map,
     place(
@@ -194,15 +203,59 @@ test("a player at the unit cap pauses, and a batch is cut to the room left under
       "grunt",
       map.flags[TINY.middle]!,
     ),
+    [{ seat: 0, type: "stance", stance: "hold" }],
   );
-  world = place(world, 0, "grunt", parking, UNIT_CAP - 2);
+  const cap = unitCap(world, 0);
+  assert.equal(cap, UNIT_CAP_BASE + 2 * UNIT_CAP_PER_SECTOR, "two sectors");
+  world = place(world, 0, "grunt", { x: 5, y: 2 }, cap - 2);
   world = run(map, world, buildSteps("grunt", 2));
-  assert.equal(world.units.filter((u) => u.owner === 0).length, UNIT_CAP);
+  assert.equal(world.units.filter((u) => u.owner === 0).length, cap);
   const paused = run(map, world, 50);
   assert.equal(paused.units.length, world.units.length);
-  // No factory makes progress (the grunts may be shooting seat 1's fort meanwhile).
   const work = (w: World) => w.buildings.map((b) => [b.order, b.progress]);
   assert.deepEqual(work(paused), work(world));
+  // Losing ground shrinks the cap: nobody dies, the factories just stay paused.
+  const shrunk = run(map, { ...paused, sectors: [0, 1, 1, -1, -1] }, 50);
+  assert.ok(unitCap(shrunk, 0) < cap);
+  assert.equal(shrunk.units.filter((u) => u.owner === 0).length, cap);
+});
+
+test("the unit cap grows with the team's sectors, shared by its players, up to UNIT_CAP", () => {
+  const map = dustBasin();
+  const world = createWorld(map, [0, 1, 2, 3], 1);
+  assert.equal(unitCap(world, 0), UNIT_CAP_BASE + UNIT_CAP_PER_SECTOR);
+  const most = { ...world, sectors: world.sectors.map(() => 0) };
+  const share = (UNIT_CAP_PER_SECTOR * map.flags.length) >> 1;
+  assert.equal(unitCap(most, 2), Math.min(UNIT_CAP_BASE + share, UNIT_CAP));
+  assert.equal(unitCap(most, 1), UNIT_CAP_BASE);
+  const duel = createWorld(map, [0, 1], 1);
+  assert.equal(
+    unitCap({ ...duel, sectors: duel.sectors.map(() => 0) }, 0),
+    UNIT_CAP,
+  );
+});
+
+test("overtime: past OVERTIME_AFTER the team ahead on sectors builds ever faster, up to OVERTIME_MAX", () => {
+  const map = dustBasin();
+  const base = createWorld(map, [0, 1], 1);
+  const ahead = {
+    ...base,
+    sectors: base.sectors.map((s, i) => (i < 3 ? 0 : s)),
+  };
+  const at = (minutes: number) => ({
+    ...ahead,
+    step: OVERTIME_AFTER + minutes * 60 * STEPS_PER_SECOND,
+  });
+  const rate = clockRate(teamSectors(ahead, 0));
+  assert.equal(productionRate({ ...ahead, step: OVERTIME_AFTER }, 0), rate);
+  assert.equal(
+    productionRate(at(1), 0),
+    (rate * (100 + OVERTIME_GROWTH)) / 100,
+  );
+  assert.equal(productionRate(at(60), 0), (rate * (100 + OVERTIME_MAX)) / 100);
+  // The team behind, and teams level on sectors, get no bonus.
+  assert.equal(productionRate(at(5), 1), clockRate(teamSectors(ahead, 1)));
+  assert.equal(productionRate({ ...base, step: at(5).step }, 0), clockRate(1));
 });
 
 test("orders and stances: only the owner orders its factory, only kinds it builds, and a change restarts it", () => {

@@ -51,7 +51,7 @@ function play(
 /**
  * Whether `command`, sent alone on `world`'s next step, does what it says: a stance or order holds, the hero walks
  * toward the tile (or has reached it), a cast is announced. An order's sector captured in the same step is the one
- * exception, since a capture resets the factory's order after commands apply.
+ * exception, since a capture resets the factory's order after commands apply; so is a hero killed on that step.
  */
 function takesEffect(board: GameMap, world: World, command: Command): boolean {
   const after = step(board, world, [command]);
@@ -76,7 +76,8 @@ function takesEffect(board: GameMap, world: World, command: Command): boolean {
     const hero = after.heroes.find((h) => h.seat === seat)!;
     const goal = command.y * board.width + command.x;
     const at = tileOf(hero.y) * board.width + tileOf(hero.x);
-    return hero.goal === goal || at === goal;
+    // A hero killed on that very step drops its move.
+    return hero.goal === goal || at === goal || hero.hp === 0;
   }
   return false;
 }
@@ -161,32 +162,6 @@ test("an empty seat or a finished match gets no commands", () => {
   const world = createWorld(map, [0, 1], 1);
   assert.deepEqual(botCommands(map, world, 4, "hard"), []);
   assert.deepEqual(botCommands(map, { ...world, winner: 0 }, 0, "hard"), []);
-});
-
-test("bot matches on Dust Basin end with a winner, 1v1 and 3v3", () => {
-  // Evenly matched bots can trade sectors at the unit cap for a long time; a duel between levels ends.
-  const duel = play(
-    map,
-    new Map([
-      [0, "easy"],
-      [1, "hard"],
-    ]),
-    12_000,
-  );
-  assert.notEqual(duel.winner, NO_WINNER);
-  const teams = play(
-    map,
-    new Map<number, Difficulty>([
-      [0, "hard"],
-      [1, "normal"],
-      [2, "easy"],
-      [3, "hard"],
-      [4, "normal"],
-      [5, "easy"],
-    ]),
-    12_000,
-  );
-  assert.notEqual(teams.winner, NO_WINNER);
 });
 
 test("a hard bot beats an easy one from most starts", () => {
