@@ -195,8 +195,15 @@ jobs:
     if: github.event_name != 'pull_request' || needs.main-health.outputs.red == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      # Every share reports; `coverage` below needs all of them.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     env:
       COVERAGE_PHASE: unit
+      # One cost-balanced share of the unit files (scripts/test-coverage.ts); `coverage` merges them all.
+      TEST_SHARD: ${{ matrix.shard }}/3
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -209,18 +216,26 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: coverage-unit-raw
+          name: coverage-unit-raw-${{ matrix.shard }}
           path: coverage/tmp/
           if-no-files-found: error
           retention-days: 1
+          overwrite: true
 
   coverage-browser:
     needs: main-health
     if: github.event_name != 'pull_request' || needs.main-health.outputs.red == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      # Every share reports; `coverage` below needs all of them.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     env:
       COVERAGE_PHASE: browser
+      # One cost-balanced share of the browser flows (scripts/test-coverage.ts); `coverage` merges them all.
+      TEST_SHARD: ${{ matrix.shard }}/3
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -234,10 +249,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: coverage-browser-raw
+          name: coverage-browser-raw-${{ matrix.shard }}
           path: coverage/tmp/
           if-no-files-found: error
           retention-days: 1
+          overwrite: true
 
   coverage:
     needs: [main-health, coverage-unit, coverage-browser]
@@ -259,14 +275,17 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Every share of both collectors into one directory, so the report and its thresholds see all of it.
       - uses: actions/download-artifact@v4
         with:
-          name: coverage-unit-raw
+          pattern: coverage-unit-raw-*
           path: coverage/tmp/
+          merge-multiple: true
       - uses: actions/download-artifact@v4
         with:
-          name: coverage-browser-raw
+          pattern: coverage-browser-raw-*
           path: coverage/tmp/
+          merge-multiple: true
       - run: pnpm test:coverage
       - name: Save coverage
         if: always()
