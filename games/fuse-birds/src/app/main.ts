@@ -604,6 +604,7 @@ function room(code: string, display: boolean, practice = false): void {
           card.style.setProperty("--bird", COLORS[p.slot]!);
           card.dataset.playerId = p.id;
           card.dataset.appliedOrdinal = String(p.ordinal);
+          card.dataset.ammo = String(p.ammo);
           card.classList.toggle("current", p.id === player.id);
           card.classList.toggle("eliminated", p.hp === 0);
           card.replaceChildren(
