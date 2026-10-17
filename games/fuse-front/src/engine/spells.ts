@@ -4,7 +4,8 @@
  * slot's cooldown when the hero is alive, has the level, the energy and a ready slot, and the spell finds what it
  * needs; anything else does nothing and spends nothing. A spell's `targeting` says what the aim tile means: `self`
  * ignores it; `point` aims at the tile (within `range` of the hero); `unit` acts on what stands nearest the aim
- * tile, within `radius` of it and `range` of the hero (a tie goes to units, then heroes, then the lower id).
+ * tile, within `radius` of it and `range` of the hero (a tie goes to units, then heroes, then buildings, then the
+ * lower id).
  *
  * Brick, frontline:
  * - SHOCKWAVE: enemy units within its radius take `damage` (less IRON HIDE's share); the robots among them are also stunned (no shooting or
@@ -24,24 +25,50 @@
  *   that tank. A seat keeps `MINES_PER_HERO`; laying another removes its oldest.
  * - HIJACK (unit): an enemy light tank changes sides to Vix's owner, unless that owner is at its `unitCap`.
  *
+ * Rivet, engineer:
+ * - REPAIR BEAM (unit): a damaged friendly unit, hero or building heals `power` hit points, up to its most. A ruined
+ *   turret in a sector the team holds counts, and stands again with what it healed; a ruined fort never does.
+ * - TURRET DROP: a sentry (`UNITS.sentry`) on the faced tile, placed as ORBITAL DROP's tank. It never moves and burns
+ *   out (`SENTRY_DECAY`); it counts toward the `unitCap`, and a seat keeps at most `SENTRIES_PER_HERO`.
+ * - FORTIFY FLAG: the team's flag of the sector Rivet stands in, within its radius, cannot change hands while it lasts.
+ * - OVERCLOCK (level 6): the team's factories build at `power` percent of their rate while it lasts.
+ *
+ * Tally, scout:
+ * - DASH (point): up to `range` toward the aim tile (along its facing when aimed at its own), stopping at a wall.
+ *   Heroes are never stunned, so there is nothing for it to break.
+ * - FLARE (point): marks the aim tile for its duration; the owner's robots on PUSH make for it (`move.ts`).
+ * - SPOTTER (passive): enemy units and heroes within its radius take `power` percent more damage.
+ * - BLITZ (level 6): for its duration the owner's robots in the sector Tally stands in walk `BLITZ_SPEED` percent
+ *   faster (`move.ts`). A flag falls the step a robot reaches it, so faster walking is faster capture.
+ *
  * Durations, powers and damage grow by their `PerLevel` amount for each level above 1. Timers count down at the start
  * of each step, so a cast made on step N is ready again on step N + cooldown.
  */
 import { DIRS, openTile } from "./flow.js";
-import { alive, award, fell, levelOf } from "./hero.js";
+import { alive, award, fell, levelOf, maxHp } from "./hero.js";
 import type { GameMap } from "./map.js";
 import { div, isqrt } from "./math.js";
-import { centreOf, settle, tileOf } from "./move.js";
+import { FLARE, centreOf, settle, tileOf } from "./move.js";
 import {
+  BLITZ_SPEED,
+  BUILDING_HP,
   KILL_XP,
   MAX_LEVEL,
+  SENTRY_DECAY,
   STEPS_PER_SECOND,
   TILE,
   UNITS,
   teamOf,
   type HeroKind,
 } from "./tuning.js";
-import { unitCap, type Hero, type Unit, type World } from "./world.js";
+import {
+  ownerOf,
+  unitCap,
+  type Building,
+  type Hero,
+  type Unit,
+  type World,
+} from "./world.js";
 
 export const SPELL_EFFECTS = [
   "shockwave",
@@ -52,6 +79,14 @@ export const SPELL_EFFECTS = [
   "cloak",
   "stickyMine",
   "hijack",
+  "repair",
+  "turretDrop",
+  "fortify",
+  "overclock",
+  "dash",
+  "flare",
+  "spotter",
+  "blitz",
 ] as const;
 export type SpellEffect = (typeof SPELL_EFFECTS)[number];
 
@@ -72,7 +107,7 @@ export interface Spell {
   /** Steps a status lasts. */
   duration: number;
   durationPerLevel: number;
-  /** Percent, or for a knockback sub-pixels (at most a tile, so nothing is pushed through a wall). */
+  /** Percent, for a knockback sub-pixels (at most a tile, so nothing is pushed through a wall), or hit points healed. */
   power: number;
   powerPerLevel: number;
   /** Hit points it takes from each enemy unit it reaches. */
@@ -88,6 +123,9 @@ export const DROP_HP = 650;
 /** Steps a STICKY MINE rides its tank before it goes off, and the mines a seat keeps at once. */
 export const MINE_FUSE = s(1);
 export const MINES_PER_HERO = 3;
+/** The sentries a seat keeps at once, and the production clock under OVERCLOCK in percent (`productionRate`). */
+export const SENTRIES_PER_HERO = 2;
+export const OVERCLOCK_PERCENT = 200;
 const spell = (
   fields: Partial<Spell> & Pick<Spell, "name" | "effect">,
 ): Spell => ({
@@ -157,6 +195,25 @@ export const KITS: Readonly<Record<HeroKind, readonly Readonly<Spell>[]>> = {
     spell({ name: "Hijack", effect: "hijack", targeting: "unit", unlock: 6, energy: 100, cooldown: s(60),
       range: 6 * TILE, radius: 3 * TILE }),
   ],
+  // prettier-ignore
+  rivet: [
+    spell({ name: "Repair Beam", effect: "repair", targeting: "unit", cooldown: s(6), energy: 30, range: 6 * TILE,
+      radius: 4 * TILE, power: 160, powerPerLevel: 25 }),
+    spell({ name: "Turret Drop", effect: "turretDrop", cooldown: s(20), energy: 50 }),
+    spell({ name: "Fortify Flag", effect: "fortify", cooldown: s(25), energy: 40, radius: 3 * TILE, duration: s(10),
+      durationPerLevel: s(1) }),
+    spell({ name: "Overclock", effect: "overclock", unlock: 6, energy: 100, cooldown: s(75), duration: s(15),
+      power: OVERCLOCK_PERCENT }),
+  ],
+  // prettier-ignore
+  tally: [
+    spell({ name: "Dash", effect: "dash", targeting: "point", cooldown: s(6), energy: 25, range: 4 * TILE }),
+    spell({ name: "Flare", effect: "flare", targeting: "point", cooldown: s(15), energy: 35, range: 10 * TILE,
+      duration: s(10) }),
+    spell({ name: "Spotter", effect: "spotter", passive: true, radius: 5 * TILE, power: 10, powerPerLevel: 1 }),
+    spell({ name: "Blitz", effect: "blitz", unlock: 6, energy: 100, cooldown: s(60), duration: s(10),
+      power: BLITZ_SPEED }),
+  ],
 };
 
 /** A hero's spells by slot. */
@@ -191,60 +248,84 @@ interface Spot {
   y: number;
 }
 
-/** Removes the units at 0 hit points in id order, each a death that earns `killer`'s hero its XP. */
+/** A unit's most hit points: an Orbital Drop tank's while it is above a factory tank's. */
+export const unitMax = (unit: Unit): number =>
+  unit.hp > UNITS[unit.kind].hp ? DROP_HP : UNITS[unit.kind].hp;
+
+/** Removes the units at 0 hit points in id order, each a death that earns `killer`'s hero its XP (none for -1). */
 function bury(world: World, killer: number): void {
   world.units = world.units.filter((unit) => {
     if (unit.hp > 0) return true;
     const { id, kind, owner, x, y } = unit;
     world.events.push({ type: "death", id, kind, owner, x, y });
-    award(world, killer, teamOf(owner), x, y, KILL_XP[kind]);
+    if (killer >= 0) award(world, killer, teamOf(owner), x, y, KILL_XP[kind]);
     return false;
   });
 }
 
-/** The start of a step: spell cooldowns and statuses count down. */
+/**
+ * The start of a step: spell cooldowns and statuses count down, an expired FLARE releases the robots it drew, and
+ * sentries burn out.
+ */
 export function tickSpells(world: World): void {
+  const down = (left: number): number => (left > 0 ? left - 1 : 0);
   for (const hero of world.heroes) {
-    hero.spells = hero.spells.map((left) => (left > 0 ? left - 1 : 0));
-    if (hero.cloak > 0) hero.cloak--;
+    hero.spells = hero.spells.map(down);
+    [hero.cloak, hero.blitz] = [down(hero.cloak), down(hero.blitz)];
+    if (hero.flareLeft > 0 && --hero.flareLeft === 0) {
+      hero.flare = -1;
+      for (const unit of world.units)
+        if (unit.owner === hero.seat && unit.goal === FLARE) unit.goal = -1;
+    }
   }
+  world.fortified = world.fortified.map(down);
+  world.overclock = world.overclock.map(down);
   for (const unit of world.units) {
     if (unit.stun > 0) unit.stun--;
     if (unit.rally > 0) unit.rally--;
+    if (unit.kind === "sentry" && world.step % SENTRY_DECAY === 0) unit.hp--;
   }
+  bury(world, -1);
 }
 
 /**
- * The percent of damage a hit on a hero or unit of `team` at (x, y) still does under IRON HIDE: a hero's own hide
- * covers it, and the strongest hide of a living teammate hero within its radius covers a vehicle.
+ * The percent of a hit's damage a hero or unit of `team` takes: IRON HIDE takes off a living teammate's best cover
+ * (a hero's own hide, or any within its radius for a vehicle), and SPOTTER adds a living enemy's best within its
+ * radius.
  */
 export function hideOf(
   world: World,
   victim: Hero | Unit,
   team: number,
 ): number {
-  let best = 0;
+  let hide = 0,
+    spot = 0;
+  const vehicle = !("seat" in victim) && !UNITS[victim.kind].robot;
   for (const hero of world.heroes) {
-    if (!alive(hero) || teamOf(hero.seat) !== team) continue;
+    if (!alive(hero)) continue;
+    const friend = teamOf(hero.seat) === team;
     const self = "seat" in victim && victim.seat === hero.seat;
-    if (!self && ("seat" in victim || UNITS[victim.kind].robot)) continue;
     const level = levelOf(hero.xp);
     for (const each of kitOf(hero)) {
-      if (each.effect !== "ironHide" || level < each.unlock) continue;
-      const dx = victim.x - hero.x,
-        dy = victim.y - hero.y;
-      if (!self && dx * dx + dy * dy > each.radius * each.radius) continue;
-      const power = scaled(each, level).power;
-      if (power > best) best = power;
+      if (!each.passive || level < each.unlock) continue;
+      const { power } = scaled(each, level);
+      const inside = within(victim, hero, each.radius);
+      if (each.effect === "ironHide" && friend && (self || (vehicle && inside)))
+        hide = power > hide ? power : hide;
+      if (each.effect === "spotter" && !friend && inside)
+        spot = power > spot ? power : spot;
     }
   }
-  return 100 - best;
+  return 100 - hide + spot;
 }
 
-type Target = { of: "unit"; at: Unit } | { of: "hero"; at: Hero };
+type Target =
+  | { of: "unit"; at: Unit }
+  | { of: "hero"; at: Hero }
+  | { of: "building"; at: Building; x: number; y: number };
 
 /**
- * A `unit` spell's target among `candidates` (units, then heroes, each in id order): the one nearest the aim within
+ * A `unit` spell's target among `candidates` (units, heroes, buildings, each in id order): the one nearest the aim within
  * `range` of the hero and `radius` of the aim; the first listed wins a tie.
  */
 function pick(
@@ -256,9 +337,9 @@ function pick(
   let best: Target | undefined,
     bestD = 0;
   for (const each of candidates) {
-    const { x, y } = each.at;
-    if (!within(each.at, hero, spell.range)) continue;
-    if (!within(each.at, aim, spell.radius)) continue;
+    const { x, y } = each.of === "building" ? each : each.at;
+    if (!within({ x, y }, hero, spell.range)) continue;
+    if (!within({ x, y }, aim, spell.radius)) continue;
     const d = (x - aim.x) * (x - aim.x) + (y - aim.y) * (y - aim.y);
     if (best === undefined || d < bestD) [best, bestD] = [each, d];
   }
@@ -285,9 +366,11 @@ export function cast(
   const aim = { x: centreOf(tx), y: centreOf(ty) };
   let owned = 0;
   for (const unit of world.units) if (unit.owner === seat) owned++;
-  const enemies: Target[] = world.units
-    .filter((unit) => teamOf(unit.owner) !== team)
-    .map((at) => ({ of: "unit", at }));
+  const units = (ours: boolean): Target[] =>
+    world.units
+      .filter((unit) => (teamOf(unit.owner) === team) === ours)
+      .map((at) => ({ of: "unit", at }));
+  const enemies = units(false);
   const near = (unit: Unit): boolean => {
     const dx = unit.x - hero.x,
       dy = unit.y - hero.y;
@@ -303,7 +386,7 @@ export function cast(
       const unit = target.at;
       const hit = UNITS[unit.kind].robot ? damage : div(damage * power, 100);
       unit.hp -= div(hit * hideOf(world, unit, teamOf(unit.owner)), 100);
-    } else {
+    } else if (target.of === "hero") {
       const victim = target.at;
       const foe = teamOf(victim.seat);
       const hit = div(damage * hideOf(world, victim, foe), 100);
@@ -322,13 +405,43 @@ export function cast(
     const [x, y] = [centreOf(mx), centreOf(my)];
     world.mines.push({ owner: seat, x, y, life: duration, stuck: -1 });
   } else if (spell.effect === "hijack") {
-    const tanks = enemies.filter((each) => each.at.kind === "lightTank");
+    const tanks = enemies.filter(
+      (each) => each.of === "unit" && each.at.kind === "lightTank",
+    );
     const target =
       owned < unitCap(world, seat) && pick(hero, aim, spell, tanks);
     if (!target) return false;
     Object.assign(target.at, { owner: seat, goal: -1, stun: 0, rally: 0 });
-  } else if (spell.effect === "orbitalDrop") {
+  } else if (spell.effect === "repair") {
+    const target = pick(hero, aim, spell, mends(map, world, team, units(true)));
+    if (target === undefined) return false;
+    target.at.hp = least(target.at.hp + power, mostHp(map, target));
+  } else if (spell.effect === "fortify") {
+    const sector = map.sectorOf[tileOf(hero.y) * map.width + tileOf(hero.x)]!;
+    const flag = map.flags[sector];
+    const owner = world.sectors[sector] ?? -1;
+    if (flag === undefined || owner < 0 || teamOf(owner) !== team) return false;
+    const post = { x: centreOf(flag.x), y: centreOf(flag.y) };
+    if (!within(post, hero, spell.radius)) return false;
+    world.fortified[sector] = most(world.fortified[sector]!, duration);
+  } else if (spell.effect === "overclock")
+    world.overclock[team] = most(world.overclock[team]!, duration);
+  else if (spell.effect === "dash") dash(map, hero, spell.range, tx, ty);
+  else if (spell.effect === "flare") {
+    if (!within(aim, hero, spell.range) || !openTile(map, tx, ty)) return false;
+    [hero.flare, hero.flareLeft] = [ty * map.width + tx, duration];
+    const push = world.players.find((p) => p.seat === seat)?.stance === "push";
+    for (const unit of world.units)
+      if (push && unit.owner === seat && UNITS[unit.kind].robot)
+        unit.goal = FLARE;
+  } else if (spell.effect === "blitz") hero.blitz = duration;
+  else if (spell.effect === "orbitalDrop" || spell.effect === "turretDrop") {
+    const kind = spell.effect === "orbitalDrop" ? "lightTank" : "sentry";
+    let sentries = 0;
+    for (const unit of world.units)
+      if (unit.owner === seat && unit.kind === "sentry") sentries++;
     if (owned >= unitCap(world, hero.seat)) return false;
+    if (kind === "sentry" && sentries >= SENTRIES_PER_HERO) return false;
     const [fx, fy] = DIRS[hero.facing]!;
     const [hx, hy] = [tileOf(hero.x), tileOf(hero.y)];
     let [tx, ty] = [hx + fx, hy + fy];
@@ -341,11 +454,11 @@ export function cast(
     if (!reachable) [tx, ty] = [hx, hy];
     world.units.push({
       id: world.nextId++,
-      kind: "lightTank",
+      kind,
       owner: hero.seat,
       x: centreOf(tx),
       y: centreOf(ty),
-      hp: DROP_HP,
+      hp: kind === "lightTank" ? DROP_HP : UNITS[kind].hp,
       cooldown: 0,
       goal: -1,
       stun: 0,
@@ -425,4 +538,56 @@ export function tickMines(world: World): void {
     bury(world, mine.owner);
   }
   world.mines = kept;
+}
+
+const least = (a: number, b: number): number => (a < b ? a : b);
+const most = (a: number, b: number): number => (a > b ? a : b);
+
+/** REPAIR BEAM's candidates: the team's hurt units, living heroes and buildings (a ruined turret, never a ruined fort). */
+function mends(
+  map: GameMap,
+  world: World,
+  team: number,
+  units: readonly Target[],
+): Target[] {
+  const heroes = world.heroes
+    .filter((h) => teamOf(h.seat) === team && alive(h))
+    .map((at): Target => ({ of: "hero", at }));
+  const buildings = world.buildings.flatMap((at): Target[] => {
+    const site = map.sites[at.id]!;
+    const owner = ownerOf(map, world, at);
+    if (owner < 0 || teamOf(owner) !== team) return [];
+    if (at.hp === 0 && site.kind === "fort") return [];
+    return [{ of: "building", at, x: centreOf(site.x), y: centreOf(site.y) }];
+  });
+  return [...units, ...heroes, ...buildings].filter(
+    (each) => each.at.hp < mostHp(map, each),
+  );
+}
+
+/** The most hit points a REPAIR BEAM target can have. */
+function mostHp(map: GameMap, target: Target): number {
+  if (target.of === "unit") return unitMax(target.at);
+  if (target.of === "hero") return maxHp(levelOf(target.at.xp), target.at.kind);
+  return BUILDING_HP[map.sites[target.at.id]!.kind];
+}
+
+/** DASH: eight hops toward the aim, each well under a tile, so a wall stops it instead of being crossed. */
+function dash(map: GameMap, hero: Hero, range: number, tx: number, ty: number) {
+  let dx = centreOf(tx) - hero.x,
+    dy = centreOf(ty) - hero.y;
+  if (tx === tileOf(hero.x) && ty === tileOf(hero.y)) {
+    const [fx, fy] = DIRS[hero.facing]!;
+    [dx, dy] = [fx * range, fy * range];
+  }
+  const length = isqrt(dx * dx + dy * dy);
+  if (length === 0) return;
+  const reach = least(length, range);
+  const [x0, y0] = [hero.x, hero.y];
+  for (let hop = 1; hop <= 8; hop++) {
+    const nx = x0 + div(dx * reach * hop, length * 8);
+    const ny = y0 + div(dy * reach * hop, length * 8);
+    [hero.x, hero.y] = settle(map, hero.x, hero.y, nx, ny);
+    if (hero.x !== nx || hero.y !== ny) break;
+  }
 }
