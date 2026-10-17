@@ -228,6 +228,9 @@ function startMatch(room: Room, matchId: string): void {
   const size = Math.max(room.play.size, Math.ceil((highest + 1) / 2));
   const slots = Array.from({ length: 2 * size }, (_, slot) => slot);
   room.world = createWorld(MAP, slots, seedOf(matchId));
+  // An added AI seat only reserved its slot: the bot fill plays it from here, so a friend can take it mid-match.
+  for (const seat of [...room.seats.values()])
+    if (seat.bot) room.seats.delete(seat.id);
   room.stage = "running";
   room.startAt = room.tick + 1 + COUNTDOWN_TICKS;
 }
@@ -317,7 +320,7 @@ const STAGES: readonly Stage[] = ["lobby", "running", "over"];
 /** A seat as a tuple in a fixed order, so the encoding (and so the hash) never depends on key insertion order. */
 // prettier-ignore
 const seatTuple = (s: SeatRecord) =>
-  [s.id, s.name, s.slot, s.avatarId, s.connected, s.bot, s.watcher === true, s.generation ?? -1, s.away === true];
+  [s.id, s.name, s.slot, s.avatarId, s.connected, s.bot, s.watcher === true, s.bot ? -1 : (s.generation ?? -1), s.away === true];
 function decodeSeat(raw: unknown): SeatRecord | undefined {
   if (!Array.isArray(raw) || raw.length !== 9) return;
   const [id, name, slot, avatarId, connected, bot, watcher, generation, away] =
@@ -393,6 +396,7 @@ export function decode(
     return startAt === 0 && rawWorld === null ? room : undefined;
   const world = decodeWorld(rawWorld, MAP);
   if (!world || world.players.length % 2 !== 0) return;
+  if (world.players.length < 2 * play.size) return;
   if (world.players.some((p, index) => p.seat !== index)) return;
   if (startAt < 1 || startAt > tick + COUNTDOWN_TICKS) return;
   const folded = tick >= startAt ? tick - startAt + 1 : 0;
