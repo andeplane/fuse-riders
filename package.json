@@ -13,7 +13,7 @@
     "prestart": "pnpm build",
     "start": "pnpm build && tsx service/dev.ts --port ${PORT:-8787}",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test ${TEST_SHARD:+--test-shard=$TEST_SHARD} tests/*.test.ts packages/*/tests/*.test.ts games/*/tests/*.test.ts",
+    "test": "tsx scripts/run-tests.ts",
     "test:coverage": "tsx scripts/test-coverage.ts",
     "dev:online": "pnpm build && tsx service/dev.ts --port 8787",
     "format": "prettier --write .",

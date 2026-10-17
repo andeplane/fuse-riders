@@ -2,6 +2,7 @@
  * Runs CI steps from scripts/ci-manifest.json. There is no second list of smokes anywhere:
  *
  *   pnpm exec tsx scripts/ci-run.ts --smoke <id>   one smoke exactly as its CI job runs it (ci.yml's `smoke` matrix)
+ *   pnpm exec tsx scripts/ci-run.ts --job <job>    one gate job's verify steps side by side, as ci.yml runs `checks`
  *   pnpm exec tsx scripts/ci-run.ts                everything a main push runs: verify, release, then every smoke
  *   pnpm exec tsx scripts/ci-run.ts --list         the names ONLY accepts
  *
@@ -12,10 +13,12 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import {
+  jobSteps,
   loadManifest,
   select,
   smokeEnv,
   stepNames,
+  verifyJobs,
   type Smoke,
 } from "./lib/ci-manifest.js";
 import { startRoomService, type LocalServer } from "./lib/server.js";
@@ -23,6 +26,7 @@ import { startRoomService, type LocalServer } from "./lib/server.js";
 const { values } = parseArgs({
   options: {
     smoke: { type: "string" },
+    job: { type: "string" },
     only: { type: "string" },
     list: { type: "boolean" },
   },
@@ -115,11 +119,66 @@ async function runSmoke(smoke: Smoke, retry: boolean): Promise<number> {
   );
 }
 
+/**
+ * One ci.yml gate job: its manifest steps side by side rather than in series (format, lint, the type check and
+ * the bundle are each mostly one core, and a runner has four). Each step's output is held and printed whole when
+ * it ends, so the log reads as if they ran one after another; every step runs to the end and any failure fails
+ * the job.
+ */
+async function runJob(name: string): Promise<number> {
+  const steps = jobSteps(manifest, name);
+  if (steps.length === 0)
+    throw new Error(
+      `No verify steps for job '${name}' (jobs: ${verifyJobs(manifest).join(", ")})`,
+    );
+  const started = Date.now();
+  const results = await Promise.all(
+    steps.map(
+      (step) =>
+        new Promise<number>((resolve) => {
+          const [file, ...args] = step.command.split(" ");
+          const output: Buffer[] = [];
+          const child = spawn(file!, args, {
+            stdio: ["ignore", "pipe", "pipe"],
+            env: process.env,
+          });
+          child.stdout.on("data", (chunk: Buffer) => output.push(chunk));
+          child.stderr.on("data", (chunk: Buffer) => output.push(chunk));
+          const finish = (code: number) => {
+            const seconds = Math.round((Date.now() - started) / 1000);
+            const verdict = code === 0 ? "PASS" : "FAIL";
+            console.log(
+              `::group::${verdict} ${step.id}: ${step.command} (${seconds}s)`,
+            );
+            process.stdout.write(Buffer.concat(output));
+            console.log("::endgroup::");
+            if (code !== 0)
+              console.log(`::error::${step.id} failed: ${step.command}`);
+            resolve(code);
+          };
+          child.once("error", (error) => {
+            output.push(Buffer.from(`${error.message}\n`));
+            finish(1);
+          });
+          child.once("close", (code, signal) =>
+            finish(code ?? (signal ? 1 : 0)),
+          );
+        }),
+    ),
+  );
+  const failed = steps.filter((_, index) => results[index] !== 0);
+  console.log(
+    `=== ${name}: ${steps.length - failed.length}/${steps.length} passed in ${Math.round((Date.now() - started) / 1000)}s${failed.length ? ` (failed: ${failed.map((step) => step.id).join(", ")})` : ""}`,
+  );
+  return failed.length ? 1 : 0;
+}
+
 async function main(): Promise<number> {
   if (values.list) {
     console.log([...stepNames(manifest), "core", "release"].join(" "));
     return 0;
   }
+  if (values.job !== undefined) return runJob(values.job);
   if (values.smoke !== undefined) {
     const smoke = manifest.smokes.find((item) => item.id === values.smoke);
     if (!smoke)
