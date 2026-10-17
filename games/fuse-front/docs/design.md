@@ -198,7 +198,14 @@ chunky robots, team-coloured forts and factories, the riveted steel HUD) but ren
 - **Models.** Units, heroes and buildings are procedural meshes built in code, with no downloaded assets. Each unit
   kind has its own silhouette and scale, so units can be told apart at a glance: grunt, torch, longshot, buggy, light
   tank and crawler, plus each hero with its own model and an always-visible team ring. Team colour goes on large
-  surfaces.
+  surfaces. G2 builds them in `src/render3d/models.ts`: one merged geometry per paint per model, drawn as instanced
+  meshes that share the kind's matrices, with the team colour per instance on the `team` paint only. Heroes wear
+  Brick until the view names a hero kind (`heroKindOf`).
+
+  ![Procedural models at the default zoom](images/models-3d.png)
+  ![Zoomed in on grunts, a light tank and a turret](images/models-3d-zoom.png)
+  ![Brick in the fort's courtyard, the radar on a corner tower](images/models-3d-fort.png)
+
 - **Draw cost.** Instanced meshes per kind keep ~300 units cheap. Effects (tracers, explosions, smoke, spell visuals)
   play from engine events, deduped by step as before.
 - **Fallback.** The 2D pixel renderer stays available as a fallback for devices without WebGL2 until the 3D one
