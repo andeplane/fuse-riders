@@ -70,6 +70,7 @@ function room(stage: Room["stage"], extra: Partial<Room> = {}): View {
   if (world) world.choppers.forEach((c, i) => (c.id = ["a", "b", "bot:1"][i]!));
   return view({
     tick: 10,
+    simulationTick: 30,
     matchId: "m1",
     round: stage === "lobby" ? 0 : 1,
     stage,
