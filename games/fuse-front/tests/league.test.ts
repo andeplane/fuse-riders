@@ -17,7 +17,7 @@ import { dustBasin } from "./fixtures/maps.js";
  * the unit cap (the territory cap, the forts' guns and overtime break it). Bots read no RNG and the rules draw none,
  * so the seed changes nothing; what varies a match is where the sides start, so each 1v1 pairing plays from two
  * seat pairs, and 2v2 and 3v3 play each difficulty against itself. Measured with every pairing from three starts
- * (rules fuse-front-7): the longest match ran 9.1 minutes, the median 2.4. The bound leaves headroom over that.
+ * (rules fuse-front-7): the longest match ran 4.7 minutes, the median 2.6. The bound leaves headroom over that.
  * About 40 s; the slowest file in the Fuse Front suite, sharded on its own by the test runner's timings.
  */
 const LIMIT_MINUTES = 15;

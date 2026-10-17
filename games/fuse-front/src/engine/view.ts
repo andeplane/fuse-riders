@@ -160,6 +160,7 @@ export function viewOf(map: GameMap, world: World): WorldView {
       x: unit.x,
       y: unit.y,
       hp: unit.hp,
+      // A unit records no origin, so an Orbital Drop tank reads as one only while it is above a factory tank's most.
       maxHp: unit.hp > UNITS[unit.kind].hp ? DROP_HP : UNITS[unit.kind].hp,
       stunned: unit.stun > 0,
       rallied: unit.rally > 0,

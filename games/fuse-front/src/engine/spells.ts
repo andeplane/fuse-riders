@@ -4,7 +4,7 @@
  * (`step.ts`) spends energy and starts the slot's cooldown when the hero is alive, has the level, the energy and a
  * ready slot; anything else does nothing. Brick's spells centre on Brick, so the aim point is checked but unused.
  *
- * - SHOCKWAVE: enemy units within its radius take `damage`; the robots among them are also stunned (no shooting or
+ * - SHOCKWAVE: enemy units within its radius take `damage` (less IRON HIDE's share); the robots among them are also stunned (no shooting or
  *   seeking) and knocked back one tile. Units it kills die at once, credited to the caster.
  * - RALLY CRY: friendly robots within its radius reload `power` percent faster and walk `RALLY_SPEED` percent faster
  *   while it lasts.
@@ -228,7 +228,8 @@ export function cast(
   for (const unit of world.units) {
     if (!near(unit)) continue;
     const ally = teamOf(unit.owner) === team;
-    if (spell.effect === "shockwave" && !ally) unit.hp -= damage;
+    if (spell.effect === "shockwave" && !ally)
+      unit.hp -= div(damage * hideOf(world, unit, teamOf(unit.owner)), 100);
     if (!UNITS[unit.kind].robot) continue;
     if (spell.effect === "rally" && ally)
       unit.rally = unit.rally > duration ? unit.rally : duration;
