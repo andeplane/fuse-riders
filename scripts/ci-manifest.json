@@ -17,7 +17,6 @@
   "smokes": [
     {
       "id": "birds-online",
-      "batch": "chrome-batch",
       "group": "birds-online",
       "name": "Fuse Birds online controls and phone recovery",
       "command": "pnpm exec tsx scripts/fuse-birds-online-smoke.ts",
