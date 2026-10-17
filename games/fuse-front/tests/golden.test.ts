@@ -23,16 +23,16 @@ import { dustBasin } from "./fixtures/maps.js";
  * the new ones.
  */
 const GOLDEN = {
-  rules: "fuse-front-6",
+  rules: "fuse-front-7",
   seed: "fuse-front golden",
   ticks: 1500,
   hashes: [
-    "8ccfa88c",
-    "01016175",
-    "a86ce8e9",
-    "9f26d20f",
-    "a7bc62d0",
-    "caadd767",
+    "4c63cc16",
+    "3a54e998",
+    "205eed7b",
+    "80abe0f5",
+    "e12014b6",
+    "9e19cd01",
   ],
 };
 

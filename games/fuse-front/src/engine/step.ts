@@ -17,12 +17,15 @@ import {
   CAPTURE_XP,
   COMMANDS_PER_SEAT,
   FACTORY_KINDS,
+  OVERTIME_AFTER,
+  OVERTIME_GROWTH,
+  OVERTIME_MAX,
   STANCES,
   STEER_MAX,
+  STEPS_PER_SECOND,
   STEPS_PER_TICK,
   TILE,
   UNITS,
-  UNIT_CAP,
   UNIT_KINDS,
   clockRate,
   teamOf,
@@ -35,6 +38,7 @@ import {
   defaultOrder,
   ownerOf,
   teamSectors,
+  unitCap,
   type CombatEvent,
   type World,
 } from "./world.js";
@@ -203,26 +207,43 @@ function capture(map: GameMap, world: World): void {
 }
 
 /**
- * Every owned factory works on its order at its team's clock, unless its owner is at the unit cap. A finished batch
- * steps out at the factory's door (as many of it as the cap allows) and the next starts.
+ * A team's production clock this step (`clockRate`), raised in overtime when it holds more sectors than the other
+ * team: `OVERTIME_GROWTH` percent per minute past `OVERTIME_AFTER`, up to `OVERTIME_MAX`.
+ */
+export function productionRate(world: World, team: number): number {
+  const ours = teamSectors(world, team);
+  const rate = clockRate(ours);
+  const late = world.step - OVERTIME_AFTER;
+  if (late <= 0 || ours <= teamSectors(world, 1 - team)) return rate;
+  const grown = div(late * OVERTIME_GROWTH, 60 * STEPS_PER_SECOND);
+  return div(rate * (100 + (grown < OVERTIME_MAX ? grown : OVERTIME_MAX)), 100);
+}
+
+/**
+ * Every owned factory works on its order at its team's rate, unless its owner is at its unit cap (`unitCap`). A
+ * finished batch steps out at the factory's door (as many of it as the cap allows) and the next starts.
  */
 function produce(map: GameMap, world: World): void {
   const units = new Map<number, number>();
   for (const unit of world.units)
     units.set(unit.owner, (units.get(unit.owner) ?? 0) + 1);
+  const caps = new Map(
+    world.players.map((player) => [player.seat, unitCap(world, player.seat)]),
+  );
+  const rates = [productionRate(world, 0), productionRate(world, 1)];
   for (const building of world.buildings) {
     if (building.order === null || building.hp <= 0) continue;
     const owner = ownerOf(map, world, building);
     if (owner === NEUTRAL) continue;
     const count = units.get(owner) ?? 0;
-    if (count >= UNIT_CAP) continue;
+    const cap = caps.get(owner)!;
+    if (count >= cap) continue;
     const stats = UNITS[building.order];
-    building.progress += clockRate(teamSectors(world, teamOf(owner)));
+    building.progress += rates[teamOf(owner)]!;
     if (building.progress < stats.build * 100) continue;
     building.progress = 0;
     const door = map.sites[building.id]!.door;
-    const batch =
-      stats.batch < UNIT_CAP - count ? stats.batch : UNIT_CAP - count;
+    const batch = stats.batch < cap - count ? stats.batch : cap - count;
     for (let index = 0; index < batch; index++)
       world.units.push({
         id: world.nextId++,

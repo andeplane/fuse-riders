@@ -150,11 +150,13 @@ attacking or what a spell does. Fourth, the maps are small and units are hard to
 - **Territory caps the army.** A player's unit cap grows with the team's sectors (a base plus a share per sector),
   so holding ground buys a bigger army, as Z's production did. An even trade at the cap tips toward the team that
   holds more.
-- **Forts defend themselves** with a heavy gun.
+- **Forts defend themselves** with a heavy gun that shoots units and heroes. Tanks outrange it, so tanks are the
+  siege.
 - **Overtime.** After a set match time the team ahead on sectors builds faster, and the gap grows the longer it
   lasts.
 
-Bot-vs-bot matches at every difficulty pairing must end within about 15 minutes on every map; a test enforces it.
+Bot-vs-bot matches at every difficulty pairing must end within about 15 minutes on every map; a test enforces it
+(`tests/league.test.ts`, Dust Basin for now). The numbers live in `src/engine/tuning.ts` and `spells.ts`.
 
 **Heroes as powerhouses.**
 
@@ -211,7 +213,7 @@ chunky robots, team-coloured forts and factories, the riveted steel HUD) but ren
 
 **v2 delivery (each PR under ~1,000 lines).** The engine lane runs E1–E4. The 3D lane runs G1–G4 in parallel.
 
-- **E1:** powerhouse heroes and the stalemate breaker.
+- **E1:** powerhouse heroes and the stalemate breaker (done).
 - **E2:** the other three heroes and the hero pick.
 - **E3:** focus fire, attack-move, the target in the view, and spell metadata and aimed spells.
 - **E4:** the map generator, bigger maps and engine performance.
