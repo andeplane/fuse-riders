@@ -12,8 +12,8 @@
  * - Hero: walk to the cheapest flag its team does not hold (enemy flags cost more), else the nearest enemy fort, and
  *   to that fort while its army FOLLOWs it. It shoots whatever it meets on the way (`combat.ts`). Shockwave a crowd of
  *   enemy robots, Rally Cry its robots in a fight, and Orbital Drop whenever it can.
- * - Stance: HOLD when its fort's sector is invaded or the team is behind on sectors or army, else PUSH; a hard bot
- *   well ahead with a healthy hero FOLLOWs it onto a fort to close the match.
+ * - Stance: HOLD when its fort's sector is invaded or the team is behind on sectors or army, else PUSH; a profile
+ *   with `lead` set FOLLOWs its healthy hero onto a fort when well ahead (none does now).
  * - Orders: a robot factory builds grunts while flags lie neutral, torches against a robot swarm or enemy turrets and
  *   forts near it, and grunts otherwise; it only switches early in a batch so little work is thrown away.
  */
@@ -30,7 +30,6 @@ import {
   STRAIGHT,
   TILE,
   UNITS,
-  UNIT_CAP,
   teamOf,
   type Stance,
   type UnitKind,
@@ -41,6 +40,7 @@ import {
   fortSite,
   ownerOf,
   teamSectors,
+  unitCap,
   type Hero,
   type World,
 } from "./world.js";
@@ -72,9 +72,11 @@ interface Profile {
 
 /**
  * HOLD is costly on Dust Basin (a holding team stops taking flags), so it is kept for a home under attack or a team
- * far behind. A hero never retreats: heroes do not heal, so a retreat would only idle it until it dies anyway. Easy
- * is timid and slow: it holds as soon as it falls behind, wanders between targets, thinks every four seconds, casts
- * only Shockwave and leaves its factories alone.
+ * far behind. A hero never retreats: heroes now heal out of combat, but a bot league (`tests/league.test.ts`) with a
+ * walk-home-to-heal rule won no more 1v1s and lost every team match against the same bot without it. Nor does a hard
+ * bot lead onto a fort (`lead`) since forts fire back: it won fewer matches. Easy is timid and slow: it holds as soon
+ * as it falls behind, wanders between targets, thinks every four seconds, casts only Shockwave and leaves its
+ * factories alone.
  */
 export const PROFILES: Readonly<Record<Difficulty, Readonly<Profile>>> = {
   easy: {
@@ -113,7 +115,7 @@ export const PROFILES: Readonly<Record<Difficulty, Readonly<Profile>>> = {
     holdBelow: 30,
     defend: 3,
     wander: 1,
-    lead: 4,
+    lead: 0,
     orders: true,
   },
 };
@@ -208,7 +210,7 @@ function heroCommands(
       ? 0
       : ready(1) && profile.rally > 0 && allies >= profile.rally && foes > 0
         ? 1
-        : ready(3) && profile.drop && owned < UNIT_CAP
+        : ready(3) && profile.drop && owned < unitCap(world, seat)
           ? 3
           : -1;
   if (slot >= 0) commands.push({ seat, type: "cast", slot, x: tx, y: ty });

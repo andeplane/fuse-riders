@@ -4,6 +4,7 @@
  * sectors, flags and building sites — lives in the `GameMap`, which every peer loads identically.
  */
 import type { GameMap, Site } from "./map.js";
+import { div } from "./math.js";
 import type { SpellEffect } from "./spells.js";
 import {
   BUILDING_HP,
@@ -11,6 +12,9 @@ import {
   HERO,
   TILE,
   MAX_SEATS,
+  UNIT_CAP,
+  UNIT_CAP_BASE,
+  UNIT_CAP_PER_SECTOR,
   teamOf,
   type BuildingKind,
   type Stance,
@@ -72,6 +76,8 @@ export interface Hero {
   steerY: number;
   /** Steps until each slot (`spells.ts`) can be cast again. */
   spells: number[];
+  /** Steps since it last shot or was hit, up to `HERO.calm`; a calm hero regenerates (`tendHeroes`). */
+  quiet: number;
 }
 
 export interface World {
@@ -233,6 +239,7 @@ export function freshHero(map: GameMap, seat: number): Hero {
     steerX: 0,
     steerY: 0,
     spells: [0, 0, 0, 0],
+    quiet: HERO.calm,
   };
 }
 
@@ -252,4 +259,14 @@ export function teamSectors(world: World, team: number): number {
   for (const owner of world.sectors)
     if (owner !== NEUTRAL && teamOf(owner) === team) count++;
   return count;
+}
+
+/** The units `seat`'s factories build up to: a base plus its share of its team's sectors (`UNIT_CAP_BASE`). */
+export function unitCap(world: World, seat: number): number {
+  const team = teamOf(seat);
+  let players = 0;
+  for (const player of world.players) if (player.team === team) players++;
+  const share = div(UNIT_CAP_PER_SECTOR * teamSectors(world, team), players);
+  const cap = UNIT_CAP_BASE + share;
+  return cap < UNIT_CAP ? cap : UNIT_CAP;
 }

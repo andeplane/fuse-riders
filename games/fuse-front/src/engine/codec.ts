@@ -9,11 +9,12 @@ import { DIRS, openTile } from "./flow.js";
 import { MAX_XP, levelOf, maxEnergy, maxHp, respawnSteps } from "./hero.js";
 import { div } from "./math.js";
 import { FOLLOW_HERO, isGoalTile } from "./move.js";
-import { KITS, longest } from "./spells.js";
+import { DROP_HP, KITS, longest } from "./spells.js";
 import { fnv1a } from "./rng.js";
 import {
   BUILDING_HP,
   FACTORY_KINDS,
+  FORT_GUN,
   MAX_SEATS,
   STANCES,
   HERO,
@@ -92,6 +93,7 @@ export function encodeWorld(world: World): unknown {
       h.steerX,
       h.steerY,
       [...h.spells],
+      h.quiet,
     ]),
     world.winner,
   ];
@@ -121,8 +123,16 @@ function building(raw: unknown, map: GameMap): Building | undefined {
   // Only turrets and forts are shot at, so only they can stand at 0 hit points (a ruin).
   const lowest = kind === "turret" || kind === "fort" ? 0 : 1;
   if (!isInt(hp, lowest, BUILDING_HP[kind])) return;
-  if (!isInt(cooldown, 0, kind === "turret" && hp > 0 ? TURRET.cooldown : 0))
-    return;
+  // Standing turrets and forts reload their guns; nothing else has one.
+  const gun =
+    hp === 0
+      ? 0
+      : kind === "turret"
+        ? TURRET.cooldown
+        : kind === "fort"
+          ? FORT_GUN.cooldown
+          : 0;
+  if (!isInt(cooldown, 0, gun)) return;
   const kinds = FACTORY_KINDS[kind];
   if (
     kinds.length === 0 ? order !== -1 : !isInt(order, 0, UNIT_KINDS.length - 1)
@@ -145,7 +155,9 @@ function unit(raw: unknown, map: GameMap): Unit | undefined {
   if (!isInt(owner, 0, MAX_SEATS - 1)) return;
   if (!isInt(x, 0, map.width * TILE - 1) || !isInt(y, 0, map.height * TILE - 1))
     return;
-  if (!isInt(hp, 1, stats.hp) || !isInt(cooldown, 0, stats.cooldown)) return;
+  // An Orbital Drop tank lands tougher than a factory's.
+  const most = UNIT_KINDS[kind] === "lightTank" ? DROP_HP : stats.hp;
+  if (!isInt(hp, 1, most) || !isInt(cooldown, 0, stats.cooldown)) return;
   // Units stand on ground something walks on, never in rock or water.
   if (sectorAt(map, div(x, TILE), div(y, TILE)) < 0) return;
   // A goal is a flag or fort tile, or -1 for none yet: a few dozen tiles, so their flow fields stay cached.
@@ -164,10 +176,12 @@ function unit(raw: unknown, map: GameMap): Unit | undefined {
 }
 
 function hero(raw: unknown, map: GameMap): Hero | undefined {
-  const t = tuple(raw, 13);
+  const t = tuple(raw, 14);
   if (!t) return;
   const [seat, x, y, hp, energy, xp, cooldown, respawn, facing, goal] = t;
-  const [steerX, steerY] = [t[10], t[11]];
+  const [steerX, steerY, quiet] = [t[10], t[11], t[13]];
+  // Steps since it last fought, counted up to calm.
+  if (!isInt(quiet, 0, HERO.calm)) return;
   if (!isInt(seat, 0, MAX_SEATS - 1) || !isInt(xp, 0, MAX_XP)) return;
   const level = levelOf(xp);
   if (!isInt(x, 0, map.width * TILE - 1) || !isInt(y, 0, map.height * TILE - 1))
@@ -207,6 +221,7 @@ function hero(raw: unknown, map: GameMap): Hero | undefined {
     steerX,
     steerY,
     spells: spells as number[],
+    quiet,
   };
 }
 

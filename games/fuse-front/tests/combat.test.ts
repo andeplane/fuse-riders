@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   DRAW,
+  FORT_GUN,
   NO_WINNER,
   TURRET,
   UNITS,
@@ -181,8 +182,24 @@ test("units that die on one step all fire first, then leave in id order", () => 
   );
 });
 
+test("a standing fort's heavy gun shoots enemy units in reach and reloads; a ruin is silent", () => {
+  let world = benchHeroes(createWorld(map, [0, 1, 2], 1));
+  world = add(world, 1, "lightTank", at(4), at(3)); // 3.6 tiles from fort 0
+  world = add(world, 1, "lightTank", at(7), at(1)); // 6 tiles: out of its reach
+  const next = step(map, world);
+  assert.deepEqual(
+    shots(next, TINY.fort0).map(
+      (e) => e.type === "shot" && [e.to.id, e.damage],
+    ),
+    [[1, FORT_GUN.damage]],
+  );
+  assert.equal(next.buildings[TINY.fort0]!.cooldown, FORT_GUN.cooldown);
+  const ruin = step(map, withBuilding(world, TINY.fort0, 0));
+  assert.deepEqual(shots(ruin, TINY.fort0), []);
+});
+
 test("PUSH with every flag taken marches on the enemy fort, and its fall wins the match", () => {
-  let world = createWorld(map, [0, 1], 1);
+  let world = benchHeroes(createWorld(map, [0, 1], 1));
   world = { ...world, sectors: world.sectors.map(() => 0) };
   world = add(world, 0, "lightTank", at(4), at(5));
   world = withBuilding(world, TINY.fort1, 30);
