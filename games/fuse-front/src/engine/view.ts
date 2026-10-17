@@ -11,6 +11,7 @@ import {
   UNITS,
   teamOf,
   type BuildingKind,
+  type HeroKind,
   type Stance,
   type UnitKind,
 } from "./tuning.js";
@@ -25,7 +26,7 @@ import {
 
 /** What the renderer needs besides the view itself, so it never reaches past this file into the engine. */
 export { SUB, TILE_PX } from "./tuning.js";
-export type { BuildingKind, UnitKind } from "./tuning.js";
+export type { BuildingKind, HeroKind, UnitKind } from "./tuning.js";
 export type { CombatEvent, Mark } from "./world.js";
 
 export interface FlagView {
@@ -71,6 +72,8 @@ export interface UnitView {
 
 export interface HeroView {
   seat: number;
+  /** Which hero it is, for its model, portrait and spell icons. */
+  kind: HeroKind;
   team: number;
   /** Sub-pixels. */
   x: number;
@@ -84,6 +87,8 @@ export interface HeroView {
   xp: number;
   /** Steps until each spell slot can be cast again. */
   spells: readonly number[];
+  /** Under its own CLOAK: no gun picks it. */
+  cloaked: boolean;
 }
 
 export interface WorldView {
@@ -108,6 +113,14 @@ export interface WorldView {
   }[];
   /** One per seat in play; `hp` is 0 while it waits `respawn` steps at its fort. */
   heroes: readonly HeroView[];
+  /** Vix's STICKY MINEs, in sub-pixels; `stuck` once one rides a tank. */
+  mines: readonly {
+    owner: number;
+    team: number;
+    x: number;
+    y: number;
+    stuck: boolean;
+  }[];
   /** `NO_WINNER`, the winning team, or `DRAW`. */
   winner: number;
   /** What the last step or tick did (shots, deaths, ruins, the result), to animate; not part of the checkpoint. */
@@ -171,17 +184,26 @@ export function viewOf(map: GameMap, world: World): WorldView {
     })),
     heroes: world.heroes.map((hero) => ({
       seat: hero.seat,
+      kind: hero.kind,
       team: teamOf(hero.seat),
       x: hero.x,
       y: hero.y,
       hp: hero.hp,
-      maxHp: maxHp(levelOf(hero.xp)),
+      maxHp: maxHp(levelOf(hero.xp), hero.kind),
       level: levelOf(hero.xp),
       respawn: hero.respawn,
       energy: hero.energy,
       maxEnergy: maxEnergy(levelOf(hero.xp)),
       xp: hero.xp,
       spells: [...hero.spells],
+      cloaked: hero.cloak > 0,
+    })),
+    mines: world.mines.map((mine) => ({
+      owner: mine.owner,
+      team: teamOf(mine.owner),
+      x: mine.x,
+      y: mine.y,
+      stuck: mine.stuck >= 0,
     })),
     winner: world.winner,
     events: structuredClone(world.events),

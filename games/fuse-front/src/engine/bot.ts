@@ -11,7 +11,9 @@
  *
  * - Hero: walk to the cheapest flag its team does not hold (enemy flags cost more), else the nearest enemy fort, and
  *   to that fort while its army FOLLOWs it. It shoots whatever it meets on the way (`combat.ts`). Shockwave a crowd of
- *   enemy robots, Rally Cry its robots in a fight, and Orbital Drop whenever it can.
+ *   enemy robots, Rally Cry its robots in a fight, and Orbital Drop whenever it can. Vix hijacks and snipes the
+ *   nearest tank (or hero), cloaks when hurt in a fight and mines its path when a tank is near. An easy bot casts only
+ *   its first slot.
  * - Stance: HOLD when its fort's sector is invaded or the team is behind on sectors or army, else PUSH; a profile
  *   with `lead` set FOLLOWs its healthy hero onto a fort when well ahead (none does now).
  * - Orders: a robot factory builds grunts while flags lie neutral, torches against a robot swarm or enemy turrets and
@@ -26,11 +28,13 @@ import { fnv1a, next } from "./rng.js";
 import { kitOf } from "./spells.js";
 import type { Command } from "./step.js";
 import {
+  HERO_KINDS,
   STEPS_PER_TICK,
   STRAIGHT,
   TILE,
   UNITS,
   teamOf,
+  type HeroKind,
   type Stance,
   type UnitKind,
 } from "./tuning.js";
@@ -132,6 +136,34 @@ const SWITCH_BEFORE = 25;
 const near = (ax: number, ay: number, bx: number, by: number, r: number) =>
   (ax - bx) * (ax - bx) + (ay - by) * (ay - by) <= r * r;
 
+/**
+ * Each seat's hero for a match: its pick, else (no pick, or a teammate's repeated) the first hero its team has left,
+ * looking from a place the seat sets (seats 0 and 1 start at Brick, 2 and 3 at the next), or that place's hero when
+ * the team has none left. Picks go first, then the rest in seat order, so every peer resolves the same heroes.
+ */
+export function pickHeroes(
+  seats: readonly number[],
+  picks: Readonly<Record<number, HeroKind | null>>,
+): Record<number, HeroKind> {
+  const out: Record<number, HeroKind> = {};
+  const taken = [new Set<HeroKind>(), new Set<HeroKind>()];
+  const ordered = [...seats].sort((a, b) => a - b);
+  for (const seat of ordered) {
+    const pick = picks[seat];
+    if (pick && !taken[teamOf(seat)]!.has(pick))
+      taken[teamOf(seat)]!.add((out[seat] = pick));
+  }
+  for (const seat of ordered) {
+    if (out[seat] !== undefined) continue;
+    const team = taken[teamOf(seat)]!;
+    const order = HERO_KINDS.map(
+      (_, i) => HERO_KINDS[(div(seat, 2) + i) % HERO_KINDS.length]!,
+    );
+    team.add((out[seat] = order.find((kind) => !team.has(kind)) ?? order[0]!));
+  }
+  return out;
+}
+
 /** The commands bot `seat` sends with this tick; empty when the seat is not playing or the match is over. */
 export function botCommands(
   map: GameMap,
@@ -193,29 +225,61 @@ function heroCommands(
     if (alive(each) && teamOf(each.seat) !== team)
       if (near(each.x, each.y, hero.x, hero.y, NEAR)) foes += each.hp;
 
-  // At most one cast: the first of Shockwave, Rally Cry and Orbital Drop that is ready and called for.
+  // At most one cast: the first slot that is ready and called for (an easy bot only ever casts its first).
   const ready = (slot: number): boolean => {
     const spell = kit[slot]!;
     return (
       !spell.passive &&
       level >= spell.unlock &&
       hero.spells[slot] === 0 &&
-      hero.energy >= spell.energy
+      hero.energy >= spell.energy &&
+      (slot === 0 || profile.rally > 0)
     );
   };
-  const tx = tileOf(hero.x),
-    ty = tileOf(hero.y);
-  const slot =
-    ready(0) && profile.shockwave > 0 && crowd >= profile.shockwave
-      ? 0
-      : ready(1) && profile.rally > 0 && allies >= profile.rally && foes > 0
-        ? 1
-        : ready(3) && profile.drop && owned < unitCap(world, seat)
-          ? 3
-          : -1;
-  if (slot >= 0) commands.push({ seat, type: "cast", slot, x: tx, y: ty });
-
   const goal = heroGoal(map, world, hero, profile, at, stance);
+  const own: [number, number] = [tileOf(hero.x), tileOf(hero.y)];
+  const room = owned < unitCap(world, seat);
+  const fighting = foes > 0;
+  const hurt = hero.hp * 10 < maxHp(level, hero.kind) * 6;
+  /** The nearest enemy tank (or hero, with `heroes`) within `range`, as a tile to aim at. */
+  const prey = (range: number, heroes: boolean): [number, number] | null => {
+    let best: [number, number] | null = null,
+      bestD = range * range + 1;
+    const consider = (x: number, y: number) => {
+      const d = (x - hero.x) * (x - hero.x) + (y - hero.y) * (y - hero.y);
+      if (d < bestD) [best, bestD] = [[tileOf(x), tileOf(y)], d];
+    };
+    for (const unit of world.units)
+      if (teamOf(unit.owner) !== team && unit.kind === "lightTank")
+        consider(unit.x, unit.y);
+    if (heroes)
+      for (const each of world.heroes)
+        if (teamOf(each.seat) !== team && alive(each) && each.cloak === 0)
+          consider(each.x, each.y);
+    return best;
+  };
+  // Per kit: [slot, whether it is called for, where to aim].
+  const plans: [number, boolean, [number, number] | null][] =
+    hero.kind === "vix"
+      ? [
+          [3, room, prey(kit[3]!.range, false)],
+          [0, true, prey(kit[0]!.range, true)],
+          [1, fighting && hurt, own],
+          [2, prey(NEAR, false) !== null, own],
+        ]
+      : [
+          [0, profile.shockwave > 0 && crowd >= profile.shockwave, own],
+          [1, profile.rally > 0 && allies >= profile.rally && fighting, own],
+          [3, profile.drop && room, own],
+        ];
+  const plan = plans.find(
+    ([slot, wanted, aim]) => ready(slot) && wanted && aim,
+  );
+  if (plan !== undefined) {
+    const [slot, , [x, y]] = plan as [number, boolean, [number, number]];
+    commands.push({ seat, type: "cast", slot, x, y });
+  }
+
   if (goal >= 0 && goal !== at && goal !== hero.goal) {
     const gx = goal % map.width;
     commands.push({ seat, type: "move", x: gx, y: (goal - gx) / map.width });

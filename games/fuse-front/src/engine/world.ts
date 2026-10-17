@@ -10,6 +10,7 @@ import {
   BUILDING_HP,
   FACTORY_KINDS,
   HERO,
+  HEROES,
   TILE,
   MAX_SEATS,
   UNIT_CAP,
@@ -17,6 +18,7 @@ import {
   UNIT_CAP_PER_SECTOR,
   teamOf,
   type BuildingKind,
+  type HeroKind,
   type Stance,
   type UnitKind,
 } from "./tuning.js";
@@ -63,6 +65,7 @@ export interface Unit {
  */
 export interface Hero {
   seat: number;
+  kind: HeroKind;
   x: number;
   y: number;
   hp: number;
@@ -78,6 +81,17 @@ export interface Hero {
   spells: number[];
   /** Steps since it last shot or was hit, up to `HERO.calm`; a calm hero regenerates (`tendHeroes`). */
   quiet: number;
+  /** Steps left under Vix's CLOAK (`spells.ts`); 0 when not, and always 0 for another kit. */
+  cloak: number;
+}
+
+/** Vix's STICKY MINE: where it lies (or rides), the steps it has left, and the unit it stuck to (-1 while armed). */
+export interface Mine {
+  owner: number;
+  x: number;
+  y: number;
+  life: number;
+  stuck: number;
 }
 
 export interface World {
@@ -96,6 +110,8 @@ export interface World {
   units: Unit[];
   /** One per player, by seat ascending. */
   heroes: Hero[];
+  /** Laid in order; at most `MINES_PER_HERO` a seat (`spells.ts`). */
+  mines: Mine[];
   /** `NO_WINNER` while the match runs, then the winning team or `DRAW` (`winnerOf`). */
   winner: number;
   /**
@@ -137,6 +153,10 @@ export type CombatEvent =
       x: number;
       y: number;
     }
+  /** A flag changed hands; none is announced when a cloaked hero took it. */
+  | { type: "capture"; sector: number; seat: number }
+  /** A STICKY MINE went off on the tank it rode. */
+  | { type: "mine"; seat: number; x: number; y: number }
   | { type: "won"; winner: number };
 
 export const NEUTRAL = -1;
@@ -176,6 +196,8 @@ export function createWorld(
   map: GameMap,
   seats: readonly number[],
   seed: number,
+  /** Each seat's hero, by seat; Brick when absent. */
+  kinds: Readonly<Record<number, HeroKind>> = {},
 ): World {
   const playing = [...new Set(seats)].sort((a, b) => a - b);
   if (playing.length < 2 || playing.length !== seats.length)
@@ -206,7 +228,8 @@ export function createWorld(
         cooldown: 0,
       })),
     units: [],
-    heroes: playing.map((seat) => freshHero(map, seat)),
+    heroes: playing.map((seat) => freshHero(map, seat, kinds[seat])),
+    mines: [],
     winner: NO_WINNER,
     events: [],
   };
@@ -223,13 +246,18 @@ export function fortSite(map: GameMap, seat: number): Readonly<Site> {
 }
 
 /** A level 1 hero standing on its fort's tile (forts stand on open ground). */
-export function freshHero(map: GameMap, seat: number): Hero {
+export function freshHero(
+  map: GameMap,
+  seat: number,
+  kind: HeroKind = "brick",
+): Hero {
   const fort = fortSite(map, seat);
   return {
     seat,
+    kind,
     x: fort.x * TILE + TILE / 2,
     y: fort.y * TILE + TILE / 2,
-    hp: HERO.hp,
+    hp: HEROES[kind].hp,
     energy: HERO.energy,
     xp: 0,
     cooldown: 0,
@@ -240,6 +268,7 @@ export function freshHero(map: GameMap, seat: number): Hero {
     steerY: 0,
     spells: [0, 0, 0, 0],
     quiet: HERO.calm,
+    cloak: 0,
   };
 }
 
