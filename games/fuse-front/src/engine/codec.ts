@@ -191,6 +191,8 @@ function hero(raw: unknown, map: GameMap): Hero | undefined {
   const spells = tuple(t[12], kit.length);
   if (!spells?.every((left, slot) => isInt(left, 0, kit[slot]!.cooldown)))
     return;
+  // A held stick cancels a move, and a move releases the stick, so a hero never has both.
+  if (goal !== -1 && (steerX !== 0 || steerY !== 0)) return;
   return {
     seat,
     x,

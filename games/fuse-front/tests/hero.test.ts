@@ -3,6 +3,11 @@ import assert from "node:assert/strict";
 import {
   AURA_DAMAGE,
   CAPTURE_XP,
+  FLOW_CACHE_SIZE,
+  ROAMING_FLOW_CACHE_SIZE,
+  cachedFlowFields,
+  clearFlowCache,
+  flowField,
   FOLLOW_HERO,
   HERO,
   KILL_XP,
@@ -27,7 +32,7 @@ import {
   type UnitKind,
   type World,
 } from "../src/engine/index.js";
-import { TINY, tiny } from "./fixtures/maps.js";
+import { TINY, dustBasin, tiny } from "./fixtures/maps.js";
 
 const map = tiny();
 const at = centreOf;
@@ -170,6 +175,21 @@ test("a kill earns the killer's hero XP, a nearby teammate's hero half, and a le
   );
 });
 
+test("two shots that both kill credit the owner of the first in shooter order, wherever the units are listed", () => {
+  const killedBy = (first: number, second: number): [number, number] => {
+    let world = createWorld(map, [0, 1, 2], 1);
+    world = add(world, 1, "grunt", 11, 5, 1);
+    world = add(world, first, "torch", 10, 5);
+    world = add(world, second, "torch", 10, 6);
+    const next = step(map, world);
+    assert.equal(next.units.filter((u) => u.owner === 1).length, 0);
+    return [heroOf(next, 0).xp, heroOf(next, 2).xp];
+  };
+  // The lower unit id is first in shooter order; its owner's hero earns the kill, the other (far away) nothing.
+  assert.deepEqual(killedBy(0, 2), [KILL_XP.grunt, 0]);
+  assert.deepEqual(killedBy(2, 0), [0, KILL_XP.grunt]);
+});
+
 test("a hero dies, waits its level's respawn and returns to its fort, its killer credited", () => {
   let world = createWorld(map, [0, 1], 1);
   world = withHero(world, 1, { x: at(8), y: at(5), hp: 1, xp: levelXp(3) });
@@ -240,6 +260,28 @@ test("FOLLOW keeps a player's units near the hero, and at the fort while it is d
   world = run(withHero(world, 0, { hp: 0, respawn: 400 }), 300);
   for (const unit of world.units)
     assert.ok(tileOf(unit.y) <= 4, `unit ${unit.id} fell back to its fort`);
+});
+
+test("a hero's move commands cannot evict the flag and fort fields every stance uses", () => {
+  const big = dustBasin();
+  clearFlowCache(big);
+  const world = createWorld(big, [0, 1], 1);
+  const tile = (flag: { x: number; y: number }): number =>
+    flag.y * big.width + flag.x;
+  const flags = big.flags.map((flag) => flowField(big, tile(flag)));
+  let next = world;
+  let sent = 0;
+  for (let y = 0; y < big.height; y++)
+    for (let x = 0; x < big.width; x += 3) {
+      if (big.sectorOf[y * big.width + x]! < 0) continue;
+      next = stepTick(big, next, [{ seat: 0, type: "move", x, y }]);
+      sent++;
+    }
+  assert.ok(sent > 10 * ROAMING_FLOW_CACHE_SIZE);
+  big.flags.forEach((flag, index) =>
+    assert.equal(flowField(big, tile(flag)), flags[index], "still cached"),
+  );
+  assert.ok(cachedFlowFields(big) <= FLOW_CACHE_SIZE + ROAMING_FLOW_CACHE_SIZE);
 });
 
 test("a living hero regenerates energy up to its level's most", () => {

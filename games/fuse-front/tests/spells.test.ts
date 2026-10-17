@@ -11,6 +11,7 @@ import {
   div,
   encodeWorld,
   levelXp,
+  loadMap,
   step,
   tileOf,
   type Command,
@@ -18,7 +19,7 @@ import {
   type UnitKind,
   type World,
 } from "../src/engine/index.js";
-import { tiny } from "./fixtures/maps.js";
+import { tiny, tinyFile } from "./fixtures/maps.js";
 
 const map = tiny();
 const at = centreOf;
@@ -180,6 +181,28 @@ test("ORBITAL DROP lands a light tank beside Brick from level 6, inside the unit
   const capped = step(map, world, [cast(0, 3)]);
   assert.equal(hero0(capped).spells[3], 0);
   assert.ok(capped.units.filter((u) => u.owner === 0).length <= UNIT_CAP);
+});
+
+test("ORBITAL DROP never lands across a rock's corner or on rock", () => {
+  const file = tinyFile();
+  // Brick at (4, 6): rock at (5, 6) east and at (4, 7) south, so the south-east tile (5, 7) is only a corner away.
+  file.terrain[6] = "#....#.......#";
+  file.terrain[7] = "#...#........#";
+  const pinched = loadMap(file);
+  const drop = (facing: number): [number, number] => {
+    const world = withHero(brick(6), 0, { facing });
+    const next = step(pinched, world, [cast(0, 3)]);
+    const tank = next.units.at(-1)!;
+    assert.equal(tank.kind, "lightTank");
+    return [tileOf(tank.x), tileOf(tank.y)];
+  };
+  assert.deepEqual(
+    drop(4),
+    [4, 6],
+    "the corner tile is refused, so Brick's own",
+  );
+  assert.deepEqual(drop(0), [4, 6], "rock to the east, so Brick's own");
+  assert.deepEqual(drop(3), [4, 5], "open ground to the north is used");
 });
 
 test("statuses and spell cooldowns survive a checkpoint, and bad ones are refused", () => {
