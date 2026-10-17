@@ -307,7 +307,7 @@ jobs:
   # every pull request, and `verify` requires it.
   #
   # scripts/ci-manifest.json is the only list of smokes. `plan` reads it, `smoke` runs one job per
-  # entry in parallel (its name, browsers, env and timeout all come from the entry), and `e2e`
+  # entry or per `batch` of short entries in parallel (its name, browsers, env and timeout all come from the entry), and `e2e`
   # is the single result a branch rule or a reader can wait on. scripts/ci-local.sh runs the same
   # entries through the same runner, and tests/ci-manifest.test.ts fails when this file stops
   # doing so.
@@ -324,11 +324,13 @@ jobs:
       byId: ${{ steps.manifest.outputs.byId }}
     steps:
       - uses: actions/checkout@v4
+      # One matrix job per batch of short smokes and per unbatched smoke (scripts/lib/ci-manifest.ts smokeJobs):
+      # a batch's name joins its smokes', its browsers are their union and its timeout their sum.
       - name: Read the smokes from scripts/ci-manifest.json
         id: manifest
         run: |
-          printf 'ids=%s\n' "$(jq -c '[.smokes[].id]' scripts/ci-manifest.json)" >> "$GITHUB_OUTPUT"
-          printf 'byId=%s\n' "$(jq -c '.smokes | map({key: .id, value: .}) | from_entries' scripts/ci-manifest.json)" >> "$GITHUB_OUTPUT"
+          printf 'ids=%s\n' "$(jq -c '[.smokes[] | .batch // .id] | unique' scripts/ci-manifest.json)" >> "$GITHUB_OUTPUT"
+          printf 'byId=%s\n' "$(jq -c '.smokes | group_by(.batch // .id) | map({key: (.[0].batch // .[0].id), value: {name: (map(.name) | join(" + ")), browsers: (map(.browsers[]) | unique), timeoutMinutes: (map(.timeoutMinutes) | add)}}) | from_entries' scripts/ci-manifest.json)" >> "$GITHUB_OUTPUT"
 
   smoke:
     # `checks` builds dist/ once for every smoke; the room service serves it.

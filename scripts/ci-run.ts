@@ -17,6 +17,7 @@ import {
   loadManifest,
   select,
   smokeEnv,
+  smokeJobs,
   stepNames,
   verifyJobs,
   type Smoke,
@@ -173,6 +174,33 @@ async function runJob(name: string): Promise<number> {
   return failed.length ? 1 : 0;
 }
 
+/**
+ * A batch: every smoke in turn, each with its own retry (scripts/ci-smoke.sh), its own log group and, when it
+ * fails, an error annotation naming it, so a red batch says which smoke broke. A failure does not stop the rest.
+ */
+async function runBatch(smokes: Smoke[]): Promise<number> {
+  const failed: Smoke[] = [];
+  for (const smoke of smokes) {
+    const begin = Date.now();
+    console.log(`::group::${smoke.name} (${smoke.id})`);
+    if (smoke.why) console.log(smoke.why);
+    const code = await runSmoke(smoke, true);
+    console.log("::endgroup::");
+    const seconds = Math.round((Date.now() - begin) / 1000);
+    console.log(`${code === 0 ? "PASS" : "FAIL"} ${smoke.id} (${seconds}s)`);
+    if (code !== 0) {
+      failed.push(smoke);
+      console.log(
+        `::error title=${smoke.name}::smoke ${smoke.id} failed (exit ${code}); its output is in the group above`,
+      );
+    }
+  }
+  console.log(
+    `=== batch: ${smokes.length - failed.length}/${smokes.length} passed${failed.length ? ` (failed: ${failed.map((smoke) => smoke.id).join(", ")})` : ""}`,
+  );
+  return failed.length ? 1 : 0;
+}
+
 async function main(): Promise<number> {
   if (values.list) {
     console.log([...stepNames(manifest), "core", "release"].join(" "));
@@ -180,13 +208,19 @@ async function main(): Promise<number> {
   }
   if (values.job !== undefined) return runJob(values.job);
   if (values.smoke !== undefined) {
-    const smoke = manifest.smokes.find((item) => item.id === values.smoke);
-    if (!smoke)
+    const job = smokeJobs(manifest).find((item) => item.id === values.smoke);
+    if (!job)
       throw new Error(
-        `Unknown smoke '${values.smoke}' (smokes: ${manifest.smokes.map((item) => item.id).join(", ")})`,
+        `Unknown smoke or batch '${values.smoke}' (${smokeJobs(manifest)
+          .map((item) => item.id)
+          .join(", ")})`,
       );
-    if (smoke.why) console.log(smoke.why);
-    return runSmoke(smoke, true);
+    if (job.smokes.length === 1 && job.smokes[0]!.id === job.id) {
+      const smoke = job.smokes[0]!;
+      if (smoke.why) console.log(smoke.why);
+      return runSmoke(smoke, true);
+    }
+    return runBatch(job.smokes);
   }
 
   const selection = select(manifest, values.only ?? process.env.ONLY ?? "");
