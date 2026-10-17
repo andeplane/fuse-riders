@@ -13,6 +13,8 @@ import type { BuildingKind, HeroView, UnitKind } from "../engine/view.js";
 export const PAINTS = {
   team: { color: 0xffffff, roughness: 0.42, metalness: 0.25 },
   steel: { color: 0x7d838a, roughness: 0.3, metalness: 0.85 },
+  /** The radar dish is an open shell, seen from inside as often as from behind. */
+  dish: { color: 0x9aa0a6, roughness: 0.35, metalness: 0.8, side: THREE.DoubleSide },
   dark: { color: 0x26282c, roughness: 0.65, metalness: 0.55 },
   orange: { color: 0xe0701c, roughness: 0.5, metalness: 0.3 },
   gold: { color: 0xe8b828, roughness: 0.45, metalness: 0.45 },
@@ -60,8 +62,6 @@ export function paintMaterials(): Record<Paint, THREE.MeshStandardMaterial> {
   for (const [paint, spec] of Object.entries(PAINTS) as [Paint, object][])
     out[paint] = new THREE.MeshStandardMaterial(spec);
   out.hazard.map = hazardTexture();
-  // The radar dish is an open shell, seen from inside as often as from behind.
-  out.steel.side = THREE.DoubleSide;
   return out;
 }
 
@@ -283,16 +283,18 @@ function factory(w: number, h: number, d: number, teeth: number, doorW: number):
 
 // prettier-ignore
 function fort(): BuildingModel {
-  const kit = new Kit().add("concrete", block(1.5, 0.75, 1.5, 0, 0.375, 0, 0.06),
-    ...[-1, 1].flatMap((sx) => [-1, 1].map((sz) => rod(0.24, 1.05, sx * 0.72, 0.525, sz * 0.72, 0, 0, 0.27, 14))))
-    .add("team", slab(1.54, 0.12, 1.54, 0, 0.6, 0),
-      ...[-1, 1].flatMap((sx) => [-1, 1].map((sz) => rod(0.27, 0.12, sx * 0.72, 1.1, sz * 0.72, 0, 0, 0.27, 14))))
-    .add("steel", rod(0.04, 0.3, 0, 0.9, 0));
-  door(kit, 0.5, 0.42, 1.5);
+  // An open courtyard, so the hero who respawns here stays in sight: four walls between corner towers.
+  const corners = [-1, 1].flatMap((sx) => [-1, 1].map((sz) => [sx * 0.72, sz * 0.72] as const));
+  const walls = (h: number, y: number, t: number) => [-1, 1].flatMap((s) => [slab(1.5, h, t, 0, y, s * 0.7), slab(t, h, 1.5, s * 0.7, y, 0)]);
+  const kit = new Kit().add("concrete", block(1.5, 0.06, 1.5, 0, 0.03, 0, 0.02), ...walls(0.6, 0.3, 0.16),
+    ...corners.map(([x, z]) => rod(0.24, 1.05, x, 0.525, z, 0, 0, 0.27, 14)))
+    .add("team", ...walls(0.1, 0.52, 0.18), ...corners.map(([x, z]) => rod(0.27, 0.12, x, 1.1, z, 0, 0, 0.27, 14)))
+    .add("steel", rod(0.04, 0.3, 0.72, 1.3, -0.72));
+  door(kit, 0.5, 0.42, 1.56);
   const dish = new Kit()
-    .add("steel", at(new THREE.SphereGeometry(0.34, 16, 6, 0, Math.PI * 2, 0, 0.9), 0, 0, 0.12, -Z * 1.3))
+    .add("dish", at(new THREE.SphereGeometry(0.34, 16, 6, 0, Math.PI * 2, 0, 0.9), 0, 0, 0.12, -Z * 1.3))
     .add("dark", rod(0.02, 0.24, 0, 0, 0.12, Z)).add("visor", ball(0.03, 0, 0, 0.24));
-  return { body: kit.build(), pivot: { model: dish.build(), x: 0, y: 1.08, z: 0, aims: false }, height: 1.2 };
+  return { body: kit.build(), pivot: { model: dish.build(), x: 0.72, y: 1.48, z: -0.72, aims: false }, height: 1.4 };
 }
 
 // prettier-ignore

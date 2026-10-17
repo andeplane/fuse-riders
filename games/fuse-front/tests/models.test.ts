@@ -76,6 +76,8 @@ test("team surfaces are white so the per-instance team colour shows true; visors
     assert.ok(materials[glow].emissiveIntensity > 1, glow);
   assert.ok(materials.hazard.map instanceof THREE.DataTexture);
   assert.ok(materials.steel.metalness > materials.concrete.metalness);
+  assert.equal(materials.dish.side, THREE.DoubleSide);
+  assert.equal(materials.steel.side, THREE.FrontSide);
 });
 
 test("buildings: the fort's radar spins, the turret's head aims, factories smoke; ruins are low and vary", () => {
@@ -137,7 +139,7 @@ test("the flag cloth waves but stays tied to the pole", () => {
   const out = cloth.getAttribute("position") as THREE.BufferAttribute;
   waveCloth(base, out, 1234);
   for (let i = 0; i < out.count; i++) {
-    if (base[i * 3] === 0) assert.equal(out.getZ(i), 0);
+    if (base[i * 3] === 0) assert.ok(out.getZ(i) === 0);
   }
   assert.ok([...Array(out.count).keys()].some((i) => out.getZ(i) !== 0));
 });

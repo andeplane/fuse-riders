@@ -224,7 +224,9 @@ export class Field3D implements Renderer {
     const bar = new THREE.PlaneGeometry(1, 0.08).rotateX(-rig.PITCH);
     // Rings have radius 1 and scale per body; a hero's is doubled with a thin outer band so it reads apart.
     const ring = new THREE.RingGeometry(0.78, 1, 40).rotateX(-Math.PI / 2).translate(0, 0.06, 0);
-    const heroRing = mergeGeometries([ring, new THREE.RingGeometry(1.12, 1.2, 40).rotateX(-Math.PI / 2).translate(0, 0.06, 0)])!;
+    const band = new THREE.RingGeometry(1.12, 1.2, 40).rotateX(-Math.PI / 2).translate(0, 0.06, 0);
+    const heroRing = mergeGeometries([ring, band])!;
+    band.dispose();
     const add = (key: string, model: { geometry: THREE.BufferGeometry; material: THREE.Material; tinted: boolean }[], shadow: boolean, order = 0) =>
       this.slotList.push(this.slots.set(key, { batch: new Batch(), parts: model.map((p) => ({ ...p, geometry: this.keep(p.geometry) })), shadow, order }).get(key)!);
     for (const kind of UNIT_MODELS)
@@ -419,9 +421,11 @@ export class Field3D implements Renderer {
       });
       if (b.hp < b.maxHp) this.bar(node.alive.position.x, node.alive.position.y + node.height + 0.4, node.alive.position.z, b.hp / b.maxHp, 1.4);
     }
-    waveCloth(this.clothBase, this.cloth.getAttribute("position") as THREE.BufferAttribute, now);
-    this.cloth.getAttribute("position").needsUpdate = true;
-    this.cloth.computeVertexNormals();
+    if (this.flags.length) {
+      waveCloth(this.clothBase, this.cloth.getAttribute("position") as THREE.BufferAttribute, now);
+      this.cloth.getAttribute("position").needsUpdate = true;
+      this.cloth.computeVertexNormals();
+    }
     for (let i = 0; i < world.flags.length; i++) {
       const f = world.flags[i]!;
       const cloth = this.flags[i];
@@ -442,9 +446,9 @@ export class Field3D implements Renderer {
 
   /** Where a gun fired within the last couple of seconds, or undefined so it settles back. */
   private aimOf(key: number, step: number): number | undefined {
-    return step - (this.aimStep.get(key) ?? -AIM_HOLD) < AIM_HOLD
-      ? this.aim.get(key)
-      : undefined;
+    // A step before the shot (a rollback re-shows an earlier world) counts as expired too.
+    const since = step - (this.aimStep.get(key) ?? -Infinity);
+    return since >= 0 && since < AIM_HOLD ? this.aim.get(key) : undefined;
   }
 
   private lerp(t: number, a: number, b: number): number {
