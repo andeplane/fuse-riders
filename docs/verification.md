@@ -14,9 +14,9 @@ This document explains how to verify the current source. It is not a claim that 
 Two things follow that a reader of the old single-job gate would get wrong:
 
 - **There is no separate `pnpm typecheck` step.** `pnpm build` is `tsc --noEmit && vite build`, so the build _is_ the type check.
-- **Coverage is not on the pull-request gate.** `coverage` (`pnpm test:coverage`) is `if: github.event_name != 'pull_request'`: it runs on a main push before anything deploys, and in the release suite. A pull request does not wait for it. The manifest keeps it under `release` rather than `verify` for the same reason.
+- **Coverage is not on the pull-request gate.** `coverage` (`pnpm test:coverage`) runs in CD ([cd.yml](../.github/workflows/cd.yml), which calls ci.yml for every main push it verifies) before anything deploys, on a pull request labelled `full-ci`, and in the release suite. A pull request does not wait for it. The manifest keeps it under `release` rather than `verify` for the same reason.
 
-A pull request also folds the two whole-recording replays on a stride: `FUSE_REPLAY_STRIDE` is `10` on a pull request and `1` on a main push and in the release suite, so a PR checks one tick in ten while main checks every one ([`replay-budget.ts`](../games/fuse-riders/tests/fixtures/replay-budget.ts)). Both fold all the ticks either way; only the comparison is strided.
+A pull request also folds the two whole-recording replays on a stride: `FUSE_REPLAY_STRIDE` is `10` on a pull request and `1` in CD and in the release suite, so a PR checks one tick in ten while main checks every one ([`replay-budget.ts`](../games/fuse-riders/tests/fixtures/replay-budget.ts)). Both fold all the ticks either way; only the comparison is strided.
 
 `pnpm lint` is ESLint with a deliberately small type-aware rule set ([eslint.config.js](../eslint.config.js)): no floating or misused promises, and no empty block — a `catch` that swallows on purpose says why in a comment. Prettier owns formatting.
 
@@ -42,7 +42,7 @@ Use typed fakes for clocks, scheduling, transport, storage and browser surfaces.
 
 ## Browser checks
 
-CI runs the browser matrix on main pushes, manual dispatch and pull requests explicitly labelled `full-ci`; it normally skips it on PRs, except while main is red, when every PR runs it and coverage and `verify` requires both. Inspect the actual run and revision before citing browser success. Use the affected local smoke when practical, and report what could not run. A green `verify` job alone proves no browser interaction.
+CD runs the browser matrix for main pushes; CI runs it on a manual dispatch and on pull requests explicitly labelled `full-ci`, and then `verify` requires it and coverage. It normally skips both on PRs, and a red CD run does not change that: it withholds deployment until a fix forward turns it green. Inspect the actual run and revision before citing browser success. Use the affected local smoke when practical, and report what could not run. A green `verify` job alone proves no browser interaction.
 
 [README](../README.md#tests-and-evidence) lists smoke commands. `scripts/ci-local.sh` runs the local mirror, with `ONLY` selecting relevant checks and `PORT` avoiding occupied matches:
 

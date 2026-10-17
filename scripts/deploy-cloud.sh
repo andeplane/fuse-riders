@@ -24,21 +24,23 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
 fi
 revision="$(git rev-parse HEAD)"
 repository="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
-# Still on main, not necessarily its head: CI takes longer than the gap between merges, so demanding the
+# Still on main, not necessarily its head: CD takes longer than the gap between merges, so demanding the
 # head refused almost every verified revision and nothing deployed at all. A newer commit's own deployment
 # supersedes this one, and the cloud-run-gateway concurrency group serialises them.
 ancestry="$(gh api "repos/$repository/compare/$revision...main" --jq .status)"
 [[ "$ancestry" == identical || "$ancestry" == ahead ]] || { echo "Revision $revision is not on main ($ancestry); refusing to deploy it." >&2; exit 1; }
-ci_result="$(gh api "repos/$repository/actions/workflows/ci.yml/runs?branch=main&event=push&head_sha=$revision&per_page=20" --jq '.workflow_runs | sort_by(.run_number) | last | if .status == "completed" then .conclusion else "pending" end')"
+ci_result="$(gh api "repos/$repository/actions/workflows/cd.yml/runs?branch=main&event=push&head_sha=$revision&per_page=20" --jq '.workflow_runs | sort_by(.run_number) | last | if .status == "completed" then .conclusion else "pending" end')"
 LOCAL_VERIFICATION_NOTE="${LOCAL_VERIFICATION_NOTE:-}"
 source_verification=ci
 if [[ -n "${LOCAL_VERIFIED_REVISION:-}" ]]; then
   [[ "$LOCAL_VERIFIED_REVISION" == "$revision" ]] || { echo 'LOCAL_VERIFIED_REVISION must equal the current pushed main SHA.' >&2; exit 1; }
   [[ -n "${LOCAL_VERIFICATION_NOTE//[[:space:]]/}" ]] || { echo 'Set LOCAL_VERIFICATION_NOTE to the completed local checks and visual evidence (no secrets).' >&2; exit 1; }
-  [[ "$ci_result" == success || "$ci_result" == pending || "$ci_result" == null ]] || { echo "CI completed with $ci_result; this local override only permits pending CI." >&2; exit 1; }
+  # CD runs one main push at a time and replaces a waiting run with a newer one, so a revision's run may be
+  # pending, cancelled or not there at all; a local override covers those, never a failure.
+  [[ "$ci_result" == success || "$ci_result" == pending || "$ci_result" == cancelled || "$ci_result" == null ]] || { echo "CD completed with $ci_result; this local override only permits pending or replaced CD." >&2; exit 1; }
   source_verification=local
 else
-  [[ "$ci_result" == success ]] || { echo "CI for $revision is $ci_result; refusing unchecked deployment." >&2; exit 1; }
+  [[ "$ci_result" == success ]] || { echo "CD for $revision is $ci_result; refusing unchecked deployment." >&2; exit 1; }
 fi
 export source_verification ci_result LOCAL_VERIFICATION_NOTE="${LOCAL_VERIFICATION_NOTE:-}"
 

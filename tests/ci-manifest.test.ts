@@ -22,9 +22,11 @@ import { devBanner } from "../service/dev.js";
 // keep their step names in the GitHub UI) differ from it.
 const manifest = loadManifest();
 const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
+const cd = readFileSync(".github/workflows/cd.yml", "utf8");
 const local = readFileSync("scripts/ci-local.sh", "utf8");
-/** The condition that adds coverage and the browser matrix to a pull request while main is red. */
-const RED = "needs.main-health.outputs.red == 'true'";
+/** When the release jobs (coverage and the browser matrix) run: CD, a dispatch, or a pull request with `full-ci`. */
+const RELEASE =
+  "github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci')";
 
 /** The text of one job, without a YAML parser: jobs are the two-space keys after `jobs:`. */
 function job(name: string): string {
@@ -74,9 +76,9 @@ test("verify is the one check name, and it reports every gate job", () => {
   const verify = job("verify");
   assert.ok(
     verify.includes(
-      `    needs: [${[...verifyJobs(manifest), "main-health", "coverage", "e2e"].join(", ")}]\n`,
+      `    needs: [${[...verifyJobs(manifest), "coverage", "e2e"].join(", ")}]\n`,
     ),
-    "verify must need the gate jobs, main-health and, for a red main, coverage and e2e",
+    "verify must need the gate jobs and, when the release jobs run, coverage and e2e",
   );
   // Without `always()` a failed gate job would leave verify skipped, which a branch rule reads as not-failed.
   assert.ok(verify.includes("    if: always()\n"));
@@ -125,12 +127,9 @@ test("coverage collectors run independently and preserve the release commands an
   ]);
   for (const phase of ["unit", "browser"]) {
     const collector = job(`coverage-${phase}`);
-    assert.ok(collector.includes("    needs: main-health\n"));
-    assert.ok(
-      collector.includes(
-        `    if: github.event_name != 'pull_request' || ${RED}\n`,
-      ),
-    );
+    // After the gate: CD spends no runners on the release jobs for a commit whose gate failed.
+    assert.ok(collector.includes("    needs: [checks, unit]\n"));
+    assert.ok(collector.includes(`    if: ${RELEASE}\n`));
     assert.ok(collector.includes(`      COVERAGE_PHASE: ${phase}\n`));
     assert.ok(collector.includes("    timeout-minutes: 20\n"));
     assert.ok(
@@ -154,16 +153,8 @@ test("coverage collectors run independently and preserve the release commands an
 
 test("coverage cannot pass with a failed or missing collector, and reports both raw datasets", () => {
   const gate = job("coverage");
-  assert.ok(
-    gate.includes(
-      "    needs: [main-health, coverage-unit, coverage-browser]\n",
-    ),
-  );
-  assert.ok(
-    gate.includes(
-      `    if: always() && (github.event_name != 'pull_request' || ${RED})\n`,
-    ),
-  );
+  assert.ok(gate.includes("    needs: [coverage-unit, coverage-browser]\n"));
+  assert.ok(gate.includes(`    if: always() && (${RELEASE})\n`));
   assert.ok(gate.includes("      COVERAGE_PHASE: report\n"));
   assert.ok(gate.includes("    timeout-minutes: 20\n"));
   assert.ok(gate.includes("UNIT: ${{ needs.coverage-unit.result }}"));
@@ -198,12 +189,9 @@ test("coverage cannot pass with a failed or missing collector, and reports both 
 
 /** What each of verify's `env:` values must be read from: the script below is only as right as its inputs. */
 const VERIFY_ENV: Record<string, string> = {
-  GATE: "${{ needs.checks.result }} ${{ needs.unit.result }} ${{ needs.main-health.result }}",
-  MAIN_RED: "${{ needs.main-health.outputs.red }}",
-  DEPLOY_RED: "${{ needs.main-health.outputs.deploy-red }}",
-  REASON: "${{ needs.main-health.outputs.reason }}",
+  GATE: "${{ needs.checks.result }} ${{ needs.unit.result }}",
+  RELEASE: `\${{ ${RELEASE} }}`,
   PROOF: "${{ needs.coverage.result }} ${{ needs.e2e.result }}",
-  CD_FIX: "${{ contains(github.event.pull_request.labels.*.name, 'cd-fix') }}",
 };
 
 /** verify's script, run by bash with the values its `env:` would carry; true when it passes. */
@@ -223,54 +211,71 @@ function verifyPasses(env: Record<string, string>): boolean {
   );
 }
 
-test("verify passes a green main's pull request on the gate alone, and a red main's only with proof", () => {
+test("verify passes a pull request on the gate alone, and a release run only with coverage and every smoke", () => {
   const ok = {
-    GATE: "success success success",
-    MAIN_RED: "false",
-    DEPLOY_RED: "false",
-    REASON: "main is green",
+    GATE: "success success",
+    RELEASE: "false",
     PROOF: "skipped skipped",
-    CD_FIX: "false",
   };
-  assert.equal(verifyPasses(ok), true, "green main: the gate is enough");
-  // One slot per job in GATE, in order: checks, unit, main-health. A failure in any of them
-  // must fail the gate, so each slot is checked rather than just the first and the last.
-  assert.equal(verifyPasses({ ...ok, GATE: "failure success success" }), false);
-  assert.equal(verifyPasses({ ...ok, GATE: "success failure success" }), false);
-  assert.equal(verifyPasses({ ...ok, GATE: "success success failure" }), false);
-  assert.equal(verifyPasses({ ...ok, GATE: "success success skipped" }), false);
-  // A push leaves main-health's outputs empty: main counts as green.
-  assert.equal(verifyPasses({ ...ok, MAIN_RED: "", DEPLOY_RED: "" }), true);
-  const red = { ...ok, MAIN_RED: "true", REASON: "CI failure on 1234abcd" };
+  assert.equal(verifyPasses(ok), true, "a pull request: the gate is enough");
+  // One slot per job in GATE, in order: checks, unit. A failure in either must fail the gate.
+  assert.equal(verifyPasses({ ...ok, GATE: "failure success" }), false);
+  assert.equal(verifyPasses({ ...ok, GATE: "success failure" }), false);
+  assert.equal(verifyPasses({ ...ok, GATE: "success skipped" }), false);
+  assert.equal(verifyPasses({ ...ok, GATE: "cancelled success" }), false);
+  // CD, a dispatch or `full-ci`: the release jobs ran, and verify holds them to passing.
+  const release = { ...ok, RELEASE: "true" };
   assert.equal(
-    verifyPasses(red),
+    verifyPasses(release),
     false,
-    "red main: the gate alone is not enough",
+    "skipped release jobs are not a pass",
   );
-  assert.equal(verifyPasses({ ...red, PROOF: "success failure" }), false);
-  assert.equal(verifyPasses({ ...red, PROOF: "failure success" }), false);
-  assert.equal(verifyPasses({ ...red, PROOF: "success success" }), true);
-  const deploy = { ...red, DEPLOY_RED: "true", PROOF: "success success" };
-  assert.equal(verifyPasses(deploy), false, "a failed deployment needs cd-fix");
-  assert.equal(verifyPasses({ ...deploy, CD_FIX: "true" }), true);
+  assert.equal(verifyPasses({ ...release, PROOF: "success failure" }), false);
+  assert.equal(verifyPasses({ ...release, PROOF: "failure success" }), false);
+  assert.equal(verifyPasses({ ...release, PROOF: "success success" }), true);
+  assert.equal(
+    verifyPasses({
+      ...release,
+      GATE: "failure success",
+      PROOF: "success success",
+    }),
+    false,
+  );
 });
 
-test("main-health asks GitHub only on a pull request, with read access to runs", () => {
-  const health = job("main-health");
-  assert.ok(health.includes("      actions: read\n"));
-  assert.ok(health.includes("        run: node scripts/main-health.ts\n"));
-  for (const output of ["red", "deploy-red", "reason"])
-    assert.ok(
-      health.includes(
-        `      ${output}: \${{ steps.health.outputs.${output} }}\n`,
-      ),
-      output,
-    );
-  // Every step is pull-request only, so a main push does not wait on GitHub's API before coverage and the matrix.
-  assert.equal(
-    (health.match(/^ {8}if: github\.event_name == 'pull_request'$/gm) ?? [])
-      .length,
-    (health.match(/^ {6}- /gm) ?? []).length,
+test("CD runs this workflow for main pushes one at a time, and the deployment waits for CD", () => {
+  // Called by CD: on a push the release jobs run, and the gate runs first.
+  assert.match(workflow, /^on:\n(?:.*\n)*? {2}workflow_call:$/m);
+  assert.doesNotMatch(
+    workflow,
+    /^ {2}push:/m,
+    "a main push runs through CD, not here",
+  );
+  assert.match(cd, /^ {2}push:\n {4}branches: \[main\]$/m);
+  // One running, at most one waiting: a newer push replaces the waiting run, never the running one.
+  assert.match(
+    cd,
+    /^concurrency:\n {2}group: cd\n {2}cancel-in-progress: false$/m,
+  );
+  assert.ok(cd.includes("    uses: ./.github/workflows/ci.yml\n"));
+  // A called workflow gets no more than its caller grants, and the smokes report flakes to an issue.
+  assert.ok(cd.includes("      issues: write\n"));
+  assert.ok(job("smoke").includes("      issues: write\n"));
+  // The browser matrix leaves runners for pull requests.
+  assert.match(job("smoke"), /^ {6}max-parallel: \d+$/m);
+  const backend = readFileSync(".github/workflows/backend.yml", "utf8");
+  assert.ok(backend.includes("  workflow_run:\n    workflows: [CD]\n"));
+  assert.ok(
+    backend.includes("actions/workflows/cd.yml/runs?branch=main&event=push"),
+  );
+  assert.ok(
+    readFileSync("scripts/deploy-cloud.sh", "utf8").includes(
+      "actions/workflows/cd.yml/runs?branch=main&event=push&head_sha=$revision",
+    ),
+  );
+  assert.match(
+    readFileSync(".github/workflows/pages.yml", "utf8"),
+    /\['cd\.yml', 'ci\.yml'\]/,
   );
 });
 
@@ -393,7 +398,6 @@ test("the browser matrix is built from the manifest, one job per smoke or batch"
 test("no smoke is written out in the workflow or in the local mirror", () => {
   assert.deepEqual(scriptsIn(workflow), [
     "scripts/ci-run.ts",
-    "scripts/main-health.ts",
     "scripts/ci-manifest.json",
   ]);
   assert.deepEqual(scriptsIn(local), ["scripts/ci-run.ts"]);
@@ -406,16 +410,16 @@ test("the matrix keeps its triggers and one stable result", () => {
     workflow,
     /pull_request:\n(?: +#.*\n)* +types: \[opened, synchronize, reopened, labeled, unlabeled\]/,
   );
-  // The matrix runs on a push, on `full-ci`, and on every pull request while main is red.
-  const gate = `github.event_name != 'pull_request' ||\n      contains(github.event.pull_request.labels.*.name, 'full-ci') ||\n      ${RED}`;
-  assert.ok(job("plan").includes("    needs: main-health\n"));
+  // The matrix runs in CD, on a dispatch and on `full-ci`, after the gate passed.
+  const gate = `github.event_name != 'pull_request' ||\n      contains(github.event.pull_request.labels.*.name, 'full-ci')`;
+  assert.ok(job("plan").includes("    needs: [checks, unit]\n"));
   assert.ok(job("plan").includes(`    if: >-\n      ${gate}\n`));
   const e2e = job("e2e");
   assert.ok(
     e2e.includes(`    if: >-\n      always() &&\n      (${gate})\n`),
     "e2e must report even when a smoke failed, and only when the matrix was asked for",
   );
-  assert.ok(e2e.includes("    needs: [main-health, smoke]\n"));
+  assert.ok(e2e.includes("    needs: [smoke]\n"));
   assert.ok(e2e.includes('run: test "${{ needs.smoke.result }}" = success'));
 });
 
