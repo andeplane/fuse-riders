@@ -4,7 +4,7 @@
  * can never write back into the simulation.
  */
 import type { GameMap } from "./map.js";
-import { levelOf, maxHp } from "./hero.js";
+import { levelOf, maxEnergy, maxHp } from "./hero.js";
 import { div } from "./math.js";
 import {
   BUILDING_HP,
@@ -72,6 +72,11 @@ export interface HeroView {
   maxHp: number;
   level: number;
   respawn: number;
+  energy: number;
+  maxEnergy: number;
+  xp: number;
+  /** Steps until each spell slot can be cast again. */
+  spells: readonly number[];
 }
 
 export interface WorldView {
@@ -156,6 +161,10 @@ export function viewOf(map: GameMap, world: World): WorldView {
       maxHp: maxHp(levelOf(hero.xp)),
       level: levelOf(hero.xp),
       respawn: hero.respawn,
+      energy: hero.energy,
+      maxEnergy: maxEnergy(levelOf(hero.xp)),
+      xp: hero.xp,
+      spells: [...hero.spells],
     })),
     winner: world.winner,
     events: structuredClone(world.events),

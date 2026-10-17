@@ -81,6 +81,17 @@ export class Battlefield {
     );
   }
 
+  /** Centres the camera on fractions `fx`, `fy` of the map (a minimap click) and stops following the hero. */
+  lookAt(fx: number, fy: number, world: WorldView): void {
+    this.follow = false;
+    Object.assign(this.camera, cam.centreOn(fx, fy, this.view, ...size(world)));
+  }
+
+  /** The camera's box in fractions of the map, for the minimap. */
+  box(world: WorldView) {
+    return cam.cameraBox(this.camera, this.view, ...size(world));
+  }
+
   /** The map tile under a point `dx`, `dy` CSS pixels from the canvas's top-left. */
   tileAt(dx: number, dy: number, world: WorldView) {
     const at = cam.screenToArt(dx, dy, this.camera, this.view, this.dpr);
