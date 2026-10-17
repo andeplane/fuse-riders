@@ -155,15 +155,37 @@ jobs:
             exit 1
           fi
 
-  # The coverage gate: the same tests again with every module instrumented, which costs about 60% on top of
-  # them. A pull request runs it only while main is red (`main-health`); a main push always does, before
-  # anything deploys, and so does the release suite in AGENTS.md. The thresholds are in .c8rc.json and are not
-  # relaxed here.
-  coverage:
+  coverage-unit:
     needs: main-health
     if: github.event_name != 'pull_request' || needs.main-health.outputs.red == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      COVERAGE_PHASE: unit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:coverage
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-unit-raw
+          path: coverage/tmp/
+          if-no-files-found: error
+          retention-days: 1
+
+  coverage-browser:
+    needs: main-health
+    if: github.event_name != 'pull_request' || needs.main-health.outputs.red == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COVERAGE_PHASE: browser
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -173,6 +195,43 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chrome
+      - run: pnpm test:coverage
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-browser-raw
+          path: coverage/tmp/
+          if-no-files-found: error
+          retention-days: 1
+
+  coverage:
+    needs: [main-health, coverage-unit, coverage-browser]
+    if: always() && (github.event_name != 'pull_request' || needs.main-health.outputs.red == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COVERAGE_PHASE: report
+    steps:
+      - name: Require both coverage collectors
+        env:
+          UNIT: ${{ needs.coverage-unit.result }}
+          BROWSER: ${{ needs.coverage-browser.result }}
+        run: test "$UNIT $BROWSER" = "success success"
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: coverage-unit-raw
+          path: coverage/tmp/
+      - uses: actions/download-artifact@v4
+        with:
+          name: coverage-browser-raw
+          path: coverage/tmp/
       - run: pnpm test:coverage
       - name: Save coverage
         if: always()
