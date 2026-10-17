@@ -24,7 +24,8 @@
       "env": {
         "BIRDS_ONLINE_OUTPUT": "artifacts",
         "FUSE_BIRDS_SKIP_TIMED_ROUND": "1",
-        "FUSE_BIRDS_SKIP_SHOT_LAUNCH": "1"
+        "FUSE_BIRDS_SKIP_SHOT_LAUNCH": "1",
+        "FUSE_BIRDS_SKIP_TURN_HANDOFF": "1"
       },
       "serviceUrlEnv": "ONLINE_URL",
       "timeoutMinutes": 10,
