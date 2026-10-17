@@ -72,10 +72,11 @@
   position: relative;
 }
 .ff-board {
+  /* The battlefield sets its size: art pixels scaled by a whole number, never smoothed. */
   display: block;
-  width: 100%;
-  height: auto;
+  margin: 0 auto;
   border: 3px solid var(--ff-steel);
+  image-rendering: pixelated;
   touch-action: none;
 }
 .ff-banner {

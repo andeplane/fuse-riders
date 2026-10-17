@@ -33,8 +33,8 @@ test("the engine imports nothing outside itself, and the renderer reads only the
     for (const specifier of imports(syntax(file))) {
       if (!specifier.startsWith(".")) {
         assert.ok(
-          !under(file, "engine"),
-          `${file}: the engine imports ${specifier}`,
+          !under(file, "engine") && !under(file, "render"),
+          `${file}: imports the package ${specifier}`,
         );
         assert.ok(
           !OTHER_GAMES.some(
@@ -69,6 +69,11 @@ test("the engine imports nothing outside itself, and the renderer reads only the
           assert.ok(
             ["view.js", "view-kit.js"].includes(path.basename(target)),
             `${file}: the renderer reaches into the engine's ${path.basename(target)}`,
+          );
+        else
+          assert.ok(
+            inside(path.join(game, "src/render"), target),
+            `${file}: the renderer imports ${specifier}`,
           );
       }
     }
