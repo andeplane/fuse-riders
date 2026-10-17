@@ -382,6 +382,19 @@ jobs:
         with:
           name: dist
           path: dist/
+      # `--with-deps` apt-installs the browsers' system libraries, about 110 MB that took 20 s to download in every
+      # smoke job. apt keeps its downloads in a cached directory instead; it still verifies every package, and a
+      # runner image whose package versions moved just downloads the new ones.
+      - name: Keep apt's package downloads in a cached directory
+        id: apt
+        run: |
+          echo "image=${ImageOS:-unknown}-${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+          printf 'Dir::Cache::Archives "%s";\nBinary::apt::APT::Keep-Downloaded-Packages "true";\n' "$HOME/apt-archives" | sudo tee /etc/apt/apt.conf.d/90-ci-archives
+          mkdir -p "$HOME/apt-archives/partial"
+      - uses: actions/cache@v4
+        with:
+          path: ~/apt-archives
+          key: apt-${{ steps.apt.outputs.image }}-${{ join(fromJson(needs.plan.outputs.byId)[matrix.id].browsers, '-') }}
       - run: pnpm exec playwright install --with-deps ${{ join(fromJson(needs.plan.outputs.byId)[matrix.id].browsers, ' ') }}
       # Starts the local room service on a free port when the smoke needs one (log in
       # artifacts/room-service.log), applies the entry's env and retries once through scripts/ci-smoke.sh.

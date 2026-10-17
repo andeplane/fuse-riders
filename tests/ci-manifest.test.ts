@@ -378,6 +378,7 @@ test("the browser matrix is built from the manifest, one job per smoke or batch"
   );
   assert.deepEqual(runsIn(smoke), [
     "pnpm install --frozen-lockfile",
+    "|",
     `pnpm exec playwright install --with-deps \${{ join(${entry}.browsers, ' ') }}`,
     'pnpm exec tsx scripts/ci-run.ts --smoke "${{ matrix.id }}"',
   ]);
