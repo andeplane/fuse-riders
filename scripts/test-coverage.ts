@@ -1,11 +1,27 @@
 import { spawn } from "node:child_process";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer } from "vite";
 import { createDevRoomService } from "../service/dev.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
+const phase = process.env.COVERAGE_PHASE ?? "all";
+if (!["all", "unit", "browser", "report"].includes(phase))
+  throw new Error(`Unknown COVERAGE_PHASE: ${phase}`);
+
+async function timed(
+  label: string,
+  action: () => Promise<number>,
+): Promise<number> {
+  const started = performance.now();
+  console.log(`Coverage ${label}: started`);
+  const code = await action();
+  console.log(
+    `Coverage ${label}: exit ${code}, ${((performance.now() - started) / 1000).toFixed(1)}s`,
+  );
+  return code;
+}
 async function tests(directory: string): Promise<string[]> {
   try {
     return (await readdir(resolve(root, directory)))
@@ -68,62 +84,83 @@ for (const parent of ["packages", "games"])
 const concurrency = process.env.TEST_CONCURRENCY ?? "4";
 if (!/^[1-9]\d*$/.test(concurrency))
   throw new Error("TEST_CONCURRENCY must be a positive integer");
-const unitExit = await run([
-  "exec",
-  "c8",
-  "--check-coverage=false",
-  "tsx",
-  "--test",
-  `--test-concurrency=${concurrency}`,
-  ...files.sort(),
-]);
-const roomService = createDevRoomService({
-  staticDirectory: resolve(root, "dist"),
-});
-await new Promise<void>((resolve) =>
-  roomService.server.listen(0, "127.0.0.1", resolve),
-);
-const address = roomService.server.address();
-if (!address || typeof address === "string")
-  throw new Error("Coverage room service has no port");
-const server = await createServer({
-  root,
-  server: {
-    host: "127.0.0.1",
-    port: 0,
-    open: false,
-    proxy: { "/api": { target: `http://127.0.0.1:${address.port}`, ws: true } },
-  },
-});
-let browserExit = 1;
-try {
-  await server.listen();
-  const url = server.resolvedUrls?.local[0];
-  if (!url) throw new Error("Coverage Vite server has no local URL");
-  browserExit = 0;
-  for (const script of browserFlows.sort()) {
-    const exit = await run(["exec", "tsx", script], {
-      ...process.env,
-      BROWSER: "chrome",
-      ONLINE_URL: url,
-      FUSE_GAME_COVERAGE_DIR: resolve(root, "coverage/tmp"),
+const unitExit =
+  phase === "all" || phase === "unit"
+    ? await timed("unit", () =>
+        run([
+          "exec",
+          "c8",
+          "--check-coverage=false",
+          "tsx",
+          "--test",
+          `--test-concurrency=${concurrency}`,
+          ...files.sort(),
+        ]),
+      )
+    : 0;
+let browserExit = 0;
+if (phase === "all" || phase === "browser")
+  browserExit = await timed("browser", async () => {
+    if (phase === "browser")
+      await rm(resolve(root, "coverage/tmp"), { recursive: true, force: true });
+    const roomService = createDevRoomService({
+      staticDirectory: resolve(root, "dist"),
     });
-    browserExit ||= exit;
-  }
-} finally {
-  try {
-    await server.close();
-  } finally {
-    await roomService.close();
-  }
-}
-const reportExit = await run([
-  "exec",
-  "c8",
-  "report",
-  "--temp-directory",
-  "coverage/tmp",
-  "--exclude-after-remap",
-]);
+    await new Promise<void>((resolve) =>
+      roomService.server.listen(0, "127.0.0.1", resolve),
+    );
+    const address = roomService.server.address();
+    if (!address || typeof address === "string")
+      throw new Error("Coverage room service has no port");
+    const server = await createServer({
+      root,
+      server: {
+        host: "127.0.0.1",
+        port: 0,
+        open: false,
+        proxy: {
+          "/api": { target: `http://127.0.0.1:${address.port}`, ws: true },
+        },
+      },
+    });
+    let exitCode = 1;
+    try {
+      await server.listen();
+      const url = server.resolvedUrls?.local[0];
+      if (!url) throw new Error("Coverage Vite server has no local URL");
+      exitCode = 0;
+      for (const script of browserFlows.sort()) {
+        const exit = await timed(script, () =>
+          run(["exec", "tsx", script], {
+            ...process.env,
+            BROWSER: "chrome",
+            ONLINE_URL: url,
+            FUSE_GAME_COVERAGE_DIR: resolve(root, "coverage/tmp"),
+          }),
+        );
+        exitCode ||= exit;
+      }
+    } finally {
+      try {
+        await server.close();
+      } finally {
+        await roomService.close();
+      }
+    }
+    return exitCode;
+  });
+const reportExit =
+  phase === "all" || phase === "report"
+    ? await timed("report", () =>
+        run([
+          "exec",
+          "c8",
+          "report",
+          "--temp-directory",
+          "coverage/tmp",
+          "--exclude-after-remap",
+        ]),
+      )
+    : 0;
 // Never let a passing report hide failed unit tests or a failed browser flow.
 process.exitCode = unitExit || browserExit || reportExit;

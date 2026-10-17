@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
@@ -65,4 +66,19 @@ test("the game guard names each game by its package and refuses other games and 
       undefined,
       specifier,
     );
+});
+
+test("a game scaffolded without a package.json is still guarded, under its directory name", () => {
+  const scaffolded = [...packages].find(
+    ([game, name]) =>
+      game === name &&
+      !existsSync(path.join(repo, "games", game, "package.json")),
+  );
+  if (!scaffolded) return; // Every game has a package; nothing to check.
+  const [game] = scaffolded;
+  const file = path.join(repo, "games", "fuse-bombers", "src", "main.ts");
+  assert.ok(
+    gameImportViolation("fuse-bombers", file, `${game}/anything`, packages),
+    game,
+  );
 });
