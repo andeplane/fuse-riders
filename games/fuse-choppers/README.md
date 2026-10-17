@@ -44,18 +44,21 @@ The source is the rulebook; this is the shape of it.
   shockwave (blasts nearby rivals away and clears enemy fire).
 - **Nudges** (room setting): shots and bumps, either, or neither. A nudged chopper is shoved and wobbles, with weaker
   lift and steering for a moment.
+- **Watching the bots**: after every human pilot crashes, remaining bots fly at 3× speed, rising to 4× after
+  three seconds, 5× two seconds later and 6× after another two seconds. Countdown, round outro and scoreboard
+  pauses keep their normal pace. Bot-only showcases also keep their normal pace.
 
 ## Design notes
 
 - **Engine** (`src/engine/`): deterministic integer simulation, 256 sub-units a pixel, 60 steps a second, three
-  steps per 50 ms log tick. No `Math.random`, trigonometry, `**` or clocks (the architecture test runs the repo's
+  steps per 50 ms log tick during normal play, up to eighteen while watching surviving bots. No `Math.random`, trigonometry, `**` or clocks (the architecture test runs the repo's
   determinism guard over it). The cave, platforms and saws are pure functions of the seed and are never stored; only
   moving and collectable things are world state, so rollback snapshots stay small. `step.ts` holds the order of a
   step, which is part of the rules. `RULES` in `src/engine/index.ts` names the rules; `tests/golden.test.ts` replays
   a recorded five-bot round, so a behaviour change must bump `RULES` and re-record it (`GOLDEN_RECORD=1`).
 - **Netcode** (`src/online/`): the game behind fuse-netcode's `RollbackGame`. A seat's log entry is its held
   control bits for a match and round; the fold latches a tap shorter than a tick onto the tick's first step. Bots are
-  seats whose bits come from `engine/bot.ts`, computed once per log tick from the world like anyone's view of it. The
+  seats whose bits come from `engine/bot.ts`, recomputed every three simulation steps, including accelerated play. The
   room keeps crowns and round results; seats, bots, settings and start/rematch/lobby are the shared management
   entries. The checkpoint validates every field before a world is installed.
 - **Rendering** (`src/render/`): Canvas 2D at a 960×540 logical size, redrawn from the runtime's frame timing and
