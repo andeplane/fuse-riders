@@ -14,6 +14,7 @@ import {
 } from "./cues.js";
 import { bakeGround } from "./ground.js";
 import type { Img } from "./pixel/image.js";
+import type { Renderer } from "./renderer.js";
 import * as art from "./sprites.js";
 
 type Surface = HTMLCanvasElement;
@@ -24,7 +25,7 @@ const px = (v: number) => v / SUB;
 const CULL = 72;
 const BOOM = [0.5, 0.85, 1, 0.7];
 
-export class Battlefield {
+export class Battlefield implements Renderer {
   readonly camera = { x: 0, y: 0 };
   view: cam.Viewport = { w: 1, h: 1, scale: 1 };
   /** Whether the camera follows this device's hero: a pan stops it, Space sets it again. */
@@ -80,6 +81,12 @@ export class Battlefield {
       cam.clampCamera(x + dx * k, y + dy * k, this.view, ...size(world)),
     );
   }
+
+  /** The pixel view keeps its whole-number scale. */
+  zoom(): void {}
+
+  /** Nothing to free: the canvases go with the page. */
+  dispose(): void {}
 
   /** Centres the camera on fractions `fx`, `fy` of the map (a minimap click) and stops following the hero. */
   lookAt(fx: number, fy: number, world: WorldView): void {
