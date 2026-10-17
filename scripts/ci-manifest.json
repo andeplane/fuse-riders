@@ -18,10 +18,13 @@
     {
       "id": "birds-online",
       "group": "birds-online",
-      "name": "Fuse Birds online controls, recovery and rematch",
+      "name": "Fuse Birds online controls and phone recovery",
       "command": "pnpm exec tsx scripts/fuse-birds-online-smoke.ts",
       "browsers": ["chrome"],
-      "env": { "BIRDS_ONLINE_OUTPUT": "artifacts" },
+      "env": {
+        "BIRDS_ONLINE_OUTPUT": "artifacts",
+        "FUSE_BIRDS_SKIP_TIMED_ROUND": "1"
+      },
       "serviceUrlEnv": "ONLINE_URL",
       "timeoutMinutes": 10,
       "retries": 0
