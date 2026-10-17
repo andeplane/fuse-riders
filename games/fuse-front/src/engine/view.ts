@@ -15,7 +15,7 @@ import {
   type Stance,
   type UnitKind,
 } from "./tuning.js";
-import { DROP_HP } from "./spells.js";
+import { unitMax } from "./spells.js";
 import {
   NEUTRAL,
   ownerOf,
@@ -37,6 +37,8 @@ export interface FlagView {
   owner: number;
   /** Team, or -1 for neutral. */
   team: number;
+  /** Under Rivet's FORTIFY FLAG: it cannot change hands. */
+  fortified: boolean;
 }
 
 export interface BuildingView {
@@ -87,8 +89,10 @@ export interface HeroView {
   xp: number;
   /** Steps until each spell slot can be cast again. */
   spells: readonly number[];
-  /** Under its own CLOAK: no gun picks it. */
+  /** Under its own CLOAK or BLITZ; the tile its FLARE marks, or -1. */
   cloaked: boolean;
+  blitzing: boolean;
+  flare: number;
 }
 
 export interface WorldView {
@@ -144,6 +148,7 @@ export function viewOf(map: GameMap, world: World): WorldView {
       y: flag.y,
       owner: world.sectors[sector]!,
       team: teamOrNeutral(world.sectors[sector]!),
+      fortified: world.fortified[sector]! > 0,
     })),
     buildings: world.buildings.map((building) => {
       const site = map.sites[building.id]!,
@@ -174,7 +179,7 @@ export function viewOf(map: GameMap, world: World): WorldView {
       y: unit.y,
       hp: unit.hp,
       // A unit records no origin, so an Orbital Drop tank reads as one only while it is above a factory tank's most.
-      maxHp: unit.hp > UNITS[unit.kind].hp ? DROP_HP : UNITS[unit.kind].hp,
+      maxHp: unitMax(unit),
       stunned: unit.stun > 0,
       rallied: unit.rally > 0,
     })),
@@ -197,6 +202,8 @@ export function viewOf(map: GameMap, world: World): WorldView {
       xp: hero.xp,
       spells: [...hero.spells],
       cloaked: hero.cloak > 0,
+      blitzing: hero.blitz > 0,
+      flare: hero.flare,
     })),
     mines: world.mines.map((mine) => ({
       owner: mine.owner,

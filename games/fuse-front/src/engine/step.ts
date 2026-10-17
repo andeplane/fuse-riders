@@ -8,7 +8,7 @@
  */
 import { isInt } from "./codec.js";
 import { fight } from "./combat.js";
-import { cast, tickMines, tickSpells } from "./spells.js";
+import { OVERCLOCK_PERCENT, cast, tickMines, tickSpells } from "./spells.js";
 import { openTile } from "./flow.js";
 import { alive, gainXp, moveHeroes, tendHeroes } from "./hero.js";
 import { flagAt, type GameMap } from "./map.js";
@@ -74,6 +74,8 @@ export function step(
     units: world.units.map((unit) => ({ ...unit })),
     heroes: world.heroes.map((hero) => ({ ...hero, spells: [...hero.spells] })),
     mines: world.mines.map((mine) => ({ ...mine })),
+    fortified: [...world.fortified],
+    overclock: [...world.overclock],
     events: [],
   };
   tickSpells(next);
@@ -195,7 +197,8 @@ function capture(map: GameMap, world: World): void {
   for (const hero of world.heroes)
     if (alive(hero)) stand(hero.seat, hero.x, hero.y, hero.cloak > 0);
   for (const [flag, seat] of taker) {
-    if (contested.has(flag)) continue;
+    // A FORTIFIED flag cannot change hands (`spells.ts`).
+    if (contested.has(flag) || world.fortified[flag]! > 0) continue;
     const owner = world.sectors[flag]!;
     if (owner !== NEUTRAL && teamOf(owner) === teamOf(seat)) continue;
     world.sectors[flag] = seat;
@@ -222,7 +225,9 @@ function capture(map: GameMap, world: World): void {
  */
 export function productionRate(world: World, team: number): number {
   const ours = teamSectors(world, team);
-  const rate = clockRate(ours);
+  // OVERCLOCK (`spells.ts`) speeds the team's clock while it runs.
+  const boost = world.overclock[team]! > 0 ? OVERCLOCK_PERCENT : 100;
+  const rate = div(clockRate(ours) * boost, 100);
   const late = world.step - OVERTIME_AFTER;
   if (late <= 0 || ours <= teamSectors(world, 1 - team)) return rate;
   const grown = div(late * OVERTIME_GROWTH, 60 * STEPS_PER_SECOND);

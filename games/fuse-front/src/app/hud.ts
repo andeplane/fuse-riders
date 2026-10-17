@@ -274,7 +274,11 @@ export class Hud {
           const button = el("button", "", "ff-choice ff-bay");
           button.dataset.kind = kind;
           button.append(
-            pixels(unitCard(kind === "lightTank" ? "light" : kind)),
+            pixels(
+              unitCard(
+                kind === "lightTank" ? "light" : (kind as "grunt" | "torch"),
+              ),
+            ),
             el("span", label(kind)),
           );
           button.onclick = () => this.actions.order(panel.id, kind);
