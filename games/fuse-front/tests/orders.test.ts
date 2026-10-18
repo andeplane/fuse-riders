@@ -225,3 +225,35 @@ test("a queue survives a checkpoint, and resumes to the same world", () => {
     hashWorld((next = run(next, 300))),
   );
 });
+
+test("a queued cast at a target no checkpoint admits is refused, so the world still decodes", () => {
+  const world = arena("brick");
+  world.heroes[1]!.respawn = respawnSteps(1);
+  world.heroes[0]!.energy = maxEnergy(1);
+  const busy = step(map, world, [move(12, 8)]);
+  const bogus = (of: number, id: number): Command => ({
+    ...{ seat: 0, type: "cast", slot: 1, x: 4, y: 4, queued: true },
+    of,
+    id,
+  });
+  const next = step(map, busy, [bogus(0, 999_999), bogus(1, 5), bogus(2, 99)]);
+  assert.equal(next.heroes[0]!.queue.length, 0);
+  assert.ok(decodeWorld(JSON.parse(JSON.stringify(encodeWorld(next))), map));
+});
+
+test("orders queued while dead start after the respawn, and ones queued under a held stick wait for its release", () => {
+  const world = arena("brick");
+  Object.assign(world.heroes[0]!, { hp: 0, respawn: 2 });
+  let next = step(map, world, [move(9, 2, true)]);
+  assert.equal(next.heroes[0]!.queue.length, 1, "kept while dead");
+  next = run(next, 3);
+  assert.ok(next.heroes[0]!.hp > 0);
+  assert.equal(next.heroes[0]!.goal, tile(9, 2));
+  let held = step(map, arena("brick"), [
+    { seat: 0, type: "steer", dx: 4, dy: 0 },
+  ]);
+  held = step(map, held, [move(9, 2, true)]);
+  assert.equal(held.heroes[0]!.queue.length, 1, "waits under the stick");
+  held = step(map, held, [{ seat: 0, type: "steer", dx: 0, dy: 0 }]);
+  assert.equal(held.heroes[0]!.goal, tile(9, 2));
+});

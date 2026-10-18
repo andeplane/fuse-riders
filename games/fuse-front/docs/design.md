@@ -199,7 +199,8 @@ trailing `1`; entries without it mean what they always did). A queued order goes
 `QUEUE_MAX` (8); a plain order, a held stick or death clears the queue. When the current order ends (arrived, target
 gone or given up) the next starts: an attack whose target has gone is skipped, and a queued cast that cannot be cast
 when its turn comes (cooldown, energy, range, target) is retried while the hero stands for `CAST_WAIT` (one second),
-then skipped. A plain cast stays instant and leaves the route alone. `HeroView.route` lists the current order and the
+then skipped. Orders queued while the stick is held wait for its release, and an attack-move standing to fight has
+not ended yet. A plain cast stays instant and leaves the route alone. `HeroView.route` lists the current order and the
 queue for drawing. `src/engine/orders.ts` documents the rules.
 
 E3b adds the controls (`src/app/targeting.ts`, pure and tested):

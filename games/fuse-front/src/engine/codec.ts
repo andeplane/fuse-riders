@@ -18,7 +18,7 @@ import {
   longest,
   type SpellEffect,
 } from "./spells.js";
-import { ORDER_KINDS, type Order } from "./orders.js";
+import { ORDER_KINDS, castable, type Order } from "./orders.js";
 import { fnv1a } from "./rng.js";
 import {
   BUILDING_HP,
@@ -453,14 +453,7 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
     for (const o of h.queue) {
       if (o.type === "attack" && !aimable(h.seat, o.of, o.id)) return;
       if (o.type !== "cast" || o.of < 0) continue;
-      if (
-        o.of === 0
-          ? o.id >= nextId
-          : o.of === 1
-            ? !seats.has(o.id)
-            : o.id >= map.sites.length
-      )
-        return;
+      if (!castable(map, nextId, (seat) => seats.has(seat), o.of, o.id)) return;
     }
   }
   // The recorded result is exactly the one the forts imply.
