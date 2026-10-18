@@ -98,7 +98,10 @@ export class Battlefield implements Renderer {
 
   /** Zooms by changing the art rows shown; the scale stays a whole number, so it steps between 1×, 2×, 3×… */
   zoom(factor: number, anchor?: ZoomAnchor): void {
-    this.rows = cam.zoomRows(this.rows, factor);
+    const rows = cam.zoomRows(this.rows, factor);
+    // At a zoom limit nothing moves, so the hero stays followed.
+    if (anchor && rows === this.rows) return;
+    this.rows = rows;
     const world = this.latest;
     if (!world) return;
     if (anchor) this.follow = false;

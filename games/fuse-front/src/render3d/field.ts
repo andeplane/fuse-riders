@@ -385,6 +385,10 @@ export class Field3D implements Renderer {
 
   zoom(factor: number, anchor?: ZoomAnchor): void {
     if (!anchor) return rig.zoomRig(this.rig, factor, this.far);
+    // At a zoom limit nothing moves, so the hero stays followed.
+    const next = { ...this.rig };
+    rig.zoomRig(next, factor, this.far);
+    if (next.distance === this.rig.distance) return;
     this.follow = false;
     // The ground's height under the anchor makes the plane the zoom holds: the picked point itself stays put.
     const point = this.groundPoint(anchor.x, anchor.y);
