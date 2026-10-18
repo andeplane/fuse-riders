@@ -102,7 +102,7 @@ test("events become effects in art pixels, and effects expire under a cap", () =
   assert.deepEqual(kinds(fort), []);
   const cast = (effect: "shockwave" | "orbitalDrop") =>
     effectsOf(
-      { type: "cast", seat: 0, slot: 0, effect, x: 0, y: 0 },
+      { type: "cast", seat: 0, slot: 0, effect, x: 0, y: 0, toX: 0, toY: 0 },
       0,
       none,
       torch,

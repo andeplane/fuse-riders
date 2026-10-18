@@ -34,13 +34,21 @@ import {
 import { Look, addRim, desertSky } from "./post.js";
 import {
   HERO_KINDS,
+  LEGS,
   RING,
   approachAngle,
   bob,
+  detailMaps,
   heroKindOf,
   buildingModel,
+  legSwing,
   paintMaterials,
+  partModel,
+  recoil,
   ruinModel,
+  setDetail,
+  shade,
+  treadPhase,
   unitModel,
   waveCloth,
   type BuildingModel,
@@ -48,6 +56,7 @@ import {
   type ModelKind,
   type Paint,
 } from "./models.js";
+import { buildProps } from "./props.js";
 import * as rig from "./rig.js";
 import {
   WATER_Y,
@@ -98,7 +107,15 @@ const AIM_HOLD = 80;
 /** Effects waiting for the next frame at most; a burst past it (a long stall) drops the rest. */
 const MAX_PENDING = 512;
 /** Heroes draw a size up from their models so they stand over the line at the default zoom. */
-const HERO_SCALE = 1.25;
+const HERO_SCALE = 1.45;
+/** Units draw a size up too, so each kind reads at the default zoom; the smallest grow most. */
+const UNIT_SCALE: Record<UnitKind, number> = { grunt: 1.35, torch: 1.25, lightTank: 1.1, sentry: 1.25 }; // prettier-ignore
+const PLAIN = [1, 1, 1] as const;
+/** HDR lamp colours by team (mines' blinkers), and the marks SPOTTER puts over a unit, FLARE's beacon and BLITZ's lines. */
+const LAMP: readonly (readonly number[])[] = [[4, 1.1, 0.5], [0.6, 1.4, 4.5]]; // prettier-ignore
+const SPOT_RGB = [4, 0.7, 0.4] as const,
+  FLARE_RGB = [6, 1.2, 0.6] as const,
+  BLITZ_RGB = [1.4, 3.6, 5.5] as const;
 
 /** One mesh of a slot: a part of its model; only team-painted parts take the per-instance colour. */
 interface SlotPart {
@@ -197,6 +214,12 @@ export class Field3D implements Renderer {
   private readonly aim = new Map<number, number>();
   private readonly aimStep = new Map<number, number>();
   private readonly gunYaw = new Map<number, number>();
+  /** When (wall clock) each gun last fired, for its recoil. */
+  private readonly fired = new Map<number, number>();
+  private readonly detail = detailMaps();
+  private readonly ghost = new THREE.MeshStandardMaterial({ color: 0x9fd8ff, emissive: 0x2a70ff, emissiveIntensity: 0.6, metalness: 1, roughness: 0.05, transparent: true, depthWrite: false }); // prettier-ignore
+  private readonly tread = [0, 0, 0];
+  private readonly lamp = [0, 0, 0];
   private lastNow = 0;
   private readonly waterNormal: THREE.DataTexture;
   private readonly sandNormal: THREE.DataTexture;
@@ -247,10 +270,12 @@ export class Field3D implements Renderer {
     this.wreckMat = std(WRECK_HEX, 0.9, 0.1);
     this.paints = paintMaterials();
     for (const m of Object.values(this.paints)) {
-      addRim(m);
+      // Track rubber keeps its own shader patch (the link scroll) and needs no rim.
+      if (m !== this.paints.tread) addRim(m);
       this.owned.push(m, ...(m.map ? [m.map] : []));
     }
-    this.owned.push(this.cloth, this.puffGeo, this.puffMat);
+    this.owned.push(this.cloth, this.puffGeo, this.puffMat, this.detail.normal, this.detail.rough, this.ghost);
+    setDetail(this.paints, this.governor.level === "high" ? this.detail : undefined);
     const parts = (model: Model) => model.map((p) => this.keep(p.geometry) && p);
     for (const [i, kind] of (["fort", "robotFactory", "vehicleFactory", "turret"] as const).entries()) {
       const model = buildingModel(kind);
@@ -279,9 +304,23 @@ export class Field3D implements Renderer {
     band.dispose();
     const add = (key: string, model: { geometry: THREE.BufferGeometry; material: THREE.Material; tinted: boolean }[], shadow: boolean, order = 0) =>
       this.slotList.push(this.slots.set(key, { batch: new Batch(), parts: model.map((p) => ({ ...p, geometry: this.keep(p.geometry) })), shadow, order }).get(key)!);
-    for (const kind of UNIT_MODELS)
-      add(kind, unitModel(kind).map((p) => ({ geometry: p.geometry, material: this.paints[p.paint], tinted: p.paint === "team" })), true);
+    // Walkers' bodies leave their legs out: one shared leg model swings under all of them. Treads take their scroll
+    // phase, not a team colour, through the instance colour.
+    const painted = (model: Model) => model.map((p) => ({ geometry: p.geometry, material: this.paints[p.paint], tinted: p.paint === "team" || p.paint === "tread" }));
+    for (const kind of UNIT_MODELS) add(kind, painted(unitModel(kind, false)), true);
+    for (const kind of ["leg", "treads", "mine"] as const) add(kind, painted(partModel(kind)), true);
     const plain = (geometry: THREE.BufferGeometry, material: THREE.Material) => [{ geometry, material, tinted: true }];
+    const vix = unitModel("vix");
+    add("ghost", [{ geometry: mergeGeometries(vix.map((p) => p.geometry))!, material: this.ghost, tinted: false }], false, 5);
+    for (const p of vix) p.geometry.dispose();
+    const glowing = (opacity: number, wireframe = false) => this.keep(new THREE.MeshBasicMaterial({
+      transparent: true, opacity, wireframe, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false, side: THREE.DoubleSide,
+    }));
+    const dome = new THREE.SphereGeometry(1, 20, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+    add("dome", [{ geometry: dome, material: glowing(0.12), tinted: true }, { geometry: dome.clone(), material: glowing(0.35, true), tinted: true }], false, 6);
+    add("lamp", plain(new THREE.SphereGeometry(1, 10, 8), glowing(1)), false, 7);
+    add("mark", plain(new THREE.OctahedronGeometry(1).scale(0.8, 1.4, 0.8), glowing(0.9)), false, 7);
+    add("streak", plain(new THREE.BoxGeometry(1, 1, 1), glowing(0.55)), false, 7);
     add("ring", plain(ring, flat(0)), false);
     add("heroRing", plain(heroRing, flat(0)), false);
     // Targeting: thin rings (radius 1, scaled) and a line one tile long down +z, drawn over everything.
@@ -389,6 +428,8 @@ export class Field3D implements Renderer {
         const h = world.heroes.find((each) => each.seat === seat);
         return h && { x: h.x / TILE, z: h.y / TILE, team: h.team };
       },
+      factories: (team) => world.buildings.filter((b) => b.team === team && b.hp > 0 && b.kind.endsWith("Factory"))
+        .map((b) => ({ x: b.x + 0.5, z: b.y + 0.5 })),
     };
   }
 
@@ -433,36 +474,64 @@ export class Field3D implements Renderer {
       for (const h of older?.heroes ?? []) this.heroBefore.set(h.seat, h);
       if (this.facing.size > world.units.length * 2 + 64) this.forget();
     }
-    if (world !== this.latest) {
+    const fresh = world !== this.latest;
+    if (fresh) {
       this.latest = world;
       this.unitsNow.clear();
       for (const u of world.units) this.unitsNow.set(u.id, u);
     }
-    if (this.governor.sample(now - this.lastNow)) this.look.setQuality(this.governor.level);
+    if (this.governor.sample(now - this.lastNow)) {
+      this.look.setQuality(this.governor.level);
+      setDetail(this.paints, this.governor.level === "high" ? this.detail : undefined);
+    }
     const dt = Math.min(100, Math.max(0, now - this.lastNow));
     this.lastNow = now;
     for (const e of world.events)
-      if (e.type === "shot" && e.from.of !== "hero")
-        this.aimAt((e.from.of === "unit" ? 1 : -1) * (e.from.id + 1), Math.atan2(e.to.x - e.from.x, e.to.y - e.from.y), world.step);
+      if (e.type === "shot" && e.from.of !== "hero") {
+        const key = (e.from.of === "unit" ? 1 : -1) * (e.from.id + 1);
+        this.aimAt(key, Math.atan2(e.to.x - e.from.x, e.to.y - e.from.y), world.step);
+        if (fresh) this.fired.set(key, now);
+      }
     for (const slot of this.slotList) slot.batch.begin();
+    this.ghost.opacity = 0.2 + 0.08 * Math.sin(now / 70);
     for (const u of world.units) {
       const p = this.before.get(u.id) ?? u;
       const x = this.lerp(t, p.x, u.x), z = this.lerp(t, p.y, u.y), y = standY(world, field, x, z);
       const moving = Math.abs(u.x - p.x) + Math.abs(u.y - p.y) >= 2;
       if (moving) this.facing.set(u.id, Math.atan2(u.x - p.x, u.y - p.y));
       const yaw = this.facing.get(u.id) ?? (u.team === 0 ? Math.PI / 2 : -Math.PI / 2);
-      const s = u.stunned ? 0.85 : 1, tank = u.kind === "lightTank", lift = y + bob(moving, now, u.id, tank);
-      const tint = teamRgb(u.team);
-      this.slot(u.kind).batch.push(x, lift, z, yaw, s, s, s, tint);
+      const s = (u.stunned ? 0.85 : 1) * UNIT_SCALE[u.kind], tank = u.kind === "lightTank", lift = y + bob(moving, now, u.id, tank);
+      const tint = teamRgb(u.team), kick = recoil(now - (this.fired.get(u.id + 1) ?? -1e9));
+      // Tanks and sentries turn their guns onto what they shoot and kick back along them when they fire.
+      const gun = tank || u.kind === "sentry" ? approachAngle(this.gunYaw.get(u.id + 1) ?? yaw, this.aimOf(u.id + 1, world.step) ?? yaw, SLEW * dt) : yaw;
+      if (gun !== yaw) this.gunYaw.set(u.id + 1, gun);
+      const bx = x - Math.sin(gun) * kick, bz = z - Math.cos(gun) * kick;
+      this.slot(u.kind).batch.push(tank ? x : bx, lift, tank ? z : bz, tank ? yaw : gun, s, s, s, tint);
       if (tank) {
-        const gun = approachAngle(this.gunYaw.get(u.id + 1) ?? yaw, this.aimOf(u.id + 1, world.step) ?? yaw, SLEW * dt);
-        this.gunYaw.set(u.id + 1, gun);
-        this.slot("tankTurret").batch.push(x, lift, z, gun, s, s, s, tint);
+        this.slot("tankTurret").batch.push(bx, lift, bz, gun, s, s, s, tint);
+        this.tread[0] = treadPhase(x, z, yaw);
+        this.slot("treads").batch.push(x, lift, z, yaw, s, s, s, this.tread);
       }
-      const r = RING[u.kind];
+      this.legs(u.kind, x, lift, z, yaw, s, moving, now, u.id);
+      if (this.blitzing(world, u.owner) && moving && u.kind !== "sentry") this.speedLines(x, lift, z, yaw, now + u.id * 37);
+      const top = tank ? 0.65 : 0.85;
+      if (u.spotted) this.slot("mark").batch.push(x, y + top + 0.2 + Math.sin(now / 200 + u.id) * 0.03, z, now / 300, 0.06, 0.06, 0.06, SPOT_RGB);
+      const r = RING[u.kind] * UNIT_SCALE[u.kind];
       this.slot("ring").batch.push(x, y, z, 0, r, 1, r, tint);
-      if (u.hp < u.maxHp) this.bar(x, y + (tank ? 0.6 : 0.75), z, u.hp / u.maxHp, 0.6);
+      if (u.hp < u.maxHp) this.bar(x, y + top, z, u.hp / u.maxHp, 0.6);
     }
+    for (let i = 0; i < world.mines.length; i++) {
+      // A laid mine blinks slowly; one riding a tank blinks fast on its roof.
+      const m = world.mines[i]!, x = m.x / TILE, z = m.y / TILE, y = standY(world, field, x, z) + (m.stuck ? 0.3 : 0);
+      const period = m.stuck ? 260 : 1000, on = (now + i * 137) % period < period * 0.3;
+      this.slot("mine").batch.push(x, y, z, i, 1, 1, 1, teamRgb(m.team));
+      this.slot("lamp").batch.push(x, y + 0.08, z, 0, 0.035, 0.035, 0.035, this.glow(LAMP[m.team] ?? FLARE_RGB, on ? 1 : 0.12));
+    }
+    for (const f of world.flags)
+      if (f.fortified) {
+        const x = f.x + 0.5, z = f.y + 0.5, r = 1.1 + Math.sin(now / 300) * 0.03;
+        this.slot("dome").batch.push(x, standY(world, field, x, z), z, now / 2500, r, r * 1.15, r, teamRgb(f.team));
+      }
     for (const hero of world.heroes) {
       if (hero.hp <= 0) continue;
       const p = this.heroBefore.get(hero.seat) ?? hero;
@@ -474,10 +543,24 @@ export class Field3D implements Renderer {
       const moving = Math.abs(hero.x - p.x) + Math.abs(hero.y - p.y) >= 2, key = -1000 - hero.seat;
       if (moving) this.facing.set(key, Math.atan2(hero.x - p.x, hero.y - p.y));
       const yaw = this.facing.get(key) ?? (hero.team === 0 ? Math.PI / 2 : -Math.PI / 2);
-      this.slot(heroKindOf(hero)).batch.push(x, y + bob(moving, now, hero.seat, false), z, yaw, HERO_SCALE, HERO_SCALE, HERO_SCALE, teamRgb(hero.team));
+      const kind = heroKindOf(hero), lift = y + bob(moving, now, hero.seat, false), S = HERO_SCALE;
+      // Under CLOAK, Vix is a glassy shimmer with its legs still.
+      if (hero.cloaked && kind === "vix") this.slot("ghost").batch.push(x, lift, z, yaw, S, S, S, PLAIN);
+      else {
+        this.slot(kind).batch.push(x, lift, z, yaw, S, S, S, teamRgb(hero.team));
+        this.legs(kind, x, lift, z, yaw, S, moving, now, hero.seat);
+      }
+      if (hero.blitzing && moving) this.speedLines(x, lift, z, yaw, now);
+      if (hero.flare >= 0) {
+        // FLARE's beacon: a pulsing red light and a thin column over the marked tile.
+        const fx = (hero.flare % world.width) + 0.5, fz = Math.floor(hero.flare / world.width) + 0.5, fy = standY(world, field, fx, fz);
+        const pulse = 0.6 + 0.4 * Math.sin(now / 120);
+        this.slot("lamp").batch.push(fx, fy + 0.15, fz, 0, 0.1, 0.1, 0.1, this.glow(FLARE_RGB, pulse));
+        this.slot("streak").batch.push(fx, fy + 1.2, fz, 0, 0.03, 2.4, 0.03, this.glow(FLARE_RGB, pulse * 0.5));
+      }
       const r = RING.hero;
       this.slot("heroRing").batch.push(x, y, z, 0, r, 1, r, hero.seat === self ? SELF_RGB : teamRgb(hero.team));
-      this.bar(x, y + 1.45, z, hero.hp / hero.maxHp, 1);
+      this.bar(x, y + 1.75, z, hero.hp / hero.maxHp, 1);
     }
     this.targeting(world, field, t, self, now);
     rig.clampRig(this.rig, world.width, world.height);
@@ -495,6 +578,9 @@ export class Field3D implements Renderer {
         node.pivot.rotation.y = node.aims
           ? approachAngle(cur, this.aimOf(key, world.step) ?? cur + 0.0004 * dt, SLEW * dt)
           : (now / 1400) % (Math.PI * 2);
+        // A turret's head sits on its centre, so its recoil is a nudge back from there along its aim.
+        const kick = node.aims ? recoil(now - (this.fired.get(key) ?? -1e9)) : 0, yaw = node.pivot.rotation.y;
+        if (node.aims) node.pivot.position.set(-Math.sin(yaw) * kick, node.pivot.position.y, -Math.cos(yaw) * kick);
       }
       node.puffs.forEach((puff, k) => {
         const f = ((now / 2600 + k / node.puffs.length + i * 0.37) % 1);
@@ -523,6 +609,41 @@ export class Field3D implements Renderer {
     this.fx.update(now);
     this.place();
     this.look.render();
+  }
+
+  /** A walker's two legs, hung from its hips and swung while it walks. */
+  // prettier-ignore
+  private legs(kind: ModelKind, x: number, y: number, z: number, yaw: number, scale: number, moving: boolean, now: number, id: number): void {
+    const spec = LEGS[kind];
+    if (!spec) return;
+    const c = Math.cos(yaw), s = Math.sin(yaw), w = spec.w * scale, len = spec.len * scale;
+    for (let side = -1; side <= 1; side += 2) {
+      const hx = side * spec.hip * scale;
+      this.slot("leg").batch.push(x + hx * c, y + len, z - hx * s, yaw, w, len, w, PLAIN, legSwing(moving, now, id, side));
+    }
+  }
+
+  /** Whether the seat's hero is under BLITZ, which speeds its robots. */
+  private blitzing(world: WorldView, seat: number): boolean {
+    for (const hero of world.heroes)
+      if (hero.seat === seat) return hero.blitzing && hero.hp > 0;
+    return false;
+  }
+
+  /** BLITZ: two flickering streaks trailing a body at hip height. */
+  // prettier-ignore
+  private speedLines(x: number, y: number, z: number, yaw: number, now: number): void {
+    const c = Math.cos(yaw), s = Math.sin(yaw);
+    for (let k = -1; k <= 1; k += 2) {
+      const len = 0.3 + 0.2 * Math.abs(Math.sin(now / 60 + k)), back = 0.22 + len / 2, side = k * 0.1;
+      this.slot("streak").batch.push(x + side * c - s * back, y + 0.22 + k * 0.05, z - side * s - c * back, yaw, 0.012, 0.012, len, BLITZ_RGB);
+    }
+  }
+
+  /** `rgb` scaled by `k` in a reused array, for a lamp's instance colour. */
+  private glow(rgb: readonly number[], k: number): number[] {
+    for (let i = 0; i < 3; i++) this.lamp[i] = rgb[i]! * k;
+    return this.lamp;
   }
 
   /** The aiming rings and marks (`overlay`), and a marker and line from this device's hero to its target. */
@@ -618,7 +739,13 @@ export class Field3D implements Renderer {
   }
 
   private forget(): void {
-    for (const map of [this.facing, this.aim, this.aimStep, this.gunYaw])
+    for (const map of [
+      this.facing,
+      this.aim,
+      this.aimStep,
+      this.gunYaw,
+      this.fired,
+    ])
       map.clear();
   }
 
@@ -723,11 +850,13 @@ export class Field3D implements Renderer {
       }
     });
     rockMesh.castShadow = rockMesh.receiveShadow = plankMesh.castShadow = plankMesh.receiveShadow = true;
-    this.matchGroup.add(rockMesh, plankMesh);
+    const props = this.own(buildProps(world.terrain, (x, z) => heightAt(field, x, z)));
+    this.matchGroup.add(rockMesh, plankMesh, props.group);
 
     this.buildings = world.buildings.map((b) => this.building(b.kind, b.id, b.x + 0.5, standY(world, field, b.x + 0.5, b.y + 0.5), b.y + 0.5));
-    const poleGeo = this.own(new THREE.CylinderGeometry(0.035, 0.05, 1.6, 8).translate(0, 0.8, 0));
-    const baseGeo = this.own(new THREE.CylinderGeometry(0.14, 0.18, 0.12, 10).translate(0, 0.06, 0));
+    // The paints take baked vertex colour, so these plain shapes get it too.
+    const poleGeo = this.own(shade(new THREE.CylinderGeometry(0.035, 0.05, 1.6, 8).translate(0, 0.8, 0)));
+    const baseGeo = this.own(shade(new THREE.CylinderGeometry(0.14, 0.18, 0.12, 10).translate(0, 0.06, 0)));
     this.flags = world.flags.map((f) => {
       const x = f.x + 0.5, z = f.y + 0.5, y = standY(world, field, x, z);
       const pole = new THREE.Mesh(poleGeo, this.paints.steel);
