@@ -14,6 +14,7 @@ import {
 } from "./cues.js";
 import { bakeGround } from "./ground.js";
 import type { Img } from "./pixel/image.js";
+import { BIOME } from "./pixel/palette.js";
 import {
   NO_OVERLAY,
   TARGET_HEX,
@@ -175,7 +176,7 @@ export class Battlefield implements Renderer {
   draw(matchId: string, world: WorldView, older: WorldView | undefined, t: number, self: number, now: number): void {
     this.adopt(matchId);
     if (!this.ground) {
-      this.ground = this.toCanvas(bakeGround(world));
+      this.ground = this.toCanvas(bakeGround(world, 3, BIOME[world.biome]));
       this.burn();
     }
     if (world !== this.latest) {
