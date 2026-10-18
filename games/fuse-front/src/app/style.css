@@ -289,3 +289,65 @@
 #app [hidden] {
   display: none;
 }
+/* Targeting (targeting.ts): the cursor over an enemy, and while an attack-move or a spell is armed. */
+.ff-board.ff-hostile {
+  cursor: pointer;
+}
+.ff-board.ff-aiming {
+  cursor: crosshair;
+}
+#app .ff-spell.ff-aiming {
+  border-image: var(--ff-frame-lit) 4 / 4px;
+}
+/* A spell's tooltip: name, what it does and its numbers, over the button on hover or keyboard focus. */
+.ff-spell-bay {
+  position: relative;
+  display: flex;
+}
+.ff-tip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  z-index: 5;
+  width: 220px;
+  transform: translateX(-50%);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 4px 6px;
+  text-align: left;
+  pointer-events: none;
+}
+/* Hover only where there is a mouse, and keyboard focus only, so a click or tap leaves no tooltip open. */
+@media (hover: hover) {
+  .ff-spell-bay:hover .ff-tip {
+    display: flex;
+  }
+}
+.ff-spell-bay:has(:focus-visible) .ff-tip {
+  display: flex;
+}
+.ff-tip b {
+  color: var(--ff-hazard);
+}
+.ff-tip small {
+  color: #c8c0a0;
+}
+/* What the hero shoots, in the bars bay: a team stripe, its name, FOCUS when chosen, and its hit points. */
+.ff-target {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 6px;
+  padding-left: 6px;
+  box-shadow: inset 3px 0 0 var(--ff-team, #8a8e92);
+  font-size: 0.7rem;
+}
+.ff-target .ff-track {
+  flex-basis: 100%;
+  height: 5px;
+}
+.ff-target.ff-focus .ff-tag {
+  color: #f4f0e0;
+}

@@ -180,6 +180,30 @@ Bot-vs-bot matches at every difficulty pairing must end within about 15 minutes 
   targeting mode: self, point or unit) for tooltips. While aiming, the range and area of effect are shown before the
   cast. Aimed spells take a target point or unit.
 
+E3a built the engine side; `src/engine/focus.ts` documents the rules (a chase gives up only when the target is
+unreachable or, for a unit or hero, beyond `CHASE_LEASH`). `HeroView.target` is the focus, or else the
+enemy the gun picks next, and `HeroView.kit` is the kit's `SPELL_INFO`. A point spell aimed beyond `range + AIM_SLACK`
+is refused without spending anything, and a `unit` spell may name its target in the `cast` entry's optional fourth and
+fifth arguments.
+
+E3b adds the controls (`src/app/targeting.ts`, pure and tested):
+
+- Right-clicking an enemy attacks it, and right-clicking the ground moves. A left click does the same, unless it lands
+  on one of your factories.
+- A, or the HUD's ATTACK-MOVE button, then a click on the map sends an attack-move.
+- Q W E R cast a `self` spell at once. A `point` or `unit` spell starts aiming instead: the battlefield draws its range
+  around the hero and its area under the cursor, and rings the bodies a unit spell may take. A left click casts it, and
+  a right click or Esc cancels. A click out of reach keeps aiming.
+- The cursor turns into a pointer over an enemy.
+- Each spell button has a steel tooltip with the name, description, cost, cooldown, range, radius and unlock level.
+- The HUD's TGT row, under the hero's bars, names what the hero shoots, with its hit points, and marks it FOCUS when
+  chosen.
+- Both renderers draw a ring at the target and a thin line from the hero to it, in a colour no team uses. A newly
+  chosen target pulses once.
+
+![Aiming Sticky Mine: its range around Vix, its area under the cursor, and the line to her target](images/targeting.png)
+![A spell tooltip, and the TGT row on FOCUS after a right-click on the enemy fort](images/targeting-tooltip.png)
+
 **Bigger maps.**
 
 - Maps grow to about the scale of Z and StarCraft: roughly 192×128 tiles for 1v1 and up to 256×192 for 3v3, with
