@@ -4,19 +4,30 @@ import * as THREE from "three";
 import type { HeroView } from "../src/engine/view.js";
 import {
   HERO_KINDS,
+  LEGS,
   PAINTS,
   RING,
   approachAngle,
   bob,
   buildingModel,
+  detailMaps,
   heroKindOf,
+  legSwing,
   paintMaterials,
+  panelHeights,
+  partModel,
+  patchTread,
+  recoil,
   ruinModel,
+  setDetail,
+  shade,
+  treadPhase,
   unitModel,
   waveCloth,
   type Model,
   type ModelKind,
 } from "../src/render3d/models.js";
+import { propSpots } from "../src/render3d/props.js";
 
 const box = (model: Model) =>
   model.reduce(
@@ -125,6 +136,80 @@ test("a hero wears the model of its kind", () => {
   assert.equal(heroKindOf(hero), "brick");
   assert.equal(heroKindOf({ ...hero, kind: "vix" }), "vix");
 });
+
+test("at a glance: every kind has its own bounding box, and each hero its signature parts", () => {
+  const all: ModelKind[] = [...KINDS, "sentry"];
+  const dims = all.map((k) => size(unitModel(k)).toArray().map((v) => v.toFixed(2)).join());
+  assert.equal(new Set(dims).size, all.length, dims.join(" | "));
+  const paints = (k: ModelKind) => unitModel(k).map((p) => p.paint);
+  assert.ok(size(unitModel("brick")).x > Math.max(...(["vix", "rivet", "tally"] as const).map((k) => size(unitModel(k)).x)), "Brick is the broadest");
+  assert.ok(paints("vix").includes("eye") && size(unitModel("vix")).z > 0.75, "Vix: a red eye and a long rifle");
+  assert.ok(paints("rivet").includes("gold") && paints("rivet").includes("visor"), "Rivet: hard hat and goggles");
+  assert.ok(size(unitModel("tally")).y > size(unitModel("brick")).y, "Tally's antenna tops them all");
+  assert.ok(paints("lightTank").includes("tread") && !paints("lightTank").includes("eye"));
+  for (const k of all) assert.ok(unitModel(k).length <= 7, `${k}: ${unitModel(k).length} draw calls`);
+}); // prettier-ignore
+
+test("walkers' legs come off the body and hang from a shared unit leg; tracks come off the tank", () => {
+  for (const [kind, spec] of Object.entries(LEGS) as [ModelKind, { len: number }][]) {
+    assert.ok(box(unitModel(kind, false)).min.y > spec.len * 0.55, `${kind} floats on its hips`);
+    assert.ok(Math.abs(box(unitModel(kind)).min.y) < 0.01, `${kind} stands with its legs`);
+  }
+  assert.ok(!unitModel("lightTank", false).some((p) => p.paint === "tread"));
+  const leg = box(partModel("leg"));
+  assert.ok(Math.abs(leg.min.y + 1) < 0.01 && leg.max.y < 0.05, "hip at the origin, foot at −1");
+  assert.deepEqual(partModel("treads").map((p) => p.paint), ["tread"]);
+  // The tread paint scrolls its links by the instance colour instead of being tinted by it.
+  const shader = { vertexShader: "#include <color_vertex>", fragmentShader: "#include <color_fragment>" };
+  patchTread(shader);
+  assert.match(shader.vertexShader, /vTread = position\.z \* 16\.0 \+ instanceColor\.r/);
+  assert.ok(!shader.fragmentShader.includes("<color_fragment>"), "no tint by the phase");
+  assert.equal(paintMaterials().tread.customProgramCacheKey(), "tread");
+  assert.ok(partModel("mine").some((p) => p.paint === "team"));
+}); // prettier-ignore
+
+test("legs swing opposite while walking, guns kick back and settle, tracks roll as far as the tank drives", () => {
+  for (const t of [0, 40, 130]) {
+    assert.equal(legSwing(true, t, 3, 1), -legSwing(true, t, 3, -1));
+    assert.equal(legSwing(false, t, 3, 1), 0);
+  }
+  assert.ok(Math.max(...[0, 50, 100, 150].map((t) => Math.abs(legSwing(true, t, 1, 1)))) > 0.3);
+  const kicks = [0, 50, 100, 200, 220, 1000, -5].map(recoil);
+  assert.ok(kicks[0]! > 0.05 && kicks[0]! > kicks[1]! && kicks[1]! > kicks[2]! && kicks[2]! > kicks[3]!);
+  assert.deepEqual(kicks.slice(4), [0, 0, 0]);
+  const yaw = 0.6, d = 0.013, x = 4.2, z = 7.1;
+  const moved = treadPhase(x + Math.sin(yaw) * d, z + Math.cos(yaw) * d, yaw) - treadPhase(x, z, yaw);
+  assert.ok(Math.abs(moved - Math.round(moved) - ((d * 16) % 1)) < 1e-6);
+  assert.equal(treadPhase(x + Math.cos(yaw) * 0.3, z - Math.sin(yaw) * 0.3, yaw).toFixed(6), treadPhase(x, z, yaw).toFixed(6), "sideways is not rolling");
+}); // prettier-ignore
+
+test("panels have grooved borders and raised rivets; grime darkens the feet and wear lightens edges", () => {
+  const n = 64, h = panelHeights(n), at = (u: number, v: number) => h[Math.floor(v * n) * n + Math.floor(u * n)]!;
+  assert.ok(at(0.035, 0.3) < at(0.3, 0.3) - 0.5, "a groove round the border");
+  assert.ok(at(0.1, 0.1) > at(0.3, 0.3) + 0.4, "a rivet in the corner");
+  const maps = detailMaps(32), paints = paintMaterials();
+  setDetail(paints, maps);
+  assert.equal(paints.team.normalMap, maps.normal);
+  assert.equal(paints.visor.normalMap, null, "glowing glass stays smooth");
+  setDetail(paints, undefined);
+  assert.equal(paints.team.normalMap, null, "low quality drops the maps");
+  const g = shade(new THREE.BoxGeometry(1, 1, 1, 1, 4, 1).translate(0, 0.5, 0), 0, 1);
+  const c = g.getAttribute("color"), p = g.getAttribute("position"), side = [...Array(c.count).keys()].filter((i) => g.getAttribute("normal").getX(i) === 1);
+  const low = side.find((i) => p.getY(i) === 0)!, high = side.find((i) => p.getY(i) === 1)!;
+  assert.ok(c.getX(low) < c.getX(high) * 0.8, "dirtier at the feet");
+  const round = shade(new THREE.SphereGeometry(1, 8, 6).translate(0, 2, 0), 0, 1).getAttribute("color");
+  assert.ok(Math.max(...(round.array as Float32Array)) > 1.1, "worn bright where the surface turns off every axis");
+}); // prettier-ignore
+
+test("battlefield props: the same spots for the same map, only on open sand clear of anything else", () => {
+  const terrain = Array.from({ length: 40 }, (_, y) => (y === 20 ? "#".repeat(60) : ".".repeat(60)));
+  const spots = propSpots(terrain);
+  assert.deepEqual(propSpots(terrain), spots);
+  const all = [...spots.crater, ...spots.tracks, ...spots.scrap];
+  assert.ok(spots.crater.length > 5 && spots.tracks.length > 5 && spots.scrap.length > 5, `${all.length} props`);
+  assert.ok(all.length < 60 * 40 * 0.1, "litter, not a carpet");
+  for (const p of all) assert.ok(Math.abs(Math.floor(p.z) - 20) > 1, `clear of the rock row at ${p.z}`);
+}); // prettier-ignore
 
 test("the flag cloth waves but stays tied to the pole", () => {
   const cloth = new THREE.PlaneGeometry(0.7, 0.45, 10, 1).translate(

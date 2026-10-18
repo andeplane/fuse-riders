@@ -16,7 +16,7 @@ import {
   type UnitKind,
 } from "./tuning.js";
 import { heroTarget, type Aim } from "./focus.js";
-import { KITS, unitMax, type Spell } from "./spells.js";
+import { KITS, hideOf, unitMax, type Spell } from "./spells.js";
 import {
   NEUTRAL,
   ownerOf,
@@ -71,6 +71,8 @@ export interface UnitView {
   /** Under SHOCKWAVE's stun or RALLY CRY's boost this step. */
   stunned: boolean;
   rallied: boolean;
+  /** Inside an enemy Tally's SPOTTER radius: it takes extra damage. */
+  spotted: boolean;
 }
 
 export interface HeroView {
@@ -213,6 +215,7 @@ export function viewOf(map: GameMap, world: World): WorldView {
       maxHp: unitMax(unit),
       stunned: unit.stun > 0,
       rallied: unit.rally > 0,
+      spotted: hideOf(world, unit, teamOf(unit.owner), true) > 0,
     })),
     players: world.players.map((player) => ({
       ...player,

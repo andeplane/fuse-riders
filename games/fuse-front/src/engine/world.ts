@@ -172,6 +172,9 @@ export type CombatEvent =
       effect: SpellEffect;
       x: number;
       y: number;
+      /** Where it landed, for its look: what it struck, mended or took; the mine, flare, flag or drop; DASH's start. */
+      toX: number;
+      toY: number;
     }
   /** A flag changed hands; none is announced when a cloaked hero took it. */
   | { type: "capture"; sector: number; seat: number }

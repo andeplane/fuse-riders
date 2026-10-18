@@ -35,6 +35,13 @@ const ctx: CueContext = {
   teamOf: (mark) => (mark.of === "hero" ? 1 : 0),
   site: (id) => (id === 3 ? { x: 4.5, z: 6.5 } : undefined),
   heroAt: (seat) => (seat === 0 ? { x: 2, z: 3, team: 0 } : undefined),
+  factories: (team) =>
+    team === 0
+      ? [
+          { x: 5.5, z: 5.5 },
+          { x: 9.5, z: 2.5 },
+        ]
+      : [],
 };
 const mark = (of: "unit" | "hero" | "building", id: number) => ({
   of,
@@ -98,10 +105,40 @@ test("deaths, ruins, spells and level-ups each start their effect", () => {
   assert.deepEqual(one({ type: "death", id: 2, kind: "lightTank", owner: 0, x: 2 * T, y: T }), [["boom", 2, 1, 1]]);
   assert.deepEqual(one({ type: "destroyed", building: 3, kind: "turret" }), [["boom", 4.5, 6.5, 1.8]]);
   assert.deepEqual(one({ type: "destroyed", building: 7, kind: "turret" }), []);
-  assert.deepEqual(one({ type: "cast", seat: 0, slot: 3, effect: "orbitalDrop", x: T, y: T }), [["drop", 1, 1, 3]]);
-  assert.deepEqual(one({ type: "cast", seat: 1, slot: 0, effect: "repair", x: T, y: T }), [["spell", 1, 1, 3]]);
+  assert.deepEqual(one({ type: "cast", seat: 0, slot: 3, effect: "orbitalDrop", x: T, y: T, toX: 2 * T, toY: T }), [["drop", 2, 1, 3]]);
   assert.deepEqual(one({ type: "levelUp", seat: 0, level: 2 }), [["levelUp", 2, 3, 1]]);
   assert.deepEqual(one({ type: "won", winner: 0 }), []);
+}); // prettier-ignore
+
+test("every hero's spell has its own look: self spells on the caster, beams to the target, the rest where they land", () => {
+  const cast = (effect: Extract<CombatEvent, { type: "cast" }>["effect"]): CombatEvent =>
+    ({ type: "cast", seat: 0, slot: 0, effect, x: T, y: 2 * T, toX: 7 * T, toY: 4 * T });
+  const one = (e: CombatEvent) => cuesOf(e, ctx).map((c) => [c.kind, c.x, c.z, c.x2, c.z2, c.team]);
+  for (const e of ["cloak", "blitz"] as const) assert.deepEqual(one(cast(e)), [[e, 1, 2, 1, 2, 0]]);
+  for (const e of ["snipe", "hijack", "repair", "dash"] as const) assert.deepEqual(one(cast(e)), [[e, 1, 2, 7, 4, 0]]);
+  for (const e of ["turretDrop", "fortify", "flare"] as const) assert.deepEqual(one(cast(e)), [[e, 7, 4, 7, 4, 0]]);
+  assert.deepEqual(one(cast("stickyMine")), [["mine", 7, 4, 7, 4, 0]]);
+  assert.deepEqual(one(cast("overclock")).map((c) => c.slice(0, 3)), [["overclock", 5.5, 5.5], ["overclock", 9.5, 2.5]]);
+  assert.deepEqual(one(cast("spotter")), [], "a passive never casts");
+  assert.deepEqual(one({ type: "mine", seat: 0, x: 3 * T, y: T }).map((c) => c[0]), ["mineBlast"]);
+  // Every new look spawns something, within the pool, and repeats for the same seed.
+  const kinds = ["snipe", "cloak", "mine", "mineBlast", "hijack", "repair", "turretDrop", "fortify", "overclock", "dash", "flare", "blitz"] as const;
+  const run = () => kinds.map((kind) => {
+    const pool = new Particles(128), scorch = new Particles(4);
+    const flashes = emit({ kind, x: 1, z: 1, x2: 6, z2: 3, size: 3, team: 0 }, 0, () => 0, pool, scorch, seeded(3));
+    return [kind, pool.live(150), flashes.length];
+  });
+  for (const [kind, live] of run()) assert.ok((live as number) > 0 && (live as number) <= 128, `${kind}: ${live}`);
+  assert.deepEqual(run(), run());
+}); // prettier-ignore
+
+test("a rollback re-delivering a cast plays its spell once; a changed target plays again", () => {
+  const dedupe = new EventDedupe();
+  const snipe = (toX: number): StampedEvent => ({ step: 40, event: { type: "cast", seat: 0, slot: 0, effect: "snipe", x: T, y: T, toX, toY: T } });
+  const played = (e: StampedEvent) => (dedupe.accept("m", e) ? cuesOf(e.event, ctx).map((c) => c.kind) : []);
+  assert.deepEqual(played(snipe(5 * T)), ["snipe"]);
+  assert.deepEqual(played(snipe(5 * T)), []);
+  assert.deepEqual(played(snipe(6 * T)), ["snipe"]);
 }); // prettier-ignore
 
 test("a rollback that re-delivers steps plays only what changed", () => {
@@ -138,7 +175,7 @@ test("an explosion bursts, leaves a scorch and asks for a light, the same way fo
 
 test("every cue spawns within the pool and the shell's blast waits for it to land", () => {
   const pool = new Particles(64), scorch = new Particles(4);
-  for (const kind of ["tracer", "shell", "flame", "shockwave", "rally", "ironHide", "spell", "drop", "levelUp", "respawn"] as const)
+  for (const kind of ["tracer", "shell", "flame", "shockwave", "rally", "ironHide", "drop", "levelUp", "respawn"] as const)
     emit({ kind, x: 1, z: 1, x2: 9, z2: 1, size: 3, team: 0 }, 0, () => 0, pool, scorch, seeded(1));
   assert.ok(pool.live(200) <= 64);
   const shell = new Particles(64);

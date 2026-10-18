@@ -262,6 +262,20 @@ chunky robots, team-coloured forts and factories, the riveted steel HUD) but ren
   ![Combat effects at the default zoom](images/effects-3d.png)
   ![Zoomed in on a fight](images/effects-3d-zoom.png)
 
+- **Detail and spell looks (G4).** Every part bakes vertex grime (darker toward the feet and under overhangs, worn
+  bright on bevels) and the metal paints share one procedural panel map (grooves, a seam, rivets) for normals and
+  roughness, dropped at `low`. Walkers' legs are one shared instanced leg swung per instance, tank treads scroll with
+  how far the tank drove, and tanks, sentries and turrets kick back when they fire. Each kind has its own silhouette
+  (bevelled tank hull, tripod sentry, Brick's pads, Vix's hood and rifle, Rivet's hard hat and wrench, Tally's antenna
+  and scarf), drawn a size up at the default zoom. All twelve E2 spells have a look: a cast event carries where it
+  landed (`toX`, `toY`, presentation only), so SNIPE, HIJACK and REPAIR draw beams to their target, DASH a streak
+  from its start, and the rest play where they land; from the view, a cloaked Vix shimmers, mines blink, a fortified
+  flag wears a dome, a FLARE burns over its tile, SPOTTER marks the units it exposes (`UnitView.spotted`) and BLITZ
+  trails speed lines. Craters, tyre tracks and scrap litter the open sand (`props.ts`, three instanced meshes).
+
+  ![Detailed models at the default zoom](images/detail-3d.png)
+  ![Brick, Vix (mine), Rivet (turret drop) and Tally (flare) at the nearest zoom](images/heroes-3d.png)
+
 - **Fallback.** The 2D pixel renderer stays available as a fallback for devices without WebGL2 until the 3D one
   covers them.
 
