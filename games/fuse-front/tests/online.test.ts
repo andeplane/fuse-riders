@@ -334,6 +334,12 @@ test("heroes are picked once a team in the settings, and a start plays them with
     );
   const { heroes: _, ...old } = DEFAULT_SETTINGS;
   assert.equal(parseSettings(old), undefined, "settings without heroes");
+  assert.equal(parseSettings(heroes("__proto__")), undefined);
+  const seven = [...DEFAULT_SETTINGS.heroes, null];
+  assert.equal(
+    parseSettings({ ...DEFAULT_SETTINGS, heroes: seven }),
+    undefined,
+  );
   const picked = pickHero(pickHero(DEFAULT_SETTINGS, 2, "tally"), 0, "tally");
   assert.deepEqual(
     picked.heroes.slice(0, 3),
@@ -349,4 +355,8 @@ test("heroes are picked once a team in the settings, and a start plays them with
     view(room).world!.heroes.map((h) => h.kind),
     ["tally", "brick", "vix", "rivet"],
   );
+  // The picks and the world's heroes survive a checkpoint.
+  const back = decode(JSON.parse(JSON.stringify(encode(room))), room.tick)!;
+  assert.deepEqual(back.play.heroes, room.play.heroes);
+  assert.equal(hash(back), hash(room));
 });

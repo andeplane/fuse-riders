@@ -87,11 +87,9 @@ export function deriveHud(
   out.kind = hero?.kind ?? "brick";
   KITS[out.kind].forEach((spell, i) => {
     const slot = out.spells[i]!;
-    [slot.effect, slot.name, slot.passive] = [
-      spell.effect,
-      spell.name,
-      spell.passive,
-    ];
+    slot.effect = spell.effect;
+    slot.name = spell.name;
+    slot.passive = spell.passive;
     slot.ultimate = spell.unlock > 1;
     const left = hero?.spells[i] ?? 0;
     slot.seconds = seconds(left);
