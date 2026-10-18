@@ -81,8 +81,12 @@ export interface Hero {
   spells: number[];
   /** Steps since it last shot or was hit, up to `HERO.calm`; a calm hero regenerates (`tendHeroes`). */
   quiet: number;
-  /** Steps left under Vix's CLOAK (`spells.ts`); 0 when not, and always 0 for another kit. */
+  /** Steps left under Vix's CLOAK and Tally's BLITZ (`spells.ts`); 0 when not, and always 0 for another kit. */
   cloak: number;
+  blitz: number;
+  /** Tally's FLARE: the tile it marks (or -1) and the steps it has left (0 exactly when there is none). */
+  flare: number;
+  flareLeft: number;
 }
 
 /** Vix's STICKY MINE: where it lies (or rides), the steps it has left, and the unit it stuck to (-1 while armed). */
@@ -112,6 +116,10 @@ export interface World {
   heroes: Hero[];
   /** Laid in order; at most `MINES_PER_HERO` a seat (`spells.ts`). */
   mines: Mine[];
+  /** By flag index: steps left under Rivet's FORTIFY FLAG (it cannot change hands), 0 when not. */
+  fortified: number[];
+  /** By team: steps left under Rivet's OVERCLOCK (its factories build twice as fast). */
+  overclock: number[];
   /** `NO_WINNER` while the match runs, then the winning team or `DRAW` (`winnerOf`). */
   winner: number;
   /**
@@ -230,6 +238,8 @@ export function createWorld(
     units: [],
     heroes: playing.map((seat) => freshHero(map, seat, kinds[seat])),
     mines: [],
+    fortified: map.flags.map(() => 0),
+    overclock: [0, 0],
     winner: NO_WINNER,
     events: [],
   };
@@ -269,6 +279,9 @@ export function freshHero(
     spells: [0, 0, 0, 0],
     quiet: HERO.calm,
     cloak: 0,
+    blitz: 0,
+    flare: -1,
+    flareLeft: 0,
   };
 }
 

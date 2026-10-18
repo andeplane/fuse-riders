@@ -178,6 +178,16 @@ function tankTurret(): Model {
     .build();
 }
 
+/** Rivet's TURRET DROP: a squat tripod with a twin-barrelled head. */
+// prettier-ignore
+function sentry(): Model {
+  return new Kit()
+    .add("steel", ...[0, 2.1, 4.2].map((a) => rod(0.025, 0.3, Math.sin(a) * 0.12, 0.12, Math.cos(a) * 0.12, 0.3)))
+    .add("team", block(0.24, 0.12, 0.24, 0, 0.3, 0, 0.04))
+    .add("dark", rod(0.02, 0.26, -0.04, 0.32, 0.18, Z), rod(0.02, 0.26, 0.04, 0.32, 0.18, Z))
+    .build();
+}
+
 /** Height ≈ 0.8, nearly 0.6 wide: the heavy bruiser with gold-trimmed shoulder pads and a yellow visor. */
 // prettier-ignore
 function brick(): Model {
@@ -227,7 +237,7 @@ function tally(): Model {
 
 // prettier-ignore
 const BUILDERS: Record<ModelKind, () => Model> = {
-  grunt, torch, lightTank, tankTurret, brick, vix, rivet, tally,
+  grunt, torch, lightTank, sentry, tankTurret, brick, vix, rivet, tally,
 };
 
 /** Which hero model a hero wears: its `kind`'s (Brick for one without a model). */
@@ -244,6 +254,7 @@ export const RING: Record<UnitKind | "hero", number> = {
   grunt: 0.27,
   torch: 0.33,
   lightTank: 0.46,
+  sentry: 0.3,
   hero: 0.56,
 };
 
