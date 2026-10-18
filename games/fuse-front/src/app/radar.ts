@@ -57,11 +57,17 @@ export class Radar {
   private shots: Pos[] = [];
   /** Each flag's side when last seen, so a capture can tell a loss from a neutral flag taken. */
   private readonly owners = new Map<number, number>();
+  /** Each flag's side before its latest change. */
+  private readonly before = new Map<number, number>();
   private readonly fired = new Map<number, number>();
 
   /** Notes the flags' sides in the newest world shown. */
   watch(world: WorldView): void {
-    for (const f of world.flags) this.owners.set(f.sector, f.team);
+    for (const f of world.flags) {
+      const was = this.owners.get(f.sector);
+      if (was !== undefined && was !== f.team) this.before.set(f.sector, was);
+      this.owners.set(f.sector, f.team);
+    }
   }
 
   /** Takes an engine event; returns a ping for `seat`'s minimap when one of its side's flags is fought over or lost. */
@@ -79,7 +85,11 @@ export class Radar {
     const { event, step } = stamped;
     const team = seat < 0 ? -1 : teamOf(seat);
     if (event.type === "capture") {
-      const was = this.owners.get(event.sector);
+      // A world showing the capture may have been watched before its event arrived: then the side before it counts.
+      const now = this.owners.get(event.sector);
+      const was =
+        now === teamOf(event.seat) ? this.before.get(event.sector) : now;
+      if (now !== teamOf(event.seat)) this.before.set(event.sector, now ?? -1);
       this.owners.set(event.sector, teamOf(event.seat));
       const flag = world.flags.find((f) => f.sector === event.sector);
       return flag && team >= 0 && was === team && teamOf(event.seat) !== team
