@@ -321,12 +321,13 @@ export function tickSpells(world: World): void {
 /**
  * The percent of a hit's damage a hero or unit of `team` takes: IRON HIDE takes off a living teammate's best cover
  * (a hero's own hide, or any within its radius for a vehicle), and SPOTTER adds a living enemy's best within its
- * radius.
+ * radius. `spotOnly` gives just the SPOTTER part (0 when no enemy spots it), for the view.
  */
 export function hideOf(
   world: World,
   victim: Hero | Unit,
   team: number,
+  spotOnly = false,
 ): number {
   let hide = 0,
     spot = 0;
@@ -346,13 +347,19 @@ export function hideOf(
         spot = power > spot ? power : spot;
     }
   }
-  return 100 - hide + spot;
+  return spotOnly ? spot : 100 - hide + spot;
 }
 
 type Target =
   | { of: "unit"; at: Unit }
   | { of: "hero"; at: Hero }
   | { of: "building"; at: Building; x: number; y: number };
+
+/** Where a target stands, copied. */
+function spotOf(target: Target): Spot {
+  const { x, y } = target.of === "building" ? target : target.at;
+  return { x, y };
+}
 
 /** A chosen target: its `MARKS` index and id (a unit's id, a hero's seat, a building's site id). */
 export interface Chosen {
@@ -425,6 +432,8 @@ export function cast(
     choose(hero, aim, spell, candidates, chosen);
   let owned = 0;
   for (const unit of world.units) if (unit.owner === seat) owned++;
+  // Where the spell lands, for the cast event (presentation only).
+  let to: Spot = { x: hero.x, y: hero.y };
   const units = (ours: boolean): Target[] =>
     world.units
       .filter((unit) => (teamOf(unit.owner) === team) === ours)
@@ -441,6 +450,7 @@ export function cast(
       .map((at): Target => ({ of: "hero", at }));
     const target = pick([...enemies, ...heroes]);
     if (target === undefined) return false;
+    to = spotOf(target);
     if (target.of === "unit") {
       const unit = target.at;
       const hit = UNITS[unit.kind].robot ? damage : div(damage * power, 100);
@@ -462,16 +472,19 @@ export function cast(
       world.mines.splice(world.mines.indexOf(laid[0]!), 1);
     const [x, y] = [aim.x, aim.y];
     world.mines.push({ owner: seat, x, y, life: duration, stuck: -1 });
+    to = { x, y };
   } else if (spell.effect === "hijack") {
     const tanks = enemies.filter(
       (each) => each.of === "unit" && each.at.kind === "lightTank",
     );
     const target = owned < unitCap(world, seat) && pick(tanks);
     if (!target) return false;
+    to = spotOf(target);
     Object.assign(target.at, { owner: seat, goal: -1, stun: 0, rally: 0 });
   } else if (spell.effect === "repair") {
     const target = pick(mends(map, world, team, units(true)));
     if (target === undefined) return false;
+    to = spotOf(target);
     target.at.hp = least(target.at.hp + power, mostHp(map, target));
   } else if (spell.effect === "fortify") {
     const sector = map.sectorOf[tileOf(hero.y) * map.width + tileOf(hero.x)]!;
@@ -480,13 +493,16 @@ export function cast(
     if (flag === undefined || owner < 0 || teamOf(owner) !== team) return false;
     const post = { x: centreOf(flag.x), y: centreOf(flag.y) };
     if (!within(post, hero, spell.radius)) return false;
+    to = post;
     world.fortified[sector] = most(world.fortified[sector]!, duration);
   } else if (spell.effect === "overclock")
     world.overclock[team] = most(world.overclock[team]!, duration);
   else if (spell.effect === "dash") dash(map, hero, spell.range, tx, ty);
+  // `to` stays at DASH's start: the caster's position before it moved.
   else if (spell.effect === "flare") {
     if (!openTile(map, tx, ty)) return false;
     [hero.flare, hero.flareLeft] = [ty * map.width + tx, duration];
+    to = aim;
     const push = world.players.find((p) => p.seat === seat)?.stance === "push";
     for (const unit of world.units)
       if (push && unit.owner === seat && UNITS[unit.kind].robot)
@@ -509,6 +525,7 @@ export function cast(
         fy === 0 ||
         (openTile(map, tx, hy) && openTile(map, hx, ty)));
     if (!reachable) [tx, ty] = [hx, hy];
+    to = { x: centreOf(tx), y: centreOf(ty) };
     world.units.push({
       id: world.nextId++,
       kind,
@@ -551,6 +568,8 @@ export function cast(
     effect: spell.effect,
     x: hero.x,
     y: hero.y,
+    toX: to.x,
+    toY: to.y,
   });
   return true;
 }
