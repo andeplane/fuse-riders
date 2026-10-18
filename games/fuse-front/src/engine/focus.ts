@@ -115,7 +115,7 @@ export function chase(map: GameMap, world: World): void {
     const at = tileOf(hero.y) * map.width + tileOf(hero.x);
     const open =
       openTile(map, tx, ty) &&
-      flowField(map, tile, true).cost[at] !== UNREACHABLE;
+      flowField(map, tile, true).cost(at) !== UNREACHABLE;
     hero.goal = open ? tile : -1;
   }
 }

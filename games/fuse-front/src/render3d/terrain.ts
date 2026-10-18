@@ -23,6 +23,10 @@ export const WATER_Y = -0.3;
 export const DECK_Y = 0.08;
 /** Vertices per tile edge: 3 keeps a cliff face within two thirds of a tile. */
 export const RES = 3;
+/** A big map (over `BIG_MAP` tiles) takes 2: less than half the vertices to build and draw, cliffs a little softer. */
+export const BIG_MAP = 20000;
+export const resFor = (map: Ground): number =>
+  map.width * map.height > BIG_MAP ? 2 : RES;
 
 export interface HeightField {
   cols: number;
@@ -155,15 +159,24 @@ export function terrainBuffers(field: HeightField, seed = 7, map?: Ground): Terr
   const positions = new Float32Array(count * 3), colors = new Float32Array(count * 3), uvs = new Float32Array(count * 2);
   const h = (i: number, j: number) =>
     heights[Math.min(rows - 1, Math.max(0, j)) * cols + Math.min(cols - 1, Math.max(0, i))]!;
+  // Tiles within two of water: only their vertices can be damp, so the rest skip the search (a big map is mostly dry).
+  const near = map && new Uint8Array(map.width * map.height);
+  if (map && near)
+    for (let ty = 0; ty < map.height; ty++)
+      for (let tx = 0; tx < map.width; tx++)
+        if (wet(tile(map, tx, ty)))
+          for (let y = Math.max(0, ty - 2); y <= Math.min(map.height - 1, ty + 2); y++)
+            for (let x = Math.max(0, tx - 2); x <= Math.min(map.width - 1, tx + 2); x++) near[y * map.width + x] = 1;
   for (let j = 0; j < rows; j++)
     for (let i = 0; i < cols; i++) {
       const v = j * cols + i, y = heights[v]!, x = i / res, z = j / res;
-      positions.set([x, y, z], v * 3);
-      uvs.set([x / 4, z / 4], v * 2);
+      positions[v * 3] = x; positions[v * 3 + 1] = y; positions[v * 3 + 2] = z;
+      uvs[v * 2] = x / 4; uvs[v * 2 + 1] = z / 4;
       const slope = Math.hypot(h(i + 1, j) - h(i - 1, j), h(i, j + 1) - h(i, j - 1)) * res;
       const rock = Math.min(1, Math.max(0, (slope - 0.6) * 1.5));
       const bed = Math.min(1, Math.max(0, -y * 2.5));
-      const damp = map ? Math.max(0, 1 - distanceTo(map, x, z, wet, 1.5) / 1.5) ** 1.5 : 0;
+      const dry = !near || !near[Math.min(map!.height - 1, Math.floor(z)) * map!.width + Math.min(map!.width - 1, Math.floor(x))];
+      const damp = map && !dry ? Math.max(0, 1 - distanceTo(map, x, z, wet, 1.5) / 1.5) ** 1.5 : 0;
       const tint = 0.9 + noise(x / 3, z / 3, seed + 2) * 0.2;
       for (let c = 0; c < 3; c++) {
         const sand = SAND[c]! + (DAMP[c]! - SAND[c]!) * damp;
@@ -175,9 +188,43 @@ export function terrainBuffers(field: HeightField, seed = 7, map?: Ground): Terr
   for (let j = 0, k = 0; j < rows - 1; j++)
     for (let i = 0; i < cols - 1; i++, k += 6) {
       const a = j * cols + i, c = a + cols;
-      indices.set([a, c, a + 1, a + 1, c, c + 1], k);
+      indices[k] = a; indices[k + 1] = c; indices[k + 2] = a + 1;
+      indices[k + 3] = a + 1; indices[k + 4] = c; indices[k + 5] = c + 1;
     }
   return { positions, colors, uvs, indices };
+}
+
+/** Tiles along a ground chunk's side: a big map's ground is cut into chunks so the camera draws only those in view. */
+export const CHUNK = 64;
+
+export interface Chunk {
+  /** Triangles over the shared vertices of `terrainBuffers`, in its winding. */
+  indices: Uint32Array;
+  /** The chunk's extent in tiles (x east, z south). */
+  x0: number;
+  z0: number;
+  x1: number;
+  z1: number;
+}
+
+/** The ground's triangles cut into `chunk` × `chunk`-tile pieces, row by row; together they are `terrainBuffers`'. */
+// prettier-ignore
+export function terrainChunks(field: HeightField, chunk = CHUNK): Chunk[] {
+  const { cols, rows, res } = field;
+  const step = chunk * res, out: Chunk[] = [];
+  for (let j0 = 0; j0 < rows - 1; j0 += step)
+    for (let i0 = 0; i0 < cols - 1; i0 += step) {
+      const i1 = Math.min(cols - 1, i0 + step), j1 = Math.min(rows - 1, j0 + step);
+      const indices = new Uint32Array((i1 - i0) * (j1 - j0) * 6);
+      for (let j = j0, k = 0; j < j1; j++)
+        for (let i = i0; i < i1; i++, k += 6) {
+          const a = j * cols + i, c = a + cols;
+          indices[k] = a; indices[k + 1] = c; indices[k + 2] = a + 1;
+          indices[k + 3] = a + 1; indices[k + 4] = c; indices[k + 5] = c + 1;
+        }
+      out.push({ indices, x0: i0 / res, z0: j0 / res, x1: i1 / res, z1: j1 / res });
+    }
+  return out;
 }
 
 /** A tiling `size` × `size` height texture of three octaves of value noise in [0, 1). */

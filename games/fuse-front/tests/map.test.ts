@@ -131,6 +131,11 @@ test("sectors: a diagonal step does not cut a rock's corner", () => {
 const bad: [string, (file: MapFile) => unknown, RegExp][] = [
   ["a non-object", () => [], /JSON object/],
   ["a tiny width", (f) => ({ ...f, width: 4 }), /width and height/],
+  [
+    "an unknown biome",
+    (f) => ({ ...f, biome: "lunar" }),
+    /biome: one of desert/,
+  ],
   ["a missing row", (f) => ({ ...f, terrain: f.terrain.slice(1) }), /10 rows/],
   [
     "a short row",
@@ -239,3 +244,8 @@ for (const [label, change, message] of bad)
       },
     );
   });
+
+test("a map's biome defaults to desert and loads as given", () => {
+  assert.equal(tiny().biome, "desert");
+  assert.equal(loadMap({ ...tinyFile(), biome: "arctic" }).biome, "arctic");
+});

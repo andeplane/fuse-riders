@@ -60,6 +60,9 @@ import {
   normalMap,
   standY,
   terrainBuffers,
+  terrainChunks,
+  resFor,
+  BIG_MAP,
   tileNoise,
   type HeightField,
 } from "./terrain.js";
@@ -160,7 +163,8 @@ export class Field3D implements Renderer {
   private readonly matchGroup = new THREE.Group();
   private matchId = "";
   private field: HeightField | undefined;
-  private ground: THREE.Mesh | undefined;
+  /** The ground's chunks (`terrainChunks`), culled one by one. */
+  private ground: THREE.Mesh[] = [];
   private buildings: BuildingNode[] = [];
   private flags: THREE.Mesh[] = [];
   private readonly slots = new Map<string, Slot>();
@@ -347,8 +351,7 @@ export class Field3D implements Renderer {
     this.ndc.set((dx / this.cssW) * 2 - 1, 1 - (dy / this.cssH) * 2);
     this.raycaster.setFromCamera(this.ndc, this.camera);
     this.hits.length = 0;
-    if (this.ground)
-      this.raycaster.intersectObject(this.ground, false, this.hits);
+    this.raycaster.intersectObjects(this.ground, false, this.hits);
     const point =
       this.hits[0]?.point ??
       this.raycaster.ray.intersectPlane(this.plane, this.hit);
@@ -635,7 +638,7 @@ export class Field3D implements Renderer {
     this.olderSeen = undefined;
     this.rig.x = world.width / 2;
     this.rig.z = world.height / 2;
-    const field = (this.field = heightField(world));
+    const field = (this.field = heightField(world, resFor(world)));
     const buffers = terrainBuffers(field, 7, world);
     const geo = this.own(new THREE.BufferGeometry());
     geo.setAttribute("position", new THREE.BufferAttribute(buffers.positions, 3));
@@ -647,11 +650,22 @@ export class Field3D implements Renderer {
       vertexColors: true, normalMap: this.sandNormal,
       normalScale: new THREE.Vector2(0.6, 0.6), roughness: 0.95, metalness: 0,
     }));
-    this.ground = new THREE.Mesh(geo, sand);
-    this.ground.receiveShadow = this.ground.castShadow = true;
+    // One mesh per chunk over the shared vertices and normals, each boxed by its own extent so it culls alone.
+    this.ground = terrainChunks(field).map((chunk) => {
+      const part = this.own(new THREE.BufferGeometry());
+      for (const name of ["position", "color", "uv", "normal"]) part.setAttribute(name, geo.getAttribute(name));
+      part.setIndex(new THREE.BufferAttribute(chunk.indices, 1));
+      part.boundingBox = new THREE.Box3(new THREE.Vector3(chunk.x0, -3, chunk.z0), new THREE.Vector3(chunk.x1, 3, chunk.z1));
+      part.boundingSphere = part.boundingBox.getBoundingSphere(new THREE.Sphere());
+      const mesh = new THREE.Mesh(part, sand);
+      mesh.receiveShadow = mesh.castShadow = true;
+      return mesh;
+    });
     const W = world.width, H = world.height;
     // The river reflects the sky; foam lightens and thickens it within half a tile of a bank.
-    const waterGeo = this.own(new THREE.PlaneGeometry(W, H, W * 2, H * 2).rotateX(-Math.PI / 2).translate(W / 2, WATER_Y, H / 2));
+    // Two water cells a tile on a small map, one on a big one (the foam is per vertex).
+    const per = W * H > BIG_MAP ? 1 : 2;
+    const waterGeo = this.own(new THREE.PlaneGeometry(W, H, W * per, H * per).rotateX(-Math.PI / 2).translate(W / 2, WATER_Y, H / 2));
     const wp = waterGeo.getAttribute("position"), foam = new Float32Array(wp.count * 4);
     for (let i = 0; i < wp.count; i++) {
       const f = Math.max(0, 1 - distanceTo(world, wp.getX(i), wp.getZ(i), (c) => !wet(c), 0.6) / 0.6) ** 2;
@@ -672,7 +686,7 @@ export class Field3D implements Renderer {
       this.own(new THREE.MeshStandardMaterial({ color: 0xb89466, roughness: 1, side: THREE.DoubleSide })),
     );
     apron.receiveShadow = true;
-    this.matchGroup.add(this.ground, water, apron);
+    this.matchGroup.add(...this.ground, water, apron);
 
     // Rocks and bridge planks: one instanced mesh each, filled once.
     // Pebbles strewn over a fifth of the open sand, a few to a tile, drawn with the rocks.
@@ -766,7 +780,7 @@ export class Field3D implements Renderer {
     this.matchGroup.clear();
     this.buildings = [];
     this.flags = [];
-    this.ground = undefined;
+    this.ground = [];
     this.field = undefined;
   }
 

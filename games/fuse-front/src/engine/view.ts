@@ -3,7 +3,7 @@
  * progress, and units. It is built fresh from a map and world and shares no mutable record with either, so a renderer
  * can never write back into the simulation.
  */
-import type { GameMap } from "./map.js";
+import type { Biome, GameMap } from "./map.js";
 import { levelOf, maxEnergy, maxHp } from "./hero.js";
 import { div } from "./math.js";
 import {
@@ -125,6 +125,8 @@ export const SPELL_INFO: Readonly<Record<HeroKind, readonly SpellInfo[]>> =
 
 export interface WorldView {
   step: number;
+  /** How the map's ground looks (the renderers' palette); the rules never read it. */
+  biome: Biome;
   width: number;
   height: number;
   /** The map's rows (shared and frozen). */
@@ -165,6 +167,7 @@ const teamOrNeutral = (seat: number): number =>
 export function viewOf(map: GameMap, world: World): WorldView {
   return {
     step: world.step,
+    biome: map.biome,
     width: map.width,
     height: map.height,
     terrain: map.terrain,

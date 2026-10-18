@@ -5,7 +5,6 @@ import { NO_WINNER, STEPS_PER_TICK } from "../src/engine/index.js";
 import {
   ATTACK,
   ATTACK_MOVE,
-  MAP,
   CAST,
   COUNTDOWN_TICKS,
   DEFAULT_SETTINGS,
@@ -20,6 +19,7 @@ import {
   frontGame,
   hash,
   isEntry,
+  mapOf,
   parseSettings,
   view,
   type Entry,
@@ -27,6 +27,7 @@ import {
   type Room,
   type Settings,
 } from "../src/online/game.js";
+import { mapsFor } from "../src/online/maps.js";
 import { pickHero } from "../src/app/model.js";
 import { Mesh, type TestRuntime } from "./fixtures/mesh.js";
 
@@ -125,7 +126,9 @@ test("a rider's controls count in its own match only, and at most four a tick", 
 test("an ATTACK entry focuses the rider's hero, and an ATTACK_MOVE sends it on an attack-move", () => {
   const { room, entries } = match({ size: 1 });
   const fort = room.world!.buildings.find(
-    (b) => MAP.sites[b.id]!.kind === "fort" && MAP.sites[b.id]!.seat === 1,
+    (b) =>
+      mapOf(room).sites[b.id]!.kind === "fort" &&
+      mapOf(room).sites[b.id]!.seat === 1,
   )!;
   log(room, entries, "host", ATTACK, "match-1", 2, fort.id);
   fold(room, entries, 1);
@@ -221,13 +224,14 @@ test("isEntry takes well-formed controls and refuses anything out of shape or ra
   const ok: unknown[][] = [
     [1, 1, ORDER, "m", 0, 0],
     [1, 1, STANCE, "m", 2],
-    [1, 1, MOVE, "m", 95, 55],
+    // The wire admits any tile of the largest map; the engine refuses one off the map in play.
+    [1, 1, MOVE, "m", 255, 255],
     [1, 1, STEER, "m", -8, 8],
     [1, 1, CAST, "m", 3, 0, 0],
     [1, 1, CAST, "m", 0, 9, 6, 0, 12],
     [1, 1, ATTACK, "m", 0, 12],
     [1, 1, ATTACK, "m", 2, 3],
-    [1, 1, ATTACK_MOVE, "m", 95, 55],
+    [1, 1, ATTACK_MOVE, "m", 255, 255],
     [1, 1, JOIN, "a", "Ann", 5, "brick", 1],
     [1, 1, ACTION, "start", "m"],
   ];
@@ -242,7 +246,7 @@ test("isEntry takes well-formed controls and refuses anything out of shape or ra
     [1, 1, STANCE, "m", 0, 0],
     [1, 1, STANCE, "m"],
     [1, 1, STANCE, "m", 0.5],
-    [1, 1, MOVE, "m", 96, 0],
+    [1, 1, MOVE, "m", 256, 0],
     [1, 1, MOVE, "m", -1, 0],
     [1, 1, STEER, "m", 9, 0],
     [1, 1, CAST, "m", 4, 0, 0],
@@ -254,7 +258,7 @@ test("isEntry takes well-formed controls and refuses anything out of shape or ra
     [1, 1, ATTACK, "m", 0, 1.5],
     [1, 1, ATTACK, "m", 0, "1"],
     [1, 1, ATTACK, "m", 0, 2 ** 53],
-    [1, 1, ATTACK_MOVE, "m", 96, 0],
+    [1, 1, ATTACK_MOVE, "m", 256, 0],
     [1, 1, ATTACK_MOVE, "m", 0, 0, 0],
     [1, 1, 7, "m", 0, 0],
     [1, 1, ORDER, "m", 999, 0],
@@ -391,4 +395,58 @@ test("heroes are picked once a team in the settings, and a start plays them with
   const back = decode(JSON.parse(JSON.stringify(encode(room))), room.tick)!;
   assert.deepEqual(back.play.heroes, room.play.heroes);
   assert.equal(hash(back), hash(room));
+});
+
+test("the host's map plays when it holds the match's size; otherwise, or with none chosen, the size's default", () => {
+  const played = (settings: Partial<Settings>, slot = 0) => {
+    const { room } = match(settings, slot);
+    return [room.play.map, mapOf(room).name, room.world!.players.length];
+  };
+  assert.deepEqual(played({ size: 1 }), ["rust-canyon", "Rust Canyon", 2]);
+  assert.deepEqual(played({ size: 2 }), ["glass-lakes", "Glass Lakes", 4]);
+  assert.deepEqual(played({ size: 3 }), ["iron-delta", "Iron Delta", 6]);
+  assert.deepEqual(played({ size: 1, map: "dust-basin" }), [
+    "dust-basin",
+    "Dust Basin",
+    2,
+  ]);
+  assert.deepEqual(played({ size: 1, map: "iron-delta" }), [
+    "iron-delta",
+    "Iron Delta",
+    2,
+  ]);
+  // Too few forts for the size (grown to 2v2 by a rider in slot 3): that size's default instead.
+  assert.deepEqual(played({ size: 1, map: "rust-canyon" }, 3), [
+    "glass-lakes",
+    "Glass Lakes",
+    4,
+  ]);
+  assert.deepEqual(
+    mapsFor(2).map((m) => m.id),
+    ["dust-basin", "glass-lakes", "iron-delta"],
+  );
+  assert.deepEqual(
+    mapsFor(3).map((m) => [m.id, m.teams, m.width, m.height]),
+    [
+      ["dust-basin", 3, 96, 56],
+      ["iron-delta", 3, 256, 192],
+    ],
+  );
+  for (const map of ["moon", "__proto__", 3])
+    assert.equal(parseSettings({ ...DEFAULT_SETTINGS, map }), undefined);
+  const { map: _, ...old } = DEFAULT_SETTINGS;
+  assert.equal(parseSettings(old), undefined, "settings without a map");
+});
+
+test("a big-map match checkpoints and restores onto its own map, and no other", () => {
+  const { room } = match({ size: 3 });
+  const fields = JSON.parse(JSON.stringify(encode(room))) as unknown[];
+  const copy = decode(fields, room.tick)!;
+  assert.equal(hash(copy), hash(room));
+  assert.equal(mapOf(copy).name, "Iron Delta");
+  for (const map of ["dust-basin", null]) {
+    const wrong = structuredClone(fields);
+    (wrong[3] as Settings).map = map;
+    assert.equal(decode(wrong, room.tick), undefined, String(map));
+  }
 });
