@@ -14,7 +14,9 @@ import {
   viewOf,
   type World,
 } from "../src/engine/index.js";
-import { MAP } from "../src/online/game.js";
+import { mapById } from "../src/online/maps.js";
+
+const MAP = mapById("dust-basin");
 import {
   createHud,
   deriveHud,

@@ -20,6 +20,7 @@ import {
 import { MAX_PACKET_BYTES } from "fuse-netcode";
 import { HERO_KINDS, type WorldView } from "../engine/index.js";
 import { DEFAULT_SETTINGS, type View } from "../online/game.js";
+import { mapsFor } from "../online/maps.js";
 import { FrontRuntime } from "../online/runtime.js";
 import { Battlefield } from "../render/battlefield.js";
 import type { Renderer } from "../render/renderer.js";
@@ -35,6 +36,7 @@ import {
   TEAMS,
   banner,
   cycleDifficulty,
+  mapOptions,
   pickHero,
   slotsOf,
   type SlotView,
@@ -206,7 +208,12 @@ function room(code: string, token: string | undefined, display: boolean): void {
     play.hidden = inLobby;
     if (inLobby) {
       const slots = slotsOf(view, runtime.self);
-      const key = JSON.stringify([slots, view.settings.size, runtime.creator]);
+      const key = JSON.stringify([
+        slots,
+        view.settings.size,
+        view.settings.map,
+        runtime.creator,
+      ]);
       if (key !== lobbyKey) {
         lobbyKey = key;
         renderLobby(view);
@@ -246,9 +253,29 @@ function room(code: string, token: string | undefined, display: boolean): void {
       choice.onclick = () =>
         runtime.command({
           type: "settings",
-          settings: { ...view.settings, size },
+          // A picked map too small for the new size goes back to the size's default.
+          settings: {
+            ...view.settings,
+            size,
+            map: mapsFor(size).some((m) => m.id === view.settings.map)
+              ? view.settings.map
+              : null,
+          },
         });
       sizes.append(choice);
+    }
+    // The maps that hold the size; the host's pick, or the size's default, is lit.
+    const maps = el("div", "", "ff-sizes ff-maps");
+    for (const option of mapOptions(view.settings)) {
+      const choice = el("button", option.label, "fui-button");
+      choice.classList.toggle("ff-on", option.on);
+      choice.disabled = !host;
+      choice.onclick = () =>
+        runtime.command({
+          type: "settings",
+          settings: { ...view.settings, map: option.id },
+        });
+      maps.append(choice);
     }
     const teams = el("div", "", "ff-teams");
     const slots = slotsOf(view, runtime.self);
@@ -280,7 +307,12 @@ function room(code: string, token: string | undefined, display: boolean): void {
     start.onclick = () => runtime.command({ type: "action", action: "start" });
     const shell = createLobbyShell({
       label: `Room ${code}`,
-      intro: [el("h2", "BATTLE SIZE", "fui-lobby-title"), sizes],
+      intro: [
+        el("h2", "BATTLE SIZE", "fui-lobby-title"),
+        sizes,
+        el("h2", "MAP", "fui-lobby-title"),
+        maps,
+      ],
       ...(online
         ? {
             invite: createInviteCard({ code, link: link(`?room=${code}`) })
