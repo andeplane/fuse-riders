@@ -35,6 +35,8 @@ import {
   IDLE,
   bodyAt,
   clickIntent,
+  modeAfter,
+  type Intent,
   isEnemy,
   modeFor,
   overlayOf,
@@ -153,7 +155,7 @@ function landing(error = ""): void {
     card.element,
     el(
       "p",
-      "Right-click to move or attack · A + click: attack-move · Q W E R: cast or aim · 1 / 2 / 3: push, hold, follow · click a factory for its orders · Z / X: zoom · Tab: the fight · Home: your fort",
+      "Right-click to move or attack · A + click: attack-move · Shift queues orders · Q W E R: cast or aim · 1 / 2 / 3: push, hold, follow · click a factory for its orders · Z / X: zoom · Tab: the fight · Home: your fort",
       "ff-help",
     ),
   );
@@ -192,11 +194,14 @@ function room(code: string, token: string | undefined, display: boolean): void {
     refresh();
   };
   const hud = new Hud({
-    cast(slot) {
+    cast(slot, shift = false) {
       if (!shown) return;
       const ready = !!hud.state.spells[slot]?.ready;
-      const press = pressSpell(shown, runtime.slot(), mode, slot, ready);
-      if (press.cast) runtime.cast(slot, press.cast.x, press.cast.y);
+      const queued = shift || hud.queueing;
+      const seat = runtime.slot();
+      const press = pressSpell(shown, seat, mode, slot, ready, queued);
+      if (press.cast)
+        runtime.cast(slot, press.cast.x, press.cast.y, undefined, queued);
       arm(press.mode);
     },
     attackMove: () =>
@@ -204,12 +209,13 @@ function room(code: string, token: string | undefined, display: boolean): void {
     stance: (stance) => runtime.stance(stance),
     order: (factory, kind) => runtime.order(factory, kind),
     look: (fx, fy) => shown && field.lookAt(fx, fy, shown),
-    move(fx, fy) {
+    move(fx, fy, queued = false) {
       if (!shown || runtime.slot() < 0) return;
       const tile = minimapTile(fx, fy, shown.width, shown.height);
       hud.close();
-      runtime.move(tile.x, tile.y);
-      arm(IDLE);
+      runtime.move(tile.x, tile.y, queued);
+      // As on the board, a queued order leaves an armed attack-move armed.
+      arm(queued ? mode : IDLE);
     },
   });
   const radar = new Radar();
@@ -285,7 +291,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
     const text = countdown
       ? `Starting in ${countdown}…`
       : slot >= 0
-        ? `${TEAMS[slot % 2]} · right-click: move, or attack an enemy · A then click: attack-move · Q W E R: cast or aim, then click · Esc cancels · 1/2/3 stance · click a factory for orders · Space or F follows · Z/X zoom · Home fort · Tab fight · right-click the minimap to move`
+        ? `${TEAMS[slot % 2]} · right-click: move, or attack an enemy · A then click: attack-move · Shift + click queues · Q W E R: cast or aim, then click · Esc cancels · 1/2/3 stance · click a factory for orders · Space or F follows · Z/X zoom · Home fort · Tab fight · right-click the minimap to move`
         : "Watching";
     if (hint.textContent !== text) hint.textContent = text;
     const over = view.stage === "over";
@@ -540,6 +546,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
     if (!tile) return;
     // A click on an enemy attacks it and on the ground moves (a left click on a factory of this device's opens its
     // orders); armed, a left click attack-moves or casts the aimed spell and a right click cancels (`targeting.ts`).
+    // Shift, or the HUD's QUEUE, queues the order behind the hero's route.
     const seat = runtime.slot();
     const intent = clickIntent(
       shown,
@@ -548,18 +555,29 @@ function room(code: string, token: string | undefined, display: boolean): void {
       tile,
       event.button,
       factoryAt(shown, tile, seat)?.id,
+      event.shiftKey || hud.queueing,
     );
     if (intent.kind === "factory") return hud.openFactory(intent.id);
     if (intent.kind === "none") return;
     hud.close();
-    if (intent.kind === "move") runtime.move(intent.x, intent.y);
-    else if (intent.kind === "attackMove")
-      runtime.attackMove(intent.x, intent.y);
-    else if (intent.kind === "attack") runtime.attack(intent.of, intent.id);
-    else if (intent.kind === "cast")
-      runtime.cast(intent.slot, intent.x, intent.y, intent.target);
-    arm(IDLE);
+    send(intent);
+    arm(modeAfter(mode, intent));
   });
+  /** Asks the runtime for what a click meant. */
+  const send = (intent: Intent) => {
+    if (intent.kind === "move" || intent.kind === "attackMove")
+      runtime[intent.kind](intent.x, intent.y, !!intent.queued);
+    else if (intent.kind === "attack")
+      runtime.attack(intent.of, intent.id, !!intent.queued);
+    else if (intent.kind === "cast")
+      runtime.cast(
+        intent.slot,
+        intent.x,
+        intent.y,
+        intent.target,
+        !!intent.queued,
+      );
+  };
   canvas.addEventListener("pointercancel", (event) => {
     touches.delete(event.pointerId);
     drag = undefined;
@@ -591,7 +609,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
     else if (action.kind === "close") (hud.close(), arm(IDLE));
     else if (action.kind === "attackMove") hud.actions.attackMove();
     else if (action.kind === "stance") runtime.stance(action.stance);
-    else hud.actions.cast(action.slot);
+    else hud.actions.cast(action.slot, event.shiftKey);
   };
   window.addEventListener("keydown", keys123);
   runtime.start();
