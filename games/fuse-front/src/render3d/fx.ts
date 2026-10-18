@@ -30,7 +30,7 @@ export const additive = (mode: number) =>
 /** One effect an event starts, in tiles. */
 export interface Cue {
   // prettier-ignore
-  kind: "tracer" | "shell" | "flame" | "boom" | "shockwave" | "rally" | "ironHide" | "drop" | "levelUp" | "respawn";
+  kind: "tracer" | "shell" | "flame" | "boom" | "shockwave" | "rally" | "ironHide" | "spell" | "drop" | "levelUp" | "respawn";
   x: number;
   z: number;
   /** The far end of a shot. */
@@ -72,7 +72,11 @@ export function cuesOf(event: CombatEvent, ctx: CueContext): Cue[] {
       const hero = ctx.heroAt(event.seat);
       return hero ? [cue("levelUp", hero.x, hero.z, 1, hero.team)] : [];
     }
-    case "cast": return [cue(event.effect === "orbitalDrop" ? "drop" : event.effect, ...at, 3)];
+    case "cast": {
+      // Brick's spells have their own look; the other heroes' (E2) share a plain cast ring until G3b gives them theirs.
+      const e = event.effect, own = e === "shockwave" || e === "rally" || e === "ironHide";
+      return [cue(e === "orbitalDrop" ? "drop" : own ? e : "spell", ...at, 3)];
+    }
     default: return [];
   }
 }
@@ -299,6 +303,10 @@ export function emit(cue: Cue, now: number, ground: GroundAt, pool: Particles, s
       ring(C.heal, cue.size);
       ring(C.heal, cue.size * 0.7, now + 220);
       rise(C.heal, 16);
+      return flashes;
+    case "spell":
+      ring(C.beam, 1.6);
+      rise(C.beam, 10);
       return flashes;
     case "ironHide":
       ring(C.shield, 1.2);

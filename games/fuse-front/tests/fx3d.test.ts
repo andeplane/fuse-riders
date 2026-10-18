@@ -99,6 +99,7 @@ test("deaths, ruins, spells and level-ups each start their effect", () => {
   assert.deepEqual(one({ type: "destroyed", building: 3, kind: "turret" }), [["boom", 4.5, 6.5, 1.8]]);
   assert.deepEqual(one({ type: "destroyed", building: 7, kind: "turret" }), []);
   assert.deepEqual(one({ type: "cast", seat: 0, slot: 3, effect: "orbitalDrop", x: T, y: T }), [["drop", 1, 1, 3]]);
+  assert.deepEqual(one({ type: "cast", seat: 1, slot: 0, effect: "repair", x: T, y: T }), [["spell", 1, 1, 3]]);
   assert.deepEqual(one({ type: "levelUp", seat: 0, level: 2 }), [["levelUp", 2, 3, 1]]);
   assert.deepEqual(one({ type: "won", winner: 0 }), []);
 }); // prettier-ignore
@@ -137,7 +138,7 @@ test("an explosion bursts, leaves a scorch and asks for a light, the same way fo
 
 test("every cue spawns within the pool and the shell's blast waits for it to land", () => {
   const pool = new Particles(64), scorch = new Particles(4);
-  for (const kind of ["tracer", "shell", "flame", "shockwave", "rally", "ironHide", "drop", "levelUp", "respawn"] as const)
+  for (const kind of ["tracer", "shell", "flame", "shockwave", "rally", "ironHide", "spell", "drop", "levelUp", "respawn"] as const)
     emit({ kind, x: 1, z: 1, x2: 9, z2: 1, size: 3, team: 0 }, 0, () => 0, pool, scorch, seeded(1));
   assert.ok(pool.live(200) <= 64);
   const shell = new Particles(64);
