@@ -8,6 +8,7 @@ import {
   cuesOf,
   emit,
   qualityParam,
+  softwareRenderer,
   type CueContext,
   type Spawn,
 } from "../src/render3d/fx.js";
@@ -192,8 +193,8 @@ test("quality: ?quality forces a level, else it starts high and drops for good w
   assert.equal(forced.level, "high");
   const fast = new QualityGovernor(undefined, 34, 10, 5);
   for (let i = 0; i < 50; i++) fast.sample(16);
-  // A hidden tab's long gaps are not slowness.
-  for (let i = 0; i < 50; i++) fast.sample(1000);
+  // A hidden tab's long gap, back to fast frames after it, is not slowness.
+  for (let i = 0; i < 50; i++) fast.sample(i % 2 ? 1000 : 16);
   assert.equal(fast.level, "high");
   const slow = new QualityGovernor(undefined, 34, 10, 5);
   const changes = Array.from({ length: 30 }, () => slow.sample(50)).filter(
@@ -202,6 +203,30 @@ test("quality: ?quality forces a level, else it starts high and drops for good w
   assert.deepEqual([slow.level, changes], ["low", 1]);
   for (let i = 0; i < 50; i++) slow.sample(5);
   assert.equal(slow.level, "low", "no flip-flopping back");
+});
+
+test("quality: a device at a frame a second drops within seconds; a software renderer starts low", () => {
+  // Defaults: 90-frame window, 30-frame warm-up. Every frame of a run of second-long frames counts (as 250 ms).
+  const crawl = new QualityGovernor();
+  const frames = Array.from({ length: 60 }, () => crawl.sample(1000)).indexOf(true) + 1; // prettier-ignore
+  assert.equal(crawl.level, "low");
+  assert.ok(frames > 0 && frames <= 30, `dropped after ${frames} frames`);
+  assert.equal(new QualityGovernor(undefined, 34, 90, 30, "low").level, "low");
+  assert.equal(new QualityGovernor("high", 34, 90, 30, "low").level, "high");
+  for (const name of [
+    "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero)), SwiftShader driver)",
+    "llvmpipe (LLVM 15.0.7, 256 bits)",
+  ])
+    // prettier-ignore
+    assert.ok(softwareRenderer(name), name);
+  for (const name of [
+    "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11)",
+    "Apple M2",
+    "Adreno (TM) 730",
+    "",
+  ])
+    // prettier-ignore
+    assert.ok(!softwareRenderer(name), name);
 });
 
 test("the river's banks darken and distances reach to the nearest water", () => {
