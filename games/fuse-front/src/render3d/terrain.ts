@@ -115,11 +115,26 @@ export function standY(
     : Math.max(WATER_Y, heightAt(field, x, z));
 }
 
-// Linear-light colours (sRGB squared, near enough) for sand, wet bed and rock.
+/** Tiles the river fills: open water and the water under a bridge. */
+export const wet = (c: string) => c === "~" || c === "=";
+
+/** How far world point (x, z) lies from the nearest tile that passes `test`, looking `reach` tiles out (else `reach`). */
+// prettier-ignore
+export function distanceTo(map: Ground, x: number, z: number, test: (c: string) => boolean, reach = 2): number {
+  let best = reach;
+  for (let ty = Math.floor(z - reach); ty <= z + reach; ty++)
+    for (let tx = Math.floor(x - reach); tx <= x + reach; tx++)
+      if (tx >= 0 && ty >= 0 && tx < map.width && ty < map.height && test(tile(map, tx, ty)))
+        best = Math.min(best, Math.hypot(Math.max(tx - x, 0, x - tx - 1), Math.max(ty - z, 0, z - ty - 1)));
+  return best;
+}
+
+// Linear-light colours (sRGB squared, near enough) for sand, wet bed, damp bank and rock.
 const lin = (hex: number) =>
   [hex >> 16, (hex >> 8) & 255, hex & 255].map((c) => (c / 255) ** 2.2);
 const SAND = lin(0xd2ad78),
   BED = lin(0x8a7458),
+  DAMP = lin(0x8c6c48),
   ROCK = lin(0x7a6a5c);
 
 export interface TerrainBuffers {
@@ -129,9 +144,12 @@ export interface TerrainBuffers {
   indices: Uint32Array;
 }
 
-/** The ground mesh's vertex data: positions from the height field, colour by slope and height, world-space UVs. */
+/**
+ * The ground mesh's vertex data: positions from the height field, colour by slope and height (darker on the river's
+ * banks when `map` is given), world-space UVs.
+ */
 // prettier-ignore
-export function terrainBuffers(field: HeightField, seed = 7): TerrainBuffers {
+export function terrainBuffers(field: HeightField, seed = 7, map?: Ground): TerrainBuffers {
   const { cols, rows, res, heights } = field;
   const count = cols * rows;
   const positions = new Float32Array(count * 3), colors = new Float32Array(count * 3), uvs = new Float32Array(count * 2);
@@ -144,10 +162,12 @@ export function terrainBuffers(field: HeightField, seed = 7): TerrainBuffers {
       uvs.set([x / 4, z / 4], v * 2);
       const slope = Math.hypot(h(i + 1, j) - h(i - 1, j), h(i, j + 1) - h(i, j - 1)) * res;
       const rock = Math.min(1, Math.max(0, (slope - 0.6) * 1.5));
-      const wet = Math.min(1, Math.max(0, -y * 2.5));
+      const bed = Math.min(1, Math.max(0, -y * 2.5));
+      const damp = map ? Math.max(0, 1 - distanceTo(map, x, z, wet, 1.5) / 1.5) ** 1.5 : 0;
       const tint = 0.9 + noise(x / 3, z / 3, seed + 2) * 0.2;
       for (let c = 0; c < 3; c++) {
-        const ground = SAND[c]! + (BED[c]! - SAND[c]!) * wet;
+        const sand = SAND[c]! + (DAMP[c]! - SAND[c]!) * damp;
+        const ground = sand + (BED[c]! - sand) * bed;
         colors[v * 3 + c] = (ground + (ROCK[c]! - ground) * rock) * tint;
       }
     }

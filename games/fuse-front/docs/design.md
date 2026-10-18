@@ -214,6 +214,17 @@ chunky robots, team-coloured forts and factories, the riveted steel HUD) but ren
 
 - **Draw cost.** Instanced meshes per kind keep ~300 units cheap. Effects (tracers, explosions, smoke, spell visuals)
   play from engine events, deduped by step as before.
+- **Effects and finish (G3a).** `src/render3d/fx.ts` maps each deduped event to cues (team-tinted tracers, tank and
+  turret shells on an arc with a smoke trail, torch flame jets, explosions with fireball, shock ring, debris, a smoke
+  column and a scorch decal, and the spell, level-up and respawn rings and beams) and spawns them into a fixed
+  particle ring drawn as three instanced quads (`effects3d.ts`), with four pooled point lights for flashes. `post.ts`
+  adds a procedural sky for reflections, a team-tinted rim light, and at `high` quality GTAO, bloom, a warm grade with
+  a vignette and FXAA. Quality starts high and drops to low for good when frames average over 34 ms;
+  `?quality=low|high` fixes it. The terrain gains wind ripples, damp river banks, pebbles and shore foam.
+
+  ![Combat effects at the default zoom](images/effects-3d.png)
+  ![Zoomed in on a fight](images/effects-3d-zoom.png)
+
 - **Fallback.** The 2D pixel renderer stays available as a fallback for devices without WebGL2 until the 3D one
   covers them.
 
