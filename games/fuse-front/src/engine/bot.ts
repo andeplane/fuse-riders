@@ -382,7 +382,7 @@ function heroGoal(
     const owner = world.sectors[index]!;
     if (owner !== NEUTRAL && teamOf(owner) === team) continue;
     const tile = flag.y * map.width + flag.x;
-    const cost = flowField(map, tile).cost[at]!;
+    const cost = flowField(map, tile).cost(at);
     if (cost === UNREACHABLE) continue;
     candidates.push([cost + (owner === NEUTRAL ? 0 : ENEMY_FLAG), tile]);
   }
@@ -404,7 +404,7 @@ function enemyFort(map: GameMap, world: World, team: number, at: number) {
     if (site.kind !== "fort" || building.hp <= 0) continue;
     if (teamOf(site.seat) === team) continue;
     const tile = site.y * map.width + site.x;
-    const cost = flowField(map, tile).cost[at]!;
+    const cost = flowField(map, tile).cost(at);
     if (cost < bestCost) [target, bestCost] = [tile, cost];
   }
   return target;

@@ -185,9 +185,25 @@ Bot-vs-bot matches at every difficulty pairing must end within about 15 minutes 
 - Maps grow to about the scale of Z and StarCraft: roughly 192×128 tiles for 1v1 and up to 256×192 for 3v3, with
   30–50 sectors.
 - A deterministic map generator writes them as JSON from a seed and a template, with mirror symmetry for fairness.
-  Dust Basin stays as the small map.
+  Dust Basin stays as the small map. `tools/mapgen/generate.ts` draws the west half (river with bridges and fords,
+  cliff-ringed plateaus with ramps, lakes, rock clusters), copies it east as a mirror or a half turn, places forts,
+  Poisson-disc flags, a factory mix and turrets at the crossings and ramps, fills ground no fort can reach with rock,
+  and checks the result with `loadMap` and the engine's flow fields. `tools/mapgen/templates.ts` holds the templates;
+  `pnpm exec tsx games/fuse-front/tools/mapgen.ts` writes `maps/<id>.json` and `--check` confirms they are current.
 - Engine cost stays inside the rollback budget. Flow fields use typed arrays, the cache is sized to the map, and per-step
-  work stays roughly linear in unit count.
+  work stays roughly linear in unit count. E4 builds each field lazily (`src/engine/flow.ts`): a bucket-queue Dijkstra
+  settles tiles only until the one asked about is settled, so a FOLLOW field around a moving hero costs a few tiles,
+  and a tile's answer never depends on how far its field had grown. A full field on 256×192 takes about 3 ms (25 ms
+  before), and the roaming cache shrinks on big maps to stay near 4 MB.
+- The maps (`src/online/maps.ts`) are Dust Basin (96×56), Rust Canyon (1v1, 192×128), Glass Lakes (2v2, 224×160) and
+  Iron Delta (3v3, 256×192). The host picks one in the lobby from those with a fort for every slot at the battle size.
+  With none picked, or one too small for the size a start grows to, the match plays its size's generated map.
+  `Settings.map` holds the pick and `play.map` the map the match plays. A checkpoint restores only onto that map.
+- The renderers scale with the map. The 3D ground is cut into 64-tile chunks that cull one by one and share vertices
+  and normals, so their seams match. A big map uses 2 vertices per tile edge instead of 3, and one water cell per tile.
+  The minimap stays one pixel per tile at a fixed width.
+
+  ![Iron Delta, 3v3 against bots, zoomed out](images/big-map.png)
 
 **3D presentation (three.js).** The presentation moves from the 2D pixel canvas to a WebGL renderer on three.js. The
 engine, netcode, `WorldView` contract and HUD logic stay as they are. The look keeps Z's world (desert war,

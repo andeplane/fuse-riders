@@ -30,7 +30,12 @@ export interface MapFile {
   flags: Tile[];
   buildings: { kind: Exclude<BuildingKind, "fort">; x: number; y: number }[];
   forts: { seat: number; x: number; y: number }[];
+  /** How the ground looks; the rules never read it. Desert when absent. */
+  biome?: Biome;
 }
+
+export const BIOMES = ["desert", "arctic", "jungle", "volcanic"] as const;
+export type Biome = (typeof BIOMES)[number];
 
 export interface Site {
   /** Its index in `GameMap.sites`, and the id of the building standing on it. */
@@ -47,6 +52,7 @@ export interface Site {
 
 export interface GameMap {
   readonly name: string;
+  readonly biome: Biome;
   readonly width: number;
   readonly height: number;
   readonly terrain: readonly string[];
@@ -80,25 +86,33 @@ const STEPS: readonly (readonly [number, number])[] = [
   [-1, -1],
 ];
 
-/** Each tile's nearest flag by walking distance (multi-source BFS, level by level, ties to the lower flag index). */
+/**
+ * Each tile's nearest flag by walking distance (multi-source BFS, level by level, ties to the lower flag index). A
+ * tile first reached on a level takes the lowest flag index among the tiles on the level before that reach it.
+ */
 function assignSectors(
   width: number,
   height: number,
-  open: readonly boolean[],
+  open: Uint8Array,
   flags: readonly Tile[],
 ): number[] {
-  const owner = new Array<number>(width * height).fill(-1);
-  let frontier: number[] = [];
+  const tiles = width * height;
+  const owner = new Int32Array(tiles).fill(-1);
+  /** The BFS level a tile was reached on, or -1. */
+  const depth = new Int32Array(tiles).fill(-1);
+  let frontier = new Int32Array(tiles),
+    nextLevel = new Int32Array(tiles);
+  let count = 0;
   for (const [index, flag] of flags.entries()) {
     const at = flag.y * width + flag.x;
     owner[at] = index;
-    frontier.push(at);
+    depth[at] = 0;
+    frontier[count++] = at;
   }
-  const reached = owner.map((value) => value >= 0);
-  while (frontier.length > 0) {
-    const nextLevel: number[] = [];
-    const level = new Set<number>();
-    for (const at of frontier) {
+  for (let level = 1; count > 0; level++) {
+    let reached = 0;
+    for (let i = 0; i < count; i++) {
+      const at = frontier[i]!;
       const x = at % width,
         y = (at - x) / width;
       for (const [dx, dy] of STEPS) {
@@ -110,18 +124,18 @@ function assignSectors(
         if (dx !== 0 && dy !== 0)
           if (!open[y * width + nx] || !open[ny * width + x]) continue;
         const to = ny * width + nx;
-        if (!reached[to]) {
-          reached[to] = true;
+        if (depth[to]! < 0) {
+          depth[to] = level;
           owner[to] = owner[at]!;
-          level.add(to);
-          nextLevel.push(to);
-        } else if (level.has(to) && owner[at]! < owner[to]!)
+          nextLevel[reached++] = to;
+        } else if (depth[to] === level && owner[at]! < owner[to]!)
           owner[to] = owner[at]!;
       }
     }
-    frontier = nextLevel;
+    [frontier, nextLevel] = [nextLevel, frontier];
+    count = reached;
   }
-  return owner;
+  return Array.from(owner);
 }
 
 const isInt = (value: unknown, low: number, high: number): value is number =>
@@ -142,6 +156,9 @@ export function loadMap(raw: unknown): GameMap {
   const { name, width, height, terrain, flags, buildings, forts } = raw;
   if (typeof name !== "string" || name.length < 1 || name.length > 40)
     fail("name: 1 to 40 characters");
+  const biome = raw.biome ?? "desert";
+  if (!(BIOMES as readonly unknown[]).includes(biome))
+    fail(`biome: one of ${BIOMES.join(", ")}`);
   if (!isInt(width, MAP_MIN, MAP_MAX) || !isInt(height, MAP_MIN, MAP_MAX))
     return fail(`width and height: whole numbers ${MAP_MIN} to ${MAP_MAX}`);
   if (!Array.isArray(terrain) || terrain.length !== height)
@@ -156,9 +173,10 @@ export function loadMap(raw: unknown): GameMap {
   const rows = terrain as string[];
   const at = (x: number, y: number): Terrain =>
     TERRAIN[rows[y]![x] as keyof typeof TERRAIN];
-  const open = rows.flatMap((row) =>
-    [...row].map((char) => walkable(TERRAIN[char as keyof typeof TERRAIN])),
-  );
+  const open = new Uint8Array(width * height);
+  for (const [y, row] of rows.entries())
+    for (let x = 0; x < width; x++)
+      open[y * width + x] = row[x] === "." || row[x] === "=" ? 1 : 0;
   const taken = new Map<number, string>();
   const tile = (value: unknown, label: string): Tile => {
     if (!isRecord(value)) return fail(`${label}: an object with x and y`);
@@ -270,6 +288,7 @@ export function loadMap(raw: unknown): GameMap {
   };
   return deepFreeze({
     name: name as string,
+    biome: biome as Biome,
     width,
     height,
     terrain: [...rows],
@@ -287,5 +306,8 @@ export function sectorAt(map: GameMap, tx: number, ty: number): number {
 
 /** The flag index on a tile, or -1. */
 export function flagAt(map: GameMap, tx: number, ty: number): number {
-  return map.flags.findIndex((flag) => flag.x === tx && flag.y === ty);
+  // A flag's own tile always lies in its sector, so the sector names the only flag that can stand there.
+  const sector = sectorAt(map, tx, ty);
+  const flag = map.flags[sector];
+  return flag !== undefined && flag.x === tx && flag.y === ty ? sector : -1;
 }
