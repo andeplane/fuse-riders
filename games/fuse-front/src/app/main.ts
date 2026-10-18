@@ -29,7 +29,16 @@ import { edgePan, PAN_SPEED } from "../render/camera.js";
 import { Img } from "../render/pixel/image.js";
 import { PORTRAIT_SIZE, portrait } from "../render/pixel/portraits.js";
 import { Hud, pixels } from "./hud.js";
-import { factoryAt, heroTile, keyAction } from "./hud-state.js";
+import { factoryAt, keyAction } from "./hud-state.js";
+import {
+  IDLE,
+  bodyAt,
+  clickIntent,
+  isEnemy,
+  overlayOf,
+  pressSpell,
+  type Mode,
+} from "./targeting.js";
 import {
   SIZES,
   TEAMS,
@@ -138,7 +147,7 @@ function landing(error = ""): void {
     card.element,
     el(
       "p",
-      "Click the map to move your hero · Q W E R cast · 1 / 2 / 3: push, hold, follow · click a factory for its orders",
+      "Right-click to move or attack · A + click: attack-move · Q W E R: cast or aim · 1 / 2 / 3: push, hold, follow · click a factory for its orders",
       "ff-help",
     ),
   );
@@ -158,11 +167,28 @@ function room(code: string, token: string | undefined, display: boolean): void {
   const stage = el("div", "", "ff-stage");
   const { field, canvas } = battlefield();
   let shown: WorldView | undefined;
+  // What the next map click means, and the tile under the mouse, for the aiming overlay.
+  let mode: Mode = IDLE;
+  let cursor: { x: number; y: number } | undefined;
+  const refresh = () => {
+    if (shown) field.overlay = overlayOf(shown, runtime.slot(), mode, cursor);
+  };
+  const arm = (next: Mode) => {
+    mode = next;
+    hud.armed(next.kind === "aim" ? next.slot : -1, next.kind === "attackMove");
+    canvas.classList.toggle("ff-aiming", next.kind !== "idle");
+    refresh();
+  };
   const hud = new Hud({
     cast(slot) {
-      const at = shown && heroTile(shown, runtime.slot());
-      if (at && hud.state.spells[slot]?.ready) runtime.cast(slot, at.x, at.y);
+      if (!shown) return;
+      const ready = !!hud.state.spells[slot]?.ready;
+      const press = pressSpell(shown, runtime.slot(), mode, slot, ready);
+      if (press.cast) runtime.cast(slot, press.cast.x, press.cast.y);
+      arm(press.mode);
     },
+    attackMove: () =>
+      arm(mode.kind === "attackMove" ? IDLE : { kind: "attackMove" }),
     stance: (stance) => runtime.stance(stance),
     order: (factory, kind) => runtime.order(factory, kind),
     look: (fx, fy) => shown && field.lookAt(fx, fy, shown),
@@ -216,6 +242,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
     const world = view.world!;
     const slot = runtime.slot();
     hud.update(world, slot, slotsOf(view, runtime.self));
+    if (mode.kind !== "idle" || cursor) refresh();
     const countdown = Math.max(
       0,
       Math.ceil((view.startAt - view.logTick) / 20),
@@ -223,7 +250,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
     const text = countdown
       ? `Starting in ${countdown}…`
       : slot >= 0
-        ? `${TEAMS[slot % 2]} · click to move · Q W E R cast · 1/2/3 stance · click a factory for orders · Space recentres`
+        ? `${TEAMS[slot % 2]} · right-click: move, or attack an enemy · A then click: attack-move · Q W E R: cast or aim, then click · Esc cancels · 1/2/3 stance · click a factory for orders · Space recentres`
         : "Watching";
     if (hint.textContent !== text) hint.textContent = text;
     const over = view.stage === "over";
@@ -358,6 +385,11 @@ function room(code: string, token: string | undefined, display: boolean): void {
       const dir = edgePan(hover.x, hover.y, box.width, box.height);
       if (dir.x || dir.y)
         field.pan(dir.x * PAN_SPEED * dt, dir.y * PAN_SPEED * dt, world);
+      // While aiming, the area follows the ground under a still mouse as the camera moves.
+      if (mode.kind === "aim") {
+        cursor = field.tileAt(hover.x, hover.y, world);
+        refresh();
+      }
     }
     const before = older?.world ?? undefined;
     field.draw(newer.matchId, world, before, t, runtime.slot(), now);
@@ -404,6 +436,13 @@ function room(code: string, token: string | undefined, display: boolean): void {
       event.pointerType === "mouse"
         ? { x: event.offsetX, y: event.offsetY }
         : undefined;
+    if (hover && shown) {
+      // The cursor marks an enemy it would attack, and the overlay follows it while aiming.
+      cursor = field.tileAt(hover.x, hover.y, shown);
+      const enemy = cursor && bodyAt(shown, cursor, isEnemy(runtime.slot()));
+      canvas.classList.toggle("ff-hostile", !!enemy);
+      refresh();
+    }
     if (touches.has(event.pointerId)) {
       const before = spread();
       touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -423,18 +462,36 @@ function room(code: string, token: string | undefined, display: boolean): void {
     if (!was || was.moved || !shown) return;
     const tile = field.tileAt(event.offsetX, event.offsetY, shown);
     if (!tile) return;
-    // A left click on one of this device's factories opens its orders; anything else (or a right click) moves.
-    const factory =
-      event.button === 0 && factoryAt(shown, tile, runtime.slot());
-    if (factory) return hud.openFactory(factory.id);
+    // A click on an enemy attacks it and on the ground moves (a left click on a factory of this device's opens its
+    // orders); armed, a left click attack-moves or casts the aimed spell and a right click cancels (`targeting.ts`).
+    const seat = runtime.slot();
+    const intent = clickIntent(
+      shown,
+      seat,
+      mode,
+      tile,
+      event.button,
+      factoryAt(shown, tile, seat)?.id,
+    );
+    if (intent.kind === "factory") return hud.openFactory(intent.id);
+    if (intent.kind === "none") return;
     hud.close();
-    runtime.move(tile.x, tile.y);
+    if (intent.kind === "move") runtime.move(intent.x, intent.y);
+    else if (intent.kind === "attackMove")
+      runtime.attackMove(intent.x, intent.y);
+    else if (intent.kind === "attack") runtime.attack(intent.of, intent.id);
+    else if (intent.kind === "cast")
+      runtime.cast(intent.slot, intent.x, intent.y, intent.target);
+    arm(IDLE);
   });
   canvas.addEventListener("pointercancel", (event) => {
     touches.delete(event.pointerId);
     drag = undefined;
   });
-  canvas.addEventListener("pointerleave", () => (hover = undefined));
+  canvas.addEventListener("pointerleave", () => {
+    hover = cursor = undefined;
+    refresh();
+  });
   canvas.addEventListener("contextmenu", (event) => event.preventDefault());
   const keys123 = (event: KeyboardEvent) => {
     const action = keyAction(event.key);
@@ -447,7 +504,8 @@ function room(code: string, token: string | undefined, display: boolean): void {
     // Also keeps Space from re-pressing a focused HUD button.
     event.preventDefault();
     if (action.kind === "recentre") field.follow = true;
-    else if (action.kind === "close") hud.close();
+    else if (action.kind === "close") (hud.close(), arm(IDLE));
+    else if (action.kind === "attackMove") hud.actions.attackMove();
     else if (action.kind === "stance") runtime.stance(action.stance);
     else hud.actions.cast(action.slot);
   };

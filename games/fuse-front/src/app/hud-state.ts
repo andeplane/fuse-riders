@@ -101,7 +101,7 @@ export function deriveHud(
   return out;
 }
 
-/** The tile the hero stands on, where a cast aims until spells are aimed (E3). */
+/** The tile the hero stands on, where a `self` spell is cast (`pressSpell`). */
 export function heroTile(
   world: WorldView,
   seat: number,
@@ -170,13 +170,18 @@ export function factoryPanel(
 export type KeyAction =
   | { kind: "cast"; slot: number }
   | { kind: "stance"; stance: Stance }
+  | { kind: "attackMove" }
   | { kind: "recentre" }
   | { kind: "close" };
 
-/** What a key press does: Q/W/E/R cast, 1/2/3 set the stance, Space recentres, Escape closes a panel. */
+/**
+ * What a key press does: Q/W/E/R cast (or aim), A arms an attack-move, 1/2/3 set the stance, Space recentres, Escape
+ * cancels aiming and closes a panel.
+ */
 export function keyAction(key: string): KeyAction | undefined {
   const slot = key.length === 1 ? "QWER".indexOf(key.toUpperCase()) : -1;
   if (slot >= 0) return { kind: "cast", slot };
+  if (key === "a" || key === "A") return { kind: "attackMove" };
   if (/^[123]$/.test(key))
     return { kind: "stance", stance: STANCES[Number(key) - 1]! };
   if (key === " ") return { kind: "recentre" };
