@@ -195,7 +195,7 @@ export class Hud {
     s.spells.forEach((spell, i) => {
       const { button, icon, shade, secs } = this.spells[i]!;
       // The kit's icon and name, redrawn only when the hero changes.
-      this.put(icon, "effect", spell.effect, () => {
+      this.put(icon, "effect", spell.effect + spell.name, () => {
         const art = new Img(30, 30);
         spellIcon(spell.effect)(art, 0, 0);
         icon.replaceChildren(pixels(art));
