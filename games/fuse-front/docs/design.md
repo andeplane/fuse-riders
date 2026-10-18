@@ -264,8 +264,11 @@ chunky robots, team-coloured forts and factories, the riveted steel HUD) but ren
   column and a scorch decal, and the spell, level-up and respawn rings and beams) and spawns them into a fixed
   particle ring drawn as three instanced quads (`effects3d.ts`), with four pooled point lights for flashes. `post.ts`
   adds a procedural sky for reflections, a team-tinted rim light, and at `high` quality GTAO, bloom, a warm grade with
-  a vignette and FXAA. Quality starts high and drops to low for good when frames average over 34 ms;
-  `?quality=low|high` fixes it. The terrain gains wind ripples, damp river banks, pebbles and shore foam.
+  a vignette and FXAA. Quality starts high (low on a software rasteriser such as SwiftShader or llvmpipe) and drops
+  to low for good when frames average over 34 ms, within about 25 frames even at a frame a second; `?quality=low|high` fixes
+  it. The terrain gains wind ripples, damp river banks, pebbles and shore foam. `preview/render-probe.mjs` samples a
+  long match's per-frame cost (draws, triangles, uploads, GPU-process CPU, live GL objects, heap); the shadow map
+  draws once a frame, empty instance batches upload nothing, and pebbles are coarse and cast no shadow.
 
   ![Combat effects at the default zoom](images/effects-3d.png)
   ![Zoomed in on a fight](images/effects-3d-zoom.png)

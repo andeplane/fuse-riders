@@ -49,6 +49,18 @@ void main() {
   #include <colorspace_fragment>
 }`;
 
+/**
+ * Marks the first `count` instances of an attribute for upload, and nothing when there are none: three.js sends an
+ * update range as `bufferSubData(..., start, count)`, and WebGL2 reads a length of 0 as "to the end of the array",
+ * so an empty range would upload the whole buffer every frame.
+ */
+export function uploadLive(attr: THREE.BufferAttribute, count: number): void {
+  attr.clearUpdateRanges();
+  if (count <= 0) return;
+  attr.addUpdateRange(0, count * attr.itemSize);
+  attr.needsUpdate = true;
+}
+
 interface Layer {
   frame: Frame;
   geometry: THREE.InstancedBufferGeometry;
@@ -119,11 +131,7 @@ export class FxLayer {
     this.pool.render(now, glow.frame, blend.frame);
     for (const { frame, geometry, attrs } of this.layers) {
       geometry.instanceCount = frame.count;
-      for (const attr of attrs) {
-        attr.clearUpdateRanges();
-        attr.addUpdateRange(0, frame.count * attr.itemSize);
-        attr.needsUpdate = true;
-      }
+      for (const attr of attrs) uploadLive(attr, frame.count);
     }
     this.flashes.forEach((flash, i) => {
       const k = Math.max(0, 1 - (now - flash.born) / flash.life);

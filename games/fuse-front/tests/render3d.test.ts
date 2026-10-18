@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three";
 import { Batch, writeMatrix } from "../src/render3d/instances.js";
+import { uploadLive } from "../src/render3d/effects3d.js";
 import * as rig from "../src/render3d/rig.js";
 import { mapById } from "../src/online/maps.js";
 import {
@@ -111,6 +112,21 @@ test("a batch refills each frame and doubles when a frame outgrows it, keeping w
   assert.equal(batch.count, 1);
   assert.ok(!batch.grown);
   assert.equal(batch.matrices, arrays, "no new arrays once grown");
+});
+
+test("a frame uploads only its live instances, and nothing when none are live", () => {
+  const attr = new THREE.InstancedBufferAttribute(
+    new Float32Array(3072 * 4),
+    4,
+  );
+  attr.addUpdateRange(0, 8);
+  const version = attr.version;
+  // An empty range would reach WebGL2 as bufferSubData(..., 0, 0): a length of 0 uploads the whole array.
+  uploadLive(attr, 0);
+  assert.deepEqual([attr.updateRanges, attr.version], [[], version]);
+  uploadLive(attr, 3);
+  assert.deepEqual(attr.updateRanges, [{ start: 0, count: 12 }]);
+  assert.equal(attr.version, version + 1);
 });
 
 test("the rig looks down at 55°, clamps to the map and zooms within bounds", () => {

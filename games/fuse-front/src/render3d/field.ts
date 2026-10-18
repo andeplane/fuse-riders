@@ -23,10 +23,11 @@ import {
 } from "../render/renderer.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { Batch } from "./instances.js";
-import { FX_LAYER, FxLayer } from "./effects3d.js";
+import { FX_LAYER, FxLayer, uploadLive } from "./effects3d.js";
 import {
   QualityGovernor,
   cuesOf,
+  softwareRenderer,
   type Cue,
   type CueContext,
   type Quality,
@@ -150,6 +151,16 @@ interface BuildingNode {
   height: number;
 }
 
+/** The GPU's name, unmasked where the browser allows. */
+function rendererName(
+  gl: WebGLRenderingContext | WebGL2RenderingContext,
+): string {
+  const info = gl.getExtension("WEBGL_debug_renderer_info");
+  return String(
+    gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? "",
+  );
+}
+
 /** A tiling, mipmapped DataTexture of linear data (a normal map). */
 function dataTexture(data: Uint8Array, size: number) {
   const tex = new THREE.DataTexture(data, size, size);
@@ -248,13 +259,14 @@ export class Field3D implements Renderer {
 
   /**
    * Throws when the canvas cannot give a WebGL2 context; the page then falls back to the pixel battlefield. Without a
-   * forced `quality` it starts high and drops to low when frames run slow.
+   * forced `quality` it starts high (low on a software rasteriser) and drops to low when frames run slow.
    */
   // prettier-ignore
   constructor(readonly canvas: HTMLCanvasElement, quality?: Quality) {
     this.gl = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
     this.gl.shadowMap.enabled = true;
-    this.governor = new QualityGovernor(quality);
+    // A software rasteriser (SwiftShader, llvmpipe) cannot keep up with the post chain: it starts low.
+    this.governor = new QualityGovernor(quality, undefined, undefined, undefined, softwareRenderer(rendererName(this.gl.getContext())) ? "low" : "high");
     this.gl.shadowMap.type = THREE.PCFShadowMap;
     this.look = new Look(this.gl, this.scene, this.camera, this.governor.level);
     this.camera.layers.enable(FX_LAYER);
@@ -762,11 +774,8 @@ export class Field3D implements Renderer {
       part.mesh!.visible = batch.count > 0;
     }
     // Upload only this frame's instances, not the whole (never-shrinking) capacity.
-    for (const [attr, size] of [[slot.matrices, 16], [slot.colors!, 3]] as const) {
-      attr.clearUpdateRanges();
-      attr.addUpdateRange(0, batch.count * size);
-      attr.needsUpdate = true;
-    }
+    uploadLive(slot.matrices, batch.count);
+    uploadLive(slot.colors!, batch.count);
   }
 
   private forget(): void {
@@ -847,32 +856,38 @@ export class Field3D implements Renderer {
     apron.receiveShadow = true;
     this.matchGroup.add(...this.ground, water, apron);
 
-    // Rocks and bridge planks: one instanced mesh each, filled once.
-    // Pebbles strewn over a fifth of the open sand, a few to a tile, drawn with the rocks.
-    const rocks: [number, number, number][] = [], planks: [number, number, boolean][] = [];
+    // Rocks, pebbles and bridge planks: one instanced mesh each, filled once.
+    // Pebbles strewn over a fifth of the open sand, a few to a tile: thousands on a big map, so they take a coarser
+    // stone than the rocks and cast no shadow (too small to see), each of which would multiply their triangles.
+    const rocks: [number, number, number][] = [], pebbles: [number, number, number][] = [], planks: [number, number, boolean][] = [];
     world.terrain.forEach((row, y) => [...row].forEach((c, x) => {
       if (c === "#") rocks.push([x + 0.5, y + 0.5, 0.8 + hash(x, y, 9) * 0.6]);
       if (c === "." && hash(x, y, 4) < 0.12)
-        for (let k = 0; k < 2; k++) rocks.push([x + hash(x, y, 20 + k), y + hash(x, y, 30 + k), 0.08 + hash(x, y, 40 + k) * 0.14]);
+        for (let k = 0; k < 2; k++) pebbles.push([x + hash(x, y, 20 + k), y + hash(x, y, 30 + k), 0.08 + hash(x, y, 40 + k) * 0.14]);
       if (c === "=") planks.push([x, y, row[x - 1] !== "~" && row[x + 1] !== "~"]);
     }));
-    const rockGeo = this.own(new THREE.IcosahedronGeometry(0.55, 1));
-    const pos = rockGeo.getAttribute("position");
-    for (let i = 0; i < pos.count; i++) {
-      const k = 0.75 + 0.5 * hash(Math.round(pos.getX(i) * 50), Math.round(pos.getY(i) * 50 + pos.getZ(i) * 7), 3);
-      pos.setXYZ(i, pos.getX(i) * k, pos.getY(i) * k * 0.8, pos.getZ(i) * k);
-    }
-    rockGeo.computeVertexNormals();
-    const rockMesh = this.own(new THREE.InstancedMesh(rockGeo,
-      this.own(new THREE.MeshStandardMaterial({ color: 0x8a7866, roughness: 0.9, flatShading: true })), rocks.length));
+    const stone = this.own(new THREE.MeshStandardMaterial({ color: 0x8a7866, roughness: 0.9, flatShading: true }));
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), s = new THREE.Vector3();
+    const stones = (list: [number, number, number][], detail: number) => {
+      const geo = this.own(new THREE.IcosahedronGeometry(0.55, detail));
+      const pos = geo.getAttribute("position");
+      for (let i = 0; i < pos.count; i++) {
+        const k = 0.75 + 0.5 * hash(Math.round(pos.getX(i) * 50), Math.round(pos.getY(i) * 50 + pos.getZ(i) * 7), 3);
+        pos.setXYZ(i, pos.getX(i) * k, pos.getY(i) * k * 0.8, pos.getZ(i) * k);
+      }
+      geo.computeVertexNormals();
+      const mesh = this.own(new THREE.InstancedMesh(geo, stone, list.length));
+      list.forEach(([x, z, size], i) => {
+        q.setFromAxisAngle(v.set(0, 1, 0), size * 40);
+        m.compose(v.set(x, size < 0.5 ? heightAt(field, x, z) : 0.1 + (size - 0.8) / 3, z), q, s.setScalar(size));
+        mesh.setMatrixAt(i, m);
+      });
+      mesh.receiveShadow = true;
+      return mesh;
+    };
+    const rockMesh = stones(rocks, 1), pebbleMesh = stones(pebbles, 0);
     const plankMesh = this.own(new THREE.InstancedMesh(this.own(new THREE.BoxGeometry(1, 0.06, 0.2)),
       this.own(new THREE.MeshStandardMaterial({ color: 0x7a5432, roughness: 0.85 })), planks.length * 4));
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), s = new THREE.Vector3();
-    rocks.forEach(([x, z, size], i) => {
-      q.setFromAxisAngle(v.set(0, 1, 0), size * 40);
-      m.compose(v.set(x, size < 0.5 ? heightAt(field, x, z) : 0.1 + (size - 0.8) / 3, z), q, s.setScalar(size));
-      rockMesh.setMatrixAt(i, m);
-    });
     planks.forEach(([x, y, across], i) => {
       q.setFromAxisAngle(v.set(0, 1, 0), across ? Math.PI / 2 : 0);
       for (let k = 0; k < 4; k++) {
@@ -881,9 +896,9 @@ export class Field3D implements Renderer {
         plankMesh.setMatrixAt(i * 4 + k, m);
       }
     });
-    rockMesh.castShadow = rockMesh.receiveShadow = plankMesh.castShadow = plankMesh.receiveShadow = true;
+    rockMesh.castShadow = plankMesh.castShadow = plankMesh.receiveShadow = true;
     const props = this.own(buildProps(world.terrain, (x, z) => heightAt(field, x, z)));
-    this.matchGroup.add(rockMesh, plankMesh, props.group);
+    this.matchGroup.add(rockMesh, pebbleMesh, plankMesh, props.group);
 
     this.buildings = world.buildings.map((b) => this.building(b.kind, b.id, b.x + 0.5, standY(world, field, b.x + 0.5, b.y + 0.5), b.y + 0.5));
     // The paints take baked vertex colour, so these plain shapes get it too.

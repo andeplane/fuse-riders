@@ -88,6 +88,9 @@ export class Look {
     // The render copies its matrices from the main camera; three must not recompute them.
     this.aoCamera.matrixAutoUpdate =
       this.aoCamera.matrixWorldAutoUpdate = false;
+    // three draws the shadow map on every `render` call, and the post chain renders the scene twice (the colour pass
+    // and ambient occlusion's normals): `render` asks for the shadows once a frame instead.
+    gl.shadowMap.autoUpdate = false;
   }
 
   /** A strategic (far) view skips ambient occlusion: at that range it only greys the map and costs a full pass. */
@@ -127,6 +130,7 @@ export class Look {
   }
 
   render(): void {
+    this.gl.shadowMap.needsUpdate = true;
     if (!this.composer) return this.gl.render(this.scene, this.camera);
     // Only the pose and lens: `copy` would also clone userData every frame.
     const ao = this.aoCamera,
