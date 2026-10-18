@@ -214,7 +214,8 @@ function room(code: string, token: string | undefined, display: boolean): void {
       const tile = minimapTile(fx, fy, shown.width, shown.height);
       hud.close();
       runtime.move(tile.x, tile.y, queued);
-      arm(IDLE);
+      // As on the board, a queued order leaves an armed attack-move armed.
+      arm(queued ? mode : IDLE);
     },
   });
   const radar = new Radar();

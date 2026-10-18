@@ -261,7 +261,8 @@ export class Hud {
       const left = spell.seconds ? String(spell.seconds) : "";
       this.text(secs, spell.locked ? "LV6" : left);
       this.flag(button, "ff-gold", spell.ultimate);
-      button.disabled = !spell.ready;
+      // With QUEUE on, a cooling spell can still be queued: it waits its turn behind the route.
+      button.disabled = !spell.ready && !(this.queueOn && !spell.locked);
     });
     this.stances.forEach((button, i) =>
       this.flag(button, "ff-lit", s.stance === STANCES[i]),
