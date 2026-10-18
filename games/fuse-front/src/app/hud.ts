@@ -28,15 +28,16 @@ import type { SlotView } from "./model.js";
 import { label, spellTooltip, targetPanel } from "./targeting.js";
 
 export interface HudActions {
-  cast(slot: number): void;
+  /** Casts or aims a slot; `queued` (Shift) puts the cast behind the hero's route. */
+  cast(slot: number, queued?: boolean): void;
   /** Arms an attack-move: the next click on the map sends the hero there, fighting on the way. */
   attackMove(): void;
   stance(stance: Stance): void;
   order(factory: number, kind: UnitKind): void;
   /** Centres the camera on fractions of the map. */
   look(fx: number, fy: number): void;
-  /** Sends the hero to fractions of the map (a right click on the minimap). */
-  move(fx: number, fy: number): void;
+  /** Sends the hero to fractions of the map (a right click on the minimap; with Shift, queued). */
+  move(fx: number, fy: number, queued?: boolean): void;
 }
 
 /** Pings on the minimap at once at most; a new one past this replaces the oldest. */
@@ -93,6 +94,9 @@ export class Hud {
     tip: el("span", "", "ff-tip ff-frame"),
   }));
   private readonly amove = el("button", "A ATTACK-MOVE", "ff-switch");
+  /** A toggle for touch: while lit, every order queues as if Shift were held. */
+  private readonly queueButton = el("button", "⇧ QUEUE", "ff-switch");
+  private queueOn = false;
   /** What the hero shoots: its name, hit points and whether it was chosen. */
   private readonly target = el("span", "", "ff-target");
   private readonly targetName = el("b");
@@ -149,7 +153,18 @@ export class Hud {
     );
     this.amove.title = "Attack-move: click the map (A)";
     this.amove.onclick = () => this.actions.attackMove();
-    stance.append(...this.stances, this.amove, this.factories);
+    this.queueButton.title =
+      "Queue: orders go behind the hero's route (or hold Shift)";
+    this.queueButton.onclick = () => {
+      this.queueOn = !this.queueOn;
+      this.flag(this.queueButton, "ff-lit", this.queueOn);
+    };
+    stance.append(
+      ...this.stances,
+      this.amove,
+      this.queueButton,
+      this.factories,
+    );
     const map = this.map;
     map.append(this.mini, this.camera);
     // A left click looks there; a right click sends the hero there.
@@ -158,7 +173,8 @@ export class Hud {
       if (!box.width) return;
       const fx = (event.clientX - box.left) / box.width,
         fy = (event.clientY - box.top) / box.height;
-      if (event.button === 2) this.actions.move(fx, fy);
+      if (event.button === 2)
+        this.actions.move(fx, fy, event.shiftKey || this.queueOn);
       else this.actions.look(fx, fy);
     };
     map.oncontextmenu = (event) => event.preventDefault();
@@ -312,6 +328,11 @@ export class Hud {
       width: pct(box.w),
       height: pct(box.h),
     });
+  }
+
+  /** Whether the QUEUE toggle is on: orders queue as with Shift held. */
+  get queueing(): boolean {
+    return this.queueOn;
   }
 
   /** Lights the spell button that is aiming (-1 for none) and the attack-move button while one is armed. */
