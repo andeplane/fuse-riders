@@ -5,6 +5,7 @@
  */
 import type { GameMap, Site } from "./map.js";
 import { div } from "./math.js";
+import type { Order } from "./orders.js";
 import type { SpellEffect } from "./spells.js";
 import {
   BUILDING_HP,
@@ -96,6 +97,10 @@ export interface Hero {
   lost: number;
   /** 1 while its `goal` is an attack-move: it stands to fight whatever comes in range on the way. */
   sweep: number;
+  /** Shift-clicked orders waiting behind the current one (`orders.ts`), at most `QUEUE_MAX`; never mutated in place. */
+  queue: readonly Order[];
+  /** Steps the queue's first order, a cast, has waited to be castable; 0 otherwise. */
+  wait: number;
 }
 
 /** What a `focus` (and an aimed spell's target) can be: by index, a unit (id), a hero (seat) or a building (site id). */
@@ -301,6 +306,8 @@ export function freshHero(
     focus: -1,
     lost: 0,
     sweep: 0,
+    queue: [],
+    wait: 0,
   };
 }
 

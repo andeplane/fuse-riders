@@ -53,7 +53,8 @@ export const respawnSteps = (level: number): number =>
 export const alive = (hero: Hero): boolean => hero.hp > 0;
 
 /**
- * A hero falls to `killer`'s seat: it waits to respawn with its gun at rest, its move, CLOAK, BLITZ and FLARE gone.
+ * A hero falls to `killer`'s seat: it waits to respawn with its gun at rest, its move, queued orders, CLOAK, BLITZ
+ * and FLARE gone.
  * Returns the XP the kill is worth, for the caller to `award`.
  */
 export function fell(world: World, hero: Hero, killer: number): number {
@@ -73,6 +74,8 @@ export function fell(world: World, hero: Hero, killer: number): number {
     focus: -1,
     lost: 0,
     sweep: 0,
+    queue: [],
+    wait: 0,
   });
   // Its FLARE goes out with it, releasing the robots it drew.
   for (const unit of world.units)
