@@ -8,7 +8,7 @@ export const PITCH = (55 * Math.PI) / 180;
 export const FOV = 40;
 export const NEAR = 6,
   FAR = 70,
-  START = 26;
+  START = 15;
 
 export interface Rig {
   /** The ground point the camera looks at, in tiles. */
