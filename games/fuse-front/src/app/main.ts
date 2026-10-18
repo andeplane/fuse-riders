@@ -52,6 +52,7 @@ import {
   type SlotView,
 } from "./model.js";
 import { GAME_ID, keys, roomFailure, sessionFor } from "./session.js";
+import { Radar, homeOf, minimapTile } from "./radar.js";
 
 const app = document.querySelector<HTMLElement>("#app")!;
 const base = import.meta.env.BASE_URL;
@@ -150,7 +151,7 @@ function landing(error = ""): void {
     card.element,
     el(
       "p",
-      "Right-click to move or attack · A + click: attack-move · Q W E R: cast or aim · 1 / 2 / 3: push, hold, follow · click a factory for its orders",
+      "Right-click to move or attack · A + click: attack-move · Q W E R: cast or aim · 1 / 2 / 3: push, hold, follow · click a factory for its orders · Z / X: zoom · Tab: the fight · Home: your fort",
       "ff-help",
     ),
   );
@@ -201,7 +202,18 @@ function room(code: string, token: string | undefined, display: boolean): void {
     stance: (stance) => runtime.stance(stance),
     order: (factory, kind) => runtime.order(factory, kind),
     look: (fx, fy) => shown && field.lookAt(fx, fy, shown),
+    move(fx, fy) {
+      if (!shown || runtime.slot() < 0) return;
+      const tile = minimapTile(fx, fy, shown.width, shown.height);
+      hud.close();
+      runtime.move(tile.x, tile.y);
+      arm(IDLE);
+    },
   });
+  const radar = new Radar();
+  /** Centres the camera on a point in tiles, if there is one. */
+  const jump = (at: { x: number; y: number } | undefined) =>
+    at && shown && field.lookAt(at.x / shown.width, at.y / shown.height, shown);
   stage.append(canvas, hud.orders, end);
   play.append(hud.top, stage, hud.bottom, hint);
   play.hidden = true;
@@ -216,7 +228,12 @@ function room(code: string, token: string | undefined, display: boolean): void {
         if (online && !display) runtime.command({ type: "join", name: name() });
       },
       state: (frame) => show(frame),
-      event: (event, matchId) => field.event(matchId, event, performance.now()),
+      event: (event, matchId) => {
+        field.event(matchId, event, performance.now());
+        const ping = radar.event(matchId, event, shown, runtime.slot());
+        if (ping && shown)
+          hud.ping(ping.x / shown.width, ping.y / shown.height, ping.kind);
+      },
       status: (text) => (status.textContent = roomFailure(text)),
       ended: () =>
         (status.textContent = "Room ended. Go back to create another room."),
@@ -266,7 +283,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
     const text = countdown
       ? `Starting in ${countdown}…`
       : slot >= 0
-        ? `${TEAMS[slot % 2]} · right-click: move, or attack an enemy · A then click: attack-move · Q W E R: cast or aim, then click · Esc cancels · 1/2/3 stance · click a factory for orders · Space recentres`
+        ? `${TEAMS[slot % 2]} · right-click: move, or attack an enemy · A then click: attack-move · Q W E R: cast or aim, then click · Esc cancels · 1/2/3 stance · click a factory for orders · Space or F follows · Z/X zoom · Home fort · Tab fight · right-click the minimap to move`
         : "Watching";
     if (hint.textContent !== text) hint.textContent = text;
     const over = view.stage === "over";
@@ -409,6 +426,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
     }
     const world = newer.world;
     if (!shown) fit(world);
+    if (world !== shown) radar.watch(world);
     shown = world;
     const older =
       timing.older?.world && timing.older.matchId === newer.matchId
@@ -546,6 +564,9 @@ function room(code: string, token: string | undefined, display: boolean): void {
     // Also keeps Space from re-pressing a focused HUD button.
     event.preventDefault();
     if (action.kind === "recentre") field.follow = true;
+    else if (action.kind === "zoom") field.zoom(action.factor);
+    else if (action.kind === "home") jump(homeOf(shown, runtime.slot()));
+    else if (action.kind === "fight") jump(radar.fight(shown, runtime.slot()));
     else if (action.kind === "close") (hud.close(), arm(IDLE));
     else if (action.kind === "attackMove") hud.actions.attackMove();
     else if (action.kind === "stance") runtime.stance(action.stance);

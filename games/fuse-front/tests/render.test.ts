@@ -28,6 +28,15 @@ test("the viewport keeps a whole scale and never shows past the map", () => {
   assert.equal(cam.fitViewport(4000, 1200, 1, 768, 448).w, 768);
 });
 
+test("the pixel battlefield zooms by rows within bounds, stepping its whole scale", () => {
+  assert.equal(cam.zoomRows(cam.TARGET_ROWS, 100), cam.MIN_ROWS);
+  assert.equal(cam.zoomRows(cam.TARGET_ROWS, 0.01), cam.MAX_ROWS);
+  // On a 900-pixel-tall view: 3× by default, 1× zoomed fully out.
+  assert.equal(cam.fitViewport(1600, 900, 1, 4096, 4096).scale, 3);
+  const out = cam.fitViewport(1600, 900, 1, 4096, 4096, cam.MAX_ROWS);
+  assert.equal(out.scale, 1);
+});
+
 test("the camera clamps to the map and maps a pointer to its tile", () => {
   assert.deepEqual(cam.clampCamera(-50, -1, VIEW, 768, 448), { x: 0, y: 0 });
   assert.deepEqual(cam.clampCamera(999, 999, VIEW, 768, 448), {

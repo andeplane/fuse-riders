@@ -1,14 +1,25 @@
 /**
- * The tilted RTS camera as numbers: a target on the ground, a distance along a fixed 55° pitch looking north, and
- * the pan, zoom and clamp rules. Pure arithmetic; the scene copies the pose onto its three.js camera.
+ * The tilted RTS camera as numbers: a target on the ground, a distance along the view, and the pan, zoom and clamp
+ * rules. Close in it looks north at 55°; zoomed out past `TILT_FROM` it tilts toward top-down (`pitchAt`) and the
+ * scene fades in strategic markers (`markerFade`). The farthest zoom grows with the map (`farFor`) so a big map can be
+ * seen whole on a 1080p screen. Pure arithmetic; the scene copies the pose onto its three.js camera.
  */
 
 export const PITCH = (55 * Math.PI) / 180;
+/** The pitch fully zoomed out: steep enough to read a big map like a board, still tilted enough to show height. */
+export const TOP_PITCH = (74 * Math.PI) / 180;
 /** Vertical field of view in degrees. */
 export const FOV = 40;
+/** `FAR` is the farthest zoom on a map up to about 66 × 53 tiles; bigger maps reach further (`farFor`). */
 export const NEAR = 6,
   FAR = 70,
   START = 15;
+/** Distances over which the camera tilts from `PITCH` to `TOP_PITCH`. */
+export const TILT_FROM = 40,
+  TILT_TO = 160;
+/** Distances over which strategic markers fade in, from none to full. */
+export const MARKER_FROM = 40,
+  MARKER_TO = 70;
 
 export interface Rig {
   /** The ground point the camera looks at, in tiles. */
@@ -18,21 +29,43 @@ export interface Rig {
   distance: number;
 }
 
+const smooth = (d: number, from: number, to: number) => {
+  const t = Math.min(1, Math.max(0, (d - from) / (to - from)));
+  return t * t * (3 - 2 * t);
+};
+
+/** The farthest zoom on a `width` × `height` map: far enough for the whole map on the 4:3-ish board, never under `FAR`. */
+export function farFor(width: number, height: number): number {
+  return Math.max(FAR, Math.ceil(Math.max(width / 0.95, height / 0.76)));
+}
+
+/** The view's pitch above the ground at a distance: 55° close in, easing to `TOP_PITCH` far out. */
+export function pitchAt(distance: number): number {
+  return PITCH + (TOP_PITCH - PITCH) * smooth(distance, TILT_FROM, TILT_TO);
+}
+
+/** How strongly the strategic markers show at a distance, 0 (none) to 1. */
+export function markerFade(distance: number): number {
+  return smooth(distance, MARKER_FROM, MARKER_TO);
+}
+
 /** The camera's position for a rig. */
 export function eye(rig: Rig): { x: number; y: number; z: number } {
+  const pitch = pitchAt(rig.distance);
   return {
     x: rig.x,
-    y: rig.distance * Math.sin(PITCH),
-    z: rig.z + rig.distance * Math.cos(PITCH),
+    y: rig.distance * Math.sin(pitch),
+    z: rig.z + rig.distance * Math.cos(pitch),
   };
 }
 
 /**
- * The target kept far enough inside the map that the view shows little past its edges: the screen reaches over half
- * the distance east and west, more to the north (up the screen) than to the south.
+ * The distance kept within `NEAR` and the map's `farFor`, and the target far enough inside the map that the view shows
+ * little past its edges: the screen reaches over half the distance east and west, more to the north (up the screen)
+ * than to the south.
  */
 export function clampRig(rig: Rig, width: number, height: number): void {
-  rig.distance = Math.min(FAR, Math.max(NEAR, rig.distance));
+  rig.distance = Math.min(farFor(width, height), Math.max(NEAR, rig.distance));
   const d = rig.distance;
   const keep = (v: number, lo: number, hi: number) =>
     Math.min(Math.max(lo, hi), Math.max(lo, v));
@@ -48,10 +81,10 @@ export function panRig(rig: Rig, dx: number, dy: number, cssH: number): void {
   const perPixel =
     (2 * rig.distance * Math.tan((FOV * Math.PI) / 360)) / Math.max(1, cssH);
   rig.x += dx * perPixel;
-  rig.z += (dy * perPixel) / Math.sin(PITCH);
+  rig.z += (dy * perPixel) / Math.sin(pitchAt(rig.distance));
 }
 
-/** Zooms by `factor` (above 1 closer). */
-export function zoomRig(rig: Rig, factor: number): void {
-  rig.distance = Math.min(FAR, Math.max(NEAR, rig.distance / factor));
+/** Zooms by `factor` (above 1 closer), at most out to `far` (the map's `farFor`). */
+export function zoomRig(rig: Rig, factor: number, far = FAR): void {
+  rig.distance = Math.min(far, Math.max(NEAR, rig.distance / factor));
 }
