@@ -1,4 +1,5 @@
 import { memberId } from "fuse-netcode";
+import { AVATAR_ATLAS } from "fuse-ui/assets";
 
 /** The account name rule every Fuse game shares: trimmed, 1–18 code points, no control characters or lone surrogates. */
 export const MAX_NAME = 18;
@@ -33,7 +34,8 @@ export const playerKey = (value: unknown): value is string =>
   memberId(value) && !(value in Object.prototype);
 
 export const AVATAR = "chopper";
-export const isAvatar = (value: unknown): value is string => value === AVATAR;
+export const isAvatar = (value: unknown): value is string =>
+  value === AVATAR || AVATAR_ATLAS.frames.some((id) => id === value);
 
 export const BOT_PREFIX = "bot:";
 export const BOT_NAMES = [

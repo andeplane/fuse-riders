@@ -109,6 +109,7 @@ export interface Room extends ManagedRoom<Settings> {
 export interface SeatView {
   id: string;
   name: string;
+  avatarId: string;
   slot: number;
   bot: boolean;
   connected: boolean;
@@ -669,6 +670,7 @@ export function view(room: Room): View {
       .map((seat) => ({
         id: seat.id,
         name: seat.name,
+        avatarId: seat.avatarId,
         slot: seat.slot,
         bot: seat.bot,
         connected: seat.connected,
@@ -690,7 +692,7 @@ export function view(room: Room): View {
 
 export const chopperGame: RollbackGame<Room, Entry, View, never, Settings> = {
   id: "fuse-choppers",
-  rules: RULES,
+  rules: `${RULES}-pilots-1`,
   isEntry,
   createRoom,
   createTicker: () => foldTick,

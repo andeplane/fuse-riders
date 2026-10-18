@@ -138,6 +138,32 @@ function crowded(): WorldView {
   return toView(world);
 }
 
+test("cockpit portraits load after fallback sprites and cache by pilot identity", () => {
+  const r = recorder();
+  const scene = createScene(r.screen, r.make);
+  const world = toView(playing(1));
+  const id = world.choppers[0]!.id;
+  const input = {
+    world,
+    me: id,
+    labels: new Map<string, string>(),
+    now: 0,
+    avatars: new Map([[id, "fox"]]),
+  };
+  scene.draw(input);
+  const atlas = r.make(2000, 1200);
+  const crops = () =>
+    r.calls.filter((call) => call[0] === "drawImage" && call[1] === atlas);
+  assert.equal(crops().length, 0);
+  scene.setPilotAtlas(atlas, 2000, 1200);
+  scene.draw(input);
+  assert.deepEqual(crops()[0]?.slice(2, 6), [800, 0, 400, 400]);
+  scene.draw(input);
+  assert.equal(crops().length, 1);
+  scene.draw({ ...input, avatars: new Map([[id, "mushroom"]]) });
+  assert.deepEqual(crops()[1]?.slice(2, 6), [0, 800, 400, 400]);
+});
+
 test("an effect is drawn once per id, even when a rolled-back frame shows it again", () => {
   const r = recorder(),
     scene = createScene(r.screen, r.make),
