@@ -21,6 +21,7 @@ import {
   TargetPulse,
   type Overlay,
   type Renderer,
+  type ZoomAnchor,
 } from "./renderer.js";
 import * as art from "./sprites.js";
 
@@ -96,21 +97,24 @@ export class Battlefield implements Renderer {
   }
 
   /** Zooms by changing the art rows shown; the scale stays a whole number, so it steps between 1×, 2×, 3×… */
-  zoom(factor: number): void {
+  zoom(factor: number, anchor?: ZoomAnchor): void {
     this.rows = cam.zoomRows(this.rows, factor);
     const world = this.latest;
     if (!world) return;
-    // The centre of the view holds still.
-    const [cx, cy] = [
-      this.camera.x + this.view.w / 2,
-      this.camera.y + this.view.h / 2,
-    ];
+    if (anchor) this.follow = false;
+    // The art pixel under the anchor holds still, or without one the centre of the view.
+    const before = this.view.scale / this.dpr;
+    const [ax, ay] = anchor
+      ? [anchor.x, anchor.y]
+      : [(this.view.w * before) / 2, (this.view.h * before) / 2];
+    const [px, py] = [this.camera.x + ax / before, this.camera.y + ay / before];
     this.resize(...this.cssBox, this.dpr, world);
+    const after = this.view.scale / this.dpr;
     Object.assign(
       this.camera,
       cam.clampCamera(
-        cx - this.view.w / 2,
-        cy - this.view.h / 2,
+        px - ax / after,
+        py - ay / after,
         this.view,
         ...size(world),
       ),

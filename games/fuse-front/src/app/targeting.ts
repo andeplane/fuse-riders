@@ -14,7 +14,7 @@ import {
   type SpellInfo,
   type WorldView,
 } from "../engine/index.js";
-import type { Overlay } from "../render/renderer.js";
+import type { Overlay, ZoomAnchor } from "../render/renderer.js";
 import { heroTile } from "./hud-state.js";
 
 const TILE = SUB * TILE_PX;
@@ -82,6 +82,27 @@ export const isEnemy = (seat: number) => (body: Body) =>
   body.hp > 0 &&
   !body.cloaked &&
   (body.of !== 2 || body.kind === "turret" || body.kind === "fort");
+
+/**
+ * The anchor a wheel or pinch zoom at `x`, `y` CSS pixels holds still. Zooming toward a point means leaving the hero,
+ * so it stops following, like a pan; but while following, a zoom with the pointer on this seat's own hero (the
+ * picked `tile`) stays on it and zooms about the centre, where the followed hero already is.
+ */
+// prettier-ignore
+export function zoomAnchor(world: WorldView, seat: number, follow: boolean, tile: { x: number; y: number } | undefined, x: number, y: number): ZoomAnchor | undefined {
+  const onHero = follow && tile && bodyAt(world, tile, (b) => b.of === 1 && b.id === seat);
+  return onHero ? undefined : { x, y, world };
+}
+
+/** A two-finger pinch from points `a0`, `b0` to `a1`, `b1`: the zoom factor and the midpoint it zooms about. */
+// prettier-ignore
+export function pinchZoom(a0: Point, b0: Point, a1: Point, b1: Point): { factor: number; x: number; y: number } | undefined {
+  const before = Math.hypot(a0.x - b0.x, a0.y - b0.y),
+    after = Math.hypot(a1.x - b1.x, a1.y - b1.y);
+  if (!(before > 0) || !(after > 0)) return undefined;
+  return { factor: after / before, x: (a1.x + b1.x) / 2, y: (a1.y + b1.y) / 2 };
+}
+type Point = { x: number; y: number };
 
 /**
  * The mode a new view leaves armed: aiming and attack-moves end when the seat has no living hero (dead, watching, or

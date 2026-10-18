@@ -41,6 +41,13 @@ export class TargetPulse {
   }
 }
 
+/** The point a zoom holds still, `x`, `y` CSS pixels from the canvas's top-left, over `world`. */
+export interface ZoomAnchor {
+  x: number;
+  y: number;
+  world: WorldView;
+}
+
 export interface Renderer {
   /** Whether the camera follows this device's hero: a pan stops it, Space sets it again. */
   follow: boolean;
@@ -50,8 +57,12 @@ export interface Renderer {
   resize(cssW: number, cssH: number, dpr: number, world: WorldView): void;
   /** Pans by CSS pixels and stops following the hero. */
   pan(dx: number, dy: number, world: WorldView): void;
-  /** Zooms by `factor` (above 1 closer); a renderer with a fixed scale ignores it. */
-  zoom(factor: number): void;
+  /**
+   * Zooms by `factor` (above 1 closer). With an `anchor` (CSS pixels from the canvas's top-left: the cursor or a
+   * pinch's midpoint) the ground under it holds still on screen and following the hero stops; without one the view
+   * zooms about its centre.
+   */
+  zoom(factor: number, anchor?: ZoomAnchor): void;
   /** Centres the camera on fractions `fx`, `fy` of the map (a minimap click) and stops following the hero. */
   lookAt(fx: number, fy: number, world: WorldView): void;
   /** The camera's box in fractions of the map, for the minimap. */
