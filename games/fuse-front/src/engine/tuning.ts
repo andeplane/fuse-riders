@@ -5,7 +5,7 @@
 import { ceilDiv } from "./math.js";
 
 /** Bump on any change to the rules, with the golden in `tests/golden.test.ts` re-recorded in the same commit. */
-export const RULES = "fuse-front-7";
+export const RULES = "fuse-front-9";
 
 export const SUB = 16;
 export const TILE_PX = 8;
@@ -23,7 +23,8 @@ export const teamOf = (seat: number): number => seat % 2;
 export const STANCES = ["push", "hold", "follow"] as const;
 export type Stance = (typeof STANCES)[number];
 
-export const UNIT_KINDS = ["grunt", "torch", "lightTank"] as const;
+/** A `sentry` is Rivet's TURRET DROP (`spells.ts`): no factory builds one, it never moves and it burns out. */
+export const UNIT_KINDS = ["grunt", "torch", "lightTank", "sentry"] as const;
 export type UnitKind = (typeof UNIT_KINDS)[number];
 
 export interface UnitStats {
@@ -86,7 +87,12 @@ export const UNITS: Readonly<Record<UnitKind, Readonly<UnitStats>>> = {
     cooldown: s(2),
     siege: 100,
   },
+  // prettier-ignore
+  sentry: { build: 0, batch: 0, robot: false, hp: 400, speed: 0, radius: 48, range: 6 * TILE, damage: 16,
+    cooldown: s(1), siege: 50 },
 };
+/** A sentry loses a hit point every `SENTRY_DECAY` steps, so an unhurt one stands 40 seconds. */
+export const SENTRY_DECAY = 2;
 
 export const BUILDING_KINDS = [
   "robotFactory",
@@ -175,9 +181,10 @@ export const HOLD_RADIUS = 3 * STRAIGHT;
 export const HOLD_CROWD = 2 * STRAIGHT;
 
 /**
- * The hero (`hero.ts`), Brick for now: a powerhouse worth a squad. Each player has one; it walks where it is sent
- * (`move`) or steered (`steer`), shoots the nearest enemy in range whether idle or walking, captures flags like a
- * robot and is a target like a unit. Its stats grow with its level; sub-pixels and steps, as `UnitStats`.
+ * The hero (`hero.ts`), with Brick's profile (`HEROES` has the others'): a powerhouse worth a squad. Each player has
+ * one; it walks where it is sent (`move`) or steered (`steer`), shoots the nearest enemy in range whether idle or
+ * walking, captures flags like a robot and is a target like a unit. Its stats grow with its level; sub-pixels and
+ * steps, as `UnitStats`.
  */
 export const HERO = {
   speed: 12,
@@ -207,6 +214,29 @@ export const HERO = {
   respawnPerLevel: s(2),
 } as const;
 
+/**
+ * The heroes a player picks from, each with a profile over `HERO`'s shared rules: Brick the armoured frontliner,
+ * Vix the fast, fragile long-range infiltrator, Rivet the engineer with a weaker gun and Tally the fastest scout.
+ */
+export const HERO_KINDS = ["brick", "vix", "rivet", "tally"] as const;
+export type HeroKind = (typeof HERO_KINDS)[number];
+export interface HeroStats {
+  hp: number;
+  hpPerLevel: number;
+  damage: number;
+  damagePerLevel: number;
+  /** Sub-pixels per step, and sub-pixels. */
+  speed: number;
+  range: number;
+}
+// prettier-ignore
+export const HEROES: Readonly<Record<HeroKind, Readonly<HeroStats>>> = {
+  brick: HERO,
+  vix: { hp: 600, hpPerLevel: 45, damage: 48, damagePerLevel: 6, speed: 15, range: 7 * TILE },
+  rivet: { hp: 760, hpPerLevel: 55, damage: 32, damagePerLevel: 4, speed: 12, range: 5 * TILE },
+  tally: { hp: 620, hpPerLevel: 45, damage: 36, damagePerLevel: 5, speed: 16, range: 5 * TILE },
+};
+
 export const MAX_LEVEL = 10;
 /** Total XP each level needs: level n is reached at `XP_STEP * n * (n - 1) / 2`. */
 export const XP_STEP = 30;
@@ -215,6 +245,7 @@ export const KILL_XP: Readonly<Record<UnitKind, number>> = {
   grunt: 12,
   torch: 16,
   lightTank: 30,
+  sentry: 20,
 };
 export const HERO_XP = 60;
 export const HERO_XP_PER_LEVEL = 15;
@@ -226,5 +257,7 @@ export const AURA_RADIUS = 6 * TILE;
 export const AURA_DAMAGE = 115;
 /** A robot under RALLY CRY walks this many percent faster (`spells.ts`). */
 export const RALLY_SPEED = 40;
+/** A robot under its owner's BLITZ, in the sector its hero stands in, walks this many percent faster. */
+export const BLITZ_SPEED = 50;
 /** `steer` takes each axis in -STEER_MAX..STEER_MAX; the hero walks at full speed from a magnitude of STEER_MAX. */
 export const STEER_MAX = 8;

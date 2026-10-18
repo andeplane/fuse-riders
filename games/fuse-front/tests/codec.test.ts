@@ -5,6 +5,9 @@ import {
   FORT_GUN,
   HERO,
   MAX_XP,
+  MINES_PER_HERO,
+  MINE_FUSE,
+  longest,
   STEER_MAX,
   maxEnergy,
   maxHp,
@@ -67,6 +70,33 @@ test("a world round-trips through its canonical encoding, hash and all", () => {
   assert.equal(back!.sectors[0], world.sectors[0]);
 });
 
+test("every hero kind and its statuses round-trip", () => {
+  const world = createWorld(map, [0, 1, 2], 5, {
+    0: "vix",
+    1: "tally",
+    2: "rivet",
+  });
+  Object.assign(world.heroes[0]!, { cloak: 7 });
+  Object.assign(world.heroes[1]!, {
+    blitz: 3,
+    flare: 4 * 14 + 4,
+    flareLeft: 9,
+  });
+  world.mines.push({
+    owner: 0,
+    x: centreOf(4),
+    y: centreOf(6),
+    life: 30,
+    stuck: -1,
+  });
+  world.fortified[1] = 12;
+  world.overclock[0] = 40;
+  assert.deepEqual(
+    decodeWorld(JSON.parse(JSON.stringify(encodeWorld(world))), map),
+    world,
+  );
+});
+
 test("a fresh Dust Basin world round-trips too", () => {
   const dust = dustBasin();
   const world = createWorld(dust, [0, 1, 2, 3, 4, 5], 1);
@@ -83,8 +113,14 @@ type Wire = [
   number[][],
   number[][],
   number,
+  number[][],
+  number[],
+  number[],
 ];
-/** Hero 0's field `at` (seat, x, y, hp, energy, xp, cooldown, respawn, facing, goal, steerX, steerY). */
+/**
+ * Hero 0's field `at` (seat, x, y, hp, energy, xp, cooldown, respawn, facing, goal, steerX, steerY, spells, quiet,
+ * kind, cloak, blitz, flare, flareLeft).
+ */
 const hero =
   (...fields: [at: number, value: number][]) =>
   (w: Wire): Wire => {
@@ -92,6 +128,15 @@ const hero =
     return w;
   };
 const ROCK = 3 * 14 + 6;
+const vix = hero([14, 1], [3, 100]);
+const tally = hero([14, 3], [3, 100]);
+const mine = (life = 10, stuck = -1) => [
+  0,
+  centreOf(4),
+  centreOf(6),
+  life,
+  stuck,
+];
 const corruptions: [string, (wire: Wire) => unknown][] = [
   ["not a tuple", () => ({})],
   ["a short tuple", (w) => w.slice(0, 8)],
@@ -156,7 +201,7 @@ const corruptions: [string, (wire: Wire) => unknown][] = [
   ["a goal in rock", (w) => ((w[6][0]![7] = 3 * 14 + 6), w)],
   ["a goal off the map", (w) => ((w[6][0]![7] = 14 * 10), w)],
   ["a goal on plain ground", (w) => ((w[6][0]![7] = 4 * 14 + 4), w)],
-  ["a unit goal that is no goal", (w) => ((w[6][0]![7] = -3), w)],
+  ["a unit goal that is no goal", (w) => ((w[6][0]![7] = -4), w)],
   ["a missing hero", (w) => ((w[7] = w[7].slice(1)), w)],
   ["heroes out of order", (w) => (w[7].reverse(), w)],
   ["a hero of another seat", hero([0, 3])],
@@ -179,6 +224,41 @@ const corruptions: [string, (wire: Wire) => unknown][] = [
   ["a stick held while a move is pending", hero([9, 4 * 14 + 4], [10, 1])],
   ["a stick pushed too far", hero([10, STEER_MAX + 1])],
   ["a fractional stick", hero([11, 0.5])],
+  ["an unknown hero kind", hero([14, 4])],
+  ["a cloak on a hero whose kit has none", hero([15, 5])],
+  [
+    "a cloak past its spell's",
+    hero([14, 1], [3, 100], [15, longest("cloak") + 1]),
+  ],
+  ["a cloak on a dead hero", hero([14, 1], [3, 0], [7, 1], [15, 1])],
+  ["a blitz on Vix", hero([14, 1], [3, 100], [16, 1])],
+  ["a flare with no time left", hero([14, 3], [3, 100], [17, 4 * 14 + 4])],
+  ["time left on no flare", hero([14, 3], [3, 100], [18, 5])],
+  ["a flare in rock", hero([14, 3], [3, 100], [17, ROCK], [18, 5])],
+  ["a mine of a seat that lays none", (w) => ((w[9] = [mine()]), w)],
+  [
+    "a mine past its fuse",
+    (w) => (vix(w), (w[9] = [mine(MINE_FUSE + 1, 1)]), w),
+  ],
+  [
+    "a mine stuck to a unit from the future",
+    (w) => (vix(w), (w[9] = [mine(5, 9)]), w),
+  ],
+  ["a spent mine", (w) => (vix(w), (w[9] = [mine(0)]), w)],
+  [
+    "too many mines",
+    (w) => (vix(w), (w[9] = Array(MINES_PER_HERO + 1).fill(mine())), w),
+  ],
+  [
+    "a fortify past its spell's",
+    (w) => ((w[10][0] = longest("fortify") + 1), w),
+  ],
+  ["a missing flag's fortify", (w) => ((w[10] = w[10].slice(1)), w)],
+  ["one team's overclock", (w) => ((w[11] = [0]), w)],
+  [
+    "an overclock past its spell's",
+    (w) => ((w[11][1] = longest("overclock") + 1), w),
+  ],
   ["a seat with no fort on the map", (w) => (w[3].push([3, 1, 0]), w)],
   ["a dead unit", (w) => ((w[6][0]![5] = 0), w)],
   ["units out of order", (w) => (w[6].reverse(), w)],
@@ -206,3 +286,13 @@ for (const [label, corrupt] of corruptions)
     assert.equal(decodeWorld(corrupt(wire), map), undefined);
     assert.equal(hashWorld(world), before);
   });
+
+test("the kit corruptions start from checkpoints that decode", () => {
+  const wire = () => structuredClone(encodeWorld(played())) as Wire;
+  const flare = hero([17, 4 * 14 + 4], [18, 5]);
+  for (const fix of [vix, tally, (w: Wire) => flare(tally(w))])
+    assert.ok(decodeWorld(fix(wire()), map));
+  const mined = vix(wire());
+  mined[9] = [mine(MINE_FUSE, 1)];
+  assert.ok(decodeWorld(mined, map));
+});

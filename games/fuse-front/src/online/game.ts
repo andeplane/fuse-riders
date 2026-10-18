@@ -20,6 +20,7 @@ import dustBasin from "../../maps/dust-basin.json";
 import {
   COMMANDS_PER_SEAT,
   DIFFICULTIES,
+  FACTORY_KINDS,
   MAX_SEATS,
   NO_WINNER,
   RULES,
@@ -127,10 +128,14 @@ const playerKey = (value: unknown): value is string =>
 const isAvatar = (value: unknown): value is string => value === AVATAR;
 
 // ---- entries ----
+/** The unit kinds some factory builds: an order for anything else (a sentry) is refused. */
+const BUILT = new Set(Object.values(FACTORY_KINDS).flat());
 const int = isInt;
 const ARGS: Readonly<Record<number, (args: unknown[]) => boolean>> = {
   [ORDER]: ([f, k]) =>
-    int(f, 0, MAP.sites.length - 1) && int(k, 0, UNIT_KINDS.length - 1),
+    int(f, 0, MAP.sites.length - 1) &&
+    int(k, 0, UNIT_KINDS.length - 1) &&
+    BUILT.has(UNIT_KINDS[k]!),
   [STANCE]: ([s]) => int(s, 0, STANCES.length - 1),
   [MOVE]: ([x, y]) => int(x, 0, MAP.width - 1) && int(y, 0, MAP.height - 1),
   [STEER]: ([x, y]) =>

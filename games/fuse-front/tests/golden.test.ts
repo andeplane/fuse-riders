@@ -16,23 +16,23 @@ import {
 import { dustBasin } from "./fixtures/maps.js";
 
 /**
- * The engine's safety net: six seats on Dust Basin for 1500 log ticks with scripted factory orders, stances, hero
+ * The engine's safety net: six seats (every hero kind) on Dust Basin for 1500 log ticks with scripted factory orders, stances, hero
  * moves, steering and casts (the ultimates refused below level 6), the units walking their stances' flow fields, taking flags and fighting, the heroes levelling,
  * dying and respawning. The world's hash is compared every 250 ticks. A refactor must keep these; a change to the
  * rules must bump `RULES` in `src/engine/tuning.ts` and re-record them in the same commit: `GOLDEN_RECORD=1` prints
  * the new ones.
  */
 const GOLDEN = {
-  rules: "fuse-front-7",
+  rules: "fuse-front-9",
   seed: "fuse-front golden",
   ticks: 1500,
   hashes: [
-    "4c63cc16",
-    "3a54e998",
-    "205eed7b",
-    "80abe0f5",
-    "e12014b6",
-    "9e19cd01",
+    "9885f264",
+    "5066d670",
+    "1aaaf3a2",
+    "3f681c96",
+    "c47bb0e0",
+    "2b8ed3b8",
   ],
 };
 
@@ -50,6 +50,19 @@ const SCRIPT = new Map<number, Command[]>([
   [1400, [{ seat: 4, type: "cast", slot: 3, x: 0, y: 0 }]],
   [700, [{ seat: 1, type: "stance", stance: "push" }]],
   [900, [{ seat: 5, type: "move", x: 36, y: 41 }]],
+  // The other kits: Vix (seats 1 and 4), Rivet (2) and Tally (3).
+  [100, [{ seat: 3, type: "cast", slot: 1, x: 36, y: 41 }]],
+  [150, [{ seat: 1, type: "cast", slot: 1, x: 0, y: 0 }]],
+  [160, [{ seat: 1, type: "move", x: 47, y: 27 }]],
+  [200, [{ seat: 2, type: "cast", slot: 1, x: 0, y: 0 }]],
+  [250, [{ seat: 4, type: "cast", slot: 2, x: 0, y: 0 }]],
+  [350, [{ seat: 3, type: "cast", slot: 0, x: 47, y: 27 }]],
+  [550, [{ seat: 2, type: "cast", slot: 0, x: 0, y: 0 }]],
+  [650, [{ seat: 1, type: "cast", slot: 0, x: 47, y: 27 }]],
+  [800, [{ seat: 2, type: "cast", slot: 2, x: 0, y: 0 }]],
+  [1300, [{ seat: 3, type: "cast", slot: 3, x: 0, y: 0 }]],
+  [1350, [{ seat: 2, type: "cast", slot: 3, x: 0, y: 0 }]],
+  [1450, [{ seat: 4, type: "cast", slot: 3, x: 0, y: 0 }]],
 ]);
 
 /** Each seat orders torches from every robot factory it holds on tick 400 and grunts again on tick 1000. */
@@ -85,7 +98,12 @@ function play(
 }
 
 const fresh = (map: GameMap): World =>
-  createWorld(map, [0, 1, 2, 3, 4, 5], seedOf(GOLDEN.seed));
+  createWorld(map, [0, 1, 2, 3, 4, 5], seedOf(GOLDEN.seed), {
+    1: "vix",
+    2: "rivet",
+    3: "tally",
+    4: "vix",
+  });
 
 test("the golden run hashes as recorded", () => {
   assert.equal(RULES, GOLDEN.rules, "RULES changed: re-record the golden");

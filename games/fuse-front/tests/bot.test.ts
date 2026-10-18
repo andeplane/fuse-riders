@@ -5,6 +5,7 @@ import {
   DIFFICULTIES,
   NO_WINNER,
   botCommands,
+  pickHeroes,
   createWorld,
   encodeWorld,
   levelXp,
@@ -19,6 +20,7 @@ import {
   type World,
 } from "../src/engine/index.js";
 import { dustBasin, tiny } from "./fixtures/maps.js";
+import { addUnit, arena } from "./fixtures/heroes.js";
 
 const map = dustBasin();
 
@@ -209,4 +211,40 @@ test("six bots think within budget", () => {
   }
   // Generous: measured near 0.01 ms a call; a tick is 50 ms.
   assert.ok(spent / calls < 0.5, `${(spent / calls).toFixed(3)} ms a call`);
+});
+
+test("pickHeroes keeps each hero once a team: picks first, then the rest from a place their seat sets", () => {
+  // prettier-ignore
+  assert.deepEqual(pickHeroes([0, 1, 2, 3, 4, 5], {}),
+    { 0: "brick", 1: "brick", 2: "vix", 3: "vix", 4: "rivet", 5: "rivet" });
+  // A teammate's repeat falls back; the other team may pick the same hero.
+  // prettier-ignore
+  assert.deepEqual(pickHeroes([0, 1, 2, 3], { 2: "vix", 0: "vix", 1: "vix", 3: null }),
+    { 0: "vix", 1: "vix", 2: "rivet", 3: "rivet" });
+  const stray = { 0: "nobody" } as unknown as Record<number, null>;
+  assert.deepEqual(pickHeroes([0, 1], stray), { 0: "brick", 1: "brick" });
+  assert.deepEqual(pickHeroes([1, 0], { 1: "tally" }), {
+    0: "brick",
+    1: "tally",
+  });
+});
+
+test("each kit's bot casts its spells at what calls for them", () => {
+  const vix = arena("vix");
+  addUnit(vix, 1, "lightTank", 9, 6);
+  const rivet = arena("rivet");
+  addUnit(rivet, 0, "grunt", 5, 6, 20);
+  const tally = arena("tally");
+  addUnit(tally, 0, "grunt", 3, 6);
+  const casts = (world: typeof vix) =>
+    botCommands(tiny(), world, 0, "normal").filter((c) => c.type === "cast");
+  assert.deepEqual(casts(vix), [
+    { seat: 0, type: "cast", slot: 0, x: 9, y: 6 },
+  ]);
+  assert.deepEqual(casts(rivet), [
+    { seat: 0, type: "cast", slot: 0, x: 4, y: 6 },
+  ]);
+  assert.deepEqual(casts(tally), [
+    { seat: 0, type: "cast", slot: 1, x: 6, y: 5 },
+  ]);
 });
