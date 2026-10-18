@@ -15,6 +15,7 @@ import {
 import { bakeGround } from "./ground.js";
 import type { Img } from "./pixel/image.js";
 import { BIOME } from "./pixel/palette.js";
+import { routeMarks, type RouteMark } from "./route.js";
 import {
   NO_OVERLAY,
   TARGET_HEX,
@@ -284,7 +285,36 @@ export class Battlefield implements Renderer {
       ctx.fillStyle = frac > 0.5 ? "#6ad83a" : frac > 0.25 ? "#f8d030" : "#e8483c";
       ctx.fillRect(bx, by, Math.round(width * Math.max(0, Math.min(1, frac))), 2);
     }
-    if (mine && prev) this.drawTargeting(mine.target, prev.x + (mine.x - prev.x) * t, prev.y + (mine.y - prev.y) * t, now);
+    if (mine && prev) {
+      const hx = prev.x + (mine.x - prev.x) * t, hy = prev.y + (mine.y - prev.y) * t;
+      this.drawRoute(routeMarks(mine.route, hx, hy));
+      this.drawTargeting(mine.target, hx, hy, now);
+    }
+  }
+
+  /** The queued route: a dashed leg to each waypoint and its rings, in its kind's colour, fading along the way. */
+  // prettier-ignore
+  private drawRoute(marks: readonly RouteMark[]): void {
+    const ctx = this.ctx, { x: cx, y: cy } = this.camera;
+    ctx.lineWidth = 1;
+    for (const m of marks) {
+      ctx.strokeStyle = `#${m.hex.toString(16).padStart(6, "0")}`;
+      ctx.globalAlpha = 0.7 * m.fade;
+      ctx.setLineDash([2, 2]);
+      ctx.beginPath();
+      ctx.moveTo(px(m.fromX) - cx, px(m.fromY) - cy);
+      ctx.lineTo(px(m.x) - cx, px(m.y) - cy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = m.fade;
+      for (const r of m.rings)
+        if (r > 0) {
+          ctx.beginPath();
+          ctx.arc(px(m.x) - cx, px(m.y) - cy, Math.max(1, px(r)), 0, Math.PI * 2);
+          ctx.stroke();
+        }
+    }
+    ctx.globalAlpha = 1;
   }
 
   /** The aiming rings, the marks, and a ring and line to the hero's target (sub-pixels in, art pixels drawn). */
