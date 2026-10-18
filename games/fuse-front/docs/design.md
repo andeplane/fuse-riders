@@ -100,6 +100,14 @@ are drawn at runtime by the pixel-art code in `src/render/pixel/`. The HUD uses 
 recessed bays, a hero portrait, spell icons, a stance switch and a minimap tinted by territory. The camera follows the
 hero, with edge pan and a minimap jump.
 
+Big maps get a strategic zoom (`render3d/rig.ts`): the farthest zoom grows with the map (`farFor`) until it fits the
+board, the camera tilts from 55° toward 74° as it pulls out, and past `MARKER_FROM` team discs, hero badges and flag
+diamonds fade in at a constant screen size; fog recedes, the shadow box stops growing and ambient occlusion rests.
+Keys: Z/X or +/- zoom a step, Space or F follows the hero, Home looks at the fort, Tab at the latest fight near your
+side (`app/radar.ts`). A right click on the minimap moves the hero; a flag of yours under fire or lost pings it.
+
+![Iron Delta 3v3 fully zoomed out](images/strategic-zoom.png)
+
 `src/render/battlefield.ts` (R1) is that battlefield: it reads only `engine/view.ts` and `render/pixel/`, bakes the
 ground per match, paints each sprite variant (kind × team × facing × frame) once into an offscreen canvas, and turns
 engine events into tracers, flames, explosions, scorch decals and spell rings, accepting each event once per match by
