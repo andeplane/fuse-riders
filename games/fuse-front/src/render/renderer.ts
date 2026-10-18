@@ -5,9 +5,47 @@
 import type { WorldView } from "../engine/view.js";
 import type { StampedEvent } from "./cues.js";
 
+/**
+ * What the page asks a battlefield to draw over the world, in sub-pixels: while aiming, a ring of `range` around this
+ * device's hero and one of `area` around `cursor` (0 hides a ring); and `marks`, the bodies an aimed spell may take or
+ * the enemy under the cursor. The hero's own target (`HeroView.target`) the battlefield reads from the view.
+ */
+export interface Overlay {
+  range: number;
+  area: number;
+  cursor: { x: number; y: number } | null;
+  marks: readonly { x: number; y: number }[];
+}
+export const NO_OVERLAY: Overlay = {
+  range: 0,
+  area: 0,
+  cursor: null,
+  marks: [],
+};
+
+/** The colour of targeting marks: no team's, so it reads the same on either side. */
+export const TARGET_HEX = 0xf4f0e0;
+export const PULSE_MS = 450;
+
+/** A short pulse when the hero takes a new chosen target: 1 at the change, falling to 0 over `PULSE_MS`. */
+export class TargetPulse {
+  private key = "";
+  private at = -Infinity;
+  of(
+    target: { of: string; id: number; chosen: boolean } | null | undefined,
+    now: number,
+  ): number {
+    const key = target?.chosen ? `${target.of}:${target.id}` : "";
+    if (key !== this.key) [this.key, this.at] = [key, key ? now : -Infinity];
+    return Math.max(0, 1 - (now - this.at) / PULSE_MS);
+  }
+}
+
 export interface Renderer {
   /** Whether the camera follows this device's hero: a pan stops it, Space sets it again. */
   follow: boolean;
+  /** Drawn over the next frames until replaced. */
+  overlay: Overlay;
   /** Fits the picture to a `cssW` × `cssH` box at `dpr` device pixels per CSS pixel. */
   resize(cssW: number, cssH: number, dpr: number, world: WorldView): void;
   /** Pans by CSS pixels and stops following the hero. */
