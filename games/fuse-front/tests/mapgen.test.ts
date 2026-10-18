@@ -78,6 +78,42 @@ test("generated maps are symmetric by mirror or half turn, so both teams get the
   assert.ok(turned && mirrored, "both symmetries are exercised");
 });
 
+test("sectors split the ground evenly between the halves, and each factory stands by its sector's flag", () => {
+  for (const [id, template] of Object.entries(TEMPLATES)) {
+    const file = generated.get(id)!;
+    const map = loadMap(file);
+    const flagIndex = new Map(map.flags.map((f, i) => [`${f.x},${f.y}`, i]));
+    let uneven = 0,
+      tiles = 0;
+    for (let y = 0; y < map.height; y++)
+      for (let x = 0; x < map.width; x++) {
+        const sector = map.sectorOf[y * map.width + x]!;
+        if (sector < 0) continue;
+        tiles++;
+        const to = imageOf(template, x, y);
+        const flag = map.flags[sector]!;
+        const image = imageOf(template, flag.x, flag.y);
+        const mirrored = flagIndex.get(`${image.x},${image.y}`);
+        if (map.sectorOf[to.y * map.width + to.x] !== mirrored) uneven++;
+      }
+    // A tie between a flag and its image goes to the lower index (`loadMap`): only a half turn can make one.
+    const limit = template.symmetry === "mirror" ? 0 : tiles / 500;
+    assert.ok(uneven <= limit, `${id}: ${uneven} of ${tiles} tiles`);
+    for (const site of map.sites)
+      if (site.kind === "robotFactory" || site.kind === "vehicleFactory") {
+        const flag = map.flags[site.sector]!;
+        const reach = Math.max(
+          Math.abs(flag.x - site.x),
+          Math.abs(flag.y - site.y),
+        );
+        assert.ok(
+          reach <= 4,
+          `${id}: factory ${site.id} is ${reach} tiles from its flag`,
+        );
+      }
+  }
+});
+
 test("every fort and flag of a generated map is reachable from fort 0 by the engine's own flow fields", () => {
   for (const [id, file] of generated)
     assert.equal(connectivityFault(loadMap(file)), undefined, id);

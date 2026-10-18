@@ -12,6 +12,8 @@ const args = process.argv.slice(2);
 const check = args.includes("--check");
 const seedAt = args.indexOf("--seed");
 const seed = seedAt >= 0 ? Number(args[seedAt + 1]) : undefined;
+if (seed !== undefined && !Number.isInteger(seed))
+  throw new Error("--seed: a whole number");
 const ids = args.filter(
   (arg, index) => !arg.startsWith("--") && index !== seedAt + 1,
 );
