@@ -125,14 +125,15 @@ test("OVERCLOCK doubles the team's production clock for exactly its duration", (
   assert.equal(fire(arena("rivet", 5), 3)[0], false);
 });
 
-test("DASH bounds toward the aim up to four tiles, along its facing when aimed at itself, and stops at a wall", () => {
+test("DASH bounds to an aim within four tiles, along its facing when aimed at itself, and stops at a wall", () => {
   const dash = (tx: number, ty: number, from = 4) => {
     const world = arena("tally");
     world.heroes[0]!.x = centreOf(from);
     return fire(world, 0, tx, ty)[1].heroes[0]!;
   };
   assert.equal(dash(7, 6).x, centreOf(7));
-  assert.equal(dash(12, 6).x, centreOf(8));
+  assert.equal(dash(8, 6).x, centreOf(8));
+  assert.equal(fire(arena("tally"), 0, 12, 6)[0], false, "out of reach");
   assert.equal(dash(4, 6).x, centreOf(8), "east, its facing");
   assert.equal(tileOf(dash(0, 6, 2).x), 1, "the wall");
 });

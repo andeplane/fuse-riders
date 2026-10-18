@@ -23,18 +23,23 @@ import { dustBasin } from "./fixtures/maps.js";
  * the new ones.
  */
 const GOLDEN = {
-  rules: "fuse-front-9",
+  rules: "fuse-front-10",
   seed: "fuse-front golden",
   ticks: 1500,
   hashes: [
-    "9885f264",
-    "5066d670",
-    "1aaaf3a2",
-    "3f681c96",
-    "c47bb0e0",
-    "2b8ed3b8",
+    "2c440128",
+    "8ee82073",
+    "919ce14e",
+    "7efe4255",
+    "994b4d1d",
+    "beeed406",
   ],
 };
+
+/** Seat 0's fort, which seat 5's hero is told to attack. */
+const FORT0 = dustBasin().sites.find(
+  (site) => site.kind === "fort" && site.seat === 0,
+)!.id;
 
 const SCRIPT = new Map<number, Command[]>([
   [5, [{ seat: 1, type: "stance", stance: "hold" }]],
@@ -63,6 +68,11 @@ const SCRIPT = new Map<number, Command[]>([
   [1300, [{ seat: 3, type: "cast", slot: 3, x: 0, y: 0 }]],
   [1350, [{ seat: 2, type: "cast", slot: 3, x: 0, y: 0 }]],
   [1450, [{ seat: 4, type: "cast", slot: 3, x: 0, y: 0 }]],
+  // Focus fire, an attack-move and a SNIPE with a chosen target (refused whenever the target is gone or out of reach).
+  [330, [{ seat: 4, type: "attackMove", x: 47, y: 27 }]],
+  [720, [{ seat: 0, type: "attack", of: 1, id: 1 }]],
+  [760, [{ seat: 5, type: "attack", of: 2, id: FORT0 }]],
+  [1100, [{ seat: 1, type: "cast", slot: 0, x: 0, y: 0, of: 1, id: 0 }]],
 ]);
 
 /** Each seat orders torches from every robot factory it holds on tick 400 and grunts again on tick 1000. */

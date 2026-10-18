@@ -7,6 +7,8 @@ import {
   botCommands,
   pickHeroes,
   createWorld,
+  enemyAt,
+  teamOf,
   encodeWorld,
   levelXp,
   next,
@@ -74,12 +76,24 @@ function takesEffect(board: GameMap, world: World, command: Command): boolean {
     return after.events.some(
       (e) => e.type === "cast" && e.seat === seat && e.slot === command.slot,
     );
-  if (command.type === "move") {
-    const hero = after.heroes.find((h) => h.seat === seat)!;
+  const hero = after.heroes.find((h) => h.seat === seat)!;
+  if (command.type === "move" || command.type === "attackMove") {
     const goal = command.y * board.width + command.x;
     const at = tileOf(hero.y) * board.width + tileOf(hero.x);
+    const sweep = command.type === "attackMove" ? 1 : 0;
     // A hero killed on that very step drops its move.
-    return hero.goal === goal || at === goal || hero.hp === 0;
+    return (
+      (hero.goal === goal && hero.sweep === sweep) ||
+      at === goal ||
+      hero.hp === 0
+    );
+  }
+  if (command.type === "attack") {
+    // The focus holds, unless the target fell (or the hero did) on that very step.
+    const gone =
+      enemyAt(board, after, teamOf(seat), command.of, command.id) === undefined;
+    const held = hero.focusOf === command.of && hero.focus === command.id;
+    return held || gone || hero.hp === 0;
   }
   return false;
 }
@@ -113,6 +127,12 @@ test("every command a bot sends is one a player could send, and takes effect", (
       const bots = new Map(seats.map((seat) => [seat, DIFFICULTIES[roll(3)]!]));
       // Sample a varied set of moments, with the heroes levelled now and then so every spell comes into play.
       play(board, bots, 2400, (world, commands) => {
+        // Stance changes are rare enough that a sample can miss them all, so every one sent in play is checked.
+        for (const command of commands)
+          if (command.type === "stance") {
+            kinds.add("stance");
+            assert.ok(takesEffect(board, world, command));
+          }
         if (roll(8) !== 0) return;
         const varied: World = {
           ...world,
@@ -140,7 +160,16 @@ test("every command a bot sends is one a player could send, and takes effect", (
         );
       });
     }
-  for (const kind of ["move", "stance", "order", "cast0", "cast1", "cast3"])
+  for (const kind of [
+    "move",
+    "attackMove",
+    "attack",
+    "stance",
+    "order",
+    "cast0",
+    "cast1",
+    "cast3",
+  ])
     assert.ok(kinds.has(kind), `no bot sent ${kind}`);
 });
 
@@ -239,7 +268,7 @@ test("each kit's bot casts its spells at what calls for them", () => {
   const casts = (world: typeof vix) =>
     botCommands(tiny(), world, 0, "normal").filter((c) => c.type === "cast");
   assert.deepEqual(casts(vix), [
-    { seat: 0, type: "cast", slot: 0, x: 9, y: 6 },
+    { seat: 0, type: "cast", slot: 0, x: 9, y: 6, of: 0, id: 1 },
   ]);
   assert.deepEqual(casts(rivet), [
     { seat: 0, type: "cast", slot: 0, x: 4, y: 6 },

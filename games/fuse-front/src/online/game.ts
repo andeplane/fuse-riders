@@ -22,6 +22,8 @@ import {
   DIFFICULTIES,
   FACTORY_KINDS,
   HERO_KINDS,
+  MARKS,
+  MAX_ID,
   MAX_SEATS,
   NO_WINNER,
   RULES,
@@ -106,13 +108,19 @@ export function parseSettings(raw: unknown): Settings | undefined {
 /**
  * Control kinds. A control entry is `[seq, tick, kind, matchId, ...args]` and counts only in the match it names; its
  * seat is the slot its author sits in, never a field. Args: ORDER `factory, unitKindIndex`; STANCE `stanceIndex`;
- * MOVE `x, y` (a tile); STEER `dx, dy` (the stick); CAST `slot, x, y`.
+ * MOVE `x, y` (a tile); STEER `dx, dy` (the stick); CAST `slot, x, y` or `slot, x, y, markIndex, id` (a unit spell's
+ * chosen target); ATTACK `markIndex, id` (`MARKS`: a unit's id, a hero's seat or a building's site id); ATTACK_MOVE
+ * `x, y` (a tile). Whether the target exists and is an enemy is the engine's to check on the step.
  */
 export const ORDER = 0,
   STANCE = 1,
   MOVE = 2,
   STEER = 3,
-  CAST = 4;
+  CAST = 4,
+  ATTACK = 5,
+  ATTACK_MOVE = 6;
+/** The highest control kind. */
+const LAST = ATTACK_MOVE;
 export type ControlEntry = [number, number, number, string, ...number[]];
 export type Entry = ManagementEntry<Settings> | ControlEntry;
 
@@ -154,6 +162,9 @@ const isAvatar = (value: unknown): value is string => value === AVATAR;
 /** The unit kinds some factory builds: an order for anything else (a sentry) is refused. */
 const BUILT = new Set(Object.values(FACTORY_KINDS).flat());
 const int = isInt;
+/** A target: its `MARKS` index and an id in range. */
+const mark = ([of, id]: unknown[]) =>
+  int(of, 0, MARKS.length - 1) && int(id, 0, MAX_ID);
 const ARGS: Readonly<Record<number, (args: unknown[]) => boolean>> = {
   [ORDER]: ([f, k]) =>
     int(f, 0, MAP.sites.length - 1) &&
@@ -163,10 +174,25 @@ const ARGS: Readonly<Record<number, (args: unknown[]) => boolean>> = {
   [MOVE]: ([x, y]) => int(x, 0, MAP.width - 1) && int(y, 0, MAP.height - 1),
   [STEER]: ([x, y]) =>
     int(x, -STEER_MAX, STEER_MAX) && int(y, -STEER_MAX, STEER_MAX),
-  [CAST]: ([s, x, y]) =>
-    int(s, 0, 3) && int(x, 0, MAP.width - 1) && int(y, 0, MAP.height - 1),
+  [CAST]: ([s, x, y, ...chosen]) =>
+    int(s, 0, 3) &&
+    int(x, 0, MAP.width - 1) &&
+    int(y, 0, MAP.height - 1) &&
+    (chosen.length === 0 || mark(chosen)),
+  [ATTACK]: mark,
+  [ATTACK_MOVE]: ([x, y]) =>
+    int(x, 0, MAP.width - 1) && int(y, 0, MAP.height - 1),
 };
-const ARITY = [2, 1, 2, 2, 3];
+/** The argument counts each control kind takes. */
+const ARITY: readonly (readonly number[])[] = [
+  [2],
+  [1],
+  [2],
+  [2],
+  [3, 5],
+  [2],
+  [2],
+];
 const payloads = {
   name: validName,
   avatar: isAvatar,
@@ -186,21 +212,25 @@ export function isEntry(raw: unknown): raw is Entry {
   return (
     int(seq, 1, 0xffff_ffff) &&
     int(tick, 1, 0xffff_ffff) &&
-    int(kind, ORDER, CAST) &&
+    int(kind, ORDER, LAST) &&
     validMatchId(matchId) &&
-    args.length === ARITY[kind] &&
+    ARITY[kind]!.includes(args.length) &&
     ARGS[kind]!(args)
   );
 }
 
 /** The engine command an accepted control entry asks of `seat`. */
 function command(entry: ControlEntry, seat: number): Command {
-  const [, , kind, , a = 0, b = 0, c = 0] = entry;
+  const [, , kind, , a = 0, b = 0, c = 0, d, e] = entry;
   if (kind === ORDER)
     return { seat, type: "order", factory: a, kind: UNIT_KINDS[b]! };
   if (kind === STANCE) return { seat, type: "stance", stance: STANCES[a]! };
   if (kind === MOVE) return { seat, type: "move", x: a, y: b };
   if (kind === STEER) return { seat, type: "steer", dx: a, dy: b };
+  if (kind === ATTACK) return { seat, type: "attack", of: a, id: b };
+  if (kind === ATTACK_MOVE) return { seat, type: "attackMove", x: a, y: b };
+  if (d !== undefined && e !== undefined)
+    return { seat, type: "cast", slot: a, x: b, y: c, of: d, id: e };
   return { seat, type: "cast", slot: a, x: b, y: c };
 }
 
@@ -304,7 +334,7 @@ function commands(
     const mine = (source?.entries ?? [])
       .filter(
         (e): e is ControlEntry =>
-          e[2] <= CAST && e[1] === tick && e[3] === room.matchId,
+          e[2] <= LAST && e[1] === tick && e[3] === room.matchId,
       )
       .sort((a, b) => a[0] - b[0])
       .slice(0, COMMANDS_PER_SEAT);

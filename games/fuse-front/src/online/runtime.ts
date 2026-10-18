@@ -6,6 +6,8 @@ import {
   type UnitKind,
 } from "../engine/index.js";
 import {
+  ATTACK,
+  ATTACK_MOVE,
   CAST,
   MOVE,
   ORDER,
@@ -77,8 +79,24 @@ export class FrontRuntime extends RoomRuntime<
   steer(dx: number, dy: number): boolean {
     return this.control(STEER, dx, dy);
   }
-  cast(spell: number, x: number, y: number): boolean {
-    return this.control(CAST, spell, x, y);
+  /** Casts a slot aimed at a tile; a `unit` spell may name its target (`MARKS` index and id). */
+  cast(
+    spell: number,
+    x: number,
+    y: number,
+    target?: { of: number; id: number },
+  ): boolean {
+    return target === undefined
+      ? this.control(CAST, spell, x, y)
+      : this.control(CAST, spell, x, y, target.of, target.id);
+  }
+  /** Focuses the hero on an enemy: `MARKS` index and id (a unit's id, a hero's seat, a building's site id). */
+  attack(of: number, id: number): boolean {
+    return this.control(ATTACK, of, id);
+  }
+  /** Sends the hero to a tile, standing to fight whatever comes in range on the way. */
+  attackMove(x: number, y: number): boolean {
+    return this.control(ATTACK_MOVE, x, y);
   }
   /** The newest simulated room, for reports and tests; the screen renders from frames. */
   roomState(): Room | undefined {
