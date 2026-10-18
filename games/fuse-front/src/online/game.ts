@@ -16,13 +16,14 @@ import {
   type Stage,
   type StreamEntries,
 } from "fuse-netcode";
-import dustBasin from "../../maps/dust-basin.json";
 import {
   COMMANDS_PER_SEAT,
   DIFFICULTIES,
   FACTORY_KINDS,
   HERO_KINDS,
+  MAP_MAX,
   MAX_SEATS,
+  MAX_SITES,
   NO_WINNER,
   RULES,
   STANCES,
@@ -35,17 +36,18 @@ import {
   decodeWorld,
   encodeWorld,
   isInt,
-  loadMap,
   seedOf,
   step,
   viewOf,
   type CombatEvent,
   type Command,
   type Difficulty,
+  type GameMap,
   type HeroKind,
   type World,
   type WorldView,
 } from "../engine/index.js";
+import { MAP_IDS, mapById, mapChoice, resolveMap } from "./maps.js";
 
 /**
  * Fuse Front behind the netcode's `RollbackGame`. The room keeps the seats, the match and its world. Seats are slots
@@ -53,8 +55,6 @@ import {
  * played by `botCommands` at the slot's difficulty, folded in the ticker. So a friend who joins mid-match takes the
  * lowest free slot and with it a bot's hero and army, and a rider who drops hands theirs back to a bot.
  */
-export const MAP = loadMap(dustBasin);
-
 export interface Settings {
   /** Riders per team: 1v1, 2v2 or 3v3. A start grows it to fit the highest seated slot. */
   size: number;
@@ -67,20 +67,27 @@ export interface Settings {
    * team (slots of one parity); the other team may pick it too.
    */
   heroes: (HeroKind | null)[];
+  /**
+   * The map (`maps.ts`), or null for the size's default. A match fixes it at its start: `play.map` names the map the
+   * match plays, the default when the chosen one has too few forts for the size it starts at.
+   */
+  map: string | null;
 }
 export const DEFAULT_SETTINGS: Settings = {
   size: 1,
   bots: Array<Difficulty>(MAX_SEATS).fill("normal"),
   display: false,
   heroes: Array<HeroKind | null>(MAX_SEATS).fill(null),
+  map: null,
 };
-const SETTING_KEYS = ["bots", "display", "heroes", "size"];
-/** Exactly these four own keys, in range; anything else is refused. */
+const SETTING_KEYS = ["bots", "display", "heroes", "map", "size"];
+/** Exactly these five own keys, in range; anything else is refused. */
 export function parseSettings(raw: unknown): Settings | undefined {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return;
   const keys = Object.keys(raw).sort();
   if (keys.join() !== SETTING_KEYS.join()) return;
-  const { size, bots, display, heroes } = raw as Record<string, unknown>;
+  const { size, bots, display, heroes, map } = raw as Record<string, unknown>;
+  if (map !== null && !MAP_IDS.includes(map as string)) return;
   if (!uint32(size) || size < 1 || size > MAX_SEATS / 2) return;
   if (typeof display !== "boolean" || !Array.isArray(bots)) return;
   if (bots.length !== MAX_SEATS) return;
@@ -100,6 +107,7 @@ export function parseSettings(raw: unknown): Settings | undefined {
       bots: levels,
       display,
       heroes: picks as (HeroKind | null)[],
+      map: map as string | null,
     };
 }
 
@@ -156,15 +164,15 @@ const BUILT = new Set(Object.values(FACTORY_KINDS).flat());
 const int = isInt;
 const ARGS: Readonly<Record<number, (args: unknown[]) => boolean>> = {
   [ORDER]: ([f, k]) =>
-    int(f, 0, MAP.sites.length - 1) &&
+    int(f, 0, MAX_SITES - 1) &&
     int(k, 0, UNIT_KINDS.length - 1) &&
     BUILT.has(UNIT_KINDS[k]!),
   [STANCE]: ([s]) => int(s, 0, STANCES.length - 1),
-  [MOVE]: ([x, y]) => int(x, 0, MAP.width - 1) && int(y, 0, MAP.height - 1),
+  [MOVE]: ([x, y]) => int(x, 0, MAP_MAX - 1) && int(y, 0, MAP_MAX - 1),
   [STEER]: ([x, y]) =>
     int(x, -STEER_MAX, STEER_MAX) && int(y, -STEER_MAX, STEER_MAX),
   [CAST]: ([s, x, y]) =>
-    int(s, 0, 3) && int(x, 0, MAP.width - 1) && int(y, 0, MAP.height - 1),
+    int(s, 0, 3) && int(x, 0, MAP_MAX - 1) && int(y, 0, MAP_MAX - 1),
 };
 const ARITY = [2, 1, 2, 2, 3];
 const payloads = {
@@ -246,7 +254,14 @@ function resetMatch(room: Room, matchId: string): void {
   const { tick, seats, settings } = room;
   Object.assign(room, { ...createRoom(matchId, settings), tick, seats });
 }
-/** A new match: `size` riders a team, grown to fit the highest seated slot, on a world seeded by the match id. */
+/** The map the room's match plays: `play.map`, fixed at its start (the size's default before one). */
+export const mapOf = (room: Pick<Room, "play">): GameMap =>
+  mapById(room.play.map ?? resolveMap(null, room.play.size));
+
+/**
+ * A new match: `size` riders a team, grown to fit the highest seated slot, on the chosen map (or the size's default
+ * when it has too few forts), on a world seeded by the match id.
+ */
 function startMatch(room: Room, matchId: string): void {
   resetMatch(room, matchId);
   const highest = Math.max(
@@ -256,8 +271,9 @@ function startMatch(room: Room, matchId: string): void {
   const size = Math.max(room.play.size, Math.ceil((highest + 1) / 2));
   const slots = Array.from({ length: 2 * size }, (_, slot) => slot);
   const picks = Object.fromEntries(slots.map((s) => [s, room.play.heroes[s]!]));
+  room.play.map = resolveMap(room.play.map, size);
   room.world = createWorld(
-    MAP,
+    mapById(room.play.map),
     slots,
     seedOf(matchId),
     pickHeroes(slots, picks),
@@ -290,9 +306,10 @@ function commands(
   tick: number,
 ): Command[] {
   const out: Command[] = [];
+  const map = mapOf(room);
   for (const { seat: slot } of world.players) {
     if (!ridden(room, slot)) {
-      out.push(...botCommands(MAP, world, slot, room.play.bots[slot]!));
+      out.push(...botCommands(map, world, slot, room.play.bots[slot]!));
       continue;
     }
     const seat = sitter(room, slot)!,
@@ -336,9 +353,10 @@ export function foldTick(
     const first =
       room.stage === "running" ? commands(room, room.world, streams, tick) : [];
     let world = room.world;
+    const map = mapOf(room);
     const events: CombatEvent[] = [];
     for (let index = 0; index < STEPS_PER_TICK; index++) {
-      world = step(MAP, world, index === 0 ? first : []);
+      world = step(map, world, index === 0 ? first : []);
       events.push(...world.events);
       for (const event of world.events) out.push({ step: world.step, event });
     }
@@ -428,8 +446,11 @@ export function decode(
   const room: Room = { tick, matchId, stage: stage as Stage, seats, settings, play, startAt, world: null };
   if (stage === "lobby")
     return startAt === 0 && rawWorld === null ? room : undefined;
-  const world = decodeWorld(rawWorld, MAP);
+  if (play.map === null) return;
+  const world = decodeWorld(rawWorld, mapById(play.map));
   if (!world || world.players.length % 2 !== 0) return;
+  // The map must hold the match: a fort for every slot in play.
+  if (world.players.length > 2 * mapChoice(play.map).teams) return;
   if (world.players.length < 2 * play.size) return;
   if (world.players.some((p, index) => p.seat !== index)) return;
   if (startAt < 1 || startAt > tick + COUNTDOWN_TICKS) return;
@@ -489,7 +510,7 @@ export function view(room: Room): View {
       .filter((p) => !ridden(room, p.seat))
       .map((p) => ({ slot: p.seat, difficulty: room.play.bots[p.seat]! })),
     winner: world?.winner ?? NO_WINNER,
-    world: world && viewOf(MAP, world),
+    world: world && viewOf(mapOf(room), world),
   };
 }
 

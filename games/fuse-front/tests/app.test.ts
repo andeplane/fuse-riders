@@ -5,10 +5,15 @@ import { DRAW, NO_WINNER, fortSite } from "../src/engine/index.js";
 import {
   COUNTDOWN_TICKS,
   DEFAULT_SETTINGS,
-  MAP,
+  mapOf,
   view,
 } from "../src/online/game.js";
-import { banner, cycleDifficulty, slotsOf } from "../src/app/model.js";
+import {
+  banner,
+  cycleDifficulty,
+  mapOptions,
+  slotsOf,
+} from "../src/app/model.js";
 import { keys, roomFailure, sessionFor } from "../src/app/session.js";
 import { frontRegistration } from "../src/platform.js";
 import { Mesh } from "./fixtures/mesh.js";
@@ -96,16 +101,39 @@ test("the runtime logs this device's controls only while it rides a seat in a ru
     "the bot plays at the picked difficulty",
   );
   assert.equal(host.slot(), 0);
-  const target = fortSite(MAP, 1);
+  const map = mapOf(room);
+  assert.equal(
+    map.name,
+    "Rust Canyon",
+    "a 1v1 with no map chosen plays its default",
+  );
+  const target = fortSite(map, 1);
   assert.ok(host.move(target.x, target.y));
   assert.ok(host.stance("hold"));
   mesh.run(300);
   const world = host.roomState()!.world!;
-  assert.equal(world.heroes[0]!.goal, target.y * MAP.width + target.x);
+  assert.equal(world.heroes[0]!.goal, target.y * map.width + target.x);
   assert.equal(world.players[0]!.stance, "hold");
   const seen = view(host.roomState()!).world!;
   assert.equal(seen.heroes.length, 2);
   assert.equal(seen.heroes[0]!.team, 0);
   assert.equal(seen.heroes[0]!.level, 1);
   assert.equal(seen.heroes[0]!.hp, seen.heroes[0]!.maxHp);
+});
+
+test("the lobby offers the maps that hold the battle size, lighting the one a start would play", () => {
+  const offered = (size: number, map: string | null) =>
+    mapOptions({ ...DEFAULT_SETTINGS, size, map })
+      .map((o) => (o.on ? `[${o.id}]` : o.id))
+      .join(" ");
+  assert.equal(
+    offered(1, null),
+    "dust-basin [rust-canyon] glass-lakes iron-delta",
+  );
+  assert.equal(offered(2, "dust-basin"), "[dust-basin] glass-lakes iron-delta");
+  assert.equal(offered(3, "glass-lakes"), "dust-basin [iron-delta]");
+  assert.equal(
+    mapOptions({ ...DEFAULT_SETTINGS, size: 3, map: null })[1]!.label,
+    "Iron Delta 256×192",
+  );
 });
