@@ -58,10 +58,39 @@
 }
 .ff-seat {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   padding: 6px 0;
   border-top: 1px solid var(--ff-steel);
+}
+.ff-heroes {
+  display: flex;
+  flex-wrap: wrap;
+  flex-basis: 100%;
+  gap: 4px;
+  margin-top: 4px;
+}
+.ff-heroes .ff-hero {
+  display: grid;
+  padding: 2px;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 0;
+  background: var(--ff-plate);
+  border: 2px solid var(--ff-steel);
+  cursor: pointer;
+}
+.ff-hero canvas {
+  image-rendering: pixelated;
+}
+.ff-heroes .ff-hero:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.ff-heroes .ff-hero.ff-on {
+  opacity: 1;
+  border-color: var(--ff-hazard);
 }
 .ff-cycle {
   color: var(--ff-hazard);

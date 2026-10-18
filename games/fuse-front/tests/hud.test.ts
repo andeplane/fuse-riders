@@ -57,6 +57,22 @@ test("the HUD derives cooldown seconds, the locked ultimate, bars and the stance
   assert.ok(dead.spells.every((s) => !s.ready));
 });
 
+test("the HUD names the slots from the seat's own hero's kit", () => {
+  const world = createWorld(MAP, [0, 1], 1, { 0: "rivet", 1: "tally" });
+  const hud = deriveHud(createHud(), viewOf(MAP, world), 0);
+  assert.equal(hud.kind, "rivet");
+  assert.deepEqual(
+    hud.spells.map((s) => s.name),
+    KITS.rivet.map((s) => s.name),
+  );
+  const tally = deriveHud(hud, viewOf(MAP, world), 1);
+  assert.deepEqual(
+    tally.spells.map((s) => [s.effect, s.passive]),
+    KITS.tally.map((s) => [s.effect, s.passive]),
+  );
+  assert.equal(tally.hp, 1, "full on its own kind's hit points");
+});
+
 test("the sector meter counts red, neutral and blue, and the clock follows this team", () => {
   const world = fresh();
   world.sectors.fill(-1);
