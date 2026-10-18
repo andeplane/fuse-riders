@@ -165,7 +165,10 @@ Bot-vs-bot matches at every difficulty pairing must end within about 15 minutes 
 - Spells change fights. Shockwave flattens a crowd, Rally doubles a push, and Orbital Drop lands a heavy tank.
 - Brick's kit is joined by Vix (infiltrator), Rivet (engineer) and Tally (scout), with the kits from the design
   canvas, in the same data-driven spell table.
-- Each player picks a hero in the lobby, and bots pick a free one.
+- Each player picks a hero in the lobby, and bots pick a free one. The kits, with their numbers and rules, are
+  documented in `src/engine/spells.ts`; each hero's stat profile is `HEROES` in `src/engine/tuning.ts`. A pick is
+  part of the room settings, so the host sets it for every seat. Each hero can be taken once per team, and the other
+  team may repeat it. An unpicked seat takes the first free hero (`pickHeroes`).
 
 **Legibility.**
 
@@ -225,7 +228,7 @@ chunky robots, team-coloured forts and factories, the riveted steel HUD) but ren
 **v2 delivery (each PR under ~1,000 lines).** The engine lane runs E1–E4. The 3D lane runs G1–G4 in parallel.
 
 - **E1:** powerhouse heroes and the stalemate breaker (done).
-- **E2:** the other three heroes and the hero pick.
+- **E2:** the other three heroes and the hero pick (done).
 - **E3:** focus fire, attack-move, the target in the view, and spell metadata and aimed spells.
 - **E4:** the map generator, bigger maps and engine performance.
 - **G1:** three.js scaffolding, terrain, lighting, camera and placeholder meshes.

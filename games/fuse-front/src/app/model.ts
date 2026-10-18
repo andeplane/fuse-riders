@@ -3,8 +3,10 @@ import {
   DRAW,
   MAX_SEATS,
   NO_WINNER,
+  pickHeroes,
   teamOf,
   type Difficulty,
+  type HeroKind,
 } from "../engine/index.js";
 import type { Settings, View } from "../online/game.js";
 
@@ -20,6 +22,9 @@ export interface SlotView {
   difficulty: Difficulty;
   /** This device rides it. */
   self: boolean;
+  /** The hero it plays (in the lobby, the one a start would give it) and whether it was picked rather than given. */
+  hero: HeroKind;
+  picked: boolean;
 }
 
 /**
@@ -37,6 +42,11 @@ export function slotsOf(view: View, self: string): SlotView[] {
       Math.max(2 * settings.size, highest + 1 + ((highest + 1) % 2)),
     );
   const out: SlotView[] = [];
+  const all = Array.from({ length: count }, (_, slot) => slot);
+  const given = pickHeroes(
+    all,
+    Object.fromEntries(all.map((s) => [s, settings.heroes[s] ?? null])),
+  );
   for (let slot = 0; slot < count; slot++) {
     const seat = riders.find((s) => s.slot === slot);
     const bot = view.world
@@ -50,6 +60,9 @@ export function slotsOf(view: View, self: string): SlotView[] {
       bot,
       difficulty,
       self: seat?.id === self && !bot,
+      hero:
+        view.world?.heroes.find((h) => h.seat === slot)?.kind ?? given[slot]!,
+      picked: settings.heroes[slot] != null,
     });
   }
   return out;
@@ -69,4 +82,17 @@ export function banner(winner: number, slot: number): string {
   if (winner === DRAW) return "DRAW";
   if (slot >= 0) return teamOf(slot) === winner ? "VICTORY" : "DEFEAT";
   return `${TEAMS[winner]} WINS`;
+}
+
+/** The settings with `kind` picked for `slot`; a teammate who had picked it goes back to a free one. */
+export function pickHero(
+  settings: Settings,
+  slot: number,
+  kind: HeroKind,
+): Settings {
+  const heroes = settings.heroes.map((h, s) =>
+    s % 2 === slot % 2 && h === kind ? null : h,
+  );
+  heroes[slot] = kind;
+  return { ...settings, heroes };
 }

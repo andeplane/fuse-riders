@@ -11,7 +11,8 @@ import { minimapBase, paintMinimap } from "../render/minimap.js";
 import { Img } from "../render/pixel/image.js";
 import { portrait } from "../render/pixel/portraits.js";
 import { unitCard } from "../render/pixel/scenes.js";
-import { SPELL_ICONS, frame, steelTile } from "../render/pixel/ui.js";
+import { spellIcon } from "../render/pixel/icons.js";
+import { frame, steelTile } from "../render/pixel/ui.js";
 import {
   createHud,
   deriveHud,
@@ -39,7 +40,7 @@ function draw(canvas: HTMLCanvasElement, img: Img): void {
 }
 
 /** A canvas holding `img` at 2 CSS pixels per art pixel. */
-function pixels(img: Img): HTMLCanvasElement {
+export function pixels(img: Img): HTMLCanvasElement {
   const canvas = el("canvas");
   [canvas.width, canvas.height] = [img.w, img.h];
   draw(canvas, img);
@@ -74,8 +75,9 @@ export class Hud {
     el("i", "", `ff-fill ff-${k}`),
   );
   private readonly level = el("b");
-  private readonly spells = SPELL_ICONS.map(() => ({
+  private readonly spells = [0, 1, 2, 3].map(() => ({
     button: el("button", "", "ff-spell ff-bay"),
+    icon: el("span", "", "ff-icon"),
     shade: el("i", "", "ff-shade"),
     secs: el("span", "", "ff-secs"),
   }));
@@ -110,13 +112,8 @@ export class Hud {
     });
     bars.append(this.level);
     const spells = el("div", "", "ff-spells");
-    this.spells.forEach(({ button, shade, secs }, slot) => {
-      const icon = new Img(30, 30);
-      SPELL_ICONS[slot]!(icon, 0, 0);
-      const { key, name } = this.state.spells[slot]!;
-      button.append(pixels(icon), shade, secs, el("kbd", key));
-      button.title = name;
-      button.setAttribute("aria-label", `${name} (${key})`);
+    this.spells.forEach(({ button, icon, shade, secs }, slot) => {
+      button.append(icon, shade, secs, el("kbd", this.state.spells[slot]!.key));
       button.onclick = () => this.actions.cast(slot);
       spells.append(button);
     });
@@ -166,9 +163,9 @@ export class Hud {
     [this.world, this.seat] = [world, seat];
     const s = deriveHud(this.state, world, seat);
     const team = seat < 0 ? "red" : seat % 2 ? "blue" : "red";
-    this.put(this.portrait, "team", team, () => {
+    this.put(this.portrait, "hero", team + s.kind, () => {
       const img = new Img(44, 44);
-      portrait(img, 0, 0, "brick", team);
+      portrait(img, 0, 0, s.kind, team);
       this.portrait.replaceChildren(pixels(img));
     });
     const blocks =
@@ -196,7 +193,15 @@ export class Hud {
       s.respawn ? `RESPAWN ${s.respawn}s` : `LV ${s.level}`,
     );
     s.spells.forEach((spell, i) => {
-      const { button, shade, secs } = this.spells[i]!;
+      const { button, icon, shade, secs } = this.spells[i]!;
+      // The kit's icon and name, redrawn only when the hero changes.
+      this.put(icon, "effect", spell.effect + spell.name, () => {
+        const art = new Img(30, 30);
+        spellIcon(spell.effect)(art, 0, 0);
+        icon.replaceChildren(pixels(art));
+        button.title = spell.name;
+        button.setAttribute("aria-label", `${spell.name} (${spell.key})`);
+      });
       this.css(shade, "height", pct(spell.locked ? 1 : spell.shade));
       const left = spell.seconds ? String(spell.seconds) : "";
       this.text(secs, spell.locked ? "LV6" : left);
