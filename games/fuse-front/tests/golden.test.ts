@@ -23,16 +23,16 @@ import { dustBasin } from "./fixtures/maps.js";
  * the new ones.
  */
 const GOLDEN = {
-  rules: "fuse-front-8",
+  rules: "fuse-front-9",
   seed: "fuse-front golden",
   ticks: 1500,
   hashes: [
-    "538b5a69",
-    "6d020399",
-    "606e274b",
-    "82940475",
-    "45149ece",
-    "8a85c266",
+    "9885f264",
+    "5066d670",
+    "1aaaf3a2",
+    "3f681c96",
+    "c47bb0e0",
+    "2b8ed3b8",
   ],
 };
 
@@ -50,11 +50,18 @@ const SCRIPT = new Map<number, Command[]>([
   [1400, [{ seat: 4, type: "cast", slot: 3, x: 0, y: 0 }]],
   [700, [{ seat: 1, type: "stance", stance: "push" }]],
   [900, [{ seat: 5, type: "move", x: 36, y: 41 }]],
-  // Vix's kit (seats 1 and 4).
+  // The other kits: Vix (seats 1 and 4), Rivet (2) and Tally (3).
+  [100, [{ seat: 3, type: "cast", slot: 1, x: 36, y: 41 }]],
   [150, [{ seat: 1, type: "cast", slot: 1, x: 0, y: 0 }]],
   [160, [{ seat: 1, type: "move", x: 47, y: 27 }]],
+  [200, [{ seat: 2, type: "cast", slot: 1, x: 0, y: 0 }]],
   [250, [{ seat: 4, type: "cast", slot: 2, x: 0, y: 0 }]],
+  [350, [{ seat: 3, type: "cast", slot: 0, x: 47, y: 27 }]],
+  [550, [{ seat: 2, type: "cast", slot: 0, x: 0, y: 0 }]],
   [650, [{ seat: 1, type: "cast", slot: 0, x: 47, y: 27 }]],
+  [800, [{ seat: 2, type: "cast", slot: 2, x: 0, y: 0 }]],
+  [1300, [{ seat: 3, type: "cast", slot: 3, x: 0, y: 0 }]],
+  [1350, [{ seat: 2, type: "cast", slot: 3, x: 0, y: 0 }]],
   [1450, [{ seat: 4, type: "cast", slot: 3, x: 0, y: 0 }]],
 ]);
 
@@ -93,6 +100,8 @@ function play(
 const fresh = (map: GameMap): World =>
   createWorld(map, [0, 1, 2, 3, 4, 5], seedOf(GOLDEN.seed), {
     1: "vix",
+    2: "rivet",
+    3: "tally",
     4: "vix",
   });
 

@@ -8,7 +8,7 @@ import { sectorAt, type GameMap } from "./map.js";
 import { DIRS, openTile } from "./flow.js";
 import { MAX_XP, levelOf, maxEnergy, maxHp, respawnSteps } from "./hero.js";
 import { div } from "./math.js";
-import { FOLLOW_HERO, isGoalTile } from "./move.js";
+import { FLARE, FOLLOW_HERO, isGoalTile } from "./move.js";
 import {
   DROP_HP,
   KITS,
@@ -16,6 +16,7 @@ import {
   MINE_FUSE,
   kitHas,
   longest,
+  type SpellEffect,
 } from "./spells.js";
 import { fnv1a } from "./rng.js";
 import {
@@ -105,9 +106,14 @@ export function encodeWorld(world: World): unknown {
       h.quiet,
       HERO_KINDS.indexOf(h.kind),
       h.cloak,
+      h.blitz,
+      h.flare,
+      h.flareLeft,
     ]),
     world.winner,
     world.mines.map((m) => [m.owner, m.x, m.y, m.life, m.stuck]),
+    [...world.fortified],
+    [...world.overclock],
   ];
 }
 
@@ -176,6 +182,7 @@ function unit(raw: unknown, map: GameMap): Unit | undefined {
   if (
     goal !== -1 &&
     goal !== FOLLOW_HERO &&
+    !(goal === FLARE && stats.robot) &&
     !(isInt(goal, 0, COUNT) && isGoalTile(map, goal))
   )
     return;
@@ -188,16 +195,26 @@ function unit(raw: unknown, map: GameMap): Unit | undefined {
 }
 
 function hero(raw: unknown, map: GameMap): Hero | undefined {
-  const t = tuple(raw, 16);
+  const t = tuple(raw, 19);
   if (!t) return;
   const [seat, x, y, hp, energy, xp, cooldown, respawn, facing, goal] = t;
   const [steerX, steerY, quiet] = [t[10], t[11], t[13]];
-  const [kindIndex, cloak] = [t[14], t[15]];
+  const [kindIndex, cloak, blitz, flare, flareLeft] = t.slice(14);
   if (!isInt(kindIndex, 0, HERO_KINDS.length - 1)) return;
   const kind = HERO_KINDS[kindIndex]!;
-  // Only Vix's kit cloaks, and never a dead hero.
-  const cloaks = kitHas(kind, "cloak") && hp !== 0;
-  if (!isInt(cloak, 0, cloaks ? longest("cloak") : 0)) return;
+  // A status only its own kit casts, never on a dead hero; a flare marks an open tile exactly while it burns.
+  const most = (effect: SpellEffect) =>
+    kitHas(kind, effect) && hp !== 0 ? longest(effect) : 0;
+  if (!isInt(cloak, 0, most("cloak")) || !isInt(blitz, 0, most("blitz")))
+    return;
+  if (!isInt(flareLeft, 0, most("flare"))) return;
+  if (flareLeft === 0 ? flare !== -1 : !isInt(flare, 0, COUNT)) return;
+  const marked = flare as number;
+  if (
+    marked !== -1 &&
+    !openTile(map, marked % map.width, div(marked, map.width))
+  )
+    return;
   // Steps since it last fought, counted up to calm.
   if (!isInt(quiet, 0, HERO.calm)) return;
   if (!isInt(seat, 0, MAX_SEATS - 1) || !isInt(xp, 0, MAX_XP)) return;
@@ -242,6 +259,9 @@ function hero(raw: unknown, map: GameMap): Hero | undefined {
     quiet,
     kind,
     cloak,
+    blitz,
+    flare: marked,
+    flareLeft,
   };
 }
 
@@ -286,10 +306,10 @@ const ascending = <T>(items: readonly T[], key: (item: T) => number) =>
 
 /** A world from a checkpoint for `map`, or undefined when anything in it is out of place. */
 export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
-  const t = tuple(raw, 10);
+  const t = tuple(raw, 12);
   if (!t) return;
   const [step, rng, nextId, rawPlayers, rawSectors, rawBuildings, rawUnits] = t;
-  const [rawHeroes, winner, rawMines] = [t[7], t[8], t[9]];
+  const [rawHeroes, winner, rawMines, rawFortified, rawOverclock] = t.slice(7);
   if (
     !isInt(step, 0, COUNT) ||
     !isInt(rng, 0, UINT32) ||
@@ -342,7 +362,7 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
   // The recorded result is exactly the one the forts imply.
   const result = winnerOf(map, players, buildings);
   if (winner !== result) return;
-  // Mines belong to a player whose kit lays them, a few each.
+  // Mines belong to a player whose kit lays them, a few each; FORTIFY and OVERCLOCK timers never outlast the spell.
   const layers = new Set(
     heroes.filter((h) => kitHas(h.kind, "stickyMine")).map((h) => h.seat),
   );
@@ -352,6 +372,15 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
   if (!mines) return;
   for (const seat of layers)
     if (mines.filter((m) => m.owner === seat).length > MINES_PER_HERO) return;
+  const timer = (most: number) => (each: unknown) =>
+    isInt(each, 0, most) ? each : undefined;
+  const fortified = list(
+    rawFortified,
+    map.flags.length,
+    timer(longest("fortify")),
+  );
+  const overclock = list(rawOverclock, 2, timer(longest("overclock")));
+  if (fortified?.length !== map.flags.length || overclock?.length !== 2) return;
   return {
     step,
     rng,
@@ -362,6 +391,8 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
     units,
     heroes,
     mines,
+    fortified,
+    overclock,
     winner: result,
     events: [],
   };

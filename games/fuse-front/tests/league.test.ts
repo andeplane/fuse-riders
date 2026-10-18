@@ -80,7 +80,7 @@ for (const seats of [
   [0, 1, 2, 3],
   [0, 1, 2, 3, 4, 5],
 ]) {
-  const picks = { 0: "vix" } as const;
+  const picks = { 0: "tally", 3: "rivet" } as const;
   for (const d of ["normal", "hard"] as const)
     matches.push([
       `${seats.length / 2}v${seats.length / 2} mixed ${d}`,

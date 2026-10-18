@@ -9,7 +9,7 @@
 import { DIRS, UNREACHABLE, flowField } from "./flow.js";
 import type { GameMap } from "./map.js";
 import { div, isqrt } from "./math.js";
-import { centreOf, settle, tileOf } from "./move.js";
+import { FLARE, centreOf, settle, tileOf } from "./move.js";
 import {
   ASSIST_RADIUS,
   HERO,
@@ -53,7 +53,7 @@ export const respawnSteps = (level: number): number =>
 export const alive = (hero: Hero): boolean => hero.hp > 0;
 
 /**
- * A hero falls to `killer`'s seat: it waits to respawn with its gun at rest, its move and CLOAK gone.
+ * A hero falls to `killer`'s seat: it waits to respawn with its gun at rest, its move, CLOAK, BLITZ and FLARE gone.
  * Returns the XP the kill is worth, for the caller to `award`.
  */
 export function fell(world: World, hero: Hero, killer: number): number {
@@ -66,7 +66,13 @@ export function fell(world: World, hero: Hero, killer: number): number {
     goal: -1,
     quiet: 0,
     cloak: 0,
+    blitz: 0,
+    flare: -1,
+    flareLeft: 0,
   });
+  // Its FLARE goes out with it, releasing the robots it drew.
+  for (const unit of world.units)
+    if (unit.owner === seat && unit.goal === FLARE) unit.goal = -1;
   world.events.push({ type: "heroDeath", seat, killer, x, y });
   return HERO_XP + HERO_XP_PER_LEVEL * level;
 }
