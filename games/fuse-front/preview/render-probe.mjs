@@ -175,6 +175,8 @@ try {
     console.log([s, ((now.frames - before.frames) / Number(every)).toFixed(1), now.worst.toFixed(0), per("draws"), per("tris", 1000), per("upload", 1024), per("gpu"), now.live.Buffer, now.live.Texture, now.live.Framebuffer, now.live.Program, (metric("JSHeapUsedSize") / 1048576).toFixed(1), metric("Nodes")].join("\t")); // prettier-ignore
     before = now;
   }
+  // `SHOT=path` saves the last frame, to see what the measured scene looked like.
+  if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT });
 } finally {
   await browser.close();
 }
