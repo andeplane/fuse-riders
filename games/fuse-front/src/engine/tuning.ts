@@ -182,10 +182,12 @@ export const HOLD_CROWD = 2 * STRAIGHT;
 
 /**
  * Focus fire (`focus.ts`): a hero told to `attack` an enemy chases it until it is in range, re-pathing to it every
- * `CHASE_REPATH` steps, and gives up after `FOCUS_GIVE_UP` steps in a row without it in range. An aimed spell may
- * land up to `AIM_SLACK` beyond its range, so a click on the edge of the drawn circle counts.
+ * `CHASE_REPATH` steps, and gives up after `FOCUS_GIVE_UP` steps in a row with no path to it or, for a unit or hero,
+ * with it beyond `CHASE_LEASH`. An aimed spell may land up to `AIM_SLACK` beyond its range, so a click on the edge
+ * of the drawn circle counts.
  */
 export const CHASE_REPATH = 10;
+export const CHASE_LEASH = 10 * TILE;
 export const FOCUS_GIVE_UP = 4 * STEPS_PER_SECOND;
 export const AIM_SLACK = TILE / 2;
 

@@ -15,8 +15,8 @@ import {
   type Stance,
   type UnitKind,
 } from "./tuning.js";
-import { heroTarget } from "./focus.js";
-import { KITS, unitMax } from "./spells.js";
+import { heroTarget, type Aim } from "./focus.js";
+import { KITS, unitMax, type Spell } from "./spells.js";
 import {
   NEUTRAL,
   ownerOf,
@@ -99,36 +99,25 @@ export interface HeroView {
    * where everything stands; null when it has none or is dead. Sub-pixels; a building's `id` is its site id.
    */
   target: TargetView | null;
-  /** On an attack-move: it stands to fight whatever comes in range on the way to its goal. */
-  sweeping: boolean;
   /** Its spells by slot (the shared, frozen table), for tooltips and aiming. */
   kit: readonly SpellInfo[];
 }
 
-export interface TargetView {
-  of: "unit" | "hero" | "building";
-  id: number;
-  x: number;
-  y: number;
-  chosen: boolean;
-}
+export type TargetView = Aim & { chosen: boolean };
 
-/**
- * A spell as the HUD explains it: what aiming means (`self` casts at once, `point` takes a tile within `range`,
- * `unit` a target within `range`), its area, its energy cost, its cooldown in steps and the level it unlocks at.
- * Sub-pixels.
- */
-export interface SpellInfo {
-  name: string;
-  desc: string;
-  targeting: "self" | "point" | "unit";
-  passive: boolean;
-  range: number;
-  radius: number;
-  energy: number;
-  cooldown: number;
-  unlock: number;
-}
+/** A spell as the HUD explains it (`spells.ts`): aiming, reach and area in sub-pixels, cost, cooldown in steps, unlock. */
+export type SpellInfo = Pick<
+  Spell,
+  | "name"
+  | "desc"
+  | "targeting"
+  | "passive"
+  | "range"
+  | "radius"
+  | "energy"
+  | "cooldown"
+  | "unlock"
+>;
 
 /** Every kit's spells, by hero kind and slot: the engine's frozen table, so a view can share it. */
 export const SPELL_INFO: Readonly<Record<HeroKind, readonly SpellInfo[]>> =
@@ -244,7 +233,6 @@ export function viewOf(map: GameMap, world: World): WorldView {
       blitzing: hero.blitz > 0,
       flare: hero.flare,
       target: heroTarget(map, world, hero),
-      sweeping: hero.sweep > 0,
       kit: SPELL_INFO[hero.kind],
     })),
     mines: world.mines.map((mine) => ({

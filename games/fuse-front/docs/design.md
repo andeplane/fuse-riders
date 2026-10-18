@@ -180,11 +180,6 @@ Bot-vs-bot matches at every difficulty pairing must end within about 15 minutes 
   targeting mode: self, point or unit) for tooltips. While aiming, the range and area of effect are shown before the
   cast. Aimed spells take a target point or unit.
 
-E3a builds the engine side; `src/engine/focus.ts` documents the rules. `HeroView.target` is the focus, or else the
-enemy the gun picks next, and `HeroView.kit` is the kit's `SPELL_INFO`. A point spell aimed beyond `range + AIM_SLACK`
-is refused without spending anything, and a `unit` spell may name its target in the `cast` entry's optional fourth and
-fifth arguments.
-
 **Bigger maps.**
 
 - Maps grow to about the scale of Z and StarCraft: roughly 192×128 tiles for 1v1 and up to 256×192 for 3v3, with

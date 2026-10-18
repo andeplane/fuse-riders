@@ -127,7 +127,6 @@ test("every command a bot sends is one a player could send, and takes effect", (
       const bots = new Map(seats.map((seat) => [seat, DIFFICULTIES[roll(3)]!]));
       // Sample a varied set of moments, with the heroes levelled now and then so every spell comes into play.
       play(board, bots, 2400, (world, commands) => {
-        // Stance changes are rare enough that a sample can miss them all, so every one sent in play is checked.
         for (const command of commands)
           if (command.type === "stance") {
             kinds.add("stance");

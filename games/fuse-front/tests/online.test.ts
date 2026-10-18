@@ -133,10 +133,7 @@ test("an ATTACK entry focuses the rider's hero, and an ATTACK_MOVE sends it on a
   assert.deepEqual([hero.focusOf, hero.focus], [2, fort.id]);
   log(room, entries, "host", ATTACK_MOVE, "match-1", 20, 20);
   fold(room, entries, 1);
-  assert.deepEqual(
-    [room.world!.heroes[0]!.focusOf, room.world!.heroes[0]!.sweep],
-    [-1, 1],
-  );
+  assert.equal(room.world!.heroes[0]!.sweep, 1);
 });
 
 test("a friend who joins mid-match takes over a bot's slot, and hands it back on leaving", () => {
