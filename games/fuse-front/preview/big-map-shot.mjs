@@ -51,7 +51,10 @@ try {
   console.log("ok");
 } catch (error) {
   if (process.env.FAIL_SHOT)
-    await browser.contexts()[0]?.pages()[0]?.screenshot({ path: process.env.FAIL_SHOT });
+    await browser
+      .contexts()[0]
+      ?.pages()[0]
+      ?.screenshot({ path: process.env.FAIL_SHOT });
   console.log(errors);
   throw error;
 } finally {
