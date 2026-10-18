@@ -5,6 +5,14 @@
 
 /** Art pixels the viewport aims to show from top to bottom; the scale is the largest integer that keeps at least this. */
 export const TARGET_ROWS = 300;
+/** The rows a zoom may ask for: in to 150 (twice the default scale), out to 1200 (a big map at about 1×). */
+export const MIN_ROWS = 150,
+  MAX_ROWS = 1200;
+
+/** The rows asked for after zooming by `factor` (above 1 closer). */
+export function zoomRows(rows: number, factor: number): number {
+  return Math.min(MAX_ROWS, Math.max(MIN_ROWS, rows / factor));
+}
 /** CSS pixels from the board's edge where a resting mouse pans the camera. */
 export const EDGE = 18;
 /** CSS pixels per second the edge pan moves. */

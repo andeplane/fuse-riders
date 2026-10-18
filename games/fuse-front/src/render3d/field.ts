@@ -90,6 +90,7 @@ const TEAM_RGB = TEAM_HEX.map(rgb);
 const NEUTRAL_RGB = rgb(NEUTRAL_HEX);
 const teamRgb = (team: number) => TEAM_RGB[team] ?? NEUTRAL_RGB;
 const TARGET_RGB = rgb(TARGET_HEX);
+const BADGE_RGB = rgb(0xf4f0e0);
 const SELF_RGB = rgb(SELF_HEX),
   BAR_BACK = rgb(0x101010),
   [GOOD, FAIR, POOR] = [0x6ad83a, 0xf8d030, 0xe8483c].map(rgb);
@@ -109,6 +110,10 @@ const AIM_HOLD = 80;
 const MAX_PENDING = 512;
 /** Heroes draw a size up from their models so they stand over the line at the default zoom. */
 const HERO_SCALE = 1.45;
+/** Tiles from the camera's target the sun's shadow box reaches at most. */
+const SHADOW_REACH = 96;
+/** Strategic marker radii per tile of camera distance, so they hold their size on screen at any zoom. */
+const MARK = { unit: 0.0055, hero: 0.012, flag: 0.011 };
 /** Units draw a size up too, so each kind reads at the default zoom; the smallest grow most. */
 const UNIT_SCALE: Record<UnitKind, number> = { grunt: 1.35, torch: 1.25, lightTank: 1.1, sentry: 1.25 }; // prettier-ignore
 const PLAIN = [1, 1, 1] as const;
@@ -247,6 +252,10 @@ export class Field3D implements Renderer {
   private lastBox = { x: 0, y: 0, w: 1, h: 1 };
   private cssW = 1;
   private cssH = 1;
+  /** The farthest zoom on this match's map (`rig.farFor`). */
+  private far = rig.FAR;
+  /** Every strategic marker shares it, its opacity the zoom's `rig.markerFade`. */
+  private readonly markMat: THREE.MeshBasicMaterial;
 
   /**
    * Throws when the canvas cannot give a WebGL2 context; the page then falls back to the pixel battlefield. Without a
@@ -340,6 +349,13 @@ export class Field3D implements Renderer {
     add("aimLine", plain(new THREE.PlaneGeometry(0.06, 1).rotateX(-Math.PI / 2).translate(0, 0.08, 0), flat(9)), false, 9);
     add("barBack", plain(bar, flat(10)), false, 10);
     add("barFill", plain(bar.clone().translate(0, 0, 0.01), flat(11)), false, 11);
+    // Strategic markers: flat team discs, hero badges and flag diamonds over everything, sized to the zoom.
+    this.markMat = this.keep(new THREE.MeshBasicMaterial({ depthTest: false, depthWrite: false, toneMapped: false, fog: false, transparent: true, opacity: 0 }));
+    const up = (g: THREE.BufferGeometry) => plain(g.rotateX(-Math.PI / 2), this.markMat);
+    add("unitMark", up(new THREE.CircleGeometry(1, 16)), false, 12);
+    add("flagMark", up(new THREE.CircleGeometry(1, 4)), false, 12);
+    add("heroEdge", up(new THREE.RingGeometry(0.95, 1.4, 24)), false, 13);
+    add("heroMark", up(new THREE.CircleGeometry(1, 24)), false, 14);
   }
 
   private keep<T extends { dispose(): void }>(thing: T): T {
@@ -367,7 +383,7 @@ export class Field3D implements Renderer {
   }
 
   zoom(factor: number): void {
-    rig.zoomRig(this.rig, factor);
+    rig.zoomRig(this.rig, factor, this.far);
   }
 
   lookAt(fx: number, fy: number, world: WorldView): void {
@@ -445,17 +461,23 @@ export class Field3D implements Renderer {
     };
   }
 
-  /** Copies the rig onto the camera, the sun's shadow box and the fog. */
+  /**
+   * Copies the rig onto the camera, the sun's shadow box and the fog. Zoomed out, the fog recedes so the map stays
+   * clear, the shadow box stops growing (one 2048 map over a whole big map would be mush) and ambient occlusion rests.
+   */
   private place(): void {
     const { distance } = this.rig;
-    this.camera.position.set(
-      this.rig.x,
-      distance * Math.sin(rig.PITCH),
-      this.rig.z + distance * Math.cos(rig.PITCH),
-    );
+    const at = rig.eye(this.rig);
+    this.camera.position.set(at.x, at.y, at.z);
     this.camera.lookAt(this.rig.x, 0, this.rig.z);
+    if (this.camera.far !== distance * 2 + 60) {
+      this.camera.far = distance * 2 + 60;
+      this.camera.updateProjectionMatrix();
+    }
     this.camera.updateMatrixWorld();
-    const reach = this.rig.distance * 0.9 + 6;
+    const strategic = rig.markerFade(distance);
+    this.look.setFar(strategic > 0.5);
+    const reach = Math.min(SHADOW_REACH, distance * 0.9 + 6);
     const cam = this.sun.shadow.camera;
     if (cam.right !== reach) {
       cam.left = cam.bottom = -reach;
@@ -470,8 +492,8 @@ export class Field3D implements Renderer {
     this.sun.target.position.set(sx, 0, sz);
     this.sun.position.set(sx - 30, 28, sz + 14);
     const fog = this.scene.fog as THREE.Fog;
-    fog.near = this.rig.distance * 1.1;
-    fog.far = this.rig.distance * 3;
+    fog.near = distance * (1.1 + strategic);
+    fog.far = distance * (3 + 2 * strategic);
   }
 
   // prettier-ignore
@@ -505,6 +527,8 @@ export class Field3D implements Renderer {
         if (fresh) this.fired.set(key, now);
       }
     for (const slot of this.slotList) slot.batch.begin();
+    const mark = this.rig.distance, fade = rig.markerFade(mark);
+    this.markMat.opacity = 0.9 * fade;
     this.ghost.opacity = 0.2 + 0.08 * Math.sin(now / 70);
     for (const u of world.units) {
       const p = this.before.get(u.id) ?? u;
@@ -530,6 +554,7 @@ export class Field3D implements Renderer {
       if (u.spotted) this.slot("mark").batch.push(x, y + top + 0.2 + Math.sin(now / 200 + u.id) * 0.03, z, now / 300, 0.06, 0.06, 0.06, SPOT_RGB);
       const r = RING[u.kind] * UNIT_SCALE[u.kind];
       this.slot("ring").batch.push(x, y, z, 0, r, 1, r, tint);
+      if (fade > 0) this.slot("unitMark").batch.push(x, y, z, 0, mark * MARK.unit, 1, mark * MARK.unit, tint);
       if (u.hp < u.maxHp) this.bar(x, y + top, z, u.hp / u.maxHp, 0.6);
     }
     for (let i = 0; i < world.mines.length; i++) {
@@ -572,6 +597,11 @@ export class Field3D implements Renderer {
       }
       const r = RING.hero;
       this.slot("heroRing").batch.push(x, y, z, 0, r, 1, r, hero.seat === self ? SELF_RGB : teamRgb(hero.team));
+      if (fade > 0) {
+        const s = mark * MARK.hero;
+        this.slot("heroEdge").batch.push(x, y, z, 0, s, 1, s, hero.seat === self ? SELF_RGB : BADGE_RGB);
+        this.slot("heroMark").batch.push(x, y, z, 0, s, 1, s, teamRgb(hero.team));
+      }
       this.bar(x, y + 1.75, z, hero.hp / hero.maxHp, 1);
     }
     this.targeting(world, field, t, self, now);
@@ -612,6 +642,7 @@ export class Field3D implements Renderer {
       if (!cloth) continue;
       cloth.material = this.teamMat[f.team] ?? this.neutralMat;
       cloth.rotation.y = Math.sin(now / 1300 + i) * 0.25;
+      if (fade > 0) this.slot("flagMark").batch.push(cloth.position.x, cloth.position.y, cloth.position.z, 0, mark * MARK.flag, 1, mark * MARK.flag, teamRgb(f.team));
     }
     for (const slot of this.slotList) this.sync(slot);
     this.waterNormal.offset.set((now / 60000) % 1, (now / 23000) % 1);
@@ -767,6 +798,7 @@ export class Field3D implements Renderer {
     this.pending.length = 0;
     this.latest = undefined;
     this.matchId = matchId;
+    this.far = rig.farFor(world.width, world.height);
     this.follow = true;
     this.forget();
     this.before.clear();
