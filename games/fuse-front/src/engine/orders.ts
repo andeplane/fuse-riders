@@ -8,8 +8,9 @@
  * `CAST_WAIT`; a cast that goes off (or is skipped) starts the next order the same step.
  *
  * A command with `queued` appends to the queue (a full queue refuses it); one without starts at once and clears the
- * queue, as does a held stick and the hero's death. A plain cast is instant and leaves the current order and queue
- * alone. A stick released, a dead hero, or one walking a move it was given while dead keeps its queue for later.
+ * queue, as does pushing the stick and the hero's death. A plain cast is instant and leaves the current order and
+ * queue alone. Releasing the stick keeps the queue. Orders queued while the stick is still held wait for its release,
+ * orders queued while dead start after the respawn, and an attack-move standing to fight is still its current order.
  */
 import { dropFocus, enemyAt } from "./focus.js";
 import { alive } from "./hero.js";
@@ -67,6 +68,19 @@ export function startAttack(hero: Hero, of: number, id: number): void {
   Object.assign(hero, { focusOf: of, focus: id, goal: -1, sweep: 0 });
   [hero.steerX, hero.steerY] = [0, 0];
 }
+
+/**
+ * Whether a queued cast's chosen target (`MARKS` index and id) is one a checkpoint admits: a unit id already given
+ * out (`nextId`), a seat in play, or a map site. Whether it is still there, and a fit target, is the spell's to check.
+ */
+export const castable = (
+  map: GameMap,
+  nextId: number,
+  inPlay: (seat: number) => boolean,
+  of: number,
+  id: number,
+): boolean =>
+  of === 0 ? id < nextId : of === 1 ? inPlay(id) : id < map.sites.length;
 
 /** Each living idle hero, by seat, starts its queued orders until one takes time or a cast has to wait. */
 export function advanceOrders(map: GameMap, world: World): void {

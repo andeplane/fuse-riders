@@ -1,8 +1,7 @@
 /**
  * One engine step: spell timers (`spells.ts`), the step's commands (casts take effect here), idle heroes' queued
- * orders (`orders.ts`), the heroes' energy and
- * respawns (`hero.ts`), goals (`move.ts`), combat (`combat.ts`), focused heroes' chase (`focus.ts`), movement of units then heroes, STICKY MINEs
- * (`spells.ts`), capture and production. `step` never mutates the world it is given: it copies the arrays and records
+ * orders (`orders.ts`), the heroes' energy and respawns (`hero.ts`), goals (`move.ts`), combat (`combat.ts`), focused
+ * heroes' chase (`focus.ts`), movement of units then heroes, STICKY MINEs (`spells.ts`), capture and production. `step` never mutates the world it is given: it copies the arrays and records
  * (players, sectors, buildings, units, heroes, mines) and returns a new world, so the netcode can keep the previous
  * one as a snapshot. Once the match has a winner a step only advances the clock. Bots (`bot.ts`) send ordinary
  * commands.
@@ -11,6 +10,7 @@ import { MAX_ID, isInt } from "./codec.js";
 import { chase, dropFocus, enemyAt } from "./focus.js";
 import {
   advanceOrders,
+  castable,
   clearQueue,
   enqueue,
   startAttack,
@@ -210,7 +210,11 @@ function applyCommands(
       if (chosen && (!isInt(of, 0, MARKS.length - 1) || !isInt(id, 0, MAX_ID)))
         continue;
       const hero = world.heroes.find((h) => h.seat === player.seat)!;
-      if (command.queued)
+      if (command.queued) {
+        // A stored target must be one a checkpoint admits; a plain cast at a bogus one just does nothing.
+        const inPlay = (seat: number) =>
+          world.players.some((each) => each.seat === seat);
+        if (chosen && !castable(map, world.nextId, inPlay, of!, id!)) continue;
         enqueue(hero, {
           type: "cast",
           slot,
@@ -219,7 +223,7 @@ function applyCommands(
           of: chosen ? of! : -1,
           id: chosen ? id! : -1,
         });
-      else
+      } else
         cast(
           map,
           world,
