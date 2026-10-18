@@ -4,7 +4,8 @@
  * hero stands and shoots it before anything nearer; out of range it chases, walking to the target's tile along the
  * roaming flow field (re-pathed every `CHASE_REPATH` steps, so a chase churns the cache no faster than a `move`),
  * shooting the nearest enemy on the way. It drops the focus when the target dies, cloaks or changes sides, or after
- * `FOCUS_GIVE_UP` steps in a row out of range; a `move`, `attackMove`, held `steer` or new `attack` replaces it.
+ * `FOCUS_GIVE_UP` steps in a row unreachable or (a unit or hero) beyond `CHASE_LEASH`; a `move`, `attackMove`, held
+ * `steer` or new `attack` replaces it.
  *
  * `heroTarget` is what the view shows the hero aiming at: its focus, else the enemy its gun picks next.
  */
@@ -12,7 +13,13 @@ import { UNREACHABLE, flowField, openTile } from "./flow.js";
 import { alive } from "./hero.js";
 import type { GameMap } from "./map.js";
 import { centreOf, tileOf } from "./move.js";
-import { FOCUS_GIVE_UP, HEROES, CHASE_REPATH, teamOf } from "./tuning.js";
+import {
+  CHASE_LEASH,
+  CHASE_REPATH,
+  FOCUS_GIVE_UP,
+  HEROES,
+  teamOf,
+} from "./tuning.js";
 import { MARKS, NEUTRAL, ownerOf, type Hero, type World } from "./world.js";
 
 /** A target the hero's gun may pick, where it stands now. */
@@ -90,13 +97,19 @@ export function chase(map: GameMap, world: World): void {
       [hero.goal, hero.lost] = [-1, 0];
       continue;
     }
-    if (++hero.lost >= FOCUS_GIVE_UP) {
+    // A unit or hero beyond the leash, or a target with no path to it, is lost; a building far off is walked to.
+    const far =
+      aim.of !== "building" &&
+      away(hero, aim.x, aim.y) > CHASE_LEASH * CHASE_LEASH;
+    hero.lost = far || hero.goal < 0 ? hero.lost + 1 : 0;
+    if (hero.lost >= FOCUS_GIVE_UP) {
       dropFocus(hero);
       continue;
     }
-    // A chase paths at once, then only on its cadence, so an unreachable target cannot build a field every step.
-    if (hero.lost !== 1 && (world.step + hero.seat) % CHASE_REPATH !== 0)
-      continue;
+    // A chase paths when it starts or arrives, then only on its cadence, so a target with no path to it cannot
+    // build a field every step.
+    const fresh = hero.goal < 0 && hero.lost === 1;
+    if (!fresh && (world.step + hero.seat) % CHASE_REPATH !== 0) continue;
     const [tx, ty] = [tileOf(aim.x), tileOf(aim.y)];
     const tile = ty * map.width + tx;
     const at = tileOf(hero.y) * map.width + tileOf(hero.x);

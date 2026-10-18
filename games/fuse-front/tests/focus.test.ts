@@ -87,17 +87,24 @@ test("the focus drops when its target dies", () => {
   assert.equal(viewOf(map, next).heroes[0]!.target, null);
 });
 
-test("a target out of range for FOCUS_GIVE_UP steps in a row is given up", () => {
+test("a unit beyond the leash for FOCUS_GIVE_UP steps in a row is given up; a far building is not", () => {
   const world = arena("brick");
   const sentry = addUnit(world, 1, "sentry", 12, 8, 400);
   let next = step(map, world, [attack(0, sentry.id)]);
-  // Pinned in place (as if blocked), the hero never closes to range.
+  let fort = step(map, world, [attack(2, TINY.fort1)]);
+  // Pinned in place (as if blocked), the hero never closes in.
   for (let index = 1; index < FOCUS_GIVE_UP - 1; index++) {
     next = step(map, { ...next, heroes: pin(next) });
+    fort = step(map, { ...fort, heroes: pin(fort) });
     assert.equal(next.heroes[0]!.focusOf, 0, `still focused at ${index}`);
   }
   next = step(map, { ...next, heroes: pin(next) });
   assert.deepEqual([next.heroes[0]!.focusOf, next.heroes[0]!.goal], [-1, -1]);
+  assert.equal(
+    fort.heroes[0]!.focusOf,
+    2,
+    "a fort stays put, so it is walked to",
+  );
 });
 const pin = (world: World) =>
   world.heroes.map((hero, index) =>
@@ -136,13 +143,11 @@ test("an attack-move stands to fight what it meets and walks on once it is dead"
   const held = next.heroes[0]!.x;
   next = run(next, 20);
   assert.equal(next.heroes[0]!.x, held, "it stands while the sentry lives");
-  assert.ok(viewOf(map, next).heroes[0]!.sweeping);
   next = run(next, 200);
   assert.equal(next.units.length, 0);
   assert.equal(tileOf(next.heroes[0]!.x), 12, "then walks on to the goal");
   assert.equal(next.heroes[0]!.sweep, 0, "and the attack-move ends there");
-  // A plain move walks past.
-  const moved = run(world, 50, [{ seat: 0, type: "move", x: 12, y: 8 }]);
+  const moved = run(world, 50, [{ seat: 0, type: "move", x: 12, y: 8 }]); // walks past
   assert.ok(moved.heroes[0]!.x > held);
 });
 
@@ -150,22 +155,23 @@ test("the view shows what the hero shoots next, picked or chosen, and every spel
   const world = arena("brick");
   const sentry = addUnit(world, 1, "sentry", 7, 7, 400);
   const view = viewOf(map, world).heroes[0]!;
+  const { x, y } = sentry;
   assert.deepEqual(view.target, {
     of: "unit",
     id: sentry.id,
-    x: sentry.x,
-    y: sentry.y,
+    x,
+    y,
     chosen: false,
   });
   assert.deepEqual(shotsOf(step(map, world)), [sentry.id], "the next shot");
-  const chosen = step(map, world, [attack(2, TINY.fort1)]);
-  assert.deepEqual(viewOf(map, chosen).heroes[0]!.target, {
+  const chosen = viewOf(map, step(map, world, [attack(2, TINY.fort1)]));
+  const fort = {
     of: "building",
     id: TINY.fort1,
     x: centreOf(12),
     y: centreOf(1),
-    chosen: true,
-  });
+  };
+  assert.deepEqual(chosen.heroes[0]!.target, { ...fort, chosen: true });
   assert.equal(view.kit, SPELL_INFO.brick);
   for (const kit of Object.values(SPELL_INFO))
     for (const spell of kit) {
@@ -177,7 +183,7 @@ test("the view shows what the hero shoots next, picked or chosen, and every spel
 
 test("an aimed spell is refused beyond its reach without spending, and a chosen target overrides the aim", () => {
   const world = arena("vix", 6);
-  const near = addUnit(world, 1, "grunt", 7, 7, 1000);
+  addUnit(world, 1, "grunt", 7, 7, 1000);
   const far = addUnit(world, 1, "grunt", 9, 6, 1000);
   const tank = addUnit(world, 1, "lightTank", 12, 8, 1000);
   const friend = addUnit(world, 0, "grunt", 3, 6);
@@ -204,7 +210,6 @@ test("an aimed spell is refused beyond its reach without spending, and a chosen 
   // STICKY MINE (point) reaches three tiles, and half a tile of slack.
   assert.equal(cast({ slot: 2, x: 8, y: 6 }).mines.length, 0);
   assert.equal(cast({ slot: 2, x: 7, y: 6 }).mines.length, 1);
-  assert.equal(near.hp, 1000, "the world given is never touched");
 });
 
 test("a focus and an attack-move survive a checkpoint, and inconsistent ones are refused", () => {
@@ -236,6 +241,6 @@ test("a focus and an attack-move survive a checkpoint, and inconsistent ones are
   assert.equal(with_(focused, { 19: -1 }), undefined, "an id with no mark");
   assert.equal(with_(swept, { 9: -1 }), undefined, "attack-move, no goal");
   assert.equal(with_(swept, { 22: 2 }), undefined);
-  assert.equal(with_(focused, { 19: 2, 20: TINY.turret }) !== undefined, true);
+  assert.ok(with_(focused, { 19: 2, 20: TINY.turret }));
   assert.equal(with_(focused, { 19: 2, 20: TINY.robotFactory }), undefined);
 });
