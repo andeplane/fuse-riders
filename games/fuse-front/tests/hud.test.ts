@@ -25,6 +25,7 @@ import {
   factoryPanel,
   heroTile,
   keyAction,
+  ZOOM_STEP,
 } from "../src/app/hud-state.js";
 import { cameraBox, centreOn } from "../src/render/camera.js";
 import { minimapBase, paintMinimap } from "../src/render/minimap.js";
@@ -128,7 +129,15 @@ test("keys map to casts, stances, recentre and close; spells aim at the hero's t
   assert.deepEqual(keyAction(" "), { kind: "recentre" });
   assert.deepEqual(keyAction("Escape"), { kind: "close" });
   assert.equal(keyAction("4"), undefined);
-  assert.equal(keyAction("x"), undefined);
+  assert.equal(keyAction("y"), undefined);
+  // Camera keys: F follows like Space, Z/+ zoom in and X/- out a step, Home and Tab jump.
+  assert.deepEqual(keyAction("F"), { kind: "recentre" });
+  for (const key of ["z", "Z", "+", "="])
+    assert.deepEqual(keyAction(key), { kind: "zoom", factor: ZOOM_STEP });
+  for (const key of ["x", "-"])
+    assert.deepEqual(keyAction(key), { kind: "zoom", factor: 1 / ZOOM_STEP });
+  assert.deepEqual(keyAction("Home"), { kind: "home" });
+  assert.deepEqual(keyAction("Tab"), { kind: "fight" });
   const world = fresh();
   const hero = world.heroes[0]!;
   const tile = (sub: number) => Math.floor(sub / SUB / TILE_PX);
