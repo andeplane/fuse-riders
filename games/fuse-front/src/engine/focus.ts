@@ -94,7 +94,8 @@ export function chase(map: GameMap, world: World): void {
       dropFocus(hero);
       continue;
     }
-    if (hero.goal >= 0 && (world.step + hero.seat) % CHASE_REPATH !== 0)
+    // A chase paths at once, then only on its cadence, so an unreachable target cannot build a field every step.
+    if (hero.lost !== 1 && (world.step + hero.seat) % CHASE_REPATH !== 0)
       continue;
     const [tx, ty] = [tileOf(aim.x), tileOf(aim.y)];
     const tile = ty * map.width + tx;
