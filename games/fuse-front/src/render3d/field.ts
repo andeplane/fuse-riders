@@ -270,7 +270,8 @@ export class Field3D implements Renderer {
     this.wreckMat = std(WRECK_HEX, 0.9, 0.1);
     this.paints = paintMaterials();
     for (const m of Object.values(this.paints)) {
-      addRim(m);
+      // Track rubber keeps its own shader patch (the link scroll) and needs no rim.
+      if (m !== this.paints.tread) addRim(m);
       this.owned.push(m, ...(m.map ? [m.map] : []));
     }
     this.owned.push(this.cloth, this.puffGeo, this.puffMat, this.detail.normal, this.detail.rough, this.ghost);
@@ -505,7 +506,7 @@ export class Field3D implements Renderer {
       const gun = tank || u.kind === "sentry" ? approachAngle(this.gunYaw.get(u.id + 1) ?? yaw, this.aimOf(u.id + 1, world.step) ?? yaw, SLEW * dt) : yaw;
       if (gun !== yaw) this.gunYaw.set(u.id + 1, gun);
       const bx = x - Math.sin(gun) * kick, bz = z - Math.cos(gun) * kick;
-      this.slot(u.kind).batch.push(tank ? x : bx, lift, tank ? z : bz, gun, s, s, s, tint);
+      this.slot(u.kind).batch.push(tank ? x : bx, lift, tank ? z : bz, tank ? yaw : gun, s, s, s, tint);
       if (tank) {
         this.slot("tankTurret").batch.push(bx, lift, bz, gun, s, s, s, tint);
         this.tread[0] = treadPhase(x, z, yaw);
