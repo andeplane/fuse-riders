@@ -518,7 +518,9 @@ function room(code: string, token: string | undefined, display: boolean): void {
       const pinch = a0 && b0 && a1 && b1 && pinchZoom(a0, b0, a1, b1);
       if (touches.size > 1) {
         const box = canvas.getBoundingClientRect();
-        if (pinch) zoomAt(pinch.factor, pinch.x - box.left, pinch.y - box.top);
+        // A third finger moving changes nothing between the first two.
+        if (pinch && pinch.factor !== 1)
+          zoomAt(pinch.factor, pinch.x - box.left, pinch.y - box.top);
         return;
       }
     }
