@@ -76,6 +76,8 @@ export class Look {
   /** Sees everything but the effects layer, so smoke and sparks cast no ambient occlusion. */
   private readonly aoCamera = new THREE.PerspectiveCamera();
   private size = { w: 1, h: 1, dpr: 1 };
+  private ao: GTAOPass | undefined;
+  private far = false;
 
   constructor(
     private readonly gl: THREE.WebGLRenderer,
@@ -89,6 +91,12 @@ export class Look {
     // three draws the shadow map on every `render` call, and the post chain renders the scene twice (the colour pass
     // and ambient occlusion's normals): `render` asks for the shadows once a frame instead.
     gl.shadowMap.autoUpdate = false;
+  }
+
+  /** A strategic (far) view skips ambient occlusion: at that range it only greys the map and costs a full pass. */
+  setFar(far: boolean): void {
+    this.far = far;
+    if (this.ao) this.ao.enabled = !far;
   }
 
   setQuality(quality: Quality): void {
@@ -110,7 +118,8 @@ export class Look {
       const ao = new GTAOPass(this.scene, this.aoCamera, w, h);
       ao.updateGtaoMaterial({ radius: 0.6, distanceExponent: 1.5, thickness: 1, scale: 1 });
       ao.blendIntensity = 0.9;
-      composer.addPass(ao);
+      ao.enabled = !this.far;
+      composer.addPass((this.ao = ao));
       composer.addPass(new UnrealBloomPass(new THREE.Vector2(w, h), 0.5, 0.45, 1.6));
       composer.addPass(new OutputPass());
       composer.addPass(new ShaderPass(GRADE));
@@ -138,6 +147,6 @@ export class Look {
   dispose(): void {
     for (const pass of this.composer?.passes ?? []) pass.dispose();
     this.composer?.dispose();
-    this.composer = undefined;
+    this.composer = this.ao = undefined;
   }
 }

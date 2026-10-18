@@ -172,10 +172,25 @@ export type KeyAction =
   | { kind: "stance"; stance: Stance }
   | { kind: "attackMove" }
   | { kind: "recentre" }
+  | { kind: "zoom"; factor: number }
+  | { kind: "home" }
+  | { kind: "fight" }
   | { kind: "close" };
 
+/** One zoom key press: Z or + closer by this factor, X or - out. */
+export const ZOOM_STEP = 1.25;
+const ZOOM_KEYS: Readonly<Record<string, number>> = {
+  z: 1,
+  "+": 1,
+  "=": 1,
+  x: -1,
+  "-": -1,
+  _: -1,
+};
+
 /**
- * What a key press does: Q/W/E/R cast (or aim), A arms an attack-move, 1/2/3 set the stance, Space recentres, Escape
+ * What a key press does: Q/W/E/R cast (or aim), A arms an attack-move, 1/2/3 set the stance, Space or F follows the
+ * hero again, Z/X or +/- zoom a step in or out, Home looks at this seat's fort, Tab at the latest fight, and Escape
  * cancels aiming and closes a panel.
  */
 export function keyAction(key: string): KeyAction | undefined {
@@ -184,7 +199,12 @@ export function keyAction(key: string): KeyAction | undefined {
   if (key === "a" || key === "A") return { kind: "attackMove" };
   if (/^[123]$/.test(key))
     return { kind: "stance", stance: STANCES[Number(key) - 1]! };
-  if (key === " ") return { kind: "recentre" };
+  if (key === " " || key === "f" || key === "F") return { kind: "recentre" };
+  const zoom = ZOOM_KEYS[key.toLowerCase()];
+  if (zoom)
+    return { kind: "zoom", factor: zoom > 0 ? ZOOM_STEP : 1 / ZOOM_STEP };
+  if (key === "Home") return { kind: "home" };
+  if (key === "Tab") return { kind: "fight" };
   if (key === "Escape") return { kind: "close" };
   return undefined;
 }
