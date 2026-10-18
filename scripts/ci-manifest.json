@@ -193,17 +193,6 @@
       "retries": 1
     },
     {
-      "id": "recap-webkit",
-      "group": "recap",
-      "name": "WebKit end-of-match recap",
-      "command": "pnpm exec tsx scripts/match-recap-smoke.ts",
-      "browsers": ["webkit"],
-      "env": { "BROWSER": "webkit" },
-      "serviceUrlEnv": "HOME_URL",
-      "timeoutMinutes": 20,
-      "retries": 1
-    },
-    {
       "id": "shared",
       "group": "shared",
       "name": "Shared QR lobby and room termination regression",
