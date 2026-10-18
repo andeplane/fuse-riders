@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import * as THREE from "three";
 import { Batch, writeMatrix } from "../src/render3d/instances.js";
 import * as rig from "../src/render3d/rig.js";
+import { mapById } from "../src/online/maps.js";
 import {
   DECK_Y,
   RES,
@@ -119,6 +120,50 @@ test("the rig looks down at 55°, clamps to the map and zooms within bounds", ()
   assert.equal(r.distance, rig.NEAR);
   rig.zoomRig(r, 0.001);
   assert.equal(r.distance, rig.FAR);
+});
+
+test("the zoom-out limit grows with the map until a big map fits the 4:3 board", () => {
+  assert.equal(rig.farFor(64, 40), rig.FAR, "a small map keeps the old limit");
+  for (const id of ["rust-canyon", "glass-lakes", "iron-delta"]) {
+    const map = mapById(id);
+    const far = rig.farFor(map.width, map.height);
+    assert.ok(far > rig.FAR, id);
+    const r: rig.Rig = { x: 0, z: 0, distance: 1e6 };
+    rig.clampRig(r, map.width, map.height);
+    assert.equal(r.distance, far, `${id} clamps to its own limit`);
+    rig.zoomRig(r, 1e-6, far);
+    assert.equal(r.distance, far);
+    // Fully out, a 4:3 view takes in the whole width across its middle and over 90% of the height.
+    const camera = new THREE.PerspectiveCamera(rig.FOV, 4 / 3, 0.5, 2000);
+    const at = rig.eye(r);
+    camera.position.set(at.x, at.y, at.z);
+    camera.lookAt(r.x, 0, r.z);
+    camera.updateMatrixWorld();
+    const ray = new THREE.Raycaster();
+    const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const hit = (x: number, y: number) => {
+      ray.setFromCamera(new THREE.Vector2(x, y), camera);
+      return ray.ray.intersectPlane(ground, new THREE.Vector3())!;
+    };
+    const top = hit(-1, 1),
+      bottom = hit(-1, -1);
+    assert.ok(hit(-1, 0).x <= 0 && hit(1, 0).x >= map.width, `${id} width`);
+    assert.ok(bottom.z - top.z >= map.height * 0.9, `${id} height`);
+  }
+});
+
+test("zooming out tilts the camera toward top-down and fades strategic markers in past a threshold", () => {
+  assert.equal(rig.pitchAt(rig.START), rig.PITCH);
+  assert.equal(rig.pitchAt(rig.TILT_FROM), rig.PITCH);
+  assert.equal(rig.pitchAt(1000), rig.TOP_PITCH);
+  assert.ok(rig.pitchAt(100) > rig.PITCH && rig.pitchAt(100) < rig.TOP_PITCH);
+  assert.equal(rig.markerFade(rig.START), 0);
+  assert.equal(rig.markerFade(rig.MARKER_FROM), 0);
+  assert.equal(rig.markerFade(rig.MARKER_TO), 1);
+  const mid = rig.markerFade((rig.MARKER_FROM + rig.MARKER_TO) / 2);
+  assert.ok(Math.abs(mid - 0.5) < 1e-9);
+  // Markers are fully in before the farthest zoom of every map, and none show at the default zoom.
+  assert.ok(rig.MARKER_TO <= rig.FAR && rig.MARKER_FROM > rig.START);
 });
 
 test("a pick through the screen centre lands on the tile the rig looks at", () => {

@@ -256,6 +256,30 @@
   background: none;
   pointer-events: none;
 }
+/* A flag under fire (amber) or lost (red): a ring that swells three times and fades. */
+.ff-ping {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border: 2px solid #ffb030;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: ff-ping 0.7s ease-out 3;
+}
+.ff-ping-lost {
+  border-color: #ff4030;
+}
+@keyframes ff-ping {
+  from {
+    transform: scale(0.4);
+    opacity: 1;
+  }
+  to {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
 .ff-orders {
   position: absolute;
   top: 12px;
