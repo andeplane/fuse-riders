@@ -72,7 +72,8 @@ test("a cast spends energy, starts the cooldown and is ready again exactly a coo
   assert.equal(hero0(world).spells[0], Q!.cooldown);
   assert.deepEqual(
     world.events.find((e) => e.type === "cast"),
-    { type: "cast", seat: 0, slot: 0, effect: "shockwave", x: at(4), y: at(6) },
+    // prettier-ignore
+    { type: "cast", seat: 0, slot: 0, effect: "shockwave", x: at(4), y: at(6), toX: at(4), toY: at(6) },
   );
   for (let index = 1; index < Q!.cooldown; index++)
     world = step(map, world, [cast(0, 0)]);

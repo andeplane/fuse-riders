@@ -78,6 +78,16 @@ test("instance matrices match three.js composing scale, yaw and position", () =>
   [...out.subarray(16)].forEach((v, i) =>
     assert.ok(Math.abs(v - expected.elements[i]!) < 1e-6, `element ${i}`),
   );
+  // A leg's swing tilts about x before the yaw: three.js's YXZ Euler order.
+  writeMatrix(out, 0, 1, 2, 3, 0.7, 0.1, 0.3, 0.1, 0.4);
+  const swung = new THREE.Matrix4().compose(
+    new THREE.Vector3(1, 2, 3),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(0.4, 0.7, 0, "YXZ")),
+    new THREE.Vector3(0.1, 0.3, 0.1),
+  );
+  [...out.subarray(0, 16)].forEach((v, i) =>
+    assert.ok(Math.abs(v - swung.elements[i]!) < 1e-6, `swung element ${i}`),
+  );
 });
 
 test("a batch refills each frame and doubles when a frame outgrows it, keeping what it holds", () => {
