@@ -53,6 +53,8 @@ export class Battlefield implements Renderer {
   /** Last facing (1 east, −1 west) by `u<id>`, `h<seat>` or `b<id>`. */
   private readonly facing = new Map<string, number>();
   private dpr = 1;
+  private rows = cam.TARGET_ROWS;
+  private cssBox: [number, number] = [1, 1];
 
   constructor(
     readonly canvas: Surface,
@@ -73,7 +75,8 @@ export class Battlefield implements Renderer {
   /** Fits the viewport to a `cssW` × `cssH` box: the canvas holds art pixels and CSS scales them by a whole number. */
   resize(cssW: number, cssH: number, dpr: number, world: WorldView): void {
     this.dpr = dpr;
-    const v = cam.fitViewport(cssW, cssH, dpr, ...size(world));
+    this.cssBox = [cssW, cssH];
+    const v = cam.fitViewport(cssW, cssH, dpr, ...size(world), this.rows);
     this.view = v;
     if (this.canvas.width !== v.w) this.canvas.width = v.w;
     if (this.canvas.height !== v.h) this.canvas.height = v.h;
@@ -92,8 +95,27 @@ export class Battlefield implements Renderer {
     );
   }
 
-  /** The pixel view keeps its whole-number scale. */
-  zoom(): void {}
+  /** Zooms by changing the art rows shown; the scale stays a whole number, so it steps between 1×, 2×, 3×… */
+  zoom(factor: number): void {
+    this.rows = cam.zoomRows(this.rows, factor);
+    const world = this.latest;
+    if (!world) return;
+    // The centre of the view holds still.
+    const [cx, cy] = [
+      this.camera.x + this.view.w / 2,
+      this.camera.y + this.view.h / 2,
+    ];
+    this.resize(...this.cssBox, this.dpr, world);
+    Object.assign(
+      this.camera,
+      cam.clampCamera(
+        cx - this.view.w / 2,
+        cy - this.view.h / 2,
+        this.view,
+        ...size(world),
+      ),
+    );
+  }
 
   /** Nothing to free: the canvases go with the page. */
   dispose(): void {}

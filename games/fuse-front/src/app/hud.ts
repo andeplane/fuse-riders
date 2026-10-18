@@ -35,7 +35,12 @@ export interface HudActions {
   order(factory: number, kind: UnitKind): void;
   /** Centres the camera on fractions of the map. */
   look(fx: number, fy: number): void;
+  /** Sends the hero to fractions of the map (a right click on the minimap). */
+  move(fx: number, fy: number): void;
 }
+
+/** Pings on the minimap at once at most; a new one past this replaces the oldest. */
+const MAX_PINGS = 4;
 
 /** Copies `img` into a canvas of its size. */
 function draw(canvas: HTMLCanvasElement, img: Img): void {
@@ -100,6 +105,7 @@ export class Hud {
   private readonly portrait = el("div", "", "ff-bay");
   private readonly mini = el("canvas", "", "ff-mini");
   private readonly camera = el("i", "", "ff-camera");
+  private readonly map = el("div", "", "ff-minimap ff-bay");
   private readonly title = el("h3");
   private readonly choices = el("div", "", "ff-choices");
   private readonly build = el("i", "", "ff-fill ff-xp");
@@ -144,16 +150,18 @@ export class Hud {
     this.amove.title = "Attack-move: click the map (A)";
     this.amove.onclick = () => this.actions.attackMove();
     stance.append(...this.stances, this.amove, this.factories);
-    const map = el("div", "", "ff-minimap ff-bay");
+    const map = this.map;
     map.append(this.mini, this.camera);
+    // A left click looks there; a right click sends the hero there.
     map.onpointerdown = (event) => {
       const box = this.mini.getBoundingClientRect();
-      if (box.width)
-        this.actions.look(
-          (event.clientX - box.left) / box.width,
-          (event.clientY - box.top) / box.height,
-        );
+      if (!box.width) return;
+      const fx = (event.clientX - box.left) / box.width,
+        fy = (event.clientY - box.top) / box.height;
+      if (event.button === 2) this.actions.move(fx, fy);
+      else this.actions.look(fx, fy);
     };
+    map.oncontextmenu = (event) => event.preventDefault();
     this.bottom.append(this.portrait, bars, spells, stance, map);
     const close = el("button", "✕", "ff-close");
     close.title = "Close (Esc)";
@@ -280,6 +288,16 @@ export class Hud {
     this.miniStep = world.step;
     paintMinimap(this.miniImg, this.miniBase, world);
     draw(this.mini, this.miniImg);
+  }
+
+  /** A ring that swells and fades on the minimap at fractions `fx`, `fy`: red for a flag lost, amber for one under fire. */
+  ping(fx: number, fy: number, kind: "attack" | "lost"): void {
+    const dot = el("span", "", `ff-ping ff-ping-${kind}`);
+    Object.assign(dot.style, { left: `${fx * 100}%`, top: `${fy * 100}%` });
+    dot.onanimationend = () => dot.remove();
+    const pings = this.map.querySelectorAll(".ff-ping");
+    if (pings.length >= MAX_PINGS) pings[0]!.remove();
+    this.map.append(dot);
   }
 
   /** Moves the minimap's camera rectangle; called every animation frame but writes only on change. */
