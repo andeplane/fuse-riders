@@ -3,9 +3,11 @@
  *
  *   node games/fuse-front/preview/detail-shot.mjs http://localhost:PORT/ games/fuse-front/docs/images
  *
- * A 2v2 against bots with all four heroes (Vix and Rivet red, Tally and Brick blue) at `?quality=high`: Vix walks to
- * the front and lays a mine, and `detail-3d.png` catches the fight at the default zoom. Then one short match per hero,
- * zoomed all the way in on it at its fort, makes the four panels of `heroes-3d.png`. Run by hand; muted.
+ * A 2v2 against bots with all four heroes (Vix and Rivet red, Tally and Brick blue) at `?quality=high`: Vix walks
+ * toward the front (`WALK` six-second legs, default 5), lays a mine and snipes, and `detail-3d.png` catches it at the
+ * default zoom. Then one short match per hero, zoomed in on it at its fort, makes the four panels of `heroes-3d.png`.
+ * Run by hand; muted. Under SwiftShader the page stalls a minute or so into a match (it did before G4 too), so keep
+ * the walk short there.
  */
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
@@ -18,22 +20,11 @@ const browser = await chromium.launch({ headless: true, args: ["--use-angle=swif
 const errors = [];
 const page = await browser.newPage({ viewport: { width: 1100, height: 800 } });
 page.on("pageerror", (error) => errors.push(error.message));
-if (process.env.FPS)
-  await page.addInitScript(() => {
-    const c = (window.__gl = { draw: 0, compile: 0, tex: 0, buf: 0 });
-    const P = WebGL2RenderingContext.prototype;
-    for (const [k, names] of [["draw", ["drawElements", "drawArrays", "drawElementsInstanced", "drawArraysInstanced"]], ["compile", ["compileShader"]], ["tex", ["texImage2D", "texImage3D", "texStorage2D"]], ["buf", ["bufferData"]]])
-      for (const n of names) { const f = P[n]; P[n] = function (...a) { c[k]++; if (k === "draw") { c.big = Math.max(c.big ?? 0, a[1] * (a[4] ?? a[3] ?? 1)); } return f.apply(this, a); }; }
-    let last = performance.now();
-    const tick = () => { last = performance.now(); requestAnimationFrame(tick); };
-    requestAnimationFrame(tick);
-    setInterval(() => { console.log("gl", Math.round(performance.now() - last), JSON.stringify(c)); c.big = 0; }, 3000);
-  });
-if (process.env.FPS) page.on("console", (m) => m.text().startsWith("gl") && console.log(m.text()));
+const shot = (options) => page.screenshot({ timeout: 120_000, ...options });
 
 /** A new room: the battle size, then each seat's hero by team and seat, then START; resolves with the board's box. */
 async function match(size, heroes) {
-  await page.goto(`${base}fuse-front/?mute&quality=${process.env.QUALITY ?? "high"}`);
+  await page.goto(`${base}fuse-front/?mute&quality=high`);
   await page.getByRole("button", { name: "CREATE ROOM" }).click();
   await page.getByRole("button", { name: `${size}V${size}` }).click();
   for (const [team, picks] of heroes.entries())
@@ -51,40 +42,45 @@ async function match(size, heroes) {
 }
 
 try {
-  const box = await match(2, [
-    ["vix", "rivet"],
-    ["tally", "brick"],
-  ]);
+  const box = await match(2, [["vix", "rivet"], ["tally", "brick"]]); // prettier-ignore
   const at = (fx, fy) => [box.x + box.width * fx, box.y + box.height * fy];
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < Number(process.env.WALK ?? 5); i++) {
     await page.mouse.click(...at(0.7, 0.45));
     await page.waitForTimeout(6_000);
-    if (process.env.FPS) console.log(i, await page.evaluate(() => new Promise((done) => { let n = 0; const t = performance.now(); const f = () => (performance.now() - t < 2000 ? (n++, requestAnimationFrame(f)) : done([n / 2, JSON.stringify(window.__gl)])); requestAnimationFrame(f); })));
   }
   await page.mouse.move(...at(0.55, 0.5));
   await page.keyboard.press("e");
   await page.mouse.move(...at(0.62, 0.42));
   await page.keyboard.press("q");
   await page.waitForTimeout(400);
-  await page.screenshot({ path: join(dir, "detail-3d.png") });
+  await shot({ path: join(dir, "detail-3d.png") });
 
   const panels = [];
+  // Each hero casts one spell beside itself first: RALLY CRY, a STICKY MINE, a TURRET DROP, a FLARE.
+  const spells = { brick: "w", vix: "e", rivet: "w", tally: "w" };
+  const slots = { w: 1, e: 2 };
   for (const hero of ["brick", "vix", "rivet", "tally"]) {
     const b = await match(1, [[hero]]);
+    const centre = [b.x + b.width / 2, b.y + b.height / 2];
     await page.waitForTimeout(2_500);
-    for (let i = 0; i < 6; i++) await page.mouse.wheel(0, -400), await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); // prettier-ignore
-    await page.waitForTimeout(2_000);
-    const clip = {
-      x: b.x + b.width / 2 - 200,
-      y: b.y + b.height / 2 - 230,
-      width: 400,
-      height: 400,
-    };
-    panels.push((await page.screenshot({ clip, timeout: 120_000 })).toString("base64"));
+    await page.mouse.move(...centre);
+    for (let i = 0; i < 6; i++) await page.mouse.wheel(0, -400);
+    // Once the hero has the energy for it.
+    const ready = page.locator(".ff-spell").nth(slots[spells[hero]]);
+    await ready.and(page.locator(":enabled")).waitFor({ timeout: 90_000 });
+    await page.mouse.move(centre[0] + 70, centre[1] + 10);
+    await page.keyboard.press(spells[hero]);
+    await ready
+      .locator(".ff-secs", { hasText: /\d/ })
+      .waitFor({ timeout: 60_000 });
+    await page.waitForTimeout(250);
+    // The camera's nearest zoom, cropped round the hero and its spell and shown at 1.25×.
+    const clip = { x: centre[0] - 130, y: centre[1] - 170, width: 320, height: 280 }; // prettier-ignore
+    panels.push((await shot({ clip })).toString("base64"));
   }
-  await page.setViewportSize({ width: 1600, height: 400 });
-  await page.setContent(`<body style="margin:0;display:flex;background:#000">${panels.map((p) => `<img src="data:image/png;base64,${p}">`).join("")}</body>`); // prettier-ignore
-  await page.screenshot({ path: join(dir, "heroes-3d.png") });
+  await page.setViewportSize({ width: 1600, height: 350 });
+  await page.setContent(`<body style="margin:0;display:flex">${panels.map((p) => `<img width="400" src="data:image/png;base64,${p}">`).join("")}</body>`); // prettier-ignore
+  await shot({ path: join(dir, "heroes-3d.png") });
   assert.deepEqual(errors, []);
   console.log("ok");
 } finally {
