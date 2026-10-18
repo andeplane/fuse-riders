@@ -5,7 +5,12 @@
  * skips a value already written, so a steady frame touches nothing and nothing reads layout.
  */
 import { el } from "fuse-ui";
-import { STANCES, type Stance, type UnitKind } from "../engine/index.js";
+import {
+  SPELL_INFO,
+  STANCES,
+  type Stance,
+  type UnitKind,
+} from "../engine/index.js";
 import type { WorldView } from "../engine/index.js";
 import { minimapBase, paintMinimap } from "../render/minimap.js";
 import { Img } from "../render/pixel/image.js";
@@ -20,17 +25,17 @@ import {
   factoryPanel,
 } from "./hud-state.js";
 import type { SlotView } from "./model.js";
+import { label, spellTooltip, targetPanel } from "./targeting.js";
 
 export interface HudActions {
   cast(slot: number): void;
+  /** Arms an attack-move: the next click on the map sends the hero there, fighting on the way. */
+  attackMove(): void;
   stance(stance: Stance): void;
   order(factory: number, kind: UnitKind): void;
   /** Centres the camera on fractions of the map. */
   look(fx: number, fy: number): void;
 }
-
-/** "lightTank" reads "LIGHT TANK". */
-const label = (id: string) => id.replace(/([A-Z])/g, " $1").toUpperCase();
 
 /** Copies `img` into a canvas of its size. */
 function draw(canvas: HTMLCanvasElement, img: Img): void {
@@ -80,7 +85,14 @@ export class Hud {
     icon: el("span", "", "ff-icon"),
     shade: el("i", "", "ff-shade"),
     secs: el("span", "", "ff-secs"),
+    tip: el("span", "", "ff-tip ff-frame"),
   }));
+  private readonly amove = el("button", "A ATTACK-MOVE", "ff-switch");
+  /** What the hero shoots: its name, hit points and whether it was chosen. */
+  private readonly target = el("span", "", "ff-target");
+  private readonly targetName = el("b");
+  private readonly targetHp = el("i", "", "ff-fill ff-hp");
+  private readonly targetTag = el("span", "", "ff-label ff-tag");
   private readonly stances = STANCES.map((s, i) =>
     el("button", `${i + 1} ${s.toUpperCase()}`, "ff-switch"),
   );
@@ -110,18 +122,28 @@ export class Hud {
       track.append(this.bars[i]!);
       bars.append(el("span", name, "ff-label"), track);
     });
-    bars.append(this.level);
+    // What the hero shoots, under its own bars: name, FOCUS or AUTO, and hit points.
+    const targetHp = el("span", "", "ff-track");
+    targetHp.append(this.targetHp);
+    this.target.append(this.targetName, this.targetTag, targetHp);
+    bars.append(el("span", "TGT", "ff-label"), this.target, this.level);
     const spells = el("div", "", "ff-spells");
-    this.spells.forEach(({ button, icon, shade, secs }, slot) => {
+    this.spells.forEach(({ button, icon, shade, secs, tip }, slot) => {
+      tip.setAttribute("role", "tooltip");
       button.append(icon, shade, secs, el("kbd", this.state.spells[slot]!.key));
+      // The tooltip sits beside the button, not in it, so it shows over a disabled (cooling) one too.
+      const bay = el("span", "", "ff-spell-bay");
+      bay.append(button, tip);
       button.onclick = () => this.actions.cast(slot);
-      spells.append(button);
+      spells.append(bay);
     });
     const stance = el("div", "", "ff-stance");
     this.stances.forEach(
       (button, i) => (button.onclick = () => this.actions.stance(STANCES[i]!)),
     );
-    stance.append(...this.stances, this.factories);
+    this.amove.title = "Attack-move: click the map (A)";
+    this.amove.onclick = () => this.actions.attackMove();
+    stance.append(...this.stances, this.amove, this.factories);
     const map = el("div", "", "ff-minimap ff-bay");
     map.append(this.mini, this.camera);
     map.onpointerdown = (event) => {
@@ -136,9 +158,9 @@ export class Hud {
     const close = el("button", "✕", "ff-close");
     close.title = "Close (Esc)";
     close.onclick = () => this.close();
-    const track = el("span", "", "ff-track");
-    track.append(this.build);
-    this.orders.append(this.title, close, this.choices, track, this.eta);
+    const build = el("span", "", "ff-track");
+    build.append(this.build);
+    this.orders.append(this.title, close, this.choices, build, this.eta);
     this.orders.hidden = true;
   }
 
@@ -192,15 +214,24 @@ export class Hud {
       this.level,
       s.respawn ? `RESPAWN ${s.respawn}s` : `LV ${s.level}`,
     );
+    const kit = SPELL_INFO[s.kind];
     s.spells.forEach((spell, i) => {
-      const { button, icon, shade, secs } = this.spells[i]!;
+      const { button, icon, shade, secs, tip } = this.spells[i]!;
       // The kit's icon and name, redrawn only when the hero changes.
       this.put(icon, "effect", spell.effect + spell.name, () => {
         const art = new Img(30, 30);
         spellIcon(spell.effect)(art, 0, 0);
         icon.replaceChildren(pixels(art));
-        button.title = spell.name;
-        button.setAttribute("aria-label", `${spell.name} (${spell.key})`);
+        const t = spellTooltip(kit[i]!);
+        tip.replaceChildren(
+          el("b", t.name),
+          el("span", t.desc),
+          el("small", t.stats),
+        );
+        button.setAttribute(
+          "aria-label",
+          `${spell.name} (${spell.key}): ${t.desc}`,
+        );
       });
       this.css(shade, "height", pct(spell.locked ? 1 : spell.shade));
       const left = spell.seconds ? String(spell.seconds) : "";
@@ -223,6 +254,14 @@ export class Hud {
         }),
       ),
     );
+    const aim = targetPanel(world, seat);
+    // The panel keeps its place with nothing to shoot, so the HUD does not reflow as targets come and go.
+    this.text(this.targetName, aim?.name ?? "NONE");
+    this.css(this.targetHp, "width", pct(aim?.hp ?? 0));
+    this.text(this.targetTag, aim ? (aim.chosen ? "FOCUS" : "AUTO") : "");
+    this.flag(this.target, "ff-focus", !!aim?.chosen);
+    this.flag(this.target, "ff-t0", aim?.team === 0);
+    this.flag(this.target, "ff-t1", aim?.team === 1);
     if (this.open >= 0) this.showOrders();
     this.paintMinimap(world);
   }
@@ -255,6 +294,14 @@ export class Hud {
       width: pct(box.w),
       height: pct(box.h),
     });
+  }
+
+  /** Lights the spell button that is aiming (-1 for none) and the attack-move button while one is armed. */
+  armed(slot: number, attackMove: boolean): void {
+    this.spells.forEach(({ button }, i) =>
+      this.flag(button, "ff-aiming", i === slot),
+    );
+    this.flag(this.amove, "ff-lit", attackMove);
   }
 
   /** Opens factory `id`'s orders panel; it follows the world until closed or the factory is lost. */

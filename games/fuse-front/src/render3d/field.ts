@@ -14,7 +14,13 @@ import {
   type WorldView,
 } from "../engine/view.js";
 import { EventDedupe, type StampedEvent } from "../render/cues.js";
-import type { Renderer } from "../render/renderer.js";
+import {
+  NO_OVERLAY,
+  TARGET_HEX,
+  TargetPulse,
+  type Overlay,
+  type Renderer,
+} from "../render/renderer.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { Batch } from "./instances.js";
 import { FX_LAYER, FxLayer } from "./effects3d.js";
@@ -73,6 +79,7 @@ const rgb = (hex: number) => {
 const TEAM_RGB = TEAM_HEX.map(rgb);
 const NEUTRAL_RGB = rgb(NEUTRAL_HEX);
 const teamRgb = (team: number) => TEAM_RGB[team] ?? NEUTRAL_RGB;
+const TARGET_RGB = rgb(TARGET_HEX);
 const SELF_RGB = rgb(SELF_HEX),
   BAR_BACK = rgb(0x101010),
   [GOOD, FAIR, POOR] = [0x6ad83a, 0xf8d030, 0xe8483c].map(rgb);
@@ -134,6 +141,8 @@ function dataTexture(data: Uint8Array, size: number) {
 
 export class Field3D implements Renderer {
   follow = true;
+  overlay: Overlay = NO_OVERLAY;
+  private readonly pulse = new TargetPulse();
   private readonly gl: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(rig.FOV, 1, 0.5, 200);
@@ -275,6 +284,9 @@ export class Field3D implements Renderer {
     const plain = (geometry: THREE.BufferGeometry, material: THREE.Material) => [{ geometry, material, tinted: true }];
     add("ring", plain(ring, flat(0)), false);
     add("heroRing", plain(heroRing, flat(0)), false);
+    // Targeting: thin rings (radius 1, scaled) and a line one tile long down +z, drawn over everything.
+    add("aimRing", plain(new THREE.RingGeometry(0.93, 1, 64).rotateX(-Math.PI / 2).translate(0, 0.08, 0), flat(9)), false, 9);
+    add("aimLine", plain(new THREE.PlaneGeometry(0.06, 1).rotateX(-Math.PI / 2).translate(0, 0.08, 0), flat(9)), false, 9);
     add("barBack", plain(bar, flat(10)), false, 10);
     add("barFill", plain(bar.clone().translate(0, 0, 0.01), flat(11)), false, 11);
   }
@@ -467,6 +479,7 @@ export class Field3D implements Renderer {
       this.slot("heroRing").batch.push(x, y, z, 0, r, 1, r, hero.seat === self ? SELF_RGB : teamRgb(hero.team));
       this.bar(x, y + 1.45, z, hero.hp / hero.maxHp, 1);
     }
+    this.targeting(world, field, t, self, now);
     rig.clampRig(this.rig, world.width, world.height);
     for (let i = 0; i < world.buildings.length; i++) {
       const b = world.buildings[i]!, node = this.buildings[i];
@@ -510,6 +523,36 @@ export class Field3D implements Renderer {
     this.fx.update(now);
     this.place();
     this.look.render();
+  }
+
+  /** The aiming rings and marks (`overlay`), and a marker and line from this device's hero to its target. */
+  // prettier-ignore
+  private targeting(world: WorldView, field: HeightField, t: number, self: number, now: number): void {
+    const hero = world.heroes.find((h) => h.seat === self && h.hp > 0);
+    const target = hero?.target;
+    const pulse = this.pulse.of(target, now);
+    if (!hero) return;
+    const at = (x: number, z: number) => [x / TILE, standY(world, field, x / TILE, z / TILE), z / TILE] as const;
+    const ring = (x: number, z: number, r: number) => {
+      const [px, py, pz] = at(x, z);
+      this.slot("aimRing").batch.push(px, py, pz, 0, r / TILE, 1, r / TILE, TARGET_RGB);
+    };
+    const p = this.heroBefore.get(hero.seat) ?? hero;
+    const hx = p.x + (hero.x - p.x) * t, hz = p.y + (hero.y - p.y) * t;
+    const o = this.overlay;
+    if (o.range > 0) ring(hx, hz, o.range);
+    if (o.area > 0 && o.cursor) ring(o.cursor.x, o.cursor.y, o.area);
+    for (const m of o.marks) ring(m.x, m.y, TILE * 0.55);
+    if (!target) return;
+    // A moving target is drawn where its body is drawn, between frames.
+    const was = target.of === "unit" ? this.before.get(target.id) : target.of === "hero" ? this.heroBefore.get(target.id) : undefined;
+    const tx = was ? was.x + (target.x - was.x) * t : target.x, tz = was ? was.y + (target.y - was.y) * t : target.y;
+    ring(tx, tz, TILE * (target.chosen ? 0.7 : 0.55) * (1 + pulse * 0.8));
+    if (target.chosen) ring(tx, tz, TILE * 0.85 * (1 + pulse * 0.8));
+    const [ax, ay, az] = at(hx, hz), [bx, by, bz] = at(tx, tz);
+    const length = Math.hypot(bx - ax, bz - az);
+    if (length > 0.01)
+      this.slot("aimLine").batch.push((ax + bx) / 2, (ay + by) / 2, (az + bz) / 2, Math.atan2(bx - ax, bz - az), 1, 1, length, TARGET_RGB);
   }
 
   private aimAt(key: number, yaw: number, step: number): void {
