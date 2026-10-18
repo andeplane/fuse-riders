@@ -10,10 +10,10 @@ import {
   type GameMap,
 } from "../src/engine/index.js";
 import { referenceField } from "./fixtures/flow-reference.js";
-import { dustBasin } from "./fixtures/maps.js";
+import { dustBasin, tinyFile } from "./fixtures/maps.js";
 
 /** Every flag's and fort's tile: the goals the fixed cache serves. */
-export const fixedGoals = (map: GameMap): number[] => [
+const fixedGoals = (map: GameMap): number[] => [
   ...map.flags.map((f) => f.y * map.width + f.x),
   ...map.sites
     .filter((s) => s.kind === "fort")
@@ -37,6 +37,26 @@ test("lazy flow fields equal the pre-E4 fields on Dust Basin, tile for tile, in 
       assert.equal(field.cost(tile), want.cost[tile], `${goal} from ${tile}`);
       assert.equal(field.next(tile), want.next[tile], `${goal} from ${tile}`);
     }
+    assert.deepEqual(field.snapshot(), want, `goal ${goal}`);
+  }
+});
+
+test("lazy flow fields equal the pre-E4 fields on a map split in two, with blocked and walled-off goals", () => {
+  // A rock wall down column 8 cuts fort 1 and flag 1 off from the west; every tile is a goal once.
+  const file = tinyFile();
+  file.terrain = file.terrain.map((row, y) =>
+    y === 0 || y === 9 ? row : `${row.slice(0, 8)}#${row.slice(9)}`,
+  );
+  const map = loadMap(file);
+  for (let goal = -1; goal <= map.width * map.height; goal++) {
+    const field = buildFlowField(map, goal);
+    const want = referenceField(map, goal);
+    // Interleaved questions on a part-grown field, then the whole of it.
+    for (const tile of [goal + 13, goal - 29, 3 * goal + 1])
+      if (tile >= 0 && tile < map.width * map.height) {
+        assert.equal(field.next(tile), want.next[tile], `${goal} from ${tile}`);
+        assert.equal(field.cost(tile), want.cost[tile], `${goal} from ${tile}`);
+      }
     assert.deepEqual(field.snapshot(), want, `goal ${goal}`);
   }
 });
