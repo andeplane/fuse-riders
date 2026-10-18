@@ -187,7 +187,10 @@ Bot-vs-bot matches at every difficulty pairing must end within about 15 minutes 
 - A deterministic map generator writes them as JSON from a seed and a template, with mirror symmetry for fairness.
   Dust Basin stays as the small map.
 - Engine cost stays inside the rollback budget. Flow fields use typed arrays, the cache is sized to the map, and per-step
-  work stays roughly linear in unit count.
+  work stays roughly linear in unit count. E4 builds each field lazily (`src/engine/flow.ts`): a bucket-queue Dijkstra
+  settles tiles only until the one asked about is settled, so a FOLLOW field around a moving hero costs a few tiles,
+  and a tile's answer never depends on how far its field had grown. A full field on 256×192 takes about 3 ms (25 ms
+  before), and the roaming cache shrinks on big maps to stay near 4 MB.
 
 **3D presentation (three.js).** The presentation moves from the 2D pixel canvas to a WebGL renderer on three.js. The
 engine, netcode, `WorldView` contract and HUD logic stay as they are. The look keeps Z's world (desert war,
