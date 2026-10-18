@@ -21,6 +21,7 @@ import {
   COMMANDS_PER_SEAT,
   DIFFICULTIES,
   FACTORY_KINDS,
+  HERO_KINDS,
   MAX_SEATS,
   NO_WINNER,
   RULES,
@@ -29,6 +30,7 @@ import {
   STEPS_PER_TICK,
   UNIT_KINDS,
   botCommands,
+  pickHeroes,
   createWorld,
   decodeWorld,
   encodeWorld,
@@ -40,6 +42,7 @@ import {
   type CombatEvent,
   type Command,
   type Difficulty,
+  type HeroKind,
   type World,
   type WorldView,
 } from "../engine/index.js";
@@ -59,25 +62,45 @@ export interface Settings {
   bots: Difficulty[];
   /** One shared screen, with phones as controllers. */
   display: boolean;
+  /**
+   * The hero picked for each slot (0–5), or null to take the first free one (`pickHeroes`). A hero is picked once a
+   * team (slots of one parity); the other team may pick it too.
+   */
+  heroes: (HeroKind | null)[];
 }
 export const DEFAULT_SETTINGS: Settings = {
   size: 1,
   bots: Array<Difficulty>(MAX_SEATS).fill("normal"),
   display: false,
+  heroes: Array<HeroKind | null>(MAX_SEATS).fill(null),
 };
-const SETTING_KEYS = ["bots", "display", "size"];
-/** Exactly these three own keys, in range; anything else is refused. */
+const SETTING_KEYS = ["bots", "display", "heroes", "size"];
+/** Exactly these four own keys, in range; anything else is refused. */
 export function parseSettings(raw: unknown): Settings | undefined {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return;
   const keys = Object.keys(raw).sort();
   if (keys.join() !== SETTING_KEYS.join()) return;
-  const { size, bots, display } = raw as Record<string, unknown>;
+  const { size, bots, display, heroes } = raw as Record<string, unknown>;
   if (!uint32(size) || size < 1 || size > MAX_SEATS / 2) return;
   if (typeof display !== "boolean" || !Array.isArray(bots)) return;
   if (bots.length !== MAX_SEATS) return;
+  if (!Array.isArray(heroes) || heroes.length !== MAX_SEATS) return;
+  const picks = heroes.map((h) =>
+    h === null ? null : HERO_KINDS.find((k) => k === h),
+  );
+  const repeated = picks.some(
+    (h, slot) =>
+      h && picks.findIndex((o, s) => o === h && s % 2 === slot % 2) !== slot,
+  );
+  if (picks.includes(undefined) || repeated) return;
   const levels = bots.map((b) => DIFFICULTIES.find((d) => d === b));
   if (levels.every((d) => d !== undefined))
-    return { size, bots: levels, display };
+    return {
+      size,
+      bots: levels,
+      display,
+      heroes: picks as (HeroKind | null)[],
+    };
 }
 
 /**
@@ -232,7 +255,13 @@ function startMatch(room: Room, matchId: string): void {
   );
   const size = Math.max(room.play.size, Math.ceil((highest + 1) / 2));
   const slots = Array.from({ length: 2 * size }, (_, slot) => slot);
-  room.world = createWorld(MAP, slots, seedOf(matchId));
+  const picks = Object.fromEntries(slots.map((s) => [s, room.play.heroes[s]!]));
+  room.world = createWorld(
+    MAP,
+    slots,
+    seedOf(matchId),
+    pickHeroes(slots, picks),
+  );
   // An added AI seat only reserved its slot: the bot fill plays it from here, so a friend can take it mid-match.
   for (const seat of [...room.seats.values()])
     if (seat.bot) room.seats.delete(seat.id);

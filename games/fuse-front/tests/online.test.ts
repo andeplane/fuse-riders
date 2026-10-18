@@ -17,12 +17,14 @@ import {
   frontGame,
   hash,
   isEntry,
+  parseSettings,
   view,
   type Entry,
   type FrontEvent,
   type Room,
   type Settings,
 } from "../src/online/game.js";
+import { pickHero } from "../src/app/model.js";
 import { Mesh, type TestRuntime } from "./fixtures/mesh.js";
 
 /** Each member's whole stream; the fold reads the entries stamped with the tick it folds. */
@@ -310,3 +312,51 @@ function aligned(mesh: Mesh, runtimes: TestRuntime[]): void {
   }
   assert.fail("the replicas never folded the same tick");
 }
+
+test("heroes are picked once a team in the settings, and a start plays them with bots on the free ones", () => {
+  const heroes = (...picks: (string | null)[]) => ({
+    ...DEFAULT_SETTINGS,
+    heroes: [...picks, ...Array(6 - picks.length).fill(null)],
+  });
+  assert.ok(
+    parseSettings(heroes("vix", "vix", "rivet")),
+    "the other team may repeat a hero",
+  );
+  for (const refused of [
+    heroes("vix", null, "vix"),
+    heroes("zed"),
+    { ...DEFAULT_SETTINGS, heroes: [] },
+  ])
+    assert.equal(
+      parseSettings(refused),
+      undefined,
+      JSON.stringify(refused.heroes),
+    );
+  const { heroes: _, ...old } = DEFAULT_SETTINGS;
+  assert.equal(parseSettings(old), undefined, "settings without heroes");
+  assert.equal(parseSettings(heroes("__proto__")), undefined);
+  const seven = [...DEFAULT_SETTINGS.heroes, null];
+  assert.equal(
+    parseSettings({ ...DEFAULT_SETTINGS, heroes: seven }),
+    undefined,
+  );
+  const picked = pickHero(pickHero(DEFAULT_SETTINGS, 2, "tally"), 0, "tally");
+  assert.deepEqual(
+    picked.heroes.slice(0, 3),
+    ["tally", null, null],
+    "a teammate's pick moves",
+  );
+  const { room } = match({ ...heroes("tally", null, null, "rivet"), size: 2 });
+  assert.deepEqual(
+    room.world!.heroes.map((h) => h.kind),
+    ["tally", "brick", "vix", "rivet"],
+  );
+  assert.deepEqual(
+    view(room).world!.heroes.map((h) => h.kind),
+    ["tally", "brick", "vix", "rivet"],
+  );
+  // The picks and the world's heroes survive a checkpoint.
+  const back = decode(JSON.parse(JSON.stringify(encode(room))), room.tick)!;
+  assert.deepEqual(back.play.heroes, room.play.heroes);
+  assert.equal(hash(back), hash(room));
+});
