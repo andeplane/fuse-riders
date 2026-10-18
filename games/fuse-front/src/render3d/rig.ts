@@ -88,3 +88,44 @@ export function panRig(rig: Rig, dx: number, dy: number, cssH: number): void {
 export function zoomRig(rig: Rig, factor: number, far = FAR): void {
   rig.distance = Math.min(far, Math.max(NEAR, rig.distance / factor));
 }
+
+/**
+ * Where the view ray through normalised device point `nx`, `ny` (−1 to 1, y up) of an `aspect`-wide view meets the
+ * horizontal plane at height `h`, relative to the target, for a camera `distance` away: the same ray three.js casts
+ * from the camera `eye` places looking at the target. Undefined when the ray never comes down to the plane.
+ */
+export function groundOffset(
+  distance: number,
+  nx: number,
+  ny: number,
+  aspect: number,
+  h = 0,
+): { x: number; z: number } | undefined {
+  const pitch = pitchAt(distance),
+    k = Math.tan((FOV * Math.PI) / 360);
+  const [sin, cos] = [Math.sin(pitch), Math.cos(pitch)];
+  // The camera's right is +x and its up (0, cos, −sin); it looks along (0, −sin, −cos).
+  const dx = nx * k * aspect,
+    dy = -sin + ny * k * cos,
+    dz = -cos - ny * k * sin;
+  const t = (h - distance * sin) / dy;
+  if (!(dy < 0) || !(t > 0)) return undefined;
+  return { x: t * dx, z: distance * cos + t * dz };
+}
+
+/**
+ * Zooms by `factor` about the ground under normalised device point `nx`, `ny` (the cursor) at height `h`: the target
+ * shifts so that point stays under the cursor although the distance, and with it the tilt, changes. The map clamp
+ * then wins, so near an edge the point drifts only as far as the clamp makes it.
+ */
+// prettier-ignore
+export function zoomRigAt(rig: Rig, factor: number, nx: number, ny: number, aspect: number, width: number, height: number, h = 0): void {
+  const before = groundOffset(rig.distance, nx, ny, aspect, h);
+  zoomRig(rig, factor, farFor(width, height));
+  const after = groundOffset(rig.distance, nx, ny, aspect, h);
+  if (before && after) {
+    rig.x += before.x - after.x;
+    rig.z += before.z - after.z;
+  }
+  clampRig(rig, width, height);
+}

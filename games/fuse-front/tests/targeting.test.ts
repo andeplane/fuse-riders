@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   SPELL_INFO,
+  SUB,
+  TILE_PX,
   centreOf,
   step,
   viewOf,
@@ -13,11 +15,13 @@ import {
   clickIntent,
   modeFor,
   overlayOf,
+  pinchZoom,
   pressSpell,
   spellTargets,
   spellTooltip,
   targetPanel,
   type Mode,
+  zoomAnchor,
 } from "../src/app/targeting.js";
 import { PULSE_MS, TargetPulse } from "../src/render/renderer.js";
 import { tiny, TINY } from "./fixtures/maps.js";
@@ -53,6 +57,39 @@ test("a right click attacks the enemy under it and moves on open ground; a left 
   assert.equal(friend.owner, 0);
   // A watcher (no seat) only ever moves, which the runtime then ignores.
   assert.equal(clickIntent(v, -1, IDLE, { x: 9, y: 6 }, RIGHT).kind, "move");
+});
+
+test("a wheel or pinch zoom anchors at the pointer and stops following, unless the pointer is on the followed hero", () => {
+  const v = view(arena("brick"));
+  const hero = v.heroes.find((h) => h.seat === 0)!;
+  const tile = (x: number, y: number) => ({
+    x: Math.floor(x / (SUB * TILE_PX)),
+    y: Math.floor(y / (SUB * TILE_PX)),
+  });
+  const own = tile(hero.x, hero.y);
+  assert.equal(zoomAnchor(v, 0, true, own, 40, 30), undefined, "on the hero");
+  assert.deepEqual(zoomAnchor(v, 0, false, own, 40, 30), {
+    x: 40,
+    y: 30,
+    world: v,
+  });
+  const ground = { x: (own.x + 6) % v.width, y: own.y };
+  assert.deepEqual(zoomAnchor(v, 0, true, ground, 5, 6), {
+    x: 5,
+    y: 6,
+    world: v,
+  });
+  assert.ok(zoomAnchor(v, 1, true, own, 5, 6), "someone else's hero");
+  assert.ok(zoomAnchor(v, 0, true, undefined, 5, 6), "off the map");
+  // A pinch zooms by how far the fingers spread and about their midpoint.
+  const a = { x: 100, y: 100 },
+    b = { x: 200, y: 100 };
+  assert.deepEqual(pinchZoom(a, b, { x: 50, y: 100 }, { x: 250, y: 140 }), {
+    factor: Math.hypot(200, 40) / 100,
+    x: 150,
+    y: 120,
+  });
+  assert.equal(pinchZoom(a, a, a, b), undefined, "no spread to compare");
 });
 
 test("A arms an attack-move: a left click sends it, a right click cancels", () => {

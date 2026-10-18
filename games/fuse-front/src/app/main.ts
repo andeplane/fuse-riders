@@ -38,8 +38,10 @@ import {
   isEnemy,
   modeFor,
   overlayOf,
+  pinchZoom,
   pressSpell,
   type Mode,
+  zoomAnchor,
 } from "./targeting.js";
 import {
   SIZES,
@@ -459,9 +461,14 @@ function room(code: string, token: string | undefined, display: boolean): void {
   window.addEventListener("resize", resized);
   // Two fingers pinch the zoom; the wheel zooms too (the pixel battlefield keeps its scale).
   const touches = new Map<number, { x: number; y: number }>();
-  const spread = () => {
-    const [a, b] = [...touches.values()];
-    return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+  // The wheel and a pinch zoom toward the pointer (`zoomAnchor`); the keys zoom about the centre.
+  const zoomAt = (factor: number, x: number, y: number) => {
+    if (!shown) return field.zoom(factor);
+    const tile = field.tileAt(x, y, shown);
+    field.zoom(
+      factor,
+      zoomAnchor(shown, runtime.slot(), field.follow, tile, x, y),
+    );
   };
   canvas.addEventListener(
     "wheel",
@@ -469,7 +476,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
       event.preventDefault();
       // Lines (Firefox) and pages count as many pixels.
       const pixels = event.deltaY * [1, 16, 400][event.deltaMode]!;
-      field.zoom(Math.exp(-pixels * 0.0015));
+      zoomAt(Math.exp(-pixels * 0.0015), event.offsetX, event.offsetY);
     },
     { passive: false },
   );
@@ -500,12 +507,22 @@ function room(code: string, token: string | undefined, display: boolean): void {
       cursor = field.tileAt(hover.x, hover.y, shown);
       const enemy = cursor && bodyAt(shown, cursor, isEnemy(runtime.slot()));
       canvas.classList.toggle("ff-hostile", !!enemy);
+      // The tile under the mouse, for browser smokes to read.
+      canvas.dataset.tile = cursor ? `${cursor.x},${cursor.y}` : "";
       refresh();
     }
     if (touches.has(event.pointerId)) {
-      const before = spread();
+      const [a0, b0] = [...touches.values()];
       touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      if (touches.size > 1 && before > 0) return field.zoom(spread() / before);
+      const [a1, b1] = [...touches.values()];
+      const pinch = a0 && b0 && a1 && b1 && pinchZoom(a0, b0, a1, b1);
+      if (touches.size > 1) {
+        const box = canvas.getBoundingClientRect();
+        // A third finger moving changes nothing between the first two.
+        if (pinch && pinch.factor !== 1)
+          zoomAt(pinch.factor, pinch.x - box.left, pinch.y - box.top);
+        return;
+      }
     }
     if (!drag || drag.id !== event.pointerId || !shown) return;
     const dx = event.clientX - drag.x,
