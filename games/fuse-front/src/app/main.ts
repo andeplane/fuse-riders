@@ -24,6 +24,7 @@ import { FrontRuntime } from "../online/runtime.js";
 import { Battlefield } from "../render/battlefield.js";
 import type { Renderer } from "../render/renderer.js";
 import { Field3D } from "../render3d/field.js";
+import { qualityParam } from "../render3d/fx.js";
 import { edgePan, PAN_SPEED } from "../render/camera.js";
 import { Img } from "../render/pixel/image.js";
 import { PORTRAIT_SIZE, portrait } from "../render/pixel/portraits.js";
@@ -50,7 +51,8 @@ const endpoints = createEndpoints(
   location.origin,
 );
 const store = safeStorage(() => localStorage);
-// `?mute` and `?2d` (the pixel battlefield) stay on every link the page makes.
+// `?mute` and `?2d` (the pixel battlefield) stay on every link the page makes; `?quality=low|high`, read once here, fixes
+// the 3D look.
 const params = new URLSearchParams(location.search);
 const sticky = ["mute", "2d"].filter((flag) => params.has(flag));
 const link = (query = "") =>
@@ -69,7 +71,10 @@ function battlefield(): { field: Renderer; canvas: HTMLCanvasElement } {
   if (!sticky.includes("2d"))
     try {
       const canvas = el("canvas", "", "ff-board ff-board-3d");
-      return { field: new Field3D(canvas), canvas };
+      return {
+        field: new Field3D(canvas, qualityParam(params.toString())),
+        canvas,
+      };
     } catch (failure) {
       console.warn(
         "Fuse Front: WebGL2 unavailable, using the pixel battlefield",
