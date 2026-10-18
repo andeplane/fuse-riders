@@ -118,23 +118,27 @@ export function setDetail(
   }
 }
 
-/** Track links: the tread paint's rubber darkens between links that run along z with the instance's phase. */
-function treadShader(material: THREE.MeshStandardMaterial): void {
-  material.onBeforeCompile = (shader) => {
-    const head = "varying float vTread;\n";
-    shader.vertexShader =
-      head +
-      shader.vertexShader.replace(
-        "#include <color_vertex>",
-        "vTread = position.z * 16.0 + instanceColor.r;",
-      );
-    shader.fragmentShader =
-      head +
-      shader.fragmentShader.replace(
-        "#include <color_fragment>",
-        "diffuseColor.rgb *= 0.4 + 0.6 * smoothstep(0.25, 0.4, fract(vTread));",
-      );
-  };
+/**
+ * Track links: the tread paint's rubber darkens between links that run along z with the instance's phase, which
+ * arrives as the instance colour's red channel and so is never applied as a tint.
+ */
+export function patchTread(shader: {
+  vertexShader: string;
+  fragmentShader: string;
+}): void {
+  const head = "varying float vTread;\n";
+  shader.vertexShader =
+    head +
+    shader.vertexShader.replace(
+      "#include <color_vertex>",
+      "vTread = position.z * 16.0 + instanceColor.r;",
+    );
+  shader.fragmentShader =
+    head +
+    shader.fragmentShader.replace(
+      "#include <color_fragment>",
+      "diffuseColor.rgb *= 0.4 + 0.6 * smoothstep(0.25, 0.4, fract(vTread));",
+    );
 }
 
 /** One PBR material per paint; dispose each (and the hazard map) when done. Detail maps go on with `setDetail`. */
@@ -146,7 +150,8 @@ export function paintMaterials(): Record<Paint, THREE.MeshStandardMaterial> {
       vertexColors: paint !== "tread",
     });
   out.hazard.map = hazardTexture();
-  treadShader(out.tread);
+  out.tread.onBeforeCompile = patchTread;
+  out.tread.customProgramCacheKey = () => "tread";
   return out;
 }
 

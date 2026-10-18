@@ -16,6 +16,7 @@ import {
   paintMaterials,
   panelHeights,
   partModel,
+  patchTread,
   recoil,
   ruinModel,
   setDetail,
@@ -158,6 +159,12 @@ test("walkers' legs come off the body and hang from a shared unit leg; tracks co
   const leg = box(partModel("leg"));
   assert.ok(Math.abs(leg.min.y + 1) < 0.01 && leg.max.y < 0.05, "hip at the origin, foot at −1");
   assert.deepEqual(partModel("treads").map((p) => p.paint), ["tread"]);
+  // The tread paint scrolls its links by the instance colour instead of being tinted by it.
+  const shader = { vertexShader: "#include <color_vertex>", fragmentShader: "#include <color_fragment>" };
+  patchTread(shader);
+  assert.match(shader.vertexShader, /vTread = position\.z \* 16\.0 \+ instanceColor\.r/);
+  assert.ok(!shader.fragmentShader.includes("<color_fragment>"), "no tint by the phase");
+  assert.equal(paintMaterials().tread.customProgramCacheKey(), "tread");
   assert.ok(partModel("mine").some((p) => p.paint === "team"));
 }); // prettier-ignore
 
