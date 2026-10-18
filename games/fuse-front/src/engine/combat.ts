@@ -10,20 +10,14 @@
  *   shoots whether it stands or walks; its shot splashes every other enemy unit within `HERO.splash` of the target,
  *   and robots' small arms do only `HERO.smallArms` percent to it. A hero that shoots or is hit is not calm.
  * - A robot within `AURA_RADIUS` of its owner's living hero does `AURA_DAMAGE` percent damage. Spells (`spells.ts`): a
- *   stunned unit holds fire, a rallied one reloads faster, and IRON HIDE cuts the damage a covered hero or vehicle takes.
+ *   stunned unit holds fire, a rallied one reloads faster, IRON HIDE cuts the damage a covered hero or vehicle takes,
+ *   and no gun picks a CLOAKed hero.
  * - A kill is credited to the owner of the first shot (in shooter order: units by id, heroes by seat, turrets) that hit
  *   the victim this step, and earns XP (`award`).
  * - Units at 0 hit points are removed, in id order; heroes at 0 wait to respawn (`hero.ts`). A turret or fort at 0
  *   stays as a ruin: it neither fires nor is targeted, and a team whose last fort falls loses (`winnerOf`).
  */
-import {
-  alive,
-  award,
-  facingOf,
-  heroShot,
-  levelOf,
-  respawnSteps,
-} from "./hero.js";
+import { alive, award, facingOf, fell, heroShot, levelOf } from "./hero.js";
 import type { GameMap } from "./map.js";
 import { ceilDiv, div } from "./math.js";
 import { RALLY_PERCENT, hideOf } from "./spells.js";
@@ -33,8 +27,6 @@ import {
   AURA_RADIUS,
   FORT_GUN,
   HERO,
-  HERO_XP,
-  HERO_XP_PER_LEVEL,
   KILL_XP,
   TILE,
   TURRET,
@@ -62,6 +54,8 @@ interface Target extends Mark {
   /** Damage taken this step, and the seat of the first shot that hit it (-1 for none). */
   taken: number;
   killer: number;
+  /** A CLOAKed hero (`spells.ts`): no gun picks it as a target. */
+  hidden?: boolean;
 }
 
 const target = (
@@ -103,7 +97,10 @@ export function fight(map: GameMap, world: World): Set<number> {
   );
   for (const [index, hero] of world.heroes.entries())
     if (alive(hero))
-      targets.push(target("hero", hero.seat, hero.x, hero.y, hero.seat, index));
+      targets.push({
+        ...target("hero", hero.seat, hero.x, hero.y, hero.seat, index),
+        hidden: hero.cloak > 0,
+      });
   for (const [index, building] of world.buildings.entries()) {
     const site = map.sites[building.id]!;
     const owner = ownerOf(map, world, building);
@@ -135,7 +132,7 @@ export function fight(map: GameMap, world: World): Set<number> {
       for (let x = cx - reach; x <= cx + reach; x++) {
         if (x < 0 || y < 0 || x >= columns || y >= rows) continue;
         for (const target of cells.get(y * columns + x) ?? NO_TARGETS) {
-          if (target.team === from.team) continue;
+          if (target.team === from.team || target.hidden) continue;
           if (!buildings && target.of === "building") continue;
           const dx = target.x - from.x,
             dy = target.y - from.y;
@@ -174,7 +171,7 @@ export function fight(map: GameMap, world: World): Set<number> {
     const stats = unit
       ? UNITS[unit.kind]
       : hero
-        ? heroShot(levelOf(hero.xp))
+        ? heroShot(levelOf(hero.xp), hero.kind)
         : { ...(fort ? FORT_GUN : TURRET), siege: 100 };
     if (shooter.cooldown > 0) shooter.cooldown--;
     // A stunned unit neither shoots nor stands to fight.
@@ -242,22 +239,7 @@ export function fight(map: GameMap, world: World): Set<number> {
       continue;
     }
     const { seat, x, y } = hero;
-    const level = levelOf(hero.xp);
-    Object.assign(hero, {
-      hp: 0,
-      respawn: respawnSteps(level),
-      cooldown: 0,
-      goal: -1,
-      quiet: 0,
-    });
-    world.events.push({ type: "heroDeath", seat, killer, x, y });
-    kills.push([
-      killer,
-      teamOf(seat),
-      x,
-      y,
-      HERO_XP + HERO_XP_PER_LEVEL * level,
-    ]);
+    kills.push([killer, teamOf(seat), x, y, fell(world, hero, killer)]);
   }
   world.units = world.units.filter((unit, index) => {
     const { taken, killer } = targets[index]!;
