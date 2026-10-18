@@ -456,8 +456,8 @@ const LONG_FRAME = 250;
 /**
  * Picks the quality: a forced one stays; otherwise it starts at `start` (high unless the device renders in software)
  * and drops to low for good once frames average slower than `budget` ms over `window` frames after a warm-up of
- * `warmup` frames or 3 s. A window already over budget decides early, so a device at a few frames a second drops in
- * seconds rather than minutes. A lone long frame (a hidden tab coming back) doesn't count; a run of them counts, each
+ * `warmup` frames or 3 s. A window already over budget decides early, so a device at a frame a second drops in
+ * about 25 frames rather than never (long frames used to be skipped as hidden-tab gaps). A lone long frame (a hidden tab coming back) doesn't count; a run of them counts, each
  * as 250 ms.
  */
 export class QualityGovernor {
