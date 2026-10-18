@@ -30,10 +30,12 @@ export const additive = (mode: number) =>
 /** One effect an event starts, in tiles. */
 export interface Cue {
   // prettier-ignore
-  kind: "tracer" | "shell" | "flame" | "boom" | "shockwave" | "rally" | "ironHide" | "spell" | "drop" | "levelUp" | "respawn";
+  kind: "tracer" | "shell" | "flame" | "boom" | "shockwave" | "rally" | "ironHide" | "drop" | "levelUp" | "respawn"
+    | "snipe" | "cloak" | "mine" | "mineBlast" | "hijack" | "repair" | "turretDrop" | "fortify" | "overclock" | "dash"
+    | "flare" | "blitz";
   x: number;
   z: number;
-  /** The far end of a shot. */
+  /** The far end of a shot or beam (DASH's start). */
   x2: number;
   z2: number;
   /** Explosion or spell radius in tiles; a hero's shot is 1.5. */
@@ -47,6 +49,8 @@ export interface CueContext {
   teamOf(mark: Mark): number;
   site(building: number): { x: number; z: number } | undefined;
   heroAt(seat: number): { x: number; z: number; team: number } | undefined;
+  /** The centres of a team's standing factories, for OVERCLOCK. */
+  factories(team: number): { x: number; z: number }[];
 }
 
 /** The cues one (deduplicated) engine event starts: a torch's shot is a flame, a tank's or a building's a shell. */
@@ -73,10 +77,15 @@ export function cuesOf(event: CombatEvent, ctx: CueContext): Cue[] {
       return hero ? [cue("levelUp", hero.x, hero.z, 1, hero.team)] : [];
     }
     case "cast": {
-      // Brick's spells have their own look; the other heroes' (E2) share a plain cast ring until G3b gives them theirs.
-      const e = event.effect, own = e === "shockwave" || e === "rally" || e === "ironHide";
-      return [cue(e === "orbitalDrop" ? "drop" : own ? e : "spell", ...at, 3)];
+      // Self spells play on the caster, beams run from the caster to what they touched, the rest play where they land.
+      const e = event.effect, team = ctx.heroAt(event.seat)?.team ?? -1, to = [event.toX / TILE, event.toY / TILE] as const;
+      if (e === "overclock") return ctx.factories(team).map((f) => cue(e, f.x, f.z, 1, team));
+      if (e === "shockwave" || e === "rally" || e === "ironHide" || e === "cloak" || e === "blitz") return [cue(e, ...at, 3, team)];
+      if (e === "snipe" || e === "hijack" || e === "repair" || e === "dash") return [cue(e, ...at, 1, team, ...to)];
+      if (e === "spotter") return [];
+      return [cue(e === "orbitalDrop" ? "drop" : e === "stickyMine" ? "mine" : e, ...to, 3, team)];
     }
+    case "mine": return [cue("mineBlast", ...at, 0.8)];
     default: return [];
   }
 }
@@ -192,7 +201,8 @@ export class Particles {
 const C = {
   fire: [3.6, 1.5, 0.4], flash: [4.5, 3, 1.5], spark: [5, 3, 1], smoke: [0.16, 0.14, 0.13], dust: [0.62, 0.5, 0.36],
   debris: [0.08, 0.07, 0.06], scorch: [0.03, 0.025, 0.02], gold: [7, 5.2, 1.4], heal: [1.6, 6, 1.2],
-  shield: [1.4, 3.6, 7], drop: [8, 3, 1.4], beam: [5, 7, 9],
+  shield: [1.4, 3.6, 7], drop: [8, 3, 1.4], beam: [5, 7, 9], snipe: [9, 2.4, 1.6], cloak: [1.2, 2.8, 4.4],
+  hijack: [4.4, 1.2, 6.5], dash: [1.6, 4.2, 6.5], flare: [9, 1.8, 1], ember: [6, 2.4, 0.5],
 } as const satisfies Record<string, Rgb>;
 const TEAM_GLOW: readonly Rgb[] = [[3.2, 1, 0.5], [0.6, 1.3, 3.6]]; // prettier-ignore
 
@@ -235,18 +245,35 @@ export function emit(cue: Cue, now: number, ground: GroundAt, pool: Particles, s
         alpha: 0.7, mode: Mode.Smoke });
     scorch.spawn({ x, y: g + 0.05, z, born, life: 1e12, size: 1.3 * size, rgb: C.scorch, alpha: 0.6, mode: Mode.Decal });
   };
-  const ring = (rgb: Rgb, radius: number, born = now, life = 520) =>
-    pool.spawn({ x: cue.x, y: y0 + 0.08, z: cue.z, born, life, size: 0.3, grow: radius, rgb, alpha: 1, mode: Mode.Ring });
-  const rise = (rgb: Rgb, n: number) => {
+  const ring = (rgb: Rgb, radius: number, born = now, life = 520, x = cue.x, z = cue.z) =>
+    pool.spawn({ x, y: ground(x, z) + 0.08, z, born, life, size: 0.3, grow: radius, rgb, alpha: 1, mode: Mode.Ring });
+  const rise = (rgb: Rgb, n: number, x = cue.x, z = cue.z) => {
     for (let i = 0; i < n; i++) {
       const a = r(0, 6.28), d = r(0.1, 0.6);
-      pool.spawn({ x: cue.x + Math.cos(a) * d, y: y0 + r(0, 0.4), z: cue.z + Math.sin(a) * d, vy: r(1, 2.4),
+      pool.spawn({ x: x + Math.cos(a) * d, y: ground(x, z) + r(0, 0.4), z: z + Math.sin(a) * d, vy: r(1, 2.4),
         born: now + r(0, 300), life: r(500, 900), size: 0.09, grow: 0.02, rgb, alpha: 1, mode: Mode.Glow });
     }
   };
   const beam = (rgb: Rgb, width: number, life: number) =>
     pool.spawn({ x: cue.x, y: y0 + 18, z: cue.z, born: now, life, size: width, grow: width * 0.3, rgb, alpha: 1,
       mode: Mode.Streak, dy: -18 });
+  /** A still streak from the caster (chest high) to the far end, and the far end's height. */
+  const line = (rgb: Rgb, width: number, life: number, lift = 0.7, born = now) => {
+    const ay = y0 + lift, by = ground(cue.x2, cue.z2) + 0.4;
+    pool.spawn({ x: cue.x, y: ay, z: cue.z, born, life, size: width, grow: width * 0.4, rgb, alpha: 1, mode: Mode.Streak,
+      dx: cue.x2 - cue.x, dy: by - ay, dz: cue.z2 - cue.z });
+    return by;
+  };
+  const sparks = (x: number, y: number, z: number, rgb: Rgb, n: number, up = 3, born = now) => {
+    for (let i = 0; i < n; i++)
+      pool.spawn({ x, y, z, vx: r(-2, 2), vy: r(0.5, up), vz: r(-2, 2), fall: 12, born, life: r(160, 340), size: 0.05,
+        grow: 0.01, rgb, alpha: 1, mode: Mode.Glow });
+  };
+  const puffs = (x: number, y: number, z: number, n: number, rgb: Rgb, vy = 0.6, size = 0.25, born = now) => {
+    for (let i = 0; i < n; i++)
+      pool.spawn({ x: x + r(-0.15, 0.15), y, z: z + r(-0.15, 0.15), vx: r(-0.3, 0.3), vy: r(0.5, 1.5) * vy, vz: r(-0.3, 0.3),
+        born: born + i * 60, life: r(900, 1600), size, grow: size * 3, rgb, alpha: 0.6, mode: Mode.Smoke });
+  };
   switch (cue.kind) {
     case "tracer": case "shell": case "flame": {
       const shell = cue.kind === "shell", ax = cue.x, az = cue.z, ay = ground(ax, az) + (shell ? 0.55 : cue.size > 1 ? 0.95 : 0.5);
@@ -304,9 +331,89 @@ export function emit(cue: Cue, now: number, ground: GroundAt, pool: Particles, s
       ring(C.heal, cue.size * 0.7, now + 220);
       rise(C.heal, 16);
       return flashes;
-    case "spell":
-      ring(C.beam, 1.6);
-      rise(C.beam, 10);
+    case "snipe": {
+      // A hot line that hangs a moment, smoke along it, and a spray of sparks where it hits.
+      const by = line(C.snipe, 0.03, 300, 0.95);
+      for (let i = 1; i <= 4; i++)
+        puffs(cue.x + ((cue.x2 - cue.x) * i) / 5, y0 + 0.95 + ((by - y0 - 0.95) * i) / 5, cue.z + ((cue.z2 - cue.z) * i) / 5, 1, C.smoke, 0.2, 0.06);
+      glow(cue.x2, by, cue.z2, 0.2, 0.9, 180, C.snipe);
+      sparks(cue.x2, by, cue.z2, C.spark, 12, 4);
+      flashes.push({ x: cue.x, y: y0 + 1, z: cue.z, power: 3, life: 120 }, { x: cue.x2, y: by + 0.3, z: cue.z2, power: 4, life: 220 });
+      return flashes;
+    }
+    case "cloak":
+      ring(C.cloak, 1.1);
+      rise(C.cloak, 16);
+      puffs(cue.x, y0 + 0.2, cue.z, 4, C.cloak, 0.3, 0.15);
+      return flashes;
+    case "mine":
+      ring(C.flare, 0.5);
+      glow(cue.x, y0 + 0.1, cue.z, 0.15, 0.3, 300, C.flare);
+      puffs(cue.x, y0 + 0.05, cue.z, 2, C.dust, 0.3, 0.12);
+      return flashes;
+    case "mineBlast":
+      blast(cue.x, cue.z, cue.size, now);
+      ring(C.flare, 1.6);
+      return flashes;
+    case "hijack": {
+      // Two pulses of a violet beam, then the tank crackles as it changes sides.
+      line(C.hijack, 0.06, 420);
+      const by = line(C.hijack, 0.03, 300, 0.7, now + 260);
+      ring(C.hijack, 1, now + 300, 600, cue.x2, cue.z2);
+      rise(C.hijack, 14, cue.x2, cue.z2);
+      sparks(cue.x2, by, cue.z2, C.hijack, 10, 3, now + 300);
+      flashes.push({ x: cue.x2, y: by + 0.4, z: cue.z2, power: 4, life: 600 });
+      return flashes;
+    }
+    case "repair":
+      line(C.heal, 0.04, 480);
+      ring(C.heal, 0.8, now + 120, 520, cue.x2, cue.z2);
+      rise(C.heal, 16, cue.x2, cue.z2);
+      sparks(cue.x2, ground(cue.x2, cue.z2) + 0.4, cue.z2, C.spark, 6, 2);
+      return flashes;
+    case "turretDrop":
+      // A short supply beam, then the sentry lands in a puff of dust.
+      beam(C.beam, 0.22, 320);
+      ring(C.dust, 1, now + 260, 500);
+      puffs(cue.x, y0 + 0.05, cue.z, 6, C.dust, 0.4, 0.2, now + 260);
+      sparks(cue.x, y0 + 0.1, cue.z, C.spark, 8, 2, now + 260);
+      flashes.push({ x: cue.x, y: y0 + 1, z: cue.z, power: 4, life: 300 });
+      return flashes;
+    case "fortify":
+      ring(C.shield, cue.size);
+      ring(C.shield, cue.size * 0.6, now + 200);
+      rise(C.shield, 20);
+      flashes.push({ x: cue.x, y: y0 + 1.5, z: cue.z, power: 4, life: 500 });
+      return flashes;
+    case "overclock": {
+      // The factory runs hot: an orange ring at its walls, embers and a burst of black smoke from the chimney.
+      ring(C.ember, 1.6, now, 900);
+      rise(C.ember, 16);
+      const cx = cue.x + 0.6, cy = y0 + 1.5, cz = cue.z - 0.5;
+      puffs(cx, cy, cz, 8, C.smoke, 1.4, 0.2);
+      sparks(cx, cy, cz, C.ember, 10, 5);
+      flashes.push({ x: cue.x, y: y0 + 1.2, z: cue.z, power: 5, life: 900 });
+      return flashes;
+    }
+    case "dash": {
+      // A speed streak from where Tally started to where it stopped, kicked-up dust along it.
+      pool.spawn({ x: cue.x2, y: y0 + 0.45, z: cue.z2, born: now, life: 260, size: 0.14, grow: 0.02, rgb: C.dash, alpha: 1,
+        mode: Mode.Streak, dx: cue.x - cue.x2, dz: cue.z - cue.z2 });
+      for (let i = 0; i < 5; i++)
+        puffs(cue.x2 + ((cue.x - cue.x2) * i) / 4, y0 + 0.05, cue.z2 + ((cue.z - cue.z2) * i) / 4, 1, C.dust, 0.3, 0.12, now + i * 40);
+      return flashes;
+    }
+    case "flare":
+      // A flare arcs up over the tile and hangs there, burning red; the beacon on the ground is drawn while it lasts.
+      pool.spawn({ x: cue.x, y: y0 + 0.2, z: cue.z, vy: 5, born: now, life: 500, size: 0.12, rgb: C.flare, alpha: 1, mode: Mode.Glow });
+      glow(cue.x, y0 + 2.5, cue.z, 0.4, 0.25, 2600, C.flare, now + 500);
+      ring(C.flare, 1, now + 500);
+      flashes.push({ x: cue.x, y: y0 + 2.4, z: cue.z, power: 7, life: 3000 });
+      return flashes;
+    case "blitz":
+      ring(C.dash, 2.5);
+      ring(C.dash, 1.6, now + 150);
+      rise(C.dash, 14);
       return flashes;
     case "ironHide":
       ring(C.shield, 1.2);

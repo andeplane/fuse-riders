@@ -3,13 +3,16 @@
  * grown (doubling) when a frame holds more than it has room for. Nothing here allocates once a batch has grown.
  */
 
-/** Writes a column-major 4×4 matrix at slot `i`: scale (sx, sy, sz), then a turn of `yaw` about y, then (x, y, z). */
+/**
+ * Writes a column-major 4×4 matrix at slot `i`: scale (sx, sy, sz), then a tilt of `pitch` about x (a leg's swing),
+ * then a turn of `yaw` about y, then (x, y, z).
+ */
 // prettier-ignore
-export function writeMatrix(out: Float32Array, i: number, x: number, y: number, z: number, yaw: number, sx: number, sy: number, sz: number): void {
-  const c = Math.cos(yaw), s = Math.sin(yaw), o = i * 16;
+export function writeMatrix(out: Float32Array, i: number, x: number, y: number, z: number, yaw: number, sx: number, sy: number, sz: number, pitch = 0): void {
+  const c = Math.cos(yaw), s = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch), o = i * 16;
   out[o] = c * sx; out[o + 1] = 0; out[o + 2] = -s * sx; out[o + 3] = 0;
-  out[o + 4] = 0; out[o + 5] = sy; out[o + 6] = 0; out[o + 7] = 0;
-  out[o + 8] = s * sz; out[o + 9] = 0; out[o + 10] = c * sz; out[o + 11] = 0;
+  out[o + 4] = s * sp * sy; out[o + 5] = cp * sy; out[o + 6] = c * sp * sy; out[o + 7] = 0;
+  out[o + 8] = s * cp * sz; out[o + 9] = -sp * sz; out[o + 10] = c * cp * sz; out[o + 11] = 0;
   out[o + 12] = x; out[o + 13] = y; out[o + 14] = z; out[o + 15] = 1;
 }
 
@@ -31,9 +34,9 @@ export class Batch {
   }
 
   // prettier-ignore
-  push(x: number, y: number, z: number, yaw: number, sx: number, sy: number, sz: number, rgb: readonly number[]): void {
+  push(x: number, y: number, z: number, yaw: number, sx: number, sy: number, sz: number, rgb: readonly number[], pitch = 0): void {
     if (this.count === this.capacity) this.grow();
-    writeMatrix(this.matrices, this.count, x, y, z, yaw, sx, sy, sz);
+    writeMatrix(this.matrices, this.count, x, y, z, yaw, sx, sy, sz, pitch);
     this.colors[this.count * 3] = rgb[0]!;
     this.colors[this.count * 3 + 1] = rgb[1]!;
     this.colors[this.count * 3 + 2] = rgb[2]!;
