@@ -445,31 +445,51 @@ export function qualityParam(search: string): Quality | undefined {
   return q === "low" || q === "high" ? q : undefined;
 }
 
+/** Whether a WebGL renderer string names a software rasteriser (SwiftShader, llvmpipe), where `high` cannot keep up. */
+export function softwareRenderer(name: string): boolean {
+  return /swiftshader|llvmpipe|softpipe|software/i.test(name);
+}
+
+/** The longest frame the governor counts as it is; longer ones count as this long. */
+const LONG_FRAME = 250;
+
 /**
- * Picks the quality: a forced one stays; otherwise it starts high and drops to low for good once frames average
- * slower than `budget` ms over `window` frames after a warm-up. Frames over 250 ms (a hidden tab) don't count.
+ * Picks the quality: a forced one stays; otherwise it starts at `start` (high unless the device renders in software)
+ * and drops to low for good once frames average slower than `budget` ms over `window` frames after a warm-up of
+ * `warmup` frames or 3 s. A window already over budget decides early, so a device at a frame a second drops in
+ * about 25 frames rather than never (long frames used to be skipped as hidden-tab gaps). A lone long frame (a hidden tab coming back) doesn't count; a run of them counts, each
+ * as 250 ms.
  */
 export class QualityGovernor {
   level: Quality;
   private sum = 0;
   private n = 0;
   private seen = 0;
+  private warmed = 0;
+  private long = false;
   constructor(
     readonly forced?: Quality,
     readonly budget = 34,
     readonly window = 90,
     readonly warmup = 30,
+    start: Quality = "high",
   ) {
-    this.level = forced ?? "high";
+    this.level = forced ?? start;
   }
   /** Records one frame's milliseconds; true when the level changed. */
   sample(ms: number): boolean {
-    if (this.forced || this.level === "low" || !(ms > 0 && ms <= 250))
-      return false;
-    if (++this.seen <= this.warmup) return false;
+    if (this.forced || this.level === "low" || !(ms > 0)) return false;
+    const long = ms > LONG_FRAME,
+      lone = long && !this.long;
+    this.long = long;
+    if (lone) return false;
+    ms = Math.min(ms, LONG_FRAME);
+    this.warmed += ms;
+    if (++this.seen <= this.warmup && this.warmed < 3000) return false;
     this.sum += ms;
-    if (++this.n < this.window) return false;
-    const slow = this.sum / this.n > this.budget;
+    const over = this.sum > this.budget * this.window;
+    if (++this.n < this.window && !over) return false;
+    const slow = over || this.sum / this.n > this.budget;
     this.sum = this.n = 0;
     if (slow) this.level = "low";
     return slow;
