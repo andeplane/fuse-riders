@@ -23,7 +23,7 @@ const map = tiny();
 const view = (world: World) => viewOf(map, world);
 const [LEFT, RIGHT] = [0, 2];
 
-test("with Shift (or QUEUE) every click order is queued, and a left click on a factory queues a move", () => {
+test("with Shift (or QUEUE) every click order is queued, and a left click on a factory still opens it", () => {
   const world = arena("vix");
   const grunt = addUnit(world, 1, "grunt", 9, 6);
   const v = view(world);
@@ -41,7 +41,7 @@ test("with Shift (or QUEUE) every click order is queued, and a left click on a f
     id: grunt.id,
     queued: true,
   });
-  assert.deepEqual(shift(IDLE, 3, 6, LEFT).kind, "move", "not the factory");
+  assert.deepEqual(shift(IDLE, 3, 6, LEFT), { kind: "factory", id: 7 });
   const armed: Mode = { kind: "attackMove" };
   const amove = shift(armed, 5, 5, LEFT);
   assert.deepEqual(amove, { kind: "attackMove", x: 5, y: 5, queued: true });
@@ -68,6 +68,8 @@ test("a queued spell measures its reach from the route's end, and need not be re
   world = step(map, world, [
     { seat: 0, type: "move", x: 2, y: 6 },
     { seat: 0, type: "move", x: 12, y: 6, queued: true },
+    // A cast on the way leaves her where the last move did, not at its aim tile.
+    { seat: 0, type: "cast", slot: 2, x: 3, y: 6, queued: true },
   ]);
   const v = view(world);
   const range = SPELL_INFO.vix[2]!.range;
@@ -85,7 +87,14 @@ test("a queued spell measures its reach from the route's end, and need not be re
   );
   // A spell on cooldown arms when queued, and a queued self spell casts.
   assert.deepEqual(pressSpell(v, 0, IDLE, 2, false), { mode: IDLE });
-  assert.deepEqual(pressSpell(v, 0, IDLE, 2, false, true).mode, aim);
+  const armed = pressSpell(v, 0, IDLE, 2, false, true).mode;
+  assert.deepEqual(armed, { ...aim, queued: true });
+  // Armed with Shift, the click queues even after Shift is let go.
+  assert.equal(clickIntent(v, 0, armed, tile, LEFT).kind, "cast");
+  assert.equal(
+    (clickIntent(v, 0, armed, tile, LEFT) as { queued?: true }).queued,
+    true,
+  );
   assert.ok(pressSpell(v, 0, IDLE, 1, false, true).cast, "Cloak, queued");
 });
 

@@ -118,7 +118,10 @@ export const modeFor = (
 
 /** What the next click means: nothing armed, an attack-move armed (A), or a spell slot aiming. */
 export type Mode =
-  { kind: "idle" } | { kind: "attackMove" } | { kind: "aim"; slot: number };
+  | { kind: "idle" }
+  | { kind: "attackMove" }
+  /** `queued` when Shift (or QUEUE) armed it: the cast queues even if Shift is let go before the click. */
+  | { kind: "aim"; slot: number; queued?: true };
 export const IDLE: Mode = { kind: "idle" };
 
 export type Intent =
@@ -144,8 +147,8 @@ const within = (a: { x: number; y: number }, b: typeof a, r: number) =>
   (a.x - b.x) ** 2 + (a.y - b.y) ** 2 <= r * r;
 
 /**
- * Where an order measures its reach from: the hero, or for a queued one the end of its route (`HeroView.route`), where
- * the hero will stand when the order comes up.
+ * Where an order measures its reach from: the hero, or for a queued one where its route leaves it standing, the last
+ * move or attack-move waypoint (`HeroView.route`); a cast or an attack on the way does not move it there.
  */
 export function origin(
   world: WorldView,
@@ -153,7 +156,10 @@ export function origin(
   queued: boolean,
 ): { x: number; y: number } | undefined {
   const hero = heroOf(world, seat);
-  return (queued && hero?.route.at(-1)) || hero;
+  const walks = queued
+    ? hero?.route.filter((s) => s.kind === "move" || s.kind === "attackMove")
+    : undefined;
+  return walks?.at(-1) ?? hero;
 }
 
 /**
@@ -203,6 +209,7 @@ export function clickIntent(
 ): Intent {
   if (mode.kind !== "idle" && button !== 0) return { kind: "cancel" };
   const { x, y } = tile;
+  if (mode.kind === "aim" && mode.queued) queued = true;
   const q = queued ? { queued: true as const } : {};
   if (mode.kind === "attackMove") return { kind: "attackMove", x, y, ...q };
   if (mode.kind === "aim") {
@@ -227,7 +234,7 @@ export function clickIntent(
       ? { kind: "cast", slot, x, y, ...q }
       : { kind: "none" };
   }
-  if (button === 0 && factory !== undefined && !queued)
+  if (button === 0 && factory !== undefined)
     return { kind: "factory", id: factory };
   const enemy = bodyAt(world, tile, isEnemy(seat));
   if (enemy) return { kind: "attack", of: enemy.of, id: enemy.id, ...q };
@@ -258,7 +265,10 @@ export function pressSpell(
     return { mode: IDLE, cast: heroTile(world, seat) };
   }
   const again = mode.kind === "aim" && mode.slot === slot;
-  return { mode: again ? IDLE : { kind: "aim", slot } };
+  if (again) return { mode: IDLE };
+  return {
+    mode: queued ? { kind: "aim", slot, queued } : { kind: "aim", slot },
+  };
 }
 
 /** What the battlefield draws for `mode` with the cursor over `tile` (sub-pixels). */
