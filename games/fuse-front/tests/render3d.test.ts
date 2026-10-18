@@ -192,6 +192,87 @@ test("zooming out tilts the camera toward top-down and fades strategic markers i
   assert.ok(rig.MARKER_TO <= rig.FAR && rig.MARKER_FROM > rig.START);
 });
 
+/** Where three.js's own ray through device point `nx`, `ny` meets the plane at height `h`, for the rig's camera. */
+function picked(r: rig.Rig, nx: number, ny: number, aspect: number, h = 0) {
+  const camera = new THREE.PerspectiveCamera(rig.FOV, aspect, 0.5, 2000);
+  const at = rig.eye(r);
+  camera.position.set(at.x, at.y, at.z);
+  camera.lookAt(r.x, 0, r.z);
+  camera.updateMatrixWorld();
+  const ray = new THREE.Raycaster();
+  ray.setFromCamera(new THREE.Vector2(nx, ny), camera);
+  const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -h);
+  return ray.ray.intersectPlane(plane, new THREE.Vector3())!;
+}
+
+test("the rig's ground offset is the point three.js picks under the cursor, at any tilt and height", () => {
+  for (const distance of [rig.NEAR, rig.START, 60, 120, 300])
+    for (const [nx, ny] of [
+      [0, 0],
+      [-0.95, 0.9],
+      [0.8, -0.95],
+      [0.3, 0.4],
+    ] as const)
+      for (const h of [0, 0.6]) {
+        const r: rig.Rig = { x: 50, z: 40, distance };
+        const want = picked(r, nx, ny, 16 / 9, h);
+        const got = rig.groundOffset(distance, nx, ny, 16 / 9, h)!;
+        const at = `${distance} ${nx},${ny} h${h}`;
+        assert.ok(Math.abs(r.x + got.x - want.x) < 1e-6, at);
+        assert.ok(Math.abs(r.z + got.z - want.z) < 1e-6, at);
+      }
+});
+
+test("a zoom at the cursor keeps the ground under it there, across the tilt; the map clamp still wins", () => {
+  const [W, H, aspect] = [4000, 3000, 16 / 9];
+  // In the open middle of a big map, from close in through the strategic tilt and back, toward each corner.
+  for (const start of [8, rig.START, 35, 90, 200])
+    for (const factor of [1.25, 0.8, 3, 0.2])
+      for (const [nx, ny] of [
+        [-0.9, 0.85],
+        [0.9, -0.9],
+        [0.5, 0.1],
+      ] as const) {
+        const r: rig.Rig = { x: 2000, z: 1500, distance: start };
+        const before = picked(r, nx, ny, aspect, 0.4);
+        rig.zoomRigAt(r, factor, nx, ny, aspect, W, H, 0.4);
+        const after = picked(r, nx, ny, aspect, 0.4);
+        const at = `${start} ×${factor} at ${nx},${ny}`;
+        assert.notEqual(r.distance, start, at);
+        assert.ok(
+          before.distanceTo(after) < 1e-6,
+          `${at}: moved ${before.distanceTo(after)}`,
+        );
+      }
+  // At the zoom limits the distance stops and the point holds anyway.
+  const near: rig.Rig = { x: 2000, z: 1500, distance: rig.NEAR };
+  const was = picked(near, 0.7, 0.7, aspect);
+  rig.zoomRigAt(near, 4, 0.7, 0.7, aspect, W, H);
+  assert.equal(near.distance, rig.NEAR);
+  assert.ok(was.distanceTo(picked(near, 0.7, 0.7, aspect)) < 1e-9);
+  // In a 400 × 300 map's north-west corner, the screen's top-left shows ground off the map. Zooming out from there
+  // moves the view inward, which the clamp allows, so that point holds exactly.
+  const [w, h] = [400, 300];
+  const edge: rig.Rig = { x: 0, z: 0, distance: 30 };
+  rig.clampRig(edge, w, h);
+  const corner = picked(edge, -0.95, 0.95, aspect);
+  assert.ok(corner.x < 0 && corner.z < 0, "off the map");
+  rig.zoomRigAt(edge, 0.5, -0.95, 0.95, aspect, w, h);
+  assert.equal(edge.distance, 60);
+  assert.ok(corner.distanceTo(picked(edge, -0.95, 0.95, aspect)) < 1e-6);
+  // Zooming in toward it would take the view off the map: the clamp wins and holds the view against the corner.
+  const from = { ...edge };
+  rig.clampRig(from, w, h);
+  assert.deepEqual(from, edge, "the zoom left the view on the map");
+  rig.zoomRigAt(edge, 4, -0.95, 0.95, aspect, w, h);
+  assert.equal(edge.distance, 15);
+  assert.deepEqual(
+    [edge.x, edge.z],
+    [15 * 0.6, 15 * 0.45],
+    "held in the corner",
+  );
+});
+
 test("a pick through the screen centre lands on the tile the rig looks at", () => {
   const map = {
     width: 20,

@@ -20,6 +20,7 @@ import {
   TargetPulse,
   type Overlay,
   type Renderer,
+  type ZoomAnchor,
 } from "../render/renderer.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { Batch } from "./instances.js";
@@ -382,8 +383,21 @@ export class Field3D implements Renderer {
     rig.clampRig(this.rig, world.width, world.height);
   }
 
-  zoom(factor: number): void {
-    rig.zoomRig(this.rig, factor, this.far);
+  zoom(factor: number, anchor?: ZoomAnchor): void {
+    if (!anchor) return rig.zoomRig(this.rig, factor, this.far);
+    this.follow = false;
+    // The ground's height under the anchor makes the plane the zoom holds: the picked point itself stays put.
+    const point = this.groundPoint(anchor.x, anchor.y);
+    rig.zoomRigAt(
+      this.rig,
+      factor,
+      this.ndc.x,
+      this.ndc.y,
+      this.camera.aspect,
+      anchor.world.width,
+      anchor.world.height,
+      point?.y ?? 0,
+    );
   }
 
   lookAt(fx: number, fy: number, world: WorldView): void {
@@ -414,20 +428,27 @@ export class Field3D implements Renderer {
 
   /** The tile under a CSS point: a ray from the camera against the ground mesh (or y = 0 off it). */
   tileAt(dx: number, dy: number, world: WorldView) {
-    this.place();
-    this.ndc.set((dx / this.cssW) * 2 - 1, 1 - (dy / this.cssH) * 2);
-    this.raycaster.setFromCamera(this.ndc, this.camera);
-    this.hits.length = 0;
-    this.raycaster.intersectObjects(this.ground, false, this.hits);
-    const point =
-      this.hits[0]?.point ??
-      this.raycaster.ray.intersectPlane(this.plane, this.hit);
+    const point = this.groundPoint(dx, dy);
     if (!point) return undefined;
     const x = Math.floor(point.x),
       y = Math.floor(point.z);
     return x >= 0 && y >= 0 && x < world.width && y < world.height
       ? { x, y }
       : undefined;
+  }
+
+  /** The ground point under a CSS point (leaving its device point in `ndc`), or undefined if the ray misses it. */
+  private groundPoint(dx: number, dy: number): THREE.Vector3 | undefined {
+    this.place();
+    this.ndc.set((dx / this.cssW) * 2 - 1, 1 - (dy / this.cssH) * 2);
+    this.raycaster.setFromCamera(this.ndc, this.camera);
+    this.hits.length = 0;
+    this.raycaster.intersectObjects(this.ground, false, this.hits);
+    return (
+      this.hits[0]?.point ??
+      this.raycaster.ray.intersectPlane(this.plane, this.hit) ??
+      undefined
+    );
   }
 
   /**
