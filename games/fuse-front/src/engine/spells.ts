@@ -242,6 +242,10 @@ export const KITS: Readonly<Record<HeroKind, readonly Readonly<Spell>[]>> = {
   ],
 };
 
+// Frozen, so a view can share the rows (`SPELL_INFO`).
+for (const kit of Object.values(KITS))
+  for (const row of kit) Object.freeze(row);
+
 /** A hero's spells by slot. */
 export const kitOf = (hero: Hero): readonly Readonly<Spell>[] =>
   KITS[hero.kind];

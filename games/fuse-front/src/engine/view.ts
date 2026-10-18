@@ -8,7 +8,6 @@ import { levelOf, maxEnergy, maxHp } from "./hero.js";
 import { div } from "./math.js";
 import {
   BUILDING_HP,
-  HERO_KINDS,
   UNITS,
   teamOf,
   type BuildingKind,
@@ -131,30 +130,9 @@ export interface SpellInfo {
   unlock: number;
 }
 
-/** Every kit's `SpellInfo`, by hero kind and slot; frozen, so a view can share it. */
+/** Every kit's spells, by hero kind and slot: the engine's frozen table, so a view can share it. */
 export const SPELL_INFO: Readonly<Record<HeroKind, readonly SpellInfo[]>> =
-  Object.freeze(
-    Object.fromEntries(
-      HERO_KINDS.map((kind) => [
-        kind,
-        Object.freeze(
-          KITS[kind].map((spell) =>
-            Object.freeze({
-              name: spell.name,
-              desc: spell.desc,
-              targeting: spell.targeting,
-              passive: spell.passive,
-              range: spell.range,
-              radius: spell.radius,
-              energy: spell.energy,
-              cooldown: spell.cooldown,
-              unlock: spell.unlock,
-            }),
-          ),
-        ),
-      ]),
-    ) as Record<HeroKind, readonly SpellInfo[]>,
-  );
+  KITS;
 
 export interface WorldView {
   step: number;

@@ -62,12 +62,11 @@ export const focusTarget = (
     ? undefined
     : enemyAt(map, world, teamOf(hero.seat), hero.focusOf, hero.focus);
 
-const inRange = (hero: Hero, aim: Aim): boolean => {
-  const dx = aim.x - hero.x,
-    dy = aim.y - hero.y;
-  const range = HEROES[hero.kind].range;
-  return dx * dx + dy * dy <= range * range;
-};
+/** The squared distance from the hero to (x, y), and whether that is within its gun's range. */
+const away = (hero: Hero, x: number, y: number): number =>
+  (x - hero.x) * (x - hero.x) + (y - hero.y) * (y - hero.y);
+const inRange = (hero: Hero, { x, y }: { x: number; y: number }): boolean =>
+  away(hero, x, y) <= HEROES[hero.kind].range * HEROES[hero.kind].range;
 
 /** Drops a hero's focus (and the chase goal that came with it). */
 export function dropFocus(hero: Hero): void {
@@ -125,14 +124,11 @@ export function heroTarget(
   const focus = focusTarget(map, world, hero);
   if (focus !== undefined) return { ...focus, chosen: true };
   const team = teamOf(hero.seat);
-  const range = HEROES[hero.kind].range;
   let best: Aim | undefined,
     bestD = 0;
   const consider = (aim: Aim | undefined) => {
-    if (aim === undefined) return;
-    const [dx, dy] = [aim.x - hero.x, aim.y - hero.y];
-    const d = dx * dx + dy * dy;
-    if (d > range * range) return;
+    if (aim === undefined || !inRange(hero, aim)) return;
+    const d = away(hero, aim.x, aim.y);
     if (best === undefined || better(aim, d, best, bestD))
       [best, bestD] = [aim, d];
   };
@@ -143,9 +139,8 @@ export function heroTarget(
     consider(enemyAt(map, world, team, 1, each.seat));
   for (const building of world.buildings) {
     const site = map.sites[building.id]!;
-    const [dx, dy] = [centreOf(site.x) - hero.x, centreOf(site.y) - hero.y];
     // Only a building in range can be picked, so the lookup runs for a few.
-    if (dx * dx + dy * dy <= range * range)
+    if (inRange(hero, { x: centreOf(site.x), y: centreOf(site.y) }))
       consider(enemyAt(map, world, team, 2, building.id));
   }
   return best === undefined ? null : { ...(best as Aim), chosen: false };
