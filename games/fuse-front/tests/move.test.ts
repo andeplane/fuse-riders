@@ -110,18 +110,18 @@ test("a flow field walks around rock without cutting its corners", () => {
   const map = room();
   const goal = at(map, 5, 3);
   const field = buildFlowField(map, goal);
-  assert.equal(field.cost[goal], 0);
-  assert.equal(field.cost[at(map, 3, 3)], UNREACHABLE);
+  assert.equal(field.cost(goal), 0);
+  assert.equal(field.cost(at(map, 3, 3)), UNREACHABLE);
   // Left of the rock to right of it: up and over in five straight steps (a cut corner would make it 38).
-  assert.equal(field.cost[at(map, 2, 3)], 5 * STRAIGHT);
+  assert.equal(field.cost(at(map, 2, 3)), 5 * STRAIGHT);
   for (let tile = 0; tile < map.width * map.height; tile++) {
-    if (field.cost[tile] === UNREACHABLE) {
-      assert.equal(field.next[tile], -1);
+    if (field.cost(tile) === UNREACHABLE) {
+      assert.equal(field.next(tile), -1);
       continue;
     }
     let here = tile;
     while (here !== goal) {
-      const [dx, dy] = DIRS[field.next[here]!]!;
+      const [dx, dy] = DIRS[field.next(here)]!;
       const x = here % map.width,
         y = (here - x) / map.width;
       assert.ok(openTile(map, x + dx, y + dy));
@@ -130,7 +130,7 @@ test("a flow field walks around rock without cutting its corners", () => {
         "no corner cut",
       );
       const next = at(map, x + dx, y + dy);
-      assert.ok(field.cost[next]! < field.cost[here]!);
+      assert.ok(field.cost(next) < field.cost(here));
       here = next;
     }
   }
@@ -139,8 +139,8 @@ test("a flow field walks around rock without cutting its corners", () => {
 test("an unreachable goal leaves every tile across the water unreachable, and no unit wades in", () => {
   const map = room(true);
   const field = buildFlowField(map, at(map, 6, 6));
-  assert.equal(field.cost[at(map, 1, 1)], UNREACHABLE);
-  assert.equal(field.next[at(map, 1, 1)], -1);
+  assert.equal(field.cost(at(map, 1, 1)), UNREACHABLE);
+  assert.equal(field.next(at(map, 1, 1)), -1);
   // Seat 0 pushes, but the only flag to take lies across the water: it holds its own instead (out of the guns' reach).
   let world = place(benchHeroes(createWorld(map, [0, 1], 3)), 0, "grunt", [
     { x: 2, y: 1 },
@@ -160,7 +160,10 @@ test("cached fields match fresh ones and the cache stays bounded", () => {
   assert.ok(asked > FLOW_CACHE_SIZE);
   assert.equal(cachedFlowFields(map), FLOW_CACHE_SIZE);
   const goal = at(map, map.flags[3]!.x, map.flags[3]!.y);
-  assert.deepEqual(flowField(map, goal), buildFlowField(map, goal));
+  assert.deepEqual(
+    flowField(map, goal).snapshot(),
+    buildFlowField(map, goal).snapshot(),
+  );
 });
 
 test("units never stand on or step through blocked ground over a long six-seat run", () => {
@@ -215,9 +218,8 @@ test("holding units gather near their team's flags, spread over them, and take n
   );
   for (const unit of world.units) {
     const cost = Math.min(
-      ...homes.map(
-        (home) =>
-          flowField(map, home).cost[at(map, tileOf(unit.x), tileOf(unit.y))]!,
+      ...homes.map((home) =>
+        flowField(map, home).cost(at(map, tileOf(unit.x), tileOf(unit.y))),
       ),
     );
     assert.ok(
