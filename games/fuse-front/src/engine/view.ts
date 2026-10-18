@@ -6,6 +6,7 @@
 import type { Biome, GameMap } from "./map.js";
 import { levelOf, maxEnergy, maxHp } from "./hero.js";
 import { div } from "./math.js";
+import { centreOf } from "./move.js";
 import {
   BUILDING_HP,
   UNITS,
@@ -22,6 +23,7 @@ import {
   ownerOf,
   unitCap,
   type CombatEvent,
+  type Hero,
   type World,
 } from "./world.js";
 
@@ -103,6 +105,21 @@ export interface HeroView {
   target: TargetView | null;
   /** Its spells by slot (the shared, frozen table), for tooltips and aiming. */
   kit: readonly SpellInfo[];
+  /**
+   * Its route (`orders.ts`): the current order, if it has one (`current`), then its queued orders, each where it
+   * leads in sub-pixels: a tile's centre, an attack's target where it stands (one gone is left out) and a cast's aim
+   * tile, or its chosen target's spot while that stands.
+   */
+  route: readonly RouteStop[];
+}
+
+export interface RouteStop {
+  kind: "move" | "attackMove" | "attack" | "cast";
+  x: number;
+  y: number;
+  current: boolean;
+  /** A cast's slot; -1 otherwise. */
+  slot: number;
 }
 
 export type TargetView = Aim & { chosen: boolean };
@@ -161,6 +178,55 @@ export interface WorldView {
   winner: number;
   /** What the last step or tick did (shots, deaths, ruins, the result), to animate; not part of the checkpoint. */
   events: readonly CombatEvent[];
+}
+
+/** Where a target stands now (`MARKS` index and id), friend or foe, for drawing a route; undefined once gone. */
+function spotOf(
+  map: GameMap,
+  world: World,
+  of: number,
+  id: number,
+): { x: number; y: number } | undefined {
+  if (of === 0) return world.units.find((each) => each.id === id);
+  if (of === 1) {
+    const hero = world.heroes.find((each) => each.seat === id);
+    return hero && hero.hp > 0 ? hero : undefined;
+  }
+  const site = map.sites[id];
+  return site && { x: centreOf(site.x), y: centreOf(site.y) };
+}
+
+function routeOf(map: GameMap, world: World, hero: Hero): RouteStop[] {
+  const route: RouteStop[] = [];
+  const centre = (x: number, y: number) => ({ x: centreOf(x), y: centreOf(y) });
+  const focus = heroTarget(map, world, hero);
+  if (focus?.chosen)
+    route.push({
+      kind: "attack",
+      x: focus.x,
+      y: focus.y,
+      current: true,
+      slot: -1,
+    });
+  else if (hero.goal >= 0)
+    route.push({
+      kind: hero.sweep > 0 ? "attackMove" : "move",
+      ...centre(hero.goal % map.width, div(hero.goal, map.width)),
+      current: true,
+      slot: -1,
+    });
+  for (const order of hero.queue) {
+    const at =
+      order.type === "attack"
+        ? spotOf(map, world, order.of, order.id)
+        : order.type === "cast" && order.of >= 0
+          ? (spotOf(map, world, order.of, order.id) ?? centre(order.x, order.y))
+          : centre(order.x, order.y);
+    if (at === undefined) continue;
+    const slot = order.type === "cast" ? order.slot : -1;
+    route.push({ kind: order.type, x: at.x, y: at.y, current: false, slot });
+  }
+  return route;
 }
 
 const teamOrNeutral = (seat: number): number =>
@@ -240,6 +306,7 @@ export function viewOf(map: GameMap, world: World): WorldView {
       flare: hero.flare,
       target: heroTarget(map, world, hero),
       kit: SPELL_INFO[hero.kind],
+      route: routeOf(map, world, hero),
     })),
     mines: world.mines.map((mine) => ({
       owner: mine.owner,

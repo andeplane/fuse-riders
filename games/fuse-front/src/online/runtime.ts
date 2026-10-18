@@ -30,6 +30,9 @@ export type FrontCallbacks = Callbacks<View, FrontEvent, Settings>;
  * device rides a seat in play, present and in the foreground. `true` means it was logged, not that it landed: the
  * screen always shows what the world did.
  */
+/** A control's trailing queued flag (`game.ts`): `1` to queue the order, nothing to replace the current one. */
+const flag = (queued: boolean): number[] => (queued ? [1] : []);
+
 export class FrontRuntime extends RoomRuntime<
   Room,
   Entry,
@@ -65,9 +68,9 @@ export class FrontRuntime extends RoomRuntime<
     this.sendPackets(this.deps.now());
     return true;
   }
-  /** Sends the hero to a tile. */
-  move(x: number, y: number): boolean {
-    return this.control(MOVE, x, y);
+  /** Sends the hero to a tile; `queued` puts the order behind its current one (shift-click) instead. */
+  move(x: number, y: number, queued = false): boolean {
+    return this.control(MOVE, x, y, ...flag(queued));
   }
   stance(stance: Stance): boolean {
     return this.control(STANCE, STANCES.indexOf(stance));
@@ -85,18 +88,18 @@ export class FrontRuntime extends RoomRuntime<
     x: number,
     y: number,
     target?: { of: number; id: number },
+    queued = false,
   ): boolean {
-    return target === undefined
-      ? this.control(CAST, spell, x, y)
-      : this.control(CAST, spell, x, y, target.of, target.id);
+    const chosen = target === undefined ? [] : [target.of, target.id];
+    return this.control(CAST, spell, x, y, ...chosen, ...flag(queued));
   }
   /** Focuses the hero on an enemy: `MARKS` index and id (a unit's id, a hero's seat, a building's site id). */
-  attack(of: number, id: number): boolean {
-    return this.control(ATTACK, of, id);
+  attack(of: number, id: number, queued = false): boolean {
+    return this.control(ATTACK, of, id, ...flag(queued));
   }
   /** Sends the hero to a tile, standing to fight whatever comes in range on the way. */
-  attackMove(x: number, y: number): boolean {
-    return this.control(ATTACK_MOVE, x, y);
+  attackMove(x: number, y: number, queued = false): boolean {
+    return this.control(ATTACK_MOVE, x, y, ...flag(queued));
   }
   /** The newest simulated room, for reports and tests; the screen renders from frames. */
   roomState(): Room | undefined {

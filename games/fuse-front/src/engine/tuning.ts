@@ -5,7 +5,7 @@
 import { ceilDiv } from "./math.js";
 
 /** Bump on any change to the rules, with the golden in `tests/golden.test.ts` re-recorded in the same commit. */
-export const RULES = "fuse-front-10";
+export const RULES = "fuse-front-11";
 
 export const SUB = 16;
 export const TILE_PX = 8;
@@ -190,6 +190,13 @@ export const CHASE_REPATH = 10;
 export const CHASE_LEASH = 10 * TILE;
 export const FOCUS_GIVE_UP = 4 * STEPS_PER_SECOND;
 export const AIM_SLACK = TILE / 2;
+
+/**
+ * Queued orders (`orders.ts`): a hero holds at most `QUEUE_MAX` shift-clicked orders, and a queued cast that cannot be
+ * cast when its turn comes is retried each step for `CAST_WAIT` steps, then skipped.
+ */
+export const QUEUE_MAX = 8;
+export const CAST_WAIT = STEPS_PER_SECOND;
 
 /**
  * The hero (`hero.ts`), with Brick's profile (`HEROES` has the others'): a powerhouse worth a squad. Each player has

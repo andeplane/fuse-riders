@@ -18,13 +18,16 @@ import {
   longest,
   type SpellEffect,
 } from "./spells.js";
+import { ORDER_KINDS, castable, type Order } from "./orders.js";
 import { fnv1a } from "./rng.js";
 import {
   BUILDING_HP,
   FACTORY_KINDS,
+  CAST_WAIT,
   FOCUS_GIVE_UP,
   FORT_GUN,
   MAX_SEATS,
+  QUEUE_MAX,
   STANCES,
   HERO,
   HERO_KINDS,
@@ -66,6 +69,15 @@ export const isInt = (
 
 const tuple = (raw: unknown, length: number): unknown[] | undefined =>
   Array.isArray(raw) && raw.length === length ? raw : undefined;
+
+/** An order as `[kind, ...args]` (`ORDER_KINDS`): a move's or attack-move's `x, y`, an attack's `of, id`, a cast's
+ * `slot, x, y, of, id`. */
+const encodeOrder = (order: Order): number[] =>
+  order.type === "attack"
+    ? [2, order.of, order.id]
+    : order.type === "cast"
+      ? [3, order.slot, order.x, order.y, order.of, order.id]
+      : [ORDER_KINDS.indexOf(order.type), order.x, order.y];
 
 export function encodeWorld(world: World): unknown {
   return [
@@ -117,6 +129,8 @@ export function encodeWorld(world: World): unknown {
       h.focus,
       h.lost,
       h.sweep,
+      h.queue.map(encodeOrder),
+      h.wait,
     ]),
     world.winner,
     world.mines.map((m) => [m.owner, m.x, m.y, m.life, m.stuck]),
@@ -202,13 +216,49 @@ function unit(raw: unknown, map: GameMap): Unit | undefined {
   return { id, kind: unitKind, owner, x, y, hp, cooldown, goal, stun, rally };
 }
 
+/** A queued order on `map`: a move to an open tile, an attack on a `MARKS` target, or a cast of a slot at a tile. */
+function order(raw: unknown, map: GameMap): Order | undefined {
+  if (!Array.isArray(raw)) return;
+  const [kind, ...args] = raw as unknown[];
+  const onMap = (x: unknown, y: unknown): x is number =>
+    isInt(x, 0, map.width - 1) && isInt(y, 0, map.height - 1);
+  if (kind === 0 || kind === 1) {
+    const [x, y] = args;
+    if (args.length !== 2 || !onMap(x, y) || !openTile(map, x, y as number))
+      return;
+    return { type: ORDER_KINDS[kind], x, y: y as number };
+  }
+  if (kind === 2) {
+    const [of, id] = args;
+    if (args.length !== 2 || !isInt(of, 0, MARKS.length - 1)) return;
+    return isInt(id, 0, COUNT) ? { type: "attack", of, id } : undefined;
+  }
+  if (kind !== 3 || args.length !== 5) return;
+  const [slot, x, y, of, id] = args;
+  if (!isInt(slot, 0, 3) || !onMap(x, y)) return;
+  const none = of === -1 && id === -1;
+  if (!none && !(isInt(of, 0, MARKS.length - 1) && isInt(id, 0, COUNT))) return;
+  return {
+    type: "cast",
+    slot,
+    x,
+    y: y as number,
+    of: of as number,
+    id: id as number,
+  };
+}
+
 function hero(raw: unknown, map: GameMap): Hero | undefined {
-  const t = tuple(raw, 23);
+  const t = tuple(raw, 25);
   if (!t) return;
   const [seat, x, y, hp, energy, xp, cooldown, respawn, facing, goal] = t;
   const [steerX, steerY, quiet] = [t[10], t[11], t[13]];
   const [kindIndex, cloak, blitz, flare, flareLeft] = t.slice(14, 19);
-  const [focusOf, focus, lost, sweep] = t.slice(19);
+  const [focusOf, focus, lost, sweep, rawQueue, wait] = t.slice(19);
+  // Queued orders (`orders.ts`): a bounded list; only a living hero's first order, a cast, waits, and not for long.
+  const queue = list(rawQueue, QUEUE_MAX, (each) => order(each, map));
+  if (!queue || !isInt(wait, 0, CAST_WAIT - 1)) return;
+  if (wait > 0 && (hp === 0 || queue[0]?.type !== "cast")) return;
   // A focus (`focus.ts`) belongs to a living hero off the stick and not on an attack-move, and has been lost less
   // than the give-up; an attack-move is a move, so it has a goal. Whom a focus names is checked against the world.
   if (!isInt(focusOf, -1, MARKS.length - 1) || !isInt(sweep, 0, 1)) return;
@@ -290,6 +340,8 @@ function hero(raw: unknown, map: GameMap): Hero | undefined {
     focus: focus as number,
     lost: lost as number,
     sweep,
+    queue,
+    wait,
   };
 }
 
@@ -389,12 +441,20 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
     return;
   // A focus names an enemy hero in play, a turret or fort, or a unit id already given out; it may since have died
   // (the next step drops it), but never a friend.
+  const aimable = (seat: number, of: number, id: number): boolean => {
+    if (of === 0) return id < nextId;
+    if (of === 1) return seats.has(id) && teamOf(id) !== teamOf(seat);
+    const kind = map.sites[id]?.kind;
+    return kind === "turret" || kind === "fort";
+  };
   for (const h of heroes) {
-    const [of, id] = [h.focusOf, h.focus];
-    if (of === 0 && id >= nextId) return;
-    if (of === 1 && (!seats.has(id) || teamOf(id) === teamOf(h.seat))) return;
-    const site = of === 2 ? map.sites[id] : undefined;
-    if (of === 2 && site?.kind !== "turret" && site?.kind !== "fort") return;
+    if (h.focusOf >= 0 && !aimable(h.seat, h.focusOf, h.focus)) return;
+    // A queued attack names what a focus may; a queued cast's chosen target any unit given out, seat in play or site.
+    for (const o of h.queue) {
+      if (o.type === "attack" && !aimable(h.seat, o.of, o.id)) return;
+      if (o.type !== "cast" || o.of < 0) continue;
+      if (!castable(map, nextId, (seat) => seats.has(seat), o.of, o.id)) return;
+    }
   }
   // The recorded result is exactly the one the forts imply.
   const result = winnerOf(map, players, buildings);

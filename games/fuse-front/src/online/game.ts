@@ -118,7 +118,9 @@ export function parseSettings(raw: unknown): Settings | undefined {
  * seat is the slot its author sits in, never a field. Args: ORDER `factory, unitKindIndex`; STANCE `stanceIndex`;
  * MOVE `x, y` (a tile); STEER `dx, dy` (the stick); CAST `slot, x, y` or `slot, x, y, markIndex, id` (a unit spell's
  * chosen target); ATTACK `markIndex, id` (`MARKS`: a unit's id, a hero's seat or a building's site id); ATTACK_MOVE
- * `x, y` (a tile). Whether the target exists and is an enemy is the engine's to check on the step.
+ * `x, y` (a tile). MOVE, ATTACK, ATTACK_MOVE and CAST take one more arg, `1`, to queue the order behind the hero's
+ * current one (shift-click, `orders.ts`) instead of replacing it. Whether the target exists and is an enemy is the
+ * engine's to check on the step.
  */
 export const ORDER = 0,
   STANCE = 1,
@@ -173,32 +175,38 @@ const int = isInt;
 /** A target: its `MARKS` index and an id in range. */
 const mark = ([of, id]: unknown[]) =>
   int(of, 0, MARKS.length - 1) && int(id, 0, MAX_ID);
+/** A tile, then the queued flag when present. */
+const tile = ([x, y, ...queued]: unknown[]) =>
+  int(x, 0, MAP_MAX - 1) && int(y, 0, MAP_MAX - 1) && flag(queued);
+/** The optional trailing queued flag: absent, or exactly 1. */
+const flag = (rest: unknown[]) =>
+  rest.length === 0 || (rest.length === 1 && rest[0] === 1);
 const ARGS: Readonly<Record<number, (args: unknown[]) => boolean>> = {
   [ORDER]: ([f, k]) =>
     int(f, 0, MAX_SITES - 1) &&
     int(k, 0, UNIT_KINDS.length - 1) &&
     BUILT.has(UNIT_KINDS[k]!),
   [STANCE]: ([s]) => int(s, 0, STANCES.length - 1),
-  [MOVE]: ([x, y]) => int(x, 0, MAP_MAX - 1) && int(y, 0, MAP_MAX - 1),
+  [MOVE]: tile,
   [STEER]: ([x, y]) =>
     int(x, -STEER_MAX, STEER_MAX) && int(y, -STEER_MAX, STEER_MAX),
-  [CAST]: ([s, x, y, ...chosen]) =>
+  [CAST]: ([s, x, y, ...rest]) =>
     int(s, 0, 3) &&
     int(x, 0, MAP_MAX - 1) &&
     int(y, 0, MAP_MAX - 1) &&
-    (chosen.length === 0 || mark(chosen)),
-  [ATTACK]: mark,
-  [ATTACK_MOVE]: ([x, y]) => int(x, 0, MAP_MAX - 1) && int(y, 0, MAP_MAX - 1),
+    (rest.length < 2 ? flag(rest) : mark(rest) && flag(rest.slice(2))),
+  [ATTACK]: (args) => mark(args) && flag(args.slice(2)),
+  [ATTACK_MOVE]: tile,
 };
 /** The argument counts each control kind takes. */
 const ARITY: readonly (readonly number[])[] = [
   [2],
   [1],
+  [2, 3],
   [2],
-  [2],
-  [3, 5],
-  [2],
-  [2],
+  [3, 4, 5, 6],
+  [2, 3],
+  [2, 3],
 ];
 const payloads = {
   name: validName,
@@ -228,17 +236,25 @@ export function isEntry(raw: unknown): raw is Entry {
 
 /** The engine command an accepted control entry asks of `seat`. */
 function command(entry: ControlEntry, seat: number): Command {
-  const [, , kind, , a = 0, b = 0, c = 0, d, e] = entry;
+  const [, , kind, , a = 0, b = 0, c = 0, d, e, f] = entry;
   if (kind === ORDER)
     return { seat, type: "order", factory: a, kind: UNIT_KINDS[b]! };
   if (kind === STANCE) return { seat, type: "stance", stance: STANCES[a]! };
-  if (kind === MOVE) return { seat, type: "move", x: a, y: b };
   if (kind === STEER) return { seat, type: "steer", dx: a, dy: b };
-  if (kind === ATTACK) return { seat, type: "attack", of: a, id: b };
-  if (kind === ATTACK_MOVE) return { seat, type: "attackMove", x: a, y: b };
-  if (d !== undefined && e !== undefined)
-    return { seat, type: "cast", slot: a, x: b, y: c, of: d, id: e };
-  return { seat, type: "cast", slot: a, x: b, y: c };
+  // The queued flag is the last arg of a queued entry: the third of a MOVE, ATTACK or ATTACK_MOVE, a CAST's fourth or
+  // sixth.
+  const queued =
+    kind === CAST
+      ? entry.length === 8 || entry.length === 10
+      : entry.length === 7;
+  const q = queued ? { queued } : {};
+  if (kind === MOVE) return { seat, type: "move", x: a, y: b, ...q };
+  if (kind === ATTACK) return { seat, type: "attack", of: a, id: b, ...q };
+  if (kind === ATTACK_MOVE)
+    return { seat, type: "attackMove", x: a, y: b, ...q };
+  if (d !== undefined && e !== undefined && entry.length >= 9)
+    return { seat, type: "cast", slot: a, x: b, y: c, of: d, id: e, ...q };
+  return { seat, type: "cast", slot: a, x: b, y: c, ...q };
 }
 
 // ---- the room ----

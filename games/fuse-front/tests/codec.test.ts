@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 import {
   DROP_HP,
   FORT_GUN,
+  CAST_WAIT,
   HERO,
   MAX_XP,
+  QUEUE_MAX,
   MINES_PER_HERO,
   MINE_FUSE,
   longest,
@@ -127,6 +129,17 @@ const hero =
     for (const [at, value] of fields) w[7][0]![at] = value;
     return w;
   };
+/** Hero 0's queued orders (wire form, `orders.ts`) and the steps its first, a cast, has waited. */
+const queued =
+  (orders: unknown, wait = 0) =>
+  (w: Wire): Wire => {
+    const fields = w[7][0]! as unknown[];
+    [fields[23], fields[24]] = [orders, wait];
+    return w;
+  };
+/** A move, a cast with no target and one at unit 1, all on open tiles. */
+const MOVE_44 = [0, 4, 4];
+const CAST_44 = [3, 0, 4, 4, -1, -1];
 const ROCK = 3 * 14 + 6;
 const vix = hero([14, 1], [3, 100]);
 const tally = hero([14, 3], [3, 100]);
@@ -260,6 +273,26 @@ const corruptions: [string, (wire: Wire) => unknown][] = [
     (w) => ((w[11][1] = longest("overclock") + 1), w),
   ],
   ["a seat with no fort on the map", (w) => (w[3].push([3, 1, 0]), w)],
+  ["a queue that is no list", queued(5)],
+  ["a queue past its most", queued(Array(QUEUE_MAX + 1).fill(MOVE_44))],
+  ["an unknown order kind", queued([[4, 4, 4]])],
+  ["a queued move into rock", queued([[0, 6, 3]])],
+  ["a queued move off the map", queued([[1, 14, 4]])],
+  ["a queued move with an extra field", queued([[0, 4, 4, 1]])],
+  ["a queued attack on a friend", queued([[2, 1, 2]])],
+  ["a queued attack on a unit from the future", queued([[2, 0, 9]])],
+  ["a queued attack on a factory", queued([[2, 2, TINY.robotFactory]])],
+  ["a queued cast of a fifth slot", queued([[3, 4, 4, 4, -1, -1]])],
+  ["a queued cast with half a target", queued([[3, 0, 4, 4, 0, -1]])],
+  ["a queued cast at no site", queued([[3, 0, 4, 4, 2, 99]])],
+  ["a queued cast at a unit from the future", queued([[3, 0, 4, 4, 0, 9]])],
+  ["a wait with no cast first", queued([MOVE_44, CAST_44], 1)],
+  ["a wait past its most", queued([CAST_44], CAST_WAIT)],
+  ["a wait on an empty queue", queued([], 1)],
+  [
+    "a dead hero waiting to cast",
+    (w) => queued([CAST_44], 1)(hero([3, 0], [7, 1])(w)),
+  ],
   ["a dead unit", (w) => ((w[6][0]![5] = 0), w)],
   ["units out of order", (w) => (w[6].reverse(), w)],
   ["a unit id from the future", (w) => ((w[2] = 2), w)],
@@ -286,6 +319,30 @@ for (const [label, corrupt] of corruptions)
     assert.equal(decodeWorld(corrupt(wire), map), undefined);
     assert.equal(hashWorld(world), before);
   });
+
+test("a hero's queue round-trips, and the queue corruptions start from checkpoints that decode", () => {
+  const wire = () => structuredClone(encodeWorld(played())) as Wire;
+  const orders = [MOVE_44, [1, 4, 4], [2, 1, 1], CAST_44, [3, 2, 4, 4, 0, 1]];
+  const world = decodeWorld(queued([...orders].reverse(), 0)(wire()), map);
+  assert.ok(world);
+  assert.deepEqual(world.heroes[0]!.queue.at(-1), { type: "move", x: 4, y: 4 });
+  assert.deepEqual(world.heroes[0]!.queue[0], {
+    type: "cast",
+    slot: 2,
+    x: 4,
+    y: 4,
+    of: 0,
+    id: 1,
+  });
+  assert.deepEqual(
+    (encodeWorld(world) as Wire)[7][0]![23],
+    [...orders].reverse(),
+  );
+  assert.ok(
+    decodeWorld(queued([CAST_44, MOVE_44], CAST_WAIT - 1)(wire()), map),
+  );
+  assert.ok(decodeWorld(queued([MOVE_44])(hero([3, 0], [7, 1])(wire())), map));
+});
 
 test("the kit corruptions start from checkpoints that decode", () => {
   const wire = () => structuredClone(encodeWorld(played())) as Wire;
