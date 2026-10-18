@@ -1,13 +1,14 @@
 /**
  * One engine step: spell timers (`spells.ts`), the step's commands (casts take effect here), the heroes' energy and
- * respawns (`hero.ts`), goals (`move.ts`), combat (`combat.ts`), movement of units then heroes, capture and
- * production. `step` never mutates the world it is given: it copies the arrays and records (players, sectors,
- * buildings, units, heroes) and returns a new world, so the netcode can keep the previous one as a snapshot. Once the
- * match has a winner a step only advances the clock. Bots (`bot.ts`) send ordinary commands.
+ * respawns (`hero.ts`), goals (`move.ts`), combat (`combat.ts`), movement of units then heroes, STICKY MINEs
+ * (`spells.ts`), capture and production. `step` never mutates the world it is given: it copies the arrays and records
+ * (players, sectors, buildings, units, heroes, mines) and returns a new world, so the netcode can keep the previous
+ * one as a snapshot. Once the match has a winner a step only advances the clock. Bots (`bot.ts`) send ordinary
+ * commands.
  */
 import { isInt } from "./codec.js";
 import { fight } from "./combat.js";
-import { cast, tickSpells } from "./spells.js";
+import { cast, tickMines, tickSpells } from "./spells.js";
 import { openTile } from "./flow.js";
 import { alive, gainXp, moveHeroes, tendHeroes } from "./hero.js";
 import { flagAt, type GameMap } from "./map.js";
@@ -72,6 +73,7 @@ export function step(
     buildings: world.buildings.map((building) => ({ ...building })),
     units: world.units.map((unit) => ({ ...unit })),
     heroes: world.heroes.map((hero) => ({ ...hero, spells: [...hero.spells] })),
+    mines: world.mines.map((mine) => ({ ...mine })),
     events: [],
   };
   tickSpells(next);
@@ -81,6 +83,7 @@ export function step(
   const engaged = fight(map, next);
   moveUnits(map, next, engaged);
   moveHeroes(map, next);
+  tickMines(next);
   capture(map, next);
   produce(map, next);
   return next;
@@ -149,6 +152,8 @@ function applyCommands(
         world,
         world.heroes.find((h) => h.seat === player.seat)!,
         slot,
+        x,
+        y,
       );
     } else if (command.type === "order") {
       const building = world.buildings.find(
@@ -175,22 +180,27 @@ function applyCommands(
 function capture(map: GameMap, world: World): void {
   const taker = new Map<number, number>();
   const contested = new Set<number>();
-  const stand = (seat: number, x: number, y: number): void => {
+  /** Flags a CLOAKed hero is the taker of: their capture raises no alert. */
+  const quiet = new Set<number>();
+  const stand = (seat: number, x: number, y: number, cloaked = false) => {
     const flag = flagAt(map, tileOf(x), tileOf(y));
     if (flag < 0) return;
     const first = taker.get(flag);
     if (first === undefined) taker.set(flag, seat);
     else if (teamOf(first) !== teamOf(seat)) contested.add(flag);
+    if (first === undefined && cloaked) quiet.add(flag);
   };
   for (const unit of world.units)
     if (UNITS[unit.kind].robot) stand(unit.owner, unit.x, unit.y);
   for (const hero of world.heroes)
-    if (alive(hero)) stand(hero.seat, hero.x, hero.y);
+    if (alive(hero)) stand(hero.seat, hero.x, hero.y, hero.cloak > 0);
   for (const [flag, seat] of taker) {
     if (contested.has(flag)) continue;
     const owner = world.sectors[flag]!;
     if (owner !== NEUTRAL && teamOf(owner) === teamOf(seat)) continue;
     world.sectors[flag] = seat;
+    if (!quiet.has(flag))
+      world.events.push({ type: "capture", sector: flag, seat });
     gainXp(
       world,
       world.heroes.find((hero) => hero.seat === seat)!,

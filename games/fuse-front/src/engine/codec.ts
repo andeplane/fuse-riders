@@ -9,7 +9,14 @@ import { DIRS, openTile } from "./flow.js";
 import { MAX_XP, levelOf, maxEnergy, maxHp, respawnSteps } from "./hero.js";
 import { div } from "./math.js";
 import { FOLLOW_HERO, isGoalTile } from "./move.js";
-import { DROP_HP, KITS, longest } from "./spells.js";
+import {
+  DROP_HP,
+  KITS,
+  MINES_PER_HERO,
+  MINE_FUSE,
+  kitHas,
+  longest,
+} from "./spells.js";
 import { fnv1a } from "./rng.js";
 import {
   BUILDING_HP,
@@ -18,6 +25,7 @@ import {
   MAX_SEATS,
   STANCES,
   HERO,
+  HERO_KINDS,
   STEER_MAX,
   TILE,
   TURRET,
@@ -30,6 +38,7 @@ import {
   NEUTRAL,
   type Building,
   type Hero,
+  type Mine,
   type Player,
   type Unit,
   type World,
@@ -94,8 +103,11 @@ export function encodeWorld(world: World): unknown {
       h.steerY,
       [...h.spells],
       h.quiet,
+      HERO_KINDS.indexOf(h.kind),
+      h.cloak,
     ]),
     world.winner,
+    world.mines.map((m) => [m.owner, m.x, m.y, m.life, m.stuck]),
   ];
 }
 
@@ -176,10 +188,16 @@ function unit(raw: unknown, map: GameMap): Unit | undefined {
 }
 
 function hero(raw: unknown, map: GameMap): Hero | undefined {
-  const t = tuple(raw, 14);
+  const t = tuple(raw, 16);
   if (!t) return;
   const [seat, x, y, hp, energy, xp, cooldown, respawn, facing, goal] = t;
   const [steerX, steerY, quiet] = [t[10], t[11], t[13]];
+  const [kindIndex, cloak] = [t[14], t[15]];
+  if (!isInt(kindIndex, 0, HERO_KINDS.length - 1)) return;
+  const kind = HERO_KINDS[kindIndex]!;
+  // Only Vix's kit cloaks, and never a dead hero.
+  const cloaks = kitHas(kind, "cloak") && hp !== 0;
+  if (!isInt(cloak, 0, cloaks ? longest("cloak") : 0)) return;
   // Steps since it last fought, counted up to calm.
   if (!isInt(quiet, 0, HERO.calm)) return;
   if (!isInt(seat, 0, MAX_SEATS - 1) || !isInt(xp, 0, MAX_XP)) return;
@@ -187,7 +205,7 @@ function hero(raw: unknown, map: GameMap): Hero | undefined {
   if (!isInt(x, 0, map.width * TILE - 1) || !isInt(y, 0, map.height * TILE - 1))
     return;
   if (!openTile(map, div(x, TILE), div(y, TILE))) return;
-  if (!isInt(hp, 0, maxHp(level)) || !isInt(energy, 0, maxEnergy(level)))
+  if (!isInt(hp, 0, maxHp(level, kind)) || !isInt(energy, 0, maxEnergy(level)))
     return;
   // A living hero has no respawn timer; a dead one has one running and its gun at rest.
   if (hp > 0 ? respawn !== 0 : !isInt(respawn, 1, respawnSteps(level))) return;
@@ -201,7 +219,7 @@ function hero(raw: unknown, map: GameMap): Hero | undefined {
   if (!isInt(steerX, -STEER_MAX, STEER_MAX)) return;
   if (!isInt(steerY, -STEER_MAX, STEER_MAX)) return;
   // One cooldown per slot, never above the slot's own (a passive's is 0).
-  const kit = KITS.brick;
+  const kit = KITS[kind];
   const spells = tuple(t[12], kit.length);
   if (!spells?.every((left, slot) => isInt(left, 0, kit[slot]!.cooldown)))
     return;
@@ -222,7 +240,28 @@ function hero(raw: unknown, map: GameMap): Hero | undefined {
     steerY,
     spells: spells as number[],
     quiet,
+    kind,
+    cloak,
   };
+}
+
+/** A mine of one of `layers`' seats, on walkable ground, with life left: up to a fuse once stuck to a unit id. */
+function mine(
+  raw: unknown,
+  map: GameMap,
+  layers: ReadonlySet<number>,
+  nextId: number,
+): Mine | undefined {
+  const t = tuple(raw, 5);
+  if (!t) return;
+  const [owner, x, y, life, stuck] = t;
+  if (!isInt(owner, 0, MAX_SEATS - 1) || !layers.has(owner)) return;
+  if (!isInt(x, 0, map.width * TILE - 1) || !isInt(y, 0, map.height * TILE - 1))
+    return;
+  if (sectorAt(map, div(x, TILE), div(y, TILE)) < 0) return;
+  if (!isInt(stuck, -1, nextId - 1) || stuck === 0) return;
+  if (!isInt(life, 1, stuck < 0 ? longest("stickyMine") : MINE_FUSE)) return;
+  return { owner, x, y, life, stuck };
 }
 
 function list<T>(
@@ -247,10 +286,10 @@ const ascending = <T>(items: readonly T[], key: (item: T) => number) =>
 
 /** A world from a checkpoint for `map`, or undefined when anything in it is out of place. */
 export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
-  const t = tuple(raw, 9);
+  const t = tuple(raw, 10);
   if (!t) return;
   const [step, rng, nextId, rawPlayers, rawSectors, rawBuildings, rawUnits] = t;
-  const [rawHeroes, winner] = [t[7], t[8]];
+  const [rawHeroes, winner, rawMines] = [t[7], t[8], t[9]];
   if (
     !isInt(step, 0, COUNT) ||
     !isInt(rng, 0, UINT32) ||
@@ -303,6 +342,16 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
   // The recorded result is exactly the one the forts imply.
   const result = winnerOf(map, players, buildings);
   if (winner !== result) return;
+  // Mines belong to a player whose kit lays them, a few each.
+  const layers = new Set(
+    heroes.filter((h) => kitHas(h.kind, "stickyMine")).map((h) => h.seat),
+  );
+  const mines = list(rawMines, MAX_SEATS * MINES_PER_HERO, (each) =>
+    mine(each, map, layers, nextId),
+  );
+  if (!mines) return;
+  for (const seat of layers)
+    if (mines.filter((m) => m.owner === seat).length > MINES_PER_HERO) return;
   return {
     step,
     rng,
@@ -312,6 +361,7 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
     buildings,
     units,
     heroes,
+    mines,
     winner: result,
     events: [],
   };

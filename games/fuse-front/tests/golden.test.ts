@@ -16,23 +16,23 @@ import {
 import { dustBasin } from "./fixtures/maps.js";
 
 /**
- * The engine's safety net: six seats on Dust Basin for 1500 log ticks with scripted factory orders, stances, hero
+ * The engine's safety net: six seats (every hero kind) on Dust Basin for 1500 log ticks with scripted factory orders, stances, hero
  * moves, steering and casts (the ultimates refused below level 6), the units walking their stances' flow fields, taking flags and fighting, the heroes levelling,
  * dying and respawning. The world's hash is compared every 250 ticks. A refactor must keep these; a change to the
  * rules must bump `RULES` in `src/engine/tuning.ts` and re-record them in the same commit: `GOLDEN_RECORD=1` prints
  * the new ones.
  */
 const GOLDEN = {
-  rules: "fuse-front-7",
+  rules: "fuse-front-8",
   seed: "fuse-front golden",
   ticks: 1500,
   hashes: [
-    "4c63cc16",
-    "3a54e998",
-    "205eed7b",
-    "80abe0f5",
-    "e12014b6",
-    "9e19cd01",
+    "538b5a69",
+    "6d020399",
+    "606e274b",
+    "82940475",
+    "45149ece",
+    "8a85c266",
   ],
 };
 
@@ -50,6 +50,12 @@ const SCRIPT = new Map<number, Command[]>([
   [1400, [{ seat: 4, type: "cast", slot: 3, x: 0, y: 0 }]],
   [700, [{ seat: 1, type: "stance", stance: "push" }]],
   [900, [{ seat: 5, type: "move", x: 36, y: 41 }]],
+  // Vix's kit (seats 1 and 4).
+  [150, [{ seat: 1, type: "cast", slot: 1, x: 0, y: 0 }]],
+  [160, [{ seat: 1, type: "move", x: 47, y: 27 }]],
+  [250, [{ seat: 4, type: "cast", slot: 2, x: 0, y: 0 }]],
+  [650, [{ seat: 1, type: "cast", slot: 0, x: 47, y: 27 }]],
+  [1450, [{ seat: 4, type: "cast", slot: 3, x: 0, y: 0 }]],
 ]);
 
 /** Each seat orders torches from every robot factory it holds on tick 400 and grunts again on tick 1000. */
@@ -85,7 +91,10 @@ function play(
 }
 
 const fresh = (map: GameMap): World =>
-  createWorld(map, [0, 1, 2, 3, 4, 5], seedOf(GOLDEN.seed));
+  createWorld(map, [0, 1, 2, 3, 4, 5], seedOf(GOLDEN.seed), {
+    1: "vix",
+    4: "vix",
+  });
 
 test("the golden run hashes as recorded", () => {
   assert.equal(RULES, GOLDEN.rules, "RULES changed: re-record the golden");
