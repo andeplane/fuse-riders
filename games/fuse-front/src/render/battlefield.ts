@@ -14,7 +14,14 @@ import {
 } from "./cues.js";
 import { bakeGround } from "./ground.js";
 import type { Img } from "./pixel/image.js";
-import type { Renderer } from "./renderer.js";
+import { BIOME } from "./pixel/palette.js";
+import {
+  NO_OVERLAY,
+  TARGET_HEX,
+  TargetPulse,
+  type Overlay,
+  type Renderer,
+} from "./renderer.js";
 import * as art from "./sprites.js";
 
 type Surface = HTMLCanvasElement;
@@ -22,6 +29,7 @@ type Surface = HTMLCanvasElement;
 export type CanvasFactory = (w: number, h: number) => Surface;
 
 const px = (v: number) => v / SUB;
+const TILE = SUB * TILE_PX;
 const CULL = 72;
 const BOOM = [0.5, 0.85, 1, 0.7];
 
@@ -30,6 +38,8 @@ export class Battlefield implements Renderer {
   view: cam.Viewport = { w: 1, h: 1, scale: 1 };
   /** Whether the camera follows this device's hero: a pan stops it, Space sets it again. */
   follow = true;
+  overlay: Overlay = NO_OVERLAY;
+  private readonly pulse = new TargetPulse();
   private readonly ctx: CanvasRenderingContext2D;
   private readonly sprites = new art.SpriteCache((img) => this.toCanvas(img));
   private readonly dedupe = new EventDedupe();
@@ -166,7 +176,7 @@ export class Battlefield implements Renderer {
   draw(matchId: string, world: WorldView, older: WorldView | undefined, t: number, self: number, now: number): void {
     this.adopt(matchId);
     if (!this.ground) {
-      this.ground = this.toCanvas(bakeGround(world));
+      this.ground = this.toCanvas(bakeGround(world, 3, BIOME[world.biome]));
       this.burn();
     }
     if (world !== this.latest) {
@@ -245,6 +255,34 @@ export class Battlefield implements Renderer {
       ctx.fillStyle = frac > 0.5 ? "#6ad83a" : frac > 0.25 ? "#f8d030" : "#e8483c";
       ctx.fillRect(bx, by, Math.round(width * Math.max(0, Math.min(1, frac))), 2);
     }
+    if (mine && prev) this.drawTargeting(mine.target, prev.x + (mine.x - prev.x) * t, prev.y + (mine.y - prev.y) * t, now);
+  }
+
+  /** The aiming rings, the marks, and a ring and line to the hero's target (sub-pixels in, art pixels drawn). */
+  // prettier-ignore
+  private drawTargeting(target: WorldView["heroes"][number]["target"], hx: number, hy: number, now: number): void {
+    const ctx = this.ctx, { x: cx, y: cy } = this.camera, o = this.overlay;
+    const ring = (x: number, y: number, r: number, alpha: number) => {
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      ctx.arc(px(x) - cx, px(y) - cy, Math.max(2, px(r)), 0, Math.PI * 2);
+      ctx.stroke();
+    };
+    ctx.strokeStyle = `#${TARGET_HEX.toString(16).padStart(6, "0")}`;
+    ctx.lineWidth = 1;
+    if (o.range > 0) ring(hx, hy, o.range, 0.55);
+    if (o.area > 0 && o.cursor) ring(o.cursor.x, o.cursor.y, o.area, 0.9);
+    for (const m of o.marks) ring(m.x, m.y, TILE * 0.45, 0.9);
+    const pulse = this.pulse.of(target, now);
+    if (target) {
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(px(hx) - cx, px(hy) - cy);
+      ctx.lineTo(px(target.x) - cx, px(target.y) - cy);
+      ctx.stroke();
+      ring(target.x, target.y, TILE * (0.6 + pulse * 0.6), target.chosen ? 1 : 0.6);
+    }
+    ctx.globalAlpha = 1;
   }
 
   // prettier-ignore

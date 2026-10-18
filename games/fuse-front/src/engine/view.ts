@@ -3,7 +3,7 @@
  * progress, and units. It is built fresh from a map and world and shares no mutable record with either, so a renderer
  * can never write back into the simulation.
  */
-import type { GameMap } from "./map.js";
+import type { Biome, GameMap } from "./map.js";
 import { levelOf, maxEnergy, maxHp } from "./hero.js";
 import { div } from "./math.js";
 import {
@@ -15,7 +15,8 @@ import {
   type Stance,
   type UnitKind,
 } from "./tuning.js";
-import { hideOf, unitMax } from "./spells.js";
+import { heroTarget, type Aim } from "./focus.js";
+import { KITS, hideOf, unitMax, type Spell } from "./spells.js";
 import {
   NEUTRAL,
   ownerOf,
@@ -95,10 +96,39 @@ export interface HeroView {
   cloaked: boolean;
   blitzing: boolean;
   flare: number;
+  /**
+   * What it shoots (`focus.ts`): the enemy `attack` chose for it (`chosen`), else the one its gun picks next from
+   * where everything stands; null when it has none or is dead. Sub-pixels; a building's `id` is its site id.
+   */
+  target: TargetView | null;
+  /** Its spells by slot (the shared, frozen table), for tooltips and aiming. */
+  kit: readonly SpellInfo[];
 }
+
+export type TargetView = Aim & { chosen: boolean };
+
+/** A spell as the HUD explains it (`spells.ts`): aiming, reach and area in sub-pixels, cost, cooldown in steps, unlock. */
+export type SpellInfo = Pick<
+  Spell,
+  | "name"
+  | "desc"
+  | "targeting"
+  | "passive"
+  | "range"
+  | "radius"
+  | "energy"
+  | "cooldown"
+  | "unlock"
+>;
+
+/** Every kit's spells, by hero kind and slot: the engine's frozen table, so a view can share it. */
+export const SPELL_INFO: Readonly<Record<HeroKind, readonly SpellInfo[]>> =
+  KITS;
 
 export interface WorldView {
   step: number;
+  /** How the map's ground looks (the renderers' palette); the rules never read it. */
+  biome: Biome;
   width: number;
   height: number;
   /** The map's rows (shared and frozen). */
@@ -139,6 +169,7 @@ const teamOrNeutral = (seat: number): number =>
 export function viewOf(map: GameMap, world: World): WorldView {
   return {
     step: world.step,
+    biome: map.biome,
     width: map.width,
     height: map.height,
     terrain: map.terrain,
@@ -207,6 +238,8 @@ export function viewOf(map: GameMap, world: World): WorldView {
       cloaked: hero.cloak > 0,
       blitzing: hero.blitz > 0,
       flare: hero.flare,
+      target: heroTarget(map, world, hero),
+      kit: SPELL_INFO[hero.kind],
     })),
     mines: world.mines.map((mine) => ({
       owner: mine.owner,
