@@ -319,8 +319,13 @@
   text-align: left;
   pointer-events: none;
 }
-.ff-spell-bay:hover .ff-tip,
-.ff-spell-bay:focus-within .ff-tip {
+/* Hover only where there is a mouse, and keyboard focus only, so a click or tap leaves no tooltip open. */
+@media (hover: hover) {
+  .ff-spell-bay:hover .ff-tip {
+    display: flex;
+  }
+}
+.ff-spell-bay:has(:focus-visible) .ff-tip {
   display: flex;
 }
 .ff-tip b {
