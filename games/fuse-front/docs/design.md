@@ -211,6 +211,17 @@ E3b adds the controls (`src/app/targeting.ts`, pure and tested):
 - Q W E R cast a `self` spell at once. A `point` or `unit` spell starts aiming instead: the battlefield draws its range
   around the hero and its area under the cursor, and rings the bodies a unit spell may take. A left click casts it, and
   a right click or Esc cancels. A click out of reach keeps aiming.
+- Shift queues: Shift + right-click on the ground or an enemy queues a move or an attack, Shift + A-click an
+  attack-move (attack-move stays armed for the next waypoint), and Shift + Q W E R or Shift + an aiming click a cast,
+  its reach measured from where the route ends. Releasing Shift cancels nothing. On touch, the HUD's QUEUE toggle does
+  the same as holding Shift. While anything is queued, both renderers draw the route: a leg from the hero through each
+  waypoint, with a marker per order kind (green move, amber attack-move with an inner ring, red double ring on an
+  attack's target, violet cast with a centre dot), fading along the route.
+
+  ![Three moves and an attack queued with Shift + right-click: the route from the hero through each waypoint](images/command-queue.png)
+
+  `preview/queue-shot.mjs` takes this shot against a running service.
+
 - The cursor turns into a pointer over an enemy.
 - Each spell button has a steel tooltip with the name, description, cost, cooldown, range, radius and unlock level.
 - The HUD's TGT row, under the hero's bars, names what the hero shoots, with its hit points, and marks it FOCUS when

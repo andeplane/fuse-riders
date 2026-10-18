@@ -14,6 +14,7 @@ import {
   type WorldView,
 } from "../engine/view.js";
 import { EventDedupe, type StampedEvent } from "../render/cues.js";
+import { ROUTE_HEX, routeMarks } from "../render/route.js";
 import {
   NO_OVERLAY,
   TARGET_HEX,
@@ -91,6 +92,9 @@ const TEAM_RGB = TEAM_HEX.map(rgb);
 const NEUTRAL_RGB = rgb(NEUTRAL_HEX);
 const teamRgb = (team: number) => TEAM_RGB[team] ?? NEUTRAL_RGB;
 const TARGET_RGB = rgb(TARGET_HEX);
+const ROUTE_RGB = Object.fromEntries(
+  Object.entries(ROUTE_HEX).map(([kind, hex]) => [kind, rgb(hex)]),
+) as unknown as Record<keyof typeof ROUTE_HEX, readonly number[]>;
 const BADGE_RGB = rgb(0xf4f0e0);
 const SELF_RGB = rgb(SELF_HEX),
   BAR_BACK = rgb(0x101010),
@@ -728,6 +732,16 @@ export class Field3D implements Renderer {
     };
     const p = this.heroBefore.get(hero.seat) ?? hero;
     const hx = p.x + (hero.x - p.x) * t, hz = p.y + (hero.y - p.y) * t;
+    // The queued route: a leg to each waypoint and its rings, in its kind's colour, dimming along the way.
+    for (const m of routeMarks(hero.route, hx, hz)) {
+      const colour = ROUTE_RGB[m.kind].map((c) => c * m.fade);
+      // The marker is a solid band (the bodies' ring), its second ring a thin one; the leg is a doubled aim line.
+      const [px, py, pz] = at(m.x, m.y), [outer, inner] = m.rings;
+      this.slot("ring").batch.push(px, py, pz, 0, outer / TILE, 1, outer / TILE, colour);
+      if (inner > 0) this.slot("aimRing").batch.push(px, py, pz, 0, inner / TILE, 1, inner / TILE, colour);
+      const [ax, ay, az] = at(m.fromX, m.fromY), length = Math.hypot(px - ax, pz - az);
+      if (length > 0.01) this.slot("aimLine").batch.push((ax + px) / 2, (ay + py) / 2, (az + pz) / 2, Math.atan2(px - ax, pz - az), 2, 1, length, colour);
+    }
     const o = this.overlay;
     if (o.range > 0) ring(hx, hz, o.range);
     if (o.area > 0 && o.cursor) ring(o.cursor.x, o.cursor.y, o.area);

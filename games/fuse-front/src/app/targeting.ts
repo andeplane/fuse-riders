@@ -1,6 +1,7 @@
 /**
  * Targeting, as pure functions of a `WorldView` for this device's seat: what a click means (right-click an enemy to
- * attack it, the ground to move; A then click to attack-move; a spell key to aim, a left click to cast), which bodies
+ * attack it, the ground to move; A then click to attack-move; a spell key to aim, a left click to cast; with Shift held
+ * or the HUD's QUEUE on, each of these queues behind the hero's current order instead), which bodies
  * an aimed unit spell may take, the overlay a battlefield draws while aiming, a spell's tooltip and the target panel.
  * The engine decides what actually happens; these only choose what to ask of it.
  */
@@ -117,18 +118,23 @@ export const modeFor = (
 
 /** What the next click means: nothing armed, an attack-move armed (A), or a spell slot aiming. */
 export type Mode =
-  { kind: "idle" } | { kind: "attackMove" } | { kind: "aim"; slot: number };
+  | { kind: "idle" }
+  | { kind: "attackMove" }
+  /** `queued` when Shift (or QUEUE) armed it: the cast queues even if Shift is let go before the click. */
+  | { kind: "aim"; slot: number; queued?: true };
 export const IDLE: Mode = { kind: "idle" };
 
 export type Intent =
-  | { kind: "move" | "attackMove"; x: number; y: number }
-  | { kind: "attack"; of: number; id: number }
+  | { kind: "move" | "attackMove"; x: number; y: number; queued?: true }
+  | { kind: "attack"; of: number; id: number; queued?: true }
   | {
       kind: "cast";
       slot: number;
       x: number;
       y: number;
       target?: { of: number; id: number };
+      /** Set when the order goes behind the hero's route. */
+      queued?: true;
     }
   | { kind: "factory"; id: number }
   /** Leave the armed mode; `none` keeps it (a click out of reach). */
@@ -141,6 +147,22 @@ const within = (a: { x: number; y: number }, b: typeof a, r: number) =>
   (a.x - b.x) ** 2 + (a.y - b.y) ** 2 <= r * r;
 
 /**
+ * Where an order measures its reach from: the hero, or for a queued one where its route leaves it standing, the last
+ * move or attack-move waypoint (`HeroView.route`); a cast or an attack on the way does not move it there.
+ */
+export function origin(
+  world: WorldView,
+  seat: number,
+  queued: boolean,
+): { x: number; y: number } | undefined {
+  const hero = heroOf(world, seat);
+  const walks = queued
+    ? hero?.route.filter((s) => s.kind === "move" || s.kind === "attackMove")
+    : undefined;
+  return walks?.at(-1) ?? hero;
+}
+
+/**
  * The bodies an aimed `unit` spell in `slot` may take, within its reach of the hero: an enemy unit or hero for
  * SNIPE, an enemy light tank for HIJACK, a hurt friend (not a ruined fort) for REPAIR BEAM.
  */
@@ -148,8 +170,10 @@ export function spellTargets(
   world: WorldView,
   seat: number,
   slot: number,
+  queued = false,
 ): Body[] {
   const hero = heroOf(world, seat);
+  const from = origin(world, seat, queued);
   const spell = hero && KITS[hero.kind][slot];
   if (!hero || spell?.targeting !== "unit") return [];
   const ours = teamOf(seat);
@@ -166,11 +190,14 @@ export function spellTargets(
     return spell.effect !== "hijack" || body.kind === "lightTank";
   };
   return bodies(world).filter(
-    (body) => take(body) && within(body, hero, spell.range + AIM_SLACK),
+    (body) => take(body) && within(body, from!, spell.range + AIM_SLACK),
   );
 }
 
-/** What a click with `button` (0 left, 2 right) on `tile` asks for in `mode`. */
+/**
+ * What a click with `button` (0 left, 2 right) on `tile` asks for in `mode`; `queued` (Shift, or the HUD's QUEUE)
+ * puts a move, attack-move, attack or cast behind the hero's current order, its reach measured from the route's end.
+ */
 export function clickIntent(
   world: WorldView,
   seat: number,
@@ -178,10 +205,13 @@ export function clickIntent(
   tile: { x: number; y: number },
   button: number,
   factory?: number,
+  queued = false,
 ): Intent {
   if (mode.kind !== "idle" && button !== 0) return { kind: "cancel" };
   const { x, y } = tile;
-  if (mode.kind === "attackMove") return { kind: "attackMove", x, y };
+  if (mode.kind === "aim" && mode.queued) queued = true;
+  const q = queued ? { queued: true as const } : {};
+  if (mode.kind === "attackMove") return { kind: "attackMove", x, y, ...q };
   if (mode.kind === "aim") {
     const hero = heroOf(world, seat);
     const spell = hero && KITS[hero.kind][mode.slot];
@@ -192,27 +222,33 @@ export function clickIntent(
         world,
         tile,
         () => true,
-        spellTargets(world, seat, slot),
+        spellTargets(world, seat, slot, queued),
       );
-      return body
-        ? { kind: "cast", slot, x, y, target: { of: body.of, id: body.id } }
+      const target = body && { of: body.of, id: body.id };
+      return target
+        ? { kind: "cast", slot, x, y, target, ...q }
         : { kind: "none" };
     }
     const aim = { x: (x + 0.5) * TILE, y: (y + 0.5) * TILE };
-    return within(aim, hero, spell.range + AIM_SLACK)
-      ? { kind: "cast", slot, x, y }
+    return within(aim, origin(world, seat, queued)!, spell.range + AIM_SLACK)
+      ? { kind: "cast", slot, x, y, ...q }
       : { kind: "none" };
   }
   if (button === 0 && factory !== undefined)
     return { kind: "factory", id: factory };
   const enemy = bodyAt(world, tile, isEnemy(seat));
-  if (enemy) return { kind: "attack", of: enemy.of, id: enemy.id };
-  return { kind: "move", x, y };
+  if (enemy) return { kind: "attack", of: enemy.of, id: enemy.id, ...q };
+  return { kind: "move", x, y, ...q };
 }
+
+/** The mode a click leaves: a queued attack-move stays armed for the next waypoint, anything else disarms. */
+export const modeAfter = (mode: Mode, intent: Intent): Mode =>
+  intent.kind === "attackMove" && intent.queued ? mode : IDLE;
 
 /**
  * A spell key or button pressed in `mode`: a `self` spell casts at once on the hero's tile, an aimed one arms (or,
- * pressed again, disarms) aiming. Nothing happens for a spell that is not ready.
+ * pressed again, disarms) aiming. Nothing happens for a spell that is not ready, unless `queued`: a queued spell
+ * waits its turn behind the route, so it need not be ready now.
  */
 export function pressSpell(
   world: WorldView,
@@ -220,15 +256,19 @@ export function pressSpell(
   mode: Mode,
   slot: number,
   ready: boolean,
+  queued = false,
 ): { mode: Mode; cast?: { x: number; y: number } } {
   const hero = heroOf(world, seat);
   const spell = hero && KITS[hero.kind][slot];
-  if (!hero || !spell || !ready) return { mode };
+  if (!hero || !spell || spell.passive || !(ready || queued)) return { mode };
   if (spell.targeting === "self") {
     return { mode: IDLE, cast: heroTile(world, seat) };
   }
   const again = mode.kind === "aim" && mode.slot === slot;
-  return { mode: again ? IDLE : { kind: "aim", slot } };
+  if (again) return { mode: IDLE };
+  return {
+    mode: queued ? { kind: "aim", slot, queued } : { kind: "aim", slot },
+  };
 }
 
 /** What the battlefield draws for `mode` with the cursor over `tile` (sub-pixels). */
