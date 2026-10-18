@@ -36,6 +36,7 @@ import {
   bodyAt,
   clickIntent,
   isEnemy,
+  modeFor,
   overlayOf,
   pressSpell,
   type Mode,
@@ -172,8 +173,14 @@ function room(code: string, token: string | undefined, display: boolean): void {
   // What the next map click means, and the tile under the mouse, for the aiming overlay.
   let mode: Mode = IDLE;
   let cursor: { x: number; y: number } | undefined;
+  // The overlay is rebuilt only when the view, the mode or the tile under the cursor changed.
+  let drawn = "";
+  let drawnFor: WorldView | undefined;
   const refresh = () => {
-    if (shown) field.overlay = overlayOf(shown, runtime.slot(), mode, cursor);
+    const key = `${mode.kind}:${mode.kind === "aim" ? mode.slot : ""}:${cursor?.x},${cursor?.y}`;
+    if (!shown || (shown === drawnFor && key === drawn)) return;
+    [drawn, drawnFor] = [key, shown];
+    field.overlay = overlayOf(shown, runtime.slot(), mode, cursor);
   };
   const arm = (next: Mode) => {
     mode = next;
@@ -249,6 +256,8 @@ function room(code: string, token: string | undefined, display: boolean): void {
     const world = view.world!;
     const slot = runtime.slot();
     hud.update(world, slot, slotsOf(view, runtime.self));
+    // Aiming ends with the hero (dead, watching, or between matches).
+    if (modeFor(world, slot, mode) !== mode) arm(IDLE);
     if (mode.kind !== "idle" || cursor) refresh();
     const countdown = Math.max(
       0,
@@ -522,6 +531,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
   });
   canvas.addEventListener("pointerleave", () => {
     hover = cursor = undefined;
+    canvas.classList.remove("ff-hostile");
     refresh();
   });
   canvas.addEventListener("contextmenu", (event) => event.preventDefault());

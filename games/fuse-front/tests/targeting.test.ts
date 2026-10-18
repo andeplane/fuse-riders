@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   SPELL_INFO,
   centreOf,
+  step,
   viewOf,
   type World,
 } from "../src/engine/index.js";
@@ -10,6 +11,7 @@ import { keyAction } from "../src/app/hud-state.js";
 import {
   IDLE,
   clickIntent,
+  modeFor,
   overlayOf,
   pressSpell,
   spellTargets,
@@ -193,4 +195,44 @@ test("a new chosen target pulses once, fading over PULSE_MS", () => {
     "picked, not chosen",
   );
   assert.equal(pulse.of(fort, 3000), 1, "chosen again");
+});
+
+test("aiming ends with the hero, and a cloaked hero or an enemy factory is never attacked", () => {
+  const world = arena("vix", 1, "vix");
+  const aim: Mode = { kind: "aim", slot: 2 };
+  assert.equal(modeFor(view(world), 0, aim), aim);
+  assert.equal(modeFor(view(world), -1, aim), IDLE, "watching");
+  assert.equal(modeFor(undefined, 0, aim), IDLE, "between matches");
+  world.heroes[0]!.hp = 0;
+  assert.equal(modeFor(view(world), 0, aim), IDLE, "dead");
+  const live = arena("brick", 1, "vix");
+  const foe = { hp: 300, respawn: 0, x: centreOf(9), y: centreOf(6) };
+  Object.assign(live.heroes[1]!, foe);
+  const at = (x: number, y: number) =>
+    clickIntent(view(live), 0, IDLE, { x, y }, RIGHT).kind;
+  assert.equal(at(9, 6), "attack");
+  live.heroes[1]!.cloak = 5;
+  assert.equal(at(9, 6), "move", "cloaked");
+  const site = map.sites[TINY.robotFactory]!;
+  live.sectors[site.sector] = 1;
+  assert.equal(at(site.x, site.y), "move", "a factory is taken, not shot");
+});
+
+test("REPAIR BEAM's marks are the engine's: a hurt friendly factory is one, and the cast heals it", () => {
+  const world = arena("rivet");
+  const site = map.sites[TINY.robotFactory]!;
+  world.sectors[site.sector] = 0;
+  const factory = world.buildings.find((b) => b.id === TINY.robotFactory)!;
+  factory.hp -= 100;
+  const marks = spellTargets(view(world), 0, 0).map((b) => [b.of, b.id]);
+  assert.deepEqual(marks, [[2, TINY.robotFactory]]);
+  const aim: Mode = { kind: "aim", slot: 0 };
+  const intent = clickIntent(view(world), 0, aim, site, LEFT);
+  assert.ok(intent.kind === "cast" && intent.target);
+  const { slot, x, y, target } = intent;
+  const healed = step(map, world, [
+    { seat: 0, type: "cast", slot, x, y, ...target },
+  ]);
+  const after = healed.buildings.find((b) => b.id === TINY.robotFactory)!;
+  assert.ok(after.hp > factory.hp);
 });

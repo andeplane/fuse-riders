@@ -31,21 +31,30 @@ export interface Body {
   kind: string;
   hp: number;
   maxHp: number;
+  /** A CLOAKed hero: no enemy may pick it, though a friend's REPAIR BEAM may. */
+  cloaked: boolean;
 }
 
-/** Every body in the view: units, living uncloaked heroes, and turrets and forts with an owner (ruins too). */
-export function bodies(world: WorldView): Body[] {
-  const out: Body[] = world.units.map((u) => ({ ...u, of: 0, id: u.id }));
+/** `bodies` per view: a view never changes, so each is listed once however often the cursor asks. */
+const listed = new WeakMap<WorldView, readonly Body[]>();
+
+/** Every body in the view: units, living heroes, and buildings with an owner (ruins too). */
+export function bodies(world: WorldView): readonly Body[] {
+  const known = listed.get(world);
+  if (known) return known;
+  const out: Body[] = world.units.map((u) => ({ ...u, of: 0, cloaked: false }));
   for (const h of world.heroes)
-    if (h.hp > 0 && !h.cloaked) out.push({ ...h, of: 1, id: h.seat });
+    if (h.hp > 0) out.push({ ...h, of: 1, id: h.seat, cloaked: h.cloaked });
   for (const b of world.buildings)
-    if ((b.kind === "turret" || b.kind === "fort") && b.team >= 0)
+    if (b.team >= 0)
       out.push({
         ...b,
         of: 2,
         x: (b.x + 0.5) * TILE,
         y: (b.y + 0.5) * TILE,
+        cloaked: false,
       });
+  listed.set(world, out);
   return out;
 }
 
@@ -66,9 +75,24 @@ export function bodyAt(
   return best;
 }
 
-/** An enemy of `seat` that `attack` may name: alive and, for a building, still standing. */
+/** An enemy of `seat` that `attack` may name: alive, uncloaked, and for a building a standing turret or fort. */
 export const isEnemy = (seat: number) => (body: Body) =>
-  seat >= 0 && body.team !== teamOf(seat) && body.hp > 0;
+  seat >= 0 &&
+  body.team !== teamOf(seat) &&
+  body.hp > 0 &&
+  !body.cloaked &&
+  (body.of !== 2 || body.kind === "turret" || body.kind === "fort");
+
+/**
+ * The mode a new view leaves armed: aiming and attack-moves end when the seat has no living hero (dead, watching, or
+ * between matches), so a stale crosshair never outlives the hero that armed it.
+ */
+export const modeFor = (
+  world: WorldView | undefined,
+  seat: number,
+  mode: Mode,
+): Mode =>
+  mode.kind !== "idle" && !(world && heroOf(world, seat)) ? IDLE : mode;
 
 /** What the next click means: nothing armed, an attack-move armed (A), or a spell slot aiming. */
 export type Mode =
@@ -109,13 +133,15 @@ export function spellTargets(
   if (!hero || spell?.targeting !== "unit") return [];
   const ours = teamOf(seat);
   const take = (body: Body): boolean => {
+    // As the engine's REPAIR BEAM (`mends`): any hurt friend, a ruined turret too, never a ruined fort.
     if (spell.effect === "repair")
       return (
         body.team === ours &&
         body.hp < body.maxHp &&
         (body.hp > 0 || body.kind !== "fort")
       );
-    if (body.team === ours || body.hp <= 0 || body.of === 2) return false;
+    if (body.team === ours || body.hp <= 0 || body.of === 2 || body.cloaked)
+      return false;
     return spell.effect !== "hijack" || body.kind === "lightTank";
   };
   return bodies(world).filter(
@@ -251,8 +277,12 @@ export function targetPanel(
 } | null {
   const target = heroOf(world, seat)?.target;
   if (!target) return null;
-  const of = target.of === "unit" ? 0 : target.of === "hero" ? 1 : 2;
-  const body = bodies(world).find((b) => b.of === of && b.id === target.id);
+  const body =
+    target.of === "unit"
+      ? world.units.find((u) => u.id === target.id)
+      : target.of === "hero"
+        ? world.heroes.find((h) => h.seat === target.id)
+        : world.buildings.find((b) => b.id === target.id);
   if (!body) return null;
   return {
     name: label(body.kind),
