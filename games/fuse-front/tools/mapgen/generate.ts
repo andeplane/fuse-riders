@@ -133,7 +133,9 @@ function attempt(t: Template, rand: Rand): MapFile | undefined {
       // Spread over the top half; the middle row's own pair collapses to one crossing.
       const y = Math.floor(((i + 1) * H) / (2 * count + 1));
       crossings.push({ y, bridge: i < t.river.bridges });
-      crossings.push({ y: H - 3 - y, bridge: i < t.river.bridges });
+      // Its pair about the middle row, unless it is the middle crossing itself.
+      if (H - 3 - y !== y)
+        crossings.push({ y: H - 3 - y, bridge: i < t.river.bridges });
     }
     for (let y = 1; y < H - 1; y++) {
       const near = crossings.some((c) => y >= c.y - 4 && y <= c.y + 7);
@@ -219,7 +221,8 @@ function attempt(t: Template, rand: Rand): MapFile | undefined {
   for (let at = 0; at < W * H; at++)
     if (!reached[at] && walk(grid[at]!)) grid[at] = "#";
 
-  // Placement: a west tile is free when it and its image are open and unclaimed.
+  // Placement: a west tile is free when it and its image are open and unclaimed. A factory's door is always the tile
+  // below it (`loadMap`), so under a half turn its partner's door is not its door's image: both must be open.
   const claimed = new Set<number>();
   const open = (x: number, y: number) =>
     get(x, y) === "." && !claimed.has(y * W + x);
@@ -301,6 +304,8 @@ function attempt(t: Template, rand: Rand): MapFile | undefined {
     claim(at.x, at.y, false);
     pair(at, flags);
   }
+  // A template's flag count is a promise: a draw that could not fit them all is drawn again.
+  if (flags.length / 2 < want) return;
   // A factory beside most neutral flags; turrets at the crossings and on the plateaus.
   const homes = forts.length * 2;
   for (let i = homes; i < flags.length; i += 2) {
