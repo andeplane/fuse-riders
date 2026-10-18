@@ -12,11 +12,14 @@
  * - A unit with an enemy in range (`combat.ts`), or stunned (`spells.ts`), stands instead of seeking; separation still
  *   applies.
  * - FOLLOW: stays within `HOLD_RADIUS` of the owner's hero, or holds the owner's fort while it is dead (`FOLLOW_HERO`).
+ * - While the owner's FLARE burns (`spells.ts`), a PUSHing robot makes for its tile instead (`FLARE`), taking the flag
+ *   there if it is one; when it goes out the robot picks again.
  */
 import { DIRS, UNREACHABLE, flowField, openTile } from "./flow.js";
 import type { GameMap } from "./map.js";
 import { clamp, div, isqrt } from "./math.js";
 import {
+  BLITZ_SPEED,
   HOLD_CROWD,
   HOLD_RADIUS,
   RALLY_SPEED,
@@ -72,11 +75,14 @@ function enemyForts(map: GameMap, world: World, team: number): number[] {
  * only flags and forts; one tile per hero (plus each hero's `move` goal) goes to the roaming cache (`flow.ts`).
  */
 export const FOLLOW_HERO = -2;
+/** A PUSHing robot's goal while its owner's FLARE burns (`spells.ts`): the flare's tile, from the roaming cache. */
+export const FLARE = -3;
 
-/** The tile a unit's goal points at now: its own tile index, or for `FOLLOW_HERO` its hero's (or fort's) tile. */
+/** The tile a unit's goal points at now: its own tile index, its hero's (or fort's) tile, or its hero's flare. */
 function goalTile(map: GameMap, world: World, unit: Unit): number {
-  if (unit.goal !== FOLLOW_HERO) return unit.goal;
+  if (unit.goal >= -1) return unit.goal;
   const hero = world.heroes.find((each) => each.seat === unit.owner);
+  if (unit.goal === FLARE) return hero?.flare ?? -1;
   return hero !== undefined && hero.hp > 0
     ? tileOf(hero.y) * map.width + tileOf(hero.x)
     : fortTile(map, unit.owner);
@@ -120,6 +126,10 @@ function pickGoal(
   const flags = map.flags.map((flag) => flag.y * map.width + flag.x);
   if (stance === "follow") return FOLLOW_HERO;
   if (stance === "push") {
+    // A flare the robot can walk to; one cut off from it leaves its usual goal.
+    const flare = world.heroes.find((each) => each.seat === unit.owner)?.flare;
+    if (flare !== undefined && flare >= 0 && UNITS[unit.kind].robot)
+      if (flowField(map, flare, true).cost[from] !== UNREACHABLE) return FLARE;
     const goal = nearest(
       map,
       from,
@@ -176,7 +186,7 @@ function seek(map: GameMap, world: World, unit: Unit): [number, number] {
   const goal = goalTile(map, world, unit);
   if (goal < 0) return [0, 0];
   const at = tileIndex(map, unit);
-  const field = flowField(map, goal, unit.goal === FOLLOW_HERO);
+  const field = flowField(map, goal, unit.goal < -1);
   const cost = field.cost[at]!;
   if (cost === UNREACHABLE) return [0, 0];
   const flag = flagOnTile(map, goal);
@@ -196,10 +206,18 @@ function seek(map: GameMap, world: World, unit: Unit): [number, number] {
   const tx = target % map.width;
   const dx = centreOf(tx) - unit.x,
     dy = centreOf((target - tx) / map.width) - unit.y;
-  const speed =
-    unit.rally > 0
-      ? div(UNITS[unit.kind].speed * (100 + RALLY_SPEED), 100)
-      : UNITS[unit.kind].speed;
+  // RALLY CRY and its owner's BLITZ (in the sector its hero stands in) each add their share.
+  const hero = world.heroes.find((each) => each.seat === unit.owner);
+  const sector = (x: number, y: number) =>
+    map.sectorOf[tileOf(y) * map.width + tileOf(x)];
+  const blitz =
+    hero !== undefined &&
+    hero.blitz > 0 &&
+    hero.hp > 0 &&
+    UNITS[unit.kind].robot &&
+    sector(hero.x, hero.y) === sector(unit.x, unit.y);
+  const boost = (unit.rally > 0 ? RALLY_SPEED : 0) + (blitz ? BLITZ_SPEED : 0);
+  const speed = div(UNITS[unit.kind].speed * (100 + boost), 100);
   const length = isqrt(dx * dx + dy * dy);
   if (length <= speed) return [dx, dy];
   return [div(dx * speed, length), div(dy * speed, length)];

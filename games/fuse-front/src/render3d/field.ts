@@ -77,6 +77,7 @@ const UNIT_MODELS: readonly ModelKind[] = [
   "grunt",
   "torch",
   "lightTank",
+  "sentry",
   "tankTurret",
   ...HERO_KINDS,
 ];

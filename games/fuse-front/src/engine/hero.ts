@@ -1,6 +1,7 @@
 /**
- * Heroes: one per player, Brick for now. A hero walks to the tile `move` sent it to along that tile's flow field, or
- * in the held `steer` direction (the latest command wins; steering clears a move and a move releases the stick). It
+ * Heroes: one per player, of the kind picked for it (`HEROES`). A hero walks to the tile `move` sent it to along
+ * that tile's flow field, or in the held `steer` direction (the latest command wins; steering clears a move and a
+ * move releases the stick). It
  * shoots while it walks (`combat.ts`), takes flags like a robot (`step.ts`), and gains XP for kills, assists and
  * captures; its level, and with it its hit points, energy and damage, follows from its XP. A dead hero waits a delay
  * that grows with its level and respawns on its fort's tile. Heroes do not push or get pushed by units.
@@ -8,14 +9,18 @@
 import { DIRS, UNREACHABLE, flowField } from "./flow.js";
 import type { GameMap } from "./map.js";
 import { div, isqrt } from "./math.js";
-import { centreOf, settle, tileOf } from "./move.js";
+import { FLARE, centreOf, settle, tileOf } from "./move.js";
 import {
   ASSIST_RADIUS,
   HERO,
+  HEROES,
+  HERO_XP,
+  HERO_XP_PER_LEVEL,
   MAX_LEVEL,
   STEER_MAX,
   XP_STEP,
   teamOf,
+  type HeroKind,
 } from "./tuning.js";
 import { fortSite, type Hero, type World } from "./world.js";
 
@@ -31,14 +36,14 @@ export function levelOf(xp: number): number {
   return level;
 }
 
-export const maxHp = (level: number): number =>
-  HERO.hp + HERO.hpPerLevel * (level - 1);
+export const maxHp = (level: number, kind: HeroKind = "brick"): number =>
+  HEROES[kind].hp + HEROES[kind].hpPerLevel * (level - 1);
 export const maxEnergy = (level: number): number =>
   HERO.energy + HERO.energyPerLevel * (level - 1);
 /** A hero's gun at a level, shaped like `UnitStats` for `combat.ts`. */
-export const heroShot = (level: number) => ({
-  range: HERO.range,
-  damage: HERO.damage + HERO.damagePerLevel * (level - 1),
+export const heroShot = (level: number, kind: HeroKind = "brick") => ({
+  range: HEROES[kind].range,
+  damage: HEROES[kind].damage + HEROES[kind].damagePerLevel * (level - 1),
   cooldown: HERO.cooldown,
   siege: HERO.siege,
 });
@@ -46,6 +51,31 @@ export const respawnSteps = (level: number): number =>
   HERO.respawn + HERO.respawnPerLevel * level;
 
 export const alive = (hero: Hero): boolean => hero.hp > 0;
+
+/**
+ * A hero falls to `killer`'s seat: it waits to respawn with its gun at rest, its move, CLOAK, BLITZ and FLARE gone.
+ * Returns the XP the kill is worth, for the caller to `award`.
+ */
+export function fell(world: World, hero: Hero, killer: number): number {
+  const { seat, x, y } = hero;
+  const level = levelOf(hero.xp);
+  Object.assign(hero, {
+    hp: 0,
+    respawn: respawnSteps(level),
+    cooldown: 0,
+    goal: -1,
+    quiet: 0,
+    cloak: 0,
+    blitz: 0,
+    flare: -1,
+    flareLeft: 0,
+  });
+  // Its FLARE goes out with it, releasing the robots it drew.
+  for (const unit of world.units)
+    if (unit.owner === seat && unit.goal === FLARE) unit.goal = -1;
+  world.events.push({ type: "heroDeath", seat, killer, x, y });
+  return HERO_XP + HERO_XP_PER_LEVEL * level;
+}
 
 /** The `DIRS` index nearest a direction: an axis counts when it is at least 0.4 of the other. */
 export function facingOf(dx: number, dy: number, facing: number): number {
@@ -63,7 +93,8 @@ export function gainXp(world: World, hero: Hero, amount: number): void {
   hero.xp = hero.xp + amount < MAX_XP ? hero.xp + amount : MAX_XP;
   const after = levelOf(hero.xp);
   if (after === before) return;
-  if (alive(hero)) hero.hp += maxHp(after) - maxHp(before);
+  if (alive(hero))
+    hero.hp += maxHp(after, hero.kind) - maxHp(before, hero.kind);
   hero.energy += maxEnergy(after) - maxEnergy(before);
   world.events.push({ type: "levelUp", seat: hero.seat, level: after });
 }
@@ -95,9 +126,10 @@ export function award(
 /** This step's velocity: the stick's direction, scaled by its magnitude, else the next flow-field tile's centre. */
 function velocity(map: GameMap, hero: Hero): [number, number] {
   const { steerX: sx, steerY: sy } = hero;
+  const speed = HEROES[hero.kind].speed;
   if (sx !== 0 || sy !== 0) {
     const length = isqrt(sx * sx + sy * sy);
-    const scale = HERO.speed * (length < STEER_MAX ? length : STEER_MAX);
+    const scale = speed * (length < STEER_MAX ? length : STEER_MAX);
     return [
       div(sx * scale, length * STEER_MAX),
       div(sy * scale, length * STEER_MAX),
@@ -119,11 +151,11 @@ function velocity(map: GameMap, hero: Hero): [number, number] {
   const dx = centreOf(tx) - hero.x,
     dy = centreOf((target - tx) / map.width) - hero.y;
   const length = isqrt(dx * dx + dy * dy);
-  if (length <= HERO.speed) {
+  if (length <= speed) {
     if (target === hero.goal) hero.goal = -1;
     return [dx, dy];
   }
-  return [div(dx * HERO.speed, length), div(dy * HERO.speed, length)];
+  return [div(dx * speed, length), div(dy * speed, length)];
 }
 
 /** Walks every living hero one step, by seat. */
@@ -152,14 +184,15 @@ export function tendHeroes(map: GameMap, world: World): void {
         hero.energy++;
       const healed = calm ? hero.hp + HERO.regen : hero.hp;
       if (healed > hero.hp)
-        hero.hp = healed < maxHp(level) ? healed : maxHp(level);
+        hero.hp =
+          healed < maxHp(level, hero.kind) ? healed : maxHp(level, hero.kind);
       continue;
     }
     if (--hero.respawn > 0) continue;
     const fort = fortSite(map, hero.seat);
     hero.x = centreOf(fort.x);
     hero.y = centreOf(fort.y);
-    hero.hp = maxHp(level);
+    hero.hp = maxHp(level, hero.kind);
     world.events.push({
       type: "respawn",
       seat: hero.seat,
