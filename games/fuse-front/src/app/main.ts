@@ -294,7 +294,11 @@ function room(code: string, token: string | undefined, display: boolean): void {
       const img = new Img(PORTRAIT_SIZE, PORTRAIT_SIZE);
       portrait(img, 0, 0, kind, slot.team ? "blue" : "red");
       const choice = el("button", "", "ff-hero");
-      choice.append(pixels(img), el("span", kind.toUpperCase()));
+      const art = pixels(img);
+      art.style.width = "32px";
+      choice.append(art);
+      choice.title = kind.toUpperCase();
+      choice.setAttribute("aria-label", kind);
       choice.classList.toggle("ff-on", slot.hero === kind);
       choice.setAttribute("aria-pressed", String(slot.hero === kind));
       choice.disabled = !host;

@@ -66,34 +66,31 @@
 }
 .ff-heroes {
   display: flex;
+  flex-wrap: wrap;
   flex-basis: 100%;
   gap: 4px;
   margin-top: 4px;
 }
-.ff-hero {
+.ff-heroes .ff-hero {
   display: grid;
-  justify-items: center;
-  gap: 2px;
   padding: 2px;
-  font: inherit;
-  font-size: 10px;
-  color: #c8bfa4;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 0;
   background: var(--ff-plate);
   border: 2px solid var(--ff-steel);
   cursor: pointer;
 }
 .ff-hero canvas {
-  width: 36px;
   image-rendering: pixelated;
 }
-.ff-hero:disabled {
+.ff-heroes .ff-hero:disabled {
   cursor: default;
   opacity: 0.55;
 }
-.ff-hero.ff-on {
+.ff-heroes .ff-hero.ff-on {
   opacity: 1;
   border-color: var(--ff-hazard);
-  color: var(--ff-hazard);
 }
 .ff-cycle {
   color: var(--ff-hazard);
