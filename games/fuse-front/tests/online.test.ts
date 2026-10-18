@@ -139,6 +139,24 @@ test("an ATTACK entry focuses the rider's hero, and an ATTACK_MOVE sends it on a
   assert.equal(room.world!.heroes[0]!.sweep, 1);
 });
 
+test("a queued MOVE entry goes behind the hero's current order, and a plain one clears the queue", () => {
+  const { room, entries } = match({ size: 1 });
+  log(room, entries, "host", MOVE, "match-1", 20, 20);
+  log(room, entries, "host", MOVE, "match-1", 22, 20, 1);
+  log(room, entries, "host", ATTACK_MOVE, "match-1", 24, 20, 1);
+  log(room, entries, "host", CAST, "match-1", 0, 24, 20, 1);
+  fold(room, entries, 1);
+  const hero = room.world!.heroes[0]!;
+  assert.deepEqual(hero.queue, [
+    { type: "move", x: 22, y: 20 },
+    { type: "attackMove", x: 24, y: 20 },
+    { type: "cast", slot: 0, x: 24, y: 20, of: -1, id: -1 },
+  ]);
+  log(room, entries, "host", MOVE, "match-1", 21, 21);
+  fold(room, entries, 1);
+  assert.deepEqual(room.world!.heroes[0]!.queue, []);
+});
+
 test("a friend who joins mid-match takes over a bot's slot, and hands it back on leaving", () => {
   const room = createRoom("lobby", DEFAULT_SETTINGS);
   const entries: Log = new Map();
@@ -232,6 +250,12 @@ test("isEntry takes well-formed controls and refuses anything out of shape or ra
     [1, 1, ATTACK, "m", 0, 12],
     [1, 1, ATTACK, "m", 2, 3],
     [1, 1, ATTACK_MOVE, "m", 255, 255],
+    // Queued (shift-click): the same args and a trailing 1.
+    [1, 1, MOVE, "m", 3, 4, 1],
+    [1, 1, ATTACK_MOVE, "m", 3, 4, 1],
+    [1, 1, ATTACK, "m", 0, 12, 1],
+    [1, 1, CAST, "m", 3, 0, 0, 1],
+    [1, 1, CAST, "m", 0, 9, 6, 0, 12, 1],
     [1, 1, JOIN, "a", "Ann", 5, "brick", 1],
     [1, 1, ACTION, "start", "m"],
   ];
@@ -260,6 +284,13 @@ test("isEntry takes well-formed controls and refuses anything out of shape or ra
     [1, 1, ATTACK, "m", 0, 2 ** 53],
     [1, 1, ATTACK_MOVE, "m", 256, 0],
     [1, 1, ATTACK_MOVE, "m", 0, 0, 0],
+    [1, 1, MOVE, "m", 0, 0, 2],
+    [1, 1, MOVE, "m", 0, 0, 1, 1],
+    [1, 1, ATTACK, "m", 0, 1, true],
+    [1, 1, ATTACK, "m", 0, 1, 1, 1],
+    [1, 1, CAST, "m", 0, 0, 0, 0, 1, 0],
+    [1, 1, CAST, "m", 0, 0, 0, 0, 1, 1, 1],
+    [1, 1, STEER, "m", 0, 0, 1],
     [1, 1, 7, "m", 0, 0],
     [1, 1, ORDER, "m", 999, 0],
     [1, 1, ORDER, "m", 0, 3],

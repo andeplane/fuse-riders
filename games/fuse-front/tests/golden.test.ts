@@ -17,22 +17,22 @@ import { dustBasin } from "./fixtures/maps.js";
 
 /**
  * The engine's safety net: six seats (every hero kind) on Dust Basin for 1500 log ticks with scripted factory orders, stances, hero
- * moves, steering and casts (the ultimates refused below level 6), the units walking their stances' flow fields, taking flags and fighting, the heroes levelling,
+ * moves, steering, casts (the ultimates refused below level 6) and a queued route, the units walking their stances' flow fields, taking flags and fighting, the heroes levelling,
  * dying and respawning. The world's hash is compared every 250 ticks. A refactor must keep these; a change to the
  * rules must bump `RULES` in `src/engine/tuning.ts` and re-record them in the same commit: `GOLDEN_RECORD=1` prints
  * the new ones.
  */
 const GOLDEN = {
-  rules: "fuse-front-10",
+  rules: "fuse-front-11",
   seed: "fuse-front golden",
   ticks: 1500,
   hashes: [
-    "2c440128",
-    "8ee82073",
-    "919ce14e",
-    "00cd5aa8",
-    "99474c8d",
-    "640e3917",
+    "95f00cf0",
+    "630e3507",
+    "bd97715a",
+    "91ad9102",
+    "782289e4",
+    "d421fa9a",
   ],
 };
 
@@ -73,6 +73,16 @@ const SCRIPT = new Map<number, Command[]>([
   [720, [{ seat: 0, type: "attack", of: 1, id: 1 }]],
   [760, [{ seat: 5, type: "attack", of: 2, id: FORT0 }]],
   [1100, [{ seat: 1, type: "cast", slot: 0, x: 0, y: 0, of: 1, id: 0 }]],
+  // A shift-clicked route (`orders.ts`): a move, then an attack on seat 5's hero, a STICKY MINE and a move back.
+  [
+    1050,
+    [
+      { seat: 4, type: "move", x: 36, y: 41 },
+      { seat: 4, type: "attack", of: 1, id: 5, queued: true },
+      { seat: 4, type: "cast", slot: 2, x: 36, y: 41, queued: true },
+      { seat: 4, type: "move", x: 47, y: 27, queued: true },
+    ],
+  ],
 ]);
 
 /** Each seat orders torches from every robot factory it holds on tick 400 and grunts again on tick 1000. */

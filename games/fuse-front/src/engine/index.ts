@@ -7,6 +7,7 @@ export * from "./flow.js";
 export * from "./move.js";
 export * from "./combat.js";
 export * from "./focus.js";
+export * from "./orders.js";
 export * from "./hero.js";
 export * from "./spells.js";
 export * from "./codec.js";

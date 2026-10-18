@@ -1,5 +1,6 @@
 /**
- * One engine step: spell timers (`spells.ts`), the step's commands (casts take effect here), the heroes' energy and
+ * One engine step: spell timers (`spells.ts`), the step's commands (casts take effect here), idle heroes' queued
+ * orders (`orders.ts`), the heroes' energy and
  * respawns (`hero.ts`), goals (`move.ts`), combat (`combat.ts`), focused heroes' chase (`focus.ts`), movement of units then heroes, STICKY MINEs
  * (`spells.ts`), capture and production. `step` never mutates the world it is given: it copies the arrays and records
  * (players, sectors, buildings, units, heroes, mines) and returns a new world, so the netcode can keep the previous
@@ -8,6 +9,13 @@
  */
 import { MAX_ID, isInt } from "./codec.js";
 import { chase, dropFocus, enemyAt } from "./focus.js";
+import {
+  advanceOrders,
+  clearQueue,
+  enqueue,
+  startAttack,
+  startMove,
+} from "./orders.js";
 import { fight } from "./combat.js";
 import { OVERCLOCK_PERCENT, cast, tickMines, tickSpells } from "./spells.js";
 import { openTile } from "./flow.js";
@@ -53,15 +61,22 @@ import {
  * dead hero too: the stick stays held, and a move made while dead is walked after the respawn. `cast` fires the
  * hero's slot 0–3 (Q, W, E, R) aimed at a tile (`spells.ts`); one that cannot be cast does nothing. `attack` focuses
  * the living hero on an enemy (`MARKS` index and id, `focus.ts`), which a later `move`, `attackMove`, held `steer` or
- * `attack` replaces; `attackMove` is a `move` on which the hero stands to fight whatever comes in range.
+ * `attack` replaces; `attackMove` is a `move` on which the hero stands to fight whatever comes in range. A `move`,
+ * `attackMove`, `attack` or `cast` marked `queued` goes behind the hero's current order instead (`orders.ts`).
  */
 export type Command =
   | { seat: number; type: "order"; factory: number; kind: UnitKind }
   | { seat: number; type: "stance"; stance: Stance }
-  | { seat: number; type: "move"; x: number; y: number }
+  | { seat: number; type: "move"; x: number; y: number; queued?: boolean }
   | { seat: number; type: "steer"; dx: number; dy: number }
-  | { seat: number; type: "attack"; of: number; id: number }
-  | { seat: number; type: "attackMove"; x: number; y: number }
+  | { seat: number; type: "attack"; of: number; id: number; queued?: boolean }
+  | {
+      seat: number;
+      type: "attackMove";
+      x: number;
+      y: number;
+      queued?: boolean;
+    }
   | {
       seat: number;
       type: "cast";
@@ -71,6 +86,7 @@ export type Command =
       /** A `unit` spell's chosen target (`MARKS` index and id); without it the spell takes what stands nearest the aim. */
       of?: number;
       id?: number;
+      queued?: boolean;
     };
 
 export function step(
@@ -95,6 +111,7 @@ export function step(
   };
   tickSpells(next);
   applyCommands(map, next, commands);
+  advanceOrders(map, next);
   tendHeroes(map, next);
   chooseGoals(map, next);
   const { engaged, heroes } = fight(map, next);
@@ -155,9 +172,11 @@ function applyCommands(
       const { x, y } = command;
       if (!isInt(x, 0, map.width - 1) || !isInt(y, 0, map.height - 1)) continue;
       if (!openTile(map, x, y)) continue;
-      dropFocus(hero);
-      [hero.goal, hero.steerX, hero.steerY] = [y * map.width + x, 0, 0];
-      hero.sweep = command.type === "attackMove" ? 1 : 0;
+      if (command.queued) enqueue(hero, { type: command.type, x, y });
+      else {
+        clearQueue(hero);
+        startMove(map, hero, x, y, command.type === "attackMove");
+      }
     } else if (command.type === "steer") {
       const hero = world.heroes.find((each) => each.seat === player.seat)!;
       const { dx, dy } = command;
@@ -166,6 +185,7 @@ function applyCommands(
       // Releasing the stick leaves a move or focus alone; holding it cancels them.
       if (dx !== 0 || dy !== 0) {
         dropFocus(hero);
+        clearQueue(hero);
         [hero.goal, hero.sweep] = [-1, 0];
       }
       [hero.steerX, hero.steerY] = [dx, dy];
@@ -176,9 +196,11 @@ function applyCommands(
       if (!isInt(id, 0, MAX_ID)) continue;
       if (enemyAt(map, world, teamOf(hero.seat), of, id) === undefined)
         continue;
-      dropFocus(hero);
-      Object.assign(hero, { focusOf: of, focus: id, goal: -1, sweep: 0 });
-      [hero.steerX, hero.steerY] = [0, 0];
+      if (command.queued) enqueue(hero, { type: "attack", of, id });
+      else {
+        clearQueue(hero);
+        startAttack(hero, of, id);
+      }
     } else if (command.type === "cast") {
       const { slot, x, y, of, id } = command;
       if (!isInt(slot, 0, 3) || !isInt(x, 0, map.width - 1)) continue;
@@ -187,15 +209,26 @@ function applyCommands(
       const chosen = of !== undefined || id !== undefined;
       if (chosen && (!isInt(of, 0, MARKS.length - 1) || !isInt(id, 0, MAX_ID)))
         continue;
-      cast(
-        map,
-        world,
-        world.heroes.find((h) => h.seat === player.seat)!,
-        slot,
-        x,
-        y,
-        chosen ? { of: of!, id: id! } : undefined,
-      );
+      const hero = world.heroes.find((h) => h.seat === player.seat)!;
+      if (command.queued)
+        enqueue(hero, {
+          type: "cast",
+          slot,
+          x,
+          y,
+          of: chosen ? of! : -1,
+          id: chosen ? id! : -1,
+        });
+      else
+        cast(
+          map,
+          world,
+          hero,
+          slot,
+          x,
+          y,
+          chosen ? { of: of!, id: id! } : undefined,
+        );
     } else if (command.type === "order") {
       const building = world.buildings.find(
         (each) => each.id === command.factory,
