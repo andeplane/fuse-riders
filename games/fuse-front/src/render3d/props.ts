@@ -36,15 +36,22 @@ export function propSpots(terrain: readonly string[]): Record<PropKind, Prop[]> 
 /** A crater's raised rim and scorched floor, a pair of tyre ruts, and a bent plate with a wheel and a crate. */
 // prettier-ignore
 function shapes(): Record<PropKind, THREE.BufferGeometry> {
-  const merge = (list: THREE.BufferGeometry[]) => {
-    const flat = list.map((g) => { const f = g.index ? g.toNonIndexed() : g; f.deleteAttribute("uv"); return shade(f, 0, 0.15); });
+  // `dim` darkens a piece's baked colour: a crater's floor is scorched under its sandy rim.
+  const merge = (list: THREE.BufferGeometry[], dim = [1, 1, 1]) => {
+    const flat = list.map((g, i) => {
+      const f = g.index ? g.toNonIndexed() : g;
+      f.deleteAttribute("uv");
+      const c = shade(f, 0, 0.15).getAttribute("color").array as Float32Array;
+      for (let k = 0; k < c.length; k++) c[k]! *= dim[i]!;
+      return f;
+    });
     const out = mergeGeometries(flat)!;
     for (const g of new Set([...list, ...flat])) g.dispose();
     return out;
   };
   return {
     crater: merge([new THREE.TorusGeometry(0.42, 0.08, 5, 18).rotateX(Math.PI / 2).scale(1, 0.45, 1),
-      new THREE.CircleGeometry(0.42, 18).rotateX(-Math.PI / 2).translate(0, 0.012, 0)]),
+      new THREE.CircleGeometry(0.42, 18).rotateX(-Math.PI / 2).translate(0, 0.012, 0)], [1.6, 0.5]),
     tracks: merge([-1, 1].map((s) => new THREE.PlaneGeometry(0.1, 1.7, 1, 8).rotateX(-Math.PI / 2).translate(s * 0.17, 0.015, 0))),
     scrap: merge([new THREE.BoxGeometry(0.34, 0.025, 0.22).rotateZ(0.35).translate(0, 0.05, 0),
       new THREE.CylinderGeometry(0.08, 0.08, 0.04, 10).rotateX(1.3).translate(0.2, 0.06, 0.12),
@@ -53,7 +60,7 @@ function shapes(): Record<PropKind, THREE.BufferGeometry> {
 }
 
 const LOOKS: Record<PropKind, THREE.MeshStandardMaterialParameters> = {
-  crater: { color: 0x7a5e44, roughness: 1 },
+  crater: { color: 0x9a7a58, roughness: 1 },
   tracks: {
     color: 0x5a4430,
     roughness: 1,

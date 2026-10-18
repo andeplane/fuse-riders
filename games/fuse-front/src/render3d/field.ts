@@ -97,7 +97,9 @@ const AIM_HOLD = 80;
 /** Effects waiting for the next frame at most; a burst past it (a long stall) drops the rest. */
 const MAX_PENDING = 512;
 /** Heroes draw a size up from their models so they stand over the line at the default zoom. */
-const HERO_SCALE = 1.3;
+const HERO_SCALE = 1.45;
+/** Units draw a size up too, so each kind reads at the default zoom; the smallest grow most. */
+const UNIT_SCALE: Record<UnitKind, number> = { grunt: 1.35, torch: 1.25, lightTank: 1.1, sentry: 1.25 }; // prettier-ignore
 const PLAIN = [1, 1, 1] as const;
 /** HDR lamp colours by team (mines' blinkers), and the marks SPOTTER puts over a unit, FLARE's beacon and BLITZ's lines. */
 const LAMP: readonly (readonly number[])[] = [[4, 1.1, 0.5], [0.6, 1.4, 4.5]]; // prettier-ignore
@@ -482,7 +484,7 @@ export class Field3D implements Renderer {
       const moving = Math.abs(u.x - p.x) + Math.abs(u.y - p.y) >= 2;
       if (moving) this.facing.set(u.id, Math.atan2(u.x - p.x, u.y - p.y));
       const yaw = this.facing.get(u.id) ?? (u.team === 0 ? Math.PI / 2 : -Math.PI / 2);
-      const s = u.stunned ? 0.85 : 1, tank = u.kind === "lightTank", lift = y + bob(moving, now, u.id, tank);
+      const s = (u.stunned ? 0.85 : 1) * UNIT_SCALE[u.kind], tank = u.kind === "lightTank", lift = y + bob(moving, now, u.id, tank);
       const tint = teamRgb(u.team), kick = recoil(now - (this.fired.get(u.id + 1) ?? -1e9));
       // Tanks and sentries turn their guns onto what they shoot and kick back along them when they fire.
       const gun = tank || u.kind === "sentry" ? approachAngle(this.gunYaw.get(u.id + 1) ?? yaw, this.aimOf(u.id + 1, world.step) ?? yaw, SLEW * dt) : yaw;
@@ -496,9 +498,9 @@ export class Field3D implements Renderer {
       }
       this.legs(u.kind, x, lift, z, yaw, s, moving, now, u.id);
       if (this.blitzing(world, u.owner) && moving && u.kind !== "sentry") this.speedLines(x, lift, z, yaw, now + u.id * 37);
-      const top = tank ? 0.6 : 0.75;
+      const top = tank ? 0.65 : 0.85;
       if (u.spotted) this.slot("mark").batch.push(x, y + top + 0.2 + Math.sin(now / 200 + u.id) * 0.03, z, now / 300, 0.06, 0.06, 0.06, SPOT_RGB);
-      const r = RING[u.kind];
+      const r = RING[u.kind] * UNIT_SCALE[u.kind];
       this.slot("ring").batch.push(x, y, z, 0, r, 1, r, tint);
       if (u.hp < u.maxHp) this.bar(x, y + top, z, u.hp / u.maxHp, 0.6);
     }
@@ -542,7 +544,7 @@ export class Field3D implements Renderer {
       }
       const r = RING.hero;
       this.slot("heroRing").batch.push(x, y, z, 0, r, 1, r, hero.seat === self ? SELF_RGB : teamRgb(hero.team));
-      this.bar(x, y + 1.45, z, hero.hp / hero.maxHp, 1);
+      this.bar(x, y + 1.75, z, hero.hp / hero.maxHp, 1);
     }
     rig.clampRig(this.rig, world.width, world.height);
     for (let i = 0; i < world.buildings.length; i++) {
