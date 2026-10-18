@@ -185,7 +185,11 @@ Bot-vs-bot matches at every difficulty pairing must end within about 15 minutes 
 - Maps grow to about the scale of Z and StarCraft: roughly 192×128 tiles for 1v1 and up to 256×192 for 3v3, with
   30–50 sectors.
 - A deterministic map generator writes them as JSON from a seed and a template, with mirror symmetry for fairness.
-  Dust Basin stays as the small map.
+  Dust Basin stays as the small map. `tools/mapgen/generate.ts` draws the west half (river with bridges and fords,
+  cliff-ringed plateaus with ramps, lakes, rock clusters), copies it east as a mirror or a half turn, places forts,
+  Poisson-disc flags, a factory mix and turrets at the crossings and ramps, fills ground no fort can reach with rock,
+  and checks the result with `loadMap` and the engine's flow fields. `tools/mapgen/templates.ts` holds the templates;
+  `pnpm exec tsx games/fuse-front/tools/mapgen.ts` writes `maps/<id>.json` and `--check` confirms they are current.
 - Engine cost stays inside the rollback budget. Flow fields use typed arrays, the cache is sized to the map, and per-step
   work stays roughly linear in unit count. E4 builds each field lazily (`src/engine/flow.ts`): a bucket-queue Dijkstra
   settles tiles only until the one asked about is settled, so a FOLLOW field around a moving hero costs a few tiles,
