@@ -9,6 +9,7 @@ import {
   type HeroKind,
 } from "../engine/index.js";
 import type { Settings, View } from "../online/game.js";
+import { mapsFor, resolveMap } from "../online/maps.js";
 
 export const TEAMS = ["RED", "BLUE"] as const;
 export const SIZES = [1, 2, 3] as const;
@@ -95,4 +96,16 @@ export function pickHero(
   );
   heroes[slot] = kind;
   return { ...settings, heroes };
+}
+
+/** The maps the lobby offers at the settings' size, the one a start would play lit (the size's default if none). */
+export function mapOptions(
+  settings: Settings,
+): { id: string; label: string; on: boolean }[] {
+  const playing = resolveMap(settings.map, settings.size);
+  return mapsFor(settings.size).map((choice) => ({
+    id: choice.id,
+    label: `${choice.name} ${choice.width}×${choice.height}`,
+    on: choice.id === playing,
+  }));
 }

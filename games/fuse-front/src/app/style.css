@@ -40,6 +40,9 @@
   gap: 8px;
   justify-content: center;
 }
+.ff-maps {
+  flex-wrap: wrap;
+}
 .ff-sizes .ff-on {
   outline: 3px solid var(--ff-hazard);
 }
