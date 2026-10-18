@@ -1,4 +1,5 @@
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { loadMap, type MapFile } from "../src/engine/index.js";
 import {
@@ -132,4 +133,18 @@ test("a template the generator cannot honour is refused up front", () => {
   assert.throws(() => generate({ ...base, width: 191 }), /width/);
   assert.throws(() => generate({ ...base, flags: 33 }), /flags/);
   assert.throws(() => generate({ ...base, players: 6, height: 40 }), /height/);
+});
+
+test("the committed maps are exactly what their templates generate (`tools/mapgen.ts --check`)", () => {
+  for (const [id, file] of generated) {
+    const committed = readFileSync(
+      new URL(`../maps/${id}.json`, import.meta.url),
+      "utf8",
+    );
+    assert.equal(
+      committed,
+      formatMap(file),
+      `maps/${id}.json: run tools/mapgen.ts`,
+    );
+  }
 });
