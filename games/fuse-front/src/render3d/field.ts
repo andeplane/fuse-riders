@@ -17,6 +17,15 @@ import { EventDedupe, type StampedEvent } from "../render/cues.js";
 import type { Renderer } from "../render/renderer.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { Batch } from "./instances.js";
+import { FX_LAYER, FxLayer } from "./effects3d.js";
+import {
+  QualityGovernor,
+  cuesOf,
+  type Cue,
+  type CueContext,
+  type Quality,
+} from "./fx.js";
+import { Look, addRim, desertSky } from "./post.js";
 import {
   HERO_KINDS,
   RING,
@@ -38,7 +47,10 @@ import {
   WATER_Y,
   DECK_Y,
   hash,
+  distanceTo,
+  heightAt,
   heightField,
+  wet,
   normalMap,
   standY,
   terrainBuffers,
@@ -72,6 +84,8 @@ const UNIT_MODELS: readonly ModelKind[] = [
 const SLEW = 0.004;
 /** Steps a gun keeps its aim after its last shot. */
 const AIM_HOLD = 80;
+/** Effects waiting for the next frame at most; a burst past it (a long stall) drops the rest. */
+const MAX_PENDING = 512;
 /** Heroes draw a size up from their models so they stand over the line at the default zoom. */
 const HERO_SCALE = 1.25;
 
@@ -119,9 +133,16 @@ export class Field3D implements Renderer {
   private readonly gl: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(rig.FOV, 1, 0.5, 200);
-  private readonly sun = new THREE.DirectionalLight(0xfff1d6, 2.6);
+  private readonly sun = new THREE.DirectionalLight(0xffe0b0, 3.2);
   private readonly rig: rig.Rig = { x: 0, z: 0, distance: rig.START };
   private readonly dedupe = new EventDedupe();
+  private readonly fx = new FxLayer();
+  private readonly look: Look;
+  private readonly governor: QualityGovernor;
+  /** The newest world drawn and its units by id, for placing effects. */
+  private latest: WorldView | undefined;
+  private readonly unitsNow = new Map<number, UnitView>();
+  private readonly pending: Cue[] = [];
   /** Lives as long as the renderer: unit bodies, team materials, textures. */
   private readonly owned: { dispose(): void }[] = [];
   /** Lives for one match: the ground, water, rocks, bridges, buildings and flags. */
@@ -179,20 +200,29 @@ export class Field3D implements Renderer {
   private cssW = 1;
   private cssH = 1;
 
-  /** Throws when the canvas cannot give a WebGL2 context; the page then falls back to the pixel battlefield. */
+  /**
+   * Throws when the canvas cannot give a WebGL2 context; the page then falls back to the pixel battlefield. Without a
+   * forced `quality` it starts high and drops to low when frames run slow.
+   */
   // prettier-ignore
-  constructor(readonly canvas: HTMLCanvasElement) {
+  constructor(readonly canvas: HTMLCanvasElement, quality?: Quality) {
     this.gl = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
     this.gl.shadowMap.enabled = true;
+    this.governor = new QualityGovernor(quality);
     this.gl.shadowMap.type = THREE.PCFShadowMap;
+    this.look = new Look(this.gl, this.scene, this.camera, this.governor.level);
+    this.camera.layers.enable(FX_LAYER);
     this.gl.toneMapping = THREE.ACESFilmicToneMapping;
     this.gl.outputColorSpace = THREE.SRGBColorSpace;
     const haze = new THREE.Color(0xd6c3a0);
     this.scene.background = haze;
     this.scene.fog = new THREE.Fog(haze, 30, 80);
-    this.scene.add(new THREE.HemisphereLight(0xc8dcf0, 0x9a7448, 1.1));
+    this.scene.add(new THREE.HemisphereLight(0xc8dcf0, 0x9a7448, 0.55), this.fx.group);
+    this.scene.environment = this.keep(desertSky(this.gl, new THREE.Vector3(-30, 28, 14)));
+    this.scene.environmentIntensity = 0.55;
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
+    this.sun.shadow.radius = 3;
     Object.assign(this.sun.shadow, { bias: -0.0005, normalBias: 0.03 });
     this.scene.add(this.sun, this.sun.target, this.matchGroup);
 
@@ -202,7 +232,10 @@ export class Field3D implements Renderer {
     this.neutralMat = std(NEUTRAL_HEX);
     this.wreckMat = std(WRECK_HEX, 0.9, 0.1);
     this.paints = paintMaterials();
-    for (const m of Object.values(this.paints)) this.owned.push(m, ...(m.map ? [m.map] : []));
+    for (const m of Object.values(this.paints)) {
+      addRim(m);
+      this.owned.push(m, ...(m.map ? [m.map] : []));
+    }
     this.owned.push(this.cloth, this.puffGeo, this.puffMat);
     const parts = (model: Model) => model.map((p) => this.keep(p.geometry) && p);
     for (const [i, kind] of (["fort", "robotFactory", "vehicleFactory", "turret"] as const).entries()) {
@@ -216,7 +249,10 @@ export class Field3D implements Renderer {
     // Procedural detail, no image files: ripples for the water, fine grain for the sand.
     const size = 128;
     this.waterNormal = this.keep(dataTexture(normalMap(tileNoise(size, 8, 11), size, 6), size));
-    this.sandNormal = this.keep(dataTexture(normalMap(tileNoise(size, 16, 5), size, 3), size));
+    // Wind ripples two to a tile, bent by a slow noise so they meander, over fine grain.
+    const grain = tileNoise(size, 16, 5), bend = tileNoise(size, 3, 6);
+    const ripples = grain.map((g, i) => g * 0.7 + 0.06 * Math.sin(((i % size) / size * 8 + bend[i]! * 4) * Math.PI * 2));
+    this.sandNormal = this.keep(dataTexture(normalMap(ripples, size, 4), size));
 
     const flat = (order: number) => this.keep(new THREE.MeshBasicMaterial({
       depthTest: order === 0, toneMapped: false, fog: false, transparent: order > 0,
@@ -251,8 +287,7 @@ export class Field3D implements Renderer {
   resize(cssW: number, cssH: number, dpr: number): void {
     this.cssW = Math.max(1, cssW);
     this.cssH = Math.max(1, cssH);
-    this.gl.setPixelRatio(Math.min(2, dpr));
-    this.gl.setSize(this.cssW, this.cssH);
+    this.look.setSize(this.cssW, this.cssH, dpr);
     this.camera.aspect = this.cssW / this.cssH;
     this.camera.updateProjectionMatrix();
   }
@@ -312,9 +347,33 @@ export class Field3D implements Renderer {
       : undefined;
   }
 
-  /** Effects arrive in G3; until then an event is only deduped. */
+  /**
+   * Queues an engine event's effects once per match, however often rollback delivers it. They start on the next
+   * frame, on its clock, so even a flash shorter than a slow frame is seen once.
+   */
   event(matchId: string, stamped: StampedEvent): void {
-    this.dedupe.accept(matchId, stamped);
+    if (!this.dedupe.accept(matchId, stamped) || matchId !== this.matchId)
+      return;
+    if (this.latest && this.pending.length < MAX_PENDING)
+      this.pending.push(...cuesOf(stamped.event, this.cueContext(this.latest)));
+  }
+
+  // prettier-ignore
+  private cueContext(world: WorldView): CueContext {
+    return {
+      kindOf: (id) => this.unitsNow.get(id)?.kind,
+      teamOf: (mark) => mark.of === "unit" ? this.unitsNow.get(mark.id)?.team ?? -1
+        : mark.of === "hero" ? world.heroes.find((h) => h.seat === mark.id)?.team ?? -1
+        : world.buildings.find((b) => b.id === mark.id)?.team ?? -1,
+      site: (id) => {
+        const b = world.buildings.find((each) => each.id === id);
+        return b && { x: b.x + 0.5, z: b.y + 0.5 };
+      },
+      heroAt: (seat) => {
+        const h = world.heroes.find((each) => each.seat === seat);
+        return h && { x: h.x / TILE, z: h.y / TILE, team: h.team };
+      },
+    };
   }
 
   /** Copies the rig onto the camera, the sun's shadow box and the fog. */
@@ -340,7 +399,7 @@ export class Field3D implements Renderer {
       sx = Math.round(this.rig.x / texel) * texel,
       sz = Math.round(this.rig.z / texel) * texel;
     this.sun.target.position.set(sx, 0, sz);
-    this.sun.position.set(sx - 24, 40, sz + 18);
+    this.sun.position.set(sx - 30, 28, sz + 14);
     const fog = this.scene.fog as THREE.Fog;
     fog.near = this.rig.distance * 1.1;
     fog.far = this.rig.distance * 3;
@@ -358,6 +417,12 @@ export class Field3D implements Renderer {
       for (const h of older?.heroes ?? []) this.heroBefore.set(h.seat, h);
       if (this.facing.size > world.units.length * 2 + 64) this.forget();
     }
+    if (world !== this.latest) {
+      this.latest = world;
+      this.unitsNow.clear();
+      for (const u of world.units) this.unitsNow.set(u.id, u);
+    }
+    if (this.governor.sample(now - this.lastNow)) this.look.setQuality(this.governor.level);
     const dt = Math.min(100, Math.max(0, now - this.lastNow));
     this.lastNow = now;
     for (const e of world.events)
@@ -435,8 +500,12 @@ export class Field3D implements Renderer {
     }
     for (const slot of this.slotList) this.sync(slot);
     this.waterNormal.offset.set((now / 60000) % 1, (now / 23000) % 1);
+    const ground = (x: number, z: number) => standY(world, field, x, z);
+    for (const cue of this.pending) this.fx.play(cue, now, ground);
+    this.pending.length = 0;
+    this.fx.update(now);
     this.place();
-    this.gl.render(this.scene, this.camera);
+    this.look.render();
   }
 
   private aimAt(key: number, yaw: number, step: number): void {
@@ -483,6 +552,8 @@ export class Field3D implements Renderer {
         mesh.frustumCulled = false;
         mesh.castShadow = slot.shadow;
         mesh.renderOrder = slot.order;
+        // Rings and bars are markings, not things: no ambient occlusion under them.
+        if (!slot.shadow) mesh.layers.set(FX_LAYER);
         this.scene.add(mesh);
       }
     }
@@ -509,6 +580,9 @@ export class Field3D implements Renderer {
   private adopt(matchId: string, world: WorldView): void {
     if (matchId === this.matchId && this.field) return;
     this.clearMatch();
+    this.fx.clear();
+    this.pending.length = 0;
+    this.latest = undefined;
     this.matchId = matchId;
     this.follow = true;
     this.forget();
@@ -518,7 +592,7 @@ export class Field3D implements Renderer {
     this.rig.x = world.width / 2;
     this.rig.z = world.height / 2;
     const field = (this.field = heightField(world));
-    const buffers = terrainBuffers(field);
+    const buffers = terrainBuffers(field, 7, world);
     const geo = this.own(new THREE.BufferGeometry());
     geo.setAttribute("position", new THREE.BufferAttribute(buffers.positions, 3));
     geo.setAttribute("color", new THREE.BufferAttribute(buffers.colors, 3));
@@ -532,13 +606,18 @@ export class Field3D implements Renderer {
     this.ground = new THREE.Mesh(geo, sand);
     this.ground.receiveShadow = this.ground.castShadow = true;
     const W = world.width, H = world.height;
-    const water = new THREE.Mesh(
-      this.own(new THREE.PlaneGeometry(W, H).rotateX(-Math.PI / 2).translate(W / 2, WATER_Y, H / 2)),
-      this.own(new THREE.MeshStandardMaterial({
-        color: 0x2a5560, roughness: 0.08, metalness: 0.2, normalMap: this.waterNormal,
-        normalScale: new THREE.Vector2(0.5, 0.5), transparent: true, opacity: 0.82,
-      })),
-    );
+    // The river reflects the sky; foam lightens and thickens it within half a tile of a bank.
+    const waterGeo = this.own(new THREE.PlaneGeometry(W, H, W * 2, H * 2).rotateX(-Math.PI / 2).translate(W / 2, WATER_Y, H / 2));
+    const wp = waterGeo.getAttribute("position"), foam = new Float32Array(wp.count * 4);
+    for (let i = 0; i < wp.count; i++) {
+      const f = Math.max(0, 1 - distanceTo(world, wp.getX(i), wp.getZ(i), (c) => !wet(c), 0.6) / 0.6) ** 2;
+      foam.set([0.11 + 0.75 * f, 0.24 + 0.66 * f, 0.27 + 0.6 * f, 0.8 + 0.18 * f], i * 4);
+    }
+    waterGeo.setAttribute("color", new THREE.BufferAttribute(foam, 4));
+    const water = new THREE.Mesh(waterGeo, this.own(new THREE.MeshStandardMaterial({
+      vertexColors: true, roughness: 0.06, metalness: 0.1, normalMap: this.waterNormal,
+      normalScale: new THREE.Vector2(0.4, 0.4), transparent: true, envMapIntensity: 1.6,
+    })));
     water.receiveShadow = true;
     this.waterNormal.repeat.set(W / 4, H / 4);
     // An apron of plain desert around the map, so a camera at the edge sees ground rather than haze.
@@ -552,9 +631,12 @@ export class Field3D implements Renderer {
     this.matchGroup.add(this.ground, water, apron);
 
     // Rocks and bridge planks: one instanced mesh each, filled once.
-    const rocks: [number, number][] = [], planks: [number, number, boolean][] = [];
+    // Pebbles strewn over a fifth of the open sand, a few to a tile, drawn with the rocks.
+    const rocks: [number, number, number][] = [], planks: [number, number, boolean][] = [];
     world.terrain.forEach((row, y) => [...row].forEach((c, x) => {
-      if (c === "#") rocks.push([x, y]);
+      if (c === "#") rocks.push([x + 0.5, y + 0.5, 0.8 + hash(x, y, 9) * 0.6]);
+      if (c === "." && hash(x, y, 4) < 0.12)
+        for (let k = 0; k < 2; k++) rocks.push([x + hash(x, y, 20 + k), y + hash(x, y, 30 + k), 0.08 + hash(x, y, 40 + k) * 0.14]);
       if (c === "=") planks.push([x, y, row[x - 1] !== "~" && row[x + 1] !== "~"]);
     }));
     const rockGeo = this.own(new THREE.IcosahedronGeometry(0.55, 1));
@@ -569,10 +651,9 @@ export class Field3D implements Renderer {
     const plankMesh = this.own(new THREE.InstancedMesh(this.own(new THREE.BoxGeometry(1, 0.06, 0.2)),
       this.own(new THREE.MeshStandardMaterial({ color: 0x7a5432, roughness: 0.85 })), planks.length * 4));
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), s = new THREE.Vector3();
-    rocks.forEach(([x, y], i) => {
-      const r = hash(x, y, 9);
-      q.setFromAxisAngle(v.set(0, 1, 0), r * 6.28);
-      m.compose(v.set(x + 0.5, 0.1 + r * 0.2, y + 0.5), q, s.setScalar(0.8 + r * 0.6));
+    rocks.forEach(([x, z, size], i) => {
+      q.setFromAxisAngle(v.set(0, 1, 0), size * 40);
+      m.compose(v.set(x, size < 0.5 ? heightAt(field, x, z) : 0.1 + (size - 0.8) / 3, z), q, s.setScalar(size));
       rockMesh.setMatrixAt(i, m);
     });
     planks.forEach(([x, y, across], i) => {
@@ -647,6 +728,8 @@ export class Field3D implements Renderer {
 
   dispose(): void {
     this.clearMatch();
+    this.fx.dispose();
+    this.look.dispose();
     for (const slot of this.slotList)
       for (const part of slot.parts) part.mesh?.dispose();
     for (const thing of this.owned) thing.dispose();
