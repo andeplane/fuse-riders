@@ -138,13 +138,13 @@ function velocity(map: GameMap, hero: Hero): [number, number] {
   if (hero.goal < 0) return [0, 0];
   const at = tileOf(hero.y) * map.width + tileOf(hero.x);
   const field = flowField(map, hero.goal, true);
-  if (field.cost[at] === UNREACHABLE) {
+  if (field.cost(at) === UNREACHABLE) {
     hero.goal = -1;
     return [0, 0];
   }
   let target = hero.goal;
   if (at !== hero.goal) {
-    const [dx, dy] = DIRS[field.next[at]!]!;
+    const [dx, dy] = DIRS[field.next(at)]!;
     target = at + dy * map.width + dx;
   }
   const tx = target % map.width;
