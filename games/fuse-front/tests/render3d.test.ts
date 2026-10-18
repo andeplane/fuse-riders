@@ -12,6 +12,7 @@ import {
   normalMap,
   standY,
   terrainBuffers,
+  terrainChunks,
 } from "../src/render3d/terrain.js";
 
 // Open sand, a cliff, a river and a bridge: each tile is 3 × 3 vertices inside, shared edges averaged.
@@ -157,4 +158,34 @@ test("a pick through the screen centre lands on the tile the rig looks at", () =
   ray.setFromCamera(new THREE.Vector2(0, -0.9), camera);
   const bottom = ray.intersectObject(ground)[0]!;
   assert.ok(top.point.z < bottom.point.z);
+});
+
+test("the ground's chunks tile the map and together hold exactly the whole mesh's triangles", () => {
+  const map = {
+    width: 150,
+    height: 70,
+    terrain: Array.from({ length: 70 }, () => ".".repeat(150)),
+  };
+  const field = heightField(map, 2);
+  const chunks = terrainChunks(field, 64);
+  assert.deepEqual(
+    chunks.map((c) => [c.x0, c.z0, c.x1, c.z1]),
+    [
+      [0, 0, 64, 64],
+      [64, 0, 128, 64],
+      [128, 0, 150, 64],
+      [0, 64, 64, 70],
+      [64, 64, 128, 70],
+      [128, 64, 150, 70],
+    ],
+  );
+  const triangles = (indices: Uint32Array) => {
+    const out: string[] = [];
+    for (let k = 0; k < indices.length; k += 3)
+      out.push(`${indices[k]},${indices[k + 1]},${indices[k + 2]}`);
+    return out;
+  };
+  const whole = triangles(terrainBuffers(field).indices).sort();
+  const parts = chunks.flatMap((c) => triangles(c.indices)).sort();
+  assert.deepEqual(parts, whole);
 });

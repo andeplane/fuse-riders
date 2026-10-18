@@ -87,7 +87,19 @@ export interface Hero {
   /** Tally's FLARE: the tile it marks (or -1) and the steps it has left (0 exactly when there is none). */
   flare: number;
   flareLeft: number;
+  /**
+   * The enemy `attack` told it to shoot (`focus.ts`): its `MARKS` index (-1 for none) and id, and the steps in a row it
+   * has been out of range. While it has one, `goal` is the tile it chases toward.
+   */
+  focusOf: number;
+  focus: number;
+  lost: number;
+  /** 1 while its `goal` is an attack-move: it stands to fight whatever comes in range on the way. */
+  sweep: number;
 }
+
+/** What a `focus` (and an aimed spell's target) can be: by index, a unit (id), a hero (seat) or a building (site id). */
+export const MARKS = ["unit", "hero", "building"] as const;
 
 /** Vix's STICKY MINE: where it lies (or rides), the steps it has left, and the unit it stuck to (-1 while armed). */
 export interface Mine {
@@ -285,6 +297,10 @@ export function freshHero(
     blitz: 0,
     flare: -1,
     flareLeft: 0,
+    focusOf: -1,
+    focus: -1,
+    lost: 0,
+    sweep: 0,
   };
 }
 

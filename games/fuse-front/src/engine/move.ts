@@ -106,7 +106,7 @@ function nearest(
     bestCost = UNREACHABLE;
   for (const goal of goals) {
     if (goal < 0) continue;
-    const cost = flowField(map, goal).cost[from]!;
+    const cost = flowField(map, goal).cost(from);
     if (cost === UNREACHABLE) continue;
     if (cost + extra(goal) < bestCost)
       [best, bestCost] = [goal, cost + extra(goal)];
@@ -129,7 +129,7 @@ function pickGoal(
     // A flare the robot can walk to; one cut off from it leaves its usual goal.
     const flare = world.heroes.find((each) => each.seat === unit.owner)?.flare;
     if (flare !== undefined && flare >= 0 && UNITS[unit.kind].robot)
-      if (flowField(map, flare, true).cost[from] !== UNREACHABLE) return FLARE;
+      if (flowField(map, flare, true).cost(from) !== UNREACHABLE) return FLARE;
     const goal = nearest(
       map,
       from,
@@ -187,7 +187,7 @@ function seek(map: GameMap, world: World, unit: Unit): [number, number] {
   if (goal < 0) return [0, 0];
   const at = tileIndex(map, unit);
   const field = flowField(map, goal, unit.goal < -1);
-  const cost = field.cost[at]!;
+  const cost = field.cost(at);
   if (cost === UNREACHABLE) return [0, 0];
   const flag = flagOnTile(map, goal);
   const capturing =
@@ -200,7 +200,7 @@ function seek(map: GameMap, world: World, unit: Unit): [number, number] {
   if (!capturing && !sieging && cost <= HOLD_RADIUS) return [0, 0];
   let target = goal;
   if (cost > 0) {
-    const [dx, dy] = DIRS[field.next[at]!]!;
+    const [dx, dy] = DIRS[field.next(at)]!;
     target = at + dy * map.width + dx;
   }
   const tx = target % map.width;

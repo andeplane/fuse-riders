@@ -23,12 +23,13 @@
 import { UNREACHABLE, flowField } from "./flow.js";
 import { alive, levelOf, maxHp } from "./hero.js";
 import type { GameMap } from "./map.js";
-import { div } from "./math.js";
+import { div, isqrt } from "./math.js";
 import { centreOf, tileOf } from "./move.js";
 import { fnv1a, next } from "./rng.js";
-import { kitOf } from "./spells.js";
+import { kitOf, type Chosen } from "./spells.js";
 import type { Command } from "./step.js";
 import {
+  HEROES,
   HERO_KINDS,
   STEPS_PER_TICK,
   STRAIGHT,
@@ -244,22 +245,23 @@ function heroCommands(
   const room = owned < unitCap(world, seat);
   const fighting = foes > 0;
   const hurt = hero.hp * 10 < maxHp(level, hero.kind) * 6;
-  /** The nearest enemy tank (or hero, with `heroes`) within `range`, as a tile to aim at. */
-  const prey = (range: number, heroes: boolean): [number, number] | null => {
-    let best: [number, number] | null = null,
+  /** The nearest enemy tank (or hero, with `heroes`) within `range`: its tile to aim at, and itself as the target. */
+  const prey = (range: number, heroes: boolean) => {
+    let best: { at: [number, number]; chosen: Chosen } | null = null,
       bestD = range * range + 1;
-    const consider = (x: number, y: number) => {
+    const consider = (x: number, y: number, of: number, id: number) => {
       const d = (x - hero.x) * (x - hero.x) + (y - hero.y) * (y - hero.y);
-      if (d < bestD) [best, bestD] = [[tileOf(x), tileOf(y)], d];
+      if (d < bestD)
+        [best, bestD] = [{ at: [tileOf(x), tileOf(y)], chosen: { of, id } }, d];
     };
     for (const unit of world.units)
       if (teamOf(unit.owner) !== team && unit.kind === "lightTank")
-        consider(unit.x, unit.y);
+        consider(unit.x, unit.y, 0, unit.id);
     if (heroes)
       for (const each of world.heroes)
         if (teamOf(each.seat) !== team && alive(each) && each.cloak === 0)
-          consider(each.x, each.y);
-    return best;
+          consider(each.x, each.y, 1, each.seat);
+    return best as { at: [number, number]; chosen: Chosen } | null;
   };
   const toward: [number, number] | null =
     goal >= 0 ? [goal % map.width, div(goal, map.width)] : null;
@@ -272,12 +274,29 @@ function heroCommands(
       hero.y,
       kit[1]!.range,
     );
-  // Per kit: [slot, whether it is called for, where to aim].
-  const plans: [number, boolean, [number, number] | null][] =
+  // DASH only reaches so far, so it aims at the point of its range on the way to the goal.
+  const dashTo = ((): [number, number] | null => {
+    if (toward === null) return null;
+    const [dx, dy] = [
+      centreOf(toward[0]) - hero.x,
+      centreOf(toward[1]) - hero.y,
+    ];
+    const length = isqrt(dx * dx + dy * dy);
+    const reach = kit[0]!.range - div(TILE, 2);
+    if (length <= reach) return toward;
+    return [
+      tileOf(hero.x + div(dx * reach, length)),
+      tileOf(hero.y + div(dy * reach, length)),
+    ];
+  })();
+  const hijack = prey(kit[3]!.range, false),
+    snipe = prey(kit[0]!.range, true);
+  // Per kit: [slot, whether it is called for, where to aim, the target it names].
+  const plans: [number, boolean, [number, number] | null, Chosen?][] =
     hero.kind === "vix"
       ? [
-          [3, room, prey(kit[3]!.range, false)],
-          [0, true, prey(kit[0]!.range, true)],
+          [3, room, hijack?.at ?? null, hijack?.chosen],
+          [0, true, snipe?.at ?? null, snipe?.chosen],
           [1, fighting && hurt, own],
           [2, prey(NEAR, false) !== null, own],
         ]
@@ -292,7 +311,7 @@ function heroCommands(
           ? [
               [3, allies >= profile.rally, own],
               [1, allies > 0 && !fighting && lit, toward],
-              [0, !fighting && goal >= 0, toward],
+              [0, !fighting && goal >= 0, dashTo],
             ]
           : [
               [0, profile.shockwave > 0 && crowd >= profile.shockwave, own],
@@ -307,13 +326,42 @@ function heroCommands(
     ([slot, wanted, aim]) => ready(slot) && wanted && aim,
   );
   if (plan !== undefined) {
-    const [slot, , [x, y]] = plan as [number, boolean, [number, number]];
-    commands.push({ seat, type: "cast", slot, x, y });
+    const [slot, , [x, y], chosen] = plan as [
+      number,
+      boolean,
+      [number, number],
+      Chosen?,
+    ];
+    commands.push({ seat, type: "cast", slot, x, y, ...chosen });
   }
 
-  if (goal >= 0 && goal !== at && goal !== hero.goal) {
+  // Focus fire on a hurt enemy hero in range; while a focus holds, the bot lets it run (`focus.ts` drops it).
+  const range = HEROES[hero.kind].range;
+  const quarry = world.heroes.find(
+    (each) =>
+      teamOf(each.seat) !== team &&
+      alive(each) &&
+      each.cloak === 0 &&
+      each.hp * 10 < maxHp(levelOf(each.xp), each.kind) * 4 &&
+      near(each.x, each.y, hero.x, hero.y, range),
+  );
+  if (quarry !== undefined && hero.focusOf < 0) {
+    commands.push({ seat, type: "attack", of: 1, id: quarry.seat });
+    return commands;
+  }
+  if (hero.focusOf >= 0) return commands;
+  // The way to an enemy fort is an attack-move: the hero stands to fight what it meets, beside its army.
+  const fort = map.sites.some(
+    (site) => site.kind === "fort" && site.y * map.width + site.x === goal,
+  );
+  if (
+    goal >= 0 &&
+    goal !== at &&
+    (goal !== hero.goal || fort !== hero.sweep > 0)
+  ) {
     const gx = goal % map.width;
-    commands.push({ seat, type: "move", x: gx, y: (goal - gx) / map.width });
+    const type = fort ? "attackMove" : "move";
+    commands.push({ seat, type, x: gx, y: (goal - gx) / map.width });
   }
   return commands;
 }
@@ -334,7 +382,7 @@ function heroGoal(
     const owner = world.sectors[index]!;
     if (owner !== NEUTRAL && teamOf(owner) === team) continue;
     const tile = flag.y * map.width + flag.x;
-    const cost = flowField(map, tile).cost[at]!;
+    const cost = flowField(map, tile).cost(at);
     if (cost === UNREACHABLE) continue;
     candidates.push([cost + (owner === NEUTRAL ? 0 : ENEMY_FLAG), tile]);
   }
@@ -356,7 +404,7 @@ function enemyFort(map: GameMap, world: World, team: number, at: number) {
     if (site.kind !== "fort" || building.hp <= 0) continue;
     if (teamOf(site.seat) === team) continue;
     const tile = site.y * map.width + site.x;
-    const cost = flowField(map, tile).cost[at]!;
+    const cost = flowField(map, tile).cost(at);
     if (cost < bestCost) [target, bestCost] = [tile, cost];
   }
   return target;

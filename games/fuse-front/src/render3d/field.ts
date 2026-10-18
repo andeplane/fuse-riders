@@ -14,7 +14,13 @@ import {
   type WorldView,
 } from "../engine/view.js";
 import { EventDedupe, type StampedEvent } from "../render/cues.js";
-import type { Renderer } from "../render/renderer.js";
+import {
+  NO_OVERLAY,
+  TARGET_HEX,
+  TargetPulse,
+  type Overlay,
+  type Renderer,
+} from "../render/renderer.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { Batch } from "./instances.js";
 import { FX_LAYER, FxLayer } from "./effects3d.js";
@@ -63,6 +69,9 @@ import {
   normalMap,
   standY,
   terrainBuffers,
+  terrainChunks,
+  resFor,
+  BIG_MAP,
   tileNoise,
   type HeightField,
 } from "./terrain.js";
@@ -79,6 +88,7 @@ const rgb = (hex: number) => {
 const TEAM_RGB = TEAM_HEX.map(rgb);
 const NEUTRAL_RGB = rgb(NEUTRAL_HEX);
 const teamRgb = (team: number) => TEAM_RGB[team] ?? NEUTRAL_RGB;
+const TARGET_RGB = rgb(TARGET_HEX);
 const SELF_RGB = rgb(SELF_HEX),
   BAR_BACK = rgb(0x101010),
   [GOOD, FAIR, POOR] = [0x6ad83a, 0xf8d030, 0xe8483c].map(rgb);
@@ -148,6 +158,8 @@ function dataTexture(data: Uint8Array, size: number) {
 
 export class Field3D implements Renderer {
   follow = true;
+  overlay: Overlay = NO_OVERLAY;
+  private readonly pulse = new TargetPulse();
   private readonly gl: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(rig.FOV, 1, 0.5, 200);
@@ -168,7 +180,8 @@ export class Field3D implements Renderer {
   private readonly matchGroup = new THREE.Group();
   private matchId = "";
   private field: HeightField | undefined;
-  private ground: THREE.Mesh | undefined;
+  /** The ground's chunks (`terrainChunks`), culled one by one. */
+  private ground: THREE.Mesh[] = [];
   private buildings: BuildingNode[] = [];
   private flags: THREE.Mesh[] = [];
   private readonly slots = new Map<string, Slot>();
@@ -309,6 +322,9 @@ export class Field3D implements Renderer {
     add("streak", plain(new THREE.BoxGeometry(1, 1, 1), glowing(0.55)), false, 7);
     add("ring", plain(ring, flat(0)), false);
     add("heroRing", plain(heroRing, flat(0)), false);
+    // Targeting: thin rings (radius 1, scaled) and a line one tile long down +z, drawn over everything.
+    add("aimRing", plain(new THREE.RingGeometry(0.93, 1, 64).rotateX(-Math.PI / 2).translate(0, 0.08, 0), flat(9)), false, 9);
+    add("aimLine", plain(new THREE.PlaneGeometry(0.06, 1).rotateX(-Math.PI / 2).translate(0, 0.08, 0), flat(9)), false, 9);
     add("barBack", plain(bar, flat(10)), false, 10);
     add("barFill", plain(bar.clone().translate(0, 0, 0.01), flat(11)), false, 11);
   }
@@ -373,8 +389,7 @@ export class Field3D implements Renderer {
     this.ndc.set((dx / this.cssW) * 2 - 1, 1 - (dy / this.cssH) * 2);
     this.raycaster.setFromCamera(this.ndc, this.camera);
     this.hits.length = 0;
-    if (this.ground)
-      this.raycaster.intersectObject(this.ground, false, this.hits);
+    this.raycaster.intersectObjects(this.ground, false, this.hits);
     const point =
       this.hits[0]?.point ??
       this.raycaster.ray.intersectPlane(this.plane, this.hit);
@@ -546,6 +561,7 @@ export class Field3D implements Renderer {
       this.slot("heroRing").batch.push(x, y, z, 0, r, 1, r, hero.seat === self ? SELF_RGB : teamRgb(hero.team));
       this.bar(x, y + 1.75, z, hero.hp / hero.maxHp, 1);
     }
+    this.targeting(world, field, t, self, now);
     rig.clampRig(this.rig, world.width, world.height);
     for (let i = 0; i < world.buildings.length; i++) {
       const b = world.buildings[i]!, node = this.buildings[i];
@@ -627,6 +643,36 @@ export class Field3D implements Renderer {
   private glow(rgb: readonly number[], k: number): number[] {
     for (let i = 0; i < 3; i++) this.lamp[i] = rgb[i]! * k;
     return this.lamp;
+  }
+
+  /** The aiming rings and marks (`overlay`), and a marker and line from this device's hero to its target. */
+  // prettier-ignore
+  private targeting(world: WorldView, field: HeightField, t: number, self: number, now: number): void {
+    const hero = world.heroes.find((h) => h.seat === self && h.hp > 0);
+    const target = hero?.target;
+    const pulse = this.pulse.of(target, now);
+    if (!hero) return;
+    const at = (x: number, z: number) => [x / TILE, standY(world, field, x / TILE, z / TILE), z / TILE] as const;
+    const ring = (x: number, z: number, r: number) => {
+      const [px, py, pz] = at(x, z);
+      this.slot("aimRing").batch.push(px, py, pz, 0, r / TILE, 1, r / TILE, TARGET_RGB);
+    };
+    const p = this.heroBefore.get(hero.seat) ?? hero;
+    const hx = p.x + (hero.x - p.x) * t, hz = p.y + (hero.y - p.y) * t;
+    const o = this.overlay;
+    if (o.range > 0) ring(hx, hz, o.range);
+    if (o.area > 0 && o.cursor) ring(o.cursor.x, o.cursor.y, o.area);
+    for (const m of o.marks) ring(m.x, m.y, TILE * 0.55);
+    if (!target) return;
+    // A moving target is drawn where its body is drawn, between frames.
+    const was = target.of === "unit" ? this.before.get(target.id) : target.of === "hero" ? this.heroBefore.get(target.id) : undefined;
+    const tx = was ? was.x + (target.x - was.x) * t : target.x, tz = was ? was.y + (target.y - was.y) * t : target.y;
+    ring(tx, tz, TILE * (target.chosen ? 0.7 : 0.55) * (1 + pulse * 0.8));
+    if (target.chosen) ring(tx, tz, TILE * 0.85 * (1 + pulse * 0.8));
+    const [ax, ay, az] = at(hx, hz), [bx, by, bz] = at(tx, tz);
+    const length = Math.hypot(bx - ax, bz - az);
+    if (length > 0.01)
+      this.slot("aimLine").batch.push((ax + bx) / 2, (ay + by) / 2, (az + bz) / 2, Math.atan2(bx - ax, bz - az), 1, 1, length, TARGET_RGB);
   }
 
   private aimAt(key: number, yaw: number, step: number): void {
@@ -718,7 +764,7 @@ export class Field3D implements Renderer {
     this.olderSeen = undefined;
     this.rig.x = world.width / 2;
     this.rig.z = world.height / 2;
-    const field = (this.field = heightField(world));
+    const field = (this.field = heightField(world, resFor(world)));
     const buffers = terrainBuffers(field, 7, world);
     const geo = this.own(new THREE.BufferGeometry());
     geo.setAttribute("position", new THREE.BufferAttribute(buffers.positions, 3));
@@ -730,11 +776,22 @@ export class Field3D implements Renderer {
       vertexColors: true, normalMap: this.sandNormal,
       normalScale: new THREE.Vector2(0.6, 0.6), roughness: 0.95, metalness: 0,
     }));
-    this.ground = new THREE.Mesh(geo, sand);
-    this.ground.receiveShadow = this.ground.castShadow = true;
+    // One mesh per chunk over the shared vertices and normals, each boxed by its own extent so it culls alone.
+    this.ground = terrainChunks(field).map((chunk) => {
+      const part = this.own(new THREE.BufferGeometry());
+      for (const name of ["position", "color", "uv", "normal"]) part.setAttribute(name, geo.getAttribute(name));
+      part.setIndex(new THREE.BufferAttribute(chunk.indices, 1));
+      part.boundingBox = new THREE.Box3(new THREE.Vector3(chunk.x0, -3, chunk.z0), new THREE.Vector3(chunk.x1, 3, chunk.z1));
+      part.boundingSphere = part.boundingBox.getBoundingSphere(new THREE.Sphere());
+      const mesh = new THREE.Mesh(part, sand);
+      mesh.receiveShadow = mesh.castShadow = true;
+      return mesh;
+    });
     const W = world.width, H = world.height;
     // The river reflects the sky; foam lightens and thickens it within half a tile of a bank.
-    const waterGeo = this.own(new THREE.PlaneGeometry(W, H, W * 2, H * 2).rotateX(-Math.PI / 2).translate(W / 2, WATER_Y, H / 2));
+    // Two water cells a tile on a small map, one on a big one (the foam is per vertex).
+    const per = W * H > BIG_MAP ? 1 : 2;
+    const waterGeo = this.own(new THREE.PlaneGeometry(W, H, W * per, H * per).rotateX(-Math.PI / 2).translate(W / 2, WATER_Y, H / 2));
     const wp = waterGeo.getAttribute("position"), foam = new Float32Array(wp.count * 4);
     for (let i = 0; i < wp.count; i++) {
       const f = Math.max(0, 1 - distanceTo(world, wp.getX(i), wp.getZ(i), (c) => !wet(c), 0.6) / 0.6) ** 2;
@@ -755,7 +812,7 @@ export class Field3D implements Renderer {
       this.own(new THREE.MeshStandardMaterial({ color: 0xb89466, roughness: 1, side: THREE.DoubleSide })),
     );
     apron.receiveShadow = true;
-    this.matchGroup.add(this.ground, water, apron);
+    this.matchGroup.add(...this.ground, water, apron);
 
     // Rocks and bridge planks: one instanced mesh each, filled once.
     // Pebbles strewn over a fifth of the open sand, a few to a tile, drawn with the rocks.
@@ -851,7 +908,7 @@ export class Field3D implements Renderer {
     this.matchGroup.clear();
     this.buildings = [];
     this.flags = [];
-    this.ground = undefined;
+    this.ground = [];
     this.field = undefined;
   }
 
