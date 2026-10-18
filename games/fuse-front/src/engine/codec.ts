@@ -22,6 +22,7 @@ import { fnv1a } from "./rng.js";
 import {
   BUILDING_HP,
   FACTORY_KINDS,
+  FOCUS_GIVE_UP,
   FORT_GUN,
   MAX_SEATS,
   STANCES,
@@ -36,6 +37,7 @@ import {
   teamOf,
 } from "./tuning.js";
 import {
+  MARKS,
   NEUTRAL,
   type Building,
   type Hero,
@@ -49,6 +51,8 @@ import {
 const UINT32 = 0xffff_ffff;
 /** Steps, ids and counters stay well inside exact integers. */
 const COUNT = 0xff_ffff_ffff;
+/** The largest id a command may name (a unit id, a seat or a site id). */
+export const MAX_ID = COUNT;
 
 export const isInt = (
   value: unknown,
@@ -109,6 +113,10 @@ export function encodeWorld(world: World): unknown {
       h.blitz,
       h.flare,
       h.flareLeft,
+      h.focusOf,
+      h.focus,
+      h.lost,
+      h.sweep,
     ]),
     world.winner,
     world.mines.map((m) => [m.owner, m.x, m.y, m.life, m.stuck]),
@@ -195,11 +203,27 @@ function unit(raw: unknown, map: GameMap): Unit | undefined {
 }
 
 function hero(raw: unknown, map: GameMap): Hero | undefined {
-  const t = tuple(raw, 19);
+  const t = tuple(raw, 23);
   if (!t) return;
   const [seat, x, y, hp, energy, xp, cooldown, respawn, facing, goal] = t;
   const [steerX, steerY, quiet] = [t[10], t[11], t[13]];
-  const [kindIndex, cloak, blitz, flare, flareLeft] = t.slice(14);
+  const [kindIndex, cloak, blitz, flare, flareLeft] = t.slice(14, 19);
+  const [focusOf, focus, lost, sweep] = t.slice(19);
+  // A focus (`focus.ts`) belongs to a living hero off the stick and not on an attack-move, and has been lost less
+  // than the give-up; an attack-move is a move, so it has a goal. Whom a focus names is checked against the world.
+  if (!isInt(focusOf, -1, MARKS.length - 1) || !isInt(sweep, 0, 1)) return;
+  if (focusOf === -1) {
+    if (focus !== -1 || lost !== 0) return;
+  } else if (
+    !isInt(focus, 0, COUNT) ||
+    !isInt(lost, 0, FOCUS_GIVE_UP - 1) ||
+    hp === 0 ||
+    sweep !== 0 ||
+    steerX !== 0 ||
+    steerY !== 0
+  )
+    return;
+  if (sweep === 1 && goal === -1) return;
   if (!isInt(kindIndex, 0, HERO_KINDS.length - 1)) return;
   const kind = HERO_KINDS[kindIndex]!;
   // A status only its own kit casts, never on a dead hero; a flare marks an open tile exactly while it burns.
@@ -262,6 +286,10 @@ function hero(raw: unknown, map: GameMap): Hero | undefined {
     blitz,
     flare: marked,
     flareLeft,
+    focusOf,
+    focus: focus as number,
+    lost: lost as number,
+    sweep,
   };
 }
 
@@ -359,6 +387,15 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
     heroes.some((h, index) => h.seat !== players[index]!.seat)
   )
     return;
+  // A focus names an enemy hero in play, a turret or fort, or a unit id already given out; it may since have died
+  // (the next step drops it), but never a friend.
+  for (const h of heroes) {
+    const [of, id] = [h.focusOf, h.focus];
+    if (of === 0 && id >= nextId) return;
+    if (of === 1 && (!seats.has(id) || teamOf(id) === teamOf(h.seat))) return;
+    const site = of === 2 ? map.sites[id] : undefined;
+    if (of === 2 && site?.kind !== "turret" && site?.kind !== "fort") return;
+  }
   // The recorded result is exactly the one the forts imply.
   const result = winnerOf(map, players, buildings);
   if (winner !== result) return;

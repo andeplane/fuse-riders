@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { ACTION, BOT, JOIN, LEAVE } from "fuse-netcode";
 import { NO_WINNER, STEPS_PER_TICK } from "../src/engine/index.js";
 import {
+  ATTACK,
+  ATTACK_MOVE,
   CAST,
   COUNTDOWN_TICKS,
   DEFAULT_SETTINGS,
@@ -121,6 +123,22 @@ test("a rider's controls count in its own match only, and at most four a tick", 
   assert.equal(room.world!.players[0]!.stance, "hold");
 });
 
+test("an ATTACK entry focuses the rider's hero, and an ATTACK_MOVE sends it on an attack-move", () => {
+  const { room, entries } = match({ size: 1 });
+  const fort = room.world!.buildings.find(
+    (b) =>
+      mapOf(room).sites[b.id]!.kind === "fort" &&
+      mapOf(room).sites[b.id]!.seat === 1,
+  )!;
+  log(room, entries, "host", ATTACK, "match-1", 2, fort.id);
+  fold(room, entries, 1);
+  const hero = room.world!.heroes[0]!;
+  assert.deepEqual([hero.focusOf, hero.focus], [2, fort.id]);
+  log(room, entries, "host", ATTACK_MOVE, "match-1", 20, 20);
+  fold(room, entries, 1);
+  assert.equal(room.world!.heroes[0]!.sweep, 1);
+});
+
 test("a friend who joins mid-match takes over a bot's slot, and hands it back on leaving", () => {
   const room = createRoom("lobby", DEFAULT_SETTINGS);
   const entries: Log = new Map();
@@ -210,6 +228,10 @@ test("isEntry takes well-formed controls and refuses anything out of shape or ra
     [1, 1, MOVE, "m", 255, 255],
     [1, 1, STEER, "m", -8, 8],
     [1, 1, CAST, "m", 3, 0, 0],
+    [1, 1, CAST, "m", 0, 9, 6, 0, 12],
+    [1, 1, ATTACK, "m", 0, 12],
+    [1, 1, ATTACK, "m", 2, 3],
+    [1, 1, ATTACK_MOVE, "m", 255, 255],
     [1, 1, JOIN, "a", "Ann", 5, "brick", 1],
     [1, 1, ACTION, "start", "m"],
   ];
@@ -228,6 +250,17 @@ test("isEntry takes well-formed controls and refuses anything out of shape or ra
     [1, 1, MOVE, "m", -1, 0],
     [1, 1, STEER, "m", 9, 0],
     [1, 1, CAST, "m", 4, 0, 0],
+    [1, 1, CAST, "m", 0, 0, 0, 0],
+    [1, 1, CAST, "m", 0, 0, 0, 3, 1],
+    [1, 1, CAST, "m", 0, 0, 0, 0, -1],
+    [1, 1, ATTACK, "m", 0],
+    [1, 1, ATTACK, "m", 3, 1],
+    [1, 1, ATTACK, "m", 0, 1.5],
+    [1, 1, ATTACK, "m", 0, "1"],
+    [1, 1, ATTACK, "m", 0, 2 ** 53],
+    [1, 1, ATTACK_MOVE, "m", 256, 0],
+    [1, 1, ATTACK_MOVE, "m", 0, 0, 0],
+    [1, 1, 7, "m", 0, 0],
     [1, 1, ORDER, "m", 999, 0],
     [1, 1, ORDER, "m", 0, 3],
     [1, 1, 5, "m", 0],

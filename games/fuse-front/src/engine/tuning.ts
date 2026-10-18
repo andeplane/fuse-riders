@@ -5,7 +5,7 @@
 import { ceilDiv } from "./math.js";
 
 /** Bump on any change to the rules, with the golden in `tests/golden.test.ts` re-recorded in the same commit. */
-export const RULES = "fuse-front-9";
+export const RULES = "fuse-front-10";
 
 export const SUB = 16;
 export const TILE_PX = 8;
@@ -179,6 +179,17 @@ export const STRAIGHT = 10;
 export const DIAGONAL = 14;
 export const HOLD_RADIUS = 3 * STRAIGHT;
 export const HOLD_CROWD = 2 * STRAIGHT;
+
+/**
+ * Focus fire (`focus.ts`): a hero told to `attack` an enemy chases it until it is in range, re-pathing to it every
+ * `CHASE_REPATH` steps, and gives up after `FOCUS_GIVE_UP` steps in a row with no path to it or, for a unit or hero,
+ * with it beyond `CHASE_LEASH`. An aimed spell may land up to `AIM_SLACK` beyond its range, so a click on the edge
+ * of the drawn circle counts.
+ */
+export const CHASE_REPATH = 10;
+export const CHASE_LEASH = 10 * TILE;
+export const FOCUS_GIVE_UP = 4 * STEPS_PER_SECOND;
+export const AIM_SLACK = TILE / 2;
 
 /**
  * The hero (`hero.ts`), with Brick's profile (`HEROES` has the others'): a powerhouse worth a squad. Each player has

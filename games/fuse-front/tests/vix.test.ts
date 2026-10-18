@@ -121,7 +121,7 @@ test("a flag taken by a cloaked hero raises no capture alert", () => {
   assert.ok(!quiet.events.some((e) => e.type === "capture"));
 });
 
-test("STICKY MINE lies on the aim in range (else at Vix), sticks to the first enemy tank and blows up a fuse later", () => {
+test("STICKY MINE lies on the aim in range (refused beyond it), sticks to the first enemy tank and blows up a fuse later", () => {
   const world = arena("vix");
   const [, laid] = fire(world, 2, 6, 6);
   assert.deepEqual(laid.mines, [
@@ -133,10 +133,11 @@ test("STICKY MINE lies on the aim in range (else at Vix), sticks to the first en
       stuck: -1,
     },
   ]);
-  assert.equal(
-    fire(world, 2, 12, 6)[1].mines[0]!.x,
-    centreOf(4),
-    "out of range: at Vix",
+  const [cast, refused] = fire(world, 2, 12, 6);
+  assert.equal(cast, false, "out of range");
+  assert.deepEqual(
+    [refused.mines, refused.heroes[0]!.energy],
+    [[], world.heroes[0]!.energy],
   );
   addUnit(laid, 0, "lightTank", 6, 6); // a friend never sets it off
   addUnit(laid, 1, "grunt", 6, 6); // nor a robot
