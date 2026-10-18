@@ -198,12 +198,30 @@ class Kit {
 const at = (g: THREE.BufferGeometry, x: number, y: number, z: number, rx = 0, rz = 0) =>
   g.rotateX(rx).rotateZ(rz).translate(x, y, z);
 /** A box with rounded edges. */
-// prettier-ignore
-const block = (w: number, h: number, d: number, x: number, y: number, z: number, r = 0.025) =>
-  at(new RoundedBoxGeometry(w, h, d, 2, Math.min(r, w / 2.2, h / 2.2, d / 2.2)), x, y, z);
-// prettier-ignore
-const slab = (w: number, h: number, d: number, x: number, y: number, z: number, rx = 0) =>
-  at(new THREE.BoxGeometry(w, h, d), x, y, z, rx);
+const block = (
+  w: number,
+  h: number,
+  d: number,
+  x: number,
+  y: number,
+  z: number,
+  r = 0.025,
+) =>
+  at(
+    new RoundedBoxGeometry(w, h, d, 2, Math.min(r, w / 2.2, h / 2.2, d / 2.2)),
+    x,
+    y,
+    z,
+  );
+const slab = (
+  w: number,
+  h: number,
+  d: number,
+  x: number,
+  y: number,
+  z: number,
+  rx = 0,
+) => at(new THREE.BoxGeometry(w, h, d), x, y, z, rx);
 const ball = (r: number, x: number, y: number, z: number, sy = 1, sz = 1) =>
   at(new THREE.SphereGeometry(r, 16, 12).scale(1, sy, sz), x, y, z);
 /** The top half of a sphere: a helmet or a dome. */
