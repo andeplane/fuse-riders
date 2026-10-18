@@ -194,6 +194,14 @@ enemy the gun picks next, and `HeroView.kit` is the kit's `SPELL_INFO`. A point 
 is refused without spending anything, and a `unit` spell may name its target in the `cast` entry's optional fourth and
 fifth arguments.
 
+**Command queue (shift-click).** `move`, `attackMove`, `attack` and `cast` take a `queued` flag (on the wire a
+trailing `1`; entries without it mean what they always did). A queued order goes behind the hero's current one, up to
+`QUEUE_MAX` (8); a plain order, a held stick or death clears the queue. When the current order ends (arrived, target
+gone or given up) the next starts: an attack whose target has gone is skipped, and a queued cast that cannot be cast
+when its turn comes (cooldown, energy, range, target) is retried while the hero stands for `CAST_WAIT` (one second),
+then skipped. A plain cast stays instant and leaves the route alone. `HeroView.route` lists the current order and the
+queue for drawing. `src/engine/orders.ts` documents the rules.
+
 E3b adds the controls (`src/app/targeting.ts`, pure and tested):
 
 - Right-clicking an enemy attacks it, and right-clicking the ground moves. A left click does the same, unless it lands
