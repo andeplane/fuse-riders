@@ -8,6 +8,7 @@ import { levelOf, maxEnergy, maxHp } from "./hero.js";
 import { div } from "./math.js";
 import {
   BUILDING_HP,
+  HERO_KINDS,
   UNITS,
   teamOf,
   type BuildingKind,
@@ -15,7 +16,8 @@ import {
   type Stance,
   type UnitKind,
 } from "./tuning.js";
-import { unitMax } from "./spells.js";
+import { heroTarget } from "./focus.js";
+import { KITS, unitMax } from "./spells.js";
 import {
   NEUTRAL,
   ownerOf,
@@ -93,7 +95,66 @@ export interface HeroView {
   cloaked: boolean;
   blitzing: boolean;
   flare: number;
+  /**
+   * What it shoots (`focus.ts`): the enemy `attack` chose for it (`chosen`), else the one its gun picks next from
+   * where everything stands; null when it has none or is dead. Sub-pixels; a building's `id` is its site id.
+   */
+  target: TargetView | null;
+  /** On an attack-move: it stands to fight whatever comes in range on the way to its goal. */
+  sweeping: boolean;
+  /** Its spells by slot (the shared, frozen table), for tooltips and aiming. */
+  kit: readonly SpellInfo[];
 }
+
+export interface TargetView {
+  of: "unit" | "hero" | "building";
+  id: number;
+  x: number;
+  y: number;
+  chosen: boolean;
+}
+
+/**
+ * A spell as the HUD explains it: what aiming means (`self` casts at once, `point` takes a tile within `range`,
+ * `unit` a target within `range`), its area, its energy cost, its cooldown in steps and the level it unlocks at.
+ * Sub-pixels.
+ */
+export interface SpellInfo {
+  name: string;
+  desc: string;
+  targeting: "self" | "point" | "unit";
+  passive: boolean;
+  range: number;
+  radius: number;
+  energy: number;
+  cooldown: number;
+  unlock: number;
+}
+
+/** Every kit's `SpellInfo`, by hero kind and slot; frozen, so a view can share it. */
+export const SPELL_INFO: Readonly<Record<HeroKind, readonly SpellInfo[]>> =
+  Object.freeze(
+    Object.fromEntries(
+      HERO_KINDS.map((kind) => [
+        kind,
+        Object.freeze(
+          KITS[kind].map((spell) =>
+            Object.freeze({
+              name: spell.name,
+              desc: spell.desc,
+              targeting: spell.targeting,
+              passive: spell.passive,
+              range: spell.range,
+              radius: spell.radius,
+              energy: spell.energy,
+              cooldown: spell.cooldown,
+              unlock: spell.unlock,
+            }),
+          ),
+        ),
+      ]),
+    ) as Record<HeroKind, readonly SpellInfo[]>,
+  );
 
 export interface WorldView {
   step: number;
@@ -204,6 +265,9 @@ export function viewOf(map: GameMap, world: World): WorldView {
       cloaked: hero.cloak > 0,
       blitzing: hero.blitz > 0,
       flare: hero.flare,
+      target: heroTarget(map, world, hero),
+      sweeping: hero.sweep > 0,
+      kit: SPELL_INFO[hero.kind],
     })),
     mines: world.mines.map((mine) => ({
       owner: mine.owner,

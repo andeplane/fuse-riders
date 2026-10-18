@@ -180,6 +180,16 @@ Bot-vs-bot matches at every difficulty pairing must end within about 15 minutes 
   targeting mode: self, point or unit) for tooltips. While aiming, the range and area of effect are shown before the
   cast. Aimed spells take a target point or unit.
 
+E3a builds the engine side (`src/engine/focus.ts`). `attack(of, id)` names a unit, an uncloaked hero, or an enemy
+turret or fort. The hero chases it along the roaming flow field, re-pathing every `CHASE_REPATH` steps, and shoots it
+before anything nearer once it is in range. It drops the target when the target dies, cloaks or changes sides, or after
+`FOCUS_GIVE_UP` steps in a row out of range. A `move`, `attackMove`, held stick or new `attack` replaces it.
+`attackMove(x, y)` is a move on which the hero stands while anything is in range. `HeroView.target` is the focus, or
+else the enemy the gun picks next, using the same tie-break as `combat.ts`. `HeroView.kit` is the frozen `SPELL_INFO`
+row. A point spell aimed beyond `range + AIM_SLACK` is refused without spending anything. A `unit` spell may name its
+target in the `cast` entry's optional fourth and fifth arguments. Bots focus a hurt enemy hero in range, attack-move
+onto an enemy fort and snipe a named target.
+
 **Bigger maps.**
 
 - Maps grow to about the scale of Z and StarCraft: roughly 192×128 tiles for 1v1 and up to 256×192 for 3v3, with

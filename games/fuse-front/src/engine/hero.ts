@@ -69,6 +69,10 @@ export function fell(world: World, hero: Hero, killer: number): number {
     blitz: 0,
     flare: -1,
     flareLeft: 0,
+    focusOf: -1,
+    focus: -1,
+    lost: 0,
+    sweep: 0,
   });
   // Its FLARE goes out with it, releasing the robots it drew.
   for (const unit of world.units)
@@ -158,11 +162,19 @@ function velocity(map: GameMap, hero: Hero): [number, number] {
   return [div(dx * speed, length), div(dy * speed, length)];
 }
 
-/** Walks every living hero one step, by seat. */
-export function moveHeroes(map: GameMap, world: World): void {
+/**
+ * Walks every living hero one step, by seat; one in `holding` (an attack-move with an enemy in range) stands. An
+ * attack-move ends with its goal.
+ */
+export function moveHeroes(
+  map: GameMap,
+  world: World,
+  holding: ReadonlySet<number> = new Set(),
+): void {
   for (const hero of world.heroes) {
-    if (!alive(hero)) continue;
+    if (!alive(hero) || holding.has(hero.seat)) continue;
     const [vx, vy] = velocity(map, hero);
+    if (hero.goal < 0) hero.sweep = 0;
     if (vx === 0 && vy === 0) continue;
     hero.facing = facingOf(vx, vy, hero.facing);
     [hero.x, hero.y] = settle(map, hero.x, hero.y, hero.x + vx, hero.y + vy);

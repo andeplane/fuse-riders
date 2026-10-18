@@ -5,6 +5,7 @@
  * then the lower id. Targets are picked from where everything stood when the phase began and shots are instant hits
  * applied together, so the order units fire in cannot change who hits what.
  *
+ * - A hero told to `attack` (`focus.ts`) shoots that target first whenever it is in range.
  * - A shooter fires when its cooldown is 0 and then waits its kind's `cooldown` steps; the timer counts down every step.
  * - A unit with a target in range stands still to fight (`moveUnits` skips its seek), even while reloading. A hero
  *   shoots whether it stands or walks; its shot splashes every other enemy unit within `HERO.splash` of the target,
@@ -17,6 +18,7 @@
  * - Units at 0 hit points are removed, in id order; heroes at 0 wait to respawn (`hero.ts`). A turret or fort at 0
  *   stays as a ruin: it neither fires nor is targeted, and a team whose last fort falls loses (`winnerOf`).
  */
+import { better } from "./focus.js";
 import { alive, award, facingOf, fell, heroShot, levelOf } from "./hero.js";
 import type { GameMap } from "./map.js";
 import { ceilDiv, div } from "./math.js";
@@ -34,6 +36,7 @@ import {
   teamOf,
 } from "./tuning.js";
 import {
+  MARKS,
   NEUTRAL,
   NO_WINNER,
   ownerOf,
@@ -80,17 +83,18 @@ const target = (
 /** An empty cell, shared so the 5 × 5 scan allocates nothing for cells nobody stands in. */
 const NO_TARGETS: readonly Target[] = [];
 
-const RANK = { unit: 0, hero: 1, building: 2 } as const;
-
-/** Whether `a` is a better target than `b` at squared distances `da` and `db`. */
-const better = (a: Target, da: number, b: Target, db: number): boolean =>
-  da !== db ? da < db : a.of !== b.of ? RANK[a.of] < RANK[b.of] : a.id < b.id;
-
 const mark = ({ of, id, x, y }: Mark): Mark => ({ of, id, x, y });
 
-/** Fires every ready shooter and applies the result; returns the ids of units that stand to fight this step. */
-export function fight(map: GameMap, world: World): Set<number> {
+/**
+ * Fires every ready shooter and applies the result; returns the ids of units that stand to fight this step and the
+ * seats of heroes with an enemy in range.
+ */
+export function fight(
+  map: GameMap,
+  world: World,
+): { engaged: Set<number>; heroes: Set<number> } {
   const engaged = new Set<number>();
+  const heroes = new Set<number>();
   // Units first, in order, so `targets[index]` is `world.units[index]`'s.
   const targets: Target[] = world.units.map((unit, index) =>
     target("unit", unit.id, unit.x, unit.y, unit.owner, index),
@@ -176,9 +180,24 @@ export function fight(map: GameMap, world: World): Set<number> {
     if (shooter.cooldown > 0) shooter.cooldown--;
     // A stunned unit neither shoots nor stands to fight.
     if (unit !== undefined && unit.stun > 0) continue;
-    const victim = nearest(from, stats.range, !fort);
+    // A hero shoots its focus (`focus.ts`) before anything nearer while it is in range.
+    const focus =
+      hero !== undefined && hero.focusOf >= 0
+        ? targets.find(
+            (each) =>
+              each.of === MARKS[hero.focusOf] &&
+              each.id === hero.focus &&
+              each.team !== from.team &&
+              !each.hidden &&
+              (each.x - from.x) * (each.x - from.x) +
+                (each.y - from.y) * (each.y - from.y) <=
+                stats.range * stats.range,
+          )
+        : undefined;
+    const victim = focus ?? nearest(from, stats.range, !fort);
     if (victim === undefined) continue;
     if (unit !== undefined) engaged.add(unit.id);
+    if (hero !== undefined) heroes.add(hero.seat);
     if (shooter.cooldown > 0) continue;
     shooter.cooldown =
       unit !== undefined && unit.rally > 0
@@ -256,5 +275,5 @@ export function fight(map: GameMap, world: World): Set<number> {
   world.winner = winnerOf(map, world.players, world.buildings);
   if (world.winner !== NO_WINNER)
     world.events.push({ type: "won", winner: world.winner });
-  return engaged;
+  return { engaged, heroes };
 }

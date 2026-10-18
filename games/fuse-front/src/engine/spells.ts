@@ -3,7 +3,8 @@
  * row of `KITS` with effects drawn from `SPELL_EFFECTS`. `cast(slot, x, y)` (`step.ts`) spends energy and starts the
  * slot's cooldown when the hero is alive, has the level, the energy and a ready slot, and the spell finds what it
  * needs; anything else does nothing and spends nothing. A spell's `targeting` says what the aim tile means: `self`
- * ignores it; `point` aims at the tile (within `range` of the hero); `unit` acts on what stands nearest the aim
+ * ignores it; `point` aims at the tile, refused beyond `range` (plus `AIM_SLACK`) of the hero; `unit` acts on the chosen target
+ * (`Chosen`, within `range` plus `AIM_SLACK`), or without one on what stands nearest the aim
  * tile, within `radius` of it and `range` of the hero (a tie goes to units, then heroes, then buildings, then the
  * lower id).
  *
@@ -20,7 +21,7 @@
  * Vix, infiltrator:
  * - SNIPE (unit): an enemy unit or uncloaked hero takes `damage`; a tank takes `power` percent of it.
  * - CLOAK: for its duration nothing picks Vix as a target (guns or SNIPE), and a flag Vix takes raises no alert.
- * - STICKY MINE (point): a charge on the aim tile (Vix's own when that is out of range or blocked) that lasts its
+ * - STICKY MINE (point): a charge on the aim tile (an open one in range) that lasts its
  *   duration. The first enemy tank within its radius carries it off, and `MINE_FUSE` steps later it does `damage` to
  *   that tank. A seat keeps `MINES_PER_HERO`; laying another removes its oldest.
  * - HIJACK (unit): an enemy light tank changes sides to Vix's owner, unless that owner is at its `unitCap`.
@@ -50,6 +51,7 @@ import type { GameMap } from "./map.js";
 import { div, isqrt } from "./math.js";
 import { FLARE, centreOf, settle, tileOf } from "./move.js";
 import {
+  AIM_SLACK,
   BLITZ_SPEED,
   BUILDING_HP,
   KILL_XP,
@@ -62,6 +64,7 @@ import {
   type HeroKind,
 } from "./tuning.js";
 import {
+  MARKS,
   ownerOf,
   unitCap,
   type Building,
@@ -90,9 +93,31 @@ export const SPELL_EFFECTS = [
 ] as const;
 export type SpellEffect = (typeof SPELL_EFFECTS)[number];
 
+/** Each effect's one line for the HUD's tooltips. */
+const DESCRIPTIONS: Readonly<Record<SpellEffect, string>> = {
+  shockwave: "Damages, stuns and knocks back enemy units around Brick.",
+  rally: "Nearby robots reload and walk faster for a while.",
+  ironHide: "Passive: Brick and nearby vehicles take less damage.",
+  orbitalDrop: "Drops a heavily armoured light tank beside Brick.",
+  snipe: "A long shot at one enemy unit or hero; tanks take less.",
+  cloak: "Vix cannot be targeted, and takes flags without an alert.",
+  stickyMine: "Lays a mine that sticks to the next enemy tank and blows.",
+  hijack: "An enemy light tank switches to your side.",
+  repair: "Heals a friendly unit, hero or building, even a ruined turret.",
+  turretDrop: "Places a sentry gun beside Rivet that burns out over time.",
+  fortify: "The flag Rivet stands by cannot change hands for a while.",
+  overclock: "Your team's factories build twice as fast for a while.",
+  dash: "Tally dashes toward the aimed spot, stopping at walls.",
+  flare: "Marks a spot your pushing robots make for.",
+  spotter: "Passive: enemies near Tally take more damage.",
+  blitz: "Your robots in Tally's sector walk faster for a while.",
+};
+
 export interface Spell {
   name: string;
   effect: SpellEffect;
+  /** One line on what it does, for tooltips. */
+  desc: string;
   /** What the aim tile means (see above). */
   targeting: "self" | "point" | "unit";
   /** A passive is always on from its unlock level and cannot be cast. */
@@ -129,6 +154,7 @@ export const OVERCLOCK_PERCENT = 200;
 const spell = (
   fields: Partial<Spell> & Pick<Spell, "name" | "effect">,
 ): Spell => ({
+  desc: DESCRIPTIONS[fields.effect],
   targeting: "self",
   passive: false,
   unlock: 1,
@@ -324,16 +350,39 @@ type Target =
   | { of: "hero"; at: Hero }
   | { of: "building"; at: Building; x: number; y: number };
 
+/** A chosen target: its `MARKS` index and id (a unit's id, a hero's seat, a building's site id). */
+export interface Chosen {
+  of: number;
+  id: number;
+}
+
+const idOf = (target: Target): number =>
+  target.of === "unit"
+    ? target.at.id
+    : target.of === "hero"
+      ? target.at.seat
+      : target.at.id;
+
 /**
- * A `unit` spell's target among `candidates` (units, heroes, buildings, each in id order): the one nearest the aim within
- * `range` of the hero and `radius` of the aim; the first listed wins a tie.
+ * A `unit` spell's target among `candidates` (units, heroes, buildings, each in id order): the `chosen` one when
+ * given, if it is among them within `range` (plus `AIM_SLACK`) of the hero; else the one nearest the aim within
+ * `range` of the hero and `radius` of the aim, the first listed winning a tie.
  */
-function pick(
+function choose(
   hero: Hero,
   aim: Spot,
   spell: Spell,
   candidates: readonly Target[],
+  chosen?: Chosen,
 ): Target | undefined {
+  if (chosen !== undefined) {
+    const target = candidates.find(
+      (each) => each.of === MARKS[chosen.of] && idOf(each) === chosen.id,
+    );
+    if (target === undefined) return;
+    const at = target.of === "building" ? target : target.at;
+    return within(at, hero, spell.range + AIM_SLACK) ? target : undefined;
+  }
   let best: Target | undefined,
     bestD = 0;
   for (const each of candidates) {
@@ -354,6 +403,7 @@ export function cast(
   slot: number,
   tx = tileOf(hero.x),
   ty = tileOf(hero.y),
+  chosen?: Chosen,
 ): boolean {
   const spell = kitOf(hero)[slot];
   const level = levelOf(hero.xp);
@@ -364,6 +414,11 @@ export function cast(
   const team = teamOf(seat);
   const { duration, power, damage } = scaled(spell, level);
   const aim = { x: centreOf(tx), y: centreOf(ty) };
+  // A point spell aimed beyond its reach is refused, so it lands where the aiming circle said.
+  const reach = spell.range + AIM_SLACK;
+  if (spell.targeting === "point" && !within(aim, hero, reach)) return false;
+  const pick = (candidates: readonly Target[]) =>
+    choose(hero, aim, spell, candidates, chosen);
   let owned = 0;
   for (const unit of world.units) if (unit.owner === seat) owned++;
   const units = (ours: boolean): Target[] =>
@@ -380,7 +435,7 @@ export function cast(
     const heroes = world.heroes
       .filter((h) => teamOf(h.seat) !== team && alive(h) && h.cloak === 0)
       .map((at): Target => ({ of: "hero", at }));
-    const target = pick(hero, aim, spell, [...enemies, ...heroes]);
+    const target = pick([...enemies, ...heroes]);
     if (target === undefined) return false;
     if (target.of === "unit") {
       const unit = target.at;
@@ -397,23 +452,21 @@ export function cast(
     }
   } else if (spell.effect === "cloak") hero.cloak = duration;
   else if (spell.effect === "stickyMine") {
-    const there = within(aim, hero, spell.range) && openTile(map, tx, ty);
-    const [mx, my] = there ? [tx, ty] : [tileOf(hero.x), tileOf(hero.y)];
+    if (!openTile(map, tx, ty)) return false;
     const laid = world.mines.filter((each) => each.owner === seat);
     if (laid.length >= MINES_PER_HERO)
       world.mines.splice(world.mines.indexOf(laid[0]!), 1);
-    const [x, y] = [centreOf(mx), centreOf(my)];
+    const [x, y] = [aim.x, aim.y];
     world.mines.push({ owner: seat, x, y, life: duration, stuck: -1 });
   } else if (spell.effect === "hijack") {
     const tanks = enemies.filter(
       (each) => each.of === "unit" && each.at.kind === "lightTank",
     );
-    const target =
-      owned < unitCap(world, seat) && pick(hero, aim, spell, tanks);
+    const target = owned < unitCap(world, seat) && pick(tanks);
     if (!target) return false;
     Object.assign(target.at, { owner: seat, goal: -1, stun: 0, rally: 0 });
   } else if (spell.effect === "repair") {
-    const target = pick(hero, aim, spell, mends(map, world, team, units(true)));
+    const target = pick(mends(map, world, team, units(true)));
     if (target === undefined) return false;
     target.at.hp = least(target.at.hp + power, mostHp(map, target));
   } else if (spell.effect === "fortify") {
@@ -428,7 +481,7 @@ export function cast(
     world.overclock[team] = most(world.overclock[team]!, duration);
   else if (spell.effect === "dash") dash(map, hero, spell.range, tx, ty);
   else if (spell.effect === "flare") {
-    if (!within(aim, hero, spell.range) || !openTile(map, tx, ty)) return false;
+    if (!openTile(map, tx, ty)) return false;
     [hero.flare, hero.flareLeft] = [ty * map.width + tx, duration];
     const push = world.players.find((p) => p.seat === seat)?.stance === "push";
     for (const unit of world.units)
