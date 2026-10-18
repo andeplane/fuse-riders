@@ -98,8 +98,15 @@ function gpuCpuMs() {
         const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
         const f = stat.slice(stat.lastIndexOf(")") + 2).split(" ");
         parent.set(pid, f[1]);
-        if (readFileSync(`/proc/${pid}/cmdline`, "utf8").includes("--type=gpu-process")) gpu.push([pid, (Number(f[11]) + Number(f[12])) * 10]);
-      } catch {} // prettier-ignore
+        if (
+          readFileSync(`/proc/${pid}/cmdline`, "utf8").includes(
+            "--type=gpu-process",
+          )
+        )
+          gpu.push([pid, (Number(f[11]) + Number(f[12])) * 10]);
+      } catch {
+        // The process ended between listing and reading.
+      }
     }
     const mine = (pid) => { for (let p = pid, n = 0; p && n < 10; p = parent.get(p), n++) if (p === String(process.pid)) return true; return false; }; // prettier-ignore
     return gpu
