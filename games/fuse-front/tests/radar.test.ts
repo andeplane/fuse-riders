@@ -77,6 +77,12 @@ test("a capture pings only when the enemy takes a flag that was ours", () => {
     y: flag.y + 0.5,
     kind: "lost",
   });
+  // The world showing the capture may be watched before its event arrives: still a loss.
+  const late = new Radar();
+  late.watch(owned(0));
+  late.watch(owned(1));
+  const lost = late.event("m", { step: 5, event: taken }, owned(1), 0);
+  assert.equal(lost?.kind, "lost");
   // Blue taking it again from neutral is no loss of ours, and blue sees no ping for its own capture.
   radar.watch(owned(-1));
   assert.equal(

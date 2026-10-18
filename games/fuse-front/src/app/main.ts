@@ -561,6 +561,10 @@ function room(code: string, token: string | undefined, display: boolean): void {
       event.target instanceof Element &&
       event.target.closest("input, textarea, select, [contenteditable]");
     if (typing) return;
+    // Tab jumps to the fight only from the board: on a focused control, or with Shift, it moves focus as usual.
+    const control =
+      event.target instanceof Element && event.target.closest("button, a");
+    if (action.kind === "fight" && (event.shiftKey || control)) return;
     // Also keeps Space from re-pressing a focused HUD button.
     event.preventDefault();
     if (action.kind === "recentre") field.follow = true;
