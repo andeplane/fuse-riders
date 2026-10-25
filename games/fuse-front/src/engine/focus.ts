@@ -11,6 +11,7 @@
  */
 import { UNREACHABLE, flowField, openTile } from "./flow.js";
 import { alive } from "./hero.js";
+import { shielded } from "./towers.js";
 import type { GameMap } from "./map.js";
 import { centreOf, tileOf } from "./move.js";
 import {
@@ -56,6 +57,8 @@ export function enemyAt(
   if (site.kind !== "turret" && site.kind !== "fort") return;
   const owner = ownerOf(map, world, building);
   if (owner === NEUTRAL || teamOf(owner) === team) return;
+  // A structure behind another on its lane, or a core behind its gates, can't be shot yet (`towers.ts`).
+  if (shielded(map, world, building)) return;
   return { of: "building", id, x: centreOf(site.x), y: centreOf(site.y) };
 }
 

@@ -80,6 +80,13 @@ export interface Site {
   seat: number;
   /** The tile a factory's units step out onto, below the building. */
   door: Tile;
+  /**
+   * A lane structure's lane index, its tier on its side (0 the outer tower, 1 the inner, 2 the gate) and its team;
+   * -1 for every other site. Each stands as a turret on its lane slot (`LaneSide`), after the map's own sites.
+   */
+  lane: number;
+  tier: number;
+  team: number;
 }
 
 export interface GameMap {
@@ -317,6 +324,9 @@ export function loadMap(raw: unknown): GameMap {
       sector: sectorOf[spot.y * width + spot.x]!,
       seat,
       door,
+      lane: -1,
+      tier: -1,
+      team: -1,
     });
   };
   for (const [index, value] of buildings.entries()) {
@@ -377,6 +387,22 @@ export function loadMap(raw: unknown): GameMap {
   if (raw.lanes !== undefined) readLanes(map, raw, open, tile, claim, fail);
   else if (raw.camps !== undefined) fail("camps: only on a map with lanes");
   if (raw.symmetry !== undefined) checkSymmetry(map, raw.symmetry, fail);
+  // The lanes' structures, lane by lane and team by team, front line first: turrets of their team (`world.ts`).
+  for (const [lane, each] of map.lanes.entries())
+    for (const [team, side] of each.sides.entries())
+      for (const [tier, spot] of [...side.towers, side.gate].entries())
+        sites.push({
+          id: sites.length,
+          kind: "turret",
+          x: spot.x,
+          y: spot.y,
+          sector: sectorOf[spot.y * width + spot.x]!,
+          seat: -1,
+          door: { x: spot.x, y: spot.y + 1 },
+          lane,
+          tier,
+          team,
+        });
 
   const deepFreeze = <T>(value: T): T => {
     if (typeof value === "object" && value !== null) {

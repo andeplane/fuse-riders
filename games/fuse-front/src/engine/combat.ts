@@ -16,6 +16,7 @@
  *   and no gun picks a CLOAKed hero.
  * - A kill is credited to the owner of the first shot (in shooter order: units by id, heroes by seat, turrets) that hit
  *   the victim this step, and earns XP (`award`).
+ * - Lane towers and gates (`towers.ts`) pick and ramp their own way, and a protected structure is never picked.
  * - Units at 0 hit points are removed, in id order; heroes at 0 wait to respawn (`hero.ts`). A turret or fort at 0
  *   stays as a ruin: it neither fires nor is targeted, and a team whose last fort falls loses (`winnerOf`).
  */
@@ -25,7 +26,8 @@ import type { GameMap } from "./map.js";
 import { ceilDiv, div } from "./math.js";
 import { RALLY_PERCENT, hideOf } from "./spells.js";
 import { centreOf } from "./move.js";
-import { unitDamage } from "./waves.js";
+import { laneMap, unitDamage } from "./waves.js";
+import { aggro, rampUp, shielded } from "./towers.js";
 import {
   AURA_DAMAGE,
   AURA_RADIUS,
@@ -33,6 +35,7 @@ import {
   HERO,
   KILL_XP,
   TILE,
+  TOWER,
   TURRET,
   UNITS,
   teamOf,
@@ -113,7 +116,11 @@ export function fight(
     if (building.hp <= 0 || owner === NEUTRAL) continue;
     if (site.kind !== "turret" && site.kind !== "fort") continue;
     const [x, y] = [centreOf(site.x), centreOf(site.y)];
-    targets.push(target("building", building.id, x, y, owner, index));
+    // A protected structure (`towers.ts`) still shoots, but no gun picks it.
+    targets.push({
+      ...target("building", building.id, x, y, owner, index),
+      hidden: shielded(map, world, building),
+    });
   }
   const columns = ceilDiv(map.width * TILE, CELL);
   const cells = new Map<number, Target[]>();
@@ -127,7 +134,7 @@ export function fight(
   const nearest = (
     from: Target,
     range: number,
-    buildings: boolean,
+    accept: (target: Target) => boolean,
   ): Target | undefined => {
     const reach = ceilDiv(range, CELL);
     const cx = div(from.x, CELL),
@@ -139,7 +146,7 @@ export function fight(
         if (x < 0 || y < 0 || x >= columns || y >= rows) continue;
         for (const target of cells.get(y * columns + x) ?? NO_TARGETS) {
           if (target.team === from.team || target.hidden) continue;
-          if (!buildings && target.of === "building") continue;
+          if (!accept(target)) continue;
           const dx = target.x - from.x,
             dy = target.y - from.y;
           const d = dx * dx + dy * dy;
@@ -150,6 +157,22 @@ export function fight(
       }
     return best;
   };
+  /** The enemy that `of` (a `MARKS` index) and `id` name, while a gun at `from` may pick it within `range`. */
+  const held = (from: Target, of: number, id: number, range: number) =>
+    of < 0
+      ? undefined
+      : targets.find(
+          (each) =>
+            each.of === MARKS[of] &&
+            each.id === id &&
+            each.team !== from.team &&
+            !each.hidden &&
+            (each.x - from.x) * (each.x - from.x) +
+              (each.y - from.y) * (each.y - from.y) <=
+              range * range,
+        );
+  /** Hero shots that hit an enemy hero this step: the shooter and the victim, for the towers' aggro. */
+  const duels: [Target, Target][] = [];
   /** Whether a unit stands in its owner's hero's aura. */
   const inAura = (from: Target): boolean => {
     const hero = world.heroes.find((each) => each.seat === from.owner);
@@ -173,30 +196,27 @@ export function fight(
       from.of === "building" ? world.buildings[from.index]! : undefined;
     const fort =
       building !== undefined && map.sites[building.id]!.kind === "fort";
+    const tower = building !== undefined && map.sites[building.id]!.lane >= 0;
     const shooter = unit ?? hero ?? building!;
     const stats = unit
       ? UNITS[unit.kind]
       : hero
         ? heroShot(levelOf(hero.xp), hero.kind)
-        : { ...(fort ? FORT_GUN : TURRET), siege: 100 };
+        : { ...(fort ? FORT_GUN : tower ? TOWER : TURRET), siege: 100 };
     if (shooter.cooldown > 0) shooter.cooldown--;
     // A stunned unit neither shoots nor stands to fight.
     if (unit !== undefined && unit.stun > 0) continue;
-    // A hero shoots its focus (`focus.ts`) before anything nearer while it is in range.
-    const focus =
-      hero !== undefined && hero.focusOf >= 0
-        ? targets.find(
-            (each) =>
-              each.of === MARKS[hero.focusOf] &&
-              each.id === hero.focus &&
-              each.team !== from.team &&
-              !each.hidden &&
-              (each.x - from.x) * (each.x - from.x) +
-                (each.y - from.y) * (each.y - from.y) <=
-                stats.range * stats.range,
-          )
-        : undefined;
-    const victim = focus ?? nearest(from, stats.range, !fort);
+    // A hero shoots its focus (`focus.ts`) before anything nearer while it is in range; a tower keeps its target, else
+    // takes the nearest unit, else the nearest hero (`towers.ts`).
+    const victim = tower
+      ? (held(from, building!.aimOf, building!.aim, stats.range) ??
+        nearest(from, stats.range, (each) => each.of === "unit") ??
+        nearest(from, stats.range, (each) => each.of === "hero"))
+      : ((hero && held(from, hero.focusOf, hero.focus, stats.range)) ??
+        nearest(from, stats.range, (each) => !fort || each.of !== "building"));
+    // A tower with nothing to shoot lets its target go: the next one starts a new ramp.
+    if (victim === undefined && tower)
+      [building!.aimOf, building!.aim, building!.ramp] = [-1, -1, 0];
     if (victim === undefined) continue;
     if (unit !== undefined) engaged.add(unit.id);
     if (hero !== undefined) heroes.add(hero.seat);
@@ -223,7 +243,11 @@ export function fight(
         hit(near, from, div(splash * hideOf(world, struck, near.team), 100));
       }
     }
-    if (victim.of === "building") damage = div(damage * stats.siege, 100);
+    if (tower) damage = rampUp(building!, victim, damage);
+    if (hero !== undefined && victim.of === "hero") duels.push([from, victim]);
+    // On a lane map a hero brings structures down at `TOWER.heroSiege` percent (`towers.ts`).
+    const siege = hero && laneMap(map) ? TOWER.heroSiege : stats.siege;
+    if (victim.of === "building") damage = div(damage * siege, 100);
     else {
       const struck = (victim.of === "hero" ? world.heroes : world.units)[
         victim.index
@@ -241,6 +265,7 @@ export function fight(
     });
   }
 
+  aggro(map, world, duels);
   // Deaths first, then XP, so a hero that falls this step earns no assist from it.
   const kills: number[][] = [];
   for (const { of, index, taken, killer } of targets) {
@@ -249,7 +274,7 @@ export function fight(
       const building = world.buildings[index]!;
       building.hp = taken >= building.hp ? 0 : building.hp - taken;
       if (building.hp > 0) continue;
-      building.cooldown = 0;
+      Object.assign(building, { cooldown: 0, aimOf: -1, aim: -1, ramp: 0 });
       const kind = map.sites[building.id]!.kind;
       world.events.push({ type: "destroyed", building: building.id, kind });
       continue;
@@ -260,7 +285,13 @@ export function fight(
       continue;
     }
     const { seat, x, y } = hero;
-    kills.push([killer, teamOf(seat), x, y, fell(world, hero, killer)]);
+    kills.push([
+      killer,
+      teamOf(seat),
+      x,
+      y,
+      fell(world, hero, killer, laneMap(map) ? world.step : 0),
+    ]);
   }
   world.units = world.units.filter((unit, index) => {
     const { taken, killer } = targets[index]!;
