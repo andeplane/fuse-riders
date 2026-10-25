@@ -456,6 +456,16 @@ export class Field3D implements Renderer {
     return this.lastBox;
   }
 
+  screenOf(at: { x: number; y: number }, world: WorldView) {
+    this.place();
+    const x = at.x / TILE,
+      z = at.y / TILE,
+      y = this.field ? standY(world, this.field, x, z) + 1 : 1;
+    const v = new THREE.Vector3(x, y, z).project(this.camera);
+    if (v.z > 1) return undefined;
+    return { x: ((v.x + 1) / 2) * this.cssW, y: ((1 - v.y) / 2) * this.cssH };
+  }
+
   /** The tile under a CSS point: a ray from the camera against the ground mesh (or y = 0 off it). */
   tileAt(dx: number, dy: number, world: WorldView) {
     const point = this.groundPoint(dx, dy);
