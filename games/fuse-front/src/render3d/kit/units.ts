@@ -42,7 +42,7 @@ export const ROBOT_LEGS: Partial<Record<UnitKind, { hip: number; len: number; w:
 
 /** A leg in a frame where the hip is at y = 0.4 and the boot 0.2 wide: thigh, knee, team shin plate, boot, toe cap. */
 // prettier-ignore
-function leg(r: Rig): void {
+export function leg(r: Rig): void {
   r.add("dark", r.box(0.13, 0.18, 0.14, 0.03), [0, 0.3, 0])
     .add("team", r.box(0.16, 0.15, 0.18, 0.04), [0, 0.13, 0.02])
     .add("dark", r.box(0.2, 0.08, 0.3, 0.03), [0, 0.04, 0.05]);
