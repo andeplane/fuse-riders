@@ -1,7 +1,8 @@
-/** v3 M6's HUD: structure and camp views, wave upgrades, minimap marks and structure pings. */
+/** v3 M6's HUD: structure and camp views, upgrades, the scoreboard, minimap marks and the feed's pop-ups and notices. */
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  GOLD,
   NEUTRAL,
   SUB,
   TILE_PX,
@@ -14,7 +15,10 @@ import {
 } from "../src/engine/index.js";
 import { mapById } from "../src/online/maps.js";
 import { upgradesOf } from "../src/app/hud-state.js";
+import { MatchFeed } from "../src/app/feed.js";
 import { PING_GAP, Radar } from "../src/app/radar.js";
+import { scoreOf } from "../src/app/scoreboard.js";
+import type { SlotView } from "../src/app/model.js";
 import {
   campTip,
   minimapBase,
@@ -30,6 +34,16 @@ const lane = (v: WorldView, team: number, tier: number) =>
   v.buildings.find((b) => b.lane === 0 && b.team === team && b.tier === tier)!;
 const raze = (world: World, id: number) =>
   (world.buildings.find((b) => b.id === id)!.hp = 0);
+const SLOTS: SlotView[] = [0, 1].map((slot) => ({
+  slot,
+  team: slot,
+  name: slot ? "Bot" : "Ann",
+  bot: slot === 1,
+  difficulty: "normal",
+  self: slot === 0,
+  hero: "brick",
+  picked: false,
+}));
 
 test("a lane structure is shielded while the one in front stands, and the fort while every gate does", () => {
   const world = fresh();
@@ -86,6 +100,40 @@ test("a held jungle factory shows its wave upgrade for its team only", () => {
   );
 });
 
+test("the scoreboard counts razed enemy towers, held jungle, levels, items, gold and the tally", () => {
+  const world = fresh();
+  const v0 = viewOf(MAP, world);
+  raze(world, lane(v0, 1, 0).id);
+  const jungle = v0.flags.find(
+    (f) =>
+      !v0.buildings.some((b) => b.kind === "fort" && b.sector === f.sector),
+  )!;
+  world.sectors[jungle.sector] = 1;
+  const hero = world.heroes[0]!;
+  hero.items = [0, ...hero.items.slice(1)];
+  const tally = (seat: number) => ({
+    kills: seat,
+    deaths: 1 - seat,
+    assists: 2,
+  });
+  const score = scoreOf(viewOf(MAP, world), SLOTS, tally);
+  assert.deepEqual(
+    [score.towers, score.jungle],
+    [
+      [1, 0],
+      [0, 1],
+    ],
+  );
+  const [you, bot] = score.rows;
+  assert.deepEqual(
+    [you!.name, you!.self, you!.kills, you!.deaths, you!.assists],
+    ["You", true, 0, 1, 2],
+  );
+  assert.equal(bot!.name, "AI normal");
+  assert.equal(you!.gold, world.heroes[0]!.gold);
+  assert.ok(you!.items[0]!.length > 0 && you!.items[1] === "");
+});
+
 test("the minimap marks structures (hollow once razed), camps, units and heroes, this seat's highlighted", () => {
   const world = fresh();
   const outer = lane(viewOf(MAP, world), 1, 0);
@@ -136,6 +184,95 @@ const shot = (
   from: { of: "hero", id: from, x, y },
   to: { of, id, x, y },
   damage: 10,
+});
+const death = (
+  id: number,
+  owner: number,
+  kind: "torch" | "sentry" = "torch",
+): CombatEvent => ({
+  type: "death",
+  id,
+  kind,
+  owner,
+  x: 5 * TILE,
+  y: 6 * TILE,
+});
+
+test("a last hit pops its gold once, however often rollback delivers it; a friend's unit or a miss pops none", () => {
+  const v = viewOf(MAP, fresh());
+  const feed = new MatchFeed();
+  const at = (s: number, event: CombatEvent) =>
+    feed.event("m", { step: s, event }, v, 0);
+  at(10, shot(0, "unit", 7));
+  assert.deepEqual(at(10, death(7, 1)).float, {
+    text: `+${GOLD.lastHit.torch}`,
+    x: 5 * TILE,
+    y: 6 * TILE,
+  });
+  assert.deepEqual(at(10, death(7, 1)), {}, "a repeat is dropped");
+  at(11, shot(0, "unit", 8));
+  assert.deepEqual(
+    at(12, death(8, 1)),
+    {},
+    "another step's death was someone else's blow",
+  );
+  at(13, shot(0, "unit", 9));
+  assert.equal(
+    at(13, death(9, NEUTRAL, "sentry")).float?.text,
+    `+${GOLD.guard}`,
+  );
+  at(14, shot(0, "unit", 3));
+  assert.deepEqual(at(14, death(3, 0)), {}, "not our own");
+});
+
+test("hero deaths tally kills, deaths and assists, notify this seat, and reset with the match", () => {
+  // Seats 0 and 2 (red) against 1: 2 hits 1, then 0 kills it with 2 close by.
+  const world = createWorld(mapById("twin-wilds"), [0, 1, 2, 3], 1);
+  const v = viewOf(mapById("twin-wilds"), world);
+  const near = v.heroes.find((h) => h.seat === 2)!;
+  const feed = new MatchFeed();
+  const at = (s: number, event: CombatEvent, seat = 0) =>
+    feed.event("m", { step: s, event }, v, seat);
+  at(5, shot(2, "hero", 1));
+  const kill: CombatEvent = {
+    type: "heroDeath",
+    seat: 1,
+    killer: 0,
+    x: near.x,
+    y: near.y,
+  };
+  assert.deepEqual(at(9, kill).notice, { text: "KILL · BRICK", good: true });
+  assert.deepEqual(
+    [feed.tally(0).kills, feed.tally(1).deaths, feed.tally(2).assists],
+    [1, 1, 1],
+  );
+  const back: CombatEvent = {
+    type: "heroDeath",
+    seat: 2,
+    killer: 1,
+    x: 0,
+    y: 0,
+  };
+  assert.match(
+    feed.event("m", { step: 20, event: back }, v, 2).notice!.text,
+    /^Destroyed by /,
+  );
+  at(5 + GOLD.assistWindow + 40, shot(2, "hero", 3));
+  const late: CombatEvent = {
+    type: "heroDeath",
+    seat: 3,
+    killer: 0,
+    x: near.x,
+    y: near.y,
+  };
+  assert.equal(
+    feed.event("m", { step: 9 + GOLD.assistWindow * 3, event: late }, v, 2)
+      .notice,
+    undefined,
+  );
+  assert.equal(feed.tally(2).assists, 1, "a hit past the window is no assist");
+  feed.event("next", { step: 1, event: shot(0, "unit", 1) }, v, 0);
+  assert.deepEqual(feed.tally(0), { kills: 0, deaths: 0, assists: 0 });
 });
 
 test("a tower or the fort of ours under fire pings once per gap, deduped; the enemy's does not", () => {

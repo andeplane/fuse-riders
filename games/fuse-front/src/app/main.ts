@@ -160,7 +160,7 @@ function landing(error = ""): void {
     card.element,
     el(
       "p",
-      "Right-click to move or attack · A + click: attack-move · Shift queues orders · Q W E R: cast or aim · 1–6: items · B: shop · Z / X: zoom · Tab: the fight · Home: your fort",
+      "Right-click to move or attack · A + click: attack-move · Shift queues orders · Q W E R: cast or aim · 1–6: items · B: shop · hold `: scoreboard · Z / X: zoom · Tab: the fight · Home: your fort",
       "ff-help",
     ),
   );
@@ -235,7 +235,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
   /** Centres the camera on a point in tiles, if there is one. */
   const jump = (at: { x: number; y: number } | undefined) =>
     at && shown && field.lookAt(at.x / shown.width, at.y / shown.height, shown);
-  stage.append(canvas, hud.shop.element, end);
+  stage.append(canvas, hud.overlay, hud.shop.element, end);
   play.append(hud.top, stage, hud.bottom, hint);
   play.hidden = true;
   app.replaceChildren(header(), status, lobby, play);
@@ -254,6 +254,11 @@ function room(code: string, token: string | undefined, display: boolean): void {
         const ping = radar.event(matchId, event, shown, runtime.slot());
         if (ping && shown)
           hud.ping(ping.x / shown.width, ping.y / shown.height, ping.kind);
+        // This seat's last hits pop their gold where the body fell; its kills, assists and deaths post a notice.
+        const fed = hud.feed.event(matchId, event, shown, runtime.slot());
+        const at = fed.float && shown && field.screenOf(fed.float, shown);
+        if (fed.float && at) hud.popup(fed.float.text, at.x, at.y);
+        if (fed.notice) hud.notice(fed.notice.text, fed.notice.good);
       },
       status: (text) => (status.textContent = roomFailure(text)),
       ended: () =>
@@ -312,7 +317,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
     const text = countdown
       ? `Starting in ${countdown}…`
       : slot >= 0
-        ? `${TEAMS[slot % 2]} · right-click: move, or attack an enemy · A then click: attack-move · Shift + click queues · Q W E R: cast or aim, then click · 1–6 items · B shop · Esc cancels · Space or F follows · Z/X zoom · Home fort · Tab fight · right-click the minimap to move`
+        ? `${TEAMS[slot % 2]} · right-click: move, or attack an enemy · A then click: attack-move · Shift + click queues · Q W E R: cast or aim, then click · 1–6 items · B shop · hold \` score · Esc cancels · Space or F follows · Z/X zoom · Home fort · Tab fight · right-click the minimap to move`
         : "Watching";
     if (hint.textContent !== text) hint.textContent = text;
     const over = view.stage === "over";
@@ -639,18 +644,25 @@ function room(code: string, token: string | undefined, display: boolean): void {
     else if (action.kind === "zoom") field.zoom(action.factor);
     else if (action.kind === "home") jump(homeOf(shown, runtime.slot()));
     else if (action.kind === "fight") jump(radar.fight(shown, runtime.slot()));
-    else if (action.kind === "close") (hud.shop.close(), arm(IDLE));
+    else if (action.kind === "close")
+      (hud.shop.close(), hud.showScore(false), arm(IDLE));
+    else if (action.kind === "score") hud.showScore(true);
     else if (action.kind === "attackMove") hud.actions.attackMove();
     else if (action.kind === "shop") hud.toggleShop();
     else if (action.kind === "item") hud.actions.useItem(action.slot);
     else hud.actions.cast(action.slot, event.shiftKey);
   };
+  // The scoreboard shows only while ` is held.
+  const keyUp = (event: KeyboardEvent) =>
+    keyAction(event.key)?.kind === "score" && hud.showScore(false);
   window.addEventListener("keydown", keys123);
+  window.addEventListener("keyup", keyUp);
   runtime.start();
   teardown = () => {
     cancelAnimationFrame(raf);
     window.removeEventListener("resize", resized);
     window.removeEventListener("keydown", keys123);
+    window.removeEventListener("keyup", keyUp);
     runtime.stop();
     field.dispose();
   };

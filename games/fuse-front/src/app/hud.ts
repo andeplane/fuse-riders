@@ -8,10 +8,12 @@ import { ITEMS, KITS, MAX_LEVEL, SPELL_INFO } from "../engine/index.js";
 import type { WorldView } from "../engine/index.js";
 import { campTip, minimapBase, paintMinimap } from "../render/minimap.js";
 import { Img } from "../render/pixel/image.js";
+import { MatchFeed } from "./feed.js";
 import { HERO_ROLES, heroPortrait, spellIcon } from "./look.js";
 import { createHud, deriveHud, upgradesOf } from "./hud-state.js";
 import type { SlotView } from "./model.js";
 import { minimapTile, type Ping } from "./radar.js";
+import { Scoreboard, scoreOf } from "./scoreboard.js";
 import { spellTooltip, targetPanel } from "./targeting.js";
 import { ShopPanel } from "./shop-panel.js";
 import { ITEM_KEYS, itemStats, shopOf, slotsOf } from "./shop-state.js";
@@ -32,8 +34,10 @@ export interface HudActions {
   sell(slot: number): void;
 }
 
-/** Pings on the minimap at once at most; a new one past this replaces the oldest. */
-const MAX_PINGS = 4;
+/** Pings on the minimap, gold pop-ups and notices at once at most; a new one past this replaces the oldest. */
+const MAX_PINGS = 4,
+  MAX_FLOATS = 8,
+  MAX_NOTICES = 3;
 
 /** Copies `img` into a canvas of its size. */
 function draw(canvas: HTMLCanvasElement, img: Img): void {
@@ -53,8 +57,16 @@ function cap(box: HTMLElement, child: HTMLElement, most: number): void {
 export class Hud {
   readonly top = el("div", "", "ff-bar");
   readonly bottom = el("div", "", "ff-panel");
-  /** The held jungle factories' wave upgrades, as badges in the top bar. */
+  /** Over the board: gold pop-ups and notices, the death screen and the scoreboard. */
+  readonly overlay = el("div", "", "ff-overlay");
+  readonly feed = new MatchFeed();
+  readonly score = new Scoreboard();
+  private readonly notices = el("div", "", "ff-notices");
+  private readonly death = el("div", "", "ff-death ff-frame");
+  private readonly deathTime = el("b");
   private readonly upgrades = el("div", "", "ff-upgrades");
+  private readonly scoreButton = el("button", "` score", "ff-switch");
+  private slots: readonly SlotView[] = [];
   readonly state = createHud();
   private readonly written = new WeakMap<HTMLElement, Map<string, string>>();
   /** The sector tug-of-war: red, neutral and blue shares of one bar, with each side's count beside it. */
@@ -118,6 +130,13 @@ export class Hud {
     const war = el("div", "", "ff-war");
     war.append(this.scores[0]!, this.meter, this.scores[1]!);
     this.top.append(war, this.neutral, this.timer, this.upgrades, this.chips);
+    this.death.append(
+      el("strong", "DESTROYED"),
+      this.deathTime,
+      el("small", "The shop opens at your fort once you respawn"),
+    );
+    this.death.hidden = true;
+    this.overlay.append(this.notices, this.death, this.score.element);
     const bars = el("div", "", "ff-bars");
     const head = el("div", "", "ff-head");
     this.purse.title = "Gold: last hits, kills, towers, camps and a trickle";
@@ -156,7 +175,9 @@ export class Hud {
     const toggles = el("div", "", "ff-toggles");
     this.shopButton.title = "Shop: buy and sell at your fort (B)";
     this.shopButton.onclick = () => this.toggleShop();
-    toggles.append(this.amove, this.queueButton);
+    this.scoreButton.title = "Scoreboard (hold `)";
+    this.scoreButton.onclick = () => this.showScore(!this.score.open);
+    toggles.append(this.amove, this.queueButton, this.scoreButton);
     const items = el("div", "", "ff-items");
     this.items.forEach(({ button, mark, shade, secs, tip }, slot) => {
       tip.setAttribute("role", "tooltip");
@@ -215,7 +236,7 @@ export class Hud {
 
   /** Refreshes the HUD from a new world for this device's `seat` and the match's slots. */
   update(world: WorldView, seat: number, slots: readonly SlotView[]): void {
-    [this.world, this.seat] = [world, seat];
+    [this.world, this.seat, this.slots] = [world, seat, slots];
     const s = deriveHud(this.state, world, seat);
     const team = seat < 0 ? 0 : seat % 2;
     this.put(this.portrait, "hero", team + s.kind, () => {
@@ -293,6 +314,9 @@ export class Hud {
       // With QUEUE on, a cooling spell can still be queued: it waits its turn behind the route.
       button.disabled = !spell.ready && !(this.queueOn && !spell.locked);
     });
+    // The death screen: the respawn countdown (the engine sells only to a living hero at its fort).
+    this.death.hidden = !s.respawn;
+    this.text(this.deathTime, s.respawn ? `Respawn in ${s.respawn}s` : "");
     const aim = targetPanel(world, seat);
     // The panel keeps its place with nothing to shoot, so the HUD does not reflow as targets come and go.
     this.text(this.targetName, aim?.name ?? "NONE");
@@ -302,7 +326,35 @@ export class Hud {
     this.flag(this.target, "ff-t0", aim?.team === 0);
     this.flag(this.target, "ff-t1", aim?.team === 1);
     this.showItems(world, seat);
+    if (this.score.open)
+      this.score.update(scoreOf(world, slots, (seat) => this.feed.tally(seat)));
     this.paintMinimap(world);
+  }
+
+  /** Shows or hides the scoreboard (held `, or the SCORE button). */
+  showScore(on: boolean): void {
+    this.score.open = on;
+    this.flag(this.scoreButton, "ff-lit", on);
+    if (on && this.world)
+      this.score.update(
+        scoreOf(this.world, this.slots, (seat) => this.feed.tally(seat)),
+      );
+  }
+
+  /** A gold pop-up rising from `x`, `y` CSS pixels over the board. */
+  popup(text: string, x: number, y: number): void {
+    const float = el("span", text, "ff-float");
+    Object.assign(float.style, { left: `${x}px`, top: `${y}px` });
+    cap(this.overlay, float, MAX_FLOATS);
+  }
+
+  /** A line at the top of the board that fades: a kill, assist or death of this seat's hero. */
+  notice(text: string, good: boolean): void {
+    cap(
+      this.notices,
+      el("span", text, `ff-notice ${good ? "ff-good" : "ff-bad"}`),
+      MAX_NOTICES,
+    );
   }
 
   /** The minimap redraws every 10 steps of match time, and at once when a sector changes hands or a match starts. */
