@@ -167,6 +167,40 @@ test("towers: no standing in an enemy tower's reach without its wave, a siege wh
   assert.ok(out.type === "move" && gap(out.x, out.y) > gap(97, 76));
 });
 
+test("help: a hard or normal bot walks to a teammate's fight on its own half, an easy one doesn't", () => {
+  const map = mapById("twin-wilds");
+  const sent = (difficulty: Difficulty) => {
+    const world = createWorld(map, [0, 1, 2, 3], 1);
+    const place = (seat: number, x: number, y: number) =>
+      Object.assign(world.heroes[seat]!, { x: centreOf(x), y: centreOf(y) });
+    // On mid, team 0's half: seat 0 21 tiles behind its teammate, whom an enemy hero faces 6 tiles off.
+    place(0, 30, 145);
+    place(2, 45, 130);
+    place(1, 49, 126);
+    Object.assign(world.heroes[3]!, { hp: 0, respawn: 900 });
+    const at = { ...world, step: thinking(0, difficulty) };
+    return walks(botCommands(map, at, 0, difficulty));
+  };
+  assert.deepEqual(sent("hard"), {
+    seat: 0,
+    type: "attackMove",
+    x: 45,
+    y: 130,
+  });
+  assert.deepEqual(sent("normal"), {
+    seat: 0,
+    type: "attackMove",
+    x: 45,
+    y: 130,
+  });
+  assert.notDeepEqual(sent("easy"), {
+    seat: 0,
+    type: "attackMove",
+    x: 45,
+    y: 130,
+  });
+});
+
 test("objectives: two heroes standing against none gather on the same enemy structure", () => {
   const map = mapById("twin-wilds");
   const base = createWorld(map, [0, 1, 2, 3], 1);

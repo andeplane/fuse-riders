@@ -412,17 +412,25 @@ function decide(
     return back();
   }
 
-  // 4. A teammate's fight on its own half, within its awareness.
-  const enemy = world.players.find((p) => p.team !== team);
-  for (const ally of allies) {
+  // 4. A teammate's fight on its own half (nearer the ally's fort than any enemy fort), within its awareness, while
+  // it has no fight of its own it declined and the ally stands where it may stand itself.
+  const fortD = (seat: number, at: Spot) => {
+    const site = fortSite(map, seat);
+    return d2(at.x, at.y, centreOf(site.x), centreOf(site.y));
+  };
+  for (const ally of profile.aware > 0 && rivals.length === 0 ? allies : []) {
     if (ally === hero || !near(hero, ally.x, ally.y, profile.aware * TILE))
       continue;
     if (!foes.some((h) => h.cloak === 0 && near(ally, h.x, h.y, NEAR)))
       continue;
-    const theirs = enemy ? fortSite(map, enemy.seat) : fort;
-    const home = d2(ally.x, ally.y, centreOf(fort.x), centreOf(fort.y));
-    if (home <= d2(ally.x, ally.y, centreOf(theirs.x), centreOf(theirs.y)))
-      return walk(...tileOfSpot(ally), true);
+    const theirs = world.players.filter((p) => p.team !== team);
+    if (theirs.some((p) => fortD(p.seat, ally) < fortD(ally.seat, ally)))
+      continue;
+    if (guns(map, world, team, ally.x, ally.y, TILE).some((i) => !holds(i)))
+      continue;
+    const before = out.length;
+    walk(...tileOfSpot(ally), true);
+    if (out.length > before) return out;
   }
 
   // 5. A last hit, as `combat.ts` counts it; a unit it already chases stays its target a little further out, so a
