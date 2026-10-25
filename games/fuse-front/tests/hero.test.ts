@@ -25,6 +25,7 @@ import {
   maxHp,
   respawnSteps,
   step,
+  TILE,
   stepTick,
   tileOf,
   type Command,
@@ -33,6 +34,8 @@ import {
   type World,
 } from "../src/engine/index.js";
 import { TINY, dustBasin, tiny } from "./fixtures/maps.js";
+import { addUnit, benchHeroes } from "./fixtures/heroes.js";
+import { mapById } from "../src/online/maps.js";
 
 const map = tiny();
 const at = centreOf;
@@ -287,20 +290,28 @@ test("robots near their own living hero hit harder", () => {
   );
 });
 
-test("FOLLOW keeps a player's units near the hero, and at the fort while it is dead", () => {
-  let world = createWorld(map, [0, 1], 1);
-  world = withHero(world, 1, { x: at(12), y: at(8) });
-  world = add(world, 0, "grunt", 2, 2);
-  world = add(world, 0, "grunt", 2, 3);
-  world = withHero(world, 0, { x: at(4), y: at(7) });
-  world = run(world, 300, [{ seat: 0, type: "stance", stance: "follow" }]);
-  for (const unit of world.units) {
-    assert.equal(unit.goal, FOLLOW_HERO);
-    assert.ok(tileOf(unit.y) >= 4, `unit ${unit.id} came south to its hero`);
-  }
-  world = run(withHero(world, 0, { hp: 0, respawn: 400 }), 300);
-  for (const unit of world.units)
-    assert.ok(tileOf(unit.y) <= 4, `unit ${unit.id} fell back to its fort`);
+test("on a lane map a unit outside the waves keeps near its hero, and at the fort while it is dead", () => {
+  const duel = mapById("neon-duel");
+  let world = benchHeroes(createWorld(duel, [0, 1], 1));
+  const fort = duel.sites.find((s) => s.kind === "fort" && s.seat === 0)!;
+  // A drop's tank by the fort, and the hero 10 tiles up the lane.
+  const tank = addUnit(world, 0, "lightTank", fort.x + 4, fort.y - 4, 650);
+  Object.assign(world.heroes[0]!, {
+    hp: 50_000,
+    respawn: 0,
+    x: at(fort.x + 14),
+    y: at(fort.y - 14),
+  });
+  const near = (x: number, y: number, tiles: number) => {
+    const t = world.units.find((u) => u.id === tank.id)!;
+    return Math.hypot(t.x - x, t.y - y) <= tiles * TILE;
+  };
+  for (let index = 0; index < 300; index++) world = step(duel, world);
+  assert.equal(world.units.find((u) => u.id === tank.id)!.goal, FOLLOW_HERO);
+  assert.ok(near(world.heroes[0]!.x, world.heroes[0]!.y, 5), "by its hero");
+  Object.assign(world.heroes[0]!, { hp: 0, respawn: 4000 });
+  for (let index = 0; index < 300; index++) world = step(duel, world);
+  assert.ok(near(at(fort.x), at(fort.y), 6), "back at the fort");
 });
 
 test("a hero's move commands cannot evict the flag and fort fields every stance uses", () => {

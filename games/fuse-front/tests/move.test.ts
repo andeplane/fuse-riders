@@ -23,7 +23,6 @@ import {
   tileOf,
   type Command,
   type GameMap,
-  type Stance,
   type UnitKind,
   type World,
 } from "../src/engine/index.js";
@@ -88,12 +87,6 @@ function place(
   return { ...world, units, nextId };
 }
 
-const stance = (seat: number, value: Stance): Command => ({
-  seat,
-  type: "stance",
-  stance: value,
-});
-
 function run(
   map: GameMap,
   world: World,
@@ -143,13 +136,14 @@ test("an unreachable goal leaves every tile across the water unreachable, and no
   const field = buildFlowField(map, at(map, 6, 6));
   assert.equal(field.cost(at(map, 1, 1)), UNREACHABLE);
   assert.equal(field.next(at(map, 1, 1)), -1);
-  // Seat 0 pushes, but the only flag to take lies across the water: it holds its own instead (out of the guns' reach).
+  // Seat 0 pushes, but the only flag to take and the enemy fort lie across the water: it falls back to its own fort.
   let world = place(benchHeroes(createWorld(map, [0, 1], 3)), 0, "grunt", [
     { x: 2, y: 1 },
   ]);
   world = run(map, world, 200);
   const unit = world.units[0]!;
-  assert.equal(unit.goal, at(map, 1, 1));
+  const fort = map.sites.find((s) => s.kind === "fort" && s.seat === 0)!;
+  assert.equal(unit.goal, at(map, fort.x, fort.y));
   assert.equal(tileOf(unit.y) < 3, true);
 });
 
@@ -171,13 +165,9 @@ test("cached fields match fresh ones and the cache stays bounded", () => {
 test("units never stand on or step through blocked ground over a long six-seat run", () => {
   const map = dustBasin();
   let world = createWorld(map, [0, 1, 2, 3, 4, 5], 11);
-  const script = new Map<number, Command[]>([
-    [1, [stance(1, "hold"), stance(2, "follow")]],
-    [500, [stance(1, "push"), stance(3, "hold")]],
-  ]);
   let checked = 0;
   for (let tick = 1; tick <= 1200; tick++) {
-    world = stepTick(map, world, script.get(tick) ?? []);
+    world = stepTick(map, world);
     for (const unit of world.units) {
       assert.ok(
         openTile(map, tileOf(unit.x), tileOf(unit.y)),
@@ -203,40 +193,6 @@ test("a pushing robot walks to the nearest neutral flag and takes it, then the n
   assert.ok(teamSectors(world, 0) >= 3);
 });
 
-test("holding units gather near their team's flags, spread over them, and take nothing", () => {
-  const map = tiny();
-  let world = createWorld(map, [0, 1], 5);
-  // Seat 0 holds the west home and the south-west.
-  world = {
-    ...world,
-    sectors: world.sectors.map((owner, flag) => (flag === 3 ? 0 : owner)),
-  };
-  const spots = [1, 2, 4, 6, 7, 8].map((y) => ({ x: 5, y }));
-  world = place(world, 0, "grunt", spots);
-  world = step(map, world, [stance(0, "hold")]);
-  world = run(map, world, 400);
-  const homes = [0, 3].map((flag) =>
-    at(map, map.flags[flag]!.x, map.flags[flag]!.y),
-  );
-  for (const unit of world.units) {
-    const cost = Math.min(
-      ...homes.map((home) =>
-        flowField(map, home).cost(at(map, tileOf(unit.x), tileOf(unit.y))),
-      ),
-    );
-    assert.ok(
-      cost <= HOLD_RADIUS + STRAIGHT,
-      `unit ${unit.id} strayed ${cost}`,
-    );
-  }
-  for (const home of homes)
-    assert.ok(
-      world.units.some((unit) => unit.goal === home),
-      "both flags are held",
-    );
-  assert.equal(teamSectors(world, 0), 2);
-});
-
 test("separation parts units stacked on one sub-pixel", () => {
   const map = tiny();
   let world = place(
@@ -245,7 +201,8 @@ test("separation parts units stacked on one sub-pixel", () => {
     "grunt",
     Array(8).fill(map.flags[0]!),
   );
-  world = step(map, world, [stance(0, "hold")]);
+  // Stunned, so they seek nothing and only separation moves them.
+  for (const unit of world.units) unit.stun = 100;
   world = run(map, world, 40);
   for (const [index, a] of world.units.entries())
     for (const b of world.units.slice(index + 1)) {
@@ -266,7 +223,7 @@ test("movement is deterministic, and a cold cache gives what a warm one does", (
       world = stepTick(
         map,
         world,
-        tick === 200 ? [stance(0, "hold"), stance(1, "follow")] : [],
+        tick === 200 ? [{ seat: 0, type: "move", x: 40, y: 20 }] : [],
       );
     }
     assert.ok(world.units.length > 10);

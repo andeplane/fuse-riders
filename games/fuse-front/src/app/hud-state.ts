@@ -1,5 +1,5 @@
 /**
- * What the HUD shows, derived from a `WorldView` for this device's seat: the hero's bars and spell slots, the stance,
+ * What the HUD shows, derived from a `WorldView` for this device's seat: the hero's bars and spell slots,
  * the sector tug-of-war, the production clock and the match timer, plus the factory panel and the key bindings.
  * Pure: `deriveHud` fills one reused record, so a frame that changes nothing allocates nothing but the timer text.
  */
@@ -7,7 +7,6 @@ import {
   FACTORY_KINDS,
   KITS,
   MAX_LEVEL,
-  STANCES,
   STEPS_PER_SECOND,
   SUB,
   TILE_PX,
@@ -18,7 +17,6 @@ import {
   teamOf,
   type BuildingView,
   type HeroKind,
-  type Stance,
   type UnitKind,
   type WorldView,
 } from "../engine/index.js";
@@ -54,7 +52,7 @@ export function createHud() {
     spells,
   };
   const sectors = { red: 0, neutral: 0, blue: 0, clock: 100 };
-  return { ...hero, ...sectors, stance: "" as Stance | "", time: "0:00" };
+  return { ...hero, ...sectors, time: "0:00" };
 }
 export type HudState = ReturnType<typeof createHud>;
 
@@ -67,7 +65,6 @@ export function deriveHud(
   seat: number,
 ): HudState {
   const hero = world.heroes.find((h) => h.seat === seat);
-  out.stance = world.players.find((p) => p.seat === seat)?.stance ?? "";
   out.red = out.neutral = out.blue = 0;
   for (const owner of world.sectorOwners)
     if (owner < 0) out.neutral++;
@@ -174,7 +171,6 @@ export function factoryPanel(
 
 export type KeyAction =
   | { kind: "cast"; slot: number }
-  | { kind: "stance"; stance: Stance }
   | { kind: "attackMove" }
   | { kind: "recentre" }
   | { kind: "zoom"; factor: number }
@@ -194,7 +190,7 @@ const ZOOM_KEYS: Readonly<Record<string, number>> = {
 };
 
 /**
- * What a key press does: Q/W/E/R cast (or aim), A arms an attack-move, 1/2/3 set the stance, Space or F follows the
+ * What a key press does: Q/W/E/R cast (or aim), A arms an attack-move, Space or F follows the
  * hero again, Z/X or +/- zoom a step in or out, Home looks at this seat's fort, Tab at the latest fight, and Escape
  * cancels aiming and closes a panel.
  */
@@ -202,8 +198,6 @@ export function keyAction(key: string): KeyAction | undefined {
   const slot = key.length === 1 ? "QWER".indexOf(key.toUpperCase()) : -1;
   if (slot >= 0) return { kind: "cast", slot };
   if (key === "a" || key === "A") return { kind: "attackMove" };
-  if (/^[123]$/.test(key))
-    return { kind: "stance", stance: STANCES[Number(key) - 1]! };
   if (key === " " || key === "f" || key === "F") return { kind: "recentre" };
   const zoom = ZOOM_KEYS[key.toLowerCase()];
   if (zoom)

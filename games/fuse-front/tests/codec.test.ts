@@ -30,7 +30,8 @@ import { TINY, dustBasin, tiny } from "./fixtures/maps.js";
 const map = tiny();
 
 function played(): World {
-  let world = createWorld(map, [0, 1, 2], 5);
+  // One team only (seats 0 and 2): with no stance to hold them back since v3, an enemy would pick the units off.
+  let world = createWorld(map, [0, 2], 5);
   const flag = map.flags[TINY.middle]!;
   world = {
     ...world,
@@ -52,11 +53,6 @@ function played(): World {
       },
     ],
   };
-  // Seat 0 holds the middle, out of reach of seat 1's hero and every fort's gun.
-  world = step(map, world, [
-    { seat: 1, type: "stance", stance: "follow" },
-    { seat: 0, type: "stance", stance: "hold" },
-  ]);
   for (let index = 0; index < 500; index++) world = step(map, world);
   return world;
 }
@@ -157,10 +153,6 @@ const corruptions: [string, (wire: Wire) => unknown][] = [
   ["a short tuple", (w) => w.slice(0, 8)],
   ["a winner while every fort stands", (w) => ((w[8] = 0), w)],
   ["a string winner", (w) => ((w[8] = "-1" as unknown as number), w)],
-  [
-    "a fallen fort with no winner recorded",
-    (w) => ((w[5][TINY.fort1]![1] = 0), w),
-  ],
   ["a factory at 0 hit points", (w) => ((w[5][TINY.robotFactory]![1] = 0), w)],
   [
     "a fort reloading too long",
@@ -193,8 +185,8 @@ const corruptions: [string, (wire: Wire) => unknown][] = [
   ["a fractional step", (w) => ((w[0] = 1.5), w)],
   ["a string rng", (w) => ((w[1] = "7" as unknown as number), w)],
   ["one player", (w) => ((w[3] = w[3].slice(0, 1)), w)],
-  ["a player on the wrong team", (w) => ((w[3][1]![1] = 0), w)],
-  ["an unknown stance", (w) => ((w[3][0]![2] = 9), w)],
+  ["a player on the wrong team", (w) => ((w[3][1]![1] = 1), w)],
+  ["a player with a stance", (w) => (w[3][0]!.push(0), w)],
   ["players out of order", (w) => (w[3].reverse(), w)],
   ["a sector held by an absent seat", (w) => ((w[4][2] = 5), w)],
   ["a missing sector", (w) => ((w[4] = w[4].slice(1)), w)],
@@ -324,7 +316,13 @@ for (const [label, corrupt] of corruptions)
 
 test("a hero's queue round-trips, and the queue corruptions start from checkpoints that decode", () => {
   const wire = () => structuredClone(encodeWorld(played())) as Wire;
-  const orders = [MOVE_44, [1, 4, 4], [2, 1, 1], CAST_44, [3, 2, 4, 4, 0, 1]];
+  const orders = [
+    MOVE_44,
+    [1, 4, 4],
+    [2, 2, TINY.turret],
+    CAST_44,
+    [3, 2, 4, 4, 0, 1],
+  ];
   const world = decodeWorld(queued([...orders].reverse(), 0)(wire()), map);
   assert.ok(world);
   assert.deepEqual(world.heroes[0]!.queue.at(-1), { type: "move", x: 4, y: 4 });

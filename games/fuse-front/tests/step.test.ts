@@ -33,6 +33,15 @@ import { benchHeroes } from "./fixtures/heroes.js";
 import { TINY, dustBasin, tiny } from "./fixtures/maps.js";
 
 /** A world with `kind` units of `owner` placed on a tile, ids continuing the world's. */
+/**
+ * Every unit stunned for good, so none seeks a flag: with no HOLD stance since v3, this keeps the rule tests' units
+ * where they stand, the sectors and so the clock and cap fixed.
+ */
+const stay = (world: World): World => ({
+  ...world,
+  units: world.units.map((unit) => ({ ...unit, stun: 1_000_000 })),
+});
+
 function place(
   world: World,
   owner: number,
@@ -78,10 +87,10 @@ test("a fresh world: each seat holds its fort's home sector, everything else is 
   const map = dustBasin();
   const world = createWorld(map, [1, 0], 7);
   assert.deepEqual(
-    world.players.map((p) => [p.seat, p.team, p.stance]),
+    world.players.map((p) => [p.seat, p.team]),
     [
-      [0, 0, "push"],
-      [1, 1, "push"],
+      [0, 0],
+      [1, 1],
     ],
   );
   const owned = world.sectors.flatMap((owner, sector) =>
@@ -143,9 +152,8 @@ test("a captured factory builds its default order at the team's clock and spawns
   let world = step(
     map,
     place(createWorld(map, [0, 1], 1), 0, "grunt", map.flags[TINY.middle]!),
-    // Held, so the grunt stays on the middle flag rather than pushing on to take more.
-    [{ seat: 0, type: "stance", stance: "hold" }],
   );
+  world = stay(world);
   assert.equal(world.sectors[TINY.middle], 0);
   const factory = () =>
     world.buildings.find((b) => b.id === TINY.robotFactory)!;
@@ -196,7 +204,7 @@ test("the production clock speeds up with team sectors and never below half the 
 
 test("a player at its unit cap pauses, and a batch is cut to the room left under the cap", () => {
   const map = tiny();
-  // Held, so nobody takes another flag and moves the cap.
+  // Units stay put (`stay`), so nobody takes another flag and moves the cap.
   let world = step(
     map,
     place(
@@ -205,19 +213,18 @@ test("a player at its unit cap pauses, and a batch is cut to the room left under
       "grunt",
       map.flags[TINY.middle]!,
     ),
-    [{ seat: 0, type: "stance", stance: "hold" }],
   );
   const cap = unitCap(world, 0);
   assert.equal(cap, UNIT_CAP_BASE + 2 * UNIT_CAP_PER_SECTOR, "two sectors");
-  world = place(world, 0, "grunt", { x: 5, y: 2 }, cap - 2);
-  world = run(map, world, buildSteps("grunt", 2));
+  world = stay(place(world, 0, "grunt", { x: 5, y: 2 }, cap - 2));
+  world = stay(run(map, world, buildSteps("grunt", 2)));
   assert.equal(world.units.filter((u) => u.owner === 0).length, cap);
   const paused = run(map, world, 50);
   assert.equal(paused.units.length, world.units.length);
   const work = (w: World) => w.buildings.map((b) => [b.order, b.progress]);
   assert.deepEqual(work(paused), work(world));
   // Losing ground shrinks the cap: nobody dies, the factories just stay paused.
-  const shrunk = run(map, { ...paused, sectors: [0, 1, 1, -1, -1] }, 50);
+  const shrunk = run(map, { ...paused, sectors: [1, 1, 0, -1, -1] }, 50);
   assert.ok(unitCap(shrunk, 0) < cap);
   assert.equal(shrunk.units.filter((u) => u.owner === 0).length, cap);
 });
@@ -260,78 +267,29 @@ test("overtime: past OVERTIME_AFTER the team ahead on sectors builds ever faster
   assert.equal(productionRate({ ...base, step: at(5).step }, 0), clockRate(1));
 });
 
-test("orders and stances: only the owner orders its factory, only kinds it builds, and a change restarts it", () => {
+test("factory orders and stances are gone: an old command does nothing, and past the per-seat cap commands drop", () => {
   const map = tiny();
   let world = step(
     map,
     place(createWorld(map, [0, 1], 1), 0, "grunt", map.flags[TINY.middle]!),
   );
   world = run(map, world, 10);
-  const factory = (w: World) =>
-    w.buildings.find((b) => b.id === TINY.robotFactory)!;
-  const before = factory(world);
   const send = (...commands: Command[]) => step(map, world, commands);
-  const kept = (w: World) => assert.equal(factory(w).order, "grunt");
-  kept(
-    send({ seat: 1, type: "order", factory: TINY.robotFactory, kind: "torch" }),
-  );
-  kept(
-    send({ seat: 4, type: "order", factory: TINY.robotFactory, kind: "torch" }),
-  );
-  kept(
-    send({
-      seat: 0,
-      type: "order",
-      factory: TINY.robotFactory,
-      kind: "lightTank",
-    }),
-  );
-  kept(send({ seat: 0, type: "order", factory: 99, kind: "torch" }));
-  // An unowned vehicle factory and the turret take no orders.
-  const tank = send({
-    seat: 0,
-    type: "order",
-    factory: TINY.vehicleFactory,
-    kind: "lightTank",
-  });
-  assert.equal(
-    tank.buildings.find((b) => b.id === TINY.vehicleFactory)!.progress,
-    0,
-  );
-  const torch = send({
-    seat: 0,
-    type: "order",
-    factory: TINY.robotFactory,
-    kind: "torch",
-  });
-  assert.equal(factory(torch).order, "torch");
-  assert.equal(factory(torch).progress, clockRate(2));
-  // Re-sending the current order keeps the work done.
-  const same = send({
-    seat: 0,
-    type: "order",
-    factory: TINY.robotFactory,
-    kind: "grunt",
-  });
-  assert.equal(factory(same).progress, before.progress + clockRate(2));
-
-  const hold = send({ seat: 1, type: "stance", stance: "hold" });
-  assert.equal(hold.players[1]!.stance, "hold");
-  assert.equal(hold.players[0]!.stance, "push");
-  const bogus = {
-    seat: 1,
-    type: "stance",
-    stance: "dance",
-  } as unknown as Command;
-  assert.equal(send(bogus).players[1]!.stance, "push");
+  const none = hashWorld(send());
+  for (const old of [
+    { seat: 0, type: "order", factory: TINY.robotFactory, kind: "torch" },
+    { seat: 1, type: "stance", stance: "hold" },
+  ])
+    assert.equal(hashWorld(send(old as unknown as Command)), none);
   // Past the per-seat cap, a seat's commands drop.
   const flood: Command[] = Array.from({ length: COMMANDS_PER_SEAT }, () => ({
     seat: 0,
-    type: "stance",
-    stance: "follow",
+    type: "move",
+    x: 2,
+    y: 7,
   }));
-  const last: Command = { seat: 0, type: "stance", stance: "hold" };
-  assert.equal(send(...flood, last).players[0]!.stance, "follow");
+  const last: Command = { seat: 0, type: "move", x: 11, y: 7 };
+  assert.equal(send(...flood, last).heroes[0]!.goal, 7 * map.width + 2);
 });
 
 test("capturing a factory restarts it on its default order", () => {
@@ -340,9 +298,6 @@ test("capturing a factory restarts it on its default order", () => {
     map,
     place(createWorld(map, [0, 1], 1), 0, "grunt", map.flags[TINY.middle]!),
   );
-  world = step(map, world, [
-    { seat: 0, type: "order", factory: TINY.robotFactory, kind: "torch" },
-  ]);
   world = run(map, world, 20);
   world = { ...world, units: [] };
   world = step(map, place(world, 1, "grunt", map.flags[TINY.middle]!));
@@ -361,8 +316,8 @@ test("step leaves the world it is given untouched", () => {
   const copy = structuredClone(frozen);
   const fort = map.sites.find((s) => s.kind === "fort" && s.seat === 0)!;
   const next = stepTick(map, frozen, [
-    { seat: 0, type: "stance", stance: "hold" },
-    { seat: 1, type: "order", factory: fort.id, kind: "grunt" },
+    { seat: 0, type: "move", x: 10, y: 10 },
+    { seat: 1, type: "attack", of: 2, id: fort.id },
   ]);
   assert.deepEqual(frozen, copy);
   assert.equal(next.step, frozen.step + 2);
@@ -374,10 +329,8 @@ test("the view reports owners, progress in thousandths and units by team", () =>
   let world = step(
     map,
     place(createWorld(map, [0, 1], 1), 0, "grunt", map.flags[TINY.middle]!),
-    // Held, so the grunt stays on the middle flag rather than pushing on to take more.
-    [{ seat: 0, type: "stance", stance: "hold" }],
   );
-  world = run(map, world, 99);
+  world = run(map, stay(world), 99);
   const view = viewOf(map, world);
   assert.equal(view.flags[TINY.middle]!.owner, 0);
   assert.equal(view.flags[TINY.southEast]!.team, -1);
@@ -408,17 +361,15 @@ test("seats' commands in one tick do not depend on the order they arrive in", ()
   );
   world = run(map, world, 5);
   const commands: Command[] = [
-    { seat: 0, type: "order", factory: TINY.robotFactory, kind: "torch" },
-    { seat: 1, type: "stance", stance: "hold" },
-    { seat: 0, type: "stance", stance: "follow" },
-    { seat: 1, type: "order", factory: TINY.robotFactory, kind: "grunt" },
+    { seat: 0, type: "move", x: 2, y: 7 },
+    { seat: 1, type: "attackMove", x: 6, y: 5 },
   ];
   const forward = hashWorld(step(map, world, commands));
   assert.equal(hashWorld(step(map, world, [...commands].reverse())), forward);
-  // Within one seat the order is the seat's own: the last stance wins.
+  // Within one seat the order is the seat's own: the last move wins.
   const flipped = step(map, world, [
-    { seat: 0, type: "stance", stance: "hold" },
-    { seat: 0, type: "stance", stance: "follow" },
+    { seat: 0, type: "move", x: 2, y: 7 },
+    { seat: 0, type: "move", x: 11, y: 7 },
   ]);
-  assert.equal(flipped.players[0]!.stance, "follow");
+  assert.equal(flipped.heroes[0]!.goal, 7 * map.width + 11);
 });

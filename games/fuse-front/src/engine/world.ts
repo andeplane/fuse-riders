@@ -22,14 +22,12 @@ import {
   teamOf,
   type BuildingKind,
   type HeroKind,
-  type Stance,
   type UnitKind,
 } from "./tuning.js";
 
 export interface Player {
   seat: number;
   team: number;
-  stance: Stance;
 }
 
 /** The building on map site `id` (`GameMap.sites`); its owner is its sector's, except a fort's, which is its seat's. */
@@ -261,7 +259,6 @@ export function createWorld(
     players: playing.map((seat) => ({
       seat,
       team: teamOf(seat),
-      stance: "push",
     })),
     sectors,
     buildings: map.sites

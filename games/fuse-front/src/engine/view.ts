@@ -13,7 +13,6 @@ import {
   teamOf,
   type BuildingKind,
   type HeroKind,
-  type Stance,
   type UnitKind,
 } from "./tuning.js";
 import { heroTarget, type Aim } from "./focus.js";
@@ -165,7 +164,6 @@ export interface WorldView {
   players: readonly {
     seat: number;
     team: number;
-    stance: Stance;
     unitCap: number;
   }[];
   /** One per seat in play; `hp` is 0 while it waits `respawn` steps at its fort. */
