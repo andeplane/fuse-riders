@@ -279,7 +279,7 @@ export function viewOf(map: GameMap, world: World): WorldView {
       id: unit.id,
       kind: unit.kind,
       owner: unit.owner,
-      team: teamOf(unit.owner),
+      team: teamOrNeutral(unit.owner),
       x: unit.x,
       y: unit.y,
       hp: unit.hp,

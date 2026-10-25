@@ -153,6 +153,8 @@ export interface World {
   fortified: number[];
   /** By team: steps left under Rivet's OVERCLOCK (its factories build twice as fast). */
   overclock: number[];
+  /** By camp (`GameMap.camps`): steps until its guards stand again, held at `CAMP_RESPAWN` while any stands (`jungle.ts`). */
+  camps: number[];
   /** `NO_WINNER` while the match runs, then the winning team or `DRAW` (`winnerOf`). */
   winner: number;
   /**
@@ -279,6 +281,8 @@ export function createWorld(
     mines: [],
     fortified: map.flags.map(() => 0),
     overclock: [0, 0],
+    // Every camp's guards stand on the first step.
+    camps: map.camps.map(() => 1),
     winner: NO_WINNER,
     events: [],
   };
