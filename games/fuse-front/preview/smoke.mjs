@@ -4,10 +4,10 @@
  *   node games/fuse-front/preview/smoke.mjs http://localhost:PORT/ [screenshot-dir]
  *
  * The landing page shows the portal first in the header; CREATE ROOM opens a lobby with the size picker, two team
- * columns and START; the host cycles the bot's difficulty, starts a 1v1 against it, right-clicks its hero a few tiles east (it walks there), sends it across the map and
- * sets HOLD, and the battlefield keeps changing as the armies move. Then a solo match against a bot: the HUD shows a
- * block per sector and a locked ultimate, Q casts (and cools down), FOLLOW lights up, and a robot factory's orders
- * panel switches it to torches and shows its ETA; Esc closes it. `HUD_SHOT=path` saves a screenshot of the HUD.
+ * columns and START; the host cycles the bot's difficulty, starts a 1v1 against it, right-clicks open ground east of
+ * its hero (the hero walks there), sends it across the map and sets HOLD, and the battlefield keeps changing as the
+ * armies move. Then a solo match against a bot: the HUD shows a locked ultimate, a right-click walks the hero, Q casts
+ * (and cools down) and FOLLOW lights up. `HUD_SHOT=path` saves a screenshot of the HUD.
  * Run by hand; not in CI. Every page opens muted.
  */
 import { chromium } from "playwright";
@@ -108,18 +108,11 @@ try {
   assert.ok(await q.isDisabled(), "Q cools down after a cast");
   await page.getByRole("button", { name: "3 FOLLOW" }).click();
   await page.locator(".ff-switch.ff-lit", { hasText: "FOLLOW" }).waitFor();
-  await page.locator(".ff-switch", { hasText: "ROBOTS" }).first().click();
-  await page
-    .locator(".ff-orders .ff-choice.ff-lit", { hasText: "GRUNT" })
-    .waitFor();
-  await page.locator(".ff-choice", { hasText: "TORCH" }).click();
-  await page.locator(".ff-choice.ff-lit", { hasText: "TORCH" }).waitFor();
-  assert.match(await page.locator(".ff-eta").innerText(), /TORCH in \d+s/);
+  // The room plays only the lane maps since v3 M2c, where a hero starts with no factory of its own, so the factory
+  // orders panel (covered by `tests/hud.test.ts`) has no button to open here.
   await page.waitForTimeout(1_500);
   if (process.env.HUD_SHOT)
     await page.screenshot({ path: process.env.HUD_SHOT });
-  await page.keyboard.press("Escape");
-  await page.locator(".ff-orders").waitFor({ state: "hidden" });
   assert.deepEqual(errors, []);
   console.log("fuse-front smoke: ok");
 } finally {
