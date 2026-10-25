@@ -626,6 +626,52 @@ no hero acting at all, Neon Duel's waves wore down team 1's outer tower and neve
 - **Bots:** on a lane map, teammates think 5 ticks apart and the two teams half a think apart. The old seat × 7
   stagger left a 1v1 with one team always the fresher reader of the other's last move. v2 maps keep it.
 
+**M5 as built: MOBA bots (`src/engine/bot-lane.ts`).** On a lane map a bot plays a MOBA, and M2's structure push
+is gone. The file's header lists the rules in order:
+
+- rest and shop at the fountain, or fall back behind its tower to heal;
+- fight when its side's strength wins, else step out of reach;
+- respect towers;
+- help a teammate on its own half;
+- last-hit exactly;
+- siege what it may stand by;
+- group on numbers;
+- jungle a pushed lane;
+- hold its wave's front, farming that wave rather than pushing it while an enemy hero contests the lane.
+
+The rest of what M5 built:
+
+- **Lanes:** 1v1 plays mid, and 3v3 puts a hero in each lane. 2v2 plays top and bottom, or mid and a roamer when hard.
+- **Spells:** a bot never casts an ultimate into nothing. There is no OVERCLOCK or FLARE on a lane map, since lane
+  factories build nothing and waves ignore flares.
+- **Difficulty (`PROFILES`):** profiles differ in:
+  - think cadence: 4, 0.8 or 0.3 s;
+  - last-hit accuracy: easy swings at 150 percent of a shot;
+  - retreat line;
+  - how far they see a teammate's fight;
+  - jungle reach and roaming;
+  - nerve;
+  - what they weigh in a fight. Easy counts the heroes, normal adds the towers and wave robots that reach it, and hard
+    also adds the longer gun's free shots.
+
+  No profile reads anything a player can't see.
+
+- **Measured** (rules `fuse-front-20`, 146 matches over every map, mirrored hero lineups from both sides, #594):
+  - Hard beats easy 38 of 38, normal beats easy 34 of 34, and hard beats normal 30 of 38.
+  - Every match ends: 1v1 in 10.1–38.0 min, 2v2 in 9.0–22.5 and 3v3 in 12.4–30.0.
+  - Same-difficulty matches split 22 to 14 for team 0. That is within chance at this count. Earlier builds of the
+    same bots split 22 to 14 for team 1 instead.
+  - A call takes about 0.011 ms. The worst tick is 2.9 ms a bot, when it first builds a flow field.
+- **Vix still wins all six of her 1v1 cross pairings, and it's her kit.**
+  - Cutting her gun from 7 tiles to 5 dropped her to 2 of 3, at even levels.
+  - Switching off Snipe on heroes changed nothing.
+  - Her 7 tiles match a tower's reach and outrange every other hero's 5. She farms outside a grunt's gun and shoots
+    first in every duel.
+  - That is M7's to tune. The others win Brick 4, Rivet 1 and Tally 1 of 6 (M4: Brick 1, Rivet 4, Tally 1).
+- **Items:** bots carry 2–3 items at minute 15, fewer than M3's bots, because they no longer push structures for gold.
+- **League:** `tests/league.test.ts` plays all 16 Neon Duel hero pairings. `tests/league-difficulty.test.ts` and
+  `tests/league-big.test.ts` play hard, normal and easy against each other from both sides on every map.
+
 **M6 as built (the MOBA HUD).**
 
 - **M6a, structures and the minimap:**
