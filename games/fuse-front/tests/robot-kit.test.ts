@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import * as THREE from "three";
 import {
   LABELS,
+  bannerTexture,
   decalAtlas,
   labelMask,
   labelUv,
@@ -23,6 +24,13 @@ import {
   type Model,
 } from "../src/render3d/models.js";
 import { heroModel } from "../src/render3d/kit/heroes.js";
+import {
+  conceptBuilding,
+  conceptRuin,
+  flagModel,
+} from "../src/render3d/kit/buildings.js";
+
+const BUILDINGS = ["fort", "robotFactory", "vehicleFactory", "turret"] as const;
 
 const KINDS: RobotKind[] = [
   "grunt",
@@ -107,7 +115,16 @@ test("the far model drops small parts and low quality always takes it", () => {
 
 test("squad numbers come from one shared pixel atlas", () => {
   const atlas = decalAtlas(), paints = paintMaterials();
-  assert.equal(atlas.image.width, 8 * LABELS.length);
+  // Two-glyph labels take a cell of 8 texels; a sign takes as many as its letters need.
+  assert.equal(atlas.image.width, 8 * 4 + 24 + 40);
+  assert.deepEqual(LABELS.slice(-2), ["ROBOTS", "MOTOR POOL"]);
+  // Each label's glyph box stays inside its own cell, in order, so no stencil bleeds into the next.
+  LABELS.reduce((end, label) => {
+    const [a, b] = labelUv(label);
+    assert.ok(a >= end - 1e-9 && b > a && b <= 1, label);
+    return a + (Math.ceil((label.length * 4) / 8) * 8) / 96;
+  }, 0);
+  assert.equal(labelMask("MOTOR POOL").filter(Boolean).length, 12 + 12 + 7 + 12 + 10 + 0 + 10 + 12 + 12 + 7);
   assert.ok(paints.decal.map instanceof THREE.DataTexture && paints.decal.alphaTest > 0);
   // "07": the zero's hole is dark, the seven's top bar is lit.
   const mask = labelMask("07");
@@ -139,4 +156,29 @@ test("heroes: each its own silhouette near and far, team plates on a dark frame,
   }
   assert.ok(heroModel("vix", "far").some((p) => p.paint === "eye"), "Vix's single red eye");
   assert.ok(size(heroModel("brick")).x > 2 * size(heroModel("vix")).x, "Brick's shoulders, Vix's thin frame");
+}); // prettier-ignore
+
+test("buildings: near and far apart, team parts swap per building, bounded draw calls; the fort and turret leave ruins", () => {
+  for (const kind of BUILDINGS) {
+    const near = conceptBuilding(kind), far = conceptBuilding(kind, "far");
+    const all = (m: typeof near) => [...m.body, ...(m.pivot?.model ?? [])];
+    assert.ok(all(near).some((p) => p.paint === "team"), `${kind}: team parts`);
+    assert.ok(all(near).length <= 14 && all(far).length < all(near).length, `${kind}: ${all(near).length}/${all(far).length} draws`);
+    assert.ok(tris(all(near)) <= 10000 && tris(all(far)) * 2 < tris(all(near)), `${kind}: ${tris(all(near))}/${tris(all(far))} triangles`);
+    assert.ok(size(near.body).distanceTo(size(far.body)) < 0.05, `${kind}: the far model keeps the silhouette`);
+    assert.ok(!far.body.some((p) => p.paint === "decal"), `${kind}: no signs far away`);
+    assert.ok(size(near.body).x < 2.1 && size(near.body).z < 2.1, `${kind} stays near its tile`);
+  }
+  const dims = BUILDINGS.map((k) => size(conceptBuilding(k).body).toArray().map((v) => v.toFixed(2)).join());
+  assert.equal(new Set(dims).size, BUILDINGS.length);
+  // The fort's courtyard is open to the camera, so a hero respawning on its tile stays in sight: nothing tall there.
+  const fort = conceptBuilding("fort").body.flatMap((p) => { const a = p.geometry.getAttribute("position"); return Array.from({ length: a.count }, (_, i) => [a.getX(i), a.getY(i), a.getZ(i)]); });
+  assert.ok(fort.every(([x, y, z]) => Math.hypot(x!, z!) > 0.3 || y! < 0.1), "an open courtyard");
+  for (const kind of ["fort", "turret"] as const) {
+    const ruin = size(conceptRuin(kind)), whole = size(conceptBuilding(kind).body);
+    assert.ok(ruin.y < conceptBuilding(kind).height * 0.7 && ruin.x > whole.x * 0.8, `${kind}: a ruin as wide, but low`);
+  }
+  assert.ok(flagModel().some((p) => p.paint === "sand") && size(flagModel()).y > 1.5, "a sandbagged flag base and a tall pole");
+  const banner = bannerTexture(), px = (x: number, y: number) => banner.image.data![(y * 32 + x) * 4]!;
+  assert.ok(px(3, 0) < 60 && px(3, 10) === 255 && px(16, 10) < 60, "dark hems, team cloth, the emblem in the middle");
 }); // prettier-ignore
