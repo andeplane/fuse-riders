@@ -146,7 +146,6 @@ export type Intent =
       /** Set when the order goes behind the hero's route. */
       queued?: true;
     }
-  | { kind: "factory"; id: number }
   | { kind: "useItem"; slot: number; x: number; y: number }
   /** Leave the armed mode; `none` keeps it (a click out of reach). */
   | { kind: "cancel" }
@@ -215,7 +214,6 @@ export function clickIntent(
   mode: Mode,
   tile: { x: number; y: number },
   button: number,
-  factory?: number,
   queued = false,
 ): Intent {
   if (mode.kind !== "idle" && button !== 0) return { kind: "cancel" };
@@ -254,8 +252,6 @@ export function clickIntent(
       ? { kind: "cast", slot, x, y, ...q }
       : { kind: "none" };
   }
-  if (button === 0 && factory !== undefined)
-    return { kind: "factory", id: factory };
   const enemy = bodyAt(world, tile, isEnemy(seat));
   if (enemy) return { kind: "attack", of: enemy.of, id: enemy.id, ...q };
   return { kind: "move", x, y, ...q };

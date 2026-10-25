@@ -23,12 +23,12 @@ const map = tiny();
 const view = (world: World) => viewOf(map, world);
 const [LEFT, RIGHT] = [0, 2];
 
-test("with Shift (or QUEUE) every click order is queued, and a left click on a factory still opens it", () => {
+test("with Shift (or QUEUE) every click order is queued", () => {
   const world = arena("vix");
   const grunt = addUnit(world, 1, "grunt", 9, 6);
   const v = view(world);
   const shift = (mode: Mode, x: number, y: number, button = RIGHT) =>
-    clickIntent(v, 0, mode, { x, y }, button, 7, true);
+    clickIntent(v, 0, mode, { x, y }, button, true);
   assert.deepEqual(shift(IDLE, 3, 6), {
     kind: "move",
     x: 3,
@@ -41,7 +41,7 @@ test("with Shift (or QUEUE) every click order is queued, and a left click on a f
     id: grunt.id,
     queued: true,
   });
-  assert.deepEqual(shift(IDLE, 3, 6, LEFT), { kind: "factory", id: 7 });
+  assert.equal(shift(IDLE, 3, 6, LEFT).kind, "move", "no factory orders");
   const armed: Mode = { kind: "attackMove" };
   const amove = shift(armed, 5, 5, LEFT);
   assert.deepEqual(amove, { kind: "attackMove", x: 5, y: 5, queued: true });
@@ -81,10 +81,7 @@ test("a queued spell measures its reach from the route's end, and need not be re
   );
   const aim: Mode = { kind: "aim", slot: 2 };
   assert.deepEqual(clickIntent(v, 0, aim, tile, LEFT), { kind: "none" });
-  assert.equal(
-    clickIntent(v, 0, aim, tile, LEFT, undefined, true).kind,
-    "cast",
-  );
+  assert.equal(clickIntent(v, 0, aim, tile, LEFT, true).kind, "cast");
   // A spell on cooldown arms when queued, and a queued self spell casts.
   assert.deepEqual(pressSpell(v, 0, IDLE, 2, false), { mode: IDLE });
   const armed = pressSpell(v, 0, IDLE, 2, false, true).mode;

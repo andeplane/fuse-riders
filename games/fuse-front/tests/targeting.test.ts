@@ -32,13 +32,13 @@ const view = (world: World) => viewOf(map, world);
 const LEFT = 0,
   RIGHT = 2;
 
-test("a right click attacks the enemy under it and moves on open ground; a left click does too, after a factory", () => {
+test("a right click attacks the enemy under it and moves on open ground; a left click does too", () => {
   const world = arena("brick");
   const grunt = addUnit(world, 1, "grunt", 9, 6);
   const friend = addUnit(world, 0, "grunt", 3, 6);
   const v = view(world);
-  const click = (x: number, y: number, button = RIGHT, factory?: number) =>
-    clickIntent(v, 0, IDLE, { x, y }, button, factory);
+  const click = (x: number, y: number, button = RIGHT) =>
+    clickIntent(v, 0, IDLE, { x, y }, button);
   assert.deepEqual(click(9, 6), { kind: "attack", of: 0, id: grunt.id });
   assert.deepEqual(
     click(10, 6),
@@ -52,7 +52,6 @@ test("a right click attacks the enemy under it and moves on open ground; a left 
     { kind: "move", x: 6, y: 6 },
     "a neutral turret",
   );
-  assert.deepEqual(click(9, 6, LEFT, 7), { kind: "factory", id: 7 });
   assert.deepEqual(click(9, 6, LEFT), { kind: "attack", of: 0, id: grunt.id });
   assert.equal(friend.owner, 0);
   // A watcher (no seat) only ever moves, which the runtime then ignores.

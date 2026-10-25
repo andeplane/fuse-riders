@@ -4,26 +4,15 @@
  * goes through `put`, which skips a value already written, so a steady frame touches nothing and nothing reads layout.
  */
 import { el } from "fuse-ui";
-import {
-  ITEMS,
-  KITS,
-  MAX_LEVEL,
-  SPELL_INFO,
-  type UnitKind,
-} from "../engine/index.js";
+import { ITEMS, KITS, MAX_LEVEL, SPELL_INFO } from "../engine/index.js";
 import type { WorldView } from "../engine/index.js";
-import { minimapBase, paintMinimap } from "../render/minimap.js";
+import { campTip, minimapBase, paintMinimap } from "../render/minimap.js";
 import { Img } from "../render/pixel/image.js";
-import { unitCard } from "../render/pixel/scenes.js";
 import { HERO_ROLES, heroPortrait, spellIcon } from "./look.js";
-import {
-  createHud,
-  deriveHud,
-  factoriesOf,
-  factoryPanel,
-} from "./hud-state.js";
+import { createHud, deriveHud, upgradesOf } from "./hud-state.js";
 import type { SlotView } from "./model.js";
-import { label, spellTooltip, targetPanel } from "./targeting.js";
+import { minimapTile, type Ping } from "./radar.js";
+import { spellTooltip, targetPanel } from "./targeting.js";
 import { ShopPanel } from "./shop-panel.js";
 import { ITEM_KEYS, itemStats, shopOf, slotsOf } from "./shop-state.js";
 
@@ -53,19 +42,19 @@ function draw(canvas: HTMLCanvasElement, img: Img): void {
   if (ctx && data) ctx.putImageData((data.data.set(img.d), data), 0, 0);
 }
 
-/** A canvas holding `img` at 2 CSS pixels per art pixel. */
-export function pixels(img: Img): HTMLCanvasElement {
-  const canvas = el("canvas");
-  [canvas.width, canvas.height] = [img.w, img.h];
-  draw(canvas, img);
-  canvas.style.width = `${img.w * 2}px`;
-  return canvas;
+/** Appends `child` to `box`, first dropping the oldest of its `className` children past `most`. */
+function cap(box: HTMLElement, child: HTMLElement, most: number): void {
+  const old = box.querySelectorAll(`.${child.classList[0]}`);
+  if (old.length >= most) old[0]!.remove();
+  child.onanimationend = () => child.remove();
+  box.append(child);
 }
 
 export class Hud {
   readonly top = el("div", "", "ff-bar");
   readonly bottom = el("div", "", "ff-panel");
-  readonly orders = el("div", "", "ff-orders ff-frame");
+  /** The held jungle factories' wave upgrades, as badges in the top bar. */
+  private readonly upgrades = el("div", "", "ff-upgrades");
   readonly state = createHud();
   private readonly written = new WeakMap<HTMLElement, Map<string, string>>();
   /** The sector tug-of-war: red, neutral and blue shares of one bar, with each side's count beside it. */
@@ -112,19 +101,13 @@ export class Hud {
   private readonly targetName = el("b");
   private readonly targetHp = el("i", "", "ff-fill ff-hp");
   private readonly targetTag = el("span", "", "ff-label ff-tag");
-  private readonly factories = el("div", "", "ff-factories");
   private readonly portrait = el("div", "", "ff-face");
   private readonly mini = el("canvas", "", "ff-mini");
   private readonly camera = el("i", "", "ff-camera");
   private readonly map = el("div", "", "ff-minimap");
-  private readonly title = el("h3");
-  private readonly choices = el("div", "", "ff-choices");
-  private readonly build = el("i", "", "ff-fill ff-xp");
-  private readonly eta = el("span", "", "ff-eta");
   private miniBase = new Img(1, 1);
   private miniImg = new Img(1, 1);
   private miniStep = -1;
-  private open = -1;
   private world: WorldView | undefined;
   private seat = -1;
   private box = { x: -1, y: -1, w: 0, h: 0 };
@@ -134,7 +117,7 @@ export class Hud {
     this.meter.append(...this.shares);
     const war = el("div", "", "ff-war");
     war.append(this.scores[0]!, this.meter, this.scores[1]!);
-    this.top.append(war, this.clock, this.timer, this.chips);
+    this.top.append(war, this.clock, this.timer, this.upgrades, this.chips);
     const bars = el("div", "", "ff-bars");
     const head = el("div", "", "ff-head");
     this.purse.title = "Gold: last hits, kills, towers, camps and a trickle";
@@ -162,7 +145,6 @@ export class Hud {
       button.onclick = () => this.actions.cast(slot);
       spells.append(bay);
     });
-    const stance = el("div", "", "ff-stance");
     this.amove.title = "Attack-move: click the map (A)";
     this.amove.onclick = () => this.actions.attackMove();
     this.queueButton.title =
@@ -185,7 +167,6 @@ export class Hud {
       items.append(bay);
     });
     items.append(this.shopButton);
-    stance.append(toggles, this.factories);
     const map = this.map;
     map.append(this.mini, this.camera);
     // A left click looks there; a right click sends the hero there.
@@ -199,16 +180,21 @@ export class Hud {
       else this.actions.look(fx, fy);
     };
     map.oncontextmenu = (event) => event.preventDefault();
+    // Hovering a jungle camp tells whether its guards stand, or when they return.
+    map.onpointermove = (event) => {
+      const box = this.mini.getBoundingClientRect();
+      if (!box.width || !this.world) return;
+      const { width, height } = this.world;
+      const fx = (event.clientX - box.left) / box.width,
+        fy = (event.clientY - box.top) / box.height;
+      const tip = campTip(this.world, minimapTile(fx, fy, width, height));
+      this.put(map, "title", tip ?? "", () => (map.title = tip ?? ""));
+    };
     const kit = el("div", "", "ff-kit");
     kit.append(spells, items);
+    const stance = el("div", "", "ff-stance");
+    stance.append(toggles);
     this.bottom.append(this.portrait, bars, kit, stance, map);
-    const close = el("button", "✕", "ff-close");
-    close.title = "Close (Esc)";
-    close.onclick = () => this.close();
-    const build = el("span", "", "ff-track");
-    build.append(this.build);
-    this.orders.append(this.title, close, this.choices, build, this.eta);
-    this.orders.hidden = true;
   }
 
   /** Writes `value` through `apply` only when it differs from the last value written under `key`. */
@@ -242,9 +228,18 @@ export class Hud {
     );
     this.text(this.scores[0]!, `RED ${s.red}`);
     this.text(this.scores[1]!, `${s.blue} BLUE`);
-    const build = `×${(s.clock / 100).toFixed(2)}`;
-    this.text(this.clock, `${s.neutral} neutral · build ${build}`);
+    this.text(this.clock, `${s.neutral} neutral`);
     this.text(this.timer, s.time);
+    const ups = upgradesOf(world, seat);
+    this.put(this.upgrades, "ups", ups.map((u) => u.tip).join(), () =>
+      this.upgrades.replaceChildren(
+        ...ups.map((u) => {
+          const badge = el("span", u.badge, "ff-upgrade");
+          badge.title = u.tip;
+          return badge;
+        }),
+      ),
+    );
     const levels = world.heroes.map((h) => `${h.seat}${h.kind}${h.level}`);
     this.put(this.chips, "slots", JSON.stringify([slots, levels]), () =>
       this.chips.replaceChildren(
@@ -298,18 +293,6 @@ export class Hud {
       // With QUEUE on, a cooling spell can still be queued: it waits its turn behind the route.
       button.disabled = !spell.ready && !(this.queueOn && !spell.locked);
     });
-    const mine = factoriesOf(world, seat);
-    this.put(this.factories, "ids", mine.map((f) => f.id).join(), () =>
-      this.factories.replaceChildren(
-        ...mine.map((f, i) => {
-          const kind = f.kind === "robotFactory" ? "ROBOTS" : "TANKS";
-          const button = el("button", `${kind} ${i + 1}`, "ff-switch");
-          button.title = `${label(f.kind)} orders`;
-          button.onclick = () => this.openFactory(f.id);
-          return button;
-        }),
-      ),
-    );
     const aim = targetPanel(world, seat);
     // The panel keeps its place with nothing to shoot, so the HUD does not reflow as targets come and go.
     this.text(this.targetName, aim?.name ?? "NONE");
@@ -318,7 +301,6 @@ export class Hud {
     this.flag(this.target, "ff-focus", !!aim?.chosen);
     this.flag(this.target, "ff-t0", aim?.team === 0);
     this.flag(this.target, "ff-t1", aim?.team === 1);
-    if (this.open >= 0) this.showOrders();
     this.showItems(world, seat);
     this.paintMinimap(world);
   }
@@ -335,18 +317,18 @@ export class Hud {
     this.put(this.mini, "owners", owners, () => (this.miniStep = -1));
     if (this.miniStep >= 0 && world.step - this.miniStep < 10) return;
     this.miniStep = world.step;
-    paintMinimap(this.miniImg, this.miniBase, world);
+    paintMinimap(this.miniImg, this.miniBase, world, this.seat);
     draw(this.mini, this.miniImg);
   }
 
-  /** A ring that swells and fades on the minimap at fractions `fx`, `fy`: red for a flag lost, amber for one under fire. */
-  ping(fx: number, fy: number, kind: "attack" | "lost"): void {
+  /**
+   * A ring that swells and fades on the minimap at fractions `fx`, `fy`: amber for a flag under fire, red for one
+   * lost, white for a tower or gate under fire and a larger red one for the fort.
+   */
+  ping(fx: number, fy: number, kind: Ping["kind"]): void {
     const dot = el("span", "", `ff-ping ff-ping-${kind}`);
     Object.assign(dot.style, { left: `${fx * 100}%`, top: `${fy * 100}%` });
-    dot.onanimationend = () => dot.remove();
-    const pings = this.map.querySelectorAll(".ff-ping");
-    if (pings.length >= MAX_PINGS) pings[0]!.remove();
-    this.map.append(dot);
+    cap(this.map, dot, MAX_PINGS);
   }
 
   /** Moves the minimap's camera rectangle; called every animation frame but writes only on change. */
@@ -428,48 +410,5 @@ export class Hud {
     this.items.forEach(({ button }, i) =>
       this.flag(button, "ff-aiming", i === slot),
     );
-  }
-
-  /** Opens factory `id`'s orders panel; it follows the world until closed or the factory is lost. */
-  openFactory(id: number): void {
-    this.open = id;
-    this.showOrders();
-  }
-
-  close(): void {
-    this.open = -1;
-    this.orders.hidden = true;
-  }
-
-  private showOrders(): void {
-    const panel = this.world && factoryPanel(this.world, this.open, this.seat);
-    if (!panel) return this.close();
-    this.orders.hidden = false;
-    this.text(this.title, label(panel.kind));
-    this.put(this.choices, "kinds", `${panel.id}:${panel.choices.join()}`, () =>
-      this.choices.replaceChildren(
-        ...panel.choices.map((kind) => {
-          const button = el("button", "", "ff-choice ff-bay");
-          button.dataset.kind = kind;
-          button.append(
-            pixels(
-              unitCard(
-                kind === "lightTank" ? "light" : (kind as "grunt" | "torch"),
-              ),
-            ),
-            el("span", label(kind)),
-          );
-          // v3 dropped factory orders (the waves are the army): the panel only shows what it builds until M6.
-          button.disabled = true;
-          return button;
-        }),
-      ),
-    );
-    for (const button of this.choices.children)
-      if (button instanceof HTMLElement)
-        this.flag(button, "ff-lit", button.dataset.kind === panel.order);
-    this.css(this.build, "width", `${Math.round(panel.progress / 10)}%`);
-    const order = panel.order && `${label(panel.order)} in ${panel.eta}s`;
-    this.text(this.eta, panel.paused ? "PAUSED · unit cap" : (order ?? "IDLE"));
   }
 }
