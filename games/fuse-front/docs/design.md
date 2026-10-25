@@ -275,7 +275,12 @@ chunky robots, team-coloured forts and factories, the riveted steel HUD) but ren
   the 3D concept art and are built from the concept kit in `src/render3d/kit/`: a posed builder (`rig.ts`), a shared
   pixel-font atlas for stencilled squad numbers (`decals.ts`) and the units with their shared legs and tracks
   (`units.ts`). Every robot has a `near` and a `far` model; a unit past `LOD_FAR` tiles from the camera, or any unit
-  at `?quality=low`, draws the far one (plain plates, no decals or small parts, steel drawn as the dark frame).
+  at `?quality=low`, draws the far one (plain plates, no decals or small parts, steel drawn as the dark frame). The
+  heroes follow the concept art the same way (`heroes.ts`): Brick's shoulders, star plate and shoulder cannon, Vix's
+  hood, cloak and long rifle, Rivet's hard hat, crane arm and wrench, Tally's round head, antennae, scarf and jump
+  jets. They pick near or far by `detailAt` too and walk on the robots' shared leg, scaled by `HERO_LEGS`.
+
+  ![The concept heroes](images/concept-robots-heroes.png) ![In game](images/robots-heroes.png)
 
   ![The approved concept render the robots follow](images/concept-robots-units.png)
   ![Robot units at the default zoom](images/robots-units.png)
