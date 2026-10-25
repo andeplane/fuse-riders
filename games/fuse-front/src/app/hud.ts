@@ -63,7 +63,7 @@ export class Hud {
     el("i", "", `ff-share ${t}`),
   );
   private readonly scores = [0, 1].map((t) => el("b", "", `ff-score ff-t${t}`));
-  private readonly clock = el("span", "", "ff-note");
+  private readonly neutral = el("span", "", "ff-note");
   private readonly timer = el("span", "", "ff-timer");
   private readonly chips = el("div", "", "ff-chips");
   private readonly bars = ["hp", "en", "xp"].map((k) =>
@@ -117,7 +117,7 @@ export class Hud {
     this.meter.append(...this.shares);
     const war = el("div", "", "ff-war");
     war.append(this.scores[0]!, this.meter, this.scores[1]!);
-    this.top.append(war, this.clock, this.timer, this.upgrades, this.chips);
+    this.top.append(war, this.neutral, this.timer, this.upgrades, this.chips);
     const bars = el("div", "", "ff-bars");
     const head = el("div", "", "ff-head");
     this.purse.title = "Gold: last hits, kills, towers, camps and a trickle";
@@ -228,7 +228,7 @@ export class Hud {
     );
     this.text(this.scores[0]!, `RED ${s.red}`);
     this.text(this.scores[1]!, `${s.blue} BLUE`);
-    this.text(this.clock, `${s.neutral} neutral`);
+    this.text(this.neutral, `${s.neutral} neutral`);
     this.text(this.timer, s.time);
     const ups = upgradesOf(world, seat);
     this.put(this.upgrades, "ups", ups.map((u) => u.tip).join(), () =>

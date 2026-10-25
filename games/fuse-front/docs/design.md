@@ -612,7 +612,8 @@ before, and M2 decides whether lanes become required.
 **M6 as built (the MOBA HUD).**
 
 - **M6a, structures and the minimap:**
-  - **RTS leftovers gone:** the factory orders panel, its buttons and click, and the production clock went. A held
+  - **RTS leftovers gone:** the factory orders panel, its buttons and click, and the production clock went, replacing
+    the v1 and v2 factory UI described above. M6b, the next PR, adds the scoreboard and the feed. A held
     jungle factory now shows its wave upgrade as a badge in the top bar, such as "+TORCH MID", with a tooltip.
   - **View:** `BuildingView` gains `lane`, `tier` and `shielded`. A factory's `lane` is the lane its upgrade feeds,
     and `shielded` is the engine's no-backdoor rule. `WorldView.campRespawn` gives each camp's steps until its

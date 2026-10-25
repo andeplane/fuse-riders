@@ -696,12 +696,13 @@ export class Field3D implements Renderer {
         puff.scale.setScalar(0.5 + f * 1.6);
       });
       // Towers, gates and forts always show their health; one no gun may pick yet (no backdoor) wears a shield mark.
-      const foot = node.alive.position, top = foot.y + node.height + 0.4;
-      if (b.tier >= 0 || b.kind === "fort" || b.hp < b.maxHp) this.bar(foot.x, top, foot.z, b.hp / b.maxHp, 1.4);
+      const foot = node.alive.position, top = foot.y + node.height + 0.4, width = 1.4;
+      if (b.tier >= 0 || b.kind === "fort" || b.hp < b.maxHp) this.bar(foot.x, top, foot.z, b.hp / b.maxHp, width);
       if (b.shielded) {
-        // A blue tag at the bar's left end, in the bar's own flat paint so bloom does not wash it white.
-        this.slot("barBack").batch.push(foot.x - 0.86, top, foot.z, 0, 0.2, 2.8, 1, BAR_BACK);
-        this.slot("barFill").batch.push(foot.x - 0.86, top, foot.z, 0, 0.14, 2.2, 1, SHIELD_RGB);
+        // A blue tag just left of the bar, in the bar's own flat paint so bloom does not wash it white.
+        const tag = foot.x - width / 2 - 0.16;
+        this.slot("barBack").batch.push(tag, top, foot.z, 0, 0.2, 2.8, 1, BAR_BACK);
+        this.slot("barFill").batch.push(tag, top, foot.z, 0, 0.14, 2.2, 1, SHIELD_RGB);
       }
     }
     if (this.flags.length) {
@@ -726,10 +727,10 @@ export class Field3D implements Renderer {
             this.slot("unitMark").batch.push(x, standY(world, field, x, z), z, 0, s, 1, s, LANE_RGB);
           }
         }
-      world.camps.forEach((c, i) => {
-        const x = c.x + 0.5, z = c.y + 0.5, s = mark * MARK.flag, down = (world.campRespawn[i] ?? 0) > 0;
+      for (let i = 0; i < world.camps.length; i++) {
+        const c = world.camps[i]!, x = c.x + 0.5, z = c.y + 0.5, s = mark * MARK.flag, down = (world.campRespawn[i] ?? 0) > 0;
         this.slot("flagMark").batch.push(x, standY(world, field, x, z), z, Math.PI / 4, s, 1, s, down ? CAMP_DOWN_RGB : CAMP_RGB);
-      });
+      }
     }
     for (const slot of this.slotList) this.sync(slot);
     this.waterNormal.offset.set((now / 60000) % 1, (now / 23000) % 1);

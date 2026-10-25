@@ -71,7 +71,10 @@ export class Radar {
     }
   }
 
-  /** Takes an engine event; returns a ping for `seat`'s minimap when one of its side's flags is fought over or lost. */
+  /**
+   * Takes an engine event; returns a ping for `seat`'s minimap when one of its side's flags is fought over or lost, or
+   * one of its towers, gates or its fort comes under fire.
+   */
   event(
     matchId: string,
     stamped: StampedEvent,
@@ -108,7 +111,8 @@ export class Radar {
       if (!b || b.team !== team || (b.tier < 0 && !fort)) return undefined;
       // Structures ping under negative keys, apart from the flags' sectors.
       const key = -1 - b.id;
-      if (step - (this.fired.get(key) ?? -Infinity) < PING_GAP) return;
+      if (step - (this.fired.get(key) ?? -Infinity) < PING_GAP)
+        return undefined;
       this.fired.set(key, step);
       return { x: b.x + 0.5, y: b.y + 0.5, kind: fort ? "fort" : "tower" };
     }
