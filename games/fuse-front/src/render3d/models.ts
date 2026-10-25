@@ -3,8 +3,8 @@
  * geometry per paint, so a unit kind draws as a few instanced meshes. Team colour goes on the large `team` surfaces
  * (white here, tinted per instance); trims are dark metal and visors glow. Every part carries baked vertex colour —
  * dirt toward the feet, shade under overhangs, worn bright edges — and the metal paints share one procedural panel
- * map (grooves, seams, rivets, grime streaks) for their normals, roughness and colour. Heroes' legs are a separate
- * shared model so each instance can swing them; the robot units are built from the concept kit in `kit/`. Models face
+ * map (grooves, seams, rivets, grime streaks) for their normals, roughness and colour. The robot units and heroes are
+ * built from the concept kit in `kit/`, and walk on its shared leg so each instance can swing them. Models face
  * +z and stand on y = 0, one tile is one unit of length.
  * Presentation only: nothing here reads or writes the simulation.
  */
@@ -14,6 +14,8 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { BuildingKind, HeroView, UnitKind } from "../engine/view.js";
 import { hash, normalMap, tileNoise } from "./terrain.js";
 import { decalAtlas } from "./kit/decals.js";
+import { heroModel } from "./kit/heroes.js";
+import type { Detail } from "./kit/rig.js";
 
 // prettier-ignore
 export const PAINTS = {
@@ -59,15 +61,8 @@ export type Model = Part[];
 export const HERO_KINDS = ["brick", "vix", "rivet", "tally"] as const;
 export type HeroKind = (typeof HERO_KINDS)[number];
 export type ModelKind = UnitKind | "tankTurret" | HeroKind;
-/** Shared parts drawn per instance: a hero's leg (unit size, hip at the origin), a mine. Robots' are in `kit/units`. */
-export type PartKind = "leg" | "mine";
-
-/** Each hero's legs: hip half-width, leg length and thickness, in tiles (robots' are `ROBOT_LEGS`). */
-// prettier-ignore
-export const LEGS: Partial<Record<ModelKind, { hip: number; len: number; w: number }>> = {
-  brick: { hip: 0.12, len: 0.24, w: 0.14 }, vix: { hip: 0.055, len: 0.24, w: 0.07 },
-  rivet: { hip: 0.09, len: 0.18, w: 0.1 }, tally: { hip: 0.07, len: 0.26, w: 0.065 },
-};
+/** Shared parts drawn per instance: a mine. Walkers' legs are `kit/units`' robot leg. */
+export type PartKind = "mine";
 
 function texture(data: Uint8Array, n: number, srgb = false): THREE.DataTexture {
   const tex = new THREE.DataTexture(data, n, n);
@@ -257,40 +252,15 @@ const slab = (
 ) => at(new THREE.BoxGeometry(w, h, d), x, y, z, rx);
 const ball = (r: number, x: number, y: number, z: number, sy = 1, sz = 1) =>
   at(new THREE.SphereGeometry(r, 16, 12).scale(1, sy, sz), x, y, z);
-/** The top half of a sphere: a helmet or a dome. */
-const cap = (r: number, x: number, y: number, z: number, sy = 1) =>
-  at(
-    new THREE.SphereGeometry(r, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2).scale(
-      1,
-      sy,
-      1,
-    ),
-    x,
-    y,
-    z,
-  );
 /** A cylinder along y, or along z (`rx` = π/2) or x (`rz` = π/2). */
 // prettier-ignore
 const rod = (r: number, len: number, x: number, y: number, z: number, rx = 0, rz = 0, r2 = r, seg = 12) =>
   at(new THREE.CylinderGeometry(r, r2, len, seg), x, y, z, rx, rz);
-/** A ring lying in the xz plane (or turned by `rx`). */
-// prettier-ignore
-const hoop = (r: number, t: number, x: number, y: number, z: number, rx = Math.PI / 2) =>
-  at(new THREE.TorusGeometry(r, t, 6, 20), x, y, z, rx);
 const pair = (make: (side: number) => THREE.BufferGeometry) => [
   make(-1),
   make(1),
 ];
 const Z = Math.PI / 2;
-/** A unit leg hanging from a hip at the origin to a foot at y = −1: drawn scaled by `LEGS` and swung per instance. */
-// prettier-ignore
-function leg(): Model {
-  return new Kit(-1, 1)
-    .add("dark", block(1, 0.78, 1, 0, -0.42, 0, 0.3))
-    .add("steel", ball(0.62, 0, -0.42, 0.05, 0.55), block(1.25, 0.24, 1.7, 0, -0.88, 0.22, 0.1))
-    .build();
-}
-
 /** Vix's sticky mine: a dark puck with a team band and three prongs; its light blinks on its own. */
 // prettier-ignore
 function mine(): Model {
@@ -300,76 +270,22 @@ function mine(): Model {
     .build();
 }
 
-/** Height ≈ 0.85, nearly 0.65 wide: the heavy bruiser, chest plate, gold-trimmed shoulder pads, fists and exhaust stacks. */
-// prettier-ignore
-function brick(kit: Kit): Kit {
-  return kit
-    .add("team", block(0.46, 0.32, 0.3, 0, 0.42, 0, 0.07), block(0.24, 0.19, 0.22, 0, 0.7, 0.01, 0.06),
-      ...pair((s) => block(0.22, 0.16, 0.28, s * 0.31, 0.59, 0, 0.07)), block(0.32, 0.18, 0.04, 0, 0.45, 0.16, 0.03))
-    .add("amber", block(0.2, 0.05, 0.05, 0, 0.71, 0.11, 0.02))
-    .add("gold", ...pair((s) => block(0.23, 0.03, 0.29, s * 0.31, 0.68, 0, 0.012)), block(0.06, 0.06, 0.02, 0.1, 0.5, 0.18, 0.01))
-    .add("steel", ...pair((s) => rod(0.055, 0.2, s * 0.32, 0.4, 0)), block(0.48, 0.05, 0.31, 0, 0.27, 0, 0.02))
-    .add("dark", ...pair((s) => block(0.13, 0.13, 0.14, s * 0.32, 0.24, 0.03, 0.04)), ...pair((s) => rod(0.03, 0.22, s * 0.1, 0.72, -0.18)),
-      block(0.3, 0.2, 0.1, 0, 0.47, -0.19, 0.03));
-}
-
-/** Tall and slim: a hooded cloak with a peaked hood, one red eye and a scoped rifle longer than the body is wide. */
-// prettier-ignore
-function vix(kit: Kit): Kit {
-  return kit
-    .add("dark", rod(0.09, 0.44, 0, 0.44, 0, 0, 0, 0.18, 10), ball(0.13, 0, 0.74, -0.015, 1.15), at(new THREE.ConeGeometry(0.06, 0.16, 8), 0, 0.84, -0.09, -0.9),
-      slab(0.2, 0.3, 0.02, 0, 0.36, -0.15, 0.25))
-    .add("team", ball(0.1, 0, 0.72, 0.025), block(0.26, 0.08, 0.2, 0, 0.62, 0, 0.03))
-    .add("eye", ball(0.032, 0, 0.73, 0.115))
-    .add("steel", block(0.03, 0.04, 0.78, -0.15, 0.5, 0.14, 0.01), rod(0.022, 0.16, -0.15, 0.56, 0.1, Z), rod(0.009, 0.2, -0.15, 0.5, 0.6, Z))
-    .add("visor", ball(0.018, -0.15, 0.56, 0.18));
-}
-
-/** A ridged hard hat with a brim, round goggles, a big wrench and a toolpack with a gas bottle on the back. */
-// prettier-ignore
-function rivet(kit: Kit): Kit {
-  return kit
-    .add("team", block(0.36, 0.26, 0.26, 0, 0.33, 0, 0.06), block(0.22, 0.17, 0.2, 0, 0.56, 0, 0.05))
-    .add("gold", cap(0.14, 0, 0.63, 0, 0.75), rod(0.18, 0.02, 0, 0.635, 0.01), block(0.03, 0.03, 0.26, 0, 0.73, 0, 0.012))
-    .add("visor", ...pair((s) => rod(0.035, 0.03, s * 0.055, 0.575, 0.105, Z)))
-    .add("dark", ...pair((s) => hoop(0.04, 0.01, s * 0.055, 0.575, 0.12, 0)), block(0.26, 0.18, 0.11, 0, 0.36, -0.18, 0.03))
-    .add("orange", rod(0.045, 0.24, 0.08, 0.42, -0.24))
-    .add("steel", block(0.03, 0.32, 0.03, 0.22, 0.35, 0.1, 0.01), at(new THREE.TorusGeometry(0.05, 0.016, 6, 12, 4.4), 0.22, 0.53, 0.1, 0, 2.2));
-}
-
-/** A round head with a big cyan eye and an antenna, a trailing orange scarf: the lightest-looking hero. */
-// prettier-ignore
-function tally(kit: Kit): Kit {
-  return kit
-    .add("team", ball(0.19, 0, 0.62, 0), block(0.24, 0.18, 0.18, 0, 0.34, 0, 0.05))
-    .add("visor", ball(0.08, 0, 0.64, 0.13, 0.6, 0.6))
-    .add("dark", hoop(0.085, 0.012, 0, 0.64, 0.14, 0))
-    .add("orange", hoop(0.12, 0.035, 0, 0.45, 0), slab(0.08, 0.22, 0.02, 0.05, 0.36, -0.15, 0.5), slab(0.07, 0.16, 0.02, -0.03, 0.34, -0.16, 0.7))
-    .add("steel", rod(0.008, 0.3, 0.08, 0.92, -0.02), block(0.03, 0.03, 0.22, 0.15, 0.34, 0.1, 0.01))
-    .add("amber", ball(0.03, 0.08, 1.08, -0.02));
-}
-
-// prettier-ignore
-const BUILDERS: Record<HeroKind, (kit: Kit) => Kit> = { brick, vix, rivet, tally };
-
 /** Which hero model a hero wears: its `kind`'s (Brick for one without a model). */
 export function heroKindOf(hero: HeroView): HeroKind {
   return HERO_KINDS.find((k) => k === hero.kind) ?? "brick";
 }
 
-/**
- * A hero's model. Its legs stand still in it unless `moving` parts are left out to be drawn (and swung) on their own.
- * The robot units are built by `kit/units`.
- */
-// prettier-ignore
-export function unitModel(kind: HeroKind, moving = true): Model {
-  const kit = BUILDERS[kind](new Kit()), spec = LEGS[kind];
-  if (moving && spec) kit.add("dark", ...pair((s) => block(spec.w, spec.len, spec.w, s * spec.hip, spec.len / 2, 0, spec.w / 3)));
-  return kit.build();
+/** A hero's model (built by `kit/heroes`); its legs stand still in it unless `moving` parts are left out. */
+export function unitModel(
+  kind: HeroKind,
+  moving = true,
+  detail: Detail = "near",
+): Model {
+  return heroModel(kind, detail, moving);
 }
 
 export function partModel(kind: PartKind): Model {
-  return { leg, mine }[kind]();
+  return { mine }[kind]();
 }
 
 /** The ground ring's outer radius under a body, in tiles: bigger bodies, bigger rings. */

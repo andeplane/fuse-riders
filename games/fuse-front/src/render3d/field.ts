@@ -37,7 +37,6 @@ import {
 import { Look, addRim, desertSky } from "./post.js";
 import {
   HERO_KINDS,
-  LEGS,
   RING,
   approachAngle,
   bob,
@@ -60,6 +59,7 @@ import {
 } from "./models.js";
 import type { Detail } from "./kit/rig.js";
 import { ROBOT_LEGS, detailAt, robotModel, robotPart, type RobotKind } from "./kit/units.js"; // prettier-ignore
+import { HERO_LEGS } from "./kit/heroes.js";
 import { buildProps } from "./props.js";
 import * as rig from "./rig.js";
 import {
@@ -107,8 +107,8 @@ const ROBOTS: readonly RobotKind[] = [
   "sentry",
   "tankTurret",
 ];
-const LOD_PARTS = [...ROBOTS, "robotLeg", "treads"] as const;
-/** A robot's (or its moving part's) slot at a level of detail: its kind near, `kind:far` far away. */
+const LOD_PARTS = [...ROBOTS, ...HERO_KINDS, "robotLeg", "treads"] as const;
+/** A robot's or hero's (or its moving part's) slot at a level of detail: its kind near, `kind:far` far away. */
 const LOD_KEY = Object.fromEntries((["near", "far"] as const).map((d) => [d, Object.fromEntries(LOD_PARTS.map((k) => [k, d === "near" ? k : `${k}:far`]))])) as Record<Detail, Record<(typeof LOD_PARTS)[number], string>>; // prettier-ignore
 /** Turns per millisecond for a tank turret or a turret head swinging onto its aim. */
 const SLEW = 0.004;
@@ -338,11 +338,11 @@ export class Field3D implements Renderer {
     // Walkers' bodies leave their legs out: one shared leg model swings under all of them. Treads take their scroll
     // phase, not a team colour, through the instance colour.
     const painted = (model: Model) => model.map((p) => ({ geometry: p.geometry, material: this.paints[p.paint], tinted: p.paint === "team" || p.paint === "tread" }));
-    for (const kind of HERO_KINDS) add(kind, painted(unitModel(kind, false)), true);
-    for (const kind of ["leg", "mine"] as const) add(kind, painted(partModel(kind)), true);
-    // Robots come at two levels of detail (`detailAt`), each its own slot; legs carry a team shin plate.
+    add("mine", painted(partModel("mine")), true);
+    // Robots and heroes come at two levels of detail (`detailAt`), each its own slot; legs carry a team shin plate.
     for (const detail of ["near", "far"] as const) {
       for (const kind of ROBOTS) add(LOD_KEY[detail][kind], painted(robotModel(kind, detail, false)), true);
+      for (const kind of HERO_KINDS) add(LOD_KEY[detail][kind], painted(unitModel(kind, false, detail)), true);
       for (const part of ["robotLeg", "treads"] as const) add(LOD_KEY[detail][part], painted(robotPart(part, detail)), true);
     }
     const plain = (geometry: THREE.BufferGeometry, material: THREE.Material) => [{ geometry, material, tinted: true }];
@@ -624,11 +624,14 @@ export class Field3D implements Renderer {
       if (moving) this.facing.set(key, Math.atan2(hero.x - p.x, hero.y - p.y));
       const yaw = this.facing.get(key) ?? (hero.team === 0 ? Math.PI / 2 : -Math.PI / 2);
       const kind = heroKindOf(hero), lift = y + bob(moving, now, hero.seat, false), S = HERO_SCALE;
+      const cam = this.camera.position, detail = detailAt(Math.hypot(x - cam.x, lift - cam.y, z - cam.z), this.governor.level, this.lod.get(key));
+      this.lod.set(key, detail);
       // Under CLOAK, Vix is a glassy shimmer with its legs still.
       if (hero.cloaked && kind === "vix") this.slot("ghost").batch.push(x, lift, z, yaw, S, S, S, PLAIN);
       else {
-        this.slot(kind).batch.push(x, lift, z, yaw, S, S, S, teamRgb(hero.team));
-        this.legs(LEGS[kind], "leg", PLAIN, x, lift, z, yaw, S, moving, now, hero.seat);
+        const tint = teamRgb(hero.team);
+        this.slot(LOD_KEY[detail][kind]).batch.push(x, lift, z, yaw, S, S, S, tint);
+        this.legs(HERO_LEGS[kind], LOD_KEY[detail].robotLeg, tint, x, lift, z, yaw, S, moving, now, hero.seat);
       }
       if (hero.blitzing && moving) this.speedLines(x, lift, z, yaw, now);
       if (hero.flare >= 0) {
