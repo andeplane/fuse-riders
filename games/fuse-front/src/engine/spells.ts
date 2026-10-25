@@ -519,8 +519,13 @@ export function cast(
     to = aim;
     const push = world.players.find((p) => p.seat === seat)?.stance === "push";
     for (const unit of world.units)
-      if (push && unit.owner === seat && UNITS[unit.kind].robot)
-        if (unit.lane < 0) unit.goal = FLARE;
+      if (
+        push &&
+        unit.owner === seat &&
+        UNITS[unit.kind].robot &&
+        unit.lane < 0
+      )
+        unit.goal = FLARE;
   } else if (spell.effect === "blitz") hero.blitz = duration;
   else if (spell.effect === "orbitalDrop" || spell.effect === "turretDrop") {
     const kind = spell.effect === "orbitalDrop" ? "lightTank" : "sentry";

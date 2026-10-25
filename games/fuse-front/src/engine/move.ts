@@ -103,15 +103,14 @@ function goalTile(map: GameMap, world: World, unit: Unit): number {
 }
 
 /**
- * Whether a stance can send a unit to `tile` (a flag's tile or a fort's; FOLLOW uses `FOLLOW_HERO`), or a lane unit
- * (a lane waypoint, a turret's or a fort's).
+ * Whether a stance can send a unit to `tile` (a flag's tile or a fort's; FOLLOW uses `FOLLOW_HERO`), or, with `lane`,
+ * a lane unit (a lane waypoint, a turret's or a fort's).
  */
-export const isGoalTile = (map: GameMap, tile: number): boolean =>
-  flagOnTile(map, tile) >= 0 ||
-  isWaypoint(map, tile) ||
+export const isGoalTile = (map: GameMap, tile: number, lane = false): boolean =>
+  (lane ? isWaypoint(map, tile) : flagOnTile(map, tile) >= 0) ||
   map.sites.some(
     (site) =>
-      (site.kind === "fort" || site.kind === "turret") &&
+      (site.kind === "fort" || (lane && site.kind === "turret")) &&
       site.y * map.width + site.x === tile,
   );
 
