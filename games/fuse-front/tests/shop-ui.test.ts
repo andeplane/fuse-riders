@@ -21,6 +21,7 @@ import {
 import {
   IDLE,
   clickIntent,
+  modeFor,
   overlayOf,
   pressItem,
 } from "../src/app/targeting.js";
@@ -154,4 +155,15 @@ test("a SHIELD is used at once; a BLINK aims, lands in reach and draws its range
   assert.deepEqual(pressItem(viewOf(map, cooling), 0, IDLE, 0), {
     mode: IDLE,
   });
+});
+
+test("a BLINK aim disarms once its hero falls or its slot is sold", () => {
+  const armed = { kind: "item", slot: 1 } as const;
+  const w = away(world(0, AEGIS, COIL));
+  assert.equal(modeFor(viewOf(map, w), 0, armed), armed);
+  w.heroes[0]!.items = [AEGIS, -1, -1, -1, -1, -1];
+  assert.equal(modeFor(viewOf(map, w), 0, armed), IDLE);
+  const dead = away(world(0, AEGIS, COIL));
+  Object.assign(dead.heroes[0]!, { hp: 0, respawn: 10 });
+  assert.equal(modeFor(viewOf(map, dead), 0, armed), IDLE);
 });

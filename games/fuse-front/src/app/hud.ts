@@ -414,7 +414,7 @@ export class Hud {
       button.disabled = !slot.ready;
     });
     this.flag(this.shopButton, "ff-lit", this.shop.open);
-    this.shop.update(shopOf(world, seat));
+    if (this.shop.open) this.shop.update(shopOf(world, seat));
   }
 
   /** Opens the shop, or closes it when open. */
