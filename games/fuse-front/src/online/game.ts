@@ -20,6 +20,8 @@ import {
   COMMANDS_PER_SEAT,
   DIFFICULTIES,
   HERO_KINDS,
+  ITEMS,
+  ITEM_SLOTS,
   MAP_MAX,
   MARKS,
   MAX_ID,
@@ -115,16 +117,20 @@ export function parseSettings(raw: unknown): Settings | undefined {
  * with v3's waves and are refused at the boundary. Args: MOVE `x, y` (a tile); STEER `dx, dy` (the stick); CAST `slot, x, y` or `slot, x, y, markIndex, id` (a unit spell's
  * chosen target); ATTACK `markIndex, id` (`MARKS`: a unit's id, a hero's seat or a building's site id); ATTACK_MOVE
  * `x, y` (a tile). MOVE, ATTACK, ATTACK_MOVE and CAST take one more arg, `1`, to queue the order behind the hero's
- * current one (shift-click, `orders.ts`) instead of replacing it. Whether the target exists and is an enemy is the
- * engine's to check on the step.
+ * current one (shift-click, `orders.ts`) instead of replacing it. BUY `itemId` (`ITEMS`), SELL `slot` and USE_ITEM
+ * `slot, x, y` (a tile, for a BLINK) work the shop (`shop.ts`). Whether the target exists and is an enemy, and whether
+ * the hero may buy, sell or use, is the engine's to check on the step.
  */
 export const MOVE = 2,
   STEER = 3,
   CAST = 4,
   ATTACK = 5,
-  ATTACK_MOVE = 6;
+  ATTACK_MOVE = 6,
+  BUY = 7,
+  SELL = 8,
+  USE_ITEM = 9;
 /** The highest control kind. */
-const LAST = ATTACK_MOVE;
+const LAST = USE_ITEM;
 export type ControlEntry = [number, number, number, string, ...number[]];
 export type Entry = ManagementEntry<Settings> | ControlEntry;
 
@@ -184,6 +190,12 @@ const ARGS: Readonly<Record<number, (args: unknown[]) => boolean>> = {
     (rest.length < 2 ? flag(rest) : mark(rest) && flag(rest.slice(2))),
   [ATTACK]: (args) => mark(args) && flag(args.slice(2)),
   [ATTACK_MOVE]: tile,
+  [BUY]: ([id]) => int(id, 0, ITEMS.length - 1),
+  [SELL]: ([slot]) => int(slot, 0, ITEM_SLOTS - 1),
+  [USE_ITEM]: ([slot, x, y]) =>
+    int(slot, 0, ITEM_SLOTS - 1) &&
+    int(x, 0, MAP_MAX - 1) &&
+    int(y, 0, MAP_MAX - 1),
 };
 /** The argument counts each control kind takes. */
 const ARITY: Readonly<Record<number, readonly number[]>> = {
@@ -192,6 +204,9 @@ const ARITY: Readonly<Record<number, readonly number[]>> = {
   [CAST]: [3, 4, 5, 6],
   [ATTACK]: [2, 3],
   [ATTACK_MOVE]: [2, 3],
+  [BUY]: [1],
+  [SELL]: [1],
+  [USE_ITEM]: [3],
 };
 const payloads = {
   name: validName,
@@ -223,6 +238,9 @@ export function isEntry(raw: unknown): raw is Entry {
 function command(entry: ControlEntry, seat: number): Command {
   const [, , kind, , a = 0, b = 0, c = 0, d, e, f] = entry;
   if (kind === STEER) return { seat, type: "steer", dx: a, dy: b };
+  if (kind === BUY) return { seat, type: "buy", item: a };
+  if (kind === SELL) return { seat, type: "sell", slot: a };
+  if (kind === USE_ITEM) return { seat, type: "useItem", slot: a, x: b, y: c };
   // The queued flag is the last arg of a queued entry: the third of a MOVE, ATTACK or ATTACK_MOVE, a CAST's fourth or
   // sixth.
   const queued =

@@ -4,7 +4,7 @@
  * can never write back into the simulation.
  */
 import type { Biome, GameMap, Lane, Tile } from "./map.js";
-import { levelOf, maxEnergy, maxHp } from "./hero.js";
+import { heroMaxEnergy, heroMaxHp, levelOf } from "./hero.js";
 import { div } from "./math.js";
 import { centreOf } from "./move.js";
 import {
@@ -92,8 +92,12 @@ export interface HeroView {
   energy: number;
   maxEnergy: number;
   xp: number;
-  /** Its player's gold (`gold.ts`). */
+  /** Its player's gold (`gold.ts`), and its items by slot (`ITEMS` ids, -1 empty) with their cooldowns in steps. */
   gold: number;
+  items: readonly number[];
+  itemCooldowns: readonly number[];
+  /** Under an Aegis SHIELD (`shop.ts`). */
+  shielded: boolean;
   /** Steps until each spell slot can be cast again. */
   spells: readonly number[];
   /** Under its own CLOAK or BLITZ; the tile its FLARE marks, or -1. */
@@ -300,13 +304,16 @@ export function viewOf(map: GameMap, world: World): WorldView {
       x: hero.x,
       y: hero.y,
       hp: hero.hp,
-      maxHp: maxHp(levelOf(hero.xp), hero.kind),
+      maxHp: heroMaxHp(hero),
       level: levelOf(hero.xp),
       respawn: hero.respawn,
       energy: hero.energy,
-      maxEnergy: maxEnergy(levelOf(hero.xp)),
+      maxEnergy: heroMaxEnergy(hero),
       xp: hero.xp,
       gold: hero.gold,
+      items: [...hero.items],
+      itemCooldowns: [...hero.itemCooldowns],
+      shielded: hero.shield > 0,
       spells: [...hero.spells],
       cloaked: hero.cloak > 0,
       blitzing: hero.blitz > 0,

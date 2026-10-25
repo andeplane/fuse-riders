@@ -10,6 +10,7 @@ import { DIRS, UNREACHABLE, flowField } from "./flow.js";
 import type { GameMap } from "./map.js";
 import { div, isqrt } from "./math.js";
 import { heroBounty, tendGold } from "./gold.js";
+import { AURA, ITEMS, bonusOf } from "./items.js";
 import { FLARE, centreOf, settle, tileOf } from "./move.js";
 import {
   ASSIST_RADIUS,
@@ -49,6 +50,21 @@ export const heroShot = (level: number, kind: HeroKind = "brick") => ({
   cooldown: HERO.cooldown,
   siege: HERO.siege,
 });
+/** A hero's most hit points and energy: its level's, plus its items' (`items.ts`). */
+export const heroMaxHp = (hero: Hero): number =>
+  maxHp(levelOf(hero.xp), hero.kind) + bonusOf(hero.items).hp;
+export const heroMaxEnergy = (hero: Hero): number =>
+  maxEnergy(levelOf(hero.xp)) + bonusOf(hero.items).energy;
+/** A hero's gun with its items: their damage on its level's, and their haste on its reload. */
+export function heroGun(hero: Hero) {
+  const shot = heroShot(levelOf(hero.xp), hero.kind);
+  const { damage, haste } = bonusOf(hero.items);
+  return {
+    ...shot,
+    damage: shot.damage + damage,
+    cooldown: div(shot.cooldown * 100, 100 + haste),
+  };
+}
 export const respawnSteps = (level: number, late = 0): number =>
   HERO.respawn +
   HERO.respawnPerLevel * level +
@@ -146,7 +162,7 @@ export function award(
 /** This step's velocity: the stick's direction, scaled by its magnitude, else the next flow-field tile's centre. */
 function velocity(map: GameMap, hero: Hero): [number, number] {
   const { steerX: sx, steerY: sy } = hero;
-  const speed = HEROES[hero.kind].speed;
+  const speed = HEROES[hero.kind].speed + bonusOf(hero.items).speed;
   if (sx !== 0 || sy !== 0) {
     const length = isqrt(sx * sx + sy * sy);
     const scale = speed * (length < STEER_MAX ? length : STEER_MAX);
@@ -199,12 +215,29 @@ export function moveHeroes(
 
 /**
  * Early in a step: living heroes regenerate energy, faster when calm (`HERO.calm` steps without shooting or being
- * hit), and a calm hero heals; dead ones count down and respawn on their fort's tile.
+ * hit), and a calm hero heals, as does one in a MENDER's aura (`items.ts`); dead ones count down and respawn on their
+ * fort's tile.
  */
 export function tendHeroes(map: GameMap, world: World): void {
+  const menders =
+    world.step % AURA.every === 0
+      ? world.heroes.filter(
+          (hero) => alive(hero) && hero.items.some((id) => ITEMS[id]?.aura),
+        )
+      : [];
+  const mended = (hero: Hero): number =>
+    menders.some(
+      (each) =>
+        teamOf(each.seat) === teamOf(hero.seat) &&
+        (each.x - hero.x) * (each.x - hero.x) +
+          (each.y - hero.y) * (each.y - hero.y) <=
+          AURA.radius * AURA.radius,
+    )
+      ? AURA.hp
+      : 0;
   for (const hero of world.heroes) {
-    const level = levelOf(hero.xp);
-    const most = maxHp(level, hero.kind);
+    const most = heroMaxHp(hero);
+    const mostEnergy = heroMaxEnergy(hero);
     // The trickle and the fountain (`gold.ts`).
     const [spring, sip] = tendGold(map, world, hero, most);
     if (alive(hero)) {
@@ -213,9 +246,9 @@ export function tendHeroes(map: GameMap, world: World): void {
       const every = calm ? HERO.calmEnergyEvery : HERO.energyEvery;
       const tick = world.step % every === 0 ? 1 : 0;
       const energy = hero.energy + tick + sip;
-      if (energy > hero.energy && hero.energy < maxEnergy(level))
-        hero.energy = energy < maxEnergy(level) ? energy : maxEnergy(level);
-      const healed = hero.hp + (calm ? HERO.regen : 0) + spring;
+      if (energy > hero.energy && hero.energy < mostEnergy)
+        hero.energy = energy < mostEnergy ? energy : mostEnergy;
+      const healed = hero.hp + (calm ? HERO.regen : 0) + spring + mended(hero);
       if (healed > hero.hp && hero.hp < most)
         hero.hp = healed < most ? healed : most;
       continue;
@@ -224,7 +257,7 @@ export function tendHeroes(map: GameMap, world: World): void {
     const fort = fortSite(map, hero.seat);
     hero.x = centreOf(fort.x);
     hero.y = centreOf(fort.y);
-    hero.hp = maxHp(level, hero.kind);
+    hero.hp = most;
     world.events.push({
       type: "respawn",
       seat: hero.seat,
