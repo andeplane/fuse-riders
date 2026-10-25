@@ -20,6 +20,7 @@ import {
 } from "./spells.js";
 import { ORDER_KINDS, castable, type Order } from "./orders.js";
 import { fnv1a } from "./rng.js";
+import { shielded } from "./towers.js";
 import {
   BUILDING_HP,
   FACTORY_KINDS,
@@ -482,8 +483,13 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
     buildings.some((b, index) => b.id !== expected[index]!.id)
   )
     return;
+  // A protected structure (`towers.ts`) has never been hit: protection only ever lifts.
+  const world = { buildings };
+  for (const b of buildings)
+    if (b.hp < siteHp(map.sites[b.id]!) && shielded(map, world, b)) return;
+  const razed = razedBy(map, buildings);
   const units = list(rawUnits, MAX_SEATS * UNIT_CAP + 2 * WAVE_CAP, (each) =>
-    unit(each, map, step, razedBy(map, buildings)),
+    unit(each, map, step, razed),
   );
   if (!units || !ascending(units, (u) => u.id)) return;
   // Each seat's own units under its cap, and each team's lane waves under theirs.

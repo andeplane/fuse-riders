@@ -214,6 +214,9 @@ export function fight(
         nearest(from, stats.range, (each) => each.of === "hero"))
       : ((hero && held(from, hero.focusOf, hero.focus, stats.range)) ??
         nearest(from, stats.range, (each) => !fort || each.of !== "building"));
+    // A tower with nothing to shoot lets its target go: the next one starts a new ramp.
+    if (victim === undefined && tower)
+      [building!.aimOf, building!.aim, building!.ramp] = [-1, -1, 0];
     if (victim === undefined) continue;
     if (unit !== undefined) engaged.add(unit.id);
     if (hero !== undefined) heroes.add(hero.seat);

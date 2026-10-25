@@ -156,10 +156,9 @@ export function laneGoal(
   let best = -1,
     bestD = LANE_SIGHT * LANE_SIGHT + 1;
   for (const [index, building] of world.buildings.entries()) {
-    if (!siegeable(index)) continue;
     const site = map.sites[building.id]!;
     const d = d2(unit.x, unit.y, centre(site.x), centre(site.y));
-    if (d >= bestD) continue;
+    if (d >= bestD || !siegeable(index)) continue;
     const tile = site.y * map.width + site.x;
     if (flowField(map, tile).cost(from) <= SIEGE_WALK)
       [best, bestD] = [tile, d];

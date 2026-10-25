@@ -5,7 +5,8 @@
  * - **Protection:** a tower or gate can't be picked by any gun while the structure in front of it on its lane and
  *   side stands, so there is no backdoor. A fort can't be picked while every gate of its team stands (`shielded`).
  * - **Targets:** a tower keeps the target it last shot while that stays in range and pickable; otherwise it takes
- *   the nearest enemy unit in range, else the nearest enemy hero (`combat.ts`).
+ *   the nearest enemy unit in range, else the nearest enemy hero (`combat.ts`), and with nothing in range it lets its
+ *   target go.
  * - **Aggro:** an enemy hero whose shot hits a friendly hero switches every tower that has both in range onto it
  *   (`aggro`), from the next step.
  * - **Ramp:** each shot in a row on the same target does `TOWER.ramp` percent more, up to `TOWER.rampMax` shots
@@ -17,8 +18,7 @@
 import { laneMap } from "./waves.js";
 import { TOWERS_PER_SIDE, type GameMap } from "./map.js";
 import { div } from "./math.js";
-import { centreOf } from "./move.js";
-import { TOWER, teamOf } from "./tuning.js";
+import { TILE, TOWER, teamOf } from "./tuning.js";
 import { MARKS, type Building, type Mark, type World } from "./world.js";
 
 /** The site in front of each lane structure (the same lane and side, one tier out), or -1; by site id, per map. */
@@ -43,7 +43,7 @@ function frontOf(map: GameMap, id: number): number {
 }
 
 /** Whether the building on site `id` stands (a fort of a seat not in play has no building, and doesn't). */
-const standing = (world: World, id: number): boolean =>
+const standing = (world: Pick<World, "buildings">, id: number): boolean =>
   world.buildings.some((each) => each.id === id && each.hp > 0);
 
 /**
@@ -52,7 +52,7 @@ const standing = (world: World, id: number): boolean =>
  */
 export function shielded(
   map: GameMap,
-  world: World,
+  world: Pick<World, "buildings">,
   building: Building,
 ): boolean {
   const site = map.sites[building.id]!;
@@ -90,8 +90,8 @@ export function rampUp(
 
 const within = (map: GameMap, id: number, spot: Readonly<Mark>): boolean => {
   const site = map.sites[id]!;
-  const dx = spot.x - centreOf(site.x),
-    dy = spot.y - centreOf(site.y);
+  const dx = spot.x - (site.x * TILE + div(TILE, 2)),
+    dy = spot.y - (site.y * TILE + div(TILE, 2));
   return dx * dx + dy * dy <= TOWER.range * TOWER.range;
 };
 
