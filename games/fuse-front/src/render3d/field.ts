@@ -252,6 +252,8 @@ export class Field3D implements Renderer {
   private readonly heroBefore = new Map<number, HeroView>();
   private olderSeen: WorldView | undefined;
   private readonly facing = new Map<number, number>();
+  /** Each unit's level of detail last frame, for `detailAt`'s band. */
+  private readonly lod = new Map<number, Detail>();
   private readonly raycaster = new THREE.Raycaster();
   private readonly ndc = new THREE.Vector2();
   private readonly hit = new THREE.Vector3();
@@ -580,7 +582,9 @@ export class Field3D implements Renderer {
       if (gun !== yaw) this.gunYaw.set(u.id + 1, gun);
       const bx = x - Math.sin(gun) * kick, bz = z - Math.cos(gun) * kick;
       // Past `LOD_FAR` from the camera (or at low quality) a unit draws its far model: plain plates, no small parts.
-      const cam = this.camera.position, key = LOD_KEY[detailAt(Math.hypot(x - cam.x, lift - cam.y, z - cam.z), this.governor.level)];
+      const cam = this.camera.position, detail = detailAt(Math.hypot(x - cam.x, lift - cam.y, z - cam.z), this.governor.level, this.lod.get(u.id));
+      const key = LOD_KEY[detail];
+      this.lod.set(u.id, detail);
       this.slot(key[u.kind]).batch.push(tank ? x : bx, lift, tank ? z : bz, tank ? yaw : gun, s, s, s, tint);
       if (tank) {
         this.slot(key.tankTurret).batch.push(bx, lift, bz, gun, s, s, s, tint);
@@ -829,6 +833,7 @@ export class Field3D implements Renderer {
   private forget(): void {
     for (const map of [
       this.facing,
+      this.lod,
       this.aim,
       this.aimStep,
       this.gunYaw,

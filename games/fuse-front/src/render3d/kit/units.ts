@@ -13,11 +13,14 @@ export type RobotKind = UnitKind | "tankTurret";
 export type RobotPart = "robotLeg" | "treads";
 /** Camera distance (tiles) past which a unit draws its far model: past the default view's edge, and every strategic zoom. */
 export const LOD_FAR = 30;
+/** Tiles a far unit must come inside `LOD_FAR` before it turns near again, so one on the line does not flicker. */
+export const LOD_BAND = 2;
 
-/** Which model a unit at `distance` from the camera draws: low quality always takes the cheap one. */
-export function detailAt(distance: number, quality: Quality): Detail {
-  return quality === "low" || distance > LOD_FAR ? "far" : "near";
-}
+/** Which model a unit at `distance` from the camera draws, given what it drew last (`was`); low quality is always far. */
+export function detailAt(distance: number, quality: Quality, was: Detail = "near"): Detail {
+  if (quality === "low") return "far";
+  return distance > LOD_FAR - (was === "far" ? LOD_BAND : 0) ? "far" : "near";
+} // prettier-ignore
 
 const H = Math.PI / 2,
   X: V3 = [H, 0, 0],
@@ -41,10 +44,10 @@ export const ROBOT_LEGS: Partial<Record<UnitKind, { hip: number; len: number; w:
 // prettier-ignore
 function leg(r: Rig): void {
   r.add("dark", r.box(0.13, 0.18, 0.14, 0.03), [0, 0.3, 0])
-    .add("steel", r.cyl(0.065, 0.065, 0.16, 10), [0, 0.21, 0.01], Z)
     .add("team", r.box(0.16, 0.15, 0.18, 0.04), [0, 0.13, 0.02])
-    .add("dark", r.box(0.2, 0.08, 0.3, 0.03), [0, 0.04, 0.05])
-    .add("steel", r.box(0.21, 0.025, 0.12, 0.008), [0, 0.02, 0.15]);
+    .add("dark", r.box(0.2, 0.08, 0.3, 0.03), [0, 0.04, 0.05]);
+  // The shared leg is built at unit size, so `FAR_MIN` cannot tell its knee and toe cap are small: leave them out far.
+  if (!r.far) r.add("steel", r.cyl(0.065, 0.065, 0.16, 10), [0, 0.21, 0.01], Z).add("steel", r.box(0.21, 0.025, 0.12, 0.008), [0, 0.02, 0.15]);
 }
 
 /** A small rifle along +z, its grip at the origin. */
