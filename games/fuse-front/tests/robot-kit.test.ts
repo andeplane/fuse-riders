@@ -9,6 +9,7 @@ import {
 } from "../src/render3d/kit/decals.js";
 import { FAR_MIN, Rig } from "../src/render3d/kit/rig.js";
 import {
+  LOD_BAND,
   LOD_FAR,
   detailAt,
   robotModel,
@@ -72,6 +73,7 @@ test("draw calls are bounded per kind, and the far model is several times cheape
     assert.ok(robotModel(kind, "far").length <= 6, `${kind}: ${robotModel(kind, "far").length} paints far`);
     assert.ok(near.tris <= 6000, `${kind}: ${near.tris} triangles near`);
     assert.ok(far.tris * 3 < near.tris, `${kind}: ${far.tris} far vs ${near.tris} near`);
+    assert.ok(far.draws < near.draws, `${kind}: ${far.draws} draws far vs ${near.draws} near`);
   }
   // Instanced per paint, a whole army costs the same draw calls as one unit of each kind at each detail.
   const total = KINDS.reduce((n, k) => n + robotModel(k).length + robotModel(k, "far").length, 0)
@@ -84,6 +86,10 @@ test("the far model drops small parts and low quality always takes it", () => {
   assert.equal(detailAt(LOD_FAR, "high"), "near");
   assert.equal(detailAt(LOD_FAR + 0.1, "high"), "far");
   assert.equal(detailAt(10, "low"), "far");
+  // A band keeps a unit on the line from flickering: once far, it turns near only well inside `LOD_FAR`.
+  assert.equal(detailAt(LOD_FAR - 1, "high", "far"), "far");
+  assert.equal(detailAt(LOD_FAR - LOD_BAND - 0.1, "high", "far"), "near");
+  assert.equal(detailAt(LOD_FAR - 1, "high", "near"), "near");
   const rig = new Rig("far");
   rig.add("steel", rig.box(FAR_MIN, FAR_MIN, FAR_MIN)).add("team", rig.box(0.3, 0.3, 0.3, 0.05)).decal("07", 0.2, [0, 0, 0.2]);
   assert.deepEqual(rig.bake().map((p) => p.paint), ["team"]);
