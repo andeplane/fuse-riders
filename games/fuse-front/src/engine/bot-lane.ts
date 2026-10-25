@@ -7,7 +7,7 @@
  * 1. **Rest** at the fountain to `Profile.rested`; **shop** there (`bot-shop.ts`), walking home when hurt or in a lull
  *    with the gold for its next item, or with 1.5 times it. Hurt below `Profile.retreat` (or out of energy and hurt)
  *    it falls back behind its outermost tower and rests there: a calm hero heals fast (`HERO.regen`).
- * 2. **Fight** the weakest enemy hero within 8 tiles when its side's strength (hit points times damage on heroes, with
+ * 2. **Fight** the weakest enemy hero within 10 tiles when its side's strength (hit points times damage on heroes, with
  *    `Profile.sense` the towers that reach the fight and the longer gun's free shots) wins by `Profile.nerve`; a fight
  *    it is in holds until it sways `SWAY` below, and lets go of a hero walking away out of reach. Otherwise it steps
  *    out of an enemy hero's reach.
@@ -38,7 +38,7 @@ import { enemyAt } from "./focus.js";
 import { upgrades } from "./jungle.js";
 import { hideOf, kitOf, type Chosen } from "./spells.js";
 import type { Command } from "./step.js";
-import { razedBy, seatLane, waypoints } from "./waves.js";
+import { razedBy, seatLane, unitDamage, waypoints } from "./waves.js";
 import { FORT_GUN, GRUNT_ARMOUR, HERO, HEROES } from "./tuning.js";
 import { STRAIGHT, TILE, TOWER, UNITS, teamOf } from "./tuning.js";
 import { NEUTRAL, fortSite, unitCap, type Hero, type World } from "./world.js";
@@ -46,9 +46,14 @@ import type { Profile } from "./bot.js";
 
 const NEAR = 8 * TILE;
 const SCOUT = 16 * TILE;
+/** Enemy heroes within this weigh in a fight: past a hero's 5-tile gun and the wave between, so two standing
+ * off at their waves' fronts still meet. */
+const FIGHT = 10 * TILE;
 /** Lane stands snap to this spacing, so a hero's walks reuse the flow fields they build. */
 const STAND = 2 * TILE;
 const SWAY = 25;
+/** Percent off `Profile.nerve` for each enemy structure its team has razed more than the enemy has. */
+const LEAD = 10;
 const TANKS = 1;
 /** A tower's ramped shot over a long siege, in percent of its first (`TOWER.ramp`, `TOWER.rampMax`). */
 const RAMPED = 225;
@@ -233,7 +238,9 @@ function decide(
   const allies = world.heroes.filter(
     (h) => alive(h) && teamOf(h.seat) === team,
   );
-  const close = foes.filter((h) => h.cloak === 0 && near(hero, h.x, h.y, NEAR));
+  const close = foes.filter(
+    (h) => h.cloak === 0 && near(hero, h.x, h.y, FIGHT),
+  );
   const spell = (mode: Mode) =>
     laneCast(map, world, hero, profile, out, close, mode);
   const lane = botLane(map, world, seat, profile);
@@ -250,6 +257,9 @@ function decide(
     const at = progress(track, centreOf(site.x), centreOf(site.y));
     own = at > own ? at : own;
   }
+
+  const razed = razedBy(map, world.buildings);
+  const lead = razed[team]! - razed[1 - team]!;
 
   // 1. Rest, shop and fall back.
   const id = nextBuy(hero);
@@ -313,10 +323,21 @@ function decide(
       if (profile.sense < 2 || reach <= 0) return 0;
       return div(div(dps(b) * reach, HEROES[a.kind].speed), 1000);
     };
-    const towers = (side: number) =>
-      profile.sense > 0
-        ? guns(map, world, side, prey.x, prey.y).length * TOWER_DPS
-        : 0;
+    // The guns that reach the fight: towers and forts by the prey, and each side's wave robots about its own hero
+    // (small arms on a hero).
+    const towers = (side: number) => {
+      if (profile.sense === 0) return 0;
+      const by = side === team ? prey : hero;
+      let sum = guns(map, world, side, prey.x, prey.y).length * TOWER_DPS;
+      for (const unit of world.units)
+        if (unit.lane >= 0 && teamOf(unit.owner) !== side)
+          if (UNITS[unit.kind].robot && near(unit, by.x, by.y, NEAR))
+            sum += div(
+              unitDamage(unit) * HERO.smallArms * 10,
+              UNITS[unit.kind].cooldown,
+            );
+      return sum;
+    };
     const strength = (side: Hero[], guns: number, gap: number) =>
       (side.reduce((sum, h) => sum + h.hp, 0) - gap) *
       (side.reduce((sum, h) => sum + dps(h), 0) + guns);
@@ -324,12 +345,13 @@ function decide(
     const theirs = strength(close, towers(team), free(prey, hero));
     const engaged =
       hero.focusOf === 1 && close.some((h) => h.seat === hero.focus);
-    const winning =
-      ours * 100 >= theirs * (profile.nerve - (engaged ? SWAY : 0));
+    // A team ahead in razed structures presses: its waves are the tougher (`RAZE_WAVES`), so pressing ends it.
+    const nerve = profile.nerve - (lead > 0 ? LEAD * lead : 0);
+    const winning = ours * 100 >= theirs * (nerve - (engaged ? SWAY : 0));
     spell(
       winning
         ? "fight"
-        : ours * 100 < theirs * (profile.nerve - SWAY)
+        : ours * 100 < theirs * (nerve - SWAY)
           ? "flee"
           : "calm",
     );
@@ -478,10 +500,9 @@ function decide(
   }
 
   // 8. The lane.
-  const razed = razedBy(map, world.buildings);
   const watch = tileAt(track, front < 0 ? mine : front);
   const contested =
-    razed[team]! <= razed[1 - team]! &&
+    lead <= 0 &&
     foes.some(
       (h) =>
         h.cloak === 0 && near(h, centreOf(watch[0]), centreOf(watch[1]), SCOUT),
