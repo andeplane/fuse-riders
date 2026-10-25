@@ -512,3 +512,23 @@ before, and M2 decides whether lanes become required.
   - The HUD loses its stance buttons and 1/2/3 keys. Its factory panel still shows what a factory builds, with
     inert choices, until M6 removes it.
   - Bots no longer choose stances or orders. RULES `fuse-front-15` refuses older checkpoints.
+
+**M3 as built.**
+
+- **Gold (M3a, `src/engine/gold.ts`, numbers in `GOLD`):** each player's purse lives on its hero, checkpointed with
+  its kill streak and its recent hits.
+  - A hero starts with 300 and earns 1 a second, dead or alive.
+  - **Last hits:** the first hero whose shot or spell lands on an enemy unit on the step it dies earns the unit's
+    bounty: 20 a grunt, 25 a torch, 50 a tank, 30 a sentry, 35 a camp guard. A robot's or tower's shot never earns
+    gold.
+  - **Hero kills:** the killer's seat earns 200, plus 50 for each kill the victim made since it last fell (up to 6).
+    Half as much again is split evenly among the killer's living teammates within 8 tiles whose hero hit the victim
+    in the last 10 s.
+  - **Structures and flags:** a razed lane tower or gate pays every hero of the razer's team 150, 200 or 250 by tier.
+    Taking a flag pays its taker 75.
+- **The fountain (M3a):** a living hero within 3 tiles of its own fort's tile heals 0.5 percent of its hit points
+  and 1 energy a step, about five seconds from empty to full.
+- **Measured** (rules `fuse-front-16`, seed 1, bots that don't shop yet): a hero has earned about 2,000–3,000 by
+  minute 5, 3,500–5,700 by minute 10 and 5,900–6,900 by minute 15 on Neon Duel, Twin Wilds and Crown Jungle. Match
+  lengths are unchanged.
+- **HUD:** the gold counter sits at the right of the hero's name.

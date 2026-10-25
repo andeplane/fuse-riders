@@ -27,6 +27,7 @@ import {
   CAST_WAIT,
   FOCUS_GIVE_UP,
   FORT_GUN,
+  GOLD,
   MAX_SEATS,
   QUEUE_MAX,
   HERO,
@@ -150,6 +151,9 @@ export function encodeWorld(world: World): unknown {
       h.sweep,
       h.queue.map(encodeOrder),
       h.wait,
+      h.gold,
+      h.streak,
+      [...h.hurt],
     ]),
     world.winner,
     world.mines.map((m) => [m.owner, m.x, m.y, m.life, m.stuck]),
@@ -317,8 +321,13 @@ function order(raw: unknown, map: GameMap): Order | undefined {
 function hero(raw: unknown, map: GameMap, step: number): Hero | undefined {
   // On a lane map the respawn wait grows with the match (`respawnSteps`).
   const late = laneMap(map) ? step : 0;
-  const t = tuple(raw, 25);
+  const t = tuple(raw, 28);
   if (!t) return;
+  // Gold (`gold.ts`): a bounded purse and streak, and per seat a countdown of hits that never outlasts the window.
+  const [gold, streak] = [t[25], t[26]];
+  if (!isInt(gold, 0, GOLD.max) || !isInt(streak, 0, GOLD.streakMax)) return;
+  const hurt = tuple(t[27], MAX_SEATS);
+  if (!hurt?.every((left) => isInt(left, 0, GOLD.assistWindow))) return;
   const [seat, x, y, hp, energy, xp, cooldown, respawn, facing, goal] = t;
   const [steerX, steerY, quiet] = [t[10], t[11], t[13]];
   const [kindIndex, cloak, blitz, flare, flareLeft] = t.slice(14, 19);
@@ -411,6 +420,9 @@ function hero(raw: unknown, map: GameMap, step: number): Hero | undefined {
     sweep,
     queue,
     wait,
+    gold,
+    streak,
+    hurt: hurt as number[],
   };
 }
 
@@ -533,6 +545,13 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
   };
   for (const h of heroes) {
     if (h.focusOf >= 0 && !aimable(h.seat, h.focusOf, h.focus)) return;
+    // Only an enemy hero in play hits a hero, and a fallen hero's hits were cleared.
+    for (const [seat, left] of h.hurt.entries())
+      if (
+        left > 0 &&
+        (h.hp === 0 || !seats.has(seat) || teamOf(seat) === teamOf(h.seat))
+      )
+        return;
     // A queued attack names what a focus may; a queued cast's chosen target any unit given out, seat in play or site.
     for (const o of h.queue) {
       if (o.type === "attack" && !aimable(h.seat, o.of, o.id)) return;

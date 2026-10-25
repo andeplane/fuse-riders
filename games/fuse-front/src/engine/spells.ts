@@ -47,6 +47,7 @@
  */
 import { DIRS, openTile } from "./flow.js";
 import { alive, award, fell, levelOf, maxHp } from "./hero.js";
+import { hurtBy, lastHit } from "./gold.js";
 import type { GameMap } from "./map.js";
 import { laneMap, waveHp } from "./waves.js";
 import { div, isqrt } from "./math.js";
@@ -289,13 +290,16 @@ export const unitMax = (unit: Unit): number =>
       ? DROP_HP
       : UNITS[unit.kind].hp;
 
-/** Removes the units at 0 hit points in id order, each a death that earns `killer`'s hero its XP (none for -1). */
+/** Removes the units at 0 hit points in id order, each a death that earns `killer`'s hero its XP and gold (none for -1). */
 function bury(world: World, killer: number): void {
   world.units = world.units.filter((unit) => {
     if (unit.hp > 0) return true;
     const { id, kind, owner, x, y } = unit;
     world.events.push({ type: "death", id, kind, owner, x, y });
-    if (killer >= 0) award(world, killer, teamOf(owner), x, y, KILL_XP[kind]);
+    if (killer < 0) return false;
+    award(world, killer, teamOf(owner), x, y, KILL_XP[kind]);
+    // A spell or mine is its hero's own killing blow (`gold.ts`).
+    lastHit(world, killer, kind, owner);
     return false;
   });
 }
@@ -471,6 +475,7 @@ export function cast(
       const foe = teamOf(victim.seat);
       const hit = div(damage * hideOf(world, victim, foe), 100);
       victim.quiet = 0;
+      hurtBy(victim, seat);
       if (hit < victim.hp) victim.hp -= hit;
       else
         award(

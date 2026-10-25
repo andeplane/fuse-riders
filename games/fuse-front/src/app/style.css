@@ -307,6 +307,12 @@ body.fui-app {
   font-size: 1.25rem;
   font-weight: 800;
 }
+.ff-purse {
+  margin-left: auto;
+  font: 700 1rem var(--ff-display);
+  color: var(--ff-hazard);
+  font-variant-numeric: tabular-nums;
+}
 .ff-value {
   text-align: right;
 }
