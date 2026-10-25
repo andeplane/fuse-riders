@@ -46,8 +46,9 @@
  * of each step, so a cast made on step N is ready again on step N + cooldown.
  */
 import { DIRS, openTile } from "./flow.js";
-import { alive, award, fell, levelOf, maxHp } from "./hero.js";
+import { alive, award, fell, heroMaxHp, levelOf } from "./hero.js";
 import { hurtBy, lastHit } from "./gold.js";
+import { guardOf, spellCooldown } from "./shop.js";
 import type { GameMap } from "./map.js";
 import { laneMap, waveHp } from "./waves.js";
 import { div, isqrt } from "./math.js";
@@ -334,7 +335,8 @@ export function tickSpells(world: World): void {
 /**
  * The percent of a hit's damage a hero or unit of `team` takes: IRON HIDE takes off a living teammate's best cover
  * (a hero's own hide, or any within its radius for a vehicle), and SPOTTER adds a living enemy's best within its
- * radius. `spotOnly` gives just the SPOTTER part (0 when no enemy spots it), for the view.
+ * radius; a hero's items and SHIELD then cut it (`guardOf`). `spotOnly` gives just the SPOTTER part (0 when no enemy
+ * spots it), for the view.
  */
 export function hideOf(
   world: World,
@@ -360,7 +362,10 @@ export function hideOf(
         spot = power > spot ? power : spot;
     }
   }
-  return spotOnly ? spot : 100 - hide + spot;
+  if (spotOnly) return spot;
+  // A hero's items' armour and its SHIELD cut what is left (`shop.ts`).
+  const taken = 100 - hide + spot;
+  return "seat" in victim ? div(taken * guardOf(victim), 100) : taken;
 }
 
 type Target =
@@ -593,7 +598,7 @@ export function cast(
   // Units the spell killed die now, in id order, and earn the caster their XP.
   bury(world, seat);
   hero.energy -= spell.energy;
-  hero.spells[slot] = spell.cooldown;
+  hero.spells[slot] = spellCooldown(hero, spell.cooldown);
   world.events.push({
     type: "cast",
     seat: hero.seat,
@@ -678,7 +683,7 @@ function mends(
 /** The most hit points a REPAIR BEAM target can have. */
 function mostHp(map: GameMap, target: Target): number {
   if (target.of === "unit") return unitMax(target.at);
-  if (target.of === "hero") return maxHp(levelOf(target.at.xp), target.at.kind);
+  if (target.of === "hero") return heroMaxHp(target.at);
   return siteHp(map.sites[target.at.id]!);
 }
 
