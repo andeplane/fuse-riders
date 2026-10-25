@@ -136,6 +136,50 @@ test("a lane walker heads for the first waypoint it has neither reached nor pass
   assert.equal(aheadOf(path, at(1)[0]!, at(1)[1]!), 2);
   const end = path.length - 1;
   assert.equal(aheadOf(path, at(end)[0]!, at(end)[1]!), path.length);
+  // Beyond the last waypoint's reach along the last leg it is still past it, so it doesn't turn back (M5).
+  const [lx, ly] = [
+    at(end)[0]! - at(end - 1)[0]!,
+    at(end)[1]! - at(end - 1)[1]!,
+  ];
+  const scale = (4 * 128) / Math.hypot(lx, ly);
+  const out = [at(end)[0]! + lx * scale, at(end)[1]! + ly * scale];
+  assert.equal(
+    aheadOf(path, Math.round(out[0]!), Math.round(out[1]!)),
+    path.length,
+  );
+});
+
+test("each team's wave walks its lane as the other's half-turn image, so neither reaches the clash first", () => {
+  // Rows used to spawn the same way round for both teams, so one team's slow torch led its grunts and the other's
+  // trailed them: on Neon Duel team 1's grunts walked mid about 9 percent faster (M5's side finding).
+  for (const id of ["neon-duel", "crown-jungle"]) {
+    const map = mapById(id);
+    const seats = id === "neon-duel" ? [0, 1] : [0, 1, 2, 3, 4, 5];
+    let world = benchHeroes(createWorld(map, seats, 1));
+    for (let at = 0; at < 34 * STEPS_PER_SECOND; at++) world = step(map, world);
+    for (const [index, lane] of map.lanes.entries()) {
+      // A half turn maps each lane onto the other end of itself (mid) or onto its partner (top and bot).
+      const partner = map.lanes.length - 1 - index;
+      const along = (team: number, of: number) => {
+        const [start] = waypoints(map.lanes[of]!, team);
+        return world.units
+          .filter((u) => u.lane === of && u.wave === 1 && u.owner % 2 === team)
+          .map((u) =>
+            Math.round(
+              Math.hypot(u.x - centreOf(start!.x), u.y - centreOf(start!.y)) /
+                64,
+            ),
+          )
+          .sort((a, b) => a - b);
+      };
+      if (lane.name !== "top")
+        assert.deepEqual(
+          along(0, index),
+          along(1, partner),
+          `${id} ${lane.name}`,
+        );
+    }
+  }
 });
 
 test("a later wave's unit above its wave's hit points is refused", () => {

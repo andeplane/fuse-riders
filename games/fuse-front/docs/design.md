@@ -609,6 +609,23 @@ before, and M2 decides whether lanes become required.
   - The 12 cross pairings on Neon Duel give wins of Vix 6 of 6, Rivet 4, Brick 1 and Tally 1. Vix already won all of
     them before M4. M5's bots and M7's tuning take that on.
 
+**M5 as built: which side wins a mirror (M5a, rules `fuse-front-20`).** Mirror bot matches leaned to one side. With
+no hero acting at all, Neon Duel's waves wore down team 1's outer tower and never team 0's.
+
+- **The cause was a rule asymmetry:** `spawnWaves` laid each wave's row out along +x for both teams.
+  - Team 0's slow torch spawned in front of its grunts, and team 1's behind them.
+  - Team 0's grunts walked mid at torch speed. Team 1's walked about 9 percent faster and met the clash strung out.
+- **Fixes:**
+  - Team 1's row is now team 0's half-turn image, and every lane walks as its image does (`tests/waves.test.ts`).
+  - A walker past a lane's last waypoint counts as past it along the last leg (`aheadOf`). Before, a unit making for
+    the fort from more than 3 tiles past the end turned back to the waypoint, and waves stalled short of an unguarded
+    fort.
+- **The map is symmetric:** the loader checks its half turn. Flow-field ties still break in one `DIRS` order, which
+  isn't its own half turn for some straight-step ties. On Crown Jungle's bent lanes that leaves a wave about a tile
+  apart after 30 s; with waves alone no structure falls there in 25 minutes.
+- **Bots:** on a lane map, teammates think 5 ticks apart and the two teams half a think apart. The old seat × 7
+  stagger left a 1v1 with one team always the fresher reader of the other's last move. v2 maps keep it.
+
 **M6 as built (the MOBA HUD).**
 
 - **M6a, structures and the minimap:**

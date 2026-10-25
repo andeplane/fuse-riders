@@ -5,7 +5,7 @@
 import { ceilDiv } from "./math.js";
 
 /** Bump on any change to the rules, with the golden in `tests/golden.test.ts` re-recorded in the same commit. */
-export const RULES = "fuse-front-19";
+export const RULES = "fuse-front-20";
 
 export const SUB = 16;
 export const TILE_PX = 8;
