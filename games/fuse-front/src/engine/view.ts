@@ -3,7 +3,7 @@
  * progress, and units. It is built fresh from a map and world and shares no mutable record with either, so a renderer
  * can never write back into the simulation.
  */
-import type { Biome, GameMap } from "./map.js";
+import type { Biome, GameMap, Lane, Tile } from "./map.js";
 import { levelOf, maxEnergy, maxHp } from "./hero.js";
 import { div } from "./math.js";
 import { centreOf } from "./move.js";
@@ -155,6 +155,9 @@ export interface WorldView {
   /** By sector: its owning seat, or -1. */
   sectorOwners: readonly number[];
   flags: readonly FlagView[];
+  /** A lane map's lanes with their tower and gate slots, and its neutral camp slots, in tiles (shared and frozen). */
+  lanes: readonly Readonly<Lane>[];
+  camps: readonly Readonly<Tile>[];
   buildings: readonly BuildingView[];
   units: readonly UnitView[];
   /** `unitCap`: the units the player's factories build up to, from the team's sectors. */
@@ -241,6 +244,8 @@ export function viewOf(map: GameMap, world: World): WorldView {
     terrain: map.terrain,
     sectorOf: map.sectorOf,
     sectorOwners: [...world.sectors],
+    lanes: map.lanes,
+    camps: map.camps,
     flags: map.flags.map((flag, sector) => ({
       sector,
       x: flag.x,
