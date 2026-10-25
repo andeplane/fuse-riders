@@ -16,7 +16,13 @@ import {
   robotPart,
   type RobotKind,
 } from "../src/render3d/kit/units.js";
-import { paintMaterials, type Model } from "../src/render3d/models.js";
+import {
+  HERO_KINDS,
+  paintMaterials,
+  type HeroKind,
+  type Model,
+} from "../src/render3d/models.js";
+import { heroModel } from "../src/render3d/kit/heroes.js";
 
 const KINDS: RobotKind[] = [
   "grunt",
@@ -109,4 +115,28 @@ test("squad numbers come from one shared pixel atlas", () => {
   assert.equal(mask.filter(Boolean).length, 12 + 7);
   const [u0, u1] = labelUv("21"), [w0] = labelUv("S3");
   assert.ok(u0 < u1 && u1 <= w0, "cells do not overlap");
+}); // prettier-ignore
+
+test("heroes: each its own silhouette near and far, team plates on a dark frame, bounded draw calls", () => {
+  for (const detail of ["near", "far"] as const) {
+    const dims = HERO_KINDS.map((k) => size(heroModel(k, detail)).toArray().map((v) => v.toFixed(2)).join());
+    assert.equal(new Set(dims).size, HERO_KINDS.length, dims.join(" | "));
+  }
+  // What a hero costs drawn: its body plus the shared robot leg twice (one instanced slot).
+  const cost = (k: HeroKind, detail: "near" | "far") => {
+    const body = heroModel(k, detail, false), leg = robotPart("robotLeg", detail);
+    return { draws: body.length + leg.length, tris: tris(body) + 2 * tris(leg) };
+  };
+  for (const kind of HERO_KINDS) {
+    const model = heroModel(kind), paints = model.map((p) => p.paint), near = cost(kind, "near"), far = cost(kind, "far");
+    assert.ok(paints.includes("team") && paints.includes("dark"), `${kind}: team plates on a dark frame`);
+    assert.ok(tris(model.filter((p) => p.paint === "team")) < tris(model) * 0.6, `${kind}: team colour is not the whole hero`);
+    assert.ok(size(heroModel(kind)).distanceTo(size(heroModel(kind, "far"))) < 0.08, `${kind}: the far model keeps the silhouette`);
+    assert.ok(heroModel(kind).length <= 7 && heroModel(kind, "far").length <= 5, `${kind}: paints near/far`);
+    assert.ok(near.tris <= 7000 && far.tris * 3 < near.tris && far.draws < near.draws, `${kind}: ${near.tris}/${far.tris} triangles`);
+    // Its glowing eye or visor survives the far model, so a hero still reads at low quality.
+    assert.ok(heroModel(kind, "far").some((p) => ["eye", "amber", "visor"].includes(p.paint)), `${kind}: a light far away`);
+  }
+  assert.ok(heroModel("vix", "far").some((p) => p.paint === "eye"), "Vix's single red eye");
+  assert.ok(size(heroModel("brick")).x > 2 * size(heroModel("vix")).x, "Brick's shoulders, Vix's thin frame");
 }); // prettier-ignore
