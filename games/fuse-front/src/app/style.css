@@ -414,6 +414,7 @@ body.fui-app {
   padding: 0 8px;
   font: 700 0.85rem var(--ff-display);
   letter-spacing: 0.08em;
+  white-space: nowrap;
 }
 .ff-toggles .ff-switch,
 .ff-factories .ff-switch {
@@ -422,7 +423,6 @@ body.fui-app {
 #app .ff-factories .ff-switch {
   height: 26px;
   font-size: 0.7rem;
-  white-space: nowrap;
 }
 #app :is(.ff-amove, .ff-queue) {
   color: var(--ff-hazard);
