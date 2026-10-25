@@ -168,6 +168,15 @@ test("comeback: a team behind on razed lane structures takes more XP, up to the 
   const [x, y] = [world.heroes[0]!.x, world.heroes[0]!.y];
   award(duel, world, 0, 1, x, y, 100);
   assert.equal(world.heroes[0]!.xp, 100 + COMEBACK_MAX);
+  // The comeback multiplies a shared split too: two near a death of 100 XP take 65 percent each, times 130.
+  const [first, foe] = world.heroes.map((hero) => ({ ...hero, x, y, xp: 0 }));
+  const three = { ...world, heroes: [first!, foe!, { ...first!, seat: 2 }] };
+  award(duel, three, 0, 1, x, y, 100);
+  const share = div(
+    100 * div((100 + XP_GROUP) * (100 + COMEBACK_MAX), 100),
+    200,
+  );
+  assert.deepEqual(xps(three), [share, 0, share]);
 });
 
 test("a razed lane tower's XP goes to the razing team's heroes near it; the step is pure and replays", () => {
