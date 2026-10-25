@@ -52,7 +52,7 @@ const FIGHT = 10 * TILE;
 /** Lane stands snap to this spacing, so a hero's walks reuse the flow fields they build. */
 const STAND = 2 * TILE;
 const SWAY = 25;
-/** Percent off `Profile.nerve` for each enemy structure its team has razed more than the enemy has. */
+/** Percent off `Profile.nerve` for each enemy structure its team has razed more than the enemy has, to half of it. */
 const LEAD = 10;
 const TANKS = 1;
 /** A tower's ramped shot over a long siege, in percent of its first (`TOWER.ramp`, `TOWER.rampMax`). */
@@ -238,11 +238,13 @@ function decide(
   const allies = world.heroes.filter(
     (h) => alive(h) && teamOf(h.seat) === team,
   );
-  const close = foes.filter(
+  // Enemy heroes near enough to stop a rest or a trip home, and the wider set that weighs in a fight.
+  const close = foes.filter((h) => h.cloak === 0 && near(hero, h.x, h.y, NEAR));
+  const rivals = foes.filter(
     (h) => h.cloak === 0 && near(hero, h.x, h.y, FIGHT),
   );
   const spell = (mode: Mode) =>
-    laneCast(map, world, hero, profile, out, close, mode);
+    laneCast(map, world, hero, profile, out, rivals, mode);
   const lane = botLane(map, world, seat, profile);
   const laneOf = lane >= 0 ? lane : seatLane(map, world, seat);
   const track = trackOf(map.lanes[laneOf]!, team);
@@ -314,7 +316,7 @@ function decide(
   }
 
   // 2. A fight with the enemy heroes near.
-  const prey = lowest(close);
+  const prey = lowest(rivals);
   if (prey !== undefined) {
     const friends = allies.filter((h) => near(hero, h.x, h.y, NEAR));
     // The longer gun of the pair shoots free while the other closes in: that much off the shorter's hit points.
@@ -342,11 +344,13 @@ function decide(
       (side.reduce((sum, h) => sum + h.hp, 0) - gap) *
       (side.reduce((sum, h) => sum + dps(h), 0) + guns);
     const ours = strength(friends, towers(1 - team), free(hero, prey));
-    const theirs = strength(close, towers(team), free(prey, hero));
+    const theirs = strength(rivals, towers(team), free(prey, hero));
     const engaged =
-      hero.focusOf === 1 && close.some((h) => h.seat === hero.focus);
+      hero.focusOf === 1 && rivals.some((h) => h.seat === hero.focus);
     // A team ahead in razed structures presses: its waves are the tougher (`RAZE_WAVES`), so pressing ends it.
-    const nerve = profile.nerve - (lead > 0 ? LEAD * lead : 0);
+    const press = lead > 0 ? LEAD * lead : 0;
+    const half = div(profile.nerve, 2);
+    const nerve = profile.nerve - (press < half ? press : half);
     const winning = ours * 100 >= theirs * (nerve - (engaged ? SWAY : 0));
     spell(
       winning
@@ -370,7 +374,7 @@ function decide(
         d2(target.x, target.y, hero.x, hero.y);
     if (winning && (!fleeing || near(hero, target.x, target.y, range)))
       return attack(1, target.seat);
-    if (close.some((h) => near(hero, h.x, h.y, HEROES[h.kind].range + TILE)))
+    if (rivals.some((h) => near(hero, h.x, h.y, HEROES[h.kind].range + TILE)))
       return back();
   }
 
@@ -444,6 +448,7 @@ function decide(
 
   // 6. More heroes standing than the enemy: the structure nearest the team, from a lane 4 tiles short of it once two
   // stand together (or a lone hero outlasts it), else just outside a tower's reach to gather.
+  // It counts the enemy heroes it can see: a cloaked one may be about, as a player would risk.
   if (allies.length > foes.filter((h) => h.cloak === 0).length) {
     const mean = (of: (h: Hero) => number) =>
       div(

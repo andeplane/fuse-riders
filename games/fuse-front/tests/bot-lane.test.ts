@@ -89,25 +89,30 @@ test("a last hit waits for the shot that kills: one hit point more and it holds 
   assert.equal(at(div(shot * 14, 10), "easy"), true);
 });
 
-test("a fight: taken against a weaker hero in reach, let go of one walking away out of reach", () => {
-  const fight = (gap: number, away: boolean) => {
+test("a fight: taken against a weaker hero within 10 tiles, let go of one walking away out of reach", () => {
+  const fight = (gap: number, away: boolean, focused: boolean) => {
     const world = lane(80, 95);
-    Object.assign(world.heroes[1]!, {
+    const foe = world.heroes[1]!;
+    Object.assign(foe, {
       hp: 300,
       respawn: 0,
       x: centreOf(80 + gap),
       y: centreOf(95 - gap),
     });
-    if (away)
-      world.heroes[1]!.goal = (95 - 2 * gap) * duel.width + 80 + 2 * gap;
-    Object.assign(hero(world), { focusOf: 1, focus: 1 });
-    return botCommands(duel, world, 0, "normal").map((c) => c.type);
+    if (away) foe.goal = (95 - 2 * gap) * duel.width + 80 + 2 * gap;
+    if (focused) Object.assign(hero(world), { focusOf: 1, focus: 1 });
+    return botCommands(duel, world, 0, "normal");
   };
-  // Held in reach (its focus already on it, so nothing is re-sent); dropped with a walk once it walks off.
-  assert.deepEqual(fight(3, false), []);
-  assert.deepEqual(fight(3, true), []);
+  const attacks = (sent: Command[]) =>
+    sent.some((c) => c.type === "attack" && c.of === 1 && c.id === 1);
+  // 4.2 and 8.5 tiles off: taken (beyond 8 tiles it used to stand off).
+  assert.ok(attacks(fight(3, false, false)));
+  assert.ok(attacks(fight(6, false, false)));
+  // Walking away 7 tiles off, out of its 5-tile gun: the focus goes, with a walk or a stop.
+  const gone = fight(5, true, true);
   assert.ok(
-    fight(5, true).some((type) => type === "move" || type === "attackMove"),
+    !attacks(gone) &&
+      gone.some((c) => c.type === "move" || c.type === "attackMove"),
   );
 });
 
