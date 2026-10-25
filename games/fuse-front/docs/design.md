@@ -282,6 +282,14 @@ chunky robots, team-coloured forts and factories, the riveted steel HUD) but ren
 
   ![The concept heroes](images/concept-robots-heroes.png) ![In game](images/robots-heroes.png)
 
+  The buildings follow it too (`buildings.ts`), near and far by `detailAt` per building: the fort's crenellated
+  towers, keep, radar dish, banners and hazard gate round the open courtyard the hero respawns in, the robot
+  factory's saw-tooth roof, banded chimney and ramp, the vehicle factory's MOTOR POOL hangar under a gantry crane,
+  the turret's twin guns on a sandbagged pad, and each flag's sandbagged base under a team banner with the emblem.
+  Team paint is grey while a building is neutral; a destroyed fort or turret leaves its own ruin.
+
+  ![The concept buildings](images/concept-robots-buildings.png) ![In game](images/robots-buildings.png)
+
   ![The approved concept render the robots follow](images/concept-robots-units.png)
   ![Robot units at the default zoom](images/robots-units.png)
   ![Zoomed in on a squad of grunts](images/robots-units-close.png)

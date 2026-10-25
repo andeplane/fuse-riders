@@ -6,7 +6,7 @@
  *
  * CREATE ROOM at 2V2 against bots, with a hero picked for every seat (SHOT_HERO for you, default Brick; bots get the rest),
  * then START and zoom in (Z) on your hero at your fort. Saves `<name>-<t>.png` (default `robots-heroes`) close up at
- * each match second in SHOT_TIMES (default 1), then `<name>-base.png` a step further out. SHOT_SOLO=1 plays solo
+ * each match second in SHOT_TIMES (default 1), then `<name>-base.png` SHOT_OUT (default 2) steps further out. SHOT_SOLO=1 plays solo
  * instead. Forced high quality, muted.
  */
 import { chromium } from "playwright";
@@ -74,7 +74,7 @@ try {
     await clock(t);
     await page.screenshot({ path: join(dir, `${name}-${t}.png`) });
   }
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < Number(process.env.SHOT_OUT ?? 2); i++) {
     await page.keyboard.press("x");
     await page.waitForTimeout(400);
   }
