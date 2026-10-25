@@ -34,6 +34,8 @@ import {
   HERO_KINDS,
   STEER_MAX,
   TILE,
+  CAMP_GUARDS,
+  CAMP_RESPAWN,
   RAZE_WAVES,
   TOWER,
   TURRET,
@@ -154,6 +156,7 @@ export function encodeWorld(world: World): unknown {
     world.mines.map((m) => [m.owner, m.x, m.y, m.life, m.stuck]),
     [...world.fortified],
     [...world.overclock],
+    [...world.camps],
   ];
 }
 
@@ -235,13 +238,21 @@ function unit(
     t;
   if (!isInt(id, 1, COUNT) || !isInt(kind, 0, UNIT_KINDS.length - 1)) return;
   const stats = UNITS[UNIT_KINDS[kind]!];
-  if (!isInt(owner, 0, MAX_SEATS - 1)) return;
+  if (!isInt(owner, NEUTRAL, MAX_SEATS - 1)) return;
   if (!isInt(x, 0, map.width * TILE - 1) || !isInt(y, 0, map.height * TILE - 1))
     return;
+  // A camp's guard (`jungle.ts`): a neutral sentry on a camp's tile, out of the waves, going nowhere.
+  if (owner === NEUTRAL) {
+    const tile = div(y, TILE) * map.width + div(x, TILE);
+    if (UNIT_KINDS[kind] !== "sentry" || lane !== -1 || wave !== 0) return;
+    if (goal !== -1 || !map.camps.some((c) => c.y * map.width + c.x === tile))
+      return;
+  }
   // A wave unit (`waves.ts`): a lane of this map and a wave already sent; exactly the units with a lane have a wave.
   if (!isInt(lane, -1, map.lanes.length - 1)) return;
   // Razing only adds up (a lane structure never stands again), so no grade outruns the count now.
-  const graded = lastWave(step) + RAZE_WAVES * razed[teamOf(owner)]!;
+  const graded =
+    lane < 0 ? 0 : lastWave(step) + RAZE_WAVES * razed[teamOf(owner)]!;
   if (!isInt(wave, lane < 0 ? 0 : 1, lane < 0 ? 0 : graded)) return;
   if (lane >= 0 && !WAVE_KINDS.includes(UNIT_KINDS[kind]!)) return;
   // An Orbital Drop tank lands tougher than a factory's, and a wave's units grow with their wave.
@@ -446,10 +457,11 @@ const ascending = <T>(items: readonly T[], key: (item: T) => number) =>
 
 /** A world from a checkpoint for `map`, or undefined when anything in it is out of place. */
 export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
-  const t = tuple(raw, 12);
+  const t = tuple(raw, 13);
   if (!t) return;
   const [step, rng, nextId, rawPlayers, rawSectors, rawBuildings, rawUnits] = t;
-  const [rawHeroes, winner, rawMines, rawFortified, rawOverclock] = t.slice(7);
+  const [rawHeroes, winner, rawMines, rawFortified, rawOverclock, rawCamps] =
+    t.slice(7);
   if (
     !isInt(step, 0, COUNT) ||
     !isInt(rng, 0, UINT32) ||
@@ -488,17 +500,22 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
   for (const b of buildings)
     if (b.hp < siteHp(map.sites[b.id]!) && shielded(map, world, b)) return;
   const razed = razedBy(map, buildings);
-  const units = list(rawUnits, MAX_SEATS * UNIT_CAP + 2 * WAVE_CAP, (each) =>
-    unit(each, map, step, razed),
-  );
+  const most =
+    MAX_SEATS * UNIT_CAP + 2 * WAVE_CAP + CAMP_GUARDS * map.camps.length;
+  const units = list(rawUnits, most, (each) => unit(each, map, step, razed));
   if (!units || !ascending(units, (u) => u.id)) return;
-  // Each seat's own units under its cap, and each team's lane waves under theirs.
+  // Each seat's own units under its cap, each team's lane waves under theirs, and each camp's guards (by tile).
   const owned = new Map<number, number>();
   for (const u of units) {
-    if (!seats.has(u.owner) || u.id >= nextId) return;
-    if (u.lane < 0) owned.set(u.owner, (owned.get(u.owner) ?? 0) + 1);
+    if (u.id >= nextId || (u.owner !== NEUTRAL && !seats.has(u.owner))) return;
+    const key =
+      u.owner === NEUTRAL
+        ? -1 - div(u.y, TILE) * map.width - div(u.x, TILE)
+        : u.owner;
+    if (u.lane < 0) owned.set(key, (owned.get(key) ?? 0) + 1);
   }
-  for (const count of owned.values()) if (count > UNIT_CAP) return;
+  for (const [key, count] of owned)
+    if (count > (key < 0 ? CAMP_GUARDS : UNIT_CAP)) return;
   if (laneCounts(units).some((count) => count > WAVE_CAP)) return;
   // One hero per player, in the players' order.
   const heroes = list(rawHeroes, MAX_SEATS, (each) => hero(each, map, step));
@@ -547,6 +564,21 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
   );
   const overclock = list(rawOverclock, 2, timer(longest("overclock")));
   if (fortified?.length !== map.flags.length || overclock?.length !== 2) return;
+  // A camp's timer runs 1 to `CAMP_RESPAWN` (`jungle.ts`).
+  const camps = list(rawCamps, map.camps.length, (each) =>
+    isInt(each, 1, CAMP_RESPAWN) ? each : undefined,
+  );
+  if (camps?.length !== map.camps.length) return;
+  // A guarded camp's timer is held full.
+  for (const [index, spot] of map.camps.entries()) {
+    const tile = spot.y * map.width + spot.x;
+    const guarded = units.some(
+      (u) =>
+        u.owner === NEUTRAL &&
+        div(u.y, TILE) * map.width + div(u.x, TILE) === tile,
+    );
+    if (guarded && camps[index] !== CAMP_RESPAWN) return;
+  }
   return {
     step,
     rng,
@@ -559,6 +591,7 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
     mines,
     fortified,
     overclock,
+    camps,
     winner: result,
     events: [],
   };

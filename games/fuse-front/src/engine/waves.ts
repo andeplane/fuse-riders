@@ -37,6 +37,7 @@ import {
   type UnitKind,
 } from "./tuning.js";
 import type { Building, Unit, World } from "./world.js";
+import { upgrades, waveKinds } from "./jungle.js";
 
 const centre = (tile: number): number => tile * TILE + div(TILE, 2);
 const d2 = (ax: number, ay: number, bx: number, by: number): number =>
@@ -194,8 +195,8 @@ export function laneCounts(units: readonly Unit[]): [number, number] {
   return counts;
 }
 
-/** What a wave holds. */
-export const WAVE_KINDS: readonly UnitKind[] = ["grunt", "torch"];
+/** What a wave holds: its grunts and torches, and the tanks a held vehicle factory adds (`jungle.ts`). */
+export const WAVE_KINDS: readonly UnitKind[] = ["grunt", "torch", "lightTank"];
 
 /** By team: the enemy lane structures (towers and gates) it has brought down. */
 export function razedBy(
@@ -216,14 +217,17 @@ export function spawnWaves(map: GameMap, world: World): void {
   if (wave === 0 || !laneMap(map)) return;
   const counts = laneCounts(world.units);
   const razed = razedBy(map, world.buildings);
+  // A team's held jungle factories add to its waves (`jungle.ts`).
+  const ups = [0, 1].map((team) => upgrades(map, world, team));
+  const base: UnitKind[] = [
+    ...Array<UnitKind>(WAVE_GRUNTS).fill("grunt"),
+    ...Array<UnitKind>(WAVE_TORCHES).fill("torch"),
+  ];
   for (const team of [0, 1])
     for (const [index, lane] of map.lanes.entries()) {
       const owner = laneOwner(map, world, team, index);
       if (owner < 0) continue;
-      const kinds: UnitKind[] = [
-        ...Array<UnitKind>(WAVE_GRUNTS).fill("grunt"),
-        ...Array<UnitKind>(WAVE_TORCHES).fill("torch"),
-      ];
+      const kinds = waveKinds(base, ups[team]!, index, wave);
       const room = WAVE_CAP - counts[team]!;
       const batch = kinds.slice(0, room > 0 ? room : 0);
       const start = waypoints(lane, team)[0]!;
