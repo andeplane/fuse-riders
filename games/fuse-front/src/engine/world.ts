@@ -5,6 +5,7 @@
  */
 import type { GameMap, Site } from "./map.js";
 import { div } from "./math.js";
+import { NO_COOLDOWNS, NO_ITEMS } from "./items.js";
 import type { Order } from "./orders.js";
 import type { SpellEffect } from "./spells.js";
 import { laneOwner } from "./waves.js";
@@ -121,6 +122,13 @@ export interface Hero {
   streak: number;
   /** By seat: steps left in which that seat's hero counts as having hit this one, for assists; never mutated in place. */
   hurt: readonly number[];
+  /**
+   * Its inventory by slot (`items.ts`): an `ITEMS` id, or -1 for an empty slot; each slot's steps until its active is
+   * ready again; and the steps left under an Aegis SHIELD. Neither list is mutated in place.
+   */
+  items: readonly number[];
+  itemCooldowns: readonly number[];
+  shield: number;
 }
 
 /** What a `focus` (and an aimed spell's target) can be: by index, a unit (id), a hero (seat) or a building (site id). */
@@ -205,6 +213,17 @@ export type CombatEvent =
     }
   /** A flag changed hands; none is announced when a cloaked hero took it. */
   | { type: "capture"; sector: number; seat: number }
+  /** A hero used an item's active from `slot` (`shop.ts`): where it stood, and where it went (a BLINK) or stays. */
+  | {
+      type: "item";
+      seat: number;
+      slot: number;
+      item: number;
+      x: number;
+      y: number;
+      toX: number;
+      toY: number;
+    }
   /** A STICKY MINE went off on the tank it rode. */
   | { type: "mine"; seat: number; x: number; y: number }
   | { type: "won"; winner: number };
@@ -337,6 +356,9 @@ export function freshHero(
     gold: GOLD.start,
     streak: 0,
     hurt: NO_HURT,
+    items: NO_ITEMS,
+    itemCooldowns: NO_COOLDOWNS,
+    shield: 0,
   };
 }
 

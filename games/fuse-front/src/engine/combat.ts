@@ -23,7 +23,7 @@
  *   stays as a ruin: it neither fires nor is targeted, and a team whose last fort falls loses (`winnerOf`).
  */
 import { better } from "./focus.js";
-import { alive, award, facingOf, fell, heroShot, levelOf } from "./hero.js";
+import { alive, award, facingOf, fell, heroGun } from "./hero.js";
 import type { GameMap } from "./map.js";
 import { ceilDiv, div } from "./math.js";
 import { RALLY_PERCENT, hideOf } from "./spells.js";
@@ -222,7 +222,7 @@ export function fight(
     const stats = unit
       ? UNITS[unit.kind]
       : hero
-        ? heroShot(levelOf(hero.xp), hero.kind)
+        ? heroGun(hero)
         : { ...(fort ? FORT_GUN : tower ? TOWER : TURRET), siege: 100 };
     if (shooter.cooldown > 0) shooter.cooldown--;
     // A stunned unit neither shoots nor stands to fight.
