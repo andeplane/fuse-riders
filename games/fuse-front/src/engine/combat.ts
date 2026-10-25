@@ -10,7 +10,8 @@
  * - A unit with a target in range stands still to fight (`moveUnits` skips its seek), even while reloading. A hero
  *   shoots whether it stands or walks; its shot splashes every other enemy unit within `HERO.splash` of the target,
  *   and robots' small arms do only `HERO.smallArms` percent to it. A hero that shoots or is hit is not calm.
- * - A robot within `AURA_RADIUS` of its owner's living hero does `AURA_DAMAGE` percent damage. Spells (`spells.ts`): a
+ * - A wave unit's shot grows with its wave (`waves.ts`). A robot within `AURA_RADIUS` of its owner's living hero does
+ *   `AURA_DAMAGE` percent damage. Spells (`spells.ts`): a
  *   stunned unit holds fire, a rallied one reloads faster, IRON HIDE cuts the damage a covered hero or vehicle takes,
  *   and no gun picks a CLOAKed hero.
  * - A kill is credited to the owner of the first shot (in shooter order: units by id, heroes by seat, turrets) that hit
@@ -24,6 +25,7 @@ import type { GameMap } from "./map.js";
 import { ceilDiv, div } from "./math.js";
 import { RALLY_PERCENT, hideOf } from "./spells.js";
 import { centreOf } from "./move.js";
+import { unitDamage } from "./waves.js";
 import {
   AURA_DAMAGE,
   AURA_RADIUS,
@@ -203,7 +205,7 @@ export function fight(
       unit !== undefined && unit.rally > 0
         ? div(stats.cooldown * 100, 100 + RALLY_PERCENT)
         : stats.cooldown;
-    let damage = stats.damage;
+    let damage = unit !== undefined ? unitDamage(unit) : stats.damage;
     const robot = unit !== undefined && UNITS[unit.kind].robot;
     if (robot && inAura(from)) damage = div(damage * AURA_DAMAGE, 100);
     if (hero !== undefined) {

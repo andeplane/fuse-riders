@@ -47,6 +47,8 @@ function played(): World {
         goal: -1,
         stun: 0,
         rally: 0,
+        lane: -1,
+        wave: 0,
       },
     ],
   };

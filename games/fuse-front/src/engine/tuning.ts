@@ -5,7 +5,7 @@
 import { ceilDiv } from "./math.js";
 
 /** Bump on any change to the rules, with the golden in `tests/golden.test.ts` re-recorded in the same commit. */
-export const RULES = "fuse-front-11";
+export const RULES = "fuse-front-12";
 
 export const SUB = 16;
 export const TILE_PX = 8;
@@ -139,6 +139,22 @@ export const FORT_GUN = {
 export const UNIT_CAP_BASE = 10;
 export const UNIT_CAP_PER_SECTOR = 4;
 export const UNIT_CAP = 48;
+/**
+ * Lane waves (`waves.ts`), on a map with lanes: from `WAVE_FIRST`, every `WAVE_EVERY` steps each lane sends
+ * `WAVE_GRUNTS` grunts and `WAVE_TORCHES` torches from each team's end of it. Wave n's units have
+ * `100 + WAVE_GROWTH * (n - 1)` percent of their kind's hit points and damage, at most `100 + WAVE_GROWTH_MAX`. A
+ * team sends nothing more while `WAVE_CAP` of its lane units stand. A lane unit counts a waypoint reached within
+ * `WAYPOINT_REACH` and turns to an enemy structure within `LANE_SIGHT` (sub-pixels).
+ */
+export const WAVE_FIRST = s(5);
+export const WAVE_EVERY = s(30);
+export const WAVE_GRUNTS = 3;
+export const WAVE_TORCHES = 1;
+export const WAVE_GROWTH = 3;
+export const WAVE_GROWTH_MAX = 150;
+export const WAVE_CAP = 45;
+export const WAYPOINT_REACH = 3 * TILE;
+export const LANE_SIGHT = 7 * TILE;
 /** Commands a seat may apply per step; the rest are dropped. */
 export const COMMANDS_PER_SEAT = 4;
 

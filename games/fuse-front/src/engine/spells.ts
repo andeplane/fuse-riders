@@ -48,6 +48,7 @@
 import { DIRS, openTile } from "./flow.js";
 import { alive, award, fell, levelOf, maxHp } from "./hero.js";
 import type { GameMap } from "./map.js";
+import { waveHp } from "./waves.js";
 import { div, isqrt } from "./math.js";
 import { FLARE, centreOf, settle, tileOf } from "./move.js";
 import {
@@ -278,9 +279,13 @@ interface Spot {
   y: number;
 }
 
-/** A unit's most hit points: an Orbital Drop tank's while it is above a factory tank's. */
+/** A unit's most hit points: its wave's (`waves.ts`), or an Orbital Drop tank's while it is above a factory tank's. */
 export const unitMax = (unit: Unit): number =>
-  unit.hp > UNITS[unit.kind].hp ? DROP_HP : UNITS[unit.kind].hp;
+  unit.wave > 0
+    ? waveHp(unit.kind, unit.wave)
+    : unit.hp > UNITS[unit.kind].hp
+      ? DROP_HP
+      : UNITS[unit.kind].hp;
 
 /** Removes the units at 0 hit points in id order, each a death that earns `killer`'s hero its XP (none for -1). */
 function bury(world: World, killer: number): void {
@@ -431,7 +436,9 @@ export function cast(
   const pick = (candidates: readonly Target[]) =>
     choose(hero, aim, spell, candidates, chosen);
   let owned = 0;
-  for (const unit of world.units) if (unit.owner === seat) owned++;
+  // Lane waves (`waves.ts`) have their own cap, so they never block a drop.
+  for (const unit of world.units)
+    if (unit.owner === seat && unit.lane < 0) owned++;
   // Where the spell lands, for the cast event (presentation only).
   let to: Spot = { x: hero.x, y: hero.y };
   const units = (ours: boolean): Target[] =>
@@ -480,7 +487,14 @@ export function cast(
     const target = owned < unitCap(world, seat) && pick(tanks);
     if (!target) return false;
     to = spotOf(target);
-    Object.assign(target.at, { owner: seat, goal: -1, stun: 0, rally: 0 });
+    Object.assign(target.at, {
+      owner: seat,
+      goal: -1,
+      stun: 0,
+      rally: 0,
+      lane: -1,
+      wave: 0,
+    });
   } else if (spell.effect === "repair") {
     const target = pick(mends(map, world, team, units(true)));
     if (target === undefined) return false;
@@ -505,7 +519,12 @@ export function cast(
     to = aim;
     const push = world.players.find((p) => p.seat === seat)?.stance === "push";
     for (const unit of world.units)
-      if (push && unit.owner === seat && UNITS[unit.kind].robot)
+      if (
+        push &&
+        unit.owner === seat &&
+        UNITS[unit.kind].robot &&
+        unit.lane < 0
+      )
         unit.goal = FLARE;
   } else if (spell.effect === "blitz") hero.blitz = duration;
   else if (spell.effect === "orbitalDrop" || spell.effect === "turretDrop") {
@@ -537,6 +556,8 @@ export function cast(
       goal: -1,
       stun: 0,
       rally: 0,
+      lane: -1,
+      wave: 0,
     });
   }
   for (const unit of world.units) {

@@ -44,6 +44,8 @@ function add(
     goal: -1,
     stun: 0,
     rally: 0,
+    lane: -1,
+    wave: 0,
   };
   return { ...world, units: [...world.units, unit], nextId: world.nextId + 1 };
 }

@@ -114,6 +114,8 @@ test("A full army (6 × 48 = 288 units, the cap) on the largest map steps and ro
         goal: -1,
         stun: 0,
         rally: 0,
+        lane: -1,
+        wave: 0,
       });
   }
   world = { ...world, units, nextId: world.nextId + units.length };

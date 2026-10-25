@@ -58,7 +58,16 @@ export function addUnit(
     x: centreOf(tx),
     y: centreOf(ty),
   };
-  world.units.push({ ...unit, hp, cooldown: 0, goal: -1, stun: 0, rally: 0 });
+  world.units.push({
+    ...unit,
+    hp,
+    cooldown: 0,
+    goal: -1,
+    stun: 0,
+    rally: 0,
+    lane: -1,
+    wave: 0,
+  });
   return world.units.at(-1)!;
 }
 

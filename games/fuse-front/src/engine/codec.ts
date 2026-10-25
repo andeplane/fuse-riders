@@ -37,8 +37,10 @@ import {
   UNITS,
   UNIT_CAP,
   UNIT_KINDS,
+  WAVE_CAP,
   teamOf,
 } from "./tuning.js";
+import { WAVE_KINDS, laneCounts, lastWave, waveHp } from "./waves.js";
 import {
   MARKS,
   NEUTRAL,
@@ -104,6 +106,8 @@ export function encodeWorld(world: World): unknown {
       u.goal,
       u.stun,
       u.rally,
+      u.lane,
+      u.wave,
     ]),
     world.heroes.map((h) => [
       h.seat,
@@ -186,26 +190,38 @@ function building(raw: unknown, map: GameMap): Building | undefined {
   return { id, hp, order: made, progress, cooldown };
 }
 
-function unit(raw: unknown, map: GameMap): Unit | undefined {
-  const t = tuple(raw, 10);
+function unit(raw: unknown, map: GameMap, step: number): Unit | undefined {
+  const t = tuple(raw, 12);
   if (!t) return;
-  const [id, kind, owner, x, y, hp, cooldown, goal, stun, rally] = t;
+  const [id, kind, owner, x, y, hp, cooldown, goal, stun, rally, lane, wave] =
+    t;
   if (!isInt(id, 1, COUNT) || !isInt(kind, 0, UNIT_KINDS.length - 1)) return;
   const stats = UNITS[UNIT_KINDS[kind]!];
   if (!isInt(owner, 0, MAX_SEATS - 1)) return;
   if (!isInt(x, 0, map.width * TILE - 1) || !isInt(y, 0, map.height * TILE - 1))
     return;
-  // An Orbital Drop tank lands tougher than a factory's.
-  const most = UNIT_KINDS[kind] === "lightTank" ? DROP_HP : stats.hp;
+  // A wave unit (`waves.ts`): a lane of this map and a wave already sent; exactly the units with a lane have a wave.
+  if (!isInt(lane, -1, map.lanes.length - 1)) return;
+  if (!isInt(wave, lane < 0 ? 0 : 1, lane < 0 ? 0 : lastWave(step))) return;
+  if (lane >= 0 && !WAVE_KINDS.includes(UNIT_KINDS[kind]!)) return;
+  // An Orbital Drop tank lands tougher than a factory's, and a wave's units grow with their wave.
+  const most =
+    lane >= 0
+      ? waveHp(UNIT_KINDS[kind]!, wave)
+      : UNIT_KINDS[kind] === "lightTank"
+        ? DROP_HP
+        : stats.hp;
   if (!isInt(hp, 1, most) || !isInt(cooldown, 0, stats.cooldown)) return;
   // Units stand on ground something walks on, never in rock or water.
   if (sectorAt(map, div(x, TILE), div(y, TILE)) < 0) return;
-  // A goal is a flag or fort tile, or -1 for none yet: a few dozen tiles, so their flow fields stay cached.
+  // A goal is a flag or fort tile (a lane unit's a waypoint, turret or fort), or -1 for none yet: a few dozen tiles,
+  // so their flow fields stay cached. Only a stance's unit follows its hero or a flare.
+  const special =
+    lane < 0 && (goal === FOLLOW_HERO || (goal === FLARE && stats.robot));
   if (
     goal !== -1 &&
-    goal !== FOLLOW_HERO &&
-    !(goal === FLARE && stats.robot) &&
-    !(isInt(goal, 0, COUNT) && isGoalTile(map, goal))
+    !special &&
+    !(isInt(goal, 0, COUNT) && isGoalTile(map, goal, lane >= 0))
   )
     return;
   // Only robots take statuses, and none outlasts its spell at the top level.
@@ -213,7 +229,8 @@ function unit(raw: unknown, map: GameMap): Unit | undefined {
   if (!isInt(stun, 0, robot * longest("shockwave"))) return;
   if (!isInt(rally, 0, robot * longest("rally"))) return;
   const unitKind = UNIT_KINDS[kind]!;
-  return { id, kind: unitKind, owner, x, y, hp, cooldown, goal, stun, rally };
+  // prettier-ignore
+  return { id, kind: unitKind, owner, x, y, hp, cooldown, goal, stun, rally, lane, wave };
 }
 
 /** A queued order on `map`: a move to an open tile, an attack on a `MARKS` target, or a cast of a slot at a tile. */
@@ -423,14 +440,18 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
     buildings.some((b, index) => b.id !== expected[index]!.id)
   )
     return;
-  const units = list(rawUnits, MAX_SEATS * UNIT_CAP, (each) => unit(each, map));
+  const units = list(rawUnits, MAX_SEATS * UNIT_CAP + 2 * WAVE_CAP, (each) =>
+    unit(each, map, step),
+  );
   if (!units || !ascending(units, (u) => u.id)) return;
+  // Each seat's own units under its cap, and each team's lane waves under theirs.
   const owned = new Map<number, number>();
   for (const u of units) {
     if (!seats.has(u.owner) || u.id >= nextId) return;
-    owned.set(u.owner, (owned.get(u.owner) ?? 0) + 1);
+    if (u.lane < 0) owned.set(u.owner, (owned.get(u.owner) ?? 0) + 1);
   }
   for (const count of owned.values()) if (count > UNIT_CAP) return;
+  if (laneCounts(units).some((count) => count > WAVE_CAP)) return;
   // One hero per player, in the players' order.
   const heroes = list(rawHeroes, MAX_SEATS, (each) => hero(each, map));
   if (
