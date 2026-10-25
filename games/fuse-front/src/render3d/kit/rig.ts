@@ -8,7 +8,7 @@ import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { shade, type Model, type Paint } from "../models.js";
-import { labelUv, type Label } from "./decals.js";
+import { labelAspect, labelUv, type Label } from "./decals.js";
 
 export type Detail = "near" | "far";
 export type V3 = readonly [number, number, number];
@@ -105,10 +105,10 @@ export class Rig {
     return g.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
   } // prettier-ignore
 
-  /** A squad number stencilled `w` wide at `p`, facing +z turned by `r`; too small to read far away, so left out. */
+  /** A label stencilled `w` wide at `p`, facing +z turned by `r`; too small to read far away, so left out. */
   decal(label: Label, w: number, p: V3, r: V3 = O): this {
     if (this.far) return this;
-    const g = new THREE.PlaneGeometry(w, (w * 5) / 7), uv = g.getAttribute("uv"), [u0, u1, v0, v1] = labelUv(label);
+    const g = new THREE.PlaneGeometry(w, w / labelAspect(label)), uv = g.getAttribute("uv"), [u0, u1, v0, v1] = labelUv(label);
     for (let i = 0; i < uv.count; i++) uv.setXY(i, u0 + uv.getX(i) * (u1 - u0), v0 + uv.getY(i) * (v1 - v0));
     return this.add("decal", g, p, r);
   } // prettier-ignore
