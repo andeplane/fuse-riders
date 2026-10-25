@@ -223,6 +223,10 @@ const corruptions: [string, (wire: Wire) => unknown][] = [
     "a respawn longer than the level's",
     hero([5, 0], [3, 0], [7, respawnSteps(1) + 1]),
   ],
+  [
+    "a top-level respawn past the cap",
+    hero([5, MAX_XP], [3, 0], [7, HERO.respawnMax + 1]),
+  ],
   ["a dead hero reloading", hero([3, 0], [7, 1], [6, 1])],
   ["a hero reloading too long", hero([6, HERO.cooldown + 1])],
   ["an unknown facing", hero([8, 8])],
