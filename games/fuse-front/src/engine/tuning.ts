@@ -5,7 +5,7 @@
 import { ceilDiv } from "./math.js";
 
 /** Bump on any change to the rules, with the golden in `tests/golden.test.ts` re-recorded in the same commit. */
-export const RULES = "fuse-front-14";
+export const RULES = "fuse-front-15";
 
 export const SUB = 16;
 export const TILE_PX = 8;
@@ -19,9 +19,6 @@ export const STEPS_PER_SECOND = (1000 / TICK_MS) * STEPS_PER_TICK;
 /** Seats 0–5; a seat's team is `seat % 2`, so seats 0, 2 and 4 play west against 1, 3 and 5. */
 export const MAX_SEATS = 6;
 export const teamOf = (seat: number): number => seat % 2;
-
-export const STANCES = ["push", "hold", "follow"] as const;
-export type Stance = (typeof STANCES)[number];
 
 /** A `sentry` is Rivet's TURRET DROP (`spells.ts`): no factory builds one, it never moves and it burns out. */
 export const UNIT_KINDS = ["grunt", "torch", "lightTank", "sentry"] as const;
@@ -209,16 +206,14 @@ export function buildSteps(kind: UnitKind, teamSectors: number): number {
 }
 
 /**
- * Stances (`move.ts`). A unit picks its goal every `RETHINK_STEPS` steps, staggered by id, and at once when it has
- * none or its owner changes stance. Costs are flow-field units: `STRAIGHT` a tile across, `DIAGONAL` a tile corner to
- * corner. A holding unit stops within `HOLD_RADIUS` of its flag, and counts `HOLD_CROWD` extra per teammate already
- * holding a flag, so a team spreads over its flags instead of piling onto the nearest.
+ * Goals (`move.ts`). A unit picks its goal every `RETHINK_STEPS` steps, staggered by id, and at once when it has none.
+ * Costs are flow-field units: `STRAIGHT` a tile across, `DIAGONAL` a tile corner to corner. A unit not taking a flag
+ * or sieging stops within `HOLD_RADIUS` of its goal.
  */
 export const RETHINK_STEPS = 20;
 export const STRAIGHT = 10;
 export const DIAGONAL = 14;
 export const HOLD_RADIUS = 3 * STRAIGHT;
-export const HOLD_CROWD = 2 * STRAIGHT;
 
 /**
  * Focus fire (`focus.ts`): a hero told to `attack` an enemy chases it until it is in range, re-pathing to it every

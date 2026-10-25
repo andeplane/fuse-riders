@@ -1,4 +1,5 @@
 import test from "node:test";
+import { mapById } from "../src/online/maps.js";
 import assert from "node:assert/strict";
 import {
   COMMANDS_PER_SEAT,
@@ -53,25 +54,12 @@ function play(
 }
 
 /**
- * Whether `command`, sent alone on `world`'s next step, does what it says: a stance or order holds, the hero walks
- * toward the tile (or has reached it), a cast is announced. An order's sector captured in the same step is the one
- * exception, since a capture resets the factory's order after commands apply; so is a hero killed on that step.
+ * Whether `command`, sent alone on `world`'s next step, does what it says: the hero walks toward the tile (or has
+ * reached it), a cast is announced. A hero killed on that step is the exception.
  */
 function takesEffect(board: GameMap, world: World, command: Command): boolean {
   const after = step(board, world, [command]);
   const seat = command.seat;
-  if (command.type === "stance")
-    return (
-      after.players.find((p) => p.seat === seat)!.stance === command.stance
-    );
-  if (command.type === "order") {
-    const sector = board.sites[command.factory]!.sector;
-    const building = after.buildings.find((b) => b.id === command.factory)!;
-    return (
-      building.order === command.kind ||
-      after.sectors[sector] !== world.sectors[sector]
-    );
-  }
   if (command.type === "cast")
     return after.events.some(
       (e) => e.type === "cast" && e.seat === seat && e.slot === command.slot,
@@ -122,14 +110,17 @@ test("every command a bot sends is one a player could send, and takes effect", (
         [0, 1, 2],
       ],
     ],
+    // The lane maps the room plays (v3).
+    [mapById("neon-duel"), [[0, 1]]],
   ] as const)
     for (const seats of seatSets) {
       const bots = new Map(seats.map((seat) => [seat, DIFFICULTIES[roll(3)]!]));
       // Sample a varied set of moments, with the heroes levelled now and then so every spell comes into play.
       play(board, bots, 2400, (world, commands) => {
+        // Casts are rare enough to check as they come, not only on the sampled moments.
         for (const command of commands)
-          if (command.type === "stance") {
-            kinds.add("stance");
+          if (command.type === "cast") {
+            kinds.add(`cast${command.slot}`);
             assert.ok(takesEffect(board, world, command));
           }
         if (roll(8) !== 0) return;
@@ -163,8 +154,6 @@ test("every command a bot sends is one a player could send, and takes effect", (
     "move",
     "attackMove",
     "attack",
-    "stance",
-    "order",
     "cast0",
     "cast1",
     "cast3",

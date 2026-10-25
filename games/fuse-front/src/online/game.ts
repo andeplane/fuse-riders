@@ -19,19 +19,15 @@ import {
 import {
   COMMANDS_PER_SEAT,
   DIFFICULTIES,
-  FACTORY_KINDS,
   HERO_KINDS,
   MAP_MAX,
   MARKS,
   MAX_ID,
   MAX_SEATS,
-  MAX_SITES,
   NO_WINNER,
   RULES,
-  STANCES,
   STEER_MAX,
   STEPS_PER_TICK,
-  UNIT_KINDS,
   botCommands,
   pickHeroes,
   createWorld,
@@ -115,16 +111,14 @@ export function parseSettings(raw: unknown): Settings | undefined {
 
 /**
  * Control kinds. A control entry is `[seq, tick, kind, matchId, ...args]` and counts only in the match it names; its
- * seat is the slot its author sits in, never a field. Args: ORDER `factory, unitKindIndex`; STANCE `stanceIndex`;
- * MOVE `x, y` (a tile); STEER `dx, dy` (the stick); CAST `slot, x, y` or `slot, x, y, markIndex, id` (a unit spell's
+ * seat is the slot its author sits in, never a field. Kinds 0 and 1 (a factory's order and the army's stance) went
+ * with v3's waves and are refused at the boundary. Args: MOVE `x, y` (a tile); STEER `dx, dy` (the stick); CAST `slot, x, y` or `slot, x, y, markIndex, id` (a unit spell's
  * chosen target); ATTACK `markIndex, id` (`MARKS`: a unit's id, a hero's seat or a building's site id); ATTACK_MOVE
  * `x, y` (a tile). MOVE, ATTACK, ATTACK_MOVE and CAST take one more arg, `1`, to queue the order behind the hero's
  * current one (shift-click, `orders.ts`) instead of replacing it. Whether the target exists and is an enemy is the
  * engine's to check on the step.
  */
-export const ORDER = 0,
-  STANCE = 1,
-  MOVE = 2,
+export const MOVE = 2,
   STEER = 3,
   CAST = 4,
   ATTACK = 5,
@@ -169,8 +163,6 @@ const playerKey = (value: unknown): value is string =>
 const isAvatar = (value: unknown): value is string => value === AVATAR;
 
 // ---- entries ----
-/** The unit kinds some factory builds: an order for anything else (a sentry) is refused. */
-const BUILT = new Set(Object.values(FACTORY_KINDS).flat());
 const int = isInt;
 /** A target: its `MARKS` index and an id in range. */
 const mark = ([of, id]: unknown[]) =>
@@ -182,11 +174,6 @@ const tile = ([x, y, ...queued]: unknown[]) =>
 const flag = (rest: unknown[]) =>
   rest.length === 0 || (rest.length === 1 && rest[0] === 1);
 const ARGS: Readonly<Record<number, (args: unknown[]) => boolean>> = {
-  [ORDER]: ([f, k]) =>
-    int(f, 0, MAX_SITES - 1) &&
-    int(k, 0, UNIT_KINDS.length - 1) &&
-    BUILT.has(UNIT_KINDS[k]!),
-  [STANCE]: ([s]) => int(s, 0, STANCES.length - 1),
   [MOVE]: tile,
   [STEER]: ([x, y]) =>
     int(x, -STEER_MAX, STEER_MAX) && int(y, -STEER_MAX, STEER_MAX),
@@ -199,15 +186,13 @@ const ARGS: Readonly<Record<number, (args: unknown[]) => boolean>> = {
   [ATTACK_MOVE]: tile,
 };
 /** The argument counts each control kind takes. */
-const ARITY: readonly (readonly number[])[] = [
-  [2],
-  [1],
-  [2, 3],
-  [2],
-  [3, 4, 5, 6],
-  [2, 3],
-  [2, 3],
-];
+const ARITY: Readonly<Record<number, readonly number[]>> = {
+  [MOVE]: [2, 3],
+  [STEER]: [2],
+  [CAST]: [3, 4, 5, 6],
+  [ATTACK]: [2, 3],
+  [ATTACK_MOVE]: [2, 3],
+};
 const payloads = {
   name: validName,
   avatar: isAvatar,
@@ -227,7 +212,7 @@ export function isEntry(raw: unknown): raw is Entry {
   return (
     int(seq, 1, 0xffff_ffff) &&
     int(tick, 1, 0xffff_ffff) &&
-    int(kind, ORDER, LAST) &&
+    int(kind, MOVE, LAST) &&
     validMatchId(matchId) &&
     ARITY[kind]!.includes(args.length) &&
     ARGS[kind]!(args)
@@ -237,9 +222,6 @@ export function isEntry(raw: unknown): raw is Entry {
 /** The engine command an accepted control entry asks of `seat`. */
 function command(entry: ControlEntry, seat: number): Command {
   const [, , kind, , a = 0, b = 0, c = 0, d, e, f] = entry;
-  if (kind === ORDER)
-    return { seat, type: "order", factory: a, kind: UNIT_KINDS[b]! };
-  if (kind === STANCE) return { seat, type: "stance", stance: STANCES[a]! };
   if (kind === STEER) return { seat, type: "steer", dx: a, dy: b };
   // The queued flag is the last arg of a queued entry: the third of a MOVE, ATTACK or ATTACK_MOVE, a CAST's fourth or
   // sixth.

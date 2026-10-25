@@ -503,3 +503,12 @@ before, and M2 decides whether lanes become required.
     - Twin Wilds 2v2 normal: 21.9 min.
     - Crown Jungle 3v3 normal: 14.2 min.
     - Its bound is 45 min.
+- **Commands (M2d):** the factory order and stance commands are gone from the engine (`Command`), the checkpoint (a
+  player is `[seat, team]`) and the wire. `isEntry` refuses control kinds 0 and 1, and the other kinds keep their
+  numbers.
+  - On a v2 map units always push. With nothing to take they fall back to their fort, so HOLD's spread over the
+    team's flags went too.
+  - On a lane map a unit outside the waves follows its hero.
+  - The HUD loses its stance buttons and 1/2/3 keys. Its factory panel still shows what a factory builds, with
+    inert choices, until M6 removes it.
+  - Bots no longer choose stances or orders. RULES `fuse-front-15` refuses older checkpoints.

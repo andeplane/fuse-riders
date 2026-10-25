@@ -4,14 +4,7 @@
  * goes through `put`, which skips a value already written, so a steady frame touches nothing and nothing reads layout.
  */
 import { el } from "fuse-ui";
-import {
-  KITS,
-  MAX_LEVEL,
-  SPELL_INFO,
-  STANCES,
-  type Stance,
-  type UnitKind,
-} from "../engine/index.js";
+import { KITS, MAX_LEVEL, SPELL_INFO, type UnitKind } from "../engine/index.js";
 import type { WorldView } from "../engine/index.js";
 import { minimapBase, paintMinimap } from "../render/minimap.js";
 import { Img } from "../render/pixel/image.js";
@@ -31,8 +24,6 @@ export interface HudActions {
   cast(slot: number, queued?: boolean): void;
   /** Arms an attack-move: the next click on the map sends the hero there, fighting on the way. */
   attackMove(): void;
-  stance(stance: Stance): void;
-  order(factory: number, kind: UnitKind): void;
   /** Centres the camera on fractions of the map. */
   look(fx: number, fy: number): void;
   /** Sends the hero to fractions of the map (a right click on the minimap; with Shift, queued). */
@@ -96,9 +87,6 @@ export class Hud {
   private readonly targetName = el("b");
   private readonly targetHp = el("i", "", "ff-fill ff-hp");
   private readonly targetTag = el("span", "", "ff-label ff-tag");
-  private readonly stances = STANCES.map((s, i) =>
-    el("button", `${i + 1} ${s.toUpperCase()}`, "ff-switch"),
-  );
   private readonly factories = el("div", "", "ff-factories");
   private readonly portrait = el("div", "", "ff-face");
   private readonly mini = el("canvas", "", "ff-mini");
@@ -148,9 +136,6 @@ export class Hud {
       spells.append(bay);
     });
     const stance = el("div", "", "ff-stance");
-    this.stances.forEach(
-      (button, i) => (button.onclick = () => this.actions.stance(STANCES[i]!)),
-    );
     this.amove.title = "Attack-move: click the map (A)";
     this.amove.onclick = () => this.actions.attackMove();
     this.queueButton.title =
@@ -161,7 +146,7 @@ export class Hud {
     };
     const toggles = el("div", "", "ff-toggles");
     toggles.append(this.amove, this.queueButton);
-    stance.append(...this.stances, toggles, this.factories);
+    stance.append(toggles, this.factories);
     const map = this.map;
     map.append(this.mini, this.camera);
     // A left click looks there; a right click sends the hero there.
@@ -271,9 +256,6 @@ export class Hud {
       // With QUEUE on, a cooling spell can still be queued: it waits its turn behind the route.
       button.disabled = !spell.ready && !(this.queueOn && !spell.locked);
     });
-    this.stances.forEach((button, i) =>
-      this.flag(button, "ff-lit", s.stance === STANCES[i]),
-    );
     const mine = factoriesOf(world, seat);
     this.put(this.factories, "ids", mine.map((f) => f.id).join(), () =>
       this.factories.replaceChildren(
@@ -380,7 +362,8 @@ export class Hud {
             ),
             el("span", label(kind)),
           );
-          button.onclick = () => this.actions.order(panel.id, kind);
+          // v3 dropped factory orders (the waves are the army): the panel only shows what it builds until M6.
+          button.disabled = true;
           return button;
         }),
       ),
