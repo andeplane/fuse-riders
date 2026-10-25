@@ -89,6 +89,28 @@ test("a last hit waits for the shot that kills: one hit point more and it holds 
   assert.equal(at(div(shot * 14, 10), "easy"), true);
 });
 
+test("a fight: taken against a weaker hero in reach, let go of one walking away out of reach", () => {
+  const fight = (gap: number, away: boolean) => {
+    const world = lane(80, 95);
+    Object.assign(world.heroes[1]!, {
+      hp: 300,
+      respawn: 0,
+      x: centreOf(80 + gap),
+      y: centreOf(95 - gap),
+    });
+    if (away)
+      world.heroes[1]!.goal = (95 - 2 * gap) * duel.width + 80 + 2 * gap;
+    Object.assign(hero(world), { focusOf: 1, focus: 1 });
+    return botCommands(duel, world, 0, "normal").map((c) => c.type);
+  };
+  // Held in reach (its focus already on it, so nothing is re-sent); dropped with a walk once it walks off.
+  assert.deepEqual(fight(3, false), []);
+  assert.deepEqual(fight(3, true), []);
+  assert.ok(
+    fight(5, true).some((type) => type === "move" || type === "attackMove"),
+  );
+});
+
 test("retreat thresholds: hurt below its profile's line it falls back toward its fort, otherwise it walks on", () => {
   const sent = (percent: number, difficulty: Difficulty) => {
     const world = lane(80, 95, difficulty);

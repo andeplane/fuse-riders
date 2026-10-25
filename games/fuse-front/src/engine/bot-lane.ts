@@ -294,8 +294,13 @@ function decide(
       behind &&
       close.length === 0 &&
       (low || hero.hp * 100 < max * profile.rested)
-    )
+    ) {
+      // It rests where it stands: a walk under way stops.
+      const [x, y] = tileOfSpot(hero);
+      if (hero.goal >= 0 && openTile(map, x, y))
+        out.push({ seat, type: "move", x, y });
       return out;
+    }
   }
 
   // 2. A fight with the enemy heroes near.
@@ -417,7 +422,7 @@ function decide(
 
   // 6. More heroes standing than the enemy: the structure nearest the team, from a lane 4 tiles short of it once two
   // stand together (or a lone hero outlasts it), else just outside a tower's reach to gather.
-  if (allies.length > foes.length) {
+  if (allies.length > foes.filter((h) => h.cloak === 0).length) {
     const mean = (of: (h: Hero) => number) =>
       div(
         allies.reduce((sum, h) => sum + of(h), 0),
@@ -425,7 +430,9 @@ function decide(
       );
     const [cx, cy] = [mean((h) => h.x), mean((h) => h.y)];
     // The same for every hero of the team, so they all pick the same spot.
-    const gathered = allies.filter((h) => near(h, cx, cy, NEAR)).length > 1;
+    // Within half of `NEAR` of the mean, so any two of them stand within `NEAR` of each other (rule 3's cover).
+    const gathered =
+      allies.filter((h) => near(h, cx, cy, div(NEAR, 2))).length > 1;
     const short =
       gathered || allies.length === 1 ? 4 * TILE : TOWER.range + 2 * TILE;
     let goal: [number, number] | undefined,
