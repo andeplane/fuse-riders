@@ -127,10 +127,11 @@ test("the factory panel lists choices, the current order, progress and ETA, and 
 test("keys map to casts, recentre and close; spells aim at the hero's tile", () => {
   assert.deepEqual(keyAction("q"), { kind: "cast", slot: 0 });
   assert.deepEqual(keyAction("R"), { kind: "cast", slot: 3 });
-  assert.equal(keyAction("2"), undefined, "no stance keys since v3");
+  // The stance keys went in v3; 1–6 use item slots since M3.
+  assert.deepEqual(keyAction("2"), { kind: "item", slot: 1 });
   assert.deepEqual(keyAction(" "), { kind: "recentre" });
   assert.deepEqual(keyAction("Escape"), { kind: "close" });
-  assert.equal(keyAction("4"), undefined);
+  assert.equal(keyAction("7"), undefined);
   assert.equal(keyAction("y"), undefined);
   // Camera keys: F follows like Space, Z/+ zoom in and X/- out a step, Home and Tab jump.
   assert.deepEqual(keyAction("F"), { kind: "recentre" });
