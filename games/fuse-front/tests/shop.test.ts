@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   HERO,
   HEROES,
+  GOLD,
   ITEMS,
   ITEM_CAPS,
   ITEM_SLOTS,
@@ -19,6 +20,7 @@ import {
   div,
   encodeWorld,
   heroGun,
+  loadMap,
   heroMaxEnergy,
   heroMaxHp,
   maxEnergy,
@@ -29,7 +31,7 @@ import {
   type World,
 } from "../src/engine/index.js";
 import { addUnit, arena } from "./fixtures/heroes.js";
-import { TINY, tiny } from "./fixtures/maps.js";
+import { TINY, tiny, tinyFile } from "./fixtures/maps.js";
 
 const map = tiny();
 const at = centreOf;
@@ -330,4 +332,52 @@ test("buying, selling and using items leave the step's input untouched", () => {
   next = step(map, next, [use(1)]);
   assert.deepEqual(frozen, world);
   assert.equal(hero0(next).items[2], BLADE);
+});
+
+test("a hero that falls under its SHIELD loses it, and the world still checkpoints", () => {
+  const world = holding(arena("brick"), AEGIS);
+  Object.assign(world.heroes[0]!, { hp: 1, energy: 100, cooldown: 99 });
+  addUnit(world, 1, "lightTank", 7, 6, UNITS.lightTank.hp);
+  const fallen = step(map, world, [use(0)]);
+  assert.equal(hero0(fallen).hp, 0);
+  assert.equal(hero0(fallen).shield, 0);
+  // The foe's long respawn is past a checkpoint's bound, so bring it home first.
+  Object.assign(fallen.heroes[1]!, { respawn: 1 });
+  assert.ok(decodeWorld(encodeWorld(fallen), map));
+});
+
+test("an active still cooling can't be sold (no refresh by rebuying), and a sale's refund caps the purse", () => {
+  const world = holding(shopper(), AEGIS);
+  const raised = step(map, world, [use(0)]);
+  const kept = step(map, raised, [sell(0)]);
+  assert.deepEqual(hero0(kept).items[0], AEGIS);
+  assert.equal(hero0(kept).gold, hero0(raised).gold);
+  const rich = holding(shopper(GOLD.max - 10), CELL);
+  assert.equal(hero0(step(map, rich, [sell(0)])).gold, GOLD.max);
+});
+
+test("BLINK crosses rock, but never onto ground its fort can't reach", () => {
+  const walled = loadMap({
+    ...tinyFile(),
+    terrain: [
+      "##############",
+      "#............#",
+      "#............#",
+      "#..###.##....#",
+      "#..#.#.......#",
+      "#..###.......#",
+      "#............#",
+      "#............#",
+      "#............#",
+      "##############",
+    ],
+    // A flag of its own, so the map loads with a pocket nothing walks into.
+    flags: [...tinyFile().flags, { x: 4, y: 4 }],
+  });
+  const world = holding(createWorld(walled, [0, 1], 1), COIL);
+  Object.assign(world.heroes[0]!, { x: at(4), y: at(7) });
+  const sealed = step(walled, world, [use(0, 4, 4)]);
+  assert.equal(hero0(sealed).y, at(7), "the pocket is sealed");
+  const over = step(walled, world, [use(0, 4, 1)]);
+  assert.deepEqual([hero0(over).x, hero0(over).y], [at(4), at(1)]);
 });

@@ -73,7 +73,7 @@ export const respawnSteps = (level: number, late = 0): number =>
 export const alive = (hero: Hero): boolean => hero.hp > 0;
 
 /**
- * A hero falls to `killer`'s seat, which earns its bounty (`heroBounty`): it waits to respawn with its gun at rest, its move, queued orders, CLOAK, BLITZ
+ * A hero falls to `killer`'s seat, which earns its bounty (`heroBounty`): it waits to respawn with its gun at rest, its move, queued orders, SHIELD, CLOAK, BLITZ
  * and FLARE gone; `late` is the step on a lane map, where the wait grows with the match (`respawnSteps`).
  * Returns the XP the kill is worth, for the caller to `award`.
  */
@@ -102,6 +102,7 @@ export function fell(
     sweep: 0,
     queue: [],
     wait: 0,
+    shield: 0,
   });
   // Its FLARE goes out with it, releasing the robots it drew.
   for (const unit of world.units)
