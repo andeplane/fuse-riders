@@ -14,6 +14,7 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { BuildingKind, HeroView, UnitKind } from "../engine/view.js";
 import { hash, normalMap, tileNoise } from "./terrain.js";
 import { decalAtlas } from "./kit/decals.js";
+import { conceptBuilding } from "./kit/buildings.js";
 import { heroModel } from "./kit/heroes.js";
 import type { Detail } from "./kit/rig.js";
 
@@ -34,6 +35,8 @@ export const PAINTS = {
   glass: { color: 0x9fd4e4, roughness: 0.08, metalness: 0.7 },
   hazard: { color: 0xffffff, roughness: 0.6, metalness: 0.2 },
   char: { color: 0x2a2420, roughness: 1, metalness: 0 },
+  /** Sandbags round the turrets' pads and the flags' bases. */
+  sand: { color: 0xc4a46c, roughness: 0.95, metalness: 0 },
   /** Track rubber: links scroll along z by the instance colour's red channel (`treadPhase`), so it is never tinted. */
   tread: { color: 0x2c2a28, roughness: 0.9, metalness: 0.2 },
   /** Near-black gunmetal for weapons. */
@@ -250,17 +253,10 @@ const slab = (
   z: number,
   rx = 0,
 ) => at(new THREE.BoxGeometry(w, h, d), x, y, z, rx);
-const ball = (r: number, x: number, y: number, z: number, sy = 1, sz = 1) =>
-  at(new THREE.SphereGeometry(r, 16, 12).scale(1, sy, sz), x, y, z);
 /** A cylinder along y, or along z (`rx` = π/2) or x (`rz` = π/2). */
 // prettier-ignore
 const rod = (r: number, len: number, x: number, y: number, z: number, rx = 0, rz = 0, r2 = r, seg = 12) =>
   at(new THREE.CylinderGeometry(r, r2, len, seg), x, y, z, rx, rz);
-const pair = (make: (side: number) => THREE.BufferGeometry) => [
-  make(-1),
-  make(1),
-];
-const Z = Math.PI / 2;
 /** Vix's sticky mine: a dark puck with a team band and three prongs; its light blinks on its own. */
 // prettier-ignore
 function mine(): Model {
@@ -307,64 +303,12 @@ export interface BuildingModel {
   height: number;
 }
 
-/** Saw-tooth glass roof: triangular prisms along x, steep glass faces to the north. */
-// prettier-ignore
-const sawtooth = (kit: Kit, w: number, d: number, y: number, teeth: number) => {
-  for (let i = 0; i < teeth; i++)
-    kit.add("glass", at(new THREE.CylinderGeometry(0.2, 0.2, w, 3), 0, y + 0.08, -d / 2 + (i + 0.5) * (d / teeth), Math.PI, Z));
-};
-
-/** A hazard-striped door on the south face (+z). */
-const door = (kit: Kit, w: number, h: number, d: number) =>
-  kit
-    .add("hazard", slab(w, h, 0.04, 0, h / 2, d / 2 + 0.02))
-    .add("dark", slab(w + 0.08, 0.05, 0.06, 0, h + 0.02, d / 2 + 0.02));
-
-// prettier-ignore
-function factory(w: number, h: number, d: number, teeth: number, doorW: number): BuildingModel {
-  const kit = new Kit(0, 0.6).add("concrete", block(w, h, d, 0, h / 2, 0, 0.05))
-    .add("team", slab(w + 0.02, 0.1, d + 0.02, 0, h * 0.72, 0))
-    .add("dark", rod(0.09, 0.9, w / 2 - 0.2, h + 0.4, -d / 2 + 0.2, 0, 0, 0.11), rod(0.1, 0.04, w / 2 - 0.2, h + 0.85, -d / 2 + 0.2));
-  sawtooth(kit, w * 0.92, d * 0.8, h, teeth);
-  door(kit, doorW, h * 0.6, d);
-  return { body: kit.build(), smoke: [w / 2 - 0.2, h + 0.9, -d / 2 + 0.2], height: h + 0.3 };
-}
-
-// prettier-ignore
-function fort(): BuildingModel {
-  // An open courtyard, so the hero who respawns here stays in sight: four walls between corner towers.
-  const corners = [-1, 1].flatMap((sx) => [-1, 1].map((sz) => [sx * 0.72, sz * 0.72] as const));
-  const walls = (h: number, y: number, t: number) => [-1, 1].flatMap((s) => [slab(1.5, h, t, 0, y, s * 0.7), slab(t, h, 1.5, s * 0.7, y, 0)]);
-  const kit = new Kit(0, 0.8).add("concrete", block(1.5, 0.06, 1.5, 0, 0.03, 0, 0.02), ...walls(0.6, 0.3, 0.16),
-    ...corners.map(([x, z]) => rod(0.24, 1.05, x, 0.525, z, 0, 0, 0.27, 14)))
-    .add("team", ...walls(0.1, 0.52, 0.18), ...corners.map(([x, z]) => rod(0.27, 0.12, x, 1.1, z, 0, 0, 0.27, 14)))
-    .add("steel", rod(0.04, 0.3, 0.72, 1.3, -0.72));
-  door(kit, 0.5, 0.42, 1.56);
-  const dish = new Kit(-1, 1)
-    .add("dish", at(new THREE.SphereGeometry(0.34, 16, 6, 0, Math.PI * 2, 0, 0.9), 0, 0, 0.12, -Z * 1.3))
-    .add("dark", rod(0.02, 0.24, 0, 0, 0.12, Z)).add("visor", ball(0.03, 0, 0, 0.24));
-  return { body: kit.build(), pivot: { model: dish.build(), x: 0.72, y: 1.48, z: -0.72, aims: false }, height: 1.4 };
-}
-
-// prettier-ignore
-function turret(): BuildingModel {
-  const kit = new Kit().add("concrete", rod(0.3, 0.38, 0, 0.19, 0, 0, 0, 0.36, 16)).add("team", rod(0.31, 0.08, 0, 0.32, 0, 0, 0, 0.31, 16));
-  const head = new Kit(-0.3, 0.6).add("team", block(0.36, 0.2, 0.36, 0, 0.1, 0, 0.06))
-    .add("steel", ...pair((s) => rod(0.03, 0.42, s * 0.07, 0.1, 0.36, Z)))
-    .add("dark", ...pair((s) => rod(0.04, 0.06, s * 0.07, 0.1, 0.56, Z)))
-    .add("visor", block(0.2, 0.04, 0.02, 0, 0.15, 0.18, 0.01));
-  return { body: kit.build(), pivot: { model: head.build(), x: 0, y: 0.36, z: 0, aims: true }, height: 0.6 };
-}
-
-const BUILDING_BUILDERS: Record<BuildingKind, () => BuildingModel> = {
-  fort,
-  robotFactory: () => factory(1.6, 0.75, 1.35, 3, 0.5),
-  vehicleFactory: () => factory(1.9, 0.6, 1.6, 4, 0.9),
-  turret,
-};
-
-export function buildingModel(kind: BuildingKind): BuildingModel {
-  return BUILDING_BUILDERS[kind]();
+/** A building's model at a level of detail (built by `kit/buildings`). */
+export function buildingModel(
+  kind: BuildingKind,
+  detail: Detail = "near",
+): BuildingModel {
+  return conceptBuilding(kind, detail);
 }
 
 /** A burnt-out ruin over a `w` × `d` footprint: a charred floor, broken wall stumps and bent rebar. */

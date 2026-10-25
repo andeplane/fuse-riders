@@ -103,26 +103,20 @@ test("team surfaces are white so the per-instance team colour shows true; visors
   assert.equal(materials.steel.side, THREE.FrontSide);
 });
 
-test("buildings: the fort's radar spins, the turret's head aims, factories smoke; ruins are low and vary", () => {
-  const fort = buildingModel("fort"),
-    turret = buildingModel("turret");
+test("buildings: the fort's radar spins, the turret's head aims, the chimney smokes; ruins are low and vary", () => {
+  const fort = buildingModel("fort"), turret = buildingModel("turret"), robots = buildingModel("robotFactory"), motors = buildingModel("vehicleFactory");
   assert.equal(fort.pivot?.aims, false);
   assert.equal(turret.pivot?.aims, true);
-  for (const kind of ["robotFactory", "vehicleFactory"] as const) {
-    const factory = buildingModel(kind);
-    assert.ok(factory.smoke && factory.smoke[1] > factory.height);
-    assert.ok(factory.body.some((p) => p.paint === "glass"));
-    assert.ok(factory.body.some((p) => p.paint === "hazard"));
-  }
+  assert.ok(robots.smoke && robots.smoke[1] > robots.height, "smoke leaves the chimney top");
+  for (const factory of [robots, motors]) for (const paint of ["hazard", "decal", "team"] as const) assert.ok(factory.body.some((p) => p.paint === paint), paint);
+  assert.ok(robots.body.some((p) => p.paint === "glass") && motors.body.some((p) => p.paint === "gold"), "saw-tooth glazing; the gantry crane");
+  assert.ok(turret.body.some((p) => p.paint === "sand") && turret.pivot!.model.some((p) => p.paint === "team"), "sandbags; team armour on the head");
   assert.ok(size(fort.body).x > size(turret.body).x * 2);
-  assert.ok(
-    size(buildingModel("vehicleFactory").body).x >
-      size(buildingModel("robotFactory").body).x,
-  );
+  assert.ok(size(motors.body).x > size(robots.body).x);
   const [a, b] = [ruinModel(1.5, 1.5, 1), ruinModel(1.5, 1.5, 2)];
   assert.ok(size(a).y < size(fort.body).y * 0.6);
   assert.notDeepEqual(box(a).max.toArray(), box(b).max.toArray());
-});
+}); // prettier-ignore
 
 test("a gun turns the short way round and stops on its aim", () => {
   assert.equal(approachAngle(0, 0.05, 0.1), 0.05);

@@ -60,6 +60,8 @@ import {
 import type { Detail } from "./kit/rig.js";
 import { ROBOT_LEGS, detailAt, robotModel, robotPart, type RobotKind } from "./kit/units.js"; // prettier-ignore
 import { HERO_LEGS } from "./kit/heroes.js";
+import { conceptRuin, flagModel } from "./kit/buildings.js";
+import { bannerTexture } from "./kit/decals.js";
 import { buildProps } from "./props.js";
 import * as rig from "./rig.js";
 import {
@@ -151,6 +153,9 @@ interface Slot {
 
 interface BuildingNode {
   alive: THREE.Group;
+  /** Its near and far meshes (`detailAt`), and which it drew last. */
+  lods: Record<Detail, THREE.Mesh[]>;
+  detail: Detail;
   ruin: THREE.Group;
   team: THREE.Mesh[];
   pivot?: THREE.Group;
@@ -212,11 +217,13 @@ export class Field3D implements Renderer {
   private readonly slotList: Slot[] = [];
   private readonly teamMat: THREE.MeshStandardMaterial[];
   private readonly neutralMat: THREE.MeshStandardMaterial;
+  /** Flag banners by team, the neutral one last. */
+  private readonly bannerMat: THREE.MeshStandardMaterial[];
   private readonly wreckMat: THREE.MeshStandardMaterial;
   private readonly paints: Record<Paint, THREE.MeshStandardMaterial>;
   private readonly buildingModels = new Map<
     BuildingKind,
-    BuildingModel & { ruins: Model[] }
+    Record<Detail, BuildingModel> & { ruins: Model[] }
   >();
   private readonly cloth = new THREE.PlaneGeometry(0.7, 0.45, 10, 1).translate(
     0.35,
@@ -309,12 +316,16 @@ export class Field3D implements Renderer {
     setDetail(this.paints, this.governor.level === "high" ? this.detail : undefined);
     const parts = (model: Model) => model.map((p) => this.keep(p.geometry) && p);
     for (const [i, kind] of (["fort", "robotFactory", "vehicleFactory", "turret"] as const).entries()) {
-      const model = buildingModel(kind);
-      const size = model.body.reduce((b, p) => b.union(p.geometry.boundingBox!), new THREE.Box3()).getSize(new THREE.Vector3());
-      parts(model.body);
-      if (model.pivot) parts(model.pivot.model);
-      this.buildingModels.set(kind, { ...model, ruins: [0, 1].map((v) => parts(ruinModel(size.x, size.z, i * 2 + v + 1))) });
+      const near = buildingModel(kind), far = buildingModel(kind, "far");
+      const size = near.body.reduce((b, p) => b.union(p.geometry.boundingBox!), new THREE.Box3()).getSize(new THREE.Vector3());
+      for (const model of [near, far]) parts([...model.body, ...(model.pivot?.model ?? [])]);
+      // The fort and the turret leave their own ruins; a factory falls to rubble.
+      const ruins = kind === "fort" || kind === "turret" ? [conceptRuin(kind)] : [0, 1].map((v) => ruinModel(size.x, size.z, i * 2 + v + 1));
+      this.buildingModels.set(kind, { near, far, ruins: ruins.map(parts) });
     }
+    // Flags wave a team banner with the emblem on it, grey while neutral.
+    const banner = this.keep(bannerTexture());
+    this.bannerMat = [...this.teamMat, this.neutralMat].map((m) => this.keep(Object.assign(m.clone(), { map: banner })));
 
     // Procedural detail, no image files: ripples for the water, fine grain for the sand.
     const size = 128;
@@ -659,6 +670,13 @@ export class Field3D implements Renderer {
       node.alive.visible = !dead;
       node.ruin.visible = dead;
       if (dead) continue;
+      const at = node.alive.position, cam = this.camera.position;
+      const detail = detailAt(Math.hypot(at.x - cam.x, at.y - cam.y, at.z - cam.z), this.governor.level, node.detail);
+      if (detail !== node.detail) {
+        for (const mesh of node.lods[node.detail]) mesh.visible = false;
+        for (const mesh of node.lods[detail]) mesh.visible = true;
+        node.detail = detail;
+      }
       const mat = this.teamMat[b.team] ?? this.neutralMat;
       for (const mesh of node.team) mesh.material = mat;
       if (node.pivot) {
@@ -686,7 +704,7 @@ export class Field3D implements Renderer {
       const f = world.flags[i]!;
       const cloth = this.flags[i];
       if (!cloth) continue;
-      cloth.material = this.teamMat[f.team] ?? this.neutralMat;
+      cloth.material = this.bannerMat[f.team] ?? this.bannerMat.at(-1)!;
       cloth.rotation.y = Math.sin(now / 1300 + i) * 0.25;
       if (fade > 0) this.slot("flagMark").batch.push(cloth.position.x, cloth.position.y, cloth.position.z, 0, mark * MARK.flag, 1, mark * MARK.flag, teamRgb(f.team));
     }
@@ -957,19 +975,21 @@ export class Field3D implements Renderer {
     this.matchGroup.add(rockMesh, pebbleMesh, plankMesh, props.group);
 
     this.buildings = world.buildings.map((b) => this.building(b.kind, b.id, b.x + 0.5, standY(world, field, b.x + 0.5, b.y + 0.5), b.y + 0.5));
-    // The paints take baked vertex colour, so these plain shapes get it too.
-    const poleGeo = this.own(shade(new THREE.CylinderGeometry(0.035, 0.05, 1.6, 8).translate(0, 0.8, 0)));
-    const baseGeo = this.own(shade(new THREE.CylinderGeometry(0.14, 0.18, 0.12, 10).translate(0, 0.06, 0)));
+    // Every flag's base and pole: one instanced mesh per paint.
+    const stand = flagModel(this.governor.level === "low" ? "far" : "near"), at = new THREE.Matrix4();
+    for (const part of stand) {
+      const mesh = new THREE.InstancedMesh(this.own(part.geometry), this.paints[part.paint], Math.max(1, world.flags.length));
+      world.flags.forEach((f, i) => mesh.setMatrixAt(i, at.makeTranslation(f.x + 0.5, standY(world, field, f.x + 0.5, f.y + 0.5), f.y + 0.5)));
+      mesh.count = world.flags.length;
+      mesh.castShadow = mesh.receiveShadow = true;
+      this.matchGroup.add(this.own(mesh));
+    }
     this.flags = world.flags.map((f) => {
-      const x = f.x + 0.5, z = f.y + 0.5, y = standY(world, field, x, z);
-      const pole = new THREE.Mesh(poleGeo, this.paints.steel);
-      const base = new THREE.Mesh(baseGeo, this.paints.concrete);
-      const cloth = new THREE.Mesh(this.cloth, this.neutralMat);
-      for (const m of [pole, base, cloth]) {
-        m.position.set(x, y, z);
-        m.castShadow = true;
-      }
-      this.matchGroup.add(pole, base, cloth);
+      const x = f.x + 0.5, z = f.y + 0.5;
+      const cloth = new THREE.Mesh(this.cloth, this.bannerMat.at(-1));
+      cloth.position.set(x, standY(world, field, x, z), z);
+      cloth.castShadow = true;
+      this.matchGroup.add(cloth);
       return cloth;
     });
   }
@@ -977,18 +997,20 @@ export class Field3D implements Renderer {
   /** A building's live model (team parts swapped per frame, a spinning or aiming pivot, chimney smoke) and its ruin. */
   // prettier-ignore
   private building(kind: BuildingKind, id: number, x: number, y: number, z: number): BuildingNode {
-    const model = this.buildingModels.get(kind)!;
-    const team: THREE.Mesh[] = [];
-    const meshes = (parts: Model) => parts.map((p) => {
+    const { near: model, far, ruins } = this.buildingModels.get(kind)!;
+    const team: THREE.Mesh[] = [], lods: Record<Detail, THREE.Mesh[]> = { near: [], far: [] };
+    const meshes = (parts: Model, detail?: Detail) => parts.map((p) => {
       const mesh = new THREE.Mesh(p.geometry, p.paint === "team" ? this.neutralMat : this.paints[p.paint]);
       mesh.castShadow = mesh.receiveShadow = true;
       if (p.paint === "team") team.push(mesh);
+      if (detail) lods[detail].push(mesh);
+      mesh.visible = detail !== "far";
       return mesh;
     });
-    const alive = new THREE.Group().add(...meshes(model.body));
+    const alive = new THREE.Group().add(...meshes(model.body, "near"), ...meshes(far.body, "far"));
     let pivot: THREE.Group | undefined;
     if (model.pivot) {
-      pivot = new THREE.Group().add(...meshes(model.pivot.model));
+      pivot = new THREE.Group().add(...meshes(model.pivot.model, "near"), ...meshes(far.pivot!.model, "far"));
       pivot.position.set(model.pivot.x, model.pivot.y, model.pivot.z);
       alive.add(pivot);
     }
@@ -999,11 +1021,11 @@ export class Field3D implements Renderer {
       for (let k = 0; k < 4; k++) puffs.push(new THREE.Mesh(this.puffGeo, this.puffMat));
       alive.add(stack.add(...puffs));
     }
-    const ruin = new THREE.Group().add(...meshes(model.ruins[id % model.ruins.length]!));
+    const ruin = new THREE.Group().add(...meshes(ruins[id % ruins.length]!));
     ruin.visible = false;
     for (const g of [alive, ruin]) g.position.set(x, y, z);
     this.matchGroup.add(alive, ruin);
-    return { alive, ruin, team, pivot, aims: model.pivot?.aims ?? false, puffs, height: model.height };
+    return { alive, lods, detail: "near", ruin, team, pivot, aims: model.pivot?.aims ?? false, puffs, height: model.height };
   }
 
   private clearMatch(): void {
