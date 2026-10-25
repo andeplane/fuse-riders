@@ -276,7 +276,7 @@ try {
   }
   // Quarantined in CI under #250: on 2026-10-17 every page's world stalled a few seconds before the first
   // player's turn deadline (three main runs in a row; it passes locally), so the phone never saw YOUR TURN.
-  // Restore by dropping FUSE_BIRDS_SKIP_TURN_HANDOFF from scripts/ci-manifest.json.
+  // Restore by dropping FUSE_BIRDS_SKIP_TURN_HANDOFF from scripts/ci-manifest.json and games/fuse-birds/coverage-online.ts.
   const turnHandoff = process.env.FUSE_BIRDS_SKIP_TURN_HANDOFF !== "1";
   if (turnHandoff) {
     await second
