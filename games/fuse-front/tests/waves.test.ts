@@ -5,6 +5,7 @@ import {
   NEUTRAL,
   NO_WINNER,
   STEPS_PER_SECOND,
+  TILE,
   UNITS,
   WAVE_CAP,
   WAVE_EVERY,
@@ -141,7 +142,7 @@ test("a lane walker heads for the first waypoint it has neither reached nor pass
     at(end)[0]! - at(end - 1)[0]!,
     at(end)[1]! - at(end - 1)[1]!,
   ];
-  const scale = (4 * 128) / Math.hypot(lx, ly);
+  const scale = (4 * TILE) / Math.hypot(lx, ly);
   const out = [at(end)[0]! + lx * scale, at(end)[1]! + ly * scale];
   assert.equal(
     aheadOf(path, Math.round(out[0]!), Math.round(out[1]!)),
@@ -167,17 +168,18 @@ test("each team's wave walks its lane as the other's half-turn image, so neither
           .map((u) =>
             Math.round(
               Math.hypot(u.x - centreOf(start!.x), u.y - centreOf(start!.y)) /
-                64,
+                (TILE / 2),
             ),
           )
           .sort((a, b) => a - b);
       };
-      if (lane.name !== "top")
-        assert.deepEqual(
-          along(0, index),
-          along(1, partner),
-          `${id} ${lane.name}`,
-        );
+      if (index > partner) continue;
+      assert.ok(along(0, index).length > 0, `${id} ${lane.name}`);
+      assert.deepEqual(
+        along(0, index),
+        along(1, partner),
+        `${id} ${lane.name}`,
+      );
     }
   }
 });
