@@ -291,7 +291,9 @@ function capture(map: GameMap, world: World): void {
     );
     for (const building of world.buildings) {
       const site = map.sites[building.id]!;
-      if (site.sector !== flag || site.kind === "fort") continue;
+      // A fort and a lane's towers (`towers.ts`) never belong to a sector's holder.
+      if (site.sector !== flag || site.kind === "fort" || site.lane >= 0)
+        continue;
       building.order = defaultOrder(site.kind);
       building.progress = 0;
       building.cooldown = 0;

@@ -18,6 +18,7 @@ import {
   HERO_XP_PER_LEVEL,
   MAX_LEVEL,
   STEER_MAX,
+  STEPS_PER_SECOND,
   XP_STEP,
   teamOf,
   type HeroKind,
@@ -47,22 +48,29 @@ export const heroShot = (level: number, kind: HeroKind = "brick") => ({
   cooldown: HERO.cooldown,
   siege: HERO.siege,
 });
-export const respawnSteps = (level: number): number =>
-  HERO.respawn + HERO.respawnPerLevel * level;
+export const respawnSteps = (level: number, late = 0): number =>
+  HERO.respawn +
+  HERO.respawnPerLevel * level +
+  HERO.respawnPerMinute * div(late, 60 * STEPS_PER_SECOND);
 
 export const alive = (hero: Hero): boolean => hero.hp > 0;
 
 /**
  * A hero falls to `killer`'s seat: it waits to respawn with its gun at rest, its move, queued orders, CLOAK, BLITZ
- * and FLARE gone.
+ * and FLARE gone; `late` is the step on a lane map, where the wait grows with the match (`respawnSteps`).
  * Returns the XP the kill is worth, for the caller to `award`.
  */
-export function fell(world: World, hero: Hero, killer: number): number {
+export function fell(
+  world: World,
+  hero: Hero,
+  killer: number,
+  late = 0,
+): number {
   const { seat, x, y } = hero;
   const level = levelOf(hero.xp);
   Object.assign(hero, {
     hp: 0,
-    respawn: respawnSteps(level),
+    respawn: respawnSteps(level, late),
     cooldown: 0,
     goal: -1,
     quiet: 0,
