@@ -1,13 +1,14 @@
 /**
  * The shop and item actives (v3 M3), on the table in `items.ts`. A living hero standing in its own fort's courtyard
  * (`atFountain`) may buy an item into its first empty slot for its cost, or sell a slot's item back for
- * `SELL_PERCENT` of it. Anything else (too little gold, no empty slot, away from the fort, dead, no such item) does
+ * `SELL_PERCENT` of it once its active (if any) has cooled. Anything else (too little gold, no empty slot, away from the fort, dead, no such item) does
  * nothing, so a stale command is harmless. An item's hit points and energy come with it when bought and go with it
  * when sold. Anywhere, a living hero may use a slot's active once it is ready: SHIELD cuts the damage it takes, and
- * BLINK jumps it to an open tile within reach.
+ * BLINK jumps it, over walls, to an open tile within reach that its fort's ground connects to; its orders carry on
+ * from where it lands.
  */
-import { openTile } from "./flow.js";
-import { atFountain } from "./gold.js";
+import { UNREACHABLE, flowField, openTile } from "./flow.js";
+import { atFountain, earn } from "./gold.js";
 import { alive, heroMaxEnergy, heroMaxHp } from "./hero.js";
 import {
   ITEMS,
@@ -20,7 +21,7 @@ import type { GameMap } from "./map.js";
 import { div } from "./math.js";
 import { centreOf } from "./move.js";
 import { AIM_SLACK } from "./tuning.js";
-import type { Hero, World } from "./world.js";
+import { fortSite, type Hero, type World } from "./world.js";
 
 const least = (a: number, b: number): number => (a < b ? a : b);
 
@@ -48,7 +49,9 @@ export function sell(map: GameMap, hero: Hero, slot: number): boolean {
   const item = ITEMS[hero.items[slot] ?? -1];
   if (item === undefined || !alive(hero) || !atFountain(map, hero))
     return false;
-  hero.gold += div(item.cost * SELL_PERCENT, 100);
+  // An active still cooling can't be sold, so a sale and a rebuy never refresh it (nor end a SHIELD early).
+  if (hero.itemCooldowns[slot]! > 0) return false;
+  earn(hero, div(item.cost * SELL_PERCENT, 100));
   hero.items = hero.items.map((each, i) => (i === slot ? -1 : each));
   hero.itemCooldowns = hero.itemCooldowns.map((each, i) =>
     i === slot ? 0 : each,
@@ -73,7 +76,11 @@ export function useItem(
   if (hero.itemCooldowns[slot]! > 0) return false;
   const [x, y] = [hero.x, hero.y];
   if (item.active === "blink") {
+    // Over walls and water, but onto ground its fort's field reaches, so it never lands on an island.
     if (!openTile(map, tx, ty)) return false;
+    const home = fortSite(map, hero.seat);
+    const field = flowField(map, home.y * map.width + home.x);
+    if (field.cost(ty * map.width + tx) === UNREACHABLE) return false;
     const [toX, toY] = [centreOf(tx), centreOf(ty)];
     const reach = item.range + AIM_SLACK;
     if ((toX - x) * (toX - x) + (toY - y) * (toY - y) > reach * reach)
