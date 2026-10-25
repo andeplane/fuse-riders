@@ -47,6 +47,8 @@ export function createHud() {
     hpNow: 0,
     energyNow: 0,
     xp: 0,
+    /** The player's whole gold. */
+    gold: 0,
     level: 1,
     respawn: 0,
     spells,
@@ -85,6 +87,7 @@ export function deriveHud(
     : level >= MAX_LEVEL
       ? 1
       : (hero.xp - from) / (levelXp(level + 1) - from);
+  out.gold = hero?.gold ?? 0;
   out.respawn = hero && hero.hp <= 0 ? seconds(hero.respawn) : 0;
   out.kind = hero?.kind ?? "brick";
   KITS[out.kind].forEach((spell, i) => {

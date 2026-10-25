@@ -92,6 +92,8 @@ export interface HeroView {
   energy: number;
   maxEnergy: number;
   xp: number;
+  /** Its player's gold (`gold.ts`). */
+  gold: number;
   /** Steps until each spell slot can be cast again. */
   spells: readonly number[];
   /** Under its own CLOAK or BLITZ; the tile its FLARE marks, or -1. */
@@ -304,6 +306,7 @@ export function viewOf(map: GameMap, world: World): WorldView {
       energy: hero.energy,
       maxEnergy: maxEnergy(levelOf(hero.xp)),
       xp: hero.xp,
+      gold: hero.gold,
       spells: [...hero.spells],
       cloaked: hero.cloak > 0,
       blitzing: hero.blitz > 0,

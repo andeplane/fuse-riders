@@ -9,6 +9,7 @@
 import { DIRS, UNREACHABLE, flowField } from "./flow.js";
 import type { GameMap } from "./map.js";
 import { div, isqrt } from "./math.js";
+import { heroBounty, tendGold } from "./gold.js";
 import { FLARE, centreOf, settle, tileOf } from "./move.js";
 import {
   ASSIST_RADIUS,
@@ -56,7 +57,7 @@ export const respawnSteps = (level: number, late = 0): number =>
 export const alive = (hero: Hero): boolean => hero.hp > 0;
 
 /**
- * A hero falls to `killer`'s seat: it waits to respawn with its gun at rest, its move, queued orders, CLOAK, BLITZ
+ * A hero falls to `killer`'s seat, which earns its bounty (`heroBounty`): it waits to respawn with its gun at rest, its move, queued orders, CLOAK, BLITZ
  * and FLARE gone; `late` is the step on a lane map, where the wait grows with the match (`respawnSteps`).
  * Returns the XP the kill is worth, for the caller to `award`.
  */
@@ -68,6 +69,7 @@ export function fell(
 ): number {
   const { seat, x, y } = hero;
   const level = levelOf(hero.xp);
+  heroBounty(world, hero, killer);
   Object.assign(hero, {
     hp: 0,
     respawn: respawnSteps(level, late),
@@ -202,16 +204,20 @@ export function moveHeroes(
 export function tendHeroes(map: GameMap, world: World): void {
   for (const hero of world.heroes) {
     const level = levelOf(hero.xp);
+    const most = maxHp(level, hero.kind);
+    // The trickle and the fountain (`gold.ts`).
+    const [spring, sip] = tendGold(map, world, hero, most);
     if (alive(hero)) {
       const calm = hero.quiet >= HERO.calm;
       if (!calm) hero.quiet++;
       const every = calm ? HERO.calmEnergyEvery : HERO.energyEvery;
-      if (world.step % every === 0 && hero.energy < maxEnergy(level))
-        hero.energy++;
-      const healed = calm ? hero.hp + HERO.regen : hero.hp;
-      if (healed > hero.hp)
-        hero.hp =
-          healed < maxHp(level, hero.kind) ? healed : maxHp(level, hero.kind);
+      const tick = world.step % every === 0 ? 1 : 0;
+      const energy = hero.energy + tick + sip;
+      if (energy > hero.energy && hero.energy < maxEnergy(level))
+        hero.energy = energy < maxEnergy(level) ? energy : maxEnergy(level);
+      const healed = hero.hp + (calm ? HERO.regen : 0) + spring;
+      if (healed > hero.hp && hero.hp < most)
+        hero.hp = healed < most ? healed : most;
       continue;
     }
     if (--hero.respawn > 0) continue;
