@@ -13,6 +13,7 @@ import {
   KILL_XP,
   KITS,
   UNITS,
+  XP_GROUP,
   centreOf,
   createWorld,
   decodeWorld,
@@ -96,8 +97,8 @@ test("each seat starts with a level 1 hero on its fort's tile", () => {
     ],
   );
   assert.deepEqual(
-    [0, levelXp(2) - 1, levelXp(2), levelXp(6), levelXp(10), 1e9].map(levelOf),
-    [1, 1, 2, 6, 10, 10],
+    [0, levelXp(2) - 1, levelXp(2), levelXp(6), levelXp(12), 1e9].map(levelOf),
+    [1, 1, 2, 6, 12, 12],
   );
 });
 
@@ -201,15 +202,17 @@ test("focused fire still kills a hero: a level 1 Brick under an enemy fort and t
   assert.ok(steps < 30 * 40, `${steps} steps`);
 });
 
-test("a kill earns the killer's hero XP, a nearby teammate's hero half, and a level brings hit points", () => {
+test("a kill's XP is shared by the killing team's heroes near it, and a level brings hit points", () => {
   let world = createWorld(map, [0, 1, 2], 1);
   world = withHero(world, 0, { x: at(4), y: at(5), xp: levelXp(2) - 1 });
   world = withHero(world, 2, { x: at(3), y: at(6) });
   world = withHero(world, 1, { x: at(12), y: at(8) });
   world = add(world, 1, "grunt", 7, 5, 1);
   const next = step(map, world);
-  assert.equal(heroOf(next, 0).xp, levelXp(2) - 1 + KILL_XP.grunt);
-  assert.equal(heroOf(next, 2).xp, KILL_XP.grunt / 2);
+  // Two share it, each taking (100 + XP_GROUP) / 2 percent.
+  const share = div(KILL_XP.grunt * (100 + XP_GROUP), 200);
+  assert.equal(heroOf(next, 0).xp, levelXp(2) - 1 + share);
+  assert.equal(heroOf(next, 2).xp, share);
   assert.equal(
     heroOf(next, 0).hp,
     maxHp(2) - HIDDEN_GRUNT,
@@ -221,9 +224,10 @@ test("a kill earns the killer's hero XP, a nearby teammate's hero half, and a le
   );
 });
 
-test("two shots that both kill credit the owner of the first in shooter order, wherever the units are listed", () => {
+test("whichever seat's shot kills, the XP goes to the killing team's heroes near the death", () => {
   const killedBy = (first: number, second: number): [number, number] => {
     let world = createWorld(map, [0, 1, 2], 1);
+    world = withHero(world, 0, { x: at(8), y: at(4) });
     world = add(world, 1, "grunt", 11, 5, 1);
     world = add(world, first, "torch", 10, 5);
     world = add(world, second, "torch", 10, 6);
@@ -231,9 +235,9 @@ test("two shots that both kill credit the owner of the first in shooter order, w
     assert.equal(next.units.filter((u) => u.owner === 1).length, 0);
     return [heroOf(next, 0).xp, heroOf(next, 2).xp];
   };
-  // The lower unit id is first in shooter order; its owner's hero earns the kill, the other (far away) nothing.
+  // The lower unit id is first in shooter order and is credited, but only the hero near the death earns, and in full.
   assert.deepEqual(killedBy(0, 2), [KILL_XP.grunt, 0]);
-  assert.deepEqual(killedBy(2, 0), [0, KILL_XP.grunt]);
+  assert.deepEqual(killedBy(2, 0), [KILL_XP.grunt, 0]);
 });
 
 test("a hero dies, waits its level's respawn and returns to its fort, its killer credited", () => {

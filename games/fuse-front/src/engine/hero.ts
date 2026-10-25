@@ -2,34 +2,37 @@
  * Heroes: one per player, of the kind picked for it (`HEROES`). A hero walks to the tile `move` sent it to along
  * that tile's flow field, or in the held `steer` direction (the latest command wins; steering clears a move and a
  * move releases the stick). It
- * shoots while it walks (`combat.ts`), takes flags like a robot (`step.ts`), and gains XP for kills, assists and
- * captures; its level, and with it its hit points, energy and damage, follows from its XP. A dead hero waits a delay
- * that grows with its level and respawns on its fort's tile. Heroes do not push or get pushed by units.
+ * shoots while it walks (`combat.ts`), takes flags like a robot (`step.ts`), and gains XP from deaths near it and
+ * from captures; its level, and with it its hit points, energy and damage, follows from its XP (`LEVEL_XP`). A dead
+ * hero waits a delay that grows with its level, up to a cap, and respawns on its fort's tile. Heroes do not push or
+ * get pushed by units.
  */
 import { DIRS, UNREACHABLE, flowField } from "./flow.js";
 import type { GameMap } from "./map.js";
 import { div, isqrt } from "./math.js";
+import { razedBy } from "./waves.js";
 import { heroBounty, tendGold } from "./gold.js";
 import { AURA, ITEMS, bonusOf } from "./items.js";
 import { FLARE, centreOf, settle, tileOf } from "./move.js";
 import {
-  ASSIST_RADIUS,
+  COMEBACK_MAX,
+  COMEBACK_XP,
   HERO,
   HEROES,
   HERO_XP,
   HERO_XP_PER_LEVEL,
+  LEVEL_XP,
   MAX_LEVEL,
   STEER_MAX,
-  STEPS_PER_SECOND,
-  XP_STEP,
+  XP_GROUP,
+  XP_RADIUS,
   teamOf,
   type HeroKind,
 } from "./tuning.js";
 import { fortSite, type Hero, type World } from "./world.js";
 
-/** The total XP level `level` needs. */
-export const levelXp = (level: number): number =>
-  (XP_STEP * level * (level - 1)) / 2;
+/** The total XP level `level` (1 to `MAX_LEVEL`) needs. */
+export const levelXp = (level: number): number => LEVEL_XP[level]!;
 /** XP stops counting at the top level, so it stays bounded. */
 export const MAX_XP = levelXp(MAX_LEVEL);
 
@@ -65,30 +68,26 @@ export function heroGun(hero: Hero) {
     cooldown: div(shot.cooldown * 100, 100 + haste),
   };
 }
-export const respawnSteps = (level: number, late = 0): number =>
-  HERO.respawn +
-  HERO.respawnPerLevel * level +
-  HERO.respawnPerMinute * div(late, 60 * STEPS_PER_SECOND);
+/** Steps a hero of `level` waits dead: `HERO.respawn` plus `HERO.respawnPerLevel` a level, at most `HERO.respawnMax`. */
+export function respawnSteps(level: number): number {
+  const wait = HERO.respawn + HERO.respawnPerLevel * level;
+  return wait < HERO.respawnMax ? wait : HERO.respawnMax;
+}
 
 export const alive = (hero: Hero): boolean => hero.hp > 0;
 
 /**
- * A hero falls to `killer`'s seat, which earns its bounty (`heroBounty`): it waits to respawn with its gun at rest, its move, queued orders, SHIELD, CLOAK, BLITZ
- * and FLARE gone; `late` is the step on a lane map, where the wait grows with the match (`respawnSteps`).
- * Returns the XP the kill is worth, for the caller to `award`.
+ * A hero falls to `killer`'s seat, which earns its bounty (`heroBounty`): it waits its level's respawn
+ * (`respawnSteps`) with its gun at rest, its move, queued orders, SHIELD, CLOAK, BLITZ and FLARE gone. Returns the XP
+ * the kill is worth, for the caller to `award`.
  */
-export function fell(
-  world: World,
-  hero: Hero,
-  killer: number,
-  late = 0,
-): number {
+export function fell(world: World, hero: Hero, killer: number): number {
   const { seat, x, y } = hero;
   const level = levelOf(hero.xp);
   heroBounty(world, hero, killer);
   Object.assign(hero, {
     hp: 0,
-    respawn: respawnSteps(level, late),
+    respawn: respawnSteps(level),
     cooldown: 0,
     goal: -1,
     quiet: 0,
@@ -134,10 +133,24 @@ export function gainXp(world: World, hero: Hero, amount: number): void {
 }
 
 /**
- * XP for a kill at (x, y) of something on `victimTeam`: all of it to the killer's hero, wherever it is, and half to
- * each other living hero of another team within `ASSIST_RADIUS`. Heroes are visited by seat.
+ * The percent of XP `team` takes from the comeback rule: `COMEBACK_XP` more for each lane structure it has razed fewer
+ * than the other team (`razedBy`), up to `COMEBACK_MAX`.
+ */
+export function comebackOf(map: GameMap, world: World, team: number): number {
+  const razed = razedBy(map, world.buildings);
+  const behind = razed[1 - team]! - razed[team]!;
+  const bonus = behind > 0 ? COMEBACK_XP * behind : 0;
+  return 100 + (bonus < COMEBACK_MAX ? bonus : COMEBACK_MAX);
+}
+
+/**
+ * XP for a death at (x, y) of something on `victimTeam` (a neutral's is -1) that `killer`'s seat made: shared by the
+ * living heroes of the killing team within `XP_RADIUS`, wherever the killer is, so standing in lane is what earns and
+ * a last hit earns no more. With n heroes sharing, each takes `(100 + XP_GROUP * (n - 1)) / n` percent, times the
+ * team's comeback (`comebackOf`). A kill no seat made earns nothing. Heroes are visited by seat.
  */
 export function award(
+  map: GameMap,
   world: World,
   killer: number,
   victimTeam: number,
@@ -145,19 +158,19 @@ export function award(
   y: number,
   amount: number,
 ): void {
-  // Nobody earns from a kill no seat made; a neutral's (team -1) is shared by the killer's team alone.
   if (killer < 0) return;
-  const foe = victimTeam < 0 ? 1 - teamOf(killer) : victimTeam;
-  for (const hero of world.heroes) {
-    if (teamOf(hero.seat) === foe) continue;
-    if (hero.seat === killer) gainXp(world, hero, amount);
-    else if (alive(hero)) {
-      const dx = hero.x - x,
-        dy = hero.y - y;
-      if (dx * dx + dy * dy <= ASSIST_RADIUS * ASSIST_RADIUS)
-        gainXp(world, hero, div(amount, 2));
-    }
-  }
+  const team = victimTeam < 0 ? teamOf(killer) : 1 - victimTeam;
+  const near = world.heroes.filter((hero) => {
+    if (teamOf(hero.seat) !== team || !alive(hero)) return false;
+    const dx = hero.x - x,
+      dy = hero.y - y;
+    return dx * dx + dy * dy <= XP_RADIUS * XP_RADIUS;
+  });
+  if (near.length === 0) return;
+  const group = 100 + XP_GROUP * (near.length - 1);
+  const percent = div(group * comebackOf(map, world, team), 100);
+  const share = div(amount * percent, 100 * near.length);
+  for (const hero of near) gainXp(world, hero, share);
 }
 
 /** This step's velocity: the stick's direction, scaled by its magnitude, else the next flow-field tile's centre. */
