@@ -85,12 +85,12 @@ const enemyStructure =
   };
 
 /**
- * FOLLOW's goal, kept in `Unit.goal` instead of a tile: the tile the owner's hero stands on, looked up every step, or
+ * Following a hero, the goal of a unit outside the waves on a lane map, kept in `Unit.goal` instead of a tile: the tile the owner's hero stands on, looked up every step, or
  * the owner's fort while the hero is dead. So a unit's goal is a flag, a fort or this, and the fixed flow cache holds
  * only flags and forts; one tile per hero (plus each hero's `move` goal) goes to the roaming cache (`flow.ts`).
  */
 export const FOLLOW_HERO = -2;
-/** A PUSHing robot's goal while its owner's FLARE burns (`spells.ts`): the flare's tile, from the roaming cache. */
+/** A pushing robot's goal while its owner's FLARE burns (`spells.ts`): the flare's tile, from the roaming cache. */
 export const FLARE = -3;
 
 /** The tile a unit's goal points at now: its own tile index, its hero's (or fort's) tile, or its hero's flare. */
@@ -104,8 +104,8 @@ function goalTile(map: GameMap, world: World, unit: Unit): number {
 }
 
 /**
- * Whether a stance can send a unit to `tile` (a flag's tile or a fort's; FOLLOW uses `FOLLOW_HERO`), or, with `lane`,
- * a lane unit (a lane waypoint, a turret's or a fort's).
+ * Whether a unit can be sent to `tile`: a flag's tile or a fort's (following a hero is `FOLLOW_HERO`), or, with
+ * `lane`, a lane unit's (a lane waypoint, a turret's or a fort's).
  */
 export const isGoalTile = (map: GameMap, tile: number, lane = false): boolean =>
   (lane ? isWaypoint(map, tile) : flagOnTile(map, tile) >= 0) ||
