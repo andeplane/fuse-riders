@@ -13,7 +13,11 @@ import {
   STEPS_PER_SECOND,
   TILE,
   UNITS,
+  BUILDS,
+  activeCommands,
   bonusOf,
+  nextBuy,
+  shopCommands,
   centreOf,
   createWorld,
   decodeWorld,
@@ -380,4 +384,39 @@ test("BLINK crosses rock, but never onto ground its fort can't reach", () => {
   assert.equal(hero0(sealed).y, at(7), "the pocket is sealed");
   const over = step(walled, world, [use(0, 4, 1)]);
   assert.deepEqual([hero0(over).x, hero0(over).y], [at(4), at(1)]);
+});
+
+test("a bot buys its hero's build in order at its fort, when it can afford the next item", () => {
+  const world = shopper(ITEMS[BOOTS]!.cost);
+  assert.equal(BUILDS.brick[0], BOOTS);
+  assert.deepEqual(shopCommands(map, hero0(world)), [buy(BOOTS)]);
+  const next = step(map, world, shopCommands(map, hero0(world)));
+  assert.deepEqual(hero0(next).items[0], BOOTS);
+  assert.equal(nextBuy(hero0(next)), BUILDS.brick[1]);
+  assert.deepEqual(shopCommands(map, hero0(next)), [], "too poor for more");
+  const away = shopper();
+  Object.assign(away.heroes[0]!, { x: at(4), y: at(6) });
+  assert.deepEqual(shopCommands(map, hero0(away)), []);
+  assert.equal(nextBuy(holding(shopper(), ...BUILDS.brick).heroes[0]!), -1);
+});
+
+test("a bot raises its SHIELD when hurt under fire, and BLINKs onto a hurt enemy hero out of reach", () => {
+  const world = holding(arena("brick"), AEGIS);
+  Object.assign(world.heroes[0]!, { hp: 200, quiet: 0 });
+  assert.deepEqual(activeCommands(map, world, hero0(world)), [use(0)]);
+  Object.assign(world.heroes[0]!, { hp: maxHp(1) });
+  assert.deepEqual(activeCommands(map, world, hero0(world)), []);
+  const chase = holding(arena("brick"), COIL);
+  Object.assign(chase.heroes[0]!, { x: at(2), y: at(6) });
+  Object.assign(chase.heroes[1]!, {
+    hp: 100,
+    respawn: 0,
+    x: at(12),
+    y: at(6),
+  });
+  const [blink] = activeCommands(map, chase, hero0(chase));
+  assert.equal(blink?.type, "useItem");
+  const landed = hero0(step(map, chase, [blink!]));
+  assert.ok(landed.x > at(2), "it jumped toward its quarry");
+  assert.ok(at(12) - landed.x <= HEROES.brick.range, "and has it in range");
 });
