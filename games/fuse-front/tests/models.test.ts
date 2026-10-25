@@ -4,7 +4,6 @@ import * as THREE from "three";
 import type { HeroView } from "../src/engine/view.js";
 import {
   HERO_KINDS,
-  LEGS,
   PAINTS,
   RING,
   approachAngle,
@@ -29,6 +28,7 @@ import {
   type ModelKind,
 } from "../src/render3d/models.js";
 import { propSpots } from "../src/render3d/props.js";
+import { HERO_LEGS } from "../src/render3d/kit/heroes.js";
 import {
   ROBOT_LEGS,
   robotModel,
@@ -157,18 +157,19 @@ test("at a glance: every kind has its own bounding box, and each hero its signat
   assert.ok(size(unitModel("brick")).x > Math.max(...(["vix", "rivet", "tally"] as const).map((k) => size(unitOf(k)).x)), "Brick is the broadest");
   assert.ok(paints("vix").includes("eye") && size(unitModel("vix")).z > 0.75, "Vix: a red eye and a long rifle");
   assert.ok(paints("rivet").includes("gold") && paints("rivet").includes("visor"), "Rivet: hard hat and goggles");
-  assert.ok(size(unitModel("tally")).y > size(unitModel("brick")).y, "Tally's antenna tops them all");
+  assert.ok(Math.max(...HERO_KINDS.map((k) => size(unitModel(k)).y)) === size(unitModel("rivet")).y, "Rivet's crane arm reaches over every head");
+  assert.ok(paints("tally").includes("flame") && paints("brick").includes("amber"), "Tally's jump jets, Brick's yellow visor");
   assert.ok(paints("lightTank").includes("tread") && !paints("lightTank").includes("eye"));
   for (const k of all) assert.ok(unitOf(k).length <= 7, `${k}: ${unitOf(k).length} draw calls`);
 }); // prettier-ignore
 
 test("walkers' legs come off the body and hang from a shared unit leg; tracks come off the tank", () => {
-  for (const [kind, spec] of [...Object.entries(LEGS), ...Object.entries(ROBOT_LEGS)] as [ModelKind, { len: number }][]) {
-    assert.ok(box(unitOf(kind, false)).min.y > spec.len * 0.55, `${kind} floats on its hips`);
+  for (const [kind, spec] of [...Object.entries(HERO_LEGS), ...Object.entries(ROBOT_LEGS)] as [ModelKind, { len: number }][]) {
+    assert.ok(box(unitOf(kind, false)).min.y > spec.len * 0.4, `${kind} floats on its hips (Vix's cloak hangs below them)`);
     assert.ok(Math.abs(box(unitOf(kind)).min.y) < 0.01, `${kind} stands with its legs`);
   }
   assert.ok(!unitOf("lightTank", false).some((p) => p.paint === "tread"));
-  for (const leg of [box(partModel("leg")), box(robotPart("robotLeg"))])
+  for (const leg of [box(robotPart("robotLeg"))])
     assert.ok(Math.abs(leg.min.y + 1) < 0.01 && Math.abs(leg.max.y) < 0.05, "hip at the origin, foot at −1");
   assert.ok(robotPart("robotLeg").some((p) => p.paint === "team"), "a robot's shin plate wears team colour");
   assert.deepEqual(robotPart("treads").map((p) => p.paint), ["tread"]);
