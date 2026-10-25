@@ -23,16 +23,16 @@ import { mapById } from "../src/online/maps.js";
  * the new ones.
  */
 const GOLDEN = {
-  rules: "fuse-front-18",
+  rules: "fuse-front-19",
   seed: "fuse-front golden",
   ticks: 1500,
   hashes: [
-    "2063dc2b",
-    "eab01187",
-    "1aceb13b",
-    "1d17c2f0",
-    "3b7228cd",
-    "7f9d8354",
+    "ba61352d",
+    "d3440e1b",
+    "fb2e68e9",
+    "2ab5060d",
+    "82e73812",
+    "81b75dfe",
   ],
 };
 
@@ -118,7 +118,13 @@ test("the golden run hashes as recorded", () => {
     "the third wave is out",
   );
   const levels = world.heroes.map((hero) => levelOf(hero.xp));
-  assert.ok(levels.filter((level) => level > 1).length >= 4, `${levels}`);
+  // XP goes only to heroes near a death (v3 M4): half of them earn some in 75 s, and one reaches level 2.
+  const xps = world.heroes.map((hero) => hero.xp);
+  assert.ok(xps.filter((xp) => xp > 0).length >= 3, `${xps}`);
+  assert.ok(
+    levels.some((level) => level > 1),
+    `${levels}`,
+  );
   assert.deepEqual(hashes, GOLDEN.hashes);
 });
 

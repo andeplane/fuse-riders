@@ -15,7 +15,7 @@ import {
 import { tiny } from "./maps.js";
 
 /**
- * The world with every hero dead at the top level, waiting its full respawn (1,040 steps), so a rule test about
+ * The world with every hero dead at the top level, waiting its full respawn (1,600 steps), so a rule test about
  * units, turrets or forts sees no hero shoot, capture or level up. It still decodes.
  */
 export const benchHeroes = (world: World): World => ({
