@@ -1,9 +1,9 @@
 /**
- * The maps a room can play, by id. Dust Basin is the small one; the others come from the generator
- * (`tools/mapgen.ts`), one per team size at about the scale of Z and StarCraft. A map holds a team size when it has a
- * fort for every slot: seats 0 to 2·size − 1. With no map chosen a match plays its size's default; a chosen map too
- * small for the size the match starts at gives way to that default too, so a start never fails over the map. The lane
- * maps (`tools/mapgen/lanes.ts`) load (`mapById`) but join the room's list only once v3 M2 has towers and a core.
+ * The maps a room can play, by id: the lane maps (v3), one per team size (`tools/mapgen/lanes.ts`). A map holds a
+ * team size when it has a fort for every slot: seats 0 to 2·size − 1. With no map chosen a match plays its size's
+ * default; a chosen map too small for the size the match starts at gives way to that default too, so a start never
+ * fails over the map. The v2 maps without lanes (Dust Basin and the generator's big maps) left the room's list in v3
+ * M2 but still load (`mapById`) for the tests and tools that play the factory rules.
  */
 import { loadMap, type GameMap } from "../engine/index.js";
 import neonDuel from "../../maps/neon-duel.json";
@@ -24,28 +24,28 @@ export interface MapChoice {
 }
 
 const ROOM: Readonly<Record<string, unknown>> = {
+  "neon-duel": neonDuel,
+  "twin-wilds": twinWilds,
+  "crown-jungle": crownJungle,
+};
+const FILES: Readonly<Record<string, unknown>> = {
+  ...ROOM,
   "dust-basin": dustBasin,
   "rust-canyon": rustCanyon,
   "glass-lakes": glassLakes,
   "iron-delta": ironDelta,
 };
-const FILES: Readonly<Record<string, unknown>> = {
-  ...ROOM,
-  "neon-duel": neonDuel,
-  "twin-wilds": twinWilds,
-  "crown-jungle": crownJungle,
-};
 /** The maps a room offers. */
 export const MAP_IDS: readonly string[] = Object.keys(ROOM);
 /** The map a team size plays when none is chosen. */
 export const DEFAULT_MAPS: Readonly<Record<number, string>> = {
-  1: "rust-canyon",
-  2: "glass-lakes",
-  3: "iron-delta",
+  1: "neon-duel",
+  2: "twin-wilds",
+  3: "crown-jungle",
 };
 
 const loaded = new Map<string, GameMap>();
-/** The loaded map for a room's map id (`MAP_IDS`) or a lane map, loaded once and shared (a map holds no state). */
+/** The loaded map for a room's map id (`MAP_IDS`) or a v2 one, loaded once and shared (a map holds no state). */
 export function mapById(id: string): GameMap {
   let map = loaded.get(id);
   if (map === undefined) {
@@ -86,5 +86,5 @@ export const mapsFor = (size: number): MapChoice[] =>
 export function resolveMap(chosen: string | null, size: number): string {
   if (chosen !== null && mapsFor(size).some((c) => c.id === chosen))
     return chosen;
-  return DEFAULT_MAPS[size] ?? "dust-basin";
+  return DEFAULT_MAPS[size] ?? "crown-jungle";
 }

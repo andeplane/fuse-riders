@@ -443,7 +443,7 @@ before, and M2 decides whether lanes become required.
   diagonal. Top and bot bridge the river, mid fords it, and each jungle half has one more ford. The jungle gets
   Poisson-disc rock clumps and Poisson-disc flags, each flag with a robot or vehicle factory and a camp.
 - **Maps:** Neon Duel (1v1, 176², mid only), Twin Wilds (2v2, 176²) and Crown Jungle (3v3, 180²) are committed but
-  stay out of the room's map list until M2 gives them waves and towers. A grunt walks mid in 60–62 s and top or bot
+  joined the room's map list in M2c, once they had waves, towers and a core. A grunt walks mid in 60–62 s and top or bot
   in 87–89 s (`mapgen.ts` prints the times).
 - **View:** `WorldView.lanes` and `WorldView.camps` carry the paths and slots for the minimap and renderers.
 
@@ -483,3 +483,22 @@ before, and M2 decides whether lanes become required.
   - **Bots:** with no enemy hero within 16 tiles, a bot attacks the nearest enemy structure it may shoot within 12
     tiles.
   - Mirror bot matches now end: normal 1v1 on Neon Duel at 36 min, 2v2 on Twin Wilds at 37, 3v3 on Crown Jungle at 47. M7 tunes them to 15–20 min.
+- **The jungle (M2c, `src/engine/jungle.ts`):**
+  - **Camps:** each camp holds 2 neutral sentries (owner −1) on its tile. They never move or burn out. They shoot only
+    heroes and units outside the waves, and only those shoot them, so waves pass a camp untouched.
+  - A camp whose guards are all down stands again 60 s later.
+  - A guard's kill pays only the killer's team, and a kill no seat made pays nobody.
+  - **Capture:** on a lane map only jungle flags can change hands, and not while their camp is guarded.
+  - **Upgrades,** while the sector is held:
+    - a robot factory adds a torch to its nearest lane's wave, and the team's wave grunts take 25 percent less from
+      guns;
+    - a vehicle factory adds a light tank to its nearest lane's every third wave.
+  - **Bots:** with no enemy unit or hero within 16 tiles, a bot detours up to 30 tiles to take a jungle flag, fighting
+    its camp.
+  - **Room:** the room now lists only the lane maps, Neon Duel, Twin Wilds and Crown Jungle, which are each size's
+    default. The v2 maps still load for tests and tools, and they keep their factory rules.
+  - **League:** it runs on the lane maps (rules `fuse-front-14`, seed 1).
+    - Neon Duel 1v1: 10.7 to 17.5 min across 8 pairings.
+    - Twin Wilds 2v2 normal: 15.3 min.
+    - Crown Jungle 3v3 normal: 18.5 min.
+    - Its bound is 45 min.

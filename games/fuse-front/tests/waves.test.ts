@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   FOLLOW_HERO,
+  NEUTRAL,
   NO_WINNER,
   STEPS_PER_SECOND,
   UNITS,
@@ -200,6 +201,8 @@ test("waves walk their lanes without wandering into the jungle, and turn the cor
   for (let index = 0; index < WAVE_FIRST + 70 * STEPS_PER_SECOND; index++) {
     world = step(twin, world);
     for (const u of world.units) {
+      // The jungle camps' guards (`jungle.ts`) stand off the lanes.
+      if (u.lane < 0) continue;
       const tile = tileOf(u.y) * twin.width + tileOf(u.x);
       assert.ok(corridors[u.lane]!.has(tile), `unit ${u.id} left its lane`);
       const path = waypoints(twin.lanes[u.lane]!, u.owner % 2);
@@ -213,7 +216,7 @@ test("waves walk their lanes without wandering into the jungle, and turn the cor
 test("lane maps build nothing in factories; maps without lanes keep their factories and send no waves", () => {
   let world = createWorld(twin, [0, 1], 1);
   for (let index = 0; index < WAVE_FIRST; index++) world = step(twin, world);
-  assert.ok(world.units.every((u) => u.lane >= 0));
+  assert.ok(world.units.every((u) => u.lane >= 0 || u.owner === NEUTRAL));
   assert.ok(world.buildings.every((b) => b.progress === 0));
   const basin = dustBasin();
   let old = createWorld(basin, [0, 1], 1);

@@ -66,6 +66,7 @@ import {
 } from "./tuning.js";
 import {
   MARKS,
+  NEUTRAL,
   ownerOf,
   siteHp,
   unitCap,
@@ -319,7 +320,9 @@ export function tickSpells(world: World): void {
   for (const unit of world.units) {
     if (unit.stun > 0) unit.stun--;
     if (unit.rally > 0) unit.rally--;
-    if (unit.kind === "sentry" && world.step % SENTRY_DECAY === 0) unit.hp--;
+    // A camp's neutral guards (`jungle.ts`) never burn out.
+    if (unit.kind === "sentry" && unit.owner !== NEUTRAL)
+      if (world.step % SENTRY_DECAY === 0) unit.hp--;
   }
   bury(world, -1);
 }

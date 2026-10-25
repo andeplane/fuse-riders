@@ -5,7 +5,7 @@
 import { ceilDiv } from "./math.js";
 
 /** Bump on any change to the rules, with the golden in `tests/golden.test.ts` re-recorded in the same commit. */
-export const RULES = "fuse-front-13";
+export const RULES = "fuse-front-14";
 
 export const SUB = 16;
 export const TILE_PX = 8;
@@ -168,6 +168,13 @@ export const WAVE_TORCHES = 1;
 export const WAVE_GROWTH = 3;
 export const WAVE_GROWTH_MAX = 1000;
 export const WAVE_CAP = 45;
+/**
+ * The jungle (`jungle.ts`): each camp holds `CAMP_GUARDS` neutral sentries, standing again `CAMP_RESPAWN` steps after
+ * the last falls; a held robot factory armours its team's wave grunts, which take `GRUNT_ARMOUR` percent less from guns.
+ */
+export const CAMP_GUARDS = 2;
+export const CAMP_RESPAWN = s(60);
+export const GRUNT_ARMOUR = 25;
 /** Waves tougher a team's waves spawn for each enemy lane tower or gate it has brought down (`towers.ts`). */
 export const RAZE_WAVES = 20;
 export const WAYPOINT_REACH = 3 * TILE;
