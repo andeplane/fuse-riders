@@ -176,7 +176,7 @@ export function robotModel(kind: RobotKind, detail: Detail = "near", moving = tr
 }
 
 /**
- * A shared moving part: a walker's leg (unit size, hip at the origin, foot at y = −1, drawn scaled by `ROBOT_LEGS`)
+ * A shared moving part: a walker's leg (unit size, hip at the origin, foot at y = −1, drawn scaled by `ROBOT_LEGS`, or `HERO_LEGS` under a hero)
  * or both of a tank's tracks.
  */
 // prettier-ignore
