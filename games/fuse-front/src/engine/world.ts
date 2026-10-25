@@ -11,6 +11,7 @@ import { laneOwner } from "./waves.js";
 import {
   BUILDING_HP,
   FACTORY_KINDS,
+  GOLD,
   HERO,
   HEROES,
   TILE,
@@ -115,6 +116,11 @@ export interface Hero {
   queue: readonly Order[];
   /** Steps the queue's first order, a cast, has waited to be castable; 0 otherwise. */
   wait: number;
+  /** The player's gold (`gold.ts`), up to `GOLD.max`, and the heroes it has killed since it last fell. */
+  gold: number;
+  streak: number;
+  /** By seat: steps left in which that seat's hero counts as having hit this one, for assists; never mutated in place. */
+  hurt: readonly number[];
 }
 
 /** What a `focus` (and an aimed spell's target) can be: by index, a unit (id), a hero (seat) or a building (site id). */
@@ -328,8 +334,16 @@ export function freshHero(
     sweep: 0,
     queue: [],
     wait: 0,
+    gold: GOLD.start,
+    streak: 0,
+    hurt: NO_HURT,
   };
 }
+
+/** Nobody's hit a hero lately. */
+export const NO_HURT: readonly number[] = Object.freeze(
+  Array.from({ length: MAX_SEATS }, () => 0),
+);
 
 /**
  * The seat that owns a building: a fort's seat, a lane structure's lane player (`laneOwner`, -1 when its team has

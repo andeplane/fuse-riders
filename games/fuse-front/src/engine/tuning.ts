@@ -5,7 +5,7 @@
 import { ceilDiv } from "./math.js";
 
 /** Bump on any change to the rules, with the golden in `tests/golden.test.ts` re-recorded in the same commit. */
-export const RULES = "fuse-front-15";
+export const RULES = "fuse-front-16";
 
 export const SUB = 16;
 export const TILE_PX = 8;
@@ -316,3 +316,34 @@ export const RALLY_SPEED = 40;
 export const BLITZ_SPEED = 50;
 /** `steer` takes each axis in -STEER_MAX..STEER_MAX; the hero walks at full speed from a magnitude of STEER_MAX. */
 export const STEER_MAX = 8;
+
+/**
+ * Gold (`gold.ts`), each player's own, up to `max`. A hero starts with `start` and earns `trickle` every
+ * `trickleEvery` steps, dead or alive. A hero whose shot or spell lands on an enemy unit on the step it dies (the
+ * killing blow) earns its `lastHit`; a camp guard pays `guard`. A hero kill pays its killer `hero` plus `perStreak`
+ * for each kill the victim made since it last fell (up to `streakMax`); `assistPercent` percent more, split evenly,
+ * goes to the killer's living teammates within `ASSIST_RADIUS` whose hero hit the victim in the last `assistWindow`
+ * steps. A razed lane tower or gate pays every hero of the team `tower[tier]`, and taking a flag pays `capture`.
+ */
+export const GOLD = {
+  max: 99_999,
+  start: 300,
+  trickle: 1,
+  trickleEvery: s(1),
+  lastHit: { grunt: 20, torch: 25, lightTank: 50, sentry: 30 } as Readonly<
+    Record<UnitKind, number>
+  >,
+  guard: 35,
+  hero: 200,
+  perStreak: 50,
+  streakMax: 6,
+  assistPercent: 50,
+  assistWindow: s(10),
+  tower: [150, 200, 250] as readonly number[],
+  capture: 75,
+} as const;
+/**
+ * The fountain: a living hero within `radius` of its own fort's tile (the courtyard) heals `hpPermille` per mille of
+ * its most hit points and `energy` points every step, so an empty hero is full again in about five seconds.
+ */
+export const FOUNTAIN = { radius: 3 * TILE, hpPermille: 5, energy: 1 } as const;

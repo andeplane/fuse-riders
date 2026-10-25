@@ -49,6 +49,8 @@ const withHero = (world: World, seat: number, patch: Partial<Hero>): World => ({
   ...world,
   heroes: world.heroes.map((h) => (h.seat === seat ? { ...h, ...patch } : h)),
 });
+/** A spot on the tiny map well out of seat 0's courtyard. */
+const OUT = { x: at(5), y: at(8) };
 const heroOf = (world: World, seat: number): Hero =>
   world.heroes.find((h) => h.seat === seat)!;
 
@@ -337,7 +339,8 @@ test("a hero's move commands cannot evict the flag and fort fields every stance 
 });
 
 test("a living hero regenerates energy up to its level's most, faster when calm", () => {
-  let world = withHero(createWorld(map, [0, 1], 1), 0, { energy: 10 });
+  // Out of its fort's courtyard, where the fountain would fill it (`gold.ts`).
+  let world = withHero(createWorld(map, [0, 1], 1), 0, { energy: 10, ...OUT });
   world = run(world, 10 * HERO.calmEnergyEvery);
   assert.equal(heroOf(world, 0).energy, 20);
   world = run(withHero(world, 0, { energy: HERO.energy }), HERO.energyEvery);
@@ -348,7 +351,11 @@ test("a living hero regenerates energy up to its level's most, faster when calm"
 });
 
 test("a calm hero heals to its most; one that shot or was hit waits until calm", () => {
-  let world = withHero(createWorld(map, [0, 1], 1), 0, { hp: 100, quiet: 0 });
+  let world = withHero(createWorld(map, [0, 1], 1), 0, {
+    hp: 100,
+    quiet: 0,
+    ...OUT,
+  });
   world = run(world, HERO.calm);
   assert.equal(heroOf(world, 0).hp, 100, "not calm yet");
   world = run(world, 10);
