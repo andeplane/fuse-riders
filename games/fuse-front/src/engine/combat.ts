@@ -9,13 +9,15 @@
  * - A shooter fires when its cooldown is 0 and then waits its kind's `cooldown` steps; the timer counts down every step.
  * - A unit with a target in range stands still to fight (`moveUnits` skips its seek), even while reloading. A hero
  *   shoots whether it stands or walks; its shot splashes every other enemy unit within `HERO.splash` of the target,
- *   and robots' small arms do only `HERO.smallArms` percent to it. A hero that shoots or is hit is not calm.
+ *   and robots' small arms do only `HERO.smallArms` percent to it. A hero's shot on an enemy hero does `HERO.duel`
+ *   percent. A hero that shoots or is hit is not calm.
  * - A wave unit's shot grows with its wave (`waves.ts`). A robot within `AURA_RADIUS` of its owner's living hero does
  *   `AURA_DAMAGE` percent damage. Spells (`spells.ts`): a
  *   stunned unit holds fire, a rallied one reloads faster, IRON HIDE cuts the damage a covered hero or vehicle takes,
  *   and no gun picks a CLOAKed hero.
  * - A kill is credited to the owner of the first shot (in shooter order: units by id, heroes by seat, turrets) that hit
- *   the victim this step, and earns XP (`award`). A unit's killing blow, for gold, is the first hero's shot that hit
+ *   the victim this step, and its XP goes to the killing team's heroes near it (`award`), a razed lane structure's
+ *   too (`STRUCTURE_XP`). A unit's killing blow, for gold, is the first hero's shot that hit
  *   it this step; a hero's hit on a hero counts toward an assist, and a razed lane structure pays its razer's team
  *   (`gold.ts`).
  * - Lane towers and gates (`towers.ts`) pick and ramp their own way, and a protected structure is never picked.
@@ -39,6 +41,7 @@ import {
   GRUNT_ARMOUR,
   HERO,
   KILL_XP,
+  STRUCTURE_XP,
   TILE,
   TOWER,
   TURRET,
@@ -291,6 +294,8 @@ export function fight(
       ]!;
       if (victim.of === "hero" && robot)
         damage = div(damage * HERO.smallArms, 100);
+      if (victim.of === "hero" && hero !== undefined)
+        damage = div(damage * HERO.duel, 100);
       damage = div(damage * hideOf(world, struck, victim.team), 100);
       if (victim.of === "unit")
         damage = armour(world.units[victim.index]!, victim.team, damage);
@@ -316,8 +321,12 @@ export function fight(
       Object.assign(building, { cooldown: 0, aimOf: -1, aim: -1, ramp: 0 });
       const site = map.sites[building.id]!;
       const kind = site.kind;
-      // A razed lane tower or gate pays its razer's team (`gold.ts`).
-      if (site.lane >= 0) towerGold(world, killer, site.tier);
+      // A razed lane tower or gate pays its razer's team (`gold.ts`), and its XP those near it.
+      if (site.lane >= 0) {
+        towerGold(world, killer, site.tier);
+        const [x, y] = [centreOf(site.x), centreOf(site.y)];
+        kills.push([killer, site.team, x, y, STRUCTURE_XP[site.tier]!]);
+      }
       world.events.push({ type: "destroyed", building: building.id, kind });
       continue;
     }
@@ -327,13 +336,7 @@ export function fight(
       continue;
     }
     const { seat, x, y } = hero;
-    kills.push([
-      killer,
-      teamOf(seat),
-      x,
-      y,
-      fell(world, hero, killer, laneMap(map) ? world.step : 0),
-    ]);
+    kills.push([killer, teamOf(seat), x, y, fell(world, hero, killer)]);
   }
   world.units = world.units.filter((unit, index) => {
     const { taken, killer, striker } = targets[index]!;
@@ -347,7 +350,7 @@ export function fight(
     return false;
   });
   for (const [killer, team, x, y, xp] of kills)
-    award(world, killer!, team!, x!, y!, xp!);
+    award(map, world, killer!, team!, x!, y!, xp!);
   world.winner = winnerOf(map, world.players, world.buildings);
   if (world.winner !== NO_WINNER)
     world.events.push({ type: "won", winner: world.winner });

@@ -5,7 +5,7 @@
 import { ceilDiv } from "./math.js";
 
 /** Bump on any change to the rules, with the golden in `tests/golden.test.ts` re-recorded in the same commit. */
-export const RULES = "fuse-front-18";
+export const RULES = "fuse-front-19";
 
 export const SUB = 16;
 export const TILE_PX = 8;
@@ -245,10 +245,12 @@ export const HERO = {
   cooldown: s(1),
   siege: 50,
   /** Hit points and damage at level 1, and what each level adds. */
-  hp: 900,
-  hpPerLevel: 70,
-  damage: 40,
+  hp: 760,
+  hpPerLevel: 60,
+  damage: 38,
   damagePerLevel: 5,
+  /** Percent of its gun's damage a hero's shot does to an enemy hero (v3 M4), so duels last seconds, not half a minute. */
+  duel: 300,
   /** Enemy units within `splash` of the hero's target also take `splashPercent` of the shot. */
   splash: TILE,
   splashPercent: 50,
@@ -262,16 +264,18 @@ export const HERO = {
   /** Steps without shooting or being hit before a hero is calm, and the hit points a calm hero heals each step. */
   calm: s(3),
   regen: 1,
-  /** Steps dead before respawning at the fort: `respawn + respawnPerLevel * level`. */
-  respawn: s(6),
-  respawnPerLevel: s(2),
-  /** On a lane map, one more second dead for each minute the match has run (`late`), so late pushes decide it. */
-  respawnPerMinute: s(2),
+  /** Steps dead before respawning at the fort: `respawn + respawnPerLevel * level`, at most `respawnMax`. */
+  respawn: s(4),
+  respawnPerLevel: s(4),
+  respawnMax: s(40),
 } as const;
 
 /**
  * The heroes a player picks from, each with a profile over `HERO`'s shared rules: Brick the armoured frontliner,
  * Vix the fast, fragile long-range infiltrator, Rivet the engineer with a weaker gun and Tally the fastest scout.
+ * v3 M4 casts them as MOBA roles: Brick the tank and initiator (most hit points, IRON HIDE), Vix the assassin (the
+ * hardest gun and SNIPE, the fewest hit points), Rivet the support (REPAIR, sentries) and Tally the scout (the
+ * fastest, DASH, SPOTTER). Same-level duels without items take 4–8 s of gunfire (`tests/progression.test.ts`).
  */
 export const HERO_KINDS = ["brick", "vix", "rivet", "tally"] as const;
 export type HeroKind = (typeof HERO_KINDS)[number];
@@ -287,14 +291,25 @@ export interface HeroStats {
 // prettier-ignore
 export const HEROES: Readonly<Record<HeroKind, Readonly<HeroStats>>> = {
   brick: HERO,
-  vix: { hp: 600, hpPerLevel: 45, damage: 48, damagePerLevel: 6, speed: 15, range: 7 * TILE },
-  rivet: { hp: 760, hpPerLevel: 55, damage: 32, damagePerLevel: 4, speed: 12, range: 5 * TILE },
-  tally: { hp: 620, hpPerLevel: 45, damage: 36, damagePerLevel: 5, speed: 16, range: 5 * TILE },
+  vix: { hp: 580, hpPerLevel: 45, damage: 46, damagePerLevel: 6, speed: 15, range: 7 * TILE },
+  rivet: { hp: 700, hpPerLevel: 60, damage: 38, damagePerLevel: 5, speed: 12, range: 5 * TILE },
+  tally: { hp: 660, hpPerLevel: 50, damage: 40, damagePerLevel: 5, speed: 16, range: 5 * TILE },
 };
 
-export const MAX_LEVEL = 10;
-/** Total XP each level needs: level n is reached at `XP_STEP * n * (n - 1) / 2`. */
-export const XP_STEP = 30;
+export const MAX_LEVEL = 12;
+/**
+ * The total XP each level needs, by level (index 0 unused): a fast early curve, so a hero reaches its ultimate at
+ * `ULTIMATE_LEVEL` a few minutes in, and longer steps late.
+ */
+// prettier-ignore
+export const LEVEL_XP: readonly number[] = [0, 0, 60, 150, 270, 420, 600, 840, 1140, 1500, 1920, 2400, 2940];
+/** The level a kit's ultimate (its fourth spell) unlocks at. */
+export const ULTIMATE_LEVEL = 6;
+/**
+ * Spell ranks: a basic spell reaches rank 2 at `basic`, an ultimate at `ultimate`; rank 2 casts with `cooldown`
+ * percent of the spell's cooldown (before items cut it). Passives grow by level instead.
+ */
+export const RANK_TWO = { basic: 9, ultimate: 12, cooldown: 75 } as const;
 /** XP for killing a unit of each kind, a hero (plus `HERO_XP_PER_LEVEL` per victim level), and taking a flag. */
 export const KILL_XP: Readonly<Record<UnitKind, number>> = {
   grunt: 12,
@@ -305,7 +320,19 @@ export const KILL_XP: Readonly<Record<UnitKind, number>> = {
 export const HERO_XP = 60;
 export const HERO_XP_PER_LEVEL = 15;
 export const CAPTURE_XP = 40;
-/** Teammates' living heroes this close to a kill get half its XP (sub-pixels). */
+/** XP for razing a lane structure, by tier (outer tower, inner tower, gate). */
+export const STRUCTURE_XP: readonly number[] = [80, 100, 120];
+/**
+ * XP sharing (`award`): a death's XP goes to the living heroes of the killing team within `XP_RADIUS` of it, whoever
+ * made the kill. With n of them each takes `(100 + XP_GROUP * (n - 1)) / n` percent, so two in a lane take 65 percent
+ * each. A team with fewer enemy lane structures razed than the other takes `COMEBACK_XP` percent more per structure
+ * behind, up to `COMEBACK_MAX`.
+ */
+export const XP_RADIUS = 10 * TILE;
+export const XP_GROUP = 30;
+export const COMEBACK_XP = 10;
+export const COMEBACK_MAX = 30;
+/** Teammates' living heroes this close to a hero kill share its assist gold (sub-pixels, `gold.ts`). */
 export const ASSIST_RADIUS = 8 * TILE;
 /** A robot this close to its owner's living hero does `AURA_DAMAGE` percent damage. */
 export const AURA_RADIUS = 6 * TILE;

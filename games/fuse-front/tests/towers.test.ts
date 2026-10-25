@@ -236,16 +236,11 @@ test("each enemy structure razed makes a team's later waves tougher", () => {
   assert.equal(decodeWorld(wire, duel), undefined);
 });
 
-test("on a lane map a fallen hero waits longer the later the match", () => {
-  assert.equal(
-    respawnSteps(3, 20 * 60 * STEPS_PER_SECOND),
-    respawnSteps(3) + 20 * HERO.respawnPerMinute,
-  );
+test("a fallen hero's wait follows its level, not the match clock, and a checkpoint holds it to that", () => {
   let world = benchHeroes(createWorld(duel, [0, 1], 1));
   world = { ...world, step: 20 * 60 * STEPS_PER_SECOND };
   const hero = world.heroes[0]!;
-  const level = levelOf(hero.xp);
-  hero.respawn = respawnSteps(level, world.step);
+  hero.respawn = respawnSteps(levelOf(hero.xp));
   assert.ok(decodeWorld(JSON.parse(JSON.stringify(encodeWorld(world))), duel));
   hero.respawn += 1;
   assert.equal(

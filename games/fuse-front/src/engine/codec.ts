@@ -52,14 +52,7 @@ import {
   WAVE_CAP,
   teamOf,
 } from "./tuning.js";
-import {
-  razedBy,
-  laneMap,
-  WAVE_KINDS,
-  laneCounts,
-  lastWave,
-  waveHp,
-} from "./waves.js";
+import { razedBy, WAVE_KINDS, laneCounts, lastWave, waveHp } from "./waves.js";
 import {
   MARKS,
   NEUTRAL,
@@ -328,9 +321,7 @@ function order(raw: unknown, map: GameMap): Order | undefined {
   };
 }
 
-function hero(raw: unknown, map: GameMap, step: number): Hero | undefined {
-  // On a lane map the respawn wait grows with the match (`respawnSteps`).
-  const late = laneMap(map) ? step : 0;
+function hero(raw: unknown, map: GameMap): Hero | undefined {
   const t = tuple(raw, 31);
   if (!t) return;
   // Items (`items.ts`): a slot holds an item of the shop or nothing, its cooldown never outlasts its active's, and a
@@ -400,8 +391,7 @@ function hero(raw: unknown, map: GameMap, step: number): Hero | undefined {
   if (!isInt(hp, 0, maxHp(level, kind) + bonus.hp)) return;
   if (!isInt(energy, 0, maxEnergy(level) + bonus.energy)) return;
   // A living hero has no respawn timer; a dead one has one running and its gun at rest.
-  if (hp > 0 ? respawn !== 0 : !isInt(respawn, 1, respawnSteps(level, late)))
-    return;
+  if (hp > 0 ? respawn !== 0 : !isInt(respawn, 1, respawnSteps(level))) return;
   if (!isInt(cooldown, 0, hp > 0 ? HERO.cooldown : 0)) return;
   if (!isInt(facing, 0, DIRS.length - 1)) return;
   // A move goal is any open tile, at most one per hero, so the flow cache stays bounded.
@@ -555,7 +545,7 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
     if (count > (key < 0 ? CAMP_GUARDS : UNIT_CAP)) return;
   if (laneCounts(units).some((count) => count > WAVE_CAP)) return;
   // One hero per player, in the players' order.
-  const heroes = list(rawHeroes, MAX_SEATS, (each) => hero(each, map, step));
+  const heroes = list(rawHeroes, MAX_SEATS, (each) => hero(each, map));
   if (
     !heroes ||
     heroes.length !== players.length ||
