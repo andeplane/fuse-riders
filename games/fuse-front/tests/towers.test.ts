@@ -115,12 +115,15 @@ test("a shielded structure shoots but takes no shot, until the one in front fall
 
 test("bot matches on a lane map decode at every checkpoint, tower targets and ramps included", () => {
   let world = createWorld(duel, [0, 1], 4);
+  // Hard against easy, so a wave reaches a tower inside five minutes.
   let aimed = false;
   for (let tick = 0; tick < 5 * 60 * 20; tick++) {
     world = stepTick(
       duel,
       world,
-      world.players.flatMap((p) => botCommands(duel, world, p.seat, "hard")),
+      world.players.flatMap((p) =>
+        botCommands(duel, world, p.seat, p.seat === 0 ? "hard" : "easy"),
+      ),
     );
     if (tick % 25 !== 0) continue;
     aimed ||= world.buildings.some((b) => b.ramp > 1);
