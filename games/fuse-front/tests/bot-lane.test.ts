@@ -10,9 +10,14 @@ import {
   div,
   heroGun,
   heroMaxHp,
+  levelXp,
+  nextBuy,
+  ITEMS,
   teamOf,
   type Command,
   type Difficulty,
+  type Hero,
+  type HeroKind,
   type World,
 } from "../src/engine/index.js";
 import { mapById } from "../src/online/maps.js";
@@ -173,4 +178,45 @@ test("objectives: two heroes standing against none gather on the same enemy stru
   });
   assert.ok(goals[0]?.type === "attackMove", JSON.stringify(goals));
   assert.deepEqual(goals[0], { ...goals[1]!, seat: 0 });
+});
+
+test("ultimates go where they pay: none at level 6 with nothing about, ORBITAL DROP in a fight it takes", () => {
+  const casts = (kind: HeroKind, foe: boolean) => {
+    const world = createWorld(duel, [0, 1], 1, { 0: kind });
+    const [hero, other] = world.heroes as [Hero, Hero];
+    Object.assign(hero, { x: centreOf(60), y: centreOf(115) });
+    Object.assign(hero, { xp: levelXp(6), energy: 200 });
+    // A hurt enemy hero 4 tiles off, or none.
+    if (foe)
+      Object.assign(other, { x: centreOf(63), y: centreOf(112), hp: 100 });
+    else Object.assign(other, { hp: 0, respawn: 900 });
+    return botCommands(
+      duel,
+      { ...world, step: thinking(0, "hard") },
+      0,
+      "hard",
+    ).flatMap((c) => (c.type === "cast" ? [c.slot] : []));
+  };
+  for (const kind of ["brick", "rivet", "tally", "vix"] as const)
+    assert.deepEqual(casts(kind, false), [], kind);
+  assert.deepEqual(casts("brick", true), [3]);
+});
+test("the fountain: a hurt hero rests there, and one with the gold for its next item walks home in a lull", () => {
+  const home = duel.sites.find((s) => s.kind === "fort" && s.seat === 0)!;
+  const resting = lane(home.x, home.y);
+  Object.assign(hero(resting), { hp: 300, goal: 80 * duel.width + 95 });
+  assert.deepEqual(walks(botCommands(duel, resting, 0, "normal")), {
+    seat: 0,
+    type: "move",
+    x: home.x,
+    y: home.y,
+  });
+  const rich = lane(80, 95);
+  hero(rich).gold = ITEMS[nextBuy(hero(rich))]!.cost;
+  assert.deepEqual(walks(botCommands(duel, rich, 0, "normal")), {
+    seat: 0,
+    type: "move",
+    x: home.x,
+    y: home.y,
+  });
 });

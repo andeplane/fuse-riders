@@ -13,12 +13,13 @@
  *    out of an enemy hero's reach.
  * 3. **Towers:** out of an enemy structure's reach unless its wave tanks it (`TANKS`), two heroes stand there with
  *    no enemy hero near, or it outlasts the structure alone (a dive that wins); out at once when one aims at it.
- * 4. **Last hit** the weakest enemy unit its next shot kills, by `Profile.lastHit` percent of the shot's exact damage.
- * 5. **Siege** a structure it may stand by (3). 6. **Group** on the enemy structure nearest the team while it has
+ * 4. **Help** a teammate fighting a hero within `Profile.aware` tiles on its own half of the map.
+ * 5. **Last hit** the weakest enemy unit its next shot kills, by `Profile.lastHit` percent of the shot's exact damage.
+ * 6. **Siege** a structure it may stand by (3). 7. **Group** on the enemy structure nearest the team while it has
  *    more heroes standing (a lone hero only on one it outlasts).
- * 7. **Jungle:** a jungle flag within `Profile.jungle` tiles of walk, from level 3 and healthy, while no enemy stands
+ * 8. **Jungle:** a jungle flag within `Profile.jungle` tiles of walk, from level 3 and healthy, while no enemy stands
  *    near and its lane is pushed past half way (a roamer goes twice as far, whatever its lane).
- * 8. **Lane:** stand at its wave's front, while an enemy hero contests the lane no closer to the enemy wave than its
+ * 9. **Lane:** stand at its wave's front, while an enemy hero contests the lane no closer to the enemy wave than its
  *    gun's reach (so it farms that wave rather than pushes it), 2 tiles ahead when none does or its team leads in
  *    razed structures; in a lull it holds its ground rather than walk back to meet its next wave.
  *
@@ -411,7 +412,20 @@ function decide(
     return back();
   }
 
-  // 4. A last hit, as `combat.ts` counts it; a unit it already chases stays its target a little further out, so a
+  // 4. A teammate's fight on its own half, within its awareness.
+  const enemy = world.players.find((p) => p.team !== team);
+  for (const ally of allies) {
+    if (ally === hero || !near(hero, ally.x, ally.y, profile.aware * TILE))
+      continue;
+    if (!foes.some((h) => h.cloak === 0 && near(ally, h.x, h.y, NEAR)))
+      continue;
+    const theirs = enemy ? fortSite(map, enemy.seat) : fort;
+    const home = d2(ally.x, ally.y, centreOf(fort.x), centreOf(fort.y));
+    if (home <= d2(ally.x, ally.y, centreOf(theirs.x), centreOf(theirs.y)))
+      return walk(...tileOfSpot(ally), true);
+  }
+
+  // 5. A last hit, as `combat.ts` counts it; a unit it already chases stays its target a little further out, so a
   // quick thinker doesn't drop the chase.
   const armoured = upgrades(map, world, 1 - team).armour;
   let finish = -1,
@@ -432,7 +446,7 @@ function decide(
   }
   if (finish >= 0) return attack(0, finish);
 
-  // 5. A siege.
+  // 6. A siege.
   for (const [index, building] of world.buildings.entries()) {
     if (!enemyAt(map, world, team, 2, building.id)) continue;
     const site = map.sites[building.id]!;
@@ -446,7 +460,7 @@ function decide(
   }
   spell("calm");
 
-  // 6. More heroes standing than the enemy: the structure nearest the team, from a lane 4 tiles short of it once two
+  // 7. More heroes standing than the enemy: the structure nearest the team, from a lane 4 tiles short of it once two
   // stand together (or a lone hero outlasts it), else just outside a tower's reach to gather.
   // It counts the enemy heroes it can see: a cloaked one may be about, as a player would risk.
   if (allies.length > foes.filter((h) => h.cloak === 0).length) {
@@ -490,7 +504,7 @@ function decide(
     else if (enemyFront < 0 || at < enemyFront) enemyFront = at;
   }
 
-  // 7. The jungle.
+  // 8. The jungle.
   const half = div(track.at.at(-1)!, 2);
   const pushed = front > half && (enemyFront < 0 || enemyFront > half);
   if (lane < 0 || pushed) {
@@ -504,7 +518,7 @@ function decide(
     if (flag >= 0) return walk(flag % map.width, div(flag, map.width), true);
   }
 
-  // 8. The lane.
+  // 9. The lane.
   const watch = tileAt(track, front < 0 ? mine : front);
   const contested =
     lead <= 0 &&

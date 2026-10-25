@@ -67,13 +67,14 @@ export interface Profile {
   /**
    * On a lane map (`bot-lane.ts`): the hit points (percent) below which it falls back behind its tower, and to which
    * it rests there; the percent of its shot's exact damage at which it takes a last hit (above 100 it shoots too
-   * early); how far (tiles of walk) it detours to a jungle flag; whether a two-seat team plays mid and a roamer; the percent of the enemy's strength its side needs to take a
+   * early); how far (tiles) it sees a teammate's fight to join; how far (tiles of walk) it detours to a jungle flag; whether a two-seat team plays mid and a roamer; the percent of the enemy's strength its side needs to take a
    * fight; and what it weighs in that strength (0 the heroes, 1 also the towers that reach the fight, 2 also the
    * longer gun's free shots).
    */
   retreat: number;
   rested: number;
   lastHit: number;
+  aware: number;
   jungle: number;
   roam: boolean;
   nerve: number;
@@ -82,8 +83,8 @@ export interface Profile {
 
 /**
  * Easy is slow: it wanders between targets, thinks every four seconds, casts only its first slot, takes last hits a
- * half-shot early, stays in fights it loses, retreats late and keeps out of the jungle. Hard
- * thinks every 0.3 s, retreats early and roams in 2v2. None reads what a player can't see.
+ * half-shot early, stays in fights it loses, retreats late, never helps a teammate and keeps out of the jungle. Hard
+ * thinks every 0.3 s, retreats early, sees fights across the map and roams in 2v2. None reads what a player can't see.
  */
 export const PROFILES: Readonly<Record<Difficulty, Readonly<Profile>>> = {
   easy: {
@@ -95,6 +96,7 @@ export const PROFILES: Readonly<Record<Difficulty, Readonly<Profile>>> = {
     retreat: 15,
     rested: 60,
     lastHit: 150,
+    aware: 0,
     jungle: 0,
     roam: false,
     nerve: 60,
@@ -109,6 +111,7 @@ export const PROFILES: Readonly<Record<Difficulty, Readonly<Profile>>> = {
     retreat: 30,
     rested: 85,
     lastHit: 100,
+    aware: 24,
     jungle: 30,
     roam: false,
     nerve: 100,
@@ -123,6 +126,7 @@ export const PROFILES: Readonly<Record<Difficulty, Readonly<Profile>>> = {
     retreat: 25,
     rested: 80,
     lastHit: 100,
+    aware: 40,
     jungle: 40,
     roam: true,
     nerve: 95,

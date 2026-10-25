@@ -229,18 +229,20 @@ test("six bots think within budget", () => {
   const bots = new Map<number, Difficulty>(
     [0, 1, 2, 3, 4, 5].map((seat) => [seat, DIFFICULTIES[seat % 3]!]),
   );
-  let calls = 0,
-    spent = 0;
-  let world = createWorld(map, [...bots.keys()], 1);
-  for (let tick = 0; tick < 2000 && world.winner === NO_WINNER; tick++) {
-    const start = performance.now();
-    const commands = allBots(map, world, bots);
-    spent += performance.now() - start;
-    calls += bots.size;
-    world = stepTick(map, world, commands);
+  for (const board of [map, mapById("crown-jungle")]) {
+    let calls = 0,
+      spent = 0;
+    let world = createWorld(board, [...bots.keys()], 1);
+    for (let tick = 0; tick < 2000 && world.winner === NO_WINNER; tick++) {
+      const start = performance.now();
+      const commands = allBots(board, world, bots);
+      spent += performance.now() - start;
+      calls += bots.size;
+      world = stepTick(board, world, commands);
+    }
+    // Generous: measured near 0.01 ms a call on either map; a tick is 50 ms.
+    assert.ok(spent / calls < 0.5, `${(spent / calls).toFixed(3)} ms a call`);
   }
-  // Generous: measured near 0.01 ms a call; a tick is 50 ms.
-  assert.ok(spent / calls < 0.5, `${(spent / calls).toFixed(3)} ms a call`);
 });
 
 test("pickHeroes keeps each hero once a team: picks first, then the rest from a place their seat sets", () => {
