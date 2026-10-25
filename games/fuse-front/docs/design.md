@@ -277,6 +277,7 @@ chunky robots, team-coloured forts and factories, the riveted steel HUD) but ren
   (`units.ts`). Every robot has a `near` and a `far` model; a unit past `LOD_FAR` tiles from the camera, or any unit
   at `?quality=low`, draws the far one (plain plates, no decals or small parts, steel drawn as the dark frame).
 
+  ![The approved concept render the robots follow](images/concept-robots-units.png)
   ![Robot units at the default zoom](images/robots-units.png)
   ![Zoomed in on a squad of grunts](images/robots-units-close.png)
 
