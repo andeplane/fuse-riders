@@ -1316,8 +1316,8 @@ export class RoomRuntime<
   /**
    * One loop pass, then a fresh step budget for the next 10 ms: rollbacks in packet handlers until then draw on it too.
    * `dependencies.schedule` drives this every 10 ms in a page; a deterministic test drives it directly. A pass that
-   * comes late, because the page spent the gap since the last one painting, runs in a window as large as the
-   * intervals it missed (at most `CATCHUP_PASSES`): a window sized for 10 ms would let the world fall further behind
+   * comes late (two or more whole intervals), because the page spent the gap since the last one painting, runs in a
+   * window as large as the intervals that passed (at most `CATCHUP_PASSES`): a window sized for 10 ms would let the world fall further behind
    * the clock on every such pass, so this device's own entries, stamped for the clock's tick, would apply ever later.
    * The gap runs from the end of the last pass, so a pass's own steps never make the next window larger.
    */
