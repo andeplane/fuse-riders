@@ -17,6 +17,8 @@
  *   flares the flag it heads for and dashes toward it. An easy bot casts only its first slot.
  * - Stance: HOLD when its fort's sector is invaded or the team is behind on sectors or army, else PUSH; a profile
  *   with `lead` set FOLLOWs its healthy hero onto a fort when well ahead (none does now).
+ * - On a lane map (`waves.ts`) the hero attack-moves down the lane its seat plays, then onto the enemy fort; there
+ *   is no stance or factory order to choose.
  * - Orders: a robot factory builds grunts while flags lie neutral, torches against a robot swarm or enemy turrets and
  *   forts near it, and grunts otherwise; it only switches early in a batch so little work is thrown away.
  */
@@ -28,6 +30,7 @@ import { centreOf, tileOf } from "./move.js";
 import { fnv1a, next } from "./rng.js";
 import { kitOf, type Chosen } from "./spells.js";
 import type { Command } from "./step.js";
+import { aheadOf, laneMap, seatLane, waypoints } from "./waves.js";
 import {
   HEROES,
   HERO_KINDS,
@@ -184,6 +187,8 @@ export function botCommands(
   if (tick % profile.think === 0) {
     commands.push(...heroCommands(map, world, hero, profile, player.stance));
   }
+  // A lane map's army is its waves (`waves.ts`): no stance or factory orders to choose.
+  if (laneMap(map)) return commands;
   if (tick % profile.plan === 0) {
     const stance = chooseStance(map, world, seat, hero, profile, tick);
     if (stance !== player.stance)
@@ -350,10 +355,13 @@ function heroCommands(
     return commands;
   }
   if (hero.focusOf >= 0) return commands;
-  // The way to an enemy fort is an attack-move: the hero stands to fight what it meets, beside its army.
-  const fort = map.sites.some(
-    (site) => site.kind === "fort" && site.y * map.width + site.x === goal,
-  );
+  // The way to an enemy fort, and every walk down a lane, is an attack-move: the hero stands to fight what it meets,
+  // beside its army.
+  const fort =
+    laneMap(map) ||
+    map.sites.some(
+      (site) => site.kind === "fort" && site.y * map.width + site.x === goal,
+    );
   if (
     goal >= 0 &&
     goal !== at &&
@@ -376,6 +384,14 @@ function heroGoal(
   stance: Stance,
 ): number {
   const team = teamOf(hero.seat);
+  if (laneMap(map)) {
+    // Down its lane, waypoint by waypoint (`waves.ts`), then onto the enemy fort.
+    const lane = map.lanes[seatLane(map, world, hero.seat)]!;
+    const path = waypoints(lane, team);
+    const spot = path[aheadOf(path, hero.x, hero.y)];
+    if (spot === undefined) return enemyFort(map, world, team, at);
+    return spot.y * map.width + spot.x;
+  }
   if (stance === "follow") return enemyFort(map, world, team, at);
   const candidates: [number, number][] = [];
   for (const [index, flag] of map.flags.entries()) {

@@ -2,9 +2,13 @@
  * The maps a room can play, by id. Dust Basin is the small one; the others come from the generator
  * (`tools/mapgen.ts`), one per team size at about the scale of Z and StarCraft. A map holds a team size when it has a
  * fort for every slot: seats 0 to 2·size − 1. With no map chosen a match plays its size's default; a chosen map too
- * small for the size the match starts at gives way to that default too, so a start never fails over the map.
+ * small for the size the match starts at gives way to that default too, so a start never fails over the map. The lane
+ * maps (`tools/mapgen/lanes.ts`) load (`mapById`) but join the room's list only once v3 M2 has towers and a core.
  */
 import { loadMap, type GameMap } from "../engine/index.js";
+import neonDuel from "../../maps/neon-duel.json";
+import twinWilds from "../../maps/twin-wilds.json";
+import crownJungle from "../../maps/crown-jungle.json";
 import dustBasin from "../../maps/dust-basin.json";
 import rustCanyon from "../../maps/rust-canyon.json";
 import glassLakes from "../../maps/glass-lakes.json";
@@ -19,13 +23,20 @@ export interface MapChoice {
   teams: number;
 }
 
-const FILES: Readonly<Record<string, unknown>> = {
+const ROOM: Readonly<Record<string, unknown>> = {
   "dust-basin": dustBasin,
   "rust-canyon": rustCanyon,
   "glass-lakes": glassLakes,
   "iron-delta": ironDelta,
 };
-export const MAP_IDS: readonly string[] = Object.keys(FILES);
+const FILES: Readonly<Record<string, unknown>> = {
+  ...ROOM,
+  "neon-duel": neonDuel,
+  "twin-wilds": twinWilds,
+  "crown-jungle": crownJungle,
+};
+/** The maps a room offers. */
+export const MAP_IDS: readonly string[] = Object.keys(ROOM);
 /** The map a team size plays when none is chosen. */
 export const DEFAULT_MAPS: Readonly<Record<number, string>> = {
   1: "rust-canyon",
@@ -34,7 +45,7 @@ export const DEFAULT_MAPS: Readonly<Record<number, string>> = {
 };
 
 const loaded = new Map<string, GameMap>();
-/** The loaded map for an id from `MAP_IDS`, loaded once and shared (a map holds no state). */
+/** The loaded map for a room's map id (`MAP_IDS`) or a lane map, loaded once and shared (a map holds no state). */
 export function mapById(id: string): GameMap {
   let map = loaded.get(id);
   if (map === undefined) {
