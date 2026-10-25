@@ -333,3 +333,108 @@ chunky robots, team-coloured forts and factories, the riveted steel HUD) but ren
 - **G2:** procedural unit, hero and building models.
 - **G3:** effects, target lines, range and area-of-effect previews.
 - **G4:** HUD tooltips and polish.
+
+## v3: a MOBA with Z's territory (2026-10-25)
+
+Playing v2 made it clear that Fuse Front is a MOBA, not an RTS: you steer one hero, and the army fights on its own. v3
+rebalances the game around MOBA principles and keeps Z's territory war as the twist. The user chose four things:
+
+- three lanes with towers, plus Z sectors kept as jungle factories;
+- gold and a small shop;
+- automatic waves that captured factories upgrade;
+- 15–20 minute matches.
+
+**Map.** Three lanes (top, mid, bottom) join the two bases.
+
+- **Towers:** each lane has two towers per side and a gate turret at the base. The base core is the fort, and
+  destroying the enemy fort wins.
+- **Protected structures:** the next structure down a lane can't be damaged while the one in front of it stands, so
+  there are no backdoors.
+- **Jungle sectors:** the ground between the lanes is jungle, cut into Z sectors. Each has a flag and a robot or
+  vehicle factory, guarded by a neutral sentry camp. Lane ground has no flags; the towers are what you fight over.
+- **Maps:** the map generator gains lane templates, with 3 lanes for 2v2 and 3v3 and a single mid lane for a 1v1 map.
+
+**Waves instead of factory orders.**
+
+- **Base wave:** every 30 s each lane spawns three grunts and a torch from each fort. They march down the lane on
+  attack-move, fight the first enemies they meet, then push on to towers.
+- **Growth:** waves get slowly tougher over the match, so a game always ends.
+- **Factory upgrades:** a captured jungle factory upgrades its owner's waves while held. A robot factory gives grunt
+  armour and an extra torch; a vehicle factory adds a light tank to every third wave. Losing the sector loses the
+  upgrade.
+- **Stance:** the stance switch and per-factory unit orders go away; the army is the lanes.
+
+**Heroes and gold.**
+
+- **Gold sources:**
+  - a last hit on an enemy robot (the killing blow);
+  - kills and assists on heroes, including a bounty that grows with the victim's kill streak;
+  - towers, shared by the team;
+  - jungle camps and captures;
+  - a small passive trickle.
+- **XP:** goes to every hero of the team within range of a death, so standing in lane matters.
+- **Progression:** levels run 1–12, faster than v2, and respawn timers grow with level.
+- **Healing:** a hero heals quickly at its own fort (the fountain).
+
+**Shop.**
+
+- About 12 items, bought at your fort, with 6 inventory slots.
+- Basics cover damage, armour, hit points, energy, cooldown, move speed and attack speed. A few have an active or
+  aura (a shield, a blink, a team heal), so a build is a real choice.
+- Prices are tuned so that each hero finishes 3–4 items by minute 15.
+
+**Towers and fairness.**
+
+- A tower attacks the nearest enemy robot. It switches to an enemy hero that attacks a friendly hero inside its
+  range.
+- Tower damage ramps on the same target, so diving under a tower is a real cost.
+- First-tower gold is shared.
+
+**Bots.**
+
+- Each takes a lane: 3v3 gives one per lane.
+- They last-hit and retreat to heal at low health.
+- They buy items from a build list for their hero.
+- They take jungle factories when their lane is pushed.
+- They join fights on their own side of the map.
+
+**Pace.**
+
+- The target is 15–20 minutes. Tower hit points, wave growth and respawn timers are tuned to it.
+- The bot league test asserts that every match ends in that window. It's measured on the new lane maps for 1v1, 2v2
+  and 3v3.
+
+**v3 delivery (each PR under ~1,000 lines):**
+
+- **M1:** lane maps: lane paths and tower slots in the map format, lane templates in the generator, and new maps.
+- **M2:** waves, towers with protection and aggro rules, the core, and factory upgrades in place of unit orders.
+- **M3:** gold, the shop, inventory, items and fountain healing.
+- **M4:** hero progression and balance: XP sharing, levels 1–12, respawn scaling and bounties.
+- **M5:** MOBA bots: laning, last hits, retreat, item builds and jungle captures.
+- **M6:** UI: gold, the shop panel, item slots, lane and tower markers on the minimap, and the stance UI removed.
+- **M7:** the 15–20 minute tuning pass with the league test.
+
+**M1 as built.** A map file may carry `lanes`, `camps` and `symmetry` (`src/engine/map.ts`); maps without them load as
+before, and M2 decides whether lanes become required.
+
+- **Lanes:** each lane (`top`, `mid`, `bot`) has a `path` of 2–32 waypoints from team 0's base to team 1's. Each
+  waypoint is walkable and joined to the one before by a straight line that walks without cutting a corner
+  (`traceLine`). Each waypoint lies further from seat 0's fort and nearer seat 1's by the engine's flow fields, and
+  the ends lie within 16 tiles of a fort of each team.
+- **Sides:** a lane has one side per team, each with two towers (outer, then inner) and a gate. Every slot is on open
+  ground within 4 tiles of the path and nearer its own fort than the enemy's, and each slot is nearer its base than
+  the one before it. The gate also lies within 16 tiles of one of its team's forts. No slot or camp may stand on a
+  factory's door.
+- **Jungle:** on a lane map, every sector that isn't a fort's home is jungle (`GameMap.sectorKinds`). It holds exactly
+  one camp and at least one factory. Its flag and camp stand more than 3 tiles from every lane path, because lane
+  ground carries neither. Sectors still come from flags alone, so lane tiles still belong to the nearest sector.
+- **Symmetry:** a `symmetry` field makes the loader check the map against its own image: terrain, flags, sites (fort
+  2k against 2k + 1) and camps. It also checks each lane against the reversed image of a lane, with the sides
+  swapped. Under a half turn that image is the other lane (top for bot); under a mirror it is the same lane.
+- **Generator:** `tools/mapgen/lanes.ts` makes square, half-turn maps with corner bases and a river on the other
+  diagonal. Top and bot bridge the river, mid fords it, and each jungle half has one more ford. The jungle gets
+  Poisson-disc rock clumps and Poisson-disc flags, each flag with a robot or vehicle factory and a camp.
+- **Maps:** Neon Duel (1v1, 176², mid only), Twin Wilds (2v2, 176²) and Crown Jungle (3v3, 180²) are committed but
+  stay out of the room's map list until M2 gives them waves and towers. A grunt walks mid in 60–62 s and top or bot
+  in 87–89 s (`mapgen.ts` prints the times).
+- **View:** `WorldView.lanes` and `WorldView.camps` carry the paths and slots for the minimap and renderers.
