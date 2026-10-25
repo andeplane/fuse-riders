@@ -23,7 +23,10 @@ const errors = [];
 /** CREATE ROOM, 2V2, a hero for every seat, START. */
 async function lobby(page) {
   await page.getByRole("button", { name: "CREATE ROOM" }).click();
-  await page.locator(".ff-team-0 .ff-seat").first().waitFor({ timeout: 15_000 });
+  await page
+    .locator(".ff-team-0 .ff-seat")
+    .first()
+    .waitFor({ timeout: 15_000 });
   await page.getByRole("button", { name: "2V2" }).click();
   await page.locator(".ff-team-1 .ff-seat").nth(1).waitFor({ timeout: 15_000 });
   const pick = async (team, seat, hero) => {
