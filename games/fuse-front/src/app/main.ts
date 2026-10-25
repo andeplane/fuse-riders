@@ -160,7 +160,7 @@ function landing(error = ""): void {
     card.element,
     el(
       "p",
-      "Right-click to move or attack · A + click: attack-move · Shift queues orders · Q W E R: cast or aim · Z / X: zoom · Tab: the fight · Home: your fort",
+      "Right-click to move or attack · A + click: attack-move · Shift queues orders · Q W E R: cast or aim · 1–6: items · B: shop · Z / X: zoom · Tab: the fight · Home: your fort",
       "ff-help",
     ),
   );
@@ -189,7 +189,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
   let drawn = "";
   let drawnFor: WorldView | undefined;
   const refresh = () => {
-    const key = `${mode.kind}:${mode.kind === "aim" ? mode.slot : ""}:${cursor?.x},${cursor?.y}`;
+    const key = `${mode.kind}:${mode.kind === "aim" || mode.kind === "item" ? mode.slot : ""}:${cursor?.x},${cursor?.y}`;
     if (!shown || (shown === drawnFor && key === drawn)) return;
     [drawn, drawnFor] = [key, shown];
     field.overlay = overlayOf(shown, runtime.slot(), mode, cursor);
@@ -313,7 +313,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
     const text = countdown
       ? `Starting in ${countdown}…`
       : slot >= 0
-        ? `${TEAMS[slot % 2]} · right-click: move, or attack an enemy · A then click: attack-move · Shift + click queues · Q W E R: cast or aim, then click · Esc cancels · Space or F follows · Z/X zoom · Home fort · Tab fight · right-click the minimap to move`
+        ? `${TEAMS[slot % 2]} · right-click: move, or attack an enemy · A then click: attack-move · Shift + click queues · Q W E R: cast or aim, then click · 1–6 items · B shop · Esc cancels · Space or F follows · Z/X zoom · Home fort · Tab fight · right-click the minimap to move`
         : "Watching";
     if (hint.textContent !== text) hint.textContent = text;
     const over = view.stage === "over";

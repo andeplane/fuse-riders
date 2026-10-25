@@ -115,8 +115,14 @@ export const modeFor = (
   world: WorldView | undefined,
   seat: number,
   mode: Mode,
-): Mode =>
-  mode.kind !== "idle" && !(world && heroOf(world, seat)) ? IDLE : mode;
+): Mode => {
+  const hero = world && heroOf(world, seat);
+  if (mode.kind !== "idle" && !hero) return IDLE;
+  // A BLINK aimed from a slot that no longer holds one (sold) disarms too.
+  if (mode.kind === "item" && !ITEMS[hero!.items[mode.slot] ?? -1]?.range)
+    return IDLE;
+  return mode;
+};
 
 /** What the next click means: nothing armed, an attack-move armed (A), or a spell slot aiming. */
 export type Mode =
