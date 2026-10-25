@@ -532,3 +532,16 @@ before, and M2 decides whether lanes become required.
   minute 5, 3,500–5,700 by minute 10 and 5,900–6,900 by minute 15 on Neon Duel, Twin Wilds and Crown Jungle. Match
   lengths are unchanged.
 - **HUD:** the gold counter sits at the right of the hero's name.
+- **Items (M3b, the table in `src/engine/items.ts`, the rules in `src/engine/shop.ts`):** twelve items in four
+  categories (weapons, armour, systems, special), 6 slots a hero.
+  - **Stats:** gun damage, armour, hit points, energy, spell cooldown cut, speed and haste (faster reload). They add
+    up, with armour capped at 50 percent, cooldown cut at 40 and haste at 100. An item's hit points and energy come
+    with it when bought and go when it's sold.
+  - **Actives and the aura:** the Aegis Projector's SHIELD halves the damage taken for 4 s (40 s cooldown). The Phase
+    Coil's BLINK jumps to an open tile within 6 tiles (25 s). The Mender Beacon heals its carrier and allied heroes
+    within 6 tiles 20 hit points a second.
+  - **Buying and selling:** a living hero buys and sells only in its own fort's courtyard. A buy takes the first empty
+    slot and needs the gold. A sale refunds half the cost.
+  - **Commands:** `buy(item)`, `sell(slot)` and `useItem(slot, x, y)` go on the wire as control kinds 7, 8 and 9.
+    `isEntry` checks their shape and ranges, and the engine refuses one it may not do, which then does nothing.
+  - **Checkpoint:** each hero adds its items, its slots' cooldowns and its SHIELD. RULES is `fuse-front-17`.

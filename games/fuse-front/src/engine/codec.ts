@@ -20,6 +20,13 @@ import {
 } from "./spells.js";
 import { ORDER_KINDS, castable, type Order } from "./orders.js";
 import { fnv1a } from "./rng.js";
+import {
+  ITEMS,
+  ITEM_SLOTS,
+  SHIELD_STEPS,
+  bonusOf,
+  slotCooldown,
+} from "./items.js";
 import { shielded } from "./towers.js";
 import {
   BUILDING_HP,
@@ -154,6 +161,9 @@ export function encodeWorld(world: World): unknown {
       h.gold,
       h.streak,
       [...h.hurt],
+      [...h.items],
+      [...h.itemCooldowns],
+      h.shield,
     ]),
     world.winner,
     world.mines.map((m) => [m.owner, m.x, m.y, m.life, m.stuck]),
@@ -321,8 +331,22 @@ function order(raw: unknown, map: GameMap): Order | undefined {
 function hero(raw: unknown, map: GameMap, step: number): Hero | undefined {
   // On a lane map the respawn wait grows with the match (`respawnSteps`).
   const late = laneMap(map) ? step : 0;
-  const t = tuple(raw, 28);
+  const t = tuple(raw, 31);
   if (!t) return;
+  // Items (`items.ts`): a slot holds an item of the shop or nothing, its cooldown never outlasts its active's, and a
+  // SHIELD never outlasts the longest one, nor a fall.
+  const items = tuple(t[28], ITEM_SLOTS);
+  if (!items?.every((id) => isInt(id, -1, ITEMS.length - 1))) return;
+  const slotsCd = tuple(t[29], ITEM_SLOTS);
+  if (
+    !slotsCd?.every((left, slot) =>
+      isInt(left, 0, slotCooldown(items[slot] as number)),
+    )
+  )
+    return;
+  const shield = t[30];
+  if (!isInt(shield, 0, t[3] === 0 ? 0 : SHIELD_STEPS)) return;
+  const bonus = bonusOf(items as number[]);
   // Gold (`gold.ts`): a bounded purse and streak, and per seat a countdown of hits that never outlasts the window.
   const [gold, streak] = [t[25], t[26]];
   if (!isInt(gold, 0, GOLD.max) || !isInt(streak, 0, GOLD.streakMax)) return;
@@ -373,8 +397,8 @@ function hero(raw: unknown, map: GameMap, step: number): Hero | undefined {
   if (!isInt(x, 0, map.width * TILE - 1) || !isInt(y, 0, map.height * TILE - 1))
     return;
   if (!openTile(map, div(x, TILE), div(y, TILE))) return;
-  if (!isInt(hp, 0, maxHp(level, kind)) || !isInt(energy, 0, maxEnergy(level)))
-    return;
+  if (!isInt(hp, 0, maxHp(level, kind) + bonus.hp)) return;
+  if (!isInt(energy, 0, maxEnergy(level) + bonus.energy)) return;
   // A living hero has no respawn timer; a dead one has one running and its gun at rest.
   if (hp > 0 ? respawn !== 0 : !isInt(respawn, 1, respawnSteps(level, late)))
     return;
@@ -423,6 +447,9 @@ function hero(raw: unknown, map: GameMap, step: number): Hero | undefined {
     gold,
     streak,
     hurt: hurt as number[],
+    items: items as number[],
+    itemCooldowns: slotsCd as number[],
+    shield,
   };
 }
 

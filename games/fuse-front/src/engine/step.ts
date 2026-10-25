@@ -1,5 +1,5 @@
 /**
- * One engine step: spell timers (`spells.ts`), the step's commands (casts take effect here), idle heroes' queued
+ * One engine step: spell and item timers (`spells.ts`, `shop.ts`), the step's commands (casts take effect here), idle heroes' queued
  * orders (`orders.ts`), the heroes' energy and respawns (`hero.ts`), goals (`move.ts`), combat (`combat.ts`), focused
  * heroes' chase (`focus.ts`), movement of units then heroes, STICKY MINEs (`spells.ts`), capture, and production or a lane map's waves
  * (`waves.ts`). `step` never mutates the world it is given: it copies the arrays and records
@@ -27,6 +27,8 @@ import { centreOf, chooseGoals, moveUnits, tileOf } from "./move.js";
 import { laneMap, spawnWaves } from "./waves.js";
 import { guarded, tendCamps } from "./jungle.js";
 import { earn } from "./gold.js";
+import { ITEMS, ITEM_SLOTS } from "./items.js";
+import { buy, sell, tickItems, useItem } from "./shop.js";
 import {
   CAPTURE_XP,
   COMMANDS_PER_SEAT,
@@ -63,6 +65,8 @@ import {
  * the living hero on an enemy (`MARKS` index and id, `focus.ts`), which a later `move`, `attackMove`, held `steer` or
  * `attack` replaces; `attackMove` is a `move` on which the hero stands to fight whatever comes in range. A `move`,
  * `attackMove`, `attack` or `cast` marked `queued` goes behind the hero's current order instead (`orders.ts`).
+ * `buy` an `ITEMS` id, `sell` a slot's item and `useItem` a slot's active aimed at a tile go to the shop
+ * (`shop.ts`), which refuses one it may not do.
  */
 export type Command =
   | { seat: number; type: "move"; x: number; y: number; queued?: boolean }
@@ -85,7 +89,10 @@ export type Command =
       of?: number;
       id?: number;
       queued?: boolean;
-    };
+    }
+  | { seat: number; type: "buy"; item: number }
+  | { seat: number; type: "sell"; slot: number }
+  | { seat: number; type: "useItem"; slot: number; x: number; y: number };
 
 export function step(
   map: GameMap,
@@ -109,6 +116,7 @@ export function step(
     events: [],
   };
   tickSpells(next);
+  tickItems(next);
   applyCommands(map, next, commands);
   advanceOrders(map, next);
   tendHeroes(map, next);
@@ -197,6 +205,20 @@ function applyCommands(
         clearQueue(hero);
         startAttack(hero, of, id);
       }
+    } else if (command.type === "buy" || command.type === "sell") {
+      const hero = world.heroes.find((each) => each.seat === player.seat)!;
+      if (command.type === "buy") {
+        if (isInt(command.item, 0, ITEMS.length - 1))
+          buy(map, hero, command.item);
+      } else if (isInt(command.slot, 0, ITEM_SLOTS - 1))
+        sell(map, hero, command.slot);
+    } else if (command.type === "useItem") {
+      const { slot, x, y } = command;
+      if (!isInt(slot, 0, ITEM_SLOTS - 1) || !isInt(x, 0, map.width - 1))
+        continue;
+      if (!isInt(y, 0, map.height - 1)) continue;
+      const hero = world.heroes.find((each) => each.seat === player.seat)!;
+      useItem(map, world, hero, slot, x, y);
     } else if (command.type === "cast") {
       const { slot, x, y, of, id } = command;
       if (!isInt(slot, 0, 3) || !isInt(x, 0, map.width - 1)) continue;

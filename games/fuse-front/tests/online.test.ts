@@ -1,10 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { ACTION, BOT, JOIN, LEAVE } from "fuse-netcode";
-import { NO_WINNER, STEPS_PER_TICK } from "../src/engine/index.js";
+import { ITEMS, NO_WINNER, STEPS_PER_TICK } from "../src/engine/index.js";
 import {
   ATTACK,
   ATTACK_MOVE,
+  BUY,
+  SELL,
+  USE_ITEM,
   CAST,
   COUNTDOWN_TICKS,
   DEFAULT_SETTINGS,
@@ -138,6 +141,31 @@ test("an ATTACK entry focuses the rider's hero, and an ATTACK_MOVE sends it on a
   assert.equal(room.world!.heroes[0]!.sweep, 1);
 });
 
+test("BUY, SELL and USE_ITEM entries work the shop for the rider's hero at its fort", () => {
+  const { room, entries } = match({ size: 1 });
+  const rich = room.world!.heroes.map((h, i) =>
+    i === 0 ? { ...h, gold: 5000 } : h,
+  );
+  room.world = { ...room.world!, heroes: rich };
+  // Track Boots (id 8) into slot 0; Aegis Projector (id 9) into slot 1 and raised at once.
+  log(room, entries, "host", BUY, "match-1", 8);
+  log(room, entries, "host", BUY, "match-1", 9);
+  log(room, entries, "host", USE_ITEM, "match-1", 1, 0, 0);
+  fold(room, entries, 1);
+  let hero = room.world!.heroes[0]!;
+  assert.deepEqual(hero.items.slice(0, 2), [8, 9]);
+  assert.ok(hero.shield > 0);
+  assert.equal(hero.gold, 5000 - ITEMS[8]!.cost - ITEMS[9]!.cost);
+  log(room, entries, "host", SELL, "match-1", 0);
+  fold(room, entries, 1);
+  hero = room.world!.heroes[0]!;
+  assert.deepEqual(hero.items.slice(0, 2), [-1, 9]);
+  assert.equal(
+    hero.gold,
+    5000 - ITEMS[8]!.cost - ITEMS[9]!.cost + ITEMS[8]!.cost / 2,
+  );
+});
+
 test("a queued MOVE entry goes behind the hero's current order, and a plain one clears the queue", () => {
   const { room, entries } = match({ size: 1 });
   log(room, entries, "host", MOVE, "match-1", 88, 88);
@@ -253,6 +281,11 @@ test("isEntry takes well-formed controls and refuses anything out of shape or ra
     [1, 1, ATTACK, "m", 0, 12, 1],
     [1, 1, CAST, "m", 3, 0, 0, 1],
     [1, 1, CAST, "m", 0, 9, 6, 0, 12, 1],
+    // The shop (v3 M3): an item id, a slot, a slot and a tile.
+    [1, 1, BUY, "m", 0],
+    [1, 1, BUY, "m", 11],
+    [1, 1, SELL, "m", 5],
+    [1, 1, USE_ITEM, "m", 0, 255, 255],
     [1, 1, JOIN, "a", "Ann", 5, "brick", 1],
     [1, 1, ACTION, "start", "m"],
   ];
@@ -289,7 +322,18 @@ test("isEntry takes well-formed controls and refuses anything out of shape or ra
     [1, 1, CAST, "m", 0, 0, 0, 0, 1, 0],
     [1, 1, CAST, "m", 0, 0, 0, 0, 1, 1, 1],
     [1, 1, STEER, "m", 0, 0, 1],
-    [1, 1, 7, "m", 0, 0],
+    [1, 1, BUY, "m", 12],
+    [1, 1, BUY, "m", -1],
+    [1, 1, BUY, "m", 0.5],
+    [1, 1, BUY, "m", 0, 1],
+    [1, 1, BUY, "m"],
+    [1, 1, SELL, "m", 6],
+    [1, 1, SELL, "m", "0"],
+    [1, 1, USE_ITEM, "m", 6, 0, 0],
+    [1, 1, USE_ITEM, "m", 0, 256, 0],
+    [1, 1, USE_ITEM, "m", 0, 0],
+    [1, 1, USE_ITEM, "m", 0, 0, 0, 1],
+    [1, 1, 10, "m", 0, 0],
     [1, 1, 5, "m", 0],
     [1, 1, JOIN, "a", "Ann", 6, "brick", 1],
     [1, 1, JOIN, "a", "Ann", 0, "gunship", 1],

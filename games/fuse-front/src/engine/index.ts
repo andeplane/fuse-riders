@@ -17,5 +17,7 @@ export * from "./waves.js";
 export * from "./towers.js";
 export * from "./jungle.js";
 export * from "./gold.js";
+export * from "./items.js";
+export * from "./shop.js";
 export { next, roll, fnv1a, seedOf } from "./rng.js";
 export { clamp, div, ceilDiv, imul, isqrt } from "./math.js";
