@@ -1,22 +1,38 @@
-/* A steel-and-hazard look: the lobby in flat colours, the match HUD in Z-style pixel-art steel. */
+/* The 3D robot look: dark glass and steel panels, Oxanium for display and Barlow for body, team red and blue, gold. */
+body.fui-app {
+  --fui-font-pixel: "Oxanium", ui-sans-serif, sans-serif;
+  --fui-font-body: "Barlow", ui-sans-serif, sans-serif;
+  --fui-cyan: #f2c14e;
+  --fui-cyan-fill: #f2c14e;
+  --fui-glow-cyan: none;
+  --fui-border: 1px solid #343a42;
+  --fui-panel: #1b1f24;
+  --fui-surface: #262b32;
+  --fui-button-fill: #262b32;
+  background: #121417;
+}
 #app {
-  --ff-steel: #3a3a34;
-  --ff-plate: #24231e;
-  --ff-hazard: #f8d030;
-  max-width: 1000px;
+  --ff-steel: #343a42;
+  --ff-plate: #1b1f24;
+  --ff-hazard: #f2c14e;
+  --ff-glass: rgba(22, 25, 30, 0.94);
+  --ff-muted: #a8b0ba;
+  --ff-display: "Oxanium", ui-sans-serif, sans-serif;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 12px 16px 32px;
+  color: #eef1f4;
 }
 .ff-top {
   display: flex;
   align-items: center;
   gap: 12px;
   padding-bottom: 10px;
-  border-bottom: 3px solid var(--ff-hazard);
+  border-bottom: 1px solid var(--ff-steel);
 }
 .ff-brand {
   color: var(--ff-hazard);
-  font-weight: 800;
+  font: 800 1.1rem var(--ff-display);
   letter-spacing: 0.12em;
   text-decoration: none;
 }
@@ -32,7 +48,7 @@
 .ff-help,
 .ff-status,
 .ff-hud {
-  color: #c8bfa4;
+  color: var(--ff-muted);
   text-align: center;
 }
 .ff-sizes {
@@ -44,61 +60,115 @@
   flex-wrap: wrap;
 }
 .ff-sizes .ff-on {
-  outline: 3px solid var(--ff-hazard);
+  outline: 2px solid var(--ff-hazard);
+}
+/* The lobby: wider than fuse-ui's default, hero cards over two team panels of seat chips. */
+.ff-lobby .fui-lobby {
+  width: min(72rem, 100%);
+}
+.ff-roster h2,
+.ff-team-name {
+  margin: 0;
+  font: 800 1.5rem var(--ff-display);
+  letter-spacing: 0.06em;
+  color: var(--ff-hazard);
+}
+.ff-heroes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 10px 0 16px;
+}
+#app .ff-hero {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--ff-plate);
+  border: 1px solid var(--ff-steel);
+  text-align: left;
+}
+.ff-hero .ff-portrait {
+  width: 100%;
+  aspect-ratio: 1;
+  background: radial-gradient(circle at 50% 40%, #3a2e26, #16181c 75%);
+}
+.ff-hero-words {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px 12px;
+}
+.ff-hero b {
+  font: 800 1.25rem var(--ff-display);
+  color: var(--ff-hazard);
+}
+.ff-role {
+  color: #ff8a70;
+  font-weight: 600;
+}
+#app .ff-hero.ff-mine {
+  border: 3px solid var(--ff-hazard);
+  box-shadow: 0 0 0 4px rgba(242, 193, 78, 0.18);
+}
+.ff-hero.ff-taken {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 .ff-teams {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 16px;
 }
 .ff-team {
-  list-style: none;
-  margin: 0;
-  border-top: 6px solid #e8483c;
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--ff-plate);
+  border: 1px solid var(--ff-steel);
 }
-.ff-team-1 {
-  border-top-color: #4a86f0;
+.ff-team .ff-team-name {
+  font-size: 1rem;
+  color: color-mix(in srgb, var(--ff-team) 60%, #fff);
+}
+.ff-seats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .ff-seat {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 0;
-  border-top: 1px solid var(--ff-steel);
+  border-radius: 4px;
+  background: #262b32;
+  border: 1px solid #3a4048;
 }
-.ff-heroes {
-  display: flex;
-  flex-wrap: wrap;
-  flex-basis: 100%;
-  gap: 4px;
-  margin-top: 4px;
+.ff-seat.ff-own {
+  background: var(--ff-team);
 }
-.ff-heroes .ff-hero {
-  display: grid;
-  padding: 2px;
-  min-width: 0;
+.ff-seat.ff-on {
+  outline: 2px solid var(--ff-hazard);
+}
+#app :is(.ff-seat-pick, .ff-cycle) {
   min-height: 0;
-  border-radius: 0;
-  background: var(--ff-plate);
-  border: 2px solid var(--ff-steel);
-  cursor: pointer;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font-weight: 600;
+  text-transform: capitalize;
 }
-.ff-hero canvas {
-  image-rendering: pixelated;
-}
-.ff-heroes .ff-hero:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
-.ff-heroes .ff-hero.ff-on {
-  opacity: 1;
-  border-color: var(--ff-hazard);
-}
-.ff-cycle {
+#app .ff-cycle {
   color: var(--ff-hazard);
-  padding: 2px 10px;
-  cursor: pointer;
+}
+#app .ff-start {
+  min-width: 200px;
+  border: 0;
+  background: #e0442c;
+  color: #fff;
+  font: 800 1.4rem var(--ff-display);
+  letter-spacing: 0.1em;
 }
 .ff-play {
   position: relative;
@@ -115,9 +185,8 @@
 .ff-board-3d {
   image-rendering: auto;
 }
-/* The HUD: steel and frame textures are pixel art painted once (hud.ts) and scaled 2x, never smoothed. */
-.ff-stage,
-.ff-bay {
+/* The HUD: a slim top bar and a glass bottom panel. */
+.ff-stage {
   position: relative;
 }
 .ff-bar,
@@ -126,133 +195,259 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  gap: 4px 10px;
-  image-rendering: pixelated;
-  background: var(--ff-steel-tile) 0 0 / 32px;
-  border: 8px solid transparent;
-  border-image: var(--ff-frame-steel) 4 / 8px;
-  font:
-    800 0.8rem ui-monospace,
-    monospace;
-  color: #f0ead0;
-  text-shadow: 2px 2px 0 #101010;
+  gap: 8px 16px;
+  padding: 8px 16px;
+  background: var(--ff-glass);
+  border: 1px solid var(--ff-steel);
+  border-radius: 6px;
+  font-size: 0.85rem;
 }
-.ff-meter,
+.ff-bar {
+  background: #181b20;
+  box-shadow: inset 0 1px 0 #2b3138;
+}
+.ff-panel {
+  align-items: stretch;
+  padding: 14px 18px;
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.35);
+}
+.ff-war,
+.ff-chips,
+.ff-factories,
+.ff-toggles,
+.ff-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .ff-chips,
 .ff-factories {
-  display: flex;
-  gap: 3px;
-  background: #101010;
+  flex-wrap: wrap;
+  gap: 6px;
 }
-.ff-block {
-  width: 18px;
-  height: 12px;
-  background: var(--ff-team, #8a8e92);
+.ff-score,
+.ff-timer,
+.ff-hero-name {
+  font: 700 1rem var(--ff-display);
+  color: color-mix(in srgb, var(--ff-team, #fff) 60%, #fff);
+}
+.ff-meter {
+  display: flex;
+  width: min(300px, 25vw);
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #2a2f36;
+}
+.ff-share {
+  background: var(--ff-team, #8a929c);
 }
 .ff-t0 {
-  --ff-team: #c8301c;
+  --ff-team: #e0442c;
 }
 .ff-t1 {
-  --ff-team: #2a5ad0;
+  --ff-team: #3a6ee8;
 }
-.ff-label,
-.ff-spell kbd,
-.ff-orders h3 {
-  margin: 0;
-  color: var(--ff-hazard);
+.ff-note {
+  color: var(--ff-muted);
+}
+.ff-timer {
+  margin-left: auto;
+  font-size: 1.1rem;
 }
 .ff-chip {
-  padding: 1px 6px;
-  border-left: 4px solid var(--ff-team);
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--ff-team) 22%, #181b20);
+  border: 1px solid color-mix(in srgb, var(--ff-team) 50%, #181b20);
+  font-weight: 600;
+  text-transform: capitalize;
 }
-.ff-bay {
-  background: #16181a;
-  border: 4px solid transparent;
-  border-image: var(--ff-frame-bay) 3 / 4px;
+.ff-chip.ff-own {
+  background: var(--ff-team);
+  color: #fff;
+}
+.ff-label,
+.ff-orders h3 {
+  margin: 0;
+  color: var(--ff-muted);
+}
+.ff-face {
+  flex: none;
+  width: 146px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid var(--ff-team);
+  background: radial-gradient(circle at 50% 40%, #3a2e26, #16181c 75%);
+}
+.ff-portrait {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .ff-bars {
+  flex: 0 1 300px;
   display: grid;
-  grid-template-columns: auto 140px;
-  gap: 4px 6px;
+  grid-template-columns: 24px 1fr 56px;
+  gap: 7px 8px;
+  align-content: center;
   align-items: center;
-  padding: 4px 8px;
+  font-size: 0.75rem;
+}
+.ff-head {
+  grid-column: 1 / -1;
+  align-items: baseline;
+}
+.ff-hero-name {
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+.ff-value {
+  text-align: right;
 }
 .ff-track {
   height: 10px;
-  background: #101010;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #2a2f36;
 }
 .ff-fill {
   display: block;
   height: 100%;
-  background: #4cc85a;
+  background: #63d46a;
 }
 .ff-en {
   background: #4fb6e8;
 }
 .ff-xp {
-  background: #f8d030;
+  background: #f2c14e;
 }
 .ff-spells,
 .ff-stance,
 .ff-choices {
   display: flex;
-  gap: 4px;
+  gap: 10px;
+  align-items: center;
 }
 .ff-stance {
+  flex: 0 1 190px;
   flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 6px;
 }
 /* Over fuse-ui's rounded app buttons. */
 #app button:is(.ff-spell, .ff-switch, .ff-choice, .ff-close) {
-  font: inherit;
-  color: inherit;
-  padding: 0;
   min-height: 0;
-  border-radius: 0;
+  padding: 0;
+  border-radius: 5px;
+  border: 1px solid #3a4048;
   box-shadow: none;
-  background: #16181a;
+  background: #262b32;
+  color: #eef1f4;
 }
-.ff-spell.ff-gold {
-  border-image: var(--ff-frame-gold) 3 / 4px;
+#app .ff-spell {
+  position: relative;
+  overflow: hidden;
+  width: 84px;
+  height: 84px;
+  border-radius: 8px;
+  color: #8a929c;
+  background: #1d2126;
+}
+#app .ff-spell.ff-ready {
+  border: 2px solid var(--ff-hazard);
+  color: var(--ff-hazard);
+  background: #262b32;
+}
+#app .ff-spell.ff-gold {
+  border: 2px solid #e0442c;
+  color: #ff7a63;
+  background: #2a1c1a;
+}
+.ff-icon svg {
+  width: 40px;
+  height: 40px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .ff-shade,
 .ff-secs,
 .ff-spell kbd,
+.ff-spell .ff-tag,
 .ff-close,
 .ff-camera {
   position: absolute;
   inset: auto 0 0;
-  background: rgba(0, 0, 0, 0.62);
+  background: rgba(0, 0, 0, 0.55);
 }
 .ff-secs {
-  inset: 18px 0 auto;
+  inset: 0;
+  display: grid;
+  place-items: center;
   background: none;
-  font-size: 1.1rem;
+  font: 800 1.6rem var(--ff-display);
+  color: #fff;
 }
-.ff-spell kbd {
-  inset: auto 2px 0 auto;
+.ff-spell kbd,
+.ff-spell .ff-tag {
+  inset: 4px auto auto 6px;
   background: none;
+  font: 800 0.8rem var(--ff-display);
+}
+.ff-spell .ff-tag {
+  inset: auto 6px 4px auto;
+  font-size: 0.6rem;
+  font-family: inherit;
+  color: #8a929c;
 }
 #app .ff-switch {
-  padding: 3px 8px;
-  border: 4px solid transparent;
-  border-image: var(--ff-frame-steel) 4 / 4px;
-  background: #4a4e52;
+  height: 30px;
+  padding: 0 8px;
+  font: 700 0.85rem var(--ff-display);
+  letter-spacing: 0.08em;
+}
+.ff-toggles .ff-switch,
+.ff-factories .ff-switch {
+  flex: 1;
+}
+#app .ff-factories .ff-switch {
+  height: 26px;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+#app :is(.ff-amove, .ff-queue) {
+  color: var(--ff-hazard);
+  font: 600 0.75rem var(--fui-font-body);
 }
 #app .ff-lit {
-  border-image: var(--ff-frame-lit) 4 / 4px;
-  background: #c8301c;
+  border-color: #e0442c;
+  background: #e0442c;
+  color: #fff;
 }
 .ff-minimap {
+  position: relative;
+  flex: none;
+  align-self: center;
+  margin-left: auto;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #3a4048;
   cursor: crosshair;
   touch-action: none;
 }
 .ff-mini {
   display: block;
-  width: 160px;
+  width: 240px;
+  image-rendering: pixelated;
 }
 .ff-camera {
-  border: 1px solid #fff;
+  border: 2px solid #fff;
+  border-radius: 2px;
   background: none;
   pointer-events: none;
 }
@@ -262,7 +457,7 @@
   width: 14px;
   height: 14px;
   margin: -7px 0 0 -7px;
-  border: 2px solid #ffb030;
+  border: 2px solid #ffb020;
   border-radius: 50%;
   pointer-events: none;
   animation: ff-ping 0.7s ease-out 3;
@@ -296,19 +491,21 @@
   display: grid;
   justify-items: center;
 }
+.ff-choice canvas,
+.ff-pixel {
+  image-rendering: pixelated;
+}
 .ff-end {
   position: absolute;
   inset: 30% 20% auto;
   flex-direction: column;
-  padding: 18px;
+  padding: 24px;
+  border-color: var(--ff-hazard);
 }
 .ff-end strong {
-  font-size: 3rem;
+  font: 800 3rem var(--ff-display);
   letter-spacing: 0.15em;
-  color: #fff4b0;
-  text-shadow:
-    3px 3px 0 #8a5a10,
-    6px 6px 0 #101010;
+  color: var(--ff-hazard);
 }
 #app [hidden] {
   display: none;
@@ -321,9 +518,10 @@
   cursor: crosshair;
 }
 #app .ff-spell.ff-aiming {
-  border-image: var(--ff-frame-lit) 4 / 4px;
+  border: 2px solid var(--ff-hazard);
+  color: var(--ff-hazard);
 }
-/* A spell's tooltip: name, what it does and its numbers, over the button on hover or keyboard focus. */
+/* A spell's tooltip: name, how it aims, what it does and its numbers, over the button on hover or keyboard focus. */
 .ff-spell-bay {
   position: relative;
   display: flex;
@@ -331,16 +529,19 @@
 .ff-tip {
   display: none;
   position: absolute;
-  bottom: calc(100% + 6px);
+  bottom: calc(100% + 10px);
   left: 50%;
   z-index: 5;
-  width: 220px;
+  width: 300px;
   transform: translateX(-50%);
   flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
-  padding: 4px 6px;
+  align-items: stretch;
+  gap: 6px;
+  padding: 12px 14px;
+  background: rgba(20, 23, 27, 0.94);
+  border-color: var(--ff-hazard);
   text-align: left;
+  line-height: 1.4;
   pointer-events: none;
 }
 /* Hover only where there is a mouse, and keyboard focus only, so a click or tap leaves no tooltip open. */
@@ -352,26 +553,78 @@
 .ff-spell-bay:has(:focus-visible) .ff-tip {
   display: flex;
 }
-.ff-tip b {
+.ff-tip-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.ff-tip b,
+.ff-orders h3 {
+  font: 800 1rem var(--ff-display);
   color: var(--ff-hazard);
 }
 .ff-tip small {
-  color: #c8c0a0;
+  color: var(--ff-muted);
 }
-/* What the hero shoots, in the bars bay: a team stripe, its name, FOCUS when chosen, and its hit points. */
+/* What the hero shoots, under the bars: its name, hit points, and FOCUS when chosen or AUTO. */
 .ff-target {
+  grid-column: 1 / -1;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 2px 6px;
-  padding-left: 6px;
-  box-shadow: inset 3px 0 0 var(--ff-team, #8a8e92);
-  font-size: 0.7rem;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  background: #1d2126;
+  border: 1px solid #3a4048;
 }
 .ff-target .ff-track {
-  flex-basis: 100%;
-  height: 5px;
+  flex: 1;
+  height: 6px;
+}
+.ff-target .ff-fill {
+  background: var(--ff-team, #8a929c);
 }
 .ff-target.ff-focus .ff-tag {
-  color: #f4f0e0;
+  color: var(--ff-hazard);
+  font-weight: 600;
+}
+/* A phone: the panel wraps into rows, the spells and minimap shrink, and nothing scrolls sideways. */
+@media (max-width: 720px) {
+  .ff-face {
+    width: 72px;
+  }
+  .ff-bars {
+    flex: 1 1 200px;
+  }
+  .ff-spells {
+    flex: 1 1 100%;
+    justify-content: space-between;
+  }
+  #app .ff-spell {
+    width: 64px;
+    height: 64px;
+  }
+  .ff-stance {
+    flex: 1 1 100%;
+    flex-flow: row wrap;
+  }
+  .ff-stance > .ff-switch {
+    flex: 1 1 28%;
+  }
+  .ff-toggles,
+  .ff-factories {
+    flex: 1 1 100%;
+  }
+  .ff-minimap {
+    flex: 1 1 150px;
+  }
+  .ff-mini {
+    width: 100%;
+  }
+  .ff-heroes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ff-teams {
+    grid-template-columns: 1fr;
+  }
 }

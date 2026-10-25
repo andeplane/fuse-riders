@@ -1,11 +1,12 @@
 /**
- * The Z-style HUD as DOM over pixel art: steel, frames, the portrait, spell icons and unit cards are painted once by
- * `render/pixel/` into small canvases or data URLs and scaled 2x by CSS with `image-rendering: pixelated`, so they
- * stay crisp. Text, bars and buttons are DOM (readable, clickable and tappable); every write goes through `put`, which
- * skips a value already written, so a steady frame touches nothing and nothing reads layout.
+ * The HUD in the 3D robot style: dark glass panels, a portrait rendered from the hero's 3D model (`look.ts`), stroke
+ * spell icons, bars with their numbers. Text, bars and buttons are DOM (readable, clickable and tappable); every write
+ * goes through `put`, which skips a value already written, so a steady frame touches nothing and nothing reads layout.
  */
 import { el } from "fuse-ui";
 import {
+  KITS,
+  MAX_LEVEL,
   SPELL_INFO,
   STANCES,
   type Stance,
@@ -14,10 +15,8 @@ import {
 import type { WorldView } from "../engine/index.js";
 import { minimapBase, paintMinimap } from "../render/minimap.js";
 import { Img } from "../render/pixel/image.js";
-import { portrait } from "../render/pixel/portraits.js";
 import { unitCard } from "../render/pixel/scenes.js";
-import { spellIcon } from "../render/pixel/icons.js";
-import { frame, steelTile } from "../render/pixel/ui.js";
+import { HERO_ROLES, heroPortrait, spellIcon } from "./look.js";
 import {
   createHud,
   deriveHud,
@@ -59,43 +58,38 @@ export function pixels(img: Img): HTMLCanvasElement {
   return canvas;
 }
 
-let skinned = false;
-/** The steel and frame textures as CSS custom properties, painted once per page. */
-function paintSkin(): void {
-  if (skinned) return;
-  skinned = true;
-  const url = (img: Img) => `url(${pixels(img).toDataURL()})`;
-  const frames = (["steel", "lit", "gold", "bay"] as const).map(
-    (k) => `--ff-frame-${k}: ${url(frame(k))};`,
-  );
-  const tile = `--ff-steel-tile: ${url(steelTile())};`;
-  document.head.append(el("style", `:root { ${tile} ${frames.join(" ")} }`));
-}
-
 export class Hud {
   readonly top = el("div", "", "ff-bar");
   readonly bottom = el("div", "", "ff-panel");
   readonly orders = el("div", "", "ff-orders ff-frame");
   readonly state = createHud();
   private readonly written = new WeakMap<HTMLElement, Map<string, string>>();
+  /** The sector tug-of-war: red, neutral and blue shares of one bar, with each side's count beside it. */
   private readonly meter = el("div", "", "ff-meter");
-  private readonly clock = el("span");
-  private readonly timer = el("span");
+  private readonly shares = ["ff-t0", "ff-tn", "ff-t1"].map((t) =>
+    el("i", "", `ff-share ${t}`),
+  );
+  private readonly scores = [0, 1].map((t) => el("b", "", `ff-score ff-t${t}`));
+  private readonly clock = el("span", "", "ff-note");
+  private readonly timer = el("span", "", "ff-timer");
   private readonly chips = el("div", "", "ff-chips");
   private readonly bars = ["hp", "en", "xp"].map((k) =>
     el("i", "", `ff-fill ff-${k}`),
   );
-  private readonly level = el("b");
+  private readonly values = [0, 1, 2].map(() => el("span", "", "ff-value"));
+  private readonly heroName = el("b", "", "ff-hero-name");
+  private readonly level = el("span", "", "ff-note");
   private readonly spells = [0, 1, 2, 3].map(() => ({
-    button: el("button", "", "ff-spell ff-bay"),
+    button: el("button", "", "ff-spell"),
     icon: el("span", "", "ff-icon"),
     shade: el("i", "", "ff-shade"),
     secs: el("span", "", "ff-secs"),
+    tag: el("small", "", "ff-tag"),
     tip: el("span", "", "ff-tip ff-frame"),
   }));
-  private readonly amove = el("button", "A ATTACK-MOVE", "ff-switch");
+  private readonly amove = el("button", "A attack-move", "ff-switch ff-amove");
   /** A toggle for touch: while lit, every order queues as if Shift were held. */
-  private readonly queueButton = el("button", "⇧ QUEUE", "ff-switch");
+  private readonly queueButton = el("button", "⇧ queue", "ff-switch ff-queue");
   private queueOn = false;
   /** What the hero shoots: its name, hit points and whether it was chosen. */
   private readonly target = el("span", "", "ff-target");
@@ -106,10 +100,10 @@ export class Hud {
     el("button", `${i + 1} ${s.toUpperCase()}`, "ff-switch"),
   );
   private readonly factories = el("div", "", "ff-factories");
-  private readonly portrait = el("div", "", "ff-bay");
+  private readonly portrait = el("div", "", "ff-face");
   private readonly mini = el("canvas", "", "ff-mini");
   private readonly camera = el("i", "", "ff-camera");
-  private readonly map = el("div", "", "ff-minimap ff-bay");
+  private readonly map = el("div", "", "ff-minimap");
   private readonly title = el("h3");
   private readonly choices = el("div", "", "ff-choices");
   private readonly build = el("i", "", "ff-fill ff-xp");
@@ -123,24 +117,30 @@ export class Hud {
   private box = { x: -1, y: -1, w: 0, h: 0 };
 
   constructor(readonly actions: HudActions) {
-    paintSkin();
-    const clock = el("span", "CLOCK", "ff-label");
-    this.top.append(this.meter, clock, this.clock, this.timer, this.chips);
-    const bars = el("div", "", "ff-bars ff-bay");
+    this.meter.append(...this.shares);
+    const war = el("div", "", "ff-war");
+    war.append(this.scores[0]!, this.meter, this.scores[1]!);
+    this.top.append(war, this.clock, this.timer, this.chips);
+    const bars = el("div", "", "ff-bars");
+    const head = el("div", "", "ff-head");
+    head.append(this.heroName, this.level);
+    bars.append(head);
     ["HP", "EN", "XP"].forEach((name, i) => {
       const track = el("span", "", "ff-track");
       track.append(this.bars[i]!);
-      bars.append(el("span", name, "ff-label"), track);
+      bars.append(el("span", name, "ff-label"), track, this.values[i]!);
     });
-    // What the hero shoots, under its own bars: name, FOCUS or AUTO, and hit points.
+    // What the hero shoots, under its own bars: name, hit points, and FOCUS or AUTO.
     const targetHp = el("span", "", "ff-track");
     targetHp.append(this.targetHp);
-    this.target.append(this.targetName, this.targetTag, targetHp);
-    bars.append(el("span", "TGT", "ff-label"), this.target, this.level);
+    const aim = el("span", "TARGET", "ff-label");
+    this.target.append(aim, this.targetName, targetHp, this.targetTag);
+    bars.append(this.target);
     const spells = el("div", "", "ff-spells");
-    this.spells.forEach(({ button, icon, shade, secs, tip }, slot) => {
+    this.spells.forEach(({ button, icon, shade, secs, tag, tip }, slot) => {
       tip.setAttribute("role", "tooltip");
-      button.append(icon, shade, secs, el("kbd", this.state.spells[slot]!.key));
+      const key = el("kbd", this.state.spells[slot]!.key);
+      button.append(icon, shade, secs, key, tag);
       // The tooltip sits beside the button, not in it, so it shows over a disabled (cooling) one too.
       const bay = el("span", "", "ff-spell-bay");
       bay.append(button, tip);
@@ -159,12 +159,9 @@ export class Hud {
       this.queueOn = !this.queueOn;
       this.flag(this.queueButton, "ff-lit", this.queueOn);
     };
-    stance.append(
-      ...this.stances,
-      this.amove,
-      this.queueButton,
-      this.factories,
-    );
+    const toggles = el("div", "", "ff-toggles");
+    toggles.append(this.amove, this.queueButton);
+    stance.append(...this.stances, toggles, this.factories);
     const map = this.map;
     map.append(this.mini, this.camera);
     // A left click looks there; a right click sends the hero there.
@@ -208,25 +205,29 @@ export class Hud {
   update(world: WorldView, seat: number, slots: readonly SlotView[]): void {
     [this.world, this.seat] = [world, seat];
     const s = deriveHud(this.state, world, seat);
-    const team = seat < 0 ? "red" : seat % 2 ? "blue" : "red";
+    const team = seat < 0 ? 0 : seat % 2;
     this.put(this.portrait, "hero", team + s.kind, () => {
-      const img = new Img(44, 44);
-      portrait(img, 0, 0, s.kind, team);
-      this.portrait.replaceChildren(pixels(img));
+      this.portrait.replaceChildren(heroPortrait(s.kind, team));
+      this.portrait.className = `ff-face ff-t${team}`;
     });
-    const blocks =
-      "0".repeat(s.red) + "n".repeat(s.neutral) + "1".repeat(s.blue);
-    const block = (b: string) => el("i", "", `ff-block ff-t${b}`);
-    this.put(this.meter, "blocks", blocks, () =>
-      this.meter.replaceChildren(...[...blocks].map(block)),
+    const total = s.red + s.neutral + s.blue || 1;
+    [s.red, s.neutral, s.blue].forEach((n, i) =>
+      this.css(this.shares[i]!, "flex-grow", String(n / total)),
     );
-    this.text(this.clock, `×${(s.clock / 100).toFixed(2)}`);
+    this.text(this.scores[0]!, `RED ${s.red}`);
+    this.text(this.scores[1]!, `${s.blue} BLUE`);
+    const build = `×${(s.clock / 100).toFixed(2)}`;
+    this.text(this.clock, `${s.neutral} neutral · build ${build}`);
     this.text(this.timer, s.time);
-    this.put(this.chips, "slots", JSON.stringify(slots), () =>
+    const levels = world.heroes.map((h) => `${h.seat}${h.kind}${h.level}`);
+    this.put(this.chips, "slots", JSON.stringify([slots, levels]), () =>
       this.chips.replaceChildren(
         ...slots.map((slot) => {
-          const name = slot.bot ? `AI ${slot.difficulty}` : slot.name;
-          return el("span", name, `ff-chip ff-t${slot.team}`);
+          const name = slot.self ? "You" : slot.bot ? "AI" : slot.name;
+          const hero = world.heroes.find((h) => h.seat === slot.slot);
+          const label = hero ? `${name} · ${hero.kind} ${hero.level}` : name;
+          const own = slot.self ? " ff-own" : "";
+          return el("span", label, `ff-chip ff-t${slot.team}${own}`);
         }),
       ),
     );
@@ -234,33 +235,35 @@ export class Hud {
     [s.hp, s.energy, s.xp].forEach((v, i) =>
       this.css(this.bars[i]!, "width", pct(v)),
     );
-    this.text(
-      this.level,
-      s.respawn ? `RESPAWN ${s.respawn}s` : `LV ${s.level}`,
-    );
+    const values = [s.hpNow.toLocaleString("en"), String(s.energyNow)];
+    values.push(s.level >= MAX_LEVEL ? "MAX" : `LV ${s.level + 1}`);
+    values.forEach((v, i) => this.text(this.values[i]!, v));
+    this.text(this.heroName, s.kind.toUpperCase());
+    const role = `${HERO_ROLES[s.kind]} · level ${s.level}`;
+    this.text(this.level, s.respawn ? `RESPAWN ${s.respawn}s` : role);
     const kit = SPELL_INFO[s.kind];
     s.spells.forEach((spell, i) => {
-      const { button, icon, shade, secs, tip } = this.spells[i]!;
+      const { button, icon, shade, secs, tag, tip } = this.spells[i]!;
       // The kit's icon and name, redrawn only when the hero changes.
       this.put(icon, "effect", spell.effect + spell.name, () => {
-        const art = new Img(30, 30);
-        spellIcon(spell.effect)(art, 0, 0);
-        icon.replaceChildren(pixels(art));
+        icon.replaceChildren(spellIcon(KITS[s.kind][i]!.effect));
         const t = spellTooltip(kit[i]!);
-        tip.replaceChildren(
-          el("b", t.name),
-          el("span", t.desc),
-          el("small", t.stats),
-        );
+        const title = el("span", "", "ff-tip-head");
+        title.append(el("b", `${spell.key} · ${t.name}`), el("small", t.aim));
+        tip.replaceChildren(title, el("span", t.desc), el("small", t.stats));
         button.setAttribute(
           "aria-label",
           `${spell.name} (${spell.key}): ${t.desc}`,
         );
       });
       this.css(shade, "height", pct(spell.locked ? 1 : spell.shade));
-      const left = spell.seconds ? String(spell.seconds) : "";
-      this.text(secs, spell.locked ? "LV6" : left);
+      this.text(secs, spell.locked ? "" : String(spell.seconds || ""));
+      this.text(
+        tag,
+        spell.locked ? `LV ${kit[i]!.unlock}` : spell.passive ? "PASSIVE" : "",
+      );
       this.flag(button, "ff-gold", spell.ultimate);
+      this.flag(button, "ff-ready", spell.ready);
       // With QUEUE on, a cooling spell can still be queued: it waits its turn behind the route.
       button.disabled = !spell.ready && !(this.queueOn && !spell.locked);
     });

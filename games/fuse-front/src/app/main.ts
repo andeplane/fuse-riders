@@ -1,6 +1,10 @@
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
+import "@fontsource/oxanium/latin-700.css";
+import "@fontsource/oxanium/latin-800.css";
+import "@fontsource/barlow/latin-400.css";
+import "@fontsource/barlow/latin-600.css";
 import "./style.css";
 import {
   createInviteCard,
@@ -18,7 +22,7 @@ import {
   validRoomCode,
 } from "fuse-network-fe";
 import { MAX_PACKET_BYTES } from "fuse-netcode";
-import { HERO_KINDS, type WorldView } from "../engine/index.js";
+import type { WorldView } from "../engine/index.js";
 import { DEFAULT_SETTINGS, type View } from "../online/game.js";
 import { mapsFor } from "../online/maps.js";
 import { FrontRuntime } from "../online/runtime.js";
@@ -27,9 +31,8 @@ import type { Renderer } from "../render/renderer.js";
 import { Field3D } from "../render3d/field.js";
 import { qualityParam } from "../render3d/fx.js";
 import { edgePan, PAN_SPEED } from "../render/camera.js";
-import { Img } from "../render/pixel/image.js";
-import { PORTRAIT_SIZE, portrait } from "../render/pixel/portraits.js";
-import { Hud, pixels } from "./hud.js";
+import { Hud } from "./hud.js";
+import { HERO_ROLES, heroPortrait, loadPortraits } from "./look.js";
 import { factoryAt, keyAction } from "./hud-state.js";
 import {
   IDLE,
@@ -50,6 +53,7 @@ import {
   TEAMS,
   banner,
   cycleDifficulty,
+  heroCards,
   mapOptions,
   pickHero,
   slotsOf,
@@ -174,6 +178,8 @@ function room(code: string, token: string | undefined, display: boolean): void {
   end.append(endText, endNote, back);
   const stage = el("div", "", "ff-stage");
   const { field, canvas } = battlefield();
+  // Hero portraits come from the 3D models where the 3D battlefield runs; the pixel ones otherwise.
+  if (field instanceof Field3D) loadPortraits();
   let shown: WorldView | undefined;
   // What the next map click means, and the tile under the mouse, for the aiming overlay.
   let mode: Mode = IDLE;
@@ -260,14 +266,19 @@ function room(code: string, token: string | undefined, display: boolean): void {
       : { humanName: name() },
   );
   let lobbyKey = "";
+  // The seat whose hero the lobby's cards show: this device's, or one the host chose from the team chips.
+  let picking = -1;
   function show(view: View): void {
     const inLobby = view.stage === "lobby";
     lobby.hidden = !inLobby;
     play.hidden = inLobby;
     if (inLobby) {
       const slots = slotsOf(view, runtime.self);
+      if (!slots.some((s) => s.slot === picking))
+        picking = slots.find((s) => s.self)?.slot ?? 0;
       const key = JSON.stringify([
         slots,
+        picking,
         view.settings.size,
         view.settings.map,
         runtime.creator,
@@ -338,17 +349,23 @@ function room(code: string, token: string | undefined, display: boolean): void {
         });
       maps.append(choice);
     }
+    // Team panels of seat chips; the host clicks a chip to pick that seat's hero on the cards above.
     const teams = el("div", "", "ff-teams");
     const slots = slotsOf(view, runtime.self);
     for (const team of [0, 1]) {
-      const column = el("ul", "", `ff-team ff-team-${team}`);
-      column.append(el("li", TEAMS[team]!, "ff-team-name"));
+      const column = el("div", "", `ff-team ff-t${team}`);
+      const seats = el("div", "", "ff-seats");
+      column.append(el("h3", `${TEAMS[team]} ARMY`, "ff-team-name"), seats);
       for (const slot of slots.filter((s) => s.team === team)) {
-        const row = el(
-          "li",
-          slot.name + (slot.self ? " (you)" : ""),
-          "ff-seat",
-        );
+        const chip = el("span", "", "ff-seat");
+        const who = slot.self ? "You" : slot.name;
+        const name = el("button", `${who} · ${slot.hero}`, "ff-seat-pick");
+        name.disabled = !host;
+        name.setAttribute("aria-pressed", String(slot.slot === picking));
+        name.onclick = () => ((picking = slot.slot), renderLobby(view));
+        chip.classList.toggle("ff-own", slot.self);
+        chip.classList.toggle("ff-on", slot.slot === picking);
+        chip.append(name);
         if (slot.bot && host) {
           const cycle = el("button", "⟳", "ff-cycle");
           cycle.title = "Change difficulty";
@@ -357,14 +374,15 @@ function room(code: string, token: string | undefined, display: boolean): void {
               type: "settings",
               settings: cycleDifficulty(view.settings, slot.slot),
             });
-          row.append(cycle);
+          chip.append(cycle);
         }
-        row.append(heroPicker(view, slot, host));
-        column.append(row);
+        seats.append(chip);
       }
       teams.append(column);
     }
-    const start = el("button", "START", "fui-button fui-button-primary");
+    const roster = el("div", "", "ff-roster");
+    roster.append(el("h2", "HEROES"), heroPicker(view, slots, host), teams);
+    const start = el("button", "START", "fui-button ff-start");
     start.onclick = () => runtime.command({ type: "action", action: "start" });
     const shell = createLobbyShell({
       label: `Room ${code}`,
@@ -380,30 +398,39 @@ function room(code: string, token: string | undefined, display: boolean): void {
               .element,
           }
         : {}),
-      roster: teams,
+      roster,
       footer: [host ? start : el("p", "Waiting for the host to start…")],
     });
     lobby.replaceChildren(shell.element);
   }
-  /** A seat's four hero portraits, its hero lit; the host picks by clicking one (each hero once a team). */
-  function heroPicker(view: View, slot: SlotView, host: boolean): HTMLElement {
+  /** The picking seat's hero cards, its hero lit; the host picks by clicking one (each hero once a team). */
+  function heroPicker(
+    view: View,
+    slots: readonly SlotView[],
+    host: boolean,
+  ): HTMLElement {
+    const seat = slots.find((s) => s.slot === picking);
     const row = el("div", "", "ff-heroes");
-    for (const kind of HERO_KINDS) {
-      const img = new Img(PORTRAIT_SIZE, PORTRAIT_SIZE);
-      portrait(img, 0, 0, kind, slot.team ? "blue" : "red");
-      const choice = el("button", "", "ff-hero");
-      const art = pixels(img);
-      art.style.width = "32px";
-      choice.append(art);
-      choice.title = kind.toUpperCase();
-      choice.setAttribute("aria-label", kind);
-      choice.classList.toggle("ff-on", slot.hero === kind);
-      choice.setAttribute("aria-pressed", String(slot.hero === kind));
-      choice.disabled = !host;
+    for (const card of heroCards(slots, picking)) {
+      const choice = el("button", "", `ff-hero ff-${card.state}`);
+      const words = el("span", "", "ff-hero-words");
+      const status = {
+        mine: seat?.self ? "Your pick" : `${seat?.name ?? ""}'s pick`,
+        taken: `Taken by ${card.by}`,
+        free: "Available",
+      }[card.state];
+      words.append(
+        el("b", card.kind.toUpperCase()),
+        el("span", HERO_ROLES[card.kind], "ff-role"),
+        el("small", status),
+      );
+      choice.append(heroPortrait(card.kind, seat?.team ?? 0), words);
+      choice.setAttribute("aria-pressed", String(card.state === "mine"));
+      choice.disabled = !host || card.state === "taken";
       choice.onclick = () =>
         runtime.command({
           type: "settings",
-          settings: pickHero(view.settings, slot.slot, kind),
+          settings: pickHero(view.settings, picking, card.kind),
         });
       row.append(choice);
     }
