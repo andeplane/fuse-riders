@@ -133,7 +133,7 @@ const LAMP: readonly (readonly number[])[] = [[4, 1.1, 0.5], [0.6, 1.4, 4.5]]; /
 const SPOT_RGB = [4, 0.7, 0.4] as const,
   FLARE_RGB = [6, 1.2, 0.6] as const,
   BLITZ_RGB = [1.4, 3.6, 5.5] as const,
-  SHIELD_RGB = [1.2, 2.6, 5] as const;
+  SHIELD_RGB = rgb(0x60d0ff);
 /** Strategic marks of the lanes' paths (a dot every `LANE_DOT` tiles) and the jungle camps, guarded or waiting. */
 const LANE_RGB = rgb(0xd6c496), CAMP_RGB = rgb(0xf0c83c), CAMP_DOWN_RGB = rgb(0x786846), LANE_DOT = 4; // prettier-ignore
 
@@ -696,9 +696,13 @@ export class Field3D implements Renderer {
         puff.scale.setScalar(0.5 + f * 1.6);
       });
       // Towers, gates and forts always show their health; one no gun may pick yet (no backdoor) wears a shield mark.
-      const at2 = node.alive.position, top = at2.y + node.height + 0.4;
-      if (b.tier >= 0 || b.kind === "fort" || b.hp < b.maxHp) this.bar(at2.x, top, at2.z, b.hp / b.maxHp, 1.4);
-      if (b.shielded) this.slot("mark").batch.push(at2.x - 0.9, top, at2.z, now / 600, 0.1, 0.1, 0.1, SHIELD_RGB);
+      const foot = node.alive.position, top = foot.y + node.height + 0.4;
+      if (b.tier >= 0 || b.kind === "fort" || b.hp < b.maxHp) this.bar(foot.x, top, foot.z, b.hp / b.maxHp, 1.4);
+      if (b.shielded) {
+        // A blue tag at the bar's left end, in the bar's own flat paint so bloom does not wash it white.
+        this.slot("barBack").batch.push(foot.x - 0.86, top, foot.z, 0, 0.2, 2.8, 1, BAR_BACK);
+        this.slot("barFill").batch.push(foot.x - 0.86, top, foot.z, 0, 0.14, 2.2, 1, SHIELD_RGB);
+      }
     }
     if (this.flags.length) {
       waveCloth(this.clothBase, this.cloth.getAttribute("position") as THREE.BufferAttribute, now);
