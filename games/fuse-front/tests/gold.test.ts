@@ -251,3 +251,52 @@ test("a checkpoint with a fallen hero still counting hits is refused", () => {
   hurt((wire[7] as unknown[][])[1]!, 0, 5);
   assert.equal(decodeWorld(wire, map), undefined);
 });
+
+const deepFreeze = <T>(value: T): T => {
+  if (typeof value === "object" && value !== null) {
+    for (const each of Object.values(value)) deepFreeze(each);
+    Object.freeze(value);
+  }
+  return value;
+};
+
+test("a step with hero hits, a hero kill and a last hit leaves its input untouched", () => {
+  const world = arena("brick");
+  Object.assign(world.heroes[1]!, {
+    hp: 30,
+    respawn: 0,
+    x: centreOf(7),
+    y: centreOf(6),
+  });
+  addUnit(world, 1, "grunt", 6, 7, 1);
+  const frozen = deepFreeze(structuredClone(world));
+  let next = step(map, frozen);
+  for (let index = 0; index < 60; index++) next = step(map, next);
+  assert.deepEqual(frozen, world);
+  assert.ok(gold(next, 0) > GOLD.start + GOLD.hero, "it earned a kill");
+});
+
+test("a spell's kill is its caster's last hit, and SNIPE counts toward an assist", () => {
+  const world = arena("brick");
+  world.heroes[0]!.cooldown = 99;
+  addUnit(world, 1, "grunt", 5, 6, 1);
+  const shock = step(map, world, [
+    { seat: 0, type: "cast", slot: 0, x: 4, y: 6 },
+  ]);
+  assert.equal(shock.units.length, 0);
+  assert.equal(gold(shock, 0), GOLD.start + GOLD.lastHit.grunt);
+  const vix = arena("vix");
+  Object.assign(vix.heroes[1]!, {
+    hp: 5000,
+    respawn: 0,
+    x: centreOf(9),
+    y: centreOf(6),
+  });
+  vix.heroes[0]!.cooldown = 99;
+  const sniped = step(map, vix, [
+    { seat: 0, type: "cast", slot: 0, x: 9, y: 6, of: 1, id: 1 },
+  ]);
+  assert.ok(sniped.events.some((e) => e.type === "cast"));
+  // A cast lands before the step's countdown (`tendGold`), a shot after it.
+  assert.equal(sniped.heroes[1]!.hurt[0], GOLD.assistWindow - 1);
+});
