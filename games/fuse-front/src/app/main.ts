@@ -159,7 +159,7 @@ function landing(error = ""): void {
     card.element,
     el(
       "p",
-      "Right-click to move or attack · A + click: attack-move · Shift queues orders · Q W E R: cast or aim · click a factory for its orders · Z / X: zoom · Tab: the fight · Home: your fort",
+      "Right-click to move or attack · A + click: attack-move · Shift queues orders · Q W E R: cast or aim · Z / X: zoom · Tab: the fight · Home: your fort",
       "ff-help",
     ),
   );

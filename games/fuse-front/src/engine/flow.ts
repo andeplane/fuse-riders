@@ -186,10 +186,10 @@ export function buildFlowField(map: GameMap, goal: number): FlowField {
 }
 
 /**
- * Fields kept per map in two bounded LRU caches. The fixed one serves the goals a map and its stances produce: at most
- * its 64 flags and 6 forts. The roaming one serves tiles a player steers: each hero's `move` goal and the tile FOLLOW
+ * Fields kept per map in two bounded LRU caches. The fixed one serves the goals a map's units walk to: its flags, forts,
+ * turrets and lane waypoints. The roaming one serves tiles a player steers: each hero's `move` goal and the tile following
  * units walk to (`FOLLOW_HERO`). Keeping them apart means a player who sends a `move` to a new tile every tick can
- * only churn the roaming cache, never evict the flag and fort fields every unit's stance uses. The roaming cache
+ * only churn the roaming cache, never evict the flag and fort fields every unit's goal uses. The roaming cache
  * holds `ROAMING_FLOW_CACHE_SIZE` fields on a small map and fewer on a big one (`flowCacheSize`), never below
  * `ROAMING_FLOW_CACHE_MIN`.
  */

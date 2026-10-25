@@ -40,8 +40,6 @@ import {
 import {
   NEUTRAL,
   NO_WINNER,
-  fortSite,
-  ownerOf,
   teamSectors,
   unitCap,
   type Hero,
