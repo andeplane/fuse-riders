@@ -488,17 +488,18 @@ before, and M2 decides whether lanes become required.
     heroes and units outside the waves, and only those shoot them, so waves pass a camp untouched.
   - A camp whose guards are all down stands again 60 s later.
   - A guard's kill pays only the killer's team, and a kill no seat made pays nobody.
+  - A hero's splash reaches guards only from a shot at their camp. HIJACK can't take a wave's tank.
   - **Capture:** on a lane map only jungle flags can change hands, and not while their camp is guarded.
   - **Upgrades,** while the sector is held:
     - a robot factory adds a torch to its nearest lane's wave, and the team's wave grunts take 25 percent less from
       guns;
     - a vehicle factory adds a light tank to its nearest lane's every third wave.
-  - **Bots:** with no enemy unit or hero within 16 tiles, a bot detours up to 30 tiles to take a jungle flag, fighting
-    its camp.
+  - **Bots:** with no enemy unit or hero within 16 tiles, a healthy bot detours up to 30 tiles to take a jungle flag (not one
+    under FORTIFY), fighting its camp.
   - **Room:** the room now lists only the lane maps, Neon Duel, Twin Wilds and Crown Jungle, which are each size's
     default. The v2 maps still load for tests and tools, and they keep their factory rules.
   - **League:** it runs on the lane maps (rules `fuse-front-14`, seed 1).
-    - Neon Duel 1v1: 10.7 to 17.5 min across 8 pairings.
-    - Twin Wilds 2v2 normal: 15.3 min.
-    - Crown Jungle 3v3 normal: 18.5 min.
+    - Neon Duel 1v1: 10.1 to 20.3 min across 8 pairings.
+    - Twin Wilds 2v2 normal: 21.9 min.
+    - Crown Jungle 3v3 normal: 14.2 min.
     - Its bound is 45 min.

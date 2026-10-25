@@ -4,7 +4,7 @@ import { play } from "./fixtures/league.js";
 
 /**
  * The bot league on the team lane maps: an even match of normal bots at each map's own size ends with a winner, its
- * length reported. Measured (rules fuse-front-14): Twin Wilds 2v2 15.3 minutes, Crown Jungle 3v3 18.5. About
+ * length reported. Measured (rules fuse-front-14): Twin Wilds 2v2 21.9 minutes, Crown Jungle 3v3 14.2. About
  * a minute and a half of CPU, so it has its own file.
  */
 const MATCHES = [

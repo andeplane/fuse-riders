@@ -7,7 +7,7 @@ import { LIMIT_MINUTES, play } from "./fixtures/league.js";
  * The bot league on Neon Duel, the 1v1 lane map: each difficulty against itself, hard against easy from both sides,
  * and each other hero against Brick, all play to a result, each match's length reported. Bots read no RNG and the
  * rules draw none, so a match is fixed by its seats and heroes. The 15–20 minute target is v3 M7's; the bound leaves
- * headroom over what M2 measured (rules fuse-front-14: 10.7 to 17.5 minutes). About a minute of CPU.
+ * headroom over what M2 measured (rules fuse-front-14: 10.1 to 20.3 minutes). About a minute of CPU.
  */
 const matches: [string, Difficulty[], Record<number, HeroKind>?][] = [
   ["easy v easy", ["easy", "easy"]],

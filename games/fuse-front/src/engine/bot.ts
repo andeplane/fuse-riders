@@ -227,6 +227,8 @@ function heroCommands(
     foes = 0,
     owned = 0;
   for (const unit of world.units) {
+    // A camp's guards (`jungle.ts`) are neither friend nor foe here.
+    if (unit.owner === NEUTRAL) continue;
     if (unit.owner === seat) owned++;
     const ally = teamOf(unit.owner) === team;
     if (!ally && UNITS[unit.kind].robot)
@@ -408,11 +410,14 @@ function pushTarget(map: GameMap, world: World, hero: Hero): number {
 }
 
 /**
- * A lane bot's jungle detour: while no enemy unit or hero (camp guards aside) stands within `SCOUT`, the tile of the
- * jungle flag its team doesn't hold that is cheapest to walk to within `JUNGLE_WALK`; -1 otherwise.
+ * A lane bot's jungle detour: while its hero is healthy and no enemy unit or hero (camp guards aside) stands within
+ * `SCOUT`, the tile of the jungle flag its team doesn't hold (and that no FORTIFY holds) cheapest to walk to within
+ * `JUNGLE_WALK`; -1 otherwise.
  */
 function jungleFlag(map: GameMap, world: World, hero: Hero, at: number) {
   const team = teamOf(hero.seat);
+  // A hurt hero stays in lane rather than take on a camp.
+  if (hero.hp * 10 < maxHp(levelOf(hero.xp), hero.kind) * 6) return -1;
   const enemy = (owner: number, x: number, y: number) =>
     owner !== NEUTRAL &&
     teamOf(owner) !== team &&
@@ -422,7 +427,8 @@ function jungleFlag(map: GameMap, world: World, hero: Hero, at: number) {
   let best = -1,
     bestCost = JUNGLE_WALK + 1;
   for (const [sector, flag] of map.flags.entries()) {
-    if (map.sectorKinds[sector] !== "jungle") continue;
+    if (map.sectorKinds[sector] !== "jungle" || world.fortified[sector]! > 0)
+      continue;
     const owner = world.sectors[sector]!;
     if (owner !== NEUTRAL && teamOf(owner) === team) continue;
     const tile = flag.y * map.width + flag.x;
@@ -508,6 +514,7 @@ function chooseStance(
     theirArmy = 0,
     invaders = 0;
   for (const unit of world.units) {
+    if (unit.owner === NEUTRAL) continue;
     if (teamOf(unit.owner) === team) ourArmy += unit.hp;
     else {
       theirArmy += unit.hp;
