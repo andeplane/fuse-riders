@@ -622,6 +622,8 @@ before, and M2 decides whether lanes become required.
     and this device's has a white frame.
   - **Pings:** one of your towers, gates or your fort under fire pings the minimap, at most once per `PING_GAP` per
     structure, through the radar's event dedupe.
-  - **Battlefields:** towers, gates and forts always show a health bar, with a blue shield mark while `shielded`.
-    At the strategic zoom, the 3D field also dots the lane paths and marks the camps.
+  - **Battlefields:** towers, gates and forts always show a health bar, with a blue tag at its left end while
+    `shielded`. At the strategic zoom, the 3D field also dots the lane paths and marks the camps.
   - **Phones:** the item row shares its width, so a 390 px screen doesn't scroll sideways.
+
+![Red's inner mid tower, shielded while the outer one stands, and the minimap's lane, towers and camps](images/moba-structures.png)
