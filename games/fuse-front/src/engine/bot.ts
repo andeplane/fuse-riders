@@ -16,9 +16,12 @@
  *   it can, repairs whatever is hurt near it, drops a turret and fortifies in a fight; Tally blitzes with its army,
  *   flares the flag it heads for and dashes toward it. An easy bot casts only its first slot.
  * - On a lane map (`waves.ts`) the hero attack-moves down the lane its seat plays, then onto the enemy fort.
+ * - It takes a cheap last hit, an enemy unit one shot finishes, before anything but a hurt enemy hero, shops its
+ *   hero's build at its fort and uses its item actives (`bot-shop.ts`).
  */
 import { UNREACHABLE, flowField } from "./flow.js";
-import { alive, levelOf, maxHp } from "./hero.js";
+import { alive, heroGun, heroMaxHp, levelOf } from "./hero.js";
+import { activeCommands, shopCommands } from "./bot-shop.js";
 import type { GameMap } from "./map.js";
 import { div, isqrt } from "./math.js";
 import { centreOf, tileOf } from "./move.js";
@@ -43,6 +46,7 @@ import {
   teamSectors,
   unitCap,
   type Hero,
+  type Unit,
   type World,
 } from "./world.js";
 
@@ -146,7 +150,10 @@ export function botCommands(
   const profile = PROFILES[difficulty];
   const tick = div(world.step, STEPS_PER_TICK) + seat * 7;
   const commands: Command[] = [];
+  // At its fort it shops every tick, so even a slow thinker buys before it walks out (`bot-shop.ts`).
+  commands.push(...shopCommands(map, hero));
   if (tick % profile.think === 0) {
+    commands.push(...activeCommands(map, world, hero));
     commands.push(...heroCommands(map, world, hero, profile));
   }
   return commands;
@@ -201,7 +208,7 @@ function heroCommands(
   const own: [number, number] = [tileOf(hero.x), tileOf(hero.y)];
   const room = owned < unitCap(world, seat);
   const fighting = foes > 0;
-  const hurt = hero.hp * 10 < maxHp(level, hero.kind) * 6;
+  const hurt = hero.hp * 10 < heroMaxHp(hero) * 6;
   /** The nearest enemy tank (or hero, with `heroes`) within `range`: its tile to aim at, and itself as the target. */
   const prey = (range: number, heroes: boolean) => {
     let best: { at: [number, number]; chosen: Chosen } | null = null,
@@ -260,7 +267,7 @@ function heroCommands(
       : hero.kind === "rivet"
         ? [
             [3, true, own],
-            [0, allies > 0 || hero.hp < maxHp(level, hero.kind), own],
+            [0, allies > 0 || hero.hp < heroMaxHp(hero), own],
             [1, fighting && room, own],
             [2, fighting, own],
           ]
@@ -299,7 +306,7 @@ function heroCommands(
       teamOf(each.seat) !== team &&
       alive(each) &&
       each.cloak === 0 &&
-      each.hp * 10 < maxHp(levelOf(each.xp), each.kind) * 4 &&
+      each.hp * 10 < heroMaxHp(each) * 4 &&
       near(each.x, each.y, hero.x, hero.y, range),
   );
   if (quarry !== undefined && hero.focusOf < 0) {
@@ -307,6 +314,22 @@ function heroCommands(
     return commands;
   }
   if (hero.focusOf >= 0) return commands;
+  // A last hit when it is cheap: an enemy unit in range that one shot finishes (`gold.ts`), the weakest first.
+  const gun = heroGun(hero);
+  let finish: Unit | undefined;
+  for (const unit of world.units)
+    if (
+      unit.owner !== NEUTRAL &&
+      teamOf(unit.owner) !== team &&
+      unit.hp <= gun.damage &&
+      near(unit.x, unit.y, hero.x, hero.y, range) &&
+      (finish === undefined || unit.hp < finish.hp)
+    )
+      finish = unit;
+  if (finish !== undefined) {
+    commands.push({ seat, type: "attack", of: 0, id: finish.id });
+    return commands;
+  }
   // On a lane map with no enemy hero about, the hero brings down the nearest structure it may shoot (`towers.ts`).
   const siege = laneMap(map) ? pushTarget(map, world, hero) : -1;
   if (siege >= 0) {
@@ -361,7 +384,7 @@ function pushTarget(map: GameMap, world: World, hero: Hero): number {
 function jungleFlag(map: GameMap, world: World, hero: Hero, at: number) {
   const team = teamOf(hero.seat);
   // A hurt hero stays in lane rather than take on a camp.
-  if (hero.hp * 10 < maxHp(levelOf(hero.xp), hero.kind) * 6) return -1;
+  if (hero.hp * 10 < heroMaxHp(hero) * 6) return -1;
   const enemy = (owner: number, x: number, y: number) =>
     owner !== NEUTRAL &&
     teamOf(owner) !== team &&
