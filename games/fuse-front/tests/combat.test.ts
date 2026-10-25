@@ -219,9 +219,7 @@ test("PUSH with every flag taken marches on the enemy fort, and its fall wins th
     ],
   );
   // After the win only the clock moves: no commands, no fire, no production.
-  const after = stepTick(map, world, [
-    { seat: 1, type: "stance", stance: "hold" },
-  ]);
+  const after = stepTick(map, world, [{ seat: 1, type: "move", x: 2, y: 2 }]);
   assert.equal(after.step, world.step + 2);
   assert.deepEqual(after.events, []);
   assert.deepEqual(

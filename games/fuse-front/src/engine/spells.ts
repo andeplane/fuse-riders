@@ -530,14 +530,8 @@ export function cast(
     if (!openTile(map, tx, ty)) return false;
     [hero.flare, hero.flareLeft] = [ty * map.width + tx, duration];
     to = aim;
-    const push = world.players.find((p) => p.seat === seat)?.stance === "push";
     for (const unit of world.units)
-      if (
-        push &&
-        unit.owner === seat &&
-        UNITS[unit.kind].robot &&
-        unit.lane < 0
-      )
+      if (unit.owner === seat && UNITS[unit.kind].robot && unit.lane < 0)
         unit.goal = FLARE;
   } else if (spell.effect === "blitz") hero.blitz = duration;
   else if (spell.effect === "orbitalDrop" || spell.effect === "turretDrop") {

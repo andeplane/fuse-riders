@@ -29,21 +29,16 @@ import { guarded, tendCamps } from "./jungle.js";
 import {
   CAPTURE_XP,
   COMMANDS_PER_SEAT,
-  FACTORY_KINDS,
   OVERTIME_AFTER,
   OVERTIME_GROWTH,
   OVERTIME_MAX,
-  STANCES,
   STEER_MAX,
   STEPS_PER_SECOND,
   STEPS_PER_TICK,
   TILE,
   UNITS,
-  UNIT_KINDS,
   clockRate,
   teamOf,
-  type Stance,
-  type UnitKind,
 } from "./tuning.js";
 import {
   MARKS,
@@ -58,8 +53,8 @@ import {
 } from "./world.js";
 
 /**
- * What a player sends: a factory's standing order, the stance of every unit that player's factories built, a walk
- * for the hero to a tile (`move`, in tiles), or the held stick direction (`steer`, each axis -STEER_MAX..STEER_MAX,
+ * What a player sends (v3 dropped the factory orders and stances; the army is the waves): a walk for the hero to a
+ * tile (`move`, in tiles), or the held stick direction (`steer`, each axis -STEER_MAX..STEER_MAX,
  * (0, 0) releasing it). A move releases the stick and a steer cancels the move, so the latest wins. Both apply to a
  * dead hero too: the stick stays held, and a move made while dead is walked after the respawn. `cast` fires the
  * hero's slot 0–3 (Q, W, E, R) aimed at a tile (`spells.ts`); one that cannot be cast does nothing. `attack` focuses
@@ -68,8 +63,6 @@ import {
  * `attackMove`, `attack` or `cast` marked `queued` goes behind the hero's current order instead (`orders.ts`).
  */
 export type Command =
-  | { seat: number; type: "order"; factory: number; kind: UnitKind }
-  | { seat: number; type: "stance"; stance: Stance }
   | { seat: number; type: "move"; x: number; y: number; queued?: boolean }
   | { seat: number; type: "steer"; dx: number; dy: number }
   | { seat: number; type: "attack"; of: number; id: number; queued?: boolean }
@@ -168,14 +161,7 @@ function applyCommands(
     const count = used.get(player.seat) ?? 0;
     if (count >= COMMANDS_PER_SEAT) continue;
     used.set(player.seat, count + 1);
-    if (command.type === "stance") {
-      if (!(STANCES as readonly unknown[]).includes(command.stance)) continue;
-      if (player.stance === command.stance) continue;
-      player.stance = command.stance;
-      // The player's units pick goals under the new stance this step.
-      for (const unit of world.units)
-        if (unit.owner === player.seat) unit.goal = -1;
-    } else if (command.type === "move" || command.type === "attackMove") {
+    if (command.type === "move" || command.type === "attackMove") {
       const hero = world.heroes.find((each) => each.seat === player.seat)!;
       const { x, y } = command;
       if (!isInt(x, 0, map.width - 1) || !isInt(y, 0, map.height - 1)) continue;
@@ -241,18 +227,6 @@ function applyCommands(
           y,
           chosen ? { of: of!, id: id! } : undefined,
         );
-    } else if (command.type === "order") {
-      const building = world.buildings.find(
-        (each) => each.id === command.factory,
-      );
-      if (building === undefined) continue;
-      if (!(UNIT_KINDS as readonly unknown[]).includes(command.kind)) continue;
-      if (!FACTORY_KINDS[map.sites[building.id]!.kind].includes(command.kind))
-        continue;
-      if (ownerOf(map, world, building) !== player.seat) continue;
-      if (building.order === command.kind) continue;
-      building.order = command.kind;
-      building.progress = 0;
     }
   }
 }

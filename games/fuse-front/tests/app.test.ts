@@ -116,11 +116,9 @@ test("the runtime logs this device's controls only while it rides a seat in a ru
   );
   const target = fortSite(map, 1);
   assert.ok(host.move(target.x, target.y));
-  assert.ok(host.stance("hold"));
   mesh.run(300);
   const world = host.roomState()!.world!;
   assert.equal(world.heroes[0]!.goal, target.y * map.width + target.x);
-  assert.equal(world.players[0]!.stance, "hold");
   const seen = view(host.roomState()!).world!;
   assert.equal(seen.heroes.length, 2);
   assert.equal(seen.heroes[0]!.team, 0);
