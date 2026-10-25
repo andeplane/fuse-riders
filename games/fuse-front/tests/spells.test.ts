@@ -42,7 +42,15 @@ function add(
   hp = 1000,
 ): World {
   const unit = { id: world.nextId, kind, owner, x: at(tx), y: at(ty) };
-  const rest = { hp, cooldown: 0, goal: -1, stun: 0, rally: 0 };
+  const rest = {
+    hp,
+    cooldown: 0,
+    goal: -1,
+    stun: 0,
+    rally: 0,
+    lane: -1,
+    wave: 0,
+  };
   return {
     ...world,
     units: [...world.units, { ...unit, ...rest }],

@@ -1,7 +1,8 @@
 /**
  * One engine step: spell timers (`spells.ts`), the step's commands (casts take effect here), idle heroes' queued
  * orders (`orders.ts`), the heroes' energy and respawns (`hero.ts`), goals (`move.ts`), combat (`combat.ts`), focused
- * heroes' chase (`focus.ts`), movement of units then heroes, STICKY MINEs (`spells.ts`), capture and production. `step` never mutates the world it is given: it copies the arrays and records
+ * heroes' chase (`focus.ts`), movement of units then heroes, STICKY MINEs (`spells.ts`), capture, and production or a lane map's waves
+ * (`waves.ts`). `step` never mutates the world it is given: it copies the arrays and records
  * (players, sectors, buildings, units, heroes, mines) and returns a new world, so the netcode can keep the previous
  * one as a snapshot. Once the match has a winner a step only advances the clock. Bots (`bot.ts`) send ordinary
  * commands.
@@ -23,6 +24,7 @@ import { alive, gainXp, moveHeroes, tendHeroes } from "./hero.js";
 import { flagAt, type GameMap } from "./map.js";
 import { div } from "./math.js";
 import { centreOf, chooseGoals, moveUnits, tileOf } from "./move.js";
+import { laneMap, spawnWaves } from "./waves.js";
 import {
   CAPTURE_XP,
   COMMANDS_PER_SEAT,
@@ -125,7 +127,9 @@ export function step(
   moveHeroes(map, next, holding);
   tickMines(next);
   capture(map, next);
-  produce(map, next);
+  // A lane map's army is its waves; any other map's is what its factories build.
+  if (laneMap(map)) spawnWaves(map, next);
+  else produce(map, next);
   return next;
 }
 
@@ -347,6 +351,8 @@ function produce(map: GameMap, world: World): void {
         goal: -1,
         stun: 0,
         rally: 0,
+        lane: -1,
+        wave: 0,
       });
     units.set(owner, count + batch);
   }
