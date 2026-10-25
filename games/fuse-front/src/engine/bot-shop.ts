@@ -3,15 +3,15 @@
  * build (`BUILDS`) it can afford, one a tick; anywhere it raises an Aegis SHIELD when hurt with an enemy near, and
  * BLINKs onto a hurt enemy hero just out of its gun's reach. Pure, like `bot.ts`.
  */
-import { openTile } from "./flow.js";
+import { UNREACHABLE, flowField, openTile } from "./flow.js";
 import { atFountain } from "./gold.js";
 import { alive, heroMaxHp } from "./hero.js";
 import { ITEMS } from "./items.js";
 import { div, isqrt } from "./math.js";
-import { tileOf } from "./move.js";
+import { centreOf, tileOf } from "./move.js";
 import type { Command } from "./step.js";
-import { HEROES, TILE, teamOf, type HeroKind } from "./tuning.js";
-import type { Hero, World } from "./world.js";
+import { AIM_SLACK, HEROES, TILE, teamOf, type HeroKind } from "./tuning.js";
+import { fortSite, type Hero, type World } from "./world.js";
 import type { GameMap } from "./map.js";
 
 const item = (name: string): number => {
@@ -123,6 +123,12 @@ export function activeCommands(
   const jump = length - range + TILE;
   const x = tileOf(hero.x + div(dx * jump, length));
   const y = tileOf(hero.y + div(dy * jump, length));
-  if (!openTile(map, x, y)) return [];
+  // The shop's own checks (`useItem`): the landing tile's centre within reach, open, and on its fort's ground.
+  const [cx, cy] = [centreOf(x) - hero.x, centreOf(y) - hero.y];
+  const most = ITEMS[hero.items[blink]!]!.range + AIM_SLACK;
+  if (cx * cx + cy * cy > most * most || !openTile(map, x, y)) return [];
+  const home = fortSite(map, seat);
+  const field = flowField(map, home.y * map.width + home.x);
+  if (field.cost(y * map.width + x) === UNREACHABLE) return [];
   return [{ seat, type: "useItem", slot: blink, x, y }];
 }

@@ -314,14 +314,15 @@ function heroCommands(
     return commands;
   }
   if (hero.focusOf >= 0) return commands;
-  // A last hit when it is cheap: an enemy unit in range that one shot finishes (`gold.ts`), the weakest first.
+  // A last hit when it is cheap: an enemy unit in range that one shot surely finishes (`gold.ts`), the weakest first.
+  // Armour and IRON HIDE can cut a shot by up to a quarter, so it counts on three quarters of its damage.
   const gun = heroGun(hero);
   let finish: Unit | undefined;
   for (const unit of world.units)
     if (
       unit.owner !== NEUTRAL &&
       teamOf(unit.owner) !== team &&
-      unit.hp <= gun.damage &&
+      unit.hp * 4 <= gun.damage * 3 &&
       near(unit.x, unit.y, hero.x, hero.y, range) &&
       (finish === undefined || unit.hp < finish.hp)
     )

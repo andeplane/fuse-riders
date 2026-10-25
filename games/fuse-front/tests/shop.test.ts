@@ -15,6 +15,7 @@ import {
   UNITS,
   BUILDS,
   activeCommands,
+  botCommands,
   bonusOf,
   nextBuy,
   shopCommands,
@@ -419,4 +420,21 @@ test("a bot raises its SHIELD when hurt under fire, and BLINKs onto a hurt enemy
   const landed = hero0(step(map, chase, [blink!]));
   assert.ok(landed.x > at(2), "it jumped toward its quarry");
   assert.ok(at(12) - landed.x <= HEROES.brick.range, "and has it in range");
+});
+
+test("a bot focuses a cheap last hit, the weakest it surely finishes, and leaves camp guards alone", () => {
+  const world = arena("brick", 1);
+  const damage = heroGun(hero0(world)).damage;
+  addUnit(world, 1, "grunt", 7, 6, damage);
+  const weak = addUnit(world, 1, "grunt", 7, 7, 5);
+  addUnit(world, -1, "sentry", 6, 6, 1);
+  const sent = botCommands(map, world, 0, "hard").filter(
+    (c) => c.type === "attack",
+  );
+  assert.deepEqual(sent, [{ seat: 0, type: "attack", of: 0, id: weak.id }]);
+  // One that a cut shot might not finish is left to the gun's own pick.
+  const tough = arena("brick", 1);
+  addUnit(tough, 1, "grunt", 7, 6, damage);
+  const plain = botCommands(map, tough, 0, "hard");
+  assert.ok(!plain.some((c) => c.type === "attack" && c.of === 0));
 });
