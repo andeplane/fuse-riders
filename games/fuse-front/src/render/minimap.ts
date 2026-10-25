@@ -15,8 +15,8 @@ const GROUND: Readonly<Record<string, Rgba>> = {
 const SAND: Rgba = [176, 146, 98, 255];
 /** Translucent team tints over territory, then solid dots: red, blue. */
 const TINT: readonly Rgba[] = [
-  [200, 48, 28, 110],
-  [42, 90, 208, 110],
+  [224, 68, 44, 110],
+  [58, 110, 232, 110],
 ];
 const DOT: readonly Rgba[] = [
   [255, 120, 96, 255],

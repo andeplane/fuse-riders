@@ -1,6 +1,7 @@
 import {
   DIFFICULTIES,
   DRAW,
+  HERO_KINDS,
   MAX_SEATS,
   NO_WINNER,
   pickHeroes,
@@ -96,6 +97,25 @@ export function pickHero(
   );
   heroes[slot] = kind;
   return { ...settings, heroes };
+}
+
+/**
+ * The lobby's hero cards for `slot`: the hero it would play is `mine`, one a teammate picked is `taken` (by that
+ * teammate's name), the rest are `free`; picking a free one swaps out a teammate's given (unpicked) hero.
+ */
+export function heroCards(
+  slots: readonly SlotView[],
+  slot: number,
+): { kind: HeroKind; state: "mine" | "taken" | "free"; by: string }[] {
+  const seat = slots.find((s) => s.slot === slot);
+  return HERO_KINDS.map((kind) => {
+    const mate = slots.find(
+      (s) =>
+        s.team === seat?.team && s.slot !== slot && s.picked && s.hero === kind,
+    );
+    const state = seat?.hero === kind ? "mine" : mate ? "taken" : "free";
+    return { kind, state, by: mate?.name ?? "" };
+  });
 }
 
 /** The maps the lobby offers at the settings' size, the one a start would play lit (the size's default if none). */

@@ -192,6 +192,7 @@ test("a spell's tooltip names it, says what it does and lists its numbers", () =
     name: "SNIPE",
     desc: SPELL_INFO.vix[0]!.desc,
     stats: "35 energy · 8s cooldown · range 12 tiles · radius 3 tiles",
+    aim: "unit target",
   });
   assert.equal(
     spellTooltip(SPELL_INFO.brick[3]!).stats,
@@ -200,6 +201,12 @@ test("a spell's tooltip names it, says what it does and lists its numbers", () =
   assert.equal(
     spellTooltip(SPELL_INFO.brick[2]!).stats,
     "Passive · radius 6 tiles",
+  );
+  assert.deepEqual(
+    [SPELL_INFO.brick[3]!, SPELL_INFO.brick[2]!, SPELL_INFO.tally[0]!].map(
+      (spell) => spellTooltip(spell).aim,
+    ),
+    ["instant", "passive", "ground target"],
   );
 });
 

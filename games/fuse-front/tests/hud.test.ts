@@ -49,6 +49,8 @@ test("the HUD derives cooldown seconds, the locked ultimate, bars and the stance
   assert.equal(hud.level, 2);
   assert.equal(hud.xp, 25 / (levelXp(3) - levelXp(2)));
   assert.equal(hud.hp, hero.hp / maxHp(2));
+  assert.equal(hud.hpNow, Math.ceil(hero.hp), "the bar's number");
+  assert.equal(hud.energyNow, Math.floor(hero.energy));
   assert.equal(hud.stance, world.players[0]!.stance);
   assert.equal(hud.time, "1:15");
   hero.xp = levelXp(6);
@@ -57,6 +59,7 @@ test("the HUD derives cooldown seconds, the locked ultimate, bars and the stance
   hero.respawn = STEPS_PER_SECOND * 4;
   const dead = deriveHud(hud, viewOf(MAP, world), 0);
   assert.equal(dead.respawn, 4);
+  assert.equal(dead.hpNow, 0);
   assert.ok(dead.spells.every((s) => !s.ready));
 });
 
