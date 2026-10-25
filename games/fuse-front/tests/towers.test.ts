@@ -17,8 +17,11 @@ import {
   ownerOf,
   respawnSteps,
   shielded,
+  botCommands,
+  hashWorld,
   spawnWaves,
   step,
+  stepTick,
   type Building,
   type CombatEvent,
   type World,
@@ -92,17 +95,43 @@ test("no backdoor: each structure is shielded while the one in front stands, and
   assert.ok(enemyAt(duel, world, 0, 2, core.id));
 });
 
-test("a shielded structure shoots but takes no shot", () => {
-  let world = benchHeroes(createWorld(duel, [0, 1], 1));
-  const inner = structure(world, 1, 1);
-  addUnit(world, 0, "grunt", at(inner).x - 3, at(inner).y);
-  let fired = 0;
-  for (let index = 0; index < 3 * STEPS_PER_SECOND; index++) {
-    world = step(duel, world);
-    fired += shotsOf(world.events, inner.id).length;
+test("a shielded structure shoots but takes no shot, until the one in front falls", () => {
+  const run = (outerDown: boolean) => {
+    let world = benchHeroes(createWorld(duel, [0, 1], 1));
+    if (outerDown) structure(world, 1, 0).hp = 0;
+    const inner = structure(world, 1, 1);
+    addUnit(world, 0, "grunt", at(inner).x - 3, at(inner).y);
+    let fired = 0;
+    for (let index = 0; index < 3 * STEPS_PER_SECOND; index++) {
+      world = step(duel, world);
+      fired += shotsOf(world.events, inner.id).length;
+    }
+    assert.ok(fired > 0, "the inner tower fires");
+    return structure(world, 1, 1).hp;
+  };
+  assert.equal(run(false), TOWER.hp[1]);
+  assert.ok(run(true) < TOWER.hp[1]!);
+});
+
+test("bot matches on a lane map decode at every checkpoint, tower targets and ramps included", () => {
+  let world = createWorld(duel, [0, 1], 4);
+  let aimed = false;
+  for (let tick = 0; tick < 5 * 60 * 20; tick++) {
+    world = stepTick(
+      duel,
+      world,
+      world.players.flatMap((p) => botCommands(duel, world, p.seat, "hard")),
+    );
+    if (tick % 25 !== 0) continue;
+    aimed ||= world.buildings.some((b) => b.ramp > 1);
+    const decoded = decodeWorld(
+      JSON.parse(JSON.stringify(encodeWorld(world))),
+      duel,
+    );
+    assert.ok(decoded, `tick ${tick}`);
+    assert.equal(hashWorld(decoded), hashWorld(world));
   }
-  assert.ok(fired > 0, "the inner tower fires");
-  assert.equal(structure(world, 1, 1).hp, TOWER.hp[1]);
+  assert.ok(aimed, "a tower ramps on a target");
 });
 
 test("a tower takes the nearest enemy unit over a hero, keeps it, and ramps its damage shot by shot", () => {
