@@ -15,7 +15,9 @@
  *   stunned unit holds fire, a rallied one reloads faster, IRON HIDE cuts the damage a covered hero or vehicle takes,
  *   and no gun picks a CLOAKed hero.
  * - A kill is credited to the owner of the first shot (in shooter order: units by id, heroes by seat, turrets) that hit
- *   the victim this step, and earns XP (`award`).
+ *   the victim this step, and earns XP (`award`). A unit's killing blow, for gold, is the first hero's shot that hit
+ *   it this step; a hero's hit on a hero counts toward an assist, and a razed lane structure pays its razer's team
+ *   (`gold.ts`).
  * - Lane towers and gates (`towers.ts`) pick and ramp their own way, and a protected structure is never picked.
  * - Units at 0 hit points are removed, in id order; heroes at 0 wait to respawn (`hero.ts`). A turret or fort at 0
  *   stays as a ruin: it neither fires nor is targeted, and a team whose last fort falls loses (`winnerOf`).
@@ -29,6 +31,7 @@ import { centreOf } from "./move.js";
 import { laneMap, unitDamage } from "./waves.js";
 import { aggro, rampUp, shielded } from "./towers.js";
 import { upgrades } from "./jungle.js";
+import { hurtBy, lastHit, towerGold } from "./gold.js";
 import {
   AURA_DAMAGE,
   AURA_RADIUS,
@@ -65,6 +68,8 @@ interface Target extends Mark {
   /** Damage taken this step, and the seat of the first shot that hit it (-1 for none). */
   taken: number;
   killer: number;
+  /** The seat of the first hero whose shot hit it this step (-1 for none): a unit's killing blow, for gold. */
+  striker: number;
   /** A CLOAKed hero (`spells.ts`): no gun picks it as a target. */
   hidden?: boolean;
 }
@@ -86,6 +91,7 @@ const target = (
   index,
   taken: 0,
   killer: -1,
+  striker: -1,
 });
 
 /** An empty cell, shared so the 5 × 5 scan allocates nothing for cells nobody stands in. */
@@ -197,7 +203,11 @@ export function fight(
   const hit = (victim: Target, from: Target, damage: number): void => {
     victim.taken += damage;
     if (victim.killer < 0) victim.killer = from.owner;
-    if (victim.of === "hero") world.heroes[victim.index]!.quiet = 0;
+    if (from.of === "hero" && victim.striker < 0) victim.striker = from.owner;
+    if (victim.of !== "hero") return;
+    const struck = world.heroes[victim.index]!;
+    struck.quiet = 0;
+    if (from.of === "hero") hurtBy(struck, from.owner);
   };
 
   for (const from of targets) {
@@ -304,7 +314,10 @@ export function fight(
       building.hp = taken >= building.hp ? 0 : building.hp - taken;
       if (building.hp > 0) continue;
       Object.assign(building, { cooldown: 0, aimOf: -1, aim: -1, ramp: 0 });
-      const kind = map.sites[building.id]!.kind;
+      const site = map.sites[building.id]!;
+      const kind = site.kind;
+      // A razed lane tower or gate pays its razer's team (`gold.ts`).
+      if (site.lane >= 0) towerGold(world, killer, site.tier);
       world.events.push({ type: "destroyed", building: building.id, kind });
       continue;
     }
@@ -323,12 +336,13 @@ export function fight(
     ]);
   }
   world.units = world.units.filter((unit, index) => {
-    const { taken, killer } = targets[index]!;
+    const { taken, killer, striker } = targets[index]!;
     unit.hp -= taken;
     if (unit.hp > 0) return true;
     const { id, kind, owner, x, y } = unit;
     world.events.push({ type: "death", id, kind, owner, x, y });
     kills.push([killer, teamOf(owner), x, y, KILL_XP[kind]]);
+    if (striker >= 0) lastHit(world, striker, kind, owner);
     engaged.delete(id);
     return false;
   });

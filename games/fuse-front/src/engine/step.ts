@@ -26,9 +26,11 @@ import { div } from "./math.js";
 import { centreOf, chooseGoals, moveUnits, tileOf } from "./move.js";
 import { laneMap, spawnWaves } from "./waves.js";
 import { guarded, tendCamps } from "./jungle.js";
+import { earn } from "./gold.js";
 import {
   CAPTURE_XP,
   COMMANDS_PER_SEAT,
+  GOLD,
   OVERTIME_AFTER,
   OVERTIME_GROWTH,
   OVERTIME_MAX,
@@ -234,7 +236,8 @@ function applyCommands(
 /**
  * A robot or living hero standing on a flag takes its sector for its owner, whose hero earns `CAPTURE_XP`. A flag
  * both teams stand on stays as it is, and a team never takes a flag from itself; when one team stands on another's
- * flag, the lowest-id robot takes it, or the lowest-seat hero when no robot of that team is there.
+ * flag, the lowest-id robot takes it, or the lowest-seat hero when no robot of that team is there. The taker's hero also
+ * earns `GOLD.capture`.
  * A captured factory starts its default order from scratch, and a captured turret starts loaded.
  */
 function capture(map: GameMap, world: World): void {
@@ -264,11 +267,9 @@ function capture(map: GameMap, world: World): void {
     world.sectors[flag] = seat;
     if (!quiet.has(flag))
       world.events.push({ type: "capture", sector: flag, seat });
-    gainXp(
-      world,
-      world.heroes.find((hero) => hero.seat === seat)!,
-      CAPTURE_XP,
-    );
+    const hero = world.heroes.find((each) => each.seat === seat)!;
+    gainXp(world, hero, CAPTURE_XP);
+    earn(hero, GOLD.capture);
     for (const building of world.buildings) {
       const site = map.sites[building.id]!;
       // A fort and a lane's towers (`towers.ts`) never belong to a sector's holder.

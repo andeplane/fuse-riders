@@ -70,6 +70,8 @@ export class Hud {
   private readonly values = [0, 1, 2].map(() => el("span", "", "ff-value"));
   private readonly heroName = el("b", "", "ff-hero-name");
   private readonly level = el("span", "", "ff-note");
+  /** The player's gold (`gold.ts`), at the right of the hero's name. */
+  private readonly purse = el("b", "", "ff-purse");
   private readonly spells = [0, 1, 2, 3].map(() => ({
     button: el("button", "", "ff-spell"),
     icon: el("span", "", "ff-icon"),
@@ -111,7 +113,8 @@ export class Hud {
     this.top.append(war, this.clock, this.timer, this.chips);
     const bars = el("div", "", "ff-bars");
     const head = el("div", "", "ff-head");
-    head.append(this.heroName, this.level);
+    this.purse.title = "Gold: last hits, kills, towers, camps and a trickle";
+    head.append(this.heroName, this.level, this.purse);
     bars.append(head);
     ["HP", "EN", "XP"].forEach((name, i) => {
       const track = el("span", "", "ff-track");
@@ -230,6 +233,7 @@ export class Hud {
     this.text(this.heroName, s.kind.toUpperCase());
     const role = `${HERO_ROLES[s.kind]} · level ${s.level}`;
     this.text(this.level, s.respawn ? `RESPAWN ${s.respawn}s` : role);
+    this.text(this.purse, `◆ ${s.gold.toLocaleString("en")}`);
     const kit = SPELL_INFO[s.kind];
     s.spells.forEach((spell, i) => {
       const { button, icon, shade, secs, tag, tip } = this.spells[i]!;
