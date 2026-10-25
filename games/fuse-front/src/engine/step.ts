@@ -115,7 +115,7 @@ export function step(
     camps: [...world.camps],
     events: [],
   };
-  tickSpells(next);
+  tickSpells(map, next);
   tickItems(next);
   applyCommands(map, next, commands);
   advanceOrders(map, next);
@@ -130,7 +130,7 @@ export function step(
       .map((hero) => hero.seat),
   );
   moveHeroes(map, next, holding);
-  tickMines(next);
+  tickMines(map, next);
   capture(map, next);
   // A lane map's army is its waves; any other map's is what its factories build.
   if (laneMap(map)) {

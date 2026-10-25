@@ -50,7 +50,7 @@ import { alive, award, fell, heroMaxHp, levelOf } from "./hero.js";
 import { hurtBy, lastHit } from "./gold.js";
 import { guardOf, spellCooldown } from "./shop.js";
 import type { GameMap } from "./map.js";
-import { laneMap, waveHp } from "./waves.js";
+import { waveHp } from "./waves.js";
 import { div, isqrt } from "./math.js";
 import { FLARE, centreOf, settle, tileOf } from "./move.js";
 import {
@@ -59,9 +59,11 @@ import {
   BUILDING_HP,
   KILL_XP,
   MAX_LEVEL,
+  RANK_TWO,
   SENTRY_DECAY,
   STEPS_PER_SECOND,
   TILE,
+  ULTIMATE_LEVEL,
   UNITS,
   teamOf,
   type HeroKind,
@@ -211,7 +213,7 @@ export const KITS: Readonly<Record<HeroKind, readonly Readonly<Spell>[]>> = {
     spell({
       name: "Orbital Drop",
       effect: "orbitalDrop",
-      unlock: 6,
+      unlock: ULTIMATE_LEVEL,
       cooldown: s(90),
       energy: 100,
     }),
@@ -223,7 +225,7 @@ export const KITS: Readonly<Record<HeroKind, readonly Readonly<Spell>[]>> = {
     spell({ name: "Cloak", effect: "cloak", cooldown: s(18), energy: 40, duration: s(5) }),
     spell({ name: "Sticky Mine", effect: "stickyMine", targeting: "point", cooldown: s(6), energy: 30,
       range: 3 * TILE, radius: TILE, duration: s(60), damage: 220, damagePerLevel: 30 }),
-    spell({ name: "Hijack", effect: "hijack", targeting: "unit", unlock: 6, energy: 100, cooldown: s(60),
+    spell({ name: "Hijack", effect: "hijack", targeting: "unit", unlock: ULTIMATE_LEVEL, energy: 100, cooldown: s(60),
       range: 6 * TILE, radius: 3 * TILE }),
   ],
   // prettier-ignore
@@ -233,7 +235,7 @@ export const KITS: Readonly<Record<HeroKind, readonly Readonly<Spell>[]>> = {
     spell({ name: "Turret Drop", effect: "turretDrop", cooldown: s(20), energy: 50 }),
     spell({ name: "Fortify Flag", effect: "fortify", cooldown: s(25), energy: 40, radius: 3 * TILE, duration: s(10),
       durationPerLevel: s(1) }),
-    spell({ name: "Overclock", effect: "overclock", unlock: 6, energy: 100, cooldown: s(75), duration: s(15),
+    spell({ name: "Overclock", effect: "overclock", unlock: ULTIMATE_LEVEL, energy: 100, cooldown: s(75), duration: s(15),
       power: OVERCLOCK_PERCENT }),
   ],
   // prettier-ignore
@@ -242,7 +244,7 @@ export const KITS: Readonly<Record<HeroKind, readonly Readonly<Spell>[]>> = {
     spell({ name: "Flare", effect: "flare", targeting: "point", cooldown: s(15), energy: 35, range: 10 * TILE,
       duration: s(10) }),
     spell({ name: "Spotter", effect: "spotter", passive: true, radius: 5 * TILE, power: 10, powerPerLevel: 1 }),
-    spell({ name: "Blitz", effect: "blitz", unlock: 6, energy: 100, cooldown: s(60), duration: s(10),
+    spell({ name: "Blitz", effect: "blitz", unlock: ULTIMATE_LEVEL, energy: 100, cooldown: s(60), duration: s(10),
       power: BLITZ_SPEED }),
   ],
 };
@@ -263,6 +265,20 @@ export const scaled = (spell: Spell, level: number) => ({
   power: spell.power + spell.powerPerLevel * (level - 1),
   damage: spell.damage + spell.damagePerLevel * (level - 1),
 });
+
+/**
+ * A spell's rank at `level` (`RANK_TWO`): 2 from `RANK_TWO.basic` for a basic spell and from `RANK_TWO.ultimate` for
+ * an ultimate (one that unlocks at `ULTIMATE_LEVEL`), else 1.
+ */
+export const rankOf = (spell: Spell, level: number): number =>
+  level >= (spell.unlock >= ULTIMATE_LEVEL ? RANK_TWO.ultimate : RANK_TWO.basic)
+    ? 2
+    : 1;
+/** A spell's cooldown at `level`: rank 2 casts with `RANK_TWO.cooldown` percent of it (items then cut it, `shop.ts`). */
+export const rankedCooldown = (spell: Spell, level: number): number =>
+  rankOf(spell, level) > 1
+    ? div(spell.cooldown * RANK_TWO.cooldown, 100)
+    : spell.cooldown;
 
 /** The longest a status of `effect` can last, for checkpoint validation. */
 export function longest(effect: SpellEffect): number {
@@ -292,13 +308,13 @@ export const unitMax = (unit: Unit): number =>
       : UNITS[unit.kind].hp;
 
 /** Removes the units at 0 hit points in id order, each a death that earns `killer`'s hero its XP and gold (none for -1). */
-function bury(world: World, killer: number): void {
+function bury(map: GameMap, world: World, killer: number): void {
   world.units = world.units.filter((unit) => {
     if (unit.hp > 0) return true;
     const { id, kind, owner, x, y } = unit;
     world.events.push({ type: "death", id, kind, owner, x, y });
     if (killer < 0) return false;
-    award(world, killer, teamOf(owner), x, y, KILL_XP[kind]);
+    award(map, world, killer, teamOf(owner), x, y, KILL_XP[kind]);
     // A spell or mine is its hero's own killing blow (`gold.ts`).
     lastHit(world, killer, kind, owner);
     return false;
@@ -309,7 +325,7 @@ function bury(world: World, killer: number): void {
  * The start of a step: spell cooldowns and statuses count down, an expired FLARE releases the robots it drew, and
  * sentries burn out.
  */
-export function tickSpells(world: World): void {
+export function tickSpells(map: GameMap, world: World): void {
   const down = (left: number): number => (left > 0 ? left - 1 : 0);
   for (const hero of world.heroes) {
     hero.spells = hero.spells.map(down);
@@ -329,7 +345,7 @@ export function tickSpells(world: World): void {
     if (unit.kind === "sentry" && unit.owner !== NEUTRAL)
       if (world.step % SENTRY_DECAY === 0) unit.hp--;
   }
-  bury(world, -1);
+  bury(map, world, -1);
 }
 
 /**
@@ -484,12 +500,13 @@ export function cast(
       if (hit < victim.hp) victim.hp -= hit;
       else
         award(
+          map,
           world,
           seat,
           foe,
           victim.x,
           victim.y,
-          fell(world, victim, seat, laneMap(map) ? world.step : 0),
+          fell(world, victim, seat),
         );
     }
   } else if (spell.effect === "cloak") hero.cloak = duration;
@@ -596,9 +613,9 @@ export function cast(
     [unit.x, unit.y] = settle(map, unit.x, unit.y, unit.x + dx, unit.y + dy);
   }
   // Units the spell killed die now, in id order, and earn the caster their XP.
-  bury(world, seat);
+  bury(map, world, seat);
   hero.energy -= spell.energy;
-  hero.spells[slot] = spellCooldown(hero, spell.cooldown);
+  hero.spells[slot] = spellCooldown(hero, rankedCooldown(spell, level));
   world.events.push({
     type: "cast",
     seat: hero.seat,
@@ -617,7 +634,7 @@ export function cast(
  * rides its tank and goes off when its fuse ends, for its layer's current `damage`; a spent one goes. A mine whose
  * tank died or changed sides fizzles.
  */
-export function tickMines(world: World): void {
+export function tickMines(map: GameMap, world: World): void {
   const kept = [];
   for (const mine of world.mines) {
     const enemy = (unit: Unit) => teamOf(unit.owner) !== teamOf(mine.owner);
@@ -649,7 +666,7 @@ export function tickMines(world: World): void {
     const { damage } = scaled(MINE, levelOf(layer.xp));
     tank.hp -= div(damage * hideOf(world, tank, teamOf(tank.owner)), 100);
     world.events.push({ type: "mine", seat: mine.owner, x: tank.x, y: tank.y });
-    bury(world, mine.owner);
+    bury(map, world, mine.owner);
   }
   world.mines = kept;
 }

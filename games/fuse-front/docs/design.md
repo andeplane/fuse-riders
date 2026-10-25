@@ -571,3 +571,40 @@ before, and M2 decides whether lanes become required.
   - `preview/shop-shot.mjs` plays a solo match to its first purchase and shoots the shop:
 
 ![The shop at the fort after buying Track Boots](images/shop.png)
+
+**M4 as built (hero progression, numbers in `tuning.ts`, rules in `hero.ts`).**
+
+- **XP sharing (`award`):** a death's XP goes to the living heroes of the killing team within 10 tiles (`XP_RADIUS`)
+  of it, whoever made the kill, so a last hit earns no more XP than standing by. That covers wave units, camp guards,
+  heroes and, new, razed lane structures (80, 100 and 120 by tier). With n heroes sharing, each takes
+  `(100 + 30 · (n − 1)) / n` percent: 100 alone, 65 each for two, 53 each for three. A kill no seat made pays nobody.
+  Capture XP is unchanged.
+- **Levels 1–12 (`LEVEL_XP`):** total XP 0, 60, 150, 270, 420, 600, 840, 1,140, 1,500, 1,920, 2,400, 2,940. Every
+  level adds its hero profile's hit points and gun damage and 10 energy.
+- **Unlocks and ranks (`RANK_TWO`):** the ultimate unlocks at 6 (`ULTIMATE_LEVEL`). A basic spell reaches rank 2 at
+  level 9 and an ultimate at 12, and rank 2 casts with 75 percent of the cooldown before items cut it. Passives keep
+  growing per level instead. The rank follows from the level, so the checkpoint gains nothing.
+- **Respawn:** 4 s plus 4 s a level, at most 40 s (8 s at level 1, 28 s at 6, 40 s from 9). It replaces M2's 2 s per
+  match minute, so `respawnSteps` and its checkpoint bound no longer read the step.
+- **Comeback (`comebackOf`):** a team that has razed fewer enemy lane structures than the other takes 10 percent more
+  XP per structure behind, up to 30. It reads the ruins, so it needs no new state. M3's streak bounty stays.
+- **Duels:** a hero's gun does 300 percent to an enemy hero (`HERO.duel`). Robots, towers and spells are unchanged,
+  so laning and pushing keep their pace. The roles' stats:
+
+  | Hero  | Role            | HP (+/level)         | Gun (+/level)    | Range | Speed |
+  | ----- | --------------- | -------------------- | ---------------- | ----- | ----- |
+  | Brick | tank, initiator | 760 (+60), IRON HIDE | 38 (+5)          | 5     | 12    |
+  | Vix   | assassin        | 580 (+45)            | 46 (+6), SNIPE   | 7     | 15    |
+  | Rivet | support         | 700 (+60)            | 38 (+5)          | 5     | 12    |
+  | Tally | scout, mobility | 660 (+50)            | 40 (+5), SPOTTER | 5     | 16    |
+
+  A same-level duel without items takes 4–8 one-second shots at levels 1, 6 and 12 (`tests/progression.test.ts`).
+  Vix kills a Vix, Rivet or Tally in 4–6, and Brick takes 6–8 to kill.
+
+- **Bots:** unchanged. M2's structure push stays until M5's MOBA bots replace it.
+- **League** (rules `fuse-front-19`, seed 1, normal bots):
+  - Neon Duel 1v1: 8.6–22.4 min across all 16 hero pairings, and 9.0–21.6 min in the committed league.
+  - Twin Wilds 2v2: 16.9 min. Crown Jungle 3v3: 19.2 min.
+  - Heroes reach level 6 by about minute 5, 9–10 by minute 10, and 11–12 by minute 15.
+  - The 12 cross pairings on Neon Duel give wins of Vix 6 of 6, Rivet 4, Brick 1 and Tally 1. Vix already won all of
+    them before M4. M5's bots and M7's tuning take that on.
