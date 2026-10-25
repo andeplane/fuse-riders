@@ -107,7 +107,7 @@ test("buildings: the fort's radar spins, the turret's head aims, the chimney smo
   const fort = buildingModel("fort"), turret = buildingModel("turret"), robots = buildingModel("robotFactory"), motors = buildingModel("vehicleFactory");
   assert.equal(fort.pivot?.aims, false);
   assert.equal(turret.pivot?.aims, true);
-  assert.ok(robots.smoke && robots.smoke[1] > robots.height, "smoke leaves the chimney top");
+  assert.ok(robots.smoke && Math.abs(robots.smoke[1] - size(robots.body).y) < 0.05 && robots.height >= robots.smoke[1], "smoke leaves the chimney top, under the health bar");
   for (const factory of [robots, motors]) for (const paint of ["hazard", "decal", "team"] as const) assert.ok(factory.body.some((p) => p.paint === paint), paint);
   assert.ok(robots.body.some((p) => p.paint === "glass") && motors.body.some((p) => p.paint === "gold"), "saw-tooth glazing; the gantry crane");
   assert.ok(turret.body.some((p) => p.paint === "sand") && turret.pivot!.model.some((p) => p.paint === "team"), "sandbags; team armour on the head");

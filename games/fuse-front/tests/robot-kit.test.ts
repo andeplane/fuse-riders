@@ -118,6 +118,12 @@ test("squad numbers come from one shared pixel atlas", () => {
   // Two-glyph labels take a cell of 8 texels; a sign takes as many as its letters need.
   assert.equal(atlas.image.width, 8 * 4 + 24 + 40);
   assert.deepEqual(LABELS.slice(-2), ["ROBOTS", "MOTOR POOL"]);
+  // Each label's glyph box stays inside its own cell, in order, so no stencil bleeds into the next.
+  LABELS.reduce((end, label) => {
+    const [a, b] = labelUv(label);
+    assert.ok(a >= end - 1e-9 && b > a && b <= 1, label);
+    return a + (Math.ceil((label.length * 4) / 8) * 8) / 96;
+  }, 0);
   assert.equal(labelMask("MOTOR POOL").filter(Boolean).length, 12 + 12 + 7 + 12 + 10 + 0 + 10 + 12 + 12 + 7);
   assert.ok(paints.decal.map instanceof THREE.DataTexture && paints.decal.alphaTest > 0);
   // "07": the zero's hole is dark, the seven's top bar is lit.
