@@ -114,13 +114,13 @@ engine events into tracers, flames, explosions, scorch decals and spell rings, a
 its step stamp so a rollback re-run never plays a cue twice. Positions between two frames are interpolated for display
 only.
 
-The HUD (R2, `src/app/hud.ts`) is DOM dressed in pixel art painted once by `render/pixel/` and scaled 2x, so text and
-buttons read, click and tap well; `app/hud-state.ts` derives its values into one reused record and only changes are
+The HUD (R2, `src/app/hud.ts`) is DOM in the 3D robot style (glass panels, stroke spell icons, and hero portraits
+rendered once from the 3D models by `render3d/portrait.ts`, pixel ones under `?2d`), so text and buttons read well; `app/hud-state.ts` derives its values into one reused record and only changes are
 written. The minimap (`render/minimap.ts`, a pixel per tile, tinted by owner) redraws every 10 steps or on a capture.
 Q/W/E/R cast at the hero's tile, 1/2/3 set the stance, and clicking one of your factories (on the map, or its HUD
 button) opens its orders panel; a click there never moves the hero.
 
-![HUD](images/hud.png)
+![HUD](images/hud-3d.png) ![Lobby hero pick](images/lobby-3d.png)
 
 ## Art
 
