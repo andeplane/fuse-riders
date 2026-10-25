@@ -810,12 +810,143 @@ body.fui-app {
     width: 100%;
   }
 }
-/* v3 M6: a held jungle factory's wave upgrade, as a badge in the top bar. */
+/* v3 M6 over the board: gold pop-ups, notices, the death screen and the scoreboard; only the scoreboard takes clicks. */
+.ff-overlay {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ff-float {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  color: #ffd84a;
+  font: 800 0.95rem var(--ff-display);
+  text-shadow: 0 1px 2px #000;
+  animation: ff-rise 0.9s ease-out forwards;
+}
+@keyframes ff-rise {
+  to {
+    transform: translate(-50%, -260%);
+    opacity: 0;
+  }
+}
+.ff-notices {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transform: translateX(-50%);
+}
+.ff-notice {
+  padding: 3px 12px;
+  border-radius: 4px;
+  background: rgba(16, 18, 22, 0.85);
+  font: 800 0.9rem var(--ff-display);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  animation: ff-fade 2.6s ease-in forwards;
+}
+.ff-good {
+  color: var(--ff-hazard);
+}
+.ff-bad,
+.ff-death strong {
+  color: #ff6a50;
+}
+@keyframes ff-fade {
+  70% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.ff-death {
+  position: absolute;
+  inset: 32% 0 auto;
+  margin: 0 auto;
+  width: min(320px, calc(100% - 32px));
+  flex-direction: column;
+  gap: 6px;
+  border-color: #ff6a50;
+  background: rgba(16, 18, 22, 0.88);
+}
+.ff-death strong {
+  font: 800 1.4rem var(--ff-display);
+  letter-spacing: 0.12em;
+}
+.ff-death small,
+.ff-upgrade {
+  color: var(--ff-muted);
+}
 .ff-upgrade {
   padding: 1px 6px;
   border: 1px solid var(--ff-hazard);
   border-radius: 4px;
-  color: var(--ff-muted);
   font: 700 0.7rem var(--ff-display);
   cursor: help;
+}
+/* Fixed like the shop, so a phone's short board does not squeeze it. */
+.ff-score-board {
+  position: fixed;
+  top: 72px;
+  left: 50%;
+  z-index: 6;
+  width: min(720px, calc(100% - 16px));
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+  transform: translateX(-50%);
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  pointer-events: auto;
+}
+.ff-score-teams {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+.ff-score-head,
+.ff-score-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  gap: 4px 10px;
+  align-items: center;
+}
+.ff-score-head b {
+  color: var(--ff-team);
+  font: 800 1rem var(--ff-display);
+}
+.ff-score-row {
+  padding: 4px 6px;
+  border-left: 3px solid var(--ff-team);
+  font-size: 0.8rem;
+}
+.ff-score-row.ff-own {
+  background: rgba(255, 255, 255, 0.06);
+}
+.ff-score-row b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ff-kda {
+  font: 700 0.9rem var(--ff-display);
+}
+.ff-score-items {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: 3px;
+}
+.ff-score-items i {
+  min-width: 22px;
+  border: 1px solid #3a4048;
+  border-radius: 3px;
+  font: 700 0.65rem var(--ff-display);
+  font-style: normal;
+  text-align: center;
 }

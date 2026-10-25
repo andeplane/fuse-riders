@@ -151,7 +151,9 @@ export type KeyAction =
   | { kind: "close" }
   /** An item slot's active (1–6), and the shop panel (B). */
   | { kind: "item"; slot: number }
-  | { kind: "shop" };
+  | { kind: "shop" }
+  /** The scoreboard, shown while ` is held. */
+  | { kind: "score" };
 
 /** One zoom key press: Z or + closer by this factor, X or - out. */
 export const ZOOM_STEP = 1.25;
@@ -167,7 +169,8 @@ const ZOOM_KEYS: Readonly<Record<string, number>> = {
 /**
  * What a key press does: Q/W/E/R cast (or aim), A arms an attack-move, Space or F follows the
  * hero again, Z/X or +/- zoom a step in or out, Home looks at this seat's fort, Tab at the latest fight, Escape
- * cancels aiming and closes a panel, 1–6 use an item slot's active and B opens or closes the shop.
+ * cancels aiming and closes a panel, 1–6 use an item slot's active, B opens or closes the shop and ` (held) shows the
+ * scoreboard.
  */
 export function keyAction(key: string): KeyAction | undefined {
   const slot = key.length === 1 ? "QWER".indexOf(key.toUpperCase()) : -1;
@@ -183,5 +186,6 @@ export function keyAction(key: string): KeyAction | undefined {
   const item = key.length === 1 ? ITEM_KEYS.indexOf(key) : -1;
   if (item >= 0) return { kind: "item", slot: item };
   if (key === "b" || key === "B") return { kind: "shop" };
+  if (key === "`" || key === "~") return { kind: "score" };
   return undefined;
 }

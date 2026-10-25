@@ -613,7 +613,7 @@ before, and M2 decides whether lanes become required.
 
 - **M6a, structures and the minimap:**
   - **RTS leftovers gone:** the factory orders panel, its buttons and click, and the production clock went, replacing
-    the v1 and v2 factory UI described above. M6b, the next PR, adds the scoreboard and the feed. A held
+    the v1 and v2 factory UI described above. M6b adds the scoreboard and the feed. A held
     jungle factory now shows its wave upgrade as a badge in the top bar, such as "+TORCH MID", with a tooltip.
   - **View:** `BuildingView` gains `lane`, `tier` and `shielded`. A factory's `lane` is the lane its upgrade feeds,
     and `shielded` is the engine's no-backdoor rule. `WorldView.campRespawn` gives each camp's steps until its
@@ -628,3 +628,26 @@ before, and M2 decides whether lanes become required.
   - **Phones:** the item row shares its width, so a 390 px screen doesn't scroll sideways.
 
 ![Red's inner mid tower, shielded while the outer one stands, and the minimap's lane, towers and camps](images/moba-structures.png)
+
+- **M6b, the scoreboard and the feed (`src/app/feed.ts`, `scoreboard.ts`):**
+  - **The feed:** `MatchFeed` takes engine events, each accepted once per match through its own `EventDedupe`.
+    - It tallies every hero's kills, deaths and assists from `heroDeath`, with the engine's credited killer.
+    - An assist works as in `heroBounty`: a living teammate of the killer within `ASSIST_RADIUS` that shot the
+      victim in the last `assistWindow` steps. Spell hits leave no shot, so they're missed.
+    - The tally counts what this device saw, so a device that joins late counts from then. The engine keeps no K/D/A.
+  - **Gold pop-ups:** when this seat's hero lands the first hero shot on a unit on the step it dies, "+20", "+25"
+    and so on pop where it fell, using `GOLD.lastHit` or `GOLD.guard`. That follows the engine's last-hit rule as
+    closely as the events allow. A spell's kill shows no pop-up, and a watcher gets no pop-ups or notices. The
+    renderers gained `screenOf`, which maps a ground point to CSS pixels.
+  - **Notices:** your kills ("KILL · VIX"), assists and deaths ("Destroyed by BRICK") fade in at the top of the board.
+  - **The death screen:** while your hero is down it shows the respawn countdown. The engine sells only to a living
+    hero at its fort, so it says the shop opens there once you respawn, and has no SHOP button.
+  - **The scoreboard:** hold ` (Tab is jump-to-fight) or press the HUD's SCORE toggle. It shows each hero's
+    K/D/A, level (or respawn time), gold and items, and each team's razed enemy towers and held jungle sectors. It's
+    fixed like the shop, so a phone's short board doesn't squeeze it.
+  - `preview/moba-shot.mjs` plays a solo match on Neon Duel, shoots the pop-ups and the scoreboard, and checks
+    that a 390 px page doesn't scroll sideways:
+
+![Last-hit gold pop-ups in mid](images/moba-hud.png)
+
+![The scoreboard, held open with `](images/scoreboard.png)

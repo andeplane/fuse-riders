@@ -73,6 +73,11 @@ export interface Renderer {
     dy: number,
     world: WorldView,
   ): { x: number; y: number } | undefined;
+  /** Where a ground point in sub-pixels shows, in CSS pixels from the canvas's top-left; undefined behind the camera. */
+  screenOf(
+    at: { x: number; y: number },
+    world: WorldView,
+  ): { x: number; y: number } | undefined;
   /** An engine event, once per match however often rollback delivers it. */
   event(matchId: string, stamped: StampedEvent, now: number): void;
   /** Draws `world`, interpolated from `older` by `t` (0 to 1), for this device's `self` seat at wall-clock `now`. */

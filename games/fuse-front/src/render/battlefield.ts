@@ -139,6 +139,12 @@ export class Battlefield implements Renderer {
     return cam.cameraBox(this.camera, this.view, ...size(world));
   }
 
+  screenOf(at: { x: number; y: number }) {
+    const css = (sub: number, from: number) =>
+      ((sub / SUB - from) * this.view.scale) / this.dpr;
+    return { x: css(at.x, this.camera.x), y: css(at.y, this.camera.y) };
+  }
+
   /** The map tile under a point `dx`, `dy` CSS pixels from the canvas's top-left. */
   tileAt(dx: number, dy: number, world: WorldView) {
     const at = cam.screenToArt(dx, dy, this.camera, this.view, this.dpr);
