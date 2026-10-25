@@ -117,7 +117,8 @@ export function waypoints(lane: Readonly<Lane>, team: number): readonly Tile[] {
 
 /**
  * The index in `path` of the waypoint a walker at (x, y) heads for: the one after the last it has reached (within
- * `WAYPOINT_REACH`) or passed (it stands nearer the next waypoint than this one does); `path.length` past the last.
+ * `WAYPOINT_REACH`) or passed (it stands nearer the next waypoint than this one does, or for the last, beyond it
+ * along the last leg); `path.length` past the last.
  * The latest such waypoint wins, which relies on a lane leading steadily from base to base (`loadMap` checks each
  * waypoint is further from one fort and nearer the other), so an earlier waypoint never lies ahead of a later one.
  */
@@ -125,12 +126,18 @@ export function aheadOf(path: readonly Tile[], x: number, y: number): number {
   let ahead = 0;
   for (const [index, here] of path.entries()) {
     const [hx, hy] = [centre(here.x), centre(here.y)];
-    const next = path[index + 1];
+    const [next, last] = [path[index + 1], path[index - 1]];
+    // Past the last waypoint is beyond the line through it square to the lane's last leg, so a walker making for the
+    // fort from there doesn't turn back to it once it is out of reach.
     const passed =
       d2(x, y, hx, hy) <= WAYPOINT_REACH * WAYPOINT_REACH ||
       (next !== undefined &&
         d2(x, y, centre(next.x), centre(next.y)) <
-          d2(hx, hy, centre(next.x), centre(next.y)));
+          d2(hx, hy, centre(next.x), centre(next.y))) ||
+      (next === undefined &&
+        last !== undefined &&
+        (x - hx) * (hx - centre(last.x)) + (y - hy) * (hy - centre(last.y)) >
+          0);
     if (passed) ahead = index + 1;
   }
   return ahead;
@@ -236,10 +243,12 @@ export function spawnWaves(map: GameMap, world: World): void {
           id: world.nextId++,
           kind,
           owner,
-          // Side by side within the start tile, which is open ground.
+          // Side by side within the start tile, which is open ground: team 1's row is team 0's under the half
+          // turn, so neither team's slow torch stands in front of its grunts while the other's stands behind.
           x:
             centre(start.x) +
-            div((2 * at - (batch.length - 1)) * TILE, 4 * batch.length),
+            (team === 0 ? 1 : -1) *
+              div((2 * at - (batch.length - 1)) * TILE, 4 * batch.length),
           y: centre(start.y),
           hp: waveHp(kind, wave),
           cooldown: 0,

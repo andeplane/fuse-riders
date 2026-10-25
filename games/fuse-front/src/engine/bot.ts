@@ -148,7 +148,13 @@ export function botCommands(
   if (player === undefined || hero === undefined || world.winner !== NO_WINNER)
     return [];
   const profile = PROFILES[difficulty];
-  const tick = div(world.step, STEPS_PER_TICK) + seat * 7;
+  // On a lane map teammates think a few ticks apart and the teams half a think apart, so neither team always sees
+  // the other's latest decision first (the v2 seat stagger, kept for the v2 maps, handed one side that edge).
+  const tick =
+    div(world.step, STEPS_PER_TICK) +
+    (laneMap(map)
+      ? div(seat, 2) * 5 + teamOf(seat) * div(profile.think, 2)
+      : seat * 7);
   const commands: Command[] = [];
   // At its fort it shops every tick, so even a slow thinker buys before it walks out (`bot-shop.ts`).
   commands.push(...shopCommands(map, hero));
