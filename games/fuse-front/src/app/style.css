@@ -217,7 +217,7 @@ body.fui-app {
 }
 .ff-war,
 .ff-chips,
-.ff-factories,
+.ff-upgrades,
 .ff-toggles,
 .ff-head {
   display: flex;
@@ -225,7 +225,7 @@ body.fui-app {
   gap: 8px;
 }
 .ff-chips,
-.ff-factories {
+.ff-upgrades {
   flex-wrap: wrap;
   gap: 6px;
 }
@@ -271,8 +271,7 @@ body.fui-app {
   background: var(--ff-team);
   color: #fff;
 }
-.ff-label,
-.ff-orders h3 {
+.ff-label {
   margin: 0;
   color: var(--ff-muted);
 }
@@ -334,8 +333,7 @@ body.fui-app {
   background: #f2c14e;
 }
 .ff-spells,
-.ff-stance,
-.ff-choices {
+.ff-stance {
   display: flex;
   gap: 10px;
   align-items: center;
@@ -422,13 +420,8 @@ body.fui-app {
   letter-spacing: 0.08em;
   white-space: nowrap;
 }
-.ff-toggles .ff-switch,
-.ff-factories .ff-switch {
+.ff-toggles .ff-switch {
   flex: 1;
-}
-#app .ff-factories .ff-switch {
-  height: 26px;
-  font-size: 0.7rem;
 }
 #app :is(.ff-amove, .ff-queue) {
   color: var(--ff-hazard);
@@ -475,6 +468,15 @@ body.fui-app {
 .ff-ping-lost {
   border-color: #ff4030;
 }
+.ff-ping-tower {
+  border-color: #f4f0e0;
+}
+.ff-ping-fort {
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border-color: #ff4030;
+}
 @keyframes ff-ping {
   from {
     transform: scale(0.4);
@@ -484,13 +486,6 @@ body.fui-app {
     transform: scale(2.2);
     opacity: 0;
   }
-}
-.ff-orders {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  flex-direction: column;
-  align-items: stretch;
 }
 #app .ff-close {
   inset: 0 2px auto auto;
@@ -568,8 +563,7 @@ body.fui-app {
   justify-content: space-between;
   align-items: baseline;
 }
-.ff-tip b,
-.ff-orders h3 {
+.ff-tip b {
   font: 800 1rem var(--ff-display);
   color: var(--ff-hazard);
 }
@@ -631,8 +625,7 @@ body.fui-app {
   .ff-stance > .ff-switch {
     flex: 1 1 28%;
   }
-  .ff-toggles,
-  .ff-factories {
+  .ff-toggles {
     flex: 1 1 100%;
   }
   .ff-minimap {
@@ -808,7 +801,21 @@ body.fui-app {
   .ff-items {
     justify-content: space-between;
   }
-  #app .ff-item {
-    width: 44px;
+  /* The six slots and SHOP share the row, so it never runs off a 390 px screen. */
+  .ff-items > .ff-spell-bay {
+    flex: 1 1 0;
+    min-width: 0;
   }
+  #app .ff-item {
+    width: 100%;
+  }
+}
+/* v3 M6: a held jungle factory's wave upgrade, as a badge in the top bar. */
+.ff-upgrade {
+  padding: 1px 6px;
+  border: 1px solid var(--ff-hazard);
+  border-radius: 4px;
+  color: var(--ff-muted);
+  font: 700 0.7rem var(--ff-display);
+  cursor: help;
 }

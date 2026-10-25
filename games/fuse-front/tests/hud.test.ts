@@ -5,9 +5,6 @@ import {
   STEPS_PER_SECOND,
   SUB,
   TILE_PX,
-  UNITS,
-  UNIT_CAP,
-  clockRate,
   createWorld,
   levelXp,
   maxHp,
@@ -20,9 +17,6 @@ const MAP = mapById("dust-basin");
 import {
   createHud,
   deriveHud,
-  factoriesOf,
-  factoryAt,
-  factoryPanel,
   heroTile,
   keyAction,
   ZOOM_STEP,
@@ -78,7 +72,7 @@ test("the HUD names the slots from the seat's own hero's kit", () => {
   assert.equal(tally.hp, 1, "full on its own kind's hit points");
 });
 
-test("the sector meter counts red, neutral and blue, and the clock follows this team", () => {
+test("the sector meter counts red, neutral and blue", () => {
   const world = fresh();
   world.sectors.fill(-1);
   [world.sectors[0], world.sectors[1], world.sectors[2]] = [0, 0, 1];
@@ -88,40 +82,8 @@ test("the sector meter counts red, neutral and blue, and the clock follows this 
   const red = deriveHud(out, view, 0);
   const counts = [red.red, red.neutral, red.blue];
   assert.deepEqual(counts, [2, world.sectors.length - 3, 1]);
-  assert.equal(red.clock, clockRate(2));
   // Deriving fills the same record and slots rather than allocating new ones.
   assert.ok(red === out && out.spells === spells && out.spells[0] === q);
-  assert.equal(deriveHud(out, view, 1).clock, clockRate(1));
-});
-
-test("the factory panel lists choices, the current order, progress and ETA, and pauses at the cap", () => {
-  const world = fresh();
-  const view = viewOf(MAP, world);
-  const mine = factoriesOf(view, 0);
-  assert.ok(mine.length > 0 && mine.every((b) => b.kind.endsWith("Factory")));
-  const robot = mine.find((b) => b.kind === "robotFactory")!;
-  assert.equal(
-    factoryAt(view, { x: robot.x, y: robot.y - 1 }, 0)?.id,
-    robot.id,
-  );
-  assert.equal(factoryAt(view, robot, 1), undefined, "not another seat's");
-  const building = world.buildings.find((b) => b.id === robot.id)!;
-  building.order = "torch";
-  building.progress = (UNITS.torch.build * 100) / 2;
-  let sectors = 0;
-  for (const owner of world.sectors)
-    if (owner >= 0 && owner % 2 === 0) sectors++;
-  const panel = factoryPanel(viewOf(MAP, world), robot.id, 0)!;
-  assert.deepEqual(panel.choices, ["grunt", "torch"]);
-  assert.deepEqual([panel.order, panel.progress], ["torch", 500]);
-  const left = Math.ceil((UNITS.torch.build * 100) / 2 / clockRate(sectors));
-  assert.equal(panel.eta, Math.ceil(left / STEPS_PER_SECOND));
-  assert.equal(panel.paused, false);
-  assert.equal(factoryPanel(viewOf(MAP, world), robot.id, 1), undefined);
-  const unit = { kind: "grunt", owner: 0, x: 0, y: 0, hp: 1 } as const;
-  for (let id = 0; id < UNIT_CAP; id++)
-    world.units.push({ ...unit, id } as World["units"][0]);
-  assert.equal(factoryPanel(viewOf(MAP, world), robot.id, 0)!.paused, true);
 });
 
 test("keys map to casts, recentre and close; spells aim at the hero's tile", () => {

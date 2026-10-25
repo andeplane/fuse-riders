@@ -17,6 +17,8 @@ import {
 } from "./tuning.js";
 import { heroTarget, type Aim } from "./focus.js";
 import { KITS, hideOf, unitMax, type Spell } from "./spells.js";
+import { guarded, nearestLane } from "./jungle.js";
+import { shielded } from "./towers.js";
 import {
   NEUTRAL,
   ownerOf,
@@ -28,7 +30,7 @@ import {
 } from "./world.js";
 
 /** What the renderer needs besides the view itself, so it never reaches past this file into the engine. */
-export { SUB, TILE_PX } from "./tuning.js";
+export { STEPS_PER_SECOND, SUB, TILE_PX } from "./tuning.js";
 export type { BuildingKind, HeroKind, UnitKind } from "./tuning.js";
 export type { CombatEvent, Mark } from "./world.js";
 
@@ -58,6 +60,13 @@ export interface BuildingView {
   order: UnitKind | null;
   /** The current batch's progress in thousandths. */
   progress: number;
+  /**
+   * A lane structure's lane and tier (0 outer, 1 inner, 2 gate), else -1; a factory's `lane` is the one whose waves
+   * it upgrades while held (`jungle.ts`). `shielded`: no gun may pick it yet (no backdoor, `towers.ts`).
+   */
+  lane: number;
+  tier: number;
+  shielded: boolean;
 }
 
 export interface UnitView {
@@ -164,6 +173,8 @@ export interface WorldView {
   /** A lane map's lanes with their tower and gate slots, and its neutral camp slots, in tiles (shared and frozen). */
   lanes: readonly Readonly<Lane>[];
   camps: readonly Readonly<Tile>[];
+  /** By camp: steps until its guards stand again, 0 while any stands. */
+  campRespawn: readonly number[];
   buildings: readonly BuildingView[];
   units: readonly UnitView[];
   /** `unitCap`: the units the player's factories build up to, from the team's sectors. */
@@ -251,6 +262,11 @@ export function viewOf(map: GameMap, world: World): WorldView {
     sectorOwners: [...world.sectors],
     lanes: map.lanes,
     camps: map.camps,
+    campRespawn: map.camps.map((camp, i) =>
+      guarded(map, world, map.sectorOf[camp.y * map.width + camp.x]!)
+        ? 0
+        : world.camps[i]!,
+    ),
     flags: map.flags.map((flag, sector) => ({
       sector,
       x: flag.x,
@@ -277,6 +293,12 @@ export function viewOf(map: GameMap, world: World): WorldView {
           building.order === null
             ? 0
             : div(building.progress * 1000, UNITS[building.order].build * 100),
+        lane:
+          site.lane >= 0 || !site.kind.endsWith("Factory")
+            ? site.lane
+            : nearestLane(map, site.id),
+        tier: site.tier,
+        shielded: shielded(map, world, building),
       };
     }),
     units: world.units.map((unit) => ({

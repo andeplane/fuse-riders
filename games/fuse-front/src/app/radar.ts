@@ -1,6 +1,6 @@
 /**
  * Where the camera keys and the minimap send attention: this seat's fort (Home), the latest fight near its side (Tab)
- * and pings when its flags come under fire or fall. Built from engine events, each accepted once per match however
+ * and pings when its flags, towers, gates or fort come under fire (or a flag falls). Built from engine events, each accepted once per match however
  * often rollback delivers it. Presentation only; nothing here feeds the simulation.
  */
 import {
@@ -23,7 +23,8 @@ export const FLAG_REACH = 5,
   PING_GAP = 200;
 
 type Pos = { x: number; y: number };
-export type Ping = Pos & { kind: "attack" | "lost" };
+/** A flag under fire or lost, or one of this side's lane structures (`tower`) or its fort under fire. */
+export type Ping = Pos & { kind: "attack" | "lost" | "tower" | "fort" };
 
 /** The tile under fractions `fx`, `fy` of a `width` × `height` minimap, kept on the map. */
 export function minimapTile(
@@ -70,7 +71,10 @@ export class Radar {
     }
   }
 
-  /** Takes an engine event; returns a ping for `seat`'s minimap when one of its side's flags is fought over or lost. */
+  /**
+   * Takes an engine event; returns a ping for `seat`'s minimap when one of its side's flags is fought over or lost, or
+   * one of its towers, gates or its fort comes under fire.
+   */
   event(
     matchId: string,
     stamped: StampedEvent,
@@ -101,6 +105,17 @@ export class Radar {
     this.shots.push(at);
     if (this.shots.length > SHOTS_KEPT) this.shots.shift();
     if (team < 0) return undefined;
+    if (event.type === "shot" && event.to.of === "building") {
+      const b = world.buildings.find((each) => each.id === event.to.id);
+      const fort = b?.kind === "fort";
+      if (!b || b.team !== team || (b.tier < 0 && !fort)) return undefined;
+      // Structures ping under negative keys, apart from the flags' sectors.
+      const key = -1 - b.id;
+      if (step - (this.fired.get(key) ?? -Infinity) < PING_GAP)
+        return undefined;
+      this.fired.set(key, step);
+      return { x: b.x + 0.5, y: b.y + 0.5, kind: fort ? "fort" : "tower" };
+    }
     for (const f of world.flags) {
       const centre = { x: f.x + 0.5, y: f.y + 0.5 };
       if (f.team !== team || !near(centre, at, FLAG_REACH)) continue;
