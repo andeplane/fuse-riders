@@ -31,7 +31,10 @@ export class Mesh {
   private readonly online = new Set<string>();
   private readonly lastReliable = new Map<string, number>();
   fast: (from: string, to: string) => FastFate = () => ({ delayMs: 20 });
-  /** How often, in ms, the runtimes' 10 ms loops actually run: a page that paints slowly runs them late. */
+  /**
+   * How often, in ms, the runtimes' 10 ms loops actually run: a page that paints slowly runs them late. A multiple of
+   * 10, since `run` advances the clock in 10 ms steps.
+   */
   loopEvery = 10;
   constructor(
     readonly hostId: string,
