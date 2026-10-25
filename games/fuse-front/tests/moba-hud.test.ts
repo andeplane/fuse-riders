@@ -15,7 +15,13 @@ import {
 import { mapById } from "../src/online/maps.js";
 import { upgradesOf } from "../src/app/hud-state.js";
 import { PING_GAP, Radar } from "../src/app/radar.js";
-import { campTip, minimapMarks } from "../src/render/minimap.js";
+import {
+  campTip,
+  minimapBase,
+  minimapMarks,
+  paintMinimap,
+} from "../src/render/minimap.js";
+import { Img } from "../src/render/pixel/image.js";
 
 const MAP = mapById("neon-duel");
 const TILE = SUB * TILE_PX;
@@ -86,11 +92,8 @@ test("the minimap marks structures (hollow once razed), camps, units and heroes,
   raze(world, outer.id);
   const marks = minimapMarks(viewOf(MAP, world), 0);
   const of = (kind: string) => marks.filter((m) => m.kind === kind);
-  assert.equal(
-    of("structure").length,
-    6,
-    "two towers and a gate a side on mid",
-  );
+  const slots = MAP.lanes.length * 2 * 3;
+  assert.equal(of("structure").length, slots, "two towers and a gate a side");
   assert.deepEqual(
     of("structure").filter((m) => m.down),
     [
@@ -111,6 +114,15 @@ test("the minimap marks structures (hollow once razed), camps, units and heroes,
     of("hero").map((m) => m.self),
     [true, false],
   );
+  // Painted: a standing tower is solid in its team's colour, a razed one only an outline around open ground.
+  const view = viewOf(MAP, world);
+  const base = minimapBase(view);
+  const img = paintMinimap(new Img(base.w, base.h), base, view, 0);
+  const rgb = (x: number, y: number) => [...img.sample(x, y)].slice(0, 3);
+  const standing = lane(view, 1, 1);
+  assert.deepEqual(rgb(standing.x, standing.y), [140, 190, 255]);
+  assert.deepEqual(rgb(outer.x - 1, outer.y), [140, 190, 255]);
+  assert.notDeepEqual(rgb(outer.x, outer.y), [140, 190, 255], "hollow");
 });
 
 const shot = (
@@ -148,4 +160,9 @@ test("a tower or the fort of ours under fire pings once per gap, deduped; the en
   assert.equal(fire(10 + PING_GAP, ours.id)?.kind, "tower");
   assert.equal(fire(30, fort.id)?.kind, "fort");
   assert.equal(fire(40, ours.id, 1), undefined, "not the other side's");
+  assert.equal(fire(50, fort.id, -1), undefined, "nor a watcher's");
+  const factory = v.buildings.find((b) => b.kind.endsWith("Factory"))!;
+  const held = { ...v, buildings: [{ ...factory, team: 0, owner: 0 }] };
+  const shotAt = { step: 60, event: shot(1, "building", factory.id) };
+  assert.equal(radar.event("m", shotAt, held, 0), undefined, "nor a factory");
 });
