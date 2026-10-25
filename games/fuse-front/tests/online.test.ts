@@ -91,10 +91,12 @@ test("bot fill is deterministic: two replicas of a 3v3 agree, and the bots play"
   const a = match({ size: 3, bots }),
     b = match({ size: 3, bots });
   const start = structuredClone(a.room.world!.heroes);
-  const events = fold(a.room, a.entries, 400);
-  fold(b.room, b.entries, 400);
+  // Long enough for the first waves to meet: M5's bots wait for them rather than fight a camp at level 1.
+  const ticks = 1400;
+  const events = fold(a.room, a.entries, ticks);
+  fold(b.room, b.entries, ticks);
   assert.equal(hash(a.room), hash(b.room));
-  assert.equal(a.room.world!.step, (400 + 1) * STEPS_PER_TICK);
+  assert.equal(a.room.world!.step, (ticks + 1) * STEPS_PER_TICK);
   assert.ok(
     a.room.world!.heroes.slice(1).some((h, i) => h.x !== start[i + 1]!.x),
     "bot heroes walk",

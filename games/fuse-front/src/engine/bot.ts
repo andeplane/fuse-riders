@@ -15,9 +15,10 @@
  *   nearest tank (or hero), cloaks when hurt in a fight and mines its path when a tank is near; Rivet overclocks when
  *   it can, repairs whatever is hurt near it, drops a turret and fortifies in a fight; Tally blitzes with its army,
  *   flares the flag it heads for and dashes toward it. An easy bot casts only its first slot.
- * - On a lane map (`waves.ts`) the hero attack-moves down the lane its seat plays, then onto the enemy fort.
- * - It takes a cheap last hit, an enemy unit one shot finishes, before anything but a hurt enemy hero, shops its
- *   hero's build at its fort and uses its item actives (`bot-shop.ts`).
+ * - It takes a cheap last hit, an enemy unit one shot finishes, before anything but a hurt enemy hero.
+ * - On a lane map (`waves.ts`) the hero plays a MOBA instead (`bot-lane.ts`): laning, last hits, retreat, fights,
+ *   towers, objectives and the jungle.
+ * - Anywhere it shops its hero's build at its fort and uses its item actives (`bot-shop.ts`).
  */
 import { UNREACHABLE, flowField } from "./flow.js";
 import { alive, heroGun, heroMaxHp, levelOf } from "./hero.js";
@@ -27,9 +28,9 @@ import { div, isqrt } from "./math.js";
 import { centreOf, tileOf } from "./move.js";
 import { fnv1a, next } from "./rng.js";
 import { kitOf, type Chosen } from "./spells.js";
-import { enemyAt } from "./focus.js";
 import type { Command } from "./step.js";
-import { aheadOf, laneMap, seatLane, waypoints } from "./waves.js";
+import { laneMap } from "./waves.js";
+import { laneCommands } from "./bot-lane.js";
 import {
   HEROES,
   HERO_KINDS,
@@ -53,7 +54,7 @@ import {
 export const DIFFICULTIES = ["easy", "normal", "hard"] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];
 
-interface Profile {
+export interface Profile {
   /** Ticks between hero decisions (moves, attacks and casts). */
   think: number;
   /** Enemy robots near enough for Shockwave, and own robots in a fight for Rally Cry (0: never). */
@@ -63,11 +64,26 @@ interface Profile {
   drop: boolean;
   /** The hero picks among this many of its best targets (1: always the best). */
   wander: number;
+  /**
+   * On a lane map (`bot-lane.ts`): the hit points (percent) below which it falls back behind its tower, and to which
+   * it rests there; the percent of its shot's exact damage at which it takes a last hit (above 100 it shoots too
+   * early); how far (tiles of walk) it detours to a jungle flag; whether a two-seat team plays mid and a roamer; the percent of the enemy's strength its side needs to take a
+   * fight; and what it weighs in that strength (0 the heroes, 1 also the towers that reach the fight, 2 also the
+   * longer gun's free shots).
+   */
+  retreat: number;
+  rested: number;
+  lastHit: number;
+  jungle: number;
+  roam: boolean;
+  nerve: number;
+  sense: number;
 }
 
 /**
- * A hero never retreats (MOBA laning and retreat are v3 M5's). Easy is slow: it wanders between targets, thinks every
- * four seconds and casts only Shockwave.
+ * Easy is slow: it wanders between targets, thinks every four seconds, casts only its first slot, takes last hits a
+ * half-shot early, stays in fights it loses, retreats late and keeps out of the jungle. Hard
+ * thinks every 0.3 s, retreats early and roams in 2v2. None reads what a player can't see.
  */
 export const PROFILES: Readonly<Record<Difficulty, Readonly<Profile>>> = {
   easy: {
@@ -76,6 +92,13 @@ export const PROFILES: Readonly<Record<Difficulty, Readonly<Profile>>> = {
     rally: 0,
     drop: false,
     wander: 3,
+    retreat: 15,
+    rested: 60,
+    lastHit: 150,
+    jungle: 0,
+    roam: false,
+    nerve: 60,
+    sense: 0,
   },
   normal: {
     think: 16,
@@ -83,6 +106,13 @@ export const PROFILES: Readonly<Record<Difficulty, Readonly<Profile>>> = {
     rally: 5,
     drop: true,
     wander: 1,
+    retreat: 30,
+    rested: 85,
+    lastHit: 100,
+    jungle: 30,
+    roam: false,
+    nerve: 100,
+    sense: 1,
   },
   hard: {
     think: 6,
@@ -90,19 +120,20 @@ export const PROFILES: Readonly<Record<Difficulty, Readonly<Profile>>> = {
     rally: 4,
     drop: true,
     wander: 1,
+    retreat: 25,
+    rested: 80,
+    lastHit: 100,
+    jungle: 40,
+    roam: true,
+    nerve: 95,
+    sense: 2,
   },
 };
 
-/** How far (sub-pixels) a lane bot looks for enemies before a jungle detour, and a hero for allies and foes around it. */
-const SCOUT = 16 * TILE;
+/** How far (sub-pixels) a hero counts allies and foes around it. */
 const NEAR = 8 * TILE;
 /** Flow cost an enemy-held flag carries over a neutral one: it is defended, a neutral one is not. */
 const ENEMY_FLAG = 40 * STRAIGHT;
-/** A lane bot pushes a structure within `PUSH_REACH` while no enemy hero stands within `PUSH_CLEAR` (sub-pixels). */
-const PUSH_REACH = 12 * TILE;
-const PUSH_CLEAR = 16 * TILE;
-/** How far (flow cost) a lane bot detours to take a jungle flag. */
-const JUNGLE_WALK = 30 * STRAIGHT;
 
 const near = (ax: number, ay: number, bx: number, by: number, r: number) =>
   (ax - bx) * (ax - bx) + (ay - by) * (ay - by) <= r * r;
@@ -160,7 +191,10 @@ export function botCommands(
   commands.push(...shopCommands(map, hero));
   if (tick % profile.think === 0) {
     commands.push(...activeCommands(map, world, hero));
-    commands.push(...heroCommands(map, world, hero, profile));
+    if (!laneMap(map))
+      commands.push(...heroCommands(map, world, hero, profile));
+    else if (alive(hero))
+      commands.push(...laneCommands(map, world, hero, profile));
   }
   return commands;
 }
@@ -337,19 +371,10 @@ function heroCommands(
     commands.push({ seat, type: "attack", of: 0, id: finish.id });
     return commands;
   }
-  // On a lane map with no enemy hero about, the hero brings down the nearest structure it may shoot (`towers.ts`).
-  const siege = laneMap(map) ? pushTarget(map, world, hero) : -1;
-  if (siege >= 0) {
-    commands.push({ seat, type: "attack", of: 2, id: siege });
-    return commands;
-  }
-  // The way to an enemy fort, and every walk down a lane, is an attack-move: the hero stands to fight what it meets,
-  // beside its army.
-  const fort =
-    laneMap(map) ||
-    map.sites.some(
-      (site) => site.kind === "fort" && site.y * map.width + site.x === goal,
-    );
+  // The way to an enemy fort is an attack-move: the hero stands to fight what it meets, beside its army.
+  const fort = map.sites.some(
+    (site) => site.kind === "fort" && site.y * map.width + site.x === goal,
+  );
   if (
     goal >= 0 &&
     goal !== at &&
@@ -362,56 +387,6 @@ function heroCommands(
   return commands;
 }
 
-/**
- * The site id of the enemy structure a lane bot's hero should attack: the nearest it may shoot within `PUSH_REACH`,
- * while no living enemy hero stands within `PUSH_CLEAR`; -1 otherwise.
- */
-function pushTarget(map: GameMap, world: World, hero: Hero): number {
-  const team = teamOf(hero.seat);
-  for (const each of world.heroes)
-    if (alive(each) && teamOf(each.seat) !== team)
-      if (near(each.x, each.y, hero.x, hero.y, PUSH_CLEAR)) return -1;
-  let best = -1,
-    bestD = PUSH_REACH * PUSH_REACH + 1;
-  for (const building of world.buildings) {
-    const aim = enemyAt(map, world, team, 2, building.id);
-    if (aim === undefined) continue;
-    const d =
-      (aim.x - hero.x) * (aim.x - hero.x) + (aim.y - hero.y) * (aim.y - hero.y);
-    if (d < bestD) [best, bestD] = [building.id, d];
-  }
-  return best;
-}
-
-/**
- * A lane bot's jungle detour: while its hero is healthy and no enemy unit or hero (camp guards aside) stands within
- * `SCOUT`, the tile of the jungle flag its team doesn't hold (and that no FORTIFY holds) cheapest to walk to within
- * `JUNGLE_WALK`; -1 otherwise.
- */
-function jungleFlag(map: GameMap, world: World, hero: Hero, at: number) {
-  const team = teamOf(hero.seat);
-  // A hurt hero stays in lane rather than take on a camp.
-  if (hero.hp * 10 < heroMaxHp(hero) * 6) return -1;
-  const enemy = (owner: number, x: number, y: number) =>
-    owner !== NEUTRAL &&
-    teamOf(owner) !== team &&
-    near(x, y, hero.x, hero.y, SCOUT);
-  if (world.units.some((u) => enemy(u.owner, u.x, u.y))) return -1;
-  if (world.heroes.some((h) => alive(h) && enemy(h.seat, h.x, h.y))) return -1;
-  let best = -1,
-    bestCost = JUNGLE_WALK + 1;
-  for (const [sector, flag] of map.flags.entries()) {
-    if (map.sectorKinds[sector] !== "jungle" || world.fortified[sector]! > 0)
-      continue;
-    const owner = world.sectors[sector]!;
-    if (owner !== NEUTRAL && teamOf(owner) === team) continue;
-    const tile = flag.y * map.width + flag.x;
-    const cost = flowField(map, tile).cost(at);
-    if (cost < bestCost) [best, bestCost] = [tile, cost];
-  }
-  return best;
-}
-
 /** The tile the hero should walk to, or -1 to stay. */
 function heroGoal(
   map: GameMap,
@@ -421,17 +396,6 @@ function heroGoal(
   at: number,
 ): number {
   const team = teamOf(hero.seat);
-  if (laneMap(map)) {
-    // With no enemy about, take a jungle flag a short walk off (fighting its camp, `jungle.ts`).
-    const jungle = jungleFlag(map, world, hero, at);
-    if (jungle >= 0) return jungle;
-    // Down its lane, waypoint by waypoint (`waves.ts`), then onto the enemy fort.
-    const lane = map.lanes[seatLane(map, world, hero.seat)]!;
-    const path = waypoints(lane, team);
-    const spot = path[aheadOf(path, hero.x, hero.y)];
-    if (spot === undefined) return enemyFort(map, world, team, at);
-    return spot.y * map.width + spot.x;
-  }
   const candidates: [number, number][] = [];
   for (const [index, flag] of map.flags.entries()) {
     const owner = world.sectors[index]!;

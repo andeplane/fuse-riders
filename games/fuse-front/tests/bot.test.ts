@@ -122,6 +122,8 @@ test("every command a bot sends is one a player could send, and takes effect", (
     ],
     // The lane maps the room plays (v3).
     [mapById("neon-duel"), [[0, 1]]],
+    [mapById("twin-wilds"), [[0, 1, 2, 3]]],
+    [mapById("crown-jungle"), [[0, 1, 2, 3, 4, 5]]],
   ] as const)
     for (const seats of seatSets) {
       const bots = new Map(seats.map((seat) => [seat, DIFFICULTIES[roll(3)]!]));
@@ -178,13 +180,14 @@ test("a bot's commands are a pure function of the world and seat, and never chan
     [2, "easy"],
     [3, "hard"],
   ]);
-  play(map, bots, 1500, (world, commands) => {
-    if (world.step % 50 !== 0) return;
-    const before = encodeWorld(world);
-    const again = allBots(map, world, bots);
-    assert.deepEqual(again, commands);
-    assert.deepEqual(encodeWorld(world), before);
-  });
+  // A v2 map, and the 3v3 lane map the MOBA bots play (`bot-lane.ts`).
+  for (const board of [map, mapById("crown-jungle")])
+    play(board, bots, 1500, (world, commands) => {
+      if (world.step % 50 !== 0) return;
+      const before = encodeWorld(world);
+      assert.deepEqual(allBots(board, world, bots), commands);
+      assert.deepEqual(encodeWorld(world), before);
+    });
 });
 
 test("an empty seat or a finished match gets no commands", () => {
