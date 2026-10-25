@@ -223,7 +223,11 @@ export class Hud {
     this.put(this.chips, "slots", JSON.stringify([slots, levels]), () =>
       this.chips.replaceChildren(
         ...slots.map((slot) => {
-          const name = slot.self ? "You" : slot.bot ? "AI" : slot.name;
+          const name = slot.self
+            ? "You"
+            : slot.bot
+              ? `AI ${slot.difficulty}`
+              : slot.name;
           const hero = world.heroes.find((h) => h.seat === slot.slot);
           const label = hero ? `${name} · ${hero.kind} ${hero.level}` : name;
           const own = slot.self ? " ff-own" : "";

@@ -111,7 +111,11 @@ body.fui-app {
   border: 3px solid var(--ff-hazard);
   box-shadow: 0 0 0 4px rgba(242, 193, 78, 0.18);
 }
-.ff-hero.ff-taken {
+/* fuse-ui dims disabled buttons; a non-host's cards and chips stay readable, only a taken hero dims. */
+#app :is(.ff-hero, .ff-seat-pick):disabled {
+  opacity: 1;
+}
+#app .ff-hero.ff-taken {
   opacity: 0.45;
   cursor: not-allowed;
 }
@@ -338,7 +342,7 @@ body.fui-app {
   gap: 6px;
 }
 /* Over fuse-ui's rounded app buttons. */
-#app button:is(.ff-spell, .ff-switch, .ff-choice, .ff-close) {
+#app :is(.ff-spell, .ff-switch, .ff-choice, .ff-close) {
   min-height: 0;
   padding: 0;
   border-radius: 5px;
@@ -597,8 +601,18 @@ body.fui-app {
     flex: 1 1 200px;
   }
   .ff-spells {
+    position: relative;
     flex: 1 1 100%;
     justify-content: space-between;
+  }
+  /* The tooltip spans the spell row, so it never runs off the screen. */
+  .ff-spell-bay {
+    position: static;
+  }
+  .ff-tip {
+    left: 0;
+    width: 100%;
+    transform: none;
   }
   #app .ff-spell {
     width: 64px;
