@@ -271,7 +271,14 @@ chunky robots, team-coloured forts and factories, the riveted steel HUD) but ren
   tank and crawler, plus each hero with its own model and an always-visible team ring. Team colour goes on large
   surfaces. G2 builds them in `src/render3d/models.ts`: one merged geometry per paint per model, drawn as instanced
   meshes that share the kind's matrices, with the team colour per instance on the `team` paint only. Heroes wear
-  Brick until the view names a hero kind (`heroKindOf`).
+  Brick until the view names a hero kind (`heroKindOf`). The robot units (grunt, torch, light tank, sentry) follow
+  the 3D concept art and are built from the concept kit in `src/render3d/kit/`: a posed builder (`rig.ts`), a shared
+  pixel-font atlas for stencilled squad numbers (`decals.ts`) and the units with their shared legs and tracks
+  (`units.ts`). Every robot has a `near` and a `far` model; a unit past `LOD_FAR` tiles from the camera, or any unit
+  at `?quality=low`, draws the far one (plain plates, no decals or small parts, steel drawn as the dark frame).
+
+  ![Robot units at the default zoom](images/robots-units.png)
+  ![Zoomed in on a squad of grunts](images/robots-units-close.png)
 
   ![Procedural models at the default zoom](images/models-3d.png)
   ![Zoomed in on grunts, a light tank and a turret](images/models-3d-zoom.png)

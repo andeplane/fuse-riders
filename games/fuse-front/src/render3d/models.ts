@@ -3,8 +3,9 @@
  * geometry per paint, so a unit kind draws as a few instanced meshes. Team colour goes on the large `team` surfaces
  * (white here, tinted per instance); trims are dark metal and visors glow. Every part carries baked vertex colour —
  * dirt toward the feet, shade under overhangs, worn bright edges — and the metal paints share one procedural panel
- * map (grooves, a seam, rivets) for their normals and roughness. Walkers' legs and tanks' treads are separate shared
- * models so each instance can swing or scroll them. Units face +z and stand on y = 0, one tile is one unit of length.
+ * map (grooves, seams, rivets, grime streaks) for their normals, roughness and colour. Heroes' legs are a separate
+ * shared model so each instance can swing them; the robot units are built from the concept kit in `kit/`. Models face
+ * +z and stand on y = 0, one tile is one unit of length.
  * Presentation only: nothing here reads or writes the simulation.
  */
 import * as THREE from "three";
@@ -12,6 +13,7 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { BuildingKind, HeroView, UnitKind } from "../engine/view.js";
 import { hash, normalMap, tileNoise } from "./terrain.js";
+import { decalAtlas } from "./kit/decals.js";
 
 // prettier-ignore
 export const PAINTS = {
@@ -32,10 +34,21 @@ export const PAINTS = {
   char: { color: 0x2a2420, roughness: 1, metalness: 0 },
   /** Track rubber: links scroll along z by the instance colour's red channel (`treadPhase`), so it is never tinted. */
   tread: { color: 0x2c2a28, roughness: 0.9, metalness: 0.2 },
+  /** Near-black gunmetal for weapons. */
+  gun: { color: 0x1f2124, roughness: 0.45, metalness: 0.7 },
+  /** Stencilled squad numbers: cut out of the shared atlas (`decalAtlas`) and drawn just over the plate under them. */
+  decal: { color: 0xffffff, roughness: 0.7, metalness: 0, alphaTest: 0.5, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 },
 } as const;
 export type Paint = keyof typeof PAINTS;
 /** The paints the panel map details. */
-const DETAILED: readonly Paint[] = ["team", "steel", "dark", "orange", "gold"];
+const DETAILED: readonly Paint[] = [
+  "team",
+  "steel",
+  "dark",
+  "orange",
+  "gold",
+  "gun",
+];
 
 export interface Part {
   paint: Paint;
@@ -46,13 +59,12 @@ export type Model = Part[];
 export const HERO_KINDS = ["brick", "vix", "rivet", "tally"] as const;
 export type HeroKind = (typeof HERO_KINDS)[number];
 export type ModelKind = UnitKind | "tankTurret" | HeroKind;
-/** Shared parts drawn per instance: a walker's leg (unit size, hip at the origin), tank treads, a mine. */
-export type PartKind = "leg" | "treads" | "mine";
+/** Shared parts drawn per instance: a hero's leg (unit size, hip at the origin), a mine. Robots' are in `kit/units`. */
+export type PartKind = "leg" | "mine";
 
-/** Each walker's legs: hip half-width, leg length and thickness, in tiles. */
+/** Each hero's legs: hip half-width, leg length and thickness, in tiles (robots' are `ROBOT_LEGS`). */
 // prettier-ignore
 export const LEGS: Partial<Record<ModelKind, { hip: number; len: number; w: number }>> = {
-  grunt: { hip: 0.065, len: 0.13, w: 0.07 }, torch: { hip: 0.1, len: 0.14, w: 0.1 },
   brick: { hip: 0.12, len: 0.24, w: 0.14 }, vix: { hip: 0.055, len: 0.24, w: 0.07 },
   rivet: { hip: 0.09, len: 0.18, w: 0.1 }, tally: { hip: 0.07, len: 0.26, w: 0.065 },
 };
@@ -80,7 +92,10 @@ function hazardTexture(): THREE.DataTexture {
   return tex;
 }
 
-/** One armour panel per face: a groove round the border, a seam across the middle, rivets in the corners. */
+/**
+ * One armour panel per face, after the concept kit: a groove round the border, a seam boxing in the upper panel,
+ * rivets at the corners and the waist, hammered grain, and faces pillowing up toward their edges.
+ */
 // prettier-ignore
 export function panelHeights(n: number): Float32Array {
   const grain = tileNoise(n, 6, 21), h = new Float32Array(n * n);
@@ -88,31 +103,43 @@ export function panelHeights(n: number): Float32Array {
   for (let y = 0; y < n; y++)
     for (let x = 0; x < n; x++) {
       const u = (x + 0.5) / n, v = (y + 0.5) / n, edge = Math.min(u, 1 - u, v, 1 - v);
-      const cu = Math.min(Math.abs(u - 0.1), Math.abs(u - 0.9)), cv = Math.min(Math.abs(v - 0.1), Math.abs(v - 0.9), Math.abs(v - 0.5) + 0.02);
-      h[y * n + x] = -bump(edge - 0.035, 0.022) - 0.6 * bump(Math.abs(v - 0.5), 0.012) + 0.7 * Math.sqrt(bump(Math.hypot(cu, cv), 0.03)) + grain[y * n + x]! * 0.12;
+      const su = Math.min(Math.abs(u - 0.18), Math.abs(u - 0.82)), inner = u > 0.18 && u < 0.82, upper = v > 0.62 && v < 0.94;
+      const seam = (upper ? bump(su, 0.012) : 0) + (inner ? bump(Math.abs(v - 0.62), 0.012) : 0);
+      const ru = Math.min(Math.abs(u - 0.09), Math.abs(u - 0.91)), rv = Math.min(Math.abs(v - 0.09), Math.abs(v - 0.91), Math.abs(v - 0.35));
+      h[y * n + x] = -bump(edge - 0.035, 0.022) - 0.6 * Math.min(1, seam) + 0.8 * Math.sqrt(bump(Math.hypot(ru, rv), 0.03))
+        + (grain[y * n + x]! - 0.3) * 0.12 + Math.min(edge, 0.04) * 3;
     }
   return h;
 }
 
-/** The shared panel maps: normals from `panelHeights`, and roughness (green) that is dirtier in the grooves. */
+/**
+ * The shared panel maps: normals from `panelHeights`; roughness (green) dirtier in the grooves and smoother on
+ * scuffs; and a grime colour map (multiplied into the paint) darker in the grooves, streaked down each face.
+ */
 // prettier-ignore
-export function detailMaps(n = 64): { normal: THREE.DataTexture; rough: THREE.DataTexture } {
-  const h = panelHeights(n), rough = new Uint8Array(n * n * 4);
+export function detailMaps(n = 64): { normal: THREE.DataTexture; rough: THREE.DataTexture; grime: THREE.DataTexture } {
+  const h = panelHeights(n), streaks = tileNoise(n, 12, 23), mottle = tileNoise(n, 4, 25);
+  const rough = new Uint8Array(n * n * 4), grime = new Uint8Array(n * n * 4);
   for (let i = 0; i < n * n; i++) {
-    const g = Math.min(255, Math.max(0, Math.round(215 + h[i]! * -90)));
+    const groove = Math.max(0, -h[i]!), streak = Math.max(0, streaks[i % n]! - 0.45);
+    const g = Math.min(255, Math.max(0, Math.round(215 + h[i]! * -90 - (mottle[i]! > 0.62 ? 50 : 0))));
     rough.set([g, g, g, 255], i * 4);
+    const k = Math.round(255 * Math.min(1, Math.max(0.4, 0.97 + (mottle[i]! - 0.4) * 0.15 - groove * 0.3 - streak * 0.6)));
+    grime.set([k, Math.round(k * 0.985), Math.round(k * 0.96), 255], i * 4);
   }
-  return { normal: texture(normalMap(h, n, 2.2), n), rough: texture(rough, n) };
+  const map = texture(grime, n, true);
+  return { normal: texture(normalMap(h, n, 2.2), n), rough: texture(rough, n), grime: map };
 }
 
 /** Puts the panel maps on the metal paints, or takes them off (`maps` undefined: low quality). */
 export function setDetail(
   paints: Record<Paint, THREE.MeshStandardMaterial>,
-  maps?: { normal: THREE.Texture; rough: THREE.Texture },
+  maps?: { normal: THREE.Texture; rough: THREE.Texture; grime?: THREE.Texture },
 ): void {
   for (const paint of DETAILED) {
     paints[paint].normalMap = maps?.normal ?? null;
     paints[paint].roughnessMap = maps?.rough ?? null;
+    paints[paint].map = maps?.grime ?? null;
     paints[paint].normalScale.setScalar(0.7);
     paints[paint].needsUpdate = true;
   }
@@ -150,6 +177,7 @@ export function paintMaterials(): Record<Paint, THREE.MeshStandardMaterial> {
       vertexColors: paint !== "tread",
     });
   out.hazard.map = hazardTexture();
+  out.decal.map = decalAtlas();
   out.tread.onBeforeCompile = patchTread;
   out.tread.customProgramCacheKey = () => "tread";
   return out;
@@ -249,21 +277,11 @@ const rod = (r: number, len: number, x: number, y: number, z: number, rx = 0, rz
 // prettier-ignore
 const hoop = (r: number, t: number, x: number, y: number, z: number, rx = Math.PI / 2) =>
   at(new THREE.TorusGeometry(r, t, 6, 20), x, y, z, rx);
-/** A side profile (z, y) with bevelled edges, extruded `w` wide across x. */
-// prettier-ignore
-const hull = (w: number, profile: [number, number][], bevel = 0.025) =>
-  new THREE.ExtrudeGeometry(new THREE.Shape(profile.map(([z, y]) => new THREE.Vector2(z, y))),
-    { depth: w - 2 * bevel, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 2 })
-    .rotateY(-Math.PI / 2).translate(w / 2 - bevel, 0, 0);
 const pair = (make: (side: number) => THREE.BufferGeometry) => [
   make(-1),
   make(1),
 ];
 const Z = Math.PI / 2;
-/** A light tank's two tracks. */
-const tracks = () =>
-  pair((s) => block(0.13, 0.15, 0.74, s * 0.215, 0.075, 0, 0.06));
-
 /** A unit leg hanging from a hip at the origin to a foot at y = −1: drawn scaled by `LEGS` and swung per instance. */
 // prettier-ignore
 function leg(): Model {
@@ -273,12 +291,6 @@ function leg(): Model {
     .build();
 }
 
-/** Both tracks of a light tank, drawn with the tread paint so the links scroll. */
-// prettier-ignore
-function treads(): Model {
-  return new Kit().add("tread", ...tracks()).build();
-}
-
 /** Vix's sticky mine: a dark puck with a team band and three prongs; its light blinks on its own. */
 // prettier-ignore
 function mine(): Model {
@@ -286,62 +298,6 @@ function mine(): Model {
     .add("team", rod(0.115, 0.02, 0, 0.045, 0, 0, 0, 0.115, 14))
     .add("steel", ...[0, 2.1, 4.2].map((a) => rod(0.012, 0.09, Math.sin(a) * 0.1, 0.06, Math.cos(a) * 0.1, 0.5, 0)))
     .build();
-}
-
-/** Height ≈ 0.5: the smallest robot, a round helmet over a cyan visor, a backpack radio and a rifle held forward. */
-// prettier-ignore
-function grunt(kit: Kit): Kit {
-  return kit
-    .add("team", block(0.22, 0.15, 0.17, 0, 0.21, 0, 0.05), cap(0.15, 0, 0.36, 0, 0.9), ...pair((s) => ball(0.05, s * 0.13, 0.27, 0)))
-    .add("dark", ball(0.12, 0, 0.36, 0.01), block(0.12, 0.12, 0.07, 0, 0.23, -0.11, 0.02), hoop(0.152, 0.012, 0, 0.36, 0))
-    .add("visor", block(0.18, 0.04, 0.06, 0, 0.36, 0.1, 0.02))
-    .add("steel", block(0.035, 0.045, 0.32, 0.14, 0.2, 0.08, 0.01), rod(0.012, 0.08, 0.14, 0.2, 0.27, Z), rod(0.006, 0.18, -0.04, 0.38, -0.12));
-}
-
-/** Height ≈ 0.6 and broad: twin orange fuel tanks with hoses, a grille face and a flamer with a hot tip. */
-// prettier-ignore
-function torch(kit: Kit): Kit {
-  return kit
-    .add("team", block(0.34, 0.22, 0.26, 0, 0.26, 0, 0.06), block(0.2, 0.14, 0.18, 0, 0.44, 0.02, 0.05), ...pair((s) => block(0.09, 0.08, 0.14, s * 0.2, 0.33, 0, 0.03)))
-    .add("flame", block(0.15, 0.03, 0.04, 0, 0.45, 0.11, 0.01), ball(0.035, 0.19, 0.22, 0.42))
-    .add("orange", ...pair((s) => rod(0.07, 0.3, s * 0.08, 0.33, -0.18, 0, 0, 0.07, 14)))
-    .add("hazard", ...pair((s) => rod(0.072, 0.04, s * 0.08, 0.28, -0.18)))
-    .add("dark", ...pair((s) => ball(0.068, s * 0.08, 0.48, -0.18, 0.55)), block(0.26, 0.05, 0.08, 0, 0.18, -0.16), hoop(0.06, 0.012, 0.13, 0.3, -0.06, 0))
-    .add("steel", rod(0.04, 0.24, 0.19, 0.22, 0.26, Z, 0, 0.03), block(0.09, 0.09, 0.12, 0.19, 0.22, 0.1, 0.02), ...[-0.04, 0, 0.04].map((x) => rod(0.006, 0.06, x, 0.45, 0.115, 0, Z)));
-}
-
-/** Long and low: a bevelled hull with sloped glacis, road wheels, fenders, exhausts and headlights. */
-// prettier-ignore
-function lightTank(kit: Kit): Kit {
-  return kit
-    .add("team", hull(0.34, [[-0.33, 0.12], [-0.34, 0.22], [-0.24, 0.27], [0.16, 0.27], [0.34, 0.17], [0.32, 0.12]]),
-      ...pair((s) => slab(0.15, 0.02, 0.62, s * 0.215, 0.165, 0)))
-    .add("steel", ...[-0.25, -0.125, 0, 0.125, 0.25].flatMap((z) => pair((s) => rod(0.052, 0.025, s * 0.285, 0.07, z, 0, Z))))
-    .add("dark", ...pair((s) => rod(0.03, 0.03, s * 0.298, 0.07, 0.3, 0, Z)), ...pair((s) => rod(0.022, 0.1, s * 0.11, 0.24, -0.35, Z)),
-      block(0.12, 0.06, 0.1, 0.1, 0.29, -0.22, 0.015))
-    .add("amber", ...pair((s) => ball(0.025, s * 0.13, 0.22, 0.33, 1, 0.6)));
-}
-
-/** The light tank's turret, drawn on its own so it can turn toward what it shoots and kick back when it does. */
-// prettier-ignore
-function tankTurret(kit: Kit): Kit {
-  return kit
-    .add("team", hull(0.26, [[-0.17, 0.27], [-0.17, 0.35], [-0.1, 0.38], [0.08, 0.38], [0.14, 0.33], [0.12, 0.27]], 0.02))
-    .add("steel", rod(0.024, 0.38, 0, 0.32, 0.31, Z), rod(0.05, 0.08, 0, 0.32, 0.14, Z), hoop(0.05, 0.012, 0.06, 0.39, -0.06, 0), rod(0.004, 0.32, -0.09, 0.52, -0.12))
-    .add("dark", rod(0.034, 0.07, 0, 0.32, 0.5, Z), block(0.08, 0.05, 0.1, 0, 0.36, -0.2, 0.012))
-    .add("visor", block(0.06, 0.03, 0.02, -0.07, 0.36, 0.1, 0.008));
-}
-
-/** Rivet's TURRET DROP: a splayed tripod under a squat twin-barrelled head with an ammo drum and a red sensor. */
-// prettier-ignore
-function sentry(kit: Kit): Kit {
-  return kit
-    .add("steel", ...[0, 2.1, 4.2].map((a) => rod(0.022, 0.36, Math.sin(a) * 0.12, 0.16, Math.cos(a) * 0.12, -Math.cos(a) * 0.5, Math.sin(a) * 0.5)),
-      rod(0.05, 0.08, 0, 0.26, 0))
-    .add("team", block(0.24, 0.13, 0.26, 0, 0.34, 0, 0.05))
-    .add("orange", rod(0.05, 0.08, 0.15, 0.32, -0.04, 0, Z))
-    .add("dark", ...pair((s) => rod(0.022, 0.3, s * 0.045, 0.34, 0.24, Z)), ...pair((s) => rod(0.03, 0.04, s * 0.045, 0.34, 0.38, Z)))
-    .add("eye", ball(0.025, 0, 0.4, 0.13));
 }
 
 /** Height ≈ 0.85, nearly 0.65 wide: the heavy bruiser, chest plate, gold-trimmed shoulder pads, fists and exhaust stacks. */
@@ -394,9 +350,7 @@ function tally(kit: Kit): Kit {
 }
 
 // prettier-ignore
-const BUILDERS: Record<ModelKind, (kit: Kit) => Kit> = {
-  grunt, torch, lightTank, sentry, tankTurret, brick, vix, rivet, tally,
-};
+const BUILDERS: Record<HeroKind, (kit: Kit) => Kit> = { brick, vix, rivet, tally };
 
 /** Which hero model a hero wears: its `kind`'s (Brick for one without a model). */
 export function heroKindOf(hero: HeroView): HeroKind {
@@ -404,19 +358,18 @@ export function heroKindOf(hero: HeroView): HeroKind {
 }
 
 /**
- * A unit's model. A walker's legs and a tank's tracks stand still in it unless `moving` parts are left out to be drawn
- * (and swung or scrolled) on their own.
+ * A hero's model. Its legs stand still in it unless `moving` parts are left out to be drawn (and swung) on their own.
+ * The robot units are built by `kit/units`.
  */
 // prettier-ignore
-export function unitModel(kind: ModelKind, moving = true): Model {
+export function unitModel(kind: HeroKind, moving = true): Model {
   const kit = BUILDERS[kind](new Kit()), spec = LEGS[kind];
   if (moving && spec) kit.add("dark", ...pair((s) => block(spec.w, spec.len, spec.w, s * spec.hip, spec.len / 2, 0, spec.w / 3)));
-  if (moving && kind === "lightTank") kit.add("tread", ...tracks());
   return kit.build();
 }
 
 export function partModel(kind: PartKind): Model {
-  return { leg, treads, mine }[kind]();
+  return { leg, mine }[kind]();
 }
 
 /** The ground ring's outer radius under a body, in tiles: bigger bodies, bigger rings. */
