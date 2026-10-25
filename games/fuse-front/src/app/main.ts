@@ -290,6 +290,9 @@ function room(code: string, token: string | undefined, display: boolean): void {
     const world = view.world!;
     const slot = runtime.slot();
     hud.update(world, slot, slotsOf(view, runtime.self));
+    // Where this device's hero stands, for browser smokes to read that an order moved it.
+    const mine = world.heroes.find((h) => h.seat === slot);
+    canvas.dataset.hero = mine ? `${mine.x},${mine.y}` : "";
     // Aiming ends with the hero (dead, watching, or between matches).
     if (modeFor(world, slot, mode) !== mode) arm(IDLE);
     if (mode.kind !== "idle" || cursor) refresh();

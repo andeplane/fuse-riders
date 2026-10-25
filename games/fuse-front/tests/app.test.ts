@@ -126,6 +126,35 @@ test("the runtime logs this device's controls only while it rides a seat in a ru
   assert.equal(seen.heroes[0]!.hp, seen.heroes[0]!.maxHp);
 });
 
+test("on a page that paints slowly the world keeps up with the clock, so a move order lands at once", () => {
+  const mesh = new Mesh("host", DEFAULT_SETTINGS);
+  const host = mesh.join("host");
+  mesh.run(300);
+  host.command({ type: "join", name: "Ada" });
+  mesh.run(500);
+  assert.ok(host.command({ type: "action", action: "start" }));
+  mesh.run(500 + COUNTDOWN_TICKS * 50);
+  assert.equal(host.slot(), 0);
+  // A software rasteriser: one loop pass every 300 ms instead of every 10. The world must not drift behind the
+  // clock, or this device's entries, stamped for the clock's tick, apply ever later.
+  mesh.loopEvery = 300;
+  mesh.run(6_000);
+  const lag = () => {
+    const { tick, clockTick } = host.metrics();
+    return clockTick - tick;
+  };
+  assert.ok(lag() < 10, `the world trails the clock by ${lag()} ticks`);
+  const map = mapOf(host.roomState()!);
+  const target = fortSite(map, 1);
+  assert.ok(host.move(target.x, target.y));
+  mesh.run(900);
+  assert.equal(
+    host.roomState()!.world!.heroes[0]!.goal,
+    target.y * map.width + target.x,
+    "the hero took the order",
+  );
+});
+
 test("the lobby offers the maps that hold the battle size, lighting the one a start would play", () => {
   const offered = (size: number, map: string | null) =>
     mapOptions({ ...DEFAULT_SETTINGS, size, map })
