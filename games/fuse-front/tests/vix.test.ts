@@ -142,11 +142,11 @@ test("STICKY MINE lies on the aim in range (refused beyond it), sticks to the fi
   addUnit(laid, 0, "lightTank", 6, 6); // a friend never sets it off
   addUnit(laid, 1, "grunt", 6, 6); // nor a robot
   const tank = addUnit(laid, 1, "lightTank", 6, 7);
-  tickMines(laid);
+  tickMines(map, laid);
   assert.equal(laid.mines[0]!.stuck, tank.id);
-  for (let index = 1; index < MINE_FUSE; index++) tickMines(laid);
+  for (let index = 1; index < MINE_FUSE; index++) tickMines(map, laid);
   assert.equal(laid.units.find((u) => u.id === tank.id)!.hp, 1000);
-  tickMines(laid);
+  tickMines(map, laid);
   assert.equal(
     laid.units.find((u) => u.id === tank.id)!.hp,
     1000 - MINE.damage,
@@ -168,7 +168,7 @@ test("an unused mine runs out, and a fourth replaces the oldest", () => {
   world.mines = [
     { owner: 0, x: centreOf(4), y: centreOf(6), life: 1, stuck: -1 },
   ];
-  tickMines(world);
+  tickMines(map, world);
   assert.deepEqual(world.mines, []);
 });
 
