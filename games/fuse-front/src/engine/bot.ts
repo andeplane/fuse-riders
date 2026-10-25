@@ -29,6 +29,7 @@ import { div, isqrt } from "./math.js";
 import { centreOf, tileOf } from "./move.js";
 import { fnv1a, next } from "./rng.js";
 import { kitOf, type Chosen } from "./spells.js";
+import { enemyAt } from "./focus.js";
 import type { Command } from "./step.js";
 import { aheadOf, laneMap, seatLane, waypoints } from "./waves.js";
 import {
@@ -137,6 +138,9 @@ const ENEMY_FLAG = 40 * STRAIGHT;
 /** Torches beat this many enemy robots near a factory; a factory switches only before this percent of a batch. */
 const SWARM = 6;
 const SWITCH_BEFORE = 25;
+/** A lane bot pushes a structure within `PUSH_REACH` while no enemy hero stands within `PUSH_CLEAR` (sub-pixels). */
+const PUSH_REACH = 12 * TILE;
+const PUSH_CLEAR = 16 * TILE;
 
 const near = (ax: number, ay: number, bx: number, by: number, r: number) =>
   (ax - bx) * (ax - bx) + (ay - by) * (ay - by) <= r * r;
@@ -355,6 +359,12 @@ function heroCommands(
     return commands;
   }
   if (hero.focusOf >= 0) return commands;
+  // On a lane map with no enemy hero about, the hero brings down the nearest structure it may shoot (`towers.ts`).
+  const siege = laneMap(map) ? pushTarget(map, world, hero) : -1;
+  if (siege >= 0) {
+    commands.push({ seat, type: "attack", of: 2, id: siege });
+    return commands;
+  }
   // The way to an enemy fort, and every walk down a lane, is an attack-move: the hero stands to fight what it meets,
   // beside its army.
   const fort =
@@ -372,6 +382,27 @@ function heroCommands(
     commands.push({ seat, type, x: gx, y: (goal - gx) / map.width });
   }
   return commands;
+}
+
+/**
+ * The site id of the enemy structure a lane bot's hero should attack: the nearest it may shoot within `PUSH_REACH`,
+ * while no living enemy hero stands within `PUSH_CLEAR`; -1 otherwise.
+ */
+function pushTarget(map: GameMap, world: World, hero: Hero): number {
+  const team = teamOf(hero.seat);
+  for (const each of world.heroes)
+    if (alive(each) && teamOf(each.seat) !== team)
+      if (near(each.x, each.y, hero.x, hero.y, PUSH_CLEAR)) return -1;
+  let best = -1,
+    bestD = PUSH_REACH * PUSH_REACH + 1;
+  for (const building of world.buildings) {
+    const aim = enemyAt(map, world, team, 2, building.id);
+    if (aim === undefined) continue;
+    const d =
+      (aim.x - hero.x) * (aim.x - hero.x) + (aim.y - hero.y) * (aim.y - hero.y);
+    if (d < bestD) [best, bestD] = [building.id, d];
+  }
+  return best;
 }
 
 /** The tile the hero should walk to, or -1 to stay. */

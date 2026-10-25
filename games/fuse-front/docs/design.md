@@ -453,11 +453,33 @@ before, and M2 decides whether lanes become required.
   - From 5 s, every 30 s each lane sends 3 grunts and a torch per team from the team's end of its path.
   - Each lane's wave belongs to the seat that plays it: one rider takes mid, two take top and bot, and three take one
     lane each.
-  - A unit records its lane and its wave number. Wave n has `100 + 3·(n − 1)` percent of its kind's hit points and
-    damage, capped at +150 percent.
+  - A unit records its lane and its grade: its wave number, plus 20 for each enemy tower or gate its team had razed
+    when it spawned (M2b). Grade n has `100 + 3·(n − 1)` percent of its kind's hit points and damage, capped at
+    +1000 percent.
   - A team sends nothing more while 45 of its lane units stand. A drop's unit cap doesn't count wave units.
   - A lane unit picks its goal every step: an enemy turret or fort within 7 tiles, else the first waypoint it has
     neither reached (within 3 tiles) nor passed, else, past its lane's end, the nearest enemy fort.
   - It stands to fight anything in range and never seeks anything off its lane, so it doesn't wander into the jungle.
     FLARE doesn't draw it.
   - Bots walk their seat's lane on attack-move. The golden now plays Crown Jungle.
+- **Towers and the core (M2b, `src/engine/towers.ts`):**
+  - `loadMap` adds each lane side's slots as turret sites after the map's own: outer tower, inner tower, then gate.
+    They have 1,800, 2,200 and 2,600 hit points. Each belongs to its team, credited to the seat that plays the lane.
+  - A tower has a 7-tile range, 30 damage and fires once a second. It keeps the target it last shot while that stays
+    in range; otherwise it takes the nearest enemy unit, else the nearest enemy hero.
+  - When an enemy hero's shot hits a friendly hero and the tower has both in range, the tower switches to that enemy
+    hero.
+  - Each shot in a row on one target does 25 percent more, up to +150 percent.
+  - **No backdoor:** no gun or attack picks a structure while the one in front of it on its lane and side stands,
+    nor a team's fort while every gate of that team stands. Ruined lane structures stay down, so REPAIR skips them.
+  - Destroying a team's last fort wins (`winnerOf`, unchanged).
+  - **Momentum:** each enemy structure a team razes makes its later waves 20 grades tougher. Without it, mirror
+    bots ground on in mid for an hour.
+  - **Pace on lane maps:**
+    - A hero's shots hit lane structures and forts at full damage (siege 100 percent, not 50).
+    - A fallen hero waits 2 s more for each minute the match has run, so a kill late in the match opens a real
+      push window.
+    - A drop or hijacked tank follows its hero rather than walking to jungle flags.
+  - **Bots:** with no enemy hero within 16 tiles, a bot attacks the nearest enemy structure it may shoot within 12
+    tiles.
+  - Mirror bot matches now end: normal 1v1 on Neon Duel at 36 min, 2v2 on Twin Wilds at 37, 3v3 on Crown Jungle at 47. M7 tunes them to 15–20 min.

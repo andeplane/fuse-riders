@@ -48,7 +48,7 @@
 import { DIRS, openTile } from "./flow.js";
 import { alive, award, fell, levelOf, maxHp } from "./hero.js";
 import type { GameMap } from "./map.js";
-import { waveHp } from "./waves.js";
+import { laneMap, waveHp } from "./waves.js";
 import { div, isqrt } from "./math.js";
 import { FLARE, centreOf, settle, tileOf } from "./move.js";
 import {
@@ -67,6 +67,7 @@ import {
 import {
   MARKS,
   ownerOf,
+  siteHp,
   unitCap,
   type Building,
   type Hero,
@@ -469,7 +470,14 @@ export function cast(
       victim.quiet = 0;
       if (hit < victim.hp) victim.hp -= hit;
       else
-        award(world, seat, foe, victim.x, victim.y, fell(world, victim, seat));
+        award(
+          world,
+          seat,
+          foe,
+          victim.x,
+          victim.y,
+          fell(world, victim, seat, laneMap(map) ? world.step : 0),
+        );
     }
   } else if (spell.effect === "cloak") hero.cloak = duration;
   else if (spell.effect === "stickyMine") {
@@ -654,7 +662,8 @@ function mends(
     const site = map.sites[at.id]!;
     const owner = ownerOf(map, world, at);
     if (owner < 0 || teamOf(owner) !== team) return [];
-    if (at.hp === 0 && site.kind === "fort") return [];
+    // A lane's towers and gates (`towers.ts`) stay down once destroyed, like a fort.
+    if (at.hp === 0 && (site.kind === "fort" || site.lane >= 0)) return [];
     return [{ of: "building", at, x: centreOf(site.x), y: centreOf(site.y) }];
   });
   return [...units, ...heroes, ...buildings].filter(
@@ -666,7 +675,7 @@ function mends(
 function mostHp(map: GameMap, target: Target): number {
   if (target.of === "unit") return unitMax(target.at);
   if (target.of === "hero") return maxHp(levelOf(target.at.xp), target.at.kind);
-  return BUILDING_HP[map.sites[target.at.id]!.kind];
+  return siteHp(map.sites[target.at.id]!);
 }
 
 /** DASH: eight hops toward the aim, each well under a tile, so a wall stops it instead of being crossed. */

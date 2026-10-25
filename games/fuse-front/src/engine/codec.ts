@@ -20,6 +20,7 @@ import {
 } from "./spells.js";
 import { ORDER_KINDS, castable, type Order } from "./orders.js";
 import { fnv1a } from "./rng.js";
+import { shielded } from "./towers.js";
 import {
   BUILDING_HP,
   FACTORY_KINDS,
@@ -33,6 +34,8 @@ import {
   HERO_KINDS,
   STEER_MAX,
   TILE,
+  RAZE_WAVES,
+  TOWER,
   TURRET,
   UNITS,
   UNIT_CAP,
@@ -40,7 +43,14 @@ import {
   WAVE_CAP,
   teamOf,
 } from "./tuning.js";
-import { WAVE_KINDS, laneCounts, lastWave, waveHp } from "./waves.js";
+import {
+  razedBy,
+  laneMap,
+  WAVE_KINDS,
+  laneCounts,
+  lastWave,
+  waveHp,
+} from "./waves.js";
 import {
   MARKS,
   NEUTRAL,
@@ -50,6 +60,7 @@ import {
   type Player,
   type Unit,
   type World,
+  siteHp,
   winnerOf,
 } from "./world.js";
 
@@ -94,6 +105,9 @@ export function encodeWorld(world: World): unknown {
       b.order === null ? -1 : UNIT_KINDS.indexOf(b.order),
       b.progress,
       b.cooldown,
+      b.aimOf,
+      b.aim,
+      b.ramp,
     ]),
     world.units.map((u) => [
       u.id,
@@ -158,25 +172,42 @@ function player(raw: unknown): Player | undefined {
   return { seat, team, stance: STANCES[stance]! };
 }
 
-function building(raw: unknown, map: GameMap): Building | undefined {
-  const t = tuple(raw, 5);
+/** A building of `map`, given the seats in play and the next unit id (a lane tower's target names one of them). */
+function building(
+  raw: unknown,
+  map: GameMap,
+  seats: ReadonlySet<number>,
+  nextId: number,
+): Building | undefined {
+  const t = tuple(raw, 8);
   if (!t) return;
-  const [id, hp, order, progress, cooldown] = t;
+  const [id, hp, order, progress, cooldown, aimOf, aim, ramp] = t;
   if (!isInt(id, 0, map.sites.length - 1)) return;
-  const kind = map.sites[id]!.kind;
+  const site = map.sites[id]!;
+  const kind = site.kind;
+  const tower = site.lane >= 0;
   // Only turrets and forts are shot at, so only they can stand at 0 hit points (a ruin).
   const lowest = kind === "turret" || kind === "fort" ? 0 : 1;
-  if (!isInt(hp, lowest, BUILDING_HP[kind])) return;
+  if (!isInt(hp, lowest, siteHp(site))) return;
   // Standing turrets and forts reload their guns; nothing else has one.
   const gun =
     hp === 0
       ? 0
-      : kind === "turret"
-        ? TURRET.cooldown
-        : kind === "fort"
-          ? FORT_GUN.cooldown
-          : 0;
+      : tower
+        ? TOWER.cooldown
+        : kind === "turret"
+          ? TURRET.cooldown
+          : kind === "fort"
+            ? FORT_GUN.cooldown
+            : 0;
   if (!isInt(cooldown, 0, gun)) return;
+  // A standing lane tower's target (`towers.ts`): none, a unit id given out, or an enemy hero in play.
+  if (!isInt(aimOf, -1, tower && hp > 0 ? 1 : -1)) return;
+  if (aimOf === -1 ? aim !== -1 || ramp !== 0 : !isInt(ramp, 0, TOWER.rampMax))
+    return;
+  if (aimOf === 0 && !isInt(aim, 1, nextId - 1)) return;
+  if (aimOf === 1) if (!isInt(aim, 0, MAX_SEATS - 1) || !seats.has(aim)) return;
+  if (aimOf === 1 && teamOf(aim as number) === site.team) return;
   const kinds = FACTORY_KINDS[kind];
   if (
     kinds.length === 0 ? order !== -1 : !isInt(order, 0, UNIT_KINDS.length - 1)
@@ -187,10 +218,17 @@ function building(raw: unknown, map: GameMap): Building | undefined {
   // A batch resets on completion, so stored work stays below a whole batch.
   const most = made === null ? 0 : UNITS[made].build * 100 - 1;
   if (!isInt(progress, 0, most)) return;
-  return { id, hp, order: made, progress, cooldown };
+  // prettier-ignore
+  return { id, hp, order: made, progress, cooldown, aimOf, aim: aim as number, ramp: ramp as number };
 }
 
-function unit(raw: unknown, map: GameMap, step: number): Unit | undefined {
+/** A unit of `map` at `step`, given the enemy structures each team has razed (a wave's grade counts them). */
+function unit(
+  raw: unknown,
+  map: GameMap,
+  step: number,
+  razed: readonly number[],
+): Unit | undefined {
   const t = tuple(raw, 12);
   if (!t) return;
   const [id, kind, owner, x, y, hp, cooldown, goal, stun, rally, lane, wave] =
@@ -202,7 +240,9 @@ function unit(raw: unknown, map: GameMap, step: number): Unit | undefined {
     return;
   // A wave unit (`waves.ts`): a lane of this map and a wave already sent; exactly the units with a lane have a wave.
   if (!isInt(lane, -1, map.lanes.length - 1)) return;
-  if (!isInt(wave, lane < 0 ? 0 : 1, lane < 0 ? 0 : lastWave(step))) return;
+  // Razing only adds up (a lane structure never stands again), so no grade outruns the count now.
+  const graded = lastWave(step) + RAZE_WAVES * razed[teamOf(owner)]!;
+  if (!isInt(wave, lane < 0 ? 0 : 1, lane < 0 ? 0 : graded)) return;
   if (lane >= 0 && !WAVE_KINDS.includes(UNIT_KINDS[kind]!)) return;
   // An Orbital Drop tank lands tougher than a factory's, and a wave's units grow with their wave.
   const most =
@@ -265,7 +305,9 @@ function order(raw: unknown, map: GameMap): Order | undefined {
   };
 }
 
-function hero(raw: unknown, map: GameMap): Hero | undefined {
+function hero(raw: unknown, map: GameMap, step: number): Hero | undefined {
+  // On a lane map the respawn wait grows with the match (`respawnSteps`).
+  const late = laneMap(map) ? step : 0;
   const t = tuple(raw, 25);
   if (!t) return;
   const [seat, x, y, hp, energy, xp, cooldown, respawn, facing, goal] = t;
@@ -316,7 +358,8 @@ function hero(raw: unknown, map: GameMap): Hero | undefined {
   if (!isInt(hp, 0, maxHp(level, kind)) || !isInt(energy, 0, maxEnergy(level)))
     return;
   // A living hero has no respawn timer; a dead one has one running and its gun at rest.
-  if (hp > 0 ? respawn !== 0 : !isInt(respawn, 1, respawnSteps(level))) return;
+  if (hp > 0 ? respawn !== 0 : !isInt(respawn, 1, respawnSteps(level, late)))
+    return;
   if (!isInt(cooldown, 0, hp > 0 ? HERO.cooldown : 0)) return;
   if (!isInt(facing, 0, DIRS.length - 1)) return;
   // A move goal is any open tile, at most one per hero, so the flow cache stays bounded.
@@ -428,7 +471,7 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
   );
   if (!sectors || sectors.length !== map.flags.length) return;
   const buildings = list(rawBuildings, map.sites.length, (each) =>
-    building(each, map),
+    building(each, map, seats, nextId),
   );
   if (!buildings || !ascending(buildings, (b) => b.id)) return;
   // Exactly the map's buildings and the forts of the seats in play.
@@ -440,8 +483,13 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
     buildings.some((b, index) => b.id !== expected[index]!.id)
   )
     return;
+  // A protected structure (`towers.ts`) has never been hit: protection only ever lifts.
+  const world = { buildings };
+  for (const b of buildings)
+    if (b.hp < siteHp(map.sites[b.id]!) && shielded(map, world, b)) return;
+  const razed = razedBy(map, buildings);
   const units = list(rawUnits, MAX_SEATS * UNIT_CAP + 2 * WAVE_CAP, (each) =>
-    unit(each, map, step),
+    unit(each, map, step, razed),
   );
   if (!units || !ascending(units, (u) => u.id)) return;
   // Each seat's own units under its cap, and each team's lane waves under theirs.
@@ -453,7 +501,7 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
   for (const count of owned.values()) if (count > UNIT_CAP) return;
   if (laneCounts(units).some((count) => count > WAVE_CAP)) return;
   // One hero per player, in the players' order.
-  const heroes = list(rawHeroes, MAX_SEATS, (each) => hero(each, map));
+  const heroes = list(rawHeroes, MAX_SEATS, (each) => hero(each, map, step));
   if (
     !heroes ||
     heroes.length !== players.length ||
