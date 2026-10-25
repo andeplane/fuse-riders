@@ -552,9 +552,11 @@ before, and M2 decides whether lanes become required.
     Bots don't retreat yet (M5), so they shop when they respawn.
   - It raises its SHIELD when below half health and hit or near an enemy hero. It BLINKs onto a hurt enemy hero
     that is just out of its gun's reach, landing a tile inside it.
-  - It takes a cheap last hit, an enemy unit one shot finishes, before pushing a structure or walking on.
+  - It takes a cheap last hit, an enemy unit three quarters of one shot finishes (armour and IRON HIDE can cut a
+    shot), before pushing a structure or walking on. Its BLINK aim passes the shop's own checks, so it's never
+    refused.
   - **League** (rules `fuse-front-18`, seed 1), now asserting that every bot shops:
-    - Neon Duel 1v1: 9.8 to 21.2 min across 8 pairings, 2–4 items each at the end.
-    - Twin Wilds 2v2: 12.0 min. Crown Jungle 3v3: 14.4 min.
-    - On Crown Jungle a hero's third item lands at 6.7–10.3 min and its fourth at 9.6–13.8 min, with 4,700–6,200
+    - Neon Duel 1v1: 9.5 to 16.0 min across 8 pairings, 2–3 items each at the end.
+    - Twin Wilds 2v2: 13.1 min. Crown Jungle 3v3: 14.1 min.
+    - On Crown Jungle a hero's third item lands at 7.7–9.8 min and its fourth at 11.5–12.9 min, with 5,200–5,800
       gold earned by minute 10, so 3–4 items by minute 15 holds. Matches are shorter than M2's; M7 tunes the pace.
