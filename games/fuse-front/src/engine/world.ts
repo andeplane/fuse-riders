@@ -57,6 +57,9 @@ export interface Unit {
   /** Steps left stunned by SHOCKWAVE and rallied by RALLY CRY (`spells.ts`); 0 when not. */
   stun: number;
   rally: number;
+  /** A wave unit's lane index (`GameMap.lanes`) and wave number (`waves.ts`); -1 and 0 for any other unit. */
+  lane: number;
+  wave: number;
 }
 
 /**

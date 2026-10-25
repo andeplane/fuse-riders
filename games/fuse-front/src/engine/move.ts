@@ -12,6 +12,7 @@
  * - A unit with an enemy in range (`combat.ts`), or stunned (`spells.ts`), stands instead of seeking; separation still
  *   applies.
  * - FOLLOW: stays within `HOLD_RADIUS` of the owner's hero, or holds the owner's fort while it is dead (`FOLLOW_HERO`).
+ * - LANE: a lane map's wave units walk their lane instead of following a stance (`waves.ts`).
  * - While the owner's FLARE burns (`spells.ts`), a PUSHing robot makes for its tile instead (`FLARE`), taking the flag
  *   there if it is one; when it goes out the robot picks again.
  */
@@ -29,7 +30,8 @@ import {
   teamOf,
   type Stance,
 } from "./tuning.js";
-import { NEUTRAL, type Unit, type World } from "./world.js";
+import { isWaypoint, laneGoal } from "./waves.js";
+import { NEUTRAL, ownerOf, type Unit, type World } from "./world.js";
 
 /** The tile a sub-pixel coordinate lies on. */
 export const tileOf = (sub: number): number => div(sub, TILE);
@@ -69,6 +71,18 @@ function enemyForts(map: GameMap, world: World, team: number): number[] {
   return tiles;
 }
 
+/** Whether building `index` is a standing turret or fort held by a seat not on `team`: what a lane unit sieges. */
+const enemyStructure =
+  (map: GameMap, world: World, team: number) =>
+  (index: number): boolean => {
+    const building = world.buildings[index]!;
+    const kind = map.sites[building.id]!.kind;
+    if (building.hp <= 0 || (kind !== "turret" && kind !== "fort"))
+      return false;
+    const owner = ownerOf(map, world, building);
+    return owner !== NEUTRAL && teamOf(owner) !== team;
+  };
+
 /**
  * FOLLOW's goal, kept in `Unit.goal` instead of a tile: the tile the owner's hero stands on, looked up every step, or
  * the owner's fort while the hero is dead. So a unit's goal is a flag, a fort or this, and the fixed flow cache holds
@@ -88,11 +102,16 @@ function goalTile(map: GameMap, world: World, unit: Unit): number {
     : fortTile(map, unit.owner);
 }
 
-/** Whether a stance can send a unit to `tile`: a flag's tile or a fort's (FOLLOW uses `FOLLOW_HERO`). */
-export const isGoalTile = (map: GameMap, tile: number): boolean =>
-  flagOnTile(map, tile) >= 0 ||
+/**
+ * Whether a stance can send a unit to `tile` (a flag's tile or a fort's; FOLLOW uses `FOLLOW_HERO`), or, with `lane`,
+ * a lane unit (a lane waypoint, a turret's or a fort's).
+ */
+export const isGoalTile = (map: GameMap, tile: number, lane = false): boolean =>
+  (lane ? isWaypoint(map, tile) : flagOnTile(map, tile) >= 0) ||
   map.sites.some(
-    (site) => site.kind === "fort" && site.y * map.width + site.x === tile,
+    (site) =>
+      (site.kind === "fort" || (lane && site.kind === "turret")) &&
+      site.y * map.width + site.x === tile,
   );
 
 /** The cheapest of `goals` to walk to from `from`, plus `extra`; ties to the first listed, -1 when none is reachable. */
@@ -164,7 +183,13 @@ export function chooseGoals(map: GameMap, world: World): void {
     bound.set(key, (bound.get(key) ?? 0) + by);
   };
   for (const unit of world.units) bind(unit, 1);
+  const sieges = [0, 1].map((team) => enemyStructure(map, world, team));
   for (const unit of world.units) {
+    // A lane unit (`waves.ts`) walks its lane, so it picks again every step.
+    if (unit.lane >= 0) {
+      unit.goal = laneGoal(map, world, unit, sieges[teamOf(unit.owner)]!);
+      continue;
+    }
     const stance = stances.get(unit.owner)!;
     const flag = unit.goal < 0 ? -1 : flagOnTile(map, unit.goal);
     const due =
@@ -197,7 +222,9 @@ function seek(map: GameMap, world: World, unit: Unit): [number, number] {
   // A sieging unit closes until it is in range of something and stands to fight (`moveUnits`).
   const sieging =
     !capturing && enemyForts(map, world, teamOf(unit.owner)).includes(goal);
-  if (!capturing && !sieging && cost <= HOLD_RADIUS) return [0, 0];
+  // A lane unit walks on past its waypoint (`laneGoal` gives it the next one).
+  if (!capturing && !sieging && unit.lane < 0 && cost <= HOLD_RADIUS)
+    return [0, 0];
   let target = goal;
   if (cost > 0) {
     const [dx, dy] = DIRS[field.next(at)]!;

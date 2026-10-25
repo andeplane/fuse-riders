@@ -438,3 +438,18 @@ before, and M2 decides whether lanes become required.
   stay out of the room's map list until M2 gives them waves and towers. A grunt walks mid in 60–62 s and top or bot
   in 87–89 s (`mapgen.ts` prints the times).
 - **View:** `WorldView.lanes` and `WorldView.camps` carry the paths and slots for the minimap and renderers.
+
+**M2 as built.**
+
+- **Waves (M2a, `src/engine/waves.ts`):** a map with lanes plays the lane rules, and its factories build nothing.
+  - From 5 s, every 30 s each lane sends 3 grunts and a torch per team from the team's end of its path.
+  - Each lane's wave belongs to the seat that plays it: one rider takes mid, two take top and bot, and three take one
+    lane each.
+  - A unit records its lane and its wave number. Wave n has `100 + 3·(n − 1)` percent of its kind's hit points and
+    damage, capped at +150 percent.
+  - A team sends nothing more while 45 of its lane units stand. A drop's unit cap doesn't count wave units.
+  - A lane unit picks its goal every step: an enemy turret or fort within 7 tiles, else the first waypoint it has
+    neither reached (within 3 tiles) nor passed, else, past its lane's end, the nearest enemy fort.
+  - It stands to fight anything in range and never seeks anything off its lane, so it doesn't wander into the jungle.
+    FLARE doesn't draw it.
+  - Bots walk their seat's lane on attack-move. The golden now plays Crown Jungle.
