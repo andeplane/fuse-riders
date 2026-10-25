@@ -14,12 +14,15 @@ import { mapById } from "../../src/online/maps.js";
 export const LIMIT_MINUTES = 45;
 const LIMIT_TICKS = (LIMIT_MINUTES * 60 * STEPS_PER_SECOND) / STEPS_PER_TICK;
 
-/** A bot match on map `id`, a seat per difficulty: the winning team (or `NO_WINNER`, `DRAW`) and its minutes. */
+/**
+ * A bot match on map `id`, a seat per difficulty: the winning team (or `NO_WINNER`, `DRAW`), its minutes, and the
+ * items each hero holds at the end (v3 M3's shop), by seat.
+ */
 export function play(
   id: string,
   bots: readonly Difficulty[],
   kinds: Readonly<Record<number, HeroKind>> = {},
-): [number, number] {
+): [number, number, number[]] {
   const map = mapById(id);
   let world = createWorld(map, [...bots.keys()], 1, kinds);
   for (let tick = 0; tick < LIMIT_TICKS && world.winner === NO_WINNER; tick++)
@@ -30,5 +33,9 @@ export function play(
         botCommands(map, world, p.seat, bots[p.seat]!),
       ),
     );
-  return [world.winner, world.step / STEPS_PER_SECOND / 60];
+  return [
+    world.winner,
+    world.step / STEPS_PER_SECOND / 60,
+    world.heroes.map((hero) => hero.items.filter((id) => id >= 0).length),
+  ];
 }

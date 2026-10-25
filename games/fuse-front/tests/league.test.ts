@@ -21,9 +21,15 @@ for (const kind of ["vix", "rivet", "tally"] as const)
 
 test(`every 1v1 bot pairing on Neon Duel ends with a winner inside ${LIMIT_MINUTES} minutes`, (t) => {
   const unfinished = matches.flatMap(([label, bots, kinds]) => {
-    const [winner, minutes] = play("neon-duel", bots, kinds);
-    t.diagnostic(`${label}: team ${winner} in ${minutes.toFixed(1)} min`);
-    return winner === 0 || winner === 1 ? [] : [`${label}: ${winner}`];
+    const [winner, minutes, items] = play("neon-duel", bots, kinds);
+    t.diagnostic(
+      `${label}: team ${winner} in ${minutes.toFixed(1)} min, items ${items.join("/")}`,
+    );
+    // Every bot shops its build at its fort (`bot-shop.ts`).
+    const shopped = items.every((count) => count > 0);
+    return (winner === 0 || winner === 1) && shopped
+      ? []
+      : [`${label}: ${winner}, items ${items}`];
   });
   assert.deepEqual(unfinished, []);
 });

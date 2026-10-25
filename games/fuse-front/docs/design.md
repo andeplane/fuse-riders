@@ -545,3 +545,18 @@ before, and M2 decides whether lanes become required.
   - **Commands:** `buy(item)`, `sell(slot)` and `useItem(slot, x, y)` go on the wire as control kinds 7, 8 and 9.
     `isEntry` checks their shape and ranges, and the engine refuses one it may not do, which then does nothing.
   - **Checkpoint:** each hero adds its items, its slots' cooldowns and its SHIELD. RULES is `fuse-front-17`.
+  - **Since review:** an active still cooling can't be sold, so selling and rebuying never refreshes it. BLINK
+    crosses walls but lands only on ground its fort's flow field reaches. A fall ends a SHIELD.
+- **Bots (M3c, `src/engine/bot-shop.ts`):**
+  - At its fort a bot buys the next item of its hero's build (`BUILDS`) that it can afford, one a tick, every tick.
+    Bots don't retreat yet (M5), so they shop when they respawn.
+  - It raises its SHIELD when below half health and hit or near an enemy hero. It BLINKs onto a hurt enemy hero
+    that is just out of its gun's reach, landing a tile inside it.
+  - It takes a cheap last hit, an enemy unit three quarters of one shot finishes (armour and IRON HIDE can cut a
+    shot), before pushing a structure or walking on. Its BLINK aim passes the shop's own checks, so it's never
+    refused.
+  - **League** (rules `fuse-front-18`, seed 1), now asserting that every bot shops:
+    - Neon Duel 1v1: 9.5 to 16.0 min across 8 pairings, 2–3 items each at the end.
+    - Twin Wilds 2v2: 13.1 min. Crown Jungle 3v3: 14.1 min.
+    - On Crown Jungle a hero's third item lands at 7.7–9.8 min and its fourth at 11.5–12.9 min, with 5,200–5,800
+      gold earned by minute 10, so 3–4 items by minute 15 holds. Matches are shorter than M2's; M7 tunes the pace.

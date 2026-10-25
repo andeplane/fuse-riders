@@ -83,6 +83,16 @@ function takesEffect(board: GameMap, world: World, command: Command): boolean {
     const held = hero.focusOf === command.of && hero.focus === command.id;
     return held || gone || hero.hp === 0;
   }
+  // A purchase lands in a slot; an item active announces itself (`shop.ts`).
+  if (command.type === "buy")
+    return (
+      hero.items.filter((id) => id === command.item).length >
+      world.heroes
+        .find((h) => h.seat === seat)!
+        .items.filter((id) => id === command.item).length
+    );
+  if (command.type === "useItem")
+    return after.events.some((e) => e.type === "item" && e.seat === seat);
   return false;
 }
 

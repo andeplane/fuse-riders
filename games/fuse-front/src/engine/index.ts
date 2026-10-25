@@ -19,5 +19,6 @@ export * from "./jungle.js";
 export * from "./gold.js";
 export * from "./items.js";
 export * from "./shop.js";
+export * from "./bot-shop.js";
 export { next, roll, fnv1a, seedOf } from "./rng.js";
 export { clamp, div, ceilDiv, imul, isqrt } from "./math.js";
