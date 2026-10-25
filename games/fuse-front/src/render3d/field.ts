@@ -897,7 +897,7 @@ export class Field3D implements Renderer {
       map.clear();
   }
 
-  /** A new match: frees the old ground and builds this map's, with the camera back on the hero. */
+  /** A new match: frees the old ground and builds this map's, with the camera back on the hero at the opening zoom. */
   // prettier-ignore
   private adopt(matchId: string, world: WorldView): void {
     if (matchId === this.matchId && this.field) return;
@@ -914,6 +914,7 @@ export class Field3D implements Renderer {
     this.olderSeen = undefined;
     this.rig.x = world.width / 2;
     this.rig.z = world.height / 2;
+    this.rig.distance = rig.startFor(this.cssH);
     const field = (this.field = heightField(world, resFor(world)));
     const buffers = terrainBuffers(field, 7, world);
     const geo = this.own(new THREE.BufferGeometry());

@@ -10,10 +10,21 @@ export const PITCH = (55 * Math.PI) / 180;
 export const TOP_PITCH = (74 * Math.PI) / 180;
 /** Vertical field of view in degrees. */
 export const FOV = 40;
-/** `FAR` is the farthest zoom on a map up to about 66 × 53 tiles; bigger maps reach further (`farFor`). */
+/**
+ * `FAR` is the farthest zoom on a map up to about 66 × 53 tiles; bigger maps reach further (`farFor`). `START` is the
+ * zoom before the view is sized; a match opens at `startFor` its height.
+ */
 export const NEAR = 6,
   FAR = 70,
   START = 15;
+/**
+ * A match opens with about this many CSS pixels per tile across the view's middle row: some 34 tiles over a 1600 px
+ * desktop board, close enough to read every robot.
+ */
+export const START_TILE_PX = 42;
+/** The opening zoom's bounds: a short phone board stays readable, and the robots stay on their near models (`LOD_FAR`). */
+export const START_MIN = 12,
+  START_MAX = 24;
 /** Distances over which the camera tilts from `PITCH` to `TOP_PITCH`. */
 export const TILT_FROM = 40,
   TILT_TO = 160;
@@ -37,6 +48,15 @@ const smooth = (d: number, from: number, to: number) => {
 /** The farthest zoom on a `width` × `height` map: far enough for the whole map on the 4:3-ish board, never under `FAR`. */
 export function farFor(width: number, height: number): number {
   return Math.max(FAR, Math.ceil(Math.max(width / 0.95, height / 0.76)));
+}
+
+/**
+ * The opening zoom for a view `cssH` CSS pixels tall: `START_TILE_PX` pixels per tile across its middle row, whatever
+ * its width, within the opening bounds. The ground the middle row spans is `2 tan(FOV / 2) · distance · aspect`.
+ */
+export function startFor(cssH: number): number {
+  const across = 2 * Math.tan((FOV * Math.PI) / 360) * START_TILE_PX;
+  return Math.min(START_MAX, Math.max(START_MIN, cssH / across));
 }
 
 /** The view's pitch above the ground at a distance: 55° close in, easing to `TOP_PITCH` far out. */
