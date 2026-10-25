@@ -160,10 +160,10 @@ test("FLARE draws the owner's pushing robots to its tile until it goes out", () 
     [world.heroes[0]!.flare, world.units[0]!.goal !== FLARE],
     [-1, true],
   );
-  const hold = arena("tally");
-  addUnit(hold, 0, "grunt", 3, 6);
-  hold.players[0]!.stance = "hold";
-  assert.equal(fire(hold, 1, 10, 6)[1].units[0]!.goal, -1);
+  // A lane's wave (`waves.ts`) walks its lane whatever the flare.
+  const wave = arena("tally");
+  Object.assign(addUnit(wave, 0, "grunt", 3, 6), { lane: 0, wave: 1 });
+  assert.equal(fire(wave, 1, 10, 6)[1].units[0]!.goal, -1);
 });
 
 test("SPOTTER makes enemies near Tally take ten percent more, on top of Iron Hide", () => {

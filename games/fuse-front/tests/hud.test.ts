@@ -51,7 +51,6 @@ test("the HUD derives cooldown seconds, the locked ultimate, bars and the stance
   assert.equal(hud.hp, hero.hp / maxHp(2));
   assert.equal(hud.hpNow, Math.ceil(hero.hp), "the bar's number");
   assert.equal(hud.energyNow, Math.floor(hero.energy));
-  assert.equal(hud.stance, world.players[0]!.stance);
   assert.equal(hud.time, "1:15");
   hero.xp = levelXp(6);
   assert.equal(deriveHud(hud, viewOf(MAP, world), 0).spells[3]!.locked, false);
@@ -125,10 +124,10 @@ test("the factory panel lists choices, the current order, progress and ETA, and 
   assert.equal(factoryPanel(viewOf(MAP, world), robot.id, 0)!.paused, true);
 });
 
-test("keys map to casts, stances, recentre and close; spells aim at the hero's tile", () => {
+test("keys map to casts, recentre and close; spells aim at the hero's tile", () => {
   assert.deepEqual(keyAction("q"), { kind: "cast", slot: 0 });
   assert.deepEqual(keyAction("R"), { kind: "cast", slot: 3 });
-  assert.deepEqual(keyAction("2"), { kind: "stance", stance: "hold" });
+  assert.equal(keyAction("2"), undefined, "no stance keys since v3");
   assert.deepEqual(keyAction(" "), { kind: "recentre" });
   assert.deepEqual(keyAction("Escape"), { kind: "close" });
   assert.equal(keyAction("4"), undefined);

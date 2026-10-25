@@ -29,7 +29,6 @@ import {
   FORT_GUN,
   MAX_SEATS,
   QUEUE_MAX,
-  STANCES,
   HERO,
   HERO_KINDS,
   STEER_MAX,
@@ -99,7 +98,7 @@ export function encodeWorld(world: World): unknown {
     world.step,
     world.rng,
     world.nextId,
-    world.players.map((p) => [p.seat, p.team, STANCES.indexOf(p.stance)]),
+    world.players.map((p) => [p.seat, p.team]),
     [...world.sectors],
     world.buildings.map((b) => [
       b.id,
@@ -167,12 +166,11 @@ export const hashWorld = (world: World): string =>
     .padStart(8, "0");
 
 function player(raw: unknown): Player | undefined {
-  const t = tuple(raw, 3);
+  const t = tuple(raw, 2);
   if (!t) return;
-  const [seat, team, stance] = t;
+  const [seat, team] = t;
   if (!isInt(seat, 0, MAX_SEATS - 1) || team !== teamOf(seat)) return;
-  if (!isInt(stance, 0, STANCES.length - 1)) return;
-  return { seat, team, stance: STANCES[stance]! };
+  return { seat, team };
 }
 
 /** A building of `map`, given the seats in play and the next unit id (a lane tower's target names one of them). */
@@ -266,7 +264,7 @@ function unit(
   // Units stand on ground something walks on, never in rock or water.
   if (sectorAt(map, div(x, TILE), div(y, TILE)) < 0) return;
   // A goal is a flag or fort tile (a lane unit's a waypoint, turret or fort), or -1 for none yet: a few dozen tiles,
-  // so their flow fields stay cached. Only a stance's unit follows its hero or a flare.
+  // so their flow fields stay cached. Only a unit outside the waves follows its hero or a flare.
   const special =
     lane < 0 && (goal === FOLLOW_HERO || (goal === FLARE && stats.robot));
   if (

@@ -1,17 +1,9 @@
 import { RoomRuntime, type Callbacks, type RuntimeOptions } from "fuse-netcode";
 import {
-  STANCES,
-  UNIT_KINDS,
-  type Stance,
-  type UnitKind,
-} from "../engine/index.js";
-import {
   ATTACK,
   ATTACK_MOVE,
   CAST,
   MOVE,
-  ORDER,
-  STANCE,
   STEER,
   frontGame,
   type Entry,
@@ -25,7 +17,7 @@ export type FrontCallbacks = Callbacks<View, FrontEvent, Settings>;
 
 /**
  * The Fuse Front room: the netcode's runtime plus this device's controls. Every control is a discrete command (move
- * the hero, set the army's stance, queue a factory order, cast) logged for the match this device sees, so there is no
+ * the hero, attack, cast) logged for the match this device sees, so there is no
  * held state to re-log after a resync. A control is refused unless the fold would take it: the match runs and this
  * device rides a seat in play, present and in the foreground. `true` means it was logged, not that it landed: the
  * screen always shows what the world did.
@@ -71,12 +63,6 @@ export class FrontRuntime extends RoomRuntime<
   /** Sends the hero to a tile; `queued` puts the order behind its current one (shift-click) instead. */
   move(x: number, y: number, queued = false): boolean {
     return this.control(MOVE, x, y, ...flag(queued));
-  }
-  stance(stance: Stance): boolean {
-    return this.control(STANCE, STANCES.indexOf(stance));
-  }
-  order(factory: number, kind: UnitKind): boolean {
-    return this.control(ORDER, factory, UNIT_KINDS.indexOf(kind));
   }
   /** Holds the hero's stick: whole steps of ±`STEER_MAX`; (0, 0) releases it. */
   steer(dx: number, dy: number): boolean {

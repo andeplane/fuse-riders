@@ -9,8 +9,6 @@ import {
   COUNTDOWN_TICKS,
   DEFAULT_SETTINGS,
   MOVE,
-  ORDER,
-  STANCE,
   STEER,
   createRoom,
   decode,
@@ -105,22 +103,22 @@ test("bot fill is deterministic: two replicas of a 3v3 agree, and the bots play"
 
 test("a rider's controls count in its own match only, and at most four a tick", () => {
   const { room, entries } = match({ size: 1 });
-  log(room, entries, "host", STANCE, "old-match", 1);
+  log(room, entries, "host", MOVE, "old-match", 88, 88);
   fold(room, entries, 1);
-  assert.equal(room.world!.players[0]!.stance, "push", "a stale match");
+  assert.equal(room.world!.heroes[0]!.goal, -1, "a stale match");
   log(room, entries, "host", STEER, "match-1", 8, 0);
-  for (let i = 0; i < 4; i++) log(room, entries, "host", STANCE, "match-1", 0);
-  log(room, entries, "host", STANCE, "match-1", 1);
+  for (let i = 0; i < 4; i++)
+    log(room, entries, "host", MOVE, "match-1", 88 + i, 88, 1);
   fold(room, entries, 1);
   assert.equal(room.world!.heroes[0]!.steerX, 8);
   assert.equal(
-    room.world!.players[0]!.stance,
-    "push",
+    room.world!.heroes[0]!.queue.length,
+    3,
     "past the fourth, dropped",
   );
-  log(room, entries, "host", STANCE, "match-1", 1);
+  log(room, entries, "host", MOVE, "match-1", 92, 88);
   fold(room, entries, 1);
-  assert.equal(room.world!.players[0]!.stance, "hold");
+  assert.equal(room.world!.heroes[0]!.goal, 88 * 176 + 92);
 });
 
 test("an ATTACK entry focuses the rider's hero, and an ATTACK_MOVE sends it on an attack-move", () => {
@@ -175,9 +173,9 @@ test("a friend who joins mid-match takes over a bot's slot, and hands it back on
   log(room, entries, "host", JOIN, "friend", "Friend", 1, "brick", 1);
   fold(room, entries, 1);
   assert.deepEqual(view(room).bots, []);
-  log(room, entries, "friend", STANCE, "match-1", 2);
+  log(room, entries, "friend", MOVE, "match-1", 88, 88);
   fold(room, entries, 1);
-  assert.equal(room.world!.players[1]!.stance, "follow");
+  assert.equal(room.world!.heroes[1]!.goal, 88 * 176 + 88);
   log(room, entries, "host", LEAVE, "friend");
   fold(room, entries, 1);
   assert.deepEqual(
@@ -241,8 +239,6 @@ test("a corrupt checkpoint is refused whole and leaves the room untouched", () =
 
 test("isEntry takes well-formed controls and refuses anything out of shape or range", () => {
   const ok: unknown[][] = [
-    [1, 1, ORDER, "m", 0, 0],
-    [1, 1, STANCE, "m", 2],
     // The wire admits any tile of the largest map; the engine refuses one off the map in play.
     [1, 1, MOVE, "m", 255, 255],
     [1, 1, STEER, "m", -8, 8],
@@ -264,13 +260,14 @@ test("isEntry takes well-formed controls and refuses anything out of shape or ra
   const bad: unknown[] = [
     null,
     "x",
-    [0, 1, STANCE, "m", 0],
-    [1, 0, STANCE, "m", 0],
-    [1, 1, STANCE, "", 0],
-    [1, 1, STANCE, "m", 3],
-    [1, 1, STANCE, "m", 0, 0],
-    [1, 1, STANCE, "m"],
-    [1, 1, STANCE, "m", 0.5],
+    // v3 retired kinds 0 and 1, a factory's order and the army's stance.
+    [1, 1, 0, "m", 0, 0],
+    [1, 1, 1, "m", 2],
+    [0, 1, MOVE, "m", 0, 0],
+    [1, 0, MOVE, "m", 0, 0],
+    [1, 1, MOVE, "", 0, 0],
+    [1, 1, MOVE, "m", 0],
+    [1, 1, MOVE, "m", 0.5, 0],
     [1, 1, MOVE, "m", 256, 0],
     [1, 1, MOVE, "m", -1, 0],
     [1, 1, STEER, "m", 9, 0],
@@ -293,8 +290,6 @@ test("isEntry takes well-formed controls and refuses anything out of shape or ra
     [1, 1, CAST, "m", 0, 0, 0, 0, 1, 1, 1],
     [1, 1, STEER, "m", 0, 0, 1],
     [1, 1, 7, "m", 0, 0],
-    [1, 1, ORDER, "m", 999, 0],
-    [1, 1, ORDER, "m", 0, 3],
     [1, 1, 5, "m", 0],
     [1, 1, JOIN, "a", "Ann", 6, "brick", 1],
     [1, 1, JOIN, "a", "Ann", 0, "gunship", 1],
@@ -341,29 +336,29 @@ test("two devices and bots play a 2v2 over a lossy, reordering mesh; a late devi
   let t = 0;
   mesh.run(3_000, () => {
     if (++t % 20 === 0) guest.control(STEER, t % 40 === 0 ? 8 : -8, 0);
-    if (t === 50) host.control(STANCE, 1);
+    if (t === 50) host.control(MOVE, 88, 88);
   });
-  guest.control(STANCE, 2);
+  guest.control(MOVE, 92, 88);
   mesh.run(1_500);
   aligned(mesh, [host, guest]);
   const [h, g] = [host.roomState()!, guest.roomState()!];
   assert.equal(hash(h), hash(g), "both replicas played the same match");
-  assert.equal(h.world!.players[1]!.stance, "follow", "the guest's stance");
-  assert.equal(h.world!.players[0]!.stance, "hold", "the host's stance");
+  assert.equal(h.world!.heroes[1]!.goal, 88 * 176 + 92, "the guest's move");
+  assert.equal(h.world!.heroes[0]!.goal, 88 * 176 + 88, "the host's move");
   // A third device joins mid-match: it recovers the world from a checkpoint and rides slot 2's bot.
   mesh.fast = () => ({ delayMs: 15 });
   const late = mesh.join("late");
   mesh.run(2_000);
   late.command({ type: "join", name: "Late" });
   mesh.run(2_000);
-  late.control(STANCE, 1);
+  late.control(MOVE, 90, 88);
   mesh.run(1_500);
   const rooms = [host, guest, late].map((r) => r.roomState()!);
   assert.deepEqual(
     view(rooms[2]!).bots.map((b) => b.slot),
     [3],
   );
-  assert.equal(rooms[0]!.world!.players[2]!.stance, "hold");
+  assert.equal(rooms[0]!.world!.heroes[2]!.goal, 88 * 176 + 90);
   aligned(mesh, [host, guest, late]);
   assert.equal(
     new Set([host, guest, late].map((r) => hash(r.roomState()!))).size,
