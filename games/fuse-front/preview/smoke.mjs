@@ -4,7 +4,7 @@
  *   node games/fuse-front/preview/smoke.mjs http://localhost:PORT/ [screenshot-dir]
  *
  * The landing page shows the portal first in the header; CREATE ROOM opens a lobby with the size picker, two team
- * columns and START; the host cycles the bot's difficulty, starts a 1v1 against it, sends its hero across the map and
+ * columns and START; the host cycles the bot's difficulty, starts a 1v1 against it, right-clicks its hero a few tiles east (it walks there), sends it across the map and
  * sets HOLD, and the battlefield keeps changing as the armies move. Then a solo match against a bot: the HUD shows a
  * block per sector and a locked ultimate, Q casts (and cools down), FOLLOW lights up, and a robot factory's orders
  * panel switches it to torches and shows its ETA; Esc closes it. `HUD_SHOT=path` saves a screenshot of the HUD.
@@ -32,14 +32,35 @@ try {
   page.on("pageerror", (error) => errors.push(error.message));
   const snap = (name) =>
     shots ? page.screenshot({ path: join(shots, `${name}.png`) }) : undefined;
+  // Once the countdown is over, a right-click on open ground east of the hero walks it there: the board's
+  // `data-hero` (this device's hero, in world units) changes within a few seconds.
+  const rightClickMoves = async (board) => {
+    await page
+      .locator("p.ff-hud", { hasText: "right-click: move" })
+      .waitFor({ timeout: 15_000 });
+    const was = await board.getAttribute("data-hero");
+    assert.ok(was, "this device's hero is on the board");
+    const at = (await board.boundingBox()) ?? assert.fail("no board");
+    await page.mouse.click(at.x + at.width * 0.6, at.y + at.height * 0.45, {
+      button: "right",
+    });
+    await page.waitForFunction(
+      (before) => {
+        const now = document.querySelector("canvas.ff-board")?.dataset.hero;
+        return !!now && now !== before;
+      },
+      was,
+      { timeout: 8_000 },
+    );
+  };
   await page.goto(`${base}fuse-front/?mute`);
   const first = await page.locator("header.ff-top > *").first();
   assert.match((await first.getAttribute("class")) ?? "", /portal/);
   await page.getByRole("button", { name: "CREATE ROOM" }).click();
-  await page.locator(".ff-team-1 .ff-cycle").waitFor({ timeout: 15_000 });
-  assert.equal(await page.locator(".ff-sizes button").count(), 3);
-  await page.locator(".ff-team-1 .ff-cycle").click();
-  await page.locator(".ff-team-1", { hasText: "hard" }).waitFor();
+  await page.locator(".ff-t1 .ff-cycle").waitFor({ timeout: 15_000 });
+  assert.equal(await page.locator(".ff-sizes:not(.ff-maps) button").count(), 3);
+  await page.locator(".ff-t1 .ff-cycle").click();
+  await page.locator(".ff-t1", { hasText: /hard/i }).waitFor();
   await snap("lobby");
   await page.getByRole("button", { name: "START" }).click();
   await page
@@ -52,11 +73,13 @@ try {
     (canvas) => canvas.getBoundingClientRect().width / canvas.width,
   );
   assert.equal(scale, Math.round(scale), "a whole-number scale");
+  await rightClickMoves(board);
   // Open ground east of the red fort, toward the centre.
   await page.mouse.click(box.x + box.width * 0.38, box.y + box.height * 0.3);
   await page.keyboard.press("2");
   await page.locator(".ff-switch.ff-lit", { hasText: "HOLD" }).waitFor();
-  const picture = () => board.evaluate((canvas) => canvas.toDataURL());
+  // A screenshot, not `toDataURL`: the 3D board's WebGL canvas reads back blank once its frame is presented.
+  const picture = async () => (await board.screenshot()).toString("base64");
   const before = await picture();
   // Long enough for the first batches to meet: shots, flames and explosions on screen.
   await page.waitForTimeout(20_000);
@@ -68,11 +91,12 @@ try {
   const q = page.locator(".ff-spell").first();
   await q.and(page.locator(":enabled")).waitFor({ timeout: 15_000 });
   assert.match(
-    await page.locator(".ff-spell.ff-gold .ff-secs").innerText(),
-    /LV6/,
+    await page.locator(".ff-spell.ff-gold .ff-tag").innerText(),
+    /LV ?6/,
   );
   // Once the countdown is over, send Brick toward the middle and let the first batches meet before casting.
   await page.locator(".ff-hud", { hasText: "RED" }).waitFor();
+  await rightClickMoves(board);
   const solo = (await board.boundingBox()) ?? assert.fail("no board");
   await page.mouse.click(solo.x + solo.width * 0.4, solo.y + solo.height * 0.4);
   await page.waitForTimeout(16_000);
@@ -84,7 +108,7 @@ try {
   assert.ok(await q.isDisabled(), "Q cools down after a cast");
   await page.getByRole("button", { name: "3 FOLLOW" }).click();
   await page.locator(".ff-switch.ff-lit", { hasText: "FOLLOW" }).waitFor();
-  await page.getByRole("button", { name: "ROBOTS" }).first().click();
+  await page.locator(".ff-switch", { hasText: "ROBOTS" }).first().click();
   await page
     .locator(".ff-orders .ff-choice.ff-lit", { hasText: "GRUNT" })
     .waitFor();

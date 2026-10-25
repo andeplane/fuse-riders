@@ -31,6 +31,8 @@ export class Mesh {
   private readonly online = new Set<string>();
   private readonly lastReliable = new Map<string, number>();
   fast: (from: string, to: string) => FastFate = () => ({ delayMs: 20 });
+  /** How often, in ms, the runtimes' 10 ms loops actually run: a page that paints slowly runs them late. */
+  loopEvery = 10;
   constructor(
     readonly hostId: string,
     private readonly settings: Settings,
@@ -132,7 +134,8 @@ export class Mesh {
     while (this.now < end) {
       this.now += 10;
       this.flush();
-      for (const loop of [...this.loops.values()]) loop();
+      if (this.now % this.loopEvery === 0)
+        for (const loop of [...this.loops.values()]) loop();
       this.flush();
       each?.();
     }

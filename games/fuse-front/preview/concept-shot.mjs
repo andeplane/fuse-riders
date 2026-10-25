@@ -28,7 +28,7 @@ async function lobby(page) {
     .first()
     .waitFor({ timeout: 15_000 });
   await page.getByRole("button", { name: "2V2" }).click();
-  await page.locator(".ff-team-1 .ff-seat").nth(1).waitFor({ timeout: 15_000 });
+  await page.locator(".ff-t1 .ff-seat").nth(1).waitFor({ timeout: 15_000 });
   const pick = async (team, seat, hero) => {
     const button = page
       .locator(`.ff-team-${team} .ff-seat`)
