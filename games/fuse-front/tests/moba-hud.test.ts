@@ -223,6 +223,17 @@ test("a last hit pops its gold once, however often rollback delivers it; a frien
   );
   at(14, shot(0, "unit", 3));
   assert.deepEqual(at(14, death(3, 0)), {}, "not our own");
+  // The engine pays the step's first hero shot: a teammate who fired first takes it.
+  const team = new MatchFeed();
+  const by = (seat: number, s: number, event: CombatEvent) =>
+    team.event("m", { step: s, event }, v, seat);
+  by(2, 20, shot(0, "unit", 5));
+  by(2, 20, shot(2, "unit", 5));
+  assert.deepEqual(by(2, 20, death(5, 1)), {}, "seat 0 struck first");
+  const watcher = new MatchFeed();
+  watcher.event("m", { step: 30, event: shot(-1, "unit", 6) }, v, -1);
+  const seen = watcher.event("m", { step: 30, event: death(6, 1) }, v, -1);
+  assert.deepEqual(seen, {}, "a watcher pops nothing");
 });
 
 test("hero deaths tally kills, deaths and assists, notify this seat, and reset with the match", () => {
@@ -271,6 +282,10 @@ test("hero deaths tally kills, deaths and assists, notify this seat, and reset w
     undefined,
   );
   assert.equal(feed.tally(2).assists, 1, "a hit past the window is no assist");
+  // A camp's kill credits seat -1: a watcher (seat -1) is told nothing.
+  const camp: CombatEvent = { ...kill, killer: -1 };
+  assert.deepEqual(feed.event("m", { step: 900, event: camp }, v, -1), {});
+  assert.equal(feed.tally(1).deaths, 2);
   feed.event("next", { step: 1, event: shot(0, "unit", 1) }, v, 0);
   assert.deepEqual(feed.tally(0), { kills: 0, deaths: 0, assists: 0 });
 });

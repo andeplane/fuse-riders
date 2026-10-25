@@ -257,7 +257,12 @@ function room(code: string, token: string | undefined, display: boolean): void {
         // This seat's last hits pop their gold where the body fell; its kills, assists and deaths post a notice.
         const fed = hud.feed.event(matchId, event, shown, runtime.slot());
         const at = fed.float && shown && field.screenOf(fed.float, shown);
-        if (fed.float && at) hud.popup(fed.float.text, at.x, at.y);
+        // `screenOf` is from the canvas's content box; the overlay covers the stage, where the canvas may sit centred.
+        const [ox, oy] = [
+          canvas.offsetLeft + canvas.clientLeft,
+          canvas.offsetTop + canvas.clientTop,
+        ];
+        if (fed.float && at) hud.popup(fed.float.text, at.x + ox, at.y + oy);
         if (fed.notice) hud.notice(fed.notice.text, fed.notice.good);
       },
       status: (text) => (status.textContent = roomFailure(text)),
@@ -657,12 +662,16 @@ function room(code: string, token: string | undefined, display: boolean): void {
     keyAction(event.key)?.kind === "score" && hud.showScore(false);
   window.addEventListener("keydown", keys123);
   window.addEventListener("keyup", keyUp);
+  // A window left with ` still held never sees its keyup.
+  const blurred = () => hud.showScore(false);
+  window.addEventListener("blur", blurred);
   runtime.start();
   teardown = () => {
     cancelAnimationFrame(raf);
     window.removeEventListener("resize", resized);
     window.removeEventListener("keydown", keys123);
     window.removeEventListener("keyup", keyUp);
+    window.removeEventListener("blur", blurred);
     runtime.stop();
     field.dispose();
   };

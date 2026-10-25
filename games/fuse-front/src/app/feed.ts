@@ -31,13 +31,15 @@ export interface Notice {
 
 /** Hero hits remembered for assists, at most. */
 export const HITS_KEPT = 64;
+/** Units' first shooters remembered before older steps' are dropped. */
+export const SHOTS_KEPT = 256;
 
 export class MatchFeed {
   private readonly dedupe = new EventDedupe();
   private matchId = "";
   private readonly tallies = new Map<number, Tally>();
-  /** The step this seat's hero last shot each unit, and each hero hit on a hero as [attacker, victim, step]. */
-  private readonly shotAt = new Map<number, number>();
+  /** By unit, the first hero to shoot it on the latest step it was shot; and each hero hit on a hero as [attacker, victim, step]. */
+  private readonly shotAt = new Map<number, { step: number; seat: number }>();
   private hits: [number, number, number][] = [];
 
   /** Takes an engine event for `seat`; returns its pop-up or notice, if any. */
@@ -56,8 +58,14 @@ export class MatchFeed {
     if (!this.dedupe.accept(matchId, stamped)) return {};
     const { event, step } = stamped;
     if (event.type === "shot" && event.from.of === "hero") {
-      if (event.to.of === "unit" && event.from.id === seat)
-        this.shotAt.set(event.to.id, step);
+      // The engine's striker is the first hero whose shot lands on the unit that step, in shot order.
+      const first = this.shotAt.get(event.to.id);
+      if (event.to.of === "unit" && first?.step !== step) {
+        this.shotAt.set(event.to.id, { step, seat: event.from.id });
+        if (this.shotAt.size > SHOTS_KEPT)
+          for (const [id, at] of this.shotAt)
+            if (at.step < step) this.shotAt.delete(id);
+      }
       if (event.to.of === "hero") {
         this.hits.push([event.from.id, event.to.id, step]);
         if (this.hits.length > HITS_KEPT) this.hits.shift();
@@ -65,7 +73,8 @@ export class MatchFeed {
       return {};
     }
     if (event.type === "death") {
-      const mine = this.shotAt.get(event.id) === step;
+      const first = this.shotAt.get(event.id);
+      const mine = seat >= 0 && first?.step === step && first.seat === seat;
       this.shotAt.delete(event.id);
       // The engine pays the first hero whose shot lands on the step a unit dies (`gold.ts`); a spell's kill shows none.
       const friend =
@@ -82,6 +91,8 @@ export class MatchFeed {
       this.of(killer).kills++;
     const helpers = this.assists(event, step, world);
     for (const helper of helpers) this.of(helper).assists++;
+    // A watcher (or a rider away) gets no notices: a camp's kill credits seat -1 too.
+    if (seat < 0) return {};
     const name = (s: number) =>
       (world?.heroes.find((h) => h.seat === s)?.kind ?? "hero").toUpperCase();
     if (victim === seat)
@@ -113,7 +124,7 @@ export class MatchFeed {
     for (const [by, victim, at] of this.hits) {
       if (victim !== death.seat || by === death.killer || out.includes(by))
         continue;
-      if (teamOf(by) !== team || step - at > GOLD.assistWindow) continue;
+      if (teamOf(by) !== team || step - at >= GOLD.assistWindow) continue;
       const hero = world?.heroes.find((h) => h.seat === by && h.hp > 0);
       if (!hero) continue;
       const [dx, dy] = [hero.x - death.x, hero.y - death.y];

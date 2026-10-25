@@ -635,9 +635,10 @@ before, and M2 decides whether lanes become required.
     - An assist works as in `heroBounty`: a living teammate of the killer within `ASSIST_RADIUS` that shot the
       victim in the last `assistWindow` steps. Spell hits leave no shot, so they're missed.
     - The tally counts what this device saw, so a device that joins late counts from then. The engine keeps no K/D/A.
-  - **Gold pop-ups:** this seat's shot landing on a unit on the step it dies pops "+20", "+25" and so on where it
-    fell, using `GOLD.lastHit` or `GOLD.guard`. That's the engine's last-hit rule. A spell's kill shows no pop-up.
-    The renderers gained `screenOf`, which maps a ground point to CSS pixels.
+  - **Gold pop-ups:** when this seat's hero lands the first hero shot on a unit on the step it dies, "+20", "+25"
+    and so on pop where it fell, using `GOLD.lastHit` or `GOLD.guard`. That follows the engine's last-hit rule as
+    closely as the events allow. A spell's kill shows no pop-up, and a watcher gets no pop-ups or notices. The
+    renderers gained `screenOf`, which maps a ground point to CSS pixels.
   - **Notices:** your kills ("KILL · VIX"), assists and deaths ("Destroyed by BRICK") fade in at the top of the board.
   - **The death screen:** while your hero is down it shows the respawn countdown. The engine sells only to a living
     hero at its fort, so it says the shop opens there once you respawn, and has no SHOP button.
