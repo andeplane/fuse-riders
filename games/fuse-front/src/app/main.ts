@@ -33,7 +33,7 @@ import { qualityParam } from "../render3d/fx.js";
 import { edgePan, PAN_SPEED } from "../render/camera.js";
 import { Hud } from "./hud.js";
 import { HERO_ROLES, heroPortrait, loadPortraits } from "./look.js";
-import { factoryAt, keyAction } from "./hud-state.js";
+import { keyAction } from "./hud-state.js";
 import {
   IDLE,
   bodyAt,
@@ -134,7 +134,7 @@ function landing(error = ""): void {
   name.oninput = () => store.setItem(keys.name, name.value.trim());
   const card = createLandingCard({
     title: "FUSE FRONT",
-    tagline: "Take the flag. The factory does the rest.",
+    tagline: "Push the lanes. Hold the jungle. Raze the fort.",
     soloText: "SOLO VS BOTS",
     valid: validRoomCode,
     async onCreate() {
@@ -226,7 +226,6 @@ function room(code: string, token: string | undefined, display: boolean): void {
     move(fx, fy, queued = false) {
       if (!shown || runtime.slot() < 0) return;
       const tile = minimapTile(fx, fy, shown.width, shown.height);
-      hud.close();
       runtime.move(tile.x, tile.y, queued);
       // As on the board, a queued order leaves an armed attack-move armed.
       arm(queued ? mode : IDLE);
@@ -236,7 +235,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
   /** Centres the camera on a point in tiles, if there is one. */
   const jump = (at: { x: number; y: number } | undefined) =>
     at && shown && field.lookAt(at.x / shown.width, at.y / shown.height, shown);
-  stage.append(canvas, hud.orders, hud.shop.element, end);
+  stage.append(canvas, hud.shop.element, end);
   play.append(hud.top, stage, hud.bottom, hint);
   play.hidden = true;
   app.replaceChildren(header(), status, lobby, play);
@@ -324,7 +323,6 @@ function room(code: string, token: string | undefined, display: boolean): void {
     const { red, neutral, blue } = hud.state;
     endNote.textContent = `${hud.state.time} · sectors ${red} red · ${neutral} neutral · ${blue} blue`;
     back.hidden = !runtime.creator && !runtime.solo;
-    hud.close();
   }
   function renderLobby(view: View): void {
     const host = runtime.creator || runtime.solo;
@@ -582,22 +580,17 @@ function room(code: string, token: string | undefined, display: boolean): void {
     if (!was || was.moved || !shown) return;
     const tile = field.tileAt(event.offsetX, event.offsetY, shown);
     if (!tile) return;
-    // A click on an enemy attacks it and on the ground moves (a left click on a factory of this device's opens its
-    // orders); armed, a left click attack-moves or casts the aimed spell and a right click cancels (`targeting.ts`).
-    // Shift, or the HUD's QUEUE, queues the order behind the hero's route.
-    const seat = runtime.slot();
+    // A click on an enemy attacks it and on the ground moves; armed, a left click attack-moves or casts the aimed
+    // spell and a right click cancels (`targeting.ts`). Shift, or the HUD's QUEUE, queues the order behind the route.
     const intent = clickIntent(
       shown,
-      seat,
+      runtime.slot(),
       mode,
       tile,
       event.button,
-      factoryAt(shown, tile, seat)?.id,
       event.shiftKey || hud.queueing,
     );
-    if (intent.kind === "factory") return hud.openFactory(intent.id);
     if (intent.kind === "none") return;
-    hud.close();
     send(intent);
     arm(modeAfter(mode, intent));
   });
@@ -646,8 +639,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
     else if (action.kind === "zoom") field.zoom(action.factor);
     else if (action.kind === "home") jump(homeOf(shown, runtime.slot()));
     else if (action.kind === "fight") jump(radar.fight(shown, runtime.slot()));
-    else if (action.kind === "close")
-      (hud.close(), hud.shop.close(), arm(IDLE));
+    else if (action.kind === "close") (hud.shop.close(), arm(IDLE));
     else if (action.kind === "attackMove") hud.actions.attackMove();
     else if (action.kind === "shop") hud.toggleShop();
     else if (action.kind === "item") hud.actions.useItem(action.slot);
