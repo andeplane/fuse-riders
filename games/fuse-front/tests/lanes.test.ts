@@ -129,6 +129,12 @@ test("lane maps are their own half turn: the loader checks terrain, flags, sites
         void (mid.sides[1]!.gate = freeNear(f, mid.sides[1]!.gate, 1)),
       /the mid lane has no image/,
     ],
+    [
+      // Top and mid swap names: each path still has its image, but under the wrong name.
+      (f) => void ([f.lanes![0]!.name, f.lanes![1]!.name] = ["mid", "top"]),
+      /the mid lane has no image/,
+    ],
+    [(f) => void (f.symmetry = "flip" as never), /symmetry: mirror or rotate/],
   ];
   for (const [edit, error] of cases)
     assert.throws(() => loadMap(broken(edit)), error);
@@ -213,6 +219,32 @@ test("the loader refuses broken lanes with a clear error, and old maps without l
     ],
     [(f) => f.camps!.pop(), /a jungle sector holds one camp and a factory/],
     [(f) => delete f.camps, /camps: a list/],
+    [(f) => (f.lanes = [null] as never), /lane 0: named top, mid, bot/],
+    [(f) => (f.lanes![0]!.name = "__proto__" as never), /lane 0: named/],
+    [
+      (_, mid) => (mid.path[1] = { x: Number.NaN, y: 3 }),
+      /waypoint 1: \(NaN, 3\) is off the map/,
+    ],
+    [
+      (_, mid) => (mid.sides = [null, null] as never),
+      /team 0: 2 towers and a gate/,
+    ],
+    [
+      (_, mid) => delete (mid.sides[0] as Partial<Lane["sides"][0]>).gate,
+      /team 0 gate: an object/,
+    ],
+    [
+      (f, mid) => {
+        const gate = mid.sides[0]!.gate;
+        f.buildings[f.buildings.findIndex((b) => b.kind === "robotFactory")] = {
+          kind: "robotFactory",
+          x: gate.x,
+          y: gate.y - 1,
+        };
+      },
+      /team 0 gate: .* is a factory's door/,
+    ],
+    [(f, mid) => (f.camps![0] = leg(mid)[50]!), /camp 0: .* is on lane ground/],
     [
       (f) => (f.camps![0] = { x: 999, y: 0 }),
       /camp 0: \(999, 0\) is off the map/,

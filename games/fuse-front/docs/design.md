@@ -418,12 +418,14 @@ before, and M2 decides whether lanes become required.
   the ends lie within 16 tiles of a fort of each team.
 - **Sides:** a lane has one side per team, each with two towers (outer, then inner) and a gate. Every slot is on open
   ground within 4 tiles of the path and nearer its own fort than the enemy's, and each slot is nearer its base than
-  the one before it.
+  the one before it. The gate also lies within 16 tiles of one of its team's forts. No slot or camp may stand on a
+  factory's door.
 - **Jungle:** on a lane map, every sector that isn't a fort's home is jungle (`GameMap.sectorKinds`). It holds exactly
-  one camp and at least one factory, and its flag stands more than 3 tiles from every lane path, because lane ground
-  carries no flag. Sectors still come from flags alone, so lane tiles still belong to the nearest sector.
+  one camp and at least one factory. Its flag and camp stand more than 3 tiles from every lane path, because lane
+  ground carries neither. Sectors still come from flags alone, so lane tiles still belong to the nearest sector.
 - **Symmetry:** a `symmetry` field makes the loader check the map against its own image: terrain, flags, sites (fort
-  2k against 2k + 1), camps, and each lane against the reversed image of a lane, with the sides swapped.
+  2k against 2k + 1) and camps. It also checks each lane against the reversed image of a lane, with the sides
+  swapped. Under a half turn that image is the other lane (top for bot); under a mirror it is the same lane.
 - **Generator:** `tools/mapgen/lanes.ts` makes square, half-turn maps with corner bases and a river on the other
   diagonal. Top and bot bridge the river, mid fords it, and each jungle half has one more ford. The jungle gets
   Poisson-disc rock clumps and Poisson-disc flags, each flag with a robot or vehicle factory and a camp.

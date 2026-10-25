@@ -14,6 +14,7 @@ import {
   UNITS,
   DIRS,
   buildFlowField,
+  MapError,
   loadMap,
   traceLine,
   type Biome,
@@ -334,13 +335,16 @@ export function generateLanes(template: LaneTemplate): MapFile {
   if (jungle % 2 !== 0 || jungle < 2)
     throw new Error("jungle: even, at least 2");
   if (![2, 4, 6].includes(players)) throw new Error("players: 2, 4 or 6");
+  if (template.lanes !== 1 && template.lanes !== 3)
+    throw new Error("lanes: 1 or 3");
   const rand = new Rand(template.seed >>> 0);
   for (let tries = 0; tries < 32; tries++) {
     const file = attempt(template, rand);
     if (file === undefined) continue;
     try {
       if (connectivityFault(loadMap(file)) === undefined) return file;
-    } catch {
+    } catch (error) {
+      if (!(error instanceof MapError)) throw error;
       // A draw the loader refuses (a camp that fell in the next sector, say): draw again.
     }
   }

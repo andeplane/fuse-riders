@@ -430,6 +430,15 @@ function readLanes(
         abs(s.y - spot.y) <= LANE_BASE_REACH,
     );
   const onLanes = new Uint8Array(open.length);
+  // No slot or camp may stand on a factory's door.
+  const doors = new Set(
+    map.sites
+      .filter((s) => s.kind.endsWith("Factory"))
+      .map((s) => index(s.door)),
+  );
+  const blocksDoor = (spot: Tile, at: string) =>
+    doors.has(index(spot)) &&
+    fail(`${at}: (${spot.x}, ${spot.y}) is a factory's door`);
   const lanes = raw.lanes;
   if (!isList(lanes, 1, LANE_NAMES.length))
     return fail(`lanes: 1 to ${LANE_NAMES.length}`);
@@ -497,7 +506,12 @@ function readLanes(
           fail(`${at}: on the other team's side`);
         if (cost(team, spot) >= before)
           fail(`${at}: not nearer its base than the slot before`);
+        if (i === TOWERS_PER_SIDE && !nearBase(spot, team))
+          fail(
+            `${at}: more than ${LANE_BASE_REACH} tiles from its team's forts`,
+          );
         before = cost(team, spot);
+        blocksDoor(spot, at);
         claim(spot, at);
         return spot;
       });
@@ -523,6 +537,9 @@ function readLanes(
     const spot = tile(value, `camp ${i}`);
     if (!isOpen(spot))
       fail(`camp ${i}: (${spot.x}, ${spot.y}) is not open ground`);
+    if (within(map, onLanes, spot, LANE_CLEAR))
+      fail(`camp ${i}: (${spot.x}, ${spot.y}) is on lane ground`);
+    blocksDoor(spot, `camp ${i}`);
     claim(spot, `camp ${i}`);
     const sector = map.sectorOf[index(spot)]!;
     if (map.sectorKinds[sector] !== "jungle")
@@ -584,9 +601,16 @@ function checkSymmetry(
       : keysOf([...side.towers, side.gate].map(turn ? image : (t) => t));
   for (const lane of map.lanes) {
     const path = keysOf(lane.path.map(image).reverse());
+    // A half turn swaps top and bot; a mirror keeps each lane's name.
+    const name =
+      symmetry === "mirror" || lane.name === "mid"
+        ? lane.name
+        : lane.name === "top"
+          ? "bot"
+          : "top";
     const twin = map.lanes.find((other) => keysOf(other.path) === path);
     if (
-      twin === undefined ||
+      twin?.name !== name ||
       [0, 1].some(
         (team) =>
           slots(lane.sides[team], true) !== slots(twin.sides[1 - team], false),
