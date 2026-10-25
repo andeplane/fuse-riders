@@ -1,13 +1,13 @@
 /**
- * HUD layout and default zoom shots for the 3D battlefield against a running service (`pnpm build`, then
+ * HUD layout and opening zoom shots for the 3D battlefield against a running service (`pnpm build`, then
  * `service/dev.ts`):
  *
  *   node games/fuse-front/preview/hud-layout-shot.mjs http://localhost:PORT/ [dir] [suffix]
  *
- * A solo match on Neon Duel at 1600×1000, 1280×800 and 390×844, at the default zoom: the bottom panel must be one row
- * on the desktop sizes (the minimap beside the spells), and the phone must not scroll sideways. Each size logs how many
- * tiles of ground span the board's middle row, read from the canvas's `data-tile`. Shots go to `dir` (default
- * games/fuse-front/docs/images) as `hud-layout<suffix>.png`, `-1280` and `-390`. Muted, one headless Chromium.
+ * A solo match on Neon Duel at 1600×1000, 1280×800, 1100×760 (no shot) and 390×844, at the opening zoom: the bottom
+ * panel must be one row that does not overflow on the desktop sizes, and the phone must not scroll sideways. Each
+ * size logs how many tiles of ground span the board's middle row, read from the canvas's `data-tile`. Shots go to
+ * `dir` (default games/fuse-front/docs/images) as `hud-layout<suffix>.png`, `-1280` and `-390`. Muted, one headless Chromium.
  */
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
@@ -23,6 +23,7 @@ try {
   for (const [width, height, name] of [
     [1600, 1000, ""],
     [1280, 800, "-1280"],
+    [1100, 760, undefined],
     [390, 844, "-390"],
   ]) {
     const page = await browser.newPage({ viewport: { width, height } });
@@ -57,12 +58,20 @@ try {
         rows,
         panel: Math.round(panel?.getBoundingClientRect().height ?? 0),
         scroll: document.documentElement.scrollWidth,
+        // The last child's right edge past the panel's means the row overflows.
+        spill: Math.round(
+          Math.max(...boxes.map((b) => b.right)) -
+            (panel?.getBoundingClientRect().right ?? 0),
+        ),
       };
     });
     console.log(
       `${width}x${height}: ${across.toFixed(1)} tiles across a ${Math.round(box.width)}x${Math.round(box.height)} board; panel ${rows.panel} px, ${rows.rows} row(s), scroll width ${rows.scroll}`,
     );
-    await page.screenshot({ path: `${dir}/hud-layout${suffix}${name}.png` });
+    if (name !== undefined)
+      await page.screenshot({ path: `${dir}/hud-layout${suffix}${name}.png` });
+    if (width >= 1100) assert.equal(rows.rows, 1, `one row at ${width} px`);
+    assert.ok(rows.spill <= 0, `the panel holds its row at ${width} px`);
     assert.ok(rows.scroll <= width, `no horizontal scroll at ${width} px`);
     await page.close();
   }

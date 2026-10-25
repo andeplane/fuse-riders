@@ -461,6 +461,10 @@ body.fui-app {
     gap: 16px;
     padding: 10px 16px;
   }
+  /* Grid items may shrink below their content, so a tight row squeezes the bars rather than spilling. */
+  .ff-panel > * {
+    min-width: 0;
+  }
   .ff-face {
     width: auto;
   }
