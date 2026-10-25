@@ -103,6 +103,7 @@ test("keys map to casts, recentre and close; spells aim at the hero's tile", () 
     assert.deepEqual(keyAction(key), { kind: "zoom", factor: 1 / ZOOM_STEP });
   assert.deepEqual(keyAction("Home"), { kind: "home" });
   assert.deepEqual(keyAction("Tab"), { kind: "fight" });
+  assert.deepEqual(keyAction("`"), { kind: "score" });
   const world = fresh();
   const hero = world.heroes[0]!;
   const tile = (sub: number) => Math.floor(sub / SUB / TILE_PX);
