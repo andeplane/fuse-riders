@@ -196,6 +196,8 @@ export function chooseGoals(map: GameMap, world: World): void {
       unit.goal = laneGoal(map, world, unit, sieges[teamOf(unit.owner)]!);
       continue;
     }
+    // A camp's neutral guards (`jungle.ts`) never move.
+    if (unit.owner === NEUTRAL) continue;
     const stance = stances.get(unit.owner)!;
     const flag = unit.goal < 0 ? -1 : flagOnTile(map, unit.goal);
     const due =

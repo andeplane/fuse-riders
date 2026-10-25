@@ -126,8 +126,11 @@ export function award(
   y: number,
   amount: number,
 ): void {
+  // Nobody earns from a kill no seat made; a neutral's (team -1) is shared by the killer's team alone.
+  if (killer < 0) return;
+  const foe = victimTeam < 0 ? 1 - teamOf(killer) : victimTeam;
   for (const hero of world.heroes) {
-    if (teamOf(hero.seat) === victimTeam) continue;
+    if (teamOf(hero.seat) === foe) continue;
     if (hero.seat === killer) gainXp(world, hero, amount);
     else if (alive(hero)) {
       const dx = hero.x - x,
