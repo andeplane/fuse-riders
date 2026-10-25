@@ -21,6 +21,7 @@ import { KITS, hideOf, unitMax, type Spell } from "./spells.js";
 import {
   NEUTRAL,
   ownerOf,
+  siteHp,
   unitCap,
   type CombatEvent,
   type Hero,
@@ -266,7 +267,7 @@ export function viewOf(map: GameMap, world: World): WorldView {
         owner,
         team: teamOrNeutral(owner),
         hp: building.hp,
-        maxHp: BUILDING_HP[site.kind],
+        maxHp: siteHp(site),
         order: building.order,
         progress:
           building.order === null
@@ -278,7 +279,7 @@ export function viewOf(map: GameMap, world: World): WorldView {
       id: unit.id,
       kind: unit.kind,
       owner: unit.owner,
-      team: teamOf(unit.owner),
+      team: teamOrNeutral(unit.owner),
       x: unit.x,
       y: unit.y,
       hp: unit.hp,

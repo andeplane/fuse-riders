@@ -30,7 +30,8 @@ import {
   teamOf,
   type Stance,
 } from "./tuning.js";
-import { isWaypoint, laneGoal } from "./waves.js";
+import { isWaypoint, laneGoal, laneMap } from "./waves.js";
+import { shielded } from "./towers.js";
 import { NEUTRAL, ownerOf, type Unit, type World } from "./world.js";
 
 /** The tile a sub-pixel coordinate lies on. */
@@ -71,7 +72,10 @@ function enemyForts(map: GameMap, world: World, team: number): number[] {
   return tiles;
 }
 
-/** Whether building `index` is a standing turret or fort held by a seat not on `team`: what a lane unit sieges. */
+/**
+ * Whether building `index` is a standing turret or fort held by a seat not on `team`, and not protected
+ * (`towers.ts`): what a lane unit sieges.
+ */
 const enemyStructure =
   (map: GameMap, world: World, team: number) =>
   (index: number): boolean => {
@@ -80,7 +84,8 @@ const enemyStructure =
     if (building.hp <= 0 || (kind !== "turret" && kind !== "fort"))
       return false;
     const owner = ownerOf(map, world, building);
-    return owner !== NEUTRAL && teamOf(owner) !== team;
+    if (owner === NEUTRAL || teamOf(owner) === team) return false;
+    return !shielded(map, world, building);
   };
 
 /**
@@ -143,7 +148,8 @@ function pickGoal(
   const from = tileIndex(map, unit);
   const team = teamOf(unit.owner);
   const flags = map.flags.map((flag) => flag.y * map.width + flag.x);
-  if (stance === "follow") return FOLLOW_HERO;
+  // On a lane map a unit outside the waves (a drop, a hijacked tank) goes with its hero.
+  if (stance === "follow" || laneMap(map)) return FOLLOW_HERO;
   if (stance === "push") {
     // A flare the robot can walk to; one cut off from it leaves its usual goal.
     const flare = world.heroes.find((each) => each.seat === unit.owner)?.flare;
@@ -190,6 +196,8 @@ export function chooseGoals(map: GameMap, world: World): void {
       unit.goal = laneGoal(map, world, unit, sieges[teamOf(unit.owner)]!);
       continue;
     }
+    // A camp's neutral guards (`jungle.ts`) never move.
+    if (unit.owner === NEUTRAL) continue;
     const stance = stances.get(unit.owner)!;
     const flag = unit.goal < 0 ? -1 : flagOnTile(map, unit.goal);
     const due =
