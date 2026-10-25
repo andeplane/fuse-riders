@@ -183,7 +183,7 @@ function flag(r: Rig): void {
   sandbags(r, 0, 0, 0.95, 0, PI * 2 - 0.3);
 }
 
-/** Concept metres to tiles per building, and where each pivot sits (concept metres). */
+/** Concept metres to tiles per building. */
 const SCALE: Record<BuildingKind | "flag", number> = { fort: 0.19, robotFactory: 0.2, vehicleFactory: 0.2, turret: 0.19, flag: 0.3 }; // prettier-ignore
 const BUILDERS: Record<BuildingKind, (r: Rig) => void> = { fort, robotFactory, vehicleFactory, turret }; // prettier-ignore
 
@@ -199,14 +199,14 @@ export function conceptBuilding(kind: BuildingKind, detail: Detail = "near"): Bu
   const s = SCALE[kind], body = built(s, detail, BUILDERS[kind]);
   if (kind === "fort") return { body, pivot: { model: built(s, detail, dish, -1, 1), x: 1.2 * s, y: 7.2 * s, z: -3 * s, aims: false }, height: 1.2 };
   if (kind === "turret") return { body, pivot: { model: built(s, detail, turretHead, -0.3, 0.6), x: 0, y: 1.5 * s, z: 0, aims: true }, height: 0.6 };
-  if (kind === "robotFactory") return { body, smoke: [(RF.w / 2 - 1) * s, (RF.h + 4.8) * s, (-RF.d / 2 + 0.9) * s], height: (RF.h + 0.7) * s };
+  if (kind === "robotFactory") return { body, smoke: [(RF.w / 2 - 1) * s, (RF.h + 4.8) * s, (-RF.d / 2 + 0.9) * s], height: (RF.h + 4.8) * s };
   return { body, height: (VF.h + 0.9 + (VF.w / 2) * (1 - Math.cos(VF.arc))) * s };
 }
 
 /** The flag's base and pole (its cloth is drawn and waved on its own). */
 export const flagModel = (detail: Detail = "near"): Model => built(SCALE.flag, detail, flag); // prettier-ignore
-/** Where the flag's cloth hangs from the pole: its top edge's height, in tiles. */
-export const FLAG_CLOTH = { y: 4.6 * SCALE.flag, w: 0.7, h: 0.45 };
+/** The flag's cloth: its top edge's height on the pole (just under the finial), its width and its height, in tiles. */
+export const FLAG_CLOTH = { y: 5.2 * SCALE.flag, w: 0.7, h: 0.45 };
 
 /** The fort's ruin: broken tower stumps, the keep caved in to slabs, rubble and bent rebar. */
 // prettier-ignore

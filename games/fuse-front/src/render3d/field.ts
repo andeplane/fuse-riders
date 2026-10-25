@@ -49,7 +49,6 @@ import {
   recoil,
   ruinModel,
   setDetail,
-  shade,
   treadPhase,
   unitModel,
   waveCloth,
@@ -60,7 +59,7 @@ import {
 import type { Detail } from "./kit/rig.js";
 import { ROBOT_LEGS, detailAt, robotModel, robotPart, type RobotKind } from "./kit/units.js"; // prettier-ignore
 import { HERO_LEGS } from "./kit/heroes.js";
-import { conceptRuin, flagModel } from "./kit/buildings.js";
+import { FLAG_CLOTH, conceptRuin, flagModel } from "./kit/buildings.js";
 import { bannerTexture } from "./kit/decals.js";
 import { buildProps } from "./props.js";
 import * as rig from "./rig.js";
@@ -120,6 +119,8 @@ const AIM_HOLD = 80;
 const MAX_PENDING = 512;
 /** Heroes draw a size up from their models so they stand over the line at the default zoom. */
 const HERO_SCALE = 1.45;
+/** How many times further from the camera than a unit a building draws its far model. */
+const BUILDING_LOD = 1.8;
 /** Tiles from the camera's target the sun's shadow box reaches at most. */
 const SHADOW_REACH = 96;
 /** Strategic marker radii per tile of camera distance, so they hold their size on screen at any zoom. */
@@ -225,11 +226,8 @@ export class Field3D implements Renderer {
     BuildingKind,
     Record<Detail, BuildingModel> & { ruins: Model[] }
   >();
-  private readonly cloth = new THREE.PlaneGeometry(0.7, 0.45, 10, 1).translate(
-    0.35,
-    1.35,
-    0,
-  );
+  // The banner hangs from the pole just under its finial, out along +x so `waveCloth` keeps its pole edge still.
+  private readonly cloth = new THREE.PlaneGeometry(FLAG_CLOTH.w, FLAG_CLOTH.h, 10, 1).translate(FLAG_CLOTH.w / 2, FLAG_CLOTH.y - FLAG_CLOTH.h / 2, 0); // prettier-ignore
   private readonly clothBase = Float32Array.from(
     this.cloth.getAttribute("position").array,
   );
@@ -671,7 +669,8 @@ export class Field3D implements Renderer {
       node.ruin.visible = dead;
       if (dead) continue;
       const at = node.alive.position, cam = this.camera.position;
-      const detail = detailAt(Math.hypot(at.x - cam.x, at.y - cam.y, at.z - cam.z), this.governor.level, node.detail);
+      // Buildings are big on screen, so they turn far only `BUILDING_LOD` times further out than a unit does.
+      const detail = detailAt(Math.hypot(at.x - cam.x, at.y - cam.y, at.z - cam.z) / BUILDING_LOD, this.governor.level, node.detail);
       if (detail !== node.detail) {
         for (const mesh of node.lods[node.detail]) mesh.visible = false;
         for (const mesh of node.lods[detail]) mesh.visible = true;
@@ -975,7 +974,7 @@ export class Field3D implements Renderer {
     this.matchGroup.add(rockMesh, pebbleMesh, plankMesh, props.group);
 
     this.buildings = world.buildings.map((b) => this.building(b.kind, b.id, b.x + 0.5, standY(world, field, b.x + 0.5, b.y + 0.5), b.y + 0.5));
-    // Every flag's base and pole: one instanced mesh per paint.
+    // Every flag's base and pole: one instanced mesh per paint, at the detail the match starts with (they are small).
     const stand = flagModel(this.governor.level === "low" ? "far" : "near"), at = new THREE.Matrix4();
     for (const part of stand) {
       const mesh = new THREE.InstancedMesh(this.own(part.geometry), this.paints[part.paint], Math.max(1, world.flags.length));
