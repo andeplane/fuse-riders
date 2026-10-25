@@ -131,6 +131,7 @@ export function upgrades(map: GameMap, world: World, team: number): Upgrades {
   };
   for (const building of world.buildings) {
     const site = map.sites[building.id]!;
+    if (building.hp <= 0) continue;
     if (site.kind !== "robotFactory" && site.kind !== "vehicleFactory")
       continue;
     const owner = world.sectors[site.sector]!;

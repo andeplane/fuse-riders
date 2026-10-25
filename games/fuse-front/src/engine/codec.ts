@@ -569,6 +569,16 @@ export function decodeWorld(raw: unknown, map: GameMap): World | undefined {
     isInt(each, 1, CAMP_RESPAWN) ? each : undefined,
   );
   if (camps?.length !== map.camps.length) return;
+  // A guarded camp's timer is held full.
+  for (const [index, spot] of map.camps.entries()) {
+    const tile = spot.y * map.width + spot.x;
+    const guarded = units.some(
+      (u) =>
+        u.owner === NEUTRAL &&
+        div(u.y, TILE) * map.width + div(u.x, TILE) === tile,
+    );
+    if (guarded && camps[index] !== CAMP_RESPAWN) return;
+  }
   return {
     step,
     rng,

@@ -5,12 +5,14 @@ import {
   CAMP_RESPAWN,
   GRUNT_ARMOUR,
   NEUTRAL,
+  MAX_XP,
   STEPS_PER_SECOND,
   TILE,
   UNITS,
   WAVE_EVERY,
   WAVE_FIRST,
   campOf,
+  cast,
   centreOf,
   createWorld,
   decodeWorld,
@@ -219,6 +221,10 @@ const corruptions: [string, (units: number[][], wire: unknown[]) => void][] = [
     (_, wire) => ((wire[12] as number[])[0] = CAMP_RESPAWN + 1),
   ],
   ["a camp missing", (_, wire) => (wire[12] as number[]).pop()],
+  [
+    "a guarded camp's timer running",
+    (_, wire) => ((wire[12] as number[])[0] = CAMP_RESPAWN - 1),
+  ],
 ];
 
 for (const [label, corrupt] of corruptions)
@@ -233,6 +239,52 @@ for (const [label, corrupt] of corruptions)
     corrupt(wire[6] as number[][], wire);
     assert.equal(decodeWorld(wire, twin), undefined);
   });
+
+test("a hero's splash spares a camp's guards unless it shoots the camp", () => {
+  let world = run(quiet(), 1);
+  const guard = guards(world)[0]!;
+  // An enemy wave grunt beside the guards, shot by seat 0's hero.
+  const grunt = addUnit(
+    world,
+    1,
+    "grunt",
+    tileOf(guard.x),
+    tileOf(guard.y),
+    5000,
+  );
+  // A wave's grunt, which the guards leave alone.
+  Object.assign(grunt, { lane: 0, wave: 1 });
+  Object.assign(world.heroes[0]!, {
+    hp: 50_000,
+    respawn: 0,
+    x: centreOf(tileOf(guard.x)),
+    y: guard.y + 5 * TILE,
+  });
+  world = step(twin, world);
+  assert.ok(world.events.some((e) => e.type === "shot" && e.to.of === "unit"));
+  assert.ok(guards(world).every((u) => u.hp === UNITS.sentry.hp));
+});
+
+test("HIJACK takes no wave's tank", () => {
+  const world = run(quiet(), 1);
+  const vix = world.heroes[0]!;
+  Object.assign(vix, {
+    kind: "vix",
+    hp: 600,
+    respawn: 0,
+    xp: MAX_XP,
+    energy: 500,
+    spells: [0, 0, 0, 0],
+    x: centreOf(flag.x),
+    y: centreOf(flag.y),
+  });
+  const tank = addUnit(world, 1, "lightTank", flag.x + 2, flag.y, 100);
+  Object.assign(tank, { lane: 0, wave: 3 });
+  assert.equal(cast(twin, world, vix, 3, flag.x + 2, flag.y), false);
+  tank.lane = -1;
+  tank.wave = 0;
+  assert.equal(cast(twin, world, vix, 3, flag.x + 2, flag.y), true);
+});
 
 test("guards are UNITS.sentry at full health", () => {
   const world = run(quiet(), 1);

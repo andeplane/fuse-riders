@@ -49,6 +49,7 @@ import {
   ownerOf,
   winnerOf,
   type Mark,
+  type Unit,
   type World,
 } from "./world.js";
 
@@ -178,6 +179,11 @@ export function fight(
   const armoured = [0, 1].map(
     (team) => laneMap(map) && upgrades(map, world, team).armour,
   );
+  /** A held robot factory armours its team's wave grunts against guns (`jungle.ts`). */
+  const armour = (struck: Unit, team: number, damage: number): number =>
+    struck.kind === "grunt" && struck.lane >= 0 && armoured[team]
+      ? div(damage * (100 - GRUNT_ARMOUR), 100)
+      : damage;
   /** Whether a unit stands in its owner's hero's aura. */
   const inAura = (from: Target): boolean => {
     const hero = world.heroes.find((each) => each.seat === from.owner);
@@ -254,11 +260,14 @@ export function fight(
       for (const near of targets) {
         if (near.of !== "unit" || near === victim) continue;
         if (near.team === from.team) continue;
+        // A camp's guards (`jungle.ts`) take splash only from a shot at their camp.
+        if (near.team < 0 !== victim.team < 0) continue;
         const dx = near.x - victim.x,
           dy = near.y - victim.y;
         if (dx * dx + dy * dy > HERO.splash * HERO.splash) continue;
         const struck = world.units[near.index]!;
-        hit(near, from, div(splash * hideOf(world, struck, near.team), 100));
+        const share = div(splash * hideOf(world, struck, near.team), 100);
+        hit(near, from, armour(struck, near.team, share));
       }
     }
     if (tower) damage = rampUp(building!, victim, damage);
@@ -273,11 +282,8 @@ export function fight(
       if (victim.of === "hero" && robot)
         damage = div(damage * HERO.smallArms, 100);
       damage = div(damage * hideOf(world, struck, victim.team), 100);
-      // A held robot factory armours its team's wave grunts (`jungle.ts`).
-      const grunt = victim.of === "unit" && world.units[victim.index]!;
-      if (grunt && grunt.kind === "grunt" && grunt.lane >= 0)
-        if (armoured[victim.team])
-          damage = div(damage * (100 - GRUNT_ARMOUR), 100);
+      if (victim.of === "unit")
+        damage = armour(world.units[victim.index]!, victim.team, damage);
     }
     hit(victim, from, damage);
     world.events.push({
