@@ -271,7 +271,15 @@ chunky robots, team-coloured forts and factories, the riveted steel HUD) but ren
   tank and crawler, plus each hero with its own model and an always-visible team ring. Team colour goes on large
   surfaces. G2 builds them in `src/render3d/models.ts`: one merged geometry per paint per model, drawn as instanced
   meshes that share the kind's matrices, with the team colour per instance on the `team` paint only. Heroes wear
-  Brick until the view names a hero kind (`heroKindOf`).
+  Brick until the view names a hero kind (`heroKindOf`). The robot units (grunt, torch, light tank, sentry) follow
+  the 3D concept art and are built from the concept kit in `src/render3d/kit/`: a posed builder (`rig.ts`), a shared
+  pixel-font atlas for stencilled squad numbers (`decals.ts`) and the units with their shared legs and tracks
+  (`units.ts`). Every robot has a `near` and a `far` model; a unit past `LOD_FAR` tiles from the camera, or any unit
+  at `?quality=low`, draws the far one (plain plates, no decals or small parts, steel drawn as the dark frame).
+
+  ![The approved concept render the robots follow](images/concept-robots-units.png)
+  ![Robot units at the default zoom](images/robots-units.png)
+  ![Zoomed in on a squad of grunts](images/robots-units-close.png)
 
   ![Procedural models at the default zoom](images/models-3d.png)
   ![Zoomed in on grunts, a light tank and a turret](images/models-3d-zoom.png)
@@ -320,3 +328,83 @@ chunky robots, team-coloured forts and factories, the riveted steel HUD) but ren
 - **G2:** procedural unit, hero and building models.
 - **G3:** effects, target lines, range and area-of-effect previews.
 - **G4:** HUD tooltips and polish.
+
+## v3: a MOBA with Z's territory (2026-10-25)
+
+Playing v2 made it clear that Fuse Front is a MOBA, not an RTS: you steer one hero, and the army fights on its own. v3
+rebalances the game around MOBA principles and keeps Z's territory war as the twist. The user chose four things:
+
+- three lanes with towers, plus Z sectors kept as jungle factories;
+- gold and a small shop;
+- automatic waves that captured factories upgrade;
+- 15–20 minute matches.
+
+**Map.** Three lanes (top, mid, bottom) join the two bases.
+
+- **Towers:** each lane has two towers per side and a gate turret at the base. The base core is the fort, and
+  destroying the enemy fort wins.
+- **Protected structures:** the next structure down a lane can't be damaged while the one in front of it stands, so
+  there are no backdoors.
+- **Jungle sectors:** the ground between the lanes is jungle, cut into Z sectors. Each has a flag and a robot or
+  vehicle factory, guarded by a neutral sentry camp. Lane ground has no flags; the towers are what you fight over.
+- **Maps:** the map generator gains lane templates, with 3 lanes for 2v2 and 3v3 and a single mid lane for a 1v1 map.
+
+**Waves instead of factory orders.**
+
+- **Base wave:** every 30 s each lane spawns three grunts and a torch from each fort. They march down the lane on
+  attack-move, fight the first enemies they meet, then push on to towers.
+- **Growth:** waves get slowly tougher over the match, so a game always ends.
+- **Factory upgrades:** a captured jungle factory upgrades its owner's waves while held. A robot factory gives grunt
+  armour and an extra torch; a vehicle factory adds a light tank to every third wave. Losing the sector loses the
+  upgrade.
+- **Stance:** the stance switch and per-factory unit orders go away; the army is the lanes.
+
+**Heroes and gold.**
+
+- **Gold sources:**
+  - a last hit on an enemy robot (the killing blow);
+  - kills and assists on heroes, including a bounty that grows with the victim's kill streak;
+  - towers, shared by the team;
+  - jungle camps and captures;
+  - a small passive trickle.
+- **XP:** goes to every hero of the team within range of a death, so standing in lane matters.
+- **Progression:** levels run 1–12, faster than v2, and respawn timers grow with level.
+- **Healing:** a hero heals quickly at its own fort (the fountain).
+
+**Shop.**
+
+- About 12 items, bought at your fort, with 6 inventory slots.
+- Basics cover damage, armour, hit points, energy, cooldown, move speed and attack speed. A few have an active or
+  aura (a shield, a blink, a team heal), so a build is a real choice.
+- Prices are tuned so that each hero finishes 3–4 items by minute 15.
+
+**Towers and fairness.**
+
+- A tower attacks the nearest enemy robot. It switches to an enemy hero that attacks a friendly hero inside its
+  range.
+- Tower damage ramps on the same target, so diving under a tower is a real cost.
+- First-tower gold is shared.
+
+**Bots.**
+
+- Each takes a lane: 3v3 gives one per lane.
+- They last-hit and retreat to heal at low health.
+- They buy items from a build list for their hero.
+- They take jungle factories when their lane is pushed.
+- They join fights on their own side of the map.
+
+**Pace.**
+
+- The target is 15–20 minutes. Tower hit points, wave growth and respawn timers are tuned to it.
+- The bot league test asserts that every match ends in that window. It's measured on the new lane maps for 1v1, 2v2
+  and 3v3.
+
+**v3 delivery (each PR under ~1,000 lines):**
+
+- **M1:** lane maps: lane paths and tower slots in the map format, lane templates in the generator, and new maps.
+- **M2:** waves, towers with protection and aggro rules, the core, and factory upgrades in place of unit orders.
+- **M3:** gold, the shop, inventory, items and fountain healing.
+- **M4:** hero progression and balance: XP sharing, levels 1–12, respawn scaling and bounties.
+- **M5:** MOBA bots: laning, last hits, retreat, item builds and jungle captures.
+- **M6:** UI: gold, the shop panel, item slots, lane and tower markers on the minimap, and the stance UI removed.
+- **M7:** the 15–20 minute tuning pass with the league test.
