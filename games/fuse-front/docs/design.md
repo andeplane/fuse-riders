@@ -571,3 +571,20 @@ before, and M2 decides whether lanes become required.
   - `preview/shop-shot.mjs` plays a solo match to its first purchase and shoots the shop:
 
 ![The shop at the fort after buying Track Boots](images/shop.png)
+
+**M6 as built (the MOBA HUD).**
+
+- **M6a, structures and the minimap:**
+  - **RTS leftovers gone:** the factory orders panel, its buttons and click, and the production clock went. A held
+    jungle factory now shows its wave upgrade as a badge in the top bar, such as "+TORCH MID", with a tooltip.
+  - **View:** `BuildingView` gains `lane`, `tier` and `shielded`. A factory's `lane` is the lane its upgrade feeds,
+    and `shielded` is the engine's no-backdoor rule. `WorldView.campRespawn` gives each camp's steps until its
+    guards return, 0 while one stands. These are view-only, so RULES doesn't change.
+  - **Minimap** (`minimapMarks`): it draws the lanes, then towers, gates and forts as team squares, hollow once
+    razed. Camps show gold, or dim while respawning, with a hover tip giving the time left. Heroes are drawn on top,
+    and this device's has a white frame.
+  - **Pings:** one of your towers, gates or your fort under fire pings the minimap, at most once per `PING_GAP` per
+    structure, through the radar's event dedupe.
+  - **Battlefields:** towers, gates and forts always show a health bar, with a blue shield mark while `shielded`.
+    At the strategic zoom, the 3D field also dots the lane paths and marks the camps.
+  - **Phones:** the item row shares its width, so a 390 px screen doesn't scroll sideways.

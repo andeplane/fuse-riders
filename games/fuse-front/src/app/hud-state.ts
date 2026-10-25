@@ -1,30 +1,25 @@
 /**
  * What the HUD shows, derived from a `WorldView` for this device's seat: the hero's bars and spell slots,
- * the sector tug-of-war, the production clock and the match timer, plus the factory panel and the key bindings.
+ * the sector tug-of-war and the match timer, plus the held jungle factories' wave upgrades and the key bindings.
  * Pure: `deriveHud` fills one reused record, so a frame that changes nothing allocates nothing but the timer text.
  */
 import {
-  FACTORY_KINDS,
+  GRUNT_ARMOUR,
   KITS,
   MAX_LEVEL,
   STEPS_PER_SECOND,
   SUB,
   TILE_PX,
-  UNITS,
-  UNIT_CAP,
-  clockRate,
   levelXp,
   teamOf,
-  type BuildingView,
   type HeroKind,
-  type UnitKind,
   type WorldView,
 } from "../engine/index.js";
 import { ITEM_KEYS } from "./shop-state.js";
 
 /**
  * The record `deriveHud` fills, for the seat's hero `kind` (its kit names the spell slots). Bars are shares 0 to 1, `respawn` is seconds (0 while alive), `red`/`neutral`/`blue`
- * count sectors, `clock` is this team's production clock in percent and `time` the match time as `m:ss`. Each spell
+ * count sectors and `time` is the match time as `m:ss`. Each spell
  * slot has whole `seconds` of cooldown left and the `shade` share of it still to run, is `locked` below its unlock
  * level, and `ready` when a press would cast (alive, unlocked, cooled down, with the energy).
  */
@@ -54,7 +49,7 @@ export function createHud() {
     respawn: 0,
     spells,
   };
-  const sectors = { red: 0, neutral: 0, blue: 0, clock: 100 };
+  const sectors = { red: 0, neutral: 0, blue: 0 };
   return { ...hero, ...sectors, time: "0:00" };
 }
 export type HudState = ReturnType<typeof createHud>;
@@ -73,7 +68,6 @@ export function deriveHud(
     if (owner < 0) out.neutral++;
     else if (teamOf(owner) === 0) out.red++;
     else out.blue++;
-  out.clock = clockRate(seat < 0 ? 0 : teamOf(seat) === 0 ? out.red : out.blue);
   const total = Math.floor(world.step / STEPS_PER_SECOND);
   out.time = `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
   const level = hero?.level ?? 1;
@@ -117,60 +111,34 @@ export function heroTile(
   return hero && { x: at(hero.x), y: at(hero.y) };
 }
 
-/** This seat's standing factories, in map order. */
-export function factoriesOf(world: WorldView, seat: number): BuildingView[] {
-  return world.buildings.filter(
-    (b) => b.owner === seat && b.hp > 0 && FACTORY_KINDS[b.kind].length > 0,
-  );
+/** A held jungle factory's wave upgrade (`jungle.ts`): a short badge and its tooltip. */
+export interface Upgrade {
+  id: number;
+  badge: string;
+  tip: string;
 }
 
-/**
- * The factory of `seat` a click on `tile` picks: its own tile, or the tiles its sprite stands over (one either side,
- * up to two above).
- */
-export function factoryAt(
-  world: WorldView,
-  tile: { x: number; y: number },
-  seat: number,
-): BuildingView | undefined {
-  return factoriesOf(world, seat).find(
-    (b) =>
-      Math.abs(b.x - tile.x) <= 1 && b.y - tile.y >= 0 && b.y - tile.y <= 2,
-  );
-}
-
-/** A factory with what it can build, whole seconds until its batch steps out, and whether the unit cap pauses it. */
-export type FactoryPanel = BuildingView & {
-  choices: readonly UnitKind[];
-  eta: number;
-  paused: boolean;
-};
-
-/** The orders panel of factory `id`, or undefined once it is no longer this seat's. */
-export function factoryPanel(
-  world: WorldView,
-  id: number,
-  seat: number,
-): FactoryPanel | undefined {
-  const b = factoriesOf(world, seat).find((each) => each.id === id);
-  if (!b) return undefined;
-  let sectors = 0,
-    units = 0;
-  for (const owner of world.sectorOwners)
-    if (owner >= 0 && teamOf(owner) === b.team) sectors++;
-  for (const u of world.units) if (u.owner === seat) units++;
-  const left = b.order
-    ? (UNITS[b.order].build * 100 * (1000 - b.progress)) / 1000
-    : 0;
-  const eta = seconds(Math.ceil(left / clockRate(sectors)));
-  return {
-    ...b,
-    choices: FACTORY_KINDS[b.kind],
-    eta,
-    paused:
-      units >=
-      (world.players.find((p) => p.seat === seat)?.unitCap ?? UNIT_CAP),
-  };
+/** The wave upgrades of the jungle factories `seat`'s team holds, in map order (none for a watcher). */
+export function upgradesOf(world: WorldView, seat: number): Upgrade[] {
+  if (seat < 0) return [];
+  const out: Upgrade[] = [];
+  for (const b of world.buildings) {
+    const lane = world.lanes[b.lane]?.name;
+    if (!lane || b.hp <= 0 || b.team !== teamOf(seat) || b.tier >= 0) continue;
+    if (b.kind === "robotFactory")
+      out.push({
+        id: b.id,
+        badge: `+TORCH ${lane.toUpperCase()}`,
+        tip: `Robot factory: +1 torch to ${lane} waves; wave grunts take ${GRUNT_ARMOUR}% less from guns`,
+      });
+    else if (b.kind === "vehicleFactory")
+      out.push({
+        id: b.id,
+        badge: `+TANK ${lane.toUpperCase()}`,
+        tip: `Vehicle factory: +1 light tank to every third ${lane} wave`,
+      });
+  }
+  return out;
 }
 
 export type KeyAction =

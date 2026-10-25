@@ -132,7 +132,10 @@ const PLAIN = [1, 1, 1] as const;
 const LAMP: readonly (readonly number[])[] = [[4, 1.1, 0.5], [0.6, 1.4, 4.5]]; // prettier-ignore
 const SPOT_RGB = [4, 0.7, 0.4] as const,
   FLARE_RGB = [6, 1.2, 0.6] as const,
-  BLITZ_RGB = [1.4, 3.6, 5.5] as const;
+  BLITZ_RGB = [1.4, 3.6, 5.5] as const,
+  SHIELD_RGB = [1.2, 2.6, 5] as const;
+/** Strategic marks of the lanes' paths (a dot every `LANE_DOT` tiles) and the jungle camps, guarded or waiting. */
+const LANE_RGB = rgb(0xd6c496), CAMP_RGB = rgb(0xf0c83c), CAMP_DOWN_RGB = rgb(0x786846), LANE_DOT = 4; // prettier-ignore
 
 /** One mesh of a slot: a part of its model; only team-painted parts take the per-instance colour. */
 interface SlotPart {
@@ -692,7 +695,10 @@ export class Field3D implements Renderer {
         puff.position.set(f * 0.25, f * 1.1, -f * 0.15);
         puff.scale.setScalar(0.5 + f * 1.6);
       });
-      if (b.hp < b.maxHp) this.bar(node.alive.position.x, node.alive.position.y + node.height + 0.4, node.alive.position.z, b.hp / b.maxHp, 1.4);
+      // Towers, gates and forts always show their health; one no gun may pick yet (no backdoor) wears a shield mark.
+      const at2 = node.alive.position, top = at2.y + node.height + 0.4;
+      if (b.tier >= 0 || b.kind === "fort" || b.hp < b.maxHp) this.bar(at2.x, top, at2.z, b.hp / b.maxHp, 1.4);
+      if (b.shielded) this.slot("mark").batch.push(at2.x - 0.9, top, at2.z, now / 600, 0.1, 0.1, 0.1, SHIELD_RGB);
     }
     if (this.flags.length) {
       waveCloth(this.clothBase, this.cloth.getAttribute("position") as THREE.BufferAttribute, now);
@@ -706,6 +712,20 @@ export class Field3D implements Renderer {
       cloth.material = this.bannerMat[f.team] ?? this.bannerMat.at(-1)!;
       cloth.rotation.y = Math.sin(now / 1300 + i) * 0.25;
       if (fade > 0) this.slot("flagMark").batch.push(cloth.position.x, cloth.position.y, cloth.position.z, 0, mark * MARK.flag, 1, mark * MARK.flag, teamRgb(f.team));
+    }
+    if (fade > 0) {
+      for (const lane of world.lanes)
+        for (let i = 1; i < lane.path.length; i++) {
+          const a = lane.path[i - 1]!, b = lane.path[i]!, n = Math.max(1, Math.round(Math.hypot(b.x - a.x, b.y - a.y) / LANE_DOT));
+          for (let k = 0; k < n; k++) {
+            const x = a.x + 0.5 + ((b.x - a.x) * k) / n, z = a.y + 0.5 + ((b.y - a.y) * k) / n, s = mark * MARK.unit * 0.8;
+            this.slot("unitMark").batch.push(x, standY(world, field, x, z), z, 0, s, 1, s, LANE_RGB);
+          }
+        }
+      world.camps.forEach((c, i) => {
+        const x = c.x + 0.5, z = c.y + 0.5, s = mark * MARK.flag, down = (world.campRespawn[i] ?? 0) > 0;
+        this.slot("flagMark").batch.push(x, standY(world, field, x, z), z, Math.PI / 4, s, 1, s, down ? CAMP_DOWN_RGB : CAMP_RGB);
+      });
     }
     for (const slot of this.slotList) this.sync(slot);
     this.waterNormal.offset.set((now / 60000) % 1, (now / 23000) % 1);

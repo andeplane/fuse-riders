@@ -236,7 +236,7 @@ export class Battlefield implements Renderer {
     // Everything standing on the ground, back to front by depth `d`. A building sorts by its tile's top edge, so
     // whatever stands on its tile (a hero at its fort) draws in front of it.
     const items: { x: number; y: number; d: number; s: art.SpriteArt }[] = [];
-    const bars: [number, number, number, number][] = [];
+    const bars: [number, number, number, number, boolean?][] = [];
     const marks: [number, number, "stun" | "rally"][] = [];
     const smoke = Math.floor(now / 220) % art.SMOKE_FRAMES;
     for (const f of world.flags) {
@@ -249,8 +249,9 @@ export class Battlefield implements Renderer {
       if (!visible(x, y)) continue;
       const dir = this.facing.get(`b${b.id}`) ?? (b.x * 2 < world.width ? 1 : -1);
       items.push({ x, y, d: b.y * TILE_PX, s: art.buildingArt(b.kind, b.team, b.hp <= 0, smoke, dir) });
-      if (b.hp > 0 && b.hp < b.maxHp)
-        bars.push([x, y - (turret ? 10 : b.kind === "fort" ? 54 : 34), b.hp / b.maxHp, 16]);
+      // Towers, gates and forts always show their health; one no gun may pick yet (no backdoor) wears a shield.
+      if (b.hp > 0 && (b.hp < b.maxHp || b.tier >= 0 || b.kind === "fort"))
+        bars.push([x, y - (turret ? 10 : b.kind === "fort" ? 54 : 34), b.hp / b.maxHp, 16, b.shielded]);
     }
     for (const u of world.units) {
       const p = before.get(u.id) ?? u;
@@ -276,8 +277,13 @@ export class Battlefield implements Renderer {
     this.drawEffects(now);
     for (const [x, y, kind] of marks) this.blit(art.markArt(kind, Math.floor(now / 200)), x, y);
     const ctx = this.ctx;
-    for (const [x, y, frac, width] of bars) {
+    for (const [x, y, frac, width, shield] of bars) {
       const bx = Math.round(x - width / 2 - cx), by = Math.round(y - cy);
+      if (shield) {
+        ctx.fillStyle = "#60d0ff";
+        ctx.fillRect(bx - 5, by - 2, 3, 3);
+        ctx.fillRect(bx - 4, by + 1, 1, 1);
+      }
       ctx.fillStyle = "#101010";
       ctx.fillRect(bx - 1, by - 1, width + 2, 4);
       ctx.fillStyle = "#3a1010";
