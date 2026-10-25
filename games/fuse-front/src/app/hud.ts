@@ -4,7 +4,13 @@
  * goes through `put`, which skips a value already written, so a steady frame touches nothing and nothing reads layout.
  */
 import { el } from "fuse-ui";
-import { KITS, MAX_LEVEL, SPELL_INFO, type UnitKind } from "../engine/index.js";
+import {
+  ITEMS,
+  KITS,
+  MAX_LEVEL,
+  SPELL_INFO,
+  type UnitKind,
+} from "../engine/index.js";
 import type { WorldView } from "../engine/index.js";
 import { minimapBase, paintMinimap } from "../render/minimap.js";
 import { Img } from "../render/pixel/image.js";
@@ -18,6 +24,8 @@ import {
 } from "./hud-state.js";
 import type { SlotView } from "./model.js";
 import { label, spellTooltip, targetPanel } from "./targeting.js";
+import { ShopPanel } from "./shop-panel.js";
+import { ITEM_KEYS, itemStats, shopOf, slotsOf } from "./shop-state.js";
 
 export interface HudActions {
   /** Casts or aims a slot; `queued` (Shift) puts the cast behind the hero's route. */
@@ -28,6 +36,11 @@ export interface HudActions {
   look(fx: number, fy: number): void;
   /** Sends the hero to fractions of the map (a right click on the minimap; with Shift, queued). */
   move(fx: number, fy: number, queued?: boolean): void;
+  /** Uses (or, for a BLINK, aims) the item in `slot`. */
+  useItem(slot: number): void;
+  /** Buys shop item `id`, and sells the item in `slot`, at the hero's fort (`shop.ts`). */
+  buy(id: number): void;
+  sell(slot: number): void;
 }
 
 /** Pings on the minimap at once at most; a new one past this replaces the oldest. */
@@ -81,6 +94,16 @@ export class Hud {
     tip: el("span", "", "ff-tip ff-frame"),
   }));
   private readonly amove = el("button", "A attack-move", "ff-switch ff-amove");
+  /** The item bar (keys 1–6) and the shop (B), v3 M3. */
+  private readonly items = [0, 1, 2, 3, 4, 5].map(() => ({
+    button: el("button", "", "ff-item"),
+    mark: el("span", "", "ff-mark"),
+    shade: el("i", "", "ff-shade"),
+    secs: el("span", "", "ff-secs"),
+    tip: el("span", "", "ff-tip ff-frame"),
+  }));
+  private readonly shopButton = el("button", "B shop", "ff-shop-open");
+  readonly shop: ShopPanel;
   /** A toggle for touch: while lit, every order queues as if Shift were held. */
   private readonly queueButton = el("button", "⇧ queue", "ff-switch ff-queue");
   private queueOn = false;
@@ -107,6 +130,7 @@ export class Hud {
   private box = { x: -1, y: -1, w: 0, h: 0 };
 
   constructor(readonly actions: HudActions) {
+    this.shop = new ShopPanel(actions);
     this.meter.append(...this.shares);
     const war = el("div", "", "ff-war");
     war.append(this.scores[0]!, this.meter, this.scores[1]!);
@@ -148,7 +172,19 @@ export class Hud {
       this.flag(this.queueButton, "ff-lit", this.queueOn);
     };
     const toggles = el("div", "", "ff-toggles");
+    this.shopButton.title = "Shop: buy and sell at your fort (B)";
+    this.shopButton.onclick = () => this.toggleShop();
     toggles.append(this.amove, this.queueButton);
+    const items = el("div", "", "ff-items");
+    this.items.forEach(({ button, mark, shade, secs, tip }, slot) => {
+      tip.setAttribute("role", "tooltip");
+      button.append(mark, shade, secs, el("kbd", ITEM_KEYS[slot]!));
+      button.onclick = () => this.actions.useItem(slot);
+      const bay = el("span", "", "ff-spell-bay");
+      bay.append(button, tip);
+      items.append(bay);
+    });
+    items.append(this.shopButton);
     stance.append(toggles, this.factories);
     const map = this.map;
     map.append(this.mini, this.camera);
@@ -163,7 +199,9 @@ export class Hud {
       else this.actions.look(fx, fy);
     };
     map.oncontextmenu = (event) => event.preventDefault();
-    this.bottom.append(this.portrait, bars, spells, stance, map);
+    const kit = el("div", "", "ff-kit");
+    kit.append(spells, items);
+    this.bottom.append(this.portrait, bars, kit, stance, map);
     const close = el("button", "✕", "ff-close");
     close.title = "Close (Esc)";
     close.onclick = () => this.close();
@@ -281,6 +319,7 @@ export class Hud {
     this.flag(this.target, "ff-t0", aim?.team === 0);
     this.flag(this.target, "ff-t1", aim?.team === 1);
     if (this.open >= 0) this.showOrders();
+    this.showItems(world, seat);
     this.paintMinimap(world);
   }
 
@@ -335,6 +374,60 @@ export class Hud {
       this.flag(button, "ff-aiming", i === slot),
     );
     this.flag(this.amove, "ff-lit", attackMove);
+  }
+
+  /** The item bar from the seat's slots, and the shop while it is open. */
+  private showItems(world: WorldView, seat: number): void {
+    const slots = slotsOf(world, seat);
+    slots.forEach((slot, i) => {
+      const { button, mark, shade, secs, tip } = this.items[i]!;
+      this.put(tip, "item", String(slot.id), () => {
+        const item = ITEMS[slot.id];
+        if (!item) {
+          tip.replaceChildren(
+            el("b", `${slot.key} · empty`),
+            el("small", "Buy items at your fort (B)"),
+          );
+          button.setAttribute("aria-label", `Item slot ${slot.key}: empty`);
+          return;
+        }
+        const head = el("span", "", "ff-tip-head");
+        head.append(
+          el("b", `${slot.key} · ${item.name}`),
+          el("small", item.active ? "ACTIVE" : "PASSIVE"),
+        );
+        tip.replaceChildren(
+          head,
+          el("span", item.desc),
+          el("small", itemStats(item).join(" · ")),
+        );
+        button.setAttribute(
+          "aria-label",
+          `${item.name} (${slot.key}): ${item.desc}`,
+        );
+      });
+      this.text(mark, slot.mark);
+      this.css(shade, "height", `${Math.round(slot.shade * 100)}%`);
+      this.text(secs, slot.seconds ? String(slot.seconds) : "");
+      this.flag(button, "ff-empty", slot.id < 0);
+      this.flag(button, "ff-ready", slot.ready);
+      button.disabled = !slot.ready;
+    });
+    this.flag(this.shopButton, "ff-lit", this.shop.open);
+    if (this.shop.open) this.shop.update(shopOf(world, seat));
+  }
+
+  /** Opens the shop, or closes it when open. */
+  toggleShop(): void {
+    this.shop.toggle();
+    if (this.world) this.showItems(this.world, this.seat);
+  }
+
+  /** Lights the item button that is aiming a BLINK (-1 for none). */
+  aimingItem(slot: number): void {
+    this.items.forEach(({ button }, i) =>
+      this.flag(button, "ff-aiming", i === slot),
+    );
   }
 
   /** Opens factory `id`'s orders panel; it follows the world until closed or the factory is lost. */

@@ -1,12 +1,14 @@
 /**
  * Targeting, as pure functions of a `WorldView` for this device's seat: what a click means (right-click an enemy to
  * attack it, the ground to move; A then click to attack-move; a spell key to aim, a left click to cast; with Shift held
- * or the HUD's QUEUE on, each of these queues behind the hero's current order instead), which bodies
+ * or the HUD's QUEUE on, each of these queues behind the hero's current order instead; an item key to use its
+ * active, a BLINK aiming like a spell), which bodies
  * an aimed unit spell may take, the overlay a battlefield draws while aiming, a spell's tooltip and the target panel.
  * The engine decides what actually happens; these only choose what to ask of it.
  */
 import {
   AIM_SLACK,
+  ITEMS,
   KITS,
   STEPS_PER_SECOND,
   SUB,
@@ -113,15 +115,23 @@ export const modeFor = (
   world: WorldView | undefined,
   seat: number,
   mode: Mode,
-): Mode =>
-  mode.kind !== "idle" && !(world && heroOf(world, seat)) ? IDLE : mode;
+): Mode => {
+  const hero = world && heroOf(world, seat);
+  if (mode.kind !== "idle" && !hero) return IDLE;
+  // A BLINK aimed from a slot that no longer holds one (sold) disarms too.
+  if (mode.kind === "item" && !ITEMS[hero!.items[mode.slot] ?? -1]?.range)
+    return IDLE;
+  return mode;
+};
 
 /** What the next click means: nothing armed, an attack-move armed (A), or a spell slot aiming. */
 export type Mode =
   | { kind: "idle" }
   | { kind: "attackMove" }
   /** `queued` when Shift (or QUEUE) armed it: the cast queues even if Shift is let go before the click. */
-  | { kind: "aim"; slot: number; queued?: true };
+  | { kind: "aim"; slot: number; queued?: true }
+  /** An item slot's BLINK aiming (`shop.ts`): the next left click jumps there. */
+  | { kind: "item"; slot: number };
 export const IDLE: Mode = { kind: "idle" };
 
 export type Intent =
@@ -137,6 +147,7 @@ export type Intent =
       queued?: true;
     }
   | { kind: "factory"; id: number }
+  | { kind: "useItem"; slot: number; x: number; y: number }
   /** Leave the armed mode; `none` keeps it (a click out of reach). */
   | { kind: "cancel" }
   | { kind: "none" };
@@ -212,6 +223,15 @@ export function clickIntent(
   if (mode.kind === "aim" && mode.queued) queued = true;
   const q = queued ? { queued: true as const } : {};
   if (mode.kind === "attackMove") return { kind: "attackMove", x, y, ...q };
+  if (mode.kind === "item") {
+    const hero = heroOf(world, seat);
+    const reach = hero && ITEMS[hero.items[mode.slot] ?? -1]?.range;
+    if (!hero || !reach) return { kind: "cancel" };
+    const aim = { x: (x + 0.5) * TILE, y: (y + 0.5) * TILE };
+    return within(aim, hero, reach + AIM_SLACK)
+      ? { kind: "useItem", slot: mode.slot, x, y }
+      : { kind: "none" };
+  }
   if (mode.kind === "aim") {
     const hero = heroOf(world, seat);
     const spell = hero && KITS[hero.kind][mode.slot];
@@ -271,6 +291,25 @@ export function pressSpell(
   };
 }
 
+/**
+ * An item key or button pressed in `mode`: a SHIELD is used at once, a BLINK arms (or, pressed again, disarms)
+ * aiming; nothing happens for an empty slot, a passive item or an active still cooling.
+ */
+export function pressItem(
+  world: WorldView,
+  seat: number,
+  mode: Mode,
+  slot: number,
+): { mode: Mode; use?: { x: number; y: number } } {
+  const hero = heroOf(world, seat);
+  const item = hero && ITEMS[hero.items[slot] ?? -1];
+  if (!hero || !item?.active || hero.itemCooldowns[slot]! > 0) return { mode };
+  if (item.active === "shield")
+    return { mode: IDLE, use: heroTile(world, seat) };
+  const again = mode.kind === "item" && mode.slot === slot;
+  return { mode: again ? IDLE : { kind: "item", slot } };
+}
+
 /** What the battlefield draws for `mode` with the cursor over `tile` (sub-pixels). */
 export function overlayOf(
   world: WorldView,
@@ -288,6 +327,11 @@ export function overlayOf(
       spell.targeting === "point" ? Math.max(spell.radius, TILE / 2) : 0;
     return { range: spell.range, area, cursor: cursor ?? null, marks };
   }
+  // A BLINK's reach, and where it lands.
+  const reach =
+    mode.kind === "item" && hero && ITEMS[hero.items[mode.slot] ?? -1]?.range;
+  if (reach)
+    return { range: reach, area: TILE / 2, cursor: cursor ?? null, marks: [] };
   const hover = tile && bodyAt(world, tile, isEnemy(seat));
   const area = mode.kind === "attackMove" ? TILE / 2 : 0;
   return {

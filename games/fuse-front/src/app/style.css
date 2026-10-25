@@ -648,3 +648,167 @@ body.fui-app {
     grid-template-columns: 1fr;
   }
 }
+/* Items (v3 M3): the six slots under the spells (keys 1–6), and the shop panel (B). */
+.ff-kit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center;
+}
+.ff-items {
+  display: flex;
+  gap: 6px;
+}
+#app .ff-item {
+  position: relative;
+  overflow: hidden;
+  width: 46px;
+  height: 40px;
+  padding: 0;
+  min-height: 0;
+  border-radius: 5px;
+  border: 1px solid #3a4048;
+  box-shadow: none;
+  background: #1d2126;
+  color: #eef1f4;
+  font: 800 0.95rem var(--ff-display);
+}
+#app .ff-shop-open {
+  width: 54px;
+  height: 40px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 5px;
+  border: 1px solid var(--ff-hazard);
+  box-shadow: none;
+  background: #262b32;
+  color: var(--ff-hazard);
+  font: 700 0.7rem var(--ff-display);
+  text-transform: uppercase;
+}
+#app .ff-shop-open.ff-lit {
+  background: var(--ff-hazard);
+  color: #16181c;
+}
+#app .ff-item.ff-empty {
+  border-style: dashed;
+  color: #5a626c;
+}
+#app .ff-item.ff-ready,
+#app .ff-item.ff-aiming {
+  border: 2px solid var(--ff-hazard);
+  color: var(--ff-hazard);
+}
+#app .ff-item:disabled {
+  opacity: 1;
+}
+.ff-item kbd {
+  position: absolute;
+  inset: 2px auto auto 4px;
+  font: 700 0.6rem var(--ff-display);
+  color: var(--ff-muted);
+}
+.ff-item .ff-secs {
+  font-size: 1rem;
+}
+.ff-shop {
+  position: fixed;
+  top: 72px;
+  left: 50%;
+  z-index: 6;
+  width: min(680px, calc(100% - 32px));
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+  transform: translateX(-50%);
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  border-color: var(--ff-hazard);
+}
+.ff-shop-head,
+.ff-tabs,
+.ff-sells {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ff-shop-head {
+  position: relative;
+  padding-right: 28px;
+}
+.ff-shop h3 {
+  margin: 0;
+  font: 800 1.1rem var(--ff-display);
+  letter-spacing: 0.12em;
+  color: var(--ff-hazard);
+}
+.ff-shop .ff-purse {
+  margin-left: 0;
+}
+#app .ff-tab.ff-lit {
+  border-color: var(--ff-hazard);
+  color: var(--ff-hazard);
+}
+.ff-wares {
+  display: grid;
+  align-content: start;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 8px;
+}
+.ff-ware {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 5px;
+  background: #1d2126;
+  border: 1px solid #3a4048;
+}
+.ff-ware b {
+  font: 700 0.95rem var(--ff-display);
+  color: #eef1f4;
+}
+.ff-ware small {
+  color: var(--ff-muted);
+  line-height: 1.3;
+}
+.ff-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.ff-tags i {
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #262b32;
+  font: normal 600 0.7rem var(--ff-display);
+  color: #9fd8f4;
+}
+#app .ff-buy {
+  margin-top: auto;
+  height: 28px;
+  font: 700 0.8rem var(--ff-display);
+  color: var(--ff-hazard);
+  border-color: var(--ff-hazard);
+}
+#app .ff-buy:disabled,
+#app .ff-sell:disabled {
+  color: #6a727c;
+  border-color: #3a4048;
+}
+#app .ff-sell {
+  flex: 1 1 30%;
+  font-size: 0.75rem;
+}
+@media (max-width: 720px) {
+  .ff-kit {
+    flex: 1 1 100%;
+  }
+  .ff-items {
+    justify-content: space-between;
+  }
+  #app .ff-item {
+    width: 44px;
+  }
+}

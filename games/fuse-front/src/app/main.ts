@@ -44,6 +44,7 @@ import {
   modeFor,
   overlayOf,
   pinchZoom,
+  pressItem,
   pressSpell,
   type Mode,
   zoomAnchor,
@@ -159,7 +160,7 @@ function landing(error = ""): void {
     card.element,
     el(
       "p",
-      "Right-click to move or attack · A + click: attack-move · Shift queues orders · Q W E R: cast or aim · Z / X: zoom · Tab: the fight · Home: your fort",
+      "Right-click to move or attack · A + click: attack-move · Shift queues orders · Q W E R: cast or aim · 1–6: items · B: shop · Z / X: zoom · Tab: the fight · Home: your fort",
       "ff-help",
     ),
   );
@@ -188,7 +189,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
   let drawn = "";
   let drawnFor: WorldView | undefined;
   const refresh = () => {
-    const key = `${mode.kind}:${mode.kind === "aim" ? mode.slot : ""}:${cursor?.x},${cursor?.y}`;
+    const key = `${mode.kind}:${mode.kind === "aim" || mode.kind === "item" ? mode.slot : ""}:${cursor?.x},${cursor?.y}`;
     if (!shown || (shown === drawnFor && key === drawn)) return;
     [drawn, drawnFor] = [key, shown];
     field.overlay = overlayOf(shown, runtime.slot(), mode, cursor);
@@ -196,6 +197,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
   const arm = (next: Mode) => {
     mode = next;
     hud.armed(next.kind === "aim" ? next.slot : -1, next.kind === "attackMove");
+    hud.aimingItem(next.kind === "item" ? next.slot : -1);
     canvas.classList.toggle("ff-aiming", next.kind !== "idle");
     refresh();
   };
@@ -213,6 +215,14 @@ function room(code: string, token: string | undefined, display: boolean): void {
     attackMove: () =>
       arm(mode.kind === "attackMove" ? IDLE : { kind: "attackMove" }),
     look: (fx, fy) => shown && field.lookAt(fx, fy, shown),
+    useItem(slot) {
+      if (!shown) return;
+      const press = pressItem(shown, runtime.slot(), mode, slot);
+      if (press.use) runtime.useItem(slot, press.use.x, press.use.y);
+      arm(press.mode);
+    },
+    buy: (id) => runtime.buy(id),
+    sell: (slot) => runtime.sell(slot),
     move(fx, fy, queued = false) {
       if (!shown || runtime.slot() < 0) return;
       const tile = minimapTile(fx, fy, shown.width, shown.height);
@@ -226,7 +236,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
   /** Centres the camera on a point in tiles, if there is one. */
   const jump = (at: { x: number; y: number } | undefined) =>
     at && shown && field.lookAt(at.x / shown.width, at.y / shown.height, shown);
-  stage.append(canvas, hud.orders, end);
+  stage.append(canvas, hud.orders, hud.shop.element, end);
   play.append(hud.top, stage, hud.bottom, hint);
   play.hidden = true;
   app.replaceChildren(header(), status, lobby, play);
@@ -303,7 +313,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
     const text = countdown
       ? `Starting in ${countdown}…`
       : slot >= 0
-        ? `${TEAMS[slot % 2]} · right-click: move, or attack an enemy · A then click: attack-move · Shift + click queues · Q W E R: cast or aim, then click · Esc cancels · Space or F follows · Z/X zoom · Home fort · Tab fight · right-click the minimap to move`
+        ? `${TEAMS[slot % 2]} · right-click: move, or attack an enemy · A then click: attack-move · Shift + click queues · Q W E R: cast or aim, then click · 1–6 items · B shop · Esc cancels · Space or F follows · Z/X zoom · Home fort · Tab fight · right-click the minimap to move`
         : "Watching";
     if (hint.textContent !== text) hint.textContent = text;
     const over = view.stage === "over";
@@ -605,6 +615,8 @@ function room(code: string, token: string | undefined, display: boolean): void {
         intent.target,
         !!intent.queued,
       );
+    else if (intent.kind === "useItem")
+      runtime.useItem(intent.slot, intent.x, intent.y);
   };
   canvas.addEventListener("pointercancel", (event) => {
     touches.delete(event.pointerId);
@@ -634,8 +646,11 @@ function room(code: string, token: string | undefined, display: boolean): void {
     else if (action.kind === "zoom") field.zoom(action.factor);
     else if (action.kind === "home") jump(homeOf(shown, runtime.slot()));
     else if (action.kind === "fight") jump(radar.fight(shown, runtime.slot()));
-    else if (action.kind === "close") (hud.close(), arm(IDLE));
+    else if (action.kind === "close")
+      (hud.close(), hud.shop.close(), arm(IDLE));
     else if (action.kind === "attackMove") hud.actions.attackMove();
+    else if (action.kind === "shop") hud.toggleShop();
+    else if (action.kind === "item") hud.actions.useItem(action.slot);
     else hud.actions.cast(action.slot, event.shiftKey);
   };
   window.addEventListener("keydown", keys123);
