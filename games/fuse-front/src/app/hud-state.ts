@@ -45,6 +45,9 @@ export function createHud() {
     kind: "brick" as HeroKind,
     hp: 0,
     energy: 0,
+    /** The bars' whole hit points and energy. */
+    hpNow: 0,
+    energyNow: 0,
     xp: 0,
     level: 1,
     respawn: 0,
@@ -77,6 +80,8 @@ export function deriveHud(
   out.level = level;
   out.hp = hero ? hero.hp / hero.maxHp : 0;
   out.energy = hero ? hero.energy / hero.maxEnergy : 0;
+  out.hpNow = Math.max(0, Math.ceil(hero?.hp ?? 0));
+  out.energyNow = Math.floor(hero?.energy ?? 0);
   const from = levelXp(level);
   out.xp = !hero
     ? 0

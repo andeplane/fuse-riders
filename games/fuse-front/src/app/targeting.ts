@@ -307,6 +307,8 @@ export function spellTooltip(spell: SpellInfo): {
   name: string;
   desc: string;
   stats: string;
+  /** How it is aimed, for the tooltip's corner: passive, instant, unit target or ground target. */
+  aim: string;
 } {
   const tiles = (sub: number) => `${+(sub / TILE).toFixed(1)} tiles`;
   const stats = spell.passive
@@ -322,6 +324,11 @@ export function spellTooltip(spell: SpellInfo): {
     name: spell.name.toUpperCase(),
     desc: spell.desc,
     stats: stats.filter(Boolean).join(" · "),
+    aim: spell.passive
+      ? "passive"
+      : { self: "instant", unit: "unit target", point: "ground target" }[
+          spell.targeting
+        ],
   };
 }
 

@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createMemoryStorage } from "fuse-ui/safe-storage";
-import { DRAW, NO_WINNER, fortSite } from "../src/engine/index.js";
+import {
+  DRAW,
+  NO_WINNER,
+  fortSite,
+  type HeroKind,
+} from "../src/engine/index.js";
 import {
   COUNTDOWN_TICKS,
   DEFAULT_SETTINGS,
@@ -11,8 +16,10 @@ import {
 import {
   banner,
   cycleDifficulty,
+  heroCards,
   mapOptions,
   slotsOf,
+  type SlotView,
 } from "../src/app/model.js";
 import { keys, roomFailure, sessionFor } from "../src/app/session.js";
 import { frontRegistration } from "../src/platform.js";
@@ -136,4 +143,30 @@ test("the lobby offers the maps that hold the battle size, lighting the one a st
     mapOptions({ ...DEFAULT_SETTINGS, size: 3, map: null })[1]!.label,
     "Iron Delta 256×192",
   );
+});
+
+test("the lobby's hero cards mark the seat's hero, a teammate's pick as taken, and the rest free", () => {
+  const seat = (slot: number, hero: HeroKind, picked: boolean): SlotView => ({
+    slot,
+    team: slot % 2,
+    name: `P${slot}`,
+    bot: false,
+    difficulty: "normal",
+    self: slot === 0,
+    hero,
+    picked,
+  });
+  const slots = [
+    seat(0, "brick", false),
+    seat(1, "vix", true),
+    seat(2, "rivet", true),
+    seat(4, "tally", false),
+  ];
+  const cards = (slot: number) =>
+    heroCards(slots, slot)
+      .map((c) => `${c.kind}:${c.state}${c.by}`)
+      .join();
+  assert.equal(cards(0), "brick:mine,vix:free,rivet:takenP2,tally:free");
+  // A teammate's given (unpicked) hero is free to take.
+  assert.equal(cards(2), "brick:free,vix:free,rivet:mine,tally:free");
 });
