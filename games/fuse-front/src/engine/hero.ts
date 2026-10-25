@@ -147,7 +147,9 @@ export function comebackOf(map: GameMap, world: World, team: number): number {
  * XP for a death at (x, y) of something on `victimTeam` (a neutral's is -1) that `killer`'s seat made: shared by the
  * living heroes of the killing team within `XP_RADIUS`, wherever the killer is, so standing in lane is what earns and
  * a last hit earns no more. With n heroes sharing, each takes `(100 + XP_GROUP * (n - 1)) / n` percent, times the
- * team's comeback (`comebackOf`). A kill no seat made earns nothing. Heroes are visited by seat.
+ * team's comeback (`comebackOf`). A kill no seat made earns nothing. Heroes are visited by seat. Combat pays XP after
+ * the step's deaths (`combat.ts`), so a hero that falls on the same step shares none of it, and the comeback reads
+ * the ruins with that step's razings already counted.
  */
 export function award(
   map: GameMap,
