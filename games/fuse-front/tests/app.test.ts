@@ -111,7 +111,7 @@ test("the runtime logs this device's controls only while it rides a seat in a ru
   const map = mapOf(room);
   assert.equal(
     map.name,
-    "Rust Canyon",
+    "Neon Duel",
     "a 1v1 with no map chosen plays its default",
   );
   const target = fortSite(map, 1);
@@ -162,15 +162,12 @@ test("the lobby offers the maps that hold the battle size, lighting the one a st
     mapOptions({ ...DEFAULT_SETTINGS, size, map })
       .map((o) => (o.on ? `[${o.id}]` : o.id))
       .join(" ");
+  assert.equal(offered(1, null), "[neon-duel] twin-wilds crown-jungle");
+  assert.equal(offered(2, "crown-jungle"), "twin-wilds [crown-jungle]");
+  assert.equal(offered(3, "twin-wilds"), "[crown-jungle]");
   assert.equal(
-    offered(1, null),
-    "dust-basin [rust-canyon] glass-lakes iron-delta",
-  );
-  assert.equal(offered(2, "dust-basin"), "[dust-basin] glass-lakes iron-delta");
-  assert.equal(offered(3, "glass-lakes"), "dust-basin [iron-delta]");
-  assert.equal(
-    mapOptions({ ...DEFAULT_SETTINGS, size: 3, map: null })[1]!.label,
-    "Iron Delta 256×192",
+    mapOptions({ ...DEFAULT_SETTINGS, size: 3, map: null })[0]!.label,
+    "Crown Jungle 180×180",
   );
 });
 

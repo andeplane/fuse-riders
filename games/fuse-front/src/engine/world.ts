@@ -7,12 +7,14 @@ import type { GameMap, Site } from "./map.js";
 import { div } from "./math.js";
 import type { Order } from "./orders.js";
 import type { SpellEffect } from "./spells.js";
+import { laneOwner } from "./waves.js";
 import {
   BUILDING_HP,
   FACTORY_KINDS,
   HERO,
   HEROES,
   TILE,
+  TOWER,
   MAX_SEATS,
   UNIT_CAP,
   UNIT_CAP_BASE,
@@ -40,6 +42,13 @@ export interface Building {
   progress: number;
   /** A turret's steps until its next shot; 0 for anything else. */
   cooldown: number;
+  /**
+   * A lane tower's target (`towers.ts`): its `MARKS` index (a unit or a hero; -1 for none) and id, and the shots in a
+   * row it has landed on it. -1, -1 and 0 for any other building.
+   */
+  aimOf: number;
+  aim: number;
+  ramp: number;
 }
 
 export interface Unit {
@@ -57,7 +66,11 @@ export interface Unit {
   /** Steps left stunned by SHOCKWAVE and rallied by RALLY CRY (`spells.ts`); 0 when not. */
   stun: number;
   rally: number;
-  /** A wave unit's lane index (`GameMap.lanes`) and wave number (`waves.ts`); -1 and 0 for any other unit. */
+  /**
+   * A wave unit's lane index (`GameMap.lanes`) and the wave number its hit points and damage grow by (`waves.ts`):
+   * its wave's, plus `RAZE_WAVES` for each enemy structure its team had brought down when it spawned. -1 and 0 for
+   * any other unit.
+   */
   lane: number;
   wave: number;
 }
@@ -140,6 +153,8 @@ export interface World {
   fortified: number[];
   /** By team: steps left under Rivet's OVERCLOCK (its factories build twice as fast). */
   overclock: number[];
+  /** By camp (`GameMap.camps`): steps until its guards stand again, held at `CAMP_RESPAWN` while any stands (`jungle.ts`). */
+  camps: number[];
   /** `NO_WINNER` while the match runs, then the winning team or `DRAW` (`winnerOf`). */
   winner: number;
   /**
@@ -253,16 +268,21 @@ export function createWorld(
       .filter((site) => site.kind !== "fort" || playing.includes(site.seat))
       .map((site) => ({
         id: site.id,
-        hp: BUILDING_HP[site.kind],
+        hp: siteHp(site),
         order: defaultOrder(site.kind),
         progress: 0,
         cooldown: 0,
+        aimOf: -1,
+        aim: -1,
+        ramp: 0,
       })),
     units: [],
     heroes: playing.map((seat) => freshHero(map, seat, kinds[seat])),
     mines: [],
     fortified: map.flags.map(() => 0),
     overclock: [0, 0],
+    // Every camp's guards stand on the first step.
+    camps: map.camps.map(() => 1),
     winner: NO_WINNER,
     events: [],
   };
@@ -314,15 +334,24 @@ export function freshHero(
   };
 }
 
-/** The seat that owns a building: a fort's seat, else whoever holds its sector (-1 when neutral). */
+/**
+ * The seat that owns a building: a fort's seat, a lane structure's lane player (`laneOwner`, -1 when its team has
+ * none in play), else whoever holds its sector (-1 when neutral).
+ */
 export function ownerOf(
   map: GameMap,
   world: World,
   building: Building,
 ): number {
   const site = map.sites[building.id]!;
-  return site.kind === "fort" ? site.seat : world.sectors[site.sector]!;
+  if (site.kind === "fort") return site.seat;
+  if (site.lane >= 0) return laneOwner(map, world, site.team, site.lane);
+  return world.sectors[site.sector]!;
 }
+
+/** A site's full hit points: a lane structure's by its tier (`TOWER`), else its kind's. */
+export const siteHp = (site: Readonly<Site>): number =>
+  site.lane >= 0 ? TOWER.hp[site.tier]! : BUILDING_HP[site.kind];
 
 /** Sectors held by a team. */
 export function teamSectors(world: World, team: number): number {

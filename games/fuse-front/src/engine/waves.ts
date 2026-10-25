@@ -10,11 +10,18 @@
  *   in range (`combat.ts`) and never seeks anything off its lane. It turns to an enemy structure within `LANE_SIGHT`,
  *   and past its last waypoint it makes for the nearest enemy fort (`laneGoal`).
  */
-import type { GameMap, Lane, LaneName, Tile } from "./map.js";
+import {
+  TOWERS_PER_SIDE,
+  type GameMap,
+  type Lane,
+  type LaneName,
+  type Tile,
+} from "./map.js";
 import { div } from "./math.js";
 import { flowField, UNREACHABLE } from "./flow.js";
 import {
   LANE_SIGHT,
+  RAZE_WAVES,
   STRAIGHT,
   TILE,
   UNITS,
@@ -29,7 +36,8 @@ import {
   teamOf,
   type UnitKind,
 } from "./tuning.js";
-import type { Unit, World } from "./world.js";
+import type { Building, Unit, World } from "./world.js";
+import { upgrades, waveKinds } from "./jungle.js";
 
 const centre = (tile: number): number => tile * TILE + div(TILE, 2);
 const d2 = (ax: number, ay: number, bx: number, by: number): number =>
@@ -149,10 +157,9 @@ export function laneGoal(
   let best = -1,
     bestD = LANE_SIGHT * LANE_SIGHT + 1;
   for (const [index, building] of world.buildings.entries()) {
-    if (!siegeable(index)) continue;
     const site = map.sites[building.id]!;
     const d = d2(unit.x, unit.y, centre(site.x), centre(site.y));
-    if (d >= bestD) continue;
+    if (d >= bestD || !siegeable(index)) continue;
     const tile = site.y * map.width + site.x;
     if (flowField(map, tile).cost(from) <= SIEGE_WALK)
       [best, bestD] = [tile, d];
@@ -188,22 +195,39 @@ export function laneCounts(units: readonly Unit[]): [number, number] {
   return counts;
 }
 
-/** What a wave holds. */
-export const WAVE_KINDS: readonly UnitKind[] = ["grunt", "torch"];
+/** What a wave holds: its grunts and torches, and the tanks a held vehicle factory adds (`jungle.ts`). */
+export const WAVE_KINDS: readonly UnitKind[] = ["grunt", "torch", "lightTank"];
+
+/** By team: the enemy lane structures (towers and gates) it has brought down. */
+export function razedBy(
+  map: GameMap,
+  buildings: readonly Building[],
+): [number, number] {
+  const razed: [number, number] = [0, 0];
+  for (const building of buildings) {
+    const site = map.sites[building.id]!;
+    if (site.lane >= 0 && building.hp <= 0) razed[1 - site.team]! += 1;
+  }
+  return razed;
+}
 
 /** On a wave's step, each lane's wave steps out at each team's end of it, while the team is under `WAVE_CAP`. */
 export function spawnWaves(map: GameMap, world: World): void {
   const wave = waveAt(world.step);
   if (wave === 0 || !laneMap(map)) return;
   const counts = laneCounts(world.units);
+  const razed = razedBy(map, world.buildings);
+  // A team's held jungle factories add to its waves (`jungle.ts`).
+  const ups = [0, 1].map((team) => upgrades(map, world, team));
+  const base: UnitKind[] = [
+    ...Array<UnitKind>(WAVE_GRUNTS).fill("grunt"),
+    ...Array<UnitKind>(WAVE_TORCHES).fill("torch"),
+  ];
   for (const team of [0, 1])
     for (const [index, lane] of map.lanes.entries()) {
       const owner = laneOwner(map, world, team, index);
       if (owner < 0) continue;
-      const kinds: UnitKind[] = [
-        ...Array<UnitKind>(WAVE_GRUNTS).fill("grunt"),
-        ...Array<UnitKind>(WAVE_TORCHES).fill("torch"),
-      ];
+      const kinds = waveKinds(base, ups[team]!, index, wave);
       const room = WAVE_CAP - counts[team]!;
       const batch = kinds.slice(0, room > 0 ? room : 0);
       const start = waypoints(lane, team)[0]!;
@@ -223,7 +247,7 @@ export function spawnWaves(map: GameMap, world: World): void {
           stun: 0,
           rally: 0,
           lane: index,
-          wave,
+          wave: wave + RAZE_WAVES * razed[team]!,
         });
       counts[team]! += batch.length;
     }

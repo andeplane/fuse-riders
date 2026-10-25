@@ -5,7 +5,7 @@
 import { ceilDiv } from "./math.js";
 
 /** Bump on any change to the rules, with the golden in `tests/golden.test.ts` re-recorded in the same commit. */
-export const RULES = "fuse-front-12";
+export const RULES = "fuse-front-14";
 
 export const SUB = 16;
 export const TILE_PX = 8;
@@ -125,6 +125,21 @@ export const BUILDING_HP: Readonly<Record<BuildingKind, number>> = {
  * in; tanks outrange it, so they are the siege. Sub-pixels and steps, as `UnitStats`.
  */
 export const TURRET = { range: 6 * TILE, damage: 18, cooldown: s(1) } as const;
+/**
+ * A lane's towers and gates (`towers.ts`): turrets of their team on the lane's slots, with hit points by tier (outer,
+ * inner, gate). A tower shoots the nearest enemy unit, else hero, in range, keeps its target while it stays in range,
+ * and switches to an enemy hero that shoots a friendly hero while both stand in range. Each shot in a row on the same
+ * target does `ramp` percent more, up to `rampMax` shots.
+ */
+export const TOWER = {
+  range: 7 * TILE,
+  damage: 30,
+  cooldown: s(1),
+  ramp: 25,
+  rampMax: 6,
+  heroSiege: 100,
+  hp: [1800, 2200, 2600],
+} as const;
 export const FORT_GUN = {
   range: 5 * TILE,
   damage: 60,
@@ -151,8 +166,17 @@ export const WAVE_EVERY = s(30);
 export const WAVE_GRUNTS = 3;
 export const WAVE_TORCHES = 1;
 export const WAVE_GROWTH = 3;
-export const WAVE_GROWTH_MAX = 150;
+export const WAVE_GROWTH_MAX = 1000;
 export const WAVE_CAP = 45;
+/**
+ * The jungle (`jungle.ts`): each camp holds `CAMP_GUARDS` neutral sentries, standing again `CAMP_RESPAWN` steps after
+ * the last falls; a held robot factory armours its team's wave grunts, which take `GRUNT_ARMOUR` percent less from guns.
+ */
+export const CAMP_GUARDS = 2;
+export const CAMP_RESPAWN = s(60);
+export const GRUNT_ARMOUR = 25;
+/** Waves tougher a team's waves spawn for each enemy lane tower or gate it has brought down (`towers.ts`). */
+export const RAZE_WAVES = 20;
 export const WAYPOINT_REACH = 3 * TILE;
 export const LANE_SIGHT = 7 * TILE;
 /** Commands a seat may apply per step; the rest are dropped. */
@@ -246,6 +270,8 @@ export const HERO = {
   /** Steps dead before respawning at the fort: `respawn + respawnPerLevel * level`. */
   respawn: s(6),
   respawnPerLevel: s(2),
+  /** On a lane map, one more second dead for each minute the match has run (`late`), so late pushes decide it. */
+  respawnPerMinute: s(2),
 } as const;
 
 /**

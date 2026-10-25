@@ -25,6 +25,7 @@ import { flagAt, type GameMap } from "./map.js";
 import { div } from "./math.js";
 import { centreOf, chooseGoals, moveUnits, tileOf } from "./move.js";
 import { laneMap, spawnWaves } from "./waves.js";
+import { guarded, tendCamps } from "./jungle.js";
 import {
   CAPTURE_XP,
   COMMANDS_PER_SEAT,
@@ -109,6 +110,7 @@ export function step(
     mines: world.mines.map((mine) => ({ ...mine })),
     fortified: [...world.fortified],
     overclock: [...world.overclock],
+    camps: [...world.camps],
     events: [],
   };
   tickSpells(next);
@@ -128,8 +130,10 @@ export function step(
   tickMines(next);
   capture(map, next);
   // A lane map's army is its waves; any other map's is what its factories build.
-  if (laneMap(map)) spawnWaves(map, next);
-  else produce(map, next);
+  if (laneMap(map)) {
+    spawnWaves(map, next);
+    tendCamps(map, next);
+  } else produce(map, next);
   return next;
 }
 
@@ -277,8 +281,10 @@ function capture(map: GameMap, world: World): void {
   for (const hero of world.heroes)
     if (alive(hero)) stand(hero.seat, hero.x, hero.y, hero.cloak > 0);
   for (const [flag, seat] of taker) {
-    // A FORTIFIED flag cannot change hands (`spells.ts`).
+    // A FORTIFIED flag cannot change hands (`spells.ts`), nor on a lane map a home flag or a guarded jungle one.
     if (contested.has(flag) || world.fortified[flag]! > 0) continue;
+    if (laneMap(map) && map.sectorKinds[flag] !== "jungle") continue;
+    if (guarded(map, world, flag)) continue;
     const owner = world.sectors[flag]!;
     if (owner !== NEUTRAL && teamOf(owner) === teamOf(seat)) continue;
     world.sectors[flag] = seat;
@@ -291,7 +297,9 @@ function capture(map: GameMap, world: World): void {
     );
     for (const building of world.buildings) {
       const site = map.sites[building.id]!;
-      if (site.sector !== flag || site.kind === "fort") continue;
+      // A fort and a lane's towers (`towers.ts`) never belong to a sector's holder.
+      if (site.sector !== flag || site.kind === "fort" || site.lane >= 0)
+        continue;
       building.order = defaultOrder(site.kind);
       building.progress = 0;
       building.cooldown = 0;

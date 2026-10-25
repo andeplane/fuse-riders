@@ -125,34 +125,35 @@ test("a rider's controls count in its own match only, and at most four a tick", 
 
 test("an ATTACK entry focuses the rider's hero, and an ATTACK_MOVE sends it on an attack-move", () => {
   const { room, entries } = match({ size: 1 });
-  const fort = room.world!.buildings.find(
+  // Team 1's outer tower on mid: the one structure no other protects (`towers.ts`).
+  const tower = room.world!.buildings.find(
     (b) =>
-      mapOf(room).sites[b.id]!.kind === "fort" &&
-      mapOf(room).sites[b.id]!.seat === 1,
+      mapOf(room).sites[b.id]!.team === 1 &&
+      mapOf(room).sites[b.id]!.tier === 0,
   )!;
-  log(room, entries, "host", ATTACK, "match-1", 2, fort.id);
+  log(room, entries, "host", ATTACK, "match-1", 2, tower.id);
   fold(room, entries, 1);
   const hero = room.world!.heroes[0]!;
-  assert.deepEqual([hero.focusOf, hero.focus], [2, fort.id]);
-  log(room, entries, "host", ATTACK_MOVE, "match-1", 20, 20);
+  assert.deepEqual([hero.focusOf, hero.focus], [2, tower.id]);
+  log(room, entries, "host", ATTACK_MOVE, "match-1", 88, 88);
   fold(room, entries, 1);
   assert.equal(room.world!.heroes[0]!.sweep, 1);
 });
 
 test("a queued MOVE entry goes behind the hero's current order, and a plain one clears the queue", () => {
   const { room, entries } = match({ size: 1 });
-  log(room, entries, "host", MOVE, "match-1", 20, 20);
-  log(room, entries, "host", MOVE, "match-1", 22, 20, 1);
-  log(room, entries, "host", ATTACK_MOVE, "match-1", 24, 20, 1);
-  log(room, entries, "host", CAST, "match-1", 0, 24, 20, 1);
+  log(room, entries, "host", MOVE, "match-1", 88, 88);
+  log(room, entries, "host", MOVE, "match-1", 90, 88, 1);
+  log(room, entries, "host", ATTACK_MOVE, "match-1", 92, 88, 1);
+  log(room, entries, "host", CAST, "match-1", 0, 92, 88, 1);
   fold(room, entries, 1);
   const hero = room.world!.heroes[0]!;
   assert.deepEqual(hero.queue, [
-    { type: "move", x: 22, y: 20 },
-    { type: "attackMove", x: 24, y: 20 },
-    { type: "cast", slot: 0, x: 24, y: 20, of: -1, id: -1 },
+    { type: "move", x: 90, y: 88 },
+    { type: "attackMove", x: 92, y: 88 },
+    { type: "cast", slot: 0, x: 92, y: 88, of: -1, id: -1 },
   ]);
-  log(room, entries, "host", MOVE, "match-1", 21, 21);
+  log(room, entries, "host", MOVE, "match-1", 89, 89);
   fold(room, entries, 1);
   assert.deepEqual(room.world!.heroes[0]!.queue, []);
 });
@@ -433,37 +434,30 @@ test("the host's map plays when it holds the match's size; otherwise, or with no
     const { room } = match(settings, slot);
     return [room.play.map, mapOf(room).name, room.world!.players.length];
   };
-  assert.deepEqual(played({ size: 1 }), ["rust-canyon", "Rust Canyon", 2]);
-  assert.deepEqual(played({ size: 2 }), ["glass-lakes", "Glass Lakes", 4]);
-  assert.deepEqual(played({ size: 3 }), ["iron-delta", "Iron Delta", 6]);
-  assert.deepEqual(played({ size: 1, map: "dust-basin" }), [
-    "dust-basin",
-    "Dust Basin",
-    2,
-  ]);
-  assert.deepEqual(played({ size: 1, map: "iron-delta" }), [
-    "iron-delta",
-    "Iron Delta",
+  assert.deepEqual(played({ size: 1 }), ["neon-duel", "Neon Duel", 2]);
+  assert.deepEqual(played({ size: 2 }), ["twin-wilds", "Twin Wilds", 4]);
+  assert.deepEqual(played({ size: 3 }), ["crown-jungle", "Crown Jungle", 6]);
+  assert.deepEqual(played({ size: 1, map: "crown-jungle" }), [
+    "crown-jungle",
+    "Crown Jungle",
     2,
   ]);
   // Too few forts for the size (grown to 2v2 by a rider in slot 3): that size's default instead.
-  assert.deepEqual(played({ size: 1, map: "rust-canyon" }, 3), [
-    "glass-lakes",
-    "Glass Lakes",
+  assert.deepEqual(played({ size: 1, map: "neon-duel" }, 3), [
+    "twin-wilds",
+    "Twin Wilds",
     4,
   ]);
   assert.deepEqual(
     mapsFor(2).map((m) => m.id),
-    ["dust-basin", "glass-lakes", "iron-delta"],
+    ["twin-wilds", "crown-jungle"],
   );
   assert.deepEqual(
     mapsFor(3).map((m) => [m.id, m.teams, m.width, m.height]),
-    [
-      ["dust-basin", 3, 96, 56],
-      ["iron-delta", 3, 256, 192],
-    ],
+    [["crown-jungle", 3, 180, 180]],
   );
-  for (const map of ["moon", "__proto__", 3])
+  // The v2 maps without lanes load for tests and tools, but a room no longer offers them.
+  for (const map of ["moon", "__proto__", 3, "dust-basin", "iron-delta"])
     assert.equal(parseSettings({ ...DEFAULT_SETTINGS, map }), undefined);
   const { map: _, ...old } = DEFAULT_SETTINGS;
   assert.equal(parseSettings(old), undefined, "settings without a map");
@@ -474,8 +468,8 @@ test("a big-map match checkpoints and restores onto its own map, and no other", 
   const fields = JSON.parse(JSON.stringify(encode(room))) as unknown[];
   const copy = decode(fields, room.tick)!;
   assert.equal(hash(copy), hash(room));
-  assert.equal(mapOf(copy).name, "Iron Delta");
-  for (const map of ["dust-basin", null]) {
+  assert.equal(mapOf(copy).name, "Crown Jungle");
+  for (const map of ["twin-wilds", null]) {
     const wrong = structuredClone(fields);
     (wrong[3] as Settings).map = map;
     assert.equal(decode(wrong, room.tick), undefined, String(map));
