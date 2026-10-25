@@ -25,9 +25,21 @@ import {
   unitModel,
   waveCloth,
   type Model,
+  type HeroKind,
   type ModelKind,
 } from "../src/render3d/models.js";
 import { propSpots } from "../src/render3d/props.js";
+import {
+  ROBOT_LEGS,
+  robotModel,
+  robotPart,
+} from "../src/render3d/kit/units.js";
+
+const isHero = (kind: ModelKind): kind is HeroKind =>
+  (HERO_KINDS as readonly ModelKind[]).includes(kind);
+/** Any kind's model: a robot from the concept kit, a hero from `unitModel`. */
+const unitOf = (kind: ModelKind, moving = true): Model =>
+  isHero(kind) ? unitModel(kind, moving) : robotModel(kind, "near", moving);
 
 const box = (model: Model) =>
   model.reduce(
@@ -50,11 +62,11 @@ const KINDS: ModelKind[] = [
 
 test("every model merges to one non-empty geometry per paint, stands on the ground and wears team colour", () => {
   for (const kind of KINDS) {
-    const model = unitModel(kind);
+    const model = unitOf(kind);
     const paints = model.map((p) => p.paint);
     assert.equal(new Set(paints).size, paints.length, `${kind}: paints merged`);
     assert.ok(paints.includes("team"), `${kind}: has a team surface`);
-    assert.ok(model.length <= 6, `${kind}: ${model.length} draw calls`);
+    assert.ok(model.length <= 7, `${kind}: ${model.length} draw calls`);
     for (const part of model)
       assert.ok(part.geometry.getAttribute("position").count > 0);
     if (kind !== "tankTurret")
@@ -64,7 +76,7 @@ test("every model merges to one non-empty geometry per paint, stands on the grou
 
 test("unit kinds read apart by footprint: grunt < torch < light tank, and every hero outsizes them in height", () => {
   const [grunt, torch, tank] = (["grunt", "torch", "lightTank"] as const).map(
-    (k) => unitModel(k),
+    (k) => unitOf(k),
   );
   assert.ok(footprint(grunt!) < footprint(torch!));
   assert.ok(footprint(torch!) < footprint(tank!));
@@ -72,7 +84,7 @@ test("unit kinds read apart by footprint: grunt < torch < light tank, and every 
   assert.ok(size(tank!).z > size(tank!).y * 1.5);
   assert.ok(size(grunt!).y > size(grunt!).x);
   for (const hero of HERO_KINDS) {
-    const tall = size(unitModel(hero)).y;
+    const tall = size(unitOf(hero)).y;
     assert.ok(tall > size(torch!).y * 1.3, `${hero} is ${tall} tall`);
   }
   assert.ok(RING.grunt < RING.torch && RING.torch < RING.lightTank);
@@ -139,26 +151,27 @@ test("a hero wears the model of its kind", () => {
 
 test("at a glance: every kind has its own bounding box, and each hero its signature parts", () => {
   const all: ModelKind[] = [...KINDS, "sentry"];
-  const dims = all.map((k) => size(unitModel(k)).toArray().map((v) => v.toFixed(2)).join());
+  const dims = all.map((k) => size(unitOf(k)).toArray().map((v) => v.toFixed(2)).join());
   assert.equal(new Set(dims).size, all.length, dims.join(" | "));
-  const paints = (k: ModelKind) => unitModel(k).map((p) => p.paint);
-  assert.ok(size(unitModel("brick")).x > Math.max(...(["vix", "rivet", "tally"] as const).map((k) => size(unitModel(k)).x)), "Brick is the broadest");
+  const paints = (k: ModelKind) => unitOf(k).map((p) => p.paint);
+  assert.ok(size(unitModel("brick")).x > Math.max(...(["vix", "rivet", "tally"] as const).map((k) => size(unitOf(k)).x)), "Brick is the broadest");
   assert.ok(paints("vix").includes("eye") && size(unitModel("vix")).z > 0.75, "Vix: a red eye and a long rifle");
   assert.ok(paints("rivet").includes("gold") && paints("rivet").includes("visor"), "Rivet: hard hat and goggles");
   assert.ok(size(unitModel("tally")).y > size(unitModel("brick")).y, "Tally's antenna tops them all");
   assert.ok(paints("lightTank").includes("tread") && !paints("lightTank").includes("eye"));
-  for (const k of all) assert.ok(unitModel(k).length <= 7, `${k}: ${unitModel(k).length} draw calls`);
+  for (const k of all) assert.ok(unitOf(k).length <= 7, `${k}: ${unitOf(k).length} draw calls`);
 }); // prettier-ignore
 
 test("walkers' legs come off the body and hang from a shared unit leg; tracks come off the tank", () => {
-  for (const [kind, spec] of Object.entries(LEGS) as [ModelKind, { len: number }][]) {
-    assert.ok(box(unitModel(kind, false)).min.y > spec.len * 0.55, `${kind} floats on its hips`);
-    assert.ok(Math.abs(box(unitModel(kind)).min.y) < 0.01, `${kind} stands with its legs`);
+  for (const [kind, spec] of [...Object.entries(LEGS), ...Object.entries(ROBOT_LEGS)] as [ModelKind, { len: number }][]) {
+    assert.ok(box(unitOf(kind, false)).min.y > spec.len * 0.55, `${kind} floats on its hips`);
+    assert.ok(Math.abs(box(unitOf(kind)).min.y) < 0.01, `${kind} stands with its legs`);
   }
-  assert.ok(!unitModel("lightTank", false).some((p) => p.paint === "tread"));
-  const leg = box(partModel("leg"));
-  assert.ok(Math.abs(leg.min.y + 1) < 0.01 && leg.max.y < 0.05, "hip at the origin, foot at −1");
-  assert.deepEqual(partModel("treads").map((p) => p.paint), ["tread"]);
+  assert.ok(!unitOf("lightTank", false).some((p) => p.paint === "tread"));
+  for (const leg of [box(partModel("leg")), box(robotPart("robotLeg"))])
+    assert.ok(Math.abs(leg.min.y + 1) < 0.01 && Math.abs(leg.max.y) < 0.05, "hip at the origin, foot at −1");
+  assert.ok(robotPart("robotLeg").some((p) => p.paint === "team"), "a robot's shin plate wears team colour");
+  assert.deepEqual(robotPart("treads").map((p) => p.paint), ["tread"]);
   // The tread paint scrolls its links by the instance colour instead of being tinted by it.
   const shader = { vertexShader: "#include <color_vertex>", fragmentShader: "#include <color_fragment>" };
   patchTread(shader);
@@ -190,9 +203,10 @@ test("panels have grooved borders and raised rivets; grime darkens the feet and 
   const maps = detailMaps(32), paints = paintMaterials();
   setDetail(paints, maps);
   assert.equal(paints.team.normalMap, maps.normal);
+  assert.equal(paints.team.map, maps.grime, "grime streaks the plates");
   assert.equal(paints.visor.normalMap, null, "glowing glass stays smooth");
   setDetail(paints, undefined);
-  assert.equal(paints.team.normalMap, null, "low quality drops the maps");
+  assert.ok(paints.team.normalMap === null && paints.team.map === null, "low quality drops the maps");
   const g = shade(new THREE.BoxGeometry(1, 1, 1, 1, 4, 1).translate(0, 0.5, 0), 0, 1);
   const c = g.getAttribute("color"), p = g.getAttribute("position"), side = [...Array(c.count).keys()].filter((i) => g.getAttribute("normal").getX(i) === 1);
   const low = side.find((i) => p.getY(i) === 0)!, high = side.find((i) => p.getY(i) === 1)!;
