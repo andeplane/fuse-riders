@@ -651,3 +651,17 @@ before, and M2 decides whether lanes become required.
 ![Last-hit gold pop-ups in mid](images/moba-hud.png)
 
 ![The scoreboard, held open with `](images/scoreboard.png)
+
+**HUD layout and opening zoom.** From about 1100 px wide the bottom panel is one grid row: portrait, bars, spells
+and items, the order toggles, and the minimap on the right at the row's height (132 px), so the panel is about 156 px
+tall and the board gets the rest. Narrower screens wrap as before, and a phone keeps its stacked layout. A match opens
+at `rig.startFor` the board's height: about 42 CSS pixels per tile across the middle row (some 34 tiles over a 1600 px
+desktop board), between 12 and 24 tiles of distance, so the robots stay on their near models and the strategic
+markers stay off. The wheel and Z/X still zoom from there out to the whole map. `preview/hud-layout-shot.mjs` shoots
+1600×1000, 1280×800 and 390×844 at the opening zoom and checks the row and the phone's width:
+
+![Before: the minimap on a second row and a short board](images/hud-layout-before.png)
+
+![After: one row at 1600 px](images/hud-layout.png)
+
+![1280 px](images/hud-layout-1280.png) ![390 px](images/hud-layout-390.png)

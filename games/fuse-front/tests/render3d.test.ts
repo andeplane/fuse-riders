@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { Batch, writeMatrix } from "../src/render3d/instances.js";
 import { uploadLive } from "../src/render3d/effects3d.js";
 import * as rig from "../src/render3d/rig.js";
+import { LOD_BAND, LOD_FAR } from "../src/render3d/kit/units.js";
 import { mapById } from "../src/online/maps.js";
 import {
   DECK_Y,
@@ -190,6 +191,41 @@ test("zooming out tilts the camera toward top-down and fades strategic markers i
   assert.ok(Math.abs(mid - 0.5) < 1e-9);
   // Markers are fully in before the farthest zoom of every map, and none show at the default zoom.
   assert.ok(rig.MARKER_TO <= rig.FAR && rig.MARKER_FROM > rig.START);
+});
+
+test("a match opens on a close tactical zoom: some 34 tiles across a desktop board, every robot on its near model", () => {
+  // The middle row's ground from edge to edge, for a cssW × cssH board at its opening zoom.
+  const across = (cssW: number, cssH: number) => {
+    const d = rig.startFor(cssH),
+      aspect = cssW / cssH;
+    return (
+      rig.groundOffset(d, 1, 0, aspect)!.x -
+      rig.groundOffset(d, -1, 0, aspect)!.x
+    );
+  };
+  for (const [w, h] of [
+    [1402, 628],
+    [1218, 428],
+    [1840, 720],
+  ] as const) {
+    const tiles = across(w, h);
+    assert.ok(
+      tiles >= 28 && tiles <= 46,
+      `${w}x${h}: ${tiles.toFixed(1)} tiles`,
+    );
+    assert.ok(
+      Math.abs(w / tiles - rig.START_TILE_PX) < 1,
+      `${w}x${h}: px per tile`,
+    );
+  }
+  // A short phone board stays close; a tall screen stops short of the robots' far models and the tilt.
+  assert.equal(rig.startFor(160), rig.START_MIN);
+  assert.equal(rig.startFor(4000), rig.START_MAX);
+  assert.ok(
+    rig.START_MAX < LOD_FAR - LOD_BAND && rig.START_MAX <= rig.TILT_FROM,
+  );
+  assert.equal(rig.markerFade(rig.START_MAX), 0);
+  assert.ok(rig.START_MIN > rig.NEAR);
 });
 
 /** Where three.js's own ray through device point `nx`, `ny` meets the plane at height `h`, for the rig's camera. */
