@@ -170,6 +170,14 @@ export const HASH_INTERVAL = 20,
   CATCHUP_STEPS = 8,
   /** Milliseconds a loop interval's window may keep starting steps: a slow device paints between passes (`World.refill`). */
   CATCHUP_MS = 6,
+  /** The loop's interval in milliseconds (`RuntimeDependencies.schedule`). */
+  LOOP_MS = 10,
+  /**
+   * Most loop intervals one pass's window may cover. A page that paints slowly (a software rasteriser) runs the loop
+   * far less often than every `LOOP_MS`; its window grows with the gap since the last pass, up to this many intervals'
+   * worth, so the world still keeps up with the clock instead of falling ever further behind it.
+   */
+  CATCHUP_PASSES = 10,
   /** Estimated steps of backlog past which a member fetches a snapshot instead of catching up (`RoomRuntime.behind`). */
   BEHIND_STEPS = 400,
   NACK_INTERVAL_MS = 100,
@@ -419,7 +427,7 @@ export class RoomRuntime<
     this.cancelVisibility = this.deps.onVisibilityChange(() =>
       this.visibilityChanged(),
     );
-    this.cancelTick = this.deps.schedule(() => this.tickLoop(), 10);
+    this.cancelTick = this.deps.schedule(() => this.tickLoop(), LOOP_MS);
   }
   stop(): void {
     this.halt();
@@ -1303,16 +1311,32 @@ export class RoomRuntime<
     ms: CATCHUP_MS,
   };
   private lastLoopAt = -Infinity;
+  /** When the previous loop pass ended, for how late the next one is (`tickLoop`). */
+  private passEnded = -Infinity;
   /**
    * One loop pass, then a fresh step budget for the next 10 ms: rollbacks in packet handlers until then draw on it too.
-   * `dependencies.schedule` drives this every 10 ms in a page; a deterministic test drives it directly.
+   * `dependencies.schedule` drives this every 10 ms in a page; a deterministic test drives it directly. A pass that
+   * comes late, because the page spent the gap since the last one painting, runs in a window as large as the
+   * intervals it missed (at most `CATCHUP_PASSES`): a window sized for 10 ms would let the world fall further behind
+   * the clock on every such pass, so this device's own entries, stamped for the clock's tick, would apply ever later.
+   * The gap runs from the end of the last pass, so a pass's own steps never make the next window larger.
    */
   tickLoop(): void {
+    const gap = this.deps.now() - this.passEnded;
+    const late = Number.isFinite(gap)
+      ? Math.min(CATCHUP_PASSES, Math.floor(gap / LOOP_MS))
+      : 1;
+    if (late > 1)
+      this.world?.refill(CATCHUP_STEPS * late, {
+        ...this.windowTime,
+        ms: CATCHUP_MS * late,
+      });
     // A pass that throws after advancing must still open the next window, or the world would never step again.
     try {
       this.tickPass();
     } finally {
       this.world?.refill(CATCHUP_STEPS, this.windowTime);
+      this.passEnded = this.deps.now();
     }
   }
   private tickPass(): void {
