@@ -165,7 +165,7 @@ test("at a glance: every kind has its own bounding box, and each hero its signat
 
 test("walkers' legs come off the body and hang from a shared unit leg; tracks come off the tank", () => {
   for (const [kind, spec] of [...Object.entries(HERO_LEGS), ...Object.entries(ROBOT_LEGS)] as [ModelKind, { len: number }][]) {
-    assert.ok(box(unitOf(kind, false)).min.y > spec.len * 0.4, `${kind} floats on its hips (Vix's cloak hangs below them)`);
+    assert.ok(box(unitOf(kind, false)).min.y > spec.len * (kind === "vix" ? 0.4 : 0.55), `${kind} floats on its hips (Vix's cloak hangs below them)`);
     assert.ok(Math.abs(box(unitOf(kind)).min.y) < 0.01, `${kind} stands with its legs`);
   }
   assert.ok(!unitOf("lightTank", false).some((p) => p.paint === "tread"));

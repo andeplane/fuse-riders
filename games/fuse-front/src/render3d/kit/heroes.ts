@@ -74,9 +74,9 @@ function vix(r: Rig): void {
     .add("dark", r.box(0.34, 0.26, 0.22, 0.06), [0, 1.4, -0.02]);
   // The cloak's panels hang open at the front; the lining is the same curve turned inward, in team colour.
   const cloak = [[0.16, 1.56], [0.24, 1.48], [0.25, 1.3], [0.27, 1], [0.31, 0.7], [0.36, 0.42]] as const, open = 0.85;
-  r.add("dark", lathe(r, cloak, open, PI * 2 - open * 2))
-    .add("team", lathe(r, cloak.map(([x, y]) => [x - 0.012, y] as const).reverse(), open, PI * 2 - open * 2))
-    .add("dark", lathe(r, [[0.2, 1.62], [0.3, 1.5], [0.33, 1.36]], 0.35, PI * 2 - 0.7))
+  r.add("dark", lathe(r, [...cloak].reverse(), open, PI * 2 - open * 2))
+    .add("team", lathe(r, cloak.map(([x, y]) => [x - 0.012, y] as const), open, PI * 2 - open * 2))
+    .add("dark", lathe(r, [[0.33, 1.36], [0.3, 1.5], [0.2, 1.62]], 0.35, PI * 2 - 0.7))
     .pair((s) => r.add("team", r.box(0.05, 0.3, 0.14, 0.02), [s * 0.2, 0.86, 0.06], [0, 0, s * 0.08]));
   const h = r.sub([0, 1.72, 0.02]);
   h.add("dark", new THREE.SphereGeometry(0.22, h.far ? 8 : 18, h.far ? 6 : 12, H + 0.62, PI * 2 - 1.24, 0, PI * 0.74).scale(1, 1.12, 1.18))
