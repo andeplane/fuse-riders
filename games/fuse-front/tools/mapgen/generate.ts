@@ -45,7 +45,7 @@ export interface Template {
 }
 
 /** A seeded integer stream (the engine's mulberry32). */
-class Rand {
+export class Rand {
   constructor(private state: number) {}
   /** A whole number in [0, count). */
   int(count: number): number {
@@ -392,9 +392,22 @@ export function formatMap(file: MapFile): string {
       .replace(/}$/, " }");
   const list = (items: readonly unknown[]) =>
     `[\n${items.map((item) => `    ${line(item)}`).join(",\n")}\n  ]`;
-  const { terrain, flags, buildings, forts, ...rest } = file;
+  const { terrain, flags, buildings, forts, lanes, camps, ...rest } = file;
   const head = Object.entries(rest).map(
     ([key, value]) => `  ${JSON.stringify(key)}: ${JSON.stringify(value)}`,
   );
-  return `{\n${head.join(",\n")},\n  "terrain": [\n${terrain.map((row) => `    ${JSON.stringify(row)}`).join(",\n")}\n  ],\n  "flags": ${list(flags)},\n  "buildings": ${list(buildings)},\n  "forts": ${list(forts)}\n}\n`;
+  // A lane map's lanes and camps follow; a map without lanes keeps its bytes. Lanes nest, so they are spelled out
+  // the way Prettier prints them, a tile to a line.
+  const nested = (value: unknown) =>
+    JSON.stringify(value, null, 2)
+      .replace(
+        /\{\n\s*"x": (\d+),\n\s*"y": (\d+)\n\s*\}/g,
+        '{ "x": $1, "y": $2 }',
+      )
+      .replace(/\n/g, "\n  ");
+  const tail = [
+    ...(lanes ? [`  "lanes": ${nested(lanes)}`] : []),
+    ...(camps ? [`  "camps": ${list(camps)}`] : []),
+  ];
+  return `{\n${head.join(",\n")},\n  "terrain": [\n${terrain.map((row) => `    ${JSON.stringify(row)}`).join(",\n")}\n  ],\n  "flags": ${list(flags)},\n  "buildings": ${list(buildings)},\n  "forts": ${list(forts)}${tail.map((part) => `,\n${part}`).join("")}\n}\n`;
 }
