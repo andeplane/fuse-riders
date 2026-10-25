@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  FOLLOW_HERO,
   NO_WINNER,
   STEPS_PER_SECOND,
   UNITS,
@@ -136,6 +137,24 @@ test("a lane walker heads for the first waypoint it has neither reached nor pass
   assert.equal(aheadOf(path, at(end)[0]!, at(end)[1]!), path.length);
 });
 
+test("a later wave's unit above its wave's hit points is refused", () => {
+  const world = duel(WAVE_FIRST + 20 * WAVE_EVERY);
+  spawnWaves(twin, world);
+  const wire = structuredClone(encodeWorld(world)) as unknown[];
+  assert.ok(decodeWorld(structuredClone(wire), twin));
+  (wire[6] as number[][])[0]![5] = waveHp("grunt", 21) + 1;
+  assert.equal(decodeWorld(wire, twin), undefined);
+});
+
+test("a step on a lane map leaves the world it was given untouched", () => {
+  let world = createWorld(twin, [0, 1, 2, 3], 2);
+  for (let index = 0; index < WAVE_FIRST + 600; index++)
+    world = step(twin, world);
+  const before = JSON.stringify(encodeWorld(world));
+  step(twin, world);
+  assert.equal(JSON.stringify(encodeWorld(world)), before);
+});
+
 test("past its lane's end a wave makes for the enemy fort, and it turns to an enemy fort in sight", () => {
   const world = duel(WAVE_FIRST);
   spawnWaves(twin, world);
@@ -228,6 +247,14 @@ const corruptions: [string, (units: number[][], wire: unknown[]) => void][] = [
   ["a lane the map lacks", (u) => (u[0]![10] = twin.lanes.length)],
   ["a wave grunt above its wave's hit points", (u) => (u[0]![5] = 61)],
   ["a sentry in a lane", (u) => (u[0]![1] = 3)],
+  [
+    "a stance's unit bound for a waypoint",
+    (u) => {
+      const end = twin.lanes[1]!.path.at(-1)!;
+      [u[0]![10], u[0]![11], u[0]![7]] = [-1, 0, end.y * twin.width + end.x];
+    },
+  ],
+  ["a wave unit following its hero", (u) => (u[0]![7] = FOLLOW_HERO)],
   [
     "a team over the wave cap",
     (units, wire) => {

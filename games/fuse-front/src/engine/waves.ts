@@ -15,6 +15,7 @@ import { div } from "./math.js";
 import { flowField, UNREACHABLE } from "./flow.js";
 import {
   LANE_SIGHT,
+  STRAIGHT,
   TILE,
   UNITS,
   WAVE_CAP,
@@ -74,7 +75,9 @@ const PLAYS: readonly (readonly LaneName[])[] = [
 /** The lane index `seat` plays: its place in its team, seat order, by `PLAYS` (any lane the map has). */
 export function seatLane(map: GameMap, world: World, seat: number): number {
   const team = world.players.filter((p) => p.team === teamOf(seat));
-  const place = team.findIndex((p) => p.seat === seat);
+  // A seat not in play counts as its team's first.
+  const found = team.findIndex((p) => p.seat === seat);
+  const place = found < 0 ? 0 : found;
   const names = PLAYS[(team.length < 3 ? team.length : 3) - 1]!;
   const lane = map.lanes.findIndex(
     (each) => each.name === names[place % names.length],
@@ -107,6 +110,8 @@ export function waypoints(lane: Readonly<Lane>, team: number): readonly Tile[] {
 /**
  * The index in `path` of the waypoint a walker at (x, y) heads for: the one after the last it has reached (within
  * `WAYPOINT_REACH`) or passed (it stands nearer the next waypoint than this one does); `path.length` past the last.
+ * The latest such waypoint wins, which relies on a lane leading steadily from base to base (`loadMap` checks each
+ * waypoint is further from one fort and nearer the other), so an earlier waypoint never lies ahead of a later one.
  */
 export function aheadOf(path: readonly Tile[], x: number, y: number): number {
   let ahead = 0;
@@ -126,9 +131,13 @@ export function aheadOf(path: readonly Tile[], x: number, y: number): number {
 /** Whether a building is an enemy structure of `team` a lane unit may siege: a standing turret or fort. */
 type Siegeable = (index: number) => boolean;
 
+/** The walk (flow cost) a structure in sight may lie at: one across a wall or the river is not the lane's. */
+const SIEGE_WALK = 2 * div(LANE_SIGHT, TILE) * STRAIGHT;
+
 /**
- * A lane unit's goal tile: the nearest siegeable enemy structure within `LANE_SIGHT`, else the waypoint it heads for,
- * else (past its lane's end) the enemy fort cheapest to walk to; -1 when there is none.
+ * A lane unit's goal tile: the nearest siegeable enemy structure within `LANE_SIGHT` and a short walk
+ * (`SIEGE_WALK`), else the waypoint it heads for, else (past its lane's end) the enemy fort cheapest to walk to; -1
+ * when there is none.
  */
 export function laneGoal(
   map: GameMap,
@@ -136,20 +145,23 @@ export function laneGoal(
   unit: Unit,
   siegeable: Siegeable,
 ): number {
+  const from = div(unit.y, TILE) * map.width + div(unit.x, TILE);
   let best = -1,
     bestD = LANE_SIGHT * LANE_SIGHT + 1;
   for (const [index, building] of world.buildings.entries()) {
     if (!siegeable(index)) continue;
     const site = map.sites[building.id]!;
     const d = d2(unit.x, unit.y, centre(site.x), centre(site.y));
-    if (d < bestD) [best, bestD] = [site.y * map.width + site.x, d];
+    if (d >= bestD) continue;
+    const tile = site.y * map.width + site.x;
+    if (flowField(map, tile).cost(from) <= SIEGE_WALK)
+      [best, bestD] = [tile, d];
   }
   if (best >= 0) return best;
   const team = teamOf(unit.owner);
   const path = waypoints(map.lanes[unit.lane]!, team);
   const ahead = aheadOf(path, unit.x, unit.y);
   if (ahead < path.length) return path[ahead]!.y * map.width + path[ahead]!.x;
-  const from = div(unit.y, TILE) * map.width + div(unit.x, TILE);
   let cost = UNREACHABLE;
   for (const building of world.buildings) {
     const site = map.sites[building.id]!;
@@ -176,8 +188,8 @@ export function laneCounts(units: readonly Unit[]): [number, number] {
   return counts;
 }
 
-/** What a wave may hold: its grunts and torches, and the tanks a held vehicle factory adds. */
-export const WAVE_KINDS: readonly UnitKind[] = ["grunt", "torch", "lightTank"];
+/** What a wave holds. */
+export const WAVE_KINDS: readonly UnitKind[] = ["grunt", "torch"];
 
 /** On a wave's step, each lane's wave steps out at each team's end of it, while the team is under `WAVE_CAP`. */
 export function spawnWaves(map: GameMap, world: World): void {

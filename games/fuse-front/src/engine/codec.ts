@@ -214,12 +214,14 @@ function unit(raw: unknown, map: GameMap, step: number): Unit | undefined {
   if (!isInt(hp, 1, most) || !isInt(cooldown, 0, stats.cooldown)) return;
   // Units stand on ground something walks on, never in rock or water.
   if (sectorAt(map, div(x, TILE), div(y, TILE)) < 0) return;
-  // A goal is a flag or fort tile, or -1 for none yet: a few dozen tiles, so their flow fields stay cached.
+  // A goal is a flag or fort tile (a lane unit's a waypoint, turret or fort), or -1 for none yet: a few dozen tiles,
+  // so their flow fields stay cached. Only a stance's unit follows its hero or a flare.
+  const special =
+    lane < 0 && (goal === FOLLOW_HERO || (goal === FLARE && stats.robot));
   if (
     goal !== -1 &&
-    goal !== FOLLOW_HERO &&
-    !(goal === FLARE && stats.robot) &&
-    !(isInt(goal, 0, COUNT) && isGoalTile(map, goal))
+    !special &&
+    !(isInt(goal, 0, COUNT) && isGoalTile(map, goal, lane >= 0))
   )
     return;
   // Only robots take statuses, and none outlasts its spell at the top level.
