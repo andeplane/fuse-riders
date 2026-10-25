@@ -5,6 +5,8 @@
  * distance (no corner cutting), ties going to the lower flag index. The loaded map is frozen and holds no state, so a
  * peer rebuilds it identically and it stays out of the checkpoint.
  */
+import { buildFlowField, UNREACHABLE } from "./flow.js";
+import { clamp } from "./math.js";
 import { BUILDING_KINDS, MAX_SEATS, type BuildingKind } from "./tuning.js";
 
 export const TERRAIN = {
@@ -32,7 +34,37 @@ export interface MapFile {
   forts: { seat: number; x: number; y: number }[];
   /** How the ground looks; the rules never read it. Desert when absent. */
   biome?: Biome;
+  /** A lane map's lanes (see `Lane`). Optional until the wave rules (v3 M2) require them. */
+  lanes?: Lane[];
+  /** A lane map's neutral camp slots: exactly one in every jungle sector. */
+  camps?: Tile[];
+  /** The symmetry the map promises between seat 2k's ground and seat 2k + 1's, which `loadMap` then checks. */
+  symmetry?: Symmetry;
 }
+
+export const LANE_NAMES = ["top", "mid", "bot"] as const;
+export type LaneName = (typeof LANE_NAMES)[number];
+export type Symmetry = "mirror" | "rotate";
+
+/** One team's structure slots on a lane: `towers` front line first (outer, inner), then the `gate` turret by its base. */
+export interface LaneSide {
+  towers: Tile[];
+  gate: Tile;
+}
+
+/**
+ * A lane: `path` runs from team 0's base to team 1's, straight lines between waypoints that walk without cutting a
+ * corner (`traceLine`); `sides` holds team 0's slots, then team 1's. Lane ground carries no flag: the sectors off it
+ * are the jungle.
+ */
+export interface Lane {
+  name: LaneName;
+  path: Tile[];
+  sides: LaneSide[];
+}
+
+/** How a sector plays: a fort's home, jungle (a lane map's sectors off the lanes) or open ground (older maps). */
+export type SectorKind = "home" | "jungle" | "open";
 
 export const BIOMES = ["desert", "arctic", "jungle", "volcanic"] as const;
 export type Biome = (typeof BIOMES)[number];
@@ -60,12 +92,53 @@ export interface GameMap {
   readonly sectorOf: readonly number[];
   readonly flags: readonly Readonly<Tile>[];
   readonly sites: readonly Readonly<Site>[];
+  /** By sector. */
+  readonly sectorKinds: readonly SectorKind[];
+  /** Empty on a map without lanes. */
+  readonly lanes: readonly Readonly<Lane>[];
+  readonly camps: readonly Readonly<Tile>[];
 }
 
 export const MAP_MIN = 8;
 export const MAP_MAX = 256;
 export const MAX_FLAGS = 64;
 export const MAX_SITES = 128;
+export const MAX_WAYPOINTS = 32;
+export const TOWERS_PER_SIDE = 2;
+/** A lane's first and last waypoints lie this near (in tiles, either axis) a fort of the team whose base it leaves. */
+export const LANE_BASE_REACH = 16;
+/** A tower or gate slot lies this near its lane's path. */
+export const LANE_SLOT_REACH = 4;
+/** No jungle flag lies this near a lane's path: that ground is the lane's. */
+export const LANE_CLEAR = 3;
+
+const abs = (value: number) => (value < 0 ? -value : value);
+const sign = (value: number) => (value > 0 ? 1 : value < 0 ? -1 : 0);
+
+/**
+ * The tiles of the straight line from `a` to `b` (Bresenham, 8 directions), handed to `visit` with the step taken to
+ * reach each one ([0, 0] for `a`); stops early, returning false, as soon as `visit` does.
+ */
+export function traceLine(
+  a: Tile,
+  b: Tile,
+  visit: (x: number, y: number, dx: number, dy: number) => boolean,
+): boolean {
+  const dx = abs(b.x - a.x),
+    dy = -abs(b.y - a.y);
+  const sx = sign(b.x - a.x),
+    sy = sign(b.y - a.y);
+  let [x, y, err] = [a.x, a.y, dx + dy];
+  if (!visit(x, y, 0, 0)) return false;
+  while (x !== b.x || y !== b.y) {
+    const twice = 2 * err;
+    let [mx, my] = [0, 0];
+    if (twice >= dy) [err, x, mx] = [err + dy, x + sx, sx];
+    if (twice <= dx) [err, y, my] = [err + dx, y + sy, sy];
+    if (!visit(x, y, mx, my)) return false;
+  }
+  return true;
+}
 
 export class MapError extends Error {}
 
@@ -143,6 +216,13 @@ const isInt = (value: unknown, low: number, high: number): value is number =>
   Number.isInteger(value) &&
   value >= low &&
   value <= high;
+
+const isList = (
+  value: unknown,
+  low: number,
+  high: number,
+): value is unknown[] =>
+  Array.isArray(value) && value.length >= low && value.length <= high;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -279,14 +359,7 @@ export function loadMap(raw: unknown): GameMap {
         fail(`${site.kind} at (${site.x}, ${site.y}): its door is ${other}`);
     }
 
-  const deepFreeze = <T>(value: T): T => {
-    if (typeof value === "object" && value !== null) {
-      for (const each of Object.values(value)) deepFreeze(each);
-      Object.freeze(value);
-    }
-    return value;
-  };
-  return deepFreeze({
+  const map: GameMap & { lanes: Lane[]; camps: Tile[] } = {
     name: name as string,
     biome: biome as Biome,
     width,
@@ -295,7 +368,256 @@ export function loadMap(raw: unknown): GameMap {
     sectorOf,
     flags: flagTiles,
     sites,
+    sectorKinds: flagTiles.map((_, sector) =>
+      homes.has(sector) ? "home" : raw.lanes === undefined ? "open" : "jungle",
+    ),
+    lanes: [],
+    camps: [],
+  };
+  if (raw.lanes !== undefined) readLanes(map, raw, open, tile, claim, fail);
+  else if (raw.camps !== undefined) fail("camps: only on a map with lanes");
+  if (raw.symmetry !== undefined) checkSymmetry(map, raw.symmetry, fail);
+
+  const deepFreeze = <T>(value: T): T => {
+    if (typeof value === "object" && value !== null) {
+      for (const each of Object.values(value)) deepFreeze(each);
+      Object.freeze(value);
+    }
+    return value;
+  };
+  return deepFreeze(map);
+}
+
+/** Whether any tile of `mask` lies within `reach` tiles (either axis) of `spot`. */
+function within(map: GameMap, mask: Uint8Array, spot: Tile, reach: number) {
+  const top = clamp(spot.y - reach, 0, map.height - 1),
+    bottom = clamp(spot.y + reach, 0, map.height - 1);
+  const left = clamp(spot.x - reach, 0, map.width - 1),
+    right = clamp(spot.x + reach, 0, map.width - 1);
+  for (let y = top; y <= bottom; y++)
+    for (let x = left; x <= right; x++)
+      if (mask[y * map.width + x]) return true;
+  return false;
+}
+
+/**
+ * Validates a lane map's lanes and camps into `map` (see `Lane`). Order is measured with the engine's own flow fields
+ * from the forts of seats 0 and 1: along a path each waypoint is further from team 0's fort and nearer team 1's, and a
+ * side's slots run from the front line to its base, all nearer its own fort than the enemy's.
+ */
+function readLanes(
+  map: GameMap & { lanes: Lane[]; camps: Tile[] },
+  raw: Record<string, unknown>,
+  open: Uint8Array,
+  tile: (value: unknown, label: string) => Tile,
+  claim: (spot: Tile, label: string) => void,
+  fail: (message: string) => never,
+): void {
+  const { width } = map;
+  const index = (spot: Tile) => spot.y * width + spot.x;
+  const isOpen = (spot: Tile) => map.terrain[spot.y]![spot.x] === ".";
+  const fields = [0, 1].map((seat) => {
+    const fort = map.sites.find((s) => s.kind === "fort" && s.seat === seat)!;
+    return buildFlowField(map, index(fort));
   });
+  const cost = (team: number, spot: Tile) => fields[team]!.cost(index(spot));
+  const nearBase = (spot: Tile, team: number) =>
+    map.sites.some(
+      (s) =>
+        s.kind === "fort" &&
+        s.seat % 2 === team &&
+        abs(s.x - spot.x) <= LANE_BASE_REACH &&
+        abs(s.y - spot.y) <= LANE_BASE_REACH,
+    );
+  const onLanes = new Uint8Array(open.length);
+  // No slot or camp may stand on a factory's door.
+  const doors = new Set(
+    map.sites
+      .filter((s) => s.kind.endsWith("Factory"))
+      .map((s) => index(s.door)),
+  );
+  const blocksDoor = (spot: Tile, at: string) =>
+    doors.has(index(spot)) &&
+    fail(`${at}: (${spot.x}, ${spot.y}) is a factory's door`);
+  const lanes = raw.lanes;
+  if (!isList(lanes, 1, LANE_NAMES.length))
+    return fail(`lanes: 1 to ${LANE_NAMES.length}`);
+  for (const [number, value] of lanes.entries()) {
+    const label = `lane ${number}`;
+    if (
+      !isRecord(value) ||
+      !(LANE_NAMES as readonly unknown[]).includes(value.name)
+    )
+      return fail(`${label}: named ${LANE_NAMES.join(", ")}`);
+    const name = value.name as LaneName;
+    if (map.lanes.some((lane) => lane.name === name))
+      fail(`${label}: a second ${name} lane`);
+    if (!isList(value.path, 2, MAX_WAYPOINTS))
+      return fail(`${label}: 2 to ${MAX_WAYPOINTS} waypoints`);
+    const path = value.path.map((each, i) =>
+      tile(each, `${label} waypoint ${i}`),
+    );
+    const mine = new Uint8Array(open.length);
+    for (const [i, point] of path.entries()) {
+      const at = `${label} waypoint ${i}`;
+      if (!open[index(point)])
+        fail(`${at}: (${point.x}, ${point.y}) is not walkable`);
+      if (cost(0, point) === UNREACHABLE) fail(`${at}: no fort walks to it`);
+      if (i === 0) continue;
+      const from = path[i - 1]!;
+      const walks = traceLine(from, point, (x, y, dx, dy) => {
+        mine[y * width + x] = 1;
+        return (
+          open[y * width + x] === 1 &&
+          (dx === 0 ||
+            dy === 0 ||
+            (open[y * width + x - dx] === 1 &&
+              open[(y - dy) * width + x] === 1))
+        );
+      });
+      if (!walks)
+        fail(`${at}: the straight way from waypoint ${i - 1} is blocked`);
+      if (cost(0, point) <= cost(0, from) || cost(1, point) >= cost(1, from))
+        fail(
+          `${at}: not further from team 0's fort and nearer team 1's than waypoint ${i - 1}`,
+        );
+    }
+    if (!nearBase(path[0]!, 0) || !nearBase(path[path.length - 1]!, 1))
+      fail(
+        `${label}: runs from a team 0 fort to a team 1 fort, ${LANE_BASE_REACH} tiles from each`,
+      );
+    if (!isList(value.sides, 2, 2)) return fail(`${label}: a side per team`);
+    const sides = value.sides.map((side, team): LaneSide => {
+      const of = `${label} team ${team}`;
+      if (
+        !isRecord(side) ||
+        !isList(side.towers, TOWERS_PER_SIDE, TOWERS_PER_SIDE)
+      )
+        return fail(`${of}: ${TOWERS_PER_SIDE} towers and a gate`);
+      let before = UNREACHABLE;
+      const slots = [...side.towers, side.gate].map((each, i) => {
+        const at = i < TOWERS_PER_SIDE ? `${of} tower ${i}` : `${of} gate`;
+        const spot = tile(each, at);
+        if (!isOpen(spot))
+          fail(`${at}: (${spot.x}, ${spot.y}) is not open ground`);
+        if (!within(map, mine, spot, LANE_SLOT_REACH))
+          fail(`${at}: more than ${LANE_SLOT_REACH} tiles from its lane`);
+        if (cost(team, spot) >= cost(1 - team, spot))
+          fail(`${at}: on the other team's side`);
+        if (cost(team, spot) >= before)
+          fail(`${at}: not nearer its base than the slot before`);
+        if (i === TOWERS_PER_SIDE && !nearBase(spot, team))
+          fail(
+            `${at}: more than ${LANE_BASE_REACH} tiles from its team's forts`,
+          );
+        before = cost(team, spot);
+        blocksDoor(spot, at);
+        claim(spot, at);
+        return spot;
+      });
+      return {
+        towers: slots.slice(0, TOWERS_PER_SIDE),
+        gate: slots[TOWERS_PER_SIDE]!,
+      };
+    });
+    for (let at = 0; at < mine.length; at++) onLanes[at]! |= mine[at]!;
+    map.lanes.push({ name, path, sides });
+  }
+  for (const [i, flag] of map.flags.entries())
+    if (
+      map.sectorKinds[i] === "jungle" &&
+      within(map, onLanes, flag, LANE_CLEAR)
+    )
+      fail(`flag ${i}: (${flag.x}, ${flag.y}) is on lane ground`);
+  if (!isList(raw.camps, 0, MAX_FLAGS))
+    return fail(`camps: a list of at most ${MAX_FLAGS}`);
+  const camps = new Array<number>(map.flags.length).fill(0);
+  const factories = [...camps];
+  for (const [i, value] of raw.camps.entries()) {
+    const spot = tile(value, `camp ${i}`);
+    if (!isOpen(spot))
+      fail(`camp ${i}: (${spot.x}, ${spot.y}) is not open ground`);
+    if (within(map, onLanes, spot, LANE_CLEAR))
+      fail(`camp ${i}: (${spot.x}, ${spot.y}) is on lane ground`);
+    blocksDoor(spot, `camp ${i}`);
+    claim(spot, `camp ${i}`);
+    const sector = map.sectorOf[index(spot)]!;
+    if (map.sectorKinds[sector] !== "jungle")
+      fail(`camp ${i}: not in a jungle sector`);
+    camps[sector]!++;
+    map.camps.push(spot);
+  }
+  for (const site of map.sites)
+    if (site.kind === "robotFactory" || site.kind === "vehicleFactory")
+      factories[site.sector]!++;
+  for (const [sector, kind] of map.sectorKinds.entries())
+    if (kind === "jungle" && (camps[sector] !== 1 || factories[sector] === 0))
+      fail(`sector ${sector}: a jungle sector holds one camp and a factory`);
+}
+
+/** Checks the map is its own image under `symmetry`, seat 2k's fort and side matching seat 2k + 1's. */
+function checkSymmetry(
+  map: GameMap,
+  symmetry: unknown,
+  fail: (message: string) => never,
+): void {
+  if (symmetry !== "mirror" && symmetry !== "rotate")
+    return fail("symmetry: mirror or rotate");
+  const { width, height } = map;
+  const image = (t: Tile): Tile =>
+    symmetry === "mirror"
+      ? { x: width - 1 - t.x, y: t.y }
+      : { x: width - 1 - t.x, y: height - 1 - t.y };
+  const key = (t: Tile) => t.y * width + t.x;
+  const where = (t: Tile) => `(${t.x}, ${t.y})`;
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      const to = image({ x, y });
+      if (map.terrain[y]![x] !== map.terrain[to.y]![to.x])
+        fail(`symmetry: terrain at ${where({ x, y })} differs from its image`);
+    }
+  for (const [label, list] of [
+    ["flag", map.flags],
+    ["camp", map.camps],
+  ] as const) {
+    const keys = new Set(list.map(key));
+    for (const t of list)
+      if (!keys.has(key(image(t))))
+        fail(`symmetry: the ${label} at ${where(t)} has no image`);
+  }
+  const sites = new Map(map.sites.map((s) => [key(s), s]));
+  for (const site of map.sites) {
+    const other = sites.get(key(image(site)));
+    if (
+      other?.kind !== site.kind ||
+      (site.kind === "fort" && other.seat !== (site.seat ^ 1))
+    )
+      fail(`symmetry: the ${site.kind} at ${where(site)} has no image`);
+  }
+  const keysOf = (tiles: readonly Tile[]) => tiles.map(key).join();
+  const slots = (side: LaneSide | undefined, turn: boolean) =>
+    side === undefined
+      ? ""
+      : keysOf([...side.towers, side.gate].map(turn ? image : (t) => t));
+  for (const lane of map.lanes) {
+    const path = keysOf(lane.path.map(image).reverse());
+    // A half turn swaps top and bot; a mirror keeps each lane's name.
+    const name =
+      symmetry === "mirror" || lane.name === "mid"
+        ? lane.name
+        : lane.name === "top"
+          ? "bot"
+          : "top";
+    const twin = map.lanes.find((other) => keysOf(other.path) === path);
+    if (
+      twin?.name !== name ||
+      [0, 1].some(
+        (team) =>
+          slots(lane.sides[team], true) !== slots(twin.sides[1 - team], false),
+      )
+    )
+      fail(`symmetry: the ${lane.name} lane has no image`);
+  }
 }
 
 /** The sector of a tile, or -1 off the map or on a tile nothing walks on. */

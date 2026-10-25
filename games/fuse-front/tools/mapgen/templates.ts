@@ -1,4 +1,5 @@
 import type { Template } from "./generate.js";
+import type { LaneTemplate } from "./lanes.js";
 
 /** The generated maps, by file id (`maps/<id>.json`): one per team size, at about the scale of Z and StarCraft. */
 export const TEMPLATES: Readonly<Record<string, Template>> = {
@@ -45,5 +46,39 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     lakes: 2,
     rocks: 26,
     vehicles: 30,
+  },
+};
+
+/** The lane maps of design v3 (`mapgen/lanes.ts`), one per team size, sized so a grunt walks a lane in about 60–90 s. */
+export const LANE_TEMPLATES: Readonly<Record<string, LaneTemplate>> = {
+  "neon-duel": {
+    name: "Neon Duel",
+    seed: 4404,
+    size: 176,
+    players: 2,
+    biome: "jungle",
+    lanes: 1,
+    jungle: 8,
+    vehicles: 40,
+  },
+  "twin-wilds": {
+    name: "Twin Wilds",
+    seed: 5505,
+    size: 176,
+    players: 4,
+    biome: "jungle",
+    lanes: 3,
+    jungle: 12,
+    vehicles: 35,
+  },
+  "crown-jungle": {
+    name: "Crown Jungle",
+    seed: 6606,
+    size: 180,
+    players: 6,
+    biome: "jungle",
+    lanes: 3,
+    jungle: 16,
+    vehicles: 35,
   },
 };
