@@ -2,9 +2,12 @@ import { RoomRuntime, type Callbacks, type RuntimeOptions } from "fuse-netcode";
 import {
   ATTACK,
   ATTACK_MOVE,
+  BUY,
   CAST,
   MOVE,
+  SELL,
   STEER,
+  USE_ITEM,
   frontGame,
   type Entry,
   type FrontEvent,
@@ -86,6 +89,18 @@ export class FrontRuntime extends RoomRuntime<
   /** Sends the hero to a tile, standing to fight whatever comes in range on the way. */
   attackMove(x: number, y: number, queued = false): boolean {
     return this.control(ATTACK_MOVE, x, y, ...flag(queued));
+  }
+  /** Buys shop item `id` (`ITEMS`) at the hero's fort; the engine refuses one it may not buy. */
+  buy(id: number): boolean {
+    return this.control(BUY, id);
+  }
+  /** Sells the item in `slot` (0–5) at the hero's fort. */
+  sell(slot: number): boolean {
+    return this.control(SELL, slot);
+  }
+  /** Uses the active of the item in `slot`, aimed at a tile (a BLINK's landing; a SHIELD ignores it). */
+  useItem(slot: number, x: number, y: number): boolean {
+    return this.control(USE_ITEM, slot, x, y);
   }
   /** The newest simulated room, for reports and tests; the screen renders from frames. */
   roomState(): Room | undefined {

@@ -20,6 +20,7 @@ import {
   type UnitKind,
   type WorldView,
 } from "../engine/index.js";
+import { ITEM_KEYS } from "./shop-state.js";
 
 /**
  * The record `deriveHud` fills, for the seat's hero `kind` (its kit names the spell slots). Bars are shares 0 to 1, `respawn` is seconds (0 while alive), `red`/`neutral`/`blue`
@@ -179,7 +180,10 @@ export type KeyAction =
   | { kind: "zoom"; factor: number }
   | { kind: "home" }
   | { kind: "fight" }
-  | { kind: "close" };
+  | { kind: "close" }
+  /** An item slot's active (1–6), and the shop panel (B). */
+  | { kind: "item"; slot: number }
+  | { kind: "shop" };
 
 /** One zoom key press: Z or + closer by this factor, X or - out. */
 export const ZOOM_STEP = 1.25;
@@ -194,8 +198,8 @@ const ZOOM_KEYS: Readonly<Record<string, number>> = {
 
 /**
  * What a key press does: Q/W/E/R cast (or aim), A arms an attack-move, Space or F follows the
- * hero again, Z/X or +/- zoom a step in or out, Home looks at this seat's fort, Tab at the latest fight, and Escape
- * cancels aiming and closes a panel.
+ * hero again, Z/X or +/- zoom a step in or out, Home looks at this seat's fort, Tab at the latest fight, Escape
+ * cancels aiming and closes a panel, 1–6 use an item slot's active and B opens or closes the shop.
  */
 export function keyAction(key: string): KeyAction | undefined {
   const slot = key.length === 1 ? "QWER".indexOf(key.toUpperCase()) : -1;
@@ -208,5 +212,8 @@ export function keyAction(key: string): KeyAction | undefined {
   if (key === "Home") return { kind: "home" };
   if (key === "Tab") return { kind: "fight" };
   if (key === "Escape") return { kind: "close" };
+  const item = key.length === 1 ? ITEM_KEYS.indexOf(key) : -1;
+  if (item >= 0) return { kind: "item", slot: item };
+  if (key === "b" || key === "B") return { kind: "shop" };
   return undefined;
 }

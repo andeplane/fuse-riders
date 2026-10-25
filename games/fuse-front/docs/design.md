@@ -560,3 +560,14 @@ before, and M2 decides whether lanes become required.
     - Twin Wilds 2v2: 13.1 min. Crown Jungle 3v3: 14.1 min.
     - On Crown Jungle a hero's third item lands at 7.7–9.8 min and its fourth at 11.5–12.9 min, with 5,200–5,800
       gold earned by minute 10, so 3–4 items by minute 15 holds. Matches are shorter than M2's; M7 tunes the pace.
+- **The shop panel and item bar (M3d, `src/app/shop-panel.ts`, `shop-state.ts`):**
+  - Six item slots sit under the spells, with keys 1–6 (free since M2d dropped the stance keys), a cooldown shade
+    and a tooltip each. A SHIELD is used at once. A BLINK aims like a spell, with its reach drawn, and lands on the
+    next left click.
+  - B, or the SHOP button beside the slots, opens the shop over the board. It has tabs for the four categories, a
+    card per item (its stats, cost and BUY), and a SELL row for the six slots.
+  - Away from the fort it still browses, but its buttons rest with "Return to your fort to buy and sell". A card it
+    can't afford shows the gold still needed.
+  - `preview/shop-shot.mjs` plays a solo match to its first purchase and shoots the shop:
+
+![The shop at the fort after buying Track Boots](images/shop.png)
