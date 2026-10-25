@@ -56,9 +56,10 @@ import {
   waveCloth,
   type BuildingModel,
   type Model,
-  type ModelKind,
   type Paint,
 } from "./models.js";
+import type { Detail } from "./kit/rig.js";
+import { ROBOT_LEGS, detailAt, robotModel, robotPart, type RobotKind } from "./kit/units.js"; // prettier-ignore
 import { buildProps } from "./props.js";
 import * as rig from "./rig.js";
 import {
@@ -99,14 +100,16 @@ const BADGE_RGB = rgb(0xf4f0e0);
 const SELF_RGB = rgb(SELF_HEX),
   BAR_BACK = rgb(0x101010),
   [GOOD, FAIR, POOR] = [0x6ad83a, 0xf8d030, 0xe8483c].map(rgb);
-const UNIT_MODELS: readonly ModelKind[] = [
+const ROBOTS: readonly RobotKind[] = [
   "grunt",
   "torch",
   "lightTank",
   "sentry",
   "tankTurret",
-  ...HERO_KINDS,
 ];
+const LOD_PARTS = [...ROBOTS, "robotLeg", "treads"] as const;
+/** A robot's (or its moving part's) slot at a level of detail: its kind near, `kind:far` far away. */
+const LOD_KEY = Object.fromEntries((["near", "far"] as const).map((d) => [d, Object.fromEntries(LOD_PARTS.map((k) => [k, d === "near" ? k : `${k}:far`]))])) as Record<Detail, Record<(typeof LOD_PARTS)[number], string>>; // prettier-ignore
 /** Turns per millisecond for a tank turret or a turret head swinging onto its aim. */
 const SLEW = 0.004;
 /** Steps a gun keeps its aim after its last shot. */
@@ -300,7 +303,7 @@ export class Field3D implements Renderer {
       if (m !== this.paints.tread) addRim(m);
       this.owned.push(m, ...(m.map ? [m.map] : []));
     }
-    this.owned.push(this.cloth, this.puffGeo, this.puffMat, this.detail.normal, this.detail.rough, this.ghost);
+    this.owned.push(this.cloth, this.puffGeo, this.puffMat, this.detail.normal, this.detail.rough, this.detail.grime, this.ghost);
     setDetail(this.paints, this.governor.level === "high" ? this.detail : undefined);
     const parts = (model: Model) => model.map((p) => this.keep(p.geometry) && p);
     for (const [i, kind] of (["fort", "robotFactory", "vehicleFactory", "turret"] as const).entries()) {
@@ -333,8 +336,13 @@ export class Field3D implements Renderer {
     // Walkers' bodies leave their legs out: one shared leg model swings under all of them. Treads take their scroll
     // phase, not a team colour, through the instance colour.
     const painted = (model: Model) => model.map((p) => ({ geometry: p.geometry, material: this.paints[p.paint], tinted: p.paint === "team" || p.paint === "tread" }));
-    for (const kind of UNIT_MODELS) add(kind, painted(unitModel(kind, false)), true);
-    for (const kind of ["leg", "treads", "mine"] as const) add(kind, painted(partModel(kind)), true);
+    for (const kind of HERO_KINDS) add(kind, painted(unitModel(kind, false)), true);
+    for (const kind of ["leg", "mine"] as const) add(kind, painted(partModel(kind)), true);
+    // Robots come at two levels of detail (`detailAt`), each its own slot; legs carry a team shin plate.
+    for (const detail of ["near", "far"] as const) {
+      for (const kind of ROBOTS) add(LOD_KEY[detail][kind], painted(robotModel(kind, detail, false)), true);
+      for (const part of ["robotLeg", "treads"] as const) add(LOD_KEY[detail][part], painted(robotPart(part, detail)), true);
+    }
     const plain = (geometry: THREE.BufferGeometry, material: THREE.Material) => [{ geometry, material, tinted: true }];
     const vix = unitModel("vix");
     add("ghost", [{ geometry: mergeGeometries(vix.map((p) => p.geometry))!, material: this.ghost, tinted: false }], false, 5);
@@ -571,13 +579,15 @@ export class Field3D implements Renderer {
       const gun = tank || u.kind === "sentry" ? approachAngle(this.gunYaw.get(u.id + 1) ?? yaw, this.aimOf(u.id + 1, world.step) ?? yaw, SLEW * dt) : yaw;
       if (gun !== yaw) this.gunYaw.set(u.id + 1, gun);
       const bx = x - Math.sin(gun) * kick, bz = z - Math.cos(gun) * kick;
-      this.slot(u.kind).batch.push(tank ? x : bx, lift, tank ? z : bz, tank ? yaw : gun, s, s, s, tint);
+      // Past `LOD_FAR` from the camera (or at low quality) a unit draws its far model: plain plates, no small parts.
+      const cam = this.camera.position, key = LOD_KEY[detailAt(Math.hypot(x - cam.x, lift - cam.y, z - cam.z), this.governor.level)];
+      this.slot(key[u.kind]).batch.push(tank ? x : bx, lift, tank ? z : bz, tank ? yaw : gun, s, s, s, tint);
       if (tank) {
-        this.slot("tankTurret").batch.push(bx, lift, bz, gun, s, s, s, tint);
+        this.slot(key.tankTurret).batch.push(bx, lift, bz, gun, s, s, s, tint);
         this.tread[0] = treadPhase(x, z, yaw);
-        this.slot("treads").batch.push(x, lift, z, yaw, s, s, s, this.tread);
+        this.slot(key.treads).batch.push(x, lift, z, yaw, s, s, s, this.tread);
       }
-      this.legs(u.kind, x, lift, z, yaw, s, moving, now, u.id);
+      this.legs(ROBOT_LEGS[u.kind], key.robotLeg, tint, x, lift, z, yaw, s, moving, now, u.id);
       if (this.blitzing(world, u.owner) && moving && u.kind !== "sentry") this.speedLines(x, lift, z, yaw, now + u.id * 37);
       const top = tank ? 0.65 : 0.85;
       if (u.spotted) this.slot("mark").batch.push(x, y + top + 0.2 + Math.sin(now / 200 + u.id) * 0.03, z, now / 300, 0.06, 0.06, 0.06, SPOT_RGB);
@@ -614,7 +624,7 @@ export class Field3D implements Renderer {
       if (hero.cloaked && kind === "vix") this.slot("ghost").batch.push(x, lift, z, yaw, S, S, S, PLAIN);
       else {
         this.slot(kind).batch.push(x, lift, z, yaw, S, S, S, teamRgb(hero.team));
-        this.legs(kind, x, lift, z, yaw, S, moving, now, hero.seat);
+        this.legs(LEGS[kind], "leg", PLAIN, x, lift, z, yaw, S, moving, now, hero.seat);
       }
       if (hero.blitzing && moving) this.speedLines(x, lift, z, yaw, now);
       if (hero.flare >= 0) {
@@ -683,15 +693,14 @@ export class Field3D implements Renderer {
     this.look.render();
   }
 
-  /** A walker's two legs, hung from its hips and swung while it walks. */
+  /** A walker's two legs from the `key` slot, hung from its hips and swung while it walks. */
   // prettier-ignore
-  private legs(kind: ModelKind, x: number, y: number, z: number, yaw: number, scale: number, moving: boolean, now: number, id: number): void {
-    const spec = LEGS[kind];
+  private legs(spec: { hip: number; len: number; w: number } | undefined, key: string, rgb: readonly number[], x: number, y: number, z: number, yaw: number, scale: number, moving: boolean, now: number, id: number): void {
     if (!spec) return;
     const c = Math.cos(yaw), s = Math.sin(yaw), w = spec.w * scale, len = spec.len * scale;
     for (let side = -1; side <= 1; side += 2) {
       const hx = side * spec.hip * scale;
-      this.slot("leg").batch.push(x + hx * c, y + len, z - hx * s, yaw, w, len, w, PLAIN, legSwing(moving, now, id, side));
+      this.slot(key).batch.push(x + hx * c, y + len, z - hx * s, yaw, w, len, w, rgb, legSwing(moving, now, id, side));
     }
   }
 
