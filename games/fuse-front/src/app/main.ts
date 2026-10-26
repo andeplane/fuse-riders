@@ -62,6 +62,7 @@ import {
 } from "./model.js";
 import { GAME_ID, keys, roomFailure, sessionFor } from "./session.js";
 import { Radar, homeOf, minimapTile } from "./radar.js";
+import { createAudio } from "./audio/index.js";
 
 const app = document.querySelector<HTMLElement>("#app")!;
 const base = import.meta.env.BASE_URL;
@@ -82,6 +83,9 @@ const link = (query = "") =>
     sticky.reduce((url, flag) => `${url}${url ? "&" : "?"}${flag}`, query),
   );
 let teardown = () => {};
+// Sound: this browser's MUSIC and SFX choices, kept; `?mute` silences the page and leaves them alone.
+const sound = createAudio(store, keys.audio, params.has("mute"));
+const { audio } = sound;
 
 function navigate(query = ""): void {
   history.pushState(null, "", link(query));
@@ -122,6 +126,8 @@ function header(): HTMLElement {
       search: location.search,
     }).element,
     brand,
+    el("span", "", "ff-top-gap"),
+    ...sound.toggles(),
   );
   return top;
 }
@@ -210,6 +216,8 @@ function room(code: string, token: string | undefined, display: boolean): void {
       const press = pressSpell(shown, seat, mode, slot, ready, queued);
       if (press.cast)
         runtime.cast(slot, press.cast.x, press.cast.y, undefined, queued);
+      // A spell that cannot go now buzzes (a passive, a locked or a cooling one).
+      else if (press.mode === mode && seat >= 0) audio.ui("invalid");
       arm(press.mode);
     },
     attackMove: () =>
@@ -221,8 +229,9 @@ function room(code: string, token: string | undefined, display: boolean): void {
       if (press.use) runtime.useItem(slot, press.use.x, press.use.y);
       arm(press.mode);
     },
-    buy: (id) => runtime.buy(id),
-    sell: (slot) => runtime.sell(slot),
+    // A refused order (a watcher, or one the runtime turns down) buzzes.
+    buy: (id) => audio.ui(runtime.buy(id) ? "buy" : "invalid"),
+    sell: (slot) => audio.ui(runtime.sell(slot) ? "sell" : "invalid"),
     move(fx, fy, queued = false) {
       if (!shown || runtime.slot() < 0) return;
       const tile = minimapTile(fx, fy, shown.width, shown.height);
@@ -251,6 +260,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
       state: (frame) => show(frame),
       event: (event, matchId) => {
         field.event(matchId, event, performance.now());
+        audio.event(matchId, event, shown, runtime.slot());
         const ping = radar.event(matchId, event, shown, runtime.slot());
         if (ping && shown)
           hud.ping(ping.x / shown.width, ping.y / shown.height, ping.kind);
@@ -263,6 +273,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
           canvas.offsetTop + canvas.clientTop,
         ];
         if (fed.float && at) hud.popup(fed.float.text, at.x + ox, at.y + oy);
+        if (fed.float) audio.gold(event.step);
         if (fed.notice) hud.notice(fed.notice.text, fed.notice.good);
       },
       status: (text) => (status.textContent = roomFailure(text)),
@@ -517,7 +528,11 @@ function room(code: string, token: string | undefined, display: boolean): void {
     }
     const before = older?.world ?? undefined;
     field.draw(newer.matchId, world, before, t, runtime.slot(), now);
-    hud.cameraBox(field.box(world));
+    const box = field.box(world);
+    hud.cameraBox(box);
+    audio.camera = box;
+    audio.frame(newer.matchId, world);
+    sound.debug(app);
   };
   raf = requestAnimationFrame(frame);
   const resized = () => shown && fit(shown);
@@ -619,9 +634,10 @@ function room(code: string, token: string | undefined, display: boolean): void {
   const send = (intent: Intent) => {
     if (intent.kind === "move" || intent.kind === "attackMove")
       runtime[intent.kind](intent.x, intent.y, !!intent.queued);
-    else if (intent.kind === "attack")
-      runtime.attack(intent.of, intent.id, !!intent.queued);
-    else if (intent.kind === "cast")
+    else if (intent.kind === "attack") {
+      if (runtime.attack(intent.of, intent.id, !!intent.queued))
+        audio.ui("confirm");
+    } else if (intent.kind === "cast")
       runtime.cast(
         intent.slot,
         intent.x,

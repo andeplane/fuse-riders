@@ -36,6 +36,23 @@ body.fui-app {
   letter-spacing: 0.12em;
   text-decoration: none;
 }
+.ff-top-gap {
+  flex: 1;
+}
+/* MUSIC and SFX: this browser's choices, dim while off. */
+.ff-sound {
+  padding: 3px 8px;
+  border: 1px solid var(--ff-steel);
+  background: transparent;
+  color: inherit;
+  font: 700 0.7rem var(--ff-display);
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+.ff-sound[aria-pressed="false"],
+.ff-sound:disabled {
+  opacity: 0.5;
+}
 .ff-name,
 .ff-team,
 .ff-cycle {
