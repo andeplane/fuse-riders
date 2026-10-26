@@ -29,6 +29,7 @@ import {
 import {
   FrontAudio,
   type AudioBackend,
+  AHEAD,
   type AudioStore,
   type Repeat,
 } from "../src/app/audio/director.js";
@@ -60,6 +61,7 @@ class FakeBackend implements AudioBackend {
     void this.played.push({ kind: kindOf(sound), gain, pan });
   hide = (hidden: boolean) => void this.calls.push(`hide ${hidden}`);
   duck = (seconds: number) => void this.calls.push(`duck ${seconds}`);
+  fade = (on: boolean) => void this.calls.push(`fade ${on}`);
   /** The audio clock: none until a context runs. */
   audioTime: number | undefined = 0;
   readonly scheduled: { voice: Voice; at: number }[] = [];
@@ -311,7 +313,7 @@ test("the music pump schedules ahead on the audio clock, follows the mood and pl
   step(0);
   assert.equal(audio.moodNow, "menu");
   assert.ok(backend.scheduled.length > 0);
-  assert.ok(backend.scheduled.every(({ at }) => at >= 0 && at < 0.3));
+  assert.ok(backend.scheduled.every(({ at }) => at >= 0 && at < AHEAD + 0.1));
   const before = backend.scheduled.length;
   step(0.01);
   assert.equal(backend.scheduled.length, before, "nothing handed out twice");
@@ -339,6 +341,36 @@ test("the music pump schedules ahead on the audio clock, follows the mood and pl
   step(17);
   assert.equal(audio.moodNow, "victory");
   assert.equal(backend.scheduled.length, outro, "the outro plays once");
+  // The next match's end plays its own.
+  audio.scene({ kind: "menu" });
+  step(18);
+  audio.scene({ kind: "over", won: false });
+  const before2 = backend.scheduled.length;
+  step(19);
+  assert.equal(audio.moodNow, "defeat");
+  assert.ok(backend.scheduled.length > before2);
+});
+
+test("music off fades the bus at once and on again restarts the loop from now, with no backlog", () => {
+  const { backend, audio, timer } = setup();
+  const pump = (seconds: number) => {
+    backend.clock = backend.audioTime = seconds;
+    timer.pump();
+  };
+  pump(1);
+  audio.set("music", false);
+  pump(2);
+  assert.deepEqual(
+    backend.calls.filter((c) => c.startsWith("fade")),
+    ["fade true", "fade false"],
+  );
+  assert.equal(audio.moodNow, undefined);
+  audio.set("music", true);
+  const before = backend.scheduled.length;
+  pump(30);
+  const fresh = backend.scheduled.slice(before);
+  assert.ok(fresh.length > 0 && fresh.every(({ at }) => at >= 30));
+  assert.equal(backend.calls.at(-1), "fade true");
 });
 
 test("music off, a hidden tab, no running clock or ?mute schedule no music", () => {

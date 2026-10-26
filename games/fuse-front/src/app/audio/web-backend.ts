@@ -84,9 +84,18 @@ export class WebAudioBackend implements AudioBackend {
   schedule(voice: Voice, at: number): void {
     const { context, buses, noise } = this;
     if (!context || !buses || !noise) return;
+    // `render` joins the graph only once the voice has started, so a throw leaves nothing behind.
+    render(context, noise, voice, at, 1, buses.music, () => this.stats.live--);
     this.stats.voices++;
     this.stats.live++;
-    render(context, noise, voice, at, 1, buses.music, () => this.stats.live--);
+  }
+
+  fade(on: boolean): void {
+    const { context, buses } = this;
+    if (!context || !buses) return;
+    const level = buses.music.gain;
+    level.cancelScheduledValues(context.currentTime);
+    level.setTargetAtTime(on ? LEVELS.music : 0, context.currentTime, 0.02);
   }
 
   duck(seconds: number): void {
@@ -154,7 +163,6 @@ export function render(
     level.setValueAtTime(vol, Math.max(at + 0.004, end - 0.03));
     level.linearRampToValueAtTime(0, end);
   } else level.exponentialRampToValueAtTime(0.0001, end);
-  envelope.connect(out);
   const nodes: AudioNode[] = [envelope];
   let source: AudioScheduledSourceNode, pitch: AudioParam;
   let begin: (() => void) | undefined;
@@ -186,4 +194,5 @@ export function render(
   };
   (begin ?? (() => source.start(at)))();
   source.stop(end + 0.02);
+  envelope.connect(out); // last: a voice that failed to start never reaches the graph
 }

@@ -106,8 +106,13 @@ export class Sequencer {
   due(now: number, ahead: number): { at: number; voice: Voice }[] {
     const out: { at: number; voice: Voice }[] = [];
     const at = (index: number) => this.start + index * STEP;
-    if (at(this.next) < now)
-      this.next = Math.ceil((now - this.start) / STEP - 1e-9);
+    if (at(this.next) < now) {
+      const skipped = Math.ceil((now - this.start) / STEP - 1e-9);
+      // A skip past a bar line still takes the new layers there.
+      if (Math.floor(skipped / BAR) > Math.floor(this.next / BAR))
+        this.layers = this.wanted;
+      this.next = skipped;
+    }
     for (; at(this.next) < now + ahead; this.next++) {
       const step = this.next % BAR,
         bar = Math.floor(this.next / BAR) % (LOOP / BAR);
@@ -149,6 +154,10 @@ export class MoodTracker {
     this.heat = Math.min(HEAT.max, this.cooled(now) + HEAT.event);
     this.heatAt = now;
   }
+  /** Forgets the heat and any loss: a new scene. */
+  reset(): void {
+    [this.heat, this.lostAt] = [0, -Infinity];
+  }
   /** One of this seat's team's structures fell. */
   lost(now: number): void {
     this.lostAt = now;
@@ -171,7 +180,7 @@ export class MoodTracker {
         want = this.mood!;
     }
     if (want !== this.mood) [this.mood, this.since] = [want, now];
-    if (scene.kind !== "match") [this.heat, this.lostAt] = [0, -Infinity];
+    if (scene.kind !== "match") this.reset();
     return want;
   }
   private cooled(now: number): number {

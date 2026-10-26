@@ -40,6 +40,14 @@ test("the sequencer hands each step out once, ahead of time, and switches layers
   assert.deepEqual(sequencer.playing, MOODS.calm);
   sequencer.due(10, BAR * STEP + 0.01);
   assert.deepEqual(sequencer.playing, MOODS.fight);
+  // Pumped in small windows across the loop's wrap, every step comes once, on the grid, with no gap.
+  const steady = new Sequencer(0, ["hats"]);
+  const times = new Set<number>();
+  for (let t = 0; t < (LOOP + 2 * BAR) * STEP; t += 0.05)
+    for (const { at } of steady.due(t, 0.2)) times.add(Math.round(at / STEP));
+  const hats = [...times].sort((a, b) => a - b);
+  assert.ok(hats.every((step, i) => i === 0 || step - hats[i - 1]! === 4));
+  assert.ok(hats.at(-1)! > LOOP);
   // A stalled pump skips its backlog: nothing handed out is in the past.
   const late = sequencer.due(100, 0.2);
   assert.ok(late.length > 0 && late.every(({ at }) => at >= 100));
