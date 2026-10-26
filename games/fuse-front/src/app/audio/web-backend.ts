@@ -4,6 +4,8 @@ import type { Bus, Sound, Voice } from "./sounds.js";
 const MASTER = 0.55;
 // prettier-ignore
 const LEVELS: Readonly<Record<Bus, number>> = { effects: 0.8, alerts: 1, music: 0.5 };
+/** What a duck under a sting leaves of the effects and the music. */
+const DUCKED = 0.35;
 
 /**
  * Renders the director's sounds on a Web Audio graph: each sound through its own stereo panner into its bus (effects,
@@ -17,6 +19,7 @@ export class WebAudioBackend implements AudioBackend {
   private noise?: AudioBuffer;
   private buses?: Record<Bus, GainNode>;
   private failed = false;
+  private duckedUntil = 0;
 
   now(): number {
     return performance.now() / 1000;
@@ -74,6 +77,41 @@ export class WebAudioBackend implements AudioBackend {
     }
   }
 
+  time(): number | undefined {
+    return this.ready() ? this.context!.currentTime : undefined;
+  }
+
+  schedule(voice: Voice, at: number): void {
+    const { context, buses, noise } = this;
+    if (!context || !buses || !noise) return;
+    // `render` joins the graph only once the voice has started, so a throw leaves nothing behind.
+    render(context, noise, voice, at, 1, buses.music, () => this.stats.live--);
+    this.stats.voices++;
+    this.stats.live++;
+  }
+
+  fade(on: boolean): void {
+    const { context, buses } = this;
+    if (!context || !buses) return;
+    const level = buses.music.gain;
+    level.cancelScheduledValues(context.currentTime);
+    level.setTargetAtTime(on ? LEVELS.music : 0, context.currentTime, 0.02);
+  }
+
+  duck(seconds: number): void {
+    const { context, buses } = this;
+    if (!context || !buses) return;
+    const now = context.currentTime;
+    // A shorter duck inside a longer one does not cut it short.
+    this.duckedUntil = Math.max(this.duckedUntil, now + seconds);
+    for (const bus of ["effects", "music"] as const) {
+      const level = buses[bus].gain;
+      level.cancelScheduledValues(now);
+      level.setTargetAtTime(LEVELS[bus] * DUCKED, now, 0.03);
+      level.setTargetAtTime(LEVELS[bus], this.duckedUntil, 0.3);
+    }
+  }
+
   hide(hidden: boolean): void {
     const context = this.context;
     if (!context || context.state === "closed") return;
@@ -125,7 +163,6 @@ export function render(
     level.setValueAtTime(vol, Math.max(at + 0.004, end - 0.03));
     level.linearRampToValueAtTime(0, end);
   } else level.exponentialRampToValueAtTime(0.0001, end);
-  envelope.connect(out);
   const nodes: AudioNode[] = [envelope];
   let source: AudioScheduledSourceNode, pitch: AudioParam;
   let begin: (() => void) | undefined;
@@ -157,4 +194,5 @@ export function render(
   };
   (begin ?? (() => source.start(at)))();
   source.stop(end + 0.02);
+  envelope.connect(out); // last: a voice that failed to start never reaches the graph
 }

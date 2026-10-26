@@ -6,6 +6,9 @@ import {
   NO_WINNER,
   SPELL_EFFECTS,
   STEPS_PER_SECOND,
+  SURGE_AFTER,
+  WAVE_EVERY,
+  WAVE_FIRST,
   SUB,
   TILE_PX,
   createWorld,
@@ -26,9 +29,16 @@ import {
 import {
   FrontAudio,
   type AudioBackend,
+  AHEAD,
   type AudioStore,
+  type Repeat,
 } from "../src/app/audio/director.js";
-import { SOUNDS, type CueKind, type Sound } from "../src/app/audio/sounds.js";
+import {
+  SOUNDS,
+  type CueKind,
+  type Sound,
+  type Voice,
+} from "../src/app/audio/sounds.js";
 
 const TILE = SUB * TILE_PX;
 const MAP = mapById("neon-duel");
@@ -50,6 +60,14 @@ class FakeBackend implements AudioBackend {
   play = (sound: Sound, gain: number, pan: number) =>
     void this.played.push({ kind: kindOf(sound), gain, pan });
   hide = (hidden: boolean) => void this.calls.push(`hide ${hidden}`);
+  duck = (seconds: number) => void this.calls.push(`duck ${seconds}`);
+  fade = (on: boolean) => void this.calls.push(`fade ${on}`);
+  /** The audio clock: none until a context runs. */
+  audioTime: number | undefined = 0;
+  readonly scheduled: { voice: Voice; at: number }[] = [];
+  time = () => this.audioTime;
+  schedule = (voice: Voice, at: number) =>
+    void this.scheduled.push({ voice, at });
   count = (kind: CueKind) => this.played.filter((p) => p.kind === kind).length;
 }
 class FakeStore implements AudioStore {
@@ -59,11 +77,21 @@ class FakeStore implements AudioStore {
   setItem = (key: string, value: string) =>
     void (this.writes++, this.items.set(key, value));
 }
+/** The music's timer, ticked by hand. */
+class FakeRepeat {
+  readonly ticks: (() => void)[] = [];
+  readonly repeat: Repeat = (tick) => void this.ticks.push(tick);
+  pump = () => this.ticks.forEach((tick) => tick());
+}
 const setup = (muted = false, unlock = true) => {
-  const [backend, store] = [new FakeBackend(), new FakeStore()];
-  const audio = new FrontAudio(backend, store, KEYS, muted);
+  const [backend, store, timer] = [
+    new FakeBackend(),
+    new FakeStore(),
+    new FakeRepeat(),
+  ];
+  const audio = new FrontAudio(backend, store, KEYS, muted, timer.repeat);
   if (unlock) audio.unlock();
-  return { backend, store, audio };
+  return { backend, store, audio, timer };
 };
 const at = (x: number, y: number) => ({ x: x * TILE, y: y * TILE });
 // prettier-ignore
@@ -192,6 +220,7 @@ test("rate limits and the voice cap hold a 300-unit fight to a few voices; alert
   backend.clock = 10;
   event(world.step + 1, { type: "won", winner: 0 });
   assert.equal(backend.played.at(-1)!.kind, "victory");
+  assert.ok(backend.calls.includes(`duck ${SOUNDS.victory.duck}`));
   // The under-attack alert sounds once, then holds off however long the siege.
   const siege = mark("building", ourTurret(world));
   for (let i = 0; i < 50; i++) {
@@ -229,7 +258,7 @@ test("the choices persist, effects off silences cues, and nothing plays before a
   audio.ui("buy");
   assert.equal(backend.played.length, 1);
   assert.equal(store.items.get(KEYS.effects), "0");
-  const again = new FrontAudio(backend, store, KEYS, false);
+  const again = new FrontAudio(backend, store, KEYS, false, () => {});
   assert.equal(again.enabled("effects"), false);
   assert.deepEqual(backend.calls, ["unlock", "hide true", "hide false"]);
 });
@@ -241,4 +270,120 @@ test("a stale gold pop never sounds", () => {
   audio.gold(500 - LATE_STEPS - 1);
   audio.gold(500);
   assert.equal(backend.count("gold"), 1);
+});
+
+test("a button's click gives way to the sound of its press", () => {
+  const { backend, audio } = setup();
+  audio.ui("buy");
+  audio.ui("click");
+  backend.clock = 1;
+  audio.ui("click");
+  assert.deepEqual(
+    backend.played.map((p) => p.kind),
+    ["buy", "click"],
+  );
+});
+
+test("a lane wave sounds its horn once as it leaves; not for a late joiner, nor after the match is decided", () => {
+  const { backend, audio } = setup();
+  const base = view();
+  assert.ok(base.lanes.length > 0);
+  const frame = (step: number, winner = NO_WINNER) =>
+    audio.frame("m", { ...base, step, winner });
+  frame(WAVE_FIRST + WAVE_EVERY + LATE_STEPS + 5);
+  assert.equal(backend.count("wave"), 0);
+  backend.clock = 10;
+  frame(WAVE_FIRST + 2 * WAVE_EVERY);
+  frame(WAVE_FIRST + 2 * WAVE_EVERY + 1);
+  assert.equal(backend.count("wave"), 1);
+  backend.clock = 20;
+  frame(WAVE_FIRST + 3 * WAVE_EVERY, 0);
+  assert.equal(backend.count("wave"), 1);
+});
+
+test("the music pump schedules ahead on the audio clock, follows the mood and plays an outro once", () => {
+  const { backend, audio, timer } = setup();
+  const world = view();
+  const hero = world.heroes.find((h) => h.seat === 0)!;
+  const step = (seconds: number) => {
+    backend.clock = backend.audioTime = seconds;
+    timer.pump();
+  };
+  audio.scene({ kind: "menu" });
+  step(0);
+  assert.equal(audio.moodNow, "menu");
+  assert.ok(backend.scheduled.length > 0);
+  assert.ok(backend.scheduled.every(({ at }) => at >= 0 && at < AHEAD + 0.1));
+  const before = backend.scheduled.length;
+  step(0.01);
+  assert.equal(backend.scheduled.length, before, "nothing handed out twice");
+  // A fight around this seat's hero heats the match's calm into a fight.
+  audio.scene({ kind: "match", step: 100 });
+  step(1);
+  assert.equal(audio.moodNow, "calm");
+  const near = mark("unit", 1, hero.x / TILE, hero.y / TILE);
+  backend.clock = 7.5; // after calm's dwell
+  for (let i = 0; i < 20; i++)
+    audio.event(
+      "m",
+      { step: 100, event: shot(mark("unit", 2), near, i) },
+      world,
+      0,
+    );
+  step(8);
+  assert.equal(audio.moodNow, "fight");
+  audio.scene({ kind: "match", step: SURGE_AFTER });
+  step(15);
+  assert.equal(audio.moodNow, "tension");
+  audio.scene({ kind: "over", won: true });
+  step(16);
+  const outro = backend.scheduled.length;
+  step(17);
+  assert.equal(audio.moodNow, "victory");
+  assert.equal(backend.scheduled.length, outro, "the outro plays once");
+  // The next match's end plays its own.
+  audio.scene({ kind: "menu" });
+  step(18);
+  audio.scene({ kind: "over", won: false });
+  const before2 = backend.scheduled.length;
+  step(19);
+  assert.equal(audio.moodNow, "defeat");
+  assert.ok(backend.scheduled.length > before2);
+});
+
+test("music off fades the bus at once and on again restarts the loop from now, with no backlog", () => {
+  const { backend, audio, timer } = setup();
+  const pump = (seconds: number) => {
+    backend.clock = backend.audioTime = seconds;
+    timer.pump();
+  };
+  pump(1);
+  audio.set("music", false);
+  pump(2);
+  assert.deepEqual(
+    backend.calls.filter((c) => c.startsWith("fade")),
+    ["fade true", "fade false"],
+  );
+  assert.equal(audio.moodNow, undefined);
+  audio.set("music", true);
+  const before = backend.scheduled.length;
+  pump(30);
+  const fresh = backend.scheduled.slice(before);
+  assert.ok(fresh.length > 0 && fresh.every(({ at }) => at >= 30));
+  assert.equal(backend.calls.at(-1), "fade true");
+});
+
+test("music off, a hidden tab, no running clock or ?mute schedule no music", () => {
+  const { backend, audio, timer } = setup();
+  audio.set("music", false);
+  timer.pump();
+  audio.set("music", true);
+  audio.hide(true);
+  timer.pump();
+  audio.hide(false);
+  backend.audioTime = undefined;
+  timer.pump();
+  assert.equal(backend.scheduled.length, 0);
+  const muted = setup(true);
+  assert.equal(muted.timer.ticks.length, 0);
 });

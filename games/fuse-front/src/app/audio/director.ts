@@ -1,14 +1,32 @@
-import type { WorldView } from "../../engine/index.js";
+import {
+  NO_WINNER,
+  SUB,
+  TILE_PX,
+  WAVE_EVERY,
+  WAVE_FIRST,
+  teamOf,
+  type CombatEvent,
+  type WorldView,
+} from "../../engine/index.js";
 import type { StampedEvent } from "../../render/cues.js";
 import {
   CueGate,
+  LATE_STEPS,
   Limiter,
   MIN_GAIN,
   cuesOf,
   spatial,
   type Camera,
 } from "./cues.js";
-import { SOUNDS, type CueKind, type Sound } from "./sounds.js";
+import {
+  MOODS,
+  MoodTracker,
+  OUTROS,
+  Sequencer,
+  type Mood,
+  type Scene,
+} from "./music.js";
+import { SOUNDS, type CueKind, type Sound, type Voice } from "./sounds.js";
 
 /** What the director drives: Web Audio in the browser (`web-backend.ts`), a recorder in tests. */
 export interface AudioBackend {
@@ -20,9 +38,25 @@ export interface AudioBackend {
   ready(): boolean;
   /** Plays `sound` at `gain` (0..1) and stereo `pan` (-1 left .. 1 right). */
   play(sound: Sound, gain: number, pan: number): void;
+  /** Seconds on the audio clock while it runs; none before a gesture, while suspended or without Web Audio. */
+  time(): number | undefined;
+  /** Renders a music voice at `at` on the audio clock, on the music bus. */
+  schedule(voice: Voice, at: number): void;
+  /** Lowers the effects and music for `seconds` under a sting. */
+  duck(seconds: number): void;
+  /** Fades the music bus out (and what is scheduled on it), or back in. */
+  fade(on: boolean): void;
   /** The tab was hidden (silence everything) or shown again. */
   hide(hidden: boolean): void;
 }
+
+/** Calls `tick` every `ms`: `setInterval` in the browser, by hand in tests. */
+export type Repeat = (tick: () => void, ms: number) => void;
+/** The music's voices go to the audio clock this far ahead, every `PUMP_MS`. */
+export const AHEAD = 0.4;
+export const PUMP_MS = 50;
+/** Sub-pixels from this seat's hero within which combat heats the music. */
+const NEAR = 12 * SUB * TILE_PX;
 
 export type Channel = "music" | "effects";
 /** Where this browser's two choices are kept: "0" is off, anything else (or nothing) on. */
@@ -37,6 +71,8 @@ export interface AudioStore {
 // prettier-ignore
 const BUSY = new Set<CueKind>(["rifle", "flamer", "sentry", "heroShot", "robotDeath"]);
 const BUSY_GAIN = 0.2;
+/** The interface cues a button press sounds itself, which its click then gives way to. */
+const PRESSES = new Set<CueKind>(["buy", "sell", "confirm", "invalid"]);
 
 /** The interface's own sounds, and this seat's gold pop. */
 // prettier-ignore
@@ -45,7 +81,8 @@ export type UiCue = Extract<CueKind, "click" | "hover" | "buy" | "sell" | "confi
 /**
  * Fuse Front's sound: it hears every engine event the runtime delivers (`event`), each once however often rollback
  * re-runs its step, and plays its cue placed against the camera (`camera`, set every frame). Nothing sounds before a
- * user gesture (`unlock`) nor while the tab is hidden. The MUSIC and EFFECTS choices are this browser's, kept in
+ * user gesture (`unlock`) nor while the tab is hidden. Its pump plays the music for the page's `scene` (`music.ts`),
+ * heated by combat near this seat's hero and made tense by this side's losses. The MUSIC and EFFECTS choices are this browser's, kept in
  * `store`; a page opened with `?mute` (`muted`) never sounds, never touches the backend, and neither reads nor writes
  * them.
  */
@@ -61,16 +98,29 @@ export class FrontAudio {
   private unlocked = false;
   private hidden = false;
   private shown = { matchId: "", step: 0 };
+  private wave = { matchId: "", index: 0 };
+  /** When a press last sounded, so its button's click does not sound over it. */
+  private pressed = -Infinity;
+  private readonly mood = new MoodTracker();
+  private current: Scene = { kind: "menu" };
+  private sequencer: Sequencer | undefined;
+  private outro: Mood | undefined;
+  /** The mood the music last played, and the milliseconds its pump has spent: what a smoke test reads. */
+  moodNow: Mood | undefined;
+  musicMs = 0;
+  private audible = false;
 
   constructor(
     private readonly backend: AudioBackend,
     private readonly store: AudioStore,
     private readonly keys: AudioKeys,
     readonly muted: boolean,
+    repeat: Repeat,
   ) {
     const stored = (channel: Channel) =>
       !muted && store.getItem(keys[channel]) !== "0";
     this.on = { music: stored("music"), effects: stored("effects") };
+    if (!muted) repeat(() => this.pump(), PUMP_MS);
   }
 
   /** "muted" by `?mute`, "waiting" for a gesture, "hidden", or "on". */
@@ -113,6 +163,7 @@ export class FrontAudio {
     // The shown world's step counts only for its own match: a new match's first events are never "late".
     const shown = this.shown.matchId === matchId ? this.shown.step : 0;
     if (!this.gate.accept(matchId, stamped, shown)) return;
+    if (!this.muted) this.heat(stamped.event, world, seat);
     // Silent pages skip the work, but a `?mute` page still counts its cues for smoke tests.
     if (!this.muted && !this.live()) return;
     for (const cue of cuesOf(stamped.event, world, seat)) {
@@ -130,12 +181,116 @@ export class FrontAudio {
   /** A frame of `world` is shown: its step is the newest the late-event window counts for its match. */
   frame(matchId: string, world: WorldView): void {
     this.shown = { matchId, step: world.step };
+    // A lane map's wave sounds a low horn as it leaves, once a wave, on time or not at all; a decided match's clock
+    // runs on but sends no waves.
+    if (world.winner !== NO_WINNER) return;
+    if (!world.lanes.length || world.step < WAVE_FIRST) return;
+    const index = Math.floor((world.step - WAVE_FIRST) / WAVE_EVERY) + 1;
+    const fresh = (world.step - WAVE_FIRST) % WAVE_EVERY <= LATE_STEPS;
+    const known = this.wave.matchId === matchId ? this.wave.index : 0;
+    this.wave = { matchId, index: Math.max(known, index) };
+    if (index > known && fresh) {
+      this.heard++;
+      this.play("wave", 1, 0);
+    }
   }
 
-  /** A sound of the interface: a buy, a sell, a confirmed target, a refused order. */
+  /** Where the page is, for the music: the menus, a match under way, or one this side won or lost. */
+  scene(scene: Scene): void {
+    // A new kind of scene starts the mood afresh, heard or not: no heat or loss carries into the next match.
+    if (scene.kind !== this.current.kind) this.mood.reset();
+    this.current = scene;
+  }
+
+  /**
+   * A sound of the interface. A button's click is dropped when its press already sounded: the press's cue runs in the
+   * button's own handler, before the click reaches the document's listener (`index.ts`).
+   */
   ui(kind: UiCue): void {
+    const now = this.backend.now();
+    if (kind === "click" && now - this.pressed < 0.05) return;
+    if (PRESSES.has(kind)) this.pressed = now;
     this.heard++;
     this.play(kind, 1, 0);
+  }
+
+  /**
+   * Combat near this seat's living hero heats the music up, or near the camera's centre for a watcher, the shared
+   * screen or a hero waiting to respawn; a ruin of this side's makes it tense.
+   */
+  private heat(event: CombatEvent, world: WorldView | undefined, seat: number) {
+    const now = this.backend.now();
+    if (event.type === "destroyed") {
+      const team = world?.buildings.find((b) => b.id === event.building)?.team;
+      if (seat >= 0 && team === teamOf(seat)) this.mood.lost(now);
+    }
+    if (!world) return;
+    if (
+      event.type !== "shot" &&
+      event.type !== "death" &&
+      event.type !== "heroDeath"
+    )
+      return;
+    const hero = world.heroes.find((h) => h.seat === seat && h.hp > 0);
+    const tile = SUB * TILE_PX;
+    const box = this.camera;
+    const focus =
+      hero ??
+      (box && {
+        x: (box.x + box.w / 2) * world.width * tile,
+        y: (box.y + box.h / 2) * world.height * tile,
+      });
+    if (!focus) return;
+    const at = event.type === "shot" ? event.to : event;
+    if (Math.hypot(at.x - focus.x, at.y - focus.y) <= NEAR)
+      this.mood.combat(now);
+  }
+
+  /**
+   * The music's pump, every `PUMP_MS`: the mood from the scene, the loop's next voices handed to the audio clock
+   * `AHEAD` seconds early, or the mood's outro once. Nothing while silent; a loop that stopped starts afresh.
+   */
+  private pump(): void {
+    const started = this.backend.now();
+    const time =
+      this.muted || !this.unlocked || this.hidden || !this.on.music
+        ? undefined
+        : this.safelyGet(() => this.backend.time());
+    // Music off, hidden or not yet running: the bus fades at once, so what is already scheduled goes quiet too.
+    if ((time !== undefined) !== this.audible && !this.muted) {
+      this.audible = time !== undefined;
+      this.safely((backend) => backend.fade(this.audible));
+    }
+    if (time === undefined) {
+      this.sequencer = this.moodNow = undefined;
+      return;
+    }
+    const mood = this.mood.next(this.current, started);
+    this.moodNow = mood;
+    if (mood === "victory" || mood === "defeat") {
+      this.sequencer = undefined;
+      // After the sting (which ducks the music bus while it plays), not under it.
+      const after = SOUNDS[mood].duck ?? 0;
+      if (this.outro !== mood)
+        for (const { at, voice } of OUTROS[mood])
+          this.safely((backend) => backend.schedule(voice, time + after + at));
+      this.outro = mood;
+    } else {
+      this.outro = undefined;
+      this.sequencer ??= new Sequencer(time + 0.05, MOODS[mood]);
+      this.sequencer.play(MOODS[mood]);
+      for (const { at, voice } of this.sequencer.due(time, AHEAD))
+        this.safely((backend) => backend.schedule(voice, at));
+    }
+    this.musicMs += (this.backend.now() - started) * 1000;
+  }
+
+  private safelyGet<T>(get: () => T): T | undefined {
+    try {
+      return get();
+    } catch {
+      return undefined;
+    }
   }
 
   /** This seat's last hit paid gold on `step`: its ka-ching, unless that step is too old to sound. */
@@ -153,14 +308,12 @@ export class FrontAudio {
     const sound = SOUNDS[kind];
     this.played++;
     this.safely((backend) => backend.play(sound, gain, pan));
+    const { duck } = sound;
+    if (duck) this.safely((backend) => backend.duck(duck));
   }
 
   private ready(): boolean {
-    try {
-      return this.backend.ready();
-    } catch {
-      return false;
-    }
+    return this.safelyGet(() => this.backend.ready()) ?? false;
   }
 
   /** A backend that fails costs the page that sound, never the frame it came with. */

@@ -22,7 +22,7 @@ import {
   validRoomCode,
 } from "fuse-network-fe";
 import { MAX_PACKET_BYTES } from "fuse-netcode";
-import type { WorldView } from "../engine/index.js";
+import { DRAW, teamOf, type WorldView } from "../engine/index.js";
 import { DEFAULT_SETTINGS, type View } from "../online/game.js";
 import { mapsFor } from "../online/maps.js";
 import { FrontRuntime } from "../online/runtime.js";
@@ -84,7 +84,7 @@ const link = (query = "") =>
   );
 let teardown = () => {};
 // Sound: this browser's MUSIC and SFX choices, kept; `?mute` silences the page and leaves them alone.
-const sound = createAudio(store, keys.audio, params.has("mute"));
+const sound = createAudio(store, keys.audio, params.has("mute"), app);
 const { audio } = sound;
 
 function navigate(query = ""): void {
@@ -133,6 +133,7 @@ function header(): HTMLElement {
 }
 
 function landing(error = ""): void {
+  audio.scene({ kind: "menu" });
   const name = el("input", "", "ff-name");
   name.placeholder = "Your name";
   name.maxLength = 18;
@@ -305,6 +306,17 @@ function room(code: string, token: string | undefined, display: boolean): void {
     app.classList.toggle("ff-in-match", !inLobby);
     if (!inLobby && wasLobby) hud.unfold(false);
     wasLobby = inLobby;
+    // The music: the lobby's theme, the match's moods, then its outro (a watcher hears the winner's, a draw a defeat).
+    const seat = runtime.slot();
+    const won =
+      view.winner !== DRAW && (seat < 0 || teamOf(seat) === view.winner);
+    audio.scene(
+      inLobby
+        ? { kind: "menu" }
+        : view.stage === "over"
+          ? { kind: "over", won }
+          : { kind: "match", step: view.world?.step ?? 0 },
+    );
     if (inLobby) {
       const slots = slotsOf(view, runtime.self);
       if (!slots.some((s) => s.slot === picking))
@@ -532,7 +544,6 @@ function room(code: string, token: string | undefined, display: boolean): void {
     hud.cameraBox(box);
     audio.camera = box;
     audio.frame(newer.matchId, world);
-    sound.debug(app);
   };
   raf = requestAnimationFrame(frame);
   const resized = () => shown && fit(shown);
