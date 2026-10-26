@@ -64,9 +64,12 @@ export function median(values: readonly number[]): number {
     : (sorted[mid - 1]! + sorted[mid]!) / 2;
 }
 
-/** Whether a match of `minutes` ends inside the pace bound. */
-export const paced = (minutes: number): boolean =>
-  minutes >= SHORTEST && minutes <= LONGEST;
+/**
+ * Whether a match of `minutes` ends inside the pace bound. A mismatch of difficulties (`even` false) may end as soon
+ * as it likes: a stomp is a healthy result, so it only has to end by `LONGEST`.
+ */
+export const paced = (minutes: number, even = true): boolean =>
+  (!even || minutes >= SHORTEST) && minutes <= LONGEST;
 
 /** Each team at one difficulty, by seat parity, on a map of `size` seats a team. */
 export const sides = (size: number, a: Difficulty, b: Difficulty) =>
@@ -75,7 +78,7 @@ export const sides = (size: number, a: Difficulty, b: Difficulty) =>
 /**
  * Plays every pairing in `pairs` from both sides on map `id` (`size` seats a team) and returns, per pairing, how many
  * of its two matches the first difficulty won, with a line per match for the report, the matches that had no winner
- * or ended outside the pace bound, and every match's minutes.
+ * or ended past `LONGEST` (or, at one difficulty, before `SHORTEST`), and every match's minutes.
  */
 export function both(
   id: string,
@@ -95,7 +98,7 @@ export function both(
       );
       lengths.push(minutes);
       const line = `${id} ${flip ? `${b} v ${a}` : `${a} v ${b}`}: team ${winner} in ${minutes.toFixed(1)} min`;
-      if ((winner !== 0 && winner !== 1) || !paced(minutes))
+      if ((winner !== 0 && winner !== 1) || !paced(minutes, a === b))
         unfinished.push(line);
       const stronger = flip ? 1 : 0;
       if (winner === stronger) count++;

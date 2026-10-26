@@ -735,7 +735,7 @@ Jungle normal lineups, seed 1. Before is `fuse-front-20`, after is `fuse-front-2
 
 - **Sudden death (`surgeAt`, `waves.ts`):** from minute 10 (`SURGE_AFTER`), every wave spawns 25 grades tougher for
   each minute past it (`SURGE_GRADES`), both teams alike.
-  - A grade is 3 percent hit points and damage, so a wave at minute 14 has four times its base strength and towers
+  - A grade is 3 percent hit points and damage, so a wave at minute 14 has nearly five times a first wave's strength and towers
     fall to waves alone. Before then, hero kills and razed structures still swing a match.
   - The checkpoint's grade bound adds the surge.
 - **Vix:**
@@ -761,7 +761,8 @@ Match lengths in minutes, normal against normal unless named:
 | Twin Wilds 2v2     | 13.6–21.9 (median 15.9) | 13.8–19.1 (median 17.1) |
 | Crown Jungle 3v3   | 13.0–22.9 (median 17.5) | 14.7–19.4 (median 17.6) |
 
-One normal 1v1 runs past 25 minutes (Tally against Vix, 26.8), against two before.
+One normal 1v1 runs past 25 minutes (Tally against Vix, 26.8), against two before. The tests bound only the normal
+matches and the difficulty mismatches; hard against hard and easy against easy are measured here, not asserted.
 
 Cross-pairing wins of 6 on Neon Duel:
 

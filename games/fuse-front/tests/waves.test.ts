@@ -112,7 +112,9 @@ test("past SURGE_AFTER every wave spawns SURGE_GRADES grades tougher a minute, b
   // The checkpoint accepts the surged grade, and refuses one past it.
   const wire = structuredClone(encodeWorld(world)) as unknown[];
   assert.ok(decodeWorld(structuredClone(wire), twin));
-  (wire[6] as number[][])[0]![11]! += 1;
+  const row = (wire[6] as number[][])[0]!;
+  assert.equal(row[11], 41 + surge, "the wire's wave column");
+  row[11]! += 1;
   assert.equal(decodeWorld(wire, twin), undefined);
 });
 

@@ -282,7 +282,7 @@ export const HERO = {
  * Brick the tank and initiator (most hit points, IRON HIDE), Vix the assassin (the hardest gun and SNIPE, the fewest
  * hit points), Rivet the support (REPAIR, sentries) and Tally the scout (the fastest, DASH, SPOTTER). Same-level duels
  * without items take 4–8 s of gunfire (`tests/progression.test.ts`). v3 M7 gives every gun the same 5 tiles: Vix's
- * reach is her SNIPE (10 tiles), since her 7-tile gun and 12-tile SNIPE together beat every other hero in lane.
+ * reach is her SNIPE (10 tiles), since before M7 her 7-tile gun and 12-tile SNIPE together beat every other hero in lane.
  */
 export const HERO_KINDS = ["brick", "vix", "rivet", "tally"] as const;
 export type HeroKind = (typeof HERO_KINDS)[number];

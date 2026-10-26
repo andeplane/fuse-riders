@@ -36,11 +36,11 @@ test(`every 1v1 hero pairing on Neon Duel ends in ${SHORTEST}–${LONGEST} minut
         sides[winner]!++;
         if (a !== b) wins[winner === 0 ? a : b]!++;
       }
-      // Every bot shops its build at its fort (`bot-shop.ts`), 3 items or more by minute 15.
+      // Every bot shops its build at its fort (`bot-shop.ts`), 3 items or more by minute 15 in a match still on.
       if (
         (winner !== 0 && winner !== 1) ||
         !paced(length) ||
-        items.some((count) => count < 3)
+        (length >= 15 && items.some((count) => count < 3))
       )
         unfinished.push(`${a} v ${b}: ${winner} in ${length}, items ${items}`);
     }
