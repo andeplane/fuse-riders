@@ -149,6 +149,29 @@ test("the rig looks down at 55°, clamps to the map and zooms within bounds", ()
   assert.equal(r.distance, rig.FAR);
 });
 
+test("an upright phone's narrow view keeps a hero by the map's west edge in the middle of the screen", () => {
+  // Neon Duel's west fort stands 9 tiles in; the opening zoom on a 348×762 board is about 23 tiles out.
+  const [x, aspect] = [9, 348 / 762];
+  const desk: rig.Rig = { x, z: 166, distance: 23 };
+  rig.clampRig(desk, 176, 176);
+  assert.ok(
+    desk.x > 13,
+    "a 5:3 view keeps over half the distance from the edge",
+  );
+  const phone: rig.Rig = { x, z: 166, distance: 23 };
+  rig.clampRig(phone, 176, 176, aspect);
+  assert.equal(phone.x, x, "the phone's target stays on the hero");
+  // Further in than its half-width, it still stops where the view's edge meets the map's.
+  const edge: rig.Rig = { x: 0, z: 166, distance: 23 };
+  rig.clampRig(edge, 176, 176, aspect);
+  const half = 23 * Math.tan((rig.FOV * Math.PI) / 360) * aspect;
+  assert.ok(Math.abs(edge.x - half) < 1e-9);
+  // A pinch about the middle of the phone's view keeps the same clamp: the hero doesn't jump off the edge.
+  const pinch: rig.Rig = { x, z: 166, distance: 23 };
+  rig.zoomRigAt(pinch, 1.1, 0, 0, aspect, 176, 176);
+  assert.ok(Math.abs(pinch.x - x) < 1e-9, `${pinch.x}`);
+});
+
 test("the zoom-out limit grows with the map until a big map fits the 4:3 board", () => {
   assert.equal(rig.farFor(64, 40), rig.FAR, "a small map keeps the old limit");
   for (const id of ["rust-canyon", "glass-lakes", "iron-delta"]) {

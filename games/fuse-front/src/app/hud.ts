@@ -117,6 +117,8 @@ export class Hud {
   private readonly mini = el("canvas", "", "ff-mini");
   private readonly camera = el("i", "", "ff-camera");
   private readonly map = el("div", "", "ff-minimap");
+  /** On a phone the panel lies over the board, folded to the bars, spells and items; this opens the rest. */
+  private readonly drawer = el("button", "▴ MORE", "ff-drawer");
   private miniBase = new Img(1, 1);
   private miniImg = new Img(1, 1);
   private miniStep = -1;
@@ -215,7 +217,19 @@ export class Hud {
     kit.append(spells, items);
     const stance = el("div", "", "ff-stance");
     stance.append(toggles);
-    this.bottom.append(this.portrait, bars, kit, stance, map);
+    this.bottom.id = "ff-panel";
+    this.drawer.setAttribute("aria-controls", this.bottom.id);
+    this.drawer.onclick = () =>
+      this.unfold(!this.bottom.classList.contains("ff-open"));
+    this.unfold(false);
+    this.bottom.append(this.portrait, bars, kit, stance, map, this.drawer);
+  }
+
+  /** Opens (or folds) the phone's panel (`style.css`); a match starts folded. */
+  unfold(open: boolean): void {
+    this.bottom.classList.toggle("ff-open", open);
+    this.drawer.textContent = open ? "▾ LESS" : "▴ MORE";
+    this.drawer.setAttribute("aria-expanded", String(open));
   }
 
   /** Writes `value` through `apply` only when it differs from the last value written under `key`. */

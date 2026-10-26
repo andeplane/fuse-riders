@@ -406,7 +406,7 @@ export class Field3D implements Renderer {
   pan(dx: number, dy: number, world: WorldView): void {
     this.follow = false;
     rig.panRig(this.rig, dx, dy, this.cssH);
-    rig.clampRig(this.rig, world.width, world.height);
+    rig.clampRig(this.rig, world.width, world.height, this.camera.aspect);
   }
 
   zoom(factor: number, anchor?: ZoomAnchor): void {
@@ -434,7 +434,7 @@ export class Field3D implements Renderer {
     this.follow = false;
     this.rig.x = fx * world.width;
     this.rig.z = fy * world.height;
-    rig.clampRig(this.rig, world.width, world.height);
+    rig.clampRig(this.rig, world.width, world.height, this.camera.aspect);
   }
 
   /** Where the four screen corners meet the ground, as a box in fractions of the map. */
@@ -673,7 +673,7 @@ export class Field3D implements Renderer {
       this.bar(x, y + 1.75, z, hero.hp / hero.maxHp, 1);
     }
     this.targeting(world, field, t, self, now);
-    rig.clampRig(this.rig, world.width, world.height);
+    rig.clampRig(this.rig, world.width, world.height, this.camera.aspect);
     for (let i = 0; i < world.buildings.length; i++) {
       const b = world.buildings[i]!, node = this.buildings[i];
       if (!node) continue;

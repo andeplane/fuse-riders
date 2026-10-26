@@ -830,3 +830,30 @@ Brick on Brick is unchanged at 8, 8 and 7.
 - **Surge rate:** at 20 grades a minute, a Twin Wilds normal team (Brick and Vix) lost to easy bots in 28.3 minutes.
   The normal bots took jungle flags while the easy ones, which never jungle, pushed their towers. At 16, 18, 22 and
   25 every difficulty match came out in order, and 25 gave the tightest team-map pace.
+
+**M7 as built: the phone layout (M7b).** At 390 px wide the board was 160 px tall under the stacked panel. The hero
+could open off the screen, because the camera kept its target as far from the map's west edge as a 5:3 view needs.
+
+- **Layout (`style.css`, at most 720 px wide or 500 px tall, in a match):** a desktop window under 500 px tall gets
+  it too.
+  - The header (the way out) and the room's status shrink to one slim line each.
+  - The bottom panel lies over the board's foot, folded to the name and gold, hit points, energy, spells and items.
+  - MORE opens the rest: the portrait, XP, target, order toggles and minimap. A match starts folded.
+  - The respawn countdown and the end screen stand above the open panel.
+  - On its side, the folded panel is one row: gold, hit points and energy, then the spells and items.
+  - The aim hint under the board is hidden. The board's own cursor and aim overlay still show what a click will do.
+- **Fit:** `fit` in `main.ts` leaves the panel out of the board's height when it lies over the board.
+- **Camera:** `clampRig` takes the view's aspect, and so does `zoomRigAt`'s clamp after a pinch.
+  - A narrower view may bring its target as close to the edge as its half-width. A hero by a fort on the map's west
+    edge opens in the middle of the screen and stays there through a pinch.
+  - A 5:3 or wider view clamps as before.
+- **Shots:** `preview/phone-shot.mjs` shoots 390×844 and 844×390. It checks the following:
+  - nothing scrolls either way, with the panel folded or open;
+  - the board takes most of the screen (691 and 262 px tall in these shots);
+  - the board's middle is the hero's fort.
+- `preview/hud-layout-shot.mjs` still finds one panel row at 1100–1600 px. `preview/moba-shot.mjs` opens MORE before
+  its phone checks.
+
+![390×844: the board under the top bar, the folded panel over its foot](images/phone-portrait.png)
+
+![844×390: one row of gold, bars, spells and items](images/phone-landscape.png)
