@@ -166,6 +166,10 @@ test("an upright phone's narrow view keeps a hero by the map's west edge in the 
   rig.clampRig(edge, 176, 176, aspect);
   const half = 23 * Math.tan((rig.FOV * Math.PI) / 360) * aspect;
   assert.ok(Math.abs(edge.x - half) < 1e-9);
+  // A pinch about the middle of the phone's view keeps the same clamp: the hero doesn't jump off the edge.
+  const pinch: rig.Rig = { x, z: 166, distance: 23 };
+  rig.zoomRigAt(pinch, 1.1, 0, 0, aspect, 176, 176);
+  assert.ok(Math.abs(pinch.x - x) < 1e-9, `${pinch.x}`);
 });
 
 test("the zoom-out limit grows with the map until a big map fits the 4:3 board", () => {

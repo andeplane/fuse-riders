@@ -49,16 +49,16 @@ try {
       ?.split(",")
       .map(Number);
     const off = tile ? Math.hypot(tile[0] - fort.x, tile[1] - fort.y) : NaN;
-    const page_ = await page.evaluate(() => ({
+    const dims = await page.evaluate(() => ({
       scrollW: document.documentElement.scrollWidth,
       scrollH: document.documentElement.scrollHeight,
     }));
     console.log(
-      `${width}x${height}: board ${Math.round(box.width)}x${Math.round(box.height)} at y ${Math.round(box.y)}; middle tile ${tile} (${off.toFixed(1)} from the fort); page ${page_.scrollW}x${page_.scrollH}`,
+      `${width}x${height}: board ${Math.round(box.width)}x${Math.round(box.height)} at y ${Math.round(box.y)}; middle tile ${tile} (${off.toFixed(1)} from the fort); page ${dims.scrollW}x${dims.scrollH}`,
     );
     await page.screenshot({ path: `${dir}/phone-${name}${suffix}.png` });
-    assert.ok(page_.scrollW <= width, `no horizontal scroll at ${width} px`);
-    assert.ok(page_.scrollH <= height, `no vertical scroll at ${height} px`);
+    assert.ok(dims.scrollW <= width, `no horizontal scroll at ${width} px`);
+    assert.ok(dims.scrollH <= height, `no vertical scroll at ${height} px`);
     // MORE opens the rest of the panel, the minimap too, still without scrolling sideways.
     await page.locator(".ff-drawer").click();
     await page.locator(".ff-minimap").waitFor({ state: "visible" });

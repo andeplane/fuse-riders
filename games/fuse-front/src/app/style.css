@@ -1004,8 +1004,18 @@ body.fui-app {
   #app.ff-in-match {
     padding: 4px 6px 0;
   }
-  #app.ff-in-match > :is(.ff-top, .ff-status) {
-    display: none;
+  /* The header (the way out) and the room's status stay, as one slim line each. */
+  #app.ff-in-match > .ff-top {
+    gap: 8px;
+    padding-bottom: 2px;
+  }
+  #app.ff-in-match > .ff-status {
+    margin: 2px 0;
+    font-size: 0.75rem;
+  }
+  /* Over the open panel: the respawn countdown and the end of the match with its way back to the lobby. */
+  .ff-in-match :is(.ff-death, .ff-end) {
+    z-index: 3;
   }
   .ff-in-match .ff-play {
     position: relative;
@@ -1026,18 +1036,21 @@ body.fui-app {
     right: 0;
     bottom: 0;
     z-index: 2;
-    max-height: 70%;
-    overflow-y: auto;
     gap: 6px 10px;
     padding: 6px 8px;
     background: rgba(22, 25, 30, 0.82);
+  }
+  /* Open, it scrolls within most of the board; folded it doesn't clip the spells' tooltips above it. */
+  .ff-in-match .ff-panel.ff-open {
+    max-height: 70%;
+    overflow-y: auto;
   }
   #app.ff-in-match .ff-drawer {
     display: block;
     order: -1;
     flex: 1 1 100%;
-    min-height: 0;
-    padding: 2px;
+    min-height: 32px;
+    padding: 6px;
     border: 0;
     background: none;
     color: var(--ff-muted);
@@ -1076,13 +1089,23 @@ body.fui-app {
     display: none;
   }
 }
-/* A phone on its side: the folded panel is one row of spells and items, the hero's bars on the board above. */
+/*
+ * A phone on its side (or a window under 500 px tall): the folded panel is one row, the bars (name, gold, hit points
+ * and energy) beside the spells and items.
+ */
 @media (max-height: 500px) {
   .ff-in-match .ff-panel:not(.ff-open) {
     flex-wrap: nowrap;
     align-items: center;
   }
   .ff-in-match .ff-panel:not(.ff-open) > .ff-bars {
+    flex: 0 1 170px;
+    min-width: 120px;
+    grid-template-columns: 18px 1fr 34px;
+    gap: 1px 4px;
+    font-size: 0.65rem;
+  }
+  .ff-in-match .ff-panel:not(.ff-open) .ff-head > :not(.ff-purse) {
     display: none;
   }
   .ff-in-match .ff-panel:not(.ff-open) .ff-kit {

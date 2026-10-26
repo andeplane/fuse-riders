@@ -155,5 +155,5 @@ export function zoomRigAt(rig: Rig, factor: number, nx: number, ny: number, aspe
     rig.x += before.x - after.x;
     rig.z += before.z - after.z;
   }
-  clampRig(rig, width, height);
+  clampRig(rig, width, height, aspect);
 }

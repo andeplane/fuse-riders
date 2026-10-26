@@ -285,12 +285,15 @@ function room(code: string, token: string | undefined, display: boolean): void {
   let lobbyKey = "";
   // The seat whose hero the lobby's cards show: this device's, or one the host chose from the team chips.
   let picking = -1;
+  let wasLobby = true;
   function show(view: View): void {
     const inLobby = view.stage === "lobby";
     lobby.hidden = !inLobby;
     play.hidden = inLobby;
     // A phone drops the page header in a match, so the board gets the height (`style.css`).
     app.classList.toggle("ff-in-match", !inLobby);
+    if (!inLobby && wasLobby) hud.unfold(false);
+    wasLobby = inLobby;
     if (inLobby) {
       const slots = slotsOf(view, runtime.self);
       if (!slots.some((s) => s.slot === picking))
