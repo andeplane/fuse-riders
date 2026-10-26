@@ -82,14 +82,22 @@ export function eye(rig: Rig): { x: number; y: number; z: number } {
 /**
  * The distance kept within `NEAR` and the map's `farFor`, and the target far enough inside the map that the view shows
  * little past its edges: the screen reaches over half the distance east and west, more to the north (up the screen)
- * than to the south.
+ * than to the south. A view narrower than `aspect` (width over height) 5:3 reaches less far east and west, so its
+ * target may come as close to the edge as the view's half-width: on a phone held upright a hero by a fort on the map's
+ * edge stays in the middle of the screen (v3 M7b).
  */
-export function clampRig(rig: Rig, width: number, height: number): void {
+export function clampRig(
+  rig: Rig,
+  width: number,
+  height: number,
+  aspect = 5 / 3,
+): void {
   rig.distance = Math.min(farFor(width, height), Math.max(NEAR, rig.distance));
   const d = rig.distance;
   const keep = (v: number, lo: number, hi: number) =>
     Math.min(Math.max(lo, hi), Math.max(lo, v));
-  const mx = Math.min(width / 2, d * 0.6),
+  const half = d * Math.tan((FOV * Math.PI) / 360) * aspect;
+  const mx = Math.min(width / 2, d * 0.6, half),
     north = Math.min(height / 2, d * 0.45),
     south = Math.min(height / 2, d * 0.25);
   rig.x = keep(rig.x, mx, width - mx);

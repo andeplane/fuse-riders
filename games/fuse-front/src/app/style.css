@@ -991,3 +991,117 @@ body.fui-app {
   font-style: normal;
   text-align: center;
 }
+/* The drawer toggle shows only on a phone (below). */
+#app .ff-drawer {
+  display: none;
+}
+/*
+ * A phone in a match (v3 M7b), portrait or landscape: the page header goes, the panel lies over the bottom of the
+ * board, folded to the hit point and energy bars, the spells and the items, and the board takes the screen below the
+ * top bar (`fit` in `main.ts`). MORE opens the rest: portrait, XP, target, the order toggles and the minimap.
+ */
+@media (max-width: 720px), (max-height: 500px) {
+  #app.ff-in-match {
+    padding: 4px 6px 0;
+  }
+  #app.ff-in-match > :is(.ff-top, .ff-status) {
+    display: none;
+  }
+  .ff-in-match .ff-play {
+    position: relative;
+  }
+  .ff-in-match .ff-bar {
+    gap: 4px 10px;
+    padding: 4px 8px;
+  }
+  .ff-in-match .ff-board {
+    border-width: 1px;
+  }
+  .ff-in-match .ff-hud {
+    display: none;
+  }
+  .ff-in-match .ff-panel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    max-height: 70%;
+    overflow-y: auto;
+    gap: 6px 10px;
+    padding: 6px 8px;
+    background: rgba(22, 25, 30, 0.82);
+  }
+  #app.ff-in-match .ff-drawer {
+    display: block;
+    order: -1;
+    flex: 1 1 100%;
+    min-height: 0;
+    padding: 2px;
+    border: 0;
+    background: none;
+    color: var(--ff-muted);
+    font: 700 0.7rem var(--ff-display);
+    letter-spacing: 0.1em;
+  }
+  .ff-in-match
+    .ff-panel:not(.ff-open)
+    > :is(.ff-face, .ff-stance, .ff-minimap) {
+    display: none;
+  }
+  /* Folded, the bars keep the head (name, gold), hit points and energy. */
+  .ff-in-match .ff-panel:not(.ff-open) .ff-bars > :nth-child(n + 8) {
+    display: none;
+  }
+  .ff-in-match .ff-bars {
+    flex: 1 1 100%;
+    gap: 3px 8px;
+  }
+  .ff-in-match .ff-track {
+    height: 6px;
+  }
+  #app.ff-in-match .ff-spell {
+    width: 52px;
+    height: 52px;
+  }
+  #app.ff-in-match .ff-item {
+    height: 34px;
+  }
+  /* The smaller buttons keep the icon clear of the key and the tag (PASSIVE, LV 6); a tooltip still explains. */
+  .ff-in-match .ff-icon svg {
+    width: 26px;
+    height: 26px;
+  }
+  .ff-in-match .ff-spell .ff-tag {
+    display: none;
+  }
+}
+/* A phone on its side: the folded panel is one row of spells and items, the hero's bars on the board above. */
+@media (max-height: 500px) {
+  .ff-in-match .ff-panel:not(.ff-open) {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+  .ff-in-match .ff-panel:not(.ff-open) > .ff-bars {
+    display: none;
+  }
+  .ff-in-match .ff-panel:not(.ff-open) .ff-kit {
+    flex: 1 1 auto;
+    flex-direction: row;
+    align-items: center;
+  }
+  .ff-in-match .ff-panel:not(.ff-open) .ff-spells {
+    flex: 0 0 auto;
+  }
+  .ff-in-match .ff-panel:not(.ff-open) .ff-items {
+    flex: 1 1 auto;
+  }
+  #app.ff-in-match .ff-panel:not(.ff-open) > .ff-drawer {
+    flex: 0 0 auto;
+    width: auto;
+  }
+  #app.ff-in-match .ff-spell {
+    width: 44px;
+    height: 44px;
+  }
+}

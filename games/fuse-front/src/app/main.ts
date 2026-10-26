@@ -289,6 +289,8 @@ function room(code: string, token: string | undefined, display: boolean): void {
     const inLobby = view.stage === "lobby";
     lobby.hidden = !inLobby;
     play.hidden = inLobby;
+    // A phone drops the page header in a match, so the board gets the height (`style.css`).
+    app.classList.toggle("ff-in-match", !inLobby);
     if (inLobby) {
       const slots = slotsOf(view, runtime.self);
       if (!slots.some((s) => s.slot === picking))
@@ -464,10 +466,16 @@ function room(code: string, token: string | undefined, display: boolean): void {
   const fit = (world: WorldView) => {
     const width = play.getBoundingClientRect().width - 6;
     const top = canvas.getBoundingClientRect().top + scrollY;
-    const below =
-      hud.bottom.getBoundingClientRect().height +
-      hint.getBoundingClientRect().height;
-    const height = Math.max(160, innerHeight - top - below - 30);
+    // A phone lays the panel over the board (`style.css`), so the board takes the screen below the top bar.
+    const overlaid = getComputedStyle(hud.bottom).position === "absolute";
+    const below = overlaid
+      ? 0
+      : hud.bottom.getBoundingClientRect().height +
+        hint.getBoundingClientRect().height;
+    const height = Math.max(
+      160,
+      innerHeight - top - below - (overlaid ? 16 : 30),
+    );
     field.resize(width, height, devicePixelRatio || 1, world);
   };
   const frame = (now: number) => {

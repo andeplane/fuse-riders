@@ -5,8 +5,9 @@
  *
  * In a solo match on Neon Duel the hero walks to mid and fights the waves. The first shot waits for three of its
  * last-hit gold pop-ups (`moba-hud.png`), the second holds ` for the scoreboard (`scoreboard.png`). Then, at
- * 390 px wide, the page must not scroll sideways with the scoreboard or the shop open. Shots go to `dir` (default
- * games/fuse-front/docs/images). Muted, one headless Chromium, about two minutes; run by hand, not in CI.
+ * 390 px wide with the folded panel opened (MORE), the page must not scroll sideways with the scoreboard or the shop
+ * open. Shots go to `dir` (default games/fuse-front/docs/images). Muted, one headless Chromium, about two minutes;
+ * run by hand, not in CI.
  */
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
@@ -61,6 +62,8 @@ try {
   const width = () => page.evaluate(() => document.documentElement.scrollWidth);
   const score = page.locator(".ff-toggles .ff-switch", { hasText: "score" });
   const widths = [await width()];
+  // The phone's panel lies folded over the board (v3 M7b); MORE opens the order toggles.
+  await page.locator(".ff-drawer").click();
   await score.click();
   await page.waitForTimeout(500);
   widths.push(await width());
