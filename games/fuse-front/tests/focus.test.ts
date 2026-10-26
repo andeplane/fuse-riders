@@ -193,8 +193,8 @@ test("an aimed spell is refused beyond its reach without spending, and a chosen 
     ]);
   const cast_ = (w: World) => w.events.some((e) => e.type === "cast");
   const hp = (w: World, id: number) => w.units.find((u) => u.id === id)!.hp;
-  // SNIPE at level 6 does 240; Vix's gun meanwhile shoots the nearest, the grunt by the aim.
-  assert.equal(hp(cast({ of: 0, id: far.id }), far.id), 1000 - 240);
+  // SNIPE at level 6 does 170; Vix's gun meanwhile shoots the nearest, the grunt by the aim.
+  assert.equal(hp(cast({ of: 0, id: far.id }), far.id), 1000 - 170);
   assert.equal(hp(cast({}), far.id), 1000, "unchosen: nearest the aim");
   // HIJACK reaches six tiles; the tank stands over eight away.
   const hijack = cast({ slot: 3, x: 12, y: 8, of: 0, id: tank.id });

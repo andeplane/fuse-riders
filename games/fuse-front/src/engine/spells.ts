@@ -220,8 +220,8 @@ export const KITS: Readonly<Record<HeroKind, readonly Readonly<Spell>[]>> = {
   ],
   // prettier-ignore
   vix: [
-    spell({ name: "Snipe", effect: "snipe", targeting: "unit", cooldown: s(8), energy: 35, range: 12 * TILE,
-      radius: 3 * TILE, power: 300, damage: 140, damagePerLevel: 20 }),
+    spell({ name: "Snipe", effect: "snipe", targeting: "unit", cooldown: s(10), energy: 35, range: 10 * TILE,
+      radius: 3 * TILE, power: 300, damage: 100, damagePerLevel: 14 }),
     spell({ name: "Cloak", effect: "cloak", cooldown: s(18), energy: 40, duration: s(5) }),
     spell({ name: "Sticky Mine", effect: "stickyMine", targeting: "point", cooldown: s(6), energy: 30,
       range: 3 * TILE, radius: TILE, duration: s(60), damage: 220, damagePerLevel: 30 }),

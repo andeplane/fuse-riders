@@ -5,7 +5,7 @@
 import { ceilDiv } from "./math.js";
 
 /** Bump on any change to the rules, with the golden in `tests/golden.test.ts` re-recorded in the same commit. */
-export const RULES = "fuse-front-20";
+export const RULES = "fuse-front-21";
 
 export const SUB = 16;
 export const TILE_PX = 8;
@@ -172,6 +172,12 @@ export const WAVE_CAP = 45;
 export const CAMP_GUARDS = 2;
 export const CAMP_RESPAWN = s(60);
 export const GRUNT_ARMOUR = 25;
+/**
+ * Sudden death (v3 M7): from `SURGE_AFTER` steps into a match, every wave spawns `SURGE_GRADES` grades tougher for
+ * each minute past it (`surgeAt`, `waves.ts`), both teams alike, so a match held to a standstill still ends.
+ */
+export const SURGE_AFTER = s(10 * 60);
+export const SURGE_GRADES = 25;
 /** Waves tougher a team's waves spawn for each enemy lane tower or gate it has brought down (`towers.ts`). */
 export const RAZE_WAVES = 20;
 export const WAYPOINT_REACH = 3 * TILE;
@@ -272,10 +278,11 @@ export const HERO = {
 
 /**
  * The heroes a player picks from, each with a profile over `HERO`'s shared rules: Brick the armoured frontliner,
- * Vix the fast, fragile long-range infiltrator, Rivet the engineer with a weaker gun and Tally the fastest scout.
- * v3 M4 casts them as MOBA roles: Brick the tank and initiator (most hit points, IRON HIDE), Vix the assassin (the
- * hardest gun and SNIPE, the fewest hit points), Rivet the support (REPAIR, sentries) and Tally the scout (the
- * fastest, DASH, SPOTTER). Same-level duels without items take 4–8 s of gunfire (`tests/progression.test.ts`).
+ * Vix the fast, fragile infiltrator, Rivet the engineer and Tally the fastest scout. v3 M4 casts them as MOBA roles:
+ * Brick the tank and initiator (most hit points, IRON HIDE), Vix the assassin (the hardest gun and SNIPE, the fewest
+ * hit points), Rivet the support (REPAIR, sentries) and Tally the scout (the fastest, DASH, SPOTTER). Same-level duels
+ * without items take 4–8 s of gunfire (`tests/progression.test.ts`). v3 M7 gives every gun the same 5 tiles: Vix's
+ * reach is her SNIPE (10 tiles), since her 7-tile gun and 12-tile SNIPE together beat every other hero in lane.
  */
 export const HERO_KINDS = ["brick", "vix", "rivet", "tally"] as const;
 export type HeroKind = (typeof HERO_KINDS)[number];
@@ -291,9 +298,9 @@ export interface HeroStats {
 // prettier-ignore
 export const HEROES: Readonly<Record<HeroKind, Readonly<HeroStats>>> = {
   brick: HERO,
-  vix: { hp: 580, hpPerLevel: 45, damage: 46, damagePerLevel: 6, speed: 15, range: 7 * TILE },
-  rivet: { hp: 700, hpPerLevel: 60, damage: 38, damagePerLevel: 5, speed: 12, range: 5 * TILE },
-  tally: { hp: 660, hpPerLevel: 50, damage: 40, damagePerLevel: 5, speed: 16, range: 5 * TILE },
+  vix: { hp: 500, hpPerLevel: 52, damage: 47, damagePerLevel: 5, speed: 15, range: 5 * TILE },
+  rivet: { hp: 740, hpPerLevel: 65, damage: 42, damagePerLevel: 5, speed: 12, range: 5 * TILE },
+  tally: { hp: 700, hpPerLevel: 50, damage: 43, damagePerLevel: 5, speed: 16, range: 5 * TILE },
 };
 
 export const MAX_LEVEL = 12;
@@ -355,9 +362,9 @@ export const STEER_MAX = 8;
 export const GOLD = {
   max: 99_999,
   start: 300,
-  trickle: 1,
+  trickle: 3,
   trickleEvery: s(1),
-  lastHit: { grunt: 20, torch: 25, lightTank: 50, sentry: 30 } as Readonly<
+  lastHit: { grunt: 25, torch: 30, lightTank: 50, sentry: 30 } as Readonly<
     Record<UnitKind, number>
   >,
   guard: 35,

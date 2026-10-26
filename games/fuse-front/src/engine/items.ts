@@ -76,46 +76,46 @@ const item = (
 
 /** The shop, by item id (a checkpoint and the wire name items by index, so only ever append). */
 export const ITEMS: readonly Readonly<Item>[] = Object.freeze([
-  item("Servo Blade", "weapons", 950, "A heavier gun arm.", { damage: 10 }),
-  item("Rapid Feed", "weapons", 1050, "A faster ammunition feed.", {
+  item("Servo Blade", "weapons", 750, "A heavier gun arm.", { damage: 10 }),
+  item("Rapid Feed", "weapons", 850, "A faster ammunition feed.", {
     haste: 20,
   }),
   item(
     "Arc Cannon",
     "weapons",
-    2200,
+    1750,
     "A charged barrel that hits hard and often.",
     {
       damage: 22,
       haste: 15,
     },
   ),
-  item("Plate Weave", "armour", 900, "Woven plating over the chassis.", {
+  item("Plate Weave", "armour", 700, "Woven plating over the chassis.", {
     armour: 10,
   }),
-  item("Core Cell", "armour", 950, "A spare power core: more hit points.", {
+  item("Core Cell", "armour", 750, "A spare power core: more hit points.", {
     hp: 220,
   }),
   item(
     "Bulwark Frame",
     "armour",
-    2300,
+    1850,
     "A siege frame: hit points and armour.",
     {
       hp: 380,
       armour: 12,
     },
   ),
-  item("Capacitor", "systems", 850, "A bigger energy bank.", { energy: 50 }),
-  item("Overclock Chip", "systems", 1100, "Spells cool down faster.", {
+  item("Capacitor", "systems", 700, "A bigger energy bank.", { energy: 50 }),
+  item("Overclock Chip", "systems", 900, "Spells cool down faster.", {
     cdr: 15,
     energy: 20,
   }),
-  item("Track Boots", "systems", 800, "Faster treads.", { speed: 2 }),
+  item("Track Boots", "systems", 650, "Faster treads.", { speed: 2 }),
   item(
     "Aegis Projector",
     "special",
-    1800,
+    1450,
     "Active: halve the damage you take for 4 s.",
     {
       hp: 150,
@@ -127,7 +127,7 @@ export const ITEMS: readonly Readonly<Item>[] = Object.freeze([
   item(
     "Phase Coil",
     "special",
-    1700,
+    1350,
     "Active: blink to a spot up to 6 tiles away.",
     {
       damage: 6,
@@ -140,7 +140,7 @@ export const ITEMS: readonly Readonly<Item>[] = Object.freeze([
   item(
     "Mender Beacon",
     "special",
-    1950,
+    1550,
     "Aura: you and allied heroes near you heal 20 a second.",
     {
       hp: 100,

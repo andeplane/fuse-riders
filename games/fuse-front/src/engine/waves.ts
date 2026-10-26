@@ -6,6 +6,8 @@
  *   more while `WAVE_CAP` of its lane units stand.
  * - Wave n's units carry their wave number and have `waveGrowth(n)` percent of their kind's hit points and damage, so
  *   later waves are tougher and a match always ends.
+ * - **Surge** (v3 M7): from `SURGE_AFTER`, each wave spawns `surgeAt` grades tougher, growing by `SURGE_GRADES` a
+ *   minute, so a match both sides hold to a standstill still ends (both teams' waves grow alike).
  * - A lane unit walks its lane's waypoints in its team's order, attack-move style: it stands to fight whatever comes
  *   in range (`combat.ts`) and never seeks anything off its lane. It turns to an enemy structure within `LANE_SIGHT`,
  *   and past its last waypoint it makes for the nearest enemy fort (`laneGoal`).
@@ -22,7 +24,10 @@ import { flowField, UNREACHABLE } from "./flow.js";
 import {
   LANE_SIGHT,
   RAZE_WAVES,
+  STEPS_PER_SECOND,
   STRAIGHT,
+  SURGE_AFTER,
+  SURGE_GRADES,
   TILE,
   UNITS,
   WAVE_CAP,
@@ -60,6 +65,12 @@ export const waveHp = (kind: UnitKind, wave: number): number =>
 /** A unit's shot before auras and armour: its kind's damage, grown by its wave. */
 export const unitDamage = (unit: Unit): number =>
   div(UNITS[unit.kind].damage * waveGrowth(unit.wave), 100);
+
+/** The grades a wave spawning on `step` gains from the surge: `SURGE_GRADES` a minute past `SURGE_AFTER`. */
+export function surgeAt(step: number): number {
+  const past = step - SURGE_AFTER;
+  return past > 0 ? div(past * SURGE_GRADES, 60 * STEPS_PER_SECOND) : 0;
+}
 
 /** The wave that spawns on `step`, or 0 when none does. */
 export function waveAt(step: number): number {
@@ -224,6 +235,7 @@ export function spawnWaves(map: GameMap, world: World): void {
   if (wave === 0 || !laneMap(map)) return;
   const counts = laneCounts(world.units);
   const razed = razedBy(map, world.buildings);
+  const grown = wave + surgeAt(world.step);
   // A team's held jungle factories add to its waves (`jungle.ts`).
   const ups = [0, 1].map((team) => upgrades(map, world, team));
   const base: UnitKind[] = [
@@ -250,13 +262,13 @@ export function spawnWaves(map: GameMap, world: World): void {
             (team === 0 ? 1 : -1) *
               div((2 * at - (batch.length - 1)) * TILE, 4 * batch.length),
           y: centre(start.y),
-          hp: waveHp(kind, wave),
+          hp: waveHp(kind, grown),
           cooldown: 0,
           goal: -1,
           stun: 0,
           rally: 0,
           lane: index,
-          wave: wave + RAZE_WAVES * razed[team]!,
+          wave: grown + RAZE_WAVES * razed[team]!,
         });
       counts[team]! += batch.length;
     }

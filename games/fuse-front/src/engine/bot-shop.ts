@@ -39,7 +39,7 @@ export const BUILDS: Readonly<Record<HeroKind, readonly number[]>> = {
     "Plate Weave",
   ].map(item),
   rivet: [
-    "Capacitor",
+    "Core Cell",
     "Overclock Chip",
     "Mender Beacon",
     "Bulwark Frame",

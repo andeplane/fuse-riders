@@ -23,16 +23,16 @@ import { mapById } from "../src/online/maps.js";
  * the new ones.
  */
 const GOLDEN = {
-  rules: "fuse-front-20",
+  rules: "fuse-front-21",
   seed: "fuse-front golden",
   ticks: 1500,
   hashes: [
-    "10841b5c",
-    "405085cc",
-    "20b76e1a",
-    "4c9bae55",
-    "1bfa75e6",
-    "9fb3bbab",
+    "3b9c0a01",
+    "96667867",
+    "5ef2dd7a",
+    "f25b1ce4",
+    "e1d823d8",
+    "e6a3b32c",
   ],
 };
 

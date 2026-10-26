@@ -52,7 +52,14 @@ import {
   WAVE_CAP,
   teamOf,
 } from "./tuning.js";
-import { razedBy, WAVE_KINDS, laneCounts, lastWave, waveHp } from "./waves.js";
+import {
+  razedBy,
+  WAVE_KINDS,
+  laneCounts,
+  lastWave,
+  surgeAt,
+  waveHp,
+} from "./waves.js";
 import {
   MARKS,
   NEUTRAL,
@@ -255,9 +262,12 @@ function unit(
   }
   // A wave unit (`waves.ts`): a lane of this map and a wave already sent; exactly the units with a lane have a wave.
   if (!isInt(lane, -1, map.lanes.length - 1)) return;
-  // Razing only adds up (a lane structure never stands again), so no grade outruns the count now.
+  // Razing only adds up (a lane structure never stands again) and the surge only grows, so no grade outruns the
+  // count now.
   const graded =
-    lane < 0 ? 0 : lastWave(step) + RAZE_WAVES * razed[teamOf(owner)]!;
+    lane < 0
+      ? 0
+      : lastWave(step) + surgeAt(step) + RAZE_WAVES * razed[teamOf(owner)]!;
   if (!isInt(wave, lane < 0 ? 0 : 1, lane < 0 ? 0 : graded)) return;
   if (lane >= 0 && !WAVE_KINDS.includes(UNIT_KINDS[kind]!)) return;
   // An Orbital Drop tank lands tougher than a factory's, and a wave's units grow with their wave.
