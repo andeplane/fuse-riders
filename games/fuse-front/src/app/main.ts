@@ -86,16 +86,6 @@ let teardown = () => {};
 // Sound: this browser's MUSIC and SFX choices, kept; `?mute` silences the page and leaves them alone.
 const sound = createAudio(store, keys.audio, params.has("mute"));
 const { audio } = sound;
-// Every button's press clicks; a hover over one ticks softly.
-document.addEventListener("click", (event) => {
-  if ((event.target as Element | null)?.closest?.("button")) audio.ui("click");
-});
-document.addEventListener("pointerover", (event) => {
-  const button = (event.target as Element | null)?.closest?.("button");
-  const from = (event.relatedTarget as Element | null)?.closest?.("button");
-  if (button && button !== from && event.pointerType === "mouse")
-    audio.ui("hover");
-});
 
 function navigate(query = ""): void {
   history.pushState(null, "", link(query));
@@ -239,8 +229,9 @@ function room(code: string, token: string | undefined, display: boolean): void {
       if (press.use) runtime.useItem(slot, press.use.x, press.use.y);
       arm(press.mode);
     },
-    buy: (id) => (runtime.buy(id), audio.ui("buy")),
-    sell: (slot) => (runtime.sell(slot), audio.ui("sell")),
+    // A refused order (a watcher, or one the runtime turns down) buzzes.
+    buy: (id) => audio.ui(runtime.buy(id) ? "buy" : "invalid"),
+    sell: (slot) => audio.ui(runtime.sell(slot) ? "sell" : "invalid"),
     move(fx, fy, queued = false) {
       if (!shown || runtime.slot() < 0) return;
       const tile = minimapTile(fx, fy, shown.width, shown.height);
@@ -282,7 +273,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
           canvas.offsetTop + canvas.clientTop,
         ];
         if (fed.float && at) hud.popup(fed.float.text, at.x + ox, at.y + oy);
-        if (fed.float) audio.ui("gold");
+        if (fed.float) audio.gold(event.step);
         if (fed.notice) hud.notice(fed.notice.text, fed.notice.good);
       },
       status: (text) => (status.textContent = roomFailure(text)),
@@ -644,8 +635,8 @@ function room(code: string, token: string | undefined, display: boolean): void {
     if (intent.kind === "move" || intent.kind === "attackMove")
       runtime[intent.kind](intent.x, intent.y, !!intent.queued);
     else if (intent.kind === "attack") {
-      runtime.attack(intent.of, intent.id, !!intent.queued);
-      audio.ui("confirm");
+      if (runtime.attack(intent.of, intent.id, !!intent.queued))
+        audio.ui("confirm");
     } else if (intent.kind === "cast")
       runtime.cast(
         intent.slot,

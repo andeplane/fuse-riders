@@ -1,9 +1,8 @@
-import { WAVE_EVERY, WAVE_FIRST, type WorldView } from "../../engine/index.js";
+import type { WorldView } from "../../engine/index.js";
 import type { StampedEvent } from "../../render/cues.js";
 import {
   CueGate,
   Limiter,
-  LATE_STEPS,
   MIN_GAIN,
   cuesOf,
   spatial,
@@ -17,10 +16,10 @@ export interface AudioBackend {
   now(): number;
   /** A user gesture: make or resume the audio context, which browsers hold silent until one. */
   unlock(): void;
+  /** Whether a sound played now would be heard: the context exists and runs. */
+  ready(): boolean;
   /** Plays `sound` at `gain` (0..1) and stereo `pan` (-1 left .. 1 right). */
   play(sound: Sound, gain: number, pan: number): void;
-  /** Lowers the effects and music for `seconds` under a sting. */
-  duck(seconds: number): void;
   /** The tab was hidden (silence everything) or shown again. */
   hide(hidden: boolean): void;
 }
@@ -34,11 +33,14 @@ export interface AudioStore {
   setItem(key: string, value: string): void;
 }
 
+/** The cues that come by the dozen in a fight, and the level below which they make no voice. */
+// prettier-ignore
+const BUSY = new Set<CueKind>(["rifle", "flamer", "sentry", "heroShot", "robotDeath"]);
+const BUSY_GAIN = 0.2;
+
 /** The interface's own sounds, and this seat's gold pop. */
-export type UiCue = Extract<
-  CueKind,
-  "click" | "hover" | "buy" | "sell" | "confirm" | "invalid" | "gold"
->;
+// prettier-ignore
+export type UiCue = Extract<CueKind, "click" | "hover" | "buy" | "sell" | "confirm" | "invalid" | "gold">;
 
 /**
  * Fuse Front's sound: it hears every engine event the runtime delivers (`event`), each once however often rollback
@@ -58,7 +60,7 @@ export class FrontAudio {
   private readonly on: Record<Channel, boolean>;
   private unlocked = false;
   private hidden = false;
-  private wave = { matchId: "", index: 0 };
+  private shown = { matchId: "", step: 0 };
 
   constructor(
     private readonly backend: AudioBackend,
@@ -108,44 +110,57 @@ export class FrontAudio {
     world: WorldView | undefined,
     seat: number,
   ): void {
-    if (!this.gate.accept(matchId, stamped, world?.step)) return;
+    // The shown world's step counts only for its own match: a new match's first events are never "late".
+    const shown = this.shown.matchId === matchId ? this.shown.step : 0;
+    if (!this.gate.accept(matchId, stamped, shown)) return;
+    // Silent pages skip the work, but a `?mute` page still counts its cues for smoke tests.
+    if (!this.muted && !this.live()) return;
     for (const cue of cuesOf(stamped.event, world, seat)) {
       this.heard++;
       const { gain, pan } =
         cue.at && world && this.camera
           ? spatial(cue.at, this.camera, world)
           : { gain: 1, pan: 0 };
-      if (gain >= MIN_GAIN) this.play(cue.kind, gain, pan);
+      // A quiet, off-screen gunshot must not take the slot of one on screen.
+      if (gain >= (BUSY.has(cue.kind) ? BUSY_GAIN : MIN_GAIN))
+        this.play(cue.kind, gain, pan);
     }
   }
 
-  /** A frame of `world`: a lane map's wave sounds a low horn as it leaves, once a wave, on time or not at all. */
+  /** A frame of `world` is shown: its step is the newest the late-event window counts for its match. */
   frame(matchId: string, world: WorldView): void {
-    if (!world.lanes.length || world.step < WAVE_FIRST) return;
-    const index = Math.floor((world.step - WAVE_FIRST) / WAVE_EVERY) + 1;
-    const fresh = (world.step - WAVE_FIRST) % WAVE_EVERY <= LATE_STEPS;
-    const known = this.wave.matchId === matchId ? this.wave.index : 0;
-    this.wave = { matchId, index: Math.max(known, index) };
-    if (index > known && fresh) {
-      this.heard++;
-      this.play("wave", 1, 0);
-    }
+    this.shown = { matchId, step: world.step };
   }
 
-  /** A sound of the interface, or of this seat's own gold. */
+  /** A sound of the interface: a buy, a sell, a confirmed target, a refused order. */
   ui(kind: UiCue): void {
     this.heard++;
     this.play(kind, 1, 0);
   }
 
+  /** This seat's last hit paid gold on `step`: its ka-ching, unless that step is too old to sound. */
+  gold(step: number): void {
+    if (this.gate.fresh(step)) this.ui("gold");
+  }
+
+  private live(): boolean {
+    return this.on.effects && this.unlocked && !this.hidden;
+  }
+
   private play(kind: CueKind, gain: number, pan: number): void {
-    if (!this.on.effects || !this.unlocked || this.hidden) return;
+    if (!this.live() || !this.ready()) return;
     if (!this.limiter.allow(kind, this.backend.now())) return;
     const sound = SOUNDS[kind];
     this.played++;
     this.safely((backend) => backend.play(sound, gain, pan));
-    const { duck } = sound;
-    if (duck) this.safely((backend) => backend.duck(duck));
+  }
+
+  private ready(): boolean {
+    try {
+      return this.backend.ready();
+    } catch {
+      return false;
+    }
   }
 
   /** A backend that fails costs the page that sound, never the frame it came with. */

@@ -57,12 +57,18 @@ export function createAudio(
     audio,
     toggles: () => [toggle("♫ MUSIC", "music"), toggle("SFX", "effects")],
     debug(target) {
-      const { dataset } = target;
-      dataset.audio = audio.state;
-      dataset.cuesHeard = String(audio.heard);
-      dataset.cuesPlayed = String(audio.played);
-      dataset.audioVoices = String(backend.stats.voices);
-      dataset.audioContexts = String(backend.stats.contexts);
+      const { contexts, voices } = backend.stats;
+      const values = {
+        audio: audio.state,
+        cuesHeard: audio.heard,
+        cuesPlayed: audio.played,
+        audioVoices: voices,
+        audioContexts: contexts,
+      };
+      // Written only on change: the attributes are a smoke test's, not worth a DOM mutation every frame.
+      for (const [key, value] of Object.entries(values))
+        if (target.dataset[key] !== String(value))
+          target.dataset[key] = String(value);
     },
   };
 }

@@ -1,12 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  DRAW,
+  ITEMS,
+  NO_WINNER,
   SPELL_EFFECTS,
   STEPS_PER_SECOND,
   SUB,
   TILE_PX,
-  WAVE_EVERY,
-  WAVE_FIRST,
   createWorld,
   viewOf,
   type CombatEvent,
@@ -33,6 +34,8 @@ const TILE = SUB * TILE_PX;
 const MAP = mapById("neon-duel");
 const view = (): WorldView => viewOf(MAP, createWorld(MAP, [0, 1], 1));
 const KEYS = { music: "m", effects: "e" };
+const ourTurret = (world: WorldView) =>
+  world.buildings.find((b) => b.kind === "turret" && b.team === 0)!.id;
 const kindOf = (sound: Sound) =>
   (Object.keys(SOUNDS) as CueKind[]).find((kind) => SOUNDS[kind] === sound)!;
 
@@ -43,9 +46,9 @@ class FakeBackend implements AudioBackend {
   readonly calls: string[] = [];
   now = () => this.clock;
   unlock = () => void this.calls.push("unlock");
+  ready = () => true;
   play = (sound: Sound, gain: number, pan: number) =>
     void this.played.push({ kind: kindOf(sound), gain, pan });
-  duck = (seconds: number) => void this.calls.push(`duck ${seconds}`);
   hide = (hidden: boolean) => void this.calls.push(`hide ${hidden}`);
   count = (kind: CueKind) => this.played.filter((p) => p.kind === kind).length;
 }
@@ -63,36 +66,30 @@ const setup = (muted = false, unlock = true) => {
   return { backend, store, audio };
 };
 const at = (x: number, y: number) => ({ x: x * TILE, y: y * TILE });
-const mark = (of: Mark["of"], id: number, x = 5, y = 5): Mark => ({
-  of,
-  id,
-  ...at(x, y),
-});
-const shot = (from: Mark, to = mark("unit", 999), damage = 1): CombatEvent => ({
-  type: "shot",
-  from,
-  to,
-  damage,
-});
+// prettier-ignore
+const mark = (of: Mark["of"], id: number, x = 5, y = 5): Mark => ({ of, id, ...at(x, y) });
+// prettier-ignore
+const shot = (from: Mark, to = mark("unit", 999), damage = 1): CombatEvent => ({ type: "shot", from, to, damage });
 
 test("events map to their cues: guns by shooter, deaths, ruins, this seat's moments and every spell", () => {
   const world = view();
-  const turret = world.buildings.find(
-    (b) => b.kind === "turret" && b.team === 0,
-  )!;
+  const turret = ourTurret(world);
   const kinds = (event: CombatEvent, seat = 0) =>
     cuesOf(event, world, seat).map((cue) => cue.kind);
-  const siege = shot(mark("hero", 1), mark("building", turret.id));
-  const ruin: CombatEvent = {
-    type: "destroyed",
-    building: turret.id,
-    kind: "turret",
-  };
+  const siege = shot(mark("hero", 1), mark("building", turret));
+  // prettier-ignore
+  const ruin: CombatEvent = { type: "destroyed", building: turret, kind: "turret" };
   const death = { type: "death", id: 1, owner: 1, ...at(3, 3) } as const;
+  const owners = world.sectorOwners;
+  const ours = owners.findIndex((o) => o >= 0 && o % 2 === 0);
+  const neutral = owners.indexOf(-1);
+  assert.ok(ours >= 0 && neutral >= 0);
+  // prettier-ignore
+  const use = { type: "item", seat: 0, slot: 0, ...at(1, 1), toX: 0, toY: 0 } as const;
   // prettier-ignore
   const cases: [CombatEvent, number, CueKind[]][] = [
     [shot(mark("hero", 1)), 0, ["heroShot"]],
-    [shot(mark("building", turret.id)), 0, ["tower"]],
+    [shot(mark("building", turret)), 0, ["tower"]],
     [siege, 0, ["heroShot", "underAttack"]],
     [siege, 1, ["heroShot"]],
     [{ ...death, kind: "grunt" }, 0, ["robotDeath"]],
@@ -103,12 +100,20 @@ test("events map to their cues: guns by shooter, deaths, ruins, this seat's mome
     [{ type: "heroDeath", seat: 1, killer: 0, ...at(1, 1) }, 0, ["heroDeath"]],
     [{ type: "levelUp", seat: 0, level: 2 }, 0, ["levelUp"]],
     [{ type: "levelUp", seat: 1, level: 2 }, 0, []],
-    [{ type: "capture", sector: 0, seat: 2 }, 0, ["flagTaken"]],
-    [{ type: "capture", sector: 0, seat: 1 }, 0, ["flagLost"]],
-    [{ type: "capture", sector: 0, seat: 1 }, -1, []],
+    [{ type: "capture", sector: neutral, seat: 2 }, 0, ["flagTaken"]],
+    [{ type: "capture", sector: ours, seat: 1 }, 0, ["flagLost"]],
+    [{ type: "capture", sector: neutral, seat: 1 }, 0, []],
+    [{ type: "capture", sector: ours, seat: 1 }, -1, []],
     [{ type: "won", winner: 0 }, 0, ["victory"]],
     [{ type: "won", winner: 1 }, 0, ["defeat"]],
     [{ type: "won", winner: 1 }, -1, ["victory"]],
+    [{ type: "won", winner: DRAW }, 0, ["defeat"]],
+    [{ type: "won", winner: NO_WINNER }, 0, []],
+    [{ type: "respawn", seat: 0, ...at(1, 1) }, 0, ["respawn"]],
+    [{ type: "mine", seat: 1, ...at(1, 1) }, 0, ["mineBlast"]],
+    [{ ...use, item: ITEMS.findIndex((i) => i.active === "shield") }, 0, ["shield"]],
+    [{ ...use, item: ITEMS.findIndex((i) => i.active === "blink") }, 0, ["blink"]],
+    [{ ...use, item: 0 }, 0, ["item"]],
   ];
   for (const [event, seat, expected] of cases)
     assert.deepEqual(kinds(event, seat), expected, JSON.stringify(event));
@@ -167,40 +172,31 @@ test("the director plays a rollback's events once, placed against the camera", (
   assert.deepEqual([backend.played.length, audio.heard], [1, 2]);
 });
 
-test("rate limits and the voice cap hold a 300-unit fight to a few voices; alerts still sound and duck", () => {
+test("rate limits and the voice cap hold a 300-unit fight to a few voices; alerts still sound", () => {
   const { backend, audio } = setup();
   const world = view();
   const event = (step: number, e: CombatEvent) =>
     audio.event("m", { step, event: e }, world, 0);
   for (let i = 0; i < 300; i++)
     event(world.step, shot(mark("unit", i), undefined, i));
-  assert.ok(backend.played.length <= 4, String(backend.played.length));
+  const n = backend.played.length;
+  assert.ok(n >= 1 && n <= 4, String(n));
   // Every effect at once: the mix takes `MAX_VOICES` of them; an alert still sounds over the lot.
   const limiter = new Limiter();
-  const effects = (Object.keys(SOUNDS) as CueKind[]).filter(
-    (kind) => SOUNDS[kind].bus === "effects",
-  );
+  // prettier-ignore
+  const effects = (Object.keys(SOUNDS) as CueKind[]).filter((kind) => SOUNDS[kind].bus === "effects");
   assert.ok(effects.length > MAX_VOICES);
   const allowed = effects.filter((kind) => limiter.allow(kind, 0));
-  assert.deepEqual(
-    [allowed.length, limiter.sounding(0)],
-    [MAX_VOICES, MAX_VOICES],
-  );
+  assert.equal(allowed.length, MAX_VOICES);
   assert.equal(limiter.allow("myDeath", 0), true);
   backend.clock = 10;
   event(world.step + 1, { type: "won", winner: 0 });
   assert.equal(backend.played.at(-1)!.kind, "victory");
-  assert.ok(backend.calls.includes(`duck ${SOUNDS.victory.duck}`));
   // The under-attack alert sounds once, then holds off however long the siege.
-  const turret = world.buildings.find(
-    (b) => b.kind === "turret" && b.team === 0,
-  )!;
+  const siege = mark("building", ourTurret(world));
   for (let i = 0; i < 50; i++) {
     backend.clock = 20 + i * 0.1;
-    event(
-      world.step + 2,
-      shot(mark("unit", 7), mark("building", turret.id), i),
-    );
+    event(world.step + 2, shot(mark("unit", 7), siege, i));
   }
   assert.equal(backend.count("underAttack"), 1);
 });
@@ -233,22 +229,16 @@ test("the choices persist, effects off silences cues, and nothing plays before a
   audio.ui("buy");
   assert.equal(backend.played.length, 1);
   assert.equal(store.items.get(KEYS.effects), "0");
-  assert.equal(
-    new FrontAudio(backend, store, KEYS, false).enabled("effects"),
-    false,
-  );
+  const again = new FrontAudio(backend, store, KEYS, false);
+  assert.equal(again.enabled("effects"), false);
   assert.deepEqual(backend.calls, ["unlock", "hide true", "hide false"]);
 });
 
-test("a lane wave sounds its horn once as it leaves, not when a late joiner sees it under way", () => {
+test("a stale gold pop never sounds", () => {
   const { backend, audio } = setup();
-  const base = view();
-  assert.ok(base.lanes.length > 0);
-  const frame = (step: number) => audio.frame("m", { ...base, step });
-  frame(WAVE_FIRST + WAVE_EVERY + LATE_STEPS + 5);
-  assert.equal(backend.count("wave"), 0);
-  backend.clock = 10;
-  frame(WAVE_FIRST + 2 * WAVE_EVERY);
-  frame(WAVE_FIRST + 2 * WAVE_EVERY + 1);
-  assert.equal(backend.count("wave"), 1);
+  const nobody: CombatEvent = { type: "won", winner: NO_WINNER };
+  audio.event("m", { step: 500, event: nobody }, undefined, 0);
+  audio.gold(500 - LATE_STEPS - 1);
+  audio.gold(500);
+  assert.equal(backend.count("gold"), 1);
 });

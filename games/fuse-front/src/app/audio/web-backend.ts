@@ -4,8 +4,6 @@ import type { Bus, Sound, Voice } from "./sounds.js";
 const MASTER = 0.55;
 // prettier-ignore
 const LEVELS: Readonly<Record<Bus, number>> = { effects: 0.8, alerts: 1, music: 0.5 };
-/** What a duck leaves of the effects and the music. */
-const DUCKED = 0.35;
 
 /**
  * Renders the director's sounds on a Web Audio graph: each sound through its own stereo panner into its bus (effects,
@@ -14,12 +12,11 @@ const DUCKED = 0.35;
  * come off the graph as it ends. `stats` counts what reached the graph, for a smoke test that cannot listen.
  */
 export class WebAudioBackend implements AudioBackend {
-  readonly stats = { contexts: 0, sounds: 0, voices: 0, live: 0 };
+  readonly stats = { contexts: 0, voices: 0, live: 0 };
   private context?: AudioContext;
   private noise?: AudioBuffer;
   private buses?: Record<Bus, GainNode>;
   private failed = false;
-  private duckedUntil = 0;
 
   now(): number {
     return performance.now() / 1000;
@@ -46,40 +43,34 @@ export class WebAudioBackend implements AudioBackend {
           // Not a gesture this browser accepts; the next one tries again.
         });
     } catch {
-      // No Web Audio here: the game plays silent.
+      // No Web Audio here: the game plays silent, and no later gesture tries again.
+      if (!this.context) this.failed = true;
     }
+  }
+
+  ready(): boolean {
+    return this.context?.state === "running" && !!this.buses;
   }
 
   play(sound: Sound, gain: number, pan: number): void {
     const { context, buses, noise } = this;
     if (!context || !buses || !noise || context.state !== "running") return;
+    if (!Number.isFinite(gain) || !Number.isFinite(pan)) return;
     const at = context.currentTime + 0.005;
-    const panner = context.createStereoPanner();
-    panner.pan.value = pan;
+    const panner = new StereoPannerNode(context, { pan });
     panner.connect(buses[sound.bus]);
     let left = sound.voices.length;
-    this.stats.sounds++;
-    for (const voice of sound.voices) {
-      this.stats.voices++;
-      this.stats.live++;
-      render(context, noise, voice, at, gain, panner, () => {
-        this.stats.live--;
-        if (--left === 0) panner.disconnect();
-      });
-    }
-  }
-
-  duck(seconds: number): void {
-    const { context, buses } = this;
-    if (!context || !buses) return;
-    const now = context.currentTime;
-    // A shorter duck inside a longer one does not cut it short.
-    this.duckedUntil = Math.max(this.duckedUntil, now + seconds);
-    for (const bus of ["effects", "music"] as const) {
-      const level = buses[bus].gain;
-      level.cancelScheduledValues(now);
-      level.setTargetAtTime(LEVELS[bus] * DUCKED, now, 0.03);
-      level.setTargetAtTime(LEVELS[bus], this.duckedUntil, 0.3);
+    try {
+      for (const voice of sound.voices) {
+        this.stats.voices++;
+        this.stats.live++;
+        render(context, noise, voice, at, gain, panner, () => {
+          this.stats.live--;
+          if (--left === 0) panner.disconnect();
+        });
+      }
+    } catch {
+      panner.disconnect(); // A voice the graph would not take: the sound goes, its nodes with it.
     }
   }
 
@@ -137,6 +128,7 @@ export function render(
   envelope.connect(out);
   const nodes: AudioNode[] = [envelope];
   let source: AudioScheduledSourceNode, pitch: AudioParam;
+  let begin: (() => void) | undefined;
   if (voice.wave === "noise") {
     const hiss = context.createBufferSource(),
       band = context.createBiquadFilter();
@@ -147,6 +139,8 @@ export function render(
     hiss.connect(band).connect(envelope);
     nodes.push(band);
     [source, pitch] = [hiss, band.frequency];
+    // From a random point of the loop, so a volley of the same shot is not one wave stacked up louder.
+    begin = () => hiss.start(at, Math.random() * 0.9);
   } else {
     const tone = context.createOscillator();
     tone.type = voice.wave;
@@ -161,6 +155,6 @@ export function render(
     for (const node of nodes) node.disconnect();
     ended();
   };
-  source.start(at);
+  (begin ?? (() => source.start(at)))();
   source.stop(end + 0.02);
 }

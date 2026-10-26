@@ -46,12 +46,8 @@ function indexOf(world: WorldView) {
   return index;
 }
 
-const GUN: Readonly<Record<string, CueKind>> = {
-  grunt: "rifle",
-  torch: "flamer",
-  lightTank: "cannon",
-  sentry: "sentry",
-};
+// prettier-ignore
+const GUN: Readonly<Record<string, CueKind>> = { grunt: "rifle", torch: "flamer", lightTank: "cannon", sentry: "sentry" };
 
 /** The cues one event plays for `seat` (-1 watches): the sound of it where it happened, and this seat's alerts. */
 export function cuesOf(
@@ -61,7 +57,8 @@ export function cuesOf(
 ): Cue[] {
   const mine = seat >= 0;
   const team = mine ? teamOf(seat) : -1;
-  const index = world && indexOf(world);
+  // Built only for the events that need it. A shooter missing from the shown world (dead, or not yet shown) rifles.
+  const index = () => world && indexOf(world);
   switch (event.type) {
     case "shot": {
       const { from, to } = event;
@@ -71,9 +68,9 @@ export function cuesOf(
           ? "heroShot"
           : from.of === "building"
             ? "tower"
-            : (GUN[index?.units.get(from.id) ?? "grunt"] ?? "rifle");
+            : (GUN[index()?.units.get(from.id) ?? "grunt"] ?? "rifle");
       const hit =
-        to.of === "building" ? index?.buildings.get(to.id) : undefined;
+        to.of === "building" ? index()?.buildings.get(to.id) : undefined;
       const defended =
         mine &&
         hit?.team === team &&
@@ -87,7 +84,7 @@ export function cuesOf(
       return [{ kind: tank ? "tankDeath" : "robotDeath", at: event }];
     }
     case "destroyed": {
-      const building = index?.buildings.get(event.building);
+      const building = index()?.buildings.get(event.building);
       const tile = SUB * TILE_PX;
       const at = building && {
         x: (building.x + 0.5) * tile,
@@ -107,11 +104,23 @@ export function cuesOf(
       return event.seat === seat ? [{ kind: "respawn" }] : [];
     case "levelUp":
       return event.seat === seat ? [{ kind: "levelUp" }] : [];
-    case "cast":
-      return [{ kind: event.effect, at: event }];
-    case "capture":
+    case "cast": {
+      // Where it lands (DASH's `to` is its start, so it whooshes where the hero went).
+      const dash = event.effect === "dash";
+      return [
+        {
+          kind: event.effect,
+          at: dash ? event : { x: event.toX, y: event.toY },
+        },
+      ];
+    }
+    case "capture": {
+      // Lost only while the shown world still has it on this side: an enemy taking a neutral flag is no sting.
+      const owner = world?.sectorOwners[event.sector] ?? -1;
       if (!mine) return [];
-      return [{ kind: teamOf(event.seat) === team ? "flagTaken" : "flagLost" }];
+      if (teamOf(event.seat) === team) return [{ kind: "flagTaken" }];
+      return owner >= 0 && teamOf(owner) === team ? [{ kind: "flagLost" }] : [];
+    }
     case "item":
       return [{ kind: ITEMS[event.item]?.active ?? "item", at: event }];
     case "mine":
@@ -159,7 +168,11 @@ export class CueGate {
     this.newest = Math.max(this.newest, shownStep);
     if (!this.dedupe.accept(matchId, stamped)) return false;
     this.newest = Math.max(this.newest, stamped.step);
-    return stamped.step >= this.newest - LATE_STEPS;
+    return this.fresh(stamped.step);
+  }
+  /** Whether `step` of the current match is still recent enough to sound. */
+  fresh(step: number): boolean {
+    return step >= this.newest - LATE_STEPS;
   }
 }
 
@@ -168,12 +181,16 @@ export class CueGate {
 export const LIMITS: Partial<Record<CueKind, readonly [gap: number, voices: number]>> = {
   rifle: [0.05, 4], flamer: [0.1, 2], cannon: [0.12, 3], sentry: [0.08, 2], heroShot: [0.07, 3], tower: [0.25, 2],
   robotDeath: [0.07, 4], tankDeath: [0.15, 2], structure: [0.3, 2], underAttack: [10, 1], wave: [5, 1],
-  gold: [0.05, 3], hover: [0.06, 1], click: [0.03, 2],
+  gold: [0.05, 3], hover: [0.06, 1], click: [0.03, 2], invalid: [0.25, 1],
 };
 
-/** How long a sound lasts: its last voice's end. */
-export const lengthOf = (kind: CueKind): number =>
-  Math.max(...SOUNDS[kind].voices.map((voice) => (voice.at ?? 0) + voice.dur));
+/** How long each sound lasts: its last voice's end. */
+const LENGTHS = new Map(
+  Object.entries(SOUNDS).map(([kind, { voices }]) => [
+    kind,
+    Math.max(...voices.map((voice) => (voice.at ?? 0) + voice.dur)),
+  ]),
+);
 
 /**
  * Lets a cue through when its kind's gap has passed, its kind has a voice free, and (for effects) the whole mix
@@ -190,7 +207,7 @@ export class Limiter {
     if (SOUNDS[kind].bus === "effects" && this.sounding(now) >= MAX_VOICES)
       return false;
     this.last.set(kind, now);
-    live.push(now + lengthOf(kind));
+    live.push(now + LENGTHS.get(kind)!);
     this.ends.set(kind, live);
     return true;
   }
