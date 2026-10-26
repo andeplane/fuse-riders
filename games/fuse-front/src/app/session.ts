@@ -6,6 +6,7 @@ export const keys = {
   name: `${GAME_ID}-name`,
   host: (code: string) => `${GAME_ID}-host-${code}`,
   peer: (code: string) => `${GAME_ID}-peer-${code}`,
+  audio: { music: `${GAME_ID}-music`, effects: `${GAME_ID}-effects` },
 };
 
 /** Where this page is: the landing page, a solo match, or a room as its creator, a joiner or the shared screen. */
