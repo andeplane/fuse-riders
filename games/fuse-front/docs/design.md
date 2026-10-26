@@ -728,3 +728,105 @@ markers stay off. The wheel and Z/X still zoom from there out to the whole map. 
 ![After: one row at 1600 px](images/hud-layout.png)
 
 ![1280 px](images/hud-layout-1280.png) ![390 px](images/hud-layout-390.png)
+
+**M7 as built: pace and hero balance (M7a, rules `fuse-front-21`).** Measured with `tools/league.ts`: the 16 Neon
+Duel pairings with normal bots, the 12 cross pairings with hard and with easy ones, and 16 Twin Wilds and 9 Crown
+Jungle normal lineups, seed 1. Before is `fuse-front-20`, after is `fuse-front-21`.
+
+- **Sudden death (`surgeAt`, `waves.ts`):** from minute 10 (`SURGE_AFTER`), every wave spawns 25 grades tougher for
+  each minute past it (`SURGE_GRADES`), both teams alike.
+  - A grade is 3 percent hit points and damage, so a wave at minute 14 has nearly five times a first wave's strength and towers
+    fall to waves alone. Before then, hero kills and razed structures still swing a match.
+  - The checkpoint's grade bound adds the surge.
+- **Vix:**
+  - Her gun reaches 5 tiles like everyone's, not 7.
+  - SNIPE does 100 (+14 a level) every 10 s from 10 tiles, not 140 (+20) every 8 s from 12.
+  - She has 500 hit points (+52 a level) and 47 gun damage (+5).
+  - Range alone wasn't the cause: with a 5-tile gun and the old SNIPE she still won all six. A free 12-tile poke every
+    8 s sent the other bot home to heal while she farmed.
+- **Rivet:** 740 hit points (+65) and 42 gun damage. Its bot build opens with Core Cell instead of Capacitor.
+- **Tally:** 700 hit points and 43 gun damage. Brick is unchanged.
+- **Gold:**
+  - A hero earns 3 a second, not 1.
+  - A last hit pays 25 for a grunt and 30 for a torch, not 20 and 25.
+  - Every item costs about a fifth less, from Track Boots at 650 to Bulwark Frame at 1,850 (`items.ts`).
+
+Match lengths in minutes, normal against normal unless named:
+
+| Map                | Before                  | After                   |
+| ------------------ | ----------------------- | ----------------------- |
+| Neon Duel 1v1      | 10.1–32.6 (median 20.2) | 15.7–26.8 (median 20.5) |
+| Neon Duel 1v1 hard | 10.3–52.4 (median 14.3) | 13.3–31.4 (median 18.9) |
+| Neon Duel 1v1 easy | not measured            | 15.3–24.5 (median 19.5) |
+| Twin Wilds 2v2     | 13.6–21.9 (median 15.9) | 13.8–19.1 (median 17.1) |
+| Crown Jungle 3v3   | 13.0–22.9 (median 17.5) | 14.7–19.4 (median 17.6) |
+
+One normal 1v1 runs past 25 minutes (Tally against Vix, 26.8), against two before. The tests bound only the normal
+matches and the difficulty mismatches; hard against hard and easy against easy are measured here, not asserted.
+
+Cross-pairing wins of 6 on Neon Duel:
+
+| Bots   | Before                           | After                            |
+| ------ | -------------------------------- | -------------------------------- |
+| normal | Vix 6, Brick 4, Rivet 1, Tally 1 | Tally 4, Brick 3, Rivet 3, Vix 2 |
+| hard   | Vix 6, Brick 3, Rivet 2, Tally 1 | Tally 5, Rivet 4, Brick 2, Vix 1 |
+| easy   | not measured                     | Rivet 5, Tally 4, Brick 3, Vix 0 |
+
+- **Confidence:** a pairing is one fixed result a side. In a trial on an earlier candidate, pausing a bot for half a
+  second or a second at minute 1 changed 2 of 80 results, so more seeds add little.
+  - With six games, a hero that truly wins half its matches lands in 2–4 with probability 0.78. The band fits
+    balance but can't tell 40 percent from 60.
+- Over normal and hard together, Tally wins 9 of 12, Rivet 7, Brick 5 and Vix 3. Easy bots cast only their first
+  spell, so an easy Vix never cloaks.
+
+**Sides:** team 0 won 30 of 65 matches, against 28 of 53 before. That is well within chance (two-sided p ≈ 0.6).
+
+| Map              | Before (team 0/1) | After |
+| ---------------- | ----------------- | ----- |
+| Neon Duel normal | 10/6              | 6/10  |
+| Neon Duel hard   | 4/8               | 7/5   |
+| Neon Duel easy   | –                 | 4/8   |
+| Twin Wilds       | 10/6              | 9/7   |
+| Crown Jungle     | 4/5               | 4/5   |
+
+**Items at minute 15**, per hero, in matches still running then. The gold is what a hero has earned by then: its
+purse plus its items' cost.
+
+| Map          | Before         | After                      |
+| ------------ | -------------- | -------------------------- |
+| Neon Duel    | 1–2 (mean 1.8) | 3–5 (mean 3.4), 4,766 gold |
+| Twin Wilds   | 2–4 (mean 2.4) | 3–6 (mean 4.1), 5,401 gold |
+| Crown Jungle | 1–4 (mean 2.4) | 3–6 (mean 4.1), 5,335 gold |
+
+**Time to kill** (`tests/progression.test.ts`): one-second shots in a same-level duel without items, before → after.
+Every duel stays within 4–8 shots.
+
+| Shooter on target | Level 1 | Level 6 | Level 12 |
+| ----------------- | ------- | ------- | -------- |
+| Brick on Vix      | 6 → 5   | 5 → 5   | 4 → 4    |
+| Brick on Rivet    | 7 → 7   | 6 → 6   | 5 → 6    |
+| Brick on Tally    | 6 → 7   | 5 → 6   | 5 → 5    |
+| Vix on Brick      | 7 → 7   | 6 → 7   | 6 → 7    |
+| Vix on Vix        | 5 → 4   | 4 → 4   | 4 → 4    |
+| Vix on Rivet      | 6 → 6   | 5 → 5   | 5 → 5    |
+| Vix on Tally      | 5 → 5   | 4 → 5   | 4 → 5    |
+| Rivet on Brick    | 8 → 8   | 8 → 7   | 7 → 7    |
+| Rivet on Vix      | 6 → 4   | 5 → 4   | 4 → 4    |
+| Rivet on Rivet    | 7 → 6   | 6 → 6   | 5 → 5    |
+| Tally on Brick    | 7 → 7   | 6 → 6   | 6 → 6    |
+| Tally on Vix      | 5 → 4   | 4 → 4   | 4 → 4    |
+| Tally on Rivet    | 6 → 6   | 5 → 5   | 4 → 5    |
+| Tally on Tally    | 5 → 5   | 5 → 5   | 4 → 4    |
+
+Brick on Brick is unchanged at 8, 8 and 7.
+
+**League tests:**
+
+- `tests/league.test.ts` asserts that every normal Neon Duel match ends in 10–28 minutes, with the median in 14–21.
+  Every hero must hold 3 items at minute 15 and win 2–4 of its 6 cross pairings.
+- `tests/league-big.test.ts` plays three normal lineups on each map. All must end within the bound, with their
+  median in 14–21, and so must the difficulty matches.
+- `tests/league-difficulty.test.ts` keeps its difficulty order and adds the bound.
+- **Surge rate:** at 20 grades a minute, a Twin Wilds normal team (Brick and Vix) lost to easy bots in 28.3 minutes.
+  The normal bots took jungle flags while the easy ones, which never jungle, pushed their towers. At 16, 18, 22 and
+  25 every difficulty match came out in order, and 25 gave the tightest team-map pace.

@@ -190,7 +190,7 @@ test("a spell's tooltip names it, says what it does and lists its numbers", () =
   assert.deepEqual(spellTooltip(SPELL_INFO.vix[0]!), {
     name: "SNIPE",
     desc: SPELL_INFO.vix[0]!.desc,
-    stats: "35 energy · 8s cooldown · range 12 tiles · radius 3 tiles",
+    stats: "35 energy · 10s cooldown · range 10 tiles · radius 3 tiles",
     aim: "unit target",
   });
   assert.equal(

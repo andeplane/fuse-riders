@@ -5,6 +5,8 @@ import {
   NEUTRAL,
   NO_WINNER,
   STEPS_PER_SECOND,
+  SURGE_AFTER,
+  SURGE_GRADES,
   TILE,
   UNITS,
   WAVE_CAP,
@@ -22,6 +24,7 @@ import {
   seatLane,
   spawnWaves,
   step,
+  surgeAt,
   tileOf,
   traceLine,
   waveAt,
@@ -78,12 +81,41 @@ test("waves grow tougher with their number, up to the cap on growth", () => {
   assert.equal(waveGrowth(1), 100);
   assert.ok(waveGrowth(11) > waveGrowth(10));
   assert.equal(waveGrowth(1000), 100 + WAVE_GROWTH_MAX);
-  const world = duel(WAVE_FIRST + 20 * WAVE_EVERY);
+  const world = duel(WAVE_FIRST + 15 * WAVE_EVERY);
+  assert.ok(world.step < SURGE_AFTER);
   spawnWaves(twin, world);
   const grunt = world.units.find((u) => u.kind === "grunt")!;
-  assert.equal(grunt.wave, 21);
-  assert.equal(grunt.hp, waveHp("grunt", 21));
+  assert.equal(grunt.wave, 16);
+  assert.equal(grunt.hp, waveHp("grunt", 16));
   assert.ok(grunt.hp > UNITS.grunt.hp);
+});
+
+test("past SURGE_AFTER every wave spawns SURGE_GRADES grades tougher a minute, both teams alike", () => {
+  assert.equal(surgeAt(SURGE_AFTER), 0);
+  assert.equal(surgeAt(SURGE_AFTER + 60 * STEPS_PER_SECOND), SURGE_GRADES);
+  assert.equal(
+    surgeAt(SURGE_AFTER + 30 * STEPS_PER_SECOND),
+    Math.floor(SURGE_GRADES / 2),
+  );
+  const at = WAVE_FIRST + 40 * WAVE_EVERY;
+  const surge = surgeAt(at);
+  assert.ok(surge > 0);
+  const world = duel(at);
+  spawnWaves(twin, world);
+  for (const team of [0, 1]) {
+    const grunt = world.units.find(
+      (u) => u.kind === "grunt" && u.owner === team,
+    )!;
+    assert.equal(grunt.wave, 41 + surge);
+    assert.equal(grunt.hp, waveHp("grunt", 41 + surge));
+  }
+  // The checkpoint accepts the surged grade, and refuses one past it.
+  const wire = structuredClone(encodeWorld(world)) as unknown[];
+  assert.ok(decodeWorld(structuredClone(wire), twin));
+  const row = (wire[6] as number[][])[0]!;
+  assert.equal(row[11], 41 + surge, "the wire's wave column");
+  row[11]! += 1;
+  assert.equal(decodeWorld(wire, twin), undefined);
 });
 
 test("a team at the wave cap sends only what fits under it", () => {
@@ -189,7 +221,8 @@ test("a later wave's unit above its wave's hit points is refused", () => {
   spawnWaves(twin, world);
   const wire = structuredClone(encodeWorld(world)) as unknown[];
   assert.ok(decodeWorld(structuredClone(wire), twin));
-  (wire[6] as number[][])[0]![5] = waveHp("grunt", 21) + 1;
+  (wire[6] as number[][])[0]![5] =
+    waveHp("grunt", 21 + surgeAt(world.step)) + 1;
   assert.equal(decodeWorld(wire, twin), undefined);
 });
 
