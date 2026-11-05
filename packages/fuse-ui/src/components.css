@@ -462,6 +462,27 @@
 .fui-game-menu-leave {
   margin-top: 0.5rem;
 }
+.fui-game-menu button.fui-game-menu-resume {
+  color: var(--fui-ink, #030919);
+  background: var(--fui-cyan, #16e7ff);
+  border-color: transparent;
+  box-shadow: none;
+  text-shadow: none;
+}
+.fui-game-menu button.fui-game-menu-resume:hover {
+  background: #90f7ff;
+}
+.fui-game-menu button.fui-game-menu-leave {
+  color: #ffb8cb;
+  background: transparent;
+  border-color: #ffb8cb66;
+  box-shadow: none;
+  text-shadow: none;
+}
+.fui-game-menu button:focus-visible {
+  outline: 2px solid var(--fui-cyan, #16e7ff);
+  outline-offset: 3px;
+}
 .fui-controls-goal,
 .fui-controls-note {
   margin: 0 0 0.75rem;

@@ -55,6 +55,18 @@ test("portal: one tile per game, linked under the base, the current game marked"
     HOSTILE,
   );
   assert.equal(tiles[1]!.querySelector("img"), null);
+  assert.equal(
+    tiles[0]!.querySelector(".fui-portal-tagline")!.textContent,
+    "Neon arena",
+  );
+  assert.equal(
+    tiles[0]!.getAttribute("aria-labelledby"),
+    tiles[0]!.querySelector(".fui-portal-name")!.id,
+  );
+  assert.equal(
+    tiles[0]!.getAttribute("aria-describedby"),
+    tiles[0]!.querySelector(".fui-portal-tagline")!.id,
+  );
 });
 
 test("portal: a muted page keeps the other games muted", () => {

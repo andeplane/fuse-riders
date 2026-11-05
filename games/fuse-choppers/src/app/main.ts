@@ -276,7 +276,9 @@ function landing(): void {
   back.href = import.meta.env.BASE_URL + (muted ? "?mute" : "");
   const menu = createGameMenu(flightGuide(devSettings().lift));
   menu.update({ canLobby: false, touch: coarse() });
-  app.replaceChildren(header([back, menu.element]), card.element);
+  const top = header([back, menu.element]);
+  top.classList.add("fc-entrance-header");
+  app.replaceChildren(top, card.element);
 }
 
 /** A button that holds `bits` while a pointer is down on it. */

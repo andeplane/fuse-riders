@@ -102,7 +102,11 @@ export function createGameMenu(options: GameMenuOptions): GameMenu {
     doc,
   );
   const navigation = el("div", "", "fui-game-menu-navigation", doc);
-  const resume = button("BACK TO GAME", "fui-game-menu-action", doc);
+  const resume = button(
+    "BACK TO GAME",
+    "fui-game-menu-action fui-game-menu-resume",
+    doc,
+  );
   const controls = button("CONTROLS", "fui-game-menu-action", doc);
   const lobby = button("BACK TO LOBBY", "fui-game-menu-action", doc);
   const leave = button(

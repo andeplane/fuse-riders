@@ -29,7 +29,6 @@ export function createGameGallery({
   header.append(brand, node("span", "arcade-label", "THE BROWSER ARCADE"));
   const intro = node("section", "arcade-intro");
   intro.append(
-    node("p", "arcade-eyebrow", "SMALL GAMES. BIG PLANS."),
     node("h1", "arcade-title", "What are we playing?"),
     node(
       "p",
@@ -56,6 +55,7 @@ export function createGameGallery({
     card.setAttribute("href", `${base}${game.path}${muted}`);
     card.style.setProperty("--game-accent", game.accent);
     const media = node("div", "arcade-media");
+    const placeholder = node("span", "arcade-placeholder", game.mark);
     if (game.screenshot) {
       const img = document.createElement("img");
       img.src = `${base}${game.screenshot}`;
@@ -63,9 +63,12 @@ export function createGameGallery({
       img.width = 1200;
       img.height = 750;
       img.loading = index < 2 ? "eager" : "lazy";
+      img.addEventListener("error", () => media.replaceChildren(placeholder), {
+        once: true,
+      });
       media.append(img);
     } else {
-      media.append(node("span", "arcade-placeholder", game.mark));
+      media.append(placeholder);
     }
     const info = node("div", "arcade-game-info");
     info.append(

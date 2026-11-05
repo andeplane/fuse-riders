@@ -52,10 +52,44 @@ try {
       .getByRole("button", { name: "Fuse games", exact: true })
       .first()
       .waitFor();
-    await page
+    const toggle = page
       .getByRole("button", { name: "Fuse games", exact: true })
-      .first()
-      .click();
+      .first();
+    for (const viewport of [
+      { width: 1440, height: 1000 },
+      { width: 390, height: 844 },
+      { width: 320, height: 568 },
+      { width: 844, height: 390 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await toggle.click();
+      const panel = page.locator(".fui-portal-panel:visible").first();
+      const bounds = await panel.boundingBox();
+      assert.ok(bounds, `${href}: launcher visible`);
+      assert.ok(bounds.x >= 0 && bounds.y >= 0, `${href}: launcher origin`);
+      assert.ok(
+        bounds.x + bounds.width <= viewport.width + 1 &&
+          bounds.y + bounds.height <= viewport.height + 1,
+        `${href}: launcher fits ${viewport.width}x${viewport.height}`,
+      );
+      const lastGame = panel.locator(".fui-portal-game").last();
+      await panel.locator(".fui-portal-heading").focus();
+      await lastGame.focus();
+      const lastBounds = await lastGame.boundingBox();
+      assert.ok(lastBounds, `${href}: final game reachable`);
+      assert.ok(
+        lastBounds.y >= bounds.y &&
+          lastBounds.y + lastBounds.height <= bounds.y + bounds.height + 1,
+        `${href}: final game scrolls inside launcher at ${viewport.width}x${viewport.height}: ${JSON.stringify({ bounds, lastBounds })}`,
+      );
+      await page.keyboard.press("Escape");
+      assert.equal(
+        await toggle.evaluate((node) => node === document.activeElement),
+        true,
+      );
+    }
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await toggle.click();
     await page
       .getByRole("link", { name: "ALL GAMES ↗", exact: true })
       .first()
@@ -91,7 +125,7 @@ try {
   await page.locator('canvas[data-renderer^="phaser-"]').first().waitFor();
   assert.deepEqual(errors, []);
   console.log(
-    `Gallery: ${expectedGames.length} games, loaded screenshots and return links, 320/390px layout, legacy room/display/solo and dedicated Riders solo passed.`,
+    `Gallery: ${expectedGames.length} games, screenshots and return links, bounded launchers at desktop/320/390/landscape, keyboard recovery, legacy room/display/solo and dedicated Riders solo passed.`,
   );
 } finally {
   await browser.close();
