@@ -5,7 +5,7 @@ import { createGameGallery } from "../src/gallery.js";
 import { parsePortalEntry, type PortalGame } from "../src/portal.js";
 import { legacyRidersLink } from "../../../site/routes.js";
 import { createAppPortal } from "../src/portal.js";
-import { HOSTILE, page } from "./dom-fixture.js";
+import { HOSTILE, event, page } from "./dom-fixture.js";
 
 const games: PortalGame[] = [
   {
@@ -77,6 +77,16 @@ test("new games without a screenshot still have a playable tile; empty catalog h
     createGameGallery({ document, base: "/", games: [] }).textContent!,
     /More games are on the way/,
   );
+});
+
+test("a failed gameplay screenshot falls back to the game mark and keeps the game playable", () => {
+  const { document, window } = page();
+  const gallery = createGameGallery({ document, base: "/", games });
+  const card = gallery.querySelector(".arcade-game")!;
+  card.querySelector("img")!.dispatchEvent(event(window, "error"));
+  assert.equal(card.querySelector("img"), null);
+  assert.equal(card.querySelector(".arcade-placeholder")!.textContent, "FR");
+  assert.equal(card.getAttribute("href"), "/fuse-riders/");
 });
 
 test("legacy Riders room, solo and display URLs remain game entries, while plain or muted root is the catalog", () => {

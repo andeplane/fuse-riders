@@ -5,6 +5,11 @@
   font-family: ui-sans-serif, system-ui, sans-serif;
   color: #edf4ff;
   background: #060b16;
+  scrollbar-color: #365477 #060b16;
+}
+::selection {
+  color: #060b16;
+  background: #16e7ff;
 }
 * {
   box-sizing: border-box;
@@ -40,11 +45,10 @@ a:focus-visible {
     26px "Press Start 2P",
     monospace;
   color: #16e7ff;
-  letter-spacing: -2px;
+  letter-spacing: -0.03em;
   text-shadow: 3px 3px #164964;
 }
 .arcade-label,
-.arcade-eyebrow,
 .arcade-count,
 .arcade-collection-title,
 .arcade-footer {
@@ -57,18 +61,20 @@ a:focus-visible {
   color: #91a6bd;
 }
 .arcade-intro {
-  padding: 70px 0 60px;
-}
-.arcade-eyebrow {
-  color: #c8ff69;
-  margin: 0 0 22px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+  align-items: end;
+  gap: 32px;
+  padding: 48px 0;
 }
 .arcade-title {
-  font-size: clamp(38px, 5vw, 70px);
-  font-weight: 760;
-  letter-spacing: -3px;
-  line-height: 1.1;
-  margin: 0 0 24px;
+  font-family: "Press Start 2P", monospace;
+  font-size: clamp(22px, 2.8vw, 40px);
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 1.5;
+  text-wrap: balance;
+  margin: 0;
 }
 .arcade-description {
   font-size: 18px;
@@ -110,6 +116,13 @@ a:focus-visible {
 .arcade-game:hover {
   border-color: var(--game-accent);
   transform: translateY(-4px);
+}
+.arcade-game:focus-visible {
+  border-color: var(--game-accent);
+  outline-offset: 3px;
+}
+.arcade-game:active {
+  transform: translateY(0);
 }
 .arcade-media {
   grid-column: 1 / -1;
@@ -153,7 +166,7 @@ a:focus-visible {
 .arcade-play {
   align-self: start;
   margin: 27px 24px 0 0;
-  color: var(--game-accent);
+  color: #edf4ff;
   font:
     12px/1.5 ui-monospace,
     monospace;
@@ -197,10 +210,9 @@ a:focus-visible {
     font-size: 22px;
   }
   .arcade-intro {
-    padding: 48px 0 40px;
-  }
-  .arcade-title {
-    letter-spacing: -1.7px;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding: 32px 0;
   }
   .arcade-description {
     font-size: 16px;

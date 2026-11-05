@@ -870,7 +870,7 @@ body.fc-display .fc-screen {
 }
 
 @media (orientation: landscape) and (max-height: 520px) {
-  .fc-top {
+  .fc-top:not(.fc-entrance-header) {
     display: none;
   }
   .fc-screen {

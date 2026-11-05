@@ -120,7 +120,6 @@ export function createAppPortal(options: AppPortalOptions): AppPortal {
     const link = document.createElement("a");
     link.className = "fui-portal-game";
     link.href = `${base}${game.path}${muted ? "?mute" : ""}`;
-    link.title = game.tagline;
     link.style.setProperty("--fui-portal-accent", game.accent);
     if (game.id === current) link.setAttribute("aria-current", "page");
     const mark = document.createElement("span");
@@ -128,9 +127,19 @@ export function createAppPortal(options: AppPortalOptions): AppPortal {
     mark.setAttribute("aria-hidden", "true");
     mark.textContent = game.mark;
     const name = document.createElement("span");
+    name.id = `${panel.id}-name-${grid.children.length}`;
     name.className = "fui-portal-name";
     name.textContent = game.name;
-    link.append(mark, name);
+    const description = document.createElement("span");
+    description.className = "fui-portal-description";
+    const tagline = document.createElement("span");
+    tagline.id = `${panel.id}-tagline-${grid.children.length}`;
+    tagline.className = "fui-portal-tagline";
+    tagline.textContent = game.tagline;
+    link.setAttribute("aria-labelledby", name.id);
+    link.setAttribute("aria-describedby", tagline.id);
+    description.append(name, tagline);
+    link.append(mark, description);
     link.addEventListener("click", () => close());
     item.append(link);
     grid.append(item);

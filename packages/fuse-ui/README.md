@@ -28,6 +28,9 @@ Fuse Riders uses its more detailed funnel with that same client. See [the event 
 
 ## Styles
 
+The [shared arcade UI guidance](../../docs/design/shared-arcade-ui.md) records the
+gallery, launcher and game-menu hierarchy and responsive constraints.
+
 ```ts
 import "@fontsource/press-start-2p/latin.css"; // the pixel font the tokens name
 import "fuse-ui/tokens.css"; // --fui-* custom properties only, no element styles
