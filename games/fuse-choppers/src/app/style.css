@@ -37,6 +37,68 @@ body {
   display: none !important;
 }
 
+.fc-radio {
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid var(--fc-cyan, #2de2ff);
+  border-radius: 12px;
+  color: #edf8ff;
+  background: #0a1027;
+}
+
+.fc-radio[open] {
+  display: grid;
+  gap: 16px;
+}
+
+.fc-radio::backdrop {
+  background: rgb(2 5 16 / 78%);
+}
+
+.fc-radio h2 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.fc-radio p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.fc-radio select,
+.fc-radio input {
+  width: 100%;
+  min-width: 0;
+}
+
+.fc-radio label {
+  display: grid;
+  gap: 8px;
+}
+
+.fc-radio-transport {
+  display: flex;
+  gap: 8px;
+}
+
+.fc-radio-transport button {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 4px;
+}
+
+.fc-radio [aria-pressed="true"] {
+  border-color: #2de2ff;
+  color: #2de2ff;
+}
+
+.fc-radio-compact {
+  display: none;
+}
+
 /* ---- header and brand ---- */
 .fc-top {
   display: flex;
@@ -870,6 +932,22 @@ body.fc-display .fc-screen {
 }
 
 @media (orientation: landscape) and (max-height: 520px) {
+  .fc-radio {
+    padding: 16px;
+  }
+  .fc-radio[open] {
+    gap: 8px;
+  }
+  .fc-radio-compact {
+    display: block;
+    position: fixed;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+    font-size: 10px;
+    padding: 8px;
+  }
   .fc-top:not(.fc-entrance-header) {
     display: none;
   }
