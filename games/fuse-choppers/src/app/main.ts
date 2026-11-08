@@ -50,6 +50,7 @@ import { blend, fraction } from "../render/interpolate.js";
 import { createScene, effectKey, VIEW_W } from "../render/scene.js";
 import { PICKUP_COLORS, seatColor } from "../render/palette.js";
 import { createSfx } from "./audio.js";
+import { createChopperRadio } from "./radio.js";
 import { HeldControls } from "./controls.js";
 import { present, type Card, type Model, type Viewer } from "./presenter.js";
 import {
@@ -125,6 +126,42 @@ const pilotPicker = () => {
 };
 const query = new URLSearchParams(location.search);
 const muted = query.has("mute");
+const radio = createChopperRadio({
+  document,
+  player: new Audio(),
+  store,
+  baseUrl: import.meta.env.BASE_URL,
+  muted,
+  autoStart: !matchMedia("(pointer: coarse)").matches && !query.has("display"),
+});
+document.body.append(radio.element);
+const radioButton = (className = "") => {
+  const trigger = button("♫ RADIO", className);
+  trigger.setAttribute("aria-haspopup", "dialog");
+  trigger.onclick = () => radio.element.showModal();
+  return trigger;
+};
+document.body.append(radioButton("fc-radio-compact"));
+document.addEventListener("pointerdown", () => radio.unlock(), {
+  passive: true,
+});
+document.addEventListener("keydown", (event) => {
+  radio.unlock();
+  if (
+    event.code === "KeyA" &&
+    event.ctrlKey &&
+    !event.altKey &&
+    !event.metaKey &&
+    !event.shiftKey
+  ) {
+    event.preventDefault();
+    if (radio.element.open) radio.element.close();
+    else if (!document.querySelector("dialog[open]")) radio.element.showModal();
+  }
+});
+window.addEventListener("pagehide", (event) => {
+  if (!event.persisted) radio.destroy();
+});
 const autopilot = query.has("autopilot");
 const app = document.querySelector<HTMLElement>("#app")!;
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
@@ -221,7 +258,7 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     base: import.meta.env.BASE_URL,
     search: location.search,
   });
-  bar.append(portal.element, logo(), social.element(), ...extra);
+  bar.append(portal.element, logo(), social.element(), radioButton(), ...extra);
   return bar;
 }
 
@@ -529,6 +566,7 @@ function room(solo: boolean): void {
 
   // Touch pads over the screen, and the phone controller for a shared screen.
   const controls = new HeldControls((bits) => runtime.input(bits));
+  radio.element.addEventListener("focusin", () => controls.clear());
   const touch = el("div", "", "fc-touch"),
     touchLeft = el("div", "", "fc-touch-side"),
     touchRight = el("div", "", "fc-touch-side fc-touch-right");
@@ -991,6 +1029,7 @@ function room(solo: boolean): void {
     sfx.resume();
     if (
       menu.isOpen() ||
+      radio.element.open ||
       typing(event.target) ||
       event.metaKey ||
       event.ctrlKey ||
@@ -1014,7 +1053,7 @@ function room(solo: boolean): void {
     passive: true,
   });
   canvas.addEventListener("pointerdown", (event) => {
-    if (menu.isOpen()) return;
+    if (menu.isOpen() || radio.element.open) return;
     if (event.pointerType !== "mouse" || event.button !== 0) return;
     canvas.setPointerCapture(event.pointerId);
     controls.hold("mouse", FIRE);

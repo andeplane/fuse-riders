@@ -21,6 +21,14 @@ the Fuse Riders landing page.
 
 Phones get touch pads over the cave (◀ ▶, FIRE, LIFT); in a shared-screen room a phone is a full controller.
 
+**♫ RADIO** in the header (or the compact button in landscape) opens the shared Fuse music library.
+Use PLAY/PAUSE, PREVIOUS/NEXT, the track picker, repeat-song toggle and music volume. Ctrl+A toggles
+the panel; Escape or BACK TO GAME closes it. Desktop music starts after the first interaction;
+touch devices and TV displays start with music off until PLAY is pressed. Track, playback choice,
+repeat and volume are remembered for Choppers across page loads. `?mute` silences both music and
+effects for that visit without changing those preferences. Opening the radio releases held flight
+controls; the match keeps running.
+
 **Developer trial: W/S thrust.** The lobby's CONTROLS setting (or `?lift=thrust` on the page that creates the room
 or plays solo) swaps the classic mechanic for direct control: W flies up, S flies down, and the chopper hovers when
 neither is held. `?combat=bump|shoot|off` likewise starts a room on another nudge mode. These flags, `?mute` and
@@ -91,7 +99,12 @@ chopper with the AI, through the ordinary controls: handy for demos and smokes.
 ```bash
 pnpm exec tsx --test games/fuse-choppers/tests/*.test.ts
 node games/fuse-choppers/preview/smoke.mjs http://localhost:8787/ path/to/screenshots
+node games/fuse-choppers/preview/radio-smoke.mjs http://localhost:8787/ path/to/screenshots
 ```
+
+The radio smoke checks muted solo play, desktop track playback and saved settings, and touch layouts
+and opt-in. It opens ordinary game pages for playback checks with Chrome's audio output muted;
+gameplay checks use `?mute`. It uses real music assets, not a media-player stub.
 
 The smoke is run by hand; it is not in CI. It covers a solo round, a two-browser room, a shared TV with a phone
 controller, a phone playing solo, and a room that does not exist. It does not yet cover rematch or the return to the
