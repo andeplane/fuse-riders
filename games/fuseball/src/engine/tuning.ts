@@ -21,9 +21,13 @@ export const TARGET = 3;
 export const COUNTDOWN_STEPS = 3 * STEPS_PER_SECOND,
   ZAP_STEPS = 3 * STEPS_PER_SECOND;
 
-export const RIDER_R = px(9),
-  BALL_R = px(8),
-  BUBBLE_R = px(14);
+/** Radii in pixels, for whoever draws them, and in sub-units for the rules. */
+export const RIDER_RADIUS = 9,
+  BALL_RADIUS = 8,
+  BUBBLE_RADIUS = 14;
+export const RIDER_R = px(RIDER_RADIUS),
+  BALL_R = px(BALL_RADIUS),
+  BUBBLE_R = px(BUBBLE_RADIUS);
 
 export const GRAVITY_RISE = 92,
   GRAVITY_FALL = 103,

@@ -229,7 +229,7 @@ test("a hard bubble bounces the ball and stays", () => {
   stepWorld(world, held(BTN));
   // The owner falls away below, still holding.
   let bounced = 0;
-  ballAt(world, 290, 60, 0.5, 0);
+  ballAt(world, 320, 60);
   for (let i = 0; i < 400; i++) {
     const before = world.ball.bounces;
     stepWorld(world, held(BTN));

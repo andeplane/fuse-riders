@@ -1,9 +1,21 @@
-import { apart, resolveSolids, settle, type Space } from "./collide.js";
+import {
+  apart,
+  inShape,
+  resolveSolids,
+  settle,
+  type Space,
+} from "./collide.js";
 import { BTN, DOWN, LEFT, RIGHT, isInput } from "./input.js";
 import { abs, clamp, div, isqrt, toward } from "./math.js";
 import { boxesOf, mapOf, type Box } from "./maps.js";
 import * as T from "./tuning.js";
-import type { Bubble, Rider, World } from "./world.js";
+import {
+  resetPoint,
+  type Bubble,
+  type Rider,
+  type Slot,
+  type World,
+} from "./world.js";
 
 /**
  * One micro-step of the arena (120 a second): a pure function of the world and the bits each rider holds. Both
@@ -298,6 +310,12 @@ export function stepWorld(
     if (--world.phaseSteps === 0) world.phase = "play";
     return;
   }
+  if (world.phase === "zap" && --world.phaseSteps === 0) {
+    // The celebration is over: the match too if that was the winning point, otherwise back to the marks.
+    if (winnerOf(world) >= 0) world.phase = "over";
+    else resetPoint(world);
+    return;
+  }
 
   const lift: Lift = { riders: 0, vx: 0, slot: -1 };
   control(world, a, bitsA, map, lift);
@@ -330,4 +348,56 @@ export function stepWorld(
   world.ball.vy = clamp(world.ball.vy, -T.BALL_MAX, T.BALL_MAX);
   a.prev = bitsA;
   b.prev = bitsB;
+
+  if (world.phase === "play") {
+    const goal = map.goals.find((each) =>
+      inShape(world.ball.x, world.ball.y, each, map),
+    );
+    if (goal) score(world, goal.team);
+  }
 }
+
+/**
+ * The ball is in `team`'s goal: a point for that team whoever sent it, and the other rider is zapped. It is that
+ * rider's own goal when they (or their bubble) were the last to send the ball; otherwise it is the scorer's.
+ */
+function score(world: World, team: Slot): void {
+  const scorer = world.riders[team],
+    other = world.riders[team === 0 ? 1 : 0],
+    ball = world.ball;
+  world.score[team]++;
+  world.lastScorer = team;
+  if (ball.touch === other.slot) other.ownGoals++;
+  else scorer.goals++;
+  other.zapped = true;
+  other.vx = 0;
+  other.vy = 0;
+  other.slide = 0;
+  ball.live = false;
+  ball.vx = 0;
+  ball.vy = 0;
+  world.phase = "zap";
+  world.phaseSteps = T.ZAP_STEPS;
+  world.suddenDeath =
+    world.score[0] >= T.TARGET - 1 && world.score[1] >= T.TARGET - 1;
+}
+
+/** The slot that has won the match, or −1 while nobody has. */
+export const winnerOf = (world: World): -1 | Slot =>
+  world.score[0] >= T.TARGET ? 0 : world.score[1] >= T.TARGET ? 1 : -1;
+
+/** Whether the arena is in slow motion: the ball is in play and its centre is inside a cloud. */
+export function slowed(world: World): boolean {
+  if (world.phase !== "play") return false;
+  const map = mapOf(world.mapId);
+  return map.clouds.some((cloud) =>
+    inShape(world.ball.x, world.ball.y, cloud, map),
+  );
+}
+
+/**
+ * How many micro-steps the next 50 ms log tick runs: six, or three while the arena is in slow motion. Read it once
+ * at the start of a tick, from the world as it stands then.
+ */
+export const stepsPerTick = (world: World): number =>
+  slowed(world) ? T.CLOUD_STEPS_PER_TICK : T.STEPS_PER_TICK;
