@@ -277,11 +277,11 @@
     },
     "warrior-cyan": {
       "file": "units/warrior-cyan.png",
-      "width": 396,
+      "width": 440,
       "height": 42,
       "frameWidth": 44,
       "frameHeight": 42,
-      "frameCount": 9,
+      "frameCount": 10,
       "frames": {
         "idle": 0,
         "flapUp": 1,
@@ -291,7 +291,8 @@
         "walk1": 5,
         "walk2": 6,
         "walk3": 7,
-        "walk4": 8
+        "walk4": 8,
+        "dive": 9
       },
       "anchor": [22, 33],
       "animations": {
@@ -306,18 +307,19 @@
           "frames": ["walk1", "walk2", "walk3", "walk4"],
           "fps": 12,
           "loop": true
-        }
+        },
+        "dive": { "frames": ["dive"], "fps": 1, "loop": false }
       },
       "flash": "warrior-flash",
       "note": "The body is the worker's, feet on the anchor; the lance reaches about 14 pixels ahead of it and the wings behind and below, so the anchor is not on the cell's bottom row."
     },
     "warrior-pink": {
       "file": "units/warrior-pink.png",
-      "width": 396,
+      "width": 440,
       "height": 42,
       "frameWidth": 44,
       "frameHeight": 42,
-      "frameCount": 9,
+      "frameCount": 10,
       "frames": {
         "idle": 0,
         "flapUp": 1,
@@ -327,7 +329,8 @@
         "walk1": 5,
         "walk2": 6,
         "walk3": 7,
-        "walk4": 8
+        "walk4": 8,
+        "dive": 9
       },
       "anchor": [22, 33],
       "animations": {
@@ -342,18 +345,19 @@
           "frames": ["walk1", "walk2", "walk3", "walk4"],
           "fps": 12,
           "loop": true
-        }
+        },
+        "dive": { "frames": ["dive"], "fps": 1, "loop": false }
       },
       "flash": "warrior-flash",
       "note": "The body is the worker's, feet on the anchor; the lance reaches about 14 pixels ahead of it and the wings behind and below, so the anchor is not on the cell's bottom row."
     },
     "warrior-flash": {
       "file": "units/warrior-flash.png",
-      "width": 396,
+      "width": 440,
       "height": 42,
       "frameWidth": 44,
       "frameHeight": 42,
-      "frameCount": 9,
+      "frameCount": 10,
       "frames": {
         "idle": 0,
         "flapUp": 1,
@@ -363,18 +367,19 @@
         "walk1": 5,
         "walk2": 6,
         "walk3": 7,
-        "walk4": 8
+        "walk4": 8,
+        "dive": 9
       },
       "anchor": [22, 33],
       "note": "The same frames as a flat white shape, for both teams: see `invulnerable` at the top of the manifest."
     },
     "speed-warrior-cyan": {
       "file": "units/speed-warrior-cyan.png",
-      "width": 396,
+      "width": 440,
       "height": 42,
       "frameWidth": 44,
       "frameHeight": 42,
-      "frameCount": 9,
+      "frameCount": 10,
       "frames": {
         "idle": 0,
         "flapUp": 1,
@@ -384,7 +389,8 @@
         "walk1": 5,
         "walk2": 6,
         "walk3": 7,
-        "walk4": 8
+        "walk4": 8,
+        "dive": 9
       },
       "anchor": [22, 33],
       "animations": {
@@ -399,18 +405,19 @@
           "frames": ["walk1", "walk2", "walk3", "walk4"],
           "fps": 12,
           "loop": true
-        }
+        },
+        "dive": { "frames": ["dive"], "fps": 1, "loop": false }
       },
       "flash": "speed-warrior-flash",
       "note": "The body is the worker's, feet on the anchor; the lance reaches about 14 pixels ahead of it and the wings behind and below, so the anchor is not on the cell's bottom row."
     },
     "speed-warrior-pink": {
       "file": "units/speed-warrior-pink.png",
-      "width": 396,
+      "width": 440,
       "height": 42,
       "frameWidth": 44,
       "frameHeight": 42,
-      "frameCount": 9,
+      "frameCount": 10,
       "frames": {
         "idle": 0,
         "flapUp": 1,
@@ -420,7 +427,8 @@
         "walk1": 5,
         "walk2": 6,
         "walk3": 7,
-        "walk4": 8
+        "walk4": 8,
+        "dive": 9
       },
       "anchor": [22, 33],
       "animations": {
@@ -435,18 +443,19 @@
           "frames": ["walk1", "walk2", "walk3", "walk4"],
           "fps": 12,
           "loop": true
-        }
+        },
+        "dive": { "frames": ["dive"], "fps": 1, "loop": false }
       },
       "flash": "speed-warrior-flash",
       "note": "The body is the worker's, feet on the anchor; the lance reaches about 14 pixels ahead of it and the wings behind and below, so the anchor is not on the cell's bottom row."
     },
     "speed-warrior-flash": {
       "file": "units/speed-warrior-flash.png",
-      "width": 396,
+      "width": 440,
       "height": 42,
       "frameWidth": 44,
       "frameHeight": 42,
-      "frameCount": 9,
+      "frameCount": 10,
       "frames": {
         "idle": 0,
         "flapUp": 1,
@@ -456,7 +465,8 @@
         "walk1": 5,
         "walk2": 6,
         "walk3": 7,
-        "walk4": 8
+        "walk4": 8,
+        "dive": 9
       },
       "anchor": [22, 33],
       "note": "The same frames as a flat white shape, for both teams: see `invulnerable` at the top of the manifest."
@@ -681,33 +691,75 @@
         [13, -20]
       ]
     },
+    "snail-strip": {
+      "file": "hud/snail-strip.png",
+      "width": 200,
+      "height": 7,
+      "frameWidth": 200,
+      "frameHeight": 7,
+      "frameCount": 1,
+      "frames": { "strip": 0 },
+      "anchor": [0, 0],
+      "lane": [8, 191],
+      "note": "Fixed size. Cyan's goal cap is on the left, Pink's on the right, the white tick is the middle of the track. Put `snail-marker` with its anchor on row 6, between lane[0] and lane[1]."
+    },
+    "snail-marker": {
+      "file": "hud/snail-marker.png",
+      "width": 9,
+      "height": 7,
+      "frameWidth": 9,
+      "frameHeight": 7,
+      "frameCount": 1,
+      "frames": { "marker": 0 },
+      "anchor": [4, 6],
+      "note": "Faces right; flip it when the snail heads left."
+    },
     "hive-cyan": {
       "file": "hives/hive-cyan.png",
-      "width": 64,
-      "height": 48,
-      "frameWidth": 64,
-      "frameHeight": 48,
+      "width": 81,
+      "height": 40,
+      "frameWidth": 81,
+      "frameHeight": 40,
       "frameCount": 1,
       "frames": { "hive": 0 },
-      "anchor": [32, 47],
+      "anchor": [40, 39],
       "holes": [
-        [11, 7],
-        [25, 7],
-        [39, 7],
-        [18, 21],
-        [32, 21],
-        [46, 21]
-      ]
+        [-28, -5],
+        [-18, -5],
+        [-8, -5],
+        [2, -5],
+        [12, -5],
+        [22, -5],
+        [-23, -13],
+        [-13, -13],
+        [-3, -13],
+        [7, -13],
+        [17, -13],
+        [27, -13]
+      ],
+      "hole": "hive-hole-cyan",
+      "count": [0, -30],
+      "perch": [0, -37],
+      "note": "Put the anchor on the hive ledge's top row under the holes: hole i is then at anchor + holes[i], which is the engine's hole i for this team. Draw `hive-hole` frames centred there (the empty cells are already in the art, so only `filled` is needed). `count` is the top centre of a 7-pixel-high count on the plaque; `perch` is the roof pad, where a Queen's respawn ghost can stand without covering the holes.",
+      "engine": {
+        "source": "MAPS[*].holes in games/killer-fuse/src/engine/maps.ts (art pixels; `viewOf(...).hives` gives the same)",
+        "anchors": {
+          "map1": { "cyan": [160, 82], "pink": [320, 82] },
+          "map2": { "cyan": [76, 82], "pink": [404, 82] },
+          "map3": { "cyan": [190, 82], "pink": [290, 82] }
+        }
+      }
     },
     "hive-hole-cyan": {
       "file": "hives/hole-cyan.png",
-      "width": 32,
-      "height": 18,
-      "frameWidth": 16,
-      "frameHeight": 18,
+      "width": 22,
+      "height": 11,
+      "frameWidth": 11,
+      "frameHeight": 11,
       "frameCount": 2,
       "frames": { "empty": 0, "filled": 1 },
-      "anchor": [0, 0]
+      "anchor": [5, 5],
+      "note": "An 11 by 11 cell centred on a hole. Neighbours share their walls, so draw `filled` over the hive art."
     },
     "egg-cyan": {
       "file": "hud/egg-cyan.png",
@@ -829,31 +881,50 @@
     },
     "hive-pink": {
       "file": "hives/hive-pink.png",
-      "width": 64,
-      "height": 48,
-      "frameWidth": 64,
-      "frameHeight": 48,
+      "width": 81,
+      "height": 40,
+      "frameWidth": 81,
+      "frameHeight": 40,
       "frameCount": 1,
       "frames": { "hive": 0 },
-      "anchor": [32, 47],
+      "anchor": [40, 39],
       "holes": [
-        [11, 7],
-        [25, 7],
-        [39, 7],
-        [18, 21],
-        [32, 21],
-        [46, 21]
-      ]
+        [28, -5],
+        [18, -5],
+        [8, -5],
+        [-2, -5],
+        [-12, -5],
+        [-22, -5],
+        [23, -13],
+        [13, -13],
+        [3, -13],
+        [-7, -13],
+        [-17, -13],
+        [-27, -13]
+      ],
+      "hole": "hive-hole-pink",
+      "count": [0, -30],
+      "perch": [0, -37],
+      "note": "Put the anchor on the hive ledge's top row under the holes: hole i is then at anchor + holes[i], which is the engine's hole i for this team. Draw `hive-hole` frames centred there (the empty cells are already in the art, so only `filled` is needed). `count` is the top centre of a 7-pixel-high count on the plaque; `perch` is the roof pad, where a Queen's respawn ghost can stand without covering the holes.",
+      "engine": {
+        "source": "MAPS[*].holes in games/killer-fuse/src/engine/maps.ts (art pixels; `viewOf(...).hives` gives the same)",
+        "anchors": {
+          "map1": { "cyan": [160, 82], "pink": [320, 82] },
+          "map2": { "cyan": [76, 82], "pink": [404, 82] },
+          "map3": { "cyan": [190, 82], "pink": [290, 82] }
+        }
+      }
     },
     "hive-hole-pink": {
       "file": "hives/hole-pink.png",
-      "width": 32,
-      "height": 18,
-      "frameWidth": 16,
-      "frameHeight": 18,
+      "width": 22,
+      "height": 11,
+      "frameWidth": 11,
+      "frameHeight": 11,
       "frameCount": 2,
       "frames": { "empty": 0, "filled": 1 },
-      "anchor": [0, 0]
+      "anchor": [5, 5],
+      "note": "An 11 by 11 cell centred on a hole. Neighbours share their walls, so draw `filled` over the hive art."
     },
     "egg-pink": {
       "file": "hud/egg-pink.png",

@@ -37,11 +37,12 @@ After a regeneration, look at `preview/contact-sheet.png` and `preview/mock-scen
    - Frames are aligned in equal cells: standing frames by their soles, flying frames by the body's centre, the snail by its shell.
    - The green ramp is replaced by each team's ramp (cyan, pink; neutral for unowned gates), then a one-pixel dark outline is added.
    - Warriors are built in code from the worker's frames (`WARRIOR` in `assets.ts`): the antennae become a horn, a dark brow is added, wings are drawn behind the body in one of five poses, and a white lance with a gold guard points forward. Only the wings change between the three flap frames.
-   - Speed workers and speed warriors are derived from the same frames (gold helmet cap, gold lightning-bolt antenna, gold boots, a gold scarf, a forward lean on moving frames, gold speed dashes), so they stay the same character.
+   - Speed workers and speed warriors are derived from the same frames (an all-gold helmet with a gold lightning-bolt antenna, gold boots, a gold scarf, a gold outline around the team-coloured body, a forward lean on moving frames, gold speed dashes), so they stay the same character.
    - Every unit form also gets a white `-flash` sheet with the same layout, for the invulnerability flash described in the manifest's `invulnerable` note.
    - The `transform` overlay (a worker changing inside a gate) is made from the worker's idle silhouette.
    - Carry frames add the carried berry over the worker's head; the manifest also gives the spot per frame.
    - Gates get their six states (neutral, cyan, pink, and each "in use" with the doorway lit).
+   - The hive is drawn around the engine's hole positions, which the build reads from `src/engine/maps.ts`: it fails if the maps' hives stop sharing one layout. Pink's hive is Cyan's mirrored. The manifest gives each hole's centre relative to the hive's anchor.
    - Hand-pixelled sheets come straight from `procedural.ts`.
    - `manifest.json` lists every sheet: frame size, frame count, frame names, anchor, animations, and extras (hive hole positions, pile slots, saddle and carry spots).
 
@@ -56,7 +57,7 @@ Art pixels, including the one-pixel outline. Anchors are in the manifest; units 
 | Queen                  | 64 × 68   | 40 × 34            |
 | Snail                  | 52 × 26   | 47 × 21            |
 | Gates                  | 35 × 46   | 33 × 44            |
-| Hive (holes 16 × 18)   | 64 × 48   |                    |
+| Hive (holes 11 × 11)   | 81 × 40   |                    |
 | Berry                  | 8 × 8     | 6 × 6              |
 | Tiles                  | 8 × 8     |                    |
 | Goal post              | 18 × 42   |                    |
@@ -65,6 +66,8 @@ Art pixels, including the one-pixel outline. Anchors are in the manifest; units 
 | Respawn (7)            | 24 × 36   |                    |
 | Transform overlay (4)  | 24 × 28   |                    |
 | Banner                 | 232 × 44  |                    |
+| Snail strip (HUD)      | 200 × 7   |                    |
+| Snail marker (HUD)     | 9 × 7     |                    |
 | Logo                   | 106 × 60  | draw at 2×         |
 | Backgrounds            | 480 × 270 |                    |
 | Cover                  | 512 × 512 | 256 × 256 at 2×    |

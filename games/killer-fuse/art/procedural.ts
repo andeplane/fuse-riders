@@ -10,6 +10,7 @@ import {
   ICE,
   LIME,
   NAVY,
+  TAN,
   VIOLET,
   WHITE,
   type Ramp,
@@ -148,85 +149,281 @@ export const pileBase = () =>
 // ---------------------------------------------------------------------------------------------------------------
 // Hive
 
-/** A pointy-top hexagon, 16 by 18. */
-const HEX_W = 16;
-const HEX_H = 18;
-const hexStart = (y: number) => {
-  const r = y < HEX_H / 2 ? y : HEX_H - 1 - y;
-  return r >= 4 ? 0 : 7 - r * 2;
-};
-const inHex = (x: number, y: number) =>
-  y >= 0 && y < HEX_H && x >= hexStart(y) && x < HEX_W - hexStart(y);
-const hexWall = (x: number, y: number) =>
-  inHex(x, y) &&
-  !(inHex(x - 2, y) && inHex(x + 2, y) && inHex(x, y - 2) && inHex(x, y + 2));
+/** Half-widths of a cell's eleven rows: a pointy-top hexagon 11 wide, the shape the engine's hole spacing fits. */
+const HEX = [1, 2, 4, 5, 5, 5, 5, 5, 4, 2, 1];
+const HOLE = 11;
 
-/** Top-left corners of the six holes inside the 64 by 48 hive, top row first. */
-export const HIVE_HOLES: readonly (readonly [number, number])[] = [
-  [11, 7],
-  [25, 7],
-  [39, 7],
-  [18, 21],
-  [32, 21],
-  [46, 21],
+/** Draws one cell centred on (cx, cy): `wall` and `inside` give each row's colours; clipped to `clip` rows/columns. */
+const cell = (
+  m: Img,
+  cx: number,
+  cy: number,
+  wall: (row: number) => Rgb,
+  inside: ((row: number) => Rgb) | undefined,
+  clip: { x0: number; x1: number; y0: number; y1: number } = {
+    x0: 0,
+    x1: m.w - 1,
+    y0: 0,
+    y1: m.h - 1,
+  },
+) => {
+  HEX.forEach((hw, row) => {
+    const y = cy - 5 + row;
+    if (y < clip.y0 || y > clip.y1) return;
+    const prev = HEX[row - 1] ?? -1;
+    const next = HEX[row + 1] ?? -1;
+    for (let dx = -hw; dx <= hw; dx++) {
+      const x = cx + dx;
+      if (x < clip.x0 || x > clip.x1) continue;
+      const a = Math.abs(dx);
+      const edge = a === hw || a > prev || a > next;
+      if (edge) put(m, x, y, wall(row));
+      else if (inside) put(m, x, y, inside(row));
+    }
+  });
+};
+
+const SEATED = [
+  "..bbb..",
+  ".bwwbb.",
+  "sbwbbbb",
+  "sbbbbbb",
+  "sbbbbbs",
+  ".sbbbs.",
+  "..sss..",
 ];
 
-/** One hive hole, 16 by 18: an empty cell, or one with a banked berry glowing in it. */
+/** One hive hole, 11 by 11, drawn centred on the engine's hole position: an empty cell, or a berry seated in it. */
 export const hiveHole = (team: Ramp, filled: boolean): Img => {
-  const m = img(HEX_W, HEX_H);
-  for (let y = 0; y < HEX_H; y++)
-    for (let x = 0; x < HEX_W; x++) {
-      if (!inHex(x, y)) continue;
-      if (hexWall(x, y))
-        put(m, x, y, y < 5 ? team[3] : y > 12 ? team[1] : team[2]);
-      else put(m, x, y, filled ? LIME[0] : y < 7 ? NAVY.void : NAVY.deep);
-    }
+  const m = img(HOLE, HOLE);
   if (filled) {
-    disc(m, 7.5, 8.5, 4.6, LIME[1]);
-    disc(m, 7.5, 8.2, 3.9, LIME[2]);
-    disc(m, 6.5, 6.8, 1.5, LIME[3]);
-    put(m, 6, 6, WHITE);
-  } else {
-    // A faint rim of light at the bottom of the empty cell, so it reads as a hollow.
-    for (let x = 5; x < 11; x++) put(m, x, 13, NAVY.night);
-  }
+    cell(
+      m,
+      5,
+      5,
+      (row) => (row < 4 ? WHITE : team[3]),
+      () => LIME[0],
+    );
+    blit(m, fromRows(SEATED, BERRY_KEY), 2, 2);
+    put(m, 4, 3, WHITE);
+  } else
+    cell(
+      m,
+      5,
+      5,
+      (row) => (row < 3 ? team[2] : team[1]),
+      (row) => (row < 5 ? VOID : row === 8 ? NAVY.dusk : NAVY.deep),
+    );
   return m;
 };
 
-/** The hive, 64 by 48, with six empty holes at `HIVE_HOLES`. */
-export const hive = (team: Ramp): Img => {
-  const m = img(64, 48);
+/** The hive's cell: 81 by 40, standing on its anchor (bottom centre), which goes on the top row of its ledge. */
+export const HIVE = {
+  w: 81,
+  h: 40,
+  anchor: [40, 39],
+  /** Top centre of a 7-pixel-high count on the plaque, relative to the anchor. */
+  count: [0, -30],
+  /** Where something may stand on the roof (a Queen's respawn ghost), relative to the anchor. */
+  perch: [0, -37],
+} as const;
+
+/**
+ * The hive, facing the way Cyan's does (Pink's is its mirror image): a ribbed steel dome with a neon rim and a
+ * count plaque, over a honeycomb wall between two lamp pillars. `holes` are the engine's hole centres relative to
+ * the anchor; the comb is drawn around them, with dim cells continuing it to the walls.
+ */
+export const hive = (
+  team: Ramp,
+  holes: readonly (readonly [number, number])[],
+): Img => {
+  const { w, h } = HIVE;
+  const [ax, ay] = HIVE.anchor;
+  const m = img(w, h);
+  const WALL = 20;
   const half = (y: number) => {
-    // A beehive dome on a base plate.
-    if (y >= 43) return 31;
-    const t = (42 - y) / 42;
-    return Math.round(30 * Math.sqrt(Math.max(0, 1 - t ** 2.8)));
+    if (y >= WALL) return 40;
+    if (y < 5) return -1;
+    const t = (WALL - y) / 16;
+    return Math.round(40 * Math.sqrt(Math.max(0, 1 - t ** 2)));
   };
-  for (let y = 1; y < 48; y++) {
+  // The dome: steel skin, ribs every ten pixels, a neon line just inside the rim.
+  for (let y = 5; y < WALL; y++) {
     const hw = half(y);
-    for (let x = 32 - hw; x < 32 + hw; x++) {
-      if (y >= 43) {
-        put(m, x, y, y === 43 ? team[2] : y === 47 ? NAVY.night : NAVY.steel);
-        continue;
+    const above = half(y - 1);
+    for (let x = ax - hw; x <= ax + hw; x++) {
+      const a = Math.abs(x - ax);
+      const top = a > above - 1 || y === 5;
+      let c: Rgb;
+      if (hw - a === 0 || top) c = y < 13 ? FROST : NAVY.steel;
+      else if (hw - a <= 2 || a > above - 3)
+        c = y < 13 ? NAVY.steel : NAVY.slate;
+      else if (hw - a === 3 || a === above - 3) c = team[2];
+      else {
+        const rib = a % 10;
+        c =
+          rib === 5
+            ? NAVY.steel
+            : rib === 6
+              ? NAVY.dusk
+              : y === 12
+                ? NAVY.dusk
+                : y < 9
+                  ? NAVY.steel
+                  : NAVY.slate;
+        if (rib === 5 && (y === 8 || y === 13)) c = FROST;
       }
-      const band = (y - 2) % 9;
-      const edge = x < 32 - hw + 2 || x >= 32 + hw - 2;
-      let c: Rgb = band === 8 ? NAVY.night : band < 2 ? NAVY.steel : NAVY.slate;
-      if (x - (32 - hw) < 6 && band !== 8) c = band < 2 ? FROST : NAVY.steel;
-      if (edge) c = team[1];
-      if (y === 1 || half(y - 1) <= 32 - x - 1 || half(y - 1) < x - 31)
-        c = team[2];
       put(m, x, y, c);
     }
   }
-  // The crown of the hive: a team lamp on a gold stud.
-  rect(m, 30, 0, 4, 2, GOLD[2]);
-  rect(m, 31, 0, 2, 1, GOLD[3]);
-  // Team lamps on the base plate.
-  for (let x = 6; x < 60; x += 8) rect(m, x, 45, 3, 1, team[2]);
-  for (const [hx, hy] of HIVE_HOLES) blit(m, hiveHole(team, false), hx, hy);
+  // The roof pad and its lamp, with two short horns.
+  rect(m, ax - 12, 3, 25, 1, FROST);
+  rect(m, ax - 13, 4, 27, 1, NAVY.steel);
+  rect(m, ax - 12, 1, 2, 2, NAVY.steel);
+  rect(m, ax + 11, 1, 2, 2, NAVY.steel);
+  put(m, ax - 12, 0, FROST);
+  put(m, ax + 12, 0, FROST);
+  rect(m, ax - 3, 2, 7, 1, GOLD[1]);
+  rect(m, ax - 2, 1, 5, 1, GOLD[2]);
+  rect(m, ax - 1, 0, 3, 2, team[3]);
+  put(m, ax, 0, WHITE);
+  put(m, ax - 2, 1, GOLD[3]);
+  // The plaque the count is written on.
+  rect(m, ax - 18, 7, 37, 11, NAVY.steel);
+  rect(m, ax - 17, 7, 35, 1, FROST);
+  rect(m, ax - 17, 8, 35, 9, team[1]);
+  rect(m, ax - 16, 9, 33, 7, VOID);
+  rect(m, ax - 17, 8, 35, 1, team[2]);
+  for (const x of [ax - 18, ax + 18]) {
+    put(m, x, 9, GOLD[2]);
+    put(m, x, 15, GOLD[1]);
+  }
+  // The lintel: a neon bar across the mouth of the dome with a shadow under it.
+  rect(m, 0, 18, w, 1, team[2]);
+  for (let x = 4; x < w; x += 8) rect(m, x, 18, 2, 1, team[3]);
+  rect(m, 0, 19, w, 1, NAVY.steel);
+  rect(m, 0, 18, 1, 2, FROST);
+  rect(m, w - 1, 18, 1, 2, FROST);
+  // The comb wall.
+  const inner = { x0: 6, x1: w - 7, y0: WALL, y1: h - 3 };
+  rect(m, inner.x0, WALL, inner.x1 - inner.x0 + 1, h - WALL, NAVY.deep);
+  rect(m, inner.x0, WALL, inner.x1 - inner.x0 + 1, 2, VOID);
+  const at = holes.map(([x, y]) => [ax + x, ay + y] as const);
+  const key = (x: number, y: number) => `${x},${y}`;
+  const real = new Set(at.map(([x, y]) => key(x, y)));
+  const xs = [...new Set(at.map(([x]) => x))].sort((p, q) => p - q);
+  const ys = [...new Set(at.map(([, y]) => y))].sort((p, q) => p - q);
+  const dx = (xs[2] ?? 0) - (xs[0] ?? 0) || 10;
+  const dy = (ys[1] ?? 0) - (ys[0] ?? 0) || 8;
+  const ghosts = new Map<string, readonly [number, number]>();
+  for (const [x, y] of at)
+    for (const [gx, gy] of [
+      [x - dx, y],
+      [x + dx, y],
+      [x - dx / 2, y - dy],
+      [x + dx / 2, y - dy],
+    ] as const)
+      if (!real.has(key(gx, gy)) && gy + 5 >= WALL)
+        ghosts.set(key(gx, gy), [gx, gy]);
+  for (const [gx, gy] of ghosts.values())
+    cell(
+      m,
+      gx,
+      gy,
+      () => NAVY.slate,
+      () => NAVY.night,
+      inner,
+    );
+  for (const [x, y] of at) {
+    if (x - 5 < inner.x0 || x + 5 > inner.x1 || y - 5 < WALL)
+      throw new Error(`hive hole at ${x},${y} does not fit the hive art`);
+    blit(m, hiveHole(team, false), x - 5, y - 5);
+  }
+  // Pillars, each with a lamp strip, and the base plate over the feet of the bottom cells.
+  for (const side of [0, 1]) {
+    const col = (i: number) => (side ? w - 1 - i : i);
+    for (let y = WALL; y < h; y++) {
+      put(m, col(0), y, FROST);
+      put(m, col(1), y, NAVY.steel);
+      put(
+        m,
+        col(2),
+        y,
+        y > 22 && y < 36 ? team[y % 4 === 3 ? 3 : 2] : NAVY.slate,
+      );
+      put(m, col(3), y, y > 22 && y < 36 ? team[1] : NAVY.slate);
+      put(m, col(4), y, NAVY.steel);
+      put(m, col(5), y, NAVY.night);
+    }
+    rect(m, side ? w - 6 : 0, WALL, 6, 1, FROST);
+    rect(m, side ? w - 6 : 0, 36, 6, 1, FROST);
+  }
+  rect(m, 0, h - 2, w, 1, NAVY.steel);
+  rect(m, 0, h - 1, w, 1, NAVY.night);
+  for (let x = 2; x < w - 3; x += 6) rect(m, x, h - 2, 3, 1, team[2]);
   return m;
 };
+
+// ---------------------------------------------------------------------------------------------------------------
+// Snail progress strip (HUD)
+
+/** Where the marker's anchor travels along the strip: from Cyan's goal to Pink's, in strip pixels. */
+export const STRIP_LANE: readonly [number, number] = [8, 191];
+
+/** The HUD's snail lane, 200 by 7: Cyan's goal cap on the left, Pink's on the right, a tick in the middle. */
+export const snailStrip = (cyan: Ramp, pink: Ramp): Img => {
+  const w = 200;
+  const m = img(w, 7);
+  rect(m, 1, 0, w - 2, 7, VOID);
+  rect(m, 0, 1, w, 5, VOID);
+  rect(m, 2, 1, w - 4, 1, NAVY.steel);
+  rect(m, 2, 2, w - 4, 3, NAVY.night);
+  rect(m, 2, 5, w - 4, 1, NAVY.dusk);
+  // The rail the snail rides: gold dashes, with quarter marks.
+  for (let x = 10; x < w - 10; x += 4) rect(m, x, 3, 2, 1, GOLD[0]);
+  for (const x of [54, 145]) rect(m, x, 2, 1, 3, NAVY.steel);
+  rect(m, 99, 0, 2, 7, WHITE);
+  rect(m, 99, 5, 2, 2, FROST);
+  for (const [team, left] of [
+    [cyan, true],
+    [pink, false],
+  ] as const) {
+    const col = (i: number) => (left ? i : w - 1 - i);
+    for (let i = 1; i < 7; i++)
+      for (let y = 0; y < 7; y++) {
+        if ((i === 1 || i === 6) && (y === 0 || y === 6)) continue;
+        put(m, col(i), y, y === 0 ? team[3] : y >= 5 ? team[1] : team[2]);
+      }
+    for (let y = 1; y < 6; y++) put(m, col(0), y, team[1]);
+    // A white chevron pointing at the goal.
+    put(m, col(4), 2, WHITE);
+    put(m, col(3), 3, WHITE);
+    put(m, col(4), 4, WHITE);
+  }
+  return m;
+};
+
+/** The snail on the HUD strip, 9 by 7, facing right. */
+export const snailMarker = (): Img =>
+  fromRows(
+    [
+      "..VVV....",
+      ".VLLLV.k.",
+      "VLVVVLV.c",
+      "VLVLVLVcc",
+      "VLVVLLVcc",
+      "dVLLLVccc",
+      "ttccccccc",
+    ],
+    {
+      V: VIOLET[2],
+      L: VIOLET[3],
+      d: VIOLET[1],
+      c: CREAM,
+      t: TAN,
+      k: WHITE,
+    },
+  );
 
 // ---------------------------------------------------------------------------------------------------------------
 // Eggs (HUD)

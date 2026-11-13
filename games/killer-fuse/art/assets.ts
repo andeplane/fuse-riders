@@ -270,6 +270,7 @@ export const WARRIOR = {
     ["walk2", "run2", "folded", "level"],
     ["walk3", "run3", "folded", "level"],
     ["walk4", "run4", "folded", "level"],
+    ["dive", "fall", "swept", "down"],
   ],
   animations: {
     idle: { frames: ["idle"], fps: 1, loop: false },
@@ -280,6 +281,7 @@ export const WARRIOR = {
     },
     glide: { frames: ["glide"], fps: 1, loop: false },
     walk: { frames: ["walk1", "walk2", "walk3", "walk4"], fps: 12, loop: true },
+    dive: { frames: ["dive"], fps: 1, loop: false },
   },
 } as const;
 

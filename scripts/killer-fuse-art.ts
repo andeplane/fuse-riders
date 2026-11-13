@@ -51,6 +51,7 @@ import {
   despeckle,
   encodePng,
   fill,
+  flipX,
   findGrid,
   findSprites,
   fromRows,
@@ -83,17 +84,21 @@ import {
   gateSparkle,
   goalPost,
   hive,
-  HIVE_HOLES,
+  HIVE,
   hiveHole,
   killBurst,
   queenDeath,
   respawn,
   PILE_SLOTS,
   pileBase,
+  snailMarker,
+  snailStrip,
+  STRIP_LANE,
   tile,
   TILES,
   type WinKind,
 } from "../games/killer-fuse/art/procedural.ts";
+import { MAPS } from "../games/killer-fuse/src/engine/maps.ts";
 
 const ART = fileURLToPath(
   new URL("../games/killer-fuse/art/", import.meta.url),
@@ -668,8 +673,8 @@ const STRIDING = /^(run|walk)/;
 
 /**
  * The speed form of a unit, made from the same frames so the two are the same character, and different enough to
- * tell apart standing still: a gold helmet cap, gold lightning-bolt antennae, gold boots and a gold scarf, and a
- * forward lean in every stride.
+ * tell apart standing still: an all-gold helmet with a gold lightning-bolt antenna, gold boots and a gold scarf, a
+ * forward lean in every stride, and (in `emitUnit`) a gold outline in place of the dark one.
  */
 const speedBase = (source: Img, frame: string, index: number): Img => {
   let cell = source;
@@ -696,8 +701,7 @@ const speedBase = (source: Img, frame: string, index: number): Img => {
     // Boots, and a cap over the top of the helmet.
     for (let y = bottom - 2; y <= bottom; y++) gold(x, y, 1);
     gold(x, dome, 3);
-    gold(x, dome + 1, 2);
-    gold(x, dome + 2, 2);
+    for (let y = dome + 1; y < dome + 7; y++) gold(x, y, 1);
   }
   // The antennae become one lightning bolt, swept back.
   for (let y = 0; y < dome; y++)
@@ -901,6 +905,14 @@ const warriorOf = (
       put(cell, x, y, i < 2 ? GOLD[2] : WHITE);
       if (i < length - 2) put(cell, x + 1, y, i < 2 ? GOLD[3] : ICE);
     }
+  } else if (lance === "down") {
+    // A dive: the lance points down and ahead.
+    for (let i = 0; i < length; i++) {
+      const x = frontX + 1 + Math.floor(i * 0.75);
+      const y = hy + i;
+      put(cell, x, y, i < 2 ? GOLD[2] : WHITE);
+      if (i < length - 2) put(cell, x - 1, y, i < 2 ? GOLD[3] : ICE);
+    }
   } else {
     for (let y = hy - 2; y <= hy + 1; y++) put(cell, frontX + 1, y, GOLD[2]);
     put(cell, frontX + 1, hy - 2, GOLD[3]);
@@ -945,7 +957,30 @@ const emitUnit = (
   extra: Record<string, unknown> = {},
   /** Rows of the cell under the feet (room for a wing on its down-stroke). */
   below = 0,
+  /** The speed forms' bodies, one per cell: the outline is gold around these and dark around everything else. */
+  bodies?: Img[],
 ) => {
+  const rimmed = (cell: Img, i: number): Img => {
+    const out = outlined(cell);
+    const body = bodies?.[i % bodies.length];
+    if (!body) return out;
+    for (let y = 0; y < cell.h; y++)
+      for (let x = 0; x < cell.w; x++) {
+        if (alpha(cell, x, y) || !alpha(out, x, y)) continue;
+        const touches = [
+          [x - 1, y],
+          [x + 1, y],
+          [x, y - 1],
+          [x, y + 1],
+        ].some(
+          ([nx, ny]) =>
+            alpha(body, nx ?? -1, ny ?? -1) > 0 &&
+            !GOLD.some((g) => same(g, rgbAt(body, nx ?? -1, ny ?? -1))),
+        );
+        if (touches) put(out, x, y, GOLD[2]);
+      }
+    return out;
+  };
   const first = cells[0] ?? img(1, 1);
   const anchor: [number, number] = [
     Math.floor(first.w / 2),
@@ -956,7 +991,7 @@ const emitUnit = (
     emit(
       `${form}-${team}`,
       `units/${form}-${team}.png`,
-      cells.map((cell) => outlined(toRamp(cell, TEAMS[team]))),
+      cells.map((cell, i) => rimmed(toRamp(cell, TEAMS[team]), i)),
       names,
       anchor,
       { animations, flash: `${form}-flash`, ...extra },
@@ -985,20 +1020,18 @@ const buildUnits = () => {
     return cell;
   };
   // Workers: plain and speed, each with a second set of frames carrying a berry.
-  const workers: [string, Img[]][] = [
-    ["worker", worker],
+  const fast = worker.map((cell, i) =>
+    speedBase(cell, spec.frames[i] ?? "", i),
+  );
+  const workers: [string, Img[], Img[] | undefined][] = [
+    ["worker", worker, undefined],
     [
       "speed-worker",
-      worker.map((cell, i) =>
-        speedDashes(
-          speedBase(cell, spec.frames[i] ?? "", i),
-          spec.frames[i] ?? "",
-          i,
-        ),
-      ),
+      fast.map((cell, i) => speedDashes(cell, spec.frames[i] ?? "", i)),
+      fast,
     ],
   ];
-  for (const [form, cells] of workers) {
+  for (const [form, cells, bodies] of workers) {
     const spots = cells.map(carrySpot);
     const carrying = cells.map((cell, i) => {
       const out = img(cell.w, cell.h);
@@ -1017,14 +1050,26 @@ const buildUnits = () => {
         carry: spots,
         note: "Frames named <frame>Carry are the same poses holding a berry.",
       },
+      0,
+      bodies,
     );
   }
   // Warriors: built from the worker's poses.
   for (const speed of [false, true]) {
     const names = WARRIOR.frames.map(([name]) => name);
+    const bodies: Img[] = [];
     const cells = WARRIOR.frames.map(([name, from, wing, lance], i) => {
       const base = speed ? speedBase(pose(from), name, i) : pose(from);
       const cell = warriorOf(base, wing, lance, speed);
+      const [cw, ch] = WARRIOR.cell;
+      const body = img(cw, ch);
+      blit(
+        body,
+        base,
+        Math.floor((cw - base.w) / 2),
+        ch - WARRIOR.below - base.h,
+      );
+      bodies.push(body);
       return speed ? speedDashes(cell, name, i) : cell;
     });
     emitUnit(
@@ -1036,6 +1081,7 @@ const buildUnits = () => {
         note: "The body is the worker's, feet on the anchor; the lance reaches about 14 pixels ahead of it and the wings behind and below, so the anchor is not on the cell's bottom row.",
       },
       WARRIOR.below,
+      speed ? bodies : undefined,
     );
   }
   const queen = UNITS.queen;
@@ -1219,6 +1265,51 @@ const buildGates = () => {
 // ---------------------------------------------------------------------------------------------------------------
 // hand-pixelled sheets
 
+/**
+ * Where the engine puts a hive's holes, relative to the point the hive art is anchored to: the middle of the holes
+ * and the top row of the ledge five pixels under the lower row's centres. Read from every map so the art follows the
+ * engine; Pink's holes must be Cyan's mirrored, because Pink's hive is Cyan's art flipped.
+ */
+const hiveLayout = () => {
+  let offsets: [number, number][] | undefined;
+  const anchors: Record<string, unknown> = {};
+  for (const map of Object.values(MAPS)) {
+    const perTeam = map.holes.map((holes, team) => {
+      const xs = holes.map((h) => h.x);
+      const mid = (Math.min(...xs) + Math.max(...xs)) / 2;
+      const ax = team === 0 ? Math.ceil(mid) : Math.floor(mid);
+      const ay = Math.max(...holes.map((h) => h.y)) + 5;
+      return {
+        anchor: [ax, ay] as [number, number],
+        offsets: holes.map((h): [number, number] => [h.x - ax, h.y - ay]),
+      };
+    });
+    const [cyan, pink] = perTeam;
+    if (!cyan || !pink) throw new Error(`map ${map.id} has no hives`);
+    const mirrored = pink.offsets.map(([x, y]): [number, number] => [-x, y]);
+    offsets ??= cyan.offsets;
+    if (
+      JSON.stringify(cyan.offsets) !== JSON.stringify(offsets) ||
+      JSON.stringify(mirrored) !== JSON.stringify(offsets)
+    )
+      throw new Error(
+        `map ${map.id}: its hive holes are laid out differently from the other hives; the hive art fits one layout`,
+      );
+    anchors[`map${map.id}`] = { cyan: cyan.anchor, pink: pink.anchor };
+  }
+  if (!offsets) throw new Error("no maps");
+  return { offsets, anchors };
+};
+const HIVE_LAYOUT = hiveLayout();
+const HIVE_OFFSETS = HIVE_LAYOUT.offsets;
+/** What was matched, for the manifest. */
+const HIVE_ENGINE = {
+  source:
+    "MAPS[*].holes in games/killer-fuse/src/engine/maps.ts (art pixels; `viewOf(...).hives` gives the same)",
+  // Where the anchor lands on each map, in art pixels.
+  anchors: HIVE_LAYOUT.anchors,
+};
+
 const buildProcedural = () => {
   emit(
     "berry",
@@ -1247,17 +1338,50 @@ const buildProcedural = () => {
       slots: PILE_SLOTS,
     },
   );
+  emit(
+    "snail-strip",
+    "hud/snail-strip.png",
+    [snailStrip(TEAMS.cyan, TEAMS.pink)],
+    ["strip"],
+    [0, 0],
+    {
+      // The x of the marker's anchor at Cyan's goal and at Pink's goal.
+      lane: STRIP_LANE,
+      note: "Fixed size. Cyan's goal cap is on the left, Pink's on the right, the white tick is the middle of the track. Put `snail-marker` with its anchor on row 6, between lane[0] and lane[1].",
+    },
+  );
+  emit(
+    "snail-marker",
+    "hud/snail-marker.png",
+    [snailMarker()],
+    ["marker"],
+    [4, 6],
+    { note: "Faces right; flip it when the snail heads left." },
+  );
   for (const team of PLAYING) {
     const ramp = TEAMS[team];
     emit(
       `hive-${team}`,
       `hives/hive-${team}.png`,
-      [hive(ramp)],
+      [
+        team === "cyan"
+          ? hive(ramp, HIVE_OFFSETS)
+          : flipX(hive(ramp, HIVE_OFFSETS)),
+      ],
       ["hive"],
-      [32, 47],
+      [...HIVE.anchor],
       {
-        // Top-left corners of the six 16 by 18 holes, in fill order.
-        holes: HIVE_HOLES,
+        // Centre of each hole relative to the anchor, in the engine's hole order.
+        holes: HIVE_OFFSETS.map(([x, y]) => [team === "cyan" ? x : -x, y]),
+        hole: `hive-hole-${team}`,
+        count: HIVE.count,
+        perch: HIVE.perch,
+        note:
+          "Put the anchor on the hive ledge's top row under the holes: hole i is then at anchor + holes[i], which is " +
+          "the engine's hole i for this team. Draw `hive-hole` frames centred there (the empty cells are already in " +
+          "the art, so only `filled` is needed). `count` is the top centre of a 7-pixel-high count on the plaque; " +
+          "`perch` is the roof pad, where a Queen's respawn ghost can stand without covering the holes.",
+        engine: HIVE_ENGINE,
       },
     );
     emit(
@@ -1265,7 +1389,10 @@ const buildProcedural = () => {
       `hives/hole-${team}.png`,
       [hiveHole(ramp, false), hiveHole(ramp, true)],
       ["empty", "filled"],
-      [0, 0],
+      [5, 5],
+      {
+        note: "An 11 by 11 cell centred on a hole. Neighbours share their walls, so draw `filled` over the hive art.",
+      },
     );
     emit(
       `egg-${team}`,
@@ -1555,18 +1682,19 @@ const mockScene = () => {
   // Hives on the top platforms, partly filled.
   (
     [
-      ["cyan", 104, 4],
-      ["pink", 376, 2],
+      ["cyan", 104, 7],
+      ["pink", 376, 3],
     ] as const
   ).forEach(([team, x, filled]) => {
-    place(scene, `hive-${team}`, "hive", x, 71);
-    HIVE_HOLES.forEach(([hx, hy], i) => {
+    place(scene, `hive-${team}`, "hive", x, 72);
+    HIVE_OFFSETS.forEach(([hx, hy], i) => {
       if (i < filled)
-        blit(
+        place(
           scene,
-          frame(`hive-hole-${team}`, "filled"),
-          x - 32 + hx,
-          71 - 47 + hy,
+          `hive-hole-${team}`,
+          "filled",
+          x + (team === "cyan" ? hx : -hx),
+          72 + hy,
         );
     });
   });
