@@ -546,11 +546,62 @@ const emit = (
 // ---------------------------------------------------------------------------------------------------------------
 // units
 
+/**
+ * Gives a face its pupil back when the reduction lost it: every frame of a character must look at you the same
+ * way, or the eye flickers as it animates. The pupil goes on the leading edge of the face, where the others are.
+ */
+const withEye = (m: Img): Img => {
+  const isFace = (x: number, y: number) =>
+    alpha(m, x, y) > 0 &&
+    (same(rgbAt(m, x, y), CREAM) || same(rgbAt(m, x, y), WHITE));
+  let left = m.w;
+  let right = -1;
+  let top = m.h;
+  let bottom = -1;
+  let eyes = 0;
+  for (let y = 0; y < Math.ceil(m.h * 0.7); y++)
+    for (let x = 0; x < m.w; x++) {
+      // Wings and swords are white too; a face has cream in it.
+      if (isFace(x, y) && same(rgbAt(m, x, y), CREAM)) {
+        left = Math.min(left, x);
+        right = Math.max(right, x);
+        top = Math.min(top, y);
+        bottom = Math.max(bottom, y);
+      }
+    }
+  if (right < 0) return m;
+  for (let y = top - 1; y <= bottom + 1; y++)
+    for (let x = left - 1; x <= right + 2; x++)
+      if (alpha(m, x, y) && same(rgbAt(m, x, y), INK)) eyes++;
+  const out = img(m.w, m.h);
+  blit(out, m, 0, 0);
+  if (eyes > 0) {
+    // A pupil on the very edge of the head disappears into the outline: pull it one pixel into the face.
+    for (let y = top - 1; y <= bottom + 1; y++)
+      for (let x = left; x <= right + 2; x++)
+        if (
+          alpha(m, x, y) &&
+          same(rgbAt(m, x, y), INK) &&
+          !alpha(m, x + 1, y) &&
+          isFace(x - 1, y)
+        ) {
+          put(out, x, y, WHITE);
+          put(out, x - 1, y, INK);
+        }
+    return out;
+  }
+  const x = isFace(right + 1, top + 1) ? right + 1 : right;
+  const y = Math.min(bottom - 1, top + 1);
+  put(out, x, y, INK);
+  if (y + 1 < bottom) put(out, x, y + 1, INK);
+  return out;
+};
+
 /** The frames of a generated character, reduced and aligned in their cells, still in the neutral green. */
 const alignedFrames = (spec: UnitSheet, core: (c: Rgb) => boolean) => {
   const [cw, ch] = spec.cell;
   const sprites = readStrip(spec.from, spec.frames.length).map((s) =>
-    smooth(despeckle(reduce(s, spec.reduce))),
+    withEye(smooth(despeckle(reduce(s, spec.reduce)))),
   );
   const names = spec.frames;
   const refIndex = Math.max(
@@ -732,13 +783,7 @@ const doorway = (gate: Img): boolean[] => {
   const inside = new Array<boolean>(gate.w * gate.h).fill(false);
   const dark = (x: number, y: number) => {
     if (!alpha(gate, x, y)) return false;
-    const c = rgbAt(gate, x, y);
-    return (
-      same(c, INK) ||
-      same(c, NAVY.void) ||
-      same(c, NAVY.deep) ||
-      same(c, NAVY.night)
-    );
+    return luma(rgbAt(gate, x, y)) < 0.13;
   };
   const stack: [number, number][] = [
     [Math.floor(gate.w / 2), Math.floor(gate.h * 0.6)],
@@ -763,6 +808,15 @@ const buildGates = () => {
     const gate = raw[i] ?? img(1, 1);
     const cell = img(w, h);
     blit(cell, gate, Math.floor((w - gate.w) / 2), h - 1 - gate.h);
+    // The generated lamps and pillars are not quite symmetric; below the emblem a gate is its left half mirrored.
+    const box = bounds(cell) ?? { x: 0, y: 0, w, h };
+    for (let y = box.y + Math.floor(box.h * 0.42); y < h; y++)
+      for (let i = 0; i < Math.floor(box.w / 2); i++) {
+        const from = box.x + i;
+        const to = box.x + box.w - 1 - i;
+        if (alpha(cell, from, y)) put(cell, to, y, rgbAt(cell, from, y));
+        else clear(cell, to, y);
+      }
     const door = doorway(cell);
     const frames: Img[] = [];
     const names: string[] = [];
@@ -784,14 +838,13 @@ const buildGates = () => {
             const x = p % w;
             const y = Math.floor(p / w);
             const edge = Math.min(x - lo, hi - x);
-            const flicker = (x + y) % 4 === 0;
             put(
               frame,
               x,
               y,
               edge === 0
                 ? ramp[1]
-                : edge === 1 || flicker
+                : edge === 1
                   ? ramp[2]
                   : edge === 2
                     ? ramp[3]

@@ -102,11 +102,14 @@ const FAMILY =
   "plates, no segment lines, no dithering, no outline), of a different unit of the same species:";
 
 const WARRIOR =
-  "Subject: the warrior, the worker grown into a soldier, side view facing right: the same huge round helmeted " +
-  "head, now with one big angry eye under a heavy slanted brow and a thick horn on top of the helmet instead of " +
-  "antennae, two pale ice-blue insect wings on its back, a stubby body, short thick legs with big boots, and a " +
-  "short broad white sword held pointing forward. Wings are pale ice blue #d8f1ff with white highlights; the " +
-  "sword is white with ice-blue shading.";
+  "Subject: the warrior, the worker grown into a soldier, side view facing right, drawn exactly as large as the " +
+  "worker in the reference and with the same proportions: the same huge round helmeted head taking up half of " +
+  "its height, with the same large cream face patch (at least 8 pixels wide and 7 tall) holding one big white " +
+  "eye with a large black pupil under a thick slanted angry black brow; a thick curved horn on top of the " +
+  "helmet instead of antennae; two pale ice-blue insect wings on its back; a stubby body; short thick legs with " +
+  "big boots; and a short broad white sword held pointing forward, low, well below the face so it never covers " +
+  "it. Wings are pale ice blue #d8f1ff with white highlights; the sword is white with ice-blue shading. The " +
+  "face and eye must be as big and readable as the worker's.";
 
 const QUEEN =
   "Subject: the queen, a fierce wasp-bee monarch, side view facing right, drawn one and a half times as large as " +
@@ -270,11 +273,11 @@ export const SNAIL: UnitSheet = {
   },
 };
 
-/** The two gates of the generated gate sheet, left to right, and the factor that brings them to about 24 by 32. */
+/** The two gates of the generated gate sheet, left to right, and the factor that brings them to about 32 by 44. */
 export const GATES = {
   from: "gates",
   kinds: ["warrior", "speed"],
-  reduce: 3,
+  reduce: 2,
 } as const;
 
 /** Sheets that `cut` samples as single drawings on a grid: id, how many drawings, and the key colour behind them. */

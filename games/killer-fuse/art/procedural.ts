@@ -143,7 +143,7 @@ export const pileBase = () =>
       "...vvVVVVVVVVVVVVVVVVVVVVVVvv....",
       "....vvvvvvvvvvvvvvvvvvvvvvvv.....",
     ],
-    { d: LIME[0], s: LIME[1], b: LIME[2], v: VIOLET[0], V: VIOLET[1] },
+    { d: NAVY.slate, s: LIME[0], b: LIME[1], v: VIOLET[0], V: VIOLET[1] },
   );
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -239,9 +239,9 @@ export const egg = (team: Ramp, broken: boolean): Img => {
     b: team[2],
     w: team[3],
     W: WHITE,
-    n: NAVY.slate,
-    N: NAVY.dusk,
-    k: NAVY.steel,
+    n: NAVY.steel,
+    N: NAVY.slate,
+    k: FROST,
   };
   return broken
     ? fromRows(
@@ -510,14 +510,17 @@ export const deathPuff = (team: Ramp): Img[] =>
 export const flapPuff = (): Img[] =>
   Array.from({ length: 4 }, (_, i) => {
     const m = img(16, 8);
-    const spread = 2 + i * 1.6;
-    const r = 2.2 - i * 0.5;
+    const c = [WHITE, WHITE, ICE, FROST][i] ?? FROST;
     for (const side of [-1, 1]) {
-      disc(m, 7.5 + side * spread, 3 + i * 0.8, r, i < 2 ? WHITE : ICE);
-      if (i < 3)
-        put(m, Math.round(7.5 + side * (spread + r + 1)), 2 + i, FROST);
+      // A curl of air under each wing, drifting out and down as it thins.
+      const x = (dx: number) => (side < 0 ? 7 - dx : 8 + dx);
+      const reach = 1 + i * 2;
+      put(m, x(reach), i, c);
+      put(m, x(reach + 1), i + 1, c);
+      if (i < 3) put(m, x(reach + 1), i + 2, c);
+      if (i < 2) put(m, x(reach), i + 3, ICE);
+      if (i === 0) put(m, x(0), 1, WHITE);
     }
-    if (i === 0) rect(m, 6, 2, 4, 2, WHITE);
     return m;
   });
 
