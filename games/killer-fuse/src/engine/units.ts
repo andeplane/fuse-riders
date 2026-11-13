@@ -1,6 +1,7 @@
 /** Helpers every rule shares: who is where, who touches what, and death and respawn. */
 import { arenaOf, wrapDelta } from "./maps.js";
 import { halfOf, heightOf } from "./motion.js";
+import { hashSeed } from "./rng.js";
 import {
   BERRY_HEIGHT,
   FREED_INVULN,
@@ -22,13 +23,18 @@ export const freeWorker = (unit: Unit): boolean =>
   !unit.dead && unit.kind === "worker" && !unit.riding && !unit.eaten;
 
 /**
- * Slots in the order a step serves them. It alternates which team goes first every step, so a contested pickup,
- * mount or gate is not decided by the slot number.
+ * The team a step serves first: a coin flipped from the round's seed and the step number. It decides a contested
+ * pickup, mount or gate, and a victory both teams reach on the same step. A plain alternation would not do: mirrored
+ * bots reach the snail on the same step every game, and the step's parity would always favour the same side.
  */
+export const firstTeam = (state: Round): number =>
+  hashSeed(state.seed, state.step) & 1;
+
+/** Slots in the order a step serves them: the first team's unit of each pair before the other's. */
 const EVEN = [0, 1, 2, 3, 4, 5] as const,
   ODD = [1, 0, 3, 2, 5, 4] as const;
-export const turnOrder = (step: number): readonly number[] =>
-  step % 2 === 0 ? EVEN : ODD;
+export const turnOrder = (state: Round): readonly number[] =>
+  firstTeam(state) === 0 ? EVEN : ODD;
 
 /** Whether two feet-anchored boxes overlap, across the wrap. */
 export function boxesTouch(

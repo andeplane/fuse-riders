@@ -46,7 +46,7 @@ export function stepSnail(state: Round, inputs: readonly Input[]): number {
     rider = undefined;
   }
   if (!rider)
-    for (const slot of turnOrder(state.step)) {
+    for (const slot of turnOrder(state)) {
       const unit = state.units[slot]!;
       if (
         freeWorker(unit) &&
@@ -81,7 +81,7 @@ export function stepSnail(state: Round, inputs: readonly Input[]): number {
     }
   } else {
     const mouth = snail.x + dir * SNAIL_HALF;
-    for (const slot of turnOrder(state.step)) {
+    for (const slot of turnOrder(state)) {
       const unit = state.units[slot]!;
       if (
         freeWorker(unit) &&

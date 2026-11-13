@@ -22,7 +22,7 @@ export function gateOpenTo(state: Round, index: number, unit: Unit): boolean {
 
 export function stepGates(state: Round): void {
   const arena = arenaOf(state.mapId);
-  const order = turnOrder(state.step);
+  const order = turnOrder(state);
   for (let i = 0; i < arena.gates.length; i += 1) {
     const def = arena.gates[i]!,
       gate = state.gates[i]!;

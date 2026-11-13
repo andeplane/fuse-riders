@@ -122,6 +122,11 @@ function fly(
 function buildWorkerNav(arena: Arena, speed: boolean): WorkerNav {
   const count = arena.solids.length;
   const found: Edge[] = [];
+  /** Whether `edge` reaches platform `to` from its launch point and from the slack either side of it. */
+  const lands = (edge: Edge, to: number): boolean =>
+    [edge.x, edge.x - LAUNCH_SLACK, edge.x + LAUNCH_SLACK].every(
+      (at) => fly(arena, edge, at, speed)?.to === to,
+    );
   for (let from = 0; from < count; from += 1) {
     const solid = arena.solids[from]!;
     const lo = solid.x + 2 * S,
@@ -145,10 +150,7 @@ function buildWorkerNav(arena: Arena, speed: boolean): WorkerNav {
               cost: 0,
             };
             const landing = fly(arena, edge, x, speed);
-            if (!landing) continue;
-            const same = (at: number): boolean =>
-              fly(arena, edge, at, speed)?.to === landing.to;
-            if (!same(x - LAUNCH_SLACK) || !same(x + LAUNCH_SLACK)) continue;
+            if (!landing || !lands(edge, landing.to)) continue;
             edge.to = landing.to;
             edge.cost = landing.cost;
             found.push(edge);
@@ -158,14 +160,54 @@ function buildWorkerNav(arena: Arena, speed: boolean): WorkerNav {
   found.sort(
     (a, b) => a.from - b.from || a.to - b.to || a.cost - b.cost || a.x - b.x,
   );
-  const edges: Edge[] = [];
+  const chosen: Edge[] = [];
   for (const edge of found) {
-    const pair = edges.filter((e) => e.from === edge.from && e.to === edge.to);
+    const pair = chosen.filter((e) => e.from === edge.from && e.to === edge.to);
     if (
       pair.length < PER_PAIR &&
       pair.every((e) => Math.abs(e.x - edge.x) >= 3 * SAMPLE)
     )
-      edges.push(edge);
+      chosen.push(edge);
+  }
+  // The search runs left to right, so on its own it would give the two teams different routes. Every map is its own
+  // mirror image and so is the motion, so the graph is made one too: a move is kept only if its mirror image also
+  // lands (where two ledges meet, a landing on the very seam can count for either), and then both are in the graph.
+  const twin = (index: number): number => {
+    const solid = arena.solids[index]!;
+    return arena.solids.findIndex(
+      (other) =>
+        other.y === solid.y &&
+        other.w === solid.w &&
+        other.x === WIDTH - solid.x - solid.w,
+    );
+  };
+  const flip = (dir: -1 | 0 | 1): -1 | 0 | 1 =>
+    dir === 0 ? 0 : dir < 0 ? 1 : -1;
+  const edges: Edge[] = [];
+  const add = (edge: Edge): void => {
+    const known = edges.some(
+      (e) =>
+        e.from === edge.from &&
+        e.to === edge.to &&
+        e.x === edge.x &&
+        e.jump === edge.jump &&
+        e.first === edge.first &&
+        e.second === edge.second,
+    );
+    if (!known) edges.push(edge);
+  };
+  for (const edge of chosen) {
+    const mirror: Edge = {
+      ...edge,
+      from: twin(edge.from),
+      to: twin(edge.to),
+      x: WIDTH - edge.x,
+      first: flip(edge.first),
+      second: flip(edge.second),
+    };
+    if (!lands(mirror, mirror.to)) continue;
+    add(edge);
+    add(mirror);
   }
   const out: number[][] = Array.from({ length: count }, () => []);
   const dist: number[][] = Array.from({ length: count }, (_, i) =>
@@ -286,6 +328,10 @@ const NEIGHBOURS: readonly (readonly [number, number])[] = [
   [-1, -1],
 ];
 
+const MIRRORED: readonly (readonly [number, number])[] = NEIGHBOURS.map(
+  ([dc, dr]) => [-dc, dr],
+);
+
 function buildFlyNav(arena: Arena): FlyNav {
   // A cell is free when a Queen with a pixel to spare, centred in it, touches no platform.
   const half = QUEEN_HALF + S,
@@ -306,13 +352,16 @@ function buildFlyNav(arena: Arena): FlyNav {
         ),
     );
   }
-  const neighbours = (cell: number): number[] => {
+  const neighbours = (
+    cell: number,
+    order: readonly (readonly [number, number])[],
+  ): number[] => {
     const col = cell % COLS,
       row = Math.floor(cell / COLS);
     const open = (dc: number, dr: number): boolean =>
       row + dr >= 0 && row + dr < ROWS && free[cellIndex(col + dc, row + dr)]!;
     const list: number[] = [];
-    for (const [dc, dr] of NEIGHBOURS)
+    for (const [dc, dr] of order)
       if (
         open(dc, dr) &&
         (dc === 0 || dr === 0 || (open(dc, 0) && open(0, dr)))
@@ -320,7 +369,11 @@ function buildFlyNav(arena: Arena): FlyNav {
         list.push(cellIndex(col + dc, row + dr));
     return list;
   };
-  const around = Array.from({ length: CELLS }, (_, cell) => neighbours(cell));
+  // A search from a target on the right half looks at its neighbours in mirrored order, so the ways to two mirrored
+  // targets are mirror images and neither team's flyers get the better line.
+  const around = [NEIGHBOURS, MIRRORED].map((order) =>
+    Array.from({ length: CELLS }, (_, cell) => neighbours(cell, order)),
+  );
   const next = new Int16Array(CELLS * CELLS).fill(-1);
   for (let target = 0; target < CELLS; target += 1) {
     if (!free[target]) continue;
@@ -329,7 +382,7 @@ function buildFlyNav(arena: Arena): FlyNav {
     const queue = [target];
     for (let head = 0; head < queue.length; head += 1) {
       const cell = queue[head]!;
-      for (const other of around[cell]!)
+      for (const other of around[target % COLS < COLS / 2 ? 0 : 1]![cell]!)
         if (next[base + other]! < 0) {
           next[base + other] = cell;
           queue.push(other);
@@ -342,7 +395,12 @@ function buildFlyNav(arena: Arena): FlyNav {
     let best = cell,
       bestDistance = free[cell] ? 0 : UNREACHABLE * S;
     if (!free[cell])
-      for (let other = 0; other < CELLS; other += 1) {
+      for (let index = 0; index < CELLS; index += 1) {
+        // Scanned from the cell's own side inward, so a tie resolves the same way on both halves.
+        const other =
+          cell % COLS < COLS / 2
+            ? index
+            : index - (index % COLS) + (COLS - 1 - (index % COLS));
         if (!free[other]) continue;
         const there = cellCentre(other);
         const distance =

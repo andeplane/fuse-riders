@@ -145,7 +145,7 @@ function touchLoose(state: Round, berry: LooseBerry, unit: Unit): boolean {
 
 export function stepBerries(state: Round): void {
   const arena = arenaOf(state.mapId);
-  const order = turnOrder(state.step);
+  const order = turnOrder(state);
   for (const slot of order) pickUpAndBank(state, arena, state.units[slot]!);
   const kept: LooseBerry[] = [];
   for (const berry of state.loose) {

@@ -14,12 +14,12 @@ import {
   teamOf,
 } from "../src/engine/index.js";
 import { duelWinner, resolveCombat } from "../src/engine/combat.js";
-import { turnOrder } from "../src/engine/units.js";
+import { firstTeam, turnOrder } from "../src/engine/units.js";
 import { bare, ofType, put, run, stand, unitOf } from "./engine-kit.js";
 
 const FLOOR = 258;
 
-test("slots: teams alternate, the first two are the Queens, and the turn order swaps team priority every step", () => {
+test("slots: teams alternate, and the first two are the Queens", () => {
   assert.deepEqual([0, 1, 2, 3, 4, 5].map(teamOf), [0, 1, 0, 1, 0, 1]);
   assert.deepEqual([0, 1, 2, 3, 4, 5].map(isQueenSlot), [
     true,
@@ -29,8 +29,35 @@ test("slots: teams alternate, the first two are the Queens, and the turn order s
     false,
     false,
   ]);
-  assert.deepEqual(turnOrder(2), [0, 1, 2, 3, 4, 5]);
-  assert.deepEqual(turnOrder(3), [1, 0, 3, 2, 5, 4]);
+});
+
+test("which team acts first in a contested step is a coin flip from the seed and the step, fair to both teams", () => {
+  const state = bare();
+  const firsts = [0, 0];
+  for (state.step = 0; state.step < 6000; state.step += 1) {
+    const first = firstTeam(state);
+    assert.ok(first === 0 || first === 1);
+    firsts[first] = (firsts[first] ?? 0) + 1;
+    assert.deepEqual(
+      turnOrder(state),
+      first === 0 ? [0, 1, 2, 3, 4, 5] : [1, 0, 3, 2, 5, 4],
+    );
+  }
+  assert.ok(
+    Math.abs((firsts[0] ?? 0) - 3000) < 200,
+    `team 0 first ${firsts[0]} times of 6000`,
+  );
+  // The same seed and step always give the same answer; another seed gives another sequence.
+  const flips = (seed: number): number[] => {
+    const round = bare();
+    round.seed = seed;
+    return Array.from({ length: 64 }, (_, step) => {
+      round.step = step;
+      return firstTeam(round);
+    });
+  };
+  assert.deepEqual(flips(7), flips(7));
+  assert.notDeepEqual(flips(7), flips(8));
 });
 
 test("a Warrior kills an enemy Worker on contact; the Worker respawns at its spawn after the delay, invulnerable", () => {

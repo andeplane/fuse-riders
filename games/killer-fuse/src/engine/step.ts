@@ -11,7 +11,7 @@ import { arenaOf } from "./maps.js";
 import { NEUTRAL, moveUnit } from "./motion.js";
 import { stepSnail } from "./snail.js";
 import type { Input, Round, VictoryKind } from "./types.js";
-import { respawnUnit } from "./units.js";
+import { firstTeam, respawnUnit } from "./units.js";
 
 function win(state: Round, team: number, kind: VictoryKind): void {
   state.winner = { team, kind };
@@ -19,8 +19,8 @@ function win(state: Round, team: number, kind: VictoryKind): void {
 }
 
 function checkVictory(state: Round, snailTeam: number): void {
-  // A tie on the same step (both Queens' last egg, both hives' last hole) goes to the step's parity.
-  const first = state.step % 2,
+  // A tie on the same step (both Queens' last egg, both hives' last hole) goes to the step's coin flip.
+  const first = firstTeam(state),
     second = 1 - first;
   for (const team of [first, second])
     if (state.eggs[1 - team]! <= 0) return win(state, team, "military");
