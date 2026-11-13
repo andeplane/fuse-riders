@@ -31,6 +31,7 @@ import {
   BTN,
   MAPS,
   MAP_IDS,
+  botInput,
   isCircle,
   isMapId,
   type MapDef,
@@ -97,9 +98,15 @@ const query = new URLSearchParams(location.search);
 const muted = query.has("mute");
 const app = document.querySelector<HTMLElement>("#app")!;
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
-/** A link within the game that keeps this page's developer flag, `mute`. */
-const withFlags = (path: string) =>
-  muted ? `${path}${path.includes("?") ? "&" : "?"}mute` : path;
+/** For smokes and demos: `?autopilot` rides this device's rider with the bot's answers, through the same held controls. */
+const autopilot = query.has("autopilot");
+/** A link within the game that keeps this page's developer flags, `mute` and `autopilot`. */
+const withFlags = (path: string) => {
+  const kept = ["mute", "autopilot"].filter((flag) => query.has(flag));
+  return kept.length
+    ? `${path}${path.includes("?") ? "&" : "?"}${kept.join("&")}`
+    : path;
+};
 const setText = (node: HTMLElement, value: string) => {
   if (node.textContent !== value) node.textContent = value;
 };
@@ -709,9 +716,14 @@ function room(solo: boolean): void {
       }
       if (next.seated) joinSent = false;
       render(next, frame);
+      const state = runtime.roomState();
+      const mine = autopilot
+        ? state?.world?.riders.find((rider) => rider.id === viewer.me)
+        : undefined;
+      if (state?.world && mine && state.stage === "running")
+        controls.hold("autopilot", botInput(state.world, mine));
       // Keys still down when a match starts or the log is reset are logged again.
       runtime.flush();
-      const state = runtime.roomState();
       if (session.kind === "room" && !display && state)
         for (const report of dueReports(
           state,

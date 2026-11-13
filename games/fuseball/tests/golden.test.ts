@@ -7,6 +7,7 @@ import {
   MAP_IDS,
   RIGHT,
   RULES,
+  botInput,
   createWorld,
   encodeWorld,
   stepWorld,
@@ -23,11 +24,16 @@ import { scripted } from "./fixtures/world.js";
  * the world's hash is compared every fifteen seconds. A refactor must keep these; a change to the rules must bump
  * `RULES` in `src/engine/index.ts` and re-record them in the same commit (`GOLDEN_RECORD=1` prints the new ones).
  *
- * The pilots are this test's own and stay as they are: the engine has no bot yet, and when it gains one the golden
- * should not move with its tuning.
+ * The pilots are this test's own and stay as they are, so `hashes` moves only when the physics or the match rules do.
+ * The engine's bot is part of the rules too (every device folds a bot seat with it), so `bots` holds a second
+ * recording, of the bot playing itself: that one moves whenever the bot's answers do.
  */
-const GOLDEN: { rules: string; hashes: Record<string, string[]> } = {
-  rules: "fuseball-1",
+const GOLDEN: {
+  rules: string;
+  hashes: Record<string, string[]>;
+  bots: Record<string, string[]>;
+} = {
+  rules: "fuseball-2",
   hashes: {
     gridlock: [
       "38a368e7",
@@ -55,6 +61,11 @@ const GOLDEN: { rules: string; hashes: Record<string, string[]> } = {
     downlink: ["9f2df590", "ee060e8d", "254f3482", "df13b5f8", "8440aef4"],
     halo: ["4a9a5703", "4399243e", "48c229b1"],
   },
+  bots: {
+    gridlock: ["cb97ce1a", "638e96c6", "a0e174ed", "cbed5da3"],
+    downlink: ["32dcb285", "2faee30e", "b7b31967", "57347881"],
+    halo: ["10efbebe", "33f8ad8b", "e95f8dee", "6e4445a1"],
+  },
 };
 
 function fnv(text: string): string {
@@ -78,7 +89,7 @@ function pilot(world: World, rider: Rider, roll: number): number {
 const TICKS = 6000,
   EVERY = 300;
 
-function record(): Record<string, string[]> {
+function record(bots = false): Record<string, string[]> {
   const recorded: Record<string, string[]> = {};
   for (const mapId of MAP_IDS) {
     const world = createWorld(mapId, ["bot:1", "bot:2"]),
@@ -87,7 +98,10 @@ function record(): Record<string, string[]> {
     const hash = () => hashes.push(fnv(JSON.stringify(encodeWorld(world))));
     for (let tick = 1; tick <= TICKS && world.phase !== "over"; tick++) {
       const inputs = new Map(
-        world.riders.map((rider) => [rider.id, pilot(world, rider, next())]),
+        world.riders.map((rider) => [
+          rider.id,
+          bots ? botInput(world, rider) : pilot(world, rider, next()),
+        ]),
       );
       // A log tick, as the room runs it: the step count is read once, then that many steps with the same inputs.
       for (let left = stepsPerTick(world); left > 0; left--)
@@ -101,9 +115,10 @@ function record(): Record<string, string[]> {
 }
 
 test("a recorded match on every map replays to its recorded hashes under the current rules", () => {
-  const hashes = record();
+  const hashes = record(),
+    bots = record(true);
   if (process.env.GOLDEN_RECORD)
-    console.log(JSON.stringify({ rules: RULES, hashes }));
+    console.log(JSON.stringify({ rules: RULES, hashes, bots }));
   assert.equal(
     RULES,
     GOLDEN.rules,
@@ -113,5 +128,10 @@ test("a recorded match on every map replays to its recorded hashes under the cur
     hashes,
     GOLDEN.hashes,
     "the engine's behaviour changed: bump RULES and re-record, or fix the regression",
+  );
+  assert.deepEqual(
+    bots,
+    GOLDEN.bots,
+    "the bot's play changed: bump RULES and re-record, or fix the regression",
   );
 });

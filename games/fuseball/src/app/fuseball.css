@@ -474,6 +474,20 @@ body.fb-display .fb-lobby {
 .fb-controller-result {
   justify-content: center;
 }
+/* On a phone the match needs the room: the account buttons wait in the lobby, and the status line folds away. */
+@media (max-width: 34rem) {
+  body:has(.fb-room:is([data-screen="play"], [data-screen="controller"]))
+    .fb-top
+    .fui-social {
+    display: none;
+  }
+  body:has(.fb-room:is([data-screen="play"], [data-screen="controller"]))
+    .fb-top
+    .fb-status {
+    order: 0;
+    flex: 1 1 4rem;
+  }
+}
 .fb-controller-pads {
   flex: 1;
   min-height: 14rem;

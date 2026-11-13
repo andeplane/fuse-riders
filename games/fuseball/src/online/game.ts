@@ -14,7 +14,6 @@ import {
   type SeatRecord,
   type StreamEntries,
 } from "fuse-netcode";
-import * as engine from "../engine/index.js";
 import {
   BTN,
   CAPACITY,
@@ -27,6 +26,7 @@ import {
   RULES,
   STEPS_PER_TICK,
   UP,
+  botInput,
   createWorld,
   decodeWorld,
   encodeWorld,
@@ -105,16 +105,6 @@ export type RoomStage = "lobby" | "running" | "over";
 export type BotInput = (world: World, rider: Rider) => number;
 /** A bot that holds nothing. */
 export const idleBot: BotInput = () => 0;
-/**
- * The engine's bot, once it has one: `engine/bot.ts` exporting `botInput` through `engine/index.ts` is all it takes.
- * Until then the lookup finds nothing and bots stand idle. Read through the namespace so this file compiles either way;
- * when the bot exists this can become a plain named import.
- */
-function engineBot(): BotInput {
-  const found: unknown = Reflect.get(engine, "botInput");
-  return typeof found === "function" ? (found as BotInput) : idleBot;
-}
-
 /** A rider of the current match as it started: the result names them even if the seat is gone by the end. */
 export interface Entrant {
   id: string;
@@ -663,7 +653,7 @@ export type FuseballGame = RollbackGame<Room, Entry, View, never, Settings>;
  * The game with `bot` answering for bot seats. Every device in a room must fold with the same bot, which is why the
  * default is the engine's own (covered by `RULES`); a test passes a typed fake.
  */
-export function createFuseballGame(bot: BotInput = engineBot()): FuseballGame {
+export function createFuseballGame(bot: BotInput = botInput): FuseballGame {
   return {
     id: GAME_ID,
     rules: RULES,
