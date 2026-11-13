@@ -94,9 +94,9 @@ Controls are one stick and one button. There is no attack button.
 
 - **Worker.** Runs at 62.5 px/s. The button jumps; releasing it while rising halves the upward speed, so a tap is a short hop and a hold rises 50 px. One step of coyote time, no jump buffer. Carries one berry.
 - **Warrior and Queen.** Each press is a flap that adds upward speed; about 8.6 presses a second hover. On the ground they walk at 0.84 times run speed. A Queen holding down in the air dives straight down at 4.6 px per step.
-- **Combat.** A military unit kills an enemy Worker it touches. Between two military units the one whose middle is at least 4 px higher kills, a diving Queen kills what she lands on, and a hit from behind kills; otherwise both bounce apart. A Worker that is invulnerable (just respawned, just out of a gate, just freed from the snail) shoves a military unit it touches.
+- **Combat.** A military unit kills an enemy Worker it touches. Between two military units the one that is at least 4 px higher kills, a diving Queen kills what she lands on, and a hit from behind kills; otherwise both bounce apart. Height is compared on the duel line, 6 px above each unit's feet (`duelY`), for a Queen as for a Warrior: her body is 16 by 22 px against a Warrior's 10 by 12, which makes her the easiest unit to touch and gives her no head start, so a Queen and a Warrior standing on the same ledge are level. A Worker that is invulnerable (just respawned, just out of a gate, just freed from the snail) shoves a military unit it touches.
 - **Death.** A unit respawns at its spawn point after 3 s, invulnerable for 1.5 s. A Warrior comes back as a plain Worker, without speed. A Queen has three eggs; her third death loses the game.
-- **Berries.** A Worker picks one up by touching a pile or a resting loose berry and banks it by touching an empty hole of its own hive. A carrier that dies drops the berry. Any unit kicks a loose berry it touches; a berry that reaches an empty hole fills it for that hive's team, whoever kicked it. The supply is finite; 90 s after every pile is empty the piles refill.
+- **Berries.** A Worker picks one up by touching a pile or a resting loose berry and banks it by touching an empty hole of its own hive. A carrier that dies drops the berry. Any unit kicks a loose berry it touches; a berry that reaches an empty hole fills it for that hive's team, whoever kicked it. The piles refill 90 s after every pile is empty, as in the original, and also every 120 s of play whatever is left in them (ours), so a game cannot run out of berries; see [balance.md](balance.md).
 - **Gates.** A Worker holding a berry stands in a gate for 2.5 s and comes out upgraded and invulnerable for 2 s: a warrior gate makes a Warrior, a speed gate a speed Worker (1.35 times run speed, jump and climb), and a speed Worker in a warrior gate a speed Warrior. A Worker in a gate can still be killed. A gate is neutral until a Queen touches it; then only her team may use it until the other Queen touches it.
 - **Snail.** A Worker that touches the snail on the floor mounts it and it crawls toward that Worker's own goal at 5.6 px/s (1.35 times that with a speed rider). Nothing is banked: the other team can ride it back. An enemy Worker in front of its mouth is caught, the snail halts for 3.67 s (less with a speed rider) and then the Worker dies. Killing the rider, or the rider hopping off with the button, frees the Worker in the mouth. Reaching the goal wins.
 - **Wrap.** The screen wraps horizontally for units, berries and distances. The snail stays between its goals.
@@ -107,6 +107,8 @@ Choices that differ from the arcade game, or that it leaves open:
 - Only an invulnerable Worker bumps military units; an ordinary one dies on contact.
 - A hive has 12 holes, the arcade count, although the game is 3v3. With fewer holes economy wins came too fast against the 62/24/14 target; see [balance.md](balance.md).
 - Jump, flight, body size and combat numbers are ours; the original publishes none. Each is marked in `tuning.ts`.
+- The berry piles refill on a two-minute clock as well as when the map is dry. The original only has the second.
+- A duel compares heights 6 px above the feet, not the bodies' middles, so the tall Queen is not higher than a Warrior beside her.
 
 ## Maps
 
@@ -127,7 +129,7 @@ Map 1, "Twin Hives" (balanced). Left half; the right half is its mirror image:
 
 Ledge levels are 44 px apart and a full Worker jump is 50 px, so each level is one jump from beside a ledge end. The side ledges at x 0 meet their mirror images across the wrap and form one walkway.
 
-Map 2, "Short Leash" (snail): goals at x 128 and 352, so an unopposed ride takes about 20 s; hives out at the walls. Map 3, "Open Heart" (military): both hives in the exposed middle, goals at x 24 and 456. Maps 2 and 3 are first drafts; their numbers are in [balance.md](balance.md).
+Map 2, "Short Leash" (snail): goals at x 104 and 376, 136 px from the start against map 1's 196; hives out at the walls; each side's own warrior gate on the lowest ledge at (148, 214), over the snail's track. Map 3, "Open Heart" (military): both hives in the exposed middle, goals at x 24 and 456 with little cover over the floor, and the side warrior gates low at the walls at (18, 214), over those goals. Both were tuned at hard by moving gates, piles, one ledge and the goals; their numbers are in [balance.md](balance.md).
 
 ## Files
 
@@ -164,5 +166,5 @@ Line coverage of `src/engine` is 100% and branch coverage 99% (measured with c8 
 
 - The engine is not connected to `fuse-netcode`: there is no `RollbackGame` adapter and no binary checkpoint codec. The state is JSON-safe and `packInput` gives the five input bits, so both are thin layers, but they do not exist.
 - Sets of games on rotating maps (PARITY row 23) are not in the engine; a round is one game on one map.
-- Nothing is rendered. `viewOf` is the intended input for the renderer and has not been used by one.
+- The renderer (`src/render`) and the online layer (`src/online`) are written by others and are not described here.
 - No person has played it. Jump and flight feel, and every "ours" number in `tuning.ts`, are settled by bot runs only.

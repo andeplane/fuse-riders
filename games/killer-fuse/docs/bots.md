@@ -12,20 +12,20 @@ A bot is a pure function of the round state. Its memory (`BotMind`: goal, target
 
 Three levels: easy, medium and hard (`BOT_LEVELS`). They differ in how well a bot perceives, reacts and decides, never in what the rules let it do.
 
-| Setting      | Easy | Medium | Hard | Meaning                                                                             |
-| ------------ | ---- | ------ | ---- | ----------------------------------------------------------------------------------- |
-| `think`      | 38   | 16     | 6    | Steps between decisions: the reaction delay (0.63 s, 0.27 s, 0.1 s)                 |
-| `aimError`   | 14   | 6      | 2    | Largest error, in pixels, on the point a flyer aims for                             |
-| `flapMin`    | 5    | 4      | 4    | Fewest steps between two flaps                                                      |
-| `flapJitter` | 3    | 2      | 0    | Random extra steps on top: flap precision                                           |
-| `blunder`    | 14   | 3      | 0    | Chance, in percent per decision, of freezing                                        |
-| `idleSteps`  | 45   | 24     | 0    | How long a freeze lasts                                                             |
-| `awareness`  | 20   | 30     | 40   | How far, in pixels, a flyer notices a military threat                               |
-| `smart`      | 40   | 75     | 96   | Chance, in percent, that a decision is the considered one, not "charge the nearest" |
-| `lead`       | 0    | 4      | 8    | Steps of the target's motion a hunter aims ahead by                                 |
-| `flee`       | 0    | 28     | 40   | How far, in pixels, a Worker starts running from a military unit; 0 never runs      |
-| `soldier`    | 50   | 70     | 80   | Chance, in percent, that a team's first Worker plans to become a Warrior            |
-| `rider`      | 40   | 50     | 50   | Chance, in percent, that a team's second Worker plans to ride the snail             |
+| Setting      | Easy | Medium | Hard | Meaning                                                                        |
+| ------------ | ---- | ------ | ---- | ------------------------------------------------------------------------------ |
+| `think`      | 38   | 16     | 6    | Steps between decisions: the reaction delay (0.63 s, 0.27 s, 0.1 s)            |
+| `aimError`   | 14   | 6      | 2    | Largest error, in pixels, on the point a flyer aims for                        |
+| `flapMin`    | 5    | 4      | 4    | Fewest steps between two flaps                                                 |
+| `flapJitter` | 3    | 2      | 0    | Random extra steps on top: flap precision                                      |
+| `blunder`    | 14   | 3      | 0    | Chance, in percent per decision, of freezing                                   |
+| `idleSteps`  | 45   | 24     | 0    | How long a freeze lasts                                                        |
+| `awareness`  | 20   | 36     | 38   | How far, in pixels, a flyer notices a military threat                          |
+| `smart`      | 65   | 75     | 96   | Chance, in percent, that a decision is the considered one, not a lapse         |
+| `lead`       | 0    | 4      | 8    | Steps of the target's motion a hunter aims ahead by                            |
+| `flee`       | 0    | 70     | 70   | How far, in pixels, a Worker starts running from a military unit; 0 never runs |
+| `soldier`    | 50   | 70     | 80   | Chance, in percent, that a team's first Worker plans to become a Warrior       |
+| `rider`      | 40   | 40     | 40   | Chance, in percent, that a team's second Worker plans to ride the snail        |
 
 A bot steers at where its target was when it last decided, so the reaction delay is also how stale its picture of the world is.
 
@@ -48,9 +48,9 @@ A Worker on its way somewhere hops over the snail, since touching it mounts, and
 
 ## Queen and Warrior decisions
 
-A decision that is not "considered" charges the nearest enemy. A considered one goes, in order:
+A decision that is not "considered" is a lapse. A Warrior in a lapse charges the nearest enemy, whatever it is. A Queen in a lapse drifts back over her own hive: she has the game to lose, and a Queen that charged was how easy and medium teams used to lose nine games in ten inside 40 s. A considered decision goes, in order:
 
-1. A military enemy close by and not clearly below: get out from under it, sideways and up. A Queen looks further and gives way sooner with every egg she has lost.
+1. A military enemy within `awareness` range and not clearly below: get out from under it, sideways and up. A Queen looks further and gives way sooner with every egg she has lost.
 2. An enemy is riding the snail: hunt the rider.
 3. Queen only: claim the nearest gate her team does not own that no enemy military unit guards, unless a Worker to kill is closer. A gate with someone standing in it comes first; speed gates come last.
 4. A military enemy that is already below: attack it from above. A Queen with few eggs passes on distant duels.
@@ -58,7 +58,7 @@ A decision that is not "considered" charges the nearest enemy. A considered one 
 6. A Warrior with nothing else to do hunts the enemy Queen.
 7. Otherwise hover over the own hive.
 
-A hunter aims at a Worker's middle and at a point 9 px above a military target, since height wins the contact. A Queen bot dives when she is over her target.
+A hunter aims at a Worker's middle and puts its duel line 9 px above a military target's, since height wins the contact (the duel line is 6 px above the feet; see [engine.md](engine.md)). A Queen bot dives when she is over her target.
 
 ## Navigation
 
@@ -71,12 +71,12 @@ Both are mirror-symmetric. The Worker graph keeps a move only together with its 
 
 ## Tests
 
-`tests/bot-decisions.test.ts` puts a bot in a set situation and checks the decision it makes (as a majority over nine copies of the round with different random streams), and that the levels are ordered. `tests/bot-nav.test.ts` checks the navigation tables are their own mirror image on every map. `tests/bot-soak.test.ts` plays whole games on every map at every level with invariants checked on every step, checks a lone Worker fills its hive, a lone soldier becomes a Warrior, a lone rider rides home and a lone Queen claims every gate, and runs the level ladder.
+`tests/bot-decisions.test.ts` puts a bot in a set situation and checks the decision it makes (as a majority over nine copies of the round with different random streams), and that the levels are ordered. `tests/bot-nav.test.ts` checks the navigation tables are their own mirror image on every map. `tests/bot-soak.test.ts` plays whole games on every map at every level with invariants checked on every step, checks a lone Worker fills its hive, a lone soldier becomes a Warrior, a lone rider rides home and a lone Queen claims every gate on every map, and runs the level ladder.
 
 ## Known weaknesses
 
 - Bots do not coordinate beyond the two Worker plans and the one-Worker snail stall. They never escort a rider or a berry carrier, and never guard a gate on purpose.
-- Bots never kick a loose berry toward a hive on purpose. Kick-ins happen by accident (0.25 per game at hard).
+- Bots never kick a loose berry toward a hive on purpose. Kick-ins happen by accident (0.2 per game at hard).
 - A Queen never uses a gate claim to lock out a Worker that is about to enter; she only prefers gates that are in use.
-- Easy and medium bots mostly lose to Queen deaths, because they fly into fights they cannot win. Their games are short and nine in ten are military wins; see [balance.md](balance.md).
+- What separates the levels is mostly reaction time, aim and how often a decision is a lapse. An easy Queen survives by going home, not by fighting well, so easy against easy has fewer military wins (41% on map 1) than hard against hard (61%); see [balance.md](balance.md).
 - Worker bots only make moves that are in the graph, so they do not improvise a jump from where they happen to stand.
