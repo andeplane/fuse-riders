@@ -12,12 +12,12 @@
   },
   "dependencies": {
     "fuse-netcode": "workspace:*",
-    "fuse-platform": "workspace:*"
+    "fuse-platform": "workspace:*",
+    "fuse-ui": "workspace:*"
   },
   "devDependencies": {
     "@fontsource/press-start-2p": "^5.3.0",
     "fuse-network-fe": "workspace:*",
-    "fuse-ui": "workspace:*",
     "qrcode": "^1.5.4"
   }
 }

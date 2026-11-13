@@ -1,54 +1,70 @@
-/* The fuseball page, on fuse-ui's tokens and components. Phone first; a wide screen spreads the table out. */
+/* The Fuseball page, on fuse-ui's tokens and components. Phone first; a wide screen puts the lobby in two columns. */
 body.fuseball-page {
   padding: 0;
+  background:
+    radial-gradient(ellipse at 15% -10%, #0b3a66 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 110%, #4a0a4c 0%, transparent 45%),
+    var(--fui-ink);
 }
 #app {
-  display: grid;
-  /* The column is the screen, never the widest unbreakable line in it: a phone must not scroll sideways. */
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto 1fr;
+  display: flex;
+  flex-direction: column;
   min-height: 100dvh;
-  padding: 0 max(var(--fui-space-3), env(safe-area-inset-left))
-    env(safe-area-inset-bottom);
+  /* The column is the screen, never the widest unbreakable line in it: a phone must not scroll sideways. */
+  min-width: 0;
+  padding: 0 max(var(--fui-space-3), env(safe-area-inset-right))
+    env(safe-area-inset-bottom)
+    max(var(--fui-space-3), env(safe-area-inset-left));
+}
+.fui-app [hidden] {
+  display: none !important;
 }
 
 /* Header */
-.fuseball-top {
+.fb-top {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: var(--fui-space-2) var(--fui-space-3);
   padding: var(--fui-space-3) 0;
 }
-.fuseball-brand {
+.fb-brand {
   display: grid;
-  color: var(--fui-pink);
+  grid-template-columns: auto auto;
+  justify-content: start;
   text-decoration: none;
-  font: 1.5rem/1 var(--fui-font-pixel);
+  font: 1.25rem/1 var(--fui-font-pixel);
+}
+.fb-brand-fuse {
+  color: var(--fui-cyan);
+  text-shadow: var(--fui-glow-cyan);
+}
+.fb-brand-ball {
+  color: var(--fui-pink);
   text-shadow: var(--fui-glow-pink);
 }
-.fuseball-brand small {
+.fb-brand small {
+  grid-column: 1 / -1;
   margin-top: var(--fui-space-1);
   color: var(--fui-text-dim);
   font-size: 0.5rem;
   letter-spacing: 0.125rem;
-  text-shadow: none;
 }
-.fuseball-back {
+.fb-back {
   margin-left: auto;
   color: var(--fui-cyan);
   font: 0.625rem var(--fui-font-pixel);
 }
-.fuseball-code {
+.fb-code {
   padding: var(--fui-space-1) var(--fui-space-2);
   color: var(--fui-ink);
-  background: var(--fui-cyan);
+  background: var(--fui-yellow);
   border-radius: var(--fui-radius-small);
   font: 0.75rem var(--fui-font-pixel);
 }
-.fuseball-status {
+.fb-status {
   flex: 1 1 10rem;
-  /* One line, always laid out: a status that appears, changes or wraps must not move the buttons below it. */
+  /* One line, always laid out: a status that appears, changes or wraps must not move the buttons beside it. */
   min-width: 0;
   min-height: 1.25rem;
   overflow: hidden;
@@ -58,353 +74,501 @@ body.fuseball-page {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.fui-app .fuseball-status[hidden] {
+.fui-app .fb-status[hidden] {
   display: block !important;
   visibility: hidden;
 }
-.fuseball-top .fui-game-menu {
+.fb-top .fui-game-menu {
   margin-left: auto;
 }
-@media (max-width: 34rem) {
-  /* On a phone the status line takes its own row under the brand, code and MENU. */
-  .fuseball-status {
-    order: 1;
-    flex-basis: 100%;
-  }
+.fb-back + .fui-game-menu {
+  margin-left: 0;
 }
-.fuseball-top .fui-game-menu-trigger {
-  min-height: 2.25rem;
-  font: 0.625rem var(--fui-font-pixel);
+.fb-error,
+.fb-connecting {
+  margin: var(--fui-space-6) auto;
+  color: var(--fui-text-muted);
+  font: 0.75rem/1.6 var(--fui-font-pixel);
+  text-align: center;
+}
+.fb-error {
+  color: var(--fui-pink-soft);
 }
 
 /* Landing */
 .fuseball-page .fui-landing {
-  align-content: start;
-  margin-top: 6vh;
+  width: min(100%, 44rem);
+  margin: 0 auto var(--fui-space-5);
 }
 .fuseball-page .fui-landing-title {
   color: var(--fui-yellow);
-  text-shadow: 0 0 1rem #ffe46b66;
 }
-.fuseball-page .fui-landing-tagline {
-  line-height: 1.6;
-}
-.fuseball-shared {
+.fb-shared {
   display: flex;
   align-items: center;
   gap: var(--fui-space-2);
   color: var(--fui-text-muted);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
 }
-.fui-app .fuseball-shared input {
-  min-height: 0;
+.fui-app .fb-shared input {
   width: 1.25rem;
   height: 1.25rem;
+  margin: 0;
   accent-color: var(--fui-cyan);
 }
-.fuseball-error {
-  color: var(--fui-pink-soft);
-  text-align: center;
+.fb-landing-arena {
+  display: grid;
+  gap: var(--fui-space-2);
+  margin-top: var(--fui-space-4);
+}
+.fb-keys {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--fui-space-1) var(--fui-space-3);
+  margin: var(--fui-space-4) 0 0;
+  font-size: 0.75rem;
+}
+.fb-keys dt {
+  color: var(--fui-yellow);
+  font: 0.5625rem/1.6 var(--fui-font-pixel);
+}
+.fb-keys dd {
+  margin: 0;
+  color: var(--fui-text-muted);
+}
+
+/* The arena picker: on the landing page and in the lobby */
+.fb-maps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--fui-space-2);
+}
+.fui-app .fb-map {
+  display: grid;
+  gap: var(--fui-space-1);
+  justify-items: start;
+  min-width: 0;
+  padding: var(--fui-space-2);
+  color: var(--fui-text-muted);
+  background: #06102a;
+  border: var(--fui-stroke) solid var(--fui-line);
+  border-radius: var(--fui-radius-small);
+  text-align: left;
+  white-space: normal;
+}
+.fui-app .fb-map[aria-pressed="true"] {
+  color: var(--fui-text-bright);
+  border-color: var(--fui-yellow);
+  box-shadow: 0 0 1rem #ffe46b55;
+}
+.fui-app .fb-map:disabled {
+  opacity: 0.45;
+}
+.fb-map strong {
+  font: 0.5625rem/1.4 var(--fui-font-pixel);
+  overflow-wrap: anywhere;
+}
+.fb-map[aria-pressed="true"] strong {
+  color: var(--fui-yellow);
+}
+.fb-map small {
+  font: 0.6875rem/1.3 var(--fui-font-sans);
+}
+.fb-map-thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #081430;
+  border-radius: 0.25rem;
+}
+.fb-map-thumb .solid {
+  fill: #9a86ff;
+}
+.fb-map-thumb .cloud {
+  fill: #aab4ff33;
+}
+.fb-map-thumb .ball {
+  fill: var(--fui-yellow);
 }
 
 /* Room */
-.fuseball-room {
-  display: grid;
-  align-content: start;
-  gap: var(--fui-space-4);
-  width: min(56rem, 100%);
-  margin: 0 auto;
-  padding-bottom: var(--fui-space-5);
+.fb-room {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--fui-space-3);
+  min-width: 0;
+  padding-bottom: var(--fui-space-3);
 }
-.fuseball-room > .fui-name-entry {
-  width: min(32rem, 100%);
+.fb-room > .fui-name-entry {
+  width: min(100%, 32rem);
   margin: 0 auto;
 }
-.fuseball-lobby {
-  display: grid;
-  gap: var(--fui-space-4);
-  width: min(32rem, 100%);
-  margin: 0 auto;
+.fb-panel {
+  min-width: 0;
   padding: var(--fui-space-4);
   background: var(--fui-panel);
   border: var(--fui-border);
-  border-radius: var(--fui-radius-panel);
+  border-radius: var(--fui-radius);
 }
-.fuseball-lobby .fui-roster-row {
-  position: relative;
+.fb-panel > .fui-lobby-title {
+  margin: var(--fui-space-3) 0 var(--fui-space-2);
 }
-.fui-app .fuseball-remove {
+.fb-panel > .fui-lobby-title:first-child {
+  margin-top: 0;
+}
+.fb-lobby {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--fui-space-3);
+  width: min(100%, 68rem);
+  margin: 0 auto;
+}
+@media (min-width: 52rem) {
+  .fb-lobby {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    align-items: start;
+  }
+}
+.fb-lobby-side {
+  display: grid;
+  gap: var(--fui-space-3);
+}
+.fb-lobby .fui-roster-row {
+  align-items: center;
+}
+.fui-app .fb-remove {
   margin-left: auto;
-  min-height: 2rem;
-  padding: 0 var(--fui-space-3);
-  color: var(--fui-pink-soft);
+  padding: var(--fui-space-1) var(--fui-space-3);
 }
-.fuseball-lobby-actions {
+.fb-add-bot {
+  margin-top: var(--fui-space-3);
+}
+.fb-actions {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-end;
   gap: var(--fui-space-2);
 }
-.fuseball-lobby-actions button {
-  flex: 1 1 9rem;
-}
-
-/* Table */
-.fuseball-table {
+.fb-closed {
   display: grid;
   gap: var(--fui-space-3);
+  justify-items: center;
+  width: min(100%, 32rem);
+  margin: var(--fui-space-6) auto;
+  border-color: var(--fui-pink);
   text-align: center;
 }
-.fuseball-round {
-  margin: 0;
-  color: var(--fui-text-dim);
-  font: 0.625rem var(--fui-font-pixel);
-  letter-spacing: 0.0625rem;
+.fb-closed-back {
+  padding: var(--fui-space-3) var(--fui-space-4);
+  text-decoration: none;
 }
-.fuseball-headline {
-  margin: 0;
-  color: var(--fui-cyan);
-  font: clamp(1rem, 4.5vw, 1.75rem) / 1.3 var(--fui-font-pixel);
-  text-shadow: var(--fui-glow-text);
+/* The TV has no arena to choose: its lobby is the invitation and the riders, centred. */
+body.fb-display .fb-lobby {
+  grid-template-columns: minmax(0, 46rem);
+  justify-content: center;
 }
-.fuseball-detail {
-  min-height: 1.25rem;
-  margin: 0;
-  color: var(--fui-yellow);
-}
-.fuseball-board {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
-  gap: var(--fui-space-2);
-}
-.fuseball-player {
-  --rider-color: var(--fui-cyan);
-  display: grid;
-  grid-template-columns: 1fr auto;
+
+/* The arena */
+.fb-stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--fui-space-1) var(--fui-space-2);
-  padding: var(--fui-space-2) var(--fui-space-3);
-  text-align: left;
-  background: var(--fui-deep);
-  border: var(--fui-stroke) solid transparent;
-  border-left: 0.3rem solid var(--rider-color);
-  border-radius: var(--fui-radius-small);
-  transition:
-    border-color 0.2s,
-    box-shadow 0.2s;
+  gap: var(--fui-space-2);
+  min-width: 0;
 }
-.fuseball-player.current {
-  border-color: var(--rider-color);
-  box-shadow: 0 0 1rem color-mix(in srgb, var(--rider-color) 45%, transparent);
+.fb-sides {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--fui-space-2);
+  width: min(100%, calc((100dvh - 9.5rem) * 16 / 9));
+  font: 0.5625rem/1.4 var(--fui-font-pixel);
 }
-.fuseball-player.away {
-  opacity: 0.5;
-}
-.fuseball-player.winner .fuseball-player-name::after {
-  content: " ★";
-  color: var(--fui-yellow);
-}
-.fuseball-player-name {
+.fb-side {
   overflow: hidden;
+  color: var(--c);
   text-overflow: ellipsis;
+  text-shadow: 0 0 0.625rem var(--c);
   white-space: nowrap;
-  font: 0.625rem/1.4 var(--fui-font-pixel);
 }
-.fuseball-player.you .fuseball-player-name {
-  color: var(--rider-color);
+.fb-side + .fb-arena-name + .fb-side {
+  text-align: right;
 }
-.fuseball-player-wins {
-  color: var(--fui-yellow);
+.fb-side.you {
+  text-decoration: underline;
+  text-underline-offset: 0.25rem;
+}
+.fb-arena-name {
+  color: var(--fui-text-dim);
   letter-spacing: 0.125rem;
 }
-.fuseball-player-score {
-  grid-column: 1 / -1;
-  font: 1.5rem var(--fui-font-pixel);
-  color: var(--fui-text-bright);
-}
-.fuseball-player-meter {
-  grid-column: 1 / -1;
-  height: 0.375rem;
-  background: #ffffff14;
-  border-radius: 0.25rem;
-  overflow: hidden;
-}
-.fuseball-player-bar {
-  display: block;
-  height: 100%;
-  background: var(--rider-color);
-  transition: width 0.25s;
-}
-.fuseball-centre {
+.fb-screen {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--fui-space-5);
-  padding: var(--fui-space-3) 0;
-}
-.fuseball-die {
-  display: grid;
-  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
-  --die: clamp(6.5rem, 30vw, 9.5rem);
-  width: var(--die);
-  height: var(--die);
-  padding: calc(var(--die) * 0.12);
-  gap: calc(var(--die) * 0.05);
-  background: linear-gradient(160deg, #ffffff, #d6f6ff);
-  border-radius: 18%;
-  box-shadow:
-    0 0 0 0.25rem var(--fui-cyan),
-    0 0 2rem #16e7ff80;
-}
-.fuseball-die.blank {
-  opacity: 0.35;
-}
-.fuseball-die.bust {
-  background: linear-gradient(160deg, #ffd2e8, #ff72b3);
-  box-shadow:
-    0 0 0 0.25rem var(--fui-pink),
-    0 0 2rem var(--fui-pink);
-}
-.fuseball-die.rolled {
-  animation: fuseball-roll 0.35s ease-out;
-}
-@keyframes fuseball-roll {
-  0% {
-    transform: rotate(-25deg) scale(0.75);
-  }
-  70% {
-    transform: rotate(6deg) scale(1.06);
-  }
-  100% {
-    transform: none;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .fuseball-die.rolled {
-    animation: none;
-  }
-}
-.fuseball-pip {
-  border-radius: 50%;
-}
-.fuseball-pip.on {
-  background: var(--fui-ink);
-  box-shadow: inset 0 -0.2rem 0 #ff2e9d99;
-}
-.fuseball-total {
-  display: grid;
-  gap: var(--fui-space-2);
-}
-.fuseball-total small {
-  color: var(--fui-text-dim);
-  font: 0.5rem var(--fui-font-pixel);
-  letter-spacing: 0.0625rem;
-}
-.fuseball-total strong {
-  color: var(--fui-lime);
-  font: clamp(2rem, 9vw, 3.5rem) var(--fui-font-pixel);
-  text-shadow: 0 0 1rem #b6ff4d66;
-}
-.fuseball-timer {
-  height: 0.625rem;
-  background: #ffffff14;
-  border-radius: 0.3125rem;
+  width: min(100%, calc((100dvh - 9.5rem) * 16 / 9));
+  aspect-ratio: 16 / 9;
   overflow: hidden;
+  background: var(--fui-ink);
+  border: var(--fui-stroke) solid #4a3fa8;
+  border-radius: var(--fui-radius-small);
+  box-shadow: 0 0 2.5rem #6544c255;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
 }
-.fuseball-timer span {
+.fb-canvas {
+  position: absolute;
+  inset: 0;
   display: block;
+  width: 100%;
   height: 100%;
-  background: var(--fui-cyan);
-  transition: width 0.1s linear;
 }
-.fuseball-timer.low span {
-  background: var(--fui-pink);
-}
-.fuseball-timer-text {
-  min-height: 1rem;
-  color: var(--fui-text-dim);
-  font-size: 0.75rem;
-}
-.fuseball-pad {
-  position: sticky;
-  bottom: var(--fui-space-2);
-  min-height: 5.5rem;
-}
-.fui-app .fuseball-pad .fuseball-roll:enabled {
-  color: var(--fui-ink);
-  background: var(--fui-cyan-fill);
-  box-shadow: var(--fui-glow-cyan);
-}
-.fui-app .fuseball-pad .fuseball-hold:enabled {
-  border-color: var(--fui-lime);
-  color: var(--fui-lime);
-}
-
-/* A phone in a shared-screen room is a controller: its own card, the die and two huge buttons. */
-.fuseball-room[data-layout="controller"] .fuseball-player:not(.you) {
-  display: none;
-}
-.fuseball-room[data-layout="controller"] .fuseball-board {
-  grid-template-columns: 1fr;
-}
-.fuseball-room[data-layout="controller"] .fuseball-pad {
-  min-height: 40vh;
-}
-.fuseball-room[data-layout="controller"] .fuseball-pad button {
-  font-size: 1.5rem;
-}
-
-/* The shared screen: bigger everything, no controls. */
-body.fuseball-display .fuseball-room {
-  width: min(80rem, 100%);
-}
-body.fuseball-display .fuseball-board {
-  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-}
-body.fuseball-display .fuseball-player-score {
-  font-size: 2.25rem;
-}
-body.fuseball-display .fuseball-die {
-  --die: clamp(8rem, 22vw, 14rem);
-}
-
-/* Result and toast */
-.fuseball-result {
-  display: grid;
-  gap: var(--fui-space-3);
-  width: min(32rem, 100%);
-  margin: 0 auto;
-  padding: var(--fui-space-4);
-  background: var(--fui-panel);
-  border: 0.125rem solid var(--fui-yellow);
-  border-radius: var(--fui-radius-panel);
-  box-shadow: 0 0 2rem #ffe46b40;
+.fb-note {
+  margin: 0;
+  color: var(--fui-text-muted);
+  font: 0.5625rem/1.6 var(--fui-font-pixel);
   text-align: center;
 }
-.fuseball-result-title {
-  margin: 0;
-  color: var(--fui-yellow);
-  font: 1.25rem/1.4 var(--fui-font-pixel);
+/* The control guide sits between the riders' marks; its close button must not cover the first line. */
+.fb-screen .fui-round-controls {
+  bottom: 0.5rem;
+  font-size: 0.75rem;
 }
-.fuseball-result-lines {
-  margin: 0;
-  padding-left: 1.5rem;
-  text-align: left;
-  line-height: 1.7;
+.fb-screen .fui-round-controls .fui-controls-goal {
+  padding-right: 2.5rem;
 }
-/* Over the top of the die, so a bust never covers whose turn it is. */
-.fuseball-toast {
+.fb-result {
   position: absolute;
   left: 50%;
-  top: 0;
-  z-index: var(--fui-z-alert);
+  bottom: 6%;
   transform: translateX(-50%);
-  padding: var(--fui-space-2) var(--fui-space-4);
-  background: var(--fui-panel);
-  border: 0.125rem solid var(--fui-pink);
+  display: grid;
+  gap: var(--fui-space-2);
+  width: min(92%, 30rem);
+  padding: var(--fui-space-3) var(--fui-space-4);
+  background: #050e25ee;
+  border: var(--fui-stroke) solid var(--fui-yellow);
   border-radius: var(--fui-radius);
-  box-shadow: var(--fui-glow-pink);
-  font: 0.75rem/1.5 var(--fui-font-pixel);
-  white-space: nowrap;
+  box-shadow: 0 0 2rem #ffe46b44;
+  text-align: center;
+}
+.fb-result h2 {
+  margin: 0;
+  color: var(--fui-yellow);
+  font: 0.875rem/1.4 var(--fui-font-pixel);
+}
+.fb-result ol {
+  display: grid;
+  gap: var(--fui-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--fui-text-muted);
+  font-size: 0.75rem;
+}
+.fb-result li:first-child {
+  color: var(--fui-text-bright);
+  font: 0.625rem/1.6 var(--fui-font-pixel);
+}
+.fb-result .fb-actions {
+  justify-content: center;
+}
+
+/* Touch: one stick, one button */
+.fb-touch,
+.fb-controller-pads {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fui-space-4);
+  width: 100%;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.fb-touch {
+  flex: 1;
+  min-height: 11rem;
+  padding: var(--fui-space-3) var(--fui-space-4);
+}
+.fb-stick,
+.fb-jump {
+  --c: var(--fui-cyan);
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: min(42vw, 11rem);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  touch-action: none;
+}
+.fb-stick {
+  background:
+    radial-gradient(circle, transparent 27%, #ffffff10 28%, transparent 30%),
+    #08163acc;
+  border: var(--fui-stroke) solid #9a86ff;
+  box-shadow: inset 0 0 1.5rem #6544c255;
+}
+.fb-stick-knob {
+  width: 42%;
+  aspect-ratio: 1;
+  background: radial-gradient(circle at 35% 30%, #d9d2ff, #6544c2);
+  border-radius: 50%;
+  box-shadow: 0 0 1rem #9a86ff88;
+  pointer-events: none;
+  transition: transform 60ms linear;
+}
+.fb-stick.held .fb-stick-knob {
+  transition: none;
+}
+.fb-jump {
+  width: min(34vw, 9rem);
+  color: var(--fui-ink);
+  background: radial-gradient(circle at 35% 30%, #fff8d6, var(--fui-yellow));
+  border: var(--fui-stroke) solid #fff8d6;
+  box-shadow: 0 0 1.25rem #ffe46b77;
+  font: 0.75rem var(--fui-font-pixel);
+}
+.fb-jump.held {
+  transform: scale(0.94);
+  box-shadow: 0 0 2rem #ffe46b;
+}
+
+/* The phone controller for a shared screen */
+.fb-controller {
+  --c: var(--fui-cyan);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--fui-space-3);
+  min-width: 0;
+}
+.fb-controller > .fui-round-controls {
+  position: relative;
+  inset: auto;
+  order: -1;
+  width: 100%;
+  max-width: none;
+  transform: none;
+}
+.fb-controller-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fui-space-2);
+  padding: var(--fui-space-3) var(--fui-space-4);
+  background: var(--fui-panel);
+  border: var(--fui-stroke) solid var(--c);
+  border-radius: var(--fui-radius);
+  box-shadow: 0 0 1.25rem color-mix(in srgb, var(--c) 40%, transparent);
+  font: 0.6875rem/1.5 var(--fui-font-pixel);
+}
+.fb-controller-head b {
+  color: var(--c);
+}
+.fb-controller-head span {
+  color: var(--fui-yellow);
+}
+.fb-controller-result {
+  justify-content: center;
+}
+.fb-controller-pads {
+  flex: 1;
+  min-height: 14rem;
+  padding: var(--fui-space-3);
+}
+.fb-controller-pads .fb-stick {
+  width: min(44vw, 44dvh, 16rem);
+}
+.fb-controller-pads .fb-jump {
+  width: min(38vw, 40dvh, 14rem);
+  font-size: 0.875rem;
+}
+
+/* The shared TV: the arena as large as the screen allows */
+body.fb-display .fb-screen,
+body.fb-display .fb-sides {
+  width: min(100%, calc((100dvh - 7rem) * 16 / 9));
+}
+
+/* A phone on its side: the arena fills the screen and the pads float over its corners. */
+@media (orientation: landscape) and (max-height: 32rem) {
+  #app {
+    padding: 0;
+  }
+  .fb-room[data-screen="play"] {
+    padding: 0;
+  }
+  body:has(.fb-room[data-screen="play"]) .fb-top {
+    display: none;
+  }
+  .fb-room[data-screen="play"] .fb-sides,
+  .fb-room[data-screen="play"] .fb-note {
+    display: none;
+  }
+  .fb-screen {
+    width: min(100%, calc(100dvh * 16 / 9));
+    border: 0;
+    border-radius: 0;
+  }
+  .fb-touch {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: var(--fui-z-overlay);
+    min-height: 0;
+    padding: var(--fui-space-2)
+      max(var(--fui-space-3), env(safe-area-inset-right)) var(--fui-space-2)
+      max(var(--fui-space-3), env(safe-area-inset-left));
+    pointer-events: none;
+  }
+  .fb-touch .fb-stick,
+  .fb-touch .fb-jump {
+    opacity: 0.72;
+    pointer-events: auto;
+  }
+  .fb-touch .fb-stick {
+    width: min(34dvh, 8.5rem);
+  }
+  .fb-touch .fb-jump {
+    width: min(28dvh, 7rem);
+  }
+  .fb-controller-head {
+    padding: var(--fui-space-2) var(--fui-space-3);
+  }
+  .fb-controller-pads {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 34rem) {
+  .fb-top {
+    gap: var(--fui-space-2);
+  }
+  .fb-brand {
+    font-size: 1rem;
+  }
+  .fb-top .fb-status {
+    order: 5;
+    flex-basis: 100%;
+  }
+  .fb-maps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .fui-app .fb-map {
+    grid-template-columns: 6rem minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--fui-space-3);
+  }
+  .fb-map .fb-map-thumb {
+    grid-row: 1 / span 2;
+  }
+  .fb-result {
+    bottom: 3%;
+    padding: var(--fui-space-2);
+  }
+  .fb-result ol li:not(:first-child) {
+    display: none;
+  }
 }
