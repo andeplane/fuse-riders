@@ -166,11 +166,17 @@ test("a lone rider bot mounts the snail and rides it home", () => {
   }
 });
 
-test("a lone Queen bot claims every gate on the map", () => {
-  const game = solo(1, {});
-  play(game, 90, (events) => ofType(events, "gateClaim").length >= 5);
-  assert.ok(game.state.gates.every((gate) => gate.owner === 1));
-  assert.equal(ofType(game.events, "gateClaim").length, MAPS[1].gates.length);
+test("a lone Queen bot claims every gate on every map: her tall body fits wherever a gate stands", () => {
+  for (const mapId of MAP_IDS) {
+    const game = solo(1, {}, mapId);
+    const gates = MAPS[mapId].gates.length;
+    play(game, 90, (events) => ofType(events, "gateClaim").length >= gates);
+    assert.ok(
+      game.state.gates.every((gate) => gate.owner === 1),
+      `map ${mapId}`,
+    );
+    assert.equal(ofType(game.events, "gateClaim").length, gates);
+  }
 });
 
 test("the level ladder: hard beats medium and medium beats easy in most games, from either side", () => {

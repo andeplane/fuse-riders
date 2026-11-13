@@ -4,6 +4,7 @@ import {
   KICK_SPEED,
   KICK_WAIT,
   MAPS,
+  REGROW_CLOCK,
   REGROW_STEPS,
   S,
   stepRound,
@@ -214,11 +215,34 @@ test("ninety seconds after the piles run dry they are whole again", () => {
   assert.equal(state.dry, 0);
 });
 
+test("every two minutes of play the piles are made whole, whatever is left in them", () => {
+  const state = bare();
+  state.piles.fill(0);
+  state.piles[0] = 1;
+  state.step = REGROW_CLOCK - 2;
+  stepRound(state, []);
+  assert.deepEqual(state.events, []);
+  assert.equal(state.piles[0], 1);
+  stepRound(state, []);
+  assert.deepEqual(state.events, [{ type: "berryRegrow" }]);
+  assert.deepEqual(
+    state.piles,
+    MAP.piles.map((pile) => pile.count),
+  );
+  state.piles.fill(0);
+  state.piles[1] = 2;
+  const events = run(state, REGROW_CLOCK - 1);
+  assert.deepEqual(events, []);
+  stepRound(state, []);
+  assert.deepEqual(state.events, [{ type: "berryRegrow" }]);
+});
+
 test("a rider or a dead unit does not touch loose berries", () => {
   const state = bare();
   loose(state, OPEN, FLOOR).resting = true;
   put(state, 2, OPEN, FLOOR, { riding: true });
   put(state, 4, OPEN, FLOOR, { dead: true, respawn: 1000 });
+  state.step = 1;
   stepBerries(state);
   assert.deepEqual(state.events, []);
   assert.equal(state.loose.length, 1);

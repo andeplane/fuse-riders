@@ -10,6 +10,7 @@ import {
   RESPAWN_INVULN,
   RESPAWN_STEPS,
   S,
+  WARRIOR_HEIGHT,
 } from "./tuning.js";
 import type { Round, Unit } from "./types.js";
 
@@ -77,9 +78,16 @@ export function unitTouches(
 export const unitsTouch = (a: Unit, b: Unit): boolean =>
   unitTouches(a, b.x, b.y, halfOf(b.kind), heightOf(b.kind));
 
-/** The y of a unit's middle: what "higher" compares. */
+/** The y of a unit's middle. */
 export const centreY = (unit: Unit): number =>
   unit.y - Math.trunc(heightOf(unit.kind) / 2);
+
+/**
+ * The y a duel compares: half a Warrior's height above the feet, for a Queen too. Her tall body is a bigger target and
+ * gives her no head start, so a Queen and a Warrior standing on the same ledge are level.
+ */
+export const duelY = (unit: Unit): number =>
+  unit.y - Math.trunc(WARRIOR_HEIGHT / 2);
 
 /** Lets go of whatever the unit holds on the map: its gate, the snail, the snail's mouth. */
 export function release(state: Round, unit: Unit): void {

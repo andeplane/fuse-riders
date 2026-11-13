@@ -13,11 +13,11 @@ import {
   HEIGHT_ADVANTAGE,
 } from "./tuning.js";
 import type { Round, Unit } from "./types.js";
-import { centreY, isMilitary, killUnit, unitsTouch } from "./units.js";
+import { duelY, isMilitary, killUnit, unitsTouch } from "./units.js";
 
 /** Which of two touching military units wins the contact, or null for a bounce. */
 export function duelWinner(a: Unit, b: Unit): Unit | null {
-  const rise = centreY(b) - centreY(a);
+  const rise = duelY(b) - duelY(a);
   if (a.diving && rise > 0) return a;
   if (b.diving && rise < 0) return b;
   if (rise >= HEIGHT_ADVANTAGE) return a;

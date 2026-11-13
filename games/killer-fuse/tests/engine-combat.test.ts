@@ -5,9 +5,11 @@ import {
   BUMP_SPEED,
   HEIGHT_ADVANTAGE,
   QUEEN_EGGS,
+  QUEEN_HEIGHT,
   RESPAWN_INVULN,
   RESPAWN_STEPS,
   S,
+  WARRIOR_HEIGHT,
   arenaOf,
   isQueenSlot,
   stepRound,
@@ -194,6 +196,23 @@ test("a Worker killed while carrying drops its berry where it stood", () => {
   assert.equal(state.loose.length, 1);
   assert.equal(state.loose[0]?.x, worker.x);
   assert.equal(state.loose[0]?.by, 3);
+});
+
+test("a Queen's tall body gives her no height: level on the same ledge they bounce, and a Warrior a little above her feet kills her", () => {
+  const state = bare();
+  const queen = stand(state, 1, 250, FLOOR);
+  const warrior = stand(state, 2, 240, FLOOR, { kind: "warrior" });
+  queen.facing = -1;
+  warrior.facing = 1;
+  assert.ok(QUEEN_HEIGHT > 2 * WARRIOR_HEIGHT - 4 * S);
+  assert.equal(duelWinner(queen, warrior), null);
+  assert.equal(duelWinner(warrior, queen), null);
+  // Her head is still far above the Warrior's, and it wins all the same.
+  warrior.y -= HEIGHT_ADVANTAGE;
+  assert.ok(queen.y - QUEEN_HEIGHT < warrior.y - WARRIOR_HEIGHT);
+  assert.equal(duelWinner(queen, warrior), warrior);
+  warrior.y += 2 * HEIGHT_ADVANTAGE;
+  assert.equal(duelWinner(queen, warrior), queen);
 });
 
 test("a Queen has three lives: each death costs an egg and the third is a military victory that freezes the round", () => {

@@ -29,7 +29,7 @@ import {
   SNAIL_HALF,
 } from "./tuning.js";
 import type { BotLevel, BotMind, Input, Round, Unit } from "./types.js";
-import { centreY, isMilitary, isQueenSlot } from "./units.js";
+import { centreY, duelY, isMilitary, isQueenSlot } from "./units.js";
 
 export interface LevelRules {
   /** Steps between decisions: the reaction delay. A bot steers at where its target was when it last looked. */
@@ -65,7 +65,7 @@ export const BOT_LEVELS: Readonly<Record<BotLevel, LevelRules>> = {
     blunder: 14,
     idleSteps: 45,
     awareness: 20,
-    smart: 40,
+    smart: 65,
     lead: 0,
     flee: 0,
     soldier: 50,
@@ -78,12 +78,12 @@ export const BOT_LEVELS: Readonly<Record<BotLevel, LevelRules>> = {
     flapJitter: 2,
     blunder: 3,
     idleSteps: 24,
-    awareness: 30,
+    awareness: 36,
     smart: 75,
     lead: 4,
-    flee: 28,
+    flee: 70,
     soldier: 70,
-    rider: 50,
+    rider: 40,
   },
   hard: {
     think: 6,
@@ -92,12 +92,12 @@ export const BOT_LEVELS: Readonly<Record<BotLevel, LevelRules>> = {
     flapJitter: 0,
     blunder: 0,
     idleSteps: 0,
-    awareness: 40,
+    awareness: 38,
     smart: 96,
     lead: 8,
-    flee: 40,
+    flee: 70,
     soldier: 80,
-    rider: 50,
+    rider: 40,
   },
 };
 
@@ -430,7 +430,9 @@ function hunt(
   target: Unit,
   above: boolean,
 ): void {
-  const lift = above && isMilitary(target) ? 9 * S : 0;
+  // A duel compares the duel lines, and a flyer steers by its middle: a Queen's middle rides above her line.
+  const lift =
+    above && isMilitary(target) ? 9 * S + duelY(unit) - centreY(unit) : 0;
   aimFlyer(
     state,
     mind,
@@ -438,7 +440,7 @@ function hunt(
     "hunt",
     target.slot,
     target.x + target.vx * level.lead,
-    centreY(target) - lift,
+    (lift ? duelY(target) : centreY(target)) - lift,
     unit.kind === "queen",
   );
 }
@@ -463,9 +465,13 @@ function decideFlyer(
   const caution = queen ? QUEEN_EGGS - eggs : 0;
   const soldiers = enemies.filter(isMilitary);
   if (!chance(state, level.smart)) {
-    const anyone = nearest(unit, enemies);
+    // A lapse. A Warrior charges whoever is nearest; a Queen, who has a game to lose, drifts home instead.
+    const anyone = queen ? undefined : nearest(unit, enemies);
+    const rest = queen
+      ? hiveCentre(arena, unit.team)
+      : { x: unit.x, y: centreY(unit) };
     if (anyone) hunt(state, unit, mind, level, anyone, false);
-    else aimFlyer(state, mind, level, "guard", -1, unit.x, centreY(unit));
+    else aimFlyer(state, mind, level, "guard", -1, rest.x, rest.y);
     return;
   }
   const margin = (5 * caution - 2) * S;
@@ -474,8 +480,7 @@ function decideFlyer(
     unit,
     soldiers.filter(
       (enemy) =>
-        distance(unit, enemy) < radius &&
-        centreY(enemy) < centreY(unit) + margin,
+        distance(unit, enemy) < radius && duelY(enemy) < duelY(unit) + margin,
     ),
   );
   if (threat && unit.invuln === 0) {
@@ -536,7 +541,7 @@ function decideFlyer(
     soldiers.filter(
       (enemy) =>
         enemy.invuln === 0 &&
-        centreY(enemy) > centreY(unit) + 4 * S &&
+        duelY(enemy) > duelY(unit) + 4 * S &&
         distance(unit, enemy) < (queen ? 70 - 20 * caution : 110) * S,
     ),
   );

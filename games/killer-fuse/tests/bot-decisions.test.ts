@@ -299,6 +299,37 @@ test("a Queen down to her last egg keeps further from Warriors and leaves a guar
   assert.ok(choice.goal !== "claim" || choice.target !== centre);
 });
 
+test("in a lapse a Warrior charges whoever is nearest, and a Queen drifts home instead", () => {
+  const home = MAP.holes[0][6];
+  assert.ok(home);
+  const lapses = (slot: number): BotMind[] => {
+    const state = botRound("medium");
+    if (slot === 0) put(state, 0, 300, 150);
+    else put(state, slot, 300, 150, { kind: "warrior" });
+    put(state, 1, 330, 150);
+    wake(state, slot);
+    const minds: BotMind[] = [];
+    for (let dice = 0; dice < 60; dice += 1) {
+      const copy = cloneRound(state);
+      copy.rng = hashSeed(dice, 7);
+      stepRound(copy, []);
+      const mind = copy.bots[slot];
+      assert.ok(mind);
+      minds.push(mind);
+    }
+    return minds;
+  };
+  // The enemy Queen is level and close: a thinking flyer gets out from under her or looks for work elsewhere.
+  const queen = lapses(0).filter((mind) => mind.goal === "guard");
+  assert.ok(queen.length > 3, `${queen.length} lapses of 60`);
+  for (const mind of queen)
+    assert.ok(Math.abs(mind.tx - home.x * S) <= 8 * S, "towards her hive");
+  assert.ok(lapses(0).every((mind) => mind.goal !== "hunt"));
+  const warrior = lapses(2).filter((mind) => mind.goal === "hunt");
+  assert.ok(warrior.length > 3, `${warrior.length} charges of 60`);
+  assert.ok(warrior.every((mind) => mind.target === 1));
+});
+
 test("a Warrior goes after Workers first and the enemy Queen when there are none", () => {
   const state = botRound("hard");
   put(state, 2, 100, 200, { kind: "warrior" });

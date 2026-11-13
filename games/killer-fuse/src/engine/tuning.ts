@@ -67,11 +67,11 @@ export const WORKER_HALF = px(5),
 /** A Warrior keeps the Worker's box so a gate transformation can never embed it in a wall. */
 export const WARRIOR_HALF = px(5),
   WARRIOR_HEIGHT = px(12);
-export const QUEEN_HALF = px(7),
-  QUEEN_HEIGHT = px(14);
+export const QUEEN_HALF = px(8),
+  QUEEN_HEIGHT = px(22);
 
 // --- Combat (ours unless noted) -----------------------------------------------------------------------------------
-/** Between two military units, the one whose centre is at least this much higher at contact kills. */
+/** Between two military units, the one whose duel line (see `duelY`) is at least this much higher at contact kills. */
 export const HEIGHT_ADVANTAGE = px(4);
 /** Units that touch without a kill bounce apart at this speed, with a small hop. */
 export const BOUNCE_SPEED = px(2.2),
@@ -109,6 +109,11 @@ export const BERRY_GRAVITY = 150,
 export const KICK_WAIT = 14;
 /** Berries regrow 90 s after the piles run dry (original). */
 export const REGROW_STEPS = seconds(90);
+/**
+ * The piles are also refilled every two minutes of play, empty or not (ours). The original only regrows a dry map; with
+ * six players a pile can be left with a berry or two that nobody fetches, and then the hives could never fill.
+ */
+export const REGROW_CLOCK = seconds(120);
 
 // --- Gates -----------------------------------------------------------------------------------------------------------
 export const GATE_HALF = px(7),

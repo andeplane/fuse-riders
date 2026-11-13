@@ -162,8 +162,9 @@ const TWIN_HIVES = mirrored({
 });
 
 /**
- * Map 2, "Short Leash" (snail). The goals stand much closer to the centre, so an unopposed ride takes about 20 s, and
- * the hives are pushed out to the walls where berries take longer to carry home.
+ * Map 2, "Short Leash" (snail). The goals stand much closer to the centre than on map 1 (136 px from the start
+ * against 196), and the hives are pushed out to the walls where berries take longer to carry home. Each side's own
+ * warrior gate stands on the low ledge right over the snail's track, so a rider has Warriors to get past.
  */
 const SHORT_LEASH = mirrored({
   id: 2,
@@ -181,17 +182,17 @@ const SHORT_LEASH = mirrored({
   centre: [ledge(204, 214, 72), ledge(208, 126, 64)],
   holes: hive(48, 77),
   gatesLeft: [
-    { x: 140, y: 126, kind: "warrior" },
+    { x: 148, y: 214, kind: "warrior" },
     { x: 20, y: 214, kind: "speed" },
   ],
   gatesCentre: [{ x: 240, y: 126, kind: "warrior" }],
   pilesLeft: [
-    { x: 128, y: 214, count: 6 },
+    { x: 108, y: 214, count: 6 },
     { x: 180, y: 170, count: 6 },
     { x: 20, y: 126, count: 3 },
   ],
   pilesCentre: [{ x: 240, y: 214, count: 6 }],
-  snail: { y: 258, start: 240, goal: 128 },
+  snail: { y: 258, start: 240, goal: 104 },
   spawns: [
     { x: 76, y: 82 },
     { x: 58, y: 82 },
@@ -201,7 +202,8 @@ const SHORT_LEASH = mirrored({
 
 /**
  * Map 3, "Open Heart" (military). Both hives share the exposed middle of the screen with no roof over them, the
- * snail's floor lies under a low tunnel roof that keeps flyers off the rider, and its goals are far apart.
+ * snail's goals stand at the walls with little cover over the floor between them, and the side warrior gates stand
+ * low at the walls, right over those goals.
  */
 const OPEN_HEART = mirrored({
   id: 3,
@@ -209,7 +211,7 @@ const OPEN_HEART = mirrored({
   floor: { x: 0, y: 258, w: 480, h: 12 },
   left: [
     ledge(0, 214, 36),
-    ledge(80, 214, 120),
+    ledge(112, 214, 46),
     ledge(28, 170, 56),
     ledge(128, 170, 48),
     ledge(0, 126, 32),
@@ -219,13 +221,13 @@ const OPEN_HEART = mirrored({
   centre: [ledge(216, 126, 48)],
   holes: hive(162, 77),
   gatesLeft: [
-    { x: 16, y: 126, kind: "warrior" },
+    { x: 18, y: 214, kind: "warrior" },
     { x: 52, y: 170, kind: "speed" },
   ],
   gatesCentre: [{ x: 240, y: 126, kind: "warrior" }],
   pilesLeft: [
-    { x: 140, y: 214, count: 6 },
-    { x: 18, y: 214, count: 6 },
+    { x: 138, y: 214, count: 6 },
+    { x: 16, y: 126, count: 6 },
     { x: 100, y: 126, count: 3 },
   ],
   pilesCentre: [{ x: 240, y: 258, count: 6 }],
