@@ -14,13 +14,13 @@ Killer Fuse is a 3v3 side-view team arena for up to six players, with bots in ev
 - Six seats. Slots 0 and 1 are the Queens; slots 2 to 5 are Workers. Every seat without a person is played by a bot, so a game always has six units.
 - Bot level is a room setting: `easy`, `medium` or `hard`.
 
-| Unit           | Can                                                                                                    | Cannot                                    |
-| -------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
-| Worker         | Run, jump (height follows hold time), carry one berry, deposit, use gates, ride the snail, bump others | Kill                                      |
-| Speed worker   | The same at 1.35 times run speed, rise speed and snail speed                                           | Kill                                      |
-| Warrior        | Fly by tapping (each press is an upward impulse), kill on contact, kick loose berries                  | Carry berries, use gates, ride the snail  |
-| Speed warrior  | Warrior at 1.35 times speed (speed gate first, then warrior gate: two berries)                         | The same                                  |
-| Queen          | Fly, kill, dive (stick down), claim gates by touching them                                             | Carry berries, use gates, ride the snail  |
+| Unit          | Can                                                                                                    | Cannot                                   |
+| ------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------- |
+| Worker        | Run, jump (height follows hold time), carry one berry, deposit, use gates, ride the snail, bump others | Kill                                     |
+| Speed worker  | The same at 1.35 times run speed, rise speed and snail speed                                           | Kill                                     |
+| Warrior       | Fly by tapping (each press is an upward impulse), kill on contact, kick loose berries                  | Carry berries, use gates, ride the snail |
+| Speed warrior | Warrior at 1.35 times speed (speed gate first, then warrior gate: two berries)                         | The same                                 |
+| Queen         | Fly, kill, dive (stick down), claim gates by touching them                                             | Carry berries, use gates, ride the snail |
 
 ## Rules
 
@@ -37,12 +37,12 @@ Values marked _tune_ start here and are settled by headless bot runs against the
 
 ## Balance targets (from 6,259 logged games of the original)
 
-| Measure                    | Original                               | Our target with hard bots   |
-| -------------------------- | -------------------------------------- | --------------------------- |
-| Win mix                    | 62% military, 24% economy, 14% snail   | Each within 10 points       |
-| Median game length         | 68 to 84 s (122 s in tournaments)      | 60 to 120 s                 |
-| Side balance               | 50.1% for one side                     | 47 to 53%                   |
-| Queen deaths per game      | 3.3 to 3.7                             | 3 to 4                      |
+| Measure               | Original                             | Our target with hard bots |
+| --------------------- | ------------------------------------ | ------------------------- |
+| Win mix               | 62% military, 24% economy, 14% snail | Each within 10 points     |
+| Median game length    | 68 to 84 s (122 s in tournaments)    | 60 to 120 s               |
+| Side balance          | 50.1% for one side                   | 47 to 53%                 |
+| Queen deaths per game | 3.3 to 3.7                           | 3 to 4                    |
 
 Hard bots should beat medium, and medium should beat easy, in at least 70% of games.
 
