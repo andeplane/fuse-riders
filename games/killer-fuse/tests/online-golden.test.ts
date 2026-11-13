@@ -20,11 +20,11 @@ const GOLDEN = {
   rules: "killer-fuse-1",
   end: "over at 2794: map 3 1:military@2013, map 1 0:military@1580, map 2 0:military@3110 \u2192 0, presses 957",
   hashes: [
-    "1079be99a5d94f70",
-    "cbd88155cb6859f8",
-    "b88f4dd7dcd212d4",
-    "849d177421d5ec40",
-    "3eb4603b04cd02b8",
+    "9a99be99e47b12dd",
+    "f90881558a3ac27b",
+    "ca9f4dd7897b56d6",
+    "be9917747625f6ef",
+    "4e20603be05679d2",
   ],
 };
 

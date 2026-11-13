@@ -295,8 +295,22 @@ test("kills, deaths and berries are credited to the people who play the slots", 
   const room = started();
   toPlay(room);
   // Runs until the bots have fought and banked; people who do nothing only die.
-  while (!room.world!.winner && room.tick < 4000) fold(room);
+  const crew = seated(room);
+  const died: Record<string, number> = {};
+  while (!room.world!.winner && room.tick < 4000)
+    for (const event of fold(room))
+      if (event.type === "kill" && crew[event.victim])
+        died[crew[event.victim]!] = (died[crew[event.victim]!] ?? 0) + 1;
   const all = Object.values(room.stats);
+  // A Queen's death comes with a `queenKill` beside its `kill`: it is still one death.
+  assert.deepEqual(
+    Object.fromEntries(
+      Object.entries(room.stats)
+        .filter(([, stats]) => stats.deaths > 0)
+        .map(([id, stats]) => [id, stats.deaths]),
+    ),
+    died,
+  );
   assert.ok(
     all.length > 0 && Object.keys(room.stats).every((id) => "ab".includes(id)),
   );

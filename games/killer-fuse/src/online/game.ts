@@ -412,7 +412,8 @@ function tally(
     if (stats && stats[key] < MAX_COUNT) stats[key]++;
   };
   for (const event of events)
-    if (event.type === "kill" || event.type === "queenKill") {
+    // A Queen's death is a `kill` too; `queenKill` only adds the eggs left.
+    if (event.type === "kill") {
       bump(event.killer, "kills");
       bump(event.victim, "deaths");
     } else if (event.type === "berryDeposit" || event.type === "berryKickIn")

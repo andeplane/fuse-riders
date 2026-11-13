@@ -247,6 +247,52 @@ body.kf-page {
   display: grid;
   gap: var(--fui-space-2);
 }
+.kf-settings .fui-radios {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fui-space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.kf-settings .fui-radios legend {
+  float: left;
+  width: 5.5rem;
+  padding: 0;
+  color: var(--fui-text-muted);
+  font: 0.5rem var(--fui-font-pixel);
+}
+.kf-settings .fui-radios label {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 2.5rem;
+  padding: 0 var(--fui-space-3);
+  border: 1px solid rgb(255 255 255 / 0.18);
+  border-radius: 0.5rem;
+  background: rgb(255 255 255 / 0.04);
+  color: var(--fui-text-muted);
+  font: 0.5rem var(--fui-font-pixel);
+  cursor: pointer;
+}
+.kf-settings .fui-radios input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.kf-settings .fui-radios label:has(input:checked) {
+  border-color: var(--kf-gold);
+  background: rgb(255 201 60 / 0.14);
+  color: var(--kf-gold);
+}
+.kf-settings .fui-radios label:has(input:focus-visible) {
+  outline: 2px solid var(--kf-cyan);
+  outline-offset: 2px;
+}
 .kf-actions {
   display: flex;
   flex-wrap: wrap;
@@ -415,7 +461,7 @@ body.kf-page {
   gap: var(--fui-space-2);
   padding: var(--fui-space-3);
   overflow: auto;
-  background: #04091ae6;
+  background: #04091af7;
   text-align: center;
 }
 .kf-result-title {
