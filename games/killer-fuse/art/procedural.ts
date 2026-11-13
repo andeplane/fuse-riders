@@ -449,30 +449,30 @@ export const killBurst = (team: Ramp): Img[] =>
   Array.from({ length: 6 }, (_, i) => {
     const m = img(32, 32);
     const c = 15.5;
-    if (i < 2) {
-      disc(m, c, c, 4 + i * 2, WHITE);
-      disc(m, c, c, 2 + i, team[3]);
-    }
-    if (i >= 1 && i <= 3) ring(m, c, c, 4 + i * 3, i === 3 ? team[1] : team[2]);
-    const reach = 3 + i * 2.4;
+    // Eight spikes, the four diagonal ones shorter; they fly outward and thin as the flash fades.
+    const outer = [5, 10, 13, 15, 15, 15][i] ?? 15;
+    const inner = [0, 0, 5, 9, 12, 14][i] ?? 14;
+    const colour =
+      [WHITE, WHITE, team[3], team[2], team[2], team[1]][i] ?? team[1];
     for (let k = 0; k < 8; k++) {
-      const a = (k / 8) * Math.PI * 2 + (i % 2 ? 0.2 : 0);
-      const long = k % 2 === 0;
-      const d = reach * (long ? 1 : 0.7);
-      const x = Math.round(c + Math.cos(a) * d);
-      const y = Math.round(c + Math.sin(a) * d);
-      const colour = i < 2 ? WHITE : i < 4 ? team[3] : team[2];
-      if (i < 5 && long) rect(m, x - 1, y - 1, 2, 2, colour);
-      else put(m, x, y, i === 5 ? team[1] : colour);
-      // A trailing pixel towards the centre.
-      if (i > 0 && i < 5)
-        put(
-          m,
-          Math.round(c + Math.cos(a) * (d - 2)),
-          Math.round(c + Math.sin(a) * (d - 2)),
-          i < 3 ? team[3] : team[1],
-        );
+      const a = (k / 8) * Math.PI * 2;
+      const scale = k % 2 === 0 ? 1 : 0.72;
+      for (let d = inner * scale; d <= outer * scale; d += 0.5) {
+        const x = Math.round(c + Math.cos(a) * d);
+        const y = Math.round(c + Math.sin(a) * d);
+        put(m, x, y, colour);
+        // Thick near the centre while the flash is young.
+        if (i < 3 && d < outer * scale * 0.6) {
+          put(m, x + 1, y, colour);
+          put(m, x, y + 1, colour);
+        }
+      }
     }
+    if (i < 3) {
+      disc(m, c, c, [4, 6, 4][i] ?? 4, i < 2 ? WHITE : team[3]);
+      disc(m, c, c, [2, 4, 2][i] ?? 2, i < 2 ? team[3] : team[2]);
+    }
+    if (i === 2 || i === 3) ring(m, c, c, i === 2 ? 8 : 11, team[2]);
     return m;
   });
 
