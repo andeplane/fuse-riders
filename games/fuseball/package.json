@@ -2,13 +2,12 @@
   "name": "fuseball",
   "version": "0.1.0",
   "private": true,
-  "description": "Pig, the template game: roll a d6 or hold, first to 50 wins the round and two rounds win the match. Its rules run on fuse-netcode, its page (src/app/) on fuse-ui and fuse-network-fe.",
+  "description": "Fuseball: a neon arena ball duel for two. Knock the ball into the goal in your colour, ride your bubbles, first to three.",
   "type": "module",
   "engines": {
     "node": ">=22.12.0"
   },
   "exports": {
-    ".": "./src/game/index.ts",
     "./platform": "./src/platform.ts"
   },
   "dependencies": {

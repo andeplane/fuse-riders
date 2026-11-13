@@ -3,13 +3,14 @@ import {
   type GameRegistration,
   type PlayerResult,
 } from "fuse-platform";
-import {
-  CAPACITY,
-  MAX_POINTS,
-  MAX_ROUNDS,
-  isBotId,
-  validName,
-} from "./game/basics.js";
+import { CAPACITY, isBotId, validName } from "./basics.js";
+
+/**
+ * Placeholder bounds for the scaffold's stats below (rolls, holds, busts), which Fuseball does not have: the
+ * registration is replaced with the duel's own stats (goals, own goals, bubbles, pops) when its results are wired.
+ */
+const MAX_POINTS = 10_000,
+  MAX_ROUNDS = 1;
 
 /**
  * The fuseball game's part of the shared backend (`fuse-platform`): what a player's reported stats are and what a
@@ -18,7 +19,7 @@ import {
  * the netcode.
  */
 
-/** One player's result as the platform stores it; `FuseballPlayerResult` in `game/result.ts` is the same shape. */
+/** One player's result as the platform stores it; the room's result module reports the same shape. */
 export interface FuseballStats extends PlayerResult {
   points: number;
   rolls: number;

@@ -1,58 +1,14 @@
-import type { MatchResult } from "fuse-platform";
-import {
-  isBotId,
-  matchResult,
-  roundResult,
-  type FuseballPlayerResult,
-  type FuseballRoom,
-} from "../game/index.js";
+import type { MatchResult, PlayerResult } from "fuse-platform";
 
-/** One result this device owes the room service: a rated round receipt, or the whole match. */
+/**
+ * One result this device owes the room service: a rated round receipt, or the whole match. Which reports are due is
+ * decided from the room's state, which `src/online/` will own; until then only the sending is here.
+ */
 export interface DueReport {
   /** Unique per match and round, so a report is sent once. */
   key: string;
   path: "round-results" | "results";
-  result: MatchResult<FuseballPlayerResult>;
-}
-
-/**
- * The reports this device should send now. Every seated human reports what its own replica computed, and the service
- * keeps a result once a majority agree, so only confirmed history goes in: a round once the confirmed tick reaches the
- * tick it was decided at (a rollback cannot change it after that), and the match once its last round is confirmed.
- * A device that did not play the round (the shared screen, a latecomer, a bot id) owes nothing.
- */
-export function dueReports(
-  room: FuseballRoom,
-  me: string,
-  confirmedTick: number,
-  sent: ReadonlySet<string>,
-): DueReport[] {
-  if (!me || isBotId(me)) return [];
-  const due: DueReport[] = [];
-  for (const record of room.history) {
-    const key = `${room.matchId}:${record.round}`;
-    if (
-      sent.has(key) ||
-      record.tick > confirmedTick ||
-      !record.finishers.includes(me)
-    )
-      continue;
-    const result = roundResult(room, record.round);
-    if (result) due.push({ key, path: "round-results", result });
-  }
-  const last = room.history.at(-1),
-    key = `${room.matchId}:match`;
-  if (
-    room.stage === "over" &&
-    last &&
-    last.tick <= confirmedTick &&
-    !sent.has(key)
-  ) {
-    const result = matchResult(room);
-    if (result?.finishers.includes(me))
-      due.push({ key, path: "results", result });
-  }
-  return due;
+  result: MatchResult<PlayerResult>;
 }
 
 export interface ReportTransport {
