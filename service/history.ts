@@ -11,6 +11,7 @@ import { frontRegistration } from "fuse-front/platform";
 import { graveyardRegistration } from "graveyard-shift/platform";
 import { fuseLaneRegistration } from "fuse-lane/platform";
 import { ballBrosRegistration } from "ball-bros/platform";
+import { killerFuseRegistration } from "killer-fuse/platform";
 import {
   ACCOUNT_RULES,
   fuseRiders,
@@ -44,6 +45,7 @@ export const GAMES = [
   fuseDriversRegistration,
   birdsRegistration,
   frontRegistration,
+  killerFuseRegistration,
 ] as const;
 
 /**

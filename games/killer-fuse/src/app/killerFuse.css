@@ -1,0 +1,410 @@
+/* The killerFuse page, on fuse-ui's tokens and components. Phone first; a wide screen spreads the table out. */
+body.killerFuse-page {
+  padding: 0;
+}
+#app {
+  display: grid;
+  /* The column is the screen, never the widest unbreakable line in it: a phone must not scroll sideways. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  min-height: 100dvh;
+  padding: 0 max(var(--fui-space-3), env(safe-area-inset-left))
+    env(safe-area-inset-bottom);
+}
+
+/* Header */
+.killerFuse-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--fui-space-2) var(--fui-space-3);
+  padding: var(--fui-space-3) 0;
+}
+.killerFuse-brand {
+  display: grid;
+  color: var(--fui-pink);
+  text-decoration: none;
+  font: 1.5rem/1 var(--fui-font-pixel);
+  text-shadow: var(--fui-glow-pink);
+}
+.killerFuse-brand small {
+  margin-top: var(--fui-space-1);
+  color: var(--fui-text-dim);
+  font-size: 0.5rem;
+  letter-spacing: 0.125rem;
+  text-shadow: none;
+}
+.killerFuse-back {
+  margin-left: auto;
+  color: var(--fui-cyan);
+  font: 0.625rem var(--fui-font-pixel);
+}
+.killerFuse-code {
+  padding: var(--fui-space-1) var(--fui-space-2);
+  color: var(--fui-ink);
+  background: var(--fui-cyan);
+  border-radius: var(--fui-radius-small);
+  font: 0.75rem var(--fui-font-pixel);
+}
+.killerFuse-status {
+  flex: 1 1 10rem;
+  /* One line, always laid out: a status that appears, changes or wraps must not move the buttons below it. */
+  min-width: 0;
+  min-height: 1.25rem;
+  overflow: hidden;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fui-app .killerFuse-status[hidden] {
+  display: block !important;
+  visibility: hidden;
+}
+.killerFuse-top .fui-game-menu {
+  margin-left: auto;
+}
+@media (max-width: 34rem) {
+  /* On a phone the status line takes its own row under the brand, code and MENU. */
+  .killerFuse-status {
+    order: 1;
+    flex-basis: 100%;
+  }
+}
+.killerFuse-top .fui-game-menu-trigger {
+  min-height: 2.25rem;
+  font: 0.625rem var(--fui-font-pixel);
+}
+
+/* Landing */
+.killerFuse-page .fui-landing {
+  align-content: start;
+  margin-top: 6vh;
+}
+.killerFuse-page .fui-landing-title {
+  color: var(--fui-yellow);
+  text-shadow: 0 0 1rem #ffe46b66;
+}
+.killerFuse-page .fui-landing-tagline {
+  line-height: 1.6;
+}
+.killerFuse-shared {
+  display: flex;
+  align-items: center;
+  gap: var(--fui-space-2);
+  color: var(--fui-text-muted);
+  font-size: 0.875rem;
+}
+.fui-app .killerFuse-shared input {
+  min-height: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--fui-cyan);
+}
+.killerFuse-error {
+  color: var(--fui-pink-soft);
+  text-align: center;
+}
+
+/* Room */
+.killerFuse-room {
+  display: grid;
+  align-content: start;
+  gap: var(--fui-space-4);
+  width: min(56rem, 100%);
+  margin: 0 auto;
+  padding-bottom: var(--fui-space-5);
+}
+.killerFuse-room > .fui-name-entry {
+  width: min(32rem, 100%);
+  margin: 0 auto;
+}
+.killerFuse-lobby {
+  display: grid;
+  gap: var(--fui-space-4);
+  width: min(32rem, 100%);
+  margin: 0 auto;
+  padding: var(--fui-space-4);
+  background: var(--fui-panel);
+  border: var(--fui-border);
+  border-radius: var(--fui-radius-panel);
+}
+.killerFuse-lobby .fui-roster-row {
+  position: relative;
+}
+.fui-app .killerFuse-remove {
+  margin-left: auto;
+  min-height: 2rem;
+  padding: 0 var(--fui-space-3);
+  color: var(--fui-pink-soft);
+}
+.killerFuse-lobby-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--fui-space-2);
+}
+.killerFuse-lobby-actions button {
+  flex: 1 1 9rem;
+}
+
+/* Table */
+.killerFuse-table {
+  display: grid;
+  gap: var(--fui-space-3);
+  text-align: center;
+}
+.killerFuse-round {
+  margin: 0;
+  color: var(--fui-text-dim);
+  font: 0.625rem var(--fui-font-pixel);
+  letter-spacing: 0.0625rem;
+}
+.killerFuse-headline {
+  margin: 0;
+  color: var(--fui-cyan);
+  font: clamp(1rem, 4.5vw, 1.75rem) / 1.3 var(--fui-font-pixel);
+  text-shadow: var(--fui-glow-text);
+}
+.killerFuse-detail {
+  min-height: 1.25rem;
+  margin: 0;
+  color: var(--fui-yellow);
+}
+.killerFuse-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: var(--fui-space-2);
+}
+.killerFuse-player {
+  --rider-color: var(--fui-cyan);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--fui-space-1) var(--fui-space-2);
+  padding: var(--fui-space-2) var(--fui-space-3);
+  text-align: left;
+  background: var(--fui-deep);
+  border: var(--fui-stroke) solid transparent;
+  border-left: 0.3rem solid var(--rider-color);
+  border-radius: var(--fui-radius-small);
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+.killerFuse-player.current {
+  border-color: var(--rider-color);
+  box-shadow: 0 0 1rem color-mix(in srgb, var(--rider-color) 45%, transparent);
+}
+.killerFuse-player.away {
+  opacity: 0.5;
+}
+.killerFuse-player.winner .killerFuse-player-name::after {
+  content: " ★";
+  color: var(--fui-yellow);
+}
+.killerFuse-player-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 0.625rem/1.4 var(--fui-font-pixel);
+}
+.killerFuse-player.you .killerFuse-player-name {
+  color: var(--rider-color);
+}
+.killerFuse-player-wins {
+  color: var(--fui-yellow);
+  letter-spacing: 0.125rem;
+}
+.killerFuse-player-score {
+  grid-column: 1 / -1;
+  font: 1.5rem var(--fui-font-pixel);
+  color: var(--fui-text-bright);
+}
+.killerFuse-player-meter {
+  grid-column: 1 / -1;
+  height: 0.375rem;
+  background: #ffffff14;
+  border-radius: 0.25rem;
+  overflow: hidden;
+}
+.killerFuse-player-bar {
+  display: block;
+  height: 100%;
+  background: var(--rider-color);
+  transition: width 0.25s;
+}
+.killerFuse-centre {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--fui-space-5);
+  padding: var(--fui-space-3) 0;
+}
+.killerFuse-die {
+  display: grid;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  --die: clamp(6.5rem, 30vw, 9.5rem);
+  width: var(--die);
+  height: var(--die);
+  padding: calc(var(--die) * 0.12);
+  gap: calc(var(--die) * 0.05);
+  background: linear-gradient(160deg, #ffffff, #d6f6ff);
+  border-radius: 18%;
+  box-shadow:
+    0 0 0 0.25rem var(--fui-cyan),
+    0 0 2rem #16e7ff80;
+}
+.killerFuse-die.blank {
+  opacity: 0.35;
+}
+.killerFuse-die.bust {
+  background: linear-gradient(160deg, #ffd2e8, #ff72b3);
+  box-shadow:
+    0 0 0 0.25rem var(--fui-pink),
+    0 0 2rem var(--fui-pink);
+}
+.killerFuse-die.rolled {
+  animation: killerFuse-roll 0.35s ease-out;
+}
+@keyframes killerFuse-roll {
+  0% {
+    transform: rotate(-25deg) scale(0.75);
+  }
+  70% {
+    transform: rotate(6deg) scale(1.06);
+  }
+  100% {
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .killerFuse-die.rolled {
+    animation: none;
+  }
+}
+.killerFuse-pip {
+  border-radius: 50%;
+}
+.killerFuse-pip.on {
+  background: var(--fui-ink);
+  box-shadow: inset 0 -0.2rem 0 #ff2e9d99;
+}
+.killerFuse-total {
+  display: grid;
+  gap: var(--fui-space-2);
+}
+.killerFuse-total small {
+  color: var(--fui-text-dim);
+  font: 0.5rem var(--fui-font-pixel);
+  letter-spacing: 0.0625rem;
+}
+.killerFuse-total strong {
+  color: var(--fui-lime);
+  font: clamp(2rem, 9vw, 3.5rem) var(--fui-font-pixel);
+  text-shadow: 0 0 1rem #b6ff4d66;
+}
+.killerFuse-timer {
+  height: 0.625rem;
+  background: #ffffff14;
+  border-radius: 0.3125rem;
+  overflow: hidden;
+}
+.killerFuse-timer span {
+  display: block;
+  height: 100%;
+  background: var(--fui-cyan);
+  transition: width 0.1s linear;
+}
+.killerFuse-timer.low span {
+  background: var(--fui-pink);
+}
+.killerFuse-timer-text {
+  min-height: 1rem;
+  color: var(--fui-text-dim);
+  font-size: 0.75rem;
+}
+.killerFuse-pad {
+  position: sticky;
+  bottom: var(--fui-space-2);
+  min-height: 5.5rem;
+}
+.fui-app .killerFuse-pad .killerFuse-roll:enabled {
+  color: var(--fui-ink);
+  background: var(--fui-cyan-fill);
+  box-shadow: var(--fui-glow-cyan);
+}
+.fui-app .killerFuse-pad .killerFuse-hold:enabled {
+  border-color: var(--fui-lime);
+  color: var(--fui-lime);
+}
+
+/* A phone in a shared-screen room is a controller: its own card, the die and two huge buttons. */
+.killerFuse-room[data-layout="controller"] .killerFuse-player:not(.you) {
+  display: none;
+}
+.killerFuse-room[data-layout="controller"] .killerFuse-board {
+  grid-template-columns: 1fr;
+}
+.killerFuse-room[data-layout="controller"] .killerFuse-pad {
+  min-height: 40vh;
+}
+.killerFuse-room[data-layout="controller"] .killerFuse-pad button {
+  font-size: 1.5rem;
+}
+
+/* The shared screen: bigger everything, no controls. */
+body.killerFuse-display .killerFuse-room {
+  width: min(80rem, 100%);
+}
+body.killerFuse-display .killerFuse-board {
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+}
+body.killerFuse-display .killerFuse-player-score {
+  font-size: 2.25rem;
+}
+body.killerFuse-display .killerFuse-die {
+  --die: clamp(8rem, 22vw, 14rem);
+}
+
+/* Result and toast */
+.killerFuse-result {
+  display: grid;
+  gap: var(--fui-space-3);
+  width: min(32rem, 100%);
+  margin: 0 auto;
+  padding: var(--fui-space-4);
+  background: var(--fui-panel);
+  border: 0.125rem solid var(--fui-yellow);
+  border-radius: var(--fui-radius-panel);
+  box-shadow: 0 0 2rem #ffe46b40;
+  text-align: center;
+}
+.killerFuse-result-title {
+  margin: 0;
+  color: var(--fui-yellow);
+  font: 1.25rem/1.4 var(--fui-font-pixel);
+}
+.killerFuse-result-lines {
+  margin: 0;
+  padding-left: 1.5rem;
+  text-align: left;
+  line-height: 1.7;
+}
+/* Over the top of the die, so a bust never covers whose turn it is. */
+.killerFuse-toast {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  z-index: var(--fui-z-alert);
+  transform: translateX(-50%);
+  padding: var(--fui-space-2) var(--fui-space-4);
+  background: var(--fui-panel);
+  border: 0.125rem solid var(--fui-pink);
+  border-radius: var(--fui-radius);
+  box-shadow: var(--fui-glow-pink);
+  font: 0.75rem/1.5 var(--fui-font-pixel);
+  white-space: nowrap;
+}

@@ -44,6 +44,7 @@
     "fuse-network-be": "workspace:*",
     "fuse-platform": "workspace:*",
     "fuse-riders-game": "workspace:*",
+    "killer-fuse": "workspace:*",
     "jose": "^6.2.12",
     "tsx": "^4.20.5",
     "ws": "^8.18.3"
