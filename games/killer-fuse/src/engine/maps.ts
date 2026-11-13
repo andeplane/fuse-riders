@@ -112,14 +112,21 @@ const ledge = (x: number, top: number, w: number): Rect => ({
   w,
   h: LEDGE,
 });
-const holeRow = (from: number, y: number, count: number): Point[] =>
-  Array.from({ length: count }, (_, i) => ({ x: from + i * 10, y }));
+/**
+ * A hive: two staggered rows of six holes, a honeycomb on the wall behind the ledge at `y + 5`. A Worker standing on
+ * that ledge reaches both rows, and each spot along it reaches at most two holes of a row.
+ */
+const hive = (from: number, y: number): Point[] =>
+  Array.from({ length: 12 }, (_, i) =>
+    i < 6 ? { x: from + i * 10, y } : { x: from + 5 + (i - 6) * 10, y: y - 8 },
+  );
 
 /**
  * Map 1, "Twin Hives" (balanced). Four ledge levels 44 px apart above the snail's floor; a full Worker jump is 50 px,
  * so each level is one jump up from beside a ledge end. Hives sit on the top ledges left and right of centre, one
  * warrior gate is contested on the middle ledge and one sits on each side walkway across the seam, the speed gates
- * are low, and the snail runs along the floor between goals near the walls.
+ * are low, and the snail runs along the floor between goals near the walls. No berries grow near a hive: the nearest
+ * piles are three levels down, and the largest sits in the contested centre (see docs/balance.md).
  */
 const TWIN_HIVES = mirrored({
   id: 1,
@@ -135,7 +142,7 @@ const TWIN_HIVES = mirrored({
     ledge(124, 82, 72),
   ],
   centre: [ledge(208, 214, 64), ledge(200, 126, 80)],
-  holes: holeRow(135, 76, 6),
+  holes: hive(132, 77),
   gatesLeft: [
     { x: 20, y: 214, kind: "warrior" },
     { x: 132, y: 214, kind: "speed" },
@@ -144,9 +151,8 @@ const TWIN_HIVES = mirrored({
   pilesLeft: [
     { x: 130, y: 258, count: 6 },
     { x: 70, y: 170, count: 6 },
-    { x: 106, y: 126, count: 3 },
   ],
-  pilesCentre: [{ x: 240, y: 214, count: 6 }],
+  pilesCentre: [{ x: 240, y: 214, count: 12 }],
   snail: { y: 258, start: 240, goal: 44 },
   spawns: [
     { x: 160, y: 82 },
@@ -173,7 +179,7 @@ const SHORT_LEASH = mirrored({
     ledge(40, 82, 72),
   ],
   centre: [ledge(204, 214, 72), ledge(208, 126, 64)],
-  holes: holeRow(51, 76, 6),
+  holes: hive(48, 77),
   gatesLeft: [
     { x: 140, y: 126, kind: "warrior" },
     { x: 20, y: 214, kind: "speed" },
@@ -211,7 +217,7 @@ const OPEN_HEART = mirrored({
     ledge(152, 82, 72),
   ],
   centre: [ledge(216, 126, 48)],
-  holes: holeRow(165, 76, 6),
+  holes: hive(162, 77),
   gatesLeft: [
     { x: 16, y: 126, kind: "warrior" },
     { x: 52, y: 170, kind: "speed" },

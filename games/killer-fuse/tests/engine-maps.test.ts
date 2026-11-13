@@ -71,7 +71,8 @@ for (const id of MAP_IDS) {
             samePoint(other, { x: mirrorX(pile.x), y: pile.y }),
         ),
       );
-    assert.equal(map.holes[0].length, map.holes[1].length);
+    assert.equal(map.holes[0].length, 12);
+    assert.equal(map.holes[1].length, 12);
     map.holes[0].forEach((hole, index) => {
       const other = map.holes[1][index];
       assert.ok(other);
@@ -97,7 +98,7 @@ for (const id of MAP_IDS) {
     for (const hole of [...arena.holes[0], ...arena.holes[1]]) {
       const below = platformBelow(arena, hole.x, hole.y);
       assert.ok(below >= 0);
-      assert.ok((arena.solids[below]?.y ?? 0) - hole.y <= 10 * S);
+      assert.ok((arena.solids[below]?.y ?? 0) - hole.y <= 13 * S);
     }
     const berries = map.piles.reduce((sum, pile) => sum + pile.count, 0);
     assert.ok(berries > map.holes[0].length);

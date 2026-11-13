@@ -31,7 +31,7 @@ function hole(team: 0 | 1, index: number): { x: number; ledge: number } {
   const ledge = MAP.platforms.find(
     (platform) =>
       platform.y > at.y &&
-      platform.y - at.y < 12 &&
+      platform.y - at.y < 16 &&
       at.x >= platform.x &&
       at.x <= platform.x + platform.w,
   );
@@ -89,12 +89,17 @@ test("a carried berry is banked in an empty hole of the carrier's own hive, neve
   ]);
   assert.equal(worker.carrying, false);
   assert.equal(state.holes[0]?.[0], true);
-  // The same hole is full now.
+  // The same hole is full now, so the next berry goes into the hole of the upper row that is also in reach.
+  worker.carrying = true;
+  assert.deepEqual(run(state, 3), [
+    { type: "berryDeposit", slot: 2, team: 0, hole: 6 },
+  ]);
+  // With every hole in reach full the berry stays in hand.
   worker.carrying = true;
   assert.deepEqual(run(state, 3), []);
   assert.equal(worker.carrying, true);
   // An enemy carrier standing in this hive banks nothing.
-  const next = hole(0, 2);
+  const next = hole(0, 3);
   const enemy = stand(state, 3, next.x, next.ledge, { carrying: true });
   assert.deepEqual(run(state, 3), []);
   assert.equal(enemy.carrying, true);
