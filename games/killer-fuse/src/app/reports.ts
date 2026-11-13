@@ -1,11 +1,11 @@
 import type { MatchResult } from "fuse-platform";
 import {
-  isBotId,
+  STEPS_PER_TICK,
   matchResult,
   roundResult,
   type KillerFusePlayerResult,
-  type KillerFuseRoom,
-} from "../game/index.js";
+  type Room,
+} from "../online/index.js";
 
 /** One result this device owes the room service: a rated round receipt, or the whole match. */
 export interface DueReport {
@@ -17,35 +17,37 @@ export interface DueReport {
 
 /**
  * The reports this device should send now. Every seated human reports what its own replica computed, and the service
- * keeps a result once a majority agree, so only confirmed history goes in: a round once the confirmed tick reaches the
- * tick it was decided at (a rollback cannot change it after that), and the match once its last round is confirmed.
- * A device that did not play the round (the shared screen, a latecomer, a bot id) owes nothing.
+ * keeps a result once a majority agree, so only confirmed history goes in: a game once the confirmed tick reaches the
+ * tick it was recorded at (a rollback cannot change it after that), and the set once its last game is confirmed.
+ * `confirmedTick` is the runtime's, on the game clock: `STEPS_PER_TICK` to a log tick.
+ * A device that did not play the game (the shared screen, a watcher, a latecomer) owes nothing, and neither does
+ * anyone for a game the platform cannot rate (`roundResult` is undefined when six people played it).
  */
 export function dueReports(
-  room: KillerFuseRoom,
+  room: Room,
   me: string,
   confirmedTick: number,
   sent: ReadonlySet<string>,
 ): DueReport[] {
-  if (!me || isBotId(me)) return [];
+  if (!me) return [];
   const due: DueReport[] = [];
-  for (const record of room.history) {
+  for (const record of room.results) {
     const key = `${room.matchId}:${record.round}`;
     if (
       sent.has(key) ||
-      record.tick > confirmedTick ||
-      !record.finishers.includes(me)
+      record.tick * STEPS_PER_TICK > confirmedTick ||
+      !record.present.includes(me)
     )
       continue;
     const result = roundResult(room, record.round);
     if (result) due.push({ key, path: "round-results", result });
   }
-  const last = room.history.at(-1),
+  const last = room.results.at(-1),
     key = `${room.matchId}:match`;
   if (
     room.stage === "over" &&
     last &&
-    last.tick <= confirmedTick &&
+    last.tick * STEPS_PER_TICK <= confirmedTick &&
     !sent.has(key)
   ) {
     const result = matchResult(room);

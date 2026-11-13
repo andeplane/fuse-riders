@@ -2,13 +2,13 @@
   "name": "killer-fuse",
   "version": "0.1.0",
   "private": true,
-  "description": "Killer Fuse, a team arena game in the making. For now it is the template game (Pig) under its own id. Its rules run on fuse-netcode, its page (src/app/) on fuse-ui and fuse-network-fe.",
+  "description": "Killer Fuse: a real-time three-against-three arena game (Queens, Workers, berries, gates and a snail). Its engine (src/engine) runs under fuse-netcode (src/online), its page (src/app) on fuse-ui and fuse-network-fe, drawn by src/render.",
   "type": "module",
   "engines": {
     "node": ">=22.12.0"
   },
   "exports": {
-    ".": "./src/game/index.ts",
+    ".": "./src/online/index.ts",
     "./platform": "./src/platform.ts"
   },
   "dependencies": {

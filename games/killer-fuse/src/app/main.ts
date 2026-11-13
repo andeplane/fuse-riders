@@ -5,7 +5,7 @@ import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
-import "./killerFuse.css";
+import "./killer-fuse.css";
 import QRCode from "qrcode";
 import {
   PeerTransport,
@@ -18,25 +18,38 @@ import { MAX_PACKET_BYTES, uuid } from "fuse-netcode";
 import {
   button,
   createAppPortal,
-  createControllerRow,
   createGameMenu,
   createInviteCard,
   createLandingCard,
   createNameEntry,
   createNotice,
-  createRoster,
+  createRadioGroup,
   createRoundControls,
   el,
 } from "fuse-ui";
-import { DEFAULT_SETTINGS, killerFuseGame, seatName } from "../game/index.js";
+import { MAPS } from "../engine/index.js";
 import {
-  createRoundControlGuide,
-  presentTable,
-  type TableModel,
+  DEFAULT_SETTINGS,
+  KillerFuseRuntime,
+  killerFuseGame,
+  seatName,
+  type KillerFuseCallbacks,
+  type Settings,
+} from "../online/index.js";
+import { createArenaView } from "../render/index.js";
+import { ArenaDriver } from "./arena.js";
+import { Controls, Keys, Pads, Touch, gameKey } from "./controls.js";
+import { CONTROLS, GOAL, ROLES, TOUCH_CONTROLS, WINS } from "./guide.js";
+import { createGameMetrics } from "./metrics.js";
+import {
+  BOT_LEVELS,
+  present,
+  seatTitle,
+  type PageModel,
+  type SeatModel,
   type Viewer,
 } from "./presenter.js";
 import { dueReports, sendReport } from "./reports.js";
-import { KillerFuseRuntime, type KillerFuseCallbacks } from "./runtime.js";
 import {
   NOT_OPEN,
   keys,
@@ -46,13 +59,15 @@ import {
 } from "./session.js";
 
 /**
- * The killerFuse page's glue: it reads the query, builds the screens from fuse-ui components, wires the runtime to the
- * transport the way Fuse Riders does, and hands every frame to `presentTable`. The decisions live in the presenter,
- * the reports and the session modules, which are unit-tested; this file only puts their answers on the page.
+ * The Killer Fuse page's glue: it reads the query, builds the screens from fuse-ui components, wires the runtime to
+ * the transport the way Fuse Riders does, and puts what `present` decides on the page. The decisions live in the
+ * presenter, the controls, the arena driver, the reports, the metrics and the session modules, which are
+ * unit-tested; this file only connects them to the browser.
  */
 const GAME = killerFuseGame.id;
 const analytics = startGameAnalytics(GAME);
 const reportPlay = createPlayMetrics(analytics.track, () => performance.now());
+const reportGame = createGameMetrics(analytics.track);
 const endpoints = createEndpoints(
   {
     basePath: `${import.meta.env.BASE_URL}${GAME}/`,
@@ -71,25 +86,17 @@ const social = createGameSocial({
 });
 const store = safeStore(() => localStorage);
 const names = keys(GAME);
+const MUTED = `${GAME}-muted`;
+const ART_URL = `${import.meta.env.BASE_URL}${GAME}/art/`;
+const query = new URLSearchParams(location.search);
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
-const COLORS = ["#16e7ff", "#ff2e9d", "#b6ff4d", "#ffe46b", "#a78bfa"];
 const app = document.querySelector<HTMLElement>("#app")!;
-const CONTROLS = [
-  { keys: "Space / R", action: "Roll the die" },
-  { keys: "H / Enter", action: "Hold to bank your turn total" },
-];
-const TOUCH_CONTROLS = [
-  { keys: "ROLL", action: "Roll the die" },
-  { keys: "HOLD", action: "Bank your turn total" },
-];
-const GOAL =
-  "Roll to build your total; a 1 loses it. Hold to bank points. First to 50 wins the round.";
 
 function header(extra: HTMLElement[] = []): HTMLElement {
-  const bar = el("header", "", "killerFuse-top"),
-    brand = el("a", "", "killerFuse-brand");
+  const bar = el("header", "", "kf-top"),
+    brand = el("a", "", "kf-brand");
   brand.href = endpoints.appUrl();
-  brand.append(el("span", "PIG"), el("small", "A FUSE GAME"));
+  brand.append(el("span", "KILLER FUSE"), el("small", "A FUSE GAME"));
   // Every game opens the app portal top left; it lists the games that have a portal.json.
   const portal = createAppPortal({
     document,
@@ -101,8 +108,32 @@ function header(extra: HTMLElement[] = []): HTMLElement {
   return bar;
 }
 
+/** The three ways to win, the two roles and the controls: on the landing page and in the lobby. */
+function howToPlay(): HTMLElement {
+  const panel = el("section", "", "kf-how");
+  const list = (rows: readonly { name: string; how: string }[]) => {
+    const items = el("dl", "", "kf-how-list");
+    for (const row of rows) items.append(el("dt", row.name), el("dd", row.how));
+    return items;
+  };
+  const controls = el("dl", "", "kf-how-list kf-how-controls");
+  for (const hint of [...CONTROLS, ...TOUCH_CONTROLS])
+    controls.append(el("dt", hint.keys), el("dd", hint.action));
+  panel.append(
+    el("h2", "HOW TO PLAY", "fui-lobby-title"),
+    el("p", GOAL, "kf-how-goal"),
+    el("h3", "THREE WAYS TO WIN"),
+    list(WINS),
+    el("h3", "ROLES"),
+    list(ROLES),
+    el("h3", "CONTROLS"),
+    controls,
+  );
+  return panel;
+}
+
 function landing(): void {
-  const shared = el("label", "", "killerFuse-shared"),
+  const shared = el("label", "", "kf-shared"),
     toggle = el("input");
   toggle.type = "checkbox";
   toggle.checked = store.getItem(names.shared) === "1";
@@ -110,10 +141,10 @@ function landing(): void {
     store.setItem(names.shared, toggle.checked ? "1" : "0");
   shared.append(toggle, el("span", "Shared TV: phones are the controllers"));
   const card = createLandingCard({
-    title: "ROLL OR HOLD",
+    title: "KILLER FUSE",
     tagline:
-      "Roll as often as you dare: every roll adds up, but a 1 loses the lot. Hold to bank it. First to 50 wins the round, two rounds win the match.",
-    soloText: "PLAY SOLO VS BOTS",
+      "Three against three in one arena. Kill the Queen, fill the hive or ride the snail home. Bots play every empty seat.",
+    soloText: "PLAY SOLO WITH BOTS",
     async onCreate() {
       const room = await createRoom(endpoints.apiUrl, fetch, GAME).catch(
         (error: unknown) => {
@@ -134,38 +165,40 @@ function landing(): void {
     },
   });
   card.create.after(shared);
-  const back = el("a", "← FUSE RIDERS", "killerFuse-back");
+  const back = el("a", "← FUSE RIDERS", "kf-back");
   back.href = import.meta.env.BASE_URL;
-  app.replaceChildren(header([back]), card.element);
+  const page = el("main", "", "kf-landing");
+  page.append(card.element, howToPlay());
+  app.replaceChildren(header([back]), page);
 }
 
-/** A die face: nine cells, lit per the presenter's pips. */
-function createDie() {
-  const element = el("div", "", "killerFuse-die");
-  const cells = Array.from({ length: 9 }, () =>
-    el("span", "", "killerFuse-pip"),
-  );
-  element.append(...cells);
-  element.setAttribute("role", "img");
-  let key = "";
+/** One seat of the lobby: its role, who holds it, and the button that takes it or asks for it. */
+function createSeatCard(act: (seat: SeatModel) => void) {
+  const root = el("article", "", "kf-seat"),
+    role = el("small", "", "kf-seat-role"),
+    name = el("strong", "", "kf-seat-name"),
+    note = el("p", "", "kf-seat-note"),
+    action = button("", "kf-seat-action");
+  root.append(role, name, note, action);
+  let shown: SeatModel | undefined;
+  action.onclick = () => shown && act(shown);
   return {
-    element,
-    render(model: TableModel["die"]) {
-      element.classList.toggle("blank", !model);
-      element.classList.toggle("bust", model?.bust === true);
-      element.setAttribute(
-        "aria-label",
-        model ? `${model.by} rolled ${model.value}` : "No roll yet",
-      );
-      cells.forEach((cell, index) =>
-        cell.classList.toggle("on", model?.pips[index] ?? false),
-      );
-      if (model && model.key !== key) {
-        element.classList.remove("rolled");
-        void element.offsetWidth; // restart the roll animation
-        element.classList.add("rolled");
-      }
-      key = model?.key ?? "";
+    root,
+    render(seat: SeatModel) {
+      shown = seat;
+      root.dataset.kind = seat.kind;
+      root.dataset.role = seat.role.toLowerCase();
+      role.textContent = seat.role;
+      name.textContent =
+        seat.kind === "you"
+          ? `${seat.name} (you)`
+          : seat.kind === "away"
+            ? `${seat.name} (away)`
+            : seat.name;
+      note.textContent = seat.note;
+      note.hidden = !seat.note;
+      action.textContent = seat.label;
+      action.hidden = seat.action === "none";
     },
   };
 }
@@ -175,27 +208,27 @@ function room(solo: boolean): void {
     ? ({ kind: "solo" } as const)
     : sessionFor(location.search, store, GAME, validRoomCode, secret);
   if (session.kind === "invalid" || session.kind === "landing") {
-    app.replaceChildren(
-      header(),
-      el("p", "Invalid room code", "killerFuse-error"),
-    );
+    app.replaceChildren(header(), el("p", "Invalid room code", "kf-error"));
     return;
   }
   const code = session.kind === "room" ? session.code : "SOLO",
     role = session.kind === "room" ? session.role : "host",
     display = role === "display";
-  document.body.classList.toggle("killerFuse-display", display);
-  const viewer: Viewer = {
-    me: "",
-    host: solo,
-    solo,
-    display,
-    shared: false,
-  };
+  document.body.classList.toggle("kf-display", display);
+  const viewer: Viewer = { me: "", solo, display };
+  const coarse = window.matchMedia("(pointer: coarse)").matches;
+
+  // ---- controls ----
+  const controls = new Controls({
+      input: (bits) => runtime.input(bits),
+      press: () => void runtime.press(),
+    }),
+    keyboard = new Keys(controls),
+    pads = new Pads(controls),
+    touch = new Touch(controls);
 
   // ---- the page ----
-  const status = createNotice({ className: "killerFuse-status" }),
-    toast = createNotice({ holdMs: 2200, className: "killerFuse-toast" });
+  const status = createNotice({ className: "kf-status" });
   const menu = createGameMenu({
     controls: CONTROLS,
     touchControls: TOUCH_CONTROLS,
@@ -206,9 +239,10 @@ function room(solo: boolean): void {
       location.href = endpoints.appUrl();
     },
     onOpenChange: (open) => {
-      // The table owns Space/Enter after resuming; MENU must not consume the next roll or hold.
-      if (!open && main.dataset.phase === "running")
-        main.focus({ preventScroll: true });
+      if (open) {
+        keyboard.clear();
+        controls.release();
+      }
     },
   });
   const roundControls = createRoundControls({
@@ -216,26 +250,127 @@ function room(solo: boolean): void {
     touchControls: TOUCH_CONTROLS,
     goal: GOAL,
   });
-  const showRoundControls = createRoundControlGuide();
-  const codeChip = el("strong", solo ? "SOLO" : code, "killerFuse-code");
-  const top = header([codeChip, status.element, menu.element]);
+  // `?mute` (previews, smoke runs) silences the page whatever was stored.
+  const forcedMute = query.has("mute");
+  let muted = forcedMute || store.getItem(MUTED) === "1";
+  const mute = button("", "kf-mute");
+  const showMute = () => {
+    mute.textContent = muted ? "SOUND OFF" : "SOUND ON";
+    mute.setAttribute("aria-pressed", String(muted));
+    mute.title = muted ? "Turn the sound on" : "Turn the sound off";
+  };
+  showMute();
+  mute.onclick = () => {
+    muted = !muted;
+    store.setItem(MUTED, muted ? "1" : "0");
+    showMute();
+    if (model)
+      driver.update({
+        names: model.arena.names,
+        localSlot: model.arena.localSlot,
+        muted,
+      });
+    mute.blur();
+  };
+  const codeChip = el("strong", solo ? "SOLO" : code, "kf-code");
+  const top = header([codeChip, status.element, mute, menu.element]);
 
-  // Lobby: invitation, roster with bot controls, name entry, start.
-  const lobby = el("section", "", "killerFuse-lobby"),
-    roster = createRoster({ emptyText: "Nobody has joined yet" }),
-    addBot = button("+ ADD BOT", "killerFuse-add-bot"),
-    start = button("START MATCH", "fui-button-primary killerFuse-start"),
+  // Lobby: invitation, the two teams, settings, start.
+  const lobby = el("section", "", "kf-lobby"),
+    teams = el("div", "", "kf-teams"),
+    watchers = el("p", "", "kf-watchers"),
+    takeSeat = button("JOIN THE GAME", "kf-take-seat"),
+    settingsBox = el("div", "", "kf-settings"),
+    settingsLine = el("p", "", "kf-settings-line"),
+    start = button("START", "fui-button-primary kf-start"),
     lobbyNote = el("p", "", "fui-lobby-note"),
-    tvLink = button("OPEN TV SCREEN", "killerFuse-tv");
-  const link = endpoints.appUrl(`?room=${code}`);
-  if (!solo) {
-    const invite = createInviteCard({
-      code,
-      link,
-      qr: (text) => QRCode.toDataURL(text, { margin: 1, width: 360 }),
-    });
-    lobby.append(invite.element);
-  }
+    tvLink = button("OPEN TV SCREEN", "kf-tv"),
+    lobbyActions = el("div", "", "kf-actions");
+  if (!solo)
+    lobby.append(
+      createInviteCard({
+        code,
+        link: endpoints.appUrl(`?room=${code}`),
+        qr: (text) => QRCode.toDataURL(text, { margin: 1, width: 360 }),
+      }).element,
+    );
+  let settings: Settings = DEFAULT_SETTINGS;
+  const change = (patch: Partial<Settings>) =>
+    runtime.command({ type: "settings", settings: { ...settings, ...patch } });
+  const cards = [0, 1].map((team) => {
+    const column = el("div", "", `kf-team kf-team-${team ? "pink" : "cyan"}`);
+    column.append(el("h3", team ? "PINK" : "CYAN", "kf-team-name"));
+    const own = [0, 1, 2].map(() =>
+      createSeatCard((seat) => {
+        // Asking for the seat this device holds takes a wish back.
+        const mine = model?.arena.localSlot ?? -1;
+        runtime.seat(
+          seat.action === "withdraw" && mine >= 0 ? mine : seat.slot,
+        );
+      }),
+    );
+    column.append(...own.map((card) => card.root));
+    teams.append(column);
+    return own;
+  });
+  const levelGroup = createRadioGroup({
+    legend: "BOTS",
+    name: "kf-bots",
+    options: BOT_LEVELS,
+    selected: settings.botLevel,
+    onChange: (botLevel) => change({ botLevel }),
+  });
+  const mapGroup = createRadioGroup({
+    legend: "MAP",
+    name: "kf-map",
+    options: [
+      { value: "0", label: "ROTATE" },
+      ...([1, 2, 3] as const).map((id) => ({
+        value: String(id),
+        label: MAPS[id].name.toUpperCase(),
+      })),
+    ],
+    selected: String(settings.map),
+    onChange: (value) => {
+      const map = Number(value);
+      if (map === 0 || map === 1 || map === 2 || map === 3) change({ map });
+    },
+  });
+  const winsGroup = createRadioGroup({
+    legend: "FIRST TO",
+    name: "kf-wins",
+    options: [1, 2, 3].map((wins) => ({
+      value: String(wins),
+      label: `${wins} ${wins === 1 ? "WIN" : "WINS"}`,
+    })),
+    selected: String(settings.wins),
+    onChange: (value) => change({ wins: Number(value) }),
+  });
+  const groups = [
+    { group: levelGroup, value: (s: Settings) => s.botLevel },
+    { group: mapGroup, value: (s: Settings) => String(s.map) },
+    { group: winsGroup, value: (s: Settings) => String(s.wins) },
+  ];
+  settingsBox.append(...groups.map(({ group }) => group.element));
+  lobbyActions.append(tvLink, start);
+  lobby.append(
+    el("h2", "PICK A SEAT", "fui-lobby-title"),
+    teams,
+    watchers,
+    takeSeat,
+    settingsBox,
+    settingsLine,
+    lobbyNote,
+    lobbyActions,
+    howToPlay(),
+  );
+  start.onclick = () => runtime.command({ type: "action", action: "start" });
+  tvLink.onclick = () =>
+    window.open(endpoints.appUrl(`?room=${code}&display=1`), "_blank");
+
+  const remembered = seatName(
+    social.playerName(store.getItem(names.name)) ?? "",
+  );
   const nameEntry = createNameEntry({
     normalize: (raw) => seatName(raw) ?? "",
     initial: social.playerName(store.getItem(names.name)) ?? "",
@@ -245,241 +380,249 @@ function room(solo: boolean): void {
       store.setItem(names.name, name);
       runtime.command({ type: "join", name });
     },
-  });
-  const lobbyActions = el("div", "", "killerFuse-lobby-actions");
-  lobbyActions.append(addBot, start);
-  lobby.append(
-    el("h2", "PLAYERS", "fui-lobby-title"),
-    roster.element,
-    lobbyNote,
-    lobbyActions,
-  );
-  addBot.onclick = () => runtime.command({ type: "bot", action: "add" });
-  start.onclick = () => runtime.command({ type: "action", action: "start" });
-  tvLink.onclick = () =>
-    window.open(endpoints.appUrl(`?room=${code}&display=1`), "_blank");
-
-  // Table: scores, the die, the turn total, the timer and the buttons.
-  const table = el("section", "", "killerFuse-table"),
-    roundLine = el("p", "", "killerFuse-round"),
-    headline = el("h1", "", "killerFuse-headline"),
-    detail = el("p", "", "killerFuse-detail"),
-    board = el("div", "", "killerFuse-board"),
-    die = createDie(),
-    total = el("div", "", "killerFuse-total"),
-    totalValue = el("strong", "0"),
-    timer = el("div", "", "killerFuse-timer"),
-    timerFill = el("span"),
-    timerText = el("small", "", "killerFuse-timer-text");
-  total.append(el("small", "TURN TOTAL"), totalValue);
-  timer.append(timerFill);
-  timer.setAttribute("aria-hidden", "true");
-  const centre = el("div", "", "killerFuse-centre");
-  centre.append(die.element, total, toast.element);
-  const pad = createControllerRow({
-    buttons: [
-      {
-        label: "ROLL",
-        keys: "Space R",
-        title: "Roll the die (Space)",
-        onPress: () => runtime.play("roll"),
+    secondary: {
+      text: "WATCH",
+      title: "Watch without a seat",
+      onSubmit: (name) => {
+        store.setItem(names.name, name);
+        runtime.command({ type: "spectate", name });
       },
-      {
-        label: "HOLD",
-        keys: "H Enter",
-        title: "Bank the turn total (H)",
-        onPress: () => runtime.play("hold"),
-      },
-    ] as const,
-    className: "fui-controller killerFuse-pad",
+    },
   });
-  const [rollButton, holdButton] = pad.buttons;
-  rollButton.classList.add("killerFuse-roll");
-  holdButton.classList.add("killerFuse-hold");
-  table.append(
-    roundLine,
-    roundControls.element,
-    headline,
-    detail,
-    board,
-    centre,
-    timer,
-    timerText,
-    pad.element,
-  );
-  const cards = new Map<string, Record<string, HTMLElement>>();
+  takeSeat.onclick = () => {
+    const name = seatName(nameEntry.input.value) ?? remembered;
+    if (name) runtime.command({ type: "join", name });
+  };
 
-  // The result of a match.
-  const result = el("section", "", "killerFuse-result"),
-    resultTitle = el("h2", "", "killerFuse-result-title"),
-    resultLines = el("ol", "", "killerFuse-result-lines"),
+  // Arena: the renderer's canvas, the set's score, the banner between games, and the touch controls.
+  const arena = el("section", "", "kf-arena"),
+    scoreLine = el("p", "", "kf-score"),
+    stage = el("div", "", "kf-stage"),
+    canvasHost = el("div", "", "kf-canvas"),
+    banner = el("div", "", "kf-banner"),
+    bannerTitle = el("strong"),
+    bannerDetail = el("span"),
+    seatLine = el("p", "", "kf-seat-line"),
+    touchRow = el("div", "", "kf-touch"),
+    stick = el("div", "", "kf-stick"),
+    knob = el("i", "", "kf-knob"),
+    flap = button("FLAP", "kf-flap");
+  banner.append(bannerTitle, bannerDetail);
+  banner.setAttribute("role", "status");
+  stick.append(knob);
+  stick.setAttribute("aria-label", "Move: slide left, right or down");
+  touchRow.append(stick, flap);
+  stage.append(canvasHost, banner, roundControls.element);
+
+  // The result of a set, over the arena.
+  const result = el("section", "", "kf-result"),
+    resultTitle = el("h2", "", "kf-result-title"),
+    resultGames = el("ol", "", "kf-result-games"),
+    resultPlayers = el("ul", "", "kf-result-players"),
     rematch = button("REMATCH", "fui-button-primary"),
     toLobby = button("LOBBY"),
     resultWaiting = el("p", "", "fui-lobby-note"),
-    resultActions = el("div", "", "killerFuse-lobby-actions");
+    resultActions = el("div", "", "kf-actions");
   resultActions.append(toLobby, rematch);
-  result.append(resultTitle, resultLines, resultWaiting, resultActions);
+  result.append(
+    resultTitle,
+    resultGames,
+    resultPlayers,
+    resultWaiting,
+    resultActions,
+  );
   result.hidden = true;
+  stage.append(result);
+  arena.append(scoreLine, stage, seatLine, touchRow);
   rematch.onclick = () =>
     runtime.command({ type: "action", action: "rematch" });
   toLobby.onclick = () => runtime.command({ type: "action", action: "lobby" });
 
-  const main = el("main", "", "killerFuse-room");
+  const main = el("main", "", "kf-room");
   main.tabIndex = -1;
-  main.append(nameEntry.form, lobby, table, result);
+  main.append(nameEntry.form, lobby, arena);
   app.replaceChildren(top, main);
-  table.hidden = true;
+  arena.hidden = true;
   nameEntry.form.hidden = true;
 
-  const render = (model: TableModel) => {
-    main.dataset.layout = model.layout;
-    lobby.hidden = model.screen !== "lobby";
-    table.hidden = model.screen !== "table";
-    nameEntry.form.hidden = !model.askName;
+  const driver = new ArenaDriver({
+    create: createArenaView,
+    host: canvasHost,
+    artUrl: ART_URL,
+    timing: () => runtime.frameTiming(),
+  });
+
+  // Touch: the pad follows the thumb from where it came down; the button is the whole right side.
+  let stickPointer = -1,
+    origin = { x: 0, y: 0 };
+  const stickRadius = () => stick.clientWidth / 2;
+  stick.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    stickPointer = event.pointerId;
+    stick.setPointerCapture(event.pointerId);
+    origin = { x: event.clientX, y: event.clientY };
+    touch.move(0, 0, stickRadius());
+  });
+  stick.addEventListener("pointermove", (event) => {
+    if (event.pointerId !== stickPointer) return;
+    const radius = stickRadius(),
+      dx = event.clientX - origin.x,
+      dy = event.clientY - origin.y,
+      clamp = (value: number) => Math.max(-radius, Math.min(radius, value));
+    knob.style.transform = `translate(${clamp(dx)}px, ${clamp(dy)}px)`;
+    touch.move(dx, dy, radius);
+  });
+  const restStick = (event: PointerEvent) => {
+    if (event.pointerId !== stickPointer) return;
+    stickPointer = -1;
+    knob.style.transform = "";
+    touch.rest();
+  };
+  stick.addEventListener("pointerup", restStick);
+  stick.addEventListener("pointercancel", restStick);
+  flap.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    touch.hold(true);
+  });
+  for (const type of ["pointerup", "pointercancel", "pointerleave"] as const)
+    flap.addEventListener(type, () => touch.hold(false));
+  touchRow.addEventListener("contextmenu", (event) => event.preventDefault());
+
+  let model: PageModel | undefined;
+  const render = (next: PageModel) => {
+    const first = model?.screen !== next.screen;
+    model = next;
+    main.dataset.layout = next.layout;
+    main.dataset.screen = next.screen;
+    lobby.hidden = next.screen !== "lobby";
+    arena.hidden = next.screen !== "arena";
+    nameEntry.form.hidden = !next.askName;
+    nameEntry.submit.hidden = !next.canJoin;
     // Lobby.
-    roster.update(
-      model.lobby.members.map((member, index) => ({
-        ...member,
-        color: COLORS[index % COLORS.length]!,
-      })),
+    next.lobby.teams.forEach((team, index) =>
+      team.seats.forEach((seat, row) => cards[index]![row]!.render(seat)),
     );
-    for (const [id, row] of roster.entries()) {
-      let remove = row.querySelector<HTMLButtonElement>(".killerFuse-remove");
-      const removable = model.lobby.removable.includes(id);
-      if (removable && !remove) {
-        remove = button("×", "killerFuse-remove");
-        remove.setAttribute("aria-label", "Remove bot");
-        remove.onclick = () =>
-          runtime.command({ type: "bot", action: "remove", id });
-        row.append(remove);
-      }
-      if (remove) remove.hidden = !removable;
-    }
-    addBot.hidden = !model.lobby.canAddBot;
-    start.hidden = !model.lobby.showStart;
-    start.disabled = !model.lobby.canStart;
-    lobbyNote.textContent = model.lobby.note;
-    lobbyNote.hidden = !model.lobby.note;
-    const offerTv = viewer.shared && viewer.host && !display && !solo;
-    if (offerTv && !tvLink.isConnected) lobbyActions.prepend(tvLink);
+    watchers.textContent = next.lobby.watchers.length
+      ? `Watching: ${next.lobby.watchers.join(", ")}`
+      : "";
+    watchers.hidden = next.lobby.watchers.length === 0;
+    takeSeat.hidden = !(next.watching && next.canJoin);
+    const editable = next.lobby.settings.editable;
+    settingsBox.hidden = !editable;
+    settingsLine.hidden = editable;
+    settingsLine.textContent = next.lobby.settings.summary;
+    for (const { group, value } of groups)
+      for (const input of group.inputs)
+        input.checked = input.value === value(settings);
+    start.hidden = !next.lobby.showStart;
+    start.disabled = !next.lobby.canStart;
+    lobbyNote.textContent = next.lobby.note;
+    const offerTv = settings.display && next.host && !solo;
     tvLink.hidden = !offerTv;
-    // Table.
-    roundLine.textContent = model.round;
-    headline.textContent = model.headline;
-    detail.textContent = model.detail;
-    for (const [id, card] of cards)
-      if (!model.players.some((player) => player.id === id)) {
-        card.root!.remove();
-        cards.delete(id);
-      }
-    model.players.forEach((player, index) => {
-      let card = cards.get(player.id);
-      if (!card) {
-        const root = el("article", "", "killerFuse-player");
-        card = {
-          root,
-          name: el("strong", "", "killerFuse-player-name"),
-          score: el("b", "", "killerFuse-player-score"),
-          wins: el("span", "", "killerFuse-player-wins"),
-          bar: el("i", "", "killerFuse-player-bar"),
-        };
-        const meter = el("span", "", "killerFuse-player-meter");
-        meter.append(card.bar!);
-        root.append(card.name!, card.wins!, card.score!, meter);
-        cards.set(player.id, card);
-        board.append(root);
-      }
-      const root = card.root!;
-      root.style.setProperty("--rider-color", COLORS[index % COLORS.length]!);
-      root.style.order = String(index);
-      root.classList.toggle("current", player.current);
-      root.classList.toggle("you", player.you);
-      root.classList.toggle("away", player.away);
-      root.classList.toggle("winner", player.winner);
-      card.name!.textContent = player.you
-        ? `${player.name} (you)`
-        : player.name;
-      card.score!.textContent = String(player.score);
-      card.wins!.textContent = player.wins;
-      card.wins!.setAttribute("aria-label", `${player.roundWins} round wins`);
-      card.bar!.style.width = `${Math.round(player.progress * 100)}%`;
-    });
-    die.render(model.die);
-    totalValue.textContent = String(model.turnTotal);
-    timerFill.style.width = `${(model.timer * 100).toFixed(1)}%`;
-    timer.classList.toggle("low", model.timer > 0 && model.timer < 0.3);
-    timerText.textContent = model.seconds ? `${model.seconds}s` : "";
-    pad.element.hidden = !model.controls.visible;
-    rollButton.disabled = !model.controls.roll;
-    holdButton.disabled = !model.controls.hold;
+    // Arena.
+    scoreLine.textContent = next.arena.line;
+    banner.hidden = !next.arena.banner;
+    banner.dataset.team =
+      next.arena.banner?.team === undefined
+        ? ""
+        : String(next.arena.banner.team);
+    bannerTitle.textContent = next.arena.banner?.title ?? "";
+    bannerDetail.textContent = next.arena.banner?.detail ?? "";
+    seatLine.textContent =
+      next.arena.localSlot >= 0
+        ? `You are the ${seatTitle(next.arena.localSlot)}`
+        : next.screen === "arena"
+          ? "Watching"
+          : "";
+    touchRow.hidden = !(
+      next.seated &&
+      next.arena.localSlot >= 0 &&
+      !next.result &&
+      (coarse || next.layout === "controller")
+    );
     // Result.
-    result.hidden = !model.result;
-    if (model.result) {
-      resultTitle.textContent = model.result.title;
-      const lines = model.result.lines.join("\n");
-      if (resultLines.dataset.lines !== lines) {
-        resultLines.dataset.lines = lines;
-        resultLines.replaceChildren(
-          ...model.result.lines.map((line) => el("li", line)),
+    result.hidden = !next.result;
+    if (next.result) {
+      result.dataset.team = String(next.result.team);
+      resultTitle.textContent = next.result.title;
+      const key = [...next.result.games, ...next.result.players].join("\n");
+      if (result.dataset.lines !== key) {
+        result.dataset.lines = key;
+        resultGames.replaceChildren(
+          ...next.result.games.map((line) => el("li", line)),
+        );
+        resultPlayers.replaceChildren(
+          ...next.result.players.map((line) => el("li", line)),
         );
       }
-      resultActions.hidden = !model.result.host;
-      resultWaiting.textContent = model.result.waiting;
-      resultWaiting.hidden = !model.result.waiting;
+      resultActions.hidden = !next.result.host;
+      resultWaiting.textContent = next.result.waiting;
+      resultWaiting.hidden = !next.result.waiting;
+    }
+    // START keeps the focus when the game begins; Space must flap, not press it again.
+    if (first && next.screen === "arena") {
+      if (document.activeElement instanceof HTMLElement)
+        document.activeElement.blur();
+      main.focus({ preventScroll: true });
     }
   };
 
   // ---- the runtime ----
   const sent = new Set<string>();
-  const remembered = seatName(
-    social.playerName(store.getItem(names.name)) ?? "",
-  );
-  let lastDie = "",
-    joinSent = false;
+  let joinSent = false;
   const callbacks: KillerFuseCallbacks = {
-    state(frame, settings) {
+    state(frame, roomSettings) {
+      settings = roomSettings;
+      const next = present(frame, viewer),
+        mode = solo ? "solo" : roomSettings.display ? "shared" : "online",
+        between = frame.stage === "running" || frame.stage === "between";
       reportPlay({
         matchId: frame.matchId,
-        active: frame.phase === "running",
-        ended: frame.phase === "over",
-        round: frame.round,
-        playerCount: frame.players.length,
-        botCount: frame.players.filter((seat) => seat.bot).length,
-        seated: frame.players.some((seat) => seat.id === viewer.me),
-        mode: solo ? "solo" : settings.display ? "shared" : "online",
+        active: between,
+        ended: frame.stage === "over",
+        round: Math.max(1, frame.round),
+        playerCount: next.humans + next.bots,
+        botCount: next.bots,
+        seated: next.seated,
+        mode,
       });
-      viewer.shared = settings.display;
-      const model = presentTable(frame, viewer);
-      const state = runtime.roomState();
-      const touch =
-        viewer.shared || window.matchMedia("(pointer: coarse)").matches;
+      reportGame(frame, viewer.me, runtime.confirmedTick(), mode);
+      const spectator = display || !next.seated;
       menu.update({
-        canLobby: viewer.host && !display && frame.phase !== "lobby",
+        canLobby: next.host && frame.stage !== "lobby",
         display,
-        touch,
-        spectator: display || !model.seated,
+        touch: coarse || roomSettings.display,
+        spectator,
       });
       roundControls.update({
-        round: `${state?.matchId ?? code}:${frame.round}`,
-        visible: showRoundControls(frame, state?.matchId),
+        round: `${frame.matchId}:${frame.round}`,
+        visible:
+          frame.stage === "running" &&
+          frame.round === 1 &&
+          frame.logTick < frame.startAt,
         display,
-        touch,
-        spectator: display || !model.seated,
+        touch: coarse || roomSettings.display,
+        spectator,
       });
-      // For the browser smoke (scripts/killerFuse-smoke.ts) and the stylesheet.
-      main.dataset.phase = frame.phase;
+      // For the browser smoke and the stylesheet.
+      main.dataset.stage = frame.stage;
       main.dataset.round = String(frame.round);
-      if (model.die && model.die.key !== lastDie && model.die.bust)
-        toast.flash(`${model.die.by} rolled a 1: BUST!`, "warn");
-      lastDie = model.die?.key ?? "";
-      // A page that loads into a room with a name remembered from before (a reload frees a lobby seat) joins under it
-      // once; a name typed on this page joins only through JOIN.
-      if (model.askName && remembered && !joinSent) {
+      main.dataset.winner = frame.stage === "over" ? String(frame.winner) : "";
+      // A page that loads into a room with a name remembered from before (a reload frees a lobby seat) joins under
+      // it once; a name typed on this page joins only through JOIN.
+      if (next.askName && next.canJoin && remembered && !joinSent) {
         joinSent = true;
         runtime.command({ type: "join", name: remembered });
       }
-      if (model.seated) joinSent = false;
-      render(model);
+      if (next.seated) joinSent = false;
+      render(next);
+      driver.update({
+        names: next.arena.names,
+        localSlot: next.arena.localSlot,
+        muted,
+      });
+      driver.feed(frame, next.layout === "arena");
+      const state = runtime.roomState();
       if (session.kind === "room" && role !== "display" && state)
         for (const report of dueReports(
           state,
@@ -499,15 +642,14 @@ function room(solo: boolean): void {
         }
     },
     event() {
-      // Everything shown comes from the view: a rollback can change a roll after its event was emitted.
+      // Everything shown comes from the view: a rollback can undo what an event said.
     },
     status(text) {
       const shown = roomFailure(text);
       status.show(shown, shown === text ? "info" : "error");
     },
-    ready(id, host) {
+    ready(id) {
       viewer.me = id;
-      viewer.host = host;
     },
     ended() {
       status.show("Room ended", "error");
@@ -549,31 +691,43 @@ function room(solo: boolean): void {
           humanName: social.playerName(store.getItem(names.name)) ?? undefined,
         },
   );
+  let frameRequest = 0;
+  const loop = () => {
+    frameRequest = requestAnimationFrame(loop);
+    if (!menu.isOpen()) pads.poll(navigator.getGamepads());
+    runtime.flush();
+    driver.draw();
+  };
   installRoomLifecycle(window, {
     stop: () => runtime.stop(),
-    destroy: () => menu.dispose(),
+    destroy: () => {
+      cancelAnimationFrame(frameRequest);
+      driver.close();
+      menu.dispose();
+    },
     reload: () => location.reload(),
   });
+  // The keys play only while a game is on: in the lobby and on the result, Space presses the focused button.
+  const inGame = () =>
+    (main.dataset.stage === "running" || main.dataset.stage === "between") &&
+    !menu.isOpen();
   document.addEventListener("keydown", (event) => {
-    // A focused control answers its own keys: Enter or Space on ROLL must not also HOLD, and Space must still press
-    // START or REMATCH.
-    if (
-      event.target instanceof HTMLInputElement ||
-      event.target instanceof HTMLButtonElement ||
-      menu.isOpen() ||
-      event.repeat
-    )
-      return;
-    const key = event.key.toLowerCase();
-    if (key === " " || key === "r") {
-      event.preventDefault();
-      runtime.play("roll");
-    } else if (key === "h" || key === "enter") runtime.play("hold");
+    if (event.target instanceof HTMLInputElement || !inGame()) return;
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    if (!gameKey(event.code)) return;
+    event.preventDefault();
+    if (!event.repeat) keyboard.press(event.code);
   });
+  document.addEventListener("keyup", (event) => keyboard.lift(event.code));
+  window.addEventListener("blur", () => {
+    keyboard.clear();
+    controls.release();
+  });
+  window.addEventListener("resize", () => driver.resize());
   runtime.start();
+  frameRequest = requestAnimationFrame(loop);
 }
 
-const query = new URLSearchParams(location.search);
 if (query.get("solo") === "1") room(true);
 else if (query.has("room")) room(false);
 else landing();

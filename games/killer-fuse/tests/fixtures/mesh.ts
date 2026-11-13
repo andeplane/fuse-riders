@@ -1,39 +1,18 @@
 import {
-  RoomRuntime,
   type Callbacks,
   type RoomTransport,
   type RuntimeDependencies,
   type TransportEvents,
 } from "fuse-netcode";
 import {
-  HOLD,
-  ROLL,
-  killerFuseGame,
-  type KillerFuseEntry,
-  type KillerFuseEvent,
-  type KillerFuseRoom,
-  type KillerFuseSettings,
-  type KillerFuseView,
-} from "../../src/game/index.js";
+  KillerFuseRuntime,
+  type GameEvent,
+  type Settings,
+  type View,
+} from "../../src/online/index.js";
 
-/** The killerFuse runtime as a test drives it: ROLL and HOLD name the turn the player sees. */
-export class TestKillerFuseRuntime extends RoomRuntime<
-  KillerFuseRoom,
-  KillerFuseEntry,
-  KillerFuseView,
-  KillerFuseEvent,
-  KillerFuseSettings
-> {
-  press(action: typeof ROLL | typeof HOLD): boolean {
-    const room = this.world?.state;
-    if (!room || !this.player()?.connected || room.turn !== this.id)
-      return false;
-    this.append(action, room.turnNo);
-    return true;
-  }
-  roomState(): KillerFuseRoom | undefined {
-    return this.world?.state;
-  }
+/** The Killer Fuse runtime as a test drives it, with the hash of a retained tick. */
+export class TestKillerFuseRuntime extends KillerFuseRuntime {
   hashAt(tick: number): string | undefined {
     return this.world?.hashAt(tick);
   }
@@ -62,23 +41,19 @@ export class KillerFuseMesh {
   private readonly online = new Set<string>();
   private readonly lastReliable = new Map<string, number>();
   readonly runtimes = new Map<string, TestKillerFuseRuntime>();
-  readonly emitted = new Map<string, KillerFuseEvent[]>();
+  readonly emitted = new Map<string, GameEvent[]>();
   fast: (from: string, to: string) => FastFate = () => ({ delayMs: 20 });
   constructor(
     readonly hostId: string,
-    private readonly settings: KillerFuseSettings,
+    private readonly settings: Settings,
   ) {}
   private at(ms: number, run: () => void): void {
     this.queue.push({ at: this.now + ms, order: this.order++, run });
   }
   join(id: string): TestKillerFuseRuntime {
-    const emitted: KillerFuseEvent[] = [];
+    const emitted: GameEvent[] = [];
     this.emitted.set(id, emitted);
-    const callbacks: Callbacks<
-      KillerFuseView,
-      KillerFuseEvent,
-      KillerFuseSettings
-    > = {
+    const callbacks: Callbacks<View, GameEvent, Settings> = {
       state: () => {},
       event: (event) => emitted.push(event),
       status: () => {},
@@ -96,7 +71,6 @@ export class KillerFuseMesh {
       onVisibilityChange: () => () => {},
     };
     const runtime = new TestKillerFuseRuntime(
-      killerFuseGame,
       "ROOM",
       this.settings,
       callbacks,
