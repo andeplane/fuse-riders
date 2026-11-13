@@ -1,9 +1,9 @@
 import { apart, resolveSolids, settle, type Space } from "./collide.js";
 import { BTN, DOWN, LEFT, RIGHT, isInput } from "./input.js";
-import { abs, clamp, div, isqrt } from "./math.js";
+import { abs, clamp, div, isqrt, toward } from "./math.js";
 import { boxesOf, mapOf, type Box } from "./maps.js";
 import * as T from "./tuning.js";
-import type { Rider, World } from "./world.js";
+import type { Bubble, Rider, World } from "./world.js";
 
 /**
  * One micro-step of the arena (120 a second): a pure function of the world and the bits each rider holds. Both
@@ -72,6 +72,46 @@ function control(
   if (bits & DOWN) rider.vy = (rider.vy > 0 ? rider.vy : 0) + T.QUICK_DROP;
   else rider.vy = (rider.vy < 0 ? rider.vy : 0) - T.JUMP;
   rider.jumps = count(rider.jumps);
+  // Every press in the air leaves the rider's one bubble where they are; it is hard until the button comes up.
+  const bubble = world.bubbles[rider.slot];
+  bubble.active = true;
+  bubble.hard = true;
+  bubble.x = rider.x;
+  bubble.y = rider.y;
+  bubble.seq = count(bubble.seq);
+}
+
+/**
+ * A rider against the other rider's bubble: touching a normal one pops it, and a hard one throws the rider back off
+ * its surface and stays. A rider's own bubble is nothing to them.
+ */
+function meetBubble(rider: Rider, bubble: Bubble, space: Space): void {
+  if (rider.zapped || !bubble.active) return;
+  let { dx, dy } = apart(rider.x, rider.y, bubble.x, bubble.y, space);
+  let d2 = dx * dx + dy * dy;
+  const reach = T.RIDER_R + T.BUBBLE_R;
+  if (d2 >= reach * reach) return;
+  if (!bubble.hard) {
+    bubble.active = false;
+    rider.pops = count(rider.pops);
+    return;
+  }
+  if (d2 === 0) {
+    dx = 0;
+    dy = -1;
+    d2 = 1;
+  }
+  const d = isqrt(d2),
+    depth = reach - d;
+  rider.x += div(dx * depth, d);
+  rider.y += div(dy * depth, d);
+  const closing = rider.vx * dx + rider.vy * dy;
+  if (closing < 0) {
+    rider.vx -= div(2 * closing * dx, d2);
+    rider.vy -= div(2 * closing * dy, d2);
+  }
+  // Bounced off: whatever the rider was doing on the ground is over.
+  rider.slide = 0;
 }
 
 /** Gravity, running and drag, then the move and the solids. */
@@ -193,6 +233,46 @@ function moveBall(world: World, boxes: readonly Box[], space: Space): void {
     ball.touch = kicker;
     if (hard) ball.bounces = count(ball.bounces);
   }
+  bumpBall(world, space);
+}
+
+/**
+ * The ball against the bubbles, either rider's: a bubble halves the ball's speed and throws it away from its centre.
+ * A normal bubble pops doing it; a hard one stays. Both bubbles are measured from the same ball, and their throws
+ * are summed.
+ */
+function bumpBall(world: World, space: Space): void {
+  const ball = world.ball,
+    reach = T.BALL_R + T.BUBBLE_R;
+  let pushX = 0,
+    pushY = 0,
+    throwX = 0,
+    throwY = 0,
+    bumps = 0,
+    owner: -1 | 0 | 1 = -1;
+  for (const slot of [0, 1] as const) {
+    const bubble = world.bubbles[slot];
+    if (!bubble.active) continue;
+    const { dx, dy } = apart(ball.x, ball.y, bubble.x, bubble.y, space),
+      d2 = dx * dx + dy * dy;
+    if (d2 >= reach * reach) continue;
+    const out = toward(dx, dy, reach - isqrt(d2)),
+      away = toward(dx, dy, T.BUMP);
+    pushX += out.x;
+    pushY += out.y;
+    throwX += away.x;
+    throwY += away.y;
+    bumps++;
+    owner = bumps === 1 ? slot : -1;
+    if (!bubble.hard) bubble.active = false;
+  }
+  if (!bumps) return;
+  ball.x += pushX;
+  ball.y += pushY;
+  ball.vx = div(ball.vx, 2) + throwX;
+  ball.vy = div(ball.vy, 2) + throwY;
+  ball.touch = owner;
+  ball.bounces = count(ball.bounces);
 }
 
 export function stepWorld(
@@ -229,8 +309,14 @@ export function stepWorld(
     world.ball.bounces = count(world.ball.bounces);
   }
 
+  // A bubble stays hard only while its owner keeps holding the press that placed it.
+  if (!(bitsA & BTN)) world.bubbles[0].hard = false;
+  if (!(bitsB & BTN)) world.bubbles[1].hard = false;
+
   if (!a.zapped) moveRider(a, bitsA, boxes, map);
   if (!b.zapped) moveRider(b, bitsB, boxes, map);
+  meetBubble(a, world.bubbles[1], map);
+  meetBubble(b, world.bubbles[0], map);
   bumpRiders(a, b, map);
   if (world.ball.live) moveBall(world, boxes, map);
 
