@@ -10,6 +10,7 @@ Product events use the shared `fuse-ui/analytics` and `fuse-ui/play-metrics` con
 - **W / S** or up/down arrows: reach outward / pull inward. Combine with A/D. The paddle stays the same length: reaching out intercepts earlier, pulling in covers a wider angle.
 - **Space**: launch your starting ball after the countdown. Unlaunched balls release automatically after three seconds.
 - Touch: left, in, launch, out and right buttons. Multiple movement buttons can be held while launching.
+- Desktop matches keep the arena and movement controls within the viewport as power-up messages appear. The instructions sidebar scrolls independently when space is limited.
 - One core hit eliminates a player. Remaining players and bots finish the round. Solo has a restart button; online, the manager can rematch after the result. A two-minute time limit draws. **Play again** resets through the room log.
 
 This implements phases 0–5 of [the design](../../docs/design/ball-bros-poc.md). Ranked reporting remains later work. The service registration rejects all statistics reports and production rooms are not enabled automatically (`EXTRA_GAME_IDS=ball-bros`).

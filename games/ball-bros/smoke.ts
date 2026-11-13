@@ -74,6 +74,51 @@ try {
     pad && pad.y + pad.height <= 1000,
     "game controls fit the desktop viewport",
   );
+  for (const viewport of [
+    { width: 1280, height: 720 },
+    { width: 1024, height: 768 },
+    { width: 1440, height: 1000 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+    const bounds = await page.evaluate(() => {
+      const arena = document
+        .querySelector(".arena-wrap")!
+        .getBoundingClientRect();
+      return {
+        controlsFit: [...document.querySelectorAll(".pad")].every((node) => {
+          const box = node.getBoundingClientRect();
+          return (
+            box.top >= 0 &&
+            box.left >= 0 &&
+            box.right <= innerWidth &&
+            box.bottom <= innerHeight
+          );
+        }),
+        arenaWidth: arena.width,
+        arenaHeight: arena.height,
+        pageWidth: document.documentElement.scrollWidth,
+      };
+    });
+    assert.ok(
+      bounds.controlsFit,
+      `all controls fit ${viewport.width}×${viewport.height}`,
+    );
+    assert.ok(
+      bounds.arenaWidth > 200,
+      "arena stays playable on a short desktop",
+    );
+    assert.ok(
+      Math.abs(bounds.arenaWidth - bounds.arenaHeight) < 1,
+      "arena stays square",
+    );
+    assert.ok(
+      bounds.pageWidth <= viewport.width,
+      "desktop has no horizontal overflow",
+    );
+    if (viewport.height === 720)
+      await page.screenshot({ path: "artifacts/ball-bros-short-desktop.png" });
+  }
   await page.getByRole("button", { name: "RESTART ROUND" }).click();
   await page.getByText("GET READY · 3", { exact: true }).waitFor();
   assert.ok(
