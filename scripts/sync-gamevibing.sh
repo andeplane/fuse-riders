@@ -26,18 +26,34 @@ commit="$(git -C "$tmp/gamevibing" rev-parse HEAD)"
 # Drop previously vendored skills that upstream has removed.
 if [[ -f "$dest/GAMEVIBING_VERSION" ]]; then
   while read -r name; do
-    [[ -n "$name" && ! -d "$tmp/gamevibing/skills/$name" ]] && rm -rf "${dest:?}/$name"
+    # Only game-* names are ours to manage; never touch repo-owned skills.
+    if [[ "$name" == game-* && "$name" != */* && ! -d "$tmp/gamevibing/skills/$name" ]]; then
+      rm -rf "${dest:?}/$name"
+    fi
   done < <(sed -n 's/^skill: //p' "$dest/GAMEVIBING_VERSION")
 fi
+
+[[ -d "$tmp/gamevibing/skills" ]] || {
+  echo "upstream $ref has no skills/ directory" >&2
+  exit 1
+}
 
 mkdir -p "$dest"
 names=()
 for dir in "$tmp/gamevibing/skills"/*/; do
   name="$(basename "$dir")"
+  # Skip anything that is not a game-* skill so upstream can never replace
+  # a repo-owned skill such as .claude/skills/ship.
+  [[ "$name" == game-* && -f "$dir/SKILL.md" ]] || continue
   rm -rf "${dest:?}/$name"
   cp -R "$dir" "$dest/$name"
   names+=("$name")
 done
+
+[[ ${#names[@]} -gt 0 ]] || {
+  echo "upstream $ref has no game-* skills" >&2
+  exit 1
+}
 
 {
   echo "# Vendored by scripts/sync-gamevibing.sh; do not edit by hand."
