@@ -1,14 +1,54 @@
-import type { MatchResult, PlayerResult } from "fuse-platform";
+import type { MatchResult } from "fuse-platform";
+import { isBotId } from "../basics.js";
+import type { Room } from "../online/game.js";
+import {
+  matchResult,
+  roundResult,
+  type FuseballPlayerResult,
+} from "../online/result.js";
 
-/**
- * One result this device owes the room service: a rated round receipt, or the whole match. Which reports are due is
- * decided from the room's state, which `src/online/` will own; until then only the sending is here.
- */
+/** One result this device owes the room service: the match as a rating receipt, or as the whole match. */
 export interface DueReport {
-  /** Unique per match and round, so a report is sent once. */
+  /** Unique per match and kind, so a report is sent once. */
   key: string;
   path: "round-results" | "results";
-  result: MatchResult<PlayerResult>;
+  result: MatchResult<FuseballPlayerResult>;
+}
+
+/**
+ * The reports this device should send now. Every rider still seated at the end reports what its own replica computed,
+ * and the service keeps a result once enough of them agree, so only confirmed history goes in: nothing is due until
+ * the confirmed game clock (`runtime.confirmedTick()`) reaches the tick the match was decided on, after which no
+ * rollback can change it. A Fuseball match is one round, so it is owed twice: as round 1, which the platform rates,
+ * and as the whole match, which credits totals. A device that did not finish the match (the shared screen, a watcher,
+ * a rider who left, a bot id) owes nothing; `sent` holds the keys already sent.
+ */
+export function dueReports(
+  room: Room,
+  me: string,
+  confirmedTick: number,
+  sent: ReadonlySet<string>,
+): DueReport[] {
+  const decided = room.decided;
+  if (
+    !me ||
+    isBotId(me) ||
+    room.stage !== "over" ||
+    !decided ||
+    decided.clock > confirmedTick ||
+    !decided.finishers.includes(me)
+  )
+    return [];
+  const due: DueReport[] = [];
+  const round = roundResult(room),
+    match = matchResult(room);
+  const roundKey = `${room.matchId}:1`,
+    matchKey = `${room.matchId}:match`;
+  if (round && !sent.has(roundKey))
+    due.push({ key: roundKey, path: "round-results", result: round });
+  if (match && !sent.has(matchKey))
+    due.push({ key: matchKey, path: "results", result: match });
+  return due;
 }
 
 export interface ReportTransport {

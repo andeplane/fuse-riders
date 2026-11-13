@@ -1,50 +1,40 @@
-import {
-  MAX_MATCH_PARTICIPANTS,
-  type GameRegistration,
-  type PlayerResult,
-} from "fuse-platform";
-import { CAPACITY, isBotId, validName } from "./basics.js";
+import type { GameRegistration, PlayerResult } from "fuse-platform";
+import { CAPACITY, TARGET, isBotId, validName } from "./basics.js";
 
 /**
- * Placeholder bounds for the scaffold's stats below (rolls, holds, busts), which Fuseball does not have: the
- * registration is replaced with the duel's own stats (goals, own goals, bubbles, pops) when its results are wired.
- */
-const MAX_POINTS = 10_000,
-  MAX_ROUNDS = 1;
-
-/**
- * The fuseball game's part of the shared backend (`fuse-platform`): what a player's reported stats are and what a
- * confirmed match adds to an account. The room service registers it beside Fuse Riders' (`games/fuse-riders/src/platform.ts`) in `service/history.ts`;
+ * Fuseball's part of the shared backend (`fuse-platform`): what a player's reported stats are and what a confirmed
+ * match adds to an account. The room service registers it beside the other games' in `service/history.ts`;
  * attestation, settlement, Elo and storage are the platform's. It imports only `basics.ts`, so the service never loads
- * the netcode.
+ * the engine or the netcode.
  */
 
-/** One player's result as the platform stores it; the room's result module reports the same shape. */
+/** One rider's result as the platform stores it; the room's result module (`online/result.ts`) reports the same shape. */
 export interface FuseballStats extends PlayerResult {
-  points: number;
-  rolls: number;
-  holds: number;
-  busts: number;
-  bestTurn: number;
+  /** Points this rider scored themselves, in their own colour's goal. */
+  goals: number;
+  /** Points this rider gave away, into the other colour's goal. */
+  ownGoals: number;
+  /** Bubbles placed. */
+  bubbles: number;
+  /** Opposing bubbles popped by touch. */
+  pops: number;
 }
 export const TOTAL_KEYS = [
   "matches",
   "wins",
-  "roundWins",
-  "points",
-  "rolls",
-  "holds",
-  "busts",
-  "bestTurn",
+  "goals",
+  "ownGoals",
+  "bubbles",
+  "pops",
 ] as const;
 export type FuseballTotalsRecord = Record<(typeof TOTAL_KEYS)[number], number>;
-/** An account's standing in the fuseball game beside its rating. */
+/** An account's standing in Fuseball beside its rating. */
 export interface FuseballTotals {
   totals: FuseballTotalsRecord;
 }
 
-/** A forged report can only inflate the reporter's own totals, and by at most this much per match. */
-const MAX_EVENTS = 20_000;
+/** The engine's cosmetic counters wrap at 65536 (`engine/tuning.ts` `COUNTER`): a match reports at most this many. */
+export const MAX_COUNTER = 0xffff;
 const KEYS = [
   "playerId",
   "name",
@@ -54,14 +44,26 @@ const KEYS = [
   "matchScoreUnits",
   "matchPlacement",
   "earlyExits",
-  "points",
-  "rolls",
-  "holds",
-  "busts",
-  "bestTurn",
+  "goals",
+  "ownGoals",
+  "bubbles",
+  "pops",
 ] as const satisfies readonly (keyof FuseballStats)[];
 type Counter = Exclude<(typeof KEYS)[number], "playerId" | "name">;
-const COUNTERS = KEYS.slice(2) as readonly Counter[];
+/** The most each counter can be in one match: a forged report can inflate the reporter's totals by no more. */
+const MOST: Record<Counter, number> = {
+  slot: CAPACITY - 1,
+  roundsPlayed: 1,
+  roundWins: 1,
+  matchScoreUnits: TARGET,
+  matchPlacement: CAPACITY,
+  earlyExits: 1,
+  goals: TARGET,
+  ownGoals: TARGET,
+  bubbles: MAX_COUNTER,
+  pops: MAX_COUNTER,
+};
+const COUNTERS = Object.keys(MOST) as Counter[];
 
 const count = (value: unknown, most: number): value is number =>
   Number.isSafeInteger(value) &&
@@ -70,15 +72,17 @@ const count = (value: unknown, most: number): value is number =>
 const plain = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
-/** The storage and wire boundary for one player: every field checked, unknown ones refused, rebuilt in one key order. */
+/**
+ * The storage and wire boundary for one rider: every field checked, unknown ones refused, rebuilt in one key order.
+ * A Fuseball match is one round, so a result of any other length is not one of ours.
+ */
 export function parseFuseballStats(
   raw: unknown,
   rounds: number,
 ): FuseballStats | undefined {
-  if (!plain(raw)) return;
-  const keys = Object.keys(raw);
+  if (!plain(raw) || rounds !== 1) return;
   if (
-    keys.length !== KEYS.length ||
+    Object.keys(raw).length !== KEYS.length ||
     !KEYS.every((key) => Object.hasOwn(raw, key))
   )
     return;
@@ -89,30 +93,57 @@ export function parseFuseballStats(
     !validName(name)
   )
     return;
-  const most: Record<Counter, number> = {
-    slot: CAPACITY - 1,
-    roundsPlayed: rounds,
-    roundWins: rounds,
-    // Round wins for a match; the points banked for a round receipt.
-    matchScoreUnits: MAX_POINTS * MAX_ROUNDS,
-    matchPlacement: MAX_MATCH_PARTICIPANTS,
-    earlyExits: 1,
-    points: MAX_POINTS * MAX_ROUNDS,
-    rolls: MAX_EVENTS,
-    holds: MAX_EVENTS,
-    busts: MAX_EVENTS,
-    bestTurn: MAX_POINTS,
+  if (!COUNTERS.every((key) => count(raw[key], MOST[key]))) return;
+  const number = (key: Counter) => raw[key] as number;
+  // The winner, and only the winner, has the round and the first place; nobody wins without reaching the target.
+  const won = number("roundWins") === 1;
+  if (
+    number("matchPlacement") !== (won ? 1 : 2) ||
+    won !== (number("matchScoreUnits") === TARGET) ||
+    number("goals") > number("matchScoreUnits")
+  )
+    return;
+  return {
+    playerId,
+    name,
+    slot: number("slot"),
+    roundsPlayed: number("roundsPlayed"),
+    roundWins: number("roundWins"),
+    matchScoreUnits: number("matchScoreUnits"),
+    matchPlacement: number("matchPlacement"),
+    earlyExits: number("earlyExits"),
+    goals: number("goals"),
+    ownGoals: number("ownGoals"),
+    bubbles: number("bubbles"),
+    pops: number("pops"),
   };
-  if (!COUNTERS.every((key) => count(raw[key], most[key]))) return;
-  if ((raw.matchPlacement as number) < 1) return;
-  if ((raw.busts as number) > (raw.rolls as number)) return;
-  const player: Record<string, unknown> = {};
-  for (const key of KEYS) player[key] = raw[key];
-  return player as unknown as FuseballStats;
 }
 
-export const emptyFuseballTotals = (): FuseballTotalsRecord =>
-  Object.fromEntries(TOTAL_KEYS.map((key) => [key, 0])) as FuseballTotalsRecord;
+/**
+ * The whole field: a duel is two riders on the two sides, one of whom won, and the board adds up — a side's points
+ * are its rider's goals plus the other rider's own goals.
+ */
+export function validFuseballField(players: readonly FuseballStats[]): boolean {
+  const [a, b] = players;
+  return (
+    players.length === CAPACITY &&
+    a !== undefined &&
+    b !== undefined &&
+    a.slot !== b.slot &&
+    a.roundWins + b.roundWins === 1 &&
+    a.matchScoreUnits === a.goals + b.ownGoals &&
+    b.matchScoreUnits === b.goals + a.ownGoals
+  );
+}
+
+export const emptyFuseballTotals = (): FuseballTotalsRecord => ({
+  matches: 0,
+  wins: 0,
+  goals: 0,
+  ownGoals: 0,
+  bubbles: 0,
+  pops: 0,
+});
 
 export const fuseballRegistration: GameRegistration<
   FuseballStats,
@@ -122,23 +153,18 @@ export const fuseballRegistration: GameRegistration<
   id: "fuseball",
   isBot: isBotId,
   parseStats: parseFuseballStats,
+  validField: validFuseballField,
   emptyTotals: () => ({ totals: emptyFuseballTotals() }),
   credit: (player) => ({
     matches: 1,
     wins: player.matchPlacement === 1 ? 1 : 0,
-    roundWins: player.roundWins,
-    points: player.points,
-    rolls: player.rolls,
-    holds: player.holds,
-    busts: player.busts,
-    bestTurn: player.bestTurn,
+    goals: player.goals,
+    ownGoals: player.ownGoals,
+    bubbles: player.bubbles,
+    pops: player.pops,
   }),
   addTotals(standing, credit) {
-    for (const key of TOTAL_KEYS)
-      standing.totals[key] =
-        key === "bestTurn"
-          ? Math.max(standing.totals[key], credit[key])
-          : standing.totals[key] + credit[key];
+    for (const key of TOTAL_KEYS) standing.totals[key] += credit[key];
   },
   parseTotals(document) {
     if (document.totals === undefined) return { totals: emptyFuseballTotals() };
