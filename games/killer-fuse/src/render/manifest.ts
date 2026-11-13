@@ -27,6 +27,12 @@ export interface SheetDef {
   readonly saddle: readonly (readonly [number, number])[];
   readonly slots: readonly (readonly [number, number])[];
   readonly parallax: number;
+  /** A hive's hole centres in the engine's hole order, its count plaque (top centre) and its roof pad, from the anchor. */
+  readonly holes: readonly (readonly [number, number])[];
+  readonly count: readonly [number, number] | undefined;
+  readonly perch: readonly [number, number] | undefined;
+  /** The snail strip's marker columns at team 0's goal and team 1's. */
+  readonly lane: readonly [number, number] | undefined;
 }
 
 export interface ArtManifest {
@@ -54,6 +60,12 @@ function pair(value: unknown, what: string): [number, number] {
     throw new Error(`art manifest: ${what} is not a pair`);
   return [number(value[0], what), number(value[1], what)];
 }
+
+const optionalPair = (
+  value: unknown,
+  what: string,
+): [number, number] | undefined =>
+  value === undefined ? undefined : pair(value, what);
 
 const pairs = (value: unknown, what: string): [number, number][] =>
   Array.isArray(value) ? value.map((entry) => pair(entry, what)) : [];
@@ -95,6 +107,10 @@ function sheet(value: unknown, id: string): SheetDef {
     saddle: pairs(value.saddle, `${id}.saddle`),
     slots: pairs(value.slots, `${id}.slots`),
     parallax: typeof value.parallax === "number" ? value.parallax : 0,
+    holes: pairs(value.holes, `${id}.holes`),
+    count: optionalPair(value.count, `${id}.count`),
+    perch: optionalPair(value.perch, `${id}.perch`),
+    lane: optionalPair(value.lane, `${id}.lane`),
   };
 }
 
@@ -107,6 +123,8 @@ export const REQUIRED_SHEETS: readonly string[] = [
     `speed-warrior-${team}`,
     `queen-${team}`,
     `transform-${team}`,
+    `hive-${team}`,
+    `hive-hole-${team}`,
     `egg-${team}`,
     `goal-${team}`,
     `kill-burst-${team}`,
@@ -123,6 +141,8 @@ export const REQUIRED_SHEETS: readonly string[] = [
   "speed-warrior-flash",
   "queen-flash",
   "snail",
+  "snail-strip",
+  "snail-marker",
   "gate-warrior",
   "gate-speed",
   "berry",

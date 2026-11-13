@@ -193,11 +193,14 @@ test("effects land where the thing happened", () => {
     view,
     -1,
   );
-  assert.deepEqual(kinds(deposit), ["sprite", "burst", "ring", "text"]);
-  const text = deposit.effects[3];
-  assert.ok(text?.kind === "text");
-  assert.equal(text.text, "3");
-  assert.equal(text.x, hole.x);
+  assert.deepEqual(
+    kinds(deposit),
+    ["sprite", "burst", "ring"],
+    "no number: the hive's plaque counts",
+  );
+  const halo = deposit.effects[2];
+  assert.ok(halo?.kind === "ring");
+  assert.equal(halo.x, hole.x);
   const kickIn = planEvent(
     { type: "berryKickIn", slot: 1, team: 0, hole: 2 },
     view,

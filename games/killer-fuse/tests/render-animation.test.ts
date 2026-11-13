@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   FLAP_FRAME_STEPS,
+  PLUNGE_DY,
   FLASH_BEAT_STEPS,
   FlapClock,
   flashing,
@@ -162,15 +163,36 @@ test("winged units walk, stand and dive", () => {
   );
   assert.equal(dive.sheet, "queen-pink");
   assert.equal(dive.frame, frameOf("queen-pink", "dive"));
-  const warrior = unitPose(
-    art,
-    unitView({ kind: "warrior", grounded: false, diving: true }),
-    still,
+});
+
+test("a Warrior dropping fast with still wings tips into its dive frame", () => {
+  const warrior = unitView({ kind: "warrior", grounded: false });
+  const falling = (dy: number, sinceFlap = Infinity) =>
+    unitPose(art, warrior, { ...still, dy, sinceFlap });
+  const plunge = falling(PLUNGE_DY);
+  assert.equal(plunge.animation, "dive");
+  assert.equal(plunge.frame, frameOf("warrior-cyan", "dive"));
+  assert.equal(
+    falling(PLUNGE_DY - 0.1).animation,
+    "glide",
+    "a slow sink glides",
+  );
+  assert.equal(falling(-PLUNGE_DY).animation, "glide", "rising is not a dive");
+  assert.equal(falling(PLUNGE_DY, 0).animation, "fly", "a flap comes first");
+  assert.equal(
+    unitPose(art, unitView({ kind: "queen", grounded: false }), {
+      ...still,
+      dy: PLUNGE_DY,
+    }).animation,
+    "glide",
+    "the Queen dives only when she means to",
   );
   assert.equal(
-    warrior.animation,
-    "glide",
-    "a Warrior has no dive pose: it glides",
+    unitPose(art, unitView({ kind: "warrior", speed: true, grounded: false }), {
+      ...still,
+      dy: PLUNGE_DY,
+    }).frame,
+    frameOf("speed-warrior-cyan", "dive"),
   );
 });
 

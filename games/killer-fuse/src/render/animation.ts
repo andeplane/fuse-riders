@@ -16,6 +16,8 @@ import {
 export const FLAP_FRAME_STEPS = 2;
 /** Invulnerable units show their white silhouette on alternate beats of this many steps. */
 export const FLASH_BEAT_STEPS = 4;
+/** A Warrior falling at least this many pixels a step, wings still, tips into its dive pose. */
+export const PLUNGE_DY = 2;
 
 export interface PoseContext {
   /** The display frame's time in steps, fractional. */
@@ -63,7 +65,9 @@ function workerAnimation(unit: UnitView, context: PoseContext): string {
 function wingedAnimation(unit: UnitView, context: PoseContext): string {
   if (unit.grounded) return unit.moving ? "walk" : "idle";
   if (unit.diving) return "dive";
-  return context.sinceFlap < FLAP_FRAME_STEPS * 4 ? "fly" : "glide";
+  if (context.sinceFlap < FLAP_FRAME_STEPS * 4) return "fly";
+  // Warriors cannot dive, but one dropping at full speed reads better nose-down than gliding flat.
+  return unit.kind === "warrior" && context.dy >= PLUNGE_DY ? "dive" : "glide";
 }
 
 export function unitPose(

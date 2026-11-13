@@ -1,14 +1,18 @@
 /**
- * What sits on top of the arena and does not shake with it: each team's eggs and berry count, the pulse at the edge
- * of a team on its last egg, the white flash of a big hit and the victory banner.
+ * What sits on top of the arena and does not shake with it: each team's eggs and berry pips, the snail's progress
+ * strip, the pulse at the edge of a team on its last egg, the flash of a big hit and the victory banner.
  */
 import type { RoundView } from "../engine/index.js";
-import { textWidth } from "./font.js";
-import type { Danger } from "./hud-model.js";
+import { stripMarker, type Danger } from "./hud-model.js";
 import { VIEW_HEIGHT, VIEW_WIDTH } from "./layout.js";
 import { frameIndex, teamName } from "./manifest.js";
-import { easeOutBack, GOLD_COLORS, type Particle } from "./particles.js";
-import { INK, type Scene } from "./scene.js";
+import {
+  BERRY_COLORS,
+  easeOutBack,
+  GOLD_COLORS,
+  type Particle,
+} from "./particles.js";
+import { INK } from "./scene.js";
 import type { Ctx, Sprites } from "./textures.js";
 
 export interface HudFrame {
@@ -25,17 +29,19 @@ export interface HudFrame {
 
 const EGG_SPACING = 13,
   EGG_Y = 12,
-  CRACK_SECONDS = 0.7;
+  CRACK_SECONDS = 0.7,
+  PIP_Y = 22,
+  PIP_PITCH = 4,
+  STRIP_Y = 5,
+  /** The most a hit whitens the picture: a flash is a blink of light, never a blank frame. */
+  FLASH_ALPHA = 0.55;
 export const BANNER_Y = 122;
 
 export class Hud {
   private confetti: Particle[] = [];
   private last = 0;
 
-  constructor(
-    private readonly sprites: Sprites,
-    private readonly scene: Scene,
-  ) {}
+  constructor(private readonly sprites: Sprites) {}
 
   draw(ctx: Ctx, frame: HudFrame): void {
     const dt = Math.min(0.1, Math.max(0, frame.now - this.last));
@@ -43,11 +49,12 @@ export class Hud {
     this.edges(ctx, frame);
     for (const team of [0, 1]) {
       this.eggs(ctx, team, frame);
-      this.count(ctx, team, frame);
+      this.pips(ctx, team, frame);
     }
+    this.strip(ctx, frame);
     if (frame.flash > 0) {
-      ctx.globalAlpha = Math.min(1, frame.flash);
-      ctx.fillStyle = "#ffffff";
+      ctx.globalAlpha = Math.min(1, frame.flash) * FLASH_ALPHA;
+      ctx.fillStyle = "#fff3d6";
       ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
       ctx.globalAlpha = 1;
     }
@@ -118,34 +125,108 @@ export class Hud {
     }
   }
 
-  /** Berries banked out of the hive's holes, beside the eggs. */
-  private count(ctx: Ctx, team: number, frame: HudFrame): void {
+  /**
+   * One pip per hive hole under the eggs, lit as berries are banked: how close a team is, read as a bar. The
+   * number itself is on the hive's plaque.
+   */
+  private pips(ctx: Ctx, team: number, frame: HudFrame): void {
     const holes = frame.view.hives[team]?.length ?? 0;
-    if (holes === 0) return;
-    const text = `${frame.view.berries[team] ?? 0}/${holes}`;
-    const width = textWidth(text, "big");
+    const banked = frame.view.berries[team] ?? 0;
     const ramp = this.sprites.ramp(team);
     const blink =
       frame.danger.lastBerry[team] === true &&
       Math.floor(frame.now * 6) % 2 === 0;
-    const berryX = team === 0 ? 58 : VIEW_WIDTH - 58;
-    const textX = team === 0 ? berryX + 7 : berryX - 6 - width;
-    this.sprites.draw(ctx, "berry", 0, berryX, EGG_Y);
-    for (const [dx, dy] of [
-      [-1, 0],
-      [1, 0],
-      [0, -1],
-      [0, 1],
-    ] as const)
-      this.scene.text(ctx, text, textX + dx, EGG_Y - 3 + dy, INK, "big");
-    this.scene.text(
-      ctx,
-      text,
-      textX,
-      EGG_Y - 3,
-      blink ? "#ffffff" : (ramp[3] ?? "#fff"),
-      "big",
+    for (let i = 0; i < holes; i += 1) {
+      const x =
+        team === 0 ? 8 + i * PIP_PITCH : VIEW_WIDTH - 11 - i * PIP_PITCH;
+      ctx.fillStyle = INK;
+      ctx.fillRect(x - 1, PIP_Y - 1, 5, 5);
+      const lit = i < banked;
+      ctx.fillStyle = lit
+        ? blink
+          ? "#ffffff"
+          : (BERRY_COLORS[1] ?? "#7fd42a")
+        : (ramp[0] ?? "#223");
+      ctx.fillRect(x, PIP_Y, 3, 3);
+      if (lit) {
+        ctx.fillStyle = blink ? "#ffffff" : (BERRY_COLORS[2] ?? "#ecffa6");
+        ctx.fillRect(x, PIP_Y, 2, 1);
+      }
+    }
+  }
+
+  /** The snail's race at the top of the screen: a marker on a strip between the two goals. */
+  private strip(ctx: Ctx, frame: HudFrame): void {
+    const def = this.sprites.def("snail-strip");
+    if (!def?.lane) return;
+    const { view, danger } = frame;
+    const left = Math.round((VIEW_WIDTH - def.frameWidth) / 2);
+    const near = danger.snailClose.findIndex(Boolean);
+    const beat = near >= 0 && Math.floor(frame.now * 6) % 2 === 0;
+    // A plate behind it, so it reads over whatever flies past.
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = INK;
+    ctx.fillRect(
+      left - 2,
+      STRIP_Y - 2,
+      def.frameWidth + 4,
+      def.frameHeight + 4,
     );
+    ctx.globalAlpha = 1;
+    this.sprites.draw(ctx, "snail-strip", 0, left, STRIP_Y);
+    const marker = stripMarker(view, def.lane);
+    const middle = Math.round((def.lane[0] + def.lane[1]) / 2);
+    if (marker !== middle) {
+      // The ground won so far, in the colour of the team it is being won for.
+      const team = marker < middle ? 0 : 1;
+      const ramp = this.sprites.ramp(team);
+      ctx.fillStyle = (beat ? ramp[3] : ramp[2]) ?? "#fff";
+      ctx.fillRect(
+        left + Math.min(marker, middle),
+        STRIP_Y + 3,
+        Math.abs(marker - middle) + 1,
+        1,
+      );
+    }
+    if (near >= 0) {
+      // Nearly home: the strip is framed in the colour of the team about to win and the goal it is heading for
+      // throbs, leaving the goal's own picture in view.
+      const ramp = this.sprites.ramp(near);
+      const cap = left + def.lane[near === 1 ? 1 : 0];
+      const top = STRIP_Y - 2,
+        height = def.frameHeight + 4;
+      ctx.fillStyle = beat ? "#ffffff" : (ramp[2] ?? "#fff");
+      ctx.fillRect(left - 2, top, def.frameWidth + 4, 1);
+      ctx.fillRect(left - 2, top + height - 1, def.frameWidth + 4, 1);
+      ctx.fillRect(cap - 6, top, 1, height);
+      ctx.fillRect(cap + 6, top, 1, height);
+      ctx.globalAlpha = beat ? 0.3 : 0.12;
+      ctx.fillRect(cap - 5, top + 1, 11, height - 2);
+      ctx.globalAlpha = 1;
+    }
+    const flip = view.snail.facing < 0;
+    const lift = beat ? 1 : 0;
+    this.sprites.draw(
+      ctx,
+      "snail-marker",
+      0,
+      left + marker,
+      STRIP_Y + 6 - lift,
+      flip,
+    );
+    if (beat) {
+      ctx.globalAlpha = 0.6;
+      this.sprites.draw(
+        ctx,
+        "snail-marker",
+        0,
+        left + marker,
+        STRIP_Y + 6 - lift,
+        flip,
+        this.sprites.silhouette("snail-marker", "#ffffff"),
+      );
+      ctx.globalAlpha = 1;
+    }
   }
 
   private banner(

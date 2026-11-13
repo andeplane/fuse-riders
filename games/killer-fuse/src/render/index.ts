@@ -23,7 +23,7 @@ import { dangerOf } from "./hud-model.js";
 import { continuous, interpolateView, viewTime } from "./interpolation.js";
 import { fitView, VIEW_HEIGHT, VIEW_WIDTH, type Fit } from "./layout.js";
 import { EffectPool } from "./particles.js";
-import { INK, Scene, type TrailPoint } from "./scene.js";
+import { INK, Scene, type SceneFrame, type TrailPoint } from "./scene.js";
 import { Shake } from "./shake.js";
 import { Sound } from "./sound.js";
 import { loadArt, makeCanvas, Sprites, type Ctx } from "./textures.js";
@@ -44,6 +44,7 @@ class Arena implements ArenaView {
   private readonly ctx: Ctx;
   private readonly world = makeCanvas(VIEW_WIDTH, VIEW_HEIGHT);
   private readonly low = makeCanvas(VIEW_WIDTH, VIEW_HEIGHT);
+  private readonly glowSource = makeCanvas(VIEW_WIDTH, VIEW_HEIGHT);
   private readonly glowNear = makeCanvas(VIEW_WIDTH / 2, VIEW_HEIGHT / 2);
   private readonly glowFar = makeCanvas(
     VIEW_WIDTH / 8,
@@ -97,7 +98,7 @@ class Arena implements ArenaView {
       if (this.destroyed) return;
       this.sprites = new Sprites(art);
       this.scene = new Scene(this.sprites);
-      this.hud = new Hud(this.sprites, this.scene);
+      this.hud = new Hud(this.sprites);
     });
   }
 
@@ -289,7 +290,7 @@ class Arena implements ArenaView {
     this.ambient(shown.view, dt);
     const offset = this.shake.offset();
     const danger = dangerOf(shown.view);
-    scene.draw(this.world.ctx, {
+    const sceneFrame: SceneFrame = {
       view: shown.view,
       time: shown.time,
       now,
@@ -303,7 +304,8 @@ class Arena implements ArenaView {
       danger,
       shakeX: offset.x,
       shakeY: offset.y,
-    });
+    };
+    scene.draw(this.world.ctx, sceneFrame);
     const low = this.low.ctx;
     const world = this.world.canvas;
     // The shaken picture: the arena wraps sideways, so the gap a sideways knock opens shows the other edge.
@@ -331,6 +333,10 @@ class Arena implements ArenaView {
       wonAt: this.wonAt,
       flash: this.flash,
     });
+    // What the glow is made from: the finished picture with the things that would bloom too much held down.
+    const source = this.glowSource.ctx;
+    source.drawImage(this.low.canvas, 0, 0);
+    scene.dimForGlow(source, sceneFrame);
     this.present();
   }
 
@@ -350,9 +356,10 @@ class Arena implements ArenaView {
       far = this.glowFar;
     near.ctx.globalCompositeOperation = "copy";
     near.ctx.imageSmoothingEnabled = true;
-    near.ctx.drawImage(low, 0, 0, near.canvas.width, near.canvas.height);
+    const lit = this.glowSource.canvas;
+    near.ctx.drawImage(lit, 0, 0, near.canvas.width, near.canvas.height);
     near.ctx.globalCompositeOperation = "multiply";
-    near.ctx.drawImage(low, 0, 0, near.canvas.width, near.canvas.height);
+    near.ctx.drawImage(lit, 0, 0, near.canvas.width, near.canvas.height);
     far.ctx.globalCompositeOperation = "copy";
     far.ctx.imageSmoothingEnabled = true;
     far.ctx.drawImage(near.canvas, 0, 0, far.canvas.width, far.canvas.height);

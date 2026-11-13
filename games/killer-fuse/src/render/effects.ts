@@ -272,7 +272,7 @@ export function planEvent(
         sounds: [{ name: "queenKill", volume: 1, pan: panOf(victim.x) }],
         shake: 1,
         hitStop: 130,
-        flash: 0.5,
+        flash: 0.3,
       };
     }
     case "bounce": {
@@ -392,7 +392,7 @@ export function planEvent(
     case "berryKickIn": {
       const hole = view.hives[event.team]?.[event.hole];
       if (!hole) return NOTHING;
-      const filled = view.berries[event.team] ?? 0;
+      // No number here: the hive's plaque counts.
       return {
         effects: [
           {
@@ -419,14 +419,6 @@ export function planEvent(
             tone: "team",
             team: event.team,
             radius: 14,
-          },
-          {
-            kind: "text",
-            x: hole.x,
-            y: hole.y - 10,
-            text: `${filled}`,
-            tone: "team",
-            team: event.team,
           },
         ],
         sounds: [

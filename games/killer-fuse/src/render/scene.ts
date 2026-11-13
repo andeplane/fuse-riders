@@ -19,8 +19,9 @@ import {
   type TextPixel,
 } from "./font.js";
 import {
+  botTagAlpha,
+  hiveAnchor,
   respawnCount,
-  snailFraction,
   tagOf,
   type Danger,
 } from "./hud-model.js";
@@ -49,12 +50,6 @@ import {
 import { makeCanvas, type Ctx, type Sprites } from "./textures.js";
 
 export const INK = "#05061a";
-const DOME_DARK = "#0f1645",
-  DOME = "#172057",
-  DOME_LIGHT = "#22307a",
-  DOME_PLATE = "#2c3c8f",
-  CELL_EMPTY = "#060920",
-  CELL_FULL = "#17330f";
 
 export interface TrailPoint {
   readonly x: number;
@@ -82,9 +77,6 @@ export interface SceneFrame {
   readonly shakeX: number;
   readonly shakeY: number;
 }
-
-/** Half-widths of a hive cell's rows from its top to its bottom; rows 8 apart and 5 across interlock. */
-const HEX = [1, 2, 4, 5, 5, 5, 5, 5, 4, 2, 1];
 
 interface Mote {
   x: number;
@@ -165,7 +157,6 @@ export class Scene {
     const { view } = frame;
     this.background(ctx, frame);
     ctx.drawImage(this.platformLayer(view.map), 0, 0);
-    this.snailLane(ctx, frame);
     view.hives.forEach((holes, team) => this.hive(ctx, team, holes, frame));
     this.goals(ctx, frame);
     for (const gate of view.gates) this.gate(ctx, gate, frame);
@@ -242,40 +233,13 @@ export class Scene {
     return canvas;
   }
 
-  /** The snail's progress, inlaid in the floor between the two goals. */
-  private snailLane(ctx: Ctx, frame: SceneFrame): void {
-    const { view } = frame;
-    const [a, b] = view.map.snail.goals;
-    const y = view.map.snail.y + 8;
-    const left = Math.min(a, b),
-      right = Math.max(a, b);
-    const start = view.map.snail.start;
-    ctx.fillStyle = INK;
-    ctx.fillRect(left - 1, y - 1, right - left + 3, 4);
-    ctx.fillStyle = "#1c2a6e";
-    ctx.fillRect(left, y, right - left + 1, 2);
-    const at = Math.round(left + snailFraction(view) * (right - left));
-    // The stretch already ridden, in the colour of the team it favours.
-    const team = at < start === a < start ? 0 : 1;
-    const ramp = this.sprites.ramp(team);
-    const pulse =
-      frame.danger.snailNear[team] && Math.floor(frame.now * 6) % 2 === 0;
-    ctx.fillStyle = pulse ? "#ffffff" : (ramp[2] ?? "#fff");
-    if (at !== start)
-      ctx.fillRect(Math.min(at, start), y, Math.abs(at - start) + 1, 2);
-    for (const [goal, goalTeam] of [
-      [a, 0],
-      [b, 1],
-    ] as const) {
-      ctx.fillStyle = this.sprites.ramp(goalTeam)[2] ?? "#fff";
-      ctx.fillRect(goal - 1, y - 1, 3, 4);
-    }
-    ctx.fillStyle = "#6d7bd0";
-    ctx.fillRect(start, y - 1, 1, 4);
-    ctx.fillStyle = "#fff6d8";
-    ctx.fillRect(at - 1, y - 1, 3, 4);
-    ctx.fillStyle = "#7a4fd6";
-    ctx.fillRect(at, y, 1, 2);
+  /** Where the hive sprite of `team` stands, or null when the map or the art has no hive for it. */
+  private hiveAt(
+    team: number,
+    holes: RoundView["hives"][number],
+  ): { x: number; y: number } | null {
+    const def = this.sprites.def(`hive-${teamName(team)}`);
+    return def ? hiveAnchor(holes, def) : null;
   }
 
   private hive(
@@ -284,89 +248,61 @@ export class Scene {
     holes: RoundView["hives"][number],
     frame: SceneFrame,
   ): void {
-    if (holes.length === 0) return;
+    const id = `hive-${teamName(team)}`,
+      holeId = `hive-hole-${teamName(team)}`;
+    const def = this.sprites.def(id),
+      holeDef = this.sprites.def(holeId);
+    const at = this.hiveAt(team, holes);
+    if (!def || !holeDef || !at) return;
     const ramp = this.sprites.ramp(team);
-    const xs = holes.map((hole) => hole.x),
-      ys = holes.map((hole) => hole.y);
-    const left = Math.min(...xs) - 9,
-      right = Math.max(...xs) + 10;
-    const base = Math.max(...ys) + 5,
-      top = Math.min(...ys) - 25;
-    const cx = Math.round((left + right) / 2),
-      half = Math.round((right - left) / 2),
-      height = base - top;
+    const blink =
+      frame.danger.lastBerry[team] === true &&
+      Math.floor(frame.now * 6) % 2 === 0;
+    this.sprites.draw(ctx, id, 0, at.x, at.y);
+    if (blink) {
+      // One berry from winning: the whole hive flickers.
+      ctx.globalAlpha = 0.3;
+      this.sprites.draw(
+        ctx,
+        id,
+        0,
+        at.x,
+        at.y,
+        false,
+        this.sprites.silhouette(id, "#ffffff"),
+      );
+      ctx.globalAlpha = 1;
+    }
+    const filledFrame = frameIndex(holeDef, "filled");
+    holes.forEach((hole, index) => {
+      if (!hole.filled) return;
+      // The empty cells are in the hive's art; a filled one goes over its cell and flashes as the berry lands.
+      this.sprites.draw(ctx, holeId, filledFrame, hole.x, hole.y);
+      const popped = frame.now - (frame.holePops.get(`${team}:${index}`) ?? -9);
+      if (popped < 0 || popped >= 0.3) return;
+      ctx.globalAlpha = popped < 0.1 ? 1 : 0.6 * (1 - (popped - 0.1) / 0.2);
+      this.sprites.draw(
+        ctx,
+        holeId,
+        filledFrame,
+        hole.x,
+        hole.y,
+        false,
+        this.sprites.silhouette(holeId, "#ffffff"),
+      );
+      ctx.globalAlpha = 1;
+    });
+    if (!def.count) return;
     const filled = holes.filter((hole) => hole.filled).length;
-    const brink = frame.danger.lastBerry[team] === true;
-    const blink = brink && Math.floor(frame.now * 6) % 2 === 0;
-    const edge = blink ? "#ffffff" : (ramp[2] ?? "#fff");
-    let above = 0;
-    for (let row = 0; row < height; row += 1) {
-      const y = top + row;
-      const k = (base - y) / height;
-      const w = Math.max(3, Math.round(half * (1 - k ** 2.6) ** 0.46));
-      ctx.fillStyle = k > 0.62 ? DOME_LIGHT : k > 0.18 ? DOME : DOME_DARK;
-      ctx.fillRect(cx - w, y, w * 2, 1);
-      // Panel lines, so the dome is a built thing and not a blob.
-      if (row % 9 === 5) {
-        ctx.fillStyle = DOME_DARK;
-        ctx.fillRect(cx - w + 2, y, w * 2 - 4, 1);
-      }
-      const rim = row === 0 ? w : Math.max(1, w - above + 1);
-      ctx.fillStyle = edge;
-      ctx.fillRect(cx - w, y, rim, 1);
-      ctx.fillRect(cx + w - rim, y, rim, 1);
-      if (k > 0.45 && row > 0) {
-        ctx.fillStyle = ramp[3] ?? "#fff";
-        ctx.fillRect(cx - w + rim, y, 1, 1);
-      }
-      above = w;
-    }
-    // The plate it stands on, with the team's lamps.
-    ctx.fillStyle = DOME_PLATE;
-    ctx.fillRect(cx - half - 2, base - 3, half * 2 + 4, 3);
-    ctx.fillStyle = edge;
-    ctx.fillRect(cx - half - 2, base - 3, half * 2 + 4, 1);
-    for (let x = cx - half + 2; x < cx + half - 2; x += 6) {
-      ctx.fillStyle =
-        ramp[Math.floor(frame.now * 3 + x) % 5 === 0 ? 3 : 1] ?? "#fff";
-      ctx.fillRect(x, base - 1, 3, 1);
-    }
-    // The count, where the berries are.
     const count = `${filled}/${holes.length}`;
     this.text(
       ctx,
       count,
-      cx - Math.floor(textWidth(count, "big") / 2),
-      top + 6,
+      at.x + def.count[0] - Math.floor(textWidth(count, "big") / 2),
+      at.y + def.count[1],
       blink ? "#ffffff" : (ramp[3] ?? "#fff"),
       "big",
     );
-    holes.forEach((hole, index) => {
-      const popped = frame.now - (frame.holePops.get(`${team}:${index}`) ?? -9);
-      const flash = popped >= 0 && popped < 0.12;
-      HEX.forEach((hw, row) => {
-        const y = hole.y - 5 + row;
-        ctx.fillStyle = hole.filled ? (ramp[3] ?? "#fff") : (ramp[1] ?? "#888");
-        ctx.fillRect(hole.x - hw, y, hw * 2 + 1, 1);
-        const inner = row === 0 || row === HEX.length - 1 ? -1 : hw - 1;
-        if (inner >= 0) {
-          ctx.fillStyle = flash
-            ? "#ffffff"
-            : hole.filled
-              ? CELL_FULL
-              : CELL_EMPTY;
-          ctx.fillRect(hole.x - inner, y, inner * 2 + 1, 1);
-        }
-      });
-      if (hole.filled && !flash)
-        this.sprites.draw(
-          ctx,
-          "berry",
-          0,
-          hole.x,
-          hole.y - (popped < 0.25 ? 1 : 0),
-        );
-    });
   }
 
   private goals(ctx: Ctx, frame: SceneFrame): void {
@@ -517,6 +453,7 @@ export class Scene {
       )
         this.trail(ctx, unit, pose.frame, flip, frame);
       const base = unitSheet(unit);
+      if (unit.speed && !inGate) this.teamRim(ctx, unit, pose.frame, at, flip);
       if (pose.flash && pose.sheet !== base) {
         // The white silhouette over the sprite, not instead of it: the unit stays readable while it blinks.
         this.sprites.drawWrapped(ctx, base, pose.frame, at.x, at.y, flip);
@@ -526,6 +463,40 @@ export class Scene {
       } else
         this.sprites.drawWrapped(ctx, pose.sheet, pose.frame, at.x, at.y, flip);
     }
+  }
+
+  /**
+   * A rim of the team's colour round a speed unit: its art is gold from helmet to outline, and at one pixel per
+   * pixel the small team-coloured torso alone does not say whose it is.
+   */
+  private teamRim(
+    ctx: Ctx,
+    unit: UnitView,
+    poseFrame: number,
+    at: { x: number; y: number },
+    flip: boolean,
+  ): void {
+    const id = unitSheet(unit);
+    const shape = this.sprites.def(id)?.flash ?? id;
+    const tint = this.sprites.silhouette(
+      shape,
+      this.sprites.ramp(unit.team)[2] ?? "#fff",
+    );
+    for (const [dx, dy] of [
+      [-1, 0],
+      [1, 0],
+      [0, -1],
+      [0, 1],
+    ] as const)
+      this.sprites.drawWrapped(
+        ctx,
+        shape,
+        poseFrame,
+        at.x + dx,
+        at.y + dy,
+        flip,
+        tint,
+      );
   }
 
   /** After-images in the team's colour behind anything fast. */
@@ -565,30 +536,44 @@ export class Scene {
     ctx.globalAlpha = 1;
   }
 
-  /** A dead unit's place at its spawn: a faint beam and the seconds left. */
+  /** Where a dead unit waits: a Queen on her hive's roof pad, clear of the holes, the rest at their spawns. */
+  private waitingPlace(
+    unit: UnitView,
+    view: RoundView,
+  ): { x: number; y: number } | undefined {
+    if (unit.kind === "queen") {
+      const perch = this.sprites.def(`hive-${teamName(unit.team)}`)?.perch;
+      const at = this.hiveAt(unit.team, view.hives[unit.team] ?? []);
+      // The perch is the pad's top row and a spawn is the surface under the feet, one row lower.
+      if (perch && at) return { x: at.x + perch[0], y: at.y + perch[1] + 1 };
+    }
+    return view.map.spawns[unit.slot];
+  }
+
+  /** A dead unit's place while it waits: its ghost, a ring that closes and the seconds left. */
   private waiting(ctx: Ctx, unit: UnitView, frame: SceneFrame): void {
     const { view } = frame;
     if (view.winner) return;
-    const spawn = view.map.spawns[unit.slot];
+    const spawn = this.waitingPlace(unit, view);
     if (!spawn) return;
     const id = `respawn-${teamName(unit.team)}`;
     const ramp = this.sprites.ramp(unit.team);
-    const lift = unit.kind === "queen" ? 34 : 22;
+    // The count sits over a Worker's head, and on a Queen's chest: her head is up among the HUD.
+    const lift = unit.kind === "queen" ? 17 : 22;
     // A ghost of the unit where it will stand, firming up as the wait runs out; the beam joins in at the end.
     const sheet = unitSheet({ ...unit, speed: false });
     const def = this.sprites.def(sheet);
     if (def) {
-      const flash = def.flash ?? sheet;
+      // Her own picture, thin as glass: a flat silhouette her size reads as a stain on the sky.
       ctx.globalAlpha =
-        0.3 + 0.35 * unit.respawn + 0.08 * Math.sin(frame.now * 9 + unit.slot);
+        0.28 + 0.4 * unit.respawn + 0.06 * Math.sin(frame.now * 9 + unit.slot);
       this.sprites.draw(
         ctx,
-        flash,
+        sheet,
         animationFrame(def, "idle", 0),
         spawn.x,
         spawn.y - 1,
         unit.team === 1,
-        this.sprites.silhouette(flash, ramp[2] ?? "#fff"),
       );
     }
     if (unit.respawn > 0.8) {
@@ -596,6 +581,9 @@ export class Scene {
       this.sprites.draw(ctx, id, 1, spawn.x, spawn.y - 1);
     }
     ctx.globalAlpha = 1;
+    // Workers come back in front of their hive: only a Queen and the player's own unit get the clock, so the
+    // holes and the plaque stay readable.
+    if (unit.kind !== "queen" && unit.slot !== frame.localSlot) return;
     // A ring of dots that closes as the wait runs out.
     const dots = 8;
     const lit = Math.round(unit.respawn * dots);
@@ -689,14 +677,17 @@ export class Scene {
       const ramp = this.sprites.ramp(unit.team);
       const mine = unit.slot === frame.localSlot;
       const tag = tagOf(frame.names[unit.slot], unit.bot);
+      const botAlpha = botTagAlpha(frame.view.step);
       for (const offset of wrapOffsets(at.x - 20, at.x + 20)) {
         const x = Math.round(at.x) + offset;
         let y = Math.round(at.y) - head;
         if (tag === "BOT" && unit.bot && !mine) {
-          // Bots get a quiet badge: it must not compete with the fight.
-          ctx.globalAlpha = 0.55;
-          this.text(ctx, tag, x - 5, y - 5, ramp[2] ?? "#888");
-          ctx.globalAlpha = 1;
+          // Bots are named only while the round opens: after that the tags would compete with the fight.
+          if (botAlpha > 0) {
+            ctx.globalAlpha = botAlpha;
+            this.text(ctx, tag, x - 5, y - 5, ramp[2] ?? "#888");
+            ctx.globalAlpha = 1;
+          }
         } else if (tag) {
           this.label(
             ctx,
@@ -729,6 +720,25 @@ export class Scene {
         ctx.fillRect(x - 3, top, 7, 1);
       }
     }
+  }
+
+  /**
+   * Darkens what would glow too much, on the copy of the picture the glow is made from: the snail's cream body is
+   * the largest near-white thing on the screen and would otherwise carry a halo brighter than any team colour.
+   */
+  dimForGlow(ctx: Ctx, frame: SceneFrame): void {
+    const { snail } = frame.view;
+    ctx.globalAlpha = 0.72;
+    this.sprites.drawWrapped(
+      ctx,
+      "snail",
+      this.snailFrame(frame),
+      snail.x + frame.shakeX,
+      snail.y - 1 + frame.shakeY,
+      snail.facing < 0,
+      this.sprites.silhouette("snail", INK),
+    );
+    ctx.globalAlpha = 1;
   }
 
   /** Seconds a sheet plays for, 0 when the manifest has no such sheet. */

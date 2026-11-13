@@ -3,11 +3,16 @@ import assert from "node:assert/strict";
 import type { BurstEffect, Effect } from "../src/render/effects.js";
 import { FONTS, layoutText, textWidth } from "../src/render/font.js";
 import {
+  BOT_TAG_FADE,
+  BOT_TAG_STEPS,
   SNAIL_NEAR,
+  botTagAlpha,
   dangerOf,
+  hiveAnchor,
   respawnCount,
   snailFraction,
   snailThreat,
+  stripMarker,
   tagOf,
 } from "../src/render/hud-model.js";
 import {
@@ -79,6 +84,11 @@ test("the real manifest parses and has every sheet the renderer needs", () => {
     "the snail says where its rider sits",
   );
   assert.ok(sheetOf("bg-far").parallax !== sheetOf("bg-near").parallax);
+  const hive = sheetOf("hive-cyan");
+  assert.equal(hive.holes.length, 12, "one offset per hole");
+  assert.ok(hive.count && hive.perch, "the plaque and the Queen's perch");
+  assert.equal(sheetOf("snail-strip").lane?.length, 2);
+  assert.ok("filled" in sheetOf("hive-hole-pink").frames);
   assert.equal(teamName(0), "cyan");
   assert.equal(teamName(1), "pink");
   assert.equal(teamName(-1), "cyan");
@@ -130,6 +140,20 @@ test("a broken manifest fails at load with the reason", () => {
       ),
     /snail\.frames\.idle is not a number/,
   );
+  assert.throws(
+    () =>
+      parseManifest(
+        manifestWith("hive-cyan", (asset) => ({ ...asset, count: [0] })),
+      ),
+    /hive-cyan\.count is not a pair/,
+  );
+  assert.throws(
+    () =>
+      parseManifest(
+        manifestWith("snail-strip", (asset) => ({ ...asset, lane: "8" })),
+      ),
+    /snail-strip\.lane is not a pair/,
+  );
   const raw = rawManifest();
   assert.ok(isRecord(raw));
   assert.throws(
@@ -162,6 +186,10 @@ test("optional parts of a sheet have defaults", () => {
   assert.equal(snail.flash, undefined);
   assert.deepEqual(snail.saddle, []);
   assert.equal(snail.parallax, 0);
+  assert.deepEqual(snail.holes, []);
+  assert.equal(snail.count, undefined);
+  assert.equal(snail.perch, undefined);
+  assert.equal(snail.lane, undefined);
 });
 
 test("frames are cut from the sheet left to right, wrapping into rows", () => {
@@ -355,6 +383,13 @@ test("the snail's progress and each team's danger come from the view", () => {
     [false, false],
     "nobody riding",
   );
+  assert.deepEqual(
+    dangerOf(at(near, -1)).snailClose,
+    [false, true],
+    "the strip warns whether or not it is ridden",
+  );
+  assert.deepEqual(dangerOf(at(near - 2)).snailClose, [false, false]);
+  assert.deepEqual(dangerOf(at(goals[0])).snailClose, [true, false]);
   const over = dangerOf({
     ...at(near),
     eggs: [0, 3],
@@ -365,6 +400,49 @@ test("the snail's progress and each team's danger come from the view", () => {
     false,
     false,
   ]);
+});
+
+test("the hive sprite is placed so its holes land on the engine's", () => {
+  const view = openingView();
+  const cyan = view.hives[0] ?? [],
+    pink = view.hives[1] ?? [];
+  assert.deepEqual(hiveAnchor(cyan, sheetOf("hive-cyan")), { x: 160, y: 82 });
+  assert.deepEqual(hiveAnchor(pink, sheetOf("hive-pink")), { x: 320, y: 82 });
+  const def = sheetOf("hive-cyan");
+  const anchor = hiveAnchor(cyan, def);
+  assert.ok(anchor);
+  cyan.forEach((hole, index) => {
+    const offset = def.holes[index];
+    assert.ok(offset, `hole ${index}`);
+    assert.deepEqual(
+      [anchor.x + offset[0], anchor.y + offset[1]],
+      [hole.x, hole.y],
+      `hole ${index} sits on the engine's`,
+    );
+  });
+  assert.equal(hiveAnchor([], def), null, "a map with no holes");
+  assert.equal(hiveAnchor(cyan, { holes: [] }), null, "art with no holes");
+});
+
+test("the strip's marker runs from its middle to the goal ends of the lane", () => {
+  const view = openingView();
+  const { start, goals } = view.map.snail;
+  const lane = [8, 191] as const;
+  const at = (x: number) => ({ ...view, snail: { ...view.snail, x } });
+  assert.equal(stripMarker(view, lane), 100);
+  assert.equal(stripMarker(at(goals[0]), lane), 8);
+  assert.equal(stripMarker(at(goals[1]), lane), 191);
+  assert.equal(stripMarker(at(goals[0] - 30), lane), 8, "never off the end");
+  assert.equal(stripMarker(at((start + goals[1]) / 2), lane), 145);
+});
+
+test("a bot's tag shows for the opening seconds and fades away", () => {
+  assert.equal(botTagAlpha(0), 0.5);
+  assert.equal(botTagAlpha(-5), 0.5);
+  assert.equal(botTagAlpha(BOT_TAG_STEPS - BOT_TAG_FADE), 0.5);
+  assert.equal(botTagAlpha(BOT_TAG_STEPS - BOT_TAG_FADE / 2), 0.25);
+  assert.equal(botTagAlpha(BOT_TAG_STEPS), 0);
+  assert.equal(botTagAlpha(BOT_TAG_STEPS + 100), 0);
 });
 
 test("a tag is the name in capitals, cut to fit, or BOT", () => {

@@ -103,22 +103,77 @@ async function tour(context, prefix) {
     await frames(page, 4);
     await shoot(page, `${prefix}kill`);
   }
-  if (await page.evaluate(() => window.__game.until("berryDeposit"))) {
+  // A hive with several holes filled, at the moment another berry goes in.
+  for (const seed of [1, 2, 3, 4, 5, 6]) {
+    await page.evaluate((s) => window.__game.restart({ seed: s }), seed);
+    if (!(await reach(page, (view) => Math.max(...view.berries) >= 5)))
+      continue;
+    if (!(await page.evaluate(() => window.__game.until("berryDeposit"))))
+      continue;
     await frames(page, 4);
     await shoot(page, `${prefix}deposit`);
+    break;
   }
-  // The big moment: a Queen dies. The frame after it is held by the hit-stop, then the burst plays out.
+  // A speed unit, to judge whether it still reads as its team.
+  for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
+    await page.evaluate((s) => window.__game.restart({ seed: s }), seed);
+    if (
+      !(await reach(page, (view) =>
+        view.units.some((unit) => unit.speed && !unit.dead),
+      ))
+    )
+      continue;
+    await page.evaluate(() => window.__game.step(45));
+    await shoot(page, `${prefix}speed-units`);
+    break;
+  }
+  // A Warrior dropping at full speed with its wings still: the dive frame.
+  for (const seed of [1, 2, 3, 4]) {
+    await page.evaluate((s) => window.__game.restart({ seed: s }), seed);
+    const plunging = await reach(page, (view) => {
+      const warrior = view.units.find(
+        (unit) => unit.kind === "warrior" && !unit.dead && !unit.grounded,
+      );
+      const before = window.__warriorY;
+      window.__warriorY = warrior ? [warrior.slot, warrior.y] : undefined;
+      window.__falls =
+        warrior &&
+        before &&
+        before[0] === warrior.slot &&
+        warrior.y - before[1] >= 2 &&
+        !warrior.flapped
+          ? (window.__falls ?? 0) + 1
+          : 0;
+      return window.__falls >= 3;
+    });
+    if (!plunging) continue;
+    await page.evaluate(() => window.__game.step(2));
+    await shoot(page, `${prefix}warrior-dive`);
+    break;
+  }
+  // The big moment: a Queen dies. The frame after it is held by the hit-stop, then the burst plays out, so a run
+  // of shots is taken straight away: the effect is over in two thirds of a second.
   await page.evaluate(() => window.__game.restart({ seed: 1 }));
   if (await page.evaluate(() => window.__game.until("queenKill"))) {
-    // Shot straight away: the effect is over in two thirds of a second.
-    await page.screenshot({ path: `${shots}${prefix}queen-kill.png` });
-    console.log(`shot ${prefix}queen-kill`);
+    for (let i = 0; i < 5; i += 1)
+      await page.screenshot({ path: `${shots}${prefix}queen-kill-${i}.png` });
+    console.log(`shot ${prefix}queen-kill-0..4`);
+    // While she is dead: her ghost and count on the hive's roof.
+    await page.evaluate(() => window.__game.step(50));
+    await shoot(page, `${prefix}queen-wait`);
   }
-  // A Worker riding the snail home.
-  for (const seed of [5, 4, 6, 2, 3]) {
+  // A Worker riding the snail home, in the last quarter before a goal.
+  for (const seed of [5, 4, 6, 2, 3, 1, 7, 8]) {
     await page.evaluate((s) => window.__game.restart({ seed: s }), seed);
-    if (!(await reach(page, (view) => view.snail.rider >= 0))) continue;
-    await page.evaluate(() => window.__game.step(90));
+    const near = await reach(page, (view) => {
+      const { start, goals } = view.map.snail;
+      const done = Math.max(
+        ...goals.map((goal) => (view.snail.x - start) / (goal - start)),
+      );
+      return view.snail.rider >= 0 && done >= 0.8;
+    });
+    if (!near) continue;
+    await page.evaluate(() => window.__game.step(6));
     await shoot(page, `${prefix}snail-ride`);
     break;
   }
