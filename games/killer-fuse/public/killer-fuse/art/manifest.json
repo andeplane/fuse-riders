@@ -1,0 +1,776 @@
+{
+  "note": "Written by scripts/killer-fuse-art.ts. Sizes are art pixels; draw at an integer scale with smoothing off. Units face right; mirror them to face left.",
+  "canvas": [480, 270],
+  "teams": {
+    "cyan": ["#0a4a70", "#0c96bd", "#16e7ff", "#b4f8ff"],
+    "pink": ["#6e0d4a", "#c2187a", "#ff2e9d", "#ffb0dc"]
+  },
+  "assets": {
+    "worker-cyan": {
+      "file": "units/worker-cyan.png",
+      "width": 192,
+      "height": 56,
+      "frameWidth": 24,
+      "frameHeight": 28,
+      "frameCount": 16,
+      "frames": {
+        "idle": 0,
+        "run1": 1,
+        "run2": 2,
+        "run3": 3,
+        "run4": 4,
+        "jump": 5,
+        "fall": 6,
+        "blink": 7,
+        "idleCarry": 8,
+        "run1Carry": 9,
+        "run2Carry": 10,
+        "run3Carry": 11,
+        "run4Carry": 12,
+        "jumpCarry": 13,
+        "fallCarry": 14,
+        "blinkCarry": 15
+      },
+      "anchor": [12, 27],
+      "animations": {
+        "idle": {
+          "frames": ["idle", "idle", "idle", "blink"],
+          "fps": 3,
+          "loop": true
+        },
+        "run": {
+          "frames": ["run1", "run2", "run3", "run4"],
+          "fps": 12,
+          "loop": true
+        },
+        "jump": { "frames": ["jump"], "fps": 1, "loop": false },
+        "fall": { "frames": ["fall"], "fps": 1, "loop": false }
+      },
+      "carry": [
+        [10, 7],
+        [11, 8],
+        [10, 8],
+        [11, 8],
+        [11, 9],
+        [10, 7],
+        [11, 9],
+        [10, 7]
+      ],
+      "note": "Frames named <frame>Carry are the same poses holding a berry."
+    },
+    "worker-pink": {
+      "file": "units/worker-pink.png",
+      "width": 192,
+      "height": 56,
+      "frameWidth": 24,
+      "frameHeight": 28,
+      "frameCount": 16,
+      "frames": {
+        "idle": 0,
+        "run1": 1,
+        "run2": 2,
+        "run3": 3,
+        "run4": 4,
+        "jump": 5,
+        "fall": 6,
+        "blink": 7,
+        "idleCarry": 8,
+        "run1Carry": 9,
+        "run2Carry": 10,
+        "run3Carry": 11,
+        "run4Carry": 12,
+        "jumpCarry": 13,
+        "fallCarry": 14,
+        "blinkCarry": 15
+      },
+      "anchor": [12, 27],
+      "animations": {
+        "idle": {
+          "frames": ["idle", "idle", "idle", "blink"],
+          "fps": 3,
+          "loop": true
+        },
+        "run": {
+          "frames": ["run1", "run2", "run3", "run4"],
+          "fps": 12,
+          "loop": true
+        },
+        "jump": { "frames": ["jump"], "fps": 1, "loop": false },
+        "fall": { "frames": ["fall"], "fps": 1, "loop": false }
+      },
+      "carry": [
+        [10, 7],
+        [11, 8],
+        [10, 8],
+        [11, 8],
+        [11, 9],
+        [10, 7],
+        [11, 9],
+        [10, 7]
+      ],
+      "note": "Frames named <frame>Carry are the same poses holding a berry."
+    },
+    "speed-worker-cyan": {
+      "file": "units/speed-worker-cyan.png",
+      "width": 192,
+      "height": 56,
+      "frameWidth": 24,
+      "frameHeight": 28,
+      "frameCount": 16,
+      "frames": {
+        "idle": 0,
+        "run1": 1,
+        "run2": 2,
+        "run3": 3,
+        "run4": 4,
+        "jump": 5,
+        "fall": 6,
+        "blink": 7,
+        "idleCarry": 8,
+        "run1Carry": 9,
+        "run2Carry": 10,
+        "run3Carry": 11,
+        "run4Carry": 12,
+        "jumpCarry": 13,
+        "fallCarry": 14,
+        "blinkCarry": 15
+      },
+      "anchor": [12, 27],
+      "animations": {
+        "idle": {
+          "frames": ["idle", "idle", "idle", "blink"],
+          "fps": 3,
+          "loop": true
+        },
+        "run": {
+          "frames": ["run1", "run2", "run3", "run4"],
+          "fps": 12,
+          "loop": true
+        },
+        "jump": { "frames": ["jump"], "fps": 1, "loop": false },
+        "fall": { "frames": ["fall"], "fps": 1, "loop": false }
+      },
+      "carry": [
+        [10, 7],
+        [10, 8],
+        [9, 8],
+        [10, 8],
+        [10, 9],
+        [10, 7],
+        [10, 9],
+        [10, 7]
+      ],
+      "note": "Frames named <frame>Carry are the same poses holding a berry."
+    },
+    "speed-worker-pink": {
+      "file": "units/speed-worker-pink.png",
+      "width": 192,
+      "height": 56,
+      "frameWidth": 24,
+      "frameHeight": 28,
+      "frameCount": 16,
+      "frames": {
+        "idle": 0,
+        "run1": 1,
+        "run2": 2,
+        "run3": 3,
+        "run4": 4,
+        "jump": 5,
+        "fall": 6,
+        "blink": 7,
+        "idleCarry": 8,
+        "run1Carry": 9,
+        "run2Carry": 10,
+        "run3Carry": 11,
+        "run4Carry": 12,
+        "jumpCarry": 13,
+        "fallCarry": 14,
+        "blinkCarry": 15
+      },
+      "anchor": [12, 27],
+      "animations": {
+        "idle": {
+          "frames": ["idle", "idle", "idle", "blink"],
+          "fps": 3,
+          "loop": true
+        },
+        "run": {
+          "frames": ["run1", "run2", "run3", "run4"],
+          "fps": 12,
+          "loop": true
+        },
+        "jump": { "frames": ["jump"], "fps": 1, "loop": false },
+        "fall": { "frames": ["fall"], "fps": 1, "loop": false }
+      },
+      "carry": [
+        [10, 7],
+        [10, 8],
+        [9, 8],
+        [10, 8],
+        [10, 9],
+        [10, 7],
+        [10, 9],
+        [10, 7]
+      ],
+      "note": "Frames named <frame>Carry are the same poses holding a berry."
+    },
+    "warrior-cyan": {
+      "file": "units/warrior-cyan.png",
+      "width": 192,
+      "height": 32,
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "frameCount": 6,
+      "frames": {
+        "idle": 0,
+        "flapUp": 1,
+        "flapDown": 2,
+        "glide": 3,
+        "walk1": 4,
+        "walk2": 5
+      },
+      "anchor": [16, 31],
+      "animations": {
+        "idle": { "frames": ["idle"], "fps": 1, "loop": false },
+        "flap": { "frames": ["flapUp", "flapDown"], "fps": 12, "loop": false },
+        "glide": { "frames": ["glide"], "fps": 1, "loop": false },
+        "walk": { "frames": ["walk1", "walk2"], "fps": 8, "loop": true }
+      }
+    },
+    "warrior-pink": {
+      "file": "units/warrior-pink.png",
+      "width": 192,
+      "height": 32,
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "frameCount": 6,
+      "frames": {
+        "idle": 0,
+        "flapUp": 1,
+        "flapDown": 2,
+        "glide": 3,
+        "walk1": 4,
+        "walk2": 5
+      },
+      "anchor": [16, 31],
+      "animations": {
+        "idle": { "frames": ["idle"], "fps": 1, "loop": false },
+        "flap": { "frames": ["flapUp", "flapDown"], "fps": 12, "loop": false },
+        "glide": { "frames": ["glide"], "fps": 1, "loop": false },
+        "walk": { "frames": ["walk1", "walk2"], "fps": 8, "loop": true }
+      }
+    },
+    "speed-warrior-cyan": {
+      "file": "units/speed-warrior-cyan.png",
+      "width": 192,
+      "height": 32,
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "frameCount": 6,
+      "frames": {
+        "idle": 0,
+        "flapUp": 1,
+        "flapDown": 2,
+        "glide": 3,
+        "walk1": 4,
+        "walk2": 5
+      },
+      "anchor": [16, 31],
+      "animations": {
+        "idle": { "frames": ["idle"], "fps": 1, "loop": false },
+        "flap": { "frames": ["flapUp", "flapDown"], "fps": 12, "loop": false },
+        "glide": { "frames": ["glide"], "fps": 1, "loop": false },
+        "walk": { "frames": ["walk1", "walk2"], "fps": 8, "loop": true }
+      }
+    },
+    "speed-warrior-pink": {
+      "file": "units/speed-warrior-pink.png",
+      "width": 192,
+      "height": 32,
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "frameCount": 6,
+      "frames": {
+        "idle": 0,
+        "flapUp": 1,
+        "flapDown": 2,
+        "glide": 3,
+        "walk1": 4,
+        "walk2": 5
+      },
+      "anchor": [16, 31],
+      "animations": {
+        "idle": { "frames": ["idle"], "fps": 1, "loop": false },
+        "flap": { "frames": ["flapUp", "flapDown"], "fps": 12, "loop": false },
+        "glide": { "frames": ["glide"], "fps": 1, "loop": false },
+        "walk": { "frames": ["walk1", "walk2"], "fps": 8, "loop": true }
+      }
+    },
+    "queen-cyan": {
+      "file": "units/queen-cyan.png",
+      "width": 288,
+      "height": 48,
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "frameCount": 6,
+      "frames": {
+        "idle": 0,
+        "flapUp": 1,
+        "flapDown": 2,
+        "dive": 3,
+        "walk1": 4,
+        "walk2": 5
+      },
+      "anchor": [24, 47],
+      "animations": {
+        "idle": { "frames": ["idle"], "fps": 1, "loop": false },
+        "flap": { "frames": ["flapUp", "flapDown"], "fps": 12, "loop": false },
+        "dive": { "frames": ["dive"], "fps": 1, "loop": false },
+        "walk": { "frames": ["walk1", "walk2"], "fps": 8, "loop": true }
+      }
+    },
+    "queen-pink": {
+      "file": "units/queen-pink.png",
+      "width": 288,
+      "height": 48,
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "frameCount": 6,
+      "frames": {
+        "idle": 0,
+        "flapUp": 1,
+        "flapDown": 2,
+        "dive": 3,
+        "walk1": 4,
+        "walk2": 5
+      },
+      "anchor": [24, 47],
+      "animations": {
+        "idle": { "frames": ["idle"], "fps": 1, "loop": false },
+        "flap": { "frames": ["flapUp", "flapDown"], "fps": 12, "loop": false },
+        "dive": { "frames": ["dive"], "fps": 1, "loop": false },
+        "walk": { "frames": ["walk1", "walk2"], "fps": 8, "loop": true }
+      }
+    },
+    "snail": {
+      "file": "snail.png",
+      "width": 260,
+      "height": 26,
+      "frameWidth": 52,
+      "frameHeight": 26,
+      "frameCount": 5,
+      "frames": { "idle": 0, "crawl1": 1, "crawl2": 2, "crawl3": 3, "eat": 4 },
+      "anchor": [26, 25],
+      "animations": {
+        "idle": { "frames": ["idle"], "fps": 1, "loop": false },
+        "crawl": {
+          "frames": ["crawl1", "crawl3", "crawl2", "crawl3"],
+          "fps": 6,
+          "loop": true
+        },
+        "eat": { "frames": ["eat", "idle"], "fps": 4, "loop": true }
+      },
+      "saddle": [
+        [27, 5],
+        [16, 6],
+        [28, 6],
+        [26, 6],
+        [21, 6]
+      ],
+      "note": "Faces right; the anchor is under the shell, so the body stretches ahead of it."
+    },
+    "gate-warrior": {
+      "file": "gates/warrior.png",
+      "width": 138,
+      "height": 31,
+      "frameWidth": 23,
+      "frameHeight": 31,
+      "frameCount": 6,
+      "frames": {
+        "neutral": 0,
+        "cyan": 1,
+        "pink": 2,
+        "neutralActive": 3,
+        "cyanActive": 4,
+        "pinkActive": 5
+      },
+      "anchor": [11, 30],
+      "note": "Stands on the anchor. <owner>Active is the gate while a worker is transforming inside it."
+    },
+    "gate-speed": {
+      "file": "gates/speed.png",
+      "width": 138,
+      "height": 31,
+      "frameWidth": 23,
+      "frameHeight": 31,
+      "frameCount": 6,
+      "frames": {
+        "neutral": 0,
+        "cyan": 1,
+        "pink": 2,
+        "neutralActive": 3,
+        "cyanActive": 4,
+        "pinkActive": 5
+      },
+      "anchor": [11, 30],
+      "note": "Stands on the anchor. <owner>Active is the gate while a worker is transforming inside it."
+    },
+    "berry": {
+      "file": "berries/berry.png",
+      "width": 32,
+      "height": 8,
+      "frameWidth": 8,
+      "frameHeight": 8,
+      "frameCount": 4,
+      "frames": { "pile": 0, "carried": 1, "loose1": 2, "loose2": 3 },
+      "anchor": [4, 4],
+      "animations": {
+        "loose": { "frames": ["loose1", "loose2"], "fps": 8, "loop": true }
+      }
+    },
+    "berry-pile": {
+      "file": "berries/pile.png",
+      "width": 33,
+      "height": 8,
+      "frameWidth": 33,
+      "frameHeight": 8,
+      "frameCount": 1,
+      "frames": { "base": 0 },
+      "anchor": [16, 7],
+      "slots": [
+        [3, -5],
+        [10, -5],
+        [17, -5],
+        [24, -5],
+        [6, -10],
+        [13, -10],
+        [20, -10],
+        [10, -15],
+        [17, -15],
+        [13, -20]
+      ]
+    },
+    "hive-cyan": {
+      "file": "hives/hive-cyan.png",
+      "width": 64,
+      "height": 48,
+      "frameWidth": 64,
+      "frameHeight": 48,
+      "frameCount": 1,
+      "frames": { "hive": 0 },
+      "anchor": [32, 47],
+      "holes": [
+        [11, 7],
+        [25, 7],
+        [39, 7],
+        [18, 21],
+        [32, 21],
+        [46, 21]
+      ]
+    },
+    "hive-hole-cyan": {
+      "file": "hives/hole-cyan.png",
+      "width": 32,
+      "height": 18,
+      "frameWidth": 16,
+      "frameHeight": 18,
+      "frameCount": 2,
+      "frames": { "empty": 0, "filled": 1 },
+      "anchor": [0, 0]
+    },
+    "egg-cyan": {
+      "file": "hud/egg-cyan.png",
+      "width": 24,
+      "height": 14,
+      "frameWidth": 12,
+      "frameHeight": 14,
+      "frameCount": 2,
+      "frames": { "full": 0, "broken": 1 },
+      "anchor": [6, 7]
+    },
+    "goal-cyan": {
+      "file": "tiles/goal-cyan.png",
+      "width": 18,
+      "height": 42,
+      "frameWidth": 18,
+      "frameHeight": 42,
+      "frameCount": 1,
+      "frames": { "post": 0 },
+      "anchor": [9, 40]
+    },
+    "kill-burst-cyan": {
+      "file": "effects/kill-burst-cyan.png",
+      "width": 192,
+      "height": 32,
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "frameCount": 6,
+      "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 },
+      "anchor": [16, 16],
+      "fps": 20
+    },
+    "death-puff-cyan": {
+      "file": "effects/death-puff-cyan.png",
+      "width": 120,
+      "height": 24,
+      "frameWidth": 24,
+      "frameHeight": 24,
+      "frameCount": 5,
+      "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4 },
+      "anchor": [12, 12],
+      "fps": 14
+    },
+    "banner-military-cyan": {
+      "file": "banners/military-cyan.png",
+      "width": 232,
+      "height": 44,
+      "frameWidth": 232,
+      "frameHeight": 44,
+      "frameCount": 1,
+      "frames": { "banner": 0 },
+      "anchor": [116, 22]
+    },
+    "banner-economy-cyan": {
+      "file": "banners/economy-cyan.png",
+      "width": 232,
+      "height": 44,
+      "frameWidth": 232,
+      "frameHeight": 44,
+      "frameCount": 1,
+      "frames": { "banner": 0 },
+      "anchor": [116, 22]
+    },
+    "banner-snail-cyan": {
+      "file": "banners/snail-cyan.png",
+      "width": 232,
+      "height": 44,
+      "frameWidth": 232,
+      "frameHeight": 44,
+      "frameCount": 1,
+      "frames": { "banner": 0 },
+      "anchor": [116, 22]
+    },
+    "hive-pink": {
+      "file": "hives/hive-pink.png",
+      "width": 64,
+      "height": 48,
+      "frameWidth": 64,
+      "frameHeight": 48,
+      "frameCount": 1,
+      "frames": { "hive": 0 },
+      "anchor": [32, 47],
+      "holes": [
+        [11, 7],
+        [25, 7],
+        [39, 7],
+        [18, 21],
+        [32, 21],
+        [46, 21]
+      ]
+    },
+    "hive-hole-pink": {
+      "file": "hives/hole-pink.png",
+      "width": 32,
+      "height": 18,
+      "frameWidth": 16,
+      "frameHeight": 18,
+      "frameCount": 2,
+      "frames": { "empty": 0, "filled": 1 },
+      "anchor": [0, 0]
+    },
+    "egg-pink": {
+      "file": "hud/egg-pink.png",
+      "width": 24,
+      "height": 14,
+      "frameWidth": 12,
+      "frameHeight": 14,
+      "frameCount": 2,
+      "frames": { "full": 0, "broken": 1 },
+      "anchor": [6, 7]
+    },
+    "goal-pink": {
+      "file": "tiles/goal-pink.png",
+      "width": 18,
+      "height": 42,
+      "frameWidth": 18,
+      "frameHeight": 42,
+      "frameCount": 1,
+      "frames": { "post": 0 },
+      "anchor": [9, 40]
+    },
+    "kill-burst-pink": {
+      "file": "effects/kill-burst-pink.png",
+      "width": 192,
+      "height": 32,
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "frameCount": 6,
+      "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 },
+      "anchor": [16, 16],
+      "fps": 20
+    },
+    "death-puff-pink": {
+      "file": "effects/death-puff-pink.png",
+      "width": 120,
+      "height": 24,
+      "frameWidth": 24,
+      "frameHeight": 24,
+      "frameCount": 5,
+      "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4 },
+      "anchor": [12, 12],
+      "fps": 14
+    },
+    "banner-military-pink": {
+      "file": "banners/military-pink.png",
+      "width": 232,
+      "height": 44,
+      "frameWidth": 232,
+      "frameHeight": 44,
+      "frameCount": 1,
+      "frames": { "banner": 0 },
+      "anchor": [116, 22]
+    },
+    "banner-economy-pink": {
+      "file": "banners/economy-pink.png",
+      "width": 232,
+      "height": 44,
+      "frameWidth": 232,
+      "frameHeight": 44,
+      "frameCount": 1,
+      "frames": { "banner": 0 },
+      "anchor": [116, 22]
+    },
+    "banner-snail-pink": {
+      "file": "banners/snail-pink.png",
+      "width": 232,
+      "height": 44,
+      "frameWidth": 232,
+      "frameHeight": 44,
+      "frameCount": 1,
+      "frames": { "banner": 0 },
+      "anchor": [116, 22]
+    },
+    "flap-puff": {
+      "file": "effects/flap-puff.png",
+      "width": 64,
+      "height": 8,
+      "frameWidth": 16,
+      "frameHeight": 8,
+      "frameCount": 4,
+      "frames": { "0": 0, "1": 1, "2": 2, "3": 3 },
+      "anchor": [8, 0],
+      "fps": 16
+    },
+    "gate-sparkle": {
+      "file": "effects/gate-sparkle.png",
+      "width": 144,
+      "height": 32,
+      "frameWidth": 24,
+      "frameHeight": 32,
+      "frameCount": 6,
+      "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 },
+      "anchor": [12, 31],
+      "fps": 12,
+      "note": "Drawn over a gate, anchored like it."
+    },
+    "berry-pop": {
+      "file": "effects/berry-pop.png",
+      "width": 80,
+      "height": 16,
+      "frameWidth": 16,
+      "frameHeight": 16,
+      "frameCount": 5,
+      "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4 },
+      "anchor": [8, 8],
+      "fps": 16
+    },
+    "tiles": {
+      "file": "tiles/platform.png",
+      "width": 48,
+      "height": 32,
+      "frameWidth": 8,
+      "frameHeight": 8,
+      "frameCount": 21,
+      "frames": {
+        "topLeft": 0,
+        "top": 1,
+        "topRight": 2,
+        "left": 3,
+        "middle": 4,
+        "right": 5,
+        "bottomLeft": 6,
+        "bottom": 7,
+        "bottomRight": 8,
+        "slabLeft": 9,
+        "slab": 10,
+        "slabRight": 11,
+        "ledgeLeft": 12,
+        "ledge": 13,
+        "ledgeRight": 14,
+        "middleNode": 15,
+        "middleCell": 16,
+        "topLamp": 17,
+        "track": 18,
+        "trackLeft": 19,
+        "trackRight": 20
+      },
+      "anchor": [0, 0],
+      "note": "8 by 8 tiles. The ledge tiles are the thin one-way platform: only their top 4 rows are drawn."
+    },
+    "bg-far": {
+      "file": "backgrounds/far.png",
+      "width": 480,
+      "height": 270,
+      "frameWidth": 480,
+      "frameHeight": 270,
+      "frameCount": 1,
+      "frames": { "layer": 0 },
+      "anchor": [0, 0],
+      "parallax": 0
+    },
+    "bg-mid": {
+      "file": "backgrounds/mid.png",
+      "width": 480,
+      "height": 270,
+      "frameWidth": 480,
+      "frameHeight": 270,
+      "frameCount": 1,
+      "frames": { "layer": 0 },
+      "anchor": [0, 0],
+      "parallax": 0.3
+    },
+    "bg-near": {
+      "file": "backgrounds/near.png",
+      "width": 480,
+      "height": 270,
+      "frameWidth": 480,
+      "frameHeight": 270,
+      "frameCount": 1,
+      "frames": { "layer": 0 },
+      "anchor": [0, 0],
+      "parallax": 0.6
+    },
+    "logo": {
+      "file": "logo.png",
+      "width": 106,
+      "height": 60,
+      "frameWidth": 106,
+      "frameHeight": 60,
+      "frameCount": 1,
+      "frames": { "logo": 0 },
+      "anchor": [53, 30],
+      "note": "The title; draw it at 2x on the title screen."
+    },
+    "cover": {
+      "file": "cover.png",
+      "width": 512,
+      "height": 512,
+      "frameWidth": 512,
+      "frameHeight": 512,
+      "frameCount": 1,
+      "frames": { "cover": 0 },
+      "anchor": [0, 0],
+      "note": "Portal cover, 256 by 256 art pixels shown at 2x."
+    }
+  }
+}
