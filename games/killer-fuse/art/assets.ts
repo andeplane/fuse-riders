@@ -101,7 +101,7 @@ const FAMILY =
   "areas, one darker green band along the bottom and back, a few light green highlight blocks on top, no armour " +
   "plates, no segment lines, no dithering, no outline), of a different unit of the same species:";
 
-const QUEEN =
+const QUEEN_LOOK =
   "Subject: the queen, a fierce wasp-bee monarch, side view facing right, drawn one and a half times as large as " +
   "the worker and more regal: the same big round helmeted head wearing a tall three-point golden crown, one big " +
   "angry white eye with a black pupil under a slanted brow, two large pale ice-blue wings on her back, a plump " +
@@ -134,13 +134,7 @@ export const GENERATIONS: readonly Generation[] = [
     id: "queen",
     size: "1536x1024",
     editOf: "worker",
-    prompt: `${FAMILY} ${SHEET} ${QUEEN} ${TEAM_GREEN} ${SAME} 6 poses in 2 rows of 3. Row 1: hovering with wings level behind her; flying with both wings raised straight up; flying with both wings pushed down. Row 2: diving steeply downward stinger first with wings swept back; walking on the ground frame 1 (legs apart), wings folded; walking frame 2 (legs together), wings folded.`,
-  },
-  {
-    id: "queen-flight",
-    size: "1536x1024",
-    editOf: "queen",
-    prompt: `The attached image is the game's queen sprite sheet. Draw a NEW sheet of exactly the SAME queen character: identical design, size, proportions, block size, palette and flat shading (same round helmeted head with the three-point gold crown, cream face with one big angry eye, plump striped abdomen, pale ice-blue wings, long gold lance stinger). ${SHEET} ${TEAM_GREEN} Crown and stinger are gold #ffc93c with pale yellow #ffe46b highlights; wings are pale ice blue #d8f1ff with white highlights. The sheet shows her in 10 poses in 2 rows of 5, every pose facing right, far apart from each other. Row 1: hovering, wings level behind her; flying, both wings raised high straight up; flying, wings level and spread wide; flying, both wings pushed down below the body; gliding fast, body leaning forward, wings swept back level, lance thrust straight forward. Row 2: a dramatic vertical dive attack: her whole body turned to point straight down, head at the bottom, the long lance pointing straight down below her head, both wings swept straight up behind her like a falling dart; then walking on the ground with wings folded down, a 4 frame walk cycle: front leg forward; legs together; back leg forward; legs together.`,
+    prompt: `${FAMILY} ${SHEET} ${QUEEN_LOOK} ${TEAM_GREEN} ${SAME} 6 poses in 2 rows of 3. Row 1: hovering with wings level behind her; flying with both wings raised straight up; flying with both wings pushed down. Row 2: diving steeply downward stinger first with wings swept back; walking on the ground frame 1 (legs apart), wings folded; walking frame 2 (legs together), wings folded.`,
   },
   {
     id: "snail",
@@ -194,6 +188,8 @@ export interface UnitSheet {
   grounded: readonly string[];
   /** Art pixels per generated block: the model draws at about twice the game's resolution. */
   reduce: number;
+  /** Enlarge by this before reducing, for a size that is not a whole fraction (3 then 4 is three quarters). */
+  grow?: number;
   /** Cell size of the shipped sheet. */
   cell: readonly [number, number];
   /** Looping animations by name: frame names and frames per second. */
@@ -215,39 +211,6 @@ export const UNITS: Record<string, UnitSheet> = {
       run: { frames: ["run1", "run2", "run3", "run4"], fps: 12, loop: true },
       jump: { frames: ["jump"], fps: 1, loop: false },
       fall: { frames: ["fall"], fps: 1, loop: false },
-    },
-  },
-  queen: {
-    from: "queen-flight",
-    frames: [
-      "idle",
-      "flapUp",
-      "flapMid",
-      "flapDown",
-      "glide",
-      "dive",
-      "walk1",
-      "walk2",
-      "walk3",
-      "walk4",
-    ],
-    grounded: ["walk1", "walk2", "walk3", "walk4"],
-    reduce: 1,
-    cell: [64, 68],
-    animations: {
-      idle: { frames: ["idle"], fps: 1, loop: false },
-      fly: {
-        frames: ["flapUp", "flapMid", "flapDown", "flapMid"],
-        fps: 16,
-        loop: true,
-      },
-      glide: { frames: ["glide"], fps: 1, loop: false },
-      dive: { frames: ["dive"], fps: 1, loop: false },
-      walk: {
-        frames: ["walk1", "walk2", "walk3", "walk4"],
-        fps: 10,
-        loop: true,
-      },
     },
   },
 };
@@ -285,13 +248,46 @@ export const WARRIOR = {
   },
 } as const;
 
+/**
+ * The Queen is built from the worker's frames too, so she has the workers' pixel size and is only a little taller:
+ * what makes her the Queen is the gold crown, two pairs of big wings, a striped abdomen and a long gold stinger.
+ */
+export const QUEEN = {
+  cell: [48, 34],
+  below: 8,
+  frames: [
+    ["idle", "idle", "folded", "level"],
+    ["flapUp", "fall", "up", "level"],
+    ["flapMid", "fall", "mid", "level"],
+    ["flapDown", "fall", "down", "level"],
+    ["glide", "jump", "swept", "level"],
+    ["dive", "fall", "up", "down"],
+    ["walk1", "run1", "folded", "level"],
+    ["walk2", "run2", "folded", "level"],
+    ["walk3", "run3", "folded", "level"],
+    ["walk4", "run4", "folded", "level"],
+  ],
+  animations: {
+    idle: { frames: ["idle"], fps: 1, loop: false },
+    fly: {
+      frames: ["flapUp", "flapMid", "flapDown", "flapMid"],
+      fps: 16,
+      loop: true,
+    },
+    glide: { frames: ["glide"], fps: 1, loop: false },
+    dive: { frames: ["dive"], fps: 1, loop: false },
+    walk: { frames: ["walk1", "walk2", "walk3", "walk4"], fps: 10, loop: true },
+  },
+} as const;
+
 /** The snail: one generated sheet, aligned by its shell so the shell stays put while the body stretches. */
 export const SNAIL: UnitSheet = {
   from: "snail",
   frames: ["idle", "crawl1", "crawl2", "crawl3", "eat"],
   grounded: ["idle", "crawl1", "crawl2", "crawl3", "eat"],
-  reduce: 1,
-  cell: [52, 26],
+  grow: 3,
+  reduce: 4,
+  cell: [40, 20],
   animations: {
     idle: { frames: ["idle"], fps: 1, loop: false },
     crawl: {
@@ -303,11 +299,14 @@ export const SNAIL: UnitSheet = {
   },
 };
 
-/** The two gates of the generated gate sheet, left to right, and the factor that brings them to about 32 by 44. */
+/** The two gates of the generated gate sheet, left to right, and the factor that brings them to about 22 by 29. */
 export const GATES = {
   from: "gates",
   kinds: ["warrior", "speed"],
-  reduce: 2,
+  reduce: 3,
+  /** Rows taken out of the pillars, and how many rows of base stay under the cut. */
+  shorten: 2,
+  above: 4,
 } as const;
 
 /** Sheets that `cut` samples as single drawings on a grid: id, how many drawings, and the key colour behind them. */
@@ -318,7 +317,6 @@ export const CUTS: readonly {
   units: boolean;
 }[] = [
   { id: "worker", count: 8, key: "magenta", units: true },
-  { id: "queen-flight", count: 10, key: "magenta", units: true },
   { id: "snail", count: 5, key: "magenta", units: false },
   { id: "gates", count: 2, key: "magenta", units: false },
   { id: "logo", count: 1, key: "green", units: false },

@@ -21,6 +21,7 @@ import {
   CUTS,
   FROST,
   GATES,
+  QUEEN,
   GENERATIONS,
   GOLD,
   ICE,
@@ -610,7 +611,11 @@ const withEye = (m: Img): Img => {
 const alignedFrames = (spec: UnitSheet, core: (c: Rgb) => boolean) => {
   const [cw, ch] = spec.cell;
   const sprites = readStrip(spec.from, spec.frames.length).map((s) =>
-    withEye(smooth(despeckle(reduce(s, spec.reduce)))),
+    withEye(
+      smooth(
+        despeckle(reduce(spec.grow ? scaleUp(s, spec.grow) : s, spec.reduce)),
+      ),
+    ),
   );
   const names = spec.frames;
   const refIndex = Math.max(
@@ -673,7 +678,7 @@ const STRIDING = /^(run|walk)/;
 
 /**
  * The speed form of a unit, made from the same frames so the two are the same character, and different enough to
- * tell apart standing still: an all-gold helmet with a gold lightning-bolt antenna, gold boots and a gold scarf, a
+ * tell apart standing still: a gold top half of the helmet with a gold lightning-bolt antenna, gold boots and a gold scarf, a
  * forward lean in every stride, and (in `emitUnit`) a gold outline in place of the dark one.
  */
 const speedBase = (source: Img, frame: string, index: number): Img => {
@@ -701,7 +706,7 @@ const speedBase = (source: Img, frame: string, index: number): Img => {
     // Boots, and a cap over the top of the helmet.
     for (let y = bottom - 2; y <= bottom; y++) gold(x, y, 1);
     gold(x, dome, 3);
-    for (let y = dome + 1; y < dome + 7; y++) gold(x, y, 1);
+    for (let y = dome + 1; y < dome + 4; y++) gold(x, y, 2);
   }
   // The antennae become one lightning bolt, swept back.
   for (let y = 0; y < dome; y++)
@@ -859,24 +864,7 @@ const warriorOf = (
         ];
     for (const [dx, dy, c] of horn) put(body, x + dx, dome + dy, c);
   }
-  // The brow: the top row of the face goes dark, and one pixel lower at the back, so the eye glares.
-  let faceTop = -1;
-  for (let y = dome; y < body.h && faceTop < 0; y++)
-    for (let x = 0; x < body.w; x++)
-      if (alpha(body, x, y) && same(rgbAt(body, x, y), CREAM)) faceTop = y;
-  if (faceTop >= 0) {
-    let first = -1;
-    for (let x = 0; x < body.w; x++) {
-      if (!alpha(body, x, faceTop)) continue;
-      const c = rgbAt(body, x, faceTop);
-      if (same(c, CREAM) || same(c, WHITE)) {
-        if (first < 0) first = x;
-        put(body, x, faceTop, INK);
-      }
-    }
-    if (first >= 0 && alpha(body, first, faceTop + 1))
-      put(body, first + 1, faceTop + 1, INK);
-  }
+  glare(body, dome);
   const centre = centreOf(worker, isBody);
   const ox = Math.floor((cw - worker.w) / 2);
   const oy = ch - WARRIOR.below - worker.h;
@@ -924,6 +912,176 @@ const warriorOf = (
       if (i === length - 1) put(cell, x, hy - 1, WHITE);
     }
   }
+  return cell;
+};
+
+/** The brow: the top row of the face goes dark, and one pixel lower at the back, so the eye glares. */
+const glare = (body: Img, dome: number) => {
+  let faceTop = -1;
+  for (let y = dome; y < body.h && faceTop < 0; y++)
+    for (let x = 0; x < body.w; x++)
+      if (alpha(body, x, y) && same(rgbAt(body, x, y), CREAM)) faceTop = y;
+  if (faceTop >= 0) {
+    let first = -1;
+    for (let x = 0; x < body.w; x++) {
+      if (!alpha(body, x, faceTop)) continue;
+      const c = rgbAt(body, x, faceTop);
+      if (same(c, CREAM) || same(c, WHITE)) {
+        if (first < 0) first = x;
+        put(body, x, faceTop, INK);
+      }
+    }
+    if (first >= 0 && alpha(body, first, faceTop + 1))
+      put(body, first + 1, faceTop + 1, INK);
+  }
+};
+
+// The Queen's wings: the warrior's shapes, larger.
+const QUEEN_WING_UP = [
+  "...WWWW.....",
+  "..WWWWWW....",
+  ".WWWIIWWW...",
+  "WWWIIIIWW...",
+  "WWIIIIIWW...",
+  "WWIIIIIIWW..",
+  "WWIIIIIIWW..",
+  ".WWIIIIIIW..",
+  ".FWIIIIIIWW.",
+  "..FWIIIIIWW.",
+  "...FWIIIIWW.",
+  "....FWIIIIW.",
+  ".....FFIIIWW",
+  "......FFIIW.",
+  ".......FFI..",
+];
+const QUEEN_WINGS: typeof WINGS = {
+  up: { rows: QUEEN_WING_UP, root: [9, 14] },
+  down: { rows: [...QUEEN_WING_UP].reverse(), root: [9, 2] },
+  mid: {
+    rows: [
+      "....WWWWWWW.......",
+      "..WWWWWWWWWWWW....",
+      "WWWWIIIIIWWWWWWWW.",
+      "WWIIIIIIIIIIIIWWWW",
+      ".WIIIIIIIIIIIIIIII",
+      "..FFIIIIIIIIIIFF..",
+      ".....FFFFFFFFF....",
+    ],
+    root: [17, 4],
+  },
+  swept: {
+    rows: [
+      "WWWW...............",
+      "WWWWWWWW...........",
+      ".WWIIWWWWWWWW......",
+      "..WIIIIIIIWWWWWW...",
+      "...FFIIIIIIIIIWWWW.",
+      ".....FFFFIIIIIIIIWW",
+      ".........FFFFFFFIII",
+    ],
+    root: [18, 5],
+  },
+  folded: {
+    rows: [
+      ".....WW",
+      "....WWW",
+      "...WWIW",
+      "..WWIIW",
+      "..WIIIW",
+      ".WWIIIW",
+      ".WIIIIW",
+      "WWIIIF.",
+      "WIIIFF.",
+      "WIIFF..",
+      "WIFF...",
+      "WFF....",
+      ".F.....",
+    ],
+    root: [6, 6],
+  },
+};
+const CROWN_ROWS = ["y..y..y", "gy.gy.g", "ggygggg", "dgggggd"];
+const ABDOMEN_ROWS = [
+  "..3222..",
+  ".322222.",
+  "00000222",
+  "2222222.",
+  "0000022.",
+  ".22221..",
+  "..111...",
+];
+
+/**
+ * A Queen frame from a worker frame: the antennae become a gold crown, the eye glares, a striped abdomen hangs
+ * behind, two pairs of wings larger than a warrior's go on the back and a long gold stinger points ahead (or
+ * straight down in a dive). She is the worker's body, so she is as tall as a worker plus her crown.
+ */
+const queenOf = (worker: Img, wing: string, lance: string): Img => {
+  const [cw, ch] = QUEEN.cell;
+  const body = img(worker.w, worker.h);
+  blit(body, worker, 0, 0);
+  const { dome } = antennaRows(worker);
+  for (let y = 0; y < dome; y++)
+    for (let x = 0; x < body.w; x++) clear(body, x, y);
+  const top = span(body, dome);
+  if (top)
+    blit(
+      body,
+      fromRows(CROWN_ROWS, { y: GOLD[3], g: GOLD[2], d: GOLD[1] }),
+      Math.round((top[0] + top[1]) / 2) - 3,
+      dome - 3,
+    );
+  glare(body, dome);
+  const centre = centreOf(worker, isBody);
+  const ox = Math.floor((cw - worker.w) / 2);
+  const oy = ch - QUEEN.below - worker.h;
+  const cell = img(cw, ch);
+  const torso = Math.round(centre.y) + 1;
+  const backX = (span(worker, torso)?.[0] ?? Math.round(centre.x) - 4) + 2;
+  const spec = QUEEN_WINGS[wing];
+  if (!spec) throw new Error(`no wing ${wing}`);
+  const near = fromRows(spec.rows, WING_KEY);
+  const far = recolour(near, (c) => (same(c, WHITE) ? ICE : FROST));
+  const wx = ox + backX - spec.root[0];
+  const wy = oy + torso - spec.root[1];
+  // Two pairs of wings: the far pair a shade darker, offset up and forward (ahead of the near pair when folded).
+  if (wing === "folded") blit(cell, far, wx - 2, wy + 1);
+  else if (wing === "up" || wing === "down")
+    blit(cell, far, wx - 3, wy + (wing === "down" ? -1 : 1));
+  else blit(cell, far, wx + 3, wy - 2);
+  blit(cell, near, wx, wy);
+  // The abdomen, behind and below the hips.
+  const hip = Math.round(centre.y) + 3;
+  const hipBack = span(worker, hip)?.[0] ?? Math.round(centre.x) - 4;
+  blit(
+    cell,
+    fromRows(ABDOMEN_ROWS, {
+      "0": GREEN[0],
+      "1": GREEN[1],
+      "2": GREEN[2],
+      "3": GREEN[3],
+    }),
+    ox + hipBack - 5,
+    oy + hip - 1,
+  );
+  blit(cell, body, ox, oy);
+  // The stinger: a gold guard at the hand and a long gold blade with a pale edge and a white tip.
+  const frontX = ox + (span(worker, hip)?.[1] ?? Math.round(centre.x) + 4);
+  const hy = oy + hip;
+  const length = 13;
+  for (let i = 0; i < length; i++) {
+    const x = frontX + 1 + (lance === "down" ? Math.floor(i * 0.6) : i);
+    const y =
+      hy + (lance === "down" ? Math.floor(i * 0.8) : Math.floor(i * 0.35));
+    const c = i < 2 ? GOLD[1] : i === length - 1 ? WHITE : GOLD[2];
+    put(cell, x, y, c);
+    if (i < length - 2) {
+      if (lance === "down") put(cell, x + 1, y, i < 2 ? GOLD[2] : GOLD[3]);
+      else put(cell, x, y - 1, i < 2 ? GOLD[2] : GOLD[3]);
+    }
+  }
+  if (lance !== "down")
+    for (let y = hy - 2; y <= hy + 1; y++) put(cell, frontX + 1, y, GOLD[1]);
   return cell;
 };
 
@@ -1084,16 +1242,17 @@ const buildUnits = () => {
       speed ? bodies : undefined,
     );
   }
-  const queen = UNITS.queen;
-  if (!queen) throw new Error("no queen");
   emitUnit(
     "queen",
-    alignedFrames(queen, isBody),
-    queen.frames,
-    queen.animations,
+    QUEEN.frames.map(([, from, wing, lance]) =>
+      queenOf(pose(from), wing, lance),
+    ),
+    QUEEN.frames.map(([name]) => name),
+    QUEEN.animations,
     {
-      note: "Twice a worker's height (body about 24 by 30). Flying frames float with the feet a few pixels above the anchor; `dive` points straight down with the stinger's tip near the anchor.",
+      note: "The worker's body with a crown, so about a quarter taller than a worker; feet on the anchor, which is not on the cell's bottom row. The stinger reaches about 14 pixels ahead; in `dive` it points steeply down and forward, to about 7 pixels below the feet.",
     },
+    QUEEN.below,
   );
   // A worker inside a gate: its shape turning to light and swelling, drawn over the gate's lit doorway.
   const idle = pose("idle");
@@ -1197,9 +1356,14 @@ const buildGates = () => {
     smooth(reduce(s, GATES.reduce)),
   );
   const w = Math.max(...raw.map((s) => s.w)) + 2;
-  const h = Math.max(...raw.map((s) => s.h)) + 2;
+  const h = Math.max(...raw.map((s) => s.h)) + 2 - GATES.shorten;
   GATES.kinds.forEach((kind, i) => {
-    const gate = raw[i] ?? img(1, 1);
+    const full = raw[i] ?? img(1, 1);
+    // Shortened by taking rows out of the pillars, just above the base, where every row is the same.
+    const gate = img(full.w, full.h - GATES.shorten);
+    const cut = full.h - GATES.above - GATES.shorten;
+    blit(gate, crop(full, 0, 0, full.w, cut), 0, 0);
+    blit(gate, crop(full, 0, cut + GATES.shorten, full.w, GATES.above), 0, cut);
     const cell = img(w, h);
     blit(cell, gate, Math.floor((w - gate.w) / 2), h - 1 - gate.h);
     // The generated lamps and pillars are not quite symmetric; below the emblem a gate is its left half mirrored.
@@ -1727,7 +1891,13 @@ const mockScene = () => {
   place(scene, "goal-pink", "post", 460, 245, true);
   place(scene, "snail", "crawl1", 262, 245);
   const [sx, sy] = (assets.snail?.saddle as [number, number][])[1] ?? [0, 0];
-  place(scene, "worker-cyan", "idle", 262 - 26 + sx, 245 - 25 + sy);
+  place(
+    scene,
+    "worker-cyan",
+    "idle",
+    262 - Math.floor(SNAIL.cell[0] / 2) + sx,
+    245 - (SNAIL.cell[1] - 1) + sy,
+  );
   // Units.
   place(scene, "worker-cyan", "run2", 120, 167);
   place(scene, "worker-cyan", "run1Carry", 84, 207);

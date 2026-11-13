@@ -473,10 +473,10 @@
     },
     "queen-cyan": {
       "file": "units/queen-cyan.png",
-      "width": 640,
-      "height": 68,
-      "frameWidth": 64,
-      "frameHeight": 68,
+      "width": 480,
+      "height": 34,
+      "frameWidth": 48,
+      "frameHeight": 34,
       "frameCount": 10,
       "frames": {
         "idle": 0,
@@ -490,7 +490,7 @@
         "walk3": 8,
         "walk4": 9
       },
-      "anchor": [32, 67],
+      "anchor": [24, 25],
       "animations": {
         "idle": { "frames": ["idle"], "fps": 1, "loop": false },
         "fly": {
@@ -507,14 +507,14 @@
         }
       },
       "flash": "queen-flash",
-      "note": "Twice a worker's height (body about 24 by 30). Flying frames float with the feet a few pixels above the anchor; `dive` points straight down with the stinger's tip near the anchor."
+      "note": "The worker's body with a crown, so about a quarter taller than a worker; feet on the anchor, which is not on the cell's bottom row. The stinger reaches about 14 pixels ahead; in `dive` it points steeply down and forward, to about 7 pixels below the feet."
     },
     "queen-pink": {
       "file": "units/queen-pink.png",
-      "width": 640,
-      "height": 68,
-      "frameWidth": 64,
-      "frameHeight": 68,
+      "width": 480,
+      "height": 34,
+      "frameWidth": 48,
+      "frameHeight": 34,
       "frameCount": 10,
       "frames": {
         "idle": 0,
@@ -528,7 +528,7 @@
         "walk3": 8,
         "walk4": 9
       },
-      "anchor": [32, 67],
+      "anchor": [24, 25],
       "animations": {
         "idle": { "frames": ["idle"], "fps": 1, "loop": false },
         "fly": {
@@ -545,14 +545,14 @@
         }
       },
       "flash": "queen-flash",
-      "note": "Twice a worker's height (body about 24 by 30). Flying frames float with the feet a few pixels above the anchor; `dive` points straight down with the stinger's tip near the anchor."
+      "note": "The worker's body with a crown, so about a quarter taller than a worker; feet on the anchor, which is not on the cell's bottom row. The stinger reaches about 14 pixels ahead; in `dive` it points steeply down and forward, to about 7 pixels below the feet."
     },
     "queen-flash": {
       "file": "units/queen-flash.png",
-      "width": 640,
-      "height": 68,
-      "frameWidth": 64,
-      "frameHeight": 68,
+      "width": 480,
+      "height": 34,
+      "frameWidth": 48,
+      "frameHeight": 34,
       "frameCount": 10,
       "frames": {
         "idle": 0,
@@ -566,7 +566,7 @@
         "walk3": 8,
         "walk4": 9
       },
-      "anchor": [32, 67],
+      "anchor": [24, 25],
       "note": "The same frames as a flat white shape, for both teams: see `invulnerable` at the top of the manifest."
     },
     "transform-cyan": {
@@ -595,13 +595,13 @@
     },
     "snail": {
       "file": "snail.png",
-      "width": 260,
-      "height": 26,
-      "frameWidth": 52,
-      "frameHeight": 26,
+      "width": 200,
+      "height": 20,
+      "frameWidth": 40,
+      "frameHeight": 20,
       "frameCount": 5,
       "frames": { "idle": 0, "crawl1": 1, "crawl2": 2, "crawl3": 3, "eat": 4 },
-      "anchor": [26, 25],
+      "anchor": [20, 19],
       "animations": {
         "idle": { "frames": ["idle"], "fps": 1, "loop": false },
         "crawl": {
@@ -612,20 +612,20 @@
         "eat": { "frames": ["eat", "idle"], "fps": 4, "loop": true }
       },
       "saddle": [
-        [27, 5],
-        [16, 6],
-        [28, 6],
-        [26, 6],
-        [21, 6]
+        [21, 4],
+        [13, 5],
+        [22, 5],
+        [21, 5],
+        [17, 5]
       ],
       "note": "Faces right; the anchor is under the shell, so the body stretches ahead of it."
     },
     "gate-warrior": {
       "file": "gates/warrior.png",
-      "width": 210,
-      "height": 46,
-      "frameWidth": 35,
-      "frameHeight": 46,
+      "width": 138,
+      "height": 29,
+      "frameWidth": 23,
+      "frameHeight": 29,
       "frameCount": 6,
       "frames": {
         "neutral": 0,
@@ -635,15 +635,15 @@
         "cyanActive": 4,
         "pinkActive": 5
       },
-      "anchor": [17, 45],
+      "anchor": [11, 28],
       "note": "Stands on the anchor. <owner>Active is the gate while a worker is transforming inside it."
     },
     "gate-speed": {
       "file": "gates/speed.png",
-      "width": 210,
-      "height": 46,
-      "frameWidth": 35,
-      "frameHeight": 46,
+      "width": 138,
+      "height": 29,
+      "frameWidth": 23,
+      "frameHeight": 29,
       "frameCount": 6,
       "frames": {
         "neutral": 0,
@@ -653,7 +653,7 @@
         "cyanActive": 4,
         "pinkActive": 5
       },
-      "anchor": [17, 45],
+      "anchor": [11, 28],
       "note": "Stands on the anchor. <owner>Active is the gate while a worker is transforming inside it."
     },
     "berry": {
