@@ -8,7 +8,6 @@ import {
   FROST,
   GOLD,
   ICE,
-  INK,
   LIME,
   NAVY,
   VIOLET,
@@ -27,7 +26,7 @@ import {
   type Rgb,
 } from "./pixel.ts";
 
-const [, , , VOID] = [0, 0, 0, NAVY.void];
+const VOID = NAVY.void;
 
 // ---------------------------------------------------------------------------------------------------------------
 // Primitives
@@ -232,7 +231,8 @@ export const hive = (team: Ramp): Img => {
 // ---------------------------------------------------------------------------------------------------------------
 // Eggs (HUD)
 
-export const egg = (team: Ramp, broken: boolean): Img => {
+/** A Queen's life on the HUD, 10 by 12: whole, cracked (flash it as the life is lost), or spent. */
+export const egg = (team: Ramp, state: "full" | "cracked" | "broken"): Img => {
   const key: Record<string, Rgb> = {
     d: team[0],
     s: team[1],
@@ -242,8 +242,27 @@ export const egg = (team: Ramp, broken: boolean): Img => {
     n: NAVY.steel,
     N: NAVY.slate,
     k: FROST,
+    x: VOID,
   };
-  return broken
+  if (state === "cracked")
+    return fromRows(
+      [
+        "....bb....",
+        "...bbbb...",
+        "..bwwbbb..",
+        "..bwbxbb..",
+        ".bbwxbbbs.",
+        ".bbbxxbbs.",
+        ".xbbbxbxs.",
+        ".bxbxbxbs.",
+        ".sbxbbbss.",
+        ".sbbbbssd.",
+        "..sssssd..",
+        "...dddd...",
+      ],
+      key,
+    );
+  return state === "broken"
     ? fromRows(
         [
           "..........",
@@ -296,106 +315,150 @@ const TILE_KEY: Record<string, Rgb> = {
   G: GOLD[3],
   o: GOLD[1],
   c: FROST,
+  w: ICE,
 };
 
+/** Slate plating with a honeycomb pressed into it; it tiles in both directions. */
 const BODY = [
-  "BBBBBBBB",
-  "BDDDBBBB",
-  "DBBBDBBB",
-  "BBBBBDDD",
-  "BBBBBBBB",
-  "BDDDBBBB",
-  "DBBBDBBB",
-  "BBBBBDDD",
+  "NBBBBBBB",
+  "NBBBBBBB",
+  "BNBBBBBN",
+  "BBNNSNNB",
+  "BBBBNBBB",
+  "BBBBNBBB",
+  "BBBNBNBB",
+  "SNNBBBNN",
 ];
 
 const withRows = (base: readonly string[], rows: Record<number, string>) =>
   base.map((row, y) => rows[y] ?? row);
 
+/** Replaces columns of a tile: `cols[x]` is that column top to bottom, with a space keeping what is there. */
 const columns = (base: readonly string[], cols: Record<number, string>) =>
   base.map((row, y) =>
     [...row]
-      .map((ch, x) => (cols[x] && ch !== "." ? (cols[x]?.[y] ?? ch) : ch))
+      .map((ch, x) => {
+        const to = cols[x]?.[y] ?? " ";
+        return ch === "." || to === " " ? ch : to;
+      })
       .join(""),
   );
 
-const TOP = withRows(BODY, { 0: "LLLLLLLL", 1: "VVVVVVVV", 2: "uuuuuuuu" });
-const BOTTOM = withRows(BODY, { 6: "DDDDDDDD", 7: "NNNNNNNN" });
-const LEFT = "SSSSSSSS";
-const RIGHT = "NNNNNNNN";
-const corner = (rows: string[], x: number, y: number) =>
+const corner = (rows: readonly string[], x: number, y: number) =>
   rows.map((row, j) =>
     j === y ? row.slice(0, x) + "." + row.slice(x + 1) : row,
   );
 
+/** The neon edge every walkable top has: a light tube on a dark seam. */
+const NEON = { 0: "LLLLLwLL", 1: "VVVVVVVV", 2: "uuuuuuuu" };
+/** The underside of a platform: a dark lip and its shadow. */
+const UNDER = { 6: "DDDDDDDD", 7: "NNNNNNNN" };
+
+const TOP = withRows(BODY, NEON);
+const BOTTOM = withRows(BODY, UNDER);
+const SLAB = withRows(BODY, {
+  ...NEON,
+  3: "BNBBBBBN",
+  4: "BBNNSNNB",
+  5: "BBBBNBBB",
+  6: "DDDDvDDD",
+  7: "NNNNNNNN",
+});
+/** The snail's lane: a gold rail over hazard stripes. */
+const TRACK = withRows(BODY, {
+  0: "GGGGGGGG",
+  1: "gggggggg",
+  2: "oooooooo",
+  3: "NNooNNoo",
+  4: "NooNNooN",
+  5: "ooNNooNN",
+  6: "uuuuuuuu",
+});
+/** Steel end caps: a lit one on the left, a shaded one on the right, each with a rivet. */
+const CAP_LEFT = { 0: "LcSSSSSS", 1: "wScSSgSS" };
+const CAP_RIGHT = { 6: "LSSSSoSD", 7: "LDDDDDDN" };
+const capped = (rows: readonly string[], side: "left" | "right") =>
+  side === "left"
+    ? corner(columns(rows, CAP_LEFT), 0, 0)
+    : corner(columns(rows, CAP_RIGHT), 7, 0);
+const slabCap = (side: "left" | "right") => {
+  const cap =
+    side === "left"
+      ? columns(SLAB, { 0: "LcSSSSDN", 1: "wScSgSDN" })
+      : columns(SLAB, { 6: "LSSSoSDN", 7: "LDDDDDNN" });
+  return corner(
+    corner(cap, side === "left" ? 0 : 7, 0),
+    side === "left" ? 0 : 7,
+    7,
+  );
+};
+
 /** The tiles of the platform set by name; the sheet lays them out in this order, 8 by 8 each. */
 export const TILES: Record<string, readonly string[]> = {
-  topLeft: corner(columns(TOP, { 0: "LVvSSSSS" }), 0, 0),
+  topLeft: capped(TOP, "left"),
   top: TOP,
-  topRight: corner(columns(TOP, { 7: "LVuNNNNN" }), 7, 0),
-  left: columns(BODY, { 0: LEFT }),
+  topRight: capped(TOP, "right"),
+  left: columns(BODY, { 0: "SSSSSSSS", 1: "cSSSSSSS" }),
   middle: BODY,
-  right: columns(BODY, { 7: RIGHT }),
-  bottomLeft: corner(columns(BOTTOM, { 0: LEFT }), 0, 7),
+  right: columns(BODY, { 6: "DDDDDDDD", 7: "NNNNNNNN" }),
+  bottomLeft: corner(columns(BOTTOM, { 0: "SSSSSSDN" }), 0, 7),
   bottom: BOTTOM,
-  bottomRight: corner(columns(BOTTOM, { 7: RIGHT }), 7, 7),
-  // A one-tile-high slab: top and bottom in one.
-  slabLeft: corner(
-    corner(
-      columns(withRows(TOP, { 6: "DDDDDDDD", 7: "NNNNNNNN" }), {
-        0: "LVvSSSSN",
-      }),
-      0,
-      0,
-    ),
-    0,
-    7,
-  ),
-  slab: withRows(TOP, { 6: "DDDDDDDD", 7: "NNNNNNNN" }),
-  slabRight: corner(
-    corner(
-      columns(withRows(TOP, { 6: "DDDDDDDD", 7: "NNNNNNNN" }), {
-        7: "LVuNNNNN",
-      }),
-      7,
-      0,
-    ),
-    7,
-    7,
-  ),
-  // The thin one-way ledge: only its top four rows are drawn.
-  ledgeLeft: [".LLLLLLL", "VVVVVVVV", ".uDuDuDu", "..N...N.", "", "", "", ""],
-  ledge: ["LLLLLLLL", "VVVVVVVV", "DuDuDuDu", "..N...N.", "", "", "", ""],
-  ledgeRight: ["LLLLLLL.", "VVVVVVVV", "DuDuDuD.", "..N...N.", "", "", "", ""],
-  // Variety for long runs: a circuit node and a lit hex cell.
-  middleNode: withRows(BODY, { 3: "BBoGoDDD", 4: "BBBoBBBB" }),
+  bottomRight: corner(columns(BOTTOM, { 7: "NNNNNNNN" }), 7, 7),
+  // A one-tile-high slab: neon top, honeycomb body, shadowed underside.
+  slabLeft: slabCap("left"),
+  slab: SLAB,
+  slabRight: slabCap("right"),
+  // The thin one-way ledge: only its top five rows are drawn, a light tube on struts.
+  ledgeLeft: [
+    ".cLLLLLL",
+    "SVVVVVVV",
+    ".uuuuuuu",
+    "..D...D.",
+    "..N.....",
+    "",
+    "",
+    "",
+  ],
+  ledge: [
+    "LLLLLwLL",
+    "VVVVVVVV",
+    "uuuuuuuu",
+    "..D...D.",
+    "......N.",
+    "",
+    "",
+    "",
+  ],
+  ledgeRight: [
+    "LLLLLLL.",
+    "VVVVVVVD",
+    "uuuuuuu.",
+    "..D...D.",
+    "..N.....",
+    "",
+    "",
+    "",
+  ],
+  // Variety for long runs: a circuit node, a lit hex cell and a lamp in the neon edge.
+  middleNode: withRows(BODY, { 3: "BBDoGoDB", 4: "BBBBoBBB" }),
   middleCell: [
-    "BBBBBBBB",
-    "BBDDDDBB",
-    "BDNNNNDB",
-    "DNNNNNND",
-    "DNNNNNND",
-    "BDNNNNDB",
-    "BBDDDDBB",
-    "BBBBBBBB",
+    "DBBBBBBB",
+    "DBBBBBBB",
+    "BDBBBBBD",
+    "BBDDvDDB",
+    "BBBvLvBB",
+    "BBBBvBBB",
+    "BBBDBDBB",
+    "BDDBBBDD",
   ],
   topLamp: withRows(TOP, { 0: "LLLGGLLL", 1: "VVVggVVV", 2: "uuuoouuu" }),
-  // The snail track: a platform top with gold running lights.
-  track: withRows(BODY, { 0: "GGGGGGGG", 1: "ggoggogg", 2: "ouuuouuu" }),
-  trackLeft: corner(
-    columns(withRows(BODY, { 0: "GGGGGGGG", 1: "ggoggogg", 2: "ouuuouuu" }), {
-      0: "GgoSSSSS",
-    }),
-    0,
-    0,
-  ),
-  trackRight: corner(
-    columns(withRows(BODY, { 0: "GGGGGGGG", 1: "ggoggogg", 2: "ouuuouuu" }), {
-      7: "GgoNNNNN",
-    }),
-    7,
-    0,
-  ),
+  slabLamp: withRows(SLAB, { 0: "LLLGGLLL", 1: "VVVggVVV", 2: "uuuoouuu" }),
+  // The snail track: the floor's top row.
+  track: TRACK,
+  trackLeft: corner(columns(TRACK, { 0: "GgoSSSSS" }), 0, 0),
+  trackRight: corner(columns(TRACK, { 7: "GgoNNNNN" }), 7, 0),
+  // The track with a lane light, for every few tiles of a long run.
+  trackLamp: withRows(TRACK, { 0: "GGGwwGGG", 1: "gggGGggg" }),
 };
 
 export const tile = (name: string): Img => {
@@ -444,35 +507,157 @@ export const goalPost = (team: Ramp): Img => {
 // ---------------------------------------------------------------------------------------------------------------
 // Effects: each returns its frames, all the same size.
 
-/** A kill: a white flash that bursts into eight shards of the victim's colour. 32 by 32, 6 frames. */
-export const killBurst = (team: Ramp): Img[] =>
-  Array.from({ length: 6 }, (_, i) => {
-    const m = img(32, 32);
-    const c = 15.5;
-    // Eight spikes, the four diagonal ones shorter; they fly outward and thin as the flash fades.
-    const outer = [5, 10, 13, 15, 15, 15][i] ?? 15;
-    const inner = [0, 0, 5, 9, 12, 14][i] ?? 14;
-    const colour =
-      [WHITE, WHITE, team[3], team[2], team[2], team[1]][i] ?? team[1];
-    for (let k = 0; k < 8; k++) {
-      const a = (k / 8) * Math.PI * 2;
-      const scale = k % 2 === 0 ? 1 : 0.72;
-      for (let d = inner * scale; d <= outer * scale; d += 0.5) {
+/** A lumpy fireball: a disc with smaller discs budding off its rim. */
+const lump = (
+  m: Img,
+  cx: number,
+  cy: number,
+  r: number,
+  c: Rgb,
+  seed: number,
+) => {
+  if (r < 0.6) return;
+  disc(m, cx, cy, r, c);
+  for (let k = 0; k < 7; k++) {
+    const a = (k / 7) * Math.PI * 2 + seed;
+    disc(
+      m,
+      cx + Math.cos(a) * r * 0.62,
+      cy + Math.sin(a) * r * 0.62,
+      r * (0.42 + 0.22 * hash(k, seed * 10 + 1)),
+      c,
+    );
+  }
+};
+
+/**
+ * A chunky explosion in a team's colour, `size` square and `count` frames long: a white flash swells into a
+ * fireball, which breaks into puffs while pieces of wing and shell fly out and fall.
+ */
+const explosion = (team: Ramp, size: number, count: number): Img[] =>
+  Array.from({ length: count }, (_, i) => {
+    const m = img(size, size);
+    const c = size / 2 - 0.5;
+    const reach = size / 2 - 3;
+    const t = i / (count - 1);
+    // Fireball: grows for the first third, then thins out from the middle.
+    const grow = Math.min(1, t * 3.2 + 0.3);
+    const fade = Math.max(0, (t - 0.3) / 0.7);
+    if (fade < 0.25) {
+      lump(m, c, c, reach * 0.92 * grow, team[1], 0.3);
+      lump(m, c, c, reach * 0.82 * grow, team[2], 0.3);
+      lump(m, c, c, reach * 0.62 * grow, team[3], 1.1);
+      lump(m, c, c, reach * (0.46 - fade) * grow, WHITE, 2.0);
+    } else {
+      // Puffs drifting outward, shrinking as they go, darker underneath.
+      for (let k = 0; k < 7; k++) {
+        const a = (k / 7) * Math.PI * 2 + 0.4;
+        const d = reach * (0.42 + 0.45 * fade) * (0.85 + 0.3 * hash(k, 5));
+        const r = reach * 0.34 * (1.15 - fade) * (0.7 + 0.5 * hash(k, 6));
+        const x = c + Math.cos(a) * d;
+        const y = c + Math.sin(a) * d - fade * 2;
+        lump(m, x, y + 1, r, fade > 0.7 ? team[0] : team[1], k);
+        lump(m, x, y, r - 1, fade > 0.7 ? team[1] : team[2], k);
+        if (fade < 0.5) disc(m, x - 1, y - 1, r * 0.45, team[3]);
+      }
+      if (fade < 0.45) lump(m, c, c, reach * (0.3 - fade * 0.5), WHITE, 2.0);
+    }
+    // Pieces of the victim: wing shards (pale) and shell (dark team colour), flung out and pulled down.
+    if (i > 0)
+      for (let k = 0; k < 9; k++) {
+        const a = (k / 9) * Math.PI * 2 + 0.2 + hash(k, 7);
+        const speed = 0.75 + 0.45 * hash(k, 8);
+        const d = reach * Math.min(1.05, (0.25 + t * 0.95) * speed);
         const x = Math.round(c + Math.cos(a) * d);
-        const y = Math.round(c + Math.sin(a) * d);
-        put(m, x, y, colour);
-        // Thick near the centre while the flash is young.
-        if (i < 3 && d < outer * scale * 0.6) {
-          put(m, x + 1, y, colour);
-          put(m, x, y + 1, colour);
+        const y = Math.round(c + Math.sin(a) * d + t * t * reach * 0.35);
+        const wing = k % 3 !== 0;
+        const turn = (i + k) % 2 === 0;
+        const big = t < 0.75;
+        if (wing) {
+          rect(m, x, y, turn ? 3 : 2, turn ? 2 : 3, big ? ICE : FROST);
+          if (big) put(m, x, y, WHITE);
+        } else {
+          rect(m, x, y, big ? 3 : 2, big ? 3 : 2, team[1]);
+          put(m, x, y, team[3]);
+          if (big) put(m, x + 2, y + 2, team[0]);
         }
       }
-    }
-    if (i < 3) {
-      disc(m, c, c, [4, 6, 4][i] ?? 4, i < 2 ? WHITE : team[3]);
-      disc(m, c, c, [2, 4, 2][i] ?? 2, i < 2 ? team[3] : team[2]);
-    }
-    if (i === 2 || i === 3) ring(m, c, c, i === 2 ? 8 : 11, team[2]);
+    // Sparks while the flash is young.
+    if (t < 0.5)
+      for (let k = 0; k < 5; k++) {
+        const a = (k / 5) * Math.PI * 2 + 0.9;
+        const d = reach * (0.55 + t);
+        star(
+          m,
+          Math.round(c + Math.cos(a) * d),
+          Math.round(c + Math.sin(a) * d),
+          1,
+          team[3],
+          WHITE,
+        );
+      }
+    return m;
+  });
+
+/** A kill: a chunky explosion in the victim's colour, bigger than a unit at its peak. 48 by 48, 8 frames. */
+export const killBurst = (team: Ramp): Img[] => explosion(team, 48, 8);
+
+const CROWN = fromRows(
+  ["G..G..G", "G.GGG.G", "GGGGGGG", "ggwgwgg", "ooooooo"],
+  { G: GOLD[3], g: GOLD[2], o: GOLD[1], w: WHITE },
+);
+
+/** A Queen's death: a bigger explosion, her crown thrown clear and tumbling down. 64 by 64, 10 frames. */
+export const queenDeath = (team: Ramp): Img[] =>
+  explosion(team, 64, 10).map((m, i) => {
+    const t = i / 9;
+    const x = Math.round(28 + t * 10);
+    const y = Math.round(26 - Math.sin(t * Math.PI * 0.85) * 24 + t * 6);
+    const crown = img(9, 7);
+    blit(crown, CROWN, 1, 1, i % 4 >= 2);
+    // A dark rim keeps the crown readable against the flash.
+    for (let cy = 0; cy < 7; cy++)
+      for (let cx = 0; cx < 9; cx++)
+        if (
+          !alpha(crown, cx, cy) &&
+          (alpha(crown, cx - 1, cy) ||
+            alpha(crown, cx + 1, cy) ||
+            alpha(crown, cx, cy - 1) ||
+            alpha(crown, cx, cy + 1))
+        )
+          put(m, x + cx, y + cy, VOID);
+    blit(m, crown, x, y);
+    return m;
+  });
+
+/**
+ * A unit arriving: a column of the team's light drops onto the spot, narrows and leaves rising glints. 24 by 36,
+ * 7 frames; anchored at the feet, drawn over the unit.
+ */
+export const respawn = (team: Ramp): Img[] =>
+  Array.from({ length: 7 }, (_, i) => {
+    const m = img(24, 36);
+    const half = [1, 4, 7, 5, 3, 1, 0][i] ?? 0;
+    const top = [0, 0, 0, 0, 6, 14, 36][i] ?? 36;
+    for (let y = top; y < 34; y++)
+      for (let dx = -half; dx < half; dx++) {
+        const edge = Math.min(dx + half, half - 1 - dx);
+        // The column comes to a point at the top and is brightest up the middle.
+        if (y - top < half - 1 - edge) continue;
+        put(m, 12 + dx, y, edge === 0 ? team[2] : edge < 3 ? team[3] : WHITE);
+      }
+    // The pool of light at the feet.
+    const pool = [3, 7, 10, 11, 10, 8, 5][i] ?? 0;
+    rect(m, 12 - pool, 34, pool * 2, 1, i < 5 ? team[3] : team[2]);
+    rect(m, 12 - pool + 2, 35, pool * 2 - 4, 1, team[1]);
+    if (i > 1)
+      for (let k = 0; k < 6; k++) {
+        const x = 3 + Math.floor(hash(k, 11) * 18);
+        const y = 30 - Math.floor((i - 1) * (3 + hash(k, 12) * 3)) - k * 2;
+        if (y < 1) continue;
+        if ((i + k) % 2) star(m, x, y, 1, team[3], WHITE);
+        else put(m, x, y, WHITE);
+      }
     return m;
   });
 
@@ -567,40 +752,193 @@ export const berryPop = (): Img[] =>
   });
 
 // ---------------------------------------------------------------------------------------------------------------
-// Lettering: a chunky 5 by 7 capital font in the spirit of Press Start 2P, for art that carries text.
+// Lettering: 7 by 7 capitals with two-pixel stems on an 8-pixel advance, the proportions of Press Start 2P, drawn
+// here for art that carries text.
 
 const GLYPHS: Record<string, readonly string[]> = {
-  A: [".###.", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"],
-  C: [".####", "#....", "#....", "#....", "#....", "#....", ".####"],
-  E: ["#####", "#....", "#....", "####.", "#....", "#....", "#####"],
-  F: ["#####", "#....", "#....", "####.", "#....", "#....", "#...."],
-  I: ["#####", "..#..", "..#..", "..#..", "..#..", "..#..", "#####"],
-  K: ["#...#", "#..#.", "#.#..", "##...", "#.#..", "#..#.", "#...#"],
-  L: ["#....", "#....", "#....", "#....", "#....", "#....", "#####"],
-  M: ["#...#", "##.##", "#.#.#", "#.#.#", "#...#", "#...#", "#...#"],
-  N: ["#...#", "##..#", "#.#.#", "#.#.#", "#..##", "#...#", "#...#"],
-  O: [".###.", "#...#", "#...#", "#...#", "#...#", "#...#", ".###."],
-  P: ["####.", "#...#", "#...#", "####.", "#....", "#....", "#...."],
-  R: ["####.", "#...#", "#...#", "####.", "#.#..", "#..#.", "#...#"],
-  S: [".####", "#....", "#....", ".###.", "....#", "....#", "####."],
-  T: ["#####", "..#..", "..#..", "..#..", "..#..", "..#..", "..#.."],
-  U: ["#...#", "#...#", "#...#", "#...#", "#...#", "#...#", ".###."],
-  V: ["#...#", "#...#", "#...#", "#...#", ".#.#.", ".#.#.", "..#.."],
-  W: ["#...#", "#...#", "#...#", "#.#.#", "#.#.#", "##.##", "#...#"],
-  Y: ["#...#", "#...#", ".#.#.", "..#..", "..#..", "..#..", "..#.."],
-  " ": [".....", ".....", ".....", ".....", ".....", ".....", "....."],
+  A: [
+    "..###..",
+    ".##.##.",
+    "##...##",
+    "##...##",
+    "#######",
+    "##...##",
+    "##...##",
+  ],
+  C: [
+    "..####.",
+    ".##..##",
+    "##.....",
+    "##.....",
+    "##.....",
+    ".##..##",
+    "..####.",
+  ],
+  E: [
+    "#######",
+    "##.....",
+    "##.....",
+    "######.",
+    "##.....",
+    "##.....",
+    "#######",
+  ],
+  F: [
+    "#######",
+    "##.....",
+    "##.....",
+    "######.",
+    "##.....",
+    "##.....",
+    "##.....",
+  ],
+  I: [
+    ".######",
+    "...##..",
+    "...##..",
+    "...##..",
+    "...##..",
+    "...##..",
+    ".######",
+  ],
+  K: [
+    "##...##",
+    "##..##.",
+    "##.##..",
+    "####...",
+    "#####..",
+    "##.###.",
+    "##..###",
+  ],
+  L: [
+    ".##....",
+    ".##....",
+    ".##....",
+    ".##....",
+    ".##....",
+    ".##....",
+    ".######",
+  ],
+  M: [
+    "##...##",
+    "###.###",
+    "#######",
+    "#######",
+    "##.#.##",
+    "##...##",
+    "##...##",
+  ],
+  N: [
+    "##...##",
+    "###..##",
+    "####.##",
+    "#######",
+    "##.####",
+    "##..###",
+    "##...##",
+  ],
+  O: [
+    ".#####.",
+    "##...##",
+    "##...##",
+    "##...##",
+    "##...##",
+    "##...##",
+    ".#####.",
+  ],
+  P: [
+    "######.",
+    "##...##",
+    "##...##",
+    "##...##",
+    "######.",
+    "##.....",
+    "##.....",
+  ],
+  R: [
+    "######.",
+    "##...##",
+    "##...##",
+    "##..###",
+    "#####..",
+    "##.###.",
+    "##..###",
+  ],
+  S: [
+    ".####..",
+    "##..##.",
+    "##.....",
+    ".#####.",
+    "....###",
+    "##...##",
+    ".#####.",
+  ],
+  T: [
+    ".######",
+    "...##..",
+    "...##..",
+    "...##..",
+    "...##..",
+    "...##..",
+    "...##..",
+  ],
+  U: [
+    "##...##",
+    "##...##",
+    "##...##",
+    "##...##",
+    "##...##",
+    "##...##",
+    ".#####.",
+  ],
+  V: [
+    "##...##",
+    "##...##",
+    "##...##",
+    "###.###",
+    ".#####.",
+    "..###..",
+    "...#...",
+  ],
+  W: [
+    "##...##",
+    "##...##",
+    "##.#.##",
+    "#######",
+    "#######",
+    "###.###",
+    "##...##",
+  ],
+  Y: [
+    ".##..##",
+    ".##..##",
+    ".##..##",
+    "..####.",
+    "...##..",
+    "...##..",
+    "...##..",
+  ],
+  " ": [
+    ".......",
+    ".......",
+    ".......",
+    ".......",
+    ".......",
+    ".......",
+    ".......",
+  ],
 };
 
-/** `text` in the 5 by 7 font at `scale`, with strokes thickened to two pixels at scale 1 for weight. */
+/** `text` in the 7 by 7 font at `scale`; each letter advances 8 pixels and the last has no trailing gap. */
 export const text = (value: string, scale: number, c: Rgb): Img => {
-  const m = img(value.length * 6 * scale, 7 * scale);
+  const m = img((value.length * 8 - 1) * scale, 7 * scale);
   [...value].forEach((ch, i) => {
     const glyph = GLYPHS[ch];
     if (!glyph) throw new Error(`no glyph for ${ch}`);
     glyph.forEach((row, y) =>
       [...row].forEach((bit, x) => {
         if (bit === "#")
-          rect(m, (i * 6 + x) * scale, y * scale, scale, scale, c);
+          rect(m, (i * 8 + x) * scale, y * scale, scale, scale, c);
       }),
     );
   });
@@ -617,20 +955,20 @@ const shadowed = (m: Img, dx: number, dy: number, c: Rgb): Img => {
 };
 
 const ICONS: Record<string, readonly string[]> = {
-  // A crown over crossed blades.
+  // Two crossed lances under a crown.
   military: [
-    "g..g..g..g",
-    "gg.gggg.gg",
-    "gggggggggg",
-    ".GGGGGGGG.",
-    "w........w",
-    ".w......w.",
-    "..w....w..",
-    "...w..w...",
-    "....ww....",
-    "...w..w...",
-    "..t....t..",
-    ".t......t.",
+    "g..gg..g",
+    "gg.gg.gg",
+    "gggggggg",
+    ".GGGGGG.",
+    "........",
+    "w......w",
+    "ww....ww",
+    ".ww..ww.",
+    "..wwww..",
+    "..twwt..",
+    ".tt..tt.",
+    "gg....gg",
   ],
   economy: [
     "....dd....",
@@ -644,27 +982,23 @@ const ICONS: Record<string, readonly string[]> = {
     "sbbbbbbsss",
     ".sbbbbsss.",
     "..ssssss..",
-    "..........",
   ],
   snail: [
-    "..........",
-    "..vvvv....",
-    ".vVVVVv...",
-    "vVvvvVVv.c",
-    "vVvVvVVv.c",
-    "vVvVVvVvcc",
-    "vVVvvVVccc",
-    ".vVVVVvccc",
-    "cccccccccc",
-    "tccccccct.",
-    "..........",
-    "..........",
+    "..vvvv...c.c",
+    ".vVVVVv..c.c",
+    "vVvvvvVv.ccc",
+    "vVvVVvVv.ccc",
+    "vVvVvvVvcccc",
+    "vVvVVVVvccc.",
+    ".vVvvvvccc..",
+    "cccccccccc..",
+    "tcccccccct..",
   ],
 };
 
 export type WinKind = "military" | "economy" | "snail";
 
-/** A victory banner, 232 by 44: the winning team's name over the kind of win. */
+/** A victory banner, 232 by 44: the winning team's name over the kind of win, with the win's icon at both ends. */
 export const banner = (team: Ramp, teamName: string, kind: WinKind): Img => {
   const w = 232;
   const h = 44;
@@ -678,15 +1012,20 @@ export const banner = (team: Ramp, teamName: string, kind: WinKind): Img => {
   rect(m, 3, h - 3, w - 6, 1, team[1]);
   rect(m, 4, 4, w - 8, h - 8, NAVY.deep);
   rect(m, 4, 4, w - 8, 1, team[0]);
-  // Hex studs along the inside edge.
-  for (let x = 10; x < w - 10; x += 12) {
-    put(m, x, h - 6, team[0]);
-    put(m, x + 1, h - 6, team[0]);
-  }
+  // Plates behind the icons.
+  rect(m, 5, 5, 30, h - 10, NAVY.night);
+  rect(m, w - 35, 5, 30, h - 10, NAVY.night);
+  rect(m, 35, 5, 1, h - 10, team[0]);
+  rect(m, w - 36, 5, 1, h - 10, team[0]);
   const title = shadowed(text(`${teamName} WINS`, 2, team[3]), 2, 2, team[1]);
-  blit(m, title, Math.floor((w - title.w) / 2) + 1, 8);
-  const sub = text(`${kind.toUpperCase()} VICTORY`, 1, GOLD[3]);
-  blit(m, shadowed(sub, 1, 1, GOLD[0]), Math.floor((w - sub.w) / 2) + 1, 28);
+  blit(m, title, Math.floor((w - title.w) / 2) + 1, 7);
+  const sub = shadowed(
+    text(`${kind.toUpperCase()} VICTORY`, 1, GOLD[3]),
+    1,
+    1,
+    GOLD[0],
+  );
+  blit(m, sub, Math.floor((w - sub.w) / 2) + 1, 28);
   const iconKey: Record<string, Rgb> = {
     g: GOLD[2],
     G: GOLD[1],
@@ -699,13 +1038,15 @@ export const banner = (team: Ramp, teamName: string, kind: WinKind): Img => {
     V: VIOLET[3],
     c: CREAM,
   };
-  const icon = fromRows(ICONS[kind] ?? [], iconKey);
-  blit(m, icon, 12, 16);
-  // Mirrored on the right.
-  for (let y = 0; y < icon.h; y++)
-    for (let x = 0; x < icon.w; x++)
-      if (alpha(icon, x, y)) put(m, w - 13 - x, 16 + y, rgbAt(icon, x, y));
+  // The icon at twice its size, as chunky as the title.
+  const small = fromRows(ICONS[kind] ?? [], iconKey);
+  const icon = img(small.w * 2, small.h * 2);
+  for (let y = 0; y < small.h; y++)
+    for (let x = 0; x < small.w; x++)
+      if (alpha(small, x, y))
+        rect(icon, x * 2, y * 2, 2, 2, rgbAt(small, x, y));
+  const top = Math.floor((h - icon.h) / 2);
+  blit(m, icon, 10, top);
+  blit(m, icon, w - 10 - icon.w, top, true);
   return m;
 };
-
-export { INK };

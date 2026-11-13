@@ -19,6 +19,7 @@ import { format, resolveConfig } from "prettier";
 import {
   CREAM,
   CUTS,
+  FROST,
   GATES,
   GENERATIONS,
   GOLD,
@@ -32,6 +33,7 @@ import {
   UNIT_NEUTRALS,
   UNITS,
   VIOLET,
+  WARRIOR,
   WHITE,
   type Generation,
   type Ramp,
@@ -51,7 +53,7 @@ import {
   fill,
   findGrid,
   findSprites,
-  flipX,
+  fromRows,
   hex,
   img,
   isTeam,
@@ -84,6 +86,8 @@ import {
   HIVE_HOLES,
   hiveHole,
   killBurst,
+  queenDeath,
+  respawn,
   PILE_SLOTS,
   pileBase,
   tile,
@@ -633,52 +637,282 @@ const alignedFrames = (spec: UnitSheet, core: (c: Rgb) => boolean) => {
   });
 };
 
+/** The rows at the top of a unit that are only antennae: thin, and above the dome of the helmet. */
+const antennaRows = (cell: Img): { top: number; dome: number } => {
+  const width = (y: number) => {
+    let n = 0;
+    for (let x = 0; x < cell.w; x++) if (alpha(cell, x, y)) n++;
+    return n;
+  };
+  let top = 0;
+  while (top < cell.h && width(top) === 0) top++;
+  let dome = top;
+  while (dome < cell.h && width(dome) <= 4) dome++;
+  return { top, dome };
+};
+
+/** The first and last drawn pixel of a row, or undefined when the row is empty. */
+const span = (cell: Img, y: number): [number, number] | undefined => {
+  let lo = -1;
+  let hi = -1;
+  for (let x = 0; x < cell.w; x++)
+    if (alpha(cell, x, y)) {
+      if (lo < 0) lo = x;
+      hi = x;
+    }
+  return lo < 0 ? undefined : [lo, hi];
+};
+
+const MOVING = /^(run|walk|flap|glide|jump|fall)/;
+const STRIDING = /^(run|walk)/;
+
 /**
- * The speed form of a unit, made from the same frames so the two are the same character: gold boots, gold antenna
- * or horn tips, and gold dashes streaming behind every frame that moves.
+ * The speed form of a unit, made from the same frames so the two are the same character, and different enough to
+ * tell apart standing still: a gold helmet cap, gold lightning-bolt antennae, gold boots and a gold scarf, and a
+ * forward lean in every stride.
  */
-const speedForm = (cell: Img, frame: string, index: number): Img => {
+const speedBase = (source: Img, frame: string, index: number): Img => {
+  let cell = source;
+  const { dome } = antennaRows(cell);
+  if (STRIDING.test(frame)) {
+    // Lean into the run: the head and shoulders shift one pixel forward.
+    const leant = img(cell.w, cell.h);
+    for (let y = 0; y < cell.h; y++)
+      for (let x = 0; x < cell.w; x++)
+        if (alpha(cell, x, y))
+          put(leant, x + (y < dome + 7 ? 1 : 0), y, rgbAt(cell, x, y));
+    cell = leant;
+  }
   const out = img(cell.w, cell.h);
   blit(out, cell, 0, 0);
-  let top = cell.h;
-  let bottom = -1;
-  let left = cell.w;
-  for (let y = 0; y < cell.h; y++)
-    for (let x = 0; x < cell.w; x++)
-      if (alpha(cell, x, y) && isGreen(rgbAt(cell, x, y))) {
-        top = Math.min(top, y);
-        bottom = Math.max(bottom, y);
-        left = Math.min(left, x);
-      }
-  for (let y = 0; y < cell.h; y++)
-    for (let x = 0; x < cell.w; x++) {
-      if (!alpha(cell, x, y)) continue;
-      const shade = GREEN.findIndex((g) => same(g, rgbAt(cell, x, y)));
-      if (shade < 0) continue;
-      if (y >= bottom - 1 || y <= top + 1)
-        put(out, x, y, GOLD[Math.max(1, shade)] ?? GOLD[2]);
-    }
-  if (frame === "idle" || frame === "blink") return out;
-  const centre = centreOf(cell, isBody);
-  const rows: [number, number, Rgb][] = [
-    [-3, 3, GOLD[3]],
-    [0, 4, GOLD[2]],
-    [3, 2, GOLD[3]],
-  ];
-  for (const [dy, length, colour] of rows) {
-    const y = Math.round(centre.y) + dy;
-    // The dashes start clear of the body on this row and flicker by a pixel from frame to frame.
-    let start = left;
-    for (let x = 0; x < cell.w; x++)
-      if (alpha(cell, x, y)) {
-        start = x;
-        break;
-      }
-    const from = Math.min(start, left + 3) - 2 - (index % 2);
-    for (let i = 0; i < length; i++)
-      if (from - i >= 1) put(out, from - i, y, colour);
+  const box = bounds(cell) ?? { x: 0, y: 0, w: cell.w, h: cell.h };
+  const bottom = box.y + box.h - 1;
+  const gold = (x: number, y: number, fallback: number) => {
+    if (!alpha(cell, x, y)) return;
+    const shade = GREEN.findIndex((g) => same(g, rgbAt(cell, x, y)));
+    if (shade >= 0) put(out, x, y, GOLD[Math.max(fallback, shade)] ?? GOLD[2]);
+  };
+  for (let x = 0; x < cell.w; x++) {
+    // Boots, and a cap over the top of the helmet.
+    for (let y = bottom - 2; y <= bottom; y++) gold(x, y, 1);
+    gold(x, dome, 3);
+    gold(x, dome + 1, 2);
+    gold(x, dome + 2, 2);
+  }
+  // The antennae become one lightning bolt, swept back.
+  for (let y = 0; y < dome; y++)
+    for (let x = 0; x < cell.w; x++) if (alpha(cell, x, y)) clear(out, x, y);
+  const crown = span(cell, dome);
+  if (crown) {
+    const x = Math.round((crown[0] + crown[1]) / 2);
+    const bolt: [number, number][] = [
+      [0, -1],
+      [-1, -1],
+      [-1, -2],
+      [-2, -2],
+      [-1, -3],
+      [-2, -3],
+      [-3, -4],
+      [-2, -4],
+      [-3, -5],
+    ];
+    for (const [dx, dy] of bolt)
+      if (dome + dy >= 1) put(out, x + dx, dome + dy, GOLD[dy < -3 ? 3 : 2]);
+  }
+  // A scarf from the neck, streaming when moving and hanging when not.
+  const neck = dome + 7;
+  const back = span(cell, neck)?.[0] ?? box.x;
+  const moving = MOVING.test(frame);
+  for (let i = 1; i <= (moving ? 5 : 2); i++) {
+    const wave = moving ? ((i + index) % 3 === 0 ? -1 : 0) : i;
+    if (back - i < 1) break;
+    put(out, back - i, neck + wave, GOLD[3]);
+    put(out, back - i, neck + wave + 1, GOLD[i > 3 ? 1 : 2]);
   }
   return out;
+};
+
+/** Gold dashes streaming behind a moving speed unit, added after everything else is drawn. */
+const speedDashes = (cell: Img, frame: string, index: number): Img => {
+  if (!MOVING.test(frame)) return cell;
+  const out = img(cell.w, cell.h);
+  blit(out, cell, 0, 0);
+  const box = bounds(cell) ?? { x: 0, y: 0, w: cell.w, h: cell.h };
+  const rows: [number, number][] = [
+    [0.3, 3],
+    [0.62, 4],
+    [0.9, 2],
+  ];
+  for (const [at, length] of rows) {
+    const y = box.y + Math.round(box.h * at);
+    const start = span(cell, y)?.[0] ?? box.x;
+    const from = start - 2 - (index % 2);
+    for (let i = 0; i < length; i++)
+      if (from - i >= 1) put(out, from - i, y, GOLD[i === 0 ? 3 : 2]);
+  }
+  return out;
+};
+
+// Wings, drawn behind the body: W white, I ice, F frost. Each has the pixel that sits on the shoulder.
+const WING_KEY = { W: WHITE, I: ICE, F: FROST };
+const WING_UP = [
+  "..WWWW.....",
+  ".WWWWWW....",
+  "WWWIIWWW...",
+  "WWIIIIWW...",
+  "WWIIIIIWW..",
+  ".WWIIIIWW..",
+  ".FWIIIIIW..",
+  "..FWIIIIWW.",
+  "...FWIIIWW.",
+  "....FFIIWW.",
+  ".....FFIIW.",
+  "......FFIW.",
+  ".......FFI.",
+];
+const WINGS: Record<
+  string,
+  { rows: readonly string[]; root: [number, number] }
+> = {
+  up: { rows: WING_UP, root: [9, 12] },
+  down: { rows: [...WING_UP].reverse(), root: [9, 0] },
+  mid: {
+    rows: [
+      "...WWWWWW.....",
+      ".WWWWWWWWWWW..",
+      "WWWIIIIWWWWWWW",
+      "WIIIIIIIIIIWWW",
+      ".FFIIIIIIIIIII",
+      "...FFFFFFFFF..",
+    ],
+    root: [13, 3],
+  },
+  swept: {
+    rows: [
+      "WWWW...........",
+      "WWWWWWWW.......",
+      ".WIIIWWWWWWW...",
+      "..FIIIIIIWWWWW.",
+      "....FFFIIIIIIWW",
+      "........FFFFFII",
+    ],
+    root: [14, 4],
+  },
+  folded: {
+    rows: [
+      "....WW",
+      "...WWW",
+      "..WWIW",
+      ".WWIIW",
+      ".WIIIW",
+      "WWIIF.",
+      "WIIFF.",
+      "WIFF..",
+      "WFF...",
+      ".F....",
+    ],
+    root: [5, 0],
+  },
+};
+
+/**
+ * A warrior frame from a worker frame: the antennae become a horn, the eye gets an angry brow, big pale wings go
+ * on behind and a long white lance in front. The result is a `WARRIOR.cell` cell with the worker's feet where the
+ * warrior's go, so the two are the same size and the warrior is the one with the weapon.
+ */
+const warriorOf = (
+  worker: Img,
+  wing: string,
+  lance: string,
+  speed: boolean,
+): Img => {
+  const [cw, ch] = WARRIOR.cell;
+  const body = img(worker.w, worker.h);
+  blit(body, worker, 0, 0);
+  const { dome } = antennaRows(worker);
+  // Antennae (or the speed form's bolt) off; a horn curving forward on.
+  for (let y = 0; y < dome; y++)
+    for (let x = 0; x < body.w; x++) clear(body, x, y);
+  const crown = span(body, dome);
+  if (crown) {
+    const x = Math.round((crown[0] + crown[1]) / 2);
+    const horn: [number, number, Rgb][] = speed
+      ? [
+          [0, -1, GOLD[2]],
+          [1, -1, GOLD[2]],
+          [1, -2, GOLD[3]],
+          [2, -2, GOLD[3]],
+          [2, -3, GOLD[3]],
+          [3, -4, WHITE],
+        ]
+      : [
+          [0, -1, FROST],
+          [1, -1, ICE],
+          [1, -2, ICE],
+          [2, -2, WHITE],
+          [2, -3, WHITE],
+          [3, -4, WHITE],
+        ];
+    for (const [dx, dy, c] of horn) put(body, x + dx, dome + dy, c);
+  }
+  // The brow: the top row of the face goes dark, and one pixel lower at the back, so the eye glares.
+  let faceTop = -1;
+  for (let y = dome; y < body.h && faceTop < 0; y++)
+    for (let x = 0; x < body.w; x++)
+      if (alpha(body, x, y) && same(rgbAt(body, x, y), CREAM)) faceTop = y;
+  if (faceTop >= 0) {
+    let first = -1;
+    for (let x = 0; x < body.w; x++) {
+      if (!alpha(body, x, faceTop)) continue;
+      const c = rgbAt(body, x, faceTop);
+      if (same(c, CREAM) || same(c, WHITE)) {
+        if (first < 0) first = x;
+        put(body, x, faceTop, INK);
+      }
+    }
+    if (first >= 0 && alpha(body, first, faceTop + 1))
+      put(body, first + 1, faceTop + 1, INK);
+  }
+  const centre = centreOf(worker, isBody);
+  const ox = Math.floor((cw - worker.w) / 2);
+  const oy = ch - WARRIOR.below - worker.h;
+  const cell = img(cw, ch);
+  // Wings: the far one first, a shade darker and a little higher, then the near one.
+  const torso = Math.round(centre.y) + 1;
+  const backX = (span(worker, torso)?.[0] ?? Math.round(centre.x) - 4) + 2;
+  const spec = WINGS[wing];
+  if (!spec) throw new Error(`no wing ${wing}`);
+  const near = fromRows(spec.rows, WING_KEY);
+  const far = recolour(near, (c) => (same(c, WHITE) ? ICE : FROST));
+  const wx = ox + backX - spec.root[0];
+  const wy = oy + torso - spec.root[1];
+  if (wing === "mid" || wing === "swept") blit(cell, far, wx + 2, wy - 2);
+  blit(cell, near, wx, wy);
+  blit(cell, body, ox, oy);
+  // The lance: gold guard at the hand, then a long blade, white over ice, tapering to a point.
+  const hand = Math.round(centre.y) + 3;
+  const frontX = ox + (span(worker, hand)?.[1] ?? Math.round(centre.x) + 4);
+  const hy = oy + hand;
+  const length = 12;
+  if (lance === "up") {
+    for (let i = 0; i < length; i++) {
+      const x = frontX + 1 + Math.floor(i * 0.75);
+      const y = hy - i;
+      put(cell, x, y, i < 2 ? GOLD[2] : WHITE);
+      if (i < length - 2) put(cell, x + 1, y, i < 2 ? GOLD[3] : ICE);
+    }
+  } else {
+    for (let y = hy - 2; y <= hy + 1; y++) put(cell, frontX + 1, y, GOLD[2]);
+    put(cell, frontX + 1, hy - 2, GOLD[3]);
+    for (let i = 0; i < length; i++) {
+      const x = frontX + 2 + i;
+      if (i < length - 1) put(cell, x, hy - 1, WHITE);
+      if (i < length - 3) put(cell, x, hy, ICE);
+      if (i >= length - 3 && i < length - 1) put(cell, x, hy, WHITE);
+      if (i === length - 1) put(cell, x, hy - 1, WHITE);
+    }
+  }
+  return cell;
 };
 
 /** Where a carried berry's top-left corner goes: centred over the head, overlapping the antennae. */
@@ -695,52 +929,166 @@ const carrySpot = (cell: Img): [number, number] => {
   return [Math.round(sx / Math.max(1, n)) - 2, Math.max(1, b.y - 2)];
 };
 
+/** A unit as a flat white shape with a pale rim: the flash frame of invulnerability and of a hit. */
+const flash = (cell: Img): Img =>
+  outlined(
+    recolour(cell, () => WHITE),
+    ICE,
+  );
+
+/** Writes one form of a unit for both teams, and its flash sheet. */
+const emitUnit = (
+  form: string,
+  cells: Img[],
+  names: readonly string[],
+  animations: unknown,
+  extra: Record<string, unknown> = {},
+  /** Rows of the cell under the feet (room for a wing on its down-stroke). */
+  below = 0,
+) => {
+  const first = cells[0] ?? img(1, 1);
+  const anchor: [number, number] = [
+    Math.floor(first.w / 2),
+    first.h - 1 - below,
+  ];
+  const columns = Math.min(names.length, extra.carry ? names.length / 2 : 10);
+  for (const team of PLAYING)
+    emit(
+      `${form}-${team}`,
+      `units/${form}-${team}.png`,
+      cells.map((cell) => outlined(toRamp(cell, TEAMS[team]))),
+      names,
+      anchor,
+      { animations, flash: `${form}-flash`, ...extra },
+      columns,
+    );
+  emit(
+    `${form}-flash`,
+    `units/${form}-flash.png`,
+    cells.map(flash),
+    names,
+    anchor,
+    {
+      note: "The same frames as a flat white shape, for both teams: see `invulnerable` at the top of the manifest.",
+    },
+    columns,
+  );
+};
+
 const buildUnits = () => {
-  for (const [id, spec] of Object.entries(UNITS)) {
-    const base = alignedFrames(spec, isBody);
-    const forms: [string, Img[]][] = [[id, base]];
-    if (id !== "queen")
-      forms.push([
-        `speed-${id}`,
-        base.map((cell, i) => speedForm(cell, spec.frames[i] ?? "", i)),
-      ]);
-    for (const [form, cells] of forms) {
-      const spots = cells.map(carrySpot);
-      const carrying =
-        id === "worker"
-          ? cells.map((cell, i) => {
-              const out = img(cell.w, cell.h);
-              blit(out, cell, 0, 0);
-              const [x, y] = spots[i] ?? [0, 0];
-              blit(out, berryCarried(), x, y);
-              return out;
-            })
-          : [];
-      for (const team of PLAYING) {
-        const finish = (cell: Img) => outlined(toRamp(cell, TEAMS[team]));
-        emit(
-          `${form}-${team}`,
-          `units/${form}-${team}.png`,
-          [...cells, ...carrying].map(finish),
-          [
-            ...spec.frames,
-            ...(carrying.length ? spec.frames.map((n) => `${n}Carry`) : []),
-          ],
-          [Math.floor(spec.cell[0] / 2), spec.cell[1] - 1],
-          {
-            animations: spec.animations,
-            ...(carrying.length
-              ? {
-                  // Top-left corner of the 5 by 5 carried berry in each frame, for drawing it separately.
-                  carry: spots,
-                  note: "Frames named <frame>Carry are the same poses holding a berry.",
-                }
-              : {}),
-          },
-          spec.frames.length,
-        );
-      }
-    }
+  const spec = UNITS.worker;
+  if (!spec) throw new Error("no worker");
+  const worker = alignedFrames(spec, isBody);
+  const pose = (name: string) => {
+    const cell = worker[spec.frames.indexOf(name)];
+    if (!cell) throw new Error(`no worker pose ${name}`);
+    return cell;
+  };
+  // Workers: plain and speed, each with a second set of frames carrying a berry.
+  const workers: [string, Img[]][] = [
+    ["worker", worker],
+    [
+      "speed-worker",
+      worker.map((cell, i) =>
+        speedDashes(
+          speedBase(cell, spec.frames[i] ?? "", i),
+          spec.frames[i] ?? "",
+          i,
+        ),
+      ),
+    ],
+  ];
+  for (const [form, cells] of workers) {
+    const spots = cells.map(carrySpot);
+    const carrying = cells.map((cell, i) => {
+      const out = img(cell.w, cell.h);
+      blit(out, cell, 0, 0);
+      const [x, y] = spots[i] ?? [0, 0];
+      blit(out, berryCarried(), x, y);
+      return out;
+    });
+    emitUnit(
+      form,
+      [...cells, ...carrying],
+      [...spec.frames, ...spec.frames.map((n) => `${n}Carry`)],
+      spec.animations,
+      {
+        // Top-left corner of the 5 by 5 carried berry in each frame, for drawing it separately.
+        carry: spots,
+        note: "Frames named <frame>Carry are the same poses holding a berry.",
+      },
+    );
+  }
+  // Warriors: built from the worker's poses.
+  for (const speed of [false, true]) {
+    const names = WARRIOR.frames.map(([name]) => name);
+    const cells = WARRIOR.frames.map(([name, from, wing, lance], i) => {
+      const base = speed ? speedBase(pose(from), name, i) : pose(from);
+      const cell = warriorOf(base, wing, lance, speed);
+      return speed ? speedDashes(cell, name, i) : cell;
+    });
+    emitUnit(
+      speed ? "speed-warrior" : "warrior",
+      cells,
+      names,
+      WARRIOR.animations,
+      {
+        note: "The body is the worker's, feet on the anchor; the lance reaches about 14 pixels ahead of it and the wings behind and below, so the anchor is not on the cell's bottom row.",
+      },
+      WARRIOR.below,
+    );
+  }
+  const queen = UNITS.queen;
+  if (!queen) throw new Error("no queen");
+  emitUnit(
+    "queen",
+    alignedFrames(queen, isBody),
+    queen.frames,
+    queen.animations,
+    {
+      note: "Twice a worker's height (body about 24 by 30). Flying frames float with the feet a few pixels above the anchor; `dive` points straight down with the stinger's tip near the anchor.",
+    },
+  );
+  // A worker inside a gate: its shape turning to light and swelling, drawn over the gate's lit doorway.
+  const idle = pose("idle");
+  const grown = outline(idle, WHITE);
+  for (const team of PLAYING) {
+    const ramp = TEAMS[team];
+    const shape = (m: Img, fill: Rgb, rim: Rgb) =>
+      outlined(
+        recolour(m, () => fill),
+        rim,
+      );
+    const big = img(idle.w, idle.h);
+    blit(big, crop(grown, 1, 1, idle.w, idle.h), 0, 0);
+    // Wing buds on the last frame: the warrior it is about to be.
+    const budded = img(idle.w, idle.h);
+    const fold = WINGS.folded;
+    const centre = centreOf(idle, isBody);
+    if (fold)
+      blit(
+        budded,
+        fromRows(fold.rows, WING_KEY),
+        (span(idle, Math.round(centre.y) + 1)?.[0] ?? 6) + 1 - fold.root[0],
+        Math.round(centre.y) - 1,
+      );
+    blit(budded, big, 0, 0);
+    emit(
+      `transform-${team}`,
+      `effects/transform-${team}.png`,
+      [
+        shape(idle, ramp[3], ramp[2]),
+        shape(idle, WHITE, ramp[3]),
+        shape(big, WHITE, ramp[3]),
+        shape(budded, WHITE, ramp[3]),
+      ],
+      ["0", "1", "2", "3"],
+      [Math.floor(idle.w / 2), idle.h - 1],
+      {
+        fps: 8,
+        note: "A worker transforming inside a gate: draw instead of the worker, anchored like it, over the gate's <owner>Active frame; loop 1-3 while it waits, then swap to the new unit.",
+      },
+    );
   }
 };
 
@@ -922,11 +1270,14 @@ const buildProcedural = () => {
     emit(
       `egg-${team}`,
       `hud/egg-${team}.png`,
-      [egg(ramp, false), egg(ramp, true)].map((e) =>
+      [egg(ramp, "full"), egg(ramp, "broken"), egg(ramp, "cracked")].map((e) =>
         outlined(centred(e, 12, 14)),
       ),
-      ["full", "broken"],
+      ["full", "broken", "cracked"],
       [6, 7],
+      {
+        note: "A Queen's lives. Show `cracked` for a few frames when a life is lost, then `broken`.",
+      },
     );
     emit(
       `goal-${team}`,
@@ -939,9 +1290,32 @@ const buildProcedural = () => {
       `kill-burst-${team}`,
       `effects/kill-burst-${team}.png`,
       killBurst(ramp),
-      ["0", "1", "2", "3", "4", "5"],
-      [16, 16],
-      { fps: 20 },
+      ["0", "1", "2", "3", "4", "5", "6", "7"],
+      [24, 24],
+      { fps: 20, note: "In the victim's colour, centred on its body." },
+    );
+    emit(
+      `queen-death-${team}`,
+      `effects/queen-death-${team}.png`,
+      queenDeath(ramp),
+      ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"],
+      [32, 32],
+      {
+        fps: 16,
+        note: "A Queen's death, centred on her body; pair it with the HUD egg's `cracked` frame.",
+      },
+      5,
+    );
+    emit(
+      `respawn-${team}`,
+      `effects/respawn-${team}.png`,
+      respawn(ramp),
+      ["0", "1", "2", "3", "4", "5", "6"],
+      [12, 35],
+      {
+        fps: 14,
+        note: "Drawn over a unit as it respawns, anchored at its feet.",
+      },
     );
     emit(
       `death-puff-${team}`,
@@ -997,7 +1371,7 @@ const buildProcedural = () => {
     names,
     [0, 0],
     {
-      note: "8 by 8 tiles. The ledge tiles are the thin one-way platform: only their top 4 rows are drawn.",
+      note: "8 by 8 tiles. slab* is a one-tile-high platform, top*/middle*/bottom* build thicker ones, track* is the floor's top row (the snail's lane), ledge* is the thin one-way platform (only its top 5 rows are drawn). *Lamp tiles are variants to drop into long runs.",
     },
     6,
   );
@@ -1023,7 +1397,28 @@ const buildScenes = () => {
       parallax: [0, 0.3, 0.6][layer],
     };
   });
-  const mark = trim(read(`${ART}raw/logo.png`));
+  // The cut maps the logo onto the scenery palette, which has no team colours: its two drop shadows come out
+  // frost and dark gold. Put them back as drawn, cyan under KILLER and pink under FUSE, and drop stray violet.
+  const cutMark = trim(read(`${ART}raw/logo.png`));
+  const mark = img(cutMark.w, cutMark.h);
+  for (let y = 0; y < cutMark.h; y++)
+    for (let x = 0; x < cutMark.w; x++) {
+      if (!alpha(cutMark, x, y)) continue;
+      const c = rgbAt(cutMark, x, y);
+      const upper = y < cutMark.h / 2;
+      put(
+        mark,
+        x,
+        y,
+        isShell(c)
+          ? NAVY.night
+          : upper && same(c, FROST)
+            ? TEAMS.cyan[2]
+            : !upper && same(c, GOLD[1]) && x < cutMark.w * 0.84
+              ? TEAMS.pink[2]
+              : c,
+      );
+    }
   emit(
     "logo",
     "logo.png",
@@ -1107,8 +1502,8 @@ const run = (
     const end = i === 0 ? "Left" : i === tiles - 1 ? "Right" : "";
     const name = end
       ? `${kind}${end}`
-      : kind === "top" && i % 5 === 2
-        ? "topLamp"
+      : kind !== "ledge" && i % 5 === 2
+        ? `${kind}Lamp`
         : kind;
     blit(scene, frame("tiles", name), x + i * 8, y);
   }
@@ -1213,19 +1608,28 @@ const mockScene = () => {
   place(scene, "worker-pink", "jump", 300, 226, true);
   place(scene, "speed-worker-pink", "run1", 400, 245, true);
   place(scene, "worker-pink", "idle", 356, 71, true);
-  place(scene, "warrior-cyan", "flapUp", 170, 120);
+  place(scene, "warrior-cyan", "flapUp", 170, 124);
   place(scene, "speed-warrior-cyan", "glide", 96, 108);
-  place(scene, "warrior-pink", "flapDown", 310, 104, true);
+  place(scene, "warrior-pink", "flapDown", 318, 100, true);
   place(scene, "speed-warrior-pink", "walk1", 392, 127, true);
-  place(scene, "queen-cyan", "flapDown", 212, 62);
-  place(scene, "queen-pink", "dive", 280, 52, true);
-  place(scene, "kill-burst-pink", "2", 316, 150);
-  place(scene, "flap-puff", "1", 170, 122);
+  place(scene, "warrior-pink", "idle", 250, 189, true);
+  place(scene, "queen-cyan", "flapMid", 206, 62);
+  place(scene, "queen-pink", "dive", 286, 66, true);
+  place(scene, "kill-burst-pink", "2", 330, 142);
+  place(scene, "transform-pink", "2", 432, 127);
+  place(scene, "respawn-cyan", "2", 150, 71);
+  place(scene, "flap-puff", "1", 170, 126);
   place(scene, "berry", "loose1", 268, 140);
   // HUD: three eggs per team, one broken on each side.
   for (let i = 0; i < 3; i++) {
     place(scene, "egg-cyan", i < 2 ? "full" : "broken", 14 + i * 13, 12);
-    place(scene, "egg-pink", i < 2 ? "full" : "broken", 466 - i * 13, 12);
+    place(
+      scene,
+      "egg-pink",
+      ["full", "cracked", "broken"][i] ?? "",
+      466 - i * 13,
+      12,
+    );
   }
   write(`${ART}preview/mock-scene.png`, scaleUp(scene, 4));
   // The same moment with a victory banner and the title, to judge those against the scene.
@@ -1264,6 +1668,8 @@ const main = async () => {
     // Written as Prettier would write it, so `pnpm format:check` passes on a fresh build.
     const manifest = JSON.stringify({
       note: "Written by scripts/killer-fuse-art.ts. Sizes are art pixels; draw at an integer scale with smoothing off. Units face right; mirror them to face left.",
+      invulnerable:
+        "Every unit sheet names a `flash` sheet: the same frames, same layout and anchor, as a flat white shape with a pale rim. While a unit is invulnerable (after respawning), draw the flash frame instead of the team frame on alternate 4-tick beats (about 8 flashes a second); draw it for 2 ticks when a unit is hit. For a steadier shield, draw the flash frame under the team frame at +-1 pixel offsets as a white outline.",
       canvas: [480, 270],
       teams: Object.fromEntries(
         PLAYING.map((team) => [team, TEAMS[team].map(toHex)]),
@@ -1286,5 +1692,4 @@ const main = async () => {
   }
 };
 
-void [clear, flipX, ICE];
 await main();

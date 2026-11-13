@@ -1,5 +1,6 @@
 {
   "note": "Written by scripts/killer-fuse-art.ts. Sizes are art pixels; draw at an integer scale with smoothing off. Units face right; mirror them to face left.",
+  "invulnerable": "Every unit sheet names a `flash` sheet: the same frames, same layout and anchor, as a flat white shape with a pale rim. While a unit is invulnerable (after respawning), draw the flash frame instead of the team frame on alternate 4-tick beats (about 8 flashes a second); draw it for 2 ticks when a unit is hit. For a steadier shield, draw the flash frame under the team frame at +-1 pixel offsets as a white outline.",
   "canvas": [480, 270],
   "teams": {
     "cyan": ["#0a4a70", "#0c96bd", "#16e7ff", "#b4f8ff"],
@@ -46,6 +47,7 @@
         "jump": { "frames": ["jump"], "fps": 1, "loop": false },
         "fall": { "frames": ["fall"], "fps": 1, "loop": false }
       },
+      "flash": "worker-flash",
       "carry": [
         [10, 7],
         [11, 8],
@@ -98,6 +100,7 @@
         "jump": { "frames": ["jump"], "fps": 1, "loop": false },
         "fall": { "frames": ["fall"], "fps": 1, "loop": false }
       },
+      "flash": "worker-flash",
       "carry": [
         [10, 7],
         [11, 8],
@@ -109,6 +112,34 @@
         [10, 7]
       ],
       "note": "Frames named <frame>Carry are the same poses holding a berry."
+    },
+    "worker-flash": {
+      "file": "units/worker-flash.png",
+      "width": 192,
+      "height": 56,
+      "frameWidth": 24,
+      "frameHeight": 28,
+      "frameCount": 16,
+      "frames": {
+        "idle": 0,
+        "run1": 1,
+        "run2": 2,
+        "run3": 3,
+        "run4": 4,
+        "jump": 5,
+        "fall": 6,
+        "blink": 7,
+        "idleCarry": 8,
+        "run1Carry": 9,
+        "run2Carry": 10,
+        "run3Carry": 11,
+        "run4Carry": 12,
+        "jumpCarry": 13,
+        "fallCarry": 14,
+        "blinkCarry": 15
+      },
+      "anchor": [12, 27],
+      "note": "The same frames as a flat white shape, for both teams: see `invulnerable` at the top of the manifest."
     },
     "speed-worker-cyan": {
       "file": "units/speed-worker-cyan.png",
@@ -150,15 +181,16 @@
         "jump": { "frames": ["jump"], "fps": 1, "loop": false },
         "fall": { "frames": ["fall"], "fps": 1, "loop": false }
       },
+      "flash": "speed-worker-flash",
       "carry": [
-        [10, 7],
-        [10, 8],
-        [9, 8],
-        [10, 8],
-        [10, 9],
-        [10, 7],
-        [10, 9],
-        [10, 7]
+        [10, 4],
+        [11, 5],
+        [11, 5],
+        [11, 4],
+        [11, 5],
+        [10, 4],
+        [9, 6],
+        [9, 4]
       ],
       "note": "Frames named <frame>Carry are the same poses holding a berry."
     },
@@ -202,155 +234,354 @@
         "jump": { "frames": ["jump"], "fps": 1, "loop": false },
         "fall": { "frames": ["fall"], "fps": 1, "loop": false }
       },
+      "flash": "speed-worker-flash",
       "carry": [
-        [10, 7],
-        [10, 8],
-        [9, 8],
-        [10, 8],
-        [10, 9],
-        [10, 7],
-        [10, 9],
-        [10, 7]
+        [10, 4],
+        [11, 5],
+        [11, 5],
+        [11, 4],
+        [11, 5],
+        [10, 4],
+        [9, 6],
+        [9, 4]
       ],
       "note": "Frames named <frame>Carry are the same poses holding a berry."
     },
+    "speed-worker-flash": {
+      "file": "units/speed-worker-flash.png",
+      "width": 192,
+      "height": 56,
+      "frameWidth": 24,
+      "frameHeight": 28,
+      "frameCount": 16,
+      "frames": {
+        "idle": 0,
+        "run1": 1,
+        "run2": 2,
+        "run3": 3,
+        "run4": 4,
+        "jump": 5,
+        "fall": 6,
+        "blink": 7,
+        "idleCarry": 8,
+        "run1Carry": 9,
+        "run2Carry": 10,
+        "run3Carry": 11,
+        "run4Carry": 12,
+        "jumpCarry": 13,
+        "fallCarry": 14,
+        "blinkCarry": 15
+      },
+      "anchor": [12, 27],
+      "note": "The same frames as a flat white shape, for both teams: see `invulnerable` at the top of the manifest."
+    },
     "warrior-cyan": {
       "file": "units/warrior-cyan.png",
-      "width": 192,
-      "height": 32,
-      "frameWidth": 32,
-      "frameHeight": 32,
-      "frameCount": 6,
+      "width": 396,
+      "height": 42,
+      "frameWidth": 44,
+      "frameHeight": 42,
+      "frameCount": 9,
       "frames": {
         "idle": 0,
         "flapUp": 1,
-        "flapDown": 2,
-        "glide": 3,
-        "walk1": 4,
-        "walk2": 5
+        "flapMid": 2,
+        "flapDown": 3,
+        "glide": 4,
+        "walk1": 5,
+        "walk2": 6,
+        "walk3": 7,
+        "walk4": 8
       },
-      "anchor": [16, 31],
+      "anchor": [22, 33],
       "animations": {
         "idle": { "frames": ["idle"], "fps": 1, "loop": false },
-        "flap": { "frames": ["flapUp", "flapDown"], "fps": 12, "loop": false },
+        "fly": {
+          "frames": ["flapUp", "flapMid", "flapDown", "flapMid"],
+          "fps": 16,
+          "loop": true
+        },
         "glide": { "frames": ["glide"], "fps": 1, "loop": false },
-        "walk": { "frames": ["walk1", "walk2"], "fps": 8, "loop": true }
-      }
+        "walk": {
+          "frames": ["walk1", "walk2", "walk3", "walk4"],
+          "fps": 12,
+          "loop": true
+        }
+      },
+      "flash": "warrior-flash",
+      "note": "The body is the worker's, feet on the anchor; the lance reaches about 14 pixels ahead of it and the wings behind and below, so the anchor is not on the cell's bottom row."
     },
     "warrior-pink": {
       "file": "units/warrior-pink.png",
-      "width": 192,
-      "height": 32,
-      "frameWidth": 32,
-      "frameHeight": 32,
-      "frameCount": 6,
+      "width": 396,
+      "height": 42,
+      "frameWidth": 44,
+      "frameHeight": 42,
+      "frameCount": 9,
       "frames": {
         "idle": 0,
         "flapUp": 1,
-        "flapDown": 2,
-        "glide": 3,
-        "walk1": 4,
-        "walk2": 5
+        "flapMid": 2,
+        "flapDown": 3,
+        "glide": 4,
+        "walk1": 5,
+        "walk2": 6,
+        "walk3": 7,
+        "walk4": 8
       },
-      "anchor": [16, 31],
+      "anchor": [22, 33],
       "animations": {
         "idle": { "frames": ["idle"], "fps": 1, "loop": false },
-        "flap": { "frames": ["flapUp", "flapDown"], "fps": 12, "loop": false },
+        "fly": {
+          "frames": ["flapUp", "flapMid", "flapDown", "flapMid"],
+          "fps": 16,
+          "loop": true
+        },
         "glide": { "frames": ["glide"], "fps": 1, "loop": false },
-        "walk": { "frames": ["walk1", "walk2"], "fps": 8, "loop": true }
-      }
+        "walk": {
+          "frames": ["walk1", "walk2", "walk3", "walk4"],
+          "fps": 12,
+          "loop": true
+        }
+      },
+      "flash": "warrior-flash",
+      "note": "The body is the worker's, feet on the anchor; the lance reaches about 14 pixels ahead of it and the wings behind and below, so the anchor is not on the cell's bottom row."
+    },
+    "warrior-flash": {
+      "file": "units/warrior-flash.png",
+      "width": 396,
+      "height": 42,
+      "frameWidth": 44,
+      "frameHeight": 42,
+      "frameCount": 9,
+      "frames": {
+        "idle": 0,
+        "flapUp": 1,
+        "flapMid": 2,
+        "flapDown": 3,
+        "glide": 4,
+        "walk1": 5,
+        "walk2": 6,
+        "walk3": 7,
+        "walk4": 8
+      },
+      "anchor": [22, 33],
+      "note": "The same frames as a flat white shape, for both teams: see `invulnerable` at the top of the manifest."
     },
     "speed-warrior-cyan": {
       "file": "units/speed-warrior-cyan.png",
-      "width": 192,
-      "height": 32,
-      "frameWidth": 32,
-      "frameHeight": 32,
-      "frameCount": 6,
+      "width": 396,
+      "height": 42,
+      "frameWidth": 44,
+      "frameHeight": 42,
+      "frameCount": 9,
       "frames": {
         "idle": 0,
         "flapUp": 1,
-        "flapDown": 2,
-        "glide": 3,
-        "walk1": 4,
-        "walk2": 5
+        "flapMid": 2,
+        "flapDown": 3,
+        "glide": 4,
+        "walk1": 5,
+        "walk2": 6,
+        "walk3": 7,
+        "walk4": 8
       },
-      "anchor": [16, 31],
+      "anchor": [22, 33],
       "animations": {
         "idle": { "frames": ["idle"], "fps": 1, "loop": false },
-        "flap": { "frames": ["flapUp", "flapDown"], "fps": 12, "loop": false },
+        "fly": {
+          "frames": ["flapUp", "flapMid", "flapDown", "flapMid"],
+          "fps": 16,
+          "loop": true
+        },
         "glide": { "frames": ["glide"], "fps": 1, "loop": false },
-        "walk": { "frames": ["walk1", "walk2"], "fps": 8, "loop": true }
-      }
+        "walk": {
+          "frames": ["walk1", "walk2", "walk3", "walk4"],
+          "fps": 12,
+          "loop": true
+        }
+      },
+      "flash": "speed-warrior-flash",
+      "note": "The body is the worker's, feet on the anchor; the lance reaches about 14 pixels ahead of it and the wings behind and below, so the anchor is not on the cell's bottom row."
     },
     "speed-warrior-pink": {
       "file": "units/speed-warrior-pink.png",
-      "width": 192,
-      "height": 32,
-      "frameWidth": 32,
-      "frameHeight": 32,
-      "frameCount": 6,
+      "width": 396,
+      "height": 42,
+      "frameWidth": 44,
+      "frameHeight": 42,
+      "frameCount": 9,
       "frames": {
         "idle": 0,
         "flapUp": 1,
-        "flapDown": 2,
-        "glide": 3,
-        "walk1": 4,
-        "walk2": 5
+        "flapMid": 2,
+        "flapDown": 3,
+        "glide": 4,
+        "walk1": 5,
+        "walk2": 6,
+        "walk3": 7,
+        "walk4": 8
       },
-      "anchor": [16, 31],
+      "anchor": [22, 33],
       "animations": {
         "idle": { "frames": ["idle"], "fps": 1, "loop": false },
-        "flap": { "frames": ["flapUp", "flapDown"], "fps": 12, "loop": false },
+        "fly": {
+          "frames": ["flapUp", "flapMid", "flapDown", "flapMid"],
+          "fps": 16,
+          "loop": true
+        },
         "glide": { "frames": ["glide"], "fps": 1, "loop": false },
-        "walk": { "frames": ["walk1", "walk2"], "fps": 8, "loop": true }
-      }
+        "walk": {
+          "frames": ["walk1", "walk2", "walk3", "walk4"],
+          "fps": 12,
+          "loop": true
+        }
+      },
+      "flash": "speed-warrior-flash",
+      "note": "The body is the worker's, feet on the anchor; the lance reaches about 14 pixels ahead of it and the wings behind and below, so the anchor is not on the cell's bottom row."
+    },
+    "speed-warrior-flash": {
+      "file": "units/speed-warrior-flash.png",
+      "width": 396,
+      "height": 42,
+      "frameWidth": 44,
+      "frameHeight": 42,
+      "frameCount": 9,
+      "frames": {
+        "idle": 0,
+        "flapUp": 1,
+        "flapMid": 2,
+        "flapDown": 3,
+        "glide": 4,
+        "walk1": 5,
+        "walk2": 6,
+        "walk3": 7,
+        "walk4": 8
+      },
+      "anchor": [22, 33],
+      "note": "The same frames as a flat white shape, for both teams: see `invulnerable` at the top of the manifest."
     },
     "queen-cyan": {
       "file": "units/queen-cyan.png",
-      "width": 288,
-      "height": 48,
-      "frameWidth": 48,
-      "frameHeight": 48,
-      "frameCount": 6,
+      "width": 640,
+      "height": 68,
+      "frameWidth": 64,
+      "frameHeight": 68,
+      "frameCount": 10,
       "frames": {
         "idle": 0,
         "flapUp": 1,
-        "flapDown": 2,
-        "dive": 3,
-        "walk1": 4,
-        "walk2": 5
+        "flapMid": 2,
+        "flapDown": 3,
+        "glide": 4,
+        "dive": 5,
+        "walk1": 6,
+        "walk2": 7,
+        "walk3": 8,
+        "walk4": 9
       },
-      "anchor": [24, 47],
+      "anchor": [32, 67],
       "animations": {
         "idle": { "frames": ["idle"], "fps": 1, "loop": false },
-        "flap": { "frames": ["flapUp", "flapDown"], "fps": 12, "loop": false },
+        "fly": {
+          "frames": ["flapUp", "flapMid", "flapDown", "flapMid"],
+          "fps": 16,
+          "loop": true
+        },
+        "glide": { "frames": ["glide"], "fps": 1, "loop": false },
         "dive": { "frames": ["dive"], "fps": 1, "loop": false },
-        "walk": { "frames": ["walk1", "walk2"], "fps": 8, "loop": true }
-      }
+        "walk": {
+          "frames": ["walk1", "walk2", "walk3", "walk4"],
+          "fps": 10,
+          "loop": true
+        }
+      },
+      "flash": "queen-flash",
+      "note": "Twice a worker's height (body about 24 by 30). Flying frames float with the feet a few pixels above the anchor; `dive` points straight down with the stinger's tip near the anchor."
     },
     "queen-pink": {
       "file": "units/queen-pink.png",
-      "width": 288,
-      "height": 48,
-      "frameWidth": 48,
-      "frameHeight": 48,
-      "frameCount": 6,
+      "width": 640,
+      "height": 68,
+      "frameWidth": 64,
+      "frameHeight": 68,
+      "frameCount": 10,
       "frames": {
         "idle": 0,
         "flapUp": 1,
-        "flapDown": 2,
-        "dive": 3,
-        "walk1": 4,
-        "walk2": 5
+        "flapMid": 2,
+        "flapDown": 3,
+        "glide": 4,
+        "dive": 5,
+        "walk1": 6,
+        "walk2": 7,
+        "walk3": 8,
+        "walk4": 9
       },
-      "anchor": [24, 47],
+      "anchor": [32, 67],
       "animations": {
         "idle": { "frames": ["idle"], "fps": 1, "loop": false },
-        "flap": { "frames": ["flapUp", "flapDown"], "fps": 12, "loop": false },
+        "fly": {
+          "frames": ["flapUp", "flapMid", "flapDown", "flapMid"],
+          "fps": 16,
+          "loop": true
+        },
+        "glide": { "frames": ["glide"], "fps": 1, "loop": false },
         "dive": { "frames": ["dive"], "fps": 1, "loop": false },
-        "walk": { "frames": ["walk1", "walk2"], "fps": 8, "loop": true }
-      }
+        "walk": {
+          "frames": ["walk1", "walk2", "walk3", "walk4"],
+          "fps": 10,
+          "loop": true
+        }
+      },
+      "flash": "queen-flash",
+      "note": "Twice a worker's height (body about 24 by 30). Flying frames float with the feet a few pixels above the anchor; `dive` points straight down with the stinger's tip near the anchor."
+    },
+    "queen-flash": {
+      "file": "units/queen-flash.png",
+      "width": 640,
+      "height": 68,
+      "frameWidth": 64,
+      "frameHeight": 68,
+      "frameCount": 10,
+      "frames": {
+        "idle": 0,
+        "flapUp": 1,
+        "flapMid": 2,
+        "flapDown": 3,
+        "glide": 4,
+        "dive": 5,
+        "walk1": 6,
+        "walk2": 7,
+        "walk3": 8,
+        "walk4": 9
+      },
+      "anchor": [32, 67],
+      "note": "The same frames as a flat white shape, for both teams: see `invulnerable` at the top of the manifest."
+    },
+    "transform-cyan": {
+      "file": "effects/transform-cyan.png",
+      "width": 96,
+      "height": 28,
+      "frameWidth": 24,
+      "frameHeight": 28,
+      "frameCount": 4,
+      "frames": { "0": 0, "1": 1, "2": 2, "3": 3 },
+      "anchor": [12, 27],
+      "fps": 8,
+      "note": "A worker transforming inside a gate: draw instead of the worker, anchored like it, over the gate's <owner>Active frame; loop 1-3 while it waits, then swap to the new unit."
+    },
+    "transform-pink": {
+      "file": "effects/transform-pink.png",
+      "width": 96,
+      "height": 28,
+      "frameWidth": 24,
+      "frameHeight": 28,
+      "frameCount": 4,
+      "frames": { "0": 0, "1": 1, "2": 2, "3": 3 },
+      "anchor": [12, 27],
+      "fps": 8,
+      "note": "A worker transforming inside a gate: draw instead of the worker, anchored like it, over the gate's <owner>Active frame; loop 1-3 while it waits, then swap to the new unit."
     },
     "snail": {
       "file": "snail.png",
@@ -480,13 +711,14 @@
     },
     "egg-cyan": {
       "file": "hud/egg-cyan.png",
-      "width": 24,
+      "width": 36,
       "height": 14,
       "frameWidth": 12,
       "frameHeight": 14,
-      "frameCount": 2,
-      "frames": { "full": 0, "broken": 1 },
-      "anchor": [6, 7]
+      "frameCount": 3,
+      "frames": { "full": 0, "broken": 1, "cracked": 2 },
+      "anchor": [6, 7],
+      "note": "A Queen's lives. Show `cracked` for a few frames when a life is lost, then `broken`."
     },
     "goal-cyan": {
       "file": "tiles/goal-cyan.png",
@@ -500,14 +732,59 @@
     },
     "kill-burst-cyan": {
       "file": "effects/kill-burst-cyan.png",
-      "width": 192,
-      "height": 32,
-      "frameWidth": 32,
-      "frameHeight": 32,
-      "frameCount": 6,
-      "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 },
-      "anchor": [16, 16],
-      "fps": 20
+      "width": 384,
+      "height": 48,
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "frameCount": 8,
+      "frames": {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "7": 7
+      },
+      "anchor": [24, 24],
+      "fps": 20,
+      "note": "In the victim's colour, centred on its body."
+    },
+    "queen-death-cyan": {
+      "file": "effects/queen-death-cyan.png",
+      "width": 320,
+      "height": 128,
+      "frameWidth": 64,
+      "frameHeight": 64,
+      "frameCount": 10,
+      "frames": {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "7": 7,
+        "8": 8,
+        "9": 9
+      },
+      "anchor": [32, 32],
+      "fps": 16,
+      "note": "A Queen's death, centred on her body; pair it with the HUD egg's `cracked` frame."
+    },
+    "respawn-cyan": {
+      "file": "effects/respawn-cyan.png",
+      "width": 168,
+      "height": 36,
+      "frameWidth": 24,
+      "frameHeight": 36,
+      "frameCount": 7,
+      "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6 },
+      "anchor": [12, 35],
+      "fps": 14,
+      "note": "Drawn over a unit as it respawns, anchored at its feet."
     },
     "death-puff-cyan": {
       "file": "effects/death-puff-cyan.png",
@@ -580,13 +857,14 @@
     },
     "egg-pink": {
       "file": "hud/egg-pink.png",
-      "width": 24,
+      "width": 36,
       "height": 14,
       "frameWidth": 12,
       "frameHeight": 14,
-      "frameCount": 2,
-      "frames": { "full": 0, "broken": 1 },
-      "anchor": [6, 7]
+      "frameCount": 3,
+      "frames": { "full": 0, "broken": 1, "cracked": 2 },
+      "anchor": [6, 7],
+      "note": "A Queen's lives. Show `cracked` for a few frames when a life is lost, then `broken`."
     },
     "goal-pink": {
       "file": "tiles/goal-pink.png",
@@ -600,14 +878,59 @@
     },
     "kill-burst-pink": {
       "file": "effects/kill-burst-pink.png",
-      "width": 192,
-      "height": 32,
-      "frameWidth": 32,
-      "frameHeight": 32,
-      "frameCount": 6,
-      "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 },
-      "anchor": [16, 16],
-      "fps": 20
+      "width": 384,
+      "height": 48,
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "frameCount": 8,
+      "frames": {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "7": 7
+      },
+      "anchor": [24, 24],
+      "fps": 20,
+      "note": "In the victim's colour, centred on its body."
+    },
+    "queen-death-pink": {
+      "file": "effects/queen-death-pink.png",
+      "width": 320,
+      "height": 128,
+      "frameWidth": 64,
+      "frameHeight": 64,
+      "frameCount": 10,
+      "frames": {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "7": 7,
+        "8": 8,
+        "9": 9
+      },
+      "anchor": [32, 32],
+      "fps": 16,
+      "note": "A Queen's death, centred on her body; pair it with the HUD egg's `cracked` frame."
+    },
+    "respawn-pink": {
+      "file": "effects/respawn-pink.png",
+      "width": 168,
+      "height": 36,
+      "frameWidth": 24,
+      "frameHeight": 36,
+      "frameCount": 7,
+      "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6 },
+      "anchor": [12, 35],
+      "fps": 14,
+      "note": "Drawn over a unit as it respawns, anchored at its feet."
     },
     "death-puff-pink": {
       "file": "effects/death-puff-pink.png",
@@ -690,7 +1013,7 @@
       "height": 32,
       "frameWidth": 8,
       "frameHeight": 8,
-      "frameCount": 21,
+      "frameCount": 23,
       "frames": {
         "topLeft": 0,
         "top": 1,
@@ -710,12 +1033,14 @@
         "middleNode": 15,
         "middleCell": 16,
         "topLamp": 17,
-        "track": 18,
-        "trackLeft": 19,
-        "trackRight": 20
+        "slabLamp": 18,
+        "track": 19,
+        "trackLeft": 20,
+        "trackRight": 21,
+        "trackLamp": 22
       },
       "anchor": [0, 0],
-      "note": "8 by 8 tiles. The ledge tiles are the thin one-way platform: only their top 4 rows are drawn."
+      "note": "8 by 8 tiles. slab* is a one-tile-high platform, top*/middle*/bottom* build thicker ones, track* is the floor's top row (the snail's lane), ledge* is the thin one-way platform (only its top 5 rows are drawn). *Lamp tiles are variants to drop into long runs."
     },
     "bg-far": {
       "file": "backgrounds/far.png",

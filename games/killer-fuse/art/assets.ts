@@ -101,16 +101,6 @@ const FAMILY =
   "areas, one darker green band along the bottom and back, a few light green highlight blocks on top, no armour " +
   "plates, no segment lines, no dithering, no outline), of a different unit of the same species:";
 
-const WARRIOR =
-  "Subject: the warrior, the worker grown into a soldier, side view facing right, drawn exactly as large as the " +
-  "worker in the reference and with the same proportions: the same huge round helmeted head taking up half of " +
-  "its height, with the same large cream face patch (at least 8 pixels wide and 7 tall) holding one big white " +
-  "eye with a large black pupil under a thick slanted angry black brow; a thick curved horn on top of the " +
-  "helmet instead of antennae; two pale ice-blue insect wings on its back; a stubby body; short thick legs with " +
-  "big boots; and a short broad white sword held pointing forward, low, well below the face so it never covers " +
-  "it. Wings are pale ice blue #d8f1ff with white highlights; the sword is white with ice-blue shading. The " +
-  "face and eye must be as big and readable as the worker's.";
-
 const QUEEN =
   "Subject: the queen, a fierce wasp-bee monarch, side view facing right, drawn one and a half times as large as " +
   "the worker and more regal: the same big round helmeted head wearing a tall three-point golden crown, one big " +
@@ -141,16 +131,16 @@ export const GENERATIONS: readonly Generation[] = [
     prompt: `${SHEET} ${WORKER} ${TEAM_GREEN} ${SAME} 8 poses in 2 rows of 4. Row 1: standing idle; run cycle frame 1 (front leg stretched forward, back leg stretched back); run frame 2 (legs together under the body); run frame 3 (other leg forward, legs apart). Row 2: run frame 4 (legs together under the body); jumping up with both arms raised and legs stretched down; falling with arms up and knees tucked; standing idle with the eye closed (blink).`,
   },
   {
-    id: "warrior",
-    size: "1536x1024",
-    editOf: "worker",
-    prompt: `${FAMILY} ${SHEET} ${WARRIOR} ${TEAM_GREEN} ${SAME} 6 poses in 2 rows of 3. Row 1: standing on the ground with wings folded down behind; flying with both wings raised straight up; flying with both wings pushed down. Row 2: gliding with wings spread level behind and the sword thrust forward; walking frame 1 (legs apart), wings folded; walking frame 2 (legs together), wings folded.`,
-  },
-  {
     id: "queen",
     size: "1536x1024",
     editOf: "worker",
     prompt: `${FAMILY} ${SHEET} ${QUEEN} ${TEAM_GREEN} ${SAME} 6 poses in 2 rows of 3. Row 1: hovering with wings level behind her; flying with both wings raised straight up; flying with both wings pushed down. Row 2: diving steeply downward stinger first with wings swept back; walking on the ground frame 1 (legs apart), wings folded; walking frame 2 (legs together), wings folded.`,
+  },
+  {
+    id: "queen-flight",
+    size: "1536x1024",
+    editOf: "queen",
+    prompt: `The attached image is the game's queen sprite sheet. Draw a NEW sheet of exactly the SAME queen character: identical design, size, proportions, block size, palette and flat shading (same round helmeted head with the three-point gold crown, cream face with one big angry eye, plump striped abdomen, pale ice-blue wings, long gold lance stinger). ${SHEET} ${TEAM_GREEN} Crown and stinger are gold #ffc93c with pale yellow #ffe46b highlights; wings are pale ice blue #d8f1ff with white highlights. The sheet shows her in 10 poses in 2 rows of 5, every pose facing right, far apart from each other. Row 1: hovering, wings level behind her; flying, both wings raised high straight up; flying, wings level and spread wide; flying, both wings pushed down below the body; gliding fast, body leaning forward, wings swept back level, lance thrust straight forward. Row 2: a dramatic vertical dive attack: her whole body turned to point straight down, head at the bottom, the long lance pointing straight down below her head, both wings swept straight up behind her like a falling dart; then walking on the ground with wings folded down, a 4 frame walk cycle: front leg forward; legs together; back leg forward; legs together.`,
   },
   {
     id: "snail",
@@ -227,33 +217,71 @@ export const UNITS: Record<string, UnitSheet> = {
       fall: { frames: ["fall"], fps: 1, loop: false },
     },
   },
-  warrior: {
-    from: "warrior",
-    frames: ["idle", "flapUp", "flapDown", "glide", "walk1", "walk2"],
-    grounded: ["idle", "walk1", "walk2"],
-    reduce: 2,
-    cell: [32, 32],
-    animations: {
-      idle: { frames: ["idle"], fps: 1, loop: false },
-      flap: { frames: ["flapUp", "flapDown"], fps: 12, loop: false },
-      glide: { frames: ["glide"], fps: 1, loop: false },
-      walk: { frames: ["walk1", "walk2"], fps: 8, loop: true },
-    },
-  },
   queen: {
-    from: "queen",
-    frames: ["idle", "flapUp", "flapDown", "dive", "walk1", "walk2"],
-    grounded: ["walk1", "walk2"],
-    reduce: 2,
-    cell: [48, 48],
+    from: "queen-flight",
+    frames: [
+      "idle",
+      "flapUp",
+      "flapMid",
+      "flapDown",
+      "glide",
+      "dive",
+      "walk1",
+      "walk2",
+      "walk3",
+      "walk4",
+    ],
+    grounded: ["walk1", "walk2", "walk3", "walk4"],
+    reduce: 1,
+    cell: [64, 68],
     animations: {
       idle: { frames: ["idle"], fps: 1, loop: false },
-      flap: { frames: ["flapUp", "flapDown"], fps: 12, loop: false },
+      fly: {
+        frames: ["flapUp", "flapMid", "flapDown", "flapMid"],
+        fps: 16,
+        loop: true,
+      },
+      glide: { frames: ["glide"], fps: 1, loop: false },
       dive: { frames: ["dive"], fps: 1, loop: false },
-      walk: { frames: ["walk1", "walk2"], fps: 8, loop: true },
+      walk: {
+        frames: ["walk1", "walk2", "walk3", "walk4"],
+        fps: 10,
+        loop: true,
+      },
     },
   },
 };
+
+/**
+ * The warrior is the worker grown up, so it is built from the worker's own frames rather than generated: each
+ * frame is a worker pose, a wing position and how the lance is held (`scripts/killer-fuse-art.ts` draws those on).
+ */
+export const WARRIOR = {
+  cell: [44, 42],
+  /** Rows of the cell below the feet, for the wing's down-stroke. */
+  below: 8,
+  frames: [
+    ["idle", "idle", "folded", "up"],
+    ["flapUp", "fall", "up", "level"],
+    ["flapMid", "fall", "mid", "level"],
+    ["flapDown", "fall", "down", "level"],
+    ["glide", "jump", "swept", "level"],
+    ["walk1", "run1", "folded", "level"],
+    ["walk2", "run2", "folded", "level"],
+    ["walk3", "run3", "folded", "level"],
+    ["walk4", "run4", "folded", "level"],
+  ],
+  animations: {
+    idle: { frames: ["idle"], fps: 1, loop: false },
+    fly: {
+      frames: ["flapUp", "flapMid", "flapDown", "flapMid"],
+      fps: 16,
+      loop: true,
+    },
+    glide: { frames: ["glide"], fps: 1, loop: false },
+    walk: { frames: ["walk1", "walk2", "walk3", "walk4"], fps: 12, loop: true },
+  },
+} as const;
 
 /** The snail: one generated sheet, aligned by its shell so the shell stays put while the body stretches. */
 export const SNAIL: UnitSheet = {
@@ -288,8 +316,7 @@ export const CUTS: readonly {
   units: boolean;
 }[] = [
   { id: "worker", count: 8, key: "magenta", units: true },
-  { id: "warrior", count: 6, key: "magenta", units: true },
-  { id: "queen", count: 6, key: "magenta", units: true },
+  { id: "queen-flight", count: 10, key: "magenta", units: true },
   { id: "snail", count: 5, key: "magenta", units: false },
   { id: "gates", count: 2, key: "magenta", units: false },
   { id: "logo", count: 1, key: "green", units: false },
