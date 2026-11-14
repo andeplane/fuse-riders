@@ -59,6 +59,24 @@ export function removeSpan(
   return taps.filter((tap) => tap.time < start || tap.time > end);
 }
 
+/** The tap in `column` nearest `time`, if one is within `reach` seconds: the one a click on the chart means. */
+export function tapAt(
+  taps: readonly Tap[],
+  time: number,
+  column: number,
+  reach: number,
+): Tap | undefined {
+  let best: Tap | undefined;
+  for (const tap of taps)
+    if (
+      tap.column === column &&
+      Math.abs(tap.time - time) <= reach &&
+      (!best || Math.abs(tap.time - time) < Math.abs(best.time - time))
+    )
+      best = tap;
+  return best;
+}
+
 export const writeTaps = (file: TapsFile): string =>
   `${JSON.stringify(file, null, 2)}\n`;
 

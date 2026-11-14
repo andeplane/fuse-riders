@@ -57,6 +57,7 @@ import {
   parseTaps,
   removeSpan,
   removeTap,
+  tapAt,
   tapColumn,
   writeTaps,
 } from "../src/lab/taps.js";
@@ -601,4 +602,17 @@ test("chart lab: deleting a selection removes the taps inside it, ends included"
   );
   assert.deepEqual(removeSpan(taps, 5, 6), taps);
   assert.deepEqual(removeSpan(taps, 0, 9), []);
+});
+
+test("chart lab: a click picks the nearest tap in its lane, within reach", () => {
+  const taps = [
+    { time: 1, beat: 2, column: 0 },
+    { time: 1.1, beat: 2.2, column: 0 },
+    { time: 1.05, beat: 2.1, column: 2 },
+  ];
+  assert.equal(tapAt(taps, 1.08, 0, 0.1), taps[1]);
+  assert.equal(tapAt(taps, 1.02, 0, 0.1), taps[0]);
+  assert.equal(tapAt(taps, 1.05, 2, 0.1), taps[2]);
+  assert.equal(tapAt(taps, 1.05, 1, 0.1), undefined);
+  assert.equal(tapAt(taps, 2, 0, 0.1), undefined);
 });

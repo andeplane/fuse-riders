@@ -60,6 +60,7 @@ import {
   parseTaps,
   removeSpan,
   removeTap,
+  tapAt,
   tapColumn,
   writeTaps,
   type Tap,
@@ -96,6 +97,8 @@ const LANE = 30;
 const CHART_GAP = 10;
 const CURVES = 76;
 const OVERVIEW = 22;
+/** Where a chart's "♪ click" switch starts in its header, from the chart's left edge. */
+const CLICK_X = 56;
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Storage: per-viewer conveniences, every access guarded.
@@ -178,7 +181,7 @@ const keyLegend = el(
   " undo tap",
   el("span", { className: "lab-keys-gap" }),
   key("⌫"),
-  " delete taps in a selection dragged over Custom",
+  " delete the clicked tap, or the taps in a selection dragged over Custom",
   el("span", { className: "lab-keys-gap" }),
   key("x"),
   " set marker",
@@ -383,6 +386,8 @@ let marker: number | undefined;
 /** The rhythm tapped in record mode for this song, in time order. */
 let taps: Tap[] = [];
 let tapsTimer: ReturnType<typeof setTimeout> | undefined;
+/** The tap clicked on in the Custom chart: delete removes it. */
+let pickedTap: Tap | undefined;
 /** Where recording starts (shift + R): taps before it are not kept, so the hands can find the rhythm first. */
 let recordFrom: number | undefined;
 /** The taps of this visit in the order they were pressed: ⌘Z takes back the latest. */
@@ -441,6 +446,7 @@ async function loadSong(id: string): Promise<void> {
   topTime = -0.5;
   taps = [];
   tapHistory = [];
+  pickedTap = undefined;
   const tapped = load(TAPS_KEY(data.id));
   if (tapped) {
     try {
@@ -866,6 +872,21 @@ function draw(): void {
     }
     for (const note of visibleNotes(chart.notes, t0 - 2, t1))
       drawNote(g, note, x, chart.key === TAPPED);
+    if (chart.key === TAPPED && pickedTap) {
+      // The picked tap, ringed.
+      g.strokeStyle = "#ffffff";
+      g.lineWidth = 2;
+      g.beginPath();
+      g.arc(
+        x + pickedTap.column * LANE + LANE / 2,
+        yOf(pickedTap.time),
+        LANE * 0.62,
+        0,
+        Math.PI * 2,
+      );
+      g.stroke();
+      g.lineWidth = 1;
+    }
   }
 
   // Curves: ChartNet's onset strength (cyan) and the selected band's flux (pink).
@@ -929,7 +950,11 @@ function draw(): void {
   g.font = "10px ui-monospace, monospace";
   for (const { chart, x } of layout.columns) {
     g.fillStyle = "#cfd8ff";
-    g.fillText(chart.label.slice(0, 11), x, 12);
+    g.fillText(chart.label.slice(0, 9), x, 12);
+    // The chart's own click: lit when its steps tick during playback.
+    const clicking = tickSelect.value === chart.key;
+    g.fillStyle = clicking ? "#ffe46b" : "#6b7590";
+    g.fillText(clicking ? "♪ click on" : "♪ click", x + CLICK_X, 12);
     g.fillStyle = "#6b7590";
     for (const [lane, arrow] of ["←", "↓", "↑", "→"].entries())
       g.fillText(arrow, x + lane * LANE + LANE / 2 - 3, 25);
@@ -1405,6 +1430,17 @@ function undoTap(): void {
 
 /** Deletes the Custom chart's taps inside the selection, when the selection was dragged over that chart. */
 function deleteSelectedTaps(): boolean {
+  if (pickedTap) {
+    const tap = pickedTap;
+    pickedTap = undefined;
+    taps = removeTap(taps, tap);
+    tapHistory = tapHistory.filter((other) => other !== tap);
+    rebuildCharts();
+    saveTaps();
+    draw();
+    say(`deleted the tap at ${tap.time.toFixed(2)} s`);
+    return true;
+  }
   if (!selection || selection.chart !== "Custom") return false;
   const left = removeSpan(taps, selection.start, selection.end);
   const gone = taps.length - left.length;
@@ -1470,7 +1506,19 @@ canvas.addEventListener("pointerdown", (event) => {
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
   if (y < HEADER) {
-    if (x < layout.specX) return;
+    if (x < layout.specX) {
+      // A chart's "♪ click" switch: its steps tick during playback, or stop ticking.
+      const column = layout.columns.find(
+        (c) => x >= c.x + CLICK_X - 4 && x < c.x + LANE * 4 && y < 17,
+      );
+      if (column) {
+        tickSelect.value =
+          tickSelect.value === column.chart.key ? "" : column.chart.key;
+        scheduledUntil = heardTime();
+        draw();
+      }
+      return;
+    }
     const span = bandSpan();
     bandDrag = { x, start: span, grab: grabAt(span, x) };
     canvas.setPointerCapture(event.pointerId);
@@ -1549,9 +1597,28 @@ canvas.addEventListener("pointerup", (event) => {
   const start = drag;
   drag = undefined;
   if (Math.abs(y - start.y) < 4 && Math.abs(x - start.x) < 4) {
+    // A click on one of the Custom chart's arrows picks it (delete removes it); anywhere else moves the playhead.
+    const column = layout.columns.find((c) => x >= c.x && x < c.x + LANE * 4);
+    const picked =
+      column?.chart.key === TAPPED
+        ? tapAt(
+            taps,
+            timeOf(y),
+            Math.floor((x - column.x) / LANE),
+            (LANE * 0.55) / pxPerSec,
+          )
+        : undefined;
+    if (picked) {
+      pickedTap = picked;
+      say(`tap at ${picked.time.toFixed(2)} s selected: delete removes it`);
+      draw();
+      return;
+    }
+    pickedTap = undefined;
     seek(timeOf(y));
     return;
   }
+  pickedTap = undefined;
   selection = selectionFrom(start, x, y);
   updateFlux();
   renderSelection();
@@ -2067,6 +2134,7 @@ speedSelect.onchange = () => {
 };
 tickSelect.onchange = () => {
   scheduledUntil = heardTime();
+  draw();
 };
 
 window.addEventListener("keydown", (event) => {
