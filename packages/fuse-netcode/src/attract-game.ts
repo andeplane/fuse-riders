@@ -48,6 +48,8 @@ export function createAttractGame<
     streams = new Map([[OWNER, { generation: 1, entries }]]);
     for (let tick = 0; tick < (options.warmup ?? 100); tick++)
       ticker(room, OWNER, streams);
+    if ((options.warmup ?? 100) >= 2 && game.stage(room) === "lobby")
+      throw new Error(`${game.id}: attract match did not start`);
   };
   reset();
   return {

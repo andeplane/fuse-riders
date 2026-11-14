@@ -4,7 +4,7 @@ import { fuseVolleyGame, DEFAULT_SETTINGS } from "../online/game.js";
 import { createScene } from "../render/scene.js";
 import { loadArt, browserImages } from "./art.js";
 export function createAttract(host: HTMLElement) {
-  const demo = createAttractGame(fuseVolleyGame, DEFAULT_SETTINGS);
+  const demo = createAttractGame(fuseVolleyGame, DEFAULT_SETTINGS, { bots: 2 });
   const renderer = createScene(demoCanvas(host), {
     art: loadArt(import.meta.env.BASE_URL, browserImages),
   });

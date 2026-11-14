@@ -783,7 +783,7 @@ function room(solo: boolean): void {
     );
     scoringPicker.update(view.settings.scoring, next.lobby.editable);
     modePicker.update(view.settings.doubles, next.lobby.editable);
-    roomLayout.update(view.seats.length, view.settings.doubles ? 4 : 2);
+    roomLayout.update(next.lobby.members.length, view.settings.doubles ? 4 : 2);
     botPicker.update(view.settings.bot, next.lobby.editable);
     botTitle.hidden = botPicker.element.hidden =
       !next.lobby.hasBot && !next.lobby.fill;
