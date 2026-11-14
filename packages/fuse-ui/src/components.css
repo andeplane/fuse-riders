@@ -930,6 +930,19 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+.fui-room-modes {
+  margin-bottom: 20px;
+}
+.fui-room-modes > * {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+.fui-room-modes button {
+  flex: 1;
+  min-width: 72px;
+}
 .fui-room-layout .fui-slot-controls button {
   min-width: 82px;
   padding: 10px 16px;

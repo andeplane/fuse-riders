@@ -8,6 +8,25 @@ import {
 } from "fuse-ui";
 import { page } from "./dom-fixture.js";
 
+test("switching teams moves the existing row to its new slot without losing its controls", () => {
+  const { document } = page(),
+    root = document.createElement("section"),
+    roster = createRoster({ document });
+  document.body.append(root);
+  createRoomLayout({ element: root, roster, capacity: 2 });
+  roster.update([{ id: "one", name: "Ada", slot: 0 }]);
+  const row = roster.row("one")!;
+  roster.update([{ id: "one", name: "Ada", slot: 1 }]);
+  assert.equal(
+    root.querySelector('[data-slot="1"] .fui-slot-occupant')?.firstElementChild,
+    row,
+  );
+  assert.equal(
+    root.querySelector('[data-slot="0"] .fui-slot-occupant')?.childElementCount,
+    0,
+  );
+});
+
 test("capacity changes keep occupied overflow slots visible and removable", () => {
   const { document } = page(),
     root = document.createElement("section"),

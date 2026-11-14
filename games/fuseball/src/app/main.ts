@@ -828,7 +828,8 @@ function room(solo: boolean): void {
     capacity: 2,
     join: nameEntry.form,
     addAI: addBot,
-    settings: [modes.element, picker.element, seeds.element],
+    modes: [modes.element],
+    settings: [picker.element, seeds.element],
     actions: [lobbyNote, switchSide, tvLink, start],
   });
   lobby.hidden = true;

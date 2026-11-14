@@ -520,14 +520,10 @@ function room(code: string, token: string | undefined, display: boolean): void {
       roster,
       capacity: 2 * view.settings.size,
       join,
+      modes: [sizes],
       playerName: () => social.playerName(undefined) ?? undefined,
       addAI,
-      settings: [
-        sizes,
-        maps,
-        el("h2", "Heroes"),
-        heroPicker(view, slots, host),
-      ],
+      settings: [maps, el("h2", "Heroes"), heroPicker(view, slots, host)],
       actions: [host ? start : el("p", "Waiting for the host to start…")],
     });
     layout.update(

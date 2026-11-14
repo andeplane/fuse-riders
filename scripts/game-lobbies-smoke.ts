@@ -99,6 +99,22 @@ try {
         .locator(".fui-room-count")
         .filter({ hasText: /^0\s*\/\s*\d/ })
         .waitFor();
+      if (["fuse-front", "fuseball", "fuse-volley"].includes(game)) {
+        const modes = room.locator(".fui-room-modes");
+        await modes.waitFor();
+        const buttons = modes.getByRole("button");
+        assert.equal(await buttons.count(), game === "fuse-volley" ? 2 : 3);
+        await buttons.last().click();
+        await room
+          .locator(".fui-room-count")
+          .filter({ hasText: game === "fuse-volley" ? "0 / 4" : "0 / 6" })
+          .waitFor();
+        await buttons.first().click();
+        await room
+          .locator(".fui-room-count")
+          .filter({ hasText: "0 / 2" })
+          .waitFor();
+      }
       await room.locator("img.fui-invite-qr").waitFor();
       await page.waitForFunction(() =>
         [

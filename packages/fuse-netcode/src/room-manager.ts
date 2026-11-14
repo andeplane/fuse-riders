@@ -373,7 +373,9 @@ export class RoomManager<
     // An absent seat first, then an away one: a hidden page keeps its seat unless the room is full and a joiner asks
     // for it outside a running round (§12), which bounds how long one can hold a seat.
     const reclaimable = (player: Seat) =>
-      player.slot < capacity && !player.connected && !pending.freed.has(player.id);
+      player.slot < capacity &&
+      !player.connected &&
+      !pending.freed.has(player.id);
     const seat =
       seats.find((player) => reclaimable(player) && !player.away) ??
       seats.find(reclaimable);

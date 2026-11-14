@@ -106,6 +106,14 @@ function fixture(options: { manager?: boolean; initialRoom?: string } = {}) {
   };
   const app = mountFuseCraft(root, dependencies);
   const click = (selector: string) => {
+    for (const dialog of root.querySelectorAll<HTMLDialogElement>("dialog")) {
+      dialog.showModal = () => {
+        dialog.open = true;
+      };
+      dialog.close = () => {
+        dialog.open = false;
+      };
+    }
     const element = root.querySelector<HTMLElement>(selector);
     assert.ok(element, `missing ${selector}`);
     element.click();

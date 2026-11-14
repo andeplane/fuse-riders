@@ -22,6 +22,7 @@ export interface RoomLayoutOptions {
   onSettings?: () => void;
   actions?: readonly Node[];
   title?: string;
+  modes?: readonly Node[];
   background?: AttractFactory;
   slotColor?: (slot: number) => string;
   slotLabel?: (slot: number) => string;
@@ -49,6 +50,11 @@ export function createRoomLayout(options: RoomLayoutOptions) {
     options.roster.empty?.classList.add("fui-roster-empty");
   const left = el("aside", "", "fui-room-invitation", doc);
   const right = el("section", "", "fui-room-players", doc);
+  const modes = el("div", "", "fui-room-modes", doc);
+  modes.setAttribute("role", "group");
+  modes.setAttribute("aria-label", "Match size");
+  modes.append(...(options.modes ?? []));
+  modes.hidden = !options.modes?.length;
   const actions = el("div", "", "fui-room-actions", doc);
   const joinActions = el("div", "", "fui-room-join", doc);
   const slots = el("div", "", "fui-room-open-slots", doc);
@@ -147,7 +153,7 @@ export function createRoomLayout(options: RoomLayoutOptions) {
     slots.append(slot);
   }
   actions.append(...(options.actions ?? []));
-  right.append(heading, roster, slots, joinActions, actions);
+  right.append(modes, heading, roster, slots, joinActions, actions);
   root.classList.add("fui-room-layout");
   root.replaceChildren(
     left,
@@ -201,6 +207,22 @@ export function createRoomLayout(options: RoomLayoutOptions) {
       emptySlots.push(slot);
       slots.append(slot);
     }
+    // Keep references before clearing old slots: a team switch moves a persistent roster row.
+    const rows = new Map<number, HTMLElement>();
+    const registered =
+      "entries" in options.roster
+        ? [...options.roster.entries()].map(([, row]) => row)
+        : [];
+    for (const row of [
+      ...slots.querySelectorAll<HTMLElement>(
+        ".fui-slot-occupant > [data-slot]",
+      ),
+      ...roster.querySelectorAll<HTMLElement>("[data-slot]"),
+      ...registered,
+    ]) {
+      if (row.dataset.slot !== undefined)
+        rows.set(Number(row.dataset.slot), row);
+    }
     const text = `${occupied} / ${capacity}`;
     if (count.textContent !== text) count.textContent = text;
     emptySlots.forEach((slot, index) => {
@@ -221,13 +243,15 @@ export function createRoomLayout(options: RoomLayoutOptions) {
       ai.hidden = !options.addAI || options.addAI.hidden;
       ai.disabled = options.addAI?.disabled ?? true;
     });
-    for (const row of [
-      ...roster.querySelectorAll<HTMLElement>("[data-slot]"),
-    ]) {
-      const index = Number(row.dataset.slot);
-      emptySlots[index]
-        ?.querySelector(".fui-slot-occupant")
-        ?.replaceChildren(row);
+    for (const [index, row] of rows) {
+      if (occupiedSlots ? !occupiedSlots.has(index) : index >= occupied)
+        continue;
+      const target = emptySlots[index]?.querySelector(".fui-slot-occupant");
+      if (
+        target &&
+        (target.firstElementChild !== row || target.children.length !== 1)
+      )
+        target.replaceChildren(row);
     }
     if (admission) {
       const join = admission;
@@ -344,7 +368,9 @@ export function roomLayoutMarkup(options: {
           : index < options.occupied
       )
         ? `<div class="fui-room-open-slot fui-slot-occupied" data-slot="${index}" style="--slot-color:${options.slotColors?.[index] ?? "#b9d0e1"}"><span class="fui-slot-label">Slot ${index + 1}</span><ul class="fui-slot-occupant">${options.slotPlayers?.find((player) => player.slot === index)?.html ?? ""}</ul></div>`
-        : index >= options.capacity ? "" : `<div class="fui-room-open-slot" data-slot="${index}" style="--slot-color:${options.slotColors?.[index] ?? "#b9d0e1"}"><span class="fui-slot-label">Slot ${index + 1} · Open</span><div class="fui-slot-controls">${options.canJoin ? `<button data-action="take-slot" data-slot="${index}">Join</button>` : ""}${options.canAddAI ? `<button data-action="add-bot" data-slot="${index}">Add AI</button>` : ""}</div></div>`,
+        : index >= options.capacity
+          ? ""
+          : `<div class="fui-room-open-slot" data-slot="${index}" style="--slot-color:${options.slotColors?.[index] ?? "#b9d0e1"}"><span class="fui-slot-label">Slot ${index + 1} · Open</span><div class="fui-slot-controls">${options.canJoin ? `<button data-action="take-slot" data-slot="${index}">Join</button>` : ""}${options.canAddAI ? `<button data-action="add-bot" data-slot="${index}">Add AI</button>` : ""}</div></div>`,
   ).join("");
   return `<main class="fui-room-layout"><aside class="fui-room-invitation">${options.invite}<button data-action="open-room-settings">Game settings</button></aside><section class="fui-room-players"><h2>Players <span class="fui-room-count">${options.occupied} / ${options.capacity}</span></h2>${options.players}<div class="fui-room-open-slots">${open}</div><div class="fui-room-actions">${options.actions}</div></section><dialog class="fui-dialog fui-menu-dialog fui-slot-admission" data-room-name aria-label="Join the game"><header class="fui-dialog-bar"><strong>Join the game</strong><button data-action="close-room-name">Close</button></header><div class="fui-dialog-body">${options.join}</div></dialog><dialog class="fui-dialog fui-menu-dialog" data-room-settings aria-label="Game settings"><header class="fui-dialog-bar"><strong>Game settings</strong><button data-action="close-room-settings">Close</button></header><div class="fui-dialog-body">${options.settings}</div></dialog></main>`;
 }

@@ -630,13 +630,8 @@ function room(solo: boolean): void {
     capacity: 2,
     join: nameEntry.form,
     addAI: addBot,
-    settings: [
-      el("h2", "PLAYERS", "fui-lobby-title"),
-      modePicker.element,
-      scoringPicker.element,
-      botTitle,
-      botPicker.element,
-    ],
+    modes: [modePicker.element],
+    settings: [scoringPicker.element, botTitle, botPicker.element],
     actions: [lobbyNote, tvLink, start],
   });
   lobby.hidden = true;
