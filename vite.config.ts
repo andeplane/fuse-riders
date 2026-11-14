@@ -1,5 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 import {
   publicFilePath,
@@ -50,7 +52,17 @@ const portalGames = (): PortalGame[] =>
         throw new Error(
           `games/${id}/portal.json lists a game with no index.html`,
         );
-      return { ...parsed, id, path: `${id}/` };
+      // The desktop icon (public/fuseos/game-icons/<id>.png) is optional; tests/fuseos-game-icons.test.ts asks
+      // every portal game for one.
+      const icon = `fuseos/game-icons/${id}.png`;
+      return {
+        ...parsed,
+        id,
+        path: `${id}/`,
+        ...(existsSync(new URL(`public/${icon}`, import.meta.url))
+          ? { icon }
+          : {}),
+      };
     })
     .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
 
@@ -166,7 +178,8 @@ export default defineConfig({
     },
   },
   define: { __FUSE_PORTAL_GAMES__: JSON.stringify(portalGames()) },
-  // `gamePublic` first: its dev middleware must see a public URL before `gamePages` rewrites it.
-  plugins: [gamePublic(), gamePages()],
+  // `gamePublic` first: its dev middleware must see a public URL before `gamePages` rewrites it. React and Tailwind
+  // serve FuseOS (packages/fuseos), the root page; the games are plain TypeScript and their CSS is untouched.
+  plugins: [gamePublic(), gamePages(), react(), tailwindcss()],
   server: { host: "0.0.0.0" },
 });

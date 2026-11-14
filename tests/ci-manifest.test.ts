@@ -191,8 +191,10 @@ test("coverage cannot pass with a failed or missing collector, and reports both 
 });
 
 /** What each of verify's `env:` values must be read from: the script below is only as right as its inputs. */
+const gateJobs = verifyJobs(loadManifest());
 const VERIFY_ENV: Record<string, string> = {
-  GATE: "${{ needs.checks.result }} ${{ needs.unit.result }}",
+  // One slot per gate job, in manifest order (checks, unit, os-unit).
+  GATE: gateJobs.map((name) => `\${{ needs.${name}.result }}`).join(" "),
   RELEASE: `\${{ ${RELEASE} }}`,
   PROOF: "${{ needs.coverage.result }} ${{ needs.e2e.result }}",
 };
@@ -215,17 +217,25 @@ function verifyPasses(env: Record<string, string>): boolean {
 }
 
 test("verify passes a pull request on the gate alone, and a release run only with coverage and every smoke", () => {
+  /** The GATE value with every job passed except `slot`, which reports `result`. */
+  const gate = (result?: string, slot = 0) =>
+    gateJobs
+      .map((_name, index) => (index === slot && result ? result : "success"))
+      .join(" ");
   const ok = {
-    GATE: "success success",
+    GATE: gate(),
     RELEASE: "false",
     PROOF: "skipped skipped",
   };
   assert.equal(verifyPasses(ok), true, "a pull request: the gate is enough");
-  // One slot per job in GATE, in order: checks, unit. A failure in either must fail the gate.
-  assert.equal(verifyPasses({ ...ok, GATE: "failure success" }), false);
-  assert.equal(verifyPasses({ ...ok, GATE: "success failure" }), false);
-  assert.equal(verifyPasses({ ...ok, GATE: "success skipped" }), false);
-  assert.equal(verifyPasses({ ...ok, GATE: "cancelled success" }), false);
+  // One slot per job in GATE, in manifest order. A failure in any of them must fail the gate.
+  for (let slot = 0; slot < gateJobs.length; slot++)
+    for (const result of ["failure", "skipped", "cancelled"])
+      assert.equal(
+        verifyPasses({ ...ok, GATE: gate(result, slot) }),
+        false,
+        `${gateJobs[slot]} ${result}`,
+      );
   // CD, a dispatch or `full-ci`: the release jobs ran, and verify holds them to passing.
   const release = { ...ok, RELEASE: "true" };
   assert.equal(
@@ -239,7 +249,7 @@ test("verify passes a pull request on the gate alone, and a release run only wit
   assert.equal(
     verifyPasses({
       ...release,
-      GATE: "failure success",
+      GATE: gate("failure"),
       PROOF: "success success",
     }),
     false,

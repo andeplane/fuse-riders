@@ -9,7 +9,8 @@
     "noEmit": true,
     "skipLibCheck": true,
     "types": ["node"],
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "jsx": "react-jsx"
   },
   "include": [
     "service",
@@ -19,5 +20,8 @@
     "packages",
     "games",
     "vite.config.ts"
-  ]
+  ],
+  // FuseOS (React, vitest globals, jest-dom) has its own program: packages/fuseos/tsconfig.json. Its app source
+  // still enters this one through site/main.ts, which is why `jsx` is set; its tests do not.
+  "exclude": ["packages/fuseos"]
 }

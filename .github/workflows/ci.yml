@@ -144,24 +144,50 @@ jobs:
           retention-days: 7
           overwrite: true
 
+  # FuseOS's unit tests (packages/fuseos, vitest with happy-dom and Testing Library) are a different runner from
+  # `pnpm test`, so they are a gate job of their own rather than a sixth shard.
+  os-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/docs/**/*.png
+            !/docs/**/*.jpg
+            !/docs/**/*.gz
+            !/docs/**/*.mp4
+            !/games/*/docs/**/*.png
+            !/docs/online/evidence/*.json
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:os
+
   # One stable check name for the whole gate: green only when `checks` and every shard passed and, when the release
   # jobs ran (suite.yml, a dispatch or `full-ci`), coverage and every smoke passed too. A branch rule waits on this,
   # never on the shards, so the matrix can be resized without touching the rule. A red main does not hold pull
   # requests back: a failed gate in cd.yml withholds the deployment, a failed suite.yml does not, and either way
   # the fix forward merges like any other change.
   verify:
-    needs: [checks, unit, coverage, e2e]
+    needs: [checks, unit, os-unit, coverage, e2e]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Every gate passed
         env:
-          GATE: ${{ needs.checks.result }} ${{ needs.unit.result }}
+          GATE: ${{ needs.checks.result }} ${{ needs.unit.result }} ${{ needs.os-unit.result }}
           RELEASE: ${{ inputs.release || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-ci') }}
           PROOF: ${{ needs.coverage.result }} ${{ needs.e2e.result }}
         run: |
-          test "$GATE" = "success success"
+          test "$GATE" = "success success success"
           if [ "$RELEASE" = true ]; then
             test "$PROOF" = "success success" || { echo "::error::The release jobs did not pass (coverage, e2e: $PROOF)."; exit 1; }
           fi

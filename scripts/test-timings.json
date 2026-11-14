@@ -497,7 +497,6 @@
   "packages/fuse-ui/tests/forms.test.ts": 0.6,
   "packages/fuse-ui/tests/friends-client.test.ts": 0.4,
   "packages/fuse-ui/tests/friends.test.ts": 0.6,
-  "packages/fuse-ui/tests/gallery.test.ts": 0.5,
   "packages/fuse-ui/tests/game-menu.test.ts": 0.7,
   "packages/fuse-ui/tests/layout.test.ts": 0.4,
   "packages/fuse-ui/tests/modal-input.test.ts": 0.3,
