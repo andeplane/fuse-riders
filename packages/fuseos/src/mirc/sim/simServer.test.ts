@@ -26,7 +26,10 @@ const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 function setup(random = () => 0) {
   const scheduler = new ManualScheduler();
   const brain = new ScriptedBrain();
-  const transport = createSimTransport({ scheduler, now: scheduler.now, random, brain }, simNetwork);
+  const transport = createSimTransport(
+    { scheduler, now: scheduler.now, random, brain },
+    simNetwork,
+  );
   const client = new IrcClient(
     { transport, scheduler, now: scheduler.now, random },
     { nick: "Guest1", altNick: "Guest1_", realName: "Fuse", invisible: true },
@@ -39,7 +42,8 @@ function setup(random = () => 0) {
   return { scheduler, brain, client, efnet };
 }
 
-const text = (state: SessionState, id: string) => findWindow(state, id)?.lines.map((l) => l.text) ?? [];
+const text = (state: SessionState, id: string) =>
+  findWindow(state, id)?.lines.map((l) => l.text) ?? [];
 
 function joined() {
   const env = setup();
@@ -66,7 +70,13 @@ describe("simulated network", () => {
     const window = findWindow(client.getState(), channelId("#ddrnorway"));
     expect(window?.topic).toContain("DDR Norway");
     expect(window?.members.map((m) => m.prefixes + m.nick)).toEqual(
-      expect.arrayContaining(["@RiChY", "@Andeplane", "+Zredna", "+CCBSbot", "Guest1"]),
+      expect.arrayContaining([
+        "@RiChY",
+        "@Andeplane",
+        "+Zredna",
+        "+CCBSbot",
+        "Guest1",
+      ]),
     );
     scheduler.advance(6000);
     await flush();
@@ -82,13 +92,29 @@ describe("simulated network", () => {
     await flush();
     scheduler.advance(5000);
     expect(brain.requests.at(-1)?.regular.nick).toBe("Zredna");
-    expect(brain.requests.at(-1)?.history.at(-1)).toEqual({ nick: "Guest1", text: "Zredna, kommer du på søndag?" });
-    expect(text(client.getState(), channelId("#ddrnorway"))).toContain("<+Zredna> hei hei");
+    expect(brain.requests.at(-1)?.history.at(-1)).toEqual({
+      nick: "Guest1",
+      text: "Zredna, kommer du på søndag?",
+    });
+    expect(text(client.getState(), channelId("#ddrnorway"))).toContain(
+      "<+Zredna> hei hei",
+    );
   });
 
   it("answers CCBS commands from the bundled results", () => {
     const { client, scheduler } = joined();
-    for (const command of ["!siste", "!t cc 1 2003", "!t nothing", "!spiller Andeplane", "!spiller ghost", "!sesonger", "!vinnere challenge cup 2003", "!vinnere", "!ccbs", "!unknown"])
+    for (const command of [
+      "!siste",
+      "!t cc 1 2003",
+      "!t nothing",
+      "!spiller Andeplane",
+      "!spiller ghost",
+      "!sesonger",
+      "!vinnere challenge cup 2003",
+      "!vinnere",
+      "!ccbs",
+      "!unknown",
+    ])
       client.submit(channelId("#ddrnorway"), command);
     scheduler.advance(20_000);
     const lines = text(client.getState(), channelId("#ddrnorway")).join("\n");
@@ -108,8 +134,12 @@ describe("simulated network", () => {
     client.submit(STATUS_ID, "/msg Andeplane hei");
     await flush();
     scheduler.advance(5000);
-    expect(text(client.getState(), channelId("#ddrnorway")).join("\n")).toContain("Andeplane is away: koder litt");
-    expect(text(client.getState(), queryId("Andeplane"))).toContain("<Andeplane> hei hei");
+    expect(
+      text(client.getState(), channelId("#ddrnorway")).join("\n"),
+    ).toContain("Andeplane is away: koder litt");
+    expect(text(client.getState(), queryId("Andeplane"))).toContain(
+      "<Andeplane> hei hei",
+    );
     client.activate(STATUS_ID);
     client.submit(STATUS_ID, "/msg CCBSbot siste");
     client.submit(STATUS_ID, "/msg nobody hi");
@@ -146,7 +176,9 @@ describe("simulated network", () => {
     expect(status).toContain("* #ddrnorway You're not channel operator");
     expect(status).toContain("* #nowhere No such channel");
     expect(status).toContain("* FROBNICATE: Unknown command");
-    expect(client.getState().list.entries.map((e) => e.channel)).toEqual(expect.arrayContaining(["#ddrnorway", "#quake3arena"]));
+    expect(client.getState().list.entries.map((e) => e.channel)).toEqual(
+      expect.arrayContaining(["#ddrnorway", "#quake3arena"]),
+    );
   });
 
   it("makes new channels with the user as op, lets them set the topic, and parts", () => {
@@ -155,7 +187,9 @@ describe("simulated network", () => {
     client.submit(STATUS_ID, "/raw JOIN nochannel");
     scheduler.advance(0);
     const window = findWindow(client.getState(), channelId("#fuseos-test"));
-    expect(window?.members.map((m) => m.prefixes + m.nick)).toEqual(["@Guest1"]);
+    expect(window?.members.map((m) => m.prefixes + m.nick)).toEqual([
+      "@Guest1",
+    ]);
     client.submit(channelId("#fuseos-test"), "/topic hei");
     client.submit(channelId("#fuseos-test"), "/topic");
     client.submit(channelId("#fuseos-test"), "hello?");
@@ -169,7 +203,9 @@ describe("simulated network", () => {
     expect(lines.join("\n")).toContain("You're not on that channel");
     client.submit(channelId("#fuseos-test"), "still here?");
     scheduler.advance(0);
-    expect(text(client.getState(), channelId("#fuseos-test")).at(-1)).toBe("* #fuseos-test Cannot send to channel");
+    expect(text(client.getState(), channelId("#fuseos-test")).at(-1)).toBe(
+      "* #fuseos-test Cannot send to channel",
+    );
   });
 
   it("refuses regulars' nicks and bad nicks, and renames the user", () => {
@@ -182,14 +218,20 @@ describe("simulated network", () => {
     expect(status).toContain("* RiChY: Nickname is already in use.");
     expect(status).toContain("* 9lives: Erroneous Nickname");
     expect(client.getState().nick).toBe("Neo");
-    expect(findWindow(client.getState(), channelId("#ddrnorway"))?.members.some((m) => m.nick === "Neo")).toBe(true);
+    expect(
+      findWindow(client.getState(), channelId("#ddrnorway"))?.members.some(
+        (m) => m.nick === "Neo",
+      ),
+    ).toBe(true);
   });
 
   it("chatters in #ddrnorway while the user is there, and stops on quit", () => {
     const { client, scheduler } = joined();
     const before = text(client.getState(), channelId("#ddrnorway")).length;
     scheduler.advance(IDLE_MS.max * 2);
-    expect(text(client.getState(), channelId("#ddrnorway")).length).toBeGreaterThan(before);
+    expect(
+      text(client.getState(), channelId("#ddrnorway")).length,
+    ).toBeGreaterThan(before);
     client.submit(STATUS_ID, "/quit bye");
     scheduler.advance(10);
     expect(client.getState().phase).toBe("offline");
@@ -200,7 +242,12 @@ describe("simulated network", () => {
     const scheduler = new ManualScheduler();
     const lines: string[] = [];
     const server = new SimServer(
-      { scheduler, now: scheduler.now, random: () => 0, brain: new ScriptedBrain() },
+      {
+        scheduler,
+        now: scheduler.now,
+        random: () => 0,
+        brain: new ScriptedBrain(),
+      },
       { id: "", name: "Test" },
       (line) => lines.push(line),
       () => undefined,
@@ -229,7 +276,9 @@ describe("simulated network", () => {
     client.submit(channelId("#ddrnorway"), "RiChY?");
     await flush();
     scheduler.advance(5000);
-    expect(text(client.getState(), channelId("#ddrnorway")).at(-1)).toBe("<Guest1> RiChY?");
+    expect(text(client.getState(), channelId("#ddrnorway")).at(-1)).toBe(
+      "<Guest1> RiChY?",
+    );
     client.disconnect();
     expect(client.getState().phase).toBe("offline");
   });

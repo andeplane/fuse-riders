@@ -33,7 +33,10 @@ export type BrainChoice = {
  * browser has WebGPU and either the model is already downloaded or the user switched "smart regulars" on.
  * Otherwise, canned lines. Nothing loads until a regular first answers.
  */
-export function useRegularsBrain(smart: boolean, random: () => number): BrainChoice {
+export function useRegularsBrain(
+  smart: boolean,
+  random: () => number,
+): BrainChoice {
   const llm = useContext(LlmDepsContext);
   const probe = useContext(SystemProbeContext);
   const { assistantOptions } = useContext(DesktopUiContext);
@@ -57,7 +60,11 @@ export function useRegularsBrain(smart: boolean, random: () => number): BrainCho
     () =>
       thinking
         ? engineBrain(
-            createWebLlmChatEngine({ modelId, createEngine: llm.createEngine, fallback: SILENT_ENGINE }),
+            createWebLlmChatEngine({
+              modelId,
+              createEngine: llm.createEngine,
+              fallback: SILENT_ENGINE,
+            }),
             random,
           )
         : cannedBrain(random),
@@ -66,7 +73,11 @@ export function useRegularsBrain(smart: boolean, random: () => number): BrainCho
   useEffect(() => () => brain.dispose(), [brain]);
   return {
     brain,
-    label: thinking ? modelLabel(modelId) : hasWebGpu ? "canned lines" : "canned lines (no WebGPU)",
+    label: thinking
+      ? modelLabel(modelId)
+      : hasWebGpu
+        ? "canned lines"
+        : "canned lines (no WebGPU)",
     canThink: hasWebGpu,
     downloadMb: cached ? undefined : findLlmModel(modelId)?.downloadMb,
   };

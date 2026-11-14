@@ -66,7 +66,9 @@ describe("mIRC prefs", () => {
     expect(parsePrefs(undefined, FALLBACK)).toBe(FALLBACK);
     expect(parsePrefs("{nope", FALLBACK)).toBe(FALLBACK);
     expect(parsePrefs("42", FALLBACK)).toBe(FALLBACK);
-    expect(parsePrefs(JSON.stringify({ altNick: "", firstRun: "x" }), FALLBACK)).toEqual({ ...FALLBACK, altNick: "" });
+    expect(
+      parsePrefs(JSON.stringify({ altNick: "", firstRun: "x" }), FALLBACK),
+    ).toEqual({ ...FALLBACK, altNick: "" });
   });
 
   it("checks nicks the way servers do", () => {
@@ -102,6 +104,8 @@ describe("mIRC prefs", () => {
     storage.failing = true;
     expect(store.get()).toBeUndefined();
     expect(() => store.set(FALLBACK)).not.toThrow();
-    expect(new LocalStorageMircPrefsStore(undefined, () => FALLBACK).get()).toBeUndefined();
+    expect(
+      new LocalStorageMircPrefsStore(undefined, () => FALLBACK).get(),
+    ).toBeUndefined();
   });
 });

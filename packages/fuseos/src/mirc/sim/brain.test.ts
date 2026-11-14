@@ -46,16 +46,30 @@ const request = (nick: string) => ({
 describe("regulars", () => {
   it("seats the AI-voiced real regulars and fictional ones in #ddrnorway", () => {
     const nicks = regularsIn("#DDRnorway").map((r) => r.nick);
-    expect(nicks).toEqual(expect.arrayContaining(["RiChY", "Andeplane", "Zredna", "CCBSbot", "stepzilla"]));
+    expect(nicks).toEqual(
+      expect.arrayContaining([
+        "RiChY",
+        "Andeplane",
+        "Zredna",
+        "CCBSbot",
+        "stepzilla",
+      ]),
+    );
     expect(regular("richy").ai).toBe(true);
     expect(regular("FootieFox").ai).toBe(false);
   });
 
   it("tells the model who it is, its CCBS record, and not to speak for others", () => {
-    const prompt = systemPromptFor(regular("Andeplane"), "#ddrnorway", "Guest1");
+    const prompt = systemPromptFor(
+      regular("Andeplane"),
+      "#ddrnorway",
+      "Guest1",
+    );
     expect(prompt).toContain("You are Andeplane");
     expect(prompt).toContain("ranked tournaments");
-    expect(prompt).toContain("Never speak for, quote or pretend to be anyone else");
+    expect(prompt).toContain(
+      "Never speak for, quote or pretend to be anyone else",
+    );
   });
 });
 
@@ -70,7 +84,9 @@ describe("brains", () => {
   });
 
   it("cleans a model reply down to one IRC line", () => {
-    expect(toIrcLine('<RiChY>: "hei på deg!"\nsecond line', "RiChY")).toBe("hei på deg!");
+    expect(toIrcLine('<RiChY>: "hei på deg!"\nsecond line', "RiChY")).toBe(
+      "hei på deg!",
+    );
     expect(toIrcLine("RiChY: ok", "RiChY")).toBe("ok");
     expect(toIrcLine("  \n ", "RiChY")).toBeUndefined();
     expect(toIrcLine('""', "RiChY")).toBeUndefined();
@@ -96,7 +112,9 @@ describe("brains", () => {
   it("uses canned lines for non-AI regulars, failures, empty answers and while busy", async () => {
     const quiet = engineBrain(new FakeEngine("", "rules"), () => 0);
     expect(quiet.describe()).toBe("canned lines");
-    expect(await quiet.reply(request("RiChY"), signal)).toBe(regular("RiChY").lines[0]);
+    expect(await quiet.reply(request("RiChY"), signal)).toBe(
+      regular("RiChY").lines[0],
+    );
     expect(await quiet.reply(request("FootieFox"), signal)).toBe("*gjesp*");
     const failing = engineBrain(new FakeEngine(new Error("no gpu")), () => 0);
     expect(await failing.reply(request("Zredna"), signal)).toBe("hehe");

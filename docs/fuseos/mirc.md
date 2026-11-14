@@ -8,18 +8,18 @@ The networks are simulated. "Connecting" to EFnet, IRCnet, Undernet, DALnet, Qua
 
 `packages/fuseos/src/mirc/`:
 
-| Path | What it is |
-| --- | --- |
-| `irc/message.ts` | RFC 1459 framing with IRCv3 message tags: a parser and a serializer as pure functions, plus CTCP and byte-safe line splitting. Parameters cannot inject CR/LF. |
-| `irc/format.ts` | mIRC control codes, the 16-colour palette, and the editbox shortcuts. |
-| `irc/session.ts` | The session reducer: windows, nicklists (PREFIX/multi-prefix, mode changes), topics, numerics, WHOIS, LIST, CTCP replies, CAP negotiation, and nick collisions during registration (alternative nick, then underscores, then Guest####). |
-| `irc/input.ts` | What the editbox understands: `/join /part /msg /query /me /nick /whois /quit /topic /away /list /op /kick /ctcp /raw ...`. Unknown commands go to the server as typed, as in mIRC. |
-| `irc/client.ts` | One connection: transport, registration timeout, keepalive PING, and reconnect with exponential backoff (2 s doubling to 60 s plus jitter, at most 5 attempts). The clock, timers, randomness and transport are injected. |
-| `irc/transport.ts` | The `IrcTransport` interface and its WebSocket adapter (IRCv3 `text.ircv3.net`, one line per frame). |
-| `sim/simServer.ts` | The simulated server and its transport. |
-| `sim/regulars.ts`, `sim/brain.ts`, `sim/useRegularsBrain.ts` | The channel regulars and what they say. |
-| `sim/ccbs.ts`, `ddr/ccbsData.ts` | The CCBS tournament results and CCBSbot's queries. |
-| `MircWindow.tsx`, `MircChild.tsx`, `MircDialogs.tsx`, `mirc.css` | The UI. |
+| Path                                                             | What it is                                                                                                                                                                                                                               |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `irc/message.ts`                                                 | RFC 1459 framing with IRCv3 message tags: a parser and a serializer as pure functions, plus CTCP and byte-safe line splitting. Parameters cannot inject CR/LF.                                                                           |
+| `irc/format.ts`                                                  | mIRC control codes, the 16-colour palette, and the editbox shortcuts.                                                                                                                                                                    |
+| `irc/session.ts`                                                 | The session reducer: windows, nicklists (PREFIX/multi-prefix, mode changes), topics, numerics, WHOIS, LIST, CTCP replies, CAP negotiation, and nick collisions during registration (alternative nick, then underscores, then Guest####). |
+| `irc/input.ts`                                                   | What the editbox understands: `/join /part /msg /query /me /nick /whois /quit /topic /away /list /op /kick /ctcp /raw ...`. Unknown commands go to the server as typed, as in mIRC.                                                      |
+| `irc/client.ts`                                                  | One connection: transport, registration timeout, keepalive PING, and reconnect with exponential backoff (2 s doubling to 60 s plus jitter, at most 5 attempts). The clock, timers, randomness and transport are injected.                |
+| `irc/transport.ts`                                               | The `IrcTransport` interface and its WebSocket adapter (IRCv3 `text.ircv3.net`, one line per frame).                                                                                                                                     |
+| `sim/simServer.ts`                                               | The simulated server and its transport.                                                                                                                                                                                                  |
+| `sim/regulars.ts`, `sim/brain.ts`, `sim/useRegularsBrain.ts`     | The channel regulars and what they say.                                                                                                                                                                                                  |
+| `sim/ccbs.ts`, `ddr/ccbsData.ts`                                 | The CCBS tournament results and CCBSbot's queries.                                                                                                                                                                                       |
+| `MircWindow.tsx`, `MircChild.tsx`, `MircDialogs.tsx`, `mirc.css` | The UI.                                                                                                                                                                                                                                  |
 
 Tests use `src/__mocks__/ircTransport.ts`: a typed fake transport and a manual scheduler.
 
@@ -27,15 +27,15 @@ Tests use `src/__mocks__/ircTransport.ts`: a typed fake transport and a manual s
 
 A web page can open WebSockets but not IRC's TCP connections. Browsers also block ports 6667 and 6697. A page can therefore only reach networks that run a WebSocket listener and accept other sites' pages. We tested each network on 14 November 2026 with a full login and JOIN, sending a foreign `Origin` header:
 
-| Network | WebSocket endpoint | Accepts other sites' clients? |
-| --- | --- | --- |
-| EFnet | `wss://chat.efnet.org:8443/webirc/websocket/` (its Kiwi gateway) | No. Any Origin other than `https://chat.efnet.org` gets a 403. |
-| Libera.Chat | `web.libera.chat` behind Cloudflare | No public endpoint. Libera documents only its own web chats. |
-| Undernet | `chat.undernet.org/webirc/websocket/` | No in practice: the server answers `CAPTCHA NEEDED`. |
-| OFTC | socket.io gateway | No, because it does not speak IRC over WebSocket. |
-| IRCnet, DALnet, QuakeNet, Rizon | qwebirc, which runs on their own servers | No. |
-| Snoonet, Ergo main | own web chats | No. Both check Origin. |
-| Ergo testnet, UnrealIRCd support | `wss://testnet.ergo.chat/webirc`, `wss://irc.unrealircd.org` | Yes, technically. But the testnet logs all traffic and the other is a support network, so neither suits FuseOS users. |
+| Network                          | WebSocket endpoint                                               | Accepts other sites' clients?                                                                                         |
+| -------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| EFnet                            | `wss://chat.efnet.org:8443/webirc/websocket/` (its Kiwi gateway) | No. Any Origin other than `https://chat.efnet.org` gets a 403.                                                        |
+| Libera.Chat                      | `web.libera.chat` behind Cloudflare                              | No public endpoint. Libera documents only its own web chats.                                                          |
+| Undernet                         | `chat.undernet.org/webirc/websocket/`                            | No in practice: the server answers `CAPTCHA NEEDED`.                                                                  |
+| OFTC                             | socket.io gateway                                                | No, because it does not speak IRC over WebSocket.                                                                     |
+| IRCnet, DALnet, QuakeNet, Rizon  | qwebirc, which runs on their own servers                         | No.                                                                                                                   |
+| Snoonet, Ergo main               | own web chats                                                    | No. Both check Origin.                                                                                                |
+| Ergo testnet, UnrealIRCd support | `wss://testnet.ergo.chat/webirc`, `wss://irc.unrealircd.org`     | Yes, technically. But the testnet logs all traffic and the other is a support network, so neither suits FuseOS users. |
 
 KiwiIRC's hosted gateway (kiwiirc.com) publishes no permission for third-party clients, so we do not use it either. The owner's rule is to use real IRC only if KiwiIRC explicitly allows third-party clients.
 

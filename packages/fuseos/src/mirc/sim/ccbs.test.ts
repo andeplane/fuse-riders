@@ -26,7 +26,9 @@ describe("CCBS results", () => {
     expect(findTournament("9")?.name).toBe("Challenge Cup 1");
     expect(findTournament("cc 3 2004")?.date).toBe("2004-05-23");
     expect(findTournament("reunion")?.name).toMatch(/Reunion/);
-    expect(findTournament("nm05 single gutter")?.name).toBe("NM05 - Expert Single Gutter");
+    expect(findTournament("nm05 single gutter")?.name).toBe(
+      "NM05 - Expert Single Gutter",
+    );
     expect(findTournament("nothing like this")).toBeUndefined();
     expect(findTournament("  ")).toBeUndefined();
   });
@@ -57,7 +59,9 @@ describe("CCBS results", () => {
       ],
     };
     expect(podium(sample)).toBe("1. A (X) (100)  2. B (90)  3. C (81)");
-    expect(describeTournament(sample)).toBe("Test Cup - 2003-01-01, Hall (EuroMix 2)");
+    expect(describeTournament(sample)).toBe(
+      "Test Cup - 2003-01-01, Hall (EuroMix 2)",
+    );
     expect(seasons([sample])).toEqual(["S"]);
     expect(seasons()).toContain("Challenge Cup 2003");
   });

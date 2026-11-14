@@ -17,14 +17,23 @@ export type BrainRequest = {
 export interface RegularsBrain {
   /** Who is thinking, for the Status window ("the regulars are AI" or "canned"). */
   describe(): string;
-  reply(request: BrainRequest, signal: AbortSignal): Promise<string | undefined>;
+  reply(
+    request: BrainRequest,
+    signal: AbortSignal,
+  ): Promise<string | undefined>;
   dispose(): void;
 }
 
 /** Picks one of the regular's own lines; `random` makes it deterministic in tests. */
-export function cannedLine(regular: Regular, random: () => number): string | undefined {
+export function cannedLine(
+  regular: Regular,
+  random: () => number,
+): string | undefined {
   if (regular.lines.length === 0) return undefined;
-  return regular.lines[Math.floor(random() * regular.lines.length)] ?? regular.lines[0];
+  return (
+    regular.lines[Math.floor(random() * regular.lines.length)] ??
+    regular.lines[0]
+  );
 }
 
 export function cannedBrain(random: () => number): RegularsBrain {
@@ -44,7 +53,10 @@ export function toIrcLine(text: string, nick: string): string | undefined {
   if (!first) return undefined;
   const cleaned = first
     .trim()
-    .replace(new RegExp(`^<?${nick.replace(/[^A-Za-z0-9]/g, ".")}>?:?\\s*`, "i"), "")
+    .replace(
+      new RegExp(`^<?${nick.replace(/[^A-Za-z0-9]/g, ".")}>?:?\\s*`, "i"),
+      "",
+    )
     .replace(/^["“']|["”']$/g, "")
     .replace(/[\x00-\x1f]/g, "")
     .trim();
@@ -56,23 +68,39 @@ export function toIrcLine(text: string, nick: string): string | undefined {
  * the others, and everyone when the model fails or says nothing usable, use their canned lines. One reply is
  * generated at a time; the engine itself loads lazily on the first request.
  */
-export function engineBrain(engine: ChatEngine, random: () => number): RegularsBrain {
+export function engineBrain(
+  engine: ChatEngine,
+  random: () => number,
+): RegularsBrain {
   let busy = false;
   return {
     describe: () => {
       const backend = engine.backend();
-      return backend.kind === "model" ? `${backend.label}, running in this browser` : "canned lines";
+      return backend.kind === "model"
+        ? `${backend.label}, running in this browser`
+        : "canned lines";
     },
     async reply(request, signal) {
-      if (!request.regular.ai || busy) return cannedLine(request.regular, random);
+      if (!request.regular.ai || busy)
+        return cannedLine(request.regular, random);
       busy = true;
       try {
         let text = "";
         for await (const piece of engine.reply({
-          system: systemPromptFor(request.regular, request.channel, request.userNick),
+          system: systemPromptFor(
+            request.regular,
+            request.channel,
+            request.userNick,
+          ),
           messages: request.history.map((turn) => ({
-            role: turn.nick === request.regular.nick ? ("assistant" as const) : ("user" as const),
-            content: turn.nick === request.regular.nick ? turn.text : `<${turn.nick}> ${turn.text}`,
+            role:
+              turn.nick === request.regular.nick
+                ? ("assistant" as const)
+                : ("user" as const),
+            content:
+              turn.nick === request.regular.nick
+                ? turn.text
+                : `<${turn.nick}> ${turn.text}`,
           })),
           signal,
           onProgress: () => undefined,
@@ -80,7 +108,10 @@ export function engineBrain(engine: ChatEngine, random: () => number): RegularsB
           text += piece;
           if (text.length > 600) break;
         }
-        return toIrcLine(text, request.regular.nick) ?? cannedLine(request.regular, random);
+        return (
+          toIrcLine(text, request.regular.nick) ??
+          cannedLine(request.regular, random)
+        );
       } catch {
         return cannedLine(request.regular, random);
       } finally {

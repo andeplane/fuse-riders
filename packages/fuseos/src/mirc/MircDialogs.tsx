@@ -301,7 +301,8 @@ export function OptionsDialog({
                     ))}
                   </select>
                   <div className="mirc-muted mirc-hint">
-                    Simulated inside FuseOS: web pages can&apos;t open IRC connections.
+                    Simulated inside FuseOS: web pages can&apos;t open IRC
+                    connections.
                   </div>
                 </div>
                 <div className="mirc-servers-buttons">

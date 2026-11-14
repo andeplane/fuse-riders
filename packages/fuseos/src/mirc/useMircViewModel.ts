@@ -9,7 +9,13 @@ import {
 import { IrcClient } from "./irc/client";
 import { BOLD, colorize, RESET } from "./irc/format";
 import type { IrcNetwork } from "./irc/networks";
-import { DEFAULT_NETWORK_ID, findNetwork, NETWORKS, SIM_SCHEME, simNetwork } from "./irc/networks";
+import {
+  DEFAULT_NETWORK_ID,
+  findNetwork,
+  NETWORKS,
+  SIM_SCHEME,
+  simNetwork,
+} from "./irc/networks";
 import type { IrcTransport } from "./irc/transport";
 import type { ChatWindow, SessionState } from "./irc/session";
 import { STATUS_ID } from "./irc/session";
@@ -129,7 +135,9 @@ export function useMircViewModel(deps: MircDeps) {
     );
     const transport: IrcTransport = {
       connect: (url, handlers) =>
-        url.startsWith(SIM_SCHEME) ? sim.connect(url, handlers) : deps.transport.connect(url, handlers),
+        url.startsWith(SIM_SCHEME)
+          ? sim.connect(url, handlers)
+          : deps.transport.connect(url, handlers),
     };
     const created = new IrcClient(
       {

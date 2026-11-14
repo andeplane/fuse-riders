@@ -311,7 +311,9 @@ describe("IrcClient commands", () => {
     expect(transport.last.url).toBe("sim://efnet");
     client.submit(STATUS_ID, "/server irc.example.net:7000");
     expect(transport.last.url).toBe("sim://irc.example.net");
-    expect(statusText(client)).toContain("* Connecting to irc.example.net (7000)");
+    expect(statusText(client)).toContain(
+      "* Connecting to irc.example.net (7000)",
+    );
     client.submit(STATUS_ID, "/disconnect");
     client.submit(STATUS_ID, "/server");
     expect(transport.links).toHaveLength(3);

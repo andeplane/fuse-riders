@@ -18,12 +18,36 @@ export type IrcNetwork = {
 };
 
 export const NETWORKS: readonly IrcNetwork[] = [
-  { id: "efnet", name: "EFnet", servers: [{ host: "irc.efnet.org", port: 6667 }] },
-  { id: "ircnet", name: "IRCnet", servers: [{ host: "open.ircnet.net", port: 6667 }] },
-  { id: "undernet", name: "Undernet", servers: [{ host: "irc.undernet.org", port: 6667 }] },
-  { id: "dalnet", name: "DALnet", servers: [{ host: "irc.dal.net", port: 6667 }] },
-  { id: "quakenet", name: "QuakeNet", servers: [{ host: "irc.quakenet.org", port: 6667 }] },
-  { id: "libera", name: "Libera.Chat", servers: [{ host: "irc.libera.chat", port: 6697 }] },
+  {
+    id: "efnet",
+    name: "EFnet",
+    servers: [{ host: "irc.efnet.org", port: 6667 }],
+  },
+  {
+    id: "ircnet",
+    name: "IRCnet",
+    servers: [{ host: "open.ircnet.net", port: 6667 }],
+  },
+  {
+    id: "undernet",
+    name: "Undernet",
+    servers: [{ host: "irc.undernet.org", port: 6667 }],
+  },
+  {
+    id: "dalnet",
+    name: "DALnet",
+    servers: [{ host: "irc.dal.net", port: 6667 }],
+  },
+  {
+    id: "quakenet",
+    name: "QuakeNet",
+    servers: [{ host: "irc.quakenet.org", port: 6667 }],
+  },
+  {
+    id: "libera",
+    name: "Libera.Chat",
+    servers: [{ host: "irc.libera.chat", port: 6697 }],
+  },
   { id: "oftc", name: "OFTC", servers: [{ host: "irc.oftc.net", port: 6697 }] },
 ];
 
@@ -56,7 +80,10 @@ export const SIM_SCHEME = "sim:";
  * Where to connect: the WebSocket↔IRC bridge when the site owner has configured one (docs/fuseos/mirc.md),
  * otherwise the network's simulation in this page.
  */
-export function connectUrl(network: IrcNetwork, bridgeUrl: string | undefined): string {
+export function connectUrl(
+  network: IrcNetwork,
+  bridgeUrl: string | undefined,
+): string {
   if (!bridgeUrl) return `${SIM_SCHEME}//${encodeURIComponent(network.id)}`;
   const url = new URL(bridgeUrl);
   url.searchParams.set("network", network.id);

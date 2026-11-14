@@ -120,7 +120,12 @@ export const REGULARS: readonly Regular[] = [
     ai: false,
     away: "på trening",
     persona: "You are FootieFox, a fictional DDR player who mostly idles.",
-    lines: ["*gjesp*", "brb, middag", "noen som har pads til salgs?", "tilbake"],
+    lines: [
+      "*gjesp*",
+      "brb, middag",
+      "noen som har pads til salgs?",
+      "tilbake",
+    ],
   },
   {
     nick: "CCBSbot",
@@ -142,7 +147,11 @@ export const REGULARS: readonly Regular[] = [
     channels: ["#chatzone", "#dialup"],
     ai: false,
     persona: "",
-    lines: ["*krrrsshhhh* beeeeep", "mom picked up the phone again", "anyone else on 28.8?"],
+    lines: [
+      "*krrrsshhhh* beeeeep",
+      "mom picked up the phone again",
+      "anyone else on 28.8?",
+    ],
   },
   {
     nick: "Sunny_D",
@@ -188,11 +197,17 @@ export function findRegular(nick: string): Regular | undefined {
 
 export function regularsIn(channel: string): Regular[] {
   const wanted = channel.toLowerCase();
-  return REGULARS.filter((regular) => regular.channels.some((c) => c.toLowerCase() === wanted));
+  return REGULARS.filter((regular) =>
+    regular.channels.some((c) => c.toLowerCase() === wanted),
+  );
 }
 
 /** The system prompt for one regular's next line. */
-export function systemPromptFor(regular: Regular, channel: string, userNick: string): string {
+export function systemPromptFor(
+  regular: Regular,
+  channel: string,
+  userNick: string,
+): string {
   return [
     regular.persona,
     SCENE,

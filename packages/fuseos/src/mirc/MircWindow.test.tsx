@@ -26,13 +26,20 @@ class ScriptedBrain implements RegularsBrain {
   dispose() {}
 }
 
-type Options = { prefs?: Partial<MircPrefs>; withDeps?: boolean; bridge?: boolean; brain?: boolean };
+type Options = {
+  prefs?: Partial<MircPrefs>;
+  withDeps?: boolean;
+  bridge?: boolean;
+  brain?: boolean;
+};
 
 function setup(options: Options = {}) {
   const transport = new FakeIrcTransport();
   const scheduler = new ManualScheduler();
   const base = defaultPrefs(() => 0.4242, 0);
-  const store = new MemoryMircPrefsStore(options.prefs ? { ...base, ...options.prefs } : undefined);
+  const store = new MemoryMircPrefsStore(
+    options.prefs ? { ...base, ...options.prefs } : undefined,
+  );
   const brain = new ScriptedBrain();
   const deps: MircDeps = {
     transport,
@@ -61,8 +68,10 @@ function setup(options: Options = {}) {
 type Env = ReturnType<typeof setup>;
 
 const mirc = () => within(screen.getByTestId("mirc"));
-const dismissNag = () => fireEvent.click(mirc().getByRole("button", { name: "Continue" }));
-const log = (name: string) => mirc().getByRole("log", { name: `${name} messages` }).textContent ?? "";
+const dismissNag = () =>
+  fireEvent.click(mirc().getByRole("button", { name: "Continue" }));
+const log = (name: string) =>
+  mirc().getByRole("log", { name: `${name} messages` }).textContent ?? "";
 
 /** Lets the simulated server's timers run (a socket's worth of delay, typing pauses). */
 function run(env: Env, ms = 0) {
@@ -94,15 +103,20 @@ function joinDdr(env: Env) {
 /** Opens a menu-bar menu and chooses an item (plain and checkable items alike). */
 function pick(menu: string, item: string | RegExp) {
   fireEvent.click(mirc().getByRole("menuitem", { name: menu }));
-  fireEvent.click(within(screen.getByRole("menu", { name: menu })).getByLabelText(item));
+  fireEvent.click(
+    within(screen.getByRole("menu", { name: menu })).getByLabelText(item),
+  );
 }
 
 function closeFolder() {
   const dialog = mirc().getByRole("dialog", { name: "mIRC Channels Folder" });
-  fireEvent.click(within(dialog).getAllByRole("button", { name: "Close" })[0] as HTMLElement);
+  fireEvent.click(
+    within(dialog).getAllByRole("button", { name: "Close" })[0] as HTMLElement,
+  );
 }
 
-const editbox = (name: string) => mirc().getByRole("textbox", { name: `Message ${name}` });
+const editbox = (name: string) =>
+  mirc().getByRole("textbox", { name: `Message ${name}` });
 
 function type(name: string, text: string) {
   const box = editbox(name);
@@ -113,14 +127,22 @@ function type(name: string, text: string) {
 describe("mIRC window", () => {
   it("opens with the shareware nag and the welcome banner, and remembers the first run", () => {
     const env = setup({ prefs: { firstRun: 0 } });
-    expect(mirc().getByTestId("mirc-nag")).toHaveTextContent("Your 30 day evaluation period is over!");
-    expect(mirc().getByTestId("mirc-nag")).toHaveTextContent("using it for 41 days");
+    expect(mirc().getByTestId("mirc-nag")).toHaveTextContent(
+      "Your 30 day evaluation period is over!",
+    );
+    expect(mirc().getByTestId("mirc-nag")).toHaveTextContent(
+      "using it for 41 days",
+    );
     fireEvent.click(mirc().getByRole("button", { name: "Introduction" }));
-    expect(mirc().getByRole("dialog", { name: "Introduction" })).toBeInTheDocument();
+    expect(
+      mirc().getByRole("dialog", { name: "Introduction" }),
+    ).toBeInTheDocument();
     fireEvent.click(mirc().getByRole("button", { name: "OK" }));
     fireEvent.click(mirc().getByRole("button", { name: "About" }));
     fireEvent.click(mirc().getByRole("button", { name: "How to register" }));
-    expect(mirc().getByRole("dialog", { name: "How to register" })).toHaveTextContent("Nothing to buy");
+    expect(
+      mirc().getByRole("dialog", { name: "How to register" }),
+    ).toHaveTextContent("Nothing to buy");
     fireEvent.click(mirc().getByRole("button", { name: "OK" }));
     expect(log("Status")).toContain("Welcome to mIRC");
     expect(log("Status")).toContain("/join #ddrnorway");
@@ -129,8 +151,13 @@ describe("mIRC window", () => {
 
   it("saves first-run defaults with a Guest nick and EFnet", () => {
     const env = setup();
-    expect(env.prefsStore.get()).toMatchObject({ nick: "Guest4242", networkId: "efnet" });
-    expect(mirc().getByTestId("mirc-nag")).toHaveTextContent("using it for 1 day.");
+    expect(env.prefsStore.get()).toMatchObject({
+      nick: "Guest4242",
+      networkId: "efnet",
+    });
+    expect(mirc().getByTestId("mirc-nag")).toHaveTextContent(
+      "using it for 1 day.",
+    );
   });
 
   it("connects to the simulated EFnet, says so, and pops up the Channels Folder", () => {
@@ -138,21 +165,31 @@ describe("mIRC window", () => {
     connect(env);
     expect(env.transport.links).toHaveLength(0);
     expect(log("Status")).toContain("(simulated)");
-    expect(log("Status")).toContain("Regulars are thinking with: a test script");
-    expect(mirc().getByRole("tab", { name: "EFnet Guest4242" })).toBeInTheDocument();
-    expect(mirc().getByRole("dialog", { name: "mIRC Channels Folder" })).toBeInTheDocument();
+    expect(log("Status")).toContain(
+      "Regulars are thinking with: a test script",
+    );
+    expect(
+      mirc().getByRole("tab", { name: "EFnet Guest4242" }),
+    ).toBeInTheDocument();
+    expect(
+      mirc().getByRole("dialog", { name: "mIRC Channels Folder" }),
+    ).toBeInTheDocument();
   });
 
   it("goes through the bridge when the site has one", () => {
     const env = setup({ bridge: true });
     connect(env);
-    expect(env.transport.last.url).toBe("wss://bridge.example/irc?network=efnet");
+    expect(env.transport.last.url).toBe(
+      "wss://bridge.example/irc?network=efnet",
+    );
   });
 
   it("joins #ddrnorway with its regulars, and they answer through the brain", async () => {
     const env = setup();
     joinDdr(env);
-    const nicks = within(mirc().getByRole("listbox", { name: "Nicklist" })).getAllByRole("option");
+    const nicks = within(
+      mirc().getByRole("listbox", { name: "Nicklist" }),
+    ).getAllByRole("option");
     expect(nicks.map((nick) => nick.textContent)).toEqual([
       "@Andeplane",
       "@RiChY",
@@ -193,14 +230,18 @@ describe("mIRC window", () => {
     expect(box).toHaveValue("hi \x02");
     fireEvent.keyDown(box, { key: "x", ctrlKey: true });
     expect(box).toHaveValue("hi \x02");
-    type("#ddrnorway", "\x02\x0312,8bold blue\x0f plain \x16rev\x16 \x1funder\x1f \x1dit");
+    type(
+      "#ddrnorway",
+      "\x02\x0312,8bold blue\x0f plain \x16rev\x16 \x1funder\x1f \x1dit",
+    );
     expect(mirc().getByText("bold blue")).toHaveStyle({ fontWeight: "900" });
   });
 
   it("opens queries from the nicklist and runs its menu", () => {
     const env = setup();
     joinDdr(env);
-    const list = () => within(mirc().getByRole("listbox", { name: "Nicklist" }));
+    const list = () =>
+      within(mirc().getByRole("listbox", { name: "Nicklist" }));
     const zredna = list().getByText("+Zredna");
     fireEvent.mouseDown(zredna);
     expect(zredna).toHaveAttribute("aria-selected", "true");
@@ -209,14 +250,23 @@ describe("mIRC window", () => {
     run(env);
     expect(log("#ddrnorway")).toContain("Zredna is zredna@hdc.ddr.no * Zredna");
     for (const item of ["Op", "Deop", "Voice", "Devoice", "Kick"]) {
-      fireEvent.contextMenu(list().getByText("+Zredna"), { clientX: 50, clientY: 60 });
+      fireEvent.contextMenu(list().getByText("+Zredna"), {
+        clientX: 50,
+        clientY: 60,
+      });
       fireEvent.click(screen.getByRole("menuitem", { name: item }));
     }
     run(env);
     expect(log("#ddrnorway")).toContain("Unknown command");
-    fireEvent.contextMenu(list().getByText("+Zredna"), { clientX: 50, clientY: 60 });
+    fireEvent.contextMenu(list().getByText("+Zredna"), {
+      clientX: 50,
+      clientY: 60,
+    });
     fireEvent.click(screen.getByRole("menuitem", { name: "Query" }));
-    expect(mirc().getByRole("tab", { name: "Zredna" })).toHaveAttribute("aria-selected", "true");
+    expect(mirc().getByRole("tab", { name: "Zredna" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     fireEvent.click(mirc().getByRole("tab", { name: "#ddrnorway" }));
     fireEvent.doubleClick(list().getByText("@RiChY"));
     expect(mirc().getByRole("tab", { name: "RiChY" })).toBeInTheDocument();
@@ -236,14 +286,24 @@ describe("mIRC window", () => {
     expect(mirc().queryByRole("region", { name: "Status" })).toBeNull();
     fireEvent.click(status);
     expect(mirc().getByRole("region", { name: "Status" })).toBeInTheDocument();
-    fireEvent.click(within(mirc().getByRole("region", { name: "Status" })).getByRole("button", { name: "Minimize" }));
+    fireEvent.click(
+      within(mirc().getByRole("region", { name: "Status" })).getByRole(
+        "button",
+        { name: "Minimize" },
+      ),
+    );
     expect(mirc().queryByRole("region", { name: "Status" })).toBeNull();
   });
 
   it("parts a channel when its window closes", () => {
     const env = setup();
     joinDdr(env);
-    fireEvent.click(within(mirc().getByRole("region", { name: "#ddrnorway" })).getByRole("button", { name: "Close" }));
+    fireEvent.click(
+      within(mirc().getByRole("region", { name: "#ddrnorway" })).getByRole(
+        "button",
+        { name: "Close" },
+      ),
+    );
     expect(mirc().queryByRole("region", { name: "#ddrnorway" })).toBeNull();
     expect(mirc().queryByRole("tab", { name: "#ddrnorway" })).toBeNull();
   });
@@ -251,8 +311,15 @@ describe("mIRC window", () => {
   it("maximizes children into the frame caption, and tiles and cascades them", () => {
     const env = setup();
     joinDdr(env);
-    fireEvent.click(within(mirc().getByRole("region", { name: "#ddrnorway" })).getByRole("button", { name: "Maximize" }));
-    expect(screen.getAllByText(/^mIRC - \[#ddrnorway \[7\]/).length).toBeGreaterThan(0);
+    fireEvent.click(
+      within(mirc().getByRole("region", { name: "#ddrnorway" })).getByRole(
+        "button",
+        { name: "Maximize" },
+      ),
+    );
+    expect(
+      screen.getAllByText(/^mIRC - \[#ddrnorway \[7\]/).length,
+    ).toBeGreaterThan(0);
     fireEvent.click(mirc().getByRole("button", { name: "Restore child" }));
     expect(screen.queryByText(/^mIRC - \[/)).toBeNull();
     fireEvent.click(mirc().getByRole("button", { name: "Tile Windows" }));
@@ -261,7 +328,9 @@ describe("mIRC window", () => {
       pick("Window", item);
     }
     pick("Window", /1 EFnet Guest4242/);
-    expect(mirc().getByRole("tab", { name: "EFnet Guest4242" })).toHaveAttribute("aria-selected", "true");
+    expect(
+      mirc().getByRole("tab", { name: "EFnet Guest4242" }),
+    ).toHaveAttribute("aria-selected", "true");
   });
 
   it("moves and sizes a child by dragging its caption and grip", () => {
@@ -271,18 +340,41 @@ describe("mIRC window", () => {
     const caption = status.querySelector(".title-bar");
     const grip = status.querySelector(".mirc-grip");
     if (!caption || !grip) throw new Error("missing chrome");
-    fireEvent.pointerDown(caption, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
+    fireEvent.pointerDown(caption, {
+      button: 0,
+      clientX: 10,
+      clientY: 10,
+      pointerId: 1,
+    });
     fireEvent.pointerMove(caption, { clientX: 40, clientY: 30, pointerId: 1 });
     fireEvent.pointerUp(caption, { pointerId: 1 });
     expect(status.style.left).toBe("30px");
     expect(status.style.top).toBe("20px");
-    fireEvent.pointerDown(grip, { button: 0, clientX: 0, clientY: 0, pointerId: 1 });
-    fireEvent.pointerMove(grip, { clientX: -1000, clientY: -1000, pointerId: 1 });
+    fireEvent.pointerDown(grip, {
+      button: 0,
+      clientX: 0,
+      clientY: 0,
+      pointerId: 1,
+    });
+    fireEvent.pointerMove(grip, {
+      clientX: -1000,
+      clientY: -1000,
+      pointerId: 1,
+    });
     fireEvent.pointerUp(grip, { pointerId: 1 });
     expect(status.style.width).toBe("200px");
-    fireEvent.pointerMove(caption, { clientX: 400, clientY: 400, pointerId: 1 });
+    fireEvent.pointerMove(caption, {
+      clientX: 400,
+      clientY: 400,
+      pointerId: 1,
+    });
     expect(status.style.left).toBe("30px");
-    fireEvent.pointerDown(caption, { button: 2, clientX: 0, clientY: 0, pointerId: 1 });
+    fireEvent.pointerDown(caption, {
+      button: 2,
+      clientX: 0,
+      clientY: 0,
+      pointerId: 1,
+    });
     fireEvent.doubleClick(caption);
     expect(screen.getAllByText("mIRC - [Status]").length).toBeGreaterThan(0);
   });
@@ -293,8 +385,12 @@ describe("mIRC window", () => {
     fireEvent.click(mirc().getByRole("button", { name: "List Channels" }));
     const offline = mirc().getByRole("listbox", { name: "Channels" });
     expect(within(offline).getAllByRole("option").length).toBeGreaterThan(10);
-    fireEvent.mouseDown(within(offline).getAllByRole("option")[0] as HTMLElement);
-    fireEvent.doubleClick(within(offline).getAllByRole("option")[0] as HTMLElement);
+    fireEvent.mouseDown(
+      within(offline).getAllByRole("option")[0] as HTMLElement,
+    );
+    fireEvent.doubleClick(
+      within(offline).getAllByRole("option")[0] as HTMLElement,
+    );
     expect(log("Status")).toContain("* /join: not connected to server");
     fireEvent.click(mirc().getByRole("button", { name: "Connect" }));
     pick("Tools", "Channels List");
@@ -317,7 +413,9 @@ describe("mIRC window", () => {
     const menu = (name: string) => pick("Commands", name);
     const answer = (value: string) => {
       const dialog = mirc().getByRole("dialog");
-      fireEvent.change(within(dialog).getByRole("textbox"), { target: { value } });
+      fireEvent.change(within(dialog).getByRole("textbox"), {
+        target: { value },
+      });
       fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
       run(env);
     };
@@ -332,16 +430,23 @@ describe("mIRC window", () => {
     expect(log("#ddrnorway")).toContain("You have been marked as being away");
     menu("Back");
     run(env);
-    expect(log("#ddrnorway")).toContain("You are no longer marked as being away");
+    expect(log("#ddrnorway")).toContain(
+      "You are no longer marked as being away",
+    );
     menu("Join channel...");
     answer("#fuseos-test");
-    expect(mirc().getByRole("tab", { name: "#fuseos-test" })).toHaveAttribute("aria-selected", "true");
+    expect(mirc().getByRole("tab", { name: "#fuseos-test" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     menu("Part channel");
     run(env);
     expect(log("#fuseos-test")).toContain("* You have left #fuseos-test");
     menu("Query user...");
     const dialog = mirc().getByRole("dialog");
-    fireEvent.change(within(dialog).getByRole("textbox"), { target: { value: "  " } });
+    fireEvent.change(within(dialog).getByRole("textbox"), {
+      target: { value: "  " },
+    });
     fireEvent.submit(within(dialog).getByRole("button", { name: "OK" }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     menu("Query user...");
@@ -355,13 +460,21 @@ describe("mIRC window", () => {
   it("explains the parts a web page cannot do", () => {
     setup();
     dismissNag();
-    for (const button of ["DCC Send", "Aliases", "Colours", "Timer", "URL List"]) {
+    for (const button of [
+      "DCC Send",
+      "Aliases",
+      "Colours",
+      "Timer",
+      "URL List",
+    ]) {
       fireEvent.click(mirc().getByRole("button", { name: button }));
       expect(mirc().getByRole("dialog", { name: button })).toBeInTheDocument();
       fireEvent.click(mirc().getByRole("button", { name: "OK" }));
     }
     pick("DCC", "Chat...");
-    expect(mirc().getByRole("dialog", { name: "DCC Chat" })).toHaveTextContent("straight between two computers");
+    expect(mirc().getByRole("dialog", { name: "DCC Chat" })).toHaveTextContent(
+      "straight between two computers",
+    );
   });
 
   it("edits the Connect options, validating the nick, and connects from them", () => {
@@ -369,11 +482,17 @@ describe("mIRC window", () => {
     dismissNag();
     pick("File", "Options...");
     const dialog = within(mirc().getByRole("dialog", { name: "mIRC Options" }));
-    fireEvent.change(dialog.getByLabelText("Nickname:"), { target: { value: "bad nick" } });
+    fireEvent.change(dialog.getByLabelText("Nickname:"), {
+      target: { value: "bad nick" },
+    });
     expect(dialog.getByRole("alert")).toBeInTheDocument();
     expect(dialog.getByRole("button", { name: "OK" })).toBeDisabled();
-    fireEvent.change(dialog.getByLabelText("Nickname:"), { target: { value: "Acid_Burn" } });
-    fireEvent.change(dialog.getByLabelText("E-Mail Address:"), { target: { value: "kate@example.net" } });
+    fireEvent.change(dialog.getByLabelText("Nickname:"), {
+      target: { value: "Acid_Burn" },
+    });
+    fireEvent.change(dialog.getByLabelText("E-Mail Address:"), {
+      target: { value: "kate@example.net" },
+    });
     fireEvent.click(dialog.getByLabelText("Invisible mode"));
     fireEvent.click(dialog.getByRole("treeitem", { name: "Options" }));
     fireEvent.click(dialog.getByLabelText("Pop up Channels Folder on connect"));
@@ -382,7 +501,9 @@ describe("mIRC window", () => {
     fireEvent.click(dialog.getByRole("treeitem", { name: "Identd" }));
     expect(dialog.getByText(/cannot listen on a port/)).toBeInTheDocument();
     fireEvent.click(dialog.getByRole("treeitem", { name: /Sounds$/ }));
-    expect(dialog.getByText(/not available in the FuseOS edition/)).toBeInTheDocument();
+    expect(
+      dialog.getByText(/not available in the FuseOS edition/),
+    ).toBeInTheDocument();
     fireEvent.click(dialog.getByRole("button", { name: "OK" }));
     expect(env.prefsStore.get()).toMatchObject({
       nick: "Acid_Burn",
@@ -395,10 +516,16 @@ describe("mIRC window", () => {
     pick("Tools", "Timestamp");
     expect(env.prefsStore.get()?.timestamps).toBe(false);
     fireEvent.click(mirc().getByRole("button", { name: "Options" }));
-    fireEvent.change(mirc().getByLabelText("IRC Servers:"), { target: { value: "dalnet" } });
-    fireEvent.click(mirc().getByRole("button", { name: "Connect to IRC Server" }));
+    fireEvent.change(mirc().getByLabelText("IRC Servers:"), {
+      target: { value: "dalnet" },
+    });
+    fireEvent.click(
+      mirc().getByRole("button", { name: "Connect to IRC Server" }),
+    );
     run(env, 400);
-    expect(mirc().getByRole("tab", { name: "DALnet Acid_Burn" })).toBeInTheDocument();
+    expect(
+      mirc().getByRole("tab", { name: "DALnet Acid_Burn" }),
+    ).toBeInTheDocument();
     expect(mirc().queryByRole("dialog")).toBeNull();
   });
 
@@ -409,16 +536,22 @@ describe("mIRC window", () => {
     expect(env.prefsStore.get()?.smartRegulars).toBe(true);
     fireEvent.click(mirc().getByRole("button", { name: "Connect" }));
     run(env, 400);
-    expect(log("Status")).toContain("Regulars are thinking with: Qwen 2.5 0.5B, running in this browser");
+    expect(log("Status")).toContain(
+      "Regulars are thinking with: Qwen 2.5 0.5B, running in this browser",
+    );
   });
 
   it("manages the Channels Folder favourites", () => {
     const env = setup();
     dismissNag();
     fireEvent.click(mirc().getByRole("button", { name: "Channels Folder" }));
-    const dialog = within(mirc().getByRole("dialog", { name: "mIRC Channels Folder" }));
+    const dialog = within(
+      mirc().getByRole("dialog", { name: "mIRC Channels Folder" }),
+    );
     expect(dialog.getByRole("button", { name: "Join" })).toBeDisabled();
-    fireEvent.change(dialog.getByLabelText("Enter name of channel to join:"), { target: { value: "retro" } });
+    fireEvent.change(dialog.getByLabelText("Enter name of channel to join:"), {
+      target: { value: "retro" },
+    });
     fireEvent.click(dialog.getByRole("button", { name: "Add" }));
     expect(env.prefsStore.get()?.favorites).toContain("#retro");
     fireEvent.mouseDown(dialog.getByRole("option", { name: "#help" }));
@@ -447,26 +580,40 @@ describe("mIRC window", () => {
   it("closes mIRC from the Status window's close box", () => {
     setup();
     dismissNag();
-    fireEvent.click(within(mirc().getByRole("region", { name: "Status" })).getByRole("button", { name: "Close" }));
+    fireEvent.click(
+      within(mirc().getByRole("region", { name: "Status" })).getByRole(
+        "button",
+        { name: "Close" },
+      ),
+    );
     expect(screen.queryByTestId("mirc")).toBeNull();
   });
 
   it("says so when the build has no mIRC dependencies", () => {
     setup({ withDeps: false });
-    expect(mirc().getByText("mIRC is not installed in this build.")).toBeInTheDocument();
+    expect(
+      mirc().getByText("mIRC is not installed in this build."),
+    ).toBeInTheDocument();
   });
 });
 
 describe("captions", () => {
   it("formats Status, channel, query and list captions and switchbar labels", () => {
-    expect(welcomeBanner({ id: "n", name: "Net", servers: [] }).join("\n")).toContain("Net is selected");
+    expect(
+      welcomeBanner({ id: "n", name: "Net", servers: [] }).join("\n"),
+    ).toContain("Net is selected");
     const state = {
       phase: "online" as const,
       nick: "me",
       userModes: "",
       network: "Net",
       server: "irc.net:6697",
-      support: { prefixModes: "", prefixSymbols: "", chantypes: "#", chanmodes: ["", "", "", ""] as const },
+      support: {
+        prefixModes: "",
+        prefixSymbols: "",
+        chantypes: "#",
+        chanmodes: ["", "", "", ""] as const,
+      },
       list: { entries: [], demo: false, complete: true },
       windows: [],
       activeId: "status",
@@ -478,11 +625,29 @@ describe("captions", () => {
       pendingNames: {},
       nextLineId: 1,
     };
-    const window = { id: "x", name: "#c", lines: [], topic: "", modes: "", members: [], joined: false, activity: 0 as const };
-    expect(childTitle({ ...window, kind: "status" }, state)).toBe("Status: me on Net (irc.net:6697)");
+    const window = {
+      id: "x",
+      name: "#c",
+      lines: [],
+      topic: "",
+      modes: "",
+      members: [],
+      joined: false,
+      activity: 0 as const,
+    };
+    expect(childTitle({ ...window, kind: "status" }, state)).toBe(
+      "Status: me on Net (irc.net:6697)",
+    );
     expect(childTitle({ ...window, kind: "channel" }, state)).toBe("#c");
     expect(childTitle({ ...window, kind: "list" }, state)).toBe("0 Channels");
-    expect(switchbarLabel({ ...window, kind: "query", name: "bob" }, state)).toBe("bob");
-    expect(switchbarLabel({ ...window, kind: "status" }, { ...state, phase: "offline" })).toBe("Status");
+    expect(
+      switchbarLabel({ ...window, kind: "query", name: "bob" }, state),
+    ).toBe("bob");
+    expect(
+      switchbarLabel(
+        { ...window, kind: "status" },
+        { ...state, phase: "offline" },
+      ),
+    ).toBe("Status");
   });
 });

@@ -3,7 +3,11 @@ import { ircEquals, ircLower } from "../irc/casemap";
 import { BOLD, colorize } from "../irc/format";
 import { line, parseCtcp, parseMessage } from "../irc/message";
 import { demoChannelList } from "../irc/networks";
-import type { IrcConnection, IrcTransport, TransportHandlers } from "../irc/transport";
+import type {
+  IrcConnection,
+  IrcTransport,
+  TransportHandlers,
+} from "../irc/transport";
 
 import type { ChatTurn, RegularsBrain } from "./brain";
 import {
@@ -17,7 +21,13 @@ import {
   seasons,
 } from "./ccbs";
 import type { Regular } from "./regulars";
-import { DDR_CHANNEL, DDR_TOPIC, findRegular, REGULARS, regularsIn } from "./regulars";
+import {
+  DDR_CHANNEL,
+  DDR_TOPIC,
+  findRegular,
+  REGULARS,
+  regularsIn,
+} from "./regulars";
 
 /**
  * A pretend IRC server that runs in the page: FuseOS has no IRC backend, and browsers cannot reach the real
@@ -46,7 +56,10 @@ export const IDLE_MS = { min: 45_000, max: 110_000 } as const;
 export const COOLDOWN_MS = 6000;
 const HISTORY = 10;
 
-function between(range: { min: number; max: number }, random: () => number): number {
+function between(
+  range: { min: number; max: number },
+  random: () => number,
+): number {
   return Math.round(range.min + random() * (range.max - range.min));
 }
 
@@ -74,7 +87,9 @@ export class SimServer {
   ) {
     const channelNames = new Set(REGULARS.flatMap((r) => r.channels));
     for (const name of channelNames) {
-      const listed = demoChannelList().find((entry) => ircEquals(entry.channel, name));
+      const listed = demoChannelList().find((entry) =>
+        ircEquals(entry.channel, name),
+      );
       const channel: SimChannel = {
         name,
         topic: ircEquals(name, DDR_CHANNEL) ? DDR_TOPIC : (listed?.topic ?? ""),
@@ -83,7 +98,10 @@ export class SimServer {
         history: [],
       };
       for (const regular of regularsIn(name))
-        channel.members.set(ircLower(regular.nick), { nick: regular.nick, prefix: regular.prefix });
+        channel.members.set(ircLower(regular.nick), {
+          nick: regular.nick,
+          prefix: regular.prefix,
+        });
       this.channels.set(ircLower(name), channel);
     }
   }
@@ -130,8 +148,10 @@ export class SimServer {
     const [first = "", second = ""] = message.params;
     switch (message.command) {
       case "CAP":
-        if (first.toUpperCase() === "LS") this.send(`:${this.host} CAP * LS :multi-prefix`);
-        else if (first.toUpperCase() === "REQ") this.send(`:${this.host} CAP * ACK :${second}`);
+        if (first.toUpperCase() === "LS")
+          this.send(`:${this.host} CAP * LS :multi-prefix`);
+        else if (first.toUpperCase() === "REQ")
+          this.send(`:${this.host} CAP * ACK :${second}`);
         return;
       case "NICK":
         this.onNick(first);
@@ -146,7 +166,9 @@ export class SimServer {
       case "PONG":
         return;
       case "QUIT":
-        this.send(`ERROR :Closing Link: ${this.nick}[fuseos.browser] (Quit: ${first})`);
+        this.send(
+          `ERROR :Closing Link: ${this.nick}[fuseos.browser] (Quit: ${first})`,
+        );
         this.stop();
         this.hangUp("Quit");
         return;
@@ -184,7 +206,8 @@ export class SimServer {
         return;
       case "AWAY":
         this.away = first.length > 0 ? first : undefined;
-        if (this.away) this.numeric("306", "You have been marked as being away");
+        if (this.away)
+          this.numeric("306", "You have been marked as being away");
         else this.numeric("305", "You are no longer marked as being away");
         return;
       case "MOTD":
@@ -221,9 +244,18 @@ export class SimServer {
     if (this.registered || this.nick === "*" || this.user === "user") return;
     this.registered = true;
     const host = this.host;
-    this.numeric("001", `Welcome to the ${this.network.name} IRC Network ${this.selfPrefix}`);
-    this.numeric("002", `Your host is ${host}, running version fuseos-ircd-1.0`);
-    this.numeric("003", "This server was created Sat Sep 1 2001 at 12:00:00 CET");
+    this.numeric(
+      "001",
+      `Welcome to the ${this.network.name} IRC Network ${this.selfPrefix}`,
+    );
+    this.numeric(
+      "002",
+      `Your host is ${host}, running version fuseos-ircd-1.0`,
+    );
+    this.numeric(
+      "003",
+      "This server was created Sat Sep 1 2001 at 12:00:00 CET",
+    );
     this.numeric("004", host, "fuseos-ircd-1.0", "iowx", "biklmnopstv");
     this.numeric(
       "005",
@@ -233,7 +265,10 @@ export class SimServer {
       `NETWORK=${this.network.name.replace(/\s+/g, "")}`,
       "are supported by this server",
     );
-    this.numeric("251", `There are ${REGULARS.length + 1} users and 4321 invisible on 12 servers`);
+    this.numeric(
+      "251",
+      `There are ${REGULARS.length + 1} users and 4321 invisible on 12 servers`,
+    );
     this.numeric("254", String(this.channels.size), "channels formed");
     this.motd();
     this.send(`:${this.nick} MODE ${this.nick} :+i`);
@@ -271,12 +306,21 @@ export class SimServer {
     }
     let channel = this.channel(name);
     if (!channel) {
-      channel = { name, topic: "", topicBy: "", members: new Map(), history: [] };
+      channel = {
+        name,
+        topic: "",
+        topicBy: "",
+        members: new Map(),
+        history: [],
+      };
       this.channels.set(ircLower(name), channel);
     }
     if (channel.members.has(ircLower(this.nick))) return;
     // The first one into an empty channel gets ops, as on a real network.
-    channel.members.set(ircLower(this.nick), { nick: this.nick, prefix: channel.members.size === 0 ? "@" : "" });
+    channel.members.set(ircLower(this.nick), {
+      nick: this.nick,
+      prefix: channel.members.size === 0 ? "@" : "",
+    });
     this.send(`:${this.selfPrefix} JOIN :${channel.name}`);
     if (channel.topic) {
       this.numeric("332", channel.name, channel.topic);
@@ -290,7 +334,9 @@ export class SimServer {
   private names(name: string) {
     const channel = this.channel(name);
     if (channel) {
-      const entries = [...channel.members.values()].map((m) => `${m.prefix}${m.nick}`);
+      const entries = [...channel.members.values()].map(
+        (m) => `${m.prefix}${m.nick}`,
+      );
       this.numeric("353", "=", channel.name, entries.join(" "));
     }
     this.numeric("366", name, "End of /NAMES list.");
@@ -303,7 +349,9 @@ export class SimServer {
       return;
     }
     channel.members.delete(ircLower(this.nick));
-    this.send(`:${this.selfPrefix} PART ${channel.name}${reason ? ` :${reason}` : ""}`);
+    this.send(
+      `:${this.selfPrefix} PART ${channel.name}${reason ? ` :${reason}` : ""}`,
+    );
   }
 
   private onTopic(name: string, topic: string | undefined) {
@@ -343,15 +391,37 @@ export class SimServer {
   private onWhois(nick: string) {
     const regular = findRegular(nick);
     if (ircEquals(nick, this.nick)) {
-      this.numeric("311", this.nick, this.user, "fuseos.browser", "*", "FuseOS user");
+      this.numeric(
+        "311",
+        this.nick,
+        this.user,
+        "fuseos.browser",
+        "*",
+        "FuseOS user",
+      );
       this.numeric("312", this.nick, this.host, "FuseOS simulated server");
     } else if (regular) {
-      this.numeric("311", regular.nick, regular.user, regular.host, "*", regular.realName);
-      const channels = regular.channels.map((c) => `${regular.prefix}${c}`).join(" ");
+      this.numeric(
+        "311",
+        regular.nick,
+        regular.user,
+        regular.host,
+        "*",
+        regular.realName,
+      );
+      const channels = regular.channels
+        .map((c) => `${regular.prefix}${c}`)
+        .join(" ");
       this.numeric("319", regular.nick, channels);
       this.numeric("312", regular.nick, this.host, "FuseOS simulated server");
       if (regular.away) this.numeric("301", regular.nick, regular.away);
-      this.numeric("317", regular.nick, String(Math.floor(this.deps.random() * 900)), "1099000000", "seconds idle, signon time");
+      this.numeric(
+        "317",
+        regular.nick,
+        String(Math.floor(this.deps.random() * 900)),
+        "1099000000",
+        "seconds idle, signon time",
+      );
     } else {
       this.numeric("401", nick, "No such nick/channel");
     }
@@ -361,9 +431,15 @@ export class SimServer {
   private onList() {
     this.numeric("321", "Channel", "Users  Name");
     for (const channel of this.channels.values())
-      this.numeric("322", channel.name, String(channel.members.size), channel.topic);
+      this.numeric(
+        "322",
+        channel.name,
+        String(channel.members.size),
+        channel.topic,
+      );
     for (const entry of demoChannelList())
-      if (!this.channel(entry.channel)) this.numeric("322", entry.channel, String(entry.users), entry.topic);
+      if (!this.channel(entry.channel))
+        this.numeric("322", entry.channel, String(entry.users), entry.topic);
     this.numeric("323", "End of /LIST");
   }
 
@@ -376,7 +452,8 @@ export class SimServer {
 
   private remember(channel: SimChannel, nick: string, text: string) {
     channel.history.push({ nick, text });
-    if (channel.history.length > HISTORY) channel.history.splice(0, channel.history.length - HISTORY);
+    if (channel.history.length > HISTORY)
+      channel.history.splice(0, channel.history.length - HISTORY);
   }
 
   private greet(channel: SimChannel) {
@@ -389,7 +466,10 @@ export class SimServer {
         ),
       );
     const greeter = findRegular("RiChY");
-    if (greeter) this.later(between(TYPING_MS, this.deps.random) + 1500, () => this.say(greeter, channel.name, `hei ${this.nick} :)`));
+    if (greeter)
+      this.later(between(TYPING_MS, this.deps.random) + 1500, () =>
+        this.say(greeter, channel.name, `hei ${this.nick} :)`),
+      );
   }
 
   private onPrivmsg(target: string, text: string) {
@@ -398,7 +478,9 @@ export class SimServer {
       const regular = findRegular(target);
       if (regular && ctcp.command === "VERSION")
         this.later(600, () =>
-          this.send(`:${this.prefixOf(regular)} NOTICE ${this.nick} :\x01VERSION mIRC v6.03 (simulated)\x01`),
+          this.send(
+            `:${this.prefixOf(regular)} NOTICE ${this.nick} :\x01VERSION mIRC v6.03 (simulated)\x01`,
+          ),
         );
       return;
     }
@@ -410,7 +492,8 @@ export class SimServer {
         return;
       }
       this.remember(channel, this.nick, body);
-      if (text.startsWith("!") && channel.members.has("ccbsbot")) this.ccbs(channel.name, text);
+      if (text.startsWith("!") && channel.members.has("ccbsbot"))
+        this.ccbs(channel.name, text);
       else this.reactInChannel(channel, body);
       return;
     }
@@ -432,12 +515,19 @@ export class SimServer {
   private reactInChannel(channel: SimChannel, text: string) {
     const present = [...channel.members.values()]
       .map((member) => findRegular(member.nick))
-      .filter((regular): regular is Regular => regular !== undefined && regular.lines.length > 0);
+      .filter(
+        (regular): regular is Regular =>
+          regular !== undefined && regular.lines.length > 0,
+      );
     if (present.length === 0) return;
     const lower = text.toLowerCase();
-    const mentioned = present.find((regular) => lower.includes(regular.nick.toLowerCase()));
+    const mentioned = present.find((regular) =>
+      lower.includes(regular.nick.toLowerCase()),
+    );
     const now = this.deps.now();
-    const rested = present.filter((r) => now - (this.lastSpoke.get(r.nick) ?? -Infinity) > COOLDOWN_MS);
+    const rested = present.filter(
+      (r) => now - (this.lastSpoke.get(r.nick) ?? -Infinity) > COOLDOWN_MS,
+    );
     const speaker =
       mentioned ??
       (this.deps.random() < 0.6 && rested.length > 0
@@ -446,32 +536,56 @@ export class SimServer {
     if (speaker) this.reply(speaker, channel.name, channel.history);
   }
 
-  private reply(regular: Regular, target: string, history: readonly ChatTurn[]) {
+  private reply(
+    regular: Regular,
+    target: string,
+    history: readonly ChatTurn[],
+  ) {
     const started = this.deps.now();
     void this.deps.brain
-      .reply({ regular, channel: target, userNick: this.nick, history: [...history] }, this.abort.signal)
+      .reply(
+        {
+          regular,
+          channel: target,
+          userNick: this.nick,
+          history: [...history],
+        },
+        this.abort.signal,
+      )
       .then((text) => {
         if (!text || this.stopped) return;
         const waited = this.deps.now() - started;
-        this.later(Math.max(0, between(TYPING_MS, this.deps.random) - waited), () => this.say(regular, target, text));
+        this.later(
+          Math.max(0, between(TYPING_MS, this.deps.random) - waited),
+          () => this.say(regular, target, text),
+        );
       });
   }
 
   private scheduleIdle() {
     if (this.idleTimer) return;
-    const handle = this.deps.scheduler.setTimeout(() => {
-      this.timers.delete(handle);
-      this.idleTimer = undefined;
-      if (this.stopped) return;
-      const channel = this.channel(DDR_CHANNEL);
-      if (channel?.members.has(ircLower(this.nick))) {
-        const idlers = regularsIn(DDR_CHANNEL).filter((r) => r.lines.length > 0);
-        const regular = idlers[Math.floor(this.deps.random() * idlers.length)];
-        const text = regular?.lines[Math.floor(this.deps.random() * regular.lines.length)];
-        if (regular && text) this.say(regular, channel.name, text);
-      }
-      this.scheduleIdle();
-    }, between(IDLE_MS, this.deps.random));
+    const handle = this.deps.scheduler.setTimeout(
+      () => {
+        this.timers.delete(handle);
+        this.idleTimer = undefined;
+        if (this.stopped) return;
+        const channel = this.channel(DDR_CHANNEL);
+        if (channel?.members.has(ircLower(this.nick))) {
+          const idlers = regularsIn(DDR_CHANNEL).filter(
+            (r) => r.lines.length > 0,
+          );
+          const regular =
+            idlers[Math.floor(this.deps.random() * idlers.length)];
+          const text =
+            regular?.lines[
+              Math.floor(this.deps.random() * regular.lines.length)
+            ];
+          if (regular && text) this.say(regular, channel.name, text);
+        }
+        this.scheduleIdle();
+      },
+      between(IDLE_MS, this.deps.random),
+    );
     this.idleTimer = handle;
     this.timers.add(handle);
   }
@@ -494,16 +608,24 @@ export class SimServer {
       case "!t":
       case "!tournament": {
         const found = arg ? findTournament(arg) : undefined;
-        if (found) out.push(`${BOLD}${describe(found)}${BOLD}`, podium(found, 5));
-        else out.push(`Fant ingen turnering for "${arg}". Prøv f.eks. !t cc 3 2004, !t reunion, !t nm05 single`);
+        if (found)
+          out.push(`${BOLD}${describe(found)}${BOLD}`, podium(found, 5));
+        else
+          out.push(
+            `Fant ingen turnering for "${arg}". Prøv f.eks. !t cc 3 2004, !t reunion, !t nm05 single`,
+          );
         break;
       }
       case "!spiller":
       case "!player": {
         const record = arg ? playerRecord(arg) : undefined;
         if (record) {
-          const best = record.best ? ` Best: ${record.best.rank}. plass, ${record.best.tournament.name} (${record.best.tournament.date}).` : "";
-          out.push(`${record.name}: ${record.events} rangerte turneringer, ${record.wins} seier(e), ${record.podiums} pallplass(er).${best}`);
+          const best = record.best
+            ? ` Best: ${record.best.rank}. plass, ${record.best.tournament.name} (${record.best.tournament.date}).`
+            : "";
+          out.push(
+            `${record.name}: ${record.events} rangerte turneringer, ${record.wins} seier(e), ${record.podiums} pallplass(er).${best}`,
+          );
         } else out.push(`Fant ingen spiller "${arg}" i resultatlistene.`);
         break;
       }
@@ -514,9 +636,17 @@ export class SimServer {
       case "!vinnere":
       case "!winners": {
         const season = arg.toLowerCase();
-        const events = ranked().filter((t) => season.length > 0 && t.season.toLowerCase().includes(season));
-        if (events.length === 0) out.push("Bruk: !vinnere <sesong>, f.eks. !vinnere challenge cup 2003");
-        else out.push(events.map((t) => `${t.name}: ${t.top[0]?.[0] ?? "?"}`).join(" | "));
+        const events = ranked().filter(
+          (t) => season.length > 0 && t.season.toLowerCase().includes(season),
+        );
+        if (events.length === 0)
+          out.push(
+            "Bruk: !vinnere <sesong>, f.eks. !vinnere challenge cup 2003",
+          );
+        else
+          out.push(
+            events.map((t) => `${t.name}: ${t.top[0]?.[0] ?? "?"}`).join(" | "),
+          );
         break;
       }
       case "!ccbs":
@@ -530,7 +660,9 @@ export class SimServer {
         return;
     }
     out.forEach((text, index) =>
-      this.later(400 + index * 300, () => this.say(bot, target, colorize(text, index === 0 ? 2 : 1))),
+      this.later(400 + index * 300, () =>
+        this.say(bot, target, colorize(text, index === 0 ? 2 : 1)),
+      ),
     );
   }
 }
@@ -551,7 +683,8 @@ export function createSimTransport(
       let flushing = false;
       const flush = () => {
         flushing = false;
-        while (open && inbox.length > 0) handlers.onLine(inbox.shift() as string);
+        while (open && inbox.length > 0)
+          handlers.onLine(inbox.shift() as string);
       };
       const deliver = (text: string) => {
         if (!open) return;
@@ -566,14 +699,21 @@ export function createSimTransport(
         server.stop();
         handlers.onClose(reason);
       };
-      const server: SimServer = new SimServer(deps, network, deliver, (reason) =>
-        deps.scheduler.setTimeout(() => close(reason), 0),
+      const server: SimServer = new SimServer(
+        deps,
+        network,
+        deliver,
+        (reason) => deps.scheduler.setTimeout(() => close(reason), 0),
       );
       deps.scheduler.setTimeout(() => {
         if (!open) return;
         handlers.onOpen();
-        deliver(`:${simHost(network.id)} NOTICE * :*** Looking up your hostname...`);
-        deliver(`:${simHost(network.id)} NOTICE * :*** Found your hostname (fuseos.browser)`);
+        deliver(
+          `:${simHost(network.id)} NOTICE * :*** Looking up your hostname...`,
+        );
+        deliver(
+          `:${simHost(network.id)} NOTICE * :*** Found your hostname (fuseos.browser)`,
+        );
       }, 300);
       return {
         send: (text) => {
