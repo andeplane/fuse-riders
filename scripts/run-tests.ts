@@ -2,6 +2,7 @@
  * `pnpm test`: the unit suite through `tsx --test`, the whole of it unless TEST_SHARD=i/n picks one cost-balanced
  * shard (scripts/lib/test-shards.ts). Extra arguments go to `node --test` (`pnpm test --test-name-pattern=x`).
  *
+ *   TEST_GATE=1                                               leave out the suite-only files (CI's gate)
  *   TEST_TIMINGS_OUT=<file>                                   also write seconds per file there (CI's unit shards)
  *   pnpm exec tsx scripts/run-tests.ts --merge-timings <dir>  fold such files into scripts/test-timings.json
  */
@@ -16,6 +17,7 @@ import {
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  gateFiles,
   mergeTimings,
   parseShard,
   partition,
@@ -55,7 +57,12 @@ if (args[0] === "--merge-timings") {
   process.exit(0);
 }
 
-const all = testFiles();
+const gate = process.env.TEST_GATE === "1";
+const all = gateFiles(testFiles(), gate);
+if (gate)
+  console.log(
+    `gate: the release suite runs ${testFiles().length - all.length} suite-only file(s) (scripts/lib/test-shards.ts)`,
+  );
 const shard = parseShard(process.env.TEST_SHARD);
 let files = all;
 if (shard) {
