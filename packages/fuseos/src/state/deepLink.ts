@@ -13,6 +13,7 @@ const APPS: Record<string, WindowContent> = {
   about: { kind: "about" },
   fusteam: { kind: "launcher" },
   recyclebin: { kind: "recyclebin" },
+  friends: { kind: "friends" },
 };
 
 /** Something that knows which Fuse games exist; the registry in production, a fixture in tests. */

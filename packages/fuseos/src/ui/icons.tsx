@@ -1,6 +1,7 @@
 import { CdMusic } from "@react95/icons/CdMusic";
 import { Computer } from "@react95/icons/Computer";
 import { ComputerFind } from "@react95/icons/ComputerFind";
+import { Conf100 } from "@react95/icons/Conf100";
 import { CurvesAndColors100 } from "@react95/icons/CurvesAndColors100";
 import { Desk100 } from "@react95/icons/Desk100";
 import { Explorer100 } from "@react95/icons/Explorer100";
@@ -93,7 +94,8 @@ export type IconName =
   | "recycleFull"
   | "mediaplayer"
   | "video"
-  | "trophy";
+  | "trophy"
+  | "messenger";
 
 type IconVariant = "32x32_4" | "16x16_4";
 type IconProps = Omit<SVGProps<SVGSVGElement>, "ref">;
@@ -161,6 +163,7 @@ const ICONS: Record<IconName, IconComponent> = {
   mediaplayer: Mplayer10,
   video: Mplayer11,
   trophy: TrophyIcon,
+  messenger: Conf100,
 };
 
 export type Win98IconProps = {

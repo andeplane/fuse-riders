@@ -10,6 +10,8 @@ import { FuseGamesContext } from "./registry";
 
 export type FuseGameWindowProps = {
   gameId: string;
+  /** A room code to join on open, as a friend's "Join game" asks. */
+  room?: string;
   active: boolean;
   onActivate: () => void;
   /** The window's id, so Pop out can close it once the game runs in a tab of its own. */
@@ -25,8 +27,16 @@ export const POP_OUT_HINT =
  * the window opens. Pop out reads the frame's live address (same origin), so a game that has entered a room
  * reopens in that room, then closes this window so the game does not run twice.
  */
+
+/** The embed URL with `room=<code>` added, whether or not it already carries a query (`?mute`). */
+export function withRoom(url: string, room: string | undefined): string {
+  if (!room) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}room=${encodeURIComponent(room)}`;
+}
+
 export function FuseGameWindow({
   gameId,
+  room,
   active,
   onActivate,
   windowId,
@@ -48,7 +58,7 @@ export function FuseGameWindow({
       </div>
     );
   }
-  const embedUrl = registry.embedUrl(game);
+  const embedUrl = withRoom(registry.embedUrl(game), room);
   const popOut = () => {
     openExternal(liveFrameUrl(frame.current, embedUrl));
     analytics.gameLaunched(game.id, "popout");

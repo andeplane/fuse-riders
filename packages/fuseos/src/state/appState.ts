@@ -10,6 +10,13 @@ export interface FuseGameWindowContent {
   kind: "fusegame";
   /** The game's portal id, e.g. "fuseball". Validated against the registry when the window renders, not here. */
   gameId: string;
+  /** A room to join on open (`?room=`), e.g. from a friend's "Join game"; absent opens the game's own landing page. */
+  room?: string;
+}
+
+/** Fuse Messenger, the buddy list (Start > Programs > Fuse Messenger, the tray icon, `?open=friends`). One instance. */
+export interface FriendsWindowContent {
+  kind: "friends";
 }
 
 /** One of the retro games under Start > Programs > Games (DOS bundles, vendored web games, Minesweeper, Solitaire). */
@@ -128,7 +135,8 @@ export type WindowContent =
   | LauncherWindowContent
   | RecycleBinWindowContent
   | MediaPlayerWindowContent
-  | HallOfFameWindowContent;
+  | HallOfFameWindowContent
+  | FriendsWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -194,6 +202,7 @@ export function sameInstance(
     case "recyclebin":
     case "halloffame":
     case "network":
+    case "friends":
       return existing.kind === content.kind;
     case "roomgame":
       return (
@@ -236,6 +245,13 @@ export function mergeInstance(
     return content.tab === undefined
       ? existing
       : { ...existing, tab: content.tab };
+  // A friend's "Join game" over a window of that game already open: the window joins the room.
+  if (
+    existing.kind === "fusegame" &&
+    content.kind === "fusegame" &&
+    content.room !== undefined
+  )
+    return { ...existing, room: content.room };
   if (existing.kind === "notepadpp" && content.kind === "notepadpp") {
     const added = content.paths.filter(
       (path) => !existing.paths.includes(path),
@@ -375,7 +391,11 @@ function isWindowContent(
 ): value is Record<string, unknown> & WindowContent {
   switch (value.kind) {
     case "fusegame":
-      return typeof value.gameId === "string" && value.gameId.length > 0;
+      return (
+        typeof value.gameId === "string" &&
+        value.gameId.length > 0 &&
+        (value.room === undefined || isRoomCode(value.room))
+      );
     case "retro":
       return isGameId(value.game);
     case "controlpanel":
@@ -395,6 +415,7 @@ function isWindowContent(
     case "retroFolder":
     case "launcher":
     case "network":
+    case "friends":
       return true;
     case "dialog":
       return (

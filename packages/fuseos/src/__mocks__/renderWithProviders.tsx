@@ -34,6 +34,11 @@ import {
   DisplayEffectsStoreContext,
   MemoryDisplayEffectsStore,
 } from "../display/effects/effectsStore";
+import { createDemoPresenceService } from "../friends/demoPresenceService";
+import type { FriendsDeps } from "../friends/friendsDepsContext";
+import { FriendsDepsContext } from "../friends/friendsDepsContext";
+import type { PresenceService } from "../friends/presenceService";
+import { PresenceServiceContext } from "../friends/presenceService";
 import type { FuseGameRegistry } from "../fusegames/registry";
 import {
   createFuseGameRegistry,
@@ -197,6 +202,9 @@ export type ProviderOptions = {
   /** Defaults to a fresh store, i.e. a first visit: the greeting shows. */
   assistantOptions?: MemoryAssistantOptionsStore;
   systemProbe?: SystemProbe;
+  /** Defaults to the demo presence service, signed out, over the manual scheduler in `friendsDeps`. */
+  presence?: PresenceService;
+  friendsDeps?: Partial<FriendsDeps>;
   /** Defaults to the fake engine factory (no download, no worker) and an empty in-memory model cache. */
   llmDeps?: Partial<LlmDeps>;
   /** Defaults to a fresh store: 3D Pipes after 5 idle minutes. */
@@ -249,6 +257,47 @@ export function createTestMediaPlayerDeps(
   overrides: Partial<MediaPlayerDeps> = {},
 ): MediaPlayerDeps {
   return { schedule: scheduler.schedule, ...overrides };
+}
+
+/** A scheduler a test fires by hand: `timers.fire()` runs every pending callback in order. */
+export type FriendsTimers = {
+  schedule: FriendsDeps["schedule"];
+  /** Runs what is due (everything, or only what was scheduled within `withinMs`). */
+  fire: (withinMs?: number) => void;
+  pending: () => number;
+};
+
+export function createFriendsTimers(): FriendsTimers {
+  let pending: { id: number; delayMs: number; callback: () => void }[] = [];
+  let nextId = 0;
+  return {
+    schedule: (callback, delayMs) => {
+      const id = nextId++;
+      pending.push({ id, delayMs, callback });
+      return () => {
+        pending = pending.filter((timer) => timer.id !== id);
+      };
+    },
+    fire: (withinMs = Number.POSITIVE_INFINITY) => {
+      const due = pending.filter((timer) => timer.delayMs <= withinMs);
+      pending = pending.filter((timer) => timer.delayMs > withinMs);
+      for (const timer of due) timer.callback();
+    },
+    pending: () => pending.length,
+  };
+}
+
+export function createTestFriendsDeps(
+  timers: FriendsTimers,
+  overrides: Partial<FriendsDeps> = {},
+): FriendsDeps {
+  return {
+    now: () => Date.UTC(1998, 5, 25, 12, 34),
+    schedule: timers.schedule,
+    playAlert: vi.fn(),
+    copyText: vi.fn(async () => undefined),
+    ...overrides,
+  };
 }
 
 export const immediateAppStateDeps: AppStateDeps = {
@@ -504,6 +553,14 @@ export function createWrapper(options: ProviderOptions = {}) {
   const roomDirectory = options.roomDirectory ?? UNSUPPORTED_ROOM_DIRECTORY;
   const roomLauncher = options.roomLauncher ?? null;
   const networkDeps = createTestNetworkDeps(options.networkDeps);
+  const timers = createFriendsTimers();
+  const friendsDeps = createTestFriendsDeps(timers, options.friendsDeps);
+  const presence =
+    options.presence ??
+    createDemoPresenceService({
+      schedule: friendsDeps.schedule,
+      signedIn: false,
+    });
   const recycleBinStore =
     options.recycleBinStore ?? new MemoryRecycleBinStore();
   const mediaPlayerTimers = new ManualScheduler();
@@ -548,6 +605,8 @@ export function createWrapper(options: ProviderOptions = {}) {
     provider(RoomDirectoryContext, roomDirectory),
     provider(RoomLauncherContext, roomLauncher),
     provider(NetworkDepsContext, networkDeps),
+    provider(PresenceServiceContext, presence),
+    provider(FriendsDepsContext, friendsDeps),
   ];
 
   function Wrapper({ children }: { children: ReactNode }) {
@@ -567,6 +626,9 @@ export function createWrapper(options: ProviderOptions = {}) {
     networkDeps,
     store,
     games,
+    presence,
+    friendsDeps,
+    timers,
     desktopDeps,
     mediaDeps,
     gamesDeps,

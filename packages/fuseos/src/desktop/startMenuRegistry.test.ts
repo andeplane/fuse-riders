@@ -35,6 +35,7 @@ describe("START_MENU_REGISTRATIONS", () => {
       ["settings", "screensaver", true],
       ["programs", "halloffame", true],
       ["programs", "network-neighborhood", true],
+      ["programs", "friends", true],
     ]);
   });
 
@@ -71,6 +72,7 @@ describe("START_MENU_REGISTRATIONS", () => {
       { kind: "controlpanel", applet: "display", tab: "screensaver" },
       [{ kind: "halloffame" }, { id: "halloffame" }],
       [{ kind: "network" }, { id: "network-neighborhood" }],
+      [{ kind: "friends" }, { id: "friends" }],
     ]);
   });
 
