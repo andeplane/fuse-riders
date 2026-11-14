@@ -22,6 +22,8 @@
     "./play-metrics": "./src/play-metrics.ts",
     "./assets": "./src/assets.ts",
     "./radio": "./src/radio.ts",
+    "./game-audio": "./src/game-audio.ts",
+    "./game-audio.css": "./src/game-audio.css",
     "./portal": "./src/portal.ts",
     ".": "./src/index.ts",
     "./tokens.css": "./src/tokens.css",

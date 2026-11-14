@@ -1,0 +1,42 @@
+.fui-audio {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.fui-audio button {
+  min-width: 40px;
+  min-height: 40px;
+  border: 1px solid var(--fui-border, rgb(255 255 255 / 0.25));
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.fui-audio button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.fui-audio-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  min-width: 180px;
+  border: 1px solid var(--fui-border, rgb(255 255 255 / 0.25));
+  border-radius: 10px;
+  background: rgb(8 10 24 / 0.95);
+  color: inherit;
+}
+.fui-audio-panel[hidden] {
+  display: none;
+}
+.fui-audio-panel label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.8rem;
+}
