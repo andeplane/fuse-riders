@@ -119,10 +119,11 @@ for (const { name, kind } of BOTH_ENGINES) {
             "COPY LINK",
             phone.getByRole("button", { name: "COPY LINK", exact: true }),
           );
+          // Every open slot offers Add AI; the first is as good as any.
           for (const action of ["Game settings", "Add AI"])
             await onScreen(
               action,
-              phone.getByRole("button", { name: action, exact: true }),
+              phone.getByRole("button", { name: action, exact: true }).first(),
             );
           assert.equal(
             await phone
@@ -444,7 +445,10 @@ for (const { name, kind } of BOTH_ENGINES) {
       await display.locator(".shared-room-code").textContent(),
       code,
     );
-    await host.getByRole("button", { name: /^Add AI$/i, exact: true }).click();
+    await host
+      .getByRole("button", { name: /^Add AI$/i, exact: true })
+      .first()
+      .click();
     await host.getByRole("button", { name: /Remove AI/ }).waitFor();
     await host.screenshot({ path: `artifacts/shared-qr-${name}.png` });
     await readyRoom(host);

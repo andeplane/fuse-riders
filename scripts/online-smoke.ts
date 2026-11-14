@@ -573,7 +573,10 @@ try {
       { timeout: smokeTimeout(20000) },
     );
   }
-  await host.getByRole("button", { name: /^Add AI$/i, exact: true }).click();
+  await host
+    .getByRole("button", { name: /^Add AI$/i, exact: true })
+    .first()
+    .click();
   await host.getByRole("button", { name: /Remove AI/ }).waitFor();
   assert.match(
     (await host

@@ -110,7 +110,7 @@ async function twoPlayers(browser: Browser): Promise<void> {
   await b.goto(`${page}?mute`);
   await openPlayOptions(b, "join");
   await b.getByPlaceholder("Room code").fill(code.toLowerCase());
-  await b.getByRole("button", { name: "JOIN ROOM" }).click();
+  await b.getByRole("button", { name: "JOIN ROOM", exact: true }).click();
   await b.waitForURL(new RegExp(`room=${code}`));
   await b
     .locator(".fui-room-open-slot")
