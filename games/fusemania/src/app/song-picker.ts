@@ -147,6 +147,8 @@ export function coverTint(id: string): { a: number; b: number; angle: number } {
 
 /** A horizontal drag this long turns the carousel one song. */
 const DRAG_STEP_PX = 56;
+/** A sideways scroll that pauses this long is a new gesture. */
+const WHEEL_IDLE_MS = 250;
 /** Lit segments of a chip's meter bar: a meter above this shows them all, and the number says the rest. */
 const BARS = 10;
 const NO_SONG = "SELECT A SONG";
@@ -254,8 +256,10 @@ export function createSongPicker(options: SongPickerOptions): SongPicker {
     // The title is the drawn cover's lettering: an image covers it, and it stays the option's name.
     cover.node.prepend(el("span", info.title, "fm-picker-row-title"));
     element.append(cover.node, foot);
-    element.addEventListener("click", () => {
-      if (dragged) return;
+    element.setAttribute("tabindex", "-1");
+    element.addEventListener("click", (event) => {
+      // A drag ends in a pointer's click; a key's (detail 0) is never part of one.
+      if (dragged && event.detail !== 0) return;
       if (shown?.host && shown.song !== info.id) options.onSong(info.id);
     });
     rows.set(info.id, {
@@ -324,13 +328,21 @@ export function createSongPicker(options: SongPickerOptions): SongPicker {
     list.addEventListener(type, () => {
       dragFrom = undefined;
     });
-  let scrolled = 0;
+  let scrolled = 0,
+    scrolledAt = 0;
   list.addEventListener(
     "wheel",
     (event) => {
       // A vertical scroll is the page's.
       if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
       event.preventDefault();
+      // One gesture adds up: a pause or a turn the other way starts again from nothing.
+      if (
+        event.timeStamp - scrolledAt > WHEEL_IDLE_MS ||
+        scrolled * event.deltaX < 0
+      )
+        scrolled = 0;
+      scrolledAt = event.timeStamp;
       scrolled += event.deltaX;
       if (Math.abs(scrolled) < DRAG_STEP_PX) return;
       stepSong(scrolled > 0 ? 1 : -1);
@@ -467,15 +479,22 @@ export function createSongPicker(options: SongPickerOptions): SongPicker {
       const offset = wheelOffset(index, at, order.length);
       const text = offset === undefined ? undefined : String(offset);
       if (row.offset !== text) {
+        // Tab stops on the selected cover only: the arrow keys and the covers' clicks do the rest.
+        if ((row.offset === "0") !== (text === "0"))
+          row.element.setAttribute("tabindex", text === "0" ? "0" : "-1");
         row.offset = text;
         if (text === undefined) delete row.element.dataset.offset;
         else row.element.dataset.offset = text;
       }
-      if (text !== undefined && row.image) {
+    });
+  }
+  /** Asks for the images of the covers on the carousel: only for a player who sees it. */
+  function fetchNear() {
+    for (const row of order)
+      if (row.offset !== undefined && row.image) {
         row.image.node.src = row.image.url;
         row.image = undefined;
       }
-    });
   }
 
   function showSong(next: SongInfo | undefined) {
@@ -571,6 +590,7 @@ export function createSongPicker(options: SongPickerOptions): SongPicker {
       for (const button of modeButtons) button.element.disabled = !next.host;
       note.hidden = next.host;
     }
+    if (next.host && (songChanged || !last?.host)) fetchNear();
     showBests(next);
   }
 
@@ -589,7 +609,8 @@ export function createSongPicker(options: SongPickerOptions): SongPicker {
   }
   /** To the first song of the pack before or after the selected song's. */
   function stepPack(by: number): boolean {
-    if (!shown?.host || packTabs.length === 0) return false;
+    // One pack has nowhere to jump to: the key stays the page's.
+    if (!shown?.host || packTabs.length < 2) return false;
     const pack = rows.get(shown.song)?.pack;
     const at = packTabs.findIndex((tab) => tab.index === pack);
     const to =

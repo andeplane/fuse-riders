@@ -611,12 +611,18 @@ test("update turns the carousel to the selected song and writes only the covers 
     "-3",
     "-2",
   ]);
+  // Tab stops on the selected cover alone.
+  assert.deepEqual(
+    f.rows().map((row) => row.getAttribute("tabindex")),
+    ["-1", "0", ...many.slice(2).map(() => "-1")],
+  );
   // A song the library does not have leaves nothing on the carousel.
   f.picker.update(state({ song: "nope" }));
   assert.deepEqual(
     offsets(),
     many.map(() => ""),
   );
+  assert.ok(f.rows().every((row) => row.getAttribute("tabindex") === "-1"));
 });
 
 test("a click on a side cover or an arrow asks for that song, for a host only", () => {
@@ -669,6 +675,12 @@ test("a sideways drag turns the carousel one song for each stretch, and swallows
   pointer("pointerdown", 100);
   pointer("pointermove", 170);
   assert.deepEqual(f.calls, ["song c"]);
+  // A drag that ended off the covers leaves no click behind: a key's click (detail 0) on a cover still asks.
+  pointer("pointerup", 170);
+  const byKey = new window.Event("click", { bubbles: true });
+  Object.assign(byKey, { detail: 0 });
+  f.rows()[1]!.dispatchEvent(byKey);
+  assert.deepEqual(f.calls, ["song c", "song b"]);
 });
 
 test("a cover is drawn from the song's id, and wears the song's image once it comes near", () => {
@@ -690,6 +702,13 @@ test("a cover is drawn from the song's id, and wears the song's image once it co
     });
   // Nothing is fetched before the page shows a song.
   assert.deepEqual(new Set(images()), new Set([null, "none"]));
+  // A guest never sees the carousel: only the chosen song's card fetches its cover.
+  f.picker.update(state({ song: "s0", host: false }));
+  assert.deepEqual(new Set(images()), new Set([null, "none"]));
+  assert.equal(
+    f.one(".fm-picker-art .fm-cover-image").getAttribute("src"),
+    "covers/s0.jpg",
+  );
   f.picker.update(state({ song: "s0" }));
   assert.deepEqual(images(), [
     "covers/s0.jpg",
@@ -785,6 +804,16 @@ test("packs group the carousel: a tab each, the songs pack by pack, and PageUp/P
 });
 
 test("without packs there are no tabs and the songs keep the library's order", () => {
+  const one = setup(THREE, {
+    packs: [{ id: "only", name: "ONLY", songs: ["a", "b", "c"] }],
+  });
+  one.picker.update(state());
+  assert.equal(one.all(".fm-picker-pack").length, 1);
+  assert.equal(
+    one.picker.key("PageDown"),
+    false,
+    "one pack: the key stays the page's",
+  );
   const f = setup();
   assert.equal(f.one(".fm-picker-packs").hidden, true);
   assert.deepEqual(f.all(".fm-picker-pack"), []);

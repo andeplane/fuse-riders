@@ -277,9 +277,11 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"]))
   display: none !important;
 }
 /* A lobby: the players in rows of seats on top, the song select under them with the room it needs. */
-.fm-lobby.fui-room-layout.fui-room-layout {
-  width: min(80rem, calc(100% - 40px));
-  max-width: 80rem;
+@media (min-width: 641px) {
+  .fm-lobby.fui-room-layout.fui-room-layout {
+    width: min(80rem, calc(100% - 40px));
+    max-width: 80rem;
+  }
 }
 .fm-lobby .fui-room-open-slots {
   grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));

@@ -157,13 +157,25 @@
 .fm-picker.fm-picker .fm-picker-row[data-offset="-4"] {
   z-index: 1;
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
+  transition:
+    transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.2s linear,
+    filter 0.2s linear,
+    visibility 0s linear 0.28s;
   transform: translateX(-222%) scale(0.42) rotateY(52deg);
 }
 .fm-picker.fm-picker .fm-picker-row[data-offset="4"] {
   z-index: 1;
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
+  transition:
+    transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.2s linear,
+    filter 0.2s linear,
+    visibility 0s linear 0.28s;
   transform: translateX(222%) scale(0.42) rotateY(-52deg);
 }
 .fm-picker.fm-picker .fm-picker-row:not([data-offset="0"]):hover {

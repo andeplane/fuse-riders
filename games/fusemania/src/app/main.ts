@@ -1562,7 +1562,10 @@ function room(solo: boolean, library: Library, first?: Choice): void {
         rematch.click();
       } else if (
         model?.screen === "lobby" &&
-        !typing(event.target) &&
+        // A cover, an arrow or a chip that was just clicked keeps the focus: the carousel's keys still turn it.
+        (!typing(event.target) ||
+          (event.target instanceof HTMLButtonElement &&
+            picker.element.contains(event.target))) &&
         picker.element.offsetParent !== null &&
         !PAGE_KEYS.has(event.code) &&
         picker.key(event.code)

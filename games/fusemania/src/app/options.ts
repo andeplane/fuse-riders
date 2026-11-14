@@ -68,6 +68,10 @@ export function createPlayOptions(options: PlayOptionsOptions): PlayOptions {
       node.setAttribute("aria-pressed", value);
   };
 
+  const hide = (node: HTMLElement, hidden: boolean) => {
+    if (node.hidden !== hidden) node.hidden = hidden;
+  };
+
   const random = chip("RANDOM SONG", "fm-option-random");
   random.onclick = () => options.onRandomSong();
 
@@ -122,11 +126,11 @@ export function createPlayOptions(options: PlayOptionsOptions): PlayOptions {
         each.node.disabled = !state.host;
       }
       // The chips are the host's to press: everyone else gets the line.
-      songs.node.hidden = !state.host;
-      summary.hidden = state.host;
+      hide(songs.node, !state.host);
+      hide(summary, state.host);
       const line = sessionLine(state.songs, state.random);
       if (summaryText.textContent !== line) summaryText.textContent = line;
-      order.node.hidden = !state.host || state.songs <= 1;
+      hide(order.node, !state.host || state.songs <= 1);
       for (const each of orderChips) {
         press(each.node, each.random === state.random);
         each.node.disabled = !state.host;

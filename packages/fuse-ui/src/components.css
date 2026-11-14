@@ -1164,6 +1164,10 @@
   .fui-room-layout.fui-room-layout {
     gap: 14px;
   }
+  /* Clipped, not scrollable: START sticks to the page's own scroll, not to a box that never scrolls. */
+  .fui-room-layout:has(> .fui-attract) {
+    overflow: clip;
+  }
   .fui-room-invitation,
   .fui-room-players {
     display: contents;
