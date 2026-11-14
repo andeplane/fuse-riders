@@ -492,3 +492,73 @@ test("a game without `seating.renameable` never renames: a join over a held seat
   }
   assert.equal(room(a).seats.size, 2, "and no second seat was taken");
 });
+
+test("a seated member moves to any open seat in the lobby: the host on its own stream, a guest through the manager", () => {
+  const mesh = new FakeMesh("host", { target: 12 });
+  const [host, guest] = seated(mesh, ["host", "guest"]);
+  assert.deepEqual(
+    [room(host!).seats.get("host")?.slot, room(host!).seats.get("guest")?.slot],
+    [0, 1],
+  );
+  assert.equal(host!.command({ type: "join", name: "HOST", slot: 3 }), true);
+  mesh.run(400);
+  for (const runtime of [host!, guest!]) {
+    const seat = room(runtime).seats.get("host");
+    assert.deepEqual(
+      [seat?.slot, seat?.name, seat?.connected],
+      [3, "HOST", true],
+      "the host holds the seat it asked for, on every replica",
+    );
+  }
+  assert.equal(guest!.command({ type: "join", name: "GUEST", slot: 0 }), true);
+  mesh.run(3000);
+  for (const runtime of [host!, guest!])
+    assert.equal(room(runtime).seats.get("guest")?.slot, 0);
+  assert.equal(room(host!).seats.size, 2, "a move seats nobody twice");
+  // The seat a member left is free again for the next one.
+  assert.equal(host!.command({ type: "bot", action: "add", slot: 1 }), true);
+  mesh.run(300);
+  assertConverged([host!, guest!]);
+});
+
+test("a move to a taken seat is refused and the member keeps its seat; a second move waits for the first", () => {
+  const mesh = new FakeMesh("host", { target: 12 });
+  const [host, guest] = seated(mesh, ["host", "guest"]);
+  guest!.command({ type: "join", name: "GUEST", slot: 0 });
+  mesh.run(3000);
+  assert.equal(room(host!).seats.get("guest")?.slot, 1);
+  assert.equal(room(host!).seats.get("host")?.slot, 0);
+  // Refused, so nothing is left queued: the next request is taken.
+  assert.equal(guest!.command({ type: "join", name: "GUEST", slot: 2 }), true);
+  assert.equal(
+    host!.command({ type: "bot", action: "add", slot: 2 }),
+    true,
+    "the request has not reached the manager yet",
+  );
+  mesh.run(3000);
+  assert.equal(room(host!).seats.get("guest")?.slot, 1);
+  assert.equal(host!.command({ type: "join", name: "HOST", slot: 3 }), true);
+  assert.equal(
+    host!.command({ type: "bot", action: "add", slot: 3 }),
+    false,
+    "a move in flight reserves the seat it is going to",
+  );
+  mesh.run(400);
+  assert.equal(room(guest!).seats.get("host")?.slot, 3);
+  assertConverged([host!, guest!]);
+});
+
+test("nobody moves seats while a round runs", () => {
+  const mesh = new FakeMesh("host", { target: 12 });
+  const [host, guest] = seated(mesh, ["host", "guest"]);
+  assert.equal(host!.command({ type: "action", action: "start" }), true);
+  mesh.run(100);
+  assert.equal(room(host!).stage, "running");
+  assert.equal(host!.command({ type: "join", name: "HOST", slot: 3 }), false);
+  assert.equal(guest!.command({ type: "join", name: "GUEST", slot: 2 }), false);
+  mesh.run(200);
+  assert.deepEqual(
+    [room(host!).seats.get("host")?.slot, room(host!).seats.get("guest")?.slot],
+    [0, 1],
+  );
+});

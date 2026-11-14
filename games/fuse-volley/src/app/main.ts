@@ -732,6 +732,12 @@ function room(solo: boolean): void {
     roster,
     capacity: 2,
     join: nameEntry.form,
+    // Seated already: any open seat is a move, and the team follows the seat.
+    ownSlot: () => model?.lobby.members.find((member) => member.you)?.slot,
+    onMove: (slot) => {
+      const mine = model?.lobby.members.find((member) => member.you);
+      if (mine) runtime.command({ type: "join", name: mine.name, slot });
+    },
     addAI: addBot,
     modes: [modePicker.element],
     settings: [scoringPicker.element, botTitle, botPicker.element],
@@ -1031,7 +1037,8 @@ function room(solo: boolean): void {
         analytics.track("Point Scored", { ...point });
       settings = roomSettings;
       const next = present(frame, viewer);
-      if (next.askName && remembered && !joinSent && !viewer.host) {
+      // The host is seated like anyone else who has a name: opening a room is taking its first seat.
+      if (next.askName && remembered && !joinSent) {
         joinSent = true;
         runtime.command({
           type: "join",

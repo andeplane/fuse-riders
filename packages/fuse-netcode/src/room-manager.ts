@@ -139,6 +139,32 @@ export class RoomManager<
     // written, so a retried join (`sendJoin` retries on its own timer) never writes a second switch.
     if (this.pending().ids.has(from)) return;
     const seated = this.room.game.seat(this.room.world.state, from);
+    if (
+      seated &&
+      !seated.watcher &&
+      requestedSlot !== undefined &&
+      requestedSlot !== seated.slot
+    ) {
+      // A seated member asking for another seat is moving to it: `LEAVE` frees the seat it holds and `JOIN` takes the
+      // one it asked for, a pair at one tick like a side switch, with no new entry kind for any game's fold to learn.
+      // The rules are a side switch's too (`switchable`): `LEAVE` frees a seat only outside a running round, and the
+      // writer is never the member that is between seats.
+      const refusal = this.switchable(from, this.room.text.takeSeatInRound);
+      if (refusal) return refusal;
+      const slot = this.claimSlot(requestedSlot);
+      if (slot < 0) return this.room.text.full;
+      const tick = this.room.recorder.next();
+      this.room.recorder.at(tick, [LEAVE, from]);
+      this.room.recorder.at(tick, [
+        JOIN,
+        from,
+        seated.name,
+        slot,
+        seated.avatarId ?? avatarId ?? this.room.game.seating.defaultAvatar,
+        generation,
+      ]);
+      return;
+    }
     if (seated && !seated.watcher) {
       // A join from a member the room already seats is its reconnection — unless the name differs, which makes it a
       // rename. The fold takes the name from this same entry and keeps it unique, so the whole of a rename is one
@@ -277,12 +303,17 @@ export class RoomManager<
       ? this.room.hostId
       : this.room.id;
   }
-  /** Whether this device is in the room already and asking for the other side, rather than arriving. */
-  switchingSides(spectator: boolean): boolean {
+  /**
+   * Whether this device is in the room already and asking for the other side, rather than arriving. A seated member
+   * asking for a seat it does not hold is the same kind of request: a pair of entries somebody else must write.
+   */
+  switchingSides(spectator: boolean, slot?: number): boolean {
     const own =
       this.room.world &&
       this.room.game.seat(this.room.world.state, this.room.id);
-    return own !== undefined && (own.watcher === true) !== spectator;
+    if (own === undefined) return false;
+    if ((own.watcher === true) !== spectator) return true;
+    return !spectator && slot !== undefined && slot !== own.slot;
   }
   /**
    * Own management entries logged but not yet applied: seats they will take or free when their tick arrives.
@@ -313,7 +344,11 @@ export class RoomManager<
       const seated =
         entry[2] === JOIN &&
         this.room.game.seat(this.room.world!.state, entry[3]);
-      if (entry[2] === JOIN && (!seated || seated.watcher)) {
+      // A `JOIN` naming another seat than the one its member holds is the second half of a seat move.
+      if (
+        entry[2] === JOIN &&
+        (!seated || seated.watcher || seated.slot !== entry[5])
+      ) {
         slots.add(entry[5]);
         ids.add(entry[3]);
         seats++;

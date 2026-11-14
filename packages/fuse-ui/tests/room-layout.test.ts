@@ -555,3 +555,55 @@ test("a compact room is one column: no invitation, the heading beside Back, and 
   );
   assert.equal(head.querySelector(".fui-back")!.textContent, "Back");
 });
+
+test("a seated viewer is offered every open seat as a move, and a viewer without a seat is offered a join", () => {
+  const { document } = page(),
+    root = document.createElement("section"),
+    form = document.createElement("form");
+  document.body.append(root, form);
+  let own: number | undefined;
+  const moves: number[] = [];
+  const layout = createRoomLayout({
+    element: root,
+    roster: createRoster({ document }),
+    capacity: 4,
+    join: form,
+    ownSlot: () => own,
+    onMove: (slot) => moves.push(slot),
+  });
+  const joins = () => [
+    ...root.querySelectorAll<HTMLButtonElement>(".fui-slot-join"),
+  ];
+  layout.update(0, 4, []);
+  assert.deepEqual(
+    joins().map((join) => [join.textContent, join.hidden]),
+    Array.from({ length: 4 }, () => ["Join", false]),
+  );
+  // Seated, with the admission form gone as games hide it: the open seats stay actionable.
+  own = 1;
+  form.hidden = true;
+  layout.update(1, 4, [1]);
+  const seats = [...root.querySelectorAll<HTMLElement>(".fui-room-open-slot")];
+  assert.deepEqual(
+    seats.map((seat) => [
+      seat.classList.contains("fui-slot-occupied"),
+      seat.classList.contains("fui-slot-idle"),
+      seat.querySelector(".fui-slot-join")!.textContent,
+      seat.querySelector<HTMLElement>(".fui-slot-controls")!.hidden,
+    ]),
+    [
+      [false, false, "Sit here", false],
+      [true, false, "Sit here", true],
+      [false, false, "Sit here", false],
+      [false, false, "Sit here", false],
+    ],
+  );
+  joins()[3]!.click();
+  joins()[0]!.click();
+  assert.deepEqual(moves, [3, 0], "the seat clicked is the seat asked for");
+  assert.equal(
+    requestedRoomSlot(form),
+    undefined,
+    "a move is not an admission: the join form is left alone",
+  );
+});

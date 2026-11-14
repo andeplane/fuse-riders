@@ -6,6 +6,7 @@ import {
   DEFAULT_SETTINGS,
   createFuseVolleyGame,
   hash,
+  teamOfSlot,
   type Settings,
 } from "../src/online/game.js";
 import { FuseVolleyRuntime, heldBits } from "../src/online/runtime.js";
@@ -273,4 +274,71 @@ test("unknown settings are refused, and a bot seat plays through the injected bo
   assert.ok(room.world!.blobs[1]!.hits > 0, "the bot played");
   assert.deepEqual(room.decided?.finishers, ["host"]);
   assert.equal(hash(guest.roomState()!), hash(room), "the onlooker agrees");
+});
+
+test("a lobby seat is a choice: a guest joins the seat it asks for, anyone moves to a free one, and the team follows the seat through a change of format", () => {
+  const mesh = new Mesh("host", DEFAULT_SETTINGS, createFuseVolleyGame());
+  const host = mesh.join("host"),
+    guest = mesh.join("guest");
+  mesh.run(300);
+  const slots = (runtime: TestRuntime) =>
+    Object.fromEntries(
+      [...runtime.roomState()!.seats.values()].map((seat) => [
+        seat.id,
+        seat.slot,
+      ]),
+    );
+  host.command({ type: "join", name: "Host" });
+  mesh.run(800);
+  assert.deepEqual(slots(host), { host: 0 }, "the host's first seat");
+  assert.ok(
+    host.command({
+      type: "settings",
+      settings: { ...DEFAULT_SETTINGS, format: "2v2" },
+    }),
+  );
+  mesh.run(300);
+  // The guest picks the host's team (seats 1 and 3 play cyan), then changes its mind and plays against the host.
+  guest.command({ type: "join", name: "Guest", slot: 2 });
+  mesh.run(3_000);
+  assert.deepEqual(slots(guest), { host: 0, guest: 2 });
+  assert.ok(guest.command({ type: "join", name: "Guest", slot: 3 }));
+  mesh.run(3_000);
+  assert.deepEqual(slots(host), { host: 0, guest: 3 });
+  assert.equal(teamOfSlot(3, "2v2"), 1);
+  // The host moves too, on its own stream, and the seat it left is free for a bot.
+  assert.ok(host.command({ type: "join", name: "Host", slot: 1 }));
+  mesh.run(800);
+  assert.ok(host.command({ type: "bot", action: "add", slot: 0 }));
+  mesh.run(800);
+  assert.deepEqual(slots(guest), { host: 1, guest: 3, "bot:1": 0 });
+  // Three teams of two re-lays the same seats out: nobody is unseated, and seats 2 and 4 now share a team.
+  assert.ok(
+    host.command({
+      type: "settings",
+      settings: { ...DEFAULT_SETTINGS, format: "2v2v2" },
+    }),
+  );
+  mesh.run(300);
+  assert.deepEqual(slots(guest), { host: 1, guest: 3, "bot:1": 0 });
+  assert.equal(teamOfSlot(1, "2v2v2"), 1);
+  assert.equal(teamOfSlot(3, "2v2v2"), 0);
+  assert.ok(guest.command({ type: "join", name: "Guest", slot: 4 }));
+  mesh.run(3_000);
+  assert.deepEqual(slots(host), { host: 1, guest: 4, "bot:1": 0 });
+  assert.equal(teamOfSlot(4, "2v2v2"), 1, "the guest joined the host's team");
+  // A seat beyond a smaller format is not on offer.
+  assert.ok(
+    host.command({
+      type: "settings",
+      settings: { ...DEFAULT_SETTINGS, format: "2v2" },
+    }),
+  );
+  mesh.run(300);
+  assert.ok(!host.command({ type: "join", name: "Host", slot: 5 }));
+  assert.ok(guest.command({ type: "join", name: "Guest", slot: 2 }));
+  mesh.run(3_000);
+  assert.deepEqual(slots(host), { host: 1, guest: 2, "bot:1": 0 });
+  assert.ok(mesh.align());
+  assert.equal(hash(guest.roomState()!), hash(host.roomState()!));
 });
