@@ -1,6 +1,7 @@
 import { createContext } from "react";
 
 import type { Scheduler } from "./irc/client";
+import type { RegularsBrain } from "./sim/brain";
 import type { IrcTransport } from "./irc/transport";
 import { browserWebSocketTransport } from "./irc/transport";
 import type { MircPrefs, MircPrefsStore } from "./mircPrefs";
@@ -12,7 +13,10 @@ import { defaultPrefs, LocalStorageMircPrefsStore } from "./mircPrefs";
  * scheduler and an in-memory store. There are no analytics here: nicks and messages are never reported.
  */
 export type MircDeps = {
+  /** The real WebSocket transport, used only through a configured `bridgeUrl`; otherwise networks are simulated. */
   transport: IrcTransport;
+  /** The simulated regulars' brain; absent means the shared language model (or canned lines), chosen in the view. */
+  brain?: RegularsBrain;
   scheduler: Scheduler;
   now: () => number;
   random: () => number;

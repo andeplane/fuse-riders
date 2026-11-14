@@ -9,12 +9,17 @@ import {
 import { IrcClient } from "./irc/client";
 import { BOLD, colorize, RESET } from "./irc/format";
 import type { IrcNetwork } from "./irc/networks";
-import { DEFAULT_NETWORK_ID, findNetwork, NETWORKS } from "./irc/networks";
+import { DEFAULT_NETWORK_ID, findNetwork, NETWORKS, SIM_SCHEME, simNetwork } from "./irc/networks";
+import type { IrcTransport } from "./irc/transport";
 import type { ChatWindow, SessionState } from "./irc/session";
 import { STATUS_ID } from "./irc/session";
 import type { MircDeps } from "./mircDeps";
 import type { MircPrefs } from "./mircPrefs";
 import { daysUsed, defaultPrefs, identFor } from "./mircPrefs";
+import type { RegularsBrain } from "./sim/brain";
+import { DDR_CHANNEL } from "./sim/regulars";
+import { createSimTransport } from "./sim/simServer";
+import { useRegularsBrain } from "./sim/useRegularsBrain";
 
 export type MircDialog =
   | { type: "about" }
@@ -49,7 +54,7 @@ export function welcomeBanner(network: IrcNetwork): string[] {
     "",
     `${BOLD}Welcome to mIRC${RESET} - FuseOS edition. ${colorize("Shareware", 4)}: please register!`,
     `- Server list: ${network.name} is selected. Press the ${colorize("lightning bolt", 7)} or type /server to connect.`,
-    `- Browsers can only reach networks with a WebSocket gateway: try ${BOLD}/server ergo${BOLD}.`,
+    `- Web pages can't open IRC connections, so FuseOS simulates the networks. Try ${BOLD}/join ${DDR_CHANNEL}${BOLD}.`,
     "- /help lists the commands; Ctrl+K colours, Ctrl+B bold, Ctrl+U underline.",
     "- /list shows the channel list (a 2001 snapshot while you're offline).",
     "",
@@ -107,10 +112,28 @@ export function useMircViewModel(deps: MircDeps) {
     findNetwork(prefs.networkId) ??
     (findNetwork(DEFAULT_NETWORK_ID) as IrcNetwork);
 
+  // The regulars think with the shared model when allowed; the simulated server reads the current brain each time.
+  const choice = useRegularsBrain(prefs.smartRegulars, deps.random);
+  const brainRef = useRef<RegularsBrain>(deps.brain ?? choice.brain);
+  brainRef.current = deps.brain ?? choice.brain;
+
   const [client] = useState(() => {
+    const brain: RegularsBrain = {
+      describe: () => brainRef.current.describe(),
+      reply: (request, signal) => brainRef.current.reply(request, signal),
+      dispose: () => undefined,
+    };
+    const sim = createSimTransport(
+      { scheduler: deps.scheduler, now: deps.now, random: deps.random, brain },
+      simNetwork,
+    );
+    const transport: IrcTransport = {
+      connect: (url, handlers) =>
+        url.startsWith(SIM_SCHEME) ? sim.connect(url, handlers) : deps.transport.connect(url, handlers),
+    };
     const created = new IrcClient(
       {
-        transport: deps.transport,
+        transport,
         scheduler: deps.scheduler,
         now: deps.now,
         random: deps.random,
@@ -289,8 +312,17 @@ export function useMircViewModel(deps: MircDeps) {
     [savePrefs],
   );
 
+  const setSmartRegulars = useCallback(
+    (on: boolean) => savePrefs({ ...prefsRef.current, smartRegulars: on }),
+    [savePrefs],
+  );
+
   return {
     client,
+    brainLabel: deps.brain ? deps.brain.describe() : choice.label,
+    canThink: deps.brain ? false : choice.canThink,
+    downloadMb: choice.downloadMb,
+    setSmartRegulars,
     state,
     prefs,
     network,

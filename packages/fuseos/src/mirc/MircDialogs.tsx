@@ -225,9 +225,6 @@ export function OptionsDialog({
   const altOk = draft.altNick === "" || isValidNick(draft.altNick);
   const valid = nickOk && altOk;
   const page = CATEGORIES.find((entry) => entry.name === category)?.page;
-  const reachable = NETWORKS.filter((entry) => entry.servers[0]?.websocket).map(
-    (entry) => entry.name,
-  );
   const field = (
     key: "realName" | "email" | "nick" | "altNick",
     label: string,
@@ -304,7 +301,7 @@ export function OptionsDialog({
                     ))}
                   </select>
                   <div className="mirc-muted mirc-hint">
-                    Reachable from a browser: {reachable.join(", ")}
+                    Simulated inside FuseOS: web pages can&apos;t open IRC connections.
                   </div>
                 </div>
                 <div className="mirc-servers-buttons">

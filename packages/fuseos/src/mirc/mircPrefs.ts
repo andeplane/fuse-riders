@@ -14,6 +14,8 @@ export type MircPrefs = {
   networkId: string;
   invisible: boolean;
   timestamps: boolean;
+  /** Let the simulated regulars think with the shared language model (downloads it if needed). */
+  smartRegulars: boolean;
   /** Pop up the Channels Folder after connecting. */
   folderOnConnect: boolean;
   /** Channels in the Channels Folder. */
@@ -28,7 +30,7 @@ export interface MircPrefsStore {
 }
 
 export const MIRC_PREFS_KEY = "fuseos.mirc";
-export const DEFAULT_FAVORITES = ["#fuseos-test", "#chat", "#help"];
+export const DEFAULT_FAVORITES = ["#ddrnorway", "#chatzone", "#help"];
 
 /** First-run settings: a Guest#### nick and EFnet selected, as a fresh 2001 install would have it. */
 export function defaultPrefs(random: () => number, now: number): MircPrefs {
@@ -41,6 +43,7 @@ export function defaultPrefs(random: () => number, now: number): MircPrefs {
     networkId: DEFAULT_NETWORK_ID,
     invisible: true,
     timestamps: false,
+    smartRegulars: false,
     folderOnConnect: true,
     favorites: DEFAULT_FAVORITES,
     firstRun: now,
@@ -99,6 +102,7 @@ export function parsePrefs(
       fallback.networkId,
     invisible: flag("invisible") ?? fallback.invisible,
     timestamps: flag("timestamps") ?? fallback.timestamps,
+    smartRegulars: flag("smartRegulars") ?? fallback.smartRegulars,
     folderOnConnect: flag("folderOnConnect") ?? fallback.folderOnConnect,
     favorites: favorites ?? fallback.favorites,
     firstRun:

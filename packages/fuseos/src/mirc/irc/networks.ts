@@ -1,15 +1,13 @@
 /**
- * The server list (File > Options > Connect > Servers). In 2001 every network here was a TCP host on
- * port 6667; a browser can only reach the ones that also run a WebSocket listener open to third-party
- * web clients. The rest stay in the list — it would not be mIRC without EFnet at the top — and explain
- * themselves in the Status window instead of connecting.
+ * The server list (File > Options > Connect > Servers), as a 2001 install shipped it, EFnet first. A web page
+ * cannot open IRC's TCP connections, and no public WebSocket gateway welcomes other sites' clients (EFnet's and
+ * Libera's only take their own pages; KiwiIRC's hosted gateway publishes no permission), so every network
+ * here is simulated inside FuseOS unless the site owner configures a bridge.
  */
 
 export type IrcServer = {
   host: string;
   port: number;
-  /** A WebSocket endpoint that speaks IRC (`wss://...`), when the network runs one browsers may use. */
-  websocket?: string;
 };
 
 export type IrcNetwork = {
@@ -17,106 +15,16 @@ export type IrcNetwork = {
   id: string;
   name: string;
   servers: readonly IrcServer[];
-  /** Status lines shown when the network cannot be reached from a browser (no WebSocket listener). */
-  browserNote: readonly string[];
-  /** Status lines shown as the connection starts (who runs it, what they log). */
-  connectNote?: readonly string[];
-  /** A channel worth suggesting after connecting (the Channels Folder's first entry). */
-  homeChannel?: string;
 };
 
-function noBrowser(name: string): readonly string[] {
-  return [
-    `* ${name} doesn't accept browser connections: its servers only speak plain IRC over TCP, and a web page can only open WebSockets.`,
-    "* Try a network whose WebSocket gateway lets other sites in: /server ergo (Ergo testnet) or /server unrealircd.",
-  ];
-}
-
 export const NETWORKS: readonly IrcNetwork[] = [
-  {
-    id: "efnet",
-    name: "EFnet",
-    servers: [{ host: "irc.efnet.org", port: 6667 }],
-    browserNote: [
-      ...noBrowser("EFnet").slice(0, 1),
-      "* EFnet's own web gateway (chat.efnet.org) only accepts its own page, so other sites' clients are turned away.",
-      ...noBrowser("EFnet").slice(1),
-    ],
-  },
-  {
-    id: "ircnet",
-    name: "IRCnet",
-    servers: [{ host: "open.ircnet.net", port: 6667 }],
-    browserNote: noBrowser("IRCnet"),
-  },
-  {
-    id: "undernet",
-    name: "Undernet",
-    servers: [{ host: "irc.undernet.org", port: 6667 }],
-    browserNote: noBrowser("Undernet"),
-  },
-  {
-    id: "dalnet",
-    name: "DALnet",
-    servers: [{ host: "irc.dal.net", port: 6667 }],
-    browserNote: noBrowser("DALnet"),
-  },
-  {
-    id: "quakenet",
-    name: "QuakeNet",
-    servers: [{ host: "irc.quakenet.org", port: 6667 }],
-    browserNote: noBrowser("QuakeNet"),
-  },
-  {
-    id: "libera",
-    name: "Libera.Chat",
-    servers: [{ host: "irc.libera.chat", port: 6697 }],
-    browserNote: [
-      "* Libera.Chat only takes web users through its own web chat (web.libera.chat), which other sites' clients cannot use.",
-      "* Try /server ergo, or use web.libera.chat in a browser tab.",
-    ],
-  },
-  {
-    id: "oftc",
-    name: "OFTC",
-    servers: [{ host: "irc.oftc.net", port: 6697 }],
-    browserNote: [
-      "* OFTC's web gateway speaks socket.io, not IRC over WebSocket, so this client cannot use it.",
-      "* Try /server ergo instead.",
-    ],
-  },
-  {
-    id: "ergo",
-    name: "Ergo testnet",
-    servers: [
-      {
-        host: "testnet.ergo.chat",
-        port: 6697,
-        websocket: "wss://testnet.ergo.chat/webirc",
-      },
-    ],
-    browserNote: [],
-    connectNote: [
-      "* Ergo's testnet is a public test server: its operators log all traffic. Don't say anything private here.",
-    ],
-    homeChannel: "#fuseos-test",
-  },
-  {
-    id: "unrealircd",
-    name: "UnrealIRCd",
-    servers: [
-      {
-        host: "irc.unrealircd.org",
-        port: 6697,
-        websocket: "wss://irc.unrealircd.org",
-      },
-    ],
-    browserNote: [],
-    connectNote: [
-      "* This is UnrealIRCd's own support network: be polite, and take general chat elsewhere.",
-    ],
-    homeChannel: "#unreal-support",
-  },
+  { id: "efnet", name: "EFnet", servers: [{ host: "irc.efnet.org", port: 6667 }] },
+  { id: "ircnet", name: "IRCnet", servers: [{ host: "open.ircnet.net", port: 6667 }] },
+  { id: "undernet", name: "Undernet", servers: [{ host: "irc.undernet.org", port: 6667 }] },
+  { id: "dalnet", name: "DALnet", servers: [{ host: "irc.dal.net", port: 6667 }] },
+  { id: "quakenet", name: "QuakeNet", servers: [{ host: "irc.quakenet.org", port: 6667 }] },
+  { id: "libera", name: "Libera.Chat", servers: [{ host: "irc.libera.chat", port: 6697 }] },
+  { id: "oftc", name: "OFTC", servers: [{ host: "irc.oftc.net", port: 6697 }] },
 ];
 
 export const DEFAULT_NETWORK_ID = "efnet";
@@ -131,50 +39,35 @@ export function findNetwork(query: string): IrcNetwork | undefined {
   );
 }
 
-/**
- * `/server <host>` for a host that is not in the list: a `ws(s)://` URL connects as given; anything else is
- * a plain IRC host a browser cannot reach without a bridge.
- */
+/** `/server <host>` for a host that is not in the list: a simulated network named after it. */
 export function networkForHost(host: string): IrcNetwork {
-  if (/^wss?:\/\//i.test(host)) {
-    const url = new URL(host);
-    return {
-      id: url.hostname,
-      name: url.hostname,
-      servers: [
-        {
-          host: url.hostname,
-          port: Number(url.port) || (url.protocol === "wss:" ? 443 : 80),
-          websocket: host,
-        },
-      ],
-      browserNote: [],
-    };
-  }
   const [name = host, port] = host.split(":");
   return {
-    id: name,
+    id: name.toLowerCase(),
     name,
     servers: [{ host: name, port: Number(port) || 6667 }],
-    browserNote: noBrowser(name),
   };
 }
 
+/** The scheme of the in-page simulated networks (`sim://efnet`), which `createSimTransport` serves. */
+export const SIM_SCHEME = "sim:";
+
 /**
- * Where to open the socket: the network's own WebSocket listener, else the bridge (when the site has one
- * configured) asked to dial the TCP server, else nowhere.
+ * Where to connect: the WebSocket↔IRC bridge when the site owner has configured one (docs/fuseos/mirc.md),
+ * otherwise the network's simulation in this page.
  */
-export function connectUrl(
-  network: IrcNetwork,
-  bridgeUrl: string | undefined,
-): string | undefined {
-  const server = network.servers[0];
-  if (!server) return undefined;
-  if (server.websocket) return server.websocket;
-  if (!bridgeUrl) return undefined;
+export function connectUrl(network: IrcNetwork, bridgeUrl: string | undefined): string {
+  if (!bridgeUrl) return `${SIM_SCHEME}//${encodeURIComponent(network.id)}`;
   const url = new URL(bridgeUrl);
   url.searchParams.set("network", network.id);
   return url.href;
+}
+
+/** The network a `sim://` URL names, for the simulated transport. */
+export function simNetwork(url: string): { id: string; name: string } {
+  const id = decodeURIComponent(url.replace(/^sim:\/\//, ""));
+  const known = findNetwork(id);
+  return known ? { id: known.id, name: known.name } : { id, name: id };
 }
 
 /**

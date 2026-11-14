@@ -174,6 +174,14 @@ function menus(
         { separator: true },
         { label: "Channels List", onSelect: () => vm.client.list() },
         {
+          label: vm.canThink
+            ? `Smart regulars (${vm.downloadMb ? `downloads ${vm.downloadMb} MB` : "AI model"})`
+            : "Smart regulars (needs WebGPU)",
+          checked: vm.prefs.smartRegulars,
+          disabled: !vm.canThink,
+          onSelect: () => vm.setSmartRegulars(!vm.prefs.smartRegulars),
+        },
+        {
           label: "Timestamp",
           checked: vm.prefs.timestamps,
           onSelect: () => vm.setTimestamps(!vm.prefs.timestamps),

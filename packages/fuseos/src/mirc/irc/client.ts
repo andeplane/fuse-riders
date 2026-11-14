@@ -185,26 +185,6 @@ export class IrcClient {
       `* Connecting to ${hostLabel}`,
       now,
     );
-    if (!url) {
-      next = network.browserNote.reduce(
-        (acc, text) => addLine(acc, STATUS_ID, "error", text, now),
-        next,
-      );
-      this.set(
-        addLine(
-          { ...next, phase: "offline" },
-          STATUS_ID,
-          "info",
-          "* Disconnected",
-          now,
-        ),
-      );
-      return;
-    }
-    next = (network.connectNote ?? []).reduce(
-      (acc, text) => addLine(acc, STATUS_ID, "info", text, now),
-      next,
-    );
     this.set({ ...next, phase: "connecting" });
     const serial = ++this.serial;
     this.quitting = false;

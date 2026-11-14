@@ -41,7 +41,10 @@ export function ranked(
 export function latest(
   tournaments: readonly Tournament[] = TOURNAMENTS,
 ): Tournament | undefined {
-  return ranked(tournaments).at(-1);
+  // Team events rank teams ("Lag 1"), not players; the latest individual event is the one worth quoting.
+  return ranked(tournaments)
+    .filter((tournament) => !/lag/i.test(tournament.name))
+    .at(-1);
 }
 
 /** Finds a tournament by id or by words in its name or season ("cc 3 2004", "reunion", "nm05 single"). */
