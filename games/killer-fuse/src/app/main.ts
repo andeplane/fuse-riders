@@ -96,6 +96,7 @@ import {
   FRESH_STEER,
   ROLE_LEGEND,
   readSoloSlot,
+  SOLO_SETUP_TRIES,
   soloSetup,
   writeSoloSlot,
   type SoloSteer,
@@ -1072,18 +1073,26 @@ function room(solo: boolean): void {
       settings = roomSettings;
       const next = present(frame, viewer),
         mode = solo ? "solo" : roomSettings.display ? "shared" : "online",
-        between = frame.stage === "running" || frame.stage === "between";
-      reportPlay({
-        matchId: frame.matchId,
-        active: between,
-        ended: frame.stage === "over",
-        round: Math.max(1, frame.round),
-        playerCount: next.humans + next.bots,
-        botCount: next.bots,
-        seated: next.seated,
-        mode,
-      });
-      reportGame(frame, viewer.me, runtime.confirmedTick(), mode);
+        between = frame.stage === "running" || frame.stage === "between",
+        // The match a solo room opens in is sent back to the lobby: it is not play, so it is neither reported nor drawn.
+        opening =
+          solo &&
+          !lesson &&
+          !soloSteer.done &&
+          soloSteer.tries < SOLO_SETUP_TRIES &&
+          frame.stage !== "lobby";
+      if (!opening)
+        reportPlay({
+          matchId: frame.matchId,
+          active: between,
+          ended: frame.stage === "over",
+          round: Math.max(1, frame.round),
+          playerCount: next.humans + next.bots,
+          botCount: next.bots,
+          seated: next.seated,
+          mode,
+        });
+      if (!opening) reportGame(frame, viewer.me, runtime.confirmedTick(), mode);
       const spectator = display || !next.seated;
       menu.update({
         canLobby: next.host && frame.stage !== "lobby",
@@ -1123,7 +1132,7 @@ function room(solo: boolean): void {
         else if (step.action === "seat" && soloSlot !== undefined)
           runtime.seat(soloSlot);
       }
-      render(next);
+      if (!opening) render(next);
       if (lesson) {
         const mine = frame.seats.find((seat) => seat.id === viewer.me),
           action = setupAction(
