@@ -9,10 +9,10 @@
   "assets": {
     "worker-cyan": {
       "file": "units/worker-cyan.png",
-      "width": 192,
-      "height": 56,
-      "frameWidth": 24,
-      "frameHeight": 28,
+      "width": 112,
+      "height": 28,
+      "frameWidth": 14,
+      "frameHeight": 14,
       "frameCount": 16,
       "frames": {
         "idle": 0,
@@ -32,7 +32,7 @@
         "fallCarry": 14,
         "blinkCarry": 15
       },
-      "anchor": [12, 27],
+      "anchor": [7, 13],
       "animations": {
         "idle": {
           "frames": ["idle", "idle", "idle", "blink"],
@@ -49,23 +49,23 @@
       },
       "flash": "worker-flash",
       "carry": [
-        [10, 7],
-        [11, 8],
-        [10, 8],
-        [11, 8],
-        [11, 9],
-        [10, 7],
-        [11, 9],
-        [10, 7]
+        [0, 6],
+        [0, 6],
+        [0, 6],
+        [0, 6],
+        [0, 6],
+        [0, 6],
+        [0, 6],
+        [0, 6]
       ],
-      "note": "Frames named <frame>Carry are the same poses holding a berry."
+      "note": "Frames named <frame>Carry are the same poses with a berry on the back; the sprite is no taller for it."
     },
     "worker-pink": {
       "file": "units/worker-pink.png",
-      "width": 192,
-      "height": 56,
-      "frameWidth": 24,
-      "frameHeight": 28,
+      "width": 112,
+      "height": 28,
+      "frameWidth": 14,
+      "frameHeight": 14,
       "frameCount": 16,
       "frames": {
         "idle": 0,
@@ -85,7 +85,7 @@
         "fallCarry": 14,
         "blinkCarry": 15
       },
-      "anchor": [12, 27],
+      "anchor": [7, 13],
       "animations": {
         "idle": {
           "frames": ["idle", "idle", "idle", "blink"],
@@ -102,23 +102,23 @@
       },
       "flash": "worker-flash",
       "carry": [
-        [10, 7],
-        [11, 8],
-        [10, 8],
-        [11, 8],
-        [11, 9],
-        [10, 7],
-        [11, 9],
-        [10, 7]
+        [0, 6],
+        [0, 6],
+        [0, 6],
+        [0, 6],
+        [0, 6],
+        [0, 6],
+        [0, 6],
+        [0, 6]
       ],
-      "note": "Frames named <frame>Carry are the same poses holding a berry."
+      "note": "Frames named <frame>Carry are the same poses with a berry on the back; the sprite is no taller for it."
     },
     "worker-flash": {
       "file": "units/worker-flash.png",
-      "width": 192,
-      "height": 56,
-      "frameWidth": 24,
-      "frameHeight": 28,
+      "width": 112,
+      "height": 28,
+      "frameWidth": 14,
+      "frameHeight": 14,
       "frameCount": 16,
       "frames": {
         "idle": 0,
@@ -138,150 +138,16 @@
         "fallCarry": 14,
         "blinkCarry": 15
       },
-      "anchor": [12, 27],
-      "note": "The same frames as a flat white shape, for both teams: see `invulnerable` at the top of the manifest."
-    },
-    "speed-worker-cyan": {
-      "file": "units/speed-worker-cyan.png",
-      "width": 192,
-      "height": 56,
-      "frameWidth": 24,
-      "frameHeight": 28,
-      "frameCount": 16,
-      "frames": {
-        "idle": 0,
-        "run1": 1,
-        "run2": 2,
-        "run3": 3,
-        "run4": 4,
-        "jump": 5,
-        "fall": 6,
-        "blink": 7,
-        "idleCarry": 8,
-        "run1Carry": 9,
-        "run2Carry": 10,
-        "run3Carry": 11,
-        "run4Carry": 12,
-        "jumpCarry": 13,
-        "fallCarry": 14,
-        "blinkCarry": 15
-      },
-      "anchor": [12, 27],
-      "animations": {
-        "idle": {
-          "frames": ["idle", "idle", "idle", "blink"],
-          "fps": 3,
-          "loop": true
-        },
-        "run": {
-          "frames": ["run1", "run2", "run3", "run4"],
-          "fps": 12,
-          "loop": true
-        },
-        "jump": { "frames": ["jump"], "fps": 1, "loop": false },
-        "fall": { "frames": ["fall"], "fps": 1, "loop": false }
-      },
-      "flash": "speed-worker-flash",
-      "carry": [
-        [10, 4],
-        [11, 5],
-        [11, 5],
-        [11, 4],
-        [11, 5],
-        [10, 4],
-        [9, 6],
-        [9, 4]
-      ],
-      "note": "Frames named <frame>Carry are the same poses holding a berry."
-    },
-    "speed-worker-pink": {
-      "file": "units/speed-worker-pink.png",
-      "width": 192,
-      "height": 56,
-      "frameWidth": 24,
-      "frameHeight": 28,
-      "frameCount": 16,
-      "frames": {
-        "idle": 0,
-        "run1": 1,
-        "run2": 2,
-        "run3": 3,
-        "run4": 4,
-        "jump": 5,
-        "fall": 6,
-        "blink": 7,
-        "idleCarry": 8,
-        "run1Carry": 9,
-        "run2Carry": 10,
-        "run3Carry": 11,
-        "run4Carry": 12,
-        "jumpCarry": 13,
-        "fallCarry": 14,
-        "blinkCarry": 15
-      },
-      "anchor": [12, 27],
-      "animations": {
-        "idle": {
-          "frames": ["idle", "idle", "idle", "blink"],
-          "fps": 3,
-          "loop": true
-        },
-        "run": {
-          "frames": ["run1", "run2", "run3", "run4"],
-          "fps": 12,
-          "loop": true
-        },
-        "jump": { "frames": ["jump"], "fps": 1, "loop": false },
-        "fall": { "frames": ["fall"], "fps": 1, "loop": false }
-      },
-      "flash": "speed-worker-flash",
-      "carry": [
-        [10, 4],
-        [11, 5],
-        [11, 5],
-        [11, 4],
-        [11, 5],
-        [10, 4],
-        [9, 6],
-        [9, 4]
-      ],
-      "note": "Frames named <frame>Carry are the same poses holding a berry."
-    },
-    "speed-worker-flash": {
-      "file": "units/speed-worker-flash.png",
-      "width": 192,
-      "height": 56,
-      "frameWidth": 24,
-      "frameHeight": 28,
-      "frameCount": 16,
-      "frames": {
-        "idle": 0,
-        "run1": 1,
-        "run2": 2,
-        "run3": 3,
-        "run4": 4,
-        "jump": 5,
-        "fall": 6,
-        "blink": 7,
-        "idleCarry": 8,
-        "run1Carry": 9,
-        "run2Carry": 10,
-        "run3Carry": 11,
-        "run4Carry": 12,
-        "jumpCarry": 13,
-        "fallCarry": 14,
-        "blinkCarry": 15
-      },
-      "anchor": [12, 27],
+      "anchor": [7, 13],
       "note": "The same frames as a flat white shape, for both teams: see `invulnerable` at the top of the manifest."
     },
     "warrior-cyan": {
       "file": "units/warrior-cyan.png",
-      "width": 440,
-      "height": 42,
-      "frameWidth": 44,
-      "frameHeight": 42,
-      "frameCount": 10,
+      "width": 171,
+      "height": 18,
+      "frameWidth": 19,
+      "frameHeight": 18,
+      "frameCount": 9,
       "frames": {
         "idle": 0,
         "flapUp": 1,
@@ -291,10 +157,9 @@
         "walk1": 5,
         "walk2": 6,
         "walk3": 7,
-        "walk4": 8,
-        "dive": 9
+        "walk4": 8
       },
-      "anchor": [22, 33],
+      "anchor": [9, 17],
       "animations": {
         "idle": { "frames": ["idle"], "fps": 1, "loop": false },
         "fly": {
@@ -307,19 +172,18 @@
           "frames": ["walk1", "walk2", "walk3", "walk4"],
           "fps": 12,
           "loop": true
-        },
-        "dive": { "frames": ["dive"], "fps": 1, "loop": false }
+        }
       },
       "flash": "warrior-flash",
-      "note": "The body is the worker's, feet on the anchor; the lance reaches about 14 pixels ahead of it and the wings behind and below, so the anchor is not on the cell's bottom row."
+      "note": "Feet on the anchor. Warriors do not dive: there is no `dive` frame. Standing and walking, the sword points diagonally up and forward; flying, straight forward."
     },
     "warrior-pink": {
       "file": "units/warrior-pink.png",
-      "width": 440,
-      "height": 42,
-      "frameWidth": 44,
-      "frameHeight": 42,
-      "frameCount": 10,
+      "width": 171,
+      "height": 18,
+      "frameWidth": 19,
+      "frameHeight": 18,
+      "frameCount": 9,
       "frames": {
         "idle": 0,
         "flapUp": 1,
@@ -329,10 +193,9 @@
         "walk1": 5,
         "walk2": 6,
         "walk3": 7,
-        "walk4": 8,
-        "dive": 9
+        "walk4": 8
       },
-      "anchor": [22, 33],
+      "anchor": [9, 17],
       "animations": {
         "idle": { "frames": ["idle"], "fps": 1, "loop": false },
         "fly": {
@@ -345,19 +208,18 @@
           "frames": ["walk1", "walk2", "walk3", "walk4"],
           "fps": 12,
           "loop": true
-        },
-        "dive": { "frames": ["dive"], "fps": 1, "loop": false }
+        }
       },
       "flash": "warrior-flash",
-      "note": "The body is the worker's, feet on the anchor; the lance reaches about 14 pixels ahead of it and the wings behind and below, so the anchor is not on the cell's bottom row."
+      "note": "Feet on the anchor. Warriors do not dive: there is no `dive` frame. Standing and walking, the sword points diagonally up and forward; flying, straight forward."
     },
     "warrior-flash": {
       "file": "units/warrior-flash.png",
-      "width": 440,
-      "height": 42,
-      "frameWidth": 44,
-      "frameHeight": 42,
-      "frameCount": 10,
+      "width": 171,
+      "height": 18,
+      "frameWidth": 19,
+      "frameHeight": 18,
+      "frameCount": 9,
       "frames": {
         "idle": 0,
         "flapUp": 1,
@@ -367,19 +229,152 @@
         "walk1": 5,
         "walk2": 6,
         "walk3": 7,
-        "walk4": 8,
-        "dive": 9
+        "walk4": 8
       },
-      "anchor": [22, 33],
+      "anchor": [9, 17],
+      "note": "The same frames as a flat white shape, for both teams: see `invulnerable` at the top of the manifest."
+    },
+    "speed-worker-cyan": {
+      "file": "units/speed-worker-cyan.png",
+      "width": 112,
+      "height": 28,
+      "frameWidth": 14,
+      "frameHeight": 14,
+      "frameCount": 16,
+      "frames": {
+        "idle": 0,
+        "run1": 1,
+        "run2": 2,
+        "run3": 3,
+        "run4": 4,
+        "jump": 5,
+        "fall": 6,
+        "blink": 7,
+        "idleCarry": 8,
+        "run1Carry": 9,
+        "run2Carry": 10,
+        "run3Carry": 11,
+        "run4Carry": 12,
+        "jumpCarry": 13,
+        "fallCarry": 14,
+        "blinkCarry": 15
+      },
+      "anchor": [7, 13],
+      "animations": {
+        "idle": {
+          "frames": ["idle", "idle", "idle", "blink"],
+          "fps": 3,
+          "loop": true
+        },
+        "run": {
+          "frames": ["run1", "run2", "run3", "run4"],
+          "fps": 12,
+          "loop": true
+        },
+        "jump": { "frames": ["jump"], "fps": 1, "loop": false },
+        "fall": { "frames": ["fall"], "fps": 1, "loop": false }
+      },
+      "flash": "speed-worker-flash",
+      "carry": [
+        [0, 6],
+        [0, 6],
+        [0, 6],
+        [0, 6],
+        [0, 6],
+        [0, 6],
+        [0, 6],
+        [0, 6]
+      ],
+      "note": "Frames named <frame>Carry are the same poses with a berry on the back; the sprite is no taller for it."
+    },
+    "speed-worker-pink": {
+      "file": "units/speed-worker-pink.png",
+      "width": 112,
+      "height": 28,
+      "frameWidth": 14,
+      "frameHeight": 14,
+      "frameCount": 16,
+      "frames": {
+        "idle": 0,
+        "run1": 1,
+        "run2": 2,
+        "run3": 3,
+        "run4": 4,
+        "jump": 5,
+        "fall": 6,
+        "blink": 7,
+        "idleCarry": 8,
+        "run1Carry": 9,
+        "run2Carry": 10,
+        "run3Carry": 11,
+        "run4Carry": 12,
+        "jumpCarry": 13,
+        "fallCarry": 14,
+        "blinkCarry": 15
+      },
+      "anchor": [7, 13],
+      "animations": {
+        "idle": {
+          "frames": ["idle", "idle", "idle", "blink"],
+          "fps": 3,
+          "loop": true
+        },
+        "run": {
+          "frames": ["run1", "run2", "run3", "run4"],
+          "fps": 12,
+          "loop": true
+        },
+        "jump": { "frames": ["jump"], "fps": 1, "loop": false },
+        "fall": { "frames": ["fall"], "fps": 1, "loop": false }
+      },
+      "flash": "speed-worker-flash",
+      "carry": [
+        [0, 6],
+        [0, 6],
+        [0, 6],
+        [0, 6],
+        [0, 6],
+        [0, 6],
+        [0, 6],
+        [0, 6]
+      ],
+      "note": "Frames named <frame>Carry are the same poses with a berry on the back; the sprite is no taller for it."
+    },
+    "speed-worker-flash": {
+      "file": "units/speed-worker-flash.png",
+      "width": 112,
+      "height": 28,
+      "frameWidth": 14,
+      "frameHeight": 14,
+      "frameCount": 16,
+      "frames": {
+        "idle": 0,
+        "run1": 1,
+        "run2": 2,
+        "run3": 3,
+        "run4": 4,
+        "jump": 5,
+        "fall": 6,
+        "blink": 7,
+        "idleCarry": 8,
+        "run1Carry": 9,
+        "run2Carry": 10,
+        "run3Carry": 11,
+        "run4Carry": 12,
+        "jumpCarry": 13,
+        "fallCarry": 14,
+        "blinkCarry": 15
+      },
+      "anchor": [7, 13],
       "note": "The same frames as a flat white shape, for both teams: see `invulnerable` at the top of the manifest."
     },
     "speed-warrior-cyan": {
       "file": "units/speed-warrior-cyan.png",
-      "width": 440,
-      "height": 42,
-      "frameWidth": 44,
-      "frameHeight": 42,
-      "frameCount": 10,
+      "width": 171,
+      "height": 18,
+      "frameWidth": 19,
+      "frameHeight": 18,
+      "frameCount": 9,
       "frames": {
         "idle": 0,
         "flapUp": 1,
@@ -389,10 +384,9 @@
         "walk1": 5,
         "walk2": 6,
         "walk3": 7,
-        "walk4": 8,
-        "dive": 9
+        "walk4": 8
       },
-      "anchor": [22, 33],
+      "anchor": [9, 17],
       "animations": {
         "idle": { "frames": ["idle"], "fps": 1, "loop": false },
         "fly": {
@@ -405,19 +399,18 @@
           "frames": ["walk1", "walk2", "walk3", "walk4"],
           "fps": 12,
           "loop": true
-        },
-        "dive": { "frames": ["dive"], "fps": 1, "loop": false }
+        }
       },
       "flash": "speed-warrior-flash",
-      "note": "The body is the worker's, feet on the anchor; the lance reaches about 14 pixels ahead of it and the wings behind and below, so the anchor is not on the cell's bottom row."
+      "note": "Feet on the anchor. Warriors do not dive: there is no `dive` frame. Standing and walking, the sword points diagonally up and forward; flying, straight forward."
     },
     "speed-warrior-pink": {
       "file": "units/speed-warrior-pink.png",
-      "width": 440,
-      "height": 42,
-      "frameWidth": 44,
-      "frameHeight": 42,
-      "frameCount": 10,
+      "width": 171,
+      "height": 18,
+      "frameWidth": 19,
+      "frameHeight": 18,
+      "frameCount": 9,
       "frames": {
         "idle": 0,
         "flapUp": 1,
@@ -427,10 +420,9 @@
         "walk1": 5,
         "walk2": 6,
         "walk3": 7,
-        "walk4": 8,
-        "dive": 9
+        "walk4": 8
       },
-      "anchor": [22, 33],
+      "anchor": [9, 17],
       "animations": {
         "idle": { "frames": ["idle"], "fps": 1, "loop": false },
         "fly": {
@@ -443,19 +435,18 @@
           "frames": ["walk1", "walk2", "walk3", "walk4"],
           "fps": 12,
           "loop": true
-        },
-        "dive": { "frames": ["dive"], "fps": 1, "loop": false }
+        }
       },
       "flash": "speed-warrior-flash",
-      "note": "The body is the worker's, feet on the anchor; the lance reaches about 14 pixels ahead of it and the wings behind and below, so the anchor is not on the cell's bottom row."
+      "note": "Feet on the anchor. Warriors do not dive: there is no `dive` frame. Standing and walking, the sword points diagonally up and forward; flying, straight forward."
     },
     "speed-warrior-flash": {
       "file": "units/speed-warrior-flash.png",
-      "width": 440,
-      "height": 42,
-      "frameWidth": 44,
-      "frameHeight": 42,
-      "frameCount": 10,
+      "width": 171,
+      "height": 18,
+      "frameWidth": 19,
+      "frameHeight": 18,
+      "frameCount": 9,
       "frames": {
         "idle": 0,
         "flapUp": 1,
@@ -465,18 +456,17 @@
         "walk1": 5,
         "walk2": 6,
         "walk3": 7,
-        "walk4": 8,
-        "dive": 9
+        "walk4": 8
       },
-      "anchor": [22, 33],
+      "anchor": [9, 17],
       "note": "The same frames as a flat white shape, for both teams: see `invulnerable` at the top of the manifest."
     },
     "queen-cyan": {
       "file": "units/queen-cyan.png",
-      "width": 480,
-      "height": 34,
-      "frameWidth": 48,
-      "frameHeight": 34,
+      "width": 230,
+      "height": 24,
+      "frameWidth": 23,
+      "frameHeight": 24,
       "frameCount": 10,
       "frames": {
         "idle": 0,
@@ -490,7 +480,7 @@
         "walk3": 8,
         "walk4": 9
       },
-      "anchor": [24, 25],
+      "anchor": [11, 18],
       "animations": {
         "idle": { "frames": ["idle"], "fps": 1, "loop": false },
         "fly": {
@@ -499,22 +489,22 @@
           "loop": true
         },
         "glide": { "frames": ["glide"], "fps": 1, "loop": false },
-        "dive": { "frames": ["dive"], "fps": 1, "loop": false },
         "walk": {
           "frames": ["walk1", "walk2", "walk3", "walk4"],
-          "fps": 10,
+          "fps": 12,
           "loop": true
-        }
+        },
+        "dive": { "frames": ["dive"], "fps": 1, "loop": false }
       },
       "flash": "queen-flash",
-      "note": "The worker's body with a crown, so about a quarter taller than a worker; feet on the anchor, which is not on the cell's bottom row. The stinger reaches about 14 pixels ahead; in `dive` it points steeply down and forward, to about 7 pixels below the feet."
+      "note": "Feet on the anchor. The rows under it are only used by `dive`: a column 7 wide, wings folded up the back, the sword straight down with its tip 4 pixels under the feet."
     },
     "queen-pink": {
       "file": "units/queen-pink.png",
-      "width": 480,
-      "height": 34,
-      "frameWidth": 48,
-      "frameHeight": 34,
+      "width": 230,
+      "height": 24,
+      "frameWidth": 23,
+      "frameHeight": 24,
       "frameCount": 10,
       "frames": {
         "idle": 0,
@@ -528,7 +518,7 @@
         "walk3": 8,
         "walk4": 9
       },
-      "anchor": [24, 25],
+      "anchor": [11, 18],
       "animations": {
         "idle": { "frames": ["idle"], "fps": 1, "loop": false },
         "fly": {
@@ -537,22 +527,22 @@
           "loop": true
         },
         "glide": { "frames": ["glide"], "fps": 1, "loop": false },
-        "dive": { "frames": ["dive"], "fps": 1, "loop": false },
         "walk": {
           "frames": ["walk1", "walk2", "walk3", "walk4"],
-          "fps": 10,
+          "fps": 12,
           "loop": true
-        }
+        },
+        "dive": { "frames": ["dive"], "fps": 1, "loop": false }
       },
       "flash": "queen-flash",
-      "note": "The worker's body with a crown, so about a quarter taller than a worker; feet on the anchor, which is not on the cell's bottom row. The stinger reaches about 14 pixels ahead; in `dive` it points steeply down and forward, to about 7 pixels below the feet."
+      "note": "Feet on the anchor. The rows under it are only used by `dive`: a column 7 wide, wings folded up the back, the sword straight down with its tip 4 pixels under the feet."
     },
     "queen-flash": {
       "file": "units/queen-flash.png",
-      "width": 480,
-      "height": 34,
-      "frameWidth": 48,
-      "frameHeight": 34,
+      "width": 230,
+      "height": 24,
+      "frameWidth": 23,
+      "frameHeight": 24,
       "frameCount": 10,
       "frames": {
         "idle": 0,
@@ -566,30 +556,30 @@
         "walk3": 8,
         "walk4": 9
       },
-      "anchor": [24, 25],
+      "anchor": [11, 18],
       "note": "The same frames as a flat white shape, for both teams: see `invulnerable` at the top of the manifest."
     },
     "transform-cyan": {
       "file": "effects/transform-cyan.png",
-      "width": 96,
-      "height": 28,
-      "frameWidth": 24,
-      "frameHeight": 28,
+      "width": 56,
+      "height": 14,
+      "frameWidth": 14,
+      "frameHeight": 14,
       "frameCount": 4,
       "frames": { "0": 0, "1": 1, "2": 2, "3": 3 },
-      "anchor": [12, 27],
+      "anchor": [7, 13],
       "fps": 8,
       "note": "A worker transforming inside a gate: draw instead of the worker, anchored like it, over the gate's <owner>Active frame; loop 1-3 while it waits, then swap to the new unit."
     },
     "transform-pink": {
       "file": "effects/transform-pink.png",
-      "width": 96,
-      "height": 28,
-      "frameWidth": 24,
-      "frameHeight": 28,
+      "width": 56,
+      "height": 14,
+      "frameWidth": 14,
+      "frameHeight": 14,
       "frameCount": 4,
       "frames": { "0": 0, "1": 1, "2": 2, "3": 3 },
-      "anchor": [12, 27],
+      "anchor": [7, 13],
       "fps": 8,
       "note": "A worker transforming inside a gate: draw instead of the worker, anchored like it, over the gate's <owner>Active frame; loop 1-3 while it waits, then swap to the new unit."
     },
@@ -612,20 +602,69 @@
         "eat": { "frames": ["eat", "idle"], "fps": 4, "loop": true }
       },
       "saddle": [
-        [21, 4],
-        [13, 5],
-        [22, 5],
-        [21, 5],
-        [17, 5]
+        [22, 10],
+        [13, 11],
+        [22, 11],
+        [25, 17],
+        [18, 11]
       ],
-      "note": "Faces right; the anchor is under the shell, so the body stretches ahead of it."
+      "mouth": [35, 14],
+      "note": "`eat` has a red head and claws: draw the victim at `mouth`, then the snail over it. Faces right; the anchor is under the shell, so the body stretches ahead of it. Draw the rider first with its anchor on `saddle`, then the snail over it: the rider sits astride, its legs hidden behind the shell."
+    },
+    "gate-emerge-cyan": {
+      "file": "effects/gate-emerge-cyan.png",
+      "width": 210,
+      "height": 40,
+      "frameWidth": 35,
+      "frameHeight": 40,
+      "frameCount": 6,
+      "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 },
+      "anchor": [17, 39],
+      "fps": 12,
+      "note": "A new warrior rising out of the top of a warrior gate, sword first, with chips of stone: draw over the gate, anchored like it, once (half a second), then put the warrior in flight with its feet 13 pixels above the gate's anchor. The worker is not drawn while it plays: it has gone into the dark doorway."
+    },
+    "gate-emerge-speed-cyan": {
+      "file": "effects/gate-emerge-speed-cyan.png",
+      "width": 210,
+      "height": 40,
+      "frameWidth": 35,
+      "frameHeight": 40,
+      "frameCount": 6,
+      "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 },
+      "anchor": [17, 39],
+      "fps": 12,
+      "note": "A new warrior rising out of the top of a warrior gate, sword first, with chips of stone: draw over the gate, anchored like it, once (half a second), then put the warrior in flight with its feet 13 pixels above the gate's anchor. The worker is not drawn while it plays: it has gone into the dark doorway."
+    },
+    "gate-emerge-pink": {
+      "file": "effects/gate-emerge-pink.png",
+      "width": 210,
+      "height": 40,
+      "frameWidth": 35,
+      "frameHeight": 40,
+      "frameCount": 6,
+      "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 },
+      "anchor": [17, 39],
+      "fps": 12,
+      "note": "A new warrior rising out of the top of a warrior gate, sword first, with chips of stone: draw over the gate, anchored like it, once (half a second), then put the warrior in flight with its feet 13 pixels above the gate's anchor. The worker is not drawn while it plays: it has gone into the dark doorway."
+    },
+    "gate-emerge-speed-pink": {
+      "file": "effects/gate-emerge-speed-pink.png",
+      "width": 210,
+      "height": 40,
+      "frameWidth": 35,
+      "frameHeight": 40,
+      "frameCount": 6,
+      "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 },
+      "anchor": [17, 39],
+      "fps": 12,
+      "note": "A new warrior rising out of the top of a warrior gate, sword first, with chips of stone: draw over the gate, anchored like it, once (half a second), then put the warrior in flight with its feet 13 pixels above the gate's anchor. The worker is not drawn while it plays: it has gone into the dark doorway."
     },
     "gate-warrior": {
       "file": "gates/warrior.png",
-      "width": 138,
-      "height": 29,
-      "frameWidth": 23,
-      "frameHeight": 29,
+      "width": 210,
+      "height": 28,
+      "frameWidth": 35,
+      "frameHeight": 28,
       "frameCount": 6,
       "frames": {
         "neutral": 0,
@@ -635,15 +674,15 @@
         "cyanActive": 4,
         "pinkActive": 5
       },
-      "anchor": [11, 28],
-      "note": "Stands on the anchor. <owner>Active is the gate while a worker is transforming inside it."
+      "anchor": [17, 27],
+      "note": "Stands on the anchor: grey stone pillars with a white ornament (wings for the warrior gate, crossed blades for the speed gate) that takes the owner's colour. <owner>Active is the gate in use: draw the worker standing on the anchor between the pillars; its berry is already in the socket above."
     },
     "gate-speed": {
       "file": "gates/speed.png",
-      "width": 138,
-      "height": 29,
-      "frameWidth": 23,
-      "frameHeight": 29,
+      "width": 210,
+      "height": 28,
+      "frameWidth": 35,
+      "frameHeight": 28,
       "frameCount": 6,
       "frames": {
         "neutral": 0,
@@ -653,43 +692,40 @@
         "cyanActive": 4,
         "pinkActive": 5
       },
-      "anchor": [11, 28],
-      "note": "Stands on the anchor. <owner>Active is the gate while a worker is transforming inside it."
+      "anchor": [17, 27],
+      "note": "Stands on the anchor: grey stone pillars with a white ornament (wings for the warrior gate, crossed blades for the speed gate) that takes the owner's colour. <owner>Active is the gate in use: draw the worker standing on the anchor between the pillars; its berry is already in the socket above."
     },
     "berry": {
       "file": "berries/berry.png",
-      "width": 32,
-      "height": 8,
-      "frameWidth": 8,
-      "frameHeight": 8,
+      "width": 20,
+      "height": 5,
+      "frameWidth": 5,
+      "frameHeight": 5,
       "frameCount": 4,
       "frames": { "pile": 0, "carried": 1, "loose1": 2, "loose2": 3 },
-      "anchor": [4, 4],
+      "anchor": [2, 2],
       "animations": {
         "loose": { "frames": ["loose1", "loose2"], "fps": 8, "loop": true }
       }
     },
     "berry-pile": {
       "file": "berries/pile.png",
-      "width": 33,
-      "height": 8,
-      "frameWidth": 33,
-      "frameHeight": 8,
-      "frameCount": 1,
-      "frames": { "base": 0 },
-      "anchor": [16, 7],
+      "width": 189,
+      "height": 18,
+      "frameWidth": 27,
+      "frameHeight": 18,
+      "frameCount": 7,
+      "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6 },
+      "anchor": [13, 17],
       "slots": [
-        [3, -5],
-        [10, -5],
-        [17, -5],
-        [24, -5],
-        [6, -10],
-        [13, -10],
-        [20, -10],
-        [10, -15],
-        [17, -15],
-        [13, -20]
-      ]
+        [6, 9],
+        [11, 9],
+        [16, 9],
+        [9, 5],
+        [14, 5],
+        [11, 1]
+      ],
+      "note": "Frame n is the pile with n berries left, stacked 3-2-1 on its leaf: nothing else needs drawing. The leaf stands on the anchor."
     },
     "snail-strip": {
       "file": "hud/snail-strip.png",
@@ -714,80 +750,135 @@
       "anchor": [4, 6],
       "note": "Faces right; flip it when the snail heads left."
     },
-    "hive-cyan": {
-      "file": "hives/hive-cyan.png",
-      "width": 81,
-      "height": 40,
-      "frameWidth": 81,
-      "frameHeight": 40,
+    "hive-day-cyan": {
+      "file": "hives/hive-day-cyan.png",
+      "width": 54,
+      "height": 54,
+      "frameWidth": 54,
+      "frameHeight": 54,
       "frameCount": 1,
       "frames": { "hive": 0 },
-      "anchor": [40, 39],
+      "anchor": [27, 53],
       "holes": [
-        [-28, -5],
-        [-18, -5],
-        [-8, -5],
-        [2, -5],
-        [12, -5],
-        [22, -5],
-        [-23, -13],
-        [-13, -13],
-        [-3, -13],
-        [7, -13],
-        [17, -13],
-        [27, -13]
+        [-14, -19],
+        [-14, -29],
+        [-7, -14],
+        [-7, -24],
+        [-7, -34],
+        [0, -19],
+        [0, -29],
+        [7, -14],
+        [7, -24],
+        [7, -34],
+        [14, -19],
+        [14, -29]
       ],
       "hole": "hive-hole-cyan",
-      "count": [0, -30],
-      "perch": [0, -37],
-      "note": "Put the anchor on the hive ledge's top row under the holes: hole i is then at anchor + holes[i], which is the engine's hole i for this team. Draw `hive-hole` frames centred there (the empty cells are already in the art, so only `filled` is needed). `count` is the top centre of a 7-pixel-high count on the plaque; `perch` is the roof pad, where a Queen's respawn ghost can stand without covering the holes.",
-      "engine": {
-        "source": "MAPS[*].holes in games/killer-fuse/src/engine/maps.ts (art pixels; `viewOf(...).hives` gives the same)",
-        "anchors": {
-          "map1": { "cyan": [160, 82], "pink": [320, 82] },
-          "map2": { "cyan": [76, 82], "pink": [404, 82] },
-          "map3": { "cyan": [190, 82], "pink": [290, 82] }
-        }
-      }
+      "note": "A flat wall standing on the anchor (bottom centre, on the floor's top row). Hole i is at anchor + holes[i]; the empty holes are in the art, so draw `hive-hole` `filled` centred there for each banked berry."
+    },
+    "hive-dusk-cyan": {
+      "file": "hives/hive-dusk-cyan.png",
+      "width": 59,
+      "height": 79,
+      "frameWidth": 59,
+      "frameHeight": 79,
+      "frameCount": 1,
+      "frames": { "hive": 0 },
+      "anchor": [29, 78],
+      "holes": [
+        [-14, -19],
+        [-14, -29],
+        [-7, -14],
+        [-7, -24],
+        [-7, -34],
+        [0, -19],
+        [0, -29],
+        [7, -14],
+        [7, -24],
+        [7, -34],
+        [14, -19],
+        [14, -29]
+      ],
+      "hole": "hive-hole-cyan",
+      "note": "A flat wall standing on the anchor (bottom centre, on the floor's top row). Hole i is at anchor + holes[i]; the empty holes are in the art, so draw `hive-hole` `filled` centred there for each banked berry."
+    },
+    "hive-night-cyan": {
+      "file": "hives/hive-night-cyan.png",
+      "width": 86,
+      "height": 55,
+      "frameWidth": 86,
+      "frameHeight": 55,
+      "frameCount": 1,
+      "frames": { "hive": 0 },
+      "anchor": [43, 54],
+      "holes": [
+        [-14, -19],
+        [-14, -29],
+        [-7, -14],
+        [-7, -24],
+        [-7, -34],
+        [0, -19],
+        [0, -29],
+        [7, -14],
+        [7, -24],
+        [7, -34],
+        [14, -19],
+        [14, -29]
+      ],
+      "hole": "hive-hole-cyan",
+      "note": "A flat wall standing on the anchor (bottom centre, on the floor's top row). Hole i is at anchor + holes[i]; the empty holes are in the art, so draw `hive-hole` `filled` centred there for each banked berry."
     },
     "hive-hole-cyan": {
       "file": "hives/hole-cyan.png",
-      "width": 22,
-      "height": 11,
-      "frameWidth": 11,
-      "frameHeight": 11,
+      "width": 10,
+      "height": 5,
+      "frameWidth": 5,
+      "frameHeight": 5,
       "frameCount": 2,
       "frames": { "empty": 0, "filled": 1 },
-      "anchor": [5, 5],
-      "note": "An 11 by 11 cell centred on a hole. Neighbours share their walls, so draw `filled` over the hive art."
+      "anchor": [2, 2],
+      "note": "A 5 by 5 cell centred on a hole."
     },
     "egg-cyan": {
-      "file": "hud/egg-cyan.png",
-      "width": 36,
-      "height": 14,
-      "frameWidth": 12,
-      "frameHeight": 14,
+      "file": "hives/egg-cyan.png",
+      "width": 30,
+      "height": 16,
+      "frameWidth": 10,
+      "frameHeight": 16,
       "frameCount": 3,
       "frames": { "full": 0, "broken": 1, "cracked": 2 },
-      "anchor": [6, 7],
-      "note": "A Queen's lives. Show `cracked` for a few frames when a life is lost, then `broken`."
+      "anchor": [5, 15],
+      "note": "A Queen's spare life, standing on the hive floor on its anchor. Show `cracked` for a few frames when a life is lost, then `broken` (the empty shell)."
     },
     "goal-cyan": {
       "file": "tiles/goal-cyan.png",
-      "width": 18,
-      "height": 42,
-      "frameWidth": 18,
-      "frameHeight": 42,
+      "width": 29,
+      "height": 19,
+      "frameWidth": 29,
+      "frameHeight": 19,
       "frameCount": 1,
       "frames": { "post": 0 },
-      "anchor": [9, 40]
+      "anchor": [14, 18],
+      "note": "A net cage standing on the ground on its anchor, its mouth towards the middle of the arena: Cyan's as drawn for a goal on the left, Pink's for one on the right."
     },
     "kill-burst-cyan": {
       "file": "effects/kill-burst-cyan.png",
-      "width": 384,
-      "height": 48,
-      "frameWidth": 48,
-      "frameHeight": 48,
+      "width": 504,
+      "height": 84,
+      "frameWidth": 84,
+      "frameHeight": 84,
+      "frameCount": 6,
+      "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 },
+      "anchor": [42, 42],
+      "fps": 20,
+      "note": "A scatter of 44 one- and two-pixel specks in the victim's colour, flung about 40 pixels; no flash. Centred on the victim's body, drawn once."
+    },
+    "queen-death-cyan": {
+      "file": "effects/queen-death-cyan.png",
+      "width": 400,
+      "height": 200,
+      "frameWidth": 100,
+      "frameHeight": 100,
       "frameCount": 8,
       "frames": {
         "0": 0,
@@ -799,54 +890,31 @@
         "6": 6,
         "7": 7
       },
-      "anchor": [24, 24],
-      "fps": 20,
-      "note": "In the victim's colour, centred on its body."
-    },
-    "queen-death-cyan": {
-      "file": "effects/queen-death-cyan.png",
-      "width": 320,
-      "height": 128,
-      "frameWidth": 64,
-      "frameHeight": 64,
-      "frameCount": 10,
-      "frames": {
-        "0": 0,
-        "1": 1,
-        "2": 2,
-        "3": 3,
-        "4": 4,
-        "5": 5,
-        "6": 6,
-        "7": 7,
-        "8": 8,
-        "9": 9
-      },
-      "anchor": [32, 32],
+      "anchor": [50, 50],
       "fps": 16,
-      "note": "A Queen's death, centred on her body; pair it with the HUD egg's `cracked` frame."
+      "note": "A Queen's death, centred on her body; pair it with her egg's `cracked` frame."
     },
     "respawn-cyan": {
       "file": "effects/respawn-cyan.png",
-      "width": 168,
-      "height": 36,
-      "frameWidth": 24,
-      "frameHeight": 36,
+      "width": 98,
+      "height": 24,
+      "frameWidth": 14,
+      "frameHeight": 24,
       "frameCount": 7,
       "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6 },
-      "anchor": [12, 35],
+      "anchor": [7, 23],
       "fps": 14,
       "note": "Drawn over a unit as it respawns, anchored at its feet."
     },
     "death-puff-cyan": {
       "file": "effects/death-puff-cyan.png",
-      "width": 120,
-      "height": 24,
-      "frameWidth": 24,
-      "frameHeight": 24,
+      "width": 80,
+      "height": 16,
+      "frameWidth": 16,
+      "frameHeight": 16,
       "frameCount": 5,
       "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4 },
-      "anchor": [12, 12],
+      "anchor": [8, 8],
       "fps": 14
     },
     "banner-military-cyan": {
@@ -879,80 +947,135 @@
       "frames": { "banner": 0 },
       "anchor": [116, 22]
     },
-    "hive-pink": {
-      "file": "hives/hive-pink.png",
-      "width": 81,
-      "height": 40,
-      "frameWidth": 81,
-      "frameHeight": 40,
+    "hive-day-pink": {
+      "file": "hives/hive-day-pink.png",
+      "width": 54,
+      "height": 54,
+      "frameWidth": 54,
+      "frameHeight": 54,
       "frameCount": 1,
       "frames": { "hive": 0 },
-      "anchor": [40, 39],
+      "anchor": [27, 53],
       "holes": [
-        [28, -5],
-        [18, -5],
-        [8, -5],
-        [-2, -5],
-        [-12, -5],
-        [-22, -5],
-        [23, -13],
-        [13, -13],
-        [3, -13],
-        [-7, -13],
-        [-17, -13],
-        [-27, -13]
+        [14, -19],
+        [14, -29],
+        [7, -14],
+        [7, -24],
+        [7, -34],
+        [0, -19],
+        [0, -29],
+        [-7, -14],
+        [-7, -24],
+        [-7, -34],
+        [-14, -19],
+        [-14, -29]
       ],
       "hole": "hive-hole-pink",
-      "count": [0, -30],
-      "perch": [0, -37],
-      "note": "Put the anchor on the hive ledge's top row under the holes: hole i is then at anchor + holes[i], which is the engine's hole i for this team. Draw `hive-hole` frames centred there (the empty cells are already in the art, so only `filled` is needed). `count` is the top centre of a 7-pixel-high count on the plaque; `perch` is the roof pad, where a Queen's respawn ghost can stand without covering the holes.",
-      "engine": {
-        "source": "MAPS[*].holes in games/killer-fuse/src/engine/maps.ts (art pixels; `viewOf(...).hives` gives the same)",
-        "anchors": {
-          "map1": { "cyan": [160, 82], "pink": [320, 82] },
-          "map2": { "cyan": [76, 82], "pink": [404, 82] },
-          "map3": { "cyan": [190, 82], "pink": [290, 82] }
-        }
-      }
+      "note": "A flat wall standing on the anchor (bottom centre, on the floor's top row). Hole i is at anchor + holes[i]; the empty holes are in the art, so draw `hive-hole` `filled` centred there for each banked berry."
+    },
+    "hive-dusk-pink": {
+      "file": "hives/hive-dusk-pink.png",
+      "width": 59,
+      "height": 79,
+      "frameWidth": 59,
+      "frameHeight": 79,
+      "frameCount": 1,
+      "frames": { "hive": 0 },
+      "anchor": [29, 78],
+      "holes": [
+        [14, -19],
+        [14, -29],
+        [7, -14],
+        [7, -24],
+        [7, -34],
+        [0, -19],
+        [0, -29],
+        [-7, -14],
+        [-7, -24],
+        [-7, -34],
+        [-14, -19],
+        [-14, -29]
+      ],
+      "hole": "hive-hole-pink",
+      "note": "A flat wall standing on the anchor (bottom centre, on the floor's top row). Hole i is at anchor + holes[i]; the empty holes are in the art, so draw `hive-hole` `filled` centred there for each banked berry."
+    },
+    "hive-night-pink": {
+      "file": "hives/hive-night-pink.png",
+      "width": 86,
+      "height": 55,
+      "frameWidth": 86,
+      "frameHeight": 55,
+      "frameCount": 1,
+      "frames": { "hive": 0 },
+      "anchor": [43, 54],
+      "holes": [
+        [14, -19],
+        [14, -29],
+        [7, -14],
+        [7, -24],
+        [7, -34],
+        [0, -19],
+        [0, -29],
+        [-7, -14],
+        [-7, -24],
+        [-7, -34],
+        [-14, -19],
+        [-14, -29]
+      ],
+      "hole": "hive-hole-pink",
+      "note": "A flat wall standing on the anchor (bottom centre, on the floor's top row). Hole i is at anchor + holes[i]; the empty holes are in the art, so draw `hive-hole` `filled` centred there for each banked berry."
     },
     "hive-hole-pink": {
       "file": "hives/hole-pink.png",
-      "width": 22,
-      "height": 11,
-      "frameWidth": 11,
-      "frameHeight": 11,
+      "width": 10,
+      "height": 5,
+      "frameWidth": 5,
+      "frameHeight": 5,
       "frameCount": 2,
       "frames": { "empty": 0, "filled": 1 },
-      "anchor": [5, 5],
-      "note": "An 11 by 11 cell centred on a hole. Neighbours share their walls, so draw `filled` over the hive art."
+      "anchor": [2, 2],
+      "note": "A 5 by 5 cell centred on a hole."
     },
     "egg-pink": {
-      "file": "hud/egg-pink.png",
-      "width": 36,
-      "height": 14,
-      "frameWidth": 12,
-      "frameHeight": 14,
+      "file": "hives/egg-pink.png",
+      "width": 30,
+      "height": 16,
+      "frameWidth": 10,
+      "frameHeight": 16,
       "frameCount": 3,
       "frames": { "full": 0, "broken": 1, "cracked": 2 },
-      "anchor": [6, 7],
-      "note": "A Queen's lives. Show `cracked` for a few frames when a life is lost, then `broken`."
+      "anchor": [5, 15],
+      "note": "A Queen's spare life, standing on the hive floor on its anchor. Show `cracked` for a few frames when a life is lost, then `broken` (the empty shell)."
     },
     "goal-pink": {
       "file": "tiles/goal-pink.png",
-      "width": 18,
-      "height": 42,
-      "frameWidth": 18,
-      "frameHeight": 42,
+      "width": 29,
+      "height": 19,
+      "frameWidth": 29,
+      "frameHeight": 19,
       "frameCount": 1,
       "frames": { "post": 0 },
-      "anchor": [9, 40]
+      "anchor": [14, 18],
+      "note": "A net cage standing on the ground on its anchor, its mouth towards the middle of the arena: Cyan's as drawn for a goal on the left, Pink's for one on the right."
     },
     "kill-burst-pink": {
       "file": "effects/kill-burst-pink.png",
-      "width": 384,
-      "height": 48,
-      "frameWidth": 48,
-      "frameHeight": 48,
+      "width": 504,
+      "height": 84,
+      "frameWidth": 84,
+      "frameHeight": 84,
+      "frameCount": 6,
+      "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 },
+      "anchor": [42, 42],
+      "fps": 20,
+      "note": "A scatter of 44 one- and two-pixel specks in the victim's colour, flung about 40 pixels; no flash. Centred on the victim's body, drawn once."
+    },
+    "queen-death-pink": {
+      "file": "effects/queen-death-pink.png",
+      "width": 400,
+      "height": 200,
+      "frameWidth": 100,
+      "frameHeight": 100,
       "frameCount": 8,
       "frames": {
         "0": 0,
@@ -964,54 +1087,31 @@
         "6": 6,
         "7": 7
       },
-      "anchor": [24, 24],
-      "fps": 20,
-      "note": "In the victim's colour, centred on its body."
-    },
-    "queen-death-pink": {
-      "file": "effects/queen-death-pink.png",
-      "width": 320,
-      "height": 128,
-      "frameWidth": 64,
-      "frameHeight": 64,
-      "frameCount": 10,
-      "frames": {
-        "0": 0,
-        "1": 1,
-        "2": 2,
-        "3": 3,
-        "4": 4,
-        "5": 5,
-        "6": 6,
-        "7": 7,
-        "8": 8,
-        "9": 9
-      },
-      "anchor": [32, 32],
+      "anchor": [50, 50],
       "fps": 16,
-      "note": "A Queen's death, centred on her body; pair it with the HUD egg's `cracked` frame."
+      "note": "A Queen's death, centred on her body; pair it with her egg's `cracked` frame."
     },
     "respawn-pink": {
       "file": "effects/respawn-pink.png",
-      "width": 168,
-      "height": 36,
-      "frameWidth": 24,
-      "frameHeight": 36,
+      "width": 98,
+      "height": 24,
+      "frameWidth": 14,
+      "frameHeight": 24,
       "frameCount": 7,
       "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6 },
-      "anchor": [12, 35],
+      "anchor": [7, 23],
       "fps": 14,
       "note": "Drawn over a unit as it respawns, anchored at its feet."
     },
     "death-puff-pink": {
       "file": "effects/death-puff-pink.png",
-      "width": 120,
-      "height": 24,
-      "frameWidth": 24,
-      "frameHeight": 24,
+      "width": 80,
+      "height": 16,
+      "frameWidth": 16,
+      "frameHeight": 16,
       "frameCount": 5,
       "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4 },
-      "anchor": [12, 12],
+      "anchor": [8, 8],
       "fps": 14
     },
     "banner-military-pink": {
@@ -1046,36 +1146,36 @@
     },
     "flap-puff": {
       "file": "effects/flap-puff.png",
-      "width": 64,
-      "height": 8,
-      "frameWidth": 16,
-      "frameHeight": 8,
+      "width": 48,
+      "height": 6,
+      "frameWidth": 12,
+      "frameHeight": 6,
       "frameCount": 4,
       "frames": { "0": 0, "1": 1, "2": 2, "3": 3 },
-      "anchor": [8, 0],
+      "anchor": [6, 0],
       "fps": 16
     },
     "gate-sparkle": {
       "file": "effects/gate-sparkle.png",
-      "width": 144,
-      "height": 32,
-      "frameWidth": 24,
-      "frameHeight": 32,
+      "width": 210,
+      "height": 28,
+      "frameWidth": 35,
+      "frameHeight": 28,
       "frameCount": 6,
       "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 },
-      "anchor": [12, 31],
+      "anchor": [17, 27],
       "fps": 12,
       "note": "Drawn over a gate, anchored like it."
     },
     "berry-pop": {
       "file": "effects/berry-pop.png",
-      "width": 80,
-      "height": 16,
-      "frameWidth": 16,
-      "frameHeight": 16,
+      "width": 55,
+      "height": 11,
+      "frameWidth": 11,
+      "frameHeight": 11,
       "frameCount": 5,
       "frames": { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4 },
-      "anchor": [8, 8],
+      "anchor": [5, 5],
       "fps": 16
     },
     "tiles": {
@@ -1111,7 +1211,7 @@
         "trackLamp": 22
       },
       "anchor": [0, 0],
-      "note": "8 by 8 tiles. slab* is a one-tile-high platform, top*/middle*/bottom* build thicker ones, track* is the floor's top row (the snail's lane), ledge* is the thin one-way platform (only its top 5 rows are drawn). *Lamp tiles are variants to drop into long runs."
+      "note": "8 by 8 cells. track* is the ground, 5 rows drawn; slab* is a floating platform, 7 rows drawn (6 solid and a fringe). Every end cap is opaque where it is drawn, so a platform of any length from 14 pixels is slabLeft at its left edge, slab repeated, and slabRight drawn last with its right edge on the platform's. ledge* is a thinner platform (5 rows); top*/middle*/bottom* build thick blocks. *Lamp tiles are variants to drop into long runs."
     },
     "bg-far": {
       "file": "backgrounds/far.png",

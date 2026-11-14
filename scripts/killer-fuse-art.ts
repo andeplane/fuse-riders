@@ -20,8 +20,6 @@ import {
   CREAM,
   CUTS,
   FROST,
-  GATES,
-  QUEEN,
   GENERATIONS,
   GOLD,
   ICE,
@@ -32,9 +30,7 @@ import {
   TAN,
   TEAMS,
   UNIT_NEUTRALS,
-  UNITS,
   VIOLET,
-  WARRIOR,
   WHITE,
   type Generation,
   type Ramp,
@@ -46,7 +42,6 @@ import {
   blit,
   bounds,
   boxDown,
-  clear,
   crop,
   decodePng,
   despeckle,
@@ -55,7 +50,6 @@ import {
   flipX,
   findGrid,
   findSprites,
-  fromRows,
   hex,
   img,
   isTeam,
@@ -75,23 +69,13 @@ import {
 } from "../games/killer-fuse/art/pixel.ts";
 import {
   banner,
-  berry,
-  berryCarried,
-  berryLoose,
   berryPop,
   deathPuff,
-  egg,
   flapPuff,
   gateSparkle,
-  goalPost,
-  hive,
-  HIVE,
-  hiveHole,
   killBurst,
   queenDeath,
   respawn,
-  PILE_SLOTS,
-  pileBase,
   snailMarker,
   snailStrip,
   STRIP_LANE,
@@ -99,7 +83,36 @@ import {
   TILES,
   type WinKind,
 } from "../games/killer-fuse/art/procedural.ts";
-import { MAPS } from "../games/killer-fuse/src/engine/maps.ts";
+import {
+  berries,
+  carrySpot,
+  egg,
+  emerge,
+  EMERGE,
+  gate,
+  GATE,
+  goalNet,
+  hive,
+  HIVE_HOLES,
+  HIVE_SIZES,
+  hiveHole,
+  pile,
+  PILE,
+  UNIT_SPECS,
+  unitFrame,
+  unitLayout,
+  type UnitSpec,
+} from "../games/killer-fuse/art/arcade.ts";
+
+/** How far along the snail's shell, from its back to its front, the rider sits. */
+const SNAIL_SEAT = 0.62;
+/** The first column of the snail's neck and head in its cell: everything from here on turns red when it eats. */
+const SNAIL_HEAD = 26;
+const SNAIL_RED: readonly [Rgb, Rgb, Rgb] = [
+  hex("#8c1c2c"),
+  hex("#e23b3b"),
+  hex("#ff8a70"),
+];
 
 const ART = fileURLToPath(
   new URL("../games/killer-fuse/art/", import.meta.url),
@@ -474,7 +487,6 @@ const centreOf = (m: Img, core: (c: Rgb) => boolean) => {
   return n ? { x: sx / n, y: sy / n } : { x: m.w / 2, y: m.h / 2 };
 };
 
-const isBody = (c: Rgb) => isGreen(c) || same(c, CREAM) || same(c, TAN);
 const isShell = (c: Rgb) => VIOLET.some((v) => same(v, c));
 
 /** Outlines a cell in place (the outline lands on the cell's own empty border pixels). */
@@ -647,458 +659,6 @@ const alignedFrames = (spec: UnitSheet, core: (c: Rgb) => boolean) => {
   });
 };
 
-/** The rows at the top of a unit that are only antennae: thin, and above the dome of the helmet. */
-const antennaRows = (cell: Img): { top: number; dome: number } => {
-  const width = (y: number) => {
-    let n = 0;
-    for (let x = 0; x < cell.w; x++) if (alpha(cell, x, y)) n++;
-    return n;
-  };
-  let top = 0;
-  while (top < cell.h && width(top) === 0) top++;
-  let dome = top;
-  while (dome < cell.h && width(dome) <= 4) dome++;
-  return { top, dome };
-};
-
-/** The first and last drawn pixel of a row, or undefined when the row is empty. */
-const span = (cell: Img, y: number): [number, number] | undefined => {
-  let lo = -1;
-  let hi = -1;
-  for (let x = 0; x < cell.w; x++)
-    if (alpha(cell, x, y)) {
-      if (lo < 0) lo = x;
-      hi = x;
-    }
-  return lo < 0 ? undefined : [lo, hi];
-};
-
-const MOVING = /^(run|walk|flap|glide|jump|fall)/;
-const STRIDING = /^(run|walk)/;
-
-/**
- * The speed form of a unit, made from the same frames so the two are the same character, and different enough to
- * tell apart standing still: a gold top half of the helmet with a gold lightning-bolt antenna, gold boots and a gold scarf, a
- * forward lean in every stride, and (in `emitUnit`) a gold outline in place of the dark one.
- */
-const speedBase = (source: Img, frame: string, index: number): Img => {
-  let cell = source;
-  const { dome } = antennaRows(cell);
-  if (STRIDING.test(frame)) {
-    // Lean into the run: the head and shoulders shift one pixel forward.
-    const leant = img(cell.w, cell.h);
-    for (let y = 0; y < cell.h; y++)
-      for (let x = 0; x < cell.w; x++)
-        if (alpha(cell, x, y))
-          put(leant, x + (y < dome + 7 ? 1 : 0), y, rgbAt(cell, x, y));
-    cell = leant;
-  }
-  const out = img(cell.w, cell.h);
-  blit(out, cell, 0, 0);
-  const box = bounds(cell) ?? { x: 0, y: 0, w: cell.w, h: cell.h };
-  const bottom = box.y + box.h - 1;
-  const gold = (x: number, y: number, fallback: number) => {
-    if (!alpha(cell, x, y)) return;
-    const shade = GREEN.findIndex((g) => same(g, rgbAt(cell, x, y)));
-    if (shade >= 0) put(out, x, y, GOLD[Math.max(fallback, shade)] ?? GOLD[2]);
-  };
-  for (let x = 0; x < cell.w; x++) {
-    // Boots, and a cap over the top of the helmet.
-    for (let y = bottom - 2; y <= bottom; y++) gold(x, y, 1);
-    gold(x, dome, 3);
-    for (let y = dome + 1; y < dome + 4; y++) gold(x, y, 2);
-  }
-  // The antennae become one lightning bolt, swept back.
-  for (let y = 0; y < dome; y++)
-    for (let x = 0; x < cell.w; x++) if (alpha(cell, x, y)) clear(out, x, y);
-  const crown = span(cell, dome);
-  if (crown) {
-    const x = Math.round((crown[0] + crown[1]) / 2);
-    const bolt: [number, number][] = [
-      [0, -1],
-      [-1, -1],
-      [-1, -2],
-      [-2, -2],
-      [-1, -3],
-      [-2, -3],
-      [-3, -4],
-      [-2, -4],
-      [-3, -5],
-    ];
-    for (const [dx, dy] of bolt)
-      if (dome + dy >= 1) put(out, x + dx, dome + dy, GOLD[dy < -3 ? 3 : 2]);
-  }
-  // A scarf from the neck, streaming when moving and hanging when not.
-  const neck = dome + 7;
-  const back = span(cell, neck)?.[0] ?? box.x;
-  const moving = MOVING.test(frame);
-  for (let i = 1; i <= (moving ? 5 : 2); i++) {
-    const wave = moving ? ((i + index) % 3 === 0 ? -1 : 0) : i;
-    if (back - i < 1) break;
-    put(out, back - i, neck + wave, GOLD[3]);
-    put(out, back - i, neck + wave + 1, GOLD[i > 3 ? 1 : 2]);
-  }
-  return out;
-};
-
-/** Gold dashes streaming behind a moving speed unit, added after everything else is drawn. */
-const speedDashes = (cell: Img, frame: string, index: number): Img => {
-  if (!MOVING.test(frame)) return cell;
-  const out = img(cell.w, cell.h);
-  blit(out, cell, 0, 0);
-  const box = bounds(cell) ?? { x: 0, y: 0, w: cell.w, h: cell.h };
-  const rows: [number, number][] = [
-    [0.3, 3],
-    [0.62, 4],
-    [0.9, 2],
-  ];
-  for (const [at, length] of rows) {
-    const y = box.y + Math.round(box.h * at);
-    const start = span(cell, y)?.[0] ?? box.x;
-    const from = start - 2 - (index % 2);
-    for (let i = 0; i < length; i++)
-      if (from - i >= 1) put(out, from - i, y, GOLD[i === 0 ? 3 : 2]);
-  }
-  return out;
-};
-
-// Wings, drawn behind the body: W white, I ice, F frost. Each has the pixel that sits on the shoulder.
-const WING_KEY = { W: WHITE, I: ICE, F: FROST };
-const WING_UP = [
-  "..WWWW.....",
-  ".WWWWWW....",
-  "WWWIIWWW...",
-  "WWIIIIWW...",
-  "WWIIIIIWW..",
-  ".WWIIIIWW..",
-  ".FWIIIIIW..",
-  "..FWIIIIWW.",
-  "...FWIIIWW.",
-  "....FFIIWW.",
-  ".....FFIIW.",
-  "......FFIW.",
-  ".......FFI.",
-];
-const WINGS: Record<
-  string,
-  { rows: readonly string[]; root: [number, number] }
-> = {
-  up: { rows: WING_UP, root: [9, 12] },
-  down: { rows: [...WING_UP].reverse(), root: [9, 0] },
-  mid: {
-    rows: [
-      "...WWWWWW.....",
-      ".WWWWWWWWWWW..",
-      "WWWIIIIWWWWWWW",
-      "WIIIIIIIIIIWWW",
-      ".FFIIIIIIIIIII",
-      "...FFFFFFFFF..",
-    ],
-    root: [13, 3],
-  },
-  swept: {
-    rows: [
-      "WWWW...........",
-      "WWWWWWWW.......",
-      ".WIIIWWWWWWW...",
-      "..FIIIIIIWWWWW.",
-      "....FFFIIIIIIWW",
-      "........FFFFFII",
-    ],
-    root: [14, 4],
-  },
-  folded: {
-    rows: [
-      "....WW",
-      "...WWW",
-      "..WWIW",
-      ".WWIIW",
-      ".WIIIW",
-      "WWIIF.",
-      "WIIFF.",
-      "WIFF..",
-      "WFF...",
-      ".F....",
-    ],
-    root: [5, 0],
-  },
-};
-
-/**
- * A warrior frame from a worker frame: the antennae become a horn, the eye gets an angry brow, big pale wings go
- * on behind and a long white lance in front. The result is a `WARRIOR.cell` cell with the worker's feet where the
- * warrior's go, so the two are the same size and the warrior is the one with the weapon.
- */
-const warriorOf = (
-  worker: Img,
-  wing: string,
-  lance: string,
-  speed: boolean,
-): Img => {
-  const [cw, ch] = WARRIOR.cell;
-  const body = img(worker.w, worker.h);
-  blit(body, worker, 0, 0);
-  const { dome } = antennaRows(worker);
-  // Antennae (or the speed form's bolt) off; a horn curving forward on.
-  for (let y = 0; y < dome; y++)
-    for (let x = 0; x < body.w; x++) clear(body, x, y);
-  const crown = span(body, dome);
-  if (crown) {
-    const x = Math.round((crown[0] + crown[1]) / 2);
-    const horn: [number, number, Rgb][] = speed
-      ? [
-          [0, -1, GOLD[2]],
-          [1, -1, GOLD[2]],
-          [1, -2, GOLD[3]],
-          [2, -2, GOLD[3]],
-          [2, -3, GOLD[3]],
-          [3, -4, WHITE],
-        ]
-      : [
-          [0, -1, FROST],
-          [1, -1, ICE],
-          [1, -2, ICE],
-          [2, -2, WHITE],
-          [2, -3, WHITE],
-          [3, -4, WHITE],
-        ];
-    for (const [dx, dy, c] of horn) put(body, x + dx, dome + dy, c);
-  }
-  glare(body, dome);
-  const centre = centreOf(worker, isBody);
-  const ox = Math.floor((cw - worker.w) / 2);
-  const oy = ch - WARRIOR.below - worker.h;
-  const cell = img(cw, ch);
-  // Wings: the far one first, a shade darker and a little higher, then the near one.
-  const torso = Math.round(centre.y) + 1;
-  const backX = (span(worker, torso)?.[0] ?? Math.round(centre.x) - 4) + 2;
-  const spec = WINGS[wing];
-  if (!spec) throw new Error(`no wing ${wing}`);
-  const near = fromRows(spec.rows, WING_KEY);
-  const far = recolour(near, (c) => (same(c, WHITE) ? ICE : FROST));
-  const wx = ox + backX - spec.root[0];
-  const wy = oy + torso - spec.root[1];
-  if (wing === "mid" || wing === "swept") blit(cell, far, wx + 2, wy - 2);
-  blit(cell, near, wx, wy);
-  blit(cell, body, ox, oy);
-  // The lance: gold guard at the hand, then a long blade, white over ice, tapering to a point.
-  const hand = Math.round(centre.y) + 3;
-  const frontX = ox + (span(worker, hand)?.[1] ?? Math.round(centre.x) + 4);
-  const hy = oy + hand;
-  const length = 12;
-  if (lance === "up") {
-    for (let i = 0; i < length; i++) {
-      const x = frontX + 1 + Math.floor(i * 0.75);
-      const y = hy - i;
-      put(cell, x, y, i < 2 ? GOLD[2] : WHITE);
-      if (i < length - 2) put(cell, x + 1, y, i < 2 ? GOLD[3] : ICE);
-    }
-  } else if (lance === "down") {
-    // A dive: the lance points down and ahead.
-    for (let i = 0; i < length; i++) {
-      const x = frontX + 1 + Math.floor(i * 0.75);
-      const y = hy + i;
-      put(cell, x, y, i < 2 ? GOLD[2] : WHITE);
-      if (i < length - 2) put(cell, x - 1, y, i < 2 ? GOLD[3] : ICE);
-    }
-  } else {
-    for (let y = hy - 2; y <= hy + 1; y++) put(cell, frontX + 1, y, GOLD[2]);
-    put(cell, frontX + 1, hy - 2, GOLD[3]);
-    for (let i = 0; i < length; i++) {
-      const x = frontX + 2 + i;
-      if (i < length - 1) put(cell, x, hy - 1, WHITE);
-      if (i < length - 3) put(cell, x, hy, ICE);
-      if (i >= length - 3 && i < length - 1) put(cell, x, hy, WHITE);
-      if (i === length - 1) put(cell, x, hy - 1, WHITE);
-    }
-  }
-  return cell;
-};
-
-/** The brow: the top row of the face goes dark, and one pixel lower at the back, so the eye glares. */
-const glare = (body: Img, dome: number) => {
-  let faceTop = -1;
-  for (let y = dome; y < body.h && faceTop < 0; y++)
-    for (let x = 0; x < body.w; x++)
-      if (alpha(body, x, y) && same(rgbAt(body, x, y), CREAM)) faceTop = y;
-  if (faceTop >= 0) {
-    let first = -1;
-    for (let x = 0; x < body.w; x++) {
-      if (!alpha(body, x, faceTop)) continue;
-      const c = rgbAt(body, x, faceTop);
-      if (same(c, CREAM) || same(c, WHITE)) {
-        if (first < 0) first = x;
-        put(body, x, faceTop, INK);
-      }
-    }
-    if (first >= 0 && alpha(body, first, faceTop + 1))
-      put(body, first + 1, faceTop + 1, INK);
-  }
-};
-
-// The Queen's wings: the warrior's shapes, larger.
-const QUEEN_WING_UP = [
-  "...WWWW.....",
-  "..WWWWWW....",
-  ".WWWIIWWW...",
-  "WWWIIIIWW...",
-  "WWIIIIIWW...",
-  "WWIIIIIIWW..",
-  "WWIIIIIIWW..",
-  ".WWIIIIIIW..",
-  ".FWIIIIIIWW.",
-  "..FWIIIIIWW.",
-  "...FWIIIIWW.",
-  "....FWIIIIW.",
-  ".....FFIIIWW",
-  "......FFIIW.",
-  ".......FFI..",
-];
-const QUEEN_WINGS: typeof WINGS = {
-  up: { rows: QUEEN_WING_UP, root: [9, 14] },
-  down: { rows: [...QUEEN_WING_UP].reverse(), root: [9, 2] },
-  mid: {
-    rows: [
-      "....WWWWWWW.......",
-      "..WWWWWWWWWWWW....",
-      "WWWWIIIIIWWWWWWWW.",
-      "WWIIIIIIIIIIIIWWWW",
-      ".WIIIIIIIIIIIIIIII",
-      "..FFIIIIIIIIIIFF..",
-      ".....FFFFFFFFF....",
-    ],
-    root: [17, 4],
-  },
-  swept: {
-    rows: [
-      "WWWW...............",
-      "WWWWWWWW...........",
-      ".WWIIWWWWWWWW......",
-      "..WIIIIIIIWWWWWW...",
-      "...FFIIIIIIIIIWWWW.",
-      ".....FFFFIIIIIIIIWW",
-      ".........FFFFFFFIII",
-    ],
-    root: [18, 5],
-  },
-  folded: {
-    rows: [
-      ".....WW",
-      "....WWW",
-      "...WWIW",
-      "..WWIIW",
-      "..WIIIW",
-      ".WWIIIW",
-      ".WIIIIW",
-      "WWIIIF.",
-      "WIIIFF.",
-      "WIIFF..",
-      "WIFF...",
-      "WFF....",
-      ".F.....",
-    ],
-    root: [6, 6],
-  },
-};
-const CROWN_ROWS = ["y..y..y", "gy.gy.g", "ggygggg", "dgggggd"];
-const ABDOMEN_ROWS = [
-  "..3222..",
-  ".322222.",
-  "00000222",
-  "2222222.",
-  "0000022.",
-  ".22221..",
-  "..111...",
-];
-
-/**
- * A Queen frame from a worker frame: the antennae become a gold crown, the eye glares, a striped abdomen hangs
- * behind, two pairs of wings larger than a warrior's go on the back and a long gold stinger points ahead (or
- * straight down in a dive). She is the worker's body, so she is as tall as a worker plus her crown.
- */
-const queenOf = (worker: Img, wing: string, lance: string): Img => {
-  const [cw, ch] = QUEEN.cell;
-  const body = img(worker.w, worker.h);
-  blit(body, worker, 0, 0);
-  const { dome } = antennaRows(worker);
-  for (let y = 0; y < dome; y++)
-    for (let x = 0; x < body.w; x++) clear(body, x, y);
-  const top = span(body, dome);
-  if (top)
-    blit(
-      body,
-      fromRows(CROWN_ROWS, { y: GOLD[3], g: GOLD[2], d: GOLD[1] }),
-      Math.round((top[0] + top[1]) / 2) - 3,
-      dome - 3,
-    );
-  glare(body, dome);
-  const centre = centreOf(worker, isBody);
-  const ox = Math.floor((cw - worker.w) / 2);
-  const oy = ch - QUEEN.below - worker.h;
-  const cell = img(cw, ch);
-  const torso = Math.round(centre.y) + 1;
-  const backX = (span(worker, torso)?.[0] ?? Math.round(centre.x) - 4) + 2;
-  const spec = QUEEN_WINGS[wing];
-  if (!spec) throw new Error(`no wing ${wing}`);
-  const near = fromRows(spec.rows, WING_KEY);
-  const far = recolour(near, (c) => (same(c, WHITE) ? ICE : FROST));
-  const wx = ox + backX - spec.root[0];
-  const wy = oy + torso - spec.root[1];
-  // Two pairs of wings: the far pair a shade darker, offset up and forward (ahead of the near pair when folded).
-  if (wing === "folded") blit(cell, far, wx - 2, wy + 1);
-  else if (wing === "up" || wing === "down")
-    blit(cell, far, wx - 3, wy + (wing === "down" ? -1 : 1));
-  else blit(cell, far, wx + 3, wy - 2);
-  blit(cell, near, wx, wy);
-  // The abdomen, behind and below the hips.
-  const hip = Math.round(centre.y) + 3;
-  const hipBack = span(worker, hip)?.[0] ?? Math.round(centre.x) - 4;
-  blit(
-    cell,
-    fromRows(ABDOMEN_ROWS, {
-      "0": GREEN[0],
-      "1": GREEN[1],
-      "2": GREEN[2],
-      "3": GREEN[3],
-    }),
-    ox + hipBack - 5,
-    oy + hip - 1,
-  );
-  blit(cell, body, ox, oy);
-  // The stinger: a gold guard at the hand and a long gold blade with a pale edge and a white tip.
-  const frontX = ox + (span(worker, hip)?.[1] ?? Math.round(centre.x) + 4);
-  const hy = oy + hip;
-  const length = 13;
-  for (let i = 0; i < length; i++) {
-    const x = frontX + 1 + (lance === "down" ? Math.floor(i * 0.6) : i);
-    const y =
-      hy + (lance === "down" ? Math.floor(i * 0.8) : Math.floor(i * 0.35));
-    const c = i < 2 ? GOLD[1] : i === length - 1 ? WHITE : GOLD[2];
-    put(cell, x, y, c);
-    if (i < length - 2) {
-      if (lance === "down") put(cell, x + 1, y, i < 2 ? GOLD[2] : GOLD[3]);
-      else put(cell, x, y - 1, i < 2 ? GOLD[2] : GOLD[3]);
-    }
-  }
-  if (lance !== "down")
-    for (let y = hy - 2; y <= hy + 1; y++) put(cell, frontX + 1, y, GOLD[1]);
-  return cell;
-};
-
-/** Where a carried berry's top-left corner goes: centred over the head, overlapping the antennae. */
-const carrySpot = (cell: Img): [number, number] => {
-  const b = bounds(cell) ?? { x: 0, y: 0, w: cell.w, h: cell.h };
-  let sx = 0;
-  let n = 0;
-  for (let y = b.y; y < b.y + 6; y++)
-    for (let x = 0; x < cell.w; x++)
-      if (alpha(cell, x, y)) {
-        sx += x;
-        n++;
-      }
-  return [Math.round(sx / Math.max(1, n)) - 2, Math.max(1, b.y - 2)];
-};
-
 /** A unit as a flat white shape with a pale rim: the flash frame of invulnerability and of a hit. */
 const flash = (cell: Img): Img =>
   outlined(
@@ -1169,93 +729,55 @@ const emitUnit = (
 };
 
 const buildUnits = () => {
-  const spec = UNITS.worker;
-  if (!spec) throw new Error("no worker");
-  const worker = alignedFrames(spec, isBody);
-  const pose = (name: string) => {
-    const cell = worker[spec.frames.indexOf(name)];
-    if (!cell) throw new Error(`no worker pose ${name}`);
-    return cell;
-  };
-  // Workers: plain and speed, each with a second set of frames carrying a berry.
-  const fast = worker.map((cell, i) =>
-    speedBase(cell, spec.frames[i] ?? "", i),
-  );
-  const workers: [string, Img[], Img[] | undefined][] = [
-    ["worker", worker, undefined],
-    [
-      "speed-worker",
-      fast.map((cell, i) => speedDashes(cell, spec.frames[i] ?? "", i)),
-      fast,
-    ],
-  ];
-  for (const [form, cells, bodies] of workers) {
-    const spots = cells.map(carrySpot);
-    const carrying = cells.map((cell, i) => {
-      const out = img(cell.w, cell.h);
-      blit(out, cell, 0, 0);
-      const [x, y] = spots[i] ?? [0, 0];
-      blit(out, berryCarried(), x, y);
-      return out;
-    });
+  // Drawn in the stand-in green and recoloured per team, like the generated art.
+  const cellsOf = (spec: UnitSpec, speed: boolean, bare = false) =>
+    spec.frames.map((pose) => unitFrame(spec, pose, GREEN, speed, bare));
+  const namesOf = (spec: UnitSpec) => spec.frames.map((pose) => pose.name);
+  for (const speed of [false, true]) {
+    const worker = UNIT_SPECS.worker;
     emitUnit(
-      form,
-      [...cells, ...carrying],
-      [...spec.frames, ...spec.frames.map((n) => `${n}Carry`)],
-      spec.animations,
+      speed ? "speed-worker" : "worker",
+      cellsOf(worker, speed),
+      namesOf(worker),
+      worker.animations,
       {
         // Top-left corner of the 5 by 5 carried berry in each frame, for drawing it separately.
-        carry: spots,
-        note: "Frames named <frame>Carry are the same poses holding a berry.",
+        carry: worker.frames
+          .slice(0, worker.frames.length / 2)
+          .map(() => carrySpot()),
+        note: "Frames named <frame>Carry are the same poses with a berry on the back; the sprite is no taller for it.",
       },
       0,
-      bodies,
+      speed ? cellsOf(worker, speed, true) : undefined,
     );
-  }
-  // Warriors: built from the worker's poses.
-  for (const speed of [false, true]) {
-    const names = WARRIOR.frames.map(([name]) => name);
-    const bodies: Img[] = [];
-    const cells = WARRIOR.frames.map(([name, from, wing, lance], i) => {
-      const base = speed ? speedBase(pose(from), name, i) : pose(from);
-      const cell = warriorOf(base, wing, lance, speed);
-      const [cw, ch] = WARRIOR.cell;
-      const body = img(cw, ch);
-      blit(
-        body,
-        base,
-        Math.floor((cw - base.w) / 2),
-        ch - WARRIOR.below - base.h,
-      );
-      bodies.push(body);
-      return speed ? speedDashes(cell, name, i) : cell;
-    });
+    const warrior = UNIT_SPECS.warrior;
     emitUnit(
       speed ? "speed-warrior" : "warrior",
-      cells,
-      names,
-      WARRIOR.animations,
+      cellsOf(warrior, speed),
+      namesOf(warrior),
+      warrior.animations,
       {
-        note: "The body is the worker's, feet on the anchor; the lance reaches about 14 pixels ahead of it and the wings behind and below, so the anchor is not on the cell's bottom row.",
+        note: "Feet on the anchor. Warriors do not dive: there is no `dive` frame. Standing and walking, the sword points diagonally up and forward; flying, straight forward.",
       },
-      WARRIOR.below,
-      speed ? bodies : undefined,
+      0,
+      speed ? cellsOf(warrior, speed, true) : undefined,
     );
   }
+  const queen = UNIT_SPECS.queen;
   emitUnit(
     "queen",
-    QUEEN.frames.map(([, from, wing, lance]) =>
-      queenOf(pose(from), wing, lance),
-    ),
-    QUEEN.frames.map(([name]) => name),
-    QUEEN.animations,
+    cellsOf(queen, false),
+    namesOf(queen),
+    queen.animations,
     {
-      note: "The worker's body with a crown, so about a quarter taller than a worker; feet on the anchor, which is not on the cell's bottom row. The stinger reaches about 14 pixels ahead; in `dive` it points steeply down and forward, to about 7 pixels below the feet.",
+      note: "Feet on the anchor. The rows under it are only used by `dive`: a column 7 wide, wings folded up the back, the sword straight down with its tip 4 pixels under the feet.",
     },
-    QUEEN.below,
+    queen.below,
   );
-  // A worker inside a gate: its shape turning to light and swelling, drawn over the gate's lit doorway.
-  const idle = pose("idle");
+  // A worker inside a gate: its shape turning to light and swelling, drawn in the gate's lit alcove.
+  const spec = UNIT_SPECS.worker;
+  const idle = cellsOf(spec, false)[0] ?? img(1, 1);
+  const at = unitLayout(spec);
   const grown = outline(idle, WHITE);
   for (const team of PLAYING) {
     const ramp = TEAMS[team];
@@ -1268,16 +790,13 @@ const buildUnits = () => {
     blit(big, crop(grown, 1, 1, idle.w, idle.h), 0, 0);
     // Wing buds on the last frame: the warrior it is about to be.
     const budded = img(idle.w, idle.h);
-    const fold = WINGS.folded;
-    const centre = centreOf(idle, isBody);
-    if (fold)
-      blit(
-        budded,
-        fromRows(fold.rows, WING_KEY),
-        (span(idle, Math.round(centre.y) + 1)?.[0] ?? 6) + 1 - fold.root[0],
-        Math.round(centre.y) - 1,
-      );
     blit(budded, big, 0, 0);
+    for (const [dx, dy] of [
+      [-2, 0],
+      [-3, -1],
+      [-3, 1],
+    ] as const)
+      put(budded, at.x + dx, at.torso + 1 + dy, WHITE);
     emit(
       `transform-${team}`,
       `effects/transform-${team}.png`,
@@ -1301,20 +820,69 @@ const buildUnits = () => {
 // snail, gates
 
 const buildSnail = () => {
-  const cells = alignedFrames(SNAIL, isShell);
-  // The saddle is the gold on top of the shell; the rider's soles go on its top row.
+  // The generated saddle is gold, which now means speed: it becomes part of the shell.
+  const plain = alignedFrames(SNAIL, isShell).map((cell) =>
+    recolour(cell, (c) => (GOLD.some((g) => same(g, c)) ? VIOLET[2] : c)),
+  );
+  // Eating, the snail's head and neck flush red and two claws close over its mouth.
+  const eating = SNAIL.frames.indexOf("eat");
+  const mouth = centreOf(
+    crop(
+      plain[eating] ?? img(1, 1),
+      SNAIL_HEAD,
+      0,
+      SNAIL.cell[0],
+      SNAIL.cell[1],
+    ),
+    (c) => same(c, INK),
+  );
+  const jaw: [number, number] = [
+    SNAIL_HEAD + Math.round(mouth.x),
+    Math.round(mouth.y),
+  ];
+  const cells = plain.map((cell, i) => {
+    if (i !== eating) return cell;
+    const out = img(cell.w, cell.h);
+    for (let y = 0; y < cell.h; y++)
+      for (let x = 0; x < cell.w; x++) {
+        if (!alpha(cell, x, y)) continue;
+        const c = rgbAt(cell, x, y);
+        const head = x >= SNAIL_HEAD;
+        put(
+          out,
+          x,
+          y,
+          head && same(c, CREAM)
+            ? SNAIL_RED[1]
+            : head && same(c, TAN)
+              ? SNAIL_RED[0]
+              : c,
+        );
+      }
+    for (const [dx, dy] of [
+      [3, -2],
+      [4, -1],
+      [3, 3],
+      [4, 2],
+    ] as const)
+      put(out, Math.min(cell.w - 2, jaw[0] + dx), jaw[1] + dy, SNAIL_RED[2]);
+    return out;
+  });
+  // The rider sits astride the front of the shell, drawn behind the snail so the shell hides its legs: the saddle
+  // is where its soles go, six rows under the shell's top edge there.
   const saddles = cells.map((cell): [number, number] => {
-    let sx = 0;
-    let n = 0;
-    let top = cell.h;
+    let left = cell.w;
+    let right = 0;
     for (let y = 0; y < cell.h; y++)
       for (let x = 0; x < cell.w; x++)
-        if (alpha(cell, x, y) && GOLD.some((g) => same(g, rgbAt(cell, x, y)))) {
-          sx += x;
-          n++;
-          top = Math.min(top, y);
+        if (alpha(cell, x, y) && isShell(rgbAt(cell, x, y))) {
+          left = Math.min(left, x);
+          right = Math.max(right, x);
         }
-    return [Math.round(sx / Math.max(1, n)), top];
+    const x = Math.round(left + (right - left) * SNAIL_SEAT);
+    let top = 0;
+    while (top < cell.h && !alpha(cell, x, top)) top++;
+    return [x, top + 6];
   });
   emit(
     "snail",
@@ -1326,91 +894,33 @@ const buildSnail = () => {
       animations: SNAIL.animations,
       // Where the rider's soles go in each frame.
       saddle: saddles,
-      note: "Faces right; the anchor is under the shell, so the body stretches ahead of it.",
+      // Centre of the mouth in `eat`: put the worker being eaten there.
+      mouth: jaw,
+      note: "`eat` has a red head and claws: draw the victim at `mouth`, then the snail over it. Faces right; the anchor is under the shell, so the body stretches ahead of it. Draw the rider first with its anchor on `saddle`, then the snail over it: the rider sits astride, its legs hidden behind the shell.",
     },
   );
 };
 
-/** The doorway of a gate: the dark opening, found by flooding from its middle. */
-const doorway = (gate: Img): boolean[] => {
-  const inside = new Array<boolean>(gate.w * gate.h).fill(false);
-  const dark = (x: number, y: number) => {
-    if (!alpha(gate, x, y)) return false;
-    return luma(rgbAt(gate, x, y)) < 0.13;
-  };
-  const stack: [number, number][] = [
-    [Math.floor(gate.w / 2), Math.floor(gate.h * 0.6)],
-  ];
-  while (stack.length) {
-    const [x, y] = stack.pop() ?? [0, 0];
-    if (x < 0 || y < 0 || x >= gate.w || y >= gate.h) continue;
-    if (inside[y * gate.w + x] || !dark(x, y)) continue;
-    inside[y * gate.w + x] = true;
-    stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
-  }
-  return inside;
-};
-
 const buildGates = () => {
-  const raw = readStrip(GATES.from, GATES.kinds.length).map((s) =>
-    smooth(reduce(s, GATES.reduce)),
-  );
-  const w = Math.max(...raw.map((s) => s.w)) + 2;
-  const h = Math.max(...raw.map((s) => s.h)) + 2 - GATES.shorten;
-  GATES.kinds.forEach((kind, i) => {
-    const full = raw[i] ?? img(1, 1);
-    // Shortened by taking rows out of the pillars, just above the base, where every row is the same.
-    const gate = img(full.w, full.h - GATES.shorten);
-    const cut = full.h - GATES.above - GATES.shorten;
-    blit(gate, crop(full, 0, 0, full.w, cut), 0, 0);
-    blit(gate, crop(full, 0, cut + GATES.shorten, full.w, GATES.above), 0, cut);
-    const cell = img(w, h);
-    blit(cell, gate, Math.floor((w - gate.w) / 2), h - 1 - gate.h);
-    // The generated lamps and pillars are not quite symmetric; below the emblem a gate is its left half mirrored.
-    const box = bounds(cell) ?? { x: 0, y: 0, w, h };
-    for (let y = box.y + Math.floor(box.h * 0.42); y < h; y++)
-      for (let i = 0; i < Math.floor(box.w / 2); i++) {
-        const from = box.x + i;
-        const to = box.x + box.w - 1 - i;
-        if (alpha(cell, from, y)) put(cell, to, y, rgbAt(cell, from, y));
-        else clear(cell, to, y);
-      }
-    const door = doorway(cell);
+  for (const team of PLAYING)
+    for (const speed of [false, true])
+      emit(
+        `gate-emerge-${speed ? "speed-" : ""}${team}`,
+        `effects/gate-emerge-${speed ? "speed-" : ""}${team}.png`,
+        emerge(TEAMS[team], speed).map((cell) => outlined(cell)),
+        ["0", "1", "2", "3", "4", "5"],
+        [Math.floor(EMERGE.cell[0] / 2), EMERGE.cell[1] - 1],
+        {
+          fps: 12,
+          note: "A new warrior rising out of the top of a warrior gate, sword first, with chips of stone: draw over the gate, anchored like it, once (half a second), then put the warrior in flight with its feet 13 pixels above the gate's anchor. The worker is not drawn while it plays: it has gone into the dark doorway.",
+        },
+      );
+  for (const kind of GATE.kinds) {
     const frames: Img[] = [];
     const names: string[] = [];
     for (const active of [false, true])
       for (const owner of ["neutral", ...PLAYING] as const) {
-        const ramp = TEAMS[owner];
-        const frame = toRamp(cell, ramp);
-        if (active) {
-          // In use: the doorway fills with the owner's light, brightest up the middle.
-          let lo = w;
-          let hi = 0;
-          door.forEach((inside, p) => {
-            if (!inside) return;
-            lo = Math.min(lo, p % w);
-            hi = Math.max(hi, p % w);
-          });
-          door.forEach((inside, p) => {
-            if (!inside) return;
-            const x = p % w;
-            const y = Math.floor(p / w);
-            const edge = Math.min(x - lo, hi - x);
-            put(
-              frame,
-              x,
-              y,
-              edge === 0
-                ? ramp[1]
-                : edge === 1
-                  ? ramp[2]
-                  : edge === 2
-                    ? ramp[3]
-                    : WHITE,
-            );
-          });
-        }
-        frames.push(outlined(frame));
+        frames.push(outlined(gate(kind, owner, active)));
         names.push(active ? `${owner}Active` : owner);
       }
     emit(
@@ -1418,88 +928,42 @@ const buildGates = () => {
       `gates/${kind}.png`,
       frames,
       names,
-      [Math.floor(w / 2), h - 1],
+      [Math.floor(GATE.cell[0] / 2), GATE.cell[1] - 1],
       {
-        note: "Stands on the anchor. <owner>Active is the gate while a worker is transforming inside it.",
+        note: "Stands on the anchor: grey stone pillars with a white ornament (wings for the warrior gate, crossed blades for the speed gate) that takes the owner's colour. <owner>Active is the gate in use: draw the worker standing on the anchor between the pillars; its berry is already in the socket above.",
       },
     );
-  });
+  }
 };
 
 // ---------------------------------------------------------------------------------------------------------------
 // hand-pixelled sheets
 
-/**
- * Where the engine puts a hive's holes, relative to the point the hive art is anchored to: the middle of the holes
- * and the top row of the ledge five pixels under the lower row's centres. Read from every map so the art follows the
- * engine; Pink's holes must be Cyan's mirrored, because Pink's hive is Cyan's art flipped.
- */
-const hiveLayout = () => {
-  let offsets: [number, number][] | undefined;
-  const anchors: Record<string, unknown> = {};
-  for (const map of Object.values(MAPS)) {
-    const perTeam = map.holes.map((holes, team) => {
-      const xs = holes.map((h) => h.x);
-      const mid = (Math.min(...xs) + Math.max(...xs)) / 2;
-      const ax = team === 0 ? Math.ceil(mid) : Math.floor(mid);
-      const ay = Math.max(...holes.map((h) => h.y)) + 5;
-      return {
-        anchor: [ax, ay] as [number, number],
-        offsets: holes.map((h): [number, number] => [h.x - ax, h.y - ay]),
-      };
-    });
-    const [cyan, pink] = perTeam;
-    if (!cyan || !pink) throw new Error(`map ${map.id} has no hives`);
-    const mirrored = pink.offsets.map(([x, y]): [number, number] => [-x, y]);
-    offsets ??= cyan.offsets;
-    if (
-      JSON.stringify(cyan.offsets) !== JSON.stringify(offsets) ||
-      JSON.stringify(mirrored) !== JSON.stringify(offsets)
-    )
-      throw new Error(
-        `map ${map.id}: its hive holes are laid out differently from the other hives; the hive art fits one layout`,
-      );
-    anchors[`map${map.id}`] = { cyan: cyan.anchor, pink: pink.anchor };
-  }
-  if (!offsets) throw new Error("no maps");
-  return { offsets, anchors };
-};
-const HIVE_LAYOUT = hiveLayout();
-const HIVE_OFFSETS = HIVE_LAYOUT.offsets;
-/** What was matched, for the manifest. */
-const HIVE_ENGINE = {
-  source:
-    "MAPS[*].holes in games/killer-fuse/src/engine/maps.ts (art pixels; `viewOf(...).hives` gives the same)",
-  // Where the anchor lands on each map, in art pixels.
-  anchors: HIVE_LAYOUT.anchors,
-};
-
 const buildProcedural = () => {
   emit(
     "berry",
     "berries/berry.png",
-    [berry(), berryCarried(), ...berryLoose()].map((b) =>
-      centred(outlined(centred(b, 8, 8)), 8, 8),
-    ),
+    berries(),
     ["pile", "carried", "loose1", "loose2"],
-    [4, 4],
+    [2, 2],
     {
       animations: {
         loose: { frames: ["loose1", "loose2"], fps: 8, loop: true },
       },
     },
   );
-  const base = pileBase();
+  const counts = [0, 1, 2, 3, 4, 5, 6];
   emit(
     "berry-pile",
     "berries/pile.png",
-    [base],
-    ["base"],
-    [Math.floor(base.w / 2), base.h - 1],
+    counts.map((count) => outlined(pile(count))),
+    counts.map(String),
+    [Math.floor(PILE.cell[0] / 2), PILE.cell[1] - 1],
     {
-      // Top-left corners of the 6 by 6 berries stacked on the base, bottom row first, relative to the base's own
-      // top-left corner.
-      slots: PILE_SLOTS,
+      // Top-left corners of the 5 by 5 berry cells in the pile, relative to the frame's own top-left corner; the
+      // first n are the ones in frame n.
+      slots: PILE.slots,
+      note: "Frame n is the pile with n berries left, stacked 3-2-1 on its leaf: nothing else needs drawing. The leaf stands on the anchor.",
     },
   );
   emit(
@@ -1524,85 +988,85 @@ const buildProcedural = () => {
   );
   for (const team of PLAYING) {
     const ramp = TEAMS[team];
-    emit(
-      `hive-${team}`,
-      `hives/hive-${team}.png`,
-      [
-        team === "cyan"
-          ? hive(ramp, HIVE_OFFSETS)
-          : flipX(hive(ramp, HIVE_OFFSETS)),
-      ],
-      ["hive"],
-      [...HIVE.anchor],
-      {
-        // Centre of each hole relative to the anchor, in the engine's hole order.
-        holes: HIVE_OFFSETS.map(([x, y]) => [team === "cyan" ? x : -x, y]),
-        hole: `hive-hole-${team}`,
-        count: HIVE.count,
-        perch: HIVE.perch,
-        note:
-          "Put the anchor on the hive ledge's top row under the holes: hole i is then at anchor + holes[i], which is " +
-          "the engine's hole i for this team. Draw `hive-hole` frames centred there (the empty cells are already in " +
-          "the art, so only `filled` is needed). `count` is the top centre of a 7-pixel-high count on the plaque; " +
-          "`perch` is the roof pad, where a Queen's respawn ghost can stand without covering the holes.",
-        engine: HIVE_ENGINE,
-      },
-    );
+    const holes = HIVE_HOLES.map(([x, y]): [number, number] => [
+      team === "cyan" ? x : -x,
+      y,
+    ]);
+    for (const [time, size] of Object.entries(HIVE_SIZES)) {
+      emit(
+        `hive-${time}-${team}`,
+        `hives/hive-${time}-${team}.png`,
+        [hive(ramp, size, holes)],
+        ["hive"],
+        [Math.floor(size[0] / 2), size[1] - 1],
+        {
+          // Centre of each hole relative to the anchor.
+          holes,
+          hole: `hive-hole-${team}`,
+          note: "A flat wall standing on the anchor (bottom centre, on the floor's top row). Hole i is at anchor + holes[i]; the empty holes are in the art, so draw `hive-hole` `filled` centred there for each banked berry.",
+        },
+      );
+    }
     emit(
       `hive-hole-${team}`,
       `hives/hole-${team}.png`,
-      [hiveHole(ramp, false), hiveHole(ramp, true)],
+      [hiveHole(false), hiveHole(true)],
       ["empty", "filled"],
-      [5, 5],
-      {
-        note: "An 11 by 11 cell centred on a hole. Neighbours share their walls, so draw `filled` over the hive art.",
-      },
+      [2, 2],
+      { note: "A 5 by 5 cell centred on a hole." },
     );
     emit(
       `egg-${team}`,
-      `hud/egg-${team}.png`,
+      `hives/egg-${team}.png`,
       [egg(ramp, "full"), egg(ramp, "broken"), egg(ramp, "cracked")].map((e) =>
-        outlined(centred(e, 12, 14)),
+        outlined(centred(e, 10, 16)),
       ),
       ["full", "broken", "cracked"],
-      [6, 7],
+      [5, 15],
       {
-        note: "A Queen's lives. Show `cracked` for a few frames when a life is lost, then `broken`.",
+        note: "A Queen's spare life, standing on the hive floor on its anchor. Show `cracked` for a few frames when a life is lost, then `broken` (the empty shell).",
       },
     );
+    const net = outlined(centred(goalNet(ramp), 29, 19));
     emit(
       `goal-${team}`,
       `tiles/goal-${team}.png`,
-      [outlined(centred(goalPost(ramp), 18, 42))],
+      [team === "cyan" ? net : flipX(net)],
       ["post"],
-      [9, 40],
+      [14, 18],
+      {
+        note: "A net cage standing on the ground on its anchor, its mouth towards the middle of the arena: Cyan's as drawn for a goal on the left, Pink's for one on the right.",
+      },
     );
     emit(
       `kill-burst-${team}`,
       `effects/kill-burst-${team}.png`,
       killBurst(ramp),
-      ["0", "1", "2", "3", "4", "5", "6", "7"],
-      [24, 24],
-      { fps: 20, note: "In the victim's colour, centred on its body." },
+      ["0", "1", "2", "3", "4", "5"],
+      [42, 42],
+      {
+        fps: 20,
+        note: "A scatter of 44 one- and two-pixel specks in the victim's colour, flung about 40 pixels; no flash. Centred on the victim's body, drawn once.",
+      },
     );
     emit(
       `queen-death-${team}`,
       `effects/queen-death-${team}.png`,
       queenDeath(ramp),
-      ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"],
-      [32, 32],
+      ["0", "1", "2", "3", "4", "5", "6", "7"],
+      [50, 50],
       {
         fps: 16,
-        note: "A Queen's death, centred on her body; pair it with the HUD egg's `cracked` frame.",
+        note: "A Queen's death, centred on her body; pair it with her egg's `cracked` frame.",
       },
-      5,
+      4,
     );
     emit(
       `respawn-${team}`,
       `effects/respawn-${team}.png`,
       respawn(ramp),
       ["0", "1", "2", "3", "4", "5", "6"],
-      [12, 35],
+      [7, 23],
       {
         fps: 14,
         note: "Drawn over a unit as it respawns, anchored at its feet.",
@@ -1613,7 +1077,7 @@ const buildProcedural = () => {
       `effects/death-puff-${team}.png`,
       deathPuff(ramp),
       ["0", "1", "2", "3", "4"],
-      [12, 12],
+      [8, 8],
       { fps: 14 },
     );
     const name = team.toUpperCase();
@@ -1631,7 +1095,7 @@ const buildProcedural = () => {
     "effects/flap-puff.png",
     flapPuff(),
     ["0", "1", "2", "3"],
-    [8, 0],
+    [6, 0],
     {
       fps: 16,
     },
@@ -1641,7 +1105,7 @@ const buildProcedural = () => {
     "effects/gate-sparkle.png",
     gateSparkle(),
     ["0", "1", "2", "3", "4", "5"],
-    [12, 31],
+    [17, 27],
     { fps: 12, note: "Drawn over a gate, anchored like it." },
   );
   emit(
@@ -1649,7 +1113,7 @@ const buildProcedural = () => {
     "effects/berry-pop.png",
     berryPop(),
     ["0", "1", "2", "3", "4"],
-    [8, 8],
+    [5, 5],
     {
       fps: 16,
     },
@@ -1662,7 +1126,7 @@ const buildProcedural = () => {
     names,
     [0, 0],
     {
-      note: "8 by 8 tiles. slab* is a one-tile-high platform, top*/middle*/bottom* build thicker ones, track* is the floor's top row (the snail's lane), ledge* is the thin one-way platform (only its top 5 rows are drawn). *Lamp tiles are variants to drop into long runs.",
+      note: "8 by 8 cells. track* is the ground, 5 rows drawn; slab* is a floating platform, 7 rows drawn (6 solid and a fringe). Every end cap is opaque where it is drawn, so a platform of any length from 14 pixels is slabLeft at its left edge, slab repeated, and slabRight drawn last with its right edge on the platform's. ledge* is a thinner platform (5 rows); top*/middle*/bottom* build thick blocks. *Lamp tiles are variants to drop into long runs.",
     },
     6,
   );
@@ -1760,7 +1224,7 @@ const place = (
 /** Every sheet on one page, packed in rows, at 3x. */
 const contactSheet = () => {
   const width = 620;
-  const page = fill(img(width, 1400), NAVY.night);
+  const page = fill(img(width, 2400), NAVY.night);
   let x = 4;
   let y = 4;
   let row = 0;
@@ -1781,154 +1245,150 @@ const contactSheet = () => {
   write(`${ART}preview/contact-sheet.png`, scaleUp(out, 3));
 };
 
-/** A run of tiles: `left`, then `middle` repeated, then `right`, with its top-left corner at (x, y). */
+/** A platform or a stretch of ground from x1 to x2 inclusive, its top row at y: caps at the ends, tiles between. */
 const run = (
   scene: Img,
-  x: number,
+  x1: number,
+  x2: number,
   y: number,
-  tiles: number,
-  kind: "slab" | "ledge" | "track" | "top",
+  kind: "slab" | "track",
 ) => {
-  for (let i = 0; i < tiles; i++) {
-    const end = i === 0 ? "Left" : i === tiles - 1 ? "Right" : "";
-    const name = end
-      ? `${kind}${end}`
-      : kind !== "ledge" && i % 5 === 2
-        ? `${kind}Lamp`
-        : kind;
-    blit(scene, frame("tiles", name), x + i * 8, y);
-  }
+  const last = x2 - 7;
+  let i = 0;
+  for (let x = x1 + 8; x < last; x += 8, i++)
+    blit(
+      scene,
+      frame("tiles", i % 5 === 2 ? `${kind}Lamp` : kind),
+      Math.min(x, last - 8),
+      y,
+    );
+  blit(scene, frame("tiles", `${kind}Left`), x1, y);
+  blit(scene, frame("tiles", `${kind}Right`), last, y);
 };
 
-/** A believable moment of a match on map 1 at the game's resolution, shown at 4x. */
+/** The arcade's night map, measured from footage, as a list of platforms: x1, x2, y of the top row. */
+const PLATFORMS: readonly (readonly [number, number, number])[] = [
+  [175, 303, 55],
+  [5, 30, 55],
+  [85, 120, 55],
+  [358, 393, 55],
+  [448, 476, 55],
+  [50, 65, 85],
+  [140, 154, 31],
+  [140, 154, 85],
+  [325, 339, 31],
+  [325, 339, 85],
+  [414, 428, 85],
+  [2, 30, 115],
+  [85, 120, 115],
+  [175, 204, 115],
+  [275, 304, 115],
+  [358, 393, 115],
+  [448, 476, 115],
+  [50, 154, 145],
+  [225, 254, 145],
+  [325, 428, 145],
+  [2, 30, 175],
+  [175, 204, 175],
+  [275, 304, 175],
+  [448, 476, 175],
+  [50, 70, 205],
+  [125, 154, 205],
+  [225, 254, 205],
+  [325, 354, 205],
+  [408, 430, 205],
+  [2, 30, 235],
+  [90, 104, 235],
+  [175, 304, 235],
+  [375, 389, 235],
+  [448, 476, 235],
+];
+
+/** A believable moment of a match laid out like the arcade's night map, at the game's resolution, shown at 4x. */
 const mockScene = () => {
   const scene = img(480, 270);
   for (const id of ["bg-far", "bg-mid", "bg-near"])
     blit(scene, read(`${ART}raw/${id}.png`), 0, 0);
-  // The floor: the snail track with solid ground under it.
-  run(scene, 0, 246, 60, "track");
-  for (let j = 1; j < 3; j++)
-    for (let i = 0; i < 60; i++)
-      blit(
-        scene,
-        frame(
-          "tiles",
-          (i * 7 + j * 3) % 11 === 0
-            ? "middleNode"
-            : (i * 5 + j) % 9 === 0
-              ? "middleCell"
-              : "middle",
-        ),
-        i * 8,
-        246 + j * 8,
-      );
-  // Platforms, mirrored left to right.
-  const slabs: [number, number, number][] = [
-    [56, 72, 12],
-    [16, 128, 8],
-    [104, 168, 10],
-    [24, 208, 9],
-    [200, 112, 10],
-  ];
-  for (const [x, y, n] of slabs) {
-    run(scene, x, y, n, "slab");
-    if (x + n * 8 <= 240) run(scene, 480 - x - n * 8, y, n, "slab");
-  }
-  const ledges: [number, number, number][] = [
-    [176, 60, 6],
-    [136, 208, 7],
-    [208, 190, 8],
-  ];
-  for (const [x, y, n] of ledges) {
-    run(scene, x, y, n, "ledge");
-    if (x + n * 8 <= 240) run(scene, 480 - x - n * 8, y, n, "ledge");
-  }
-  // Hives on the top platforms, partly filled.
+  const ground = 265;
+  run(scene, 0, 479, ground, "track");
+  for (const [x1, x2, y] of PLATFORMS) run(scene, x1, x2, y, "slab");
+  // Hives side by side on the top ledge, partly filled, with the Queens' eggs standing in front of them.
   (
     [
-      ["cyan", 104, 7],
-      ["pink", 376, 3],
+      ["cyan", 208, 7, ["full", "broken"]],
+      ["pink", 271, 3, ["cracked", "broken"]],
     ] as const
-  ).forEach(([team, x, filled]) => {
-    place(scene, `hive-${team}`, "hive", x, 72);
-    HIVE_OFFSETS.forEach(([hx, hy], i) => {
-      if (i < filled)
-        place(
-          scene,
-          `hive-hole-${team}`,
-          "filled",
-          x + (team === "cyan" ? hx : -hx),
-          72 + hy,
-        );
-    });
-  });
-  // Gates: one neutral, one owned, one in use, one owned by the other team.
-  place(scene, "gate-warrior", "cyan", 48, 127);
-  place(scene, "gate-speed", "neutral", 144, 167);
-  place(scene, "gate-warrior", "pinkActive", 432, 127);
-  place(scene, "gate-speed", "pink", 336, 167);
-  place(scene, "gate-warrior", "neutral", 240, 111);
-  place(scene, "gate-sparkle", "2", 432, 127);
-  // Berry piles.
-  for (const [x, y, count] of [
-    [60, 207, 10],
-    [420, 207, 6],
-    [240, 189, 8],
-  ] as const) {
-    const base = frame("berry-pile", "base");
-    blit(scene, base, x - Math.floor(base.w / 2), y - base.h + 1);
-    PILE_SLOTS.slice(0, count).forEach(([sx, sy]) =>
-      blit(
+  ).forEach(([team, x, filled, eggs]) => {
+    place(scene, `hive-day-${team}`, "hive", x, 55);
+    (assets[`hive-day-${team}`]?.holes as [number, number][]).forEach(
+      ([hx, hy], i) => {
+        if (i < filled)
+          place(scene, `hive-hole-${team}`, "filled", x + hx, 55 + hy);
+      },
+    );
+    eggs.forEach((state, i) =>
+      place(
         scene,
-        frame("berry", "pile"),
-        x - Math.floor(base.w / 2) + sx - 1,
-        y - base.h + 1 + sy - 1,
+        `egg-${team}`,
+        state,
+        x + (team === "cyan" ? 1 : -1) * (i ? 8 : 19),
+        55,
       ),
     );
-  }
-  // Snail and goals.
-  place(scene, "goal-cyan", "post", 20, 245);
-  place(scene, "goal-pink", "post", 460, 245, true);
-  place(scene, "snail", "crawl1", 262, 245);
+  });
+  // Gates: neutral, owned and in use.
+  place(scene, "gate-speed", "neutral", 102, 55);
+  place(scene, "gate-speed", "pink", 376, 55);
+  place(scene, "gate-warrior", "neutral", 239, 145);
+  place(scene, "gate-warrior", "cyan", 139, 205);
+  place(scene, "gate-warrior", "pinkActive", 339, 205);
+  place(scene, "gate-emerge-pink", "3", 339, 205);
+  // Berry piles at different stages.
+  for (const [x, y, count] of [
+    [189, 175, 6],
+    [289, 175, 4],
+    [59, 205, 6],
+    [418, 205, 5],
+    [239, 205, 6],
+    [239, 235, 2],
+    [97, 265, 6],
+    [381, 265, 0],
+  ] as const)
+    place(scene, "berry-pile", String(count), x, y);
+  // Goals at the ends of the ground, and the snail with its rider behind the shell.
+  place(scene, "goal-cyan", "post", 16, ground);
+  place(scene, "goal-pink", "post", 463, ground);
   const [sx, sy] = (assets.snail?.saddle as [number, number][])[1] ?? [0, 0];
   place(
     scene,
     "worker-cyan",
     "idle",
-    262 - Math.floor(SNAIL.cell[0] / 2) + sx,
-    245 - (SNAIL.cell[1] - 1) + sy,
+    310 - Math.floor(SNAIL.cell[0] / 2) + sx,
+    ground - (SNAIL.cell[1] - 1) + sy,
   );
+  place(scene, "snail", "crawl1", 310, ground);
   // Units.
-  place(scene, "worker-cyan", "run2", 120, 167);
-  place(scene, "worker-cyan", "run1Carry", 84, 207);
-  place(scene, "speed-worker-cyan", "run3", 190, 245);
-  place(scene, "worker-pink", "run2Carry", 380, 167, true);
-  place(scene, "worker-pink", "jump", 300, 226, true);
-  place(scene, "speed-worker-pink", "run1", 400, 245, true);
-  place(scene, "worker-pink", "idle", 356, 71, true);
-  place(scene, "warrior-cyan", "flapUp", 170, 124);
-  place(scene, "speed-warrior-cyan", "glide", 96, 108);
-  place(scene, "warrior-pink", "flapDown", 318, 100, true);
-  place(scene, "speed-warrior-pink", "walk1", 392, 127, true);
-  place(scene, "warrior-pink", "idle", 250, 189, true);
-  place(scene, "queen-cyan", "flapMid", 206, 62);
-  place(scene, "queen-pink", "dive", 286, 66, true);
-  place(scene, "kill-burst-pink", "2", 330, 142);
-  place(scene, "transform-pink", "2", 432, 127);
-  place(scene, "respawn-cyan", "2", 150, 71);
-  place(scene, "flap-puff", "1", 170, 126);
-  place(scene, "berry", "loose1", 268, 140);
-  // HUD: three eggs per team, one broken on each side.
-  for (let i = 0; i < 3; i++) {
-    place(scene, "egg-cyan", i < 2 ? "full" : "broken", 14 + i * 13, 12);
-    place(
-      scene,
-      "egg-pink",
-      ["full", "cracked", "broken"][i] ?? "",
-      466 - i * 13,
-      12,
-    );
-  }
+  place(scene, "worker-cyan", "run2", 70, 145);
+  place(scene, "worker-cyan", "run1Carry", 110, 145);
+  place(scene, "worker-cyan", "idleCarry", 196, 115);
+  place(scene, "speed-worker-cyan", "run3", 150, ground);
+  place(scene, "worker-pink", "run2Carry", 350, 145, true);
+  place(scene, "worker-pink", "jump", 300, 222, true);
+  place(scene, "speed-worker-pink", "run1", 420, ground, true);
+  place(scene, "worker-pink", "idle", 290, 115, true);
+  place(scene, "warrior-cyan", "flapUp", 200, 150);
+  place(scene, "speed-warrior-cyan", "glide", 120, 100);
+  place(scene, "warrior-pink", "flapDown", 320, 108, true);
+  place(scene, "speed-warrior-pink", "walk1", 380, 115, true);
+  place(scene, "warrior-pink", "idle", 250, 235, true);
+  place(scene, "warrior-cyan", "walk2", 60, 205);
+  place(scene, "queen-cyan", "flapMid", 215, 100);
+  place(scene, "queen-pink", "dive", 262, 108, true);
+  place(scene, "queen-pink", "idle", 440, 55, true);
+  place(scene, "kill-burst-pink", "2", 300, 190);
+  place(scene, "respawn-cyan", "2", 20, 235);
+  place(scene, "flap-puff", "1", 200, 152);
+  place(scene, "berry", "loose1", 268, 160);
   write(`${ART}preview/mock-scene.png`, scaleUp(scene, 4));
   // The same moment with a victory banner and the title, to judge those against the scene.
   const win = img(480, 270);

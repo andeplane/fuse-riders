@@ -1,7 +1,6 @@
 /**
- * Killer Fuse's hand-pixelled art: everything small or geometric enough that drawing it pixel by pixel beats
- * generating it (berries, the hive and its holes, eggs, tiles, the snail track, effects, lettering). Each function
- * returns finished pixels on the shared palette; `scripts/killer-fuse-art.ts` lays them out into sheets.
+ * Killer Fuse's hand-pixelled tiles, HUD pieces, effects and lettering (units and props are in `arcade.ts`). Each
+ * function returns finished pixels on the shared palette; `scripts/killer-fuse-art.ts` lays them out into sheets.
  */
 import {
   CREAM,
@@ -83,288 +82,6 @@ const hash = (a: number, b: number) => {
 };
 
 // ---------------------------------------------------------------------------------------------------------------
-// Berries
-
-const BERRY_KEY: Record<string, Rgb> = {
-  d: LIME[0],
-  s: LIME[1],
-  b: LIME[2],
-  w: LIME[3],
-  W: WHITE,
-};
-
-/** The berry, 6 by 6: on a pile and in a hive hole. */
-export const berry = () =>
-  fromRows(
-    [".sbbb.", "sbwwbb", "sbwbbb", "sbbbbb", "dsbbbs", ".dsss."],
-    BERRY_KEY,
-  );
-
-/** Two frames of a loose, kicked berry: the highlight turns as it rolls. */
-export const berryLoose = () => [
-  fromRows(
-    [".sbbb.", "sbbbwb", "sbbbwb", "sbbbbb", "dsbbbs", ".dsss."],
-    BERRY_KEY,
-  ),
-  fromRows(
-    [".sbbb.", "sbbbbb", "sbbbbb", "sbbwwb", "dsbbbs", ".dsss."],
-    BERRY_KEY,
-  ),
-];
-
-/** The berry as a worker carries it: one pixel smaller, so it does not hide the head. */
-export const berryCarried = () =>
-  fromRows([".bbb.", "bwwbb", "sbbbb", "sbbbs", ".sss."], BERRY_KEY);
-
-/** Where berries sit on a pile base, bottom row first, as top-left corners relative to the base sprite. */
-export const PILE_SLOTS: readonly (readonly [number, number])[] = [
-  [3, -5],
-  [10, -5],
-  [17, -5],
-  [24, -5],
-  [6, -10],
-  [13, -10],
-  [20, -10],
-  [10, -15],
-  [17, -15],
-  [13, -20],
-];
-
-/** The bush a berry pile grows on: 33 by 8, berries stack above it at `PILE_SLOTS`. */
-export const pileBase = () =>
-  fromRows(
-    [
-      "..s...s.....s......s.....s...s...",
-      ".sbs.sbs...sbs....sbs...sbs.sbs..",
-      "sbbdsbbds.sbbds..sbbds.sbbdsbbds.",
-      "dbddbbddssbbddssdbbddssbbddbbdds.",
-      ".ddvddvvddddvvddddvvddddvvddvdd..",
-      "..vVVVVVVVVVVVVVVVVVVVVVVVVVVv...",
-      "...vvVVVVVVVVVVVVVVVVVVVVVVvv....",
-      "....vvvvvvvvvvvvvvvvvvvvvvvv.....",
-    ],
-    { d: NAVY.slate, s: LIME[0], b: LIME[1], v: VIOLET[0], V: VIOLET[1] },
-  );
-
-// ---------------------------------------------------------------------------------------------------------------
-// Hive
-
-/** Half-widths of a cell's eleven rows: a pointy-top hexagon 11 wide, the shape the engine's hole spacing fits. */
-const HEX = [1, 2, 4, 5, 5, 5, 5, 5, 4, 2, 1];
-const HOLE = 11;
-
-/** Draws one cell centred on (cx, cy): `wall` and `inside` give each row's colours; clipped to `clip` rows/columns. */
-const cell = (
-  m: Img,
-  cx: number,
-  cy: number,
-  wall: (row: number) => Rgb,
-  inside: ((row: number) => Rgb) | undefined,
-  clip: { x0: number; x1: number; y0: number; y1: number } = {
-    x0: 0,
-    x1: m.w - 1,
-    y0: 0,
-    y1: m.h - 1,
-  },
-) => {
-  HEX.forEach((hw, row) => {
-    const y = cy - 5 + row;
-    if (y < clip.y0 || y > clip.y1) return;
-    const prev = HEX[row - 1] ?? -1;
-    const next = HEX[row + 1] ?? -1;
-    for (let dx = -hw; dx <= hw; dx++) {
-      const x = cx + dx;
-      if (x < clip.x0 || x > clip.x1) continue;
-      const a = Math.abs(dx);
-      const edge = a === hw || a > prev || a > next;
-      if (edge) put(m, x, y, wall(row));
-      else if (inside) put(m, x, y, inside(row));
-    }
-  });
-};
-
-const SEATED = [
-  "..bbb..",
-  ".bwwbb.",
-  "sbwbbbb",
-  "sbbbbbb",
-  "sbbbbbs",
-  ".sbbbs.",
-  "..sss..",
-];
-
-/** One hive hole, 11 by 11, drawn centred on the engine's hole position: an empty cell, or a berry seated in it. */
-export const hiveHole = (team: Ramp, filled: boolean): Img => {
-  const m = img(HOLE, HOLE);
-  if (filled) {
-    cell(
-      m,
-      5,
-      5,
-      (row) => (row < 4 ? WHITE : team[3]),
-      () => LIME[0],
-    );
-    blit(m, fromRows(SEATED, BERRY_KEY), 2, 2);
-    put(m, 4, 3, WHITE);
-  } else
-    cell(
-      m,
-      5,
-      5,
-      (row) => (row < 3 ? team[2] : team[1]),
-      (row) => (row < 5 ? VOID : row === 8 ? NAVY.dusk : NAVY.deep),
-    );
-  return m;
-};
-
-/** The hive's cell: 81 by 40, standing on its anchor (bottom centre), which goes on the top row of its ledge. */
-export const HIVE = {
-  w: 81,
-  h: 40,
-  anchor: [40, 39],
-  /** Top centre of a 7-pixel-high count on the plaque, relative to the anchor. */
-  count: [0, -30],
-  /** Where something may stand on the roof (a Queen's respawn ghost), relative to the anchor. */
-  perch: [0, -37],
-} as const;
-
-/**
- * The hive, facing the way Cyan's does (Pink's is its mirror image): a ribbed steel dome with a neon rim and a
- * count plaque, over a honeycomb wall between two lamp pillars. `holes` are the engine's hole centres relative to
- * the anchor; the comb is drawn around them, with dim cells continuing it to the walls.
- */
-export const hive = (
-  team: Ramp,
-  holes: readonly (readonly [number, number])[],
-): Img => {
-  const { w, h } = HIVE;
-  const [ax, ay] = HIVE.anchor;
-  const m = img(w, h);
-  const WALL = 20;
-  const half = (y: number) => {
-    if (y >= WALL) return 40;
-    if (y < 5) return -1;
-    const t = (WALL - y) / 16;
-    return Math.round(40 * Math.sqrt(Math.max(0, 1 - t ** 2)));
-  };
-  // The dome: steel skin, ribs every ten pixels, a neon line just inside the rim.
-  for (let y = 5; y < WALL; y++) {
-    const hw = half(y);
-    const above = half(y - 1);
-    for (let x = ax - hw; x <= ax + hw; x++) {
-      const a = Math.abs(x - ax);
-      const top = a > above - 1 || y === 5;
-      let c: Rgb;
-      if (hw - a === 0 || top) c = y < 13 ? FROST : NAVY.steel;
-      else if (hw - a <= 2 || a > above - 3)
-        c = y < 13 ? NAVY.steel : NAVY.slate;
-      else if (hw - a === 3 || a === above - 3) c = team[2];
-      else {
-        const rib = a % 10;
-        c =
-          rib === 5
-            ? NAVY.steel
-            : rib === 6
-              ? NAVY.dusk
-              : y === 12
-                ? NAVY.dusk
-                : y < 9
-                  ? NAVY.steel
-                  : NAVY.slate;
-        if (rib === 5 && (y === 8 || y === 13)) c = FROST;
-      }
-      put(m, x, y, c);
-    }
-  }
-  // The roof pad and its lamp, with two short horns.
-  rect(m, ax - 12, 3, 25, 1, FROST);
-  rect(m, ax - 13, 4, 27, 1, NAVY.steel);
-  rect(m, ax - 12, 1, 2, 2, NAVY.steel);
-  rect(m, ax + 11, 1, 2, 2, NAVY.steel);
-  put(m, ax - 12, 0, FROST);
-  put(m, ax + 12, 0, FROST);
-  rect(m, ax - 3, 2, 7, 1, GOLD[1]);
-  rect(m, ax - 2, 1, 5, 1, GOLD[2]);
-  rect(m, ax - 1, 0, 3, 2, team[3]);
-  put(m, ax, 0, WHITE);
-  put(m, ax - 2, 1, GOLD[3]);
-  // The plaque the count is written on.
-  rect(m, ax - 18, 7, 37, 11, NAVY.steel);
-  rect(m, ax - 17, 7, 35, 1, FROST);
-  rect(m, ax - 17, 8, 35, 9, team[1]);
-  rect(m, ax - 16, 9, 33, 7, VOID);
-  rect(m, ax - 17, 8, 35, 1, team[2]);
-  for (const x of [ax - 18, ax + 18]) {
-    put(m, x, 9, GOLD[2]);
-    put(m, x, 15, GOLD[1]);
-  }
-  // The lintel: a neon bar across the mouth of the dome with a shadow under it.
-  rect(m, 0, 18, w, 1, team[2]);
-  for (let x = 4; x < w; x += 8) rect(m, x, 18, 2, 1, team[3]);
-  rect(m, 0, 19, w, 1, NAVY.steel);
-  rect(m, 0, 18, 1, 2, FROST);
-  rect(m, w - 1, 18, 1, 2, FROST);
-  // The comb wall.
-  const inner = { x0: 6, x1: w - 7, y0: WALL, y1: h - 3 };
-  rect(m, inner.x0, WALL, inner.x1 - inner.x0 + 1, h - WALL, NAVY.deep);
-  rect(m, inner.x0, WALL, inner.x1 - inner.x0 + 1, 2, VOID);
-  const at = holes.map(([x, y]) => [ax + x, ay + y] as const);
-  const key = (x: number, y: number) => `${x},${y}`;
-  const real = new Set(at.map(([x, y]) => key(x, y)));
-  const xs = [...new Set(at.map(([x]) => x))].sort((p, q) => p - q);
-  const ys = [...new Set(at.map(([, y]) => y))].sort((p, q) => p - q);
-  const dx = (xs[2] ?? 0) - (xs[0] ?? 0) || 10;
-  const dy = (ys[1] ?? 0) - (ys[0] ?? 0) || 8;
-  const ghosts = new Map<string, readonly [number, number]>();
-  for (const [x, y] of at)
-    for (const [gx, gy] of [
-      [x - dx, y],
-      [x + dx, y],
-      [x - dx / 2, y - dy],
-      [x + dx / 2, y - dy],
-    ] as const)
-      if (!real.has(key(gx, gy)) && gy + 5 >= WALL)
-        ghosts.set(key(gx, gy), [gx, gy]);
-  for (const [gx, gy] of ghosts.values())
-    cell(
-      m,
-      gx,
-      gy,
-      () => NAVY.slate,
-      () => NAVY.night,
-      inner,
-    );
-  for (const [x, y] of at) {
-    if (x - 5 < inner.x0 || x + 5 > inner.x1 || y - 5 < WALL)
-      throw new Error(`hive hole at ${x},${y} does not fit the hive art`);
-    blit(m, hiveHole(team, false), x - 5, y - 5);
-  }
-  // Pillars, each with a lamp strip, and the base plate over the feet of the bottom cells.
-  for (const side of [0, 1]) {
-    const col = (i: number) => (side ? w - 1 - i : i);
-    for (let y = WALL; y < h; y++) {
-      put(m, col(0), y, FROST);
-      put(m, col(1), y, NAVY.steel);
-      put(
-        m,
-        col(2),
-        y,
-        y > 22 && y < 36 ? team[y % 4 === 3 ? 3 : 2] : NAVY.slate,
-      );
-      put(m, col(3), y, y > 22 && y < 36 ? team[1] : NAVY.slate);
-      put(m, col(4), y, NAVY.steel);
-      put(m, col(5), y, NAVY.night);
-    }
-    rect(m, side ? w - 6 : 0, WALL, 6, 1, FROST);
-    rect(m, side ? w - 6 : 0, 36, 6, 1, FROST);
-  }
-  rect(m, 0, h - 2, w, 1, NAVY.steel);
-  rect(m, 0, h - 1, w, 1, NAVY.night);
-  for (let x = 2; x < w - 3; x += 6) rect(m, x, h - 2, 3, 1, team[2]);
-  return m;
-};
-
-// ---------------------------------------------------------------------------------------------------------------
 // Snail progress strip (HUD)
 
 /** Where the marker's anchor travels along the strip: from Cyan's goal to Pink's, in strip pixels. */
@@ -426,77 +143,6 @@ export const snailMarker = (): Img =>
   );
 
 // ---------------------------------------------------------------------------------------------------------------
-// Eggs (HUD)
-
-/** A Queen's life on the HUD, 10 by 12: whole, cracked (flash it as the life is lost), or spent. */
-export const egg = (team: Ramp, state: "full" | "cracked" | "broken"): Img => {
-  const key: Record<string, Rgb> = {
-    d: team[0],
-    s: team[1],
-    b: team[2],
-    w: team[3],
-    W: WHITE,
-    n: NAVY.steel,
-    N: NAVY.slate,
-    k: FROST,
-    x: VOID,
-  };
-  if (state === "cracked")
-    return fromRows(
-      [
-        "....bb....",
-        "...bbbb...",
-        "..bwwbbb..",
-        "..bwbxbb..",
-        ".bbwxbbbs.",
-        ".bbbxxbbs.",
-        ".xbbbxbxs.",
-        ".bxbxbxbs.",
-        ".sbxbbbss.",
-        ".sbbbbssd.",
-        "..sssssd..",
-        "...dddd...",
-      ],
-      key,
-    );
-  return state === "broken"
-    ? fromRows(
-        [
-          "..........",
-          "..........",
-          "..........",
-          "..........",
-          "..........",
-          ".k..k.k.k.",
-          ".nknnknkn.",
-          ".nnnnnnnN.",
-          ".nnnnnnNN.",
-          ".NnnnnNNN.",
-          "..NNNNNN..",
-          "...NNNN...",
-        ],
-        key,
-      )
-    : fromRows(
-        [
-          "....bb....",
-          "...bbbb...",
-          "..bwwbbb..",
-          "..bwbbbb..",
-          ".bbwbbbbs.",
-          ".bbbbbbbs.",
-          ".bbbbbbbs.",
-          ".bbbbbbss.",
-          ".sbbbbbss.",
-          ".sbbbbssd.",
-          "..sssssd..",
-          "...dddd...",
-        ],
-        key,
-      );
-};
-
-// ---------------------------------------------------------------------------------------------------------------
 // Tiles (8 by 8)
 
 const TILE_KEY: Record<string, Rgb> = {
@@ -553,24 +199,28 @@ const UNDER = { 6: "DDDDDDDD", 7: "NNNNNNNN" };
 
 const TOP = withRows(BODY, NEON);
 const BOTTOM = withRows(BODY, UNDER);
-const SLAB = withRows(BODY, {
-  ...NEON,
-  3: "BNBBBBBN",
-  4: "BBNNSNNB",
-  5: "BBBBNBBB",
-  6: "DDDDvDDD",
-  7: "NNNNNNNN",
-});
-/** The snail's lane: a gold rail over hazard stripes. */
-const TRACK = withRows(BODY, {
-  0: "GGGGGGGG",
-  1: "gggggggg",
-  2: "oooooooo",
-  3: "NNooNNoo",
-  4: "NooNNooN",
-  5: "ooNNooNN",
-  6: "uuuuuuuu",
-});
+/** A floating platform, 7 rows: the neon edge, three rows of plating, a dark lip and a fringe hanging under it. */
+const SLAB = [
+  "LLLLLwLL",
+  "VVVVVVVV",
+  "BNBBBBBN",
+  "BBNNSNNB",
+  "DDDDvDDD",
+  "NNNNNNNN",
+  ".u...N.u",
+  "",
+];
+/** The ground, 5 rows: a pale rail the snail crawls on over a thin band of plating. */
+const TRACK = [
+  "ccccwccc",
+  "VVVVVVVV",
+  "BBNBBBBN",
+  "DDDDDDDD",
+  "NNNNNNNN",
+  "",
+  "",
+  "",
+];
 /** Steel end caps: a lit one on the left, a shaded one on the right, each with a rivet. */
 const CAP_LEFT = { 0: "LcSSSSSS", 1: "wScSSgSS" };
 const CAP_RIGHT = { 6: "LSSSSoSD", 7: "LDDDDDDN" };
@@ -578,17 +228,29 @@ const capped = (rows: readonly string[], side: "left" | "right") =>
   side === "left"
     ? corner(columns(rows, CAP_LEFT), 0, 0)
     : corner(columns(rows, CAP_RIGHT), 7, 0);
-const slabCap = (side: "left" | "right") => {
-  const cap =
-    side === "left"
-      ? columns(SLAB, { 0: "LcSSSSDN", 1: "wScSgSDN" })
-      : columns(SLAB, { 6: "LSSSoSDN", 7: "LDDDDDNN" });
-  return corner(
-    corner(cap, side === "left" ? 0 : 7, 0),
-    side === "left" ? 0 : 7,
-    7,
-  );
-};
+/** A platform's end: the corner pixels rounded off, a steel cap down the edge. */
+const slabCap = (side: "left" | "right") =>
+  side === "left"
+    ? [
+        ".cLLLLLL",
+        "wSVVVVVV",
+        "SSBBBBBN",
+        "SBNNSNNB",
+        "DDDDvDDD",
+        ".NNNNNNN",
+        "...u...N",
+        "",
+      ]
+    : [
+        "LLLLLLL.",
+        "VVVVVVSD",
+        "BNBBBBSD",
+        "BBNNSNBD",
+        "DDDDvDDN",
+        "NNNNNNN.",
+        ".u..N...",
+        "",
+      ];
 
 /** The tiles of the platform set by name; the sheet lays them out in this order, 8 by 8 each. */
 export const TILES: Record<string, readonly string[]> = {
@@ -601,7 +263,7 @@ export const TILES: Record<string, readonly string[]> = {
   bottomLeft: corner(columns(BOTTOM, { 0: "SSSSSSDN" }), 0, 7),
   bottom: BOTTOM,
   bottomRight: corner(columns(BOTTOM, { 7: "NNNNNNNN" }), 7, 7),
-  // A one-tile-high slab: neon top, honeycomb body, shadowed underside.
+  // A floating platform, 7 rows drawn: neon top, plating, shadowed underside and a fringe.
   slabLeft: slabCap("left"),
   slab: SLAB,
   slabRight: slabCap("right"),
@@ -649,13 +311,13 @@ export const TILES: Record<string, readonly string[]> = {
     "BDDBBBDD",
   ],
   topLamp: withRows(TOP, { 0: "LLLGGLLL", 1: "VVVggVVV", 2: "uuuoouuu" }),
-  slabLamp: withRows(SLAB, { 0: "LLLGGLLL", 1: "VVVggVVV", 2: "uuuoouuu" }),
-  // The snail track: the floor's top row.
+  slabLamp: withRows(SLAB, { 0: "LLwwwLLL", 6: "..u.N..." }),
+  // The ground, 5 rows drawn: the snail crawls along it.
   track: TRACK,
-  trackLeft: corner(columns(TRACK, { 0: "GgoSSSSS" }), 0, 0),
-  trackRight: corner(columns(TRACK, { 7: "GgoNNNNN" }), 7, 0),
-  // The track with a lane light, for every few tiles of a long run.
-  trackLamp: withRows(TRACK, { 0: "GGGwwGGG", 1: "gggGGggg" }),
+  trackLeft: withRows(TRACK, { 0: ".cccwccc", 4: ".NNNNNNN" }),
+  trackRight: withRows(TRACK, { 0: "ccccwcc.", 4: "NNNNNNN." }),
+  // The ground with a glint, for every few tiles of a long run.
+  trackLamp: withRows(TRACK, { 0: "ccwwwccc", 2: "BNBBBNBB" }),
 };
 
 export const tile = (name: string): Img => {
@@ -666,278 +328,182 @@ export const tile = (name: string): Img => {
   return m;
 };
 
-/** A snail goal post in a team's colour, 16 by 40, standing on the track with its foot at the bottom centre. */
-export const goalPost = (team: Ramp): Img => {
-  const m = img(16, 40);
-  // Pole.
-  rect(m, 7, 10, 2, 30, FROST);
-  rect(m, 7, 10, 1, 30, ICE);
-  rect(m, 5, 38, 6, 2, NAVY.steel);
-  rect(m, 6, 37, 4, 1, FROST);
-  // Bands in the team colour.
-  for (let y = 16; y < 36; y += 6) rect(m, 7, y, 2, 2, team[2]);
-  // The sign: a hexagonal plate with a snail-shell swirl.
-  const plate = [
-    "....tttttttt....",
-    "..ttbbbbbbbbtt..",
-    ".tbbwwwwwwbbbbt.",
-    "tbbwbbbbbbwbbbbs",
-    "tbwbbwwwwbbwbbbs",
-    "tbwbwbbbbwbwbbbs",
-    "tbwbwbwwbwbwbbbs",
-    "tbwbwbbwbwbwbbbs",
-    "tbwbbwwbbwbwbbbs",
-    "tbbwbbbbwbbwbbbs",
-    ".tbbwwwwbbwbbbs.",
-    "..ssbbbbbbbbss..",
-    "....ssssssss....",
-  ];
-  blit(
-    m,
-    fromRows(plate, { t: team[3], b: team[1], w: team[3], s: team[0] }),
-    0,
-    0,
-  );
-  return m;
-};
-
 // ---------------------------------------------------------------------------------------------------------------
 // Effects: each returns its frames, all the same size.
 
-/** A lumpy fireball: a disc with smaller discs budding off its rim. */
-const lump = (
-  m: Img,
-  cx: number,
-  cy: number,
-  r: number,
-  c: Rgb,
-  seed: number,
-) => {
-  if (r < 0.6) return;
-  disc(m, cx, cy, r, c);
-  for (let k = 0; k < 7; k++) {
-    const a = (k / 7) * Math.PI * 2 + seed;
-    disc(
-      m,
-      cx + Math.cos(a) * r * 0.62,
-      cy + Math.sin(a) * r * 0.62,
-      r * (0.42 + 0.22 * hash(k, seed * 10 + 1)),
-      c,
-    );
-  }
-};
-
 /**
- * A chunky explosion in a team's colour, `size` square and `count` frames long: a white flash swells into a
- * fireball, which breaks into puffs while pieces of wing and shell fly out and fall.
+ * A unit bursting apart: `count` specks of one or two pixels in its colour, already flung clear on the first frame,
+ * spreading to `reach` pixels and thinning out as they fall. No flash and no fireball.
  */
-const explosion = (team: Ramp, size: number, count: number): Img[] =>
-  Array.from({ length: count }, (_, i) => {
+const scatter = (
+  team: Ramp,
+  size: number,
+  frames: number,
+  count: number,
+  reach: number,
+): Img[] =>
+  Array.from({ length: frames }, (_, i) => {
     const m = img(size, size);
-    const c = size / 2 - 0.5;
-    const reach = size / 2 - 3;
-    const t = i / (count - 1);
-    // Fireball: grows for the first third, then thins out from the middle.
-    const grow = Math.min(1, t * 3.2 + 0.3);
-    const fade = Math.max(0, (t - 0.3) / 0.7);
-    if (fade < 0.25) {
-      lump(m, c, c, reach * 0.92 * grow, team[1], 0.3);
-      lump(m, c, c, reach * 0.82 * grow, team[2], 0.3);
-      lump(m, c, c, reach * 0.62 * grow, team[3], 1.1);
-      lump(m, c, c, reach * (0.46 - fade) * grow, WHITE, 2.0);
-    } else {
-      // Puffs drifting outward, shrinking as they go, darker underneath.
-      for (let k = 0; k < 7; k++) {
-        const a = (k / 7) * Math.PI * 2 + 0.4;
-        const d = reach * (0.42 + 0.45 * fade) * (0.85 + 0.3 * hash(k, 5));
-        const r = reach * 0.34 * (1.15 - fade) * (0.7 + 0.5 * hash(k, 6));
-        const x = c + Math.cos(a) * d;
-        const y = c + Math.sin(a) * d - fade * 2;
-        lump(m, x, y + 1, r, fade > 0.7 ? team[0] : team[1], k);
-        lump(m, x, y, r - 1, fade > 0.7 ? team[1] : team[2], k);
-        if (fade < 0.5) disc(m, x - 1, y - 1, r * 0.45, team[3]);
-      }
-      if (fade < 0.45) lump(m, c, c, reach * (0.3 - fade * 0.5), WHITE, 2.0);
+    const c = Math.floor(size / 2);
+    const t = (i + 1) / frames;
+    // Fast at first, slowing: most of the spread happens in the first two frames.
+    const out = 1 - (1 - t) * (1 - t);
+    for (let k = 0; k < count; k++) {
+      // Specks go out one after another near the end.
+      if (hash(k, 3) < (t - 0.45) * 1.6) continue;
+      const a = (k / count) * Math.PI * 2 + hash(k, 1) * 0.9;
+      const d = reach * out * (0.35 + 0.65 * hash(k, 2));
+      const x = Math.round(c + Math.cos(a) * d);
+      const y = Math.round(c + Math.sin(a) * d * 0.9 + t * t * 5);
+      const shade = hash(k, 4);
+      const colour =
+        shade < 0.12
+          ? WHITE
+          : (team[shade < 0.5 ? 3 : shade < 0.85 ? 2 : 1] ?? WHITE);
+      const big = hash(k, 5) < 0.4 && t < 0.7;
+      rect(m, x, y, big ? 2 : 1, big && k % 2 ? 2 : 1, colour);
     }
-    // Pieces of the victim: wing shards (pale) and shell (dark team colour), flung out and pulled down.
-    if (i > 0)
-      for (let k = 0; k < 9; k++) {
-        const a = (k / 9) * Math.PI * 2 + 0.2 + hash(k, 7);
-        const speed = 0.75 + 0.45 * hash(k, 8);
-        const d = reach * Math.min(1.05, (0.25 + t * 0.95) * speed);
-        const x = Math.round(c + Math.cos(a) * d);
-        const y = Math.round(c + Math.sin(a) * d + t * t * reach * 0.35);
-        const wing = k % 3 !== 0;
-        const turn = (i + k) % 2 === 0;
-        const big = t < 0.75;
-        if (wing) {
-          rect(m, x, y, turn ? 3 : 2, turn ? 2 : 3, big ? ICE : FROST);
-          if (big) put(m, x, y, WHITE);
-        } else {
-          rect(m, x, y, big ? 3 : 2, big ? 3 : 2, team[1]);
-          put(m, x, y, team[3]);
-          if (big) put(m, x + 2, y + 2, team[0]);
-        }
-      }
-    // Sparks while the flash is young.
-    if (t < 0.5)
-      for (let k = 0; k < 5; k++) {
-        const a = (k / 5) * Math.PI * 2 + 0.9;
-        const d = reach * (0.55 + t);
-        star(
-          m,
-          Math.round(c + Math.cos(a) * d),
-          Math.round(c + Math.sin(a) * d),
-          1,
-          team[3],
-          WHITE,
-        );
-      }
     return m;
   });
 
-/** A kill: a chunky explosion in the victim's colour, bigger than a unit at its peak. 48 by 48, 8 frames. */
-export const killBurst = (team: Ramp): Img[] => explosion(team, 48, 8);
+/** A kill: 44 specks in the victim's colour spreading about 40 pixels. 84 by 84, 6 frames. */
+export const killBurst = (team: Ramp): Img[] => scatter(team, 84, 6, 44, 40);
 
-const CROWN = fromRows(
-  ["G..G..G", "G.GGG.G", "GGGGGGG", "ggwgwgg", "ooooooo"],
-  { G: GOLD[3], g: GOLD[2], o: GOLD[1], w: WHITE },
-);
-
-/** A Queen's death: a bigger explosion, her crown thrown clear and tumbling down. 64 by 64, 10 frames. */
+/** A Queen's death: a bigger scatter, her head crest thrown clear and tumbling down. 100 by 100, 8 frames. */
 export const queenDeath = (team: Ramp): Img[] =>
-  explosion(team, 64, 10).map((m, i) => {
-    const t = i / 9;
-    const x = Math.round(28 + t * 10);
-    const y = Math.round(26 - Math.sin(t * Math.PI * 0.85) * 24 + t * 6);
-    const crown = img(9, 7);
-    blit(crown, CROWN, 1, 1, i % 4 >= 2);
-    // A dark rim keeps the crown readable against the flash.
-    for (let cy = 0; cy < 7; cy++)
-      for (let cx = 0; cx < 9; cx++)
+  scatter(team, 100, 8, 72, 48).map((m, i) => {
+    const t = i / 7;
+    const x = Math.round(47 + t * 9);
+    const y = Math.round(46 - Math.sin(t * Math.PI * 0.85) * 18 + t * 6);
+    const crest = img(6, 5);
+    blit(
+      crest,
+      fromRows(["33..", "3333", ".233"], { "2": team[2], "3": team[3] }),
+      1,
+      1,
+      i % 4 >= 2,
+    );
+    // A dark rim keeps the crest readable among the specks.
+    for (let cy = 0; cy < crest.h; cy++)
+      for (let cx = 0; cx < crest.w; cx++)
         if (
-          !alpha(crown, cx, cy) &&
-          (alpha(crown, cx - 1, cy) ||
-            alpha(crown, cx + 1, cy) ||
-            alpha(crown, cx, cy - 1) ||
-            alpha(crown, cx, cy + 1))
+          !alpha(crest, cx, cy) &&
+          (alpha(crest, cx - 1, cy) ||
+            alpha(crest, cx + 1, cy) ||
+            alpha(crest, cx, cy - 1) ||
+            alpha(crest, cx, cy + 1))
         )
           put(m, x + cx, y + cy, VOID);
-    blit(m, crown, x, y);
+    blit(m, crest, x, y);
     return m;
   });
 
 /**
- * A unit arriving: a column of the team's light drops onto the spot, narrows and leaves rising glints. 24 by 36,
+ * A unit arriving: a column of the team's light drops onto the spot, narrows and leaves rising glints. 14 by 24,
  * 7 frames; anchored at the feet, drawn over the unit.
  */
 export const respawn = (team: Ramp): Img[] =>
   Array.from({ length: 7 }, (_, i) => {
-    const m = img(24, 36);
-    const half = [1, 4, 7, 5, 3, 1, 0][i] ?? 0;
-    const top = [0, 0, 0, 0, 6, 14, 36][i] ?? 36;
-    for (let y = top; y < 34; y++)
+    const m = img(14, 24);
+    const half = [1, 3, 5, 4, 2, 1, 0][i] ?? 0;
+    const top = [0, 0, 0, 0, 4, 10, 24][i] ?? 24;
+    for (let y = top; y < 22; y++)
       for (let dx = -half; dx < half; dx++) {
         const edge = Math.min(dx + half, half - 1 - dx);
         // The column comes to a point at the top and is brightest up the middle.
         if (y - top < half - 1 - edge) continue;
-        put(m, 12 + dx, y, edge === 0 ? team[2] : edge < 3 ? team[3] : WHITE);
+        put(m, 7 + dx, y, edge === 0 ? team[2] : edge < 2 ? team[3] : WHITE);
       }
     // The pool of light at the feet.
-    const pool = [3, 7, 10, 11, 10, 8, 5][i] ?? 0;
-    rect(m, 12 - pool, 34, pool * 2, 1, i < 5 ? team[3] : team[2]);
-    rect(m, 12 - pool + 2, 35, pool * 2 - 4, 1, team[1]);
+    const pool = [2, 4, 6, 6, 6, 5, 3][i] ?? 0;
+    rect(m, 7 - pool, 22, pool * 2, 1, i < 5 ? team[3] : team[2]);
+    rect(m, 7 - pool + 1, 23, pool * 2 - 2, 1, team[1]);
     if (i > 1)
-      for (let k = 0; k < 6; k++) {
-        const x = 3 + Math.floor(hash(k, 11) * 18);
-        const y = 30 - Math.floor((i - 1) * (3 + hash(k, 12) * 3)) - k * 2;
+      for (let k = 0; k < 4; k++) {
+        const x = 2 + Math.floor(hash(k, 11) * 10);
+        const y = 19 - Math.floor((i - 1) * (2 + hash(k, 12) * 2)) - k * 2;
         if (y < 1) continue;
-        if ((i + k) % 2) star(m, x, y, 1, team[3], WHITE);
-        else put(m, x, y, WHITE);
+        put(m, x, y, (i + k) % 2 ? WHITE : team[3]);
       }
     return m;
   });
 
-/** A worker's death: a puff of cloud that breaks up. 24 by 24, 5 frames. */
+/** A worker's death: a puff of cloud that breaks up. 16 by 16, 5 frames. */
 export const deathPuff = (team: Ramp): Img[] =>
   Array.from({ length: 5 }, (_, i) => {
-    const m = img(24, 24);
+    const m = img(16, 16);
     const blobs: [number, number, number][] = [
-      [0, 0, 5],
-      [-5, 2, 3.5],
-      [5, 1, 3.5],
-      [-2, -4, 3],
-      [3, -4, 3],
+      [0, 0, 3.2],
+      [-3, 1, 2.3],
+      [3, 1, 2.3],
+      [-1, -3, 2],
+      [2, -3, 2],
     ];
     for (const [k, [bx, by, r]] of blobs.entries()) {
-      const spread = 1 + i * 0.35;
-      const radius = r - i * (k === 0 ? 1.2 : 0.7);
+      const spread = 1 + i * 0.3;
+      const radius = r - i * (k === 0 ? 0.8 : 0.45);
       if (radius < 0.5) continue;
-      const x = 11.5 + bx * spread;
-      const y = 12.5 + by * spread - i;
+      const x = 7.5 + bx * spread;
+      const y = 8.5 + by * spread - i * 0.6;
       disc(m, x, y + 1, radius, i < 2 ? ICE : FROST);
-      disc(m, x, y, radius - 0.8, i < 3 ? WHITE : ICE);
+      disc(m, x, y, radius - 0.7, i < 3 ? WHITE : ICE);
     }
-    if (i < 3) {
-      star(m, 5 - i, 6 - i, 1, team[2], team[3]);
-      star(m, 19 + i, 8 - i, 1, team[2], team[3]);
-    } else {
-      put(m, 3, 4, team[1]);
-      put(m, 21, 5, team[1]);
-    }
+    put(m, 2 - Math.min(i, 1), 4 - Math.min(i, 3), i < 3 ? team[3] : team[1]);
+    put(m, 13 + Math.min(i, 1), 5 - Math.min(i, 3), i < 3 ? team[3] : team[1]);
     return m;
   });
 
-/** The puff of air under a flap. 16 by 8, 4 frames; place it under the wings. */
+/** The puff of air under a flap. 12 by 6, 4 frames; place it under the wings. */
 export const flapPuff = (): Img[] =>
   Array.from({ length: 4 }, (_, i) => {
-    const m = img(16, 8);
+    const m = img(12, 6);
     const c = [WHITE, WHITE, ICE, FROST][i] ?? FROST;
     for (const side of [-1, 1]) {
       // A curl of air under each wing, drifting out and down as it thins.
-      const x = (dx: number) => (side < 0 ? 7 - dx : 8 + dx);
-      const reach = 1 + i * 2;
+      const x = (dx: number) => (side < 0 ? 5 - dx : 6 + dx);
+      const reach = 1 + i;
       put(m, x(reach), i, c);
       put(m, x(reach + 1), i + 1, c);
       if (i < 3) put(m, x(reach + 1), i + 2, c);
-      if (i < 2) put(m, x(reach), i + 3, ICE);
       if (i === 0) put(m, x(0), 1, WHITE);
     }
     return m;
   });
 
-/** A gate transforming its worker: gold sparkles rising up the gate. 24 by 32, 6 frames, drawn over the gate. */
+/**
+ * A gate transforming its worker: white sparkles rising up the gate. 35 by 28 (a gate's cell), 6 frames, drawn
+ * over the gate and anchored like it.
+ */
 export const gateSparkle = (): Img[] =>
   Array.from({ length: 6 }, (_, i) => {
-    const m = img(24, 32);
+    const m = img(35, 28);
     for (let k = 0; k < 7; k++) {
-      const x = 3 + Math.floor(hash(k, 1) * 18);
-      const start = 30 - Math.floor(hash(k, 2) * 10);
-      const y = start - Math.floor((i + hash(k, 3) * 3) * (3 + hash(k, 4) * 2));
+      const x = 5 + Math.floor(hash(k, 1) * 25);
+      const start = 25 - Math.floor(hash(k, 2) * 8);
+      const y = start - Math.floor((i + hash(k, 3) * 3) * (2 + hash(k, 4) * 2));
       const phase = (i + k) % 3;
-      if (y < 1 || y > 30) continue;
-      if (phase === 0) star(m, x, y, 2, GOLD[3], WHITE);
-      else if (phase === 1) star(m, x, y, 1, GOLD[2], GOLD[3]);
-      else put(m, x, y, GOLD[3]);
+      if (y < 2 || y > 25) continue;
+      if (phase === 0) star(m, x, y, 1, ICE, WHITE);
+      else put(m, x, y, phase === 1 ? WHITE : ICE);
     }
     return m;
   });
 
-/** A berry banked in the hive: a lime ring popping outward. 16 by 16, 5 frames. */
+/** A berry banked in the hive: a lime ring popping outward. 11 by 11, 5 frames. */
 export const berryPop = (): Img[] =>
   Array.from({ length: 5 }, (_, i) => {
-    const m = img(16, 16);
-    const c = 7.5;
+    const m = img(11, 11);
+    const c = 5;
     if (i === 0) {
-      disc(m, c, c, 3, WHITE);
-      disc(m, c, c, 2, LIME[3]);
+      disc(m, c, c, 2, WHITE);
+      disc(m, c, c, 1, LIME[3]);
     } else {
-      ring(m, c, c, 2 + i * 1.3, i < 3 ? LIME[2] : LIME[1], i > 2 ? 4 : 0);
-      if (i < 3) ring(m, c, c, 1 + i, LIME[3]);
+      ring(m, c, c, 1.5 + i * 0.8, i < 3 ? LIME[2] : LIME[1], i > 2 ? 4 : 0);
+      if (i < 3) ring(m, c, c, 0.6 + i * 0.7, LIME[3]);
     }
     for (let k = 0; k < 4; k++) {
       const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
-      const d = 2 + i * 1.5;
+      const d = 1.5 + i * 0.9;
       put(
         m,
         Math.round(c + Math.cos(a) * d),

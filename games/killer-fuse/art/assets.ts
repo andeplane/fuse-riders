@@ -124,6 +124,10 @@ export interface Generation {
   editOf?: string;
 }
 
+/**
+ * The units and gates are pixelled by hand in `arcade.ts`; `worker` and `queen` are still generated because the
+ * snail and the cover are drawn as edits of them, to stay in one style.
+ */
 export const GENERATIONS: readonly Generation[] = [
   {
     id: "worker",
@@ -141,12 +145,6 @@ export const GENERATIONS: readonly Generation[] = [
     size: "1536x1024",
     editOf: "worker",
     prompt: `${FAMILY} ${SHEET} Subject: the giant racing snail the workers ride, side view facing right, about three times as long as the worker is wide: a long plump pale cream #fff0c8 body with tan #dcb486 shading underneath, a round head at the right with one big white eye with a black pupil and two thick eye stalks, and on its back a big round spiral shell in violet #6544c2 with a light violet #a58cf5 spiral band and a dark violet #3f2a8a underside. On top of the shell sits a small flat gold #ffc93c saddle. No green anywhere. ${SAME} 5 poses in 2 rows (3 then 2). Row 1: resting; crawling frame 1 (body stretched long); crawling frame 2 (body bunched up short, head raised slightly). Row 2: crawling frame 3 (in between); eating, with its mouth wide open like a big dark navy #0a0f2a bite at the front of the head.`,
-  },
-  {
-    id: "gates",
-    size: "1536x1024",
-    editOf: "worker",
-    prompt: `${FAMILY} ${SHEET} Subject: two upgrade gates from the same game, front view, each a tall narrow machine a worker bug steps inside, about one and a half times as wide as the worker and twice as tall, standing on a flat base: a thick rounded arch frame of dark steel blue #2c4488 with slate #1c2e66 shading and light ice #9db9e0 rim highlights, around a dark navy #0a0f2a doorway. Each has a big emblem plate on top and two lamp strips down the frame in pure bright green #00ff00 with darker green #009a00 (green is the owner colour and is used only for the emblem and the lamps). Left: the WARRIOR gate, its emblem is a short broad upright sword, and the top of the arch has two small horns. Right: the SPEED gate, its emblem is a lightning bolt, and the arch has small fins on both sides. Exactly 2 drawings side by side, far apart.`,
   },
   {
     id: "bg-far",
@@ -199,87 +197,6 @@ export interface UnitSheet {
   >;
 }
 
-export const UNITS: Record<string, UnitSheet> = {
-  worker: {
-    from: "worker",
-    frames: ["idle", "run1", "run2", "run3", "run4", "jump", "fall", "blink"],
-    grounded: ["idle", "run1", "run2", "run3", "run4", "blink"],
-    reduce: 2,
-    cell: [24, 28],
-    animations: {
-      idle: { frames: ["idle", "idle", "idle", "blink"], fps: 3, loop: true },
-      run: { frames: ["run1", "run2", "run3", "run4"], fps: 12, loop: true },
-      jump: { frames: ["jump"], fps: 1, loop: false },
-      fall: { frames: ["fall"], fps: 1, loop: false },
-    },
-  },
-};
-
-/**
- * The warrior is the worker grown up, so it is built from the worker's own frames rather than generated: each
- * frame is a worker pose, a wing position and how the lance is held (`scripts/killer-fuse-art.ts` draws those on).
- */
-export const WARRIOR = {
-  cell: [44, 42],
-  /** Rows of the cell below the feet, for the wing's down-stroke. */
-  below: 8,
-  frames: [
-    ["idle", "idle", "folded", "up"],
-    ["flapUp", "fall", "up", "level"],
-    ["flapMid", "fall", "mid", "level"],
-    ["flapDown", "fall", "down", "level"],
-    ["glide", "jump", "swept", "level"],
-    ["walk1", "run1", "folded", "level"],
-    ["walk2", "run2", "folded", "level"],
-    ["walk3", "run3", "folded", "level"],
-    ["walk4", "run4", "folded", "level"],
-    ["dive", "fall", "swept", "down"],
-  ],
-  animations: {
-    idle: { frames: ["idle"], fps: 1, loop: false },
-    fly: {
-      frames: ["flapUp", "flapMid", "flapDown", "flapMid"],
-      fps: 16,
-      loop: true,
-    },
-    glide: { frames: ["glide"], fps: 1, loop: false },
-    walk: { frames: ["walk1", "walk2", "walk3", "walk4"], fps: 12, loop: true },
-    dive: { frames: ["dive"], fps: 1, loop: false },
-  },
-} as const;
-
-/**
- * The Queen is built from the worker's frames too, so she has the workers' pixel size and is only a little taller:
- * what makes her the Queen is the gold crown, two pairs of big wings, a striped abdomen and a long gold stinger.
- */
-export const QUEEN = {
-  cell: [48, 34],
-  below: 8,
-  frames: [
-    ["idle", "idle", "folded", "level"],
-    ["flapUp", "fall", "up", "level"],
-    ["flapMid", "fall", "mid", "level"],
-    ["flapDown", "fall", "down", "level"],
-    ["glide", "jump", "swept", "level"],
-    ["dive", "fall", "up", "down"],
-    ["walk1", "run1", "folded", "level"],
-    ["walk2", "run2", "folded", "level"],
-    ["walk3", "run3", "folded", "level"],
-    ["walk4", "run4", "folded", "level"],
-  ],
-  animations: {
-    idle: { frames: ["idle"], fps: 1, loop: false },
-    fly: {
-      frames: ["flapUp", "flapMid", "flapDown", "flapMid"],
-      fps: 16,
-      loop: true,
-    },
-    glide: { frames: ["glide"], fps: 1, loop: false },
-    dive: { frames: ["dive"], fps: 1, loop: false },
-    walk: { frames: ["walk1", "walk2", "walk3", "walk4"], fps: 10, loop: true },
-  },
-} as const;
-
 /** The snail: one generated sheet, aligned by its shell so the shell stays put while the body stretches. */
 export const SNAIL: UnitSheet = {
   from: "snail",
@@ -299,16 +216,6 @@ export const SNAIL: UnitSheet = {
   },
 };
 
-/** The two gates of the generated gate sheet, left to right, and the factor that brings them to about 22 by 29. */
-export const GATES = {
-  from: "gates",
-  kinds: ["warrior", "speed"],
-  reduce: 3,
-  /** Rows taken out of the pillars, and how many rows of base stay under the cut. */
-  shorten: 2,
-  above: 4,
-} as const;
-
 /** Sheets that `cut` samples as single drawings on a grid: id, how many drawings, and the key colour behind them. */
 export const CUTS: readonly {
   id: string;
@@ -316,8 +223,6 @@ export const CUTS: readonly {
   key: "magenta" | "green";
   units: boolean;
 }[] = [
-  { id: "worker", count: 8, key: "magenta", units: true },
   { id: "snail", count: 5, key: "magenta", units: false },
-  { id: "gates", count: 2, key: "magenta", units: false },
   { id: "logo", count: 1, key: "green", units: false },
 ];
