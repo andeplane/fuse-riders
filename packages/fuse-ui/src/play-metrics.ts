@@ -1,4 +1,5 @@
 import { createBrowserAnalytics, type Analytics } from "./analytics.js";
+import { isEmbeddedPage } from "./embedded.js";
 
 export interface PlayFrame {
   /** Scope only; never sent to Mixpanel. */
@@ -70,19 +71,40 @@ export function createPlayMetrics(
   };
 }
 
-/** One instance at the page's composition root. Analytics is disabled on dev addresses unless explicitly enabled. */
-export function startGameAnalytics(gameId: string): Analytics {
-  const analytics = createBrowserAnalytics(gameId);
-  const query = new URLSearchParams(location.search);
-  analytics.start({
-    role: query.has("solo")
-      ? "solo"
-      : query.has("room")
-        ? query.get("display") === "1"
-          ? "display"
-          : "joiner"
-        : "landing",
-  });
-  analytics.track("App Opened");
+/** What a page is for, from its address: the `role` super property on every event. */
+export type PageRole = "solo" | "display" | "joiner" | "landing";
+
+export function pageRole(search: string): PageRole {
+  const query = new URLSearchParams(search);
+  if (query.has("solo")) return "solo";
+  if (!query.has("room")) return "landing";
+  return query.get("display") === "1" ? "display" : "joiner";
+}
+
+/** The facts about the page `startGameAnalytics` reports; read from the browser by default, given by a test. */
+export interface AnalyticsPage {
+  /** The page's `location.search`. */
+  search: string;
+  /** The page runs in a FuseOS desktop window rather than as the browser tab itself (`isEmbeddedPage`). */
+  embedded: boolean;
+}
+
+export function browserAnalyticsPage(): AnalyticsPage {
+  return { search: location.search, embedded: isEmbeddedPage(window) };
+}
+
+/**
+ * One instance at the page's composition root. Analytics is disabled on dev addresses unless explicitly enabled.
+ * `App Opened` says whether the page opened inside the FuseOS desktop (`embedded`), so a game played from a
+ * desktop window and one played in its own tab can be told apart; the desktop reports its own opening as `fuseos`.
+ */
+export function startGameAnalytics(
+  gameId: string,
+  page: AnalyticsPage = browserAnalyticsPage(),
+  create: (gameId: string) => Analytics = createBrowserAnalytics,
+): Analytics {
+  const analytics = create(gameId);
+  analytics.start({ role: pageRole(page.search) });
+  analytics.track("App Opened", { embedded: page.embedded });
   return analytics;
 }

@@ -1,4 +1,9 @@
-import { deepLinkContents, parseOpenParam, withoutOpenParam } from "./deepLink";
+import {
+  deepLinkContents,
+  deepLinkRedirect,
+  parseOpenParam,
+  withoutOpenParam,
+} from "./deepLink";
 
 const games = {
   has: (id: string) => id === "fuseball" || id === "fuse-riders",
@@ -38,6 +43,28 @@ describe(deepLinkContents.name, () => {
     expect(deepLinkContents(["doom"], { has: (id) => id === "doom" })).toEqual([
       { kind: "fusegame", gameId: "doom" },
     ]);
+  });
+});
+
+describe(deepLinkRedirect.name, () => {
+  const pages = {
+    find: (id: string) => (id === "fuseball" ? { id } : undefined),
+    embedUrl: (game: { id: string }) => `/fuse-riders/${game.id}/?mute`,
+  };
+
+  it("sends a tab-mode device straight to the first game a link names", () => {
+    expect(deepLinkRedirect(["fuseball", "paint"], pages, "tab")).toBe(
+      "/fuse-riders/fuseball/?mute",
+    );
+  });
+
+  it("stays on the desktop in window mode, for apps, retro games, unknown ids and no ids", () => {
+    expect(deepLinkRedirect(["fuseball"], pages, "window")).toBeUndefined();
+    expect(
+      deepLinkRedirect(["paint", "fuseball"], pages, "tab"),
+    ).toBeUndefined();
+    expect(deepLinkRedirect(["doom"], pages, "tab")).toBeUndefined();
+    expect(deepLinkRedirect([], pages, "tab")).toBeUndefined();
   });
 });
 

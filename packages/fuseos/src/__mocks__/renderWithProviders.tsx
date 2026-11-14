@@ -3,6 +3,8 @@ import { render } from "@testing-library/react";
 import type { PortalGame } from "fuse-ui/portal";
 import type { ReactElement, ReactNode } from "react";
 
+import type { GameLaunchKind, OsAnalytics } from "../analytics/osAnalytics";
+import { OsAnalyticsContext } from "../analytics/osAnalytics";
 import { AssistantDepsContext } from "../assistant/assistantDepsContext";
 import {
   AssistantOptionsStoreContext,
@@ -41,6 +43,8 @@ import {
   FuseOsPrefsStoreContext,
   MemoryFuseOsPrefsStore,
 } from "../settings/fuseosPrefsStore";
+import type { LaunchDevice } from "../settings/launchDevice";
+import { LaunchDeviceContext } from "../settings/launchDevice";
 import { Shell } from "../Shell";
 import type { AppState, WindowContent } from "../state/appState";
 import { DEFAULT_STATE } from "../state/appState";
@@ -120,6 +124,8 @@ export type ProviderOptions = {
   wallpaperStore?: MemoryWallpaperStore;
   displayPrefsStore?: MemoryDisplayPrefsStore;
   prefsStore?: MemoryFuseOsPrefsStore;
+  /** Defaults to a wide, mouse-driven desktop, where games open in windows. */
+  launchDevice?: LaunchDevice;
   paintDeps?: Partial<PaintDeps>;
   paintPrefs?: MemoryPaintPrefsStore;
   /** Defaults to a fake Webamp player; pass `{ createPlayer: undefined }` for "not available in this preview". */
@@ -155,6 +161,31 @@ export const TEST_SYSTEM_PROBE: SystemProbe = {
   screen: { width: 1920, height: 1080 },
   storageAvailable: true,
 };
+
+export const DESKTOP_DEVICE: LaunchDevice = {
+  finePointer: true,
+  viewportWidth: 1280,
+};
+
+export const PHONE_DEVICE: LaunchDevice = {
+  finePointer: false,
+  viewportWidth: 390,
+};
+
+export type LaunchRecord = { game: string; launch: GameLaunchKind };
+
+/** An `OsAnalytics` that remembers every launch it was told about. */
+export function createRecordingOsAnalytics(): OsAnalytics & {
+  launches: LaunchRecord[];
+} {
+  const launches: LaunchRecord[] = [];
+  return {
+    launches,
+    gameLaunched: (game, launch) => {
+      launches.push({ game, launch });
+    },
+  };
+}
 
 export function createTestDesktopDeps(
   overrides: Partial<DesktopDeps> = {},
@@ -247,6 +278,8 @@ export function createWrapper(options: ProviderOptions = {}) {
   const displayPrefsStore =
     options.displayPrefsStore ?? new MemoryDisplayPrefsStore();
   const prefsStore = options.prefsStore ?? new MemoryFuseOsPrefsStore();
+  const launchDevice = options.launchDevice ?? DESKTOP_DEVICE;
+  const osAnalytics = createRecordingOsAnalytics();
   const surfaces: FakePaintSurface[] = [];
   const paintDeps = createTestPaintDeps(surfaces, options.paintDeps);
   const paintPrefs = options.paintPrefs ?? new MemoryPaintPrefsStore();
@@ -272,38 +305,48 @@ export function createWrapper(options: ProviderOptions = {}) {
                       value={displayPrefsStore}
                     >
                       <FuseOsPrefsStoreContext.Provider value={prefsStore}>
-                        <PaintDepsContext.Provider value={paintDeps}>
-                          <PaintPrefsStoreContext.Provider value={paintPrefs}>
-                            <PaintRegistryContext.Provider
-                              value={paintRegistry}
-                            >
-                              <WinampDepsContext.Provider value={winampDeps}>
-                                <WinampRegistryContext.Provider
-                                  value={winampRegistry}
+                        <LaunchDeviceContext.Provider
+                          value={() => launchDevice}
+                        >
+                          <OsAnalyticsContext.Provider value={osAnalytics}>
+                            <PaintDepsContext.Provider value={paintDeps}>
+                              <PaintPrefsStoreContext.Provider
+                                value={paintPrefs}
+                              >
+                                <PaintRegistryContext.Provider
+                                  value={paintRegistry}
                                 >
-                                  <AssistantDepsContext.Provider
-                                    value={assistantDeps}
+                                  <WinampDepsContext.Provider
+                                    value={winampDeps}
                                   >
-                                    <AssistantOptionsStoreContext.Provider
-                                      value={assistantOptions}
+                                    <WinampRegistryContext.Provider
+                                      value={winampRegistry}
                                     >
-                                      <SystemProbeContext.Provider
-                                        value={() => systemProbe}
+                                      <AssistantDepsContext.Provider
+                                        value={assistantDeps}
                                       >
-                                        <Shell
-                                          store={store}
-                                          initialOpen={options.initialOpen}
+                                        <AssistantOptionsStoreContext.Provider
+                                          value={assistantOptions}
                                         >
-                                          {children}
-                                        </Shell>
-                                      </SystemProbeContext.Provider>
-                                    </AssistantOptionsStoreContext.Provider>
-                                  </AssistantDepsContext.Provider>
-                                </WinampRegistryContext.Provider>
-                              </WinampDepsContext.Provider>
-                            </PaintRegistryContext.Provider>
-                          </PaintPrefsStoreContext.Provider>
-                        </PaintDepsContext.Provider>
+                                          <SystemProbeContext.Provider
+                                            value={() => systemProbe}
+                                          >
+                                            <Shell
+                                              store={store}
+                                              initialOpen={options.initialOpen}
+                                            >
+                                              {children}
+                                            </Shell>
+                                          </SystemProbeContext.Provider>
+                                        </AssistantOptionsStoreContext.Provider>
+                                      </AssistantDepsContext.Provider>
+                                    </WinampRegistryContext.Provider>
+                                  </WinampDepsContext.Provider>
+                                </PaintRegistryContext.Provider>
+                              </PaintPrefsStoreContext.Provider>
+                            </PaintDepsContext.Provider>
+                          </OsAnalyticsContext.Provider>
+                        </LaunchDeviceContext.Provider>
                       </FuseOsPrefsStoreContext.Provider>
                     </DisplayPrefsStoreContext.Provider>
                   </WallpaperStoreContext.Provider>
@@ -325,6 +368,8 @@ export function createWrapper(options: ProviderOptions = {}) {
     wallpaperStore,
     displayPrefsStore,
     prefsStore,
+    launchDevice,
+    osAnalytics,
     paintDeps,
     paintPrefs,
     paintRegistry,

@@ -119,6 +119,8 @@ export {
 } from "./account.js";
 export {
   createAppPortal,
+  desktopOpenQuery,
+  OPEN_PARAM,
   parsePortalEntry,
   PORTAL_GAMES,
   type AppPortal,
@@ -126,6 +128,7 @@ export {
   type PortalEntry,
   type PortalGame,
 } from "./portal.js";
+export { isEmbeddedPage, type EmbeddingView } from "./embedded.js";
 export {
   createGameMenu,
   createRoundControls,

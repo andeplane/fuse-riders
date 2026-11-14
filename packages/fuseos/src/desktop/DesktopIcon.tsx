@@ -8,8 +8,18 @@ import {
   menuPositionFor,
 } from "../windows/menuPosition";
 
-/** A Fuse game's tile: its accent square with its one-to-three character mark, like the portal draws it. */
-export type GameTile = { kind: "tile"; mark: string; accent: string };
+/**
+ * A Fuse game's tile: its accent square with its one-to-three character mark, like the portal draws it.
+ * `shortcut` adds the Windows shortcut arrow: the game opens in a browser tab rather than a window here.
+ */
+export type GameTile = {
+  kind: "tile";
+  mark: string;
+  accent: string;
+  shortcut?: boolean;
+};
+
+export const SHORTCUT_HINT = "Opens in a new browser tab";
 
 export type DesktopIconArt = IconName | GameTile;
 
@@ -24,7 +34,11 @@ export type DesktopIconProps = {
 };
 
 /** The generated icon of a Fuse game: an accent square with the mark, crisp at 32px. */
-export function GameTileIcon({ mark, accent }: Omit<GameTile, "kind">) {
+export function GameTileIcon({
+  mark,
+  accent,
+  shortcut = false,
+}: Omit<GameTile, "kind">) {
   return (
     <svg
       width={32}
@@ -34,6 +48,7 @@ export function GameTileIcon({ mark, accent }: Omit<GameTile, "kind">) {
       data-icon="tile"
       style={{ imageRendering: "pixelated" }}
     >
+      {shortcut ? <title>{SHORTCUT_HINT}</title> : null}
       <rect x={1} y={1} width={30} height={30} fill={accent} stroke="#000" />
       <rect x={3} y={3} width={26} height={2} fill="#fff" fillOpacity={0.5} />
       <text
@@ -50,6 +65,18 @@ export function GameTileIcon({ mark, accent }: Omit<GameTile, "kind">) {
       >
         {mark}
       </text>
+      {shortcut ? (
+        // The Windows 95 shortcut overlay: a white box with a small arrow, bottom left.
+        <g data-icon="shortcut">
+          <rect x={1} y={21} width={10} height={10} fill="#fff" stroke="#000" />
+          <path
+            d="M3 29 L9 23 M5 23 L9 23 L9 27"
+            fill="none"
+            stroke="#000"
+            strokeWidth={1.2}
+          />
+        </g>
+      ) : null}
     </svg>
   );
 }
@@ -85,7 +112,11 @@ export function DesktopIcon({
       {typeof icon === "string" ? (
         <Win98Icon name={icon} size={32} />
       ) : (
-        <GameTileIcon mark={icon.mark} accent={icon.accent} />
+        <GameTileIcon
+          mark={icon.mark}
+          accent={icon.accent}
+          shortcut={icon.shortcut}
+        />
       )}
       <span
         className={`px-0.5 leading-tight ${selected ? "selected-label" : ""}`}

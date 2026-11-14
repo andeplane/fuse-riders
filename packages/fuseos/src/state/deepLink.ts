@@ -43,6 +43,28 @@ export function deepLinkContents(
   });
 }
 
+/** Something that knows where a Fuse game's page is; the registry in production. */
+export type GamePageLookup = {
+  find(id: string): { id: string } | undefined;
+  embedUrl(game: { id: string }): string;
+};
+
+/**
+ * On a device that opens games in a tab (a phone, a narrow screen, or the user's choice) a link to a game means
+ * the game itself, not a desktop it would not fit in: the page the address should be replaced with, when the
+ * first id named is a Fuse game. Anything else the link asked for is left behind with the desktop.
+ */
+export function deepLinkRedirect(
+  ids: readonly string[],
+  games: GamePageLookup,
+  launch: "window" | "tab",
+): string | undefined {
+  if (launch !== "tab") return undefined;
+  const first = ids[0];
+  const game = first === undefined ? undefined : games.find(first);
+  return game && games.embedUrl(game);
+}
+
 /** The same URL without `?open=`, so a reload does not reopen the windows a link asked for once. */
 export function withoutOpenParam(href: string): string {
   const url = new URL(href);

@@ -3,8 +3,12 @@ import { readdirSync, readFileSync, existsSync } from "node:fs";
 import test from "node:test";
 import {
   createAppPortal,
+  desktopOpenQuery,
+  isEmbeddedPage,
+  OPEN_PARAM,
   parsePortalEntry,
   PORTAL_GAMES,
+  type EmbeddingView,
   type PortalGame,
 } from "fuse-ui";
 import { HOSTILE, event, page } from "./dom-fixture.js";
@@ -82,6 +86,81 @@ test("portal: a muted page keeps the other games muted", () => {
     links(portal.element).map((tile) => tile.getAttribute("href")),
     ["/?mute", "/hook-havok/?mute"],
   );
+});
+
+test("portal: inside a desktop window every link targets the top page and a game asks the desktop to open it", () => {
+  const { document } = page();
+  const portal = createAppPortal({
+    document,
+    current: "fuse-riders",
+    base: "/fuse-riders/",
+    search: "?room=ABC&mute",
+    games: GAMES,
+    embedded: true,
+  });
+  const heading = portal.element.querySelector<HTMLAnchorElement>(
+    ".fui-portal-heading",
+  )!;
+  assert.equal(heading.getAttribute("href"), "/fuse-riders/?mute");
+  assert.equal(heading.getAttribute("target"), "_top");
+  const tiles = links(portal.element);
+  assert.deepEqual(
+    tiles.map((tile) => tile.getAttribute("href")),
+    [
+      "/fuse-riders/?open=fuse-riders&mute",
+      "/fuse-riders/?open=hook-havok&mute",
+    ],
+  );
+  assert.deepEqual(
+    tiles.map((tile) => tile.getAttribute("target")),
+    ["_top", "_top"],
+  );
+  // The room code stays in this frame's address; the desktop link never carries it.
+  assert.equal(JSON.stringify(portal.element.outerHTML).includes("ABC"), false);
+});
+
+test("portal: a static build's game pages reach the desktop one level up, unmuted", () => {
+  const { document } = page();
+  const portal = createAppPortal({
+    document,
+    current: "fuse-riders",
+    base: "./",
+    games: GAMES,
+    embedded: true,
+  });
+  assert.deepEqual(
+    links(portal.element).map((tile) => tile.getAttribute("href")),
+    ["../?open=fuse-riders", "../?open=hook-havok"],
+  );
+  assert.equal(desktopOpenQuery("a b", false), "?open=a%20b");
+  assert.equal(OPEN_PARAM, "open");
+});
+
+test("portal: a page that is its own tab (a bare document, a top window) is not embedded", () => {
+  const { document } = page();
+  // linkedom's window is both `self` and `top`, so it is not embedded, and the links stay plain.
+  const portal = createAppPortal({
+    document,
+    current: "fuse-riders",
+    base: "/",
+    games: GAMES,
+  });
+  assert.equal(links(portal.element)[1]!.getAttribute("target"), null);
+  assert.equal(links(portal.element)[1]!.getAttribute("href"), "/hook-havok/");
+  const top = {};
+  assert.equal(isEmbeddedPage({ self: top, top }), false);
+  assert.equal(isEmbeddedPage({ self: {}, top }), true);
+  assert.equal(isEmbeddedPage({ self: top, top: undefined }), false);
+  assert.equal(isEmbeddedPage({ self: top, top: null }), false);
+  assert.equal(isEmbeddedPage(null), false);
+  assert.equal(isEmbeddedPage(undefined), false);
+  const throwing: EmbeddingView = {
+    self: top,
+    get top(): unknown {
+      throw new Error("sandboxed");
+    },
+  };
+  assert.equal(isEmbeddedPage(throwing), false);
 });
 
 test("portal: the button opens the grid; Escape, an outside press or a pick closes it", () => {
