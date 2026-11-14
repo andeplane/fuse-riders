@@ -109,8 +109,16 @@ test("a member admitted on another instance while this admission's answer was in
   // 0's watch hears of it before FIRST's own admission returns.
   database.hold = true;
   const admitted = gateways[0]!.gateway.connect(CODE, FIRST, first);
-  // The admission starts behind the gateway's own queue, so wait for it to reach the database and commit.
-  while (database.hold) await new Promise((resolve) => setImmediate(resolve));
+  // The admission starts behind the gateway's own queue, so wait for it to reach the database and commit. An admission
+  // that fails before it gets there fails the test here, rather than leaving it waiting.
+  let refused: unknown;
+  admitted.catch((error: unknown) => {
+    refused = error ?? new Error("admission failed");
+  });
+  while (database.hold) {
+    if (refused) throw refused;
+    await new Promise((resolve) => setImmediate(resolve));
+  }
   await database.committed;
   await gateways[1]!.gateway.connect(CODE, SECOND, second);
   database.release();
