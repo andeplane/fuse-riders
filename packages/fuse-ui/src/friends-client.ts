@@ -25,6 +25,13 @@ export interface FriendsClientDependencies {
   apiUrl: (path: string) => string;
   /** The name and head this device rides under, reported so friends see them. */
   identity: () => { name?: string; avatarId?: string };
+  /**
+   * This page is not the one a game runs in (the FuseOS desktop around an embedded game): its polls keep the account
+   * online and leave the room claim to the game's own page. A passive client never reports a room.
+   */
+  passive?: boolean;
+  /** Whether the player is idle here, and the status line to show friends; either may be left out to say nothing. */
+  presence?: () => { away?: boolean; status?: string };
   clock?: {
     now: () => number;
     schedule: (callback: () => void, delayMs: number) => () => void;
@@ -82,7 +89,8 @@ export function createFriendsClient(
       return () => clearTimeout(timer);
     },
   };
-  const pollMs = dependencies.pollMs ?? FRIENDS_POLL_MS;
+  const pollMs = dependencies.pollMs ?? FRIENDS_POLL_MS,
+    passive = dependencies.passive === true;
   const listeners = new Set<(state: FriendsState) => void>(),
     inviteListeners = new Set<(invite: FriendInvite) => void>();
   let state: FriendsState = {
@@ -146,13 +154,17 @@ export function createFriendsClient(
     return response.json();
   };
   const syncBody = (): FriendsSyncBody => {
-    const identity = dependencies.identity();
+    const identity = dependencies.identity(),
+      presence = dependencies.presence?.() ?? {};
     return {
       ...(identity.name === undefined ? {} : { name: identity.name }),
       ...(identity.avatarId === undefined
         ? {}
         : { avatarId: identity.avatarId }),
-      ...(room
+      ...(passive ? { passive: true } : {}),
+      ...(presence.away === undefined ? {} : { away: presence.away }),
+      ...(presence.status === undefined ? {} : { status: presence.status }),
+      ...(room && !passive
         ? {
             room: {
               code: room.code,

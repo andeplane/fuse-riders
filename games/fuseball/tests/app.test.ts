@@ -146,6 +146,9 @@ test("the lobby: the host picks the arena, adds a bot and starts; a guest waits;
   assert.deepEqual(
     two.lobby.maps.map((m) => [m.id, m.name, m.selected]),
     [
+      ["quadcore", "Quad Core", false],
+      ["bitstream", "Bitstream", false],
+      ["memoryleak", "Memory Leak", false],
       ["gridlock", "Gridlock", true],
       ["downlink", "Downlink", false],
       ["halo", "Halo", false],
@@ -161,7 +164,7 @@ test("the lobby: the host picks the arena, adds a bot and starts; a guest waits;
       ["random", "Random", false],
     ],
   );
-  assert.equal(two.lobby.maps[2]!.blurb, MAP_BLURBS.halo);
+  assert.equal(two.lobby.maps[5]!.blurb, MAP_BLURBS.halo);
   assert.equal(two.mapName, "Gridlock");
   assert.deepEqual(two.sides, []);
   assert.equal(two.names, undefined);
@@ -175,7 +178,7 @@ test("the lobby: the host picks the arena, adds a bot and starts; a guest waits;
   assert.equal(alone.lobby.canStart, true, "a start seats a bot");
   assert.equal(alone.lobby.canAddBot, true);
   assert.match(alone.lobby.note, /filled with bots/);
-  assert.equal(alone.lobby.maps[2]!.selected, true);
+  assert.equal(alone.lobby.maps[5]!.selected, true);
 
   const bots = present(
     room("lobby", (r) => {

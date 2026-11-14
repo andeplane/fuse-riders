@@ -46,7 +46,7 @@ import {
 } from "../src/online/game.js";
 import { matchResult } from "../src/online/result.js";
 import { validFuseballField } from "../src/platform.js";
-import { present } from "../src/app/presenter.js";
+import { MAP_ORDER, present } from "../src/app/presenter.js";
 import { MIN_RIDER_CSS, cameraFor } from "../src/render/scene.js";
 import { blend } from "../src/render/interpolate.js";
 import { cues } from "../src/render/effects.js";
@@ -609,7 +609,7 @@ test("the lobby offers the modes, the mode's arenas and a change of sides", () =
   assert.equal(duel.lobby.canSwitch, false, "a duel has no sides to change");
   assert.deepEqual(
     duel.lobby.maps.map((map) => map.id),
-    [...MAP_IDS, "random"],
+    [...MAP_ORDER],
   );
 });
 
