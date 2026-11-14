@@ -12,7 +12,7 @@ import {
 import { Desktop } from "./Desktop";
 
 describe(Desktop.name, () => {
-  it("boots to a desktop with Fusteam, My Computer, the DOS Games folder, one icon per Fuse game, then Paint, Winamp and Control Panel, a taskbar and the clock", () => {
+  it("boots to a desktop in Windows 98's order: My Computer, Network Neighborhood, the DOS Games folder, Fusteam, one icon per Fuse game, then the programs and Control Panel, with a taskbar and the clock", () => {
     renderWithProviders(<Desktop />);
     const icons = within(screen.getByRole("list", { name: "Desktop icons" }));
     expect(
@@ -20,19 +20,19 @@ describe(Desktop.name, () => {
         .getAllByRole("button")
         .map((item) => item.lastElementChild?.textContent),
     ).toEqual([
-      "Fusteam",
       "My Computer",
+      "Network Neighborhood",
       "DOS Games",
+      "Fusteam",
       "Fuseball",
       "Fuse Riders",
       "Fuse Birds",
       "Paint",
       "Winamp",
-      "Napster",
       "mIRC",
+      "Napster",
       "DC++",
       "Control Panel",
-      "Network Neighborhood",
     ]);
     expect(screen.getByRole("toolbar", { name: "Taskbar" })).toHaveTextContent(
       /2:34 PM/,
