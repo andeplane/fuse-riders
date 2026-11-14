@@ -1586,11 +1586,17 @@
   height: 40px;
   max-height: 40px;
 }
-/* One open seat is the invitation to add somebody: the rest of an empty room is not shown. */
-.fui-room-compact
+/* One open seat is the invitation to add somebody: the rest of an empty room is not shown. Where each seat is a
+   role to choose (`compactShowsEverySeat`) they all show, two to a row. */
+.fui-room-compact:not(.fui-room-every-seat)
   .fui-room-open-slot:not(.fui-slot-occupied)
   ~ .fui-room-open-slot:not(.fui-slot-occupied) {
   display: none;
+}
+@media (min-width: 641px) {
+  .fui-room-layout.fui-room-compact.fui-room-every-seat .fui-room-open-slot {
+    flex: 1 1 calc(50% - 10px);
+  }
 }
 @media (max-width: 640px) {
   .fui-room-compact .fui-room-players > * {

@@ -329,8 +329,8 @@ function soundRow(onChange: () => void = () => undefined): HTMLElement {
 }
 
 /**
- * The main menu's Settings: this device's preferences. The sound switches and Hold to flap belong to the device, and
- * Shared TV decides what the next room this device creates will be.
+ * The main menu's Settings: this device's preferences, the sound switches and Hold to flap. Shared TV is a room's
+ * choice and is made in the room.
  */
 function preferences(): HTMLElement[] {
   return [
@@ -338,12 +338,6 @@ function preferences(): HTMLElement[] {
     soundRow(),
     el("p", "CONTROLS", "kf-pref-title"),
     holdToFlapToggle(),
-    el("p", "ROOMS", "kf-pref-title"),
-    checkbox(
-      "Shared TV: phones are the controllers",
-      store.getItem(names.shared) === "1",
-      (on) => store.setItem(names.shared, on ? "1" : "0"),
-    ),
   ];
 }
 
@@ -570,7 +564,23 @@ function room(solo: boolean): void {
   onHoldToFlap = (on) => controls.setHoldToFlap(on);
 
   // ---- the page ----
-  const status = createNotice({ className: "kf-status" });
+  // How the room is doing sits at the lobby's foot, and beside the menu while a match is on the screen (a link that
+  // is retrying or a player who lags is said there, as it always was); what went wrong is said above the room.
+  const status = createNotice({ className: "kf-status" }),
+    live = createNotice({ className: "kf-live" }),
+    problem = createNotice({ className: "kf-alert" });
+  problem.element.setAttribute("role", "alert");
+  const say = (text: string, tone: "info" | "error") => {
+    if (tone === "error") {
+      status.clear();
+      live.clear();
+      problem.show(text, "error");
+    } else {
+      problem.clear();
+      status.show(text, "info");
+      live.show(text, "info");
+    }
+  };
   const menu = createGameMenu({
     controls: CONTROLS,
     touchControls: TOUCH_CONTROLS,
@@ -623,8 +633,9 @@ function room(solo: boolean): void {
   };
   // Until a room says otherwise — the landing page, the lobby — the lobby track is the one that belongs.
   music.want("lobby");
-  const codeChip = el("strong", solo ? "SOLO" : code, "kf-code");
-  const top = header([codeChip, status.element, menu.element]);
+  // The room's code is on its invitation, and in the lobby its state is at the lobby's foot: the bar holds the
+  // state only while a match is on.
+  const top = header([live.element, menu.element]);
   createTopBar({
     element: top,
     sound: {
@@ -660,7 +671,6 @@ function room(solo: boolean): void {
     start = button("START", "fui-button-primary kf-start"),
     lobbyNote = el("p", "", "fui-lobby-note"),
     tvLink = button("OPEN TV SCREEN", "kf-tv"),
-    lobbyActions = el("div", "", "kf-actions"),
     // What each role does, beside the slots a player is choosing between.
     roleLegend = el("ul", "", "kf-roles");
   roleLegend.append(...ROLE_LEGEND.map((line) => el("li", line)));
@@ -716,15 +726,28 @@ function room(solo: boolean): void {
     { group: mapGroup, value: (s: Settings) => String(s.map) },
     { group: winsGroup, value: (s: Settings) => String(s.wins) },
   ];
-  // Shared TV is a room setting too: the host can turn the phones-as-controllers mode on from the same dialog.
+  // Shared TV is the room's choice, made in the room: the host turns it on under the invitation and opens the
+  // screen beside it. The choice is remembered for the next room this device creates.
+  // Between the tick of the box and the room's answer the room still says the old value: the box keeps the host's
+  // choice until the room agrees, or a second has passed, rather than flipping back for a few frames.
+  let tvWish: { display: boolean; until: number } | undefined;
   const sharedTv = checkbox(
     "Shared TV: phones are the controllers",
     DEFAULT_SETTINGS.display,
-    (display) => change({ display }),
+    (display) => {
+      if (change({ display })) {
+        tvWish = { display, until: performance.now() + 1000 };
+        store.setItem(names.shared, display ? "1" : "0");
+      }
+      // Refused (the room is not up yet, or this is no longer the host): the box goes back to what the room has.
+      else sharedTvBox.checked = settings.display;
+    },
   );
   const sharedTvBox = sharedTv.querySelector("input")!;
-  settingsBox.append(...groups.map(({ group }) => group.element), sharedTv);
-  lobbyActions.append(tvLink, start);
+  const tvOption = el("div", "", "fui-room-extra kf-tv-option");
+  tvOption.append(sharedTv, tvLink);
+  tvOption.hidden = true;
+  settingsBox.append(...groups.map(({ group }) => group.element));
   start.onclick = () => runtime.command({ type: "action", action: "start" });
   tvLink.onclick = () =>
     window.open(
@@ -841,7 +864,7 @@ function room(solo: boolean): void {
   const main = el("main", "", "kf-room");
   if (lesson) main.dataset.lesson = lesson.id;
   main.tabIndex = -1;
-  main.append(nameEntry.form, lobby, arena);
+  main.append(problem.element, nameEntry.form, lobby, arena);
   app.replaceChildren(top, main);
   // The shared room: the invitation and the game settings on the left, the six numbered seats on the right. The
   // layout moves the page's own controls; the commands, permissions and validation stay here.
@@ -853,15 +876,19 @@ function room(solo: boolean): void {
     capacity: ROOM_CAPACITY,
     join: nameEntry.form,
     settings: [settingsBox, settingsLine],
-    actions: [
-      roleLegend,
-      watchers,
-      takeSeat,
-      lobbyNote,
-      lobbyActions,
-      tipBox,
-      howToPlay(),
-    ],
+    actions: [roleLegend, watchers, takeSeat, lobbyNote, tipBox, howToPlay()],
+    // Back, Settings and START lead the room and stay there; the invitation and the seats scroll under them.
+    actionsInHeader: true,
+    extras: [tvOption],
+    status: status.element,
+    // Alone with the bots there is no invitation, and each of the six seats is a role to choose: all of them show.
+    ...(solo
+      ? {
+          compact: true,
+          compactShowsEverySeat: true,
+          heading: "Solo vs bots",
+        }
+      : { heading: "Room" }),
     background: demoBackground,
     slotColor,
     slotLabel,
@@ -1024,13 +1051,18 @@ function room(solo: boolean): void {
     for (const { group, value } of groups)
       for (const input of group.inputs)
         input.checked = input.value === value(settings);
-    if (sharedTvBox.checked !== settings.display)
+    if (
+      tvWish &&
+      (settings.display === tvWish.display || performance.now() > tvWish.until)
+    )
+      tvWish = undefined;
+    if (!tvWish && sharedTvBox.checked !== settings.display)
       sharedTvBox.checked = settings.display;
     start.hidden = !next.lobby.showStart;
     start.disabled = !next.lobby.canStart;
     lobbyNote.textContent = next.lobby.note;
-    const offerTv = settings.display && next.host && !solo;
-    tvLink.hidden = !offerTv;
+    tvOption.hidden = !(editable && next.host && !solo);
+    tvLink.hidden = !settings.display;
     // Arena.
     scoreLine.textContent = next.arena.line;
     banner.hidden = !next.arena.banner;
@@ -1331,19 +1363,19 @@ function room(solo: boolean): void {
     },
     status(text) {
       const shown = roomFailure(text);
-      status.show(shown, shown === text ? "info" : "error");
+      say(shown, shown === text ? "info" : "error");
     },
     ready(id) {
       viewer.me = id;
     },
     ended() {
-      status.show("Room ended", "error");
+      say("Room ended", "error");
       // A service that does not host this game closes the socket the same way: its game routes say which it was.
       void fetch(endpoints.apiUrl(`/api/games/${GAME}/leaderboard`))
         .then(async (response) => {
           const body = (await response.json()) as { error?: unknown };
           const text = roomFailure(String(body.error ?? ""));
-          if (text === NOT_OPEN) status.show(text, "error");
+          if (text === NOT_OPEN) say(text, "error");
         })
         .catch(() => {
           /* offline: "Room ended" stands */
