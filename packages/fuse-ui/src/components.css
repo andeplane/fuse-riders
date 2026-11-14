@@ -1,3 +1,4 @@
+@import "@fontsource/press-start-2p/latin.css";
 /*
  * Styles for the fuse-ui components (their default `fui-*` classes), in the Fuse Riders look. Needs tokens.css first.
  *
@@ -568,5 +569,463 @@
   .fui-round-controls .fui-controls-row {
     font-size: 0.7rem;
     gap: 0.1rem 0.5rem;
+  }
+}
+/* The shared front door and waiting room. Keep game canvases and their clocks game-owned. */
+.fui-main-menu {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  min-height: min(820px, calc(100svh - 100px));
+  width: 100%;
+  padding: clamp(24px, 5vw, 72px) 24px;
+  box-sizing: border-box;
+  color: #e8f5ff;
+}
+.fui-main-menu-home {
+  width: min(100%, 540px);
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+.fui-main-menu .fui-main-menu-title {
+  font-style: normal;
+  font-weight: 400;
+  color: #e8f5ff;
+  letter-spacing: 0;
+  font-family: "Press Start 2P", monospace;
+  font-size: clamp(24px, 3.4vw, 44px);
+  line-height: 1.5;
+  margin: 0 0 20px;
+  text-wrap: balance;
+}
+.fui-main-menu .fui-main-menu-description {
+  color: #b7cde2;
+  font:
+    16px/1.6 system-ui,
+    sans-serif;
+  margin: 0 auto 36px;
+  max-width: 48ch;
+}
+.fui-main-menu-nav {
+  display: grid;
+  gap: 10px;
+  margin-inline: auto;
+  max-width: 360px;
+}
+.fui-main-menu button,
+.fui-room-layout button,
+.fui-menu-dialog button {
+  cursor: pointer;
+}
+.fui-main-menu .fui-main-menu-nav > button {
+  min-height: 54px;
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid #365370;
+  background: #101f35;
+  color: #e8f5ff;
+  font:
+    600 17px/1.3 system-ui,
+    sans-serif;
+  text-transform: none;
+  letter-spacing: 0;
+  box-shadow: none;
+}
+.fui-main-menu .fui-main-menu-nav > .fui-menu-primary {
+  background: #18dbeb;
+  border-color: #18dbeb;
+  color: #031b29;
+  min-height: 64px;
+  font-size: 21px;
+  margin-bottom: 10px;
+}
+.fui-main-menu-nav > button:hover {
+  border-color: #18dbeb;
+  background: #19334d;
+}
+.fui-main-menu-nav > .fui-menu-primary:hover {
+  background: #75edf5;
+}
+.fui-main-menu-nav > button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+.fui-main-menu .fui-main-menu-other {
+  margin: 22px 0 0;
+  border: 0;
+  background: transparent;
+  color: #b7cde2;
+  font:
+    14px/1.5 system-ui,
+    sans-serif;
+  text-transform: none;
+  box-shadow: none;
+}
+.fui-menu-error {
+  color: #ffb1c4;
+}
+.fui-main-menu [hidden],
+.fui-room-layout [hidden] {
+  display: none !important;
+}
+.fui-menu-dialog {
+  color: #e8f5ff;
+  background: #0b1426;
+  border: 1px solid #365370;
+  border-radius: 16px;
+  width: min(900px, calc(100vw - 32px));
+  max-height: calc(100svh - 40px);
+  padding: 0;
+  box-sizing: border-box;
+  box-shadow: 0 24px 80px #0009;
+}
+.fui-menu-dialog::backdrop {
+  background: #020714d9;
+}
+.fui-menu-dialog:not([open]) {
+  display: none !important;
+}
+.fui-menu-dialog .fui-dialog-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #101f35;
+  padding: 18px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.fui-menu-dialog .fui-dialog-body {
+  padding: 24px;
+}
+.fui-menu-dialog .fui-landing {
+  margin: 0;
+  width: 100%;
+  max-width: none;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.fui-menu-dialog .fui-landing-title,
+.fui-menu-dialog .fui-landing-tagline {
+  display: none;
+}
+.fui-menu-dialog .fui-landing-actions {
+  display: grid;
+  gap: 16px;
+}
+.fui-menu-dialog .fui-join-code {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.fui-menu-dialog .fui-join-code-input {
+  flex: 1;
+  min-width: 120px;
+}
+.fui-menu-help {
+  line-height: 1.7;
+}
+.fui-menu-credits {
+  font:
+    17px/1.8 system-ui,
+    sans-serif;
+}
+.fui-menu-credits ul {
+  list-style: none;
+  padding: 0;
+  margin-top: 20px;
+}
+.fui-menu-settings {
+  display: grid;
+  gap: 20px;
+}
+.fui-main-menu :focus-visible,
+.fui-menu-dialog :focus-visible,
+.fui-room-layout :focus-visible {
+  outline: 3px solid #f7dc61;
+  outline-offset: 4px;
+}
+.fui-room-layout.fui-room-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 56px);
+  width: min(1100px, calc(100% - 40px));
+  max-width: 1100px;
+  margin: 36px auto;
+  padding: clamp(20px, 3vw, 40px);
+  box-sizing: border-box;
+  align-items: start;
+  background: #0b1426;
+  border: 1px solid #294158;
+  border-radius: 16px;
+  color: #e8f5ff;
+}
+.fui-room-invitation {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.fui-room-layout .fui-invite {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  position: static;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+.fui-room-layout .fui-invite-qr {
+  display: block;
+  width: min(100%, 220px);
+  height: auto;
+  border-radius: 10px;
+}
+.fui-room-layout .fui-invite-url {
+  display: none;
+}
+.fui-room-layout .fui-room-code {
+  font-size: 28px;
+  letter-spacing: 0.14em;
+}
+.fui-room-layout .fui-invite-caption,
+.fui-room-layout .fui-room-code {
+  color: #e8f5ff;
+}
+.fui-room-layout .fui-invite-caption {
+  font:
+    13px/1.5 system-ui,
+    sans-serif;
+}
+.fui-room-settings {
+  width: 100%;
+  min-height: 48px;
+}
+.fui-room-players {
+  min-width: 0;
+}
+.fui-room-players > h2 {
+  margin: 0 0 20px;
+  font:
+    700 22px/1.4 system-ui,
+    sans-serif;
+  text-transform: none;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.fui-room-count {
+  color: #b7cde2;
+  font:
+    16px/1.9 system-ui,
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.fui-room-layout .fui-roster {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+}
+.fui-room-layout .fui-roster-row,
+.fui-room-open-slot {
+  min-height: 62px;
+  box-sizing: border-box;
+  padding: 14px 18px;
+  border: 1px solid #365370;
+  border-radius: 10px;
+  background: #101f35;
+}
+.fui-room-open-slots {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+.fui-room-open-slot {
+  color: #a9c2d9;
+  border-style: dashed;
+  display: flex;
+  align-items: center;
+  font:
+    15px/1.5 system-ui,
+    sans-serif;
+}
+.fui-room-join {
+  display: flex;
+  align-items: start;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+}
+.fui-room-join > form {
+  flex: 1;
+  min-width: 180px;
+  margin: 0;
+}
+.fui-room-join > button {
+  min-height: 46px;
+}
+.fui-room-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 24px;
+}
+.fui-room-actions > p {
+  flex-basis: 100%;
+  margin: 0;
+  color: #b7cde2;
+}
+.fui-room-layout.fui-room-layout .fui-roster-empty {
+  display: none;
+}
+.fui-room-layout.fui-room-layout button,
+.fui-menu-dialog.fui-menu-dialog button {
+  font:
+    600 14px/1.4 system-ui,
+    sans-serif;
+  text-transform: none;
+  letter-spacing: 0;
+  background: #16334c;
+  color: #e8f5ff;
+  border: 1px solid #456582;
+  border-radius: 8px;
+  padding: 12px 16px;
+  box-shadow: none;
+}
+.fui-room-layout button:disabled,
+.fui-menu-dialog button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.fui-room-layout.fui-room-layout input,
+.fui-room-layout.fui-room-layout select,
+.fui-menu-dialog.fui-menu-dialog input,
+.fui-menu-dialog.fui-menu-dialog select {
+  background: #101f35;
+  color: #e8f5ff;
+  border: 1px solid #456582;
+  border-radius: 8px;
+  padding: 12px;
+  min-width: 0;
+  box-sizing: border-box;
+  font:
+    16px/1.4 system-ui,
+    sans-serif;
+}
+.fui-room-layout input::placeholder,
+.fui-menu-dialog input::placeholder {
+  color: #a9c2d9;
+}
+.fui-menu-dialog .fui-dialog-body {
+  color: #e8f5ff;
+}
+.fui-main-menu {
+  background: #050d1bd9;
+}
+.fui-menu-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.18;
+  z-index: 0;
+  pointer-events: none;
+}
+.fui-menu-stage.fui-menu-stage {
+  display: block;
+  position: relative;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+.fui-menu-stage > .fui-menu-scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  border: 0;
+}
+.fui-room-layout .fui-room-invitation .fui-room-code,
+.fui-room-layout .fui-room-invitation .fui-invite-caption {
+  color: #e8f5ff;
+}
+.fui-room-layout .fui-room-invitation .fui-invite-url,
+.fui-room-layout .room-qr-url,
+.fui-room-layout .fl-invite-url {
+  display: none;
+}
+.fui-room-layout .fui-room-join form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: start;
+  width: auto;
+  max-width: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+.fui-room-layout .fui-room-join form > input {
+  flex: 1;
+  width: auto;
+  min-width: 120px;
+}
+.fui-room-layout .fui-room-join .lobby-join-title {
+  display: none;
+}
+.fui-room-layout .fui-room-join .join-appearance {
+  order: 2;
+  flex-basis: 100%;
+  font:
+    14px/1.5 system-ui,
+    sans-serif;
+}
+.fui-room-layout .fui-room-join .join-appearance > summary {
+  padding: 10px 0;
+  cursor: pointer;
+  color: #b7cde2;
+}
+.fui-room-layout .fui-room-join .join-spectate {
+  order: 3;
+}
+.fui-room-layout .fui-room-actions .fl-lobby-note {
+  padding: 0;
+  background: none;
+  color: #b7cde2;
+}
+@media (max-width: 640px) {
+  .fui-main-menu {
+    min-height: calc(100svh - 90px);
+    padding: 30px 20px;
+  }
+  .fui-room-layout.fui-room-layout {
+    grid-template-columns: 1fr;
+    width: calc(100% - 24px);
+    margin: 16px auto;
+    padding: 20px;
+  }
+  .fui-room-invitation {
+    grid-template-columns: 1fr;
+  }
+  .fui-room-layout .fui-invite-qr {
+    width: 150px;
+  }
+  .fui-main-menu-description {
+    margin-bottom: 24px;
   }
 }

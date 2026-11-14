@@ -151,6 +151,8 @@ export interface Roster {
   row(id: string): HTMLElement | undefined;
   /** Every row, as `[id, row element]`, in insertion order. */
   entries(): IterableIterator<[string, HTMLElement]>;
+  /** Explicit layout subscription; no polling or mutation observers. */
+  observe(listener: (members: readonly RosterMember[]) => void): void;
 }
 
 /** The lobby's list of who is in the room: avatar, name, status and a HOST badge. */
@@ -165,9 +167,13 @@ export function createRoster(options: RosterOptions = {}): Roster {
     : undefined;
   if (empty) element.append(empty);
   const rows = new Map<string, RosterRow>();
+  const listeners: ((members: readonly RosterMember[]) => void)[] = [];
   return {
     element,
     empty,
+    observe: (listener) => {
+      listeners.push(listener);
+    },
     row: (id) => rows.get(id)?.entry,
     *entries() {
       for (const [id, row] of rows) yield [id, row.entry];
@@ -232,6 +238,7 @@ export function createRoster(options: RosterOptions = {}): Roster {
         }
       }
       if (empty && empty.hidden !== rows.size > 0) empty.hidden = rows.size > 0;
+      for (const listener of listeners) listener(members);
     },
   };
 }

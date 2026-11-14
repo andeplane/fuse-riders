@@ -1,4 +1,4 @@
-import { button, createInviteCard, el } from "fuse-ui";
+import { button, createInviteCard, createRoomLayout, el } from "fuse-ui";
 import { LEVELS, WEEK_SECONDS } from "../game/index.js";
 import type { Art } from "./art.js";
 import { GOAL_PRESETS } from "./menu.js";
@@ -155,10 +155,21 @@ export function createRoomLobby(options: RoomLobbyOptions) {
   const body = el("div", "", "fl-lobby-body");
   body.append(who, goalsBlock, levelBlock, weekBlock, note, buttons);
   element.append(side, body);
+  const layout = createRoomLayout({
+    element,
+    invite: invite.element,
+    roster,
+    capacity: 5,
+    addAI: addBot,
+    settings: [goalsBlock, levelBlock, weekBlock],
+    actions: [note, start, ...(options.extra ?? [])],
+  });
 
   return {
     element,
+    attachJoin: layout.attachJoin,
     render(model: LobbyModel, tvHost: boolean): void {
+      layout.update(model.members.length);
       for (const [id, row] of rows)
         if (!model.members.some((member) => member.id === id)) {
           row.root.remove();

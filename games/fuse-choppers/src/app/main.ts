@@ -23,6 +23,7 @@ import {
   createGameMenu,
   createInviteCard,
   createLandingCard,
+  createRoomLayout,
   createNameEntry,
   createPicker,
   createNotice,
@@ -308,7 +309,7 @@ function landing(): void {
   });
   card.create.after(shared);
   card.create.parentElement!.before(pilotPicker());
-  card.element.append(keyHelp());
+  card.menu.help.append(keyHelp());
   const back = el("a", "← FUSE RIDERS", "fc-back");
   back.href = import.meta.env.BASE_URL + (muted ? "?mute" : "");
   const menu = createGameMenu(flightGuide(devSettings().lift));
@@ -417,7 +418,6 @@ function room(solo: boolean): void {
       runtime.command({ type: "join", name, avatarId: chosenAvatar() });
     },
   });
-  nameEntry.form.prepend(pilotPicker());
   lobbyMain.append(
     el("h2", "PILOTS", "fui-lobby-title"),
     roster.element,
@@ -633,6 +633,16 @@ function room(solo: boolean): void {
   screen.append(roundControls.element);
   main.append(connecting, closed, nameEntry.form, lobby, stage, controller);
   app.replaceChildren(top, main);
+  createRoomLayout({
+    element: lobby,
+    roster,
+    capacity: 5,
+    join: nameEntry.form,
+    appearance: [pilotPicker()],
+    addAI: addBot,
+    settings: [rules],
+    actions: [lobbyNote, tvLink, start],
+  });
   lobby.hidden = true;
   stage.hidden = true;
   controller.hidden = true;
@@ -931,7 +941,7 @@ function room(solo: boolean): void {
       settings = roomSettings;
       const next = present(frame, viewer);
       main.dataset.round = String(frame.round);
-      if (next.askName && remembered && !joinSent) {
+      if (next.askName && remembered && !joinSent && !viewer.host) {
         joinSent = true;
         runtime.command({
           type: "join",

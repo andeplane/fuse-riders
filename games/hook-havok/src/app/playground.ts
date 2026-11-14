@@ -699,8 +699,7 @@ const enterRoom = async () => {
       true,
     );
     el("invitation").hidden = false;
-    let joined = false,
-      started = false;
+    let started = false;
     runtime = new HookRuntime(
       room.code,
       DEFAULT_TUNING,
@@ -766,15 +765,7 @@ const enterRoom = async () => {
               !menu.isOpen(),
           );
           paintBombButton(frame);
-          if (!display && !joined) {
-            joined = !!runtime?.command({
-              type: "join",
-              name:
-                social.playerName(
-                  el<HTMLInputElement>("keeper-name").value.trim(),
-                ) || "Lantern keeper",
-            });
-          }
+          if (frame.stage === "lobby") entrance.play();
           if (restartRequested && frame.stage === "lobby") {
             started = false;
             restartRequested = false;
@@ -1258,7 +1249,16 @@ window.addEventListener("pagehide", () => {
 window.addEventListener("pageshow", (e) => {
   if (e.persisted) location.reload();
 });
-const matchShell = createMatchShell();
+const matchShell = createMatchShell({
+  join(name) {
+    el<HTMLInputElement>("keeper-name").value = name;
+    runtime?.command({ type: "join", name: social.playerName(name) || name });
+  },
+  addAI() {
+    botCount.value = String(Math.min(4, Number(botCount.value) + 1));
+    botCount.dispatchEvent(new Event("change"));
+  },
+});
 const knockoutFeed = createKnockoutFeed(document.querySelector(".stage")!);
 const menu = createGameMenu({
   controls: HOOK_CONTROLS,

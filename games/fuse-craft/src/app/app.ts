@@ -15,6 +15,7 @@ import {
   TERRITORY,
 } from "../engine/index.js";
 import { updateContent } from "./dom-update.js";
+import { createMainMenu, roomLayoutMarkup } from "fuse-ui";
 import { planNeuronPlacement } from "./neuron-placement.js";
 import { minimapMarkup, minimapCell } from "../render/minimap.js";
 import { battleFocusCell } from "../render/battle-focus.js";
@@ -1287,12 +1288,18 @@ export function mountFuseCraft(
       )
       .join("");
     const disabled = room.manager && room.stage === "lobby" ? "" : "disabled";
-    const link = dependencies.online?.roomLink(room.code) ?? "";
-    return `${header("Versus room", room.code)}<main class="setup-layout room-layout"><section class="nd-panel"><p class="section-index">PLAYERS · ${ready}/${capacity}</p><ul class="room-seats">${seats || '<li class="room-seat empty">Nobody has joined yet</li>'}</ul>${
-      seated
-        ? ""
-        : `<label class="field-label" for="player-name">Your name</label><div class="join-row"><input id="player-name" data-field="player-name" maxlength="32" autocomplete="nickname" value="${escape(playerName)}" placeholder="Name"><button data-action="join-seat" class="primary">Join</button></div>`
-    }${room.manager && room.stage === "lobby" && players.length < capacity ? '<button data-action="add-bot" class="secondary">+ Add bot</button>' : ""}</section><aside class="nd-panel setup-summary"><p class="section-index">INVITE</p><div class="room-invite"><strong class="room-code">${escape(room.code)}</strong>${roomQr?.code === room.code ? `<img class="room-qr" src="${escape(roomQr.url)}" alt="QR code for the room link">` : ""}<small>${escape(link)}</small><button data-action="copy-room-link" class="secondary">Copy link</button></div><p class="section-index">RULES</p><label class="field-label" for="room-map">Map</label><select id="room-map" data-field="room-map" ${disabled}>${ROOM_MAPS.map((map) => `<option value="${map.id}" ${map.id === room.mapId ? "selected" : ""}>${escape(map.title)} · ${map.seats} players</option>`).join("")}</select><label class="field-label" for="room-strategy">Bot opening</label><select id="room-strategy" data-field="room-strategy" ${disabled}>${openingOptions(room.aiStrategy)}</select><label class="toggle-field"><input type="checkbox" data-field="room-powerups" ${room.powerups ? "checked" : ""} ${disabled}> Random powerups</label><p class="room-status" role="status">${escape(room.stage === "connecting" ? "Connecting to the room…" : players.length > capacity ? `Too many players for this map: it seats ${capacity}. Pick a larger map or ask someone to leave.` : room.status)}</p><div class="button-row"><button data-action="leave-room" class="secondary">Leave</button>${room.manager ? `<button data-action="start-room" class="primary" ${canStart ? "" : "disabled"}>Start match</button>` : '<span class="room-wait">Waiting for the host to start…</span>'}</div></aside></main>`;
+    return (
+      header("Versus room", room.code) +
+      roomLayoutMarkup({
+        occupied: players.length,
+        capacity,
+        invite: `<div class="fui-invite"><strong class="fui-room-code">${escape(room.code)}</strong>${roomQr?.code === room.code ? `<img class="fui-invite-qr" src="${escape(roomQr.url)}" alt="Scan to join this room">` : ""}<button data-action="copy-room-link">Copy link</button></div>`,
+        players: `<ul class="room-seats fui-roster">${seats}</ul>`,
+        join: `${seated ? "" : `<div class="join-row"><label for="player-name">Your name</label><input id="player-name" data-field="player-name" maxlength="32" autocomplete="nickname" value="${escape(playerName)}" placeholder="Name"><button data-action="join-seat" class="primary">Join</button></div>`}${room.manager && room.stage === "lobby" && players.length < capacity ? '<button data-action="add-bot">Add AI</button>' : ""}`,
+        settings: `<label for="room-map">Map</label><select id="room-map" data-field="room-map" ${disabled}>${ROOM_MAPS.map((map) => `<option value="${map.id}" ${map.id === room.mapId ? "selected" : ""}>${escape(map.title)} · ${map.seats} players</option>`).join("")}</select><label for="room-strategy">Bot opening</label><select id="room-strategy" data-field="room-strategy" ${disabled}>${openingOptions(room.aiStrategy)}</select><label class="toggle-field"><input type="checkbox" data-field="room-powerups" ${room.powerups ? "checked" : ""} ${disabled}> Random powerups</label>`,
+        actions: `<p class="room-status" role="status">${escape(room.stage === "connecting" ? "Connecting to the room…" : players.length > capacity ? `Too many players for this map: it seats ${capacity}. Pick a larger map or ask someone to leave.` : room.status)}</p><button data-action="leave-room">Leave</button>${room.manager ? `<button data-action="start-room" class="primary" ${canStart ? "" : "disabled"}>Start match</button>` : "<span>Waiting for the host to start…</span>"}`,
+      })
+    );
   }
 
   function openRoom(code: string) {
@@ -1345,8 +1352,15 @@ export function mountFuseCraft(
       return;
     }
     if (screen === "room") {
+      const settingsOpen = root.querySelector<HTMLDialogElement>(
+        "[data-room-settings]",
+      )?.open;
       updateContent(root, roomMarkup());
       decorate();
+      if (settingsOpen)
+        root
+          .querySelector<HTMLDialogElement>("[data-room-settings]")
+          ?.showModal();
       return;
     }
     if (screen === "game") renderGame();
@@ -1418,6 +1432,32 @@ export function mountFuseCraft(
                   : gameMarkup();
     decorate();
     if (screen === "menu") {
+      const play = root.querySelector<HTMLElement>(".menu-layout")!;
+      const marker = root.ownerDocument.createComment("Shared menu");
+      play.before(marker);
+      const menu = createMainMenu({
+        title: "FUSE CRAFT",
+        description: "Build your network. Keep the signal alive.",
+        play,
+        onPlay: dependencies.online
+          ? async () => {
+              screen = "multiplayer";
+              await createRoom();
+            }
+          : () => {
+              screen = "setup";
+              render();
+            },
+        onHowToPlay: () => {
+          screen = "guide";
+          render();
+        },
+        onSettings: () => {
+          screen = "settings";
+          render();
+        },
+      });
+      marker.replaceWith(menu.element);
       const scenery = root.querySelector<SVGSVGElement>("#nd-attract-board");
       if (scenery)
         renderBoard(
@@ -1554,6 +1594,16 @@ export function mountFuseCraft(
       return;
     }
     const button = target.closest<HTMLElement>("[data-action]");
+    if (button?.dataset.action === "open-room-settings") {
+      root
+        .querySelector<HTMLDialogElement>("[data-room-settings]")
+        ?.showModal();
+      return;
+    }
+    if (button?.dataset.action === "close-room-settings") {
+      root.querySelector<HTMLDialogElement>("[data-room-settings]")?.close();
+      return;
+    }
     if (button?.getAttribute("aria-disabled") === "true") {
       dependencies.audio?.play("invalid");
       button.focus?.();

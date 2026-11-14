@@ -18,6 +18,7 @@ import {
   button,
   createAppPortal,
   createLandingCard,
+  createRoomLayout,
   createInviteCard,
   createNameEntry,
   createNotice,
@@ -186,6 +187,9 @@ function landing() {
     ),
   );
   art.append(c, title);
+  title.remove();
+  hero.classList.add("fui-menu-stage");
+  art.classList.add("fui-menu-scene");
   const shared = el("label", "", "shared"),
     toggle = el("input");
   toggle.type = "checkbox";
@@ -194,7 +198,7 @@ function landing() {
     store.setItem(names.shared, toggle.checked ? "1" : "0");
   shared.append(toggle, el("span", "Shared TV + phone controllers"));
   const card = createLandingCard({
-    title: "CLOCK IN",
+    title: "GRAVEYARD SHIFT",
     tagline:
       "Catch ghosts. Fill your tank. Reach a shrine before a rival blows your haul loose.",
     soloText: "START SOLO SHIFT",
@@ -210,7 +214,7 @@ function landing() {
   card.create.after(shared);
   const guide = button("HOW TO PLAY", "guide");
   guide.onclick = handbook;
-  card.element.append(
+  card.menu.help.append(
     guide,
     el("p", "2–5 HUNTERS • SOLO + BOTS • 90 SECONDS", "meta"),
   );
@@ -437,6 +441,14 @@ function room() {
   result.hidden = true;
   name.form.hidden = true;
   app.append(main);
+  createRoomLayout({
+    element: lobby,
+    roster,
+    capacity: 5,
+    join: name.form,
+    addAI: add,
+    actions: [ready, tv, help],
+  });
   let previous: World | undefined;
   runtime = new GraveyardRuntime(
     code,
@@ -484,7 +496,7 @@ function room() {
           ? "WAITING FOR CREW…"
           : "READY FOR ANOTHER SHIFT";
         back.hidden = !host;
-        if (!display) admission.observe(!!mine);
+        if (!display && !host) admission.observe(!!mine);
         roster.update(
           frame.seats
             .filter((s) => !s.watcher)

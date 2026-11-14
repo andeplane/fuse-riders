@@ -1,3 +1,4 @@
+import { openPlayOptions } from "./lib/main-menu.js";
 /** Browser Gamepad API harness, not physical-controller evidence. Only navigator.getGamepads is substituted;
  * the real landing, setup, input loop, runtime, simulation, dialogs and renderer run unchanged. */
 import assert from "node:assert/strict";
@@ -46,6 +47,7 @@ try {
   })()`);
   await page.goto(`${base}/?mute`);
   console.log("Controller smoke: landing loaded");
+  await openPlayOptions(page);
   await page.getByRole("link", { name: "PLAY LOCAL GAME CONTROLLERS" }).click();
   await page
     .getByText("No controllers detected yet.", { exact: false })

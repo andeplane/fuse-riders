@@ -106,6 +106,8 @@ import QRCode from "qrcode";
 import {
   createControllerRow,
   createInviteCard,
+  createRoomLayout,
+  createRoomAppearance,
   createLobbyShell,
   createRoster,
 } from "fuse-ui";
@@ -286,8 +288,7 @@ export async function startOnline(): Promise<void> {
    *
    * `display` is not a member and takes no seat; solo is seated by the runtime itself, with no room to arrive at.
    */
-  const seatsItself =
-    role === "joiner" || (role === "host" && settings.mode !== "shared");
+  const seatsItself = role === "joiner";
   let readyPlayers: readonly string[] = [];
   startAnalytics({ role, mode: settings.mode, solo });
   track("App Opened");
@@ -399,6 +400,17 @@ export async function startOnline(): Promise<void> {
       ? undefined
       : (playerName) => runtime.command({ type: "spectate", name: playerName }),
   );
+  const appearance = createRoomAppearance(
+    [
+      joinForm.picker.summary!,
+      joinForm.picker.element,
+      joinForm.colors.summary!,
+      joinForm.colors.element,
+    ],
+    document,
+  );
+  joinForm.element.append(appearance);
+  joinForm.submitButton.textContent = "Join";
   // Signed in on this browser but never opened MY GAMES here (an invite link on a new phone): learn the username while the form is still up.
   if (!solo && remembersSignIn() && !accountUsername())
     void fetchUsername(apiUrl("/api/me"), (input, init) =>
@@ -973,14 +985,17 @@ export async function startOnline(): Promise<void> {
     // Keep the creator's seat invitation beside the riders while the lobby is
     // visible. Outside the lobby it must remain reachable for mid-game joins.
     if (role !== "joiner") {
-      const joinParent = screen.lobbyCard ? lobbyRiders : app;
+      const joinParent = screen.lobbyCard
+        ? (sharedLobby.querySelector<HTMLElement>(".fui-room-join") ??
+          lobbyRiders)
+        : app;
       if (joinPanel.parentElement !== joinParent) {
         if (joinParent === app) {
           joinForm.element.querySelector("input")!.after(joinForm.submitButton);
           scoreboard.after(joinPanel);
         } else {
           joinForm.element.append(joinForm.submitButton);
-          lobbyRiders.prepend(joinPanel);
+          joinParent.prepend(joinPanel);
         }
         // Both ways in stay together wherever the seat invitation lands.
         joinForm.submitButton.after(joinForm.spectateButton);
@@ -1004,9 +1019,18 @@ export async function startOnline(): Promise<void> {
         ? header
         : footer;
     if (hostControls.parentElement !== actionsParent) {
-      if (desktop) header.insertBefore(hostControls, topMenu);
+      if (actionsParent === header) header.insertBefore(hostControls, topMenu);
       else actionsParent.append(hostControls);
     }
+    const aiParent = screen.lobbyCard
+      ? sharedLobby.querySelector<HTMLElement>(".fui-room-join")
+      : hostControls;
+    if (aiParent && addAI.parentElement !== aiParent) aiParent.append(addAI);
+    const settingsParent = screen.lobbyCard
+      ? sharedLobby.querySelector<HTMLElement>(".fui-room-invitation")
+      : hostControls;
+    if (settingsParent && settingsButton.parentElement !== settingsParent)
+      settingsParent.append(settingsButton);
     const noticeParent = desktop ? header : scoreboard;
     if (notice.parentElement !== noticeParent) noticeParent.append(notice);
   };
@@ -2075,6 +2099,19 @@ export async function startOnline(): Promise<void> {
   ];
   hud.after(...dialogElements);
   settingsButton.onclick = () => openSettings();
+  settingsButton.textContent = "Game settings";
+  createRoomLayout({
+    element: sharedLobby,
+    invite: qrCard,
+    roster: lobbyRoster,
+    capacity: 5,
+    settingsTrigger: settingsButton,
+    onSettings: () => openSettings(),
+    actions: [lobbyFooter],
+  });
+  sharedLobby.querySelector(".fui-room-invitation")!.append(settingsButton);
+  sharedLobby.querySelector(".fui-room-join")!.append(addAI);
+  addAI.textContent = "Add AI";
   // Ctrl+P (⌘P on a Mac) goes to the power-ups page instead of the browser's print dialog (#168). The key is only taken when it will act:
   // a joiner, a display or an ended room keeps the browser's print dialog, and an open dialog keeps its own chrome.
   window.addEventListener("keydown", (event) => {

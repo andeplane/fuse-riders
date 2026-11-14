@@ -8,6 +8,7 @@ import {
   createAppPortal,
   createDialog,
   createJoinByCode,
+  createMainMenu,
   createRadioGroup,
 } from "fuse-ui";
 import { createRoom, validRoomCode } from "fuse-network-fe";
@@ -326,6 +327,29 @@ export function showLanding(host: LandingHost): void {
   );
   friendsPanel.banner.classList.add("friends-invite-banner");
   card.append(accountPanel.dialog, friendsPanel.dialog);
+  const playOptions = node("div", "", "fui-landing");
+  playOptions.append(soloLink, localLink, form);
+  const mainMenu = createMainMenu({
+    title: "FUSE RIDERS",
+    description: "Outrun your friends. Blow up their plans.",
+    play: playOptions,
+    onPlay: async () => {
+      await create.onclick?.call(create, new PointerEvent("click"));
+      if (error.textContent) throw new Error(error.textContent);
+    },
+    howToPlay: [hint, guide],
+    onSettings: () => landingSettings.click(),
+  });
+  content.replaceWith(mainMenu.element);
+  live.remove();
+  footerBar.replaceChildren(attractToggle);
+  topEnd.querySelector(".landing-tag")?.remove();
+  mainMenu.help.prepend(
+    node(
+      "p",
+      "A / D or arrow keys steer. Hold Space to charge a bomb, then release to fire. Avoid trails and blasts. The last rider standing wins the round.",
+    ),
+  );
   app.append(friendsPanel.banner);
   window.addEventListener("pagehide", accountPanel.dispose, { once: true });
   // The attract loop stays Fuse Riders' own: it runs the game's engine and renderer behind the landing page.

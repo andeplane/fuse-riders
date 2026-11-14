@@ -4,6 +4,8 @@ This is the system map for the source tree: what exists on `main` today. Module 
 
 ## One runtime for local and online play
 
+Every game's front door and waiting room use the shared `fuse-ui` main-menu and room-layout components. Games supply content and command adapters; the shared components own the layout, credits, dialogs, invitation column and slot presentation. `scripts/game-lobbies-smoke.ts` exercises all game routes in CI. See [shared game menus](design/shared-game-menus.md).
+
 The site root is the screenshot gallery (`site/main.ts`, `fuse-ui/src/gallery.ts`). Vite builds its catalog and the in-game launcher from each game's `portal.json`, including its optional `screenshot` path. Every game has a dedicated page at `<base><game-id>/`, including Fuse Riders at `<base>fuse-riders/`. Root links with `room`, `solo` or `display` parameters still boot Riders for existing invites and bookmarks. The gallery loads no simulation or room connection; the launcher offers an **ALL GAMES** link back to it.
 
 ```text

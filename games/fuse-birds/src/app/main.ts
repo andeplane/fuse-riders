@@ -18,7 +18,14 @@ import {
   type Callbacks,
   type Frame,
 } from "fuse-netcode";
-import { button, createInviteCard, createNameEntry, el } from "fuse-ui";
+import {
+  button,
+  createInviteCard,
+  createNameEntry,
+  createMainMenu,
+  createRoomLayout,
+  el,
+} from "fuse-ui";
 import { createAppPortal } from "fuse-ui/portal";
 import { createGameSocial } from "fuse-ui/social";
 import { createModalInputGate } from "fuse-ui/modal-input";
@@ -195,7 +202,24 @@ function landing(): void {
   );
   const header = el("header", "", "birds-top");
   header.append(portal(), brand(), social.element());
-  page.append(header, card);
+  const mainMenu = createMainMenu({
+    title: "FUSE BIRDS",
+    description: intro.textContent ?? "",
+    play: card,
+    onPlay: async () => {
+      await create.onclick?.call(create, new PointerEvent("click"));
+      if (message.textContent?.includes("Try again"))
+        throw new Error(message.textContent);
+    },
+    howToPlay: [
+      el(
+        "p",
+        "Drag your bird backwards to aim, then release to fire. Drag elsewhere to pan. Pinch or scroll to zoom. Keyboard: I/K and J/L aim, Enter fires, Escape cancels. Be the last bird standing.",
+      ),
+    ],
+    settings: [label],
+  });
+  page.append(header, mainMenu.element);
   app.replaceChildren(page);
 }
 function room(code: string, display: boolean, practice = false): void {
@@ -322,6 +346,36 @@ function room(code: string, display: boolean, practice = false): void {
   board.hidden = true;
   page.append(header, lobby, board);
   app.replaceChildren(page);
+  const addAI = button("Add AI");
+  addAI.disabled = true;
+  addAI.title =
+    "Multiplayer AI is not available in Fuse Birds. Use solo practice or invite a friend.";
+  const aiNote = el(
+    "p",
+    "Multiplayer Birds needs friends. Solo practice is available from the main menu.",
+  );
+  const screenSetting = el("label"),
+    sharedScreen = el("input");
+  sharedScreen.type = "checkbox";
+  sharedScreen.onchange = () =>
+    runtime.command({
+      type: "settings",
+      settings: { display: sharedScreen.checked },
+    });
+  screenSetting.append(
+    sharedScreen,
+    document.createTextNode("Shared TV + phone controllers"),
+  );
+  const roomLayout = createRoomLayout({
+    element: lobby,
+    invite: invite.element,
+    roster: members,
+    capacity: 5,
+    join: nameEntry.form,
+    addAI,
+    settings: [screenSetting],
+    actions: [lobbyNote, aiNote, start, tv],
+  });
   page.classList.toggle("birds-tv", display);
   const gestures = createGestures({ x: 768, y: 384, zoom: 1 });
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -532,6 +586,8 @@ function room(code: string, display: boolean, practice = false): void {
           : "Supply collected. Scatter ammunition is already full.";
     },
     state(frame, settings) {
+      sharedScreen.checked = settings.display;
+      sharedScreen.disabled = !host || display;
       currentFrame = frame;
       host = frame.managerId === me;
       view = frame.world;
@@ -553,6 +609,7 @@ function room(code: string, display: boolean, practice = false): void {
       lobby.hidden = !inLobby;
       board.hidden = inLobby;
       nameEntry.form.hidden = display || seated || !inLobby;
+      roomLayout.update(frame.seats.filter((s) => !s.watcher).length);
       members.replaceChildren(
         ...frame.seats
           .filter((s) => !s.watcher)

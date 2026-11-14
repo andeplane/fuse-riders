@@ -136,3 +136,14 @@ export {
   type RoundControls,
   type RoundControlsState,
 } from "./game-menu.js";
+export {
+  createMainMenu,
+  VIBE_CODING_GANG,
+  type MainMenuOptions,
+} from "./main-menu.js";
+export {
+  createRoomLayout,
+  createRoomAppearance,
+  roomLayoutMarkup,
+  type RoomLayoutOptions,
+} from "./room-layout.js";

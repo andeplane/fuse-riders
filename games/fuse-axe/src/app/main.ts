@@ -23,6 +23,7 @@ import {
   createInviteCard,
   createKeyList,
   createLandingCard,
+  createRoomLayout,
   createNameEntry,
   createNotice,
   createPhoneLayout,
@@ -183,7 +184,7 @@ function landing(): void {
       location.href = withFlags(endpoints.appUrl(`?room=${code}`));
     },
   });
-  card.element.append(keyHelp());
+  card.menu.help.append(keyHelp());
   const back = el("a", "← FUSE RIDERS", "fa-back");
   back.href = import.meta.env.BASE_URL + (query.has("mute") ? "?mute" : "");
   app.replaceChildren(header([back, menu.element]), card.element);
@@ -491,6 +492,15 @@ function room(solo: boolean): void {
   main.tabIndex = -1;
   main.append(connecting, closed, nameEntry.form, lobby, stage, controller);
   app.replaceChildren(top, main, roundControls.element);
+  createRoomLayout({
+    element: lobby,
+    roster,
+    capacity: 5,
+    join: nameEntry.form,
+    addAI: addBot,
+    settings: [picker.element, blurb, share],
+    actions: [lobbyNote, tvLink, start],
+  });
   for (const part of [
     closed,
     nameEntry.form,
@@ -747,7 +757,7 @@ function room(solo: boolean): void {
       audio.frame(frame, next.screen === "controller");
       main.dataset.audio = audio.state;
       main.dataset.cues = String(audio.heard);
-      if (next.askName && remembered && !joinSent) {
+      if (next.askName && remembered && !joinSent && !viewer.host) {
         joinSent = true;
         runtime.command({
           type: "join",

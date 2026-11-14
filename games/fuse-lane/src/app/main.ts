@@ -608,6 +608,7 @@ function room(): void {
   joinCard.hidden = lobby.element.hidden = screen.game.hidden = true;
   const main = el("main", "", "fl-room");
   main.append(connecting, joinCard, lobby.element, ...screen.elements);
+  lobby.attachJoin(nameEntry.form);
   app.replaceChildren(top, main);
 
   const sent = new Set<string>();
@@ -642,10 +643,11 @@ function room(): void {
       connecting.hidden = true;
       lobby.element.hidden = model.screen !== "lobby";
       screen.game.hidden = model.screen === "lobby";
-      joinCard.hidden = !model.askName;
+      joinCard.hidden = !model.askName || model.screen === "lobby";
+      nameEntry.form.hidden = !model.askName;
       lobby.render(model.lobby, sharedHost);
       tvLink.hidden = !(viewer.host && !viewer.shared && !display);
-      if (model.askName && remembered && !joinSent) {
+      if (model.askName && remembered && !joinSent && !viewer.host) {
         joinSent = true;
         join(remembered);
       }

@@ -2,6 +2,7 @@ import { social } from "./social.js";
 import "fuse-ui/portal.css";
 import "./entrance.css";
 import { createAppPortal } from "fuse-ui/portal";
+import { createMainMenu } from "fuse-ui";
 
 interface EntranceOptions {
   main: HTMLElement;
@@ -123,6 +124,29 @@ export function createEntrance(o: EntranceOptions) {
   o.atmosphere.addEventListener("change", atmosphere);
   atmosphere();
   loadArt();
+  const entranceContent = root.querySelector<HTMLElement>(".entrance-content")!;
+  const menuMarker = document.createComment("Shared menu");
+  entranceContent.before(menuMarker);
+  const menu = createMainMenu({
+    title: "HOOK HAVOK",
+    description: "Find your foothold. Take theirs.",
+    play: entranceContent,
+    onPlay: async () => {
+      if (!o.start.disabled)
+        await o.start.onclick?.call(o.start, new PointerEvent("click"));
+    },
+    onHowToPlay: () =>
+      root.querySelector<HTMLDialogElement>("#entrance-help")!.showModal(),
+    onSettings: () =>
+      root.querySelector<HTMLDialogElement>("#entrance-settings")!.showModal(),
+  });
+  menuMarker.replaceWith(menu.element);
+  dialogs.push(menu.dialog);
+  // Status and retries stay visible even when the alternate play modes are closed.
+  menu.element.append(
+    entranceContent.querySelector<HTMLElement>('[data-slot="status"]')!,
+    entranceContent.querySelector<HTMLElement>('[data-slot="retry"]')!,
+  );
   function show() {
     bar.append(social.element());
     root.hidden = false;
@@ -136,7 +160,8 @@ export function createEntrance(o: EntranceOptions) {
   return {
     show,
     busy(busy: boolean, graphicsReady: boolean) {
-      close();
+      menu.play.disabled = busy || !graphicsReady;
+      if (busy) close();
       for (const button of [
         o.start,
         o.join,

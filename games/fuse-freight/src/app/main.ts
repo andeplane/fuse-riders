@@ -21,6 +21,7 @@ import {
   createGameMenu,
   createInviteCard,
   createLandingCard,
+  createRoomLayout,
   createNameEntry,
   createNotice,
   createRoster,
@@ -395,26 +396,16 @@ function landing(): void {
     },
   });
   card.create.after(shared);
-  card.element.classList.add("ff-landing-card");
-  card.element.append(keyHelp());
-  const title = el("div", "", "ff-title");
-  title.append(
-    el("b", "FUSE", "ff-title-fuse"),
-    el("b", "FREIGHT", "ff-title-freight"),
-    el("span", "COLLECT • STEAL • DELIVER", "ff-title-tagline"),
-  );
+  card.menu.help.append(keyHelp());
   const back = el("a", "← FUSE RIDERS", "ff-back");
   back.href = import.meta.env.BASE_URL + (muted ? "?mute" : "");
   const front = el("div", "", "ff-splash-front");
-  front.append(title, card.element);
+  front.append(card.element);
   splash.append(canvas, front);
   const menu = createGameMenu(controllerGuide);
   menu.update({ canLobby: false, touch: coarse() });
-  app.replaceChildren(
-    header([soundToggles(), back, menu.element]),
-    splash,
-    howToPlay(),
-  );
+  app.replaceChildren(header([soundToggles(), back, menu.element]), splash);
+  card.menu.help.append(howToPlay());
 }
 
 function attractWorld(): World {
@@ -636,6 +627,7 @@ function room(solo: boolean): void {
   lobby.append(lobbyMain, lobbySide);
   const lobbyRules = howToPlay();
   lobbyRules.classList.add("ff-howto-lobby");
+  lobbyRules.hidden = true;
 
   // The depot: canvas, HUD, banner, scoreboard and the result card on one 16:9 screen.
   const stage = el("section", "", "ff-stage"),
@@ -767,6 +759,15 @@ function room(solo: boolean): void {
   );
   screen.append(roundControls.element);
   app.replaceChildren(top, main, lobbyConfirm);
+  createRoomLayout({
+    element: lobby,
+    roster,
+    capacity: 5,
+    join: nameEntry.form,
+    addAI: addBot,
+    settings: [rules, lobbyRules],
+    actions: [lobbyNote, tvLink, start],
+  });
   lobby.hidden = true;
   lobbyRules.hidden = true;
   stage.hidden = true;
@@ -1111,7 +1112,7 @@ function room(solo: boolean): void {
       settings = roomSettings;
       const next = present(frame, viewer);
       main.dataset.round = String(frame.round);
-      if (next.askName && remembered && !joinSent) {
+      if (next.askName && remembered && !joinSent && !viewer.host) {
         joinSent = true;
         runtime.command({ type: "join", name: remembered });
       }

@@ -21,6 +21,7 @@ import {
   createGameMenu,
   createInviteCard,
   createLandingCard,
+  createRoomLayout,
   createNameEntry,
   createNotice,
   createRoster,
@@ -303,6 +304,7 @@ function landing(): void {
   hero.width = 1536;
   hero.height = 864;
   hero.decoding = "async";
+  hero.classList.add("fui-menu-backdrop");
   card.element.prepend(hero);
   const scoring = createScoringPicker((id) => {
     store.setItem(scoringKey, id);
@@ -321,7 +323,8 @@ function landing(): void {
     el("h2", "SOLO BOT", "fui-lobby-title"),
     bots.element,
   );
-  card.element.append(rules, keyHelp());
+  card.menu.addSettings(rules);
+  card.menu.help.append(keyHelp());
   const back = el("a", "← ALL GAMES", "fv-back");
   back.href = import.meta.env.BASE_URL + (muted ? "?mute" : "");
   const menu = createGameMenu(GUIDE);
@@ -558,6 +561,15 @@ function room(solo: boolean): void {
   const main = el("main", "", "fv-room");
   main.append(connecting, closed, nameEntry.form, lobby, stage, controller);
   app.replaceChildren(top, main);
+  createRoomLayout({
+    element: lobby,
+    roster,
+    capacity: 2,
+    join: nameEntry.form,
+    addAI: addBot,
+    settings: [scoringPicker.element, botTitle, botPicker.element],
+    actions: [lobbyNote, tvLink, start],
+  });
   lobby.hidden = true;
   stage.hidden = true;
   controller.hidden = true;
@@ -802,7 +814,7 @@ function room(solo: boolean): void {
         analytics.track("Point Scored", { ...point });
       settings = roomSettings;
       const next = present(frame, viewer);
-      if (next.askName && remembered && !joinSent) {
+      if (next.askName && remembered && !joinSent && !viewer.host) {
         joinSent = true;
         runtime.command({ type: "join", name: remembered });
       }

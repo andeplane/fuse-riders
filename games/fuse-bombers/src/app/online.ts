@@ -124,6 +124,12 @@ export function showLanding(store: Store, error = ""): void {
   card.solo?.after(local);
   card.create.after(shared);
   card.error.textContent = error;
+  card.menu.help.append(
+    el(
+      "p",
+      "Your gunship flies around its castle while the launcher rotates. Press to fire toward the other castles. Dodge enemy shots and be the last castle standing. Use the same fire button on a keyboard or phone.",
+    ),
+  );
   page(card.element);
 }
 
@@ -205,6 +211,15 @@ export function showRoom(
     );
   pilots.append(el("h2", "PILOTS", "fui-lobby-title"), roster.element, addBot);
   lobby.append(pilots, match);
+  ui.createRoomLayout({
+    element: lobby,
+    roster,
+    capacity: 5,
+    join: nameEntry.form,
+    addAI: addBot,
+    settings: [wins, level],
+    actions: [note, tv, start],
+  });
   // A phone's controller for the shared TV: who it flies, hull and launcher, the round's word; the pads are the input
   // layer's, laid out big (`controllerPadLayout`).
   const pad = el("section", "", "fb-pad"),

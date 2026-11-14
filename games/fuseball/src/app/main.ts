@@ -21,6 +21,7 @@ import {
   createGameMenu,
   createInviteCard,
   createLandingCard,
+  createRoomLayout,
   createNameEntry,
   createNotice,
   createRoster,
@@ -352,7 +353,8 @@ function landing(): void {
   picker.update(chosenMap(), true);
   const arena = el("section", "", "fb-landing-arena");
   arena.append(el("h2", "ARENA", "fui-lobby-title"), picker.element);
-  card.element.append(arena, keyHelp());
+  card.menu.addSettings(arena);
+  card.menu.help.append(keyHelp());
   const back = el("a", "← ALL GAMES", "fb-back");
   back.href = import.meta.env.BASE_URL + (muted ? "?mute" : "");
   const menu = createGameMenu(GUIDE);
@@ -590,6 +592,15 @@ function room(solo: boolean): void {
   const main = el("main", "", "fb-room");
   main.append(connecting, closed, nameEntry.form, lobby, stage, controller);
   app.replaceChildren(top, main);
+  createRoomLayout({
+    element: lobby,
+    roster,
+    capacity: 2,
+    join: nameEntry.form,
+    addAI: addBot,
+    settings: [picker.element],
+    actions: [lobbyNote, tvLink, start],
+  });
   lobby.hidden = true;
   stage.hidden = true;
   controller.hidden = true;
@@ -768,7 +779,7 @@ function room(solo: boolean): void {
       const next = present(frame, viewer);
       // A page that loads into a room with a name remembered from before joins under it once; a name typed on this
       // page joins only through JOIN.
-      if (next.askName && remembered && !joinSent) {
+      if (next.askName && remembered && !joinSent && !viewer.host) {
         joinSent = true;
         runtime.command({ type: "join", name: remembered });
       }

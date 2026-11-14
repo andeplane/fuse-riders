@@ -62,6 +62,7 @@ export function landing(
   });
   card.create.before(choice);
   choice.before(avatarChoice(root.ownerDocument, options.store), mapChoice);
+  card.menu.addSettings(mapChoice);
   const help = el(
     "p",
     "A / D orbit · W / S out / in · Space launch",
@@ -79,6 +80,7 @@ export function landing(
     }).element,
     back,
   );
-  root.replaceChildren(top, card.element, help);
+  card.menu.help.append(help);
+  root.replaceChildren(top, card.element);
   return card;
 }

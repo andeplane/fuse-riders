@@ -147,7 +147,7 @@ test("creating a room enters its lobby and a name takes a seat", async () => {
     "enterRoom:AB12",
     "openRoom:AB12",
   ]);
-  assert.equal(f.root.querySelector(".room-code")?.textContent, "AB12");
+  assert.equal(f.root.querySelector(".fui-room-code")?.textContent, "AB12");
   f.change('[data-field="player-name"]', "Anders");
   f.click('[data-action="join-seat"]');
   assert.ok(f.calls.includes("join:Anders"));

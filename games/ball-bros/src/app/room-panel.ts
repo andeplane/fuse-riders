@@ -2,6 +2,7 @@ import {
   createInviteCard,
   createNameEntry,
   createRoster,
+  createRoomLayout,
   elementsFor,
 } from "fuse-ui";
 import type { RoomCommand } from "fuse-netcode";
@@ -82,6 +83,15 @@ export function roomPanel(
     actions,
   );
   root.append(element);
+  createRoomLayout({
+    element,
+    roster,
+    capacity: 5,
+    join: name.form,
+    addAI: add,
+    settings: [mapChoice],
+    actions: [note, start, tv],
+  });
   let key = "";
   let lastDisplay = false;
   name.form.hidden = true;

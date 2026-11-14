@@ -22,6 +22,7 @@ import {
   createGameMenu,
   createInviteCard,
   createLandingCard,
+  createRoomLayout,
   createNameEntry,
   createNotice,
   createRoster,
@@ -323,6 +324,14 @@ function room(solo: boolean): void {
   main.tabIndex = -1;
   main.append(nameEntry.form, lobby, table, result);
   app.replaceChildren(top, main);
+  createRoomLayout({
+    element: lobby,
+    roster,
+    capacity: 5,
+    join: nameEntry.form,
+    addAI: addBot,
+    actions: [lobbyNote, tvLink, start],
+  });
   table.hidden = true;
   nameEntry.form.hidden = true;
 
@@ -469,7 +478,7 @@ function room(solo: boolean): void {
       lastDie = model.die?.key ?? "";
       // A page that loads into a room with a name remembered from before (a reload frees a lobby seat) joins under it
       // once; a name typed on this page joins only through JOIN.
-      if (model.askName && remembered && !joinSent) {
+      if (model.askName && remembered && !joinSent && !viewer.host) {
         joinSent = true;
         runtime.command({ type: "join", name: remembered });
       }
