@@ -232,3 +232,74 @@ test("Play submenu separates single player, host and join while Escape returns t
   assert.equal(menu.element.querySelector(".fui-main-menu-other"), null);
   assert.equal(menu.play.className, "fui-menu-primary");
 });
+
+test("main menu: a game's own screen sits on the front door after Play and opens when asked", () => {
+  const { document } = page();
+  const menu = createMainMenu({
+    title: "Fuse",
+    play: document.createElement("section"),
+    document,
+  });
+  let opened = 0;
+  const entry = menu.addEntry("Sync timing", () => opened++);
+  assert.deepEqual(
+    [
+      ...menu.element.querySelectorAll<HTMLButtonElement>(
+        ".fui-main-menu-nav:not(.fui-play-menu) button",
+      ),
+    ]
+      .filter((node) => !node.hidden)
+      .map((node) => node.textContent),
+    ["Play", "Sync timing", "How to play", "About"],
+  );
+  assert.equal(entry.type, "button");
+  entry.click();
+  assert.equal(opened, 1);
+});
+
+test("soloInBar keeps what starts the game in the dialog's bar beside CLOSE, above details that scroll", () => {
+  const { document, window } = page();
+  let solos = 0;
+  const optionsButton = document.createElement("button");
+  optionsButton.textContent = "OPTIONS";
+  const landing = createLandingCard({
+    title: "Fuse",
+    document,
+    onCreate() {},
+    onSolo: () => {
+      solos++;
+    },
+    soloInBar: true,
+    soloActions: [optionsButton],
+    valid: () => false,
+    onJoin() {},
+  });
+  const details = document.createElement("section");
+  details.textContent = "A long song select";
+  landing.soloDetails.append(details);
+  document.body.append(landing.element);
+  dialogs(landing.menu.dialog, window);
+  const bar = landing.menu.dialog.querySelector(".fui-dialog-actions")!,
+    body = landing.menu.dialog.querySelector(".fui-dialog-body")!;
+  const inBar = () => [...bar.children].map((node) => node.textContent);
+  assert.deepEqual(inBar(), ["✕  CLOSE"], "nothing in the bar before it opens");
+
+  landing.menu.play.click();
+  landing.menu.singlePlayer.click();
+  // The bar is the dialog's header and does not scroll: OPTIONS, then the solo button, then CLOSE.
+  assert.deepEqual(inBar(), ["OPTIONS", "PLAY SOLO", "✕  CLOSE"]);
+  assert.equal(body.contains(landing.solo!), false);
+  assert.equal(body.contains(details), true);
+  landing.solo!.click();
+  assert.equal(solos, 1);
+
+  // Another view of the same dialog has no solo button, and it comes back with the single-player view.
+  landing.menu.dialog.close();
+  assert.deepEqual(inBar(), ["✕  CLOSE"]);
+  landing.menu.joinRoom.click();
+  assert.deepEqual(inBar(), ["✕  CLOSE"]);
+  landing.menu.dialog.close();
+  landing.menu.singlePlayer.click();
+  assert.deepEqual(inBar(), ["OPTIONS", "PLAY SOLO", "✕  CLOSE"]);
+  assert.equal(body.contains(details), true);
+});

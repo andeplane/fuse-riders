@@ -7,6 +7,7 @@ import { AssistantApplet } from "./AssistantApplet";
 import { DisplayApplet } from "./DisplayApplet";
 import { GamesApplet } from "./GamesApplet";
 import { KeyboardApplet } from "./KeyboardApplet";
+import { SoundsApplet } from "./SoundsApplet";
 import { SystemApplet } from "./SystemApplet";
 
 export type AppletDefinition = {
@@ -60,6 +61,14 @@ export const APPLETS: readonly AppletDefinition[] = [
     icon: "keyboard",
     description: "Every shortcut the desktop understands, by scope",
     Component: KeyboardApplet,
+  },
+  {
+    applet: "sounds",
+    label: "Sounds",
+    icon: "sounds",
+    description:
+      "Which events make a sound: chimes, the floppy drive, the modem",
+    Component: SoundsApplet,
   },
 ];
 

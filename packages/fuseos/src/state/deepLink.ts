@@ -13,6 +13,8 @@ const APPS: Record<string, WindowContent> = {
   settings: { kind: "controlpanel", applet: "home" },
   about: { kind: "about" },
   fusteam: { kind: "launcher" },
+  friends: { kind: "friends" },
+  defrag: { kind: "defrag" },
   mycomputer: { kind: "explorer", location: MY_COMPUTER },
   explorer: { kind: "explorer", location: MY_COMPUTER },
   napster: { kind: "napster" },

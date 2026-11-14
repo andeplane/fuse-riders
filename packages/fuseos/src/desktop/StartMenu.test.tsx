@@ -90,6 +90,7 @@ describe("StartMenu", () => {
       "System",
       "Assistant",
       "Keyboard",
+      "Sounds",
       "Screen Saver",
     ]);
 
@@ -109,6 +110,8 @@ describe("StartMenu", () => {
       "Notepad++",
       "Windows Explorer",
       "Change desktop background",
+      "Dial-Up Networking",
+      "System Tools▸",
     ]);
     expect(
       within(accessories).getByRole("menuitem", { name: "Notepad++" }),
@@ -298,7 +301,7 @@ describe("StartMenu", () => {
     await choose(user, "Help", "About FuseOS");
     expect(
       await screen.findByRole("dialog", { name: "About FuseOS" }),
-    ).toHaveTextContent("A Windows 95 desktop for the Fuse games");
+    ).toHaveTextContent("A Windows 98 desktop for the Fuse games");
   });
 
   it("shuts down, wakes up and restarts through the injected reload", async () => {

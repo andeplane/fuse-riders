@@ -5,7 +5,9 @@ import { FuseGamesContext } from "../fusegames/registry";
 import { useFuseGameLauncher } from "../fusegames/useFuseGameLauncher";
 import { LAUNCHER_TITLE } from "../launcher/launcherFacts";
 import { useOpenLauncher } from "../launcher/useOpenLauncher";
+import { openNetworkNeighborhood } from "../network/openNetworkNeighborhood";
 import { useGameLaunch } from "../settings/useGameLaunch";
+import { useDialUpCommands } from "../sounds/dialup/useDialUpCommands";
 import type { WindowState } from "../state/appState";
 import { activeWindowId } from "../state/appState";
 import { useAppState } from "../state/useAppState";
@@ -63,6 +65,8 @@ export function useDesktopViewModel(): DesktopViewModel {
   const { state } = useAppState();
   const ui = useContext(DesktopUiContext);
   const commands = useWindowCommands();
+  // For the programs that need the network: the first opened by hand dials in first.
+  const online = useDialUpCommands();
   const games = useContext(FuseGamesContext);
   const launcher = useFuseGameLauncher();
   // Re-renders the icons when the Games applet changes where games open (the shortcut arrow on the tiles).
@@ -124,6 +128,12 @@ export function useDesktopViewModel(): DesktopViewModel {
       label: "Control Panel",
       icon: "settings",
       open: openControlPanel,
+    },
+    {
+      id: "network-neighborhood",
+      label: "Network Neighborhood",
+      icon: "network",
+      open: () => openNetworkNeighborhood(online),
     },
   ];
 

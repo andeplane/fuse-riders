@@ -3,10 +3,10 @@ import { useContext } from "react";
 import { APPLETS } from "../controlpanel/applets";
 import { FuseGamesContext } from "../fusegames/registry";
 import { GAME_LIST } from "../retro/games";
+import { useDialUpCommands } from "../sounds/dialup/useDialUpCommands";
 import { useAppState } from "../state/useAppState";
 import type { IconRef } from "../ui/icons";
 import type { WindowCommands } from "../windows/useWindowCommands";
-import { useWindowCommands } from "../windows/useWindowCommands";
 import type { Size } from "../windows/windowManager";
 import { WindowManagerContext } from "../windows/windowManagerContext";
 
@@ -31,7 +31,7 @@ export type StartMenuItem = {
 };
 
 /** Start > Help > Help Topics: the project's README. */
-export const HELP_URL = "https://github.com/andeplane/fuse-riders#readme";
+export const HELP_URL = "https://github.com/andeplane/fuse-games#readme";
 
 function registeredItems(
   registrations: readonly StartMenuRegistration[],
@@ -58,7 +58,8 @@ export function useStartMenuViewModel(): {
   close: () => void;
 } {
   const { state, dispatch } = useAppState();
-  const commands = useWindowCommands();
+  // Network Neighborhood and Fuse Messenger dial in the first time one of them is opened by hand.
+  const commands = useDialUpCommands();
   const ui = useContext(DesktopUiContext);
   const deps = useContext(DesktopDepsContext);
   const games = useContext(FuseGamesContext);
@@ -111,7 +112,16 @@ export function useStartMenuViewModel(): {
           label: "Accessories",
           icon: "programs",
           // Paint, Winamp, Explorer, Notepad++ and the wallpaper picker are registrations (`startMenuRegistry.ts`).
-          children: registered("accessories"),
+          children: [
+            ...registered("accessories"),
+            // Disk Defragmenter and whatever else registers as a system tool; the folder is always there, as in Windows.
+            {
+              id: "system-tools",
+              label: "System Tools",
+              icon: "programs",
+              children: registered("system-tools"),
+            },
+          ],
         },
         {
           id: "games",

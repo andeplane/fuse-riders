@@ -7,13 +7,7 @@ import {
   type PlayerView,
 } from "../engine/index.js";
 import { placeLag } from "./calibration.js";
-import {
-  CLICK_HZ,
-  clickMs,
-  clickRate,
-  clickTicks,
-  nearestClick,
-} from "./click-track.js";
+import { CLICK_HZ, nearestTick } from "./click-track.js";
 import {
   createTimingPanel,
   type OffsetKey,
@@ -55,11 +49,25 @@ import {
 } from "./timing-session.js";
 
 /**
- * The timing lab behind `?debugtiming`: the page's glue between what the game measures (the latency probe, the
- * song clock, every press), a microphone, the panel that shows it and the log an agent can read afterwards. It is
- * loaded only on a debug page, so a player's game carries none of it.
+ * The timing lab: the page's glue between what is measured (the latency probe, the audio clock, every press), a
+ * microphone, the panel that shows it and the log an agent can read afterwards. It has two homes. The Timing
+ * screen (`timing-screen.ts`, `mode: "screen"`) is where a player sets the offsets: it plays a steady click
+ * (`ticks`), judges the taps itself and reports them with `judged`. A `?debugtiming` game (`mode: "game"`) shows
+ * the same panel beside a real song, with the judgments read from the player's picture; there is no click there, so
+ * no microphone either. It is loaded only where it is shown, so a player's game carries none of it.
  */
+/** A steady click the page plays with no song around it. */
+export interface TickTrack {
+  bpm: number;
+  /** Counts the click's starts: the ticks of one run are not the next one's. */
+  run: number;
+  /** The heard position now, in ms from tick 0; undefined while nothing sounds. */
+  heardMs(): number | undefined;
+  /** The audio-clock time (seconds) tick `index` leaves the context at. */
+  scheduledAt(index: number): number | undefined;
+}
 export interface TimingLabDeps {
+  mode: "screen" | "game";
   doc: Document;
   win: Window;
   audio: GameAudio;
@@ -69,9 +77,26 @@ export interface TimingLabDeps {
   prefs(): Prefs;
   setPrefs(next: Prefs): void;
   latencyContext(): LatencyContext;
-  /** Starts a solo run on the click track at `bpm`. */
-  startClick(bpm: number): void;
+  /** The click being played, on the Timing screen. */
+  ticks?(): TickTrack | undefined;
+  /** The rate the Timing screen's next run plays at, while none is running. */
+  rate?(): number;
+  /** Changes the click's rate. */
+  setRate?(bpm: number): void;
+  /** Leaves a game for the Timing screen. */
+  openScreen?(): void;
+  /** Opens the panel's details on the Timing screen, where they start folded away. */
+  details?: boolean;
   now(): number;
+}
+/** A tap the Timing screen judged against its click. */
+export interface JudgedTap {
+  /** The position the tap was judged at (the press's `songMs`), its judgment and its distance from the tick, ms. */
+  at: number;
+  judgment: number;
+  offMs: number;
+  /** Whether the click could be heard: without it the tap was made by eye. */
+  by: "ear" | "eye";
 }
 export interface FrameState {
   /** This device's own player in the picture, when it has one. */
@@ -86,8 +111,24 @@ export interface FrameState {
 }
 export interface TimingLab {
   element: HTMLElement;
-  /** A press was handled: its stamp, when the listener ran, the song time it was judged at, and its tick slack. */
-  press(press: Omit<PressRecord, "id" | "frameMs" | "drawnMs">): void;
+  /**
+   * A press was handled: its stamp, when the listener ran, the song time it was judged at, and its tick slack. On
+   * the Timing screen `tick` is the click it was made for and how far after it the page put the press.
+   */
+  press(
+    press: Omit<PressRecord, "id" | "frameMs" | "drawnMs">,
+    tick?: { index: number; offMs: number },
+  ): void;
+  /** The Timing screen judged a tap. */
+  judged(tap: JudgedTap): void;
+  /** Writes a line of the screen's own to the session log: a run starting, a run's result. */
+  record(kind: string, data: Record<string, unknown>): void;
+  /** Sets offsets (clamped, saved and logged): what a run on the Timing screen advised. */
+  apply(offsets: {
+    audioMs?: number;
+    inputMs?: number;
+    visualMs?: number;
+  }): void;
   /** A frame was drawn: `now` is its start and `done` the end of its drawing, on the page's clock. */
   frame(now: number, done: number, state: FrameState): void;
   /** Everything the session knows, for the console and for a script driving the page. */
@@ -146,6 +187,7 @@ export function createTimingLab(deps: TimingLabDeps): TimingLab {
     micLevel = 0,
     micBpm: number | undefined,
     named = -1,
+    tickRun = -1,
     /** Counts starts and stops, so a microphone that arrives after it was turned off (or asked for again) is closed. */
     micTurn = 0;
   const stopMic = () => {
@@ -235,9 +277,11 @@ export function createTimingLab(deps: TimingLabDeps): TimingLab {
       log.add("mic", { on: false, error: micNote });
     }
   };
-  /** Tells the microphone which ticks are coming, a few seconds ahead, on the schedule the song was started with. */
-  const nameClicks = (bpm: number) => {
-    if (!analyser) return;
+  /** Tells the microphone which ticks are coming, a few seconds ahead, on the schedule the click was started with. */
+  const nameClicks = (track: TickTrack) => {
+    const bpm = track.bpm,
+      heardMs = track.heardMs();
+    if (!analyser || heardMs === undefined) return;
     if (micBpm !== bpm || !micSession) {
       micBpm = bpm;
       micSession = createMicSession(analyser, 60 / bpm, {
@@ -246,13 +290,10 @@ export function createTimingLab(deps: TimingLabDeps): TimingLab {
       });
       named = -1;
     }
-    const heardMs = songClock.songMs(),
-      ticks = clickTicks(bpm);
-    const from = Math.max(named + 1, nearestClick(bpm, heardMs - 500).index);
-    for (let index = from; index < ticks; index++) {
-      const ms = clickMs(bpm, index);
-      if (ms > heardMs + 3000) break;
-      const at = songClock.scheduledAt(ms);
+    const beat = 60000 / bpm;
+    const from = Math.max(named + 1, nearestTick(bpm, heardMs - 500).index);
+    for (let index = from; index * beat <= heardMs + 3000; index++) {
+      const at = track.scheduledAt(index);
       if (at === undefined) break;
       micSession.expectClick({ index, at });
       named = index;
@@ -307,12 +348,16 @@ export function createTimingLab(deps: TimingLabDeps): TimingLab {
 
   const view = (): TimingView => {
     const mapping = songClock.mapping(),
-      context = audio.context?.();
+      context = audio.context?.(),
+      track = deps.ticks?.();
     return {
+      mode: deps.mode,
       report: probe.report(),
       context: deps.latencyContext(),
       clock: {
-        source: !songClock.audible ? "room" : (mapping?.source ?? "room"),
+        source: !(state?.audible ?? songClock.audible)
+          ? "room"
+          : (mapping?.source ?? "room"),
         lagMs: mapping?.lagMs ?? 0,
         pairedMs: mapping?.pairedMs,
         sampleRate: context?.sampleRate,
@@ -328,7 +373,7 @@ export function createTimingLab(deps: TimingLabDeps): TimingLab {
       bent: presses.bent,
       leastSlackMs: presses.leastSlackMs,
       song: state?.title ?? "no song",
-      clickBpm: state ? clickRate(state.song) : undefined,
+      clickBpm: track?.bpm ?? deps.rate?.(),
       mic: {
         state: micState,
         note: micNote,
@@ -347,58 +392,64 @@ export function createTimingLab(deps: TimingLabDeps): TimingLab {
     };
   };
 
-  const panel = createTimingPanel(doc, {
-    nudge(key: OffsetKey, by: number) {
-      setOffsets({ [key]: offsets()[key] + by });
+  const centre = () => {
+    if (ear.values().length > 0)
+      place(deps.prefs().offsetMs + meanOf(ear.values()).mean);
+  };
+  const panel = createTimingPanel(
+    doc,
+    {
+      nudge(key: OffsetKey, by: number) {
+        setOffsets({ [key]: offsets()[key] + by });
+      },
+      set(key: OffsetKey, ms: number) {
+        setOffsets({ [key]: ms });
+      },
+      centre,
+      resetHits() {
+        ear.reset();
+        eye.reset();
+        presses.reset();
+        probe.reset();
+        micSession?.reset();
+        named = -1;
+      },
+      click: (bpm) => deps.setRate?.(bpm),
+      openScreen: () => deps.openScreen?.(),
+      mic(on, device) {
+        if (on) void startMic(device);
+        else {
+          stopMic();
+          log.add("mic", { on: false });
+        }
+      },
+      applyMic() {
+        const report = micSession?.report();
+        if (report && micUsable(report))
+          place(deps.prefs().offsetMs + report.residualMs.median);
+      },
+      copy(text) {
+        void win.navigator.clipboard?.writeText(text).catch(() => undefined);
+      },
+      download() {
+        const url = URL.createObjectURL(
+            new Blob([log.text()], { type: "application/x-ndjson" }),
+          ),
+          link = doc.createElement("a");
+        link.href = url;
+        link.download = `fusemania-timing-${session}.jsonl`;
+        link.click();
+        win.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      },
     },
-    set(key: OffsetKey, ms: number) {
-      setOffsets({ [key]: ms });
-    },
-    centre() {
-      if (ear.values().length > 0)
-        place(deps.prefs().offsetMs + meanOf(ear.values()).mean);
-    },
-    resetHits() {
-      ear.reset();
-      eye.reset();
-      presses.reset();
-      probe.reset();
-      micSession?.reset();
-      named = -1;
-    },
-    click: (bpm) => deps.startClick(bpm),
-    mic(on, device) {
-      if (on) void startMic(device);
-      else {
-        stopMic();
-        log.add("mic", { on: false });
-      }
-    },
-    applyMic() {
-      const report = micSession?.report();
-      if (report && micUsable(report))
-        place(deps.prefs().offsetMs + report.residualMs.median);
-    },
-    copy(text) {
-      void win.navigator.clipboard?.writeText(text).catch(() => undefined);
-    },
-    download() {
-      const url = URL.createObjectURL(
-          new Blob([log.text()], { type: "application/x-ndjson" }),
-        ),
-        link = doc.createElement("a");
-      link.href = url;
-      link.download = `fusemania-timing-${session}.jsonl`;
-      link.click();
-      win.setTimeout(() => URL.revokeObjectURL(url), 10_000);
-    },
-  });
+    { details: deps.details },
+  );
 
   const detail = audio.clock()?.latencies?.();
   log.add("session", {
     id: session,
     agent: win.navigator.userAgent,
-    solo: new URLSearchParams(win.location.search).get("solo") === "1",
+    mode: deps.mode,
     flags: [...new URLSearchParams(win.location.search).keys()].filter(
       (key) => key !== "room",
     ),
@@ -413,21 +464,44 @@ export function createTimingLab(deps: TimingLabDeps): TimingLab {
     probed = 0,
     scoped = 0,
     pressLogged = 0;
+  /** A judgment: put on its press, counted by ear or by eye, and logged. */
+  const judge = (
+    at: number,
+    judgment: number,
+    offMs: number,
+    by: "ear" | "eye" | "room",
+    counts = true,
+  ) => {
+    const press = presses.judged(at, judgment, offMs);
+    if (counts && by !== "room") (by === "eye" ? eye : ear).add(offMs);
+    log.add("judged", { press: press?.id, at, judgment, offMs, by });
+  };
   return {
     element: panel.element,
-    press(press) {
+    press(press, tick) {
       const record = presses.add(press);
-      const bpm = state ? clickRate(state.song) : undefined;
-      if (bpm && micSession && record.used && record.column >= 0) {
-        const at = songClock.clockTime(record.stamp),
-          near = nearestClick(bpm, record.songMs);
+      if (tick && micSession && record.used) {
+        const at = songClock.clockTime(record.stamp);
         if (at !== undefined)
-          micSession.press({ at, click: near.index, gameMs: near.offMs });
+          micSession.press({ at, click: tick.index, gameMs: tick.offMs });
       }
     },
+    judged: (tap) => judge(tap.at, tap.judgment, tap.offMs, tap.by),
+    record(kind, data) {
+      log.add(kind, data);
+      void writer.flush();
+    },
+    apply: (next) => setOffsets(next),
     frame(now, done, next) {
       state = next;
       presses.frame(now, done);
+      const track = deps.ticks?.();
+      if (track && track.run !== tickRun) {
+        tickRun = track.run;
+        micSession?.reset();
+        named = -1;
+        log.add("start", { run: track.run, bpm: track.bpm });
+      }
       if (songClock.starts !== starts) {
         if (started === next.epoch) restarts++;
         started = next.epoch;
@@ -447,22 +521,19 @@ export function createTimingLab(deps: TimingLabDeps): TimingLab {
           seen = total;
           if (mine.judged >= MARVELOUS && mine.judged <= BOO) {
             const at = mine.judgedAt;
-            const press = presses.judged(at, mine.judged, mine.judgedOff);
             const bent = mine.effects.some(
               (effect) =>
                 (effect[0] === STAR || isAttack(effect[0])) &&
                 effect[1] <= at + 250 &&
                 at - 250 < effect[2],
             );
-            if (!bent && next.audible)
-              (audio.prefs.muted ? eye : ear).add(mine.judgedOff);
-            log.add("judged", {
-              press: press?.id,
+            judge(
               at,
-              judgment: mine.judged,
-              offMs: mine.judgedOff,
-              by: !next.audible ? "room" : audio.prefs.muted ? "eye" : "ear",
-            });
+              mine.judged,
+              mine.judgedOff,
+              !next.audible ? "room" : audio.prefs.muted ? "eye" : "ear",
+              !bent,
+            );
           }
         } else seen = total;
       }
@@ -486,11 +557,10 @@ export function createTimingLab(deps: TimingLabDeps): TimingLab {
           slackMs: press.slackMs,
         });
       }
-      const bpm = clickRate(next.song);
       if (analyser && capture) {
         micLevel = Math.max(analyser.level(), micLevel * 0.9);
-        if (bpm && next.running && next.audible) {
-          nameClicks(bpm);
+        if (track && next.audible) {
+          nameClicks(track);
           micSession?.settle();
         }
       }
@@ -514,7 +584,11 @@ export function createTimingLab(deps: TimingLabDeps): TimingLab {
               ? undefined
               : latencies.output * 1000,
           hz: deps.frameLead.hz,
-          songMs: next.running ? songClock.songMs(now) : undefined,
+          songMs: track
+            ? track.heardMs()
+            : next.running
+              ? songClock.songMs(now)
+              : undefined,
         });
         void writer.flush();
       }

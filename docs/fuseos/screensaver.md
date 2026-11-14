@@ -1,6 +1,6 @@
 # Screen saver: 3D Pipes
 
-FuseOS has one screen saver, the Windows 95 **3D Pipes**, as remade in three.js by Isaiah Odhner ([1j01/pipes](https://github.com/1j01/pipes), MIT; licence text in [`licenses/PIPES-LICENSE.txt`](licenses/PIPES-LICENSE.txt)). It is ported as typed TypeScript under `packages/fuseos/src/screensaver/pipes/`: the rules (grid, direction and joint choice, camera angles, dissolve order) in `pipesModel.ts`, with no rendering so they run in plain tests, and the three.js scene in `pipes.ts`.
+FuseOS has one screen saver, the Windows 98 **3D Pipes**, as remade in three.js by Isaiah Odhner ([1j01/pipes](https://github.com/1j01/pipes), MIT; licence text in [`licenses/PIPES-LICENSE.txt`](licenses/PIPES-LICENSE.txt)). It is ported as typed TypeScript under `packages/fuseos/src/screensaver/pipes/`: the rules (grid, direction and joint choice, camera angles, dissolve order) in `pipesModel.ts`, with no rendering so they run in plain tests, and the three.js scene in `pipes.ts`.
 
 ## Settings
 

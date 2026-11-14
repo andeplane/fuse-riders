@@ -3,6 +3,7 @@ import { createContext } from "react";
 import { MY_COMPUTER } from "../disk/diskPath";
 import { LAUNCHER_TITLE } from "../launcher/launcherFacts";
 import { openLauncher } from "../launcher/useOpenLauncher";
+import { openNetworkNeighborhood } from "../network/openNetworkNeighborhood";
 import type { IconName } from "../ui/icons";
 import type { WindowCommands } from "../windows/useWindowCommands";
 import type { Size } from "../windows/windowManager";
@@ -10,6 +11,7 @@ import type { Size } from "../windows/windowManager";
 /**
  * Where a registered entry lands in the Start menu:
  * - `accessories`: Programs > Accessories (Paint, Winamp, Notepad++, ...)
+ * - `system-tools`: Programs > Accessories > System Tools (Disk Defragmenter)
  * - `programs`: Programs, after Accessories and Games (Fusteam, the game launcher)
  * - `games`: Programs > Games, after the Fuse games and before Retro Games
  * - `retro-games`: Programs > Games > Retro Games, before the games themselves (the folder window)
@@ -19,6 +21,7 @@ import type { Size } from "../windows/windowManager";
  */
 export type StartMenuSlot =
   | "accessories"
+  | "system-tools"
   | "programs"
   | "games"
   | "retro-games"
@@ -98,6 +101,14 @@ export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
     open: (commands) => commands.open({ kind: "wallpaper" }),
   },
   {
+    slot: "system-tools",
+    id: "defrag",
+    label: "Disk Defragmenter",
+    icon: "defrag",
+    order: 10,
+    open: (commands) => commands.open({ kind: "defrag" }),
+  },
+  {
     slot: "programs",
     id: "fusteam",
     label: LAUNCHER_TITLE,
@@ -141,7 +152,35 @@ export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
         tab: "screensaver",
       }),
   },
+  {
+    slot: "accessories",
+    id: "dialup",
+    label: "Dial-Up Networking",
+    icon: "dialup",
+    order: 40,
+    open: (commands) => commands.open({ kind: "dialup" }),
+  },
+  {
+    slot: "programs",
+    id: "network-neighborhood",
+    label: "Network Neighborhood",
+    icon: "network",
+    order: 10,
+    open: (commands) => openNetworkNeighborhood(commands),
+  },
+  {
+    slot: "programs",
+    id: "friends",
+    label: "Fuse Messenger",
+    icon: "messenger",
+    // One instance: a fixed id brings an open window to the front instead of opening another.
+    open: (commands) =>
+      commands.open({ kind: "friends" }, { id: FRIENDS_WINDOW_ID }),
+  },
 ];
+
+/** The buddy list's window id; never one `nextWindowId` hands out (`w<n>`), so it is the same window every time. */
+export const FRIENDS_WINDOW_ID = "friends";
 
 /** The registrations in force; tests hand in their own list. */
 export const StartMenuRegistryContext = createContext<
