@@ -29,7 +29,8 @@ export const APPLETS: readonly AppletDefinition[] = [
     applet: "display",
     label: "Display",
     icon: "display",
-    description: "Background, icon spacing, colours and font size",
+    description:
+      "Display Properties: background, colours, desktop area and font size",
     Component: DisplayApplet,
   },
   {
@@ -43,7 +44,7 @@ export const APPLETS: readonly AppletDefinition[] = [
     applet: "system",
     label: "System",
     icon: "system",
-    description: "This browser, its graphics and storage",
+    description: "This browser, the machine, its graphics and storage",
     Component: SystemApplet,
   },
   {

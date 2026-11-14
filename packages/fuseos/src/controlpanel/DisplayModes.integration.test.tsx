@@ -24,6 +24,7 @@ it("applies color depth and desktop area locally, keeping controls reachable and
   const dialog = await screen.findByRole("dialog", { name: "Control Panel" });
   expect(dialog.querySelector(".window-body")).toHaveClass("min-h-0", "flex-1");
   expect(dialog.querySelector(".window-body")).not.toHaveClass("h-full");
+  await user.click(within(dialog).getByRole("tab", { name: "Settings" }));
   await user.selectOptions(
     within(dialog).getByLabelText("Color palette"),
     "256-colors",
