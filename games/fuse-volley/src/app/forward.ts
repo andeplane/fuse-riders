@@ -1,0 +1,168 @@
+import {
+  STEPS_PER_SECOND,
+  STEPS_PER_TICK,
+  stepWorld,
+  toView,
+  type Side,
+  type World,
+  type WorldView,
+} from "../engine/index.js";
+import type { BotInput, Room } from "../online/game.js";
+
+/**
+ * Draw at the clock, not a tick behind. The runtime's newest folded world is the latest the room knows; instead of
+ * presenting it a tick late to interpolate towards it, the screen plays it forward on a copy, by the fraction of a
+ * tick the clock has run past it, with the bits each blob holds, and draws that. A press shows within one log tick
+ * (25 ms on average) instead of two. The copy is thrown away: nothing here reaches the room.
+ *
+ * `ahead` is in steps (0–`MAX_AHEAD`, fractional); the two whole steps either side are blended, so a 120 Hz screen
+ * moves the blobs and the ball every frame.
+ */
+export interface ForwardInputs {
+  /** What `blob` is taken to hold: a human's last logged bits (or this device's own, live), 0 when away. */
+  held(world: World, side: Side): number;
+}
+
+/** The furthest the screen plays past the newest folded world: one log tick, plus one more while the fold is late. */
+export const MAX_AHEAD = STEPS_PER_TICK * 2;
+
+/** A copy of the world deep enough for `stepWorld` to run on without touching the original. */
+export function copyWorld(world: World): World {
+  return {
+    ...world,
+    ball: { ...world.ball },
+    blobs: [{ ...world.blobs[0] }, { ...world.blobs[1] }],
+    score: [world.score[0], world.score[1]],
+  };
+}
+
+const mix = (a: number, b: number, t: number) => a + (b - a) * t;
+
+/** `a` and `b` one step apart, `t` of the way from one to the other; counters and flags are `a`'s until `t` reaches 1. */
+export function blendViews(a: WorldView, b: WorldView, t: number): WorldView {
+  if (t <= 0) return a;
+  if (t >= 1) return b;
+  // A serve teleports the ball and a new serve starts over: never smear across one.
+  if (a.phase !== b.phase && (b.phase === "serve" || a.phase === "serve"))
+    return a;
+  return {
+    ...a,
+    blobs: [0, 1].map((side) => ({
+      ...a.blobs[side as Side],
+      x: mix(a.blobs[side as Side].x, b.blobs[side as Side].x, t),
+      y: mix(a.blobs[side as Side].y, b.blobs[side as Side].y, t),
+    })) as WorldView["blobs"],
+    ball: {
+      ...a.ball,
+      x: mix(a.ball.x, b.ball.x, t),
+      y: mix(a.ball.y, b.ball.y, t),
+      spin: a.ball.spin,
+    },
+  };
+}
+
+/** The newest world played forward `ahead` steps, as a view to draw. */
+export function forward(
+  world: World,
+  ahead: number,
+  inputs: ForwardInputs,
+): WorldView {
+  const steps = Math.max(0, Math.min(MAX_AHEAD, ahead));
+  const whole = Math.floor(steps),
+    part = steps - whole;
+  const copy = copyWorld(world);
+  const held: [number, number] = [inputs.held(world, 0), inputs.held(world, 1)];
+  for (let i = 0; i < whole; i++) stepWorld(copy, held);
+  const a = toView(copy);
+  if (part <= 0.001 || copy.phase === "over") return a;
+  stepWorld(copy, held);
+  return blendViews(a, toView(copy), part);
+}
+
+/**
+ * How many steps past the newest frame the clock is, from the runtime's frame timing: `tick` is the presentation's
+ * game clock and `lead` how far the clock runs past it, in log ticks. Normally 0–6.
+ */
+export function stepsAhead(
+  timing: { tick: number; lead: number },
+  newerTick: number,
+): number {
+  return Math.max(
+    0,
+    Math.min(
+      STEPS_PER_TICK,
+      timing.tick + timing.lead * STEPS_PER_TICK - newerTick,
+    ),
+  );
+}
+
+/**
+ * The bits the forward run plays for each blob: a bot answers as the fold would, a seated human holds what it last
+ * logged, and with `localLead` this device's own blob holds what its player holds right now, logged or not.
+ */
+export function forwardInputs(
+  room: Room,
+  me: string,
+  live: number,
+  localLead: boolean,
+  bot: BotInput,
+): ForwardInputs {
+  return {
+    held(world, side) {
+      const id = world.blobs[side].id;
+      const seat = room.seats.get(id);
+      if (seat?.bot) return bot(world, side, room.play.bot);
+      if (!seat?.connected) return 0;
+      if (localLead && id === me) return live;
+      return room.held[id] ?? 0;
+    },
+  };
+}
+
+const STEP_MS = 1000 / STEPS_PER_SECOND;
+
+/**
+ * Keeps the drawn clock moving when the fold is a few milliseconds late. The runtime folds a log tick on a 10 ms
+ * timer, so for a moment after the clock passes a tick boundary its newest world is still the one before, and
+ * `stepsAhead` stops at a whole tick: the picture would hold still for that frame, then jump. While it is pinned
+ * there, the wall clock carries the count on from the last unpinned frame, up to `MAX_AHEAD`; once the next tick is
+ * folded the runtime's own timing takes over again, from the same place in time.
+ */
+export function createLeadClock(): (
+  ahead: number,
+  newerTick: number,
+  nowMs: number,
+) => number {
+  let tick = Number.NaN,
+    origin = 0;
+  return (ahead, newerTick, nowMs) => {
+    if (newerTick !== tick || ahead < STEPS_PER_TICK) {
+      tick = newerTick;
+      origin = nowMs - ahead * STEP_MS;
+      return ahead;
+    }
+    return Math.max(ahead, Math.min(MAX_AHEAD, (nowMs - origin) / STEP_MS));
+  };
+}
+
+/**
+ * The bot's answer for a world is the same every frame until the next tick is folded, and planning it steps many
+ * ghost worlds: ask it once per folded step and side.
+ */
+export function memoBot(bot: BotInput): BotInput {
+  const cache = new Map<string, number>();
+  let at = -1;
+  return (world, side, level) => {
+    if (world.step !== at) {
+      at = world.step;
+      cache.clear();
+    }
+    const key = `${side}:${level}:${world.seed}`;
+    let bits = cache.get(key);
+    if (bits === undefined) {
+      bits = bot(world, side, level);
+      cache.set(key, bits);
+    }
+    return bits;
+  };
+}
