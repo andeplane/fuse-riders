@@ -127,12 +127,25 @@ export function createEntrance(o: EntranceOptions) {
   const entranceContent = root.querySelector<HTMLElement>(".entrance-content")!;
   const menuMarker = document.createComment("Shared menu");
   entranceContent.before(menuMarker);
+  const hostingOptions = document.createElement("div");
+  const freshRoom = root.querySelector<HTMLButtonElement>("#menu-fresh")!;
+  hostingOptions.append(freshRoom);
+  hostingOptions.hidden = freshRoom.hidden;
   const menu = createMainMenu({
     background: async (host, signal) =>
       (await import("./attract.js")).createAttract(host, signal),
     title: "HOOK HAVOK",
     description: "Find your foothold. Take theirs.",
     play: entranceContent,
+    hostingOptions,
+    onSinglePlayer: async () => {
+      if (!o.start.disabled)
+        await o.start.onclick?.call(o.start, new PointerEvent("click"));
+    },
+    onJoinRoom: () => {
+      root.querySelector<HTMLDialogElement>("#entrance-join")!.showModal();
+      o.code.focus();
+    },
     onPlay: async () => {
       if (!o.start.disabled)
         await o.start.onclick?.call(o.start, new PointerEvent("click"));
@@ -176,6 +189,7 @@ export function createEntrance(o: EntranceOptions) {
       root.setAttribute("aria-busy", String(busy));
       root.querySelector<HTMLElement>("#menu-fresh")!.hidden =
         o.status.dataset.state !== "error";
+      hostingOptions.hidden = freshRoom.hidden;
     },
     joinError(message: string) {
       root.querySelector<HTMLElement>(".join-error")!.textContent = message;

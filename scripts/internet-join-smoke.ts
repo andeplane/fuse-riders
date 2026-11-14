@@ -109,7 +109,7 @@ try {
   });
   await host.goto(`http://127.0.0.1:${port}/fuse-riders/?mute&benchmark=1`);
   await openPlayOptions(host);
-  await host.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
+  await host.getByRole("button", { name: "Host room", exact: true }).click();
   await host.waitForURL(/room=/);
   await takeHostSeat(host, "Host");
   await phone.goto(host.url());

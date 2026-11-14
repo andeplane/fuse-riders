@@ -158,7 +158,7 @@ try {
   await first.getByLabel("Shared TV + phone controllers").check();
   await first.keyboard.press("Escape");
   await openPlayOptions(first);
-  await first.getByRole("button", { name: "CREATE ROOM" }).click();
+  await first.getByRole("button", { name: "Host room" }).click();
   await takeHostSeat(first, "SKYE");
   const code = await first.locator(".birds-code").innerText();
   await second.goto(`${base}/fuse-birds/?room=${code}&mute`);

@@ -129,7 +129,7 @@ test("two devices race over a mesh that drops, duplicates and reorders, and agre
   assert.ok(Math.min(host.confirmedTick(), guest.confirmedTick()) > 0);
   assert.equal(a.tick, b.tick);
   assert.equal(hash(a), hash(b), "identical world hashes");
-  assert.equal(JSON.stringify(a.world), JSON.stringify(b.world));
+  assert.deepEqual(a.world, b.world);
   assert.ok(
     a.world!.riders.every((rider) => rider.run > 0 || rider.deaths > 0),
     "and the bikes were ridden",

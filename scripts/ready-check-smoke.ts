@@ -39,7 +39,7 @@ try {
     })
     .click();
   await openPlayOptions(tv);
-  await tv.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
+  await tv.getByRole("button", { name: "Host room", exact: true }).click();
   await tv.waitForURL(/room=/);
   const invite = new URL(tv.url());
   invite.searchParams.set("mute", "1");

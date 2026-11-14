@@ -7,7 +7,7 @@ export const GAME_ID = "elasto-fuse";
 /** Riders per room. */
 export const CAPACITY = 5;
 /** Levels in the tour. */
-export const LEVEL_COUNT = 12;
+export const LEVEL_COUNT = 557;
 /** Points for finishing a level first, second and so on; a rider that never reaches the flower gets none. */
 export const PLACE_POINTS = [10, 7, 5, 3, 2] as const;
 /** The most points one match can give a rider: first on every level. */
