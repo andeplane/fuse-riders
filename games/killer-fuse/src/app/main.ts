@@ -630,6 +630,17 @@ function room(solo: boolean): void {
   const sound = el("div", "", "kf-sound");
   sound.append(mute, musicToggle, effectsToggle);
   const top = header([codeChip, status.element, sound, menu.element]);
+  createTopBar({
+    element: top,
+    onOpenChange: (open) => {
+      if (open) {
+        keyboard.clear();
+        pads.release();
+        controls.release();
+      }
+    },
+  });
+  const modalOpen = () => Boolean(document.querySelector("dialog[open]"));
 
   // Lobby: the shared room layout — invitation and settings on the left, the six numbered seats on the right.
   const lobby = el("section", "", "kf-lobby"),
@@ -1332,7 +1343,7 @@ function room(solo: boolean): void {
   let frameRequest = 0;
   const loop = () => {
     frameRequest = requestAnimationFrame(loop);
-    if (!menu.isOpen()) pads.poll(readPads(navigator));
+    if (!menu.isOpen() && !modalOpen()) pads.poll(readPads(navigator));
     controls.pulse();
     runtime.flush();
     driver.draw();
@@ -1355,7 +1366,8 @@ function room(solo: boolean): void {
   // The keys play only while a game is on: in the lobby and on the result, Space presses the focused button.
   const inGame = () =>
     (main.dataset.stage === "running" || main.dataset.stage === "between") &&
-    !menu.isOpen();
+    !menu.isOpen() &&
+    !modalOpen();
   document.addEventListener(
     "keydown",
     (event) => {

@@ -394,6 +394,16 @@ function room(solo: boolean): void {
     status.element,
     menu.element,
   ]);
+  createTopBar({
+    element: top,
+    onOpenChange: (open) => {
+      if (open) {
+        controls.clear();
+        captured.clear();
+      }
+    },
+  });
+  const modalOpen = () => Boolean(document.querySelector("dialog[open]"));
 
   // Lobby.
   const lobby = el("section", "", "fc-lobby"),
@@ -1058,6 +1068,7 @@ function room(solo: boolean): void {
     sfx.resume();
     if (
       menu.isOpen() ||
+      modalOpen() ||
       radio.element.open ||
       typing(event.target) ||
       event.metaKey ||
@@ -1082,7 +1093,7 @@ function room(solo: boolean): void {
     passive: true,
   });
   canvas.addEventListener("pointerdown", (event) => {
-    if (menu.isOpen() || radio.element.open) return;
+    if (menu.isOpen() || modalOpen() || radio.element.open) return;
     if (event.pointerType !== "mouse" || event.button !== 0) return;
     canvas.setPointerCapture(event.pointerId);
     controls.hold("mouse", FIRE);

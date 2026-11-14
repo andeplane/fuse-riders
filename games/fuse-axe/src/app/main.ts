@@ -312,6 +312,14 @@ function room(solo: boolean): void {
     menu.element,
   ]);
 
+  createTopBar({
+    element: top,
+    onOpenChange: (open) => {
+      if (open) letGo();
+    },
+  });
+  const modalOpen = () => Boolean(document.querySelector("dialog[open]"));
+
   // The lobby: who is here and which hero each plays; this device's pick, and the host's START.
   const lobby = el("section", "", "fa-lobby"),
     lobbyMain = el("div", "", "fa-panel"),
@@ -431,7 +439,7 @@ function room(solo: boolean): void {
   for (const side of ["up", "down", "left", "right"])
     dpadPad.append(el("i", "", `fa-dpad-${side}`));
   const dpad = new DPad(dpadPad, (bits) => {
-    if (menu.isOpen() && bits !== 0) return;
+    if ((menu.isOpen() || modalOpen()) && bits !== 0) return;
     controls.hold("dpad", bits);
     dpadPad.dataset.dir = directionName(bits);
   });
@@ -440,7 +448,7 @@ function room(solo: boolean): void {
     window.addEventListener(type, (event) => dpad.lift(event.pointerId));
   const fightPads = createControllerRow({
     buttons: padButtons((source, bits) => {
-      if (!menu.isOpen()) controls.hold(source, bits);
+      if (!menu.isOpen() && !modalOpen()) controls.hold(source, bits);
     }),
     className: "fui-controller fa-buttons",
   }).element;
@@ -590,7 +598,9 @@ function room(solo: boolean): void {
     // A room that has ended draws nothing more, so its loop ends with it.
     if (over) return;
     // A hidden page, or the phone's MENU open over the pads, reads no gamepad: it must not steer from behind them.
-    gamepads.poll(!document.hidden && !phone.blocked() && !menu.isOpen());
+    gamepads.poll(
+      !document.hidden && !phone.blocked() && !menu.isOpen() && !modalOpen(),
+    );
     const world = stage.hidden ? null : drawn(runtime.frameTiming());
     if (world) {
       scene.draw(native, world, Math.floor((now * 60) / 1000), model?.hud);
@@ -882,7 +892,9 @@ function room(solo: boolean): void {
     target instanceof HTMLTextAreaElement ||
     (target instanceof HTMLButtonElement && !model?.playing);
   document.addEventListener("keydown", (event) => {
-    if (controls.down(event, menu.isOpen() || typing(event.target)))
+    if (
+      controls.down(event, menu.isOpen() || modalOpen() || typing(event.target))
+    )
       event.preventDefault();
   });
   document.addEventListener("keyup", (event) => {

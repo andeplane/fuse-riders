@@ -3,6 +3,24 @@ import { test } from "node:test";
 import { createTopBar } from "fuse-ui";
 import { page } from "./dom-fixture.js";
 
+test("initially empty room notices remain connected and visible outside the menu", () => {
+  const { document } = page();
+  const root = document.createElement("header");
+  const notice = document.createElement("div");
+  root.append(notice);
+  document.body.append(root);
+  createTopBar({ element: root });
+  notice.textContent = "Connection lost. Retry.";
+  assert.equal(notice.isConnected, true);
+  assert.equal(notice.closest("dialog"), null);
+  assert.equal(notice.parentElement?.className, "fui-top-bar-context");
+  createTopBar({ element: root });
+  assert.equal(
+    root.querySelector(".fui-top-bar-context")?.textContent,
+    "Connection lost. Retry.",
+  );
+});
+
 test("the shared header retains account/menu handlers and reflects later per-game Elo updates", async () => {
   const { document } = page(),
     root = document.createElement("header"),

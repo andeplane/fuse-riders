@@ -157,6 +157,9 @@ body.at-entrance .shell > .fui-top-bar {
 body:has(.fui-top-bar) {
   isolation: isolate;
 }
+body:has(.fui-top-bar) .fui-room-layout.fui-room-layout {
+  margin-top: calc(88px + env(safe-area-inset-top));
+}
 body:has(.fui-top-bar) .fui-main-menu:has(> .fui-attract) {
   isolation: auto;
   background: transparent;

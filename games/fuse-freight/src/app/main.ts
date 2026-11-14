@@ -460,6 +460,16 @@ function room(solo: boolean): void {
     soundToggles(display),
     menu.element,
   ]);
+  createTopBar({
+    element: top,
+    onOpenChange: (open) => {
+      if (open) {
+        releaseAll();
+        captured.clear();
+      }
+    },
+  });
+  const modalOpen = () => Boolean(document.querySelector("dialog[open]"));
 
   // Lobby.
   const lobby = el("section", "", "ff-lobby"),
@@ -1172,6 +1182,7 @@ function room(solo: boolean): void {
   document.addEventListener("keydown", (event) => {
     if (
       menu.isOpen() ||
+      modalOpen() ||
       lobbyConfirm.open ||
       typing(event.target) ||
       event.metaKey ||

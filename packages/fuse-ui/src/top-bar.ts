@@ -6,6 +6,8 @@ export interface TopBarOptions {
   brand?: HTMLElement;
   account?: HTMLElement;
   gameId?: string;
+  /** Release held gameplay input before the modal takes keyboard focus. */
+  onOpenChange?: (open: boolean) => void;
 }
 interface InstalledBar {
   refresh(options: TopBarOptions): void;
@@ -47,8 +49,10 @@ export function createTopBar(options: TopBarOptions): HTMLElement {
   menu.body.classList.add("fui-top-bar-actions");
   const owned = new Set<Node>([left, right, context, menu.dialog]);
   let source: HTMLElement | undefined;
+  let onOpenChange = options.onOpenChange;
   let releaseAccount: (() => void) | undefined;
   const refresh = (next: TopBarOptions) => {
+    onOpenChange = next.onOpenChange;
     const portal = root.querySelector<HTMLElement>(".fui-portal");
     const brand =
       next.brand ??
@@ -96,10 +100,10 @@ export function createTopBar(options: TopBarOptions): HTMLElement {
       if (owned.has(child)) continue;
       if (
         child.nodeType === 1 &&
-        !child.textContent?.trim() &&
+        !(child as HTMLElement).matches("button,input,select,a,details") &&
         !(child as HTMLElement).querySelector("button,input,select,a,details")
       ) {
-        child.remove();
+        context.append(child);
         continue;
       }
       menu.body.append(child);
@@ -115,11 +119,16 @@ export function createTopBar(options: TopBarOptions): HTMLElement {
   right.append(account, toggle);
   refresh(options);
   root.append(left, right, context, menu.dialog);
+  // Header controls keep native keyboard activation while the match continues
+  // behind them. Keyup still reaches the game so previously held keys release.
+  root.addEventListener("keydown", (event) => event.stopPropagation());
   toggle.onclick = () => {
+    onOpenChange?.(true);
     menu.show({ title: "Game menu" });
     toggle.setAttribute("aria-expanded", "true");
   };
   menu.dialog.addEventListener("close", () => {
+    onOpenChange?.(false);
     toggle.setAttribute("aria-expanded", "false");
     toggle.focus();
   });

@@ -226,7 +226,10 @@ function logo(): HTMLElement {
   );
   return brand;
 }
-function header(extra: HTMLElement[] = []): HTMLElement {
+function header(
+  extra: HTMLElement[] = [],
+  onOpenChange?: (open: boolean) => void,
+): HTMLElement {
   const bar = el("header", "", "fb-top");
   // Every game opens the app portal top left; it lists the games that have a portal.json.
   const portal = createAppPortal({
@@ -242,7 +245,7 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     audioControl.element,
     ...extra,
   );
-  return createTopBar({ element: bar, gameId: GAME });
+  return createTopBar({ element: bar, gameId: GAME, onOpenChange });
 }
 
 function keyHelp(): HTMLElement {
@@ -643,11 +646,20 @@ function room(solo: boolean): void {
     },
   });
   const roundControls = createRoundControls(QUICK_GUIDE);
-  const top = header([
-    el("strong", solo ? "SOLO" : code, "fb-code"),
-    status.element,
-    menu.element,
-  ]);
+  const top = header(
+    [
+      el("strong", solo ? "SOLO" : code, "fb-code"),
+      status.element,
+      menu.element,
+    ],
+    (open) => {
+      if (open) {
+        controls.clear();
+        captured.clear();
+      }
+    },
+  );
+  const modalOpen = () => Boolean(document.querySelector("dialog[open]"));
 
   // Lobby: the invitation and the riders on one side, the arena and START on the other.
   let settings: Settings = { ...DEFAULT_SETTINGS };
@@ -1166,6 +1178,7 @@ function room(solo: boolean): void {
   document.addEventListener("keydown", (event) => {
     if (
       menu.isOpen() ||
+      modalOpen() ||
       typing(event.target) ||
       event.metaKey ||
       event.ctrlKey ||

@@ -80,6 +80,20 @@ try {
         .getByRole("button", { name: "Host room", exact: true })
         .click();
       await page.locator(".fui-room-layout").waitFor();
+      for (const viewport of [
+        { width: 1440, height: 1000 },
+        { width: 390, height: 844 },
+      ]) {
+        await page.setViewportSize(viewport);
+        const header = await page.locator(".fui-top-bar:visible").boundingBox();
+        const room = await page.locator(".fui-room-layout").boundingBox();
+        assert.ok(header && room);
+        assert.ok(
+          room.y >= header.y + header.height,
+          `${game}: room clears header`,
+        );
+      }
+      await page.setViewportSize({ width: 1440, height: 1000 });
       await page
         .locator(".fui-top-bar:visible")
         .getByRole("button", { name: "Open game menu", exact: true })
