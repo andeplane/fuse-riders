@@ -49,6 +49,8 @@ export function Taskbar({
       <span className="vertical-bar" aria-hidden />
       <div className="flex min-w-0 flex-1 gap-1 overflow-hidden">
         {windows.map((window) => {
+          // A message box is modal and has no button of its own, as in Windows 98.
+          if (window.kind === "dialog") return null;
           const meta = windowMeta(window, games);
           const active = window.id === activeId;
           return (
