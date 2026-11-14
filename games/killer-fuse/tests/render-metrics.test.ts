@@ -1,10 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  footOf,
   frontOf,
   heightOver,
   opaqueBox,
   sizesOf,
+  tipOf,
   type Box,
 } from "../src/render/metrics.js";
 import { manifest } from "./render-kit.js";
@@ -77,4 +79,25 @@ test("sizes follow the manifest and whatever was measured", () => {
     snail: 0,
     snailFront: 0,
   });
+});
+
+test("a sword's tip is the front-most painted point and a diving blade's the lowest", () => {
+  const lunge = ["......", ".##...", ".####.", ".##..."];
+  assert.deepEqual(tipOf(pixels(lunge), 6, 4), { x: 4, y: 2 });
+  assert.deepEqual(
+    tipOf(pixels(["..#", "..#"]), 3, 2),
+    { x: 2, y: 0 },
+    "the highest of a flat front",
+  );
+  assert.equal(tipOf(pixels(["...", "..."]), 3, 2), null);
+  const dive = [".###.", ".###.", "..#..", "....."];
+  assert.deepEqual(footOf(pixels(dive), 5, 4), { x: 2, y: 2 });
+  assert.deepEqual(
+    footOf(pixels([".....", ".###."]), 5, 2),
+    { x: 2, y: 1 },
+    "the middle of a wide tip",
+  );
+  assert.deepEqual(footOf(pixels(["##.."]), 4, 1), { x: 0, y: 0 });
+  assert.equal(footOf(pixels(["...", "..."]), 3, 2), null);
+  assert.equal(footOf([], 3, 2), null);
 });

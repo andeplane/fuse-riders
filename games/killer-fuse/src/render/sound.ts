@@ -93,7 +93,40 @@ const RECIPES: Readonly<Record<SoundName, Recipe>> = {
     hiss: [{ at: 0, length: 0.04, gain: 0.25, from: 1800, to: 900 }],
     gap: 0.06,
   },
+  // A sword swung: a quick rising swish.
+  attack: {
+    hiss: [{ at: 0, length: 0.12, gain: 0.45, from: 900, to: 4200 }],
+    notes: [
+      { wave: "triangle", from: 420, to: 760, at: 0, length: 0.07, gain: 0.12 },
+    ],
+    gap: 0.04,
+  },
+  // Blade on blade: a bright ring that hangs for a moment.
+  glance: {
+    notes: [
+      { wave: "square", from: up(E4, 3), at: 0, length: 0.05, gain: 0.22 },
+      { wave: "triangle", from: up(B4, 2), at: 0, length: 0.3, gain: 0.3 },
+      { wave: "sine", from: up(E4, 3), at: 0.02, length: 0.35, gain: 0.2 },
+    ],
+    hiss: [{ at: 0, length: 0.05, gain: 0.5, from: 6000, to: 3000 }],
+    gap: 0.05,
+  },
+  // Feet on a head: a soft boing.
+  stomp: {
+    notes: [
+      { wave: "sine", from: 180, to: 420, at: 0, length: 0.1, gain: 0.45 },
+    ],
+    gap: 0.05,
+  },
   gateEnter: { notes: arp("triangle", [G4, up(D4)], 0.06, 0.08, 0.2) },
+  // The doors shut: a low thunk and a latch.
+  gateLock: {
+    notes: [
+      { wave: "sine", from: 150, to: 70, at: 0, length: 0.12, gain: 0.55 },
+      { wave: "square", from: up(D4), at: 0.05, length: 0.04, gain: 0.14 },
+    ],
+    hiss: [{ at: 0, length: 0.04, gain: 0.3, from: 1500, to: 600 }],
+  },
   gateUse: {
     notes: [
       { wave: "sawtooth", from: 180, to: 1400, at: 0, length: 0.32, gain: 0.2 },
@@ -131,6 +164,13 @@ const RECIPES: Readonly<Record<SoundName, Recipe>> = {
       { wave: "sine", from: 280, to: 460, at: 0, length: 0.1, gain: 0.35 },
       { wave: "sine", from: 460, to: 320, at: 0.1, length: 0.14, gain: 0.35 },
     ],
+  },
+  // Caught in the snail's mouth: one snap.
+  snailCatch: {
+    notes: [
+      { wave: "square", from: 260, to: 90, at: 0, length: 0.1, gain: 0.32 },
+    ],
+    hiss: [{ at: 0, length: 0.07, gain: 0.35, from: 1400, to: 400 }],
   },
   snailEat: {
     notes: [0, 0.16, 0.32].map((at) => ({

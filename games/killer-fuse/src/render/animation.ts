@@ -4,9 +4,14 @@
  * moving vertically.
  */
 import {
+  COLLIDERS,
+  WEAPONS,
   FLAP_THRUST,
   FLY_GRAVITY,
   FLY_TERMINAL,
+  GATE_LOCK,
+  GATE_OFFER,
+  GATE_STEPS,
   S,
   TICK_HZ,
   type RoundView,
@@ -32,6 +37,8 @@ export const beatSteps = (kind: UnitView["kind"]): number =>
 export const GLIDE_STEPS = FLAP_SECONDS.glide * TICK_HZ;
 /** An invulnerable unit blinks white on a cycle of a sixth of a second: this many steps on, as many off. */
 export const FLASH_BEAT_STEPS = Math.round((0.167 * TICK_HZ) / 2);
+/** A stunned unit blinks white much faster: this many steps on, as many off. */
+export const STUN_BEAT_STEPS = 2;
 /** A landing squashes a body for this long, down to this share of its height at full falling speed. */
 export const LAND_SECONDS = 0.15;
 export const LAND_HEIGHT = { worker: 0.75, warrior: 0.8, queen: 0.8 } as const;
@@ -80,7 +87,41 @@ export function unitSheet(unit: UnitView): string {
 }
 
 export const flashing = (unit: UnitView, time: number): boolean =>
-  unit.invulnerable && Math.floor(time / FLASH_BEAT_STEPS) % 2 === 0;
+  unit.stunned
+    ? Math.floor(time / STUN_BEAT_STEPS) % 2 === 0
+    : unit.invulnerable && Math.floor(time / FLASH_BEAT_STEPS) % 2 === 0;
+
+/**
+ * How many pixels a dashing unit's sprite is raised over its feet. The engine lifts a dashing unit's movement box
+ * (a Warrior tucks its legs, a Queen lies flat at chest height), so on the ground its feet read that far under the
+ * floor. The sprite is raised until the lowest painted row of its pose, `gap` pixels over the anchor, sits on the
+ * bottom of that box: it then skims the floor in a ground dash and its blade is level with the engine's in the air.
+ */
+export function dashLift(unit: UnitView, gap: number): number {
+  if (!unit.dashing || unit.kind === "worker") return 0;
+  const box =
+    unit.kind === "queen" ? COLLIDERS.queenDash : COLLIDERS.warriorDash;
+  return Math.max(0, box.lift / S - gap);
+}
+
+/**
+ * How far a diving Queen's blade must be drawn on below the painted one, whose tip is `painted` pixels under her
+ * feet, to end where the engine's does. Nothing when the art is within a pixel of it.
+ */
+export function diveReach(painted: number): number {
+  const tip = Math.max(...WEAPONS.queenDive.map((box) => box.y + box.hh)) / S;
+  const missing = Math.round(tip - painted);
+  return missing > 1 ? missing : 0;
+}
+
+export type Sword = "none" | "ready" | "lethal" | "cooling";
+
+/** What a fighter's sword is doing: it kills while lethal, and cannot be swung again until the cooldown is over. */
+export function swordOf(unit: UnitView): Sword {
+  if (unit.kind === "worker" || unit.dead) return "none";
+  if (unit.attacking) return "lethal";
+  return unit.attackStep > 0 ? "cooling" : "ready";
+}
 
 function sheetOf(manifest: ArtManifest, id: string): SheetDef {
   const def = manifest.assets[id];
@@ -90,12 +131,17 @@ function sheetOf(manifest: ArtManifest, id: string): SheetDef {
 
 function workerAnimation(unit: UnitView, context: PoseContext): string {
   if (unit.eaten) return "run";
-  if (unit.riding) return "idle";
+  // Sitting in a hive hole or riding: still.
+  if (unit.riding || unit.depositing) return "idle";
   if (!unit.grounded) return context.dy < 0 ? "jump" : "fall";
   return unit.moving ? "run" : "idle";
 }
 
 function wingedAnimation(unit: UnitView, context: PoseContext): string {
+  // The lunge for as long as the dash carries the unit or the sword can kill; a dive has its own pose.
+  if (unit.dashing || (unit.attacking && !unit.diving)) return "attack";
+  // Stunned in the air: wings limp.
+  if (unit.stunned && !unit.grounded) return "glide";
   if (unit.grounded) return unit.moving ? "walk" : "idle";
   if (unit.diving) return "dive";
   if (context.sinceFlap < GLIDE_STEPS || context.dy < WINGS_DY) return "fly";
@@ -318,4 +364,90 @@ export function bodyShape(
     };
   }
   return WHOLE;
+}
+
+/** Workers that left the ground upwards between two views: a jump, seen even when its own step was never shown. */
+export function jumps(before: RoundView, after: RoundView): number[] {
+  const steps = after.step - before.step;
+  if (steps <= 0) return [];
+  return after.units
+    .filter((unit) => {
+      const was = before.units[unit.slot];
+      return (
+        unit.kind === "worker" &&
+        was !== undefined &&
+        was.kind === "worker" &&
+        was.grounded &&
+        !unit.grounded &&
+        !was.dead &&
+        !unit.dead &&
+        !unit.riding &&
+        !unit.eaten &&
+        !unit.depositing &&
+        !was.depositing &&
+        unit.y < was.y &&
+        was.y - unit.y <= FLAP_JUMP * steps
+      );
+    })
+    .map((unit) => unit.slot);
+}
+
+/** The doors slam shut over this many steps once the gate takes the berry. */
+export const DOOR_SHUT_STEPS = 6;
+
+export interface GateDoor {
+  /** 0 to 1 through the offer: the gate has not taken the berry yet and the Worker may still walk out. */
+  readonly offer: number;
+  /** How far the doors are shut, 0 to 1: open through the offer, shut within a few steps of the lock. */
+  readonly closed: number;
+  /** 0 to 1 through the lock, the two seconds the Worker is held. */
+  readonly lock: number;
+}
+
+/** What a gate's doors show at `progress` (0 to 1 of the whole stay, as the view gives it). */
+export function gateDoor(progress: number): GateDoor {
+  const steps = Math.max(0, Math.min(1, progress)) * GATE_STEPS;
+  if (steps < GATE_OFFER)
+    return { offer: steps / GATE_OFFER, closed: 0, lock: 0 };
+  const held = steps - GATE_OFFER;
+  return {
+    offer: 1,
+    closed: Math.min(1, (held + 1) / DOOR_SHUT_STEPS),
+    lock: Math.min(1, held / GATE_LOCK),
+  };
+}
+
+/** One line of the streak behind a dashing unit: `back` pixels behind its middle, `up` over its feet, `length` long. */
+export interface StreakLine {
+  readonly back: number;
+  readonly up: number;
+  readonly length: number;
+}
+
+/** The longest line of a dash's streak, in pixels. */
+export const STREAK_LENGTH = 12;
+
+/**
+ * The speed lines behind a dashing unit whose painted body spans `low` to `high` pixels over its feet and reaches
+ * `behind` pixels back from its middle: three of them over the body, long as the dash starts and short as it ends.
+ * `lethal` is how many steps the dash lasts.
+ */
+export function dashStreak(
+  attackStep: number,
+  lethal: number,
+  low: number,
+  high: number,
+  behind: number,
+): StreakLine[] {
+  if (attackStep < 1 || attackStep > lethal) return [];
+  const left = 1 - (attackStep - 1) / lethal;
+  // The middle line is the longest and the outer two start a little further back.
+  return [0, 0.5, 1].map((share, index) => ({
+    back: behind + (index === 1 ? 0 : 2),
+    up: Math.round(low + (high - low) * share),
+    length: Math.max(
+      2,
+      Math.round(STREAK_LENGTH * left * (index === 1 ? 1 : 0.6)),
+    ),
+  }));
 }

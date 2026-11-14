@@ -834,6 +834,16 @@ test("the ending closes on what decided the round", () => {
     x: 77,
     y: 99 - SIZES.queen / 2,
   });
+  assert.deepEqual(
+    victoryFocus(fallen, SIZES, { x: 300, y: 40 }),
+    { x: 300, y: 40 },
+    "where she died, not where the engine has put her since",
+  );
+  assert.deepEqual(
+    victoryFocus(won(0, "snail"), SIZES, { x: 300, y: 40 }),
+    { x: base.snail.x, y: base.snail.y - SIZES.snail / 2 },
+    "an old death does not move a snail win",
+  );
   const queenless = { ...won(1, "military"), units: [] };
   assert.deepEqual(victoryFocus(queenless, SIZES), middle);
   assert.deepEqual(victoryFocus(won(0, "snail"), SIZES), {

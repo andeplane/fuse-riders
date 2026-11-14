@@ -8,7 +8,10 @@ import {
   CLAIM_SECONDS,
   CLASH,
   DEATH,
+  CLASH_SHEET,
   HATCH,
+  JUMP_DUST,
+  STOMP_SPECKS,
   planLanding,
   QUEEN_FLARE,
   eventKey,
@@ -140,7 +143,14 @@ test("every event has a plan, and events about missing things are silent", () =>
   const view = openingView();
   const events: GameEvent[] = [
     { type: "bounce", a: 0, b: 3 },
-    { type: "bump", worker: 1, target: 4 },
+    { type: "bounce", a: 0, b: 3, x: 200, y: 90 },
+    { type: "glance", a: 0, b: 3, x: 200, y: 90 },
+    { type: "stomped", slot: 1, by: 4, x: 200, y: 90 },
+    { type: "attack", slot: 0 },
+    { type: "gateOffer", slot: 1, gate: 0 },
+    { type: "gateLock", slot: 1, gate: 0 },
+    { type: "depositStart", slot: 1, team: 0, hole: 2 },
+    { type: "snailCatch", victim: 4, rider: 1 },
     { type: "berryPickup", slot: 1, pile: 0 },
     { type: "berryKick", slot: 1 },
     { type: "berryDeposit", slot: 1, team: 0, hole: 2 },
@@ -171,6 +181,12 @@ test("every event has a plan, and events about missing things are silent", () =>
     { type: "bounce", a: 9, b: 0 },
     { type: "bounce", a: 0, b: 9 },
     { type: "bump", worker: 0, target: 9 },
+    // Bodies that bump arrive as `bounce` since rules 4: a `bump` from an old recording does nothing.
+    { type: "bump", worker: 1, target: 4 },
+    { type: "attack", slot: 9 },
+    { type: "gateOffer", slot: 1, gate: 99 },
+    { type: "gateLock", slot: 1, gate: 99 },
+    { type: "depositStart", slot: 1, team: 0, hole: 99 },
     { type: "berryPickup", slot: 9, pile: 0 },
     { type: "berryKick", slot: 9 },
     { type: "berryDeposit", slot: 1, team: 0, hole: 99 },
@@ -321,6 +337,13 @@ test("a flap puffs behind the wings and a jump under the feet", () => {
   assert.ok(hop?.kind === "sprite");
   assert.equal(hop.x, 100);
   assert.equal(hop.flip, false);
+  const dust = worker.effects[1];
+  assert.ok(dust?.kind === "burst", "a jump kicks dust off the ground");
+  assert.deepEqual(
+    { count: dust.count, x: dust.x, y: dust.y },
+    { count: JUMP_DUST, x: 100, y: 49 },
+  );
+  assert.equal(warrior.effects.length, 1, "wings raise none");
   assert.deepEqual(sounds(worker), ["jump"]);
   assert.ok(
     (worker.sounds[0]?.volume ?? 1) < 0.7,
@@ -418,15 +441,28 @@ test("the body's middle is known for every kind and never fails", () => {
   assert.equal(bodyLift(undefined, undefined), 0);
 });
 
-test("a clash is a white core and quick bursts of sparks; a bump is ten", () => {
+test("crossed swords flash where they met; bumped bodies spark there", () => {
   const view = withUnit(withUnit(openingView(), 0, { x: 100, y: 100 }), 3, {
     x: 110,
     y: 100,
   });
-  const clash = planEvent({ type: "bounce", a: 0, b: 3 }, view, -1, SIZES);
-  const [core, ...bursts] = clash.effects;
+  const clash = planEvent(
+    { type: "glance", a: 0, b: 3, x: 105, y: 91 },
+    view,
+    -1,
+    SIZES,
+  );
+  const [flash, core, ...bursts] = clash.effects;
+  assert.deepEqual(flash, {
+    kind: "sprite",
+    sheet: CLASH_SHEET,
+    x: 105,
+    y: 91,
+    flip: false,
+  });
   assert.ok(core?.kind === "flare");
   assert.equal(core.life, CLASH.core);
+  assert.deepEqual([core.x, core.y], [105, 91]);
   assert.equal(bursts.length, CLASH.bursts);
   assert.deepEqual(
     bursts.map((burst) => (burst.kind === "burst" ? burst.delay : -1)),
@@ -434,16 +470,183 @@ test("a clash is a white core and quick bursts of sparks; a bump is ten", () => 
     "one after the other",
   );
   assert.ok(bursts.every((b) => b.kind === "burst" && b.life === CLASH.life));
-  assert.equal(clash.shake, 0);
+  assert.equal(clash.shake, 0, "no hit-stop and no shake: play goes on");
+  assert.deepEqual(sounds(clash), ["glance"]);
+  assert.equal(
+    planEvent({ type: "glance", a: 0, b: 3, x: 105, y: 91 }, view, 3, SIZES)
+      .sounds[0]?.volume,
+    1,
+    "my own clash is loud",
+  );
+
   const bump = planEvent(
-    { type: "bump", worker: 1, target: 4 },
+    { type: "bounce", a: 0, b: 3, x: 300, y: 40 },
     view,
     -1,
     SIZES,
   );
-  const [sparks] = bump.effects;
-  assert.ok(sparks?.kind === "burst");
+  const [spark, sparks] = bump.effects;
+  assert.ok(spark?.kind === "flare" && sparks?.kind === "burst");
+  assert.deepEqual([spark.x, spark.y], [300, 40], "where the engine says");
+  assert.deepEqual([sparks.x, sparks.y], [300, 40]);
   assert.equal(sparks.count, BUMP_SPARKS);
+  assert.ok((bump.sounds[0]?.pan ?? 0) > 0, "heard from the right");
+});
+
+test("a stomp puffs off the head and an attack pushes off behind", () => {
+  const view = withUnit(openingView(), 0, { x: 100, y: 60, facing: -1 });
+  const stomp = planEvent(
+    { type: "stomped", slot: 1, by: 4, x: 210, y: 130 },
+    view,
+    4,
+    SIZES,
+  );
+  const [puff, specks] = stomp.effects;
+  assert.deepEqual(puff, {
+    kind: "sprite",
+    sheet: "flap-puff",
+    x: 210,
+    y: 129,
+    flip: false,
+  });
+  assert.ok(specks?.kind === "burst");
+  assert.equal(specks.count, STOMP_SPECKS);
+  assert.deepEqual(sounds(stomp), ["stomp"]);
+  assert.equal(stomp.sounds[0]?.volume, 0.8, "mine");
+
+  const attack = planEvent({ type: "attack", slot: 0 }, view, 0, SIZES);
+  assert.deepEqual(attack.effects, [
+    {
+      kind: "sprite",
+      sheet: "flap-puff",
+      x: 105,
+      y: 60 - SIZES.queen / 2,
+      flip: true,
+    },
+  ]);
+  assert.deepEqual(sounds(attack), ["attack"]);
+  assert.equal(attack.sounds[0]?.volume, 0.8);
+  assert.equal(
+    planEvent({ type: "attack", slot: 0 }, view, 3, SIZES).sounds[0]?.volume,
+    0.3,
+    "someone else's swing is quiet",
+  );
+});
+
+test("a gate sounds when offered, rings shut, and a hive hole rings as a Worker climbs in", () => {
+  const view = openingView();
+  const gate = view.gates[0];
+  const hole = view.hives[0]?.[2];
+  assert.ok(gate && hole);
+  const offer = planEvent(
+    { type: "gateOffer", slot: 1, gate: 0 },
+    view,
+    1,
+    SIZES,
+  );
+  assert.deepEqual(offer.effects, [], "the doorway's own pulse shows it");
+  assert.deepEqual(sounds(offer), ["gateEnter"]);
+  assert.equal(offer.sounds[0]?.volume, 0.9);
+  assert.equal(
+    planEvent({ type: "gateOffer", slot: 1, gate: 0 }, view, -1, SIZES)
+      .sounds[0]?.volume,
+    0.4,
+  );
+  const lock = planEvent(
+    { type: "gateLock", slot: 1, gate: 0 },
+    view,
+    -1,
+    SIZES,
+  );
+  assert.deepEqual(lock.effects, [
+    {
+      kind: "ring",
+      x: gate.x,
+      y: gate.y - SIZES.worker / 2,
+      tone: "team",
+      team: view.units[1]?.team,
+      radius: 12,
+    },
+  ]);
+  assert.deepEqual(sounds(lock), ["gateLock"]);
+  const unknown = planEvent(
+    { type: "gateLock", slot: 9, gate: 0 },
+    view,
+    -1,
+    SIZES,
+  ).effects[0];
+  assert.ok(unknown?.kind === "ring");
+  assert.equal(unknown.team, -1);
+
+  const sit = planEvent(
+    { type: "depositStart", slot: 1, team: 0, hole: 2 },
+    view,
+    -1,
+    SIZES,
+  );
+  assert.deepEqual(sit.effects, [
+    { kind: "ring", x: hole.x, y: hole.y, tone: "berry", team: -1, radius: 7 },
+  ]);
+  assert.deepEqual(sounds(sit), ["pickup"]);
+});
+
+test("the snail's catch flashes at its mouth in the victim's colour", () => {
+  const view = openingView();
+  const plan = planEvent(
+    { type: "snailCatch", victim: 4, rider: 1 },
+    view,
+    -1,
+    SIZES,
+  );
+  const [flash, bits] = plan.effects;
+  assert.ok(flash?.kind === "flare" && bits?.kind === "burst");
+  assert.equal(flash.x, view.snail.x + view.snail.facing * SIZES.snailFront);
+  assert.equal(bits.team, view.units[4]?.team);
+  assert.deepEqual(sounds(plan), ["snailCatch"]);
+  const nobody = planEvent(
+    { type: "snailCatch", victim: 9, rider: 1 },
+    view,
+    -1,
+    SIZES,
+  ).effects[1];
+  assert.ok(nobody?.kind === "burst");
+  assert.equal(nobody.team, -1);
+});
+
+test("a re-fed step with sword events plays them once", () => {
+  const ledger = new EventLedger();
+  const events: GameEvent[] = [
+    { type: "attack", slot: 0 },
+    { type: "glance", a: 0, b: 3, x: 105, y: 91 },
+    { type: "stomped", slot: 1, by: 4, x: 210, y: 130 },
+    { type: "bounce", a: 0, b: 3, x: 300, y: 40 },
+    { type: "gateOffer", slot: 1, gate: 0 },
+    { type: "gateLock", slot: 1, gate: 0 },
+    { type: "gateUse", slot: 1, gate: 0, kind: "warrior", x: 10, y: 20 },
+    { type: "depositStart", slot: 1, team: 0, hole: 2 },
+    { type: "snailCatch", victim: 4, rider: 1 },
+    { type: "respawn", slot: 0, egg: 1 },
+  ];
+  const view = withEvents(openingView(), 77, events);
+  assert.deepEqual(ledger.fresh(view), events);
+  assert.deepEqual(ledger.fresh(view), [], "the same step again");
+  assert.deepEqual(
+    ledger.fresh(
+      withEvents(
+        view,
+        77,
+        events.map((event) => ({ ...event })),
+      ),
+    ),
+    [],
+    "re-simulated to the same outcome",
+  );
+  const moved: GameEvent = { type: "glance", a: 0, b: 3, x: 106, y: 91 };
+  assert.deepEqual(
+    ledger.fresh(withEvents(view, 77, [...events, moved])),
+    [moved],
+    "a rollback that moved the clash shows the new one only",
+  );
 });
 
 test("a claimed gate sends its new colour up for a second", () => {
@@ -462,25 +665,53 @@ test("a claimed gate sends its new colour up for a second", () => {
   assert.equal(rising.x, view.gates[0]?.x);
 });
 
-test("a Queen hatches in a burst of shell, a Worker in its beam", () => {
+test("a Queen hatches in a burst of shell at her egg, a Worker in its beam", () => {
   const view = openingView();
   const queen = view.units.find((unit) => unit.kind === "queen");
   const worker = view.units.find((unit) => unit.kind === "worker");
   assert.ok(queen && worker);
+  const egg = view.spares[queen.team]?.[1];
+  assert.ok(egg);
   const hatch = planEvent(
-    { type: "respawn", slot: queen.slot },
+    { type: "respawn", slot: queen.slot, egg: 1 },
     view,
     -1,
     SIZES,
   );
-  const [shell] = hatch.effects;
-  assert.ok(shell?.kind === "burst");
+  assert.deepEqual(kinds(hatch), ["flare", "burst", "burst"]);
+  const [flash, shell, trim] = hatch.effects;
+  assert.ok(
+    flash?.kind === "flare" &&
+      shell?.kind === "burst" &&
+      trim?.kind === "burst",
+  );
+  assert.equal(flash.radius, HATCH.flare);
   assert.deepEqual(
     { count: shell.count, life: shell.life, tone: shell.tone },
-    { ...HATCH, tone: "white" },
+    { count: HATCH.count, life: HATCH.life, tone: "gold" },
   );
+  assert.deepEqual(
+    { count: trim.count, tone: trim.tone, team: trim.team },
+    { count: HATCH.trim, tone: "team", team: queen.team },
+  );
+  for (const effect of [flash, shell, trim])
+    assert.deepEqual(
+      [effect.x, effect.y],
+      [egg.x, egg.y - HATCH.lift],
+      "at the egg, not at the Queen",
+    );
+  // An engine that names no egg: she hatches where she is.
+  for (const event of [
+    { type: "respawn", slot: queen.slot },
+    { type: "respawn", slot: queen.slot, egg: -1 },
+    { type: "respawn", slot: queen.slot, egg: 99 },
+  ] satisfies GameEvent[]) {
+    const [there] = planEvent(event, view, -1, SIZES).effects;
+    assert.ok(there?.kind === "flare");
+    assert.deepEqual([there.x, there.y], [queen.x, queen.y - SIZES.queen / 2]);
+  }
   const beam = planEvent(
-    { type: "respawn", slot: worker.slot },
+    { type: "respawn", slot: worker.slot, egg: -1 },
     view,
     -1,
     SIZES,

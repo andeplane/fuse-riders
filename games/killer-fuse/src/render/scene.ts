@@ -4,17 +4,22 @@
  * change (the platform layer of a map, glyph layouts).
  */
 import {
-  GATE_STEPS,
   PILE_HEIGHT,
+  QUEEN_LETHAL,
   RESPAWN_STEPS,
   S,
   TICK_HZ,
+  WARRIOR_LETHAL,
   type GateView,
   type MapDef,
   type RoundView,
   type UnitView,
 } from "../engine/index.js";
 import {
+  dashLift,
+  diveReach,
+  dashStreak,
+  gateDoor,
   unitPose,
   unitSheet,
   type BodyShape,
@@ -68,8 +73,13 @@ export const INK = "#05061a";
 
 /** The outline of an after-image, after the arcade's pale yellow. */
 const GHOST_EDGE = "#fff3a0";
-/** A gate's doors take this long to close on the Worker inside and to open again, in seconds. */
-export const DOOR = { close: 2, open: 0.4 } as const;
+/** The steel and the outline of the swords in the art, for the stretch of a diving blade drawn here. */
+const BLADE = "#d8f1ff",
+  BLADE_EDGE = "#020715";
+/** A gate's doors spring open over this long when the Warrior is out, in seconds. */
+export const DOOR = { open: 0.4 } as const;
+/** A sword that has cooled down glints at its tip for this long, in seconds. */
+export const GLINT_SECONDS = 0.22;
 
 export interface SceneFrame {
   /** The blended view to draw and its time in steps. */
@@ -91,6 +101,14 @@ export interface SceneFrame {
   readonly shapes: readonly BodyShape[];
   /** Wall-clock second each gate last let its Warrior out. */
   readonly gateOpened: readonly number[];
+  /** Wall-clock second each slot's sword last became ready again. */
+  readonly readied: readonly number[];
+  /** Where the Queen whose death won the round fell, and her team, once the ending shows it. */
+  readonly fallen: {
+    readonly x: number;
+    readonly y: number;
+    team: number;
+  } | null;
   /** Wall-clock second each hole was last filled, keyed `team:hole`. */
   readonly holePops: ReadonlyMap<string, number>;
   readonly danger: Danger;
@@ -188,6 +206,7 @@ export class Scene {
     // The nets stand in front of the track: the snail crawls into its basket.
     this.goals(ctx, frame);
     this.afterImages(ctx, frame);
+    this.fallen(ctx, frame);
     this.units(ctx, frame, (unit) => !unit.eaten && !unit.riding);
     this.doors(ctx, frame);
     this.berries(ctx, frame);
@@ -515,11 +534,19 @@ export class Scene {
         sinceFlap: frame.flaps.since(unit.slot, frame.time),
         inGate,
       });
-      const at = this.place(unit, frame);
-      const flip = unit.facing < 0;
+      const stood = this.place(unit, frame);
       const base = unitSheet(unit);
-      // A dive, and a speed unit always, leaves after-images where it has been.
-      if (!inGate && !unit.riding && !unit.eaten && (unit.speed || unit.diving))
+      const gap = this.below(base, pose.frame);
+      const at = { x: stood.x, y: stood.y - dashLift(unit, gap) };
+      const flip = unit.facing < 0;
+      // A dive, and a speed unit always, leave after-images where they have been; a dash has its streak.
+      if (
+        !inGate &&
+        !unit.riding &&
+        !unit.eaten &&
+        !unit.dashing &&
+        (unit.speed || unit.diving)
+      )
         frame.ghosts.note({
           slot: unit.slot,
           team: unit.team,
@@ -531,6 +558,7 @@ export class Scene {
           born: frame.now,
         });
       this.shaped(ctx, at, frame.shapes[unit.slot], (x) => {
+        if (unit.dashing) this.streak(ctx, unit, base, pose.frame, x, at.y);
         const outline = outlineOf(unit, frame.localSlot, frame.highlight);
         if (outline && !inGate)
           this.rim(ctx, unit, pose.frame, { x, y: at.y }, flip, outline);
@@ -546,6 +574,8 @@ export class Scene {
           this.sprites.draw(ctx, pose.sheet, pose.frame, x, at.y, flip);
           ctx.globalAlpha = 1;
         } else this.sprites.draw(ctx, pose.sheet, pose.frame, x, at.y, flip);
+        if (unit.diving) this.diveBlade(ctx, base, pose.frame, x, at.y, flip);
+        this.glint(ctx, unit, base, pose.frame, x, at.y, frame);
       });
     }
   }
@@ -560,7 +590,11 @@ export class Scene {
     shape: BodyShape | undefined,
     paint: (x: number) => void,
   ): void {
-    const reach = this.sprites.sizes.queen;
+    // Half the widest unit cell: a lunging sword reaches that far.
+    const reach = Math.max(
+      this.sprites.sizes.queen,
+      Math.ceil((this.sprites.def("queen-cyan")?.frameWidth ?? 0) / 2) + 1,
+    );
     for (const offset of wrapOffsets(at.x - reach, at.x + reach)) {
       const x = Math.round(at.x) + offset;
       if (!shape || (shape.w === 1 && shape.h === 1)) {
@@ -578,6 +612,106 @@ export class Scene {
     }
   }
 
+  /** Rows between a frame's lowest painted one and its anchor row: negative when it is painted below the feet. */
+  private below(sheet: string, poseFrame: number): number {
+    const def = this.sprites.def(sheet);
+    const box = this.sprites.box(sheet, poseFrame);
+    return def && box ? def.anchor[1] - box.bottom : 0;
+  }
+
+  /**
+   * A diving Queen's blade, drawn on down to where the engine's ends when the art's is shorter: white in a dark
+   * edge like the painted one, under its lowest pixel.
+   */
+  private diveBlade(
+    ctx: Ctx,
+    sheet: string,
+    poseFrame: number,
+    x: number,
+    y: number,
+    flip: boolean,
+  ): void {
+    const foot = this.sprites.foot(sheet, poseFrame);
+    if (!foot) return;
+    const reach = diveReach(foot.down);
+    if (reach === 0) return;
+    const px = x + (flip ? -foot.ahead : foot.ahead),
+      py = Math.round(y) + foot.down;
+    ctx.fillStyle = BLADE_EDGE;
+    ctx.fillRect(px - 1, py, 3, reach + 1);
+    ctx.fillStyle = BLADE;
+    ctx.fillRect(px, py, 1, reach);
+  }
+
+  /** The speed lines behind a dashing unit: white at the body, its colour behind, fading out. */
+  private streak(
+    ctx: Ctx,
+    unit: UnitView,
+    sheet: string,
+    poseFrame: number,
+    x: number,
+    y: number,
+  ): void {
+    const def = this.sprites.def(sheet);
+    const box = this.sprites.box(sheet, poseFrame);
+    if (!def || !box) return;
+    const ramp = this.sprites.ramp(unit.team);
+    const lines = dashStreak(
+      unit.attackStep,
+      unit.kind === "queen" ? QUEEN_LETHAL : WARRIOR_LETHAL,
+      def.anchor[1] - box.bottom,
+      def.anchor[1] - box.top,
+      def.anchor[0] - box.left,
+    );
+    const py = Math.round(y);
+    for (const line of lines)
+      for (let i = 0; i < line.length; i += 1) {
+        ctx.globalAlpha = 0.85 * (1 - i / line.length);
+        ctx.fillStyle = i < 2 ? "#ffffff" : (ramp[3] ?? "#fff");
+        ctx.fillRect(x - unit.facing * (line.back + i), py - line.up, 1, 1);
+      }
+    ctx.globalAlpha = 1;
+  }
+
+  /** The glint at a sword's tip as it becomes ready again: a small white star that opens and fades. */
+  private glint(
+    ctx: Ctx,
+    unit: UnitView,
+    sheet: string,
+    poseFrame: number,
+    x: number,
+    y: number,
+    frame: SceneFrame,
+  ): void {
+    const age = frame.now - (frame.readied[unit.slot] ?? -9);
+    if (age < 0 || age >= GLINT_SECONDS || unit.kind === "worker") return;
+    const tip = this.sprites.tip(sheet, poseFrame);
+    if (!tip) return;
+    const t = age / GLINT_SECONDS;
+    const tx = x + unit.facing * tip.ahead,
+      ty = Math.round(y) - tip.up;
+    const arm = t < 0.5 ? 2 : 1;
+    ctx.globalAlpha = 1 - t * t;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(tx - arm, ty, arm * 2 + 1, 1);
+    ctx.fillRect(tx, ty - arm, 1, arm * 2 + 1);
+    ctx.globalAlpha = 1;
+  }
+
+  /** The Queen whose death won the round, where she fell, once the ending closes in on her. */
+  private fallen(ctx: Ctx, frame: SceneFrame): void {
+    const { fallen } = frame;
+    if (!fallen) return;
+    this.sprites.drawWrapped(
+      ctx,
+      `win-military-${teamName(fallen.team)}`,
+      0,
+      fallen.x,
+      fallen.y + Math.round(this.sprites.sizes.queen / 2) - 1,
+      fallen.team === 1,
+    );
+  }
+
   /** The after-images, each fading evenly over its short life inside a pale outline. */
   private afterImages(ctx: Ctx, frame: SceneFrame): void {
     for (const ghost of frame.ghosts.list) {
@@ -588,7 +722,7 @@ export class Scene {
         ghost.sheet,
         this.sprites.ramp(ghost.team)[2] ?? "#fff",
       );
-      ctx.globalAlpha = left * 0.45;
+      ctx.globalAlpha = left * 0.22;
       for (const [dx, dy] of [
         [-1, 0],
         [1, 0],
@@ -604,7 +738,7 @@ export class Scene {
           ghost.flip,
           edge,
         );
-      ctx.globalAlpha = left * 0.6;
+      ctx.globalAlpha = left * 0.5;
       this.sprites.drawWrapped(
         ctx,
         ghost.sheet,
@@ -619,7 +753,9 @@ export class Scene {
   }
 
   /**
-   * A gate's doors: they close from the pillars over the Worker inside, and spring open when the Warrior is out.
+   * A gate's doors. While the gate is offered the berry the doorway only glows, softly pulsing: the Worker may still
+   * walk out. When the gate takes it the doors slam shut into a cocoon for the two seconds it holds the Worker, a
+   * line of light climbing the seam as the time runs, and they spring open when the Warrior is out.
    */
   private doors(ctx: Ctx, frame: SceneFrame): void {
     const { sizes } = this.sprites;
@@ -630,22 +766,58 @@ export class Scene {
     const half = Math.ceil(
       ((box ? box.right - box.left + 1 : worker.frameWidth) + 2) / 2,
     );
+    const tall = sizes.worker + 1;
     frame.view.gates.forEach((gate, index) => {
-      const closed =
-        gate.user >= 0
-          ? Math.min(1, (gate.progress * GATE_STEPS) / TICK_HZ / DOOR.close)
-          : 1 - (frame.now - (frame.gateOpened[index] ?? -9)) / DOOR.open;
-      if (closed <= 0) return;
-      const ramp = gate.owner < 0 ? undefined : this.sprites.ramp(gate.owner);
-      const leaf = Math.round(half * Math.min(1, closed));
+      const user = frame.view.units[gate.user];
+      const door = gateDoor(gate.progress);
+      const ramp = this.sprites.ramp(
+        user ? user.team : gate.owner < 0 ? 0 : gate.owner,
+      );
       const top = gate.y - sizes.worker - 1;
+      if (user && door.closed <= 0) {
+        // Offered: light between the pillars and a bright frame round the doorway, breathing faster as the gate
+        // is about to take the berry.
+        const beat = 0.5 + 0.5 * Math.sin(frame.now * (14 + 10 * door.offer));
+        ctx.fillStyle = ramp[3] ?? "#fff";
+        ctx.globalAlpha = 0.1 + 0.18 * beat;
+        ctx.fillRect(gate.x - half, top, half * 2 + 1, tall);
+        ctx.globalAlpha = 0.35 + 0.6 * beat * (0.4 + 0.6 * door.offer);
+        ctx.fillRect(gate.x - half, top - 1, half * 2 + 1, 1);
+        ctx.fillRect(gate.x - half - 1, top, 1, tall);
+        ctx.fillRect(gate.x + half + 1, top, 1, tall);
+        ctx.globalAlpha = 1;
+        return;
+      }
+      const closed = user
+        ? door.closed
+        : 1 - (frame.now - (frame.gateOpened[index] ?? -9)) / DOOR.open;
+      if (closed <= 0) return;
+      const tinted = user !== undefined || gate.owner >= 0;
+      const leaf = Math.round(half * Math.min(1, closed));
       for (const side of [-1, 1] as const) {
         const x = side < 0 ? gate.x - half : gate.x + half - leaf + 1;
-        ctx.fillStyle = ramp?.[0] ?? "#1b1d44";
-        ctx.fillRect(x, top, leaf, sizes.worker + 1);
+        // Dark steel whoever holds the gate, so the Worker's colour behind it does not read as an open door.
+        ctx.fillStyle = "#1b1d44";
+        ctx.fillRect(x, top, leaf, tall);
         // The leading edge of each leaf in the gate's colour.
-        ctx.fillStyle = ramp?.[2] ?? "#d8e6ff";
-        ctx.fillRect(side < 0 ? x + leaf - 1 : x, top, 1, sizes.worker + 1);
+        ctx.fillStyle = tinted ? (ramp[2] ?? "#d8e6ff") : "#d8e6ff";
+        ctx.fillRect(side < 0 ? x + leaf - 1 : x, top, 1, tall);
+      }
+      if (!user || door.closed < 1) return;
+      // Shut: the cocoon's ribs, and the light climbing its seam.
+      ctx.fillStyle = ramp[2] ?? "#888";
+      for (let row = top + 2; row < top + tall - 1; row += 3) {
+        ctx.fillRect(gate.x - half + 1, row, half - 2, 1);
+        ctx.fillRect(gate.x + 2, row, half - 2, 1);
+      }
+      const lit = Math.round(tall * door.lock);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(gate.x, top + tall - lit, 1, lit);
+      // About to open: the whole cocoon flickers white.
+      if (door.lock > 0.85 && Math.floor(frame.now * 20) % 2 === 0) {
+        ctx.globalAlpha = 0.45;
+        ctx.fillRect(gate.x - half, top, half * 2 + 1, tall);
+        ctx.globalAlpha = 1;
       }
     });
   }

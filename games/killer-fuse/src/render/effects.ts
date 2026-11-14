@@ -14,12 +14,17 @@ export type SoundName =
   | "deposit"
   | "kick"
   | "bounce"
+  | "attack"
+  | "glance"
+  | "stomp"
   | "gateEnter"
+  | "gateLock"
   | "gateUse"
   | "gateClaim"
   | "kill"
   | "queenKill"
   | "snailMount"
+  | "snailCatch"
   | "snailEat"
   | "respawn"
   | "regrow"
@@ -233,12 +238,25 @@ export const CLASH = {
   life: 1,
   core: 0.05,
 } as const;
-/** The smaller knock of a Worker bumped aside. */
+/** The smaller knock of two bodies bumping, and the puff of dust off a head that was landed on. */
 export const BUMP_SPARKS = 10;
+export const STOMP_SPECKS = 6;
+/** The sheet of two blades meeting, played once where they cross. */
+export const CLASH_SHEET = "clash";
 /** A claimed gate sends its new colour up for this long. */
 export const CLAIM_SECONDS = 1;
 /** Bits of shell when a Queen hatches. */
-export const HATCH = { count: 26, life: 0.7 } as const;
+/**
+ * Bits of shell when a Queen hatches: the egg's own yellow, a few of her team's colour, round a short white flare
+ * `lift` pixels over the egg's foot.
+ */
+export const HATCH = {
+  count: 26,
+  trim: 10,
+  life: 0.7,
+  flare: 7,
+  lift: 7,
+} as const;
 
 function specks(
   at: { x: number; y: number },
@@ -299,17 +317,13 @@ export function planEvent(
         shake: 1,
       };
     }
-    case "bounce": {
-      const a = unit(event.a),
-        b = unit(event.b);
-      if (!a || !b) return NOTHING;
-      const at = {
-        x: Math.abs(b.x - a.x) > 240 ? a.x : a.x + (b.x - a.x) / 2,
-        y: (a.y - bodyLift(a, sizes) + b.y - bodyLift(b, sizes)) / 2,
-      };
+    case "glance": {
+      // Sword on sword: the blades' flash where they crossed, a white core and sparks thrown from it.
+      const at = { x: event.x, y: event.y };
       return {
         effects: [
-          { kind: "flare", ...at, radius: 3, life: CLASH.core },
+          { kind: "sprite", sheet: CLASH_SHEET, ...at, flip: false },
+          { kind: "flare", ...at, radius: 4, life: CLASH.core },
           ...Array.from({ length: CLASH.bursts }, (_, index): Effect => ({
             kind: "burst",
             ...at,
@@ -324,23 +338,32 @@ export function planEvent(
         ],
         sounds: [
           {
-            name: "bounce",
-            volume: loudness(localSlot, event.a, event.b) * 0.8,
-            pan: panOf(a.x),
+            name: "glance",
+            volume: loudness(localSlot, event.a, event.b),
+            pan: panOf(event.x),
           },
         ],
         shake: 0,
       };
     }
-    case "bump": {
-      const target = unit(event.target);
-      if (!target) return NOTHING;
+    case "bounce": {
+      const a = unit(event.a),
+        b = unit(event.b);
+      if (!a || !b) return NOTHING;
+      // The engine says where the bodies met; an event from before it did is placed between the two.
+      const at =
+        event.x !== undefined && event.y !== undefined
+          ? { x: event.x, y: event.y }
+          : {
+              x: Math.abs(b.x - a.x) > 240 ? a.x : a.x + (b.x - a.x) / 2,
+              y: (a.y - bodyLift(a, sizes) + b.y - bodyLift(b, sizes)) / 2,
+            };
       return {
         effects: [
+          { kind: "flare", ...at, radius: 2, life: CLASH.core },
           {
             kind: "burst",
-            x: target.x,
-            y: target.y - bodyLift(target, sizes),
+            ...at,
             tone: "white",
             team: -1,
             count: BUMP_SPARKS,
@@ -352,13 +375,72 @@ export function planEvent(
         sounds: [
           {
             name: "bounce",
-            volume: loudness(localSlot, event.worker, event.target) * 0.7,
-            pan: panOf(target.x),
+            volume: loudness(localSlot, event.a, event.b) * 0.8,
+            pan: panOf(at.x),
           },
         ],
         shake: 0,
       };
     }
+    case "stomped":
+      // Landed on: a puff of dust off the head and a few specks, as the one above springs away.
+      return {
+        effects: [
+          {
+            kind: "sprite",
+            sheet: "flap-puff",
+            x: event.x,
+            y: event.y - 1,
+            flip: false,
+          },
+          {
+            kind: "burst",
+            x: event.x,
+            y: event.y,
+            tone: "white",
+            team: -1,
+            count: STOMP_SPECKS,
+            speed: 45,
+            life: 0.3,
+            size: 1,
+          },
+        ],
+        sounds: [
+          {
+            name: "stomp",
+            volume: loudness(localSlot, event.slot, event.by) * 0.8,
+            pan: panOf(event.x),
+          },
+        ],
+        shake: 0,
+      };
+    case "attack": {
+      const who = unit(event.slot);
+      if (!who) return NOTHING;
+      // The push-off: a puff where the dash began, blown backwards.
+      return {
+        effects: [
+          {
+            kind: "sprite",
+            sheet: "flap-puff",
+            x: who.x - who.facing * 5,
+            y: who.y - bodyLift(who, sizes),
+            flip: who.facing < 0,
+          },
+        ],
+        sounds: [
+          {
+            name: "attack",
+            volume: event.slot === localSlot ? 0.8 : 0.3,
+            pan: panOf(who.x),
+          },
+        ],
+        shake: 0,
+      };
+    }
+    case "bump":
+      // Not emitted since rules 4: bodies that bump arrive as `bounce`.
+      return NOTHING;
     case "berryPickup": {
       const who = unit(event.slot);
       if (!who) return NOTHING;
@@ -466,6 +548,71 @@ export function planEvent(
         sounds: [{ name: "regrow", volume: 0.7, pan: 0 }],
         shake: 0,
       };
+    case "gateOffer": {
+      const gate = view.gates[event.gate];
+      if (!gate) return NOTHING;
+      return {
+        effects: [],
+        sounds: [
+          {
+            name: "gateEnter",
+            volume: event.slot === localSlot ? 0.9 : 0.4,
+            pan: panOf(gate.x),
+          },
+        ],
+        shake: 0,
+      };
+    }
+    case "gateLock": {
+      const gate = view.gates[event.gate];
+      if (!gate) return NOTHING;
+      // The doors shut on the Worker: a ring of its colour off the doorway.
+      return {
+        effects: [
+          {
+            kind: "ring",
+            x: gate.x,
+            y: gate.y - Math.round(sizes.worker / 2),
+            tone: "team",
+            team: unit(event.slot)?.team ?? -1,
+            radius: 12,
+          },
+        ],
+        sounds: [
+          {
+            name: "gateLock",
+            volume: loudness(localSlot, event.slot) * 0.8,
+            pan: panOf(gate.x),
+          },
+        ],
+        shake: 0,
+      };
+    }
+    case "depositStart": {
+      const hole = view.hives[event.team]?.[event.hole];
+      if (!hole) return NOTHING;
+      // Climbing in: a small ring off the hole; the berry itself counts later, with its own flash.
+      return {
+        effects: [
+          {
+            kind: "ring",
+            x: hole.x,
+            y: hole.y,
+            tone: "berry",
+            team: -1,
+            radius: 7,
+          },
+        ],
+        sounds: [
+          {
+            name: "pickup",
+            volume: loudness(localSlot, event.slot) * 0.5,
+            pan: panOf(hole.x),
+          },
+        ],
+        shake: 0,
+      };
+    }
     case "gateUse": {
       const gate = view.gates[event.gate];
       const who = unit(event.slot);
@@ -571,6 +718,36 @@ export function planEvent(
         ],
         shake: 0,
       };
+    case "snailCatch": {
+      const victim = unit(event.victim);
+      const mouth = {
+        x: view.snail.x + view.snail.facing * sizes.snailFront,
+        y: view.snail.y - Math.round(sizes.snail / 3),
+      };
+      return {
+        effects: [
+          { kind: "flare", ...mouth, radius: 3, life: CLASH.core },
+          {
+            kind: "burst",
+            ...mouth,
+            tone: "team",
+            team: victim?.team ?? -1,
+            count: 6,
+            speed: 45,
+            life: 0.35,
+            size: 1,
+          },
+        ],
+        sounds: [
+          {
+            name: "snailCatch",
+            volume: loudness(localSlot, event.victim, event.rider),
+            pan: panOf(view.snail.x),
+          },
+        ],
+        shake: 0,
+      };
+    }
     case "snailEat": {
       const victim = unit(event.victim);
       return {
@@ -601,28 +778,47 @@ export function planEvent(
     case "respawn": {
       const who = unit(event.slot);
       if (!who) return NOTHING;
+      // The shell flies from the egg she broke out of; a Queen the engine names no egg for hatches where she is.
+      const egg = view.spares[who.team]?.[event.egg ?? -1];
+      const shell = egg
+        ? { x: egg.x, y: egg.y - HATCH.lift }
+        : { x: who.x, y: who.y - bodyLift(who, sizes) };
+      const hatch: Effect[] = [
+        { kind: "flare", ...shell, radius: HATCH.flare, life: 0.18 },
+        {
+          kind: "burst",
+          ...shell,
+          tone: "gold",
+          team: who.team,
+          count: HATCH.count,
+          speed: 70,
+          life: HATCH.life,
+        },
+        {
+          kind: "burst",
+          ...shell,
+          tone: "team",
+          team: who.team,
+          count: HATCH.trim,
+          speed: 45,
+          life: HATCH.life,
+          size: 1,
+        },
+      ];
       return {
-        effects: [
-          // A Worker's beam; a Queen breaks out of her egg and the shell flies.
+        effects:
+          // A Worker's beam; a Queen breaks out of her egg.
           who.kind === "queen"
-            ? {
-                kind: "burst",
-                x: who.x,
-                y: who.y - bodyLift(who, sizes),
-                tone: "white",
-                team: who.team,
-                count: HATCH.count,
-                speed: 70,
-                life: HATCH.life,
-              }
-            : {
-                kind: "sprite",
-                sheet: `respawn-${teamName(who.team)}`,
-                x: who.x,
-                y: who.y - 1,
-                flip: false,
-              },
-        ],
+            ? hatch
+            : [
+                {
+                  kind: "sprite",
+                  sheet: `respawn-${teamName(who.team)}`,
+                  x: who.x,
+                  y: who.y - 1,
+                  flip: false,
+                },
+              ],
         sounds: [
           {
             name: "respawn",
@@ -645,9 +841,28 @@ export function planEvent(
   }
 }
 
+/** Specks of dust a Worker's jump kicks off the ground. */
+export const JUMP_DUST = 5;
+
 /** The puff and the sound of one flap or jump. */
 export function planFlap(unit: UnitView, localSlot: number): Plan {
   const winged = unit.kind !== "worker";
+  const dust: Effect[] = winged
+    ? []
+    : [
+        {
+          kind: "burst",
+          x: unit.x,
+          y: unit.y - 1,
+          tone: "white",
+          team: -1,
+          count: JUMP_DUST,
+          speed: 28,
+          life: 0.3,
+          size: 1,
+          gravity: 90,
+        },
+      ];
   return {
     effects: [
       {
@@ -657,6 +872,7 @@ export function planFlap(unit: UnitView, localSlot: number): Plan {
         y: unit.y - (winged ? 2 : 1),
         flip: unit.facing < 0,
       },
+      ...dust,
     ],
     sounds: [
       {

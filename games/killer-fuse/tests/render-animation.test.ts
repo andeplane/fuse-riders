@@ -1,6 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  COLLIDERS,
+  GATE_LOCK,
+  GATE_OFFER,
+  GATE_STEPS,
+  QUEEN_LETHAL,
+  WARRIOR_LETHAL,
+  WEAPONS,
   FLAP_THRUST,
   FLY_GRAVITY,
   FLY_GRAVITY_LIGHT,
@@ -24,6 +31,15 @@ import {
   velocityFlaps,
   diveEnds,
   FLASH_BEAT_STEPS,
+  STUN_BEAT_STEPS,
+  STREAK_LENGTH,
+  DOOR_SHUT_STEPS,
+  dashLift,
+  dashStreak,
+  diveReach,
+  gateDoor,
+  jumps,
+  swordOf,
   FlapClock,
   flashing,
   unitPose,
@@ -428,4 +444,193 @@ test("a body squashes on landing and a Worker stretches on its jump, then both e
     LAND_HEIGHT.worker,
     "a landing wins over the jump before it",
   );
+});
+
+test("a fighter lunges while its dash carries it or its sword can kill", () => {
+  for (const kind of ["warrior", "queen"] as const) {
+    const sheet = `${kind}-cyan`;
+    const lunge = frameOf(sheet, "attack");
+    const pose = (patch: Parameters<typeof unitView>[0]): number =>
+      unitPose(art, unitView({ kind, grounded: false, ...patch }), still).frame;
+    assert.equal(
+      pose({ dashing: true, attacking: true, attackStep: 3 }),
+      lunge,
+    );
+    assert.equal(pose({ dashing: true, attackStep: 3 }), lunge, "carried");
+    assert.equal(pose({ attacking: true, attackStep: 3 }), lunge, "lethal");
+    assert.equal(
+      pose({ dashing: true, attacking: true, grounded: true, moving: true }),
+      lunge,
+      "along the ground too",
+    );
+    assert.notEqual(
+      pose({ attackStep: 30 }),
+      lunge,
+      "cooling down: the sword is back in",
+    );
+  }
+  assert.equal(
+    unitPose(
+      art,
+      unitView({
+        kind: "queen",
+        grounded: false,
+        diving: true,
+        attacking: true,
+      }),
+      still,
+    ).frame,
+    frameOf("queen-cyan", "dive"),
+    "a dive kills in its own pose",
+  );
+  assert.equal(
+    unitPose(
+      art,
+      unitView({ kind: "warrior", speed: true, dashing: true, attackStep: 2 }),
+      still,
+    ).frame,
+    frameOf("speed-warrior-cyan", "attack"),
+  );
+});
+
+test("a stunned unit blinks fast and hangs limp in the air; a Worker in a hive hole sits still", () => {
+  const stunned = unitView({ kind: "warrior", stunned: true, stun: 20 });
+  assert.equal(flashing(stunned, 0), true);
+  assert.equal(flashing(stunned, STUN_BEAT_STEPS), false);
+  assert.equal(flashing(stunned, STUN_BEAT_STEPS * 2), true);
+  assert.ok(STUN_BEAT_STEPS < FLASH_BEAT_STEPS, "quicker than invulnerability");
+  assert.equal(
+    flashing({ ...stunned, invulnerable: true }, STUN_BEAT_STEPS),
+    false,
+    "the stun's beat wins",
+  );
+  assert.equal(unitPose(art, stunned, still).sheet, "warrior-flash");
+  const beating: PoseContext = { ...still, sinceFlap: 0, dy: -2 };
+  assert.equal(
+    unitPose(art, { ...stunned, grounded: false }, beating).frame,
+    frameOf("warrior-cyan", "glide"),
+    "no wing beat while stunned",
+  );
+  assert.equal(
+    unitPose(art, { ...stunned, grounded: true }, still).frame,
+    frameOf("warrior-cyan", "idle"),
+  );
+  const sitting = unitView({ depositing: true, grounded: false, moving: true });
+  assert.equal(
+    unitPose(art, sitting, { ...still, dy: 3 }).frame,
+    frameOf("worker-cyan", "idle"),
+  );
+});
+
+test("a dashing unit is raised until its pose sits on its lifted box", () => {
+  const warrior = unitView({ kind: "warrior", dashing: true });
+  const queen = unitView({ kind: "queen", dashing: true });
+  assert.equal(dashLift(warrior, 0), COLLIDERS.warriorDash.lift / S);
+  assert.ok(dashLift(warrior, 0) > 3 && dashLift(warrior, 0) < 3.5);
+  assert.equal(dashLift(queen, 6), COLLIDERS.queenDash.lift / S - 6);
+  assert.equal(dashLift(queen, 20), 0, "a pose painted higher is not lowered");
+  assert.equal(dashLift({ ...warrior, dashing: false }, 0), 0);
+  assert.equal(dashLift(unitView({ dashing: true }), 0), 0, "a Worker never");
+});
+
+test("a diving blade is drawn on to the engine's tip when the art's is short", () => {
+  const tip = Math.max(...WEAPONS.queenDive.map((box) => box.y + box.hh)) / S;
+  assert.ok(
+    tip > 10 && tip < 11,
+    `the engine's tip is ${tip} px under the feet`,
+  );
+  assert.equal(diveReach(4), Math.round(tip - 4));
+  assert.equal(
+    diveReach(Math.round(tip) - 1),
+    0,
+    "a pixel short is close enough",
+  );
+  assert.equal(diveReach(Math.round(tip)), 0);
+  assert.equal(diveReach(40), 0, "never shortened");
+});
+
+test("a sword is ready, lethal or cooling down", () => {
+  assert.equal(swordOf(unitView()), "none", "a Worker has none");
+  assert.equal(swordOf(unitView({ kind: "queen", dead: true })), "none");
+  assert.equal(swordOf(unitView({ kind: "warrior" })), "ready");
+  assert.equal(
+    swordOf(unitView({ kind: "warrior", attacking: true, attackStep: 4 })),
+    "lethal",
+  );
+  assert.equal(
+    swordOf(unitView({ kind: "queen", attackStep: QUEEN_LETHAL + 1 })),
+    "cooling",
+  );
+});
+
+test("a Worker's jump is seen between two views, though its step was not shown", () => {
+  const before = withUnit(openingView({ step: 10 }), 1, {
+    kind: "worker",
+    grounded: true,
+    y: 100,
+  });
+  const up = (patch: Parameters<typeof unitView>[0] = {}, step = 11) =>
+    withUnit({ ...before, step }, 1, { grounded: false, y: 97, ...patch });
+  assert.deepEqual(jumps(before, up()), [1]);
+  assert.deepEqual(jumps(before, up({ y: 88 }, 13)), [1], "three steps on");
+  assert.deepEqual(jumps(before, up({}, 10)), [], "the same step again");
+  assert.deepEqual(jumps(before, up({}, 9)), [], "a rollback");
+  assert.deepEqual(jumps(before, up({ y: 103 })), [], "walked off an edge");
+  assert.deepEqual(jumps(before, up({ y: 20 })), [], "moved, not jumped");
+  assert.deepEqual(jumps(before, up({ grounded: true })), []);
+  assert.deepEqual(jumps(before, up({ dead: true })), []);
+  assert.deepEqual(jumps(before, up({ riding: true })), []);
+  assert.deepEqual(jumps(before, up({ eaten: true })), []);
+  assert.deepEqual(jumps(before, up({ depositing: true })), []);
+  assert.deepEqual(jumps(before, up({ kind: "warrior" })), [], "wings flap");
+  for (const patch of [
+    { grounded: false },
+    { dead: true },
+    { depositing: true },
+    { kind: "warrior" as const },
+  ])
+    assert.deepEqual(jumps(withUnit(before, 1, patch), up()), []);
+  assert.deepEqual(jumps({ ...before, units: [] }, up()), []);
+});
+
+test("a gate glows for the half second of the offer, then shuts for the two it holds the Worker", () => {
+  const at = (steps: number) => gateDoor(steps / GATE_STEPS);
+  assert.deepEqual(at(0), { offer: 0, closed: 0, lock: 0 });
+  assert.equal(GATE_OFFER / TICK_HZ, 0.5);
+  assert.equal(GATE_LOCK / TICK_HZ, 2);
+  const half = at(GATE_OFFER / 2);
+  assert.ok(Math.abs(half.offer - 0.5) < 1e-9 && half.closed === 0);
+  const last = at(GATE_OFFER - 1);
+  assert.ok(last.offer < 1 && last.closed === 0, "still free to walk out");
+  const taken = at(GATE_OFFER);
+  assert.equal(taken.offer, 1);
+  assert.ok(taken.closed > 0 && taken.closed < 1, "the doors start to shut");
+  assert.ok(Math.abs(taken.lock) < 1e-9);
+  const shut = at(GATE_OFFER + DOOR_SHUT_STEPS);
+  assert.equal(shut.closed, 1);
+  assert.ok(Math.abs(at(GATE_OFFER + GATE_LOCK / 2).lock - 0.5) < 1e-9);
+  assert.deepEqual(at(GATE_STEPS), { offer: 1, closed: 1, lock: 1 });
+  assert.deepEqual(gateDoor(7), { offer: 1, closed: 1, lock: 1 });
+  assert.deepEqual(gateDoor(-1), { offer: 0, closed: 0, lock: 0 });
+});
+
+test("a dash trails three lines over the body, long at the start and short at the end", () => {
+  const start = dashStreak(1, WARRIOR_LETHAL, 2, 12, 6);
+  assert.equal(start.length, 3);
+  assert.deepEqual(
+    start.map((line) => line.up),
+    [2, 7, 12],
+  );
+  assert.equal(start[1]?.length, STREAK_LENGTH);
+  assert.equal(start[1]?.back, 6, "the middle one starts at the body");
+  assert.ok((start[0]?.length ?? 99) < STREAK_LENGTH);
+  assert.ok((start[0]?.back ?? 0) > 6);
+  const end = dashStreak(WARRIOR_LETHAL, WARRIOR_LETHAL, 2, 12, 6);
+  assert.ok(end.every((line) => line.length >= 2 && line.length <= 3));
+  assert.deepEqual(dashStreak(0, WARRIOR_LETHAL, 2, 12, 6), []);
+  assert.deepEqual(
+    dashStreak(WARRIOR_LETHAL + 1, WARRIOR_LETHAL, 2, 12, 6),
+    [],
+  );
+  assert.equal(dashStreak(3, QUEEN_LETHAL, 6, 12, 9).length, 3);
 });

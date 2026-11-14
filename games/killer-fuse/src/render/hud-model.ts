@@ -148,10 +148,14 @@ export interface Point {
 }
 
 /**
- * What decided the round, for the ending to close in on: the Queen who fell, the hive that filled or the snail at
- * its goal. A round the clock decided closes on the winning Queen.
+ * What decided the round, for the ending to close in on: the Queen who fell (`fell` is where), the hive that filled
+ * or the snail at its goal. A round the clock decided closes on the winning Queen.
  */
-export function victoryFocus(view: RoundView, sizes: Sizes): Point {
+export function victoryFocus(
+  view: RoundView,
+  sizes: Sizes,
+  fell?: Point,
+): Point {
   const middle = { x: VIEW_WIDTH / 2, y: VIEW_HEIGHT / 2 };
   const { winner } = view;
   if (!winner) return middle;
@@ -162,7 +166,9 @@ export function victoryFocus(view: RoundView, sizes: Sizes): Point {
     return queen && { x: queen.x, y: queen.y - sizes.queen / 2 };
   };
   if (view.timeUp) return queenOf(winner.team) ?? middle;
-  if (winner.kind === "military") return queenOf(1 - winner.team) ?? middle;
+  // Where she died, when the renderer saw it: the engine may have moved her body since.
+  if (winner.kind === "military")
+    return fell ?? queenOf(1 - winner.team) ?? middle;
   if (winner.kind === "snail")
     return { x: view.snail.x, y: view.snail.y - sizes.snail / 2 };
   const holes = view.hives[winner.team] ?? [];

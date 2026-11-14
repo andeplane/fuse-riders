@@ -12,7 +12,9 @@ import {
   bodyShape,
   diveEnds,
   FlapClock,
+  jumps,
   landings,
+  swordOf,
   NO_FLIGHT,
   velocityFlaps,
   type FlightTrace,
@@ -34,6 +36,7 @@ import {
   STILL,
   victoryFocus,
   type Camera,
+  type Point,
 } from "./hud-model.js";
 import { continuous, interpolateView, viewTime } from "./interpolation.js";
 import { fitView, VIEW_HEIGHT, VIEW_WIDTH, type Fit } from "./layout.js";
@@ -80,7 +83,10 @@ class Arena implements ArenaView {
   private readonly pool = new EffectPool();
   private readonly ghosts = new Ghosts();
   private readonly holePops = new Map<string, number>();
-  private gateUsers: number[] = [];
+  /** Where the last Queen to die was when she did, for the ending to close in on. */
+  private fell: Point | null = null;
+  /** Wall-clock second each slot's sword last became ready again. */
+  private readied: number[] = [];
   /** Wall-clock second each gate last let its Warrior out, each slot last landed (and how hard) and last jumped. */
   private gateOpened: number[] = [];
   private landed: { at: number; strength: number }[] = [];
@@ -175,6 +181,23 @@ class Arena implements ArenaView {
     if (this.fed)
       for (const slot of diveEnds(this.fed, view)) flapped.push(slot);
     const landed = this.fed ? landings(this.fed, view) : [];
+    // A Worker's jump on a step never shown still raises its dust.
+    if (this.fed)
+      for (const slot of jumps(this.fed, view))
+        if (!flapped.includes(slot) && this.flaps.since(slot, view.step) > 6)
+          flapped.push(slot);
+    // A sword that has cooled down glints.
+    if (this.fed)
+      for (const unit of view.units) {
+        const was = this.fed.units[unit.slot];
+        if (
+          was &&
+          view.step > this.fed.step &&
+          swordOf(was) === "cooling" &&
+          swordOf(unit) === "ready"
+        )
+          this.readied[unit.slot] = now;
+      }
     this.fed = view;
     this.flight = moved.trace;
     for (const slot of moved.slots)
@@ -200,25 +223,14 @@ class Arena implements ArenaView {
     }
     for (const event of events) {
       if (event.type === "gateUse") this.gateOpened[event.gate] = now;
+      if (event.type === "queenKill") {
+        const victim = view.units[event.victim];
+        if (victim && sizes)
+          this.fell = { x: victim.x, y: victim.y - sizes.queen / 2 };
+      }
       if (event.type === "berryDeposit" || event.type === "berryKickIn")
         this.holePops.set(`${event.team}:${event.hole}`, now);
     }
-    view.gates.forEach((gate, index) => {
-      const before = this.gateUsers[index] ?? -1;
-      if (gate.user >= 0 && before < 0)
-        plans.push({
-          effects: [],
-          sounds: [
-            {
-              name: "gateEnter",
-              volume: gate.user === local ? 0.9 : 0.4,
-              pan: (gate.x - VIEW_WIDTH / 2) / VIEW_WIDTH,
-            },
-          ],
-          shake: 0,
-        });
-      this.gateUsers[index] = gate.user;
-    });
     this.apply(mergePlans(plans));
   }
 
@@ -235,7 +247,8 @@ class Arena implements ArenaView {
     this.pool.clear();
     this.ghosts.clear();
     this.holePops.clear();
-    this.gateUsers = [];
+    this.fell = null;
+    this.readied = [];
     this.gateOpened = [];
     this.landed = [];
     this.jumped = [];
@@ -339,6 +352,15 @@ class Arena implements ArenaView {
     const view = interpolateView(previous, current, alpha);
     this.ambient(view, dt, now);
     const offset = this.shake.offset();
+    const { winner } = view;
+    // The ending: unless the page shows its own, the camera closes in on what decided the round.
+    const ending =
+      winner &&
+      this.wonAt !== null &&
+      this.options.banner !== false &&
+      this.host.dataset.banner !== BANNER_OFF
+        ? now - this.wonAt - endingDelay(winner, view.timeUp, SHAKE_SECONDS)
+        : null;
     const sceneFrame: SceneFrame = {
       view,
       time: viewTime(previous, current, alpha),
@@ -365,24 +387,22 @@ class Arena implements ArenaView {
         );
       }),
       gateOpened: this.gateOpened,
+      readied: this.readied,
+      fallen:
+        winner?.kind === "military" &&
+        !view.timeUp &&
+        this.fell &&
+        ending !== null &&
+        ending >= 0
+          ? { ...this.fell, team: 1 - winner.team }
+          : null,
       holePops: this.holePops,
       danger: dangerOf(view),
       shakeX: offset.x,
       shakeY: offset.y,
     };
-    // The ending: unless the page shows its own, the camera closes in on what decided the round.
-    const { winner } = view;
-    const ending =
-      winner &&
-      this.wonAt !== null &&
-      this.options.banner !== false &&
-      this.host.dataset.banner !== BANNER_OFF
-        ? now - this.wonAt - endingDelay(winner, view.timeUp, SHAKE_SECONDS)
-        : null;
-    const camera =
-      ending === null
-        ? STILL
-        : endingCamera(ending, victoryFocus(view, sprites.sizes));
+    const focus = victoryFocus(view, sprites.sizes, this.fell ?? undefined);
+    const camera = ending === null ? STILL : endingCamera(ending, focus);
     scene.draw(this.world.ctx, sceneFrame);
     const low = this.low.ctx;
     const world = this.world.canvas;
@@ -408,7 +428,7 @@ class Arena implements ArenaView {
         -offset.y,
       );
     low.setTransform(1, 0, 0, 1, 0, 0);
-    hud.draw(low, { view, ending, camera });
+    hud.draw(low, { view, ending, camera, focus });
     // What the glow is made from: the finished picture with the things that would bloom too much held down.
     const source = this.glowSource.ctx;
     source.drawImage(this.low.canvas, 0, 0);

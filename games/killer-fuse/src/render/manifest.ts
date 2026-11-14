@@ -135,6 +135,7 @@ export const REQUIRED_SHEETS: readonly string[] = [
   "berry",
   "berry-pile",
   "flap-puff",
+  "clash",
   "berry-pop",
   "tiles",
   "bg-far",

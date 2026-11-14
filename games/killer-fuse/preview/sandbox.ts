@@ -1,16 +1,21 @@
 /**
  * The arena on its own: the engine at 60 Hz with bots in every seat (or the keyboard in one), drawn by the real
  * renderer. No room, no network. Query: ?seat=0..5|none &level=easy|medium|hard &map=1|2|3 &seed=N &speed=1 &mute
- * &clean (hides the status line). Keys: arrows or A/D to move, down or S to dive or drop, space, Z or up to
+ * &clean (hides the status line) &boxes=1 (draws the engine's movement, hit and weapon boxes over the picture). Keys: arrows or A/D to move, down or S to dive or drop, space, Z or up to
  * jump and flap. `window.__game` is the debug hook the check scripts drive.
  */
 import {
+  colliderOf,
   createRound,
+  hitBoxesOf,
   NEUTRAL,
+  S,
   stepRound,
   TICK_HZ,
   viewOf,
+  weaponOf,
   type BotLevel,
+  type Box,
   type GameEvent,
   type Input,
   type MapId,
@@ -52,6 +57,8 @@ interface GameHook {
   until(type: GameEvent["type"], limit?: number): boolean;
   /** Steps without showing anything. */
   skip(count: number): void;
+  /** Hands the renderer the step reached by `skip`, so its events play. */
+  show(): void;
   setSpeed(speed: number): void;
   restart(setup?: Partial<Setup>): void;
   stats(): Stats;
@@ -191,6 +198,80 @@ function simulate(show: boolean): void {
   if (show) arena.advance(current);
 }
 
+/**
+ * `boxes=1`: the engine's own shapes over the picture, to compare hit areas with what is drawn. White is the
+ * movement box, green the boxes a weapon must touch, red the weapon while it can kill. They are the state's, so
+ * they sit exactly on the sprites only while the picture shows a whole step (paused, or stepped by hand).
+ */
+const boxes =
+  params.get("boxes") === "1" ? document.createElement("canvas") : null;
+if (boxes) {
+  boxes.style.cssText = "position:absolute;pointer-events:none;z-index:2";
+  host.append(boxes);
+}
+
+function drawBoxes(): void {
+  const picture = host?.querySelector("canvas");
+  const ctx = boxes?.getContext("2d");
+  if (!boxes || !ctx || !picture || picture === boxes) return;
+  const rect = picture.getBoundingClientRect();
+  const frame = host?.getBoundingClientRect();
+  const ratio = window.devicePixelRatio;
+  const width = Math.round(rect.width * ratio),
+    height = Math.round(rect.height * ratio);
+  if (boxes.width !== width || boxes.height !== height) {
+    boxes.width = width;
+    boxes.height = height;
+  }
+  boxes.style.left = `${rect.left - (frame?.left ?? 0)}px`;
+  boxes.style.top = `${rect.top - (frame?.top ?? 0)}px`;
+  boxes.style.width = `${rect.width}px`;
+  boxes.style.height = `${rect.height}px`;
+  const scale = width / 480;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+  ctx.lineWidth = Math.max(1, scale / 4);
+  const outline = (
+    color: string,
+    left: number,
+    top: number,
+    w: number,
+    h: number,
+  ): void => {
+    ctx.strokeStyle = color;
+    for (const wrap of [-480, 0, 480])
+      ctx.strokeRect(
+        ((left + wrap) * scale) / S,
+        (top * scale) / S,
+        (w * scale) / S,
+        (h * scale) / S,
+      );
+  };
+  for (const unit of state.units) {
+    if (unit.dead || unit.eaten) continue;
+    const collider = colliderOf(unit);
+    outline(
+      "rgba(255,255,255,0.8)",
+      unit.x + unit.facing * collider.shift - collider.half,
+      unit.y - collider.lift - collider.height,
+      collider.half * 2,
+      collider.height,
+    );
+    const each = (color: string, list: readonly Box[]): void => {
+      for (const box of list)
+        outline(
+          color,
+          unit.x + unit.facing * box.x - box.hw,
+          unit.y + box.y - box.hh,
+          box.hw * 2,
+          box.hh * 2,
+        );
+    };
+    each("rgba(80,255,110,0.9)", hitBoxesOf(unit));
+    each("rgba(255,60,60,1)", weaponOf(unit));
+  }
+}
+
 // Frame timing, measured here so the renderer carries no instrumentation.
 const SAMPLE = 600;
 let frameTimes: number[] = [];
@@ -225,6 +306,7 @@ function frame(now: number): void {
   );
   renderTimes.push(performance.now() - before);
   if (renderTimes.length > SAMPLE) renderTimes.shift();
+  drawBoxes();
   if (status && Math.floor(now / 500) !== Math.floor((now - elapsed) / 500))
     status.textContent = `seed ${setup.seed} map ${setup.map} ${setup.level} step ${current.step} ${Math.round(1000 / Math.max(1, mean(frameTimes)))} fps`;
   requestAnimationFrame(frame);
@@ -259,6 +341,7 @@ window.__game = {
   paused: () => paused,
   step: (count = 1) => {
     for (let i = 0; i < count; i += 1) simulate(true);
+    drawBoxes();
   },
   until: (type, limit = TICK_HZ * 600) => {
     for (let i = 0; i < limit; i += 1) {
@@ -275,6 +358,10 @@ window.__game = {
   skip: (count) => {
     for (let i = 0; i < count; i += 1) simulate(false);
     previous = current;
+  },
+  show: () => {
+    arena.advance(current);
+    drawBoxes();
   },
   setSpeed: (value) => {
     speed = Math.max(0, value);
@@ -311,6 +398,7 @@ window.__game = {
       heldClock += Math.min(left, HOLD_FRAME_MS);
       arena.render(previous, current, 1);
     }
+    drawBoxes();
   },
 };
 

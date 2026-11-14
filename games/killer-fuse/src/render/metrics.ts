@@ -34,6 +34,40 @@ export function opaqueBox(
   return right < 0 ? null : { left, top, right, bottom };
 }
 
+/**
+ * The point of a frame that reaches furthest forward (the art faces right): the right-most painted column and the
+ * highest painted row in it. For a fighter that is the tip of its sword. Null when the frame is clear.
+ */
+export function tipOf(
+  data: ArrayLike<number>,
+  width: number,
+  height: number,
+): { x: number; y: number } | null {
+  for (let x = width - 1; x >= 0; x -= 1)
+    for (let y = 0; y < height; y += 1)
+      if ((data[(y * width + x) * 4 + 3] ?? 0) !== 0) return { x, y };
+  return null;
+}
+
+/**
+ * The point of a frame that reaches furthest down: the lowest painted row and the middle of what is painted in it.
+ * For a diving Queen that is the tip of her blade. Null when the frame is clear.
+ */
+export function footOf(
+  data: ArrayLike<number>,
+  width: number,
+  height: number,
+): { x: number; y: number } | null {
+  for (let y = height - 1; y >= 0; y -= 1) {
+    const painted: number[] = [];
+    for (let x = 0; x < width; x += 1)
+      if ((data[(y * width + x) * 4 + 3] ?? 0) !== 0) painted.push(x);
+    const middle = painted[Math.floor((painted.length - 1) / 2)];
+    if (middle !== undefined) return { x: middle, y };
+  }
+  return null;
+}
+
 type Cell = Pick<SheetDef, "anchor" | "frameWidth">;
 
 /** Rows from the anchor row up to the highest painted one, both counted; the whole cell above the anchor if unknown. */

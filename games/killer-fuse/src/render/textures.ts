@@ -9,7 +9,14 @@ import {
   type ArtManifest,
   type SheetDef,
 } from "./manifest.js";
-import { opaqueBox, sizesOf, type Box, type Sizes } from "./metrics.js";
+import {
+  footOf,
+  opaqueBox,
+  sizesOf,
+  tipOf,
+  type Box,
+  type Sizes,
+} from "./metrics.js";
 
 export type Ctx = CanvasRenderingContext2D;
 
@@ -61,6 +68,7 @@ export function makeCanvas(
 export class Sprites {
   private readonly tinted = new Map<string, HTMLCanvasElement>();
   private readonly boxes = new Map<string, Box | null>();
+  private readonly points = new Map<string, { x: number; y: number } | null>();
   private measured: Sizes | null = null;
 
   constructor(readonly art: Art) {}
@@ -89,6 +97,51 @@ export class Sprites {
     }
     this.boxes.set(key, box);
     return box;
+  }
+
+  /** A point of one frame found by `find` in its pixels, kept once found. */
+  private point(
+    kind: "tip" | "foot",
+    id: string,
+    frame: number,
+  ): { x: number; y: number } | null {
+    const key = `${kind}|${id}|${frame}`;
+    let point = this.points.get(key);
+    if (point === undefined) {
+      point = null;
+      const def = this.def(id);
+      const image = this.art.images.get(id);
+      if (def && image) {
+        const { canvas, ctx } = makeCanvas(def.frameWidth, def.frameHeight);
+        const { sx, sy, sw, sh } = frameRect(def, frame);
+        ctx.drawImage(image, sx, sy, sw, sh, 0, 0, sw, sh);
+        point = (kind === "tip" ? tipOf : footOf)(
+          ctx.getImageData(0, 0, canvas.width, canvas.height).data,
+          canvas.width,
+          canvas.height,
+        );
+      }
+      this.points.set(key, point);
+    }
+    return point;
+  }
+
+  /** The front-most painted point of a frame, from its anchor: `ahead` of it and `up` over it. A sword's tip. */
+  tip(id: string, frame: number): { ahead: number; up: number } | null {
+    const tip = this.point("tip", id, frame);
+    const def = this.def(id);
+    return tip && def
+      ? { ahead: tip.x - def.anchor[0], up: def.anchor[1] - tip.y }
+      : null;
+  }
+
+  /** The lowest painted point of a frame, from its anchor: `ahead` of it and `down` under it. */
+  foot(id: string, frame: number): { ahead: number; down: number } | null {
+    const foot = this.point("foot", id, frame);
+    const def = this.def(id);
+    return foot && def
+      ? { ahead: foot.x - def.anchor[0], down: foot.y - def.anchor[1] }
+      : null;
   }
 
   /** How tall the units, gates and snail stand in this art. */

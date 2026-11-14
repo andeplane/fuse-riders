@@ -11,7 +11,7 @@ import {
   irisCentre,
   irisRadius,
   project,
-  victoryFocus,
+  type Point,
   victoryLines,
 } from "./hud-model.js";
 import { VIEW_HEIGHT, VIEW_WIDTH } from "./layout.js";
@@ -25,6 +25,8 @@ export interface HudFrame {
   readonly ending: number | null;
   /** The camera the arena under this was drawn through. */
   readonly camera: Camera;
+  /** The point of the arena that decided the round: the hexagon closes on it. */
+  readonly focus: Point;
 }
 
 /** What the HUD needs of the scene: its text and the colours and sizes of the art. */
@@ -52,22 +54,20 @@ export class Hud {
 
   draw(ctx: Ctx, frame: HudFrame): void {
     if (frame.view.winner && frame.ending !== null && frame.ending >= 0)
-      this.iris(ctx, frame.view, frame.view.winner, frame.ending, frame.camera);
+      this.iris(ctx, frame, frame.view.winner, frame.ending);
   }
 
   /** Black closes in to a hexagon round the deciding moment. */
   private iris(
     ctx: Ctx,
-    view: RoundView,
+    frame: HudFrame,
     winner: NonNullable<RoundView["winner"]>,
     age: number,
-    camera: Camera,
   ): void {
+    const { view } = frame;
     const radius = irisRadius(age);
     // The hexagon stays on what decided the round as the camera carries that to the middle of the screen.
-    const centre = irisCentre(
-      project(victoryFocus(view, this.art.sizes), camera),
-    );
+    const centre = irisCentre(project(frame.focus, frame.camera));
     const ramp = this.art.ramp(winner.team);
     for (let y = 0; y < VIEW_HEIGHT; y += 1) {
       const half = hexHalfWidth(radius, y - centre.y);
