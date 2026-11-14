@@ -1,3 +1,5 @@
+import type { DefragWindowContent } from "../defrag/defragWindowContent";
+import { isDefragWindowContent } from "../defrag/defragWindowContent";
 import type { GameId } from "../retro/gameIds";
 import { isGameId } from "../retro/gameIds";
 
@@ -88,7 +90,8 @@ export type WindowContent =
   | WinampWindowContent
   | ExplorerWindowContent
   | NotepadPlusPlusWindowContent
-  | LauncherWindowContent;
+  | LauncherWindowContent
+  | DefragWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -151,6 +154,7 @@ export function sameInstance(
     case "about":
     case "retroFolder":
     case "launcher":
+    case "defrag":
       return existing.kind === content.kind;
     case "retro":
       return existing.kind === "retro" && existing.game === content.game;
@@ -351,6 +355,8 @@ function isWindowContent(
       );
     case "explorer":
       return typeof value.location === "string";
+    case "defrag":
+      return isDefragWindowContent(value);
     case "notepadpp":
       return (
         Array.isArray(value.paths) &&

@@ -1,5 +1,5 @@
 /**
- * 3D Pipes in three.js: the Windows 95 screen saver as remade by Isaiah Odhner (https://github.com/1j01/pipes, MIT).
+ * 3D Pipes in three.js: the Windows 98 screen saver as remade by Isaiah Odhner (https://github.com/1j01/pipes, MIT).
  * This module and `three` are a lazy chunk: nothing imports it statically, the screen saver overlay
  * `await import()`s it the moment the saver starts (tests/fuseos-screensaver-lazy.test.ts pins that).
  *

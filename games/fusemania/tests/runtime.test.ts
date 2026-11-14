@@ -229,3 +229,52 @@ test("a press shows in the picture at once, and the room then judges it the same
   assert.equal(runtime.key(0, false, runtime.songMs()!), false);
   runtime.stop();
 });
+
+test("a press keeps its own song time while it is inside its tick's bounds, however late it is logged", () => {
+  // Solo, on a clock the test moves: the room's song position is the clock's, as on a page without sound.
+  const judgedOff = (logAfter: number, late: number) => {
+    let now = 0,
+      pass: (() => void) | undefined;
+    const runtime = new FusemaniaRuntime("SOLO", SETTINGS, silent, game, {
+      humanName: "Ada",
+      dependencies: quiet(
+        () => now,
+        (callback) => (pass = callback),
+      ),
+    });
+    runtime.start();
+    assert.equal(runtime.lastSlackMs, undefined);
+    const wait = (ms: number) => {
+      for (let t = 0; t < ms; t += 5) {
+        now += 5;
+        pass?.();
+      }
+    };
+    const chart = runtime.roomState()!.world!.players[0]!.chart,
+      note = library
+        .steps(runtime.roomState()!.world!.song, chart)!
+        .notes.find((each) => each.ms >= beatMs(6))!,
+      stamped = note.ms + late;
+    // The key is logged `logAfter` ms after the song time it names: a slow frame, a busy main thread.
+    while (runtime.songMs()! < stamped + logAfter) wait(5);
+    assert.ok(runtime.key(note.column, true, stamped));
+    const slack = runtime.lastSlackMs!;
+    wait(600);
+    const mine = runtime.roomState()!.world!.players[0]!;
+    runtime.stop();
+    return { off: mine.judgedOff, judged: mine.judged, slack };
+  };
+  // Pressed 13 ms late and logged at once, 100 ms later and 200 ms later: the same judgment, room to spare.
+  const prompt = judgedOff(0, 13),
+    slow = judgedOff(100, 13),
+    slower = judgedOff(200, 13);
+  assert.deepEqual([prompt.off, prompt.judged], [13, MARVELOUS]);
+  assert.deepEqual([slow.off, slow.judged], [13, MARVELOUS]);
+  assert.deepEqual([slower.off, slower.judged], [13, MARVELOUS]);
+  assert.ok(prompt.slack > 0 && slow.slack > 0 && slower.slack > 0);
+  assert.ok(slower.slack < slow.slack && slow.slack < prompt.slack);
+  // Logged so late that the tick's bounds are passed, the room moves it: the slack says so before the fold does.
+  const lost = judgedOff(400, 13);
+  assert.ok(lost.slack < 0, `slack ${lost.slack}`);
+  assert.notEqual(lost.off, 13);
+});

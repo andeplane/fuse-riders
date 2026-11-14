@@ -10,6 +10,7 @@ import type { Size } from "../windows/windowManager";
 /**
  * Where a registered entry lands in the Start menu:
  * - `accessories`: Programs > Accessories (Paint, Winamp, Notepad++, ...)
+ * - `system-tools`: Programs > Accessories > System Tools (Disk Defragmenter)
  * - `programs`: Programs, after Accessories and Games (Fusteam, the game launcher)
  * - `games`: Programs > Games, after the Fuse games and before Retro Games
  * - `retro-games`: Programs > Games > Retro Games, before the games themselves (the folder window)
@@ -19,6 +20,7 @@ import type { Size } from "../windows/windowManager";
  */
 export type StartMenuSlot =
   | "accessories"
+  | "system-tools"
   | "programs"
   | "games"
   | "retro-games"
@@ -96,6 +98,14 @@ export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
     icon: "wallpaper",
     order: 40,
     open: (commands) => commands.open({ kind: "wallpaper" }),
+  },
+  {
+    slot: "system-tools",
+    id: "defrag",
+    label: "Disk Defragmenter",
+    icon: "defrag",
+    order: 10,
+    open: (commands) => commands.open({ kind: "defrag" }),
   },
   {
     slot: "programs",

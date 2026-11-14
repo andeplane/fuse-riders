@@ -1,4 +1,4 @@
-import { useContext, useRef } from "react";
+import { useCallback, useContext } from "react";
 
 import { OsAnalyticsContext } from "../analytics/osAnalytics";
 import { DesktopDepsContext } from "../desktop/desktopDepsContext";
@@ -12,30 +12,46 @@ export type FuseGameWindowProps = {
   gameId: string;
   active: boolean;
   onActivate: () => void;
-  /** The window's id, so Pop out can close it once the game runs in a tab of its own. */
-  windowId?: string;
+  /** Called with the game's iframe when it mounts and `null` when it unmounts, so the title bar's Pop out can read its live address. */
+  onFrame?: (element: HTMLIFrameElement | null) => void;
 };
 
-export const POP_OUT_LABEL = "Pop out";
+export const POP_OUT_LABEL = "Pop out to a new tab";
 export const POP_OUT_HINT =
   "Open this game in a browser tab of its own; the room you are in comes along.";
 
 /**
- * Body of a Fuse game window: a toolbar with Pop out over the game's own page in an iframe, started as soon as
- * the window opens. Pop out reads the frame's live address (same origin), so a game that has entered a room
- * reopens in that room, then closes this window so the game does not run twice.
+ * Pop out for a game window, shown in its title bar (`WindowChrome`'s `extraTitleButtons`). Reads the frame's
+ * live address (same origin), so a game that has entered a room reopens in that room, then closes the window
+ * so the game does not run twice.
  */
-export function FuseGameWindow({
-  gameId,
-  active,
-  onActivate,
-  windowId,
-}: FuseGameWindowProps) {
+export function useGamePopOut(
+  frameFor: (windowId: string) => HTMLIFrameElement | null,
+): (windowId: string, gameId: string) => void {
   const registry = useContext(FuseGamesContext);
   const { openExternal } = useContext(DesktopDepsContext);
   const analytics = useContext(OsAnalyticsContext);
   const commands = useWindowCommands();
-  const frame = useRef<HTMLIFrameElement | null>(null);
+  return useCallback(
+    (windowId, gameId) => {
+      const game = registry.find(gameId);
+      if (!game) return;
+      openExternal(liveFrameUrl(frameFor(windowId), registry.embedUrl(game)));
+      analytics.gameLaunched(game.id, "popout");
+      commands.close(windowId);
+    },
+    [registry, openExternal, analytics, commands, frameFor],
+  );
+}
+
+/** Body of a Fuse game window: the game's own page in an iframe filling the window, started as soon as it opens. */
+export function FuseGameWindow({
+  gameId,
+  active,
+  onActivate,
+  onFrame,
+}: FuseGameWindowProps) {
+  const registry = useContext(FuseGamesContext);
   const game = registry.find(gameId);
   if (!game) {
     return (
@@ -48,39 +64,14 @@ export function FuseGameWindow({
       </div>
     );
   }
-  const embedUrl = registry.embedUrl(game);
-  const popOut = () => {
-    openExternal(liveFrameUrl(frame.current, embedUrl));
-    analytics.gameLaunched(game.id, "popout");
-    if (windowId !== undefined) commands.close(windowId);
-  };
   return (
-    <>
-      <div
-        role="toolbar"
-        aria-label={`${game.name} toolbar`}
-        className="flex shrink-0 items-center gap-2 border-b border-[#808080] px-1 py-0.5"
-      >
-        <span className="truncate text-[grey]">{game.tagline}</span>
-        <button
-          type="button"
-          className="ml-auto"
-          title={POP_OUT_HINT}
-          onClick={popOut}
-        >
-          {POP_OUT_LABEL} ↗
-        </button>
-      </div>
-      <IframeGame
-        name={game.name}
-        url={embedUrl}
-        backdropUrl={registry.screenshotUrl(game)}
-        active={active}
-        onActivate={onActivate}
-        onFrame={(element) => {
-          frame.current = element;
-        }}
-      />
-    </>
+    <IframeGame
+      name={game.name}
+      url={registry.embedUrl(game)}
+      backdropUrl={registry.screenshotUrl(game)}
+      active={active}
+      onActivate={onActivate}
+      onFrame={onFrame}
+    />
   );
 }

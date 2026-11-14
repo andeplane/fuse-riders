@@ -31,7 +31,7 @@ export type StartMenuItem = {
 };
 
 /** Start > Help > Help Topics: the project's README. */
-export const HELP_URL = "https://github.com/andeplane/fuse-riders#readme";
+export const HELP_URL = "https://github.com/andeplane/fuse-games#readme";
 
 function registeredItems(
   registrations: readonly StartMenuRegistration[],
@@ -111,7 +111,16 @@ export function useStartMenuViewModel(): {
           label: "Accessories",
           icon: "programs",
           // Paint, Winamp, Explorer, Notepad++ and the wallpaper picker are registrations (`startMenuRegistry.ts`).
-          children: registered("accessories"),
+          children: [
+            ...registered("accessories"),
+            // Disk Defragmenter and whatever else registers as a system tool; the folder is always there, as in Windows.
+            {
+              id: "system-tools",
+              label: "System Tools",
+              icon: "programs",
+              children: registered("system-tools"),
+            },
+          ],
         },
         {
           id: "games",

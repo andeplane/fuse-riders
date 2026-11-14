@@ -89,15 +89,108 @@
 .fm-options .fm-option:disabled[aria-pressed="false"] {
   opacity: 0.45;
 }
-.fm-options .fm-option-random {
+/* RANDOM SONG sits with the carousel it turns: at its top, beside the pack tabs. */
+/* One row: the tabs wrap among themselves on the left, RANDOM SONG keeps the top right corner. */
+.fm-picker-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--fui-space-2);
+  padding: var(--fui-space-2) var(--fui-space-2) 0;
+}
+.fm-picker-top .fm-picker-packs {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+}
+.fm-picker-tools {
+  flex: 0 0 auto;
+  display: flex;
+  gap: var(--fui-space-1);
+  margin-left: auto;
+}
+@media (max-width: 640px) {
+  /* A phone's row has room for the pack and RANDOM, not for the second word. */
+  .fm-option-random-more {
+    display: none;
+  }
+  .fm-picker.fm-picker .fm-option-random {
+    padding-inline: var(--fui-space-2);
+  }
+}
+.fm-picker-tools[hidden],
+.fm-picker-packs[hidden] {
+  display: none;
+}
+.fm-picker.fm-picker .fm-option-random {
   --fm-option: var(--fui-yellow, #ffd84a);
-  justify-self: start;
+  flex: 0 0 auto;
+  width: auto;
+  min-height: 2.25rem;
+  margin: 0;
   padding: var(--fui-space-2) var(--fui-space-3);
   color: var(--fm-option);
   border-color: color-mix(in srgb, var(--fm-option) 60%, transparent);
+  font: 0.6875rem/1 var(--fui-font-pixel);
 }
-.fm-options .fm-option-random[hidden] {
+.fm-picker.fm-picker .fm-option-random[hidden] {
   display: none;
+}
+
+/* The solo select's bar: OPTIONS and PLAY beside CLOSE, in reach however far the select scrolls. */
+.fm-options-menu {
+  display: flex;
+}
+.fui-app .fui-menu-dialog .fui-dialog-actions .fm-options-toggle,
+.fui-app .fui-menu-dialog .fui-dialog-actions .fm-solo-play {
+  width: auto;
+  min-height: 0;
+  white-space: nowrap;
+}
+.fui-app .fui-menu-dialog .fui-dialog-actions .fm-solo-play {
+  min-width: 7.5rem;
+}
+.fm-options-toggle[aria-expanded="true"] {
+  border-color: var(--fui-cyan);
+  color: var(--fui-cyan);
+}
+.fm-options-panel {
+  position: absolute;
+  top: 100%;
+  right: var(--fui-space-3);
+  z-index: 3;
+  width: min(26rem, calc(100% - 2 * var(--fui-space-3)));
+  padding: var(--fui-space-3);
+  background: #101f35;
+  border: var(--fui-border);
+  border-color: var(--fui-cyan);
+  box-shadow: 0 0.75rem 2rem #000a;
+  text-align: left;
+}
+.fm-options-panel[hidden] {
+  display: none;
+}
+.fm-options-panel .fm-options {
+  margin-top: 0;
+}
+@media (max-width: 640px) {
+  /* Three buttons and a title do not fit a phone's bar: the buttons stay. */
+  .fui-menu-dialog .fui-dialog-bar:has(.fm-solo-play) .fui-dialog-title {
+    display: none;
+  }
+  .fui-menu-dialog .fui-dialog-bar:has(.fm-solo-play) .fui-dialog-actions {
+    flex: 1;
+    justify-content: space-between;
+  }
+  .fui-app .fui-menu-dialog .fui-dialog-bar:has(.fm-solo-play) button {
+    min-height: 2.75rem;
+    padding-inline: var(--fui-space-2);
+    white-space: nowrap;
+  }
+  .fui-app .fui-menu-dialog .fui-dialog-actions .fm-solo-play {
+    flex: 1;
+    min-width: 0;
+  }
 }
 
 /* A session's standings: in the lobby between two songs, and on the result. */
@@ -153,4 +246,26 @@
   color: var(--fui-text-bright);
   font-style: normal;
   font-variant-numeric: tabular-nums;
+}
+
+/* The speeds are one row, wherever they are shown: the eight share the width rather than wrap. */
+.fm-options.fm-options .fm-options-speed .fm-options-chips {
+  flex-wrap: nowrap;
+}
+.fui-app .fm-options.fm-options .fm-options-speed .fm-option-speed {
+  flex: 1 1 0;
+  min-width: 0;
+  padding-inline: 0;
+  white-space: nowrap;
+}
+.fm-options-panel {
+  width: min(34rem, calc(100% - 2 * var(--fui-space-3)));
+}
+@media (max-width: 640px) {
+  .fui-app .fm-options.fm-options .fm-options-speed .fm-option-speed {
+    font-size: 0.75rem;
+  }
+  .fm-options-speed .fm-options-chips {
+    gap: 3px;
+  }
 }

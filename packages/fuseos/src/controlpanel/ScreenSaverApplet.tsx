@@ -183,7 +183,7 @@ export function ScreenSaverTab({ windowId }: { windowId: string }) {
         were. It never starts over a game you are playing.
       </p>
       <p className="text-[grey]">
-        3D Pipes is Isaiah Odhner&apos;s remake of the Windows 95 screen saver
+        3D Pipes is Isaiah Odhner&apos;s remake of the Windows 98 screen saver
         (MIT licence). These settings stay in this browser.
       </p>
     </div>
