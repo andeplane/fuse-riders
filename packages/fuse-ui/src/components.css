@@ -1337,6 +1337,27 @@
   height: 46px;
   min-height: 46px;
 }
+/* Beside the players, START follows the page down too: a lobby longer than the screen never scrolls it away.
+   A column, not a grid: a grid would hold the sticky button inside its own row. */
+@media (min-width: 641px) {
+  /* Clipped, not scrollable, as on a phone: START sticks to the page's own scroll. */
+  .fui-room-layout:has(> .fui-attract) {
+    overflow: clip;
+  }
+  /* As tall as the players' side, so START has the whole lobby to travel. */
+  .fui-room-layout .fui-room-invitation {
+    display: flex;
+    flex-direction: column;
+    align-self: stretch;
+  }
+  .fui-room-layout .fui-room-invitation > .fui-room-primary-action {
+    flex: 0 0 auto;
+    position: sticky;
+    /* Under the top bar, which stays on screen too. */
+    top: var(--fui-room-sticky-top, 108px);
+    z-index: 3;
+  }
+}
 /* A guest has no START: the place it would take closes up. */
 .fui-room-layout .fui-room-primary-action:has(> [hidden]:only-child) {
   display: none;

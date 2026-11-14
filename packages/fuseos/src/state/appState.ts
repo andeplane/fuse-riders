@@ -1,4 +1,6 @@
 import { isRoomCode } from "../network/roomCode";
+import type { DefragWindowContent } from "../defrag/defragWindowContent";
+import { isDefragWindowContent } from "../defrag/defragWindowContent";
 import type { GameId } from "../retro/gameIds";
 import { isGameId } from "../retro/gameIds";
 
@@ -119,7 +121,8 @@ export type WindowContent =
   | NotepadPlusPlusWindowContent
   | LauncherWindowContent
   | DialUpWindowContent
-  | FriendsWindowContent;
+  | FriendsWindowContent
+  | DefragWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -185,6 +188,7 @@ export function sameInstance(
     case "dialup":
     case "network":
     case "friends":
+    case "defrag":
       return existing.kind === content.kind;
     case "roomgame":
       return (
@@ -404,6 +408,8 @@ function isWindowContent(
       );
     case "explorer":
       return typeof value.location === "string";
+    case "defrag":
+      return isDefragWindowContent(value);
     case "notepadpp":
       return (
         Array.isArray(value.paths) &&

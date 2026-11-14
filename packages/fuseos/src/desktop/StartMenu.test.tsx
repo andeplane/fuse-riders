@@ -111,6 +111,7 @@ describe("StartMenu", () => {
       "Windows Explorer",
       "Change desktop background",
       "Dial-Up Networking",
+      "System Tools▸",
     ]);
     expect(
       within(accessories).getByRole("menuitem", { name: "Notepad++" }),

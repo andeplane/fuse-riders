@@ -45,7 +45,7 @@ export function Splitter({ label, value, min, max, onChange }: SplitterProps) {
       aria-valuemin={min}
       aria-valuemax={max}
       tabIndex={0}
-      className="raised w-1.5 shrink-0 cursor-col-resize bg-[silver] select-none"
+      className="explorer-splitter"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
