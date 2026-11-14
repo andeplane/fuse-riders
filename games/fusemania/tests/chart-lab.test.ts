@@ -37,6 +37,8 @@ import {
   type TransportKey,
 } from "../src/lab/playback.js";
 
+import { hiddenAtStart, parseShown } from "../src/lab/shown.js";
+
 const sine = (hz: number, seconds: number, rate = LAB_RATE) =>
   Float32Array.from({ length: Math.round(seconds * rate) }, (_, i) =>
     Math.sin((2 * Math.PI * hz * i) / rate),
@@ -267,4 +269,38 @@ test("chart lab: the view moves only when the playhead leaves it", () => {
   assert.equal(revealTop(40, 20, 10), 37);
   assert.equal(revealTop(20.2, 20, 10), 17.2);
   assert.equal(revealTop(29.9, 20, 10), 26.9);
+});
+
+test("chart lab: a song opens with one chart shown, or the ones chosen last time", () => {
+  const charts = ["Easy", "Medium", "Hard", "Challenge"].map((label, i) => ({
+    key: `song:${i}`,
+    label,
+  }));
+  assert.deepEqual(hiddenAtStart(charts, undefined), [
+    "song:0",
+    "song:1",
+    "song:3",
+  ]);
+  assert.deepEqual(hiddenAtStart(charts, ["Easy", "Challenge"]), [
+    "song:1",
+    "song:2",
+  ]);
+  // A remembered difficulty this song lacks falls back to the default, and no Hard falls back to the first chart.
+  assert.deepEqual(hiddenAtStart(charts, ["Beginner"]), [
+    "song:0",
+    "song:1",
+    "song:3",
+  ]);
+  assert.deepEqual(hiddenAtStart(charts.slice(0, 2), undefined), ["song:1"]);
+  // Everything unticked stays unticked.
+  assert.equal(hiddenAtStart(charts, []).length, 4);
+  assert.deepEqual(hiddenAtStart([], undefined), []);
+});
+
+test("chart lab: the remembered chart choice survives only as a list of labels", () => {
+  assert.equal(parseShown(null), undefined);
+  assert.equal(parseShown("not json"), undefined);
+  assert.equal(parseShown('{"a":1}'), undefined);
+  assert.deepEqual(parseShown('["Hard", 3, "Easy"]'), ["Hard", "Easy"]);
+  assert.deepEqual(parseShown("[]"), []);
 });

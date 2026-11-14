@@ -47,9 +47,11 @@ import {
 } from "./spectrum.js";
 import type { SpectrumReply, SpectrumRequest } from "./spectrum-worker.js";
 import { revealTop, seekDelta, typingIn } from "./playback.js";
+import { hiddenAtStart, parseShown } from "./shown.js";
 
 const BASE = import.meta.env.BASE_URL;
 const NOTES_KEY = "fusemania-lab:notes";
+const SHOWN_KEY = "fusemania-lab:shown";
 const EDITS_KEY = (song: string) => `fusemania-lab:edits:${song}`;
 const HEADER = 30;
 const RULER = 58;
@@ -266,7 +268,12 @@ app.append(
     sscInput,
     notesInput,
   ),
-  chips,
+  el(
+    "div",
+    { className: "lab-chips-row" },
+    el("span", { className: "lab-chips-label", textContent: "Charts shown:" }),
+    chips,
+  ),
   keyLegend,
   el("main", { className: "lab-main" }, stage, side),
 );
@@ -360,6 +367,10 @@ async function loadSong(id: string): Promise<void> {
     }
   }
   rebuildCharts();
+  // One chart to start with (the ones ticked last time, else Hard); the chips above the charts pick the rest.
+  for (const key of hiddenAtStart(charts, parseShown(load(SHOWN_KEY))))
+    hidden.add(key);
+  renderChips();
   renderNotes();
   renderSelection();
   say("loading audio…");
@@ -482,6 +493,14 @@ function renderChips(): void {
       box.onchange = () => {
         if (box.checked) hidden.delete(chart.key);
         else hidden.add(chart.key);
+        save(
+          SHOWN_KEY,
+          JSON.stringify(
+            charts
+              .filter((c) => c.key.startsWith("song:") && !hidden.has(c.key))
+              .map((c) => c.label),
+          ),
+        );
         draw();
       };
       chip.append(

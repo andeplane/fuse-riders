@@ -164,6 +164,19 @@ body.chart-lab {
   padding: 0 5px;
   font-size: 11px;
 }
+.lab-chips-row {
+  display: flex;
+  align-items: center;
+}
+.lab-chips-row .lab-chips {
+  flex: 1;
+}
+.lab-chips-label {
+  padding-left: 12px;
+  color: #9aa3c5;
+  font-size: 12px;
+  white-space: nowrap;
+}
 .lab-keys {
   display: flex;
   flex-wrap: wrap;
