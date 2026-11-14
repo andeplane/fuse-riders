@@ -289,16 +289,21 @@ test("the race line is right below the targets, in the lanes of the rider's own 
             // Its middle is below the targets' middle: under them, or in the run-out beneath them.
             const middle = race.y + race.height / 2;
             assert.ok(middle > target, `${where}: below the targets`);
-            if (!down) {
+            // Clear of the targets both ways up, and right under them where the arrows come up to them.
+            assert.ok(
+              race.y >= Math.floor(target + first.col / 2),
+              `${where}: clear of the targets`,
+            );
+            if (!down)
               assert.ok(
-                race.y >= target + first.col / 2,
-                `${where}: clear of the targets`,
-              );
-              assert.ok(
-                race.y <= target + first.col / 2 + race.height,
+                race.y <= target + first.col / 2 + 4 * unit + 1,
                 `${where}: right below them`,
               );
-            }
+            else
+              assert.ok(
+                race.height >= Math.min(26 * unit - 1, first.col * 0.4),
+                `${where}: as tall as the run-out lets it be`,
+              );
           }
   assert.equal(
     raceBand(layoutFor(800, 600, 0, -1), -1, false, {

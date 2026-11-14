@@ -54,7 +54,7 @@ export interface Race {
   height: number;
 }
 /** The race line's band and the gap between it and the targets, in CSS pixels. */
-const RACE_HEIGHT = 26,
+export const RACE_HEIGHT = 26,
   RACE_GAP = 4;
 
 /** A field's lanes are at least this many columns long, header included. */
@@ -291,7 +291,8 @@ export function laneOf(
 /**
  * Where the race line goes: in the lanes, right below the targets. On a rider's device that is across its own field;
  * on a shared screen, where every field is the same size, across all of them. With the targets at the top the band is
- * just under them, where the arrows come in; with the targets at the bottom it is in the run-out beneath them.
+ * just under them, where the arrows come in; with the targets at the bottom it is in the run-out beneath them, and as
+ * short as the run-out where that is shorter than the band (`race.ts` draws it smaller to fit).
  * `out` is filled and returned; nothing is returned when there is no field to put it on.
  */
 export function raceBand(
@@ -307,22 +308,22 @@ export function raceBand(
   if (!first || !last) return;
   const unit = layout.unit,
     col = first.col;
-  const height = Math.round(RACE_HEIGHT * unit);
-  const under = col * (TARGET_INSET + 0.5);
+  const full = Math.round(RACE_HEIGHT * unit);
   out.x = first.x;
   out.width = last.x + last.col * COLUMNS - first.x;
-  out.height = height;
-  out.y = Math.floor(
-    down
-      ? // Centred in the run-out, and never past the lanes' end.
-        Math.min(
-          first.laneBottom - height,
-          first.laneBottom - (col * TARGET_INSET - col / 2 + height) / 2,
-        )
-      : Math.min(
-          first.laneBottom - height,
-          first.laneTop + under + RACE_GAP * unit,
-        ),
-  );
+  if (down) {
+    // The run-out beneath the targets: the band is centred in it, and no taller than it.
+    const runout = col * TARGET_INSET - col / 2;
+    out.height = Math.max(1, Math.min(full, Math.floor(runout)));
+    out.y = Math.floor(first.laneBottom - (runout + out.height) / 2);
+  } else {
+    out.height = full;
+    out.y = Math.floor(
+      Math.min(
+        first.laneBottom - full,
+        first.laneTop + col * (TARGET_INSET + 0.5) + RACE_GAP * unit,
+      ),
+    );
+  }
   return out;
 }
