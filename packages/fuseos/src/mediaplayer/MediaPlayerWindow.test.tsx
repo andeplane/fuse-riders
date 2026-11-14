@@ -2,7 +2,10 @@ import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import type { ProviderOptions } from "../__mocks__/renderWithProviders";
-import { renderWithProviders } from "../__mocks__/renderWithProviders";
+import {
+  PHONE_DEVICE,
+  renderWithProviders,
+} from "../__mocks__/renderWithProviders";
 import { Desktop } from "../desktop/Desktop";
 
 import { CODEC_CHECK_AT } from "./playback";
@@ -162,6 +165,21 @@ describe("MediaPlayerWindow", () => {
     expect(
       screen.getByRole("dialog", { name: "Fuse Volley" }),
     ).toBeInTheDocument();
+  });
+
+  it("launches through the games launcher: a browser tab where games open in tabs, reported as one", () => {
+    const { tick, store, desktopDeps, osAnalytics, title } = renderPlayer(
+      "Fuse_Volley_Beach_Edition_UNCUT.avi",
+      "fuseball",
+      { launchDevice: PHONE_DEVICE },
+    );
+    tick(40);
+    expect(screen.queryByRole("dialog", { name: title })).toBeNull();
+    expect(desktopDeps.openExternal).toHaveBeenCalledWith(
+      "/fuse-riders/fuseball/",
+    );
+    expect(store.load().windows).toEqual([]);
+    expect(osAnalytics.launches).toEqual([{ game: "fuseball", launch: "tab" }]);
   });
 
   it("explains when the game behind a video is not installed in this build", async () => {

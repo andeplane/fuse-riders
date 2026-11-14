@@ -55,6 +55,12 @@ function entryMenuItems(vm: ExplorerViewModel): ContextMenuItem[] {
           { label: "Revert to original", onSelect: () => vm.revert(entry) },
         ]
       : []),
+    ...(entry.kind === "drive"
+      ? []
+      : [
+          { separator: true as const },
+          { label: "Delete", onSelect: () => vm.remove(entry) },
+        ]),
   ];
 }
 
@@ -79,6 +85,14 @@ export function ExplorerWindow({ windowId, location }: ExplorerWindowProps) {
           disabled: !selected?.modified,
           onSelect: () => {
             if (selected) vm.revert(selected);
+          },
+        },
+        {
+          label: "Delete",
+          shortcut: keysFor("explorer.delete"),
+          disabled: !selected || selected.kind === "drive",
+          onSelect: () => {
+            if (selected) vm.remove(selected);
           },
         },
         { separator: true },

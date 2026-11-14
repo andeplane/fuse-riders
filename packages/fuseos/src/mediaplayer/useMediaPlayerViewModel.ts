@@ -1,7 +1,7 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 
-import { useDesktopViewModel } from "../desktop/useDesktopViewModel";
 import { FuseGamesContext } from "../fusegames/registry";
+import { useFuseGameLauncher } from "../fusegames/useFuseGameLauncher";
 import { useWindowCommands } from "../windows/useWindowCommands";
 
 import { MediaPlayerDepsContext } from "./mediaPlayerDepsContext";
@@ -49,7 +49,8 @@ export function useMediaPlayerViewModel({
   const deps = useContext(MediaPlayerDepsContext);
   const games = useContext(FuseGamesContext);
   const commands = useWindowCommands();
-  const desktop = useDesktopViewModel();
+  // The games launcher: a window on this desktop or a browser tab, as the Games applet says, and reported.
+  const launcher = useFuseGameLauncher();
   const [playback, setPlayback] = useState<PlaybackState>(startBuffering);
 
   useEffect(() => {
@@ -64,7 +65,7 @@ export function useMediaPlayerViewModel({
   }, [playback, deps, file, launches]);
 
   const launchGame = deps.launchGame;
-  const openFuseGame = desktop.openFuseGame;
+  const openFuseGame = launcher.launch;
   useEffect(() => {
     if (playback.phase !== "playing" || launches === undefined) return;
     if (launchGame) launchGame(launches);
