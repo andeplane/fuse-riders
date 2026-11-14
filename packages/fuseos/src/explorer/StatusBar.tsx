@@ -1,15 +1,25 @@
+import type { IconName } from "../ui/icons";
+import { Win98Icon } from "../ui/icons";
+
 export type StatusBarProps = {
-  /** The left field: "12 object(s)", "Reading drive A:...". */
+  /** The left panel: "12 object(s)", "1 object(s) selected", "Reading drive A:...". */
   text: string;
-  /** The selected entry's name or size, or a notice (the build's commit is not on GitHub). */
-  detail: string;
+  /** The middle panel: the size of the selection, or of the files in the folder. */
+  size: string;
+  /** The right panel: where the listing comes from, as Windows names the zone ("My Computer"). */
+  zone: string;
+  zoneIcon: IconName;
 };
 
-export function StatusBar({ text, detail }: StatusBarProps) {
+export function StatusBar({ text, size, zone, zoneIcon }: StatusBarProps) {
   return (
-    <footer className="status-bar shrink-0">
-      <p className="status-bar-field">{text}</p>
-      <p className="status-bar-field w-1/2 truncate">{detail}</p>
+    <footer className="explorer-status" aria-label="Status bar">
+      <p className="explorer-status-text">{text}</p>
+      <p className="explorer-status-size">{size}</p>
+      <p className="explorer-status-zone">
+        <Win98Icon name={zoneIcon} />
+        <span>{zone}</span>
+      </p>
     </footer>
   );
 }

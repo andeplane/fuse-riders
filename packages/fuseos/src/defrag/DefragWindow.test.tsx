@@ -545,7 +545,7 @@ describe("Disk Defragmenter: where it lives", () => {
     await settle();
     const contents = within(screen.getByLabelText("Folder contents"));
     fireEvent.contextMenu(
-      contents.getByRole("row", { name: /Fuse Riders \(C:\)/ }),
+      contents.getByRole("option", { name: /Fuse Riders \(C:\)/ }),
       {
         clientX: 10,
         clientY: 10,
