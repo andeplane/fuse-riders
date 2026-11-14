@@ -71,7 +71,8 @@ function GamesPage({ vm, active }: { vm: LauncherViewModel; active: boolean }) {
         vm.selectPrevious();
         break;
       case "Enter":
-        vm.play();
+        if (event.shiftKey) vm.playInNewTab();
+        else vm.play();
         break;
       default:
         return;
@@ -137,14 +138,24 @@ function GamesPage({ vm, active }: { vm: LauncherViewModel; active: boolean }) {
           <p className="fst-tagline">{selected.tagline}</p>
           <div className="fst-detail-row">
             <div className="fst-facts">
-              <button
-                type="button"
-                className="fst-play"
-                onClick={vm.play}
-                aria-label={`Play ${selected.name}`}
-              >
-                <span aria-hidden>▶</span> PLAY
-              </button>
+              <div className="fst-actions">
+                <button
+                  type="button"
+                  className="fst-play"
+                  onClick={vm.play}
+                  aria-label={`Play ${selected.name}`}
+                >
+                  <span aria-hidden>▶</span> PLAY
+                </button>
+                <button
+                  type="button"
+                  className="fst-play fst-play-tab"
+                  onClick={vm.playInNewTab}
+                  aria-label={`Play ${selected.name} in new tab`}
+                >
+                  <span aria-hidden>↗</span> PLAY IN NEW TAB
+                </button>
+              </div>
               <dl className="fst-dl">
                 <dt>Status:</dt>
                 <dd className="fst-status">{details.status}</dd>

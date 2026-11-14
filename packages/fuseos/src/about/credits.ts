@@ -77,7 +77,7 @@ export const CREDITS: readonly Credit[] = [
   {
     name: "3D Pipes",
     by: "Isaiah Odhner (1j01/pipes)",
-    role: "the screensaver, a three.js remake of the Windows 95 original",
+    role: "the screensaver, a three.js remake of the Windows 98 original",
     licence: "MIT",
     url: "https://github.com/1j01/pipes",
   },

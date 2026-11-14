@@ -31,7 +31,7 @@ export type StartMenuItem = {
 };
 
 /** Start > Help > Help Topics: the project's README. */
-export const HELP_URL = "https://github.com/andeplane/fuse-riders#readme";
+export const HELP_URL = "https://github.com/andeplane/fuse-games#readme";
 
 function registeredItems(
   registrations: readonly StartMenuRegistration[],

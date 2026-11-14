@@ -36,6 +36,7 @@ const micReport = (over: Partial<MicReport> = {}): MicReport => ({
   ...over,
 });
 const view = (over: Partial<TimingView> = {}): TimingView => ({
+  mode: "screen",
   report: createLatencyProbe().report(),
   context: {
     baseMs: 5.3,
@@ -61,7 +62,7 @@ const view = (over: Partial<TimingView> = {}): TimingView => ({
   totalPresses: 0,
   bent: 0,
   leastSlackMs: undefined,
-  song: "CLICK TRACK 150",
+  song: "STEADY CLICK 2.5 / s",
   clickBpm: 150,
   mic: {
     state: "off",
@@ -77,20 +78,25 @@ const view = (over: Partial<TimingView> = {}): TimingView => ({
   ...over,
 });
 
-function mount() {
+function mount(options: { details?: boolean } = {}) {
   const { document } = parseHTML("<!doctype html><body></body>");
   const calls: string[] = [];
-  const panel = createTimingPanel(document, {
-    nudge: (key: OffsetKey, by: number) => calls.push(`nudge ${key} ${by}`),
-    set: (key: OffsetKey, ms: number) => calls.push(`set ${key} ${ms}`),
-    centre: () => calls.push("centre"),
-    resetHits: () => calls.push("reset"),
-    click: (bpm) => calls.push(`click ${bpm}`),
-    mic: (on, device) => calls.push(`mic ${on} ${device ?? ""}`.trim()),
-    applyMic: () => calls.push("applyMic"),
-    copy: (text) => calls.push(`copy ${text.split("\n")[0]}`),
-    download: () => calls.push("download"),
-  });
+  const panel = createTimingPanel(
+    document,
+    {
+      nudge: (key: OffsetKey, by: number) => calls.push(`nudge ${key} ${by}`),
+      set: (key: OffsetKey, ms: number) => calls.push(`set ${key} ${ms}`),
+      centre: () => calls.push("centre"),
+      resetHits: () => calls.push("reset"),
+      click: (bpm) => calls.push(`click ${bpm}`),
+      openScreen: () => calls.push("openScreen"),
+      mic: (on, device) => calls.push(`mic ${on} ${device ?? ""}`.trim()),
+      applyMic: () => calls.push("applyMic"),
+      copy: (text) => calls.push(`copy ${text.split("\n")[0]}`),
+      download: () => calls.push("download"),
+    },
+    options,
+  );
   document.body.append(panel.element);
   const button = (text: string, within: ParentNode = panel.element) =>
     [...within.querySelectorAll("button")].find(
@@ -134,8 +140,10 @@ test("the lines say what was measured, signed and in ms", () => {
   assert.match(table[1]!, /^↓ +0\.4 +6\.7 +12082 {2}MARV −18$/);
   assert.match(table[2]!, /^→ +no ts +- +13000 {2}- {2}MOVED BY ROOM CLOCK$/);
 
-  const clocks = clockText(view({ totalPresses: 40, leastSlackMs: 131.6 }));
-  assert.match(clocks, /getOutputTimestamp/);
+  const game = (over: Partial<TimingView> = {}) =>
+    view({ mode: "game", ...over });
+  const clocks = clockText(game({ totalPresses: 40, leastSlackMs: 131.6 }));
+  assert.match(clocks, /song position from .*getOutputTimestamp/);
   assert.match(clocks, /heard 176\.0 ms behind the audio clock/);
   assert.match(clocks, /display 120 Hz, picture drawn 8\.3 ms ahead/);
   assert.match(
@@ -143,12 +151,21 @@ test("the lines say what was measured, signed and in ms", () => {
     /room clock: moved 0 of 40 presses \(least room 132 ms\)/,
   );
   assert.match(
-    clockText(view({ totalPresses: 40, bent: 3 })),
+    clockText(game({ totalPresses: 40, bent: 3 })),
     /room clock: MOVED 3 of 40 presses/,
   );
   assert.match(
-    clockText(view({ clock: { ...view().clock, source: "room" } })),
+    clockText(game({ clock: { ...view().clock, source: "room" } })),
     /the room clock \(no sound\)/,
+  );
+  // The Timing screen has no room: its clocks say nothing of one.
+  const screen = clockText(view({ totalPresses: 40, leastSlackMs: 131.6 }));
+  assert.match(screen, /click position from .*getOutputTimestamp/);
+  assert.match(screen, /display 120 Hz/);
+  assert.doesNotMatch(screen, /room/);
+  assert.match(
+    clockText(view({ clock: { ...view().clock, source: "room" } })),
+    /the page's clock \(no sound\)/,
   );
 });
 
@@ -241,7 +258,7 @@ test("the panel shows the offsets and its buttons report what was asked, without
   assert.deepEqual(calls, [
     "click 150",
     "mic true",
-    "copy Fusemania timing · CLICK TRACK 150",
+    "copy Fusemania timing · STEADY CLICK 2.5 / s",
     "download",
     "reset",
   ]);
@@ -316,7 +333,7 @@ test("the microphone's APPLY shows only for a residual worth acting on, and the 
   const text = timingReport(
     view({ ear: [-18, -17, -19], log: { lines: 12, file: "" } }),
   );
-  assert.match(text, /^Fusemania timing · CLICK TRACK 150\n/);
+  assert.match(text, /^Fusemania timing · STEADY CLICK 2.5 \/ s\n/);
   assert.match(text, /offsets: audio 0 ms, input 0 ms, visual 0 ms/);
   assert.match(text, /by ear: −18\.0 ms/);
   assert.match(text, /press > handler/);
@@ -353,4 +370,68 @@ test("hidden, the panel is a chip and does no work", () => {
   button("TIMING").click();
   panel.update(view({ offsets: { audioMs: 99, inputMs: 0, visualMs: 0 } }));
   assert.match(panel.element.textContent ?? "", /\+99 ms/);
+});
+
+test("on its own screen the panel has the click and the microphone, and keeps the details folded away", () => {
+  const { panel, calls, button } = mount();
+  panel.update(view());
+  const details = panel.element.querySelector("details")!;
+  assert.equal(details.open, false);
+  assert.match(details.textContent ?? "", /PRESS TO JUDGMENT/);
+  assert.match(details.textContent ?? "", /CLOCKS/);
+  assert.match(details.textContent ?? "", /Session log/);
+  assert.equal(panel.element.classList.contains("fm-dt-screen"), true);
+  assert.equal(panel.element.querySelector("header b")!.textContent, "TIMING");
+  assert.equal(button("HIDE").hidden, true, "nothing to hide it from");
+  assert.equal(button("OPEN THE TIMING SCREEN").hidden, true);
+  assert.equal(
+    button("LISTEN WITH THE MICROPHONE").closest("section")!.hidden,
+    false,
+  );
+  // The rate being played is the lit one, and the others change it.
+  assert.deepEqual(
+    [...panel.element.querySelectorAll(".fm-dt-click")].map((each) => [
+      each.textContent,
+      each.classList.contains("fm-dt-on"),
+    ]),
+    [
+      ["2 / s", false],
+      ["2.5 / s", true],
+      ["3 / s", false],
+    ],
+  );
+  button("3 / s").click();
+  assert.deepEqual(calls, ["click 180"]);
+  assert.match(
+    panel.element.textContent ?? "",
+    /2\.5 ticks a second, an arrow on every tick/,
+  );
+  const open = mount({ details: true });
+  open.panel.update(view());
+  assert.equal(open.panel.element.querySelector("details")!.open, true);
+});
+
+test("over a game the panel is a debug overlay: details open, no click to play, a way to the Timing screen", () => {
+  const { panel, calls, button } = mount();
+  panel.update(
+    view({ mode: "game", clickBpm: undefined, song: "ARCADE ADVENTURE" }),
+  );
+  assert.equal(panel.element.querySelector("details")!.open, true);
+  assert.equal(panel.element.classList.contains("fm-dt-screen"), false);
+  assert.equal(
+    panel.element.querySelector("header b")!.textContent,
+    "TIMING DEBUG",
+  );
+  assert.equal(button("HIDE").hidden, false);
+  assert.equal(button("2.5 / s").hidden, true);
+  assert.equal(
+    button("LISTEN WITH THE MICROPHONE").closest("section")!.hidden,
+    true,
+  );
+  assert.match(
+    panel.element.textContent ?? "",
+    /Playing: ARCADE ADVENTURE\. The steady click and the microphone check are on the Timing screen\./,
+  );
+  button("OPEN THE TIMING SCREEN").click();
+  assert.deepEqual(calls, ["openScreen"]);
 });

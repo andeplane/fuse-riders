@@ -26,7 +26,7 @@ function fakeFetch(routes: Record<string, Route>) {
 const MANIFEST_URL = "/fuse-riders/fuseos/repo-tree.json";
 const manifest = createFixtureManifest();
 const raw = (ref: string, path: string) =>
-  `https://raw.githubusercontent.com/andeplane/fuse-riders/${ref}/${path}`;
+  `https://raw.githubusercontent.com/andeplane/fuse-games/${ref}/${path}`;
 
 describe(GitHubDiskSource.name, () => {
   it("fetches the manifest once and shares it", async () => {
@@ -141,7 +141,7 @@ describe(GitHubDiskSource.name, () => {
         manifestUrl: MANIFEST_URL,
         rawBase: "https://mirror.test",
       }).fileUrl(manifest, "x"),
-    ).toBe(`https://mirror.test/andeplane/fuse-riders/${FIXTURE_SHA}/x`);
+    ).toBe(`https://mirror.test/andeplane/fuse-games/${FIXTURE_SHA}/x`);
   });
 });
 
@@ -166,16 +166,16 @@ describe(MemoryDiskSource.name, () => {
     await expect(source.readText("nope")).rejects.toThrow("HTTP 404");
     expect(source.reads).toEqual(["a.txt", "b.txt", "c.txt", "nope"]);
     expect(source.fileUrl(manifest, "x.png")).toBe(
-      `memory://andeplane/fuse-riders/${FIXTURE_SHA}/x.png`,
+      `memory://andeplane/fuse-games/${FIXTURE_SHA}/x.png`,
     );
     expect(source.fileUrl(manifest, "x.png", true)).toBe(
-      "memory://andeplane/fuse-riders/main/x.png",
+      "memory://andeplane/fuse-games/main/x.png",
     );
     await expect(source.imageUrl("x.png")).resolves.toBe(
-      `memory://andeplane/fuse-riders/${FIXTURE_SHA}/x.png`,
+      `memory://andeplane/fuse-games/${FIXTURE_SHA}/x.png`,
     );
     await expect(source.imageUrl("b.txt")).resolves.toBe(
-      "memory://andeplane/fuse-riders/main/b.txt",
+      "memory://andeplane/fuse-games/main/b.txt",
     );
   });
 });
