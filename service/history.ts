@@ -13,6 +13,7 @@ import { fuseLaneRegistration } from "fuse-lane/platform";
 import { ballBrosRegistration } from "ball-bros/platform";
 import { fuseballRegistration } from "fuseball/platform";
 import { fuseVolleyRegistration } from "fuse-volley/platform";
+import { killerFuseRegistration } from "killer-fuse/platform";
 import { elastoFuseRegistration } from "elasto-fuse/platform";
 import {
   ACCOUNT_RULES,
@@ -49,6 +50,7 @@ export const GAMES = [
   frontRegistration,
   fuseballRegistration,
   fuseVolleyRegistration,
+  killerFuseRegistration,
   elastoFuseRegistration,
 ] as const;
 

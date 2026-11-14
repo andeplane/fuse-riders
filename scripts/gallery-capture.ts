@@ -114,6 +114,23 @@ const RECIPES: Record<string, Recipe> = {
     }
     await page.keyboard.up("ArrowRight");
   },
+  "killer-fuse": async (page) => {
+    await openPlayOptions(page);
+    await page
+      .getByRole("button", { name: "PLAY SOLO WITH BOTS", exact: true })
+      .click();
+    // The brief covers the arena over the countdown; the card is gone once the game is under way.
+    await page
+      .locator('main.kf-room[data-stage="running"]')
+      .waitFor({ timeout: 30_000 });
+    await page
+      .locator(".kf-brief")
+      .waitFor({ state: "hidden", timeout: 30_000 });
+    await page.locator("canvas").click({ position: { x: 20, y: 20 } });
+    // Let the six of them spread out over the hives and the snail before the frame is taken.
+    await page.waitForTimeout(6000);
+    await hold(page, ["KeyD", "Space", "KeyD"], 400);
+  },
   "graveyard-shift": async (page) => {
     await page
       .getByRole("button", { name: "START SOLO SHIFT", exact: true })
