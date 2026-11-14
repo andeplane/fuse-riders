@@ -11,6 +11,7 @@ import {
   arenaOf,
   botInput,
   cloneRound,
+  colliderOf,
   createRound,
   hashRound,
   stepRound,
@@ -40,7 +41,8 @@ function assertSane(state: Round): void {
     if (unit.dead) continue;
     const where = `slot ${unit.slot} at step ${state.step}`;
     assert.ok(unit.x >= 0 && unit.x < WIDTH, where);
-    assert.ok(unit.y > 0 && unit.y <= floor.y, where);
+    // A dash tucks the body up: its box, not its feet, stays above the floor.
+    assert.ok(unit.y > 0 && unit.y - colliderOf(unit).lift <= floor.y, where);
     assert.ok(!unit.carrying || unit.kind === "worker", where);
     assert.ok(!unit.riding || unit.kind === "worker", where);
     if (unit.riding) riders += 1;

@@ -29,7 +29,7 @@ import {
   speedy,
 } from "./tuning.js";
 import type { Input, Unit } from "./types.js";
-import { unitTouches } from "./units.js";
+import { newUnit, unitTouches } from "./units.js";
 
 // --- Worker graph ---------------------------------------------------------------------------------------------------
 
@@ -95,6 +95,7 @@ export function edgeInput(edge: Edge, unit: Unit, k: number): Input {
     held:
       edge.jump === JUMP_FULL || (edge.jump === JUMP_SHORT && k < SHORT_HOLD),
     pressed: k === 0 && edge.jump !== JUMP_NONE,
+    attack: false,
   };
 }
 
@@ -104,37 +105,9 @@ function trialUnit(
   x: number,
   speed: boolean,
 ): Unit {
-  return {
-    slot: 2,
-    team: 0,
-    kind: "worker",
-    speed,
-    x,
-    y: arena.solids[from]!.y,
-    vx: 0,
-    vy: 0,
-    facing: 1,
-    ground: from,
-    coyote: 0,
-    jumping: false,
-    flapped: false,
-    diving: false,
-    flaps: [],
-    takeoff: 0,
-    light: false,
-    stun: 0,
-    downHeld: false,
-    buffer: 0,
-    carrying: false,
-    gate: -1,
-    gateProgress: 0,
-    invuln: 0,
-    dead: false,
-    respawn: 0,
-    riding: false,
-    eaten: false,
-    mountWait: 0,
-  };
+  const unit = newUnit(2, "worker", x, arena.solids[from]!.y, from);
+  unit.speed = speed;
+  return unit;
 }
 
 /** A feet-anchored box a Worker wants to touch: a hive hole or a berry pile. */

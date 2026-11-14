@@ -3,18 +3,18 @@
  * feeds back into the simulation, so these numbers may be fractions; the state itself stays integer subpixels.
  */
 import { MAPS, type GateKind, type MapDef } from "./maps.js";
+import { lethal } from "./shapes.js";
+import { mealSteps } from "./snail.js";
 import { timedOut } from "./step.js";
 import {
-  EAT_STEPS,
   GATE_STEPS,
   QUEEN_EGGS,
   RESPAWN_STEPS,
   S,
-  SPEED_DEN,
-  SPEED_NUM,
   TICK_HZ,
   TIME_LIMIT,
 } from "./tuning.js";
+import { gateLocked } from "./units.js";
 import type { GameEvent, Round, UnitKind, VictoryKind } from "./types.js";
 
 export interface UnitView {
@@ -30,6 +30,18 @@ export interface UnitView {
   moving: boolean;
   flapped: boolean;
   diving: boolean;
+  /** The attack's dash is carrying the unit. */
+  dashing: boolean;
+  /** The weapon kills on this step: a sword in its lethal window, a Queen dashing or diving. */
+  attacking: boolean;
+  /** The step of the running attack (1 on the press, through its cooldown), 0 without one. */
+  attackStep: number;
+  /** Stunned by a glance or a bump: no control until it wears off. `stun` is the steps left. */
+  stunned: boolean;
+  stun: number;
+  /** Locked in a gate while it transforms, and sitting in a hive hole while it banks its berry. */
+  locked: boolean;
+  depositing: boolean;
   carrying: boolean;
   invulnerable: boolean;
   dead: boolean;
@@ -73,6 +85,8 @@ export interface RoundView {
   eggs: number[];
   /** Per team: where each spare egg stands on the hive floor, and whether it is still there (not yet hatched). */
   spares: { x: number; y: number; present: boolean }[][];
+  /** Per team: the index in `spares` of the egg a dead Queen is about to hatch from, or -1. */
+  hatching: number[];
   berries: number[];
   winner: { team: number; kind: VictoryKind } | null;
   /** Whole seconds of play left before the clock decides the game, counting down from 300 to 0. */
@@ -84,10 +98,7 @@ export interface RoundView {
 
 export function viewOf(state: Round): RoundView {
   const map = MAPS[state.mapId];
-  const rider = state.units[state.snail.rider];
-  const meal = rider?.speed
-    ? Math.trunc((EAT_STEPS * SPEED_DEN) / SPEED_NUM)
-    : EAT_STEPS;
+  const meal = mealSteps(state.units[state.snail.rider]);
   return {
     map,
     step: state.step,
@@ -103,6 +114,13 @@ export function viewOf(state: Round): RoundView {
       moving: unit.vx !== 0,
       flapped: unit.flapped,
       diving: unit.diving,
+      dashing: unit.dashing,
+      attacking: lethal(unit),
+      attackStep: unit.attack,
+      stunned: unit.stun > 0,
+      stun: unit.stun,
+      locked: gateLocked(unit),
+      depositing: unit.deposit >= 0,
       carrying: unit.carrying,
       invulnerable: unit.invuln > 0,
       dead: unit.dead,
@@ -155,6 +173,9 @@ export function viewOf(state: Round): RoundView {
         present: index >= hatched,
       }));
     }),
+    hatching: state.eggs.map((eggs, team) =>
+      state.units[team]?.dead === true && eggs > 0 ? QUEEN_EGGS - 1 - eggs : -1,
+    ),
     berries: state.holes.map((holes) => holes.filter(Boolean).length),
     winner: state.winner,
     timeLeft: Math.ceil(Math.max(0, TIME_LIMIT - state.step) / TICK_HZ),

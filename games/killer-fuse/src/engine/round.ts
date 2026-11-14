@@ -2,9 +2,9 @@
 import { newMind } from "./bot.js";
 import { arenaOf, standingOn } from "./maps.js";
 import { hashSeed } from "./rng.js";
-import { MAX_FLAPS, MAX_PLAYERS, QUEEN_EGGS, RULES } from "./tuning.js";
+import { MAX_PLAYERS, QUEEN_EGGS, RULES } from "./tuning.js";
 import type { Round, RoundOptions, Unit } from "./types.js";
-import { isQueenSlot, teamOf } from "./units.js";
+import { isQueenSlot, newUnit } from "./units.js";
 
 export function createRound(options: RoundOptions): Round {
   const mapId = options.mapId ?? 1;
@@ -13,37 +13,15 @@ export function createRound(options: RoundOptions): Round {
   const units: Unit[] = [];
   for (let slot = 0; slot < MAX_PLAYERS; slot += 1) {
     const spawn = arena.spawns[slot]!;
-    units.push({
-      slot,
-      team: teamOf(slot),
-      kind: isQueenSlot(slot) ? "queen" : "worker",
-      speed: false,
-      x: spawn.x,
-      y: spawn.y,
-      vx: 0,
-      vy: 0,
-      facing: teamOf(slot) === 0 ? 1 : -1,
-      ground: standingOn(arena, spawn.x, spawn.y),
-      coyote: 0,
-      jumping: false,
-      flapped: false,
-      diving: false,
-      flaps: Array.from({ length: MAX_FLAPS }, () => 0),
-      takeoff: 0,
-      light: false,
-      stun: 0,
-      downHeld: false,
-      buffer: 0,
-      carrying: false,
-      gate: -1,
-      gateProgress: 0,
-      invuln: 0,
-      dead: false,
-      respawn: 0,
-      riding: false,
-      eaten: false,
-      mountWait: 0,
-    });
+    units.push(
+      newUnit(
+        slot,
+        isQueenSlot(slot) ? "queen" : "worker",
+        spawn.x,
+        spawn.y,
+        standingOn(arena, spawn.x, spawn.y),
+      ),
+    );
   }
   const state: Round = {
     rules: RULES,
@@ -62,9 +40,15 @@ export function createRound(options: RoundOptions): Round {
     loose: [],
     holes: arena.holes.map((holes) => holes.map(() => false)),
     gates: arena.gates.map(() => ({ owner: -1, user: -1 })),
-    snail: { x: arena.snail.start, rider: -1, victim: -1, eat: 0, facing: 1 },
+    snail: {
+      x: arena.snail.start,
+      vx: 0,
+      rider: -1,
+      victim: -1,
+      eat: 0,
+      facing: 1,
+    },
     eggs: [QUEEN_EGGS, QUEEN_EGGS],
-    dry: 0,
     winner: null,
     bots: [],
     events: [],

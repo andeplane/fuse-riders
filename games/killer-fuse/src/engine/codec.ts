@@ -1,5 +1,5 @@
 /**
- * Wire and checkpoint helpers: an input as five bits, a copy of the round, and the hash two peers compare. The hash
+ * Wire and checkpoint helpers: an input as six bits, a copy of the round, and the hash two peers compare. The hash
  * walks the state in sorted key order, so it does not depend on how an object was built or decoded.
  */
 import type { Input, Round } from "./types.js";
@@ -8,8 +8,9 @@ export const INPUT_LEFT = 1,
   INPUT_RIGHT = 2,
   INPUT_DOWN = 4,
   INPUT_HELD = 8,
-  INPUT_PRESSED = 16;
-export const INPUT_MASK = 31;
+  INPUT_PRESSED = 16,
+  INPUT_ATTACK = 32;
+export const INPUT_MASK = 63;
 
 export function packInput(input: Input): number {
   return (
@@ -17,7 +18,8 @@ export function packInput(input: Input): number {
     (input.right ? INPUT_RIGHT : 0) |
     (input.down ? INPUT_DOWN : 0) |
     (input.held ? INPUT_HELD : 0) |
-    (input.pressed ? INPUT_PRESSED : 0)
+    (input.pressed ? INPUT_PRESSED : 0) |
+    (input.attack ? INPUT_ATTACK : 0)
   );
 }
 
@@ -28,6 +30,7 @@ export function unpackInput(bits: number): Input {
     down: (bits & INPUT_DOWN) !== 0,
     held: (bits & INPUT_HELD) !== 0,
     pressed: (bits & INPUT_PRESSED) !== 0,
+    attack: (bits & INPUT_ATTACK) !== 0,
   };
 }
 

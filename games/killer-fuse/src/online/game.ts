@@ -86,7 +86,8 @@ export function parseSettings(raw: unknown): Settings | undefined {
 
 export const PLAY = 0,
   PRESS = 1,
-  SEAT = 2;
+  SEAT = 2,
+  ATTACK = 3;
 /** A control entry starts `[seq, tick, kind, matchId, round]`: it counts only in the match and game it names. */
 type Control<Kind> = [number, number, Kind, string, number];
 /** `[…, PLAY, matchId, round, bits]`: a seat's held `LEFT | RIGHT | DOWN | HELD` (the engine's input bits) from this tick on. */
@@ -96,10 +97,15 @@ export type PlayEntry = [...Control<typeof PLAY>, number];
  * stream) and the step of the log tick (0 to `STEPS_PER_TICK - 1`) it was pressed on.
  */
 export type PressEntry = [...Control<typeof PRESS>, number, number];
+/**
+ * `[…, ATTACK, matchId, round, ordinal, offset]`: one press of the attack button, carried the way `PRESS` is and
+ * counted in the same run of gesture ordinals.
+ */
+export type AttackEntry = [...Control<typeof ATTACK>, number, number];
 /** `[seq, tick, SEAT, slot]`: the seated member who logs it asks for that slot, outside a running game. */
 export type SeatEntry = [number, number, typeof SEAT, number];
 export type Entry =
-  ManagementEntry<Settings> | PlayEntry | PressEntry | SeatEntry;
+  ManagementEntry<Settings> | PlayEntry | PressEntry | AttackEntry | SeatEntry;
 
 export const STEPS_PER_TICK = 3;
 export const CAPACITY = MAX_PLAYERS;
@@ -112,7 +118,7 @@ export const countdownTicks = (round: number): number =>
   round === 1 ? FIRST_COUNTDOWN_TICKS : COUNTDOWN_TICKS;
 export const OUTRO_TICKS = 60;
 export const BETWEEN_TICKS = 100;
-/** What a `PLAY` entry may hold; the press edge travels as `PRESS`. */
+/** What a `PLAY` entry may hold; the press edges travel as `PRESS` and `ATTACK`. */
 export const HELD_BITS = INPUT_LEFT | INPUT_RIGHT | INPUT_DOWN | INPUT_HELD;
 
 /** One decided game of the set, frozen at the tick it was decided on. */
@@ -202,7 +208,7 @@ export function isEntry(raw: unknown): raw is Entry {
   const scoped = names.validMatchId(matchId) && uint32(round) && uint32(value);
   if (kind === PLAY) return scoped && raw.length === 6 && value <= HELD_BITS;
   return (
-    kind === PRESS &&
+    (kind === PRESS || kind === ATTACK) &&
     scoped &&
     raw.length === 7 &&
     positive(value) &&
@@ -359,7 +365,8 @@ function applySeats(
  * Every slot's input for each of the tick's steps, from its pilot's entries for this tick, match and game. The held
  * bits last from the latest `PLAY` on (a tap shorter than the tick still counts, on its first step). Each `PRESS`
  * sets the press edge on exactly the step it names, once per gesture (ordinals rise along a stream, so a repeat in the
- * tick is ignored), and holds the button on that step. A slot without a pilot gets nothing: the bot plays it.
+ * tick is ignored), and holds the button on that step; each `ATTACK` sets the attack edge the same way. A slot
+ * without a pilot gets nothing: the bot plays it.
  */
 function inputs(
   room: Room,
@@ -371,14 +378,15 @@ function inputs(
     held: Record<string, number> = {};
   crew.forEach((id, slot) => {
     const seat = room.seats.get(id),
-      pressed = [false, false, false];
+      pressed = [false, false, false],
+      attack = [false, false, false];
     let bits = 0,
       tapped = 0,
       ordinal = 0;
     if (seat) {
       bits = room.held[id] ?? 0;
-      const mine = (e: Entry): e is PlayEntry | PressEntry =>
-        (e[2] === PLAY || e[2] === PRESS) &&
+      const mine = (e: Entry): e is PlayEntry | PressEntry | AttackEntry =>
+        (e[2] === PLAY || e[2] === PRESS || e[2] === ATTACK) &&
         e[1] === tick &&
         e[3] === room.matchId &&
         e[4] === room.round;
@@ -390,13 +398,18 @@ function inputs(
           bits = entry[5];
         } else if (entry[5] > ordinal) {
           ordinal = entry[5];
-          pressed[entry[6]] = true;
+          (entry[2] === PRESS ? pressed : attack)[entry[6]] = true;
         }
       if (bits) held[id] = bits;
     }
     steps.forEach((step, k) => {
       const input = unpackInput(bits | (k === 0 ? tapped : 0));
-      step[slot] = pressed[k] ? { ...input, held: true, pressed: true } : input;
+      step[slot] = {
+        ...input,
+        held: input.held || pressed[k]!,
+        pressed: pressed[k]!,
+        attack: attack[k]!,
+      };
     });
   });
   room.held = held;
@@ -800,7 +813,8 @@ export const killerFuseGame: RollbackGame<
   id: "killer-fuse",
   rules: RULES,
   isEntry,
-  ordinal: (entry) => (entry[2] === PRESS ? entry[5] : undefined),
+  ordinal: (entry) =>
+    entry[2] === PRESS || entry[2] === ATTACK ? entry[5] : undefined,
   createRoom,
   createTicker: () => foldTick,
   scope: (room) => ({ matchId: room.matchId, round: room.round }),

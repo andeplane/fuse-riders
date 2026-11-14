@@ -3,6 +3,17 @@ export * from "./tuning.js";
 export * from "./types.js";
 export * from "./maps.js";
 export { NEUTRAL, halfOf, heightOf, moveUnit } from "./motion.js";
+export {
+  COLLIDERS,
+  HIT_BOXES,
+  WEAPONS,
+  colliderOf,
+  hitBoxesOf,
+  lethal,
+  weaponOf,
+  type Box,
+  type Collider,
+} from "./shapes.js";
 export { createRound } from "./round.js";
 export { stepRound, timedOut } from "./step.js";
 export {
@@ -19,6 +30,7 @@ export {
   type GateView,
 } from "./view.js";
 export {
+  INPUT_ATTACK,
   INPUT_DOWN,
   INPUT_HELD,
   INPUT_LEFT,

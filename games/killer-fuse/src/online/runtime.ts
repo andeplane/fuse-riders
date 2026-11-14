@@ -3,6 +3,7 @@ import type { GameEvent } from "../engine/index.js";
 import {
   HELD_BITS,
   PLAY,
+  ATTACK,
   PRESS,
   SEAT,
   STEPS_PER_TICK,
@@ -60,6 +61,13 @@ export class KillerFuseRuntime extends RoomRuntime<
    * tick the clock's fraction is in. The fold sets the press edge on that step alone.
    */
   press(): boolean {
+    return this.edge(PRESS);
+  }
+  /** One press of the attack button, logged as `ATTACK` the way `press` logs the flap button; false the same way. */
+  attack(): boolean {
+    return this.edge(ATTACK);
+  }
+  private edge(kind: typeof PRESS | typeof ATTACK): boolean {
     const room = this.playing();
     if (!room) return false;
     const clock = this.clock.tick();
@@ -68,7 +76,7 @@ export class KillerFuseRuntime extends RoomRuntime<
     // the stream's own floor, which is where a stream rebuilt by a resync starts.
     this.gesture = Math.max(this.gesture, this.own().latestOrdinal()) + 1;
     this.append(
-      PRESS,
+      kind,
       room.matchId,
       room.round,
       this.gesture,

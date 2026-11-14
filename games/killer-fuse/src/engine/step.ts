@@ -12,7 +12,7 @@ import { NEUTRAL, moveUnit } from "./motion.js";
 import { stepSnail } from "./snail.js";
 import { TIME_LIMIT } from "./tuning.js";
 import type { Input, Round, VictoryKind } from "./types.js";
-import { firstTeam, respawnUnit } from "./units.js";
+import { firstTeam, held, respawnUnit } from "./units.js";
 
 function win(state: Round, team: number, kind: VictoryKind): void {
   state.winner = { team, kind };
@@ -84,11 +84,14 @@ export function stepRound(state: Round, inputs: readonly Input[]): Round {
     }
     if (unit.invuln > 0) unit.invuln -= 1;
     if (unit.mountWait > 0) unit.mountWait -= 1;
-    if (unit.riding || unit.eaten) {
+    // Carried by the snail, in its mouth, locked in a gate or sitting in a hive hole: it does not move itself.
+    if (unit.riding || unit.eaten || held(unit)) {
       unit.flapped = false;
       continue;
     }
     moveUnit(unit, applied[unit.slot]!, arena);
+    if (unit.attack === 1)
+      state.events.push({ type: "attack", slot: unit.slot });
   }
   const snailTeam = stepSnail(state, applied);
   resolveCombat(state);

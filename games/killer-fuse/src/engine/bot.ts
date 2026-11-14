@@ -22,6 +22,7 @@ import {
   type WorkerNav,
 } from "./nav.js";
 import { chance, randInt, randSpread } from "./rng.js";
+import { lethal } from "./shapes.js";
 import { goalDir } from "./snail.js";
 import {
   FLAP_THRUST,
@@ -33,9 +34,11 @@ import {
   RUN_SPEED,
   S,
   SNAIL_HALF,
+  UNIT,
+  WORKER_HEIGHT,
 } from "./tuning.js";
 import type { BotLevel, BotMind, Input, Round, Unit } from "./types.js";
-import { centreY, duelY, isMilitary, isQueenSlot } from "./units.js";
+import { centreY, held, isMilitary, isQueenSlot } from "./units.js";
 
 export interface LevelRules {
   /** Steps between decisions: the reaction delay. A bot steers at where its target was when it last looked. */
@@ -62,6 +65,10 @@ export interface LevelRules {
   /** Chance, in percent, that a team's first Worker plans to become a Warrior, and its second to ride the snail. */
   soldier: number;
   rider: number;
+  /** Chance, in percent per step, that a flyer takes an opening to attack or dive that it sees. */
+  swing: number;
+  /** Chance, in percent per step, that a flyer meets a sword coming at it with its own. */
+  parry: number;
 }
 
 export const BOT_LEVEL_ORDER: readonly BotLevel[] = ["easy", "medium", "hard"];
@@ -79,6 +86,8 @@ export const BOT_LEVELS: Readonly<Record<BotLevel, LevelRules>> = {
     flee: 0,
     soldier: 50,
     rider: 40,
+    swing: 8,
+    parry: 0,
   },
   medium: {
     think: 16,
@@ -91,8 +100,10 @@ export const BOT_LEVELS: Readonly<Record<BotLevel, LevelRules>> = {
     smart: 75,
     lead: 4,
     flee: 70,
-    soldier: 70,
-    rider: 40,
+    soldier: 50,
+    rider: 35,
+    swing: 30,
+    parry: 10,
   },
   hard: {
     think: 6,
@@ -105,8 +116,10 @@ export const BOT_LEVELS: Readonly<Record<BotLevel, LevelRules>> = {
     smart: 96,
     lead: 8,
     flee: 70,
-    soldier: 80,
-    rider: 40,
+    soldier: 50,
+    rider: 30,
+    swing: 100,
+    parry: 90,
   },
 };
 
@@ -136,6 +149,12 @@ export function newMind(state: Round, slot: number): BotMind {
     flapWait: 0,
     idle: 0,
     dive: false,
+    strike: 0,
+    plunge: 0,
+    // 1 to 2 units, times 0.5 to 1.
+    noise: Math.trunc(
+      ((UNIT + randInt(state, UNIT)) * (50 + randInt(state, 51))) / 100,
+    ),
     soldier: !isQueenSlot(slot) && first && chance(state, level.soldier),
     rider: !isQueenSlot(slot) && !first && chance(state, level.rider),
   };
@@ -149,6 +168,7 @@ const go = (dir: number, pressed = false, held = pressed): Input => ({
   down: false,
   held,
   pressed,
+  attack: false,
 });
 
 /** Straight-line distance stand-in that needs no square root: the longer side plus half the shorter. */
@@ -160,8 +180,12 @@ function reach(dx: number, dy: number): number {
 const distance = (a: Unit, b: Unit): number =>
   reach(wrapDelta(b.x, a.x), centreY(b) - centreY(a));
 
+/** The enemies that are in play: alive, not in the snail's mouth, a gate or a hive hole. */
 const enemiesOf = (state: Round, unit: Unit): Unit[] =>
-  state.units.filter((other) => !other.dead && other.team !== unit.team);
+  state.units.filter(
+    (other) =>
+      !other.dead && !other.eaten && !held(other) && other.team !== unit.team,
+  );
 
 function nearest(
   from: Unit,
@@ -281,7 +305,8 @@ function decideWorker(
 ): void {
   const arena = arenaOf(state.mapId);
   const nav = workerNav(state.mapId, unit.speed);
-  if (unit.riding || unit.eaten || unit.gate >= 0) return;
+  if (unit.eaten || unit.gate >= 0 || unit.deposit >= 0) return;
+  if (unit.riding && mind.goal === "ride") return;
   const smart = chance(state, level.smart);
   const threat = nearest(
     unit,
@@ -388,9 +413,14 @@ function decideWorker(
 }
 
 function steerWorker(state: Round, unit: Unit, mind: BotMind): Input {
-  if (unit.eaten) return NEUTRAL;
-  // Mounted by accident on the way somewhere else: hop off.
-  if (unit.riding) return go(0, mind.goal !== "ride");
+  if (unit.eaten || unit.deposit >= 0) return NEUTRAL;
+  const toTarget = wrapDelta(mind.tx, unit.x);
+  if (unit.riding) {
+    // The snail crawls only while its rider holds toward the goal. Mounted by accident on the way somewhere else:
+    // hop off the way it was going.
+    if (mind.goal === "ride") return go(goalDir(unit.team));
+    return go(sign(toTarget), state.snail.victim < 0);
+  }
   if (unit.gate >= 0 && mind.goal === "gate") return NEUTRAL;
   const nav = workerNav(state.mapId, unit.speed);
   const edge = nav.edges[mind.edge];
@@ -400,7 +430,7 @@ function steerWorker(state: Round, unit: Unit, mind: BotMind): Input {
     const failed =
       mind.edgeStep > (edge.jump === JUMP_NONE ? 40 : 3) &&
       unit.ground === edge.from;
-    if (landed || failed || mind.edgeStep > 160) {
+    if (landed || failed || mind.edgeStep > 160 || unit.stun > 0) {
       mind.edge = -1;
       mind.edgeStep = 0;
     } else {
@@ -408,7 +438,6 @@ function steerWorker(state: Round, unit: Unit, mind: BotMind): Input {
       return edgeInput(edge, unit, mind.edgeStep - 1);
     }
   }
-  const toTarget = wrapDelta(mind.tx, unit.x);
   // In the air without a move to fly: drift toward the target, holding the button so a hop stays a full one.
   if (unit.ground < 0) return go(sign(toTarget), false, true);
   if (mind.goal === "flee") {
@@ -434,18 +463,32 @@ function steerWorker(state: Round, unit: Unit, mind: BotMind): Input {
     return go(Math.abs(dx) > LAUNCH_SLACK - 100 ? sign(dx) : 0);
   }
   const dir = Math.abs(toTarget) > 2 * S ? sign(toTarget) : 0;
-  // The snail mounts whoever touches it: hop over it unless riding is the plan.
+  // The snail mounts whoever stands in it and eats whoever meets its head: hop over it unless it is the plan.
   const arena = arenaOf(state.mapId);
   const ahead = wrapDelta(state.snail.x, unit.x) * dir;
+  const rider = state.units[state.snail.rider];
   const over =
     dir !== 0 &&
     mind.goal !== "ride" &&
-    !unit.carrying &&
-    state.snail.rider < 0 &&
+    mind.goal !== "stall" &&
+    rider?.team !== unit.team &&
     unit.y === arena.snail.y &&
     ahead > 0 &&
     ahead < SNAIL_HALF + 12 * S;
-  return go(dir, over);
+  // An enemy in the way would bump: hop over it too.
+  const blocked =
+    dir !== 0 &&
+    enemiesOf(state, unit).some((enemy) => {
+      const gap = wrapDelta(enemy.x, unit.x) * dir;
+      return (
+        enemy.invuln === 0 &&
+        !enemy.riding &&
+        gap > 0 &&
+        gap < 14 * S &&
+        Math.abs(enemy.y - unit.y) < WORKER_HEIGHT
+      );
+    });
+  return go(dir, over || blocked);
 }
 
 // --- Flyers ---------------------------------------------------------------------------------------------------------
@@ -493,7 +536,10 @@ function aimFlyer(
   mind.dive = dive;
 }
 
-/** Aim at a target: its middle for a Worker, a point clearly above it for a military unit. */
+/** How far above a military target a Queen comes in, to dive on it. */
+const DIVE_APPROACH = Math.trunc((UNIT * 5) / 2);
+
+/** Aim at a target: level with it for a sword, or above it for a Queen who means to dive on a fighter. */
 function hunt(
   state: Round,
   unit: Unit,
@@ -502,9 +548,8 @@ function hunt(
   target: Unit,
   above: boolean,
 ): void {
-  // A duel compares the duel lines, and a flyer steers by its middle: a Queen's middle rides above her line.
   const lift =
-    above && isMilitary(target) ? 9 * S + duelY(unit) - centreY(unit) : 0;
+    above && unit.kind === "queen" && isMilitary(target) ? DIVE_APPROACH : 0;
   aimFlyer(
     state,
     mind,
@@ -512,7 +557,7 @@ function hunt(
     "hunt",
     target.slot,
     target.x + target.vx * level.lead,
-    (lift ? duelY(target) : centreY(target)) - lift,
+    centreY(target) - lift,
     unit.kind === "queen",
   );
 }
@@ -521,6 +566,34 @@ function hiveCentre(arena: Arena, team: number): { x: number; y: number } {
   const holes = arena.holes[team === 0 ? 0 : 1];
   const mid = holes[Math.trunc(holes.length / 2)]!;
   return { x: mid.x, y: mid.y };
+}
+
+/** A Queen goes for the other Queen only from this close, or when the other cannot answer. */
+const QUEEN_DUEL = 40 * S;
+
+/** The line of a sword: this far to either side and this far up or down. The column under a Queen. */
+const LINE_REACH = 4 * UNIT,
+  LINE_BAND = Math.trunc((UNIT * 8) / 5),
+  LINE_ABOVE = 6 * UNIT,
+  LINE_COLUMN = Math.trunc((UNIT * 3) / 2);
+
+/** A Queen keeps this far from any enemy fighter whose sword is ready. */
+const BUBBLE = 8 * UNIT;
+/** Whether a unit could start an attack now. */
+const armed = (unit: Unit): boolean =>
+  unit.attack === 0 && !(unit.stun > 0 && unit.regular);
+
+/** Whether a bot teammate is already hunting `slot`. */
+function claimed(state: Round, unit: Unit, slot: number): boolean {
+  return state.units.some(
+    (mate) =>
+      mate !== unit &&
+      mate.team === unit.team &&
+      !mate.dead &&
+      !state.humans[mate.slot] &&
+      state.bots[mate.slot]!.goal === "hunt" &&
+      state.bots[mate.slot]!.target === slot,
+  );
 }
 
 function decideFlyer(
@@ -546,17 +619,25 @@ function decideFlyer(
     else aimFlyer(state, mind, level, "guard", -1, rest.x, rest.y);
     return;
   }
-  const margin = (5 * caution - 2) * S;
+  // A rider cannot fight back and wins the game if left alone: it comes before everything but a last life.
+  const rider = state.units[state.snail.rider];
+  if (rider && rider.team !== unit.team && rider.invuln === 0 && caution < 2) {
+    hunt(state, unit, mind, level, rider, false);
+    return;
+  }
+  // A sword that is cooling down cannot answer one that is ready; a Queen on her last life answers none.
   const radius = Math.trunc((level.awareness * S * (2 + caution)) / 2);
+  const ready = soldiers.filter((enemy) => armed(enemy) || lethal(enemy));
   const threat = nearest(
     unit,
-    soldiers.filter(
+    ready.filter(
       (enemy) =>
-        distance(unit, enemy) < radius && duelY(enemy) < duelY(unit) + margin,
+        (distance(unit, enemy) < radius && (!armed(unit) || caution >= 2)) ||
+        (queen && distance(unit, enemy) < BUBBLE),
     ),
   );
   if (threat && unit.invuln === 0) {
-    // Get out from under it: sideways and up past its height.
+    // Get away from it: sideways and up.
     const away = wrapDelta(unit.x, threat.x) >= 0 ? 1 : -1;
     aimFlyer(
       state,
@@ -569,14 +650,57 @@ function decideFlyer(
     );
     return;
   }
-  const rider = state.units[state.snail.rider];
-  if (rider && rider.team !== unit.team) {
-    hunt(state, unit, mind, level, rider, true);
+  // A dash only goes sideways and a dive only down, so a Queen keeps out of the line of a ready sword and out from
+  // under the other Queen.
+  const lined = queen
+    ? nearest(
+        unit,
+        ready.filter((enemy) => {
+          const dx = Math.abs(wrapDelta(enemy.x, unit.x)),
+            dy = centreY(enemy) - centreY(unit);
+          const under =
+            enemy.kind === "queen" &&
+            enemy.ground < 0 &&
+            dy < 0 &&
+            dy > -LINE_ABOVE &&
+            dx < LINE_COLUMN;
+          return (
+            under ||
+            (Math.abs(dy) < LINE_BAND && dx < LINE_REACH + caution * UNIT)
+          );
+        }),
+      )
+    : undefined;
+  if (lined && unit.invuln === 0) {
+    const dy = centreY(lined) - centreY(unit);
+    const away = wrapDelta(unit.x, lined.x) >= 0 ? 1 : -1;
+    const column = Math.abs(dy) >= LINE_BAND;
+    aimFlyer(
+      state,
+      mind,
+      level,
+      "evade",
+      lined.slot,
+      unit.x + away * (column ? 4 : 1) * UNIT,
+      centreY(unit) + (column ? 0 : dy > 0 ? -3 : 3) * UNIT,
+    );
     return;
   }
-  const workers = enemies.filter(
-    (enemy) => enemy.kind === "worker" && enemy.invuln === 0,
-  );
+  const open = enemies.filter((enemy) => enemy.invuln === 0);
+  const royal = state.units[1 - unit.team]!;
+  if (!queen && eggs === 1 && !royal.dead) {
+    // The Queen is on her last life: her Warriors stay with her and meet whoever comes for her.
+    const own = state.units[unit.team]!;
+    const raider = nearest(
+      own,
+      soldiers.filter((enemy) => distance(own, enemy) < 90 * S),
+    );
+    if (raider) hunt(state, unit, mind, level, raider, false);
+    else if (!own.dead)
+      aimFlyer(state, mind, level, "guard", own.slot, own.x, centreY(own));
+    if (raider || !own.dead) return;
+  }
+  const workers = open.filter((enemy) => enemy.kind === "worker");
   const prey = nearest(unit, workers, (enemy) =>
     enemy.gate >= 0 ? -70 * S : enemy.carrying ? -40 * S : 0,
   );
@@ -584,8 +708,8 @@ function decideFlyer(
     let gate = -1,
       gateCost = UNREACHABLE * S;
     arena.gates.forEach((at, index) => {
-      const held = state.gates[index]!;
-      if (held.owner === unit.team) return;
+      const owned = state.gates[index]!;
+      if (owned.owner === unit.team) return;
       const guarded = soldiers.some(
         (enemy) =>
           reach(wrapDelta(enemy.x, at.x), centreY(enemy) - at.y) <
@@ -595,7 +719,8 @@ function decideFlyer(
       const cost =
         reach(wrapDelta(at.x, unit.x), at.y - centreY(unit)) +
         (at.kind === "speed" ? 80 * S : 0) -
-        (held.user >= 0 ? 100 * S : 0);
+        (owned.owner >= 0 ? 60 * S : 0) -
+        (owned.user >= 0 ? 100 * S : 0);
       if (cost < gateCost) {
         gate = index;
         gateCost = cost;
@@ -607,31 +732,75 @@ function decideFlyer(
       return;
     }
   }
-  // A military enemy that is already below is an opening; a careful Queen passes on a duel she could lose.
-  const below = nearest(
+  // The enemy Queen first, then the nearest Warrior, then the nearest Worker; a target a teammate is already on is
+  // left to it. A Queen who has lost an egg leaves the other Queen to her Warriors.
+  const targets: Unit[] = [];
+  if (
+    open.includes(royal) &&
+    caution === 0 &&
+    (!queen || !armed(royal) || distance(unit, royal) < QUEEN_DUEL)
+  )
+    targets.push(royal);
+  const fighter = nearest(
     unit,
-    soldiers.filter(
-      (enemy) =>
-        enemy.invuln === 0 &&
-        duelY(enemy) > duelY(unit) + 4 * S &&
-        distance(unit, enemy) < (queen ? 70 - 20 * caution : 110) * S,
-    ),
+    open.filter((enemy) => enemy.kind === "warrior"),
   );
-  if (below) {
-    hunt(state, unit, mind, level, below, true);
-    return;
-  }
-  if (prey) {
-    hunt(state, unit, mind, level, prey, true);
-    return;
-  }
-  const royal = soldiers.find((enemy) => enemy.kind === "queen");
-  if (royal && !queen) {
-    hunt(state, unit, mind, level, royal, true);
+  if (fighter && caution < 2) targets.push(fighter);
+  if (prey) targets.push(prey);
+  const target =
+    targets.find((enemy) => !claimed(state, unit, enemy.slot)) ?? targets[0];
+  if (target) {
+    hunt(state, unit, mind, level, target, true);
     return;
   }
   const home = hiveCentre(arena, unit.team);
   aimFlyer(state, mind, level, "guard", -1, home.x, home.y);
+}
+
+/** Steps a bot goes on wanting an attack it decided on, and holds a dive. */
+const INTENT_STEPS = 10;
+/** A sword is worth swinging at an enemy within 3 units ahead (plus the bot's own misjudgement) and 1 unit of height. */
+const SWORD_REACH = 3 * UNIT,
+  SWORD_BAND = UNIT;
+/** An enemy fighter this close could strike on its next step. */
+const DANGER_REACH = 2 * UNIT;
+
+/**
+ * The opening a flyer sees this step, if any: which way to swing its sword (-1 or 1), or 2 for a dive. A Warrior
+ * swings when an enemy is level, within reach and it is already moving at it; a Queen dives when one is under her.
+ */
+function opening(
+  state: Round,
+  unit: Unit,
+  mind: BotMind,
+  level: LevelRules,
+): number {
+  for (const enemy of enemiesOf(state, unit)) {
+    if (enemy.invuln > 0) continue;
+    const dx = wrapDelta(enemy.x, unit.x),
+      dy = centreY(enemy) - centreY(unit);
+    const deep = enemy.kind === "queen" ? 4 * UNIT : SWORD_REACH + mind.noise;
+    if (
+      unit.kind === "queen" &&
+      unit.ground < 0 &&
+      Math.abs(dx) < UNIT &&
+      dy > UNIT &&
+      dy < deep
+    )
+      return chance(state, level.swing) ? 2 : 0;
+    if (Math.abs(dy) >= SWORD_BAND || Math.abs(dx) >= SWORD_REACH + mind.noise)
+      continue;
+    const closing = sign(unit.vx) === sign(dx) && dx !== 0;
+    if (closing && chance(state, level.swing)) return sign(dx) || 1;
+    // A fighter close enough to strike first, or a sword already coming this way: strike back, so the swords glance.
+    const danger =
+      isMilitary(enemy) &&
+      (lethal(enemy)
+        ? enemy.facing === -sign(dx)
+        : armed(enemy) && Math.abs(dx) < DANGER_REACH + (mind.noise >> 1));
+    if (danger && chance(state, level.parry)) return sign(dx) || unit.facing;
+  }
+  return 0;
 }
 
 function steerFlyer(
@@ -642,17 +811,28 @@ function steerFlyer(
 ): Input {
   const y = centreY(unit);
   const point = flyToward(state.mapId, unit.x, y, mind.tx, mind.ty);
-  const direct = point.x === mind.tx && point.y === mind.ty;
   const dx = wrapDelta(point.x, unit.x);
   // A flyer glides on when it lets go, so it steers for where the glide would take it.
   const ahead = dx - unit.vx * GLIDE_LOOK;
-  const dir = Math.abs(ahead) > 2 * S ? sign(ahead) : 0;
-  const dive =
+  let dir: number = Math.abs(ahead) > 2 * S ? sign(ahead) : 0;
+  if (mind.strike > 0) mind.strike -= 1;
+  if (mind.plunge > 0) mind.plunge -= 1;
+  const seen =
+    armed(unit) || unit.diving ? opening(state, unit, mind, level) : 0;
+  if (seen === 2) mind.plunge = INTENT_STEPS;
+  else if (seen !== 0) {
+    mind.strike = INTENT_STEPS;
+    dir = seen;
+  }
+  const attack = mind.strike > 0 && armed(unit);
+  if (attack) mind.strike = 0;
+  // A Queen also dives to get down: when her next point is well below and nearly under her.
+  const drop =
     mind.dive &&
-    direct &&
     unit.ground < 0 &&
-    Math.abs(dx) < 6 * S &&
-    mind.ty > y + 12 * S;
+    Math.abs(dx) < UNIT &&
+    point.y > y + 2 * UNIT;
+  const dive = unit.kind === "queen" && (mind.plunge > 0 || drop);
   if (mind.flapWait > 0) mind.flapWait -= 1;
   // Flap when coasting would leave the unit below where it wants to be. On a platform with nothing to climb
   // for, it walks instead.
@@ -667,6 +847,7 @@ function steerFlyer(
     down: dive,
     held: flap,
     pressed: flap,
+    attack,
   };
 }
 

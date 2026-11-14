@@ -1,28 +1,36 @@
 /**
- * Berries: a finite supply in piles. A Worker picks one up by touching a pile or a loose berry, banks it by walking
- * into an empty hole of its own hive, and drops it where it dies. A loose berry falls, bounces and can be kicked by
- * any unit; one that reaches an empty hole fills it for the hive's team, whoever kicked it.
+ * Berries: a finite supply in piles that never grows back. A Worker picks one up by touching a pile or a loose
+ * berry, and banks it by touching an open hole of its own hive, from the ground, the air or the snail's back: it
+ * sits in the hole for DEPOSIT_STEPS, untouchable, then the berry counts and it pops out. A Worker that dies or is
+ * caught by the snail drops its berry with the speed it had. A loose berry falls and bounces; a unit that cannot
+ * pick it up kicks a resting one straight up and knocks a flying one away, and one that comes to an open hole fills
+ * it for that hive's team, whoever sent it.
  */
-import { arenaOf, type Arena } from "./maps.js";
-import { moveBody } from "./motion.js";
+import { arenaOf, wrapDelta, wrapX, type Arena } from "./maps.js";
+import { halfOf, heightOf, moveBody, share } from "./motion.js";
+import type { Collider } from "./shapes.js";
 import {
-  BERRY_BOUNCE_DEN,
-  BERRY_BOUNCE_NUM,
-  BERRY_FRICTION_DEN,
-  BERRY_FRICTION_NUM,
+  BERRY_AIR_DRAG,
+  BERRY_BOUNCE,
   BERRY_GRAVITY,
+  BERRY_GROUND_DRAG,
   BERRY_HALF,
   BERRY_HEIGHT,
+  BERRY_MAX,
   BERRY_REST_SPEED,
-  BERRY_TERMINAL,
+  DEPOSIT_EXIT,
+  DEPOSIT_POP_X,
+  DEPOSIT_POP_Y,
+  DEPOSIT_STEPS,
+  GATE_INVULN,
   HOLE_HALF,
+  HOLE_SNAP,
   KICK_LIFT,
-  KICK_SPEED,
   KICK_WAIT,
   PILE_HALF,
   PILE_HEIGHT,
-  REGROW_STEPS,
-  WORKER_HALF,
+  SNAIL_HALF,
+  SNAIL_HEIGHT,
   WORKER_HEIGHT,
 } from "./tuning.js";
 import type { LooseBerry, Round, Unit } from "./types.js";
@@ -30,66 +38,86 @@ import {
   active,
   boxesTouch,
   freeWorker,
+  held,
+  reaches,
+  release,
+  settle,
   turnOrder,
   unitTouches,
 } from "./units.js";
 
-/** The first empty hole of `team`'s hive the feet-anchored box overlaps, or -1. */
-function holeAt(
-  state: Round,
-  arena: Arena,
-  team: number,
-  x: number,
-  y: number,
-  half: number,
-  height: number,
-): number {
-  const holes = arena.holes[team === 0 ? 0 : 1];
+const BERRY_BOX: Collider = {
+  half: BERRY_HALF,
+  height: BERRY_HEIGHT,
+  lift: 0,
+  shift: 0,
+};
+
+/** Whether hole `index` of `team`'s hive can take a berry: not filled, and no Worker sitting in it. */
+export const holeOpen = (state: Round, team: number, index: number): boolean =>
+  !state.holes[team]![index] &&
+  !state.units.some((unit) => unit.team === team && unit.deposit === index);
+
+const limit = (value: number): number =>
+  Math.max(-BERRY_MAX, Math.min(BERRY_MAX, value));
+
+/** A carrying Worker that touches an open hole of its own hive climbs in. */
+function enterHole(state: Round, arena: Arena, unit: Unit): void {
+  const holes = arena.holes[unit.team === 0 ? 0 : 1];
   for (let i = 0; i < holes.length; i += 1) {
     const hole = holes[i]!;
     if (
-      !state.holes[team]![i] &&
-      boxesTouch(
-        x,
-        y,
-        half,
-        height,
-        hole.x,
-        hole.y + HOLE_HALF,
-        HOLE_HALF,
-        2 * HOLE_HALF,
-      )
+      !holeOpen(state, unit.team, i) ||
+      !reaches(unit, hole.x, hole.y + HOLE_HALF, HOLE_HALF, 2 * HOLE_HALF)
     )
-      return i;
-  }
-  return -1;
-}
-
-function pickUpAndBank(state: Round, arena: Arena, unit: Unit): void {
-  if (!freeWorker(unit)) return;
-  if (unit.carrying) {
-    const hole = holeAt(
-      state,
-      arena,
-      unit.team,
-      unit.x,
-      unit.y,
-      // Workers are the only carriers, so the banking box is always a Worker's.
-      WORKER_HALF,
-      WORKER_HEIGHT,
-    );
-    if (hole >= 0 && unit.gate < 0) {
-      state.holes[unit.team]![hole] = true;
-      unit.carrying = false;
-      state.events.push({
-        type: "berryDeposit",
-        slot: unit.slot,
-        team: unit.team,
-        hole,
-      });
-    }
+      continue;
+    // From the snail's back it gets off first.
+    release(state, unit);
+    settle(unit);
+    unit.deposit = i;
+    unit.depositStep = 0;
+    unit.x = hole.x;
+    unit.y = hole.y + Math.trunc(WORKER_HEIGHT / 2);
+    unit.ground = -1;
+    state.events.push({
+      type: "depositStart",
+      slot: unit.slot,
+      team: unit.team,
+      hole: i,
+    });
     return;
   }
+}
+
+/** A Worker sitting in a hole: the berry counts after DEPOSIT_STEPS, and it pops out DEPOSIT_EXIT steps later. */
+function sitInHole(state: Round, unit: Unit): void {
+  unit.depositStep += 1;
+  if (unit.depositStep === DEPOSIT_STEPS) {
+    state.holes[unit.team]![unit.deposit] = true;
+    unit.carrying = false;
+    state.events.push({
+      type: "berryDeposit",
+      slot: unit.slot,
+      team: unit.team,
+      hole: unit.deposit,
+    });
+  }
+  if (unit.depositStep < DEPOSIT_STEPS + DEPOSIT_EXIT) return;
+  unit.deposit = -1;
+  unit.depositStep = 0;
+  // Out the way it came.
+  unit.facing = unit.facing === 1 ? -1 : 1;
+  unit.vx = unit.facing * DEPOSIT_POP_X;
+  unit.vy = -DEPOSIT_POP_Y;
+  unit.invuln = GATE_INVULN;
+}
+
+function workerTurn(state: Round, arena: Arena, unit: Unit): void {
+  if (unit.dead || unit.kind !== "worker") return;
+  if (unit.deposit >= 0) return sitInHole(state, unit);
+  if (unit.eaten || unit.gate >= 0) return;
+  if (unit.carrying) return enterHole(state, arena, unit);
+  if (unit.riding) return;
   for (let i = 0; i < arena.piles.length; i += 1) {
     const pile = arena.piles[i]!;
     if (
@@ -107,17 +135,17 @@ function pickUpAndBank(state: Round, arena: Arena, unit: Unit): void {
 function moveLoose(berry: LooseBerry, arena: Arena): void {
   if (berry.wait > 0) berry.wait -= 1;
   if (berry.resting) return;
-  berry.vy = Math.min(berry.vy + BERRY_GRAVITY, BERRY_TERMINAL);
+  berry.vy = limit(berry.vy + BERRY_GRAVITY);
+  berry.vx = limit(berry.vx - share(berry.vx, BERRY_AIR_DRAG));
   const before = { vx: berry.vx, vy: berry.vy };
-  const contact = moveBody(berry, BERRY_HALF, BERRY_HEIGHT, arena);
-  if (contact.wall)
-    berry.vx = -Math.trunc((before.vx * BERRY_BOUNCE_NUM) / BERRY_BOUNCE_DEN);
-  if (contact.ceiling) berry.vy = 0;
+  const contact = moveBody(berry, BERRY_BOX, 1, arena);
+  if (contact.wall >= 0) berry.vx = -share(before.vx, BERRY_BOUNCE);
+  if (contact.ceiling) berry.vy = -share(before.vy, BERRY_BOUNCE);
   if (contact.ground >= 0) {
-    berry.vy = -Math.trunc((before.vy * BERRY_BOUNCE_NUM) / BERRY_BOUNCE_DEN);
-    berry.vx = Math.trunc((berry.vx * BERRY_FRICTION_NUM) / BERRY_FRICTION_DEN);
+    berry.vy = -share(before.vy, BERRY_BOUNCE);
+    berry.vx -= share(berry.vx, BERRY_GROUND_DRAG);
     if (
-      Math.abs(berry.vy) < 2 * BERRY_GRAVITY &&
+      Math.abs(berry.vy) < 4 * BERRY_GRAVITY &&
       Math.abs(berry.vx) < BERRY_REST_SPEED
     ) {
       berry.vx = 0;
@@ -127,14 +155,45 @@ function moveLoose(berry: LooseBerry, arena: Arena): void {
   }
 }
 
-/** A unit touching a loose berry: a free empty-handed Worker takes it, anyone else kicks it. True when taken. */
+/**
+ * A flying berry meets a body whose middle is (cx, cy), half sizes (hx, hy), moving at (vx, vy): the berry, which
+ * weighs nothing, is thrown back along the axis it came in on with `bounce` times the closing speed.
+ */
+function knock(
+  berry: LooseBerry,
+  cx: number,
+  cy: number,
+  hx: number,
+  hy: number,
+  vx: number,
+  vy: number,
+  bounce: number,
+): void {
+  const dx = wrapDelta(berry.x, cx),
+    dy = berry.y - Math.trunc(BERRY_HEIGHT / 2) - cy;
+  if (Math.abs(dx) * hy > Math.abs(dy) * hx) {
+    const closing = berry.vx - vx;
+    if (closing * dx < 0) berry.vx = limit(vx - bounce * closing);
+  } else {
+    const closing = berry.vy - vy;
+    if (closing * dy < 0) berry.vy = limit(vy - bounce * closing);
+  }
+}
+
+/** A unit touching a loose berry. True when the berry was taken. */
 function touchLoose(state: Round, berry: LooseBerry, unit: Unit): boolean {
   if (freeWorker(unit) && !unit.carrying && unit.gate < 0) {
     unit.carrying = true;
     state.events.push({ type: "berryPickup", slot: unit.slot, pile: -1 });
     return true;
   }
-  berry.vx = unit.facing * KICK_SPEED + Math.trunc(unit.vx / 2);
+  if (!berry.resting) {
+    const half = halfOf(unit.kind),
+      tall = Math.trunc(heightOf(unit.kind) / 2);
+    knock(berry, unit.x, unit.y - tall, half, tall, unit.vx, unit.vy, 1);
+    return false;
+  }
+  if (unit.ground < 0) return false;
   berry.vy = -KICK_LIFT;
   berry.resting = false;
   berry.wait = KICK_WAIT;
@@ -143,48 +202,89 @@ function touchLoose(state: Round, berry: LooseBerry, unit: Unit): boolean {
   return false;
 }
 
+/** The open hole a loose berry at (x, y) is in, as [team, hole], or null. */
+function holeAt(
+  state: Round,
+  arena: Arena,
+  teams: readonly number[],
+  x: number,
+  y: number,
+): [team: number, hole: number] | null {
+  const cy = y - Math.trunc(BERRY_HEIGHT / 2);
+  for (const team of teams) {
+    const holes = arena.holes[team === 0 ? 0 : 1];
+    for (let i = 0; i < holes.length; i += 1) {
+      const hole = holes[i]!;
+      if (
+        Math.abs(wrapDelta(x, hole.x)) <= HOLE_SNAP &&
+        Math.abs(cy - hole.y) <= HOLE_SNAP &&
+        holeOpen(state, team, i)
+      )
+        return [team, i];
+    }
+  }
+  return null;
+}
+
 export function stepBerries(state: Round): void {
   const arena = arenaOf(state.mapId);
   const order = turnOrder(state);
-  for (const slot of order) pickUpAndBank(state, arena, state.units[slot]!);
+  for (const slot of order) workerTurn(state, arena, state.units[slot]!);
+  const teams = order.slice(0, 2);
+  const track = arena.snail.y;
   const kept: LooseBerry[] = [];
   for (const berry of state.loose) {
+    const from = { x: berry.x, y: berry.y };
     moveLoose(berry, arena);
-    let gone = false;
-    for (const team of order.slice(0, 2)) {
-      const hole = holeAt(
-        state,
-        arena,
-        team,
-        berry.x,
-        berry.y,
-        BERRY_HALF,
-        BERRY_HEIGHT,
-      );
-      if (hole < 0) continue;
+    // Halfway along the step as well, so a fast berry cannot skip a hole.
+    const mid = {
+      x: wrapX(from.x + Math.trunc(wrapDelta(berry.x, from.x) / 2)),
+      y: from.y + Math.trunc((berry.y - from.y) / 2),
+    };
+    const scored =
+      holeAt(state, arena, teams, mid.x, mid.y) ??
+      holeAt(state, arena, teams, berry.x, berry.y);
+    if (scored) {
+      const [team, hole] = scored;
       state.holes[team]![hole] = true;
       state.events.push({ type: "berryKickIn", slot: berry.by, team, hole });
-      gone = true;
-      break;
+      continue;
     }
-    if (!gone && berry.wait === 0)
+    let gone = false;
+    if (berry.wait === 0)
       for (const slot of order) {
         const unit = state.units[slot]!;
-        if (!active(unit) || unit.riding || unit.eaten) continue;
+        if (!active(unit) || unit.riding || unit.eaten || held(unit)) continue;
         if (!unitTouches(unit, berry.x, berry.y, BERRY_HALF, BERRY_HEIGHT))
           continue;
         gone = touchLoose(state, berry, unit);
         break;
       }
+    if (
+      !gone &&
+      !berry.resting &&
+      boxesTouch(
+        berry.x,
+        berry.y,
+        BERRY_HALF,
+        BERRY_HEIGHT,
+        state.snail.x,
+        track,
+        SNAIL_HALF,
+        SNAIL_HEIGHT,
+      )
+    )
+      knock(
+        berry,
+        state.snail.x,
+        track - Math.trunc(SNAIL_HEIGHT / 2),
+        SNAIL_HALF,
+        Math.trunc(SNAIL_HEIGHT / 2),
+        state.snail.vx,
+        0,
+        2,
+      );
     if (!gone) kept.push(berry);
   }
   state.loose = kept;
-  // The map has run dry when every pile is empty; ninety seconds later the piles are whole again.
-  if (state.piles.some((count) => count > 0)) state.dry = 0;
-  else state.dry += 1;
-  if (state.dry >= REGROW_STEPS) {
-    state.piles = arena.piles.map((pile) => pile.count);
-    state.dry = 0;
-    state.events.push({ type: "berryRegrow" });
-  }
 }

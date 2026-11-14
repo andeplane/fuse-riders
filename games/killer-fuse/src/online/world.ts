@@ -104,7 +104,6 @@ function inRange(world: Round): boolean {
   return (
     within(world.rng, 0, 0xffff_ffff) &&
     within(world.step, 0, 0xffff_ffff) &&
-    world.dry >= 0 &&
     world.units.every(
       (unit, index) =>
         unit.slot === index &&
@@ -114,7 +113,16 @@ function inRange(world: Round): boolean {
         (unit.facing === 1 || unit.facing === -1) &&
         within(unit.ground, -1, map.platforms.length - 1) &&
         within(unit.gate, -1, map.gates.length - 1) &&
+        within(unit.deposit, -1, map.holes[unit.team]!.length - 1) &&
         unit.coyote >= 0 &&
+        unit.jumpStep >= -1 &&
+        unit.stun >= 0 &&
+        unit.attack >= 0 &&
+        unit.attackBuffer >= 0 &&
+        unit.buffer >= 0 &&
+        unit.takeoff >= 0 &&
+        unit.depositStep >= 0 &&
+        unit.flaps.every((left) => left >= 0) &&
         unit.gateProgress >= 0 &&
         unit.invuln >= 0 &&
         unit.respawn >= 0 &&
@@ -139,6 +147,9 @@ function inRange(world: Round): boolean {
         mind.edgeStep >= 0 &&
         mind.flapWait >= 0 &&
         mind.idle >= 0 &&
+        mind.strike >= 0 &&
+        mind.plunge >= 0 &&
+        mind.noise >= 0 &&
         mind.target >= -1 &&
         mind.node >= -1 &&
         mind.edge >= -1,

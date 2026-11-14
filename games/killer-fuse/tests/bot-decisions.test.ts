@@ -221,7 +221,7 @@ test("against an enemy rider the nearest free Worker walks into the snail's mout
   );
 });
 
-test("a Queen claims gates, hunts Workers and riders, takes an opening below and gets out from under a threat", () => {
+test("a Queen claims gates, hunts Workers and riders, dives on a fighter whose sword is spent and keeps clear of one whose sword is ready", () => {
   const state = botRound("hard");
   put(state, 0, 160, 60);
   wake(state, 0);
@@ -258,14 +258,16 @@ test("a Queen claims gates, hunts Workers and riders, takes an opening below and
   state.snail.rider = -1;
   unitOf(state, 5).riding = false;
 
-  // A Warrior below her is an opening, and she may dive on it.
-  put(state, 3, 170, 110, { kind: "warrior" });
+  // A Warrior below her whose sword is cooling down is an opening, and she may dive on it.
+  put(state, 3, 170, 110, { kind: "warrior", attack: 25 });
   const strike = decision(state, 0);
   assert.deepEqual(
     [strike.goal, strike.target, strike.dive],
     ["hunt", 3, true],
   );
-  // The same Warrior above her is a threat: out sideways and up.
+  // With its sword ready it is a threat, wherever it is: out sideways and up.
+  unitOf(state, 3).attack = 0;
+  assert.equal(goalOf(state, 0), "evade");
   put(state, 3, 170, 40, { kind: "warrior" });
   const evade = decision(state, 0);
   assert.deepEqual([evade.goal, evade.target], ["evade", 3]);
@@ -281,8 +283,8 @@ test("a Queen down to her last egg keeps further from Warriors and leaves a guar
   const state = botRound("hard");
   put(state, 0, 160, 100);
   wake(state, 0);
-  // A Warrior 55 px off and slightly above: out of mind for a fresh Queen, a threat for a careful one.
-  put(state, 3, 215, 92, { kind: "warrior" });
+  // A Warrior 90 px off and slightly above: out of mind for a fresh Queen, a threat for a careful one.
+  put(state, 3, 250, 92, { kind: "warrior" });
   assert.equal(goalOf(state, 0), "claim");
   state.eggs[0] = 1;
   assert.equal(goalOf(state, 0), "evade");
@@ -330,7 +332,7 @@ test("in a lapse a Warrior charges whoever is nearest, and a Queen drifts home i
   assert.ok(warrior.every((mind) => mind.target === 1));
 });
 
-test("a Warrior goes after Workers first and the enemy Queen when there are none", () => {
+test("a Warrior goes for the enemy Queen first, then a Warrior, then a Worker, leaving a target a teammate is on", () => {
   const state = botRound("hard");
   put(state, 2, 100, 200, { kind: "warrior" });
   put(state, 1, 400, 60);
@@ -338,7 +340,21 @@ test("a Warrior goes after Workers first and the enemy Queen when there are none
   const royal = decision(state, 2);
   assert.deepEqual([royal.goal, royal.target, royal.dive], ["hunt", 1, false]);
   stand(state, 3, 300, FLOOR);
+  put(state, 5, 200, 100, { kind: "warrior" });
+  assert.equal(decision(state, 2).target, 1);
+  // A Queen who cannot be hurt is no target: the Warrior is next, then the Worker.
+  unitOf(state, 1).invuln = 100;
+  assert.equal(decision(state, 2).target, 5);
+  unitOf(state, 5).invuln = 100;
   assert.equal(decision(state, 2).target, 3);
+  // A bot teammate already hunting the Queen leaves her to it.
+  unitOf(state, 1).invuln = 0;
+  put(state, 4, 120, 200, { kind: "warrior" });
+  state.humans[4] = false;
+  Object.assign(state.bots[4] ?? {}, { goal: "hunt", target: 1, think: 999 });
+  assert.equal(decision(state, 2).target, 3);
+  unitOf(state, 4).dead = true;
+  unitOf(state, 5).dead = true;
   // Alone on the map it returns to its hive.
   unitOf(state, 1).dead = true;
   unitOf(state, 3).dead = true;

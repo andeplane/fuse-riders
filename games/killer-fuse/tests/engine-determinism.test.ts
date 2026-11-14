@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  INPUT_ATTACK,
   INPUT_DOWN,
   INPUT_HELD,
   INPUT_LEFT,
@@ -133,17 +134,22 @@ test("the hash is 16 hex characters over the state, without the last step's even
   assert.notEqual(hashRound(state), hash);
 });
 
-test("an input packs into five bits and back", () => {
+test("an input packs into six bits and back", () => {
   for (let bits = 0; bits <= INPUT_MASK; bits += 1)
     assert.equal(packInput(unpackInput(bits)), bits);
   assert.equal(packInput(NEUTRAL), 0);
   assert.deepEqual(unpackInput(0), NEUTRAL);
   assert.equal(
-    packInput(control({ left: true, down: true, pressed: true })),
-    INPUT_LEFT | INPUT_DOWN | INPUT_PRESSED,
+    packInput(control({ left: true, down: true, pressed: true, attack: true })),
+    INPUT_LEFT | INPUT_DOWN | INPUT_PRESSED | INPUT_ATTACK,
   );
   assert.equal(
-    INPUT_LEFT | INPUT_RIGHT | INPUT_DOWN | INPUT_HELD | INPUT_PRESSED,
+    INPUT_LEFT |
+      INPUT_RIGHT |
+      INPUT_DOWN |
+      INPUT_HELD |
+      INPUT_PRESSED |
+      INPUT_ATTACK,
     INPUT_MASK,
   );
   // Bits above the mask are ignored.
@@ -153,7 +159,7 @@ test("an input packs into five bits and back", () => {
 test("a new round: six units on their team's side, three eggs each, bots unless told otherwise", () => {
   const state = createRound({ seed: 12.9 });
   assert.equal(state.rules, RULES);
-  assert.equal(RULES, "killer-fuse-3");
+  assert.equal(RULES, "killer-fuse-4");
   assert.equal(TICK_HZ, 60);
   assert.equal(state.seed, 12);
   assert.equal(state.mapId, 1);

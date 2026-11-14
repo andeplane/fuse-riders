@@ -27,6 +27,7 @@ import {
   countdownTicks,
   DEFAULT_SETTINGS as SETUP,
   MAX_WATCHERS,
+  ATTACK,
   OUTRO_TICKS,
   PLAY,
   PRESS,
@@ -85,10 +86,11 @@ test("settings: exactly bot level, map, wins and display, each in range", () => 
   assert.deepEqual(createRoom("m0", odd).settings, SETUP);
 });
 
-test("entries: play carries held bits, a press its ordinal and step, a seat its slot; bad fields are refused", () => {
+test("entries: play carries held bits, a press or an attack its ordinal and step, a seat its slot; bad fields are refused", () => {
   const all = INPUT_LEFT | INPUT_RIGHT | INPUT_DOWN | INPUT_HELD;
   assert.ok(isEntry([1, 5, PLAY, "m1", 1, all]));
   assert.ok(isEntry([1, 5, PRESS, "m1", 1, 7, 2]));
+  assert.ok(isEntry([1, 5, ATTACK, "m1", 1, 8, 0]));
   assert.ok(isEntry([1, 5, SEAT, 5]));
   assert.ok(isEntry([1, 5, SETTINGS, { ...SETUP, wins: 3 }]));
   assert.ok(isEntry([1, 5, JOIN, "a", "Ada", 5, "bee", 1]));
@@ -109,7 +111,10 @@ test("entries: play carries held bits, a press its ordinal and step, a seat its 
     [1, 5, SEAT, 6],
     [1, 5, SEAT, -1],
     [1, 5, SEAT, 1, 0],
-    [1, 5, 3, "m1", 1, 7, 0],
+    [1, 5, ATTACK, "m1", 1, 0, 0],
+    [1, 5, ATTACK, "m1", 1, 7, 3],
+    [1, 5, ATTACK, "m1", 1, 7],
+    [1, 5, 4, "m1", 1, 7, 0],
     "entry",
     [1, 5, JOIN, "a", "Ada", 0, "wasp", 1],
     [1, 5, JOIN, "constructor", "Ada", 0, "bee", 1],
@@ -123,6 +128,7 @@ test("entries: play carries held bits, a press its ordinal and step, a seat its 
   ])
     assert.ok(!isEntry(bad), JSON.stringify(bad));
   assert.equal(game.ordinal!([1, 5, PRESS, "m1", 1, 7, 2]), 7);
+  assert.equal(game.ordinal!([1, 5, ATTACK, "m1", 1, 8, 0]), 8);
   assert.equal(game.ordinal!([1, 5, PLAY, "m1", 1, 1]), undefined);
 });
 
@@ -294,7 +300,8 @@ test("drop in, drop out: a slot is the bot's whenever its person is not there to
 });
 
 test("kills, deaths and berries are credited to the people who play the slots", () => {
-  const room = started();
+  // A set whose bots fight: on this map and level a Queen who stands still is killed.
+  const room = started({ ...SETUP, botLevel: "easy", map: 2 });
   toPlay(room);
   // Runs until the bots have fought and banked; people who do nothing only die.
   const crew = seated(room);
