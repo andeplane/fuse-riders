@@ -8,6 +8,8 @@ export type PaintDialog =
   | { kind: "confirmDiscard"; next: "new" | "open" }
   /** The Text tool was clicked at `at`; `color` is the foreground or background at click time, `text` the draft typed so far. */
   | { kind: "text"; at: Point; color: string; text: string }
+  /** File > Save As: file name and format before the download. */
+  | { kind: "saveAs" }
   | { kind: "busy"; message: string };
 
 export type PaintState = {

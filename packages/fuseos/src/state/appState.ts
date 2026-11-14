@@ -42,6 +42,8 @@ export interface PaintWindowContent {
   kind: "paint";
   /** Name of the local file on the canvas; absent for a new drawing. */
   fileName?: string;
+  /** An image to fetch and draw when the window mounts (Explorer opening a repo image); Save downloads a copy, never writes back. */
+  sourceUrl?: string;
 }
 
 /** Winamp: a media player over Webamp. The playlist itself is transient (object URLs do not survive a reload). Reused when already open. */
@@ -216,7 +218,10 @@ function isWindowContent(
         (value.icon === "warning" || value.icon === "info")
       );
     case "paint":
-      return value.fileName === undefined || typeof value.fileName === "string";
+      return (
+        (value.fileName === undefined || typeof value.fileName === "string") &&
+        (value.sourceUrl === undefined || typeof value.sourceUrl === "string")
+      );
     default:
       return false;
   }

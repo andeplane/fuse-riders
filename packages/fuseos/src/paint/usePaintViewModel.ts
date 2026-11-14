@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useMemo } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef } from "react";
 
 import { DesktopUiContext } from "../desktop/desktopUiContext";
 import type { PaintWindowContent, WindowState } from "../state/appState";
@@ -7,14 +7,14 @@ import { useWindowCommands } from "../windows/useWindowCommands";
 
 import { createPaintControls } from "./paintControls";
 import { PaintDepsContext } from "./paintDepsContext";
+import type { PaintFile } from "./paintFileActions";
+import { createPaintFileActions } from "./paintFileActions";
+import { PaintPrefsStoreContext } from "./paintPrefsStore";
 import { PaintRegistryContext } from "./paintRegistryContext";
 import type { PaintDialog, PaintState } from "./paintState";
 import { PaintStateContext } from "./paintStateContext";
-import type { PaintTool, Point, Size } from "./paintTools";
-
-/** What File > Open and File > Save say until Phase B (B5) wires local files in. */
-export const LOCAL_FILES_NOTICE =
-  "Opening and saving files on this computer arrives in a later update. Set As Wallpaper keeps a drawing on the desktop meanwhile.";
+import type { ImageMimeType, PaintTool, Point, Size } from "./paintTools";
+import { mimeTypeForName } from "./paintTools";
 
 export type PaintViewModel = {
   windowId: string;
@@ -29,6 +29,8 @@ export type PaintViewModel = {
   canUndo: boolean;
   status: string;
   dialog: PaintDialog;
+  /** What the Save As dialog starts with: the current name (or `untitled`) and the format last saved in. */
+  saveDefaults: { name: string; format: ImageMimeType };
   setTool: (tool: PaintTool) => void;
   setBrushSize: (size: number) => void;
   setForeground: (color: string) => void;
@@ -43,10 +45,14 @@ export type PaintViewModel = {
   flip: (axis: "horizontal" | "vertical") => void;
   rotate: () => void;
   newImage: () => void;
-  /** File > Open. */
+  /** File > Open: the discard confirmation when there are unsaved changes, then the browser's file picker. */
   openImage: () => void;
-  /** File > Save and Save As. */
+  /** File > Save: downloads under the current name, or opens Save As for an untitled drawing. */
   save: () => void;
+  /** File > Save As: the name and format dialog. */
+  showSaveAs: () => void;
+  /** Save on the Save As dialog: encodes the canvas and downloads it. */
+  requestSave: (name: string, mimeType: ImageMimeType) => void;
   confirmDiscard: () => void;
   closeDialog: () => void;
   /** The Text dialog's field: replaces its draft as the user types. */
@@ -67,7 +73,7 @@ function contentOf(window: WindowState | undefined): PaintWindowContent {
  * Business logic of one Paint window over the per window PaintStateProvider. The toolbox, palette and canvas
  * go through `PaintControls`, which the window also publishes in the Paint registry so the Office Assistant
  * can drive the very same thing; the store's shadow keeps a tool change visible to the next pointer event
- * before React re-renders.
+ * before React re-renders. Files go through `PaintFileActions` over the injected `PaintDeps.files`.
  */
 export function usePaintViewModel(windowId: string): PaintViewModel {
   const store = useContext(PaintStateContext);
@@ -76,6 +82,7 @@ export function usePaintViewModel(windowId: string): PaintViewModel {
   const { state: appState, dispatch: appDispatch } = useAppState();
   const commands = useWindowCommands();
   const deps = useContext(PaintDepsContext);
+  const prefs = useContext(PaintPrefsStoreContext);
   const registry = useContext(PaintRegistryContext);
   const ui = useContext(DesktopUiContext);
 
@@ -83,20 +90,39 @@ export function usePaintViewModel(windowId: string): PaintViewModel {
     appState.windows.find((window) => window.id === windowId),
   );
   const fileName = content.fileName;
+  const sourceUrl = content.sourceUrl;
 
   const setFile = useCallback(
-    (next: string | undefined) =>
+    (next: PaintFile | undefined) =>
       appDispatch({
         type: "patch",
         id: windowId,
         patch: (window) =>
-          window.kind === "paint" ? { ...window, fileName: next } : window,
+          window.kind === "paint"
+            ? { ...window, fileName: next?.name, sourceUrl: next?.sourceUrl }
+            : window,
       }),
     [appDispatch, windowId],
   );
-  const openFile = useCallback(
-    () => commands.showInfo("Paint", LOCAL_FILES_NOTICE),
+  const showError = useCallback(
+    (message: string) => commands.showError("Paint", message),
     [commands],
+  );
+  const fileActions = useMemo(
+    () =>
+      createPaintFileActions({
+        session,
+        files: deps.files,
+        prefs,
+        dispatch,
+        setFile,
+        showError,
+      }),
+    [session, deps, prefs, dispatch, setFile, showError],
+  );
+  const openFile = useCallback(
+    () => void fileActions.openPicked(),
+    [fileActions],
   );
 
   const setDialog = useCallback(
@@ -114,7 +140,7 @@ export function usePaintViewModel(windowId: string): PaintViewModel {
         session,
         getState: () => shadow.getState(),
         dispatch,
-        setFile,
+        setFile: (name) => setFile(name === undefined ? undefined : { name }),
         openFile,
       }),
     [session, shadow, dispatch, setFile, openFile],
@@ -128,6 +154,15 @@ export function usePaintViewModel(windowId: string): PaintViewModel {
     };
   }, [registry, windowId, controls]);
 
+  // A window opened on a URL (Explorer, a deep link) fetches it once the canvas is there; each URL is loaded once
+  // per mount, so no re-render or dependency change can fetch it again.
+  const loadedUrl = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!sourceUrl || loadedUrl.current === sourceUrl) return;
+    loadedUrl.current = sourceUrl;
+    void fileActions.openUrl(sourceUrl, fileName ?? "untitled");
+  }, [sourceUrl, fileName, fileActions]);
+
   const attachCanvas = useCallback(
     (canvas: HTMLCanvasElement | null) => {
       if (canvas) {
@@ -139,6 +174,9 @@ export function usePaintViewModel(windowId: string): PaintViewModel {
     },
     [session, deps, dispatch],
   );
+
+  const requestSave = (name: string, mimeType: ImageMimeType) =>
+    void fileActions.saveAs(name, mimeType);
 
   return {
     windowId,
@@ -152,6 +190,10 @@ export function usePaintViewModel(windowId: string): PaintViewModel {
     canUndo: state.undoDepth > 0,
     status: state.status,
     dialog: state.dialog,
+    saveDefaults: {
+      name: fileName ?? "untitled",
+      format: prefs.get().format ?? "image/png",
+    },
     setTool: controls.setTool,
     setBrushSize: controls.setBrushSize,
     setForeground: controls.setForeground,
@@ -182,7 +224,12 @@ export function usePaintViewModel(windowId: string): PaintViewModel {
     },
     newImage: controls.newImage,
     openImage: controls.openImage,
-    save: () => commands.showInfo("Paint", LOCAL_FILES_NOTICE),
+    save: () => {
+      if (fileName) requestSave(fileName, mimeTypeForName(fileName));
+      else setDialog({ kind: "saveAs" });
+    },
+    showSaveAs: () => setDialog({ kind: "saveAs" }),
+    requestSave,
     confirmDiscard: controls.confirmDiscard,
     closeDialog: () => setDialog({ kind: "none" }),
     setDialogText: controls.setDialogText,
