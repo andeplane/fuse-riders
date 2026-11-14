@@ -151,7 +151,7 @@ try {
   await takeHostSeat(host, "Host");
   console.log("Room created");
   const url = `${host.url()}&renderer=phaser-canvas`;
-  await host.locator(".room-riders > .room-rider").first().waitFor();
+  await host.locator(".fui-slot-occupant > .room-rider").first().waitFor();
   assert.equal((await data(host)).requests, 0, "joining a room never captures");
   await voice(host);
   await host.getByRole("button", { name: "JOIN VOICE", exact: true }).click();
@@ -175,7 +175,7 @@ try {
   await instrument(guest);
   await join(guest, "Guest", url);
   await host
-    .locator(".room-riders")
+    .locator(".fui-room-players")
     .getByText("Guest", { exact: true })
     .waitFor();
   assert.equal((await data(guest)).requests, 0);

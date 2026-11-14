@@ -36,7 +36,7 @@ try {
   const code = await first.locator(".birds-code").innerText();
   await second.goto(`${base}/fuse-birds/?room=${code}&mute`);
   await takeHostSeat(second, "EMBER");
-  await first.locator(".birds-roster").getByText("EMBER").waitFor();
+  await first.locator(".fui-room-players").getByText("EMBER").waitFor();
   await tv.goto(`${base}/fuse-birds/?room=${code}&display=1&mute`);
   await first.getByRole("button", { name: "START BATTLE" }).click();
   for (const page of pages)
@@ -53,7 +53,7 @@ try {
   const turn = await first.locator(".birds-room").getAttribute("data-turn");
   const cdp = await first.context().newCDPSession(first);
   async function startAim() {
-    const box = await first.locator("canvas").boundingBox();
+    const box = await first.locator("canvas[data-ready]").boundingBox();
     assert.ok(box);
     const scale = Math.min(box.width / 1536, box.height / 768);
     // Spawn pad height is 350–409; this point is within the minimum 48 CSS-pixel aim target.

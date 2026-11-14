@@ -87,7 +87,10 @@ const RECIPES: Record<string, Recipe> = {
     await openPlayOptions(page);
     await page.getByRole("button", { name: "Host room" }).click();
     await takeHostSeat(page, "Gallery");
-    await page.getByRole("button", { name: "Add AI", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Add AI", exact: true })
+      .first()
+      .click();
     await page.getByRole("button", { name: "START" }).click();
     await page
       .locator("p.ff-hud", { hasText: "right-click: move" })
