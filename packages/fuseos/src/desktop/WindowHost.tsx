@@ -8,6 +8,8 @@ import { FuseGameWindow } from "../fusegames/FuseGameWindow";
 import { FuseGamesContext } from "../fusegames/registry";
 import { LauncherWindow } from "../launcher/LauncherWindow";
 import { NotepadPlusPlusWindow } from "../notepadpp/NotepadPlusPlusWindow";
+import { NetworkWindow } from "../network/NetworkWindow";
+import { RoomGameWindow } from "../network/RoomGameWindow";
 import { PaintWindow } from "../paint/PaintWindow";
 import { GameWindow } from "../retro/GameWindow";
 import { RetroFolderWindow } from "../retro/RetroFolderWindow";
@@ -41,6 +43,17 @@ function WindowContent({
           onActivate={() => commands.focus(window.id)}
         />
       );
+    case "roomgame":
+      return (
+        <RoomGameWindow
+          gameId={window.gameId}
+          code={window.code}
+          active={active}
+          onActivate={() => commands.focus(window.id)}
+        />
+      );
+    case "network":
+      return <NetworkWindow windowId={window.id} />;
     case "retro":
       return (
         <GameWindow

@@ -5,6 +5,7 @@ import { FuseGamesContext } from "../fusegames/registry";
 import { useFuseGameLauncher } from "../fusegames/useFuseGameLauncher";
 import { LAUNCHER_TITLE } from "../launcher/launcherFacts";
 import { useOpenLauncher } from "../launcher/useOpenLauncher";
+import { openNetworkNeighborhood } from "../network/openNetworkNeighborhood";
 import { useGameLaunch } from "../settings/useGameLaunch";
 import type { WindowState } from "../state/appState";
 import { activeWindowId } from "../state/appState";
@@ -118,6 +119,12 @@ export function useDesktopViewModel(): DesktopViewModel {
       label: "Control Panel",
       icon: "settings",
       open: openControlPanel,
+    },
+    {
+      id: "network-neighborhood",
+      label: "Network Neighborhood",
+      icon: "network",
+      open: () => openNetworkNeighborhood(commands),
     },
   ];
 

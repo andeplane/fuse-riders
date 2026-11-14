@@ -41,6 +41,8 @@ export const EXPLORER_WINDOW_SIZE: Size = { width: 720, height: 480 };
 export const NOTEPADPP_WINDOW_SIZE: Size = { width: 760, height: 520 };
 /** Room for the Connect To form (user name, password, phone number, location) and its buttons. */
 export const DIAL_UP_WINDOW_SIZE: Size = { width: 400, height: 260 };
+/** Room for the tree pane, a few rows of rooms and the status bar. */
+export const NETWORK_WINDOW_SIZE: Size = { width: 640, height: 420 };
 
 export const OS_NAME = "FuseOS";
 
@@ -59,6 +61,20 @@ export function windowMeta(
         size: FUSE_GAME_WINDOW_SIZE,
       };
     }
+    case "roomgame":
+      return {
+        title: `${games.find(window.gameId)?.name ?? window.gameId} - Room ${window.code}`,
+        icon: "network",
+        resizable: true,
+        size: FUSE_GAME_WINDOW_SIZE,
+      };
+    case "network":
+      return {
+        title: "Network Neighborhood",
+        icon: "network",
+        resizable: true,
+        size: NETWORK_WINDOW_SIZE,
+      };
     case "retro":
       return {
         title: GAMES[window.game].name,

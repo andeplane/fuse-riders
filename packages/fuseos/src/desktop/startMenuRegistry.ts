@@ -3,6 +3,7 @@ import { createContext } from "react";
 import { MY_COMPUTER } from "../disk/diskPath";
 import { LAUNCHER_TITLE } from "../launcher/launcherFacts";
 import { openLauncher } from "../launcher/useOpenLauncher";
+import { openNetworkNeighborhood } from "../network/openNetworkNeighborhood";
 import type { IconName } from "../ui/icons";
 import type { WindowCommands } from "../windows/useWindowCommands";
 import type { Size } from "../windows/windowManager";
@@ -140,6 +141,14 @@ export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
     icon: "dialup",
     order: 40,
     open: (commands) => commands.open({ kind: "dialup" }),
+  },
+  {
+    slot: "programs",
+    id: "network-neighborhood",
+    label: "Network Neighborhood",
+    icon: "network",
+    order: 10,
+    open: (commands) => openNetworkNeighborhood(commands),
   },
 ];
 

@@ -34,6 +34,7 @@ describe("START_MENU_REGISTRATIONS", () => {
       ["my-computer", "my-computer", true],
       ["settings", "screensaver", true],
       ["accessories", "dialup", true],
+      ["programs", "network-neighborhood", true],
     ]);
   });
 
@@ -69,6 +70,7 @@ describe("START_MENU_REGISTRATIONS", () => {
       { kind: "explorer", location: "" },
       { kind: "controlpanel", applet: "display", tab: "screensaver" },
       { kind: "dialup" },
+      [{ kind: "network" }, { id: "network-neighborhood" }],
     ]);
   });
 
