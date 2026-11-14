@@ -40,6 +40,20 @@ export const EXPLORER_WINDOW_SIZE: Size = { width: 720, height: 480 };
 
 /** Room for the tab bar, a code pane with line numbers and the six-field status bar. */
 export const NOTEPADPP_WINDOW_SIZE: Size = { width: 760, height: 520 };
+/** Room for the five Explorer columns and a dozen rows above the status bar. */
+export const RECYCLE_BIN_WINDOW_SIZE: Size = { width: 640, height: 380 };
+
+/** The classic 4:3 Media Player: a small screen, the seek bar and the transport buttons. */
+export const MEDIA_PLAYER_WINDOW_SIZE: Size = { width: 400, height: 340 };
+
+/** A video that really plays gets a 16:9 screen big enough to watch it in. */
+export const MEDIA_PLAYER_STREAM_WINDOW_SIZE: Size = {
+  width: 560,
+  height: 420,
+};
+
+/** The Run box: the prompt, one line to type in and three buttons. */
+export const RUN_WINDOW_SIZE: Size = { width: 360, height: 176 };
 /** Room for the Connect To form (user name, password, phone number, location) and its buttons. */
 export const DIAL_UP_WINDOW_SIZE: Size = { width: 400, height: 260 };
 /** Room for the tree pane, a few rows of rooms and the status bar. */
@@ -149,6 +163,30 @@ export function windowMeta(
         icon: "fusteam",
         resizable: true,
         size: LAUNCHER_WINDOW_SIZE,
+      };
+    case "recyclebin":
+      return {
+        title: "Recycle Bin",
+        icon: "recycle",
+        resizable: true,
+        size: RECYCLE_BIN_WINDOW_SIZE,
+      };
+    case "mediaplayer":
+      return {
+        title: `${window.file} - Windows Media Player`,
+        icon: "mediaplayer",
+        resizable: window.stream !== undefined,
+        size:
+          window.stream === undefined
+            ? MEDIA_PLAYER_WINDOW_SIZE
+            : MEDIA_PLAYER_STREAM_WINDOW_SIZE,
+      };
+    case "run":
+      return {
+        title: "Run",
+        icon: "run",
+        resizable: false,
+        size: RUN_WINDOW_SIZE,
       };
     case "dialup":
       return {

@@ -11,6 +11,7 @@ describe(createDiskPort.name, () => {
     ).toEqual(["A:", "C:"]);
     const root = await port.stat("C:");
     expect(root?.kind === "folder" && root.entries.map((e) => e.name)).toEqual([
+      "WINDOWS",
       "docs",
       "packages",
       "public",
@@ -61,9 +62,14 @@ describe(createDiskPort.name, () => {
     expect(
       floppy?.kind === "folder" && floppy.entries.map((e) => e.name),
     ).toEqual(["porn", "slackbacup.zip"]);
-    expect(await port.stat("A:/porn/homework.txt")).toMatchObject({
+    // A:\\porn is behind its password for Clippy too, until it has been given in Explorer.
+    await expect(port.stat("A:/PORN")).rejects.toThrow(
+      "The password is incorrect. Access is denied.",
+    );
+    deps.jokeGate.tryPassword("mender");
+    expect(await port.stat("A:/porn/definitely_not_porn.avi")).toMatchObject({
       kind: "file",
-      entry: { name: "homework.txt", fileKind: "text" },
+      entry: { name: "definitely_not_porn.avi", fileKind: "binary" },
     });
     await expect(port.stat("C:")).rejects.toThrow(
       "The drive manifest could not be read",

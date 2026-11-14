@@ -31,7 +31,14 @@ describe("StartMenu", () => {
       within(menu)
         .getAllByRole("menuitem")
         .map((item) => item.textContent?.replace("▸", "")),
-    ).toEqual(["Programs", "My Computer", "Settings", "Help", "Shut Down..."]);
+    ).toEqual([
+      "Programs",
+      "My Computer",
+      "Settings",
+      "Help",
+      "Run...",
+      "Shut Down...",
+    ]);
     await user.click(within(menu).getByRole("menuitem", { name: "Programs" }));
     await user.click(within(menu).getByRole("menuitem", { name: "Games" }));
     const games = within(menu).getAllByRole("menu").at(-1);

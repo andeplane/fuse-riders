@@ -16,11 +16,14 @@ import {
 import { FuseGamesContext } from "../fusegames/registry";
 import { LauncherWindow } from "../launcher/LauncherWindow";
 import { NotepadPlusPlusWindow } from "../notepadpp/NotepadPlusPlusWindow";
+import { MediaPlayerWindow } from "../mediaplayer/MediaPlayerWindow";
 import { NetworkWindow } from "../network/NetworkWindow";
 import { RoomGameWindow } from "../network/RoomGameWindow";
 import { PaintWindow } from "../paint/PaintWindow";
+import { RecycleBinWindow } from "../recyclebin/RecycleBinWindow";
 import { GameWindow } from "../retro/GameWindow";
 import { RetroFolderWindow } from "../retro/RetroFolderWindow";
+import { RunWindow } from "../run/RunWindow";
 import { DialUpWindow } from "../sounds/dialup/DialUpWindow";
 import type { WindowState } from "../state/appState";
 import { WinampPlayer } from "../winamp/WinampPlayer";
@@ -107,6 +110,19 @@ function WindowContent({
       );
     case "launcher":
       return <LauncherWindow windowId={window.id} active={active} />;
+    case "run":
+      return <RunWindow windowId={window.id} />;
+    case "recyclebin":
+      return <RecycleBinWindow windowId={window.id} />;
+    case "mediaplayer":
+      return (
+        <MediaPlayerWindow
+          windowId={window.id}
+          file={window.file}
+          launches={window.launches}
+          stream={window.stream}
+        />
+      );
     case "dialup":
       return <DialUpWindow windowId={window.id} then={window.then} />;
     case "friends":

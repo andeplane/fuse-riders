@@ -1,13 +1,19 @@
 import type { DiskEntry } from "../disk/diskEntries";
 import { editorPathOf } from "../disk/diskEntries";
 import { formatSize, MAX_TEXT_FILE_BYTES } from "../disk/fileTypes";
-import { FLOPPY_JOKE_LOCATION, FLOPPY_ZIP_LOCATION } from "../disk/floppy";
+import {
+  FLOPPY_JOKE_LOCATION,
+  FLOPPY_ZIP_LOCATION,
+  RICKROLL_LOCATION,
+} from "../disk/floppy";
 
-/** What double clicking an entry does; the view model carries it out (and consults the joke gate for the folder). */
+/** What double clicking an entry does; the view model carries it out (and asks the joke folder's password). */
 export type OpenDecision =
   | { type: "navigate"; location: string }
   | { type: "jokeFolder"; location: string }
   | { type: "winzip" }
+  /** The video behind the password: the Media Player, under its real title. */
+  | { type: "rickroll" }
   | { type: "notepad"; path: string }
   | { type: "image"; path: string }
   | { type: "error"; title: string; message: string };
@@ -30,6 +36,7 @@ export function decideOpen(entry: DiskEntry): OpenDecision {
       : { type: "navigate", location: entry.location };
   }
   if (entry.location === FLOPPY_ZIP_LOCATION) return { type: "winzip" };
+  if (entry.location === RICKROLL_LOCATION) return { type: "rickroll" };
   const path = editorPathOf(entry.location);
   switch (entry.fileKind) {
     case "image":

@@ -3,6 +3,8 @@ import type { DefragWindowContent } from "../defrag/defragWindowContent";
 import { isDefragWindowContent } from "../defrag/defragWindowContent";
 import type { GameId } from "../retro/gameIds";
 import { isGameId } from "../retro/gameIds";
+import type { MediaStreamId } from "../mediaplayer/streams";
+import { isMediaStreamId } from "../mediaplayer/streams";
 
 export type ControlPanelApplet =
   "home" | "display" | "system" | "assistant" | "keyboard" | "games" | "sounds";
@@ -86,6 +88,27 @@ export interface LauncherWindowContent {
   kind: "launcher";
 }
 
+/** The Recycle Bin's Explorer-style window. Reused when already open. */
+export interface RecycleBinWindowContent {
+  kind: "recyclebin";
+}
+
+/** A fake Windows Media Player "playing" one of the Recycle Bin's video files. */
+export interface MediaPlayerWindowContent {
+  kind: "mediaplayer";
+  /** The file name shown in the title bar and the codec error. */
+  file: string;
+  /** The Fuse game this "video" turns out to be, launched once it has "buffered"; absent means the codec is missing. */
+  launches?: string;
+  /** A video that really plays once it has "buffered" (`mediaplayer/streams.ts`): A:\\porn's only file. */
+  stream?: MediaStreamId;
+}
+
+/** Start > Run...: the one-line Run box (`src/run`). One instance. */
+export interface RunWindowContent {
+  kind: "run";
+}
+
 /** Dial-Up Networking's "Connect To" dialog (`sounds/dialup`); on connect it closes and opens `then`, when given. */
 export interface DialUpWindowContent {
   kind: "dialup";
@@ -120,6 +143,9 @@ export type WindowContent =
   | ExplorerWindowContent
   | NotepadPlusPlusWindowContent
   | LauncherWindowContent
+  | RecycleBinWindowContent
+  | MediaPlayerWindowContent
+  | RunWindowContent
   | DialUpWindowContent
   | FriendsWindowContent
   | DefragWindowContent;
@@ -185,11 +211,15 @@ export function sameInstance(
     case "about":
     case "retroFolder":
     case "launcher":
+    case "recyclebin":
+    case "run":
+    case "defrag":
     case "dialup":
     case "network":
     case "friends":
-    case "defrag":
       return existing.kind === content.kind;
+    case "mediaplayer":
+      return existing.kind === "mediaplayer" && existing.file === content.file;
     case "roomgame":
       return (
         existing.kind === "roomgame" &&
@@ -415,6 +445,16 @@ function isWindowContent(
         Array.isArray(value.paths) &&
         value.paths.every((path) => typeof path === "string") &&
         (value.activePath === undefined || typeof value.activePath === "string")
+      );
+    case "recyclebin":
+    case "run":
+      return true;
+    case "mediaplayer":
+      return (
+        typeof value.file === "string" &&
+        value.file.length > 0 &&
+        (value.launches === undefined || typeof value.launches === "string") &&
+        (value.stream === undefined || isMediaStreamId(value.stream))
       );
     case "dialup":
       return (

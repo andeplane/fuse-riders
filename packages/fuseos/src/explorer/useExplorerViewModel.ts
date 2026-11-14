@@ -1,16 +1,35 @@
 import type { KeyboardEvent } from "react";
-import { useCallback, useContext, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
+import { DesktopUiContext } from "../desktop/desktopUiContext";
 import { StartMenuRegistryContext } from "../desktop/startMenuRegistry";
 import type { DiskEntry } from "../disk/diskEntries";
-import { driveOf, MY_COMPUTER, nameOf } from "../disk/diskPath";
+import { SYSTEM32_LOCATION } from "../disk/diskEntries";
+import { DRIVE_A, driveOf, MY_COMPUTER } from "../disk/diskPath";
 import { formatSize } from "../disk/fileTypes";
-import { ACCESS_DENIED_MESSAGE, WINZIP_ERROR_MESSAGE } from "../disk/floppy";
+import {
+  CLIPPY_PORN_HELP,
+  FLOPPY_JOKE_LOCATION,
+  PASSWORD_DIALOG_TITLE,
+  PASSWORD_HINT_AFTER,
+  PASSWORD_INCORRECT_MESSAGE,
+  RICKROLL_TITLE,
+  WINZIP_ERROR_MESSAGE,
+} from "../disk/floppy";
 import { useDiskDeps, useDiskManifest, useOverlayPaths } from "../disk/useDisk";
 import { matchShortcut } from "../lib/shortcuts";
 import { useOpenInNotepad } from "../notepadpp/useOpenInNotepad";
+import type { WindowContent } from "../state/appState";
 import { usePlaySystemSound } from "../sounds/useSystemSound";
 import { useAppState } from "../state/useAppState";
+import { useSystem32Folder } from "../system32/explorerContract";
 import type { IconName } from "../ui/icons";
 import type { MenuPosition } from "../windows/menuPosition";
 import { useWindowCommands } from "../windows/useWindowCommands";
@@ -124,8 +143,13 @@ export type ExplorerViewModel = {
   winzipCancel: () => void;
   /** File > Revert to original on a modified file. */
   revert: (entry: DiskEntry) => void;
-  /** Delete: a saved copy goes back to the original; anything else is on a read-only disk. */
+  /** Delete: SYSTEM32 starts the gag's questions; a saved copy goes back to the original; anything else is on a read-only disk. */
   deleteEntry: (entry: DiskEntry) => void;
+  /** A:\\porn's "Enter Network Password" box, while it is up; null otherwise. */
+  password: PasswordPrompt | null;
+  /** OK in the password box: a wrong one gets the error box (the box stays up), the right one logs on. */
+  submitPassword: (text: string) => "granted" | "denied";
+  cancelPassword: () => void;
   /** Properties of an entry, or of this folder when there is none. */
   showProperties: (entry: DiskEntry | undefined) => void;
   /** Status bar fields. */
@@ -141,6 +165,24 @@ export const ADDRESS_NOT_FOUND_TITLE = "Explorer";
 
 export function addressNotFoundMessage(text: string): string {
   return `Cannot find '${text}'. Make sure the path is correct and try again.`;
+}
+
+/** Where the network password box is: asking, then the two beats of a logon that worked. */
+export type PasswordPrompt = { phase: "asking" | "connecting" | "granted" };
+
+/** What A:\\porn's only file opens: the Media Player, playing the real thing. */
+export const RICKROLL_PLAYER: WindowContent = {
+  kind: "mediaplayer",
+  file: RICKROLL_TITLE,
+  stream: "rickroll",
+};
+
+/** A:\\porn itself or anything under it. */
+export function isInJokeFolder(location: string): boolean {
+  return (
+    location === FLOPPY_JOKE_LOCATION ||
+    location.startsWith(`${FLOPPY_JOKE_LOCATION}/`)
+  );
 }
 
 export const DELETE_ERROR_TITLE = "Error Deleting File";
@@ -175,6 +217,8 @@ export function useExplorerViewModel(
   const playSystemSound = usePlaySystemSound();
   const registrations = useContext(StartMenuRegistryContext);
   const { viewport } = useContext(WindowManagerContext);
+  const system32 = useSystem32Folder();
+  const { assistantDispatch } = useContext(DesktopUiContext);
   const folders = useMemo(() => shellFolders(registrations), [registrations]);
 
   const [history, setHistory] = useState<{ back: string[]; forward: string[] }>(
@@ -192,6 +236,7 @@ export function useExplorerViewModel(
     ExplorerContextMenu | undefined
   >(undefined);
   const [winzip, setWinzip] = useState(false);
+  const [password, setPassword] = useState<PasswordPrompt | null>(null);
   // The floppy seeks when A: is entered from another drive; a subfolder of A: is already spinning.
   const [seeking, setSeeking] = useState(false);
   const seekToken = useRef(0);
@@ -199,9 +244,10 @@ export function useExplorerViewModel(
   const tree = manifest.status === "ready" ? manifest.tree : undefined;
   const committedAt =
     manifest.status === "ready" ? manifest.manifest.committedAt : "";
+  const system32Present = system32.present;
   const listingInputs = useMemo(
-    () => ({ tree, committedAt, overlayPaths }),
-    [tree, committedAt, overlayPaths],
+    () => ({ tree, committedAt, overlayPaths, system32Present }),
+    [tree, committedAt, overlayPaths, system32Present],
   );
 
   const entries = useMemo(() => {
@@ -230,9 +276,26 @@ export function useExplorerViewModel(
     [dispatch, windowId],
   );
 
+  // A:\\porn and anything under it stay behind the password, however they are reached: a double click,
+  // the address bar, Back, the folders tree or a window restored from an earlier visit.
+  const lockedOut = useCallback(
+    (target: string) => isInJokeFolder(target) && !deps.jokeGate.isUnlocked(),
+    [deps.jokeGate],
+  );
+  const restoredInside = lockedOut(location);
+  useEffect(() => {
+    if (!restoredInside) return;
+    setLocation(DRIVE_A);
+    setPassword({ phase: "asking" });
+  }, [restoredInside, setLocation]);
+
   const go = useCallback(
     (next: string, record: boolean) => {
       if (next === location) return;
+      if (lockedOut(next)) {
+        setPassword({ phase: "asking" });
+        return;
+      }
       if (record)
         setHistory((current) => ({
           back: [...current.back, location],
@@ -259,7 +322,7 @@ export function useExplorerViewModel(
         playSystemSound("seek");
       }
     },
-    [location, setLocation, deps, playSystemSound],
+    [location, setLocation, deps, lockedOut, playSystemSound],
   );
 
   const navigate = useCallback((next: string) => go(next, true), [go]);
@@ -290,7 +353,11 @@ export function useExplorerViewModel(
   const openAddress = useCallback(
     (text: string) => {
       const parsed = parseNamespaceAddress(text);
-      if (parsed !== undefined && namespaceExists(parsed, tree))
+      if (
+        parsed !== undefined &&
+        namespaceExists(parsed, tree) &&
+        (parsed !== SYSTEM32_LOCATION || system32Present)
+      )
         navigate(parsed);
       else
         commands.showError(
@@ -298,7 +365,7 @@ export function useExplorerViewModel(
           addressNotFoundMessage(text.trim()),
         );
     },
-    [tree, navigate, commands],
+    [tree, system32Present, navigate, commands],
   );
 
   const open = useCallback(
@@ -314,12 +381,11 @@ export function useExplorerViewModel(
           navigate(decision.location);
           return;
         case "jokeFolder":
-          if (deps.jokeGate.tryOpen() === "denied")
-            commands.showError(
-              nameOf(decision.location),
-              ACCESS_DENIED_MESSAGE,
-            );
-          else navigate(decision.location);
+          // Behind a network password until someone on this desktop has given it (see `go`).
+          navigate(decision.location);
+          return;
+        case "rickroll":
+          commands.open(RICKROLL_PLAYER);
           return;
         case "winzip":
           setWinzip(true);
@@ -348,15 +414,38 @@ export function useExplorerViewModel(
           return;
       }
     },
-    [
-      navigate,
-      deps.jokeGate,
-      deps.source,
-      commands,
-      openInNotepad,
-      folders,
-      viewport,
-    ],
+    [navigate, deps.source, commands, openInNotepad, folders, viewport],
+  );
+
+  const submitPassword = useCallback(
+    (text: string): "granted" | "denied" => {
+      if (deps.jokeGate.tryPassword(text) === "denied") {
+        commands.showError(PASSWORD_DIALOG_TITLE, PASSWORD_INCORRECT_MESSAGE);
+        // Every third wrong guess, the paperclip notices.
+        if (deps.jokeGate.failures() % PASSWORD_HINT_AFTER === 0)
+          assistantDispatch({
+            type: "say",
+            text: CLIPPY_PORN_HELP,
+            mood: "idea",
+          });
+        return "denied";
+      }
+      setPassword({ phase: "connecting" });
+      void deps
+        .logonPause("connecting")
+        .then(() => {
+          setPassword({ phase: "granted" });
+          return deps.logonPause("granted");
+        })
+        .then(() => {
+          setPassword(null);
+          navigate(FLOPPY_JOKE_LOCATION);
+          // The folder's only file plays by itself, as if someone had double-clicked it.
+          commands.open(RICKROLL_PLAYER);
+        });
+      return "granted";
+    },
+    [deps, commands, assistantDispatch, navigate],
   );
 
   const activate = useCallback(
@@ -384,13 +473,16 @@ export function useExplorerViewModel(
 
   const selectedEntry = entries.find((entry) => entry.location === selected);
 
+  const removeSystem32 = system32.remove;
   const deleteEntry = useCallback(
     (entry: DiskEntry) => {
-      if (entry.modified) revert(entry);
+      // The gag asks its own three questions; no confirm here.
+      if (entry.location === SYSTEM32_LOCATION) removeSystem32();
+      else if (entry.modified) revert(entry);
       else
         commands.showError(DELETE_ERROR_TITLE, deleteDeniedMessage(entry.name));
     },
-    [revert, commands],
+    [removeSystem32, revert, commands],
   );
 
   const showProperties = useCallback(
@@ -429,6 +521,11 @@ export function useExplorerViewModel(
           event.preventDefault();
           open(selectedEntry);
         }
+      } else if (matchShortcut(event, "explorer.delete")) {
+        if (selectedEntry && selectedEntry.kind !== "drive") {
+          event.preventDefault();
+          deleteEntry(selectedEntry);
+        }
       } else if (matchShortcut(event, "explorer.clearSelection")) {
         setSelected(null);
       } else if (
@@ -454,7 +551,7 @@ export function useExplorerViewModel(
         if (next) setSelected(next.location);
       }
     },
-    [up, open, showProperties, selectedEntry, entries, selected],
+    [up, open, showProperties, deleteEntry, selectedEntry, entries, selected],
   );
 
   const busy =
@@ -564,6 +661,9 @@ export function useExplorerViewModel(
     winzipCancel: () => setWinzip(false),
     revert,
     deleteEntry,
+    password,
+    submitPassword,
+    cancelPassword: () => setPassword(null),
     showProperties,
     statusText,
     statusSize,
