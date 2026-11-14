@@ -1,8 +1,12 @@
 import {
-  ACCESS_DENIED_MESSAGE,
   FLOPPY_ZIP_NAME,
   HOMEWORK_TEXT,
+  isPornPassword,
   MemoryFloppyJokeGate,
+  PASSWORD_INCORRECT_MESSAGE,
+  PORN_RESOURCE,
+  RICKROLL_LOCATION,
+  RICKROLL_TITLE,
   WINZIP_ERROR_MESSAGE,
   WINZIP_FAKE_ENTRIES,
   WINZIP_FAILURE_PROGRESS,
@@ -19,15 +23,30 @@ describe("the floppy", () => {
 
   it("keeps the joke safe for work", () => {
     expect(HOMEWORK_TEXT).toBe("Nice try. Go play Fuseball.\n");
-    expect(ACCESS_DENIED_MESSAGE).toContain("Access is denied.");
+    expect(PASSWORD_INCORRECT_MESSAGE).toBe(
+      "The password is incorrect. Access is denied.",
+    );
+    expect(PORN_RESOURCE).toBe("\\\\A:\\porn");
+    expect(RICKROLL_LOCATION).toBe("A:/porn/definitely_not_porn.avi");
+    expect(RICKROLL_TITLE).toBe("Never Gonna Give You Up.avi");
   });
 
-  it("denies the joke folder once, then lets everyone in", () => {
+  it("takes the password in any case, and nothing else", () => {
+    expect(isPornPassword("mender")).toBe(true);
+    expect(isPornPassword("MeNdEr")).toBe(true);
+    expect(isPornPassword(" mender")).toBe(false);
+    expect(isPornPassword("")).toBe(false);
+  });
+
+  it("counts wrong passwords and stays open once the right one is given", () => {
     const gate = new MemoryFloppyJokeGate();
-    expect(gate.attempts()).toBe(0);
-    expect(gate.tryOpen()).toBe("denied");
-    expect(gate.tryOpen()).toBe("open");
-    expect(gate.tryOpen()).toBe("open");
-    expect(gate.attempts()).toBe(3);
+    expect(gate.isUnlocked()).toBe(false);
+    expect(gate.tryPassword("password")).toBe("denied");
+    expect(gate.tryPassword("hunter2")).toBe("denied");
+    expect(gate.failures()).toBe(2);
+    expect(gate.isUnlocked()).toBe(false);
+    expect(gate.tryPassword("MENDER")).toBe("granted");
+    expect(gate.isUnlocked()).toBe(true);
+    expect(gate.failures()).toBe(2);
   });
 });

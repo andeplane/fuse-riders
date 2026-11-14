@@ -6,9 +6,13 @@ import {
   listEntries,
   locationExists,
   locationOfEditorPath,
+  SYSTEM32_FILES,
+  SYSTEM32_LOCATION,
+  WINDOWS_LOCATION,
+  WINDOWS_MODIFIED,
 } from "./diskEntries";
 import { MY_COMPUTER } from "./diskPath";
-import { HOMEWORK_LOCATION } from "./floppy";
+import { HOMEWORK_LOCATION, RICKROLL_LOCATION } from "./floppy";
 import { RepoTree } from "./repoTree";
 
 const manifest = createFixtureManifest();
@@ -30,6 +34,7 @@ describe(listEntries.name, () => {
   it("lists a C: folder with folders first, the commit date and the overlay marker", () => {
     const root = listEntries("C:", inputs);
     expect(root.map((entry) => [entry.name, entry.kind])).toEqual([
+      ["WINDOWS", "folder"],
       ["docs", "folder"],
       ["packages", "folder"],
       ["public", "folder"],
@@ -50,13 +55,45 @@ describe(listEntries.name, () => {
     );
   });
 
+  it("lists the fake WINDOWS folder with SYSTEM32 in it, until the gag takes SYSTEM32 away", () => {
+    expect(listEntries(WINDOWS_LOCATION, inputs)).toEqual([
+      {
+        location: SYSTEM32_LOCATION,
+        name: "SYSTEM32",
+        kind: "folder",
+        icon: "folder",
+        typeLabel: "File Folder",
+        modifiedAt: WINDOWS_MODIFIED,
+        modified: false,
+      },
+    ]);
+    const files = listEntries(SYSTEM32_LOCATION, inputs);
+    expect(files.map((entry) => entry.name)).toEqual(
+      SYSTEM32_FILES.map(([name]) => name),
+    );
+    expect(files[0]).toMatchObject({
+      location: `${SYSTEM32_LOCATION}/${SYSTEM32_FILES[0]?.[0]}`,
+      kind: "file",
+      fileKind: "binary",
+      typeLabel: "System file",
+      size: SYSTEM32_FILES[0]?.[1],
+    });
+    const gone = { ...inputs, system32Present: false };
+    expect(listEntries(WINDOWS_LOCATION, gone)).toEqual([]);
+    expect(listEntries(SYSTEM32_LOCATION, gone)).toEqual([]);
+    // The folder is not in the repository, so it needs no manifest of its own.
+    expect(
+      listEntries(WINDOWS_LOCATION, { ...inputs, tree: undefined }),
+    ).toHaveLength(1);
+  });
+
   it("lists nothing on C: until the manifest is there, and nothing for a missing folder", () => {
     expect(listEntries("C:", { ...inputs, tree: undefined })).toEqual([]);
     expect(listEntries("C:/nowhere", inputs)).toEqual([]);
     expect(listEntries("D:", inputs)).toEqual([]);
   });
 
-  it("lists the floppy: the joke folder and the one archive, then homework.txt inside", () => {
+  it("lists the floppy: the joke folder and the one archive, then the one video inside", () => {
     const floppy = listEntries("A:", inputs);
     expect(floppy.map((entry) => entry.name)).toEqual([
       "porn",
@@ -71,10 +108,12 @@ describe(listEntries.name, () => {
     const inside = listEntries("A:/porn", inputs);
     expect(inside).toHaveLength(1);
     expect(inside[0]).toMatchObject({
-      name: "homework.txt",
-      location: HOMEWORK_LOCATION,
-      fileKind: "text",
-      modified: true,
+      name: "definitely_not_porn.avi",
+      location: RICKROLL_LOCATION,
+      icon: "video",
+      typeLabel: "Video Clip",
+      fileKind: "binary",
+      modified: false,
     });
     expect(listEntries("A:/elsewhere", inputs)).toEqual([]);
   });
@@ -92,6 +131,9 @@ describe(locationExists.name, () => {
     expect(locationExists("C:/README.md", inputs.tree)).toBe(false);
     expect(locationExists("C:", undefined)).toBe(false);
     expect(locationExists("D:", inputs.tree)).toBe(false);
+    expect(locationExists(WINDOWS_LOCATION, inputs.tree)).toBe(true);
+    expect(locationExists(SYSTEM32_LOCATION, inputs.tree)).toBe(true);
+    expect(locationExists(SYSTEM32_LOCATION, inputs.tree, false)).toBe(false);
   });
 });
 

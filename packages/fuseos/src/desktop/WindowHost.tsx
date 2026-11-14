@@ -19,12 +19,15 @@ import { LauncherWindow } from "../launcher/LauncherWindow";
 import { MircWindow } from "../mirc/MircWindow";
 import { NapsterWindow } from "../napster/NapsterWindow";
 import { NotepadPlusPlusWindow } from "../notepadpp/NotepadPlusPlusWindow";
+import { MediaPlayerWindow } from "../mediaplayer/MediaPlayerWindow";
 import { NetworkWindow } from "../network/NetworkWindow";
 import { RoomGameWindow } from "../network/RoomGameWindow";
 import { HallOfFameWindow } from "../halloffame/HallOfFameWindow";
 import { PaintWindow } from "../paint/PaintWindow";
+import { RecycleBinWindow } from "../recyclebin/RecycleBinWindow";
 import { GameWindow } from "../retro/GameWindow";
 import { RetroFolderWindow } from "../retro/RetroFolderWindow";
+import { RunWindow } from "../run/RunWindow";
 import { DialUpWindow } from "../sounds/dialup/DialUpWindow";
 import type { WindowState } from "../state/appState";
 import { TaskManagerWindow } from "../taskmanager/TaskManagerWindow";
@@ -114,6 +117,19 @@ function WindowContent({
       return <LauncherWindow windowId={window.id} active={active} />;
     case "napster":
       return <NapsterWindow windowId={window.id} />;
+    case "run":
+      return <RunWindow windowId={window.id} />;
+    case "recyclebin":
+      return <RecycleBinWindow windowId={window.id} />;
+    case "mediaplayer":
+      return (
+        <MediaPlayerWindow
+          windowId={window.id}
+          file={window.file}
+          launches={window.launches}
+          stream={window.stream}
+        />
+      );
     case "dialup":
       return <DialUpWindow windowId={window.id} then={window.then} />;
     case "friends":

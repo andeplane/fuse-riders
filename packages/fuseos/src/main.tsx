@@ -40,6 +40,12 @@ import type { SoundAudioContext } from "./sounds/soundService";
 import { documentGestures, WebAudioSoundService } from "./sounds/soundService";
 import { loadSynth } from "./sounds/synth";
 import { LocalStorageStateStore } from "./state/stateStore";
+import { parseFoldParam, withoutFoldParam } from "./system32/demoTrigger";
+import type { System32Deps } from "./system32/system32Deps";
+import {
+  defaultSystem32Deps,
+  System32DepsContext,
+} from "./system32/system32Deps";
 import { WEBAMP_OPTIONS } from "./winamp/webampLayout";
 import type { WinampDeps } from "./winamp/winampDepsContext";
 import {
@@ -76,6 +82,17 @@ if (!redirect && initialOpen.length > 0)
     "",
     withoutOpenParam(window.location.href),
   );
+
+// `?fold=now|stage:N|bsod` plays the SYSTEM32 gag for a demo or a screenshot; dropped from the
+// address the same way so the fake restart, or a reload, boots a healthy desktop.
+const foldDemo = parseFoldParam(search);
+if (foldDemo)
+  window.history.replaceState(
+    window.history.state,
+    "",
+    withoutFoldParam(window.location.href),
+  );
+const system32Deps: System32Deps = { ...defaultSystem32Deps, demo: foldDemo };
 
 // Winamp (queued, not playing) and Fusteam, the game launcher, open on every boot, Fusteam focused; the deep
 // link's windows land on top of them.
@@ -137,11 +154,13 @@ export function mountFuseOs(container: HTMLElement): void {
             <SoundServiceContext.Provider value={sounds}>
               <PresenceServiceContext.Provider value={presence}>
                 <FriendsDepsContext.Provider value={friendsDeps}>
-                  <Y2kDepsContext.Provider value={y2kDeps}>
-                    <MircDepsContext.Provider value={browserMircDeps()}>
-                      <App store={store} initialOpen={initialOpen} />
-                    </MircDepsContext.Provider>
-                  </Y2kDepsContext.Provider>
+                  <System32DepsContext.Provider value={system32Deps}>
+                    <Y2kDepsContext.Provider value={y2kDeps}>
+                      <MircDepsContext.Provider value={browserMircDeps()}>
+                        <App store={store} initialOpen={initialOpen} />
+                      </MircDepsContext.Provider>
+                    </Y2kDepsContext.Provider>
+                  </System32DepsContext.Provider>
                 </FriendsDepsContext.Provider>
               </PresenceServiceContext.Provider>
             </SoundServiceContext.Provider>

@@ -1,4 +1,5 @@
 import { OfficeAssistant } from "../assistant/OfficeAssistant";
+import { RecycleBinDesktopIcon } from "../recyclebin/RecycleBinDesktopIcon";
 import { FriendsTray } from "../friends/FriendsTray";
 import { useTaskManagerShortcut } from "../taskmanager/useTaskManagerShortcut";
 import { ContextMenu } from "../windows/ContextMenu";
@@ -45,7 +46,9 @@ export function Desktop() {
       }}
     >
       <div
-        className="absolute bottom-7 left-2 top-2 flex flex-col flex-wrap content-start"
+        className="absolute left-2 top-2 flex flex-col flex-wrap content-start"
+        // The grid stops one cell above the taskbar: that cell at the bottom left is the Recycle Bin's.
+        style={{ bottom: 28 + vm.iconSpacingY }}
         role="list"
         aria-label="Desktop icons"
       >
@@ -74,6 +77,7 @@ export function Desktop() {
           </div>
         ))}
       </div>
+      <RecycleBinDesktopIcon />
       <div className="pointer-events-none absolute inset-0 bottom-7">
         <WindowHost windows={vm.windows} activeId={vm.activeId} />
       </div>
