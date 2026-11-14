@@ -24,12 +24,12 @@ async function inside(page: Page, locator: Locator) {
     `Control outside ${v.width}x${v.height}: ${JSON.stringify(r)}`,
   );
 }
+// The landing's attract scene and the room's arena each draw through Phaser onto their own canvas.
 async function ready(page: Page) {
   await page.waitForFunction(() =>
-    document
-      .querySelector(".fui-main-menu")
-      ?.getAttribute("data-renderer")
-      ?.startsWith("phaser-"),
+    [...document.querySelectorAll("canvas")].some((canvas) =>
+      canvas.dataset.renderer?.startsWith("phaser-"),
+    ),
   );
 }
 async function frames(page: Page) {

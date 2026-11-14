@@ -103,11 +103,12 @@ try {
         const modes = room.locator(".fui-room-modes");
         await modes.waitFor();
         const buttons = modes.getByRole("button");
-        assert.equal(await buttons.count(), game === "fuse-volley" ? 2 : 3);
+        // Fuse Volley: DUEL, 2 V 2, 3 V 3 and 2 V 2 V 2; the others have three. Every last mode seats six.
+        assert.equal(await buttons.count(), game === "fuse-volley" ? 4 : 3);
         await buttons.last().click();
         await room
           .locator(".fui-room-count")
-          .filter({ hasText: game === "fuse-volley" ? "0 / 4" : "0 / 6" })
+          .filter({ hasText: "0 / 6" })
           .waitFor();
         await buttons.first().click();
         await room
