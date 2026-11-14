@@ -1,0 +1,243 @@
+/*
+ * The "delete SYSTEM32" gag. Every rule hangs off a class System32Provider puts on `.s32-root`,
+ * the element it renders around the desktop; remove the class and the desktop is as it was.
+ * Selectors target the desktop's stable ARIA names rather than its Tailwind classes.
+ */
+.s32-root {
+  position: relative;
+  height: 100%;
+  width: 100%;
+}
+
+/* Icons fade one by one, then all at once. */
+.s32-folding [aria-label="Desktop icons"] > [role="listitem"] {
+  transition: opacity 1.2s ease;
+}
+
+.s32-icons-1 [aria-label="Desktop icons"] > [role="listitem"]:nth-child(1),
+.s32-icons-2 [aria-label="Desktop icons"] > [role="listitem"]:nth-child(-n + 2),
+.s32-icons-3 [aria-label="Desktop icons"] > [role="listitem"]:nth-child(-n + 3),
+.s32-icons-all [aria-label="Desktop icons"] > [role="listitem"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Comic Sans everywhere the Win98 font went. */
+.s32-comic-sans .win98,
+.s32-comic-sans .win98 button,
+.s32-comic-sans .win98 label,
+.s32-comic-sans .win98 input,
+.s32-comic-sans .win98 select,
+.s32-comic-sans .win98 textarea,
+.s32-comic-sans .win98 .title-bar-text,
+.s32-comic-sans .win98 .window-body {
+  font-family:
+    "Comic Sans MS", "Comic Neue", "Chalkboard SE", cursive !important;
+}
+
+/* The Start button wobbles on its base. */
+.s32-start-wobble [aria-label="Taskbar"] > button:first-child {
+  animation: s32-wobble 0.9s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+
+@keyframes s32-wobble {
+  0%,
+  100% {
+    transform: rotate(-6deg);
+  }
+  50% {
+    transform: rotate(6deg);
+  }
+}
+
+/* Clippy looks alarmed: shaking, flushed. */
+.s32-assistant-alarmed [aria-label="Office Assistant"] {
+  animation: s32-shake 0.25s linear infinite;
+  filter: hue-rotate(-40deg) saturate(1.6);
+}
+
+@keyframes s32-shake {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  25% {
+    transform: translate(-2px, 1px) rotate(-3deg);
+  }
+  50% {
+    transform: translate(2px, -1px) rotate(3deg);
+  }
+  75% {
+    transform: translate(-1px, 2px) rotate(-2deg);
+  }
+  100% {
+    transform: translate(1px, -2px) rotate(2deg);
+  }
+}
+
+/* The whole desktop leans, then flickers. */
+.s32-tilt .desktop {
+  /* Pivots on the Start button's corner so the taskbar stays in view; the wedge it uncovers is the black root. */
+  transform: rotate(-1.2deg);
+  transform-origin: 0 100%;
+  transition: transform 1.5s ease;
+}
+
+.s32-tilt {
+  background: #000;
+}
+
+.s32-flicker .desktop {
+  animation: s32-flicker 0.5s steps(2, jump-none) infinite;
+}
+
+@keyframes s32-flicker {
+  0% {
+    filter: none;
+  }
+  50% {
+    filter: invert(1) hue-rotate(180deg);
+  }
+  100% {
+    filter: none;
+  }
+}
+
+/* What the stage says, bottom left above the taskbar. */
+.s32-caption {
+  position: absolute;
+  left: 12px;
+  bottom: 40px;
+  z-index: 60;
+  margin: 0;
+  max-width: 320px;
+  padding: 6px 10px;
+  background: #ffffe1;
+  border: 1px solid #000;
+  box-shadow: 2px 2px 0 #808080;
+  animation: s32-caption-in 0.3s ease-out;
+}
+
+@keyframes s32-caption-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The questions. */
+.s32-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.s32-confirm {
+  width: 360px;
+  max-width: calc(100vw - 32px);
+}
+
+/* The blue screen and the restart. */
+.s32-bsod,
+.s32-restart {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  margin: 0;
+  overflow: hidden;
+}
+
+.s32-bsod {
+  background: #0000aa;
+  color: #fff;
+  font-family: "Lucida Console", "Courier New", monospace;
+  font-size: 15px;
+  line-height: 1.35;
+  padding: 48px 56px;
+  cursor: pointer;
+}
+
+.s32-bsod:focus {
+  outline: none;
+}
+
+.s32-bsod p {
+  margin: 0 0 1em;
+  max-width: 72ch;
+}
+
+.s32-bsod-title {
+  display: inline-block;
+  background: #aaa;
+  color: #0000aa;
+  padding: 0 8px;
+}
+
+.s32-bsod-hint {
+  animation: s32-blink 1.2s steps(1) infinite;
+}
+
+/* Off for the last quarter of each cycle: a blink, not a strobe. */
+@keyframes s32-blink {
+  75% {
+    opacity: 0;
+  }
+}
+
+.s32-restart {
+  background: #000;
+  color: #c0c0c0;
+  font-family: "Lucida Console", "Courier New", monospace;
+  font-size: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.s32-restart p {
+  margin: 0;
+}
+
+.s32-restart-sub {
+  font-size: 12px;
+  color: #808080;
+}
+
+.s32-restart-bar {
+  margin-top: 16px;
+  width: 240px;
+  height: 14px;
+  border: 1px solid #c0c0c0;
+  padding: 1px;
+}
+
+.s32-restart-fill {
+  height: 100%;
+  width: 0;
+  background: #0000aa;
+  animation: s32-fill 2.3s linear forwards;
+}
+
+@keyframes s32-fill {
+  to {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s32-start-wobble [aria-label="Taskbar"] > button:first-child,
+  .s32-assistant-alarmed [aria-label="Office Assistant"],
+  .s32-flicker .desktop,
+  .s32-bsod-hint {
+    animation: none;
+  }
+}

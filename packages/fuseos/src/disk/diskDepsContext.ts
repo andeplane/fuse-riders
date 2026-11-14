@@ -15,6 +15,17 @@ export type DiskDeps = {
   jokeGate: FloppyJokeGate;
   /** Opening A: waits for this (the drive seeking; the noise is the "floppy" system sound) before showing the listing. */
   floppySeek: () => Promise<void>;
+  /** The network password box holds "Connecting..." and then "Access granted" this long each. */
+  logonPause: (step: LogonStep) => Promise<void>;
+};
+
+/** The two beats of a successful network logon. */
+export type LogonStep = "connecting" | "granted";
+
+/** How long each beat lasts in the app, in milliseconds. */
+export const LOGON_PAUSE_MS: Record<LogonStep, number> = {
+  connecting: 1400,
+  granted: 900,
 };
 
 /** Where the build wrote the manifest: beside the site, under its base. */
@@ -36,6 +47,10 @@ export function defaultDiskDeps(): DiskDeps {
         : new MemoryDiskOverlay(),
     jokeGate: new MemoryFloppyJokeGate(),
     floppySeek: createFloppySeek(),
+    logonPause: (step) =>
+      new Promise((resolve) => {
+        window.setTimeout(resolve, LOGON_PAUSE_MS[step]);
+      }),
   };
   return production;
 }

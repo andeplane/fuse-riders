@@ -1,4 +1,5 @@
 import {
+  isRunChord,
   keysFor,
   matchShortcut,
   SHORTCUTS,
@@ -47,6 +48,7 @@ describe("SHORTCUTS", () => {
       "desktop.openSubmenu",
       "desktop.closeSubmenu",
       "desktop.chooseMenuItem",
+      "desktop.run",
     ]);
   });
 });
@@ -278,5 +280,29 @@ describe(matchShortcut.name, () => {
         "nope.nothing",
       ),
     ).toThrow(/nope.nothing/);
+  });
+});
+
+describe(isRunChord.name, () => {
+  const chord = {
+    key: "r",
+    ctrlKey: false,
+    metaKey: true,
+    shiftKey: false,
+    altKey: false,
+  };
+
+  it("is the Windows key with R, in either case, and nothing else with it", () => {
+    expect(isRunChord(chord, false)).toBe(true);
+    expect(isRunChord({ ...chord, key: "R" }, false)).toBe(true);
+    expect(isRunChord({ ...chord, key: "e" }, false)).toBe(false);
+    expect(isRunChord({ ...chord, metaKey: false }, false)).toBe(false);
+    expect(isRunChord({ ...chord, ctrlKey: true }, false)).toBe(false);
+    expect(isRunChord({ ...chord, shiftKey: true }, false)).toBe(false);
+    expect(isRunChord({ ...chord, altKey: true }, false)).toBe(false);
+  });
+
+  it("is never the chord on an Apple device, where Cmd+R reloads the page", () => {
+    expect(isRunChord(chord, true)).toBe(false);
   });
 });

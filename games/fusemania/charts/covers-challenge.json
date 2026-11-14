@@ -1,0 +1,79 @@
+{
+  "about": "Each cover's Challenge aims at its original's hardest chart in the DDR/ITG packs: steps per second and meter.",
+  "afronova": {
+    "original": "DDR 3rd Mix Plus: AFRONOVA, Heavy",
+    "nps": 4.67,
+    "meter": 13
+  },
+  "afronova-radio-edit": {
+    "original": "DDR 3rd Mix Plus: AFRONOVA, Heavy",
+    "nps": 4.67,
+    "meter": 13
+  },
+  "burning-heat": {
+    "original": "DDRMAX2: BURNING HEAT! (3 Option MIX), Heavy",
+    "nps": 4.95,
+    "meter": 13
+  },
+  "cant-stop-fallin-in-love": {
+    "original": "DDR 4th Mix: CAN'T STOP FALLIN' IN LOVE, Heavy",
+    "nps": 3.8,
+    "meter": 11
+  },
+  "candy": { "original": "DDRMAX: CANDY☆, Heavy", "nps": 4.02, "meter": 11 },
+  "electro-tuned": {
+    "original": "DDR 5th Mix: Electro Tuned (the SubS Mix), Heavy",
+    "nps": 3.78,
+    "meter": 12
+  },
+  "exotic-ethnic": {
+    "original": "DDRMAX: exotic ethnic, Heavy",
+    "nps": 4.95,
+    "meter": 13
+  },
+  "paranoia-survivor-max": {
+    "original": "DDR Extreme: PARANOIA survivor MAX, Challenge",
+    "nps": 7.24,
+    "meter": 16
+  },
+  "rain-of-sorrow": {
+    "original": "DDRMAX2: rain of sorrow, Heavy",
+    "nps": 3.75,
+    "meter": 12
+  },
+  "rain-of-sorrow-night-mix": {
+    "original": "DDRMAX2: rain of sorrow, Heavy",
+    "nps": 3.75,
+    "meter": 12
+  },
+  "the-legend-of-max": {
+    "original": "DDR Extreme: The legend of MAX, Heavy",
+    "nps": 5.98,
+    "meter": 15
+  },
+  "the-least-100sec": {
+    "original": "DDR Extreme: The Least 100sec, Heavy",
+    "nps": 4.88,
+    "meter": 12
+  },
+  "xenon": {
+    "original": "DDR Extreme: xenon, Heavy",
+    "nps": 4.78,
+    "meter": 13
+  },
+  "determinator": {
+    "original": "In The Groove 2: Determinator, Challenge",
+    "nps": 6.26,
+    "meter": 12
+  },
+  "monolith": {
+    "original": "In The Groove 2: Monolith, Challenge",
+    "nps": 6.55,
+    "meter": 11
+  },
+  "temple-of-boom": {
+    "original": "In The Groove 2: Temple of Boom, Challenge",
+    "nps": 5.01,
+    "meter": 10
+  }
+}
