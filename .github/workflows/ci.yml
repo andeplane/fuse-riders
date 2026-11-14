@@ -1,8 +1,8 @@
 name: CI
-# The pull-request gate, kept under about two minutes. Main pushes run this same workflow twice: cd.yml calls
-# it for the gate alone, which both deployments wait for, and suite.yml calls it with `release` for the heavy
-# suite (coverage, the browser matrix and the whole-recording replays at full stride), which runs beside the
-# deployment. A pull request runs that suite too only when labelled `full-ci`.
+# The pull-request gate, kept under about two minutes. cd.yml calls this same workflow for every main push, for
+# the gate alone, which both deployments wait for. suite.yml calls it with `release` once a week for the heavy
+# suite (coverage, the browser matrix and the whole-recording replays at full stride). A pull request runs that
+# suite too only when labelled `full-ci`.
 on:
   pull_request:
     # `labeled` is not a default type: without it, adding `full-ci` to an open pull
@@ -11,7 +11,7 @@ on:
     types: [opened, synchronize, reopened, labeled, unlabeled]
   # A dispatch runs the release jobs too.
   workflow_dispatch:
-  # cd.yml (the gate) and suite.yml (`release: true`, the gate and then the release jobs).
+  # cd.yml (the gate) and suite.yml (`release: true`, the gate and then the release jobs, weekly).
   workflow_call:
     inputs:
       release:
@@ -35,8 +35,8 @@ jobs:
   # What sets this gate's wall clock is mostly not its work. Measured over 25 green pull-request runs
   # (2026-10-11..17): the jobs' own work ended about 100-130 s after the run started, but `verify` finished at a
   # median of about 600 s and up to 40 minutes, because each job first waits for a runner. The account has about
-  # 20 runners, shared with every other pull request and with main's release jobs, about 25 jobs per main push.
-  # So suite.yml runs one main push at a time, its release jobs wait for this gate and the browser matrix is
+  # 20 runners, shared with every other pull request and with the release jobs, about 25 jobs per run.
+  # So suite.yml runs one suite at a time, its release jobs wait for this gate and the browser matrix is
   # capped (`max-parallel`), leaving runners free for pull requests; and this gate is shaped to need as few
   # runner slots and runner-seconds as it can for the same checks:
   #
@@ -109,8 +109,8 @@ jobs:
       TEST_TIMINGS_OUT: artifacts/test-timings-${{ matrix.shard }}.json
       # The two whole-recording replays fold all 15,776 ticks either way; on the gate (a pull request, and
       # cd.yml's run for a main push) they check one tick in ten instead of every one, which is a quarter of
-      # the time. suite.yml, a dispatch and the release suite leave this at 1 and check every tick. See
-      # games/fuse-riders/tests/fixtures/replay-budget.ts.
+      # the time; a `full-ci` pull request does too. suite.yml, a dispatch and the local release suite leave
+      # this at 1 and check every tick. See games/fuse-riders/tests/fixtures/replay-budget.ts.
       FUSE_REPLAY_STRIDE: ${{ (inputs.release || github.event_name == 'workflow_dispatch') && '1' || '10' }}
     steps:
       - uses: actions/checkout@v4
@@ -163,7 +163,7 @@ jobs:
             test "$PROOF" = "success success" || { echo "::error::The release jobs did not pass (coverage, e2e: $PROOF)."; exit 1; }
           fi
 
-  # The release jobs: coverage and the browser matrix. suite.yml runs them for main pushes, after the gate above
+  # The release jobs: coverage and the browser matrix. suite.yml runs them weekly on main, after the gate above
   # passed, and a pull request runs them only when labelled `full-ci`.
   coverage-unit:
     needs: [checks, unit]
@@ -271,8 +271,8 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # The browser matrix. It runs for main pushes (suite.yml) rather than in front of every push to a
-  # pull request. Deployment does not wait for it: backend.yml (and Pages after it) gates on cd.yml's
+  # The browser matrix. It runs weekly on main (suite.yml) rather than in front of every push to a
+  # pull request or to main. Deployment does not wait for it: backend.yml (and Pages after it) gates on cd.yml's
   # gate alone, so a failure here is found after the release and fixed forward.
   #
   # Run it on a pull request before merging, for a change to the renderer, the online runtime,
@@ -325,8 +325,8 @@ jobs:
       # scripts/ci-smoke.sh comments on the `flaky-test` issue when a smoke on main passes only on retry.
       issues: write
     env:
-      # Only main pushes report flakes to the issue, so pull-request smoke code never sees an issue-writing token.
-      GH_TOKEN: ${{ github.event_name == 'push' && github.token || '' }}
+      # Only runs on main (the weekly suite, a dispatch) report flakes to the issue, so pull-request smoke code never sees an issue-writing token.
+      GH_TOKEN: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.token || '' }}
       # A two-core runner drives several browser contexts at once, some on software GL, so the
       # deadlines these smokes were written against are not deadlines here: three different steps
       # timed out on three consecutive runs whose code was fine. Scaling them keeps every assertion

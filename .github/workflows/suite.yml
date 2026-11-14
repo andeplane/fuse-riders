@@ -1,16 +1,13 @@
 name: Release suite
-# The heavy suite for main pushes: ci.yml with its release jobs on (coverage, the whole browser matrix) and the
-# whole-recording replays at full stride. It runs beside the deployment, which waits only for cd.yml's gate, so a
-# failure here does not withhold a release: it is a red run on main to fix forward. A pull request runs the same
-# jobs when labelled `full-ci`.
-#
-# One run at a time, newest commit wins: while a run is going, a further push waits, and a still newer push
-# replaces the waiting one. The newest commit contains every older one, so the run that goes ahead covers them
-# all. That keeps the suite to one run's worth of runners however fast main moves, so pull requests' gates are
-# not queued behind it.
+# The heavy suite: ci.yml with its release jobs on (coverage, the whole browser matrix) and the whole-recording
+# replays at full stride, run against main once a week and on a dispatch. It gates nothing: a deployment waits
+# only for cd.yml's gate, so a failure here is a regression that is already live, to fix forward. A pull request
+# runs the same jobs before it merges when labelled `full-ci`.
 on:
-  push:
-    branches: [main]
+  schedule:
+    # Mondays 04:00 UTC. A scheduled run uses main's head.
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
@@ -18,6 +15,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   ci:
+    # A dispatch from another branch has `full-ci` on its pull request for that.
+    if: github.ref == 'refs/heads/main'
     uses: ./.github/workflows/ci.yml
     with:
       release: true

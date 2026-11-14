@@ -25,7 +25,7 @@ const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
 const cd = readFileSync(".github/workflows/cd.yml", "utf8");
 const local = readFileSync("scripts/ci-local.sh", "utf8");
 /**
- * When the release jobs (coverage and the browser matrix) run: suite.yml's call (`release: true`), a dispatch,
+ * When the release jobs (coverage and the browser matrix) run: suite.yml's weekly call (`release: true`), a dispatch,
  * or a pull request with `full-ci`. Not cd.yml's call: the gate a deployment waits for is the gate alone.
  */
 const RELEASE =
@@ -246,7 +246,7 @@ test("verify passes a pull request on the gate alone, and a release run only wit
   );
 });
 
-test("a main push is gated by CD, deployed beside it and proven by the release suite afterwards", () => {
+test("a main push is gated by CD and deployed beside it, and the release suite runs weekly", () => {
   const on = workflow.slice(
     workflow.indexOf("\non:\n"),
     workflow.indexOf("\npermissions:\n"),
@@ -292,13 +292,25 @@ test("a main push is gated by CD, deployed beside it and proven by the release s
   assert.ok(calls(cd));
   assert.doesNotMatch(cd, /release: true/, "CD must stay the gate alone");
 
-  // The release suite: the same workflow with the release jobs, beside the deployment. One running, at most
-  // one waiting: a newer push replaces the waiting run, never the running one.
+  // The release suite: the same workflow with the release jobs, on a weekly schedule and on a dispatch, for
+  // main only. It is not a push workflow: nothing waits for it.
   const suite = readFileSync(".github/workflows/suite.yml", "utf8");
-  assert.match(suite, /^ {2}push:\n {4}branches: \[main\]$/m);
+  assert.match(
+    suite,
+    /^ {2}schedule:\n(?: {4}#.*\n)* {4}- cron: "\d+ \d+ \* \* \d"$/m,
+  );
+  assert.match(suite, /^ {2}workflow_dispatch:$/m);
+  assert.doesNotMatch(suite, /^ {2}push:/m);
+  assert.ok(suite.includes("    if: github.ref == 'refs/heads/main'\n"));
   assert.match(
     suite,
     /^concurrency:\n {2}group: release-suite\n {2}cancel-in-progress: false$/m,
+  );
+  // Flakes are reported from main's runs only, so pull-request smoke code never sees an issue-writing token.
+  assert.ok(
+    job("smoke").includes(
+      "      GH_TOKEN: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.token || '' }}\n",
+    ),
   );
   assert.ok(calls(suite));
   assert.ok(suite.includes("    with:\n      release: true\n"));
@@ -333,7 +345,7 @@ test("a main push is gated by CD, deployed beside it and proven by the release s
   );
   assert.ok(
     deploy.includes(
-      '  [[ "$ci_result" == success ]] || { echo "CD for $revision is $ci_result; refusing unchecked deployment." >&2; exit 1; }\n  echo "CD gate',
+      '  [[ "$ci_result" == success ]] || refuse_gate "CD for $revision is $ci_result"\n  echo "CD gate',
     ),
     "the gate must end in success and nothing else",
   );

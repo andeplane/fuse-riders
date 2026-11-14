@@ -5,11 +5,11 @@ name: CD
 # changes anything in production (scripts/deploy-cloud.sh); Pages follows the backend.
 #
 # The heavy suite (coverage, the whole browser matrix, the whole-recording replays at full stride) is
-# suite.yml's. It runs for the same push but beside the deployment, not in front of it: a red suite is a
-# regression to fix forward, not a withheld release.
+# suite.yml's. It runs against main once a week, not in front of a deployment: a red suite is a regression
+# to fix forward, not a withheld release.
 #
 # One run per commit, and none replaces another: backend.yml waits for the run of its own commit, so a run
-# cancelled for a newer push would fail that commit's deployment for nothing. The gate is six short jobs.
+# cancelled for a newer push would fail that commit's deployment for nothing. The gate is seven short jobs.
 on:
   push:
     branches: [main]

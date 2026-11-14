@@ -33,8 +33,8 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
 fi
 revision="$(git rev-parse HEAD)"
 repository="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
-# Still on main, not necessarily its head: CD takes longer than the gap between merges, so demanding the
-# head refused almost every verified revision and nothing deployed at all. A newer commit's own deployment
+# Still on main, not necessarily its head: main can move again while a deployment runs, and demanding the
+# head then refused verified revisions and nothing deployed at all. A newer commit's own deployment
 # supersedes this one, and the cloud-run-gateway concurrency group serialises them.
 ancestry="$(gh api "repos/$repository/compare/$revision...main" --jq .status)"
 [[ "$ancestry" == identical || "$ancestry" == ahead ]] || { echo "Revision $revision is not on main ($ancestry); refusing to deploy it." >&2; exit 1; }
@@ -58,19 +58,27 @@ else
   # for the gate before configuration is applied or Cloud Run is rolled.
   [[ "$ci_result" == success || "$ci_result" == pending || "$ci_result" == null ]] || { echo "CD for $revision is $ci_result; refusing unchecked deployment." >&2; exit 1; }
 fi
-# Waits for this revision's gate and refuses anything but success. A run that never appears gets two minutes, a
-# running gate fifteen (it takes about two); both are far inside backend.yml's own timeout.
+# Stops a deployment whose gate did not pass, and the image build submitted for it: nothing will use that image.
+refuse_gate() {
+  echo "$1; refusing unchecked deployment." >&2
+  [[ -z "${build_id:-}" ]] || gcloud builds cancel "$build_id" --project="$PROJECT_ID" --region="$GCP_REGION" >/dev/null 2>&1 || true
+  exit 1
+}
+# Waits for this revision's gate and refuses anything but success. A run that never appears gets two minutes. A
+# running gate gets forty: its work is about two, but its jobs queue for runners first, and that has taken tens
+# of minutes on a busy day. Both are inside backend.yml's own timeout. A failed read of the run counts as still
+# pending, so one API error does not lose a deployment and the caps still end the wait.
 require_gate() {
   [[ "$source_verification" == local ]] && return 0
   local waited=0
   while [[ "$ci_result" == pending || "$ci_result" == null ]]; do
-    if [[ "$ci_result" == null && $waited -ge 120 ]] || [[ $waited -ge 900 ]]; then
-      echo "CD for $revision is still $ci_result after ${waited}s; refusing unchecked deployment." >&2; exit 1
+    if [[ "$ci_result" == null && $waited -ge 120 ]] || [[ $waited -ge 2400 ]]; then
+      refuse_gate "CD for $revision is still $ci_result after ${waited}s"
     fi
     sleep 10; waited=$((waited + 10))
-    ci_result="$(cd_result)"
+    ci_result="$(cd_result || echo pending)"
   done
-  [[ "$ci_result" == success ]] || { echo "CD for $revision is $ci_result; refusing unchecked deployment." >&2; exit 1; }
+  [[ "$ci_result" == success ]] || refuse_gate "CD for $revision is $ci_result"
   echo "CD gate for $revision passed (waited ${waited}s)."
 }
 export source_verification LOCAL_VERIFICATION_NOTE="${LOCAL_VERIFICATION_NOTE:-}"
