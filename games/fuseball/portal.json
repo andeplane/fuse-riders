@@ -3,5 +3,6 @@
   "screenshot": "gallery/fuseball.jpg",
   "tagline": "Bubble-bumping neon ball: duel, 2v2, 3v3",
   "mark": "FB",
-  "accent": "#ffe46b"
+  "accent": "#ffe46b",
+  "order": 4
 }
