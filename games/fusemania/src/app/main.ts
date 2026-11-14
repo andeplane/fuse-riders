@@ -629,7 +629,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   const pauseClock = createPauseClock(() => performance.now());
   /** Stops a solo song that is playing, and takes the pause away without a count-in. */
   let pause = () => {},
-    unpause = () => {};
+    unpause = (_leaving = false) => {};
   /** When a menu last closed: the Escape that closed it is not also a pause key. */
   let menuClosedAt = Number.NEGATIVE_INFINITY;
   const menuMoved = (open: boolean) => {
@@ -641,7 +641,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   const menu = createGameMenu({
     ...guide(),
     onLobby: () => {
-      unpause();
+      unpause(true);
       runtime.command({ type: "action", action: "lobby" });
     },
     onLeave: leave,
@@ -1161,6 +1161,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   };
   // ---- the pause ----
   /** The song time the picture stands at while paused, and when RESUME's count-in ends (0: none is running). */
+  /** A paused song was given up: it stays silent and still until the room has left it. */
+  let leavingSong = false;
   let pausedMs = 0,
     resumeAt = 0;
   const pausable = () =>
@@ -1168,7 +1170,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   pause = () => {
     if (pauseClock.paused || !pausable()) return;
     letGoAll();
-    pausedMs = songClock.songMs();
+    // Before the song clock has the room's position it reads 0: the room's own is the one to stand at.
+    pausedMs = songClock.songMs() || (runtime.songMs() ?? 0);
     pauseClock.pause();
     // The song stops where it is; RESUME starts it again on the room's clock.
     songClock.stop();
@@ -1179,7 +1182,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     pauseCard.hidden = false;
     pauseResume.focus();
   };
-  unpause = () => {
+  unpause = (leaving = false) => {
+    leavingSong = leaving && pauseClock.paused;
     resumeAt = 0;
     pauseCard.hidden = true;
     pauseClock.resume();
@@ -1195,7 +1199,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   pauseButton.onclick = () => pause();
   pauseResume.onclick = resume;
   pauseSelect.onclick = () => {
-    unpause();
+    unpause(true);
     runtime.command({ type: "action", action: "lobby" });
   };
   const latencyBox = new URLSearchParams(location.search).has("latency")
@@ -1220,7 +1224,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     startedSilent = false,
     heardEpoch = -1;
   pauseRestart.onclick = () => {
-    unpause();
+    unpause(true);
     // START is refused while the match runs: it is sent once the room is back at the song select.
     runtime.command({ type: "action", action: "lobby" });
     restarting = true;
@@ -1247,11 +1251,15 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       else setText(pauseCount, resumeCount(resumeAt - now));
     }
     // A paused song is silent and stays where it stood: it is not followed until the clock runs again.
-    if (!pauseClock.paused) songClock.follow(roomMs, song);
+    if (leavingSong && state?.stage !== "running") leavingSong = false;
+    const still = pauseClock.paused || leavingSong;
+    if (!still) songClock.follow(roomMs, song);
     pauseButton.hidden =
       pauseClock.paused || !pausable() || !coarse() || display;
     if (restarting && state?.stage === "lobby") {
       restarting = false;
+      // Should START be refused, the song select it was hidden behind is there again.
+      lobby.hidden = model?.screen !== "lobby";
       runtime.command({ type: "action", action: "start" });
     }
     if (!model || model.screen === "lobby" || !world) {
@@ -1283,7 +1291,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     }
     const heard = !running
       ? world.ms
-      : pauseClock.paused
+      : still
         ? pausedMs
         : songClock.songMs(now);
     const view = runtime.picture(heard - prefs.offsetMs);
