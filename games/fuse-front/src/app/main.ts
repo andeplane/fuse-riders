@@ -1,3 +1,4 @@
+import { createTopBar } from "fuse-ui";
 import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import { startGameAnalytics } from "fuse-ui/play-metrics";
@@ -144,9 +145,20 @@ function header(): HTMLElement {
     brand,
     social.element(),
     el("span", "", "ff-top-gap"),
-    ...sound.toggles(),
   );
-  return top;
+  return createTopBar({
+    element: top,
+    gameId: GAME_ID,
+    sound: {
+      enabled: () => audio.enabled("music") || audio.enabled("effects"),
+      forcedMute: params.has("mute"),
+      setEnabled: (on) => {
+        audio.set("music", on);
+        audio.set("effects", on);
+        if (on) audio.unlock();
+      },
+    },
+  });
 }
 
 function landing(error = ""): void {

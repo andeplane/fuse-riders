@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseHTML } from "linkedom";
+import { createTopBar } from "fuse-ui";
 import type { Callbacks, Frame, RoomCommand } from "fuse-netcode";
 import type { PlayFrame } from "fuse-ui/play-metrics";
 import {
@@ -349,6 +350,15 @@ function screen(online = true, display = false, shared = false, fail = "") {
     },
   };
   const destroy = mountGame(root, options);
+  createTopBar({
+    element: root.querySelector<HTMLElement>("header")!,
+    sound: {
+      enabled: () => !options.audio.muted,
+      setEnabled: (on) => {
+        options.audio.muted = !on;
+      },
+    },
+  });
   return {
     root,
     document,
@@ -475,10 +485,12 @@ test("room screen follows lobby, own identity, controls, corrected results, rema
   assert.deepEqual(s.inputs.at(-1), [0, 1, false]);
   s.events.dispatchEvent(new Event("blur"));
   assert.deepEqual(s.inputs.at(-1), [0, 0, false]);
-  s.key("Space", "keydown", button(s.root, "SOUND OFF"));
+  const sound = s.root.querySelector<HTMLButtonElement>(".fui-top-bar-sound")!;
+  assert.equal(sound.getAttribute("aria-label"), "Sound off");
+  s.key("Space", "keydown", sound);
   assert.deepEqual(s.inputs.at(-1), [0, 0, false]);
-  button(s.root, "SOUND OFF").click();
-  assert.ok(button(s.root, "SOUND ON"));
+  sound.click();
+  assert.equal(sound.getAttribute("aria-label"), "Sound on");
   s.key("Space");
   assert.deepEqual(s.inputs.at(-1), [0, 0, true]);
   s.key("Space", "keyup");

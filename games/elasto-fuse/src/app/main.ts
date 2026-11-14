@@ -16,6 +16,7 @@ import "fuse-ui/game-audio.css";
 import { safeStorage } from "fuse-ui/safe-storage";
 import "./elasto-fuse.css";
 import QRCode from "qrcode";
+import { createTopBar } from "fuse-ui";
 import {
   PeerTransport,
   createEndpoints,
@@ -211,7 +212,11 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     audioControl.element,
     ...extra,
   );
-  return bar;
+  return createTopBar({
+    element: bar,
+    gameId: GAME,
+    sound: audioControl.sound,
+  });
 }
 
 function keyHelp(): HTMLElement {
@@ -358,6 +363,17 @@ function room(solo: boolean): void {
     status.element,
     menu.element,
   ]);
+  createTopBar({
+    element: top,
+    onOpenChange: (open) => {
+      if (open) {
+        letGoAll();
+        gamepads.letGo();
+        captured.clear();
+      }
+    },
+  });
+  const modalOpen = () => Boolean(document.querySelector("dialog[open]"));
 
   // Lobby: the invitation and the riders on one side, the level and START on the other.
   let settings: Settings = { ...DEFAULT_SETTINGS };
@@ -657,7 +673,7 @@ function room(solo: boolean): void {
   const frame = (now: number) => {
     // Asked first, so one bad frame cannot stop the drawing for good.
     if (!over) requestAnimationFrame(frame);
-    gamepads.poll(!menu.isOpen() && !document.hidden && !over);
+    gamepads.poll(!menu.isOpen() && !modalOpen() && !document.hidden && !over);
     const view = stage.hidden && controller.hidden ? undefined : picture();
     if (!view || !model) {
       sfx.engine(0, false, false);
@@ -681,7 +697,10 @@ function room(solo: boolean): void {
       sfx.engine(
         drawn.rev,
         drawn.gas,
-        local !== -1 && view.phase === "racing" && !menu.isOpen(),
+        local !== -1 &&
+          view.phase === "racing" &&
+          !menu.isOpen() &&
+          !modalOpen(),
       );
     }
     for (const cue of cues) {
@@ -980,6 +999,7 @@ function room(solo: boolean): void {
   document.addEventListener("keydown", (event) => {
     if (
       menu.isOpen() ||
+      modalOpen() ||
       typing(event.target) ||
       event.metaKey ||
       event.ctrlKey ||

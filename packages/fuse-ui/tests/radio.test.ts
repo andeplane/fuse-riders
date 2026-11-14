@@ -29,6 +29,24 @@ function player() {
     },
   };
 }
+test("master mute pauses an opted-in radio and unmute resumes without changing its selection", () => {
+  const { document } = page(),
+    p = player();
+  const radio = createRadio(document, "/", p.media);
+  radio.element.querySelector("button")!.click();
+  const selected = p.media.src;
+  radio.setMuted(true);
+  assert.equal(p.pauses, 1);
+  radio.setMuted(false);
+  assert.equal(p.plays, 2);
+  assert.equal(p.media.src, selected);
+  radio.destroy();
+  const preview = createRadio(document, "/", p.media, true);
+  preview.setMuted(false);
+  preview.element.querySelector("button")!.click();
+  assert.equal(p.plays, 2);
+  preview.destroy();
+});
 test("radio is opt-in, uses base path/catalog, adjusts volume, pauses and tears down", () => {
   const { document, window } = page(),
     p = player(),

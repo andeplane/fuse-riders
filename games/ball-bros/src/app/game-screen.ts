@@ -70,20 +70,6 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
     options.online ? `ROOM ${options.online.code}` : "SOLO + 4 BOTS",
     "eyebrow",
   );
-  const sound = el(
-    "button",
-    audio.muted ? "SOUND OFF" : "SOUND ON",
-    "quiet-button",
-  );
-  sound.addEventListener(
-    "click",
-    () => {
-      audio.muted = !audio.muted;
-      audio.unlock();
-      sound.textContent = audio.muted ? "SOUND OFF" : "SOUND ON";
-    },
-    { signal },
-  );
   top.append(
     createAppPortal({
       document,
@@ -93,7 +79,6 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
     }).element,
     home,
     badge,
-    sound,
   );
   if (options.radio) top.append(options.radio.element);
   const retry = el("button", "RECONNECT", "quiet-button");

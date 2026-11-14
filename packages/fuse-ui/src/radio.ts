@@ -32,6 +32,7 @@ export function createRadio(
   element.append(button, next, title, label);
   let index = 0,
     playing = false,
+    masterMuted = muted,
     disposed = false,
     attempt = 0;
   player.volume = 0.18;
@@ -47,7 +48,7 @@ export function createRadio(
     title.textContent = MUSIC_TRACKS[index]!.title;
   };
   const play = () => {
-    if (muted || disposed) return;
+    if (masterMuted || disposed) return;
     if (!player.src) select();
     const token = ++attempt;
     playing = true;
@@ -61,7 +62,7 @@ export function createRadio(
   };
   button.onclick = () => (playing ? stop() : play());
   next.onclick = () => {
-    if (muted || disposed) return;
+    if (masterMuted || disposed) return;
     const resume = playing;
     stop();
     index = (index + 1) % MUSIC_TRACKS.length;
@@ -87,6 +88,14 @@ export function createRadio(
   return {
     element,
     pause: stop,
+    setMuted(value: boolean) {
+      if (muted || disposed) return;
+      masterMuted = value;
+      if (value) {
+        attempt++;
+        player.pause();
+      } else if (playing) play();
+    },
     destroy() {
       if (disposed) return;
       disposed = true;

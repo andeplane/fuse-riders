@@ -2,6 +2,7 @@ import { MUSIC_TRACKS } from "fuse-ui/assets";
 export interface Radio {
   element: HTMLElement;
   enable(value: boolean): void;
+  setMuted(muted: boolean): void;
   destroy(): void;
 }
 export type MusicPlayer = Pick<
@@ -29,6 +30,7 @@ export function createRadio(
     playing = false,
     disposed = false,
     enabled = true,
+    masterMuted = false,
     attempt = 0;
   player.volume = 0.18;
   const select = () => {
@@ -43,7 +45,7 @@ export function createRadio(
     button.textContent = "RADIO OFF";
   };
   const play = () => {
-    if (!enabled || disposed) return;
+    if (!enabled || masterMuted || disposed) return;
     const current = ++attempt;
     playing = true;
     button.textContent = "RADIO ON";
@@ -76,6 +78,13 @@ export function createRadio(
   select();
   return {
     element,
+    setMuted(value) {
+      masterMuted = value;
+      if (value) {
+        attempt++;
+        player.pause();
+      } else if (playing) play();
+    },
     enable(value) {
       enabled = value;
       element.hidden = !value;
