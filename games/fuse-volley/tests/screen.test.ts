@@ -17,6 +17,7 @@ import {
   createLeadClock,
   forward,
   forwardInputs,
+  memoBot,
   stepsAhead,
 } from "../src/app/forward.js";
 import {
@@ -297,4 +298,33 @@ test("a muted page never opens the browser's audio", () => {
   const sounding = createSfx(false, deps);
   sounding.play({ kind: "serve", side: 0 });
   assert.equal(opened, 1);
+});
+
+test("the drawn bot plans once per folded step and side", () => {
+  let plans = 0;
+  const bot = memoBot((_world, side) => {
+    plans++;
+    return side === 0 ? RIGHT : JUMP;
+  });
+  const world = fresh();
+  assert.equal(bot(world, 0, 2), RIGHT);
+  assert.equal(bot(world, 0, 2), RIGHT);
+  assert.equal(bot(world, 1, 2), JUMP);
+  assert.equal(plans, 2);
+  steps(world, 1);
+  bot(world, 0, 2);
+  assert.equal(plans, 3);
+});
+
+test("a classic side-out is not reported as a point", () => {
+  const room = started({ display: false, scoring: "classic", bot: 1 });
+  const server = room.world!.server;
+  const watch = createPointWatch();
+  const me = server === 0 ? "b" : "a";
+  watch(view(room), me);
+  // The receiver wins the rally: the serve moves, nobody scores.
+  losePoint(room, server);
+  run(room, 15);
+  assert.deepEqual(room.world!.score, [0, 0]);
+  assert.deepEqual(watch(view(room), me), []);
 });

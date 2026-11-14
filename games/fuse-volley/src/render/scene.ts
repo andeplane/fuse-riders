@@ -16,7 +16,7 @@ import {
   STEPS_PER_SECOND,
   serveSeconds,
 } from "../engine/view-kit.js";
-import { cuesBetween, type Cue } from "./cues.js";
+import { advanced, cuesBetween, type Cue } from "./cues.js";
 import { createJelly, type JellyPose } from "./jelly.js";
 import {
   BALL,
@@ -87,6 +87,21 @@ export interface Scene {
   destroy(): void;
 }
 
+type CounterKey = "hitCounter" | "netCounter" | "floorCounter" | "pointCounter";
+type Counters = Record<CounterKey, number>;
+const COUNTED: Partial<Record<Cue["kind"], CounterKey>> = {
+  hit: "hitCounter",
+  net: "netCounter",
+  floor: "floorCounter",
+  point: "pointCounter",
+};
+const counters = (view: WorldView): Counters => ({
+  hitCounter: view.hitCounter,
+  netCounter: view.netCounter,
+  floorCounter: view.floorCounter,
+  pointCounter: view.pointCounter,
+});
+
 const MAX_RATIO = 3,
   TAU = Math.PI * 2;
 /** The sprite's art: its alpha box is 326 × 433 of a 384 × 448 image, feet on the bottom edge. */
@@ -151,6 +166,7 @@ export function createScene(
   const jelly = createJelly(random);
   let box = { w: -1, h: -1, r: -1 };
   let previous: WorldView | undefined;
+  let high: Counters | undefined;
   let lastNow = -1;
   let destroyed = false;
   let particles: Particle[] = [];
@@ -756,7 +772,16 @@ export function createScene(
         jelly.reset();
         trail = [];
       }
-      const cues = cuesBetween(previous, view);
+      // A predicted hit that a rollback took back and then happened for real sounds once: each counter fires only
+      // past the furthest it has been shown this match.
+      if (!previous || !high) high = counters(view);
+      const cues = cuesBetween(previous, view).filter((cue) => {
+        const key = COUNTED[cue.kind];
+        if (!key) return true;
+        if (!advanced(high![key], view[key])) return false;
+        high![key] = view[key];
+        return true;
+      });
       previous = view;
       react(cues, view, nowMs, labels);
       advanceEffects(dt);

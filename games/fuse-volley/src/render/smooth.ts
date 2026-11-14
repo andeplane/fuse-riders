@@ -4,7 +4,7 @@ import { SAND_Y, STEPS_PER_SECOND } from "../engine/view-kit.js";
 /**
  * Hides rollback corrections. When the runtime replaces displayed history (its frame revision changes), the ball and
  * the other side's blob may jump to where the confirmed inputs put them; instead of snapping, the screen keeps them
- * where they were drawn and lets the offset decay over about 80 ms. The local blob is never smoothed: it must follow
+ * where they were drawn and lets the offset decay (a 45 ms time constant, nearly gone by 150 ms). The local blob is never smoothed: it must follow
  * its player's hands exactly. A jump larger than `TELEPORT` (a new serve) is shown as it is.
  */
 export const DECAY_MS = 45,
@@ -100,7 +100,13 @@ export function createSmoother(): Smoother {
       }
       revision = nextRevision;
       // A serve teleports the ball: never drag it from the last rally.
-      if (view.phase === "serve") offsets.ball = { x: 0, y: 0 };
+      if (view.phase === "serve") {
+        offsets.ball = { x: 0, y: 0 };
+        offsets.blobs = [
+          { x: 0, y: 0 },
+          { x: 0, y: 0 },
+        ];
+      }
       const result: WorldView = {
         ...view,
         ball: {

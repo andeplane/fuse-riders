@@ -260,3 +260,20 @@ test("the autopilot plays this device's blob only while a match runs", () => {
   assert.equal(autopilotBits({ stage: "running", world }, "nobody", bot), 0);
   assert.equal(autopilotBits(undefined, "blob-b", bot), 0);
 });
+
+test("releasing a pad set lets go of a thumb still down, which must lift to press again", () => {
+  const { controls } = recorder();
+  const pad = fakeSurface();
+  const set = new PadSet(controls);
+  set.add(bindRocker(pad.surface, (held) => controls.hold("rocker", held)));
+  pad.fire("down", 1, 150);
+  assert.equal(controls.bits, LEFT);
+  set.release();
+  assert.equal(controls.bits, 0);
+  assert.deepEqual(pad.shown.at(-1), { held: false, way: 0 });
+  pad.fire("move", 1, 290);
+  assert.equal(controls.bits, 0);
+  pad.fire("up", 1, 290);
+  pad.fire("down", 2, 290);
+  assert.equal(controls.bits, RIGHT);
+});

@@ -61,6 +61,7 @@ import {
   blendViews,
   createLeadClock,
   forward,
+  memoBot,
   forwardInputs,
   stepsAhead,
 } from "./forward.js";
@@ -374,6 +375,8 @@ function room(solo: boolean): void {
   // ---- the page ----
   const status = createNotice({ className: "fv-status" });
   const controls = new HeldControls((bits) => runtime.input(bits));
+  /** Lets go of every key, pad and button: a menu opened, or the page lost focus. */
+  let letGoAll = () => controls.clear();
   const menu = createGameMenu({
     ...GUIDE,
     onLobby: () => runtime.command({ type: "action", action: "lobby" }),
@@ -382,7 +385,7 @@ function room(solo: boolean): void {
       location.href = withFlags(endpoints.appUrl());
     },
     onOpenChange: (open) => {
-      if (open) controls.clear();
+      if (open) letGoAll();
     },
   });
   const roundControls = createRoundControls(QUICK_GUIDE);
@@ -511,6 +514,11 @@ function room(solo: boolean): void {
   };
   const { row: touch, set: touchPads } = pads("fv-touch"),
     controllerPads = pads("fv-controller-pads");
+  letGoAll = () => {
+    touchPads.release();
+    controllerPads.set.release();
+    controls.clear();
+  };
   stage.append(sidesRow, screen, note, touch);
 
   const controller = el("section", "", "fv-controller"),
@@ -569,6 +577,7 @@ function room(solo: boolean): void {
   /** What to draw now: the forward run when the newest frame is the room's newest world, otherwise the two frames blended. */
   let drawn = { ahead: 0, tick: 0, forward: false };
   const leadClock = createLeadClock();
+  const drawBot = memoBot(botInput);
   const picture = (): WorldView | undefined => {
     const timing = runtime.frameTiming();
     const newer = timing?.newer.world;
@@ -590,7 +599,7 @@ function room(solo: boolean): void {
       view = forward(
         state.world,
         ahead,
-        forwardInputs(state, viewer.me, runtime.heldNow, localLead, botInput),
+        forwardInputs(state, viewer.me, runtime.heldNow, localLead, drawBot),
       );
     } else {
       drawn = { ahead: -1, tick: timing.newer.tick, forward: false };
@@ -622,6 +631,8 @@ function room(solo: boolean): void {
       : [];
   };
   const frame = (now: number) => {
+    // Asked first, so one bad frame cannot stop the drawing for good.
+    requestAnimationFrame(frame);
     gamepads.poll(!menu.isOpen() && !document.hidden && !over);
     const view = stage.hidden && controller.hidden ? undefined : picture();
     if (view) {
@@ -648,7 +659,6 @@ function room(solo: boolean): void {
           navigator.vibrate?.(12);
       }
     }
-    requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
 
@@ -899,7 +909,9 @@ function room(solo: boolean): void {
       typing(event.target) ||
       event.metaKey ||
       event.ctrlKey ||
-      event.altKey
+      event.altKey ||
+      // Only play swallows keys: in the lobby Space and the arrows scroll and press as usual.
+      !model?.riding
     )
       return;
     if (controls.press(event.code)) {
@@ -912,12 +924,12 @@ function room(solo: boolean): void {
     if (captured.delete(event.code)) event.preventDefault();
   });
   window.addEventListener("blur", () => {
-    controls.clear();
+    letGoAll();
     gamepads.letGo();
   });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
-      controls.clear();
+      letGoAll();
       gamepads.letGo();
     }
   });

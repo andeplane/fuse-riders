@@ -115,4 +115,14 @@ test("cross-field checks: a serve hovers still, a winner is decided, a grounded 
   raw = encode();
   raw[3] = 3; // over without a winner
   assert.equal(decodeWorld(raw), undefined);
+  raw = encode();
+  (raw[19] as unknown[])[7] = 2; // touches already used on a fresh serve
+  assert.equal(decodeWorld(raw), undefined);
+  raw = encode();
+  (raw[20] as unknown[])[9] = 1; // in contact with a hovering serve it never touched
+  assert.equal(decodeWorld(raw), undefined);
+  raw = encode();
+  raw[3] = 2; // a settle that no rally ended
+  raw[4] = 10;
+  assert.equal(decodeWorld(raw), undefined);
 });

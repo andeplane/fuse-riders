@@ -1,6 +1,7 @@
 import type { GameRegistration, PlayerResult } from "fuse-platform";
 import {
   CAPACITY,
+  CLASSIC_TARGET,
   MOST_HITS,
   RALLY_TARGET,
   SCORE_CAP,
@@ -122,9 +123,14 @@ export function validFuseVolleyField(
     return false;
   if (a.roundWins + b.roundWins !== 1) return false;
   const [winner, loser] = a.roundWins === 1 ? [a, b] : [b, a];
-  return (
-    winner.points > loser.points &&
-    (winner.points - loser.points >= 2 || winner.points === SCORE_CAP)
+  // A finished match under either rule: the winner reached the target at least two clear, or went past it by
+  // exactly two after a deuce, or stopped at the cap.
+  const w = winner.points,
+    l = loser.points;
+  if (w === SCORE_CAP) return l < w;
+  return [RALLY_TARGET, CLASSIC_TARGET].some(
+    (target) =>
+      (w === target && l <= target - 2) || (w > target && w - l === 2),
   );
 }
 

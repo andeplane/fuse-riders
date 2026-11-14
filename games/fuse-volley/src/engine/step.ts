@@ -272,9 +272,12 @@ export function stepWorld(
   inputs: readonly [number, number],
 ): void {
   if (world.phase === "over" || world.step >= T.MAX_STEP) return;
+  // During the settle after a point nobody starts a jump, so both blobs come down and the next serve can start
+  // even while two players hold jump.
+  const settling = world.phase === "dead";
   const bits = (side: Side) => {
     const held = inputs[side];
-    return isInput(held) ? held : 0;
+    return isInput(held) ? (settling ? held & ~JUMP : held) : 0;
   };
   stepBlob(world.blobs[0], bits(0), world.step);
   stepBlob(world.blobs[1], bits(1), world.step);

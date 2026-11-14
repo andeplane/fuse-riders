@@ -362,16 +362,17 @@ test("a match is won at the target by two, and decided by the next point at the 
 
 test("after a point the ball settles for 2 s, then the next serve waits for both blobs to land", () => {
   const world = fresh();
+  // The left blob is high in the air when the point ends: the serve waits for it to come down.
+  steps(world, 20, JUMP);
+  assert.ok(world.blobs[0].air);
   pointAgainst(world, 1, true);
   assert.equal(world.server, 0);
-  steps(world, T.DEAD_STEPS - 10);
+  steps(world, T.DEAD_STEPS - 1, JUMP, JUMP);
   assert.equal(world.phase, "dead");
-  // The left blob jumps right before the serve is due: the serve waits for it.
-  steps(world, 10, JUMP);
-  steps(world, 1, JUMP);
-  assert.equal(world.phase, "dead");
-  until(world, (w) => w.phase === "serve", 300);
+  // Both players hold jump through the settle: nobody starts a jump, so the serve still comes.
+  until(world, (w) => w.phase === "serve", 300, JUMP, JUMP);
   assert.equal(world.phase, "serve");
+  assert.ok(!world.blobs[0].air && !world.blobs[1].air);
   assert.equal(world.ball.x, T.SERVE_X[0]);
   assert.ok(!world.ball.live);
 });

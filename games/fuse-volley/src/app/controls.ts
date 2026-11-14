@@ -210,11 +210,13 @@ export class PadSet {
     this.pads.push(letGo);
   }
   show(visible: boolean): void {
-    if (this.shown && !visible) {
-      for (const letGo of this.pads) letGo();
-      this.controls.clear();
-    }
+    if (this.shown && !visible) this.release();
     this.shown = visible;
+  }
+  /** Every pad lets go now (a menu opened, the page lost focus); a thumb still down must lift to press again. */
+  release(): void {
+    for (const letGo of this.pads) letGo();
+    this.controls.clear();
   }
 }
 

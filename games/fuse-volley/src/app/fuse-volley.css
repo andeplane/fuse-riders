@@ -542,8 +542,19 @@ body.fv-display .fv-sides {
   .fv-room[data-screen="play"] {
     padding: 0;
   }
+  /* The header folds away, all but the menu, which floats in the top corner so a player can always leave. */
   body:has(.fv-room[data-screen="play"]) .fv-top {
+    position: fixed;
+    top: max(var(--fui-space-2), env(safe-area-inset-top));
+    right: max(var(--fui-space-2), env(safe-area-inset-right));
+    z-index: calc(var(--fui-z-overlay) + 1);
+    padding: 0;
+  }
+  body:has(.fv-room[data-screen="play"]) .fv-top > :not(.fui-game-menu) {
     display: none;
+  }
+  body:has(.fv-room[data-screen="play"]) .fv-top .fui-game-menu {
+    opacity: 0.8;
   }
   .fv-room[data-screen="play"] .fv-sides,
   .fv-room[data-screen="play"] .fv-note {

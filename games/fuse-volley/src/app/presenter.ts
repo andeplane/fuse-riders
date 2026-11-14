@@ -259,13 +259,15 @@ export const POINT_SETTLE_STEPS = 60;
  */
 export function createPointWatch(): (view: View, me: string) => PointReport[] {
   let match = "",
-    counted = 0;
+    counted = 0,
+    total = 0;
   return (view, me) => {
     const world = view.world;
     if (!world || view.stage === "lobby" || !view.matchId) return [];
     if (view.matchId !== match) {
       match = view.matchId;
       counted = world.pointCounter;
+      total = world.score[0] + world.score[1];
     }
     const delta = (world.pointCounter - counted + 0x10000) % 0x10000;
     if (delta === 0 || delta >= 0x8000) return [];
@@ -274,6 +276,10 @@ export function createPointWatch(): (view: View, me: string) => PointReport[] {
       world.remaining <= DEAD_STEPS - POINT_SETTLE_STEPS;
     if (!settled) return [];
     counted = world.pointCounter;
+    const scored = world.score[0] + world.score[1] !== total;
+    total = world.score[0] + world.score[1];
+    // A classic side-out moves the serve, not the score: it is not a point.
+    if (!scored) return [];
     // Normally one rally at a time; a device that slept through several reports the last.
     const loser = world.lastFault;
     if (loser === -1) return [];

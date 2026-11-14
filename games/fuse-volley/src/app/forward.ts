@@ -144,3 +144,25 @@ export function createLeadClock(): (
     return Math.max(ahead, Math.min(MAX_AHEAD, (nowMs - origin) / STEP_MS));
   };
 }
+
+/**
+ * The bot's answer for a world is the same every frame until the next tick is folded, and planning it steps many
+ * ghost worlds: ask it once per folded step and side.
+ */
+export function memoBot(bot: BotInput): BotInput {
+  const cache = new Map<string, number>();
+  let at = -1;
+  return (world, side, level) => {
+    if (world.step !== at) {
+      at = world.step;
+      cache.clear();
+    }
+    const key = `${side}:${level}:${world.seed}`;
+    let bits = cache.get(key);
+    if (bits === undefined) {
+      bits = bot(world, side, level);
+      cache.set(key, bits);
+    }
+    return bits;
+  };
+}

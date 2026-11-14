@@ -74,6 +74,33 @@ test("the field is two sides with one winner, ahead by two or at the cap", () =>
       loser({ matchScoreUnits: 10, points: 10 }),
     ]),
   );
+  assert.ok(
+    validFuseVolleyField([
+      player({ matchScoreUnits: 15, points: 15 }),
+      loser({ matchScoreUnits: 3, points: 3 }),
+    ]),
+    "classic, to 15",
+  );
+  assert.ok(
+    validFuseVolleyField([
+      player({ matchScoreUnits: 14, points: 14 }),
+      loser({ matchScoreUnits: 12, points: 12 }),
+    ]),
+    "past the target by two after a deuce",
+  );
+  for (const [won, lost] of [
+    [25, 3],
+    [12, 3],
+    [40, 40],
+    [9, 7],
+  ] as const)
+    assert.ok(
+      !validFuseVolleyField([
+        player({ matchScoreUnits: won, points: won }),
+        loser({ matchScoreUnits: lost, points: lost }),
+      ]),
+      `${won}–${lost} is no finished match`,
+    );
   assert.ok(!validFuseVolleyField([player(), loser({ slot: 0 })]));
   assert.ok(!validFuseVolleyField([player(), loser({ roundWins: 1 })]));
   assert.ok(!validFuseVolleyField([player()]));

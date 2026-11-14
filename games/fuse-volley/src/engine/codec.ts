@@ -181,10 +181,20 @@ function consistent(world: World): boolean {
       ball.vy !== 0 ||
       ball.x !== T.SERVE_X[world.server] ||
       ball.y !== T.SERVE_Y ||
-      world.lastTouch !== -1
+      world.lastTouch !== -1 ||
+      world.blobs.some(
+        (blob) =>
+          blob.touches !== 0 ||
+          blob.hold !== 0 ||
+          blob.contact ||
+          blob.prevContact,
+      )
     )
       return false;
   } else if (!ball.live) return false;
+  // A settle and a finished match always follow a rally lost by someone.
+  if ((phase === "dead" || phase === "over") && world.lastFault === -1)
+    return false;
   // The score: nothing before the first rally, at most one winner, and the match over only once decided.
   if (world.lastFault === -1 && (score[0] !== 0 || score[1] !== 0))
     return false;
