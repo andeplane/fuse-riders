@@ -1,6 +1,8 @@
 import { useCallback, useContext } from "react";
 
 import { FuseGamesContext } from "../fusegames/registry";
+import { LAUNCHER_TITLE } from "../launcher/launcherFacts";
+import { useOpenLauncher } from "../launcher/useOpenLauncher";
 import type { WindowKind, WindowState } from "../state/appState";
 import { activeWindowId } from "../state/appState";
 import { useAppState } from "../state/useAppState";
@@ -42,6 +44,8 @@ export type DesktopViewModel = {
   /** Opens Winamp (or focuses it if already open). */
   openWinamp: () => void;
   openControlPanel: () => void;
+  /** Opens Fusteam, the game launcher (or focuses it if already open). */
+  openLauncher: () => void;
   wallpaper: string | undefined;
   /** The solid background colour behind the wallpaper (or in place of it when none is set). */
   backgroundColor: string;
@@ -55,6 +59,7 @@ export function useDesktopViewModel(): DesktopViewModel {
   const ui = useContext(DesktopUiContext);
   const commands = useWindowCommands();
   const games = useContext(FuseGamesContext);
+  const openLauncher = useOpenLauncher();
 
   // Single-instance windows (Winamp, the wallpaper picker, a game) are focused rather than duplicated:
   // true when an open window matched and was brought to the front.
@@ -100,6 +105,12 @@ export function useDesktopViewModel(): DesktopViewModel {
   );
 
   const icons: DesktopIconModel[] = [
+    {
+      id: "fusteam",
+      label: LAUNCHER_TITLE,
+      icon: "fusteam",
+      open: openLauncher,
+    },
     ...games.games.map((game) => ({
       id: `game:${game.id}`,
       label: game.name,
@@ -149,6 +160,7 @@ export function useDesktopViewModel(): DesktopViewModel {
     openPaint,
     openWinamp,
     openControlPanel,
+    openLauncher,
     wallpaper: ui.wallpaper,
     backgroundColor: ui.backgroundColor,
     iconSpacingX: ui.iconSpacingX,

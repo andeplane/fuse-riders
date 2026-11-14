@@ -27,6 +27,9 @@ import {
   createFuseGameRegistry,
   FuseGamesContext,
 } from "../fusegames/registry";
+import { MemoryLastPlayedStore } from "../launcher/lastPlayedStore";
+import type { LauncherDeps } from "../launcher/launcherDepsContext";
+import { LauncherDepsContext } from "../launcher/launcherDepsContext";
 import type { PaintControls } from "../paint/paintControls";
 import type { PaintDeps } from "../paint/paintDepsContext";
 import { PaintDepsContext } from "../paint/paintDepsContext";
@@ -46,6 +49,7 @@ import type { AppState, WindowContent } from "../state/appState";
 import { DEFAULT_STATE } from "../state/appState";
 import type { AppStateDeps } from "../state/appStateContext";
 import { AppStateDepsContext } from "../state/appStateContext";
+import type { StateStore } from "../state/stateStore";
 import { MemoryStateStore } from "../state/stateStore";
 import type { WinampControls } from "../winamp/winampControls";
 import type { WinampDeps } from "../winamp/winampDepsContext";
@@ -110,6 +114,10 @@ export function createTestGames(
 export type ProviderOptions = {
   /** The stored state the desktop boots from; default empty. */
   initialState?: AppState;
+  /** A store of the test's own (a boot decorator, say); wins over `initialState`. */
+  store?: StateStore;
+  /** Defaults to an empty last-played map and a fine pointer, so a game launches in a window. */
+  launcherDeps?: Partial<LauncherDeps>;
   /** What a deep link asked for. */
   initialOpen?: readonly WindowContent[];
   /** Defaults to the three fixture games; pass `[]` for an empty desktop. */
@@ -236,8 +244,21 @@ export function createTestWinampDeps(
   };
 }
 
+export function createTestLauncherDeps(
+  overrides: Partial<LauncherDeps> = {},
+): LauncherDeps {
+  return {
+    lastPlayed: new MemoryLastPlayedStore(),
+    finePointer: () => true,
+    ...overrides,
+  };
+}
+
 export function createWrapper(options: ProviderOptions = {}) {
-  const store = new MemoryStateStore(options.initialState ?? DEFAULT_STATE);
+  const store =
+    options.store ??
+    new MemoryStateStore(options.initialState ?? DEFAULT_STATE);
+  const launcherDeps = createTestLauncherDeps(options.launcherDeps);
   const games = createTestGames(options.games ?? FIXTURE_GAMES, {
     muted: options.muted,
   });
@@ -291,12 +312,16 @@ export function createWrapper(options: ProviderOptions = {}) {
                                       <SystemProbeContext.Provider
                                         value={() => systemProbe}
                                       >
-                                        <Shell
-                                          store={store}
-                                          initialOpen={options.initialOpen}
+                                        <LauncherDepsContext.Provider
+                                          value={launcherDeps}
                                         >
-                                          {children}
-                                        </Shell>
+                                          <Shell
+                                            store={store}
+                                            initialOpen={options.initialOpen}
+                                          >
+                                            {children}
+                                          </Shell>
+                                        </LauncherDepsContext.Provider>
                                       </SystemProbeContext.Provider>
                                     </AssistantOptionsStoreContext.Provider>
                                   </AssistantDepsContext.Provider>
@@ -335,6 +360,7 @@ export function createWrapper(options: ProviderOptions = {}) {
     winampDeps,
     winampPlayers,
     winampRegistry,
+    launcherDeps,
   };
 }
 

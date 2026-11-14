@@ -21,7 +21,16 @@ describe(deepLinkContents.name, () => {
   it("maps ids to Fuse games, retro games and apps, dropping unknown ones", () => {
     expect(
       deepLinkContents(
-        ["fuseball", "doom", "paint", "winamp", "settings", "about", "nope"],
+        [
+          "fuseball",
+          "doom",
+          "paint",
+          "winamp",
+          "settings",
+          "about",
+          "fusteam",
+          "nope",
+        ],
         games,
       ),
     ).toEqual([
@@ -31,6 +40,7 @@ describe(deepLinkContents.name, () => {
       { kind: "winamp" },
       { kind: "controlpanel", applet: "home" },
       { kind: "about" },
+      { kind: "launcher" },
     ]);
   });
 

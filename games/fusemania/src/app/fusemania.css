@@ -524,6 +524,40 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"]))
 .fm-card .fm-actions {
   justify-content: center;
 }
+/* The result's offer to move the input offset, when a song showed a clear timing bias */
+.fm-card-timing {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fui-space-2);
+  align-items: center;
+  justify-content: center;
+  padding: var(--fui-space-2) var(--fui-space-3);
+  border: 1px solid var(--fui-cyan);
+  border-radius: var(--fui-radius-small);
+}
+.fm-card-timing p {
+  flex: 1 1 100%;
+  margin: 0;
+  color: var(--fui-cyan);
+  font: 0.5625rem/1.7 var(--fui-font-pixel);
+}
+/* ?latency: what the page measures of its own input and audio path */
+.fm-latency {
+  position: absolute;
+  top: var(--fui-space-2);
+  left: var(--fui-space-2);
+  z-index: 3;
+  margin: 0;
+  padding: var(--fui-space-2);
+  color: #9ff;
+  background: #000c;
+  border-radius: var(--fui-radius-small);
+  font:
+    0.6875rem/1.4 ui-monospace,
+    monospace;
+  pointer-events: none;
+  white-space: pre;
+}
 
 /* Touch pads: one per arrow under the field, and the power-up beside them in a battle */
 .fm-touch,

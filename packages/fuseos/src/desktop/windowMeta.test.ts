@@ -1,4 +1,5 @@
 import { createTestGames } from "../__mocks__/renderWithProviders";
+import { LAUNCHER_WINDOW_SIZE } from "../launcher/launcherFacts";
 import type { WindowContent, WindowState } from "../state/appState";
 
 import {
@@ -89,5 +90,11 @@ describe(windowMeta.name, () => {
         games,
       ),
     ).toEqual({ title: "Oops", icon: "warning", resizable: false });
+    expect(windowMeta(window({ kind: "launcher" }), games)).toEqual({
+      title: "Fusteam",
+      icon: "fusteam",
+      resizable: true,
+      size: LAUNCHER_WINDOW_SIZE,
+    });
   });
 });
