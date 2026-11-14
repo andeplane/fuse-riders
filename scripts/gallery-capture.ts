@@ -30,6 +30,32 @@ async function hold(page: Page, keys: readonly string[], ms: number) {
   }
 }
 
+/**
+ * Fusemania played by the page's own keys: each note's key goes down when the song reaches it, as a player's would.
+ * Source text, because a function compiled by tsx carries helpers the page does not have.
+ */
+const FUSEMANIA_AUTOPLAY = `(() => {
+  const hook = window.fusemania;
+  const codes = ["KeyA", "KeyS", "KeyW", "KeyD"];
+  const notes = hook.notes();
+  const ups = [];
+  let next = 0;
+  const key = (type, code) =>
+    document.dispatchEvent(new KeyboardEvent(type, { code, bubbles: true }));
+  const tick = () => {
+    const ms = hook.clock().heardMs;
+    while (ups.length && ups[0][0] <= ms) key("keyup", ups.shift()[1]);
+    while (next < notes.length && notes[next][0] <= ms) {
+      const [, column, kind] = notes[next++];
+      if (kind === 3) continue;
+      key("keydown", codes[column]);
+      ups.push([ms + 90, codes[column]]);
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+})()`;
+
 /** From the game's landing page (already open, muted) to a frame of play worth a card. */
 type Recipe = (page: Page) => Promise<void>;
 
@@ -87,6 +113,20 @@ const RECIPES: Record<string, Recipe> = {
     // On the gas from the countdown (from a standstill, full gas loops the bike over backwards), up to the first apple.
     await page.keyboard.down("ArrowUp");
     await page.waitForTimeout(5000);
+  },
+  fusemania: async (page) => {
+    await openPlayOptions(page);
+    await page
+      .getByRole("button", { name: "Single player", exact: true })
+      .click();
+    // A battle against the AI rivals, so the card shows the field, the power-ups and the ranking.
+    await page.locator(".fm-picker-mode").nth(1).click();
+    await page.getByRole("button", { name: "PLAY", exact: true }).click();
+    await page
+      .locator('.fm-room[data-stage="running"]')
+      .waitFor({ timeout: 30_000 });
+    await page.evaluate(FUSEMANIA_AUTOPLAY);
+    await page.waitForTimeout(16_000);
   },
   "fuse-volley": async (page) => {
     await openPlayOptions(page);

@@ -6,6 +6,7 @@ import type { TopBarSound } from "./top-bar.js";
  * procedural effects (`tone`, `noise`, `jingle`) that cost no files, lazily loaded looping music that never holds
  * up the game starting, ducking so a goal horn cuts through the song, and a start that waits for the first key or
  * touch because browsers only allow sound after one. Each game owns its own sounds and songs; this owns the rest.
+ * A rhythm game also gets the audio clock (`clock`) and decoded songs started at an exact clock time (`loadSong`).
  *
  * Everything the browser provides arrives through `GameAudioDependencies`, so tests drive it with typed fakes.
  * A page opened with `?mute` (previews and tests, see AGENTS.md) never opens audio and never writes a choice down.
@@ -38,11 +39,16 @@ export interface FilterLike extends NodeLike {
   frequency: ParamLike;
 }
 export interface BufferLike {
+  /** Seconds of audio. */
+  readonly duration: number;
   getChannelData(channel: number): Float32Array;
 }
 export interface BufferSourceLike extends NodeLike {
   buffer: BufferLike | null;
-  start(at?: number): unknown;
+  onended: ((event: Event) => unknown) | null;
+  /** `at` on the context clock, `offset` seconds into the buffer. */
+  start(at?: number, offset?: number): unknown;
+  stop(at?: number): unknown;
 }
 /** The slice of `AudioContext` this module uses. */
 export interface AudioLike {
@@ -50,6 +56,11 @@ export interface AudioLike {
   readonly currentTime: number;
   readonly sampleRate: number;
   readonly destination: NodeLike;
+  /** Seconds from the context's output to the speaker, where the browser reports it. */
+  readonly outputLatency?: number;
+  /** Seconds the context itself adds; the fallback where `outputLatency` is missing. */
+  readonly baseLatency?: number;
+  decodeAudioData(data: ArrayBuffer): Promise<BufferLike>;
   resume(): Promise<void>;
   suspend(): Promise<void>;
   createGain(): GainLike;
@@ -77,6 +88,8 @@ export interface GameAudioDependencies {
   later(run: () => void, ms: number): void;
   random(): number;
   storage: SafeStorage;
+  /** The bytes of an audio file, for `loadSong`; rejects when it cannot be fetched. Without it no song loads. */
+  fetchAudio?(url: string): Promise<ArrayBuffer>;
 }
 
 /** What the player has chosen, stored under `AUDIO_KEY` and shared by every game on this origin. */
@@ -155,6 +168,37 @@ export interface DuckOptions {
   /** Milliseconds held down before it swells back. */
   hold?: number;
 }
+/** The audio clock a rhythm game schedules against. */
+export interface AudioClock {
+  /** The audio clock in seconds (`AudioContext.currentTime`). */
+  now(): number;
+  /**
+   * Seconds between a sample's scheduled time and the moment it is heard: `outputLatency`, else `baseLatency`,
+   * else 0. A browser reports 0 for `outputLatency` until its context has run, so 0 counts as missing.
+   */
+  latency(): number;
+  /** Whether the clock is advancing (context running, page unlocked and visible). */
+  readonly running: boolean;
+}
+/**
+ * A decoded song on the music bus (so the mute, the music volume and ducking apply), played from the audio clock.
+ * The looping music of `startMusic` stays paused while one plays.
+ */
+export interface ClockedSong {
+  /** Seconds of audio. */
+  readonly duration: number;
+  /** From `play` until `stop` or the end of the song, the wait before a delayed start included. */
+  readonly playing: boolean;
+  /**
+   * Plays so that song position `offset` (seconds) is scheduled at audio-clock time `at`. Replaces any earlier play
+   * of this song. `at` in the past starts now from where the song would have got to; a negative `offset` waits
+   * `-offset` seconds after `at` and starts from 0; an offset past the end plays nothing.
+   */
+  play(at: number, offset: number): void;
+  stop(): void;
+}
+/** Decoded songs kept for replay; a decoded song is tens of megabytes, so only the latest few stay. */
+export const SONG_CACHE = 3;
 
 export interface GameAudio {
   readonly prefs: Readonly<AudioPrefs>;
@@ -185,6 +229,13 @@ export interface GameAudio {
   startMusic(): void;
   stopMusic(): void;
   nextSong(): void;
+  /** The audio clock, or undefined when there is none (a `?mute` page, no Web Audio). Opens the context if needed. */
+  clock(): AudioClock | undefined;
+  /**
+   * Fetches and decodes a song for clocked playback; undefined when muted by `?mute`, when it cannot be fetched or
+   * decoded. Decoded songs are cached by URL (the latest `SONG_CACHE`), so asking again returns the same song.
+   */
+  loadSong(url: string): Promise<ClockedSong | undefined>;
   /** Hear changes to the mute and the volumes (the controls and tests). Returns how to stop listening. */
   onChange(listener: () => void): () => void;
   /** Quiet while the tab is hidden, back when it returns. */
@@ -211,8 +262,12 @@ export function createGameAudio(
     song: Song | undefined,
     element: MusicElement | undefined,
     duckToken = 0,
-    failures = 0;
+    failures = 0,
+    clockView: AudioClock | undefined;
   const hums: GainLike[] = [];
+  /** The clocked songs playing now; the looping music waits for them. */
+  const clocked = new Set<ClockedSong>();
+  const decoded = new Map<string, Promise<ClockedSong | undefined>>();
   const glide = (param: ParamLike, value: number, seconds: number) => {
     if (!context) return;
     const at = context.currentTime;
@@ -290,7 +345,7 @@ export function createGameAudio(
     };
   };
   const playSong = () => {
-    if (!element || !audible() || !wantMusic) return;
+    if (!element || !audible() || !wantMusic || clocked.size > 0) return;
     void element.play().then(
       () => {
         failures = 0;
@@ -301,7 +356,7 @@ export function createGameAudio(
     );
   };
   const syncMusic = () => {
-    if (!wantMusic || prefs.music <= 0) {
+    if (!wantMusic || prefs.music <= 0 || clocked.size > 0) {
       element?.pause();
       return;
     }
@@ -311,6 +366,68 @@ export function createGameAudio(
     }
     if (!element) loadSong();
     playSong();
+  };
+
+  const clockedSong = (audio: AudioLike, buffer: BufferLike): ClockedSong => {
+    let source: BufferSourceLike | undefined;
+    const release = () => {
+      clocked.delete(song);
+      syncMusic();
+    };
+    const song: ClockedSong = {
+      duration: buffer.duration,
+      get playing() {
+        return source !== undefined;
+      },
+      play(at, offset) {
+        const old = source;
+        source = undefined;
+        if (old) {
+          old.onended = null;
+          old.stop();
+          old.disconnect();
+        }
+        const now = audio.currentTime;
+        let when = at,
+          from = offset;
+        if (from < 0) {
+          when -= from;
+          from = 0;
+        }
+        if (when < now) {
+          from += now - when;
+          when = now;
+        }
+        // Past the end, or a time that is not a number: nothing to play.
+        if (!duckBus || !(from < buffer.duration) || !Number.isFinite(when)) {
+          if (old) release();
+          return;
+        }
+        const next = audio.createBufferSource();
+        next.buffer = buffer;
+        next.connect(duckBus);
+        next.onended = () => {
+          if (source !== next) return;
+          source = undefined;
+          next.disconnect();
+          release();
+        };
+        next.start(when, from);
+        source = next;
+        clocked.add(song);
+        syncMusic();
+      },
+      stop() {
+        const old = source;
+        if (!old) return;
+        source = undefined;
+        old.onended = null;
+        old.stop();
+        old.disconnect();
+        release();
+      },
+    };
+    return song;
   };
 
   const output = (): GainLike | undefined => (audible() ? effects : undefined);
@@ -331,7 +448,13 @@ export function createGameAudio(
       }
       // iOS only lets a song start inside the gesture itself, so it starts now; the bus stays silent until the
       // context resumes.
-      if (wantMusic && prefs.music > 0 && !prefs.muted && !hidden) {
+      if (
+        wantMusic &&
+        prefs.music > 0 &&
+        !prefs.muted &&
+        !hidden &&
+        clocked.size === 0
+      ) {
         if (!element) loadSong();
         void element?.play().catch(() => undefined);
       }
@@ -521,6 +644,52 @@ export function createGameAudio(
       }
       syncMusic();
     },
+    clock() {
+      const audio = ensure();
+      if (!audio) return undefined;
+      const known = (seconds: number | undefined) =>
+        typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0
+          ? Math.min(1, seconds)
+          : undefined;
+      clockView ??= {
+        now: () => audio.currentTime,
+        latency: () =>
+          known(audio.outputLatency) ?? known(audio.baseLatency) ?? 0,
+        get running() {
+          return unlocked && !hidden && audio.state === "running";
+        },
+      };
+      return clockView;
+    },
+    loadSong(url) {
+      const audio = ensure(),
+        fetchAudio = deps.fetchAudio;
+      if (!audio || !fetchAudio) return Promise.resolve(undefined);
+      const cached = decoded.get(url);
+      if (cached) {
+        // Asked for again: it is the latest once more.
+        decoded.delete(url);
+        decoded.set(url, cached);
+        return cached;
+      }
+      const pending: Promise<ClockedSong | undefined> = Promise.resolve()
+        .then(() => fetchAudio(url))
+        .then((data) => audio.decodeAudioData(data))
+        .then(
+          (buffer) => clockedSong(audio, buffer),
+          () => {
+            // A failure is not remembered, so asking again tries again.
+            if (decoded.get(url) === pending) decoded.delete(url);
+            return undefined;
+          },
+        );
+      decoded.set(url, pending);
+      for (const oldest of decoded.keys()) {
+        if (decoded.size <= SONG_CACHE) break;
+        decoded.delete(oldest);
+      }
+      return pending;
+    },
     onChange(listener) {
       listeners.add(listener);
       return () => void listeners.delete(listener);
@@ -554,8 +723,12 @@ export function browserAudioDependencies(
   storage: SafeStorage,
 ): GameAudioDependencies {
   return {
+    // "interactive" is the browser's default: the lowest output latency it can give. Named because a rhythm
+    // game's timing depends on it.
     open: () =>
-      typeof AudioContext === "undefined" ? undefined : new AudioContext(),
+      typeof AudioContext === "undefined"
+        ? undefined
+        : new AudioContext({ latencyHint: "interactive" }),
     createElement: () => {
       const audio = new Audio();
       audio.crossOrigin = "anonymous";
@@ -564,6 +737,11 @@ export function browserAudioDependencies(
     later: (run, ms) => void setTimeout(run, ms),
     random: () => Math.random(),
     storage,
+    fetchAudio: async (url) => {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`audio ${response.status}`);
+      return response.arrayBuffer();
+    },
   };
 }
 

@@ -244,3 +244,201 @@ test("a hum is made when first heard, glides, and falls silent when the tab hide
     assert.equal(gain.gain.value, 0.08);
   });
 });
+
+test("a muted preview has no clock and loads no song", async () => {
+  const r = createAudioRig();
+  r.addSong("/s.mp3", 60);
+  const audio = createGameAudio(r.deps, { forceMute: true });
+  assert.equal(audio.clock(), undefined);
+  assert.equal(await audio.loadSong("/s.mp3"), undefined);
+  assert.deepEqual([r.log.opens, r.log.fetches], [0, 0]);
+  const none = createGameAudio({ ...r.deps, open: () => undefined });
+  assert.equal(none.clock(), undefined, "no Web Audio, no clock");
+  assert.equal(await none.loadSong("/s.mp3"), undefined);
+});
+
+test("the clock reads the context, its latency and whether it advances", async () => {
+  const r = createAudioRig("suspended");
+  const audio = createGameAudio(r.deps);
+  const clock = audio.clock()!;
+  assert.equal(r.log.opens, 1, "asking for the clock opens the context");
+  assert.equal(audio.clock(), clock);
+  assert.equal(clock.running, false, "not before the first input");
+  r.context.currentTime = 12.5;
+  assert.equal(clock.now(), 12.5);
+  assert.equal(clock.latency(), 0, "no latency reported");
+  r.context.baseLatency = 0.01;
+  assert.equal(clock.latency(), 0.01, "the base latency stands in");
+  r.context.outputLatency = 0;
+  assert.equal(clock.latency(), 0.01, "a zero output latency is not known yet");
+  r.context.outputLatency = 0.042;
+  assert.equal(clock.latency(), 0.042);
+  r.context.outputLatency = Number.NaN;
+  r.context.baseLatency = -1;
+  assert.equal(clock.latency(), 0);
+  audio.unlock();
+  await Promise.resolve();
+  assert.equal(clock.running, true);
+  audio.setMuted(true);
+  assert.equal(clock.running, true, "a muted player still has a clock");
+  audio.setHidden(true);
+  assert.equal(clock.running, false, "a hidden tab's clock stops");
+  audio.setHidden(false);
+  await Promise.resolve();
+  assert.equal(clock.running, true);
+});
+
+test("a song is fetched and decoded once, and failures are retried", async () => {
+  const r = createAudioRig();
+  const audio = createGameAudio(r.deps);
+  r.addSong("/a.mp3", 90);
+  const [first, again] = await Promise.all([
+    audio.loadSong("/a.mp3"),
+    audio.loadSong("/a.mp3"),
+  ]);
+  assert.equal(first?.duration, 90);
+  assert.equal(again, first, "the same song while it is cached");
+  assert.equal(r.log.fetches, 1);
+  assert.equal(await audio.loadSong("/missing.mp3"), undefined);
+  r.files.set("/noise.bin", new ArrayBuffer(4));
+  assert.equal(await audio.loadSong("/noise.bin"), undefined, "not audio");
+  r.addSong("/missing.mp3", 30);
+  assert.equal((await audio.loadSong("/missing.mp3"))?.duration, 30);
+  const bare = createGameAudio({ ...r.deps, fetchAudio: undefined });
+  assert.equal(
+    await bare.loadSong("/a.mp3"),
+    undefined,
+    "nothing to fetch with",
+  );
+});
+
+test("only the latest decoded songs are kept", async () => {
+  const r = createAudioRig();
+  const audio = createGameAudio(r.deps);
+  for (const name of ["a", "b", "c", "d"]) r.addSong(name, 10);
+  const a = await audio.loadSong("a");
+  await audio.loadSong("b");
+  await audio.loadSong("c");
+  assert.equal(await audio.loadSong("a"), a, "asked for again, so kept");
+  await audio.loadSong("d");
+  assert.equal(r.log.fetches, 4);
+  assert.equal(await audio.loadSong("a"), a);
+  assert.equal(r.log.fetches, 4, "the oldest went, not the one just used");
+  await audio.loadSong("b");
+  assert.equal(r.log.fetches, 5, "b was dropped and is fetched again");
+});
+
+test("a clocked song starts on the music bus at the asked clock time", async () => {
+  const r = createAudioRig();
+  const audio = createGameAudio(r.deps);
+  audio.unlock();
+  r.addSong("/a.mp3", 90);
+  const song = (await audio.loadSong("/a.mp3"))!;
+  const made = r.buffers.length;
+  r.context.currentTime = 10;
+  song.play(10.5, 3);
+  const source = r.buffers.at(-1)!;
+  assert.equal(r.buffers.length, made + 1);
+  assert.deepEqual(source.started, { at: 10.5, offset: 3 });
+  assert.equal(source.output, r.gains[2], "through the duck bus");
+  assert.equal(source.buffer?.duration, 90);
+  assert.equal(song.playing, true);
+
+  song.play(8, 3);
+  assert.equal(source.stopped, true, "a new play replaces the old one");
+  assert.equal(source.output, undefined);
+  assert.deepEqual(
+    r.buffers.at(-1)!.started,
+    { at: 10, offset: 5 },
+    "late: starts now from where it would have got to",
+  );
+
+  song.play(10.5, -2);
+  assert.deepEqual(
+    r.buffers.at(-1)!.started,
+    { at: 12.5, offset: 0 },
+    "a negative offset waits",
+  );
+  song.play(7, -2);
+  assert.deepEqual(
+    r.buffers.at(-1)!.started,
+    { at: 10, offset: 1 },
+    "a wait that is already over",
+  );
+
+  const count = r.buffers.length;
+  song.play(10, 90);
+  assert.equal(song.playing, false, "past the end plays nothing");
+  song.play(Number.NaN, 0);
+  assert.equal(r.buffers.length, count);
+  assert.equal(r.buffers.at(-1)!.stopped, true);
+
+  song.play(10, 0);
+  const last = r.buffers.at(-1)!;
+  song.stop();
+  song.stop();
+  assert.deepEqual([last.stopped, song.playing], [true, false]);
+  assert.equal(last.onended, null);
+
+  song.play(10, 0);
+  const ending = r.buffers.at(-1)!;
+  ending.end();
+  assert.equal(song.playing, false, "the song ran out");
+  assert.equal(ending.stopped, false);
+  song.play(10, 0);
+  ending.end();
+  assert.equal(
+    song.playing,
+    true,
+    "an old source ending does not end a new play",
+  );
+});
+
+test("the looping music waits while a clocked song plays", async () => {
+  const r = createAudioRig();
+  const audio = createGameAudio(r.deps);
+  audio.setSongs(songs, "/");
+  audio.unlock();
+  audio.startMusic();
+  const el = r.elements[0]!;
+  r.addSong("/a.mp3", 90);
+  const song = (await audio.loadSong("/a.mp3"))!;
+  const { plays, pauses } = el;
+  song.play(0, 0);
+  assert.equal(el.pauses, pauses + 1, "the lobby music pauses");
+  audio.unlock();
+  audio.setMuted(true);
+  audio.setMuted(false);
+  audio.nextSong();
+  fire(el, "onended");
+  audio.setHidden(true);
+  audio.setHidden(false);
+  await Promise.resolve();
+  assert.equal(el.plays, plays, "and nothing starts it under the song");
+  song.stop();
+  assert.equal(el.plays, plays + 1, "it comes back after the song");
+
+  song.play(0, 0);
+  r.buffers.at(-1)!.end();
+  assert.equal(el.plays, plays + 2, "and after a song that ran out");
+
+  song.play(0, 0);
+  audio.stopMusic();
+  song.stop();
+  assert.equal(el.plays, plays + 2, "unless music is no longer wanted");
+
+  const gesture = createAudioRig("suspended");
+  const waiting = createGameAudio(gesture.deps);
+  gesture.addSong("/a.mp3", 90);
+  waiting.setSongs(songs, "/");
+  waiting.startMusic();
+  const early = (await waiting.loadSong("/a.mp3"))!;
+  early.play(0, 0);
+  waiting.unlock();
+  await Promise.resolve();
+  assert.equal(
+    gesture.elements.length,
+    0,
+    "the first gesture does not start it either",
+  );
+});
