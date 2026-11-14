@@ -6,6 +6,7 @@ import type { MenuDef } from "../windows/MenuBar";
 import { MenuBar } from "../windows/MenuBar";
 import { useWindowCommands } from "../windows/useWindowCommands";
 
+import { useNotepadEditTool } from "./assistantEditTool";
 import { CodeEditor } from "./CodeEditor";
 import type { NotepadViewModel } from "./useNotepadViewModel";
 import { useNotepadViewModel } from "./useNotepadViewModel";
@@ -118,6 +119,14 @@ export function NotepadPlusPlusWindow({
   const commands = useWindowCommands();
   const active = vm.activeFile;
   const activeTab = vm.tabs.find((tab) => tab.active);
+  // Clippy's [edit:<path>] works on what this window has open, through the same overlay File > Save uses.
+  useNotepadEditTool({
+    paths: vm.tabs.map((tab) => tab.path),
+    active:
+      vm.activePath !== undefined && active?.status === "ready"
+        ? { path: vm.activePath, text: active.draft }
+        : undefined,
+  });
 
   const menus: MenuDef[] = [
     {
