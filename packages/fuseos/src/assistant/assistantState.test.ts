@@ -153,7 +153,7 @@ describe(assistantReducer.name, () => {
     ).toBe("Alert");
   });
 
-  it("does not narrate the assistant tool, so what Atlas says stays on screen", () => {
+  it("does not narrate the assistant tool, so what Clippy says stays on screen", () => {
     const said = assistantReducer(INITIAL_ASSISTANT_STATE, {
       type: "say",
       text: "Hello there",

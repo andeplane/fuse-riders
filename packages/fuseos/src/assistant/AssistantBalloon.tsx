@@ -8,7 +8,7 @@ import type { OfficeAssistantViewModel } from "./useOfficeAssistantViewModel";
 function Message({ message }: { message: ChatMessage }) {
   return (
     <li
-      className={message.role === "user" ? "assistant-user" : "assistant-atlas"}
+      className={message.role === "user" ? "assistant-user" : "assistant-reply"}
       data-role={message.role}
     >
       {message.role === "user" ? (

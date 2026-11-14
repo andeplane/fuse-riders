@@ -60,8 +60,8 @@ export function DisplayApplet({ windowId }: { windowId: string }) {
           </select>
         </div>
         <p>
-          Simulated display settings for Industrial OS. The desktop fits inside
-          this window; your monitor settings stay the same.
+          Simulated display settings for FuseOS. The desktop fits inside this
+          window; your monitor settings stay the same.
         </p>
       </fieldset>
       <fieldset className="flex flex-col gap-2">
