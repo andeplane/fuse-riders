@@ -14,6 +14,8 @@ export interface ArenaOptions {
   readonly muted: boolean;
   /** Outlines the local player's unit while true; the page turns it on for a few seconds at spawn and after a transform. */
   readonly highlight?: boolean;
+  /** Set false to leave the end-of-game iris and winner text to the page; shown when omitted. */
+  readonly banner?: boolean;
 }
 
 export interface ArenaView {
