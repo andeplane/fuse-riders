@@ -5,13 +5,10 @@
  */
 import type { RoundView } from "../engine/index.js";
 import {
-  type Camera,
   hexHalfWidth,
   IRIS_RADIUS,
-  irisCentre,
   irisRadius,
-  project,
-  type Point,
+  STILL,
   victoryLines,
 } from "./hud-model.js";
 import { VIEW_HEIGHT, VIEW_WIDTH } from "./layout.js";
@@ -23,10 +20,6 @@ export interface HudFrame {
   readonly view: RoundView;
   /** Seconds into the ending, or null when there is none to draw: no winner yet, or the page shows its own. */
   readonly ending: number | null;
-  /** The camera the arena under this was drawn through. */
-  readonly camera: Camera;
-  /** The point of the arena that decided the round: the hexagon closes on it. */
-  readonly focus: Point;
 }
 
 /** What the HUD needs of the scene: its text and the colours and sizes of the art. */
@@ -66,8 +59,8 @@ export class Hud {
   ): void {
     const { view } = frame;
     const radius = irisRadius(age);
-    // The hexagon stays on what decided the round as the camera carries that to the middle of the screen.
-    const centre = irisCentre(project(frame.focus, frame.camera));
+    // The hexagon closes on the middle of the screen while the camera carries what decided the round there.
+    const centre = { x: STILL.x, y: STILL.y };
     const ramp = this.art.ramp(winner.team);
     for (let y = 0; y < VIEW_HEIGHT; y += 1) {
       const half = hexHalfWidth(radius, y - centre.y);

@@ -60,6 +60,7 @@ import {
 import {
   circlePoints,
   discHalfWidth,
+  flareAlpha,
   Ghosts,
   particleColor,
   RING_LIFE,
@@ -201,10 +202,13 @@ export class Scene {
     for (const gate of view.gates) this.gate(ctx, gate);
     for (const pile of view.piles) this.pile(ctx, pile);
     // The rider sits astride, its far leg behind the shell; a meal is half inside the mouth.
+    // The nets stand in front of the track, and the snail crawls into its basket; a snail that has won is shown
+    // in front of it, so the ending reads as the snail home and not as a net.
+    const home = view.winner?.kind === "snail" && !view.timeUp;
+    if (home) this.goals(ctx, frame);
     this.units(ctx, frame, (unit) => unit.eaten || unit.riding);
     this.snail(ctx, frame);
-    // The nets stand in front of the track: the snail crawls into its basket.
-    this.goals(ctx, frame);
+    if (!home) this.goals(ctx, frame);
     this.afterImages(ctx, frame);
     this.fallen(ctx, frame);
     this.units(ctx, frame, (unit) => !unit.eaten && !unit.riding);
@@ -961,8 +965,7 @@ export class Scene {
       // White that grows as it fades: a core for a clash, the whole sky round a dying Queen.
       const t = flare.age / flare.life;
       const radius = Math.max(1, Math.round(flare.radius * (0.25 + 0.75 * t)));
-      // Gone fast: what it lit up shows through before it has finished growing.
-      ctx.globalAlpha = (1 - t) ** 2;
+      ctx.globalAlpha = flareAlpha(flare.radius, t);
       ctx.fillStyle = "#ffffff";
       const x = Math.round(flare.x),
         y = Math.round(flare.y);

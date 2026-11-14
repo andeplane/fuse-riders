@@ -428,7 +428,7 @@ class Arena implements ArenaView {
         -offset.y,
       );
     low.setTransform(1, 0, 0, 1, 0, 0);
-    hud.draw(low, { view, ending, camera, focus });
+    hud.draw(low, { view, ending });
     // What the glow is made from: the finished picture with the things that would bloom too much held down.
     const source = this.glowSource.ctx;
     source.drawImage(this.low.canvas, 0, 0);

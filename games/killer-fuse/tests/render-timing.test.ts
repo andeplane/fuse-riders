@@ -19,6 +19,8 @@ import {
   DIVE_COLORS,
   DIVE_STREAM,
   diveStream,
+  flareAlpha,
+  FLARE_SOFT_PEAK,
   EffectPool,
   fountainParticles,
   GHOST_EVERY,
@@ -259,4 +261,13 @@ test("the ending waits for a dead Queen's shake, then centres and grows to twice
     x: STILL.x + 20,
     y: STILL.y,
   });
+});
+
+test("a big flare is never a solid disc and fades from its first frame", () => {
+  assert.equal(flareAlpha(4, 0), 1, "a clash core starts solid");
+  assert.equal(flareAlpha(48, 0), FLARE_SOFT_PEAK);
+  assert.ok(flareAlpha(48, 0.1) < flareAlpha(48, 0));
+  assert.ok(flareAlpha(48, 0.5) < 0.15);
+  assert.equal(flareAlpha(48, 1), 0);
+  assert.equal(flareAlpha(48, 1.2), 0);
 });

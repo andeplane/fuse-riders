@@ -349,6 +349,19 @@ export function easeOutBack(t: number, spring = 1.70158): number {
 }
 
 /** Half the width of a filled disc of radius `r`, `dy` rows from its middle; -1 outside it. */
+/** A flare wider than this is a sky-filling flash, never a solid disc. */
+export const FLARE_SOFT = 12,
+  FLARE_SOFT_PEAK = 0.5;
+
+/**
+ * How solid a flare is `t` of the way through its life: fading from its first frame, and a big one only ever half
+ * there, so what it lights up (a Queen's death) stays visible through it.
+ */
+export function flareAlpha(radius: number, t: number): number {
+  const left = Math.max(0, 1 - t);
+  return (radius > FLARE_SOFT ? FLARE_SOFT_PEAK : 1) * left * left;
+}
+
 export function discHalfWidth(r: number, dy: number): number {
   return Math.abs(dy) > r ? -1 : Math.round(Math.sqrt(r * r - dy * dy));
 }

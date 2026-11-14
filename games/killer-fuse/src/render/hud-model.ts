@@ -242,20 +242,6 @@ export function hexHalfWidth(radius: number, dy: number): number {
   return Math.abs(dy) > reach ? 0 : radius - Math.abs(dy) / ROOT3;
 }
 
-/** Room kept above and below the closed hexagon for the two lines of words. */
-export const IRIS_WORDS = 28;
-
-/** The closed hexagon's middle: on the focus, moved only as far as it takes to keep it and its words on screen. */
-export function irisCentre(focus: Point): Point {
-  const reach = (IRIS_RADIUS * ROOT3) / 2;
-  const clamp = (value: number, low: number, high: number): number =>
-    Math.round(Math.max(low, Math.min(high, value)));
-  return {
-    x: clamp(focus.x, IRIS_RADIUS, VIEW_WIDTH - IRIS_RADIUS),
-    y: clamp(focus.y, reach + IRIS_WORDS, VIEW_HEIGHT - reach - IRIS_WORDS + 8),
-  };
-}
-
 /** The two lines of the ending: who won, and how. */
 export function victoryLines(
   winner: NonNullable<RoundView["winner"]>,

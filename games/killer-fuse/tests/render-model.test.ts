@@ -19,8 +19,6 @@ import {
   hiveSheet,
   IRIS_RADIUS,
   IRIS_SECONDS,
-  IRIS_WORDS,
-  irisCentre,
   irisRadius,
   victoryFocus,
   victoryLines,
@@ -880,14 +878,6 @@ test("the iris is a hexagon that closes and stays on screen with its words", () 
   assert.ok(Math.abs(hexHalfWidth(40, reach) - 20) < 1e-9, "the flat top");
   assert.equal(hexHalfWidth(40, -reach - 0.01), 0);
   assert.equal(hexHalfWidth(40, 10), hexHalfWidth(40, -10));
-  assert.deepEqual(irisCentre({ x: 240, y: 135 }), { x: 240, y: 135 });
-  const corner = irisCentre({ x: 2, y: 3 });
-  assert.equal(corner.x, IRIS_RADIUS);
-  const tall = (IRIS_RADIUS * Math.sqrt(3)) / 2;
-  assert.equal(corner.y, Math.round(tall + IRIS_WORDS), "room for the title");
-  const far = irisCentre({ x: 900, y: 900 });
-  assert.equal(far.x, 480 - IRIS_RADIUS);
-  assert.ok(far.y + tall <= 270 - IRIS_WORDS + 9, "and for the line below");
 });
 
 test("the ending says who won and how", () => {
