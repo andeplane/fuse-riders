@@ -84,7 +84,18 @@ export function createMatchShell(actions: {
     actions: [get("invitation")],
   });
   let inviteCode = "";
-  lounge.addEventListener("toggle", () => roomLayout.setActive(lounge.open));
+  // The room's background is a whole WebGL scene. Under the entrance menu nobody sees it, and it would draw beside
+  // the menu's own and the playground behind both: three scenes at once starve the page where WebGL has no GPU.
+  const syncBackground = () =>
+    roomLayout.setActive(
+      lounge.open && !document.body.classList.contains("at-entrance"),
+    );
+  lounge.addEventListener("toggle", syncBackground);
+  new MutationObserver(syncBackground).observe(document.body, {
+    attributes: true,
+    attributeFilter: ["class"],
+  });
+  syncBackground();
   const hud = document.createElement("section");
   hud.id = "match-hud";
   hud.setAttribute("aria-label", "Match scoreboard");

@@ -2,6 +2,8 @@ import { useCallback, useContext } from "react";
 
 import { FuseGamesContext } from "../fusegames/registry";
 import { useFuseGameLauncher } from "../fusegames/useFuseGameLauncher";
+import { LAUNCHER_TITLE } from "../launcher/launcherFacts";
+import { useOpenLauncher } from "../launcher/useOpenLauncher";
 import { useGameLaunch } from "../settings/useGameLaunch";
 import type { WindowState } from "../state/appState";
 import { activeWindowId } from "../state/appState";
@@ -46,6 +48,8 @@ export type DesktopViewModel = {
   /** Opens Winamp (or focuses it if already open). */
   openWinamp: () => void;
   openControlPanel: () => void;
+  /** Opens Fusteam, the game launcher (or focuses it if already open). */
+  openLauncher: () => void;
   wallpaper: string | undefined;
   /** The solid background colour behind the wallpaper (or in place of it when none is set). */
   backgroundColor: string;
@@ -62,6 +66,7 @@ export function useDesktopViewModel(): DesktopViewModel {
   const launcher = useFuseGameLauncher();
   // Re-renders the icons when the Games applet changes where games open (the shortcut arrow on the tiles).
   const { launch } = useGameLaunch();
+  const openLauncher = useOpenLauncher();
 
   // A window here (focused rather than duplicated) or a browser tab, as the Games applet says.
   const openFuseGame = launcher.launch;
@@ -84,6 +89,12 @@ export function useDesktopViewModel(): DesktopViewModel {
   );
 
   const icons: DesktopIconModel[] = [
+    {
+      id: "fusteam",
+      label: LAUNCHER_TITLE,
+      icon: "fusteam",
+      open: openLauncher,
+    },
     ...games.games.map((game) => ({
       id: `game:${game.id}`,
       label: game.name,
@@ -134,6 +145,7 @@ export function useDesktopViewModel(): DesktopViewModel {
     openPaint,
     openWinamp,
     openControlPanel,
+    openLauncher,
     wallpaper: ui.wallpaper,
     backgroundColor: ui.backgroundColor,
     iconSpacingX: ui.iconSpacingX,

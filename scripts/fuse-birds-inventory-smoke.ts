@@ -41,7 +41,7 @@ try {
   const code = await first.locator(".birds-code").innerText();
   await second.goto(`${base}/fuse-birds/?room=${code}&mute`);
   await takeHostSeat(second, "EMBER");
-  await first.locator(".birds-roster").getByText("EMBER").waitFor();
+  await first.locator(".fui-room-players").getByText("EMBER").waitFor();
   await first.getByRole("button", { name: "START BATTLE" }).click();
   for (const page of pages)
     await page
@@ -91,7 +91,7 @@ try {
       })
       .click();
     await page.getByRole("button", { name: "FULL MAP", exact: true }).click();
-    const box = await page.locator("canvas").boundingBox();
+    const box = await page.locator("canvas[data-ready]").boundingBox();
     assert.ok(box);
     const scale = Math.min(box.width / 1536, box.height / 768),
       pull = Math.max(

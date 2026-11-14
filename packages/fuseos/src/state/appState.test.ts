@@ -262,6 +262,7 @@ describe(isAppState.name, () => {
     expect(isAppState(window({ kind: "wallpaper" }))).toBe(true);
     expect(isAppState(window({ kind: "about" }))).toBe(true);
     expect(isAppState(window({ kind: "winamp" }))).toBe(true);
+    expect(isAppState(window({ kind: "launcher" }))).toBe(true);
     expect(
       isAppState(
         window({ kind: "dialog", title: "t", message: "m", icon: "info" }),

@@ -2,6 +2,7 @@ import { useContext } from "react";
 
 import { APPLETS } from "../controlpanel/applets";
 import { FuseGamesContext } from "../fusegames/registry";
+import { LAUNCHER_TITLE } from "../launcher/launcherFacts";
 import { GAME_LIST } from "../retro/games";
 import { useAppState } from "../state/useAppState";
 import type { IconRef } from "../ui/icons";
@@ -102,6 +103,12 @@ export function useStartMenuViewModel(): {
       label: "Programs",
       icon: "programs",
       children: [
+        {
+          id: "fusteam",
+          label: LAUNCHER_TITLE,
+          icon: "fusteam",
+          onSelect: wrap(desktop.openLauncher),
+        },
         {
           id: "accessories",
           label: "Accessories",

@@ -16,7 +16,12 @@ import {
   installRoomLifecycle,
   validRoomCode,
 } from "fuse-network-fe";
-import { MAX_PACKET_BYTES, uuid } from "fuse-netcode";
+import {
+  MAX_PACKET_BYTES,
+  createLeadClock,
+  ticksAhead,
+  uuid,
+} from "fuse-netcode";
 import {
   button,
   createAppPortal,
@@ -43,6 +48,7 @@ import {
 } from "../online/index.js";
 import { createArenaView } from "../render/index.js";
 import { ArenaDriver } from "./arena.js";
+import { createForward, createSmoother } from "./forward.js";
 import {
   Controls,
   HOLD_TO_FLAP_KEY,
@@ -137,6 +143,8 @@ interface KillerFuseDebug {
 declare global {
   interface Window {
     __killerFuse?: KillerFuseDebug;
+    /** With `?probe`: where this device's unit was last drawn, and when. */
+    __killerFuseProbe?: { at: number; step: number; x?: number; y?: number };
   }
 }
 
@@ -255,6 +263,10 @@ function checkbox(
   return label;
 }
 
+/** `?lead=off` draws the old way, a tick behind the clock and blended, to compare the feel against. */
+const drawAhead = query.get("lead") !== "off";
+/** For latency measurements: `?probe` publishes where this device's unit was last drawn as `window.__killerFuseProbe`. */
+const probe = query.has("probe");
 /** `?mute` (previews, smoke runs) silences the page whatever was stored, and writes no choice of its own. */
 const forcedMute = query.has("mute");
 interface SoundChoices {
@@ -857,11 +869,47 @@ function room(solo: boolean): void {
   arena.hidden = true;
   nameEntry.form.hidden = true;
 
+  // Drawing: the newest folded round played forward to the clock, once per animation frame (`forward.ts`).
+  const forward = createForward(),
+    smoother = createSmoother(),
+    leadClock = createLeadClock();
   const driver = new ArenaDriver({
     create: createArenaView,
     host: canvasHost,
     artUrl: ART_URL,
     timing: () => runtime.frameTiming(),
+    picture: (timing) => {
+      const source = drawAhead ? runtime.ahead() : undefined;
+      // Only while the newest frame is the room's newest round: mid-replay and outside play the frames are blended.
+      if (!source || source.tick !== timing.newer.logTick) return undefined;
+      const now = performance.now(),
+        revision = timing.revision ?? 0;
+      return smoother.apply(
+        forward(
+          source,
+          `${revision}:${source.game}:${source.tick}`,
+          leadClock(ticksAhead(timing), timing.newer.logTick, now),
+        ),
+        { revision, ...source },
+        now,
+        model?.arena.localSlot ?? -1,
+      );
+    },
+    ...(probe
+      ? {
+          drawn: (current, alpha, previous) => {
+            const slot = model?.arena.localSlot ?? -1,
+              to = current.units[slot],
+              from = previous.units[slot] ?? to;
+            window.__killerFuseProbe = {
+              at: performance.now(),
+              step: current.step,
+              x: to && from ? from.x + (to.x - from.x) * alpha : undefined,
+              y: to && from ? from.y + (to.y - from.y) * alpha : undefined,
+            };
+          },
+        }
+      : {}),
     confirmed: () => runtime.confirmedTick(),
     // A kill, a gate opening or a sting holds the music down for a moment so it is heard over it.
     duck: () => music.duck(),

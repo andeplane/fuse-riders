@@ -2,6 +2,8 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { renderWithProviders } from "../__mocks__/renderWithProviders";
+import { withLauncherOnBoot } from "../launcher/launcherBoot";
+import { MemoryStateStore } from "../state/stateStore";
 import {
   DEFAULT_ICON_SPACING_X,
   DEFAULT_ICON_SPACING_Y,
@@ -10,7 +12,7 @@ import {
 import { Desktop } from "./Desktop";
 
 describe(Desktop.name, () => {
-  it("boots to a desktop with one icon per Fuse game, then Paint, Winamp and Control Panel, a taskbar and the clock", () => {
+  it("boots to a desktop with Fusteam, one icon per Fuse game, then Paint, Winamp and Control Panel, a taskbar and the clock", () => {
     renderWithProviders(<Desktop />);
     const icons = within(screen.getByRole("list", { name: "Desktop icons" }));
     expect(
@@ -18,6 +20,7 @@ describe(Desktop.name, () => {
         .getAllByRole("button")
         .map((item) => item.lastElementChild?.textContent),
     ).toEqual([
+      "Fusteam",
       "Fuseball",
       "Fuse Riders",
       "Fuse Birds",
@@ -174,6 +177,55 @@ describe(Desktop.name, () => {
       ),
     );
     expect(store.load().windows.map((window) => window.id)).toEqual(["w2"]);
+  });
+
+  it("opens Fusteam from its desktop icon once, focusing the open window the second time", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Desktop />);
+    const icon = screen.getByRole("button", { name: "Fusteam" });
+    expect(icon.querySelector("svg[data-icon='fusteam']")).not.toBeNull();
+    await user.dblClick(icon);
+    const launcher = await screen.findByRole("dialog", { name: "Fusteam" });
+    expect(launcher).toHaveAttribute("data-active", "true");
+    await user.dblClick(screen.getByRole("button", { name: "Paint" }));
+    expect(launcher).toHaveAttribute("data-active", "false");
+    await user.dblClick(icon);
+    expect(screen.getAllByRole("dialog", { name: "Fusteam" })).toHaveLength(1);
+    expect(launcher).toHaveAttribute("data-active", "true");
+  });
+
+  it("boots with Fusteam focused when the store is wrapped for boot, under the deep link's windows", () => {
+    renderWithProviders(<Desktop />, {
+      store: withLauncherOnBoot(
+        new MemoryStateStore({
+          version: 1,
+          windows: [
+            {
+              id: "w1",
+              kind: "paint",
+              minimized: false,
+              maximized: false,
+            },
+          ],
+        }),
+        () => ({ width: 1280, height: 800 }),
+      ),
+      initialOpen: [{ kind: "about" }],
+    });
+    expect(
+      screen.getByRole("dialog", { name: "untitled - Paint" }),
+    ).toHaveAttribute("data-active", "false");
+    expect(screen.getByRole("dialog", { name: "Fusteam" })).toHaveAttribute(
+      "data-active",
+      "false",
+    );
+    expect(
+      screen.getByRole("dialog", { name: "About FuseOS" }),
+    ).toHaveAttribute("data-active", "true");
+    const taskbar = within(screen.getByRole("toolbar", { name: "Taskbar" }));
+    expect(
+      taskbar.getAllByRole("button").map((button) => button.textContent),
+    ).toEqual(["Start", "untitled - Paint", "Fusteam", "About FuseOS"]);
   });
 
   it("opens the deep link's windows on top of the stored ones", () => {

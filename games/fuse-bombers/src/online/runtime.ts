@@ -1,10 +1,17 @@
-import { RoomRuntime, type Callbacks, type RuntimeOptions } from "fuse-netcode";
+import {
+  RoomRuntime,
+  type Callbacks,
+  type RuntimeOptions,
+  type StreamEntries,
+} from "fuse-netcode";
 import { DOWN, LEFT, RIGHT, UP, type TickEvent } from "../engine/index.js";
 import {
   PLAY,
   PRESS,
   STEPS_PER_TICK,
+  aheadOf,
   bombersGame,
+  type Ahead,
   type Entry,
   type Room,
   type Settings,
@@ -91,6 +98,23 @@ export class BombersRuntime extends RoomRuntime<
   /** The newest simulated room, for reports and tests; the screen renders from frames. */
   roomState(): Room | undefined {
     return this.world?.state;
+  }
+  /**
+   * What the screen plays forward from (`aheadOf`), read off this replica's own log. Only each member's current
+   * stream is read: a seat still following a retired generation is taken to hold what it last had.
+   */
+  ahead(): Ahead | undefined {
+    const world = this.world;
+    if (!world) return undefined;
+    return aheadOf(world.state, (tick) => {
+      const streams = new Map<string, StreamEntries<Entry>>();
+      for (const [id, stream] of world.streams)
+        streams.set(id, {
+          generation: stream.generation,
+          entries: stream.entriesAt(tick),
+        });
+      return streams;
+    });
   }
   get self(): string {
     return this.id;

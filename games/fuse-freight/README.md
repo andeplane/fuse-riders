@@ -101,6 +101,11 @@ pnpm exec tsx service/dev.ts --port 8787
 
 Open `http://localhost:8787/fuse-freight/?mute` (solo: `?solo=1&mute`).
 
+The screen draws at the clock: each frame plays the newest folded world forward on a copy with the controls this
+device holds right now (`src/app/forward.ts`), so a press shows on the next frame; outcomes are shown only once the
+room has folded them. `?lead=off` draws the old way, a tick behind, to compare the feel, and
+`scripts/lead-input-latency.ts` measures press to picture both ways (`?probe` publishes the drawn train).
+
 ```bash
 pnpm exec tsx --test games/fuse-freight/tests/*.test.ts
 node games/fuse-freight/preview/smoke.mjs http://localhost:8787/ path/to/screenshots
