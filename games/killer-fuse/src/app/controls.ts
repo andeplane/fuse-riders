@@ -26,10 +26,12 @@ export const settle = (bits: number): number =>
 export class Controls {
   private readonly held = new Map<ControlSource, number>();
   private bits = 0;
+  private last: ControlSource | undefined;
   constructor(private readonly sink: ControlSink) {}
   /** What `source` holds now. */
   set(source: ControlSource, bits: number): void {
     this.held.set(source, bits);
+    if (bits !== 0) this.last = source;
     let merged = 0;
     for (const value of this.held.values()) merged |= value;
     merged = settle(merged);
@@ -46,6 +48,10 @@ export class Controls {
   }
   value(): number {
     return this.bits;
+  }
+  /** The source that last held anything: the device the player is using, for the hints on screen. */
+  lastUsed(): ControlSource | undefined {
+    return this.last;
   }
 }
 

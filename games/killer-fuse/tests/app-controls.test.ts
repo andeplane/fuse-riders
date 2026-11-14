@@ -59,6 +59,20 @@ test("the sources merge, and only a change reaches the runtime", () => {
   assert.equal(log.at(-1), "press");
 });
 
+test("the source that last held something is the device in use", () => {
+  const { controls } = rig();
+  assert.equal(controls.lastUsed(), undefined);
+  controls.set("pad", 0);
+  assert.equal(controls.lastUsed(), undefined, "an idle pad says nothing");
+  controls.set("keys", INPUT_LEFT);
+  assert.equal(controls.lastUsed(), "keys");
+  controls.set("touch", INPUT_HELD);
+  controls.set("pad", 0);
+  assert.equal(controls.lastUsed(), "touch");
+  controls.release();
+  assert.equal(controls.lastUsed(), "touch", "letting go keeps the device");
+});
+
 test("the keyboard: arrows or WASD, and every button key is its own press", () => {
   const { log, controls } = rig();
   const keys = new Keys(controls);

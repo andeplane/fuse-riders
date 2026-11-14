@@ -69,6 +69,7 @@ test("the lobby: two teams of three seats, bots in the empty ones, start and set
   const room = lobby();
   const host = present(frame(room), viewer());
   assert.equal(host.screen, "lobby");
+  assert.equal(host.arena.briefing, false, "no controls card in the lobby");
   assert.equal(host.layout, "arena");
   assert.deepEqual(
     host.lobby.teams.map((team) => [
@@ -225,6 +226,11 @@ test("a game: the countdown banner, then the controls, then the pause banner and
     detail: "Starts in 3",
   });
   assert.equal(model.playing, false, "nothing to steer during the countdown");
+  assert.equal(
+    model.arena.briefing,
+    true,
+    "the controls card over the countdown",
+  );
   assert.equal(present(frame(room), viewer({ me: "b" })).arena.localSlot, 1);
   assert.ok(
     flat(model).every((seat) => seat.action === "none"),
@@ -238,6 +244,7 @@ test("a game: the countdown banner, then the controls, then the pause banner and
   fold(room);
   model = present(frame(room), viewer());
   assert.equal(model.arena.banner, undefined);
+  assert.equal(model.arena.briefing, false, "the card goes when play starts");
   assert.equal(model.playing, true);
   assert.equal(present(frame(room), viewer({ me: "z" })).playing, false);
   assert.equal(
@@ -261,6 +268,7 @@ test("a game: the countdown banner, then the controls, then the pause banner and
     team: 1,
   });
   assert.equal(model.arena.line, "CYAN 0 · 1 PINK · FIRST TO 2");
+  assert.equal(model.arena.briefing, true, "the pause before the next game");
   assert.equal(model.result, undefined);
 
   run(room, room.resumeAt - room.tick);
@@ -271,6 +279,7 @@ test("a game: the countdown banner, then the controls, then the pause banner and
   model = present(frame(room), viewer());
   assert.equal(model.screen, "arena");
   assert.equal(model.arena.banner, undefined);
+  assert.equal(model.arena.briefing, false, "no card over the result");
   const result = model.result!;
   assert.equal(result.title, "YOUR TEAM LOST");
   assert.equal(result.team, 1);

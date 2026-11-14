@@ -116,25 +116,80 @@ body.kf-page {
   text-align: center;
 }
 
-/* How to play */
-.kf-how {
+/* How to play: a button on the landing page and in the lobby, the guide in a dialog. */
+.kf-how-entry {
+  display: flex;
+  justify-content: center;
+}
+.fui-app .kf-how-open {
+  border-color: var(--kf-gold);
+  color: var(--kf-gold);
+}
+.fui-app dialog.kf-how {
+  width: min(44rem, calc(100vw - 1.5rem));
+}
+.kf-how-title {
+  margin: 0;
+  color: var(--kf-gold);
+  font: 0.75rem var(--fui-font-pixel);
+}
+.kf-how-body {
   display: grid;
   gap: var(--fui-space-2);
-  padding: var(--fui-space-4);
-  background: var(--fui-panel);
-  border: var(--fui-border);
-  border-radius: var(--fui-radius-panel);
   font-size: 0.875rem;
   line-height: 1.5;
 }
 .kf-how h3 {
-  margin: var(--fui-space-2) 0 0;
+  margin: var(--fui-space-3) 0 0;
   color: var(--kf-gold);
   font: 0.625rem var(--fui-font-pixel);
+}
+.kf-how h4 {
+  margin: 0 0 var(--fui-space-1);
+  color: var(--kf-cyan);
+  font: 0.5625rem var(--fui-font-pixel);
 }
 .kf-how-goal {
   margin: 0;
   color: var(--fui-text-muted);
+}
+.kf-how-units {
+  display: grid;
+  gap: var(--fui-space-2);
+}
+.kf-how-unit {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--fui-space-3);
+}
+.kf-how-unit p {
+  margin: 0;
+  color: var(--fui-text-muted);
+}
+.kf-how-unit strong {
+  color: var(--fui-text);
+}
+.kf-how-unit .kf-how-cannot {
+  color: var(--fui-pink-soft);
+}
+.kf-how-icon {
+  justify-self: center;
+  width: 0;
+  height: 0;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+.kf-how-rules {
+  display: grid;
+  gap: var(--fui-space-1);
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--fui-text-muted);
+}
+.kf-how-devices {
+  display: grid;
+  gap: var(--fui-space-3);
 }
 .kf-how-list {
   display: grid;
@@ -364,12 +419,64 @@ body.kf-page {
 .kf-banner[data-team="1"] strong {
   color: var(--kf-pink);
 }
-.kf-stage .fui-round-controls {
+/* The controls card over the countdown: at the foot of the arena, out of the middle, and never in the way of a tap. */
+.kf-brief {
   position: absolute;
   left: 50%;
-  bottom: 4%;
-  width: min(92%, 30rem);
+  bottom: 3%;
+  display: grid;
+  gap: 0.2rem;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(94%, 40rem);
+  padding: var(--fui-space-2) var(--fui-space-3);
+  color: var(--fui-text);
+  background: #04091ae6;
+  border: 2px solid var(--kf-gold);
+  border-radius: var(--fui-radius-small);
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  text-align: center;
   transform: translateX(-50%);
+  pointer-events: none;
+}
+.kf-brief[hidden] {
+  display: none;
+}
+.kf-brief p {
+  margin: 0;
+}
+.kf-brief-title {
+  color: var(--kf-gold);
+  font: 0.625rem/1.4 var(--fui-font-pixel);
+}
+.kf-brief[data-team="0"] {
+  border-color: var(--kf-cyan);
+}
+.kf-brief[data-team="0"] .kf-brief-title {
+  color: var(--kf-cyan);
+}
+.kf-brief[data-team="1"] {
+  border-color: var(--kf-pink);
+}
+.kf-brief[data-team="1"] .kf-brief-title {
+  color: var(--kf-pink);
+}
+.kf-brief kbd {
+  padding: 0 0.3em;
+  color: var(--fui-ink);
+  background: var(--kf-gold);
+  border-radius: 0.2rem;
+  font: inherit;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.kf-brief-tips {
+  color: var(--fui-text-muted);
+}
+.kf-brief-win {
+  color: var(--kf-gold);
+  font-weight: 700;
 }
 .kf-seat-line {
   margin: 0;
@@ -442,7 +549,7 @@ body.kf-page {
 }
 .kf-room[data-layout="controller"] .kf-banner,
 .kf-room[data-layout="controller"] .kf-result,
-.kf-room[data-layout="controller"] .fui-round-controls {
+.kf-room[data-layout="controller"] .kf-brief {
   position: static;
   transform: none;
 }
@@ -510,6 +617,18 @@ body.kf-display .kf-seat-line {
     margin-bottom: var(--fui-space-1);
   }
 }
+/* A short screen (a phone held sideways): the card shrinks so it keeps to the foot of the arena. */
+@media (max-height: 30rem) {
+  .kf-brief {
+    gap: 0.1rem;
+    padding: 0.25rem var(--fui-space-2);
+    font-size: 0.6875rem;
+    line-height: 1.25;
+  }
+  .kf-brief-title {
+    font-size: 0.5rem;
+  }
+}
 /* A phone held sideways: the arena takes the screen and the controls lie over its lower corners. */
 @media (pointer: coarse) and (orientation: landscape) {
   .kf-room[data-layout="arena"][data-screen="arena"] .kf-stage {
@@ -532,5 +651,12 @@ body.kf-display .kf-seat-line {
   }
   .kf-room[data-layout="arena"] .kf-touch > * {
     pointer-events: auto;
+  }
+  /* The card keeps to the foot of the screen between the two thumbs, whatever of the arena the screen shows. */
+  .kf-room[data-layout="arena"] .kf-brief {
+    position: fixed;
+    z-index: 5;
+    bottom: max(var(--fui-space-2), env(safe-area-inset-bottom));
+    max-width: calc(100vw - 21rem);
   }
 }

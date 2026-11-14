@@ -24,7 +24,6 @@ import {
   createNameEntry,
   createNotice,
   createRadioGroup,
-  createRoundControls,
   el,
 } from "fuse-ui";
 import { MAPS } from "../engine/index.js";
@@ -37,9 +36,22 @@ import {
   type Settings,
 } from "../online/index.js";
 import { createArenaView } from "../render/index.js";
+import { parseManifest, type ArtManifest } from "../render/manifest.js";
 import { ArenaDriver } from "./arena.js";
 import { Controls, Keys, Pads, Touch, gameKey } from "./controls.js";
-import { CONTROLS, GOAL, ROLES, TOUCH_CONTROLS, WINS } from "./guide.js";
+import { briefing, briefingKey, buttonLabel, deviceFor } from "./briefing.js";
+import {
+  CONTROLS,
+  DEVICE_CONTROLS,
+  DEVICE_NAMES,
+  GOAL,
+  RULES,
+  TOUCH_CONTROLS,
+  UNITS,
+  WINS,
+  unitIcon,
+  type Device,
+} from "./guide.js";
 import { createGameMetrics } from "./metrics.js";
 import {
   BOT_LEVELS,
@@ -108,28 +120,107 @@ function header(extra: HTMLElement[] = []): HTMLElement {
   return bar;
 }
 
-/** The three ways to win, the two roles and the controls: on the landing page and in the lobby. */
+/** The art manifest, fetched once for the unit icons of the How to play panel; undefined when it cannot be had. */
+let manifest: Promise<ArtManifest | undefined> | undefined;
+const loadManifest = () =>
+  (manifest ??= fetch(`${ART_URL}manifest.json`)
+    .then(async (response) => parseManifest(await response.json()))
+    .catch(() => undefined));
+
+/**
+ * How to play: a button for the landing page and the lobby that opens the whole guide in a dialog (Escape or CLOSE
+ * shuts it). `#how-to-play` in the address opens it on load.
+ */
 function howToPlay(): HTMLElement {
-  const panel = el("section", "", "kf-how");
+  const open = button("HOW TO PLAY", "kf-how-open"),
+    dialog = el("dialog", "", "fui-dialog kf-how"),
+    bar = el("div", "", "fui-dialog-bar"),
+    title = el("h2", "HOW TO PLAY", "fui-dialog-title kf-how-title"),
+    close = button("CLOSE", "fui-dialog-close"),
+    body = el("div", "", "fui-dialog-body kf-how-body");
+  title.id = "kf-how-title";
+  dialog.setAttribute("aria-labelledby", title.id);
+  open.setAttribute("aria-haspopup", "dialog");
+  bar.append(title, close);
   const list = (rows: readonly { name: string; how: string }[]) => {
     const items = el("dl", "", "kf-how-list");
     for (const row of rows) items.append(el("dt", row.name), el("dd", row.how));
     return items;
   };
-  const controls = el("dl", "", "kf-how-list kf-how-controls");
-  for (const hint of [...CONTROLS, ...TOUCH_CONTROLS])
-    controls.append(el("dt", hint.keys), el("dd", hint.action));
-  panel.append(
-    el("h2", "HOW TO PLAY", "fui-lobby-title"),
+  const units = el("div", "", "kf-how-units");
+  const icons: { art: (typeof UNITS)[number]["art"]; slot: HTMLElement }[] = [];
+  for (const unit of UNITS) {
+    const row = el("article", "", "kf-how-unit"),
+      icon = el("i", "", "kf-how-icon"),
+      text = el("div");
+    icon.setAttribute("aria-hidden", "true");
+    text.append(
+      el("strong", unit.name),
+      el("p", `Can: ${unit.can}`),
+      el("p", `Cannot: ${unit.cannot}`, "kf-how-cannot"),
+    );
+    row.append(icon, text);
+    units.append(row);
+    icons.push({ art: unit.art, slot: icon });
+  }
+  const controls = el("div", "", "kf-how-devices");
+  for (const device of ["keys", "pad", "touch"] as const) {
+    const group = el("div");
+    const rows = el("dl", "", "kf-how-list kf-how-controls");
+    for (const hint of DEVICE_CONTROLS[device])
+      rows.append(el("dt", hint.keys), el("dd", hint.action));
+    group.append(el("h4", DEVICE_NAMES[device]), rows);
+    controls.append(group);
+  }
+  body.append(
     el("p", GOAL, "kf-how-goal"),
     el("h3", "THREE WAYS TO WIN"),
     list(WINS),
-    el("h3", "ROLES"),
-    list(ROLES),
+    el("h3", "THE UNITS"),
+    units,
+    ...RULES.flatMap((section) => {
+      const lines = el("ul", "", "kf-how-rules");
+      lines.append(...section.lines.map((line) => el("li", line)));
+      return [el("h3", section.title), lines];
+    }),
     el("h3", "CONTROLS"),
     controls,
   );
-  return panel;
+  dialog.append(bar, body);
+  const show = () => {
+    if (dialog.open) return;
+    dialog.showModal();
+    close.focus();
+    void loadManifest().then((art) => {
+      if (!art) return;
+      for (const { art: name, slot } of icons) {
+        const icon = unitIcon(art, ART_URL, name, 0, 56);
+        if (!icon || slot.style.backgroundImage) continue;
+        Object.assign(slot.style, {
+          width: `${icon.width}px`,
+          height: `${icon.height}px`,
+          backgroundImage: `url("${icon.url}")`,
+          backgroundSize: icon.size,
+          backgroundPosition: icon.position,
+        });
+      }
+    });
+  };
+  open.onclick = show;
+  close.onclick = () => dialog.close();
+  // A click on the backdrop (outside the panel) closes it as well.
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+  dialog.addEventListener("close", () => {
+    if (location.hash === "#how-to-play")
+      history.replaceState(null, "", location.pathname + location.search);
+    open.focus();
+  });
+  const wrap = el("div", "", "kf-how-entry");
+  wrap.append(open, dialog);
+  if (location.hash === "#how-to-play") queueMicrotask(show);
+  return wrap;
 }
 
 function landing(): void {
@@ -217,6 +308,9 @@ function room(solo: boolean): void {
   document.body.classList.toggle("kf-display", display);
   const viewer: Viewer = { me: "", solo, display };
   const coarse = window.matchMedia("(pointer: coarse)").matches;
+  const padConnected = () =>
+    typeof navigator.getGamepads === "function" &&
+    navigator.getGamepads().some((pad) => pad !== null);
 
   // ---- controls ----
   const controls = new Controls({
@@ -245,11 +339,15 @@ function room(solo: boolean): void {
       }
     },
   });
-  const roundControls = createRoundControls({
-    controls: CONTROLS,
-    touchControls: TOUCH_CONTROLS,
-    goal: GOAL,
-  });
+  // Over the countdown: this seat's controls and the three ways to win.
+  const card = el("aside", "", "kf-brief"),
+    cardTitle = el("strong", "", "kf-brief-title"),
+    cardControls = el("p", "", "kf-brief-controls"),
+    cardTips = el("div", "", "kf-brief-tips"),
+    cardWin = el("p", "", "kf-brief-win");
+  card.append(cardTitle, cardControls, cardTips, cardWin);
+  card.setAttribute("role", "status");
+  card.hidden = true;
   // `?mute` (previews, smoke runs) silences the page whatever was stored.
   const forcedMute = query.has("mute");
   let muted = forcedMute || store.getItem(MUTED) === "1";
@@ -412,7 +510,7 @@ function room(solo: boolean): void {
   stick.append(knob);
   stick.setAttribute("aria-label", "Move: slide left, right or down");
   touchRow.append(stick, flap);
-  stage.append(canvasHost, banner, roundControls.element);
+  stage.append(canvasHost, banner, card);
 
   // The result of a set, over the arena.
   const result = el("section", "", "kf-result"),
@@ -534,6 +632,35 @@ function room(solo: boolean): void {
         : next.screen === "arena"
           ? "Watching"
           : "";
+    // The controls card: shown while a game is about to start, for the role and the device this page plays with.
+    const device: Device = deviceFor({
+      last: controls.lastUsed(),
+      pad: padConnected(),
+      coarse,
+      controller: next.layout === "controller",
+    });
+    const brief = next.arena.briefing
+      ? briefing(next.seated ? next.arena.localSlot : -1, device)
+      : undefined;
+    card.hidden = !brief;
+    if (brief) {
+      const key = briefingKey(brief);
+      if (card.dataset.key !== key) {
+        card.dataset.key = key;
+        card.dataset.team = brief.team === undefined ? "" : String(brief.team);
+        cardTitle.textContent = brief.title;
+        cardControls.replaceChildren(
+          ...brief.controls.flatMap((hint, index) => [
+            ...(index ? [el("span", " · ", "kf-brief-dot")] : []),
+            el("kbd", hint.keys),
+            el("span", ` ${hint.action}`),
+          ]),
+        );
+        cardControls.hidden = brief.controls.length === 0;
+        cardTips.replaceChildren(...brief.tips.map((tip) => el("p", tip)));
+        cardWin.textContent = brief.win;
+      }
+    }
     touchRow.hidden = !(
       next.seated &&
       next.arena.localSlot >= 0 &&
@@ -594,16 +721,6 @@ function room(solo: boolean): void {
         touch: coarse || roomSettings.display,
         spectator,
       });
-      roundControls.update({
-        round: `${frame.matchId}:${frame.round}`,
-        visible:
-          frame.stage === "running" &&
-          frame.round === 1 &&
-          frame.logTick < frame.startAt,
-        display,
-        touch: coarse || roomSettings.display,
-        spectator,
-      });
       // For the browser smoke and the stylesheet.
       main.dataset.stage = frame.stage;
       main.dataset.round = String(frame.round);
@@ -616,6 +733,9 @@ function room(solo: boolean): void {
       }
       if (next.seated) joinSent = false;
       render(next);
+      flap.textContent = buttonLabel(
+        frame.world?.units[next.arena.localSlot]?.kind,
+      );
       driver.update({
         names: next.arena.names,
         localSlot: next.arena.localSlot,

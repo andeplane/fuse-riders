@@ -89,6 +89,8 @@ export interface ArenaModel {
   score: number[];
   wins: number;
   line: string;
+  /** A game is about to start (its countdown, or the pause before the next one): time for the controls card. */
+  briefing: boolean;
   /** Over the arena: the countdown before a game and the pause after one. */
   banner?: { title: string; detail: string; team?: number };
 }
@@ -258,6 +260,11 @@ function arena(view: View, viewer: Viewer): ArenaModel {
     score: [...view.score],
     wins,
     line,
+    briefing:
+      (view.stage === "running" &&
+        view.world !== null &&
+        view.logTick < view.startAt) ||
+      view.stage === "between",
     ...(banner ? { banner } : {}),
   };
 }
