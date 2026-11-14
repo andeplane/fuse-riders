@@ -1,5 +1,5 @@
 /**
- * Finds a ride that finishes each Elasto Fuse level and records it in `games/elasto-fuse/tests/fixtures/rides.json`:
+ * Finds a ride that finishes each Elasto Fuse level and records it in `games/elasto-fuse/src/app/rides-data.ts`:
  *
  *   pnpm exec tsx scripts/elasto-fuse-solve.ts            # every level
  *   pnpm exec tsx scripts/elasto-fuse-solve.ts 3 5        # levels 3 and 5 (from 0)
@@ -10,7 +10,7 @@
  * for the physics: `tests/rides.test.ts` replays them and expects the same finishing step. They are not good rides.
  * Rerun it after a change to the physics or a level (and bump `RULES`).
  */
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   BRAKE,
@@ -24,9 +24,10 @@ import {
   stepWorld,
   type World,
 } from "../games/elasto-fuse/src/engine/index.js";
+import { RECORDED } from "../games/elasto-fuse/src/app/rides-data.js";
 
 const OUT = fileURLToPath(
-  new URL("../games/elasto-fuse/tests/fixtures/rides.json", import.meta.url),
+  new URL("../games/elasto-fuse/src/app/rides-data.ts", import.meta.url),
 );
 /** Points to pass before the apple or flower with that index in the level's objects, for levels a straight line misleads. */
 const WAYPOINTS: Record<string, Record<number, [number, number][]>> = {
@@ -166,14 +167,27 @@ const chosen = args
     (arg, index) => /^\d+$/.test(arg) && (beamAt < 0 || index !== beamAt + 1),
   )
   .map(Number);
-const rides: Record<string, { ride: string; steps: number }> = existsSync(OUT)
-  ? (JSON.parse(readFileSync(OUT, "utf8")) as { rides: typeof rides }).rides
-  : {};
-/** Write after every level, so a long run stopped part-way keeps the rides it found. */
+
+/** The module's text around its data: everything up to the object, and the object itself. */
+const HEAD = `/**
+ * The solver's finishing rides, written by \`scripts/elasto-fuse-solve.ts\` (never by hand): for each level a list of
+ * held bits, one per decision of \`decision\` steps, and the step the ride reaches the flower on. The tests replay them
+ * as the golden for the physics and the levels; the menu's demo rides them behind the buttons.
+ */
+export const RECORDED: {
+  rules: string;
+  decision: number;
+  rides: Record<string, { ride: string; steps: number }>;
+} = `;
+// What is recorded so far: a run for some levels keeps the others' rides.
+const rides: Record<string, { ride: string; steps: number }> = {
+  ...RECORDED.rides,
+};
+/** Persist each result so interrupted searches retain their progress. */
 const save = (): void => {
   writeFileSync(
     OUT,
-    `${JSON.stringify({ rules: RULES, decision: DECISION, rides }, null, 2)}\n`,
+    `${HEAD}${JSON.stringify({ rules: RULES, decision: DECISION, rides }, null, 2)};\n`,
   );
 };
 for (const [index, level] of LEVELS.entries()) {
