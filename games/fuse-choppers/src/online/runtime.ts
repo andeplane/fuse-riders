@@ -48,6 +48,10 @@ export class ChopperRuntime extends RoomRuntime<
     this.append(PLAY, room.matchId, room.round, this.bits);
     this.sendPackets(this.deps.now());
   }
+  /** What this device holds right now, logged or not: the screen leads its own pilot with it. */
+  get heldNow(): number {
+    return this.bits;
+  }
   /** The newest simulated room, for reports and tests; the screen renders from frames. */
   roomState(): Room | undefined {
     return this.world?.state;
