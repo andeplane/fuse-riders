@@ -217,7 +217,7 @@ const editInput = el("input", {
 const recordInput = el("input", {
   type: "checkbox",
   title:
-    "Record mode (r): while the song plays, tap the rhythm on WASD or IJKL; each tap lands as an arrow in the Tapped column",
+    "Record mode (r): while the song plays, tap the rhythm on WASD or IJKL; each tap lands as an arrow in a Custom chart",
 });
 const snapSelect = el("select", { title: "Edit snap" });
 for (const per of [4, 3, 2, 6, 8, 1])
@@ -250,7 +250,7 @@ const helpBox = el(
   el("h2", { textContent: "How to use" }),
   el("p", {
     textContent:
-      "Record mode (r, or the record box): while the song plays, tap the rhythm you hear on WASD or IJKL (left, down, up, right). Each tap lands in the Tapped column and is saved with your notes. Press x to drop a marker at the playhead (the yellow line) and enter to jump back to it, as often as you like. Scroll to move through the song, ctrl/⌘ + scroll (or + and −) to zoom. Space plays and pauses at the playhead (the white line); ← and → move it back and forward by 0.5 s, 3 s with shift and 10 s with option (as in VLC), playing or paused. Click the ruler or the spectrogram to put it somewhere else.",
+      "Record mode (r, or the record box): while the song plays, tap the rhythm you hear on WASD or IJKL (left, down, up, right). Each tap lands in a Custom chart beside the song's own and is saved with your notes. Press x to drop a marker at the playhead (the yellow line) and enter to jump back to it, as often as you like. Scroll to move through the song, ctrl/⌘ + scroll (or + and −) to zoom. Space plays and pauses at the playhead (the white line); ← and → move it back and forward by 0.5 s, 3 s with shift and 10 s with option (as in VLC), playing or paused. Click the ruler or the spectrogram to put it somewhere else.",
   }),
   el("p", {
     textContent:
@@ -552,7 +552,7 @@ function rebuildCharts(): void {
       sim,
       {
         stepsType: "dance-single",
-        difficulty: "Tapped",
+        difficulty: "Custom",
         meter: 1,
         description: "",
         credit: "tapped in the chart lab",
@@ -565,7 +565,7 @@ function rebuildCharts(): void {
       TAPPED,
       "recorded",
     );
-    placed.push({ ...tapped, label: "Tapped" });
+    placed.push({ ...tapped, label: "Custom" });
   }
   charts = placed;
   const current = tickSelect.value;
