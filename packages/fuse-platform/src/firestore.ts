@@ -12,6 +12,7 @@ import {
   type FriendsDatabase,
   type InviteRecord,
   type PresenceRecord,
+  storedPresence,
 } from "./friends.js";
 import { validPublicId } from "./friends-api.js";
 import type { HistoryDatabase } from "./history.js";
@@ -349,7 +350,7 @@ export class FirestoreHistoryDatabase implements HistoryDatabase {
  * Friends, presence and invites, beside the history collections and never on the settlement path:
  *
  * - `${prefix}-presence`: one document per account that has ever synced (`uid`, `publicId`, `at`, `name`, `avatarId`,
- *   `room`). `publicId` and `room.code` are queried by equality alone, which Firestore indexes by itself.
+ *   `away`, `status`, `room`). `publicId` and `room.code` are queried by equality alone, which Firestore indexes by itself.
  * - `${prefix}-friends`: one document per pair (`uids`, `requestedBy`, `status`, `at`), found by `uids` array-contains.
  * - `${prefix}-invites`: one document per (inviter, invitee, room) with `cleanupAt` for the TTL policy in
  *   firestore.indexes.json, found by `to`.
@@ -367,46 +368,6 @@ export class FirestoreFriendsDatabase implements FriendsDatabase {
   }
   private inviteCollection() {
     return this.firestore.collection(`${this.prefix}-invites`);
-  }
-  private static presenceOf(value: unknown): PresenceRecord | undefined {
-    if (!plain(value)) return;
-    if (
-      !validUid(value.uid) ||
-      !validPublicId(value.publicId) ||
-      !Number.isSafeInteger(value.at) ||
-      (value.name !== undefined && typeof value.name !== "string") ||
-      (value.avatarId !== undefined && typeof value.avatarId !== "string")
-    )
-      throw new Error("Stored presence is incompatible");
-    const room = value.room;
-    if (
-      room !== undefined &&
-      (!plain(room) ||
-        typeof room.code !== "string" ||
-        typeof room.memberId !== "string" ||
-        typeof room.gameId !== "string" ||
-        typeof room.incarnation !== "string")
-    )
-      throw new Error("Stored presence is incompatible");
-    return {
-      uid: value.uid,
-      publicId: value.publicId,
-      at: value.at as number,
-      ...(value.name === undefined ? {} : { name: value.name as string }),
-      ...(value.avatarId === undefined
-        ? {}
-        : { avatarId: value.avatarId as string }),
-      ...(room === undefined
-        ? {}
-        : {
-            room: {
-              code: room.code as string,
-              memberId: room.memberId as string,
-              gameId: room.gameId as string,
-              incarnation: room.incarnation as string,
-            },
-          }),
-    };
   }
   private static edgeOf(value: unknown): FriendEdge | undefined {
     if (!plain(value)) return;
@@ -451,7 +412,7 @@ export class FirestoreFriendsDatabase implements FriendsDatabase {
     };
   }
   async presence(uid: string): Promise<PresenceRecord | undefined> {
-    return FirestoreFriendsDatabase.presenceOf(
+    return storedPresence(
       (await this.presenceCollection().doc(uid).get()).data(),
     );
   }
@@ -473,10 +434,7 @@ export class FirestoreFriendsDatabase implements FriendsDatabase {
       ...uids.map((uid) => this.presenceCollection().doc(uid)),
     );
     return snapshots.flatMap((snapshot) =>
-      FirestoreFriendsDatabase.readable(
-        FirestoreFriendsDatabase.presenceOf,
-        snapshot.data(),
-      ),
+      FirestoreFriendsDatabase.readable(storedPresence, snapshot.data()),
     );
   }
   async setPresence(record: PresenceRecord): Promise<void> {
@@ -489,9 +447,7 @@ export class FirestoreFriendsDatabase implements FriendsDatabase {
         .limit(1)
         .get()
     ).docs;
-    return docs.length
-      ? FirestoreFriendsDatabase.presenceOf(docs[0]!.data())?.uid
-      : undefined;
+    return docs.length ? storedPresence(docs[0]!.data())?.uid : undefined;
   }
   async roomPresences(code: string, limit: number): Promise<PresenceRecord[]> {
     const docs = (
@@ -501,10 +457,7 @@ export class FirestoreFriendsDatabase implements FriendsDatabase {
         .get()
     ).docs;
     return docs.flatMap((doc) =>
-      FirestoreFriendsDatabase.readable(
-        FirestoreFriendsDatabase.presenceOf,
-        doc.data(),
-      ),
+      FirestoreFriendsDatabase.readable(storedPresence, doc.data()),
     );
   }
   async edges(uid: string, limit: number): Promise<FriendEdge[]> {
