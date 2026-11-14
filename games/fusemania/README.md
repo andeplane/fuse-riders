@@ -15,7 +15,7 @@ pnpm dev          # builds, then serves every game; open the printed URL plus /f
 
 - **Play, Single player**: the song select. Pick a song (or press **RANDOM SONG**), a level and a mode, then **PLAY**. The result shows the grade, the score, every judgment count and this browser's best on that chart. **PLAY YOUR OWN STEPMANIA FILE** takes a simfile and its music from this device; nothing is uploaded.
 - **Play, Host room**: a room with a QR invite, for up to five players. The host picks the song and the mode; every player picks their own level. **+ ADD AI RIVAL** seats a bot. Tick **Shared TV** first to play on one screen: the TV shows every field and each phone becomes four pads.
-- **Settings**: keys, scroll speed and direction, the two timing offsets and **CALIBRATE**.
+- **Settings**: keys, scroll speed and direction, the three timing offsets (audio, input, visual) and **CALIBRATE**.
 
 **Your speed.** The song select shows every player's own speed as chips (0.5x, 1x, 1.5x, 2x, 2.5x, 3x, 4x, 5x), and the Settings slider reaches the values between. It is saved on the device and only spreads that player's arrows apart on their own screen: the engine never sees it, so the beat, the judging and every other player are unchanged.
 
@@ -60,10 +60,10 @@ An attack takes hold a moment after it is thrown, so a rival sees it coming.
 
 This is the part a rhythm game lives on, and it is built so that the sound, the picture and the judge agree:
 
-- The song is a decoded buffer on the Web Audio clock (`fuse-ui/game-audio`'s `loadSong` and `clock`), started at an exact clock time. `src/app/song-clock.ts` turns `performance.now()` into the song position being heard, with the output latency taken off, and the arrows are drawn from that every frame. Nothing depends on frame times adding up.
+- The song is a decoded buffer on the Web Audio clock (`fuse-ui/game-audio`'s `loadSong` and `clock`), started at an exact clock time. `src/app/song-clock.ts` turns `performance.now()` into the song position being heard, from the browser's own pairing of a sample with the page-clock time it leaves the device (`getOutputTimestamp`), or from the stepped clock with the reported output latency taken off where there is none. The arrows are drawn from that every frame, one display refresh ahead, since that is the soonest a frame's pixels show. Nothing depends on frame times adding up.
 - A key is stamped with the song time the device heard when it went down (`event.timeStamp` through the song clock) and travels in the room's log with that time. The fold judges it at that time, not at the 50 ms room tick it lands in, so a judgment is the same on every device and after a rollback.
 - The local screen plays this device's own unfolded keys ahead on a copy of the world (`forecast`), so a press flashes at once and the fold changes nothing it showed.
-- Two offsets in Settings: the input offset (taken off every press; Bluetooth audio, a slow keyboard) and the visual offset (the picture ahead of or behind the sound). **CALIBRATE** plays a click and measures the taps.
+- Three offsets in Settings: the audio offset (sound that arrives later than the browser knows: Bluetooth, a TV; it moves the arrows and the judging together), the input offset (taken off every press: a slow keyboard, a habit of tapping early; at most 150 ms, so a press stays inside the bounds of the tick it is logged for) and the visual offset (the picture ahead of or behind the sound). **CALIBRATE** plays a click, measures the taps and puts a large lag into the audio offset and a small one into the input offset.
 
 In a room the audio follows the room's shared clock, so everyone hears the same beat at the same room time (a device is pulled back when it drifts more than 120 ms from the room, and its own presses are judged against what it heard either way); a device that is not making sound (a phone used as a pad for the shared TV) stamps its taps with the room clock.
 
@@ -84,4 +84,6 @@ In a room the audio follows the room's shared clock, so everyone hears the same 
 
 ## Debugging
 
-On a room or solo page, `fusemania.clock()` in the console reports where the sound, the room and the picture are (`audible`, `driftMs`, `heardMs`, `roomMs`, `latencyMs`). A healthy page has `driftMs` within a millisecond or two.
+On a room or solo page, `fusemania.clock()` in the console reports where the sound, the room and the picture are (`audible`, `driftMs`, `heardMs`, `roomMs`, `latencyMs`). A healthy page has `driftMs` within a few milliseconds, or a steady 10 to 20 where the audio device was still settling when the song started; it is the song against the room clock and no judgment depends on it.
+
+`/fusemania/?debugtiming` is the timing lab: a panel with every press from the browser's stamp to its judgment, hit-error histograms by ear and by eye, the three offsets as live knobs, steady click tracks at 2, 2.5 and 3 ticks a second, and a microphone mode that hears the tick and the key and tells the device's lag from the player's. On a local dev server the whole session is written to `timing-logs/fusemania-<session>.jsonl`; elsewhere **SAVE LOG** downloads it. `LATENCY.md` explains every figure and what a page cannot measure.

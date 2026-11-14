@@ -728,7 +728,7 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"])) #app {
 /* ---- the timing lab (?debugtiming) ---- */
 .fm-dt {
   position: fixed;
-  top: 3.25rem;
+  top: 3.75rem;
   right: 0.5rem;
   bottom: 0.5rem;
   z-index: 40;

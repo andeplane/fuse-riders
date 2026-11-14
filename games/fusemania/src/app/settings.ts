@@ -28,7 +28,7 @@ import {
 import { createSongClock, type SongClock } from "./song-clock.js";
 
 /**
- * The settings panel: the keys, the scroll, the two timing offsets and the tap calibration that measures the first
+ * The settings panel: the keys, the scroll, the three timing offsets and the tap calibration that measures the sound and input
  * of them. It owns no preferences: it reads them from the page and hands every change back as a new object.
  */
 export interface SettingsOptions {
@@ -389,7 +389,7 @@ export function createSettingsPanel(options: SettingsOptions): SettingsPanel {
   // ---- timing ----
 
   const timing = section("Timing");
-  /** A slider between a − and a + button, for one of the two offsets. */
+  /** A slider between a − and a + button, for one of the offsets. */
   const offsetField = (spec: {
     key: "offsetMs" | "visualMs" | "audioMs";
     title: string;

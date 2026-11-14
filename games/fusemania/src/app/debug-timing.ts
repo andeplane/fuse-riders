@@ -95,7 +95,14 @@ export interface ScopeTrace {
 }
 
 const JUDGMENTS = ["MARV", "PERF", "GREAT", "GOOD", "BOO"];
-const BAND_COLOURS = ["#7ff", "#fd5", "#6e6", "#69f", "#f6c"];
+/** The judgment windows behind the hit errors, faint: six digits and an alpha, which a canvas needs in full. */
+const BAND_COLOURS = [
+  "#77ffff38",
+  "#ffdd5530",
+  "#66ee6628",
+  "#6699ff24",
+  "#ff66cc20",
+];
 const signed = (value: number, digits = 1) =>
   `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs(value).toFixed(digits)}`;
 const whole = (value: number) =>
@@ -256,7 +263,7 @@ function bars(doc: Document, width: number, height: number): Bars {
       if (spec.windows)
         for (let index = WINDOWS.length - 1; index >= 0; index--) {
           const half = WINDOWS[index]!;
-          pen.fillStyle = `${BAND_COLOURS[index]}22`;
+          pen.fillStyle = BAND_COLOURS[index]!;
           pen.fillRect(x(-half), 0, x(half) - x(-half), h);
         }
       const draw = (list: readonly number[], colour: string, alpha: number) => {

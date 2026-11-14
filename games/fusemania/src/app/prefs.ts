@@ -1,5 +1,5 @@
 /**
- * What a player has set up for themselves on this device: the keys, the scroll, and the two timing offsets. Stored
+ * What a player has set up for themselves on this device: the keys, the scroll, and the three timing offsets. Stored
  * under one key; anything unreadable falls back to the defaults field by field.
  */
 export const ACTIONS = ["left", "down", "up", "right", "item"] as const;
