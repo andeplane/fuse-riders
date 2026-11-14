@@ -130,7 +130,9 @@ export const DECAY_MS = 45;
 export interface Smoother {
   /**
    * `lead` with corrections to the other heroes hidden. `revision` is the runtime's frame revision (a rollback
-   * replaced history); `self` is this device's seat, or −1, and its hero is never smoothed.
+   * replaced history); `self` is this device's seat, or −1, and its hero is never smoothed. `folded` is the newest
+   * folded step and `orders` what each hero, by seat, was told to do as of it (`ordersOf`): a hero whose order
+   * changed with a new fold is one the forward run guessed wrong.
    */
   apply(
     lead: Lead,
@@ -138,12 +140,24 @@ export interface Smoother {
     revision: number,
     nowMs: number,
     self: number,
+    folded: number,
+    orders: ReadonlyMap<number, string>,
   ): Lead;
 }
 
+/** What each hero of the folded world is doing, by seat: where it walks, what it steers and what it shoots. */
+export const ordersOf = (world: World): Map<number, string> =>
+  new Map(
+    world.heroes.map((hero) => [
+      hero.seat,
+      `${hero.goal}:${hero.steerX}:${hero.steerY}:${hero.focusOf}:${hero.focus}:${hero.sweep}`,
+    ]),
+  );
+
 /**
  * Hides what the forward run got wrong about the other heroes. A rider's order the room folds late rolls the world
- * back, and their hero would snap to where it really went; the screen keeps it where it was drawn and lets the
+ * back, and one folded in time still turns their hero from where the run had it going; either way it would snap to
+ * where it really went, so the screen keeps it where it was drawn and lets the
  * difference decay. Units are many and slow, and move on the rules alone, so they are drawn as they are.
  */
 export function createSmoother(
@@ -154,16 +168,22 @@ export function createSmoother(
   }),
 ): Smoother {
   let revision: number | undefined,
-    scope = "";
+    scope = "",
+    foldedStep = -1,
+    told: ReadonlyMap<number, string> = new Map();
   return {
-    apply(lead, key, nextRevision, nowMs, self) {
+    apply(lead, key, nextRevision, nowMs, self, folded, orders) {
       if (key !== scope) {
         scope = key;
         smoother.reset();
       }
       smoother.begin(nowMs);
-      const rolled = revision !== undefined && nextRevision !== revision;
+      const rolled = revision !== undefined && nextRevision !== revision,
+        stepped = folded !== foldedStep,
+        toldBefore = told;
       revision = nextRevision;
+      foldedStep = folded;
+      told = orders;
       const { world, before, t } = lead,
         was = new Map(before?.heroes.map((hero) => [hero.seat, hero]));
       const shifts = new Map<number, { x: number; y: number }>();
@@ -175,7 +195,14 @@ export function createSmoother(
             x: from.x + (hero.x - from.x) * t,
             y: from.y + (hero.y - from.y) * t,
           },
-          drawn = smoother.place(`hero:${hero.seat}`, point, rolled),
+          drawn = smoother.place(
+            `hero:${hero.seat}`,
+            point,
+            rolled ||
+              (stepped &&
+                toldBefore.has(hero.seat) &&
+                toldBefore.get(hero.seat) !== orders.get(hero.seat)),
+          ),
           shift = {
             x: Math.round(drawn.x - point.x),
             y: Math.round(drawn.y - point.y),

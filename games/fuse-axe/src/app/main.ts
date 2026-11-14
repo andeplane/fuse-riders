@@ -639,7 +639,12 @@ function room(solo: boolean): void {
       forward(
         world,
         leadClock(ticksAhead(timing), newer.logTick, now),
-        forwardInputs(state, runtime.self, runtime.heldNow, drawBot(revision)),
+        forwardInputs(
+          state,
+          runtime.self,
+          runtime.heldNow,
+          drawBot(`${state.matchId}:${state.round}:${world.camp}:${revision}`),
+        ),
       ),
       `${state.matchId}:${state.round}:${world.camp}`,
       revision,

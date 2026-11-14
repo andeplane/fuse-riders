@@ -661,7 +661,12 @@ function room() {
       forward(
         state.world,
         leadClock(ticksAhead(timing), timing.newer.logTick, now),
-        forwardInputs(state, self, runtime.heldNow, drawBot(revision)),
+        forwardInputs(
+          state,
+          self,
+          runtime.heldNow,
+          drawBot(`${state.matchId}:${state.round}:${revision}`),
+        ),
       ),
       `${state.matchId}:${state.round}`,
       revision,

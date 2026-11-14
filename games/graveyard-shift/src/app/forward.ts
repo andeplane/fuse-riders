@@ -105,13 +105,13 @@ export function forwardInputs(
   };
 }
 
-/** A bot's answer for a world is the same every frame until a rollback replaces it: ask once per hunter, tick and revision. */
+/** A bot's answer for a world is the same every frame until a rollback replaces it: ask once per hunter, tick and scope (the match and the frame revision). */
 export function memoBot(
   bot: (world: World, hunter: Hunter) => number,
-): (revision: number) => (world: World, hunter: Hunter) => number {
+): (scope: number | string) => (world: World, hunter: Hunter) => number {
   const cache = new Map<string, number>();
-  return (revision) => (world, hunter) => {
-    const key = `${revision}:${world.tick}:${hunter.id}`;
+  return (scope) => (world, hunter) => {
+    const key = `${scope}:${world.tick}:${hunter.id}`;
     let bits = cache.get(key);
     if (bits === undefined) {
       if (cache.size >= 64) cache.clear();

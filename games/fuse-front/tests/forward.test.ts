@@ -178,16 +178,37 @@ test("a rollback's correction to another hero is spread over a few frames; this 
   });
   const key = "match-1";
   const plain = at(1000, 500);
-  assert.equal(smoother.apply(plain, key, 1, 0, 0), plain, "left as it is");
-  smoother.apply(at(1010, 500), key, 1, 16, 0);
-  const jumped = smoother.apply(at(1100, 560), key, 2, 32, 0);
+  assert.equal(
+    smoother.apply(plain, key, 1, 0, 0, 1, new Map()),
+    plain,
+    "left as it is",
+  );
+  smoother.apply(at(1010, 500), key, 1, 16, 0, 1, new Map());
+  const jumped = smoother.apply(at(1100, 560), key, 2, 32, 0, 1, new Map());
   assert.equal(hero(jumped.world, 0).x, 560, "the local hero is where it is");
   assert.equal(hero(jumped.world, 1).x, 1020, "the other carries on as drawn");
   let last = jumped;
   for (let ms = 48; ms < 600; ms += 16)
-    last = smoother.apply(at(1100, 560), key, 2, ms, 0);
+    last = smoother.apply(at(1100, 560), key, 2, ms, 0, 1, new Map());
   assert.equal(hero(last.world, 1).x, 1100, "and ends where the room has it");
+  // A new fold in which the other hero was given another order is a wrong guess too, with no rollback.
+  const told = (order: string) => new Map([[1, order]]);
+  smoother.apply(at(1100, 560), key, 2, 600, 0, 2, told("east"));
+  smoother.apply(at(1110, 560), key, 2, 616, 0, 2, told("east"));
+  const turned = smoother.apply(at(1080, 560), key, 2, 632, 0, 4, told("west"));
+  assert.equal(hero(turned.world, 1).x, 1120);
+  for (let ms = 648; ms < 1200; ms += 16)
+    last = smoother.apply(at(1080, 560), key, 2, ms, 0, 4, told("west"));
+  assert.equal(hero(last.world, 1).x, 1080);
   // A jump across the map (a respawn, a BLINK) is shown as it is.
-  const far = smoother.apply(at(1100 + 10 * TILE, 560), key, 3, 616, 0);
+  const far = smoother.apply(
+    at(1100 + 10 * TILE, 560),
+    key,
+    3,
+    1216,
+    0,
+    4,
+    told("west"),
+  );
   assert.equal(hero(far.world, 1).x, 1100 + 10 * TILE);
 });

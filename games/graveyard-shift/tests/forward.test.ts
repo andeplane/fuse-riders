@@ -9,9 +9,18 @@ import {
   stepWorld,
   type World,
 } from "../src/engine/world.js";
+import { BOT, JOIN, type StreamEntries } from "fuse-netcode";
+import {
+  PLAY,
+  READY,
+  createRoom,
+  foldTick,
+  type Entry,
+} from "../src/online/game.js";
 import {
   createSmoother,
   forward,
+  forwardInputs,
   memoBot,
   type ForwardInputs,
 } from "../src/app/forward.js";
@@ -141,4 +150,44 @@ test("a correction to another hunter is spread over a few frames; this device's 
   smoother.apply(at(568, 140), key, 2, 10, {}, 632, A);
   const turned = smoother.apply(at(540, 140), key, 2, 11, { [B]: 4 }, 648, A);
   assert.ok(turned.hunters[1]!.x > 560);
+});
+
+test("the inputs the run plays are the fold's: a bot's answer, what a seat logged, and this device's own live", () => {
+  const room = createRoom("lobby", { display: false });
+  let seq = 0;
+  const fold = (bodies: Record<string, unknown[][]> = {}) => {
+    const tick = room.tick + 1;
+    foldTick(
+      room,
+      "a",
+      new Map<string, StreamEntries<Entry>>(
+        Object.entries(bodies).map(([id, list]) => [
+          id,
+          {
+            generation: 1,
+            entries: list.map((body) => [++seq, tick, ...body] as Entry),
+          },
+        ]),
+      ),
+    );
+  };
+  fold({
+    a: [
+      [JOIN, "a", "Ada", 0, "hunter", 1],
+      [JOIN, "b", "Bo", 1, "hunter", 1],
+      [BOT, "add", "bot:1", "Mort", 2],
+    ],
+  });
+  fold({ a: [[READY, "lobby", true]], b: [[READY, "lobby", true]] });
+  assert.equal(room.stage, "running");
+  for (let i = 0; i < 30; i++) fold();
+  // Bo holds right in the log; Ada, on this device, holds right without having logged it yet.
+  fold({ b: [[PLAY, room.matchId, room.round, RIGHT]] });
+  const drawn = forward(
+    room.world!,
+    1,
+    forwardInputs(room, "a", RIGHT, botInput),
+  );
+  fold({ a: [[PLAY, room.matchId, room.round, RIGHT]] });
+  assert.deepEqual(drawn, toView(room.world!));
 });

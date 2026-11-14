@@ -30,7 +30,7 @@ import {
 } from "fuse-network-fe";
 import { MAX_PACKET_BYTES, createLeadClock, ticksAhead } from "fuse-netcode";
 import { DRAW, TILE, teamOf, type WorldView } from "../engine/index.js";
-import { createForward, createSmoother } from "./forward.js";
+import { createForward, createSmoother, ordersOf } from "./forward.js";
 import { DEFAULT_SETTINGS, type View } from "../online/game.js";
 import { mapsFor } from "../online/maps.js";
 import { FrontRuntime } from "../online/runtime.js";
@@ -670,12 +670,15 @@ function room(code: string, token: string | undefined, display: boolean): void {
           : undefined;
     const ahead =
       lead &&
+      room?.world &&
       smoother.apply(
         lead,
         newer.matchId,
         timing.revision ?? 0,
         now,
         runtime.slot(),
+        room.world.step,
+        ordersOf(room.world),
       );
     if (probe) {
       const seat = runtime.slot(),

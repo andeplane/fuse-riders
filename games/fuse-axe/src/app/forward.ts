@@ -111,11 +111,11 @@ export const loggedBits = (room: Room, world: World): number[] => {
   return held;
 };
 
-/** A bot's answer for a world is the same every frame until a rollback replaces it: ask once per hero, step and revision. */
-export function memoBot(bot: BotAnswer): (revision: number) => BotAnswer {
+/** A bot's answer for a world is the same every frame until a rollback replaces it: ask once per hero, step and scope (the run, the stage and the frame revision). */
+export function memoBot(bot: BotAnswer): (scope: number | string) => BotAnswer {
   const cache = new Map<string, number>();
-  return (revision) => (world, heroId, humans) => {
-    const key = `${revision}:${world.stage}:${world.camp}:${world.step}:${heroId}`;
+  return (scope) => (world, heroId, humans) => {
+    const key = `${scope}:${world.stage}:${world.camp}:${world.step}:${heroId}`;
     let bits = cache.get(key);
     if (bits === undefined) {
       if (cache.size >= 64) cache.clear();
