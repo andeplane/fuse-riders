@@ -5,6 +5,7 @@ import { ControlPanelWindow } from "../controlpanel/ControlPanelWindow";
 import { WallpaperWindow } from "../controlpanel/WallpaperWindow";
 import { FuseGameWindow } from "../fusegames/FuseGameWindow";
 import { FuseGamesContext } from "../fusegames/registry";
+import { LauncherWindow } from "../launcher/LauncherWindow";
 import { PaintWindow } from "../paint/PaintWindow";
 import { GameWindow } from "../retro/GameWindow";
 import type { WindowState } from "../state/appState";
@@ -62,6 +63,8 @@ function WindowContent({
       return <PaintWindow windowId={window.id} />;
     case "winamp":
       return <WinampWindow windowId={window.id} />;
+    case "launcher":
+      return <LauncherWindow windowId={window.id} active={active} />;
   }
 }
 

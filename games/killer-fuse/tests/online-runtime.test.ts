@@ -522,3 +522,34 @@ test("a seat that was away has the bits it still holds logged again once it is b
   );
   assert.equal(room(runtime).held.host, R);
 });
+
+test("what the screen plays forward from has this device's controls the moment they are made", () => {
+  const { bench, runtime } = solo();
+  assert.equal(runtime.ahead()?.ticks[0]?.length, 0, "the countdown");
+  bench.run(8_300);
+  const before = runtime.ahead()!;
+  assert.equal(before.tick, room(runtime).tick);
+  assert.equal(before.world, room(runtime).world);
+  assert.equal(before.ticks[0]![0]![0]!.right, false);
+  // Held right and a press, with no fold in between: both are in the next tick's inputs, the press on its step.
+  runtime.input(R);
+  assert.ok(runtime.press());
+  const after = runtime.ahead()!;
+  assert.equal(after.tick, before.tick, "nothing was folded");
+  assert.deepEqual(
+    after.ticks.map((tick) => tick.map((step) => step[0]!.right)),
+    [
+      [true, true, true],
+      [true, true, true],
+    ],
+  );
+  const pressed = runtime.presses().at(-1)!;
+  assert.deepEqual(
+    after.ticks[pressed[1] - after.tick - 1]!.map((step) => step[0]!.pressed),
+    [0, 1, 2].map((step) => step === pressed[6]),
+  );
+  assert.notDeepEqual(after.next[0], before.next[0]);
+  // The fold then runs on exactly those inputs: the mark of the folded tick is the one that was ahead.
+  bench.run(50);
+  assert.deepEqual(runtime.ahead()!.folded, after.next[0]);
+});

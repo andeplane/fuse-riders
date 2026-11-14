@@ -63,9 +63,6 @@ try {
     await tv.getByRole("button", { name: "READY", exact: true }).count(),
     0,
   );
-  const lobbyReadyColor = await a
-    .getByRole("button", { name: "READY", exact: true })
-    .evaluate((button) => getComputedStyle(button).backgroundColor);
   await a.getByRole("button", { name: "READY", exact: true }).click();
   await a.getByRole("button", { name: "NOT READY", exact: true }).waitFor();
   await a.getByRole("button", { name: "NOT READY", exact: true }).click();
@@ -96,7 +93,8 @@ try {
       {},
       { timeout: 120000 },
     );
-  // Results replace the pads with the lobby's cyan button, without opening the menu.
+  // Results replace the pads with one cyan button, without opening the menu. The lobby's own READY wears the shared
+  // room layout's plain button since #616, so the two no longer match and the colour is named here.
   for (const page of [a, b]) {
     assert.equal(await page.locator(".online-controls").isVisible(), false);
     assert.equal(await page.locator(".mobile-tools-open").count(), 0);
@@ -109,7 +107,7 @@ try {
       await ready.evaluate(
         (button) => getComputedStyle(button).backgroundColor,
       ),
-      lobbyReadyColor,
+      "rgb(0, 217, 255)",
     );
   }
   await b.setViewportSize({ width: 1280, height: 800 });

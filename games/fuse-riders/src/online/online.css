@@ -1477,7 +1477,11 @@
   color: #93a6c1;
   margin-bottom: var(--fui-space-2);
 }
-.landing-mode label {
+/* The selector sits in the main menu's dialog since #616; without the extra weight `.online-app dialog label`
+   (a settings row: a grid with two fixed columns) makes each choice wider than a narrow phone and covers CREATE ROOM. */
+.landing-mode label,
+.online-app dialog .landing-mode label {
+  margin: 0;
   position: relative;
   flex: 1 1 auto;
   justify-content: center;

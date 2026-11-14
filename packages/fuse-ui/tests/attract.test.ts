@@ -208,3 +208,47 @@ test("leaving cancels an asset load and releases its allocated renderer", async 
   );
   assert.equal(destroyed, 2);
 });
+
+test("a background whose frames are slow to draw leaves the page most of the main thread", async () => {
+  const { document } = page(),
+    root = document.createElement("section"),
+    time = clock(),
+    { calls, driver } = demo();
+  document.body.append(root);
+  const stop = mountAttract(
+    root,
+    (host) => {
+      demoCanvas(host);
+      return driver;
+    },
+    time.environment,
+  );
+  await settle();
+  // Cheap frames: one every display frame that is a thirtieth of a second after the last.
+  time.frame(0);
+  time.frame(40);
+  time.frame(80);
+  assert.equal(calls.renders, 3);
+  // The frame drawn at 80 holds the page until 580: it cost 500 ms.
+  time.frame(580);
+  assert.equal(calls.renders, 3, "the frame after a slow one draws nothing");
+  for (let now = 600; now < 1580; now += 20) time.frame(now);
+  assert.equal(
+    calls.renders,
+    3,
+    "and nothing is drawn for three times its cost",
+  );
+  time.frame(1580);
+  assert.equal(calls.renders, 4);
+  // Cheap again: the ration lifts with the very next frame.
+  time.frame(1600);
+  time.frame(1640);
+  assert.equal(calls.renders, 5);
+  // A frame that cost a whole second waits two, not three: the ration has a ceiling.
+  time.frame(2640);
+  for (let now = 2660; now < 3640; now += 20) time.frame(now);
+  assert.equal(calls.renders, 5);
+  time.frame(3640);
+  assert.equal(calls.renders, 6);
+  stop();
+});

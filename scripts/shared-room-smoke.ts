@@ -119,10 +119,11 @@ for (const { name, kind } of BOTH_ENGINES) {
             "COPY LINK",
             phone.getByRole("button", { name: "COPY LINK", exact: true }),
           );
+          // Every open slot offers Add AI; the first is as good as any.
           for (const action of ["Game settings", "Add AI"])
             await onScreen(
               action,
-              phone.getByRole("button", { name: action, exact: true }),
+              phone.getByRole("button", { name: action, exact: true }).first(),
             );
           assert.equal(
             await phone
@@ -361,7 +362,7 @@ for (const { name, kind } of BOTH_ENGINES) {
     releaseConnection();
     await guest.locator(".room-boot-note").waitFor({ state: "hidden" });
     await host
-      .locator(".room-riders")
+      .locator(".fui-room-players")
       .getByText("QR guest", { exact: true })
       .waitFor();
     await guest
@@ -392,7 +393,7 @@ for (const { name, kind } of BOTH_ENGINES) {
         "no rotate gate in the lobby",
       );
       const me = guest
-        .locator(".room-riders")
+        .locator(".fui-room-players")
         .getByText("QR guest", { exact: true });
       await me.scrollIntoViewIfNeeded();
       const rider = (await me.boundingBox())!;
@@ -444,14 +445,19 @@ for (const { name, kind } of BOTH_ENGINES) {
       await display.locator(".shared-room-code").textContent(),
       code,
     );
-    await host.getByRole("button", { name: /^Add AI$/i, exact: true }).click();
+    await host
+      .getByRole("button", { name: /^Add AI$/i, exact: true })
+      .first()
+      .click();
     await host.getByRole("button", { name: /Remove AI/ }).waitFor();
     await host.screenshot({ path: `artifacts/shared-qr-${name}.png` });
     await readyRoom(host);
     await display.locator(".shared-lobby").waitFor({ state: "hidden" });
     await display.locator(".online-arena").waitFor({ state: "visible" });
     await display.waitForFunction(() =>
-      document.querySelector("canvas")?.dataset.renderer?.startsWith("phaser-"),
+      document
+        .querySelector<HTMLCanvasElement>("canvas.online-arena")
+        ?.dataset.renderer?.startsWith("phaser-"),
     );
     await guest.waitForFunction(() => {
       const states = Reflect.get(window, "__sharedStates") as {
