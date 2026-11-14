@@ -1,4 +1,5 @@
 import { createGameSocial } from "fuse-ui/social";
+import type { Frame, RuntimeMetrics } from "fuse-netcode";
 import "fuse-ui/social.css";
 import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
 import "@fontsource/press-start-2p/latin.css";
@@ -33,6 +34,7 @@ import {
   killerFuseGame,
   seatName,
   type KillerFuseCallbacks,
+  type View,
   type Settings,
 } from "../online/index.js";
 import { createArenaView } from "../render/index.js";
@@ -99,6 +101,19 @@ import {
   safeStore,
   sessionFor,
 } from "./session.js";
+
+/** The page's state for a browser smoke, on `window.__killerFuse` when the address has `?debug`. */
+interface KillerFuseDebug {
+  frame(): Frame<View> | undefined;
+  metrics(): RuntimeMetrics;
+  confirmedTick(): number;
+  me(): string;
+}
+declare global {
+  interface Window {
+    __killerFuse?: KillerFuseDebug;
+  }
+}
 
 /**
  * The Killer Fuse page's glue: it reads the query, builds the screens from fuse-ui components, wires the runtime to
@@ -386,6 +401,7 @@ function room(solo: boolean): void {
   const coarse = window.matchMedia("(pointer: coarse)").matches;
   // A tutorial lesson (`?solo=1&tutorial=<id>`): an ordinary solo room the page steers into the lesson's seat.
   const lesson = solo ? lessonById(query.get("tutorial")) : undefined;
+  let lastFrame: Frame<View> | undefined;
   // The outline on this device's unit: until when, and the unit as the last frame showed it.
   let highlightEnd = 0,
     lastSnap: UnitSnap | undefined;
@@ -869,6 +885,7 @@ function room(solo: boolean): void {
   let joinSent = false;
   const callbacks: KillerFuseCallbacks = {
     state(frame, roomSettings) {
+      lastFrame = frame;
       settings = roomSettings;
       const next = present(frame, viewer),
         mode = solo ? "solo" : roomSettings.display ? "shared" : "online",
@@ -1064,6 +1081,14 @@ function room(solo: boolean): void {
           humanName: social.playerName(store.getItem(names.name)) ?? undefined,
         },
   );
+  // `?debug`: what a browser smoke reads (the newest frame and the netcode's own health, hash checks included).
+  if (query.has("debug"))
+    window.__killerFuse = {
+      frame: () => lastFrame,
+      metrics: () => runtime.metrics(),
+      confirmedTick: () => runtime.confirmedTick(),
+      me: () => viewer.me,
+    };
   let frameRequest = 0;
   const loop = () => {
     frameRequest = requestAnimationFrame(loop);
