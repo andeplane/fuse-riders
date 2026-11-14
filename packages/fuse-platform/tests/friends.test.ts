@@ -12,9 +12,12 @@ import {
   FriendsStore,
   HistoryStore,
   INVITE_TTL_MS,
+  LAST_SEEN_ROUNDING_MS,
   LEGACY_GAME_ID,
   MAX_FRIENDS,
   MAX_PENDING,
+  MAX_STATUS_INPUT,
+  MAX_STATUS_LENGTH,
   MemoryFriendsDatabase,
   MemoryHistoryDatabase,
   ONLINE_WINDOW_MS,
@@ -24,8 +27,11 @@ import {
   createFriendsHttp,
   createHistoryHttp,
   createPlatformHttp,
+  cleanStatus,
   edgeId,
+  lastSeenOf,
   publicIdOf,
+  storedPresence,
   type AccountRules,
   type FriendsView,
   type GameRegistration,
@@ -347,6 +353,7 @@ test("presence: online inside the window, in a room while it last said so, writt
     publicId: bob.me.publicId,
     name: "Robert",
     online: false,
+    lastSeen: lastSeenOf(f.now() - ONLINE_WINDOW_MS),
   });
   // Online friends list first.
   const carol = await f.sync("carol", { name: "Carol" });
@@ -369,8 +376,391 @@ test("a presence claim is validated", async () => {
     { room: { code: "AB12", memberId: member(1), gameId: "chess" } },
     { room: { code: "AB12", memberId: member(1), extra: 1 } },
     { extra: 1 },
+    { passive: "yes" },
+    { passive: 1 },
+    { passive: null },
+    { away: "true" },
+    { away: 0 },
+    { away: null },
+    { status: 7 },
+    { status: null },
+    { status: ["brb"] },
+    { status: { text: "brb" } },
+    { status: "x".repeat(MAX_STATUS_LENGTH + 1) },
+    { status: "x".repeat(MAX_STATUS_INPUT + 1) },
+    // A passive page has no room of its own to claim.
+    { passive: true, room: { code: "AB12", memberId: member(1) } },
   ])
     await assert.rejects(f.sync("alice", body), /Invalid presence/);
+});
+
+/** Two accounts that are friends; `friend()` is how alice sees bob right now. */
+async function pair() {
+  const f = fixture();
+  const alice = await f.sync("alice"),
+    bob = await f.sync("bob", { name: "Bob" });
+  await f.store.add("alice", { publicId: bob.me.publicId });
+  await f.store.add("bob", { publicId: alice.me.publicId });
+  const written = async (work: () => Promise<unknown>) => {
+    const before = f.database.writes;
+    await work();
+    return f.database.writes - before;
+  };
+  return {
+    ...f,
+    bob: bob.me.publicId,
+    written,
+    friend: async () => (await f.sync("alice")).friends[0]!,
+  };
+}
+
+test("a refused presence leaves what was stored untouched", async () => {
+  const f = await pair();
+  await f.sync("bob", { status: "brb", away: false });
+  const before = await f.database.presence("bob"),
+    writes = f.database.writes;
+  for (const body of [
+    { status: 7 },
+    { status: "ok", away: "no" },
+    { status: "ok", passive: "no" },
+    { status: "x".repeat(MAX_STATUS_LENGTH + 1) },
+    { name: "Robert", status: "ok", unknown: true },
+  ])
+    await assert.rejects(f.sync("bob", body), /Invalid presence/);
+  assert.equal(f.database.writes, writes);
+  assert.deepEqual(await f.database.presence("bob"), before);
+  assert.equal((await f.friend()).status, "brb");
+});
+
+test("an old-shaped body and an old-shaped record still work, and say nothing new", async () => {
+  const f = await pair();
+  const code = await f.room(1);
+  // What every client before this change sends: a name, a head, a room.
+  const view = await f.sync("bob", {
+    name: "Bob",
+    avatarId: "cat",
+    room: { code, memberId: member(2) },
+  });
+  assert.deepEqual(Object.keys(view).sort(), [
+    "friends",
+    "incoming",
+    "invites",
+    "me",
+    "outgoing",
+    "roomPlayers",
+  ]);
+  assert.deepEqual(await f.friend(), {
+    publicId: f.bob,
+    name: "Bob",
+    avatarId: "cat",
+    online: true,
+    room: { code, gameId: LEGACY_GAME_ID },
+  });
+  assert.deepEqual(Object.keys((await f.database.presence("bob"))!).sort(), [
+    "at",
+    "avatarId",
+    "name",
+    "publicId",
+    "room",
+    "uid",
+  ]);
+  // A record stored before the fields existed reads as not away, with no status.
+  const old = { uid: "carol", publicId: publicIdOf("carol"), at: f.now() };
+  assert.deepEqual(storedPresence(old), old);
+});
+
+test("a status line is tidied, bounded, shown to friends while online, kept until changed and cleared by an empty one", async () => {
+  const f = await pair();
+  assert.equal(
+    cleanStatus("  looking\tfor \n a   volley match  "),
+    "looking for a volley match",
+  );
+  // Bidi overrides, zero-width and control characters go; markup is kept as the text it is.
+  assert.equal(cleanStatus("a\u202eb\u200bc\u0000d\u{e000}e\ud800f"), "abcdef");
+  assert.equal(cleanStatus("<b>brb</b>"), "<b>brb</b>");
+  // Counted in characters, not UTF-16 units; tidying happens before the bound.
+  assert.equal(
+    cleanStatus("🎮".repeat(MAX_STATUS_LENGTH)),
+    "🎮".repeat(MAX_STATUS_LENGTH),
+  );
+  assert.equal(cleanStatus("🎮".repeat(MAX_STATUS_LENGTH + 1)), undefined);
+  assert.equal(
+    cleanStatus(` ${"x".repeat(MAX_STATUS_LENGTH)} `),
+    "x".repeat(MAX_STATUS_LENGTH),
+  );
+  assert.equal(cleanStatus("x".repeat(MAX_STATUS_INPUT + 1)), undefined);
+  assert.equal(cleanStatus(" \n "), "");
+  assert.equal(cleanStatus(undefined), undefined);
+
+  assert.equal(
+    await f.written(() => f.sync("bob", { status: " brb\n\u200b " })),
+    1,
+  );
+  assert.equal((await f.database.presence("bob"))!.status, "brb");
+  assert.equal((await f.friend()).status, "brb");
+  // A poll that says nothing keeps it and writes nothing: an old client's body, and a passive one.
+  assert.equal(await f.written(() => f.sync("bob", { name: "Bob" })), 0);
+  assert.equal(await f.written(() => f.sync("bob", { passive: true })), 0);
+  assert.equal((await f.friend()).status, "brb");
+  // Offline, the status is not shown; it is back with the friend.
+  f.tick(ONLINE_WINDOW_MS);
+  assert.equal((await f.friend()).status, undefined);
+  await f.sync("bob");
+  assert.equal((await f.friend()).status, "brb");
+  // Empty, or nothing but characters that are dropped, clears it.
+  assert.equal(await f.written(() => f.sync("bob", { status: "\u200b " })), 1);
+  assert.equal((await f.friend()).status, undefined);
+  assert.equal("status" in (await f.database.presence("bob"))!, false);
+});
+
+test("away: coming back is recorded at once, going away rides the periodic rewrite, and an active page that does not say is not away", async () => {
+  const f = await pair();
+  // Going away inside the refresh period costs no write of its own and is not shown yet.
+  assert.equal(await f.written(() => f.sync("bob", { away: true })), 0);
+  assert.equal((await f.friend()).away, undefined);
+  f.tick(PRESENCE_REFRESH_MS);
+  assert.equal(await f.written(() => f.sync("bob", { away: true })), 1);
+  assert.deepEqual(await f.friend(), {
+    publicId: f.bob,
+    name: "Bob",
+    online: true,
+    away: true,
+  });
+  // Still away, still nothing to write.
+  assert.equal(await f.written(() => f.sync("bob", { away: true })), 0);
+  // Coming back is one write, at once.
+  assert.equal(await f.written(() => f.sync("bob", { away: false })), 1);
+  assert.equal((await f.friend()).away, undefined);
+  assert.equal("away" in (await f.database.presence("bob"))!, false);
+  // An old client's body (no `away`) on an active page clears an away left behind by a page that closed.
+  f.tick(PRESENCE_REFRESH_MS);
+  await f.sync("bob", { away: true });
+  assert.equal((await f.friend()).away, true);
+  await f.sync("bob", { name: "Bob" });
+  assert.equal((await f.friend()).away, undefined);
+  // A first sync that is away is away from the start.
+  const carol = await f.sync("carol", { name: "Carol", away: true });
+  await f.store.add("alice", { publicId: carol.me.publicId });
+  await f.store.add("carol", { publicId: (await f.sync("alice")).me.publicId });
+  assert.equal(
+    (await f.sync("alice")).friends.find((x) => x.name === "Carol")!.away,
+    true,
+  );
+});
+
+test("a passive page alone (the desktop, no game open) keeps the account online and may say it is away", async () => {
+  const f = await pair();
+  f.tick(ONLINE_WINDOW_MS);
+  assert.equal((await f.friend()).online, false);
+  const view = await f.sync("bob", { passive: true, away: true });
+  assert.deepEqual(view.roomPlayers, []);
+  assert.deepEqual(await f.friend(), {
+    publicId: f.bob,
+    name: "Bob",
+    online: true,
+    away: true,
+  });
+  // A passive poll that does not say keeps what is stored; `passive: false` is an ordinary active poll.
+  await f.sync("bob", { passive: true });
+  assert.equal((await f.friend()).away, true);
+  await f.sync("bob", { passive: false });
+  assert.equal((await f.friend()).away, undefined);
+  // The write budget is the active one: once per refresh period when nothing changes.
+  let writes = 0;
+  for (let i = 0; i < 9; i++) {
+    f.tick(20_000);
+    writes += await f.written(() =>
+      f.sync("bob", { passive: true, away: false }),
+    );
+  }
+  assert.equal(writes, 3);
+});
+
+test("the desktop and a game on one account: passive polls keep the game's room claim, and neither overwrites the other", async () => {
+  const f = await pair();
+  const code = await f.room(1);
+  const game = { name: "Bob", room: { code, memberId: member(2) } },
+    desktop = { passive: true, away: true, status: "in a match" };
+  await f.sync("bob", game);
+  const playing = {
+    publicId: f.bob,
+    name: "Bob",
+    online: true,
+    status: "in a match",
+    room: { code, gameId: LEGACY_GAME_ID },
+  };
+  // The desktop's first poll sets the status (one write); after that the two alternate for three minutes at the
+  // cost of the periodic rewrite alone (one a minute, as for a single page), the room never leaves the record, and
+  // the idle desktop does not make a player in a room look away.
+  assert.equal(await f.written(() => f.sync("bob", desktop)), 1);
+  const reads = f.roomReads();
+  let writes = 0;
+  for (let i = 0; i < 18; i++) {
+    f.tick(10_000);
+    // The game's own room heartbeat keeps its seat alive, as it does in play.
+    await f.rooms.admit(code, token(2), "gateway");
+    let view: FriendsView | undefined;
+    writes += await f.written(async () => {
+      view = await f.sync("bob", i % 2 ? game : desktop);
+    });
+    // The room's members are for the page in the room; the passive poll does not query them.
+    assert.equal(view!.roomPlayers.length, i % 2 ? 1 : 0);
+    assert.deepEqual(await f.friend(), playing);
+    assert.deepEqual((await f.database.presence("bob"))!.room, {
+      code,
+      memberId: member(2),
+      gameId: LEGACY_GAME_ID,
+      incarnation: "incarnation-0",
+    });
+  }
+  assert.equal(writes, 3);
+  // One proof per rewrite, whichever page's poll it falls to.
+  assert.equal(f.roomReads() - reads, 3);
+  // The game page leaves (its unload sync names no room): the room goes at once, and the desktop is heard on away.
+  await f.sync("bob", { name: "Bob" });
+  assert.equal((await f.friend()).room, undefined);
+  f.tick(PRESENCE_REFRESH_MS);
+  await f.sync("bob", desktop);
+  assert.deepEqual(await f.friend(), {
+    publicId: f.bob,
+    name: "Bob",
+    online: true,
+    away: true,
+    status: "in a match",
+  });
+});
+
+test("a passive poll cannot keep a dead room alive: the carried claim is re-proven on the rewrite and dropped, not refused", async () => {
+  const f = await pair();
+  const code = await f.room(1);
+  await f.sync("bob", { room: { code, memberId: member(2) } });
+  // The game's tab closes without a word; the desktop keeps polling. Inside the refresh period the claim stands.
+  f.tick(20_000);
+  await f.sync("bob", { passive: true });
+  assert.deepEqual((await f.friend()).room, { code, gameId: LEGACY_GAME_ID });
+  // The room ends and its code is reissued to other people: the next rewrite finds another incarnation.
+  // The same device even holds a seat in the new room, but the stored claim was for the old one.
+  await f.rooms.end(code, token(1));
+  await f.rooms.create(code, token(5));
+  await f.rooms.admit(code, token(5), "gateway");
+  await f.rooms.admit(code, token(2), "gateway");
+  f.tick(PRESENCE_REFRESH_MS);
+  const view = await f.sync("bob", { passive: true });
+  assert.deepEqual(view.roomPlayers, []);
+  assert.equal((await f.friend()).room, undefined);
+  assert.equal("room" in (await f.database.presence("bob"))!, false);
+  // A passive page never had a room to be refused for, whatever is stored.
+  await f.sync("carol", { passive: true });
+  assert.equal("room" in (await f.database.presence("carol"))!, false);
+});
+
+test("an offline friend shows when it was last seen, to the hour and no finer", async () => {
+  const f = await pair();
+  assert.equal(
+    lastSeenOf(3 * LAST_SEEN_ROUNDING_MS + 1),
+    3 * LAST_SEEN_ROUNDING_MS,
+  );
+  assert.equal(
+    lastSeenOf(4 * LAST_SEEN_ROUNDING_MS - 1),
+    3 * LAST_SEEN_ROUNDING_MS,
+  );
+  assert.equal(
+    lastSeenOf(4 * LAST_SEEN_ROUNDING_MS),
+    4 * LAST_SEEN_ROUNDING_MS,
+  );
+  // A sync at no round time.
+  f.tick(PRESENCE_REFRESH_MS + 1_234_567);
+  await f.sync("bob");
+  // Online: no lastSeen at all.
+  assert.equal("lastSeen" in (await f.friend()), false);
+  const at = (await f.database.presence("bob"))!.at;
+  f.tick(ONLINE_WINDOW_MS);
+  const offline = await f.friend();
+  assert.deepEqual(offline, {
+    publicId: f.bob,
+    name: "Bob",
+    online: false,
+    lastSeen: lastSeenOf(at),
+  });
+  assert.equal(offline.lastSeen! % LAST_SEEN_ROUNDING_MS, 0);
+  assert.ok(
+    offline.lastSeen! <= at && at - offline.lastSeen! < LAST_SEEN_ROUNDING_MS,
+  );
+  // Two syncs in the same hour are indistinguishable once offline.
+  f.tick(1000);
+  await f.sync("bob", { status: "brb", away: true });
+  f.tick(ONLINE_WINDOW_MS);
+  assert.deepEqual(await f.friend(), offline);
+});
+
+test("the Firestore reader and the in-memory database agree on every presence record the store writes", async () => {
+  const f = await pair();
+  const same = async () => {
+    const record = (await f.database.presence("bob"))!;
+    // What Firestore hands back for the document `setPresence` wrote: plain data, no undefined fields.
+    assert.deepEqual(
+      storedPresence(JSON.parse(JSON.stringify(record))),
+      record,
+    );
+    assert.deepEqual(JSON.parse(JSON.stringify(record)), record);
+  };
+  await same();
+  await f.sync("bob", { status: "brb", avatarId: "cat" });
+  await same();
+  f.tick(PRESENCE_REFRESH_MS);
+  await f.sync("bob", { passive: true, away: true });
+  await same();
+  const code = await f.room(1);
+  await f.sync("bob", { room: { code, memberId: member(2) } });
+  await same();
+  await f.sync("bob", { status: "" });
+  await same();
+  // A stored `away: false` (never written, but harmless) reads as absent; anything of another type is refused.
+  const base = { uid: "bob", publicId: f.bob, at: f.now() };
+  assert.deepEqual(storedPresence({ ...base, away: false, status: "" }), base);
+  assert.equal(storedPresence(undefined), undefined);
+  for (const bad of [
+    { ...base, away: "yes" },
+    { ...base, status: 7 },
+    { ...base, name: 7 },
+    { ...base, avatarId: 7 },
+    { ...base, at: 1.5 },
+    { ...base, publicId: "nope" },
+    { ...base, uid: "" },
+    { ...base, room: "AB12" },
+    { ...base, room: { code, memberId: member(2), gameId: LEGACY_GAME_ID } },
+  ])
+    assert.throws(() => storedPresence(bad), /Stored presence is incompatible/);
+});
+
+test("the new fields are validated at the HTTP boundary: a wrong type is a 400 and old bodies are a 200", async () => {
+  const f = await pair();
+  const post = (body: unknown) =>
+    handle(
+      f.http,
+      "POST",
+      "/api/friends/sync",
+      { authorization: "Bearer id:bob" },
+      body,
+    );
+  assert.equal((await post({ name: "Bob" })).status, 200);
+  assert.equal((await post({})).status, 200);
+  const ok = await post({ passive: true, away: false, status: "  hi  there " });
+  assert.equal(ok.status, 200);
+  assert.equal((await f.friend()).status, "hi there");
+  for (const body of [
+    { away: "yes" },
+    { passive: "yes" },
+    { status: 12 },
+    { status: "x".repeat(MAX_STATUS_LENGTH + 1) },
+    { passive: true, room: { code: "AB12", memberId: member(1) } },
+  ])
+    assert.deepEqual(await post(body), {
+      handled: true,
+      status: 400,
+      json: { error: "Invalid presence" },
+    });
+  assert.equal((await f.friend()).status, "hi there");
 });
 
 test("a room claim is proven by a live seat in that room, once per change", async () => {
