@@ -3,6 +3,7 @@ import type { WindowContent, WindowState } from "../state/appState";
 
 import {
   FUSE_GAME_WINDOW_SIZE,
+  MESSAGE_BOX_SIZE,
   PAINT_WINDOW_SIZE,
   WINAMP_WINDOW_SIZE,
   windowMeta,
@@ -81,6 +82,11 @@ describe(windowMeta.name, () => {
         }),
         games,
       ),
-    ).toEqual({ title: "Oops", icon: "warning", resizable: false });
+    ).toEqual({
+      title: "Oops",
+      icon: "warning",
+      resizable: false,
+      size: MESSAGE_BOX_SIZE,
+    });
   });
 });

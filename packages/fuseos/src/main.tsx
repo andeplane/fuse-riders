@@ -15,6 +15,7 @@ import {
   defaultWinampDeps,
   WinampDepsContext,
 } from "./winamp/winampDepsContext";
+import { createBrowserY2kDeps, Y2kDepsContext } from "./y2k/y2kDeps";
 
 import "./styles.css";
 
@@ -43,12 +44,17 @@ const winampDeps: WinampDeps = {
   },
 };
 
+// The millennium bug strikes at local midnight; `?y2k=now` plays it on boot for a demo.
+const y2kDeps = createBrowserY2kDeps({ search });
+
 export function mountFuseOs(container: HTMLElement): void {
   // No React.StrictMode: its double mount in development restarts every embedded game twice.
   ReactDOM.createRoot(container).render(
     <FuseGamesContext.Provider value={games}>
       <WinampDepsContext.Provider value={winampDeps}>
-        <App store={new LocalStorageStateStore()} initialOpen={initialOpen} />
+        <Y2kDepsContext.Provider value={y2kDeps}>
+          <App store={new LocalStorageStateStore()} initialOpen={initialOpen} />
+        </Y2kDepsContext.Provider>
       </WinampDepsContext.Provider>
     </FuseGamesContext.Provider>,
   );
