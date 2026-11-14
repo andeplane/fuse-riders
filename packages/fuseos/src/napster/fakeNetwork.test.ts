@@ -44,17 +44,23 @@ function sample(overrides: Partial<SearchResult> = {}): SearchResult {
 
 describe(searchNetwork.name, () => {
   it("finds a song under its many names, shared by invented users, the same way for the same seed", () => {
-    const first = searchNetwork(query({ artist: "blur" }), seededRandom(7));
-    const again = searchNetwork(query({ artist: "blur" }), seededRandom(7));
+    const first = searchNetwork(
+      query({ artist: "blur", title: "song 2" }),
+      seededRandom(7),
+    );
+    const again = searchNetwork(
+      query({ artist: "blur", title: "song 2" }),
+      seededRandom(7),
+    );
     expect(first).toEqual(again);
-    expect(first.length).toBeGreaterThanOrEqual(2);
+    expect(first.length).toBeGreaterThanOrEqual(12);
     for (const item of first) {
       expect(item.source).toEqual({
         kind: "song",
         song: CATALOG.find((song) => song.title === "Song 2"),
       });
       expect(FAKE_USERS).toContain(item.user);
-      expect(item.filename.toLowerCase()).toMatch(/song.2/);
+      expect(item.filename.toLowerCase()).toMatch(/song.?2/);
     }
   });
 

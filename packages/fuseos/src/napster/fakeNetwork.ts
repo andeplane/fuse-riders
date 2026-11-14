@@ -124,6 +124,16 @@ const FOLDERS = [
   "",
   "",
   "",
+  "MP3's\\",
+  "mp3\\",
+  "New\\",
+  "Music\\",
+  "My Music\\",
+  "D:\\MP3\\ALTERNATIVE\\",
+  "C:\\Napster\\",
+  "C:\\Downloads\\",
+  "C:\\My Documents\\",
+  "Music\\to burn\\",
   "C:\\My Music\\",
   "C:\\My Documents\\My Music\\",
   "D:\\mp3\\",
@@ -148,8 +158,19 @@ export function chaoticFilename(song: CatalogSong, random: Random): string {
     `${artist} - ${title} [radio edit].mp3`,
     `${artist.toUpperCase()} - ${title.toUpperCase()}.MP3`,
     `${artist}-${title}-ripped by ${pick(FAKE_USERS, random)}.mp3`,
+    `${artist} - ${title} (Album Version).mp3`,
+    `${artist} - ${title} [128].mp3`,
+    `${artist} - ${title}  (2).mp3`,
+    `${artist.replace(/^The /, "")} - ${title}.mp3`,
+    `(${artist}) ${title}.mp3`,
+    `${artist} -- ${title}.mp3`,
+    `${artist} - ${title} (acoustic).mp3`,
+    `${artist} - ${title} (live at Woodstock 99).mp3`,
+    `${title.toLowerCase().replace(/ /g, "")}.mp3`,
+    `${artist} - ${String(between(1, 14, random)).padStart(2, "0")} - ${title}.mp3`,
   ];
-  return `${pick(FOLDERS, random)}${pick(variants, random)}`;
+  const folder = random() < 0.12 ? `${artist}\\` : pick(FOLDERS, random);
+  return `${folder}${pick(variants, random)}`;
 }
 
 /** How a Fuse soundtrack file turns up on other people's drives. */
@@ -276,7 +297,12 @@ export function searchNetwork(
       ),
     );
   for (const song of songs) {
-    const copies = between(2, 9, random);
+    // A hit was on thousands of drives; the server answered with as many as it found nearby.
+    const copies = between(
+      songs.length > 6 ? 3 : 12,
+      songs.length > 6 ? 9 : 40,
+      random,
+    );
     for (let copy = 0; copy < copies; copy += 1)
       results.push(
         result(
@@ -299,7 +325,7 @@ export function searchNetwork(
       matches(`${fuseTrackArtist(track)} ${track.title}`, fuseWords),
   );
   for (const track of fuseTracks) {
-    const copies = between(1, 3, random);
+    const copies = between(2, 6, random);
     for (let copy = 0; copy < copies; copy += 1)
       results.push(
         result(
@@ -318,7 +344,7 @@ export function searchNetwork(
       title: query.title.trim() || "Track 1",
       length: between(150, 330, random),
     };
-    const copies = between(2, 6, random);
+    const copies = between(4, 18, random);
     for (let copy = 0; copy < copies; copy += 1)
       results.push(
         result(
@@ -356,7 +382,7 @@ export function shuffle<T>(items: readonly T[], random: Random): T[] {
 
 /** What browsing a Hot List user shows: a dozen or so songs from their (imaginary) drive, all on their one line. */
 export function browseUser(user: string, random: Random): SearchResult[] {
-  const count = between(8, 16, random);
+  const count = between(40, 180, random);
   const lineSpeed = pick(SPEED_WEIGHTS, random);
   const ping = pingFor(lineSpeed, random);
   const songs = shuffle(CATALOG, random).slice(0, count);

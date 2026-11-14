@@ -60,7 +60,7 @@ export function joinRoom(
 ): ChatRoom {
   const users = [
     own,
-    ...shuffle(FAKE_USERS, random).slice(0, 7 + Math.floor(random() * 9)),
+    ...shuffle(FAKE_USERS, random).slice(0, 18 + Math.floor(random() * 30)),
   ];
   return {
     name,

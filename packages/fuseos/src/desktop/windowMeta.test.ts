@@ -4,6 +4,7 @@ import type { WindowContent, WindowState } from "../state/appState";
 
 import {
   FUSE_GAME_WINDOW_SIZE,
+  NAPSTER_WINDOW_SIZE,
   PAINT_WINDOW_SIZE,
   WINAMP_WINDOW_SIZE,
   windowMeta,
@@ -95,6 +96,12 @@ describe(windowMeta.name, () => {
       icon: "fusteam",
       resizable: true,
       size: LAUNCHER_WINDOW_SIZE,
+    });
+    expect(windowMeta(window({ kind: "napster" }), games)).toEqual({
+      title: "Napster v2.0 BETA 7",
+      icon: "napster",
+      resizable: true,
+      size: NAPSTER_WINDOW_SIZE,
     });
   });
 });
