@@ -4,7 +4,13 @@ import type { PlayFrame } from "fuse-ui/play-metrics";
 import { playFrame } from "./play-metrics.js";
 import type { BallRuntime } from "../online/runtime.js";
 import type { ArenaRenderer } from "../render/arena.js";
-import type { Callbacks } from "fuse-netcode";
+import {
+  createLeadClock,
+  ticksAhead,
+  type Callbacks,
+  type FrameTiming,
+} from "fuse-netcode";
+import { createSmoother, forward, forwardInputs } from "./forward.js";
 import type { RoomView, Settings } from "../online/game.js";
 import type { Impact } from "../engine/view.js";
 import { colorCss, interpolate } from "../render/present.js";
@@ -30,7 +36,9 @@ export type Client = Pick<
   | "frameTiming"
   | "self"
   | "canManage"
->;
+> &
+  // Optional: a client without it is drawn a tick behind the clock, blended.
+  Partial<Pick<BallRuntime, "lead">>;
 export interface ScreenOptions {
   base?: string;
   search?: string;
@@ -61,6 +69,13 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
     el = elementsFor(document);
   const abort = new AbortController(),
     signal = abort.signal;
+  const query = new URLSearchParams(options.search ?? "");
+  /** `?lead=off` draws the old way, a tick behind the clock and blended, to compare the feel against. */
+  const drawAhead = query.get("lead") !== "off",
+    /** For latency measurements: `?probe` publishes where this device's paddle was last drawn. */
+    probe = query.has("probe"),
+    smoother = createSmoother(),
+    leadClock = createLeadClock();
   const audio = options.audio;
   const top = el("header", "", "topbar"),
     home = el("a", "← FUSE ARCADE", "back");
@@ -475,6 +490,32 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
     ),
   );
   toast.textContent = "";
+  /**
+   * What to draw now: the room's newest arena played forward to the clock when the newest frame is that arena,
+   * otherwise the two newest frames blended a tick behind it.
+   */
+  function picture(timing: FrameTiming<RoomView>, now: number): BallView {
+    const lead = drawAhead ? runtime?.lead?.() : undefined;
+    if (!lead || lead.tick !== timing.newer.tick)
+      return interpolate(timing.older, timing.newer, timing.tick);
+    const ahead = leadClock(ticksAhead(timing), timing.newer.logTick, now),
+      me = runtime?.self ?? "";
+    return {
+      ...timing.newer,
+      arena: smoother.apply(
+        forward(
+          lead.arena,
+          ahead,
+          forwardInputs(lead.connected, me, lead.control),
+        ),
+        timing.revision ?? 0,
+        lead.arena,
+        lead.matchId,
+        now,
+        me,
+      ),
+    };
+  }
   function paint(now: number): void {
     const timing = runtime?.frameTiming();
     try {
@@ -483,12 +524,20 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
         !document.hidden &&
         timing &&
         !root.classList.contains("controller-mode")
-      )
-        renderer.paint(
-          interpolate(timing.older, timing.newer, timing.tick),
-          now,
-        );
-      else if (
+      ) {
+        const drawn = picture(timing, now);
+        if (probe) {
+          const mine = drawn.arena?.bases.find(
+            (base) => base.id === runtime?.self,
+          );
+          Reflect.set(root.ownerDocument.defaultView ?? {}, "__ballBrosProbe", {
+            at: options.now(),
+            angle: mine?.angle,
+            radius: mine?.radius,
+          });
+        }
+        renderer.paint(drawn, now);
+      } else if (
         !graphicsFailed &&
         !document.hidden &&
         latest &&
