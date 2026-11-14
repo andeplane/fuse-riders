@@ -31,6 +31,7 @@
     "./tokens.css": "./src/tokens.css",
     "./components.css": "./src/components.css",
     "./portal.css": "./src/portal.css",
+    "./results.css": "./src/results.css",
     "./music": "./src/music.ts"
   },
   "dependencies": {

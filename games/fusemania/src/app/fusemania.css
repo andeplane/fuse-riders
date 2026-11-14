@@ -336,87 +336,6 @@ body:has(.fui-top-bar) .fm-room:has(> .fui-room-layout:not([hidden])) {
   padding-right: 2.5rem;
 }
 
-/* The result: one card over the field */
-.fm-card {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  z-index: 3;
-  transform: translate(-50%, -50%);
-  display: grid;
-  gap: var(--fui-space-3);
-  width: min(94%, 34rem);
-  max-height: 94%;
-  padding: var(--fui-space-4);
-  overflow: auto;
-  background: #050e25f2;
-  border: var(--fui-stroke) solid var(--fui-pink);
-  border-radius: var(--fui-radius);
-  box-shadow: 0 0 2.5rem #ff2e9d55;
-  text-align: center;
-  touch-action: pan-y;
-  animation: fm-card-in 0.35s cubic-bezier(0.2, 1.4, 0.4, 1);
-}
-@keyframes fm-card-in {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -46%) scale(0.92);
-  }
-}
-.fm-card h2 {
-  margin: 0;
-  color: var(--fui-yellow);
-  font: 0.875rem/1.5 var(--fui-font-pixel);
-  text-shadow: 0 0 1rem #ffe46b88;
-}
-.fm-rows {
-  display: grid;
-  gap: var(--fui-space-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font: 0.5625rem/1.6 var(--fui-font-pixel);
-}
-.fm-rows li {
-  display: grid;
-  grid-template-columns: 1.25rem 3.5rem minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--fui-space-2);
-  padding: var(--fui-space-2);
-  color: var(--fui-text-muted);
-  background: #0a1838aa;
-  border-left: 0.25rem solid var(--c, var(--fui-cyan));
-  border-radius: var(--fui-radius-small);
-  text-align: left;
-}
-.fm-rows li.you {
-  color: var(--fui-text-bright);
-  background: #12245499;
-}
-.fm-row-who {
-  display: grid;
-  min-width: 0;
-}
-.fm-rows li b {
-  overflow: hidden;
-  color: var(--c, var(--fui-cyan));
-  font-weight: normal;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.fm-rows li small {
-  color: var(--fui-text-dim);
-  font: 0.6875rem/1.5 var(--fui-font-body, inherit);
-}
-@media (max-width: 30rem) {
-  .fm-rows li {
-    grid-template-columns: 1rem 2rem minmax(0, 1fr) auto;
-  }
-}
-.fm-rows li em {
-  color: var(--fui-yellow);
-  font-style: normal;
-}
 .fm-grade {
   color: var(--fui-cyan);
   font: 0.875rem/1 var(--fui-font-pixel);
@@ -473,28 +392,6 @@ body:has(.fui-top-bar) .fm-room:has(> .fui-room-layout:not([hidden])) {
 .fm-count-miss,
 .fm-count-mines {
   color: var(--fui-pink-soft) !important;
-}
-.fm-lines {
-  display: grid;
-  gap: var(--fui-space-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  color: var(--fui-text-muted);
-  font: 0.5625rem/1.6 var(--fui-font-pixel);
-}
-.fm-lines li.best {
-  color: var(--fui-yellow);
-  font-size: 0.6875rem;
-  text-shadow: 0 0 1rem #ffe46b88;
-}
-.fm-card-foot {
-  margin: 0;
-  color: var(--fui-cyan);
-  font: 0.5625rem/1.6 var(--fui-font-pixel);
-}
-.fm-card .fm-actions {
-  justify-content: center;
 }
 /* The result's offer to move the input offset, when a song showed a clear timing bias */
 .fm-card-timing {
@@ -674,9 +571,6 @@ body:has(.fui-top-bar) .fm-room:has(> .fui-room-layout:not([hidden])) {
   .fm-brand {
     font-size: 1rem;
   }
-  .fm-card {
-    padding: var(--fui-space-3);
-  }
   .fm-counts {
     grid-template-columns: repeat(2, auto);
   }
@@ -688,19 +582,11 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"])) #app {
   overflow: hidden;
 }
 
-/* The result with this device's own run in it: the grade large, the judgments as bars, the timing graph beside. */
-.fm-card.fm-card-own {
-  width: min(96%, 34rem);
-}
-.fm-card.fm-card-graphed {
-  width: min(96%, 66rem);
-}
 .fm-report {
   display: grid;
   gap: var(--fui-space-3);
   min-width: 0;
 }
-.fm-report-side,
 .fm-report-graph {
   display: grid;
   align-content: start;
@@ -708,51 +594,12 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"])) #app {
   min-width: 0;
 }
 @media (min-width: 56rem) {
-  .fm-card-graphed .fm-report {
+  .fm-report-graphed {
     grid-template-columns: minmax(15rem, 19rem) minmax(0, 1fr);
     align-items: start;
   }
 }
-.fm-own {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 0 var(--fui-space-3);
-  padding: var(--fui-space-3);
-  background: #12245499;
-  border-radius: var(--fui-radius-small);
-  text-align: left;
-}
-.fm-own-grade {
-  grid-row: span 3;
-  min-width: 4.5rem;
-  font-size: 2.75rem;
-}
-.fm-own-grade.fm-grade-aaaa,
-.fm-own-grade.fm-grade-aaa {
-  font-size: 1.75rem;
-}
-.fm-own-score {
-  color: var(--fui-yellow);
-  font: 1.125rem/1.4 var(--fui-font-pixel);
-  font-style: normal;
-  text-shadow: 0 0 1rem #ffe46b88;
-}
-.fm-own-detail {
-  color: var(--fui-text-muted);
-  font: 0.75rem/1.5 var(--fui-font-body, inherit);
-}
-.fm-own-badge {
-  justify-self: start;
-  margin-top: var(--fui-space-1);
-  padding: 0.125rem var(--fui-space-2);
-  color: var(--fui-ink);
-  background: var(--fui-yellow);
-  border-radius: var(--fui-radius-small);
-  font: 0.5rem/1.8 var(--fui-font-pixel);
-  font-weight: normal;
-}
-.fm-card-own .fm-counts {
+.fm-report .fm-counts {
   display: grid;
   grid-template-columns: auto minmax(2rem, 1fr) auto;
   justify-content: stretch;
@@ -798,14 +645,6 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"])) #app {
   display: inline;
   margin: 0 0 0 var(--fui-space-2);
   color: var(--fui-text-bright);
-}
-/* The buttons stay in reach however long the result is. */
-.fm-card-own .fm-actions {
-  position: sticky;
-  bottom: calc(-1 * var(--fui-space-4));
-  margin: 0 calc(-1 * var(--fui-space-4)) calc(-1 * var(--fui-space-4));
-  padding: var(--fui-space-3) var(--fui-space-4);
-  background: #050e25;
 }
 
 /* A paused solo song */
@@ -1196,4 +1035,43 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"])) #app {
   min-width: min(92%, 26rem);
   max-width: 92%;
   padding: var(--fui-space-4);
+}
+
+/* Tables of the game's own on the results screen: every player's judgments, a session's last song. */
+.fm-judgments {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.fm-judgments th,
+.fm-judgments td {
+  padding: 0.6rem var(--fui-space-2);
+  text-align: center;
+  font-weight: 400;
+}
+.fm-judgments thead th {
+  color: #92a6cb;
+  font-size: 0.6875rem;
+}
+.fm-judgments th:first-child {
+  text-align: left;
+  text-transform: uppercase;
+}
+.fm-judgments tbody tr {
+  border-bottom: 1px solid #24365c;
+}
+.fm-judgments tbody th {
+  color: var(--player-color);
+}
+@media (max-width: 700px) {
+  .fm-judgments {
+    font-size: 0.6875rem;
+  }
+  .fm-judgments th,
+  .fm-judgments td {
+    padding: 0.5rem 0.125rem;
+  }
+  .fm-judgments thead th {
+    font-size: 0.5rem;
+  }
 }

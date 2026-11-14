@@ -70,10 +70,21 @@ export const ordinal = (place: number): string =>
 
 /** One line of the result table. */
 export interface Row {
+  /** The player's id in the room. */
+  id: string;
+  bot: boolean;
   place: number;
   slot: number;
   name: string;
   you: boolean;
+  /** The chart played: "HARD 9". */
+  chart: string;
+  /** "94.2%". */
+  accuracy: string;
+  /** The longest combo, as a number. */
+  maxCombo: string;
+  /** How many of each judgment, Marvelous first and Miss last. */
+  judgments: string[];
   grade: string;
   score: string;
   /** The chart played and the accuracy: "HARD 9 · 94.2%". */
@@ -164,6 +175,8 @@ export interface Model {
   chart: number;
   result: {
     title: string;
+    /** The song that was played: "NEON KICKOFF". */
+    song: string;
     rows: Row[];
     /** This device's own run, large: null for a watcher and for the TV. */
     own: Own | null;
@@ -311,6 +324,14 @@ export function present(
     const rows: Row[] = [...world.players]
       .sort((a, b) => a.place - b.place)
       .map((each) => ({
+        id: each.id,
+        bot: each.bot,
+        chart: chartLabel(library, world.song, each.chart),
+        accuracy: percent(each.rating),
+        maxCombo: String(each.best),
+        judgments: [MARVELOUS, PERFECT, GREAT, GOOD, BOO, MISS].map((kind) =>
+          String(each.counts[kind]),
+        ),
         place: each.place,
         slot: each.slot,
         name: view.roster[each.slot]?.name ?? "",
@@ -364,6 +385,7 @@ export function present(
               : winner.id === viewer.me
                 ? "YOU WIN!"
                 : `${winner.name.toUpperCase()} WINS`,
+      song: songTitle,
       rows,
       own: player
         ? {
