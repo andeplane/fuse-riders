@@ -25,6 +25,8 @@ const games = readdirSync(new URL("games/", import.meta.url), {
   )
   .map((entry) => entry.name)
   .sort();
+/** A game's other built pages (`games/<id>/<page>.html`, served at `<base><id>/<page>.html`): developer tools. */
+const extraPages = ["fusemania/chart-lab.html"];
 
 /**
  * The app portal's games: every `games/<id>/portal.json`, ordered by `order` then name. A game without one (the
@@ -110,6 +112,17 @@ const gamePages = (): Plugin => {
         )
           page.source = page.source.replaceAll('"../../', '"../');
       }
+      for (const path of extraPages) {
+        const page = bundle[`games/${path}`];
+        if (!page) continue;
+        page.fileName = path;
+        if (
+          relative &&
+          page.type === "asset" &&
+          typeof page.source === "string"
+        )
+          page.source = page.source.replaceAll('"../../', '"../');
+      }
     },
   };
 };
@@ -174,6 +187,12 @@ export default defineConfig({
         main: `${root}index.html`,
         ...Object.fromEntries(
           games.map((id) => [id, `${root}games/${id}/index.html`]),
+        ),
+        ...Object.fromEntries(
+          extraPages.map((path) => [
+            path.replace(/\W+/g, "-"),
+            `${root}games/${path}`,
+          ]),
         ),
       },
     },
