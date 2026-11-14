@@ -114,6 +114,56 @@ describe(appStateReducer.name, () => {
     expect(sameInstance({ kind: "retroFolder" }, { kind: "retroFolder" })).toBe(
       true,
     );
+    expect(sameInstance({ kind: "launcher" }, { kind: "launcher" })).toBe(true);
+    expect(sameInstance({ kind: "launcher" }, { kind: "about" })).toBe(false);
+  });
+
+  it("opens under a fixed id and maximized when asked, and still keeps the launcher to one window", () => {
+    const launcher = { kind: "launcher" } as const;
+    const options = { id: "launcher", maximized: true };
+    const booted = appStateReducer(open(DEFAULT_STATE, "paint"), {
+      type: "open",
+      content: launcher,
+      options,
+    });
+    expect(booted.windows[1]).toEqual({
+      id: "launcher",
+      kind: "launcher",
+      minimized: false,
+      maximized: true,
+    });
+    // Again by id: focused, not duplicated, and its size state is its own.
+    const again = appStateReducer(
+      appStateReducer(booted, { type: "toggleMaximize", id: "launcher" }),
+      { type: "open", content: launcher, options },
+    );
+    expect(again.windows.map((window) => window.id)).toEqual([
+      "w1",
+      "launcher",
+    ]);
+    expect(again.windows[1]?.maximized).toBe(false);
+    // A launcher a deep link once stored under a generated id counts as the same window.
+    const stored = appStateReducer(DEFAULT_STATE, {
+      type: "open",
+      content: launcher,
+    });
+    const reopened = appStateReducer(stored, {
+      type: "open",
+      content: launcher,
+      options,
+    });
+    expect(reopened.windows.map((window) => window.id)).toEqual(["w1"]);
+    // A new window under an explicit id that nothing holds yet.
+    const named = appStateReducer(DEFAULT_STATE, {
+      type: "open",
+      content: { kind: "paint" },
+      options: { id: "sketch" },
+    });
+    expect(named.windows[0]).toMatchObject({
+      id: "sketch",
+      kind: "paint",
+      maximized: false,
+    });
   });
 
   it("re-opens the Display dialog on the tab asked for and adds files to the one Notepad++ as tabs", () => {
@@ -161,7 +211,7 @@ describe(appStateReducer.name, () => {
     const again = appStateReducer(state, {
       type: "open",
       content: { kind: "paint" },
-      id: "w1",
+      options: { id: "w1" },
     });
     expect(again.windows.map((window) => window.id)).toEqual(["w2", "w1"]);
   });
@@ -309,6 +359,7 @@ describe(isAppState.name, () => {
     expect(isAppState(window({ kind: "wallpaper" }))).toBe(true);
     expect(isAppState(window({ kind: "about" }))).toBe(true);
     expect(isAppState(window({ kind: "winamp" }))).toBe(true);
+    expect(isAppState(window({ kind: "launcher" }))).toBe(true);
     expect(
       isAppState(
         window({ kind: "dialog", title: "t", message: "m", icon: "info" }),

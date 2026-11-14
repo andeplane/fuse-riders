@@ -27,6 +27,7 @@ import {
   RULES,
   createRound,
   isMapId,
+  packInput,
   teamOf,
   unpackInput,
   viewOf,
@@ -417,18 +418,21 @@ function applySeats(
 }
 
 /**
- * Every slot's input for each of the tick's steps, from its pilot's entries for this tick, match and game. The held
- * bits last from the latest `PLAY` on (a tap shorter than the tick still counts, on its first step). Each `PRESS`
- * sets the press edge on exactly the step it names, once per gesture (ordinals rise along a stream, so a repeat in the
- * tick is ignored), and holds the button on that step; each `ATTACK` sets the attack edge the same way. A slot
- * without a pilot gets nothing: the bot plays it.
+ * Every slot's input for each of the tick's steps, from its pilot's entries for this tick, match and game, and the
+ * bits each pilot holds after it. The held bits (`before`, what each held going into the tick) last from the latest
+ * `PLAY` on (a tap shorter than the tick still counts, on its first step). Each `PRESS` sets the press edge on
+ * exactly the step it names, once per gesture (ordinals rise along a stream, so a repeat in the tick is ignored), and
+ * holds the button on that step; each `ATTACK` sets the attack edge the same way. A slot without a pilot gets
+ * nothing: the bot plays it. Nothing is changed: the fold stores `held`, and the screen's forward run reads the same
+ * answer for the ticks not yet folded.
  */
-function inputs(
-  room: Room,
+export function tickInputs(
+  room: Pick<Room, "seats" | "matchId" | "round">,
+  before: Readonly<Record<string, number>>,
   crew: readonly string[],
   streams: ReadonlyMap<string, StreamEntries<Entry>>,
   tick: number,
-): Input[][] {
+): { steps: Input[][]; held: Record<string, number> } {
   const steps: Input[][] = [[], [], []],
     held: Record<string, number> = {};
   crew.forEach((id, slot) => {
@@ -439,7 +443,7 @@ function inputs(
       tapped = 0,
       ordinal = 0;
     if (seat) {
-      bits = room.held[id] ?? 0;
+      bits = before[id] ?? 0;
       const mine = (e: Entry): e is PlayEntry | PressEntry | AttackEntry =>
         (e[2] === PLAY || e[2] === PRESS || e[2] === ATTACK) &&
         e[1] === tick &&
@@ -467,8 +471,78 @@ function inputs(
       };
     });
   });
+  return { steps, held };
+}
+function inputs(
+  room: Room,
+  crew: readonly string[],
+  streams: ReadonlyMap<string, StreamEntries<Entry>>,
+  tick: number,
+): Input[][] {
+  const { steps, held } = tickInputs(room, room.held, crew, streams, tick);
   room.held = held;
   return steps;
+}
+
+/** How many log ticks past the newest folded one the screen may play forward. */
+export const TICKS_AHEAD = 2;
+/**
+ * What the screen needs to draw at the clock rather than a tick behind it (`app/forward.ts`): the newest folded
+ * round and, for each of the next `TICKS_AHEAD` log ticks, the inputs the fold would run its steps on as the log
+ * stands now. This device's own entries are in the log the moment they are made, so its controls are live; everyone
+ * else holds what they last logged, plus whatever of theirs has already arrived for those ticks.
+ */
+export interface Ahead {
+  /** The room's own round at `tick`: to be copied, never stepped. */
+  world: Round;
+  /** The newest folded log tick. */
+  tick: number;
+  /** Tells one game from the next. */
+  game: string;
+  /** Per log tick ahead, its steps' inputs by slot; empty for a tick that runs no step (the countdown). */
+  ticks: Input[][][];
+  /**
+   * Per slot, what its pilot's entries alone say for a tick (the three steps' input bits, with nothing held going
+   * in): `folded` for the newest folded tick, `next[i]` for the ticks ahead. A slot's mark for a tick changing
+   * between the frame that drew it ahead and the fold means the forward run had that pilot wrong.
+   */
+  folded: number[];
+  next: number[][];
+}
+export function aheadOf(
+  room: Room,
+  streamsAt: (tick: number) => ReadonlyMap<string, StreamEntries<Entry>>,
+): Ahead | undefined {
+  const world = room.world;
+  if (room.stage !== "running" || !world || world.winner || room.endAt) return;
+  const crew = pilots(room);
+  const mark = (tick: number): number[] => {
+    const { steps } = tickInputs(room, {}, crew, streamsAt(tick), tick);
+    return crew.map((_, slot) =>
+      steps.reduce(
+        (sum, step, k) => sum | (packInput(step[slot]!) << (6 * k)),
+        0,
+      ),
+    );
+  };
+  const ticks: Input[][][] = [],
+    next: number[][] = [];
+  let held: Readonly<Record<string, number>> = room.held;
+  for (let i = 1; i <= TICKS_AHEAD; i++) {
+    const tick = room.tick + i,
+      result = tickInputs(room, held, crew, streamsAt(tick), tick);
+    held = result.held;
+    ticks.push(tick >= room.startAt ? result.steps : []);
+    next.push(mark(tick));
+  }
+  return {
+    world,
+    tick: room.tick,
+    game: `${room.matchId}:${room.round}`,
+    ticks,
+    folded: mark(room.tick),
+    next,
+  };
 }
 
 const statsOf = (room: Room, id: string | undefined): Stats | undefined =>

@@ -48,6 +48,10 @@ export function demoCanvas(host: HTMLElement, width = 960, height = 600) {
   host.append(canvas);
   return canvas;
 }
+/** A drawn frame followed by a longer wait than this is slow enough to ration (three display frames at 60 Hz). */
+const SLOW_FRAME_MS = 50;
+/** The longest a rationed background waits: one stall must not stop it for the rest of the visit. */
+const SLOWEST_FRAME_MS = 2000;
 /** Shared silent lifecycle: fixed ticks, capped drawing, reduced motion and teardown on leaving. */
 export function mountAttract(
   root: HTMLElement,
@@ -79,7 +83,11 @@ export function mountAttract(
     previous = 0,
     carry = 0,
     drawn = 0,
-    dirty = true;
+    dirty = true,
+    // What the last drawn frame cost: the wait for the frame after it. A scene that takes most of a second to draw
+    // (WebGL without a GPU) would otherwise own the main thread, and the menu in front of it could not be pressed.
+    cost = 0,
+    timing = false;
   const label = () => {
     toggle.textContent = paused ? "Play background" : "Pause background";
     toggle.setAttribute("aria-pressed", String(paused));
@@ -95,6 +103,7 @@ export function mountAttract(
   const visibility = () => {
     previous = 0;
     carry = 0;
+    timing = false;
     driver?.pause?.(paused || environment.hidden());
   };
   const stopMotion = environment.onMotionChange(setMotion),
@@ -135,6 +144,10 @@ export function mountAttract(
       return;
     }
     try {
+      if (timing) {
+        cost = now - drawn;
+        timing = false;
+      }
       if (!environment.hidden()) {
         const elapsed = previous ? Math.min(100, now - previous) : 0;
         if (!paused) {
@@ -144,9 +157,16 @@ export function mountAttract(
             carry -= 50;
           }
         }
-        if (dirty || (!paused && now - drawn >= 1000 / 30)) {
+        // Thirty frames a second while they are cheap. A slow frame waits three times what the last one cost (two
+        // seconds at most), so the background leaves the page most of the main thread.
+        const every = Math.max(
+          1000 / 30,
+          cost > SLOW_FRAME_MS ? Math.min(cost * 3, SLOWEST_FRAME_MS) : 0,
+        );
+        if (dirty || (!paused && now - drawn >= every)) {
           driver.render(now);
           drawn = now;
+          timing = true;
           dirty = false;
           root.dataset.attractTick = String(driver.tick());
           root.dataset.attractState = paused ? "paused" : "running";

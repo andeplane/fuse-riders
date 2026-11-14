@@ -71,7 +71,10 @@ export interface NotepadPlusPlusWindowContent {
   activePath?: string;
 }
 
-/** An image from the C: drive, shown read-only (Paint's URL import is Phase B5's; this is the fallback viewer). */
+/** Fusteam, the game launcher (`src/launcher`): opens on every boot, one instance, focused rather than duplicated. */
+export interface LauncherWindowContent {
+  kind: "launcher";
+}
 
 export type WindowContent =
   | FuseGameWindowContent
@@ -84,7 +87,8 @@ export type WindowContent =
   | PaintWindowContent
   | WinampWindowContent
   | ExplorerWindowContent
-  | NotepadPlusPlusWindowContent;
+  | NotepadPlusPlusWindowContent
+  | LauncherWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -103,8 +107,16 @@ export interface AppState {
 
 export const DEFAULT_STATE: AppState = { version: 1, windows: [] };
 
+/** How `open` creates a window it does not find already open; an existing one keeps its id and size state. */
+export type OpenOptions = {
+  /** A fixed id (the launcher's) instead of the next `w<n>`; an open window under that id is focused instead. */
+  id?: string;
+  /** Opens maximized (the launcher on a display it would not fit); default restored. */
+  maximized?: boolean;
+};
+
 export type AppAction =
-  | { type: "open"; content: WindowContent; id?: string }
+  | { type: "open"; content: WindowContent; options?: OpenOptions }
   | { type: "close"; id: string }
   | { type: "focus"; id: string }
   | { type: "minimize"; id: string }
@@ -123,10 +135,11 @@ export function nextWindowId(windows: readonly WindowState[]): string {
 
 /**
  * Whether `content` would open the same window as `existing`: the single-instance programs (Winamp, the
- * wallpaper picker, About, the Retro Games folder, Notepad++ with its tabs), one window per retro game, per
- * Fuse game, per Control Panel applet, per Explorer location and per picture. Paint and dialogs open as many
- * times as asked. `open` focuses the existing window instead of adding another, whatever asked: an icon, the
- * Start menu, Clippy or a `?open=` deep link over a stored desktop that already holds it.
+ * wallpaper picker, About, the Retro Games folder, the Fusteam launcher, Notepad++ with its tabs), one window per
+ * retro game, per Fuse game, per Control Panel applet, per Explorer location and per picture. Paint and dialogs
+ * open as many times as asked. `open` focuses the existing window instead of adding another, whatever asked: an
+ * icon, the Start menu, Clippy or a `?open=` deep link over a stored desktop that already holds it (the boot's
+ * launcher, say).
  */
 export function sameInstance(
   content: WindowContent,
@@ -137,6 +150,7 @@ export function sameInstance(
     case "wallpaper":
     case "about":
     case "retroFolder":
+    case "launcher":
       return existing.kind === content.kind;
     case "retro":
       return existing.kind === "retro" && existing.game === content.game;
@@ -204,10 +218,13 @@ function patchWindow(
 export function appStateReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case "open": {
+      const options = action.options ?? {};
+      // The same program by kind first (a launcher a deep link once stored under a generated id), then by id.
       const existing =
-        action.id === undefined
-          ? state.windows.find((window) => sameInstance(action.content, window))
-          : state.windows.find((window) => window.id === action.id);
+        state.windows.find((window) => sameInstance(action.content, window)) ??
+        (options.id === undefined
+          ? undefined
+          : state.windows.find((window) => window.id === options.id));
       if (existing) {
         return {
           ...state,
@@ -219,12 +236,17 @@ export function appStateReducer(state: AppState, action: AppAction): AppState {
           ),
         };
       }
-      const id = action.id ?? nextWindowId(state.windows);
+      const id = options.id ?? nextWindowId(state.windows);
       return {
         ...state,
         windows: [
           ...state.windows,
-          { id, minimized: false, maximized: false, ...action.content },
+          {
+            id,
+            minimized: false,
+            maximized: options.maximized ?? false,
+            ...action.content,
+          },
         ],
       };
     }
@@ -314,6 +336,7 @@ function isWindowContent(
     case "about":
     case "winamp":
     case "retroFolder":
+    case "launcher":
       return true;
     case "dialog":
       return (

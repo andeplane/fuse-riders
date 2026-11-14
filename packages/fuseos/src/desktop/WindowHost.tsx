@@ -6,6 +6,7 @@ import { ExplorerWindow } from "../explorer/ExplorerWindow";
 import { WallpaperWindow } from "../controlpanel/WallpaperWindow";
 import { FuseGameWindow } from "../fusegames/FuseGameWindow";
 import { FuseGamesContext } from "../fusegames/registry";
+import { LauncherWindow } from "../launcher/LauncherWindow";
 import { NotepadPlusPlusWindow } from "../notepadpp/NotepadPlusPlusWindow";
 import { PaintWindow } from "../paint/PaintWindow";
 import { GameWindow } from "../retro/GameWindow";
@@ -79,6 +80,8 @@ function WindowContent({
           activePath={window.activePath}
         />
       );
+    case "launcher":
+      return <LauncherWindow windowId={window.id} active={active} />;
   }
 }
 

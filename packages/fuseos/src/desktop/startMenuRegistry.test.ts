@@ -1,3 +1,5 @@
+import type { WindowCommands } from "../windows/useWindowCommands";
+
 import type { StartMenuRegistration } from "./startMenuRegistry";
 import {
   registrationsFor,
@@ -14,7 +16,7 @@ describe("START_MENU_REGISTRATIONS", () => {
     });
   });
 
-  it("lists the accessories, the Retro Games folder, My Computer and the screen saver, every one of them openable", () => {
+  it("lists the accessories, Fusteam, the Retro Games folder, My Computer and the screen saver, every one of them openable", () => {
     expect(
       START_MENU_REGISTRATIONS.map((entry) => [
         entry.slot,
@@ -27,17 +29,19 @@ describe("START_MENU_REGISTRATIONS", () => {
       ["accessories", "notepadpp", true],
       ["accessories", "explorer", true],
       ["accessories", "wallpaper", true],
+      ["programs", "fusteam", true],
       ["retro-games", "retro-folder", true],
       ["my-computer", "my-computer", true],
       ["settings", "screensaver", true],
     ]);
   });
 
-  it("opens each registered program through the window commands", () => {
+  function recordingCommands(): WindowCommands & { opened: unknown[] } {
     const opened: unknown[] = [];
-    const commands = {
-      open: (content: unknown) => {
-        opened.push(content);
+    return {
+      opened,
+      open: (content, options) => {
+        opened.push(options === undefined ? content : [content, options]);
       },
       close: () => undefined,
       focus: () => undefined,
@@ -46,16 +50,34 @@ describe("START_MENU_REGISTRATIONS", () => {
       showError: () => undefined,
       showInfo: () => undefined,
     };
-    START_MENU_REGISTRATIONS.forEach((entry) => entry.open?.(commands));
-    expect(opened).toEqual([
+  }
+
+  it("opens each registered program through the window commands", () => {
+    const commands = recordingCommands();
+    START_MENU_REGISTRATIONS.forEach((entry) =>
+      entry.open?.(commands, { width: 1280, height: 800 }),
+    );
+    expect(commands.opened).toEqual([
       { kind: "paint" },
       { kind: "winamp" },
       { kind: "notepadpp", paths: ["README.md"], activePath: "README.md" },
       { kind: "explorer", location: "" },
       { kind: "wallpaper" },
+      [{ kind: "launcher" }, { id: "launcher", maximized: false }],
       { kind: "retroFolder" },
       { kind: "explorer", location: "" },
       { kind: "controlpanel", applet: "display", tab: "screensaver" },
+    ]);
+  });
+
+  it("opens Fusteam maximized on a display it would not fit", () => {
+    const commands = recordingCommands();
+    const fusteam = START_MENU_REGISTRATIONS.find(
+      (entry) => entry.id === "fusteam",
+    );
+    fusteam?.open?.(commands, { width: 390, height: 844 });
+    expect(commands.opened).toEqual([
+      [{ kind: "launcher" }, { id: "launcher", maximized: true }],
     ]);
   });
 });

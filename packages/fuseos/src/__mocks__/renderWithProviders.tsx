@@ -39,6 +39,9 @@ import {
   createFuseGameRegistry,
   FuseGamesContext,
 } from "../fusegames/registry";
+import { MemoryLastPlayedStore } from "../launcher/lastPlayedStore";
+import type { LauncherDeps } from "../launcher/launcherDepsContext";
+import { LauncherDepsContext } from "../launcher/launcherDepsContext";
 import type { LlmDeps } from "../llm/llmDepsContext";
 import { LlmDepsContext } from "../llm/llmDepsContext";
 import { MemoryModelCache } from "../llm/modelCache";
@@ -70,6 +73,7 @@ import type { AppState, WindowContent } from "../state/appState";
 import { DEFAULT_STATE } from "../state/appState";
 import type { AppStateDeps } from "../state/appStateContext";
 import { AppStateDepsContext } from "../state/appStateContext";
+import type { StateStore } from "../state/stateStore";
 import { MemoryStateStore } from "../state/stateStore";
 import type { WinampDeps } from "../winamp/winampDepsContext";
 import { WinampDepsContext } from "../winamp/winampDepsContext";
@@ -141,6 +145,10 @@ export function createTestGames(
 export type ProviderOptions = {
   /** The stored state the desktop boots from; default empty. */
   initialState?: AppState;
+  /** A store of the test's own (a boot decorator, say); wins over `initialState`. */
+  store?: StateStore;
+  /** Defaults to an empty last-played map; where PLAY opens a game follows `launchDevice` and `prefsStore`. */
+  launcherDeps?: Partial<LauncherDeps>;
   /** What a deep link asked for. */
   initialOpen?: readonly WindowContent[];
   /** Defaults to the three fixture games; pass `[]` for an empty desktop. */
@@ -322,6 +330,16 @@ export function createTestScreenSaverDeps(
   };
 }
 
+/** Launcher deps with an empty in-memory last-played map; where a game opens comes from `launchDevice` and `prefsStore`. */
+export function createTestLauncherDeps(
+  overrides: Partial<LauncherDeps> = {},
+): LauncherDeps {
+  return {
+    lastPlayed: new MemoryLastPlayedStore(),
+    ...overrides,
+  };
+}
+
 /** One context and the value it provides, typed together so a mismatch fails to compile. */
 type ProviderEntry = (children: ReactNode) => ReactElement;
 
@@ -342,7 +360,10 @@ function composeProviders(
 }
 
 export function createWrapper(options: ProviderOptions = {}) {
-  const store = new MemoryStateStore(options.initialState ?? DEFAULT_STATE);
+  const store =
+    options.store ??
+    new MemoryStateStore(options.initialState ?? DEFAULT_STATE);
+  const launcherDeps = createTestLauncherDeps(options.launcherDeps);
   const games = createTestGames(options.games ?? FIXTURE_GAMES, {
     muted: options.muted,
   });
@@ -416,6 +437,7 @@ export function createWrapper(options: ProviderOptions = {}) {
     provider(LlmDepsContext, llmDeps),
     provider(DiskDepsContext, diskDeps),
     provider(EditorDepsContext, editorDeps),
+    provider(LauncherDepsContext, launcherDeps),
   ];
 
   function Wrapper({ children }: { children: ReactNode }) {
@@ -456,6 +478,7 @@ export function createWrapper(options: ProviderOptions = {}) {
     modelCache,
     diskDeps,
     editors,
+    launcherDeps,
   };
 }
 

@@ -96,6 +96,11 @@ pnpm exec tsx service/dev.ts --port 8787
 Open `http://localhost:8787/fuse-choppers/?mute` (solo: `?solo=1&mute`). `?autopilot` flies this device's
 chopper with the AI, through the ordinary controls: handy for demos and smokes.
 
+The screen draws at the clock: each frame plays the newest folded world forward on a copy with the controls this
+device holds right now (`src/app/forward.ts`), so a press shows on the next frame; outcomes are shown only once the
+room has folded them. `?lead=off` draws the old way, a tick behind, to compare the feel, and
+`scripts/lead-input-latency.ts` measures press to picture both ways (`?probe` publishes the drawn chopper).
+
 ```bash
 pnpm exec tsx --test games/fuse-choppers/tests/*.test.ts
 node games/fuse-choppers/preview/smoke.mjs http://localhost:8787/ path/to/screenshots
