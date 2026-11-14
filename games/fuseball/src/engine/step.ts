@@ -519,7 +519,8 @@ export function stepWorld(
   soften();
 
   for (const rider of riders)
-    if (!rider.zapped) moveRider(rider, bits[rider.index]!, boxes, map, world.clock);
+    if (!rider.zapped)
+      moveRider(rider, bits[rider.index]!, boxes, map, world.clock);
   const was = riders.map((rider) => ({ x: rider.x, y: rider.y }));
   for (const rider of riders)
     for (const other of riders)
