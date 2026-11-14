@@ -111,13 +111,39 @@ function point(room: Room, team: Slot): void {
   if (room.stage === "running") run(room, COUNTDOWN_TICKS);
 }
 
-test("settings are exactly a display flag and a known map", () => {
-  assert.deepEqual(parseSettings({ display: true, mapId: "halo" }), {
+test("settings are exactly a display flag, known map and uint32 seed", () => {
+  assert.deepEqual(parseSettings({ display: true, mapId: "halo", seed: 0 }), {
     display: true,
     mapId: "halo",
+    seed: 0,
   });
   for (const mapId of MAP_IDS)
-    assert.ok(parseSettings({ display: false, mapId }));
+    assert.ok(parseSettings({ display: false, mapId, seed: 0 }));
+  for (const seed of [0, 1, 0x80000000, 0xffffffff])
+    assert.deepEqual(parseSettings({ display: false, mapId: "random", seed }), {
+      display: false,
+      mapId: "random",
+      seed,
+    });
+  for (const seed of [
+    -0,
+    -1,
+    0x100000000,
+    1.5,
+    NaN,
+    Infinity,
+    "12",
+    null,
+    undefined,
+  ])
+    assert.equal(
+      parseSettings({ display: false, mapId: "random", seed }),
+      undefined,
+    );
+  assert.equal(
+    parseSettings({ display: false, mapId: "halo", seed: 1 }),
+    undefined,
+  );
   for (const bad of [
     null,
     [],
@@ -131,6 +157,26 @@ test("settings are exactly a display flag and a known map", () => {
     { display: false, mapId: "toString" },
   ])
     assert.equal(parseSettings(bad), undefined, JSON.stringify(bad));
+});
+
+test("generated settings stay fixed for a match and checkpoint seed mismatches are rejected atomically", () => {
+  const room = started({ display: false, mapId: "random", seed: 5 });
+  assert.equal(room.world?.seed, 5);
+  assert.deepEqual(decode(encode(room), room.tick), room);
+  const before = hash(room),
+    corrupt = structuredClone(encode(room));
+  const world = corrupt[8];
+  assert.ok(Array.isArray(world));
+  world[16] = 4;
+  assert.equal(decode(corrupt, room.tick), undefined);
+  assert.equal(hash(room), before);
+  fold(room, { a: [[SETTINGS, { display: false, mapId: "random", seed: 4 }]] });
+  assert.equal(room.settings.seed, 4);
+  assert.equal(room.play.seed, 5);
+  assert.equal(room.world?.seed, 5);
+  fold(room, { a: [[ACTION, "lobby", "m2"]] });
+  fold(room, { a: [[ACTION, "start", "m3"]] });
+  assert.equal(room.world?.seed, 4);
 });
 
 test("entries: play names a match and carries stick bits; management uses the shared kinds", () => {
@@ -149,7 +195,9 @@ test("entries: play names a match and carries stick bits; management uses the sh
   assert.ok(!isEntry([1, 5, JOIN, "a", "Ada", 2, "robot", 1]), "two seats");
   assert.ok(!isEntry([1, 5, JOIN, "a", "Ada", 0, "nobody", 1]));
   assert.ok(!isEntry([1, 5, JOIN, "constructor", "Ada", 0, "robot", 1]));
-  assert.ok(isEntry([1, 5, SETTINGS, { display: false, mapId: "halo" }]));
+  assert.ok(
+    isEntry([1, 5, SETTINGS, { display: false, mapId: "halo", seed: 0 }]),
+  );
   assert.ok(!isEntry([1, 5, SETTINGS, { display: false, mapId: "moon" }]));
   assert.ok(isEntry([1, 5, ACTION, "rematch", "m2"]));
   assert.ok(!isEntry([1, 5, ACTION, "start", "has space"]));
@@ -166,7 +214,7 @@ test("a duel needs both seats; it starts in slot order on the lobby's map, and w
   assert.equal(alone.stage, "lobby", "one rider is not a duel");
   assert.equal(alone.world, null);
 
-  const room = createRoom("m0", { display: false, mapId: "halo" });
+  const room = createRoom("m0", { display: false, mapId: "halo", seed: 0 });
   // Seated out of order, and a watcher beside them.
   fold(room, {
     a: [
@@ -335,7 +383,9 @@ test("what is held stays held across a point reset, without becoming a fresh pre
 test("the third point ends the match; rematch and lobby start over, and the lobby's map applies to the next match", () => {
   const room = playing();
   // The map is changed mid-match: the match in play keeps its own.
-  fold(room, { a: [[SETTINGS, { display: false, mapId: "downlink" }]] });
+  fold(room, {
+    a: [[SETTINGS, { display: false, mapId: "downlink", seed: 0 }]],
+  });
   assert.equal(room.settings.mapId, "downlink");
   assert.equal(room.play.mapId, "gridlock");
   assert.equal(room.world!.mapId, "gridlock");
@@ -546,7 +596,7 @@ test("a corrupt checkpoint is refused whole, and refusing it changes nothing", (
     [
       "a map the world is not on",
       room,
-      at(4, { display: false, mapId: "halo" }),
+      at(4, { display: false, mapId: "halo", seed: 0 }),
     ],
     ["seats that are not a list", room, at(3, {})],
     ["a seat past the capacity", room, seat((s) => (s.slot = 2))],

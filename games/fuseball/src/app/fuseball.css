@@ -180,6 +180,29 @@ body.fuseball-page {
   background: #081430;
   border-radius: 0.25rem;
 }
+.fb-seed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--fui-space-2);
+  margin-top: var(--fui-space-3);
+}
+.fb-seed label {
+  display: grid;
+  flex: 1 1 10rem;
+  gap: var(--fui-space-1);
+  color: var(--fui-text-bright);
+}
+.fb-seed input {
+  width: 100%;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+.fb-seed-error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--fui-yellow);
+}
 .fb-map-thumb .solid {
   fill: #9a86ff;
 }

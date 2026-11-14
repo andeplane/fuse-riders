@@ -27,6 +27,7 @@ Fuseball is a neon arena ball duel for two riders, served at `/fuseball/`. Knock
 | Bounce Rate  | not at all    | a slot in each side wall, each with a bumper in front of it and more bumpers across the middle                        |
 | Port Forward | not at all    | a pit at each end of the floor under a low roof; a portal in each bottom corner comes out high on the far side        |
 | Backdoor     | sideways      | a pit at each end of the floor, each shut by a trapdoor                                                               |
+| Random       | seed decides  | mirrored side gaps, floor pits, corner pockets or floating rings                                                      |
 
 ## Controls
 
@@ -50,6 +51,18 @@ A slide is the fastest way along the floor; it ends in a small hop when its time
 - **Shared TV**: tick "Shared TV" before creating the room and open `?room=CODE&display=1` on the big screen. It shows the arena only; each rider's phone becomes a controller with a stick and a JUMP button.
 - `?mute` on any URL silences the page for that load without storing a choice.
 
+## Random arenas
+
+Pick **Random**, type a **Seed** and APPLY, or RE-ROLL for another arena. The landing page previews that exact level; in a room only the host edits it, and everyone sees the seed. Share `/fuseball/?solo=1&map=random&seed=5&mute` to play the same layout against the bot. Seeds are decimal integers from 0 through 4294967295, including zero. `?map=random&seed=N` also preselects it on the landing page.
+
+The integer PRNG in `src/engine/generate.ts` decides wrap independently per axis, the wall structure, zero to three pairs of ledges, a centre perch or pillar, one of four goal families, and clouds. Every layout is mirrored across the middle, with goals and spawns swapped. Generated arenas currently use no gadgets; the four handmade gadget arenas remain available.
+
+Candidates pass `levelFaults`, also tested against all handmade arenas: even-pixel solids and mirrored geometry, free supported spawns and ball anchor, goals on the far side with ball clearance, free-space reachability, rider-wide wrap openings and a ball-drop grid (20 × 30 pixel spacing, three horizontal launch speeds). The drop check uses the engine's ball flight for up to 4920 micro-steps and rejects rest positions without room for a rider beside or above the ball. A rejected candidate advances the seed by a fixed uint32 increment; after eight failures generation returns an independently tested original fallback. The requested seed stays the level's identity even after retries.
+
+Room settings are exactly `{ display, mapId, seed }`, with a uint32 seed for Random and zero for handmade maps. Match settings freeze the seed at start. Codec version 3 stores Random as map index 255 and appends its seed; checkpoint recovery checks that the world agrees with the match settings. No geometry or generator state travels over the mesh: peers, late joiners and bots reconstruct the same arena under `RULES = "fuseball-6"`. This changes the rules and checkpoint contract; mixed old/new clients must reload to play together.
+
+`tests/generate.test.ts` sweeps 34 seeds including both uint32 extremes, exercises rejection and cache eviction, and checks bot scoring from both slots across all four goal families. Generated layouts also have replay goldens, codec and render tests, and a lossy-mesh/late-join regression in `tests/runtime.test.ts`.
+
 Production serves Fuseball's rooms, like every game registered in `service/history.ts`.
 
 ## Run it locally
@@ -71,15 +84,15 @@ Both pick the next free port when theirs is taken and print the one they got; pa
 
 ## Layout
 
-| Path              | What it is                                                                                                                                                                                         |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/engine/`     | The rules: integer physics at 120 micro-steps a second, the maps as data, the checkpoint codec, the view and the bot (`bot.ts`). It imports nothing from outside the folder                        |
-| `src/online/`     | Fuseball behind `fuse-netcode`'s `RollbackGame` (`game.ts`: seats, the map setting, the fold, the checkpoint), the runtime with this device's held controls (`runtime.ts`), and the match result   |
-| `src/render/`     | The Canvas 2D scene: arena, riders, bubbles, ball, effects and the HUD, plus the wrap-aware blend between two views. It reads only the engine's view (`view.ts`, `view-kit.ts`)                    |
-| `src/app/`        | The page: `main.ts` (composition root), `presenter.ts` (what the page shows, pure), `controls.ts` (keyboard, touch stick and button), `audio.ts` (synthesized sounds), sessions and result reports |
-| `src/basics.ts`   | Constants and id rules with no imports, for the service                                                                                                                                            |
-| `src/platform.ts` | The `GameRegistration` for `fuse-platform`, exported as `fuseball/platform`                                                                                                                        |
-| `tests/`          | Engine, bubble, match, map, codec, golden, bot, room, runtime, render, app and controls tests; run one with `pnpm exec tsx --test games/fuseball/tests/engine.test.ts`                             |
+| Path              | What it is                                                                                                                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/engine/`     | The rules: integer physics at 120 micro-steps a second, the maps as data, the checkpoint codec, the view and the bot (`bot.ts`). It imports nothing from outside the folder                            |
+| `src/online/`     | Fuseball behind `fuse-netcode`'s `RollbackGame` (`game.ts`: seats, map and seed settings, the fold, the checkpoint), the runtime with this device's held controls (`runtime.ts`), and the match result |
+| `src/render/`     | The Canvas 2D scene: arena, riders, bubbles, ball, effects and the HUD, plus the wrap-aware blend between two views. It reads only the engine's view (`view.ts`, `view-kit.ts`)                        |
+| `src/app/`        | The page: `main.ts` (composition root), `presenter.ts` (what the page shows, pure), `controls.ts` (keyboard, touch stick and button), `audio.ts` (synthesized sounds), sessions and result reports     |
+| `src/basics.ts`   | Constants and id rules with no imports, for the service                                                                                                                                                |
+| `src/platform.ts` | The `GameRegistration` for `fuse-platform`, exported as `fuseball/platform`                                                                                                                            |
+| `tests/`          | Engine, bubble, match, map, codec, golden, bot, room, runtime, render, app and controls tests; run one with `pnpm exec tsx --test games/fuseball/tests/engine.test.ts`                                 |
 
 ## How it fits together
 

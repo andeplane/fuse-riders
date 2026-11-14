@@ -10,7 +10,7 @@ import {
 import { meetGadgets } from "./gadgets.js";
 import { BTN, DOWN, LEFT, RIGHT, isInput } from "./input.js";
 import { SUB, abs, clamp, div, isqrt, toward } from "./math.js";
-import { boxesOf, mapOf, type Box } from "./maps.js";
+import { arenaOf, boxesOf, type Box } from "./maps.js";
 import * as T from "./tuning.js";
 import {
   resetPoint,
@@ -228,7 +228,7 @@ function moveBall(world: World, boxes: readonly Box[], space: Space): void {
     if (touch.impact >= T.BOUNCE_FX) ball.bounces = count(ball.bounces);
   }
   // The gadgets next: a field or a bumper throws it, a portal carries it, and the riders meet it where that left it.
-  if (meetGadgets(mapOf(world.mapId), world.barriers, ball) > 0)
+  if (meetGadgets(arenaOf(world), world.barriers, ball) > 0)
     ball.bounces = count(ball.bounces);
 
   let pushX = 0,
@@ -410,8 +410,8 @@ export function stepWorld(
 ): void {
   if (world.phase === "over" || world.step >= T.MAX_STEP) return;
   world.step++;
-  const map = mapOf(world.mapId),
-    boxes = boxesOf(world.mapId),
+  const map = arenaOf(world),
+    boxes = boxesOf(map),
     [a, b] = world.riders;
   const held = (rider: Rider): number => {
     const bits = inputs.get(rider.id);
@@ -535,7 +535,7 @@ export const winnerOf = (world: World): -1 | Slot =>
 /** Whether the ball is in play with its centre inside a cloud: what slows the arena down. */
 export function slowed(world: World): boolean {
   if (world.phase !== "play") return false;
-  const map = mapOf(world.mapId);
+  const map = arenaOf(world);
   return map.clouds.some((cloud) =>
     inShape(world.ball.x, world.ball.y, cloud, map),
   );
@@ -543,7 +543,7 @@ export function slowed(world: World): boolean {
 
 /** The speed the ball's place in the clouds asks for: slower the nearer a cloud's centre, or −1 outside them all. */
 function cloudSpeed(world: World): number {
-  const map = mapOf(world.mapId);
+  const map = arenaOf(world);
   let speed = -1;
   for (const cloud of map.clouds) {
     if (!inShape(world.ball.x, world.ball.y, cloud, map)) continue;

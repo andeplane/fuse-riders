@@ -31,6 +31,8 @@ import {
   encodeWorld,
   isInput,
   isMapId,
+  isSeed,
+  RANDOM,
   paceTick,
   stepWorld,
   stepsPerTick,
@@ -63,24 +65,34 @@ export interface Settings {
   display: boolean;
   /** The arena the next match is played in. */
   mapId: MapId;
+  /** The random arena's uint32 seed; zero for handmade arenas. */
+  seed: number;
 }
 export const DEFAULT_SETTINGS: Settings = {
   display: false,
   mapId: MAP_IDS[0],
+  seed: 0,
 };
-/** The settings boundary, for a logged entry, a command and a checkpoint alike: exactly the two fields, each checked. */
+/** The settings boundary, for logged entries, commands and checkpoints: exactly three checked fields. */
 export function parseSettings(raw: unknown): Settings | undefined {
   if (!plain(raw)) return;
   const keys = Object.keys(raw);
   if (
-    keys.length !== 2 ||
+    keys.length !== 3 ||
     !Object.hasOwn(raw, "display") ||
-    !Object.hasOwn(raw, "mapId")
+    !Object.hasOwn(raw, "mapId") ||
+    !Object.hasOwn(raw, "seed")
   )
     return;
-  const { display, mapId } = raw;
-  if (typeof display !== "boolean" || !isMapId(mapId)) return;
-  return { display, mapId };
+  const { display, mapId, seed } = raw;
+  if (
+    typeof display !== "boolean" ||
+    !isMapId(mapId) ||
+    !isSeed(seed) ||
+    (mapId !== RANDOM && seed !== 0)
+  )
+    return;
+  return { display, mapId, seed };
 }
 
 export const PLAY = 0;
@@ -237,7 +249,11 @@ function beginMatch(room: Room): void {
     slot: index === 0 ? 0 : 1,
     bot: seat.bot,
   }));
-  room.world = createWorld(room.play.mapId, [left.id, right.id]);
+  room.world = createWorld(
+    room.play.mapId,
+    [left.id, right.id],
+    room.play.seed,
+  );
 }
 
 export const lifecycle: LifecycleHooks<Room, Settings> = {
@@ -586,6 +602,7 @@ export function decode(
       (decided !== null) !== over ||
       roster.length !== CAPACITY ||
       world.mapId !== play.mapId ||
+      world.seed !== play.seed ||
       world.riders.some((rider, slot) => rider.id !== roster[slot]!.id) ||
       Object.keys(held).some(
         (id) => !roster.some((entrant) => entrant.id === id && !entrant.bot),

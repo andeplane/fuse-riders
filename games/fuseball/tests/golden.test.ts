@@ -16,6 +16,7 @@ import {
   paceTick,
   type Rider,
   type World,
+  type MapId,
 } from "../src/engine/index.js";
 import { SUB } from "../src/engine/math.js";
 import { scripted } from "./fixtures/world.js";
@@ -64,8 +65,12 @@ const TICKS = 6000,
 
 function record(bots = false): Record<string, string[]> {
   const recorded: Record<string, string[]> = {};
-  for (const mapId of MAP_IDS) {
-    const world = createWorld(mapId, ["bot:1", "bot:2"]),
+  const arenas: { mapId: MapId; seed: number }[] = [
+    ...MAP_IDS.map((mapId) => ({ mapId, seed: 0 })),
+    ...[0, 1, 4, 5].map((seed) => ({ mapId: "random" as const, seed })),
+  ];
+  for (const { mapId, seed } of arenas) {
+    const world = createWorld(mapId, ["bot:1", "bot:2"], seed),
       next = scripted(20261113),
       hashes: string[] = [];
     const hash = () => hashes.push(fnv(JSON.stringify(encodeWorld(world))));
@@ -82,7 +87,7 @@ function record(bots = false): Record<string, string[]> {
       if (tick % EVERY === 0) hash();
     }
     hash();
-    recorded[mapId] = hashes;
+    recorded[mapId === "random" ? `random:${seed}` : mapId] = hashes;
   }
   return recorded;
 }
