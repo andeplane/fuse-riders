@@ -112,6 +112,7 @@
 .win98 .selected-label,
 .win98 .menu-item:hover,
 .win98 .menu-item.open,
+.win98 .menu-item:focus-visible,
 .win98 select:focus,
 .win98 ul.tree-view a:focus,
 .win98 table > tbody > tr.highlighted,

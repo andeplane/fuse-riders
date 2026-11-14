@@ -1,10 +1,10 @@
 import type { KeyboardEvent } from "react";
 
 import { keysFor } from "../lib/shortcuts";
-import { driveOf, MY_COMPUTER } from "../disk/diskPath";
+import { DRIVE_A, DRIVE_C, driveOf, MY_COMPUTER } from "../disk/diskPath";
 import type { ContextMenuItem } from "../windows/ContextMenu";
 import { ContextMenu } from "../windows/ContextMenu";
-import type { MenuDef } from "../windows/MenuBar";
+import type { MenuDef, MenuItemDef } from "../windows/MenuBar";
 import { MenuBar } from "../windows/MenuBar";
 import {
   isContextMenuKey,
@@ -16,16 +16,28 @@ import { useWindowCommands } from "../windows/useWindowCommands";
 
 import { AddressBar } from "./AddressBar";
 import { DetailsView } from "./DetailsView";
+import "./explorer.css";
 import { FolderTree } from "./FolderTree";
 import { IconView } from "./IconView";
+import { Throbber } from "./PixelIcon";
+import { DESKTOP } from "./shellNamespace";
 import { Splitter } from "./Splitter";
 import { StatusBar } from "./StatusBar";
 import { Toolbar } from "./Toolbar";
 import type { ExplorerViewModel } from "./useExplorerViewModel";
-import { useExplorerViewModel } from "./useExplorerViewModel";
+import { useExplorerViewModel, VIEW_MODES } from "./useExplorerViewModel";
 import { WinZipDialog } from "./WinZipDialog";
 
 export type ExplorerWindowProps = { windowId: string; location: string };
+
+/** View > Large Icons ... Details, shared by the menu bar, the Views button and the pane's own menu. */
+function viewItems(vm: ExplorerViewModel) {
+  return VIEW_MODES.map(({ mode, label }) => ({
+    label,
+    checked: vm.viewMode === mode,
+    onSelect: () => vm.setViewMode(mode),
+  }));
+}
 
 function entryMenuItems(
   vm: ExplorerViewModel,
@@ -34,18 +46,11 @@ function entryMenuItems(
   const entry = vm.contextMenu?.entry;
   if (!entry)
     return [
-      {
-        label: "Large Icons",
-        checked: vm.viewMode === "icons",
-        onSelect: () => vm.setViewMode("icons"),
-      },
-      {
-        label: "Details",
-        checked: vm.viewMode === "details",
-        onSelect: () => vm.setViewMode("details"),
-      },
+      ...viewItems(vm),
       { separator: true },
       { label: "Refresh", onSelect: vm.retry },
+      { separator: true },
+      { label: "Properties", onSelect: () => vm.showProperties(undefined) },
     ];
   const drive = entry.kind === "drive" ? driveOf(entry.location) : undefined;
   return [
@@ -71,8 +76,21 @@ function entryMenuItems(
           { label: "Revert to original", onSelect: () => vm.revert(entry) },
         ]
       : []),
+    { separator: true },
+    { label: "Delete", onSelect: () => vm.deleteEntry(entry) },
+    { separator: true },
+    { label: "Properties", onSelect: () => vm.showProperties(entry) },
   ];
 }
+
+/** The disk is read only, so the clipboard commands are always grey; they are here because Explorer has them. */
+const CLIPBOARD_ITEMS: MenuItemDef[] = [
+  { label: "Undo", disabled: true },
+  { separator: true },
+  { label: "Cut", disabled: true },
+  { label: "Copy", disabled: true },
+  { label: "Paste", disabled: true },
+];
 
 export function ExplorerWindow({ windowId, location }: ExplorerWindowProps) {
   const vm = useExplorerViewModel(windowId, location);
@@ -98,28 +116,33 @@ export function ExplorerWindow({ windowId, location }: ExplorerWindowProps) {
           },
         },
         { separator: true },
+        {
+          label: "Delete",
+          disabled: !selected,
+          onSelect: () => {
+            if (selected) vm.deleteEntry(selected);
+          },
+        },
+        {
+          label: "Properties",
+          shortcut: keysFor("explorer.properties"),
+          onSelect: () => vm.showProperties(selected),
+        },
+        { separator: true },
         { label: "Close", onSelect: vm.close },
       ],
     },
+    { label: "Edit", items: CLIPBOARD_ITEMS },
     {
       label: "View",
       items: [
         {
-          label: "Large Icons",
-          checked: vm.viewMode === "icons",
-          onSelect: () => vm.setViewMode("icons"),
-        },
-        {
-          label: "Details",
-          checked: vm.viewMode === "details",
-          onSelect: () => vm.setViewMode("details"),
-        },
-        { separator: true },
-        {
-          label: "Folders",
+          label: "All Folders",
           checked: vm.foldersPane,
           onSelect: vm.toggleFoldersPane,
         },
+        { separator: true },
+        ...viewItems(vm),
         { separator: true },
         { label: "Refresh", onSelect: vm.retry },
       ],
@@ -137,6 +160,25 @@ export function ExplorerWindow({ windowId, location }: ExplorerWindowProps) {
         },
         { separator: true },
         { label: "My Computer", onSelect: () => vm.navigate(MY_COMPUTER) },
+      ],
+    },
+    {
+      label: "Favorites",
+      items: [
+        { label: "Add to Favorites...", disabled: true },
+        { separator: true },
+        { label: "Desktop", onSelect: () => vm.navigate(DESKTOP) },
+        { label: "Fuse Riders (C:)", onSelect: () => vm.navigate(DRIVE_C) },
+        { label: "3½ Floppy (A:)", onSelect: () => vm.navigate(DRIVE_A) },
+      ],
+    },
+    {
+      label: "Tools",
+      items: [
+        { label: "Find Files or Folders...", disabled: true },
+        { separator: true },
+        { label: "Map Network Drive...", disabled: true },
+        { label: "Disconnect Network Drive...", disabled: true },
       ],
     },
     {
@@ -167,60 +209,81 @@ export function ExplorerWindow({ windowId, location }: ExplorerWindowProps) {
   };
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col">
-      <MenuBar menus={menus} />
-      <Toolbar
-        groups={[
-          [
-            {
-              label: "Back",
-              icon: "folderOpen",
-              onClick: vm.back,
-              disabled: !vm.canBack,
-            },
-            {
-              label: "Forward",
-              icon: "folder",
-              onClick: vm.forward,
-              disabled: !vm.canForward,
-            },
-            {
-              label: "Up",
-              icon: "folderOpen",
-              onClick: vm.up,
-              disabled: !vm.canUp,
-            },
-          ],
-          [
-            {
-              label: "Folders",
-              icon: "explorer",
-              onClick: vm.toggleFoldersPane,
-              pressed: vm.foldersPane,
-            },
-          ],
-          [
-            {
-              label: "Icons",
-              icon: "programs",
-              onClick: () => vm.setViewMode("icons"),
-              pressed: vm.viewMode === "icons",
-            },
-            {
-              label: "Details",
-              icon: "documents",
-              onClick: () => vm.setViewMode("details"),
-              pressed: vm.viewMode === "details",
-            },
-          ],
-        ]}
-      />
-      <AddressBar
-        address={vm.address}
-        icon={vm.addressIcon}
-        onSubmit={vm.openAddress}
-      />
-      <div className="flex min-h-0 flex-1">
+    <div className="explorer">
+      <div className="explorer-rebar">
+        <div className="explorer-band explorer-band-menu">
+          <span className="explorer-gripper" aria-hidden />
+          <MenuBar menus={menus} />
+          <Throbber busy={vm.busy !== undefined} />
+        </div>
+        <div className="explorer-band explorer-band-toolbar">
+          <span className="explorer-gripper" aria-hidden />
+          <Toolbar
+            groups={[
+              [
+                {
+                  label: "Back",
+                  icon: "back",
+                  onClick: vm.back,
+                  disabled: !vm.canBack,
+                  menu: vm.backSteps,
+                },
+                {
+                  label: "Forward",
+                  icon: "forward",
+                  onClick: vm.forward,
+                  disabled: !vm.canForward,
+                  menu: vm.forwardSteps,
+                },
+                {
+                  label: "Up",
+                  icon: "up",
+                  onClick: vm.up,
+                  disabled: !vm.canUp,
+                },
+              ],
+              [
+                { label: "Cut", icon: "cut" },
+                { label: "Copy", icon: "copy" },
+                { label: "Paste", icon: "paste" },
+              ],
+              [{ label: "Undo", icon: "undo" }],
+              [
+                {
+                  label: "Delete",
+                  icon: "delete",
+                  onClick: selected
+                    ? () => vm.deleteEntry(selected)
+                    : undefined,
+                },
+                {
+                  label: "Properties",
+                  icon: "properties",
+                  onClick: () => vm.showProperties(selected),
+                },
+              ],
+              [
+                {
+                  label: "Views",
+                  icon: "views",
+                  onClick: vm.cycleViewMode,
+                  menu: viewItems(vm),
+                },
+              ],
+            ]}
+          />
+        </div>
+        <div className="explorer-band explorer-band-address">
+          <span className="explorer-gripper" aria-hidden />
+          <AddressBar
+            address={vm.address}
+            icon={vm.addressIcon}
+            onSubmit={vm.openAddress}
+            places={vm.places}
+          />
+        </div>
+      </div>
+      <div className="explorer-panes">
         {vm.foldersPane ? (
           <>
             <FolderTree
@@ -229,7 +292,8 @@ export function ExplorerWindow({ windowId, location }: ExplorerWindowProps) {
               expanded={vm.expanded}
               childrenOf={vm.childrenOf}
               onToggle={vm.toggleExpanded}
-              onNavigate={vm.navigate}
+              onActivate={vm.activate}
+              onClose={vm.toggleFoldersPane}
             />
             <Splitter
               label="Resize folders"
@@ -241,7 +305,7 @@ export function ExplorerWindow({ windowId, location }: ExplorerWindowProps) {
           </>
         ) : null}
         <div
-          className="sunken-panel min-w-0 flex-1 overflow-auto bg-white outline-none"
+          className="explorer-contents"
           tabIndex={0}
           aria-label="Folder contents"
           onKeyDown={onPaneKeyDown}
@@ -255,16 +319,18 @@ export function ExplorerWindow({ windowId, location }: ExplorerWindowProps) {
           }}
         >
           {vm.error ? (
-            <div className="flex flex-col items-start gap-2 p-4">
+            <div className="explorer-notice">
               <p>Drive C: is not ready: {vm.error}</p>
               <button type="button" onClick={vm.retry}>
                 Retry
               </button>
             </div>
           ) : vm.busy ? (
-            <p className="p-4">{vm.busy}</p>
+            <p className="explorer-notice">{vm.busy}</p>
           ) : vm.entries.length === 0 ? (
-            <p className="p-4 text-[grey]">This folder is empty.</p>
+            <p className="explorer-notice explorer-notice-empty">
+              This folder is empty.
+            </p>
           ) : vm.viewMode === "details" ? (
             <DetailsView
               entries={vm.entries}
@@ -279,6 +345,7 @@ export function ExplorerWindow({ windowId, location }: ExplorerWindowProps) {
             <IconView
               entries={vm.entries}
               selected={selected?.location ?? null}
+              layout={vm.viewMode}
               onSelect={vm.select}
               onOpen={vm.open}
               onContextMenu={vm.openContextMenu}
@@ -286,7 +353,12 @@ export function ExplorerWindow({ windowId, location }: ExplorerWindowProps) {
           )}
         </div>
       </div>
-      <StatusBar text={vm.statusText} detail={vm.statusDetail} />
+      <StatusBar
+        text={vm.statusText}
+        size={vm.statusSize}
+        zone={vm.statusZone}
+        zoneIcon={vm.statusZoneIcon}
+      />
       {vm.contextMenu ? (
         <ContextMenu
           label="Context menu"
