@@ -676,8 +676,7 @@ export const boxOf = (rect: Rect): Box => ({
 /** Derived once per arena and dropped with it: a memo keyed by the arena itself, so it holds nothing alive. */
 const BOXES = new WeakMap<MapDef, readonly Box[]>(),
   BARRIER_BOXES = new WeakMap<MapDef, readonly Box[]>(),
-  LEDGE_BOXES = new WeakMap<MapDef, readonly Box[]>(),
-  MOVED = new WeakMap<MapDef, { step: number; boxes: readonly Box[] }>();
+  LEDGE_BOXES = new WeakMap<MapDef, readonly Box[]>();
 /** The map's solids in sub-units. */
 export function boxesOf(map: MapDef): readonly Box[] {
   let boxes = BOXES.get(map);
@@ -725,17 +724,49 @@ export function moverBoxAt(mover: Mover, step: number): Box {
   return { ...box, cx: box.cx + off.x, cy: box.cy + off.y };
 }
 /**
- * Everything solid on micro-step `step`: the map's solids, then its movers where they are then. A memo of the last
- * step asked for, since a step is asked for many times over; with no movers it is the solids themselves.
+ * Where the movers are comes round again every so often, so it is worked out once per place in that round and kept:
+ * a memo keyed by the arena, which holds nothing alive. A map whose movers keep different periods has no short round
+ * and is worked out afresh each time.
+ */
+interface Round {
+  period: number;
+  movers: (readonly Box[] | undefined)[];
+  all: (readonly Box[] | undefined)[];
+}
+const ROUNDS = new WeakMap<MapDef, Round>();
+function roundOf(map: MapDef): Round {
+  let round = ROUNDS.get(map);
+  if (!round) {
+    const period = map.movers[0]?.period ?? 0,
+      shared =
+        Number.isInteger(period) &&
+        period > 0 &&
+        period <= 3600 &&
+        map.movers.every((mover) => mover.period === period);
+    ROUNDS.set(
+      map,
+      (round = { period: shared ? period : 0, movers: [], all: [] }),
+    );
+  }
+  return round;
+}
+const place = (step: number, period: number): number =>
+  ((step % period) + period) % period;
+/** The map's movers as boxes where they are on micro-step `step`, in the order of `MapDef.movers`. */
+export function moverBoxesAt(map: MapDef, step: number): readonly Box[] {
+  const round = roundOf(map),
+    work = () => map.movers.map((mover) => moverBoxAt(mover, step));
+  if (!round.period) return work();
+  return (round.movers[place(step, round.period)] ??= work());
+}
+/**
+ * Everything solid on micro-step `step`: the map's solids, then its movers where they are then. With no movers it
+ * is the solids themselves.
  */
 export function boxesAt(map: MapDef, step: number): readonly Box[] {
   if (map.movers.length === 0) return boxesOf(map);
-  const known = MOVED.get(map);
-  if (known && known.step === step) return known.boxes;
-  const boxes = [
-    ...boxesOf(map),
-    ...map.movers.map((mover) => moverBoxAt(mover, step)),
-  ];
-  MOVED.set(map, { step, boxes });
-  return boxes;
+  const round = roundOf(map),
+    work = () => [...boxesOf(map), ...moverBoxesAt(map, step)];
+  if (!round.period) return work();
+  return (round.all[place(step, round.period)] ??= work());
 }

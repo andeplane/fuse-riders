@@ -5,9 +5,9 @@ import {
   fallbackLevel,
   levelFaults,
   levelCandidate,
+  gadgetFaults,
 } from "../src/engine/generate.js";
 import { drift } from "../src/engine/gadgets.js";
-import { boxesOf } from "../src/engine/maps.js";
 import {
   MAP_IDS,
   MAPS,
@@ -20,6 +20,7 @@ import {
   decodeWorld,
   mirrored,
   arenaOf,
+  type MapDef,
 } from "../src/engine/index.js";
 
 test("the validation flight follows the live engine's unattended ball", () => {
@@ -44,6 +45,14 @@ test("the validation flight follows the live engine's unattended ball", () => {
   }
 });
 
+/** A seed's level, rolled once for the whole file: rolling is a pure function of the seed, and not a quick one. */
+const LEVELS = new Map<number, MapDef>();
+function rolled(seed: number): MapDef {
+  let level = LEVELS.get(seed);
+  if (!level) LEVELS.set(seed, (level = generateLevel(seed)));
+  return level;
+}
+
 const SEEDS = [
   ...Array.from({ length: 32 }, (_, n) => n),
   0x80000000,
@@ -56,7 +65,7 @@ test("34 seeds produce valid, fair mirrored levels, varying wrap, goals, walls, 
     kinds = new Set<string>(),
     counts = new Set<number>();
   for (const seed of SEEDS) {
-    const level = mapOf("random", seed);
+    const level = rolled(seed);
     assert.deepEqual(levelFaults(level), [], `seed ${seed}`);
     layouts.add(JSON.stringify(level));
     wraps.add(`${level.wrapX},${level.wrapY}`);
@@ -93,8 +102,12 @@ test("the same seed survives fresh generation, cache eviction and deterministic 
     let next = seed,
       accepted = fallbackLevel();
     for (let attempt = 0; attempt < 8; attempt++) {
-      const candidate = levelCandidate(next);
-      if (!levelFaults(candidate).length) {
+      // Each try is the layout with its gadgets, then the same layout bare.
+      const candidate = [
+        levelCandidate(next),
+        levelCandidate(next, false),
+      ].find((level) => !levelFaults(level).length);
+      if (candidate) {
         accepted = candidate;
         break;
       }
@@ -148,5 +161,102 @@ test("mirrored controls keep generated gameplay mirror-fair", () => {
       assert.equal(world.riders[0].x + world.riders[1].x, 640 * 4096);
       assert.equal(world.riders[0].y, world.riders[1].y);
     }
+  }
+});
+
+/** Which gadget a level was given: one kind a level, or none. */
+const gadgetOf = (level: MapDef): string =>
+  level.barriers[0]?.kind ??
+  (level.bumpers.length
+    ? "bumper"
+    : level.portals.length
+      ? "portal"
+      : level.ledges.length
+        ? "ledge"
+        : level.movers.length
+          ? level.movers[0]!.travel.y
+            ? "lift"
+            : "shuttle"
+          : "none");
+/** A seed for every kind of gadget the generator places. */
+const GADGET_SEEDS = {
+  1: "shuttle",
+  2: "bumper",
+  4: "ledge",
+  8: "lift",
+  12: "portal",
+  17: "field",
+  50: "gate",
+} as const;
+
+test("a seed's last rolls give its level one kind of gadget, every kind turns up, and some levels stay bare", () => {
+  for (const [seed, kind] of Object.entries(GADGET_SEEDS))
+    assert.equal(gadgetOf(rolled(Number(seed))), kind, `seed ${seed}`);
+  const kinds = new Set(SEEDS.map((seed) => gadgetOf(rolled(seed))));
+  assert.ok(kinds.has("none"));
+  assert.ok(kinds.size >= 5, [...kinds].join(", "));
+  for (const seed of SEEDS) {
+    const level = rolled(seed);
+    assert.deepEqual(gadgetFaults(level), [], `seed ${seed}`);
+    assert.ok(
+      [
+        level.barriers.length,
+        level.bumpers.length,
+        level.portals.length,
+        level.ledges.length,
+        level.movers.length,
+      ].filter(Boolean).length <= 1,
+      `seed ${seed} has one kind of gadget at most`,
+    );
+  }
+});
+
+test("gadgets are the last thing a seed decides: without them the layout is the same, and bare", () => {
+  for (const seed of Object.keys(GADGET_SEEDS).map(Number)) {
+    const full = levelCandidate(seed),
+      bare = levelCandidate(seed, false);
+    assert.equal(gadgetOf(bare), "none");
+    assert.deepEqual(
+      { wrapX: bare.wrapX, wrapY: bare.wrapY, goals: bare.goals },
+      { wrapX: full.wrapX, wrapY: full.wrapY, goals: full.goals },
+    );
+    assert.deepEqual(bare.clouds, full.clouds);
+    // Shelves that became ledges are the only solids that can differ.
+    if (gadgetOf(full) !== "ledge") assert.deepEqual(bare.solids, full.solids);
+  }
+});
+
+test("the bot scores from both slots on a generated level with each kind of gadget", () => {
+  for (const seed of Object.keys(GADGET_SEEDS).map(Number))
+    for (const slot of [0, 1] as const) {
+      const world = createWorld("random", ["a", "b"], seed);
+      for (let tick = 0; tick < 20 * 180 && !world.score[slot]; tick++) {
+        const bits = botInput(world, world.riders[slot]);
+        for (let left = paceTick(world); left > 0; left--)
+          stepWorld(world, new Map([[world.riders[slot].id, bits]]));
+      }
+      assert.ok(world.score[slot] > 0, `seed ${seed}, slot ${slot}`);
+    }
+});
+
+test("mirrored controls keep generated levels with gadgets mirror-fair, and their checkpoints round trip", () => {
+  for (const seed of Object.keys(GADGET_SEEDS).map(Number)) {
+    const world = createWorld("random", ["a", "b"], seed);
+    for (let tick = 0; tick < 400; tick++) {
+      const bits = tick % 3 === 0 ? 17 : tick % 7 === 0 ? 1 : 2;
+      for (let left = paceTick(world); left > 0; left--)
+        stepWorld(
+          world,
+          new Map([
+            ["a", bits],
+            ["b", mirrored(bits)],
+          ]),
+        );
+      assert.equal(world.riders[0].x + world.riders[1].x, 640 * 4096);
+      assert.equal(world.riders[0].y, world.riders[1].y);
+    }
+    const copy = decodeWorld(encodeWorld(world));
+    assert.ok(copy, `seed ${seed}`);
+    assert.deepEqual(encodeWorld(copy), encodeWorld(world));
   }
 });

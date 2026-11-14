@@ -26,8 +26,12 @@ const rect = (x: number, y: number, w: number, h: number): Rect => ({
 });
 const flip = (r: Rect): Rect => ({ ...r, x: W - r.x - r.w });
 
-/** Original parameterised construction; it never copies a handmade arena. */
-export function levelCandidate(seed: number): MapDef {
+/**
+ * Original parameterised construction; it never copies a handmade arena. With `gadgets`, the seed's last rolls add
+ * one kind of gadget where it fits; without, the same layout is left bare, which is what a level falls back to when
+ * its gadgets make it unplayable.
+ */
+export function levelCandidate(seed: number, gadgets = true): MapDef {
   const next = random(seed),
     pick = (n: number) => next() % n;
   const wrapX = pick(2) === 1,
@@ -75,17 +79,18 @@ export function levelCandidate(seed: number): MapDef {
       r = 18 + pick(3) * 2;
     goals.push({ team: 1, x: 60, y, r }, { team: 0, x: 580, y, r });
   }
-  const rows = pick(4);
+  const rows = pick(4),
+    shelves: Rect[] = [];
   for (let row = 0; row < rows; row++) {
     const x = 100 + pick(4) * 16,
       w = 56 + pick(4) * 8;
-    pair(rect(x, 160 + row * 64, w, 10));
+    shelves.push(rect(x, 160 + row * 64, w, 10));
   }
   if (pick(2)) solids.push(rect(264, pick(4) === 0 ? 96 : 192, 112, 12));
   if (pick(3) === 0) solids.push(rect(314, 272, 12, floor - 272));
   const cloudY = 216 + pick(3) * 16,
     radius = 28 + pick(4) * 4;
-  return {
+  const level: Level = {
     id: "random",
     name: "Random",
     wrapX,
@@ -109,7 +114,113 @@ export function levelCandidate(seed: number): MapDef {
     ledges: [],
     movers: [],
   };
+
+  // The gadgets come last, so a seed's layout is the same with or without them. One kind a level, from those that
+  // fit its goals; two rolls in every handful leave it bare.
+  const kinds: (() => void)[] = [];
+  /** Up to `tries` rolls of `place`; the first whose gadgets pass the check stays, and the rest are undone. */
+  const attempt = (tries: number, place: () => () => void): void => {
+    for (let n = 0; n < tries; n++) {
+      const undo = place();
+      if (gadgetFaults(level).length === 0) return;
+      undo();
+    }
+  };
+  // A force field across each goal mouth in the side walls: three strikes break it.
+  if (kind === 0)
+    kinds.push(() => {
+      const field = rect((wrapX ? 12 : 24) + 4, mouth, 8, height);
+      level.barriers.push(
+        { kind: "field", hits: 3, ...flip(field) },
+        { kind: "field", hits: 3, ...field },
+      );
+    });
+  // A trapdoor over each pit that has a bottom: knocked open by a ball that lands on it hard.
+  if (pits && !wrapY)
+    kinds.push(() => {
+      const gate = rect(start, floor, width, 6);
+      level.barriers.push(
+        { kind: "gate", ...flip(gate) },
+        { kind: "gate", ...gate },
+      );
+    });
+  // One or two pairs of bumpers in the open air.
+  kinds.push(() => {
+    for (let pairs = 1 + pick(2); pairs > 0; pairs--)
+      attempt(6, () => {
+        const x = 120 + pick(8) * 20,
+          y = 70 + pick(8) * 24;
+        level.bumpers.push({ x, y, r: 12 }, { x: W - x, y, r: 12 });
+        return () => level.bumpers.splice(-2);
+      });
+  });
+  // A portal low on each side whose other end hangs high over the far side.
+  kinds.push(() =>
+    attempt(6, () => {
+      const a = { x: 40 + pick(4) * 12, y: floor - 30 - pick(3) * 30 },
+        b = { x: W - 90 - pick(5) * 30, y: 60 + pick(4) * 20 };
+      level.portals.push(
+        { hue: 0, r: 14, a, b },
+        {
+          hue: 1,
+          r: 14,
+          a: { x: W - a.x, y: a.y },
+          b: { x: W - b.x, y: b.y },
+        },
+      );
+      return () => level.portals.splice(-2);
+    }),
+  );
+  // The shelves as ledges to come up through, or a pair of ledges where there are no shelves.
+  const asLedges = () => {
+    if (shelves.length) {
+      for (const shelf of shelves.splice(0)) {
+        const ledge = { ...shelf, h: 6 };
+        level.ledges.push(ledge, flip(ledge));
+      }
+      return;
+    }
+    attempt(6, () => {
+      const ledge = rect(110 + pick(4) * 16, 170 + pick(4) * 30, 72, 6);
+      level.ledges.push(ledge, flip(ledge));
+      return () => level.ledges.splice(-2);
+    });
+  };
+  kinds.push(asLedges);
+  // A pair of movers: lifts up from near the floor, or shuttles that slide towards the middle and back.
+  kinds.push(() =>
+    attempt(8, () => {
+      const lift = pick(3) !== 0,
+        far = 80 + pick(4) * 20,
+        dwell = 60,
+        body = lift
+          ? rect(96 + pick(6) * 20, floor - 44 - pick(2) * 20, 56, 10)
+          : rect(60 + pick(4) * 20, 150 + pick(4) * 20, 56, 10),
+        // Half a pixel a step.
+        period = 2 * (2 * far + dwell),
+        travel = lift ? { x: 0, y: -far } : { x: far, y: 0 };
+      level.movers.push(
+        { ...body, travel, period, dwell },
+        { ...flip(body), travel: { x: -travel.x, y: travel.y }, period, dwell },
+      );
+      return () => level.movers.splice(-2);
+    }),
+  );
+  const roll = pick(kinds.length + 2),
+    chosen = gadgets ? kinds[roll] : undefined;
+  // The shelves are solid unless they are the ledges, and they are in place before anything is put among them.
+  if (chosen !== asLedges) for (const shelf of shelves.splice(0)) pair(shelf);
+  chosen?.();
+  return level;
 }
+/** A level while it is being put together: its gadget lists can still be added to. */
+type Level = MapDef & {
+  barriers: MapDef["barriers"][number][];
+  bumpers: MapDef["bumpers"][number][];
+  portals: MapDef["portals"][number][];
+  ledges: Rect[];
+  movers: MapDef["movers"][number][];
+};
 
 /** Squared pixel distance to a solid, measured across wrapping seams. */
 function gapAt(map: MapDef, x: number, y: number, r: Rect): number {
@@ -570,7 +681,7 @@ export function levelFaults(map: MapDef): string[] {
 
 /** Bounded work even for adversarial seeds. This original, open-corridor layout is independently tested. */
 export const fallbackLevel = (): MapDef => {
-  const level = levelCandidate(0);
+  const level = levelCandidate(0, false);
   return { ...level, solids: level.solids.filter((r) => r.y !== 96) };
 };
 export function generateLevel(seed: number): MapDef {
@@ -578,6 +689,18 @@ export function generateLevel(seed: number): MapDef {
   for (let count = 0; count < 8; count++) {
     const level = levelCandidate(attempt);
     if (!levelFaults(level).length) return level;
+    // The gadgets may be what is wrong with it: the same layout without them is tried before moving on.
+    if (
+      level.barriers.length +
+        level.bumpers.length +
+        level.portals.length +
+        level.ledges.length +
+        level.movers.length >
+      0
+    ) {
+      const bare = levelCandidate(attempt, false);
+      if (!levelFaults(bare).length) return bare;
+    }
     attempt = (attempt + 0x9e3779b9) >>> 0;
   }
   return fallbackLevel();

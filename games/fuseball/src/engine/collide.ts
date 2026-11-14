@@ -1,8 +1,7 @@
 import { SUB, abs, clamp, delta, div, isqrt, wrap } from "./math.js";
 import {
   isCircle,
-  moverBoxAt,
-  moverOffset,
+  moverBoxesAt,
   type Box,
   type Circle,
   type MapDef,
@@ -173,14 +172,15 @@ export function carried(
   step: number,
   slop: number,
 ): { x: number; y: number } {
-  if (body.vy < 0) return STILL;
-  for (const mover of map.movers) {
-    const was = moverBoxAt(mover, step - 1),
+  if (body.vy < 0 || map.movers.length === 0) return STILL;
+  const before = moverBoxesAt(map, step - 1),
+    after = moverBoxesAt(map, step);
+  for (let i = 0; i < before.length; i++) {
+    const was = before[i]!,
+      now = after[i]!,
       { dx, dy } = apart(body.x, body.y, was.cx, was.cy, map);
     if (abs(dx) > was.hw || abs(dy + radius + was.hh) > slop) continue;
-    const now = moverOffset(mover, step),
-      then = moverOffset(mover, step - 1),
-      by = { x: now.x - then.x, y: now.y - then.y };
+    const by = { x: now.cx - was.cx, y: now.cy - was.cy };
     body.x += by.x;
     body.y += by.y;
     return by;
