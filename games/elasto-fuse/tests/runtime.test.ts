@@ -9,11 +9,17 @@ import {
   TURN,
   VOLT_LEFT,
   VOLT_RIGHT,
+  advanceRider,
+  createWorld,
   toView,
 } from "../src/engine/index.js";
-import { forward, forwardInputs } from "../src/app/forward.js";
+import { project } from "../src/app/forward.js";
 import { DEFAULT_SETTINGS, hash, type Settings } from "../src/online/game.js";
-import { ElastoFuseRuntime, heldBits } from "../src/online/runtime.js";
+import {
+  ElastoFuseRuntime,
+  MOST_CATCH_UP,
+  heldBits,
+} from "../src/online/runtime.js";
 import { Mesh, type TestRuntime } from "./fixtures/mesh.js";
 
 /** A seeded generator, so a lossy mesh is the same mesh on every run. */
@@ -173,7 +179,7 @@ test("a device that joins mid-race recovers the world from a peer and watches on
   );
 });
 
-test("a key acts on the step it goes down, and the picture drawn ahead is the bike the room then computes", () => {
+test("a key acts on the step of this device's clock it goes down on, and the bike drawn is the bike the room then computes", () => {
   let now = 0,
     pass: (() => void) | undefined;
   const dependencies: RuntimeDependencies = {
@@ -194,38 +200,79 @@ test("a key acts on the step it goes down, and the picture drawn ahead is the bi
     { humanName: "Ada", humanAvatar: "fox", dependencies },
   );
   runtime.start();
+  /** Time passes a frame at a time: the room's loop, then the screen asking where the bike is. */
   const wait = (ms: number) => {
     for (let t = 0; t < ms; t += 5) {
       now += 5;
       pass?.();
+      runtime.localRide();
     }
   };
-  while (runtime.roomState()!.world!.phase === "countdown") wait(50);
-  // Onto a tick boundary, then most of the way through the tick: the key goes down on its third step.
-  const tick = runtime.roomState()!.tick;
-  while (runtime.roomState()!.tick === tick) wait(5);
-  wait(30);
-  const before = runtime.roomState()!.tick;
-  const drawn = (steps: number, own: (step: number) => number) =>
-    forward(
-      runtime.roomState()!.world!,
-      steps,
-      forwardInputs(runtime.roomState()!, "solo", own),
-    );
-  const logged = (step: number) => runtime.heldAhead(step);
-  const idle = drawn(STEPS_PER_TICK, () => 0);
+  const level = runtime.roomState()!.world!.level;
+  assert.ok(runtime.localRide()!.step < 0, "counting down on its own clock");
+  while (runtime.localRide()!.step < 30) wait(5);
+  const rider = () => runtime.roomState()!.world!.riders[0]!;
+  assert.ok(rider().step > 0, "the room hears how far the bike has run");
+  assert.ok(rider().step <= runtime.localRide()!.step);
+
+  // The key goes down between two frames: it holds from the step the clock is in, not from a tick of the room.
+  now += 7;
+  const at = Math.floor(runtime.localRide()!.step);
   runtime.input(GAS);
-  assert.equal(runtime.heldAhead(0), 0, "not before it was pressed");
-  assert.equal(runtime.heldAhead(1), 0);
-  assert.equal(runtime.heldAhead(2), GAS, "from the step it went down");
-  assert.equal(runtime.heldAhead(STEPS_PER_TICK + 1), GAS);
-  assert.deepEqual(
-    drawn(2, logged),
-    drawn(2, () => 0),
-  );
-  const ahead = drawn(STEPS_PER_TICK, logged);
-  assert.notDeepEqual(ahead, idle);
-  while (runtime.roomState()!.tick === before) wait(5);
-  assert.deepEqual(toView(runtime.roomState()!.world!), ahead);
+  const ride = runtime.localRide()!;
+  assert.equal(ride.slot, 0);
+  assert.equal(ride.bits(at - 1), 0, "not before it was pressed");
+  assert.equal(ride.bits(at), GAS, "from the step it went down");
+  assert.equal(ride.bits(at + 40), GAS);
+  // What the screen draws ahead of the room...
+  const drawn = project(runtime.roomState()!.world!, [
+    { to: at + 6, bits: ride.bits },
+  ]).riders[0]!;
+  assert.equal(drawn.step, at + 6);
+  // ...is what a bike ridden with exactly those keys does...
+  const alone = createWorld(["solo"], level, 0);
+  advanceRider(alone, 0, at, 0);
+  advanceRider(alone, 0, at + 6, GAS);
+  assert.deepEqual(drawn.bike, toView(alone).riders[0]!.bike);
+  // ...and what the room computes once it has heard.
+  wait(400);
+  const heard = rider().step;
+  assert.ok(heard > at + 6);
+  advanceRider(alone, 0, heard, GAS);
+  assert.deepEqual(rider().bike, alone.riders[0]!.bike);
+
+  // A page that froze loses the time: the bike does not leap on.
+  const before = Math.floor(runtime.localRide()!.step);
+  now += 5_000;
+  pass?.();
+  const after = runtime.localRide()!.step;
+  assert.ok(after - before <= MOST_CATCH_UP + 1);
   runtime.stop();
+});
+
+test("each device's bike runs on its own clock: a late, lossy link moves the ghost, never the rider's own bike", () => {
+  const { mesh, host, guest } = race();
+  mesh.fast = () => ({ delayMs: 180 });
+  let t = 0;
+  mesh.run(6_000, () => {
+    t++;
+    if (t === 380) guest.input(GAS);
+    if (t === 450) guest.input(GAS | VOLT_RIGHT);
+    if (t === 470) guest.input(GAS);
+  });
+  // The guest's own copy of its bike is always right up with its own clock, whatever the link does...
+  const own = guest.roomState()!.world!.riders[1]!,
+    ride = guest.localRide()!;
+  assert.ok(ride.step - own.step <= 3 * STEPS_PER_TICK);
+  // ...while the host has it only as far as the link has brought word.
+  const seen = host.roomState()!.world!.riders[1]!;
+  assert.ok(seen.step < own.step);
+  guest.input(0);
+  steady(mesh);
+  mesh.run(2_000);
+  assert.ok(mesh.align());
+  // And once the word is through, both rooms hold the same ride: the one the guest rode.
+  assert.equal(hash(host.roomState()!), hash(guest.roomState()!));
+  const ridden = host.roomState()!.world!.riders[1]!;
+  assert.ok(ridden.step > 300 && (ridden.run > 100 || ridden.deaths > 0));
 });

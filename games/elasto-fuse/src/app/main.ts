@@ -61,13 +61,7 @@ import {
   bindButton,
   type PadSurface,
 } from "./controls.js";
-import {
-  blendViews,
-  createLeadClock,
-  forward,
-  forwardInputs,
-  stepsAhead,
-} from "./forward.js";
+import { createGhosts, project } from "./forward.js";
 import { GamepadInput, browserGamepads } from "./gamepad.js";
 import {
   LEVEL_CHOICES,
@@ -596,41 +590,38 @@ function room(solo: boolean): void {
     controls.hold("gamepad", bits);
   });
   let model: Model | undefined;
-  const leadClock = createLeadClock();
-  /** What to draw now: the forward run when the newest frame is the room's newest world, otherwise the two frames blended. */
+  const ghosts = createGhosts();
+  /**
+   * What to draw now: every bike played on from the room's newest world to its own clock. This device's bike runs
+   * on this device's clock alone; the others are ghosts, eased.
+   */
   const picture = (): WorldView | undefined => {
-    const timing = runtime.frameTiming();
-    const newer = timing?.newer.world;
-    if (!timing || !newer) return undefined;
     const state = runtime.roomState();
-    let view: WorldView;
-    if (
-      state?.world &&
-      state.simulationTick === timing.newer.tick &&
-      state.stage !== "lobby"
-    ) {
-      const ahead = leadClock(
-        stepsAhead(timing, timing.newer.tick),
-        timing.newer.tick,
-        performance.now(),
-      );
-      view = forward(
-        state.world,
-        ahead,
-        forwardInputs(state, viewer.me, (step) => runtime.heldAhead(step)),
-      );
-    } else {
-      const older = timing.older?.world;
-      const span = timing.older ? timing.newer.tick - timing.older.tick : 0;
+    const world = state?.world;
+    if (!state || !world || state.stage === "lobby") return undefined;
+    const now = performance.now();
+    const plans = ghosts(state, viewer.me, now);
+    const ride = runtime.localRide();
+    if (ride) plans[ride.slot] = { to: ride.step, bits: ride.bits };
+    let view = project(world, plans);
+    if (ride && view.phase !== "over") {
+      // The start and the clock are this device's too: its bike goes on its own count.
+      const step = Math.max(0, Math.floor(ride.step));
       view =
-        older && span > 0
-          ? blendViews(older, newer, (timing.tick - timing.older!.tick) / span)
-          : newer;
+        ride.step < 0
+          ? { ...view, phase: "countdown", go: Math.ceil(-ride.step), step: 0 }
+          : {
+              ...view,
+              phase: "racing",
+              go: 0,
+              step,
+              left: Math.max(0, world.close - step),
+            };
     }
     return smoother.apply(
       view,
-      timing.revision ?? 0,
-      performance.now(),
+      runtime.frameTiming()?.revision ?? 0,
+      now,
       model?.localSlot ?? -1,
     );
   };

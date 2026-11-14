@@ -1,7 +1,6 @@
 import {
   STEPS_PER_SECOND,
-  STEPS_PER_TICK,
-  stepWorld,
+  advanceRider,
   toView,
   type BikeView,
   type RiderView,
@@ -12,25 +11,20 @@ import {
 import type { Room } from "../online/game.js";
 
 /**
- * Draw at the clock, not a tick behind. The runtime's newest folded world is the latest the room knows; instead of
- * presenting it a tick late to interpolate towards it, the screen plays it forward on a copy, by the fraction of a
- * tick the clock has run past it, with the bits each rider holds, and draws that. A press shows within one log tick
- * (25 ms on average) instead of two. The copy is thrown away: nothing here reaches the room.
- *
- * `ahead` is in steps (0–`MAX_AHEAD`, fractional); the two whole steps either side are blended, so a 120 Hz screen
- * moves the bikes every frame.
+ * What the screen draws of a race whose riders each run on their own clock. The room's newest folded world holds
+ * every bike as far as its device has said it rode; the screen plays each one on, on a copy, to where it is now:
+ * this device's own bike to this device's clock with the bits it holds (`LocalRide`), so a press shows on the frame
+ * it is made and nothing the network does moves it; the others a few steps past what was heard, eased, as ghosts.
+ * The copy is thrown away: nothing here reaches the room.
  */
-export interface ForwardInputs {
-  /** What the rider in `slot` is taken to hold `step` steps past the folded world: its last logged bits, or this device's own. */
-  held(world: World, slot: number, step?: number): number;
-  /** Whether somebody is steering the rider in `slot`: a rider who is away coasts, as in the fold. */
-  present(world: World, slot: number): boolean;
+export interface RiderPlan {
+  /** The step of the rider's own clock to draw, fractional. */
+  to: number;
+  /** What the rider holds on a step of its own clock. */
+  bits(step: number): number;
 }
 
-/** The furthest the screen plays past the newest folded world: one log tick, plus one more while the fold is late. */
-export const MAX_AHEAD = STEPS_PER_TICK * 2;
-
-/** A copy of the world deep enough for `stepWorld` to run on without touching the original. */
+/** A copy of the world deep enough for the engine to run on without touching the original. */
 export function copyWorld(world: World): World {
   return {
     ...world,
@@ -99,91 +93,81 @@ export function blendViews(a: WorldView, b: WorldView, t: number): WorldView {
   };
 }
 
-/** The newest world played forward `ahead` steps, as a view to draw. */
-export function forward(
+/** The folded world with each planned rider played on to its plan's step, as a view to draw. */
+export function project(
   world: World,
-  ahead: number,
-  inputs: ForwardInputs,
+  plans: readonly (RiderPlan | undefined)[],
 ): WorldView {
-  const steps = Math.max(0, Math.min(MAX_AHEAD, ahead));
-  const whole = Math.floor(steps),
-    part = steps - whole;
+  if (world.phase === "over") return toView(world);
   const copy = copyWorld(world);
-  const held = (step: number) =>
-      world.riders.map((_, slot) => inputs.held(world, slot, step)),
-    present = world.riders.map((_, slot) => inputs.present(world, slot));
-  for (let i = 0; i < whole; i++) stepWorld(copy, held(i), present);
+  const parts = plans.map((plan, slot) => {
+    const rider = copy.riders[slot];
+    if (!plan || !rider) return 0;
+    const whole = Math.floor(plan.to);
+    for (let step = rider.step; step < whole; step++)
+      advanceRider(copy, slot, step + 1, plan.bits(step));
+    return rider.step === whole ? plan.to - whole : 0;
+  });
   const a = toView(copy);
-  if (part <= 0.001 || copy.phase === "over") return a;
-  stepWorld(copy, held(whole), present);
-  return blendViews(a, toView(copy), part);
-}
-
-/**
- * How many steps past the newest frame the clock is, from the runtime's frame timing: `tick` is the presentation's
- * game clock and `lead` how far the clock runs past it, in log ticks. Normally 0–4.
- */
-export function stepsAhead(
-  timing: { tick: number; lead: number },
-  newerTick: number,
-): number {
-  return Math.max(
-    0,
-    Math.min(
-      STEPS_PER_TICK,
-      timing.tick + timing.lead * STEPS_PER_TICK - newerTick,
-    ),
-  );
-}
-
-/**
- * The bits the forward run plays for each rider: a seated, connected rider holds what it last logged, and this
- * device's own bike holds, step by step, what this device has logged for the steps the room has not folded yet
- * (`live` as a function of the step) — the same bits on the same steps the fold will play, so the picture is the
- * bike the room is about to compute and nothing snaps back when it does.
- */
-export function forwardInputs(
-  room: Room,
-  me: string,
-  live: number | ((step: number) => number),
-): ForwardInputs {
-  const seated = (world: World, slot: number) => {
-    const seat = room.seats.get(world.riders[slot]?.id ?? "");
-    return seat && !seat.bot && seat.connected ? seat : undefined;
-  };
+  if (!parts.some((part) => part > 0.001)) return a;
+  for (const [slot, part] of parts.entries()) {
+    const rider = copy.riders[slot];
+    if (part > 0.001 && rider)
+      advanceRider(copy, slot, rider.step + 1, plans[slot]!.bits(rider.step));
+  }
+  const b = toView(copy);
   return {
-    held(world, slot, step = 0) {
-      const seat = seated(world, slot);
-      if (!seat) return 0;
-      if (seat.id !== me) return room.held[seat.id] ?? 0;
-      return typeof live === "number" ? live : live(step);
-    },
-    present: (world, slot) => seated(world, slot) !== undefined,
+    ...a,
+    riders: a.riders.map((rider, slot) =>
+      blendRider(rider, b.riders[slot] ?? rider, parts[slot] ?? 0),
+    ),
   };
 }
 
 const STEP_MS = 1000 / STEPS_PER_SECOND;
+/** A ghost is drawn at most this many steps past what its device has said: its last held bits carry it there. */
+export const GHOST_AHEAD = 10;
+/** Where a ghost's drawn clock settles past the newest word of it, and the share of its error closed a frame. */
+const GHOST_LEAD = 2,
+  GHOST_EASE = 0.1;
 
 /**
- * Keeps the drawn clock moving when the fold is a few milliseconds late. The runtime folds a log tick on a 10 ms
- * timer, so for a moment after the clock passes a tick boundary its newest world is still the one before, and
- * `stepsAhead` stops at a whole tick: the picture would hold still for that frame, then jump. While it is pinned
- * there, the wall clock carries the count on from the last unpinned frame, up to `MAX_AHEAD`; once the next tick is
- * folded the runtime's own timing takes over again, from the same place in time.
+ * The other riders' drawn clocks. Word of a bike arrives a tick at a time and late; each ghost's clock runs on the
+ * wall clock between words and eases towards a little past the newest one, so it moves every frame at an even
+ * pace instead of in the steps the network delivers.
  */
-export function createLeadClock(): (
-  ahead: number,
-  newerTick: number,
+export function createGhosts(): (
+  room: Room,
+  me: string,
   nowMs: number,
-) => number {
-  let tick = Number.NaN,
-    origin = 0;
-  return (ahead, newerTick, nowMs) => {
-    if (newerTick !== tick || ahead < STEPS_PER_TICK) {
-      tick = newerTick;
-      origin = nowMs - ahead * STEP_MS;
-      return ahead;
+) => (RiderPlan | undefined)[] {
+  let key = "",
+    last = 0,
+    clocks: number[] = [];
+  return (room, me, nowMs) => {
+    const world = room.world;
+    if (!world) return [];
+    const race = `${room.matchId}:${room.round}`;
+    if (race !== key) {
+      key = race;
+      clocks = [];
+      last = nowMs;
     }
-    return Math.max(ahead, Math.min(MAX_AHEAD, (nowMs - origin) / STEP_MS));
+    const elapsed = Math.max(0, Math.min(250, nowMs - last)) / STEP_MS;
+    last = nowMs;
+    return world.riders.map((rider, slot) => {
+      const seat = room.seats.get(rider.id);
+      if (rider.id === me || !seat || seat.bot || !seat.connected) {
+        clocks[slot] = rider.step;
+        return undefined;
+      }
+      let clock = clocks[slot] ?? rider.step;
+      clock += elapsed;
+      clock += (rider.step + GHOST_LEAD - clock) * GHOST_EASE;
+      clock = Math.max(rider.step, Math.min(rider.step + GHOST_AHEAD, clock));
+      clocks[slot] = clock;
+      const held = room.held[rider.id] ?? 0;
+      return { to: clock, bits: () => held };
+    });
   };
 }
