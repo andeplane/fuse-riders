@@ -208,6 +208,8 @@ const coverUrl = (song: { id: string }): string | undefined => {
 
 /** The id a loaded simfile's song goes by. */
 const CUSTOM = "custom";
+/** The landing select's wait before it fetches the song it stands on; a room starting cancels it. */
+let landingFetch: ReturnType<typeof setTimeout> | undefined;
 /** Called when what a song select shows about the songs' audio has changed. */
 const audioWatchers = new Set<() => void>();
 /** The library the songs on screen are from: the bundled one, or it with the player's own file. */
@@ -497,10 +499,9 @@ function landing(): void {
     picker.update({ ...choice, host: true });
     preview.show(choice.song);
     // Downloaded while the player chooses, so PLAY does not wait for it; a carousel being turned fetches nothing.
-    clearTimeout(fetching);
-    fetching = setTimeout(() => songs.song(choice.song), 350);
+    clearTimeout(landingFetch);
+    landingFetch = setTimeout(() => songs.song(choice.song), 350);
   };
-  let fetching: ReturnType<typeof setTimeout> | undefined;
   const showOptions = () =>
     options.update({
       speed: prefs.speed,
@@ -657,8 +658,8 @@ function landing(): void {
   picker.update({ ...choice, host: true });
   showOptions();
   preview.show(choice.song);
-  fetching = setTimeout(() => songs.song(choice.song), 350);
-  // The page is left by a navigation, so the watcher lives as long as it does.
+  landingFetch = setTimeout(() => songs.song(choice.song), 350);
+  // Until a room takes the page over (`room` clears the watchers and the timer).
   audioWatchers.add(() => picker.update({ ...choice, host: true }));
 }
 
@@ -725,6 +726,9 @@ function timing(): void {
 }
 
 function room(solo: boolean, library: Library, first?: Choice): void {
+  // The landing select is gone: its late fetch must not take the place of the song this room plays.
+  clearTimeout(landingFetch);
+  audioWatchers.clear();
   useLibrary(library);
   const session = solo
     ? ({ kind: "solo" } as const)
