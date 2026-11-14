@@ -1,4 +1,4 @@
-import { openPlayOptions } from "./lib/main-menu.js";
+import { openPlayOptions, takeHostSeat } from "./lib/main-menu.js";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import type { Browser, Page } from "playwright";
@@ -52,10 +52,7 @@ const fitsPhone = async (tab: Page, where: string) => {
   );
 };
 const joinAs = async (tab: Page, name: string) => {
-  const field = tab.getByPlaceholder("Your name");
-  await field.waitFor();
-  await field.fill(name);
-  await tab.getByRole("button", { name: /^Join$/i, exact: true }).click();
+  await takeHostSeat(tab, name);
   await tab
     .locator(".fui-roster-name", { hasText: name })
     .first()
@@ -105,15 +102,21 @@ async function twoPlayers(browser: Browser): Promise<void> {
   await a.goto(`${page}?mute`);
   await a.screenshot({ path: `${shots}/dice-landing-${engine}.png` });
   await openPlayOptions(a);
-  await a.getByRole("button", { name: "CREATE ROOM" }).click();
+  await a.getByRole("button", { name: "Host room" }).click();
   await a.waitForURL(/\?room=[A-Z0-9]+/);
   const code = new URL(a.url()).searchParams.get("room")!;
   await joinAs(a, "Ada");
 
   await b.goto(`${page}?mute`);
+  await openPlayOptions(b, "join");
   await b.getByPlaceholder("Room code").fill(code.toLowerCase());
   await b.getByRole("button", { name: "JOIN ROOM" }).click();
   await b.waitForURL(new RegExp(`room=${code}`));
+  await b
+    .locator(".fui-room-open-slot")
+    .getByRole("button", { name: "Join", exact: true })
+    .first()
+    .click();
   await b.getByPlaceholder("Your name").waitFor();
   await fitsPhone(b, "name entry");
   await joinAs(b, "Bo");
@@ -180,7 +183,7 @@ async function sharedScreen(browser: Browser): Promise<void> {
   await openPlayOptions(h);
   await h.getByLabel(/Shared TV/).check();
   await openPlayOptions(h);
-  await h.getByRole("button", { name: "CREATE ROOM" }).click();
+  await h.getByRole("button", { name: "Host room" }).click();
   await h.waitForURL(/\?room=[A-Z0-9]+/);
   const code = new URL(h.url()).searchParams.get("room")!;
   await joinAs(h, "Host");

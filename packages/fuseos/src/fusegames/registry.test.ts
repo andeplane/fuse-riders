@@ -55,4 +55,20 @@ describe(createFuseGameRegistry.name, () => {
     expect(riders && registry.screenshotUrl(riders)).toBeUndefined();
     expect(EMPTY_FUSE_GAMES.games).toEqual([]);
   });
+
+  it("serves a game's desktop icon at both sizes under the base, and none for a game without one", () => {
+    const registry = createFuseGameRegistry({
+      games: FIXTURE_GAMES,
+      base: "/fuse-riders/",
+      muted: false,
+    });
+    const fuseball = registry.find("fuseball");
+    expect(fuseball && registry.icon(fuseball)).toEqual({
+      kind: "image",
+      src: "/fuse-riders/fuseos/game-icons/fuseball.png",
+      smallSrc: "/fuse-riders/fuseos/game-icons/fuseball-16.png",
+    });
+    const riders = registry.find("fuse-riders");
+    expect(riders && registry.icon(riders)).toBeUndefined();
+  });
 });

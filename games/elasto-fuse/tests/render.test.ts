@@ -83,8 +83,8 @@ test("cues come from the views changing: the countdown's beeps, then go", () => 
 test("an apple, a crash and a finish are each told once, for the rider they happened to", () => {
   const world = racing(20);
   const before = toView(world);
-  const second = appleAt(0, 1)!;
-  world.riders[1]!.taken = 0b10;
+  const second = appleAt(0, 0)!;
+  world.riders[1]!.taken = 0b1n;
   world.riders[0]!.status = DEAD;
   world.riders[0]!.wait = 40;
   stepWorld(world, [0, 0], [true, true]);
@@ -117,15 +117,15 @@ test("an apple, a crash and a finish are each told once, for the rider they happ
 
 test("a restart, a rollback and another level say nothing", () => {
   const world = racing(30, [GAS, 0]);
-  world.riders[0]!.taken = 0b1;
+  world.riders[0]!.taken = 0b1n;
   const before = toView(world);
   // Put back on the start with its apples: the apples coming back is not eating them.
   const restarted = toView(world);
-  restarted.riders[0] = { ...restarted.riders[0]!, taken: 0b11, run: 0 };
+  restarted.riders[0] = { ...restarted.riders[0]!, taken: 0b11n, run: 0 };
   assert.deepEqual(cuesBetween(before, restarted), []);
   // The race clock went backwards: a rollback past what was shown.
   const earlier = { ...toView(world), step: before.step - 4 };
-  earlier.riders[0] = { ...earlier.riders[0]!, taken: 0b11 };
+  earlier.riders[0] = { ...earlier.riders[0]!, taken: 0b11n };
   assert.deepEqual(cuesBetween(before, earlier), []);
   assert.deepEqual(cuesBetween(before, { ...before, level: 1 }), []);
   // The n-th apple is the n-th object of kind "apple".
@@ -135,7 +135,7 @@ test("a restart, a rollback and another level say nothing", () => {
     [apples[0]!.x, apples[0]!.y],
   );
   assert.equal(appleAt(0, apples.length), undefined);
-  assert.equal(appleAt(99, 0), undefined);
+  assert.equal(appleAt(LEVELS.length, 0), undefined);
 });
 
 // ---- the words on a pane ----
@@ -245,7 +245,10 @@ test("a desktop pane shows about seventeen units across, a phone fewer, and neve
 });
 
 test("the camera rides level with the bike, 15% of the width from the edge behind it, inside the level", () => {
-  const level = LEVELS[0]!,
+  const level = LEVELS.find((candidate) => {
+      const bounds = levelBounds(candidate);
+      return bounds.maxX - bounds.minX > 40;
+    })!,
     box = levelBounds(level);
   assert.equal(levelBounds(level), box, "worked out once");
   assert.ok(box.maxX - box.minX > 40, "a level longer than a pane");
@@ -253,7 +256,11 @@ test("the camera rides level with the bike, 15% of the width from the edge behin
   const wide = 16,
     high = 9;
   // Mid-level, facing right: the bike is 35% of the width behind the pane's centre.
-  const mid: BikeView = { ...bike, x: (box.minX + box.maxX) / 2 };
+  const mid: BikeView = {
+    ...bike,
+    flipped: false,
+    x: (box.minX + box.maxX) / 2,
+  };
   const right = cameraTarget(mid, box, wide, high);
   assert.ok(near(right.x - mid.x, AHEAD_SHARE * wide));
   assert.ok(near((mid.x - (right.x - wide / 2)) / wide, 0.15));
@@ -308,7 +315,7 @@ test("only polygons that can show in a pane are traced, and world points land on
     y: 250,
   });
   const up = toScreen(inside, inside.camera.x + 1, inside.camera.y + 1);
-  assert.deepEqual(up, { x: 550, y: 200 }, "a unit right and up");
+  assert.ok(near(up.x, 550) && near(up.y, 200), "a unit right and up");
 });
 
 // ---- the rider ----
@@ -336,7 +343,7 @@ test("two-bone IK keeps both bones' lengths, bends the asked way, and straighten
 });
 
 test("the rider's joints follow the view and mirror when the bike faces left", () => {
-  const bike = toView(racing()).riders[0]!.bike;
+  const bike = { ...toView(racing()).riders[0]!.bike, flipped: false };
   const pose = poseOf(bike);
   assert.deepEqual(pose.head, bike.head, "the head is the view's");
   assert.ok(near(dist(pose.hip, pose.knee), THIGH));

@@ -1,4 +1,4 @@
-import { openPlayOptions } from "./lib/main-menu.js";
+import { openPlayOptions, takeHostSeat } from "./lib/main-menu.js";
 import { chromium, type Page } from "playwright";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
@@ -31,13 +31,11 @@ try {
   await first.getByLabel("Shared TV + phone controllers").check();
   await first.keyboard.press("Escape");
   await openPlayOptions(first);
-  await first.getByRole("button", { name: "CREATE ROOM" }).click();
-  await first.locator(".fui-name-input").fill("SKYE");
-  await first.getByRole("button", { name: "Join" }).click();
+  await first.getByRole("button", { name: "Host room" }).click();
+  await takeHostSeat(first, "SKYE");
   const code = await first.locator(".birds-code").innerText();
   await second.goto(`${base}/fuse-birds/?room=${code}&mute`);
-  await second.locator(".fui-name-input").fill("EMBER");
-  await second.getByRole("button", { name: "Join" }).click();
+  await takeHostSeat(second, "EMBER");
   await first.locator(".birds-roster").getByText("EMBER").waitFor();
   await tv.goto(`${base}/fuse-birds/?room=${code}&display=1&mute`);
   await first.getByRole("button", { name: "START BATTLE" }).click();

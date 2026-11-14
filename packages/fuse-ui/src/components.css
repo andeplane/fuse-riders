@@ -1,4 +1,6 @@
 @import "@fontsource/press-start-2p/latin.css";
+@import "./top-bar.css";
+@import "./play-menu.css";
 /*
  * Styles for the fuse-ui components (their default `fui-*` classes), in the Fuse Riders look. Needs tokens.css first.
  *
@@ -1311,6 +1313,43 @@
 .fui-room-layout .fui-room-primary-action > :not(button):not([hidden]) {
   display: flex;
   gap: 8px;
+}
+.fui-top-bar-actions .fui-radio {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+  padding-block: 16px;
+  border-top: 1px solid var(--fui-border, #46536b);
+}
+.fui-top-bar-actions .fui-radio > span,
+.fui-top-bar-actions .fui-radio > select,
+.fui-top-bar-actions .fui-radio > label {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.fui-top-bar-actions .fui-radio > label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.fui-top-bar-actions .fui-radio input {
+  flex: 1;
+  min-width: 0;
+}
+.fui-top-bar-actions .fui-radio select {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #365370;
+  border-radius: 8px;
+  background: #0b192b;
+  color: #e8f5ff;
+  font: inherit;
+}
+.fui-top-bar-actions .fui-radio input[type="range"] {
+  accent-color: #65faff;
 }
 .fui-room-layout .fui-room-primary-action > :not(button) > button {
   flex: 1;

@@ -140,6 +140,11 @@ export {
   type RoundControlsState,
 } from "./game-menu.js";
 export {
+  createTopBar,
+  type TopBarOptions,
+  type TopBarSound,
+} from "./top-bar.js";
+export {
   createMainMenu,
   VIBE_CODING_GANG,
   type MainMenuOptions,

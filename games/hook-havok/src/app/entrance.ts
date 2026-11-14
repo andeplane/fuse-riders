@@ -2,9 +2,11 @@ import { social } from "./social.js";
 import "fuse-ui/portal.css";
 import "./entrance.css";
 import { createAppPortal } from "fuse-ui/portal";
+import { createTopBar, type TopBarSound } from "fuse-ui";
 import { createMainMenu } from "fuse-ui";
 
 interface EntranceOptions {
+  sound: TopBarSound;
   main: HTMLElement;
   start: HTMLButtonElement;
   status: HTMLElement;
@@ -61,6 +63,14 @@ export function createEntrance(o: EntranceOptions) {
     home,
     social.element(),
   );
+  home.textContent = "HOOK HAVOK";
+  createTopBar({
+    music: false,
+    element: bar,
+    brand: home,
+    gameId: "hook-havok",
+    sound: o.sound,
+  });
   const placements = Object.entries({
     start: o.start,
     status: o.status,
@@ -127,12 +137,25 @@ export function createEntrance(o: EntranceOptions) {
   const entranceContent = root.querySelector<HTMLElement>(".entrance-content")!;
   const menuMarker = document.createComment("Shared menu");
   entranceContent.before(menuMarker);
+  const hostingOptions = document.createElement("div");
+  const freshRoom = root.querySelector<HTMLButtonElement>("#menu-fresh")!;
+  hostingOptions.append(freshRoom);
+  hostingOptions.hidden = freshRoom.hidden;
   const menu = createMainMenu({
     background: async (host, signal) =>
       (await import("./attract.js")).createAttract(host, signal),
     title: "HOOK HAVOK",
     description: "Find your foothold. Take theirs.",
     play: entranceContent,
+    hostingOptions,
+    onSinglePlayer: async () => {
+      if (!o.start.disabled)
+        await o.start.onclick?.call(o.start, new PointerEvent("click"));
+    },
+    onJoinRoom: () => {
+      root.querySelector<HTMLDialogElement>("#entrance-join")!.showModal();
+      o.code.focus();
+    },
     onPlay: async () => {
       if (!o.start.disabled)
         await o.start.onclick?.call(o.start, new PointerEvent("click"));
@@ -152,6 +175,13 @@ export function createEntrance(o: EntranceOptions) {
   function show() {
     menu.startBackground();
     bar.append(social.element());
+    createTopBar({
+      music: false,
+      element: bar,
+      brand: home,
+      gameId: "hook-havok",
+      sound: o.sound,
+    });
     root.hidden = false;
     root.setAttribute("role", "main");
     o.main.inert = true;
@@ -176,6 +206,7 @@ export function createEntrance(o: EntranceOptions) {
       root.setAttribute("aria-busy", String(busy));
       root.querySelector<HTMLElement>("#menu-fresh")!.hidden =
         o.status.dataset.state !== "error";
+      hostingOptions.hidden = freshRoom.hidden;
     },
     joinError(message: string) {
       root.querySelector<HTMLElement>(".join-error")!.textContent = message;
@@ -186,6 +217,14 @@ export function createEntrance(o: EntranceOptions) {
       close();
       placements.forEach((p) => p.marker.after(p.node));
       roomSocialParent?.append(social.element());
+      const roomBar = roomSocialParent?.closest<HTMLElement>(".fui-top-bar");
+      if (roomBar)
+        createTopBar({
+          music: false,
+          element: roomBar,
+          gameId: "hook-havok",
+          sound: o.sound,
+        });
       root.hidden = true;
       root.removeAttribute("role");
       o.main.inert = false;

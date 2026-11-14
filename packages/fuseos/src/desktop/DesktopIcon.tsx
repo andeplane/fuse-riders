@@ -1,6 +1,6 @@
 import { matchShortcut } from "../lib/shortcuts";
-import type { IconName } from "../ui/icons";
-import { Win98Icon } from "../ui/icons";
+import type { IconRef } from "../ui/icons";
+import { AppIcon } from "../ui/icons";
 import type { MenuPosition } from "../windows/menuPosition";
 import {
   isContextMenuKey,
@@ -9,23 +9,20 @@ import {
 } from "../windows/menuPosition";
 
 /**
- * A Fuse game's tile: its accent square with its one-to-three character mark, like the portal draws it.
- * `shortcut` adds the Windows shortcut arrow: the game opens in a browser tab rather than a window here.
+ * A Fuse game's tile: its accent square with its one-to-three character mark, like the portal draws it. The
+ * fallback for a game without a bitmap icon.
  */
-export type GameTile = {
-  kind: "tile";
-  mark: string;
-  accent: string;
-  shortcut?: boolean;
-};
+export type GameTile = { kind: "tile"; mark: string; accent: string };
 
 export const SHORTCUT_HINT = "Opens in a new browser tab";
 
-export type DesktopIconArt = IconName | GameTile;
+export type DesktopIconArt = IconRef | GameTile;
 
 export type DesktopIconProps = {
   label: string;
   icon: DesktopIconArt;
+  /** Adds the Windows shortcut arrow: the program opens in a browser tab rather than a window here. */
+  shortcut?: boolean;
   selected: boolean;
   onSelect: () => void;
   onOpen: () => void;
@@ -33,12 +30,31 @@ export type DesktopIconProps = {
   onContextMenu?: (position: MenuPosition) => void;
 };
 
+/** The Windows 95 shortcut overlay: a white box with a small arrow, bottom left of any icon. */
+function ShortcutArrow() {
+  return (
+    <svg
+      width={12}
+      height={12}
+      viewBox="0 0 12 12"
+      className="absolute bottom-0 left-0"
+      data-icon="shortcut"
+      style={{ imageRendering: "pixelated" }}
+    >
+      <title>{SHORTCUT_HINT}</title>
+      <rect x={0.5} y={0.5} width={11} height={11} fill="#fff" stroke="#000" />
+      <path
+        d="M3 9 L9 3 M5 3 L9 3 L9 7"
+        fill="none"
+        stroke="#000"
+        strokeWidth={1.2}
+      />
+    </svg>
+  );
+}
+
 /** The generated icon of a Fuse game: an accent square with the mark, crisp at 32px. */
-export function GameTileIcon({
-  mark,
-  accent,
-  shortcut = false,
-}: Omit<GameTile, "kind">) {
+export function GameTileIcon({ mark, accent }: Omit<GameTile, "kind">) {
   return (
     <svg
       width={32}
@@ -48,7 +64,6 @@ export function GameTileIcon({
       data-icon="tile"
       style={{ imageRendering: "pixelated" }}
     >
-      {shortcut ? <title>{SHORTCUT_HINT}</title> : null}
       <rect x={1} y={1} width={30} height={30} fill={accent} stroke="#000" />
       <rect x={3} y={3} width={26} height={2} fill="#fff" fillOpacity={0.5} />
       <text
@@ -65,18 +80,6 @@ export function GameTileIcon({
       >
         {mark}
       </text>
-      {shortcut ? (
-        // The Windows 95 shortcut overlay: a white box with a small arrow, bottom left.
-        <g data-icon="shortcut">
-          <rect x={1} y={21} width={10} height={10} fill="#fff" stroke="#000" />
-          <path
-            d="M3 29 L9 23 M5 23 L9 23 L9 27"
-            fill="none"
-            stroke="#000"
-            strokeWidth={1.2}
-          />
-        </g>
-      ) : null}
     </svg>
   );
 }
@@ -84,6 +87,7 @@ export function GameTileIcon({
 export function DesktopIcon({
   label,
   icon,
+  shortcut = false,
   selected,
   onSelect,
   onOpen,
@@ -109,15 +113,14 @@ export function DesktopIcon({
         }
       }}
     >
-      {typeof icon === "string" ? (
-        <Win98Icon name={icon} size={32} />
-      ) : (
-        <GameTileIcon
-          mark={icon.mark}
-          accent={icon.accent}
-          shortcut={icon.shortcut}
-        />
-      )}
+      <span className="relative inline-flex" aria-hidden data-icon-art>
+        {typeof icon !== "string" && icon.kind === "tile" ? (
+          <GameTileIcon mark={icon.mark} accent={icon.accent} />
+        ) : (
+          <AppIcon icon={icon} size={32} />
+        )}
+        {shortcut ? <ShortcutArrow /> : null}
+      </span>
       <span
         className={`px-0.5 leading-tight ${selected ? "selected-label" : ""}`}
       >

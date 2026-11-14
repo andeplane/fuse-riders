@@ -1,3 +1,4 @@
+import { openPlayOptions } from "./lib/main-menu.js";
 import { launchSelected } from "./lib/browser.js";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
@@ -42,8 +43,9 @@ try {
   const friends = page.locator("dialog[open]");
   await friends.getByRole("button", { name: "SIGN IN", exact: true }).waitFor();
   await page.keyboard.press("Escape");
+  await openPlayOptions(page);
   await page
-    .getByRole("button", { name: "1 PLAYER PRACTICE", exact: true })
+    .getByRole("button", { name: "Single player", exact: true })
     .click();
   await page.locator('canvas[data-ready="true"]').waitFor({ timeout: 60_000 });
   assert.ok(page.url().includes("practice=1"));

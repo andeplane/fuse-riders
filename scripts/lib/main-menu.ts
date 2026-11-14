@@ -1,21 +1,49 @@
 import type { Page } from "playwright";
 
-/** Existing solo/local/shared-TV recipes live behind the shared main menu's secondary action. */
-export async function openPlayOptions(page: Page): Promise<void> {
-  if (await page.locator(".fui-main-menu .fui-menu-dialog[open]").isVisible())
+/** Open the user-facing mode choices, retaining hosting/local preferences in their expandable section. */
+export async function openPlayOptions(
+  page: Page,
+  mode?: "single" | "join",
+): Promise<void> {
+  const choices = page.locator(".fui-play-menu");
+  if (!(await choices.isVisible()))
+    await page
+      .locator(".fui-main-menu")
+      .getByRole("button", { name: "Play", exact: true })
+      .click();
+  if (mode) {
+    await choices
+      .getByRole("button", {
+        name: mode === "single" ? "Single player" : "Join room",
+        exact: true,
+      })
+      .click();
     return;
-  await page.locator(".fui-main-menu-other").click();
+  }
+  const hosting = page.locator(".fui-play-hosting");
+  if ((await hosting.isVisible()) && !(await hosting.getAttribute("open")))
+    await hosting.locator("summary").click();
 }
 
 /** Room creation leaves the host unseated until the explicit Join action. */
 export async function takeHostSeat(page: Page, name: string): Promise<void> {
-  await page
-    .locator(".fui-room-open-slot")
-    .getByRole("button", { name: "Join", exact: true })
-    .first()
-    .click();
   const join = page.locator(".fui-slot-admission[open]");
-  if (!(await join.count())) return;
+  if (!(await join.isVisible())) {
+    const count = await page.locator(".fui-room-count").innerText();
+    await page
+      .locator(".fui-room-open-slot")
+      .getByRole("button", { name: "Join", exact: true })
+      .first()
+      .click();
+    if (!(await join.count())) {
+      await page.waitForFunction(
+        (before) =>
+          document.querySelector(".fui-room-count")?.textContent !== before,
+        count,
+      );
+      return;
+    }
+  }
   await join
     .locator('input:not([type="radio"]):not([type="checkbox"])')
     .first()

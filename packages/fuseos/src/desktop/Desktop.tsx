@@ -60,6 +60,7 @@ export function Desktop() {
             <DesktopIcon
               label={icon.label}
               icon={icon.icon}
+              shortcut={icon.shortcut}
               selected={vm.selectedIcon === icon.id}
               onSelect={() => vm.selectIcon(icon.id)}
               onOpen={icon.open}

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { validRoomCode } from "fuse-network-fe";
 import { createArt } from "../src/app/art.js";
-import { createMenu, type MenuMode } from "../src/app/menu.js";
+import { createMenu, type MenuChoice } from "../src/app/menu.js";
 import {
   createOnlineSheet,
   lastRoom,
@@ -120,30 +120,81 @@ test("REJOIN goes back to the last room this device was in", () => {
   );
 });
 
-test("the menu's two tabs: this device or online, opening on the one the device used last", () => {
-  const modes: MenuMode[] = [];
-  const online = dom.document.createElement("section");
+test("Play separates local setup, hosting preferences and joining without losing their controls", () => {
+  const { store, map } = memory({ [names.name]: "Ada" });
+  const online = sheet(store);
+  const started: MenuChoice[] = [];
   const root = createMenu({
     art,
-    store: memory().store,
-    onStart: () => {},
+    store,
+    onStart: (choice) => started.push(choice),
     onResume: () => {},
     onDiscard: () => {},
-    online: { sheet: online, mode: "online", onMode: (m) => modes.push(m) },
+    online: { sheet: online.root, mode: "online", onMode: () => {} },
   });
   dom.document.body.replaceChildren(root);
-  const tab = (text: string) =>
+  const press = (text: string) =>
     dom
-      .$$<HTMLButtonElement>('[role="tab"]', root)
-      .find((button) => button.textContent === text)!;
-  const setup = dom.$(".fl-setup", root);
-  assert.equal(setup.hidden, true);
-  assert.equal(online.hidden, false);
-  assert.equal(tab("PLAY ONLINE").getAttribute("aria-selected"), "true");
-  tab("ON THIS DEVICE").click();
-  assert.deepEqual(modes, ["local"]);
-  assert.equal(setup.hidden, false);
-  assert.equal(online.hidden, true);
+      .$$<HTMLButtonElement>("button", root)
+      .find((button) => button.textContent === text)!
+      .click();
+  const dialog = dom.$<HTMLDialogElement>("dialog", root);
+  // Linkedom supplies the element; this fixture supplies its native open/close surface.
+  dialog.showModal = () => {
+    dialog.open = true;
+  };
+  dialog.close = () => {
+    dialog.open = false;
+    dialog.dispatchEvent(new dom.window.Event("close"));
+  };
+  assert.equal(root.querySelector('[role="tab"]'), null);
+  const choices = dom.$(".fui-play-menu", root);
+  assert.equal(choices.hidden, true);
+  press("Play");
+  assert.equal(choices.hidden, false);
+  assert.deepEqual(
+    dom
+      .$$<HTMLButtonElement>("button", choices)
+      .map((button) => button.textContent),
+    ["Single player", "Host room", "Join room", "Back"],
+  );
+  assert.equal(
+    dom.$<HTMLButtonElement>("button:nth-child(2)", choices).disabled,
+    false,
+  );
+  const hosting = dom.$(".fui-play-hosting", root);
+  assert.equal(hosting.hidden, false);
+  dom
+    .$$<HTMLButtonElement>("button", hosting)
+    .find((button) => button.textContent === "SHARED TV")!
+    .click();
+  assert.equal(
+    map.get(names.shared),
+    "1",
+    "hosting keeps the shared-screen choice",
+  );
+
+  press("Single player");
+  assert.equal(dialog.open, true);
+  assert.ok(dialog.contains(dom.$(".fl-setup", root)));
+  press("Hard");
+  press("Quick · 30");
+  dom.$<HTMLButtonElement>(".fl-start-game", dialog).click();
+  assert.equal(started.length, 1);
+  assert.equal(started[0]!.level, 2);
+  assert.equal(started[0]!.goal, 30);
+  dialog.close();
+
+  press("Join room");
+  assert.equal(dialog.open, true);
+  assert.equal(dialog.querySelector(".fl-setup"), null);
+  const code = dom.$<HTMLInputElement>(".fl-join input", dialog);
+  code.value = " ab42 ";
+  press("JOIN");
+  assert.deepEqual(online.joined, ["AB42"]);
+  dialog.close();
+  press("Back");
+  assert.equal(choices.hidden, true);
 });
 
 const LOBBY: LobbyModel = {

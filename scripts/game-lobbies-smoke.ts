@@ -87,6 +87,9 @@ try {
       );
       await page.setViewportSize({ width: 1440, height: 1000 });
       await page.getByRole("button", { name: "Play", exact: true }).click();
+      await page
+        .getByRole("button", { name: "Host room", exact: true })
+        .click();
       step = "empty room and QR";
       const room = page.locator(".fui-room-layout");
       await room.waitFor();

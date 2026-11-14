@@ -4,7 +4,7 @@ import { APPLETS } from "../controlpanel/applets";
 import { FuseGamesContext } from "../fusegames/registry";
 import { GAME_LIST } from "../retro/games";
 import { useAppState } from "../state/useAppState";
-import type { IconName } from "../ui/icons";
+import type { IconRef } from "../ui/icons";
 import type { WindowCommands } from "../windows/useWindowCommands";
 import { useWindowCommands } from "../windows/useWindowCommands";
 
@@ -21,7 +21,7 @@ import { OS_NAME } from "./windowMeta";
 export type StartMenuItem = {
   id: string;
   label: string;
-  icon: IconName;
+  icon: IconRef;
   onSelect?: () => void;
   children?: StartMenuItem[];
   disabled?: boolean;
@@ -73,7 +73,7 @@ export function useStartMenuViewModel(): {
   const fuseGameItems: StartMenuItem[] = games.games.map((game) => ({
     id: `fusegame:${game.id}`,
     label: game.name,
-    icon: "fusegame",
+    icon: games.icon(game) ?? "fusegame",
     onSelect: wrap(() => desktop.openFuseGame(game.id)),
   }));
 

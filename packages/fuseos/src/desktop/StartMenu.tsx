@@ -2,7 +2,7 @@ import type { KeyboardEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import { matchShortcut } from "../lib/shortcuts";
-import { Win98Icon } from "../ui/icons";
+import { AppIcon } from "../ui/icons";
 
 import type { StartMenuItem } from "./useStartMenuViewModel";
 import { useStartMenuViewModel } from "./useStartMenuViewModel";
@@ -100,7 +100,7 @@ function MenuList({ items, depth, focusFirst, onCloseSubmenu }: MenuListProps) {
             }
             onKeyDown={(event) => onKeyDown(event, item)}
           >
-            <Win98Icon name={item.icon} size={depth === 0 ? 32 : 16} />
+            <AppIcon icon={item.icon} size={depth === 0 ? 32 : 16} />
             <span className="flex-1">{item.label}</span>
             {item.children ? <span aria-hidden>▸</span> : null}
           </button>

@@ -43,15 +43,17 @@ describe(GameTileIcon.name, () => {
     render(
       <DesktopIcon
         label="Fuseball"
-        icon={{ kind: "tile", mark: "FB", accent: "#ff5533", shortcut: true }}
+        icon={{ kind: "tile", mark: "FB", accent: "#ff5533" }}
+        shortcut
         selected={false}
         onSelect={() => undefined}
         onOpen={() => undefined}
       />,
     );
     const hint = screen.getByTitle(SHORTCUT_HINT);
-    const art = hint.closest("svg[data-icon='tile']");
+    const art = hint.closest("[data-icon-art]");
     expect(art).toHaveAttribute("aria-hidden", "true");
+    expect(art?.querySelector("svg[data-icon='tile']")).not.toBeNull();
     expect(art?.querySelector("[data-icon='shortcut']")).not.toBeNull();
     // The hint never reaches the button's name: it is still "Fuseball" to assistive tech.
     expect(screen.getByRole("button", { name: "Fuseball" })).toContainElement(

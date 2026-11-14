@@ -34,13 +34,22 @@ describe(Desktop.name, () => {
     ).toBeInTheDocument();
   });
 
-  it("draws a game icon as its accent tile with the mark, and app icons from the icon set", () => {
+  it("draws a game's bitmap icon at 32px, the accent tile with the mark for a game without one, and app icons from the icon set", () => {
     renderWithProviders(<Desktop />);
-    const fuseball = screen.getByRole("button", { name: "Fuseball" });
-    const tile = fuseball.querySelector("svg[data-icon='tile']");
+    const fuseball = screen
+      .getByRole("button", { name: "Fuseball" })
+      .querySelector("img[data-icon='image']");
+    expect(fuseball).toHaveAttribute(
+      "src",
+      "/fuse-riders/fuseos/game-icons/fuseball.png",
+    );
+    expect(fuseball).toHaveAttribute("width", "32");
+    const riders = screen.getByRole("button", { name: "Fuse Riders" });
+    expect(riders.querySelector("img")).toBeNull();
+    const tile = riders.querySelector("svg[data-icon='tile']");
     expect(tile).not.toBeNull();
-    expect(tile?.querySelector("rect")?.getAttribute("fill")).toBe("#ff5533");
-    expect(tile?.querySelector("text")?.textContent).toBe("FB");
+    expect(tile?.querySelector("rect")?.getAttribute("fill")).toBe("#33ddff");
+    expect(tile?.querySelector("text")?.textContent).toBe("FR");
     expect(
       screen
         .getByRole("button", { name: "Paint" })

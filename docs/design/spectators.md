@@ -64,6 +64,8 @@ a TV host on an unjoined page — still gets the old two-manager behaviour, unch
 
 ## Capacity and mesh cost
 
+(Since then the size is per game: `ROOM_SOCKETS` in `service/room-limits.ts`, eleven for Fuse Riders as below.)
+
 `ROOM_LIMITS.maxGuests` moves from 5 to 10, so a room admits eleven sockets: the creator, four more riders, five
 spectators and a TV display. That is the game's setting, passed into the signalling package, whose own
 `DEFAULT_MAX_GUESTS` stays 5; it is a capacity change and not a wire-protocol version change, so every service instance

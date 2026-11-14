@@ -92,7 +92,7 @@ import { FakePaintSurface } from "./paintSurface";
 import type { FakeWebampPlayer } from "./webampPlayer";
 import { createFakeWebampPlayer } from "./webampPlayer";
 
-/** Three Fuse games as the portal would list them. */
+/** Three Fuse games as the portal would list them; only Fuseball ships a desktop icon and a screenshot. */
 export const FIXTURE_GAMES: readonly PortalGame[] = [
   {
     id: "fuseball",
@@ -103,6 +103,7 @@ export const FIXTURE_GAMES: readonly PortalGame[] = [
     order: 1,
     path: "fuseball/",
     screenshot: "gallery/fuseball.jpg",
+    icon: "fuseos/game-icons/fuseball.png",
   },
   {
     id: "fuse-riders",

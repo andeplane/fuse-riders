@@ -684,7 +684,8 @@ test("gateway expiry timer closes silent sockets without depending on TTL deleti
     id: () => crypto.randomUUID(),
     error: () => {},
     schedule: (fn, delay) => {
-      assert.equal(delay, 90_000);
+      // The one member's lease, plus the margin a lapsed seat is given, comes due before the room's deadline.
+      assert.equal(delay, 31_000);
       callback = fn;
       return () => {
         cancelled++;

@@ -53,7 +53,17 @@ const portalGames = (): PortalGame[] =>
         throw new Error(
           `games/${id}/portal.json lists a game with no index.html`,
         );
-      return { ...parsed, id, path: `${id}/` };
+      // The desktop icon (public/fuseos/game-icons/<id>.png) is optional; tests/fuseos-game-icons.test.ts asks
+      // every portal game for one.
+      const icon = `fuseos/game-icons/${id}.png`;
+      return {
+        ...parsed,
+        id,
+        path: `${id}/`,
+        ...(existsSync(new URL(`public/${icon}`, import.meta.url))
+          ? { icon }
+          : {}),
+      };
     })
     .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
 

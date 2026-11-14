@@ -21,6 +21,11 @@ export interface PortalGame extends PortalEntry {
   id: string;
   /** `<id>/` under the site base. */
   path: string;
+  /**
+   * Site-relative 64x64 desktop icon (`fuseos/game-icons/<id>.png`, with a 32x32 `<id>-16.png` beside it), set by
+   * the build when the file exists; FuseOS draws the lettermark tile for a game without one.
+   */
+  icon?: string;
 }
 
 declare const __FUSE_PORTAL_GAMES__: readonly PortalGame[] | undefined;
@@ -65,7 +70,7 @@ export interface AppPortalOptions {
   document: Document;
   /** The id of the game showing the portal; its tile is marked as the current page. */
   current: string;
-  /** The site base, `import.meta.env.BASE_URL` (e.g. "/" or "/fuse-riders/"). */
+  /** The site base, `import.meta.env.BASE_URL` (e.g. "/" or "/fuse-games/"). */
   base: string;
   /** The page's `location.search`; a `mute` flag carries over to the other games. */
   search?: string;

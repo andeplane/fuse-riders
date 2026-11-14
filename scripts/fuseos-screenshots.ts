@@ -21,7 +21,7 @@ import {
  *
  *   pnpm exec tsx scripts/fuseos-screenshots.ts <url> [directory]
  *   pnpm exec tsx scripts/fuseos-screenshots.ts http://127.0.0.1:8787/            # a `pnpm dev` or `pnpm exec vite`
- *   pnpm exec tsx scripts/fuseos-screenshots.ts https://andeplane.github.io/fuse-riders/ shots/
+ *   pnpm exec tsx scripts/fuseos-screenshots.ts https://andeplane.github.io/fuse-games/ shots/
  *
  * Headless Chrome opens the desktop muted and captures, into `directory` (default artifacts/fuseos-shots):
  * boot, desktop, game-window, winamp, clippy-balloon, control-panel-games, doom, explorer, notepadpp,

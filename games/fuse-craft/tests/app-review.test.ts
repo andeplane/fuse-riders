@@ -173,12 +173,16 @@ test("an online battlefield is labelled with the room's map", () => {
 
 test("the app portal stays first in the room lobby's header after updates", () => {
   const f = fixture({ online: { manager: true } });
-  const first = () => f.root.querySelector(".nd-header")?.firstElementChild;
-  assert.equal(first(), f.portal());
+  const first = () =>
+    f.root.querySelector(".nd-header .fui-top-bar-left")?.firstElementChild;
+  assert.ok(
+    first() === f.portal(),
+    "portal precedes the brand in the shared header",
+  );
   f.updateRoom((room) => {
     room.status = "Waiting for players";
   });
-  assert.equal(first(), f.portal());
+  assert.ok(first() === f.portal(), "room updates retain the same portal");
   assert.ok(
     f.root
       .querySelector('[data-action="start-room"]')!
@@ -472,7 +476,7 @@ function fixture(options: FixtureOptions = {}) {
     saveName() {},
   };
   const portal = document.createElement("nav");
-  portal.className = "portal-stub";
+  portal.className = "fui-portal portal-stub";
   const dependencies: AppDependencies = {
     maps: {
       async list() {

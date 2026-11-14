@@ -1,0 +1,23 @@
+{
+  "name": "fusemania",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fusemania: a four-arrow rhythm game for one to five players. Hit the arrows on the beat of every song in the Fuse portfolio, alone or in a power-up battle with friends.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "exports": {
+    "./platform": "./src/platform.ts"
+  },
+  "dependencies": {
+    "fuse-netcode": "workspace:*",
+    "fuse-platform": "workspace:*",
+    "fuse-ui": "workspace:*"
+  },
+  "devDependencies": {
+    "@fontsource/press-start-2p": "^5.3.0",
+    "fuse-network-fe": "workspace:*",
+    "qrcode": "^1.5.4"
+  }
+}

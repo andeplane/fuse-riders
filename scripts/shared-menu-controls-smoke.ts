@@ -67,12 +67,13 @@ async function start(page: Page, game: GameFlow): Promise<void> {
   if (game.id === "fuse-bombers") url.searchParams.set("debug", "");
   await page.goto(url.href);
   if (game.id === "fuse-craft") {
-    await openPlayOptions(page);
+    await openPlayOptions(page, "single");
     await page.locator('[data-action="new-game"]').click();
     await page.locator('[data-action="mode-sandbox"]').click();
     await page.locator('[data-action="start"]').click();
   } else if (game.id === "hook-havok") {
-    await page.getByRole("button", { name: "Play", exact: true }).click();
+    await openPlayOptions(page);
+    await page.getByRole("button", { name: "Host room", exact: true }).click();
     await takeHostSeat(page, "Menu smoke");
   } else if (game.start) {
     const button = page.getByRole("button", { name: game.start, exact: true });
@@ -394,11 +395,8 @@ async function checkBombersDisplay(): Promise<void> {
     await openPlayOptions(host);
     await host.locator(".fb-shared input").check();
     await openPlayOptions(host);
-    await host
-      .getByRole("button", { name: "CREATE ROOM", exact: true })
-      .click();
-    await host.getByPlaceholder("Your name").fill("Menu smoke");
-    await host.getByRole("button", { name: /^Join$/i, exact: true }).click();
+    await host.getByRole("button", { name: "Host room", exact: true }).click();
+    await takeHostSeat(host, "Menu smoke");
     await host.getByRole("button", { name: /^Add AI$/i, exact: true }).click();
     const display = await context.newPage();
     display.setDefaultTimeout(smokeTimeout(20_000));
@@ -438,8 +436,7 @@ async function checkTownOnlineResume(): Promise<void> {
       localStorage.setItem(`fuse-lane-room-${code}`, token);
     }, room);
     await page.goto(new URL(`fuse-lane/?room=${room.code}&mute`, base).href);
-    await page.getByPlaceholder("Your name").fill("Menu smoke");
-    await page.getByRole("button", { name: /^Join$/i, exact: true }).click();
+    await takeHostSeat(page, "Menu smoke");
     await page.getByRole("button", { name: /^Add AI$/i, exact: true }).click();
     await page
       .getByRole("button", { name: "START MATCH", exact: true })

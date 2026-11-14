@@ -18,6 +18,8 @@ export type DesktopIconModel = {
   id: string;
   label: string;
   icon: DesktopIconArt;
+  /** The Windows shortcut arrow: the program opens in a browser tab here (the Games applet's choice). */
+  shortcut?: boolean;
   open: () => void;
 };
 
@@ -92,12 +94,10 @@ export function useDesktopViewModel(): DesktopViewModel {
     ...games.games.map((game) => ({
       id: `game:${game.id}`,
       label: game.name,
-      icon: {
-        kind: "tile",
-        mark: game.mark,
-        accent: game.accent,
-        shortcut: launch === "tab",
-      } as const,
+      icon:
+        games.icon(game) ??
+        ({ kind: "tile", mark: game.mark, accent: game.accent } as const),
+      shortcut: launch === "tab",
       open: () => openFuseGame(game.id),
     })),
     { id: "paint", label: "Paint", icon: "paint", open: openPaint },

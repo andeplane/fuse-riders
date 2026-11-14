@@ -7,6 +7,7 @@ import type { FxKind } from "../engine/view.js";
 export interface Sfx {
   play(kind: FxKind | "shot" | "count" | "go" | "crown"): void;
   resume(): void;
+  setMuted(muted: boolean): void;
 }
 
 /** Where the sounds come from: the browser's audio, and a timer for the notes of a jingle. */
@@ -24,6 +25,7 @@ export function createSfx(
   muted: boolean,
   deps: SfxDependencies = browser,
 ): Sfx {
+  const forcedMute = muted;
   let context: AudioContext | undefined;
   const ctx = () => {
     if (muted) return undefined;
@@ -73,6 +75,12 @@ export function createSfx(
     source.start();
   };
   return {
+    setMuted(value) {
+      if (forcedMute) return;
+      muted = value;
+      if (value) void context?.suspend();
+      else if (context) void context.resume();
+    },
     resume() {
       void ctx()?.resume();
     },
