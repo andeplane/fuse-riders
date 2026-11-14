@@ -653,7 +653,11 @@ export function showRoom(
   };
   requestAnimationFrame(poll);
   // A key steers from its own event, once the hub has heard it, rather than from the next frame: up to a frame sooner.
-  const keyed = () => setTimeout(steer, 0);
+  let pending: ReturnType<typeof setTimeout> | undefined;
+  const keyed = () => {
+    clearTimeout(pending);
+    pending = setTimeout(steer, 0);
+  };
   window.addEventListener("keydown", keyed);
   window.addEventListener("keyup", keyed);
   // A hidden page draws no frames to poll from: let go of everything at once (the sources forget their holds too).
@@ -670,6 +674,7 @@ export function showRoom(
     destroy: () => {
       input.hub.dispose();
       menu.dispose();
+      clearTimeout(pending);
       window.removeEventListener("keydown", keyed);
       window.removeEventListener("keyup", keyed);
       window.removeEventListener("blur", release);
