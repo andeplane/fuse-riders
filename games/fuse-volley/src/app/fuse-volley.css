@@ -63,6 +63,23 @@ body.fuse-volley-page {
   font: 0.875rem/1.5 var(--fui-font-sans);
   text-align: center;
 }
+/* During a match it floats over the top of the court: a line that appears must not push the court or the pads
+   out from under a thumb. */
+.fv-room:is([data-screen="play"], [data-screen="controller"]) > .fv-alert {
+  position: fixed;
+  z-index: var(--fui-z-overlay);
+  top: 4.25rem;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - 2 * var(--fui-space-4));
+  margin: 0;
+  padding: var(--fui-space-2) var(--fui-space-4);
+  border: 1px solid var(--fui-pink-soft);
+  border-radius: var(--fui-radius-small);
+  background: #0b0620f2;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
 /* The room's state beside the menu while a match is on; in the lobby it is the line at the lobby's foot. */
 .fv-live {
   flex: 1 1 10rem;
