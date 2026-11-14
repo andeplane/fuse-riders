@@ -87,6 +87,9 @@ export function raceTrack(
 }
 
 const track = { left: 0, width: 0 };
+const TRACK = hexA(LINE, 0.5),
+  FILLED = hexA(TEXT, 0.4),
+  FLAG_DARK = hexA(TEXT, 0.25);
 const QUARTERS = [0.25, 0.5, 0.75] as const;
 
 export function drawRace(
@@ -114,9 +117,9 @@ export function drawRace(
   }
 
   g.globalAlpha = 1;
-  g.fillStyle = hexA(LINE, 0.5);
+  g.fillStyle = TRACK;
   g.fillRect(left, y - thick / 2, width, thick);
-  g.fillStyle = hexA(TEXT, 0.4);
+  g.fillStyle = FILLED;
   g.fillRect(left, y - thick / 2, Math.round(width * pace), thick);
   // Quarter marks, and the finish: a little chequered flag.
   const tick = Math.round(5 * unit),
@@ -127,7 +130,7 @@ export function drawRace(
   const square = Math.max(2, Math.round(3 * unit));
   for (let row = 0; row < 4; row++)
     for (let column = 0; column < 2; column++) {
-      g.fillStyle = (row + column) % 2 === 0 ? WHITE : hexA(TEXT, 0.25);
+      g.fillStyle = (row + column) % 2 === 0 ? WHITE : FLAG_DARK;
       g.fillRect(
         left + width + column * square,
         y - 2 * square + row * square,

@@ -161,7 +161,9 @@ export function layoutFor(
   let top = barHeight + Math.round(pad / 2);
   // The race line takes a band under the lanes, where the lanes can spare it.
   const raceHeight = Math.round(RACE_HEIGHT * unit);
-  const raced = floor - top - raceHeight >= RACE_LEAVES * unit;
+  // A rider among others may get its board as a strip over the fields: count that out too.
+  const strip = count > 1 && local >= 0 && local < count ? 50 * unit : 0;
+  const raced = floor - top - raceHeight - strip >= RACE_LEAVES * unit;
   const bottom = raced
     ? floor - raceHeight - Math.round(RACE_GAP * unit)
     : floor;
