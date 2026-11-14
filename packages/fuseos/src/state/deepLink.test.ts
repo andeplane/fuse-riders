@@ -1,4 +1,5 @@
 import {
+  deepLinkApp,
   deepLinkContents,
   deepLinkRedirect,
   parseOpenParam,
@@ -47,6 +48,40 @@ describe(deepLinkContents.name, () => {
       { kind: "about" },
       { kind: "launcher" },
     ]);
+  });
+
+  it("opens the Phase D programs, the DOS Games folder and Run by name", () => {
+    expect(
+      deepLinkContents(
+        [
+          "recyclebin",
+          "friends",
+          "network",
+          "halloffame",
+          "taskmanager",
+          "dialup",
+          "explorer",
+          "notepad",
+          "dosgames",
+          "run",
+        ],
+        games,
+      ),
+    ).toEqual([
+      { kind: "recyclebin" },
+      { kind: "friends" },
+      { kind: "network" },
+      { kind: "halloffame" },
+      { kind: "taskmanager" },
+      { kind: "dialup" },
+      { kind: "explorer", location: "" },
+      { kind: "notepadpp", paths: ["README.md"], activePath: "README.md" },
+      { kind: "retroFolder" },
+      { kind: "run" },
+    ]);
+    // A name from Object.prototype is not an app.
+    expect(deepLinkApp("constructor")).toBeUndefined();
+    expect(deepLinkApp("paint")).toEqual({ kind: "paint" });
   });
 
   it("prefers a Fuse game over a retro game of the same id", () => {

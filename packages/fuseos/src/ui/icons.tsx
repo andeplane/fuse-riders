@@ -5,7 +5,6 @@ import { Conf100 } from "@react95/icons/Conf100";
 import { CurvesAndColors100 } from "@react95/icons/CurvesAndColors100";
 import { Desk100 } from "@react95/icons/Desk100";
 import { Dialmon200 } from "@react95/icons/Dialmon200";
-import { Explorer100 } from "@react95/icons/Explorer100";
 import { FileText } from "@react95/icons/FileText";
 import { Folder } from "@react95/icons/Folder";
 import { FolderExe } from "@react95/icons/FolderExe";
@@ -34,6 +33,7 @@ import { Shell322 } from "@react95/icons/Shell322";
 import { Shell323 } from "@react95/icons/Shell323";
 import { Shell326 } from "@react95/icons/Shell326";
 import { Shell328 } from "@react95/icons/Shell328";
+import { Shell3225 } from "@react95/icons/Shell3225";
 import { Shell3242 } from "@react95/icons/Shell3242";
 import { Sol1 } from "@react95/icons/Sol1";
 import { Taskman100 } from "@react95/icons/Taskman100";
@@ -133,7 +133,8 @@ const ICONS: Record<IconName, IconComponent> = {
   settings: Settings,
   find: ComputerFind,
   help: HelpBook,
-  run: Explorer100,
+  // Start > Run...: the window with the hourglass, as the Windows 95 Start menu draws it.
+  run: Shell3225,
   shutdown: Computer,
   programs: FolderExe,
   documents: FolderFile,

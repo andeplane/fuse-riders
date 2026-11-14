@@ -61,6 +61,9 @@ export const FRIENDS_WINDOW_SIZE: Size = { width: 320, height: 540 };
 /** Room for the task list with its buttons, or three frame-rate graphs over the heap graph. */
 export const TASK_MANAGER_WINDOW_SIZE: Size = { width: 440, height: 600 };
 
+/** The Run box: the prompt, one line to type in and three buttons. */
+export const RUN_WINDOW_SIZE: Size = { width: 360, height: 176 };
+
 /** Room for the Connect To form (user name, password, phone number, location) and its buttons. */
 export const DIAL_UP_WINDOW_SIZE: Size = { width: 400, height: 260 };
 
@@ -207,6 +210,13 @@ export function windowMeta(
         icon: "taskmanager",
         resizable: true,
         size: TASK_MANAGER_WINDOW_SIZE,
+      };
+    case "run":
+      return {
+        title: "Run",
+        icon: "run",
+        resizable: false,
+        size: RUN_WINDOW_SIZE,
       };
     case "dialup":
       return {

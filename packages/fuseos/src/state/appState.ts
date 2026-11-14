@@ -123,6 +123,11 @@ export interface TaskManagerWindowContent {
   kind: "taskmanager";
 }
 
+/** Start > Run...: the one-line Run box (`src/run`). One instance. */
+export interface RunWindowContent {
+  kind: "run";
+}
+
 /** Dial-Up Networking's "Connect To" dialog (`sounds/dialup`); on connect it closes and opens `then`, when given. */
 export interface DialUpWindowContent {
   kind: "dialup";
@@ -149,7 +154,8 @@ export type WindowContent =
   | HallOfFameWindowContent
   | FriendsWindowContent
   | TaskManagerWindowContent
-  | DialUpWindowContent;
+  | DialUpWindowContent
+  | RunWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -218,6 +224,7 @@ export function sameInstance(
     case "friends":
     case "taskmanager":
     case "dialup":
+    case "run":
       return existing.kind === content.kind;
     case "roomgame":
       return (
@@ -468,6 +475,7 @@ function isWindowContent(
         (isRecord(value.then) && isWindowContent(value.then))
       );
     case "recyclebin":
+    case "run":
       return true;
     case "mediaplayer":
       return (

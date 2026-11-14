@@ -195,6 +195,12 @@ export function useStartMenuViewModel(): {
           onSelect: wrap(() => commands.open({ kind: "about" })),
         },
       ],
+    },
+    {
+      id: "run",
+      label: "Run...",
+      icon: "run",
+      onSelect: wrap(() => commands.open({ kind: "run" })),
       separatorAfter: true,
     },
     {

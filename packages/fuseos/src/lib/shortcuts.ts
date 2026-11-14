@@ -83,6 +83,13 @@ export const SHORTCUTS: readonly Shortcut[] = [
     scope: "Desktop",
   },
   {
+    // Matched by `isRunChord` rather than `matchShortcut`: the Windows key is not one of its modifiers.
+    id: "desktop.run",
+    keys: "Win+R",
+    description: "Open the Run dialog, where the browser passes the Windows key on",
+    scope: "Desktop",
+  },
+  {
     id: "desktop.taskManager",
     keys: "Ctrl+Shift+Esc",
     description: "Open the Task Manager",
@@ -272,5 +279,30 @@ export function matchShortcut(
     (event.ctrlKey || event.metaKey) === parsed.ctrl &&
     event.shiftKey === parsed.shift &&
     event.altKey === parsed.alt
+  );
+}
+
+/**
+ * Win+R, the Run dialog's key (`desktop.run`). The Windows key reaches a page as `metaKey`, and only where the
+ * operating system does not keep the chord for itself; on an Apple device the same key is Command, and
+ * Cmd+R is the browser's Reload, so `apple` turns the chord off there.
+ */
+export function isRunChord(
+  event: {
+    key: string;
+    ctrlKey: boolean;
+    metaKey: boolean;
+    shiftKey: boolean;
+    altKey: boolean;
+  },
+  apple: boolean,
+): boolean {
+  return (
+    !apple &&
+    event.metaKey &&
+    !event.ctrlKey &&
+    !event.shiftKey &&
+    !event.altKey &&
+    event.key.toLowerCase() === "r"
   );
 }
