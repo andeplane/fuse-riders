@@ -40,6 +40,7 @@ function player(
     rating: 0,
     place: 1,
     combo,
+    worst: combo > 0 ? 1 : -1,
     best: combo,
     counts: Array.from({ length: COUNTS }, (_, index) => counts[index] ?? 0),
     next: [0, 0, 0, 0],

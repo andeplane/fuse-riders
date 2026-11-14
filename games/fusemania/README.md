@@ -59,7 +59,7 @@ Every key can be changed in Settings, up to four keys an arrow. WASD and IJKL ar
 
 ## Judging and scoring
 
-A step is judged by how far the press is from the note: Marvelous within 22 ms, Perfect 45, Great 90, Good 135, Boo 180, otherwise a Miss. The combo counts Marvelous to Good. The score is a rating out of 1,000,000: the share of the chart's best possible points, so players on different levels compare. Grades run D to AAAA.
+A step is judged by how far the press is from the note: Marvelous within 22 ms, Perfect 45, Great 90, Good 135, Boo 180, otherwise a Miss. The combo counts Marvelous to Great; a Good or worse breaks it. The combo number blinks in the colour of the worst judgment in it: white while every step was a Marvelous, yellow once a Perfect is in it, green once a Great is (the engine keeps that as `worst` beside the combo, so a device that recovers the match shows the same colour); with reduced motion it holds the colour without blinking. The score is a rating out of 1,000,000: the share of the chart's best possible points, so players on different levels compare. Grades run D to AAAA.
 
 ## Battle mode
 

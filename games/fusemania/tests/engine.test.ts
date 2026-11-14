@@ -38,6 +38,7 @@ import {
   parseSimfile,
   ranking,
   stepWorld,
+  NO_JUDGMENT,
   toView,
   turnedMine,
   wasHit,
@@ -225,19 +226,50 @@ test("a note nobody pressed is a miss once the room's clock is past its window",
   assert.equal(stray.players[0]!.judged, -1);
 });
 
-test("a combo runs through Good and breaks on Boo and on a miss", () => {
+test("a combo runs through Great and breaks on Good, on Boo and on a miss", () => {
+  for (const [off, judgment] of [
+    [130, GOOD],
+    [-170, BOO],
+  ] as const) {
+    const state = world();
+    run(state, beatMs(8), [
+      ...tapAt(0, 0, beatMs(4)),
+      ...tapAt(0, 1, beatMs(5) + 80),
+      ...tapAt(0, 2, beatMs(6) + off),
+      ...tapAt(0, 3, beatMs(7)),
+    ]);
+    const player = state.players[0]!;
+    assert.equal(player.counts[judgment], 1);
+    assert.equal(player.best, 2);
+    assert.equal(player.combo, 1);
+    run(state, beatMs(10));
+    assert.equal(state.players[0]!.combo, 0);
+  }
+});
+
+test("a combo remembers the worst judgment in it until it breaks", () => {
   const state = world();
-  run(state, beatMs(8), [
-    ...tapAt(0, 0, beatMs(4)),
-    ...tapAt(0, 1, beatMs(5) + 130),
-    ...tapAt(0, 2, beatMs(6) - 170),
-    ...tapAt(0, 3, beatMs(7)),
-  ]);
   const player = state.players[0]!;
-  assert.equal(player.best, 2);
-  assert.equal(player.combo, 1);
-  run(state, beatMs(10));
-  assert.equal(state.players[0]!.combo, 0);
+  assert.equal(player.worst, NO_JUDGMENT);
+  run(state, beatMs(4) + 400, tapAt(0, 0, beatMs(4)));
+  assert.equal(player.worst, MARVELOUS);
+  run(state, beatMs(5) + 400, tapAt(0, 1, beatMs(5) + 80));
+  assert.equal(player.worst, GREAT);
+  // A better step does not take the Great back.
+  run(state, beatMs(6) + 400, tapAt(0, 2, beatMs(6) + 30));
+  assert.equal(player.combo, 3);
+  assert.equal(player.worst, GREAT);
+  assert.equal(toView(library, state).players[0]!.worst, GREAT);
+  // A Good breaks it, and the next combo starts clean.
+  run(state, beatMs(7) + 400, tapAt(0, 3, beatMs(7) + 130));
+  assert.equal(player.combo, 0);
+  assert.equal(player.worst, NO_JUDGMENT);
+  run(state, beatMs(8) + 400, tapAt(0, 0, beatMs(8) + 30));
+  assert.equal(player.worst, PERFECT);
+  // So does a miss.
+  run(state, beatMs(11));
+  assert.equal(player.combo, 0);
+  assert.equal(player.worst, NO_JUDGMENT);
 });
 
 test("a hold is kept to its tail, may be caught again quickly, and is dropped when let go", () => {
@@ -515,16 +547,33 @@ test("a checkpoint round-trips mid-match and a damaged one is refused whole", ()
     damage((copy) => (player(copy)[10] = 99_999)),
     undefined,
   );
+  // The combo's worst judgment: none when there is no combo, one that keeps a combo while there is one.
+  assert.equal(player(fields as unknown[][])[10], 0);
+  for (const worst of [PERFECT, GOOD, 1.5, null])
+    assert.equal(
+      damage((copy) => (player(copy)[11] = worst)),
+      undefined,
+    );
   assert.equal(
-    damage((copy) => (player(copy)[13] as number[]).push(0)),
+    damage((copy) => (player(copy)[10] = 1)),
+    undefined,
+  );
+  assert.ok(
+    damage((copy) => {
+      player(copy)[10] = 1;
+      player(copy)[11] = GREAT;
+    }),
+  );
+  assert.equal(
+    damage((copy) => (player(copy)[14] as number[]).push(0)),
     undefined,
   );
   assert.equal(
-    damage((copy) => (player(copy)[17] = 99)),
+    damage((copy) => (player(copy)[18] = 99)),
     undefined,
   );
   assert.equal(
-    damage((copy) => (player(copy)[19] = [[DRUNK, 10, 5, 0]])),
+    damage((copy) => (player(copy)[20] = [[DRUNK, 10, 5, 0]])),
     undefined,
   );
   assert.equal(

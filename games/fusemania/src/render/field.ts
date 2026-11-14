@@ -62,6 +62,9 @@ import {
   RAINBOW,
   RED,
   SHIMMER,
+  COMBO_BLINK_DIM,
+  comboBlink,
+  comboColor,
   TEXT,
   WHITE,
   placeName,
@@ -643,11 +646,13 @@ export function drawField(
         ? 1 + 0.25 * (1 - comboAge / 110)
         : 1;
     const flashing = !calm && flashAge >= 0 && flashAge < 500;
+    // The combo blinks in the colour of the worst judgment in it; with reduced motion it holds that colour.
+    const color = comboColor(player.worst);
     if (flashing) {
       g.globalCompositeOperation = "lighter";
       g.globalAlpha = 1 - flashAge / 500;
       g.drawImage(
-        set.glows[1]!.canvas,
+        (set.glows[player.worst] ?? set.glows[1]!).canvas,
         middle - col * 1.6,
         comboY - col * 0.8,
         col * 3.2,
@@ -656,15 +661,24 @@ export function drawField(
       g.globalCompositeOperation = "source-over";
       g.globalAlpha = 1;
     }
+    // Passing a hundred blinks faster for a moment.
+    g.globalAlpha = calm
+      ? 1
+      : flashing
+        ? Math.floor(flashAge / 60) % 2 === 0
+          ? 1
+          : COMBO_BLINK_DIM
+        : comboBlink(songMs);
     outlined(
       g,
       countText(info.texts.combo, "", player.combo),
       middle,
       comboY,
       col * 0.44 * bump * (flashing ? 1.15 : 1),
-      flashing && Math.floor(flashAge / 60) % 2 === 0 ? GOLD : WHITE,
+      color,
       width,
     );
+    g.globalAlpha = 1;
     outlined(g, "COMBO", middle, comboY + col * 0.42, col * 0.14, MUTED, width);
   }
   const brokenAge = songMs - state.brokenAt;
