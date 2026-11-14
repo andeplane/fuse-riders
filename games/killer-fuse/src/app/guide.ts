@@ -1,19 +1,11 @@
 import type { ControlHint } from "fuse-ui";
 import {
-  EAT_STEPS,
-  GATE_STEPS,
   MAPS,
   QUEEN_EGGS,
   RESPAWN_STEPS,
   TICK_HZ,
   TIME_LIMIT,
 } from "../engine/index.js";
-import {
-  frameIndex,
-  frameRect,
-  type ArtManifest,
-  type SheetDef,
-} from "../render/manifest.js";
 
 /**
  * How to play, in the words every screen uses: the landing page, the lobby, the menu, the How to play panel and the
@@ -57,7 +49,7 @@ export const UNITS: readonly UnitGuide[] = [
     art: "worker",
     name: "Worker",
     can: "Run, jump (hold for higher), carry one berry, bank it, use gates, ride the snail.",
-    cannot: "Kill or fly. Dies when an enemy Warrior or Queen touches it.",
+    cannot: "Kill or fly. Dies to an enemy sword or a diving Queen.",
   },
   {
     art: "speed-worker",
@@ -68,7 +60,7 @@ export const UNITS: readonly UnitGuide[] = [
   {
     art: "warrior",
     name: "Warrior",
-    can: "Fly by tapping, kill enemy Workers on contact, duel enemy Warriors and Queens, kick loose berries.",
+    can: "Fly by tapping, attack: dash forward with the sword to kill what is in front of the blade, pop loose berries up by touching them.",
     cannot:
       "Carry berries, use gates or ride the snail. Comes back as a plain Worker after dying.",
   },
@@ -81,7 +73,7 @@ export const UNITS: readonly UnitGuide[] = [
   {
     art: "queen",
     name: "Queen",
-    can: "Fly, kill on contact, dive (hold down in the air, release to stop), claim gates by touching them.",
+    can: "Fly, attack with the sword (it reaches above and to the side), dive (hold down in the air, release to stop; she can attack-dash out of it), claim gates by touching them.",
     cannot: `Carry berries, use gates or ride the snail. She has ${QUEEN_EGGS} lives; losing the last loses the game.`,
   },
 ];
@@ -94,25 +86,25 @@ export const RULES: readonly GuideSection[] = [
   {
     title: "COMBAT",
     lines: [
-      "There is no attack button: contact decides.",
-      "A Warrior or Queen kills any enemy Worker it touches.",
-      "When two flyers meet, the higher one wins, a hit from behind wins, and a diving Queen kills what she lands on. Otherwise both bounce apart.",
-      `The dead come back at their spawn after ${seconds(RESPAWN_STEPS)}, briefly invulnerable. An invulnerable Worker shoves flyers instead of dying.`,
+      "Kills come from the sword: press attack as a Warrior or Queen to dash forward with it, or dive onto an enemy as the Queen.",
+      "A Warrior hits with the front of the blade; the Queen's sword reaches above her and to the side.",
+      "Two blades meeting knock both back. Landing on a head is a harmless bounce.",
+      `The dead come back at their spawn after ${seconds(RESPAWN_STEPS)}, briefly invulnerable.`,
     ],
   },
   {
     title: "BERRIES AND HIVE",
     lines: [
-      "A Worker picks up a berry by touching a pile and banks it by touching an empty hole of its own hive.",
-      "A carrier that dies drops its berry. Anyone kicks loose berries, and a berry kicked into an empty hole fills it for that hive.",
-      "The piles grow back when they run dry, and on a clock as well.",
+      "A Worker picks up a berry by touching a pile and banks it by touching an open hole of its own hive, from the ground or the air: 1.5 s inside, safe, then it pops out.",
+      "A carrier that dies drops its berry. A Worker with free hands picks a loose berry up; anyone who can't carry one pops it straight up by touching it.",
+      "Berries never regrow: once the piles are empty, only loose berries are left.",
     ],
   },
   {
     title: "GATES",
     lines: [
-      `A Worker with a berry stands in a gate for ${seconds(GATE_STEPS)}: a warrior gate makes a Warrior, a speed gate a speed Worker. The berry is spent.`,
-      "A Worker in a gate can still be killed.",
+      "Holding a berry, a Worker stands completely still on the ground in a gate: 0.5 s to commit (moving cancels it), then 2 s locked in and safe. A warrior gate makes a Warrior, a speed gate a speed Worker; the berry is spent.",
+      "Only gates of your colour or neutral ones work for you; an enemy-coloured gate does nothing.",
       "Gates start neutral. A Queen claims one by touching it; then only her team can use it until the other Queen touches it.",
     ],
   },
@@ -120,15 +112,15 @@ export const RULES: readonly GuideSection[] = [
     title: "SNAIL",
     lines: [
       "A Worker who walks into the snail on the floor climbs on, and it crawls toward the rider's own goal. Press the button to hop off.",
-      `It catches an enemy Worker in front of its mouth and stops to eat it for ${seconds(EAT_STEPS)}; then that Worker dies.`,
-      "Killing the rider frees the Worker being eaten. Nothing is banked: the other team can ride it back.",
+      "It catches an enemy Worker in front of its mouth and eats it for 5 s (3.5 s with a speed rider); then that Worker dies. The rider can't hop off while it eats.",
+      "Killing or knocking off the rider frees the Worker being eaten. Nothing is banked: the other team can ride it back.",
     ],
   },
   {
     title: "FLYING",
     lines: [
       `Queens and Warriors flap once per tap. About ${HOVER_TAPS} taps a second hold your height; tap faster to climb, slower to sink.`,
-      "As the Queen, hold down in the air to dive straight down; release to stop.",
+      "As the Queen, hold down in the air to dive straight down at once; release to stop. She can attack-dash out of a dive.",
       "The screen wraps: leave on one side, come back on the other.",
     ],
   },
@@ -149,37 +141,47 @@ export const DEVICE_NAMES: Record<Device, string> = {
   touch: "TOUCH",
 };
 /**
- * The bindings of `controls.ts` in a few characters, per device: move, the one button, and down. As in the original,
- * nothing is bound to up: flying is only ever the button.
+ * The bindings of `controls.ts` in a few characters, per device: move, the jump / flap button, attack and down. As in
+ * the original, nothing is bound to up: flying is only ever the button.
  */
 export const DEVICE_KEYS: Record<
   Device,
-  { move: string; button: string; down: string }
+  { move: string; button: string; attack: string; down: string }
 > = {
-  keys: { move: "A D / ← →", button: "Space", down: "S / ↓" },
+  keys: { move: "A D / ← →", button: "Space", attack: "J", down: "S / ↓" },
   pad: {
     move: "Stick / D-pad ← →",
     button: "A / Cross",
+    attack: "B / Circle",
     down: "Stick / D-pad ↓",
   },
-  touch: { move: "Left pad", button: "Big button", down: "Left pad ↓" },
+  touch: {
+    move: "Left pad",
+    button: "Big button",
+    attack: "ATTACK",
+    down: "Left pad ↓",
+  },
 };
 const FLAP = `Jump / flap: tap about ${HOVER_TAPS} times a second to hold height`;
 const DIVE = "Queen dive, hold (release to stop)";
+const ATTACK = "Attack as a Warrior or Queen: dash forward with the sword";
 export const DEVICE_CONTROLS: Record<Device, readonly ControlHint[]> = {
   keys: [
     { keys: "A / D or ← / →", action: "Move" },
     { keys: "Space", action: FLAP },
+    { keys: "J", action: ATTACK },
     { keys: "S or ↓", action: DIVE },
   ],
   pad: [
     { keys: "Left stick or D-pad ← / →", action: "Move" },
     { keys: "A / Cross", action: FLAP },
+    { keys: "B / Circle or left bumper", action: ATTACK },
     { keys: "Stick or D-pad ↓", action: DIVE },
   ],
   touch: [
     { keys: "Left pad", action: "Slide left or right to move" },
     { keys: "Big button", action: FLAP },
+    { keys: "ATTACK button beside it", action: ATTACK },
     { keys: "Left pad, slide down", action: DIVE },
   ],
 };
@@ -194,52 +196,7 @@ export const CONTROLS: readonly ControlHint[] = [
   {
     keys: "Gamepad",
     action:
-      "Stick or D-pad ← / → to move, ↓ to dive; A / Cross to jump or flap",
+      "Stick or D-pad ← / → to move, ↓ to dive; A / Cross to jump or flap; B / Circle or left bumper to attack",
   },
 ];
 export const TOUCH_CONTROLS: readonly ControlHint[] = DEVICE_CONTROLS.touch;
-
-/** How to draw one unit's idle frame as a CSS background, a whole number of CSS pixels to the art pixel. */
-export interface UnitIcon {
-  url: string;
-  width: number;
-  height: number;
-  size: string;
-  position: string;
-}
-const sheetOf = (manifest: ArtManifest, art: UnitArt, team: number) =>
-  manifest.assets[`${art}-${team === 1 ? "pink" : "cyan"}`];
-/** Art pixels from a sheet's frame top down to the feet (its anchor): the unit standing, without the rows under it. */
-const standing = (sheet: SheetDef): number =>
-  Math.min(sheet.frameHeight, sheet.anchor[1] + 1);
-
-/**
- * Every unit's idle frame for `team`, all drawn at one whole scale: the largest at which the tallest unit, measured
- * from its frame top to its feet, fits in `height` CSS pixels. Sizes come from the manifest, so redrawn art keeps its
- * proportions (a Queen stays taller than a Worker). A unit the manifest lacks has no icon.
- */
-export function unitIcons(
-  manifest: ArtManifest,
-  artUrl: string,
-  team: number,
-  height: number,
-): Partial<Record<UnitArt, UnitIcon>> {
-  const sheets = UNITS.flatMap((unit) => {
-    const sheet = sheetOf(manifest, unit.art, team);
-    return sheet ? [{ art: unit.art, sheet }] : [];
-  });
-  const tallest = Math.max(1, ...sheets.map(({ sheet }) => standing(sheet))),
-    scale = Math.max(1, Math.floor(height / tallest)),
-    icons: Partial<Record<UnitArt, UnitIcon>> = {};
-  for (const { art, sheet } of sheets) {
-    const frame = frameRect(sheet, frameIndex(sheet, "idle"));
-    icons[art] = {
-      url: `${artUrl}${sheet.file}`,
-      width: frame.sw * scale,
-      height: standing(sheet) * scale,
-      size: `${sheet.width * scale}px ${sheet.height * scale}px`,
-      position: `${-frame.sx * scale}px ${-frame.sy * scale}px`,
-    };
-  }
-  return icons;
-}

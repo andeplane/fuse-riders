@@ -474,12 +474,157 @@ body.kf-page {
   font-weight: 700;
   white-space: nowrap;
 }
-.kf-brief-tips {
+.kf-brief-sub {
   color: var(--fui-text-muted);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+}
+.kf-brief-title[hidden],
+.kf-brief-wins[hidden],
+.kf-brief-controls[hidden] {
+  display: none;
+}
+/* The first game of a set: a big card over the dimmed arena, as the original's "three paths to victory". */
+.kf-brief[data-first="true"] {
+  top: 50%;
+  bottom: auto;
+  gap: var(--fui-space-2);
+  padding: var(--fui-space-3) var(--fui-space-4);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 100vmax #04091a80;
+}
+.kf-brief[data-first="true"] .kf-brief-title {
+  font-size: 1rem;
+}
+.kf-brief-wins {
+  display: flex;
+  justify-content: center;
+  gap: var(--fui-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 .kf-brief-win {
+  display: grid;
+  justify-items: center;
+  align-content: end;
+  gap: var(--fui-space-1);
+  max-width: 8rem;
   color: var(--kf-gold);
+  font-size: 0.75rem;
   font-weight: 700;
+  animation: kf-win-in 0.3s ease-out;
+}
+.kf-brief-icon {
+  width: 0;
+  height: 0;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+@keyframes kf-win-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kf-brief-win {
+    animation: none;
+  }
+}
+
+/* Lobby tips. */
+.kf-tip {
+  display: grid;
+  gap: var(--fui-space-1);
+  padding: var(--fui-space-3);
+  background: var(--fui-panel);
+  border: var(--fui-border);
+  border-radius: var(--fui-radius-panel);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.kf-tip-title {
+  margin: 0;
+  color: var(--kf-gold);
+  font: 0.5625rem var(--fui-font-pixel);
+}
+.kf-tip-text {
+  margin: 0;
+  color: var(--fui-text-muted);
+}
+.kf-tip [hidden] {
+  display: none;
+}
+
+/* The tutorial: lessons on the start page, the lesson's step over the arena. */
+.kf-tutorial {
+  display: grid;
+  gap: var(--fui-space-2);
+  justify-items: center;
+}
+.kf-tutorial-title {
+  margin: 0;
+  color: var(--kf-gold);
+  font: 0.75rem var(--fui-font-pixel);
+}
+.kf-tutorial-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--fui-space-2) var(--fui-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kf-tutorial-list li {
+  display: grid;
+  justify-items: center;
+  gap: var(--fui-space-1);
+  color: var(--fui-text-muted);
+  font-size: 0.75rem;
+}
+.kf-lesson {
+  position: absolute;
+  left: 50%;
+  top: 2%;
+  display: grid;
+  justify-items: center;
+  gap: var(--fui-space-1);
+  max-width: min(94%, 40rem);
+  padding: var(--fui-space-2) var(--fui-space-3);
+  color: var(--fui-text);
+  background: #04091ae6;
+  border: 2px solid var(--kf-cyan);
+  border-radius: var(--fui-radius-small);
+  font-size: 0.8125rem;
+  text-align: center;
+  transform: translateX(-50%);
+}
+.kf-lesson[hidden] {
+  display: none;
+}
+.kf-lesson-text {
+  margin: 0;
+}
+.kf-lesson[data-outcome="won"] {
+  border-color: var(--kf-gold);
+}
+.kf-lesson-actions {
+  display: flex;
+  gap: var(--fui-space-2);
+}
+.kf-lesson-actions:empty {
+  display: none;
+}
+.kf-lesson-actions a,
+.kf-tutorial-link {
+  padding: var(--fui-space-1) var(--fui-space-3);
+  color: var(--kf-gold);
+  border: 1px solid var(--kf-gold);
+  border-radius: var(--fui-radius-small);
+  font: 0.625rem/1.8 var(--fui-font-pixel);
+  text-decoration: none;
 }
 .kf-seat-line {
   margin: 0;
@@ -537,6 +682,27 @@ body.kf-page {
 }
 .fui-app .kf-flap:active {
   transform: scale(0.94);
+}
+.kf-buttons {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--fui-space-3);
+}
+/* The attack button: smaller than the flap button and above-left of it, where the thumb rolls to. */
+.fui-app .kf-strike {
+  flex: none;
+  width: 5rem;
+  height: 5rem;
+  margin-bottom: 3rem;
+  color: var(--fui-text);
+  background: var(--kf-pink);
+  border: 0;
+  border-radius: 50%;
+  font: 0.625rem var(--fui-font-pixel);
+  touch-action: none;
+}
+.fui-app .kf-strike[hidden] {
+  display: none;
 }
 
 /* A seated phone in a shared-screen room is only the controller: the TV shows the arena. */
@@ -703,5 +869,11 @@ body.kf-display .kf-seat-line {
     z-index: 5;
     bottom: max(var(--fui-space-2), env(safe-area-inset-bottom));
     max-width: calc(100vw - 17rem);
+  }
+  /* The opening card of a set stays in the middle of the arena it dims. */
+  .kf-room[data-layout="arena"] .kf-brief[data-first="true"] {
+    position: absolute;
+    bottom: auto;
+    max-width: 94%;
   }
 }

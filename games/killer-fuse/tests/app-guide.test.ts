@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { EAT_STEPS, MAPS, QUEEN_EGGS, TICK_HZ } from "../src/engine/index.js";
-import type { ArtManifest, SheetDef } from "../src/render/manifest.js";
+import { MAPS, QUEEN_EGGS } from "../src/engine/index.js";
 import {
   CONTROLS,
   DEVICE_CONTROLS,
@@ -14,35 +13,7 @@ import {
   UNITS,
   WINS,
   WIN_LINE,
-  unitIcons,
 } from "../src/app/guide.js";
-
-const sheet = (patch: Partial<SheetDef>): SheetDef => ({
-  file: "units/worker-cyan.png",
-  width: 96,
-  height: 56,
-  frameWidth: 24,
-  frameHeight: 28,
-  frameCount: 8,
-  frames: { idle: 0 },
-  anchor: [12, 27],
-  animations: {},
-  fps: 1,
-  flash: undefined,
-  saddle: [],
-  slots: [],
-  parallax: 1,
-  holes: [],
-  count: undefined,
-  perch: undefined,
-  lane: undefined,
-  ...patch,
-});
-const art = (assets: Record<string, SheetDef>): ArtManifest => ({
-  canvas: [480, 270],
-  teams: {},
-  assets,
-});
 
 test("the figures come from the engine's tuning", () => {
   assert.equal(HOVER_TAPS, 3, "about three taps a second hover");
@@ -53,11 +24,28 @@ test("the figures come from the engine's tuning", () => {
   assert.match(WINS[1]!.how, new RegExp(`${HIVE_HOLES} holes`));
   assert.match(WIN_LINE, new RegExp(`Queen ${QUEEN_EGGS}×`));
   const snail = RULES.find((section) => section.title === "SNAIL")!;
-  assert.ok(
-    snail.lines.some((line) =>
-      line.includes(`${Math.round((EAT_STEPS / TICK_HZ) * 10) / 10} s`),
-    ),
+  assert.match(
+    snail.lines.join(" "),
+    /eats it for 5 s \(3\.5 s with a speed rider\)/,
   );
+  assert.match(snail.lines.join(" "), /can't hop off while it eats/);
+  const gates = RULES.find((section) => section.title === "GATES")!.lines.join(
+    " ",
+  );
+  assert.match(gates, /completely still on the ground/);
+  assert.match(
+    gates,
+    /0\.5 s to commit \(moving cancels it\), then 2 s locked in and safe/,
+  );
+  assert.match(gates, /enemy-coloured gate does nothing/);
+  const berries = RULES.find(
+    (section) => section.title === "BERRIES AND HIVE",
+  )!.lines.join(" ");
+  assert.match(
+    berries,
+    /from the ground or the air: 1\.5 s inside, safe, then it pops out/,
+  );
+  assert.match(berries, /pops it straight up/);
   const flying = RULES.find((section) => section.title === "FLYING")!;
   assert.ok(flying.lines.some((line) => line.includes(`${HOVER_TAPS} taps`)));
 });
@@ -92,54 +80,41 @@ test("the controls name the bindings of controls.ts and no platform drop", () =>
   assert.ok(!all.some((hint) => /drop through/i.test(hint.action)));
   assert.equal(DEVICE_CONTROLS.keys[1]!.keys, "Space");
   assert.match(DEVICE_CONTROLS.keys[1]!.action, /tap about 3 times a second/);
-  assert.match(DEVICE_CONTROLS.keys[2]!.action, /Queen dive, hold/);
+  assert.match(DEVICE_CONTROLS.keys[3]!.action, /Queen dive, hold/);
   assert.equal(DEVICE_CONTROLS.pad[1]!.keys, "A / Cross");
   assert.match(HOLD_TO_FLAP.how, /7\.5 times a second/);
   assert.equal(TOUCH_CONTROLS, DEVICE_CONTROLS.touch);
   assert.deepEqual(Object.keys(DEVICE_KEYS), ["keys", "pad", "touch"]);
 });
 
-test("unit icons share one whole scale that fits the tallest unit, cropped at the feet", () => {
-  const manifest = art({
-    "worker-cyan": sheet({
-      file: "units/worker-cyan.png",
-      width: 112,
-      height: 28,
-      frameWidth: 14,
-      frameHeight: 14,
-      frameCount: 16,
-      anchor: [7, 13],
-      frames: { walk: 0, idle: 9 },
-    }),
-    "queen-cyan": sheet({
-      file: "units/queen-cyan.png",
-      width: 230,
-      height: 24,
-      frameWidth: 23,
-      frameHeight: 24,
-      anchor: [11, 18],
-    }),
-    "queen-pink": sheet({ file: "units/queen-pink.png" }),
-  });
-  const icons = unitIcons(manifest, "/art/", 0, 48);
-  // The Queen stands 19 art pixels to her feet: 48 / 19 rounds down to 2, and every icon is drawn at 2.
-  assert.deepEqual(icons.queen, {
-    url: "/art/units/queen-cyan.png",
-    width: 46,
-    height: 38,
-    size: "460px 48px",
-    position: "0px 0px",
-  });
-  assert.deepEqual(icons.worker, {
-    url: "/art/units/worker-cyan.png",
-    width: 28,
-    height: 28,
-    size: "224px 56px",
-    position: "-28px -28px",
-  });
-  assert.deepEqual(Object.keys(icons).sort(), ["queen", "worker"]);
-  // Too small a box still draws one art pixel to the pixel; a team without sheets has none.
-  assert.equal(unitIcons(manifest, "/art/", 0, 4).queen?.height, 19);
-  assert.deepEqual(Object.keys(unitIcons(manifest, "/art/", 1, 48)), ["queen"]);
-  assert.deepEqual(unitIcons(art({}), "/art/", 0, 48), {});
+test("combat is the sword's, berries do not regrow, and banking takes time", () => {
+  const all = [
+    ...RULES.flatMap((section) => section.lines),
+    ...UNITS.flatMap((unit) => [unit.can, unit.cannot]),
+  ].join("\n");
+  assert.doesNotMatch(all, /higher one wins|on contact|no attack button/i);
+  assert.match(all, /Kills come from the sword/);
+  assert.match(all, /front of the blade/);
+  assert.match(all, /above her and to the side/);
+  assert.match(all, /Two blades meeting knock both back/);
+  assert.match(all, /harmless bounce/);
+  assert.match(all, /never regrow/);
+  assert.match(all, /1\.5 s inside/);
+});
+
+test("attack is J, B / Circle or the left bumper, and the touch ATTACK button", () => {
+  assert.deepEqual(
+    [DEVICE_KEYS.keys.attack, DEVICE_KEYS.pad.attack, DEVICE_KEYS.touch.attack],
+    ["J", "B / Circle", "ATTACK"],
+  );
+  assert.equal(DEVICE_CONTROLS.keys[2]!.keys, "J");
+  assert.match(DEVICE_CONTROLS.pad[2]!.keys, /left bumper/);
+  for (const device of ["keys", "pad", "touch"] as const)
+    assert.ok(
+      DEVICE_CONTROLS[device].some((hint) =>
+        /dash forward with the sword/.test(hint.action),
+      ),
+      device,
+    );
+  assert.match(CONTROLS.at(-1)!.action, /B \/ Circle or left bumper to attack/);
 });

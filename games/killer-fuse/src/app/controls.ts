@@ -7,16 +7,19 @@ import {
 } from "../engine/index.js";
 
 /**
- * This device's controls, the arcade's: left, right, down and one button, from the keyboard, a gamepad and the touch
- * pad at once. The button jumps on the ground and flaps in the air, on its press edge; down is the Queen's dive. Up
- * does nothing. Each source says what it holds; `Controls` merges them into the held bits the runtime logs (`input`)
- * and passes every press of the button on as its own edge (`press`), so a tap shorter than a frame still flaps.
+ * This device's controls, Killer Queen Black's: left, right, down, the jump / flap button and the attack button, from
+ * the keyboard, a gamepad and the touch pad at once. Jump / flap acts on its press edge (a jump on the ground, a flap
+ * in the air); down is the Queen's dive; attack is a press edge only. Up does nothing. Each source says what it holds;
+ * `Controls` merges them into the held bits the runtime logs (`input`) and passes every press on as its own edge
+ * (`press`, `attack`), so a tap shorter than a frame still counts.
  */
 export interface ControlSink {
   /** The held bits changed: `INPUT_LEFT | INPUT_RIGHT | INPUT_DOWN | INPUT_HELD`. */
   input(bits: number): void;
   /** The button went down. */
   press(): void;
+  /** The attack button went down: a press edge only, never held. */
+  attack(): void;
 }
 export type ControlSource = "keys" | "pad" | "touch";
 
@@ -89,6 +92,11 @@ export class Controls {
     this.sink.press();
     if (this.holdToFlap) this.repeatAt = this.now() + HOLD_REPEAT_MS;
   }
+  /** The attack button went down on `source`. */
+  attack(source: ControlSource): void {
+    this.last = source;
+    this.sink.attack();
+  }
   /** Everything let go: the page lost focus, or a menu opened. */
   release(): void {
     for (const source of [...this.held.keys()]) this.set(source, 0);
@@ -110,17 +118,20 @@ const KEY_BITS: Record<string, number> = {
   ArrowDown: INPUT_DOWN,
   KeyS: INPUT_DOWN,
 };
-/** The one button. Up and W are bound to nothing, as in the original. */
+/** The jump / flap button. Up and W are bound to nothing, as in the original. */
 const BUTTON_KEYS = new Set(["Space"]);
+/** The attack button, as Killer Queen Black binds it. */
+const ATTACK_KEYS = new Set(["KeyJ"]);
 /** Keys the page swallows during play so they do not scroll it, though they do nothing. */
 const QUIET_KEYS = new Set(["ArrowUp"]);
 /** Whether the game owns the key (`KeyboardEvent.code`) during play: the page keeps it from scrolling. */
 export const gameKey = (code: string): boolean =>
   Object.hasOwn(KEY_BITS, code) ||
   BUTTON_KEYS.has(code) ||
+  ATTACK_KEYS.has(code) ||
   QUIET_KEYS.has(code);
 
-/** The keyboard: A/D or the arrows to move, S or down to dive, Space for the button. */
+/** The keyboard: A/D or the arrows to move, S or down to dive, Space to jump and flap, J to attack. */
 export class Keys {
   private readonly down = new Set<string>();
   constructor(private readonly controls: Controls) {}
@@ -138,6 +149,7 @@ export class Keys {
     this.down.add(code);
     this.update();
     if (BUTTON_KEYS.has(code)) this.controls.press();
+    if (ATTACK_KEYS.has(code)) this.controls.attack("keys");
     return true;
   }
   lift(code: string): void {
@@ -156,13 +168,18 @@ export interface PadLike {
 }
 /** A stick counts as pushed past half way, sideways for moving and down for the dive, as in the original. */
 export const STICK_DEAD = 0.5;
-/** The bottom face button (A on Xbox, Cross on PlayStation) is the one button. */
+/** The bottom face button (A on Xbox, Cross on PlayStation) jumps and flaps. */
 const FACE = [0];
+/** The right face button (B / Circle) and the left bumper attack. */
+const ATTACK_BUTTONS = [1, 4];
 const DPAD_DOWN = 13,
   DPAD_LEFT = 14,
   DPAD_RIGHT = 15;
 
-/** Gamepads: the left stick or the d-pad to move and dive, A / Cross for the button; up does nothing. Polled every frame. */
+/**
+ * Gamepads: the left stick or the d-pad to move and dive, A / Cross to jump and flap, B / Circle or the left bumper to
+ * attack; up does nothing. Polled every frame.
+ */
 export class Pads {
   private readonly was = new Set<string>();
   constructor(private readonly controls: Controls) {}
@@ -182,9 +199,14 @@ export class Pads {
           bits |= INPUT_HELD;
           now.add(`${index}:${button}`);
         }
+      for (const button of ATTACK_BUTTONS)
+        if (on(button)) now.add(`${index}:attack:${button}`);
     });
     this.controls.set("pad", bits);
-    for (const key of now) if (!this.was.has(key)) this.controls.press();
+    for (const key of now)
+      if (!this.was.has(key))
+        if (key.includes(":attack:")) this.controls.attack("pad");
+        else this.controls.press();
     this.was.clear();
     for (const key of now) this.was.add(key);
   }
@@ -205,6 +227,7 @@ export function stickBits(dx: number, dy: number, radius: number): number {
 export class Touch {
   private stick = 0;
   private button = false;
+  private striking = false;
   constructor(private readonly controls: Controls) {}
   private update(): void {
     this.controls.set("touch", this.stick | (this.button ? INPUT_HELD : 0));
@@ -225,5 +248,11 @@ export class Touch {
     this.button = down;
     this.update();
     if (down) this.controls.press();
+  }
+  /** The attack button beside it went down or up: only going down attacks. */
+  strike(down: boolean): void {
+    if (down === this.striking) return;
+    this.striking = down;
+    if (down) this.controls.attack("touch");
   }
 }

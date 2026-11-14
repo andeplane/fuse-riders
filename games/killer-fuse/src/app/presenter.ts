@@ -4,6 +4,7 @@ import {
   CAPACITY,
   STEPS_PER_TICK,
   botName,
+  countdownTicks,
   teamOfSlot,
   type BotLevel,
   type Settings,
@@ -89,9 +90,14 @@ export interface ArenaModel {
   score: number[];
   wins: number;
   line: string;
-  /** A game is about to start (its countdown, or the pause before the next one): time for the controls card. */
-  briefing: boolean;
-  /** Over the arena: the countdown before a game and the pause after one. */
+  /** A game counting down, for the countdown card: its number, its map, log ticks since it began and until play. */
+  countdown?: {
+    round: number;
+    map: string;
+    elapsed: number;
+    left: number;
+  };
+  /** Over the arena: the pause after a game. */
   banner?: { title: string; detail: string; team?: number };
 }
 export interface ResultModel {
@@ -243,12 +249,19 @@ function arena(view: View, viewer: Viewer): ArenaModel {
   let banner: ArenaModel["banner"];
   const world = view.world,
     last = view.results.at(-1);
-  if (view.stage === "running" && world && view.logTick < view.startAt)
-    banner = {
-      title: `GAME ${view.round}: ${world.map.name.toUpperCase()}`,
-      detail: `Starts in ${secondsUntil(view.startAt, view.logTick)}`,
-    };
-  else if (view.stage === "between" && last)
+  const countdown =
+    view.stage === "running" && world && view.logTick < view.startAt
+      ? {
+          round: view.round,
+          map: world.map.name,
+          elapsed: Math.max(
+            0,
+            view.logTick - (view.startAt - 1 - countdownTicks(view.round)),
+          ),
+          left: view.startAt - view.logTick,
+        }
+      : undefined;
+  if (view.stage === "between" && last)
     banner = {
       title: `${TEAM_NAMES[last.team]} TAKES GAME ${last.round}`,
       detail: `${VICTORY_NAMES[last.kind]} VICTORY · Next game in ${secondsUntil(view.resumeAt, view.logTick)}`,
@@ -260,11 +273,7 @@ function arena(view: View, viewer: Viewer): ArenaModel {
     score: [...view.score],
     wins,
     line,
-    briefing:
-      (view.stage === "running" &&
-        view.world !== null &&
-        view.logTick < view.startAt) ||
-      view.stage === "between",
+    ...(countdown ? { countdown } : {}),
     ...(banner ? { banner } : {}),
   };
 }

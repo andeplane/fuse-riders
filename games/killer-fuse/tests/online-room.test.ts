@@ -581,11 +581,11 @@ test("the view is a copy in game time, seats in order, with every step's events 
   assert.notEqual(decided.world!.winner, room.world!.winner);
 });
 
-test("the first game of a set counts down 6 s, every later one 3 s", () => {
+test("the first game of a set counts down 8 s, every later one 3 s", () => {
   assert.deepEqual(
     [countdownTicks(1), countdownTicks(2), countdownTicks(3)],
     [FIRST_COUNTDOWN_TICKS, COUNTDOWN_TICKS, COUNTDOWN_TICKS],
   );
-  assert.equal(FIRST_COUNTDOWN_TICKS, 120);
+  assert.equal(FIRST_COUNTDOWN_TICKS, 160);
   assert.equal(COUNTDOWN_TICKS, 60);
 });

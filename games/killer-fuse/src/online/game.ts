@@ -106,8 +106,8 @@ export const CAPACITY = MAX_PLAYERS;
 export const MAX_WATCHERS = 6;
 /** Log ticks (of 50 ms) a game shows its arena before its first step; then the victory, then the pause between games. */
 export const COUNTDOWN_TICKS = 60;
-/** The first game of a set counts down longer, so players can read the controls card before they play. */
-export const FIRST_COUNTDOWN_TICKS = 120;
+/** The first game of a set counts down 8 s, as the original does, while the card shows the three ways to win. */
+export const FIRST_COUNTDOWN_TICKS = 160;
 export const countdownTicks = (round: number): number =>
   round === 1 ? FIRST_COUNTDOWN_TICKS : COUNTDOWN_TICKS;
 export const OUTRO_TICKS = 60;

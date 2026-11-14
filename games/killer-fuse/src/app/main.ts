@@ -36,7 +36,6 @@ import {
   type Settings,
 } from "../online/index.js";
 import { createArenaView } from "../render/index.js";
-import { parseManifest, type ArtManifest } from "../render/manifest.js";
 import { ArenaDriver } from "./arena.js";
 import {
   Controls,
@@ -47,7 +46,29 @@ import {
   gameKey,
   holdToFlapFrom,
 } from "./controls.js";
-import { briefing, briefingKey, buttonLabel, deviceFor } from "./briefing.js";
+import {
+  readIconSheets,
+  unitIcons,
+  winIcons,
+  type Icon,
+  type IconSheets,
+} from "./art.js";
+import { buttonLabel, cardKey, countdownCard, deviceFor } from "./briefing.js";
+import { lobbyTips, tipIndex } from "./tips.js";
+import {
+  FRESH,
+  LESSONS,
+  advance,
+  bestTime,
+  factsOf,
+  lessonById,
+  playSeconds,
+  recordTime,
+  setupAction,
+  stepText,
+  tutorialSettings,
+  type Progress,
+} from "./tutorial.js";
 import {
   CONTROLS,
   DEVICE_CONTROLS,
@@ -58,7 +79,6 @@ import {
   TOUCH_CONTROLS,
   UNITS,
   WINS,
-  unitIcons,
   type Device,
 } from "./guide.js";
 import { createGameMetrics } from "./metrics.js";
@@ -112,6 +132,8 @@ const ART_URL = `${import.meta.env.BASE_URL}${GAME}/art/`;
 const query = new URLSearchParams(location.search);
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 const app = document.querySelector<HTMLElement>("#app")!;
+/** The engine takes the attack edge: show the touch ATTACK button. False until that input lands. */
+const ATTACK_LIVE = false;
 
 function header(extra: HTMLElement[] = []): HTMLElement {
   const bar = el("header", "", "kf-top"),
@@ -129,12 +151,24 @@ function header(extra: HTMLElement[] = []): HTMLElement {
   return bar;
 }
 
-/** The art manifest, fetched once for the unit icons of the How to play panel; undefined when it cannot be had. */
-let manifest: Promise<ArtManifest | undefined> | undefined;
+/** The art sheets, fetched once for the page's pictures; none when the manifest cannot be had. */
+let manifest: Promise<IconSheets> | undefined;
+let sheets: IconSheets = {};
 const loadManifest = () =>
   (manifest ??= fetch(`${ART_URL}manifest.json`)
-    .then(async (response) => parseManifest(await response.json()))
-    .catch(() => undefined));
+    .then(async (response) => (sheets = readIconSheets(await response.json())))
+    .catch(() => ({})));
+/** Draws `icon` as the background of `slot`. */
+function paint(slot: HTMLElement, icon: Icon | undefined): void {
+  if (!icon) return;
+  Object.assign(slot.style, {
+    width: `${icon.width}px`,
+    height: `${icon.height}px`,
+    backgroundImage: `url("${icon.url}")`,
+    backgroundSize: icon.size,
+    backgroundPosition: icon.position,
+  });
+}
 
 /** This device's "Hold to flap" choice, kept in local storage; the room's controls follow a change at once. */
 let holdToFlap = holdToFlapFrom(store.getItem(HOLD_TO_FLAP_KEY));
@@ -221,19 +255,9 @@ function howToPlay(): HTMLElement {
     dialog.showModal();
     close.focus();
     void loadManifest().then((art) => {
-      if (!art) return;
       const drawn = unitIcons(art, ART_URL, 0, 48);
-      for (const { art: name, slot } of icons) {
-        const icon = drawn[name];
-        if (!icon || slot.style.backgroundImage) continue;
-        Object.assign(slot.style, {
-          width: `${icon.width}px`,
-          height: `${icon.height}px`,
-          backgroundImage: `url("${icon.url}")`,
-          backgroundSize: icon.size,
-          backgroundPosition: icon.position,
-        });
-      }
+      for (const { art: name, slot } of icons)
+        if (!slot.style.backgroundImage) paint(slot, drawn[name]);
     });
   };
   open.onclick = show;
@@ -251,6 +275,29 @@ function howToPlay(): HTMLElement {
   wrap.append(open, holdToFlapToggle(), dialog);
   if (location.hash === "#how-to-play") queueMicrotask(show);
   return wrap;
+}
+
+/** The solo tutorial's lessons, each with its best time on this device. */
+function tutorialList(): HTMLElement {
+  const box = el("section", "", "kf-tutorial"),
+    list = el("ol", "", "kf-tutorial-list");
+  for (const lesson of LESSONS) {
+    const item = el("li"),
+      link = el("a", lesson.title, "fui-button kf-tutorial-link"),
+      best = bestTime(store, lesson.id);
+    link.href = endpoints.appUrl(`?solo=1&tutorial=${lesson.id}`);
+    item.append(
+      link,
+      el("span", best === undefined ? "not done yet" : `best ${best} s`),
+    );
+    list.append(item);
+  }
+  box.append(
+    el("h2", "TUTORIAL", "kf-tutorial-title"),
+    el("p", "Short solo lessons against easy bots.", "kf-how-goal"),
+    list,
+  );
+  return box;
 }
 
 function landing(): void {
@@ -289,7 +336,7 @@ function landing(): void {
   const back = el("a", "← FUSE RIDERS", "kf-back");
   back.href = import.meta.env.BASE_URL;
   const page = el("main", "", "kf-landing");
-  page.append(card.element, howToPlay());
+  page.append(card.element, howToPlay(), tutorialList());
   app.replaceChildren(header([back]), page);
 }
 
@@ -338,6 +385,14 @@ function room(solo: boolean): void {
   document.body.classList.toggle("kf-display", display);
   const viewer: Viewer = { me: "", solo, display };
   const coarse = window.matchMedia("(pointer: coarse)").matches;
+  // A tutorial lesson (`?solo=1&tutorial=<id>`): an ordinary solo room the page steers into the lesson's seat.
+  const lesson = solo ? lessonById(query.get("tutorial")) : undefined;
+  let attacks = 0,
+    presses = 0,
+    progress: Progress = FRESH,
+    lessonMatch = "",
+    asked = { key: "", at: 0 },
+    recorded = false;
   const padConnected = () =>
     typeof navigator.getGamepads === "function" &&
     navigator.getGamepads().some((pad) => pad !== null);
@@ -346,7 +401,13 @@ function room(solo: boolean): void {
   const controls = new Controls(
       {
         input: (bits) => runtime.input(bits),
-        press: () => void runtime.press(),
+        press: () => {
+          if (runtime.press()) presses += 1;
+        },
+        // The engine's attack edge is not in the input yet; the bindings are ready and log nothing until it lands.
+        attack: () => {
+          attacks += 1;
+        },
       },
       () => performance.now(),
     ),
@@ -354,6 +415,13 @@ function room(solo: boolean): void {
     pads = new Pads(controls),
     touch = new Touch(controls);
   controls.setHoldToFlap(holdToFlap);
+  const lessonDevice = (): Device =>
+    deviceFor({
+      last: controls.lastUsed(),
+      pad: padConnected(),
+      coarse,
+      controller: false,
+    });
   onHoldToFlap = (on) => controls.setHoldToFlap(on);
 
   // ---- the page ----
@@ -377,12 +445,21 @@ function room(solo: boolean): void {
   // Over the countdown: this seat's controls and the three ways to win.
   const card = el("aside", "", "kf-brief"),
     cardTitle = el("strong", "", "kf-brief-title"),
-    cardControls = el("p", "", "kf-brief-controls"),
-    cardTips = el("div", "", "kf-brief-tips"),
-    cardWin = el("p", "", "kf-brief-win");
-  card.append(cardTitle, cardControls, cardTips, cardWin);
+    cardSub = el("p", "", "kf-brief-sub"),
+    cardWins = el("ul", "", "kf-brief-wins"),
+    cardControls = el("p", "", "kf-brief-controls");
+  card.append(cardTitle, cardSub, cardWins, cardControls);
   card.setAttribute("role", "status");
   card.hidden = true;
+  void loadManifest();
+  // While people wait in the lobby, a tip every 15 s; the first is the controls of the device last used.
+  const tipBox = el("section", "", "kf-tip"),
+    tipTitle = el("h3", "", "kf-tip-title"),
+    tipHints = el("dl", "", "kf-how-list kf-tip-hints"),
+    tipText = el("p", "", "kf-tip-text");
+  tipBox.append(tipTitle, tipHints, tipText);
+  let lobbySince = performance.now(),
+    tipShown = "";
   // `?mute` (previews, smoke runs) silences the page whatever was stored.
   const forcedMute = query.has("mute");
   let muted = forcedMute || store.getItem(MUTED) === "1";
@@ -495,6 +572,7 @@ function room(solo: boolean): void {
     settingsLine,
     lobbyNote,
     lobbyActions,
+    tipBox,
     howToPlay(),
   );
   start.onclick = () => runtime.command({ type: "action", action: "start" });
@@ -539,13 +617,23 @@ function room(solo: boolean): void {
     touchRow = el("div", "", "kf-touch"),
     stick = el("div", "", "kf-stick"),
     knob = el("i", "", "kf-knob"),
-    flap = button("FLAP", "kf-flap");
+    flap = button("FLAP", "kf-flap"),
+    strike = button("ATTACK", "kf-strike");
+  strike.hidden = true;
   banner.append(bannerTitle, bannerDetail);
   banner.setAttribute("role", "status");
   stick.append(knob);
   stick.setAttribute("aria-label", "Move: slide left, right or down");
-  touchRow.append(stick, flap);
-  stage.append(canvasHost, banner, card);
+  const buttons = el("div", "", "kf-buttons");
+  buttons.append(strike, flap);
+  touchRow.append(stick, buttons);
+  const lessonBar = el("div", "", "kf-lesson"),
+    lessonText = el("p", "", "kf-lesson-text"),
+    lessonActions = el("div", "", "kf-lesson-actions");
+  lessonBar.append(lessonText, lessonActions);
+  lessonBar.setAttribute("role", "status");
+  lessonBar.hidden = !lesson;
+  stage.append(canvasHost, banner, card, lessonBar);
 
   // The result of a set, over the arena.
   const result = el("section", "", "kf-result"),
@@ -619,6 +707,12 @@ function room(solo: boolean): void {
   });
   for (const type of ["pointerup", "pointercancel", "pointerleave"] as const)
     flap.addEventListener(type, () => touch.hold(false));
+  strike.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    touch.strike(true);
+  });
+  for (const type of ["pointerup", "pointercancel", "pointerleave"] as const)
+    strike.addEventListener(type, () => touch.strike(false));
   touchRow.addEventListener("contextmenu", (event) => event.preventDefault());
 
   let model: PageModel | undefined;
@@ -674,26 +768,65 @@ function room(solo: boolean): void {
       coarse,
       controller: next.layout === "controller",
     });
-    const brief = next.arena.briefing
-      ? briefing(next.seated ? next.arena.localSlot : -1, device)
-      : undefined;
-    card.hidden = !brief;
-    if (brief) {
-      const key = briefingKey(brief);
+    const countdown = next.arena.countdown,
+      mySlot = next.seated ? next.arena.localSlot : -1,
+      shown = countdown
+        ? countdownCard(countdown, mySlot, device, countdown.map)
+        : undefined;
+    card.hidden = !shown;
+    // The card counts down; the banner is for the pause after a game.
+    if (shown) banner.hidden = true;
+    if (shown) {
+      const key = cardKey(shown) + String(Object.keys(sheets).length);
       if (card.dataset.key !== key) {
         card.dataset.key = key;
-        card.dataset.team = brief.team === undefined ? "" : String(brief.team);
-        cardTitle.textContent = brief.title;
+        card.dataset.team = shown.team === undefined ? "" : String(shown.team);
+        card.dataset.first = String(shown.first);
+        cardTitle.textContent = shown.title;
+        cardTitle.hidden = !shown.title;
+        cardSub.textContent = shown.subtitle;
+        const pictures = winIcons(sheets, ART_URL, shown.team ?? -1, 40);
+        cardWins.replaceChildren(
+          ...shown.wins.map((win) => {
+            const item = el("li", "", "kf-brief-win"),
+              picture = el("i", "", "kf-brief-icon");
+            picture.setAttribute("aria-hidden", "true");
+            paint(picture, pictures[win.kind]);
+            item.dataset.kind = win.kind;
+            item.append(picture, el("span", win.caption));
+            return item;
+          }),
+        );
+        cardWins.hidden = shown.wins.length === 0;
         cardControls.replaceChildren(
-          ...brief.controls.flatMap((hint, index) => [
+          ...shown.controls.flatMap((hint, index) => [
             ...(index ? [el("span", " · ", "kf-brief-dot")] : []),
             el("kbd", hint.keys),
             el("span", ` ${hint.action}`),
           ]),
         );
-        cardControls.hidden = brief.controls.length === 0;
-        cardTips.replaceChildren(...brief.tips.map((tip) => el("p", tip)));
-        cardWin.textContent = brief.win;
+        cardControls.hidden = shown.controls.length === 0;
+      }
+    }
+    // Lobby tips.
+    if (next.screen !== "lobby") lobbySince = performance.now();
+    else {
+      const tips = lobbyTips(device),
+        index = tipIndex(performance.now() - lobbySince, tips.length),
+        tip = tips[index]!,
+        key = `${index}:${device}`;
+      if (tipShown !== key) {
+        tipShown = key;
+        tipTitle.textContent = `TIP · ${tip.title}`;
+        tipHints.replaceChildren(
+          ...tip.hints.flatMap((hint) => [
+            el("dt", hint.keys),
+            el("dd", hint.action),
+          ]),
+        );
+        tipHints.hidden = tip.hints.length === 0;
+        tipText.textContent = tip.text;
+        tipText.hidden = !tip.text;
       }
     }
     touchRow.hidden = !(
@@ -768,9 +901,76 @@ function room(solo: boolean): void {
       }
       if (next.seated) joinSent = false;
       render(next);
-      flap.textContent = buttonLabel(
-        frame.world?.units[next.arena.localSlot]?.kind,
-      );
+      if (lesson) {
+        const mine = frame.seats.find((seat) => seat.id === viewer.me),
+          action = setupAction(
+            {
+              stage: frame.stage,
+              slot: mine && !mine.watcher ? mine.slot : -1,
+              settings: roomSettings,
+            },
+            lesson,
+            progress.outcome,
+          );
+        if (frame.matchId !== lessonMatch) {
+          lessonMatch = frame.matchId;
+          progress = FRESH;
+          recorded = false;
+        }
+        const key = `${action}:${frame.stage}:${frame.matchId}`,
+          now = performance.now();
+        if (action !== "none" && (asked.key !== key || now - asked.at > 1500)) {
+          asked = { key, at: now };
+          if (action === "seat") runtime.seat(lesson.slot);
+          else if (action === "settings")
+            runtime.command({
+              type: "settings",
+              settings: tutorialSettings(roomSettings),
+            });
+          else runtime.command({ type: "action", action });
+        }
+        const world = frame.world,
+          facts =
+            world && next.arena.localSlot === lesson.slot && next.playing
+              ? factsOf(world, lesson.slot, {
+                  kills: frame.stats[viewer.me]?.kills ?? 0,
+                  presses,
+                  attacks,
+                })
+              : undefined;
+        if (facts && action === "none")
+          progress = advance(lesson, progress, facts);
+        let line = stepText(lesson, progress, lessonDevice());
+        if (progress.outcome === "won" && world) {
+          const seconds = playSeconds(world.step);
+          const best = recorded
+            ? (bestTime(store, lesson.id) ?? seconds)
+            : recordTime(store, lesson.id, seconds);
+          recorded = true;
+          line = `${line} in ${seconds} s · best ${best} s`;
+        }
+        lessonText.textContent = line;
+        const done = progress.outcome === "won",
+          following = LESSONS[LESSONS.indexOf(lesson) + 1];
+        if (lessonActions.dataset.done !== String(done)) {
+          lessonActions.dataset.done = String(done);
+          const links: HTMLElement[] = [];
+          if (done && following) {
+            const next = el("a", `NEXT: ${following.title}`, "fui-button");
+            next.href = endpoints.appUrl(`?solo=1&tutorial=${following.id}`);
+            links.push(next);
+          }
+          const back = el("a", "LESSONS", "fui-button");
+          back.href = endpoints.appUrl();
+          links.push(back);
+          lessonActions.replaceChildren(...links);
+        }
+        lessonBar.dataset.outcome = progress.outcome;
+      }
+      const kind = frame.world?.units[next.arena.localSlot]?.kind;
+      flap.textContent = buttonLabel(kind);
+      // Workers have no sword; the button waits for the engine's attack edge as well.
+      strike.hidden = !ATTACK_LIVE || kind === undefined || kind === "worker";
       driver.update({
         names: next.arena.names,
         localSlot: next.arena.localSlot,

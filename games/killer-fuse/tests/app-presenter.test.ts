@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { ACTION, PRESENCE, SPECTATOR, type Frame } from "fuse-netcode";
 import { MAPS } from "../src/engine/index.js";
 import {
+  COUNTDOWN_TICKS,
   DEFAULT_SETTINGS,
+  FIRST_COUNTDOWN_TICKS,
   SEAT,
   createRoom,
   view,
@@ -69,7 +71,11 @@ test("the lobby: two teams of three seats, bots in the empty ones, start and set
   const room = lobby();
   const host = present(frame(room), viewer());
   assert.equal(host.screen, "lobby");
-  assert.equal(host.arena.briefing, false, "no controls card in the lobby");
+  assert.equal(
+    host.arena.countdown,
+    undefined,
+    "no countdown card in the lobby",
+  );
   assert.equal(host.layout, "arena");
   assert.deepEqual(
     host.lobby.teams.map((team) => [
@@ -214,23 +220,27 @@ test("someone away keeps the seat's name, and watchers are listed", () => {
   );
 });
 
-test("a game: the countdown banner, then the controls, then the pause banner and the result", () => {
+test("a game: the countdown, then the controls, then the pause banner and the result", () => {
   const room = started({ ...DEFAULT_SETTINGS, map: 1, wins: 2 });
   let model = present(frame(room), viewer());
   assert.equal(model.screen, "arena");
   assert.deepEqual(model.arena.names, ["Ada", "Bo", "", "", "", ""]);
   assert.equal(model.arena.localSlot, 0);
   assert.equal(model.arena.line, "CYAN 0 · 0 PINK · FIRST TO 2");
-  assert.deepEqual(model.arena.banner, {
-    title: `GAME 1: ${MAPS[1].name.toUpperCase()}`,
-    detail: "Starts in 6",
-  });
-  assert.equal(model.playing, false, "nothing to steer during the countdown");
   assert.equal(
-    model.arena.briefing,
-    true,
-    "the controls card over the countdown",
+    model.arena.banner,
+    undefined,
+    "the card counts down, not a banner",
   );
+  const countdown = model.arena.countdown!;
+  assert.deepEqual([countdown.round, countdown.map], [1, MAPS[1].name]);
+  assert.equal(
+    countdown.elapsed + countdown.left,
+    FIRST_COUNTDOWN_TICKS + 1,
+    "8 s from the start command to the first step",
+  );
+  assert.ok(countdown.left > 140, "the countdown has just begun");
+  assert.equal(model.playing, false, "nothing to steer during the countdown");
   assert.equal(present(frame(room), viewer({ me: "b" })).arena.localSlot, 1);
   assert.ok(
     flat(model).every((seat) => seat.action === "none"),
@@ -240,11 +250,19 @@ test("a game: the countdown banner, then the controls, then the pause banner and
   toPlay(room);
   model = present(frame(room), viewer());
   assert.equal(model.playing, true, "held keys are logged for the first step");
-  assert.equal(model.arena.banner?.detail, "Starts in 1");
+  assert.equal(
+    model.arena.countdown?.left,
+    1,
+    "the last tick of the countdown",
+  );
   fold(room);
   model = present(frame(room), viewer());
   assert.equal(model.arena.banner, undefined);
-  assert.equal(model.arena.briefing, false, "the card goes when play starts");
+  assert.equal(
+    model.arena.countdown,
+    undefined,
+    "the card goes when play starts",
+  );
   assert.equal(model.playing, true);
   assert.equal(present(frame(room), viewer({ me: "z" })).playing, false);
   assert.equal(
@@ -268,18 +286,25 @@ test("a game: the countdown banner, then the controls, then the pause banner and
     team: 1,
   });
   assert.equal(model.arena.line, "CYAN 0 · 1 PINK · FIRST TO 2");
-  assert.equal(model.arena.briefing, true, "the pause before the next game");
+  assert.equal(
+    model.arena.countdown,
+    undefined,
+    "the pause shows the result banner",
+  );
   assert.equal(model.result, undefined);
 
   run(room, room.resumeAt - room.tick);
   assert.equal(room.stage, "running");
   assert.equal(room.round, 2);
+  const next = present(frame(room), viewer()).arena.countdown!;
+  assert.ok(next.elapsed <= 1, "the next game counts down from its start");
+  assert.equal(next.elapsed + next.left, COUNTDOWN_TICKS + 1, "for 3 s");
   finish(room, 1, "economy");
   assert.equal(room.stage, "over");
   model = present(frame(room), viewer());
   assert.equal(model.screen, "arena");
   assert.equal(model.arena.banner, undefined);
-  assert.equal(model.arena.briefing, false, "no card over the result");
+  assert.equal(model.arena.countdown, undefined, "no card over the result");
   const result = model.result!;
   assert.equal(result.title, "YOUR TEAM LOST");
   assert.equal(result.team, 1);

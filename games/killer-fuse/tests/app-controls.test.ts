@@ -22,10 +22,11 @@ import {
 } from "../src/app/controls.js";
 
 function rig() {
-  const log: (number | "press")[] = [];
+  const log: (number | "press" | "attack")[] = [];
   const controls = new Controls({
     input: (bits) => void log.push(bits),
     press: () => void log.push("press"),
+    attack: () => void log.push("attack"),
   });
   return { log, controls };
 }
@@ -160,8 +161,8 @@ test("a gamepad: stick or d-pad past half way to move and dive, A / Cross for th
   pads.poll([pad([0, 0], [15])]);
   assert.equal(controls.value(), INPUT_RIGHT);
   log.length = 0;
-  pads.poll([pad([0, 0], [1, 2, 3])]);
-  assert.deepEqual(log, [0], "B, X and Y are not the button");
+  pads.poll([pad([0, 0], [2, 3])]);
+  assert.deepEqual(log, [0], "X and Y are bound to nothing");
   pads.poll([pad([0, 0], [0])]);
   assert.deepEqual(log.slice(1), [INPUT_HELD, "press"]);
   pads.poll([pad([0, 0], [0])]);
@@ -188,6 +189,7 @@ function holdRig() {
     {
       input: (bits) => void log.push(bits),
       press: () => void log.push("press"),
+      attack: () => undefined,
     },
     clock.now,
   );
@@ -281,6 +283,7 @@ test("a gamepad press restarts the hold-to-flap count as well", () => {
   const plain = new Controls({
     input: () => undefined,
     press: () => undefined,
+    attack: () => undefined,
   });
   plain.setHoldToFlap(true);
   plain.set("keys", INPUT_HELD);
@@ -311,4 +314,43 @@ test("the touch pad: sideways past the dead zone, down on a clear pull, and the 
   assert.equal(controls.value(), 0);
   touch.hold(true);
   assert.deepEqual(log.slice(-2), [INPUT_HELD, "press"]);
+});
+
+test("attack: J, B / Circle or the left bumper, and the touch ATTACK button, each a press edge only", () => {
+  const { log, controls } = rig();
+  const keys = new Keys(controls);
+  assert.ok(gameKey("KeyJ"));
+  keys.press("KeyJ");
+  keys.press("KeyJ");
+  assert.deepEqual(log, ["attack"], "held J attacks once and holds nothing");
+  assert.equal(controls.value(), 0);
+  assert.equal(controls.lastUsed(), "keys");
+  keys.lift("KeyJ");
+  keys.press("KeyJ");
+  assert.deepEqual(log, ["attack", "attack"]);
+
+  log.length = 0;
+  const pads = new Pads(controls);
+  pads.poll([pad([0, 0], [1])]);
+  pads.poll([pad([0, 0], [1])]);
+  assert.deepEqual(log, ["attack"], "B / Circle, held, attacks once");
+  assert.equal(controls.lastUsed(), "pad");
+  pads.poll([pad([0, 0], [1, 4])]);
+  assert.deepEqual(
+    log,
+    ["attack", "attack"],
+    "the left bumper is its own press",
+  );
+  pads.poll([pad([0, 0], [0, 4])]);
+  assert.deepEqual(log.slice(2), [INPUT_HELD, "press"], "A still flaps");
+
+  log.length = 0;
+  const touch = new Touch(controls);
+  touch.strike(true);
+  touch.strike(true);
+  touch.strike(false);
+  touch.strike(false);
+  touch.strike(true);
+  assert.deepEqual(log, ["attack", "attack"]);
+  assert.equal(controls.lastUsed(), "touch");
 });

@@ -252,7 +252,7 @@ test("a press is stamped with the next log tick and the third of it that the clo
 test("a tap shorter than a log tick flaps the Queen, and held bits reach the fold", () => {
   const { bench, runtime } = solo();
   runtime.input(R);
-  bench.run(6_300); // the first game's countdown (6 s) and a little flight
+  bench.run(8_300); // the first game's countdown (8 s) and a little flight
   assert.equal(room(runtime).held.solo, R);
   const queen = () => room(runtime).world!.units[0]!;
   bench.run(1_000); // she lands
