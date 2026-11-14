@@ -185,7 +185,7 @@ const keyLegend = el(
 const speedSelect = el("select", {
   title: "Playback speed (the pitch drops with it)",
 });
-for (const rate of [1, 0.75, 0.5, 0.35])
+for (const rate of [1, 0.75, 0.5, 0.25])
   speedSelect.append(
     el("option", { value: String(rate), textContent: `${rate}×` }),
   );
