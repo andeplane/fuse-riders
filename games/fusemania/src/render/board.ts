@@ -20,6 +20,7 @@ import {
   fitText,
   label,
   scoreText,
+  totalText,
   type Frame,
   type RiderTexts,
 } from "./frame.js";
@@ -50,6 +51,8 @@ import {
 export interface BoardInfo {
   names: readonly string[];
   chartNames: readonly string[];
+  /** Each rider's session total before this song, by slot: a box adds the song's score to it. Empty for none. */
+  totals: readonly number[];
   local: number;
   texts: readonly RiderTexts[];
 }
@@ -288,7 +291,15 @@ function box(
       "left",
       size * 5,
     );
-    if (chars >= 13)
+    // In a session the box's last line ends in the rider's total, this song's score so far included.
+    const base = info.totals[slot];
+    const total =
+      base !== undefined && chars >= 22
+        ? totalText(texts.boxTotal, base + Math.round(rider.score))
+        : "";
+    if (total)
+      label(g, total, right, third, size, TEXT, "right", size * total.length);
+    if (chars >= (total ? 14.5 + total.length : 13))
       label(
         g,
         countText(texts.boxBest, "MAX ", player.best),

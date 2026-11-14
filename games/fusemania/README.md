@@ -13,9 +13,17 @@ pnpm dev          # builds, then serves every game; open the printed URL plus /f
 
 `pnpm exec tsx service/dev.ts --port 8890` serves an existing `dist/` and walks to the next free port if that one is taken. Open `/fusemania/?mute` (silent: no sound and no sound preference is stored, and the arrows follow the room's clock) or `/fusemania/` to hear it, and pick one of:
 
-- **Play, Single player**: the song select. Pick a song, a level and a mode, then **PLAY**. The result shows the grade, the score, every judgment count and this browser's best on that chart. **PLAY YOUR OWN STEPMANIA FILE** takes a simfile and its music from this device; nothing is uploaded.
+- **Play, Single player**: the song select. Pick a song (or press **RANDOM SONG**), a level and a mode, then **PLAY**. The result shows the grade, the score, every judgment count and this browser's best on that chart. **PLAY YOUR OWN STEPMANIA FILE** takes a simfile and its music from this device; nothing is uploaded.
 - **Play, Host room**: a room with a QR invite, for up to five players. The host picks the song and the mode; every player picks their own level. **+ ADD AI RIVAL** seats a bot. Tick **Shared TV** first to play on one screen: the TV shows every field and each phone becomes four pads.
 - **Settings**: keys, scroll speed and direction, the two timing offsets and **CALIBRATE**.
+
+**Your speed.** The song select shows every player's own speed as chips (0.5x, 1x, 1.5x, 2x, 2.5x, 3x, 4x, 5x), and the Settings slider reaches the values between. It is saved on the device and only spreads that player's arrows apart on their own screen: the engine never sees it, so the beat, the judging and every other player are unchanged.
+
+## Sessions
+
+In a room the host can play several songs as one contest: **SONGS** sets a session of 3, 5 or 10 (1 is a single song), and **NEXT SONG** says who chooses them. With **HOST PICKS** the result's button leads back to the song select for the next one; with **RANDOM** the room draws every song when it starts, from the match's id so every device draws the same one, and never a song the session has already played while there is another.
+
+Every finished song adds each rider's rating to their session total, and the winner gets a win. The total runs in the leaderboard boxes during a song, the standings show on every result and in the lobby between songs, and the last song ends on the final standings: most points, then most songs won. A song that is given up is not counted, a rider who joins in the middle starts from zero, and one who leaves keeps their row. Changing the number of songs in the middle starts a new session. The session is part of the room's state (`session` in `src/online/game.ts`) and travels in its checkpoint.
 
 ## Controls
 

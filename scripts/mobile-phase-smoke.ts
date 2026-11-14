@@ -122,10 +122,7 @@ for (const { name, kind } of BOTH_ENGINES) {
       `${label}: riders listed`,
     );
     assert.equal(
-      await page
-        .locator("button:visible")
-        .filter({ hasText: /^(ROOM|EXIT|MENU|☰ MENU)$/ })
-        .count(),
+      await page.locator(".fui-top-bar-toggle:visible").count(),
       1,
       `${label}: one menu button`,
     );

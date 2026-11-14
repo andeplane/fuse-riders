@@ -16,6 +16,7 @@ import {
 } from "fuse-netcode";
 import {
   CAPACITY,
+  FULL_RATING,
   LEAD_IN_MS,
   MAX_SONG_MS,
   MIN_SONG_MS,
@@ -30,6 +31,7 @@ import {
   encodeWorld,
   isCode,
   ranking,
+  rating,
   stepWorld,
   toView,
   type Input,
@@ -61,10 +63,18 @@ export interface Settings {
   mode: number;
   /** The chart a seat plays unless it picked one: an index into the song's charts, easiest first. */
   chart: number;
+  /** How many songs one session plays: one of `SESSION_LENGTHS`. One is a single song with no session around it. */
+  songs: number;
+  /** A session's songs are drawn at random instead of picked by the host. */
+  random: boolean;
 }
 /** The most charts one song offers a room. */
 export const MAX_CHARTS = 16;
-const SETTING_KEYS = ["display", "song", "mode", "chart"];
+/** How long a session can be, in songs. */
+export const SESSION_LENGTHS: readonly number[] = [1, 3, 5, 10];
+/** The most riders a session keeps a total for: the ones who left longest ago and scored least make room. */
+export const SESSION_SCORES = 16;
+const SETTING_KEYS = ["display", "song", "mode", "chart", "songs", "random"];
 
 export const PLAY = 0,
   PICK = 1;
@@ -113,6 +123,35 @@ export interface Decided {
   finishers: string[];
 }
 
+/** One rider's total over a session's songs. */
+export interface SessionScore {
+  id: string;
+  name: string;
+  /** The ratings of the songs it finished, added up. */
+  points: number;
+  /** The songs it won. */
+  wins: number;
+}
+/** Several songs played as one contest: the room adds every finished song's ratings up. */
+export interface Session {
+  /** Songs the session plays: 3, 5 or 10. */
+  length: number;
+  /** Songs finished. */
+  done: number;
+  /** The songs started, in order: the finished ones, then the one being played. A song given up is not kept. */
+  songs: string[];
+  /** A total per rider, in the order they first finished a song. */
+  scores: SessionScore[];
+}
+/** A session as the screen shows it. */
+export interface SessionView {
+  length: number;
+  done: number;
+  songs: string[];
+  /** The totals, the leader's first: by points, then by songs won. */
+  standings: SessionScore[];
+}
+
 export interface Room extends ManagedRoom<Settings> {
   tick: number;
   matchId: string;
@@ -127,6 +166,8 @@ export interface Room extends ManagedRoom<Settings> {
   roster: Entrant[];
   decided: Decided | null;
   world: World | null;
+  /** The session the room is in the middle of, or just finished; null when it plays single songs. */
+  session: Session | null;
 }
 
 export interface SeatView {
@@ -157,6 +198,7 @@ export interface View {
   /** The winner's id once `stage` is "over", otherwise "". */
   winner: string;
   world: WorldView | null;
+  session: SessionView | null;
 }
 
 const plain = (value: unknown): value is Record<string, unknown> =>
@@ -186,7 +228,7 @@ const SEAT_KEYS = [
   "away",
 ];
 const STAGES: readonly RoomStage[] = ["lobby", "running", "over"];
-const FIELDS = 10;
+const FIELDS = 11;
 const seatOrder = (a: SeatRecord, b: SeatRecord) =>
   a.slot - b.slot || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
@@ -317,6 +359,68 @@ function decodeDecided(
   return { clock, winner: winner as string, finishers: list };
 }
 
+/** The standings of a session's totals: by points, then by songs won, then in the order riders joined it. */
+export const standings = (scores: readonly SessionScore[]): SessionScore[] =>
+  scores
+    .map((score, index) => ({ score, index }))
+    .sort(
+      (a, b) =>
+        b.score.points - a.score.points ||
+        b.score.wins - a.score.wins ||
+        a.index - b.index,
+    )
+    .map(({ score }) => ({ ...score }));
+
+function decodeSession(
+  raw: unknown,
+  known: (song: string) => boolean,
+): Session | null | undefined {
+  if (raw === null) return null;
+  if (!Array.isArray(raw) || raw.length !== 4) return;
+  const [length, done, songs, scores] = raw as unknown[];
+  if (
+    !Number.isInteger(length) ||
+    length === 1 ||
+    !SESSION_LENGTHS.includes(length as number) ||
+    !uint32(done) ||
+    done > (length as number) ||
+    !Array.isArray(songs) ||
+    (songs.length !== done && songs.length !== done + 1) ||
+    songs.length > (length as number) ||
+    !songs.every((song) => typeof song === "string" && known(song)) ||
+    !Array.isArray(scores) ||
+    scores.length > SESSION_SCORES ||
+    (done === 0 && scores.length > 0)
+  )
+    return;
+  const list: SessionScore[] = [];
+  let won = 0;
+  for (const item of scores as unknown[]) {
+    if (!Array.isArray(item) || item.length !== 4) return;
+    const [id, name, points, wins] = item as unknown[];
+    if (
+      !playerKey(id) ||
+      !validName(name) ||
+      !uint32(points) ||
+      // A doubled stretch can take one song's rating past the full one, never past twice it.
+      points > done * 2 * FULL_RATING ||
+      !uint32(wins) ||
+      list.some((score) => score.id === id)
+    )
+      return;
+    won += wins;
+    list.push({ id, name, points, wins });
+  }
+  // Every finished song had one winner; a rider dropped from the list took its wins along.
+  if (won > done) return;
+  return {
+    length: length as number,
+    done,
+    songs: [...(songs as string[])],
+    scores: list,
+  };
+}
+
 export type FusemaniaGame = RollbackGame<Room, Entry, View, never, Settings> & {
   /** The songs this game plays. */
   library: Library;
@@ -339,7 +443,7 @@ export function createFusemaniaGame(
       !SETTING_KEYS.every((key) => Object.hasOwn(raw, key))
     )
       return;
-    const { display, song, mode, chart } = raw;
+    const { display, song, mode, chart, songs, random } = raw;
     if (
       typeof display !== "boolean" ||
       typeof song !== "string" ||
@@ -347,10 +451,19 @@ export function createFusemaniaGame(
       !Number.isInteger(mode) ||
       (mode as number) < 0 ||
       (mode as number) >= MODES ||
-      !chartIndex(chart)
+      !chartIndex(chart) ||
+      !SESSION_LENGTHS.includes(songs as number) ||
+      typeof random !== "boolean"
     )
       return;
-    return { display, song, mode: mode as number, chart };
+    return {
+      display,
+      song,
+      mode: mode as number,
+      chart,
+      songs: songs as number,
+      random,
+    };
   }
 
   const payloads = {
@@ -404,6 +517,7 @@ export function createFusemaniaGame(
       roster: [],
       decided: null,
       world: null,
+      session: null,
     };
   }
 
@@ -452,21 +566,91 @@ export function createFusemaniaGame(
   }
   const matchId = (room: Room) => room.matchId;
 
+  /**
+   * The song a random session plays next, from the match's id: one it has not played yet while there is one, and
+   * otherwise any but the last.
+   */
+  function draw(session: Session, id: string): string | undefined {
+    const all = library.songs.map((song) => song.id);
+    const last = session.songs[session.songs.length - 1];
+    let pool = all.filter((song) => !session.songs.includes(song));
+    if (!pool.length) pool = all.filter((song) => song !== last);
+    if (!pool.length) pool = all;
+    return pool[seedOf(id) % pool.length];
+  }
+  /**
+   * Starts the next song. With more than one song a session it is a song of the session: the one the room is in the
+   * middle of, or a new session when there is none, the last one is finished or the host changed its length.
+   */
+  function startSong(room: Room, id: string): void {
+    resetMatch(room, id);
+    let session = room.play.songs > 1 ? room.session : null;
+    if (
+      room.play.songs > 1 &&
+      (!session ||
+        session.done >= session.length ||
+        session.length !== room.play.songs)
+    )
+      session = { length: room.play.songs, done: 0, songs: [], scores: [] };
+    if (session) {
+      // A song that was given up is not one of the session's.
+      session.songs.length = session.done;
+      const song = room.play.random ? draw(session, id) : undefined;
+      if (song !== undefined) {
+        // The lobby shows the song that was drawn, as it shows one the host picked.
+        room.play.song = song;
+        room.settings = { ...room.settings, song };
+      }
+    }
+    room.session = session;
+    beginMatch(room);
+    if (session && room.stage === "running") session.songs.push(room.play.song);
+  }
+  /** Adds a finished song to the session's totals. */
+  function settle(room: Room, world: World, winner: string): void {
+    const session = room.session;
+    if (!session) return;
+    session.done++;
+    for (const entrant of room.roster) {
+      const player = world.players[entrant.slot]!;
+      let score = session.scores.find((each) => each.id === entrant.id);
+      if (!score) {
+        if (session.scores.length >= SESSION_SCORES) {
+          // Full: the rider who is gone and has the least makes room.
+          let out = -1;
+          session.scores.forEach((each, index) => {
+            if (room.roster.some((other) => other.id === each.id)) return;
+            if (out < 0 || each.points < session.scores[out]!.points)
+              out = index;
+          });
+          if (out < 0) continue;
+          session.scores.splice(out, 1);
+        }
+        score = { id: entrant.id, name: entrant.name, points: 0, wins: 0 };
+        session.scores.push(score);
+      }
+      score.name = entrant.name;
+      score.points += rating(
+        library.steps(world.song, player.chart)!,
+        player.score,
+      );
+      if (entrant.id === winner) score.wins++;
+    }
+  }
+
   const lifecycle: LifecycleHooks<Room, Settings> = {
     stage: (room) => room.stage,
     maxWatchers: MAX_WATCHERS,
     parseSettings,
     botAvatar: AVATAR,
-    start(room, id) {
-      resetMatch(room, id);
-      beginMatch(room);
-    },
-    rematch(room, id) {
-      resetMatch(room, id);
-      beginMatch(room);
-    },
+    start: startSong,
+    rematch: startSong,
     lobby(room, id) {
       resetMatch(room, id);
+      const session = room.session;
+      // A finished session is over; one in the middle waits in the lobby for its next song.
+      if (session && session.done >= session.length) room.session = null;
+      else if (session) session.songs.length = session.done;
     },
   };
 
@@ -544,6 +728,7 @@ export function createFusemaniaGame(
             .map((entrant) => entrant.id)
             .sort(),
         };
+        settle(room, world, room.decided.winner);
       }
     }
     room.tick = tick;
@@ -569,6 +754,19 @@ export function createFusemaniaGame(
         : null,
       room.world ? encodeWorld(room.world) : null,
       room.epoch,
+      room.session
+        ? [
+            room.session.length,
+            room.session.done,
+            [...room.session.songs],
+            room.session.scores.map((score) => [
+              score.id,
+              score.name,
+              score.points,
+              score.wins,
+            ]),
+          ]
+        : null,
     ];
   }
 
@@ -589,6 +787,7 @@ export function createFusemaniaGame(
       rawDecided,
       rawWorld,
       epoch,
+      rawSession,
     ] = fields;
     const settings = parseSettings(rawSettings),
       play = parseSettings(rawPlay),
@@ -608,10 +807,26 @@ export function createFusemaniaGame(
     const picks = decodePicks(rawPicks, seats);
     const decided = decodeDecided(rawDecided, roster);
     const world = rawWorld === null ? null : decodeWorld(library, rawWorld);
-    if (!picks || decided === undefined || world === undefined) return;
+    const session = decodeSession(
+      rawSession,
+      (song) => library.song(song) !== undefined,
+    );
+    if (
+      !picks ||
+      decided === undefined ||
+      world === undefined ||
+      session === undefined
+    )
+      return;
     if (world === null) {
-      // The lobby has no match: no world, no riders and nothing decided.
+      // The lobby has no match: no world, no riders and nothing decided, and a session there is between two songs.
       if (stage !== "lobby" || roster.length || decided) return;
+      if (
+        session &&
+        (session.done >= session.length ||
+          session.songs.length !== session.done)
+      )
+        return;
     } else {
       const charts = library.song(play.song)?.charts.length ?? 0;
       if (
@@ -635,6 +850,29 @@ export function createFusemaniaGame(
             decided.winner !== roster[ranking(library, world)[0]!]!.id))
       )
         return;
+      // A match of several songs a session is one of its session's songs, and a single song has no session.
+      if (play.songs > 1 !== (session !== null)) return;
+      if (session) {
+        const at = stage === "running" ? session.done : session.done - 1;
+        if (
+          session.length !== play.songs ||
+          session.songs.length !== at + 1 ||
+          session.songs[at] !== play.song ||
+          (decided !== null &&
+            // The song just decided is in the totals: every rider has one, no less than this song gave it.
+            world.players.some((player, slot) => {
+              const score = session.scores.find(
+                (each) => each.id === roster[slot]!.id,
+              );
+              return (
+                !score ||
+                score.points <
+                  rating(library.steps(world.song, player.chart)!, player.score)
+              );
+            }))
+        )
+          return;
+      }
     }
     return {
       tick,
@@ -648,6 +886,7 @@ export function createFusemaniaGame(
       roster,
       decided,
       world,
+      session,
     };
   }
 
@@ -695,6 +934,14 @@ export function createFusemaniaGame(
       roster: room.roster.map((entrant) => ({ ...entrant })),
       winner: room.decided?.winner ?? "",
       world: room.world ? toView(library, room.world) : null,
+      session: room.session
+        ? {
+            length: room.session.length,
+            done: room.session.done,
+            songs: [...room.session.songs],
+            standings: standings(room.session.scores),
+          }
+        : null,
     };
   }
 
@@ -729,12 +976,14 @@ export function createFusemaniaGame(
       soloSettings: (settings) => ({ ...settings, display: false }),
       sharedScreen: (settings) => settings.display,
       botId(room, pending) {
-        // Never an id the match remembers, so a new bot is not mistaken for a departed one in its result.
+        // Never an id the match or the session remembers, so a new bot is not mistaken for a departed one in the
+        // result, and does not start with a departed one's session total.
         let number = 1;
         const taken = (id: string) =>
           room.seats.has(id) ||
           pending.has(id) ||
-          room.roster.some((entrant) => entrant.id === id);
+          room.roster.some((entrant) => entrant.id === id) ||
+          room.session?.scores.some((score) => score.id === id) === true;
         while (taken(`${BOT_PREFIX}${number}`)) number++;
         return `${BOT_PREFIX}${number}`;
       },
@@ -755,4 +1004,6 @@ export const defaultSettings = (library: Library): Settings => ({
   song: library.songs[0]?.id ?? "",
   mode: SCORE_MODE,
   chart: 1,
+  songs: 1,
+  random: false,
 });
