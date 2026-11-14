@@ -1,12 +1,12 @@
-import { apart, inShape, resolveSolids, settle } from "./collide.js";
-import { meetGadgets, type BarrierState } from "./gadgets.js";
+import { apart, inShape } from "./collide.js";
+import { drift } from "./gadgets.js";
 import { BTN, DOWN, LEFT, RIGHT } from "./input.js";
-import { SUB, abs, clamp, delta, div, isqrt } from "./math.js";
+import { SUB, abs, delta, div, isqrt } from "./math.js";
 import {
+  arenaOf,
   barrierBoxesOf,
   boxesOf,
   isCircle,
-  mapOf,
   type Box,
   type MapDef,
 } from "./maps.js";
@@ -103,37 +103,6 @@ interface Flight {
 }
 
 /**
- * One micro-step of a ball nobody touches: gravity, the solids and the gadgets, as `step.ts` moves it. `barriers`
- * is the flight's own copy of the fields and gates, which it wears down and opens as the real ones would be.
- */
-function drift(
-  ball: { x: number; y: number; vx: number; vy: number },
-  boxes: readonly Box[],
-  map: MapDef,
-  barriers: BarrierState[],
-): void {
-  ball.vy += T.BALL_GRAVITY;
-  ball.vx = clamp(ball.vx, -T.BALL_MAX, T.BALL_MAX);
-  ball.vy = clamp(ball.vy, -T.BALL_MAX, T.BALL_MAX);
-  ball.x += ball.vx;
-  ball.y += ball.vy;
-  const touch = resolveSolids(
-    ball,
-    T.BALL_R,
-    boxes,
-    map,
-    T.BALL_BOUNCE_NUM,
-    T.BALL_BOUNCE_DEN,
-  );
-  if (touch.hit) {
-    ball.vx -= div(ball.vx, T.BALL_SCRUB);
-    ball.vy -= div(ball.vy, T.BALL_SCRUB);
-  }
-  meetGadgets(map, barriers, ball);
-  settle(ball, T.BALL_R, map);
-}
-
-/**
  * A ball flown forward from `(x, y)` at `(vx, vy)` with nobody touching it: gravity and the solids, as `step.ts`
  * moves it, for `steps` micro-steps or until it falls into a goal. With a `rider`, the point returned is the first
  * one that rider could reach in time; without, where the ball ends up.
@@ -145,7 +114,7 @@ function flight(
   steps: number,
   rider?: Rider,
 ): Flight {
-  const boxes = boxesOf(world.mapId);
+  const boxes = boxesOf(map);
   const ball = { x: from.x, y: from.y, vx: from.vx, vy: from.vy },
     barriers = world.barriers.map((barrier) => ({ ...barrier }));
   let meet: { x: number; y: number } | undefined;
@@ -269,7 +238,7 @@ function barred(
   dx: number,
   dy: number,
 ): boolean {
-  for (const box of boxesOf(world.mapId)) {
+  for (const box of boxesOf(map)) {
     const at = apart(box.cx, box.cy, bx, by, map);
     if (
       abs(dy) <= abs(dx) &&
@@ -372,7 +341,7 @@ function route(
   ball: { x: number; y: number },
   depth = 0,
 ): { dx: number; dy: number; clear: boolean; trip: number } {
-  const boxes = boxesOf(world.mapId),
+  const boxes = boxesOf(map),
     snug = T.RIDER_R - SUB,
     body = T.RIDER_R + CLEAR;
   const solidAt = (x: number, y: number) =>
@@ -472,7 +441,7 @@ function path(
 
 export function botInput(world: World, rider: Rider): number {
   if (world.phase !== "play" || rider.zapped || !world.ball.live) return 0;
-  const map = mapOf(world.mapId),
+  const map = arenaOf(world),
     bits = plan(world, rider, map);
   // Near the ball it looks before it touches: what it means to hold is played forward, and when that ends in the
   // other colour's goal it holds the first thing that does not. With no such thing, it carries on as it meant to.
@@ -512,7 +481,7 @@ function trapdoor(
 ): { dx: number; dy: number } | undefined {
   const ball = world.ball;
   if (abs(ball.vx) >= SITTING || abs(ball.vy) >= SITTING) return undefined;
-  const boxes = barrierBoxesOf(world.mapId);
+  const boxes = barrierBoxesOf(map);
   for (let i = 0; i < map.barriers.length; i++) {
     const gate = map.barriers[i]!,
       box = boxes[i]!;
@@ -691,7 +660,7 @@ function plan(world: World, rider: Rider, map: MapDef): number {
     const stick = way & RIGHT ? 1 : way & LEFT ? -1 : 0,
       kerb =
         stick !== 0 &&
-        boxesOf(world.mapId).some((box) => {
+        boxesOf(map).some((box) => {
           const at = apart(box.cx, box.cy, rider.x, rider.y, map);
           return (
             at.dx * stick > 0 &&

@@ -1,6 +1,6 @@
 import { BTN } from "./input.js";
 import { barrierUp } from "./gadgets.js";
-import { mapOf, type MapId } from "./maps.js";
+import { arenaOf, type MapId } from "./maps.js";
 import { SUB } from "./math.js";
 import { slowed, winnerOf } from "./step.js";
 import { SPEED_FULL, STEPS_PER_SECOND, TARGET } from "./tuning.js";
@@ -61,6 +61,8 @@ export interface BallView {
 }
 export interface WorldView {
   mapId: MapId;
+  /** The seed the arena was rolled from when `mapId` is the random one; otherwise 0. */
+  seed: number;
   step: number;
   phase: Phase;
   /** Micro-steps left of the countdown or the zap; 0 in play and once the match is over. */
@@ -131,9 +133,10 @@ const bubbleView = (world: World, slot: Slot): BubbleView => {
 
 export function toView(world: World): WorldView {
   const { ball } = world,
-    map = mapOf(world.mapId);
+    map = arenaOf(world);
   return {
     mapId: world.mapId,
+    seed: world.seed,
     step: world.step,
     phase: world.phase,
     remaining: world.phaseSteps,
