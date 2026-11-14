@@ -129,7 +129,7 @@ const names = keys(GAME);
 const query = new URLSearchParams(location.search);
 /** `?lead=off` draws the old way, a tick behind the clock and blended, to compare the feel against. */
 const drawAhead = query.get("lead") !== "off",
-  /** `?probe` publishes where this device's hero was last drawn, for `scripts/lead-input-latency.ts`. */
+  /** `?probe` publishes where this device's hero was last drawn, for `scripts/lead-press-latency.ts`. */
   probe = query.has("probe");
 const app = document.querySelector<HTMLElement>("#app")!;
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");

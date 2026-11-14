@@ -5,14 +5,6 @@ if (legacyRidersLink(location.search)) {
     `${import.meta.env.BASE_URL}fuse-riders/${location.search}${location.hash}`,
   );
 } else {
-  const { createGameGallery } =
-    await import("../packages/fuse-ui/src/gallery.js");
-  await import("./gallery.css");
-  document.querySelector("#app")!.append(
-    createGameGallery({
-      document,
-      base: import.meta.env.BASE_URL,
-      search: location.search,
-    }),
-  );
+  // FuseOS: the Windows 95 desktop that fronts every game (packages/fuseos). It mounts itself into #app.
+  await import("../packages/fuseos/src/main.tsx");
 }

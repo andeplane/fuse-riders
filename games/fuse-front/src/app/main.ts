@@ -97,7 +97,7 @@ const store = safeStorage(() => localStorage);
 const params = new URLSearchParams(location.search);
 /** `?lead=off` draws the old way, a tick behind the clock and blended, to compare the feel against. */
 const drawAhead = params.get("lead") !== "off",
-  /** `?probe` publishes where this device's hero was last drawn, for `scripts/lead-input-latency.ts`. */
+  /** `?probe` publishes where this device's hero was last drawn, for `scripts/lead-press-latency.ts`. */
   probe = params.has("probe");
 const sticky = ["mute", "2d"].filter((flag) => params.has(flag));
 const link = (query = "") =>

@@ -61,7 +61,7 @@ const GAME = fuseDriversGame.id;
 const query = new URLSearchParams(location.search);
 /** `?lead=off` draws the old way, between the two newest folded races, to compare the feel against. */
 const drawAhead = query.get("lead") !== "off",
-  /** `?probe` publishes the heading this device's truck was last drawn at, for `scripts/lead-input-latency.ts`. */
+  /** `?probe` publishes the heading this device's truck was last drawn at, for `scripts/lead-press-latency.ts`. */
   probe = query.has("probe");
 const analytics = startGameAnalytics(GAME);
 const observePlay = createPlayMetrics(analytics.track, () => performance.now());

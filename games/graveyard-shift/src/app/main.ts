@@ -67,7 +67,7 @@ const GAME = "graveyard-shift",
   query = new URLSearchParams(location.search);
 /** `?lead=off` draws the old way, the newest folded tick as it is, to compare the feel against. */
 const drawAhead = query.get("lead") !== "off",
-  /** `?probe` publishes where this device's hunter was last drawn, for `scripts/lead-input-latency.ts`. */
+  /** `?probe` publishes where this device's hunter was last drawn, for `scripts/lead-press-latency.ts`. */
   probe = query.has("probe");
 const analytics = startGameAnalytics(GAME);
 const observePlay = createPlayMetrics(analytics.track, () => performance.now());

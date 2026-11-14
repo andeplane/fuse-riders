@@ -10,10 +10,14 @@
     "localhost",
     "andershaf-87.firebaseapp.com",
     "andeplane.github.io",
+    "fusegames.ai",
+    "www.fusegames.ai",
     "fuse-riders.web.app"
   ],
   "allowedReferrers": [
     "https://andeplane.github.io/*",
+    "https://fusegames.ai/*",
+    "https://www.fusegames.ai/*",
     "https://fuse-riders.web.app/*",
     "https://andershaf-87.firebaseapp.com/*",
     "localhost",

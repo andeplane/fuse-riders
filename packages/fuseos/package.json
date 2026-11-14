@@ -1,0 +1,29 @@
+{
+  "name": "fuseos",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FuseOS: the Windows 95 desktop that fronts the Fuse games, served at the site root in place of the old gallery.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "exports": {
+    ".": "./src/main.tsx"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "98.css": "^0.1.21",
+    "fuse-ui": "workspace:*",
+    "@mlc-ai/web-llm": "^0.2.88",
+    "@react95/icons": "^2.12.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-rnd": "^10.5.3",
+    "webamp": "2.3.1"
+  }
+}

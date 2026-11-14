@@ -56,7 +56,7 @@ try {
   }
   await page.keyboard.down("Space");
   await page
-    .getByRole("button", { name: "ROOM SETTINGS", exact: true })
+    .getByRole("button", { name: "Game settings", exact: true })
     .click();
   assert.doesNotMatch((await fire.getAttribute("class")) ?? "", /active/);
   await page.keyboard.up("Space");

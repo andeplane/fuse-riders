@@ -24,7 +24,12 @@ import {
   installRoomLifecycle,
   validRoomCode,
 } from "fuse-network-fe";
-import { MAX_PACKET_BYTES, uuid } from "fuse-netcode";
+import {
+  MAX_PACKET_BYTES,
+  createLeadClock,
+  ticksAhead,
+  uuid,
+} from "fuse-netcode";
 import {
   button,
   createAppPortal,
@@ -67,7 +72,6 @@ import {
 import { SIDE_NAMES, sideColor } from "../render/palette.js";
 import type { Cue } from "../render/cues.js";
 import { createScene } from "../render/scene.js";
-import { createSmoother } from "../render/smooth.js";
 import { browserImages, loadArt } from "./art.js";
 import { createSfx, VOLLEY_SONGS } from "./audio.js";
 import {
@@ -80,11 +84,11 @@ import {
 } from "./controls.js";
 import {
   blendViews,
-  createLeadClock,
+  createCueLatch,
+  createSmoother,
   forward,
-  memoBot,
   forwardInputs,
-  stepsAhead,
+  memoBot,
 } from "./forward.js";
 import { GamepadInput, browserGamepads } from "./gamepad.js";
 import {
@@ -151,8 +155,10 @@ const app = document.querySelector<HTMLElement>("#app")!;
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 /** For smokes and demos: `?autopilot` plays this device's blob with the bot's answers, through the same held controls. */
 const autopilot = query.has("autopilot");
-/** `?lead=local` draws this device's own blob with the keys held right now instead of the ones last logged. */
-const localLead = query.get("lead") === "local";
+/** `?lead=off` draws the old way, a tick behind the clock and blended, to compare the feel against. */
+const drawAhead = query.get("lead") !== "off";
+/** For latency measurements: `?probe` publishes where this device's blob was last drawn as `window.__fuseVolleyProbe`. */
+const probe = query.has("probe");
 /** `?trace` keeps the last few seconds of drawn positions on `window.fuseVolleyTrace`, for smoothness checks. */
 const trace:
   | {
@@ -171,8 +177,8 @@ const trace:
 if (trace) Object.assign(window, { fuseVolleyTrace: trace });
 /** A link within the game that keeps this page's developer flags. */
 const withFlags = (path: string) => {
-  const kept = ["mute", "autopilot"].filter((flag) => query.has(flag));
-  const lead = localLead ? ["lead=local"] : [];
+  const kept = ["mute", "autopilot", "probe"].filter((flag) => query.has(flag));
+  const lead = drawAhead ? [] : ["lead=off"];
   const all = [...kept, ...lead];
   return all.length
     ? `${path}${path.includes("?") ? "&" : "?"}${all.join("&")}`
@@ -712,42 +718,48 @@ function room(solo: boolean): void {
   );
   let model: Model | undefined;
   /** What to draw now: the forward run when the newest frame is the room's newest world, otherwise the two frames blended. */
-  let drawn = { ahead: 0, tick: 0, forward: false };
-  const leadClock = createLeadClock();
-  const drawBot = memoBot(botInput);
-  const picture = (): WorldView | undefined => {
+  let traced = { ahead: 0, tick: 0, forward: false };
+  const leadClock = createLeadClock(),
+    drawBot = memoBot(botInput),
+    latch = createCueLatch();
+  const picture = (now: number): WorldView | undefined => {
     const timing = runtime.frameTiming();
     const newer = timing?.newer.world;
     if (!timing || !newer) return undefined;
     const state = runtime.roomState();
-    const local = model?.localSlot ?? -1;
-    let view: WorldView;
+    const local = model?.localSlot ?? -1,
+      revision = timing.revision ?? 0;
     if (
+      drawAhead &&
       state?.world &&
       state.world.step === newer.step &&
       state.stage !== "lobby"
     ) {
-      const ahead = leadClock(
-        stepsAhead(timing, timing.newer.tick),
-        timing.newer.tick,
-        performance.now(),
+      const world = state.world,
+        ahead = leadClock(ticksAhead(timing), timing.newer.logTick, now);
+      traced = { ahead, tick: timing.newer.tick, forward: true };
+      return smoother.apply(
+        forward(
+          world,
+          ahead,
+          forwardInputs(state, viewer.me, runtime.heldNow, drawBot(revision)),
+        ),
+        revision,
+        newer.step,
+        world.blobs.map((blob) => state.held[blob.id] ?? 0),
+        now,
+        local,
       );
-      drawn = { ahead, tick: timing.newer.tick, forward: true };
-      view = forward(
-        state.world,
-        ahead,
-        forwardInputs(state, viewer.me, runtime.heldNow, localLead, drawBot),
-      );
-    } else {
-      drawn = { ahead: -1, tick: timing.newer.tick, forward: false };
-      const older = timing.older?.world;
-      const span = timing.older ? timing.newer.tick - timing.older.tick : 0;
-      view =
-        older && span > 0
-          ? blendViews(older, newer, (timing.tick - timing.older!.tick) / span)
-          : newer;
     }
-    return smoother.apply(view, timing.revision ?? 0, performance.now(), local);
+    traced = { ahead: -1, tick: timing.newer.tick, forward: false };
+    const older = timing.older?.world;
+    const span = timing.older ? timing.newer.tick - timing.older.tick : 0;
+    const view =
+      older && span > 0
+        ? blendViews(older, newer, (timing.tick - timing.older!.tick) / span)
+        : newer;
+    // A tick behind, only a rollback can move what is drawn: hide that the same way.
+    return smoother.apply(view, revision, newer.step, [], now, local);
   };
   let felt = -1;
   /** A phone controller draws nothing, but still feels its own touches: read off the hit counter as the scene does. */
@@ -772,9 +784,19 @@ function room(solo: boolean): void {
     // Asked first, so one bad frame cannot stop the drawing for good.
     requestAnimationFrame(frame);
     gamepads.poll(!menu.isOpen() && !modalOpen() && !document.hidden && !over);
-    const view = stage.hidden && controller.hidden ? undefined : picture();
+    const drawn = stage.hidden && controller.hidden ? undefined : picture(now),
+      view = drawn && latch(drawn, runtime.frameTiming()?.newer.matchId ?? "");
     if (view) {
       const local = model?.localSlot ?? -1;
+      if (probe) {
+        const mine = view.blobs[local];
+        Reflect.set(window, "__fuseVolleyProbe", {
+          at: performance.now(),
+          step: view.step,
+          x: mine?.x,
+          y: mine?.y,
+        });
+      }
       if (trace) {
         trace.push({
           t: now,
@@ -784,7 +806,7 @@ function room(solo: boolean): void {
           x1: view.blobs[1]?.x ?? 0,
           y0: view.blobs[0]?.y ?? 0,
           y1: view.blobs[1]?.y ?? 0,
-          ...drawn,
+          ...traced,
         });
         if (trace.length > 1200) trace.splice(0, trace.length - 1200);
       }

@@ -3,6 +3,7 @@ import { mkdir } from "node:fs/promises";
 import type { Page } from "playwright";
 import { launchSelected } from "../../scripts/lib/browser.js";
 import { startGameCoverage } from "../../scripts/lib/game-browser-coverage.js";
+import { openPlayOptions, takeHostSeat } from "../../scripts/lib/main-menu.js";
 
 // Real room service + WebRTC, no injected game state or accelerated clocks.
 const origin = process.env.ONLINE_URL ?? "http://localhost:8792/";
@@ -32,9 +33,23 @@ const phase = (p: Page, value: string, timeout = 30000) =>
     { timeout },
   );
 async function join(page: Page, name: string) {
-  await page.getByPlaceholder("Your name").fill(name);
-  await page.getByRole("button", { name: "JOIN", exact: true }).click();
+  await takeHostSeat(page, name);
   await page.locator(".fui-roster-name", { hasText: name }).waitFor();
+}
+const hostRoom = (page: Page) =>
+  page.getByRole("button", { name: "Host room", exact: true });
+const arena = (page: Page) => page.getByRole("combobox", { name: "ARENA" });
+/** Radio, Reconnect and Leave sit in the header's game menu. */
+async function fromGameMenu(page: Page, name: string) {
+  await page.getByRole("button", { name: "Open game menu" }).click();
+  await page.getByRole("button", { name, exact: true }).click();
+}
+async function addBot(page: Page) {
+  await page
+    .locator(".fui-room-open-slot")
+    .getByRole("button", { name: "Add AI", exact: true })
+    .first()
+    .click();
 }
 try {
   const a = host!,
@@ -52,32 +67,41 @@ try {
     { times: 1 },
   );
   await a.goto(url);
-  await a.getByRole("combobox", { name: "ARENA" }).selectOption("ricochet");
-  await a.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
-  await a.getByText("Try again shortly", { exact: true }).waitFor();
-  await a.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
+  // The landing keeps the arena under Settings; the room keeps it under Game settings.
+  await a.getByRole("button", { name: "Settings", exact: true }).click();
+  await arena(a).selectOption("ricochet");
+  await a.keyboard.press("Escape");
+  await openPlayOptions(a);
+  await hostRoom(a).click();
+  await a
+    .locator(".fui-menu-error", { hasText: "Try again shortly" })
+    .waitFor();
+  await hostRoom(a).click();
   await a.waitForURL(/room=/);
   const code = new URL(a.url()).searchParams.get("room")!;
   await join(a, "Alice");
   await b.goto(url);
+  await openPlayOptions(b, "join");
   await b.getByPlaceholder("Room code").fill(code);
   await b.getByRole("button", { name: "JOIN ROOM", exact: true }).click();
   await join(b, "Bob");
   await a.locator(".fui-roster-name", { hasText: "Bob" }).waitFor();
-  await a.getByRole("combobox", { name: "ARENA" }).selectOption("crossfire");
-  await b.getByRole("combobox", { name: "ARENA" }).waitFor();
-  assert.equal(
-    await b.getByRole("combobox", { name: "ARENA" }).isDisabled(),
-    true,
-  );
-  await a.getByRole("combobox", { name: "ARENA" }).selectOption("ricochet");
+  for (const page of [a, b])
+    await page
+      .getByRole("button", { name: "Game settings", exact: true })
+      .click();
+  await arena(a).selectOption("crossfire");
+  await arena(b).waitFor();
+  assert.equal(await arena(b).isDisabled(), true);
+  await arena(a).selectOption("ricochet");
   await b.waitForFunction(
     () =>
       (document.querySelector(".room-panel .map-select") as HTMLSelectElement)
         ?.value === "ricochet",
   );
+  for (const page of [a, b]) await page.keyboard.press("Escape");
   for (let count = 3; count <= 5; count++) {
-    await a.getByRole("button", { name: "+ ADD BOT", exact: true }).click();
+    await addBot(a);
     await a.waitForFunction(
       (n) => document.querySelectorAll(".fui-roster-name").length === n,
       count,
@@ -134,20 +158,21 @@ try {
     "PASS individual: create retry, lobby/bots, two real peers, controls, reload recovery, agreed result and rematch.",
   );
   // Creator leaves during a match. The remaining peer continues without a new room.
-  await a.getByRole("button", { name: "LEAVE", exact: true }).click();
-  await a.getByRole("button", { name: "CREATE ROOM", exact: true }).waitFor();
+  await fromGameMenu(a, "LEAVE");
+  await a.locator(".fui-main-menu").waitFor();
   await phase(b, "running");
   await b.waitForFunction(
     () => document.querySelector(".clock")?.textContent !== "02:00",
   );
-  await b.getByRole("button", { name: "LEAVE", exact: true }).click();
-  await b.getByRole("button", { name: "CREATE ROOM", exact: true }).waitFor();
+  await fromGameMenu(b, "LEAVE");
+  await b.locator(".fui-main-menu").waitFor();
 
+  await openPlayOptions(a);
   await a.getByLabel("Shared TV + phone controllers").check();
-  await a.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
+  await hostRoom(a).click();
   await a.waitForURL(/room=/);
-  // The remembered name auto-rejoins this new room.
-  await a.locator(".fui-roster-name", { hasText: "Alice" }).waitFor();
+  // The creator takes a seat explicitly; a remembered guest below rejoins by itself.
+  await join(a, "Alice");
   const sharedCode = new URL(a.url()).searchParams.get("room")!;
   const tvUrl = await a
     .getByRole("link", { name: "OPEN TV SCREEN" })
@@ -168,7 +193,7 @@ try {
   await b.locator("#app.controller-mode").waitFor();
   await display.locator("#app.display-mode").waitFor();
   assert.equal(await display.locator(".pad").first().isVisible(), false);
-  assert.equal(await b.locator("canvas").isVisible(), false);
+  assert.equal(await b.locator(".canvas-host").isVisible(), false);
   await b.getByRole("button", { name: "OUT ↑", exact: true }).tap();
   await b.getByRole("button", { name: "RIGHT ↷", exact: true }).tap();
   await b.screenshot({
@@ -208,23 +233,18 @@ try {
   const privatePage = await blocked.newPage();
   privatePage.on("pageerror", (e) => errors.push(e.message));
   await privatePage.goto(url);
-  await privatePage
-    .getByRole("button", { name: "CREATE ROOM", exact: true })
-    .click();
+  await openPlayOptions(privatePage);
+  await hostRoom(privatePage).click();
   await privatePage.waitForURL(/room=/);
   await join(privatePage, "Private");
-  await privatePage
-    .getByRole("button", { name: "+ ADD BOT", exact: true })
-    .click();
+  await addBot(privatePage);
   await privatePage
     .locator(".fui-roster-name", { hasText: "Sparks" })
     .waitFor();
-  await privatePage
-    .getByRole("button", { name: "RECONNECT", exact: true })
-    .click();
-  await privatePage
-    .locator(".fui-roster-name", { hasText: "Private" })
-    .waitFor();
+  await fromGameMenu(privatePage, "RECONNECT");
+  // Alone in the room, the reconnect starts a fresh lobby. The creator still manages it and takes a seat again.
+  await privatePage.locator(".fui-room-count", { hasText: "0 / 5" }).waitFor();
+  await join(privatePage, "Private");
   assert.equal(
     await privatePage
       .getByRole("button", { name: "START MATCH", exact: true })
