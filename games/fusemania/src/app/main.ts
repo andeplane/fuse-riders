@@ -572,6 +572,17 @@ function landing(): void {
   const help = keyHelp();
   card.menu.addSettings(settings.element);
   card.menu.help.append(help);
+  // The timing mode: its own page, a click track that goes round with the offsets beside it, no room and no score.
+  // Dressed as the menu's other secondary choices (How to play), not as the primary Play.
+  const timing = button(
+    "Adjust timing",
+    card.menu.play.nextElementSibling?.className ?? "",
+  );
+  timing.onclick = () => {
+    leaveLanding();
+    location.href = withFlags(endpoints.appUrl("?debugtiming"));
+  };
+  card.menu.play.after(timing);
   /** The select sits in the menu's own dialog: only another one on top takes the keys away. */
   const otherDialogOpen = () =>
     [...document.querySelectorAll("dialog[open]")].some(
