@@ -3,6 +3,7 @@ import { createDialog } from "./dialog.js";
 import { menuKeys } from "./menu-keys.js";
 import { ALL_SONGS, type Song, type MusicMedia } from "fuse-music";
 import { createRadio } from "./radio.js";
+import { browserPlaytestFor } from "./playtest.js";
 
 export interface TopBarOptions {
   element: HTMLElement;
@@ -116,6 +117,7 @@ export function createTopBar(options: TopBarOptions): HTMLElement {
       : "Toggle music and sound effects";
   };
   let onOpenChange = options.onOpenChange;
+  let report: HTMLButtonElement | undefined;
   let releaseAccount: (() => void) | undefined;
   const refresh = (next: TopBarOptions) => {
     onOpenChange = next.onOpenChange;
@@ -183,6 +185,15 @@ export function createTopBar(options: TopBarOptions): HTMLElement {
     root.classList.add("fui-top-bar");
     root.dataset.fuiPreserve = "true";
     if (next.gameId) root.dataset.gameId = next.gameId;
+    if (next.gameId && !report) {
+      const playtest = browserPlaytestFor(doc, next.gameId);
+      report = button("Report · Ctrl+X", "fui-playtest-trigger", doc);
+      report.onclick = () => {
+        if (menu.dialog.open) menu.dialog.close();
+        playtest?.openReport();
+      };
+      menu.body.append(report);
+    }
     for (const trigger of menu.body.querySelectorAll<HTMLElement>(
       ".fui-game-menu-trigger",
     ))

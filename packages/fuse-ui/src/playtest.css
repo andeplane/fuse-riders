@@ -1,0 +1,87 @@
+.fui-playtest-report {
+  width: min(42rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+}
+.fui-playtest-report form {
+  display: grid;
+  gap: 1rem;
+}
+.fui-playtest-preview {
+  display: block;
+  width: 100%;
+  max-height: 38dvh;
+  object-fit: contain;
+  background: var(--fui-navy, #080b12);
+}
+.fui-playtest-report label {
+  display: grid;
+  gap: 0.5rem;
+}
+.fui-playtest-report textarea,
+.fui-playtest-report select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.75rem;
+  color: var(--fui-text, #eaf8ff);
+  background: var(--fui-navy, #080b12);
+  border: 1px solid var(--fui-line, #8192aa);
+  font: inherit;
+}
+.fui-playtest-report textarea {
+  resize: vertical;
+  line-height: 1.6;
+}
+.fui-playtest-report p,
+.fui-playtest-recording p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.fui-playtest-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.fui-playtest-recording {
+  position: fixed;
+  z-index: 2147483000;
+  right: 1rem;
+  bottom: 3rem;
+  box-sizing: border-box;
+  width: min(30rem, calc(100vw - 2rem));
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  color: var(--fui-text, #eaf8ff);
+  background: var(--fui-navy, #080b12);
+  border: 1px solid var(--fui-line, #8192aa);
+  font-family: var(--fui-font-body, sans-serif);
+}
+.fui-playtest-recording[data-recording="true"] {
+  border-color: var(--fui-pink, #ff65bc);
+}
+.fui-playtest-recording strong {
+  font-size: 14px;
+  line-height: 1.6;
+}
+.fui-playtest-report :focus-visible,
+.fui-playtest-recording :focus-visible {
+  outline: 2px solid var(--fui-cyan, #6de7ff);
+  outline-offset: 3px;
+}
+.fui-playtest-report ::selection,
+.fui-playtest-recording ::selection {
+  color: #080b12;
+  background: #6de7ff;
+}
+.fui-playtest-report [hidden],
+.fui-playtest-recording [hidden] {
+  display: none;
+}
+@media (max-width: 560px) {
+  .fui-playtest-recording {
+    bottom: 0.5rem;
+    right: 0.5rem;
+    width: calc(100vw - 1rem);
+  }
+}
