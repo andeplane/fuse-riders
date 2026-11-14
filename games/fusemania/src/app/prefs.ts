@@ -1,5 +1,5 @@
 /**
- * What a player has set up for themselves on this device: the keys, the scroll, and the two timing offsets. Stored
+ * What a player has set up for themselves on this device: the keys, the scroll, and the three timing offsets. Stored
  * under one key; anything unreadable falls back to the defaults field by field.
  */
 export const ACTIONS = ["left", "down", "up", "right", "item"] as const;
@@ -23,12 +23,24 @@ export interface Prefs {
   offsetMs: number;
   /** Milliseconds the picture is drawn ahead of the sound (positive) or behind it (negative). */
   visualMs: number;
+  /**
+   * Milliseconds the sound reaches the player later than the browser knows (Bluetooth, a TV, a soundbar). It moves
+   * the picture and the judging together, where the input offset moves only the judging.
+   */
+  audioMs: number;
 }
 
 export const MIN_SPEED = 0.5,
   MAX_SPEED = 5,
-  MAX_OFFSET_MS = 400,
+  /**
+   * The furthest an input offset may go. The room takes a press no further than `LATE_MS` (250) behind the tick it
+   * is logged for and no further than `EARLY_MS` (150) ahead of it, and the song may be 120 ms from the room's
+   * clock before it is realigned: an offset past this would have presses pulled to the tick and judged there. A
+   * lag that large is the sound's (Bluetooth, a TV), and belongs in the audio offset.
+   */
+  MAX_OFFSET_MS = 150,
   MAX_VISUAL_MS = 200,
+  MAX_AUDIO_MS = 500,
   /** Keys one action may have. */
   MAX_KEYS = 4;
 /** The speeds the song select offers; the settings' slider reaches the ones between. */
@@ -47,6 +59,7 @@ export const DEFAULT_PREFS: Prefs = {
   down: false,
   offsetMs: 0,
   visualMs: 0,
+  audioMs: 0,
 };
 export const PREFS_KEY = "fusemania-prefs-v1";
 
@@ -119,6 +132,21 @@ export function parsePrefs(raw: unknown): Prefs {
   prefs.offsetMs = Math.round(
     clamp(stored.offsetMs, -MAX_OFFSET_MS, MAX_OFFSET_MS, 0),
   );
+  prefs.audioMs = Math.round(
+    clamp(stored.audioMs, -MAX_AUDIO_MS, MAX_AUDIO_MS, 0),
+  );
+  // An input offset from before there was an audio offset, too large to be a keyboard's: it was the sound's.
+  if (
+    stored.audioMs === undefined &&
+    typeof stored.offsetMs === "number" &&
+    Number.isFinite(stored.offsetMs) &&
+    Math.abs(stored.offsetMs) > MAX_OFFSET_MS
+  ) {
+    prefs.audioMs = Math.round(
+      clamp(stored.offsetMs, -MAX_AUDIO_MS, MAX_AUDIO_MS, 0),
+    );
+    prefs.offsetMs = 0;
+  }
   prefs.visualMs = Math.round(
     clamp(stored.visualMs, -MAX_VISUAL_MS, MAX_VISUAL_MS, 0),
   );
