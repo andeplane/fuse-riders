@@ -49,7 +49,7 @@ A step is judged by how far the press is from the note: Marvelous within 22 ms, 
 
 Every few seconds one arrow glows. Hitting it puts a power-up in your slot; Space throws it.
 
-The drops rubber-band on the score. Each power-up has a power from 1 to 10 (`ITEM_POWER` in `src/engine/rules.ts`): for an attack, how hard it is to keep playing through (Flip 10, Blackout 8, Mines and Lag 7, down to Wave 2); for your own items, how much they are worth (Star 9, Double 8, Shield 2). A rider behind the others draws the high-power ones more often and a rider ahead the low-power ones, in proportion to the gap: your rating against the others' average, as a share of the best rating, with 20% counting as a full gap. At a full gap Flip is about one drop in 150 for the leader and one in 8 for the rider behind; level riders get the plain `ITEM_BASE` table. `ITEM_BASE`, `ITEM_POWER`, `ITEM_TILT`, `ITEM_GAP_FULL_PCT` and `ITEM_GAP_FLOOR` are the knobs.
+The drops rubber-band on the score. Each power-up has a power from 1 to 10 (`ITEM_POWER` in `src/engine/rules.ts`): for an attack, how hard it is to keep playing through (Flip 10, Blackout 8, Mines and Lag 7, down to Wave 2); for your own items, how much they are worth (Star 9, Double 8, Shield 2); Fade is 6 and Ping-pong 3. A rider behind the others draws the high-power ones more often and a rider ahead the low-power ones, in proportion to the gap: your rating against the others' average, as a share of the best rating, with 20% counting as a full gap. At a full gap Flip is about one drop in 170 for the leader and one in 9 for the rider behind; level riders get the plain `ITEM_BASE` table. `ITEM_BASE`, `ITEM_POWER`, `ITEM_TILT`, `ITEM_GAP_FULL_PCT` and `ITEM_GAP_FLOOR` are the knobs.
 
 | Power-up                                                       | What it does                                                |
 | -------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -59,8 +59,12 @@ The drops rubber-band on the score. Each power-up has a power from 1 to 10 (`ITE
 | Double                                                         | Your points count twice for a while                         |
 | Star                                                           | Plays your arrows for you, perfectly, for a few seconds     |
 | Shield                                                         | Blocks the next attack thrown at you                        |
+| Fade                                                           | One rival's music fades away for five to ten seconds        |
+| Ping-pong                                                      | One rival's music bounces from ear to ear on the beat       |
 
 An attack takes hold a moment after it is thrown, so a rival sees it coming.
+
+Fade and Ping-pong go for the ears, and land on one rival picked by the match's seed (a rider before a bot, the same one on every device). They change only how loud that rival's own device plays the song in each ear (`src/app/song-fx.ts`, through `ClockedSong.shape`): nothing is delayed or filtered, so the clock, the arrows and the judging are untouched. A fade leaves a trace of the song (4%) and Ping-pong is turned down as it swings, so neither is ever louder than the song. On a shared screen the one song is everybody's, so they do nothing there.
 
 ## Timing
 

@@ -70,6 +70,7 @@ import { createScene } from "../render/scene.js";
 import { LIBRARY, SONGS_DATA } from "../songs.js";
 import { browserCanvas } from "./attract.js";
 import { createSfx, cuesBetween } from "./audio.js";
+import { songShape } from "./song-fx.js";
 import {
   COLUMN_ACTIONS,
   MAX_OFFSET_MS,
@@ -1138,9 +1139,17 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     const mine = local === -1 ? undefined : view.players[local];
     if (mine && !mine.bot && running && songClock.audible)
       collector.observe(mine, `${epoch}:${prefs.offsetMs}`);
+    const timing = library.timing(view.song);
+    // Fade and Ping-pong change this device's own song, for the rider playing on it. A shared screen plays one song
+    // for everybody in the room, so there it is left alone.
+    if (song) {
+      const shape = mine
+        ? songShape(mine.effects, heard, timing?.beatAt(heard / 1000) ?? 0)
+        : undefined;
+      song.shape(shape?.level ?? 1, shape?.pan ?? 0);
+    }
     if (stage.hidden) return;
     const drawn = heard + prefs.visualMs;
-    const timing = library.timing(view.song);
     const beat = timing?.beatAt(drawn / 1000) ?? 0;
     scene.draw(view, {
       songMs: drawn,
