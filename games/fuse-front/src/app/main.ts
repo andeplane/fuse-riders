@@ -1,7 +1,7 @@
 import { createTopBar } from "fuse-ui";
 import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
-import { startGameAnalytics } from "fuse-ui/play-metrics";
+import { createPlayMetrics, startGameAnalytics } from "fuse-ui/play-metrics";
 import "fuse-ui/social.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
@@ -71,10 +71,12 @@ import {
 import { GAME_ID, keys, roomFailure, sessionFor } from "./session.js";
 import { Radar, homeOf, minimapTile } from "./radar.js";
 import { createAudio } from "./audio/index.js";
+import { frontPlayFrame } from "./play-metrics.js";
 
 const app = document.querySelector<HTMLElement>("#app")!;
 const base = import.meta.env.BASE_URL;
 const analytics = startGameAnalytics(GAME_ID);
+const reportPlay = createPlayMetrics(analytics.track, () => performance.now());
 const social = createGameSocial({
   gameId: GAME_ID,
   base,
@@ -339,6 +341,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
   let picking = -1;
   let wasLobby = true;
   function show(view: View): void {
+    reportPlay(frontPlayFrame(view, runtime.self, display, online));
     const inLobby = view.stage === "lobby";
     lobby.hidden = !inLobby;
     currentLobby?.setActive(inLobby);
