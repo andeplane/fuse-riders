@@ -21,7 +21,7 @@ const COLUMNS: {
   { column: "size", label: "Size", className: "w-[8%] text-right" },
 ];
 
-/** The Recycle Bin as Windows 95 showed it: a details list with the bin's own five columns. */
+/** The Recycle Bin as Windows 98 showed it: a details list with the bin's own five columns. */
 export function RecycleBinWindow({ windowId }: RecycleBinWindowProps) {
   const vm = useRecycleBinViewModel(windowId);
   const empty = vm.items.length === 0;

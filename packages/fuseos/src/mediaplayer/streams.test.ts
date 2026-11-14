@@ -12,6 +12,11 @@ describe("media streams", () => {
       expect(new URL(stream.embedUrl).hostname).toBe(
         "www.youtube-nocookie.com",
       );
-    expect(MEDIA_STREAMS.rickroll.embedUrl).toContain("/embed/dQw4w9WgXcQ");
+    expect(MEDIA_STREAMS.rickroll.embedUrl).toBe(
+      "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1",
+    );
+    expect(new URL(MEDIA_STREAMS.rickroll.watchUrl).searchParams.get("v")).toBe(
+      "dQw4w9WgXcQ",
+    );
   });
 });

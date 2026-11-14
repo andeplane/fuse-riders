@@ -76,6 +76,18 @@ export function MediaPlayerWindow(props: MediaPlayerWindowProps) {
             </span>
           )}
         </div>
+        {vm.stream && vm.playback.phase === "playing" ? (
+          <p className="text-right">
+            Not playing?{" "}
+            <a
+              href={vm.stream.watchUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open on YouTube
+            </a>
+          </p>
+        ) : null}
         <div
           className="sunken flex h-3 w-full bg-white"
           role="progressbar"

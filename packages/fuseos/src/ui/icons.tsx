@@ -137,7 +137,7 @@ const ICONS: Record<IconName, IconComponent> = {
   settings: Settings,
   find: ComputerFind,
   help: HelpBook,
-  // Start > Run...: the window with the hourglass, as the Windows 95 Start menu draws it.
+  // Start > Run...: the window with the hourglass, as the Windows 98 Start menu draws it.
   run: Shell3225,
   shutdown: Computer,
   programs: FolderExe,

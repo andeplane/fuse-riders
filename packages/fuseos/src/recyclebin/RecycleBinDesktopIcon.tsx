@@ -21,7 +21,7 @@ export const RECYCLE_BIN_ICON_ID = "recycle-bin";
 /**
  * The Recycle Bin on the desktop: full or empty by what the bin holds, with the icon's own
  * context menu (Open, Empty Recycle Bin). Sits apart from the icon grid, at the bottom left,
- * where Windows 95 kept it.
+ * where Windows 98 kept it.
  */
 export function RecycleBinDesktopIcon() {
   const ui = useContext(DesktopUiContext);
