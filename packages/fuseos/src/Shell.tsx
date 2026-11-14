@@ -30,7 +30,9 @@ export function Shell({ store, initialOpen, children }: ShellProps) {
             <DisplayEffectsProvider>
               <WindowManagerProvider>
                 <AssistantToolsProvider>
-                  <System32BsodProvider>{children ?? <Desktop />}</System32BsodProvider>
+                  <System32BsodProvider>
+                    {children ?? <Desktop />}
+                  </System32BsodProvider>
                 </AssistantToolsProvider>
               </WindowManagerProvider>
             </DisplayEffectsProvider>

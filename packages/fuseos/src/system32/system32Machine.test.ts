@@ -92,6 +92,16 @@ describe("reduceSystem32", () => {
     expect(reduceSystem32(IDLE, { type: "restart" })).toEqual(IDLE);
   });
 
+  it("crashes straight to the blue screen from a quiet desktop only", () => {
+    expect(reduceSystem32(IDLE, { type: "crash" })).toEqual({
+      phase: "crashed",
+    });
+    const asking: System32State = { phase: "confirming", step: 1 };
+    expect(reduceSystem32(asking, { type: "crash" })).toBe(asking);
+    const folding: System32State = { phase: "folding", stage: 2 };
+    expect(reduceSystem32(folding, { type: "crash" })).toBe(folding);
+  });
+
   it("aborts to idle from anywhere", () => {
     for (const state of [
       CONFIRMED,

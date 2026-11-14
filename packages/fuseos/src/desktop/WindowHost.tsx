@@ -13,6 +13,7 @@ import { PaintWindow } from "../paint/PaintWindow";
 import { RecycleBinWindow } from "../recyclebin/RecycleBinWindow";
 import { GameWindow } from "../retro/GameWindow";
 import { RetroFolderWindow } from "../retro/RetroFolderWindow";
+import { RunWindow } from "../run/RunWindow";
 import type { WindowState } from "../state/appState";
 import { WinampPlayer } from "../winamp/WinampPlayer";
 import { MessageBox } from "../windows/MessageBox";
@@ -84,6 +85,8 @@ function WindowContent({
       );
     case "launcher":
       return <LauncherWindow windowId={window.id} active={active} />;
+    case "run":
+      return <RunWindow windowId={window.id} />;
     case "recyclebin":
       return <RecycleBinWindow windowId={window.id} />;
     case "mediaplayer":

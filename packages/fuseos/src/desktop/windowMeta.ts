@@ -45,6 +45,9 @@ export const RECYCLE_BIN_WINDOW_SIZE: Size = { width: 640, height: 380 };
 /** The classic 4:3 Media Player: a small screen, the seek bar and the transport buttons. */
 export const MEDIA_PLAYER_WINDOW_SIZE: Size = { width: 400, height: 340 };
 
+/** The Run box: the prompt, one line to type in and three buttons. */
+export const RUN_WINDOW_SIZE: Size = { width: 360, height: 176 };
+
 export const OS_NAME = "FuseOS";
 
 /** Title bar text and icon for each window kind. */
@@ -148,6 +151,13 @@ export function windowMeta(
         icon: "mediaplayer",
         resizable: false,
         size: MEDIA_PLAYER_WINDOW_SIZE,
+      };
+    case "run":
+      return {
+        title: "Run",
+        icon: "run",
+        resizable: false,
+        size: RUN_WINDOW_SIZE,
       };
   }
 }

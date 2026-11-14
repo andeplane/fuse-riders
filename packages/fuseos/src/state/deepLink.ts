@@ -1,3 +1,4 @@
+import { MY_COMPUTER } from "../disk/diskPath";
 import { isGameId } from "../retro/gameIds";
 
 import type { WindowContent } from "./appState";
@@ -5,7 +6,7 @@ import type { WindowContent } from "./appState";
 /** The query parameter a link uses to open windows on boot: `?open=fuseball,paint`. */
 export const OPEN_PARAM = "open";
 
-/** The non-game targets `?open=` understands. */
+/** The non-game targets `?open=` and Start > Run... understand, by the name a link or a person gives them. */
 const APPS: Record<string, WindowContent> = {
   paint: { kind: "paint" },
   winamp: { kind: "winamp" },
@@ -13,7 +14,17 @@ const APPS: Record<string, WindowContent> = {
   about: { kind: "about" },
   fusteam: { kind: "launcher" },
   recyclebin: { kind: "recyclebin" },
+  explorer: { kind: "explorer", location: MY_COMPUTER },
+  notepad: { kind: "notepadpp", paths: ["README.md"], activePath: "README.md" },
+  // The DOS Games folder on the desktop (the Retro Games folder window).
+  dosgames: { kind: "retroFolder" },
+  run: { kind: "run" },
 };
+
+/** The window an app name opens; undefined for a name that is not an app (a game, or nothing). */
+export function deepLinkApp(id: string): WindowContent | undefined {
+  return Object.hasOwn(APPS, id) ? APPS[id] : undefined;
+}
 
 /** Something that knows which Fuse games exist; the registry in production, a fixture in tests. */
 export type GameLookup = { has(id: string): boolean };
@@ -40,7 +51,7 @@ export function deepLinkContents(
   return ids.flatMap((id): WindowContent[] => {
     if (games.has(id)) return [{ kind: "fusegame", gameId: id }];
     if (isGameId(id)) return [{ kind: "retro", game: id }];
-    const app = APPS[id];
+    const app = deepLinkApp(id);
     return app ? [app] : [];
   });
 }

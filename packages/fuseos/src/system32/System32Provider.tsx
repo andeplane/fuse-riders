@@ -38,6 +38,8 @@ export type System32Handle = {
   cancel: () => void;
   /** Any key on the blue screen. */
   restart: () => void;
+  /** Straight to the blue screen and the restart, from a quiet desktop (Start > Run..., `bsod`). */
+  crash: () => void;
 };
 
 const noop = () => undefined;
@@ -50,6 +52,7 @@ export const idleSystem32Handle: System32Handle = {
   confirm: noop,
   cancel: noop,
   restart: noop,
+  crash: noop,
 };
 
 export const System32Context =
@@ -130,6 +133,7 @@ export function System32Provider({ children }: System32ProviderProps) {
   const confirm = useCallback(() => dispatch({ type: "confirm" }), []);
   const cancel = useCallback(() => dispatch({ type: "cancel" }), []);
   const restart = useCallback(() => dispatch({ type: "restart" }), []);
+  const crash = useCallback(() => dispatch({ type: "crash" }), []);
 
   const handle = useMemo<System32Handle>(
     () => ({
@@ -139,8 +143,9 @@ export function System32Provider({ children }: System32ProviderProps) {
       confirm,
       cancel,
       restart,
+      crash,
     }),
-    [state, removeSystem32, confirm, cancel, restart],
+    [state, removeSystem32, confirm, cancel, restart, crash],
   );
 
   const stage = currentStage(state);

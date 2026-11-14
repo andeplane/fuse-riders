@@ -131,6 +131,8 @@ export type System32Event =
   | { type: "elapsed" }
   /** Skip the questions and the waits and land on a stage directly (demo trigger, screenshots). */
   | { type: "jumpTo"; stage: number }
+  /** Straight to the blue screen from a quiet desktop (Start > Run..., `bsod`), then the usual restart. */
+  | { type: "crash" }
   /** Any key on the blue screen, or the demo trigger: restart now. */
   | { type: "restart" }
   /** Give up wherever we are (unmount, demo reset) and restore the desktop. */
@@ -170,6 +172,8 @@ export function reduceSystem32(
       }
     case "jumpTo":
       return { phase: "folding", stage: clampStage(event.stage) };
+    case "crash":
+      return state.phase === "idle" ? { phase: "crashed" } : state;
     case "restart":
       return state.phase === "crashed" ? { phase: "restarting" } : state;
     case "abort":

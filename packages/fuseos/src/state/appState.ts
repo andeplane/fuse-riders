@@ -90,6 +90,11 @@ export interface MediaPlayerWindowContent {
   launches?: string;
 }
 
+/** Start > Run...: the one-line Run box (`src/run`). One instance. */
+export interface RunWindowContent {
+  kind: "run";
+}
+
 export type WindowContent =
   | FuseGameWindowContent
   | RetroGameWindowContent
@@ -104,7 +109,8 @@ export type WindowContent =
   | NotepadPlusPlusWindowContent
   | LauncherWindowContent
   | RecycleBinWindowContent
-  | MediaPlayerWindowContent;
+  | MediaPlayerWindowContent
+  | RunWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -168,6 +174,7 @@ export function sameInstance(
     case "retroFolder":
     case "launcher":
     case "recyclebin":
+    case "run":
       return existing.kind === content.kind;
     case "mediaplayer":
       return existing.kind === "mediaplayer" && existing.file === content.file;
@@ -377,6 +384,7 @@ function isWindowContent(
         (value.activePath === undefined || typeof value.activePath === "string")
       );
     case "recyclebin":
+    case "run":
       return true;
     case "mediaplayer":
       return (

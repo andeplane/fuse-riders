@@ -367,9 +367,9 @@ describe("Explorer", () => {
     );
     await waitFor(() => expect(row(/KERNEL32\.DLL/)).toBeInTheDocument());
     await user.dblClick(row(/KERNEL32\.DLL/));
-    expect(
-      screen.getByRole("dialog", { name: "Open With" }),
-    ).toHaveTextContent("Windows cannot open this file");
+    expect(screen.getByRole("dialog", { name: "Open With" })).toHaveTextContent(
+      "Windows cannot open this file",
+    );
   });
 
   it("marks files with a saved copy and reverts them from the context menu", async () => {

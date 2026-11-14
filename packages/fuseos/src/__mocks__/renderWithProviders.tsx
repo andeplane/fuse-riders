@@ -288,6 +288,7 @@ export function createTestDesktopDeps(
     subscribeClock: () => () => undefined,
     reload: vi.fn(),
     openExternal: vi.fn(),
+    isApplePlatform: () => false,
     ...overrides,
   };
 }
