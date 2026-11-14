@@ -12,7 +12,7 @@ import {
 import { Desktop } from "./Desktop";
 
 describe(Desktop.name, () => {
-  it("boots to a desktop with Fusteam, My Computer, one icon per Fuse game, then Paint, Winamp and Control Panel, a taskbar and the clock", () => {
+  it("boots to a desktop with Fusteam, My Computer, Network Neighborhood, the DOS Games folder, one icon per Fuse game, then Paint, Winamp and Control Panel, a taskbar and the clock", () => {
     renderWithProviders(<Desktop />);
     const icons = within(screen.getByRole("list", { name: "Desktop icons" }));
     expect(
@@ -22,13 +22,14 @@ describe(Desktop.name, () => {
     ).toEqual([
       "Fusteam",
       "My Computer",
+      "Network Neighborhood",
+      "DOS Games",
       "Fuseball",
       "Fuse Riders",
       "Fuse Birds",
       "Paint",
       "Winamp",
       "Control Panel",
-      "Network Neighborhood",
     ]);
     expect(screen.getByRole("toolbar", { name: "Taskbar" })).toHaveTextContent(
       /2:34 PM/,
@@ -36,6 +37,21 @@ describe(Desktop.name, () => {
     expect(
       screen.getByRole("complementary", { name: "Office Assistant" }),
     ).toBeInTheDocument();
+  });
+
+  it("opens the DOS Games folder from its yellow folder icon, once", async () => {
+    const user = userEvent.setup();
+    const { store } = renderWithProviders(<Desktop />);
+    const icon = screen.getByRole("button", { name: "DOS Games" });
+    expect(icon.querySelector("svg[data-icon='folder']")).not.toBeNull();
+    await user.dblClick(icon);
+    await user.dblClick(icon);
+    expect(screen.getAllByRole("dialog", { name: "DOS Games" })).toHaveLength(
+      1,
+    );
+    expect(store.load().windows).toEqual([
+      expect.objectContaining({ kind: "retroFolder" }),
+    ]);
   });
 
   it("draws a game's bitmap icon at 32px, the accent tile with the mark for a game without one, and app icons from the icon set", () => {

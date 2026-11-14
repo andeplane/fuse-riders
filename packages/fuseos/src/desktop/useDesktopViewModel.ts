@@ -5,6 +5,7 @@ import { FuseGamesContext } from "../fusegames/registry";
 import { useFuseGameLauncher } from "../fusegames/useFuseGameLauncher";
 import { LAUNCHER_TITLE } from "../launcher/launcherFacts";
 import { useOpenLauncher } from "../launcher/useOpenLauncher";
+import { DOS_GAMES_TITLE } from "../retro/RetroFolderWindow";
 import { useGameLaunch } from "../settings/useGameLaunch";
 import { useDialUpCommands } from "../sounds/dialup/useDialUpCommands";
 import type { WindowState } from "../state/appState";
@@ -106,6 +107,20 @@ export function useDesktopViewModel(): DesktopViewModel {
       icon: "computer",
       open: () => commands.open({ kind: "explorer", location: MY_COMPUTER }),
     },
+    {
+      // Under My Computer, where Windows 98 keeps it.
+      id: "network-neighborhood",
+      label: "Network Neighborhood",
+      icon: "network",
+      open: () => openNetworkNeighborhood(online),
+    },
+    {
+      // The yellow folder: DOOM, Wolfenstein 3D, Commander Keen and Duke Nukem 3D, with the Windows games under them.
+      id: "dos-games",
+      label: DOS_GAMES_TITLE,
+      icon: "folder",
+      open: () => commands.open({ kind: "retroFolder" }),
+    },
     ...games.games.map((game) => ({
       id: `game:${game.id}`,
       label: game.name,
@@ -122,12 +137,6 @@ export function useDesktopViewModel(): DesktopViewModel {
       label: "Control Panel",
       icon: "settings",
       open: openControlPanel,
-    },
-    {
-      id: "network-neighborhood",
-      label: "Network Neighborhood",
-      icon: "network",
-      open: () => openNetworkNeighborhood(online),
     },
   ];
 
