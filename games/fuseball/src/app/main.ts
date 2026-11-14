@@ -29,8 +29,9 @@ import {
 } from "fuse-ui";
 import {
   BTN,
-  MAPS,
   MAP_IDS,
+  RANDOM,
+  mapOf,
   isCircle,
   isMapId,
   type MapDef,
@@ -73,6 +74,7 @@ import {
   roomFailure,
   safeStore,
   sessionFor,
+  seedFromText,
 } from "./session.js";
 
 /**
@@ -102,6 +104,7 @@ const social = createGameSocial({
 const store = safeStore(() => localStorage);
 const names = keys(GAME);
 const mapKey = `${GAME}-map`;
+const seedKey = `${GAME}-seed`;
 const query = new URLSearchParams(location.search);
 const muted = query.has("mute");
 const app = document.querySelector<HTMLElement>("#app")!;
@@ -125,6 +128,9 @@ const chosenMap = (): MapId => {
     saved = store.getItem(mapKey);
   return isMapId(asked) ? asked : isMapId(saved) ? saved : MAP_IDS[0];
 };
+const chosenSeed = () =>
+  seedFromText(query.get("seed")) ?? seedFromText(store.getItem(seedKey)) ?? 0;
+const rollSeed = () => crypto.getRandomValues(new Uint32Array(1))[0]!;
 
 const GUIDE = {
   controls: [
@@ -287,26 +293,91 @@ function createMapPicker(onPick: (id: MapId) => void) {
   element.setAttribute("role", "group");
   element.setAttribute("aria-label", "Arena");
   const buttons = new Map<MapId, HTMLButtonElement>();
-  for (const id of MAP_IDS) {
+  for (const id of [...MAP_IDS, RANDOM] as const) {
+    const map = mapOf(id);
     const choice = button("", "fb-map");
     choice.dataset.map = id;
     choice.append(
-      mapThumb(MAPS[id]),
-      el("strong", MAPS[id].name.toUpperCase()),
+      mapThumb(map),
+      el("strong", map.name.toUpperCase()),
       el("small", MAP_BLURBS[id]),
     );
     choice.onclick = () => onPick(id);
     buttons.set(id, choice);
     element.append(choice);
   }
+  let previewSeed = 0;
   return {
     element,
-    update(selected: MapId, editable: boolean) {
+    update(selected: MapId, editable: boolean, seed = 0) {
+      if (selected === RANDOM && previewSeed !== seed) {
+        buttons
+          .get(RANDOM)!
+          .querySelector("svg")!
+          .replaceWith(mapThumb(mapOf(RANDOM, seed)));
+        previewSeed = seed;
+      }
       for (const [id, choice] of buttons) {
         choice.setAttribute("aria-pressed", String(id === selected));
         choice.disabled = !editable && id !== selected;
         choice.classList.toggle("fb-map-locked", !editable);
       }
+    },
+  };
+}
+
+/** Commit on submit, so room updates cannot interrupt typing a seed. */
+function createSeedPicker(onSeed: (seed: number) => void) {
+  const element = el("form", "", "fb-seed"),
+    label = el("label", "Seed"),
+    input = el("input"),
+    apply = button("APPLY"),
+    reroll = button("RE-ROLL"),
+    error = el("p", "", "fb-seed-error");
+  input.type = "text";
+  input.inputMode = "numeric";
+  input.maxLength = 10;
+  input.setAttribute("aria-label", "Level seed");
+  input.setAttribute("aria-describedby", "fb-seed-error");
+  error.id = "fb-seed-error";
+  error.setAttribute("role", "status");
+  error.hidden = true;
+  label.append(input);
+  apply.type = "submit";
+  reroll.type = "button";
+  element.append(label, apply, reroll, error);
+  element.onsubmit = (event) => {
+    event.preventDefault();
+    const seed = seedFromText(input.value);
+    error.hidden = seed !== undefined;
+    input.setAttribute("aria-invalid", String(seed === undefined));
+    if (seed === undefined) {
+      setText(error, "Enter a whole number from 0 to 4294967295.");
+      return;
+    }
+    onSeed(seed);
+  };
+  reroll.onclick = () => {
+    const rolled = rollSeed(),
+      seed = rolled === displayed ? (rolled + 1) >>> 0 : rolled;
+    input.value = String(seed);
+    error.hidden = true;
+    input.setAttribute("aria-invalid", "false");
+    onSeed(seed);
+  };
+  let displayed: number | undefined;
+  return {
+    element,
+    update(map: MapId, seed: number, editable: boolean) {
+      element.hidden = map !== RANDOM;
+      if (displayed !== seed) {
+        input.value = String(seed);
+        displayed = seed;
+        error.hidden = true;
+        input.setAttribute("aria-invalid", "false");
+      }
+      input.disabled = apply.disabled = reroll.disabled = !editable;
+      apply.hidden = reroll.hidden = !editable;
     },
   };
 }
@@ -319,7 +390,14 @@ function landing(): void {
   toggle.onchange = () =>
     store.setItem(names.shared, toggle.checked ? "1" : "0");
   shared.append(toggle, el("span", "Shared TV: phones are the controllers"));
-  const solo = () => withFlags(endpoints.appUrl(`?solo=1&map=${chosenMap()}`));
+  let selectedMap = chosenMap(),
+    selectedSeed = chosenSeed();
+  const solo = () =>
+    withFlags(
+      endpoints.appUrl(
+        `?solo=1&map=${selectedMap}${selectedMap === RANDOM ? `&seed=${selectedSeed}` : ""}`,
+      ),
+    );
   const card = createLandingCard({
     title: "FUSEBALL",
     tagline:
@@ -334,6 +412,8 @@ function landing(): void {
         },
       );
       store.setItem(names.host(room.code), room.token);
+      store.setItem(mapKey, selectedMap);
+      store.setItem(seedKey, String(selectedSeed));
       location.href = withFlags(endpoints.appUrl(`?room=${room.code}`));
     },
     onSolo: () => {
@@ -346,12 +426,25 @@ function landing(): void {
   });
   card.create.after(shared);
   const picker = createMapPicker((id) => {
+    selectedMap = id;
     store.setItem(mapKey, id);
-    picker.update(id, true);
+    picker.update(id, true, selectedSeed);
+    seeds.update(id, selectedSeed, true);
   });
-  picker.update(chosenMap(), true);
+  const seeds = createSeedPicker((seed) => {
+    selectedSeed = seed;
+    store.setItem(seedKey, String(seed));
+    picker.update(selectedMap, true, seed);
+    seeds.update(selectedMap, seed, true);
+  });
+  picker.update(selectedMap, true, selectedSeed);
+  seeds.update(selectedMap, selectedSeed, true);
   const arena = el("section", "", "fb-landing-arena");
-  arena.append(el("h2", "ARENA", "fui-lobby-title"), picker.element);
+  arena.append(
+    el("h2", "ARENA", "fui-lobby-title"),
+    picker.element,
+    seeds.element,
+  );
   card.element.append(arena, keyHelp());
   const back = el("a", "← ALL GAMES", "fb-back");
   back.href = import.meta.env.BASE_URL + (muted ? "?mute" : "");
@@ -475,13 +568,28 @@ function room(solo: boolean): void {
     );
   const picker = createMapPicker((mapId) => {
     store.setItem(mapKey, mapId);
-    runtime.command({ type: "settings", settings: { ...settings, mapId } });
+    runtime.command({
+      type: "settings",
+      settings: {
+        ...settings,
+        mapId,
+        seed:
+          mapId === RANDOM
+            ? (seedFromText(store.getItem(seedKey)) ?? chosenSeed())
+            : 0,
+      },
+    });
+  });
+  const seeds = createSeedPicker((seed) => {
+    store.setItem(seedKey, String(seed));
+    runtime.command({ type: "settings", settings: { ...settings, seed } });
   });
   const lobbyActions = el("div", "", "fb-actions");
   lobbyActions.append(tvLink, start);
   lobbySide.append(
     el("h2", "ARENA", "fui-lobby-title"),
     picker.element,
+    seeds.element,
     lobbyNote,
     lobbyActions,
     keyHelp(),
@@ -673,7 +781,8 @@ function room(solo: boolean): void {
       !display &&
       !solo
     );
-    picker.update(view.settings.mapId, next.lobby.editable);
+    picker.update(view.settings.mapId, next.lobby.editable, view.settings.seed);
+    seeds.update(view.settings.mapId, view.settings.seed, next.lobby.editable);
     lobbySide.hidden = display;
     const touchGuide = coarse() || next.screen === "controller";
     const watching = display || (view.stage !== "lobby" && !next.riding);
@@ -832,7 +941,11 @@ function room(solo: boolean): void {
     !solo && role === "host" && store.getItem(names.shared) === "1";
   const runtime = new FuseballRuntime(
     code,
-    { display: shared, mapId: chosenMap() },
+    {
+      display: shared,
+      mapId: chosenMap(),
+      seed: chosenMap() === RANDOM ? chosenSeed() : 0,
+    },
     callbacks,
     session.kind === "room"
       ? {

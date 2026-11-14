@@ -13,6 +13,7 @@ import {
   decodeWorld,
   encodeWorld,
   riderId,
+  createWorld,
   stepWorld,
   type World,
 } from "../src/engine/index.js";
@@ -96,6 +97,33 @@ const part = (fields: unknown[], index: number): unknown[] => {
   assert.ok(Array.isArray(tuple));
   return tuple;
 };
+
+test("generated checkpoint seeds are strict uint32 values, and handmade maps carry zero", () => {
+  const world = createWorld("random", ["a", "b"], 0xffffffff);
+  const fields = encodeWorld(world);
+  assert.equal(fields[0], 3);
+  assert.equal(fields[1], 255);
+  assert.equal(fields[16], 0xffffffff);
+  for (const seed of [
+    -0,
+    -1,
+    0x100000000,
+    0.5,
+    NaN,
+    Infinity,
+    "1",
+    null,
+    undefined,
+  ]) {
+    const corrupt = [...fields];
+    corrupt[16] = seed;
+    assert.equal(decodeWorld(corrupt), undefined);
+  }
+  const handmade = encodeWorld(fresh());
+  handmade[16] = 1;
+  assert.equal(decodeWorld(handmade), undefined);
+  assert.deepEqual(decodeWorld(fields), world);
+});
 
 test("a world in any phase encodes to plain integers and ids, and decodes to an equal world", () => {
   const worlds = samples();

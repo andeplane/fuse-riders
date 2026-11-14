@@ -24,6 +24,8 @@ import {
   stepWorld,
   stepsPerTick,
   toView,
+  arenaOf,
+  mapOf,
   type MapId,
   type World,
 } from "../src/engine/index.js";
@@ -48,10 +50,10 @@ function tickAt(world: World, x: number, y: number): number {
 }
 
 /** A point clear of every cloud, goal and solid of the map, where a pinned ball slows nothing. */
-const clearOf = (mapId: MapId) => MAPS[mapId].ballAnchor;
+const clearOf = (mapId: MapId) => mapOf(mapId).ballAnchor;
 
 function scoreFor(world: World, team: 0 | 1): void {
-  const goal = MAPS[world.mapId].goals.find((each) => each.team === team)!;
+  const goal = arenaOf(world).goals.find((each) => each.team === team)!;
   if ("r" in goal) ballAt(world, goal.x, goal.y);
   else ballAt(world, goal.x + goal.w / 2, goal.y + goal.h / 2);
 }

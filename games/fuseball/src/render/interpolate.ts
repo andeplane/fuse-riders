@@ -37,12 +37,13 @@ export function blend(
     !older ||
     alpha >= 1 ||
     older.mapId !== newer.mapId ||
+    older.seed !== newer.seed ||
     older.step > newer.step ||
     (newer.phase === "countdown" && older.phase !== "countdown")
   )
     return newer;
   const a = Math.max(0, alpha),
-    map = mapOf(newer.mapId),
+    map = mapOf(newer.mapId, newer.seed),
     mix = (from: number, to: number) => from + (to - from) * a,
     place = <T extends { x: number; y: number }>(was: T, now: T): T => ({
       ...now,

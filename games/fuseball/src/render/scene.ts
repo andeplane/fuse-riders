@@ -734,7 +734,7 @@ export function createScene(
       )
         resize();
       const found = fx.update(view, nowMs),
-        map = mapOf(view.mapId),
+        map = mapOf(view.mapId, view.seed),
         shake = fx.shake();
       g.setTransform(1, 0, 0, 1, 0, 0);
       g.globalAlpha = 1;
