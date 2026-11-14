@@ -171,3 +171,16 @@ export function createWorld(
   resetPoint(world);
   return world;
 }
+
+/** A world of its own with the same state: what is done to the copy leaves the original alone. */
+export function copyWorld(world: World): World {
+  const [a, b] = world.riders,
+    [p, q] = world.bubbles;
+  return {
+    ...world,
+    score: [world.score[0], world.score[1]],
+    riders: [{ ...a }, { ...b }],
+    bubbles: [{ ...p }, { ...q }],
+    ball: { ...world.ball },
+  };
+}

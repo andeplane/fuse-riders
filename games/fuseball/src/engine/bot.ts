@@ -3,7 +3,8 @@ import { BTN, DOWN, LEFT, RIGHT } from "./input.js";
 import { SUB, abs, clamp, delta, div, isqrt } from "./math.js";
 import { boxesOf, isCircle, mapOf, type Box, type MapDef } from "./maps.js";
 import * as T from "./tuning.js";
-import type { Rider, Slot, World } from "./world.js";
+import { stepWorld } from "./step.js";
+import { copyWorld, type Rider, type Slot, type World } from "./world.js";
 
 /**
  * The computer's rider. It reads the world the way a player reads the screen and answers with the bits it holds for
@@ -19,15 +20,21 @@ import type { Rider, Slot, World } from "./world.js";
  * Nothing here knows an arena by name. With several goals in its colour it takes the one cheapest to reach, the
  * short way round a seam included; a line to a goal that a wall, a kerb or the other colour's goal stands on is no
  * line, and then the ball is lobbed or lifted over. It finds its own way round solids the same way, by their
- * corners, and takes the long way round a seam when that is the shorter trip. It still gives points away: a hard
- * shot that misses comes back off a wall, and in an arena with the other colour's goal behind it that is an own goal.
+ * corners, and takes the long way round a seam when that is the shorter trip. Near the ball it looks before it
+ * touches: what it means to hold is played forward with the real rules (`outcome`), and a touch that would come back
+ * off a wall into the other colour's goal is swapped for one that would not. What it cannot see (more than a few
+ * seconds on, or what the other rider does next) still costs it a point now and then.
  */
 const UNIT = 1024;
 /** How far ahead it reads the ball's flight, in micro-steps, and how coarsely it looks for a meeting point. */
 const SIGHT = 180,
   STRIDE = 6;
-/** Within this of the ball it weighs what its touch would do, reading the shot this many micro-steps ahead. */
-const WARY = 44 * SUB,
+/**
+ * Within this of the ball it weighs what its touch would do: it plays `PREVIEW` micro-steps of what it means to hold,
+ * then reads the ball's flight `FORESIGHT` micro-steps on.
+ */
+const WARY = 64 * SUB,
+  PREVIEW = 12,
   FORESIGHT = 420;
 /** The speed it reckons it can close on the ball at, in sub-units a step: a little under a run. */
 const PACE = 6500;
@@ -140,24 +147,28 @@ function flight(
 }
 
 /**
- * Whether touching the ball now, at the speeds the two are closing at, would send it into the other colour's goal:
- * the kick `step.ts` would give it, flown forward.
+ * Where the ball ends up if this rider holds `bits` for the next `PREVIEW` micro-steps: the world is copied and
+ * stepped with the real rules (the other rider holding what they hold now), then the ball is flown on by itself.
+ * The answer is the colour of the goal it falls into, or −1. This is how it sees that a touch would come back off a
+ * wall and into the other colour's goal before it makes it.
  */
-function ownGoalShot(world: World, rider: Rider, map: MapDef): boolean {
-  const ball = world.ball,
-    gap = apart(ball.x, ball.y, rider.x, rider.y, map),
-    d2 = gap.dx * gap.dx + gap.dy * gap.dy;
-  if (d2 === 0 || d2 > WARY * WARY) return false;
-  const closing = (ball.vx - rider.vx) * gap.dx + (ball.vy - rider.vy) * gap.dy;
-  if (closing >= 0) return false;
-  const shot = {
-    x: ball.x,
-    y: ball.y,
-    vx: ball.vx - div(closing * gap.dx * T.KICK_NUM, d2 * T.KICK_DEN),
-    vy: ball.vy - div(closing * gap.dy * T.KICK_NUM, d2 * T.KICK_DEN),
-  };
-  const into = flight(world, map, shot, FORESIGHT).into;
-  return into !== -1 && into !== rider.slot;
+function outcome(
+  world: World,
+  rider: Rider,
+  bits: number,
+  map: MapDef,
+): -1 | Slot {
+  const ahead = copyWorld(world),
+    other = ahead.riders[rider.slot === 0 ? 1 : 0],
+    inputs = new Map([
+      [rider.id, bits],
+      [other.id, other.prev],
+    ]);
+  for (let step = 0; step < PREVIEW; step++) {
+    stepWorld(ahead, inputs);
+    if (ahead.phase !== "play") return ahead.lastScorer;
+  }
+  return flight(ahead, map, ahead.ball, FORESIGHT).into;
 }
 
 /** One way from the ball to a goal along an axis, or the other way round the seam. */
@@ -445,11 +456,40 @@ function path(
 
 export function botInput(world: World, rider: Rider): number {
   if (world.phase !== "play" || rider.zapped || !world.ball.live) return 0;
+  const map = mapOf(world.mapId),
+    bits = plan(world, rider, map);
+  // Near the ball it looks before it touches: what it means to hold is played forward, and when that ends in the
+  // other colour's goal it holds the first thing that does not. With no such thing, it carries on as it meant to.
+  const gap = apart(world.ball.x, world.ball.y, rider.x, rider.y, map);
+  if (gap.dx * gap.dx + gap.dy * gap.dy > WARY * WARY) return bits;
+  const gives = (held: number): boolean => {
+    const into = outcome(world, rider, held, map);
+    return into !== -1 && into !== rider.slot;
+  };
+  if (!gives(bits)) return bits;
+  const away = gap.dx > 0 ? LEFT : RIGHT,
+    toward = gap.dx > 0 ? RIGHT : LEFT,
+    press = rider.prev & BTN ? 0 : BTN;
+  for (const held of [
+    0,
+    away,
+    away | press,
+    toward,
+    toward | press,
+    press,
+    DOWN,
+    away | DOWN,
+  ])
+    if (held !== bits && !gives(held)) return held;
+  return bits;
+}
+
+/** What it means to do, before it has looked at what that would do to the ball. */
+function plan(world: World, rider: Rider, map: MapDef): number {
   // A breather now and then, at different moments for each side, so two bots never mirror each other for long.
   const spell = div(world.step, SPELL);
   if ((spell * 5 + rider.slot * 4 + div(spell, SPELLS)) % SPELLS < REST_OF)
     return 0;
-  const map = mapOf(world.mapId);
   const ahead = flight(world, map, world.ball, SIGHT, rider);
   // It is going in by itself: stay out of its way. Unless it is under this rider's feet, where it is going nowhere.
   const on = apart(world.ball.x, world.ball.y, rider.x, rider.y, map),
@@ -519,14 +559,6 @@ export function botInput(world: World, rider: Rider): number {
   );
 
   const fresh = (rider.prev & BTN) === 0;
-  if (ownGoalShot(world, rider, map)) {
-    // This touch would be an own goal: pull out of it and come again.
-    const gap = apart(rider.x, rider.y, world.ball.x, world.ball.y, map);
-    return (
-      (gap.dx < 0 ? LEFT : RIGHT) |
-      (!rider.grounded && gap.dy <= 0 && rider.vy > 0 && fresh ? BTN : 0)
-    );
-  }
   let way = dx > DEAD ? RIGHT : dx < -DEAD ? LEFT : 0;
   // A goal that is near and not above wants a nudge, not a shot that comes back off the far wall: lined up and
   // closing fast, it lets go of the stick, or pulls it back, until it is down to a walk.

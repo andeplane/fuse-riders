@@ -329,11 +329,9 @@ function unpin(
   // Squeezed, not struck: the speed it was given into the solid is not thrown back at whoever is on it.
   if (sideways) ball.vy = 0;
   else ball.vx = 0;
-  let out = 0;
-  if (way !== 0) {
-    const side = way > 0 ? 1 : -1,
-      beforeX = ball.x,
-      beforeY = ball.y;
+  const before = { x: ball.x, y: ball.y, vx: ball.vx, vy: ball.vy };
+  /** Squirts the ball along the solid towards `side`; returns how far it got. */
+  const squirt = (side: -1 | 1): number => {
     if (sideways) {
       ball.x += side * T.SQUIRT;
       if (ball.vx * side < T.SQUIRT) ball.vx = side * T.SQUIRT;
@@ -342,7 +340,20 @@ function unpin(
       if (ball.vy * side < T.SQUIRT) ball.vy = side * T.SQUIRT;
     }
     solids();
-    out = (sideways ? ball.x - beforeX : ball.y - beforeY) * side;
+    return (sideways ? ball.x - before.x : ball.y - before.y) * side;
+  };
+  let out = 0;
+  if (way !== 0) {
+    const side = way > 0 ? 1 : -1;
+    out = squirt(side);
+    if (out < div(T.SQUIRT, 2)) {
+      // The way out is shut (a corner): the ball goes the other way instead, under whoever is on it, and comes out
+      // on their far side over the next steps.
+      Object.assign(ball, before);
+      const back = squirt(side > 0 ? -1 : 1);
+      if (back < div(T.SQUIRT, 2)) Object.assign(ball, before);
+      else if (pinning.length === 0) out = back;
+    }
   }
   // Pinned from both sides at once, or the way out is shut too (a corner): a bubble holding the ball there pops
   // rather than keep it.

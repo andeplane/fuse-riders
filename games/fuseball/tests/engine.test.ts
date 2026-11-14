@@ -476,3 +476,30 @@ test("two riders reaching the ball in the same step from either side leave it in
   assert.ok(touched, "both did reach it");
   assert.equal(world.ball.touch, -1, "and it is nobody's ball");
 });
+
+test("a ball buried under a rider in a floor corner comes out on the rider's far side", () => {
+  // The way out along the floor, away from the rider, is the wall: the ball goes under the rider instead.
+  const corners: [Parameters<typeof playing>[0], number, number, 1 | -1][] = [
+    ["downlink", 620, 619, -1],
+    ["downlink", 620, 623, -1],
+    ["downlink", 20, 21, 1],
+    ["gridlock", 620, 618, -1],
+    ["cornercase", 84, 86, 1],
+    ["cornercase", 556, 554, -1],
+  ];
+  for (const [mapId, ballX, riderX, open] of corners) {
+    const world = playing(mapId);
+    ballAt(world, ballX, 336);
+    place(world, 0, riderX, 322);
+    steps(world, 240);
+    const gap = Math.hypot(
+      at(world.ball.x - world.riders[0].x),
+      at(world.ball.y - world.riders[0].y),
+    );
+    assert.ok(gap >= 16.5, `${mapId} from ${ballX}: ${gap} apart`);
+    assert.ok(
+      (world.ball.x - world.riders[0].x) * open > 0,
+      `${mapId}: out on the open side`,
+    );
+  }
+});

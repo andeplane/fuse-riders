@@ -15,7 +15,7 @@ import {
   type World,
 } from "../src/engine/index.js";
 import { fuseballGame } from "../src/online/game.js";
-import { A, B, ballAt, place, playing } from "./fixtures/world.js";
+import { A, B, ballAt, place, playing, scripted } from "./fixtures/world.js";
 
 type Pilot = (world: World, rider: Rider) => number;
 const idle: Pilot = () => 0;
@@ -24,11 +24,25 @@ const idle: Pilot = () => 0;
  * A match as the room folds it: each pilot is asked once per log tick and holds its answer for the tick's steps.
  * Returns the game seconds played and when each point fell.
  */
-function match(mapId: MapId, left: Pilot, right: Pilot, seconds: number) {
+function match(
+  mapId: MapId,
+  left: Pilot,
+  right: Pilot,
+  seconds: number,
+  shove?: () => number,
+) {
   const world = createWorld(mapId, [A, B]),
     points: { at: number; to: number }[] = [];
-  let tick = 0;
+  let tick = 0,
+    shoved = false;
   for (; tick < seconds * 20 && world.phase !== "over"; tick++) {
+    // A perturbed start: every point's ball is given a push of its own as play begins.
+    if (world.phase === "countdown") shoved = false;
+    else if (shove && world.phase === "play" && !shoved) {
+      world.ball.vx = ((shove() % 4001) - 2000) * 2;
+      world.ball.vy = -(shove() % 3000);
+      shoved = true;
+    }
     const inputs = new Map([
       [A, left(world, world.riders[0])],
       [B, right(world, world.riders[1])],
@@ -44,9 +58,6 @@ function match(mapId: MapId, left: Pilot, right: Pilot, seconds: number) {
 }
 
 test("against a rider who stays home the bot scores from either side of every map inside ninety seconds, and the match ends", () => {
-  // The points an idle rider gets are the bot's own goals (a hard shot that comes back off a wall and in at the
-  // other end), so now and then one of these goes against it: it may lose one of the fourteen, and no more.
-  let won = 0;
   for (const mapId of MAP_IDS)
     for (const slot of [0, 1] as const) {
       const { world, seconds, points } =
@@ -60,12 +71,34 @@ test("against a rider who stays home the bot scores from either side of every ma
         `${mapId}: slot ${slot}'s bot scored within ninety seconds (${first.at}s)`,
       );
       assert.equal(world.phase, "over", `${mapId}: finished in ${seconds}s`);
-      if (world.score[slot] === 3) won++;
-      // On the three first arenas it has always won from both sides.
-      if (MAP_IDS.indexOf(mapId) < 3)
-        assert.equal(world.score[slot], 3, `${mapId}: slot ${slot}'s bot won`);
+      assert.equal(world.score[slot], 3, `${mapId}: slot ${slot}'s bot won`);
     }
-  assert.ok(won >= 13, `the bot won ${won} of 14`);
+});
+
+test("the bot seldom scores for the other colour: against a rider who stays home, own goals are under a tenth of the points and it wins every match", () => {
+  // The only points an idle rider gets are the bot's own goals: a shot that comes back off a wall and in at the
+  // other end. It looks before it touches (`outcome` in bot.ts), so these are rare; before it did, they were more
+  // than a fifth of all points. Every point starts with the ball shoved a different way, so no two are alike.
+  let own = 0,
+    total = 0;
+  for (const mapId of MAP_IDS)
+    for (const slot of [0, 1] as const) {
+      const shove = scripted(7919 + MAP_IDS.indexOf(mapId) * 2 + slot);
+      const { world, seconds } =
+        slot === 0
+          ? match(mapId, botInput, idle, 240, shove)
+          : match(mapId, idle, botInput, 240, shove);
+      assert.equal(world.phase, "over", `${mapId}: finished in ${seconds}s`);
+      assert.equal(world.score[slot], 3, `${mapId}: slot ${slot}'s bot won`);
+      assert.equal(
+        world.riders[slot].ownGoals,
+        world.score[slot === 0 ? 1 : 0],
+        "an idle rider's points are the bot's own goals",
+      );
+      own += world.riders[slot].ownGoals;
+      total += world.score[0] + world.score[1];
+    }
+  assert.ok(own * 10 < total, `${own} own goals in ${total} points`);
 });
 
 test("two bots finish a match on every map, and neither side of the arena is the bot's favourite for ever", () => {
@@ -196,7 +229,7 @@ test("on Core Dump a ball lying short of the near pit, which is the other colour
   for (const x of [200, 230, 250]) {
     const world = playing("coredump");
     ballAt(world, x, 336);
-    alone(world, 30, () => false);
+    alone(world, 60, () => false);
     assert.deepEqual(world.score, [1, 0], `from ${x}`);
     assert.equal(world.riders[0].ownGoals, 0);
   }
