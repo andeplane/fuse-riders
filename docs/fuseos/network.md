@@ -43,18 +43,15 @@ read that address. `roomObserver.ts` exposes:
   records each new code it sees. Cross-origin frames and frames without a page read as "no room".
 - `useRecordRoom(gameId, code)`: records a room the OS opened itself (`RoomGameWindow` uses it).
 
-Wiring for the integrator: `FuseGameWindow` (B2) owns the game `<iframe>` through
-`windows/IframeGame.tsx`, which keeps the frame in a `useRef`. Either pass that ref up or add an
-optional `frameRef` prop to `IframeGame`, then call
+`FuseGameWindow` calls `useRecordRoomFromFrame(frame, gameId)` on the frame it already tracks for
+Pop out (`IframeGame`'s `onFrame`), so a room a game creates or joins shows up under recent rooms
+without the game saying anything. The window opens a room through B2's launcher when one is
+injected through `RoomLauncherContext` (`roomLauncher.ts`: `RoomLauncher.join({gameId, code})`);
+without one, `useRoomLauncher` builds the built-in launcher over the OS's own preference store.
 
-```tsx
-useRecordRoomFromFrame(frameRef, gameId);
-```
-
-in `FuseGameWindow`. Nothing else changes: the recent-rooms list re-renders through
-`RecentRoomsStoreContext`. The window also opens the game via B2's launcher when one is injected
-through `RoomLauncherContext` (`roomLauncher.ts`: `RoomLauncher.join({gameId, code})`); without
-one, `useRoomLauncher` builds the built-in launcher over the OS's own preference store.
+Opened by hand (the desktop icon under My Computer, Start > Programs, Fusteam's Servers tab, Run),
+the window sits behind Dial-Up Networking the first time in a page session
+([README-sounds.md](README-sounds.md)).
 
 ## Dependencies
 

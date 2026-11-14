@@ -221,10 +221,7 @@ export function useExplorerViewModel(
   const openAddress = useCallback(
     (text: string) => {
       const parsed = parseAddress(text);
-      if (
-        parsed !== undefined &&
-        locationExists(parsed, tree, system32Present)
-      )
+      if (parsed !== undefined && locationExists(parsed, tree, system32Present))
         navigate(parsed);
       else
         commands.showError(

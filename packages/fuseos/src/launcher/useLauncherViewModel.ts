@@ -165,10 +165,7 @@ export function useLauncherViewModel(): LauncherViewModel {
           openNetworkNeighborhood(online);
           return;
         case "news":
-          commands.open(
-            { kind: "halloffame" },
-            { id: HALL_OF_FAME_WINDOW_ID },
-          );
+          commands.open({ kind: "halloffame" }, { id: HALL_OF_FAME_WINDOW_ID });
           return;
       }
     },

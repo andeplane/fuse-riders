@@ -159,7 +159,7 @@ export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
     label: "Fuse Messenger",
     icon: "messenger",
     // One instance: a fixed id brings an open window to the front instead of opening another.
-    open: (commands) => 
+    open: (commands) =>
       commands.open({ kind: "friends" }, { id: FRIENDS_WINDOW_ID }),
   },
   TASK_MANAGER_REGISTRATION,

@@ -1,3 +1,4 @@
+import type { SampleLoader } from "./samples";
 import { MemorySoundPrefsStore } from "./soundPrefsStore";
 import type {
   GestureSource,
@@ -90,6 +91,17 @@ class FakeAudioContext implements SoundAudioContext {
     this.gains.push(gain);
     return gain;
   }
+  /** A clip decodes to one sample per byte; `failDecoding` is a browser without the codec. */
+  failDecoding = false;
+  readonly decoded: ArrayBuffer[] = [];
+  decodeAudioData(data: ArrayBuffer): Promise<SoundBuffer> {
+    if (this.failDecoding)
+      return Promise.reject(new Error("Unable to decode audio data"));
+    this.decoded.push(data);
+    const buffer = new FakeBuffer(data.byteLength, this.sampleRate);
+    this.buffers.push(buffer);
+    return Promise.resolve(buffer);
+  }
 }
 
 class ManualGestures implements GestureSource {
@@ -108,7 +120,13 @@ class ManualGestures implements GestureSource {
 const renderer: SynthRenderer = (sampleRate) =>
   new Float32Array(sampleRate).fill(0.5);
 
-function setup(options: { muted?: boolean; noAudio?: boolean } = {}) {
+function setup(
+  options: {
+    muted?: boolean;
+    noAudio?: boolean;
+    loadSample?: SampleLoader;
+  } = {},
+) {
   const context = new FakeAudioContext();
   const gestures = new ManualGestures();
   const prefs = new MemorySoundPrefsStore();
@@ -120,6 +138,7 @@ function setup(options: { muted?: boolean; noAudio?: boolean } = {}) {
     muted: options.muted ?? false,
     loadSynth,
     gestures,
+    loadSample: options.loadSample,
   });
   return { service, context, gestures, prefs, loadSynth, createContext };
 }
@@ -160,6 +179,56 @@ describe(WebAudioSoundService.name, () => {
     source?.end();
     await flush();
     expect(ended).toBe(true);
+  });
+
+  it("plays a sound's recording where it has one, fetched and decoded once, and synthesises the rest", async () => {
+    const clip = new Uint8Array(1200).buffer;
+    const loadSample = vi.fn<SampleLoader>((event) =>
+      Promise.resolve(event === "floppy" ? clip : undefined),
+    );
+    const { service, context, gestures, loadSynth } = setup({ loadSample });
+    gestures.click();
+    service.play("floppy");
+    await flush();
+    expect(context.decoded).toEqual([clip]);
+    expect(loadSynth).not.toHaveBeenCalled();
+    expect(context.sources[0]?.buffer).toBe(context.buffers[0]);
+    expect(context.sources[0]?.buffer?.duration).toBe(1200 / 8000);
+    expect(context.sources[0]?.started).toBe(true);
+
+    service.play("floppy");
+    await flush();
+    expect(loadSample).toHaveBeenCalledTimes(1);
+    expect(context.sources).toHaveLength(2);
+
+    // A sound without a recording is still synthesised.
+    service.play("ding");
+    await flush();
+    expect(loadSample).toHaveBeenLastCalledWith("ding");
+    expect(loadSynth).toHaveBeenCalledWith("ding");
+    expect(context.sources).toHaveLength(3);
+  });
+
+  it("falls back to the synthesiser when the recording cannot be fetched or decoded", async () => {
+    const offline = setup({
+      loadSample: () => Promise.reject(new Error("Failed to fetch")),
+    });
+    offline.gestures.click();
+    offline.service.play("floppy");
+    await flush();
+    expect(offline.loadSynth).toHaveBeenCalledWith("floppy");
+    expect(offline.context.sources[0]?.started).toBe(true);
+    expect(offline.context.buffers[0]?.data).toHaveLength(8000);
+
+    const noCodec = setup({
+      loadSample: () => Promise.resolve(new Uint8Array(8).buffer),
+    });
+    noCodec.context.failDecoding = true;
+    noCodec.gestures.click();
+    noCodec.service.play("seek");
+    await flush();
+    expect(noCodec.loadSynth).toHaveBeenCalledWith("seek");
+    expect(noCodec.context.sources[0]?.started).toBe(true);
   });
 
   it("drops sounds asked for before the first gesture, except the start-up chime, which waits for it", async () => {

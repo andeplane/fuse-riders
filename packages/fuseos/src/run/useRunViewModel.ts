@@ -47,7 +47,10 @@ export function useRunViewModel(windowId: string): RunViewModel {
       case "empty":
         return;
       case "notFound":
-        commands.showError(RUN_NOT_FOUND_TITLE, runNotFoundMessage(target.text));
+        commands.showError(
+          RUN_NOT_FOUND_TITLE,
+          runNotFoundMessage(target.text),
+        );
         return;
       case "open":
         commands.close(windowId);

@@ -92,7 +92,8 @@ export function resolveRunCommand(text: string, games: GameLookup): RunTarget {
   const id = runCommandId(typed);
   if (id === "bsod") return { type: "bsod" };
   if (games.has(id)) return { type: "fusegame", gameId: id };
-  if (isGameId(id)) return { type: "open", content: { kind: "retro", game: id } };
+  if (isGameId(id))
+    return { type: "open", content: { kind: "retro", game: id } };
   const app = deepLinkApp(id);
   if (app) return { type: "open", content: app };
   // "C:\", "a:" or "C:\WINDOWS\SYSTEM32": Explorer on that folder.

@@ -33,6 +33,7 @@ import {
   parseOpenParam,
   withoutOpenParam,
 } from "./state/deepLink";
+import { createSampleLoader } from "./sounds/samples";
 import { SoundServiceContext } from "./sounds/soundContext";
 import { LocalStorageSoundPrefsStore } from "./sounds/soundPrefsStore";
 import type { SoundAudioContext } from "./sounds/soundService";
@@ -133,6 +134,8 @@ const sounds = new WebAudioSoundService({
   prefs: new LocalStorageSoundPrefsStore(),
   muted,
   loadSynth,
+  // The floppy drive is a recording (docs/fuseos/licenses/FLOPPY-SOUND.md), fetched the first time it plays.
+  loadSample: createSampleLoader((url) => fetch(url)),
   gestures: documentGestures(window),
 });
 

@@ -249,11 +249,7 @@ export function LauncherWindow({ windowId, active }: LauncherWindowProps) {
         <button type="button" className="fst-button" onClick={vm.addGame}>
           ADD A GAME...
         </button>
-        <button
-          type="button"
-          className="fst-button"
-          onClick={vm.openFriends}
-        >
+        <button type="button" className="fst-button" onClick={vm.openFriends}>
           FRIENDS &amp; CHAT
         </button>
       </div>

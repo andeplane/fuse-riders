@@ -1,5 +1,6 @@
 import type { SystemSoundEvent } from "./soundEvents";
 import { soundEventInfo } from "./soundEvents";
+import type { SampleLoader } from "./samples";
 import type { SoundPrefs, SoundPrefsStore } from "./soundPrefsStore";
 import { MemorySoundPrefsStore, soundEnabled } from "./soundPrefsStore";
 import type { SynthRenderer } from "./synth";
@@ -40,6 +41,8 @@ export interface SoundAudioContext {
   ): SoundBuffer;
   createBufferSource(): SoundBufferSource;
   createGain(): SoundGainNode;
+  /** Decodes an encoded clip (a recorded sound's MP3) into a buffer. */
+  decodeAudioData(data: ArrayBuffer): Promise<SoundBuffer>;
 }
 
 export type SoundPlayOptions = {
@@ -59,7 +62,8 @@ export interface SoundHandle {
 
 /**
  * What the desktop plays through. `play` never throws and never blocks: the synthesiser for a
- * sound is imported and rendered on its first use, and the audio graph is only created after
+ * sound is imported and rendered on its first use (or its recording fetched and decoded, for the
+ * sounds that have one), and the audio graph is only created after
  * the browser has seen a click or key press (autoplay policy), so a sound asked for before that
  * is dropped, or held until then when its catalogue entry says so (the start-up chime).
  */
@@ -188,6 +192,11 @@ export type WebAudioSoundServiceDeps = {
   muted: boolean;
   /** Dynamic import of the synthesiser; `loadSynth` from `./synth`. */
   loadSynth: (event: SystemSoundEvent) => Promise<SynthRenderer>;
+  /**
+   * The recording for a sound that has one (`createSampleLoader` from `./samples`), fetched on its first
+   * play. Absent, or when a clip fails to load or decode, the synthesiser plays instead.
+   */
+  loadSample?: SampleLoader;
   gestures: GestureSource;
 };
 
@@ -312,20 +321,41 @@ export class WebAudioSoundService implements SoundService {
   ): Promise<SoundBuffer> {
     let pending = this.buffers.get(event);
     if (!pending) {
-      pending = this.deps.loadSynth(event).then((render) => {
-        const samples = render(context.sampleRate);
-        const buffer = context.createBuffer(
-          1,
-          samples.length,
-          context.sampleRate,
-        );
-        buffer.copyToChannel(samples, 0);
-        return buffer;
-      });
+      pending = this.recorded(context, event).then(
+        (recording) => recording ?? this.synthesised(context, event),
+      );
       this.buffers.set(event, pending);
       pending.catch(() => this.buffers.delete(event));
     }
     return pending;
+  }
+
+  /** The sound's recording, decoded; undefined when it has none or the clip cannot be had (the synth stands in). */
+  private async recorded(
+    context: SoundAudioContext,
+    event: SystemSoundEvent,
+  ): Promise<SoundBuffer | undefined> {
+    if (!this.deps.loadSample) return undefined;
+    try {
+      const clip = await this.deps.loadSample(event);
+      return clip === undefined
+        ? undefined
+        : await context.decodeAudioData(clip);
+    } catch {
+      // Offline, a blocked request or a codec the browser lacks: the synthesised sound is close enough.
+      return undefined;
+    }
+  }
+
+  private async synthesised(
+    context: SoundAudioContext,
+    event: SystemSoundEvent,
+  ): Promise<SoundBuffer> {
+    const render = await this.deps.loadSynth(event);
+    const samples = render(context.sampleRate);
+    const buffer = context.createBuffer(1, samples.length, context.sampleRate);
+    buffer.copyToChannel(samples, 0);
+    return buffer;
   }
 
   private async start(playing: Playing): Promise<void> {

@@ -100,7 +100,9 @@ describe("RunWindow", () => {
   it("dials in before Network Neighborhood, like the Start menu does", async () => {
     const { run } = renderRun();
     await run("network");
-    expect(screen.getByRole("dialog", { name: "Connect To" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Connect To" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("dialog", { name: "Network Neighborhood" }),
     ).toBeNull();

@@ -56,8 +56,9 @@ Locations are strings so a window survives a reload: `""` is My Computer, `"C:"`
 
 ## The floppy (A:)
 
-Opening A: from another drive plays a synthesized head seek (`src/disk/floppySound.ts`, Web
-Audio, no asset) and shows "Reading drive A:..." for 1.4 s. The disk holds exactly:
+Opening A: from another drive plays the desktop's "Floppy drive" sound, a recording of a real
+drive spinning up and seeking ([README-sounds.md](README-sounds.md)), and shows "Reading drive
+A:..." for 1.8 s (`src/disk/floppySeek.ts`). The disk holds exactly:
 
 - `slackbacup.zip`, 1.35 MB, dated 14 August 1997. Opening it shows a WinZip-style box that
   "extracts" a 1997 home directory with a progress bar, then fails at 87%:
@@ -106,3 +107,12 @@ open tab follows) and offer `revert` as the undo; every change lands on "your C:
 tests get `createTestDiskDeps()` from `src/__mocks__/disk.ts` (a fixture repository in memory, an
 empty overlay, an instant seek) and the textarea-backed `FakeEditor` from `src/__mocks__/editor.ts`
 through `EditorDepsContext`, both wired into `renderWithProviders`.
+
+## C:\WINDOWS
+
+The root of C: also lists a `WINDOWS` folder holding `SYSTEM32` and a few system files
+(`WINDOWS_LOCATION`, `SYSTEM32_LOCATION`, `SYSTEM32_FILES` in `src/disk/diskEntries.ts`). None of it
+is in the repository and none of the files open. **Delete** (the context menu, File > Delete, the
+Delete key) on `SYSTEM32` starts the delete-SYSTEM32 gag ([system32.md](system32.md)), which asks
+its own three questions and hides the folder until its fake restart; Delete on anything else on
+these read-only drives answers "Access is denied".

@@ -106,9 +106,7 @@ describe(resolveRunCommand.name, () => {
       type: "url",
       url: "https://fusegames.ai/",
     });
-    expect(resolveRunCommand("ftp://example.org", games).type).toBe(
-      "notFound",
-    );
+    expect(resolveRunCommand("ftp://example.org", games).type).toBe("notFound");
   });
 
   it("says what it could not find, as typed", () => {
@@ -116,7 +114,9 @@ describe(resolveRunCommand.name, () => {
       type: "notFound",
       text: "Format C:",
     });
-    expect(runNotFoundMessage("quake")).toContain("Cannot find the file 'quake'");
+    expect(runNotFoundMessage("quake")).toContain(
+      "Cannot find the file 'quake'",
+    );
     // Not an app just because Object.prototype has it.
     expect(resolveRunCommand("toString", games).type).toBe("notFound");
   });

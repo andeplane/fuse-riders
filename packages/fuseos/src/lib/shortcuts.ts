@@ -86,7 +86,8 @@ export const SHORTCUTS: readonly Shortcut[] = [
     // Matched by `isRunChord` rather than `matchShortcut`: the Windows key is not one of its modifiers.
     id: "desktop.run",
     keys: "Win+R",
-    description: "Open the Run dialog, where the browser passes the Windows key on",
+    description:
+      "Open the Run dialog, where the browser passes the Windows key on",
     scope: "Desktop",
   },
   {

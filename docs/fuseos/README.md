@@ -38,6 +38,15 @@ the state of the desktop lives under the `fuseos.state` key in `localStorage`.
 | `src/assistant`, `src/llm`      | Clippy and the in-browser language model behind him ([docs](assistant/README.md))               |
 | `src/paint`, `src/controlpanel` | Paint and the Control Panel applets                                                             |
 | `src/about`                     | The About sheet: version, copyright and credits                                                 |
+| `src/explorer`, `src/disk`      | My Computer: the repository on C:, the floppy on A: ([docs](disk.md))                           |
+| `src/launcher`                  | Fusteam, the game launcher that opens on boot ([docs](launcher.md))                             |
+| `src/run`                       | Start > Run... ([docs](run.md))                                                                 |
+| `src/recyclebin`, `mediaplayer` | The Recycle Bin and the Media Player that never has the codec                                   |
+| `src/halloffame`                | The Hall of Fame: per-game Elo leaderboards                                                     |
+| `src/network`, `src/friends`    | Network Neighborhood ([docs](network.md)) and Fuse Messenger ([docs](friends-design.md))        |
+| `src/taskmanager`               | Task Manager: open windows, frame rates, heap                                                   |
+| `src/sounds`                    | System sounds, the Sounds applet and Dial-Up Networking ([docs](README-sounds.md))              |
+| `src/bsod`, `system32`, `y2k`   | The blue screen, the delete-SYSTEM32 gag ([docs](system32.md)) and the midnight millennium bug  |
 | `src/assets`                    | The FuseOS mark, splash and the Winamp icon, drawn in SVG                                       |
 | `public/fuseos`                 | js-dos, the retro game bundles, Clippy's sprites and `fuseos.svg`, the favicon                  |
 | `docs/fuseos`                   | This folder: the desktop's docs and the licence texts of what it bundles                        |
