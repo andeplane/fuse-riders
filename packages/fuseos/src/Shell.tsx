@@ -7,6 +7,7 @@ import { DisplayViewportProvider } from "./desktop/DisplayViewportProvider";
 import { DisplayEffectsProvider } from "./display/effects/DisplayEffectsProvider";
 import { ScreenSaverOverlay } from "./screensaver/ScreenSaverOverlay";
 import { ScreenSaverProvider } from "./screensaver/ScreenSaverProvider";
+import { SystemSoundTriggers } from "./sounds/SystemSoundTriggers";
 import type { WindowContent } from "./state/appState";
 import { AppStateProvider } from "./state/AppStateProvider";
 import type { StateStore } from "./state/stateStore";
@@ -28,6 +29,7 @@ export function Shell({ store, initialOpen, children }: ShellProps) {
           <DisplayViewportProvider>
             <DisplayEffectsProvider>
               <WindowManagerProvider>
+                <SystemSoundTriggers />
                 <AssistantToolsProvider>
                   {children ?? <Desktop />}
                 </AssistantToolsProvider>

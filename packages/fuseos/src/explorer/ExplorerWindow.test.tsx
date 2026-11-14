@@ -15,6 +15,7 @@ import {
 } from "../__mocks__/disk";
 import { FakePaintFileDeps } from "../__mocks__/paintFiles";
 import { renderWithProviders } from "../__mocks__/renderWithProviders";
+import type { FakeSoundService } from "../__mocks__/soundService";
 import { Desktop } from "../desktop/Desktop";
 import type { StartMenuRegistration } from "../desktop/startMenuRegistry";
 import {
@@ -40,6 +41,13 @@ import { WINZIP_STEP_MS } from "./WinZipDialog";
 
 const explorerAt = (location: string) =>
   ({ kind: "explorer", location }) as const;
+
+/** What the drives were heard doing; the start-up chime the desktop plays on mount is not theirs. */
+function driveSounds(sounds: FakeSoundService): string[] {
+  return sounds.plays
+    .map((play) => play.event)
+    .filter((event) => event === "floppy" || event === "seek");
+}
 
 function contents() {
   return within(screen.getByLabelText("Folder contents"));
@@ -116,6 +124,8 @@ describe("Explorer", () => {
       "Control Panel",
       "Dial-Up Networking",
       "Scheduled Tasks",
+      // Installed in this build (D4), so it sits on the Desktop next to My Computer.
+      "Network Neighborhood",
     ]);
     await waitFor(() =>
       expect(statusBar().getByText("6 object(s)")).toBeInTheDocument(),
@@ -270,7 +280,7 @@ describe("Explorer", () => {
       contents()
         .getAllByRole("option")
         .map((option) => option.textContent),
-    ).toEqual(["My Computer"]);
+    ).toEqual(["My Computer", "Network Neighborhood"]);
     await user.dblClick(item("My Computer"));
     expect(address()).toHaveValue("My Computer");
     await user.clear(address());
@@ -374,7 +384,13 @@ describe("Explorer", () => {
     unmount();
     renderWithProviders(
       <StartMenuRegistryContext.Provider
-        value={[...START_MENU_REGISTRATIONS, ...installed]}
+        value={[
+          // This build's own Network Neighborhood gives way to the recording one.
+          ...START_MENU_REGISTRATIONS.filter(
+            (entry) => entry.id !== "network-neighborhood",
+          ),
+          ...installed,
+        ]}
       >
         <Desktop />
       </StartMenuRegistryContext.Provider>,
@@ -482,13 +498,15 @@ describe("Explorer", () => {
           finishSeek = resolve;
         }),
     });
-    renderWithProviders(<Desktop />, {
+    const { sounds } = renderWithProviders(<Desktop />, {
       initialOpen: [explorerAt(MY_COMPUTER)],
       diskDeps,
     });
     await user.dblClick(item(/3½ Floppy/));
     expect(contents().getByText("Reading drive A:...")).toBeInTheDocument();
     expect(diskDeps.seeks).toBe(1);
+    // The drive is heard spinning up while the listing waits.
+    expect(driveSounds(sounds)).toEqual(["floppy"]);
     await act(async () => {
       finishSeek();
       await Promise.resolve();
@@ -504,6 +522,8 @@ describe("Explorer", () => {
     diskDeps.jokeGate.tryOpen();
     await user.dblClick(item(/porn/));
     expect(diskDeps.seeks).toBe(1);
+    // ...only the short seek every folder gets.
+    expect(driveSounds(sounds)).toEqual(["floppy", "seek"]);
     expect(address()).toHaveValue("A:\\porn");
   });
 
