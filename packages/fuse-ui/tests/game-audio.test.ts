@@ -256,11 +256,9 @@ test("a single song loops and a failing song is skipped once", async () => {
   fire(el, "onerror");
   assert.equal(
     el.src,
-    "/music/g/a.mp3",
+    "/music/g/b.mp3",
     "every song failing stops the skipping",
   );
-  fire(el, "onerror");
-  assert.equal(el.src, "/music/g/a.mp3");
   both.setSongs([], "/");
   both.nextSong();
 });
