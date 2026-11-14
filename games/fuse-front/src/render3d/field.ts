@@ -4,7 +4,6 @@
  * positions between two frames for display only; nothing here writes to the simulation.
  */
 import * as THREE from "three";
-import { registerPlaytestCapture } from "fuse-ui/playtest-input";
 import {
   SUB,
   TILE_PX,
@@ -275,7 +274,6 @@ export class Field3D implements Renderer {
   private far = rig.FAR;
   /** Every strategic marker shares it, its opacity the zoom's `rig.markerFade`. */
   private readonly markMat: THREE.MeshBasicMaterial;
-  private readonly stopCapture: () => void;
 
   /**
    * Throws when the canvas cannot give a WebGL2 context; the page then falls back to the pixel battlefield. Without a
@@ -289,11 +287,6 @@ export class Field3D implements Renderer {
     this.governor = new QualityGovernor(quality, undefined, undefined, undefined, softwareRenderer(rendererName(this.gl.getContext())) ? "low" : "high");
     this.gl.shadowMap.type = THREE.PCFShadowMap;
     this.look = new Look(this.gl, this.scene, this.camera, this.governor.level);
-    this.stopCapture = registerPlaytestCapture(canvas.ownerDocument, async () => {
-      if (!canvas.isConnected) return new Map();
-      this.look.render();
-      return new Map([[canvas, canvas.toDataURL("image/png")]]);
-    });
     this.camera.layers.enable(FX_LAYER);
     this.gl.toneMapping = THREE.ACESFilmicToneMapping;
     this.gl.outputColorSpace = THREE.SRGBColorSpace;
@@ -1080,8 +1073,13 @@ export class Field3D implements Renderer {
     this.field = undefined;
   }
 
+  /** Copy the current presentation while the WebGL drawing buffer is valid. */
+  capture(): string {
+    this.look.render();
+    return this.canvas.toDataURL("image/png");
+  }
+
   dispose(): void {
-    this.stopCapture();
     this.clearMatch();
     this.fx.dispose();
     this.look.dispose();

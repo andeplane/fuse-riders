@@ -1,6 +1,7 @@
 import { createTopBar } from "fuse-ui";
 import {
   playtestInputBlocked,
+  registerPlaytestCapture,
   registerPlaytestInput,
 } from "fuse-ui/playtest-input";
 import { requestedRoomSlot } from "fuse-ui";
@@ -234,6 +235,11 @@ function room(code: string, token: string | undefined, display: boolean): void {
   end.append(endText, endNote, back);
   const stage = el("div", "", "ff-stage");
   const { field, canvas } = battlefield();
+  const stopPlaytestCapture = registerPlaytestCapture(document, async () =>
+    field instanceof Field3D && canvas.isConnected
+      ? new Map([[canvas, field.capture()]])
+      : new Map(),
+  );
   // Hero portraits come from the 3D models where the 3D battlefield runs; the pixel ones otherwise.
   if (field instanceof Field3D) loadPortraits();
   let shown: WorldView | undefined;
@@ -900,6 +906,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
   window.addEventListener("blur", blurred);
   runtime.start();
   teardown = () => {
+    stopPlaytestCapture();
     stopPlaytestInput();
     cancelAnimationFrame(raf);
     window.removeEventListener("resize", resized);
