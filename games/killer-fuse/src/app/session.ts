@@ -104,3 +104,11 @@ export function roomFailure(message: string): string {
     return "That code is a room of another game";
   return message;
 }
+
+/**
+ * A link within the game, carrying this page's `mute` flag on. Without it a muted preview loses the flag the moment
+ * it leaves the landing page and plays sound nobody asked for. The invite link handed to other people is not one of
+ * these: their sound is their own choice.
+ */
+export const keepFlags = (query: URLSearchParams, path: string): string =>
+  query.has("mute") ? `${path}${path.includes("?") ? "&" : "?"}mute` : path;

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   NOT_OPEN,
+  keepFlags,
   keys,
   roomFailure,
   safeStore,
@@ -131,4 +132,27 @@ test("a service that does not host the game yet says so in the page's words", ()
     "That code is a room of another game",
   );
   assert.equal(roomFailure("Room not found"), "Room not found");
+});
+
+test("a muted page keeps the flag on the links it follows itself", () => {
+  const muted = new URLSearchParams("?mute");
+  assert.equal(keepFlags(muted, "/killer-fuse/"), "/killer-fuse/?mute");
+  assert.equal(
+    keepFlags(muted, "/killer-fuse/?solo=1"),
+    "/killer-fuse/?solo=1&mute",
+    "a path that already asks something gets the flag appended, not a second ?",
+  );
+  assert.equal(
+    keepFlags(muted, "/killer-fuse/?room=ABCD&display=1"),
+    "/killer-fuse/?room=ABCD&display=1&mute",
+  );
+});
+
+test("a page nobody muted adds nothing to its links", () => {
+  const plain = new URLSearchParams("?solo=1");
+  assert.equal(keepFlags(plain, "/killer-fuse/"), "/killer-fuse/");
+  assert.equal(
+    keepFlags(plain, "/killer-fuse/?solo=1"),
+    "/killer-fuse/?solo=1",
+  );
 });

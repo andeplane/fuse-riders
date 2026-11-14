@@ -97,6 +97,7 @@ import {
 import { dueReports, sendReport } from "./reports.js";
 import {
   NOT_OPEN,
+  keepFlags,
   keys,
   roomFailure,
   safeStore,
@@ -148,12 +149,14 @@ const MUTED = `${GAME}-muted`;
 const ART_URL = `${import.meta.env.BASE_URL}${GAME}/art/`;
 const query = new URLSearchParams(location.search);
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
+/** A link within the game, carrying this page's `mute` flag on; see `keepFlags`. */
+const withFlags = (path: string): string => keepFlags(query, path);
 const app = document.querySelector<HTMLElement>("#app")!;
 
 function header(extra: HTMLElement[] = []): HTMLElement {
   const bar = el("header", "", "kf-top"),
     brand = el("a", "", "kf-brand");
-  brand.href = endpoints.appUrl();
+  brand.href = withFlags(endpoints.appUrl());
   brand.append(el("span", "KILLER FUSE"), el("small", "A FUSE GAME"));
   // Every game opens the app portal top left; it lists the games that have a portal.json.
   const portal = createAppPortal({
@@ -300,7 +303,7 @@ function tutorialList(): HTMLElement {
     const item = el("li"),
       link = el("a", lesson.title, "fui-button kf-tutorial-link"),
       best = bestTime(store, lesson.id);
-    link.href = endpoints.appUrl(`?solo=1&tutorial=${lesson.id}`);
+    link.href = withFlags(endpoints.appUrl(`?solo=1&tutorial=${lesson.id}`));
     item.append(
       link,
       el("span", best === undefined ? "not done yet" : `best ${best} s`),
@@ -337,14 +340,14 @@ function landing(): void {
         },
       );
       store.setItem(names.host(room.code), room.token);
-      location.href = endpoints.appUrl(`?room=${room.code}`);
+      location.href = withFlags(endpoints.appUrl(`?room=${room.code}`));
     },
     onSolo: () => {
-      location.href = endpoints.appUrl("?solo=1");
+      location.href = withFlags(endpoints.appUrl("?solo=1"));
     },
     valid: validRoomCode,
     onJoin: (code) => {
-      location.href = endpoints.appUrl(`?room=${code}`);
+      location.href = withFlags(endpoints.appUrl(`?room=${code}`));
     },
   });
   card.create.after(shared);
@@ -451,7 +454,7 @@ function room(solo: boolean): void {
     onLobby: () => runtime.command({ type: "action", action: "lobby" }),
     onLeave: () => {
       runtime.stop();
-      location.href = endpoints.appUrl();
+      location.href = withFlags(endpoints.appUrl());
     },
     onOpenChange: (open) => {
       if (open) {
@@ -596,7 +599,10 @@ function room(solo: boolean): void {
   );
   start.onclick = () => runtime.command({ type: "action", action: "start" });
   tvLink.onclick = () =>
-    window.open(endpoints.appUrl(`?room=${code}&display=1`), "_blank");
+    window.open(
+      withFlags(endpoints.appUrl(`?room=${code}&display=1`)),
+      "_blank",
+    );
 
   const remembered = seatName(
     social.playerName(store.getItem(names.name)) ?? "",
@@ -994,11 +1000,13 @@ function room(solo: boolean): void {
           const links: HTMLElement[] = [];
           if (done && following) {
             const next = el("a", `NEXT: ${following.title}`, "fui-button");
-            next.href = endpoints.appUrl(`?solo=1&tutorial=${following.id}`);
+            next.href = withFlags(
+              endpoints.appUrl(`?solo=1&tutorial=${following.id}`),
+            );
             links.push(next);
           }
           const back = el("a", "LESSONS", "fui-button");
-          back.href = endpoints.appUrl();
+          back.href = withFlags(endpoints.appUrl());
           links.push(back);
           lessonActions.replaceChildren(...links);
         }
