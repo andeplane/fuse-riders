@@ -421,6 +421,7 @@ function fixture(options: FixtureOptions = {}) {
     powerups: true,
   };
   const online: OnlineSession = {
+    confirmedView: () => world,
     code: "AB12",
     get localPlayerId() {
       return room.self;

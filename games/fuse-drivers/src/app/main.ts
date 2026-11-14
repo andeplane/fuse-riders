@@ -1,4 +1,8 @@
 import { createTopBar } from "fuse-ui";
+import {
+  playtestInputBlocked,
+  registerPlaytestInput,
+} from "fuse-ui/playtest-input";
 import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
@@ -154,7 +158,7 @@ function keyboardControls(blocked: () => boolean): {
   const down = new Set<string>();
   const key = (event: KeyboardEvent) => event.key.toLowerCase();
   const onDown = (event: KeyboardEvent) => {
-    if (blocked()) return;
+    if (blocked() || event.repeat) return;
     if (
       event.target instanceof HTMLInputElement ||
       event.target instanceof HTMLButtonElement
@@ -426,8 +430,17 @@ function room(solo: boolean): void {
   );
 
   const board = keyboardControls(() => modalInput.blocked());
+  const stopPlaytestInput = registerPlaytestInput(document, {
+    cancel: () => {
+      board.clear();
+      Object.assign(touch, NEUTRAL_INPUT);
+      runtime.drive(NEUTRAL_INPUT);
+    },
+  });
   const modalInput = createModalInputGate({
-    isOpen: () => !!document.querySelector("dialog[open]"),
+    isOpen: () =>
+      playtestInputBlocked(document) ||
+      !!document.querySelector("dialog[open]"),
     observe: (change) => {
       const observer = new MutationObserver(change);
       observer.observe(document.body, {
@@ -563,6 +576,7 @@ function room(solo: boolean): void {
               : viewer.shared
                 ? "controller"
                 : "online",
+          runtime.confirmedTick(),
         ),
       );
     if (room && session.kind === "room")
@@ -581,6 +595,7 @@ function room(solo: boolean): void {
     stop: () => {
       stopped = true;
       modalInput.dispose();
+      stopPlaytestInput();
       board.stop();
       runtime.stop();
     },

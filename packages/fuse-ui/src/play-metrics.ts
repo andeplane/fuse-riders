@@ -20,18 +20,39 @@ export interface PlayFrame {
   mode: string;
 }
 
+export interface ConfirmedRoundObservation {
+  /** A final snapshot mapped independently, so a late completion keeps its own match and round. */
+  frame: PlayFrame | undefined;
+}
+
+export type PlayObserver = (
+  frame: PlayFrame,
+  confirmedRound?: ConfirmedRoundObservation,
+) => void;
+
+/** Starts describe current participation; irreversible completion comes only from final history. */
+export function observeConfirmedPlay<View>(
+  observe: PlayObserver,
+  current: View,
+  confirmed: () => View | undefined,
+  playFrame: (view: View) => PlayFrame,
+): void {
+  const final = confirmed();
+  observe(playFrame(current), { frame: final && playFrame(final) });
+}
+
 /** Per-device observations, just like Riders' funnel; never a second simulation or a per-tick event stream. */
 export function createPlayMetrics(
   track: Analytics["track"],
   now: () => number,
-): (frame: PlayFrame) => void {
+): PlayObserver {
   const observeRound = createRoundMetrics(track);
   let match = "",
     started = false,
     ended = false,
     seated = false;
   let startedAt: number | undefined;
-  return (frame) => {
+  return (frame, confirmedRound) => {
     if (!frame.matchId) return;
     if (frame.matchId !== match) {
       match = frame.matchId;
@@ -45,7 +66,11 @@ export function createPlayMetrics(
       played: frame.seated,
       mode: frame.mode,
     };
-    observeRound(frame);
+    if (confirmedRound) {
+      observeRound({ ...frame, roundEnded: false });
+      if (confirmedRound.frame)
+        observeRound({ ...confirmedRound.frame, roundActive: false });
+    } else observeRound(frame);
     if (frame.seated && !seated) {
       seated = true;
       track("Seat Taken", properties);

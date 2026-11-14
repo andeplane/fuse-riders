@@ -301,6 +301,7 @@ export function createOnlineSession(
         listeners.clear();
       }
     },
+    confirmedView: () => runtime.confirmedFrame(),
     room() {
       const room = runtime.roomState();
       return {

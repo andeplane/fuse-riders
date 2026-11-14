@@ -3,6 +3,7 @@ import {
   type Callbacks,
   type RuntimeOptions,
   type RoomCommand,
+  type Frame,
 } from "fuse-netcode";
 import {
   birdsGame,
@@ -16,6 +17,7 @@ export type Play =
   | { type: "launch"; weapon: "pebble" | "scatter"; vx: number; vy: number }
   | { type: "pass" };
 export interface Session {
+  confirmedFrame?(): Frame<BirdsView> | undefined;
   /** Whether this visible page owns an admitted seat (or a running local practice session). */
   readonly admitted: boolean;
   start(): void;

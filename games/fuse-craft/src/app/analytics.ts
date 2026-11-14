@@ -1,4 +1,8 @@
-import type { PlayFrame } from "fuse-ui/play-metrics";
+import {
+  observeConfirmedPlay,
+  type PlayFrame,
+  type PlayObserver,
+} from "fuse-ui/play-metrics";
 import type { GameMode, NeuralSession, OnlineSession } from "./contracts.js";
 
 /** Observe the same session the UI uses; disposing it clears its subscribers. */
@@ -30,22 +34,29 @@ export function observeLocalPlay(
 
 export function observeOnlinePlay(
   session: OnlineSession,
-  report: (frame: PlayFrame) => void,
+  report: PlayObserver,
 ): OnlineSession {
   const update = () => {
     const room = session.room();
     if (room.stage === "connecting") return;
-    report({
-      matchId: session.view().matchId,
-      roundActive: room.stage === "running",
-      roundEnded: room.stage === "over",
-      active: room.stage === "running",
-      ended: room.stage === "over",
-      playerCount: room.seats.filter((seat) => !seat.watcher).length,
-      botCount: room.seats.filter((seat) => seat.bot).length,
-      seated: room.seats.some((seat) => seat.id === room.self && !seat.watcher),
-      mode: "online",
-    });
+    observeConfirmedPlay(
+      report,
+      session.view(),
+      () => session.confirmedView(),
+      (view) => ({
+        matchId: view.matchId,
+        roundActive: room.stage === "running",
+        roundEnded: view.finished,
+        active: room.stage === "running",
+        ended: room.stage === "over",
+        playerCount: room.seats.filter((seat) => !seat.watcher).length,
+        botCount: room.seats.filter((seat) => seat.bot).length,
+        seated: room.seats.some(
+          (seat) => seat.id === room.self && !seat.watcher,
+        ),
+        mode: "online",
+      }),
+    );
   };
   session.subscribe(update);
   update();

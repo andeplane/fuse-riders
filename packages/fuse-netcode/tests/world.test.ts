@@ -55,6 +55,61 @@ function running(self = "a"): CounterWorld {
 const heard = (world: CounterWorld, id: string, through: number) =>
   world.receive(id, [], world.streams.get(id)!.lastSeq, through, through);
 
+test("confirmed frames exclude gaps and predictions, cache detached views and follow corrected history", () => {
+  const world = running();
+  world.advance(12);
+  assert.equal(
+    world.confirmedFrame()?.logTick,
+    0,
+    "unconfirmed predictions cannot replace the initial final snapshot",
+  );
+  const withoutHistory = new World(
+    counterGame,
+    structuredClone(world.state),
+    "a",
+    "a",
+  );
+  assert.equal(
+    withoutHistory.confirmedFrame(),
+    undefined,
+    "does not return an unconfirmed initial snapshot",
+  );
+  world.streams.get("a")!.through = 12;
+  heard(world, "b", 7);
+  const final = world.confirmedFrame()!;
+  assert.equal(
+    final.logTick,
+    4,
+    "uses a retained snapshot no later than confirmed tick",
+  );
+  assert.equal(
+    world.confirmedFrame(),
+    final,
+    "does not clone on every read/render",
+  );
+  const snapshotHash = world.hashAt(4);
+  final.totals.a = 999;
+  assert.equal(
+    world.state.totals.a,
+    undefined,
+    "a consumer cannot mutate authoritative state",
+  );
+  assert.equal(world.hashAt(4), snapshotHash, "snapshot stays detached");
+  const entry: CounterEntry = [1, 8, ADD, 5];
+  world.receive("b", [entry], 1, 12, 12);
+  const corrected = world.confirmedFrame()!;
+  assert.equal(corrected.logTick, 12);
+  assert.equal(corrected.totals.b, 5);
+  assert.equal(world.state.totals.b, 5);
+  assert.equal(world.tick, 12, "reading final history never steps the game");
+  // A sequence gap makes the later through promise insufficient confirmation.
+  const gapped = running();
+  gapped.streams.get("a")!.through = 12;
+  gapped.receive("b", [[2, 9, ADD, 5]], 2, 12, 12);
+  gapped.advance(12);
+  assert.ok((gapped.confirmedFrame()?.logTick ?? -1) < 9);
+});
+
 test("a late entry rolls the world back and re-simulates it to the state an on-time replica reached, emitting each event once", () => {
   const onTime = running(),
     late = running();

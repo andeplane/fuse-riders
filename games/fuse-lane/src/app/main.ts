@@ -2,7 +2,11 @@ import { createTopBar } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import { requestedRoomSlot } from "fuse-ui";
 import "fuse-ui/social.css";
-import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
+import {
+  observeConfirmedPlay,
+  startGameAnalytics,
+  createPlayMetrics,
+} from "fuse-ui/play-metrics";
 import "@fontsource-variable/nunito";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
@@ -375,6 +379,8 @@ function local(match: LocalMatch, resumed = false): void {
     (view) => {
       reportPlay({
         matchId: match.room.matchId,
+        roundActive: view.phase === "running",
+        roundEnded: view.phase === "over",
         active: view.phase === "running",
         ended: view.phase === "over",
         playerCount: view.players.length,
@@ -623,15 +629,22 @@ function room(): void {
   let joinSent = false;
   const callbacks: FuseLaneCallbacks = {
     state(frame, roomSettings) {
-      reportPlay({
-        matchId: frame.matchId,
-        active: frame.phase === "running",
-        ended: frame.phase === "over",
-        playerCount: frame.players.length,
-        botCount: frame.players.filter((seat) => seat.bot).length,
-        seated: frame.players.some((seat) => seat.id === viewer.me),
-        mode: roomSettings.display ? "shared" : "online",
-      });
+      observeConfirmedPlay(
+        reportPlay,
+        frame,
+        () => runtime.confirmedFrame(),
+        (frame) => ({
+          matchId: frame.matchId,
+          roundActive: frame.phase === "running",
+          roundEnded: frame.phase === "over",
+          active: frame.phase === "running",
+          ended: frame.phase === "over",
+          playerCount: frame.players.length,
+          botCount: frame.players.filter((seat) => seat.bot).length,
+          seated: frame.players.some((seat) => seat.id === viewer.me),
+          mode: roomSettings.display ? "shared" : "online",
+        }),
+      );
       settings = roomSettings;
       viewer.shared = roomSettings.display;
       const model = present(frame, viewer);

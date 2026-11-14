@@ -5,12 +5,14 @@ export function playFrame(
   room: FuseDriversRoom,
   self: string,
   mode: string,
+  confirmedTick: number,
 ): PlayFrame {
   const drivers = [...room.seats.values()].filter((seat) => !seat.watcher);
   return {
     matchId: room.matchId,
     roundActive: room.race?.phase === "racing",
-    roundEnded: room.race?.phase === "finished",
+    roundEnded:
+      room.race?.phase === "finished" && room.finishTick <= confirmedTick,
     active: room.stage === "running",
     ended: room.stage === "over",
     round: room.round,

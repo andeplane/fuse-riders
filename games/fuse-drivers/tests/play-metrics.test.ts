@@ -5,7 +5,7 @@ import { addBot, started } from "./fixtures/fuseDrivers.js";
 
 test("play metrics count the actual grid, omit identities, and distinguish spectators", () => {
   const room = started(undefined, [addBot("bot:1", 2)]);
-  const frame = playFrame(room, "a", "online");
+  const frame = playFrame(room, "a", "online", room.finishTick);
   assert.deepEqual(frame, {
     matchId: "m1",
     roundActive: false,
@@ -18,12 +18,31 @@ test("play metrics count the actual grid, omit identities, and distinguish spect
     seated: true,
     mode: "online",
   });
-  assert.equal(playFrame(room, "tv", "display").seated, false);
+  assert.equal(playFrame(room, "tv", "display", room.finishTick).seated, false);
   room.race = { ...room.race!, phase: "racing" };
-  assert.equal(playFrame(room, "a", "online").roundActive, true);
+  assert.equal(
+    playFrame(room, "a", "online", room.finishTick).roundActive,
+    true,
+  );
   room.race = { ...room.race!, phase: "finished" };
-  assert.equal(playFrame(room, "a", "online").roundEnded, true);
+  assert.equal(
+    playFrame(room, "a", "online", room.finishTick).roundEnded,
+    true,
+  );
   room.stage = "over";
-  assert.equal(playFrame(room, "a", "online").ended, true);
-  assert.equal(playFrame(room, "a", "online").active, false);
+  assert.equal(playFrame(room, "a", "online", room.finishTick).ended, true);
+  assert.equal(playFrame(room, "a", "online", room.finishTick).active, false);
+});
+
+test("a predicted finish stays provisional until its deciding tick is confirmed", () => {
+  const room = started();
+  room.race = { ...room.race!, phase: "finished" };
+  room.finishTick = 50;
+  assert.equal(playFrame(room, "a", "online", 49).roundEnded, false);
+  room.race = { ...room.race!, phase: "racing" };
+  assert.equal(playFrame(room, "a", "online", 50).roundEnded, false);
+  room.race = { ...room.race!, phase: "finished" };
+  room.finishTick = 60;
+  assert.equal(playFrame(room, "a", "online", 59).roundEnded, false);
+  assert.equal(playFrame(room, "a", "online", 60).roundEnded, true);
 });

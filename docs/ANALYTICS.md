@@ -76,6 +76,14 @@ seat. Local pass-and-play still counts one participating browser, not each perso
 **Rounds completed** count `fuse.Round Ended`, separately from starts.
 A completion requires that browser session's prior recorded participation in the
 same semantic round. Open-ended play and abandoned rounds have no fabricated end.
+Rollback games use `observeConfirmedPlay`: starts still observe current active
+play, while completions observe a separate confirmed frame with its own match and
+round key. `RoomRuntime.confirmedFrame()` returns a detached view of a retained
+snapshot no later than input confirmation; it never falls back to speculative
+state. The view is cached per snapshot (normally four log ticks), so repeated
+rendering does not clone the world. Drivers and games with decided outcome records
+may instead compare the outcome tick with `confirmedTick()`. These observations
+change no simulation rules or snapshot format.
 A bounded local ledger (512 recent start/end marks) prevents repeated frames,
 rollback publication, reload or popout from recounting the same participation.
 Its raw match/round keys never leave the browser. Very long sessions exceeding that

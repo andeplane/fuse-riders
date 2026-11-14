@@ -1,7 +1,66 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Analytics, AnalyticsStatus } from "../src/analytics.js";
-import { pageRole, startGameAnalytics } from "../src/play-metrics.js";
+import {
+  createPlayMetrics,
+  observeConfirmedPlay,
+  pageRole,
+  startGameAnalytics,
+  type PlayFrame,
+} from "../src/play-metrics.js";
+
+test("predicted completion rolled back before confirmation counts only the final round", () => {
+  const events: { event: string; key?: string }[] = [];
+  const observe = createPlayMetrics(
+    (event, _properties, lifecycle) => {
+      events.push({ event, key: lifecycle?.key });
+    },
+    () => 0,
+  );
+  const playing: PlayFrame = {
+    matchId: "match",
+    round: 1,
+    roundActive: true,
+    roundEnded: false,
+    active: true,
+    ended: false,
+    playerCount: 2,
+    botCount: 0,
+    seated: true,
+    mode: "online",
+  };
+  let final: PlayFrame | undefined;
+  const show = (frame: PlayFrame) =>
+    observeConfirmedPlay(
+      observe,
+      frame,
+      () => final,
+      (value) => value,
+    );
+  show(playing);
+  show({ ...playing, roundActive: false, roundEnded: true });
+  assert.equal(events.filter((call) => call.event === "Round Ended").length, 0);
+  final = playing;
+  show(playing); // Late input rolls the predicted finish back.
+  show({ ...playing, roundActive: false, roundEnded: true });
+  assert.equal(events.filter((call) => call.event === "Round Ended").length, 0);
+  // The next predicted round can already be running when final history confirms the old outcome.
+  final = { ...playing, roundActive: false, roundEnded: true };
+  show({ ...playing, round: 2 });
+  show({ ...playing, round: 2 });
+  assert.deepEqual(
+    events.filter((call) => call.event === "Round Ended"),
+    [{ event: "Round Ended", key: JSON.stringify(["match", 1]) }],
+  );
+  assert.equal(
+    events.filter((call) => call.event === "Round Started").length,
+    2,
+  );
+  assert.equal(
+    events.filter((call) => call.event === "Match Started").length,
+    1,
+  );
+});
 
 type Call = { event: string; properties: Record<string, unknown> | undefined };
 

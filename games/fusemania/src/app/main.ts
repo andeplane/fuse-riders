@@ -1,7 +1,15 @@
 import { requestedRoomSlot } from "fuse-ui";
+import {
+  playtestInputBlocked,
+  registerPlaytestInput,
+} from "fuse-ui/playtest-input";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
-import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
+import {
+  observeConfirmedPlay,
+  startGameAnalytics,
+  createPlayMetrics,
+} from "fuse-ui/play-metrics";
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
@@ -823,7 +831,9 @@ function enterRoom(
     element: top,
     onOpenChange: menuMoved,
   });
-  const modalOpen = () => Boolean(document.querySelector("dialog[open]"));
+  const modalOpen = () =>
+    playtestInputBlocked(document) ||
+    Boolean(document.querySelector("dialog[open]"));
 
   // Lobby: the invitation and the players on one side, the song select and START on the other.
   // A host's rooms start with the session it set last; a solo run is one song.
@@ -1126,6 +1136,7 @@ function enterRoom(
       node.setAttribute("aria-label", `${COLUMN_ACTIONS[column]} arrow`);
       node.addEventListener("contextmenu", (event) => event.preventDefault());
       node.addEventListener("pointerdown", (event) => {
+        if (playtestInputBlocked(document)) return;
         event.preventDefault();
         node.setPointerCapture(event.pointerId);
         node.classList.add("held");
@@ -1148,6 +1159,7 @@ function enterRoom(
     item.setAttribute("aria-label", "Throw your power-up");
     item.addEventListener("contextmenu", (event) => event.preventDefault());
     item.addEventListener("pointerdown", (event) => {
+      if (playtestInputBlocked(document)) return;
       event.preventDefault();
       throwItem(event.timeStamp);
     });
@@ -1857,21 +1869,34 @@ function enterRoom(
     pickSent = false;
   const callbacks: FusemaniaCallbacks = {
     state(frame, roomSettings) {
-      const players =
-        frame.stage === "lobby"
-          ? frame.seats.filter((seat) => !seat.watcher)
-          : frame.roster;
       const mode = solo ? "solo" : roomSettings.display ? "shared" : "online";
-      reportPlay({
-        matchId: frame.matchId,
-        active: frame.stage === "running",
-        ended: frame.stage === "over",
-        playerCount: players.length,
-        botCount: players.filter((player) => player.bot).length,
-        seated: players.some((player) => player.id === viewer.me),
-        mode,
-        round: 1,
-      });
+      observeConfirmedPlay(
+        reportPlay,
+        frame,
+        () => runtime.confirmedFrame(),
+        (frame) => {
+          const players =
+            frame.stage === "lobby"
+              ? frame.seats.filter((seat) => !seat.watcher)
+              : frame.roster;
+          return {
+            matchId: frame.matchId,
+            roundActive:
+              frame.stage === "running" &&
+              !!frame.world &&
+              frame.world.ms >= 0 &&
+              frame.world.phase === "playing",
+            roundEnded: frame.stage === "over",
+            active: frame.stage === "running",
+            ended: frame.stage === "over",
+            playerCount: players.length,
+            botCount: players.filter((player) => player.bot).length,
+            seated: players.some((player) => player.id === viewer.me),
+            mode,
+            round: 1,
+          };
+        },
+      );
       settings = roomSettings;
       // A song that is over settles this device's best on its chart once, and keeps saying what the best was.
       let bestBefore: number | undefined;
@@ -1996,6 +2021,7 @@ function enterRoom(
   installRoomLifecycle(window, {
     stop: () => runtime.stop(),
     destroy: () => {
+      stopPlaytestInput();
       menu.dispose();
       panel.dispose();
       songClock.stop();
@@ -2076,6 +2102,9 @@ function enterRoom(
     for (let column = 0; column < COLUMNS; column++)
       lift(column, event.code, event.timeStamp);
     if (captured.delete(event.code)) event.preventDefault();
+  });
+  const stopPlaytestInput = registerPlaytestInput(document, {
+    cancel: () => letGoAll(),
   });
   window.addEventListener("blur", () => letGoAll());
   document.addEventListener("visibilitychange", () => {

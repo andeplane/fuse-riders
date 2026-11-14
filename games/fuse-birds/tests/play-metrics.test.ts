@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Frame } from "fuse-netcode";
+import { createPlayMetrics, observeConfirmedPlay } from "fuse-ui/play-metrics";
 import { createMatch, getView } from "../src/engine/index.js";
 import type { BirdsView } from "../src/online/game.js";
 import {
@@ -50,6 +51,40 @@ const frame: Frame<BirdsView> = {
   ],
 };
 const settings = { display: false };
+
+test("a predicted Birds victory rolled back before confirmation emits just the final completion", () => {
+  const events: string[] = [];
+  const observe = createPlayMetrics(
+    (event) => events.push(event),
+    () => 0,
+  );
+  const world = getView(createMatch("battle", 42, [{ id: "a", name: "Skye" }]));
+  const active: Frame<BirdsView> = {
+    ...frame,
+    world: { ...world, phase: "aiming" },
+  };
+  const over: Frame<BirdsView> = {
+    ...active,
+    world: { ...world, phase: "over" },
+  };
+  let final: Frame<BirdsView> | undefined = active;
+  const show = (current: Frame<BirdsView>) =>
+    observeConfirmedPlay(
+      observe,
+      current,
+      () => final,
+      (value) => birdsPlayFrame(value, settings, context),
+    );
+  show(active);
+  show(over);
+  show(active); // A late launch changes the speculative outcome.
+  assert.equal(events.filter((event) => event === "Round Ended").length, 0);
+  final = over;
+  show(over);
+  show(over);
+  assert.equal(events.filter((event) => event === "Round Ended").length, 1);
+  assert.equal(events.filter((event) => event === "Round Started").length, 1);
+});
 
 test("seat observations count riders while displays and watchers never claim a played seat", () => {
   assert.deepEqual(birdsPlayFrame(frame, settings, context), {

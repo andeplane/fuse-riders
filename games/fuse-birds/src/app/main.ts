@@ -1,4 +1,8 @@
 import { requestedRoomSlot } from "fuse-ui";
+import {
+  playtestInputBlocked,
+  registerPlaytestInput,
+} from "fuse-ui/playtest-input";
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
@@ -31,7 +35,11 @@ import { createAppPortal } from "fuse-ui/portal";
 import { createTopBar } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import { createModalInputGate } from "fuse-ui/modal-input";
-import { createPlayMetrics, startGameAnalytics } from "fuse-ui/play-metrics";
+import {
+  createPlayMetrics,
+  startGameAnalytics,
+  observeConfirmedPlay,
+} from "fuse-ui/play-metrics";
 import {
   UNIT,
   type Fact,
@@ -239,6 +247,7 @@ function landing(): void {
   app.replaceChildren(page);
 }
 function room(code: string, display: boolean, practice = false): void {
+  const metricsScope = practice ? crypto.randomUUID() : code;
   const observePlay = createPlayMetrics(analytics.track, () =>
     performance.now(),
   );
@@ -441,7 +450,9 @@ function room(code: string, display: boolean, practice = false): void {
     resetGesture(gestures);
   };
   const modalInput = createModalInputGate({
-    isOpen: () => Boolean(document.querySelector("dialog[open]")),
+    isOpen: () =>
+      playtestInputBlocked(document) ||
+      Boolean(document.querySelector("dialog[open]")),
     observe(change) {
       const observer = new MutationObserver(change);
       observer.observe(document.body, {
@@ -619,13 +630,17 @@ function room(code: string, display: boolean, practice = false): void {
       page.dataset.round = String(view?.round ?? 0);
       const seated = frame.seats.some((s) => s.id === me && !s.watcher),
         inLobby = frame.stage === "lobby";
-      observePlay(
-        birdsPlayFrame(frame, settings, {
-          memberId: me,
-          displayOnly: display,
-          practice,
-          roomScope: code,
-        }),
+      observeConfirmedPlay(
+        observePlay,
+        frame,
+        () => runtime.confirmedFrame?.(),
+        (frame) =>
+          birdsPlayFrame(frame, settings, {
+            memberId: me,
+            displayOnly: display,
+            practice,
+            roomScope: metricsScope,
+          }),
       );
       lobby.hidden = !inLobby;
       board.hidden = inLobby;
@@ -778,6 +793,7 @@ function room(code: string, display: boolean, practice = false): void {
     stopped = true;
     cancel();
     modalInput.dispose();
+    stopPlaytestInput();
     cancelAnimationFrame(frameId);
     runtime.stop();
     arena.destroy();
@@ -791,6 +807,9 @@ function room(code: string, display: boolean, practice = false): void {
     stop: () => runtime.stop(),
     destroy: stop,
     reload: () => location.reload(),
+  });
+  const stopPlaytestInput = registerPlaytestInput(document, {
+    cancel: abandonInput,
   });
   window.addEventListener("blur", abandonInput);
   window.addEventListener("resize", cancel);

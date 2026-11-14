@@ -4,7 +4,7 @@ import {
   registerPlaytestInput,
 } from "fuse-ui/playtest-input";
 import { createAppPortal } from "fuse-ui/portal";
-import type { PlayFrame } from "fuse-ui/play-metrics";
+import { observeConfirmedPlay, type PlayObserver } from "fuse-ui/play-metrics";
 import { playFrame } from "./play-metrics.js";
 import type { BallRuntime } from "../online/runtime.js";
 import type { ArenaRenderer } from "../render/arena.js";
@@ -38,6 +38,7 @@ export type Client = Pick<
   | "input"
   | "command"
   | "frameTiming"
+  | "confirmedFrame"
   | "self"
   | "canManage"
 > &
@@ -46,7 +47,7 @@ export type Client = Pick<
 export interface ScreenOptions {
   base?: string;
   search?: string;
-  observePlay?(frame: PlayFrame): void;
+  observePlay?: PlayObserver;
   online?: {
     code: string;
     display: boolean;
@@ -425,19 +426,24 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
         state: (f, settings) => {
           activeSettings = settings;
           shared = settings.display;
-          options.observePlay?.(
-            playFrame(
+          if (options.observePlay)
+            observeConfirmedPlay(
+              options.observePlay,
               f,
-              runtime?.self ?? "",
-              !options.online
-                ? "solo"
-                : options.online.display
-                  ? "display"
-                  : shared
-                    ? "controller"
-                    : "online",
-            ),
-          );
+              () => runtime?.confirmedFrame(),
+              (f) =>
+                playFrame(
+                  f,
+                  runtime?.self ?? "",
+                  !options.online
+                    ? "solo"
+                    : options.online.display
+                      ? "display"
+                      : shared
+                        ? "controller"
+                        : "online",
+                ),
+            );
           update(f);
         },
         event: (e) => {
