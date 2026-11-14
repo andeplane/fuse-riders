@@ -49,6 +49,8 @@ export interface ShowcaseHandle {
   resetFeedback(): void;
   destroy(): void;
   setPaused(value: boolean): void;
+  /** Stop or resume drawing altogether, for a scene nobody can see. An externally stepped scene has no loop to stop. */
+  setAwake(value: boolean): void;
   replay(): void;
   setIdle(value: boolean): void;
   setAtmosphere(value: boolean): void;
@@ -107,7 +109,9 @@ export function createShowcase(
     view: CameraFrame = wholeArena({ width: 1600, height: 900 }),
     viewAt = -1;
   let elapsed = 800,
-    destroyed = false;
+    destroyed = false,
+    awake = true,
+    built = false;
   const feedback = new Feedback();
   const res = renderScale();
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
@@ -182,6 +186,8 @@ export function createShowcase(
       try {
         this.build();
         if (options.externallyStepped) this.game.loop.stop();
+        built = true;
+        if (!awake) this.game.loop.sleep();
         options.ready();
       } catch (error) {
         options.failed(
@@ -1177,6 +1183,14 @@ export function createShowcase(
     },
     setPaused(value) {
       paused = value;
+    },
+    setAwake(value) {
+      if (awake === value || destroyed || options.externallyStepped) return;
+      awake = value;
+      // Before the scene is built the loop is what builds it: `create` applies the choice once it has.
+      if (!built) return;
+      if (value) game.loop.wake();
+      else game.loop.sleep();
     },
     replay() {
       elapsed = 0;

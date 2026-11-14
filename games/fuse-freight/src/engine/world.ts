@@ -201,3 +201,17 @@ export const played = (world: World): number =>
   world.phase === "countdown"
     ? 0
     : Math.min(world.length, world.step - T.COUNTDOWN_STEPS);
+
+/** A copy that shares nothing with `world`: for a screen that plays the world forward without touching the room's. */
+export function copyWorld(world: World): World {
+  return {
+    ...world,
+    trains: world.trains.map((train) => ({
+      ...train,
+      cargo: [...train.cargo],
+      trail: [...train.trail],
+    })),
+    carts: world.carts.map((cart) => ({ ...cart })),
+    fx: world.fx.map((fx) => ({ ...fx })),
+  };
+}
