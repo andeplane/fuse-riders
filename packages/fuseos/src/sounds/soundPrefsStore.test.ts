@@ -42,6 +42,24 @@ describe(soundEnabled.name, () => {
     );
     expect(soundEnabled({ master: false, events: {} }, "ding")).toBe(false);
   });
+
+  it("keeps the start-up chime off until the user switches it on", () => {
+    expect(soundEnabled({ master: true, events: {} }, "startup")).toBe(false);
+    expect(
+      soundEnabled({ master: true, events: { startup: true } }, "startup"),
+    ).toBe(true);
+    expect(
+      soundEnabled({ master: true, events: { startup: false } }, "startup"),
+    ).toBe(false);
+    expect(
+      soundEnabled({ master: false, events: { startup: true } }, "startup"),
+    ).toBe(false);
+  });
+
+  it("gives prefs saved before the default changed the new default", () => {
+    const old = JSON.stringify({ master: true, events: { modem: false } });
+    expect(soundEnabled(parseSoundPrefs(old), "startup")).toBe(false);
+  });
 });
 
 describe(LocalStorageSoundPrefsStore.name, () => {
