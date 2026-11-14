@@ -24,11 +24,11 @@ from simfile import DIFFS
 
 ROOT = Path(os.environ.get("CHARTNET_WORK", Path.home() / "projects/personal/fusemania-songs/chartnet"))
 # What the Fuse charts aim at, in steps per second: about the packs' 75th–90th percentile, busier than the medians.
-FUSE_NPS = {"Easy": 1.8, "Medium": 2.8, "Hard": 4.3, "Challenge": 6.0, "Expert": 7.0}
+FUSE_NPS = {"Easy": 1.8, "Medium": 2.8, "Hard": 4.3, "Challenge": 7.0}
 # Placement: peaks above the density model's validation threshold (it is told the density it should reach), or with
 # PLACE_THR=0 the strongest peaks up to the target count.
 THR = float(os.environ.get("PLACE_THR", "0"))
-METERS = {"Easy": 3, "Medium": 6, "Hard": 9, "Challenge": 12, "Expert": 14}
+METERS = {"Easy": 3, "Medium": 6, "Hard": 9, "Challenge": 13}
 
 
 def crossovers_best_parity(rows) -> float:
@@ -90,17 +90,6 @@ def stats2(rows) -> dict:
     s["crossover_best_parity"] = crossovers_best_parity(rows)
     s["stream16_share"] = round(sum(1 for a, b in zip(beats, beats[1:]) if b - a <= 0.25 + 1e-6) / max(len(beats) - 1, 1), 3)
     return s
-
-
-def peak_rate(times, window: float = 2.0) -> float:
-    """The most steps in any `window` seconds, per second."""
-    t = sorted(times)
-    best = j = 0
-    for i in range(len(t)):
-        while t[i] - t[j] > window:
-            j += 1
-        best = max(best, i - j + 1)
-    return best / window
 
 
 def models():
@@ -166,7 +155,6 @@ def fuse():
     outdir = ROOT / "out_fuse2"
     outdir.mkdir(exist_ok=True)
     agg: dict = {}
-    peaks_: dict = {}
     placement = {}
     for s in songs:
         tm = timing(s.meta)
@@ -174,22 +162,16 @@ def fuse():
                     for c in s.meta["charts"] for b, _, _ in c["rows"])
         charts = []
         placement[s.key] = {}
-        for d in FUSE_DIFFS + ["Expert"]:
-            # Expert: the models' Challenge, asked for more; 24ths are allowed where the music puts a step there
-            md = "Challenge" if d == "Expert" else d
-            prob = predict(om, s, md, FUSE_NPS[d])
+        for d in FUSE_DIFFS:
+            prob = predict(om, s, d, FUSE_NPS[d])
             n_target = None if THR > 0 else int(FUSE_NPS[d] * 0.9 * len(s.feats) / FPS)
             beats = place(prob, tm, d, THR, n_target=n_target, swing=swing)
-            rows = generate(am, s, beats, tm, md, FUSE_NPS[d], seed=zlib.crc32((s.key + d).encode()))
+            rows = generate(am, s, beats, tm, d, FUSE_NPS[d], seed=zlib.crc32((s.key + d).encode()))
             charts.append((d, METERS[d], rows))
             agg.setdefault(d, []).append(stats2(rows))
-            peaks_.setdefault(d, []).append(peak_rate([t for _, t, r in rows if any(x in "124" for x in r)]))
         (outdir / f"{s.key}.ssc").write_text(ssc(s.meta["ssc_head"], charts))
         print(s.key, [(d, len(r)) for d, _, r in charts], flush=True)
     summary = {d: mean_stats(v) for d, v in agg.items()}
-    for d, v in peaks_.items():
-        summary[d]["peak_2s_median"] = float(np.median(v))
-        summary[d]["peak_2s_max"] = float(np.max(v))
     (ROOT / "fuse2_results.json").write_text(json.dumps(summary, indent=1))
     for d, st in summary.items():
         print(d.ljust(9), " ".join(f"{a[:7]}={b}" for a, b in st.items()))

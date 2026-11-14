@@ -84,23 +84,18 @@ const playable = (steps: Steps): boolean =>
   steps.lastMs + END_PAD_MS + LATE_MS < MAX_SONG_MS;
 
 function entryOf(source: SongSource, sim: Simfile): Entry | undefined {
-  // A second chart of a difficulty the file already has (a ChartNet chart, say), and any Edit, is an alternate: it
-  // comes after the song's own charts, so their indexes, and the default, stay put. A second chart is named after its
-  // description too; an Edit by its description alone, as StepMania shows edits.
+  // A second chart of a difficulty the file already has (a ChartNet chart, say) is an alternate: it is named after
+  // its description too and comes after the song's own charts, so their indexes, and the default, stay put.
   const seen = new Set<string>();
   const charts = sim.charts
     .filter((chart) => chart.stepsType === "dance-single")
     .map((chart) => {
       const level = chart.difficulty.toLowerCase();
-      const edit = level === "edit";
-      const alternate = edit || seen.has(level);
+      const alternate = seen.has(level);
       seen.add(level);
-      const name =
-        edit && chart.description
-          ? chart.description
-          : alternate
-            ? `${chart.difficulty} ${chart.description || "Alt"}`
-            : chart.difficulty;
+      const name = alternate
+        ? `${chart.difficulty} ${chart.description || "Alt"}`
+        : chart.difficulty;
       return { chart, name, alternate, steps: compileSteps(chart, sim.timing) };
     })
     .filter(

@@ -26,8 +26,8 @@ ROOT = Path(os.environ.get("CHARTNET_WORK", Path.home() / "projects/personal/fus
 SP = ROOT  # rule-baseline.ts writes rulegen/out.json here
 FUSE_DIFFS = ["Easy", "Medium", "Hard", "Challenge"]
 TARGET_NPS = {"Easy": 1.5, "Medium": 2.3, "Hard": 3.2, "Challenge": 4.7}
-MIN_GAP = {"Beginner": 0.4, "Easy": 0.3, "Medium": 0.16, "Hard": 0.095, "Challenge": 0.07, "Expert": 0.066}  # seconds, as the rule generator
-SNAP = {"Beginner": [1], "Easy": [2], "Medium": [2], "Hard": [4, 3], "Challenge": [4, 3], "Expert": [4, 3, 6]}  # subdivisions per beat
+MIN_GAP = {"Beginner": 0.4, "Easy": 0.3, "Medium": 0.16, "Hard": 0.095, "Challenge": 0.07}  # seconds, as the rule generator
+SNAP = {"Beginner": [1], "Easy": [2], "Medium": [2], "Hard": [4, 3], "Challenge": [4, 3]}  # subdivisions per beat
 
 
 def timing(meta) -> Timing:
@@ -158,9 +158,7 @@ def notes_text(rows) -> str:
 def ssc(head: str, charts) -> str:
     out = [head.rstrip() + "\n"]
     for diff, meter, rows in charts:
-        # An Expert chart is an Edit, named by its description (as StepMania shows edits)
-        desc, level = ("Expert ChartNet", "Edit") if diff == "Expert" else ("ChartNet", diff)
-        out.append(f"\n#NOTEDATA:;\n#STEPSTYPE:dance-single;\n#DESCRIPTION:{desc};\n#DIFFICULTY:{level};\n"
+        out.append(f"\n#NOTEDATA:;\n#STEPSTYPE:dance-single;\n#DESCRIPTION:ChartNet;\n#DIFFICULTY:{diff};\n"
                    f"#METER:{meter};\n#CREDIT:ChartNet;\n#NOTES:\n{notes_text(rows)}\n;\n")
     return "".join(out)
 
