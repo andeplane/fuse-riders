@@ -1,5 +1,5 @@
 import type { Frame, FrameTiming } from "fuse-netcode";
-import type { GameEvent } from "../engine/index.js";
+import type { GameEvent, RoundView } from "../engine/index.js";
 import type { View } from "../online/index.js";
 import type {
   ArenaOptions,
@@ -21,6 +21,16 @@ export interface ArenaSetup<Host = HTMLElement> {
   artUrl: string;
   /** The runtime's `frameTiming`. */
   timing: () => FrameTiming<View> | undefined;
+  /**
+   * The picture drawn at the clock (`forward.ts`), when this device draws that way: the newest folded round played
+   * forward, as two views and how far between them. Undefined falls back to the two newest frames blended, a tick
+   * behind the clock.
+   */
+  picture?: (
+    timing: FrameTiming<View>,
+  ) => { previous: RoundView; current: RoundView; alpha: number } | undefined;
+  /** Called with what a display frame drew, for a latency probe. */
+  drawn?: (view: RoundView, alpha: number, previous: RoundView) => void;
   /** The runtime's `confirmedTick`: the game clock no rollback can reach back past. */
   confirmed: () => number;
   /** Called when the arena plays something loud, so the page's music steps back under it. */
@@ -179,20 +189,27 @@ export class ArenaDriver<Host = HTMLElement> {
       confirmed: this.setup.confirmed(),
     });
   }
-  /** One display frame: the newest two frames of the same game blended at the presentation tick. */
+  /**
+   * One display frame: the setup's picture at the clock when it has one, otherwise the newest two frames of the same
+   * game blended at the presentation tick.
+   */
   draw(): void {
     const timing = this.arena && this.setup.timing(),
       newer = timing?.newer,
       current = newer?.world;
     if (!this.arena || !timing || !newer || !current) return;
+    const ahead = this.setup.picture?.(timing);
+    if (ahead) return this.show(ahead.previous, ahead.current, ahead.alpha);
     const older = timing.older,
       previous = older && sameGame(older, newer) ? older.world : null;
-    if (!older || !previous || !(newer.tick > older.tick)) {
-      this.arena.render(current, current, 1);
-      return;
-    }
+    if (!older || !previous || !(newer.tick > older.tick))
+      return this.show(current, current, 1);
     const alpha = (timing.tick - older.tick) / (newer.tick - older.tick);
-    this.arena.render(previous, current, Math.max(0, Math.min(1, alpha)));
+    this.show(previous, current, Math.max(0, Math.min(1, alpha)));
+  }
+  private show(previous: RoundView, current: RoundView, alpha: number): void {
+    this.arena?.render(previous, current, alpha);
+    this.setup.drawn?.(current, alpha, previous);
   }
   resize(): void {
     this.arena?.resize();
