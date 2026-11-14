@@ -21,6 +21,7 @@ interface Snapshot {
 await mkdir("artifacts", { recursive: true });
 const browser = await launchSelected("chromium", { headless: true });
 import { ridersPageUrl } from "./lib/riders-url.js";
+import { openTopMenu } from "./lib/top-menu.js";
 const base = ridersPageUrl(process.env.ONLINE_URL ?? "http://localhost:8787/");
 const phone = {
   viewport: { width: 844, height: 390 },
@@ -301,6 +302,7 @@ try {
   // #68 flattened every visual style to one thin rim in both renderers, so the two modes became
   // indistinguishable and the room had no way to switch. Both must stay reachable and distinct.
   {
+    await openTopMenu(host);
     await host.getByRole("button", { name: "SETTINGS", exact: true }).click();
     const styles = host.getByRole("button", { name: /^Visual style: / });
     assert.equal(

@@ -62,11 +62,14 @@ export interface DrawOptions {
   /** Song title and chart names by slot, for the header line. */
   title: string;
   chartNames: readonly string[];
+  /** Each player's session total before this song, by slot: the leaderboard adds the song's score. Leave out for none. */
+  totals?: readonly number[];
   /** The key that throws the held power-up, as text ("SPACE"), for the prompt. */
   itemKey: string;
   /** CSS pixels at the bottom of the canvas covered by touch buttons (0 when none): the field stays above it. */
   inset?: number;
 }
+const NO_TOTALS: readonly number[] = [];
 export interface Scene {
   draw(view: WorldView, options: DrawOptions): void;
   /** Call after the canvas's CSS size (or the screen's pixel ratio) changes. */
@@ -127,6 +130,7 @@ export function createScene(canvas: SceneCanvas, options: SceneOptions): Scene {
   const boardInfo: BoardInfo = {
     names: [],
     chartNames: [],
+    totals: [],
     local: -1,
     texts,
   };
@@ -199,6 +203,7 @@ export function createScene(canvas: SceneCanvas, options: SceneOptions): Scene {
       if (plan.panel) {
         boardInfo.names = shot.names;
         boardInfo.chartNames = shot.chartNames;
+        boardInfo.totals = shot.totals ?? NO_TOTALS;
         boardInfo.local = local;
         drawBoard(frame, plan.panel, view, feedback, boardInfo);
       }

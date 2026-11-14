@@ -164,7 +164,9 @@ test("the host's settings are checked: a song the library has, a known mode, a c
     { ...SETTINGS, chart: 1.5 },
     { ...SETTINGS, chart: 99 },
     { ...SETTINGS, extra: 1 },
-    { display: false, song: "grid", mode: 0 },
+    { display: false, song: "grid", mode: 0, chart: 0 },
+    { ...SETTINGS, songs: 2 },
+    { ...SETTINGS, songs: 3, random: 1 },
   ])
     assert.equal(parse(bad), undefined, JSON.stringify(bad));
   // A song with fewer charts plays its hardest for a seat that picked a harder one.
