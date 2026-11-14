@@ -70,6 +70,7 @@ import { browserCanvas } from "./attract.js";
 import { createSfx, cuesBetween } from "./audio.js";
 import {
   COLUMN_ACTIONS,
+  MAX_OFFSET_MS,
   actionOf,
   keyLabel,
   loadPrefs,
@@ -94,6 +95,17 @@ import {
   sessionFor,
 } from "./session.js";
 import { createSettingsPanel } from "./settings.js";
+import { createLatencyProbe, latencyText } from "./latency.js";
+import {
+  createHitCollector,
+  loadHistory,
+  measureBias,
+  proposalText,
+  propose,
+  remember as rememberRun,
+  saveHistory,
+  type Proposal,
+} from "./timing-bias.js";
 import { createSongClock } from "./song-clock.js";
 import { createSongPicker } from "./song-picker.js";
 
@@ -635,6 +647,10 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     cardCounts = el("dl", "", "fm-counts"),
     cardLines = el("ul", "", "fm-lines"),
     cardFoot = el("p", "", "fm-card-foot"),
+    cardTiming = el("section", "", "fm-card-timing"),
+    timingText = el("p", ""),
+    timingApply = button("APPLY", "fui-button-primary fm-timing-apply"),
+    timingSkip = button("NO THANKS", "fm-timing-skip"),
     cardActions = el("div", "", "fm-actions"),
     rematch = button("PLAY AGAIN", "fui-button-primary fm-rematch"),
     toLobby = button("SONG SELECT", "fm-to-lobby"),
@@ -645,9 +661,13 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     cardRows,
     cardCounts,
     cardLines,
+    cardTiming,
     cardFoot,
     cardActions,
   );
+  timingText.setAttribute("role", "status");
+  cardTiming.append(timingText, timingApply, timingSkip);
+  cardTiming.hidden = true;
   card.hidden = true;
   unlock.hidden = loadFailed.hidden = true;
   loadFailed.onclick = () => {
@@ -669,16 +689,22 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     now: () => performance.now(),
     audio: () => audio.clock(),
   });
+  const probe = createLatencyProbe();
+  /** A browser's stamp is used when it is one: not zero, and within half a second of now. */
+  const stamped = (at: number, now: number) =>
+    at > 0 && Math.abs(at - now) < 500;
   /** The song time of an event stamped `at` on the page's clock, as the judge hears it. */
-  const stamp = (at: number): number => {
-    const now = performance.now();
-    return (
-      songClock.songMs(at > 0 && Math.abs(at - now) < 500 ? at : now) -
-      prefs.offsetMs
-    );
-  };
+  const stamp = (at: number, now = performance.now()): number =>
+    songClock.songMs(stamped(at, now) ? at : now) - prefs.offsetMs;
   const press = (column: number, source: string, at: number) => {
-    const ms = stamp(at);
+    const now = performance.now(),
+      ms = stamp(at, now);
+    probe.press(
+      source.startsWith("fm-") ? "touch" : "key",
+      at,
+      now,
+      stamped(at, now),
+    );
     // A second finger on a column that is already down is a new step: up and down again at the same instant.
     if (held[column]!.size) runtime.key(column, false, ms);
     held[column]!.add(source);
@@ -851,13 +877,79 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     return steps;
   };
   let before: WorldView | undefined;
+  // ---- timing: this device's own hit errors, and what they say about its input offset ----
+  const collector = createHitCollector();
+  /** What the result offers, and what it says once answered. */
+  let timingOffer: Extract<Proposal, { kind: "apply" }> | undefined,
+    timingNote = "";
+  const showTiming = () => {
+    setText(timingText, timingNote);
+    cardTiming.hidden = timingNote === "";
+    timingApply.hidden = timingSkip.hidden = !timingOffer;
+  };
+  /** The song is over: measure the run, remember it, and offer a new input offset when the bias is clear. */
+  const judgeTiming = (song: string) => {
+    timingOffer = undefined;
+    timingNote = "";
+    const bias = measureBias(collector.hits());
+    collector.reset();
+    if (bias.verdict === "clear") {
+      const run = {
+        song,
+        estimateMs: prefs.offsetMs + bias.biasMs,
+        used: bias.used,
+        at: Date.now(),
+        deviceMs: (audio.clock()?.latency() ?? 0) * 1000,
+      };
+      const history = loadHistory(store);
+      const proposal = propose(run, history, prefs.offsetMs, MAX_OFFSET_MS);
+      saveHistory(store, rememberRun(history, run));
+      timingNote = proposalText(proposal, bias.used);
+      if (proposal.kind === "apply") timingOffer = proposal;
+    }
+    showTiming();
+  };
+  timingApply.onclick = () => {
+    if (!timingOffer) return;
+    const ms = timingOffer.offsetMs;
+    prefs = { ...prefs, offsetMs: ms };
+    savePrefs(store, prefs);
+    timingOffer = undefined;
+    timingNote = `Input offset set to ${ms > 0 ? "+" : ms < 0 ? "−" : ""}${Math.abs(ms)} ms. Settings has it if you want it back.`;
+    showTiming();
+  };
+  timingSkip.onclick = () => {
+    timingOffer = undefined;
+    timingNote = "";
+    showTiming();
+  };
+  const latencyBox = new URLSearchParams(location.search).has("latency")
+    ? el("pre", "", "fm-latency")
+    : undefined;
+  if (latencyBox) screen.append(latencyBox);
+  const latencyContext = () => {
+    const bias = measureBias(collector.hits()),
+      detail = audio.clock()?.latencies?.();
+    return {
+      baseMs: detail?.base === undefined ? undefined : detail.base * 1000,
+      outputMs: detail?.output === undefined ? undefined : detail.output * 1000,
+      driftMs: songClock.drift,
+      audible: songClock.audible,
+      offsetMs: prefs.offsetMs,
+      hits: bias,
+    };
+  };
+  let latencyShown = 0;
   /** A solo song that began before the browser let sound out starts over once it does. */
   let startedSilent = false,
     heardEpoch = -1;
   const frame = (now: number) => {
     // Asked first, so one bad frame cannot stop the drawing for good.
     if (!over) requestAnimationFrame(frame);
+    probe.frameStart(now, performance.now());
     songClock.sample();
+    const mapping = songClock.mapping();
+    if (mapping) probe.clock(mapping.reading, mapping.smoothed, mapping.audio);
     const state = runtime.roomState();
     const roomMs = runtime.songMs();
     const world = state?.world;
@@ -905,6 +997,10 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       }
     }
     before = view;
+    // Only what was played by ear counts: a silent page or a phone used as a pad plays to another clock.
+    const mine = local === -1 ? undefined : view.players[local];
+    if (mine && !mine.bot && running && songClock.audible)
+      collector.observe(mine, `${epoch}:${prefs.offsetMs}`);
     if (stage.hidden) return;
     const drawn = heard + prefs.visualMs;
     const timing = library.timing(view.song);
@@ -922,6 +1018,12 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       chartNames: model.chartNames,
       itemKey: coarse() ? "ITEM" : keyLabel(prefs.keys.item[0] ?? ""),
     });
+    const done = performance.now();
+    probe.frameEnd(done);
+    if (latencyBox && done - latencyShown > 500) {
+      latencyShown = done;
+      latencyBox.textContent = latencyText(probe.report(), latencyContext());
+    }
   };
   requestAnimationFrame(frame);
   // For smokes and for a player's bug report: where the sound, the room and the picture are, read from the console.
@@ -936,6 +1038,9 @@ function room(solo: boolean, library: Library, first?: Choice): void {
         loaded: !!playing?.song,
       }),
       view: () => runtime.picture(songClock.songMs() - prefs.offsetMs),
+      /** Press-to-handler and press-to-frame percentiles, the audio clock's figures and this run's hit errors. */
+      latency: () => ({ ...probe.report(), ...latencyContext() }),
+      latencyText: () => latencyText(probe.report(), latencyContext()),
       /** This device's own notes in the song being played: `[ms, column, kind]`. */
       notes: () => {
         const world = runtime.roomState()?.world;
@@ -989,6 +1094,13 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       sfx.fanfare(
         !next.result.rows.some((row) => row.you && /^[CD]$/.test(row.grade)),
       );
+    if (view.stage === "over" && lastStage === "running" && view.world)
+      judgeTiming(view.world.song);
+    else if (view.stage !== "over" && (timingOffer || timingNote)) {
+      timingOffer = undefined;
+      timingNote = "";
+      showTiming();
+    }
     // A calibration or a key capture left open takes every key: it ends when the room moves on.
     if (view.stage !== lastStage) panel.cancel();
     lastStage = view.stage;
