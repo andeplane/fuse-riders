@@ -11,7 +11,11 @@ import {
   HOLD_GRACE_MS,
   HOLD_POINTS,
   ITEM_KINDS,
-  ITEM_WEIGHTS,
+  ITEM_BASE,
+  ITEM_GAP_FLOOR,
+  ITEM_GAP_FULL_PCT,
+  ITEM_POWER,
+  ITEM_TILT,
   MARVELOUS,
   MAX_EFFECTS,
   MINED,
@@ -100,8 +104,8 @@ export interface PlayContext {
   slot: number;
   /** The notes that carry a power-up, in a battle. */
   items?: ReadonlySet<number>;
-  /** This rider's place as the tick began (0 leads) of how many. */
-  place: number;
+  /** Where this rider stood as the tick began (`itemEdge`: below 0 ahead, above 0 behind), and how many ride. */
+  edge: number;
   of: number;
 }
 
@@ -204,22 +208,47 @@ export function addEffect(
     player.effects.push([kind, from, until, by]);
 }
 
-/** The item a note gives: likelier strong the further behind the rider is; a rider alone gets only its own kind. */
-function rollItem(ctx: PlayContext, id: number): number {
-  const lead = ITEM_WEIGHTS[0]!,
-    last = ITEM_WEIGHTS[1]!;
-  const behind = ctx.of > 1 ? ctx.place : 1,
-    ahead = ctx.of > 1 ? ctx.of - 1 - ctx.place : 1;
-  const weights: number[] = [];
-  let total = 0;
-  for (let kind = 0; kind < ITEM_KINDS; kind++) {
-    const weight =
-      ctx.of <= 1 && isAttack(kind)
-        ? 0
-        : lead[kind]! * ahead + last[kind]! * behind;
-    weights.push(weight);
-    total += weight;
+/**
+ * Where a rider stands for the drop table, from -1000 (a full gap ahead of the others) to 1000 (a full gap behind):
+ * its rating against the average of the others', as a share of the best rating in the match. Level riders, and a
+ * rider alone, are at 0. Whole numbers only, so every device gets the same answer.
+ */
+export function itemEdge(ratings: readonly number[], slot: number): number {
+  if (ratings.length < 2) return 0;
+  let sum = 0,
+    top = ITEM_GAP_FLOOR;
+  for (let other = 0; other < ratings.length; other++) {
+    if (other !== slot) sum += ratings[other]!;
+    if (ratings[other]! > top) top = ratings[other]!;
   }
+  const behind = Math.trunc(sum / (ratings.length - 1)) - ratings[slot]!;
+  const edge = Math.trunc((behind * 100_000) / (top * ITEM_GAP_FULL_PCT));
+  return Math.max(-1000, Math.min(1000, edge));
+}
+
+/**
+ * The drop table for a rider at `edge` (see `itemEdge`): each item's base weight, scaled up or down by how its power
+ * sits against the middle of the scale, in proportion to the edge. A rider alone gets only the items used on itself.
+ */
+export function itemWeights(edge: number, alone: boolean): number[] {
+  const weights: number[] = [];
+  for (let kind = 0; kind < ITEM_KINDS; kind++) {
+    // Power 1..10 is -9..9 around the middle; a full edge moves a weight by up to ITEM_TILT thousandths.
+    const tilt = Math.trunc(
+      (edge * (2 * ITEM_POWER[kind]! - 11) * ITEM_TILT) / 9000,
+    );
+    weights.push(
+      alone && isAttack(kind) ? 0 : ITEM_BASE[kind]! * Math.max(0, 1000 + tilt),
+    );
+  }
+  return weights;
+}
+
+/** The item a note gives: likelier strong the further behind the rider is; a rider alone gets only its own kind. */
+export function rollItem(ctx: PlayContext, id: number): number {
+  const weights = itemWeights(ctx.edge, ctx.of <= 1);
+  let total = 0;
+  for (const weight of weights) total += weight;
   let pick = hash(ctx.seed, id, 0x17e0 + ctx.slot) % total;
   for (let kind = 0; kind < ITEM_KINDS; kind++) {
     if (pick < weights[kind]!) return kind;
