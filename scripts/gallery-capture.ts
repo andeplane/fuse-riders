@@ -76,9 +76,6 @@ const RECIPES: Record<string, Recipe> = {
     await room
       .and(page.locator('[data-stage="running"]:not([data-phase="countdown"])'))
       .waitFor({ timeout: 30_000 });
-    // The controls card covers the floor until it is dismissed.
-    const dismiss = page.getByRole("button", { name: "×", exact: true });
-    if (await dismiss.isVisible()) await dismiss.click();
     await page.locator("canvas").click({ position: { x: 20, y: 20 } });
     await page.keyboard.down("ArrowRight");
     for (let jump = 0; jump < 5; jump++) {
@@ -107,7 +104,11 @@ if (unknown.length > 0)
 const ids = wanted.length > 0 ? wanted : Object.keys(RECIPES);
 
 const server = process.env.GALLERY_URL ? undefined : await startRoomService();
-const root = process.env.GALLERY_URL ?? server?.url ?? "";
+// A base with a path (GitHub Pages) needs its trailing slash, or `new URL` drops the last segment.
+const root = (process.env.GALLERY_URL ?? server?.url ?? "").replace(
+  /\/?$/,
+  "/",
+);
 const browser = await launchSelected("chromium");
 const failed: string[] = [];
 try {
