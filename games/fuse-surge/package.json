@@ -1,0 +1,23 @@
+{
+  "name": "fuse-surge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fuse Surge: surges sweep the deck, faster and faster. Jump the low ones, duck the high ones; every hit throws you a step toward the pit, and the last rider standing takes the round.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "exports": {
+    "./platform": "./src/platform.ts"
+  },
+  "dependencies": {
+    "fuse-netcode": "workspace:*",
+    "fuse-platform": "workspace:*",
+    "fuse-ui": "workspace:*"
+  },
+  "devDependencies": {
+    "@fontsource/press-start-2p": "^5.3.0",
+    "fuse-network-fe": "workspace:*",
+    "qrcode": "^1.5.4"
+  }
+}

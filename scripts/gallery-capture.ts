@@ -97,6 +97,20 @@ const RECIPES: Record<string, Recipe> = {
     await page.keyboard.press("ArrowUp", { delay: 200 });
     await page.waitForTimeout(700);
   },
+  "fuse-surge": async (page) => {
+    await openPlayOptions(page);
+    await page
+      .getByRole("button", { name: "PLAY SOLO VS BOTS", exact: true })
+      .click();
+    await page
+      .locator('.fs-room[data-phase="play"]')
+      .waitFor({ timeout: 30_000 });
+    await page.locator("canvas").click({ position: { x: 20, y: 20 } });
+    // Two surges in: the rider nobody is steering has been thrown back to the last foothold, by the pit, and hops
+    // there while the third bears down; the bots are still up the deck.
+    await page.waitForTimeout(5200);
+    await page.keyboard.press("ArrowUp", { delay: 220 });
+  },
   fuseball: async (page) => {
     await openPlayOptions(page);
     await page

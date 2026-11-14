@@ -14,6 +14,7 @@ import { ballBrosRegistration } from "ball-bros/platform";
 import { fuseballRegistration } from "fuseball/platform";
 import { fuseVolleyRegistration } from "fuse-volley/platform";
 import { elastoFuseRegistration } from "elasto-fuse/platform";
+import { fuseSurgeRegistration } from "fuse-surge/platform";
 import {
   ACCOUNT_RULES,
   fuseRiders,
@@ -50,6 +51,7 @@ export const GAMES = [
   fuseballRegistration,
   fuseVolleyRegistration,
   elastoFuseRegistration,
+  fuseSurgeRegistration,
 ] as const;
 
 /** Fuse Riders plus the named games: a smaller service for tests. The room service is configured with the same ids. */
