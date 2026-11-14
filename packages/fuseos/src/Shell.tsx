@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Desktop } from "./desktop/Desktop";
 import { DesktopUiProvider } from "./desktop/DesktopUiProvider";
 import { DisplayViewportProvider } from "./desktop/DisplayViewportProvider";
+import { DisplayEffectsProvider } from "./display/effects/DisplayEffectsProvider";
 import type { WindowContent } from "./state/appState";
 import { AppStateProvider } from "./state/AppStateProvider";
 import type { StateStore } from "./state/stateStore";
@@ -21,9 +22,11 @@ export function Shell({ store, initialOpen, children }: ShellProps) {
     <AppStateProvider store={store} initialOpen={initialOpen}>
       <DesktopUiProvider>
         <DisplayViewportProvider>
-          <WindowManagerProvider>
-            {children ?? <Desktop />}
-          </WindowManagerProvider>
+          <DisplayEffectsProvider>
+            <WindowManagerProvider>
+              {children ?? <Desktop />}
+            </WindowManagerProvider>
+          </DisplayEffectsProvider>
         </DisplayViewportProvider>
       </DesktopUiProvider>
     </AppStateProvider>

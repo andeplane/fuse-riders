@@ -1,10 +1,14 @@
 import type { Size } from "../windows/windowManager";
 
-export type ColorMode = "true-color" | "high-color" | "256-colors";
+/** The 16-colour and monochrome filters are defined by display/effects (paletteFilters.tsx); the other two here (DisplaySurface). */
+export type ColorMode =
+  "true-color" | "high-color" | "256-colors" | "16-colors" | "monochrome";
 export type DesktopArea = "current" | "640x480" | "800x600" | "1024x768";
 export type DisplayGeometry = { viewport: Size; scale: number };
 
 export const COLOR_MODES: { value: ColorMode; label: string }[] = [
+  { value: "monochrome", label: "Monochrome (4 shades)" },
+  { value: "16-colors", label: "16 colors (4 bit)" },
   { value: "256-colors", label: "256 colors (8 bit)" },
   { value: "high-color", label: "High Color (16 bit)" },
   { value: "true-color", label: "True Color (24 bit)" },

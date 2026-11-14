@@ -8,6 +8,7 @@ import {
   MAX_ICON_SPACING,
   MIN_ICON_SPACING,
 } from "../desktop/displayPrefsStore";
+import { DisplayEffectsSection } from "../display/effects/DisplayEffectsSection";
 
 import { useControlPanelViewModel } from "./useControlPanelViewModel";
 import { WallpaperPicker } from "./WallpaperPicker";
@@ -120,6 +121,7 @@ export function DisplayApplet({ windowId }: { windowId: string }) {
           <label htmlFor="font-size-large">Large fonts</label>
         </div>
       </fieldset>
+      <DisplayEffectsSection windowId={windowId} />
     </div>
   );
 }

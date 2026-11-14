@@ -22,6 +22,15 @@ import {
   MemoryWallpaperStore,
   WallpaperStoreContext,
 } from "../desktop/wallpaperStore";
+import type { DisplayEffectsDeps } from "../display/effects/effectsDeps";
+import {
+  createManualTimers,
+  DisplayEffectsDepsContext,
+} from "../display/effects/effectsDeps";
+import {
+  DisplayEffectsStoreContext,
+  MemoryDisplayEffectsStore,
+} from "../display/effects/effectsStore";
 import type { FuseGameRegistry } from "../fusegames/registry";
 import {
   createFuseGameRegistry,
@@ -119,6 +128,10 @@ export type ProviderOptions = {
   gamesDeps?: Partial<GamesDeps>;
   wallpaperStore?: MemoryWallpaperStore;
   displayPrefsStore?: MemoryDisplayPrefsStore;
+  /** Display Properties' Appearance and Effects; defaults to everything off, Windows Standard. */
+  effectsStore?: MemoryDisplayEffectsStore;
+  /** Defaults to manual timers (`effectsTimers` in the result) and no curvature map. */
+  effectsDeps?: Partial<DisplayEffectsDeps>;
   prefsStore?: MemoryFuseOsPrefsStore;
   paintDeps?: Partial<PaintDeps>;
   paintPrefs?: MemoryPaintPrefsStore;
@@ -247,6 +260,14 @@ export function createWrapper(options: ProviderOptions = {}) {
   const displayPrefsStore =
     options.displayPrefsStore ?? new MemoryDisplayPrefsStore();
   const prefsStore = options.prefsStore ?? new MemoryFuseOsPrefsStore();
+  const effectsStore = options.effectsStore ?? new MemoryDisplayEffectsStore();
+  const effectsTimers = createManualTimers();
+  const effectsDeps: DisplayEffectsDeps = {
+    setTimeout: effectsTimers.setTimeout,
+    clearTimeout: effectsTimers.clearTimeout,
+    createCurvatureMap: () => undefined,
+    ...options.effectsDeps,
+  };
   const surfaces: FakePaintSurface[] = [];
   const paintDeps = createTestPaintDeps(surfaces, options.paintDeps);
   const paintPrefs = options.paintPrefs ?? new MemoryPaintPrefsStore();
@@ -272,38 +293,50 @@ export function createWrapper(options: ProviderOptions = {}) {
                       value={displayPrefsStore}
                     >
                       <FuseOsPrefsStoreContext.Provider value={prefsStore}>
-                        <PaintDepsContext.Provider value={paintDeps}>
-                          <PaintPrefsStoreContext.Provider value={paintPrefs}>
-                            <PaintRegistryContext.Provider
-                              value={paintRegistry}
-                            >
-                              <WinampDepsContext.Provider value={winampDeps}>
-                                <WinampRegistryContext.Provider
-                                  value={winampRegistry}
+                        <DisplayEffectsStoreContext.Provider
+                          value={effectsStore}
+                        >
+                          <DisplayEffectsDepsContext.Provider
+                            value={effectsDeps}
+                          >
+                            <PaintDepsContext.Provider value={paintDeps}>
+                              <PaintPrefsStoreContext.Provider
+                                value={paintPrefs}
+                              >
+                                <PaintRegistryContext.Provider
+                                  value={paintRegistry}
                                 >
-                                  <AssistantDepsContext.Provider
-                                    value={assistantDeps}
+                                  <WinampDepsContext.Provider
+                                    value={winampDeps}
                                   >
-                                    <AssistantOptionsStoreContext.Provider
-                                      value={assistantOptions}
+                                    <WinampRegistryContext.Provider
+                                      value={winampRegistry}
                                     >
-                                      <SystemProbeContext.Provider
-                                        value={() => systemProbe}
+                                      <AssistantDepsContext.Provider
+                                        value={assistantDeps}
                                       >
-                                        <Shell
-                                          store={store}
-                                          initialOpen={options.initialOpen}
+                                        <AssistantOptionsStoreContext.Provider
+                                          value={assistantOptions}
                                         >
-                                          {children}
-                                        </Shell>
-                                      </SystemProbeContext.Provider>
-                                    </AssistantOptionsStoreContext.Provider>
-                                  </AssistantDepsContext.Provider>
-                                </WinampRegistryContext.Provider>
-                              </WinampDepsContext.Provider>
-                            </PaintRegistryContext.Provider>
-                          </PaintPrefsStoreContext.Provider>
-                        </PaintDepsContext.Provider>
+                                          <SystemProbeContext.Provider
+                                            value={() => systemProbe}
+                                          >
+                                            <Shell
+                                              store={store}
+                                              initialOpen={options.initialOpen}
+                                            >
+                                              {children}
+                                            </Shell>
+                                          </SystemProbeContext.Provider>
+                                        </AssistantOptionsStoreContext.Provider>
+                                      </AssistantDepsContext.Provider>
+                                    </WinampRegistryContext.Provider>
+                                  </WinampDepsContext.Provider>
+                                </PaintRegistryContext.Provider>
+                              </PaintPrefsStoreContext.Provider>
+                            </PaintDepsContext.Provider>
+                          </DisplayEffectsDepsContext.Provider>
+                        </DisplayEffectsStoreContext.Provider>
                       </FuseOsPrefsStoreContext.Provider>
                     </DisplayPrefsStoreContext.Provider>
                   </WallpaperStoreContext.Provider>
@@ -324,6 +357,9 @@ export function createWrapper(options: ProviderOptions = {}) {
     gamesDeps,
     wallpaperStore,
     displayPrefsStore,
+    effectsStore,
+    effectsTimers,
+    effectsDeps,
     prefsStore,
     paintDeps,
     paintPrefs,
