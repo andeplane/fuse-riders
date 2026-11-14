@@ -181,8 +181,8 @@ function segment(sequence: number): StoredSegment {
   };
 }
 test("an uncertain upload retains identical audio and retries serially before finishing", async () => {
-  const first = segment(0),
-    second = segment(1),
+  const first = { ...segment(0), gameId: "fuse-riders" },
+    second = { ...segment(1), gameId: "fuse-birds" },
     store = memoryStore([{ ...session, finished: true }, second, first]);
   const sent: StoredSegment[] = [],
     changes: UploadState[] = [],
@@ -222,6 +222,10 @@ test("an uncertain upload retains identical audio and retries serially before fi
   assert.deepEqual(
     sent.map((item) => item.sequence),
     [0, 0, 1],
+  );
+  assert.deepEqual(
+    sent.map((item) => item.gameId),
+    ["fuse-riders", "fuse-riders", "fuse-birds"],
   );
   assert.equal(
     sent[0]?.blob,

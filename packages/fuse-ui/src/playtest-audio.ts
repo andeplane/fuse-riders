@@ -3,8 +3,10 @@ export interface WavSegment {
   startMs: number;
   endMs: number;
   blob: Blob;
+  /** Frozen when samples enter this segment, never inferred during upload. */
+  gameId?: string;
 }
-/** Independently complete PCM16 mono WAV; offsets use the same rounded duration the server validates. */
+/** Independently complete PCM16 mono WAV; nonempty chunks occupy at least one timeline millisecond. */
 export function pcmWav(samples: Float32Array, sampleRate: number): Blob {
   const buffer = new ArrayBuffer(44 + samples.length * 2);
   const view = new DataView(buffer);
@@ -45,6 +47,7 @@ export class PcmChunks {
   constructor(
     readonly sampleRate: number,
     private readonly emit: (chunk: WavSegment) => void,
+    private gameId?: string,
   ) {
     if (
       !Number.isInteger(sampleRate) ||
@@ -67,8 +70,18 @@ export class PcmChunks {
       if (this.count === this.samples.length) this.flush();
     }
   }
+  setGame(gameId: string): void {
+    if (gameId === this.gameId) return;
+    this.flush();
+    this.gameId = gameId;
+  }
   offsetMs(): number {
-    return this.elapsed + Math.round((this.count * 1000) / this.sampleRate);
+    return (
+      this.elapsed +
+      (this.count
+        ? Math.max(1, Math.round((this.count * 1000) / this.sampleRate))
+        : 0)
+    );
   }
   durationMs(): number {
     return this.emitted + (this.count * 1000) / this.sampleRate;
@@ -76,13 +89,18 @@ export class PcmChunks {
   flush(): void {
     if (!this.count) return;
     const startMs = this.elapsed;
-    this.elapsed += Math.round((this.count * 1000) / this.sampleRate);
+    // Match server WAV validation, including sub-ms tails at focus boundaries.
+    this.elapsed += Math.max(
+      1,
+      Math.round((this.count * 1000) / this.sampleRate),
+    );
     this.emitted += (this.count * 1000) / this.sampleRate;
     const chunk = {
       sequence: this.sequence++,
       startMs,
       endMs: this.elapsed,
       blob: pcmWav(this.samples.slice(0, this.count), this.sampleRate),
+      ...(this.gameId ? { gameId: this.gameId } : {}),
     };
     this.count = 0;
     this.emit(chunk);
@@ -91,20 +109,59 @@ export class PcmChunks {
 
 export interface MicrophoneCapture {
   offsetMs(): number;
+  setGame(gameId: string): void;
   stop(): Promise<void>;
 }
-export interface MicrophoneDependencies {
-  getUserMedia(constraints: MediaStreamConstraints): Promise<MediaStream>;
-  createContext(): AudioContext;
-  createNode(context: AudioContext, name: string): AudioWorkletNode;
+export interface CaptureGameFocus {
+  current(): string;
+  subscribe(changed: (gameId: string) => void): () => void;
+}
+export interface CaptureSource {
+  disconnect(): void;
+}
+export interface CaptureNode {
+  port: {
+    onmessage: ((event: MessageEvent<unknown>) => void) | null;
+    postMessage(message: unknown): void;
+    close(): void;
+  };
+  onprocessorerror: ((event: ErrorEvent) => void) | null;
+  disconnect(): void;
+}
+export interface CaptureContext {
+  readonly sampleRate: number;
+  readonly state: AudioContextState;
+  readonly audioWorklet: Pick<AudioWorklet, "addModule">;
+  addEventListener(type: "statechange", listener: () => void): void;
+  resume(): Promise<void>;
+  close(): Promise<void>;
+}
+export interface CaptureStream {
+  getAudioTracks(): readonly Pick<MediaStreamTrack, "addEventListener">[];
+  getTracks(): readonly Pick<MediaStreamTrack, "stop">[];
+}
+export interface MicrophoneDependencies<
+  Context extends CaptureContext = AudioContext,
+  Node extends CaptureNode = AudioWorkletNode,
+  Stream extends CaptureStream = MediaStream,
+> {
+  getUserMedia(constraints: MediaStreamConstraints): Promise<Stream>;
+  createContext(): Context;
+  createNode(context: Context, name: string): Node;
+  connect(context: Context, node: Node, stream: Stream): CaptureSource;
   createUrl(blob: Blob): string;
   revokeUrl(url: string): void;
   schedule(run: () => void, ms: number): () => void;
 }
 // Batch to the page instead of posting each 128-sample render quantum. Output is silence; the microphone is never monitored.
-const PROCESSOR = `class FusePlaytestPcm extends AudioWorkletProcessor {
+export const PCM_PROCESSOR = `class FusePlaytestPcm extends AudioWorkletProcessor {
   constructor() { super(); this.buffer = new Float32Array(2048); this.count = 0;
-    this.port.onmessage = (e) => { if (e.data === 'flush') { this.flush(); this.port.postMessage('flushed'); } }; }
+    this.port.onmessage = (e) => {
+      if (e.data === 'flush') { this.flush(); this.port.postMessage('flushed'); }
+      else if (e.data?.type === 'game' && typeof e.data.gameId === 'string') {
+        this.flush(); this.port.postMessage(e.data);
+      }
+    }; }
   flush() { if (this.count) { const block = this.buffer.slice(0, this.count); this.port.postMessage(block, [block.buffer]); this.count = 0; } }
   process(inputs) { const channels = inputs[0]; if (channels && channels.length) {
     for (let i = 0; i < channels[0].length; i++) { let sample = 0;
@@ -113,35 +170,64 @@ const PROCESSOR = `class FusePlaytestPcm extends AudioWorkletProcessor {
       if (this.count === this.buffer.length) this.flush(); } } return true; }
 } registerProcessor('fuse-playtest-pcm', FusePlaytestPcm);`;
 
-export async function startPcmMicrophone(
-  dependencies: MicrophoneDependencies,
+export async function startPcmMicrophone<
+  Context extends CaptureContext,
+  Node extends CaptureNode,
+  Stream extends CaptureStream,
+>(
+  dependencies: MicrophoneDependencies<Context, Node, Stream>,
   emit: (chunk: WavSegment) => void,
   stopped: (reason: string) => void,
+  gameFocus?: CaptureGameFocus,
 ): Promise<MicrophoneCapture> {
   const stream = await dependencies.getUserMedia({
     audio: { channelCount: 1, echoCancellation: true },
     video: false,
   });
-  let context: AudioContext | undefined;
-  let source: MediaStreamAudioSourceNode | undefined;
-  let node: AudioWorkletNode | undefined;
+  let context: Context | undefined;
+  let source: CaptureSource | undefined;
+  let node: Node | undefined;
   let url: string | undefined;
+  let unsubscribeFocus: (() => void) | undefined;
   try {
     context = dependencies.createContext();
-    const chunks = new PcmChunks(context.sampleRate, emit);
+    const chunks = new PcmChunks(
+      context.sampleRate,
+      emit,
+      gameFocus?.current(),
+    );
     url = dependencies.createUrl(
-      new Blob([PROCESSOR], { type: "text/javascript" }),
+      new Blob([PCM_PROCESSOR], { type: "text/javascript" }),
     );
     await context.audioWorklet.addModule(url);
     dependencies.revokeUrl(url);
     url = undefined;
-    source = context.createMediaStreamSource(stream);
     node = dependencies.createNode(context, "fuse-playtest-pcm");
     let flushed: (() => void) | undefined;
     let stopping = false;
     let stopPromise: Promise<void> | undefined;
+    let requestedGame = gameFocus?.current();
+    const activeNode = node;
+    const setGame = (gameId: string) => {
+      // FIFO in both port directions drains the old game's worklet buffer
+      // before the encoder changes attribution, including rapid switches.
+      if (!stopPromise && gameId !== requestedGame) {
+        requestedGame = gameId;
+        activeNode.port.postMessage({ type: "game", gameId });
+      }
+    };
     node.port.onmessage = (event: MessageEvent<unknown>) => {
       if (event.data === "flushed") flushed?.();
+      else if (
+        event.data &&
+        typeof event.data === "object" &&
+        "type" in event.data &&
+        event.data.type === "game" &&
+        "gameId" in event.data &&
+        typeof event.data.gameId === "string" &&
+        !stopping
+      )
+        chunks.setGame(event.data.gameId);
       else if (event.data instanceof Float32Array && !stopping) {
         chunks.push(event.data);
         if (chunks.durationMs() >= 60 * 60 * 1000)
@@ -159,13 +245,16 @@ export async function startPcmMicrophone(
       if (!stopping && activeContext.state === "suspended")
         stopped("Microphone was suspended. Recording stopped.");
     });
-    source.connect(node);
-    node.connect(context.destination);
+    // Permission/module loading can span desktop transitions. Read current
+    // focus again before samples flow, then observe changes during resume.
+    if (requestedGame) chunks.setGame(requestedGame);
+    unsubscribeFocus = gameFocus?.subscribe(setGame);
+    source = dependencies.connect(context, node, stream);
     await context.resume();
-    const activeNode = node,
-      activeSource = source;
+    const activeSource = source;
     return {
       offsetMs: () => chunks.offsetMs(),
+      setGame,
       stop() {
         if (stopPromise) return stopPromise;
         stopPromise = (async () => {
@@ -179,6 +268,7 @@ export async function startPcmMicrophone(
             activeNode.port.postMessage("flush");
           });
           stopping = true;
+          unsubscribeFocus?.();
           activeSource.disconnect();
           activeNode.disconnect();
           activeNode.port.close();
@@ -190,6 +280,7 @@ export async function startPcmMicrophone(
       },
     };
   } catch (error) {
+    unsubscribeFocus?.();
     if (url) dependencies.revokeUrl(url);
     source?.disconnect();
     node?.disconnect();

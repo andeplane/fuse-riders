@@ -326,6 +326,7 @@ export const immediateAppStateDeps: AppStateDeps = {
   },
   clearTimeout: () => undefined,
   syncDelayMs: 0,
+  focusedGame: () => undefined,
 };
 
 export const testWindowsDeps: WindowsDeps = {

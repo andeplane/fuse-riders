@@ -1,8 +1,15 @@
 import type { ReactNode } from "react";
-import { useContext, useEffect, useMemo, useReducer, useRef } from "react";
+import {
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+} from "react";
 
 import type { AppState, WindowContent } from "./appState";
-import { appStateReducer, serializeAppState } from "./appState";
+import { activeWindowId, appStateReducer, serializeAppState } from "./appState";
 import { AppStateContext, AppStateDepsContext } from "./appStateContext";
 import type { StateStore } from "./stateStore";
 
@@ -38,6 +45,18 @@ export function AppStateProvider({
     initialState(store, initialOpen),
   );
   const lastSaved = useRef<string | undefined>(undefined);
+  const active = state.windows.find(
+    (window) => window.id === activeWindowId(state),
+  );
+  const focusedGame =
+    active?.kind === "fusegame" || active?.kind === "roomgame"
+      ? active.gameId
+      : "fuseos";
+  useLayoutEffect(() => {
+    // Reducer focus covers title bars, taskbar/keyboard switching, close and
+    // minimize. Browser activeElement can remain a removed iframe afterwards.
+    deps.focusedGame(focusedGame);
+  }, [deps, focusedGame]);
 
   useEffect(() => {
     const serialized = serializeAppState(state);

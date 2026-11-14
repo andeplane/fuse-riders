@@ -20,6 +20,7 @@
     "./analytics-text": "./src/analytics-text.ts",
     "./safe-storage": "./src/safe-storage.ts",
     "./play-metrics": "./src/play-metrics.ts",
+    "./playtest-focus": "./src/playtest-focus.ts",
     "./embedded": "./src/embedded.ts",
     "./assets": "./src/assets.ts",
     "./radio": "./src/radio.ts",

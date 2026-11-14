@@ -165,7 +165,9 @@ export function validateWav(bytes: Uint8Array): {
   );
   return {
     sampleRate,
-    durationMs: Math.round((dataBytes / 2 / sampleRate) * 1000),
+    // A focus boundary can leave a sub-ms tail after a full ten-second WAV.
+    // Keep every sample and give each nonempty segment a monotonic ms span.
+    durationMs: Math.max(1, Math.round((dataBytes / 2 / sampleRate) * 1000)),
   };
 }
 

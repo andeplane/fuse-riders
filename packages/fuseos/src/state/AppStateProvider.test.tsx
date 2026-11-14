@@ -5,6 +5,7 @@ import type { AppStateDeps } from "./appStateContext";
 import { AppStateContext, AppStateDepsContext } from "./appStateContext";
 import { AppStateProvider } from "./AppStateProvider";
 import { MemoryStateStore } from "./stateStore";
+import { activeWindowId } from "./appState";
 
 function Probe() {
   const { state, dispatch } = useContext(AppStateContext);
@@ -22,6 +23,39 @@ function Probe() {
   );
 }
 
+function GameProbe() {
+  const { state, dispatch } = useContext(AppStateContext);
+  return (
+    <>
+      <button
+        onClick={() =>
+          dispatch({
+            type: "open",
+            content: { kind: "fusegame", gameId: "fuse-birds" },
+          })
+        }
+      >
+        birds
+      </button>
+      <button onClick={() => dispatch({ type: "focus", id: "w1" })}>
+        riders
+      </button>
+      <button
+        onClick={() =>
+          dispatch({ type: "minimize", id: activeWindowId(state)! })
+        }
+      >
+        minimize
+      </button>
+      <button
+        onClick={() => dispatch({ type: "close", id: activeWindowId(state)! })}
+      >
+        close
+      </button>
+    </>
+  );
+}
+
 /** Timers the test fires by hand. */
 function manualDeps(): AppStateDeps & { fire: () => void } {
   const pending: (() => void)[] = [];
@@ -32,11 +66,40 @@ function manualDeps(): AppStateDeps & { fire: () => void } {
     },
     clearTimeout: () => undefined,
     syncDelayMs: 150,
+    focusedGame: () => undefined,
     fire: () => pending.splice(0).forEach((callback) => callback()),
   };
 }
 
 describe(AppStateProvider.name, () => {
+  it("publishes game changes for activation, keyboard focus, minimize and close fallback", () => {
+    const focused: string[] = [];
+    const deps = {
+      ...manualDeps(),
+      focusedGame: (gameId: string) => focused.push(gameId),
+    };
+    render(
+      <AppStateDepsContext.Provider value={deps}>
+        <AppStateProvider
+          store={new MemoryStateStore()}
+          initialOpen={[{ kind: "fusegame", gameId: "fuse-riders" }]}
+        >
+          <GameProbe />
+        </AppStateProvider>
+      </AppStateDepsContext.Provider>,
+    );
+    act(() => screen.getByText("birds").click());
+    act(() => screen.getByText("riders").click());
+    act(() => screen.getByText("minimize").click());
+    act(() => screen.getByText("close").click());
+    expect(focused).toEqual([
+      "fuse-riders",
+      "fuse-birds",
+      "fuse-riders",
+      "fuse-birds",
+      "fuseos",
+    ]);
+  });
   it("seeds from the store and opens the deep link's windows on top, before the first render", () => {
     const store = new MemoryStateStore({
       version: 1,

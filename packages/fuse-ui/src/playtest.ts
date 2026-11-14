@@ -4,6 +4,7 @@ import { createEndpoints } from "fuse-network-fe";
 import { PORTAL_GAMES } from "./portal.js";
 import type { ReportSubmission } from "fuse-telemetry/contracts";
 import { capturePlaytestPage } from "./playtest-capture.js";
+import { installPlaytestGameFocus } from "./playtest-focus.js";
 import {
   isEditableReportTarget,
   playtestInputBlocked,
@@ -128,6 +129,13 @@ export function installBrowserPlaytest(
     result.onclick = action;
     return result;
   };
+  // Game roots are often replaced during navigation. Keep these overlays alive
+  // under the body while opting in to the shared dialog/button styling.
+  const overlays = node("div");
+  overlays.className = "fui-app";
+  overlays.dataset.fuiPlaytest = "overlays";
+  overlays.style.display = "contents";
+  doc.body.append(overlays);
   const endpoints = createEndpoints(
     {
       basePath: new URL("./", win.location.href).pathname,
@@ -203,23 +211,17 @@ export function installBrowserPlaytest(
       ? { recordingId: recording.id, offsetMs: microphone.offsetMs() }
       : undefined;
   const ownsMicrophone = win.top === win.self;
-  const knownGames = new Set(["dice", ...PORTAL_GAMES.map((game) => game.id)]);
-  let lastActiveGame = gameId;
-  function activeGame(): string {
-    const frame = doc.activeElement;
-    if (frame?.tagName === "IFRAME") {
-      try {
-        const location = (frame as HTMLIFrameElement).contentWindow?.location;
-        if (location?.origin === win.location.origin) {
-          const game = location.pathname.split("/").filter(Boolean).at(-1);
-          if (game && knownGames.has(game)) lastActiveGame = game;
-        }
-      } catch {
-        /* Cross-origin media frames never identify a Fuse game. */
-      }
-    }
-    return lastActiveGame;
-  }
+  const focus = installPlaytestGameFocus({
+    document: doc,
+    window: win,
+    gameId,
+    knownGames: new Set([
+      gameId,
+      "dice",
+      ...PORTAL_GAMES.map((game) => game.id),
+    ]),
+    changed: () => undefined,
+  });
 
   // Only the top page responds; report text and audio never travel over this bridge.
   if (ownsMicrophone)
@@ -450,7 +452,7 @@ export function installBrowserPlaytest(
     if (sending) event.preventDefault();
   });
   if (!options.recordingOnly) {
-    doc.body.append(shell.dialog);
+    overlays.append(shell.dialog);
     doc.addEventListener(
       "keydown",
       (event) => {
@@ -534,7 +536,7 @@ export function installBrowserPlaytest(
     if (disposed) return;
     if (recorderMounted) {
       if (recordingBar && !recordingBar.isConnected)
-        doc.body.append(recordingBar);
+        overlays.append(recordingBar);
       return;
     }
     recorderMounted = true;
@@ -582,7 +584,7 @@ export function installBrowserPlaytest(
     });
     controls.append(signIn, start, stop, retry, dismiss);
     bar.append(title, status, detail, controls);
-    doc.body.append(bar);
+    overlays.append(bar);
     void account
       .accountReady()
       .then(() => {
@@ -693,7 +695,6 @@ export function installBrowserPlaytest(
         kind: "segment",
         key: `${session.id}:${chunk.sequence}`,
         recordingId: session.id,
-        gameId: activeGame(),
       };
       writes = writes
         .then(async () => {
@@ -749,6 +750,12 @@ export function installBrowserPlaytest(
               win.navigator.mediaDevices.getUserMedia(constraints),
             createContext: () => new AudioContext({ sampleRate: 24000 }),
             createNode: (context, name) => new AudioWorkletNode(context, name),
+            connect(context, node, stream) {
+              const source = context.createMediaStreamSource(stream);
+              source.connect(node);
+              node.connect(context.destination);
+              return source;
+            },
             createUrl: (blob) => URL.createObjectURL(blob),
             revokeUrl: (url) => URL.revokeObjectURL(url),
             schedule,
@@ -758,6 +765,7 @@ export function installBrowserPlaytest(
             stoppedReason = reason;
             void stopRecording();
           },
+          focus,
         );
         if (disposed) {
           await stopRecording();
