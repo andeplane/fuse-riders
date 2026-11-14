@@ -6,7 +6,7 @@
  * natural the tempo is to step to; then the beat's place among those pulses and the bar's among four beats are
  * chosen together, from where the kick sits, where the harmony changes and where sections turn over.
  */
-import { BINS, STFT_RATE, binHz, type Onset } from "./dsp.js";
+import { BINS, STFT_RATE, binHz } from "./dsp.js";
 import { onsetWeight, type BandOnset } from "./tempo.js";
 
 const TAU = 2 * Math.PI;

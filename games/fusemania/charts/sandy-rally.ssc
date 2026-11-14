@@ -16,7 +16,7 @@
 #STEPSTYPE:dance-single;
 #DESCRIPTION:Easy;
 #DIFFICULTY:Easy;
-#METER:4;
+#METER:3;
 #CREDIT:Fusemania;
 #NOTES:
 0000
@@ -374,7 +374,7 @@
 #STEPSTYPE:dance-single;
 #DESCRIPTION:Medium;
 #DIFFICULTY:Medium;
-#METER:7;
+#METER:6;
 #CREDIT:Fusemania;
 #NOTES:
 0000
@@ -932,7 +932,7 @@
 #STEPSTYPE:dance-single;
 #DESCRIPTION:Hard;
 #DIFFICULTY:Hard;
-#METER:10;
+#METER:9;
 #CREDIT:Fusemania;
 #NOTES:
 0000

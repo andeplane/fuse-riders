@@ -67,6 +67,10 @@ interface Tuning {
   candle: number;
   /** The shortest gap, in beats, at which the same arrow may come twice running. */
   jack: number;
+  /**
+   * The meter from the chart's notes per second. Every chart of a difficulty aims at the same density range, so the
+   * steps are narrow: a meter ranks the songs of this pack against each other more than against other packs.
+   */
   meter: (average: number, peak: number) => number;
 }
 
@@ -87,7 +91,7 @@ const TUNING: Record<Difficulty, Tuning> = {
     crossover: undefined,
     candle: 6,
     jack: 2,
-    meter: (average) => 2 + clamp(Math.round((average - 0.75) / 0.3), 0, 2),
+    meter: (average) => 2 + clamp(Math.round((average - 1.16) / 0.11), 0, 2),
   },
   Medium: {
     density: [1.7, 3.0],
@@ -102,7 +106,7 @@ const TUNING: Record<Difficulty, Tuning> = {
     crossover: undefined,
     candle: 4,
     jack: 1,
-    meter: (average) => 5 + clamp(Math.round((average - 1.6) / 0.6), 0, 2),
+    meter: (average) => 5 + clamp(Math.round((average - 2.4) / 0.12), 0, 2),
   },
   Hard: {
     density: [2.8, 5.0],
@@ -117,7 +121,7 @@ const TUNING: Record<Difficulty, Tuning> = {
     crossover: 2.8,
     candle: 1.1,
     jack: 0.5,
-    meter: (average) => 8 + clamp(Math.round((average - 2.7) / 0.8), 0, 2),
+    meter: (average) => 8 + clamp(Math.round((average - 3.8) / 0.3), 0, 2),
   },
   Challenge: {
     density: [3.8, 7.6],
@@ -133,7 +137,7 @@ const TUNING: Record<Difficulty, Tuning> = {
     candle: 0.8,
     jack: 0.5,
     meter: (average, peak) =>
-      10 + clamp(Math.round((0.6 * average + 0.4 * peak - 4.4) / 1.1), 0, 3),
+      10 + clamp(Math.round((0.6 * average + 0.4 * peak - 6.3) / 0.3), 0, 3),
   },
 };
 
@@ -178,8 +182,6 @@ interface Song {
   level: Float32Array;
   /** Per bar, 0 to 1: how loud the bar is among the song's bars. */
   energy: Float32Array;
-  /** Per bar, 0 to 1. */
-  clarity: Float32Array;
   seconds: Float64Array;
   /** The first and last slot that may carry a step. */
   first: number;
@@ -272,7 +274,6 @@ function readSong(analysis: Analysis): Song {
     pitch: decodeSeries(analysis.pitch),
     level: scale(analysis.level, 50),
     energy,
-    clarity: scale(analysis.clarity, 61),
     seconds,
     first,
     last,
