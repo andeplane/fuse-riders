@@ -42,6 +42,14 @@ export function addTap(taps: readonly Tap[], tap: Tap): Tap[] {
   return [...taps, tap].sort((a, b) => a.time - b.time || a.column - b.column);
 }
 
+/** The taps without one tap at that time and lane (the first such, if it was pressed twice). */
+export function removeTap(taps: readonly Tap[], tap: Tap): Tap[] {
+  const index = taps.findIndex(
+    (other) => other.time === tap.time && other.column === tap.column,
+  );
+  return index < 0 ? [...taps] : taps.filter((_, i) => i !== index);
+}
+
 export const writeTaps = (file: TapsFile): string =>
   `${JSON.stringify(file, null, 2)}\n`;
 

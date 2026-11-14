@@ -52,7 +52,13 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { addTap, parseTaps, tapColumn, writeTaps } from "../src/lab/taps.js";
+import {
+  addTap,
+  parseTaps,
+  removeTap,
+  tapColumn,
+  writeTaps,
+} from "../src/lab/taps.js";
 
 const sine = (hz: number, seconds: number, rate = LAB_RATE) =>
   Float32Array.from({ length: Math.round(seconds * rate) }, (_, i) =>
@@ -571,4 +577,13 @@ test("chart lab: a tapped rhythm is stored under its song's name", () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("chart lab: undo takes one tap away and leaves the rest", () => {
+  const a = { time: 1, beat: 2, column: 0 };
+  const b = { time: 2, beat: 4, column: 1 };
+  assert.deepEqual(removeTap([a, b], b), [a]);
+  assert.deepEqual(removeTap([a, b], { time: 9, beat: 9, column: 0 }), [a, b]);
+  // Pressed twice at the same moment: one goes.
+  assert.deepEqual(removeTap([a, a, b], a), [a, b]);
 });

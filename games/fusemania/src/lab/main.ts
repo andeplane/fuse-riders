@@ -58,6 +58,7 @@ import { NOTES_UPLOAD_PATH, writeNotesUpload } from "./notes-upload.js";
 import {
   addTap,
   parseTaps,
+  removeTap,
   tapColumn,
   writeTaps,
   type Tap,
@@ -167,6 +168,9 @@ const keyLegend = el(
   " record, then tap ",
   key("WASD"),
   key("IJKL"),
+  el("span", { className: "lab-keys-gap" }),
+  key("⌘Z"),
+  " undo tap",
   el("span", { className: "lab-keys-gap" }),
   key("x"),
   " set marker",
@@ -371,6 +375,8 @@ let marker: number | undefined;
 /** The rhythm tapped in record mode for this song, in time order. */
 let taps: Tap[] = [];
 let tapsTimer: ReturnType<typeof setTimeout> | undefined;
+/** The taps of this visit in the order they were pressed: ⌘Z takes back the latest. */
+let tapHistory: Tap[] = [];
 /** In local development the URL remembers the playhead (`#t=…`), so a reload carries on from there. */
 let resumeAt = import.meta.env.DEV ? parseResume(location.hash) : undefined;
 if (import.meta.env.DEV)
@@ -424,6 +430,7 @@ async function loadSong(id: string): Promise<void> {
   playhead = 0;
   topTime = -0.5;
   taps = [];
+  tapHistory = [];
   const tapped = load(TAPS_KEY(data.id));
   if (tapped) {
     try {
@@ -1334,11 +1341,13 @@ function recordTap(column: number): void {
   const timing = charts[0]?.timing;
   if (!source || !timing) return;
   const time = Math.max(0, heardTime());
-  taps = addTap(taps, {
+  const tap: Tap = {
     time: Number(time.toFixed(3)),
     beat: Number(timing.beatAt(time).toFixed(3)),
     column,
-  });
+  };
+  tapHistory.push(tap);
+  taps = addTap(taps, tap);
   hidden.delete(TAPPED);
   rebuildCharts();
   saveTaps();
@@ -1352,9 +1361,30 @@ function saveTaps(): void {
   tapsTimer = setTimeout(() => void writeToDevServer(undefined, file), 600);
 }
 
+/** Takes back the tap pressed last (then the one before it, and so on). */
+function undoTap(): void {
+  // Nothing pressed since the page opened: the tap nearest the playhead, within a second, goes instead.
+  const here = heardTime();
+  const tap =
+    tapHistory.pop() ??
+    taps
+      .filter((other) => Math.abs(other.time - here) <= 1)
+      .sort((a, b) => Math.abs(a.time - here) - Math.abs(b.time - here))[0];
+  if (!tap) {
+    say("no tap to undo: put the playhead on one and press ⌘Z");
+    return;
+  }
+  taps = removeTap(taps, tap);
+  rebuildCharts();
+  saveTaps();
+  draw();
+  say(`removed the tap at ${tap.time.toFixed(2)} s`);
+}
+
 function clearTaps(): void {
   if (!taps.length) return;
   taps = [];
+  tapHistory = [];
   rebuildCharts();
   saveTaps();
   draw();
@@ -2006,6 +2036,14 @@ window.addEventListener("keydown", (event) => {
   } else if (delta !== undefined) {
     event.preventDefault();
     seekBy(delta);
+  } else if (
+    event.key.toLowerCase() === "z" &&
+    (event.metaKey || event.ctrlKey) &&
+    !event.shiftKey &&
+    !event.altKey
+  ) {
+    event.preventDefault();
+    undoTap();
   } else if (
     event.key.toLowerCase() === "r" &&
     !event.metaKey &&
