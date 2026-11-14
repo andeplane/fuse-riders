@@ -1,129 +1,115 @@
+import type { GameAudio, Song } from "fuse-ui/game-audio";
 import type { Cue } from "../render/cues.js";
 
 /**
- * Little synthesized sounds for what the court says happened since the last frame (`Scene.draw`'s cues). Nothing is
- * loaded; a page opened with `?mute` never opens the browser's audio, and no choice is stored.
+ * Fuse Volley's sound: a warm beach palette of marimba-ish sine and triangle plucks, wet jelly thumps and a lifeguard
+ * whistle. Effects are synthesised through the shared audio bus (no files); the songs are lazy-loaded mp3s.
  */
 export interface Sfx {
   play(cue: Cue): void;
-  /** The browser lets a page make sound only after a key or a touch: call this from one. */
-  resume(): void;
 }
 
-/** Where the sounds come from: the browser's audio, a timer for the notes of a jingle, and the hiss's samples. */
-export interface SfxDependencies {
-  open(): AudioContext | undefined;
-  later(run: () => void, ms: number): void;
-  random(): number;
-}
-const browser: SfxDependencies = {
-  open: () =>
-    typeof AudioContext === "undefined" ? undefined : new AudioContext(),
-  later: (run, ms) => void setTimeout(run, ms),
-  random: () => Math.random(),
-};
+/** The songs, in `public/music/fuse-volley/`; none is fetched until the first key or touch. */
+export const VOLLEY_SONGS: readonly Song[] = [
+  {
+    id: "jelly-beach-bounce",
+    title: "Jelly Beach Bounce",
+    path: "music/fuse-volley/jelly-beach-bounce.mp3",
+  },
+  {
+    id: "sandy-rally",
+    title: "Sandy Rally",
+    path: "music/fuse-volley/sandy-rally.mp3",
+  },
+];
 
-export function createSfx(
-  muted: boolean,
-  deps: SfxDependencies = browser,
-): Sfx {
-  let context: AudioContext | undefined;
-  const ctx = () => {
-    if (muted) return undefined;
-    context ??= deps.open();
-    return context;
-  };
-  const tone = (
-    frequency: number,
-    duration: number,
-    type: OscillatorType,
-    volume: number,
-    slide = 1,
-    delay = 0,
-  ) => {
-    const audio = ctx();
-    if (!audio || audio.state !== "running") return;
-    const osc = audio.createOscillator(),
-      gain = audio.createGain(),
-      at = audio.currentTime + delay;
-    osc.type = type;
-    osc.frequency.setValueAtTime(frequency, at);
-    osc.frequency.exponentialRampToValueAtTime(
-      Math.max(30, frequency * slide),
-      at + duration,
-    );
-    gain.gain.setValueAtTime(0.0001, at);
-    gain.gain.exponentialRampToValueAtTime(volume, at + 0.008);
-    gain.gain.exponentialRampToValueAtTime(0.0001, at + duration);
-    osc.connect(gain).connect(audio.destination);
-    osc.start(at);
-    osc.stop(at + duration + 0.02);
-  };
-  const noise = (duration: number, volume: number, cutoff: number) => {
-    const audio = ctx();
-    if (!audio || audio.state !== "running") return;
-    const length = Math.floor(audio.sampleRate * duration),
-      buffer = audio.createBuffer(1, length, audio.sampleRate),
-      data = buffer.getChannelData(0);
-    for (let i = 0; i < length; i++)
-      data[i] = (deps.random() * 2 - 1) * (1 - i / length);
-    const source = audio.createBufferSource(),
-      filter = audio.createBiquadFilter(),
-      gain = audio.createGain();
-    source.buffer = buffer;
-    filter.type = "lowpass";
-    filter.frequency.value = cutoff;
-    gain.gain.value = volume;
-    source.connect(filter).connect(gain).connect(audio.destination);
-    source.start();
-  };
-  const jingle = (notes: readonly number[], gap: number, volume: number) =>
-    notes.forEach((note, i) =>
-      deps.later(() => tone(note, 0.18, "square", volume), i * gap),
-    );
+export function createSfx(audio: GameAudio): Sfx {
+  const { tone, noise } = audio;
   return {
-    resume() {
-      void ctx()?.resume();
-    },
     play(cue) {
       switch (cue.kind) {
         case "hit": {
-          // A jelly "bum": a low thump that rises with the hit, plus a wet blip on top.
+          // A jelly "bum": a low thump that rises with the hit, plus a wet blip and a marimba note on top.
           const strength = Math.min(1, cue.speed / 8);
-          tone(110 + strength * 70, 0.16, "sine", 0.22, 0.55);
-          tone(
-            320 + strength * 180 + cue.touches * 40,
-            0.07,
-            "triangle",
-            0.06,
-            1.8,
-          );
+          tone({
+            frequency: 110 + strength * 70,
+            duration: 0.16,
+            volume: 0.22,
+            slide: 0.55,
+          });
+          tone({
+            frequency: 320 + strength * 180 + cue.touches * 40,
+            duration: 0.07,
+            type: "triangle",
+            volume: 0.06,
+            slide: 1.8,
+          });
+          // Each touch on a side climbs a scale step: the rally sings.
+          tone({
+            frequency: [523, 587, 659][Math.min(2, cue.touches)] ?? 523,
+            duration: 0.22,
+            type: "sine",
+            volume: 0.04 + strength * 0.03,
+            delay: 0.02,
+          });
           break;
         }
         case "net":
-          tone(1200, 0.08, "triangle", 0.05, 0.6);
-          noise(0.05, 0.05, 4000);
+          tone({
+            frequency: 1200,
+            duration: 0.08,
+            type: "triangle",
+            volume: 0.05,
+            slide: 0.6,
+          });
+          noise({ duration: 0.05, volume: 0.05, cutoff: 4000 });
           break;
         case "floor":
           if (cue.speed >= 1.5)
-            noise(0.12, Math.min(0.16, cue.speed * 0.02), 700);
+            noise({
+              duration: 0.12,
+              volume: Math.min(0.16, cue.speed * 0.02),
+              cutoff: 700,
+            });
           break;
         case "land":
-          tone(90, 0.08, "sine", 0.06, 0.7);
+          tone({ frequency: 90, duration: 0.08, volume: 0.06, slide: 0.7 });
           break;
         case "jump":
-          tone(260, 0.1, "sine", 0.035, 1.9);
+          tone({ frequency: 260, duration: 0.1, volume: 0.035, slide: 1.9 });
           break;
         case "point":
-          // The whistle: two quick tones.
-          tone(2100, 0.12, "square", 0.035);
-          tone(2400, 0.2, "square", 0.035, 1, 0.13);
+          // The whistle: two quick tones, and the song steps back.
+          audio.duck({ keep: 0.3, hold: 900 });
+          tone({
+            frequency: 2100,
+            duration: 0.12,
+            type: "square",
+            volume: 0.035,
+          });
+          tone({
+            frequency: 2400,
+            duration: 0.2,
+            type: "square",
+            volume: 0.035,
+            delay: 0.13,
+          });
+          if (cue.matchPoint >= 0)
+            audio.jingle([392, 523, 659], 90, {
+              type: "triangle",
+              volume: 0.05,
+            });
           break;
         case "serve":
-          tone(660, 0.08, "sine", 0.04, 1.2);
+          tone({ frequency: 660, duration: 0.08, volume: 0.04, slide: 1.2 });
           break;
         case "over":
-          jingle([523, 659, 784, 1046, 1318], 110, 0.06);
+          audio.duck({ keep: 0.2, hold: 2200 });
+          audio.jingle([523, 659, 784, 1046, 1318], 110, { volume: 0.06 });
+          audio.jingle([392, 523, 659, 784, 1046], 110, {
+            type: "triangle",
+            volume: 0.05,
+          });
           break;
         default:
           break;

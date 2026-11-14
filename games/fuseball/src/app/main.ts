@@ -6,6 +6,14 @@ import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
+import {
+  bindAudioInput,
+  browserAudioDependencies,
+  createAudioControl,
+  createGameAudio,
+} from "fuse-ui/game-audio";
+import "fuse-ui/game-audio.css";
+import { safeStorage } from "fuse-ui/safe-storage";
 import "./fuseball.css";
 import QRCode from "qrcode";
 import {
@@ -59,7 +67,7 @@ import {
   teamColor,
 } from "../render/palette.js";
 import { createScene, guarded, solidCopies } from "../render/scene.js";
-import { createSfx } from "./audio.js";
+import { createSfx, FUSEBALL_SONGS } from "./audio.js";
 import {
   HeldControls,
   PadSet,
@@ -118,6 +126,15 @@ const seedKey = `${GAME}-seed`;
 const sizeKey = `${GAME}-size`;
 const query = new URLSearchParams(location.search);
 const muted = query.has("mute");
+/** One sound bus for the page: the mute and volumes are remembered across games, `?mute` keeps a preview silent. */
+const audio = createGameAudio(
+  browserAudioDependencies(safeStorage(() => localStorage)),
+  { forceMute: muted },
+);
+audio.setSongs(FUSEBALL_SONGS, import.meta.env.BASE_URL);
+audio.startMusic();
+bindAudioInput(audio, document, window);
+const audioControl = createAudioControl(document, audio);
 const app = document.querySelector<HTMLElement>("#app")!;
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 /** For smokes and demos: `?autopilot` rides this device's rider with the bot's answers, through the same held controls. */
@@ -217,7 +234,13 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     base: import.meta.env.BASE_URL,
     search: location.search,
   });
-  bar.append(portal.element, logo(), social.element(), ...extra);
+  bar.append(
+    portal.element,
+    logo(),
+    social.element(),
+    audioControl.element,
+    ...extra,
+  );
   return bar;
 }
 
@@ -602,7 +625,7 @@ function room(solo: boolean): void {
     display = role === "display";
   document.body.classList.toggle("fb-display", display);
   const viewer: Viewer = { me: "", host: solo, solo, display };
-  const sfx = createSfx(muted);
+  const sfx = createSfx(audio);
 
   // ---- the page ----
   const status = createNotice({ className: "fb-status" });
@@ -1139,7 +1162,6 @@ function room(solo: boolean): void {
     (target instanceof HTMLButtonElement && !model?.riding);
   const captured = new Set<string>();
   document.addEventListener("keydown", (event) => {
-    sfx.resume();
     if (
       menu.isOpen() ||
       typing(event.target) ||
@@ -1160,9 +1182,6 @@ function room(solo: boolean): void {
   window.addEventListener("blur", () => controls.clear());
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) controls.clear();
-  });
-  document.addEventListener("pointerdown", () => sfx.resume(), {
-    passive: true,
   });
   runtime.start();
 }
