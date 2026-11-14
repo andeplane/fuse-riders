@@ -110,6 +110,8 @@ test("a socket dropped mid-round is resumed: every link keeps carrying the round
     resume: "c-a",
   });
   await h.socket.deliver(welcome("c-a", { b: "c-b" }));
+  // Delivered twice, the welcome is the same roster again and changes nothing more.
+  await h.socket.deliver(welcome("c-a", { b: "c-b" }));
   await pump(h, links, 400);
 
   assert.equal(h.connections.length, 1, "no peer connection was rebuilt");

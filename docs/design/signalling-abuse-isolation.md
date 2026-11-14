@@ -58,12 +58,12 @@ waiting on the database or bus, both closing `1008`.
 
 ### What an honest page sends
 
-- A full room is the creator and ten guests (`ROOM_LIMITS.maxGuests`), so a
-  member has **L = 10** links, and a reload or a socket reconnect negotiates all
-  of them at once. Everything below was measured and sized when `maxGuests` was
-  5 and L was 5; spectators raised it (see "What eleven members cost"), and a
-  room is now sized by its game, up to fourteen members (see "Rooms sized per
-  game").
+- A full Fuse Riders room is the creator and ten guests, so a member has
+  **L = 10** links, and a reload negotiates all of them at once (a socket
+  reconnect that is resumed negotiates none). Everything below was measured and
+  sized when `maxGuests` was 5 and L was 5; spectators raised it (see "What
+  eleven members cost"), and a room is now sized by its game, up to the creator
+  and thirteen guests (see "Rooms sized per game").
 - The client sends one frame per description and one per trickled candidate;
   `validSignal` admits exactly one of either per frame, so there is no batch
   shape to use. The `null` end-of-candidates event is not sent; Firefox's

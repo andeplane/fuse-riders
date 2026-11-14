@@ -294,6 +294,54 @@ test("a dropped socket's page resumes on another instance and no peer is told it
   assert.deepEqual(f.errors, []);
 });
 
+test("a connection is resumed as often as its socket is cut, and only its newest socket speaks for it", async () => {
+  const f = fixture();
+  await f.store.create(CODE, HOST);
+  const host = new Socket(),
+    sockets = [new Socket()];
+  const hostConnection = await f.a.connect(CODE, HOST, host),
+    guestConnection = await f.b.connect(CODE, GUEST, sockets[0]!);
+  await f.settle();
+  const heard = host.messages.length;
+  // Three cuts, an hour's worth each in production, landing on alternating instances.
+  for (const [cut, on] of [f.a, f.b, f.a].entries()) {
+    const was = cut % 2 ? f.a : f.b;
+    await was.disconnect(guestConnection, {
+      socket: sockets.at(-1)!,
+      hold: true,
+    });
+    await f.advance(1500);
+    sockets.push(new Socket());
+    assert.equal(
+      await on.connect(
+        CODE,
+        GUEST,
+        sockets.at(-1)!,
+        undefined,
+        guestConnection,
+      ),
+      guestConnection,
+    );
+    await f.settle();
+    assert.equal(sockets.at(-1)!.welcome.resumed, true);
+    assert.equal((await seat(f, GUEST))!.resumes, cut + 1);
+  }
+  assert.equal(host.messages.length, heard, "the host heard none of it");
+  await f.a.receive(hostConnection, signal(peerId(GUEST), guestConnection));
+  assert.deepEqual(
+    sockets.map((socket) => socket.frames("signal").length),
+    [0, 0, 0, 1],
+  );
+  // The seat still lapses like any other once its page is really gone.
+  await f.a.disconnect(guestConnection, {
+    socket: sockets.at(-1)!,
+    hold: true,
+  });
+  await f.advance(RESUME_GRACE_MS + 2000);
+  assert.equal(await seat(f, GUEST), undefined);
+  assert.deepEqual(f.errors, []);
+});
+
 test("a page from before resumption reconnects as it always did: a new connection the room hears of", async () => {
   const f = fixture();
   await f.store.create(CODE, HOST);
@@ -564,9 +612,16 @@ test("over real sockets: a socket that just stops is resumed, one that closes is
         for (;;) {
           const found = frames.slice(from).find((frame) => frame.type === type);
           if (found) return found;
-          await new Promise<Record<string, unknown>>((resolve) =>
-            waiting.push(resolve),
-          );
+          await new Promise<Record<string, unknown>>((resolve, reject) => {
+            const late = setTimeout(
+              () => reject(new Error(`no ${type} frame within 5 s`)),
+              5000,
+            );
+            waiting.push((frame) => {
+              clearTimeout(late);
+              resolve(frame);
+            });
+          });
         }
       },
     };
@@ -586,8 +641,11 @@ test("over real sockets: a socket that just stops is resumed, one that closes is
     const heard = host.frames.length;
     // The network took the socket: no close frame reaches the service.
     guest.socket.terminate();
-    while (service.gateway.connections > 1)
+    // Bounded, so a seat that is never let go fails here rather than at the runner's timeout.
+    for (let waited = 0; service.gateway.connections > 1; waited += 5) {
+      assert.ok(waited < 5000, "the service never noticed the dead socket");
       await new Promise((resolve) => setTimeout(resolve, 5));
+    }
     const back = open(created.code, GUEST, welcome.connectionId as string),
       again = await back.next("welcome");
     assert.equal(again.resumed, true);

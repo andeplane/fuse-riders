@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { createDevRoomService } from "../service/dev.js";
 import { GAMES } from "../service/history.js";
 import {
   DEFAULT_ROOM_SOCKETS,
@@ -111,4 +112,20 @@ test("the limits handed to the room service are the table, counted without the c
   // of six (docs/design/signalling-abuse-isolation.md). Past this, measure before raising it.
   for (const count of [DEFAULT_ROOM_SOCKETS, ...Object.values(ROOM_SOCKETS)])
     assert.ok(count >= 2 && count <= 14, `${count} sockets`);
+});
+
+test("the service that is composed admits each game's room at the table's size", async () => {
+  // The table is only as good as its wiring: this is the store the local and CI service really runs, and the
+  // deployed entry (service/index.ts) spreads the same ROOM_LIMITS into its own.
+  const service = createDevRoomService();
+  try {
+    for (const game of GAMES)
+      assert.equal(
+        service.gateway.store.guestLimit(game.id),
+        roomSockets(game.id) - 1,
+        game.id,
+      );
+  } finally {
+    await service.close();
+  }
 });
