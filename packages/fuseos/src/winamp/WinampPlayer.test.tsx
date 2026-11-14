@@ -144,7 +144,7 @@ describe("Winamp", () => {
     // The Office Assistant sees the queue by name, before and after pressing play.
     const controls = winampRegistry.first();
     expect(controls?.status()).toMatchObject({
-      trackCount: 20,
+      trackCount: FUSE_TRACKS.length,
       currentTrack: undefined,
       playing: false,
     });

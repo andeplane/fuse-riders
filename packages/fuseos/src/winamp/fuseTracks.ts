@@ -18,6 +18,7 @@ export const FUSE_MUSIC_GAMES = {
   fuseball: "Fuseball",
   "fuse-volley": "Fuse Volley",
   "killer-fuse": "Killer Fuse",
+  fusemania: "Fusemania",
 } as const;
 
 export type FuseMusicGameId = keyof typeof FUSE_MUSIC_GAMES;
@@ -201,6 +202,120 @@ const GAME_TRACKS: readonly FuseTrack[] = [
     games: ["killer-fuse"],
     path: "killer-fuse/audio/music/victory.mp3",
     duration: 55.118,
+  },
+  // Fusemania's DDR JAZZ MIX: Fuse's jazzy chiptune covers.
+  {
+    id: "ddr-jazz-mix-afronova",
+    title: "Afronova (Extended Mix)",
+    games: ["fusemania"],
+    path: "music/ddr-jazz-mix/afronova.mp3",
+    duration: 141.36,
+  },
+  {
+    id: "ddr-jazz-mix-afronova-radio-edit",
+    title: "Afronova (Radio Edit)",
+    games: ["fusemania"],
+    path: "music/ddr-jazz-mix/afronova-radio-edit.mp3",
+    duration: 107.592,
+  },
+  {
+    id: "ddr-jazz-mix-burning-heat",
+    title: "Burning Heat",
+    games: ["fusemania"],
+    path: "music/ddr-jazz-mix/burning-heat.mp3",
+    duration: 160.44,
+  },
+  {
+    id: "ddr-jazz-mix-cant-stop-fallin-in-love",
+    title: "Can't Stop Fallin' in Love",
+    games: ["fusemania"],
+    path: "music/ddr-jazz-mix/cant-stop-fallin-in-love.mp3",
+    duration: 118.824,
+  },
+  {
+    id: "ddr-jazz-mix-candy",
+    title: "Candy",
+    games: ["fusemania"],
+    path: "music/ddr-jazz-mix/candy.mp3",
+    duration: 142.704,
+  },
+  {
+    id: "ddr-jazz-mix-electro-tuned",
+    title: "Electro Tuned",
+    games: ["fusemania"],
+    path: "music/ddr-jazz-mix/electro-tuned.mp3",
+    duration: 179.952,
+  },
+  {
+    id: "ddr-jazz-mix-exotic-ethnic",
+    title: "Exotic Ethnic",
+    games: ["fusemania"],
+    path: "music/ddr-jazz-mix/exotic-ethnic.mp3",
+    duration: 155.16,
+  },
+  {
+    id: "ddr-jazz-mix-paranoia-survivor-max",
+    title: "Paranoia Survivor MAX",
+    games: ["fusemania"],
+    path: "music/ddr-jazz-mix/paranoia-survivor-max.mp3",
+    duration: 162.792,
+  },
+  {
+    id: "ddr-jazz-mix-rain-of-sorrow",
+    title: "Rain of Sorrow (Fuse Mix)",
+    games: ["fusemania"],
+    path: "music/ddr-jazz-mix/rain-of-sorrow.mp3",
+    duration: 131.232,
+  },
+  {
+    id: "ddr-jazz-mix-rain-of-sorrow-night-mix",
+    title: "Rain of Sorrow (Night Mix)",
+    games: ["fusemania"],
+    path: "music/ddr-jazz-mix/rain-of-sorrow-night-mix.mp3",
+    duration: 134.04,
+  },
+  {
+    id: "ddr-jazz-mix-the-legend-of-max",
+    title: "The Legend of MAX",
+    games: ["fusemania"],
+    path: "music/ddr-jazz-mix/the-legend-of-max.mp3",
+    duration: 180.0,
+  },
+  // Fusemania's ITG JAZZ MIX, then two more of its DDR JAZZ MIX.
+  {
+    id: "itg-jazz-mix-determinator",
+    title: "Determinator",
+    games: ["fusemania"],
+    path: "music/itg-jazz-mix/determinator.mp3",
+    duration: 177.624,
+  },
+  {
+    id: "itg-jazz-mix-monolith",
+    title: "Monolith",
+    games: ["fusemania"],
+    path: "music/itg-jazz-mix/monolith.mp3",
+    duration: 159.6,
+  },
+  {
+    id: "itg-jazz-mix-temple-of-boom",
+    title: "Temple of Boom",
+    games: ["fusemania"],
+    path: "music/itg-jazz-mix/temple-of-boom.mp3",
+    duration: 171.192,
+  },
+  {
+    id: "ddr-jazz-mix-the-least-100sec",
+    title: "The Least 100sec",
+    games: ["fusemania"],
+    path: "music/ddr-jazz-mix/the-least-100sec.mp3",
+    duration: 118.44,
+  },
+  {
+    id: "ddr-jazz-mix-xenon",
+    title: "Xenon",
+    games: ["fusemania"],
+    path: "music/ddr-jazz-mix/xenon.mp3",
+    duration: 159.624,
   },
 ];
 
