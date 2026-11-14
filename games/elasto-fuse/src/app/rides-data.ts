@@ -8,7 +8,7 @@ export const RECORDED: {
   decision: number;
   rides: Record<string, { ride: string; steps: number }>;
 } = {
-  rules: "elasto-fuse-3",
+  rules: "elasto-fuse-4",
   decision: 12,
   rides: {
     simme05: {

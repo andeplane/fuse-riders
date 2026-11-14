@@ -1,4 +1,4 @@
-import { el } from "fuse-ui";
+import { el, type TopBarSound } from "fuse-ui";
 import {
   AudioDirector,
   MUSIC_TRACKS,
@@ -51,6 +51,7 @@ export interface GameAudioOptions {
   audioSessionHost?: object;
 }
 export interface GameAudio {
+  master: TopBarSound;
   director: AudioDirector;
   controls: HTMLElement;
   unlock: (confirm?: boolean) => void;
@@ -837,6 +838,22 @@ export function createGameAudio(
   unlock(); // Autoplay usually refuses here; the gesture listeners above pick it up.
   return {
     director,
+    master: {
+      enabled: () => !allMuted(),
+      forcedMute: mutedByQuery(),
+      setEnabled(on) {
+        if (mutedByQuery()) return;
+        setAllMuted(!on);
+        if (on) {
+          if (director.state.paused) director.togglePause();
+          unlock();
+        }
+      },
+      onChange(changed) {
+        rendered.add(changed);
+        return () => rendered.delete(changed);
+      },
+    },
     controls,
     unlock,
     bindMusicToggle,

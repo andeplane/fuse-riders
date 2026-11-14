@@ -1,6 +1,6 @@
 import { PLACE_POINTS } from "../basics.js";
 import { LEVELS, STEPS_PER_SECOND, centiseconds } from "../engine/index.js";
-import { TOUR, type View } from "../online/game.js";
+import type { View } from "../online/game.js";
 import { clockText, ordinal } from "../render/hud.js";
 
 /**
@@ -17,14 +17,12 @@ export interface Viewer {
   display: boolean;
 }
 
-/** The level choices in the lobby: the tour first, then every level by name. */
-export const LEVEL_CHOICES: readonly { level: number; title: string }[] = [
-  { level: TOUR, title: `TOUR · ALL ${LEVELS.length} MAPS` },
-  ...LEVELS.map((level, index) => ({
+/** The starting-level choices, in campaign then external-track order. */
+export const LEVEL_CHOICES: readonly { level: number; title: string }[] =
+  LEVELS.map((level, index) => ({
     level: index,
     title: level.name.toUpperCase(),
-  })),
-];
+  }));
 /** A level index for anything a query or storage holds, or `fallback`. */
 export function levelFrom(raw: string | null, fallback: number): number {
   if (raw === null || raw.trim() === "") return fallback;

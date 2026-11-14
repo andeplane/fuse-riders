@@ -1,3 +1,4 @@
+import { createTopBar } from "fuse-ui";
 import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import { AVATAR_ATLAS } from "fuse-ui/assets";
@@ -128,6 +129,19 @@ const pilotPicker = () => {
 };
 const query = new URLSearchParams(location.search);
 const muted = query.has("mute");
+let soundEnabled = !muted;
+let activeSfx: ReturnType<typeof createSfx> | undefined;
+const sound = {
+  forcedMute: muted,
+  enabled: () => soundEnabled,
+  setEnabled(on: boolean) {
+    if (muted) return;
+    soundEnabled = on;
+    radio.setMuted(!on);
+    activeSfx?.setMuted(!on);
+    if (on) radio.unlock();
+  },
+};
 const radio = createChopperRadio({
   document,
   player: new Audio(),
@@ -261,7 +275,7 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     search: location.search,
   });
   bar.append(portal.element, logo(), social.element(), radioButton(), ...extra);
-  return bar;
+  return createTopBar({ element: bar, gameId: GAME, sound });
 }
 
 function keyHelp(): HTMLElement {
@@ -373,6 +387,8 @@ function room(solo: boolean): void {
   document.body.classList.toggle("fc-display", display);
   const viewer: Viewer = { me: "", host: solo, solo, display };
   const sfx = createSfx(muted);
+  activeSfx = sfx;
+  sfx.setMuted(!soundEnabled);
 
   // ---- the page ----
   const status = createNotice({ className: "fc-status" });
@@ -393,6 +409,16 @@ function room(solo: boolean): void {
     status.element,
     menu.element,
   ]);
+  createTopBar({
+    element: top,
+    onOpenChange: (open) => {
+      if (open) {
+        controls.clear();
+        captured.clear();
+      }
+    },
+  });
+  const modalOpen = () => Boolean(document.querySelector("dialog[open]"));
 
   // Lobby.
   const lobby = el("section", "", "fc-lobby"),
@@ -1057,6 +1083,7 @@ function room(solo: boolean): void {
     sfx.resume();
     if (
       menu.isOpen() ||
+      modalOpen() ||
       radio.element.open ||
       typing(event.target) ||
       event.metaKey ||
@@ -1081,7 +1108,7 @@ function room(solo: boolean): void {
     passive: true,
   });
   canvas.addEventListener("pointerdown", (event) => {
-    if (menu.isOpen() || radio.element.open) return;
+    if (menu.isOpen() || modalOpen() || radio.element.open) return;
     if (event.pointerType !== "mouse" || event.button !== 0) return;
     canvas.setPointerCapture(event.pointerId);
     controls.hold("mouse", FIRE);

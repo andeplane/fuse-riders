@@ -72,6 +72,18 @@ export interface Icon {
   size: string;
   position: string;
 }
+/** Draws `icon` as the background of `slot`; an element with no icon yet keeps whatever it already had. */
+export function paint(slot: HTMLElement, icon: Icon | undefined): void {
+  if (!icon) return;
+  Object.assign(slot.style, {
+    width: `${icon.width}px`,
+    height: `${icon.height}px`,
+    backgroundImage: `url("${icon.url}")`,
+    backgroundSize: icon.size,
+    backgroundPosition: icon.position,
+  });
+}
+
 /** Art pixels from a frame's top down to the feet (its anchor): the unit standing, without the rows under it. */
 export const standing = (sheet: IconSheet): number =>
   Math.min(sheet.frameHeight, Math.max(1, sheet.anchor[1] + 1));

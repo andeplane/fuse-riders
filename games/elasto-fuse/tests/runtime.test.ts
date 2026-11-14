@@ -81,7 +81,7 @@ test("solo is one rider on the chosen level, never a shared screen", () => {
   };
   const runtime = new ElastoFuseRuntime(
     "SOLO",
-    { display: true, level: 4 },
+    { ...DEFAULT_SETTINGS, display: true, level: 4 },
     { state: () => {}, event: () => {}, status: () => {}, ready: () => {} },
     { humanName: "Ada", humanAvatar: "fox", dependencies },
   );
@@ -189,7 +189,7 @@ test("a key acts on the step it goes down, and the picture drawn ahead is the bi
   };
   const runtime = new ElastoFuseRuntime(
     "SOLO",
-    { display: false, level: 0 },
+    { ...DEFAULT_SETTINGS, count: 1 },
     { state: () => {}, event: () => {}, status: () => {}, ready: () => {} },
     { humanName: "Ada", humanAvatar: "fox", dependencies },
   );

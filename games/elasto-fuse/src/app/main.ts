@@ -16,6 +16,7 @@ import "fuse-ui/game-audio.css";
 import { safeStorage } from "fuse-ui/safe-storage";
 import "./elasto-fuse.css";
 import QRCode from "qrcode";
+import { createTopBar } from "fuse-ui";
 import {
   PeerTransport,
   createEndpoints,
@@ -42,12 +43,7 @@ import { CAPACITY } from "../engine/tuning.js";
 import { LEVELS, centiseconds } from "../engine/index.js";
 import type { WorldView } from "../engine/view.js";
 import { GAME_ID } from "../basics.js";
-import {
-  DEFAULT_SETTINGS,
-  TOUR,
-  type Settings,
-  type View,
-} from "../online/game.js";
+import { DEFAULT_SETTINGS, type Settings, type View } from "../online/game.js";
 import { seatName } from "../online/names.js";
 import {
   ElastoFuseRuntime,
@@ -149,7 +145,7 @@ const soloLevel = (): number =>
 /** The level a new room starts on: the last lobby's choice, else the tour. */
 const roomLevel = (): number => {
   const stored = store.getItem(roomLevelKey);
-  return stored === String(TOUR) ? TOUR : levelFrom(stored, TOUR);
+  return levelFrom(stored, 0);
 };
 
 const GUIDE = {
@@ -216,7 +212,11 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     audioControl.element,
     ...extra,
   );
-  return bar;
+  return createTopBar({
+    element: bar,
+    gameId: GAME,
+    sound: audioControl.sound,
+  });
 }
 
 function keyHelp(): HTMLElement {
@@ -227,24 +227,16 @@ function keyHelp(): HTMLElement {
 }
 
 /** A compact native picker with keyboard type-ahead, shared by solo and rooms. */
-function createLevelPicker(tour: boolean, onPick: (level: number) => void) {
+function createLevelPicker(room: boolean, onPick: (level: number) => void) {
   const element = el("label", "", "ef-level-picker");
   const select = el("select");
-  element.append(el("span", tour ? "Race level" : "Starting level"), select);
+  element.append(el("span", "Starting level"), select);
   for (const choice of LEVEL_CHOICES) {
-    if (choice.level === TOUR && !tour) continue;
     const node = el("option");
     node.value = String(choice.level);
-    const best =
-      choice.level === TOUR
-        ? undefined
-        : bestTime(store, names.best(LEVELS[choice.level]!.id));
-    node.append(
-      choice.level === TOUR
-        ? choice.title
-        : `${choice.level + 1} ${choice.title}`,
-    );
-    if (best !== undefined && !tour) node.append(` · ${clockText(best)}`);
+    const best = bestTime(store, names.best(LEVELS[choice.level]!.id));
+    node.append(`${choice.level + 1} ${choice.title}`);
+    if (best !== undefined && !room) node.append(` · ${clockText(best)}`);
     select.append(node);
   }
   select.onchange = () => onPick(Number(select.value));
@@ -371,6 +363,17 @@ function room(solo: boolean): void {
     status.element,
     menu.element,
   ]);
+  createTopBar({
+    element: top,
+    onOpenChange: (open) => {
+      if (open) {
+        letGoAll();
+        gamepads.letGo();
+        captured.clear();
+      }
+    },
+  });
+  const modalOpen = () => Boolean(document.querySelector("dialog[open]"));
 
   // Lobby: the invitation and the riders on one side, the level and START on the other.
   let settings: Settings = { ...DEFAULT_SETTINGS };
@@ -415,6 +418,43 @@ function room(solo: boolean): void {
     store.setItem(roomLevelKey, String(level));
     runtime.command({ type: "settings", settings: { ...settings, level } });
   });
+  const countPicker = el("select");
+  const orderPicker = el("select");
+  const seriesOptions = el("div", "", "ef-series-options");
+  for (const count of [3, 5, 10] as const) {
+    const option = el("option", String(count));
+    option.value = String(count);
+    countPicker.append(option);
+  }
+  for (const [value, title] of [
+    ["consecutive", "In order"],
+    ["random", "Random"],
+  ]) {
+    const option = el("option", title);
+    option.value = value!;
+    orderPicker.append(option);
+  }
+  for (const [title, picker] of [
+    ["Levels per match", countPicker],
+    ["Race order", orderPicker],
+  ] as const) {
+    const label = el("label", "", "ef-level-picker");
+    label.append(el("span", title), picker);
+    seriesOptions.append(label);
+  }
+  countPicker.onchange = () =>
+    runtime.command({
+      type: "settings",
+      settings: {
+        ...settings,
+        count: Number(countPicker.value) as Settings["count"],
+      },
+    });
+  orderPicker.onchange = () =>
+    runtime.command({
+      type: "settings",
+      settings: { ...settings, order: orderPicker.value as Settings["order"] },
+    });
   const lobbyActions = el("div", "", "ef-actions");
   lobbyActions.append(tvLink, start);
   const mapTitle = el("h2", "MAP", "fui-lobby-title");
@@ -546,7 +586,7 @@ function room(solo: boolean): void {
     capacity: CAPACITY,
     join: nameEntry.form,
     settings: [keyHelp()],
-    modes: [mapTitle, levelPicker.element],
+    modes: [mapTitle, seriesOptions, levelPicker.element],
     actions: [lobbyNote, lobbyActions],
   });
   lobby.hidden = true;
@@ -633,7 +673,7 @@ function room(solo: boolean): void {
   const frame = (now: number) => {
     // Asked first, so one bad frame cannot stop the drawing for good.
     if (!over) requestAnimationFrame(frame);
-    gamepads.poll(!menu.isOpen() && !document.hidden && !over);
+    gamepads.poll(!menu.isOpen() && !modalOpen() && !document.hidden && !over);
     const view = stage.hidden && controller.hidden ? undefined : picture();
     if (!view || !model) {
       sfx.engine(0, false, false);
@@ -657,7 +697,10 @@ function room(solo: boolean): void {
       sfx.engine(
         drawn.rev,
         drawn.gas,
-        local !== -1 && view.phase === "racing" && !menu.isOpen(),
+        local !== -1 &&
+          view.phase === "racing" &&
+          !menu.isOpen() &&
+          !modalOpen(),
       );
     }
     for (const cue of cues) {
@@ -716,7 +759,14 @@ function room(solo: boolean): void {
       !display &&
       !solo
     );
-    levelPicker.update(view.settings.level, next.lobby.editable);
+    levelPicker.update(
+      view.settings.level,
+      next.lobby.editable && view.settings.order === "consecutive",
+    );
+    levelPicker.element.hidden = view.settings.order === "random";
+    countPicker.value = String(view.settings.count);
+    orderPicker.value = view.settings.order;
+    countPicker.disabled = orderPicker.disabled = !next.lobby.editable;
     roomLayout.update(next.lobby.members.length, CAPACITY);
     const touchGuide = coarse() || next.screen === "controller";
     const watching = display || (view.stage !== "lobby" && !next.riding);
@@ -899,7 +949,12 @@ function room(solo: boolean): void {
     !solo && role === "host" && store.getItem(names.shared) === "1";
   const runtime = new ElastoFuseRuntime(
     code,
-    { display: shared, level: solo ? soloLevel() : roomLevel() },
+    {
+      ...DEFAULT_SETTINGS,
+      display: shared,
+      level: solo ? soloLevel() : roomLevel(),
+      count: solo ? 1 : 3,
+    },
     callbacks,
     session.kind === "room"
       ? {
@@ -944,6 +999,7 @@ function room(solo: boolean): void {
   document.addEventListener("keydown", (event) => {
     if (
       menu.isOpen() ||
+      modalOpen() ||
       typing(event.target) ||
       event.metaKey ||
       event.ctrlKey ||

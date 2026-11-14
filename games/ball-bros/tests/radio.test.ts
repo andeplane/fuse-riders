@@ -34,6 +34,17 @@ class Player implements MusicPlayer {
     this.loads++;
   }
 }
+test("master mute preserves an opted-in radio for unmute", () => {
+  const { document } = parseHTML("<html><body></body></html>");
+  const player = new Player(),
+    radio = createRadio(document, "/", player);
+  radio.element.querySelector("button")!.click();
+  radio.setMuted(true);
+  assert.equal(player.pauses, 1);
+  radio.setMuted(false);
+  assert.equal(player.plays, 2);
+  radio.destroy();
+});
 
 test("radio is opt-in, advances shared tracks, suppresses controllers and disposes playback", async () => {
   const { document } = parseHTML("<html><body></body></html>");
