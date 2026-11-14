@@ -1229,6 +1229,8 @@ function enterRoom(
     controller,
   );
   app.replaceChildren(top, main);
+  /** This device's own seat in the lobby, as the last frame had it. */
+  let ownSeat: { name: string; slot: number } | undefined;
   const roomLayout = createRoomLayout({
     primaryAction: start,
     playerName: () => social.playerName(undefined) ?? undefined,
@@ -1240,6 +1242,11 @@ function enterRoom(
     roster,
     capacity: CAPACITY,
     join: nameEntry.form,
+    // Seated already: any open seat is a move, and the lane's colour follows the seat.
+    ownSlot: () => ownSeat?.slot,
+    onMove: (slot) => {
+      if (ownSeat) runtime.command({ type: "join", name: ownSeat.name, slot });
+    },
     addAI: addBot,
     settings: [panel.element, help],
     headerActions: lobbyBar.headerActions,
@@ -1701,6 +1708,7 @@ function enterRoom(
   const render = (next: Model, view: View) => {
     if (over) return;
     model = next;
+    ownSeat = next.lobby.members.find((member) => member.you);
     connecting.hidden = true;
     main.dataset.screen = next.screen;
     main.dataset.stage = view.stage;
@@ -1951,7 +1959,8 @@ function enterRoom(
         }
       }
       const next = present(library, frame, viewer, bestBefore);
-      if (next.askName && remembered && !joinSent && !viewer.host) {
+      // The host is seated like anyone else who has a name: opening a room is taking its first seat.
+      if (next.askName && remembered && !joinSent) {
         joinSent = true;
         runtime.command({
           type: "join",

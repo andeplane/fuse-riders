@@ -631,7 +631,10 @@ export class RoomRuntime<
         if (
           this.pendingJoin &&
           (id === this.hostId || id === this.managerId()) &&
-          (this.management.switchingSides(this.pendingJoin.spectator) ||
+          (this.management.switchingSides(
+            this.pendingJoin.spectator,
+            this.pendingJoin.slot,
+          ) ||
             this.pendingJoin.rename)
         )
           this.pendingJoin = undefined;
@@ -1058,7 +1061,12 @@ export class RoomRuntime<
       // is answered here as well as at the writer, because the one refusal no writer can deliver is the one about
       // having nobody to write it: that request would be addressed to this device itself and answered by nobody.
       // Everything else is re-checked where the entries are written, against the fold they are written on.
-      if (this.management.switchingSides(command.type === "spectate")) {
+      if (
+        this.management.switchingSides(
+          command.type === "spectate",
+          command.type === "join" ? command.slot : undefined,
+        )
+      ) {
         const refusal = this.management.switchable(
           this.id,
           command.type === "spectate"
@@ -1091,6 +1099,8 @@ export class RoomRuntime<
           wanted !== seated.name,
         sentAt: -Infinity,
       };
+      // A rename is not a move: the seat its form still carries from the click that first seated it is not asked for.
+      if (this.pendingJoin.rename) this.pendingJoin.slot = undefined;
       if (this.creator || this.solo) return this.sendJoin();
       this.sendJoin();
       return true;
@@ -1194,7 +1204,7 @@ export class RoomRuntime<
     // A member already in the room asking for the other side goes to whoever may write its pair, which is not always
     // whoever a joiner would ask (`switchWriter`). An arrival keeps asking the manager, whose id is "" until the room
     // says otherwise — the send fails and the join timer tries again, as it always has.
-    const switching = this.management.switchingSides(join.spectator);
+    const switching = this.management.switchingSides(join.spectator, join.slot);
     const to = switching ? this.management.switchWriter() : this.managerId();
     if (switching && to === this.id) {
       // Nobody left who could write it. Say so rather than posting the request into our own inbox forever.
@@ -1491,6 +1501,11 @@ export class RoomRuntime<
           admitted =
             own?.connected === true &&
             (own.watcher === true) === this.pendingJoin.spectator &&
+            // A seat it asked for by number is the seat it waits for: a move is not done while it holds the old one.
+            (this.pendingJoin.spectator ||
+              this.pendingJoin.slot === undefined ||
+              own.slot === this.pendingJoin.slot ||
+              this.game.stage(world.state) !== "lobby") &&
             (!this.pendingJoin.rename ||
               own.name === this.game.seating.seatName(this.pendingJoin.name));
         if (admitted) this.pendingJoin = undefined;

@@ -61,6 +61,13 @@ export interface RoomLayoutOptions {
   extras?: readonly Node[];
   /** The connection's state: one quiet line at the foot of the room. */
   status?: HTMLElement;
+  /**
+   * The seat this viewer holds, if it holds one. With `onMove`, every open seat then offers "Sit here": a seated
+   * player moves to any free seat while the room waits, and a team or a colour follows the seat.
+   */
+  ownSlot?: () => number | undefined;
+  /** Ask the room to move this viewer to an open seat (the game's own join command, naming the seat). */
+  onMove?: (slot: number) => void;
 }
 
 /** A shared waiting room; adapters keep their existing commands, permissions and state updates. */
@@ -204,6 +211,11 @@ export function createRoomLayout(options: RoomLayoutOptions) {
       input?.focus();
     }
   };
+  /** Seated already, in a game that lets a seat be changed: an open seat is somewhere to move, not to join. */
+  // Not asked while the layout is being built: a game's `ownSlot` reads state it declares after its room.
+  let built = false;
+  const moving = () =>
+    built && options.onMove !== undefined && options.ownSlot?.() !== undefined;
   const createSlot = (index: number) => {
     const slot = el("div", "", "fui-room-open-slot", doc);
     // The number is the seat's own: a label says more only when a game has more to say.
@@ -215,7 +227,10 @@ export function createRoomLayout(options: RoomLayoutOptions) {
     const occupant = el("ul", "", "fui-slot-occupant", doc);
     const join = button("Join", "fui-slot-join", doc),
       ai = button("Add AI", "fui-slot-ai", doc);
-    join.onclick = () => joinSlot(index);
+    join.onclick = () => {
+      if (moving()) options.onMove!(index);
+      else joinSlot(index);
+    };
     ai.onclick = () => {
       if (options.addAI) {
         options.addAI.dataset.slot = String(index);
@@ -347,10 +362,15 @@ export function createRoomLayout(options: RoomLayoutOptions) {
       if (!taken) slot.querySelector(".fui-slot-occupant")!.replaceChildren();
       const join = slot.querySelector<HTMLButtonElement>(".fui-slot-join")!,
         ai = slot.querySelector<HTMLButtonElement>(".fui-slot-ai")!;
-      join.hidden = !admission || admission.hidden;
+      const move = moving(),
+        joinText = move ? "Sit here" : "Join";
+      if (join.textContent !== joinText) join.textContent = joinText;
+      join.hidden = !move && (!admission || admission.hidden);
       join.disabled =
-        admission?.querySelector<HTMLButtonElement>('button[type="submit"]')
-          ?.disabled ?? false;
+        !move &&
+        (admission?.querySelector<HTMLButtonElement>('button[type="submit"]')
+          ?.disabled ??
+          false);
       ai.hidden = !options.addAI || options.addAI.hidden;
       ai.disabled = options.addAI?.disabled ?? true;
       // Open, with nothing this viewer can do about it: the seat says so quietly and takes less room.
@@ -396,6 +416,7 @@ export function createRoomLayout(options: RoomLayoutOptions) {
     });
   }
   update(0);
+  built = true;
   const Observer = doc.defaultView?.MutationObserver;
   const observer = Observer
     ? new Observer(() => {

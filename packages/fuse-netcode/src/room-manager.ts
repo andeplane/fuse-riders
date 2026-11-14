@@ -139,6 +139,37 @@ export class RoomManager<
     // written, so a retried join (`sendJoin` retries on its own timer) never writes a second switch.
     if (this.pending().ids.has(from)) return;
     const seated = this.room.game.seat(this.room.world.state, from);
+    if (
+      seated &&
+      !seated.watcher &&
+      typeof requestedSlot === "number" &&
+      requestedSlot !== seated.slot &&
+      // A new name is a rename, whatever seat the request still carries from the click that first seated it.
+      (name === seated.name || !this.room.game.seating.renameable) &&
+      // Only in the lobby: between rounds a seat carries what its player has won, and `LEAVE` would drop it. Anywhere
+      // else the request is what it always was, a reconnection.
+      this.room.game.stage(this.room.world.state) === "lobby"
+    ) {
+      // A seated member asking for another seat is moving to it: `LEAVE` frees the seat it holds and `JOIN` takes the
+      // one it asked for, a pair at one tick like a side switch, with no new entry kind for any game's fold to learn.
+      // The rules are a side switch's too (`switchable`): `LEAVE` frees a seat only outside a running round, and the
+      // writer is never the member that is between seats.
+      const refusal = this.switchable(from, this.room.text.takeSeatInRound);
+      if (refusal) return refusal;
+      const slot = this.claimSlot(requestedSlot);
+      if (slot < 0) return this.room.text.full;
+      const tick = this.room.recorder.next();
+      this.room.recorder.at(tick, [LEAVE, from]);
+      this.room.recorder.at(tick, [
+        JOIN,
+        from,
+        seated.name,
+        slot,
+        seated.avatarId ?? avatarId ?? this.room.game.seating.defaultAvatar,
+        generation,
+      ]);
+      return;
+    }
     if (seated && !seated.watcher) {
       // A join from a member the room already seats is its reconnection — unless the name differs, which makes it a
       // rename. The fold takes the name from this same entry and keeps it unique, so the whole of a rename is one
@@ -277,12 +308,22 @@ export class RoomManager<
       ? this.room.hostId
       : this.room.id;
   }
-  /** Whether this device is in the room already and asking for the other side, rather than arriving. */
-  switchingSides(spectator: boolean): boolean {
+  /**
+   * Whether this device is in the room already and asking for the other side, rather than arriving. A seated member
+   * asking for a seat it does not hold is the same kind of request: a pair of entries somebody else must write.
+   */
+  switchingSides(spectator: boolean, slot?: number): boolean {
     const own =
       this.room.world &&
       this.room.game.seat(this.room.world.state, this.room.id);
-    return own !== undefined && (own.watcher === true) !== spectator;
+    if (own === undefined) return false;
+    if ((own.watcher === true) !== spectator) return true;
+    return (
+      !spectator &&
+      slot !== undefined &&
+      slot !== own.slot &&
+      this.room.game.stage(this.room.world!.state) === "lobby"
+    );
   }
   /**
    * Own management entries logged but not yet applied: seats they will take or free when their tick arrives.
@@ -313,7 +354,11 @@ export class RoomManager<
       const seated =
         entry[2] === JOIN &&
         this.room.game.seat(this.room.world!.state, entry[3]);
-      if (entry[2] === JOIN && (!seated || seated.watcher)) {
+      // A `JOIN` naming another seat than the one its member holds is the second half of a seat move.
+      if (
+        entry[2] === JOIN &&
+        (!seated || seated.watcher || seated.slot !== entry[5])
+      ) {
         slots.add(entry[5]);
         ids.add(entry[3]);
         seats++;
@@ -383,6 +428,65 @@ export class RoomManager<
     this.room.recorder.append([LEAVE, seat.id]);
     return seat.slot;
   }
+  /**
+   * A lobby whose format shrank (`seating.capacityFor`) keeps everyone seated: whoever holds a seat the format no
+   * longer has is moved to the lowest free one it does have, in seat order, by the same pair a seat move writes (a
+   * bot's is `BOT remove` and `BOT add`). With no free seat left they stay where they are and the game says the room
+   * is over-full, as it did before. One move per member at a time, and never this device's own unless it opened the
+   * room (`switchable`).
+   */
+  seatWithinCapacity(): void {
+    const room = this.room.world!.state;
+    if (this.room.game.stage(room) !== "lobby") return;
+    const capacity =
+      this.room.game.seating.capacityFor?.(room) ??
+      this.room.game.seating.capacity;
+    const seats = [...this.room.game.members(room)]
+      .filter((seat) => !seat.watcher)
+      .sort((a, b) => a.slot - b.slot);
+    if (!seats.some((seat) => seat.slot >= capacity)) return;
+    const pending = this.pending();
+    const taken = new Set([
+      ...seats.map((seat) => seat.slot),
+      ...pending.slots,
+    ]);
+    for (const seat of seats) {
+      if (seat.slot < capacity) continue;
+      if (pending.ids.has(seat.id) || pending.freed.has(seat.id)) continue;
+      if (seat.id === this.room.id && !this.room.creator) continue;
+      // Only a member that is here: a `JOIN` marks its seat present, which an absent or away one is not.
+      const live =
+        seat.bot ||
+        seat.id === this.room.id ||
+        this.room.members.get(seat.id) !== undefined;
+      if (!live || (!seat.bot && (!seat.connected || seat.away))) continue;
+      const slot = Array.from({ length: capacity }, (_, i) => i).find(
+        (free) => !taken.has(free),
+      );
+      if (slot === undefined) return;
+      const generation =
+        seat.id === this.room.id
+          ? this.room.generation
+          : this.room.members.get(seat.id)?.generation;
+      if (!seat.bot && generation === undefined) continue;
+      taken.add(slot);
+      const tick = this.room.recorder.next();
+      if (seat.bot) {
+        this.room.recorder.at(tick, [BOT, "remove", seat.id]);
+        this.room.recorder.at(tick, [BOT, "add", seat.id, seat.name, slot]);
+      } else {
+        this.room.recorder.at(tick, [LEAVE, seat.id]);
+        this.room.recorder.at(tick, [
+          JOIN,
+          seat.id,
+          seat.name,
+          slot,
+          seat.avatarId ?? this.room.game.seating.defaultAvatar,
+          generation!,
+        ]);
+      }
+    }
+  }
   selfMember(): Member {
     return this.room.members.self(
       this.room.generation,
@@ -425,6 +529,7 @@ export class RoomManager<
       own = this.room.game.seat(room, this.room.id),
       stalled = now - this.room.lastLoopAt > DISCONNECT_MS / 2;
     if (own?.away) return;
+    this.seatWithinCapacity();
     for (const [id, member] of this.room.members) {
       const player = this.room.game.seat(room, id);
       if (!player) continue;
