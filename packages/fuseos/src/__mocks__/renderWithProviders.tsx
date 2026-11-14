@@ -24,6 +24,15 @@ import {
   MemoryWallpaperStore,
   WallpaperStoreContext,
 } from "../desktop/wallpaperStore";
+import type { DisplayEffectsDeps } from "../display/effects/effectsDeps";
+import {
+  createManualTimers,
+  DisplayEffectsDepsContext,
+} from "../display/effects/effectsDeps";
+import {
+  DisplayEffectsStoreContext,
+  MemoryDisplayEffectsStore,
+} from "../display/effects/effectsStore";
 import type { FuseGameRegistry } from "../fusegames/registry";
 import {
   createFuseGameRegistry,
@@ -129,6 +138,10 @@ export type ProviderOptions = {
   gamesDeps?: Partial<GamesDeps>;
   wallpaperStore?: MemoryWallpaperStore;
   displayPrefsStore?: MemoryDisplayPrefsStore;
+  /** Display Properties' Appearance and Effects; defaults to everything off, Windows Standard. */
+  effectsStore?: MemoryDisplayEffectsStore;
+  /** Defaults to manual timers (`effectsTimers` in the result) and no curvature map. */
+  effectsDeps?: Partial<DisplayEffectsDeps>;
   prefsStore?: MemoryFuseOsPrefsStore;
   /** Defaults to a wide, mouse-driven desktop, where games open in windows. */
   launchDevice?: LaunchDevice;
@@ -290,6 +303,14 @@ export function createWrapper(options: ProviderOptions = {}) {
   const prefsStore = options.prefsStore ?? new MemoryFuseOsPrefsStore();
   const launchDevice = options.launchDevice ?? DESKTOP_DEVICE;
   const osAnalytics = createRecordingOsAnalytics();
+  const effectsStore = options.effectsStore ?? new MemoryDisplayEffectsStore();
+  const effectsTimers = createManualTimers();
+  const effectsDeps: DisplayEffectsDeps = {
+    setTimeout: effectsTimers.setTimeout,
+    clearTimeout: effectsTimers.clearTimeout,
+    createCurvatureMap: () => undefined,
+    ...options.effectsDeps,
+  };
   const surfaces: FakePaintSurface[] = [];
   const paintDeps = createTestPaintDeps(surfaces, options.paintDeps);
   const paintPrefs = options.paintPrefs ?? new MemoryPaintPrefsStore();
@@ -326,6 +347,12 @@ export function createWrapper(options: ProviderOptions = {}) {
                           value={() => launchDevice}
                         >
                           <OsAnalyticsContext.Provider value={osAnalytics}>
+                        <DisplayEffectsStoreContext.Provider
+                          value={effectsStore}
+                        >
+                          <DisplayEffectsDepsContext.Provider
+                            value={effectsDeps}
+                          >
                             <PaintDepsContext.Provider value={paintDeps}>
                               <PaintPrefsStoreContext.Provider
                                 value={paintPrefs}
@@ -368,6 +395,8 @@ export function createWrapper(options: ProviderOptions = {}) {
                                 </PaintRegistryContext.Provider>
                               </PaintPrefsStoreContext.Provider>
                             </PaintDepsContext.Provider>
+                          </DisplayEffectsDepsContext.Provider>
+                        </DisplayEffectsStoreContext.Provider>
                           </OsAnalyticsContext.Provider>
                         </LaunchDeviceContext.Provider>
                       </FuseOsPrefsStoreContext.Provider>
@@ -390,6 +419,9 @@ export function createWrapper(options: ProviderOptions = {}) {
     gamesDeps,
     wallpaperStore,
     displayPrefsStore,
+    effectsStore,
+    effectsTimers,
+    effectsDeps,
     prefsStore,
     launchDevice,
     osAnalytics,

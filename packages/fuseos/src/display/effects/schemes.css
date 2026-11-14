@@ -1,0 +1,152 @@
+/*
+ * Display Properties, Appearance: colour schemes over 98.css. 98.css (imported into the base
+ * layer by styles.css) hard-codes silver/navy/grey, so the rules that paint chrome are re-stated
+ * here in terms of custom properties that `applyColorScheme` writes on <html>. The fallbacks are
+ * 98.css's own values, so "Windows Standard" (and a page where nothing applied a scheme) looks
+ * exactly as before. Unlayered on purpose: it must beat the base layer and the Tailwind
+ * utilities a few chrome pieces use for their silver.
+ */
+.win98 {
+  color: var(--w95-surface-text, #222);
+}
+
+.win98 .window,
+.win98 .bg-\[silver\],
+.win98 legend,
+.win98 menu[role="tablist"] > li[aria-selected="true"],
+.win98 table > thead > tr > *,
+.win98 .status-field-border,
+.win98 .field-border-disabled {
+  background-color: var(--w95-surface, silver);
+  color: var(--w95-surface-text, #222);
+}
+
+/* 98.css paints tab labels #222 outright; a dark scheme needs them in its own text colour. */
+.win98 menu[role="tablist"] > li > a {
+  color: var(--w95-surface-text, #222);
+}
+
+.win98 menu[role="tablist"] > li {
+  box-shadow:
+    inset -1px 0 var(--w95-dark-shadow, #0a0a0a),
+    inset 1px 1px var(--w95-light-shadow, #dfdfdf),
+    inset -2px 0 var(--w95-shadow, grey),
+    inset 2px 2px var(--w95-light, #fff);
+}
+
+.win98 .window {
+  box-shadow:
+    inset -1px -1px var(--w95-dark-shadow, #0a0a0a),
+    inset 1px 1px var(--w95-light-shadow, #dfdfdf),
+    inset -2px -2px var(--w95-shadow, grey),
+    inset 2px 2px var(--w95-light, #fff);
+}
+
+.win98 button:not(.flat):not(.toolbar-button) {
+  background-color: var(--w95-surface, silver);
+  color: var(--w95-surface-text, #222);
+  box-shadow:
+    inset -1px -1px var(--w95-dark-shadow, #0a0a0a),
+    inset 1px 1px var(--w95-light, #fff),
+    inset -2px -2px var(--w95-shadow, grey),
+    inset 2px 2px var(--w95-light-shadow, #dfdfdf);
+}
+
+.win98 button.default:not(.flat):not(.toolbar-button) {
+  box-shadow:
+    inset -2px -2px var(--w95-dark-shadow, #0a0a0a),
+    inset 1px 1px var(--w95-dark-shadow, #0a0a0a),
+    inset 2px 2px var(--w95-light, #fff),
+    inset -3px -3px var(--w95-shadow, grey),
+    inset 3px 3px var(--w95-light-shadow, #dfdfdf);
+}
+
+.win98 button:not(.flat):not(.toolbar-button):not(:disabled):active {
+  box-shadow:
+    inset -1px -1px var(--w95-light, #fff),
+    inset 1px 1px var(--w95-dark-shadow, #0a0a0a),
+    inset -2px -2px var(--w95-light-shadow, #dfdfdf),
+    inset 2px 2px var(--w95-shadow, grey);
+}
+
+.win98 .raised {
+  box-shadow:
+    inset -1px -1px var(--w95-dark-shadow, #0a0a0a),
+    inset 1px 1px var(--w95-light, #fff),
+    inset -2px -2px var(--w95-shadow, grey),
+    inset 2px 2px var(--w95-light-shadow, #dfdfdf);
+}
+
+.win98 .sunken {
+  box-shadow:
+    inset -1px -1px var(--w95-light, #fff),
+    inset 1px 1px var(--w95-shadow, grey),
+    inset -2px -2px var(--w95-light-shadow, #dfdfdf),
+    inset 2px 2px var(--w95-dark-shadow, #0a0a0a);
+}
+
+.win98 .title-bar {
+  background: linear-gradient(
+    90deg,
+    var(--w95-title-start, navy),
+    var(--w95-title-end, #1084d0)
+  );
+}
+
+.win98 .title-bar.inactive {
+  background: linear-gradient(
+    90deg,
+    var(--w95-title-inactive-start, grey),
+    var(--w95-title-inactive-end, #b5b5b5)
+  );
+}
+
+.win98 .title-bar-text {
+  color: var(--w95-title-text, #fff);
+}
+
+.win98 .title-bar.inactive .title-bar-text {
+  color: var(--w95-title-inactive-text, #fff);
+}
+
+.win98 .selected-label,
+.win98 .menu-item:hover,
+.win98 .menu-item.open,
+.win98 select:focus,
+.win98 ul.tree-view a:focus,
+.win98 table > tbody > tr.highlighted,
+.win98 .progress-indicator > .progress-indicator-bar {
+  background-color: var(--w95-highlight, navy);
+  color: var(--w95-highlight-text, #fff);
+}
+
+.win98 input[type="text"],
+.win98 input[type="number"],
+.win98 input[type="search"],
+.win98 input[type="email"],
+.win98 input[type="password"],
+.win98 input[type="url"],
+.win98 input[type="tel"],
+.win98 select,
+.win98 textarea,
+.win98 .sunken-panel,
+.win98 ul.tree-view,
+.win98 pre,
+.win98 .field-border {
+  background-color: var(--w95-field, #fff);
+  color: var(--w95-field-text, #000);
+}
+
+.win98 select:focus option {
+  background-color: var(--w95-field, #fff);
+  color: var(--w95-field-text, #000);
+}
+
+.win98 .start-banner {
+  background: linear-gradient(
+    180deg,
+    var(--w95-title-end, #1084d0),
+    var(--w95-title-start, navy)
+  );
+  color: var(--w95-surface, silver);
+}
