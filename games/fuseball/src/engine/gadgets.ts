@@ -94,6 +94,12 @@ export function meetGadgets(
     if (!touch.hit) continue;
     ball.vx -= div(ball.vx, T.BALL_SCRUB);
     ball.vy -= div(ball.vy, T.BALL_SCRUB);
+    // A shut door is tacky on top: a ball rolling onto it is held there, where a lift or a stamp can knock it in.
+    if (
+      touch.impact < T.GATE_KNOCK &&
+      abs(apart(ball.x, ball.y, box.cx, box.cy, map).dx) < box.hw
+    )
+      ball.vx -= div(ball.vx, T.GATE_GRIP);
     if (abs(ball.vx) < T.BALL_SCRUB) ball.vx = 0;
     if (abs(ball.vy) < T.BALL_SCRUB) ball.vy = 0;
     if (touch.impact >= T.BOUNCE_FX) struck++;

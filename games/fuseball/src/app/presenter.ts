@@ -32,6 +32,7 @@ export const MAP_BLURBS: Readonly<Record<MapId, string>> = {
   bruteforce: "A force field guards each goal. Three hits break it.",
   bouncerate: "A closed box of bumpers. One guards each goal.",
   portforward: "Corner portals carry the ball across. Roofed pits.",
+  backdoor: "Trapdoors shut the pits. Knock one open, then drop in.",
 };
 
 export interface Side {

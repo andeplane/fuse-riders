@@ -118,12 +118,14 @@ export const PIN_SLACK = SUB / 2,
 /**
  * Gadgets. A force field throws the ball back at `FIELD_KICK` at least, and after a strike the next one counts only
  * `FIELD_COOL_STEPS` later (half a second). A gate opens for `GATE_OPEN_STEPS` (three seconds) when the ball
- * strikes it at `GATE_KNOCK` or faster: a dropped or lifted ball does, a rolling one does not.
+ * strikes it at `GATE_KNOCK` or faster: a dropped or lifted ball does, a rolling one does not. A ball
+ * touching the top of a shut gate more gently than that loses a `GATE_GRIP`th of its sideways speed every step.
  */
 export const FIELD_KICK = 8704,
   FIELD_COOL_STEPS = 60,
   GATE_KNOCK = 3072,
   GATE_OPEN_STEPS = 360,
+  GATE_GRIP = 6,
   /** What a ball keeps of its speed through a portal. */
   PORTAL_KEEP_NUM = 1,
   PORTAL_KEEP_DEN = 2;

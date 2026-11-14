@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  BTN,
   FIELD_COOL_STEPS,
   FIELD_KICK,
+  GATE_OPEN_STEPS,
   MAPS,
   MAP_IDS,
   RIGHT,
@@ -462,4 +464,121 @@ test("a rider flies through a portal and stays where it is: only the ball is car
   steps(world, 20, held(RIGHT));
   assert.ok(at(world.riders[0].x) > portal.b.x, "through it");
   assert.ok(at(world.riders[0].x) < portal.b.x + 60, "and still on this side");
+});
+
+// ---- gates ----
+
+/** Backdoor's trapdoor over `slot`'s pit: its middle, and the height a ball lies at on top of it. */
+const doorOf = (slot: 0 | 1) => {
+  const door = MAPS.backdoor.barriers[slot]!;
+  return { x: door.x + door.w / 2, y: door.y - BALL };
+};
+
+test("a ball rolled onto a shut trapdoor is held on top of it: the door stays shut and nobody scores", () => {
+  const world = empty("backdoor"),
+    door = doorOf(0);
+  ballAt(world, door.x - 60, door.y, 0.75, 0);
+  steps(world, 600);
+  assert.equal(world.phase, "play");
+  assert.equal(world.barriers[0]!.timer, 0, "never knocked");
+  assert.equal(at(world.ball.y), door.y, "lying on it");
+  assert.ok(Math.abs(at(world.ball.x) - door.x) < 30, "and not rolled across");
+  assert.equal(world.ball.vx, 0);
+});
+
+test("a ball dropped onto a trapdoor knocks it open, falls in on the bounce, and the door shuts again behind it", () => {
+  const world = empty("backdoor"),
+    door = doorOf(0);
+  ballAt(world, door.x, door.y - 60);
+  assert.ok(until(world, () => world.barriers[0]!.timer > 0) > 0, "knocked");
+  assert.equal(world.barriers[0]!.timer, GATE_OPEN_STEPS);
+  assert.equal(toView(world, 0).barriers[0]!.up, false, "drawn open");
+  assert.ok(until(world, () => world.phase === "zap") > 0, "it dropped in");
+  assert.equal(world.lastScorer, 0);
+  assert.deepEqual(world.score, [1, 0]);
+  // The next point starts with it shut.
+  until(world, () => world.phase === "play", new Map(), 5000);
+  assert.deepEqual(world.barriers, freshBarriers(MAPS.backdoor));
+});
+
+test("an open trapdoor shuts after its time, but never on the ball: it waits for the doorway to clear", () => {
+  const world = empty("backdoor"),
+    door = doorOf(0);
+  // Open, with nothing near: it counts down and shuts.
+  ballAt(world, 320, 100);
+  world.barriers[0]!.timer = 40;
+  steps(world, 40);
+  assert.equal(world.barriers[0]!.timer, 0);
+  assert.equal(toView(world, 0).barriers[0]!.up, true);
+  // Open with the ball held in the doorway on its last step: it stays open until the ball is out.
+  world.barriers[0]!.timer = 1;
+  for (let step = 0; step < 30; step++) {
+    ballAt(world, door.x, door.y + BALL);
+    stepWorld(world, new Map());
+    if (world.phase !== "play") break;
+    assert.equal(world.barriers[0]!.timer, 1, "held open");
+  }
+});
+
+test("a rider falls straight through a shut trapdoor into the pit", () => {
+  const world = playing("backdoor"),
+    door = doorOf(0);
+  world.riders[1].zapped = true;
+  ballAt(world, 320, 100);
+  place(world, 0, door.x, door.y - 20);
+  steps(world, 120);
+  assert.ok(at(world.riders[0].y) > door.y + BALL, "below the door");
+  assert.equal(world.barriers[0]!.timer, 0);
+});
+
+test("a lift from beside the door throws a ball lying on it up, and it comes down through the door", () => {
+  const world = playing("backdoor"),
+    door = doorOf(0);
+  world.riders[1].zapped = true;
+  ballAt(world, door.x, door.y);
+  place(world, 0, door.x - 42, door.y);
+  steps(world, 30);
+  assert.ok(world.riders[0].grounded);
+  stepWorld(world, held(BTN));
+  assert.ok(until(world, () => world.phase === "zap") > 0);
+  assert.deepEqual(world.score, [1, 0]);
+});
+
+test("an open trapdoor is checkpointed, and a door open for longer than it can be is refused", () => {
+  const world = playing("backdoor");
+  ballAt(world, doorOf(0).x, doorOf(0).y - 60);
+  until(world, () => world.barriers[0]!.timer > 0);
+  steps(world, 3);
+  const fields = encodeWorld(world),
+    copy = decodeWorld(JSON.parse(JSON.stringify(fields)));
+  assert.ok(copy);
+  assert.deepEqual(copy, world);
+  for (const [index, value, why] of [
+    [1, GATE_OPEN_STEPS + 1, "open too long"],
+    [1, -1, "less than shut"],
+    [0, 1, "a door has no strikes"],
+  ] as const) {
+    const altered = structuredClone(fields);
+    (altered[BARRIERS] as number[][])[0]![index] = value;
+    assert.equal(decodeWorld(altered), undefined, why);
+  }
+});
+
+test("the bot knocks its trapdoor open with a ball lying on it, from either side, and scores", () => {
+  for (const slot of [0, 1] as const) {
+    const world = playing("backdoor"),
+      me = world.riders[slot],
+      door = doorOf(slot);
+    world.riders[slot === 0 ? 1 : 0].zapped = true;
+    ballAt(world, door.x + 10, door.y);
+    let tick = 0;
+    for (; tick < 20 * 20 && world.phase === "play"; tick++) {
+      const inputs = new Map([[slot === 0 ? A : B, botInput(world, me)]]);
+      for (let left = paceTick(world); left > 0; left--)
+        stepWorld(world, inputs);
+    }
+    assert.equal(world.phase, "zap", `slot ${slot} scored in twenty seconds`);
+    assert.equal(world.lastScorer, slot);
+    assert.equal(me.ownGoals, 0);
+  }
 });

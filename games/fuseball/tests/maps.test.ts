@@ -78,6 +78,7 @@ test("every map has its own id and name, and a new one is only ever added at the
       "bruteforce",
       "bouncerate",
       "portforward",
+      "backdoor",
     ],
   );
   for (const id of MAP_IDS) {

@@ -42,6 +42,7 @@ export const MAP_IDS = [
   "bruteforce",
   "bouncerate",
   "portforward",
+  "backdoor",
 ] as const;
 export type MapId = (typeof MAP_IDS)[number];
 export const isMapId = (value: unknown): value is MapId =>
@@ -468,6 +469,49 @@ const portforward: MapDef = arena({
   ],
 });
 
+/**
+ * Backdoor wraps sideways with nothing across the seam, so the two ends of the floor are one back room, walled
+ * off from the front by a pillar on each side. Both pits are in there, each shut by a trapdoor: a ball dropped or
+ * lifted onto one knocks it open for three seconds, and has to come down again before it shuts. A ball rolled
+ * onto a trapdoor just lies on it.
+ */
+const backdoor: MapDef = arena({
+  id: "backdoor",
+  name: "Backdoor",
+  wrapX: true,
+  wrapY: false,
+  solids: [
+    rect(0, 0, 640, 12),
+    rect(120, 330, 400, 30),
+    rect(580, 330, 120, 30),
+    rect(60, 356, 60, 4),
+    rect(520, 356, 60, 4),
+    rect(150, 230, 12, 100),
+    rect(478, 230, 12, 100),
+    rect(200, 256, 80, 10),
+    rect(360, 256, 80, 10),
+    rect(280, 160, 80, 10),
+    rect(600, 200, 80, 10),
+  ],
+  goals: [
+    { team: 0, ...rect(520, 336, 60, 20) },
+    { team: 1, ...rect(60, 336, 60, 20) },
+  ],
+  clouds: [
+    { x: 90, y: 290, r: 40 },
+    { x: 550, y: 290, r: 40 },
+  ],
+  spawns: [
+    { x: 220, y: 321 },
+    { x: 420, y: 321 },
+  ],
+  ballAnchor: { x: 320, y: 130 },
+  barriers: [
+    { kind: "gate", ...rect(520, 330, 60, 6) },
+    { kind: "gate", ...rect(60, 330, 60, 6) },
+  ],
+});
+
 export const MAPS: Readonly<Record<MapId, MapDef>> = {
   gridlock,
   downlink,
@@ -479,6 +523,7 @@ export const MAPS: Readonly<Record<MapId, MapDef>> = {
   bruteforce,
   bouncerate,
   portforward,
+  backdoor,
 };
 export const mapOf = (id: MapId): MapDef => MAPS[id];
 

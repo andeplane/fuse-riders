@@ -2,7 +2,14 @@ import { apart, inShape, resolveSolids, settle } from "./collide.js";
 import { meetGadgets, type BarrierState } from "./gadgets.js";
 import { BTN, DOWN, LEFT, RIGHT } from "./input.js";
 import { SUB, abs, clamp, delta, div, isqrt } from "./math.js";
-import { boxesOf, isCircle, mapOf, type Box, type MapDef } from "./maps.js";
+import {
+  barrierBoxesOf,
+  boxesOf,
+  isCircle,
+  mapOf,
+  type Box,
+  type MapDef,
+} from "./maps.js";
 import * as T from "./tuning.js";
 import { stepWorld } from "./step.js";
 import { copyWorld, type Rider, type Slot, type World } from "./world.js";
@@ -59,6 +66,8 @@ const SLIDE_FROM = 110 * SUB,
   SLIDE_UNTIL = 40 * SUB;
 /** A ball slower than this, in sub-units a step, is sitting: next to it on the floor the move is a lift. */
 const SITTING = 600;
+/** A rider slower than this is standing still: a lift from here goes straight up. */
+const STILL = 64;
 /** A goal within `NUDGE_RANGE` and not above is nudged at: from `NUDGE_FROM` behind the ball, no faster than `NUDGE`. */
 const NUDGE_RANGE = 300 * SUB,
   NUDGE_FROM = 60 * SUB,
@@ -491,6 +500,46 @@ export function botInput(world: World, rider: Rider): number {
   return bits;
 }
 
+/**
+ * A ball lying on a shut trapdoor over this rider's goal is one lift from a point: thrown straight up, it comes down
+ * hard enough to knock the door open and drops through. The answer is the spot to lift it from, on the floor beside
+ * the door and seen from the rider, or undefined when there is no such ball.
+ */
+function trapdoor(
+  world: World,
+  rider: Rider,
+  map: MapDef,
+): { dx: number; dy: number } | undefined {
+  const ball = world.ball;
+  if (abs(ball.vx) >= SITTING || abs(ball.vy) >= SITTING) return undefined;
+  const boxes = barrierBoxesOf(world.mapId);
+  for (let i = 0; i < map.barriers.length; i++) {
+    const gate = map.barriers[i]!,
+      box = boxes[i]!;
+    if (gate.kind !== "gate" || world.barriers[i]!.timer > 0) continue;
+    const on = apart(ball.x, ball.y, box.cx, box.cy, map);
+    if (abs(on.dx) >= box.hw || on.dy >= 0 || -on.dy > box.hh + T.BALL_R + SUB)
+      continue;
+    const mine = map.goals.some(
+      (goal) =>
+        goal.team === rider.slot &&
+        !isCircle(goal) &&
+        goal.x < gate.x + gate.w &&
+        goal.x + goal.w > gate.x &&
+        goal.y <= gate.y + gate.h + T.BALL_RADIUS &&
+        goal.y + goal.h > gate.y,
+    );
+    if (!mine) continue;
+    // On this rider's side of the door, unless the ball is out of a lift's reach from there.
+    const me = apart(rider.x, rider.y, box.cx, box.cy, map),
+      edge = box.hw + T.RIDER_R + 2 * SUB,
+      near = me.dx < 0 ? -1 : 1,
+      side = abs(on.dx - near * edge) < T.LIFT_X - 4 * SUB ? near : -near;
+    return { dx: side * edge - me.dx, dy: -box.hh - T.RIDER_R - me.dy };
+  }
+  return undefined;
+}
+
 /** What it means to do, before it has looked at what that would do to the ball. */
 function plan(world: World, rider: Rider, map: MapDef): number {
   // A breather now and then, at different moments for each side, so two bots never mirror each other for long.
@@ -502,6 +551,15 @@ function plan(world: World, rider: Rider, map: MapDef): number {
   const on = apart(world.ball.x, world.ball.y, rider.x, rider.y, map),
     touching = on.dx * on.dx + on.dy * on.dy < TOUCHING * TOUCHING;
   if (ahead.into === rider.slot && !touching) return 0;
+  // A ball lifted off a trapdoor is in the air for longer than it usually looks ahead: where there are doors it
+  // looks as far as it does before a touch, so it does not chase a ball that is about to knock its door in.
+  if (
+    !touching &&
+    ahead.into === -1 &&
+    map.barriers.some((barrier) => barrier.kind === "gate") &&
+    flight(world, map, world.ball, FORESIGHT).into === rider.slot
+  )
+    return 0;
   // Standing in the ball (it is jammed under it in a corner) helps nobody: step off it, away from the wall.
   if (on.dx * on.dx + on.dy * on.dy < BURIED * BURIED)
     return on.dx > 0 || (on.dx === 0 && rider.x * 2 > T.WORLD_W) ? LEFT : RIGHT;
@@ -557,21 +615,37 @@ function plan(world: World, rider: Rider, map: MapDef): number {
       oy -= over * div(ux * ROUND, UNIT);
     }
   }
+  // A ball lying on the shut trapdoor over its goal is not shot at: it is lifted from the floor beside the door.
+  const door = trapdoor(world, rider, map),
+    fresh = (rider.prev & BTN) === 0;
+  if (
+    door &&
+    rider.grounded &&
+    abs(door.dx) <= 2 * DEAD &&
+    abs(door.dy) < CLEAR
+  )
+    // In place. A lift from a run carries the ball off sideways, so it stands still first.
+    return abs(rider.vx) < STILL && fresh ? BTN : 0;
   const { dx, dy } = path(
     world,
     rider,
     map,
-    apart(bx + ox, by + oy, rider.x, rider.y, map),
+    door ?? apart(bx + ox, by + oy, rider.x, rider.y, map),
     { x: bx, y: by },
   );
 
-  const fresh = (rider.prev & BTN) === 0;
   let way = dx > DEAD ? RIGHT : dx < -DEAD ? LEFT : 0;
   // A goal that is near and not above wants a nudge, not a shot that comes back off the far wall: lined up and
   // closing fast, it lets go of the stick, or pulls it back, until it is down to a walk.
   const gap = apart(world.ball.x, world.ball.y, rider.x, rider.y, map),
     far = isqrt(gap.dx * gap.dx + gap.dy * gap.dy);
-  if (far > 0 && far < NUDGE_FROM && reach < NUDGE_RANGE && uy * 4 > -UNIT) {
+  if (
+    !door &&
+    far > 0 &&
+    far < NUDGE_FROM &&
+    reach < NUDGE_RANGE &&
+    uy * 4 > -UNIT
+  ) {
     const closing = div(
       (rider.vx - world.ball.vx) * gap.dx + (rider.vy - world.ball.vy) * gap.dy,
       far,
@@ -591,7 +665,7 @@ function plan(world: World, rider: Rider, map: MapDef): number {
     const near = apart(rider.x, rider.y, world.ball.x, world.ball.y, map),
       lifts = abs(near.dx) < T.LIFT_X && abs(near.dy) < T.LIFT_Y,
       sitting = abs(world.ball.vx) < SITTING && abs(world.ball.vy) < SITTING;
-    if (lifts && sitting) {
+    if (lifts && sitting && !door) {
       // A sitting ball wants a lift when the goal is above, and when the other rider is leaning on its far side:
       // then the two take turns, so a pair of bots never lifts as one.
       const other = world.riders[rider.slot === 0 ? 1 : 0],
@@ -610,7 +684,9 @@ function plan(world: World, rider: Rider, map: MapDef): number {
         );
       }
     }
-    if (dy < -CLIMB) return way | (fresh && (!lifts || along < 0) ? BTN : 0);
+    // A jump next to the ball is a lift: wanted from behind it, and never on the way to a trapdoor.
+    const jump = fresh && (!lifts || (along < 0 && !door)) ? BTN : 0;
+    if (dy < -CLIMB) return way | jump;
     // Walking into a kerb or the foot of a wall gets nowhere: hop it.
     const stick = way & RIGHT ? 1 : way & LEFT ? -1 : 0,
       kerb =
@@ -623,7 +699,7 @@ function plan(world: World, rider: Rider, map: MapDef): number {
             abs(at.dy) < box.hh + T.RIDER_R - SUB
           );
         });
-    if (kerb) return way | (fresh && (!lifts || along < 0) ? BTN : 0);
+    if (kerb) return way | jump;
     if (dy > SINK)
       // The target is below this ledge: walk off it, whichever way it was already going.
       return way || (rider.facing > 0 ? RIGHT : LEFT);
