@@ -175,7 +175,7 @@ export const DEVICE_CONTROLS: Record<Device, readonly ControlHint[]> = {
   pad: [
     { keys: "Left stick or D-pad ← / →", action: "Move" },
     { keys: "A / Cross", action: FLAP },
-    { keys: "B / Circle or left bumper", action: ATTACK },
+    { keys: "B / Circle, X / Square, any bumper or trigger", action: ATTACK },
     { keys: "Stick or D-pad ↓", action: DIVE },
   ],
   touch: [
@@ -196,7 +196,7 @@ export const PLAY_CONTROLS: readonly ControlHint[] = [
   { keys: "Space · A / Cross", action: FLAP },
   { keys: "↓ or S · stick / D-pad ↓", action: DIVE },
   {
-    keys: "X or Z (also Shift or J) · B / Circle or left bumper",
+    keys: "X or Z (also Shift or J) · B / Circle, X / Square, bumper or trigger",
     action: ATTACK,
   },
 ];
@@ -206,7 +206,7 @@ export const CONTROLS: readonly ControlHint[] = [
   {
     keys: "Gamepad",
     action:
-      "Stick or D-pad ← / → to move, ↓ to dive; A / Cross to jump or flap; B / Circle or left bumper to attack",
+      "Stick or D-pad ← / → to move, ↓ to dive; A / Cross to jump or flap; B / Circle, X / Square, either bumper or either trigger to attack",
   },
 ];
 export const TOUCH_CONTROLS: readonly ControlHint[] = DEVICE_CONTROLS.touch;

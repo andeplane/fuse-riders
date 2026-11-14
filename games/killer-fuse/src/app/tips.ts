@@ -56,11 +56,14 @@ export function lobbyTips(device: Device): readonly Tip[] {
   return [
     device === "touch"
       ? { title: "CONTROLS · TOUCH", hints: DEVICE_CONTROLS.touch, text: "" }
-      : {
-          title: "CONTROLS · KEYBOARD · GAMEPAD",
-          hints: PLAY_CONTROLS,
-          text: "",
-        },
+      : device === "pad"
+        ? // A pad is what this device plays with: its own buttons, not the keyboard's beside them.
+          { title: "CONTROLS · GAMEPAD", hints: DEVICE_CONTROLS.pad, text: "" }
+        : {
+            title: "CONTROLS · KEYBOARD · GAMEPAD",
+            hints: PLAY_CONTROLS,
+            text: "",
+          },
     ...RULE_TIPS,
   ];
 }

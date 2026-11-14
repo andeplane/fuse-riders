@@ -4,14 +4,16 @@ import { DEVICE_CONTROLS, PLAY_CONTROLS } from "../src/app/guide.js";
 import { RULE_TIPS, TIP_MS, lobbyTips, tipIndex } from "../src/app/tips.js";
 
 test("the first tip is the controls of the device in use, then one rule each", () => {
-  const tips = lobbyTips("pad");
+  const tips = lobbyTips("keys");
   assert.equal(tips[0]!.title, "CONTROLS · KEYBOARD · GAMEPAD");
   assert.equal(
     tips[0]!.hints,
     PLAY_CONTROLS,
     "keyboard and gamepad side by side",
   );
-  assert.equal(lobbyTips("keys")[0]!.hints, PLAY_CONTROLS);
+  // A pad in use names the pad's own buttons instead.
+  assert.equal(lobbyTips("pad")[0]!.title, "CONTROLS · GAMEPAD");
+  assert.equal(lobbyTips("pad")[0]!.hints, DEVICE_CONTROLS.pad);
   assert.equal(lobbyTips("touch")[0]!.title, "CONTROLS · TOUCH");
   assert.equal(lobbyTips("touch")[0]!.hints, DEVICE_CONTROLS.touch);
   assert.deepEqual(tips.slice(1), RULE_TIPS);

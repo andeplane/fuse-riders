@@ -27,15 +27,15 @@ Open `http://localhost:8890/killer-fuse/?mute` and pick one of:
 
 Arrows move, Space flaps, X attacks, hold Down to dive.
 
-| Input                    | Action                                                           |
-| ------------------------ | ---------------------------------------------------------------- |
-| ← / → (or A / D)         | Move                                                             |
-| Space                    | Jump as a Worker; flap as a Queen or a Warrior                   |
-| X or Z (also Shift or J) | Attack: a sword dash the way you face, as a Warrior or the Queen |
-| ↓ (or S), held           | Dive as the Queen; drop through a platform                       |
-| ↑                        | Nothing, as in the original: flying is only ever the flap button |
-| Gamepad                  | Stick or D-pad to move, A / Cross to flap, B / Circle to attack  |
-| Touch                    | Left thumb slides to move and dive; right thumb FLAP and ATTACK  |
+| Input                    | Action                                                                                                                                                                                                                            |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ← / → (or A / D)         | Move                                                                                                                                                                                                                              |
+| Space                    | Jump as a Worker; flap as a Queen or a Warrior                                                                                                                                                                                    |
+| X or Z (also Shift or J) | Attack: a sword dash the way you face, as a Warrior or the Queen                                                                                                                                                                  |
+| ↓ (or S), held           | Dive as the Queen; drop through a platform                                                                                                                                                                                        |
+| ↑                        | Nothing, as in the original: flying is only ever the flap button                                                                                                                                                                  |
+| Gamepad                  | Stick or D-pad to move and dive, A / Cross to flap; B / Circle, X / Square, either bumper or either trigger to attack. Plug one in at any time: the press that wakes it up already flaps. The first connected pad plays this seat |
+| Touch                    | Left thumb slides to move and dive; right thumb FLAP and ATTACK                                                                                                                                                                   |
 
 ## Layout
 

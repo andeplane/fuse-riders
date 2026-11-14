@@ -79,7 +79,7 @@ test("every seat sees all four controls as rows, its own role's first", () => {
       ["↓", "S"],
       "Queen, hold",
       ["X", "Z", "Shift", "J"],
-      ["B / Circle", "LB"],
+      ["B / Circle", "X / Square", "Bumpers", "Triggers"],
       "Warrior, Queen",
     ],
   );
@@ -97,8 +97,16 @@ test("every seat sees all four controls as rows, its own role's first", () => {
   assert.equal(worker[1]!.touch[0], "JUMP");
   assert.match(worker[1]!.note, /hold for higher · tap to fly as a Warrior/);
   assert.deepEqual(controlRows(-1), [], "a watcher has no keys");
-  assert.equal(countdownCard(first(10), 0, "touch", "Twin Hives").touch, true);
-  assert.equal(countdownCard(first(10), 0, "pad", "Twin Hives").touch, false);
+  // The card names the caps of the device this page plays with: the gamepad's own once a pad is in use.
+  assert.equal(
+    countdownCard(first(10), 0, "touch", "Twin Hives").device,
+    "touch",
+  );
+  assert.equal(countdownCard(first(10), 0, "pad", "Twin Hives").device, "pad");
+  assert.equal(
+    countdownCard(first(10), 0, "keys", "Twin Hives").device,
+    "keys",
+  );
 });
 
 test("the first game opens on the three ways to win, one picture at a time, with the controls throughout", () => {

@@ -47,7 +47,9 @@ import {
   Touch,
   gameKey,
   holdToFlapFrom,
+  readPads,
   releaseWhenAway,
+  watchPads,
 } from "./controls.js";
 import {
   readIconSheets,
@@ -415,10 +417,6 @@ function room(solo: boolean): void {
     lessonMatch = "",
     asked = { key: "", at: 0 },
     recorded: { seconds: number; best: number } | undefined;
-  const padConnected = () =>
-    typeof navigator.getGamepads === "function" &&
-    navigator.getGamepads().some((pad) => pad !== null);
-
   // ---- controls ----
   const controls = new Controls(
       {
@@ -436,6 +434,9 @@ function room(solo: boolean): void {
     pads = new Pads(controls),
     touch = new Touch(controls);
   controls.setHoldToFlap(holdToFlap);
+  // A pad is connected when the frame loop's poll last found one: the browser hands pads over only after a button is
+  // pressed, so this follows one being plugged in or unplugged without the player touching the keyboard.
+  const padConnected = () => pads.connected();
   const lessonDevice = (): Device =>
     deviceFor({
       last: controls.lastUsed(),
@@ -459,6 +460,8 @@ function room(solo: boolean): void {
     onOpenChange: (open) => {
       if (open) {
         keyboard.clear();
+        // The pad is not polled while the menu is up: forget what it held, so closing on a held button is a fresh press.
+        pads.release();
         controls.release();
       }
     },
@@ -832,16 +835,19 @@ function room(solo: boolean): void {
           cell.append(...labels.map((label) => el("kbd", label)));
           return cell;
         };
-        cardControls.dataset.touch = String(shown.touch);
+        cardControls.dataset.device = shown.device;
         cardControls.replaceChildren(
           ...shown.controls.map((row) => {
             const line = el("div", "", "kf-control");
             line.dataset.mine = String(row.mine);
             line.append(
               el("strong", row.action, "kf-control-name"),
-              ...(shown.touch
+              // The gamepad's caps alone once a pad is what this device plays with; otherwise both, keyboard first.
+              ...(shown.device === "touch"
                 ? [caps(row.touch, "touch")]
-                : [caps(row.keys, "keys"), caps(row.pad, "pad")]),
+                : shown.device === "pad"
+                  ? [caps(row.pad, "pad")]
+                  : [caps(row.keys, "keys"), caps(row.pad, "pad")]),
               el("span", row.note, "kf-control-note"),
             );
             return line;
@@ -1120,7 +1126,7 @@ function room(solo: boolean): void {
   let frameRequest = 0;
   const loop = () => {
     frameRequest = requestAnimationFrame(loop);
-    if (!menu.isOpen()) pads.poll(navigator.getGamepads());
+    if (!menu.isOpen()) pads.poll(readPads(navigator));
     controls.pulse();
     runtime.flush();
     driver.draw();
@@ -1162,10 +1168,13 @@ function room(solo: boolean): void {
     document,
     () => {
       keyboard.clear();
+      pads.release();
       controls.release();
     },
     { signal },
   );
+  // A pad unplugged mid-match lets go the moment the browser says so, whether or not the loop is polling.
+  watchPads(window, pads, { signal });
   window.addEventListener("resize", () => driver.resize(), { signal });
   runtime.start();
   frameRequest = requestAnimationFrame(loop);

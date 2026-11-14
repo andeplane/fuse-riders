@@ -4,7 +4,7 @@ One row per feature of Killer Queen Black (the Steam version). Status is `no`, `
 
 Scored at rules `killer-fuse-6` (which changed four edge rules from `killer-fuse-5`: same-step victories of any kinds go to the step's coin, a snail win needs the rider still on it after combat, the snail cannot catch an invulnerable Worker, and kills land in the step's turn order; no value of Black's). "Engine" means the rule is in `src/engine` and covered by headless tests. Values were taken from the figures we had of Black and checked against our code, not against the running game frame by frame.
 
-Nothing has been playtested by a person yet. No physical gamepad or phone has been used; gamepad and touch are covered by unit tests only.
+Nothing has been playtested by a person yet. No physical gamepad or phone has been used: touch is covered by unit tests only, and the gamepad by unit tests plus a headless browser smoke that feeds the page a fake `navigator.getGamepads`.
 
 ## Rules
 

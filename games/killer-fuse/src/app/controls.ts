@@ -210,53 +210,156 @@ export function releaseWhenAway(
 
 /** What a gamepad reports, as much of the browser's `Gamepad` as this reads. */
 export interface PadLike {
+  /** The browser keeps an unplugged pad in the array on some platforms; it holds nothing. */
+  readonly connected: boolean;
+  /** `"standard"` when the browser knows the layout. Anything else gets the small fallback below. */
+  readonly mapping: string;
   readonly axes: readonly number[];
-  readonly buttons: readonly { readonly pressed: boolean }[];
+  /** A trigger is analogue: `pressed` is the browser's own threshold, `value` the pull. */
+  readonly buttons: readonly {
+    readonly pressed: boolean;
+    readonly value?: number;
+  }[];
 }
-/** A stick counts as pushed past half way, sideways for moving and down for the dive, as in the original. */
-export const STICK_DEAD = 0.5;
-/** The bottom face button (A on Xbox, Cross on PlayStation) jumps and flaps. */
-const FACE = [0];
-/** The right face button (B / Circle) and the left bumper attack. */
-const ATTACK_BUTTONS = [1, 4];
+/**
+ * How far the stick must leave the middle to move: a third of the way, past the drift of a worn stick, which half way
+ * made it hard to walk slowly.
+ */
+export const STICK_DEAD = 0.3;
+/** The dive asks for the stick clearly down, so a sideways push that drifts a little down never dives. */
+export const STICK_DIVE = 0.5;
+/** How far an analogue trigger counts as pulled, when the browser does not call it pressed. */
+const TRIGGER_PULL = 0.5;
+/** The bottom face button (A on Xbox, Cross on PlayStation) jumps and flaps, and nothing else does. */
+const FLAP_BUTTON = 0;
+/**
+ * Attack: the face buttons beside the flap (B / Circle and X / Square), either bumper and either trigger, so whichever
+ * finger is free can swing. Y / Triangle stays free, as the up direction does.
+ */
+const ATTACK_STANDARD = [1, 2, 4, 5, 6, 7];
+/** On a pad the browser does not know, only the first three buttons are anywhere near reliable. */
+const ATTACK_BASIC = [1, 2];
+/** D-pad, on a standard pad. Up (12) is bound to nothing. */
 const DPAD_DOWN = 13,
   DPAD_LEFT = 14,
   DPAD_RIGHT = 15;
 
 /**
- * Gamepads: the left stick or the d-pad to move and dive, A / Cross to jump and flap, B / Circle or the left bumper to
- * attack; up does nothing. Polled every frame.
+ * An axis reads -1 to 1. A missing one, a NaN or a wild number comes from a pad the browser cannot read, and holds
+ * nothing rather than steering; a hair past the end (a stick reporting 1.0001) is simply the end.
+ */
+const axisValue = (value: number | undefined): number =>
+  value === undefined || !Number.isFinite(value) || Math.abs(value) > 1.5
+    ? 0
+    : Math.max(-1, Math.min(1, value));
+
+/** As much of `navigator` as the pads need. */
+export interface PadSource {
+  getGamepads?: () => readonly (PadLike | null)[];
+}
+/**
+ * The pads this device has now. A browser without the Gamepad API, or one that blocks it (an insecure origin, a
+ * permissions policy), reports none instead of throwing into the frame loop.
+ */
+export function readPads(source: PadSource): readonly (PadLike | null)[] {
+  if (typeof source.getGamepads !== "function") return [];
+  try {
+    return source.getGamepads();
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Gamepads: the left stick or the d-pad to move and dive, A / Cross to jump and flap, B / Circle, X / Square, a bumper
+ * or a trigger to attack; up does nothing. Polled every frame, which is how a pad plugged in mid-match is noticed: the
+ * browser hands it over only once a button is pressed, and that first press is an edge like any other, so it still
+ * flaps. One device plays one seat, so the first connected pad is the one that plays and the rest are ignored.
  */
 export class Pads {
-  private readonly was = new Set<string>();
+  /** The buttons of the pad in use that were down at the last poll, so each press counts once. */
+  private was = new Set<number>();
+  /** Which slot of `getGamepads()` is being played, so swapping pads arms the new one's buttons afresh. */
+  private slot: number | undefined;
+  private found = false;
   constructor(private readonly controls: Controls) {}
-  poll(pads: readonly (PadLike | null)[]): void {
-    let bits = 0;
-    const now = new Set<string>();
-    pads.forEach((pad, index) => {
-      if (!pad) return;
-      const on = (button: number) => pad.buttons[button]?.pressed === true,
-        x = pad.axes[0] ?? 0,
-        y = pad.axes[1] ?? 0;
-      if (x < -STICK_DEAD || on(DPAD_LEFT)) bits |= INPUT_LEFT;
-      if (x > STICK_DEAD || on(DPAD_RIGHT)) bits |= INPUT_RIGHT;
-      if (y > STICK_DEAD || on(DPAD_DOWN)) bits |= INPUT_DOWN;
-      for (const button of FACE)
-        if (on(button)) {
-          bits |= INPUT_HELD;
-          now.add(`${index}:${button}`);
-        }
-      for (const button of ATTACK_BUTTONS)
-        if (on(button)) now.add(`${index}:attack:${button}`);
-    });
-    this.controls.set("pad", bits);
-    for (const key of now)
-      if (!this.was.has(key))
-        if (key.includes(":attack:")) this.controls.attack("pad");
-        else this.controls.press();
-    this.was.clear();
-    for (const key of now) this.was.add(key);
+  /** Whether the last poll found a pad: what the hints on screen ask, without reading the browser again. */
+  connected(): boolean {
+    return this.found;
   }
+  poll(pads: readonly (PadLike | null)[]): void {
+    const slot = pads.findIndex(
+      (pad) => pad !== null && pad !== undefined && pad.connected,
+    );
+    const pad = slot < 0 ? undefined : pads[slot];
+    if (!pad) {
+      this.release();
+      return;
+    }
+    this.found = true;
+    // A different pad: everything it holds is new, so a button already down presses rather than carrying over.
+    if (slot !== this.slot) {
+      this.slot = slot;
+      this.was = new Set();
+    }
+    const standard = pad.mapping === "standard",
+      on = (button: number): boolean => {
+        const key = pad.buttons[button];
+        return (
+          key !== undefined && (key.pressed || (key.value ?? 0) > TRIGGER_PULL)
+        );
+      },
+      x = axisValue(pad.axes[0]),
+      y = axisValue(pad.axes[1]);
+    let bits = 0;
+    if (x < -STICK_DEAD || (standard && on(DPAD_LEFT))) bits |= INPUT_LEFT;
+    if (x > STICK_DEAD || (standard && on(DPAD_RIGHT))) bits |= INPUT_RIGHT;
+    if (y > STICK_DIVE || (standard && on(DPAD_DOWN))) bits |= INPUT_DOWN;
+    const now = new Set<number>();
+    if (on(FLAP_BUTTON)) {
+      bits |= INPUT_HELD;
+      now.add(FLAP_BUTTON);
+    }
+    for (const button of standard ? ATTACK_STANDARD : ATTACK_BASIC)
+      if (on(button)) now.add(button);
+    this.controls.set("pad", bits);
+    for (const button of now)
+      if (!this.was.has(button)) {
+        if (button === FLAP_BUTTON) this.controls.press();
+        else this.controls.attack("pad");
+      }
+    this.was = now;
+  }
+  /**
+   * No pad any more: it was unplugged, or the page stopped being played. Nothing it held stays held, and the next pad
+   * to arrive — the same one plugged back in included — presses from scratch.
+   */
+  release(): void {
+    this.found = false;
+    this.slot = undefined;
+    this.was = new Set();
+    this.controls.set("pad", 0);
+  }
+}
+
+/** As much of a `Pads` as `watchPads` needs. */
+export interface PadRelease {
+  release(): void;
+}
+/**
+ * A pad unplugged mid-match: let go at once rather than at the next poll, so a frame loop that is not polling (the
+ * menu is open, the tab is hidden) cannot leave the rider walking into a wall. Connecting needs no listener — the poll
+ * finds the pad the frame the browser hands it over — but `onConnect` lets the page react, and `signal` takes the
+ * listeners off with the page's others.
+ */
+export function watchPads(
+  window: ReleaseTarget,
+  pads: PadRelease,
+  options?: { signal?: AbortSignal; onConnect?: () => void },
+): void {
+  const { onConnect, ...rest } = options ?? {};
+  window.addEventListener("gamepaddisconnected", () => pads.release(), rest);
+  if (onConnect) window.addEventListener("gamepadconnected", onConnect, rest);
 }
 
 /** The directions a thumb `dx`, `dy` pixels from where it touched down holds on a pad `radius` pixels wide. */

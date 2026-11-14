@@ -483,7 +483,8 @@ body.kf-page {
   margin: 0 auto;
   text-align: left;
 }
-.kf-brief-controls[data-touch="true"] {
+/* Touch and gamepad name one set of buttons, so they drop the keyboard's column. */
+.kf-brief-controls:not([data-device="keys"]) {
   grid-template-columns: auto auto minmax(0, 1fr);
 }
 .kf-control {

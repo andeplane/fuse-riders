@@ -13,13 +13,18 @@ import {
   HOLD_TO_FLAP_KEY,
   Keys,
   Pads,
+  STICK_DEAD,
+  STICK_DIVE,
   Touch,
   gameKey,
   holdToFlapFrom,
+  readPads,
   releaseWhenAway,
   settle,
   stickBits,
+  watchPads,
   type PadLike,
+  type PadSource,
 } from "../src/app/controls.js";
 
 function rig() {
@@ -31,16 +36,24 @@ function rig() {
   });
   return { log, controls };
 }
+/** A standard-mapping pad: the axes it reports and the buttons held down. */
 const pad = (
   axes: number[],
   pressed: number[] = [],
-  buttons = 16,
+  buttons = 17,
+  mapping = "standard",
 ): PadLike => ({
+  connected: true,
+  mapping,
   axes,
   buttons: Array.from({ length: buttons }, (_, index) => ({
     pressed: pressed.includes(index),
+    value: pressed.includes(index) ? 1 : 0,
   })),
 });
+/** A pad the browser does not recognise: no mapping, so only the sticks and the first three buttons are read. */
+const oddPad = (axes: number[], pressed: number[] = []): PadLike =>
+  pad(axes, pressed, 17, "");
 
 test("left and right together are neither", () => {
   assert.equal(settle(INPUT_LEFT | INPUT_RIGHT | INPUT_DOWN), INPUT_DOWN);
@@ -169,22 +182,26 @@ test("Space is the only key that flaps: no attack key or arrow holds the button"
   assert.deepEqual(log.slice(-2), [INPUT_HELD, "press"]);
 });
 
-test("a gamepad: stick or d-pad past half way to move and dive, A / Cross for the button, up for nothing", () => {
+test("a gamepad: stick or d-pad to move and dive, A / Cross for the button, up for nothing", () => {
   const { log, controls } = rig();
   const pads = new Pads(controls);
+  // A third of the way to move, past a worn stick's drift; half way down before the Queen dives.
+  assert.deepEqual([STICK_DEAD, STICK_DIVE], [0.3, 0.5]);
+  assert.equal(pads.connected(), false, "nothing is connected until a poll");
   pads.poll([null, pad([-0.9, 0])]);
   assert.deepEqual(log, [INPUT_LEFT]);
+  assert.equal(pads.connected(), true);
   pads.poll([null, pad([0.2, 0.1])]);
   assert.equal(controls.value(), 0, "inside the dead zone");
-  pads.poll([pad([-0.5, 0.5])]);
-  assert.equal(controls.value(), 0, "exactly half way is not past it");
-  pads.poll([pad([0.51, 0.51])]);
+  pads.poll([pad([-0.3, 0.5])]);
+  assert.equal(controls.value(), 0, "exactly on the line is not past it");
+  pads.poll([pad([0.31, 0.51])]);
   assert.equal(controls.value(), INPUT_RIGHT | INPUT_DOWN);
-  pads.poll([pad([0, 0.49])]);
+  pads.poll([pad([-0.31, 0.3])]);
   assert.equal(
     controls.value(),
-    0,
-    "a dive needs the stick past half way down",
+    INPUT_LEFT,
+    "a stick pushed sideways and drifting down does not dive",
   );
   pads.poll([pad([0, -1], [12])]);
   assert.equal(controls.value(), 0, "stick up and d-pad up do nothing");
@@ -192,9 +209,13 @@ test("a gamepad: stick or d-pad past half way to move and dive, A / Cross for th
   assert.equal(controls.value(), INPUT_LEFT | INPUT_DOWN);
   pads.poll([pad([0, 0], [15])]);
   assert.equal(controls.value(), INPUT_RIGHT);
+  pads.poll([pad([Number.NaN, 4], [])]);
+  assert.equal(controls.value(), 0, "a nonsense axis holds nothing");
+  pads.poll([pad([-1.0001, 0], [])]);
+  assert.equal(controls.value(), INPUT_LEFT, "a hair past the end is the end");
   log.length = 0;
-  pads.poll([pad([0, 0], [2, 3])]);
-  assert.deepEqual(log, [0], "X and Y are bound to nothing");
+  pads.poll([pad([0, 0], [3])]);
+  assert.deepEqual(log, [0], "Y / Triangle is bound to nothing");
   pads.poll([pad([0, 0], [0])]);
   assert.deepEqual(log.slice(1), [INPUT_HELD, "press"]);
   pads.poll([pad([0, 0], [0])]);
@@ -202,11 +223,103 @@ test("a gamepad: stick or d-pad past half way to move and dive, A / Cross for th
   pads.poll([pad([0, 0])]);
   pads.poll([pad([0, 0], [0])]);
   assert.deepEqual(log.slice(3), [0, INPUT_HELD, "press"]);
-  // Two pads on one device steer the one unit; a pad with few buttons and no axes is read as far as it goes.
-  pads.poll([pad([], [0], 1), pad([-1, 0])]);
-  assert.equal(controls.value(), INPUT_LEFT | INPUT_HELD);
+});
+
+test("one device, one seat: the first connected pad plays and the rest are ignored", () => {
+  const { log, controls } = rig();
+  const pads = new Pads(controls);
+  // An empty slot, then the pad that plays, then a second pad nobody is holding this seat with.
+  pads.poll([null, pad([-1, 0], [0]), pad([1, 0], [1])]);
+  assert.deepEqual(log, [INPUT_LEFT | INPUT_HELD, "press"], "no attack");
+  log.length = 0;
+  pads.poll([null, pad([0, 0]), pad([0, 0], [0, 1])]);
+  assert.deepEqual(log, [0], "the extra pad presses nothing");
+  // A pad present but unplugged is not the one that plays.
+  const gone: PadLike = { ...pad([-1, 0]), connected: false };
+  pads.poll([gone, pad([1, 0])]);
+  assert.equal(controls.value(), INPUT_RIGHT);
   pads.poll([]);
   assert.equal(controls.value(), 0);
+  assert.equal(pads.connected(), false);
+});
+
+test("a pad plugged in mid-match: the press that reveals it to the browser still flaps", () => {
+  const { log, controls } = rig();
+  const pads = new Pads(controls);
+  // Before the pad is pressed the browser shows nothing at all, whatever is plugged in.
+  pads.poll([]);
+  pads.poll([null]);
+  assert.deepEqual(log, [], "an empty frame holds nothing and presses nothing");
+  // The browser hands the pad over the moment A goes down: that first poll is the press.
+  pads.poll([null, pad([0, 0], [0])]);
+  assert.deepEqual(log, [INPUT_HELD, "press"]);
+  assert.equal(pads.connected(), true, "and the hints know a pad is in use");
+  assert.equal(controls.lastUsed(), "pad");
+  // A second pad arriving in an earlier slot is a different pad: its held button is a new press, not a carry-over.
+  log.length = 0;
+  pads.poll([pad([0, 0], [0]), pad([0, 0], [0])]);
+  assert.deepEqual(log, ["press"], "the new pad's button presses once");
+  pads.poll([pad([0, 0], [0]), pad([0, 0], [0])]);
+  assert.deepEqual(log, ["press"], "and then stays held");
+});
+
+test("a pad unplugged mid-match lets go: nothing stays held and the next press still counts", () => {
+  const { log, controls } = rig();
+  const pads = new Pads(controls);
+  pads.poll([pad([-1, 0], [0])]);
+  assert.equal(controls.value(), INPUT_LEFT | INPUT_HELD);
+  log.length = 0;
+  // The browser's own event, which arrives whether or not the frame loop is polling.
+  const page = new FakePage();
+  const abort = new AbortController();
+  watchPads(page, pads, { signal: abort.signal });
+  page.fire("gamepaddisconnected");
+  assert.deepEqual(log, [0], "the held bits are let go at once");
+  assert.equal(pads.connected(), false);
+  // Plugged back in with the button still down: a fresh press, not a carried-over hold.
+  pads.poll([pad([0, 0], [0])]);
+  assert.deepEqual(log.slice(1), [INPUT_HELD, "press"]);
+  // The listener comes off with the page's others.
+  abort.abort();
+  page.fire("gamepaddisconnected");
+  assert.equal(controls.value(), INPUT_HELD, "nothing is listening any more");
+  assert.deepEqual([...page.listeners.values()].flat(), []);
+});
+
+test("a pad the browser does not know: the sticks and the first three buttons", () => {
+  const { log, controls } = rig();
+  const pads = new Pads(controls);
+  pads.poll([oddPad([-1, 0])]);
+  assert.equal(controls.value(), INPUT_LEFT, "axis 0 still moves");
+  pads.poll([oddPad([0, 1])]);
+  assert.equal(controls.value(), INPUT_DOWN, "axis 1 still dives");
+  pads.poll([oddPad([0, 0], [13, 14, 15])]);
+  assert.equal(
+    controls.value(),
+    0,
+    "the d-pad buttons mean nothing on an unknown pad",
+  );
+  log.length = 0;
+  pads.poll([oddPad([0, 0], [0])]);
+  assert.deepEqual(log, [INPUT_HELD, "press"], "button 0 still flaps");
+  pads.poll([oddPad([0, 0], [1])]);
+  assert.deepEqual(log.slice(2), [0, "attack"]);
+  pads.poll([oddPad([0, 0], [2])]);
+  assert.deepEqual(log.slice(4), ["attack"], "button 2 attacks as well");
+  pads.poll([oddPad([0, 0], [4, 5, 6, 7])]);
+  assert.deepEqual(log.slice(5), [], "and nothing further up is guessed at");
+});
+
+test("the pads a browser hands over: none when it has no Gamepad API, or blocks it", () => {
+  assert.deepEqual(readPads({}), [], "no Gamepad API at all");
+  const blocked: PadSource = {
+    getGamepads: () => {
+      throw new Error("blocked by a permissions policy");
+    },
+  };
+  assert.deepEqual(readPads(blocked), []);
+  const one = pad([0, 0]);
+  assert.deepEqual(readPads({ getGamepads: () => [null, one] }), [null, one]);
 });
 
 /** A clock the test moves by hand. */
@@ -348,7 +461,7 @@ test("the touch pad: sideways past the dead zone, down on a clear pull, and the 
   assert.deepEqual(log.slice(-2), [INPUT_HELD, "press"]);
 });
 
-test("attack: X, Z, either Shift or J, B / Circle or the left bumper, and the touch ATTACK button, each a press edge only", () => {
+test("attack: X, Z, either Shift or J, B / Circle, X / Square, a bumper or a trigger, and the touch ATTACK button, each a press edge only", () => {
   const { log, controls } = rig();
   const keys = new Keys(controls);
   for (const code of ["KeyX", "KeyZ", "ShiftLeft", "ShiftRight", "KeyJ"]) {
@@ -371,14 +484,28 @@ test("attack: X, Z, either Shift or J, B / Circle or the left bumper, and the to
   pads.poll([pad([0, 0], [1])]);
   assert.deepEqual(log, ["attack"], "B / Circle, held, attacks once");
   assert.equal(controls.lastUsed(), "pad");
-  pads.poll([pad([0, 0], [1, 4])]);
-  assert.deepEqual(
-    log,
-    ["attack", "attack"],
-    "the left bumper is its own press",
-  );
+  // Whichever finger is free: the other face button, either bumper, either trigger, each its own press.
+  for (const button of [2, 4, 5, 6, 7]) {
+    log.length = 0;
+    pads.poll([pad([0, 0], [button])]);
+    assert.deepEqual(log, ["attack"], `button ${button} attacks`);
+    pads.poll([pad([0, 0], [button])]);
+    assert.deepEqual(log, ["attack"], `button ${button} held attacks once`);
+    pads.poll([pad([0, 0])]);
+  }
+  // A trigger the browser does not call pressed, pulled past half way, counts too.
+  log.length = 0;
+  const pulled: PadLike = {
+    ...pad([0, 0]),
+    buttons: pad([0, 0]).buttons.map((button, index) =>
+      index === 7 ? { pressed: false, value: 0.8 } : button,
+    ),
+  };
+  pads.poll([pulled]);
+  assert.deepEqual(log, ["attack"], "a pulled trigger attacks");
+  log.length = 0;
   pads.poll([pad([0, 0], [0, 4])]);
-  assert.deepEqual(log.slice(2), [INPUT_HELD, "press"], "A still flaps");
+  assert.deepEqual(log, [INPUT_HELD, "press", "attack"], "A still flaps");
 
   log.length = 0;
   const touch = new Touch(controls);

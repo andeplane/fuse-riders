@@ -49,8 +49,11 @@ export interface CountdownCard {
   wins: readonly { kind: VictoryKind; caption: string }[];
   /** The controls, one row per action, this seat's own first. */
   controls: readonly ControlRow[];
-  /** Name the touch buttons instead of keyboard and gamepad. */
-  touch: boolean;
+  /**
+   * Which caps to name: the touch buttons, the gamepad's alone once a pad is what this device plays with, else the
+   * keyboard and the gamepad side by side.
+   */
+  device: Device;
 }
 
 /** One action of the controls grid: its keyboard, gamepad and touch caps, a short note, and whether this seat uses it. */
@@ -98,7 +101,7 @@ export function controlRows(slot: number): ControlRow[] {
       {
         action: "DIVE",
         keys: ["↓", "S"],
-        pad: ["Stick ↓"],
+        pad: ["Stick ↓", "D-pad ↓"],
         touch: ["Left pad ↓"],
         note: "Queen, hold",
         mine: queen,
@@ -106,7 +109,7 @@ export function controlRows(slot: number): ControlRow[] {
       {
         action: "ATTACK",
         keys: ["X", "Z", "Shift", "J"],
-        pad: ["B / Circle", "LB"],
+        pad: ["B / Circle", "X / Square", "Bumpers", "Triggers"],
         touch: ["ATTACK"],
         note: "Warrior, Queen",
         mine: queen,
@@ -145,7 +148,7 @@ export function countdownCard(
         )
       : [],
     controls: controlRows(slot),
-    touch: device === "touch",
+    device,
   };
 }
 
@@ -175,5 +178,5 @@ export const cardKey = (card: CountdownCard): string =>
     card.first,
     card.wins.map((win) => win.kind),
     card.controls,
-    card.touch,
+    card.device,
   ]);
