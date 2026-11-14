@@ -218,10 +218,8 @@ try {
   ] as const) {
     await page.waitForFunction(
       () =>
-        document.querySelectorAll(
-          ".fui-slot-occupant > .room-rider",
-        ).length === 3 &&
-        document.querySelectorAll(".room-watcher").length === 0,
+        document.querySelectorAll(".fui-slot-occupant > .room-rider").length ===
+          3 && document.querySelectorAll(".room-watcher").length === 0,
       undefined,
       { timeout: smokeTimeout(20000) },
     );
@@ -259,10 +257,8 @@ try {
   ] as const) {
     await page.waitForFunction(
       () =>
-        document.querySelectorAll(
-          ".fui-slot-occupant > .room-rider",
-        ).length === 2 &&
-        document.querySelectorAll(".room-watcher").length === 1,
+        document.querySelectorAll(".fui-slot-occupant > .room-rider").length ===
+          2 && document.querySelectorAll(".room-watcher").length === 1,
       undefined,
       { timeout: smokeTimeout(20000) },
     );
