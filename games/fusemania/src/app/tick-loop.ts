@@ -14,6 +14,10 @@ export interface TickLoop {
   /** Call once a frame: starts the click once the audio clock runs, and keeps it going. */
   frame(): void;
   readonly bpm: number;
+  /** The index of the last tick that sounds, when the click has an end. */
+  readonly last: number | undefined;
+  /** The click had an end and has reached it: it stays silent, and keeps its origin, until `stop()`. */
+  readonly over: boolean;
   /** Counts the click's starts: a clock that stopped and came back starts a new run, with a new origin. */
   readonly run: number;
   /** The audio-clock time (seconds) of this run's tick 0; undefined while the clock is not running. */
@@ -34,19 +38,33 @@ export function createTickLoop(deps: {
   song: ClockedSong;
   bpm: number;
   ticks?: number;
+  /**
+   * How many ticks sound before the click falls silent, for a click with an end. It is ended by the first frame
+   * after its last tick has left the context, going by the audio clock and not by when that tick is heard: with a
+   * long output latency the tick after it would otherwise have left for the speakers already. A frame that stalls
+   * for most of a beat at that moment lets the next tick out; nothing counts it.
+   */
+  count?: number;
 }): TickLoop {
   const beat = beatS(deps.bpm),
-    lapS = (deps.ticks ?? LAP_TICKS) * beat;
+    lapTicks = deps.ticks ?? LAP_TICKS,
+    lapS = lapTicks * beat,
+    count = deps.count;
   let origin: number | undefined,
     lap = 0,
-    run = 0;
+    run = 0,
+    /** The last tick has sounded and the song was let go: the origin stays, for whoever is still listening. */
+    over = false;
   const stop = () => {
-    if (origin !== undefined) deps.song.stop();
+    if (origin !== undefined && !over) deps.song.stop();
     origin = undefined;
+    over = false;
   };
   return {
     frame() {
       const clock = deps.clock();
+      // A click that has ended stays ended, and keeps its origin, whatever the clock does afterwards.
+      if (over) return;
       if (!clock?.running) return stop();
       const now = clock.now();
       if (origin === undefined) {
@@ -56,14 +74,26 @@ export function createTickLoop(deps: {
         deps.song.play(origin, 0);
         return;
       }
+      if (
+        count !== undefined &&
+        now >= origin + (count - 1) * beat + CLICK_S + QUIET_S
+      ) {
+        over = true;
+        deps.song.stop();
+        return;
+      }
       // The lap that may be started now: the one after the lap whose last tick has gone quiet.
       const due = Math.floor((now - origin + beat - CLICK_S - QUIET_S) / lapS);
-      if (due > lap) {
+      if (due > lap && (count === undefined || due * lapTicks < count)) {
         lap = due;
         deps.song.play(origin + lap * lapS, 0);
       }
     },
     bpm: deps.bpm,
+    last: count === undefined ? undefined : count - 1,
+    get over() {
+      return over;
+    },
     get run() {
       return run;
     },

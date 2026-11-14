@@ -6,6 +6,7 @@ import { DefragWindow } from "../defrag/DefragWindow";
 import { ControlPanelWindow } from "../controlpanel/ControlPanelWindow";
 import { ExplorerWindow } from "../explorer/ExplorerWindow";
 import { WallpaperWindow } from "../controlpanel/WallpaperWindow";
+import { FriendsWindow } from "../friends/FriendsWindow";
 import {
   FuseGameWindow,
   POP_OUT_HINT,
@@ -15,9 +16,12 @@ import {
 import { FuseGamesContext } from "../fusegames/registry";
 import { LauncherWindow } from "../launcher/LauncherWindow";
 import { NotepadPlusPlusWindow } from "../notepadpp/NotepadPlusPlusWindow";
+import { NetworkWindow } from "../network/NetworkWindow";
+import { RoomGameWindow } from "../network/RoomGameWindow";
 import { PaintWindow } from "../paint/PaintWindow";
 import { GameWindow } from "../retro/GameWindow";
 import { RetroFolderWindow } from "../retro/RetroFolderWindow";
+import { DialUpWindow } from "../sounds/dialup/DialUpWindow";
 import type { WindowState } from "../state/appState";
 import { WinampPlayer } from "../winamp/WinampPlayer";
 import { MessageBox } from "../windows/MessageBox";
@@ -44,11 +48,23 @@ function WindowContent({
       return (
         <FuseGameWindow
           gameId={window.gameId}
+          room={window.room}
           active={active}
           onActivate={() => commands.focus(window.id)}
           onFrame={(element) => onGameFrame(window.id, element)}
         />
       );
+    case "roomgame":
+      return (
+        <RoomGameWindow
+          gameId={window.gameId}
+          code={window.code}
+          active={active}
+          onActivate={() => commands.focus(window.id)}
+        />
+      );
+    case "network":
+      return <NetworkWindow windowId={window.id} />;
     case "retro":
       return (
         <GameWindow
@@ -91,6 +107,10 @@ function WindowContent({
       );
     case "launcher":
       return <LauncherWindow windowId={window.id} active={active} />;
+    case "dialup":
+      return <DialUpWindow windowId={window.id} then={window.then} />;
+    case "friends":
+      return <FriendsWindow windowId={window.id} />;
     case "defrag":
       return <DefragWindow windowId={window.id} />;
   }

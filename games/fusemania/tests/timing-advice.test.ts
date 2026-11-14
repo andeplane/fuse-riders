@@ -56,6 +56,20 @@ test("a lag too large for a keyboard is the sound's: it goes to the audio offset
   );
 });
 
+test("a lag near half a tick is flagged: it may be the tick before's", () => {
+  // 130 ms at 2.5 ticks a second is a third of a beat.
+  const advice = adviseRun(run("ear", taps(130)), none);
+  assert.equal(advice.verdict, "apply");
+  assert.match(
+    advice.advice,
+    /read the wrong way round: check it at 2 ticks a second\.$/,
+  );
+  assert.doesNotMatch(
+    adviseRun(run("ear", taps(100)), none).advice,
+    /wrong way/,
+  );
+});
+
 test("too few taps or scattered ones are no measurement", () => {
   const few = adviseRun(run("ear", taps(27, 5)), none);
   assert.equal(few.verdict, "few");

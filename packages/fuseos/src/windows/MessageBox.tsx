@@ -1,3 +1,6 @@
+import { useEffect } from "react";
+
+import { usePlaySystemSound } from "../sounds/useSystemSound";
 import { Win98Icon } from "../ui/icons";
 
 export type MessageBoxProps = {
@@ -6,8 +9,12 @@ export type MessageBoxProps = {
   onOk: () => void;
 };
 
-/** Body of a Win98 message box. */
+/** Body of a Win98 message box. Opening one plays the critical stop chord or the default ding. */
 export function MessageBox({ message, icon, onOk }: MessageBoxProps) {
+  const playSystemSound = usePlaySystemSound();
+  useEffect(() => {
+    playSystemSound(icon === "warning" ? "error" : "ding");
+  }, [icon, playSystemSound]);
   return (
     <div className="window-body flex flex-col gap-4">
       <div className="flex items-start gap-3">

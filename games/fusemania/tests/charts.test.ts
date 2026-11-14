@@ -68,6 +68,11 @@ const rowsOf = (chart: SimChart): number[] =>
   [...new Set(stepsOf(chart).map((note) => note.beat))].sort((a, b) => a - b);
 
 const songs = SONGS_DATA.map((data) => ({ data, sim: parseSimfile(data.ssc) }));
+/** Charts ChartNet wrote (`scripts/chartnet`): a learned model's, with conventions of their own (tested below). */
+const isChartNet = (data: { ssc: string }): boolean =>
+  data.ssc.includes("#CREDIT:ChartNet;");
+/** Songs whose charts the rule generator wrote, which keep to its conventions. */
+const ruleSongs = songs.filter(({ data }) => !isChartNet(data));
 
 test("the bundle is every song of the portfolio, once, with audio that exists", () => {
   assert.equal(SONGS_DATA.length, 20);
@@ -145,13 +150,17 @@ test("every chart is well formed: ordered, no doubled arrows, no hands, freezes 
       const holds = chart.notes.filter((note) => note.kind === "hold");
       for (const hold of holds) {
         assert.ok(hold.endBeat !== undefined, where);
+        // ChartNet's freezes are half a beat or more and end on a sixteenth; the generator's a beat or more, ending
+        // on a beat or an eighth (a triplet grid has no eighths: beats only).
+        const chartnet = isChartNet(data);
         assert.ok(
-          hold.endBeat - hold.beat >= 1 - 1e-6,
+          hold.endBeat - hold.beat >= (chartnet ? 0.5 : 1) - 1e-6,
           `${where}: a freeze of ${hold.endBeat - hold.beat} beats at ${hold.beat}`,
         );
-        // The tail is on a beat or an eighth (a triplet grid has no eighths: beats only).
         assert.ok(
-          Number.isInteger(Math.round(hold.endBeat * 1e6) / 5e5),
+          Number.isInteger(
+            Math.round(hold.endBeat * 1e6) / (chartnet ? 2.5e5 : 5e5),
+          ),
           `${where}: a freeze ends off the grid at ${hold.endBeat}`,
         );
         for (const other of chart.notes)
@@ -180,8 +189,8 @@ test("every chart is well formed: ordered, no doubled arrows, no hands, freezes 
     }
 });
 
-test("every chart starts after two seconds, ends inside the song and keeps to its difficulty's density", () => {
-  for (const { data, sim } of songs) {
+test("every generated chart starts after two seconds, ends inside the song and keeps to its difficulty's density", () => {
+  for (const { data, sim } of ruleSongs) {
     const timing = createTiming(sim.timing);
     const analysis = parseAnalysis(
       read(`games/fusemania/charts/analysis/${data.id}.json`),
@@ -223,8 +232,8 @@ test("every chart starts after two seconds, ends inside the song and keeps to it
   }
 });
 
-test("the charts keep to their conventions: few jumps on Easy, no fast jacks, even arrows", () => {
-  for (const { data, sim } of songs)
+test("the generated charts keep to their conventions: few jumps on Easy, no fast jacks, even arrows", () => {
+  for (const { data, sim } of ruleSongs)
     sim.charts.forEach((chart, index) => {
       const where = `${data.id} ${chart.difficulty}`;
       const steps = stepsOf(chart);
@@ -266,10 +275,10 @@ test("the charts keep to their conventions: few jumps on Easy, no fast jacks, ev
     });
 });
 
-test("each difficulty stays near what published charts of that difficulty do", () => {
+test("each difficulty of the generated charts stays near what published charts of that difficulty do", () => {
   // The bundled charts, measured the way `reference-patterns.json` measures published ones.
   const measured = new Map<string, Measures[]>();
-  for (const { data, sim } of songs) {
+  for (const { data, sim } of ruleSongs) {
     const analysis = parseAnalysis(
       read(`games/fusemania/charts/analysis/${data.id}.json`),
     );
@@ -300,7 +309,8 @@ test("each difficulty stays near what published charts of that difficulty do", (
   }
   for (const difficulty of DIFFICULTIES) {
     const reference = referenceFor(difficulty);
-    const charts = measured.get(difficulty)!;
+    const charts = measured.get(difficulty);
+    if (!charts) continue;
     const ours = pool(charts);
     const within = (
       what: string,
@@ -352,6 +362,52 @@ test("each difficulty stays near what published charts of that difficulty do", (
       jacks + 0.1,
     );
     within("jacks on sixteenths", jackRate(ours, "16th"), 0, 0.02);
+  }
+});
+
+/** ChartNet's charts: busier than the generator's, up to its streams and 24th bursts. */
+const CHARTNET_BOUNDS = {
+  Easy: { average: [1.2, 2.4], peak: 4.5, gap: 0.3 },
+  Medium: { average: [1.8, 3.4], peak: 6, gap: 0.16 },
+  Hard: { average: [2.8, 5.2], peak: 10, gap: 0.09 },
+  Challenge: { average: [4, 8.5], peak: 15, gap: 0.05 },
+} as const;
+
+test("ChartNet's charts end inside the song, keep a lead-in and keep to their difficulty's density", () => {
+  for (const { data, sim } of songs.filter((song) => isChartNet(song.data))) {
+    const timing = createTiming(sim.timing);
+    const analysis = parseAnalysis(
+      read(`games/fusemania/charts/analysis/${data.id}.json`),
+    );
+    for (const chart of sim.charts) {
+      const bound =
+        CHARTNET_BOUNDS[chart.difficulty as keyof typeof CHARTNET_BOUNDS];
+      const where = `${data.id} ${chart.difficulty}`;
+      const rows = rowsOf(chart);
+      const times = rows.map((beat) => timing.timeAt(beat));
+      assert.ok(times[0]! >= 1, `${where}: first note at ${times[0]} s`);
+      assert.ok(
+        times[times.length - 1]! < analysis.duration,
+        `${where}: last note after the audio ends`,
+      );
+      let peak = 0;
+      for (let i = 1; i < times.length; i++) {
+        assert.ok(
+          times[i]! - times[i - 1]! >= bound.gap - 1e-3,
+          `${where}: rows ${(times[i]! - times[i - 1]!).toFixed(3)} s apart at beat ${rows[i]}`,
+        );
+        let from = i;
+        while (from > 0 && times[i]! - times[from - 1]! <= 1) from--;
+        peak = Math.max(peak, i - from + 1);
+      }
+      const average =
+        (rows.length - 1) / (times[times.length - 1]! - times[0]!);
+      assert.ok(
+        average >= bound.average[0] && average <= bound.average[1],
+        `${where}: ${average.toFixed(2)} rows a second on average`,
+      );
+      assert.ok(peak <= bound.peak, `${where}: ${peak} rows in one second`);
+    }
   }
 });
 

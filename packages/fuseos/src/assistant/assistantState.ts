@@ -86,6 +86,7 @@ export const ASSISTANT_TIPS: readonly string[] = [
   "Control Panel, Display changes the background, icon spacing, colours and font size.",
   "My brain is a small model that downloads once (about 300 MB) and then runs on your graphics card. Nothing you type leaves this device; Control Panel, Assistant swaps or forgets it.",
   "Right click me for Options, or to hide me. Start, Help, Office Assistant brings me back.",
+  'Pick Clippy Pro in Control Panel, Assistant and I work through a whole chore: "Open Paint, maximize it and play some music".',
 ];
 
 /** The question a tip suggests, quoted inside its text, e.g. "Open Paint and draw a cat."; undefined when the tip suggests nothing to send. */

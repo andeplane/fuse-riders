@@ -56,7 +56,19 @@ function inputs(): ListingInputs {
 }
 
 describe("Explorer's namespace", () => {
-  const folders = shellFolders(START_MENU_REGISTRATIONS);
+  // A build without the optional Desktop folders (Network Neighborhood, the Recycle Bin); the tests that install
+  // them say so.
+  const folders = shellFolders(
+    START_MENU_REGISTRATIONS.filter(
+      (entry) =>
+        ![
+          "network-neighborhood",
+          "network",
+          "recycle-bin",
+          "recyclebin",
+        ].includes(entry.id),
+    ),
+  );
 
   it("has the four system folders of every build under My Computer", () => {
     expect(

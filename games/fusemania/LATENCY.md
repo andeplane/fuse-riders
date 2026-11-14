@@ -7,7 +7,7 @@ A rhythm game has three clocks to line up: when the player **hears** the beat, w
 - **Key press detected until detected in game** is measurable and measured: the browser stamps the event (`event.timeStamp`), and the page records how long after that its listener ran and how long until the next frame. That delay does **not** move a judgment, because the judge uses the stamp, not the time the listener ran.
 - **Before the browser's stamp** (the switch, USB or Bluetooth polling, the operating system) and **after the page hands over a frame or a sample** (compositor, display, Bluetooth audio the browser does not know about) cannot be seen from a page. They can only be measured through the player: by tapping to a click (**CALIBRATE**) or from the errors of a played song (the result's offer).
 - So the design is: stamp everything on the audio clock, measure what is measurable, and fold everything else into three numbers per device: the **audio offset** (sound that arrives later than the browser says), the **input offset** (presses that register late) and the **visual offset** (a picture that arrives late). The game offers to correct the input offset when a song shows a clear bias.
-- `?debugtiming` is the place to find out which of the three a device needs: a panel with the whole chain live, steady click tracks, a microphone that hears the tick and the key, and a log of the session. See **The timing lab** below.
+- **Sync timing** in the main menu (`?timing`) is the place to find out which of the three a device needs: thirty seconds of a steady tick, then one line on what to do and one button. Its panel has the offsets, a microphone that hears the tick and the key, and a log of the session. See **Sync timing** below.
 
 ## The chain
 
@@ -23,7 +23,7 @@ A rhythm game has three clocks to line up: when the player **hears** the beat, w
 | Stamp on the page clock to the audio clock            | under 0.2 ms with the browser's clock pair; under about 1 ms on the stepped clock    | **Yes**: `clock pair jitter`, `audio clock step` | `song-clock.ts` reads `AudioContext.getOutputTimestamp()`, a sample position and the page-clock time it leaves the device taken at one instant, and converts every stamp with it. Where a browser has none, it keeps a smoothed `audio clock − performance.now()` and takes the reported latency off |
 | Audio: Web Audio graph (`baseLatency`)                | 3 to 12 ms                                                                           | **Yes**, as reported by the browser              | Used only where `outputLatency` is not reported. Where it is, the game takes `outputLatency` alone, so if a browser's figure leaves the graph's share out, those few ms end up in the input offset                                                                                                   |
 | Audio: OS mixer and device (`outputLatency`)          | 5 to 40 ms wired; 100 to 300 ms Bluetooth                                            | **Partly**: only what the browser is told        | Taken off the song position, so arrows are drawn where the heard song is. Whatever the browser under-reports is the **audio offset**: it is counted as more latency, so the song starts that much earlier and the picture and the judging move together                                              |
-| Frame handed over to light from the screen            | 1 to 3 frames of compositor and scan-out, plus the panel (TVs: 20 to 100 ms)         | No                                               | A frame is drawn for one refresh after its timestamp (the soonest its pixels can show), measured from the frame intervals. The rest is the visual offset; the timing lab measures it through the player (hits by eye against hits by ear)                                                            |
+| Frame handed over to light from the screen            | 1 to 3 frames of compositor and scan-out, plus the panel (TVs: 20 to 100 ms)         | No                                               | A frame is drawn for one refresh after its timestamp (the soonest its pixels can show), measured from the frame intervals. The rest is the visual offset; the Sync timing screen measures it through the player (hits by eye against hits by ear)                                                    |
 | The player                                            | people tap 10 to 50 ms **ahead** of a steady beat, some behind                       | Only through their hits                          | Input offset                                                                                                                                                                                                                                                                                         |
 | Network (rooms)                                       | tens of ms                                                                           | Yes, and irrelevant                              | A press travels with its song time and is judged at that time on every device. See **The network cannot move a judgment**                                                                                                                                                                            |
 | Phone as a pad for the shared TV                      | the TV's audio and video delay plus the two devices' room-clock difference           | No                                               | The pad stamps taps with the room clock, since it makes no sound. Its input offset has to cover the TV; CALIBRATE on the phone does not measure that (the click comes from the phone), and the result's offer is not shown on a pad either                                                           |
@@ -56,7 +56,7 @@ Add `?latency` to a solo or room URL (for example `/fusemania/?solo=1&latency`) 
 | `audio output latency` | `AudioContext.outputLatency`, or "not reported" (Safari, and any browser before its context has run)                                                                                                                                      |
 | `hit error`            | This song so far: mean and scatter of the player's signed errors, the same numbers the result's offer uses                                                                                                                                |
 
-`scripts/fusemania-latency.ts` plays a song with real browser key events a chosen distance from every note and prints the overlay and the result's offer. With `LAB=1` it drives the timing lab on a click track instead, and with `MIC=1` it adds the microphone through a loopback of the page's own sound with known delays.
+`scripts/fusemania-latency.ts` plays a song with real browser key events a chosen distance from every note and prints the overlay and the result's offer. With `LAB=1` it drives a run on the Sync timing screen instead (`RATE` for the ticks a minute, `MUTE=1` for a run by eye, `APPLY=1` to press APPLY and print what was stored), and with `MIC=1` it adds the microphone through a loopback of the page's own sound with known delays.
 
 ## The three offsets
 
@@ -72,40 +72,49 @@ The audio offset is new. Before it, a Bluetooth lag of 250 ms went into the inpu
 
 A press is logged with its own song time (`event.timeStamp` on the audio clock, offsets taken off), and every device judges it at that time. The one thing the room clock does is bound it: `applyInput` clamps a press's song time to within 300 ms before and 150 ms after the tick it was logged for, so that a device cannot claim a press from another second. A press sits about 150 ms inside those bounds in ordinary play (158 ms at the least in the runs below) and the song is realigned if it drifts 120 ms from the room clock, so the bounds are not reached. The exception was a large input offset: 300 ms of it pushed every press onto the bound, where it was judged late and in 50 ms steps. That is why the input offset now stops at 150 ms and large lags go to the audio offset, which moves the song instead of the press.
 
-The lab shows this live: `room clock: moved 0 of N presses (least room M ms)`. `tests/runtime.test.ts` holds it down: a press keeps its song time and judgment whether it is logged at once or 200 ms late.
+The panel of a `?debugtiming` game shows this live: `room clock: moved 0 of N presses (least room M ms)`. `tests/runtime.test.ts` holds it down: a press keeps its song time and judgment whether it is logged at once or 200 ms late.
 
-## The timing lab
+## Sync timing
 
-![The timing lab beside a click track, the microphone listening](../../docs/images/fusemania-debugtiming.jpg)
+![The Sync timing screen after a run by ear: what was measured, what to do, and APPLY](../../docs/images/fusemania-sync-timing.jpg)
 
-`/fusemania/?debugtiming` opens a solo game on a click track with a panel beside it. The flag also works on any room or solo URL and stays on through the menus.
+**Sync timing** in the main menu (`/fusemania/?timing`, or `?sync`) is a screen of its own for setting the offsets. It is not a game: there is no song, chart, score or room, only a tick and one lane of arrows.
+
+A run is four lead-in ticks and then thirty seconds of a steady tick (2, 2.5 or 3 a second), tapped on any arrow key or on the lane. The tick is made in the page from the same numbers the taps are counted with (`src/app/click-track.ts`), and one short lap of it is started again and again on the audio clock (`src/app/tick-loop.ts`), so tick `n` leaves the context at exactly `origin + n × beat`: there is no chart or encoder error to wonder about. When the run ends the screen says what it measured, what to do, and offers **APPLY** (`src/app/timing-advice.ts`):
+
+- **START BY EAR.** The tick is heard. The centre of the taps is the whole lag between the sound and the press: under 80 ms it goes to the input offset, more goes to the audio offset. Within 3 ms of where the offsets already are, the screen says there is nothing to change.
+- **CHECK THE PICTURE BY EYE.** The tick is silent and only the arrows are followed. What the taps by eye are later than the taps by ear is the picture's, and goes to the visual offset: the same player and keyboard, so the difference is the display.
+- Fewer than eight taps, or taps spread 40 ms or more, are no measurement, and the screen asks for another run. A lag near half a tick can belong to the tick before, and the advice says to check it at 2 ticks a second.
+- A run is stopped with Escape or **STOP**, and aborted with a message when the sound stops under it or the tick cannot be loaded.
+
+Two runs by the same player differ by several ms (7 ms on the MacBook below), so a difference that small between runs is the player, not the device.
+
+Beside the run is a panel:
 
 - **Offsets.** The three knobs in steps of 1 and 5 ms, applied at once.
-- **Steady click track.** A tick 2, 2.5 or 3 times a second with a note on every tick, made in the page from the same numbers as its chart, so there is no chart or encoder error to wonder about. Any other song works too.
-- **Hit error.** A histogram of this session's signed errors over the judgment windows, by ear and, after pressing **M** (sound off, the song still running), by eye. **CENTRE BY EAR** moves the input offset by the mean. **SET VISUAL** sets the visual offset to what the hits by eye are later than the hits by ear: the same player and keyboard, so the difference is the picture.
+- **Hit error.** A histogram of this session's signed errors over the judgment windows, by ear and by eye, with **CENTRE BY EAR** and **SET VISUAL** doing by hand what APPLY does.
 - **Microphone.** See below.
-- **Press to judgment.** The probe's table, a histogram of press to frame, and the last presses one by one: stamp to listener, stamp to frame, the song time it was judged at and the judgment.
-- **Clocks.** Which mapping is in use, how far the heard position is behind the audio clock against what the browser reports, the song's distance from the room clock and how often it was restarted, the display's refresh and the frame lead, and the room-clock line above.
+- **Details** (open with `?timing&debugtiming`): the probe's table, a histogram of press to frame, the last presses one by one, and the clocks: which mapping is in use, how far the heard position is behind the audio clock against what the browser reports, the display's refresh and the frame lead.
 - **COPY** puts all of it on the clipboard as text. **SAVE LOG** downloads the session.
 
-`?audioclock=reported` plays on the stepped clock and the reported latency instead of the clock pair, to compare the two on one device.
+`?debugtiming` on a room or solo URL shows the same panel beside a real game, in a column of its own, with the room-clock lines added and a button to the Sync timing screen. `?audioclock=reported` plays on the stepped clock and the reported latency instead of the clock pair, to compare the two on one device.
 
 ### The microphone
 
 **LISTEN WITH THE MICROPHONE** asks for the microphone (only ever from that button) with echo cancelling, noise suppression and gain control off. Nothing is recorded, stored or sent: the samples are reduced on the spot to two loudness envelopes of the last eight seconds, one around the tick's 6 kHz and one where a key's thud is, in quarter-millisecond bins on the audio clock's own frame count.
 
-Play a click track through the **speakers** and tap along on the keyboard. The microphone hears each tick and each key:
+Start a run by ear with the tick on the **speakers** and tap along on the keyboard. The microphone hears each tick and each key:
 
 - **finger vs tick (microphone)** is when the key sounded against when the tick sounded. Both went through the same microphone, so its delay cancels. This is what the player really did.
 - **press vs tick (game)** is what the game made of the same press.
 - **game − microphone** is therefore the device's error that the offsets do not yet cover: keyboard, operating system, stamp, and any audio delay the browser did not report. The player's habit of tapping early is in both and drops out. **APPLY** puts it into the offsets (the audio offset when it is large).
 - **input path jitter** is the scatter of the stamp against the key's sound: how evenly the keyboard and the browser deliver presses.
 
-Limits: the key is heard when it bottoms out, a few ms after the switch closes, so a result within a few ms of zero is as good as this gets. Headphones do not work (the microphone cannot hear them) unless an earpiece is held to it. A wireless headset's own microphone is late, narrow and far from the keyboard, so the lab picks another microphone when there is one. Touch screens make no sound to hear. The browser may leave some processing on although asked not to; the panel says so when it does.
+Limits: the key is heard when it bottoms out, a few ms after the switch closes, so a result within a few ms of zero is as good as this gets. Headphones do not work (the microphone cannot hear them) unless an earpiece is held to it. A wireless headset's own microphone is late, narrow and far from the keyboard, so the screen picks another microphone when there is one. Touch screens make no sound to hear. The browser may leave some processing on although asked not to; the panel says so when it does.
 
 ### The session file
 
-Everything above is also a log of JSON lines: the session's device and settings, every press (stamp, listener, frame, song time, slack to the tick bounds, judgment), clock readings once a second, offset changes, every tick and key the microphone heard, and a summary every five seconds. On a local dev server (`pnpm dev`, or `pnpm exec tsx service/dev.ts`) the page posts it to `/api/dev/timing-log` and the server appends it to `timing-logs/fusemania-<session>.jsonl` in the repository, where whoever debugs the timing next (a person or an agent) can read the whole session. The deployed service has no such route and the page does not ask it; there, **SAVE LOG** downloads the same file. A phone on the same network is served by the dev server only when its origin is allowed (`--allow-origin http://<address>:<port>`), and the log with it; the panel says when the server took none. Names in the log are the song and the browser; no player names, room codes or audio.
+Everything above is also a log of JSON lines: the session's device and settings, every press (stamp, listener, frame, song time, slack to the tick bounds, judgment), clock readings once a second, offset changes, every tick and key the microphone heard, a summary every five seconds, and for the Sync timing screen a `run` line when a run starts and a `result` line when it ends, with the advice and every tap in ms from the first counted tick. On a local dev server (`pnpm dev`, or `pnpm exec tsx service/dev.ts`) the page posts it to `/api/dev/timing-log` and the server appends it to `timing-logs/fusemania-<session>.jsonl` in the repository, where whoever debugs the timing next (a person or an agent) can read the whole session. The deployed service has no such route and the page does not ask it; there, **SAVE LOG** downloads the same file. A phone on the same network is served by the dev server only when its origin is allowed (`--allow-origin http://<address>:<port>`), and the log with it; the panel says when the server took none. Names in the log are the song and the browser; no player names, room codes or audio.
 
 ### Measured here
 
@@ -130,9 +139,9 @@ Reading it: the listener ran 0.6 ms after the browser's stamp at the median and 
 
 These are a cloud container's figures: no display, no audio device, and keys injected into the browser rather than typed. They show that the page's own share is small and that the stamp, not the handling time, carries the judgment. They say nothing about a keyboard, a screen or a pair of headphones; the overlay on the device in question does, for the rows it can see.
 
-### Measured with the lab
+### Measured with the microphone
 
-`LAB=1 MIC=1 SECONDS=16 ONLINE_URL=http://localhost:8890/ pnpm exec tsx scripts/fusemania-latency.ts`, same container, the click track at 2.5 ticks a second, 31 keys sent 18 ms before their ticks. The microphone is a loopback the script puts in the page: the page's sound delayed 50 ms like a speaker, and a thud 12 ms before each key's stamp like a keyboard. The song clock should therefore be found 62 ms short, less the latency it already counts.
+`LAB=1 MIC=1 SECONDS=16 ONLINE_URL=http://localhost:8890/ pnpm exec tsx scripts/fusemania-latency.ts`, same container, the tick at 2.5 a second, 31 keys sent 18 ms before their ticks. (The table is from the revision where the tick was still a click-track song; on the Sync timing screen the same command over 12 seconds heard 33 of 33 ticks and 29 of 29 keys, advised −17 ms and put game − microphone at +20.2 ±0.2 ms.) The microphone is a loopback the script puts in the page: the page's sound delayed 50 ms like a speaker, and a thud 12 ms before each key's stamp like a keyboard. The song clock should therefore be found 62 ms short, less the latency it already counts.
 
 |                                    | Clock pair                 | `?audioclock=reported` |
 | ---------------------------------- | -------------------------- | ---------------------- |
@@ -150,6 +159,8 @@ So the microphone finds a known error to within a millisecond or two through the
 
 On a MacBook (Chrome 157, 120 Hz display, a silent context on the live site, so no keys and no sound): `outputLatency` 168 ms and steady, the audio clock advancing 5.3 or 10.7 ms at a time with a reading up to 5.3 ms stale, the clock pair holding within 0.17 ms from frame to frame and putting the output 176 ms behind the clock, 8 ms more than `outputLatency` says. Those 8 ms were in every judgment before the clock pair was used.
 
+On the same MacBook with a person tapping (speakers, built-in keyboard, 2.5 ticks a second, input offset +27 ms): one run by ear centred on 26.7 ms (±11 ms over 72 taps, nothing to change) and the next, five minutes later, on 33.6 ms (±10 ms over 71 taps, +34 offered). Each run's centre is good to about 2 ms, so the 7 ms between them is the player from run to run; the two together say +30 ms.
+
 ## What cannot be measured in software
 
 - **Display latency.** No web API reports when a frame's light leaves the panel. `requestAnimationFrame` timestamps are the start of a frame, not its presentation. A phone camera filming the key and the screen is the cheap way; the visual offset is the knob.
@@ -157,7 +168,7 @@ On a MacBook (Chrome 157, 120 Hz display, a silent context on the live site, so 
 - **Audio the browser is not told about.** `outputLatency` is the operating system's own estimate. It is usually right for wired output, often short for Bluetooth, and missing on Safari. HDMI to a TV or a soundbar adds delay nobody reports.
 - **The player.** Anticipation is real, differs between people and changes with tempo and tiredness.
 
-All four end up in the same place: the distance between when the game heard the beat and when it saw the press, which is why the game measures it through the player. The timing lab narrows it from outside: the microphone separates the device from the player for anything that makes a sound (speakers and a keyboard), and playing by eye separates the picture from the sound. What stays out of reach of any page is the display on its own (a camera filming the key and the screen is the cheap way), headphones nobody holds to a microphone, and the few ms between a switch closing and a key bottoming out.
+All four end up in the same place: the distance between when the game heard the beat and when it saw the press, which is why the game measures it through the player. The Sync timing screen narrows it from outside: the microphone separates the device from the player for anything that makes a sound (speakers and a keyboard), and playing by eye separates the picture from the sound. What stays out of reach of any page is the display on its own (a camera filming the key and the screen is the cheap way), headphones nobody holds to a microphone, and the few ms between a switch closing and a key bottoming out.
 
 ## The result's offer
 

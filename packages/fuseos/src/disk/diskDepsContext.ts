@@ -6,14 +6,14 @@ import type { DiskSource } from "./diskSource";
 import { GitHubDiskSource } from "./diskSource";
 import type { FloppyJokeGate } from "./floppy";
 import { MemoryFloppyJokeGate } from "./floppy";
-import { createFloppySeek } from "./floppySound";
+import { createFloppySeek } from "./floppySeek";
 
 /** Everything the drives need from outside: GitHub, the browser's storage, the floppy's theatrics. */
 export type DiskDeps = {
   source: DiskSource;
   overlay: DiskOverlay;
   jokeGate: FloppyJokeGate;
-  /** Opening A: waits for this (the seek noise and its delay) before showing the listing. */
+  /** Opening A: waits for this (the drive seeking; the noise is the "floppy" system sound) before showing the listing. */
   floppySeek: () => Promise<void>;
 };
 
