@@ -153,6 +153,8 @@ const names = keys(GAME);
 const muted = new URLSearchParams(location.search).has("mute");
 /** `?debugtiming`: the timing lab's panel, its click tracks and its session log. */
 const debugTiming = new URLSearchParams(location.search).has("debugtiming");
+/** The timing mode's fields name no chart: there is one, a note on every tick. */
+const NO_CHART_NAMES: readonly string[] = [];
 /** `?audioclock=reported`: read the song position from the stepped audio clock, to compare with the clock pair. */
 const pairedClock =
   new URLSearchParams(location.search).get("audioclock") !== "reported";
@@ -1010,6 +1012,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   // ---- drawing: the room's newest world, this device's own keys played ahead to what it hears, once per frame ----
   const scene = createScene(canvas, {
     reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+    scoreless: debugTiming,
     createCanvas: browserCanvas,
   });
   let model: Model | undefined;
@@ -1218,7 +1221,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       speed: prefs.speed,
       down: prefs.down,
       title: model.title,
-      chartNames: model.chartNames,
+      chartNames: debugTiming ? NO_CHART_NAMES : model.chartNames,
       totals: model.totals,
       itemKey: coarse() ? "ITEM" : keyLabel(prefs.keys.item[0] ?? ""),
     });
@@ -1331,11 +1334,21 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       // Decoded while the players choose, so START never waits for it.
       songOf(view.settings.song, performance.now());
     } else preview.stop();
-    if (view.stage === "over" && lastStage === "running" && next.result)
+    if (
+      !debugTiming &&
+      view.stage === "over" &&
+      lastStage === "running" &&
+      next.result
+    )
       sfx.fanfare(
         !next.result.rows.some((row) => row.you && /^[CD]$/.test(row.grade)),
       );
-    if (view.stage === "over" && lastStage === "running" && view.world)
+    if (
+      !debugTiming &&
+      view.stage === "over" &&
+      lastStage === "running" &&
+      view.world
+    )
       judgeTiming(view.world.song);
     else if (view.stage !== "over" && (timingOffer || timingNote)) {
       timingOffer = undefined;
@@ -1430,7 +1443,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     controllerResult.hidden = !(next.result && next.result.host);
     // The result.
     const result = next.result;
-    card.hidden = !result || next.screen === "controller";
+    // The timing mode has no result: the track starts over as soon as it ends.
+    card.hidden = debugTiming || !result || next.screen === "controller";
     if (result) {
       setText(cardTitle, result.title);
       const rows = JSON.stringify(result.rows);
@@ -1488,6 +1502,19 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   );
   let joinSent = false,
     pickSent = false;
+  /** The match the timing mode last restarted or started, so each end or lobby is answered once. */
+  let looped = "";
+  const loopTiming = (frame: { matchId: string; stage: string }) => {
+    const key = `${frame.stage}:${frame.matchId}`;
+    if (looped === key) return;
+    if (frame.stage === "over") {
+      looped = key;
+      runtime.command({ type: "action", action: "rematch" });
+    } else if (frame.stage === "lobby") {
+      looped = key;
+      runtime.command({ type: "action", action: "start" });
+    }
+  };
   const callbacks: FusemaniaCallbacks = {
     state(frame, roomSettings) {
       const players =
@@ -1510,7 +1537,9 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       let bestBefore: number | undefined;
       const world = frame.world;
       const mine = world?.players.find((each) => each.id === viewer.me);
-      if (frame.stage === "over" && world && mine && !mine.bot) {
+      // The timing mode keeps no score: nothing settles a best or counts as a song played, and the track goes round.
+      if (debugTiming) loopTiming(frame);
+      else if (frame.stage === "over" && world && mine && !mine.bot) {
         const key = bestKey(library, world.song, mine.chart);
         const decided = runtime.roomState()?.decided?.clock;
         const confirmed =

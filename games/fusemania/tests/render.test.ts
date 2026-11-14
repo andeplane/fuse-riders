@@ -1206,6 +1206,13 @@ test("more than one rider: a box each on the right, ranked, with place, name, sc
   const solo = rig().frame(world([rider(0, { rating: 5 })]), shot(steps, 1000));
   assert.ok(!texts(solo).includes("1ST") && !texts(solo).includes("YOU"));
   assert.ok(texts(solo).includes("0000005"));
+
+  // The timing mode keeps no score: the field's header has no score in it.
+  const timing = rig(1366, 768, 1, { scoreless: true }).frame(
+    world([rider(0, { rating: 5 })]),
+    shot(steps, 1000),
+  );
+  assert.ok(!texts(timing).includes("0000005"));
 });
 
 test("an overtake slides the boxes to their new rows over several frames, the riser on top, and tells the local rider", () => {

@@ -93,6 +93,8 @@ export interface FieldInfo {
   texts: RiderTexts;
   /** The gap in score to the rider next to this one in the standings, or NaN to show none. */
   gap: number;
+  /** No score in the header: the timing mode measures, it does not keep score. */
+  scoreless?: boolean;
   banner: number;
   bannerAt: number;
 }
@@ -805,6 +807,7 @@ function header(
       "right",
       width,
     );
+  if (info.scoreless) return;
   label(
     g,
     scoreText(info.texts.score, player.rating),

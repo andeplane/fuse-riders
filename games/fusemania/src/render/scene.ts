@@ -35,6 +35,8 @@ export type { CanvasFactory, Pen, SceneCanvas, SpriteCanvas } from "./pen.js";
 export interface SceneOptions {
   /** No beat pulses, bounces, flashes or shakes of the chrome. The attacks stay: they are the game. */
   reducedMotion?: boolean;
+  /** No score on the fields: the timing mode, which measures timing and keeps no score. */
+  scoreless?: boolean;
   /**
    * Makes an offscreen canvas for a pre-rendered sprite; in a browser,
    * `(w, h) => { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; }`.
@@ -124,6 +126,7 @@ export function createScene(canvas: SceneCanvas, options: SceneOptions): Scene {
     columns: PLAIN,
     texts: texts[0]!,
     gap: Number.NaN,
+    scoreless: options.scoreless === true,
     banner: 0,
     bannerAt: 0,
   };

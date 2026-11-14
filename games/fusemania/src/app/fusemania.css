@@ -729,6 +729,10 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"])) #app {
 }
 
 /* ---- the timing lab (?debugtiming) ---- */
+/* The timing mode is not a room: it never shows the lobby, it starts the track itself. */
+body:has(.fm-dt) .fm-lobby {
+  display: none;
+}
 /* On a wide screen the open panel takes its own column, so the song bar, the lanes and the song select stay whole beside it. */
 @media (min-width: 48rem) {
   body:has(.fm-dt:not(.fm-dt-closed)) #app {
