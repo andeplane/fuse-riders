@@ -1,7 +1,7 @@
 import type { KeyboardEvent } from "react";
 
 import { keysFor } from "../lib/shortcuts";
-import { DRIVE_A, DRIVE_C, MY_COMPUTER } from "../disk/diskPath";
+import { DRIVE_A, DRIVE_C, driveOf, MY_COMPUTER } from "../disk/diskPath";
 import type { ContextMenuItem } from "../windows/ContextMenu";
 import { ContextMenu } from "../windows/ContextMenu";
 import type { MenuDef, MenuItemDef } from "../windows/MenuBar";
@@ -11,6 +11,7 @@ import {
   menuPositionAt,
   menuPositionFor,
 } from "../windows/menuPosition";
+import type { WindowCommands } from "../windows/useWindowCommands";
 import { useWindowCommands } from "../windows/useWindowCommands";
 
 import { AddressBar } from "./AddressBar";
@@ -38,7 +39,10 @@ function viewItems(vm: ExplorerViewModel) {
   }));
 }
 
-function entryMenuItems(vm: ExplorerViewModel): ContextMenuItem[] {
+function entryMenuItems(
+  vm: ExplorerViewModel,
+  commands: WindowCommands,
+): ContextMenuItem[] {
   const entry = vm.contextMenu?.entry;
   if (!entry)
     return [
@@ -48,12 +52,24 @@ function entryMenuItems(vm: ExplorerViewModel): ContextMenuItem[] {
       { separator: true },
       { label: "Properties", onSelect: () => vm.showProperties(undefined) },
     ];
+  const drive = entry.kind === "drive" ? driveOf(entry.location) : undefined;
   return [
     {
       label: entry.kind === "file" ? "Open" : "Explore",
       bold: true,
       onSelect: () => vm.open(entry),
     },
+    // A drive's Properties > Tools, cut down to the one button anyone pressed.
+    ...(drive
+      ? [
+          { separator: true as const },
+          {
+            label: "Defragment Now...",
+            onSelect: () =>
+              commands.open({ kind: "defrag", drive, stage: "running" }),
+          },
+        ]
+      : []),
     ...(entry.modified
       ? [
           { separator: true as const },
@@ -347,7 +363,7 @@ export function ExplorerWindow({ windowId, location }: ExplorerWindowProps) {
         <ContextMenu
           label="Context menu"
           position={vm.contextMenu.position}
-          items={entryMenuItems(vm)}
+          items={entryMenuItems(vm, commands)}
           onClose={vm.closeContextMenu}
         />
       ) : null}

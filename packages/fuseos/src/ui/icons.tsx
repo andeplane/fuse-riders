@@ -43,6 +43,7 @@ import { Winmine1 } from "@react95/icons/Winmine1";
 import type { ComponentType, SVGProps } from "react";
 
 import { WinampLogo } from "../assets/WinampLogo";
+import { DefragIcon } from "../defrag/DefragIcon";
 import { FusteamLogo } from "../launcher/FusteamLogo";
 
 /** Every icon the desktop can show; a name rather than a component so window state stays serializable. */
@@ -91,6 +92,7 @@ export type IconName =
   | "codeFile"
   | "unknownFile"
   | "fusteam"
+  | "defrag"
   | "desktop"
   | "printers"
   | "controlPanelFolder"
@@ -159,6 +161,7 @@ const ICONS: Record<IconName, IconComponent> = {
   codeFile: Shell322,
   unknownFile: Shell321,
   fusteam: FusteamLogo,
+  defrag: DefragIcon,
   desktop: Desktop,
   printers: FolderPrint,
   controlPanelFolder: FolderSettings,

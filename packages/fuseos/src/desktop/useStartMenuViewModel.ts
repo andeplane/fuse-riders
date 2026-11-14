@@ -111,7 +111,16 @@ export function useStartMenuViewModel(): {
           label: "Accessories",
           icon: "programs",
           // Paint, Winamp, Explorer, Notepad++ and the wallpaper picker are registrations (`startMenuRegistry.ts`).
-          children: registered("accessories"),
+          children: [
+            ...registered("accessories"),
+            // Disk Defragmenter and whatever else registers as a system tool; the folder is always there, as in Windows.
+            {
+              id: "system-tools",
+              label: "System Tools",
+              icon: "programs",
+              children: registered("system-tools"),
+            },
+          ],
         },
         {
           id: "games",
