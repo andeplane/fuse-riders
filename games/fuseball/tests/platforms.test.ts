@@ -378,7 +378,7 @@ test("the movers' clock stands still through the countdown and a goal's freeze, 
 });
 
 test("a checkpoint whose clock is ahead of its steps, running in a countdown, or not a whole number is refused", () => {
-  const CLOCK = 17;
+  const CLOCK = 15;
   const world = playing("stacktrace");
   steps(world, 40);
   const good = encodeWorld(world);

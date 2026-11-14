@@ -5,10 +5,9 @@ import { SUB, px } from "./math.js";
  * step and accelerations sub-units per step per step: 4096 sub-units a step is one pixel a step, 120 pixels a second.
  * Changing any of them changes the rules: bump `RULES` and re-record the golden.
  */
+/** The screen the presentation draws to, in pixels: a duel arena fills it, a bigger one is seen through a camera. */
 export const VIEW_W = 640,
   VIEW_H = 360;
-export const WORLD_W = px(VIEW_W),
-  WORLD_H = px(VIEW_H);
 
 export const STEPS_PER_SECOND = 120;
 /** Micro-steps in one 50 ms log tick at full speed. */
@@ -49,7 +48,10 @@ export const GOAL_FREEZE_STEPS = 156,
   GOAL_STEPS = GOAL_FREEZE_STEPS + ZAP_STEPS,
   GOAL_TICKS = 26 + 94;
 
-export const CAPACITY = 2;
+/** The most riders in a match: three a side. */
+export const CAPACITY = 6;
+/** The most riders a side. */
+export const TEAM_MAX = 3;
 /** Points that win the match. */
 export const TARGET = 3;
 export const COUNTDOWN_STEPS = 3 * STEPS_PER_SECOND;

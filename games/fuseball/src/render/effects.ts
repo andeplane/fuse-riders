@@ -35,7 +35,7 @@ export type Cue =
   /** A jump, an air-jump or a quick drop, where the rider was. */
   | { kind: "jump"; slot: 0 | 1; x: number; y: number; grounded: boolean }
   /** A new bubble. */
-  | { kind: "bubble"; slot: 0 | 1; x: number; y: number }
+  | { kind: "bubble"; slot: 0 | 1; index: number; x: number; y: number }
   /** The bubble a new one replaced: the trail ring. */
   | { kind: "trail"; slot: 0 | 1; x: number; y: number }
   /** A bubble burst, by the ball or by the other rider. */
@@ -49,6 +49,7 @@ export type Cue =
   | {
       kind: "zap";
       slot: 0 | 1;
+      index: number;
       x: number;
       y: number;
       fromX: number;
@@ -87,21 +88,28 @@ export function goalNear(
     const at = isCircle(goal)
       ? { x: goal.x, y: goal.y }
       : { x: goal.x + goal.w / 2, y: goal.y + goal.h / 2 };
-    const far =
-      gap(at.x, x, VIEW_W, map.wrapX) + gap(at.y, y, VIEW_H, map.wrapY);
+    const far = gap(at.x, x, map.w, map.wrapX) + gap(at.y, y, map.h, map.wrapY);
     if (far < nearest) [best, nearest] = [at, far];
   }
   return best;
 }
 
 export function cues(older: WorldView | undefined, newer: WorldView): Cue[] {
-  if (!older || older.mapId !== newer.mapId || older.seed !== newer.seed)
+  if (
+    !older ||
+    older.mapId !== newer.mapId ||
+    older.seed !== newer.seed ||
+    older.riders.length !== newer.riders.length
+  )
     return [];
   const found: Cue[] = [];
   const reset = newer.phase === "countdown" && older.phase !== "countdown";
-  for (const slot of SLOTS) {
-    const was = older.riders[slot],
-      now = newer.riders[slot];
+  for (const now of newer.riders) {
+    const { index, slot } = now,
+      was = older.riders[index],
+      before = older.bubbles[index],
+      bubble = newer.bubbles[index];
+    if (!was || !before || !bubble) continue;
     if (ahead(was.jumps, now.jumps))
       found.push({
         kind: "jump",
@@ -110,14 +118,12 @@ export function cues(older: WorldView | undefined, newer: WorldView): Cue[] {
         y: was.y,
         grounded: was.grounded,
       });
-    const before = older.bubbles[slot],
-      bubble = newer.bubbles[slot];
     const placed = ahead(before.seq, bubble.seq) > 0;
     if (placed) {
       if (before.active)
         found.push({ kind: "trail", slot, x: before.x, y: before.y });
       if (bubble.active)
-        found.push({ kind: "bubble", slot, x: bubble.x, y: bubble.y });
+        found.push({ kind: "bubble", slot, index, x: bubble.x, y: bubble.y });
     } else if (before.seq === bubble.seq) {
       if (before.active && !bubble.active && !reset)
         found.push({ kind: "pop", slot, x: before.x, y: before.y });
@@ -140,16 +146,17 @@ export function cues(older: WorldView | undefined, newer: WorldView): Cue[] {
     const goal = goalNear(newer, team, ball.x, ball.y);
     found.push({ kind: "goal", team, ...goal, suddenDeath: newer.suddenDeath });
   }
-  for (const slot of SLOTS) {
-    const rider = newer.riders[slot];
+  for (const rider of newer.riders) {
+    const { index, slot } = rider;
     // The rider is struck when the freeze that follows the goal lets go.
     const struck = rider.zapped && !newer.frozen,
-      was = older.riders[slot].zapped && !older.frozen;
+      was = older.riders[index]?.zapped === true && !older.frozen;
     if (!struck || was) continue;
     const from = goalNear(newer, slot === 0 ? 1 : 0, ball.x, ball.y);
     found.push({
       kind: "zap",
       slot,
+      index,
       x: rider.x,
       y: rider.y,
       fromX: from.x,
@@ -217,9 +224,9 @@ export interface Effects {
   drawOverlay(g: Paint): void;
   /** How far to shift the field this frame, in pixels: the shake after a goal. */
   shake(): { x: number; y: number };
-  /** Milliseconds since `slot`'s bubble appeared, or since its rider was zapped; huge when it was not seen. */
-  bubbleAge(slot: 0 | 1, nowMs: number): number;
-  zapAge(slot: 0 | 1, nowMs: number): number;
+  /** Milliseconds since the bubble of the rider at `index` appeared, or since that rider was zapped; huge when it was not seen. */
+  bubbleAge(index: number, nowMs: number): number;
+  zapAge(index: number, nowMs: number): number;
   /** Particles alive now. */
   count(): number;
   reset(): void;
@@ -252,13 +259,14 @@ export function createEffects(options: EffectsOptions = {}): Effects {
   let cursor = 0,
     last: WorldView | undefined,
     lastMs: number | undefined,
-    beam: Beam | undefined,
+    beams: Beam[] = [],
     flash: { team: 0 | 1; age: number } | undefined,
     shaking = SHAKE_S,
     slow = 0,
     puffDebt = 0;
-  const born = [-Infinity, -Infinity],
-    zapped = [-Infinity, -Infinity];
+  /** When each rider's bubble appeared and when each was zapped, by the rider's place. */
+  const born: number[] = [],
+    zapped: number[] = [];
 
   const spawn = (
     shape: Shape,
@@ -329,7 +337,7 @@ export function createEffects(options: EffectsOptions = {}): Effects {
         break;
       }
       case "bubble":
-        born[cue.slot] = nowMs;
+        born[cue.index] = nowMs;
         break;
       case "trail":
         spawn("ring", cue.x, cue.y, TEAM[cue.slot], 0.5, BUBBLE_RADIUS, {
@@ -367,11 +375,12 @@ export function createEffects(options: EffectsOptions = {}): Effects {
         burst(cue.x, cue.y, BALL_HOT, 8, 140);
         break;
       case "zap": {
-        zapped[cue.slot] = nowMs;
+        zapped[cue.index] = nowMs;
         const team = cue.slot === 0 ? 1 : 0;
-        beam = { ...cue, team, age: 0 };
+        beams.push({ ...cue, team, age: 0 });
+        if (!view.riders[cue.index]) break;
         // The rider comes apart into the pixels it was drawn with.
-        const rider = view.riders[cue.slot],
+        const rider = view.riders[cue.index]!,
           left = cue.x - SPRITE_W / 2,
           top = cue.y - SPRITE_H / 2;
         for (const run of FRAMES[frameFor(rider)]) {
@@ -418,7 +427,7 @@ export function createEffects(options: EffectsOptions = {}): Effects {
       p.y += p.vy * dt;
       p.size = Math.max(0, p.size + p.grow * dt);
     }
-    if (beam && (beam.age += seconds) >= BEAM_S) beam = undefined;
+    beams = beams.filter((beam) => (beam.age += seconds) < BEAM_S);
     if (flash && (flash.age += seconds) >= FLASH_S) flash = undefined;
     shaking = Math.min(SHAKE_S, shaking + seconds);
     // The vignette follows the arena's speed: clear at full speed, full at a cloud's core and below.
@@ -489,43 +498,44 @@ export function createEffects(options: EffectsOptions = {}): Effects {
         g.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
       }
       g.globalAlpha = 1;
-      if (!beam) return;
-      const left = 1 - beam.age / BEAM_S,
-        dx = beam.x - beam.fromX,
-        dy = beam.y - beam.fromY,
-        length = Math.hypot(dx, dy) || 1,
-        nx = -dy / length,
-        ny = dx / length,
-        joints = Math.max(3, Math.round(length / 22));
-      // A new jagged path every frame: lightning, not a ruler.
-      g.beginPath();
-      g.moveTo(beam.fromX, beam.fromY);
-      for (let i = 1; i < joints; i++) {
-        const along = i / joints,
-          off = (random() - 0.5) * 16 * left;
-        g.lineTo(
-          beam.fromX + dx * along + nx * off,
-          beam.fromY + dy * along + ny * off,
-        );
-      }
-      g.lineTo(beam.x, beam.y);
-      g.lineWidth = 9;
-      g.strokeStyle = hexA(TEAM[beam.team], 0.2 * left);
-      g.stroke();
-      g.lineWidth = 4;
-      g.strokeStyle = hexA(TEAM[beam.team], 0.75 * left);
-      g.stroke();
-      g.lineWidth = 1.5;
-      g.strokeStyle = hexA(WHITE, Math.min(1, left * 1.5));
-      g.stroke();
-      for (const [x, y, r] of [
-        [beam.fromX, beam.fromY, 10],
-        [beam.x, beam.y, 14],
-      ] as const) {
+      for (const beam of beams) {
+        const left = 1 - beam.age / BEAM_S,
+          dx = beam.x - beam.fromX,
+          dy = beam.y - beam.fromY,
+          length = Math.hypot(dx, dy) || 1,
+          nx = -dy / length,
+          ny = dx / length,
+          joints = Math.max(3, Math.round(length / 22));
+        // A new jagged path every frame: lightning, not a ruler.
         g.beginPath();
-        g.arc(x, y, r * left, 0, Math.PI * 2);
-        g.fillStyle = hexA(TEAM_LIGHT[beam.team], 0.55 * left);
-        g.fill();
+        g.moveTo(beam.fromX, beam.fromY);
+        for (let i = 1; i < joints; i++) {
+          const along = i / joints,
+            off = (random() - 0.5) * 16 * left;
+          g.lineTo(
+            beam.fromX + dx * along + nx * off,
+            beam.fromY + dy * along + ny * off,
+          );
+        }
+        g.lineTo(beam.x, beam.y);
+        g.lineWidth = 9;
+        g.strokeStyle = hexA(TEAM[beam.team], 0.2 * left);
+        g.stroke();
+        g.lineWidth = 4;
+        g.strokeStyle = hexA(TEAM[beam.team], 0.75 * left);
+        g.stroke();
+        g.lineWidth = 1.5;
+        g.strokeStyle = hexA(WHITE, Math.min(1, left * 1.5));
+        g.stroke();
+        for (const [x, y, r] of [
+          [beam.fromX, beam.fromY, 10],
+          [beam.x, beam.y, 14],
+        ] as const) {
+          g.beginPath();
+          g.arc(x, y, r * left, 0, Math.PI * 2);
+          g.fillStyle = hexA(TEAM_LIGHT[beam.team], 0.55 * left);
+          g.fill();
+        }
       }
     },
     drawOverlay(g) {
@@ -555,20 +565,20 @@ export function createEffects(options: EffectsOptions = {}): Effects {
       const reach = 5 * (1 - shaking / SHAKE_S);
       return { x: (random() - 0.5) * reach, y: (random() - 0.5) * reach };
     },
-    bubbleAge: (slot, nowMs) => nowMs - born[slot]!,
-    zapAge: (slot, nowMs) => nowMs - zapped[slot]!,
+    bubbleAge: (index, nowMs) => nowMs - (born[index] ?? -Infinity),
+    zapAge: (index, nowMs) => nowMs - (zapped[index] ?? -Infinity),
     count: () => pool.reduce((n, p) => n + (p.live ? 1 : 0), 0),
     reset() {
       for (const p of pool) p.live = false;
       last = undefined;
       lastMs = undefined;
-      beam = undefined;
+      beams = [];
       flash = undefined;
       shaking = SHAKE_S;
       slow = 0;
       puffDebt = 0;
-      born.fill(-Infinity);
-      zapped.fill(-Infinity);
+      born.length = 0;
+      zapped.length = 0;
     },
   };
 }

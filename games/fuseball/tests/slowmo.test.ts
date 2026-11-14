@@ -269,7 +269,7 @@ test("a goal scored out of slow motion drops the hold, and the next point starts
 });
 
 /** Where the pace sits in an encoded world: `[speed, budget, linger, freeze]`, the last field. */
-const PACE = 14,
+const PACE = 12,
   PHASE_STEPS = 4;
 
 test("the pace is checkpointed: a world decoded at any point of a slow passage plays on step for step", () => {

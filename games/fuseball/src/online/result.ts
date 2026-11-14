@@ -13,24 +13,26 @@ export type FuseballPlayerResult = FuseballStats;
 function players(room: Room): FuseballPlayerResult[] | undefined {
   const { world, decided, roster } = room;
   if (room.stage !== "over" || !world || !decided) return;
-  return roster.map((entrant) => {
-    const rider = world.riders[entrant.slot];
-    const won = entrant.id === decided.winner;
+  return roster.map((entrant, index) => {
+    const rider = world.riders[index],
+      bubble = world.bubbles[index];
+    const won = entrant.slot === decided.side;
     return {
       playerId: entrant.id,
       name: entrant.name,
-      slot: entrant.slot,
+      // The rider's place in the match: even places are one side, odd the other.
+      slot: index,
       roundsPlayed: 1,
       roundWins: won ? 1 : 0,
-      // The points on the board: this rider's own goals plus the other's own goals.
+      // The points on the side's board: its riders' goals plus the other side's own goals.
       matchScoreUnits: world.score[entrant.slot],
       matchPlacement: won ? 1 : 2,
       earlyExits: entrant.bot || decided.finishers.includes(entrant.id) ? 0 : 1,
-      goals: rider.goals,
-      ownGoals: rider.ownGoals,
+      goals: rider?.goals ?? 0,
+      ownGoals: rider?.ownGoals ?? 0,
       // The world's counters are cosmetic and wrap; a result stops counting at what the service accepts.
-      bubbles: Math.min(world.bubbles[entrant.slot].seq, MOST_BUBBLES),
-      pops: Math.min(rider.pops, MOST_BUBBLES),
+      bubbles: Math.min(bubble?.seq ?? 0, MOST_BUBBLES),
+      pops: Math.min(rider?.pops ?? 0, MOST_BUBBLES),
     };
   });
 }

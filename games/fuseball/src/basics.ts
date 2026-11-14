@@ -4,8 +4,8 @@
  * may not import from outside its folder; `tests/engine.test.ts` holds the two in step.
  */
 export const GAME_ID = "fuseball";
-/** Seats per room: a duel, a bot included. */
-export const CAPACITY = 2;
+/** Seats per room: three riders a side at most, bots included. */
+export const CAPACITY = 6;
 /** Points that win the match. */
 export const TARGET = 3;
 export const MAX_NAME = 18;
