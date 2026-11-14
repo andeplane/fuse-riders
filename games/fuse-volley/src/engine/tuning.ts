@@ -124,13 +124,14 @@ export const STACK_JUMP_SPEED = 3150;
 /**
  * The three-a-side court's width, px: one big beach with the singles court's net, pole and heights, and no lanes, a
  * third of a side for each blob. Normal bots played rallies as long as doubles' (8 to 10 s, about 10 touches) on every
- * width from 1700 to 2100, each of the three taking its share; 2000 keeps the blobs big enough on a phone.
+ * width from 1700 to 2100. It was 2000 and felt too long to play on, so it is an eighth shorter: 1750, which is 292 px
+ * of sand a blob against doubles' 350.
  */
-export const TRIPLE_COURT_W = 2000;
+export const TRIPLE_COURT_W = 1750;
 /** Where a three-a-side side's blobs start, px from the net: front, middle (under the serve) and back. */
 export const TRIPLE_FRONT = 180,
-  TRIPLE_MID = 500,
-  TRIPLE_BACK = 800;
+  TRIPLE_MID = 440,
+  TRIPLE_BACK = 700;
 
 // ---- three teams of two ----
 /**

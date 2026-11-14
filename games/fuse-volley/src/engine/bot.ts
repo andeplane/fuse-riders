@@ -60,7 +60,7 @@ const HOME = 210,
   FRONT_HOME = 220,
   BACK_HOME = 490;
 /** Three a side, where the three wait, px from the net: front, middle and back. */
-const TRIPLE_HOMES = [190, 490, 780] as const;
+const TRIPLE_HOMES = [190, 430, 690] as const;
 /** How far behind the ball (towards its own wall) it tries standing, px. */
 const OFFSETS = [4, 16, 28] as const;
 /** Two a side it may stand further behind the ball too: a flatter hit carries a deep ball over the net. */

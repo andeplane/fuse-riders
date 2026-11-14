@@ -45,7 +45,7 @@ In every team format a blob can stand on a teammate's head.
 
 ## Three a side (3 V 3)
 
-Pick **3 V 3** under PLAYERS: three blobs a side on one big 2000 px court, the singles net and heights, no lanes.
+Pick **3 V 3** under PLAYERS: three blobs a side on one big 1750 px court, the singles net and heights, no lanes.
 Seats 1, 3 and 5 play cyan, 2, 4 and 6 pink, and START fills empty seats with bots. It plays like doubles scaled up:
 every blob may run its whole half, the three are solid to each other as doubles teammates are, and the side shares
 its three touches. Bots take a ball by whoever is nearest; the other two step to the free front, middle or back spot.
