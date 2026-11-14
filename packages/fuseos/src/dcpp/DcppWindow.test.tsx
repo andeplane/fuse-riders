@@ -591,3 +591,92 @@ describe("DC++", () => {
     expect(screen.queryByTestId("dcpp")).toBeNull();
   });
 });
+
+describe("DC++ list views", () => {
+  async function sortAll(name: string) {
+    const user = userEvent.setup();
+    const headers = grid(name).getAllByRole("columnheader");
+    for (const header of headers) {
+      await user.click(header);
+      await user.click(header);
+    }
+    expect(headers.length).toBeGreaterThan(2);
+  }
+
+  it("sorts every column of every list both ways", async () => {
+    const { advance } = renderDcpp();
+    await sortAll("Public hubs");
+    await connectFuseHub(advance);
+    await sortAll("Users");
+    await shareC();
+    const user = userEvent.setup();
+    await user.click(toolbar("Search"));
+    await user.type(
+      dcpp().getByRole("textbox", { name: "Search for" }),
+      "readme{Enter}",
+    );
+    advance(SEARCH_DELAY_MS);
+    await sortAll("Search results");
+    fireEvent.doubleClick(row("Search results", "README.md"));
+    fireEvent.doubleClick(row("Search results", "readme_IMPORTANT.txt.vbs"));
+    advance(1_000);
+    await sortAll("Transfers");
+    await user.click(toolbar("Download Queue"));
+    await sortAll("Queued files");
+    advance(60_000);
+    await user.click(toolbar("Finished Downloads"));
+    await sortAll("Finished downloads");
+    await user.click(
+      dcpp().getByRole("tab", { name: "FuseHub — Fuse Games fans" }),
+    );
+    fireEvent.doubleClick(row("Users", "[OP]fuse_admin"));
+    await sortAll("[OP]fuse_admin's files");
+  });
+
+  it("hides the user list with +/- and searches only the ticked hubs", async () => {
+    const { advance } = renderDcpp();
+    await connectFuseHub(advance);
+    const user = userEvent.setup();
+    await user.click(dcpp().getByRole("checkbox", { name: "Show user list" }));
+    expect(dcpp().queryByRole("grid", { name: "Users" })).toBeNull();
+    await user.click(dcpp().getByRole("checkbox", { name: "Show user list" }));
+    expect(dcpp().getByRole("grid", { name: "Users" })).toBeInTheDocument();
+    await user.click(toolbar("Search"));
+    const hubs = dcpp().getByRole("checkbox", {
+      name: "FuseHub — Fuse Games fans",
+    });
+    await user.click(hubs);
+    await user.type(
+      dcpp().getByRole("textbox", { name: "Search for" }),
+      "mp3{Enter}",
+    );
+    expect(
+      dcpp().getAllByText("You are not connected to any hubs").length,
+    ).toBeGreaterThan(0);
+    await user.click(hubs);
+    await user.click(searchButton());
+    advance(SEARCH_DELAY_MS);
+    expect(grid("Search results").getAllByRole("row").length).toBeGreaterThan(
+      10,
+    );
+  });
+
+  it("connects by manual address and with the Connect button", async () => {
+    const { advance } = renderDcpp();
+    const user = userEvent.setup();
+    await user.click(dcpp().getByRole("button", { name: "Connect" }));
+    expect(dcpp().getAllByRole("tab")).toHaveLength(1);
+    await user.click(grid("Public hubs").getByText("Anime Planet"));
+    await user.click(dcpp().getByRole("button", { name: "Connect" }));
+    expect(
+      dcpp().getByRole("tab", { name: "Anime Planet" }),
+    ).toBeInTheDocument();
+    await user.click(dcpp().getByRole("tab", { name: "Public Hubs" }));
+    await user.type(
+      dcpp().getByRole("textbox", { name: "Manual connect address" }),
+      "dead.example:411{Enter}",
+    );
+    advance(CONNECT_DELAY_MS);
+    expect(log()).toHaveTextContent("*** Connection timeout");
+  });
+});
