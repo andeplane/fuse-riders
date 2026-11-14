@@ -115,6 +115,8 @@ export function levelCandidate(seed: number, gadgets = true): MapDef {
     portals: [],
     ledges: [],
     movers: [],
+    goo: [],
+    streams: [],
   };
 
   // The gadgets come last, so a seed's layout is the same with or without them. One kind a level, from those that

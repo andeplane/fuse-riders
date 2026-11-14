@@ -41,7 +41,15 @@ const marks = (
 const team = (
   spec: Omit<
     MapDef,
-    "w" | "h" | "barriers" | "bumpers" | "portals" | "ledges" | "movers"
+    | "w"
+    | "h"
+    | "barriers"
+    | "bumpers"
+    | "portals"
+    | "ledges"
+    | "movers"
+    | "goo"
+    | "streams"
   > &
     Partial<Pick<MapDef, "barriers" | "bumpers" | "portals">>,
 ): MapDef => ({
@@ -52,6 +60,8 @@ const team = (
   portals: [],
   ledges: [],
   movers: [],
+  goo: [],
+  streams: [],
   ...spec,
 });
 

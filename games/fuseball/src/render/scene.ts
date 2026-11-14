@@ -41,6 +41,7 @@ import {
   hexA,
 } from "./palette.js";
 import { drawRider, frameFor, type Paint } from "./sprites.js";
+import { WIRE_BACK, isWire, liquids, skulls, wireSolids } from "./wire.js";
 
 /**
  * Draws one frame of a Fuseball match on a 2D canvas: the arena, the riders, their bubbles and the ball, the
@@ -278,9 +279,10 @@ export function createScene(
     const sky = g.createLinearGradient(0, 0, 0, H);
     sky.addColorStop(0, NIGHT);
     sky.addColorStop(1, INK);
-    g.fillStyle = sky;
+    // An outline arena stands on plain black, with no grid.
+    g.fillStyle = isWire(map) ? WIRE_BACK : sky;
     g.fillRect(0, 0, W, H);
-    g.fillStyle = hexA(GRID, 0.7);
+    g.fillStyle = hexA(GRID, isWire(map) ? 0 : 0.7);
     for (let x = 40; x < W; x += 40) g.fillRect(x, 0, 1, H);
     for (let y = 40; y < H; y += 40) g.fillRect(0, y, W, 1);
     // An open edge glows and its dashes drift outwards: what leaves here comes back on the far side.
@@ -889,7 +891,11 @@ export function createScene(
       const scored = view.phase === "zap" || view.phase === "over";
       for (const shape of map.goals)
         goal(shape, nowMs, scored && view.lastScorer === shape.team);
-      solids(map);
+      liquids(g, map, nowMs);
+      if (isWire(map)) {
+        wireSolids(g, map);
+        skulls(g, map);
+      } else solids(map);
       gadgets(map, view, nowMs);
       fx.drawBehind(g);
       for (const b of view.bubbles) bubble(map, b, nowMs);
