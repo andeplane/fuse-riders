@@ -165,6 +165,8 @@ export const CHECK_DELAY_MS = 1_500;
 export const FAKE_SHARE_DELAY_MS = 8_000;
 export const SEARCH_DELAY_MS = 900;
 export const TICK_MS = 500;
+/** How many results a search keeps, like a hub's flood limit. */
+export const SEARCH_LIMIT = 500;
 const MAX_CHAT = 300;
 
 const shareTotal = (dirs: readonly ShareDir[]) =>
@@ -404,7 +406,7 @@ export class DcClient {
       return;
     }
     const users = sortUsers([
-      ...generateUsers(this.deps.random, hub, Math.min(hub.users, 120)),
+      ...generateUsers(this.deps.random, hub, Math.min(hub.users, 250)),
       selfUser(this.state.nick, this.shared()),
     ]);
     this.updateHub(address, (entry) => ({
@@ -523,10 +525,12 @@ export class DcClient {
   }
 
   private kick(address: string, by: string, reason: string): void {
+    // The NMDC kick as DC++ printed it: the kicker announces it in main chat, then the hub drops you.
     this.line(
       address,
-      "status",
-      `*** You were kicked by ${by} because: ${reason}`,
+      "chat",
+      `${by} is kicking ${this.state.nick} because: ${reason}`,
+      by,
     );
     this.disconnected(address);
   }
@@ -612,7 +616,11 @@ export class DcClient {
   /** The files a connected hub's people share: FuseHub has the repository and the soundtrack. */
   private hubFiles(address: string): CatalogueFile[] {
     if (address === FUSEHUB)
-      return [...trackFiles(this.deps.tracks), ...repoFiles(this.repo)];
+      return [
+        ...trackFiles(this.deps.tracks),
+        ...repoFiles(this.repo),
+        ...JOKE_FILES,
+      ];
     return [...JOKE_FILES];
   }
 
@@ -623,7 +631,11 @@ export class DcClient {
     const text = query.text.trim();
     if (!text) return;
     const sources = this.state.hubs
-      .filter((hub) => hub.status === "connected")
+      .filter(
+        (hub) =>
+          hub.status === "connected" &&
+          (query.hubs === undefined || query.hubs.includes(hub.address)),
+      )
       .map((hub) => ({
         hubName: hub.hub.name,
         hubAddress: hub.address,
@@ -652,7 +664,12 @@ export class DcClient {
       statusText: `Searching for ${text}...`,
     });
     this.schedule("search", SEARCH_DELAY_MS, () => {
-      const results = runSearch(this.deps.random, sources, { ...query, text });
+      const results = runSearch(
+        this.deps.random,
+        sources,
+        { ...query, text },
+        SEARCH_LIMIT,
+      );
       this.set({
         search: {
           status: "done",

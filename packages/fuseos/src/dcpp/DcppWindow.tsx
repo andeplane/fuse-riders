@@ -134,6 +134,9 @@ function FrameBody({ frame, vm }: { frame: Frame; vm: DcppViewModel }) {
       return (
         <SearchFrame
           search={state.search}
+          hubs={state.hubs
+            .filter((hub) => hub.status === "connected")
+            .map((hub) => ({ name: hub.hub.name, address: hub.address }))}
           onSearch={(query) => client.search(query)}
           onDownload={(row) => client.download(row)}
           onFileList={(row) => vm.openFileList(row.nick, row.hubAddress)}
@@ -215,18 +218,29 @@ function useUnread(vm: DcppViewModel): ReadonlySet<string> {
   );
 }
 
+/** The 1px line along a tab (FlatTabCtrl): green/red for a connected/dropped hub, blue for Search, magenta for a file list. */
+function tabLine(frame: Frame, state: DcState): string {
+  if (frame.kind === "hub")
+    return state.hubs.find((hub) => hub.address === frame.address)?.status ===
+      "connected"
+      ? "online"
+      : "offline";
+  if (frame.kind === "search") return "search";
+  if (frame.kind === "fileList") return "filelist";
+  return "plain";
+}
+
 function statusSegments(state: DcState) {
   const connected = state.hubs.filter((hub) => hub.status === "connected").length;
-  const down = state.queue
-    .filter((item) => item.state === "running")
-    .reduce((sum, item) => sum + item.speed, 0);
+  const running = state.queue.filter((item) => item.state === "running");
+  const down = running.reduce((sum, item) => sum + item.speed, 0);
   return [
     `H: ${connected}/0/0`,
     "Slots: 3/3",
     `D: ${formatBytes(state.downloadedTotal)}`,
     `U: ${formatBytes(state.uploadedTotal)}`,
-    `D: ${formatSpeed(down)}`,
-    `U: ${formatSpeed(0)}`,
+    `D: ${formatSpeed(down)} (${running.length})`,
+    `U: ${formatSpeed(0)} (0)`,
   ];
 }
 
@@ -248,9 +262,17 @@ export function DcppWindow({ windowId }: { windowId: string }) {
       label: "File",
       items: [
         { label: "Open file list...", disabled: true },
-        { label: "Open own list", disabled: true },
         { label: "Refresh file list", onSelect: () => client.note("File list refreshed") },
+        { label: "Open downloads directory", disabled: true },
         { separator: true },
+        {
+          label: "Follow last redirect",
+          disabled: !activeHub?.redirect,
+          onSelect: vm.followRedirect,
+        },
+        { label: "Reconnect", disabled: !activeHub, onSelect: vm.reconnect },
+        { separator: true },
+        { label: "Import queue from NMDC...", disabled: true },
         { label: "Settings...", onSelect: () => vm.setSettingsOpen(true) },
         { separator: true },
         { label: "Exit", onSelect: () => commands.close(windowId) },
@@ -261,11 +283,15 @@ export function DcppWindow({ windowId }: { windowId: string }) {
       items: [
         { label: "Public Hubs", onSelect: () => vm.openFrame({ kind: "publicHubs" }) },
         { label: "Favorite Hubs", onSelect: () => vm.openFrame({ kind: "favorites" }) },
+        { label: "Favorite Users", disabled: true },
         { label: "Search", onSelect: () => vm.openFrame({ kind: "search" }) },
+        { label: "ADL Search", disabled: true },
+        { label: "Search Spy", disabled: true },
         { label: "Notepad", onSelect: () => vm.openFrame({ kind: "notepad" }) },
         { separator: true },
         { label: "Download Queue", onSelect: () => vm.openFrame({ kind: "queue" }) },
         { label: "Finished Downloads", onSelect: () => vm.openFrame({ kind: "finished" }) },
+        { label: "Finished Uploads", disabled: true },
         { separator: true },
         { label: "Toolbar", checked: showToolbar, onSelect: () => setShowToolbar(!showToolbar) },
         { label: "Status bar", checked: showStatus, onSelect: () => setShowStatus(!showStatus) },
@@ -280,8 +306,10 @@ export function DcppWindow({ windowId }: { windowId: string }) {
       label: "Window",
       items: [
         { label: "Cascade", disabled: true },
-        { label: "Tile", disabled: true },
-        { label: "Arrange Icons", disabled: true },
+        { label: "Horizontal Tile", disabled: true },
+        { label: "Vertical Tile", disabled: true },
+        { label: "Arrange icons", disabled: true },
+        { label: "Minimize All", disabled: true },
         { separator: true },
         {
           label: "Close disconnected",
@@ -300,9 +328,12 @@ export function DcppWindow({ windowId }: { windowId: string }) {
     {
       label: "Help",
       items: [
-        { label: "Help Topics", disabled: true },
-        { separator: true },
+        { label: "Readme", disabled: true },
+        { label: "Change Log", disabled: true },
         { label: "About DC++...", onSelect: () => vm.setAboutOpen(true) },
+        { separator: true },
+        { label: "DC++ Homepage", disabled: true },
+        { label: "Help Forum", disabled: true },
       ],
     },
   ];
@@ -351,11 +382,17 @@ export function DcppWindow({ windowId }: { windowId: string }) {
       </div>
       {showToolbar ? <Toolbar buttons={buttons} /> : null}
       <div className="dc-mdi">
-        {vm.active ? (
-          <FrameBody key={frameKey(vm.active)} frame={vm.active} vm={vm} />
-        ) : (
-          <div className="dc-mdi-empty" />
-        )}
+        {/* Every child stays mounted, as MDI windows did, so a search form or a scrolled chat survives a tab switch. */}
+        {vm.frames.map((frame) => (
+          <div
+            key={frameKey(frame)}
+            className="dc-child"
+            hidden={frameKey(frame) !== vm.activeKey}
+          >
+            <FrameBody frame={frame} vm={vm} />
+          </div>
+        ))}
+        {vm.active ? null : <div className="dc-mdi-empty" />}
       </div>
       {showTransfers ? (
         <TransferView
@@ -377,7 +414,7 @@ export function DcppWindow({ windowId }: { windowId: string }) {
               aria-selected={key === vm.activeKey}
               title={title}
               aria-label={title}
-              className={`dc-tab flat ${unread.has(key) ? "dc-tab-unread" : ""} ${
+              className={`dc-tab flat dc-line-${tabLine(frame, state)} ${unread.has(key) ? "dc-tab-unread" : ""} ${
                 frame.kind === "hub" &&
                 client.connection(frame.address)?.status === "disconnected"
                   ? "dc-tab-offline"

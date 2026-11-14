@@ -72,7 +72,9 @@ export function userFileList(
   random: Random,
   files: readonly CatalogueFile[],
 ): FileListFolder {
-  const picked = files.filter(() => random() < 0.6);
+  // A few hundred files each, a different slice of the network for everyone.
+  const share = Math.min(1, 700 / Math.max(1, files.length));
+  const picked = files.filter(() => random() < share);
   return buildFileList([...(picked.length > 0 ? picked : files), ...FILLER]);
 }
 

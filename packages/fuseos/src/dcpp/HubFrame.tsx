@@ -4,7 +4,7 @@ import { ContextMenu } from "../windows/ContextMenu";
 
 import type { HubConnection } from "./dcClient";
 import { UserIcon } from "./DcppIcons";
-import { formatBytes, formatTimestamp } from "./format";
+import { formatBytes } from "./format";
 import type { Column } from "./ListView";
 import { ListView } from "./ListView";
 import type { HubUser } from "./users";
@@ -64,32 +64,29 @@ const COLUMNS: readonly Column<HubUser>[] = [
   },
 ];
 
-/** One line of main chat: "[21:07] <nick> text", "* nick waves" or "*** Connected". */
-function ChatRow({
-  line,
-  self,
-}: {
-  line: HubConnection["chat"][number];
-  self: string;
-}) {
-  const stamp = formatTimestamp(line.time);
-  if (line.kind === "status")
-    return (
-      <div className="dc-chat-status">
-        {stamp} {line.text}
-      </div>
-    );
+/** One line of main chat as 0.401 printed it (timestamps off by default): "<nick> text", "* nick waves", "*** Connected". */
+function ChatRow({ line }: { line: HubConnection["chat"][number] }) {
+  if (line.kind === "status") return <div>{line.text}</div>;
   if (line.kind === "me")
     return (
       <div>
-        {stamp} * {line.nick} {line.text}
+        * {line.nick} {line.text}
       </div>
     );
   return (
-    <div className={line.nick === self ? "dc-chat-self" : undefined}>
-      {stamp} &lt;{line.nick}&gt; {line.text}
+    <div>
+      &lt;{line.nick}&gt; {line.text}
     </div>
   );
+}
+
+/** "[21:37] Connected": the hub status bar's first part, the newest status line with its time. */
+function lastStatus(connection: HubConnection): string {
+  const line = [...connection.chat].reverse().find((entry) => entry.kind === "status");
+  if (!line) return "";
+  const date = new Date(line.time);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `[${pad(date.getHours())}:${pad(date.getMinutes())}] ${line.text.replace(/^\*\*\* /, "")}`;
 }
 
 /** A hub window: main chat on the left, the user list on the right, the message line and a status strip. */
@@ -109,6 +106,7 @@ export function HubFrame({
   onFollowRedirect: () => void;
 }) {
   const [message, setMessage] = useState("");
+  const [showUsers, setShowUsers] = useState(true);
   const [selected, setSelected] = useState<string>();
   const [menu, setMenu] = useState<{ user: HubUser; x: number; y: number }>();
   const chatRef = useRef<HTMLDivElement>(null);
@@ -130,14 +128,7 @@ export function HubFrame({
     connection.status === "connected"
       ? Math.max(connection.hub.users, connection.users.length)
       : 0;
-  const statusText =
-    connection.status === "connecting"
-      ? "Connecting..."
-      : connection.status === "connected"
-        ? "Connected"
-        : connection.redirect
-          ? `Redirect: ${connection.redirect}`
-          : "Disconnected";
+  const statusText = lastStatus(connection);
 
   return (
     <div className="dc-frame dc-hub">
@@ -149,9 +140,10 @@ export function HubFrame({
           aria-label="Main chat"
         >
           {lines.map((line) => (
-            <ChatRow key={line.id} line={line} self={self} />
+            <ChatRow key={line.id} line={line} />
           ))}
         </div>
+        {showUsers ? (
         <ListView
           className="dc-userlist"
           label="Users"
@@ -165,6 +157,7 @@ export function HubFrame({
           }}
           onContextMenu={(user, position) => setMenu({ user, ...position })}
         />
+        ) : null}
       </div>
       <form
         className="dc-message"
@@ -198,10 +191,19 @@ export function HubFrame({
             Reconnect
           </button>
         ) : null}
-        <span className="dc-cell">{total} users</span>
+        <span className="dc-cell">{total} Users</span>
         <span className="dc-cell">
           {formatBytes(connection.status === "connected" ? Math.max(shared, connection.hub.shared) : 0)}
         </span>
+        <label className="dc-cell dc-toggle">
+          <input
+            type="checkbox"
+            aria-label="Show user list"
+            checked={showUsers}
+            onChange={(event) => setShowUsers(event.target.checked)}
+          />
+          +/-
+        </label>
       </div>
       {menu ? (
         <ContextMenu

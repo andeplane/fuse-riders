@@ -101,19 +101,18 @@ describe("search", () => {
   });
 
   it("returns plausible results with user, slots, connection and hub, filtered by size and type", () => {
-    // Plain substring search, as DC++ did it: "iso" also finds "Episode".
-    expect(runSearch(createRandom(5), [source], query("iso")).map((row) => row.file)).toContain(
-      "Star.Battles.Episode.2.TS.SVCD-GRP.mpg",
-    );
+    // Thousands of files: a common word fills the result list.
+    expect(JOKE_FILES.length).toBeGreaterThan(3000);
+    expect(runSearch(createRandom(5), [source], query("mp3"), 500)).toHaveLength(500);
     const iso = runSearch(createRandom(5), [source], query("linux iso"));
     expect(iso.length).toBeGreaterThan(4);
     expect(iso.every((row) => row.type === "iso" && row.hub === "Hub")).toBe(true);
     expect(iso.every((row) => row.nick !== HUBS[0]!.bot)).toBe(true);
     const big = runSearch(createRandom(5), [source], query("avi", { sizeMode: "atLeast", size: 700 * MiB }));
     expect(big.every((row) => row.size >= 700 * MiB)).toBe(true);
-    const small = runSearch(createRandom(5), [source], query("avi", { sizeMode: "atMost", size: 2 * MiB }));
+    const small = runSearch(createRandom(5), [source], query("avi", { sizeMode: "atMost", size: 10 * MiB }));
     expect(small.map((row) => row.file)).toContain("dancing_baby.avi");
-    expect(small.every((row) => row.size <= 2 * MiB)).toBe(true);
+    expect(small.every((row) => row.size <= 10 * MiB)).toBe(true);
     const audio = runSearch(createRandom(5), [source], query("mp3", { type: "audio" }));
     expect(audio.every((row) => row.type === "mp3")).toBe(true);
     const free = runSearch(createRandom(5), [source], query("linux", { onlyFreeSlots: true }));
@@ -140,12 +139,12 @@ describe("search", () => {
   });
 
   it("reads the size box in its unit", () => {
-    expect(sizeInBytes("1.5", "KiB")).toBe(1536);
-    expect(sizeInBytes("700", "MiB")).toBe(700 * MiB);
-    expect(sizeInBytes("2", "GiB")).toBe(2 * GiB);
+    expect(sizeInBytes("1.5", "kB")).toBe(1536);
+    expect(sizeInBytes("700", "MB")).toBe(700 * MiB);
+    expect(sizeInBytes("2", "GB")).toBe(2 * GiB);
     expect(sizeInBytes("12", "B")).toBe(12);
-    expect(sizeInBytes("lots", "MiB")).toBe(0);
-    expect(sizeInBytes("-1", "KiB")).toBe(0);
+    expect(sizeInBytes("lots", "MB")).toBe(0);
+    expect(sizeInBytes("-1", "kB")).toBe(0);
     expect(KiB).toBe(1024);
   });
 });

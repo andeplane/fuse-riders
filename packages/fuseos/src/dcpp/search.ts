@@ -3,7 +3,8 @@ import { FUSE_MUSIC_GAMES } from "../winamp/fuseTracks";
 
 import { GiB, KiB, MiB } from "./format";
 import type { Random } from "./rng";
-import { pick, randomInt } from "./rng";
+import { generateCatalogue } from "./generatedFiles";
+import { createRandom, pick, randomInt } from "./rng";
 import type { HubUser } from "./users";
 
 export type FileType =
@@ -67,42 +68,10 @@ export type CatalogueFile = {
   delivery: Delivery;
 };
 
-/** Things that were on every hub in 2003. The names are invented or parodies; nothing here is fetched. */
-export const JOKE_FILES: readonly CatalogueFile[] = [
-  ["Teh.Matricks.1999.DivX.CD1.avi", "Movies\\DivX\\", 699 * MiB],
-  ["Teh.Matricks.1999.DivX.CD2.avi", "Movies\\DivX\\", 701 * MiB],
-  ["Lord.of.the.Bling.Fellowship.DVDRip.XviD-FAKE.avi", "Movies\\XviD\\", 733 * MiB],
-  ["Star.Battles.Episode.2.TS.SVCD-GRP.mpg", "Movies\\SVCD\\", 794 * MiB],
-  ["Shrek.Clone.2001.CAM.DivX.avi", "Movies\\DivX\\", 650 * MiB],
-  ["dancing_baby.avi", "Funny\\", 1.2 * MiB],
-  ["funny_frog_in_blender.mpg", "Funny\\", 3.4 * MiB],
-  ["All Your Base Are Belong To Us.swf", "Funny\\Flash\\", 2.1 * MiB],
-  ["hamster_dance.wav", "Funny\\", 410 * KiB],
-  ["DJ Kilobyte - Dialup Anthem (Extended Mix).mp3", "MP3\\Trance\\", 11.3 * MiB],
-  ["Eiffel 56k - Blue (Da Ba Modem Mix).mp3", "MP3\\Dance\\", 5.1 * MiB],
-  ["The Napster Boys - Get Off My Bandwidth.mp3", "MP3\\Rock\\", 4.4 * MiB],
-  ["Various - Now Thats What I Call Ripping 12 (2002).zip", "MP3\\Albums\\", 112 * MiB],
-  ["Winamp Skins Mega Collection 2003.zip", "Software\\Skins\\", 48 * MiB],
-  ["Fuse.Riders.2003.Demo.exe", "Games\\Demos\\", 87 * MiB],
-  ["debian-30r1-i386-binary-1.iso", "ISO\\Linux\\", 646 * MiB],
-  ["slackware-9.1-install-d1.iso", "ISO\\Linux\\", 650 * MiB],
-  ["RedHat-9-i386-disc1.iso", "ISO\\Linux\\", 648 * MiB],
-  ["Mandrake-9.2-i586-CD1.iso", "ISO\\Linux\\", 690 * MiB],
-  ["knoppix_v3.3-2003-11-19-EN.iso", "ISO\\Linux\\", 700 * MiB],
-  ["linux-2.4.22.tar.gz", "Source\\Kernel\\", 31 * MiB],
-  ["Cowboy Pebop - Session 01 [AnimeKai].avi", "Anime\\Cowboy Pebop\\", 175 * MiB],
-  ["Neon Genesis Evangelion OST - Cruel Angel (Remix).mp3", "Anime\\OST\\", 6.2 * MiB],
-  ["Cute Kitten Wallpapers 1024x768.zip", "Pictures\\Wallpapers\\", 23 * MiB],
-  ["free_screensaver_NOT_A_VIRUS.scr.exe", "Software\\TOTALLY SAFE\\", 340 * KiB],
-  ["readme_IMPORTANT.txt.vbs", "Software\\TOTALLY SAFE\\", 4 * KiB],
-  ["Half-Lifestyle.Counter-Strike.1.6.Map.Pack.rar", "Games\\Maps\\", 210 * MiB],
-  ["ZSNES 1.36 + Every Rom Ever.zip", "Emulators\\", 2.3 * GiB],
-].map(([name, path, size]) => ({
-  name: String(name),
-  path: String(path),
-  size: Math.round(Number(size)),
-  delivery: { kind: "joke" },
-}));
+/** Everything the pretend network shares, from a fixed seed (see `generatedFiles.ts`). Nothing here is fetched. */
+export const JOKE_FILES: readonly CatalogueFile[] = generateCatalogue(
+  createRandom(2003),
+);
 
 export type SearchQuery = {
   text: string;
@@ -110,6 +79,8 @@ export type SearchQuery = {
   size: number;
   type: FileType;
   onlyFreeSlots: boolean;
+  /** The hubs ticked in the Hubs list; absent means every connected hub. */
+  hubs?: readonly string[];
 };
 
 export type SearchResult = {
@@ -124,8 +95,17 @@ export type SearchResult = {
   connection: string;
   hub: string;
   hubAddress: string;
+  /** The sharer's (invented) address, the IP column. */
+  ip: string;
   delivery: Delivery;
 };
+
+/** A stable made-up IP for a nick, so the same person keeps one address. */
+export function fakeIp(nick: string): string {
+  let hash = 2166136261;
+  for (const char of nick) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619) >>> 0;
+  return `${62 + (hash % 150)}.${(hash >>> 8) % 254 + 1}.${(hash >>> 16) % 254 + 1}.${(hash >>> 24) % 254 + 1}`;
+}
 
 /** Every word must appear somewhere in the full path, as DC++'s substring search did. */
 export function matchesText(full: string, text: string): boolean {
@@ -214,6 +194,7 @@ export function runSearch(
           connection: user.connection,
           hub: source.hubName,
           hubAddress: source.hubAddress,
+          ip: fakeIp(user.nick),
           delivery: file.delivery,
         });
       }
@@ -222,13 +203,13 @@ export function runSearch(
   return results;
 }
 
-/** "At least 700 MiB" from the Size box and its unit. */
+/** "At least 700 MB" from the Size box and its unit. */
 export function sizeInBytes(
   amount: string,
-  unit: "B" | "KiB" | "MiB" | "GiB",
+  unit: "B" | "kB" | "MB" | "GB",
 ): number {
   const value = Number.parseFloat(amount);
   if (!Number.isFinite(value) || value < 0) return 0;
-  const factor = { B: 1, KiB, MiB, GiB }[unit];
+  const factor = { B: 1, kB: KiB, MB: MiB, GB: GiB }[unit];
   return Math.round(value * factor);
 }

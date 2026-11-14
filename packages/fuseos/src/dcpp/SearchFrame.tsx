@@ -10,18 +10,17 @@ import { ListView } from "./ListView";
 import type { FileType, SearchQuery, SearchResult } from "./search";
 import { FILE_TYPES, sizeInBytes } from "./search";
 
-type Unit = "B" | "KiB" | "MiB" | "GiB";
-const UNITS: readonly Unit[] = ["B", "KiB", "MiB", "GiB"];
+type Unit = "B" | "kB" | "MB" | "GB";
+const UNITS: readonly Unit[] = ["B", "kB", "MB", "GB"];
 
 const isUnit = (value: string): value is Unit =>
   UNITS.some((unit) => unit === value);
 const isFileType = (value: string): value is FileType =>
   FILE_TYPES.some((entry) => entry.value === value);
-const isSizeMode = (value: string): value is "atLeast" | "atMost" =>
-  value === "atLeast" || value === "atMost";
+const isSizeMode = (value: string): value is SearchQuery["sizeMode"] =>
+  value === "any" || value === "atLeast" || value === "atMost";
 
 const COLUMNS: readonly Column<SearchResult>[] = [
-  { key: "user", label: "User", width: 110, render: (row) => row.nick, sort: (row) => row.nick },
   {
     key: "file",
     label: "File",
@@ -34,6 +33,7 @@ const COLUMNS: readonly Column<SearchResult>[] = [
     ),
     sort: (row) => row.file,
   },
+  { key: "user", label: "User", width: 110, render: (row) => row.nick, sort: (row) => row.nick },
   { key: "type", label: "Type", width: 45, render: (row) => row.type, sort: (row) => row.type },
   {
     key: "size",
@@ -67,27 +67,32 @@ const COLUMNS: readonly Column<SearchResult>[] = [
     render: (row) => formatExact(row.size),
     sort: (row) => row.size,
   },
+  { key: "ip", label: "IP", width: 100, render: (row) => row.ip, sort: (row) => row.ip },
 ];
 
 /** Search: the options panel on the left, the results on the right, a status strip under them. */
 export function SearchFrame({
   search,
+  hubs,
   onSearch,
   onDownload,
   onFileList,
 }: {
   search: SearchState;
+  /** The connected hubs, for the Hubs list. */
+  hubs: readonly { name: string; address: string }[];
   onSearch: (query: SearchQuery) => void;
   onDownload: (result: SearchResult) => void;
   onFileList: (result: SearchResult) => void;
 }) {
   const [text, setText] = useState("");
-  const [sizeMode, setSizeMode] = useState<"atLeast" | "atMost">("atLeast");
+  const [sizeMode, setSizeMode] = useState<SearchQuery["sizeMode"]>("atLeast");
   const [amount, setAmount] = useState("");
-  const [unit, setUnit] = useState<Unit>("MiB");
+  const [unit, setUnit] = useState<Unit>("MB");
   const [type, setType] = useState<FileType>("any");
   const [onlyFree, setOnlyFree] = useState(false);
   const [selected, setSelected] = useState<string>();
+  const [unticked, setUnticked] = useState<ReadonlySet<string>>(new Set());
   const [menu, setMenu] = useState<{ row: SearchResult; x: number; y: number }>();
 
   const submit = () =>
@@ -97,6 +102,9 @@ export function SearchFrame({
       size: sizeInBytes(amount, unit),
       type,
       onlyFreeSlots: onlyFree,
+      hubs: hubs
+        .map((hub) => hub.address)
+        .filter((address) => !unticked.has(address)),
     });
 
   return (
@@ -130,6 +138,7 @@ export function SearchFrame({
                   if (isSizeMode(value)) setSizeMode(value);
                 }}
               >
+                <option value="any">Normal</option>
                 <option value="atLeast">At least</option>
                 <option value="atMost">At most</option>
               </select>
@@ -180,6 +189,27 @@ export function SearchFrame({
               onChange={(event) => setOnlyFree(event.target.checked)}
             />
             <label htmlFor="dc-onlyfree">Only users with free slots</label>
+          </fieldset>
+          <fieldset className="dc-group dc-hubpick">
+            <legend>Hubs</legend>
+            <ul aria-label="Hubs to search">
+              {hubs.map((hub) => (
+                <li key={hub.address}>
+                  <input
+                    id={`dc-hub-${hub.address}`}
+                    type="checkbox"
+                    checked={!unticked.has(hub.address)}
+                    onChange={(event) => {
+                      const next = new Set(unticked);
+                      if (event.target.checked) next.delete(hub.address);
+                      else next.add(hub.address);
+                      setUnticked(next);
+                    }}
+                  />
+                  <label htmlFor={`dc-hub-${hub.address}`}>{hub.name}</label>
+                </li>
+              ))}
+            </ul>
           </fieldset>
           <button type="submit" className="dc-searchbutton">
             Search

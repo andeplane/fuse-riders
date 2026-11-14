@@ -72,7 +72,7 @@ async function shareC() {
   await user.click(settings.getByRole("button", { name: "Add folder" }));
   const pick = await screen.findByRole("button", { name: /^\(C:\) fuse-games — \d/ });
   await user.click(pick);
-  expect(settings.getByText(/^Total size: [\d.]+ (KiB|MiB)$/)).toBeInTheDocument();
+  expect(settings.getByText(/^Total size: [\d.]+ (kB|MB)$/)).toBeInTheDocument();
   await user.click(settings.getByRole("button", { name: "OK" }));
 }
 
@@ -99,7 +99,7 @@ describe("DC++", () => {
     expect(hubs.getByText("FuseHub — Fuse Games fans")).toBeInTheDocument();
     expect(hubs.queryByText("Linux ISO Lovers #2")).toBeNull();
     expect(dcpp().getByText("Hubs: 7")).toBeInTheDocument();
-    expect(dcpp().getByRole("status")).toHaveTextContent("ReadyH: 0/0/0Slots: 3/3D: 0 BU: 0 BD: 0 B/sU: 0 B/s");
+    expect(dcpp().getByRole("status")).toHaveTextContent("ReadyH: 0/0/0Slots: 3/3D: 0 BU: 0 BD: 0 B/s (0)U: 0 B/s (0)");
     expect(dcpp().getByRole("tab", { name: "Public Hubs" })).toHaveAttribute("aria-selected", "true");
     expect(toolbar("Reconnect")).toBeDisabled();
     const user = userEvent.setup();
@@ -120,17 +120,17 @@ describe("DC++", () => {
     const { advance } = renderDcpp();
     await connectFuseHub(advance);
     expect(dcpp().getByRole("tab", { name: "FuseHub — Fuse Games fans" })).toHaveAttribute("aria-selected", "true");
-    expect(log()).toHaveTextContent("[21:00] *** Connected");
+    expect(log()).toHaveTextContent("*** Connected");
     expect(log()).toHaveTextContent("<FuseBot> Welcome to FuseHub, home of the Fuse Games fans!");
-    expect(log()).toHaveTextContent(/You must share at least 100.00 KiB to stay in this hub. You share 0 B. Kicking in 30s/);
+    expect(log()).toHaveTextContent(/You must share at least 100.00 kB to stay in this hub. You share 0 B. Kicking in 30s/);
     const users = grid("Users");
     expect(users.getByText("[OP]fuse_admin")).toBeInTheDocument();
-    expect(dcpp().getByText(/^\d+ users$/)).toBeInTheDocument();
+    expect(dcpp().getByText(/^\d+ Users$/)).toBeInTheDocument();
     expect(dcpp().getByRole("status")).toHaveTextContent("H: 1/0/0");
     await shareC();
-    expect(log()).toHaveTextContent(/<FuseBot> Share check passed: [\d.]+ (KiB|MiB)\. Welcome, fuse_user\d+!/);
+    expect(log()).toHaveTextContent(/<FuseBot> Share check passed: [\d.]+ (kB|MB)\. Welcome, fuse_user\d+!/);
     advance(31_000);
-    expect(log()).not.toHaveTextContent("You were kicked");
+    expect(log()).not.toHaveTextContent("is kicking");
     const user = userEvent.setup();
     await user.type(dcpp().getByRole("textbox", { name: "Message" }), "hello 2003{Enter}");
     expect(log()).toHaveTextContent(/<fuse_user\d+> hello 2003/);
@@ -140,16 +140,16 @@ describe("DC++", () => {
     const { advance } = renderDcpp();
     await connectFuseHub(advance);
     advance(30_000);
-    expect(log()).toHaveTextContent("*** You were kicked by FuseBot because: Share below minimum (0 B / 100.00 KiB)");
-    expect(dcpp().getByText("Disconnected")).toBeInTheDocument();
+    expect(log()).toHaveTextContent(/<FuseBot> FuseBot is kicking fuse_user\d+ because: Share below minimum \(0 B \/ 100\.00 kB\)/);
+    expect(dcpp().getByText(/^\[21:00\] Disconnected$/)).toBeInTheDocument();
     expect(dcpp().getByRole("tab", { name: "FuseHub — Fuse Games fans" })).toHaveClass("dc-tab-offline");
     const user = userEvent.setup();
     // The status strip's own button, after the toolbar's.
     await user.click(dcpp().getAllByRole("button", { name: "Reconnect" })[1] ?? document.body);
-    expect(dcpp().getByText("Connecting...")).toBeInTheDocument();
+    expect(dcpp().getByText(/^\[21:00\] Connecting to fusehub/)).toBeInTheDocument();
     advance(CONNECT_DELAY_MS);
     await user.click(toolbar("Reconnect"));
-    expect(dcpp().getByText("Connecting...")).toBeInTheDocument();
+    expect(dcpp().getByText(/^\[21:00\] Connecting to fusehub/)).toBeInTheDocument();
   });
 
   it("follows a full hub's redirect from the toolbar", async () => {
@@ -157,7 +157,7 @@ describe("DC++", () => {
     fireEvent.doubleClick(row("Public hubs", "Linux ISO Lovers"));
     advance(CONNECT_DELAY_MS);
     expect(log()).toHaveTextContent("This hub is full (500/500)");
-    expect(dcpp().getByText(/^Redirect: linuxiso2/)).toBeInTheDocument();
+    expect(dcpp().getAllByText(/Use Follow redirect to go to linuxiso2/).length).toBeGreaterThan(0);
     const user = userEvent.setup();
     await user.click(toolbar("Follow last redirect"));
     advance(CONNECT_DELAY_MS);
@@ -224,7 +224,7 @@ describe("DC++", () => {
     await user.selectOptions(dcpp().getByRole("combobox", { name: "File type" }), "Any");
     await user.selectOptions(dcpp().getByRole("combobox", { name: "Size mode" }), "atMost");
     await user.type(dcpp().getByRole("textbox", { name: "Size" }), "1");
-    await user.selectOptions(dcpp().getByRole("combobox", { name: "Size unit" }), "GiB");
+    await user.selectOptions(dcpp().getByRole("combobox", { name: "Size unit" }), "GB");
     await user.click(dcpp().getByRole("checkbox", { name: "Only users with free slots" }));
     await user.click(dcpp().getByRole("checkbox", { name: "Only users with free slots" }));
     await user.click(searchButton());
@@ -382,7 +382,7 @@ describe("DC++", () => {
     await user.click(settings.getByRole("button", { name: "Add folder" }));
     expect(screen.getByRole("button", { name: /^\(C:\)/ })).toBeDisabled();
     await user.click(within(screen.getByRole("dialog", { name: "Browse for Folder" })).getByRole("button", { name: "Cancel" }));
-    await user.click(settings.getByText("fuse-games"));
+    await user.click(settings.getByText("C:\\"));
     await user.click(settings.getByRole("button", { name: "Remove" }));
     expect(settings.getByText("Total size: 0 B")).toBeInTheDocument();
     await user.click(settings.getByRole("button", { name: "General" }));

@@ -57,7 +57,7 @@ export function SettingsDialog({
                 </button>
               </li>
             ))}
-            {["Downloads", "Logs", "Appearance", "Colors and sounds", "Advanced"].map(
+            {["Downloads", "Appearance", "Logs and Sound", "Advanced", "User Commands"].map(
               (label) => (
                 <li key={label} role="treeitem" aria-selected={false} aria-disabled>
                   <button type="button" className="flat" disabled>
@@ -115,7 +115,6 @@ export function SettingsDialog({
                   <table role="grid" aria-label="Shared directories">
                     <thead>
                       <tr>
-                        <th scope="col">Virtual name</th>
                         <th scope="col">Directory</th>
                         <th scope="col" className="dc-right">
                           Size
@@ -129,7 +128,6 @@ export function SettingsDialog({
                           aria-selected={selected === dir.directory}
                           onMouseDown={() => setSelected(dir.directory)}
                         >
-                          <td>{dir.virtualName}</td>
                           <td>{dir.directory}</td>
                           <td className="dc-right">{formatBytes(dir.size)}</td>
                         </tr>
@@ -139,6 +137,10 @@ export function SettingsDialog({
                 </div>
                 <div className="dc-sharebar">
                   <span>Total size: {formatBytes(total)}</span>
+                  <span className="field-row">
+                    <input id="dc-hidden" type="checkbox" disabled />
+                    <label htmlFor="dc-hidden">Share hidden files</label>
+                  </span>
                   <span className="dc-sharebuttons">
                     <button
                       type="button"
@@ -157,6 +159,12 @@ export function SettingsDialog({
                 </div>
               </fieldset>
             )}
+            {page === "sharing" ? (
+              <div className="dc-slots field-row">
+                <label htmlFor="dc-slots">Upload slots</label>
+                <input id="dc-slots" type="number" value={3} readOnly />
+              </div>
+            ) : null}
           </div>
         </div>
         <div className="dc-dialogbuttons">

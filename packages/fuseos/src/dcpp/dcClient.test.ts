@@ -71,12 +71,12 @@ describe("DcClient hubs", () => {
     expect(nicks).toContain(client.getState().nick);
     clock.advance(CHECK_DELAY_MS);
     expect(chat(FUSEHUB).at(-1)).toBe(
-      `<FuseBot> ${client.getState().nick}: You must share at least 512.00 MiB to stay in this hub. You share 0 B. Kicking in 30s`,
+      `<FuseBot> ${client.getState().nick}: You must share at least 512.00 MB to stay in this hub. You share 0 B. Kicking in 30s`,
     );
     expect(hub(FUSEHUB).kickAt).toBe(clock.now() + KICK_DELAY_MS);
     clock.advance(KICK_DELAY_MS);
     expect(chat(FUSEHUB).slice(-2)).toEqual([
-      "*** You were kicked by FuseBot because: Share below minimum (0 B / 512.00 MiB)",
+      `<FuseBot> FuseBot is kicking ${client.getState().nick} because: Share below minimum (0 B / 512.00 MB)`,
       "*** Disconnected",
     ]);
     expect(hub(FUSEHUB).status).toBe("disconnected");
@@ -93,7 +93,7 @@ describe("DcClient hubs", () => {
     expect(client.repoSize()).toBe(600 * MiB);
     client.setShareDirs([C_DRIVE]);
     expect(chat(FUSEHUB)).toContain(
-      `<FuseBot> Share check passed: 600.00 MiB. Welcome, ${client.getState().nick}!`,
+      `<FuseBot> Share check passed: 600.00 MB. Welcome, ${client.getState().nick}!`,
     );
     expect(chat(FUSEHUB).at(-1)).toMatch(/Type 'fuse' or 'README' in Search/);
     expect(hub(FUSEHUB).kickAt).toBeUndefined();
@@ -129,7 +129,7 @@ describe("DcClient hubs", () => {
     clock.advance(3_000);
     expect(chat(RETRO).slice(-3)).toEqual([
       "<[OP]Bitmaster> 2 files of .ts, .md and .json in a folder called fuse-games? That is a git repository, not a share.",
-      "*** You were kicked by [OP]Bitmaster because: Fake share",
+      `<[OP]Bitmaster> [OP]Bitmaster is kicking ${client.getState().nick} because: Fake share`,
       "*** Disconnected",
     ]);
     expect(hub(RETRO).status).toBe("disconnected");
@@ -148,11 +148,11 @@ describe("DcClient hubs", () => {
     client.setRepoFiles(REPO);
     client.connect(RETRO);
     clock.advance(CONNECT_DELAY_MS + CHECK_DELAY_MS);
-    expect(chat(RETRO).at(-1)).toMatch(/You must share at least 256.00 MiB/);
+    expect(chat(RETRO).at(-1)).toMatch(/You must share at least 256.00 MB/);
     client.setShareDirs([C_DRIVE]);
     clock.advance(FAKE_SHARE_DELAY_MS + 3_000);
     expect(chat(RETRO)).toContain(
-      "*** You were kicked by [OP]Bitmaster because: Fake share",
+      `<[OP]Bitmaster> [OP]Bitmaster is kicking ${client.getState().nick} because: Fake share`,
     );
   });
 
@@ -235,7 +235,7 @@ describe("DcClient hubs", () => {
     const replies = chat(FUSEHUB).filter((line) => line.startsWith("<FuseBot> "));
     expect(replies.slice(-3)).toEqual([
       "<FuseBot> Commands: +help, +rules, +myinfo. That is all, this bot is from 2002.",
-      "<FuseBot> Min share 512.00 MiB. No fakers. Be nice.",
+      "<FuseBot> Min share 512.00 MB. No fakers. Be nice.",
       `<FuseBot> ${nick}: share 0 B, tag <++ V:0.401,M:A,H:1/0/0,S:3>`,
     ]);
     client.sendChat(FUSEHUB, "/clear");
@@ -278,14 +278,11 @@ describe("DcClient search and file lists", () => {
     clock.advance(SEARCH_DELAY_MS);
     const { results, message } = client.getState().search;
     expect(results.length).toBeGreaterThan(0);
-    // FuseHub's people share the repository; the EU hub has a "readme" of its own, which nobody should open.
-    expect(
-      results.every((row) =>
-        row.hubAddress === FUSEHUB
-          ? row.delivery.kind === "repo"
-          : row.file === "readme_IMPORTANT.txt.vbs",
-      ),
-    ).toBe(true);
+    // Only FuseHub's people share the repository; everyone also has the usual 2003 files ("readme_IMPORTANT.txt.vbs").
+    const repoRows = results.filter((row) => row.delivery.kind === "repo");
+    expect(repoRows.length).toBeGreaterThan(0);
+    expect(repoRows.every((row) => row.hubAddress === FUSEHUB)).toBe(true);
+    expect(results.some((row) => row.file === "readme_IMPORTANT.txt.vbs")).toBe(true);
     expect(message).toBe(`${results.length} item${results.length === 1 ? "" : "s"}`);
     client.search(query("Pixel Sax"));
     clock.advance(SEARCH_DELAY_MS);
@@ -293,7 +290,8 @@ describe("DcClient search and file lists", () => {
     client.search(query("knoppix"));
     clock.advance(SEARCH_DELAY_MS);
     const knoppix = client.getState().search.results;
-    expect(knoppix.every((row) => row.hubAddress === EU && row.delivery.kind === "joke")).toBe(true);
+    expect(knoppix.length).toBeGreaterThan(0);
+    expect(knoppix.every((row) => row.delivery.kind === "joke")).toBe(true);
   });
 
   it("reports a single result in the singular", () => {

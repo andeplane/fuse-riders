@@ -196,6 +196,7 @@ const FINISHED_COLUMNS: readonly Column<FinishedItem>[] = [
     render: (item) => formatSpeed(item.speed),
     sort: (item) => item.speed,
   },
+  { key: "crc", label: "CRC Checked", width: 80, render: () => "No" },
 ];
 
 /** Finished Downloads; double-click opens the file (Notepad++ for the repository, Winamp for music). */
@@ -321,7 +322,7 @@ export function TransferView({
       align: "right",
       render: (item) => (item.state === "running" ? formatSpeed(item.speed) : ""),
     },
-    { key: "file", label: "File", width: 220, render: (item) => item.file },
+    { key: "file", label: "Filename", width: 220, render: (item) => item.file },
     {
       key: "size",
       label: "Size",

@@ -8,7 +8,7 @@ import { filterHubs, publicHubs } from "./hubs";
 import type { Column } from "./ListView";
 import { ListView } from "./ListView";
 
-export const HUBLIST_URL = "http://www.hublist.org/PublicHubList.config";
+export const HUBLIST_URL = "http://www.hublist.org/PublicHubList.config.bz2";
 
 const COLUMNS: readonly Column<Hub>[] = [
   { key: "name", label: "Name", width: 230, render: (hub) => hub.name, sort: (hub) => hub.name },
@@ -52,7 +52,7 @@ const COLUMNS: readonly Column<Hub>[] = [
   },
 ];
 
-/** Public Hubs: the hublist.org list, a Filter box and Configure/Refresh, as 0.4xx laid it out. */
+/** Public Hubs as 0.401 laid it out: the hublist.org list, Filter and Manual connect address boxes, Refresh and Connect. */
 export function PublicHubsFrame({
   hubs,
   onConnect,
@@ -63,6 +63,7 @@ export function PublicHubsFrame({
   onRefresh: () => void;
 }) {
   const [filter, setFilter] = useState("");
+  const [manual, setManual] = useState("");
   const [selected, setSelected] = useState<string>();
   const [menu, setMenu] = useState<{ hub: Hub; x: number; y: number }>();
   const listed = publicHubs(hubs);
@@ -90,18 +91,32 @@ export function PublicHubsFrame({
             onChange={(event) => setFilter(event.target.value)}
           />
         </fieldset>
-        <fieldset className="dc-group dc-lists">
-          <legend>Configured Public Hub Lists</legend>
-          <select aria-label="Configured Public Hub Lists" defaultValue={HUBLIST_URL}>
-            <option value={HUBLIST_URL}>{HUBLIST_URL}</option>
-          </select>
-          <button type="button" disabled>
-            Configure
-          </button>
+        <fieldset className="dc-group dc-filter">
+          <legend>Manual connect address</legend>
+          <input
+            type="text"
+            aria-label="Manual connect address"
+            value={manual}
+            onChange={(event) => setManual(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && manual.trim()) onConnect(manual.trim());
+            }}
+          />
+        </fieldset>
+        <div className="dc-hubbuttons">
           <button type="button" onClick={onRefresh}>
             Refresh
           </button>
-        </fieldset>
+          <button
+            type="button"
+            onClick={() => {
+              const target = manual.trim() || selected;
+              if (target) onConnect(target);
+            }}
+          >
+            Connect
+          </button>
+        </div>
       </div>
       <div className="dc-framestatus">
         <span className="dc-cell dc-grow">
@@ -117,7 +132,7 @@ export function PublicHubsFrame({
           items={[
             { label: "Connect", bold: true, onSelect: () => onConnect(menu.hub.address) },
             { label: "Add To Favorites", disabled: true },
-            { label: "Copy hub", disabled: true },
+            { label: "Copy address to clipboard", disabled: true },
           ]}
           onClose={() => setMenu(undefined)}
         />
