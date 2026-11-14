@@ -45,6 +45,7 @@ import {
 } from "./shrine.js";
 
 export interface ShowcaseHandle {
+  drawFrame(now: number): void;
   resetFeedback(): void;
   destroy(): void;
   setPaused(value: boolean): void;
@@ -58,6 +59,7 @@ export interface ShowcaseHandle {
   toWorld(u: number, v: number): { x: number; y: number };
 }
 interface Options {
+  externallyStepped?: boolean;
   keyboardAim?(): { x: number; y: number } | undefined;
   /** Where the local keeper's bomb would be aimed on release (arc preview only). */
   bombAim?(): { x: number; y: number } | undefined;
@@ -179,6 +181,7 @@ export function createShowcase(
     create(): void {
       try {
         this.build();
+        if (options.externallyStepped) this.game.loop.stop();
         options.ready();
       } catch (error) {
         options.failed(
@@ -1161,7 +1164,13 @@ export function createShowcase(
     options.failed("The graphics context was lost.");
   };
   game.canvas.addEventListener("webglcontextlost", lost);
+  let previousFrame = 0;
   return {
+    drawFrame(now) {
+      if (!options.externallyStepped || destroyed) return;
+      game.step(now, previousFrame ? Math.min(100, now - previousFrame) : 0);
+      previousFrame = now;
+    },
     resetFeedback() {
       feedback.reset();
       scene.resetPeerFeedback();
@@ -1194,6 +1203,7 @@ export function createShowcase(
       game.canvas.removeEventListener("webglcontextlost", lost);
       scene.teardown();
       game.destroy(true);
+      if (game.scene.isBooted) game.step(0, 0);
       host.replaceChildren();
     },
   };

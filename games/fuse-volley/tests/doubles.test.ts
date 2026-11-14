@@ -67,6 +67,7 @@ test("four blobs make a doubles match: slots alternate sides on the wide court",
     width: T.TEAM_COURT_W,
     net: T.TEAM_COURT_W / 2,
     team: 2,
+    lanes: [],
   });
   assert.throws(() => createWorld(["a", "b", "c"], "rally", 1));
 });

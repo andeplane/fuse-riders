@@ -1,4 +1,4 @@
-import { button, el } from "fuse-ui";
+import { button, el, createMainMenu } from "fuse-ui";
 import {
   AVATARS,
   CAPACITY,
@@ -471,7 +471,33 @@ export function createMenu(options: MenuOptions): HTMLElement {
         : `${people_ === 1 ? "You" : `${people_} players`}${choice.bots ? ` vs ${choice.bots} ${LEVELS[choice.level]!.toLowerCase()} AI` : ""} · about ${choice.goal <= 30 ? "20" : choice.goal <= 50 ? "25–30" : "35–40"} weeks`;
   }
   update(true);
-  return root;
+  const menu = createMainMenu({
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
+    title: "FUSETOWN",
+    description:
+      "Work, study, shop and invest. First to reach all four goals wins.",
+    play: root,
+    ...(options.online
+      ? {
+          onPlay: async () => {
+            const create =
+              options.online!.sheet.querySelector<HTMLButtonElement>(
+                ".fl-create-room",
+              )!;
+            await create.onclick?.call(create, new PointerEvent("click"));
+            const error =
+              options.online!.sheet.querySelector<HTMLElement>(
+                ".fl-online-error",
+              );
+            if (error && !error.hidden)
+              throw new Error(error.textContent ?? "Could not create room");
+          },
+        }
+      : {}),
+    howToPlay: [hero],
+  });
+  return menu.element;
 }
 
 function safeGet(store: Store, key: string): string | null {

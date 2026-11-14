@@ -1,3 +1,4 @@
+import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
 import "@fontsource/press-start-2p/latin.css";
@@ -22,12 +23,14 @@ import {
   createControllerRow,
   createInviteCard,
   createLandingCard,
+  createRoomLayout,
   createNameEntry,
   createNotice,
   createRoster,
   el,
 } from "fuse-ui";
 import { DEFAULT_SETTINGS, fuseDriversGame, seatName } from "../game/index.js";
+import { TRACK_NAMES } from "../game/tracks-data.js";
 import { NEUTRAL_INPUT, type TruckInput } from "../game/sim/input.js";
 import { mountArena, type MountedArena } from "./arena/index.js";
 import { presentTable, type TableModel, type Viewer } from "./presenter.js";
@@ -89,6 +92,8 @@ function landing(): void {
   const choice = el("label", "", "fd-shared-choice");
   choice.append(shared, el("span", "Shared TV + phone controllers"));
   const card = createLandingCard({
+    background: async (host, signal) =>
+      (await import("./attract.js")).createAttract(host, signal),
     title: "FUSE DRIVERS",
     tagline: "Offroad racing with weapons. Two to five drivers, one screen.",
     soloText: "RACE THE CPU",
@@ -113,6 +118,12 @@ function landing(): void {
     },
   });
   card.create.before(choice);
+  card.menu.help.append(
+    el(
+      "p",
+      "Choose a truck slot, add AI or invite friends, then start the race. Drive with the on-screen controls or a controller. Race through every checkpoint in order to finish your laps.",
+    ),
+  );
   app.replaceChildren(header(), card.element);
 }
 
@@ -180,6 +191,25 @@ function room(solo: boolean): void {
   const status = createNotice({ className: "fd-status" });
   const roster = createRoster({ emptyText: "Nobody has joined yet" });
   const start = button("START RACE", "fui-button-primary");
+  const addAI = button("Add AI");
+  addAI.onclick = () =>
+    runtime.command({
+      type: "bot",
+      action: "add",
+      slot: requestedRoomSlot(addAI),
+    });
+  const track = el("select");
+  track.setAttribute("aria-label", "Track");
+  for (const id of TRACK_NAMES) {
+    const option = el("option", id);
+    option.value = id;
+    track.append(option);
+  }
+  track.onchange = () =>
+    runtime.command({
+      type: "settings",
+      settings: { display: viewer.shared, track: track.value },
+    });
   const lobby = el("section", "", "fd-lobby");
   if (!solo)
     lobby.append(
@@ -205,7 +235,11 @@ function room(solo: boolean): void {
     buttonText: "JOIN THE GRID",
     onSubmit: (name) => {
       store.setItem(names.name, name);
-      runtime.command({ type: "join", name });
+      runtime.command({
+        type: "join",
+        name,
+        slot: requestedRoomSlot(nameEntry.form),
+      });
     },
   });
 
@@ -264,6 +298,18 @@ function room(solo: boolean): void {
   start.hidden = true;
   main.append(nameEntry.form, lobby, race, results);
   app.replaceChildren(header(), status.element, main);
+  createRoomLayout({
+    playerName: () => social.playerName(undefined) ?? undefined,
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
+    element: lobby,
+    roster,
+    capacity: 5,
+    join: nameEntry.form,
+    addAI,
+    settings: [track],
+    actions: [...lobby.querySelectorAll<HTMLAnchorElement>("a"), start],
+  });
 
   const render = (model: TableModel) => {
     lobby.hidden = model.screen !== "lobby";
@@ -273,6 +319,9 @@ function room(solo: boolean): void {
     canvas.hidden = viewer.shared && !display && !solo;
     arenaBox.hidden = canvas.hidden;
     roster.update(model.lobby.members);
+    addAI.hidden = !viewer.host || display || model.lobby.members.length >= 5;
+    track.disabled = !viewer.host || display;
+    if (track.value !== model.lobby.track) track.value = model.lobby.track;
     start.hidden = !model.lobby.showStart;
     start.disabled = !model.lobby.canStart;
     if (model.lobby.note) status.show(model.lobby.note, "info");

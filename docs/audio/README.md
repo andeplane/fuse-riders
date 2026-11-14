@@ -9,19 +9,22 @@ Effects are synthesised, so they cost no files. Songs are mp3 files in `public/m
 
 ## Songs and Suno
 
-Songs are made with Suno on Anders' own account. Commercial use is allowed only for songs made while on a paid plan, so check the plan before committing files; make them on a free plan and they must not go in the repo.
+Songs are made with Suno (via `suno` CLI) on Anders' own account, a Pro plan that includes commercial rights. Shipped: Fuse Volley has Jelly Beach Bounce and Sandy Rally; Fuseball has Neon Kickoff, Gadget Overdrive and Sudden Death, re-encoded to 96 kbps with metadata stripped (1 to 2 MB each). Commercial use is allowed only for songs made while on a paid plan, so check the plan before committing files; make them on a free plan and they must not go in the repo.
 
 To add songs: drop the mp3s in `public/music/<game>/` and list them in the game's `<GAME>_SONGS` (`{ id, title, path: "music/<game>/<file>.mp3" }`).
 
 ### Fuse Volley (bouncy neon beach, jelly blobs)
+
 1. "Jelly Beach Bounce": upbeat instrumental, bouncy marimba and steel drum, funky slap bass, handclaps, summer beach arcade game, 118 bpm, major key, playful, loopable, no vocals
 2. "Sandy Rally": instrumental surf-pop with chiptune sparkles, twangy reverb guitar, tight drums, building energy for a match, 124 bpm, cheerful, no vocals
 3. "Match Point": instrumental, tense but fun, pulsing synth bass, brass stabs, four-on-the-floor kick, sports arcade final-point feel, 128 bpm, no vocals
 
 ### Fuseball (hard neon arena)
+
 1. "Neon Kickoff": instrumental synthwave arcade, driving arpeggios, punchy gated drums, heroic lead synth, futuristic sports arena, 132 bpm, minor key, loopable, no vocals
 2. "Gadget Overdrive": instrumental electro-breakbeat, glitchy bass, laser zaps, 8-bit lead, chaotic and fast, 140 bpm, no vocals
 3. "Sudden Death": instrumental dark synth-rock, rising tension, heavy sub bass, siren-like lead, high stakes finale, 136 bpm, no vocals
 
 ### Elasto Fuse
+
 Not wired yet; use `fuse-ui/game-audio` as above and add a third folder.

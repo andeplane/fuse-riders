@@ -850,6 +850,7 @@ export function createFuseballGame(bot: BotInput = botInput): FuseballGame {
     matchSettings: (room) => room.play,
     seating: {
       capacity: CAPACITY,
+      capacityFor: (room) => 2 * room.settings.size,
       maxWatchers: MAX_WATCHERS,
       seatName,
       isAvatar,

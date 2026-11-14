@@ -325,11 +325,11 @@ export function createOnlineSession(
         ...rules(),
       };
     },
-    join: (name) => {
-      runtime.command({ type: "join", name, avatarId: "brain" });
+    join: (name, slot) => {
+      runtime.command({ type: "join", name, avatarId: "brain", slot });
     },
-    addBot: () => {
-      runtime.command({ type: "bot", action: "add" });
+    addBot: (slot) => {
+      runtime.command({ type: "bot", action: "add", slot });
     },
     removeBot: (id) => {
       runtime.command({ type: "bot", action: "remove", id });

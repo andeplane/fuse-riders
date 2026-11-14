@@ -1,3 +1,4 @@
+import { openPlayOptions } from "./lib/main-menu.js";
 import { readyRoom } from "./lib/ready-room.js";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
@@ -22,11 +23,13 @@ try {
     page.on("pageerror", (error) => errors.push(error.message));
   }
   await host.goto(new URL("?mute", base).href);
+  await openPlayOptions(host);
   await host
     .locator(".landing-mode label", {
       has: host.getByRole("radio", { name: "Shared TV", exact: true }),
     })
     .click();
+  await openPlayOptions(host);
   await host.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
   await host.waitForURL(/room=/);
   const invite = new URL(host.url());
@@ -55,7 +58,7 @@ try {
   );
   await phone.goto(invite.href);
   await phone.locator(".online-join").waitFor({ state: "hidden" });
-  await host.getByRole("button", { name: "ADD AI", exact: true }).click();
+  await host.getByRole("button", { name: /^Add AI$/i, exact: true }).click();
   await readyRoom(host);
   await phone.locator(".mobile-play.controller-only").waitFor();
 

@@ -4,6 +4,7 @@ import { abs, div, isqrt, round } from "./math.js";
 import * as T from "./tuning.js";
 import {
   courtOf,
+  laneOf,
   otherSide,
   rng,
   serve,
@@ -27,19 +28,52 @@ function startSquash(blob: Blob): void {
   if (!blob.air && blob.frame === 0 && blob.dir === 0) blob.dir = 1;
 }
 
+/** The x limits for a blob: its side's, or three a side, its lane's. */
+function limits(blob: Blob, court: Court, lane: number): [number, number] {
+  const side = blob.side;
+  return lane < 0
+    ? [court.blobMin[side], court.blobMax[side]]
+    : [court.laneMin[side]![lane]!, court.laneMax[side]![lane]!];
+}
+
+/** Every blob is inside its lane (always, on courts without lanes). */
+export function inLanes(world: World): boolean {
+  const court = courtOf(world);
+  return world.blobs.every((blob, slot) => {
+    const [low, high] = limits(blob, court, laneOf(world, slot));
+    return low <= blob.x && blob.x <= high;
+  });
+}
+
 export function stepBlob(
   blob: Blob,
   bits: number,
   step: number,
   court: Court = SINGLES,
+  lane = -1,
 ): void {
-  const side = blob.side;
+  const [low, high] = limits(blob, court, lane);
+  // Three a side, a blob a rotation has left outside its lane hops across to it, whatever its player holds.
+  const moving = blob.x < low || blob.x > high;
+  if (moving) {
+    blob.x =
+      blob.x < low
+        ? Math.min(blob.x + T.ROTATE_SPEED, low)
+        : Math.max(blob.x - T.ROTATE_SPEED, high);
+    startSquash(blob);
+    if (!blob.air) {
+      blob.air = true;
+      blob.vy = T.JUMP_SPEED;
+      if (blob.frame !== T.SQUASH_FRAMES) blob.dir = 1;
+    }
+    bits = 0;
+  }
   if (bits & RIGHT) {
-    blob.x = Math.min(blob.x + T.RUN_SPEED, court.blobMax[side]);
+    blob.x = Math.min(blob.x + T.RUN_SPEED, high);
     startSquash(blob);
   }
   if (bits & LEFT) {
-    blob.x = Math.max(blob.x - T.RUN_SPEED, court.blobMin[side]);
+    blob.x = Math.max(blob.x - T.RUN_SPEED, low);
     startSquash(blob);
   }
   const jump = (bits & JUMP) !== 0;
@@ -283,6 +317,7 @@ export function stepBall(world: World): void {
 /** The rally is over and went against `loser`: score it, change the serve, maybe end the match. */
 export function pointAgainst(world: World, loser: Side, fault: boolean): void {
   const won = otherSide(loser);
+  const sideOut = world.server !== won;
   if (world.scoring === "rally" || world.server === won)
     world.score[won] = Math.min(world.score[won] + 1, T.SCORE_CAP);
   world.server = won;
@@ -294,6 +329,10 @@ export function pointAgainst(world: World, loser: Side, fault: boolean): void {
     world.ball.vy = div(world.ball.vy, 2);
   }
   if (decided(world.score, won, world.target)) world.winner = won;
+  // Three a side, a side that wins the serve back rotates, as in volleyball: the next of its blobs takes the middle
+  // lane and the serve. The settle gives them time to hop across.
+  else if (sideOut && courtOf(world).team === 3)
+    world.rotation[won] = (world.rotation[won] + 1) % 3;
   world.phase = "dead";
   world.phaseSteps = T.DEAD_STEPS;
 }
@@ -337,9 +376,9 @@ export function countTouches(world: World): void {
   }
 }
 
-/** Every blob's feet on the sand. */
+/** Every blob's feet on the sand, in its own lane. */
 const grounded = (world: World): boolean =>
-  world.blobs.every((blob) => !blob.air);
+  world.blobs.every((blob) => !blob.air) && inLanes(world);
 
 /** One step with `inputs[slot]` held by each blob; a missing or malformed input holds nothing. */
 export function stepWorld(world: World, inputs: readonly number[]): void {
@@ -354,10 +393,12 @@ export function stepWorld(world: World, inputs: readonly number[]): void {
   const court = courtOf(world),
     blobs = world.blobs;
   for (const [slot, blob] of blobs.entries())
-    stepBlob(blob, bits(slot), world.step, court);
-  // Teammates (slots two apart) after both have moved.
-  for (let slot = 0; slot + 2 < blobs.length; slot++)
-    separate(blobs[slot]!, blobs[slot + 2]!, court);
+    stepBlob(blob, bits(slot), world.step, court, laneOf(world, slot));
+  // Teammates (slots two apart) after both have moved. Three a side, the lanes keep them apart instead: their limits
+  // leave a blob's width between neighbours, and a blob hopping across after a rotation passes over the others.
+  if (court.team === 2)
+    for (let slot = 0; slot + 2 < blobs.length; slot++)
+      separate(blobs[slot]!, blobs[slot + 2]!, court);
   const playing = world.phase === "serve" || world.phase === "rally";
   if (playing && world.step % 2 === 0) collide(world);
   if (world.phase === "serve" && world.ball.live) {

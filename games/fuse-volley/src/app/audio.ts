@@ -10,7 +10,18 @@ export interface Sfx {
 }
 
 /** The songs, in `public/music/fuse-volley/`; none is fetched until the first key or touch. */
-export const VOLLEY_SONGS: readonly Song[] = [];
+export const VOLLEY_SONGS: readonly Song[] = [
+  {
+    id: "jelly-beach-bounce",
+    title: "Jelly Beach Bounce",
+    path: "music/fuse-volley/jelly-beach-bounce.mp3",
+  },
+  {
+    id: "sandy-rally",
+    title: "Sandy Rally",
+    path: "music/fuse-volley/sandy-rally.mp3",
+  },
+];
 
 export function createSfx(audio: GameAudio): Sfx {
   const { tone, noise } = audio;

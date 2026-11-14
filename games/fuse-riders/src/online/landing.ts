@@ -8,6 +8,7 @@ import {
   createAppPortal,
   createDialog,
   createJoinByCode,
+  createMainMenu,
   createRadioGroup,
 } from "fuse-ui";
 import { createRoom, validRoomCode } from "fuse-network-fe";
@@ -24,7 +25,6 @@ import {
 import { GAME_ID } from "../shared/game-id.js";
 import { createAnalyticsSetting } from "./analytics-setting.js";
 import { startAnalytics, track } from "./analytics.js";
-import { startAttract } from "./attract.js";
 import { FUSE_DIALOG_CLASSES } from "./dialogs/shell.js";
 import { node } from "./dom.js";
 import { apiUrl, appUrl } from "./endpoints.js";
@@ -326,15 +326,32 @@ export function showLanding(host: LandingHost): void {
   );
   friendsPanel.banner.classList.add("friends-invite-banner");
   card.append(accountPanel.dialog, friendsPanel.dialog);
+  const playOptions = node("div", "", "fui-landing");
+  playOptions.append(soloLink, localLink, form);
+  const mainMenu = createMainMenu({
+    background: async (host) =>
+      (await import("./menu-attract.js")).createAttract(host),
+    title: "FUSE RIDERS",
+    description: "Outrun your friends. Blow up their plans.",
+    play: playOptions,
+    onPlay: async () => {
+      await create.onclick?.call(create, new PointerEvent("click"));
+      if (error.textContent) throw new Error(error.textContent);
+    },
+    howToPlay: [hint, guide],
+    onSettings: () => landingSettings.click(),
+  });
+  content.replaceWith(mainMenu.element);
+  live.remove();
+  footerBar.remove();
+  arena.remove();
+  topEnd.querySelector(".landing-tag")?.remove();
+  mainMenu.help.prepend(
+    node(
+      "p",
+      "A / D or arrow keys steer. Hold Space to charge a bomb, then release to fire. Avoid trails and blasts. The last rider standing wins the round.",
+    ),
+  );
   app.append(friendsPanel.banner);
   window.addEventListener("pagehide", accountPanel.dispose, { once: true });
-  // The attract loop stays Fuse Riders' own: it runs the game's engine and renderer behind the landing page.
-  void startAttract(arena, attractToggle)
-    .then((stop) => {
-      if (ended) stop();
-      else cleanup = stop;
-    })
-    .catch(() => {
-      live.remove();
-    });
 }

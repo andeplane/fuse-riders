@@ -89,7 +89,7 @@ export interface AudioPrefs {
 export const AUDIO_KEY = "fuse-audio-v1";
 export const DEFAULT_PREFS: AudioPrefs = {
   muted: false,
-  music: 0.55,
+  music: 0.4,
   effects: 0.8,
 };
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
@@ -506,12 +506,15 @@ export function bindAudioInput(
   target.addEventListener("keydown", key);
   target.addEventListener("pointerdown", unlock, { passive: true });
   target.addEventListener("touchend", unlock, { passive: true });
+  // Some browsers only count the release of a press as the gesture that allows sound.
+  target.addEventListener("click", unlock, { passive: true });
   target.addEventListener("visibilitychange", visibility);
   win.addEventListener("gamepadconnected", unlock);
   return () => {
     target.removeEventListener("keydown", key);
     target.removeEventListener("pointerdown", unlock);
     target.removeEventListener("touchend", unlock);
+    target.removeEventListener("click", unlock);
     target.removeEventListener("visibilitychange", visibility);
     win.removeEventListener("gamepadconnected", unlock);
   };

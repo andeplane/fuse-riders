@@ -1,3 +1,4 @@
+import { openPlayOptions } from "./lib/main-menu.js";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { launchSelected } from "./lib/browser.js";
@@ -42,21 +43,19 @@ try {
   await renderedArena(host);
   await host.screenshot({ path: "artifacts/fuse-drivers/solo.png" });
   await host.goto(new URL("fuse-drivers/?mute", origin).href);
+  await openPlayOptions(host);
   await host
     .getByRole("checkbox", { name: "Shared TV + phone controllers" })
     .check();
+  await openPlayOptions(host);
   await host.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
   await host.waitForURL(/room=/);
   const code = new URL(host.url()).searchParams.get("room")!;
   await host.getByPlaceholder("Your name").fill("Ada");
-  await host
-    .getByRole("button", { name: "JOIN THE GRID", exact: true })
-    .click();
+  await host.getByRole("button", { name: "Join", exact: true }).click();
   await peer.goto(new URL(`fuse-drivers/?room=${code}&mute`, origin).href);
   await peer.getByPlaceholder("Your name").fill("Bo");
-  await peer
-    .getByRole("button", { name: "JOIN THE GRID", exact: true })
-    .click();
+  await peer.getByRole("button", { name: "Join", exact: true }).click();
   await host.locator(".fui-roster-name", { hasText: "Bo" }).waitFor();
   const displayUrl = await host
     .getByRole("link", { name: "OPEN TV DISPLAY" })

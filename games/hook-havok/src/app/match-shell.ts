@@ -2,9 +2,22 @@ import type { WorldView } from "../engine/view.js";
 import { keeperColor } from "../render/identity.js";
 import { botBadge } from "./roster.js";
 import "./match-shell.css";
+import {
+  createInviteCard,
+  createNameEntry,
+  createRoomLayout,
+  createRoster,
+  button,
+  requestedRoomSlot,
+} from "fuse-ui";
+import QRCode from "qrcode";
 
 /** Presentation of replicated facts. All actions reuse the room's existing controls. */
-export function createMatchShell() {
+export function createMatchShell(actions: {
+  join(name: string, slot?: number): void;
+  addAI(slot?: number): void;
+  playerName?(): string | undefined;
+}) {
   const get = <T extends HTMLElement>(id: string) =>
     document.getElementById(id) as T;
   const lounge = document.createElement("details");
@@ -44,6 +57,33 @@ export function createMatchShell() {
     preferences.append(get(id).closest("label")!);
   preferences.append(get("control-help"));
   content.append(document.querySelector("[data-radio]")!);
+  const inviteHolder = document.createElement("div");
+  const players = createRoster();
+  const join = createNameEntry({
+    initial: actions.playerName?.() ?? "",
+    normalize: (value) => value.trim().slice(0, 24),
+    onSubmit: (name) => actions.join(name, requestedRoomSlot(join.form)),
+  });
+  const addAI = button("Add AI");
+  addAI.onclick = () => actions.addAI(requestedRoomSlot(addAI));
+  const settingsParts = [...content.children].filter(
+    (node) => node.id !== "invitation",
+  );
+  const roomLayout = createRoomLayout({
+    background: async (host, signal) =>
+      (await import("./attract.js")).createAttract(host, signal),
+    element: content as HTMLElement,
+    invite: inviteHolder,
+    roster: players,
+    capacity: 5,
+    join: join.form,
+    playerName: actions.playerName,
+    addAI,
+    settings: settingsParts,
+    actions: [get("invitation")],
+  });
+  let inviteCode = "";
+  lounge.addEventListener("toggle", () => roomLayout.setActive(lounge.open));
   const hud = document.createElement("section");
   hud.id = "match-hud";
   hud.setAttribute("aria-label", "Match scoreboard");
@@ -122,6 +162,27 @@ export function createMatchShell() {
       ]);
       if (facts === previous) return;
       previous = facts;
+      if (inviteCode !== code) {
+        inviteCode = code;
+        inviteHolder.replaceChildren(
+          createInviteCard({
+            code,
+            link: get<HTMLInputElement>("invite-url").value,
+            qr: (link) => QRCode.toDataURL(link, { margin: 1, width: 300 }),
+          }).element,
+        );
+      }
+      players.update(
+        view.keepers.map((keeper) => ({
+          id: keeper.id,
+          slot: keeper.slot,
+          name: keeper.name,
+          status: keeper.bot ? "AI" : keeper.id === selfId ? "You" : "Ready",
+        })),
+      );
+      join.form.hidden =
+        display || view.keepers.some((keeper) => keeper.id === selfId);
+      addAI.hidden = !manager || view.keepers.length >= 5;
       const local = view.keepers.find((k) => k.id === selfId);
       const name = (id: string) => {
         const entry = c.entries.find((e) => e.id === id);

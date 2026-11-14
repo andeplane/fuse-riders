@@ -16,6 +16,58 @@ function seeded(seed: number): () => number {
   };
 }
 const room = (runtime: CounterRuntime) => runtime.roomState()!;
+test("requested slots respect the active mode's capacity rather than the game's maximum", () => {
+  const game = {
+    ...counterGame,
+    seating: { ...counterGame.seating, capacityFor: () => 2 },
+  };
+  const mesh = new FakeMesh("host"),
+    host = mesh.join("host", game);
+  mesh.run(300);
+  assert.equal(host.command({ type: "join", name: "Host", slot: 2 }), false);
+  assert.equal(host.command({ type: "bot", action: "add", slot: 2 }), false);
+  assert.equal(host.command({ type: "join", name: "Host", slot: 1 }), true);
+  mesh.run(300);
+  assert.equal(room(host).seats.get("host")?.slot, 1);
+});
+test("slot admission preserves peer choice, reserves pending seats and rejects occupied or invalid slots", () => {
+  const mesh = new FakeMesh("host", { target: 12 });
+  const host = mesh.join("host"),
+    guest = mesh.join("guest");
+  mesh.run(300);
+  assert.equal(host.command({ type: "join", name: "Host", slot: 2 }), true);
+  assert.equal(
+    host.command({ type: "join", name: "Host", slot: 0 }),
+    false,
+    "a second click cannot replace an in-flight slot choice",
+  );
+  assert.equal(
+    host.command({ type: "bot", action: "add", slot: 2 }),
+    false,
+    "a pending JOIN reserves its exact seat",
+  );
+  guest.command({ type: "join", name: "Guest", slot: 0 });
+  mesh.run(3000);
+  assert.equal(room(host).seats.get("host")?.slot, 2);
+  assert.equal(room(host).seats.get("guest")?.slot, 0);
+  const before = room(host).seats.size;
+  for (const slot of [-1, 1.5, 100, 0, NaN])
+    assert.equal(host.command({ type: "bot", action: "add", slot }), false);
+  mesh.run(200);
+  assert.equal(room(host).seats.size, before);
+  assert.equal(host.command({ type: "bot", action: "add", slot: 1 }), true);
+  assert.equal(
+    host.command({ type: "bot", action: "add", slot: 1 }),
+    false,
+    "pending bot reserves its chosen seat",
+  );
+  mesh.run(300);
+  assert.equal(
+    [...room(guest).seats.values()].find((seat) => seat.bot)?.slot,
+    1,
+  );
+  assertConverged([host, guest]);
+});
 function seated(mesh: FakeMesh, ids: string[]): CounterRuntime[] {
   const runtimes = ids.map((id) => mesh.join(id));
   mesh.run(200);

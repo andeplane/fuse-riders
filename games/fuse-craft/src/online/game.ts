@@ -614,6 +614,11 @@ export const neuralGame: RollbackGame<
   settings: (r) => r.settings,
   seating: {
     capacity: RULES.maxPlayers,
+    capacityFor: (room) =>
+      room.settings.mode === "versus"
+        ? (ROOM_MAPS.find((map) => map.id === room.settings.mapId)?.seats ??
+          RULES.maxPlayers)
+        : RULES.maxPlayers,
     maxWatchers: 4,
     minPlayers: 1,
     seatName: name,

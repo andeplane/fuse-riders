@@ -43,6 +43,7 @@ export function roomModel(
         : "",
     players: v.players.map((p) => ({
       id: p.id,
+      slot: p.slot,
       name: `${p.name}${p.id === me ? " (you)" : ""}`,
       color: p.slot,
       status: p.bot ? "BOT" : p.connected ? "HERE" : "AWAY",

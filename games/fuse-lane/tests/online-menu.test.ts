@@ -217,7 +217,7 @@ test("the room's lobby: faces and names, the AI's level, goal presets and every 
   press("Long · 80");
   press("Hard");
   press("90s");
-  press("+ ADD AI");
+  press("Add AI");
   press("START MATCH");
   assert.deepEqual(calls, [
     ["removeBot", "bot:1"],

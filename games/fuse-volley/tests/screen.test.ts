@@ -145,7 +145,7 @@ test("in a match each player sees their side; on a shared screen a phone becomes
     display: true,
     scoring: "classic",
     bot: 1,
-    doubles: false,
+    team: 1,
   });
   const phone = present(view(shared), viewer("b"));
   assert.equal(phone.screen, "controller");
@@ -338,7 +338,7 @@ test("a classic side-out is not reported as a point", () => {
     display: false,
     scoring: "classic",
     bot: 1,
-    doubles: false,
+    team: 1,
   });
   const server = room.world!.server;
   const watch = createPointWatch();

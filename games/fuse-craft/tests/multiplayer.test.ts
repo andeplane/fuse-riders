@@ -106,6 +106,14 @@ function fixture(options: { manager?: boolean; initialRoom?: string } = {}) {
   };
   const app = mountFuseCraft(root, dependencies);
   const click = (selector: string) => {
+    for (const dialog of root.querySelectorAll<HTMLDialogElement>("dialog")) {
+      dialog.showModal = () => {
+        dialog.open = true;
+      };
+      dialog.close = () => {
+        dialog.open = false;
+      };
+    }
     const element = root.querySelector<HTMLElement>(selector);
     assert.ok(element, `missing ${selector}`);
     element.click();
@@ -147,7 +155,7 @@ test("creating a room enters its lobby and a name takes a seat", async () => {
     "enterRoom:AB12",
     "openRoom:AB12",
   ]);
-  assert.equal(f.root.querySelector(".room-code")?.textContent, "AB12");
+  assert.equal(f.root.querySelector(".fui-room-code")?.textContent, "AB12");
   f.change('[data-field="player-name"]', "Anders");
   f.click('[data-action="join-seat"]');
   assert.ok(f.calls.includes("join:Anders"));

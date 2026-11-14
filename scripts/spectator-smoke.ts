@@ -1,3 +1,4 @@
+import { openPlayOptions, takeHostSeat } from "./lib/main-menu.js";
 import { readyRoom } from "./lib/ready-room.js";
 import type { Browser, Page } from "playwright";
 import { launchSelected } from "./lib/browser.js";
@@ -68,8 +69,10 @@ try {
 
   // The host creates the room and is seated in it, under the name this browser remembers, with nothing in between.
   const host = await open("host", `${base}?mute=1&benchmark=1`, "Hosty");
+  await openPlayOptions(host);
   await host.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
   await host.waitForURL(/room=/);
+  await takeHostSeat(host, "Hosty");
   const code = new URL(host.url()).searchParams.get("room")!;
   const roomUrl = `${base}?room=${code}&mute=1&benchmark=1`;
   await host.locator(".room-riders > .room-rider").first().waitFor();
@@ -369,7 +372,7 @@ try {
   );
   // The watcher's own action bar is up — SWAP TO PLAYER lives in it — so ask for the host's controls by name rather
   // than for the bar that holds them.
-  for (const action of ["ROOM SETTINGS", "ADD AI", "BACK TO LOBBY"])
+  for (const action of ["Game settings", "Add AI", "BACK TO LOBBY"])
     assert.equal(
       await watcher
         .getByRole("button", { name: action, exact: true })
