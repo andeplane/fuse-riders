@@ -298,7 +298,7 @@ export function createScene(
       if (!seen(object.x, object.y)) continue;
       if (object.kind === "apple") {
         // This pane's rider has its own apples: the ones it ate are gone here and nowhere else.
-        if (rider.taken & (1 << index)) continue;
+        if (rider.taken & (1n << BigInt(index))) continue;
         drawApple(
           g,
           object.x,

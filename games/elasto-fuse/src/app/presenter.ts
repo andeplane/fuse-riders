@@ -74,7 +74,7 @@ export interface Model {
   };
   /** Each rider's name by slot, for ghost tags and pane labels. */
   tags: string[];
-  /** The level being raced and, in a tour, which race it is: "ROLLERS · 2 / 12". */
+  /** The level being raced and, in a tour, which race it is: "ROLLERS · 2 / 503". */
   title: string;
   /** One line for a phone controller. */
   status: string;

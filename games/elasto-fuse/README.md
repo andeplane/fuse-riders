@@ -1,8 +1,10 @@
 # Elasto Fuse
 
-Elasto Fuse is a side-view motorbike trials game for one to five riders. The bike is a frame on two sprung wheels with a rider on top, and it rides over polygon terrain: **eat every apple, then touch the flower**. If the rider's head touches the ground the run is over and starts again at the start. The mechanics follow the classic springy-bike trials formula; the levels, the name and the art are this project's own.
+Elasto Fuse is a side-view motorbike trials game for one to five riders. The bike is a frame on two sprung wheels with a rider on top, and it rides over polygon terrain: **eat every apple, then touch the flower**. If the rider's head touches the ground the run is over and starts again at the start. The original Elasto Mania campaign is first, in its canonical 54-level order starting with Warm Up, followed by 503 external tracks. The name and art are this project's own.
 
-Riders share a track and a clock but never touch: everyone else is a translucent ghost, and each rider has their own apples. The first rider home wins the race, and the others then have 30 seconds to finish. A room races one level, or the **tour**: all twelve levels in turn, with points for each place (10, 7, 5, 3, 2) and the standings between races.
+Riders share a track and a clock but never touch: everyone else is a translucent ghost, and each rider has their own apples. The first rider home wins the race, and the others then have 30 seconds to finish. Choose a starting level beside Play Solo, or choose the room's race level in the multiplayer lobby (host only). A room races one selected level, or the **tour**: all levels in turn, with points for each place (10, 7, 5, 3, 2) and the standings between races.
+
+The campaign geometry is extracted from an original `Elma.res` using `pnpm exec tsx scripts/elasto-fuse-campaign.ts /path/to/Elma.res`, then formatted with Prettier. The importer follows the original `QOPEN.CPP` resource table and `TOPOL.CPP` internal level layout, keeps gravity apples, and excludes decorative grass polygons. The external POT06 files are separate tracks, not the built-in campaign. Source resource files are not committed.
 
 ## Run it
 

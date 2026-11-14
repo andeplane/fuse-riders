@@ -144,6 +144,30 @@ body.elasto-fuse-page {
 }
 
 /* The level picker: on the landing page and in the lobby */
+.ef-level-picker {
+  display: grid;
+  gap: var(--fui-space-2);
+  width: 100%;
+  min-width: 0;
+  color: var(--fui-text-muted);
+}
+.ef-level-picker select {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--fui-space-2);
+  color: var(--fui-text);
+  background: #06102a;
+  border: var(--fui-stroke) solid var(--fui-line);
+  font: inherit;
+  color-scheme: dark;
+}
+.ef-level-picker select:focus-visible {
+  outline: 2px solid var(--fui-cyan);
+  outline-offset: 2px;
+}
+.ef-level-picker select:disabled {
+  opacity: 0.65;
+}
 .ef-levels {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));

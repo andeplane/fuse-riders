@@ -66,7 +66,7 @@ export function rideHome(room: Room, id: string): void {
       rest = bits[step + 1] ?? first;
     const entries: unknown[][] = [];
     if (first !== held) entries.push([PLAY, room.matchId, first]);
-    if (rest !== first) entries.push([PLAY, room.matchId, rest]);
+    if (rest !== first) entries.push([PLAY, room.matchId, rest, 1]);
     held = rest;
     fold(room, entries.length ? { [id]: entries } : {});
   }
