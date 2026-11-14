@@ -65,6 +65,10 @@ export class FuseballRuntime extends RoomRuntime<
     this.append(PLAY, room.matchId, this.bits);
     this.sendPackets(this.deps.now());
   }
+  /** What this device holds right now, logged or not: the screen leads its own rider with it. */
+  get heldNow(): number {
+    return this.bits;
+  }
   /** In the lobby, asks to ride for the other side: this device's seat moves to that side's lowest free place. */
   switchSide(): void {
     const room = this.world?.state;

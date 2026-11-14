@@ -24,7 +24,12 @@ import {
   installRoomLifecycle,
   validRoomCode,
 } from "fuse-network-fe";
-import { MAX_PACKET_BYTES, uuid } from "fuse-netcode";
+import {
+  MAX_PACKET_BYTES,
+  createLeadClock,
+  ticksAhead,
+  uuid,
+} from "fuse-netcode";
 import {
   button,
   createAppPortal,
@@ -42,6 +47,7 @@ import {
   BTN,
   MAP_IDS,
   TEAM_MAP_IDS,
+  botInput,
   isTeamMapId,
   RANDOM,
   mapOf,
@@ -49,6 +55,7 @@ import {
   isMapId,
   type MapDef,
   type MapId,
+  type WorldView,
 } from "../engine/index.js";
 import { GAME_ID } from "../basics.js";
 import {
@@ -60,6 +67,7 @@ import {
 import { seatName } from "../online/names.js";
 import { FuseballRuntime, type FuseballCallbacks } from "../online/runtime.js";
 import { blend, fraction } from "../render/interpolate.js";
+import { createSmoother, forward, forwardInputs, memoBot } from "./forward.js";
 import {
   GADGET,
   PORTAL,
@@ -127,6 +135,10 @@ const seedKey = `${GAME}-seed`;
 const sizeKey = `${GAME}-size`;
 const query = new URLSearchParams(location.search);
 const muted = query.has("mute");
+/** `?lead=off` draws the old way, a tick behind the clock and blended, to compare the feel against. */
+const drawAhead = query.get("lead") !== "off";
+/** For latency measurements: `?probe` publishes where this device's rider was last drawn as `window.__fuseballProbe`. */
+const probe = query.has("probe");
 /** One sound bus for the page: the mute and volumes are remembered across games, `?mute` keeps a preview silent. */
 const audio = createGameAudio(
   browserAudioDependencies(safeStorage(() => localStorage)),
@@ -139,9 +151,11 @@ const app = document.querySelector<HTMLElement>("#app")!;
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 /** For smokes and demos: `?autopilot` rides this device's rider with the bot's answers, through the same held controls. */
 const autopilot = query.has("autopilot");
-/** A link within the game that keeps this page's developer flags, `mute` and `autopilot`. */
+/** A link within the game that keeps this page's developer flags (`mute`, `autopilot`, `lead`, `probe`). */
 const withFlags = (path: string) => {
-  const kept = ["mute", "autopilot"].filter((flag) => query.has(flag));
+  const kept = ["mute", "autopilot", "lead", "probe"]
+    .filter((flag) => query.has(flag))
+    .map((flag) => (query.get(flag) ? `${flag}=${query.get(flag)}` : flag));
   return kept.length
     ? `${path}${path.includes("?") ? "&" : "?"}${kept.join("&")}`
     : path;
@@ -880,20 +894,56 @@ function room(solo: boolean): void {
   nameEntry.form.hidden = true;
   let over = false;
 
-  // ---- drawing: the runtime's two newest frames, blended, once per animation frame; no physics here ----
+  // ---- drawing: the newest folded world played forward to the clock, once per animation frame ----
   const scene = createScene(canvas, {
     reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
   });
   let model: Model | undefined;
-  const frame = (now: number) => {
+  const smoother = createSmoother(),
+    leadClock = createLeadClock(),
+    drawBot = memoBot(botInput);
+  /** What to draw now: the forward run when the newest frame is the room's newest world, otherwise the two frames blended. */
+  const picture = (now: number): WorldView | undefined => {
     const timing = runtime.frameTiming();
-    if (timing?.newer.world && !stage.hidden) {
-      const alpha = fraction(
-        timing.older?.tick,
-        timing.newer.tick,
-        timing.tick,
+    const newer = timing?.newer.world;
+    if (!timing || !newer) return undefined;
+    const state = runtime.roomState();
+    if (
+      !drawAhead ||
+      state?.stage !== "running" ||
+      !state.world ||
+      state.world.step !== newer.step
+    )
+      return blend(
+        timing.older?.world,
+        newer,
+        fraction(timing.older?.tick, timing.newer.tick, timing.tick),
       );
-      const world = blend(timing.older?.world, timing.newer.world, alpha);
+    const ahead = leadClock(ticksAhead(timing), timing.newer.logTick, now);
+    return smoother.apply(
+      forward(
+        state.world,
+        ahead,
+        forwardInputs(state, runtime.self, runtime.heldNow, drawBot),
+      ),
+      timing.revision ?? 0,
+      newer.step,
+      now,
+      model?.localIndex ?? -1,
+    );
+  };
+  const frame = (now: number) => {
+    const world = stage.hidden ? undefined : picture(now);
+    if (world) {
+      if (probe) {
+        const mine = world.riders[model?.localIndex ?? -1];
+        Reflect.set(window, "__fuseballProbe", {
+          at: performance.now(),
+          step: world.step,
+          x: mine?.x,
+          y: mine?.y,
+        });
+      }
       for (const cue of scene.draw(
         world,
         now,
