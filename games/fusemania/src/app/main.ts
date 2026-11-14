@@ -677,8 +677,10 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   const throwItem = (at: number) => runtime.useItem(stamp(at));
   const pads = (className: string) => {
     const row = el("div", "", className);
-    ["←", "↓", "↑", "→"].forEach((label, column) => {
-      const node = el("div", label, `fm-pad fm-pad-${column}`);
+    [0, 1, 2, 3].forEach((column) => {
+      // A drawn arrow: the arrow characters come from different fonts on a phone and do not match.
+      const node = el("div", "", `fm-pad fm-pad-${column}`);
+      node.append(el("span", "", "fm-pad-arrow"));
       node.setAttribute("role", "button");
       node.setAttribute("aria-label", `${COLUMN_ACTIONS[column]} arrow`);
       node.addEventListener("contextmenu", (event) => event.preventDefault());

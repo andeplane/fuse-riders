@@ -428,11 +428,13 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"]))
   white-space: nowrap;
 }
 .fm-rows li small {
-  overflow: hidden;
   color: var(--fui-text-dim);
   font: 0.6875rem/1.5 var(--fui-font-body, inherit);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+@media (max-width: 30rem) {
+  .fm-rows li {
+    grid-template-columns: 1rem 2rem minmax(0, 1fr) auto;
+  }
 }
 .fm-rows li em {
   color: var(--fui-yellow);
@@ -548,6 +550,30 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"]))
   font: 1.75rem/1 var(--fui-font-pixel);
   touch-action: none;
   cursor: pointer;
+}
+.fm-pad-arrow {
+  width: min(2.75rem, 55%);
+  aspect-ratio: 1;
+  background: currentColor;
+  clip-path: polygon(
+    0 50%,
+    50% 0,
+    50% 30%,
+    100% 30%,
+    100% 70%,
+    50% 70%,
+    50% 100%
+  );
+  pointer-events: none;
+}
+.fm-pad-1 .fm-pad-arrow {
+  rotate: -90deg;
+}
+.fm-pad-2 .fm-pad-arrow {
+  rotate: 90deg;
+}
+.fm-pad-3 .fm-pad-arrow {
+  rotate: 180deg;
 }
 .fm-pad-0 {
   border-color: var(--fui-pink);

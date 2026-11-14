@@ -170,7 +170,7 @@ test("the result ranks the players, says who won and what this device's best was
     "Waiting for the host to pick the next song",
   );
   assert.deepEqual(present(library, view, viewer("b")).result!.lines, [
-    "FIRST CLEAR!",
+    "FIRST SCORE ON THIS CHART",
   ]);
   assert.equal(present(library, view, viewer("b")).status, "2ND PLACE");
   // Back in the lobby there is no result.

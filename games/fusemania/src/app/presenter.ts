@@ -215,7 +215,7 @@ export function present(
       if (bestBefore === undefined || player.rating > bestBefore)
         lines.push(
           bestBefore === undefined
-            ? "FIRST CLEAR!"
+            ? "FIRST SCORE ON THIS CHART"
             : `NEW BEST! (WAS ${percent(bestBefore)})`,
         );
       else lines.push(`BEST ${bestText(bestBefore)}`);
