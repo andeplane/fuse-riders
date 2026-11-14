@@ -1,5 +1,5 @@
 {
-  "rules": "fuseball-5",
+  "rules": "fuseball-6",
   "hashes": {
     "gridlock": [
       "9d516497",
@@ -177,6 +177,23 @@
       "d2c6d70c",
       "a0bdd44e",
       "a0bdd44e"
+    ],
+    "quadcore": ["b995de51", "6758f045", "8ac53e9a", "9842cee6", "73f62c06"],
+    "bitstream": [
+      "f7e89a14",
+      "2f3eef34",
+      "fd976231",
+      "c8eaff65",
+      "bd315e75",
+      "d048d09b"
+    ],
+    "memoryleak": [
+      "8b862b24",
+      "b5073498",
+      "ccb64b43",
+      "36c78c2b",
+      "b9ae3aec",
+      "faa697c1"
     ]
   },
   "bots": {
@@ -316,6 +333,41 @@
       "423ab9fe",
       "b0602eec",
       "7fd697d1"
+    ],
+    "quadcore": [
+      "3273c893",
+      "aae969e5",
+      "82d10ef3",
+      "19285345",
+      "53db9542",
+      "27273264",
+      "e6d3cda2",
+      "15ea59f8",
+      "2ef8fc2e",
+      "3d8ba4e1"
+    ],
+    "bitstream": [
+      "f6949ad8",
+      "92232e1d",
+      "94a3e33c",
+      "a53c24c0",
+      "96640fc6",
+      "67b9ac31",
+      "517494f0",
+      "34fab9c9"
+    ],
+    "memoryleak": [
+      "3ed90892",
+      "79c1a227",
+      "68a37bcf",
+      "ac5df2ad",
+      "067b0904",
+      "f441e398",
+      "086fccb8",
+      "1b7198f9",
+      "31c70575",
+      "ce2b5184",
+      "ada62391"
     ]
   }
 }

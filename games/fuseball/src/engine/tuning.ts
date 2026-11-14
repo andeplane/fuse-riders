@@ -130,6 +130,17 @@ export const FIELD_KICK = 8704,
   PORTAL_KEEP_NUM = 1,
   PORTAL_KEEP_DEN = 2;
 
+/**
+ * Liquids. In goo the ball loses 1/`GOO_DRAG` of its speed every step, so it sinks at `BALL_GRAVITY × GOO_DRAG`
+ * (about 29 pixels a second) and a kick carries it some 30 pixels. A jet adds `STREAM_PUSH` of upward speed every
+ * step (four times gravity) until the ball is rising at `STREAM_SPEED`, and takes 1/`STREAM_DRAG` of its speed, so
+ * a ball that stays in one ends up riding on top of it.
+ */
+export const GOO_DRAG = 16,
+  STREAM_PUSH = 4 * BALL_GRAVITY,
+  STREAM_SPEED = 6144,
+  STREAM_DRAG = 32;
+
 /** Cosmetic counters wrap here, so they stay small integers for ever. */
 export const COUNTER = 0x10000;
 /** The last step a world may reach: 207 days of play. */

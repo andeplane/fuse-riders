@@ -43,6 +43,9 @@ export const MAP_IDS = [
   "bouncerate",
   "portforward",
   "backdoor",
+  "quadcore",
+  "bitstream",
+  "memoryleak",
 ] as const;
 export type MapId = (typeof MAP_IDS)[number];
 export const isMapId = (value: unknown): value is MapId =>
@@ -72,6 +75,17 @@ export interface Portal {
   hue: 0 | 1;
 }
 
+/**
+ * Liquids, which like every gadget act on the ball alone and keep no state. `hue` is the team colour one wears, for
+ * the look only: neither side owns it.
+ *
+ * Goo is thick: a ball whose centre is in it loses a share of its speed every step, so it sinks slowly and a kick
+ * barely moves it. A pool of it across a seam is drawn again on the far side, like a solid.
+ */
+export type Goo = Rect & { hue: 0 | 1 };
+/** A jet of liquid running straight up: a ball whose centre is in it is slowed and pushed upwards, so it rides on top. */
+export type Stream = Rect & { hue: 0 | 1 };
+
 export interface MapDef {
   id: MapId;
   name: string;
@@ -89,14 +103,18 @@ export interface MapDef {
   barriers: readonly Barrier[];
   bumpers: readonly Bumper[];
   portals: readonly Portal[];
+  goo: readonly Goo[];
+  streams: readonly Stream[];
 }
+type Gadgets = "barriers" | "bumpers" | "portals" | "goo" | "streams";
 /** A map as it is written down: the gadgets it does not have are left out. */
-type MapSpec = Omit<MapDef, "barriers" | "bumpers" | "portals"> &
-  Partial<Pick<MapDef, "barriers" | "bumpers" | "portals">>;
+type MapSpec = Omit<MapDef, Gadgets> & Partial<Pick<MapDef, Gadgets>>;
 const arena = (spec: MapSpec): MapDef => ({
   barriers: [],
   bumpers: [],
   portals: [],
+  goo: [],
+  streams: [],
   ...spec,
 });
 
@@ -512,6 +530,155 @@ const backdoor: MapDef = arena({
   ],
 });
 
+/**
+ * A side wall 24 thick from `top` to `bottom` with a goal slot in it between `from` and `to`, as in Bounce Rate:
+ * the slot's back is the last 6 pixels of the wall. `left` picks the side.
+ */
+const goalWall = (
+  left: boolean,
+  top: number,
+  from: number,
+  to: number,
+  bottom: number,
+): Rect[] => [
+  rect(left ? 0 : 616, top, 24, from - top),
+  rect(left ? 0 : 634, from, 6, to - from),
+  rect(left ? 0 : 616, to, 24, bottom - to),
+];
+/** The slots of a pair of `goalWall`s: each rider's is in the far wall. */
+const wallGoals = (from: number, to: number): Goal[] => [
+  { team: 0, ...rect(616, from, 18, to - from) },
+  { team: 1, ...rect(6, from, 18, to - from) },
+];
+
+/**
+ * Quad Core is a closed box with four grass pads in two tiers and a goal slot high in each side wall. Under each
+ * slot the wall is cut back into a notch, and below the notch it stands further in, so there is a shelf to stand on
+ * right under the goal. The corners are stepped, so a ball rolled into one hops back out.
+ */
+const quadcore: MapDef = arena({
+  id: "quadcore",
+  name: "Quad Core",
+  wrapX: false,
+  wrapY: false,
+  solids: [
+    rect(0, 0, 640, 12),
+    rect(0, 348, 640, 12),
+    ...goalWall(true, 12, 90, 190, 206),
+    ...goalWall(false, 12, 90, 190, 206),
+    // The notch's back, and the thicker wall under it.
+    rect(0, 206, 6, 76),
+    rect(634, 206, 6, 76),
+    rect(0, 282, 36, 66),
+    rect(604, 282, 36, 66),
+    // Stepped corners.
+    rect(24, 12, 12, 10),
+    rect(604, 12, 12, 10),
+    rect(36, 326, 8, 22),
+    rect(596, 326, 8, 22),
+    rect(44, 338, 10, 10),
+    rect(586, 338, 10, 10),
+    rect(182, 190, 100, 10),
+    rect(358, 190, 100, 10),
+    rect(146, 272, 98, 10),
+    rect(396, 272, 98, 10),
+  ],
+  goals: wallGoals(90, 190),
+  clouds: [
+    { x: 70, y: 140, r: 40 },
+    { x: 570, y: 140, r: 40 },
+  ],
+  spawns: [
+    { x: 120, y: 339 },
+    { x: 520, y: 339 },
+  ],
+  ballAnchor: { x: 320, y: 120 },
+});
+
+/**
+ * Bitstream wraps top to bottom. Two holes in the floor are the same shafts as the holes in the roof above them,
+ * and nobody's goal: what drops in comes back from the top. The goals are slots in the side walls. The ball starts
+ * over the wide pad in the middle, which stands over two jets: a ball rolled under it hops over them, or is caught and rides on one.
+ */
+const bitstream: MapDef = arena({
+  id: "bitstream",
+  name: "Bitstream",
+  wrapX: false,
+  wrapY: true,
+  solids: [
+    ...goalWall(true, 0, 90, 190, 360),
+    ...goalWall(false, 0, 90, 190, 360),
+    rect(24, 348, 140, 24),
+    rect(208, 348, 224, 24),
+    rect(476, 348, 140, 24),
+    rect(182, 190, 108, 10),
+    rect(350, 190, 108, 10),
+    rect(92, 228, 62, 10),
+    rect(486, 228, 62, 10),
+    rect(254, 266, 132, 10),
+  ],
+  goals: wallGoals(90, 190),
+  clouds: [
+    { x: 68, y: 140, r: 40 },
+    { x: 572, y: 140, r: 40 },
+  ],
+  spawns: [
+    { x: 110, y: 339 },
+    { x: 530, y: 339 },
+  ],
+  ballAnchor: { x: 320, y: 120 },
+  streams: [
+    { hue: 1, ...rect(276, 300, 16, 48) },
+    { hue: 0, ...rect(348, 300, 16, 48) },
+  ],
+});
+
+/**
+ * Memory Leak wraps top to bottom, and only the two ends have a floor. The middle is one open shaft under a wide
+ * pad; between it and each floor is a narrow pit, fenced by a tall pillar and a short post, with a pool of goo in
+ * it. The pit has no bottom: a ball that sinks through the pool leaks out of the roof above it and falls down the
+ * same column again, until somebody knocks it out of the air. Steps lead up to each post, two thin pillars hang at
+ * mid height, and the goals are slots in the side walls.
+ */
+const memoryleak: MapDef = arena({
+  id: "memoryleak",
+  name: "Memory Leak",
+  wrapX: false,
+  wrapY: true,
+  solids: [
+    ...goalWall(true, 0, 90, 190, 360),
+    ...goalWall(false, 0, 90, 190, 360),
+    rect(24, 348, 150, 24),
+    rect(466, 348, 150, 24),
+    // Steps, then the post; the pit; the tall pillar. Post and pillar cross the seam and hang from the roof too.
+    rect(150, 338, 24, 10),
+    rect(466, 338, 24, 10),
+    rect(162, 328, 12, 10),
+    rect(466, 328, 12, 10),
+    rect(174, 316, 8, 56),
+    rect(458, 316, 8, 56),
+    rect(234, 246, 8, 126),
+    rect(398, 246, 8, 126),
+    rect(138, 142, 8, 78),
+    rect(494, 142, 8, 78),
+    rect(246, 184, 148, 10),
+  ],
+  goals: wallGoals(90, 190),
+  clouds: [
+    { x: 68, y: 140, r: 40 },
+    { x: 572, y: 140, r: 40 },
+  ],
+  spawns: [
+    { x: 90, y: 339 },
+    { x: 550, y: 339 },
+  ],
+  ballAnchor: { x: 320, y: 110 },
+  goo: [
+    { hue: 1, ...rect(182, 330, 52, 42) },
+    { hue: 0, ...rect(406, 330, 52, 42) },
+  ],
+});
+
 export const MAPS: Readonly<Record<MapId, MapDef>> = {
   gridlock,
   downlink,
@@ -524,6 +691,9 @@ export const MAPS: Readonly<Record<MapId, MapDef>> = {
   bouncerate,
   portforward,
   backdoor,
+  quadcore,
+  bitstream,
+  memoryleak,
 };
 export const mapOf = (id: MapId): MapDef => MAPS[id];
 
@@ -549,6 +719,26 @@ export const boxesOf = (id: MapId): readonly Box[] => BOXES.get(id) ?? [];
 const BARRIER_BOXES = new Map<MapId, readonly Box[]>(
   MAP_IDS.map((id) => [id, MAPS[id].barriers.map(boxOf)]),
 );
+/** A liquid's rect in sub-units, where it is and again one field back on each wrapping axis it runs past. */
+const zonesOf = (map: MapDef, rects: readonly Rect[]): Rect[] =>
+  rects.flatMap((r) => {
+    const xs = map.wrapX && r.x + r.w > 640 ? [r.x, r.x - 640] : [r.x],
+      ys = map.wrapY && r.y + r.h > 360 ? [r.y, r.y - 360] : [r.y];
+    return xs.flatMap((x) =>
+      ys.map((y) => rect(x * SUB, y * SUB, r.w * SUB, r.h * SUB)),
+    );
+  });
+const GOO_ZONES = new Map<MapId, readonly Rect[]>(
+  MAP_IDS.map((id) => [id, zonesOf(MAPS[id], MAPS[id].goo)]),
+);
+const STREAM_ZONES = new Map<MapId, readonly Rect[]>(
+  MAP_IDS.map((id) => [id, zonesOf(MAPS[id], MAPS[id].streams)]),
+);
+/** The map's goo and streams as sub-unit rects, each one in the field. */
+export const gooZonesOf = (id: MapId): readonly Rect[] =>
+  GOO_ZONES.get(id) ?? [];
+export const streamZonesOf = (id: MapId): readonly Rect[] =>
+  STREAM_ZONES.get(id) ?? [];
 /** The map's barriers in sub-units, in the order of `MapDef.barriers`. */
 export const barrierBoxesOf = (id: MapId): readonly Box[] =>
   BARRIER_BOXES.get(id) ?? [];

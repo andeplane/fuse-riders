@@ -18,6 +18,8 @@ export {
   type Barrier,
   type Bumper,
   type Portal,
+  type Goo,
+  type Stream,
 } from "./maps.js";
 export {
   VIEW_W,

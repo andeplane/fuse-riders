@@ -33,6 +33,9 @@ export const MAP_BLURBS: Readonly<Record<MapId, string>> = {
   bouncerate: "A closed box of bumpers. One guards each goal.",
   portforward: "Corner portals carry the ball across. Roofed pits.",
   backdoor: "Trapdoors shut the pits. Knock one open, then drop in.",
+  quadcore: "A closed box. Four grass pads, and a goal in each wall.",
+  bitstream: "Holes in the floor drop from the roof. Jets lift the ball.",
+  memoryleak: "Goo pits leak from the roof. Thin pillars, no middle floor.",
 };
 
 export interface Side {

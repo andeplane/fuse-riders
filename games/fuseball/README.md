@@ -12,7 +12,7 @@ Fuseball is a neon arena ball duel for two riders, served at `/fuseball/`. Knock
 - **Clouds.** While the ball is inside a cloud the whole arena goes into slow motion: it eases down to half speed at the cloud's rim and about a third at its centre, holds for a moment after the ball is out, then eases back. Only the ball counts; a rider or a bubble in a cloud slows nothing.
 - **Goals.** A goal freezes everything for a little over a second, then the loser is zapped in slow motion before the next countdown.
 - **Wrap.** Most arenas have no outer edge on at least one axis: what leaves one side comes back on the other, so a rider or the ball that drops through an open floor falls in again from the top. Bounce Rate and Port Forward are closed boxes. Riders fly through goals untouched; only the ball scores.
-- **Gadgets.** The newer arenas each have one thing that acts on the ball and only the ball; riders fly through all of them. A **force field** over a goal throws the ball back and breaks after three strikes, until the next point. A **bumper** throws the ball away from its centre and never pops. A **portal** carries a ball flying into it to its twin, at half its speed. A **trapdoor** holds a ball rolled onto it, and opens for three seconds when the ball strikes it hard: drop the ball on it, or stand beside it and lift.
+- **Gadgets.** The newer arenas each have one thing that acts on the ball and only the ball; riders fly through all of them. A **force field** over a goal throws the ball back and breaks after three strikes, until the next point. A **bumper** throws the ball away from its centre and never pops. A **portal** carries a ball flying into it to its twin, at half its speed. A **trapdoor** holds a ball rolled onto it, and opens for three seconds when the ball strikes it hard: drop the ball on it, or stand beside it and lift. **Goo** is thick: a ball in it loses most of its speed and sinks slowly. A **jet** pushes the ball up, so a slow ball is caught and rides on top of it while a fast one hops over. The last three arenas are drawn as outlines on black, after the arcade cabinet's own.
 
 | Arena        | Wraps         | Goals                                                                                                                 |
 | ------------ | ------------- | --------------------------------------------------------------------------------------------------------------------- |
@@ -27,6 +27,9 @@ Fuseball is a neon arena ball duel for two riders, served at `/fuseball/`. Knock
 | Bounce Rate  | not at all    | a slot in each side wall, each with a bumper in front of it and more bumpers across the middle                        |
 | Port Forward | not at all    | a pit at each end of the floor under a low roof; a portal in each bottom corner comes out high on the far side        |
 | Backdoor     | sideways      | a pit at each end of the floor, each shut by a trapdoor                                                               |
+| Quad Core    | not at all    | a slot high in each side wall, over a notch and a shelf; four grass pads in two tiers                                 |
+| Bitstream    | top to bottom | a slot in each side wall; two holes in the floor drop from the roof, and two jets stand under the middle pad          |
+| Memory Leak  | top to bottom | a slot in each side wall; no floor in the middle, and a goo pit each side that leaks from the roof                    |
 
 ## Controls
 
@@ -45,7 +48,7 @@ A slide is the fastest way along the floor; it ends in a small hop when its time
 
 ## Ways to play
 
-- **Solo**: `/fuseball/?solo=1` plays one match against the bot on the arena chosen on the landing page (`&map=` with `gridlock`, `downlink`, `halo`, `overflow`, `firewall`, `cornercase`, `coredump`, `bruteforce`, `bouncerate`, `portforward` or `backdoor` overrides it). No room service is involved.
+- **Solo**: `/fuseball/?solo=1` plays one match against the bot on the arena chosen on the landing page (`&map=` with `gridlock`, `downlink`, `halo`, `overflow`, `firewall`, `cornercase`, `coredump`, `bruteforce`, `bouncerate`, `portforward`, `backdoor`, `quadcore`, `bitstream` or `memoryleak` overrides it). No room service is involved.
 - **Online room**: CREATE ROOM, share the code, link or QR, pick the arena in the lobby, add a bot if nobody joins, and START MATCH. The host starts rematches and returns the room to the lobby. A third visitor watches.
 - **Shared TV**: tick "Shared TV" before creating the room and open `?room=CODE&display=1` on the big screen. It shows the arena only; each rider's phone becomes a controller with a stick and a JUMP button.
 - `?mute` on any URL silences the page for that load without storing a choice.

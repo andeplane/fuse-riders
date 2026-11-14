@@ -255,6 +255,17 @@ function mapThumb(map: MapDef): SVGSVGElement {
         fill: team === -1 ? GADGET : TEAM_LIGHT[team],
       });
     }
+  // Goo and jets in the colour they wear, see-through as the scene draws them.
+  for (const liquid of [...map.goo, ...map.streams])
+    for (const copy of solidCopies(map, liquid))
+      add("rect", {
+        x: copy.x,
+        y: copy.y,
+        width: copy.w,
+        height: copy.h,
+        fill: TEAM[liquid.hue],
+        "fill-opacity": 0.6,
+      });
   for (const bumper of map.bumpers)
     add("circle", {
       cx: bumper.x,

@@ -1,10 +1,17 @@
 import { apart, resolveSolids, type Body, type Touch } from "./collide.js";
 import { SUB, abs, clamp, div, isqrt, toward } from "./math.js";
-import { barrierBoxesOf, type Box, type MapDef } from "./maps.js";
+import {
+  barrierBoxesOf,
+  gooZonesOf,
+  streamZonesOf,
+  type Box,
+  type MapDef,
+  type Rect,
+} from "./maps.js";
 import * as T from "./tuning.js";
 
 /**
- * The ball against an arena's gadgets: barriers (force fields and gates), bumpers and portals. They act on the ball
+ * The ball against an arena's gadgets: liquids (goo and jets), barriers (force fields and gates), bumpers and portals. They act on the ball
  * alone, so this is all of their rules. `step.ts` runs it on the world's ball every step; the bot runs it on a copy
  * to see where a ball is going, so what it predicts is what will happen.
  */
@@ -39,6 +46,16 @@ function overlaps(ball: Body, box: Box, map: MapDef): boolean {
   return ex * ex + ey * ey < T.BALL_R * T.BALL_R;
 }
 
+/** Whether the ball's centre is inside one of the zones (sub-unit rects inside the field). */
+const within = (ball: Body, zones: readonly Rect[]): boolean =>
+  zones.some(
+    (zone) =>
+      ball.x >= zone.x &&
+      ball.x < zone.x + zone.w &&
+      ball.y >= zone.y &&
+      ball.y < zone.y + zone.h,
+  );
+
 /**
  * One step of the ball against the gadgets, after the solids have had it: it may be thrown back, bumped or carried
  * through a portal, and the barriers' state moves on. Returns how many of those were worth a sound.
@@ -49,6 +66,16 @@ export function meetGadgets(
   ball: Body,
 ): number {
   let struck = 0;
+  // The liquids first, since they only change its speed: goo takes a share of it, a jet pushes it up.
+  if (within(ball, gooZonesOf(map.id))) {
+    ball.vx -= div(ball.vx, T.GOO_DRAG);
+    ball.vy -= div(ball.vy, T.GOO_DRAG);
+  }
+  if (within(ball, streamZonesOf(map.id))) {
+    ball.vx -= div(ball.vx, T.STREAM_DRAG);
+    ball.vy -= div(ball.vy, T.STREAM_DRAG);
+    if (ball.vy > -T.STREAM_SPEED) ball.vy -= T.STREAM_PUSH;
+  }
   const boxes = barrierBoxesOf(map.id);
   for (let i = 0; i < map.barriers.length; i++) {
     const barrier = map.barriers[i]!,

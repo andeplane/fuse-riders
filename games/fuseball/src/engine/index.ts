@@ -2,7 +2,7 @@
  * Fuseball's engine: deterministic integer rules with no imports from outside this folder. A change to what any of
  * it does must bump `RULES` and re-record the golden (`tests/golden.test.ts`) in the same commit.
  */
-export const RULES = "fuseball-5";
+export const RULES = "fuseball-6";
 export * from "./input.js";
 export * from "./world.js";
 export {
@@ -20,6 +20,8 @@ export {
   type Barrier,
   type Bumper,
   type Portal,
+  type Goo,
+  type Stream,
 } from "./maps.js";
 export { stepWorld, stepsPerTick, paceTick, slowed, winnerOf } from "./step.js";
 export { botInput } from "./bot.js";
