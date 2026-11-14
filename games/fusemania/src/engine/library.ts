@@ -1,4 +1,4 @@
-import { END_PAD_MS } from "./rules.js";
+import { END_PAD_MS, LATE_MS, LEAD_IN_MS, MAX_SONG_MS } from "./rules.js";
 import { parseSimfile, type Simfile } from "./simfile.js";
 import { MINE, compileSteps, type Steps } from "./steps.js";
 import { createTiming, type Timing } from "./timing.js";
@@ -75,13 +75,21 @@ function peakOf(steps: Steps): number {
   return peak;
 }
 
+/**
+ * Whether a chart fits the song time a match can carry: nothing before the lead-in, and an end the log and a
+ * checkpoint still accept. A file whose offset or tempo puts it outside is left out, not half played.
+ */
+const playable = (steps: Steps): boolean =>
+  (steps.notes[0]?.ms ?? 0) >= -LEAD_IN_MS / 2 &&
+  steps.lastMs + END_PAD_MS + LATE_MS < MAX_SONG_MS;
+
 function entryOf(source: SongSource, sim: Simfile): Entry | undefined {
   const charts = sim.charts
     .filter((chart) => chart.stepsType === "dance-single")
     .map((chart) => ({ chart, steps: compileSteps(chart, sim.timing) }))
     .filter(
       (item): item is { chart: typeof item.chart; steps: Steps } =>
-        item.steps !== undefined,
+        item.steps !== undefined && playable(item.steps),
     )
     .sort(
       (a, b) =>

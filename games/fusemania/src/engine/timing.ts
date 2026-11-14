@@ -22,6 +22,27 @@ interface Piece {
   rate: number;
 }
 
+/**
+ * The first index of `pieces` (sorted by `key`) whose key is at least `value`, or past it when `past` is set; the
+ * length when there is none. A tempo map is searched once per note, so this is a bisection, not a walk.
+ */
+function firstAtLeast(
+  pieces: readonly Piece[],
+  value: number,
+  key: (piece: Piece) => number,
+  past = false,
+): number {
+  let low = 0,
+    high = pieces.length;
+  while (low < high) {
+    const middle = (low + high) >> 1,
+      at = key(pieces[middle]!);
+    if (past ? at <= value : at < value) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
 export function createTiming(data: TimingData): Timing {
   const bpms = data.bpms.length > 0 ? data.bpms : ([[0, 120]] as const);
   const marks = [
@@ -50,31 +71,24 @@ export function createTiming(data: TimingData): Timing {
   const moving = pieces.filter((piece) => piece.rate > 0);
   return {
     timeAt(at) {
-      // The first piece on this beat: before any stop that sits on it.
-      let found = pieces[0]!;
-      for (const piece of pieces) {
-        if (piece.beat > at) break;
-        found = piece;
-        if (piece.beat === at) break;
-      }
+      // The first piece on this beat (before any stop that sits on it), else the last one before it.
+      const first = firstAtLeast(pieces, at, (piece) => piece.beat);
+      const found =
+        pieces[first]?.beat === at
+          ? pieces[first]
+          : (pieces[first - 1] ?? pieces[0]!);
       if (found.rate === 0) return found.time;
       return found.time + (at - found.beat) / found.rate;
     },
     beatAt(seconds) {
-      let found = pieces[0]!;
-      for (const piece of pieces) {
-        if (piece.time > seconds) break;
-        found = piece;
-      }
+      // The last piece that has begun.
+      const after = firstAtLeast(pieces, seconds, (piece) => piece.time, true);
+      const found = pieces[after - 1] ?? pieces[0]!;
       return found.beat + (seconds - found.time) * found.rate;
     },
     bpmAt(at) {
-      let found = moving[0]!;
-      for (const piece of moving) {
-        if (piece.beat > at) break;
-        found = piece;
-      }
-      return found.rate * 60;
+      const after = firstAtLeast(moving, at, (piece) => piece.beat, true);
+      return (moving[after - 1] ?? moving[0]!).rate * 60;
     },
   };
 }

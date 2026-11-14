@@ -1,5 +1,7 @@
 import { RoomRuntime, type Callbacks, type RuntimeOptions } from "fuse-netcode";
 import {
+  MAX_SONG_MS,
+  MIN_SONG_MS,
   RELEASE,
   TICK_MS,
   USE,
@@ -66,13 +68,19 @@ export class FusemaniaRuntime extends RoomRuntime<
     const tick = this.recorder.next();
     this.logged = this.logged.filter((entry) => entry.tick > room.tick);
     this.logged.push({ tick, epoch: room.epoch, code, ms });
-    this.recorder.at(tick, [PLAY, room.epoch, code, Math.round(ms)]);
+    this.recorder.at(tick, [
+      PLAY,
+      room.epoch,
+      code,
+      Math.max(MIN_SONG_MS, Math.min(MAX_SONG_MS, Math.round(ms))),
+    ]);
     this.sendPackets(this.deps.now());
   }
   /** The key of `column` went down (or came up) at song time `ms`. Returns whether it was logged. */
   key(column: number, down: boolean, ms: number): boolean {
     const playing = this.playing();
-    if (!playing || column < 0 || column >= RELEASE) return false;
+    if (!playing || column < 0 || column >= RELEASE || !Number.isFinite(ms))
+      return false;
     if (playing.room.epoch !== this.epoch) {
       this.epoch = playing.room.epoch;
       this.down = [false, false, false, false];
@@ -85,7 +93,7 @@ export class FusemaniaRuntime extends RoomRuntime<
   /** Throws (or uses) the power-up in hand. */
   useItem(ms: number): boolean {
     const playing = this.playing();
-    if (!playing) return false;
+    if (!playing || !Number.isFinite(ms)) return false;
     this.log(playing.room, USE, ms);
     return true;
   }

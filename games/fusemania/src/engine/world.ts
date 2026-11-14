@@ -21,6 +21,7 @@ import {
   ITEM_FIRST_MS,
   ITEM_MS,
   LATE_MS,
+  MISS,
   NO_ITEM,
   SHIELD,
   TICK_MS,
@@ -116,14 +117,20 @@ const stepsOf = (library: Library, world: World, player: Player): Steps =>
   // A world is only ever built or decoded against charts its library has.
   library.steps(world.song, player.chart)!;
 
-/** Rider slots from the leader down: by rating, then by seat. */
+/** Rider slots from the leader down: by rating, then the longer best combo, then fewer misses, then by seat. */
 export function ranking(library: Library, world: World): number[] {
   const ratings = world.players.map((player) =>
     rating(stepsOf(library, world, player), player.score),
   );
   return world.players
     .map((_, slot) => slot)
-    .sort((a, b) => ratings[b]! - ratings[a]! || a - b);
+    .sort(
+      (a, b) =>
+        ratings[b]! - ratings[a]! ||
+        world.players[b]!.best - world.players[a]!.best ||
+        world.players[a]!.counts[MISS]! - world.players[b]!.counts[MISS]! ||
+        a - b,
+    );
 }
 
 function contexts(library: Library, world: World): PlayContext[] {

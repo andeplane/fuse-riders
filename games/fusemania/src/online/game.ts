@@ -20,9 +20,11 @@ import {
   MAX_SONG_MS,
   MIN_SONG_MS,
   MODES,
+  RELEASE,
   RULES,
   SCORE_MODE,
   SOLO_LEAD_IN_MS,
+  UP,
   createWorld,
   decodeWorld,
   encodeWorld,
@@ -496,8 +498,18 @@ export function createFusemaniaGame(
         delete room.picks[id];
     const inputs: Input[] = [];
     for (const seat of riders(room)) {
-      if (seat.bot || !seat.connected) continue;
+      if (seat.bot) continue;
       const slot = room.roster.findIndex((entrant) => entrant.id === seat.id);
+      if (!seat.connected) {
+        // A seat that went away let go of its keys: its key-up is never heard, so nothing of it stays held.
+        const player =
+          room.stage === "running" ? room.world?.players[slot] : undefined;
+        if (player && room.world)
+          for (const [column, down] of player.down.entries())
+            if (down !== UP)
+              inputs.push({ slot, code: RELEASE + column, ms: room.world.ms });
+        continue;
+      }
       for (const entry of ownEntries(seat, streams, tick)) {
         if (entry[2] === PICK) room.picks[seat.id] = entry[3];
         else if (

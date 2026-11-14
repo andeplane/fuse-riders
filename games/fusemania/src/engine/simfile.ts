@@ -59,6 +59,9 @@ export const MAX_SIMFILE_BYTES = 4 * 1024 * 1024;
 /** The most notes one chart keeps; the rest of a longer one is cut. */
 export const MAX_NOTES = 20_000;
 const MAX_BEAT = 100_000;
+/** Tempo changes or stops read from one tag, and charts read from one file: more than any real file has. */
+const MAX_MARKS = 2000;
+const MAX_FILE_CHARTS = 32;
 
 /** Columns per steps type; a type missing here is read with as many columns as its first row has. */
 const COLUMNS: Record<string, number> = {
@@ -119,14 +122,17 @@ function messages(text: string): Message[] {
 }
 
 const number = (raw: string | undefined, fallback = 0): number => {
-  const value = Number((raw ?? "").trim());
-  return Number.isFinite(value) ? value : fallback;
+  const text = (raw ?? "").trim(),
+    value = Number(text);
+  // A tag that is absent or empty is not a zero.
+  return text && Number.isFinite(value) ? value : fallback;
 };
 
 /** `beat=value,beat=value` pairs, in beat order; pairs that are not two finite numbers are dropped. */
 function pairs(raw: string | undefined): [number, number][] {
   const out: [number, number][] = [];
   for (const part of (raw ?? "").split(",")) {
+    if (out.length >= MAX_MARKS) break;
     const [left, right] = part.split("=");
     if (left === undefined || right === undefined) continue;
     const beat = Number(left.trim()),
@@ -164,8 +170,11 @@ function timingOf(
 
 /** A chart's note data as notes in time order. */
 function notesOf(data: string, stepsType: string): ChartNote[] {
-  // Attack `{…}` and keysound `[…]` annotations sit inside rows in some files.
-  const measures = data.replace(/\{[^}]*\}|\[[^\]]*\]/g, "").split(",");
+  // Attack `{…}` and keysound `[…]` annotations sit inside rows in some files. They are short and on one line; the
+  // bounds keep a file of unclosed brackets from costing its length squared.
+  const measures = data
+    .replace(/\{[^}\n]{0,256}\}|\[[^\]\n]{0,256}\]/g, "")
+    .split(",");
   const notes: ChartNote[] = [];
   let columns = COLUMNS[stepsType] ?? 0;
   /** The open hold or roll in each column. */
@@ -222,13 +231,16 @@ export function parseSimfile(text: string): Simfile {
     throw new SimfileError("That simfile is too large.");
   const header = new Map<string, string>();
   const charts: SimChart[] = [];
+  /** Each chart's own tags, for the tempo it may carry: read once the header's is known. */
+  const chartTags: ReadonlyMap<string, string>[] = [];
   let chart: Map<string, string> | undefined;
   const all = messages(text);
   const finish = (tags: ReadonlyMap<string, string>, notes: string) => {
+    if (charts.length >= MAX_FILE_CHARTS) return;
     const stepsType = (tags.get("STEPSTYPE") ?? "").trim().toLowerCase();
     const parsed = notesOf(notes, stepsType);
     if (!parsed.some((note) => note.kind !== "mine")) return;
-    const timing = timingOf(tags);
+    chartTags.push(tags);
     charts.push({
       stepsType,
       difficulty: (tags.get("DIFFICULTY") ?? "").trim() || "Edit",
@@ -239,7 +251,6 @@ export function parseSimfile(text: string): Simfile {
       description: (tags.get("DESCRIPTION") ?? "").trim(),
       credit: (tags.get("CREDIT") ?? "").trim(),
       notes: parsed,
-      ...(timing ? { timing } : {}),
     });
   };
   for (const { tag, value } of all) {
@@ -272,6 +283,12 @@ export function parseSimfile(text: string): Simfile {
   const timing = timingOf(header);
   if (!timing) throw new SimfileError("That simfile has no tempo (#BPMS).");
   if (charts.length === 0) throw new SimfileError("That simfile has no steps.");
+  // A chart with its own tempo keeps the song's offset unless it names one.
+  for (const [index, tags] of chartTags.entries())
+    if (tags.has("BPMS")) {
+      const own = timingOf(tags, timing);
+      if (own) charts[index]!.timing = own;
+    }
   return {
     title: (header.get("TITLE") ?? "").trim() || "Untitled",
     subtitle: (header.get("SUBTITLE") ?? "").trim(),
