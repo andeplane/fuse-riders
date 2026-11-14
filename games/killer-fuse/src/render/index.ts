@@ -218,6 +218,8 @@ class Arena implements ArenaView {
     const sizes = this.sprites?.sizes;
     // Before the art loads the sounds still play; the effects planned without it are dropped by `apply`.
     const plans: Plan[] = [];
+    // A tick fed again after a rollback takes back the loud plans it no longer carries.
+    for (const { tick, events } of feed.ticks) this.held.retract(tick, events);
     for (const { tick, event } of fresh) {
       const plan = planEvent(event, view, local, sizes ?? NO_ART);
       if (!isLoud(event)) {
