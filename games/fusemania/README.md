@@ -11,7 +11,7 @@ pnpm install
 pnpm dev          # builds, then serves every game; open the printed URL plus /fusemania/
 ```
 
-`pnpm exec tsx service/dev.ts --port 8890` serves an existing `dist/` and walks to the next free port if that one is taken. Open `/fusemania/?mute` (silent: nothing is stored, and the arrows follow the room's clock) or `/fusemania/` to hear it, and pick one of:
+`pnpm exec tsx service/dev.ts --port 8890` serves an existing `dist/` and walks to the next free port if that one is taken. Open `/fusemania/?mute` (silent: no sound and no sound preference is stored, and the arrows follow the room's clock) or `/fusemania/` to hear it, and pick one of:
 
 - **Play, Single player**: the song select. Pick a song, a level and a mode, then **PLAY**. The result shows the grade, the score, every judgment count and this browser's best on that chart. **PLAY YOUR OWN STEPMANIA FILE** takes a simfile and its music from this device; nothing is uploaded.
 - **Play, Host room**: a room with a QR invite, for up to five players. The host picks the song and the mode; every player picks their own level. **+ ADD AI RIVAL** seats a bot. Tick **Shared TV** first to play on one screen: the TV shows every field and each phone becomes four pads.
@@ -57,7 +57,7 @@ This is the part a rhythm game lives on, and it is built so that the sound, the 
 - The local screen plays this device's own unfolded keys ahead on a copy of the world (`forecast`), so a press flashes at once and the fold changes nothing it showed.
 - Two offsets in Settings: the input offset (taken off every press; Bluetooth audio, a slow keyboard) and the visual offset (the picture ahead of or behind the sound). **CALIBRATE** plays a click and measures the taps.
 
-In a room the audio follows the room's shared clock, so everyone hears the same beat at the same room time; a device that is not making sound (a phone used as a pad for the shared TV) stamps its taps with the room clock.
+In a room the audio follows the room's shared clock, so everyone hears the same beat at the same room time (a device is pulled back when it drifts more than 120 ms from the room, and its own presses are judged against what it heard either way); a device that is not making sound (a phone used as a pad for the shared TV) stamps its taps with the room clock.
 
 ## Charts
 

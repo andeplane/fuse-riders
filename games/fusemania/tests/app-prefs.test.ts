@@ -297,6 +297,7 @@ test("reserved and malformed keys are never bound", () => {
   assert.deepEqual(RESERVED_CODES, [
     "Escape",
     "Tab",
+    "KeyM",
     "MetaLeft",
     "MetaRight",
     "F5",

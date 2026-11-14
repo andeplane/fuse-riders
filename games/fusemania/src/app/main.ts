@@ -140,6 +140,10 @@ const setText = (node: HTMLElement, value: string) => {
   if (node.textContent !== value) node.textContent = value;
 };
 const coarse = () => matchMedia("(pointer: coarse)").matches;
+/** Keys the song select leaves alone: Tab is the browser's, and M is the shared mute. */
+const PAGE_KEYS: ReadonlySet<string> = new Set(["Tab", "KeyM"]);
+/** How often a song's audio is fetched again by itself before the page asks the player. */
+const SONG_LOAD_TRIES = 3;
 /** Where a song's audio is fetched from: the site's own files, or a file the player loaded. */
 const songUrl = (path: string) =>
   /^(blob:|https?:)/.test(path) ? path : `${BASE}${path}`;
@@ -178,7 +182,8 @@ function remember(choice: Choice): void {
   store.setItem(names.mode, String(choice.mode));
 }
 const bestKey = (library: Library, song: string, chart: number) => {
-  const info = library.song(song)?.charts;
+  // A player's own file keeps no best: every loaded file would share the one key.
+  const info = song === CUSTOM ? undefined : library.song(song)?.charts;
   const picked = info?.[Math.min(chart, info.length - 1)];
   return picked ? names.best(song, picked.name.toLowerCase()) : undefined;
 };
@@ -411,17 +416,16 @@ function landing(): void {
       ownError.textContent = "That simfile is too large.";
       return;
     }
-    const source = {
-      id: CUSTOM,
-      audio: URL.createObjectURL(music),
-      ssc: await chart.text(),
-    };
-    if (!createLibrary([source]).song(CUSTOM)) {
-      URL.revokeObjectURL(source.audio);
+    // One start however often the button is pressed while the file is read.
+    ownPlay.disabled = true;
+    const ssc = await chart.text().catch(() => "");
+    if (!createLibrary([{ id: CUSTOM, audio: "", ssc }]).song(CUSTOM)) {
+      ownPlay.disabled = false;
       ownError.textContent =
         "No 4-panel (dance-single) chart could be read from that file.";
       return;
     }
+    const source = { id: CUSTOM, audio: URL.createObjectURL(music), ssc };
     leaveLanding();
     startSolo(createLibrary([...SONGS_DATA, source]), {
       song: CUSTOM,
@@ -449,12 +453,15 @@ function landing(): void {
       !picker.element.isConnected ||
       picker.element.offsetParent === null ||
       document.querySelector("dialog[open]") ||
+      menu.isOpen() ||
       event.target instanceof HTMLInputElement ||
+      event.target instanceof HTMLTextAreaElement ||
       event.target instanceof HTMLSelectElement
     )
       return;
     // Tab stays the browser's: the picker is one stop among the page's controls.
-    if (event.code !== "Tab" && picker.key(event.code)) event.preventDefault();
+    if (!PAGE_KEYS.has(event.code) && picker.key(event.code))
+      event.preventDefault();
   };
   document.addEventListener("keydown", onKey);
   const back = el("a", "← ALL GAMES", "fm-back");
@@ -617,7 +624,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     screen = el("div", "", "fm-screen"),
     canvas = el("canvas", "", "fm-canvas"),
     note = el("p", "", "fm-note"),
-    unlock = el("p", "TAP OR PRESS A KEY FOR SOUND", "fm-unlock");
+    unlock = el("p", "TAP OR PRESS A KEY FOR SOUND", "fm-unlock"),
+    loadFailed = button("THE SONG DID NOT LOAD · RETRY", "fm-unlock fm-retry");
   const card = el("section", "", "fm-card"),
     cardTitle = el("h2"),
     cardRows = el("ol", "", "fm-rows"),
@@ -638,12 +646,15 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     cardActions,
   );
   card.hidden = true;
-  unlock.hidden = true;
+  unlock.hidden = loadFailed.hidden = true;
+  loadFailed.onclick = () => {
+    if (playing) playing.failures = playing.retryAt = 0;
+  };
   rematch.onclick = () =>
     runtime.command({ type: "action", action: "rematch" });
   toLobby.onclick = () => runtime.command({ type: "action", action: "lobby" });
   toMenu.onclick = leave;
-  screen.append(canvas, unlock, card, roundControls.element);
+  screen.append(canvas, unlock, loadFailed, card, roundControls.element);
 
   // ---- keys and pads: every one is stamped with the song time this device heard it at ----
   /** What holds each column down right now: key codes and pads. */
@@ -688,12 +699,17 @@ function room(solo: boolean, library: Library, first?: Choice): void {
         event.preventDefault();
         node.setPointerCapture(event.pointerId);
         node.classList.add("held");
-        press(column, `${className}:${column}`, event.timeStamp);
+        press(
+          column,
+          `${className}:${column}:${event.pointerId}`,
+          event.timeStamp,
+        );
       });
       for (const type of ["pointerup", "pointercancel", "lostpointercapture"])
         node.addEventListener(type, (event) => {
-          node.classList.remove("held");
-          lift(column, `${className}:${column}`, event.timeStamp);
+          const id = (event as PointerEvent).pointerId;
+          lift(column, `${className}:${column}:${id}`, event.timeStamp);
+          if (!held[column]!.size) node.classList.remove("held");
         });
       row.append(node);
     });
@@ -786,15 +802,23 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   let model: Model | undefined;
   /** The song being played, decoded for the audio clock; the shared module keeps the last few. */
   let playing:
-    | { id: string; song?: ClockedSong; loading: boolean; retryAt: number }
+    | {
+        id: string;
+        song?: ClockedSong;
+        loading: boolean;
+        retryAt: number;
+        failures: number;
+      }
     | undefined;
   const songOf = (id: string, now: number): ClockedSong | undefined => {
-    if (playing?.id !== id) playing = { id, loading: false, retryAt: 0 };
+    if (playing?.id !== id)
+      playing = { id, loading: false, retryAt: 0, failures: 0 };
     const mine = playing;
     if (
       !mine.song &&
       !mine.loading &&
       now >= mine.retryAt &&
+      mine.failures < SONG_LOAD_TRIES &&
       !audio.forcedMute
     ) {
       const info = library.song(id);
@@ -804,7 +828,9 @@ function room(solo: boolean, library: Library, first?: Choice): void {
         .then((song) => {
           mine.loading = false;
           if (song) mine.song = song;
-          else mine.retryAt = performance.now() + 5000;
+          // No clock yet (no gesture) is not a failure of the file: ask again without counting it.
+          else if (audio.clock()) mine.failures++;
+          mine.retryAt = performance.now() + (song ? 0 : 5000);
         });
     }
     return mine.song;
@@ -823,7 +849,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   };
   let before: WorldView | undefined;
   /** A solo song that began before the browser let sound out starts over once it does. */
-  let startedSilent = false;
+  let startedSilent = false,
+    heardEpoch = -1;
   const frame = (now: number) => {
     // Asked first, so one bad frame cannot stop the drawing for good.
     if (!over) requestAnimationFrame(frame);
@@ -839,7 +866,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     songClock.follow(roomMs, song);
     if (!model || model.screen === "lobby" || !world) {
       before = undefined;
-      unlock.hidden = true;
+      unlock.hidden = loadFailed.hidden = true;
       return;
     }
     const running = roomMs !== undefined;
@@ -850,7 +877,12 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       !audio.prefs.muted &&
       audio.clock()?.running === false;
     unlock.hidden = !silent;
-    if (silent && solo) startedSilent = true;
+    loadFailed.hidden =
+      silent || !running || (playing?.failures ?? 0) < SONG_LOAD_TRIES;
+    // Sound that has been heard in this match and stops for a moment (a tab left and returned to) restarts nothing.
+    const epoch = state?.epoch ?? -1;
+    if (!silent && running && audio.clock()?.running) heardEpoch = epoch;
+    if (silent && solo && heardEpoch !== epoch) startedSilent = true;
     else if (startedSilent && running) {
       startedSilent = false;
       if (world.ms < 30000) {
@@ -954,6 +986,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       sfx.fanfare(
         !next.result.rows.some((row) => row.you && /^[CD]$/.test(row.grade)),
       );
+    // A calibration or a key capture left open takes every key: it ends when the room moves on.
+    if (view.stage !== lastStage) panel.cancel();
     lastStage = view.stage;
     // Lobby.
     roster.update(
@@ -1106,7 +1140,13 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       const mine = world?.players.find((each) => each.id === viewer.me);
       if (frame.stage === "over" && world && mine && !mine.bot) {
         const key = bestKey(library, world.song, mine.chart);
-        if (key) bestBefore = bests.settle(frame.matchId, key, mine.rating);
+        const decided = runtime.roomState()?.decided?.clock;
+        const confirmed =
+          solo || (decided !== undefined && decided <= runtime.confirmedTick());
+        if (key)
+          bestBefore = confirmed
+            ? bests.settle(frame.matchId, key, mine.rating)
+            : bestRating(store, key);
         if (finished !== frame.matchId) {
           finished = frame.matchId;
           analytics.track("Song Finished", {
@@ -1255,7 +1295,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
         model?.screen === "lobby" &&
         !typing(event.target) &&
         picker.element.offsetParent !== null &&
-        event.code !== "Tab" &&
+        !PAGE_KEYS.has(event.code) &&
         picker.key(event.code)
       )
         event.preventDefault();

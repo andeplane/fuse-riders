@@ -345,6 +345,11 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"]))
   text-align: center;
   animation: fm-pulse 0.9s ease-in-out infinite alternate;
 }
+.fm-retry {
+  border: 0;
+  cursor: pointer;
+  animation: none;
+}
 @keyframes fm-pulse {
   to {
     box-shadow: 0 0 3.5rem #ffe46b;

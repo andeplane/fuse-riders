@@ -69,10 +69,11 @@ const copy = (prefs: Prefs): Prefs => ({
 });
 export const defaultPrefs = (): Prefs => copy(DEFAULT_PREFS);
 
-/** Keys that stay the browser's or the page's: they are never bound. */
+/** Keys that stay the browser's or the page's (M is the shared mute): they are never bound. */
 export const RESERVED_CODES: readonly string[] = [
   "Escape",
   "Tab",
+  "KeyM",
   "MetaLeft",
   "MetaRight",
   "F5",
