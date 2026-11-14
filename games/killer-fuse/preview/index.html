@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Killer Fuse arena sandbox</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #05061a;
+        overflow: hidden;
+      }
+      #arena {
+        position: fixed;
+        inset: 0;
+      }
+      #status {
+        position: fixed;
+        left: 8px;
+        bottom: 6px;
+        font:
+          11px/1.3 ui-monospace,
+          monospace;
+        color: #6d7bd0;
+        pointer-events: none;
+      }
+      #status[data-state="error"] {
+        color: #ff6a6a;
+      }
+      body.clean #status {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="arena"></div>
+    <div id="status" data-state="loading">loading</div>
+    <script type="module" src="/sandbox.js"></script>
+  </body>
+</html>

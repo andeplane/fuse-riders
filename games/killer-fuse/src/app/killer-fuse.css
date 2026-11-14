@@ -1,0 +1,901 @@
+/* The Killer Fuse page, on fuse-ui's tokens and components. Cyan plays pink; the arena is the renderer's canvas. */
+body.kf-page {
+  padding: 0;
+  --kf-cyan: #16e7ff;
+  --kf-pink: #ff2e9d;
+  --kf-gold: #ffc93c;
+}
+#app {
+  display: grid;
+  /* The column is the screen, never the widest unbreakable line in it: a phone must not scroll sideways. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  min-height: 100dvh;
+  padding: 0 max(var(--fui-space-3), env(safe-area-inset-left))
+    env(safe-area-inset-bottom);
+}
+
+/* Header */
+.kf-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--fui-space-2) var(--fui-space-3);
+  padding: var(--fui-space-2) 0;
+}
+.kf-brand {
+  display: grid;
+  color: var(--kf-gold);
+  text-decoration: none;
+  font: 1rem/1 var(--fui-font-pixel);
+  text-shadow: 0 0 1rem #ffc93c66;
+}
+.kf-brand small {
+  margin-top: var(--fui-space-1);
+  color: var(--fui-text-dim);
+  font-size: 0.5rem;
+  letter-spacing: 0.125rem;
+  text-shadow: none;
+}
+.kf-back {
+  margin-left: auto;
+  color: var(--fui-cyan);
+  font: 0.625rem var(--fui-font-pixel);
+}
+.kf-code {
+  padding: var(--fui-space-1) var(--fui-space-2);
+  color: var(--fui-ink);
+  background: var(--kf-gold);
+  border-radius: var(--fui-radius-small);
+  font: 0.75rem var(--fui-font-pixel);
+}
+.kf-status {
+  flex: 1 1 8rem;
+  /* One line, always laid out: a status that appears, changes or wraps must not move the buttons beside it. */
+  min-width: 0;
+  min-height: 1.25rem;
+  overflow: hidden;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fui-app .kf-status[hidden] {
+  display: block !important;
+  visibility: hidden;
+}
+.fui-app .kf-mute,
+.kf-top .fui-game-menu-trigger {
+  min-height: 2.25rem;
+  padding: 0 var(--fui-space-3);
+  font: 0.5625rem var(--fui-font-pixel);
+}
+.kf-mute[aria-pressed="true"] {
+  color: var(--fui-text-dim);
+}
+/* Master sound, then the music and effects toggles under it. */
+.kf-sound {
+  display: flex;
+  gap: var(--fui-space-2);
+  align-items: center;
+}
+.fui-app .kf-sub-toggle {
+  min-height: 1.875rem;
+  padding: 0 var(--fui-space-2);
+  font-size: 0.5rem;
+}
+.fui-app .kf-sub-toggle:disabled {
+  opacity: 0.35;
+}
+@media (max-width: 34rem) {
+  /* On a phone the status line takes its own row under the brand, code and buttons. */
+  .kf-status {
+    order: 1;
+    flex-basis: 100%;
+  }
+}
+
+/* Landing: the shared main menu fills the page, with the demo behind it. */
+.kf-page .fui-landing-title {
+  color: var(--kf-gold);
+  text-shadow: 0 0 1rem #ffc93c66;
+}
+.kf-page .fui-landing-tagline {
+  line-height: 1.6;
+}
+.kf-shared {
+  display: flex;
+  align-items: center;
+  gap: var(--fui-space-2);
+  color: var(--fui-text-muted);
+  font-size: 0.875rem;
+}
+.fui-app .kf-shared input {
+  min-height: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--kf-cyan);
+}
+.kf-error {
+  color: var(--fui-pink-soft);
+  text-align: center;
+}
+
+/* How to play: a button on the landing page and in the lobby, the guide in a dialog. */
+.kf-how-entry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--fui-space-2) var(--fui-space-4);
+}
+.fui-app .kf-how-open {
+  border-color: var(--kf-gold);
+  color: var(--kf-gold);
+}
+.fui-app dialog.kf-how {
+  width: min(44rem, calc(100vw - 1.5rem));
+}
+.kf-how-title {
+  margin: 0;
+  color: var(--kf-gold);
+  font: 0.75rem var(--fui-font-pixel);
+}
+.kf-how-body {
+  display: grid;
+  gap: var(--fui-space-2);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.kf-how h3 {
+  margin: var(--fui-space-3) 0 0;
+  color: var(--kf-gold);
+  font: 0.625rem var(--fui-font-pixel);
+}
+.kf-how h4 {
+  margin: 0 0 var(--fui-space-1);
+  color: var(--kf-cyan);
+  font: 0.5625rem var(--fui-font-pixel);
+}
+.kf-how-goal {
+  margin: 0;
+  color: var(--fui-text-muted);
+}
+.kf-how-units {
+  display: grid;
+  gap: var(--fui-space-2);
+}
+.kf-how-unit {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--fui-space-3);
+}
+.kf-how-unit p {
+  margin: 0;
+  color: var(--fui-text-muted);
+}
+.kf-how-unit strong {
+  color: var(--fui-text);
+}
+.kf-how-unit .kf-how-cannot {
+  color: var(--fui-pink-soft);
+}
+.kf-how-icon {
+  justify-self: center;
+  width: 0;
+  height: 0;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+.kf-how-rules {
+  display: grid;
+  gap: var(--fui-space-1);
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--fui-text-muted);
+}
+.kf-how-devices {
+  display: grid;
+  gap: var(--fui-space-3);
+}
+.kf-how-list {
+  display: grid;
+  grid-template-columns: minmax(6rem, auto) minmax(0, 1fr);
+  gap: var(--fui-space-1) var(--fui-space-3);
+  margin: 0;
+}
+.kf-how-list dt {
+  color: var(--fui-text);
+  font-weight: 700;
+}
+.kf-how-list dd {
+  margin: 0;
+  color: var(--fui-text-muted);
+}
+
+/* Room */
+.kf-room {
+  display: grid;
+  align-content: start;
+  gap: var(--fui-space-3);
+  min-width: 0;
+  padding-bottom: var(--fui-space-4);
+  outline: none;
+}
+.kf-room > .fui-name-entry {
+  width: min(32rem, 100%);
+  margin: 0 auto;
+}
+/* The lobby is the shared room layout (`fui-room-layout`); these only tint its parts for the two teams. */
+.kf-lobby {
+  min-width: 0;
+}
+.kf-lobby .fui-slot-label {
+  font: 0.5rem/1.6 var(--fui-font-pixel);
+  letter-spacing: 0.0625rem;
+}
+.kf-lobby .fui-roster-name {
+  color: var(--rider-color, inherit);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kf-lobby .fui-roster-status {
+  color: var(--fui-text-muted);
+  font-size: 0.75rem;
+}
+.kf-lobby .fui-slot-occupant .fui-roster-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fui-space-2);
+}
+.fui-app .kf-seat-action {
+  min-height: 2.25rem;
+  padding: 0 var(--fui-space-2);
+  font: 0.5rem var(--fui-font-pixel);
+}
+/* The device's preferences in the main menu's Settings dialog. */
+.kf-pref-title {
+  margin: var(--fui-space-2) 0 0;
+  color: var(--kf-gold);
+  font: 0.5rem var(--fui-font-pixel);
+  letter-spacing: 0.0625rem;
+}
+.kf-watchers,
+.kf-settings-line {
+  margin: 0;
+  color: var(--fui-text-muted);
+  font-size: 0.875rem;
+  text-align: center;
+}
+.kf-settings {
+  display: grid;
+  gap: var(--fui-space-2);
+}
+.kf-settings .fui-radios {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fui-space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.kf-settings .fui-radios legend {
+  float: left;
+  width: 5.5rem;
+  padding: 0;
+  color: var(--fui-text-muted);
+  font: 0.5rem var(--fui-font-pixel);
+}
+.kf-settings .fui-radios label {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 2.5rem;
+  padding: 0 var(--fui-space-3);
+  border: 1px solid rgb(255 255 255 / 0.18);
+  border-radius: 0.5rem;
+  background: rgb(255 255 255 / 0.04);
+  color: var(--fui-text-muted);
+  font: 0.5rem var(--fui-font-pixel);
+  cursor: pointer;
+}
+.kf-settings .fui-radios input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.kf-settings .fui-radios label:has(input:checked) {
+  border-color: var(--kf-gold);
+  background: rgb(255 201 60 / 0.14);
+  color: var(--kf-gold);
+}
+.kf-settings .fui-radios label:has(input:focus-visible) {
+  outline: 2px solid var(--kf-cyan);
+  outline-offset: 2px;
+}
+.kf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--fui-space-3);
+}
+.kf-take-seat {
+  justify-self: center;
+}
+
+/* Arena */
+.kf-arena {
+  display: grid;
+  justify-items: center;
+  gap: var(--fui-space-2);
+  min-width: 0;
+}
+.kf-score {
+  margin: 0;
+  color: var(--fui-text);
+  font: 0.625rem var(--fui-font-pixel);
+  text-align: center;
+}
+.kf-stage {
+  position: relative;
+  /* As wide as the page, and never taller than what is left of the screen under the header and the score. */
+  width: min(100%, calc((100dvh - 8.5rem) * 16 / 9));
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: #04091a;
+  border-radius: var(--fui-radius-small);
+}
+.kf-canvas {
+  position: absolute;
+  inset: 0;
+}
+.kf-banner {
+  position: absolute;
+  left: 50%;
+  top: 18%;
+  display: grid;
+  gap: var(--fui-space-2);
+  max-width: 92%;
+  padding: var(--fui-space-3) var(--fui-space-4);
+  color: var(--fui-text);
+  background: #04091ad9;
+  border: 2px solid var(--kf-gold);
+  border-radius: var(--fui-radius-small);
+  text-align: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.kf-banner strong {
+  color: var(--kf-gold);
+  font: 0.75rem/1.4 var(--fui-font-pixel);
+}
+.kf-banner span {
+  font-size: 0.875rem;
+}
+.kf-banner[data-team="0"] {
+  border-color: var(--kf-cyan);
+}
+.kf-banner[data-team="0"] strong {
+  color: var(--kf-cyan);
+}
+.kf-banner[data-team="1"] {
+  border-color: var(--kf-pink);
+}
+.kf-banner[data-team="1"] strong {
+  color: var(--kf-pink);
+}
+/* The controls card over the countdown: at the foot of the arena, out of the middle, and never in the way of a tap. */
+.kf-brief {
+  position: absolute;
+  left: 50%;
+  bottom: 3%;
+  display: grid;
+  gap: 0.2rem;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(94%, 40rem);
+  padding: var(--fui-space-2) var(--fui-space-3);
+  color: var(--fui-text);
+  background: #04091ae6;
+  border: 2px solid var(--kf-gold);
+  border-radius: var(--fui-radius-small);
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  text-align: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.kf-brief[hidden] {
+  display: none;
+}
+.kf-brief p {
+  margin: 0;
+}
+.kf-brief-title {
+  color: var(--kf-gold);
+  font: 0.625rem/1.4 var(--fui-font-pixel);
+}
+.kf-brief[data-team="0"] {
+  border-color: var(--kf-cyan);
+}
+.kf-brief[data-team="0"] .kf-brief-title {
+  color: var(--kf-cyan);
+}
+.kf-brief[data-team="1"] {
+  border-color: var(--kf-pink);
+}
+.kf-brief[data-team="1"] .kf-brief-title {
+  color: var(--kf-pink);
+}
+.kf-brief kbd {
+  padding: 0 0.3em;
+  color: var(--fui-ink);
+  background: var(--kf-gold);
+  border-radius: 0.2rem;
+  font: inherit;
+  font-weight: 700;
+  white-space: nowrap;
+}
+/* The controls grid: one row per action, caps in columns, the seat's own actions first and brighter. */
+.kf-brief-controls {
+  display: grid;
+  grid-template-columns: auto auto auto minmax(0, 1fr);
+  gap: 0.2rem var(--fui-space-2);
+  align-items: center;
+  margin: 0 auto;
+  text-align: left;
+}
+/* Touch and gamepad name one set of buttons, so they drop the keyboard's column. */
+.kf-brief-controls:not([data-device="keys"]) {
+  grid-template-columns: auto auto minmax(0, 1fr);
+}
+.kf-control {
+  display: contents;
+}
+.kf-control-name {
+  color: var(--fui-text);
+  font: 0.5625rem/1.6 var(--fui-font-pixel);
+  white-space: nowrap;
+}
+.kf-caps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+}
+.kf-caps-pad kbd {
+  background: var(--kf-cyan);
+}
+.kf-control-note {
+  color: var(--fui-text-muted);
+  font-size: 0.75rem;
+}
+.kf-control[data-mine="false"] > * {
+  opacity: 0.5;
+}
+.kf-brief-sub {
+  color: var(--fui-text-muted);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+}
+.kf-brief-title[hidden],
+.kf-brief-wins[hidden],
+.kf-brief-controls[hidden] {
+  display: none;
+}
+/* The first game of a set: a big card over the dimmed arena with the "three paths to victory". */
+.kf-brief[data-first="true"] {
+  top: 50%;
+  bottom: auto;
+  gap: var(--fui-space-2);
+  padding: var(--fui-space-3) var(--fui-space-4);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 100vmax #04091a80;
+}
+.kf-brief[data-first="true"] .kf-brief-title {
+  font-size: 1rem;
+}
+.kf-brief-wins {
+  display: flex;
+  justify-content: center;
+  gap: var(--fui-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kf-brief-win {
+  display: grid;
+  justify-items: center;
+  align-content: end;
+  gap: var(--fui-space-1);
+  max-width: 8rem;
+  color: var(--kf-gold);
+  font-size: 0.75rem;
+  font-weight: 700;
+  animation: kf-win-in 0.3s ease-out;
+}
+.kf-brief-icon {
+  width: 0;
+  height: 0;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+@keyframes kf-win-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kf-brief-win {
+    animation: none;
+  }
+}
+
+/* A narrow screen (a phone held upright): the arena is too short for the card, so it floats over the page. */
+@media (max-width: 34rem) {
+  .kf-brief,
+  .kf-brief[data-first="true"] {
+    position: fixed;
+    z-index: 5;
+    width: calc(100vw - 1.5rem);
+    max-width: none;
+  }
+  .kf-brief[data-first="true"] .kf-brief-title {
+    font-size: 0.8125rem;
+  }
+  .kf-brief-wins {
+    gap: var(--fui-space-2);
+  }
+}
+
+/* Lobby tips. */
+.kf-tip {
+  display: grid;
+  gap: var(--fui-space-1);
+  padding: var(--fui-space-3);
+  background: var(--fui-panel);
+  border: var(--fui-border);
+  border-radius: var(--fui-radius-panel);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.kf-tip-title {
+  margin: 0;
+  color: var(--kf-gold);
+  font: 0.5625rem var(--fui-font-pixel);
+}
+.kf-tip-text {
+  margin: 0;
+  color: var(--fui-text-muted);
+}
+.kf-tip [hidden] {
+  display: none;
+}
+
+/* The tutorial: lessons on the start page, the lesson's step over the arena. */
+.kf-tutorial {
+  display: grid;
+  gap: var(--fui-space-2);
+  justify-items: center;
+}
+.kf-tutorial-title {
+  margin: 0;
+  color: var(--kf-gold);
+  font: 0.75rem var(--fui-font-pixel);
+}
+.kf-tutorial-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--fui-space-2) var(--fui-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kf-tutorial-list li {
+  display: grid;
+  justify-items: center;
+  gap: var(--fui-space-1);
+  color: var(--fui-text-muted);
+  font-size: 0.75rem;
+}
+/* The lesson's step: a slim strip under the arena, never over the play field. */
+.kf-lesson {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--fui-space-1) var(--fui-space-3);
+  width: min(100%, 48rem);
+  box-sizing: border-box;
+  padding: var(--fui-space-1) var(--fui-space-3);
+  color: var(--fui-text);
+  background: #04091ae6;
+  border-left: 3px solid var(--kf-cyan);
+  border-radius: var(--fui-radius-small);
+  font-size: 0.8125rem;
+}
+.kf-lesson[hidden] {
+  display: none;
+}
+.kf-lesson-text {
+  margin: 0;
+}
+.kf-lesson-actions {
+  display: flex;
+  gap: var(--fui-space-2);
+}
+.kf-lesson[data-outcome="won"] {
+  border-left-color: var(--kf-gold);
+}
+.kf-lesson-actions:empty {
+  display: none;
+}
+.kf-lesson-actions a,
+.kf-tutorial-link {
+  padding: var(--fui-space-1) var(--fui-space-3);
+  color: var(--kf-gold);
+  border: 1px solid var(--kf-gold);
+  border-radius: var(--fui-radius-small);
+  font: 0.625rem/1.8 var(--fui-font-pixel);
+  text-decoration: none;
+}
+.kf-seat-line {
+  margin: 0;
+  color: var(--fui-text-muted);
+  font-size: 0.75rem;
+}
+
+/* Touch controls: the pad under the left thumb, one big button under the right. */
+.kf-touch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fui-space-4);
+  width: min(100%, 36rem);
+  padding: var(--fui-space-2) var(--fui-space-2) var(--fui-space-4);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.kf-stick,
+.fui-app .kf-flap {
+  touch-action: none;
+}
+.kf-stick {
+  position: relative;
+  flex: none;
+  width: 8.5rem;
+  height: 8.5rem;
+  background: #ffffff0f;
+  border: 2px solid #ffffff40;
+  border-radius: 50%;
+}
+.kf-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3.5rem;
+  height: 3.5rem;
+  margin: -1.75rem 0 0 -1.75rem;
+  background: var(--kf-gold);
+  border-radius: 50%;
+  box-shadow: 0 0 1rem #ffc93c80;
+  pointer-events: none;
+}
+.fui-app .kf-flap {
+  flex: none;
+  width: 8.5rem;
+  height: 8.5rem;
+  color: var(--fui-ink);
+  background: var(--kf-gold);
+  border: 0;
+  border-radius: 50%;
+  font: 0.875rem var(--fui-font-pixel);
+  box-shadow: 0 0 1.25rem #ffc93c80;
+}
+.fui-app .kf-flap:active {
+  transform: scale(0.94);
+}
+/* The right thumb's buttons: attack above flap, so the row is never wider than a phone held upright. */
+.kf-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--fui-space-2);
+}
+/* The attack button: smaller than the flap button, just above it, where the thumb rolls to. */
+.fui-app .kf-strike {
+  flex: none;
+  width: 5rem;
+  height: 5rem;
+  color: var(--fui-text);
+  background: var(--kf-pink);
+  border: 0;
+  border-radius: 50%;
+  font: 0.625rem var(--fui-font-pixel);
+  touch-action: none;
+}
+.fui-app .kf-strike[hidden] {
+  display: none;
+}
+
+/* A seated phone in a shared-screen room is only the controller: the TV shows the arena. */
+.kf-room[data-layout="controller"] .kf-canvas {
+  display: none;
+}
+.kf-room[data-layout="controller"] .kf-stage {
+  display: grid;
+  place-items: center;
+  aspect-ratio: auto;
+  min-height: 9rem;
+  overflow: visible;
+}
+.kf-room[data-layout="controller"] .kf-banner,
+.kf-room[data-layout="controller"] .kf-result,
+.kf-room[data-layout="controller"] .kf-brief {
+  position: static;
+  transform: none;
+}
+.kf-room[data-layout="controller"] .kf-touch {
+  flex: 1;
+  padding-top: var(--fui-space-5);
+}
+
+/* Result */
+.kf-result {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--fui-space-2);
+  padding: var(--fui-space-3);
+  overflow: auto;
+  background: #04091af7;
+  text-align: center;
+}
+.kf-result-title {
+  margin: 0;
+  color: var(--kf-gold);
+  font: 1rem/1.4 var(--fui-font-pixel);
+}
+.kf-result[data-team="0"] .kf-result-title {
+  color: var(--kf-cyan);
+}
+.kf-result[data-team="1"] .kf-result-title {
+  color: var(--kf-pink);
+}
+.kf-result-games,
+.kf-result-players {
+  display: grid;
+  gap: var(--fui-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+}
+.kf-result-players {
+  color: var(--fui-text-muted);
+}
+
+/* The shared screen: nothing but the arena. */
+body.kf-display .kf-stage {
+  width: min(100%, calc((100dvh - 6rem) * 16 / 9));
+}
+body.kf-display .kf-seat-line {
+  display: none;
+}
+
+@media (max-width: 30rem) {
+  .kf-how-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .kf-how-list dd {
+    margin-bottom: var(--fui-space-1);
+  }
+}
+/* A short screen (a phone held sideways): the card shrinks so it keeps to the foot of the arena. */
+@media (max-height: 30rem) {
+  .kf-brief {
+    gap: 0.1rem;
+    padding: 0.25rem var(--fui-space-2);
+    font-size: 0.6875rem;
+    line-height: 1.25;
+  }
+  .kf-brief-title {
+    font-size: 0.5rem;
+  }
+}
+/* A phone held sideways: the arena takes the screen and the controls lie over its lower corners. */
+@media (pointer: coarse) and (orientation: landscape) {
+  /*
+   * The page is exactly the screen: the header keeps one short row (the account buttons wait for the lobby; the menu
+   * stays), and the arena is as large as fits in whatever height the header leaves, measured as a container rather
+   * than guessed from the header's height, so the floor and the snail's lane are always on screen.
+   */
+  body:has(.kf-room[data-layout="arena"][data-screen="arena"]) #app {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+  body:has(.kf-room[data-layout="arena"][data-screen="arena"]) .kf-top {
+    flex-wrap: nowrap;
+    padding: var(--fui-space-1) 0;
+  }
+  body:has(.kf-room[data-layout="arena"][data-screen="arena"])
+    .kf-top
+    .fui-social,
+  body:has(.kf-room[data-layout="arena"][data-screen="arena"]) .kf-brand small {
+    display: none;
+  }
+  .kf-room[data-layout="arena"][data-screen="arena"] {
+    grid-template-rows: minmax(0, 1fr);
+    min-height: 0;
+    padding-bottom: var(--fui-space-1);
+  }
+  .kf-room[data-layout="arena"][data-screen="arena"] .kf-arena {
+    align-content: start;
+    height: 100%;
+    min-height: 0;
+    container-type: size;
+  }
+  .kf-room[data-layout="arena"][data-screen="arena"] .kf-stage {
+    width: min(100cqw, 100cqh * 16 / 9);
+  }
+  /* A lesson's strip under the arena takes its row out of the height. */
+  .kf-room[data-layout="arena"][data-screen="arena"][data-lesson] .kf-stage {
+    width: min(100cqw, (100cqh - 2.75rem) * 16 / 9);
+  }
+  .kf-room[data-layout="arena"] .kf-score,
+  .kf-room[data-layout="arena"] .kf-seat-line {
+    display: none;
+  }
+  .kf-room[data-layout="arena"] .kf-touch {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    padding: var(--fui-space-2)
+      max(var(--fui-space-2), env(safe-area-inset-left));
+    opacity: 0.7;
+    pointer-events: none;
+  }
+  .kf-room[data-layout="arena"] .kf-touch > * {
+    pointer-events: auto;
+  }
+  /* Smaller thumbs, so they sit beside the arena on a wide phone and over no more than its corners on a narrow one. */
+  .kf-room[data-layout="arena"] .kf-stick,
+  .fui-app .kf-room[data-layout="arena"] .kf-flap {
+    width: 7rem;
+    height: 7rem;
+  }
+  .kf-room[data-layout="arena"] .kf-knob {
+    width: 3rem;
+    height: 3rem;
+    margin: -1.5rem 0 0 -1.5rem;
+  }
+  /* The card keeps to the foot of the screen between the two thumbs, whatever of the arena the screen shows. */
+  .kf-room[data-layout="arena"] .kf-brief {
+    position: fixed;
+    z-index: 5;
+    bottom: max(var(--fui-space-2), env(safe-area-inset-bottom));
+    max-width: calc(100vw - 17rem);
+  }
+  /* The opening card of a set stays in the middle of the arena it dims. */
+  .kf-room[data-layout="arena"] .kf-brief[data-first="true"] {
+    position: absolute;
+    bottom: auto;
+    max-width: 94%;
+  }
+}

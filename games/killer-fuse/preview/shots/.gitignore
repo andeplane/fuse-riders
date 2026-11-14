@@ -1,0 +1,5 @@
+# Every screenshot here is output: `preview/check.mjs` and `preview/burst.mjs` write them to look at by hand, and
+# the `keep-*.png` set was ~3.5 MB of them in git. Regenerate what you need; a screenshot a pull request or a
+# document needs belongs in its description or beside that document, not here.
+*
+!.gitignore

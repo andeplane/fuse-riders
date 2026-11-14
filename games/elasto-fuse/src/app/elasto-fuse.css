@@ -142,16 +142,6 @@ body.elasto-fuse-page {
   margin: 0;
   color: var(--fui-text-muted);
 }
-.ef-hero {
-  display: block;
-  width: 100%;
-  height: auto;
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
-  margin-bottom: var(--fui-space-3);
-  border-radius: var(--fui-radius-small);
-  box-shadow: 0 0 2rem #16e7ff33;
-}
 
 /* The level picker: on the landing page and in the lobby */
 .ef-levels {
@@ -225,10 +215,6 @@ body.elasto-fuse-page {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
     align-items: start;
   }
-}
-.ef-lobby-side {
-  display: grid;
-  gap: var(--fui-space-3);
 }
 .ef-lobby .fui-roster-row {
   align-items: center;

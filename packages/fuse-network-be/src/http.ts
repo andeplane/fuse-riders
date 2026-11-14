@@ -89,6 +89,8 @@ const MIME: Record<string, string> = {
   ".png": "image/png",
   ".webp": "image/webp",
   ".m4a": "audio/mp4",
+  ".mp3": "audio/mpeg",
+  ".ogg": "audio/ogg",
   ".woff": "font/woff",
   ".woff2": "font/woff2",
   ".ico": "image/x-icon",
