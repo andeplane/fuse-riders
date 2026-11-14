@@ -1,2 +1,4 @@
 # Mechanical repository-wide Prettier pass (#257).
 1160c2b7584e91ad875d1a5364467bb3b07a8f71
+# Mechanical Prettier pass over the FuseOS port (packages/fuseos, docs/fuseos, scripts/fuseos).
+364a3697e2d97ef83d039c421e76f21fc98088c0
