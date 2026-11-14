@@ -65,6 +65,16 @@ against the computer, rooms with a QR invite, and a shared TV with phones as con
 [games/fuse-drivers/README.md](games/fuse-drivers/README.md). Production serves its rooms only once its id
 is in `EXTRA_GAME_IDS` ([GCP deploy](docs/online/GCP-DEPLOY.md)); until then its page offers solo only.
 
+## Fuseball
+
+The same service serves **Fuseball**, a neon arena ball duel for two riders (or one and a bot), at `/fuseball/`
+(locally **http://localhost:8787/fuseball/**). Knock the ball into the goal in your own colour to score and zap the
+other rider; air-jump as often as you like, each jump leaving a bubble that bumps the ball away; first to three wins.
+It has solo against a bot, rooms with a QR invite, three wrap-around arenas chosen in the lobby, and a shared TV with
+phones as stick-and-button controllers. See [games/fuseball/README.md](games/fuseball/README.md). Production serves
+its rooms only once its id is in `EXTRA_GAME_IDS` ([GCP deploy](docs/online/GCP-DEPLOY.md)); until then its page
+offers solo only.
+
 ## Menus and round controls
 
 Every game shares one Google sign-in, username and friends list on the same backend. Open **FRIENDS** to add a player
@@ -161,6 +171,7 @@ The shared deterministic simulation advances at 20 Hz and uses pinned JavaScript
 | `packages/fuse-network-protocol/`                                                                    | The wire contract both libraries share: room codes, authority lease, STUN defaults, protocol version                                                                                                                                                                                                                                                                                                                      |
 | `service/`                                                                                           | The room service for every game, on `fuse-network-be` and `fuse-platform`: production (`index.ts`), local development and CI (`dev.ts`), the room capacity and each game's stats registration (`history.ts`)                                                                                                                                                                                                              |
 | `games/fuse-drivers/`                                                                                | Fuse Drivers, offroad racing on the same packages: the simulation and its fold (`src/game/`), a Phaser arena on `fuse-ui` served at `/fuse-drivers/`, and its stats registration ([README](games/fuse-drivers/README.md))                                                                                                                                                                                                 |
+| `games/fuseball/`                                                                                    | Fuseball, a two-rider ball duel on the same packages: integer engine, `RollbackGame`, Canvas 2D renderer and page ([README](games/fuseball/README.md))                                                                                                                                                                                                                                                                    |
 | `games/dice/`                                                                                        | Pig, a second game on the same packages: rules, a DOM page on `fuse-ui` served at `/dice/`, and its stats registration ([README](games/dice/README.md))                                                                                                                                                                                                                                                                   |
 | `Dockerfile.cloud`, `scripts/deploy-cloud.sh`, `.github/workflows/pages.yml`                         | GCP image/release and GitHub Pages frontend pipelines                                                                                                                                                                                                                                                                                                                                                                     |
 | `games/fuse-riders/tests/`, `tests/`, `scripts/`                                                     | Fuse Riders' deterministic tests and golden hashes; service, tooling and layering tests; browser checks and benchmark runners                                                                                                                                                                                                                                                                                             |
