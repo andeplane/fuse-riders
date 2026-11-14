@@ -1,3 +1,4 @@
+import type { SystemSoundEvent } from "./soundEvents";
 import { MemorySoundPrefsStore } from "./soundPrefsStore";
 import type {
   GestureSource,
@@ -319,5 +320,83 @@ describe(documentGestures.name, () => {
     unsubscribe();
     target.dispatchEvent(new Event("touchend"));
     expect(second).not.toHaveBeenCalled();
+  });
+});
+
+/** A context that can decode recordings: each decode is one 2.5 s buffer, or a refusal for bytes that are not audio. */
+class DecodingAudioContext extends FakeAudioContext {
+  readonly decoded: ArrayBuffer[] = [];
+  decodeAudioData(data: ArrayBuffer): Promise<SoundBuffer> {
+    if (data.byteLength === 0)
+      return Promise.reject(new Error("EncodingError"));
+    this.decoded.push(data);
+    const buffer = new FakeBuffer(20000, this.sampleRate);
+    this.buffers.push(buffer);
+    return Promise.resolve(buffer);
+  }
+}
+
+describe("WebAudioSoundService with recordings", () => {
+  function setupRecorded(
+    loadRecording: (
+      event: SystemSoundEvent,
+    ) => Promise<ArrayBuffer | undefined>,
+    context: FakeAudioContext = new DecodingAudioContext(),
+  ) {
+    const gestures = new ManualGestures();
+    const loadSynth = vi.fn(() => Promise.resolve(renderer));
+    const load = vi.fn(loadRecording);
+    const service = new WebAudioSoundService({
+      createContext: () => context,
+      prefs: new MemorySoundPrefsStore(),
+      muted: false,
+      loadSynth,
+      loadRecording: load,
+      gestures,
+    });
+    gestures.click();
+    return { service, context, loadSynth, load };
+  }
+
+  it("plays the decoded recording instead of the synthesiser, loading it once", async () => {
+    const clip = new ArrayBuffer(8);
+    const { service, context, loadSynth, load } = setupRecorded((event) =>
+      Promise.resolve(event === "floppy" ? clip : undefined),
+    );
+    service.play("floppy");
+    await flush();
+    service.play("floppy");
+    await flush();
+    expect(load).toHaveBeenCalledTimes(1);
+    expect((context as DecodingAudioContext).decoded).toEqual([clip]);
+    expect(loadSynth).not.toHaveBeenCalledWith("floppy");
+    expect(context.sources[0]?.buffer?.duration).toBe(2.5);
+    expect(context.sources).toHaveLength(2);
+    // An event without a recording is synthesised as before.
+    service.play("ding");
+    await flush();
+    expect(loadSynth).toHaveBeenCalledWith("ding");
+  });
+
+  it("falls back to the synthesiser when the clip cannot be fetched or decoded, or the context cannot decode", async () => {
+    const failing = setupRecorded(() => Promise.reject(new Error("offline")));
+    failing.service.play("seek");
+    await flush();
+    expect(failing.loadSynth).toHaveBeenCalledWith("seek");
+    expect(failing.context.sources).toHaveLength(1);
+
+    const garbled = setupRecorded(() => Promise.resolve(new ArrayBuffer(0)));
+    garbled.service.play("seek");
+    await flush();
+    expect(garbled.loadSynth).toHaveBeenCalledWith("seek");
+
+    const plain = setupRecorded(
+      () => Promise.resolve(new ArrayBuffer(8)),
+      new FakeAudioContext(),
+    );
+    plain.service.play("seek");
+    await flush();
+    expect(plain.load).not.toHaveBeenCalled();
+    expect(plain.loadSynth).toHaveBeenCalledWith("seek");
   });
 });

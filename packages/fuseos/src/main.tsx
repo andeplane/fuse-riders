@@ -33,6 +33,7 @@ import {
   parseOpenParam,
   withoutOpenParam,
 } from "./state/deepLink";
+import { createRecordingLoader } from "./sounds/recordings";
 import { SoundServiceContext } from "./sounds/soundContext";
 import { LocalStorageSoundPrefsStore } from "./sounds/soundPrefsStore";
 import type { SoundAudioContext } from "./sounds/soundService";
@@ -89,7 +90,7 @@ const winampDeps: WinampDeps = {
   },
 };
 
-// System sounds: synthesised on first use, and only after the first click or key press (autoplay policy).
+// System sounds: synthesised (or, for the drive, a recording fetched) on first use, and only after the first click or key press (autoplay policy).
 // `?mute` silences them all, as it does the games.
 const sounds = new WebAudioSoundService({
   createContext: (): SoundAudioContext | undefined =>
@@ -97,6 +98,8 @@ const sounds = new WebAudioSoundService({
   prefs: new LocalStorageSoundPrefsStore(),
   muted,
   loadSynth,
+  // The floppy drive is a real recording (CC0), fetched on its first play; the synthesiser is the fallback.
+  loadRecording: createRecordingLoader((url) => window.fetch(url)),
   gestures: documentGestures(window),
 });
 // Fuse Messenger: the live friend list over the room service's friends routes, with the scripted demo behind

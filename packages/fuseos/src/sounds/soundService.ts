@@ -40,6 +40,8 @@ export interface SoundAudioContext {
   ): SoundBuffer;
   createBufferSource(): SoundBufferSource;
   createGain(): SoundGainNode;
+  /** Decodes a recorded clip (MP3); absent on a context that cannot, which then keeps to the synthesiser. */
+  decodeAudioData?(data: ArrayBuffer): Promise<SoundBuffer>;
 }
 
 export type SoundPlayOptions = {
@@ -188,6 +190,11 @@ export type WebAudioSoundServiceDeps = {
   muted: boolean;
   /** Dynamic import of the synthesiser; `loadSynth` from `./synth`. */
   loadSynth: (event: SystemSoundEvent) => Promise<SynthRenderer>;
+  /**
+   * The bytes of a real recording for the event, fetched on its first play (`recordings.ts`); undefined when the
+   * event has none. A recording that fails to load or decode falls back to the synthesiser.
+   */
+  loadRecording?: (event: SystemSoundEvent) => Promise<ArrayBuffer | undefined>;
   gestures: GestureSource;
 };
 
@@ -312,20 +319,43 @@ export class WebAudioSoundService implements SoundService {
   ): Promise<SoundBuffer> {
     let pending = this.buffers.get(event);
     if (!pending) {
-      pending = this.deps.loadSynth(event).then((render) => {
-        const samples = render(context.sampleRate);
-        const buffer = context.createBuffer(
-          1,
-          samples.length,
-          context.sampleRate,
-        );
-        buffer.copyToChannel(samples, 0);
-        return buffer;
-      });
+      pending = this.recorded(context, event).then(
+        (recorded) => recorded ?? this.synthesised(context, event),
+      );
       this.buffers.set(event, pending);
       pending.catch(() => this.buffers.delete(event));
     }
     return pending;
+  }
+
+  /** The event's real recording, decoded, or undefined to synthesise it instead. */
+  private async recorded(
+    context: SoundAudioContext,
+    event: SystemSoundEvent,
+  ): Promise<SoundBuffer | undefined> {
+    if (!this.deps.loadRecording || !context.decodeAudioData) return undefined;
+    try {
+      const data = await this.deps.loadRecording(event);
+      return data ? await context.decodeAudioData(data) : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private synthesised(
+    context: SoundAudioContext,
+    event: SystemSoundEvent,
+  ): Promise<SoundBuffer> {
+    return this.deps.loadSynth(event).then((render) => {
+      const samples = render(context.sampleRate);
+      const buffer = context.createBuffer(
+        1,
+        samples.length,
+        context.sampleRate,
+      );
+      buffer.copyToChannel(samples, 0);
+      return buffer;
+    });
   }
 
   private async start(playing: Playing): Promise<void> {
