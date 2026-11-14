@@ -1,12 +1,8 @@
 import { useCallback, useContext, useMemo, useState } from "react";
 
-import { DesktopDepsContext } from "../desktop/desktopDepsContext";
 import { MY_COMPUTER } from "../disk/diskPath";
 import { FuseGamesContext } from "../fusegames/registry";
-import { useFuseGameLauncher } from "../fusegames/useFuseGameLauncher";
 import { useDialUpCommands } from "../sounds/dialup/useDialUpCommands";
-import { useDesktopBsod } from "../system32/desktopBsod";
-import { useSystem32 } from "../system32/System32Provider";
 
 import {
   resolveRunCommand,
@@ -14,6 +10,7 @@ import {
   runNotFoundMessage,
   runSuggestions,
 } from "./runCommand";
+import { useRunExecutor } from "./useRunExecutor";
 
 export type RunViewModel = {
   text: string;
@@ -30,13 +27,8 @@ export type RunViewModel = {
 /** Start > Run...: one line, opened as a program, a game, a folder, a web address or the blue screen. */
 export function useRunViewModel(windowId: string): RunViewModel {
   const games = useContext(FuseGamesContext);
-  const { openExternal } = useContext(DesktopDepsContext);
-  // Network Neighborhood and Fuse Messenger dial in first, as they do from the Start menu.
   const commands = useDialUpCommands();
-  const { launch } = useFuseGameLauncher();
-  // The desktop's Blue Screen of Death where the build has one (D1), else the SYSTEM32 gag's own.
-  const desktopBsod = useDesktopBsod();
-  const { crash } = useSystem32();
+  const execute = useRunExecutor();
   const [text, setText] = useState("");
 
   const cancel = useCallback(
@@ -46,43 +38,14 @@ export function useRunViewModel(windowId: string): RunViewModel {
 
   const run = useCallback(() => {
     const target = resolveRunCommand(text, games);
-    switch (target.type) {
-      case "empty":
-        return;
-      case "notFound":
-        commands.showError(
-          RUN_NOT_FOUND_TITLE,
-          runNotFoundMessage(target.text),
-        );
-        return;
-      case "open":
-        commands.close(windowId);
-        commands.open(target.content);
-        return;
-      case "fusegame":
-        commands.close(windowId);
-        launch(target.gameId);
-        return;
-      case "url":
-        commands.close(windowId);
-        openExternal(target.url);
-        return;
-      case "bsod":
-        commands.close(windowId);
-        if (desktopBsod) void desktopBsod();
-        else crash();
-        return;
+    if (target.type === "empty") return;
+    if (target.type === "notFound") {
+      commands.showError(RUN_NOT_FOUND_TITLE, runNotFoundMessage(target.text));
+      return;
     }
-  }, [
-    text,
-    games,
-    commands,
-    windowId,
-    launch,
-    openExternal,
-    desktopBsod,
-    crash,
-  ]);
+    commands.close(windowId);
+    execute(target);
+  }, [text, games, commands, windowId, execute]);
 
   const browse = useCallback(() => {
     commands.close(windowId);
