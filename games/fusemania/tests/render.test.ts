@@ -1932,7 +1932,7 @@ function markers(calls: readonly Call[], top: number) {
   return found;
 }
 
-test("the race line puts every rider at its share of the full score, the local rider's marker biggest and last", () => {
+test("the race line puts every rider at its share of the full score, the local rider's marker biggest and under the others'", () => {
   const steps = stream(8, 1000, 1000);
   const r = rig();
   const view = world([
@@ -1946,18 +1946,18 @@ test("the race line puts every rider at its share of the full score, the local r
   const found = markers(calls, race.y);
   assert.deepEqual(
     found.map((marker) => marker.fill),
-    [GOLD, PINK, CYAN],
-    "last place first, then the leader, then the local rider over them",
+    [CYAN, GOLD, PINK],
+    "the local rider's big marker, then last place and the leader over it",
   );
   assert.deepEqual(
     found.map((marker) => marker.half),
-    [RIVAL_MARKER, RIVAL_MARKER, OWN_MARKER],
+    [OWN_MARKER, RIVAL_MARKER, RIVAL_MARKER],
   );
   const centre = (marker: { x: number; half: number }): number =>
     marker.x - marker.half;
-  assert.equal(centre(found[0]!), track.left);
-  assert.equal(centre(found[1]!), track.left + track.width * 0.5);
-  assert.equal(centre(found[2]!), track.left + track.width * 0.25);
+  assert.equal(centre(found[0]!), track.left + track.width * 0.25);
+  assert.equal(centre(found[1]!), track.left);
+  assert.equal(centre(found[2]!), track.left + track.width * 0.5);
   // The track is filled up to the pace: four of the eight notes are behind.
   const y = race.y + race.height / 2;
   const fills = calls.filter(

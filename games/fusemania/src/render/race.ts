@@ -15,7 +15,7 @@ import { GOLD, INK, LINE, TEXT, WHITE, hexA, slotColor } from "./palette.js";
 /**
  * The race line under the lanes: a track from nothing to the chart's full score, with every rider on it at the share
  * of the full score it has so far, so who is ahead and by how much reads at a glance. The local rider's marker is the
- * biggest and drawn last. The track fills up to the pace: the share a rider would have by now with every note so far
+ * biggest, with the others' drawn over it so that none hides behind it. The track fills up to the pace: the share a rider would have by now with every note so far
  * Marvelous and every hold kept, so the gap between a marker and the gold edge of the fill is what was dropped.
  *
  * Like the rest of the scene it is worked out from the view and the song time alone.
@@ -146,7 +146,10 @@ export function drawRace(
     );
   }
 
-  // The riders: the others from last place up, so the leader is on top of them, then the local rider over all.
+  // The riders: the local rider's big marker first, then the others' small ones over it from last place up, so a
+  // rival level with the local rider still shows on its marker and the leader is on top.
+  const own = riders[local];
+  if (own) marker(frame, left + width * raceShare(own.score), y, local, true);
   for (let place = view.players.length; place >= 1; place--)
     for (let slot = 0; slot < view.players.length; slot++) {
       const rider = riders[slot];
@@ -154,8 +157,6 @@ export function drawRace(
         continue;
       marker(frame, left + width * raceShare(rider.score), y, slot, false);
     }
-  const own = riders[local];
-  if (own) marker(frame, left + width * raceShare(own.score), y, local, true);
   g.globalAlpha = 1;
   g.shadowBlur = 0;
 }
