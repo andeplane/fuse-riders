@@ -36,6 +36,8 @@ export interface TimingAdvice {
   used: number;
 }
 
+/** A lag further than this share of a beat from its tick may be the neighbouring tick's. */
+export const AMBIGUOUS_BEATS = 0.3;
 /** A difference smaller than this is a player's own wobble, not something to set. */
 export const ADVICE_LEAST_MS = 3;
 
@@ -107,9 +109,13 @@ export function adviseRun(
       verdict: "apply",
       measured: `Your taps land ${Math.abs(left)} ms ${left > 0 ? "late" : "early"} (${count}).`,
       advice:
-        placed.moved === "audio"
+        (placed.moved === "audio"
           ? `That is too much for a keyboard: the sound arrives late here. APPLY sets the audio offset to ${signed(placed.audioMs)} ms and the input offset to ${signed(placed.offsetMs)} ms.`
-          : `APPLY sets the input offset to ${signed(placed.offsetMs)} ms.`,
+          : `APPLY sets the input offset to ${signed(placed.offsetMs)} ms.`) +
+        // A tap is counted for its nearest tick: a lag near half a beat may belong to the tick before.
+        (Math.abs(result.offsetMs) > AMBIGUOUS_BEATS * run.beatMs
+          ? " A lag this near half a tick can be read the wrong way round: check it at 2 ticks a second."
+          : ""),
       apply: { inputMs: placed.offsetMs, audioMs: placed.audioMs },
     };
   }
