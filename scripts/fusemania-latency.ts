@@ -63,7 +63,7 @@ for (const [ms, column, kind] of notes) {
 if (seconds > 0) {
   await sleep(500);
 } else {
-  await page.locator('main[data-stage="over"]').waitFor({ timeout: 120_000 });
+  await page.locator('main[data-stage="over"]').waitFor({ timeout: 400_000 });
   await sleep(800);
 }
 console.log(`presses sent: ${sent}, ${bias} ms from each note`);
