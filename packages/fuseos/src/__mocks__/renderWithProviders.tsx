@@ -13,6 +13,7 @@ import { MediaDepsContext } from "../controlpanel/mediaDepsContext";
 import type { SystemProbe } from "../controlpanel/systemInfo";
 import { SystemProbeContext } from "../controlpanel/systemProbeContext";
 import type { DesktopDeps } from "../desktop/desktopDepsContext";
+import { DiskDepsContext } from "../disk/diskDepsContext";
 import { DesktopDepsContext } from "../desktop/desktopDepsContext";
 import {
   DisplayPrefsStoreContext,
@@ -34,6 +35,7 @@ import {
   MemoryPaintPrefsStore,
   PaintPrefsStoreContext,
 } from "../paint/paintPrefsStore";
+import { EditorDepsContext } from "../notepadpp/editorDeps";
 import { PaintRegistryContext } from "../paint/paintRegistryContext";
 import type { GamesDeps } from "../retro/gamesDepsContext";
 import { GamesDepsContext } from "../retro/gamesDepsContext";
@@ -56,6 +58,10 @@ import type { WindowsDeps } from "../windows/windowsDepsContext";
 import { WindowsDepsContext } from "../windows/windowsDepsContext";
 
 import type { TestAssistantDeps } from "./assistantDeps";
+import type { TestDiskDeps, TestDiskOptions } from "./disk";
+import { createTestDiskDeps } from "./disk";
+import type { FakeEditor } from "./editor";
+import { createFakeEditorDeps } from "./editor";
 import { createTestAssistantDeps } from "./assistantDeps";
 import { FakePaintSurface } from "./paintSurface";
 import type { FakeWebampPlayer } from "./webampPlayer";
@@ -129,6 +135,9 @@ export type ProviderOptions = {
   /** Defaults to a fresh store, i.e. a first visit: the greeting shows. */
   assistantOptions?: MemoryAssistantOptionsStore;
   systemProbe?: SystemProbe;
+  /** Defaults to the fixture repository with an empty overlay and an instant floppy seek. */
+  disk?: TestDiskOptions;
+  diskDeps?: TestDiskDeps;
 };
 
 export const immediateAppStateDeps: AppStateDeps = {
@@ -258,6 +267,9 @@ export function createWrapper(options: ProviderOptions = {}) {
   const winampDeps = createTestWinampDeps(winampPlayers, options.winampDeps);
   const winampRegistry = new Map<string, WinampControls>();
   const systemProbe = options.systemProbe ?? TEST_SYSTEM_PROBE;
+  const diskDeps = options.diskDeps ?? createTestDiskDeps(options.disk);
+  const editors: FakeEditor[] = [];
+  const editorDeps = createFakeEditorDeps(editors);
 
   function Wrapper({ children }: { children: ReactNode }) {
     return (
@@ -290,12 +302,20 @@ export function createWrapper(options: ProviderOptions = {}) {
                                       <SystemProbeContext.Provider
                                         value={() => systemProbe}
                                       >
-                                        <Shell
-                                          store={store}
-                                          initialOpen={options.initialOpen}
+                                        <DiskDepsContext.Provider
+                                          value={diskDeps}
                                         >
-                                          {children}
-                                        </Shell>
+                                          <EditorDepsContext.Provider
+                                            value={editorDeps}
+                                          >
+                                            <Shell
+                                              store={store}
+                                              initialOpen={options.initialOpen}
+                                            >
+                                              {children}
+                                            </Shell>
+                                          </EditorDepsContext.Provider>
+                                        </DiskDepsContext.Provider>
                                       </SystemProbeContext.Provider>
                                     </AssistantOptionsStoreContext.Provider>
                                   </AssistantDepsContext.Provider>
@@ -334,6 +354,8 @@ export function createWrapper(options: ProviderOptions = {}) {
     winampDeps,
     winampPlayers,
     winampRegistry,
+    diskDeps,
+    editors,
   };
 }
 

@@ -49,6 +49,25 @@ export interface WinampWindowContent {
   kind: "winamp";
 }
 
+/** Explorer over My Computer: `location` is "" (My Computer), "C:", "C:/packages/fuseos", "A:" (see disk/diskPath.ts). */
+export interface ExplorerWindowContent {
+  kind: "explorer";
+  location: string;
+}
+
+/** Notepad++ with its open tabs (repository paths or "A:/..." locations); drafts live in the window, saves in the overlay. Reused when already open. */
+export interface NotepadPlusPlusWindowContent {
+  kind: "notepadpp";
+  paths: string[];
+  activePath?: string;
+}
+
+/** An image from the C: drive, shown read-only (Paint's URL import is Phase B5's; this is the fallback viewer). */
+export interface ImageViewerWindowContent {
+  kind: "imageviewer";
+  path: string;
+}
+
 export type WindowContent =
   | FuseGameWindowContent
   | RetroGameWindowContent
@@ -57,7 +76,10 @@ export type WindowContent =
   | AboutWindowContent
   | DialogWindowContent
   | PaintWindowContent
-  | WinampWindowContent;
+  | WinampWindowContent
+  | ExplorerWindowContent
+  | NotepadPlusPlusWindowContent
+  | ImageViewerWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -217,6 +239,16 @@ function isWindowContent(
       );
     case "paint":
       return value.fileName === undefined || typeof value.fileName === "string";
+    case "explorer":
+      return typeof value.location === "string";
+    case "notepadpp":
+      return (
+        Array.isArray(value.paths) &&
+        value.paths.every((path) => typeof path === "string") &&
+        (value.activePath === undefined || typeof value.activePath === "string")
+      );
+    case "imageviewer":
+      return typeof value.path === "string" && value.path.length > 0;
     default:
       return false;
   }

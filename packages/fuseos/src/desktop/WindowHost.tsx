@@ -2,9 +2,12 @@ import { useContext, useEffect } from "react";
 
 import { AboutDialog } from "../about/AboutDialog";
 import { ControlPanelWindow } from "../controlpanel/ControlPanelWindow";
+import { ExplorerWindow } from "../explorer/ExplorerWindow";
+import { ImageViewerWindow } from "../explorer/ImageViewerWindow";
 import { WallpaperWindow } from "../controlpanel/WallpaperWindow";
 import { FuseGameWindow } from "../fusegames/FuseGameWindow";
 import { FuseGamesContext } from "../fusegames/registry";
+import { NotepadPlusPlusWindow } from "../notepadpp/NotepadPlusPlusWindow";
 import { PaintWindow } from "../paint/PaintWindow";
 import { GameWindow } from "../retro/GameWindow";
 import type { WindowState } from "../state/appState";
@@ -62,6 +65,18 @@ function WindowContent({
       return <PaintWindow windowId={window.id} />;
     case "winamp":
       return <WinampWindow windowId={window.id} />;
+    case "explorer":
+      return <ExplorerWindow windowId={window.id} location={window.location} />;
+    case "notepadpp":
+      return (
+        <NotepadPlusPlusWindow
+          windowId={window.id}
+          paths={window.paths}
+          activePath={window.activePath}
+        />
+      );
+    case "imageviewer":
+      return <ImageViewerWindow path={window.path} />;
   }
 }
 

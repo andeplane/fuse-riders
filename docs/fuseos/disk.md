@@ -1,0 +1,108 @@
+# My Computer: the C: and A: drives
+
+FuseOS's Explorer shows two drives. **Fuse Riders (C:)** is this repository, read straight from
+GitHub; **3½ Floppy (A:)** is a 1997 backup disk that exists only for the joke. Notepad++ opens
+the text files on either; what it saves stays in the browser.
+
+## Where C: comes from
+
+- **The manifest.** `scripts/fuseos/repo-tree-plugin.ts` is a Vite plugin registered in
+  `vite.config.ts`. At build time it runs `git ls-tree -r -l HEAD`, `git rev-parse HEAD` and
+  `git log -1 --format=%cI` and writes `fuseos/repo-tree.json` into `dist/`: every committed
+  file with its size, the commit sha, its date, the repository slug (`GITHUB_REPOSITORY`, else the
+  `origin` remote, else `andeplane/fuse-riders`) and the fallback branch (`main`). The dev server
+  serves the same JSON, rebuilt on each request, so a new commit shows up without a restart.
+- **Zero API calls.** The manifest is fetched once, lazily, when the first Explorer, Notepad++ or
+  image viewer window opens (`src/disk/useDisk.ts`), and shared by every window. File contents
+  come from `https://raw.githubusercontent.com/<repo>/<sha>/<path>`: immutable, CORS-enabled and
+  outside the GitHub API's rate limits.
+- **The sha is the deployed build's.** In GitHub Actions the checked-out `HEAD` is what Pages
+  deploys, so every file is read at exactly that commit. A local build or `vite dev` may be on a
+  commit that is not pushed; the first 404 at that sha switches the source to the fallback branch
+  for the rest of the session and Notepad++'s status bar says so ("This build's commit is not on
+  GitHub yet; showing the file as it is on main."). The image viewer does the same per picture.
+- **Committed files only.** Sizes and the listing are what `HEAD` contains, which is exactly what
+  raw.githubusercontent.com serves for that sha. Uncommitted edits in a working tree are invisible
+  to the desktop by design.
+
+## What opens how
+
+`src/disk/fileTypes.ts` decides by extension (`src/explorer/openEntry.ts` applies it):
+
+| Kind                              | Double click                                               |
+| --------------------------------- | ---------------------------------------------------------- |
+| Text up to 512 KB                 | Notepad++ (a new tab in the open window)                   |
+| Text over 512 KB                  | "Notepad++" dialog: too large, read it on GitHub           |
+| Image (png, jpg, gif, webp, svg…) | Image Viewer window (`src/explorer/ImageViewerWindow.tsx`) |
+| Anything else (zip, mp3, wasm…)   | Win95 "Open With" dialog: Windows cannot open this file    |
+
+**Images and Paint.** Phase B5 adds a way to open an image URL in Paint. That seam was not on this
+branch, so Explorer opens pictures in a small read-only viewer instead. When B5 lands, replace the
+`image` case in `useExplorerViewModel.open` with Paint's URL import and retire the viewer window
+(`imageviewer` in `state/appState.ts`, `WindowHost.tsx`, `windowMeta.ts`).
+
+## Explorer
+
+`src/explorer/`: a Folders tree (My Computer, the drives, folders expand lazily from the manifest),
+Details and Large Icons views, a sortable Details header (Name, Size, Type, Modified; folders stay
+above files), an address bar that accepts `C:\packages\fuseos` or `c:/packages/fuseos`, Back,
+Forward and Up, and the keyboard shortcuts registered in `src/lib/shortcuts.ts` (arrows, Enter,
+Backspace, Escape, Shift+F10). Every file on C: shows the commit's date as its modified time. A
+file with a saved copy in the browser carries a blue `*` after its name ("Saved copy on this
+computer"); the context menu and File menu offer **Revert to original**.
+
+Locations are strings so a window survives a reload: `""` is My Computer, `"C:"` a drive root,
+`"C:/packages/fuseos"` a folder, `"A:/porn"` the floppy's folder (`src/disk/diskPath.ts`).
+
+## The floppy (A:)
+
+Opening A: from another drive plays a synthesized head seek (`src/disk/floppySound.ts`, Web
+Audio, no asset) and shows "Reading drive A:..." for 1.4 s. The disk holds exactly:
+
+- `slackbacup.zip`, 1.35 MB, dated 14 August 1997. Opening it shows a WinZip-style box that
+  "extracts" a 1997 home directory with a progress bar, then fails at 87%:
+  _"slackbacup.zip is corrupt. Disk in drive A: may be a coaster."_ Nothing is extracted; there is
+  no archive.
+- a folder named `porn` (the joke is the name; the contents are strictly safe for work). The first
+  attempt anywhere on the desktop answers "A:\porn is not accessible. Access is denied."; the
+  second opens it. It contains only `homework.txt`, which Notepad++ opens to
+  _"Nice try. Go play Fuseball."_
+
+Everything on A: lives in `src/disk/floppy.ts`.
+
+## Notepad++
+
+`src/notepadpp/`: tabs, a File / Edit / View / Help menu bar and the six-field status bar
+(language, notice, length and lines, Ln/Col, UTF-8, INS). The editor is CodeMirror 6 with a theme
+and highlight style after Notepad++'s defaults (`codemirrorEditor.ts`), loaded by dynamic import
+the first time a window mounts, so it never enters the desktop's initial bundle
+(`tests/fuseos-disk.test.ts` walks the static import graph to keep it that way). Highlighting
+covers ts, tsx, js, jsx, json, md, css, html and yml; anything else is "Normal text file".
+
+- **Save (Ctrl+S)** writes the tab's text to the **overlay**, an IndexedDB store
+  (`fuseos-disk` / `files`, `src/disk/diskOverlay.ts`, `DiskOverlay` interface with a
+  `MemoryDiskOverlay` fake). The saved copy shadows the committed text in every window and
+  survives reloads; it exists only in that browser. Nothing is ever sent to GitHub.
+- **Revert to original** removes the overlay copy and shows the committed text again.
+- A tab shows `*` while it holds unsaved typing and `●` once a saved copy exists. Closing a dirty
+  tab asks "Save file?" (Yes / No / Cancel); closing the last tab closes the window.
+- A save or revert made elsewhere (Explorer, another tab, the Office Assistant) updates an open
+  tab unless it has unsaved typing, which is kept.
+
+## EditorCommands for the Office Assistant
+
+`src/notepadpp/editorCommands.ts` exports the `EditorCommands` interface (`open`, `readFile`,
+`writeFile`, `listModified`, `revert`), the `useEditorCommands()` hook that builds it from the
+disk deps and the window commands, `EditorCommandsContext` for injecting a fake, and
+`EditorCommandsProvider`. Paths are editor paths: a repository path on C:
+(`packages/fuseos/src/App.tsx`) or an `A:/...` location. Phase C's Clippy `[edit:<path>]` tool
+is meant to read the file through `readFile`, write the replacement through `writeFile` (which the
+open tab follows) and offer `revert` as the undo; every change lands on "your C: drive" only.
+
+## Dependencies and fakes
+
+`src/disk/diskDepsContext.ts` bundles what the drives need (`DiskDeps`: the `DiskSource`, the
+`DiskOverlay`, the `FloppyJokeGate` and `floppySeek`). Production deps are built on first use;
+tests get `createTestDiskDeps()` from `src/__mocks__/disk.ts` (a fixture repository in memory, an
+empty overlay, an instant seek) and the textarea-backed `FakeEditor` from `src/__mocks__/editor.ts`
+through `EditorDepsContext`, both wired into `renderWithProviders`.

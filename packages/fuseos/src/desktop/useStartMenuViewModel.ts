@@ -1,5 +1,6 @@
 import { useContext } from "react";
 
+import { MY_COMPUTER } from "../disk/diskPath";
 import { FuseGamesContext } from "../fusegames/registry";
 import { GAME_LIST } from "../retro/games";
 import { useAppState } from "../state/useAppState";
@@ -83,6 +84,22 @@ export function useStartMenuViewModel(): {
               label: "Change desktop background",
               icon: "wallpaper",
               onSelect: wrap(desktop.openWallpaper),
+            },
+            {
+              id: "explorer",
+              label: "Windows Explorer",
+              icon: "explorer",
+              onSelect: wrap(() =>
+                commands.open({ kind: "explorer", location: MY_COMPUTER }),
+              ),
+            },
+            {
+              id: "notepadpp",
+              label: "Notepad++",
+              icon: "notepadpp",
+              onSelect: wrap(() =>
+                commands.open({ kind: "notepadpp", paths: ["README.md"] }),
+              ),
             },
           ],
         },

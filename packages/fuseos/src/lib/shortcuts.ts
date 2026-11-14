@@ -135,6 +135,12 @@ export const SHORTCUTS: readonly Shortcut[] = [
       "Find the next match (opens Find first if the search box is empty)",
     scope: "Notepad",
   },
+  {
+    id: "notepad.save",
+    keys: "Ctrl+S",
+    description: "Save the open file to this computer (Notepad++)",
+    scope: "Notepad",
+  },
 
   // Paint — the Text tool's dialog
   {
