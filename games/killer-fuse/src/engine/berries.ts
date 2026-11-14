@@ -21,7 +21,6 @@ import {
   KICK_WAIT,
   PILE_HALF,
   PILE_HEIGHT,
-  REGROW_CLOCK,
   REGROW_STEPS,
   WORKER_HALF,
   WORKER_HEIGHT,
@@ -180,11 +179,10 @@ export function stepBerries(state: Round): void {
     if (!gone) kept.push(berry);
   }
   state.loose = kept;
-  // The map has run dry when every pile is empty; ninety seconds later the piles are whole again. They are also made
-  // whole on a slow clock whatever is left, so a few berries nobody dares fetch cannot starve a long game.
+  // The map has run dry when every pile is empty; ninety seconds later the piles are whole again.
   if (state.piles.some((count) => count > 0)) state.dry = 0;
   else state.dry += 1;
-  if (state.dry >= REGROW_STEPS || state.step % REGROW_CLOCK === 0) {
+  if (state.dry >= REGROW_STEPS) {
     state.piles = arena.piles.map((pile) => pile.count);
     state.dry = 0;
     state.events.push({ type: "berryRegrow" });

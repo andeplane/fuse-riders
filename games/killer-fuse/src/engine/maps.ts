@@ -1,7 +1,8 @@
 /**
- * Maps as data, in art pixels on the 480 by 270 screen (y grows downward). Every map is built from its left half and
- * mirrored, so the two sides are identical: Cyan (team 0) lives on the left, Pink (team 1) on the right. The screen
- * wraps horizontally; no platform crosses the seam, two that meet there simply form one walkway.
+ * Maps as data, in art pixels on the 480 by 270 screen (y grows downward). The three layouts are ports of the
+ * arcade's day, dusk and night maps, measured from footage (docs/balance.md); only the geometry is taken. Every map
+ * is built from its left half and mirrored, so the two sides are identical: team 0 lives on the left, team 1 on the
+ * right. The screen wraps horizontally; no platform crosses the seam, two that meet there simply form one walkway.
  */
 import { S } from "./tuning.js";
 
@@ -26,11 +27,16 @@ export interface GateDef extends Point {
 }
 export interface PileDef extends Point {
   count: number;
+  /** Grows down from the surface above it instead of standing on one. */
+  hanging: boolean;
 }
 export type MapId = 1 | 2 | 3;
 export const MAP_IDS: readonly MapId[] = [1, 2, 3];
 
-/** Positions are feet points: a gate, pile, spawn or hole row stands on the surface at its `y`. */
+/**
+ * Positions are feet points: a gate, pile, spawn or egg stands on the surface at its `y`. A hanging pile grows down
+ * from the underside of a platform or from the top of the screen; its `y` is still the bottom of its box.
+ */
 export interface MapDef {
   id: MapId;
   name: string;
@@ -38,10 +44,16 @@ export interface MapDef {
   platforms: readonly Rect[];
   /** Hive hole centres, per team. */
   holes: readonly [readonly Point[], readonly Point[]];
+  /** The wall each team's holes are set in. It is scenery: nothing collides with it. */
+  hiveWalls: readonly [Rect, Rect];
+  /** Where each team's two spare Queen eggs stand (feet points); the third has hatched when a round starts. */
+  eggSpots: readonly [readonly Point[], readonly Point[]];
   gates: readonly GateDef[];
   piles: readonly PileDef[];
   /** The snail's track: its floor height, where it starts and each team's goal. */
   snail: { y: number; start: number; goals: readonly [number, number] };
+  /** The net cage standing over each team's snail goal. Scenery as well. */
+  nets: readonly [Rect, Rect];
   /** Spawn feet per slot: 0 and 1 are the Queens. */
   spawns: readonly Point[];
 }
@@ -53,12 +65,13 @@ interface HalfMap {
   floor: Rect;
   left: readonly Rect[];
   centre: readonly Rect[];
-  holes: readonly Point[];
+  hive: { wall: Rect; holes: readonly Point[]; eggs: readonly Point[] };
   gatesLeft: readonly GateDef[];
   gatesCentre: readonly GateDef[];
   pilesLeft: readonly PileDef[];
   pilesCentre: readonly PileDef[];
   snail: { y: number; start: number; goal: number };
+  net: Rect;
   /** Queen, first Worker, second Worker of team 0. */
   spawns: readonly [Point, Point, Point];
 }
@@ -78,7 +91,9 @@ function mirrored(half: HalfMap): MapDef {
       ...half.left.map(flipRect),
       ...half.centre,
     ],
-    holes: [half.holes, half.holes.map(flipPoint)],
+    holes: [half.hive.holes, half.hive.holes.map(flipPoint)],
+    hiveWalls: [half.hive.wall, flipRect(half.hive.wall)],
+    eggSpots: [half.hive.eggs, half.hive.eggs.map(flipPoint)],
     gates: [
       ...half.gatesLeft,
       ...half.gatesLeft.map(flipPoint),
@@ -94,6 +109,7 @@ function mirrored(half: HalfMap): MapDef {
       start: half.snail.start,
       goals: [half.snail.goal, flipX(half.snail.goal)],
     },
+    nets: [half.net, flipRect(half.net)],
     spawns: [
       queen,
       flipPoint(queen),
@@ -105,144 +121,208 @@ function mirrored(half: HalfMap): MapDef {
   };
 }
 
-const LEDGE = 6;
-const ledge = (x: number, top: number, w: number): Rect => ({
-  x,
+/** Platform thickness, and the size of a pile's box (tuning.ts keeps the same numbers in subpixels). */
+const LEDGE = 6,
+  PILE = 12,
+  BERRIES = 6;
+/** The ledges of one level: their shared top and each one's left and right end. */
+const level = (
+  top: number,
+  ...spans: readonly (readonly [number, number])[]
+): Rect[] =>
+  spans.map(([from, to]) => ({ x: from, y: top, w: to - from, h: LEDGE }));
+/** A ledge centred on the screen, from `from` to its mirror image. */
+const middle = (top: number, from: number, h = LEDGE): Rect => ({
+  x: from,
   y: top,
-  w,
-  h: LEDGE,
+  w: MAP_WIDTH - 2 * from,
+  h,
+});
+const gate = (kind: GateKind, x: number, y: number): GateDef => ({
+  x,
+  y,
+  kind,
+});
+/** Six berries standing on the surface at `y`. */
+const pile = (x: number, y: number): PileDef => ({
+  x,
+  y,
+  count: BERRIES,
+  hanging: false,
+});
+/** Six berries hanging under the surface whose underside is at `under` (0 for the top of the screen). */
+const hanging = (x: number, under: number): PileDef => ({
+  x,
+  y: under + PILE,
+  count: BERRIES,
+  hanging: true,
 });
 /**
- * A hive: two staggered rows of six holes, a honeycomb on the wall behind the ledge at `y + 5`. A Worker standing on
- * that ledge reaches both rows, and each spot along it reaches at most two holes of a row.
+ * A hive's twelve holes: five columns `pitch` apart around `x`, staggered 2-3-2-3-2. `rows` are five heights above
+ * `floor`, lowest first: the second and fourth column take the first, third and fifth, the others the two between.
  */
-const hive = (from: number, y: number): Point[] =>
-  Array.from({ length: 12 }, (_, i) =>
-    i < 6 ? { x: from + i * 10, y } : { x: from + 5 + (i - 6) * 10, y: y - 8 },
+const comb = (
+  x: number,
+  floor: number,
+  pitch: number,
+  rows: readonly [number, number, number, number, number],
+): Point[] =>
+  [-2, -1, 0, 1, 2].flatMap((column) =>
+    rows
+      .filter((_, row) => (row % 2 === 0) === (column % 2 !== 0))
+      .map((up) => ({ x: x + column * pitch, y: floor - up })),
   );
 
+const GROUND: Rect = { x: 0, y: 265, w: MAP_WIDTH, h: 5 };
+
 /**
- * Map 1, "Twin Hives" (balanced). Four ledge levels 44 px apart above the snail's floor; a full Worker jump is 50 px,
- * so each level is one jump up from beside a ledge end. Hives sit on the top ledges left and right of centre, one
- * warrior gate is contested on the middle ledge and one sits on each side walkway across the seam, the speed gates
- * are low, and the snail runs along the floor between goals near the walls. No berries grow near a hive: the nearest
- * piles are three levels down, and the largest sits in the contested centre (see docs/balance.md).
+ * Map 1, "Day". Eight levels 30 px apart over the ground, most of them short ledges. Both hives hang side by side at
+ * the top centre over one long floor, so the two Queens start within a second's flight of each other; the snail runs
+ * along the ground between nets at the walls, 225 px from the centre. Thin walls close the upper half of each edge:
+ * the screen wraps only below them.
  */
-const TWIN_HIVES = mirrored({
+const DAY = mirrored({
   id: 1,
-  name: "Twin Hives",
-  floor: { x: 0, y: 258, w: 480, h: 12 },
+  name: "Day",
+  floor: GROUND,
   left: [
-    ledge(0, 214, 52),
-    ledge(96, 214, 72),
-    ledge(44, 170, 60),
-    ledge(160, 170, 56),
-    ledge(0, 126, 40),
-    ledge(88, 126, 62),
-    ledge(104, 82, 116),
+    { x: 0, y: 0, w: 3, h: 118 },
+    ...level(30, [140, 154]),
+    ...level(55, [3, 30], [85, 119]),
+    ...level(85, [50, 64], [140, 154]),
+    ...level(115, [2, 30], [85, 119], [175, 204]),
+    ...level(145, [50, 154]),
+    ...level(175, [2, 30], [175, 204]),
+    ...level(205, [50, 70], [125, 154]),
+    ...level(235, [2, 30], [90, 104]),
   ],
-  centre: [ledge(208, 214, 64), ledge(200, 126, 80)],
-  holes: hive(132, 77),
-  gatesLeft: [
-    { x: 20, y: 214, kind: "warrior" },
-    { x: 132, y: 214, kind: "speed" },
+  centre: [
+    middle(55, 175),
+    middle(145, 225),
+    middle(205, 225),
+    middle(235, 175),
   ],
-  gatesCentre: [{ x: 240, y: 126, kind: "warrior" }],
-  pilesLeft: [
-    { x: 130, y: 258, count: 6 },
-    { x: 70, y: 170, count: 6 },
-  ],
-  pilesCentre: [{ x: 240, y: 214, count: 12 }],
-  snail: { y: 258, start: 240, goal: 44 },
+  hive: {
+    wall: { x: 181, y: 0, w: 54, h: 55 },
+    holes: comb(208, 55, 7, [14, 19, 24, 29, 34]),
+    eggs: [
+      { x: 226, y: 55 },
+      { x: 233, y: 55 },
+    ],
+  },
+  gatesLeft: [gate("speed", 102, 55), gate("warrior", 139, 205)],
+  gatesCentre: [gate("warrior", 240, 145)],
+  pilesLeft: [pile(97, 265), pile(59, 205), pile(189, 175), pile(16, 115)],
+  pilesCentre: [pile(240, 235), pile(240, 205), hanging(240, 151)],
+  snail: { y: 265, start: 240, goal: 15 },
+  net: { x: 0, y: 246, w: 29, h: 19 },
   spawns: [
-    { x: 118, y: 82 },
-    { x: 200, y: 82 },
-    { x: 212, y: 82 },
+    { x: 184, y: 55 },
+    { x: 208, y: 55 },
+    { x: 178, y: 55 },
   ],
 });
 
 /**
- * Map 2, "Short Leash" (snail). The goals stand much closer to the centre than on map 1 (136 px from the start
- * against 196), and the hives are pushed out to the walls where berries take longer to carry home. Each side's own
- * warrior gate stands on the low ledge right over the snail's track, so a rider has Warriors to get past.
+ * Map 2, "Dusk". Two tall hive walls stand side by side in the middle of the screen with their holes far above the
+ * ledge under them: the lower rows take a jump from that ledge, the upper ones a drop past the wall from the ledges
+ * above it. Three blocks fill the gap between the walls. Walls close the edges between y 41 and 180.
  */
-const SHORT_LEASH = mirrored({
+const DUSK = mirrored({
   id: 2,
-  name: "Short Leash",
-  floor: { x: 0, y: 258, w: 480, h: 12 },
+  name: "Dusk",
+  floor: GROUND,
   left: [
-    ledge(0, 214, 44),
-    ledge(88, 214, 80),
-    ledge(36, 170, 64),
-    ledge(152, 170, 60),
-    ledge(0, 126, 76),
-    ledge(120, 126, 56),
-    ledge(40, 82, 110),
+    { x: 0, y: 41, w: 3, h: 139 },
+    ...level(2, [105, 130]),
+    ...level(41, [0, 34]),
+    ...level(55, [65, 89], [145, 174]),
+    ...level(85, [0, 44], [110, 124]),
+    ...level(115, [65, 90]),
+    ...level(145, [35, 119], [175, 199]),
+    ...level(175, [0, 14], [140, 154]),
+    ...level(205, [0, 54], [115, 209]),
+    ...level(235, [75, 94]),
   ],
-  centre: [ledge(204, 214, 72), ledge(208, 126, 64)],
-  holes: hive(48, 77),
-  gatesLeft: [
-    { x: 148, y: 214, kind: "warrior" },
-    { x: 20, y: 214, kind: "speed" },
+  centre: [
+    middle(55, 212),
+    middle(75, 235, 15),
+    middle(100, 235, 15),
+    middle(125, 235, 10),
+    middle(145, 220),
+    middle(235, 230),
   ],
-  gatesCentre: [{ x: 240, y: 126, kind: "warrior" }],
-  pilesLeft: [
-    { x: 108, y: 214, count: 6 },
-    { x: 180, y: 170, count: 6 },
-  ],
-  pilesCentre: [{ x: 240, y: 214, count: 6 }],
-  snail: { y: 258, start: 240, goal: 104 },
+  hive: {
+    wall: { x: 170, y: 60, w: 59, h: 79 },
+    holes: comb(200, 145, 8, [29, 38, 48, 57, 67]),
+    eggs: [
+      { x: 181, y: 145 },
+      { x: 193, y: 145 },
+    ],
+  },
+  gatesLeft: [gate("warrior", 77, 115), gate("speed", 85, 235)],
+  gatesCentre: [gate("warrior", 240, 235)],
+  pilesLeft: [pile(22, 85), pile(40, 205), hanging(162, 211), pile(84, 265)],
+  pilesCentre: [hanging(240, 0), pile(240, 55), hanging(240, 151)],
+  snail: { y: 265, start: 240, goal: 15 },
+  net: { x: 0, y: 246, w: 29, h: 19 },
   spawns: [
-    { x: 116, y: 82 },
-    { x: 130, y: 82 },
-    { x: 142, y: 82 },
+    { x: 187, y: 145 },
+    { x: 180, y: 145 },
+    { x: 194, y: 145 },
   ],
 });
 
 /**
- * Map 3, "Open Heart" (military). Both hives share the exposed middle of the screen with no roof over them, the
- * snail's goals stand at the walls with little cover over the floor between them, and the side warrior gates stand
- * low at the walls, right over those goals.
+ * Map 3, "Night". The hives are low rooms in the bottom corners, each under its own roof, and the snail walks a long
+ * platform across the middle of the screen with its nets only 175 px from the centre. Two blocks stand on the centre
+ * line below it. There are no walls: every level wraps. Nine piles, three of them hanging from the top of the screen.
  */
-const OPEN_HEART = mirrored({
+const NIGHT = mirrored({
   id: 3,
-  name: "Open Heart",
-  floor: { x: 0, y: 258, w: 480, h: 12 },
+  name: "Night",
+  floor: { x: 52, y: 147, w: 376, h: LEDGE },
   left: [
-    ledge(0, 214, 36),
-    ledge(112, 214, 46),
-    ledge(28, 170, 56),
-    ledge(128, 170, 48),
-    ledge(0, 126, 32),
-    ledge(72, 126, 60),
-    ledge(104, 82, 120),
+    ...level(33, [0, 60]),
+    ...level(54, [85, 110]),
+    ...level(85, [18, 60], [135, 161]),
+    ...level(116, [84, 111], [187, 198]),
+    ...level(178, [0, 25]),
+    ...level(208, [0, 88], [156, 198]),
+    ...level(240, [110, 136]),
   ],
-  centre: [ledge(216, 126, 48)],
-  holes: hive(162, 77),
-  gatesLeft: [
-    { x: 18, y: 214, kind: "warrior" },
-    { x: 52, y: 170, kind: "speed" },
+  centre: [
+    middle(54, 187),
+    middle(95, 224),
+    middle(180, 224, 38),
+    middle(235, 225, 30),
+    GROUND,
   ],
-  gatesCentre: [{ x: 240, y: 126, kind: "warrior" }],
-  pilesLeft: [
-    { x: 138, y: 214, count: 6 },
-    { x: 16, y: 126, count: 6 },
-    { x: 100, y: 126, count: 3 },
-    { x: 70, y: 170, count: 3 },
-  ],
-  pilesCentre: [{ x: 240, y: 258, count: 6 }],
-  snail: { y: 258, start: 240, goal: 24 },
+  hive: {
+    wall: { x: 3, y: 215, w: 85, h: 50 },
+    holes: comb(45, 265, 10, [14, 19, 24, 29, 34]),
+    eggs: [
+      { x: 12, y: 265 },
+      { x: 20, y: 265 },
+    ],
+  },
+  gatesLeft: [gate("speed", 42, 85), gate("warrior", 174, 208)],
+  gatesCentre: [gate("warrior", 240, 95)],
+  pilesLeft: [hanging(15, 0), hanging(42, 39), pile(125, 147)],
+  pilesCentre: [hanging(240, 0), pile(240, 54), pile(240, 180)],
+  snail: { y: 147, start: 240, goal: 65 },
+  net: { x: 50, y: 128, w: 29, h: 19 },
   spawns: [
-    { x: 120, y: 82 },
-    { x: 134, y: 82 },
-    { x: 146, y: 82 },
+    { x: 80, y: 265 },
+    { x: 45, y: 265 },
+    { x: 66, y: 265 },
   ],
 });
 
 export const MAPS: Readonly<Record<MapId, MapDef>> = {
-  1: TWIN_HIVES,
-  2: SHORT_LEASH,
-  3: OPEN_HEART,
+  1: DAY,
+  2: DUSK,
+  3: NIGHT,
 };
 
 /** A map in subpixels, as the step reads it. */
@@ -254,6 +334,8 @@ export interface Arena {
   piles: readonly PileDef[];
   snail: { y: number; start: number; goals: readonly [number, number] };
   spawns: readonly Point[];
+  /** Per team, where each spare egg stands: a Queen respawns on the next one. */
+  eggSpots: readonly [readonly Point[], readonly Point[]];
 }
 
 const scalePoint = <T extends Point>(p: T): T => ({
@@ -280,13 +362,17 @@ function compile(map: MapDef): Arena {
       goals: [map.snail.goals[0] * S, map.snail.goals[1] * S],
     },
     spawns: map.spawns.map(scalePoint),
+    eggSpots: [
+      map.eggSpots[0].map(scalePoint),
+      map.eggSpots[1].map(scalePoint),
+    ],
   };
 }
 
 const ARENAS: Readonly<Record<MapId, Arena>> = {
-  1: compile(TWIN_HIVES),
-  2: compile(SHORT_LEASH),
-  3: compile(OPEN_HEART),
+  1: compile(DAY),
+  2: compile(DUSK),
+  3: compile(NIGHT),
 };
 
 export const arenaOf = (id: MapId): Arena => ARENAS[id];
@@ -305,4 +391,11 @@ export function wrapDelta(to: number, from: number, width = WIDTH): number {
 export function wrapX(x: number, width = WIDTH): number {
   const m = x % width;
   return m < 0 ? m + width : m;
+}
+
+/** The platform whose top a unit with its feet at (x, y) stands on, or -1 when it is in the air. */
+export function standingOn(arena: Arena, x: number, y: number): number {
+  return arena.solids.findIndex(
+    (solid) => solid.y === y && x >= solid.x && x <= solid.x + solid.w,
+  );
 }

@@ -9,17 +9,27 @@ import {
   RESPAWN_INVULN,
   RESPAWN_STEPS,
   S,
+  STUN_STEPS,
   WARRIOR_HEIGHT,
   arenaOf,
   isQueenSlot,
   stepRound,
   teamOf,
+  viewOf,
 } from "../src/engine/index.js";
 import { duelWinner, resolveCombat } from "../src/engine/combat.js";
 import { firstTeam, turnOrder } from "../src/engine/units.js";
-import { bare, ofType, put, run, stand, unitOf } from "./engine-kit.js";
+import {
+  bare,
+  controls,
+  ofType,
+  put,
+  run,
+  stand,
+  unitOf,
+} from "./engine-kit.js";
 
-const FLOOR = 258;
+const FLOOR = 265;
 
 test("slots: teams alternate, and the first two are the Queens", () => {
   assert.deepEqual([0, 1, 2, 3, 4, 5].map(teamOf), [0, 1, 0, 1, 0, 1]);
@@ -86,8 +96,8 @@ test("teammates and two Workers pass through each other", () => {
   const state = bare();
   stand(state, 2, 300, FLOOR, { kind: "warrior" });
   stand(state, 4, 304, FLOOR);
-  stand(state, 3, 100, FLOOR);
-  stand(state, 0, 104, FLOOR, { kind: "worker" });
+  stand(state, 3, 330, FLOOR);
+  stand(state, 0, 334, FLOOR, { kind: "worker" });
   assert.deepEqual(run(state, 5), []);
 });
 
@@ -198,31 +208,66 @@ test("a Worker killed while carrying drops its berry where it stood", () => {
   assert.equal(state.loose[0]?.by, 3);
 });
 
-test("a Queen's tall body gives her no height: level on the same ledge they bounce, and a Warrior a little above her feet kills her", () => {
+test("a Queen and a Warrior share one box: level on the same ledge they bounce, and the one a little higher kills", () => {
   const state = bare();
-  const queen = stand(state, 1, 250, FLOOR);
-  const warrior = stand(state, 2, 240, FLOOR, { kind: "warrior" });
+  const queen = stand(state, 1, 330, FLOOR);
+  const warrior = stand(state, 2, 322, FLOOR, { kind: "warrior" });
   queen.facing = -1;
   warrior.facing = 1;
-  assert.ok(QUEEN_HEIGHT >= WARRIOR_HEIGHT + HEIGHT_ADVANTAGE);
+  assert.equal(QUEEN_HEIGHT, WARRIOR_HEIGHT);
   assert.equal(duelWinner(queen, warrior), null);
   assert.equal(duelWinner(warrior, queen), null);
-  // Her head is still above the Warrior's, and it wins all the same.
   warrior.y -= HEIGHT_ADVANTAGE;
-  assert.ok(queen.y - QUEEN_HEIGHT < warrior.y - WARRIOR_HEIGHT);
   assert.equal(duelWinner(queen, warrior), warrior);
   warrior.y += 2 * HEIGHT_ADVANTAGE;
   assert.equal(duelWinner(queen, warrior), queen);
+});
+
+test("a bounce or a shove stuns: no flap takes hold until it wears off", () => {
+  const state = bare();
+  const a = put(state, 2, 300, 200, { kind: "warrior", facing: 1 });
+  const b = put(state, 3, 306, 200, { kind: "warrior", facing: -1 });
+  resolveCombat(state);
+  assert.deepEqual([a.stun, b.stun], [STUN_STEPS, STUN_STEPS]);
+  const shoved = bare();
+  const warrior = put(shoved, 2, 300, 200, { kind: "warrior" });
+  put(shoved, 3, 306, 200, { invuln: 50 });
+  resolveCombat(shoved);
+  assert.equal(warrior.stun, STUN_STEPS);
+  stepRound(shoved, controls({ 2: { pressed: true, held: true } }));
+  assert.ok(warrior.flaps.every((left) => left === 0));
+  assert.equal(warrior.stun, STUN_STEPS - 1);
+});
+
+test("a diving Queen kills every Worker she passes through and keeps diving", () => {
+  const state = bare();
+  const queen = put(state, 0, 315, 150);
+  const hung = put(state, 3, 315, 185);
+  stand(state, 5, 317, FLOOR);
+  const down = controls({ 0: { down: true } });
+  const killed: number[] = [];
+  for (let i = 0; i < 60 && queen.ground < 0; i += 1) {
+    // The first Worker is held in mid-air for her to pass.
+    hung.y = 185 * S;
+    hung.vy = 0;
+    stepRound(state, down);
+    for (const event of ofType(state.events, "kill")) {
+      assert.equal(event.killer, 0);
+      killed.push(event.victim);
+      assert.equal(queen.diving, true);
+    }
+  }
+  assert.deepEqual(killed, [3, 5]);
+  assert.equal(queen.dead, false);
+  assert.equal(queen.y, FLOOR * S);
 });
 
 test("a Queen has three lives: each death costs an egg and the third is a military victory that freezes the round", () => {
   const state = bare();
   const queen = stand(state, 1, 240, FLOOR);
   for (let life = QUEEN_EGGS; life > 0; life -= 1) {
-    queen.invuln = 0;
-    queen.x = 240 * S;
-    queen.y = FLOOR * S;
-    put(state, 2, 240, FLOOR - 8, { kind: "warrior" });
+    stand(state, 1, 330, FLOOR, { invuln: 0 });
+    put(state, 2, 330, FLOOR - 8, { kind: "warrior" });
     stepRound(state, []);
     assert.deepEqual(ofType(state.events, "queenKill"), [
       { type: "queenKill", victim: 1, killer: 2, eggsLeft: life - 1 },
@@ -233,6 +278,14 @@ test("a Queen has three lives: each death costs an egg and the third is a milita
       put(state, 2, 20, 40, { kind: "warrior" });
       const events = run(state, RESPAWN_STEPS);
       assert.equal(ofType(events, "respawn").length, 1);
+      // She hatches from the next spare egg on her hive's floor, and that egg is gone from the view.
+      const egg = arenaOf(1).eggSpots[1][QUEEN_EGGS - life];
+      assert.ok(egg);
+      assert.deepEqual([queen.x, queen.y], [egg.x, egg.y]);
+      assert.deepEqual(
+        viewOf(state).spares[1]?.map((spare) => spare.present),
+        [false, life > 2],
+      );
     }
   }
   assert.deepEqual(state.winner, { team: 0, kind: "military" });

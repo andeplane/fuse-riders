@@ -1,16 +1,19 @@
 /**
  * Contact combat. There is no attack button: touching decides. A military unit (Warrior or Queen) kills an enemy
- * Worker it touches. Between two military units the one clearly higher kills, a diving Queen kills what she lands on,
- * and a hit from behind kills; otherwise both bounce apart. A Worker never kills, but an invulnerable one shoves the
- * military unit it touches.
+ * Worker it touches, a diving Queen included: she kills every Worker on her way down. Between two military units the
+ * one clearly higher kills, a diving Queen kills what she lands on, and (unverified, behind the `BACKSTAB` flag) a hit
+ * from behind kills; otherwise both bounce apart and cannot flap for a moment. A Worker never kills, but an
+ * invulnerable one shoves the military unit it touches.
  */
 import { wrapDelta } from "./maps.js";
 import {
+  BACKSTAB,
   BOUNCE_HOP,
   BOUNCE_SPEED,
   BUMP_HOP,
   BUMP_SPEED,
   HEIGHT_ADVANTAGE,
+  STUN_STEPS,
 } from "./tuning.js";
 import type { Round, Unit } from "./types.js";
 import { duelY, isMilitary, killUnit, unitsTouch } from "./units.js";
@@ -22,6 +25,7 @@ export function duelWinner(a: Unit, b: Unit): Unit | null {
   if (b.diving && rise < 0) return b;
   if (rise >= HEIGHT_ADVANTAGE) return a;
   if (-rise >= HEIGHT_ADVANTAGE) return b;
+  if (!BACKSTAB) return null;
   const toB = Math.sign(wrapDelta(b.x, a.x));
   const aFacesB = toB !== 0 && a.facing === toB,
     bFacesA = toB !== 0 && b.facing === -toB;
@@ -58,6 +62,8 @@ export function resolveCombat(state: Round): void {
           b.vx = away * BOUNCE_SPEED;
           a.vy = Math.min(a.vy, -BOUNCE_HOP);
           b.vy = Math.min(b.vy, -BOUNCE_HOP);
+          a.stun = STUN_STEPS;
+          b.stun = STUN_STEPS;
           state.events.push({ type: "bounce", a: a.slot, b: b.slot });
         }
         continue;
@@ -68,6 +74,7 @@ export function resolveCombat(state: Round): void {
       else if (closing) {
         soldier.vx = (soldier === a ? -away : away) * BUMP_SPEED;
         soldier.vy = Math.min(soldier.vy, -BUMP_HOP);
+        soldier.stun = STUN_STEPS;
         state.events.push({
           type: "bump",
           worker: worker.slot,

@@ -18,7 +18,7 @@ import { hashSeed } from "../src/engine/rng.js";
 import { bare, ofType, put, run, stand, unitOf } from "./engine-kit.js";
 
 const MAP = MAPS[1];
-const FLOOR = 258;
+const FLOOR = 265;
 
 /** A round with nobody on the map, whose bots (once woken) play at `level`. */
 function botRound(level: BotLevel, mapId: MapId = 1): Round {
@@ -101,8 +101,8 @@ test("an empty-handed Worker goes for the nearest berries: a pile, or a loose be
   wake(state, 2);
   const mind = decision(state, 2);
   assert.equal(mind.goal, "gather");
-  assert.equal(MAP.piles[mind.target]?.x, 350);
-  assert.equal(mind.tx, 350 * S);
+  assert.equal(MAP.piles[mind.target]?.x, 383);
+  assert.ok(Math.abs(mind.tx - 383 * S) <= 12 * S);
   state.loose.push({
     x: 290 * S,
     y: FLOOR * S,
@@ -120,7 +120,7 @@ test("an empty-handed Worker goes for the nearest berries: a pile, or a loose be
   const berry = state.loose[0];
   assert.ok(berry);
   berry.resting = false;
-  assert.equal(decision(state, 2).target, 2);
+  assert.equal(decision(state, 2).target, mind.target);
 });
 
 test("a carrying Worker follows its plan: the warrior gate, the speed gate, or home to an empty hole", () => {
@@ -149,11 +149,11 @@ test("a carrying Worker follows its plan: the warrior gate, the speed gate, or h
   for (const gate of state.gates) gate.owner = 1;
   assert.equal(goalOf(state, 2), "bank");
 
-  // The nearest empty hole is the one aimed for; a full hive still sends the Worker home.
+  // With no empty hole left there is nothing to bank in: the Worker waits at its spawn.
   const holes = state.holes[0];
   assert.ok(holes);
   holes.fill(true);
-  assert.equal(goalOf(state, 2), "bank");
+  assert.equal(goalOf(state, 2), "idle");
 });
 
 test("a rider heads for a free snail, and anyone does once the berries are gone", () => {

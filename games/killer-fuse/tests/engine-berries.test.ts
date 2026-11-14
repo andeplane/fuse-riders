@@ -1,21 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  BERRY_HEIGHT,
   KICK_SPEED,
   KICK_WAIT,
   MAPS,
-  REGROW_CLOCK,
   REGROW_STEPS,
   S,
   stepRound,
   type LooseBerry,
   type Round,
+  type Unit,
 } from "../src/engine/index.js";
 import { stepBerries } from "../src/engine/berries.js";
 import { bare, ofType, put, run, stand } from "./engine-kit.js";
 
 const MAP = MAPS[1];
-const FLOOR = 258;
+const FLOOR = 265;
 /** A point on the open floor with nothing above it for a Worker to touch. */
 const OPEN = 300;
 
@@ -26,18 +27,11 @@ function pileOnFloor(): { index: number; x: number } {
   return { index, x: pile.x };
 }
 
-function hole(team: 0 | 1, index: number): { x: number; ledge: number } {
+/** Hangs a carrying Worker in the air with its body centred on a hive hole, so that it touches that hole alone. */
+function atHole(state: Round, slot: number, team: 0 | 1, index: number): Unit {
   const at = MAP.holes[team][index];
   assert.ok(at);
-  const ledge = MAP.platforms.find(
-    (platform) =>
-      platform.y > at.y &&
-      platform.y - at.y < 16 &&
-      at.x >= platform.x &&
-      at.x <= platform.x + platform.w,
-  );
-  assert.ok(ledge, "a hive hole sits just above a ledge");
-  return { x: at.x, ledge: ledge.y };
+  return put(state, slot, at.x, at.y + 6, { carrying: true });
 }
 
 function loose(state: Round, x: number, y: number, by = 3): LooseBerry {
@@ -82,27 +76,22 @@ test("an empty pile gives nothing, and Warriors and Queens do not gather", () =>
 
 test("a carried berry is banked in an empty hole of the carrier's own hive, never the enemy's or a full hole", () => {
   const state = bare();
-  const own = hole(0, 0);
-  const worker = stand(state, 2, own.x, own.ledge, { carrying: true });
+  const worker = atHole(state, 2, 0, 0);
   stepRound(state, []);
   assert.deepEqual(state.events, [
     { type: "berryDeposit", slot: 2, team: 0, hole: 0 },
   ]);
   assert.equal(worker.carrying, false);
   assert.equal(state.holes[0]?.[0], true);
-  // The same hole is full now, so the next berry goes into the hole of the upper row that is also in reach.
-  worker.carrying = true;
-  assert.deepEqual(run(state, 3), [
-    { type: "berryDeposit", slot: 2, team: 0, hole: 6 },
-  ]);
-  // With every hole in reach full the berry stays in hand.
-  worker.carrying = true;
-  assert.deepEqual(run(state, 3), []);
+  // The hole in reach is full now, so the next berry stays in hand.
+  atHole(state, 2, 0, 0);
+  stepRound(state, []);
+  assert.deepEqual(state.events, []);
   assert.equal(worker.carrying, true);
-  // An enemy carrier standing in this hive banks nothing.
-  const next = hole(0, 3);
-  const enemy = stand(state, 3, next.x, next.ledge, { carrying: true });
-  assert.deepEqual(run(state, 3), []);
+  // An enemy carrier in this hive banks nothing.
+  const enemy = atHole(state, 3, 0, 3);
+  stepRound(state, []);
+  assert.deepEqual(state.events, []);
   assert.equal(enemy.carrying, true);
 });
 
@@ -112,8 +101,7 @@ test("filling every hole of a hive is an economy victory", () => {
   assert.ok(holes);
   holes.fill(true);
   holes[3] = false;
-  const last = hole(1, 3);
-  stand(state, 5, last.x, last.ledge, { carrying: true });
+  atHole(state, 5, 1, 3);
   stepRound(state, []);
   assert.deepEqual(state.winner, { team: 1, kind: "economy" });
   assert.deepEqual(
@@ -124,7 +112,7 @@ test("filling every hole of a hive is an economy victory", () => {
 
 test("a loose berry falls, bounces and comes to rest", () => {
   const state = bare();
-  const berry = loose(state, OPEN, 240);
+  const berry = loose(state, OPEN, 255);
   berry.vx = 2 * S;
   run(state, 200);
   assert.equal(berry.resting, true);
@@ -138,7 +126,9 @@ test("a loose berry falls, bounces and comes to rest", () => {
 
 test("a loose berry bounces off a wall and stops under a ceiling", () => {
   const state = bare();
-  const ledge = MAP.platforms[1];
+  const ledge = MAP.platforms.find(
+    (platform) => platform.y === 145 && platform.x === 50,
+  );
   assert.ok(ledge);
   const side = loose(state, ledge.x + ledge.w + 4, ledge.y + ledge.h - 1);
   side.vx = -3 * S;
@@ -147,7 +137,7 @@ test("a loose berry bounces off a wall and stops under a ceiling", () => {
   const under = loose(state, ledge.x + 10, ledge.y + ledge.h + 8);
   under.vy = -4 * S;
   stepBerries(state);
-  assert.equal(under.y, (ledge.y + ledge.h) * S + 6 * S);
+  assert.equal(under.y, (ledge.y + ledge.h) * S + BERRY_HEIGHT);
 });
 
 test("an empty-handed Worker picks a loose berry up; a Warrior or a carrying Worker kicks it", () => {
@@ -184,8 +174,9 @@ test("an empty-handed Worker picks a loose berry up; a Warrior or a carrying Wor
 
 test("a kicked berry that reaches an empty hole scores for that hive, whoever kicked it", () => {
   const state = bare();
-  const target = hole(0, 4);
-  loose(state, target.x, target.ledge - 3, 3);
+  const target = MAP.holes[0][4];
+  assert.ok(target);
+  loose(state, target.x, target.y + 2, 3);
   stepRound(state, []);
   assert.deepEqual(ofType(state.events, "berryKickIn"), [
     { type: "berryKickIn", slot: 3, team: 0, hole: 4 },
@@ -213,28 +204,6 @@ test("ninety seconds after the piles run dry they are whole again", () => {
   state.piles[0] = 1;
   stepRound(state, []);
   assert.equal(state.dry, 0);
-});
-
-test("every two minutes of play the piles are made whole, whatever is left in them", () => {
-  const state = bare();
-  state.piles.fill(0);
-  state.piles[0] = 1;
-  state.step = REGROW_CLOCK - 2;
-  stepRound(state, []);
-  assert.deepEqual(state.events, []);
-  assert.equal(state.piles[0], 1);
-  stepRound(state, []);
-  assert.deepEqual(state.events, [{ type: "berryRegrow" }]);
-  assert.deepEqual(
-    state.piles,
-    MAP.piles.map((pile) => pile.count),
-  );
-  state.piles.fill(0);
-  state.piles[1] = 2;
-  const events = run(state, REGROW_CLOCK - 1);
-  assert.deepEqual(events, []);
-  stepRound(state, []);
-  assert.deepEqual(state.events, [{ type: "berryRegrow" }]);
 });
 
 test("a rider or a dead unit does not touch loose berries", () => {

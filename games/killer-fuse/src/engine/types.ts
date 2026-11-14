@@ -39,6 +39,18 @@ export interface Unit {
   flapped: boolean;
   /** A Queen diving on this step. */
   diving: boolean;
+  /** Steps of thrust left in each of the MAX_FLAPS flaps that can run at once; 0 is a free one. */
+  flaps: number[];
+  /** Steps of ground take-off thrust left. */
+  takeoff: number;
+  /** Took off from the ground and has not landed since: the weaker gravity applies. */
+  light: boolean;
+  /** Steps left in which it cannot flap, after a bounce or a shove. */
+  stun: number;
+  /** Down was held on the last step: a dive starts on the press, not the hold. */
+  downHeld: boolean;
+  /** Steps left in which a press that could not take effect still will. */
+  buffer: number;
   carrying: boolean;
   /** The gate being used and the steps stood in it, or -1 and 0. */
   gate: number;

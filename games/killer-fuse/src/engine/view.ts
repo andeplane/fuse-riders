@@ -7,6 +7,7 @@ import { timedOut } from "./step.js";
 import {
   EAT_STEPS,
   GATE_STEPS,
+  QUEEN_EGGS,
   RESPAWN_STEPS,
   S,
   SPEED_DEN,
@@ -55,7 +56,7 @@ export interface RoundView {
   step: number;
   units: UnitView[];
   /** Berries left per pile, at the map's pile positions. */
-  piles: { x: number; y: number; count: number }[];
+  piles: { x: number; y: number; count: number; hanging: boolean }[];
   loose: { x: number; y: number }[];
   /** Per team: every hole and whether it is filled. */
   hives: { x: number; y: number; filled: boolean }[][];
@@ -70,6 +71,8 @@ export interface RoundView {
     eating: number;
   };
   eggs: number[];
+  /** Per team: where each spare egg stands on the hive floor, and whether it is still there (not yet hatched). */
+  spares: { x: number; y: number; present: boolean }[][];
   berries: number[];
   winner: { team: number; kind: VictoryKind } | null;
   /** Whole seconds of play left before the clock decides the game, counting down from 300 to 0. */
@@ -112,6 +115,7 @@ export function viewOf(state: Round): RoundView {
       x: pile.x,
       y: pile.y,
       count: state.piles[index] ?? 0,
+      hanging: pile.hanging,
     })),
     loose: state.loose.map((berry) => ({ x: berry.x / S, y: berry.y / S })),
     hives: map.holes.map((holes, team) =>
@@ -141,6 +145,16 @@ export function viewOf(state: Round): RoundView {
       eating: state.snail.victim < 0 ? 0 : 1 - state.snail.eat / meal,
     },
     eggs: [...state.eggs],
+    spares: map.eggSpots.map((spots, team) => {
+      // The egg a dead Queen will hatch from stays until she does.
+      const waiting = state.units[team]?.dead === true ? 1 : 0;
+      const hatched = QUEEN_EGGS - state.eggs[team]! - waiting;
+      return spots.map((spot, index) => ({
+        x: spot.x,
+        y: spot.y,
+        present: index >= hatched,
+      }));
+    }),
     berries: state.holes.map((holes) => holes.filter(Boolean).length),
     winner: state.winner,
     timeLeft: Math.ceil(Math.max(0, TIME_LIMIT - state.step) / TICK_HZ),

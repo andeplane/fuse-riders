@@ -1,8 +1,8 @@
 /** Creating a round: six units on their spawn points, full piles, empty hives, neutral gates, the snail at its start. */
 import { newMind } from "./bot.js";
-import { arenaOf } from "./maps.js";
+import { arenaOf, standingOn } from "./maps.js";
 import { hashSeed } from "./rng.js";
-import { MAX_PLAYERS, QUEEN_EGGS, RULES } from "./tuning.js";
+import { MAX_FLAPS, MAX_PLAYERS, QUEEN_EGGS, RULES } from "./tuning.js";
 import type { Round, RoundOptions, Unit } from "./types.js";
 import { isQueenSlot, teamOf } from "./units.js";
 
@@ -23,11 +23,17 @@ export function createRound(options: RoundOptions): Round {
       vx: 0,
       vy: 0,
       facing: teamOf(slot) === 0 ? 1 : -1,
-      ground: -1,
+      ground: standingOn(arena, spawn.x, spawn.y),
       coyote: 0,
       jumping: false,
       flapped: false,
       diving: false,
+      flaps: Array.from({ length: MAX_FLAPS }, () => 0),
+      takeoff: 0,
+      light: false,
+      stun: 0,
+      downHeld: false,
+      buffer: 0,
       carrying: false,
       gate: -1,
       gateProgress: 0,

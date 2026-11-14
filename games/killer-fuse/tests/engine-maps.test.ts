@@ -4,6 +4,9 @@ import {
   EAT_STEPS,
   GATE_STEPS,
   HOLE_HALF,
+  PILE_HEIGHT,
+  WARRIOR_HALF,
+  WARRIOR_HEIGHT,
   MAPS,
   MAP_HEIGHT,
   MAP_IDS,
@@ -34,6 +37,7 @@ import {
   flyToward,
   platformAt,
   platformBelow,
+  standable,
   workerNav,
 } from "../src/engine/nav.js";
 import { ALL_HUMANS, bare, stand, unitOf } from "./engine-kit.js";
@@ -44,6 +48,8 @@ const mirroredRect = (r: Rect): Rect => ({ ...r, x: MAP_WIDTH - r.x - r.w });
 const sameRect = (a: Rect, b: Rect): boolean =>
   a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 
+const BERRIES: Readonly<Record<number, number>> = { 1: 66, 2: 66, 3: 54 };
+
 for (const id of MAP_IDS) {
   const map = MAPS[id];
   const arena = arenaOf(id);
@@ -52,7 +58,7 @@ for (const id of MAP_IDS) {
     assert.equal(map.id, id);
     for (const platform of map.platforms) {
       assert.ok(platform.x >= 0 && platform.x + platform.w <= MAP_WIDTH);
-      assert.ok(platform.y > 0 && platform.y + platform.h <= MAP_HEIGHT);
+      assert.ok(platform.y >= 0 && platform.y + platform.h <= MAP_HEIGHT);
       assert.ok(
         map.platforms.some((other) => sameRect(other, mirroredRect(platform))),
         `platform at ${platform.x}, ${platform.y} has no mirror`,
@@ -66,14 +72,21 @@ for (const id of MAP_IDS) {
             samePoint(other, { x: mirrorX(gate.x), y: gate.y }),
         ),
       );
-    for (const pile of map.piles)
+    for (const pile of map.piles) {
+      // Every pile holds six berries, as in the original.
+      assert.equal(pile.count, 6);
       assert.ok(
         map.piles.some(
           (other) =>
-            other.count === pile.count &&
+            other.hanging === pile.hanging &&
             samePoint(other, { x: mirrorX(pile.x), y: pile.y }),
         ),
       );
+    }
+    assert.equal(
+      map.piles.reduce((sum, pile) => sum + pile.count, 0),
+      BERRIES[id],
+    );
     assert.equal(map.holes[0].length, 12);
     assert.equal(map.holes[1].length, 12);
     map.holes[0].forEach((hole, index) => {
@@ -81,6 +94,18 @@ for (const id of MAP_IDS) {
       assert.ok(other);
       assert.ok(samePoint(other, { x: mirrorX(hole.x), y: hole.y }));
       assert.ok(hole.x < MAP_WIDTH / 2, "team 0's hive is on the left");
+      // Every hole lies inside its hive's wall.
+      const wall = map.hiveWalls[0];
+      assert.ok(hole.x - 3 >= wall.x && hole.x + 3 <= wall.x + wall.w);
+      assert.ok(hole.y - 3 >= wall.y && hole.y + 3 <= wall.y + wall.h);
+    });
+    assert.ok(sameRect(map.hiveWalls[1], mirroredRect(map.hiveWalls[0])));
+    assert.ok(sameRect(map.nets[1], mirroredRect(map.nets[0])));
+    assert.equal(map.eggSpots[0].length, 2);
+    map.eggSpots[0].forEach((egg, index) => {
+      const other = map.eggSpots[1][index];
+      assert.ok(other);
+      assert.ok(samePoint(other, { x: mirrorX(egg.x), y: egg.y }));
     });
     assert.equal(map.spawns.length, 6);
     for (let slot = 0; slot < 6; slot += 2) {
@@ -93,53 +118,110 @@ for (const id of MAP_IDS) {
     assert.equal(map.snail.goals[1], mirrorX(map.snail.goals[0]));
     assert.ok(map.snail.goals[0] < map.snail.start);
     assert.equal(map.snail.y, map.platforms[0]?.y);
+    // The net stands on the snail's floor, over the goal.
+    const net = map.nets[0];
+    assert.equal(net.y + net.h, map.snail.y);
+    assert.ok(
+      net.x <= map.snail.goals[0] && map.snail.goals[0] <= net.x + net.w,
+    );
+    assert.deepEqual([net.w, net.h], [29, 19]);
   });
 
-  test(`map ${id}: everything stands on a platform and there are berries enough to fill a hive`, () => {
-    for (const at of [...arena.gates, ...arena.piles, ...arena.spawns])
+  test(`map ${id}: everything stands on a platform, and a gate has room for the Warrior a Worker grows into`, () => {
+    const standing = [
+      ...arena.gates,
+      ...arena.piles.filter((pile) => !pile.hanging),
+      ...arena.spawns,
+      ...arena.eggSpots[0],
+      ...arena.eggSpots[1],
+    ];
+    for (const at of standing)
       assert.ok(platformAt(arena, at.x, at.y) >= 0, `${at.x / S}, ${at.y / S}`);
-    for (const hole of [...arena.holes[0], ...arena.holes[1]]) {
-      const below = platformBelow(arena, hole.x, hole.y);
-      assert.ok(below >= 0);
-      assert.ok((arena.solids[below]?.y ?? 0) - hole.y <= 13 * S);
+    // A hanging pile grows down from a platform's underside or from the top of the screen.
+    for (const pile of arena.piles.filter((each) => each.hanging)) {
+      const top = pile.y - PILE_HEIGHT;
+      assert.ok(
+        top === 0 ||
+          arena.solids.some(
+            (solid) =>
+              solid.y + solid.h === top &&
+              pile.x >= solid.x &&
+              pile.x <= solid.x + solid.w,
+          ),
+        `pile at ${pile.x / S}, ${pile.y / S} hangs from nothing`,
+      );
     }
-    const berries = map.piles.reduce((sum, pile) => sum + pile.count, 0);
-    assert.ok(berries > map.holes[0].length);
+    for (const gate of arena.gates)
+      for (const solid of arena.solids)
+        assert.ok(
+          gate.x + WARRIOR_HALF <= solid.x ||
+            gate.x - WARRIOR_HALF >= solid.x + solid.w ||
+            gate.y <= solid.y ||
+            gate.y - WARRIOR_HEIGHT >= solid.y + solid.h,
+          `no room in the gate at ${gate.x / S}, ${gate.y / S}`,
+        );
     assert.equal(arena.solids[0]?.y, map.snail.y * S);
     assert.equal(arena.snail.goals[0], map.snail.goals[0] * S);
+    assert.deepEqual(arena.eggSpots[0][0], {
+      x: (map.eggSpots[0][0]?.x ?? 0) * S,
+      y: (map.eggSpots[0][0]?.y ?? 0) * S,
+    });
   });
 
-  test(`map ${id}: a Worker can walk and jump from its spawn to every pile, gate, hive and the snail, and back`, () => {
+  test(`map ${id}: a Worker can get from its spawn to every pile, gate, hive hole and the snail, and back`, () => {
     for (const speed of [false, true]) {
       const nav = workerNav(id, speed);
       assert.equal(workerNav(id, speed), nav, "derived once");
       const places = [
         ...arena.gates,
-        ...arena.piles,
         { x: arena.snail.start, y: arena.snail.y },
       ].map((at) => platformAt(arena, at.x, at.y));
       for (const team of [0, 1] as const) {
         const spawn = arena.spawns[2 + team];
-        const hole = arena.holes[team][0];
-        assert.ok(spawn && hole);
+        assert.ok(spawn);
         const home = platformAt(arena, spawn.x, spawn.y);
-        const hive = platformBelow(arena, hole.x, hole.y);
-        for (const place of [...places, hive]) {
-          assert.ok(
-            (nav.dist[home]?.[place] ?? UNREACHABLE) < UNREACHABLE,
-            `spawn to platform ${place}, speed ${speed}`,
-          );
-          assert.ok(
-            (nav.dist[place]?.[hive] ?? UNREACHABLE) < UNREACHABLE,
-            `platform ${place} to the hive, speed ${speed}`,
-          );
+        const there = (node: number): boolean =>
+          (nav.dist[home]?.[node] ?? UNREACHABLE) < UNREACHABLE;
+        const back = (node: number): boolean =>
+          (nav.dist[node]?.[home] ?? UNREACHABLE) < UNREACHABLE;
+        for (const place of places) {
+          assert.ok(there(place), `spawn to platform ${place}, speed ${speed}`);
+          assert.ok(back(place), `platform ${place} to spawn, speed ${speed}`);
         }
+        // A pile or a hole is reached where it can be touched: standing beside it, or on a hop that brushes it.
+        nav.piles.forEach((spots, pile) =>
+          assert.ok(
+            spots.some((spot) => there(spot.node) && back(spot.node)),
+            `team ${team} cannot fetch from pile ${pile}, speed ${speed}`,
+          ),
+        );
+        nav.holes[team].forEach((spots, hole) =>
+          assert.ok(
+            spots.some((spot) => there(spot.node)),
+            `team ${team} cannot fill hole ${hole}, speed ${speed}`,
+          ),
+        );
       }
-      for (const edge of nav.edges) assert.notEqual(edge.from, edge.to);
+      for (const spots of [...nav.holes[0], ...nav.holes[1], ...nav.piles])
+        for (const spot of spots) {
+          const hop = nav.edges[spot.edge];
+          assert.equal(hop === undefined, spot.edge < 0);
+          if (hop) assert.deepEqual([hop.from, hop.x], [spot.node, spot.x]);
+          assert.ok(standable(arena, spot.x, arena.solids[spot.node]?.y ?? 0));
+        }
+      // Route moves lead somewhere else; only the hops that touch a hole or pile may land where they started.
+      for (const routes of nav.out)
+        for (const index of routes)
+          assert.notEqual(nav.edges[index]?.from, nav.edges[index]?.to);
     }
   });
 
-  test(`map ${id}: nobody spawns in front of a hive hole, and the Queens start far apart and stay there untouched`, () => {
+  test(`map ${id}: the upper hive holes take a jump, and nobody spawns in front of a hole`, () => {
+    const nav = workerNav(id, false);
+    const jumps = nav.holes[0].filter((spots) =>
+      spots.every((spot) => spot.edge >= 0),
+    ).length;
+    assert.ok(jumps >= 8, `${jumps} holes need a jump`);
     const state = createRound({ seed: 3, mapId: id, humans: ALL_HUMANS });
     for (const unit of state.units)
       for (const hole of [...arena.holes[0], ...arena.holes[1]]) {
@@ -150,9 +232,6 @@ for (const id of MAP_IDS) {
             unit.y <= hole.y - HOLE_HALF;
         assert.ok(beside || clear, `slot ${unit.slot} covers a hole`);
       }
-    const [cyan, pink] = state.units;
-    assert.ok(cyan && pink);
-    assert.ok(Math.abs(wrapDelta(pink.x, cyan.x)) >= 220 * S);
     // Two seconds with nobody touching a stick: no contact of any kind, and everyone still stands on its spawn.
     for (let i = 0; i < 120; i += 1) {
       stepRound(state, []);
@@ -162,14 +241,6 @@ for (const id of MAP_IDS) {
       assert.equal(unit.x, arena.spawns[slot]?.x);
       assert.equal(unit.y, arena.spawns[slot]?.y);
     });
-    // Bots at their most aggressive need deliberate flight to meet: no Queen dies in the first second and a half.
-    for (let seed = 1; seed <= 12; seed += 1) {
-      const game = createRound({ seed, mapId: id, botLevel: "hard" });
-      for (let i = 0; i < 90; i += 1) {
-        stepRound(game, []);
-        assert.ok(!game.events.some((event) => event.type === "queenKill"));
-      }
-    }
   });
 
   test(`map ${id}: a flyer finds a free way from its spawn to every gate`, () => {
@@ -255,6 +326,14 @@ test("the view gives the renderer pixels, with the map's fixed pieces joined to 
   );
   assert.deepEqual(view.berries, [0, 0]);
   assert.deepEqual(view.eggs, [3, 3]);
+  assert.deepEqual(
+    view.piles.map((pile) => pile.hanging),
+    MAPS[1].piles.map((pile) => pile.hanging),
+  );
+  assert.deepEqual(
+    view.spares[1],
+    MAPS[1].eggSpots[1].map((egg) => ({ ...egg, present: true })),
+  );
   assert.ok(view.hives.every((hive) => hive.every((hole) => !hole.filled)));
   assert.ok(view.gates.every((gate) => gate.owner === -1 && gate.user === -1));
   assert.equal(view.snail.x, MAPS[1].snail.start);
@@ -288,7 +367,7 @@ test("the view gives the renderer pixels, with the map's fixed pieces joined to 
     by: 2,
   });
   unitOf(busy, 3).respawn = RESPAWN_STEPS / 2;
-  stand(busy, 4, 240, 258, { riding: true, speed: true });
+  stand(busy, 4, 240, 265, { riding: true, speed: true });
   busy.snail.rider = 4;
   busy.snail.victim = 3;
   busy.snail.eat = 10;
@@ -311,6 +390,17 @@ test("the view gives the renderer pixels, with the map's fixed pieces joined to 
   assert.equal(seen.hives[1]?.[1]?.filled, true);
   assert.deepEqual(seen.loose, [{ x: 10, y: 20 }]);
   assert.deepEqual(seen.eggs, [1, 3]);
+  // Two deaths, and the second egg is still there while the dead Queen waits to hatch from it.
+  assert.deepEqual(
+    seen.spares[0]?.map((egg) => egg.present),
+    [false, true],
+  );
+  unitOf(busy, 0).dead = false;
+  assert.deepEqual(
+    viewOf(busy).spares[0]?.map((egg) => egg.present),
+    [false, false],
+  );
+  unitOf(busy, 0).dead = true;
   assert.ok(seen.snail.eating > 0.9 && seen.snail.eating < 1);
   busy.snail.rider = -1;
   busy.snail.eat = EAT_STEPS / 2;

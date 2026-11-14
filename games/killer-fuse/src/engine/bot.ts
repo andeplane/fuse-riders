@@ -16,12 +16,18 @@ import {
   nextEdge,
   platformAt,
   platformBelow,
+  standable,
   workerNav,
+  type Spot,
+  type WorkerNav,
 } from "./nav.js";
 import { chance, randInt, randSpread } from "./rng.js";
 import { goalDir } from "./snail.js";
 import {
-  GROUND_ACCEL,
+  FLAP_THRUST,
+  FLY_GRAVITY,
+  FLY_GRAVITY_LIGHT,
+  FLY_MAX_RISE,
   MOUTH_REACH,
   QUEEN_EGGS,
   RUN_SPEED,
@@ -36,7 +42,10 @@ export interface LevelRules {
   think: number;
   /** Largest error, in pixels, on the point a bot aims for. */
   aimError: number;
-  /** Fewest steps between two flaps, and the random extra on top: flap precision. */
+  /**
+   * Fewest steps between two flaps, and the random extra on top: flap precision. No level presses faster than a
+   * person comfortably can: 6 a second on hard, 5 on medium, 4 on easy.
+   */
   flapMin: number;
   flapJitter: number;
   /** Chance, in percent per decision, of freezing for `idleSteps`. */
@@ -60,8 +69,8 @@ export const BOT_LEVELS: Readonly<Record<BotLevel, LevelRules>> = {
   easy: {
     think: 38,
     aimError: 14,
-    flapMin: 5,
-    flapJitter: 3,
+    flapMin: 15,
+    flapJitter: 5,
     blunder: 14,
     idleSteps: 45,
     awareness: 20,
@@ -74,8 +83,8 @@ export const BOT_LEVELS: Readonly<Record<BotLevel, LevelRules>> = {
   medium: {
     think: 16,
     aimError: 6,
-    flapMin: 4,
-    flapJitter: 2,
+    flapMin: 12,
+    flapJitter: 3,
     blunder: 3,
     idleSteps: 24,
     awareness: 36,
@@ -88,7 +97,7 @@ export const BOT_LEVELS: Readonly<Record<BotLevel, LevelRules>> = {
   hard: {
     think: 6,
     aimError: 2,
-    flapMin: 4,
+    flapMin: 10,
     flapJitter: 0,
     blunder: 0,
     idleSteps: 0,
@@ -220,6 +229,50 @@ function mouthX(state: Round, team: number): number {
   );
 }
 
+/** The place among `spots` this Worker reaches soonest, with the steps it takes; undefined when there is none. */
+function quickest(
+  state: Round,
+  unit: Unit,
+  spots: readonly Spot[],
+): [Spot | undefined, number] {
+  let best: Spot | undefined,
+    bestCost = 2 * UNREACHABLE;
+  for (const spot of spots) {
+    const cost = travel(state, unit, spot.node, spot.x) + spot.cost;
+    if (cost < bestCost) {
+      best = spot;
+      bestCost = cost;
+    }
+  }
+  return [best, bestCost];
+}
+
+/** Nothing to do: wait at the spawn point. */
+function goHome(arena: Arena, unit: Unit, mind: BotMind): void {
+  const spawn = arena.spawns[unit.slot]!;
+  aimWorker(mind, "idle", -1, platformAt(arena, spawn.x, spawn.y), spawn.x);
+}
+
+/** The hop that touches what a Worker standing on its goal platform came for, or -1 when walking there is enough. */
+function spotMove(
+  state: Round,
+  nav: WorkerNav,
+  unit: Unit,
+  mind: BotMind,
+): number {
+  const spots =
+    mind.goal === "bank" && unit.carrying
+      ? nav.holes[unit.team === 0 ? 0 : 1][mind.target]
+      : mind.goal === "gather" && !unit.carrying
+        ? nav.piles[mind.target]
+        : undefined;
+  if (mind.goal === "gather" && (state.piles[mind.target] ?? 0) <= 0) return -1;
+  return (
+    spots?.find((spot) => spot.node === mind.node && spot.x === mind.tx)
+      ?.edge ?? -1
+  );
+}
+
 function decideWorker(
   state: Round,
   unit: Unit,
@@ -227,6 +280,7 @@ function decideWorker(
   level: LevelRules,
 ): void {
   const arena = arenaOf(state.mapId);
+  const nav = workerNav(state.mapId, unit.speed);
   if (unit.riding || unit.eaten || unit.gate >= 0) return;
   const smart = chance(state, level.smart);
   const threat = nearest(
@@ -255,18 +309,21 @@ function decideWorker(
       aimWorker(mind, "gate", gate, platformAt(arena, at.x, at.y), at.x);
       return;
     }
-    const holes = arena.holes[unit.team === 0 ? 0 : 1];
+    // The empty hole that is quickest to touch, from wherever it can be touched.
     let hole = -1,
-      holeCost = UNREACHABLE * S;
-    holes.forEach((at, index) => {
-      const cost = Math.abs(wrapDelta(at.x, unit.x));
-      if (!state.holes[unit.team]![index] && cost < holeCost) {
+      from: Spot | undefined,
+      holeCost = 2 * UNREACHABLE;
+    nav.holes[unit.team === 0 ? 0 : 1].forEach((spots, index) => {
+      if (state.holes[unit.team]![index]) return;
+      const [spot, cost] = quickest(state, unit, spots);
+      if (spot && cost < holeCost) {
         hole = index;
+        from = spot;
         holeCost = cost;
       }
     });
-    const at = holes[Math.max(0, hole)]!;
-    aimWorker(mind, "bank", hole, platformBelow(arena, at.x, at.y), at.x);
+    if (from) aimWorker(mind, "bank", hole, from.node, from.x);
+    else goHome(arena, unit, mind);
     return;
   }
   const rider = state.units[state.snail.rider];
@@ -303,19 +360,19 @@ function decideWorker(
     bestCost = UNREACHABLE,
     bestNode = -1,
     bestX = 0;
-  arena.piles.forEach((pile, index) => {
+  nav.piles.forEach((spots, index) => {
     if (state.piles[index]! <= 0) return;
-    const node = platformAt(arena, pile.x, pile.y);
-    const cost = travel(state, unit, node, pile.x);
-    if (cost < bestCost) {
+    const [spot, cost] = quickest(state, unit, spots);
+    if (spot && cost < bestCost) {
       best = index;
       bestCost = cost;
-      bestNode = node;
-      bestX = pile.x;
+      bestNode = spot.node;
+      bestX = spot.x;
     }
   });
   for (const berry of state.loose) {
-    if (!berry.resting) continue;
+    // One that came to rest where no Worker fits (under a low block) is left alone.
+    if (!berry.resting || !standable(arena, berry.x, berry.y)) continue;
     const node = platformAt(arena, berry.x, berry.y);
     const cost = travel(state, unit, node, berry.x);
     if (cost < bestCost) {
@@ -327,21 +384,7 @@ function decideWorker(
   }
   if (best >= 0) aimWorker(mind, "gather", best, bestNode, bestX);
   else if (snailFree) aimWorker(mind, "ride", -1, floor, state.snail.x);
-  else {
-    const spawn = arena.spawns[unit.slot]!;
-    aimWorker(mind, "idle", -1, platformAt(arena, spawn.x, spawn.y), spawn.x);
-  }
-}
-
-/** How far a body still slides once its direction is released. */
-function stopDistance(speed: number): number {
-  let left = Math.abs(speed),
-    total = 0;
-  while (left > GROUND_ACCEL) {
-    left -= GROUND_ACCEL;
-    total += left;
-  }
-  return total;
+  else goHome(arena, unit, mind);
 }
 
 function steerWorker(state: Round, unit: Unit, mind: BotMind): Input {
@@ -373,25 +416,28 @@ function steerWorker(state: Round, unit: Unit, mind: BotMind): Input {
     const close = Math.abs(wrapDelta(threat.x, unit.x)) < 18 * S;
     return go(sign(toTarget), close);
   }
-  if (mind.node >= 0 && unit.ground !== mind.node) {
-    const index = nextEdge(nav, unit.ground, unit.x, mind.node, unit.speed);
-    const hop = nav.edges[index];
-    if (hop) {
-      const dx = wrapDelta(hop.x, unit.x);
-      if (unit.vx === 0 && Math.abs(dx) <= LAUNCH_SLACK - 100) {
-        mind.edge = index;
-        mind.edgeStep = 1;
-        return edgeInput(hop, unit, 0);
-      }
-      const after = dx - sign(unit.vx) * stopDistance(unit.vx);
-      return go(Math.abs(after) > 500 ? sign(after) : 0);
+  // On the way: the next hop toward the goal platform. There: the hop that touches the hole or pile, if it takes one.
+  const hop =
+    nav.edges[
+      mind.node >= 0 && unit.ground !== mind.node
+        ? nextEdge(nav, unit.ground, unit.x, mind.node, unit.speed)
+        : spotMove(state, nav, unit, mind)
+    ];
+  if (hop) {
+    const dx = wrapDelta(hop.x, unit.x);
+    if (unit.vx === 0 && Math.abs(dx) <= LAUNCH_SLACK - 100) {
+      mind.edge = nav.edges.indexOf(hop);
+      mind.edgeStep = 1;
+      return edgeInput(hop, unit, 0);
     }
+    // A Worker stops dead when it lets go, so it walks until it is on the mark.
+    return go(Math.abs(dx) > LAUNCH_SLACK - 100 ? sign(dx) : 0);
   }
   const dir = Math.abs(toTarget) > 2 * S ? sign(toTarget) : 0;
   // The snail mounts whoever touches it: hop over it unless riding is the plan.
   const arena = arenaOf(state.mapId);
   const ahead = wrapDelta(state.snail.x, unit.x) * dir;
-  const hop =
+  const over =
     dir !== 0 &&
     mind.goal !== "ride" &&
     !unit.carrying &&
@@ -399,10 +445,36 @@ function steerWorker(state: Round, unit: Unit, mind: BotMind): Input {
     unit.y === arena.snail.y &&
     ahead > 0 &&
     ahead < SNAIL_HALF + 12 * S;
-  return go(dir, hop);
+  return go(dir, over);
 }
 
 // --- Flyers ---------------------------------------------------------------------------------------------------------
+
+/** Steps a flyer looks ahead when deciding to flap. */
+const FLAP_LOOK = 4;
+/** The braking a flyer counts on when it falls toward a point: about what steady flapping gives, per step. */
+const BRAKE = 120;
+
+/**
+ * Whether a flyer whose middle is at `y` should press now to get to height `to`. Below the point it wants to climb
+ * in proportion to the distance. Above it, it lets itself fall as fast as it can still brake before the point.
+ */
+function wantsFlap(unit: Unit, y: number, to: number): boolean {
+  let push = 0;
+  for (const left of unit.flaps)
+    push += Math.min(left, FLAP_LOOK) * FLAP_THRUST;
+  const gravity = unit.light ? FLY_GRAVITY_LIGHT : FLY_GRAVITY;
+  const soon = unit.vy + gravity * FLAP_LOOK - push;
+  const drop = to - y;
+  if (drop <= 0)
+    return soon > Math.max(-FLY_MAX_RISE, Math.trunc(drop / FLAP_LOOK));
+  return soon > 0 && soon * soon > 2 * BRAKE * drop;
+}
+/** Steps of its own horizontal speed a flyer allows for when steering: about half its glide. */
+const GLIDE_LOOK = 12;
+
+/** A flyer standing on a platform walks unless its next point is this far above its middle. */
+const WALK_BAND = 5 * S;
 
 function aimFlyer(
   state: Round,
@@ -417,7 +489,7 @@ function aimFlyer(
   mind.goal = goal;
   mind.target = target;
   mind.tx = wrapX(x + randSpread(state, level.aimError) * S);
-  mind.ty = Math.max(8 * S, y + randSpread(state, level.aimError) * S);
+  mind.ty = Math.max(9 * S, y + randSpread(state, level.aimError) * S);
   mind.dive = dive;
 }
 
@@ -448,7 +520,7 @@ function hunt(
 function hiveCentre(arena: Arena, team: number): { x: number; y: number } {
   const holes = arena.holes[team === 0 ? 0 : 1];
   const mid = holes[Math.trunc(holes.length / 2)]!;
-  return { x: mid.x, y: mid.y - 36 * S };
+  return { x: mid.x, y: mid.y };
 }
 
 function decideFlyer(
@@ -572,7 +644,9 @@ function steerFlyer(
   const point = flyToward(state.mapId, unit.x, y, mind.tx, mind.ty);
   const direct = point.x === mind.tx && point.y === mind.ty;
   const dx = wrapDelta(point.x, unit.x);
-  const dir = Math.abs(dx) > 2 * S ? sign(dx) : 0;
+  // A flyer glides on when it lets go, so it steers for where the glide would take it.
+  const ahead = dx - unit.vx * GLIDE_LOOK;
+  const dir = Math.abs(ahead) > 2 * S ? sign(ahead) : 0;
   const dive =
     mind.dive &&
     direct &&
@@ -580,9 +654,11 @@ function steerFlyer(
     Math.abs(dx) < 6 * S &&
     mind.ty > y + 12 * S;
   if (mind.flapWait > 0) mind.flapWait -= 1;
-  // Flap when the next few steps would leave the unit below where it wants to be.
-  const sinking = y + unit.vy * 8 > point.y;
-  const flap = !dive && sinking && mind.flapWait === 0;
+  // Flap when coasting would leave the unit below where it wants to be. On a platform with nothing to climb
+  // for, it walks instead.
+  const sinking = wantsFlap(unit, y, point.y);
+  const walking = unit.ground >= 0 && point.y > y - WALK_BAND;
+  const flap = !dive && sinking && !walking && mind.flapWait === 0;
   if (flap)
     mind.flapWait = level.flapMin + randInt(state, level.flapJitter + 1);
   return {

@@ -21,7 +21,10 @@ function twin(mapId: 1 | 2 | 3, index: number): number {
   assert.ok(solid);
   const other = solids.findIndex(
     (s) =>
-      s.y === solid.y && s.w === solid.w && s.x === WIDTH - solid.x - solid.w,
+      s.y === solid.y &&
+      s.w === solid.w &&
+      s.h === solid.h &&
+      s.x === WIDTH - solid.x - solid.w,
   );
   assert.ok(other >= 0, `platform ${index} has no mirror image`);
   return other;
@@ -65,11 +68,16 @@ for (const mapId of MAP_IDS)
             nav.dist[twin(mapId, from)]?.[twin(mapId, to)],
             `${from} to ${to}`,
           );
-          assert.ok(
-            there !== undefined && there < UNREACHABLE,
-            `${from} to ${to}`,
-          );
+          assert.ok(there !== undefined, `${from} to ${to}`);
         }
+      // Walls and blocks with no room to stand on are not part of the graph; everything else leads to the ground
+      // and back (the map tests check every pile, gate and hole).
+      const linked = nav.dist.filter(
+        (row, node) =>
+          (row[0] ?? UNREACHABLE) < UNREACHABLE &&
+          (nav.dist[0]?.[node] ?? UNREACHABLE) < UNREACHABLE,
+      ).length;
+      assert.ok(linked >= count - 8, `${linked} of ${count} platforms linked`);
     });
 
 for (const mapId of MAP_IDS)

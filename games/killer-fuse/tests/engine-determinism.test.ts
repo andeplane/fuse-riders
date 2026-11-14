@@ -153,7 +153,7 @@ test("an input packs into five bits and back", () => {
 test("a new round: six units on their team's side, three eggs each, bots unless told otherwise", () => {
   const state = createRound({ seed: 12.9 });
   assert.equal(state.rules, RULES);
-  assert.equal(RULES, "killer-fuse-2");
+  assert.equal(RULES, "killer-fuse-3");
   assert.equal(TICK_HZ, 60);
   assert.equal(state.seed, 12);
   assert.equal(state.mapId, 1);

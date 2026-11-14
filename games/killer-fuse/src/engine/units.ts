@@ -1,5 +1,5 @@
 /** Helpers every rule shares: who is where, who touches what, and death and respawn. */
-import { arenaOf, wrapDelta } from "./maps.js";
+import { arenaOf, standingOn, wrapDelta } from "./maps.js";
 import { halfOf, heightOf } from "./motion.js";
 import { hashSeed } from "./rng.js";
 import {
@@ -7,6 +7,7 @@ import {
   FREED_INVULN,
   KICK_WAIT,
   MOUNT_WAIT,
+  QUEEN_EGGS,
   RESPAWN_INVULN,
   RESPAWN_STEPS,
   S,
@@ -150,6 +151,10 @@ export function killUnit(state: Round, victim: Unit, killer: number): void {
   victim.jumping = false;
   victim.diving = false;
   victim.flapped = false;
+  victim.flaps.fill(0);
+  victim.takeoff = 0;
+  victim.light = false;
+  victim.stun = 0;
   victim.ground = -1;
   state.events.push({ type: "kill", victim: victim.slot, killer });
   if (victim.kind === "queen") {
@@ -167,19 +172,28 @@ export function killUnit(state: Round, victim: Unit, killer: number): void {
   }
 }
 
-/** Puts a unit back on its spawn point, alive and briefly invulnerable. */
+/**
+ * Puts a unit back on the map, alive and briefly invulnerable: a Worker on its spawn point, a Queen where the next of
+ * her spare eggs stood (the first death hatches egg 0).
+ */
 export function respawnUnit(state: Round, unit: Unit): void {
-  const spawn = arenaOf(state.mapId).spawns[unit.slot]!;
+  const arena = arenaOf(state.mapId);
+  const egg =
+    unit.kind === "queen" ? QUEEN_EGGS - 1 - state.eggs[unit.team]! : -1;
+  const spawn =
+    arena.eggSpots[unit.team === 0 ? 0 : 1][egg] ?? arena.spawns[unit.slot]!;
   unit.dead = false;
   unit.respawn = 0;
   unit.x = spawn.x;
   unit.y = spawn.y;
   unit.vx = 0;
   unit.vy = 0;
-  unit.ground = -1;
+  unit.ground = standingOn(arena, spawn.x, spawn.y);
   unit.coyote = 0;
   unit.facing = unit.team === 0 ? 1 : -1;
   unit.invuln = RESPAWN_INVULN;
   unit.mountWait = 0;
+  unit.downHeld = false;
+  unit.buffer = 0;
   state.events.push({ type: "respawn", slot: unit.slot });
 }

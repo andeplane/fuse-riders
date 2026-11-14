@@ -5,33 +5,44 @@
  */
 import { WIDTH, wrapX, type Arena, type Rect } from "./maps.js";
 import {
-  AIR_ACCEL,
   COYOTE_STEPS,
+  DIVE_ACCEL,
+  DIVE_ACCEL_X,
   DIVE_SPEED,
-  DIVE_STEER_DEN,
-  DIVE_STEER_NUM,
-  FLAP_CATCH,
-  FLAP_IMPULSE,
+  FLAP_STEPS,
+  FLAP_THRUST,
   FLY_ACCEL,
+  FLY_DRAG,
   FLY_GRAVITY,
+  FLY_GRAVITY_LIGHT,
   FLY_MAX_RISE,
   FLY_SPEED,
   FLY_TERMINAL,
-  GROUND_ACCEL,
   JUMP_CUT,
   JUMP_SPEED,
+  PRESS_BUFFER,
   QUEEN_HALF,
   QUEEN_HEIGHT,
+  REST_SPEED,
   RUN_SPEED,
+  SPEED_RISE,
+  TAKEOFF_STEPS,
+  TAKEOFF_THRUST,
   WARRIOR_HALF,
   WARRIOR_HEIGHT,
+  WING_WALK_ACCEL,
   WING_WALK_DEN,
+  WING_WALK_DRAG,
   WING_WALK_NUM,
+  WORKER_ACCEL,
+  WORKER_AIR_DRAG,
   WORKER_GRAVITY,
+  WORKER_GROUND_DRAG,
   WORKER_HALF,
   WORKER_HEIGHT,
   WORKER_TERMINAL,
   speedy,
+  type Ratio,
 } from "./tuning.js";
 import type { Input, Unit, UnitKind } from "./types.js";
 
@@ -143,20 +154,103 @@ export function moveBody(
   return contact;
 }
 
+/** `value` scaled by a ratio, truncated toward zero. */
+const share = (value: number, [num, den]: Ratio): number =>
+  Math.trunc((value * num) / den);
+
+/**
+ * Horizontal speed after one step of steering: `accel` toward `dir` up to `top`, and `drag` whenever the unit is not
+ * pushing along its motion (coasting, turning, or faster than `top` after a bounce).
+ */
+export function steer(
+  vx: number,
+  dir: -1 | 0 | 1,
+  accel: number,
+  top: number,
+  drag: Ratio,
+): number {
+  const along = dir !== 0 && vx * dir >= 0 && vx * dir <= top;
+  let next = along ? vx : vx - share(vx, drag);
+  if (dir === 0) return Math.abs(next) < REST_SPEED ? 0 : next;
+  if (next * dir < top) next = dir * Math.min(top, next * dir + accel);
+  return next;
+}
+
+/** Ends every flap and the take-off push. */
+function fold(unit: Unit): void {
+  unit.flaps.fill(0);
+  unit.takeoff = 0;
+}
+
+/**
+ * Whether a press takes effect this step. A press that comes while it cannot (`legal` false) is remembered for
+ * PRESS_BUFFER steps and fires as soon as it can.
+ */
+function buffered(unit: Unit, input: Input, legal: boolean): boolean {
+  const wants = input.pressed || unit.buffer > 0;
+  if (wants && legal) {
+    unit.buffer = 0;
+    return true;
+  }
+  unit.buffer = input.pressed ? PRESS_BUFFER : Math.max(0, unit.buffer - 1);
+  return false;
+}
+
+/** A Warrior's or Queen's vertical controls for one step: take-off, flaps, dive and gravity. */
+function fly(unit: Unit, input: Input, grounded: boolean): void {
+  if (unit.kind === "queen" && !grounded && input.down) {
+    if (!unit.downHeld) fold(unit);
+    unit.diving = unit.diving || !unit.downHeld;
+  } else unit.diving = false;
+  const press = buffered(unit, input, unit.stun === 0 && !unit.diving);
+  if (unit.diving) {
+    unit.vy = Math.min(unit.vy + DIVE_ACCEL, DIVE_SPEED);
+    return;
+  }
+  if (press && grounded) {
+    // A take-off is not a flap, and it ends any that were running.
+    fold(unit);
+    unit.takeoff = TAKEOFF_STEPS;
+    unit.light = true;
+    unit.flapped = true;
+  } else if (press) {
+    const free = unit.flaps.indexOf(0);
+    if (free >= 0) {
+      unit.flaps[free] = FLAP_STEPS;
+      unit.flapped = true;
+    }
+  }
+  let thrust = 0;
+  if (unit.takeoff > 0) {
+    thrust += TAKEOFF_THRUST;
+    unit.takeoff -= 1;
+  }
+  for (let i = 0; i < unit.flaps.length; i += 1)
+    if (unit.flaps[i]! > 0) {
+      thrust += FLAP_THRUST;
+      unit.flaps[i] = unit.flaps[i]! - 1;
+    }
+  const rise = unit.speed ? share(FLY_MAX_RISE, SPEED_RISE) : FLY_MAX_RISE;
+  const gravity = unit.light ? FLY_GRAVITY_LIGHT : FLY_GRAVITY;
+  unit.vy = Math.max(-rise, Math.min(FLY_TERMINAL, unit.vy + gravity - thrust));
+}
+
 /** One step of a Worker's, Warrior's or Queen's own motion under `input`. */
 export function moveUnit(unit: Unit, input: Input, arena: Arena): void {
   const dir = dirOf(input);
   if (dir !== 0) unit.facing = dir;
   const grounded = unit.ground >= 0;
   unit.flapped = false;
-  unit.diving = false;
   if (unit.kind === "worker") {
-    unit.vx = approach(
+    unit.diving = false;
+    unit.vx = steer(
       unit.vx,
-      dir * speedy(RUN_SPEED, unit.speed),
-      grounded ? GROUND_ACCEL : AIR_ACCEL,
+      dir,
+      WORKER_ACCEL,
+      speedy(RUN_SPEED, unit.speed),
+      grounded ? WORKER_GROUND_DRAG : WORKER_AIR_DRAG,
     );
-    if (input.pressed && (grounded || unit.coyote > 0)) {
+    if (buffered(unit, input, grounded || unit.coyote > 0)) {
       unit.vy = -speedy(JUMP_SPEED, unit.speed);
       unit.jumping = true;
       unit.flapped = true;
@@ -168,27 +262,27 @@ export function moveUnit(unit: Unit, input: Input, arena: Arena): void {
     if (unit.coyote > 0) unit.coyote -= 1;
     unit.vy = Math.min(unit.vy + WORKER_GRAVITY, WORKER_TERMINAL);
   } else {
+    fly(unit, input, grounded);
     const walk = Math.trunc((RUN_SPEED * WING_WALK_NUM) / WING_WALK_DEN);
-    let top = speedy(grounded ? walk : FLY_SPEED, unit.speed);
-    if (unit.kind === "queen" && input.down && !grounded) {
-      unit.diving = true;
-      top = Math.trunc((top * DIVE_STEER_NUM) / DIVE_STEER_DEN);
-    }
-    unit.vx = approach(unit.vx, dir * top, grounded ? GROUND_ACCEL : FLY_ACCEL);
-    if (unit.diving) unit.vy = DIVE_SPEED;
-    else if (input.pressed) {
-      unit.vy = Math.max(
-        Math.min(unit.vy, FLAP_CATCH) - FLAP_IMPULSE,
-        -speedy(FLY_MAX_RISE, unit.speed),
-      );
-      unit.flapped = true;
-    } else unit.vy = Math.min(unit.vy + FLY_GRAVITY, FLY_TERMINAL);
+    unit.vx = steer(
+      unit.vx,
+      dir,
+      unit.diving ? DIVE_ACCEL_X : grounded ? WING_WALK_ACCEL : FLY_ACCEL,
+      speedy(grounded ? walk : FLY_SPEED, unit.speed),
+      grounded ? WING_WALK_DRAG : FLY_DRAG,
+    );
   }
+  if (unit.stun > 0) unit.stun -= 1;
+  unit.downHeld = input.down;
   const contact = moveBody(unit, halfOf(unit.kind), heightOf(unit.kind), arena);
   if (contact.wall) unit.vx = 0;
   if (contact.ground >= 0 || contact.ceiling) unit.vy = 0;
-  if (contact.ground >= 0) unit.jumping = false;
-  else if (grounded && !unit.flapped && unit.kind === "worker")
+  if (contact.ground >= 0) {
+    unit.jumping = false;
+    unit.light = false;
+    unit.diving = false;
+    fold(unit);
+  } else if (grounded && !unit.flapped && unit.kind === "worker")
     unit.coyote = COYOTE_STEPS;
   unit.ground = contact.ground;
 }
