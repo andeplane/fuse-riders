@@ -20,11 +20,11 @@ const GOLDEN = {
   rules: "killer-fuse-4",
   end: "over at 2616: map 3 1:military@2258, map 1 0:military@1312, map 2 1:snail@2297 \u2192 1, presses 896",
   hashes: [
-    "fd4472a43c724bf3",
-    "a67c924367a6afc4",
-    "53cffb91c03b7243",
-    "ac8c1de17f71694c",
-    "e65a2cc4d837eab2",
+    "ea3c5834d549f68e",
+    "8f4142cf05c77d95",
+    "1718166fa520e870",
+    "882658c580228313",
+    "e71ebfd00e1d0846",
   ],
 };
 
@@ -41,6 +41,7 @@ const LIMIT = 30_000;
 
 function record() {
   const settings: online.Settings = {
+    ...online.DEFAULT_SETTINGS,
     botLevel: "hard",
     map: 0,
     wins: 2,

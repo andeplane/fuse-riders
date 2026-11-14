@@ -21,6 +21,7 @@ import {
   INPUT_HELD,
   INPUT_LEFT,
   INPUT_RIGHT,
+  LESSONS,
   MAP_IDS,
   MAX_PLAYERS,
   RULES,
@@ -33,6 +34,7 @@ import {
   type BotLevel,
   type GameEvent,
   type Input,
+  type Lesson,
   type MapId,
   type Round,
   type RoundView,
@@ -61,27 +63,56 @@ export interface Settings {
   wins: number;
   /** One shared screen, with phones as controllers. */
   display: boolean;
+  /** Tutorial rooms: the bots stand still and never attack. */
+  passive: boolean;
+  /** Tutorial rooms: the lesson every game of the set is set up for (see the engine's `Lesson`), or "" for none. */
+  lesson: "" | Lesson;
+  /** Tutorial rooms: every game counts down `QUICK_COUNTDOWN_TICKS` instead of the usual 8 s or 3 s. */
+  quick: boolean;
 }
 export const DEFAULT_SETTINGS: Settings = {
   botLevel: "medium",
   map: 0,
   wins: 2,
   display: false,
+  passive: false,
+  lesson: "",
+  quick: false,
 };
-const SETTING_KEYS = ["botLevel", "display", "map", "wins"];
-/** The settings a log entry carries, exactly (these four own keys and no other); anything else is refused. */
+const SETTING_KEYS = [
+  "botLevel",
+  "display",
+  "lesson",
+  "map",
+  "passive",
+  "quick",
+  "wins",
+];
+/** The settings a log entry carries, exactly (these seven own keys and no other); anything else is refused. */
 export function parseSettings(raw: unknown): Settings | undefined {
   if (raw === null || typeof raw !== "object") return;
   // Key by key: a joined string cannot tell two keys from one that holds a comma.
   const keys = Object.keys(raw);
   if (keys.length !== SETTING_KEYS.length) return;
   if (!SETTING_KEYS.every((key) => keys.includes(key))) return;
-  const { botLevel, map, wins, display } = raw as Record<string, unknown>;
+  const { botLevel, map, wins, display, passive, lesson, quick } =
+    raw as Record<string, unknown>;
   const level = BOT_LEVEL_ORDER.find((known) => known === botLevel);
   if (!level || typeof display !== "boolean") return;
   if (!uint32(wins) || wins < 1 || wins > MAX_WINS) return;
   if (map !== 0 && !isMapId(map)) return;
-  return { botLevel: level, map, wins, display };
+  if (typeof passive !== "boolean" || typeof quick !== "boolean") return;
+  const known = lesson === "" ? "" : LESSONS.find((id) => id === lesson);
+  if (known === undefined) return;
+  return {
+    botLevel: level,
+    map,
+    wins,
+    display,
+    passive,
+    lesson: known,
+    quick,
+  };
 }
 
 export const PLAY = 0,
@@ -114,8 +145,32 @@ export const MAX_WATCHERS = 6;
 export const COUNTDOWN_TICKS = 60;
 /** The first game of a set counts down 8 s, as the original does, while the card shows the three ways to win. */
 export const FIRST_COUNTDOWN_TICKS = 160;
-export const countdownTicks = (round: number): number =>
-  round === 1 ? FIRST_COUNTDOWN_TICKS : COUNTDOWN_TICKS;
+/** A room with the `quick` setting counts every game down for one second. */
+export const QUICK_COUNTDOWN_TICKS = 20;
+export const countdownTicks = (round: number, quick = false): number =>
+  quick
+    ? QUICK_COUNTDOWN_TICKS
+    : round === 1
+      ? FIRST_COUNTDOWN_TICKS
+      : COUNTDOWN_TICKS;
+/** What the engine needs of the settings to make game `round` of a set: the same on every replica and in a checkpoint. */
+export const roundOptions = (
+  play: Settings,
+  matchId: string,
+  round: number,
+): {
+  seed: number;
+  mapId: MapId;
+  botLevel: BotLevel;
+  passive: boolean;
+  lesson?: Lesson;
+} => ({
+  seed: roundSeed(matchId, round),
+  mapId: mapFor(play, matchId, round),
+  botLevel: play.botLevel,
+  passive: play.passive,
+  ...(play.lesson === "" ? {} : { lesson: play.lesson }),
+});
 export const OUTRO_TICKS = 60;
 export const BETWEEN_TICKS = 100;
 /** What a `PLAY` entry may hold; the press edges travel as `PRESS` and `ATTACK`. */
@@ -219,8 +274,10 @@ export function isEntry(raw: unknown): raw is Entry {
 
 export function createRoom(matchId: string, settings: Settings): Room {
   // Only what `parseSettings` takes: a stray or out-of-range field would make every checkpoint of the room refused.
-  const { botLevel, map, wins, display } = settings,
-    valid = parseSettings({ botLevel, map, wins, display }) ?? DEFAULT_SETTINGS;
+  const { botLevel, map, wins, display, passive, lesson, quick } = settings,
+    valid =
+      parseSettings({ botLevel, map, wins, display, passive, lesson, quick }) ??
+      DEFAULT_SETTINGS;
   return {
     tick: 0,
     matchId,
@@ -279,12 +336,10 @@ function startGame(room: Room): void {
   room.stage = "running";
   room.held = {};
   room.asks = {};
-  room.startAt = room.tick + 1 + countdownTicks(room.round);
+  room.startAt = room.tick + 1 + countdownTicks(room.round, room.play.quick);
   room.endAt = room.resumeAt = 0;
   room.world = createRound({
-    seed: roundSeed(room.matchId, room.round),
-    mapId: mapFor(room.play, room.matchId, room.round),
-    botLevel: room.play.botLevel,
+    ...roundOptions(room.play, room.matchId, room.round),
     humans: pilots(room).map((id) => id !== ""),
   });
 }
@@ -726,11 +781,7 @@ export function decode(
       ? room
       : undefined;
   if (round === 0) return;
-  const world = decodeWorld(rawWorld, {
-    seed: roundSeed(matchId, round),
-    mapId: mapFor(play, matchId, round),
-    botLevel: play.botLevel,
-  });
+  const world = decodeWorld(rawWorld, roundOptions(play, matchId, round));
   if (!world) return;
   room.world = world;
   // A game folds three steps a log tick from `startAt` until one decides it; its victory screen ends `OUTRO_TICKS`
@@ -740,7 +791,7 @@ export function decode(
   if (stage === "running") {
     const stepped = Math.max(0, tick - startAt + 1) * STEPS_PER_TICK;
     return results.length === round - 1 &&
-      startAt <= tick + countdownTicks(round) &&
+      startAt <= tick + countdownTicks(round, play.quick) &&
       (world.winner
         ? world.step > 0 && decidedAt <= tick && room.endAt > tick
         : world.step === stepped)

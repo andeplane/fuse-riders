@@ -864,6 +864,8 @@ export function botInput(state: Round, slot: number): Input {
     mind.think = 1;
     return NEUTRAL;
   }
+  // A tutorial room's bots hold nothing, and draw nothing from the round's random stream.
+  if (state.passive) return NEUTRAL;
   const level = levelOf(state, unit);
   if (mind.idle > 0) {
     mind.idle -= 1;

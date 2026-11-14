@@ -14,7 +14,7 @@ export {
   type Box,
   type Collider,
 } from "./shapes.js";
-export { createRound } from "./round.js";
+export { LESSONS, LESSON_SLOT, createRound } from "./round.js";
 export { stepRound, timedOut } from "./step.js";
 export {
   BOT_LEVELS,

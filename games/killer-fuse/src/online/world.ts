@@ -164,7 +164,12 @@ function inRange(world: Round): boolean {
  */
 export function decodeWorld(
   raw: unknown,
-  expected: { seed: number; mapId: MapId; botLevel: BotLevel },
+  expected: {
+    seed: number;
+    mapId: MapId;
+    botLevel: BotLevel;
+    passive?: boolean;
+  },
 ): Round | undefined {
   if (!plain(raw)) return;
   const { winner, loose, ...rest } = raw;
@@ -194,6 +199,7 @@ export function decodeWorld(
     world.seed !== template.seed ||
     world.mapId !== expected.mapId ||
     world.botLevel !== expected.botLevel ||
+    world.passive !== (expected.passive === true) ||
     world.teamLevels.some((level) => level !== expected.botLevel) ||
     !inRange(world)
   )

@@ -16,6 +16,7 @@ import {
   INPUT_LEFT,
   INPUT_PRESSED,
   INPUT_RIGHT,
+  LESSONS,
   MAP_IDS,
   RULES,
 } from "../src/engine/index.js";
@@ -31,6 +32,7 @@ import {
   OUTRO_TICKS,
   PLAY,
   PRESS,
+  QUICK_COUNTDOWN_TICKS,
   SEAT,
   STEPS_PER_TICK,
   createRoom,
@@ -41,6 +43,7 @@ import {
   mapFor,
   parseSettings,
   pilots,
+  roundOptions,
   roundSeed,
   seated,
   view,
@@ -60,12 +63,30 @@ import {
   toPlay,
 } from "./fixtures/room.js";
 
-test("settings: exactly bot level, map, wins and display, each in range", () => {
+test("settings: exactly bot level, map, wins, display and the three tutorial ones, each in range", () => {
   assert.deepEqual(parseSettings({ ...SETUP }), SETUP);
   assert.deepEqual(
-    parseSettings({ display: true, wins: 3, map: 2, botLevel: "hard" }),
-    { botLevel: "hard", map: 2, wins: 3, display: true },
+    parseSettings({
+      quick: true,
+      lesson: "snail",
+      passive: true,
+      display: true,
+      wins: 3,
+      map: 2,
+      botLevel: "hard",
+    }),
+    {
+      botLevel: "hard",
+      map: 2,
+      wins: 3,
+      display: true,
+      passive: true,
+      lesson: "snail",
+      quick: true,
+    },
   );
+  for (const lesson of LESSONS)
+    assert.equal(parseSettings({ ...SETUP, lesson })?.lesson, lesson);
   for (const bad of [
     null,
     "medium",
@@ -77,8 +98,20 @@ test("settings: exactly bot level, map, wins and display, each in range", () => 
     { ...SETUP, botLevel: "insane" },
     { ...SETUP, display: 1 },
     { ...SETUP, extra: 1 },
-    { botLevel: "easy", map: 0, wins: 2 },
-    { botLevel: "easy", map: 0, wins: 2, "display,x": true },
+    { ...SETUP, passive: 0 },
+    { ...SETUP, quick: "yes" },
+    { ...SETUP, lesson: "flying" },
+    { ...SETUP, lesson: null },
+    { botLevel: "easy", map: 0, wins: 2, display: false },
+    {
+      botLevel: "easy",
+      map: 0,
+      wins: 2,
+      "display,x": true,
+      passive: false,
+      lesson: "",
+      quick: false,
+    },
   ])
     assert.equal(parseSettings(bad), undefined, JSON.stringify(bad));
   // A room is never created with settings its own checkpoint would refuse.
@@ -595,4 +628,50 @@ test("the first game of a set counts down 8 s, every later one 3 s", () => {
   );
   assert.equal(FIRST_COUNTDOWN_TICKS, 160);
   assert.equal(COUNTDOWN_TICKS, 60);
+});
+
+test("a tutorial room: one second of countdown, the lesson's setup, bots that stand still, and a checkpoint that keeps all three", () => {
+  assert.deepEqual(
+    [countdownTicks(1, true), countdownTicks(2, true)],
+    [QUICK_COUNTDOWN_TICKS, QUICK_COUNTDOWN_TICKS],
+  );
+  assert.equal(QUICK_COUNTDOWN_TICKS, 20);
+  const settings = {
+    ...SETUP,
+    map: 1 as const,
+    passive: true,
+    lesson: "snail" as const,
+    quick: true,
+  };
+  const room = started(settings);
+  assert.equal(room.startAt, room.tick + QUICK_COUNTDOWN_TICKS);
+  const usual = started({ ...SETUP, map: 1 });
+  assert.ok(room.world!.passive && !usual.world!.passive);
+  assert.ok(room.world!.snail.x < usual.world!.snail.x, "nearer Cyan's goal");
+  assert.deepEqual(roundOptions(settings, "m1", 1), {
+    seed: roundSeed("m1", 1),
+    mapId: 1,
+    botLevel: "medium",
+    passive: true,
+    lesson: "snail",
+  });
+  assert.equal("lesson" in roundOptions(SETUP, "m1", 1), false);
+  // Nobody holds a control for ten seconds of play: every bot is where it started.
+  toPlay(room);
+  const before = room.world!.units.map((unit) => [unit.x, unit.y]);
+  run(room, 200);
+  assert.deepEqual(
+    room.world!.units.map((unit) => [unit.x, unit.y]),
+    before,
+  );
+  const back = game.checkpoint.decode(game.checkpoint.encode(room), room.tick);
+  assert.ok(back);
+  assert.equal(hash(back), hash(room));
+  // A checkpoint whose world is not the passive one its settings ask for is refused.
+  const lively = copy(room);
+  lively.world!.passive = false;
+  assert.equal(
+    game.checkpoint.decode(game.checkpoint.encode(lively), room.tick),
+    undefined,
+  );
 });

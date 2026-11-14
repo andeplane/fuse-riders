@@ -7,6 +7,12 @@ import type { GateKind, MapId } from "./maps.js";
 export type UnitKind = "worker" | "warrior" | "queen";
 export type BotLevel = "easy" | "medium" | "hard";
 export type VictoryKind = "military" | "economy" | "snail";
+/**
+ * A tutorial lesson's setup, made for the Cyan learner in seat 2 (a Worker) or seat 0 (the Queen): "berries" and
+ * "warrior" lay a berry beside seat 2's spawn, "snail" starts the snail a quarter of the way from Cyan's goal, and
+ * "queen" changes nothing on the map.
+ */
+export type Lesson = "berries" | "warrior" | "snail" | "queen";
 
 /**
  * One slot's controls for one 60 Hz step. `pressed` is the jump / flap button's edge and `attack` the attack
@@ -217,6 +223,8 @@ export interface Round {
   teamLevels: BotLevel[];
   /** Per slot: true when a person plays it, false when a bot does. */
   humans: boolean[];
+  /** Tutorial rooms: every bot stands where it is and never attacks, so the enemy Queen stays where she hatches. */
+  passive: boolean;
   /** Steps simulated so far. */
   step: number;
   units: Unit[];
@@ -243,4 +251,8 @@ export interface RoundOptions {
   humans?: readonly boolean[];
   /** Bot level per team, for headless level-against-level runs; defaults to `botLevel` for both. */
   teamLevels?: readonly [BotLevel, BotLevel];
+  /** Bots hold no controls at all: for tutorial rooms. */
+  passive?: boolean;
+  /** A tutorial lesson's starting position; see `Lesson`. */
+  lesson?: Lesson;
 }

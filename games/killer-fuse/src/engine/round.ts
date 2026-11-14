@@ -1,10 +1,47 @@
 /** Creating a round: six units on their spawn points, full piles, empty hives, neutral gates, the snail at its start. */
 import { newMind } from "./bot.js";
-import { arenaOf, standingOn } from "./maps.js";
+import { arenaOf, standingOn, wrapDelta, wrapX, type Arena } from "./maps.js";
 import { hashSeed } from "./rng.js";
-import { MAX_PLAYERS, QUEEN_EGGS, RULES } from "./tuning.js";
-import type { Round, RoundOptions, Unit } from "./types.js";
+import { MAX_PLAYERS, QUEEN_EGGS, RULES, UNIT } from "./tuning.js";
+import type { Lesson, LooseBerry, Round, RoundOptions, Unit } from "./types.js";
 import { isQueenSlot, newUnit } from "./units.js";
+
+/** Every lesson, in the order the tutorial teaches them. */
+export const LESSONS: readonly Lesson[] = [
+  "berries",
+  "warrior",
+  "snail",
+  "queen",
+];
+/** The seat a Worker lesson is set up for: Cyan's first Worker. */
+export const LESSON_SLOT = 2;
+/** How far from the learner's spawn a lesson's berry lies. */
+const LESSON_BERRY = 2 * UNIT;
+
+/**
+ * A lesson's berry: at rest on the learner's spawn platform, two units to the side that has that platform under it
+ * and nobody standing there, or, where neither side does, falling from beside the platform to whatever lies below.
+ */
+function lessonBerry(arena: Arena): LooseBerry {
+  const spawn = arena.spawns[LESSON_SLOT]!;
+  const ground = standingOn(arena, spawn.x, spawn.y);
+  const sides = [wrapX(spawn.x + LESSON_BERRY), wrapX(spawn.x - LESSON_BERRY)];
+  // Clear of every other spawn, or a teammate standing there would take it.
+  const x = sides.find(
+    (side) =>
+      standingOn(arena, side, spawn.y) === ground &&
+      arena.spawns.every((other) => Math.abs(wrapDelta(other.x, side)) >= UNIT),
+  );
+  return {
+    x: x ?? sides[0]!,
+    y: spawn.y,
+    vx: 0,
+    vy: 0,
+    resting: x !== undefined,
+    wait: 0,
+    by: LESSON_SLOT,
+  };
+}
 
 export function createRound(options: RoundOptions): Round {
   const mapId = options.mapId ?? 1;
@@ -34,6 +71,7 @@ export function createRound(options: RoundOptions): Round {
       { length: MAX_PLAYERS },
       (_, slot) => options.humans?.[slot] === true,
     ),
+    passive: options.passive === true,
     step: 0,
     units,
     piles: arena.piles.map((pile) => pile.count),
@@ -53,6 +91,14 @@ export function createRound(options: RoundOptions): Round {
     bots: [],
     events: [],
   };
+  if (options.lesson === "berries" || options.lesson === "warrior")
+    state.loose.push(lessonBerry(arena));
+  if (options.lesson === "snail") {
+    const goal = arena.snail.goals[0];
+    state.snail.x = goal + Math.trunc((arena.snail.start - goal) / 4);
+    // Cyan's goal is the left one on every map.
+    state.snail.facing = -1;
+  }
   // Each team's plan is drawn from the seed, in an order that favours neither side.
   for (let slot = 0; slot < MAX_PLAYERS; slot += 1)
     state.bots.push(newMind(state, slot));
