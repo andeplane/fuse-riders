@@ -22,8 +22,13 @@ export const KEYS: Readonly<Record<string, number>> = {
 export class HeldControls {
   private readonly keys = new Set<string>();
   private readonly sources = new Map<string, number>();
+  private readonly resets: (() => void)[] = [];
   private last = 0;
   constructor(private readonly changed: (bits: number) => void) {}
+  /** `reset` runs on every `clear`, before the bits go: a touch pad lets go of the thumb it thinks it has. */
+  onClear(reset: () => void): void {
+    this.resets.push(reset);
+  }
   /** A key went down; true if it is one of ours. */
   press(code: string): boolean {
     if (!(code in KEYS)) return false;
@@ -43,8 +48,12 @@ export class HeldControls {
     else this.sources.delete(source);
     this.emit();
   }
-  /** Lets go of everything: blur, a hidden page, an open menu. */
+  /**
+   * Lets go of everything: blur, a hidden page, an open menu. The pads forget their thumbs too, since a lift that
+   * happens while the page is away never arrives.
+   */
   clear(): void {
+    for (const reset of this.resets) reset();
     this.keys.clear();
     this.sources.clear();
     this.emit();
@@ -101,6 +110,11 @@ export interface PadSurface {
   ): void;
   /** Keeps the press while the thumb slides off the pad; may throw for a pointer the browser no longer tracks. */
   capture(pointerId: number): void;
+  /**
+   * Hears every press that ends anywhere on the page, until the function returned is called. A press whose capture
+   * failed or was lost ends off the pad, where `on("up")` never hears it.
+   */
+  watch(ended: (pointer: PadPointer) => void): () => void;
   box(): { left: number; top: number; width: number; height: number };
   /** Shows the pad's state: held or not, and where the thumb is from the centre, −1 to 1 each way. */
   show(state: { held: boolean; x: number; y: number }): void;
@@ -123,7 +137,18 @@ export function bindStick(
   surface: PadSurface,
   changed: (bits: number) => void,
 ): () => void {
-  let owner: number | undefined;
+  let owner: number | undefined, unwatch: (() => void) | undefined;
+  const letGo = () => {
+    if (owner === undefined) return;
+    owner = undefined;
+    unwatch?.();
+    unwatch = undefined;
+    surface.show({ held: false, x: 0, y: 0 });
+    changed(0);
+  };
+  const up = (pointer: PadPointer) => {
+    if (pointer.pointerId === owner) letGo();
+  };
   const read = (pointer: PadPointer) => {
     const box = surface.box(),
       radius = Math.min(box.width, box.height) / 2,
@@ -138,6 +163,8 @@ export function bindStick(
     if (owner !== undefined) return;
     owner = pointer.pointerId;
     capture(surface, pointer);
+    // While a thumb owns the stick its lift is heard wherever it happens.
+    unwatch = surface.watch(up);
     read(pointer);
   });
   surface.on("move", (pointer) => {
@@ -145,18 +172,8 @@ export function bindStick(
     pointer.preventDefault();
     read(pointer);
   });
-  surface.on("up", (pointer) => {
-    if (pointer.pointerId !== owner) return;
-    owner = undefined;
-    surface.show({ held: false, x: 0, y: 0 });
-    changed(0);
-  });
-  return () => {
-    if (owner === undefined) return;
-    owner = undefined;
-    surface.show({ held: false, x: 0, y: 0 });
-    changed(0);
-  };
+  surface.on("up", up);
+  return letGo;
 }
 
 /** A button on `surface` that holds `bits` while any pointer is down on it; the function returned lets go of them all. */
@@ -166,44 +183,46 @@ export function bindButton(
   changed: (bits: number) => void,
 ): () => void {
   const down = new Set<number>();
+  let unwatch: (() => void) | undefined;
+  const release = () => {
+    unwatch?.();
+    unwatch = undefined;
+    surface.show({ held: false, x: 0, y: 0 });
+    changed(0);
+  };
+  const up = (pointer: PadPointer) => {
+    if (down.delete(pointer.pointerId) && !down.size) release();
+  };
   surface.on("down", (pointer) => {
     capture(surface, pointer);
     down.add(pointer.pointerId);
+    unwatch ??= surface.watch(up);
     surface.show({ held: true, x: 0, y: 0 });
     changed(bits);
   });
-  surface.on("up", (pointer) => {
-    if (!down.delete(pointer.pointerId) || down.size) return;
-    surface.show({ held: false, x: 0, y: 0 });
-    changed(0);
-  });
+  surface.on("up", up);
   return () => {
     if (!down.size) return;
     down.clear();
-    surface.show({ held: false, x: 0, y: 0 });
-    changed(0);
+    release();
   };
 }
 
 /**
  * One set of touch pads that shows and hides together. A pad hidden under a thumb never hears it lift, so when the
- * set goes off screen (the match ended mid-press) every pad lets go and so do the controls: nothing stays held, and
- * the next touch finds the pads free.
+ * set goes off screen (the match ended mid-press) the controls clear and every pad lets go with them: nothing stays
+ * held, and the next touch finds the pads free. The same happens on a blur or a hidden page.
  */
 export class PadSet {
-  private readonly pads: (() => void)[] = [];
   private shown = false;
   constructor(private readonly controls: HeldControls) {}
-  /** Adds a pad by what `bindStick` or `bindButton` returned for it. */
+  /** Adds a pad by what `bindStick` or `bindButton` returned for it; it also lets go whenever the controls clear. */
   add(letGo: () => void): void {
-    this.pads.push(letGo);
+    this.controls.onClear(letGo);
   }
   /** Says whether the set is on screen now. */
   show(visible: boolean): void {
-    if (this.shown && !visible) {
-      for (const letGo of this.pads) letGo();
-      this.controls.clear();
-    }
+    if (this.shown && !visible) this.controls.clear();
     this.shown = visible;
   }
 }

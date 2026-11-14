@@ -10,13 +10,17 @@ Fuseball is a neon arena ball duel for two riders, served at `/fuseball/`. Knock
 - **Hard bubbles.** Keep the button held after placing a bubble and it hardens: the ball and the other rider bounce off it and it stays. While you hold, you cannot jump again. A hard bubble that wedges the ball into a corner with no way out pops.
 - **Nothing buries the ball.** Land or stand on the ball and it squirts out along the floor, away from you; squeeze it against a wall and it pops up.
 - **Clouds.** While the ball is inside a cloud the whole arena runs at half speed.
-- **Wrap.** The arenas have no outer edge on at least one axis: what leaves one side comes back on the other. Riders fly through goals untouched; only the ball scores.
+- **Wrap.** The arenas have no outer edge on at least one axis: what leaves one side comes back on the other, so a rider or the ball that drops through an open floor falls in again from the top. Riders fly through goals untouched; only the ball scores.
 
-| Arena    | Wraps         | Goals                                         |
-| -------- | ------------- | --------------------------------------------- |
-| Gridlock | sideways      | the gaps in the wall across the seam          |
-| Downlink | top to bottom | the two shafts through the floor and the roof |
-| Halo     | both ways     | two round goals floating high on each side    |
+| Arena       | Wraps         | Goals                                                                                                                 |
+| ----------- | ------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Gridlock    | sideways      | the gaps in the wall across the seam                                                                                  |
+| Downlink    | top to bottom | the two shafts through the floor and the roof                                                                         |
+| Halo        | both ways     | two round goals floating high on each side                                                                            |
+| Overflow    | both ways     | the gaps in the seam wall; the floor has two holes that are nobody's goal, so what falls in comes back from the top   |
+| Firewall    | both ways     | the gaps in the seam wall, each behind a short wall; there is no floor, so everything off a pad falls round and round |
+| Corner Case | top to bottom | the four corner pockets, floor and roof, each behind a kerb                                                           |
+| Core Dump   | top to bottom | two pits side by side in the middle of the floor (and the roof above them), with a post between                       |
 
 ## Controls
 
@@ -35,7 +39,7 @@ A slide is the fastest way along the floor; it ends in a small hop when its time
 
 ## Ways to play
 
-- **Solo**: `/fuseball/?solo=1` plays one match against the bot on the arena chosen on the landing page (`&map=gridlock|downlink|halo` overrides it). No room service is involved.
+- **Solo**: `/fuseball/?solo=1` plays one match against the bot on the arena chosen on the landing page (`&map=` with `gridlock`, `downlink`, `halo`, `overflow`, `firewall`, `cornercase` or `coredump` overrides it). No room service is involved.
 - **Online room**: CREATE ROOM, share the code, link or QR, pick the arena in the lobby, add a bot if nobody joins, and START MATCH. The host starts rematches and returns the room to the lobby. A third visitor watches.
 - **Shared TV**: tick "Shared TV" before creating the room and open `?room=CODE&display=1` on the big screen. It shows the arena only; each rider's phone becomes a controller with a stick and a JUMP button.
 - `?mute` on any URL silences the page for that load without storing a choice.

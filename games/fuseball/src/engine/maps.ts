@@ -31,7 +31,15 @@ export const isCircle = <T extends Rect | Circle>(
   shape: T,
 ): shape is T & Circle => "r" in shape;
 
-export const MAP_IDS = ["gridlock", "downlink", "halo"] as const;
+export const MAP_IDS = [
+  "gridlock",
+  "downlink",
+  "halo",
+  "overflow",
+  "firewall",
+  "cornercase",
+  "coredump",
+] as const;
 export type MapId = (typeof MAP_IDS)[number];
 export const isMapId = (value: unknown): value is MapId =>
   typeof value === "string" && (MAP_IDS as readonly string[]).includes(value);
@@ -154,10 +162,153 @@ const halo: MapDef = {
   ballAnchor: { x: 320, y: 192 },
 };
 
+/**
+ * Overflow wraps both ways. The seam wall has the goals in its gap, as in Gridlock, but the floor has two holes that
+ * are nobody's goal: whatever drops through one comes back in at the top, over the high ledges. The wall and the
+ * floor slab each cross a seam, so the wall's two ends and the floor and ceiling are one rect apiece.
+ */
+const overflow: MapDef = {
+  id: "overflow",
+  name: "Overflow",
+  wrapX: true,
+  wrapY: true,
+  solids: [
+    rect(628, 210, 24, 270),
+    rect(490, 344, 300, 32),
+    rect(220, 344, 200, 32),
+    rect(70, 262, 90, 10),
+    rect(480, 262, 90, 10),
+    rect(190, 170, 90, 10),
+    rect(360, 170, 90, 10),
+  ],
+  goals: [
+    { team: 0, ...rect(628, 120, 12, 90) },
+    { team: 1, ...rect(0, 120, 12, 90) },
+  ],
+  clouds: [
+    { x: 64, y: 165, r: 44 },
+    { x: 576, y: 165, r: 44 },
+  ],
+  spawns: [
+    { x: 115, y: 253 },
+    { x: 525, y: 253 },
+  ],
+  ballAnchor: { x: 320, y: 110 },
+};
+
+/**
+ * Firewall wraps both ways and has no floor or ceiling at all: whatever is not standing on a pad falls for ever,
+ * out of the bottom and in at the top. The goals are the gaps in the seam wall, each behind a short wall of its own
+ * that the ball has to be sent over or under. The ball starts in the open and lands on the high pad from above.
+ */
+const firewall: MapDef = {
+  id: "firewall",
+  name: "Firewall",
+  wrapX: true,
+  wrapY: true,
+  solids: [
+    rect(628, 240, 24, 240),
+    rect(62, 130, 12, 100),
+    rect(566, 130, 12, 100),
+    rect(200, 280, 60, 10),
+    rect(380, 280, 60, 10),
+    rect(290, 90, 60, 10),
+  ],
+  goals: [
+    { team: 0, ...rect(628, 120, 12, 120) },
+    { team: 1, ...rect(0, 120, 12, 120) },
+  ],
+  clouds: [
+    { x: 34, y: 180, r: 34 },
+    { x: 606, y: 180, r: 34 },
+  ],
+  spawns: [
+    { x: 230, y: 271 },
+    { x: 410, y: 271 },
+  ],
+  ballAnchor: { x: 320, y: 200 },
+};
+
+/**
+ * Corner Case wraps top to bottom. The goals are the four corners: a pocket between each side wall and the end of
+ * the floor, which is the same shaft as the pocket in the roof above it. A kerb stands at the edge of every pocket
+ * (and hangs from the roof beside it), so a ball rolled along the floor stops short and has to be lifted in. The
+ * ball starts on the anvil in the middle.
+ */
+const cornercase: MapDef = {
+  id: "cornercase",
+  name: "Corner Case",
+  wrapX: false,
+  wrapY: true,
+  solids: [
+    rect(0, 0, 12, 360),
+    rect(628, 0, 12, 360),
+    rect(60, 344, 520, 32),
+    rect(60, 322, 16, 76),
+    rect(564, 322, 16, 76),
+    rect(264, 160, 112, 10),
+    rect(312, 170, 16, 70),
+  ],
+  goals: [
+    { team: 0, ...rect(580, 344, 48, 16) },
+    { team: 0, ...rect(580, 0, 48, 16) },
+    { team: 1, ...rect(12, 344, 48, 16) },
+    { team: 1, ...rect(12, 0, 48, 16) },
+  ],
+  clouds: [
+    { x: 90, y: 296, r: 40 },
+    { x: 550, y: 296, r: 40 },
+  ],
+  spawns: [
+    { x: 160, y: 335 },
+    { x: 480, y: 335 },
+  ],
+  ballAnchor: { x: 320, y: 120 },
+};
+
+/**
+ * Core Dump wraps top to bottom. Both goals are pits side by side in the middle of the floor, with a post between
+ * them, and each is the same shaft as the opening in the roof above it. A rider's pit is the far one, so a ball on
+ * their own half of the floor has to go over the near pit, which is the other colour's. A roof hangs over both
+ * pits; the ball starts on it.
+ */
+const coredump: MapDef = {
+  id: "coredump",
+  name: "Core Dump",
+  wrapX: false,
+  wrapY: true,
+  solids: [
+    rect(0, 0, 12, 360),
+    rect(628, 0, 12, 360),
+    rect(0, 344, 260, 32),
+    rect(380, 344, 260, 32),
+    rect(314, 316, 12, 88),
+    rect(240, 170, 160, 10),
+    rect(60, 250, 90, 10),
+    rect(490, 250, 90, 10),
+  ],
+  goals: [
+    { team: 0, ...rect(326, 344, 54, 16) },
+    { team: 0, ...rect(326, 0, 54, 16) },
+    { team: 1, ...rect(260, 344, 54, 16) },
+    { team: 1, ...rect(260, 0, 54, 16) },
+  ],
+  clouds: [{ x: 320, y: 290, r: 56 }],
+  spawns: [
+    { x: 150, y: 335 },
+    { x: 490, y: 335 },
+  ],
+  ballAnchor: { x: 320, y: 130 },
+};
+
 export const MAPS: Readonly<Record<MapId, MapDef>> = {
   gridlock,
   downlink,
   halo,
+  overflow,
+  firewall,
+  cornercase,
+  coredump,
 };
 export const mapOf = (id: MapId): MapDef => MAPS[id];
 

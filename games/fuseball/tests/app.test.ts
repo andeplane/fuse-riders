@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { SeatRecord } from "fuse-netcode";
+import { createPlayMetrics } from "fuse-ui/play-metrics";
 import {
   TARGET,
   ZAP_STEPS,
@@ -14,6 +15,7 @@ import {
   GOAL_SETTLE_STEPS,
   MAP_BLURBS,
   createGoalWatch,
+  playRound,
   present,
   type Viewer,
 } from "../src/app/presenter.js";
@@ -105,6 +107,10 @@ test("the lobby: the host picks the arena, adds a bot and starts; a guest waits;
       ["gridlock", "Gridlock", true],
       ["downlink", "Downlink", false],
       ["halo", "Halo", false],
+      ["overflow", "Overflow", false],
+      ["firewall", "Firewall", false],
+      ["cornercase", "Corner Case", false],
+      ["coredump", "Core Dump", false],
     ],
   );
   assert.equal(two.lobby.maps[2]!.blurb, MAP_BLURBS.halo);
@@ -195,6 +201,45 @@ test("in a match: the arena on devices and the TV, a controller on the phones of
   assert.equal(screen.localSlot, -1);
   assert.equal(screen.riding, false);
   assert.equal(screen.note, "", "the TV shows no note");
+  // The room made on the big screen itself: its creator holds no seat and that page is the TV in all but name.
+  // No name bar and no note over the arena while the match is on; both riders are on their phones.
+  const creatorTv: Viewer = {
+    me: "tvhost",
+    host: true,
+    solo: false,
+    display: false,
+  };
+  for (const stage of ["running", "over"] as const) {
+    const big = present(room(stage, shared), creatorTv);
+    assert.equal(big.screen, "play");
+    assert.equal(big.askName, false, `${stage}: no name bar over the arena`);
+    assert.equal(big.note, "");
+  }
+  assert.equal(
+    present(
+      room("lobby", (r) => (r.settings.display = true)),
+      creatorTv,
+    ).askName,
+    true,
+    "back in the lobby it may still take a seat",
+  );
+  assert.equal(
+    present(room("running"), creatorTv).askName,
+    true,
+    "an ordinary room still offers a visitor the next match",
+  );
+  // After the match the host's phone starts the next one, and the other rider's says who will.
+  const done = (r: Room, w: World | null) => {
+    shared(r);
+    w!.phase = "over";
+  };
+  const hostPhone = present(room("over", done), host),
+    guestPhone = present(room("over", done), guest);
+  assert.equal(hostPhone.screen, "controller");
+  assert.equal(hostPhone.result?.host, true);
+  assert.equal(guestPhone.screen, "controller");
+  assert.equal(guestPhone.result?.host, false);
+  assert.match(guestPhone.result!.waiting, /Waiting for the host/);
   // A watcher's phone has nothing to control: it sees the arena.
   const watcher = present(
     room("running", (r) => {
@@ -393,12 +438,104 @@ test("goals are reported once each, after they settle, by the device they belong
     { mapId: "gridlock", ownGoal: false, suddenDeath: true, mine: false },
   ]);
   // A watcher and the TV report nothing; a new match starts the count again.
-  assert.deepEqual(createGoalWatch()(settled, "tv"), []);
+  const tvWatch = createGoalWatch();
+  tvWatch(
+    at(() => {}),
+    "tv",
+  );
+  assert.deepEqual(tvWatch(settled, "tv"), []);
+  assert.deepEqual(
+    watch(
+      room("running", (r) => (r.matchId = "m2")),
+      "a",
+    ),
+    [],
+  );
   const next = room("running", (r, w) => {
     r.matchId = "m2";
     point(w!, 0, false, 300);
   });
   assert.deepEqual(watch(next, "a").length, 1);
+});
+
+test("a page that loads into a match under way reports only the goals scored from then on", () => {
+  const at = (shape: (world: World) => void) =>
+    room("running", (_r, w) => shape(w!));
+  // A reload during the second point: the first, already on the board and long settled, was reported before.
+  const reloaded = createGoalWatch();
+  const one = at((w) => {
+    point(w, 0, false, 300);
+    resetPoint(w);
+  });
+  assert.deepEqual(reloaded(one, "a"), [], "not reported again");
+  assert.deepEqual(reloaded(one, "a"), []);
+  const two = at((w) => {
+    point(w, 0);
+    point(w, 0, false, GOAL_SETTLE_STEPS);
+  });
+  assert.deepEqual(reloaded(two, "a"), [
+    { mapId: "gridlock", ownGoal: false, suddenDeath: false, mine: true },
+  ]);
+  // Loading in mid-celebration does not report that goal either: the page that saw it scored did.
+  assert.deepEqual(createGoalWatch()(two, "a"), []);
+
+  // Frames arrive before the page knows who it is: a point scored then waits, and is reported once it does.
+  const early = createGoalWatch();
+  assert.deepEqual(
+    early(
+      at(() => {}),
+      "",
+    ),
+    [],
+  );
+  const scored = at((w) => point(w, 0, false, GOAL_SETTLE_STEPS));
+  assert.deepEqual(early(scored, ""), [], "nobody to report it as yet");
+  assert.deepEqual(early(scored, "a"), [
+    { mapId: "gridlock", ownGoal: false, suddenDeath: false, mine: true },
+  ]);
+  assert.deepEqual(early(scored, "a"), []);
+});
+
+test("a match counts as started only while its first countdown runs", () => {
+  const started: string[] = [];
+  const metrics = (frames: View[]) => {
+    const report = createPlayMetrics(
+      (name) => void started.push(name),
+      () => 0,
+    );
+    for (const view of frames)
+      report({
+        matchId: view.matchId,
+        active: view.stage === "running",
+        ended: view.stage === "over",
+        round: playRound(view),
+        playerCount: 2,
+        botCount: 0,
+        seated: false,
+        mode: "online",
+      });
+  };
+  const countdown = room("running"),
+    playing = room("running", (_r, w) => {
+      w!.phase = "play";
+      w!.phaseSteps = 0;
+    }),
+    second = room("running", (_r, w) => {
+      point(w!, 0);
+      resetPoint(w!);
+    }),
+    over = room("over", (_r, w) => (w!.phase = "over"));
+  assert.equal(playRound(room("lobby")), 2);
+  assert.equal(playRound(countdown), 1);
+  assert.equal(playRound(playing), 2);
+  assert.equal(playRound(second), 2, "a later countdown is not the first");
+  // There from the start: one start and one end.
+  metrics([countdown, playing, second, over]);
+  assert.deepEqual(started, ["Match Started", "Match Ended"]);
+  // Joining or reloading mid-match: the end is seen, a second start is not invented.
+  started.length = 0;
+  metrics([playing, second, over]);
+  assert.deepEqual(started, ["Match Ended"]);
 });
 
 test("sessions: solo, landing, a joiner's kept token, the creator's token and a fresh one for the TV", () => {
@@ -439,6 +576,18 @@ test("sessions: solo, landing, a joiner's kept token, the creator's token and a 
     role: "display",
     token: "token-2",
   });
+  // Only `display=1` is the TV, as the analytics read it: anything else is the rider it would otherwise be.
+  for (const query of [
+    "?room=WXYZ&display=0",
+    "?room=WXYZ&display",
+    "?room=WXYZ&display=true",
+  ])
+    assert.deepEqual(of(query), {
+      kind: "room",
+      code: "WXYZ",
+      role: "host",
+      token: "creator",
+    });
 
   const working = safeStore(() => {
     const data = new Map<string, string>();

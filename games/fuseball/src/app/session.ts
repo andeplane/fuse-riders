@@ -45,7 +45,8 @@ export function sessionFor(
   const code = raw.trim().toUpperCase();
   if (!valid(code)) return { kind: "invalid", code };
   const names = keys(gameId);
-  if (query.has("display"))
+  // Only `display=1` is the shared screen, as the analytics read it: `display=0` or a bare `display` is a rider.
+  if (query.get("display") === "1")
     return { kind: "room", code, role: "display", token: secret() };
   const host = store.getItem(names.host(code));
   if (host) return { kind: "room", code, role: "host", token: host };

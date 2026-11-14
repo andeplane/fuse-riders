@@ -387,6 +387,19 @@ test("a solid over a seam is drawn again at the start of the axis, and a body ne
     [344, -16],
   );
   assert.equal(solidCopies(gridlock, gridlock.solids[0]!).length, 1);
+  // Overflow's floor slab runs past both seams: it shows at the floor's right end, its left end, and as the roof
+  // over each.
+  assert.deepEqual(
+    solidCopies(mapOf("overflow"), { x: 490, y: 344, w: 300, h: 32 }).map(
+      (s) => [s.x, s.y],
+    ),
+    [
+      [490, 344],
+      [490, -16],
+      [-150, 344],
+      [-150, -16],
+    ],
+  );
 
   assert.deepEqual(copies(gridlock, 320, 180, 20), [{ x: 320, y: 180 }]);
   assert.deepEqual(copies(gridlock, 5, 180, 20), [

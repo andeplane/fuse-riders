@@ -20,7 +20,7 @@ import { scripted } from "./fixtures/world.js";
 
 /**
  * The engine's safety net: on every map two scripted pilots chase the ball through a recorded match (kicks, lifts,
- * slides, bubbles hard and soft, pops, slow motion, goals, zaps, resets and, on two maps, the end of the match) and
+ * slides, bubbles hard and soft, pops, slow motion, goals, zaps, resets and, on some maps, the end of the match) and
  * the world's hash is compared every fifteen seconds. A refactor must keep these; a change to the rules must bump
  * `RULES` in `src/engine/index.ts` and re-record them in the same commit (`GOLDEN_RECORD=1` prints the new ones).
  *
@@ -33,7 +33,7 @@ const GOLDEN: {
   hashes: Record<string, string[]>;
   bots: Record<string, string[]>;
 } = {
-  rules: "fuseball-3",
+  rules: "fuseball-4",
   hashes: {
     gridlock: [
       "38a368e7",
@@ -77,11 +77,98 @@ const GOLDEN: {
       "a925049f",
       "8ef0b2c8",
     ],
+    overflow: ["6d0c8283", "05071c58", "18c1c083"],
+    firewall: ["9f24fe02", "3f18ed1c", "b44a99c7", "a85b5055", "8971bbcb"],
+    cornercase: [
+      "f43f058c",
+      "50c015fc",
+      "915aab15",
+      "7a84fe83",
+      "7d1703c4",
+      "0ba9d0d9",
+      "09be3026",
+      "237bc85a",
+      "9b332ea1",
+      "143f338e",
+      "1c2f3753",
+      "2844e550",
+      "5515876d",
+      "0ec54052",
+      "02eac16d",
+      "245b9b60",
+      "617ed56d",
+      "e3386d95",
+      "ab4449c4",
+      "20e64160",
+      "20e64160",
+    ],
+    coredump: [
+      "e0215daa",
+      "8b19332e",
+      "9fce3e18",
+      "d9130055",
+      "891a1693",
+      "4687e7a1",
+      "4543ade3",
+      "8a69ba81",
+      "32b0a242",
+    ],
   },
   bots: {
-    gridlock: ["7ec37b16", "21fde060", "bc136f8f", "89de45f5"],
-    downlink: ["32dcb285", "2faee30e", "b7b31967", "57347881"],
-    halo: ["74e674e2", "8751ea5a", "86b2494d", "d4d2abba"],
+    gridlock: [
+      "7cc9a736",
+      "9d0720b7",
+      "7738246f",
+      "d65f1e7f",
+      "de1da8fd",
+      "b199a01d",
+      "021372e2",
+    ],
+    downlink: ["c1f73b21", "7c28900b", "c4e20c94", "4c52699e"],
+    halo: ["5d9413cf", "5e86a276", "e4b44a2c", "cc5e1852"],
+    overflow: [
+      "1dc06134",
+      "fc4cc5d6",
+      "ba2e5cd7",
+      "09efab4a",
+      "3b4db703",
+      "e25c9349",
+      "c12ec5e8",
+      "d71f4415",
+      "023d17c5",
+      "c2614f85",
+    ],
+    firewall: [
+      "c23e145c",
+      "1b337782",
+      "eeb573e4",
+      "84a688f1",
+      "ee569227",
+      "3974b8e4",
+    ],
+    cornercase: [
+      "c528d860",
+      "05d123cb",
+      "a0cf6a74",
+      "c8ae05d4",
+      "e70df51e",
+      "17aeece4",
+    ],
+    coredump: [
+      "6a546098",
+      "c6e0c808",
+      "6e522f10",
+      "0128c97c",
+      "a82a51e8",
+      "12b06bc2",
+      "0865a6a2",
+      "8a4145ef",
+      "13e8d1cf",
+      "26ed38ea",
+      "b7a6c140",
+      "6612bceb",
+      "420a9418",
+    ],
   },
 };
 
