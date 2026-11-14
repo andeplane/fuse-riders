@@ -55,14 +55,33 @@ body.fuseball-page {
   color: var(--fui-cyan);
   font: 0.625rem var(--fui-font-pixel);
 }
-.fb-code {
-  padding: var(--fui-space-1) var(--fui-space-2);
-  color: var(--fui-ink);
-  background: var(--fui-yellow);
-  border-radius: var(--fui-radius-small);
-  font: 0.75rem var(--fui-font-pixel);
+/* What went wrong, said above the room wherever the rider is. */
+.fb-alert {
+  margin: var(--fui-space-3) auto 0;
+  padding: 0 var(--fui-space-4);
+  color: var(--fui-pink-soft);
+  font: 0.875rem/1.5 var(--fui-font-sans);
+  text-align: center;
 }
-.fb-status {
+/* During a match it floats over the top of the arena: a line that appears must not push the arena or the pads
+   out from under a thumb. */
+.fb-room:is([data-screen="play"], [data-screen="controller"]) > .fb-alert {
+  position: fixed;
+  z-index: var(--fui-z-overlay);
+  top: 4.25rem;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - 2 * var(--fui-space-4));
+  margin: 0;
+  padding: var(--fui-space-2) var(--fui-space-4);
+  border: 1px solid var(--fui-pink-soft);
+  border-radius: var(--fui-radius-small);
+  background: #0b0620f2;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+/* The room's state beside the menu while a match is on; in the lobby it is the line at the lobby's foot. */
+.fb-live {
   flex: 1 1 10rem;
   /* One line, always laid out: a status that appears, changes or wraps must not move the buttons beside it. */
   min-width: 0;
@@ -74,9 +93,12 @@ body.fuseball-page {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.fui-app .fb-status[hidden] {
+.fui-app .fb-live[hidden] {
   display: block !important;
   visibility: hidden;
+}
+body:has(.fb-lobby:not([hidden])) .fb-live {
+  display: none !important;
 }
 .fb-top .fui-game-menu {
   margin-left: auto;
@@ -102,19 +124,6 @@ body.fuseball-page {
 }
 .fuseball-page .fui-landing-title {
   color: var(--fui-yellow);
-}
-.fb-shared {
-  display: flex;
-  align-items: center;
-  gap: var(--fui-space-2);
-  color: var(--fui-text-muted);
-  font-size: 0.8125rem;
-}
-.fui-app .fb-shared input {
-  width: 1.25rem;
-  height: 1.25rem;
-  margin: 0;
-  accent-color: var(--fui-cyan);
 }
 .fb-landing-arena {
   display: grid;
@@ -543,7 +552,7 @@ body.fb-display .fb-lobby {
   color: var(--fui-text-muted);
   text-align: center;
 }
-/* On a phone the match needs the room: the account buttons wait in the lobby, and the status line folds away. */
+/* On a phone the match needs the room: the account buttons wait in the lobby. */
 @media (max-width: 34rem) {
   body:has(.fb-room:is([data-screen="play"], [data-screen="controller"]))
     .fb-top
@@ -552,7 +561,7 @@ body.fb-display .fb-lobby {
   }
   body:has(.fb-room:is([data-screen="play"], [data-screen="controller"]))
     .fb-top
-    .fb-status {
+    .fb-live {
     order: 0;
     flex: 1 1 4rem;
   }
@@ -632,7 +641,7 @@ body.fb-display .fb-sides {
   .fb-brand {
     font-size: 1rem;
   }
-  .fb-top .fb-status {
+  .fb-top .fb-live {
     order: 5;
     flex-basis: 100%;
   }
