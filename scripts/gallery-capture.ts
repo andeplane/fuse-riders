@@ -74,6 +74,7 @@ const RECIPES: Record<string, Recipe> = {
     await page.waitForTimeout(20_000);
   },
   "elasto-fuse": async (page) => {
+    await openPlayOptions(page);
     await page.getByRole("button", { name: "PLAY SOLO", exact: true }).click();
     await page
       .locator('.ef-room[data-stage="running"]')

@@ -1,5 +1,5 @@
 /**
- * Finds a ride that finishes each Elasto Fuse level and records it in `games/elasto-fuse/tests/fixtures/rides.json`:
+ * Finds a ride that finishes each Elasto Fuse level and records it in `games/elasto-fuse/src/app/rides-data.ts`:
  *
  *   pnpm exec tsx scripts/elasto-fuse-solve.ts            # every level
  *   pnpm exec tsx scripts/elasto-fuse-solve.ts 3 5        # levels 3 and 5 (from 0)
@@ -26,7 +26,7 @@ import {
 } from "../games/elasto-fuse/src/engine/index.js";
 
 const OUT = fileURLToPath(
-  new URL("../games/elasto-fuse/tests/fixtures/rides.json", import.meta.url),
+  new URL("../games/elasto-fuse/src/app/rides-data.ts", import.meta.url),
 );
 /** Points to pass before the apple or flower with that index in the level's objects, for levels a straight line misleads. */
 const WAYPOINTS: Record<string, Record<number, [number, number][]>> = {
@@ -166,8 +166,24 @@ const chosen = args
     (arg, index) => /^\d+$/.test(arg) && (beamAt < 0 || index !== beamAt + 1),
   )
   .map(Number);
-const rides: Record<string, { ride: string; steps: number }> = existsSync(OUT)
-  ? (JSON.parse(readFileSync(OUT, "utf8")) as { rides: typeof rides }).rides
+/** The module's text around its data: everything up to the object, and the object itself. */
+const HEAD = `/**
+ * The solver's finishing rides, written by \`scripts/elasto-fuse-solve.ts\` (never by hand): for each level a list of
+ * held bits, one per decision of \`decision\` steps, and the step the ride reaches the flower on. The tests replay them
+ * as the golden for the physics and the levels; the menu's demo rides them behind the buttons.
+ */
+export const RECORDED: {
+  rules: string;
+  decision: number;
+  rides: Record<string, { ride: string; steps: number }>;
+} = `;
+const written = existsSync(OUT) ? readFileSync(OUT, "utf8") : "";
+const rides: Record<string, { ride: string; steps: number }> = written
+  ? (
+      JSON.parse(
+        written.slice(written.indexOf("} = {") + 4, written.lastIndexOf(";")),
+      ) as { rides: typeof rides }
+    ).rides
   : {};
 for (const [index, level] of LEVELS.entries()) {
   if (chosen.length && !chosen.includes(index)) continue;
@@ -194,5 +210,5 @@ for (const [index, level] of LEVELS.entries()) {
 }
 writeFileSync(
   OUT,
-  `${JSON.stringify({ rules: RULES, decision: DECISION, rides }, null, 2)}\n`,
+  `${HEAD}${JSON.stringify({ rules: RULES, decision: DECISION, rides }, null, 2)};\n`,
 );
