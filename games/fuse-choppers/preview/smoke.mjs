@@ -163,11 +163,15 @@ try {
   const phoneView = { width: 390, height: 844 };
   const phoneContext = { viewport: phoneView, hasTouch: true, isMobile: true };
   const sharedHost = await open("fuse-choppers/?mute&autopilot");
-  await sharedHost.locator(".fc-shared input").check();
   await sharedHost.getByRole("button", { name: "CREATE ROOM" }).click();
   await sharedHost.waitForURL(/room=[A-Z0-9]+/);
   const sharedCode = new URL(sharedHost.url()).searchParams.get("room");
   await join(sharedHost, "Host");
+  // Shared TV is the room's choice: the host ticks it in the room, and OPEN TV SCREEN shows once the room has it.
+  await sharedHost.getByRole("checkbox", { name: /Shared TV/ }).check();
+  await sharedHost
+    .getByRole("button", { name: "OPEN TV SCREEN" })
+    .waitFor({ timeout: 20_000 });
   const tv = await open(`fuse-choppers/?room=${sharedCode}&display=1&mute`);
   const phoneBrowser = await browser.newContext(phoneContext);
   const phone = await phoneBrowser.newPage();

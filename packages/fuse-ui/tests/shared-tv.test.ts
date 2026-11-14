@@ -76,6 +76,33 @@ test("the box keeps the host's choice while the room still reports the old value
   assert.equal(box.checked, false);
 });
 
+test("a choice taken back before the room answered holds through the first command's answer", () => {
+  const { option, box, sent, tick } = build();
+  option.update(false, true);
+  tick(true);
+  tick(false);
+  assert.deepEqual(sent, [true, false]);
+  // Still the old value, then the first command lands, then the second: the box says off throughout.
+  for (const display of [false, true, true, false]) {
+    option.update(display, true);
+    assert.equal(box.checked, false);
+  }
+  // Settled: the room leads again.
+  option.update(true, true);
+  assert.equal(box.checked, true);
+});
+
+test("the box follows the room while it is not offered, and a pending choice does not outlive its second", () => {
+  const { option, box, tick, advance } = build();
+  option.update(false, true);
+  tick(true);
+  option.update(false, false);
+  assert.equal(option.element.hidden, true);
+  advance(1001);
+  option.update(false, false);
+  assert.equal(box.checked, false);
+});
+
 test("a refused choice puts the box back at once", () => {
   const { option, box, sent, tick } = build(false);
   option.update(false, true);

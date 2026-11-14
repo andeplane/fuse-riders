@@ -33,7 +33,8 @@ const ANSWER_MS = 1000;
  *
  * A room answers a command a few ticks later, and until then it still reports the old value. The box keeps the
  * host's choice for that moment instead of flipping back and forth; if the room has not agreed after a second, the
- * box follows the room again.
+ * box follows the room again. A choice taken back before the room answered the first one (on, then off at once)
+ * already matches what the room reports, so it is held until the room has gone the other way and come back.
  */
 export function createSharedTvOption(
   options: SharedTvOptionOptions,
@@ -67,10 +68,16 @@ export function createSharedTvOption(
   element.append(label, open);
   element.hidden = true;
   let room = false,
-    wish: { display: boolean; until: number } | undefined;
+    wish: { display: boolean; until: number; away: boolean } | undefined;
   box.onchange = () => {
     if (options.onChange(box.checked))
-      wish = { display: box.checked, until: now() + ANSWER_MS };
+      wish = {
+        display: box.checked,
+        until: now() + ANSWER_MS,
+        // The room is to move from where it is to the choice; when it is already there, an earlier command is
+        // still on its way and will move it away first.
+        away: room !== box.checked,
+      };
     else {
       wish = undefined;
       box.checked = room;
@@ -82,7 +89,11 @@ export function createSharedTvOption(
       room = display;
       element.hidden = !offered;
       open.hidden = !display;
-      if (wish && (display === wish.display || now() > wish.until))
+      if (wish && display !== wish.display) wish.away = true;
+      if (
+        wish &&
+        ((wish.away && display === wish.display) || now() > wish.until)
+      )
         wish = undefined;
       if (!wish && box.checked !== display) box.checked = display;
     },
