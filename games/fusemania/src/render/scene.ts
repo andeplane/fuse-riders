@@ -293,8 +293,9 @@ export function createScene(canvas: SceneCanvas, options: SceneOptions): Scene {
       // Over the rider's own field, or across all of them on a shared screen.
       let first: Field | undefined = plan.fields[0],
         last = plan.fields[plan.fields.length - 1];
-      if (local >= 0)
-        first = last = plan.fields.find((field) => field.slot === local);
+      if (local >= 0 && songMs < 0)
+        for (let i = 0; i < plan.fields.length; i++)
+          if (plan.fields[i]!.slot === local) first = last = plan.fields[i];
       if (songMs < 0 && view.phase !== "over" && first && last) {
         const left = first.x,
           right = last.x + last.col * COLUMNS;
