@@ -699,6 +699,7 @@ export function createScene(
     c: CanvasRenderingContext2D,
     blob: BlobView,
     tag: string,
+    row = 0,
   ) => {
     if (!tag) return;
     const text = Array.from(tag.toUpperCase()).slice(0, 10).join("");
@@ -706,9 +707,9 @@ export function createScene(
     c.textAlign = "center";
     c.textBaseline = "alphabetic";
     c.fillStyle = hexA(INK, 0.6);
-    c.fillText(text, blob.x + 1, SAND_Y + 31);
+    c.fillText(text, blob.x + 1, SAND_Y + 31 + 13 * row);
     c.fillStyle = hexA(SIDE_LIGHT[hues[blob.side]], 0.9);
-    c.fillText(text, blob.x, SAND_Y + 30);
+    c.fillText(text, blob.x, SAND_Y + 30 + 13 * row);
   };
 
   /**
@@ -1076,8 +1077,18 @@ export function createScene(
       );
       drawNet(g, nowMs);
       if (tags && view.court.team > 1)
-        for (const blob of onCourt)
-          drawTag(g, blob, tags[view.blobs.indexOf(blob)] ?? "");
+        for (const blob of onCourt) {
+          // Blobs stacked on each other: the names go under one another, the lowest blob's first.
+          const row = onCourt.filter(
+            (other) =>
+              other !== blob &&
+              Math.abs(other.x - blob.x) < 64 &&
+              (other.y > blob.y ||
+                (other.y === blob.y &&
+                  view.blobs.indexOf(other) < view.blobs.indexOf(blob))),
+          ).length;
+          drawTag(g, blob, tags[view.blobs.indexOf(blob)] ?? "", row);
+        }
       for (const [slot, blob] of view.blobs.entries())
         if (!blob.benched)
           drawBlob(
