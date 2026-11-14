@@ -206,7 +206,24 @@ try {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       results.push({ game, error: `${step}: ${message}` });
-      console.error(`FAIL ${game}: ${message.slice(0, 350)}`);
+      // What the page was showing: a room that fell back to its menu or reported an error says so here, not in the timeout.
+      const showing = await page
+        .evaluate(() =>
+          [
+            document.body.className,
+            ...[
+              ...document.querySelectorAll<HTMLElement>(
+                '[data-state="error"], [role="alert"], [role="status"]',
+              ),
+            ].map((node) => node.textContent?.trim().slice(0, 120)),
+          ]
+            .filter(Boolean)
+            .join(" | "),
+        )
+        .catch(() => "page gone");
+      console.error(
+        `FAIL ${game} at ${step}: ${message.slice(0, 350)}\n  page: ${showing}`,
+      );
     } finally {
       await context.close();
     }

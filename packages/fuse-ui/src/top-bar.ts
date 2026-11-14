@@ -195,7 +195,11 @@ export function createTopBar(options: TopBarOptions): HTMLElement {
   root.append(left, right, context, menu.dialog);
   // Header controls keep native keyboard activation while the match continues
   // behind them. Keyup still reaches the game so previously held keys release.
-  root.addEventListener("keydown", (event) => event.stopPropagation());
+  // The context is the game's own content, lent to the bar (a roster, the host's actions): a key pressed with
+  // focus left there after a click is still the game's, or Space would press that button again instead of the bomb.
+  root.addEventListener("keydown", (event) => {
+    if (!context.contains(event.target as Node | null)) event.stopPropagation();
+  });
   toggle.onclick = () => {
     renderSound();
     onOpenChange?.(true);

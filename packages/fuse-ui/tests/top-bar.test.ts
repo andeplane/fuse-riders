@@ -199,3 +199,24 @@ test("a reconciled header can be rebuilt without appending its old brand contain
     /FUSE CRAFT/,
   );
 });
+
+test("a key pressed in the bar's own controls stays there; one in the game's lent context reaches the game", () => {
+  const { document, window } = page();
+  const root = document.createElement("header");
+  document.body.append(root);
+  createTopBar({ element: root, music: false, gameId: "test-game" });
+  const lent = document.createElement("button");
+  root.querySelector(".fui-top-bar-context")!.append(lent);
+  const heard: (EventTarget | null)[] = [];
+  document.addEventListener("keydown", (event) => heard.push(event.target));
+  const press = (target: Element) =>
+    target.dispatchEvent(new window.Event("keydown", { bubbles: true }));
+  press(root.querySelector(".fui-top-bar-toggle")!);
+  assert.deepEqual(heard, [], "Space on ☰ opens the menu, not the bomb");
+  press(lent);
+  assert.deepEqual(
+    heard,
+    [lent],
+    "focus left on the game's own button must not swallow its keys",
+  );
+});
