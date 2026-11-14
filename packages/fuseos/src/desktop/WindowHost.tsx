@@ -4,6 +4,7 @@ import { AboutDialog } from "../about/AboutDialog";
 import { ControlPanelWindow } from "../controlpanel/ControlPanelWindow";
 import { ExplorerWindow } from "../explorer/ExplorerWindow";
 import { WallpaperWindow } from "../controlpanel/WallpaperWindow";
+import { FriendsWindow } from "../friends/FriendsWindow";
 import { FuseGameWindow } from "../fusegames/FuseGameWindow";
 import { FuseGamesContext } from "../fusegames/registry";
 import { LauncherWindow } from "../launcher/LauncherWindow";
@@ -39,6 +40,7 @@ function WindowContent({
         <FuseGameWindow
           gameId={window.gameId}
           windowId={window.id}
+          room={window.room}
           active={active}
           onActivate={() => commands.focus(window.id)}
         />
@@ -98,6 +100,8 @@ function WindowContent({
       return <LauncherWindow windowId={window.id} active={active} />;
     case "dialup":
       return <DialUpWindow windowId={window.id} then={window.then} />;
+    case "friends":
+      return <FriendsWindow windowId={window.id} />;
   }
 }
 

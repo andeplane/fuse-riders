@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { renderWithProviders } from "../__mocks__/renderWithProviders";
@@ -136,6 +136,24 @@ describe(FuseGameWindow.name, () => {
     expect(store.load().windows).toEqual([]);
     expect(osAnalytics.launches).toEqual([
       { game: "fuseball", launch: "popout" },
+    ]);
+  });
+
+  it("records the room the game's page joins, for Network Neighborhood's recent rooms", () => {
+    const { recentRooms, networkDeps } = renderWithProviders(
+      <FuseGameWindow gameId="fuseball" active onActivate={() => undefined} />,
+    );
+    const frame = screen.getByTitle("Fuseball");
+    expect(frame).toBeInstanceOf(HTMLIFrameElement);
+    expect(recentRooms.list()).toEqual([]);
+    // The game puts the room in its own address; the next poll of the frame sees it.
+    Object.defineProperty(frame, "contentWindow", {
+      configurable: true,
+      value: { location: { search: "?room=AB42" } },
+    });
+    act(() => networkDeps.tick());
+    expect(recentRooms.list()).toEqual([
+      { gameId: "fuseball", code: "AB42", lastSeen: networkDeps.now() },
     ]);
   });
 

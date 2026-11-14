@@ -1,6 +1,7 @@
 import { CdMusic } from "@react95/icons/CdMusic";
 import { Computer } from "@react95/icons/Computer";
 import { ComputerFind } from "@react95/icons/ComputerFind";
+import { Conf100 } from "@react95/icons/Conf100";
 import { CurvesAndColors100 } from "@react95/icons/CurvesAndColors100";
 import { Desk100 } from "@react95/icons/Desk100";
 import { Dialmon200 } from "@react95/icons/Dialmon200";
@@ -89,7 +90,8 @@ export type IconName =
   | "unknownFile"
   | "fusteam"
   | "sounds"
-  | "dialup";
+  | "dialup"
+  | "messenger";
 
 type IconVariant = "32x32_4" | "16x16_4";
 type IconProps = Omit<SVGProps<SVGSVGElement>, "ref">;
@@ -155,6 +157,7 @@ const ICONS: Record<IconName, IconComponent> = {
   fusteam: FusteamLogo,
   sounds: Mmsys110,
   dialup: fixed(Dialmon200, "32x32_4"),
+  messenger: Conf100,
 };
 
 export type Win98IconProps = {

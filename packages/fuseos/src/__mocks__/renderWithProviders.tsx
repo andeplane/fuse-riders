@@ -27,13 +27,18 @@ import {
 } from "../desktop/wallpaperStore";
 import type { DisplayEffectsDeps } from "../display/effects/effectsDeps";
 import {
-  createManualTimers,
+  createManualTimers as createManualEffectsTimers,
   DisplayEffectsDepsContext,
 } from "../display/effects/effectsDeps";
 import {
   DisplayEffectsStoreContext,
   MemoryDisplayEffectsStore,
 } from "../display/effects/effectsStore";
+import { createDemoPresenceService } from "../friends/demoPresenceService";
+import type { FriendsDeps } from "../friends/friendsDepsContext";
+import { FriendsDepsContext } from "../friends/friendsDepsContext";
+import type { PresenceService } from "../friends/presenceService";
+import { PresenceServiceContext } from "../friends/presenceService";
 import type { FuseGameRegistry } from "../fusegames/registry";
 import {
   createFuseGameRegistry,
@@ -219,7 +224,51 @@ export type ProviderOptions = {
   /** Defaults to the built-in launcher over `prefsStore`; pass one to observe joins directly. */
   roomLauncher?: RoomLauncher;
   networkDeps?: Partial<NetworkDeps>;
+  /** Defaults to the demo presence service, signed out, over the manual scheduler in `friendsDeps`. */
+  presence?: PresenceService;
+  friendsDeps?: Partial<FriendsDeps>;
 };
+
+/** A scheduler a test fires by hand: `timers.fire()` runs every pending callback in order. */
+export type ManualTimers = {
+  schedule: FriendsDeps["schedule"];
+  /** Runs what is due (everything, or only what was scheduled within `withinMs`). */
+  fire: (withinMs?: number) => void;
+  pending: () => number;
+};
+
+export function createManualTimers(): ManualTimers {
+  let pending: { id: number; delayMs: number; callback: () => void }[] = [];
+  let nextId = 0;
+  return {
+    schedule: (callback, delayMs) => {
+      const id = nextId++;
+      pending.push({ id, delayMs, callback });
+      return () => {
+        pending = pending.filter((timer) => timer.id !== id);
+      };
+    },
+    fire: (withinMs = Number.POSITIVE_INFINITY) => {
+      const due = pending.filter((timer) => timer.delayMs <= withinMs);
+      pending = pending.filter((timer) => timer.delayMs > withinMs);
+      for (const timer of due) timer.callback();
+    },
+    pending: () => pending.length,
+  };
+}
+
+export function createTestFriendsDeps(
+  timers: ManualTimers,
+  overrides: Partial<FriendsDeps> = {},
+): FriendsDeps {
+  return {
+    now: () => Date.UTC(1998, 5, 25, 12, 34),
+    schedule: timers.schedule,
+    playAlert: vi.fn(),
+    copyText: vi.fn(async () => undefined),
+    ...overrides,
+  };
+}
 
 export const immediateAppStateDeps: AppStateDeps = {
   setTimeout: (callback) => {
@@ -431,7 +480,7 @@ export function createWrapper(options: ProviderOptions = {}) {
   const launchDevice = options.launchDevice ?? DESKTOP_DEVICE;
   const osAnalytics = createRecordingOsAnalytics();
   const effectsStore = options.effectsStore ?? new MemoryDisplayEffectsStore();
-  const effectsTimers = createManualTimers();
+  const effectsTimers = createManualEffectsTimers();
   const effectsDeps: DisplayEffectsDeps = {
     setTimeout: effectsTimers.setTimeout,
     clearTimeout: effectsTimers.clearTimeout,
@@ -469,12 +518,22 @@ export function createWrapper(options: ProviderOptions = {}) {
   const roomDirectory = options.roomDirectory ?? UNSUPPORTED_ROOM_DIRECTORY;
   const roomLauncher = options.roomLauncher ?? null;
   const networkDeps = createTestNetworkDeps(options.networkDeps);
+  const friendTimers = createManualTimers();
+  const friendsDeps = createTestFriendsDeps(friendTimers, options.friendsDeps);
+  const presence =
+    options.presence ??
+    createDemoPresenceService({
+      schedule: friendsDeps.schedule,
+      signedIn: false,
+    });
 
   /** Outermost first; each entry wraps everything after it. */
   const providers: readonly ProviderEntry[] = [
     provider(ScreenSaverStoreContext, screenSaverStore),
     provider(ScreenSaverDepsContext, screenSaverDeps),
     provider(FuseGamesContext, games),
+    provider(PresenceServiceContext, presence),
+    provider(FriendsDepsContext, friendsDeps),
     provider(RecentRoomsStoreContext, recentRooms),
     provider(RoomDirectoryContext, roomDirectory),
     provider(RoomLauncherContext, roomLauncher),
@@ -525,6 +584,9 @@ export function createWrapper(options: ProviderOptions = {}) {
     networkDeps,
     store,
     games,
+    presence,
+    friendsDeps,
+    timers: friendTimers,
     desktopDeps,
     mediaDeps,
     gamesDeps,

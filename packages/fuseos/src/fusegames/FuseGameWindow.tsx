@@ -2,6 +2,7 @@ import { useContext, useRef } from "react";
 
 import { OsAnalyticsContext } from "../analytics/osAnalytics";
 import { DesktopDepsContext } from "../desktop/desktopDepsContext";
+import { useRecordRoomFromFrame } from "../network/roomObserver";
 import { Win98Icon } from "../ui/icons";
 import { IframeGame, liveFrameUrl } from "../windows/IframeGame";
 import { useWindowCommands } from "../windows/useWindowCommands";
@@ -10,6 +11,8 @@ import { FuseGamesContext } from "./registry";
 
 export type FuseGameWindowProps = {
   gameId: string;
+  /** A room code to join on open, as a friend's "Join game" asks. */
+  room?: string;
   active: boolean;
   onActivate: () => void;
   /** The window's id, so Pop out can close it once the game runs in a tab of its own. */
@@ -20,13 +23,21 @@ export const POP_OUT_LABEL = "Pop out";
 export const POP_OUT_HINT =
   "Open this game in a browser tab of its own; the room you are in comes along.";
 
+/** The embed URL with `room=<code>` added, whether or not it already carries a query (`?mute`). */
+export function withRoom(url: string, room: string | undefined): string {
+  if (!room) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}room=${encodeURIComponent(room)}`;
+}
+
 /**
  * Body of a Fuse game window: a toolbar with Pop out over the game's own page in an iframe, started as soon as
- * the window opens. Pop out reads the frame's live address (same origin), so a game that has entered a room
- * reopens in that room, then closes this window so the game does not run twice.
+ * the window opens (in `room` when a friend's "Join game" asked for one). Pop out reads the frame's live address
+ * (same origin), so a game that has entered a room reopens in that room, then closes this window so the game does
+ * not run twice. The room the page joins is recorded for Network Neighborhood's recent rooms.
  */
 export function FuseGameWindow({
   gameId,
+  room,
   active,
   onActivate,
   windowId,
@@ -36,6 +47,8 @@ export function FuseGameWindow({
   const analytics = useContext(OsAnalyticsContext);
   const commands = useWindowCommands();
   const frame = useRef<HTMLIFrameElement | null>(null);
+  // A game puts `?room=CODE` in its own address when it creates or joins a room; Network Neighborhood lists it.
+  useRecordRoomFromFrame(frame, gameId);
   const game = registry.find(gameId);
   if (!game) {
     return (
@@ -48,7 +61,7 @@ export function FuseGameWindow({
       </div>
     );
   }
-  const embedUrl = registry.embedUrl(game);
+  const embedUrl = withRoom(registry.embedUrl(game), room);
   const popOut = () => {
     openExternal(liveFrameUrl(frame.current, embedUrl));
     analytics.gameLaunched(game.id, "popout");

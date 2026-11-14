@@ -6,6 +6,19 @@ import {
   OsAnalyticsContext,
 } from "./analytics/osAnalytics";
 import { App } from "./App";
+import { createUhOhSound } from "./friends/alertSound";
+import { createDemoPresenceService } from "./friends/demoPresenceService";
+import type { FriendsDeps } from "./friends/friendsDepsContext";
+import {
+  defaultFriendsDeps,
+  FriendsDepsContext,
+} from "./friends/friendsDepsContext";
+import { PresenceServiceContext } from "./friends/presenceService";
+import {
+  apiUrlFor,
+  createRealPresenceService,
+} from "./friends/realPresenceService";
+import { createSwitchablePresenceService } from "./friends/switchablePresenceService";
 import { createFuseGameRegistry, FuseGamesContext } from "./fusegames/registry";
 import { withLauncherOnBoot } from "./launcher/launcherBoot";
 import {
@@ -86,6 +99,19 @@ const sounds = new WebAudioSoundService({
   loadSynth,
   gestures: documentGestures(window),
 });
+// Fuse Messenger: the live friend list over the room service's friends routes, with the scripted demo behind
+// File > Demo buddies. Sign-in and the SDK behind it load on the first click that needs them, never at boot.
+const presence = createSwitchablePresenceService(
+  createRealPresenceService({
+    fetch: window.fetch.bind(window),
+    apiUrl: apiUrlFor(import.meta.env.VITE_API_ORIGIN, window.location.origin),
+  }),
+  () => createDemoPresenceService({ schedule: defaultFriendsDeps.schedule }),
+);
+const friendsDeps: FriendsDeps = {
+  ...defaultFriendsDeps,
+  playAlert: muted ? () => undefined : createUhOhSound(),
+};
 
 export function mountFuseOs(container: HTMLElement): void {
   // Reports the desktop's opening now, and every game launch from here on; the deep link's windows count too.
@@ -100,7 +126,11 @@ export function mountFuseOs(container: HTMLElement): void {
         <OsAnalyticsContext.Provider value={analytics}>
           <WinampDepsContext.Provider value={winampDeps}>
             <SoundServiceContext.Provider value={sounds}>
-              <App store={store} initialOpen={initialOpen} />
+              <PresenceServiceContext.Provider value={presence}>
+                <FriendsDepsContext.Provider value={friendsDeps}>
+                  <App store={store} initialOpen={initialOpen} />
+                </FriendsDepsContext.Provider>
+              </PresenceServiceContext.Provider>
             </SoundServiceContext.Provider>
           </WinampDepsContext.Provider>
         </OsAnalyticsContext.Provider>
