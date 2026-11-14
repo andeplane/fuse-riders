@@ -10,6 +10,15 @@ import {
 } from "../src/engine/simfile.js";
 import { createTiming } from "../src/engine/timing.js";
 import { parseAnalysis } from "../../../scripts/lib/fusemania/analysis.js";
+import {
+  jackRate,
+  measureChart,
+  pool,
+  share,
+  type Measures,
+} from "../../../scripts/lib/fusemania/compare.js";
+import { DIFFICULTIES } from "../../../scripts/lib/fusemania/generate.js";
+import { referenceFor } from "../../../scripts/lib/fusemania/reference.js";
 import { SONGS } from "../../../scripts/lib/fusemania/songs.js";
 import { sscText } from "../../../scripts/lib/fusemania/ssc.js";
 
@@ -21,30 +30,34 @@ const BOUNDS = [
   {
     name: "Easy",
     meter: [2, 4],
-    average: [0.5, 1.6],
-    peak: [0.9, 2.05],
+    average: [0.9, 1.8],
+    peak: [1.2, 2.3],
     gap: 0.3,
+    jack: 1,
   },
   {
     name: "Medium",
     meter: [5, 7],
-    average: [1.4, 3.1],
-    peak: [2.2, 3.6],
+    average: [1.5, 2.8],
+    peak: [2.2, 3.7],
     gap: 0.16,
+    jack: 0.5,
   },
   {
     name: "Hard",
     meter: [8, 10],
-    average: [2.6, 5.2],
-    peak: [4, 6.1],
+    average: [2.2, 4.2],
+    peak: [3.2, 5.6],
     gap: 0.095,
+    jack: 0.5,
   },
   {
     name: "Challenge",
     meter: [10, 13],
-    average: [3.6, 7.8],
-    peak: [5.5, 9.1],
+    average: [3.2, 6],
+    peak: [4.8, 8.6],
     gap: 0.07,
+    jack: 0.5,
   },
 ] as const;
 
@@ -158,7 +171,7 @@ test("every chart is well formed: ordered, no doubled arrows, no hands, freezes 
             .length;
         assert.ok(pressed <= 2, `${where}: ${pressed} arrows at beat ${beat}`);
       }
-      if (chart.difficulty !== "Challenge")
+      if (chart.difficulty === "Easy" || chart.difficulty === "Medium")
         assert.equal(
           chart.notes.filter((note) => note.kind === "mine").length,
           0,
@@ -210,31 +223,23 @@ test("every chart starts after two seconds, ends inside the song and keeps to it
   }
 });
 
-test("the easier charts keep to their conventions: jumps only on Left+Right for Easy, no jacks, even arrows", () => {
+test("the charts keep to their conventions: few jumps on Easy, no fast jacks, even arrows", () => {
   for (const { data, sim } of songs)
-    for (const chart of sim.charts) {
+    sim.charts.forEach((chart, index) => {
       const where = `${data.id} ${chart.difficulty}`;
       const steps = stepsOf(chart);
       const rows = rowsOf(chart).map((beat) =>
         steps.filter((note) => note.beat === beat).map((note) => note.column),
       );
       const beats = rowsOf(chart);
-      if (chart.difficulty === "Easy") {
-        for (const columns of rows)
-          assert.ok(
-            columns.length === 1 || (columns[0] === 0 && columns[1] === 3),
-            `${where}: an Easy jump that is not Left+Right`,
-          );
+      if (chart.difficulty === "Easy")
         assert.ok(
           rows.filter((columns) => columns.length === 2).length <=
             rows.length / 8,
           `${where}: too many jumps`,
         );
-      }
       // The same arrow twice running, only as slowly as the difficulty allows.
-      const jack = { Easy: 2, Medium: 1, Hard: 0.5, Challenge: 0.5 }[
-        chart.difficulty
-      ]!;
+      const jack = BOUNDS[index]!.jack;
       for (let i = 1; i < rows.length; i++)
         if (
           rows[i]!.length === 1 &&
@@ -250,15 +255,104 @@ test("the easier charts keep to their conventions: jumps only on Left+Right for 
       );
       for (const count of uses)
         assert.ok(
-          count >= 0.17 * steps.length && count <= 0.33 * steps.length,
+          count >= 0.15 * steps.length && count <= 0.36 * steps.length,
           `${where}: arrows used ${uses.join("/")}`,
         );
       // Left and right balance.
       assert.ok(
-        Math.abs(uses[0]! - uses[3]!) <= 0.08 * steps.length,
+        Math.abs(uses[0]! - uses[3]!) <= 0.1 * steps.length,
         `${where}: left ${uses[0]} against right ${uses[3]}`,
       );
+    });
+});
+
+test("each difficulty stays near what published charts of that difficulty do", () => {
+  // The bundled charts, measured the way `reference-patterns.json` measures published ones.
+  const measured = new Map<string, Measures[]>();
+  for (const { data, sim } of songs) {
+    const analysis = parseAnalysis(
+      read(`games/fusemania/charts/analysis/${data.id}.json`),
+    );
+    const slot = (beat: number): number =>
+      Math.round(beat * analysis.slotsPerBeat);
+    for (const chart of sim.charts) {
+      const notes = chart.notes.map((note) => ({
+        slot: slot(note.beat),
+        column: note.column,
+        kind:
+          note.kind === "mine"
+            ? ("mine" as const)
+            : note.kind === "hold"
+              ? ("hold" as const)
+              : ("tap" as const),
+        ...(note.endBeat === undefined ? {} : { endSlot: slot(note.endBeat) }),
+      }));
+      const found = measured.get(chart.difficulty) ?? [];
+      found.push(
+        measureChart(analysis, {
+          difficulty: DIFFICULTIES.find((name) => name === chart.difficulty)!,
+          meter: chart.meter,
+          notes,
+        }),
+      );
+      measured.set(chart.difficulty, found);
     }
+  }
+  for (const difficulty of DIFFICULTIES) {
+    const reference = referenceFor(difficulty);
+    const charts = measured.get(difficulty)!;
+    const ours = pool(charts);
+    const within = (
+      what: string,
+      value: number,
+      low: number,
+      high: number,
+    ): void => {
+      assert.ok(
+        value >= low && value <= high,
+        `${difficulty}: ${what} ${value.toFixed(3)}, outside ${low.toFixed(3)} to ${high.toFixed(3)}`,
+      );
+    };
+    // Notes per second: the pack's median inside the published charts' middle half, no song far outside it.
+    const nps = reference.scalars.nps!;
+    within("median notes per second", ours.scalars.nps![1], nps.p25, nps.p75);
+    for (const chart of charts)
+      within(
+        "notes per second",
+        chart.scalars.nps!,
+        0.75 * nps.p25,
+        1.25 * nps.p75,
+      );
+    // How much of the chart is on the beat and how much on sixteenths.
+    for (const [level, slack] of [
+      ["4th", 0.08],
+      ["16th", 0.06],
+    ] as const) {
+      const target = reference.tables.quant?.[level] ?? 0;
+      within(
+        `share of ${level}s`,
+        share(ours, "quant", level),
+        target - slack,
+        target + slack,
+      );
+    }
+    const jumps = reference.scalars.jump_share!;
+    within(
+      "median share of jumps",
+      ours.scalars.jump_share![1],
+      jumps.p25,
+      jumps.p75,
+    );
+    // The same arrow twice: as often as published charts on quarters, and all but never on sixteenths.
+    const jacks = reference.tables.jack_rate?.["4th"] ?? 0;
+    within(
+      "jacks on quarters",
+      jackRate(ours, "4th"),
+      jacks - 0.1,
+      jacks + 0.1,
+    );
+    within("jacks on sixteenths", jackRate(ours, "16th"), 0, 0.02);
+  }
 });
 
 test("generation is deterministic: the same analysis gives the same file", () => {

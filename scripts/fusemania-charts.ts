@@ -1,15 +1,17 @@
 /**
  * Step charts for Fusemania, generated from the Fuse portfolio's own music.
  *
- *   pnpm exec tsx scripts/fusemania-charts.ts [analyze|generate|bundle|report] [song id...]
+ *   pnpm exec tsx scripts/fusemania-charts.ts [analyze|generate|bundle|report|compare] [song id...]
  *
  * - `analyze` decodes each song with ffmpeg, finds its tempo, beat and bar, and writes what the music does on that
  *   grid to `games/fusemania/charts/analysis/<id>.json` (committed, so the next steps need neither audio nor ffmpeg).
  * - `generate` turns each analysis into `games/fusemania/charts/<id>.ssc`: Easy, Medium, Hard and Challenge.
  * - `bundle` packs every `.ssc` into `games/fusemania/src/engine/songs-data.ts` for the game.
  * - `report` prints one line per song and chart.
+ * - `compare` measures the generated charts the way `games/fusemania/charts/reference-patterns.json` measures
+ *   published ones and prints the two side by side, a difficulty at a time. It only runs when asked for.
  *
- * With no sub-command all four run in that order. Song ids narrow `analyze`, `generate` and `report`; `bundle` always
+ * With no sub-command the first four run in that order. Song ids narrow all but `bundle`, which always
  * takes every chart on disk. `games/fusemania/charts/README.md` has the conventions and how to hand-edit a chart.
  */
 import { spawnSync } from "node:child_process";

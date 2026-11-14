@@ -9,9 +9,12 @@
  *    a slot with no onset. A harder chart starts from the easier one's rows, so the four agree with each other.
  *    Accents become jumps and sustained notes become freezes.
  * 2. Steps (`placeSteps`): which arrow each row is. A beam search over the two feet's positions: feet alternate,
- *    neither crosses the other below Hard, a rising melody moves right and a falling one left, the four arrows are
- *    used evenly, and a bar whose rhythm and contour repeat an earlier bar of the phrase gets that bar's arrows
- *    (or their mirror image).
+ *    neither crosses the other below Hard, a rising melody moves right and a falling one left, and a bar whose
+ *    rhythm repeats an earlier bar of the phrase sometimes gets that bar's arrows (or their mirror image).
+ *
+ * How much of everything comes from `reference.ts`, the statistics of published charts: how many notes a second,
+ * how many jumps and freezes and where, and which arrow tends to follow which at each speed. Those are frequencies,
+ * so the search samples them (`gumbel`) and does not copy any chart; `compare.ts` measures how close the result is.
  *
  * Everything random is drawn from a hash of the song id, the difficulty and the place in the song.
  */
@@ -73,8 +76,11 @@ interface Tuning {
   burst: number;
   /** The least time between two rows, in seconds, whatever the grid allows. */
   gap: number;
-  /** Jumps: how many a bar may have, and the clear space needed either side, in beats. How many: the reference. */
-  jump: { perBar: number; clear: number };
+  /**
+   * Jumps: how many a bar may have, the clear space needed either side, in beats, and the space needed on the
+   * roomier side. How many there are comes from the reference.
+   */
+  jump: { perBar: number; clear: number; wide: number };
   /** Freezes: how many rows the other foot may take while one is held. How many and how long: the reference. */
   hold: { rowsInside: number; clears: number };
   /** Mines: how many at most, and how many beats apart. */
@@ -106,7 +112,7 @@ const TUNING: Record<Difficulty, Tuning> = {
     floor: 0.3,
     gap: 0.3,
     burst: 1,
-    jump: { perBar: 1, clear: 1.5 },
+    jump: { perBar: 1, clear: 1, wide: 2 },
     hold: { rowsInside: 0, clears: 2 },
     mines: { most: 0, apart: 0 },
     crossover: undefined,
@@ -126,7 +132,7 @@ const TUNING: Record<Difficulty, Tuning> = {
     floor: 0.3,
     gap: 0.16,
     burst: 1,
-    jump: { perBar: 2, clear: 1 },
+    jump: { perBar: 2, clear: 1, wide: 0 },
     hold: { rowsInside: 1, clears: 2 },
     mines: { most: 0, apart: 0 },
     crossover: undefined,
@@ -146,7 +152,7 @@ const TUNING: Record<Difficulty, Tuning> = {
     floor: 0.25,
     gap: 0.095,
     burst: 5,
-    jump: { perBar: 2, clear: 0.5 },
+    jump: { perBar: 2, clear: 0.5, wide: 0 },
     hold: { rowsInside: 3, clears: 0 },
     mines: { most: 4, apart: 16 },
     crossover: 0.8,
@@ -166,7 +172,7 @@ const TUNING: Record<Difficulty, Tuning> = {
     floor: 0.2,
     gap: 0.07,
     burst: 17,
-    jump: { perBar: 3, clear: 0.3 },
+    jump: { perBar: 3, clear: 0.3, wide: 0 },
     hold: { rowsInside: 6, clears: 0 },
     mines: { most: 12, apart: 6 },
     crossover: 0.5,
@@ -567,6 +573,11 @@ function pickRows(
       at > 0 ? beatGap(slots[at]!, slots[at - 1]!) : 8,
       at + 1 < slots.length ? beatGap(slots[at]!, slots[at + 1]!) : 8,
     );
+  const wideOf = (at: number): number =>
+    Math.max(
+      at > 0 ? beatGap(slots[at]!, slots[at - 1]!) : 8,
+      at + 1 < slots.length ? beatGap(slots[at]!, slots[at + 1]!) : 8,
+    );
 
   // Jumps on the accents: kick and snare or cymbal together, the more so on a bar line and a phrase start.
   const accent = (slot: number): number => {
@@ -588,6 +599,7 @@ function pickRows(
         value >= 0.45 &&
         levelOf(slot) !== "S" &&
         (difficulty !== "Easy" || levelOf(slot) === "Q") &&
+        wideOf(at) >= tuning.jump.wide &&
         // Off the beat the rows either side are an eighth away at best.
         clearOf(at) >=
           (levelOf(slot) === "Q"
@@ -604,6 +616,15 @@ function pickRows(
     const bar = Math.floor(slot / perBar);
     const inBar = jumpsInBar.get(bar) ?? 0;
     if (rows[at]!.jump || inBar >= tuning.jump.perBar) return false;
+    // Where a jump needs room, it needs twice as much from the next jump.
+    if (
+      tuning.jump.wide > 0 &&
+      rows.some(
+        (row, other) =>
+          row.jump && beatGap(slots[other]!, slot) < 2 * tuning.jump.wide,
+      )
+    )
+      return false;
     // Never two jumps on neighbouring rows below Challenge.
     if (
       difficulty !== "Challenge" &&
