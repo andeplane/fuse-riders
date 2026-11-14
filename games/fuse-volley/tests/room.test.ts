@@ -16,6 +16,7 @@ import {
   encode,
   firstStepBits,
   foldTick,
+  createFuseVolleyGame,
   fuseVolleyGame,
   hash,
   isEntry,
@@ -33,6 +34,7 @@ import {
   STEPS_PER_TICK,
   seedOf,
   type Side,
+  botInput,
 } from "../src/engine/index.js";
 import * as T from "../src/engine/tuning.js";
 
@@ -45,17 +47,18 @@ import {
   type Bodies,
 } from "./fixtures/room.js";
 
-test("settings are exactly a display flag, a scoring rule and a bot level", () => {
+test("settings are exactly a display flag, a scoring rule, a bot level and the doubles flag", () => {
   assert.deepEqual(parseSettings(DEFAULT_SETTINGS), DEFAULT_SETTINGS);
   assert.equal(DEFAULT_SETTINGS.scoring, "rally");
   assert.deepEqual(
-    parseSettings({ display: true, scoring: "classic", bot: 2 }),
-    { display: true, scoring: "classic", bot: 2 },
+    parseSettings({ display: true, scoring: "classic", bot: 2, doubles: true }),
+    { display: true, scoring: "classic", bot: 2, doubles: true },
   );
   for (const bad of [
     null,
     [],
-    { display: true, scoring: "classic" },
+    { display: true, scoring: "classic", bot: 2 },
+    { display: true, scoring: "classic", bot: 2, doubles: 1 },
     { display: true, scoring: "classic", bot: 3 },
     { display: true, scoring: "golden", bot: 1 },
     { display: "yes", scoring: "rally", bot: 1 },
@@ -80,7 +83,12 @@ test("a match needs both seats; it starts with the lobby's scoring, seeded by it
   fold(lobby, { a: [[JOIN, "a", "Ada", 0, "robot", 1]] });
   fold(lobby, { a: [[ACTION, "start", "m1"]] });
   assert.equal(lobby.stage, "lobby");
-  const room = started({ display: false, scoring: "classic", bot: 0 });
+  const room = started({
+    display: false,
+    scoring: "classic",
+    bot: 0,
+    doubles: false,
+  });
   assert.equal(room.stage, "running");
   assert.equal(room.world!.scoring, "classic");
   assert.equal(room.world!.seed, seedOf("m1"));
@@ -93,7 +101,7 @@ test("a match needs both seats; it starts with the lobby's scoring, seeded by it
 
 test("held bits ride from one entry on; another match's entry and an away seat hold nothing", () => {
   const room = started();
-  const left = room.world!.blobs[0];
+  const left = room.world!.blobs[0]!;
   fold(room, { a: [[PLAY, "m1", RIGHT]] });
   const x = left.x;
   run(room, 3);
@@ -118,12 +126,17 @@ test("a jump pressed and released inside one tick still jumps", () => {
       [PLAY, "m1", 0],
     ],
   });
-  assert.ok(room.world!.blobs[0].air, "the tap jumped");
+  assert.ok(room.world!.blobs[0]!.air, "the tap jumped");
   assert.equal(room.held.a, undefined);
 });
 
 test("a bot seat answers through the injected bot, with the lobby's level, once a tick", () => {
-  const room = createRoom("m0", { display: false, scoring: "rally", bot: 2 });
+  const room = createRoom("m0", {
+    display: false,
+    scoring: "rally",
+    bot: 2,
+    doubles: false,
+  });
   fold(room, {
     a: [
       [JOIN, "a", "Ada", 0, "robot", 1],
@@ -132,18 +145,18 @@ test("a bot seat answers through the injected bot, with the lobby's level, once 
   });
   assert.equal(room.seats.size, 2);
   fold(room, { a: [[ACTION, "start", "m1"]] });
-  const asked: [Side, number][] = [];
+  const asked: [number, number][] = [];
   const bot: BotInput = (_world, side, level) => {
     asked.push([side, level]);
     return RIGHT;
   };
-  const x = room.world!.blobs[1].x;
+  const x = room.world!.blobs[1]!.x;
   run(room, 2, bot);
   assert.deepEqual(asked, [
     [1, 2],
     [1, 2],
   ]);
-  assert.equal(room.world!.blobs[1].x, Math.min(x + 36, T.BLOB_MAX[1]));
+  assert.equal(room.world!.blobs[1]!.x, Math.min(x + 36, T.BLOB_MAX[1]));
   assert.equal(room.held["bot:1"], undefined, "a bot logs nothing");
 });
 
@@ -195,7 +208,7 @@ test("a corrupt checkpoint is refused whole, and refusing it changes nothing", (
     [
       "a scoring the world is not playing",
       room,
-      at(4, { display: false, scoring: "classic", bot: 1 }),
+      at(4, { display: false, scoring: "classic", bot: 1, doubles: false }),
     ],
     ["held bits for a stranger", room, at(5, [["z", RIGHT]])],
     ["held bits past the mask", room, at(5, [["a", 8]])],
@@ -221,9 +234,11 @@ test("a corrupt checkpoint is refused whole, and refusing it changes nothing", (
   assert.equal(decode(encode(room), -1), undefined);
 });
 
-test("the game names itself, its rules and a two-seat duel with one bot for solo", () => {
+test("the game names itself, its rules and four seats, with one bot for solo (three for solo doubles)", () => {
   assert.equal(fuseVolleyGame.id, "fuse-volley");
-  assert.equal(fuseVolleyGame.rules, "fuse-volley-2");
-  assert.equal(fuseVolleyGame.seating?.capacity, 2);
+  assert.equal(fuseVolleyGame.rules, "fuse-volley-3");
+  assert.equal(fuseVolleyGame.seating?.capacity, 4);
+  assert.equal(fuseVolleyGame.seating?.solo.bots, 1);
+  assert.equal(createFuseVolleyGame(botInput, 3).seating?.solo.bots, 3);
   assert.equal(fuseVolleyGame.maxSteps, STEPS_PER_TICK);
 });

@@ -1,3 +1,4 @@
+import { courtFor, type Court } from "./court.js";
 import { decided } from "./step.js";
 import * as T from "./tuning.js";
 import {
@@ -11,14 +12,15 @@ import {
 } from "./world.js";
 
 /**
- * The world as checkpoint fields: flat tuples of integers (and the two blob ids) that MessagePack carries, and a
+ * The world as checkpoint fields: flat tuples of integers (and the blob ids) that MessagePack carries, and a
  * decoder that checks every one against the bounds and the consistency the simulation keeps. `decodeWorld` returns
  * a whole new world or nothing; it never changes what it was given and never returns a half-checked one.
  */
 const VERSION = 1;
 const BLOB_FIELDS = 12,
   BALL_FIELDS = 8,
-  WORLD_FIELDS = 21;
+  /** The world's own fields and the ball; one more for each blob after them. */
+  HEAD_FIELDS = 19;
 
 const int = (value: unknown, low: number, high: number): value is number =>
   typeof value === "number" &&
@@ -84,12 +86,11 @@ export function encodeWorld(world: World): unknown[] {
     world.netCounter,
     world.floorCounter,
     encodeBall(world.ball),
-    encodeBlob(world.blobs[0]),
-    encodeBlob(world.blobs[1]),
+    ...world.blobs.map(encodeBlob),
   ];
 }
 
-function decodeBlob(raw: unknown, side: Side): Blob | undefined {
+function decodeBlob(raw: unknown, side: Side, court: Court): Blob | undefined {
   if (!tuple(raw, BLOB_FIELDS)) return;
   const [
     id,
@@ -107,7 +108,7 @@ function decodeBlob(raw: unknown, side: Side): Blob | undefined {
   ] = raw;
   if (
     !riderId(id) ||
-    !int(x, T.BLOB_MIN[side], T.BLOB_MAX[side]) ||
+    !int(x, court.blobMin[side], court.blobMax[side]) ||
     !int(y, T.BLOB_FLOOR, T.BLOB_CEILING) ||
     !int(vy, T.BLOB_MIN_VY, T.BLOB_MAX_VY) ||
     !flag(air) ||
@@ -139,22 +140,22 @@ function decodeBlob(raw: unknown, side: Side): Blob | undefined {
   };
 }
 
-const ballX = (value: unknown): value is number =>
-  int(value, T.BALL_LEFT, T.BALL_RIGHT);
+const ballX = (value: unknown, court: Court): value is number =>
+  int(value, court.ballLeft, court.ballRight);
 const ballY = (value: unknown): value is number =>
   int(value, T.BALL_FLOOR, T.BALL_CEILING);
 const speed = (value: unknown): value is number =>
   int(value, -T.BALL_MAX_SPEED, T.BALL_MAX_SPEED);
 
-function decodeBall(raw: unknown): Ball | undefined {
+function decodeBall(raw: unknown, court: Court): Ball | undefined {
   if (!tuple(raw, BALL_FIELDS)) return;
   const [x, y, vx, vy, prevX, prevY, live, spin] = raw;
   if (
-    !ballX(x) ||
+    !ballX(x, court) ||
     !ballY(y) ||
     !speed(vx) ||
     !speed(vy) ||
-    !ballX(prevX) ||
+    !ballX(prevX, court) ||
     !ballY(prevY) ||
     !flag(live) ||
     !counter(spin)
@@ -166,7 +167,14 @@ function decodeBall(raw: unknown): Ball | undefined {
 /** The checks that tie fields together: a world no sequence of steps could reach is refused. */
 function consistent(world: World): boolean {
   const { phase, phaseSteps, ball, blobs, score, winner } = world;
-  if (blobs[0].id === blobs[1].id) return false;
+  if (new Set(blobs.map((blob) => blob.id)).size !== blobs.length) return false;
+  // A side's count is the side's: teammates hold the same one.
+  if (
+    blobs.some(
+      (blob, slot) => slot >= 2 && blob.touches !== blobs[slot - 2]!.touches,
+    )
+  )
+    return false;
   if (world.touchStep > world.step) return false;
   if (world.target !== targetOf(world.scoring)) return false;
   // Timers: a serve counts up to its timeout, the settle counts down, nothing else has one.
@@ -179,7 +187,7 @@ function consistent(world: World): boolean {
       ball.live ||
       ball.vx !== 0 ||
       ball.vy !== 0 ||
-      ball.x !== T.SERVE_X[world.server] ||
+      ball.x !== courtFor(blobs.length).serveX[world.server] ||
       ball.y !== T.SERVE_Y ||
       world.lastTouch !== -1 ||
       world.blobs.some(
@@ -217,7 +225,11 @@ function consistent(world: World): boolean {
 }
 
 export function decodeWorld(raw: unknown): World | undefined {
-  if (!tuple(raw, WORLD_FIELDS)) return;
+  if (
+    !Array.isArray(raw) ||
+    (raw.length !== HEAD_FIELDS + 2 && raw.length !== HEAD_FIELDS + 4)
+  )
+    return;
   const [
     version,
     seed,
@@ -238,9 +250,8 @@ export function decodeWorld(raw: unknown): World | undefined {
     netCounter,
     floorCounter,
     rawBall,
-    rawLeft,
-    rawRight,
-  ] = raw;
+    ...rawBlobs
+  ] = raw as unknown[];
   if (
     version !== VERSION ||
     !uint32(seed) ||
@@ -264,10 +275,12 @@ export function decodeWorld(raw: unknown): World | undefined {
     return;
   const phase = PHASES[phaseIndex],
     scoring = SCORINGS[scoringIndex];
-  const ball = decodeBall(rawBall),
-    left = decodeBlob(rawLeft, 0),
-    right = decodeBlob(rawRight, 1);
-  if (!phase || !scoring || !ball || !left || !right) return;
+  const court = courtFor(rawBlobs.length);
+  const ball = decodeBall(rawBall, court),
+    blobs = rawBlobs.map((each, slot) =>
+      decodeBlob(each, slot % 2 === 0 ? 0 : 1, court),
+    );
+  if (!phase || !scoring || !ball || blobs.some((blob) => !blob)) return;
   const world: World = {
     seed,
     step,
@@ -275,7 +288,7 @@ export function decodeWorld(raw: unknown): World | undefined {
     phaseSteps,
     rng,
     ball,
-    blobs: [left, right],
+    blobs: blobs as Blob[],
     score: [score0, score1],
     scoring,
     target: targetOf(scoring),

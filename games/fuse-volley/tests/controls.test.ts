@@ -247,7 +247,7 @@ test("a browser without gamepads, or one that refuses, has none", () => {
 test("the autopilot plays this device's blob only while a match runs", () => {
   const world: World = fresh();
   const asked: number[] = [];
-  const bot = (_world: World, side: 0 | 1) => {
+  const bot = (_world: World, side: number) => {
     asked.push(side);
     return RIGHT;
   };

@@ -69,7 +69,7 @@ test("input bits: three held bits, mirrored by swapping left and right", () => {
 
 test("a blob runs 3 px a step within its half, the same in the air", () => {
   const world = fresh();
-  const left = world.blobs[0];
+  const left = world.blobs[0]!;
   steps(world, 10, RIGHT);
   assert.equal(left.x, T.BLOB_START[0] + 30);
   steps(world, 200, RIGHT);
@@ -77,11 +77,11 @@ test("a blob runs 3 px a step within its half, the same in the air", () => {
   steps(world, 300, LEFT);
   assert.equal(left.x, T.BLOB_MIN[0]);
   steps(world, 200, 0, LEFT);
-  assert.equal(world.blobs[1].x, T.BLOB_MIN[1]);
+  assert.equal(world.blobs[1]!.x, T.BLOB_MIN[1]);
   // Both ways at once cancel out.
-  const x = world.blobs[1].x + 0;
+  const x = world.blobs[1]!.x + 0;
   steps(world, 5, 0, LEFT | RIGHT);
-  assert.equal(world.blobs[1].x, x);
+  assert.equal(world.blobs[1]!.x, x);
 });
 
 test("a held jump peaks at the original's 264 px; a tap at about half that", () => {
@@ -89,9 +89,9 @@ test("a held jump peaks at the original's 264 px; a tap at about half that", () 
     const world = fresh();
     let top = 0;
     for (let i = 0; i < 200; i++) {
-      stepBlob(world.blobs[0], i < holdSteps ? JUMP : 0, i);
-      top = Math.max(top, world.blobs[0].y);
-      if (i > 0 && !world.blobs[0].air) break;
+      stepBlob(world.blobs[0]!, i < holdSteps ? JUMP : 0, i);
+      top = Math.max(top, world.blobs[0]!.y);
+      if (i > 0 && !world.blobs[0]!.air) break;
     }
     return (top - T.BLOB_FLOOR) / T.HU;
   };
@@ -103,7 +103,7 @@ test("a held jump peaks at the original's 264 px; a tap at about half that", () 
 
 test("holding jump through a landing jumps again at once", () => {
   const world = fresh();
-  const blob = world.blobs[0];
+  const blob = world.blobs[0]!;
   let landed = false;
   for (let i = 0; i < 300; i++) {
     stepBlob(blob, JUMP, i);
@@ -119,7 +119,7 @@ test("holding jump through a landing jumps again at once", () => {
 
 test("the squash cycle runs 0 to 4 and back on landing and while walking, one frame every 4 steps", () => {
   const world = fresh();
-  const blob = world.blobs[0];
+  const blob = world.blobs[0]!;
   const frames: number[] = [];
   for (let i = 0; i < 60; i++) {
     stepBlob(blob, RIGHT, i);
@@ -127,7 +127,7 @@ test("the squash cycle runs 0 to 4 and back on landing and while walking, one fr
   }
   assert.deepEqual(frames.slice(0, 8), [1, 2, 3, 4, 3, 2, 1, 0]);
   assert.ok(frames.slice(8).includes(4), "and it keeps cycling while walking");
-  const still = fresh().blobs[0];
+  const still = fresh().blobs[0]!;
   for (let i = 0; i < 40; i++) stepBlob(still, 0, i);
   assert.equal(still.frame, 0);
 });
@@ -226,7 +226,7 @@ test("a fast low ball never tunnels through the net", () => {
 
 test("a blob sends the ball off at exactly 256 units a step along the contact normal and pushes it clear", () => {
   const world = fresh();
-  const blob = world.blobs[0];
+  const blob = world.blobs[0]!;
   // Straight above the head, falling onto it.
   rally(world, blob.x, 100 + 65 + 50, 0, -100);
   collide(world);
@@ -246,7 +246,7 @@ test("a blob sends the ball off at exactly 256 units a step along the contact no
 
 test("a graze (ball already leaving along the normal) bounces but is not a touch", () => {
   const world = fresh();
-  const blob = world.blobs[0];
+  const blob = world.blobs[0]!;
   rally(world, blob.x, 100 + 65 + 50, 0, 200);
   collide(world);
   assert.ok(!blob.contact);
@@ -255,7 +255,7 @@ test("a graze (ball already leaving along the normal) bounces but is not a touch
 
 test("the ball exactly on a head's centre is thrown straight up", () => {
   const world = fresh();
-  const blob = world.blobs[0];
+  const blob = world.blobs[0]!;
   rally(world, blob.x, 100 + 65, 0, 0);
   collide(world);
   assert.deepEqual([world.ball.vx, world.ball.vy], [0, 256]);
@@ -276,7 +276,7 @@ test("the net's top throws the ball at 128 a step, and a dead-centre hit is nudg
 
 test("touches count once per contact; the fourth in a row is a fault and the other side's touch resets them", () => {
   const world = rally(fresh(), 200, 400);
-  const [left, right] = world.blobs;
+  const [left, right] = [world.blobs[0]!, world.blobs[1]!];
   for (let i = 1; i <= 3; i++) {
     left.contact = true;
     countTouches(world);
@@ -285,21 +285,21 @@ test("touches count once per contact; the fourth in a row is a fault and the oth
   }
   right.touches = 2;
   left.contact = true;
-  world.blobs[1].touches = 0;
+  world.blobs[1]!.touches = 0;
   countTouches(world);
   assert.equal(world.phase, "dead");
   assert.equal(world.lastFault, 0);
   assert.deepEqual(world.score, [0, 1]);
   // A ball well over the net clears the side's count.
   const other = rally(fresh(), 420, 400);
-  other.blobs[0].touches = 2;
+  other.blobs[0]!.touches = 2;
   countTouches(other);
-  assert.equal(other.blobs[0].touches, 0);
+  assert.equal(other.blobs[0]!.touches, 0);
 });
 
 test("holding the ball for more than 40 frames is carrying", () => {
   const world = rally(fresh(), 200, 400);
-  const left = world.blobs[0];
+  const left = world.blobs[0]!;
   left.contact = true;
   countTouches(world);
   for (let i = 0; i < 40; i++) {
@@ -364,7 +364,7 @@ test("after a point the ball settles for 2 s, then the next serve waits for both
   const world = fresh();
   // The left blob is high in the air when the point ends: the serve waits for it to come down.
   steps(world, 20, JUMP);
-  assert.ok(world.blobs[0].air);
+  assert.ok(world.blobs[0]!.air);
   pointAgainst(world, 1, true);
   assert.equal(world.server, 0);
   steps(world, T.DEAD_STEPS - 1, JUMP, JUMP);
@@ -372,7 +372,7 @@ test("after a point the ball settles for 2 s, then the next serve waits for both
   // Both players hold jump through the settle: nobody starts a jump, so the serve still comes.
   until(world, (w) => w.phase === "serve", 300, JUMP, JUMP);
   assert.equal(world.phase, "serve");
-  assert.ok(!world.blobs[0].air && !world.blobs[1].air);
+  assert.ok(!world.blobs[0]!.air && !world.blobs[1]!.air);
   assert.equal(world.ball.x, T.SERVE_X[0]);
   assert.ok(!world.ball.live);
 });
@@ -380,12 +380,12 @@ test("after a point the ball settles for 2 s, then the next serve waits for both
 test("the serve is a touch, and play continues into a rally", () => {
   const world = fresh("rally", 99);
   const server = world.server;
-  const blob = world.blobs[server];
+  const blob = world.blobs[server]!;
   // Walk under the ball and jump into it.
   const target = T.SERVE_X[server] / T.BU - (server === 0 ? 10 : -10);
   until(
     world,
-    (w) => Math.abs(w.blobs[server].x - target) <= 3,
+    (w) => Math.abs(w.blobs[server]!.x - target) <= 3,
     200,
     server === 0 ? (blob.x < target ? RIGHT : LEFT) : 0,
     server === 1 ? (blob.x < target ? RIGHT : LEFT) : 0,
@@ -394,7 +394,7 @@ test("the serve is a touch, and play continues into a rally", () => {
   until(world, jump, 200, server === 0 ? JUMP : 0, server === 1 ? JUMP : 0);
   assert.equal(world.phase, "rally");
   steps(world, 4);
-  assert.equal(world.blobs[server].touches, 1);
+  assert.equal(world.blobs[server]!.touches, 1);
   assert.equal(world.hitCounter, 1);
   assert.equal(world.lastTouch, server);
 });
