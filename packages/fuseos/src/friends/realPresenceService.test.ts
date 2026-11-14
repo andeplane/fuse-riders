@@ -196,24 +196,18 @@ describe(buddyFrom.name, () => {
 });
 
 describe("buddyFrom against a service that reports away", () => {
-  type Friend = FriendsView["friends"][number];
-  /** A friend as a newer service sends it: the same view with `away` beside it. */
-  const reporting = (friend: Friend, away: unknown): Friend => {
-    const extended: Friend & { away: unknown } = { ...friend, away };
-    return extended;
-  };
   const [playing, online] = view.friends;
 
   it("shows an online friend as away when the service says so, and ignores the field otherwise", () => {
     if (!playing || !online) throw new Error("the fixture has two friends");
-    expect(buddyFrom(reporting(online, true)).status).toBe("away");
-    expect(buddyFrom(reporting(online, false)).status).toBe("online");
-    // Not a boolean, or sent for someone offline or in a room: the older reading stands.
-    expect(buddyFrom(reporting(online, "yes")).status).toBe("online");
-    expect(
-      buddyFrom(reporting({ ...online, online: false }, true)).status,
-    ).toBe("offline");
-    expect(buddyFrom(reporting(playing, true)).status).toBe("playing");
+    expect(buddyFrom({ ...online, away: true }).status).toBe("away");
+    // No field (an older service, or a friend who is at the keyboard): online, as before.
+    expect(buddyFrom(online).status).toBe("online");
+    // Sent for someone offline or in a room: the stronger reading stands.
+    expect(buddyFrom({ ...online, online: false, away: true }).status).toBe(
+      "offline",
+    );
+    expect(buddyFrom({ ...playing, away: true }).status).toBe("playing");
   });
 });
 

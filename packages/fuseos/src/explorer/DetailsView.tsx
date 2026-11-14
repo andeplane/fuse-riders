@@ -12,10 +12,10 @@ export type DetailsViewProps = EntryViewProps & {
 };
 
 const COLUMNS: { column: SortColumn; label: string; className: string }[] = [
-  { column: "name", label: "Name", className: "w-1/2" },
-  { column: "size", label: "Size", className: "w-20 text-right" },
-  { column: "type", label: "Type", className: "w-1/4" },
-  { column: "modified", label: "Modified", className: "w-1/4" },
+  { column: "name", label: "Name", className: "explorer-col-name" },
+  { column: "size", label: "Size", className: "explorer-col-size" },
+  { column: "type", label: "Type", className: "explorer-col-type" },
+  { column: "modified", label: "Modified", className: "explorer-col-modified" },
 ];
 
 export function DetailsView({
@@ -28,35 +28,46 @@ export function DetailsView({
   onContextMenu,
 }: DetailsViewProps) {
   return (
-    <table className="interactive w-full" aria-label="Details">
+    <table className="explorer-details" aria-label="Details">
+      <colgroup>
+        {COLUMNS.map(({ column, className }) => (
+          <col key={column} className={className} />
+        ))}
+      </colgroup>
       <thead>
         <tr>
-          {COLUMNS.map(({ column, label, className }) => (
-            <th
-              key={column}
-              className={className}
-              aria-sort={
-                sort.column === column
-                  ? sort.direction === "asc"
-                    ? "ascending"
-                    : "descending"
-                  : "none"
-              }
-            >
-              <button
-                type="button"
-                className="flat w-full text-left"
-                onClick={() => onSort(column)}
+          {COLUMNS.map(({ column, label, className }) => {
+            const direction =
+              sort.column === column ? sort.direction : undefined;
+            return (
+              <th
+                key={column}
+                className={className}
+                aria-sort={
+                  direction === undefined
+                    ? "none"
+                    : direction === "asc"
+                      ? "ascending"
+                      : "descending"
+                }
               >
-                {label}
-                {sort.column === column
-                  ? sort.direction === "asc"
-                    ? " ▲"
-                    : " ▼"
-                  : ""}
-              </button>
-            </th>
-          ))}
+                <button
+                  type="button"
+                  className="flat"
+                  onClick={() => onSort(column)}
+                >
+                  <span>{label}</span>
+                  {direction === undefined ? null : (
+                    <span
+                      className={`explorer-sort-arrow ${direction}`}
+                      aria-hidden
+                    />
+                  )}
+                </button>
+              </th>
+            );
+          })}
+          <th className="explorer-col-filler" aria-hidden />
         </tr>
       </thead>
       <tbody>
@@ -65,24 +76,26 @@ export function DetailsView({
           return (
             <tr
               key={entry.location}
-              className={isSelected ? "highlighted" : ""}
               aria-selected={isSelected}
               onClick={() => onSelect(entry)}
               onDoubleClick={() => onOpen(entry)}
               onContextMenu={entryContextMenu(entry, onContextMenu)}
             >
-              <td className="truncate">
-                <span className="mr-1 inline-block align-middle">
-                  <Win98Icon name={entry.icon} />
+              <td className="explorer-col-name">
+                <Win98Icon name={entry.icon} />
+                <span className="explorer-item-label">
+                  {entry.name}
+                  <ModifiedMark entry={entry} />
                 </span>
-                {entry.name}
-                <ModifiedMark entry={entry} />
               </td>
-              <td className="text-right">
+              <td className="explorer-col-size">
                 {entry.size === undefined ? "" : formatSize(entry.size)}
               </td>
-              <td>{entry.typeLabel}</td>
-              <td>{formatModified(entry.modifiedAt)}</td>
+              <td className="explorer-col-type">{entry.typeLabel}</td>
+              <td className="explorer-col-modified">
+                {formatModified(entry.modifiedAt)}
+              </td>
+              <td aria-hidden />
             </tr>
           );
         })}

@@ -17,7 +17,8 @@ which a signed-in client does on every page load.
 
 ## Presence and one poll
 
-`POST /api/friends/sync` carries where the device is (`name`, `avatarId`, `room: { code, memberId, gameId }`) and
+`POST /api/friends/sync` carries where the device is (`name`, `avatarId`, `room: { code, memberId, gameId }`, and
+optionally `passive`, `away` and `status`, see [below](#away-status-last-seen-and-passive-pages)) and
 answers with everything the panel shows: friends with `online` and their `room`, requests both ways, pending invites
 and `roomPlayers` (the signed-in members of the reported room, each with its seat id, public id and relation to the
 caller). One request every `FRIENDS_POLL_MS` (20 s) per signed-in page, brought forward on focus, on a room change and
@@ -40,6 +41,66 @@ with the shared log. `roomPlayers` is how the lobby knows which seat belongs to 
 carries seat ids only, and nothing about accounts crosses the mesh. The client matches a roster row to a public id by the `memberId` the seat's
 own device reported, so ADD FRIEND on a lobby row, a scoreboard row or the recap needs no protocol change and no
 `RULES` bump.
+
+## Away, status, last seen and passive pages
+
+The FuseOS desktop shows a buddy list (Fuse Messenger) around the games it embeds, so one account can have two pages
+polling at once: the game in its window, with a room claim, and the desktop, with none. Three optional fields on the
+sync body and three on each friend cover that, all additive: a client that sends none of them and reads none of them
+behaves exactly as before.
+
+| Sync body | Meaning                                                                                                          |
+| --------- | ---------------------------------------------------------------------------------------------------------------- |
+| `passive` | The poll is from a page that is not the one in a room. It keeps the account online and leaves the room claim be. |
+| `away`    | The player has not touched the page for a while (the client decides; the desktop uses hidden or 5 idle minutes). |
+| `status`  | A short line for friends, at most `MAX_STATUS_LENGTH` (40) characters. `""` clears it; leaving it out keeps it.  |
+
+| Friend     | Meaning                                                                                             |
+| ---------- | --------------------------------------------------------------------------------------------------- |
+| `away`     | `true` on an online friend that is away; absent otherwise.                                          |
+| `status`   | The line an online friend chose; absent when there is none or the friend is offline.                |
+| `lastSeen` | On an offline friend only: its last sync, rounded down to the hour (`lastSeenOf`), never any finer. |
+
+**Validation**, all in `FriendsStore.parseSync` before anything is read or written, so a refused body changes
+nothing: `passive` and `away` must be booleans; `status` must be a string of at most `MAX_STATUS_INPUT` (160) UTF-16
+units that, once tidied by `cleanStatus`, is at most 40 characters; `passive: true` with a `room` is a contradiction.
+Anything else is `400 Invalid presence`, as for the older fields. `cleanStatus` turns every run of whitespace into
+one space, drops control, format (bidi overrides, zero-width), lone-surrogate, private-use and unassigned
+characters and trims the ends. It does not escape markup: a status is plain text and a client must render it as text
+(`textContent`), as it does names.
+
+**Passive polls and the room claim.** A passive poll carries the stored room claim forward instead of clearing it, so
+the desktop and an embedded game do not overwrite each other every 20 seconds. The carried claim is re-proven on the
+same schedule as an active one (when the record is due its rewrite), against the same incarnation, so a passive
+poll cannot keep a dead room alive any longer than an active one would; when the proof fails the claim is dropped
+rather than refused, because the passive page is not the one that can act on a 403. A game page that leaves still
+sends its unload sync without a room, which is an active poll and clears the claim at once. A passive poll is not
+answered with `roomPlayers` (they are for the page in the room), which also saves it the room query.
+
+**Away with two pages.** There is one record per account and no per-page state, so the rule is by kind of poll:
+
+- An active poll that leaves `away` out means "not away". That is every client from before the field, and it heals
+  an `away` left behind by a page that closed.
+- A passive poll that leaves it out keeps what is stored, and while the account holds a room claim a passive
+  poll's `away` is ignored: the page in the room speaks for the player, and an idle desktop behind a running game
+  must not make the player look away.
+- Coming back (`away: false`) is recorded at once. Going away is recorded with the record's next periodic rewrite,
+  so up to a minute late, which costs nothing against a five-minute idle rule and means two pages that disagree
+  cannot cost a write per poll.
+
+**Cost.** No new route, collection or index: the presence document gains two optional fields (`away`, stored only
+while true, and `status`). The rewrite rule is unchanged, and with two pages on one account it is still one
+write a minute, whichever page's poll it falls to. Going away adds no write, coming back adds one, a status change
+adds one, all under the existing 400 syncs an hour. Documents written before the fields existed read as "not away,
+no status" (`storedPresence`, shared by the Firestore adapter and tested against what the in-memory database
+holds); nothing is migrated.
+
+**Privacy.** `status` is text a player chose to show friends, and only friends get it. `lastSeen` is coarsened to the
+hour so the list is not a tracking signal, and is absent for an account that has never synced. None of the three
+reaches analytics, and neither do names, public ids or room codes (`docs/ANALYTICS.md`).
+
+**Client.** `createFriendsClient` takes `passive: true` and `presence: () => ({ away, status })`. A passive client
+never sends a room, even if handed one; a client given neither sends the body it always sent.
 
 ## Requests
 

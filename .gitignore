@@ -3,5 +3,7 @@ dist/
 .env
 artifacts/
 coverage/
+# Sessions a ?debugtiming page wrote through the local dev server (service/timing-log.ts).
+timing-logs/
 
 firebase-debug.log

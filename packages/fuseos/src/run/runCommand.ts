@@ -128,6 +128,7 @@ const RUN_SUGGESTED_APPS = [
   "network",
   "halloffame",
   "taskmanager",
+  "defrag",
   "recyclebin",
   "control",
   "bsod",

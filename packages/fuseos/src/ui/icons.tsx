@@ -4,12 +4,15 @@ import { ComputerFind } from "@react95/icons/ComputerFind";
 import { Conf100 } from "@react95/icons/Conf100";
 import { CurvesAndColors100 } from "@react95/icons/CurvesAndColors100";
 import { Desk100 } from "@react95/icons/Desk100";
+import { Desktop } from "@react95/icons/Desktop";
 import { Dialmon200 } from "@react95/icons/Dialmon200";
 import { FileText } from "@react95/icons/FileText";
 import { Folder } from "@react95/icons/Folder";
 import { FolderExe } from "@react95/icons/FolderExe";
 import { FolderFile } from "@react95/icons/FolderFile";
 import { FolderOpen } from "@react95/icons/FolderOpen";
+import { FolderPrint } from "@react95/icons/FolderPrint";
+import { FolderSettings } from "@react95/icons/FolderSettings";
 import { HelpBook } from "@react95/icons/HelpBook";
 import { InfoBubble } from "@react95/icons/InfoBubble";
 import { Jgdwmie101 } from "@react95/icons/Jgdwmie101";
@@ -34,6 +37,8 @@ import { Shell323 } from "@react95/icons/Shell323";
 import { Shell326 } from "@react95/icons/Shell326";
 import { Shell328 } from "@react95/icons/Shell328";
 import { Shell3225 } from "@react95/icons/Shell3225";
+import { Shell3234 } from "@react95/icons/Shell3234";
+import { Shell3237 } from "@react95/icons/Shell3237";
 import { Shell3242 } from "@react95/icons/Shell3242";
 import { Sol1 } from "@react95/icons/Sol1";
 import { Taskman100 } from "@react95/icons/Taskman100";
@@ -45,6 +50,7 @@ import { Winmine1 } from "@react95/icons/Winmine1";
 import type { ComponentType, SVGProps } from "react";
 
 import { WinampLogo } from "../assets/WinampLogo";
+import { DefragIcon } from "../defrag/DefragIcon";
 import { FusteamLogo } from "../launcher/FusteamLogo";
 import { TrophyIcon } from "../halloffame/TrophyIcon";
 
@@ -101,7 +107,13 @@ export type IconName =
   | "messenger"
   | "taskmanager"
   | "sounds"
-  | "dialup";
+  | "dialup"
+  | "defrag"
+  | "desktop"
+  | "printers"
+  | "controlPanelFolder"
+  | "dialUp"
+  | "scheduledTasks";
 
 type IconVariant = "32x32_4" | "16x16_4";
 type IconProps = Omit<SVGProps<SVGSVGElement>, "ref">;
@@ -174,6 +186,12 @@ const ICONS: Record<IconName, IconComponent> = {
   taskmanager: fixed(Taskman100, "32x32_4"),
   sounds: Mmsys110,
   dialup: fixed(Dialmon200, "32x32_4"),
+  defrag: DefragIcon,
+  desktop: Desktop,
+  printers: FolderPrint,
+  controlPanelFolder: FolderSettings,
+  dialUp: Shell3234,
+  scheduledTasks: Shell3237,
 };
 
 export type Win98IconProps = {

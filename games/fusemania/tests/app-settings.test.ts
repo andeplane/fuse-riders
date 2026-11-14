@@ -4,6 +4,7 @@ import { parseHTML } from "linkedom";
 import { createGameAudio, type OscillatorLike } from "fuse-ui/game-audio";
 import { createAudioRig } from "fuse-ui/game-audio-fake";
 import {
+  MAX_AUDIO_MS,
   MAX_KEYS,
   MAX_OFFSET_MS,
   MAX_SPEED,
@@ -22,6 +23,7 @@ import {
   INTERRUPTED,
   SOUND_LOCKED,
   SOUND_OFF,
+  audioText,
   calibrationText,
   createSettingsPanel,
   offsetText,
@@ -179,9 +181,9 @@ function harness(setup: Setup = {}) {
       input.value = String(value);
       fire(input, "input");
     },
-    range: (key: "offsetMs" | "visualMs") =>
+    range: (key: "offsetMs" | "visualMs" | "audioMs") =>
       one<HTMLInputElement>(`[data-offset="${key}"] input`),
-    value: (key: "offsetMs" | "visualMs") =>
+    value: (key: "offsetMs" | "visualMs" | "audioMs") =>
       one(`[data-offset="${key}"] .fm-settings-value`).textContent,
     note: () => one(".fm-settings-calibration .fm-settings-note").textContent,
     result: () => one(".fm-settings-result").textContent ?? "",
@@ -248,7 +250,7 @@ test("the panel shows the keys, the scroll and the offsets as they are, with nam
 
   // Every slider is a range with a label of its own, and every button has a name.
   const ranges = [...h.panel.element.querySelectorAll("input")];
-  assert.equal(ranges.length, 3);
+  assert.equal(ranges.length, 4);
   for (const range of ranges) {
     assert.equal(range.type, "range");
     const label = h.panel.element.querySelector(`label[for="${range.id}"]`);
@@ -259,7 +261,7 @@ test("the panel shows the keys, the scroll and the offsets as they are, with nam
     [...h.panel.element.querySelectorAll("label")].map(
       (label) => label.textContent,
     ),
-    ["SPEED", "INPUT OFFSET", "VISUAL OFFSET"],
+    ["SPEED", "INPUT OFFSET", "AUDIO OFFSET", "VISUAL OFFSET"],
   );
   const speed = h.one<HTMLInputElement>("input");
   assert.deepEqual(
@@ -278,6 +280,11 @@ test("the panel shows the keys, the scroll and the offsets as they are, with nam
     ),
     [String(-MAX_VISUAL_MS), String(MAX_VISUAL_MS), "5"],
   );
+  assert.deepEqual(
+    ["min", "max", "step"].map((name) => h.range("audioMs").getAttribute(name)),
+    [String(-MAX_AUDIO_MS), String(MAX_AUDIO_MS), "5"],
+  );
+  assert.equal(h.value("audioMs"), "0 ms");
   for (const button of h.panel.element.querySelectorAll("button")) {
     assert.equal(button.type, "button");
     assert.ok(
@@ -712,14 +719,23 @@ test("a calibration shows where it is, and takes taps on the pad as well", () =>
   assert.equal(h.panel.busy, false);
 });
 
-test("a very late tapper is measured and applied as found", () => {
+test("a very late tapper is hearing the sound late: the lag goes to the audio offset", () => {
   const h = harness();
   // Later than 240 ms a tap is nearer the click after, so this is about the largest offset a run can find.
   tapAlong(h, () => 230);
   assert.equal(h.result(), "You tap 230 ms late (±0 ms)");
   h.named("APPLY").click();
-  assert.equal(h.prefs.offsetMs, 230);
-  assert.ok(h.prefs.offsetMs <= MAX_OFFSET_MS);
+  // No keyboard is 230 ms late, and the room would pull presses stamped that far back to its tick.
+  assert.equal(h.prefs.audioMs, 230);
+  assert.equal(h.prefs.offsetMs, 0);
+  assert.equal(h.value("audioMs"), audioText(230));
+
+  // With the audio offset in use the same sound is heard on time: what is left is the player's own.
+  tapAlong(h, () => 230 + 14);
+  assert.equal(h.result(), "You tap 14 ms late (±0 ms)");
+  h.named("APPLY").click();
+  assert.equal(h.prefs.audioMs, 230);
+  assert.equal(h.prefs.offsetMs, 14);
 });
 
 test("an inconsistent tapper is refused, and RETRY runs it again", () => {

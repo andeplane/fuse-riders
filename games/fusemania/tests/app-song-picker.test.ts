@@ -62,7 +62,10 @@ const state = (over: Partial<PickerState> = {}): PickerState => ({
 
 function setup(
   songs: readonly SongInfo[] = THREE,
-  extra: Pick<SongPickerOptions, "best" | "hideMode" | "cover" | "packs"> = {},
+  extra: Pick<
+    SongPickerOptions,
+    "best" | "hideMode" | "cover" | "packs" | "tools"
+  > = {},
 ) {
   const { document, window } = parseHTML(
     "<!doctype html><html><body></body></html>",
@@ -836,4 +839,26 @@ test("with no songs it says so and ignores everything", () => {
     assert.equal(f.picker.key(code), false);
   assert.equal(f.picker.element.textContent, "No songs loaded");
   assert.deepEqual(f.calls, []);
+});
+
+test("the picker's tools (RANDOM SONG) sit at the top of the carousel, before the covers and never under the levels", () => {
+  const { document } = parseHTML("<!doctype html><html><body></body></html>");
+  const random = (document as unknown as Document).createElement("button");
+  random.textContent = "RANDOM SONG";
+  const f = setup(THREE, { tools: [random] });
+  f.picker.update(state());
+  const wheel = f.one(".fm-picker-wheel"),
+    tools = f.one(".fm-picker-tools");
+  assert.equal(tools.hidden, false);
+  assert.equal(tools.contains(random), true);
+  assert.equal(wheel.contains(random), true);
+  assert.equal(f.one(".fm-picker-detail").contains(random), false);
+  // Document order: the tools, then the covers, then the levels.
+  const order = f.all(".fm-picker-tools, .fm-picker-list, .fm-picker-charts");
+  assert.deepEqual(
+    order.map((node) => node.className),
+    ["fm-picker-tools", "fm-picker-list", "fm-picker-charts"],
+  );
+  // No tools, no empty strip.
+  assert.equal(setup().one(".fm-picker-tools").hidden, true);
 });

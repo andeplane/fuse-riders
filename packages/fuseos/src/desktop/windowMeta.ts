@@ -1,4 +1,5 @@
-import { formatAddress, MY_COMPUTER } from "../disk/diskPath";
+import { defragWindowMeta } from "../defrag/defragWindowContent";
+import { explorerTitle } from "../explorer/shellNamespace";
 import type { FuseGameRegistry } from "../fusegames/registry";
 import {
   LAUNCHER_TITLE,
@@ -152,11 +153,8 @@ export function windowMeta(
       };
     case "explorer":
       return {
-        title:
-          window.location === MY_COMPUTER
-            ? "My Computer"
-            : `Exploring - ${formatAddress(window.location)}`,
-        icon: window.location === MY_COMPUTER ? "computer" : "explorer",
+        title: explorerTitle(window.location),
+        icon: "explorer",
         resizable: true,
         size: EXPLORER_WINDOW_SIZE,
       };
@@ -170,6 +168,8 @@ export function windowMeta(
         size: NOTEPADPP_WINDOW_SIZE,
       };
     }
+    case "defrag":
+      return { ...defragWindowMeta(window), icon: "defrag", resizable: false };
     case "launcher":
       return {
         title: LAUNCHER_TITLE,

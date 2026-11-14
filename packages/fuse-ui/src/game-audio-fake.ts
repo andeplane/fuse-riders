@@ -211,6 +211,8 @@ export interface FakeAudioClock extends AudioClock {
   /** What `latency()` returns. */
   lag: number;
   running: boolean;
+  /** What `output()` returns: the browser's own pairing of the two clocks, undefined where it has none. */
+  pair: { contextTime: number; performanceTime: number } | undefined;
 }
 export function createFakeAudioClock(
   start: { time?: number; lag?: number; running?: boolean } = {},
@@ -219,8 +221,10 @@ export function createFakeAudioClock(
     time: start.time ?? 0,
     lag: start.lag ?? 0,
     running: start.running ?? true,
+    pair: undefined,
     now: () => clock.time,
     latency: () => clock.lag,
+    output: () => clock.pair,
   };
   return clock;
 }

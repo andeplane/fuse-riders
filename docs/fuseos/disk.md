@@ -43,16 +43,43 @@ back.
 
 ## Explorer
 
-`src/explorer/`: a Folders tree (My Computer, the drives, folders expand lazily from the manifest),
-Details and Large Icons views, a sortable Details header (Name, Size, Type, Modified; folders stay
-above files), an address bar that accepts `C:\packages\fuseos` or `c:/packages/fuseos`, Back,
-Forward and Up, and the keyboard shortcuts registered in `src/lib/shortcuts.ts` (arrows, Enter,
-Backspace, Escape, Shift+F10). Every file on C: shows the commit's date as its modified time. A
-file with a saved copy in the browser carries a blue `*` after its name ("Saved copy on this
-computer"); the context menu and File menu offer **Revert to original**.
+`src/explorer/` is Windows 98's "Exploring" window, measured from a 640x480 screenshot of the real
+one (`explorer.css` holds the sizes): a rebar of three bands (the menu bar with the logo that moves
+while a drive is read, the Standard Buttons, the Address combo box), an **All Folders** pane with a
+16px-row tree and dotted lines, the listing, and a status bar of three panels (objects, size, where
+the listing comes from).
+
+- **Tree.** Desktop at the root, My Computer under it, then the drives; a folder gets a box only
+  when it has folders inside, and the tree opens down to the folder being shown.
+- **Views.** Large Icons, Small Icons, List (the one it opens in) and Details, from View, the pane's
+  context menu or the Views button, which steps to the next view. Details has a sortable header
+  (Name, Size, Type, Modified; folders stay above files).
+- **Buttons.** Back and Forward (each with a drop-down of the places it would go), Up, Delete,
+  Properties and Views work. Cut, Copy, Paste and Undo are always grey: the disk is read only.
+  Delete on a file with a saved copy reverts it; on anything else it is "Access is denied".
+  The pictures are pixel grids in `pixelIcons.ts`, grey until the pointer is over them.
+- **Address.** Accepts `C:\packages\fuseos`, `c:/packages/fuseos`, `My Computer` or `Desktop`; its
+  drop-down lists the way down to this folder and the other drives.
+- **Keyboard.** The shortcuts registered in `src/lib/shortcuts.ts`: arrows, Enter, Backspace,
+  Escape, Shift+F10 and Alt+Enter for Properties.
+
+Every file on C: shows the commit's date as its modified time. A file with a saved copy in the
+browser carries a blue `*` after its name ("Saved copy on this computer"); the context menu and File
+menu offer **Revert to original**.
 
 Locations are strings so a window survives a reload: `""` is My Computer, `"C:"` a drive root,
 `"C:/packages/fuseos"` a folder, `"A:/porn"` the floppy's folder (`src/disk/diskPath.ts`).
+`"shell:desktop"` is the Desktop, and `src/explorer/shellNamespace.ts` owns everything above the
+drives.
+
+### System folders
+
+Printers, Control Panel, Dial-Up Networking and Scheduled Tasks list under My Computer as Windows
+has them. They are programs, not places: Control Panel opens the Control Panel, the others say why
+there is nothing to open. **Network Neighborhood** and the **Recycle Bin** appear on the Desktop
+only when their program is installed. Explorer finds them by the id of a Start menu registration
+(`network-neighborhood` or `network`, `recycle-bin` or `recyclebin`, see `OPTIONAL_FOLDERS`) and
+calls that registration's `open`, so it never imports the program itself.
 
 ## The floppy (A:)
 

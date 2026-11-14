@@ -1,20 +1,10 @@
 import type { KeyboardEvent } from "react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useMemo, useRef, useState } from "react";
 
+import { StartMenuRegistryContext } from "../desktop/startMenuRegistry";
 import type { DiskEntry } from "../disk/diskEntries";
-import {
-  listEntries,
-  locationExists,
-  SYSTEM32_LOCATION,
-} from "../disk/diskEntries";
-import {
-  driveOf,
-  formatAddress,
-  MY_COMPUTER,
-  nameOf,
-  parentOf,
-  parseAddress,
-} from "../disk/diskPath";
+import { SYSTEM32_LOCATION } from "../disk/diskEntries";
+import { driveOf, MY_COMPUTER, nameOf } from "../disk/diskPath";
 import { formatSize } from "../disk/fileTypes";
 import { ACCESS_DENIED_MESSAGE, WINZIP_ERROR_MESSAGE } from "../disk/floppy";
 import { useDiskDeps, useDiskManifest, useOverlayPaths } from "../disk/useDisk";
@@ -26,12 +16,56 @@ import { useSystem32Folder } from "../system32/explorerContract";
 import type { IconName } from "../ui/icons";
 import type { MenuPosition } from "../windows/menuPosition";
 import { useWindowCommands } from "../windows/useWindowCommands";
+import { WindowManagerContext } from "../windows/windowManagerContext";
 
+import type { AddressPlace } from "./AddressBar";
 import { decideOpen } from "./openEntry";
+import {
+  explorerTitle,
+  findShellFolder,
+  isVirtualFolder,
+  listNamespace,
+  namespaceAddress,
+  namespaceAncestors,
+  namespaceExists,
+  namespaceIcon,
+  namespaceName,
+  namespaceParent,
+  parseNamespaceAddress,
+  shellFolders,
+  SYSTEM_FOLDER_TYPE,
+} from "./shellNamespace";
 import type { SortColumn, SortSpec } from "./sorting";
-import { DEFAULT_SORT, sortEntries, toggleSort } from "./sorting";
+import {
+  DEFAULT_SORT,
+  formatModified,
+  sortEntries,
+  toggleSort,
+} from "./sorting";
 
-export type ExplorerViewMode = "icons" | "details";
+export type ExplorerViewMode = "large" | "small" | "list" | "details";
+
+/** View > Large Icons, Small Icons, List, Details: the order the Views button steps through. */
+export const VIEW_MODES: readonly { mode: ExplorerViewMode; label: string }[] =
+  [
+    { mode: "large", label: "Large Icons" },
+    { mode: "small", label: "Small Icons" },
+    { mode: "list", label: "List" },
+    { mode: "details", label: "Details" },
+  ];
+
+/** The All Folders pane as Explorer first opens it: a third of a 640px screen. */
+export const DEFAULT_FOLDERS_WIDTH = 196;
+
+const NEXT_VIEW_MODE: Record<ExplorerViewMode, ExplorerViewMode> = {
+  large: "small",
+  small: "list",
+  list: "details",
+  details: "large",
+};
+
+/** One step of the Back or Forward button's drop-down. */
+export type HistoryStep = { label: string; onSelect: () => void };
 
 export type ExplorerContextMenu = {
   entry: DiskEntry | undefined;
@@ -54,14 +88,23 @@ export type ExplorerViewModel = {
   open: (entry: DiskEntry) => void;
   openAddress: (text: string) => void;
   navigate: (location: string) => void;
+  /** A click in the folder tree: go there, or run the program a system folder stands for. */
+  activate: (entry: DiskEntry) => void;
   back: () => void;
   forward: () => void;
   up: () => void;
+  /** Where Back and Forward would go, nearest first, for their drop-downs. */
+  backSteps: HistoryStep[];
+  forwardSteps: HistoryStep[];
+  /** The Address drop-down: the Desktop, My Computer, the drives and the way down to this folder. */
+  places: AddressPlace[];
   canBack: boolean;
   canForward: boolean;
   canUp: boolean;
   viewMode: ExplorerViewMode;
   setViewMode: (mode: ExplorerViewMode) => void;
+  /** The Views button itself: the next view in the list. */
+  cycleViewMode: () => void;
   sort: SortSpec;
   sortBy: (column: SortColumn) => void;
   foldersPane: boolean;
@@ -83,25 +126,42 @@ export type ExplorerViewModel = {
   winzipCancel: () => void;
   /** File > Revert to original on a modified file. */
   revert: (entry: DiskEntry) => void;
-  /** File > Delete: SYSTEM32 starts the gag's questions; everything else on these drives refuses. */
-  remove: (entry: DiskEntry) => void;
+  /** Delete: a saved copy goes back to the original; anything else is on a read-only disk. */
+  deleteEntry: (entry: DiskEntry) => void;
+  /** Properties of an entry, or of this folder when there is none. */
+  showProperties: (entry: DiskEntry | undefined) => void;
   /** Status bar fields. */
   statusText: string;
-  statusDetail: string;
+  statusSize: string;
+  statusZone: string;
+  statusZoneIcon: IconName;
   onKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
   close: () => void;
 };
 
 export const ADDRESS_NOT_FOUND_TITLE = "Explorer";
 
-export const DELETE_DENIED_TITLE = "Error Deleting File";
+export function addressNotFoundMessage(text: string): string {
+  return `Cannot find '${text}'. Make sure the path is correct and try again.`;
+}
+
+export const DELETE_ERROR_TITLE = "Error Deleting File";
 
 export function deleteDeniedMessage(name: string): string {
   return `Cannot delete ${name}: Access is denied.\n\nMake sure the disk is not full or write-protected and that the file is not currently in use.`;
 }
 
-export function addressNotFoundMessage(text: string): string {
-  return `Cannot find '${text}'. Make sure the path is correct and try again.`;
+/** The text of the Properties box: what the Details columns say about one entry. */
+export function propertiesMessage(entry: DiskEntry, address: string): string {
+  return [
+    `Type: ${entry.typeLabel}`,
+    `Location: ${address}`,
+    ...(entry.size === undefined ? [] : [`Size: ${formatSize(entry.size)}`]),
+    ...(entry.modifiedAt === undefined
+      ? []
+      : [`Modified: ${formatModified(entry.modifiedAt)}`]),
+    ...(entry.modified ? ["Attributes: Saved copy on this computer"] : []),
+  ].join("\n");
 }
 
 export function useExplorerViewModel(
@@ -114,17 +174,18 @@ export function useExplorerViewModel(
   const manifest = useDiskManifest();
   const overlayPaths = useOverlayPaths(deps.overlay);
   const openInNotepad = useOpenInNotepad();
-  const system32 = useSystem32Folder();
-  const playSystemSound = usePlaySystemSound();
+  const registrations = useContext(StartMenuRegistryContext);
+  const { viewport } = useContext(WindowManagerContext);
+  const folders = useMemo(() => shellFolders(registrations), [registrations]);
 
   const [history, setHistory] = useState<{ back: string[]; forward: string[] }>(
     { back: [], forward: [] },
   );
   const [selected, setSelected] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ExplorerViewMode>("details");
+  const [viewMode, setViewMode] = useState<ExplorerViewMode>("list");
   const [sort, setSort] = useState<SortSpec>(DEFAULT_SORT);
   const [foldersPane, setFoldersPane] = useState(true);
-  const [foldersWidth, setFoldersWidth] = useState(180);
+  const [foldersWidth, setFoldersWidth] = useState(DEFAULT_FOLDERS_WIDTH);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(
     () => new Set([MY_COMPUTER]),
   );
@@ -139,22 +200,28 @@ export function useExplorerViewModel(
   const tree = manifest.status === "ready" ? manifest.tree : undefined;
   const committedAt =
     manifest.status === "ready" ? manifest.manifest.committedAt : "";
+  // C:\WINDOWS\SYSTEM32 is listed until the delete-SYSTEM32 gag takes it away (docs/fuseos/system32.md).
+  const system32 = useSystem32Folder();
   const system32Present = system32.present;
+  const playSystemSound = usePlaySystemSound();
   const listingInputs = useMemo(
     () => ({ tree, committedAt, overlayPaths, system32Present }),
     [tree, committedAt, overlayPaths, system32Present],
   );
 
-  const entries = useMemo(
-    () => sortEntries(listEntries(location, listingInputs), sort),
-    [location, listingInputs, sort],
-  );
+  const entries = useMemo(() => {
+    const listed = listNamespace(location, listingInputs, folders);
+    // The Desktop and My Computer keep Windows' own order until a column is clicked.
+    return isVirtualFolder(location) && sort === DEFAULT_SORT
+      ? listed
+      : sortEntries(listed, sort);
+  }, [location, listingInputs, folders, sort]);
   const childrenOf = useCallback(
     (parent: string) =>
-      listEntries(parent, listingInputs).filter(
+      listNamespace(parent, listingInputs, folders).filter(
         (entry) => entry.kind !== "file",
       ),
-    [listingInputs],
+    [listingInputs, folders],
   );
 
   const setLocation = useCallback(
@@ -178,6 +245,12 @@ export function useExplorerViewModel(
         }));
       setSelected(null);
       setLocation(next);
+      // The tree opens down to the folder being shown, as Explorer's does.
+      setExpanded((current) => {
+        const above = namespaceAncestors(next).slice(0, -1);
+        if (above.every((ancestor) => current.has(ancestor))) return current;
+        return new Set([...current, ...above]);
+      });
       if (driveOf(next) === "A" && driveOf(location) !== "A") {
         // The drive spins up and seeks (Control Panel > Sounds, "Floppy drive") while the listing waits.
         playSystemSound("floppy");
@@ -186,8 +259,8 @@ export function useExplorerViewModel(
         void deps.floppySeek().finally(() => {
           if (seekToken.current === token) setSeeking(false);
         });
-      } else if (next !== MY_COMPUTER) {
-        // Any other folder or drive: one short head seek.
+      } else if (driveOf(next) !== undefined) {
+        // Any other folder or drive: one short head seek. The Desktop and My Computer are not on a disk.
         playSystemSound("seek");
       }
     },
@@ -196,32 +269,36 @@ export function useExplorerViewModel(
 
   const navigate = useCallback((next: string) => go(next, true), [go]);
 
-  const back = useCallback(() => {
-    const previous = history.back[history.back.length - 1];
-    if (previous === undefined) return;
-    setHistory({
-      back: history.back.slice(0, -1),
-      forward: [location, ...history.forward],
-    });
-    go(previous, false);
-  }, [history, location, go]);
+  /** Moves `steps` places through the history: negative is Back, positive is Forward. */
+  const travel = useCallback(
+    (steps: number) => {
+      const trail = [...history.back, location, ...history.forward];
+      const index = history.back.length + steps;
+      const target = trail[index];
+      if (target === undefined) return;
+      setHistory({
+        back: trail.slice(0, index),
+        forward: trail.slice(index + 1),
+      });
+      go(target, false);
+    },
+    [history, location, go],
+  );
+  const back = useCallback(() => travel(-1), [travel]);
+  const forward = useCallback(() => travel(1), [travel]);
 
-  const forward = useCallback(() => {
-    const [next, ...rest] = history.forward;
-    if (next === undefined) return;
-    setHistory({ back: [...history.back, location], forward: rest });
-    go(next, false);
-  }, [history, location, go]);
-
-  const parent = parentOf(location);
+  const parent = namespaceParent(location);
   const up = useCallback(() => {
     if (parent !== undefined) navigate(parent);
   }, [parent, navigate]);
 
   const openAddress = useCallback(
     (text: string) => {
-      const parsed = parseAddress(text);
-      if (parsed !== undefined && locationExists(parsed, tree, system32Present))
+      const parsed = parseNamespaceAddress(text);
+      if (
+        parsed !== undefined &&
+        namespaceExists(parsed, tree, system32Present)
+      )
         navigate(parsed);
       else
         commands.showError(
@@ -234,6 +311,11 @@ export function useExplorerViewModel(
 
   const open = useCallback(
     (entry: DiskEntry) => {
+      const shellFolder = findShellFolder(entry.location, folders);
+      if (shellFolder) {
+        shellFolder.open(commands, viewport);
+        return;
+      }
       const decision = decideOpen(entry);
       switch (decision.type) {
         case "navigate":
@@ -274,7 +356,24 @@ export function useExplorerViewModel(
           return;
       }
     },
-    [navigate, deps.jokeGate, deps.source, commands, openInNotepad],
+    [
+      navigate,
+      deps.jokeGate,
+      deps.source,
+      commands,
+      openInNotepad,
+      folders,
+      viewport,
+    ],
+  );
+
+  const activate = useCallback(
+    (entry: DiskEntry) => {
+      const shellFolder = findShellFolder(entry.location, folders);
+      if (shellFolder) shellFolder.open(commands, viewport);
+      else navigate(entry.location);
+    },
+    [folders, commands, viewport, navigate],
   );
 
   const winzipFailed = useCallback(() => {
@@ -291,36 +390,60 @@ export function useExplorerViewModel(
     [deps.overlay],
   );
 
+  const selectedEntry = entries.find((entry) => entry.location === selected);
+
   const removeSystem32 = system32.remove;
-  const remove = useCallback(
+  const deleteEntry = useCallback(
     (entry: DiskEntry) => {
-      // The gag asks its own three questions; no confirm here.
+      // The one folder that can go: the gag asks its own three questions, so nothing is asked here.
       if (entry.location === SYSTEM32_LOCATION) removeSystem32();
+      else if (entry.modified) revert(entry);
       else
-        commands.showError(
-          DELETE_DENIED_TITLE,
-          deleteDeniedMessage(entry.name),
-        );
+        commands.showError(DELETE_ERROR_TITLE, deleteDeniedMessage(entry.name));
     },
-    [removeSystem32, commands],
+    [removeSystem32, revert, commands],
   );
 
-  const selectedEntry = entries.find((entry) => entry.location === selected);
+  const showProperties = useCallback(
+    (entry: DiskEntry | undefined) => {
+      const where = namespaceAddress(location);
+      if (entry) {
+        commands.showInfo(
+          `${entry.name} Properties`,
+          propertiesMessage(entry, where),
+        );
+        return;
+      }
+      const type = isVirtualFolder(location)
+        ? SYSTEM_FOLDER_TYPE
+        : parent === MY_COMPUTER
+          ? "Drive"
+          : "File Folder";
+      commands.showInfo(
+        `${namespaceName(location)} Properties`,
+        `Type: ${type}\nLocation: ${where}\nContains: ${entries.length} object(s)`,
+      );
+    },
+    [commands, location, parent, entries.length],
+  );
 
   const onKeyDown = useCallback(
     (event: KeyboardEvent<HTMLElement>) => {
       if (matchShortcut(event, "explorer.up")) {
         event.preventDefault();
         up();
+      } else if (matchShortcut(event, "explorer.properties")) {
+        event.preventDefault();
+        showProperties(selectedEntry);
       } else if (matchShortcut(event, "explorer.open")) {
         if (selectedEntry) {
           event.preventDefault();
           open(selectedEntry);
         }
       } else if (matchShortcut(event, "explorer.delete")) {
-        if (selectedEntry && selectedEntry.kind !== "drive") {
+        if (selectedEntry) {
           event.preventDefault();
-          remove(selectedEntry);
+          deleteEntry(selectedEntry);
         }
       } else if (matchShortcut(event, "explorer.clearSelection")) {
         setSelected(null);
@@ -347,7 +470,7 @@ export function useExplorerViewModel(
         if (next) setSelected(next.location);
       }
     },
-    [up, open, remove, selectedEntry, entries, selected],
+    [up, open, showProperties, deleteEntry, selectedEntry, entries, selected],
   );
 
   const busy =
@@ -361,31 +484,55 @@ export function useExplorerViewModel(
       ? manifest.message
       : undefined;
 
-  const statusText = busy ?? `${entries.length} object(s)`;
-  const statusDetail = selectedEntry
-    ? selectedEntry.size === undefined
-      ? selectedEntry.name
-      : `${selectedEntry.name}  ${formatSize(selectedEntry.size)}`
-    : manifest.status === "ready" && location !== MY_COMPUTER
-      ? `${manifest.manifest.repo} @ ${manifest.manifest.sha.slice(0, 7)}`
-      : "";
+  const shown = busy || error ? [] : entries;
+  const statusText =
+    busy ??
+    (selectedEntry ? "1 object(s) selected" : `${shown.length} object(s)`);
+  // The middle panel: the selection's size, or the files of the folder added up.
+  const sizes = (selectedEntry ? [selectedEntry] : shown).flatMap((entry) =>
+    entry.size === undefined ? [] : [entry.size],
+  );
+  const statusSize =
+    sizes.length === 0
+      ? ""
+      : formatSize(sizes.reduce((total, size) => total + size, 0));
+  // The zone, as Windows calls it: C: is a copy of the repository at one commit, the rest is this computer.
+  const fromRepository =
+    manifest.status === "ready" && driveOf(location) === "C";
+  const statusZone = fromRepository
+    ? `${manifest.manifest.repo} @ ${manifest.manifest.sha.slice(0, 7)}`
+    : "My Computer";
+
+  const stepsFrom = (trail: readonly string[], direction: 1 | -1) =>
+    trail.map((place, index) => ({
+      label: namespaceName(place),
+      onSelect: () => travel(direction * (index + 1)),
+    }));
+  const backSteps = stepsFrom([...history.back].reverse(), -1);
+  const forwardSteps = stepsFrom(history.forward, 1);
+
+  // The way down to this folder, then the other places directly under My Computer.
+  const trail = namespaceAncestors(location);
+  const places: AddressPlace[] = [
+    ...trail,
+    ...childrenOf(MY_COMPUTER)
+      .map((entry) => entry.location)
+      .filter(
+        (place) =>
+          !trail.includes(place) &&
+          findShellFolder(place, folders) === undefined,
+      ),
+  ].map((place) => ({
+    label: namespaceName(place),
+    onSelect: () => navigate(place),
+  }));
 
   return {
     location,
-    address: formatAddress(location),
-    addressIcon:
-      location === MY_COMPUTER
-        ? "computer"
-        : driveOf(location) === "A" && parent === MY_COMPUTER
-          ? "floppy"
-          : driveOf(location) === "C" && parent === MY_COMPUTER
-            ? "drive"
-            : "folderOpen",
-    title:
-      location === MY_COMPUTER
-        ? "My Computer"
-        : `Exploring - ${formatAddress(location)}`,
-    entries: busy || error ? [] : entries,
+    address: namespaceAddress(location),
+    addressIcon: namespaceIcon(location),
+    title: explorerTitle(location),
+    entries: shown,
     busy,
     error,
     retry: manifest.retry,
@@ -394,14 +541,19 @@ export function useExplorerViewModel(
     open,
     openAddress,
     navigate,
+    activate,
     back,
     forward,
     up,
+    backSteps,
+    forwardSteps,
+    places,
     canBack: history.back.length > 0,
     canForward: history.forward.length > 0,
     canUp: parent !== undefined,
     viewMode,
     setViewMode,
+    cycleViewMode: () => setViewMode((current) => NEXT_VIEW_MODE[current]),
     sort,
     sortBy: (column) => setSort((current) => toggleSort(current, column)),
     foldersPane,
@@ -427,9 +579,12 @@ export function useExplorerViewModel(
     winzipFailed,
     winzipCancel: () => setWinzip(false),
     revert,
-    remove,
+    deleteEntry,
+    showProperties,
     statusText,
-    statusDetail,
+    statusSize,
+    statusZone,
+    statusZoneIcon: fromRepository ? "drive" : "computer",
     onKeyDown,
     close: () => commands.close(windowId),
   };

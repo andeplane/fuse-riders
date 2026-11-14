@@ -19,11 +19,13 @@ const APPS: Record<string, WindowContent> = {
   halloffame: { kind: "halloffame" },
   taskmanager: { kind: "taskmanager" },
   dialup: { kind: "dialup" },
-  explorer: { kind: "explorer", location: MY_COMPUTER },
   notepad: { kind: "notepadpp", paths: ["README.md"], activePath: "README.md" },
   // The DOS Games folder on the desktop (the Retro Games folder window).
   dosgames: { kind: "retroFolder" },
   run: { kind: "run" },
+  defrag: { kind: "defrag" },
+  mycomputer: { kind: "explorer", location: MY_COMPUTER },
+  explorer: { kind: "explorer", location: MY_COMPUTER },
 };
 
 /** The window an app name opens; undefined for a name that is not an app (a game, or nothing). */

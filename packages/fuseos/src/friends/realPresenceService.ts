@@ -77,19 +77,16 @@ export function apiUrlFor(
 }
 
 /**
- * Whether the service says this friend is away. `away` is one of the presence fields the room service adds
- * beside `online` and `room` (docs/fuseos/friends-design.md); a service without them never sends it, so the
- * field is looked for rather than assumed, and the buddy list works against either.
+ * The four desktop states from what the view says: in a room is playing; away when the service says the friend
+ * has not touched its page for a while. `away` is one of the presence fields the service gained after the buddy
+ * list was written and an older one never sends it, so its absence simply reads as online. The request-side
+ * fields (`passive`, the caller's own `away` and `status`) are not sent: a service from before them refuses
+ * a body with keys it does not know, and the list must work against either.
  */
-function reportsAway(friend: object): boolean {
-  return "away" in friend && friend.away === true;
-}
-
-/** The four desktop states from what the view says: in a room is playing, away only when the service reports it. */
 export function buddyFrom(friend: FriendsView["friends"][number]): Buddy {
   const present = friend.room
     ? "playing"
-    : reportsAway(friend)
+    : friend.away === true
       ? "away"
       : "online";
   return {

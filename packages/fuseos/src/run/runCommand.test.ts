@@ -67,6 +67,10 @@ describe(resolveRunCommand.name, () => {
       type: "open",
       content: { kind: "retroFolder" },
     });
+    expect(opened("defrag.exe")).toEqual({
+      type: "open",
+      content: { kind: "defrag" },
+    });
     expect(opened("icq")).toEqual({
       type: "open",
       content: { kind: "friends" },

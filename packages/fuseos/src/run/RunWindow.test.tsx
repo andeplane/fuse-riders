@@ -139,7 +139,7 @@ describe("RunWindow", () => {
     await third.user.click(screen.getByRole("button", { name: "Browse..." }));
     expect(third.dialog()).toBeNull();
     expect(
-      screen.getByRole("dialog", { name: "My Computer" }),
+      screen.getByRole("dialog", { name: "Exploring - My Computer" }),
     ).toBeInTheDocument();
   });
 });
