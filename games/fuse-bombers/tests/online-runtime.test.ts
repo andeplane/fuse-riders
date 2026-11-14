@@ -412,3 +412,27 @@ test("a seat that was away has the directions it still holds logged again once i
   );
   assert.equal(room(runtime).held.host, LEFT);
 });
+
+test("what the screen plays forward from has this device's controls the moment they are made", () => {
+  const { bench, runtime } = solo();
+  assert.equal(runtime.ahead()?.ticks[0]?.length, 0, "the countdown");
+  bench.run(4_500);
+  const before = runtime.ahead()!;
+  assert.equal(before.tick, room(runtime).tick);
+  assert.equal(before.world, room(runtime).world);
+  assert.equal(before.ticks[0]![0]![0], 0);
+  // Held left and a fire press, with no fold in between: both are in the next tick's bits, the press on its step.
+  runtime.input(LEFT);
+  assert.ok(runtime.fire());
+  const after = runtime.ahead()!;
+  assert.equal(after.tick, before.tick, "nothing was folded");
+  const pressed = runtime.presses().at(-1)!;
+  assert.deepEqual(
+    after.ticks[pressed[1] - after.tick - 1]!.map((step) => step[0]),
+    [0, 1, 2].map((step) => LEFT | (step === pressed[6] ? FIRE : 0)),
+  );
+  assert.notDeepEqual(after.next[0], before.next[0]);
+  // The fold then runs on exactly those bits: the mark of the folded tick is the one that was ahead.
+  bench.run(50);
+  assert.deepEqual(runtime.ahead()!.folded, after.next[0]);
+});
