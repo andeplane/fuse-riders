@@ -17,14 +17,14 @@ import * as online from "../src/online/game.js";
  * games/killer-fuse/tests/online-golden.test.ts` prints them to paste); a failure without one is a regression to fix.
  */
 const GOLDEN = {
-  rules: "killer-fuse-1",
-  end: "over at 2794: map 3 1:military@2013, map 1 0:military@1580, map 2 0:military@3110 \u2192 0, presses 957",
+  rules: "killer-fuse-2",
+  end: "over at 2450: map 3 0:military@3686, map 1 0:military@2643 \u2192 0, presses 839",
   hashes: [
-    "9a99be99e47b12dd",
-    "f90881558a3ac27b",
-    "ca9f4dd7897b56d6",
-    "be9917747625f6ef",
-    "4e20603be05679d2",
+    "0b83c52567efb960",
+    "c7b8c3cbcda0dd9f",
+    "28de9682c299e296",
+    "49a71d878108a3a7",
+    "aaad9447756aa4e5",
   ],
 };
 

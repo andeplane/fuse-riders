@@ -4,7 +4,7 @@ export * from "./types.js";
 export * from "./maps.js";
 export { NEUTRAL, halfOf, heightOf, moveUnit } from "./motion.js";
 export { createRound } from "./round.js";
-export { stepRound } from "./step.js";
+export { stepRound, timedOut } from "./step.js";
 export {
   BOT_LEVELS,
   BOT_LEVEL_ORDER,

@@ -10,7 +10,7 @@ export const S = 1024;
 export const TICK_HZ = 60;
 export const MAX_PLAYERS = 6;
 /** Bump on any behaviour change: peers on different rules refuse each other. */
-export const RULES = "killer-fuse-1";
+export const RULES = "killer-fuse-2";
 
 const px = (value: number): number => Math.round(value * S);
 const perSecond = (pixels: number): number =>
@@ -67,8 +67,12 @@ export const WORKER_HALF = px(5),
 /** A Warrior keeps the Worker's box so a gate transformation can never embed it in a wall. */
 export const WARRIOR_HALF = px(5),
   WARRIOR_HEIGHT = px(12);
-export const QUEEN_HALF = px(8),
-  QUEEN_HEIGHT = px(22);
+/**
+ * The Queen's body without wings or sting: 14 by 18, half again a Worker's height as in the original, where she
+ * stands about 1.3 Workers tall.
+ */
+export const QUEEN_HALF = px(7),
+  QUEEN_HEIGHT = px(18);
 
 // --- Combat (ours unless noted) -----------------------------------------------------------------------------------
 /** Between two military units, the one whose duel line (see `duelY`) is at least this much higher at contact kills. */
@@ -87,6 +91,12 @@ export const RESPAWN_STEPS = seconds(3);
 export const RESPAWN_INVULN = seconds(1.5);
 /** Queen lives: the third death loses the game (original). */
 export const QUEEN_EGGS = 3;
+
+/**
+ * A game ends after five minutes of play (ours): the step after this many decides it by eggs left, then berries
+ * banked, then the snail's distance to each goal, then the seed's coin flip (see `decideByTime` in step.ts).
+ */
+export const TIME_LIMIT = seconds(300);
 
 // --- Berries -------------------------------------------------------------------------------------------------------
 export const BERRY_HALF = px(3),

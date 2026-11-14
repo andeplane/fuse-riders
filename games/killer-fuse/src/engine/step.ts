@@ -10,6 +10,7 @@ import { stepGates } from "./gates.js";
 import { arenaOf } from "./maps.js";
 import { NEUTRAL, moveUnit } from "./motion.js";
 import { stepSnail } from "./snail.js";
+import { TIME_LIMIT } from "./tuning.js";
 import type { Input, Round, VictoryKind } from "./types.js";
 import { firstTeam, respawnUnit } from "./units.js";
 
@@ -31,8 +32,31 @@ function checkVictory(state: Round, snailTeam: number): void {
 }
 
 /**
+ * Time is up: the team with more Queen eggs wins, then the one with more berries banked, then the one the snail is
+ * closer to carrying home, and a dead heat goes to the step's coin flip. The victory's kind names what decided it
+ * (a coin flip counts as "snail"), so the state keeps its shape; `timeUp` in the view tells it from a real victory.
+ */
+function decideByTime(state: Round): void {
+  const [left, right] = arenaOf(state.mapId).snail.goals;
+  const banked = state.holes.map((holes) => holes.filter(Boolean).length);
+  const scores: [VictoryKind, number][] = [
+    ["military", state.eggs[0]! - state.eggs[1]!],
+    ["economy", banked[0]! - banked[1]!],
+    ["snail", right - state.snail.x - (state.snail.x - left)],
+  ];
+  for (const [kind, lead] of scores)
+    if (lead !== 0) return win(state, lead > 0 ? 0 : 1, kind);
+  win(state, firstTeam(state), "snail");
+}
+
+/** True once the round was decided by the clock rather than by a victory. */
+export const timedOut = (state: Round): boolean =>
+  state.winner !== null && state.step > TIME_LIMIT;
+
+/**
  * Advances `state` by one step in place and returns it. `inputs[slot]` is read for the slots people play; bots make
- * their own. A missing input is neutral. After a victory the state no longer changes.
+ * their own. A missing input is neutral. After a victory, or once TIME_LIMIT steps are played and the clock has
+ * decided, the state no longer changes.
  */
 export function stepRound(state: Round, inputs: readonly Input[]): Round {
   if (state.winner) {
@@ -41,6 +65,11 @@ export function stepRound(state: Round, inputs: readonly Input[]): Round {
   }
   state.events = [];
   state.step += 1;
+  // The step after the last one of play only decides: a victory on the last step itself still counts as one.
+  if (state.step > TIME_LIMIT) {
+    decideByTime(state);
+    return state;
+  }
   const arena = arenaOf(state.mapId);
   const applied: Input[] = state.units.map((unit) =>
     state.humans[unit.slot]

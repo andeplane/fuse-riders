@@ -3,6 +3,7 @@
  * feeds back into the simulation, so these numbers may be fractions; the state itself stays integer subpixels.
  */
 import { MAPS, type GateKind, type MapDef } from "./maps.js";
+import { timedOut } from "./step.js";
 import {
   EAT_STEPS,
   GATE_STEPS,
@@ -10,6 +11,8 @@ import {
   S,
   SPEED_DEN,
   SPEED_NUM,
+  TICK_HZ,
+  TIME_LIMIT,
 } from "./tuning.js";
 import type { GameEvent, Round, UnitKind, VictoryKind } from "./types.js";
 
@@ -69,6 +72,10 @@ export interface RoundView {
   eggs: number[];
   berries: number[];
   winner: { team: number; kind: VictoryKind } | null;
+  /** Whole seconds of play left before the clock decides the game, counting down from 300 to 0. */
+  timeLeft: number;
+  /** The clock decided: `winner.kind` then names what broke the tie (eggs, berries, snail) rather than a victory. */
+  timeUp: boolean;
   events: GameEvent[];
 }
 
@@ -136,6 +143,8 @@ export function viewOf(state: Round): RoundView {
     eggs: [...state.eggs],
     berries: state.holes.map((holes) => holes.filter(Boolean).length),
     winner: state.winner,
+    timeLeft: Math.ceil(Math.max(0, TIME_LIMIT - state.step) / TICK_HZ),
+    timeUp: timedOut(state),
     events: state.events,
   };
 }

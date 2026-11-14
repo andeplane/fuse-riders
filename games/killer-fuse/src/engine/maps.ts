@@ -139,7 +139,7 @@ const TWIN_HIVES = mirrored({
     ledge(160, 170, 56),
     ledge(0, 126, 40),
     ledge(88, 126, 62),
-    ledge(124, 82, 72),
+    ledge(104, 82, 116),
   ],
   centre: [ledge(208, 214, 64), ledge(200, 126, 80)],
   holes: hive(132, 77),
@@ -155,9 +155,9 @@ const TWIN_HIVES = mirrored({
   pilesCentre: [{ x: 240, y: 214, count: 12 }],
   snail: { y: 258, start: 240, goal: 44 },
   spawns: [
-    { x: 160, y: 82 },
-    { x: 142, y: 82 },
-    { x: 178, y: 82 },
+    { x: 118, y: 82 },
+    { x: 200, y: 82 },
+    { x: 212, y: 82 },
   ],
 });
 
@@ -177,7 +177,7 @@ const SHORT_LEASH = mirrored({
     ledge(152, 170, 60),
     ledge(0, 126, 76),
     ledge(120, 126, 56),
-    ledge(40, 82, 72),
+    ledge(40, 82, 110),
   ],
   centre: [ledge(204, 214, 72), ledge(208, 126, 64)],
   holes: hive(48, 77),
@@ -189,14 +189,13 @@ const SHORT_LEASH = mirrored({
   pilesLeft: [
     { x: 108, y: 214, count: 6 },
     { x: 180, y: 170, count: 6 },
-    { x: 20, y: 126, count: 3 },
   ],
   pilesCentre: [{ x: 240, y: 214, count: 6 }],
   snail: { y: 258, start: 240, goal: 104 },
   spawns: [
-    { x: 76, y: 82 },
-    { x: 58, y: 82 },
-    { x: 94, y: 82 },
+    { x: 116, y: 82 },
+    { x: 130, y: 82 },
+    { x: 142, y: 82 },
   ],
 });
 
@@ -216,7 +215,7 @@ const OPEN_HEART = mirrored({
     ledge(128, 170, 48),
     ledge(0, 126, 32),
     ledge(72, 126, 60),
-    ledge(152, 82, 72),
+    ledge(104, 82, 120),
   ],
   centre: [ledge(216, 126, 48)],
   holes: hive(162, 77),
@@ -229,13 +228,14 @@ const OPEN_HEART = mirrored({
     { x: 138, y: 214, count: 6 },
     { x: 16, y: 126, count: 6 },
     { x: 100, y: 126, count: 3 },
+    { x: 70, y: 170, count: 3 },
   ],
   pilesCentre: [{ x: 240, y: 258, count: 6 }],
   snail: { y: 258, start: 240, goal: 24 },
   spawns: [
-    { x: 188, y: 82 },
-    { x: 170, y: 82 },
-    { x: 206, y: 82 },
+    { x: 120, y: 82 },
+    { x: 134, y: 82 },
+    { x: 146, y: 82 },
   ],
 });
 

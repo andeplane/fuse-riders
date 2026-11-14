@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   EAT_STEPS,
   GATE_STEPS,
+  HOLE_HALF,
   MAPS,
   MAP_HEIGHT,
   MAP_IDS,
@@ -12,6 +13,8 @@ import {
   WIDTH,
   arenaOf,
   createRound,
+  halfOf,
+  heightOf,
   isMapId,
   stepRound,
   viewOf,
@@ -33,7 +36,7 @@ import {
   platformBelow,
   workerNav,
 } from "../src/engine/nav.js";
-import { bare, stand, unitOf } from "./engine-kit.js";
+import { ALL_HUMANS, bare, stand, unitOf } from "./engine-kit.js";
 
 const mirrorX = (x: number): number => MAP_WIDTH - x;
 const samePoint = (a: Point, b: Point): boolean => a.x === b.x && a.y === b.y;
@@ -133,6 +136,39 @@ for (const id of MAP_IDS) {
         }
       }
       for (const edge of nav.edges) assert.notEqual(edge.from, edge.to);
+    }
+  });
+
+  test(`map ${id}: nobody spawns in front of a hive hole, and the Queens start far apart and stay there untouched`, () => {
+    const state = createRound({ seed: 3, mapId: id, humans: ALL_HUMANS });
+    for (const unit of state.units)
+      for (const hole of [...arena.holes[0], ...arena.holes[1]]) {
+        const beside =
+            Math.abs(unit.x - hole.x) >= halfOf(unit.kind) + HOLE_HALF,
+          clear =
+            unit.y - heightOf(unit.kind) >= hole.y + HOLE_HALF ||
+            unit.y <= hole.y - HOLE_HALF;
+        assert.ok(beside || clear, `slot ${unit.slot} covers a hole`);
+      }
+    const [cyan, pink] = state.units;
+    assert.ok(cyan && pink);
+    assert.ok(Math.abs(wrapDelta(pink.x, cyan.x)) >= 220 * S);
+    // Two seconds with nobody touching a stick: no contact of any kind, and everyone still stands on its spawn.
+    for (let i = 0; i < 120; i += 1) {
+      stepRound(state, []);
+      assert.deepEqual(state.events, []);
+    }
+    state.units.forEach((unit, slot) => {
+      assert.equal(unit.x, arena.spawns[slot]?.x);
+      assert.equal(unit.y, arena.spawns[slot]?.y);
+    });
+    // Bots at their most aggressive need deliberate flight to meet: no Queen dies in the first second and a half.
+    for (let seed = 1; seed <= 12; seed += 1) {
+      const game = createRound({ seed, mapId: id, botLevel: "hard" });
+      for (let i = 0; i < 90; i += 1) {
+        stepRound(game, []);
+        assert.ok(!game.events.some((event) => event.type === "queenKill"));
+      }
     }
   });
 

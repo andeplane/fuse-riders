@@ -204,10 +204,10 @@ test("a Queen's tall body gives her no height: level on the same ledge they boun
   const warrior = stand(state, 2, 240, FLOOR, { kind: "warrior" });
   queen.facing = -1;
   warrior.facing = 1;
-  assert.ok(QUEEN_HEIGHT > 2 * WARRIOR_HEIGHT - 4 * S);
+  assert.ok(QUEEN_HEIGHT >= WARRIOR_HEIGHT + HEIGHT_ADVANTAGE);
   assert.equal(duelWinner(queen, warrior), null);
   assert.equal(duelWinner(warrior, queen), null);
-  // Her head is still far above the Warrior's, and it wins all the same.
+  // Her head is still above the Warrior's, and it wins all the same.
   warrior.y -= HEIGHT_ADVANTAGE;
   assert.ok(queen.y - QUEEN_HEIGHT < warrior.y - WARRIOR_HEIGHT);
   assert.equal(duelWinner(queen, warrior), warrior);

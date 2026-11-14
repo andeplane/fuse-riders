@@ -92,7 +92,7 @@ export const BOT_LEVELS: Readonly<Record<BotLevel, LevelRules>> = {
     flapJitter: 0,
     blunder: 0,
     idleSteps: 0,
-    awareness: 38,
+    awareness: 50,
     smart: 96,
     lead: 8,
     flee: 70,
