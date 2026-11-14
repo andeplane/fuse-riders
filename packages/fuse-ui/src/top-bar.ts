@@ -1,5 +1,7 @@
 import { button, el } from "./dom.js";
 import { createDialog } from "./dialog.js";
+import { ALL_SONGS, type Song, type MusicMedia } from "fuse-music";
+import { createRadio } from "./radio.js";
 
 export interface TopBarOptions {
   element: HTMLElement;
@@ -8,6 +10,10 @@ export interface TopBarOptions {
   gameId?: string;
   /** This game's master switch: music and effects change together. */
   sound?: TopBarSound;
+  /** Omit for the full shared catalogue, pass a game's selection, or false for a custom radio UI. */
+  music?: readonly Song[] | false;
+  /** The browser media boundary; tests and embedded hosts can supply their own player surface. */
+  createMusicMedia?: () => MusicMedia;
   /** Release held gameplay input before the modal takes keyboard focus. */
   onOpenChange?: (open: boolean) => void;
 }
@@ -22,6 +28,7 @@ interface InstalledBar {
 }
 const installed = new WeakMap<HTMLElement, InstalledBar>();
 const bindings = new WeakMap<HTMLElement, () => void>();
+const radios = new WeakMap<Document, ReturnType<typeof createRadio>>();
 
 /** Shared overlay navigation. Existing game/account controls retain their handlers and game-specific data. */
 export function createTopBar(options: TopBarOptions): HTMLElement {
@@ -37,6 +44,39 @@ export function createTopBar(options: TopBarOptions): HTMLElement {
   }
   if (previous) installed.delete(root);
   const doc = root.ownerDocument;
+  const customRadio = options.music === false;
+  let radio = radios.get(doc);
+  if (
+    !radio &&
+    !customRadio &&
+    options.gameId &&
+    doc.defaultView &&
+    (options.createMusicMedia || typeof doc.defaultView.Audio === "function")
+  ) {
+    const win = doc.defaultView;
+    const preview = new URLSearchParams(win.location?.search ?? "").has("mute");
+    radio = createRadio(
+      doc,
+      import.meta.env?.BASE_URL ?? "/",
+      options.createMusicMedia ?? (() => new win.Audio()),
+      preview,
+      options.music || ALL_SONGS,
+    );
+    radios.set(doc, radio);
+    win.addEventListener("pagehide", (event) => {
+      if (!event.persisted) radio?.destroy();
+    });
+    for (const type of [
+      "pointerdown",
+      "pointerup",
+      "touchend",
+      "keydown",
+      "click",
+    ])
+      doc.addEventListener(type, () => radio?.player.unlock(), {
+        passive: true,
+      });
+  }
   const left = el("div", "", "fui-top-bar-left", doc);
   const right = el("div", "", "fui-top-bar-right", doc);
   const context = el("div", "", "fui-top-bar-context", doc);
@@ -62,6 +102,7 @@ export function createTopBar(options: TopBarOptions): HTMLElement {
   let soundControl: TopBarSound | undefined;
   let releaseSound: (() => void) | undefined;
   const renderSound = () => {
+    radio?.setMuted(Boolean(soundControl && !soundControl.enabled()));
     sound.hidden = !soundControl;
     const on = Boolean(
       soundControl && !soundControl.forcedMute && soundControl.enabled(),
@@ -150,6 +191,7 @@ export function createTopBar(options: TopBarOptions): HTMLElement {
   };
   right.append(sound, account, toggle);
   refresh(options);
+  if (radio && !customRadio) menu.body.prepend(radio.element);
   root.append(left, right, context, menu.dialog);
   // Header controls keep native keyboard activation while the match continues
   // behind them. Keyup still reaches the game so previously held keys release.

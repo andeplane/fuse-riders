@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   AUDIO_KEY,
   createGameAudio,
+  createAudioControl,
   readPrefs,
   type AudioLike,
   type BufferSourceLike,
@@ -16,6 +17,18 @@ import {
 } from "../src/game-audio.js";
 import { createAudioRig } from "../src/game-audio-fake.js";
 import { createMemoryStorage } from "../src/safe-storage.js";
+import { page } from "./dom-fixture.js";
+
+test("an effects-only bus exposes no disconnected music volume control", () => {
+  const { document } = page();
+  const rig = createAudioRig();
+  const audio = createGameAudio(rig.deps);
+  const control = createAudioControl(document, audio, { music: false });
+  const inputs = control.element.querySelectorAll("input");
+  assert.equal(inputs.length, 1);
+  assert.equal(inputs[0]?.closest("label")?.textContent?.trim(), "Effects");
+  control.destroy();
+});
 
 /** Runs a handler the way the browser would: with the element as `this` and an event. */
 function fire(el: MusicElement, which: "onended" | "onerror") {

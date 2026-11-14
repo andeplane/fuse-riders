@@ -121,10 +121,9 @@ const audio = createGameAudio(
   browserAudioDependencies(safeStorage(() => localStorage)),
   { forceMute: muted },
 );
-audio.setSongs(ELASTO_SONGS, import.meta.env.BASE_URL);
-audio.startMusic();
+// Music is supplied by the shared header; this bus owns the game effects.
 bindAudioInput(audio, document, window);
-const audioControl = createAudioControl(document, audio);
+const audioControl = createAudioControl(document, audio, { music: false });
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 /** A link within the game that keeps this page's developer flags. */
 const withFlags = (path: string) =>
@@ -212,6 +211,7 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     ...extra,
   );
   return createTopBar({
+    music: ELASTO_SONGS,
     element: bar,
     gameId: GAME,
     sound: audioControl.sound,
@@ -363,6 +363,7 @@ function room(solo: boolean): void {
     menu.element,
   ]);
   createTopBar({
+    music: ELASTO_SONGS,
     element: top,
     onOpenChange: (open) => {
       if (open) {

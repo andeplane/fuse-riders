@@ -125,7 +125,7 @@
   display: grid;
   gap: 10px;
 }
-.fui-top-bar-actions > :is(div, nav, section) {
+.fui-top-bar-actions > :is(div, nav, section):not(.fui-radio) {
   display: grid !important;
   grid-template-columns: 1fr !important;
   gap: 10px;

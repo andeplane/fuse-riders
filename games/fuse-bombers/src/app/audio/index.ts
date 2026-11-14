@@ -57,7 +57,7 @@ export function createAudio(
 ): GameAudio {
   const disabled = mutedByQuery(search);
   const director = new AudioDirector(
-    new WebAudioBackend(import.meta.env.BASE_URL),
+    new WebAudioBackend(import.meta.env.BASE_URL, true),
     disabled ? undefined : localStorageOrNone(),
     disabled,
   );

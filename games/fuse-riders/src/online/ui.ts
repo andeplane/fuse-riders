@@ -1163,6 +1163,7 @@ export async function startOnline(): Promise<void> {
   // where that is, and the sheet it opens floats over the page so the lobby keeps its height either way.
   topMenu.append(results, menu, help);
   createTopBar({
+    music: false,
     element: header,
     brand: title,
     account: roomAccount.button,

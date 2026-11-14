@@ -23,6 +23,12 @@ There is one tick driver. `driveGameTick` (`games/fuse-riders/src/engine/tick-dr
 
 ## Source ownership
 
+`packages/fuse-music` owns the shared song catalogue and lazy streaming `MusicPlayer`.
+Games choose a catalogue; every current game uses `ALL_SONGS`. The shared header
+provides default opt-in radio controls, while Riders, Ball Bros, Choppers and Hook
+Havok retain their radio presentation over the same player. Game effects remain
+separate. See [Fuse Music](../packages/fuse-music/README.md).
+
 Fuse Drivers (`games/fuse-drivers/`) owns its offroad racing simulation and fold in `src/game/`, Phaser arena and room page in `src/app/`, and stats registration in `src/platform.ts`. Its page is served at `/fuse-drivers/` and appears in the shared app portal.
 
 | Location                                                                                           | Owns                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |

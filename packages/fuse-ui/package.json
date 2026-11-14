@@ -29,12 +29,14 @@
     ".": "./src/index.ts",
     "./tokens.css": "./src/tokens.css",
     "./components.css": "./src/components.css",
-    "./portal.css": "./src/portal.css"
+    "./portal.css": "./src/portal.css",
+    "./music": "./src/music.ts"
   },
   "dependencies": {
     "firebase": "^12.19.0",
     "fuse-network-fe": "workspace:*",
     "fuse-platform": "workspace:*",
-    "mixpanel-browser": "^2.83.0"
+    "mixpanel-browser": "^2.83.0",
+    "fuse-music": "workspace:*"
   }
 }

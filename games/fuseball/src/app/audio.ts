@@ -1,4 +1,4 @@
-import type { GameAudio, Song } from "fuse-ui/game-audio";
+import type { GameAudio } from "fuse-ui/game-audio";
 import type { Cue } from "../render/effects.js";
 
 /**
@@ -9,24 +9,7 @@ export interface Sfx {
   play(cue: Cue): void;
 }
 
-/** The songs, in `public/music/fuseball/`; none is fetched until the first key or touch. */
-export const FUSEBALL_SONGS: readonly Song[] = [
-  {
-    id: "neon-kickoff",
-    title: "Neon Kickoff",
-    path: "music/fuseball/neon-kickoff.mp3",
-  },
-  {
-    id: "gadget-overdrive",
-    title: "Gadget Overdrive",
-    path: "music/fuseball/gadget-overdrive.mp3",
-  },
-  {
-    id: "sudden-death",
-    title: "Sudden Death",
-    path: "music/fuseball/sudden-death.mp3",
-  },
-];
+export { ALL_SONGS as FUSEBALL_SONGS } from "fuse-ui/music";
 
 export function createSfx(audio: GameAudio): Sfx {
   const { tone, noise } = audio;
