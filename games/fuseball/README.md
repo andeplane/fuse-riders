@@ -63,7 +63,7 @@ Room settings are exactly `{ display, mapId, seed }`, with a uint32 seed for Ran
 
 `tests/generate.test.ts` sweeps 34 seeds including both uint32 extremes, exercises rejection and cache eviction, and checks bot scoring from both slots across all four goal families. Generated layouts also have replay goldens, codec and render tests, and a lossy-mesh/late-join regression in `tests/runtime.test.ts`.
 
-Production serves Fuseball's rooms only when `fuseball` is in the `EXTRA_GAME_IDS` repository variable; until then the page offers solo.
+Production serves Fuseball's rooms, like every game registered in `service/history.ts`.
 
 ## Run it locally
 

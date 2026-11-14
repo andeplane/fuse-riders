@@ -118,8 +118,7 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
    session, landing and room lobby, then the shared TV and phone controller, a `preview/smoke.mjs` like Choppers', and
    the docs the change makes stale (in progress: registration, runtime, session, landing, room lobby, the online round
    with a joiner or reloaded page loading the room from a peer, the shared TV, phone controller and smoke are in). Cloud
-   Run serves a game beyond Fuse Riders only once the operator adds its id to `EXTRA_GAME_IDS`; that is not part of these
-   pull requests.
+   Run serves every game registered in `service/history.ts`, so its rooms open when that registration merges.
 
 ## Original design (before the overhaul)
 
