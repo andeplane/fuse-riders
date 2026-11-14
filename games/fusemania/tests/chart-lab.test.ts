@@ -230,16 +230,16 @@ const press = (
   ...held,
 });
 
-test("chart lab: the arrow keys seek 0.5 s, 2 s with shift and 5 s with option", () => {
+test("chart lab: the arrow keys seek 0.5 s, 3 s with shift and 10 s with option", () => {
   assert.equal(seekDelta(press("ArrowLeft")), -0.5);
   assert.equal(seekDelta(press("ArrowRight")), 0.5);
-  assert.equal(seekDelta(press("ArrowLeft", { shiftKey: true })), -2);
-  assert.equal(seekDelta(press("ArrowRight", { shiftKey: true })), 2);
-  assert.equal(seekDelta(press("ArrowLeft", { altKey: true })), -5);
-  assert.equal(seekDelta(press("ArrowRight", { altKey: true })), 5);
+  assert.equal(seekDelta(press("ArrowLeft", { shiftKey: true })), -3);
+  assert.equal(seekDelta(press("ArrowRight", { shiftKey: true })), 3);
+  assert.equal(seekDelta(press("ArrowLeft", { altKey: true })), -10);
+  assert.equal(seekDelta(press("ArrowRight", { altKey: true })), 10);
   assert.equal(
     seekDelta(press("ArrowLeft", { altKey: true, shiftKey: true })),
-    -5,
+    -10,
   );
 });
 

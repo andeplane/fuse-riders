@@ -137,12 +137,12 @@ const keyLegend = el(
   key("⇧"),
   key("←"),
   key("→"),
-  " 2 s",
+  " 3 s",
   el("span", { className: "lab-keys-gap" }),
   key("⌥"),
   key("←"),
   key("→"),
-  " 5 s",
+  " 10 s",
   el("span", { className: "lab-keys-gap" }),
   key("↑"),
   key("↓"),
@@ -215,7 +215,7 @@ const helpBox = el(
   el("h2", { textContent: "How to use" }),
   el("p", {
     textContent:
-      "Scroll to move through the song, ctrl/⌘ + scroll (or + and −) to zoom. Space plays and pauses at the playhead (the white line); ← and → move it back and forward by 0.5 s, 2 s with shift and 5 s with option, playing or paused. Click the ruler or the spectrogram to put it somewhere else.",
+      "Scroll to move through the song, ctrl/⌘ + scroll (or + and −) to zoom. Space plays and pauses at the playhead (the white line); ← and → move it back and forward by 0.5 s, 3 s with shift and 10 s with option (as in VLC), playing or paused. Click the ruler or the spectrogram to put it somewhere else.",
   }),
   el("p", {
     textContent:

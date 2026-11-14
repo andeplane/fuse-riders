@@ -13,11 +13,12 @@ export interface TransportKey {
 }
 
 export const SEEK_STEP = 0.5;
-export const SEEK_SHIFT = 2;
-export const SEEK_ALT = 5;
+/** VLC's "very short jump" (shift) and "short jump" (alt/option). */
+export const SEEK_SHIFT = 3;
+export const SEEK_ALT = 10;
 
 /**
- * Seconds a key press seeks: ← back and → forward by 0.5 s, 2 s with shift, 5 s with option/alt (alt wins over
+ * Seconds a key press seeks: ← back and → forward by 0.5 s, 3 s with shift, 10 s with option/alt as in VLC (alt wins over
  * shift). Undefined for any other key, and with ⌘ or ctrl held, which belong to the browser (back, forward).
  */
 export function seekDelta(event: TransportKey): number | undefined {
