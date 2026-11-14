@@ -16,6 +16,8 @@ export type WinampDeps = {
   revokeObjectURL: (url: string) => void;
   /** Subscribes to local audio playback failures (a CSP block or any other load error); returns an unsubscribe. Real browser events by default; tests inject a controllable fake. */
   subscribeMediaErrors: (onError: (info: MediaErrorInfo) => void) => () => void;
+  /** The site base the Fuse soundtrack's files are served under (Vite's `BASE_URL`: `/`, `/fuse-riders/` or `./`). */
+  base: string;
 };
 
 export const defaultWinampDeps: WinampDeps = {
@@ -23,6 +25,7 @@ export const defaultWinampDeps: WinampDeps = {
   createObjectURL: (file) => URL.createObjectURL(file),
   revokeObjectURL: (url) => URL.revokeObjectURL(url),
   subscribeMediaErrors,
+  base: import.meta.env.BASE_URL,
 };
 
 export const WinampDepsContext = createContext<WinampDeps>(defaultWinampDeps);

@@ -9,14 +9,15 @@ export type FakeWebampPlayer = WebampPlayer & {
   tracks: WebampTrack[];
   renderedInto: HTMLElement[];
   disposed: boolean;
+  /** The playlist index of the loaded track, -1 before anything loads. */
+  currentIndex: number;
 };
 
 export function createFakeWebampPlayer(): FakeWebampPlayer {
   let status: WebampStatus = "STOPPED";
-  let currentIndex = -1;
   const listeners = new Set<(track: { url: string } | null) => void>();
   const notify = () => {
-    const current = player.tracks[currentIndex];
+    const current = player.tracks[player.currentIndex];
     listeners.forEach((listener) =>
       listener(current ? { url: current.url } : null),
     );
@@ -25,15 +26,23 @@ export function createFakeWebampPlayer(): FakeWebampPlayer {
     tracks: [],
     renderedInto: [],
     disposed: false,
+    currentIndex: -1,
     async renderInto(node) {
       player.renderedInto.push(node);
     },
     appendTracks(tracks) {
       player.tracks.push(...tracks);
     },
+    setTracksToPlay(tracks) {
+      player.tracks = [...tracks];
+      player.currentIndex = tracks.length > 0 ? 0 : -1;
+      status = tracks.length > 0 ? "PLAYING" : "STOPPED";
+      notify();
+    },
     play() {
       status = "PLAYING";
-      if (currentIndex === -1 && player.tracks.length > 0) currentIndex = 0;
+      if (player.currentIndex === -1 && player.tracks.length > 0)
+        player.currentIndex = 0;
       notify();
     },
     pause() {
@@ -44,15 +53,20 @@ export function createFakeWebampPlayer(): FakeWebampPlayer {
     },
     nextTrack() {
       if (player.tracks.length === 0) return;
-      currentIndex = (currentIndex + 1) % player.tracks.length;
+      player.currentIndex = (player.currentIndex + 1) % player.tracks.length;
       status = "PLAYING";
       notify();
     },
     previousTrack() {
       if (player.tracks.length === 0) return;
-      currentIndex =
-        (currentIndex - 1 + player.tracks.length) % player.tracks.length;
+      player.currentIndex =
+        (player.currentIndex - 1 + player.tracks.length) % player.tracks.length;
       status = "PLAYING";
+      notify();
+    },
+    setCurrentTrack(index) {
+      if (index < 0 || index >= player.tracks.length) return;
+      player.currentIndex = index;
       notify();
     },
     getPlaylistTracks: () => player.tracks,
