@@ -30,7 +30,15 @@ import {
   type Steps,
 } from "../src/engine/view-kit.js";
 import { SLIDE_MS, createFeedback, rowOf } from "../src/render/feedback.js";
-import { boxX, boxY, laneOf, layoutFor } from "../src/render/layout.js";
+import {
+  boxX,
+  boxY,
+  laneOf,
+  layoutFor,
+  ownPlace,
+  type Field,
+  type Layout,
+} from "../src/render/layout.js";
 import {
   LAG_MS,
   noMods,
@@ -51,6 +59,7 @@ import {
   type DrawOptions,
   type SceneOptions,
 } from "../src/render/scene.js";
+import { PLAIN, SCRAMBLES, scrambleFor } from "../src/render/scramble.js";
 import { spriteName } from "../src/render/sprites.js";
 
 // ---- a canvas that records what is drawn on it ----
@@ -380,7 +389,17 @@ function shot(
     ...over,
   };
 }
-/** Where the scene puts a note of rider `local` alone on a laptop: the same arithmetic, asked directly. */
+/** A rider's field in a layout: on its own device the others' are beside it. */
+const fieldOf = (layout: Layout, slot: number): Field =>
+  layout.fields.find((field) => field.slot === slot) ?? layout.fields[0]!;
+/** Whether a call landed on a field, header included. */
+const on =
+  (field: Field) =>
+  (call: Call): boolean =>
+    call.x >= field.x &&
+    call.x <= field.x + field.col * COLUMNS &&
+    call.y >= field.top;
+/** Where the scene puts a note of rider `local` on a laptop: the same arithmetic, asked directly. */
 function placer(
   width = 1366,
   height = 768,
@@ -389,7 +408,7 @@ function placer(
   down = false,
   speed = 1,
 ) {
-  const field = layoutFor(width, height, riders, local, 0, 1).fields[0]!;
+  const field = fieldOf(layoutFor(width, height, riders, local, 0, 1), local);
   const lane: LaneGeometry = laneOf(field, speed, down, {
     columnWidth: 0,
     targetY: 0,
@@ -547,7 +566,7 @@ test("a tap a mine attack turned is drawn as a mine, and a star keeps it an arro
     [rider(0, { effects: [...effects, [STAR, 0, 9000, 0]] }), rider(1)],
     { seed: 12345 },
   );
-  const calm = rig().frame(starred, shot(steps, 800));
+  const calm = rig().frame(starred, shot(steps, 800)).filter(on(where.field));
   assert.equal(images(calm, "mine").length, 0);
   assert.equal(
     images(calm, "receptor").length,
@@ -589,7 +608,11 @@ test("in a battle the item notes are capsules while the hand is empty, and the p
   assert.ok(!texts(empty).some((text) => text.startsWith("PRESS")));
 
   const holding = rig().frame(battle(DRUNK), shot(steps, songMs));
-  assert.equal(images(holding, "capsule").length, 0, "hand full: plain notes");
+  assert.equal(
+    images(holding.filter(on(where.field)), "capsule").length,
+    0,
+    "hand full: plain notes",
+  );
   assert.ok(images(holding, "arrow").some(here));
   assert.ok(texts(holding).includes("PRESS SPACE"));
   assert.ok(texts(holding).includes("DRUNK"));
@@ -1141,19 +1164,21 @@ test("more than one rider: a box each on the right, ranked, with place, name, sc
   assert.deepEqual(icons(0), ["icon:1"]);
   assert.deepEqual(icons(2).sort(), ["icon:13", "icon:6"]);
   assert.deepEqual(icons(1), []);
-  // Only the local rider's field is drawn, with its place and how far behind the leader it is.
-  assert.equal(images(calls, "receptor").length, COLUMNS);
-  const field = layoutFor(1366, 768, 3, 0).fields[0]!;
-  const header = calls
-    .filter(
-      (call) =>
-        call.op === "fillText" &&
-        call.y < field.laneTop &&
-        call.y > field.top &&
-        call.x < panel.x,
-    )
-    .map((call) => call.what);
-  assert.deepEqual(header, ["2ND", "ADA", "HARD", "0412345", "-187,655"]);
+  // Every rider's field is drawn; the local rider's has its place and how far behind the leader it is.
+  assert.equal(images(calls, "receptor").length, 3 * COLUMNS);
+  const layout = layoutFor(1366, 768, 3, 0);
+  const header = (slot: number) =>
+    calls
+      .filter(
+        (call) =>
+          call.op === "fillText" &&
+          on(fieldOf(layout, slot))(call) &&
+          call.y < fieldOf(layout, slot).laneTop,
+      )
+      .map((call) => call.what);
+  assert.deepEqual(header(0), ["2ND", "ADA", "HARD", "0412345", "-187,655"]);
+  assert.deepEqual(header(1), ["1ST", "BEA", "EASY", "0600000"]);
+  assert.deepEqual(header(2), ["3RD", "CY", "HARD", "0001000"]);
 
   // Alone there is no board and no place.
   const solo = rig().frame(world([rider(0, { rating: 5 })]), shot(steps, 1000));
@@ -1402,7 +1427,7 @@ test("on a portrait phone the board is a strip of compact boxes above the field"
   );
   const layout = layoutFor(1080, 1920, 5, 0, 120, 3);
   assert.equal(layout.panel?.strip, true);
-  const field = layout.fields[0]!;
+  const field = fieldOf(layout, 0);
   for (const place of ["1ST", "2ND", "3RD", "4TH", "5TH"]) {
     const inStrip = calls.filter(
       (call) =>
@@ -1454,6 +1479,155 @@ test("the title, the song's progress, and GET READY with three, two, one before 
   assert.equal(
     bar(r.frame({ ...view, phase: "over" }, shot(steps, 25_000))),
     1366,
+  );
+});
+
+test("a rider's device shows the other riders' fields with their arrows in other columns, and its own marked out", () => {
+  // No column is drawn in its own place, the mirror is not among the shuffles, and a match keeps its shuffle.
+  for (const scramble of SCRAMBLES) {
+    assert.deepEqual([...scramble].sort(), [...PLAIN]);
+    assert.ok(scramble.every((place, column) => place !== column));
+    assert.ok(scramble.some((place, column) => place !== COLUMNS - 1 - column));
+  }
+  assert.equal(scrambleFor(12345), scrambleFor(12345));
+  assert.ok(
+    new Set([0, 1, 2, 3, 4, 5, 6, 7].map((seed) => scrambleFor(seed))).size > 4,
+  );
+  for (const seed of [Number.NaN, -1, 2 ** 40, 0.5])
+    assert.ok(SCRAMBLES.includes(scrambleFor(seed)));
+
+  // One tap in the left column for everyone; ADA holds the left key down and BEA has just hit it.
+  const steps = chart([
+    [1000, 0],
+    [3000, 3],
+  ]);
+  const seed = 5;
+  const columns = scrambleFor(seed);
+  const view = world(
+    [
+      rider(0, { down: [true, false, false, false] }),
+      rider(1, {
+        next: [1, 0, 0, 0],
+        hits: hitting([0]),
+        judged: PERFECT,
+        judgedAt: 1000,
+        combo: 9,
+        down: [true, false, false, false],
+        effects: [[DRUNK, 0, 60_000, 0]],
+      }),
+      rider(2),
+    ],
+    { seed },
+  );
+  const r = rig();
+  r.frame(world([rider(0), rider(1), rider(2)], { seed }), shot(steps, 400));
+  const calls = r.frame(view, shot(steps, 1010));
+  const layout = layoutFor(1366, 768, 3, 0);
+  const [own, bea, cy] = [0, 1, 2].map((slot) => fieldOf(layout, slot));
+  assert.deepEqual(
+    layout.fields.map((field) => field.slot),
+    [1, 0, 2],
+    "the rider's own in the middle",
+  );
+  const lane = (field: Field): LaneGeometry =>
+    laneOf(field, 1, false, {
+      columnWidth: 0,
+      targetY: 0,
+      length: 0,
+      runout: 0,
+      windowMs: 0,
+      down: false,
+    });
+  const column = (field: Field, call: Call): number =>
+    Math.floor((call.x - field.x) / field.col);
+
+  // The rider's own field: the note and the held key in the left column, as they are.
+  const mine = calls.filter(on(own!));
+  assert.deepEqual(
+    images(mine, "arrow").map((call) => column(own!, call)),
+    [0, 3],
+  );
+  assert.deepEqual(
+    images(mine, "lit")
+      .filter((call) => call.alpha === 1)
+      .map((call) => column(own!, call)),
+    [0],
+  );
+  // CY's: the same chart, the left column's note drawn in another column, on that column's own arrow.
+  const theirs = calls.filter(on(cy!));
+  const shown = images(theirs, "arrow");
+  assert.deepEqual(
+    shown.map((call) => column(cy!, call)),
+    [columns[0], columns[3]],
+  );
+  assert.notEqual(column(cy!, shown[0]!), 0, "not where it is played");
+  const at = notePlacement(noMods(), columns[0]!, -10, 1010, lane(cy!));
+  assert.ok(near(shown[0]!.x, cy!.x + at.x) && near(shown[0]!.y, at.y));
+  assert.equal(
+    shown[0]!.what,
+    images(mine, "arrow")[0]!.what.replace(/:0$/, `:${columns[0]}`),
+    "the arrow of the column it is drawn in",
+  );
+  // BEA's: what happened is all there, in the shuffled column: the burst, the word, the combo, the attack.
+  const hers = calls.filter(on(bea!));
+  const burst = images(hers, "burst");
+  assert.ok(burst.length >= 1);
+  const target = bea!.x + targetX(0, columns[0]!, lane(bea!));
+  assert.ok(burst.every((call) => near(call.x, target, 1)));
+  assert.deepEqual(
+    images(hers, "lit")
+      .filter((call) => call.alpha === 1)
+      .map((call) => column(bea!, call)),
+    [columns[0]],
+  );
+  assert.ok(texts(hers).includes("PERFECT"));
+  assert.ok(texts(hers).includes("9") && texts(hers).includes("COMBO"));
+  assert.ok(texts(hers).includes("DRUNK"));
+  // Every opponent is drawn with the one shuffle.
+  assert.deepEqual(
+    images(theirs, "receptor")
+      .map((call) => column(cy!, call))
+      .sort(),
+    [0, 1, 2, 3],
+  );
+
+  // The rider's own lanes are lit and framed in the rider's colour; the others' are not.
+  const lanes = (field: Field) =>
+    calls.filter(
+      (call) =>
+        call.op === "fillRect" &&
+        call.width === field.col * COLUMNS &&
+        call.height === field.laneBottom - field.laneTop,
+    );
+  assert.notEqual(lanes(own!)[0]!.fill, lanes(cy!)[0]!.fill);
+  assert.equal(lanes(bea!)[0]!.fill, lanes(cy!)[0]!.fill);
+  const framed = (field: Field) =>
+    calls.filter(
+      (call) =>
+        call.op === "fillRect" &&
+        call.fill === CYAN &&
+        call.width > field.col * COLUMNS &&
+        call.height < field.col,
+    ).length;
+  assert.equal(framed(own!), 2, "a line over and under the rider's lanes");
+
+  // A watcher and the shared screen see every field as it is.
+  const watched = r.frame(view, shot(steps, 1010, { local: -1 }));
+  const row = layoutFor(1366, 768, 3, -1);
+  for (const field of row.fields)
+    assert.deepEqual(
+      images(watched.filter(on(field)), "arrow").map((call) =>
+        column(field, call),
+      ),
+      field.slot === 1 ? [3] : [0, 3],
+    );
+  // Alone, a rider's field is as it always was.
+  const solo = rig().frame(world([rider(0)], { seed }), shot(steps, 400));
+  assert.equal(
+    solo.find(
+      (call) => call.op === "fillRect" && call.fill === lanes(own!)[0]!.fill,
+    ),
+    undefined,
   );
 });
 

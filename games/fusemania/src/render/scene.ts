@@ -11,17 +11,20 @@ import {
   riderTexts,
   type Frame,
 } from "./frame.js";
-import { layoutFor, type Layout } from "./layout.js";
+import { layoutFor, type Field, type Layout } from "./layout.js";
 import { BACKGROUND, CYAN, GOLD, MUTED, TEXT, WHITE } from "./palette.js";
 import type { CanvasFactory, SceneCanvas, SpriteCanvas } from "./pen.js";
+import { PLAIN, scrambleFor } from "./scramble.js";
 import { createIcons, createSprites, type SpriteSet } from "./sprites.js";
 
 export { BASE_WINDOW_MS, modsAt, notePlacement, type Mods } from "./mods.js";
 export type { CanvasFactory, Pen, SceneCanvas, SpriteCanvas } from "./pen.js";
 
 /**
- * Draws one frame of a Fusemania match on a 2D canvas: the local rider's field with the live leaderboard beside it,
- * or every rider's field in a row on a shared screen.
+ * Draws one frame of a Fusemania match on a 2D canvas. A rider's device shows its own field, lit and framed, with the
+ * other riders' beside it: their attacks, judgments and combos as they are, their arrows shuffled between the columns
+ * (`scramble.ts`) so there is nothing to read off them. A shared screen shows every rider's field as it is, in a row.
+ * The live leaderboard is beside the fields.
  *
  * It keeps no loop, timer or clock of its own. The app calls `draw` once per animation frame with the view to show
  * and the song time that is heard right now, and where every note is drawn is worked out from that song time alone,
@@ -114,6 +117,8 @@ export function createScene(canvas: SceneCanvas, options: SceneOptions): Scene {
     name: "",
     chart: "",
     local: false,
+    marked: false,
+    columns: PLAIN,
     texts: texts[0]!,
     gap: Number.NaN,
     banner: 0,
@@ -208,6 +213,10 @@ export function createScene(canvas: SceneCanvas, options: SceneOptions): Scene {
         fieldInfo.name = shot.names[slot] ?? "";
         fieldInfo.chart = shot.chartNames[slot] ?? "";
         fieldInfo.local = slot === local;
+        // On a rider's device its own field is marked out and the others' arrows are shuffled.
+        fieldInfo.marked = slot === local && plan.fields.length > 1;
+        fieldInfo.columns =
+          local < 0 || slot === local ? PLAIN : scrambleFor(view.seed);
         fieldInfo.texts = texts[slot] ?? texts[0]!;
         fieldInfo.banner = feedback.banner;
         fieldInfo.bannerAt = feedback.bannerAt;
@@ -276,8 +285,11 @@ export function createScene(canvas: SceneCanvas, options: SceneOptions): Scene {
       g.fillRect(0, bar - thick, Math.round(width * progress), thick);
 
       // Before the song: get ready, then three, two, one.
-      const first = plan.fields[0],
+      // Over the rider's own field, or across all of them on a shared screen.
+      let first: Field | undefined = plan.fields[0],
         last = plan.fields[plan.fields.length - 1];
+      if (local >= 0)
+        first = last = plan.fields.find((field) => field.slot === local);
       if (songMs < 0 && view.phase !== "over" && first && last) {
         const left = first.x,
           right = last.x + last.col * COLUMNS;
