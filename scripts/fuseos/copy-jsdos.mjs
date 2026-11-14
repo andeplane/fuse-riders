@@ -1,10 +1,12 @@
 /**
  * Copies the js-dos player and the DOSBox emulator core from node_modules into
- * public/jsdos so the DOS games run from our own origin (the Flows CSP only
- * allows scripts, workers and frames from 'self').
+ * public/fuseos/jsdos so the DOS games run from our own origin: nothing is
+ * fetched from js-dos.com or dos.zone, and the player page keeps working under
+ * any base path (`/fuse-riders/` on GitHub Pages, `./` in a static preview).
  *
  * The copied files are committed; this script keeps them in sync with the
- * installed js-dos version and runs before every build.
+ * installed js-dos version. Run it by hand through `pnpm fuseos:sync` after
+ * bumping js-dos; it is not part of the build.
  */
 import {
   copyFileSync,
@@ -16,9 +18,9 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const source = join(root, "node_modules", "js-dos");
-const target = join(root, "public", "jsdos");
+const target = join(root, "public", "fuseos", "jsdos");
 
 const PLAYER_FILES = ["js-dos.js", "js-dos.css"];
 const EMULATOR_FILES = [
@@ -30,9 +32,10 @@ const EMULATOR_FILES = [
 ];
 
 /**
- * The Flows CSP is `script-src 'self' 'wasm-unsafe-eval'`: no eval, no blob: workers.
- * js-dos evaluates the emulator script with eval and starts DOSBox from a blob worker,
- * so both are rewritten to load the same files by URL from our origin instead.
+ * js-dos evaluates the emulator script with eval and starts DOSBox from a blob: worker.
+ * Both are rewritten to load the same files by URL from our origin instead, so the
+ * player needs neither eval nor blob: workers and runs under a strict content security
+ * policy (`script-src 'self' 'wasm-unsafe-eval'`) should the host ever set one.
  */
 const EMULATOR_PATCHES = [
   {
@@ -84,5 +87,5 @@ writeFileSync(
   `js-dos ${version} (${license})\nhttps://github.com/caiiiycuk/js-dos\n`,
 );
 console.log(
-  `Copied js-dos ${version} to public/jsdos (emulator loader patched for the Flows CSP)`,
+  `Copied js-dos ${version} to public/fuseos/jsdos (emulator loader patched to avoid eval and blob: workers)`,
 );

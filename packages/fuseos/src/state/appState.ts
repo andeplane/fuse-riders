@@ -17,6 +17,11 @@ export interface RetroGameWindowContent {
   game: GameId;
 }
 
+/** Start > Programs > Games > Retro Games: a folder window listing the retro games as icons. Reused when already open. */
+export interface RetroFolderWindowContent {
+  kind: "retroFolder";
+}
+
 export interface ControlPanelWindowContent {
   kind: "controlpanel";
   applet: ControlPanelApplet;
@@ -54,6 +59,7 @@ export interface WinampWindowContent {
 export type WindowContent =
   | FuseGameWindowContent
   | RetroGameWindowContent
+  | RetroFolderWindowContent
   | ControlPanelWindowContent
   | WallpaperWindowContent
   | AboutWindowContent
@@ -210,6 +216,7 @@ function isWindowContent(
     case "wallpaper":
     case "about":
     case "winamp":
+    case "retroFolder":
       return true;
     case "dialog":
       return (
