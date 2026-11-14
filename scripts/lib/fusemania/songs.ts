@@ -93,8 +93,32 @@ export const SONGS: readonly SongSpec[] = [
   game("fuseball", "sudden-death", "Sudden Death"),
   killerFuse("match-day", "Match Day"),
   killerFuse("victory", "Victory"),
-  // DDR JAZZ MIX: packed("ddr-jazz-mix", "<file name>", "<Title>"),
-  // ITG JAZZ MIX: packed("itg-jazz-mix", "<file name>", "<Title>"),
+  // DDR JAZZ MIX: Fuse's jazzy chiptune covers.
+  packed("ddr-jazz-mix", "afronova", "Afronova (Extended Mix)"),
+  packed("ddr-jazz-mix", "afronova-radio-edit", "Afronova (Radio Edit)"),
+  packed("ddr-jazz-mix", "burning-heat", "Burning Heat"),
+  packed(
+    "ddr-jazz-mix",
+    "cant-stop-fallin-in-love",
+    "Can't Stop Fallin' in Love",
+  ),
+  packed("ddr-jazz-mix", "candy", "Candy"),
+  packed("ddr-jazz-mix", "electro-tuned", "Electro Tuned"),
+  packed("ddr-jazz-mix", "exotic-ethnic", "Exotic Ethnic"),
+  packed("ddr-jazz-mix", "paranoia-survivor-max", "Paranoia Survivor MAX"),
+  packed("ddr-jazz-mix", "rain-of-sorrow", "Rain of Sorrow (Fuse Mix)"),
+  packed(
+    "ddr-jazz-mix",
+    "rain-of-sorrow-night-mix",
+    "Rain of Sorrow (Night Mix)",
+  ),
+  packed("ddr-jazz-mix", "the-least-100sec", "The Least 100sec"),
+  packed("ddr-jazz-mix", "the-legend-of-max", "The Legend of MAX"),
+  packed("ddr-jazz-mix", "xenon", "Xenon"),
+  // ITG JAZZ MIX: Fuse's jazzy chiptune covers.
+  packed("itg-jazz-mix", "determinator", "Determinator"),
+  packed("itg-jazz-mix", "monolith", "Monolith"),
+  packed("itg-jazz-mix", "temple-of-boom", "Temple of Boom"),
 ];
 
 export const songById = (id: string): SongSpec | undefined =>
