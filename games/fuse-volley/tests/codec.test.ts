@@ -76,9 +76,10 @@ test("every out-of-range or inconsistent field is refused", () => {
     [[19, 1], 361], // left blob past the net
     [[20, 1], 439], // right blob past the net
     [[19, 2], 25599], // feet below the sand
-    [[19, 5], 5], // squash frame
-    [[19, 7], 4], // four touches standing
-    [[19, 11], 20001], // hits
+    [[19, 5], 1], // standing on an opponent
+    [[19, 6], 5], // squash frame
+    [[19, 8], 4], // four touches standing
+    [[19, 12], 20001], // hits
   ];
   for (const [path, value] of bad)
     assert.equal(tweak(path, value), undefined, `refuses ${path} = ${value}`);
@@ -116,7 +117,7 @@ test("cross-field checks: a serve hovers still, a winner is decided, a grounded 
   raw[3] = 3; // over without a winner
   assert.equal(decodeWorld(raw), undefined);
   raw = encode();
-  (raw[19] as unknown[])[7] = 2; // touches already used on a fresh serve
+  (raw[19] as unknown[])[8] = 2; // touches already used on a fresh serve
   assert.equal(decodeWorld(raw), undefined);
   raw = encode();
   (raw[20] as unknown[])[9] = 1; // in contact with a hovering serve it never touched

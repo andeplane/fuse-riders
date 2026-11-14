@@ -243,7 +243,7 @@ test("a corrupt checkpoint is refused whole, and refusing it changes nothing", (
 
 test("the game names itself, its rules and six seats, with one bot for solo (three or five for solo teams)", () => {
   assert.equal(fuseVolleyGame.id, "fuse-volley");
-  assert.equal(fuseVolleyGame.rules, "fuse-volley-5");
+  assert.equal(fuseVolleyGame.rules, "fuse-volley-6");
   assert.equal(fuseVolleyGame.seating?.capacity, 6);
   assert.equal(fuseVolleyGame.seating?.solo.bots, 1);
   assert.equal(createFuseVolleyGame(botInput, 3).seating?.solo.bots, 3);

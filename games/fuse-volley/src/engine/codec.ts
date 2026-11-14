@@ -19,7 +19,7 @@ import {
  * a whole new world or nothing; it never changes what it was given and never returns a half-checked one.
  */
 const VERSION = 1;
-const BLOB_FIELDS = 12,
+const BLOB_FIELDS = 13,
   BALL_FIELDS = 8,
   /** The world's own fields and the ball; one more for each blob after them. */
   HEAD_FIELDS = 19;
@@ -48,6 +48,7 @@ const encodeBlob = (b: Blob): unknown[] => [
   b.y,
   b.vy,
   b.air ? 1 : 0,
+  b.on,
   b.frame,
   b.dir,
   b.touches,
@@ -107,6 +108,7 @@ function decodeBlob(raw: unknown, side: Side, court: Court): Blob | undefined {
     y,
     vy,
     air,
+    on,
     frame,
     dir,
     touches,
@@ -121,8 +123,10 @@ function decodeBlob(raw: unknown, side: Side, court: Court): Blob | undefined {
     !int(y, T.BLOB_FLOOR, T.BLOB_CEILING) ||
     !int(vy, T.BLOB_MIN_VY, T.BLOB_MAX_VY) ||
     !flag(air) ||
-    // On the sand a blob stands still.
-    (air === 0 && (y !== T.BLOB_FLOOR || vy !== 0)) ||
+    !int(on, -1, T.CAPACITY - 1) ||
+    // A blob on a head is not in the air; on the sand a blob stands still.
+    (on !== -1 && air === 1) ||
+    (air === 0 && on === -1 && (y !== T.BLOB_FLOOR || vy !== 0)) ||
     !int(frame, 0, T.SQUASH_FRAMES) ||
     !int(dir, -1, 1) ||
     !int(touches, 0, T.MAX_TOUCHES) ||
@@ -139,6 +143,7 @@ function decodeBlob(raw: unknown, side: Side, court: Court): Blob | undefined {
     y,
     vy,
     air: air === 1,
+    on,
     frame,
     dir: dir as -1 | 0 | 1,
     touches,
@@ -185,6 +190,23 @@ function consistent(world: World): boolean {
         (mate) => mate.side === blob.side && mate.touches !== blob.touches,
       ),
     )
+  )
+    return false;
+  // A blob stands only on a teammate that is on court, above the sand, and not on itself.
+  if (
+    blobs.some((blob, slot) => {
+      const base = blobs[blob.on];
+      return (
+        blob.on !== -1 &&
+        (!base ||
+          blob.on === slot ||
+          base.side !== blob.side ||
+          base.on === slot ||
+          benched(world, slot) ||
+          benched(world, blob.on) ||
+          blob.y <= base.y)
+      );
+    })
   )
     return false;
   if (world.touchStep > world.step) return false;
