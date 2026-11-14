@@ -1,6 +1,7 @@
 import { END_PAD_MS } from "./rules.js";
 import { parseSimfile, type Simfile } from "./simfile.js";
 import { MINE, compileSteps, type Steps } from "./steps.js";
+import { createTiming, type Timing } from "./timing.js";
 
 /**
  * The songs a match can be played on. A library is built from simfile texts (the bundled songs, or one a player
@@ -45,6 +46,8 @@ export interface Library {
   song(id: string): SongInfo | undefined;
   /** The steps of a song's chart; a chart index past the song's hardest is its hardest. */
   steps(id: string, chart: number): Steps | undefined;
+  /** A song's tempo map, for what is drawn on the beat. */
+  timing(id: string): Timing | undefined;
 }
 
 const ORDER = ["beginner", "easy", "medium", "hard", "challenge", "edit"];
@@ -56,6 +59,7 @@ const rank = (name: string) => {
 interface Entry {
   info: SongInfo;
   steps: Steps[];
+  timing: Timing;
 }
 
 function peakOf(steps: Steps): number {
@@ -108,6 +112,7 @@ function entryOf(source: SongSource, sim: Simfile): Entry | undefined {
       endMs: Math.max(...charts.map(({ steps }) => steps.lastMs)) + END_PAD_MS,
     },
     steps: charts.map(({ steps }) => steps),
+    timing: createTiming(charts[0]!.chart.timing ?? sim.timing),
   };
 }
 
@@ -127,6 +132,7 @@ export function createLibrary(sources: readonly SongSource[]): Library {
   return {
     songs,
     song: (id) => entries.get(id)?.info,
+    timing: (id) => entries.get(id)?.timing,
     steps(id, chart) {
       const entry = entries.get(id);
       if (!entry || !Number.isInteger(chart) || chart < 0) return;

@@ -316,8 +316,14 @@ export type FusemaniaGame = RollbackGame<Room, Entry, View, never, Settings> & {
   library: Library;
 };
 
-/** The game over a library of songs: the bundled one for rooms, or one with a loaded simfile for a solo run. */
-export function createFusemaniaGame(library: Library): FusemaniaGame {
+/**
+ * The game over a library of songs: the bundled one for rooms, or one with a loaded simfile for a solo run.
+ * `soloBots` is how many AI rivals a solo run starts with.
+ */
+export function createFusemaniaGame(
+  library: Library,
+  soloBots = 0,
+): FusemaniaGame {
   /** The settings boundary, for a logged entry, a command and a checkpoint alike: exactly the fields, each checked. */
   function parseSettings(raw: unknown): Settings | undefined {
     if (!plain(raw)) return;
@@ -718,7 +724,7 @@ export function createFusemaniaGame(library: Library): FusemaniaGame {
         return `${BOT_PREFIX}${number}`;
       },
       botName: (slot) => BOT_NAMES[slot % BOT_NAMES.length]!,
-      solo: { name: "You", bots: 0 },
+      solo: { name: "You", bots: soloBots },
     },
     text: {
       ...defaultText,

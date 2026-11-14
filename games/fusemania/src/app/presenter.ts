@@ -1,5 +1,6 @@
 import {
   BATTLE_MODE,
+  CAPACITY,
   BOO,
   DROPPED,
   FULL_RATING,
@@ -84,9 +85,13 @@ export interface Model {
       slot: number;
       connected: boolean;
       you: boolean;
+      bot: boolean;
       /** The chart the seat will play: "HARD 9". */
       chart: string;
     }[];
+    /** The host may seat another AI rival, and take these seats' AI away. */
+    canAddBot: boolean;
+    removable: string[];
     showStart: boolean;
     canStart: boolean;
     editable: boolean;
@@ -256,8 +261,13 @@ export function present(
         slot: seat.slot,
         connected: seat.connected,
         you: seat.id === viewer.me,
+        bot: seat.bot,
         chart: chartLabel(library, view.settings.song, seat.chart),
       })),
+      canAddBot: viewer.host && seats.length < CAPACITY,
+      removable: viewer.host
+        ? seats.filter((seat) => seat.bot).map((seat) => seat.id)
+        : [],
       showStart: viewer.host,
       canStart: seats.length >= 1,
       editable: viewer.host,
