@@ -1,14 +1,16 @@
 /**
  * What lies over the arena and does not shake with it. The arcade original has no HUD: the eggs stand in the world
- * and the hive's holes are the score. So this is only light: the flash of a big hit, and at the end the iris that
- * closes on what decided the round, with who won written above it and how below.
+ * and the hive's holes are the score. So this is only the ending: the iris that closes on what decided the round,
+ * with who won written above it and how below.
  */
 import type { RoundView } from "../engine/index.js";
 import {
+  type Camera,
   hexHalfWidth,
   IRIS_RADIUS,
   irisCentre,
   irisRadius,
+  project,
   victoryFocus,
   victoryLines,
 } from "./hud-model.js";
@@ -19,11 +21,10 @@ import { FONTS, textWidth, type FontName } from "./font.js";
 
 export interface HudFrame {
   readonly view: RoundView;
-  readonly now: number;
-  /** Wall-clock second the round was won, or null to leave the ending to the page. */
-  readonly wonAt: number | null;
-  /** White over everything, 0 to 1. */
-  readonly flash: number;
+  /** Seconds into the ending, or null when there is none to draw: no winner yet, or the page shows its own. */
+  readonly ending: number | null;
+  /** The camera the arena under this was drawn through. */
+  readonly camera: Camera;
 }
 
 /** What the HUD needs of the scene: its text and the colours and sizes of the art. */
@@ -40,8 +41,6 @@ export interface HudArt {
   ): void;
 }
 
-/** The most a hit whitens the picture: a flash is a blink of light, never a blank frame. */
-const FLASH_ALPHA = 0.55;
 const BLACK = "#000000";
 /** Seconds after the win at which the words appear. */
 const WORDS_AT = 0.7;
@@ -52,14 +51,8 @@ export class Hud {
   constructor(private readonly art: HudArt) {}
 
   draw(ctx: Ctx, frame: HudFrame): void {
-    if (frame.flash > 0) {
-      ctx.globalAlpha = Math.min(1, frame.flash) * FLASH_ALPHA;
-      ctx.fillStyle = "#fff3d6";
-      ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
-      ctx.globalAlpha = 1;
-    }
-    if (frame.view.winner && frame.wonAt !== null)
-      this.iris(ctx, frame.view, frame.view.winner, frame.now - frame.wonAt);
+    if (frame.view.winner && frame.ending !== null && frame.ending >= 0)
+      this.iris(ctx, frame.view, frame.view.winner, frame.ending, frame.camera);
   }
 
   /** Black closes in to a hexagon round the deciding moment. */
@@ -68,9 +61,13 @@ export class Hud {
     view: RoundView,
     winner: NonNullable<RoundView["winner"]>,
     age: number,
+    camera: Camera,
   ): void {
     const radius = irisRadius(age);
-    const centre = irisCentre(victoryFocus(view, this.art.sizes));
+    // The hexagon stays on what decided the round as the camera carries that to the middle of the screen.
+    const centre = irisCentre(
+      project(victoryFocus(view, this.art.sizes), camera),
+    );
     const ramp = this.art.ramp(winner.team);
     for (let y = 0; y < VIEW_HEIGHT; y += 1) {
       const half = hexHalfWidth(radius, y - centre.y);

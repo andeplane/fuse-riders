@@ -8,32 +8,43 @@
  * (everything near an edge shows on both sides) is one more draw call here but a second set of objects there.
  */
 import type { RoundView } from "../engine/index.js";
-import { FlapClock, velocityFlaps } from "./animation.js";
+import {
+  bodyShape,
+  diveEnds,
+  FlapClock,
+  landings,
+  NO_FLIGHT,
+  velocityFlaps,
+  type FlightTrace,
+} from "./animation.js";
 import type { ArenaOptions, ArenaView, CreateArenaView } from "./api.js";
 import {
   EventLedger,
   mergePlans,
   planEvent,
   planFlap,
+  planLanding,
   type Plan,
 } from "./effects.js";
 import { Hud } from "./hud.js";
-import { dangerOf } from "./hud-model.js";
+import {
+  dangerOf,
+  endingCamera,
+  endingDelay,
+  STILL,
+  victoryFocus,
+  type Camera,
+} from "./hud-model.js";
 import { continuous, interpolateView, viewTime } from "./interpolation.js";
 import { fitView, VIEW_HEIGHT, VIEW_WIDTH, type Fit } from "./layout.js";
-import { EffectPool } from "./particles.js";
-import { INK, Scene, type SceneFrame, type TrailPoint } from "./scene.js";
-import { Shake } from "./shake.js";
+import { DIVE_STREAM, diveStream, EffectPool, Ghosts } from "./particles.js";
+import { INK, Scene, type SceneFrame } from "./scene.js";
+import { Shake, SHAKE_SECONDS } from "./shake.js";
 import { Sound } from "./sound.js";
 import { loadArt, makeCanvas, Sprites, type Ctx } from "./textures.js";
 
-interface Shown {
-  readonly view: RoundView;
-  readonly time: number;
-  readonly dy: readonly number[];
-}
-
-const TRAIL_LENGTH = 8;
+/** A running unit kicks up dust at most this often, in seconds. */
+const RUN_DUST_SECONDS = 0.35;
 
 /**
  * The page can switch the "X WINS" banner off when it shows its own result panel: either `banner: false` in the
@@ -67,19 +78,20 @@ class Arena implements ArenaView {
   private readonly flaps = new FlapClock();
   private readonly shake = new Shake();
   private readonly pool = new EffectPool();
-  private trails: TrailPoint[][] = [];
+  private readonly ghosts = new Ghosts();
   private readonly holePops = new Map<string, number>();
-  private eggLost = [-9, -9];
   private gateUsers: number[] = [];
+  /** Wall-clock second each gate last let its Warrior out, each slot last landed (and how hard) and last jumped. */
+  private gateOpened: number[] = [];
+  private landed: { at: number; strength: number }[] = [];
+  private jumped: number[] = [];
+  private runDust: number[] = [];
+  private spray = 0;
   private wonAt: number | null = null;
-  private flash = 0;
-  private freezePending = 0;
-  private freezeUntil = 0;
-  private held: Shown | null = null;
   private lastNow = 0;
   private lastStep = -1;
   private fed: RoundView | null = null;
-  private fedDy: (number | undefined)[] = [];
+  private flight: FlightTrace = NO_FLIGHT;
   private sparkle = 0;
   private destroyed = false;
 
@@ -157,19 +169,18 @@ class Arena implements ArenaView {
     const flapped = this.ledger.freshFlaps(view);
     // The page feeds one view per network tick, so most flaps happen on steps never shown: read them from the fall.
     const moved = this.fed
-      ? velocityFlaps(this.fed, view, this.fedDy)
-      : { slots: [], dy: [] };
+      ? velocityFlaps(this.fed, view, this.flight)
+      : { slots: [], trace: NO_FLIGHT };
+    // A dive that ends snaps back to beating wings.
+    if (this.fed)
+      for (const slot of diveEnds(this.fed, view)) flapped.push(slot);
+    const landed = this.fed ? landings(this.fed, view) : [];
     this.fed = view;
-    this.fedDy = moved.dy;
+    this.flight = moved.trace;
     for (const slot of moved.slots)
       if (!flapped.includes(slot) && this.flaps.since(slot, view.step) > 2)
         flapped.push(slot);
     for (const slot of flapped) this.flaps.note(slot, view.step);
-    this.trails = view.units.map((unit, slot) =>
-      [...(this.trails[slot] ?? []), { x: unit.x, y: unit.y }].slice(
-        -TRAIL_LENGTH,
-      ),
-    );
     const local = this.options.localSlot;
     const sizes = this.sprites?.sizes;
     const plans: Plan[] = sizes
@@ -177,11 +188,18 @@ class Arena implements ArenaView {
       : [];
     for (const slot of flapped) {
       const unit = view.units[slot];
-      if (unit) plans.push(planFlap(unit, local));
+      if (!unit) continue;
+      plans.push(planFlap(unit, local));
+      if (unit.kind === "worker") this.jumped[slot] = now;
+    }
+    for (const { slot, strength } of landed) {
+      const unit = view.units[slot];
+      if (!unit) continue;
+      this.landed[slot] = { at: now, strength };
+      plans.push(planLanding(unit));
     }
     for (const event of events) {
-      if (event.type === "queenKill")
-        this.eggLost[view.units[event.victim]?.team ?? 0] = now;
+      if (event.type === "gateUse") this.gateOpened[event.gate] = now;
       if (event.type === "berryDeposit" || event.type === "berryKickIn")
         this.holePops.set(`${event.team}:${event.hole}`, now);
     }
@@ -198,8 +216,6 @@ class Arena implements ArenaView {
             },
           ],
           shake: 0,
-          hitStop: 0,
-          flash: 0,
         });
       this.gateUsers[index] = gate.user;
     });
@@ -213,29 +229,67 @@ class Arena implements ArenaView {
         this.pool.add(effect, (team) => sprites.ramp(team), scene.duration);
     for (const cue of plan.sounds) this.sound.play(cue);
     if (plan.shake > 0) this.shake.add(plan.shake);
-    this.freezePending = Math.max(this.freezePending, plan.hitStop);
-    this.flash = Math.max(this.flash, plan.flash);
   }
 
   private reset(): void {
     this.pool.clear();
-    this.trails = [];
+    this.ghosts.clear();
     this.holePops.clear();
-    this.eggLost = [-9, -9];
     this.gateUsers = [];
+    this.gateOpened = [];
+    this.landed = [];
+    this.jumped = [];
+    this.runDust = [];
     this.wonAt = null;
     this.ledger.clear();
     this.fed = null;
-    this.fedDy = [];
-    this.held = null;
-    this.freezePending = 0;
-    this.freezeUntil = 0;
+    this.flight = NO_FLIGHT;
   }
 
   /** Small things that happen for as long as something is going on, not once per event. */
-  private ambient(view: RoundView, dt: number): void {
+  private ambient(view: RoundView, dt: number, now: number): void {
     const { sprites } = this;
     if (!sprites) return;
+    this.spray += dt * DIVE_STREAM.rate;
+    const specks = Math.floor(this.spray);
+    this.spray -= specks;
+    for (const unit of view.units) {
+      if (unit.dead) continue;
+      // A dive streams specks that drift up behind it.
+      if (unit.diving && specks > 0)
+        this.pool.push(
+          diveStream(
+            unit.x,
+            unit.y,
+            sprites.sizes[unit.kind],
+            specks,
+            Math.random,
+          ),
+        );
+      // Feet on the ground and moving: a little dust now and then.
+      if (
+        unit.grounded &&
+        unit.moving &&
+        !unit.riding &&
+        !unit.eaten &&
+        now - (this.runDust[unit.slot] ?? -9) >= RUN_DUST_SECONDS
+      ) {
+        this.runDust[unit.slot] = now;
+        this.pool.push([
+          {
+            x: unit.x - unit.facing * 3,
+            y: unit.y - 1,
+            vx: -unit.facing * 8,
+            vy: -10,
+            age: 0,
+            life: 0.3,
+            color: DUST,
+            size: 1,
+            gravity: 30,
+          },
+        ]);
+      }
+    }
     this.sparkle += dt * 40;
     const drops = Math.floor(this.sparkle);
     this.sparkle -= drops;
@@ -261,84 +315,80 @@ class Arena implements ArenaView {
             },
           ]);
     }
-    for (const unit of view.units) {
-      if (unit.dead || !unit.diving) continue;
-      const ramp = sprites.ramp(unit.team);
-      this.pool.push([
-        {
-          x: unit.x - 5 + Math.random() * 10,
-          y: unit.y - sprites.sizes[unit.kind],
-          vx: 0,
-          vy: -20,
-          age: 0,
-          life: 0.25,
-          color: ramp[3] ?? "#fff",
-          size: 1,
-          gravity: 0,
-        },
-      ]);
-    }
   }
 
   render(previous: RoundView, current: RoundView, alpha: number): void {
     const now = performance.now() / 1000;
     const dt = Math.min(0.1, Math.max(0, now - this.lastNow));
     this.lastNow = now;
-    const { scene, hud } = this;
-    if (!scene || !hud) {
+    const { scene, hud, sprites } = this;
+    if (!scene || !hud || !sprites) {
       this.ctx.fillStyle = INK;
       this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
       return;
     }
     this.shake.tick(dt);
     this.pool.tick(dt, scene.duration);
-    this.flash = Math.max(0, this.flash - dt * 2.8);
+    this.ghosts.tick(now);
     if (!current.winner) this.wonAt = null;
     else this.wonAt ??= now;
     this.sound.setPlaying(!current.winner);
     this.sound.tick();
 
-    // Hit-stop: the frame that shows the hit is held while effects and the shake carry on.
-    let shown = this.held;
-    if (!shown || now >= this.freezeUntil) {
-      const steps = Math.max(1, current.step - previous.step);
-      shown = {
-        view: interpolateView(previous, current, alpha),
-        time: viewTime(previous, current, alpha),
-        dy: current.units.map((unit, slot) => {
-          const before = previous.units[slot];
-          return before && continuous(before, unit)
-            ? (unit.y - before.y) / steps
-            : 0;
-        }),
-      };
-      this.held = shown;
-      if (this.freezePending > 0) {
-        this.freezeUntil = now + this.freezePending / 1000;
-        this.freezePending = 0;
-      }
-    }
-    this.ambient(shown.view, dt);
+    const steps = Math.max(1, current.step - previous.step);
+    const view = interpolateView(previous, current, alpha);
+    this.ambient(view, dt, now);
     const offset = this.shake.offset();
-    const danger = dangerOf(shown.view);
     const sceneFrame: SceneFrame = {
-      view: shown.view,
-      time: shown.time,
+      view,
+      time: viewTime(previous, current, alpha),
       now,
-      dy: shown.dy,
+      dy: current.units.map((unit, slot) => {
+        const before = previous.units[slot];
+        return before && continuous(before, unit)
+          ? (unit.y - before.y) / steps
+          : 0;
+      }),
       localSlot: this.options.localSlot,
       names: this.options.names,
       flaps: this.flaps,
       pool: this.pool,
-      trails: this.trails,
+      ghosts: this.ghosts,
+      shapes: view.units.map((unit, slot) => {
+        const landed = this.landed[slot];
+        return bodyShape(
+          unit.kind,
+          landed ? now - landed.at : -1,
+          landed?.strength ?? 0,
+          now - (this.jumped[slot] ?? -9),
+        );
+      }),
+      gateOpened: this.gateOpened,
       holePops: this.holePops,
-      danger,
+      danger: dangerOf(view),
       shakeX: offset.x,
       shakeY: offset.y,
     };
+    // The ending: unless the page shows its own, the camera closes in on what decided the round.
+    const { winner } = view;
+    const ending =
+      winner &&
+      this.wonAt !== null &&
+      this.options.banner !== false &&
+      this.host.dataset.banner !== BANNER_OFF
+        ? now - this.wonAt - endingDelay(winner, view.timeUp, SHAKE_SECONDS)
+        : null;
+    const camera =
+      ending === null
+        ? STILL
+        : endingCamera(ending, victoryFocus(view, sprites.sizes));
     scene.draw(this.world.ctx, sceneFrame);
     const low = this.low.ctx;
     const world = this.world.canvas;
+    low.imageSmoothingEnabled = false;
+    low.fillStyle = INK;
+    low.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+    look(low, camera);
     // The shaken picture: the arena wraps sideways, so the gap a sideways knock opens shows the other edge.
     for (const dx of [-VIEW_WIDTH, 0, VIEW_WIDTH])
       low.drawImage(world, offset.x + dx, offset.y);
@@ -356,19 +406,14 @@ class Arena implements ArenaView {
         VIEW_WIDTH,
         -offset.y,
       );
-    hud.draw(low, {
-      view: shown.view,
-      now,
-      wonAt:
-        this.options.banner === false || this.host.dataset.banner === BANNER_OFF
-          ? null
-          : this.wonAt,
-      flash: this.flash,
-    });
+    low.setTransform(1, 0, 0, 1, 0, 0);
+    hud.draw(low, { view, ending, camera });
     // What the glow is made from: the finished picture with the things that would bloom too much held down.
     const source = this.glowSource.ctx;
     source.drawImage(this.low.canvas, 0, 0);
+    look(source, camera);
     scene.dimForGlow(source, sceneFrame);
+    source.setTransform(1, 0, 0, 1, 0, 0);
     this.present();
   }
 
@@ -438,6 +483,21 @@ class Arena implements ArenaView {
     this.sound.destroy();
     this.wrapper.remove();
   }
+}
+
+/** Dust is the colour of the stone it comes off. */
+const DUST = "#b9a4ff";
+
+/** Sets `ctx` to draw the arena through `camera`: the camera's point in the middle, enlarged about it. */
+function look(ctx: Ctx, camera: Camera): void {
+  ctx.setTransform(
+    camera.zoom,
+    0,
+    0,
+    camera.zoom,
+    VIEW_WIDTH / 2 - camera.x * camera.zoom,
+    VIEW_HEIGHT / 2 - camera.y * camera.zoom,
+  );
 }
 
 export const createArenaView: CreateArenaView = (host, options) =>

@@ -1,12 +1,13 @@
 /**
- * Camera shake as trauma: events add to it, it drains with time, and the offset is its square, so small knocks
- * barely move the picture and a Queen's death throws it. Offsets are whole art pixels; the picture never blurs.
+ * Camera shake. The arcade shakes the picture for one thing only, a Queen's death: about two pixels for eight tenths
+ * of a second. So a knock of 1 is that, smaller knocks are shorter and weaker, and the strength runs out evenly.
+ * Offsets are whole art pixels; the picture never blurs.
  */
 
-/** The furthest the picture moves at full trauma, in art pixels. */
-export const SHAKE_REACH = 5;
-/** Trauma drained per second. */
-export const SHAKE_DRAIN = 1.9;
+/** The furthest the picture moves at full strength, in art pixels. */
+export const SHAKE_REACH = 2;
+/** Seconds a full knock lasts. */
+export const SHAKE_SECONDS = 0.8;
 
 export interface Offset {
   readonly x: number;
@@ -17,16 +18,15 @@ export class Shake {
   private trauma = 0;
   private clock = 0;
 
-  /** The strongest knock wins a little more than it adds: two kills on one frame do not double the shake. */
+  /** The strongest knock wins: two on one frame do not double the shake. */
   add(amount: number): void {
-    const knock = Math.max(0, Math.min(1, amount));
-    this.trauma = Math.min(1, Math.max(this.trauma, knock) + knock * 0.25);
+    this.trauma = Math.max(this.trauma, Math.max(0, Math.min(1, amount)));
   }
 
   tick(seconds: number): void {
     const dt = Math.max(0, seconds);
     this.clock += dt;
-    this.trauma = Math.max(0, this.trauma - SHAKE_DRAIN * dt);
+    this.trauma = Math.max(0, this.trauma - dt / SHAKE_SECONDS);
   }
 
   get level(): number {
@@ -35,12 +35,13 @@ export class Shake {
 
   /** Two out-of-step waves instead of noise: the same clock gives the same offset, which a test can check. */
   offset(): Offset {
-    const reach = this.trauma * this.trauma * SHAKE_REACH;
-    if (reach <= 0) return { x: 0, y: 0 };
+    if (this.trauma <= 0) return { x: 0, y: 0 };
+    // Full reach for most of the shake, easing off only at its very end.
+    const reach = SHAKE_REACH * Math.min(1, this.trauma * 3);
     const t = this.clock;
     return {
       x: Math.round(reach * Math.sin(t * 97 + Math.sin(t * 31) * 2)),
-      y: Math.round(reach * 0.8 * Math.sin(t * 83 + 1.7 + Math.sin(t * 43))),
+      y: Math.round(reach * Math.sin(t * 83 + 1.7 + Math.sin(t * 43))),
     };
   }
 }

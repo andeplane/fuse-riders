@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { MAPS, MAP_IDS } from "../src/engine/index.js";
 import type { BurstEffect, Effect } from "../src/render/effects.js";
 import { FONTS, layoutText, textWidth } from "../src/render/font.js";
 import {
@@ -9,7 +10,9 @@ import {
   botTagAlpha,
   dangerOf,
   hexHalfWidth,
+  eggStates,
   hiveAnchor,
+  hiveSheet,
   IRIS_RADIUS,
   IRIS_SECONDS,
   IRIS_WORDS,
@@ -22,12 +25,11 @@ import {
   tagOf,
 } from "../src/render/hud-model.js";
 import {
-  TILE,
-  fillRows,
   fitView,
   platformTiles,
-  tileRow,
+  spans,
   wrapOffsets,
+  type TileSheet,
 } from "../src/render/layout.js";
 import {
   REQUIRED_SHEETS,
@@ -52,7 +54,7 @@ import {
   easeOutBack,
   toneColors,
 } from "../src/render/particles.js";
-import { SHAKE_REACH, Shake } from "../src/render/shake.js";
+import { SHAKE_REACH, SHAKE_SECONDS, Shake } from "../src/render/shake.js";
 import {
   manifest,
   openingView,
@@ -96,10 +98,17 @@ test("the real manifest parses and has every sheet the renderer needs", () => {
     "the snail says where its rider sits",
   );
   assert.ok(sheetOf("bg-far").parallax !== sheetOf("bg-near").parallax);
-  const hive = sheetOf("hive-cyan");
-  assert.equal(hive.holes.length, 12, "one offset per hole");
-  assert.ok(hive.count && hive.perch, "the plaque and the Queen's perch");
-  assert.equal(sheetOf("snail-strip").lane?.length, 2);
+  for (const { name, holes } of MAP_IDS.map((id) => MAPS[id]))
+    for (const team of [0, 1]) {
+      const id = hiveSheet(name, team, (sheet) => sheet in art.assets);
+      assert.ok(id, `a hive wall for ${name}`);
+      const hive = sheetOf(id);
+      assert.ok((holes[team]?.length ?? 0) > 0, `${name}: holes to draw`);
+      assert.ok(
+        hive.hole && art.assets[hive.hole],
+        `${id} names its hole sheet`,
+      );
+    }
   assert.ok("filled" in sheetOf("hive-hole-pink").frames);
   assert.equal(teamName(0), "cyan");
   assert.equal(teamName(1), "pink");
@@ -155,16 +164,9 @@ test("a broken manifest fails at load with the reason", () => {
   assert.throws(
     () =>
       parseManifest(
-        manifestWith("hive-cyan", (asset) => ({ ...asset, count: [0] })),
+        manifestWith("snail", (asset) => ({ ...asset, saddle: [[0]] })),
       ),
-    /hive-cyan\.count is not a pair/,
-  );
-  assert.throws(
-    () =>
-      parseManifest(
-        manifestWith("snail-strip", (asset) => ({ ...asset, lane: "8" })),
-      ),
-    /snail-strip\.lane is not a pair/,
+    /snail\.saddle is not a pair/,
   );
   const raw = rawManifest();
   assert.ok(isRecord(raw));
@@ -199,9 +201,7 @@ test("optional parts of a sheet have defaults", () => {
   assert.deepEqual(snail.saddle, []);
   assert.equal(snail.parallax, 0);
   assert.deepEqual(snail.holes, []);
-  assert.equal(snail.count, undefined);
-  assert.equal(snail.perch, undefined);
-  assert.equal(snail.lane, undefined);
+  assert.equal(snail.hole, undefined);
 });
 
 test("frames are cut from the sheet left to right, wrapping into rows", () => {
@@ -251,7 +251,7 @@ test("animations loop or hold, and a plain sheet plays through once", () => {
   };
   assert.equal(animationFrame(held, "once", 0.1), frameIndex(worker, "run2"));
   assert.equal(animationFrame(held, "once", 9), frameIndex(worker, "run2"));
-  const burst = sheetOf("kill-burst-cyan");
+  const burst = sheetOf("flap-puff");
   assert.equal(animationFrame(burst, "", 0), 0);
   assert.equal(animationFrame(burst, "", 1 / burst.fps), 1);
   assert.equal(animationFrame(burst, "", 60), burst.frameCount - 1);
@@ -310,15 +310,84 @@ test("something over the seam is drawn on both sides", () => {
   assert.deepEqual(wrapOffsets(-4, 104, 100), [0, 100, -100]);
 });
 
-test("a platform is cut into tiles with caps where it ends on screen", () => {
-  const ledge = tileRow("slab", 96, 214, 72, 6);
+const SHEET: TileSheet = {
+  tile: 8,
+  has: (frame) => frame !== "missing" && !frame.startsWith("ledge"),
+  rows: (frame) => (frame.startsWith("slab") ? 7 : 5),
+};
+const withLedge: TileSheet = { ...SHEET, has: () => true };
+
+test("a run of tiles ends in caps, and the last middle is the one cut short", () => {
+  assert.deepEqual(spans(0, 0, 8), []);
+  const run = spans(96, 29, 8);
+  assert.deepEqual(
+    run.map((span) => [span.part, span.at, span.offset, span.size]),
+    [
+      ["start", 96, 0, 8],
+      ["middle", 104, 0, 8],
+      ["middle", 112, 0, 5],
+      ["end", 117, 0, 8],
+    ],
+  );
+  assert.deepEqual(
+    run.map((span) => span.index),
+    [0, 0, 1, 0],
+  );
+  assert.deepEqual(
+    spans(10, 14, 8).map((span) => [
+      span.part,
+      span.at,
+      span.offset,
+      span.size,
+    ]),
+    [
+      ["start", 10, 0, 7],
+      ["end", 17, 1, 7],
+    ],
+    "shorter than two tiles: half of each cap",
+  );
+  assert.deepEqual(
+    spans(0, 3, 8, false, true).map((span) => [
+      span.part,
+      span.offset,
+      span.size,
+    ]),
+    [["end", 5, 3]],
+    "a sliver against the wrap is the far edge of the end cap",
+  );
+  assert.deepEqual(
+    spans(0, 1, 8).map((span) => span.part),
+    ["start"],
+  );
+  assert.deepEqual(
+    spans(0, 20, 8, false, false).map((span) => [span.part, span.size]),
+    [
+      ["middle", 8],
+      ["middle", 8],
+      ["middle", 4],
+    ],
+  );
+  assert.deepEqual(
+    spans(0, 12, 8, true, false).map((span) => [span.part, span.size]),
+    [
+      ["start", 8],
+      ["middle", 4],
+    ],
+  );
+});
+
+test("a platform's tiles follow from its shape", () => {
+  const ledge = platformTiles({ x: 96, y: 214, w: 72, h: 6 }, SHEET);
   assert.equal(ledge.length, 9);
   assert.equal(ledge[0]?.frame, "slabLeft");
   assert.equal(ledge.at(-1)?.frame, "slabRight");
-  assert.equal(ledge.at(-1)?.x, 96 + 72 - TILE);
-  assert.ok(ledge.every((piece) => piece.h === 6 && piece.y === 214));
+  assert.equal(ledge.at(-1)?.x, 96 + 72 - 8);
+  assert.ok(
+    ledge.every((piece) => piece.h === 7 && piece.y === 214),
+    "as tall as the slab's art: the fringe hangs under the solid rows",
+  );
   assert.ok(ledge.some((piece) => piece.frame === "slabLamp"));
-  const edge = tileRow("slab", 0, 214, 52, 6);
+  const edge = platformTiles({ x: 0, y: 214, w: 52, h: 6 }, SHEET);
   assert.equal(
     edge[0]?.frame,
     "slab",
@@ -326,39 +395,73 @@ test("a platform is cut into tiles with caps where it ends on screen", () => {
   );
   assert.equal(edge.at(-1)?.frame, "slabRight");
   assert.equal(edge.at(-2)?.w, 4, "an odd width cuts the last middle short");
-  const right = tileRow("slab", 440, 100, 40, 8);
+  const right = platformTiles({ x: 440, y: 100, w: 40, h: 6 }, SHEET);
   assert.equal(right[0]?.frame, "slabLeft");
   assert.equal(right.at(-1)?.frame, "slab");
-  const stub = tileRow("slab", 100, 100, 12, 8);
-  assert.deepEqual(
-    stub.map((piece) => [piece.frame, piece.w]),
-    [
-      ["slab", 8],
-      ["slab", 4],
-    ],
-    "too short for caps",
+  const ground = platformTiles({ x: 0, y: 265, w: 480, h: 5 }, SHEET);
+  assert.equal(ground.length, 60);
+  assert.ok(ground.every((piece) => piece.frame.startsWith("track")));
+  assert.ok(ground.every((piece) => piece.h === 5));
+  assert.equal(
+    platformTiles({ x: 10, y: 50, w: 40, h: 5 }, withLedge)[1]?.frame,
+    "ledge",
+    "a platform no thicker than the ledge art takes it",
   );
-  const custom = tileRow("track", 0, 0, 16, 8, 16);
+  assert.equal(
+    platformTiles({ x: 10, y: 50, w: 40, h: 6 }, withLedge)[1]?.frame,
+    "slab",
+  );
+  const bare: TileSheet = { ...SHEET, has: (frame) => frame === "slab" };
+  assert.deepEqual(
+    [
+      ...new Set(
+        platformTiles({ x: 96, y: 214, w: 72, h: 6 }, bare).map((p) => p.frame),
+      ),
+    ],
+    ["slab"],
+    "a sheet without caps or lamps still draws",
+  );
+  const custom = platformTiles({ x: 0, y: 8, w: 16, h: 4 }, SHEET, 16, 12);
   assert.deepEqual(
     custom.map((piece) => piece.frame),
     ["track", "track"],
   );
 });
 
-test("the floor is a track row over filler that is the same every frame", () => {
-  const rect = { x: 0, y: 258, w: 480, h: 12 };
-  const floor = platformTiles(rect, true);
-  const track = floor.filter((piece) => piece.frame.startsWith("track"));
-  assert.equal(track.length, 60);
-  const fill = floor.filter((piece) => piece.frame.startsWith("middle"));
-  assert.equal(fill.length, 60);
-  assert.ok(fill.every((piece) => piece.y === 266 && piece.h === 4));
-  assert.deepEqual(platformTiles(rect, true), floor);
-  const kinds = new Set(fillRows(0, 0, 160, 32).map((piece) => piece.frame));
-  assert.deepEqual([...kinds].sort(), ["middle", "middleCell", "middleNode"]);
-  assert.equal(fillRows(0, 0, 12, 8).at(-1)?.w, 4);
-  const ledge = platformTiles({ x: 96, y: 214, w: 72, h: 6 }, false);
-  assert.ok(ledge.every((piece) => piece.frame.startsWith("slab")));
+test("a thick rectangle is a block with a top, a bottom and sides", () => {
+  const block = platformTiles({ x: 235, y: 75, w: 10, h: 15 }, SHEET);
+  assert.deepEqual(
+    block.map((piece) => [piece.frame, piece.x, piece.y, piece.w, piece.h]),
+    [
+      ["topLeft", 235, 75, 5, 8],
+      ["topRight", 240, 75, 5, 8],
+      ["bottomLeft", 235, 83, 5, 7],
+      ["bottomRight", 240, 83, 5, 7],
+    ],
+  );
+  assert.equal(block[1]?.sx, 3, "the far edge of the right cap");
+  assert.equal(block[2]?.sy, 1, "the lower edge of the bottom row");
+  const wall = platformTiles({ x: 0, y: 0, w: 3, h: 118 }, SHEET);
+  assert.equal(wall[0]?.frame, "topRight");
+  assert.ok(wall.some((piece) => piece.frame === "right"));
+  assert.equal(wall.at(-1)?.frame, "bottomRight");
+  assert.ok(wall.every((piece) => piece.w === 3 && piece.sx === 5));
+  const big = platformTiles({ x: 100, y: 100, w: 32, h: 32 }, SHEET);
+  assert.equal(big.filter((piece) => piece.frame === "middle").length, 4);
+  assert.equal(big.length, 16);
+});
+
+test("every platform of every map is covered exactly by its tiles", () => {
+  for (const id of MAP_IDS)
+    for (const rect of MAPS[id].platforms) {
+      const pieces = platformTiles(rect, SHEET);
+      const thick = rect.h > SHEET.tile;
+      const area = pieces.reduce((sum, piece) => sum + piece.w * piece.h, 0);
+      const rows = thick ? rect.h : (pieces[0]?.h ?? 0);
+      assert.equal(area, rect.w * rows, `map ${id} ${JSON.stringify(rect)}`);
+      assert.ok(pieces.every((piece) => piece.x >= rect.x));
+      assert.ok(pieces.every((piece) => piece.x + piece.w <= rect.x + rect.w));
+    }
 });
 
 test("the snail's progress and each team's danger come from the view", () => {
@@ -425,26 +528,56 @@ test("the snail's progress and each team's danger come from the view", () => {
   ]);
 });
 
-test("the hive sprite is placed so its holes land on the engine's", () => {
-  const view = openingView();
-  const cyan = view.hives[0] ?? [],
-    pink = view.hives[1] ?? [];
-  assert.deepEqual(hiveAnchor(cyan, sheetOf("hive-cyan")), { x: 160, y: 82 });
-  assert.deepEqual(hiveAnchor(pink, sheetOf("hive-pink")), { x: 320, y: 82 });
-  const def = sheetOf("hive-cyan");
-  const anchor = hiveAnchor(cyan, def);
-  assert.ok(anchor);
-  cyan.forEach((hole, index) => {
-    const offset = def.holes[index];
-    assert.ok(offset, `hole ${index}`);
-    assert.deepEqual(
-      [anchor.x + offset[0], anchor.y + offset[1]],
-      [hole.x, hole.y],
-      `hole ${index} sits on the engine's`,
-    );
+test("a hive wall is fitted to the engine's holes only when its layout is the map's", () => {
+  const holes = MAPS[1].holes[0];
+  const first = holes[0];
+  assert.ok(first);
+  const offsets = holes.map((hole): [number, number] => [
+    hole.x - first.x + 3,
+    hole.y - first.y - 4,
+  ]);
+  assert.deepEqual(hiveAnchor(holes, { holes: offsets }), {
+    x: first.x - 3,
+    y: first.y + 4,
   });
-  assert.equal(hiveAnchor([], def), null, "a map with no holes");
-  assert.equal(hiveAnchor(cyan, { holes: [] }), null, "art with no holes");
+  const moved = offsets.map(([x, y], index): [number, number] => [
+    x,
+    index === 5 ? y + 1 : y,
+  ]);
+  assert.equal(hiveAnchor(holes, { holes: moved }), null, "one hole elsewhere");
+  assert.equal(hiveAnchor(holes, { holes: offsets.slice(1) }), null);
+  assert.equal(hiveAnchor([], { holes: offsets }), null, "a map with no holes");
+  assert.equal(hiveAnchor(holes, { holes: [] }), null, "art with no holes");
+  // Whatever the art's layout, each map has a wall to stand on its wall rectangle.
+  const art = manifest();
+  for (const id of MAP_IDS)
+    for (const team of [0, 1])
+      assert.ok(hiveSheet(MAPS[id].name, team, (name) => name in art.assets));
+});
+
+test("a map's hive wall is found by the map's name, else the one wall for all", () => {
+  const has = (ids: string[]) => (id: string) => ids.includes(id);
+  assert.equal(
+    hiveSheet("Day", 0, has(["hive-day-cyan", "hive-cyan"])),
+    "hive-day-cyan",
+  );
+  assert.equal(hiveSheet("Dusk", 1, has(["hive-pink"])), "hive-pink");
+  assert.equal(hiveSheet("Night", 1, has([])), undefined);
+});
+
+test("spare eggs are whole until used, and the next one hatches the Queen", () => {
+  const spares = (...present: boolean[]) =>
+    present.map((value) => ({ present: value }));
+  assert.deepEqual(eggStates(spares(true, true), false), ["full", "full"]);
+  assert.deepEqual(
+    eggStates(spares(true, true), true),
+    ["cracked", "full"],
+    "she is in it",
+  );
+  assert.deepEqual(eggStates(spares(false, true), false), ["broken", "full"]);
+  assert.deepEqual(eggStates(spares(false, true), true), ["broken", "cracked"]);
+  assert.deepEqual(eggStates(spares(false, false), true), ["broken", "broken"]);
+  assert.deepEqual(eggStates([], true), []);
 });
 
 test("a bot's tag shows for the opening seconds and fades away", () => {
@@ -496,30 +629,32 @@ test("text is laid out as lit pixels a glyph apart", () => {
     }
 });
 
-test("shake is trauma: knocks add, time drains, the offset stays in reach", () => {
+test("a full knock shakes about two pixels for eight tenths of a second", () => {
   const shake = new Shake();
   assert.deepEqual(shake.offset(), { x: 0, y: 0 });
   shake.add(0.4);
-  assert.equal(shake.level, 0.5);
-  shake.add(0.4);
-  assert.equal(shake.level, 0.6, "a second knock adds a little, not double");
+  assert.equal(shake.level, 0.4);
+  shake.add(0.3);
+  assert.equal(shake.level, 0.4, "the strongest knock wins, they do not add");
   shake.add(5);
   assert.equal(shake.level, 1);
   shake.add(-1);
   assert.equal(shake.level, 1);
-  let moved = false;
-  for (let i = 0; i < 20; i += 1) {
+  let furthest = 0;
+  for (let i = 0; i < 60; i += 1) {
     shake.tick(1 / 240);
     const { x, y } = shake.offset();
     assert.ok(Number.isInteger(x) && Number.isInteger(y), "whole pixels");
     assert.ok(Math.abs(x) <= SHAKE_REACH && Math.abs(y) <= SHAKE_REACH);
-    moved ||= x !== 0 || y !== 0;
+    furthest = Math.max(furthest, Math.abs(x), Math.abs(y));
   }
-  assert.ok(moved);
+  assert.equal(furthest, SHAKE_REACH);
   const before = shake.level;
   shake.tick(-3);
   assert.equal(shake.level, before);
-  shake.tick(2);
+  shake.tick(SHAKE_SECONDS / 2);
+  assert.ok(shake.level > 0, "still going after half the time");
+  shake.tick(SHAKE_SECONDS / 2);
   assert.equal(shake.level, 0);
   assert.deepEqual(shake.offset(), { x: 0, y: 0 });
 });
@@ -713,10 +848,11 @@ test("the iris is a hexagon that closes and stays on screen with its words", () 
   assert.deepEqual(irisCentre({ x: 240, y: 135 }), { x: 240, y: 135 });
   const corner = irisCentre({ x: 2, y: 3 });
   assert.equal(corner.x, IRIS_RADIUS);
-  assert.ok(corner.y >= IRIS_WORDS + 39);
+  const tall = (IRIS_RADIUS * Math.sqrt(3)) / 2;
+  assert.equal(corner.y, Math.round(tall + IRIS_WORDS), "room for the title");
   const far = irisCentre({ x: 900, y: 900 });
   assert.equal(far.x, 480 - IRIS_RADIUS);
-  assert.ok(far.y < 270 - 39);
+  assert.ok(far.y + tall <= 270 - IRIS_WORDS + 9, "and for the line below");
 });
 
 test("the ending says who won and how", () => {

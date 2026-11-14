@@ -1,10 +1,12 @@
 /**
  * The moving bits of an effect as plain numbers: square pixels thrown by a burst, rings that grow, text that rises
- * and sheets that play once. Time here is wall-clock seconds, so effects keep moving through a hit-stop.
+ * sheets that play once and the after-images of fast units. Time here is wall-clock seconds.
  */
 import type {
   BurstEffect,
   Effect,
+  FlareEffect,
+  FountainEffect,
   RingEffect,
   SpriteEffect,
   TextEffect,
@@ -17,10 +19,12 @@ export interface Particle {
   y: number;
   vx: number;
   vy: number;
-  /** Seconds lived and seconds to live. */
+  /** Seconds lived (negative: not yet started) and seconds to live. */
   age: number;
   life: number;
   color: string;
+  /** Colours it passes through over its life instead of `color`. */
+  colors?: readonly string[];
   size: number;
   /** Pixels per second squared, downward. */
   gravity: number;
@@ -33,6 +37,9 @@ export interface Rising extends TextEffect {
   age: number;
 }
 export interface Playing extends SpriteEffect {
+  age: number;
+}
+export interface Flare extends FlareEffect {
   age: number;
 }
 
@@ -76,14 +83,128 @@ export function burstParticles(
       y: burst.y,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed - burst.speed * 0.25,
-      age: 0,
+      age: -(burst.delay ?? 0),
       life: burst.life * (0.6 + random() * 0.4),
       color: colors[Math.floor(random() * colors.length)] ?? "#ffffff",
-      size: random() < 0.3 ? 2 : 1,
-      gravity: 160,
+      size: burst.size ?? (random() < 0.3 ? 2 : 1),
+      gravity: burst.gravity ?? 160,
     });
   }
   return out;
+}
+
+/** Pixels that leave a strip one after the other and rise without falling back. */
+export function fountainParticles(
+  fountain: FountainEffect,
+  colors: readonly string[],
+  random: () => number,
+): Particle[] {
+  return Array.from({ length: fountain.count }, () => ({
+    x: fountain.x + (random() - 0.5) * fountain.width,
+    y: fountain.y,
+    vx: (random() - 0.5) * 6,
+    vy: -(28 + random() * 26),
+    age: -random() * fountain.seconds,
+    life: 0.45 + random() * 0.25,
+    color: colors[Math.floor(random() * colors.length)] ?? "#ffffff",
+    size: 1,
+    gravity: 0,
+  }));
+}
+
+/** The colour of a particle now: its one colour, or its place along the colours it passes through. */
+export function particleColor(p: Particle): string {
+  const { colors } = p;
+  if (!colors || colors.length === 0) return p.color;
+  const at = Math.floor((Math.max(0, p.age) / p.life) * colors.length);
+  return colors[Math.min(colors.length - 1, at)] ?? p.color;
+}
+
+/** What streams off a diving Queen: yellow, then white, orange, red and magenta as each speck ages. */
+export const DIVE_COLORS: readonly string[] = [
+  "#ffe14a",
+  "#ffffff",
+  "#ff9d2e",
+  "#ff3b3b",
+  "#ff2e9d",
+];
+/** Specks a second, and the least and most seconds each lives. */
+export const DIVE_STREAM = { rate: 150, life: [0.3, 0.5] } as const;
+
+/** `count` specks of the dive stream somewhere along a body `height` tall whose feet are at (x, y). */
+export function diveStream(
+  x: number,
+  y: number,
+  height: number,
+  count: number,
+  random: () => number,
+): Particle[] {
+  const [least, most] = DIVE_STREAM.life;
+  return Array.from({ length: count }, () => ({
+    x: x + (random() - 0.5) * 5,
+    y: y - random() * height,
+    vx: (random() - 0.5) * 10,
+    vy: -(15 + random() * 30),
+    age: 0,
+    life: least + random() * (most - least),
+    color: DIVE_COLORS[0] ?? "#ffffff",
+    colors: DIVE_COLORS,
+    size: 1,
+    gravity: 0,
+  }));
+}
+
+/** One after-image: a unit's frame where it was. */
+export interface Ghost {
+  readonly slot: number;
+  readonly team: number;
+  readonly sheet: string;
+  readonly frame: number;
+  readonly x: number;
+  readonly y: number;
+  readonly flip: boolean;
+  /** Wall-clock second it was left. */
+  readonly born: number;
+}
+
+/** A ghost is left every 20 ms and lives 200 ms, fading evenly: the arcade's dive and speed trail. */
+export const GHOST_EVERY = 0.02,
+  GHOST_LIFE = 0.2;
+
+export class Ghosts {
+  list: Ghost[] = [];
+  private readonly last: (Ghost | undefined)[] = [];
+
+  /** Leaves a ghost unless this slot left one too recently or has not moved since. */
+  note(ghost: Ghost): void {
+    const before = this.last[ghost.slot];
+    if (
+      before &&
+      ghost.born >= before.born &&
+      (ghost.born - before.born < GHOST_EVERY ||
+        (before.x === ghost.x && before.y === ghost.y))
+    )
+      return;
+    this.last[ghost.slot] = ghost;
+    this.list.push(ghost);
+  }
+
+  /** Drops the ghosts that have faded, and any from a clock that has since gone back. */
+  tick(now: number): void {
+    this.list = this.list.filter(
+      (ghost) => now >= ghost.born && now - ghost.born < GHOST_LIFE,
+    );
+  }
+
+  /** How much of a ghost is left, 1 to 0. */
+  static left(ghost: Ghost, now: number): number {
+    return Math.max(0, Math.min(1, 1 - (now - ghost.born) / GHOST_LIFE));
+  }
+
+  clear(): void {
+    this.list = [];
+    this.last.length = 0;
+  }
 }
 
 export class EffectPool {
@@ -91,6 +212,7 @@ export class EffectPool {
   rings: Ring[] = [];
   texts: Rising[] = [];
   sprites: Playing[] = [];
+  flares: Flare[] = [];
 
   constructor(private readonly random: () => number = Math.random) {}
 
@@ -109,6 +231,18 @@ export class EffectPool {
             this.random,
           ),
         );
+        return;
+      case "fountain":
+        this.push(
+          fountainParticles(
+            effect,
+            toneColors(effect.tone, ramp(effect.team)),
+            this.random,
+          ),
+        );
+        return;
+      case "flare":
+        this.flares.push({ ...effect, age: 0 });
         return;
       case "ring":
         this.rings.push({ ...effect, age: 0 });
@@ -134,6 +268,8 @@ export class EffectPool {
     const dt = Math.max(0, seconds);
     for (const p of this.particles) {
       p.age += dt;
+      // One that has not started waits where it will appear.
+      if (p.age < 0) continue;
       p.vy += p.gravity * dt;
       p.x = (((p.x + p.vx * dt) % VIEW_WIDTH) + VIEW_WIDTH) % VIEW_WIDTH;
       p.y += p.vy * dt;
@@ -141,6 +277,8 @@ export class EffectPool {
     this.particles = this.particles.filter((p) => p.age < p.life);
     for (const ring of this.rings) ring.age += dt;
     this.rings = this.rings.filter((ring) => ring.age < RING_LIFE);
+    for (const flare of this.flares) flare.age += dt;
+    this.flares = this.flares.filter((flare) => flare.age < flare.life);
     for (const text of this.texts) text.age += dt;
     this.texts = this.texts.filter((text) => text.age < TEXT_LIFE);
     for (const sprite of this.sprites) sprite.age += dt;
@@ -154,6 +292,7 @@ export class EffectPool {
     this.rings = [];
     this.texts = [];
     this.sprites = [];
+    this.flares = [];
   }
 
   get count(): number {
@@ -161,7 +300,8 @@ export class EffectPool {
       this.particles.length +
       this.rings.length +
       this.texts.length +
-      this.sprites.length
+      this.sprites.length +
+      this.flares.length
     );
   }
 }
@@ -201,8 +341,13 @@ export function circlePoints(r: number): [number, number][] {
   return out;
 }
 
-/** 0 to 1 with a small overshoot before settling: how a banner lands. */
-export function easeOutBack(t: number): number {
+/** 0 to 1 passing a little beyond 1 before settling; `spring` is how far beyond (1.70158 gives a tenth). */
+export function easeOutBack(t: number, spring = 1.70158): number {
   const x = Math.max(0, Math.min(1, t)) - 1;
-  return 1 + 2.70158 * x * x * x + 1.70158 * x * x;
+  return 1 + (spring + 1) * x * x * x + spring * x * x;
+}
+
+/** Half the width of a filled disc of radius `r`, `dy` rows from its middle; -1 outside it. */
+export function discHalfWidth(r: number, dy: number): number {
+  return Math.abs(dy) > r ? -1 : Math.round(Math.sqrt(r * r - dy * dy));
 }

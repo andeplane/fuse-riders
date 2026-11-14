@@ -56,6 +56,11 @@ interface GameHook {
   restart(setup?: Partial<Setup>): void;
   stats(): Stats;
   resetStats(): void;
+  /**
+   * Takes the renderer's clock in hand and lets `ms` of it pass, drawing as it goes: effects are then shot at a known
+   * age however long a screenshot takes. The first call stops the real clock for good.
+   */
+  hold(ms: number): void;
 }
 
 declare global {
@@ -212,6 +217,10 @@ function frame(now: number): void {
   requestAnimationFrame(frame);
 }
 
+/** The clock `hold` turns by hand, in the steps of a 60 Hz display. */
+const HOLD_FRAME_MS = 1000 / 60;
+let heldClock: number | null = null;
+
 const kindLetter = { worker: "w", warrior: "W", queen: "Q" } as const;
 
 window.__game = {
@@ -276,6 +285,16 @@ window.__game = {
   resetStats: () => {
     frameTimes = [];
     renderTimes = [];
+  },
+  hold: (ms) => {
+    if (heldClock === null) {
+      heldClock = performance.now();
+      performance.now = () => heldClock ?? 0;
+    }
+    for (let left = ms; left > 0; left -= HOLD_FRAME_MS) {
+      heldClock += Math.min(left, HOLD_FRAME_MS);
+      arena.render(previous, current, 1);
+    }
   },
 };
 

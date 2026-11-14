@@ -69,23 +69,25 @@ export class Sprites {
     return this.art.manifest.assets[id];
   }
 
-  /** The painted bounds of a sheet's first frame, in cell coordinates. */
-  box(id: string): Box | null {
-    const known = this.boxes.get(id);
+  /** The painted bounds of one frame of a sheet (the first unless told), in cell coordinates. */
+  box(id: string, frame = 0): Box | null {
+    const key = `${id}|${frame}`;
+    const known = this.boxes.get(key);
     if (known !== undefined) return known;
     const def = this.def(id);
     const image = this.art.images.get(id);
     let box: Box | null = null;
     if (def && image) {
       const { canvas, ctx } = makeCanvas(def.frameWidth, def.frameHeight);
-      ctx.drawImage(image, 0, 0);
+      const { sx, sy, sw, sh } = frameRect(def, frame);
+      ctx.drawImage(image, sx, sy, sw, sh, 0, 0, sw, sh);
       box = opaqueBox(
         ctx.getImageData(0, 0, canvas.width, canvas.height).data,
         canvas.width,
         canvas.height,
       );
     }
-    this.boxes.set(id, box);
+    this.boxes.set(key, box);
     return box;
   }
 
@@ -129,6 +131,22 @@ export class Sprites {
     ctx.save();
     ctx.translate(px + ax + 1, py - ay);
     ctx.scale(-1, 1);
+    ctx.drawImage(source, sx, sy, sw, sh, 0, 0, sw, sh);
+    ctx.restore();
+  }
+
+  /** One frame upside down, hanging from (x, y): its anchor row is the first row under the surface at `y`. */
+  drawHanging(ctx: Ctx, id: string, frame: number, x: number, y: number): void {
+    const def = this.def(id);
+    const source = this.art.images.get(id);
+    if (!def || !source) return;
+    const { sx, sy, sw, sh } = frameRect(def, frame);
+    ctx.save();
+    ctx.translate(
+      Math.round(x) - def.anchor[0],
+      Math.round(y) + def.anchor[1] + 1,
+    );
+    ctx.scale(1, -1);
     ctx.drawImage(source, sx, sy, sw, sh, 0, 0, sw, sh);
     ctx.restore();
   }

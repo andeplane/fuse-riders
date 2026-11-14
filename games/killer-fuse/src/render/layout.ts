@@ -1,11 +1,10 @@
 /**
  * Geometry the canvas code needs but that involves no canvas: the integer scale that fits a host, which copies of a
- * sprite the horizontal wrap needs, and how a platform rectangle is cut into 8 pixel tiles.
+ * sprite the horizontal wrap needs, and how a map's rectangles are cut into tiles.
  */
 
 export const VIEW_WIDTH = 480,
   VIEW_HEIGHT = 270;
-export const TILE = 8;
 
 export interface Fit {
   /** Whole device pixels per art pixel, at least 1. */
@@ -79,76 +78,157 @@ export interface TilePiece {
   /** Where it goes, in art pixels. */
   readonly x: number;
   readonly y: number;
-  /** How much of the tile to draw, from its left and top; the last middle tile of an odd width is cut short. */
+  /** The part of the tile to draw: its offset inside the tile and its size. */
+  readonly sx: number;
+  readonly sy: number;
   readonly w: number;
   readonly h: number;
 }
 
+/** One stretch of a run of tiles: an end cap or a middle, and which part of its tile shows. */
+export interface Span {
+  readonly part: "start" | "middle" | "end";
+  readonly at: number;
+  readonly offset: number;
+  readonly size: number;
+  /** Position among the middles, for sprinkling variants. */
+  readonly index: number;
+}
+
 /**
- * One row of tiles for a run from `x` over `w` pixels: an end cap on each side that does not touch the screen edge
- * (a platform that reaches the edge continues across the wrap), middles between, with every fifth middle a lamp.
+ * Cuts `length` pixels from `from` into tile-sized stretches: a start cap, middles, and an end cap laid last with
+ * its far edge on the run's (so the middle before it is cut short, never the cap). A run shorter than two tiles is
+ * the near half of the start cap and the far half of the end cap. `capStart` and `capEnd` say whether the run ends
+ * there at all: one that leaves the screen carries on across the wrap and gets middles to its edge.
  */
-export function tileRow(
-  kind: "slab" | "track",
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  width = VIEW_WIDTH,
-): TilePiece[] {
-  const pieces: TilePiece[] = [];
-  const height = Math.min(TILE, h);
-  const capLeft = x > 0 && w >= TILE * 2,
-    capRight = x + w < width && w >= TILE * 2;
-  const from = x + (capLeft ? TILE : 0),
-    to = x + w - (capRight ? TILE : 0);
-  if (capLeft) pieces.push({ frame: `${kind}Left`, x, y, w: TILE, h: height });
-  for (let at = from, i = 0; at < to; at += TILE, i += 1)
-    pieces.push({
-      frame: i % 5 === 2 && to - at >= TILE ? `${kind}Lamp` : kind,
-      x: at,
-      y,
-      w: Math.min(TILE, to - at),
-      h: height,
-    });
-  if (capRight)
-    pieces.push({ frame: `${kind}Right`, x: to, y, w: TILE, h: height });
-  return pieces;
-}
-
-/** The filler under a floor's track row, with nodes and cells scattered by position so it is the same every frame. */
-export function fillRows(
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-): TilePiece[] {
-  const pieces: TilePiece[] = [];
-  for (let j = 0; j * TILE < h; j += 1)
-    for (let i = 0; i * TILE < w; i += 1)
-      pieces.push({
-        frame:
-          (i * 7 + j * 3) % 11 === 0
-            ? "middleNode"
-            : (i * 5 + j) % 9 === 0
-              ? "middleCell"
-              : "middle",
-        x: x + i * TILE,
-        y: y + j * TILE,
-        w: Math.min(TILE, w - i * TILE),
-        h: Math.min(TILE, h - j * TILE),
+export function spans(
+  from: number,
+  length: number,
+  tile: number,
+  capStart = true,
+  capEnd = true,
+): Span[] {
+  if (length <= 0) return [];
+  const out: Span[] = [];
+  const caps = (capStart ? 1 : 0) + (capEnd ? 1 : 0);
+  if (caps === 2 && length < tile * 2) {
+    const near = Math.ceil(length / 2),
+      far = length - near;
+    out.push({ part: "start", at: from, offset: 0, size: near, index: 0 });
+    if (far > 0)
+      out.push({
+        part: "end",
+        at: from + near,
+        offset: tile - far,
+        size: far,
+        index: 0,
       });
-  return pieces;
+    return out;
+  }
+  const start = capStart ? Math.min(tile, length) : 0;
+  const end = capEnd ? Math.min(tile, length - start) : 0;
+  if (start > 0)
+    out.push({ part: "start", at: from, offset: 0, size: start, index: 0 });
+  const stop = from + length - end;
+  for (let at = from + start, index = 0; at < stop; at += tile, index += 1)
+    out.push({
+      part: "middle",
+      at,
+      offset: 0,
+      size: Math.min(tile, stop - at),
+      index,
+    });
+  if (end > 0)
+    out.push({
+      part: "end",
+      at: stop,
+      offset: tile - end,
+      size: end,
+      index: 0,
+    });
+  return out;
 }
 
-/** Tiles for one solid rectangle: the first platform of a map is the floor, the rest are ledges. */
+export interface TileRect {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+export interface TileSheet {
+  /** Side of a square tile. */
+  readonly tile: number;
+  /** Whether the sheet has a frame of that name. */
+  has(frame: string): boolean;
+  /** Rows of that frame with anything drawn in them, counted from its top. */
+  rows(frame: string): number;
+}
+
+/** Every how many middles a lamp goes, and which one of each group. */
+const LAMP_EVERY = 5,
+  LAMP_AT = 2;
+
+/**
+ * Tiles for one solid rectangle of a map, chosen by its shape alone: a rectangle taller than a tile is a block of
+ * top, middle and bottom rows; a thin one that reaches the bottom of the screen is the ground (`track`); any other
+ * is a floating platform: `ledge` when the sheet has it and its art is thick enough, else `slab`. A thin piece is
+ * drawn as tall as its art is, so a fringe under a slab's solid rows hangs below the rectangle.
+ */
 export function platformTiles(
-  rect: { x: number; y: number; w: number; h: number },
-  floor: boolean,
+  rect: TileRect,
+  sheet: TileSheet,
+  width = VIEW_WIDTH,
+  height = VIEW_HEIGHT,
 ): TilePiece[] {
-  if (!floor) return tileRow("slab", rect.x, rect.y, rect.w, TILE);
-  return [
-    ...tileRow("track", rect.x, rect.y, rect.w, rect.h),
-    ...fillRows(rect.x, rect.y + TILE, rect.w, rect.h - TILE),
-  ];
+  const { tile } = sheet;
+  const columns = spans(
+    rect.x,
+    rect.w,
+    tile,
+    rect.x > 0,
+    rect.x + rect.w < width,
+  );
+  const pick = (name: string, fallback: string): string =>
+    sheet.has(name) ? name : fallback;
+  if (rect.h > tile) {
+    const names = {
+      start: { start: "topLeft", middle: "top", end: "topRight" },
+      middle: { start: "left", middle: "middle", end: "right" },
+      end: { start: "bottomLeft", middle: "bottom", end: "bottomRight" },
+    } as const;
+    return spans(rect.y, rect.h, tile).flatMap((row) =>
+      columns.map((column) => ({
+        frame: pick(names[row.part][column.part], "middle"),
+        x: column.at,
+        y: row.at,
+        sx: column.offset,
+        sy: row.offset,
+        w: column.size,
+        h: row.size,
+      })),
+    );
+  }
+  const ground = rect.y + rect.h >= height;
+  const kind = ground
+    ? "track"
+    : sheet.has("ledge") && sheet.rows("ledge") >= rect.h
+      ? "ledge"
+      : "slab";
+  const rows = Math.min(tile, Math.max(rect.h, sheet.rows(kind)));
+  const caps = { start: `${kind}Left`, end: `${kind}Right` } as const;
+  return columns.map((column) => ({
+    frame:
+      column.part === "middle"
+        ? column.index % LAMP_EVERY === LAMP_AT && column.size === tile
+          ? pick(`${kind}Lamp`, kind)
+          : kind
+        : pick(caps[column.part], kind),
+    x: column.at,
+    y: rect.y,
+    sx: column.offset,
+    sy: 0,
+    w: column.size,
+    h: rows,
+  }));
 }

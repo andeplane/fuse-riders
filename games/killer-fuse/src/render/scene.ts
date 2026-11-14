@@ -4,14 +4,22 @@
  * change (the platform layer of a map, glyph layouts).
  */
 import {
+  GATE_STEPS,
+  PILE_HEIGHT,
   RESPAWN_STEPS,
+  S,
   TICK_HZ,
   type GateView,
   type MapDef,
   type RoundView,
   type UnitView,
 } from "../engine/index.js";
-import { unitPose, unitSheet, type FlapClock } from "./animation.js";
+import {
+  unitPose,
+  unitSheet,
+  type BodyShape,
+  type FlapClock,
+} from "./animation.js";
 import {
   layoutText,
   textWidth,
@@ -20,15 +28,16 @@ import {
 } from "./font.js";
 import {
   botTagAlpha,
+  eggStates,
   hiveAnchor,
+  hiveSheet,
   respawnCount,
   tagOf,
   type Danger,
 } from "./hud-model.js";
-import { wrapDistance } from "./interpolation.js";
 import {
   platformTiles,
-  TILE,
+  type TileSheet,
   VIEW_HEIGHT,
   VIEW_WIDTH,
   wrapOffsets,
@@ -42,6 +51,9 @@ import {
 } from "./manifest.js";
 import {
   circlePoints,
+  discHalfWidth,
+  Ghosts,
+  particleColor,
   RING_LIFE,
   TEXT_LIFE,
   toneColors,
@@ -51,10 +63,10 @@ import { makeCanvas, type Ctx, type Sprites } from "./textures.js";
 
 export const INK = "#05061a";
 
-export interface TrailPoint {
-  readonly x: number;
-  readonly y: number;
-}
+/** The outline of an after-image, after the arcade's pale yellow. */
+const GHOST_EDGE = "#fff3a0";
+/** A gate's doors take this long to close on the Worker inside and to open again, in seconds. */
+export const DOOR = { close: 2, open: 0.4 } as const;
 
 export interface SceneFrame {
   /** The blended view to draw and its time in steps. */
@@ -68,8 +80,12 @@ export interface SceneFrame {
   readonly names: readonly string[];
   readonly flaps: FlapClock;
   readonly pool: EffectPool;
-  /** Recent positions by slot, oldest first. */
-  readonly trails: readonly (readonly TrailPoint[])[];
+  /** After-images of diving and speed units: the scene leaves them and draws them. */
+  readonly ghosts: Ghosts;
+  /** How each slot's body is squashed or stretched this frame. */
+  readonly shapes: readonly BodyShape[];
+  /** Wall-clock second each gate last let its Warrior out. */
+  readonly gateOpened: readonly number[];
   /** Wall-clock second each hole was last filled, keyed `team:hole`. */
   readonly holePops: ReadonlyMap<string, number>;
   readonly danger: Danger;
@@ -158,13 +174,17 @@ export class Scene {
     this.background(ctx, frame);
     ctx.drawImage(this.platformLayer(view.map), 0, 0);
     view.hives.forEach((holes, team) => this.hive(ctx, team, holes, frame));
-    this.goals(ctx, frame);
-    for (const gate of view.gates) this.gate(ctx, gate, frame);
+    this.eggs(ctx, frame);
+    for (const gate of view.gates) this.gate(ctx, gate);
     for (const pile of view.piles) this.pile(ctx, pile);
     // The rider sits astride, its far leg behind the shell; a meal is half inside the mouth.
     this.units(ctx, frame, (unit) => unit.eaten || unit.riding);
     this.snail(ctx, frame);
+    // The nets stand in front of the track: the snail crawls into its basket.
+    this.goals(ctx, frame);
+    this.afterImages(ctx, frame);
     this.units(ctx, frame, (unit) => !unit.eaten && !unit.riding);
+    this.doors(ctx, frame);
     this.berries(ctx, frame);
     this.effects(ctx, frame);
     this.tags(ctx, frame);
@@ -208,19 +228,33 @@ export class Scene {
     const { canvas, ctx } = makeCanvas(VIEW_WIDTH, VIEW_HEIGHT);
     const def = this.sprites.def("tiles");
     const image = this.sprites.art.images.get("tiles");
-    if (def && image)
-      map.platforms.forEach((rect, index) => {
+    if (def && image) {
+      const sheet: TileSheet = {
+        tile: def.frameWidth,
+        has: (name) => name in def.frames,
+        rows: (name) =>
+          (this.sprites.box("tiles", frameIndex(def, name))?.bottom ??
+            def.frameHeight - 1) + 1,
+      };
+      for (const rect of map.platforms) {
+        const pieces = platformTiles(rect, sheet);
+        const thin = rect.h <= sheet.tile && rect.y + rect.h < VIEW_HEIGHT;
         // A soft shadow under each ledge lifts it off the background.
-        if (index > 0) {
+        if (thin) {
           ctx.fillStyle = "rgba(3,4,20,0.35)";
-          ctx.fillRect(rect.x + 2, rect.y + TILE, rect.w - 4, 2);
+          ctx.fillRect(
+            rect.x + 2,
+            rect.y + (pieces[0]?.h ?? rect.h),
+            rect.w - 4,
+            2,
+          );
         }
-        for (const piece of platformTiles(rect, index === 0)) {
+        for (const piece of pieces) {
           const { sx, sy } = frameRect(def, frameIndex(def, piece.frame));
           ctx.drawImage(
             image,
-            sx,
-            sy,
+            sx + piece.sx,
+            sy + piece.sy,
             piece.w,
             piece.h,
             piece.x,
@@ -229,18 +263,10 @@ export class Scene {
             piece.h,
           );
         }
-      });
+      }
+    }
     this.platforms = { id: map.id, canvas };
     return canvas;
-  }
-
-  /** Where the hive sprite of `team` stands, or null when the map or the art has no hive for it. */
-  private hiveAt(
-    team: number,
-    holes: RoundView["hives"][number],
-  ): { x: number; y: number } | null {
-    const def = this.sprites.def(`hive-${teamName(team)}`);
-    return def ? hiveAnchor(holes, def) : null;
   }
 
   private hive(
@@ -249,12 +275,23 @@ export class Scene {
     holes: RoundView["hives"][number],
     frame: SceneFrame,
   ): void {
-    const id = `hive-${teamName(team)}`,
-      holeId = `hive-hole-${teamName(team)}`;
-    const def = this.sprites.def(id),
-      holeDef = this.sprites.def(holeId);
-    const at = this.hiveAt(team, holes);
-    if (!def || !holeDef || !at) return;
+    const { map } = frame.view;
+    const id = hiveSheet(
+      map.name,
+      team,
+      (sheet) => this.sprites.def(sheet) !== undefined,
+    );
+    const def = id ? this.sprites.def(id) : undefined;
+    if (!id || !def) return;
+    const holeId = def.hole ?? `hive-hole-${teamName(team)}`;
+    const holeDef = this.sprites.def(holeId);
+    // The wall goes where its drawn holes land on the engine's; art that does not say stands on the wall's rect.
+    const wall = map.hiveWalls[team === 1 ? 1 : 0];
+    const fitted = hiveAnchor(holes, def);
+    const at = fitted ?? {
+      x: Math.floor(wall.x + wall.w / 2),
+      y: wall.y + wall.h,
+    };
     const blink =
       frame.danger.lastBerry[team] === true &&
       Math.floor(frame.now * 6) % 2 === 0;
@@ -273,10 +310,16 @@ export class Scene {
       );
       ctx.globalAlpha = 1;
     }
+    if (!holeDef) return;
     const filledFrame = frameIndex(holeDef, "filled");
+    const emptyFrame = frameIndex(holeDef, "empty");
     holes.forEach((hole, index) => {
-      if (!hole.filled) return;
-      // The empty cells are in the hive's art; a filled one goes over its cell and flashes as the berry lands.
+      // Empty cells are in the hive's art when its layout is this map's; otherwise every hole is drawn here, where
+      // the engine has it. A filled one goes over its cell and flashes as the berry lands.
+      if (!hole.filled) {
+        if (!fitted) this.sprites.draw(ctx, holeId, emptyFrame, hole.x, hole.y);
+        return;
+      }
       this.sprites.draw(ctx, holeId, filledFrame, hole.x, hole.y);
       const popped = frame.now - (frame.holePops.get(`${team}:${index}`) ?? -9);
       if (popped < 0 || popped >= 0.3) return;
@@ -294,72 +337,90 @@ export class Scene {
     });
   }
 
+  /** The Queens' spare lives, standing where the map says: whole, hatching or an empty shell. */
+  private eggs(ctx: Ctx, frame: SceneFrame): void {
+    const { view } = frame;
+    view.spares.forEach((spots, team) => {
+      const id = `egg-${teamName(team)}`;
+      const def = this.sprites.def(id);
+      if (!def) return;
+      const queen = view.units.find(
+        (unit) => unit.kind === "queen" && unit.team === team,
+      );
+      const states = eggStates(spots, queen?.dead === true && !view.winner);
+      spots.forEach((spot, index) => {
+        const state = states[index] ?? "full";
+        // The egg that is hatching rocks all through the wait, faster and further as the Queen is about to come out.
+        const near = queen?.respawn ?? 0;
+        const rock =
+          state === "cracked"
+            ? Math.round(
+                Math.sin(frame.now * (10 + 30 * near)) * (0.6 + 0.7 * near),
+              )
+            : 0;
+        this.sprites.draw(
+          ctx,
+          id,
+          frameIndex(def, state),
+          spot.x + rock,
+          spot.y - 1,
+          team === 1,
+        );
+      });
+    });
+  }
+
   private goals(ctx: Ctx, frame: SceneFrame): void {
     const { view } = frame;
-    view.map.snail.goals.forEach((x, team) => {
+    view.map.nets.forEach((net, team) => {
+      const id = `goal-${teamName(team)}`;
       const near = frame.danger.snailNear[team] === true;
-      const y = view.map.snail.y - 1;
-      this.sprites.draw(ctx, `goal-${teamName(team)}`, 0, x, y, team === 1);
+      // Each team's net is drawn for its own side, so nothing is mirrored here.
+      const x = Math.floor(net.x + net.w / 2),
+        y = net.y + net.h - 1;
+      this.sprites.draw(ctx, id, 0, x, y);
       if (near && Math.floor(frame.now * 6) % 2 === 0) {
-        const white = this.sprites.silhouette(
-          `goal-${teamName(team)}`,
-          "#ffffff",
-        );
         ctx.globalAlpha = 0.7;
         this.sprites.draw(
           ctx,
-          `goal-${teamName(team)}`,
+          id,
           0,
           x,
           y,
-          team === 1,
-          white,
+          false,
+          this.sprites.silhouette(id, "#ffffff"),
         );
         ctx.globalAlpha = 1;
       }
     });
   }
 
-  private gate(ctx: Ctx, gate: GateView, frame: SceneFrame): void {
+  private gate(ctx: Ctx, gate: GateView): void {
     const id = `gate-${gate.kind}`;
     const def = this.sprites.def(id);
     if (!def) return;
+    // The ornament takes its owner's colour, and the frame of a gate in use has the berry in its socket.
     const owner = gate.owner < 0 ? "neutral" : teamName(gate.owner);
     const name = gate.user >= 0 ? `${owner}Active` : owner;
     this.sprites.draw(ctx, id, frameIndex(def, name), gate.x, gate.y - 1);
-    if (gate.user < 0) return;
-    // The berry that pays for the change rests on top of the gate while the Worker stands between the pillars.
-    const berry = this.sprites.def("berry");
-    if (berry)
-      this.sprites.draw(
-        ctx,
-        "berry",
-        0,
-        gate.x,
-        gate.y - this.sprites.sizes.gate - (Math.round(frame.now * 6) % 2),
-      );
   }
 
   private pile(ctx: Ctx, pile: RoundView["piles"][number]): void {
     const def = this.sprites.def("berry-pile");
     if (!def) return;
-    const y = pile.y - 1;
-    this.sprites.draw(ctx, "berry-pile", 0, pile.x, y);
-    const left = pile.x - def.anchor[0],
-      top = y - def.anchor[1];
-    const shown = Math.min(pile.count, def.slots.length);
-    for (let i = 0; i < shown; i += 1) {
-      const slot = def.slots[i];
-      // Slots are top-left corners of 6 pixel berries; the berry frame is 8 wide with the berry in its middle.
-      if (slot)
-        this.sprites.draw(
-          ctx,
-          "berry",
-          0,
-          left + slot[0] + 3,
-          top + slot[1] + 3,
-        );
-    }
+    // One frame per number of berries left.
+    const frame =
+      def.frames[`${pile.count}`] ??
+      Math.max(0, Math.min(def.frameCount - 1, pile.count));
+    if (pile.hanging)
+      this.sprites.drawHanging(
+        ctx,
+        "berry-pile",
+        frame,
+        pile.x,
+        pile.y - PILE_HEIGHT / S,
+      );
+    else this.sprites.draw(ctx, "berry-pile", frame, pile.x, pile.y - 1);
   }
 
   private snailFrame(frame: SceneFrame): number {
@@ -395,15 +456,34 @@ export class Scene {
         y: snail.y - 1 - def.anchor[1] + saddle[1],
       };
     }
-    if (unit.eaten)
+    if (unit.eaten) {
+      const shiver = Math.floor(frame.now * 24) % 2;
+      // Half inside the mouth where the art says it is, else just in front of the snail.
+      if (def?.mouth)
+        return {
+          x: snail.x + snail.facing * (def.mouth[0] - def.anchor[0]) + shiver,
+          y: snail.y - 1 - def.anchor[1] + def.mouth[1],
+        };
       return {
         x:
-          snail.x +
-          snail.facing * (this.sprites.sizes.snailFront + 2) +
-          (Math.floor(frame.now * 24) % 2),
+          snail.x + snail.facing * (this.sprites.sizes.snailFront + 2) + shiver,
         y: snail.y - 1,
       };
+    }
+    // A Worker using a gate stands in its doorway, between the pillars, wherever in the gate it stopped.
+    const gate = frame.view.gates.find((entry) => entry.user === unit.slot);
+    if (gate) return { x: gate.x, y: unit.y - 1 };
     return { x: unit.x, y: unit.y - 1 };
+  }
+
+  private emerging(unit: UnitView, frame: SceneFrame): boolean {
+    return frame.pool.sprites.some(
+      (sprite) =>
+        sprite.slot === unit.slot &&
+        unit.grounded &&
+        Math.abs(unit.x - sprite.x) <=
+          (this.sprites.def(sprite.sheet)?.frameWidth ?? 0) / 2,
+    );
   }
 
   private units(
@@ -421,6 +501,8 @@ export class Scene {
         this.waiting(ctx, unit, frame);
         continue;
       }
+      // A new Warrior is the gate's rising figure until that has played, unless it has already flown off.
+      if (this.emerging(unit, frame)) continue;
       const inGate = view.gates.some((gate) => gate.user === unit.slot);
       const pose = unitPose(this.sprites.art.manifest, unit, {
         time: frame.time,
@@ -430,25 +512,131 @@ export class Scene {
       });
       const at = this.place(unit, frame);
       const flip = unit.facing < 0;
-      if (
-        !inGate &&
-        !unit.riding &&
-        !unit.eaten &&
-        (unit.speed || unit.diving) &&
-        (unit.moving || !unit.grounded)
-      )
-        this.trail(ctx, unit, pose.frame, flip, frame);
       const base = unitSheet(unit);
-      if (unit.speed && !inGate) this.teamRim(ctx, unit, pose.frame, at, flip);
-      if (pose.flash && pose.sheet !== base) {
-        // The white silhouette over the sprite, not instead of it: the unit stays readable while it blinks.
-        this.sprites.drawWrapped(ctx, base, pose.frame, at.x, at.y, flip);
-        ctx.globalAlpha = 0.38;
-        this.sprites.drawWrapped(ctx, pose.sheet, pose.frame, at.x, at.y, flip);
-        ctx.globalAlpha = 1;
-      } else
-        this.sprites.drawWrapped(ctx, pose.sheet, pose.frame, at.x, at.y, flip);
+      // A dive, and a speed unit always, leaves after-images where it has been.
+      if (!inGate && !unit.riding && !unit.eaten && (unit.speed || unit.diving))
+        frame.ghosts.note({
+          slot: unit.slot,
+          team: unit.team,
+          sheet: this.sprites.def(base)?.flash ?? base,
+          frame: pose.frame,
+          x: Math.round(at.x),
+          y: Math.round(at.y),
+          flip,
+          born: frame.now,
+        });
+      this.shaped(ctx, at, frame.shapes[unit.slot], (x) => {
+        if (unit.speed && !inGate)
+          this.teamRim(ctx, unit, pose.frame, { x, y: at.y }, flip);
+        if (pose.flash && pose.sheet !== base) {
+          // The white silhouette over the sprite, not instead of it: the unit stays readable while it blinks.
+          this.sprites.draw(ctx, base, pose.frame, x, at.y, flip);
+          ctx.globalAlpha = 0.38;
+          this.sprites.draw(ctx, pose.sheet, pose.frame, x, at.y, flip);
+          ctx.globalAlpha = 1;
+        } else this.sprites.draw(ctx, pose.sheet, pose.frame, x, at.y, flip);
+      });
     }
+  }
+
+  /**
+   * Runs `paint` once for every copy of a unit the wrap needs, each stretched about the unit's feet by `shape`.
+   * `paint` gets the x to draw at.
+   */
+  private shaped(
+    ctx: Ctx,
+    at: { x: number; y: number },
+    shape: BodyShape | undefined,
+    paint: (x: number) => void,
+  ): void {
+    const reach = this.sprites.sizes.queen;
+    for (const offset of wrapOffsets(at.x - reach, at.x + reach)) {
+      const x = Math.round(at.x) + offset;
+      if (!shape || (shape.w === 1 && shape.h === 1)) {
+        paint(x);
+        continue;
+      }
+      // The anchor row is the feet's own row: the ground is the line under it.
+      const ground = Math.round(at.y) + 1;
+      ctx.save();
+      ctx.translate(x + 0.5, ground);
+      ctx.scale(shape.w, shape.h);
+      ctx.translate(-(x + 0.5), -ground);
+      paint(x);
+      ctx.restore();
+    }
+  }
+
+  /** The after-images, each fading evenly over its short life inside a pale outline. */
+  private afterImages(ctx: Ctx, frame: SceneFrame): void {
+    for (const ghost of frame.ghosts.list) {
+      const left = Ghosts.left(ghost, frame.now);
+      if (left <= 0 || left >= 1) continue;
+      const edge = this.sprites.silhouette(ghost.sheet, GHOST_EDGE);
+      const body = this.sprites.silhouette(
+        ghost.sheet,
+        this.sprites.ramp(ghost.team)[2] ?? "#fff",
+      );
+      ctx.globalAlpha = left * 0.45;
+      for (const [dx, dy] of [
+        [-1, 0],
+        [1, 0],
+        [0, -1],
+        [0, 1],
+      ] as const)
+        this.sprites.drawWrapped(
+          ctx,
+          ghost.sheet,
+          ghost.frame,
+          ghost.x + dx,
+          ghost.y + dy,
+          ghost.flip,
+          edge,
+        );
+      ctx.globalAlpha = left * 0.6;
+      this.sprites.drawWrapped(
+        ctx,
+        ghost.sheet,
+        ghost.frame,
+        ghost.x,
+        ghost.y,
+        ghost.flip,
+        body,
+      );
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /**
+   * A gate's doors: they close from the pillars over the Worker inside, and spring open when the Warrior is out.
+   */
+  private doors(ctx: Ctx, frame: SceneFrame): void {
+    const { sizes } = this.sprites;
+    const worker = this.sprites.def("worker-cyan");
+    const box = this.sprites.box("worker-cyan");
+    if (!worker) return;
+    // The doorway is a Worker and a pixel each side wide, and as tall as one.
+    const half = Math.ceil(
+      ((box ? box.right - box.left + 1 : worker.frameWidth) + 2) / 2,
+    );
+    frame.view.gates.forEach((gate, index) => {
+      const closed =
+        gate.user >= 0
+          ? Math.min(1, (gate.progress * GATE_STEPS) / TICK_HZ / DOOR.close)
+          : 1 - (frame.now - (frame.gateOpened[index] ?? -9)) / DOOR.open;
+      if (closed <= 0) return;
+      const ramp = gate.owner < 0 ? undefined : this.sprites.ramp(gate.owner);
+      const leaf = Math.round(half * Math.min(1, closed));
+      const top = gate.y - sizes.worker - 1;
+      for (const side of [-1, 1] as const) {
+        const x = side < 0 ? gate.x - half : gate.x + half - leaf + 1;
+        ctx.fillStyle = ramp?.[0] ?? "#1b1d44";
+        ctx.fillRect(x, top, leaf, sizes.worker + 1);
+        // The leading edge of each leaf in the gate's colour.
+        ctx.fillStyle = ramp?.[2] ?? "#d8e6ff";
+        ctx.fillRect(side < 0 ? x + leaf - 1 : x, top, 1, sizes.worker + 1);
+      }
+    });
   }
 
   /**
@@ -474,7 +662,7 @@ export class Scene {
       [0, -1],
       [0, 1],
     ] as const)
-      this.sprites.drawWrapped(
+      this.sprites.draw(
         ctx,
         shape,
         poseFrame,
@@ -485,113 +673,59 @@ export class Scene {
       );
   }
 
-  /** After-images in the team's colour behind anything fast. */
-  private trail(
-    ctx: Ctx,
-    unit: UnitView,
-    poseFrame: number,
-    flip: boolean,
-    frame: SceneFrame,
-  ): void {
-    const id = unitSheet(unit);
-    const flash = this.sprites.def(id)?.flash ?? id;
-    const tint = this.sprites.silhouette(
-      flash,
-      this.sprites.ramp(unit.team)[2] ?? "#fff",
-    );
-    const points = frame.trails[unit.slot] ?? [];
-    [
-      [7, 0.14],
-      [5, 0.22],
-      [3, 0.34],
-    ].forEach(([back, alpha]) => {
-      const point = points[points.length - (back ?? 0)];
-      if (!point || Math.abs(wrapDistance(point.x, unit.x)) > 48) return;
-      if (Math.abs(point.y - unit.y) > 48) return;
-      ctx.globalAlpha = alpha ?? 0;
-      this.sprites.drawWrapped(
-        ctx,
-        flash,
-        poseFrame,
-        point.x,
-        point.y - 1,
-        flip,
-        tint,
-      );
-    });
-    ctx.globalAlpha = 1;
-  }
-
-  /** Where a dead unit waits: a Queen on her hive's roof pad, clear of the holes, the rest at their spawns. */
-  private waitingPlace(
-    unit: UnitView,
-    view: RoundView,
-  ): { x: number; y: number } | undefined {
-    if (unit.kind === "queen") {
-      const perch = this.sprites.def(`hive-${teamName(unit.team)}`)?.perch;
-      const at = this.hiveAt(unit.team, view.hives[unit.team] ?? []);
-      // The perch is the pad's top row and a spawn is the surface under the feet, one row lower.
-      if (perch && at) return { x: at.x + perch[0], y: at.y + perch[1] + 1 };
-    }
-    return view.map.spawns[unit.slot];
-  }
-
-  /** A dead unit's place while it waits: its ghost, a ring that closes and the seconds left. */
+  /**
+   * A dead unit on its way back. A Worker rises out of the ground where it will stand, over the whole wait; a Queen
+   * is in her egg, which rocks. The player's own unit also gets the seconds left.
+   */
   private waiting(ctx: Ctx, unit: UnitView, frame: SceneFrame): void {
     const { view } = frame;
     if (view.winner) return;
-    const spawn = this.waitingPlace(unit, view);
-    if (!spawn) return;
-    const id = `respawn-${teamName(unit.team)}`;
-    const ramp = this.sprites.ramp(unit.team);
-    // The count sits over a Worker's head, and on a Queen's chest: her head is up among the HUD.
     const { sizes } = this.sprites;
+    const ramp = this.sprites.ramp(unit.team);
+    let at = view.map.spawns[unit.slot];
+    if (unit.kind === "queen") {
+      at = view.spares[unit.team]?.find((spare) => spare.present);
+    } else if (at) {
+      const sheet = unitSheet({ ...unit, speed: false });
+      const def = this.sprites.def(sheet);
+      if (def) {
+        const hidden = Math.round(sizes.worker * (1 - unit.respawn));
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(
+          at.x - def.frameWidth,
+          at.y - def.frameHeight,
+          def.frameWidth * 2,
+          def.frameHeight,
+        );
+        ctx.clip();
+        this.sprites.draw(
+          ctx,
+          sheet,
+          animationFrame(def, "idle", 0),
+          at.x,
+          at.y - 1 + hidden,
+          unit.team === 1,
+        );
+        ctx.restore();
+      }
+    }
+    if (!at || unit.slot !== frame.localSlot) return;
     const lift =
-      unit.kind === "queen" ? Math.round(sizes.queen / 2) : sizes.worker + 4;
-    // A ghost of the unit where it will stand, firming up as the wait runs out; the beam joins in at the end.
-    const sheet = unitSheet({ ...unit, speed: false });
-    const def = this.sprites.def(sheet);
-    if (def) {
-      // Her own picture, thin as glass: a flat silhouette her size reads as a stain on the sky.
-      ctx.globalAlpha =
-        0.28 + 0.4 * unit.respawn + 0.06 * Math.sin(frame.now * 9 + unit.slot);
-      this.sprites.draw(
-        ctx,
-        sheet,
-        animationFrame(def, "idle", 0),
-        spawn.x,
-        spawn.y - 1,
-        unit.team === 1,
-      );
-    }
-    if (unit.respawn > 0.8) {
-      ctx.globalAlpha = 0.7;
-      this.sprites.draw(ctx, id, 1, spawn.x, spawn.y - 1);
-    }
-    ctx.globalAlpha = 1;
-    // Workers come back in front of their hive: only a Queen and the player's own unit get the clock, so the
-    // holes and the plaque stay readable.
-    if (unit.kind !== "queen" && unit.slot !== frame.localSlot) return;
-    // A ring of dots that closes as the wait runs out.
-    const dots = 8;
-    const lit = Math.round(unit.respawn * dots);
-    for (let i = 0; i < dots; i += 1) {
-      const angle = (i / dots) * Math.PI * 2 - Math.PI / 2;
-      ctx.fillStyle = i < lit ? (ramp[3] ?? "#fff") : (ramp[0] ?? "#333");
-      ctx.fillRect(
-        Math.round(spawn.x + Math.cos(angle) * 6),
-        Math.round(spawn.y - lift + Math.sin(angle) * 6),
-        1,
-        1,
-      );
-    }
+      (unit.kind === "queen" ? this.eggHeight(unit.team) : sizes.worker) + 9;
     this.label(
       ctx,
       `${respawnCount(unit.respawn, RESPAWN_STEPS / TICK_HZ)}`,
-      spawn.x + 0.5,
-      spawn.y - lift - 2,
+      at.x + 0.5,
+      at.y - lift,
       ramp[3] ?? "#fff",
     );
+  }
+
+  private eggHeight(team: number): number {
+    const id = `egg-${teamName(team)}`;
+    const def = this.sprites.def(id);
+    return def ? def.anchor[1] - (this.sprites.box(id)?.top ?? 0) + 1 : 0;
   }
 
   private berries(ctx: Ctx, frame: SceneFrame): void {
@@ -599,7 +733,14 @@ export class Scene {
     if (!def) return;
     const at = animationFrame(def, "loose", frame.time / TICK_HZ);
     for (const berry of frame.view.loose)
-      this.sprites.drawWrapped(ctx, "berry", at, berry.x, berry.y - 4);
+      this.sprites.drawWrapped(
+        ctx,
+        "berry",
+        at,
+        berry.x,
+        // A loose berry's `y` is the surface it would rest on: its lowest row sits one above.
+        berry.y - (def.frameHeight - def.anchor[1]),
+      );
   }
 
   private effects(ctx: Ctx, frame: SceneFrame): void {
@@ -633,10 +774,26 @@ export class Scene {
           ctx.fillRect(x + dx + offset, y + dy, 1, 1);
     }
     ctx.globalAlpha = 1;
+    for (const flare of pool.flares) {
+      // White that grows as it fades: a core for a clash, the whole sky round a dying Queen.
+      const t = flare.age / flare.life;
+      const radius = Math.max(1, Math.round(flare.radius * (0.25 + 0.75 * t)));
+      ctx.globalAlpha = 1 - t;
+      ctx.fillStyle = "#ffffff";
+      const x = Math.round(flare.x),
+        y = Math.round(flare.y);
+      for (let dy = -radius; dy <= radius; dy += 1) {
+        const half = discHalfWidth(radius, dy);
+        for (const offset of wrapOffsets(x - half, x + half + 1))
+          ctx.fillRect(x - half + offset, y + dy, half * 2 + 1, 1);
+      }
+    }
+    ctx.globalAlpha = 1;
     for (const p of pool.particles) {
+      if (p.age < 0) continue;
       const left = 1 - p.age / p.life;
       ctx.globalAlpha = left < 0.3 ? left / 0.3 : 1;
-      ctx.fillStyle = p.color;
+      ctx.fillStyle = particleColor(p);
       ctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
     }
     ctx.globalAlpha = 1;
@@ -657,7 +814,7 @@ export class Scene {
 
   private tags(ctx: Ctx, frame: SceneFrame): void {
     for (const unit of frame.view.units) {
-      if (unit.dead || unit.eaten) continue;
+      if (unit.dead || unit.eaten || this.emerging(unit, frame)) continue;
       if (frame.view.gates.some((gate) => gate.user === unit.slot)) continue;
       const at = this.place(unit, frame);
       const head = this.sprites.sizes[unit.kind] + 3;
@@ -665,7 +822,8 @@ export class Scene {
       const mine = unit.slot === frame.localSlot;
       const tag = tagOf(frame.names[unit.slot], unit.bot);
       const botAlpha = botTagAlpha(frame.view.step);
-      for (const offset of wrapOffsets(at.x - 20, at.x + 20)) {
+      const half = Math.ceil(textWidth(tag) / 2) + 2;
+      for (const offset of wrapOffsets(at.x - half, at.x + half)) {
         const x = Math.round(at.x) + offset;
         let y = Math.round(at.y) - head;
         if (tag === "BOT" && unit.bot && !mine) {

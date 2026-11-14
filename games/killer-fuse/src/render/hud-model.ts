@@ -79,8 +79,9 @@ export const respawnCount = (respawn: number, totalSeconds: number): number =>
   );
 
 /**
- * Where a hive sprite's anchor goes so its holes land on the engine's: hole 0 minus the sheet's first hole offset.
- * Null when the map has no holes for the team or the sheet does not say where its holes are.
+ * Where a hive sprite's anchor goes so the holes drawn in it land on the engine's: hole 0 minus the sheet's first
+ * hole offset. Null when the art's layout is not this map's (no holes, another count, or any hole elsewhere): the
+ * wall then stands on the map's wall rectangle and the renderer draws every hole itself.
  */
 export function hiveAnchor(
   holes: readonly { readonly x: number; readonly y: number }[],
@@ -88,8 +89,47 @@ export function hiveAnchor(
 ): { x: number; y: number } | null {
   const first = holes[0],
     offset = def.holes[0];
-  if (!first || !offset) return null;
-  return { x: first.x - offset[0], y: first.y - offset[1] };
+  if (!first || !offset || holes.length !== def.holes.length) return null;
+  const at = { x: first.x - offset[0], y: first.y - offset[1] };
+  return holes.every((hole, index) => {
+    const from = def.holes[index];
+    return (
+      from !== undefined &&
+      at.x + from[0] === hole.x &&
+      at.y + from[1] === hole.y
+    );
+  })
+    ? at
+    : null;
+}
+
+/**
+ * The sheet of a team's hive wall on a map: the art draws one per map, named after it (`hive-day-cyan`), and an
+ * art set with a single wall for every map names it `hive-cyan`. Undefined when the art has neither.
+ */
+export function hiveSheet(
+  mapName: string,
+  team: number,
+  has: (id: string) => boolean,
+): string | undefined {
+  const name = teamName(team);
+  return [`hive-${mapName.toLowerCase()}-${name}`, `hive-${name}`].find(has);
+}
+
+export type EggState = "full" | "cracked" | "broken";
+
+/**
+ * What each of a team's spare eggs looks like. The engine says which are still there; while the Queen is dead the
+ * first of them is the one hatching her (`cracked`), and one that has hatched is an empty shell.
+ */
+export function eggStates(
+  spares: readonly { readonly present: boolean }[],
+  hatching: boolean,
+): EggState[] {
+  const next = spares.findIndex((spare) => spare.present);
+  return spares.map((spare, index) =>
+    !spare.present ? "broken" : hatching && index === next ? "cracked" : "full",
+  );
 }
 
 /** Steps into a round for which bots carry their BOT tag, the last of them fading. */
@@ -133,18 +173,62 @@ export function victoryFocus(view: RoundView, sizes: Sizes): Point {
   };
 }
 
-/** The hexagon's corner radius once it has closed, and the seconds it takes to close. */
-export const IRIS_RADIUS = 46,
-  IRIS_SECONDS = 0.9;
+/**
+ * The ending, timed after the arcade: the hexagon closes to this corner radius in half a second while the view
+ * centres on what decided the round, and the picture grows to twice its size over a second and a half, a little
+ * past it before settling. A military win waits for the dead Queen's shake first.
+ */
+export const IRIS_RADIUS = 43,
+  IRIS_SECONDS = 0.5,
+  CENTRE_SECONDS = 0.5,
+  ZOOM_SECONDS = 1.5,
+  END_ZOOM = 2,
+  ZOOM_SPRING = 0.6;
 /** Wide enough that the hexagon holds the whole picture wherever its centre is. */
 const IRIS_OPEN = 700;
 const ROOT3 = Math.sqrt(3);
 
-/** The hexagon's corner radius `age` seconds after the win: fast at first, settling at the end. */
+/** The hexagon's corner radius `age` seconds into the ending: fast at first, settling at the end. */
 export function irisRadius(age: number): number {
   const t = Math.max(0, Math.min(1, age / IRIS_SECONDS));
   return IRIS_RADIUS + (IRIS_OPEN - IRIS_RADIUS) * (1 - t) ** 3;
 }
+
+/** Seconds the ending waits after the win: `shake` when a Queen's death decided it, else none. */
+export const endingDelay = (
+  winner: NonNullable<RoundView["winner"]>,
+  timeUp: boolean,
+  shake: number,
+): number => (winner.kind === "military" && !timeUp ? shake : 0);
+
+export interface Camera {
+  /** The point of the arena shown in the middle of the screen, and how much the picture is enlarged about it. */
+  readonly x: number;
+  readonly y: number;
+  readonly zoom: number;
+}
+
+export const STILL: Camera = { x: VIEW_WIDTH / 2, y: VIEW_HEIGHT / 2, zoom: 1 };
+
+/** Where the camera is `age` seconds into the ending, on its way to `focus`. */
+export function endingCamera(age: number, focus: Point): Camera {
+  if (age <= 0) return STILL;
+  const t = Math.min(1, age / CENTRE_SECONDS);
+  const pan = t * t * (3 - 2 * t);
+  const z = Math.min(1, age / ZOOM_SECONDS) - 1;
+  const grown = 1 + (ZOOM_SPRING + 1) * z * z * z + ZOOM_SPRING * z * z;
+  return {
+    x: STILL.x + (focus.x - STILL.x) * pan,
+    y: STILL.y + (focus.y - STILL.y) * pan,
+    zoom: 1 + (END_ZOOM - 1) * grown,
+  };
+}
+
+/** Where a point of the arena is on the screen through a camera. */
+export const project = (point: Point, camera: Camera): Point => ({
+  x: STILL.x + (point.x - camera.x) * camera.zoom,
+  y: STILL.y + (point.y - camera.y) * camera.zoom,
+});
 
 /** Half the width of a flat-topped hexagon of corner radius `radius`, `dy` rows from its middle; 0 outside it. */
 export function hexHalfWidth(radius: number, dy: number): number {

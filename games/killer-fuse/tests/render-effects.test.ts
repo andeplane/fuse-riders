@@ -4,6 +4,13 @@ import type { GameEvent, RoundView } from "../src/engine/index.js";
 import {
   EventLedger,
   bodyLift,
+  BUMP_SPARKS,
+  CLAIM_SECONDS,
+  CLASH,
+  DEATH,
+  HATCH,
+  planLanding,
+  QUEEN_FLARE,
   eventKey,
   mergePlans,
   planEvent,
@@ -78,26 +85,26 @@ test("a new round forgets the old one and old steps are dropped", () => {
   assert.equal(ledger.fresh(withEvents(base, 2, [kill])).length, 1);
 });
 
-test("a kill bursts in the victim's colour and shakes more for the local player", () => {
+test("a kill is specks of the victim's colour, big and small, and nothing else", () => {
   const view = withUnit(openingView(), 4, { x: 400, y: 120, kind: "worker" });
   const event: GameEvent = { type: "kill", victim: 4, killer: 0 };
   const plan = planEvent(event, view, -1, SIZES);
-  assert.deepEqual(kinds(plan), ["sprite", "burst"]);
-  const [sprite] = plan.effects;
-  assert.ok(sprite?.kind === "sprite");
-  assert.equal(
-    sprite.sheet,
-    `kill-burst-${view.units[4]?.team === 1 ? "pink" : "cyan"}`,
-  );
-  assert.equal(sprite.x, 400);
-  assert.equal(sprite.y, 120 - SIZES.worker / 2);
+  assert.deepEqual(kinds(plan), ["burst", "burst"], "no fireball, no sprite");
+  const [big, small] = plan.effects;
+  assert.ok(big?.kind === "burst" && small?.kind === "burst");
+  assert.deepEqual([big.size, small.size], [2, 1]);
+  assert.ok(big.count >= 25 && big.count <= 50);
+  assert.ok(small.count >= 50 && small.count <= 75);
+  assert.equal(big.life, DEATH.life);
+  assert.equal(big.team, view.units[4]?.team);
+  assert.equal(big.x, 400);
+  assert.equal(big.y, 120 - SIZES.worker / 2);
+  assert.equal(plan.shake, 0, "only a Queen's death shakes the picture");
   assert.deepEqual(sounds(plan), ["kill"]);
   assert.ok((plan.sounds[0]?.pan ?? 0) > 0, "heard from the right");
   assert.equal(plan.sounds[0]?.volume, 0.55);
   const mine = planEvent(event, view, 0, SIZES);
   assert.equal(mine.sounds[0]?.volume, 1);
-  assert.ok(mine.shake > plan.shake);
-  assert.ok(mine.hitStop > plan.hitStop);
 });
 
 test("a Queen's death is the biggest thing on the screen, and only once", () => {
@@ -116,10 +123,13 @@ test("a Queen's death is the biggest thing on the screen, and only once", () => 
     -1,
     SIZES,
   );
-  assert.deepEqual(kinds(plan), ["sprite", "burst", "burst", "ring", "ring"]);
+  assert.deepEqual(kinds(plan), ["flare", "burst", "burst"]);
+  const [flare, big, small] = plan.effects;
+  assert.ok(flare?.kind === "flare");
+  assert.deepEqual({ radius: flare.radius, life: flare.life }, QUEEN_FLARE);
+  assert.ok(big?.kind === "burst" && small?.kind === "burst");
+  assert.ok(big.count > DEATH.unit.big && small.count > DEATH.unit.small);
   assert.equal(plan.shake, 1);
-  assert.ok(plan.hitStop >= 100);
-  assert.ok(plan.flash > 0);
   assert.deepEqual(sounds(plan), ["queenKill"]);
   assert.equal(plan.sounds[0]?.pan, 0);
   assert.equal(bodyLift(unitView({ kind: "queen" }), SIZES), 9);
@@ -204,7 +214,7 @@ test("effects land where the thing happened", () => {
   assert.deepEqual(
     kinds(deposit),
     ["sprite", "burst", "ring"],
-    "no number: the hive's plaque counts",
+    "no number: the hive's holes count",
   );
   const halo = deposit.effects[2];
   assert.ok(halo?.kind === "ring");
@@ -215,10 +225,7 @@ test("effects land where the thing happened", () => {
     -1,
     SIZES,
   );
-  assert.ok(
-    kickIn.shake > deposit.shake,
-    "a kicked-in berry is the better trick",
-  );
+  assert.deepEqual(kinds(kickIn), kinds(deposit));
 
   const regrow = planEvent({ type: "berryRegrow" }, view, -1, SIZES);
   assert.equal(regrow.effects.length, view.piles.length);
@@ -231,8 +238,8 @@ test("effects land where the thing happened", () => {
     -1,
     SIZES,
   );
-  const burst = use.effects[1];
-  assert.ok(burst?.kind === "burst");
+  const burst = use.effects[0];
+  assert.ok(burst?.kind === "burst", "a speed gate only lights up");
   assert.equal(burst.tone, "gold");
   assert.equal(burst.x, gate.x);
   const warrior = planEvent(
@@ -241,18 +248,31 @@ test("effects land where the thing happened", () => {
     -1,
     SIZES,
   );
+  const rising = warrior.effects[0];
+  assert.ok(rising?.kind === "sprite");
+  assert.equal(rising.sheet, "gate-emerge-pink");
+  assert.equal(rising.slot, 1, "the new Warrior is the rising figure");
+  assert.deepEqual([rising.x, rising.y], [gate.x, gate.y - 1]);
   const teamBurst = warrior.effects[1];
   assert.ok(teamBurst?.kind === "burst");
   assert.equal(teamBurst.tone, "team");
+  const fast = planEvent(
+    { type: "gateUse", slot: 1, gate: 0, kind: "warrior" },
+    withUnit(view, 1, { speed: true }),
+    -1,
+    SIZES,
+  );
+  const quick = fast.effects[0];
+  assert.ok(quick?.kind === "sprite");
+  assert.equal(quick.sheet, "gate-emerge-speed-pink");
   const claim = planEvent(
     { type: "gateClaim", slot: 3, gate: 0, team: 1 },
     view,
     -1,
     SIZES,
   );
-  const sparkle = claim.effects[0];
-  assert.ok(sparkle?.kind === "sprite");
-  assert.equal(sparkle.flip, true);
+  assert.ok(claim.effects.every((effect) => effect.kind !== "sprite"));
+  assert.ok(claim.effects.length > 0);
 
   const eat = planEvent(
     { type: "snailEat", victim: 9, rider: 1 },
@@ -274,12 +294,12 @@ test("a bounce across the wrap bursts at one of the two, not mid-screen", () => 
   let view = withUnit(openingView(), 0, { x: 4, y: 100 });
   view = withUnit(view, 3, { x: 476, y: 100 });
   const across = planEvent({ type: "bounce", a: 0, b: 3 }, view, -1, SIZES)
-    .effects[0];
+    .effects[1];
   assert.ok(across?.kind === "burst");
   assert.equal(across.x, 4);
   view = withUnit(view, 3, { x: 24, y: 100 });
   const near = planEvent({ type: "bounce", a: 0, b: 3 }, view, -1, SIZES)
-    .effects[0];
+    .effects[1];
   assert.ok(near?.kind === "burst");
   assert.equal(near.x, 14);
 });
@@ -308,7 +328,7 @@ test("a flap puffs behind the wings and a jump under the feet", () => {
   );
 });
 
-test("plans merge into one: everything in order, the strongest shake and freeze", () => {
+test("plans merge into one: everything in order, the strongest shake", () => {
   const view = openingView();
   const a = planEvent({ type: "kill", victim: 4, killer: 3 }, view, -1, SIZES);
   const b = planEvent(
@@ -321,14 +341,10 @@ test("plans merge into one: everything in order, the strongest shake and freeze"
   assert.equal(merged.effects.length, a.effects.length + b.effects.length);
   assert.deepEqual(sounds(merged), ["kill", "queenKill"]);
   assert.equal(merged.shake, 1);
-  assert.equal(merged.hitStop, b.hitStop);
-  assert.equal(merged.flash, b.flash);
   assert.deepEqual(mergePlans([]), {
     effects: [],
     sounds: [],
     shake: 0,
-    hitStop: 0,
-    flash: 0,
   });
 });
 
@@ -400,4 +416,83 @@ test("the body's middle is known for every kind and never fails", () => {
   }
   assert.equal(bodyLift(undefined, SIZES), 0);
   assert.equal(bodyLift(undefined, undefined), 0);
+});
+
+test("a clash is a white core and quick bursts of sparks; a bump is ten", () => {
+  const view = withUnit(withUnit(openingView(), 0, { x: 100, y: 100 }), 3, {
+    x: 110,
+    y: 100,
+  });
+  const clash = planEvent({ type: "bounce", a: 0, b: 3 }, view, -1, SIZES);
+  const [core, ...bursts] = clash.effects;
+  assert.ok(core?.kind === "flare");
+  assert.equal(core.life, CLASH.core);
+  assert.equal(bursts.length, CLASH.bursts);
+  assert.deepEqual(
+    bursts.map((burst) => (burst.kind === "burst" ? burst.delay : -1)),
+    Array.from({ length: CLASH.bursts }, (_, index) => index * CLASH.gap),
+    "one after the other",
+  );
+  assert.ok(bursts.every((b) => b.kind === "burst" && b.life === CLASH.life));
+  assert.equal(clash.shake, 0);
+  const bump = planEvent(
+    { type: "bump", worker: 1, target: 4 },
+    view,
+    -1,
+    SIZES,
+  );
+  const [sparks] = bump.effects;
+  assert.ok(sparks?.kind === "burst");
+  assert.equal(sparks.count, BUMP_SPARKS);
+});
+
+test("a claimed gate sends its new colour up for a second", () => {
+  const view = openingView();
+  const plan = planEvent(
+    { type: "gateClaim", slot: 3, gate: 0, team: 1 },
+    view,
+    -1,
+    SIZES,
+  );
+  const rising = plan.effects.find((effect) => effect.kind === "fountain");
+  assert.ok(rising?.kind === "fountain");
+  assert.equal(rising.seconds, CLAIM_SECONDS);
+  assert.equal(rising.team, 1);
+  assert.equal(rising.tone, "team");
+  assert.equal(rising.x, view.gates[0]?.x);
+});
+
+test("a Queen hatches in a burst of shell, a Worker in its beam", () => {
+  const view = openingView();
+  const queen = view.units.find((unit) => unit.kind === "queen");
+  const worker = view.units.find((unit) => unit.kind === "worker");
+  assert.ok(queen && worker);
+  const hatch = planEvent(
+    { type: "respawn", slot: queen.slot },
+    view,
+    -1,
+    SIZES,
+  );
+  const [shell] = hatch.effects;
+  assert.ok(shell?.kind === "burst");
+  assert.deepEqual(
+    { count: shell.count, life: shell.life, tone: shell.tone },
+    { ...HATCH, tone: "white" },
+  );
+  const beam = planEvent(
+    { type: "respawn", slot: worker.slot },
+    view,
+    -1,
+    SIZES,
+  );
+  assert.deepEqual(kinds(beam), ["sprite"]);
+});
+
+test("a landing raises dust at the feet and makes no sound", () => {
+  const plan = planLanding(unitView({ x: 50, y: 80, facing: -1 }));
+  assert.deepEqual(plan.effects, [
+    { kind: "sprite", sheet: "flap-puff", x: 50, y: 79, flip: true },
+  ]);
+  assert.deepEqual(plan.sounds, []);
+  assert.equal(plan.shake, 0);
 });

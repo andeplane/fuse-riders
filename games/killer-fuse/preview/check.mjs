@@ -26,8 +26,12 @@ const browser = await chromium.launch({
 const errors = [];
 const report = {};
 
-async function open(context, query) {
+/** Pages whose clock this script turns by hand, so an effect is shot at a known age however slow the shot is. */
+const frozen = new WeakSet();
+
+async function open(context, query, freeze = false) {
   const page = await context.newPage();
+
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
@@ -36,14 +40,28 @@ async function open(context, query) {
   await page.locator('#status[data-state="ready"]').waitFor({
     state: "attached",
   });
+  if (freeze) {
+    await page.evaluate(() => window.__game.hold(0));
+    frozen.add(page);
+  }
   return page;
+}
+
+const drawn = (page, count) =>
+  page.evaluate(async (n) => {
+    for (let i = 0; i < n; i += 1) await new Promise(requestAnimationFrame);
+  }, count);
+
+/** Lets `ms` of the renderer's time pass. */
+async function wait(page, ms) {
+  if (!frozen.has(page)) return page.waitForTimeout(ms);
+  await page.evaluate((time) => window.__game.hold(time), ms);
+  return drawn(page, 2);
 }
 
 /** Lets the page draw `count` display frames. */
 const frames = (page, count = 2) =>
-  page.evaluate(async (n) => {
-    for (let i = 0; i < n; i += 1) await new Promise(requestAnimationFrame);
-  }, count);
+  frozen.has(page) ? wait(page, count * 17) : drawn(page, count);
 
 async function shoot(page, name) {
   await frames(page);
@@ -51,6 +69,30 @@ async function shoot(page, name) {
   console.log(
     `shot ${name}: ${(await page.evaluate(() => window.__game.text())).split("\n")[0]}`,
   );
+}
+
+/** A shot of the 96 by 72 art pixels around the point `pick` (a function of the view, given as source) returns. */
+async function closeup(page, name, pick) {
+  await frames(page);
+  const clip = await page.evaluate((source) => {
+    const at = new Function("view", `return (${source})(view)`)(
+      window.__game.view(),
+    );
+    if (!at) return null;
+    const box = document.querySelector("#arena canvas").getBoundingClientRect();
+    const scale = box.width / 480;
+    const x = Math.max(0, Math.min(480 - 96, at.x - 48));
+    const y = Math.max(0, Math.min(270 - 72, at.y - 50));
+    return {
+      x: box.left + x * scale,
+      y: box.top + y * scale,
+      width: 96 * scale,
+      height: 72 * scale,
+    };
+  }, pick.toString());
+  if (!clip) return;
+  await page.screenshot({ path: `${shots}${name}.png`, clip });
+  console.log(`shot ${name}`);
 }
 
 /** Steps hidden until `test` (a function of the view, given as source) holds; true when it did. */
@@ -70,7 +112,7 @@ const reach = (page, test, limit = 60 * 240) =>
   );
 
 async function tour(context, prefix) {
-  const page = await open(context, "seed=1&map=1&level=hard");
+  const page = await open(context, "seed=1&map=1&level=hard", true);
   const size = await page.evaluate(() => {
     const canvas = document.querySelector("#arena canvas");
     return { width: canvas.width, height: canvas.height };
@@ -93,15 +135,47 @@ async function tour(context, prefix) {
     await page.evaluate(() => window.__game.step(70));
     await frames(page, 12);
     await shoot(page, `${prefix}gate-transform`);
+    const usedGate = (view) => view.gates.find((gate) => gate.user >= 0);
+    await closeup(page, `${prefix}zoom-gate-in-use`, usedGate);
     if (await page.evaluate(() => window.__game.until("gateUse", 600))) {
-      await frames(page, 5);
+      // The Warrior rises out of the gate over half a second: three looks at it.
+      const risen = (view) => {
+        const event = view.events.find((entry) => entry.type === "gateUse");
+        return event && view.gates[event.gate];
+      };
+      for (let i = 0; i < 3; i += 1) {
+        await closeup(page, `${prefix}zoom-gate-emerge-${i}`, risen);
+        await frames(page, 8);
+      }
       await shoot(page, `${prefix}gate-use`);
     }
   }
   if (await page.evaluate(() => window.__game.until("kill"))) {
-    await page.evaluate(() => window.__game.step(2));
-    await frames(page, 4);
+    const victim = (view) => {
+      const event = view.events.find((entry) => entry.type === "kill");
+      return event && view.units[event.victim];
+    };
+    for (let i = 0; i < 3; i += 1) {
+      await closeup(page, `${prefix}zoom-kill-${i}`, victim);
+      await frames(page, 4);
+    }
     await shoot(page, `${prefix}kill`);
+  }
+  // A Queen's dive, with its afterimages above her.
+  const diver = (view) => view.units.find((unit) => unit.diving);
+  for (const seed of [1, 2, 3, 4, 5, 6]) {
+    await page.evaluate((s) => window.__game.restart({ seed: s }), seed);
+    if (
+      !(await reach(
+        page,
+        (view) => view.units.some((unit) => unit.diving),
+        60 * 90,
+      ))
+    )
+      continue;
+    await page.evaluate(() => window.__game.step(4));
+    await closeup(page, `${prefix}zoom-dive`, diver);
+    break;
   }
   // A hive with several holes filled, at the moment another berry goes in.
   for (const seed of [1, 2, 3, 4, 5, 6]) {
@@ -127,40 +201,25 @@ async function tour(context, prefix) {
     await shoot(page, `${prefix}speed-units`);
     break;
   }
-  // A Warrior dropping at full speed with its wings still: the dive frame.
-  for (const seed of [1, 2, 3, 4]) {
-    await page.evaluate((s) => window.__game.restart({ seed: s }), seed);
-    const plunging = await reach(page, (view) => {
-      const warrior = view.units.find(
-        (unit) => unit.kind === "warrior" && !unit.dead && !unit.grounded,
-      );
-      const before = window.__warriorY;
-      window.__warriorY = warrior ? [warrior.slot, warrior.y] : undefined;
-      window.__falls =
-        warrior &&
-        before &&
-        before[0] === warrior.slot &&
-        warrior.y - before[1] >= 2 &&
-        !warrior.flapped
-          ? (window.__falls ?? 0) + 1
-          : 0;
-      return window.__falls >= 3;
-    });
-    if (!plunging) continue;
-    await page.evaluate(() => window.__game.step(2));
-    await shoot(page, `${prefix}warrior-dive`);
-    break;
-  }
   // The big moment: a Queen dies. The frame after it is held by the hit-stop, then the burst plays out, so a run
   // of shots is taken straight away: the effect is over in two thirds of a second.
   await page.evaluate(() => window.__game.restart({ seed: 1 }));
   if (await page.evaluate(() => window.__game.until("queenKill"))) {
-    for (let i = 0; i < 5; i += 1)
+    for (let i = 0; i < 5; i += 1) {
+      await frames(page, 6);
       await page.screenshot({ path: `${shots}${prefix}queen-kill-${i}.png` });
+    }
     console.log(`shot ${prefix}queen-kill-0..4`);
     // While she is dead: her ghost and count on the hive's roof.
     await page.evaluate(() => window.__game.step(50));
     await shoot(page, `${prefix}queen-wait`);
+    // The egg she will hatch from, among her spares.
+    await closeup(page, `${prefix}zoom-eggs`, (view) => {
+      const queen = view.units.find(
+        (unit) => unit.kind === "queen" && unit.dead,
+      );
+      return queen && view.spares[queen.team]?.find((egg) => egg.present);
+    });
   }
   // A Worker riding the snail home, in the last quarter before a goal.
   for (const [map, seed] of [
@@ -187,13 +246,15 @@ async function tour(context, prefix) {
     await shoot(page, `${prefix}snail-ride`);
     break;
   }
-  // A busy moment a while into a round, running live.
+  // A busy moment a while into a round, after a second and a half of play shown step by step.
   await page.evaluate(() => {
     window.__game.restart({ seed: 3 });
     window.__game.skip(60 * 14);
-    window.__game.resume();
+    for (let i = 0; i < 90; i += 1) {
+      window.__game.step(1);
+      window.__game.hold(1000 / 60);
+    }
   });
-  await page.waitForTimeout(1500);
   await shoot(page, `${prefix}mid-fight`);
   await page.close();
 }

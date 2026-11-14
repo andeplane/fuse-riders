@@ -309,6 +309,8 @@ export class Sound {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
   private music: GainNode | null = null;
+  /** Everything but the music and the win sting, so the sting can cut it off as the arcade's does. */
+  private effects: GainNode | null = null;
   private noise: AudioBuffer | null = null;
   private readonly lastPlayed = new Map<SoundName, number>();
   private unlocked = false;
@@ -335,6 +337,8 @@ export class Sound {
   setPlaying(playing: boolean): void {
     if (playing && !this.playing) this.nextStep = 0;
     this.playing = playing;
+    if (playing && this.effects && this.context)
+      this.effects.gain.setTargetAtTime(1, this.context.currentTime, 0.02);
     if (this.music && this.context)
       this.music.gain.setTargetAtTime(
         playing ? 0.5 : 0,
@@ -355,6 +359,9 @@ export class Sound {
       const music = context.createGain();
       music.gain.value = this.playing ? 0.5 : 0;
       music.connect(master);
+      const effects = context.createGain();
+      effects.connect(master);
+      this.effects = effects;
       const noise = context.createBuffer(
         1,
         context.sampleRate,
@@ -435,7 +442,12 @@ export class Sound {
     this.lastPlayed.set(cue.name, now);
     const pan = context.createStereoPanner();
     pan.pan.value = Math.max(-1, Math.min(1, cue.pan));
-    pan.connect(this.master);
+    if (cue.name.startsWith("victory") && this.effects && this.music) {
+      // The win sound plays alone: whatever else was sounding stops.
+      this.effects.gain.setTargetAtTime(0, now, 0.015);
+      this.music.gain.setTargetAtTime(0, now, 0.015);
+      pan.connect(this.master);
+    } else pan.connect(this.effects ?? this.master);
     for (const note of recipe.notes ?? [])
       this.note(note, now, cue.volume, pan);
     for (const hiss of recipe.hiss ?? []) this.hiss(hiss, now, cue.volume, pan);
