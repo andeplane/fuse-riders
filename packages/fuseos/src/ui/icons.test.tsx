@@ -44,6 +44,16 @@ describe(Win98Icon.name, () => {
       "winamp",
     );
   });
+
+  it("draws the Fusteam fuse as an inline svg at both sizes", () => {
+    for (const size of [16, 32] as const) {
+      const svg = render(
+        <Win98Icon name="fusteam" size={size} />,
+      ).container.querySelector("svg");
+      expect(svg?.getAttribute("data-icon")).toBe("fusteam");
+      expect(svg?.getAttribute("width")).toBe(String(size));
+    }
+  });
 });
 
 describe(AppIcon.name, () => {

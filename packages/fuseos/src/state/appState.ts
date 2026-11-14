@@ -49,6 +49,11 @@ export interface WinampWindowContent {
   kind: "winamp";
 }
 
+/** Fusteam, the game launcher (`src/launcher`): opens on every boot, one instance, focused rather than duplicated. */
+export interface LauncherWindowContent {
+  kind: "launcher";
+}
+
 export type WindowContent =
   | FuseGameWindowContent
   | RetroGameWindowContent
@@ -57,7 +62,8 @@ export type WindowContent =
   | AboutWindowContent
   | DialogWindowContent
   | PaintWindowContent
-  | WinampWindowContent;
+  | WinampWindowContent
+  | LauncherWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -208,6 +214,7 @@ function isWindowContent(
     case "wallpaper":
     case "about":
     case "winamp":
+    case "launcher":
       return true;
     case "dialog":
       return (

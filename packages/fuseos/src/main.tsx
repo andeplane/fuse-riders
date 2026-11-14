@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 
 import { App } from "./App";
 import { createFuseGameRegistry, FuseGamesContext } from "./fusegames/registry";
+import { withLauncherOnBoot } from "./launcher/launcherBoot";
 import {
   deepLinkContents,
   parseOpenParam,
@@ -15,6 +16,7 @@ import {
   defaultWinampDeps,
   WinampDepsContext,
 } from "./winamp/winampDepsContext";
+import { defaultWindowsDeps } from "./windows/windowsDepsContext";
 
 import "./styles.css";
 
@@ -34,6 +36,12 @@ if (initialOpen.length > 0)
     withoutOpenParam(window.location.href),
   );
 
+// Fusteam, the game launcher, opens focused on every boot; the deep link's windows land on top of it.
+const store = withLauncherOnBoot(
+  new LocalStorageStateStore(),
+  defaultWindowsDeps.getViewport,
+);
+
 // Webamp ships its own React and the classic skin inlined; loaded only when a Winamp window opens.
 const winampDeps: WinampDeps = {
   ...defaultWinampDeps,
@@ -48,7 +56,7 @@ export function mountFuseOs(container: HTMLElement): void {
   ReactDOM.createRoot(container).render(
     <FuseGamesContext.Provider value={games}>
       <WinampDepsContext.Provider value={winampDeps}>
-        <App store={new LocalStorageStateStore()} initialOpen={initialOpen} />
+        <App store={store} initialOpen={initialOpen} />
       </WinampDepsContext.Provider>
     </FuseGamesContext.Provider>,
   );
