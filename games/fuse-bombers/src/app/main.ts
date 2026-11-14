@@ -7,7 +7,7 @@ import "./screens.css";
 import { validRoomCode } from "fuse-network-fe";
 import { uuid } from "fuse-netcode";
 import { createAppPortal, type AppPortal } from "fuse-ui/portal";
-import { createGameMenu, createRoundControls } from "fuse-ui";
+import { createGameMenu, createRoundControls, createTopBar } from "fuse-ui";
 import Phaser from "phaser";
 import {
   RoundScene,
@@ -79,9 +79,13 @@ async function boot(): Promise<void> {
   const root = document.createElement("div");
   root.id = "screen";
   document.body.append(root);
-  audio.mountToggle(); // After `#screen`, so screens.css can hide it mid-round.
   const portal = mountPortal();
-  portal.element.append(social.element());
+  const top = portal.element.parentElement!;
+  const brand = document.createElement("a");
+  brand.textContent = "FUSE BOMBERS";
+  brand.href = import.meta.env.BASE_URL;
+  top.append(brand, social.element());
+  createTopBar({ element: top, brand, gameId: GAME, sound: audio.master });
   let flow: Flow | undefined;
   const menu = createGameMenu({
     title: "FUSE BOMBERS",
@@ -166,9 +170,9 @@ function mountPortal(): AppPortal {
   return portal;
 }
 
-if (session.kind === "landing") showLanding(store);
+if (session.kind === "landing") showLanding(store, "", audio);
 else if (session.kind === "invalid")
-  showLanding(store, `${session.code} is not a room code`);
+  showLanding(store, `${session.code} is not a room code`, audio);
 else
   boot().catch((error: unknown) => {
     analytics.reportBootFailure(error);

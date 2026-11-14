@@ -1,4 +1,5 @@
 import type { SafeStorage } from "./safe-storage.js";
+import type { TopBarSound } from "./top-bar.js";
 
 /**
  * Shared sound for the arcade games: one master bus with a remembered mute and two volumes (music, effects),
@@ -670,6 +671,12 @@ export function createAudioControl(doc: Document, audio: GameAudio) {
   render();
   return {
     element,
+    sound: {
+      enabled: () => !audio.prefs.muted,
+      setEnabled: (enabled) => audio.setMuted(!enabled),
+      forcedMute: audio.forcedMute,
+      onChange: (changed) => audio.onChange(changed),
+    } satisfies TopBarSound,
     destroy() {
       stop();
       button.onclick = more.onclick = null;

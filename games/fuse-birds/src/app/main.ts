@@ -28,6 +28,7 @@ import {
   el,
 } from "fuse-ui";
 import { createAppPortal } from "fuse-ui/portal";
+import { createTopBar } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import { createModalInputGate } from "fuse-ui/modal-input";
 import { createPlayMetrics, startGameAnalytics } from "fuse-ui/play-metrics";
@@ -87,6 +88,15 @@ const playerName = () =>
   seatName(social.playerName(store.get(storageKeys.name)) ?? "");
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 const muted = new URLSearchParams(location.search).has("mute");
+const audio = new BirdsAudio(!muted);
+const masterSound = {
+  enabled: () => audio.enabled,
+  forcedMute: muted,
+  setEnabled(on: boolean) {
+    audio.enabled = on;
+    audio.unlock();
+  },
+};
 function brand(): HTMLElement {
   const title = el("a", "", "birds-brand");
   title.href = endpoints.appUrl();
@@ -203,6 +213,7 @@ function landing(): void {
   );
   const header = el("header", "", "birds-top");
   header.append(portal(), brand(), social.element());
+  createTopBar({ element: header, gameId: GAME, sound: masterSound });
   const mainMenu = createMainMenu({
     background: async (host, signal) =>
       (await import("./attract.js")).createAttract(host, signal),
@@ -234,15 +245,6 @@ function room(code: string, display: boolean, practice = false): void {
   const page = el("main", "", "birds-room"),
     header = el("header", "", "birds-top"),
     message = notice("Connecting…");
-  const audio = new BirdsAudio(!muted),
-    sound = button(muted ? "SOUND OFF" : "SOUND ON");
-  sound.setAttribute("aria-pressed", String(audio.enabled));
-  sound.onclick = () => {
-    audio.enabled = !audio.enabled;
-    sound.textContent = audio.enabled ? "SOUND ON" : "SOUND OFF";
-    sound.setAttribute("aria-pressed", String(audio.enabled));
-    audio.unlock();
-  };
   const retry = button("RETRY"),
     leave = button("LEAVE"),
     codeLabel = el("strong", code, "birds-code");
@@ -250,13 +252,18 @@ function room(code: string, display: boolean, practice = false): void {
   const menu = el("details", "", "birds-menu"),
     menuTitle = el("summary", "MENU"),
     menuItems = el("div", "", "birds-menu-items");
-  menuItems.append(social.element(), sound, retry, leave);
+  menuItems.append(social.element(), retry, leave);
   menu.append(menuTitle, menuItems);
   menu.addEventListener("toggle", () => {
     if (menu.open) cancel();
   });
   page.addEventListener("pointerdown", () => audio.unlock());
   header.append(portal(), brand(), codeLabel, message, menu);
+  createTopBar({
+    element: header,
+    gameId: GAME,
+    sound: masterSound,
+  });
   const lobby = el("section", "", "birds-lobby birds-card"),
     members = el("ul", "", "birds-roster"),
     start = button("START BATTLE", "fui-button-primary");

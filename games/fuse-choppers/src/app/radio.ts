@@ -12,7 +12,9 @@ export function createChopperRadio(options: {
   muted: boolean;
   autoStart: boolean;
 }) {
-  const { document: doc, player, store, baseUrl, muted } = options;
+  const { document: doc, player, store, baseUrl } = options;
+  const forcedMute = options.muted;
+  let muted = forcedMute;
   let index = 0,
     playing = options.autoStart,
     repeat = false,
@@ -173,6 +175,13 @@ export function createChopperRadio(options: {
   render();
   return {
     element,
+    setMuted(value: boolean) {
+      if (forcedMute || disposed) return;
+      muted = value;
+      if (value) stop();
+      else start();
+      render();
+    },
     unlock() {
       if (unlocked || disposed) return;
       unlocked = true;

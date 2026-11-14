@@ -8,6 +8,7 @@ import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
 import "./killer-fuse.css";
 import QRCode from "qrcode";
+import { createTopBar } from "fuse-ui";
 import {
   PeerTransport,
   createEndpoints,
@@ -193,7 +194,25 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     search: location.search,
   });
   bar.append(portal.element, brand, social.element(), ...extra);
-  return bar;
+  return createTopBar({
+    element: bar,
+    gameId: GAME,
+    sound: {
+      forcedMute,
+      enabled: () => {
+        const choices = soundChoices();
+        return !choices.muted && (choices.musicOn || choices.effectsOn);
+      },
+      setEnabled: (on) => {
+        if (forcedMute) return;
+        store.setItem(MUTED, on ? "0" : "1");
+        if (on) {
+          store.setItem(MUSIC_ON, "1");
+          store.setItem(EFFECTS_ON, "1");
+        }
+      },
+    },
+  });
 }
 
 /** The art sheets, fetched once for the page's pictures; none when the manifest cannot be had. */
@@ -571,19 +590,10 @@ function room(solo: boolean): void {
     tipShown = "";
   let { muted, musicOn, effectsOn } = soundChoices();
   const music = new Music(browserMusicDeps(MUSIC_URL), { muted, on: musicOn });
-  const mute = button("", "kf-mute"),
-    musicToggle = button("", "kf-mute kf-sub-toggle"),
-    effectsToggle = button("", "kf-mute kf-sub-toggle");
   /** The effects are hushed by the master switch too; the arena's own bed stops once a music file plays. */
   const effectsMuted = () => muted || !effectsOn;
-  const showSound = () =>
-    showSoundChoices(
-      { mute, music: musicToggle, effects: effectsToggle },
-      { muted, musicOn, effectsOn },
-    );
   /** Pushes the current choices to the music and, when there is an arena, to it as well. */
   const applySound = () => {
-    showSound();
     music.setMuted(muted);
     music.setOn(musicOn);
     if (model)
@@ -595,32 +605,34 @@ function room(solo: boolean): void {
         bed: musicOn && !muted && music.playing === null,
       });
   };
-  // Only the labels here: `driver` and `model` are made further down, and the music already has its state.
-  showSound();
   // Until a room says otherwise — the landing page, the lobby — the lobby track is the one that belongs.
   music.want("lobby");
-  mute.onclick = () => {
-    muted = !muted;
-    store.setItem(MUTED, muted ? "1" : "0");
-    applySound();
-    mute.blur();
-  };
-  musicToggle.onclick = () => {
-    musicOn = !musicOn;
-    store.setItem(MUSIC_ON, musicOn ? "1" : "0");
-    applySound();
-    musicToggle.blur();
-  };
-  effectsToggle.onclick = () => {
-    effectsOn = !effectsOn;
-    store.setItem(EFFECTS_ON, effectsOn ? "1" : "0");
-    applySound();
-    effectsToggle.blur();
-  };
   const codeChip = el("strong", solo ? "SOLO" : code, "kf-code");
-  const sound = el("div", "", "kf-sound");
-  sound.append(mute, musicToggle, effectsToggle);
-  const top = header([codeChip, status.element, sound, menu.element]);
+  const top = header([codeChip, status.element, menu.element]);
+  createTopBar({
+    element: top,
+    sound: {
+      forcedMute,
+      enabled: () => !muted && (musicOn || effectsOn),
+      setEnabled: (on) => {
+        if (forcedMute) return;
+        muted = !on;
+        if (on) musicOn = effectsOn = true;
+        store.setItem(MUTED, muted ? "1" : "0");
+        store.setItem(MUSIC_ON, musicOn ? "1" : "0");
+        store.setItem(EFFECTS_ON, effectsOn ? "1" : "0");
+        applySound();
+      },
+    },
+    onOpenChange: (open) => {
+      if (open) {
+        keyboard.clear();
+        pads.release();
+        controls.release();
+      }
+    },
+  });
+  const modalOpen = () => Boolean(document.querySelector("dialog[open]"));
 
   // Lobby: the shared room layout — invitation and settings on the left, the six numbered seats on the right.
   const lobby = el("section", "", "kf-lobby"),
@@ -1323,7 +1335,7 @@ function room(solo: boolean): void {
   let frameRequest = 0;
   const loop = () => {
     frameRequest = requestAnimationFrame(loop);
-    if (!menu.isOpen()) pads.poll(readPads(navigator));
+    if (!menu.isOpen() && !modalOpen()) pads.poll(readPads(navigator));
     controls.pulse();
     runtime.flush();
     driver.draw();
@@ -1346,7 +1358,8 @@ function room(solo: boolean): void {
   // The keys play only while a game is on: in the lobby and on the result, Space presses the focused button.
   const inGame = () =>
     (main.dataset.stage === "running" || main.dataset.stage === "between") &&
-    !menu.isOpen();
+    !menu.isOpen() &&
+    !modalOpen();
   document.addEventListener(
     "keydown",
     (event) => {

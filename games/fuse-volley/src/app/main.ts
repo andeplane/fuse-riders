@@ -1,3 +1,4 @@
+import { createTopBar } from "fuse-ui";
 import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
@@ -238,7 +239,10 @@ function logo(): HTMLElement {
   );
   return brand;
 }
-function header(extra: HTMLElement[] = []): HTMLElement {
+function header(
+  extra: HTMLElement[] = [],
+  onOpenChange?: (open: boolean) => void,
+): HTMLElement {
   const bar = el("header", "", "fv-top");
   const portal = createAppPortal({
     document,
@@ -253,7 +257,12 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     audioControl.element,
     ...extra,
   );
-  return bar;
+  return createTopBar({
+    element: bar,
+    gameId: GAME,
+    onOpenChange,
+    sound: audioControl.sound,
+  });
 }
 
 function keyHelp(): HTMLElement {
@@ -470,11 +479,21 @@ function room(solo: boolean): void {
     },
   });
   const roundControls = createRoundControls(QUICK_GUIDE);
-  const top = header([
-    el("strong", solo ? "SOLO" : code, "fv-code"),
-    status.element,
-    menu.element,
-  ]);
+  const top = header(
+    [
+      el("strong", solo ? "SOLO" : code, "fv-code"),
+      status.element,
+      menu.element,
+    ],
+    (open) => {
+      if (open) {
+        letGoAll();
+        gamepads.letGo();
+        captured.clear();
+      }
+    },
+  );
+  const modalOpen = () => Boolean(document.querySelector("dialog[open]"));
 
   // Lobby: the invitation and the players on one side, the rules and START on the other.
   let settings: Settings = { ...DEFAULT_SETTINGS };
@@ -752,7 +771,7 @@ function room(solo: boolean): void {
   const frame = (now: number) => {
     // Asked first, so one bad frame cannot stop the drawing for good.
     requestAnimationFrame(frame);
-    gamepads.poll(!menu.isOpen() && !document.hidden && !over);
+    gamepads.poll(!menu.isOpen() && !modalOpen() && !document.hidden && !over);
     const view = stage.hidden && controller.hidden ? undefined : picture();
     if (view) {
       const local = model?.localSlot ?? -1;
@@ -1064,6 +1083,7 @@ function room(solo: boolean): void {
   document.addEventListener("keydown", (event) => {
     if (
       menu.isOpen() ||
+      modalOpen() ||
       typing(event.target) ||
       event.metaKey ||
       event.ctrlKey ||
