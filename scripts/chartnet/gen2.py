@@ -19,6 +19,7 @@ import data
 from data import load, split
 from features import FPS
 from bursts import burst_beats
+from guidance import forced_beats
 from feet import Feet
 from gen import FUSE_DIFFS, mean_stats, place, ssc, stats, timing
 from onset import OnsetNet, chart_nps, f1, predict
@@ -35,8 +36,8 @@ COVERS = {k: v for k, v in json.loads(_COVERS_FILE.read_text()).items() if k != 
 METERS = {"Easy": 3, "Medium": 6, "Hard": 9, "Challenge": 13}
 # 24th bursts on Challenge: "learned" lets the placement model put steps on the 24th grid (kept only as runs),
 # "rule" is the onset test in bursts.py, "both" and "off" as they say.
-BURSTS = os.environ.get("CHARTNET_BURSTS", "learned")
-WEIGHTS = (os.environ.get("CHARTNET_ONSET", "onset_dens"), os.environ.get("CHARTNET_ARROWS", "arrows"))
+BURSTS = os.environ.get("CHARTNET_BURSTS", "both")
+WEIGHTS = (os.environ.get("CHARTNET_ONSET", "onset_v3"), os.environ.get("CHARTNET_ARROWS", "arrows_v3"))
 
 
 def window_variety(toks: list[str], win: int = 64) -> float:
@@ -130,8 +131,7 @@ def placement_model():
     cfg_path = ROOT / f"{WEIGHTS[0]}.json"
     cfg = json.loads(cfg_path.read_text()) if cfg_path.exists() else {"n_in": 192, "wide": False}
     data.BANDS = cfg["n_in"] > 192  # the features the weights were trained on
-    stats_path = ROOT / f"feat_stats_{cfg['n_in']}.npz"
-    st = np.load(stats_path if stats_path.exists() else ROOT / "feat_stats.npz")
+    st = np.load(ROOT / cfg.get("stats", "feat_stats.npz"))  # the normalisation the weights were trained with
     om = OnsetNet(cfg["n_in"], True, use_density=True, wide=cfg["wide"]).to("mps")
     om.load_state_dict(torch.load(ROOT / f"{WEIGHTS[0]}.pt", map_location="cpu"))
     return (st["mean"], st["std"]), om, cfg
@@ -164,10 +164,15 @@ def place_eval(keys_file="test_keys.json"):
 def models():
     stats_, om, cfg = placement_model()
     sd = torch.load(ROOT / f"{WEIGHTS[1]}.pt", map_location="cpu")
-    am = ArrowNet(sd["au.0.weight"].shape[1], sd["tok.weight"].shape[1],
+    n_audio = sd["au.0.weight"].shape[1]
+    am = ArrowNet(n_audio, sd["tok.weight"].shape[1],
                   len({k.split(".")[2] for k in sd if k.startswith("tr.layers.")})).to("mps")
     am.load_state_dict(sd)
-    assert sd["au.0.weight"].shape[1] == cfg["n_in"], "placement and arrow models were trained on different features"
+    if n_audio != cfg["n_in"]:  # arrows with the band channels, placement without: load them, placement skips them
+        assert n_audio > cfg["n_in"], "the arrow model needs the placement model's features"
+        data.BANDS = True
+        st = np.load(ROOT / os.environ.get("CHARTNET_ARROW_STATS", "feat_stats_v3_208.npz"))
+        stats_ = (st["mean"], st["std"])
     return stats_, om, am
 
 
@@ -221,11 +226,13 @@ def eval_packs(only=None, keys_file="test_keys.json", out_name="eval2_results.js
 
 def fuse():
     stats_, om, am = models()
-    songs, _ = load("cache_fuse", stats_)
+    only = set(os.environ["CHARTNET_SONGS"].split(",")) if os.environ.get("CHARTNET_SONGS") else None
+    songs, _ = load("cache_fuse", stats_, only=only)
     outdir = ROOT / os.environ.get("CHARTNET_OUT", "out_fuse2")
     outdir.mkdir(exist_ok=True)
     agg: dict = {}
     bursts_: dict = {}
+    guided: dict = {}
     placement = {}
     only = set(sys.argv[2:])  # song ids, or every song
     for s in songs:
@@ -236,6 +243,7 @@ def fuse():
                     for c in s.meta["charts"] for b, _, _ in c["rows"])
         charts = []
         placement[s.key] = {}
+        raw = np.load(ROOT / "cache_fuse" / f"{s.key}.npz")["feats"]  # unnormalised log-mel, for the review notes
         # A cover's Challenge aims at its original's hardest chart (charts/covers-challenge.json); the easier
         # charts stay below it.
         target = dict(FUSE_NPS)
@@ -250,8 +258,11 @@ def fuse():
         for d in FUSE_DIFFS:
             prob = predict(om, s, d, target[d])
             n_target = None if THR > 0 else int(target[d] * 0.9 * len(s.feats) / FPS)
+            # review notes from the chart lab: Medium follows the marked band on 8ths, Hard and Challenge on 16ths
+            forced = [] if d == "Easy" else forced_beats(s.key, raw, tm, [2] if d == "Medium" else [4])
+            guided[s.key] = max(guided.get(s.key, 0), len(forced))
             beats = place(prob, tm, d, THR, n_target=n_target, swing=swing,
-                          snap24=d == "Challenge" and BURSTS in ("learned", "both"))
+                          snap24=d == "Challenge" and BURSTS in ("learned", "both"), forced=forced)
             if d == "Challenge" and BURSTS in ("rule", "both"):  # where the music itself moves at 24th speed
                 beats, n_burst = with_bursts(beats, burst_beats(s.onset, tm, beats[0], beats[-1]))
                 bursts_[s.key] = n_burst
@@ -264,6 +275,7 @@ def fuse():
         print(s.key, [(d, len(r)) for d, _, r in charts], flush=True)
     summary = {d: mean_stats(v) for d, v in agg.items()}
     print("24th bursts (beats) per song:", bursts_)
+    print("steps placed from review notes:", {k: v for k, v in guided.items() if v})
     (ROOT / "fuse2_results.json").write_text(json.dumps(summary, indent=1))
     for d, st in summary.items():
         print(d.ljust(9), " ".join(f"{a[:7]}={b}" for a, b in st.items()))

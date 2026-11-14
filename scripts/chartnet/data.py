@@ -94,6 +94,17 @@ def song_title(key: str) -> str:
 
 
 def split(songs: list[Song], seed: int = 0) -> tuple[list[Song], list[Song], list[Song]]:
+    tr, va, te = _split(songs, seed)
+    frac = float(os.environ.get("CHARTNET_TRAIN_FRACTION", "1"))  # data-scaling runs: train on a share of the songs
+    if frac < 1:
+        keys = sorted(s.key for s in tr)
+        random.Random(1).shuffle(keys)
+        keep = set(keys[: int(len(keys) * frac)])
+        tr = [s for s in tr if s.key in keep]
+    return tr, va, te
+
+
+def _split(songs: list[Song], seed: int = 0) -> tuple[list[Song], list[Song], list[Song]]:
     """Train, validation and test songs. With `test_keys.json` in the work folder the test songs are exactly those
     (the 48 DDR/ITG songs every ChartNet version is scored on) plus `test2_keys.json` (held-out community songs);
     neither is ever trained on."""

@@ -39,6 +39,7 @@ class OnsetNet(nn.Module):
         super().__init__()
         self.use_phase = use_phase
         self.use_density = use_density
+        self.n_in = n_in
         extra = (6 if use_phase else 0) + len(DIFFS) + (1 if use_density else 0)
         self.front = nn.Sequential(nn.Conv1d(n_in, h, 7, padding=3), nn.GELU(), nn.BatchNorm1d(h))
         self.mix = nn.Conv1d(h + extra, h, 1)
@@ -101,7 +102,7 @@ def batch(exs, L: int):
 @torch.no_grad()
 def predict(model: OnsetNet, song, difficulty: str, nps: float | None = None) -> np.ndarray:
     model.eval()
-    x = torch.tensor(song.feats.astype(np.float32))[None].to(DEV)
+    x = torch.tensor(song.feats[:, :model.n_in].astype(np.float32))[None].to(DEV)
     p = torch.tensor(song.phase)[None].to(DEV)
     d = torch.tensor([diff_index(difficulty)]).to(DEV)
     n = torch.tensor([nps or 3.0], dtype=torch.float32).to(DEV)
@@ -180,8 +181,9 @@ def main() -> None:
     ap.add_argument("--len", type=int, default=800)
     a = ap.parse_args()
     songs, stats = load("cache")
-    np.savez(ROOT / f"feat_stats_{songs[0].feats.shape[1]}.npz", mean=stats[0], std=stats[1])
-    (ROOT / f"{a.name}.json").write_text(json.dumps({"n_in": int(songs[0].feats.shape[1]), "wide": bool(a.wide)}))
+    np.savez(ROOT / f"feat_stats_{a.name}.npz", mean=stats[0], std=stats[1])
+    (ROOT / f"{a.name}.json").write_text(json.dumps({"n_in": int(songs[0].feats.shape[1]), "wide": bool(a.wide),
+                                                     "stats": f"feat_stats_{a.name}.npz"}))
     tr, va, te = split(songs)
     print(len(tr), len(va), len(te), "songs", DEV, flush=True)
     model = OnsetNet(songs[0].feats.shape[1], bool(a.phase), use_density=bool(a.density), wide=bool(a.wide)).to(DEV)

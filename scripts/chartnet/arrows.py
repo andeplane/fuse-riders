@@ -154,11 +154,11 @@ PENALTY = {
     "Beginner": {"crossover": 9, "jack": 9, "double": 4, "hand": 99, "held_hit": 99, "candle": 9},
     "Easy": {"crossover": 9, "jack": 6, "double": 3, "hand": 99, "held_hit": 99, "candle": 6},
     "Medium": {"crossover": 4, "jack": 2, "double": 2, "hand": 99, "held_hit": 99, "candle": 2},
-    "Hard": {"crossover": 2.0, "jack": 1.0, "double": 1.5, "hand": 8, "held_hit": 99, "candle": 0.3},
-    "Challenge": {"crossover": 2.0, "jack": 1.0, "double": 1.5, "hand": 5, "held_hit": 99, "candle": 0.3},
+    "Hard": {"crossover": 2.0, "jack": 0.4, "double": 1.5, "hand": 8, "held_hit": 99, "candle": 0.3},
+    "Challenge": {"crossover": 2.0, "jack": 0.6, "double": 1.5, "hand": 5, "held_hit": 99, "candle": 0.3},
 }
 # Jumps: the model writes more of them than human charts do on Hard and Challenge; this cost brings them level.
-JUMP_COST = {"Beginner": 0.0, "Easy": 0.0, "Medium": 0.0, "Hard": 0.0, "Challenge": 0.0}
+JUMP_COST = {"Beginner": 0.0, "Easy": 0.0, "Medium": 0.0, "Hard": 0.65, "Challenge": 0.75}
 if os.environ.get("CHARTNET_JUMP"):
     JUMP_COST["Hard"], JUMP_COST["Challenge"] = (float(x) for x in os.environ["CHARTNET_JUMP"].split(","))
 
@@ -171,8 +171,9 @@ REPEAT_WINDOW = int(os.environ.get("CHARTNET_REPEAT_WINDOW", "64"))
 CANDIDATES = int(os.environ.get("CHARTNET_CANDIDATES", "6"))
 PHRASE = int(os.environ.get("CHARTNET_PHRASE", "16"))
 VARIETY = float(os.environ.get("CHARTNET_VARIETY", "1.0"))
-# Freezes: a log-probability bonus for a freeze head where the next row leaves room for it (at least half a beat).
-FREEZE_BONUS = {"Beginner": 0.0, "Easy": 0.0, "Medium": 0.0, "Hard": 0.0, "Challenge": 0.0}
+# Freezes: a log-probability bonus for a freeze head where the next row leaves room for it (at least half a beat),
+# or, negative, a cost on every freeze. Trained on the community packs the model holds more than DDR/ITG charts do.
+FREEZE_BONUS = {"Beginner": 0.0, "Easy": 0.0, "Medium": 0.0, "Hard": -0.45, "Challenge": -0.45}
 if os.environ.get("CHARTNET_FREEZE"):
     FREEZE_BONUS["Hard"], FREEZE_BONUS["Challenge"] = (float(x) for x in os.environ["CHARTNET_FREEZE"].split(","))
 
@@ -216,7 +217,7 @@ class _Cand:
 def _costs(feet: Feet, toks: list[int], b: float, nxt: float, last: bool, diff: str, pen) -> torch.Tensor:
     cost = torch.zeros(N_TOK)
     cost[0] = 1e9
-    bonus = FREEZE_BONUS[diff] if nxt >= 0.5 - 1e-6 else 0.0
+    bonus = FREEZE_BONUS[diff] if nxt >= 0.5 - 1e-6 or FREEZE_BONUS[diff] < 0 else 0.0
     for t in range(1, N_TOK):
         cols = TOK_COLS[t]
         _, ev = feet.assign(cols, b)
@@ -225,7 +226,7 @@ def _costs(feet: Feet, toks: list[int], b: float, nxt: float, last: bool, diff: 
             # a freeze needs the next row to be a single step for the other foot; none in the last row
             if len(cols) > 1 and diff != "Challenge" or last:
                 cost[t] += 99
-            elif len(cols) == 1:
+            else:
                 cost[t] -= bonus
     # variety: completing a four-row pattern used in the last rows costs a little
     if REPEAT > 0 and len(toks) >= 3:

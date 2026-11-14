@@ -54,13 +54,19 @@ def keep_24th_runs(beats: list[float], need: int = 5) -> list[float]:
 
 
 def place(prob: np.ndarray, tm: Timing, diff: str, thr: float, n_target: int | None = None, swing: bool = False,
-          snap24: bool = False):
+          snap24: bool = False, forced: list[float] | None = None):
     """Peaks of the step probability → snapped beats (respecting the difficulty's grid and minimum gap).
-    `snap24` lets steps land on the 24th grid too; isolated ones are dropped again (`keep_24th_runs`)."""
+    `snap24` lets steps land on the 24th grid too; isolated ones are dropped again (`keep_24th_runs`).
+    `forced` beats (review notes, `guidance.py`) go in first; the model fills the chart around them."""
     cand = peaks(prob, thr if n_target is None else 0.0)
     cand = cand[np.argsort(-prob[cand])]
     chosen: dict[float, float] = {}
     times: list[float] = []
+    for b in forced or []:
+        t = tm.beat_to_time(b)
+        if b >= 0 and not any(abs(t - u) < MIN_GAP[diff] for u in times):
+            chosen[b] = 1.0
+            times.append(t)
     for f in cand:
         b = tm.time_to_beat(f / FPS)
         subs = SNAP[diff] + ([3] if swing and diff in ("Medium", "Hard", "Challenge") else []) + ([6] if snap24 else [])
