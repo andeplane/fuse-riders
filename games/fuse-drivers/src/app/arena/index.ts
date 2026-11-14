@@ -1,7 +1,9 @@
 import type { FuseDriversView } from "../../game/game.js";
 import type { ArenaEngine, ArenaEngineOptions } from "./scene.js";
 
-export type { ArenaFrame } from "./frame.js";
+import type { ArenaLead } from "./frame.js";
+
+export type { ArenaFrame, ArenaLead } from "./frame.js";
 export { renderSnapshot, renderTruck, type TruckPose } from "./interpolate.js";
 
 export interface MountArenaOptions extends ArenaEngineOptions {
@@ -15,9 +17,15 @@ export interface MountedArena {
   /**
    * Draw one frame. `view` is the newest view the page has, and `alpha` is how far from the view handed in
    * before it to this one, 0 to 1. Nothing else is read: outcomes come from the view, never from an event,
-   * because a rollback corrects history without emitting the events again.
+   * because a rollback corrects history without emitting the events again. With `lead`, the view's race is one the
+   * page played forward and `lead.previous` is the race to pose it from, instead of the view handed in before.
    */
-  render(view: FuseDriversView, alpha: number, selfId?: string): void;
+  render(
+    view: FuseDriversView,
+    alpha: number,
+    selfId?: string,
+    lead?: ArenaLead,
+  ): void;
   destroy(): void;
 }
 
@@ -35,11 +43,16 @@ export function mountArena(
   let engine: ArenaEngine | undefined;
   let disposed = false;
   let latest:
-    | { view: FuseDriversView; alpha: number; selfId: string | undefined }
+    | {
+        view: FuseDriversView;
+        alpha: number;
+        selfId: string | undefined;
+        lead: ArenaLead | undefined;
+      }
     | undefined;
   const paint = (): void => {
     if (!engine || !latest || disposed) return;
-    engine.render(latest.view, latest.alpha, latest.selfId);
+    engine.render(latest.view, latest.alpha, latest.selfId, latest.lead);
   };
   const fail = (error: unknown): void => {
     if (disposed) return;
@@ -61,9 +74,9 @@ export function mountArena(
     .catch(fail);
 
   return {
-    render(view, alpha, selfId) {
+    render(view, alpha, selfId, lead) {
       if (disposed) return;
-      latest = { view, alpha, selfId };
+      latest = { view, alpha, selfId, lead };
       paint();
     },
     destroy() {
