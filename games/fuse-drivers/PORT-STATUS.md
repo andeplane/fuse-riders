@@ -6,6 +6,6 @@ The focused suite covers rules, golden replay consistency, checkpoint corruption
 
 Product metrics use fuse-ui/play-metrics from actual runtime state, with the stable fuse-drivers game id. Browser composition and Phaser adapters are exempt from Node coverage and require the real browser smoke: ONLINE_URL=http://localhost:PORT/ pnpm exec tsx scripts/fuse-drivers-smoke.ts.
 
-Production rooms require EXTRA_GAME_IDS to include fuse-drivers; this file does not assert that production is configured or deployed. The original repository, Pages site and standalone Cloud Run service require a separate deliberate cleanup after the monorepo deployment is verified.
+Production serves its rooms like every game registered in service/history.ts. The original repository, Pages site and standalone Cloud Run service require a separate deliberate cleanup after the monorepo deployment is verified.
 
 Known presentation gaps: rollback does not replay the old event-only EMP shockwave or hit shake. Headless mesh and browser emulation do not establish physical-phone or cross-network behavior.

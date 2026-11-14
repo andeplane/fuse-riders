@@ -15,7 +15,7 @@ import {
 } from "dice";
 import { diceRegistration, parseDiceStats } from "dice/platform";
 import { createDevRoomService } from "../service/dev.js";
-import { extraGameIds, platform, platformFor } from "../service/history.js";
+import { platform, platformFor } from "../service/history.js";
 import { GAME_ID } from "../games/fuse-riders/src/shared/game-id.js";
 import { fold, runTo } from "../games/dice/tests/fixtures/dice.js";
 
@@ -311,23 +311,16 @@ test("the dice registration's boundary refuses what the rules could not produce"
   assert.equal(diceRegistration.isBot("a".repeat(24)), false);
 });
 
-test("Cloud Run serves Fuse Riders alone until EXTRA_GAME_IDS names the dice game", async () => {
-  assert.deepEqual(extraGameIds(undefined), []);
-  assert.deepEqual(extraGameIds(""), []);
-  assert.deepEqual(extraGameIds(" dice , dice"), ["dice"]);
-  assert.throws(() => extraGameIds("chess"), /not an extra game/);
-  assert.throws(() => extraGameIds(GAME_ID), /not an extra game/);
-  assert.deepEqual(platformFor(extraGameIds(undefined)).gameIds, [GAME_ID]);
-  assert.deepEqual(platformFor(extraGameIds("dice")).gameIds, [
-    GAME_ID,
-    "dice",
-  ]);
+test("the service opens rooms only for the games its platform serves", async () => {
+  assert.deepEqual(platformFor([]).gameIds, [GAME_ID]);
+  assert.deepEqual(platformFor(["dice"]).gameIds, [GAME_ID, "dice"]);
+  assert.ok(platform.gameIds.includes("dice"));
   for (const [extra, status] of [
     [undefined, 400],
     ["dice", 201],
   ] as const) {
     const service = createDevRoomService({
-      platform: platformFor(extraGameIds(extra)),
+      platform: platformFor(extra ? [extra] : []),
     });
     await new Promise<void>((resolve) =>
       service.server.listen(0, "127.0.0.1", resolve),
@@ -338,7 +331,7 @@ test("Cloud Run serves Fuse Riders alone until EXTRA_GAME_IDS names the dice gam
         method: "POST",
         headers: { origin },
       });
-      assert.equal(created.status, status, `EXTRA_GAME_IDS=${extra}`);
+      assert.equal(created.status, status, `served: ${extra}`);
       const board = await fetch(`${origin}/api/games/dice/leaderboard`, {
         headers: { origin },
       });
