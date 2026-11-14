@@ -23,6 +23,7 @@ export const ROOM_SOCKETS: Readonly<Record<string, number>> = {
   "fuse-birds": sockets(5, 8),
   "fuse-front": sockets(6, 6),
   "fuse-craft": sockets(8, 4),
+  "killer-fuse": sockets(6, 6),
 };
 
 /** The most devices a room of `gameId` admits, its creator included. */
