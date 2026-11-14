@@ -15,6 +15,8 @@ pnpm dev          # builds, then serves every game; open the printed URL plus /f
 
 - **Play, Single player**: the song select. Pick a song (or press **RANDOM SONG**), a level and a mode, then **PLAY**. The result shows the grade, the score, every judgment count and this browser's best on that chart. **PLAY YOUR OWN STEPMANIA FILE** takes a simfile and its music from this device; nothing is uploaded.
 - **Play, Host room**: a room with a QR invite, for up to five players. The host picks the song and the mode; every player picks their own level. **+ ADD AI RIVAL** seats a bot. Tick **Shared TV** first to play on one screen: the TV shows every field and each phone becomes four pads.
+
+**The other players' fields.** With more than one player, a device shows every field: its own lit and framed in the player's colour (in the middle of three or five players, on the left of two or four) and the others' smaller beside it, so an attack can be seen landing. Their judgments, combos, attacks and power-ups are shown as they are, but their arrows are not there to be read: every column is drawn in another column's place, the same shuffle for every opponent, changing from match to match (`src/render/scramble.ts`). It is only the picture; the Shared TV and a watcher see every field as it is.
 - **Settings**: keys, scroll speed and direction, the two timing offsets and **CALIBRATE**.
 
 **Your speed.** The song select shows every player's own speed as chips (0.5x, 1x, 1.5x, 2x, 2.5x, 3x, 4x, 5x), and the Settings slider reaches the values between. It is saved on the device and only spreads that player's arrows apart on their own screen: the engine never sees it, so the beat, the judging and every other player are unchanged.
