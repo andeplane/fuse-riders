@@ -17,6 +17,7 @@ import torch
 from arrows import ArrowNet, generate
 from data import load, split
 from features import FPS
+from bursts import burst_beats
 from feet import Feet
 from gen import FUSE_DIFFS, mean_stats, place, ssc, stats, timing
 from onset import OnsetNet, chart_nps, f1, predict
@@ -92,6 +93,15 @@ def stats2(rows) -> dict:
     return s
 
 
+def with_bursts(beats: list[float], burst: list[int]) -> tuple[list[float], int]:
+    """Each burst beat k becomes six 24ths (k, k + 1/6, ...); whatever was placed inside it gives way."""
+    if not burst:
+        return beats, 0
+    keep = [b for b in beats if not any(k <= b < k + 1 for k in burst)]
+    added = [k + j / 6 for k in burst for j in range(6)]
+    return sorted(set(keep) | set(added)), len(burst)
+
+
 def models():
     st = np.load(ROOT / "feat_stats.npz")
     om = OnsetNet(192, True, use_density=True).to("mps")
@@ -155,6 +165,7 @@ def fuse():
     outdir = ROOT / "out_fuse2"
     outdir.mkdir(exist_ok=True)
     agg: dict = {}
+    bursts_: dict = {}
     placement = {}
     for s in songs:
         tm = timing(s.meta)
@@ -166,12 +177,16 @@ def fuse():
             prob = predict(om, s, d, FUSE_NPS[d])
             n_target = None if THR > 0 else int(FUSE_NPS[d] * 0.9 * len(s.feats) / FPS)
             beats = place(prob, tm, d, THR, n_target=n_target, swing=swing)
+            if d == "Challenge":  # 24th bursts where the music itself moves at 24th speed
+                beats, n_burst = with_bursts(beats, burst_beats(s.onset, tm, beats[0], beats[-1]))
+                bursts_[s.key] = n_burst
             rows = generate(am, s, beats, tm, d, FUSE_NPS[d], seed=zlib.crc32((s.key + d).encode()))
             charts.append((d, METERS[d], rows))
             agg.setdefault(d, []).append(stats2(rows))
         (outdir / f"{s.key}.ssc").write_text(ssc(s.meta["ssc_head"], charts))
         print(s.key, [(d, len(r)) for d, _, r in charts], flush=True)
     summary = {d: mean_stats(v) for d, v in agg.items()}
+    print("24th bursts (beats) per song:", bursts_)
     (ROOT / "fuse2_results.json").write_text(json.dumps(summary, indent=1))
     for d, st in summary.items():
         print(d.ljust(9), " ".join(f"{a[:7]}={b}" for a, b in st.items()))
