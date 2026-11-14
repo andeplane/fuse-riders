@@ -1,5 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 import {
   publicFilePath,
@@ -166,7 +168,8 @@ export default defineConfig({
     },
   },
   define: { __FUSE_PORTAL_GAMES__: JSON.stringify(portalGames()) },
-  // `gamePublic` first: its dev middleware must see a public URL before `gamePages` rewrites it.
-  plugins: [gamePublic(), gamePages()],
+  // `gamePublic` first: its dev middleware must see a public URL before `gamePages` rewrites it. React and Tailwind
+  // serve FuseOS (packages/fuseos), the root page; the games are plain TypeScript and their CSS is untouched.
+  plugins: [gamePublic(), gamePages(), react(), tailwindcss()],
   server: { host: "0.0.0.0" },
 });
