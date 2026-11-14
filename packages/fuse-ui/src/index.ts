@@ -179,3 +179,8 @@ export {
   roomLayoutMarkup,
   type RoomLayoutOptions,
 } from "./room-layout.js";
+export {
+  createSharedTvOption,
+  type SharedTvOption,
+  type SharedTvOptionOptions,
+} from "./shared-tv.js";

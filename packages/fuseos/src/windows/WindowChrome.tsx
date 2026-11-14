@@ -10,6 +10,8 @@ export type WindowChromeProps = {
   active: boolean;
   maximized: boolean;
   resizable?: boolean;
+  /** Whether the title bar has a Minimize button; a message box has only Close. */
+  minimizable?: boolean;
   onMinimize: () => void;
   onToggleMaximize: () => void;
   onClose: () => void;
@@ -26,6 +28,7 @@ export function WindowChrome({
   active,
   maximized,
   resizable = true,
+  minimizable = true,
   onMinimize,
   onToggleMaximize,
   onClose,
@@ -53,7 +56,9 @@ export function WindowChrome({
         </div>
         <div className="title-bar-controls">
           {extraTitleButtons}
-          <button type="button" aria-label="Minimize" onClick={onMinimize} />
+          {minimizable ? (
+            <button type="button" aria-label="Minimize" onClick={onMinimize} />
+          ) : null}
           {resizable ? (
             <button
               type="button"

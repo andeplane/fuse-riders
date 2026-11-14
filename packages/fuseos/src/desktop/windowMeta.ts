@@ -22,9 +22,6 @@ export type WindowMeta = {
 /** Room for the 640x400 canvas next to the toolbox, above the palette and status bar. */
 export const PAINT_WINDOW_SIZE: Size = { width: 780, height: 580 };
 
-/** A message box: an icon, a few lines of text and OK, rather than the default app-sized window. */
-export const MESSAGE_BOX_SIZE: Size = { width: 440, height: 190 };
-
 /** Room for the monitor preview, the picker buttons and Apply/OK/Cancel. */
 export const WALLPAPER_WINDOW_SIZE: Size = { width: 320, height: 400 };
 
@@ -147,7 +144,6 @@ export function windowMeta(
         title: window.title,
         icon: window.icon,
         resizable: false,
-        size: MESSAGE_BOX_SIZE,
       };
     case "paint":
       return {

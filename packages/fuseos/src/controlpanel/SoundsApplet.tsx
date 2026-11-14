@@ -1,5 +1,5 @@
 import { SOUND_EVENTS } from "../sounds/soundEvents";
-import { soundEnabled } from "../sounds/soundPrefsStore";
+import { eventEnabled, soundEnabled } from "../sounds/soundPrefsStore";
 import { useSoundPrefs, useSoundService } from "../sounds/useSystemSound";
 
 /**
@@ -43,7 +43,7 @@ export function SoundsApplet() {
               <input
                 id={`sound-${info.event}`}
                 type="checkbox"
-                checked={prefs.events[info.event] !== false}
+                checked={eventEnabled(prefs, info.event)}
                 disabled={locked || !prefs.master}
                 onChange={(event) =>
                   sounds.setEvent(info.event, event.target.checked)

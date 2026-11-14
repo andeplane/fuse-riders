@@ -37,6 +37,7 @@ import {
   createPicker,
   createRoomLayout,
   createRoster,
+  createSharedTvOption,
   createRoundControls,
   createSubPage,
   el,
@@ -318,13 +319,6 @@ function keyHelp(): HTMLElement {
 }
 
 function landing(): void {
-  const shared = el("label", "", "fc-shared"),
-    toggle = el("input");
-  toggle.type = "checkbox";
-  toggle.checked = store.getItem(names.shared) === "1";
-  toggle.onchange = () =>
-    store.setItem(names.shared, toggle.checked ? "1" : "0");
-  shared.append(toggle, el("span", "Shared TV: phones are the controllers"));
   const card = createLandingCard({
     background: async (host) =>
       (await import("./attract.js")).createAttract(host),
@@ -351,7 +345,6 @@ function landing(): void {
       location.href = withFlags(endpoints.appUrl(`?room=${code}`));
     },
   });
-  card.create.after(shared);
   card.create.parentElement!.before(pilotPicker());
   card.menu.help.append(keyHelp());
   const back = el("a", "All games", "fc-back");
@@ -421,7 +414,23 @@ function room(solo: boolean): void {
   sfx.setMuted(!soundEnabled);
 
   // ---- the page ----
-  const status = createNotice({ className: "fc-status" });
+  // How the room is doing sits at the lobby's foot, and beside the menu while a match is on the screen (a link that
+  // is retrying or a pilot who lags is said there, as it always was); what went wrong is said above the room.
+  const status = createNotice({ className: "fc-status" }),
+    live = createNotice({ className: "fc-live" }),
+    problem = createNotice({ className: "fc-alert" });
+  problem.element.setAttribute("role", "alert");
+  const say = (text: string, tone: "info" | "error") => {
+    if (tone === "error") {
+      status.clear();
+      live.clear();
+      problem.show(text, "error");
+    } else {
+      problem.clear();
+      status.show(text, "info");
+      live.show(text, "info");
+    }
+  };
   const menu = createGameMenu({
     ...controllerGuide,
     onLobby: () => runtime.command({ type: "action", action: "lobby" }),
@@ -434,11 +443,9 @@ function room(solo: boolean): void {
     },
   });
   const roundControls = createRoundControls(controllerGuide);
-  const top = header([
-    el("strong", solo ? "SOLO" : code, "fc-code"),
-    status.element,
-    menu.element,
-  ]);
+  // The room's code is on its invitation, and in the lobby its state is at the lobby's foot: the bar holds the
+  // state only while a match is on.
+  const top = header([live.element, menu.element]);
   createTopBar({
     music: false,
     element: top,
@@ -458,8 +465,25 @@ function room(solo: boolean): void {
     roster = createRoster({ emptyText: "No pilots yet" }),
     addBot = button("+ ADD BOT", "fc-add-bot"),
     start = button("TAKE OFF", "fui-button-primary fc-start"),
-    lobbyNote = el("p", "", "fui-lobby-note"),
-    tvLink = button("OPEN TV SCREEN", "fc-tv");
+    lobbyNote = el("p", "", "fui-lobby-note");
+  // Shared TV is the room's choice, made in the room: the host turns it on here and opens the screen beside it.
+  // The choice is remembered for the next room this device creates.
+  const sharedTv = createSharedTvOption({
+    className: "fc-tv-option",
+    onChange: (display) => {
+      const sent = runtime.command({
+        type: "settings",
+        settings: { ...settings, display },
+      });
+      if (sent) store.setItem(names.shared, display ? "1" : "0");
+      return sent;
+    },
+    onOpenScreen: () =>
+      window.open(
+        withFlags(endpoints.appUrl(`?room=${code}&display=1`)),
+        "_blank",
+      ),
+  });
   if (!solo) {
     const invite = createInviteCard({
       code,
@@ -495,11 +519,6 @@ function room(solo: boolean): void {
       slot: requestedRoomSlot(addBot),
     });
   start.onclick = () => runtime.command({ type: "action", action: "start" });
-  tvLink.onclick = () =>
-    window.open(
-      withFlags(endpoints.appUrl(`?room=${code}&display=1`)),
-      "_blank",
-    );
 
   // Flight rules: the host's to change.
   let settings: Settings = { ...DEFAULT_SETTINGS };
@@ -562,7 +581,7 @@ function room(solo: boolean): void {
     WIN_TARGETS.map((wins) => [wins, String(wins)] as const),
   );
   const lobbyActions = el("div", "", "fc-lobby-actions");
-  lobbyActions.append(tvLink, start);
+  lobbyActions.append(start);
   lobbySide.append(
     el("h2", "FLIGHT RULES", "fui-lobby-title"),
     rules,
@@ -701,7 +720,15 @@ function room(solo: boolean): void {
   const main = el("main", "", "fc-room");
   // The name form stands above every screen: a newcomer mid-match picks a name and flies from the next round.
   screen.append(roundControls.element);
-  main.append(connecting, closed, nameEntry.form, lobby, stage, controller);
+  main.append(
+    problem.element,
+    connecting,
+    closed,
+    nameEntry.form,
+    lobby,
+    stage,
+    controller,
+  );
   app.replaceChildren(top, main);
   createRoomLayout({
     primaryAction: start,
@@ -715,7 +742,14 @@ function room(solo: boolean): void {
     appearance: [pilotPicker()],
     addAI: addBot,
     settings: [rules],
-    actions: [lobbyNote, tvLink, start],
+    actions: [lobbyNote],
+    // Back, Settings and TAKE OFF lead the room and stay there; the invitation and the pilots scroll under them.
+    actionsInHeader: true,
+    extras: [sharedTv.element],
+    status: status.element,
+    ...(solo
+      ? { compact: true, heading: "Solo vs bots" }
+      : { heading: "Room" }),
   });
   lobby.hidden = true;
   stage.hidden = true;
@@ -889,7 +923,8 @@ function room(solo: boolean): void {
       next.lobby.members.map((member) => ({
         id: member.id,
         slot: member.slot,
-        name: member.you ? `${member.name} (you)` : member.name,
+        // Alone with the bots there is nobody to tell apart from: the seat reads "You", not "You (you)".
+        name: member.you && !solo ? `${member.name} (you)` : member.name,
         color: seatColor(member.slot),
         status: member.bot
           ? "AI PILOT"
@@ -915,12 +950,7 @@ function room(solo: boolean): void {
     start.disabled = !next.lobby.canStart;
     setText(lobbyNote, next.lobby.note);
     lobbyNote.hidden = !next.lobby.note;
-    tvLink.hidden = !(
-      view.settings.display &&
-      viewer.host &&
-      !display &&
-      !solo
-    );
+    sharedTv.update(view.settings.display, viewer.host && !display && !solo);
     showLift(view.settings.lift, next.lobby.editable);
     showCombat(view.settings.combat, next.lobby.editable);
     showPowerUps(view.settings.powerUps, next.lobby.editable);
@@ -1090,17 +1120,17 @@ function room(solo: boolean): void {
     },
     status(text) {
       const shown = roomFailure(text);
-      status.show(shown, shown === text ? "info" : "error");
+      say(shown, shown === text ? "info" : "error");
     },
     ready(id, host) {
       viewer.me = id;
       viewer.host = host;
     },
     kicked() {
-      status.show("The host removed you from the room", "error");
+      say("The host removed you from the room", "error");
     },
     ended() {
-      status.show("Room ended", "error");
+      say("Room ended", "error");
       over = true;
       controls.clear();
       for (const part of [connecting, nameEntry.form, lobby, stage, controller])
@@ -1110,7 +1140,7 @@ function room(solo: boolean): void {
         .then(async (response) => {
           const body = (await response.json()) as { error?: unknown };
           if (roomFailure(String(body.error ?? "")) === NOT_OPEN)
-            status.show(NOT_OPEN, "error");
+            say(NOT_OPEN, "error");
         })
         .catch(() => {
           /* offline: "Room ended" stands */
