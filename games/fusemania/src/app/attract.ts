@@ -31,6 +31,7 @@ export const browserCanvas = (width: number, height: number) => {
  */
 export function createAttract(host: HTMLElement) {
   const scene = createScene(demoCanvas(host), {
+    reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
     createCanvas: browserCanvas,
   });
   let index = 0,
