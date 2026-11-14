@@ -649,7 +649,9 @@ export class RoomRuntime<
       )
         return;
       const entries = this.own().repairEntries(decoded.nack.firstMissingSeq);
-      if (entries.length) this.sendPacket(id, member, entries, now);
+      // A repair too large for one packet must still carry the entry that was asked for, so it sheds its newest entries.
+      if (entries.length)
+        this.sendPacket(id, member, entries, now, undefined, "oldest");
       return;
     }
     const packet = decoded.packet;
@@ -1584,6 +1586,7 @@ export class RoomRuntime<
     entries: Packet<Entry>["entries"],
     now: number,
     tick = Math.floor(this.clock.tick()),
+    keep: "newest" | "oldest" = "newest",
   ): void {
     const hash =
       tick % HASH_INTERVAL === 0 &&
@@ -1606,7 +1609,7 @@ export class RoomRuntime<
       hash: hash === undefined ? null : [tick - HASH_LAG, hash],
     };
     try {
-      this.transport!.sendFast(id, encodePacketTrimmed(packet));
+      this.transport!.sendFast(id, encodePacketTrimmed(packet, keep));
     } catch {
       /* Even a single entry over the cap is a bug in the entry validator, never a crash. */
     }

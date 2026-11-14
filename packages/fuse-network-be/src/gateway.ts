@@ -262,7 +262,17 @@ export class RoomGateway {
           .map((p) => ({ id: p.id, connectionId: p.connectionId })),
         grant: room.grant,
       });
-      if (this.views.has(code)) this.observe(code, room);
+      const watched = this.views.get(code);
+      if (
+        watched &&
+        watched.room.incarnation === room.incarnation &&
+        watched.room.revision > room.revision
+      )
+        // The watch ran ahead of this admission: another instance changed the room between this admission's commit and
+        // its return, and that notification found no client here to tell. The welcome above is already out of date, so
+        // this client is brought up to the watched copy now; nothing later would repeat it.
+        this.reconcile(client, room, watched.room);
+      else if (watched) this.observe(code, room);
       else {
         const view: View = { room, stop: () => {}, seen: new Map() };
         this.views.set(code, view);
@@ -601,53 +611,59 @@ export class RoomGateway {
       this.scheduleExpiry(code, view);
     }
     for (const client of this.clients.values())
-      if (client.room === code) {
-        if (
-          !room ||
-          room.expiresAt <= this.deps.now() ||
-          room.incarnation !== client.incarnation ||
-          room.members[client.member.id]?.connectionId !==
-            client.member.connectionId
-        ) {
-          const ended = !room || room.expiresAt <= this.deps.now(),
-            // Pruned by another admission after its lease lapsed: retryable, unlike a seat taken by a newer connection.
-            lapsed =
-              !ended &&
-              room.incarnation === client.incarnation &&
-              !room.members[client.member.id];
-          client.socket.close(
-            ended ? 4004 : lapsed ? 4000 : 4001,
-            ended
-              ? "Room ended or expired"
-              : lapsed
-                ? "Connection lease expired"
-                : "Reconnected elsewhere",
-          );
-          void this.disconnect(client.member.connectionId);
-          continue;
-        }
-        for (const old of Object.values(previous.members))
-          if (old.id !== client.member.id && !room.members[old.id])
-            this.send(client, {
-              type: "peer",
-              id: old.id,
-              connectionId: old.connectionId,
-              online: false,
-            });
-        for (const next of Object.values(room.members))
-          if (
-            next.id !== client.member.id &&
-            previous.members[next.id]?.connectionId !== next.connectionId
-          )
-            this.send(client, {
-              type: "peer",
-              id: next.id,
-              connectionId: next.connectionId,
-              online: true,
-            });
-        if (JSON.stringify(previous.grant) !== JSON.stringify(room.grant))
-          this.send(client, { type: "authority", grant: room.grant });
-      }
+      if (client.room === code) this.reconcile(client, previous, room);
+  }
+  /** Tell one client what changed between two copies of its room, or close it when the newer one no longer seats it. */
+  private reconcile(
+    client: Client,
+    previous: RoomRecord,
+    room: RoomRecord | undefined,
+  ): void {
+    if (
+      !room ||
+      room.expiresAt <= this.deps.now() ||
+      room.incarnation !== client.incarnation ||
+      room.members[client.member.id]?.connectionId !==
+        client.member.connectionId
+    ) {
+      const ended = !room || room.expiresAt <= this.deps.now(),
+        // Pruned by another admission after its lease lapsed: retryable, unlike a seat taken by a newer connection.
+        lapsed =
+          !ended &&
+          room.incarnation === client.incarnation &&
+          !room.members[client.member.id];
+      client.socket.close(
+        ended ? 4004 : lapsed ? 4000 : 4001,
+        ended
+          ? "Room ended or expired"
+          : lapsed
+            ? "Connection lease expired"
+            : "Reconnected elsewhere",
+      );
+      void this.disconnect(client.member.connectionId);
+      return;
+    }
+    for (const old of Object.values(previous.members))
+      if (old.id !== client.member.id && !room.members[old.id])
+        this.send(client, {
+          type: "peer",
+          id: old.id,
+          connectionId: old.connectionId,
+          online: false,
+        });
+    for (const next of Object.values(room.members))
+      if (
+        next.id !== client.member.id &&
+        previous.members[next.id]?.connectionId !== next.connectionId
+      )
+        this.send(client, {
+          type: "peer",
+          id: next.id,
+          connectionId: next.connectionId,
+          online: true,
+        });
+    if (JSON.stringify(previous.grant) !== JSON.stringify(room.grant))
+      this.send(client, { type: "authority", grant: room.grant });
   }
   async deliver(message: RoutedMessage): Promise<void> {
     return this.route(message, true);
