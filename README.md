@@ -75,6 +75,16 @@ phones as stick-and-button controllers. See [games/fuseball/README.md](games/fus
 its rooms only once its id is in `EXTRA_GAME_IDS` ([GCP deploy](docs/online/GCP-DEPLOY.md)); until then its page
 offers solo only.
 
+## Fuse Volley
+
+**Fuse Volley** is jelly-blob beach volleyball for two at `/fuse-volley/` (locally
+**http://localhost:8787/fuse-volley/**): bounce the ball over the net and keep it off your own sand, three touches at
+most. It has solo against a bot at three levels, rooms with a QR invite, quick (every rally scores, to 11) or classic
+(only the server scores, to 15) scoring chosen in the lobby, keyboard, touch and gamepad controls, and a shared TV with
+phones as controllers. See [games/fuse-volley/README.md](games/fuse-volley/README.md). Production serves its rooms
+only once its id is in `EXTRA_GAME_IDS` ([GCP deploy](docs/online/GCP-DEPLOY.md)); until then solo works and creating
+a room says the game is not open yet.
+
 ## Menus and round controls
 
 Every game shares one Google sign-in, username and friends list on the same backend. Open **FRIENDS** to add a player

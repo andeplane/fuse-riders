@@ -1,0 +1,23 @@
+{
+  "name": "fuse-volley",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fuse Volley: neon blob volleyball for two. Bounce the ball over the net with your head, three touches a side, every rally scores.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "exports": {
+    "./platform": "./src/platform.ts"
+  },
+  "dependencies": {
+    "fuse-netcode": "workspace:*",
+    "fuse-platform": "workspace:*",
+    "fuse-ui": "workspace:*"
+  },
+  "devDependencies": {
+    "@fontsource/press-start-2p": "^5.3.0",
+    "fuse-network-fe": "workspace:*",
+    "qrcode": "^1.5.4"
+  }
+}

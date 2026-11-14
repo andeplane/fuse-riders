@@ -68,6 +68,20 @@ const RECIPES: Record<string, Recipe> = {
     });
     await page.waitForTimeout(20_000);
   },
+  "fuse-volley": async (page) => {
+    await page
+      .getByRole("button", { name: "PLAY SOLO VS BOT", exact: true })
+      .click();
+    await page
+      .locator('.fv-room[data-stage="running"]')
+      .waitFor({ timeout: 30_000 });
+    await page.locator("canvas").click({ position: { x: 20, y: 20 } });
+    // Walk under the serve and bump it over, then catch the bot's return mid-rally.
+    await page.waitForTimeout(1500);
+    await hold(page, ["ArrowRight"], 250);
+    await page.keyboard.press("ArrowUp", { delay: 200 });
+    await page.waitForTimeout(700);
+  },
   fuseball: async (page) => {
     await page
       .getByRole("button", { name: "PLAY SOLO VS BOT", exact: true })
