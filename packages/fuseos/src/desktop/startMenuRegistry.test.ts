@@ -14,7 +14,7 @@ describe("START_MENU_REGISTRATIONS", () => {
     });
   });
 
-  it("lists the accessories, the Retro Games folder and the screen saver, with Notepad++ and My Computer disabled until their package lands", () => {
+  it("lists the accessories, the Retro Games folder, My Computer and the screen saver, every one of them openable", () => {
     expect(
       START_MENU_REGISTRATIONS.map((entry) => [
         entry.slot,
@@ -24,10 +24,11 @@ describe("START_MENU_REGISTRATIONS", () => {
     ).toEqual([
       ["accessories", "paint", true],
       ["accessories", "winamp", true],
-      ["accessories", "notepadpp", false],
+      ["accessories", "notepadpp", true],
+      ["accessories", "explorer", true],
       ["accessories", "wallpaper", true],
       ["retro-games", "retro-folder", true],
-      ["my-computer", "my-computer", false],
+      ["my-computer", "my-computer", true],
       ["settings", "screensaver", true],
     ]);
   });
@@ -49,8 +50,11 @@ describe("START_MENU_REGISTRATIONS", () => {
     expect(opened).toEqual([
       { kind: "paint" },
       { kind: "winamp" },
+      { kind: "notepadpp", paths: ["README.md"], activePath: "README.md" },
+      { kind: "explorer", location: "" },
       { kind: "wallpaper" },
       { kind: "retroFolder" },
+      { kind: "explorer", location: "" },
       { kind: "controlpanel", applet: "display", tab: "screensaver" },
     ]);
   });

@@ -1,5 +1,6 @@
 import { useCallback, useContext } from "react";
 
+import { MY_COMPUTER } from "../disk/diskPath";
 import { FuseGamesContext } from "../fusegames/registry";
 import { useFuseGameLauncher } from "../fusegames/useFuseGameLauncher";
 import { useGameLaunch } from "../settings/useGameLaunch";
@@ -82,6 +83,12 @@ export function useDesktopViewModel(): DesktopViewModel {
   );
 
   const icons: DesktopIconModel[] = [
+    {
+      id: "my-computer",
+      label: "My Computer",
+      icon: "computer",
+      open: () => commands.open({ kind: "explorer", location: MY_COMPUTER }),
+    },
     ...games.games.map((game) => ({
       id: `game:${game.id}`,
       label: game.name,

@@ -74,6 +74,7 @@
     "clippyjs": "^0.1.0",
     "esbuild": "0.28.2",
     "eslint": "10.10.0",
+    "fake-indexeddb": "^6.2.8",
     "firebase": "^12.19.0",
     "fuse-netcode": "workspace:*",
     "fuse-network-fe": "workspace:*",

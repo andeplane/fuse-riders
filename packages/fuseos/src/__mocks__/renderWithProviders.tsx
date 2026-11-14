@@ -15,6 +15,7 @@ import { MediaDepsContext } from "../controlpanel/mediaDepsContext";
 import type { SystemProbe } from "../controlpanel/systemInfo";
 import { SystemProbeContext } from "../controlpanel/systemProbeContext";
 import type { DesktopDeps } from "../desktop/desktopDepsContext";
+import { DiskDepsContext } from "../disk/diskDepsContext";
 import { DesktopDepsContext } from "../desktop/desktopDepsContext";
 import {
   DisplayPrefsStoreContext,
@@ -48,6 +49,7 @@ import {
   MemoryPaintPrefsStore,
   PaintPrefsStoreContext,
 } from "../paint/paintPrefsStore";
+import { EditorDepsContext } from "../notepadpp/editorDeps";
 import { PaintRegistryContext } from "../paint/paintRegistryContext";
 import type { GamesDeps } from "../retro/gamesDepsContext";
 import { GamesDepsContext } from "../retro/gamesDepsContext";
@@ -78,6 +80,10 @@ import type { WindowsDeps } from "../windows/windowsDepsContext";
 import { WindowsDepsContext } from "../windows/windowsDepsContext";
 
 import type { TestAssistantDeps } from "./assistantDeps";
+import type { TestDiskDeps, TestDiskOptions } from "./disk";
+import { createTestDiskDeps } from "./disk";
+import type { FakeEditor } from "./editor";
+import { createFakeEditorDeps } from "./editor";
 import { createTestAssistantDeps } from "./assistantDeps";
 import type { FakeEngineFactory } from "./llmEngine";
 import { createFakeEngineFactory } from "./llmEngine";
@@ -166,6 +172,9 @@ export type ProviderOptions = {
   screenSaverStore?: MemoryScreenSaverStore;
   /** Defaults to timers that never fire and a pipes loader that never resolves (no three.js in tests). */
   screenSaverDeps?: Partial<ScreenSaverDeps>;
+  /** Defaults to the fixture repository with an empty overlay and an instant floppy seek. */
+  disk?: TestDiskOptions;
+  diskDeps?: TestDiskDeps;
 };
 
 export const immediateAppStateDeps: AppStateDeps = {
@@ -376,6 +385,9 @@ export function createWrapper(options: ProviderOptions = {}) {
   const screenSaverStore =
     options.screenSaverStore ?? new MemoryScreenSaverStore();
   const screenSaverDeps = createTestScreenSaverDeps(options.screenSaverDeps);
+  const diskDeps = options.diskDeps ?? createTestDiskDeps(options.disk);
+  const editors: FakeEditor[] = [];
+  const editorDeps = createFakeEditorDeps(editors);
 
   /** Outermost first; each entry wraps everything after it. */
   const providers: readonly ProviderEntry[] = [
@@ -403,6 +415,8 @@ export function createWrapper(options: ProviderOptions = {}) {
     provider(AssistantOptionsStoreContext, assistantOptions),
     provider(SystemProbeContext, () => systemProbe),
     provider(LlmDepsContext, llmDeps),
+    provider(DiskDepsContext, diskDeps),
+    provider(EditorDepsContext, editorDeps),
   ];
 
   function Wrapper({ children }: { children: ReactNode }) {
@@ -441,6 +455,8 @@ export function createWrapper(options: ProviderOptions = {}) {
     winampRegistry,
     llmFactory,
     modelCache,
+    diskDeps,
+    editors,
   };
 }
 

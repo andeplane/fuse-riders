@@ -10,7 +10,7 @@ import {
 import { Desktop } from "./Desktop";
 
 describe(Desktop.name, () => {
-  it("boots to a desktop with one icon per Fuse game, then Paint, Winamp and Control Panel, a taskbar and the clock", () => {
+  it("boots to a desktop with My Computer, one icon per Fuse game, then Paint, Winamp and Control Panel, a taskbar and the clock", () => {
     renderWithProviders(<Desktop />);
     const icons = within(screen.getByRole("list", { name: "Desktop icons" }));
     expect(
@@ -18,6 +18,7 @@ describe(Desktop.name, () => {
         .getAllByRole("button")
         .map((item) => item.lastElementChild?.textContent),
     ).toEqual([
+      "My Computer",
       "Fuseball",
       "Fuse Riders",
       "Fuse Birds",

@@ -44,7 +44,7 @@ describe("StartMenu", () => {
     ).toEqual(["Fuseball", "Fuse Riders", "Fuse Birds", "Retro Games"]);
   });
 
-  it("lists the Control Panel applets under Settings and the accessories with Notepad++ pending", async () => {
+  it("lists the Control Panel applets under Settings and the accessories in registry order", async () => {
     const user = userEvent.setup();
     renderWithProviders(<Desktop />);
     const menu = await openStartMenu(user);
@@ -75,14 +75,19 @@ describe("StartMenu", () => {
       within(accessories)
         .getAllByRole("menuitem")
         .map((item) => item.textContent),
-    ).toEqual(["Paint", "Winamp", "Notepad++", "Change desktop background"]);
+    ).toEqual([
+      "Paint",
+      "Winamp",
+      "Notepad++",
+      "Windows Explorer",
+      "Change desktop background",
+    ]);
     expect(
       within(accessories).getByRole("menuitem", { name: "Notepad++" }),
-    ).toBeDisabled();
-    // Nothing registers My Computer in this build either: the item is there, disabled.
+    ).toBeEnabled();
     expect(
       within(menu).getByRole("menuitem", { name: "My Computer" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
   });
 
   it("opens a registered program and fills My Computer from the registry", async () => {
@@ -151,7 +156,7 @@ describe("StartMenu", () => {
 
     await user.keyboard("{ArrowDown}");
     expect(
-      within(menu).getByRole("menuitem", { name: "Settings" }),
+      within(menu).getByRole("menuitem", { name: "My Computer" }),
     ).toHaveFocus();
     await user.keyboard("{ArrowUp}{ArrowUp}");
     expect(
