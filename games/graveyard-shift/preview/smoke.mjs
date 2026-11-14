@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { startGameCoverage } from "../../../scripts/lib/game-browser-coverage.ts";
+import {
+  openPlayOptions,
+  takeHostSeat,
+} from "../../../scripts/lib/main-menu.ts";
 const base =
   process.env.ONLINE_URL ?? process.argv[2] ?? "http://localhost:8797/";
 const shots =
@@ -31,24 +35,34 @@ async function open(path, phone = false) {
 }
 const snap = (p, name) =>
   p.screenshot({ path: join(shots, name + ".png"), fullPage: true });
+const hostRoom = (p) =>
+  p.getByRole("button", { name: "Host room", exact: true }).click();
+const addBot = (p) =>
+  p
+    .locator(".fui-room-open-slot")
+    .getByRole("button", { name: "Add AI", exact: true })
+    .first()
+    .click();
 try {
   const splash = await open("?mute");
-  await splash
-    .getByRole("button", { name: "START SOLO SHIFT", exact: true })
-    .waitFor();
+  await splash.getByRole("button", { name: "Play", exact: true }).waitFor();
   await snap(splash, "menu");
+  // The main menu's How to play opens the summary; its HOW TO PLAY button opens the handbook.
+  await splash
+    .getByRole("button", { name: "How to play", exact: true })
+    .click();
   await splash
     .getByRole("button", { name: "HOW TO PLAY", exact: true })
     .click();
-  await splash.getByRole("dialog").waitFor();
+  await splash.locator("dialog.handbook").waitFor();
   await snap(splash, "tutorial");
   await splash.getByRole("button", { name: "READY FOR THE NIGHT" }).click();
-  await splash
-    .getByRole("button", { name: "START SOLO SHIFT", exact: true })
-    .click();
+  await splash.locator("dialog.handbook").waitFor({ state: "hidden" });
+  await splash.keyboard.press("Escape");
+  await openPlayOptions(splash, "single");
   await splash.locator("[data-phase=running]").waitFor();
   await splash.keyboard.press("Escape");
-  await splash.locator("canvas").click({ position: { x: 200, y: 200 } });
+  await splash.locator("canvas.arena").click({ position: { x: 200, y: 200 } });
   await splash.keyboard.down("w");
   await splash.keyboard.down("j");
   await splash.waitForTimeout(2000);
@@ -56,23 +70,30 @@ try {
   await splash.keyboard.up("j");
   await snap(splash, "gameplay");
   assert.equal(await splash.locator(".score").count(), 4);
-  await splash.locator(".sound").evaluate((el) => {
-    el.disabled = false;
-    el.focus();
-  });
+  // A focused header control keeps its own keys (scripts/top-bar-input-smoke.ts); the arena takes them back.
+  await splash.getByRole("button", { name: "Open game menu" }).focus();
+  await splash.locator("canvas.arena").click({ position: { x: 200, y: 200 } });
   const oldX = Number(await splash.locator(".personal").getAttribute("data-x"));
   await splash.keyboard.down("d");
   await splash.waitForTimeout(300);
   await splash.keyboard.up("d");
   assert.ok(
     Number(await splash.locator(".personal").getAttribute("data-x")) > oldX,
-    "focused header button still allows movement",
+    "the arena moves the hunter again after a header control held focus",
   );
   console.log("PASS splash, handbook, solo, keyboard");
   const host = await open("?mute");
-  await host.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
+  await openPlayOptions(host);
+  await hostRoom(host);
   await host.waitForURL(/room=/);
-  await host.locator("input.fui-name-input").fill("Ada");
+  // The creator joins from an open slot; its Join opens the name entry.
+  await host
+    .locator(".fui-room-open-slot")
+    .getByRole("button", { name: "Join", exact: true })
+    .first()
+    .click();
+  const entry = host.locator(".fui-slot-admission[open]");
+  await entry.locator("input.fui-name-input").fill("Ada");
   const beforeJoinTick = Number(
     await host.locator("main.room").getAttribute("data-tick"),
   );
@@ -83,21 +104,18 @@ try {
     beforeJoinTick,
   );
   assert.ok(
-    await host
-      .getByRole("button", { name: "JOIN CREW", exact: true })
-      .isVisible(),
+    await entry.getByRole("button", { name: "Join", exact: true }).isVisible(),
     "typing a fresh name must not submit it on the next room frame",
   );
-  await host.getByRole("button", { name: "JOIN CREW", exact: true }).click();
+  await entry.getByRole("button", { name: "Join", exact: true }).click();
   await host.getByRole("button", { name: "READY", exact: true }).waitFor();
   const code = new URL(host.url()).searchParams.get("room");
   const guest = await open(`?room=${code}&mute`);
-  await guest.locator("input.fui-name-input").fill("Bo");
-  await guest.getByRole("button", { name: "JOIN CREW", exact: true }).click();
+  await takeHostSeat(guest, "Bo");
   await guest.getByRole("button", { name: "READY", exact: true }).waitFor();
   await guest.locator("form.fui-name-entry").waitFor({ state: "hidden" });
   await host.getByText("Bo", { exact: true }).waitFor();
-  await host.getByRole("button", { name: "+ ADD BOT", exact: true }).click();
+  await addBot(host);
   await host.getByText(/\/ BOT/).waitFor();
   await host.getByRole("button", { name: "READY", exact: true }).click();
   await guest.getByRole("button", { name: "READY", exact: true }).click();
@@ -111,19 +129,16 @@ try {
   await snap(host, "online");
   console.log("PASS online readiness, mixed bots, peer checkpoint reload");
   const tvHost = await open("?mute");
+  await openPlayOptions(tvHost);
   await tvHost.getByRole("checkbox").check();
-  await tvHost
-    .getByRole("button", { name: "CREATE ROOM", exact: true })
-    .click();
+  await hostRoom(tvHost);
   await tvHost.waitForURL(/room=/);
   const tvCode = new URL(tvHost.url()).searchParams.get("room");
-  await tvHost.locator("input.fui-name-input").fill("Cora");
-  await tvHost.getByRole("button", { name: "JOIN CREW", exact: true }).click();
-  await tvHost.getByRole("button", { name: "+ ADD BOT", exact: true }).click();
+  await takeHostSeat(tvHost, "Cora");
+  await addBot(tvHost);
   const tv = await open(`?room=${tvCode}&display=1&mute`);
   const phone = await open(`?room=${tvCode}&mute`, true);
-  await phone.locator("input.fui-name-input").fill("Dax");
-  await phone.getByRole("button", { name: "JOIN CREW", exact: true }).click();
+  await takeHostSeat(phone, "Dax");
   await tvHost.getByRole("button", { name: "READY", exact: true }).click();
   await phone.getByRole("button", { name: "READY", exact: true }).click();
   await phone.locator("[data-layout=controller][data-phase=running]").waitFor();
