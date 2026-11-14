@@ -1,4 +1,17 @@
 /* The options beside the song select: a random song, this player's speed, a room's session. */
+/* The chips wear the shared menu's button look (its rules are written to win over a game's own); the doubled
+   selectors here only keep them chip-sized and in rows where that menu would stretch or re-flow them. */
+.fm-options.fm-options {
+  display: grid;
+}
+.fm-options.fm-options[hidden] {
+  display: none;
+}
+.fm-options.fm-options .fm-option {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 3.25rem;
+}
 .fm-options {
   display: grid;
   gap: var(--fui-space-3);
@@ -30,6 +43,7 @@
 .fm-options .fm-option {
   --fm-option: var(--fui-cyan);
   flex: 0 0 auto;
+  width: auto;
   min-width: 3.25rem;
   min-height: 2.25rem;
   margin: 0;
@@ -73,12 +87,12 @@
 }
 
 /* A session's standings: in the lobby between two songs, and on the result. */
-.fm-session {
+.fm-session.fm-session {
   display: grid;
   gap: var(--fui-space-1);
   min-width: 0;
 }
-.fm-session[hidden] {
+.fm-session.fm-session[hidden] {
   display: none;
 }
 .fm-session h3 {
@@ -113,6 +127,7 @@
 }
 .fm-session li b {
   overflow: hidden;
+  text-align: left;
   color: var(--fui-text-bright);
   text-overflow: ellipsis;
   white-space: nowrap;

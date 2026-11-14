@@ -903,8 +903,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     join: nameEntry.form,
     addAI: addBot,
     settings: [panel.element, help],
-    modes: [picker.element, options.element],
-    actions: [lobbySession.element, lobbyNote, lobbyActions],
+    modes: [picker.element, options.element, lobbySession.element],
+    actions: [lobbyNote, lobbyActions],
   });
   lobby.hidden = true;
   stage.hidden = true;
