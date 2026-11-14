@@ -143,6 +143,23 @@ export function letterbox(
   };
 }
 
+/** A blob's face: calm while the ball is in play. */
+type Mood = "calm" | "sad" | "happy";
+const TEAR = "#8fe9ff";
+/**
+ * After a rally (the settle, and the end of the match) the side it went against is sad and the other is happy. It is
+ * read off the view alone, so every device draws the same faces and nothing is added to the rules.
+ */
+export const moodOf = (
+  view: Pick<WorldView, "phase" | "lastFault">,
+  side: 0 | 1,
+): Mood =>
+  (view.phase !== "dead" && view.phase !== "over") || view.lastFault === -1
+    ? "calm"
+    : view.lastFault === side
+      ? "sad"
+      : "happy";
+
 interface Particle {
   x: number;
   y: number;
@@ -518,6 +535,8 @@ export function createScene(
     pose: JellyPose,
     ball: BallView,
     local: boolean,
+    mood: Mood = "calm",
+    nowMs = 0,
   ) => {
     const side = blob.side,
       hue = hues[side];
@@ -580,15 +599,28 @@ export function createScene(
       c.fill();
       c.globalCompositeOperation = "source-over";
     }
-    // Eyes on the head, looking at the ball.
+    // Eyes on the head, looking at the ball; after a rally the side that lost it looks down, sad, and the side that
+    // won it beams. Drawing only: the mood is read off the view, the same on every device.
     const eyeY = -(HEAD_UP[blob.frame]! * pose.stretch) - 4;
     const toward = side === 0 ? 1 : -1;
-    const lookX = ball.x - blob.x,
-      lookY = ball.y - (blob.y + eyeY),
+    const sad = mood === "sad",
+      happy = mood === "happy";
+    const lookX = sad ? 0 : ball.x - blob.x,
+      lookY = sad ? 1 : ball.y - (blob.y + eyeY),
       distance = Math.hypot(lookX, lookY) || 1;
+    c.lineCap = "round";
     for (const dx of [-9, 9]) {
       const ex = dx + toward * 3;
-      const open = 1 - pose.blink * 0.92;
+      if (happy) {
+        // Eyes squeezed shut in a smile: two arches.
+        c.strokeStyle = PUPIL;
+        c.lineWidth = 3;
+        c.beginPath();
+        c.arc(ex, eyeY + 3, 6, Math.PI * 1.12, Math.PI * 1.88);
+        c.stroke();
+        continue;
+      }
+      const open = (1 - pose.blink * 0.92) * (sad ? 0.8 : 1);
       c.fillStyle = WHITE;
       c.beginPath();
       c.ellipse(ex, eyeY, 6.6, 8.6 * open, 0, 0, TAU);
@@ -615,6 +647,38 @@ export function createScene(
         );
         c.fill();
       }
+      if (sad) {
+        // A brow sloping down and outwards over each eye.
+        const out = Math.sign(dx);
+        c.strokeStyle = PUPIL;
+        c.lineWidth = 2.6;
+        c.beginPath();
+        c.moveTo(ex - out * 6, eyeY - 13);
+        c.lineTo(ex + out * 7, eyeY - 8);
+        c.stroke();
+      }
+    }
+    if (sad || happy) {
+      const mx = toward * 3,
+        my = eyeY + 16;
+      c.strokeStyle = PUPIL;
+      c.lineWidth = 2.6;
+      c.beginPath();
+      if (sad) c.arc(mx, my + 5, 7, Math.PI * 1.2, Math.PI * 1.8);
+      else c.arc(mx, my - 5, 8, Math.PI * 0.15, Math.PI * 0.85);
+      c.stroke();
+    }
+    if (sad) {
+      // A tear under the outer eye, welling up and running down once a second.
+      const t = (nowMs % 1000) / 1000;
+      const tx = -toward * 6 - toward * 5,
+        ty = eyeY + 8 + 14 * t;
+      c.fillStyle = hexA(TEAR, 0.9 * (1 - t * t));
+      c.beginPath();
+      c.moveTo(tx, ty - 5);
+      c.quadraticCurveTo(tx + 3.4, ty, tx, ty + 2.6);
+      c.quadraticCurveTo(tx - 3.4, ty, tx, ty - 5);
+      c.fill();
     }
     c.restore();
     if (local) {
@@ -1016,7 +1080,15 @@ export function createScene(
           drawTag(g, blob, tags[view.blobs.indexOf(blob)] ?? "");
       for (const [slot, blob] of view.blobs.entries())
         if (!blob.benched)
-          drawBlob(g, blob, poses[slot]!, view.ball, slot === local);
+          drawBlob(
+            g,
+            blob,
+            poses[slot]!,
+            view.ball,
+            slot === local,
+            moodOf(view, blob.side),
+            nowMs,
+          );
       drawBench(g, view, poses, labels[2] ?? "");
       drawBall(g, view.ball, nowMs);
       drawEffects(g);
