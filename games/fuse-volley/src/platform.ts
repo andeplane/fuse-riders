@@ -113,14 +113,36 @@ export function parseFuseVolleyStats(
 }
 
 /**
- * The whole field: two blobs on the two sides, one of whom won by two (or at the score cap) ahead of the other.
+ * The whole field: two blobs on the two sides, or four in doubles (slots 0 and 2 on the left, 1 and 3 on the right),
+ * one side of which won by two (or at the score cap) ahead of the other. Teammates share their side's points and
+ * result.
  */
 export function validFuseVolleyField(
   players: readonly FuseVolleyStats[],
 ): boolean {
-  const [a, b] = players;
-  if (players.length !== CAPACITY || !a || !b || a.slot === b.slot)
+  if (players.length !== 2 && players.length !== 4) return false;
+  const slots = new Set(players.map((player) => player.slot));
+  if (
+    slots.size !== players.length ||
+    [...slots].some((slot) => slot >= players.length)
+  )
     return false;
+  const sides = [0, 1].map((side) =>
+    players.filter((player) => player.slot % 2 === side),
+  );
+  // Each side agrees with itself on the points and the result.
+  for (const team of sides) {
+    const [first, ...rest] = team;
+    if (
+      !first ||
+      rest.some(
+        (mate) =>
+          mate.points !== first.points || mate.roundWins !== first.roundWins,
+      )
+    )
+      return false;
+  }
+  const [a, b] = [sides[0]![0]!, sides[1]![0]!];
   if (a.roundWins + b.roundWins !== 1) return false;
   const [winner, loser] = a.roundWins === 1 ? [a, b] : [b, a];
   // A finished match under either rule: the winner reached the target at least two clear, or went past it by

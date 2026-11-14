@@ -138,7 +138,12 @@ test("in a match each player sees their side; on a shared screen a phone becomes
   assert.equal(a.riding, true);
   assert.equal(a.controlsVisible, true, "the guide shows for the first serve");
   assert.deepEqual(a.names, ["Ada", "Bo"]);
-  const shared = started({ display: true, scoring: "classic", bot: 1 });
+  const shared = started({
+    display: true,
+    scoring: "classic",
+    bot: 1,
+    doubles: false,
+  });
   const phone = present(view(shared), viewer("b"));
   assert.equal(phone.screen, "controller");
   assert.match(phone.status, /^0 – 0 · /);
@@ -195,7 +200,7 @@ test("cues come from counters moving forward, once each", () => {
   world.hitCounter = 1;
   world.lastTouch = 0;
   world.netCounter = 1;
-  world.blobs[1].air = true;
+  world.blobs[1]!.air = true;
   const after = toView(world);
   const kinds = cuesBetween(before, after).map((cue) => cue.kind);
   assert.deepEqual(kinds, ["hit", "net", "jump"]);
@@ -212,8 +217,8 @@ const moved = (base: WorldView, dx: number): WorldView => ({
   ...base,
   ball: { ...base.ball, x: base.ball.x + dx },
   blobs: [
-    { ...base.blobs[0], x: base.blobs[0].x + dx },
-    { ...base.blobs[1], x: base.blobs[1].x + dx },
+    { ...base.blobs[0]!, x: base.blobs[0]!.x + dx },
+    { ...base.blobs[1]!, x: base.blobs[1]!.x + dx },
   ],
 });
 
@@ -225,11 +230,11 @@ test("a rollback correction eases in, the local blob never does, and a teleport 
   const first = smoother.apply(corrected, 2, 0, 0);
   assert.equal(first.ball.x, base.ball.x, "drawn where it was");
   assert.equal(
-    first.blobs[0].x,
-    corrected.blobs[0].x,
+    first.blobs[0]!.x,
+    corrected.blobs[0]!.x,
     "the local blob follows its player exactly",
   );
-  assert.equal(first.blobs[1].x, base.blobs[1].x);
+  assert.equal(first.blobs[1]!.x, base.blobs[1]!.x);
   const later = smoother.apply(corrected, 2, DECAY_MS, 0);
   assert.ok(Math.abs(later.ball.x - (corrected.ball.x - 20 / Math.E)) < 0.01);
   const settled = smoother.apply(corrected, 2, DECAY_MS * 20, 0);
@@ -242,21 +247,21 @@ test("the jelly wobbles after a kick and comes back to rest", () => {
   const jelly = createJelly(() => 0.5);
   const blobs = toView(fresh()).blobs;
   const rest = jelly.update(blobs, 0);
-  assert.equal(rest[0].stretch, 1);
+  assert.equal(rest[0]!.stretch, 1);
   jelly.kick(0, 1);
   let low = 1,
     high = 1;
   for (let t = 16; t < 400; t += 16) {
-    const pose = jelly.update(blobs, t)[0];
+    const pose = jelly.update(blobs, t)[0]!;
     low = Math.min(low, pose.stretch);
     high = Math.max(high, pose.stretch);
   }
   assert.ok(low < 0.95, `squashed: ${low}`);
   assert.ok(high > 1, `overshoots back past rest: ${high}`);
-  const end = jelly.update(blobs, 3000)[0];
+  const end = jelly.update(blobs, 3000)[0]!;
   for (let t = 3016; t < 6000; t += 16) jelly.update(blobs, t);
   assert.ok(
-    Math.abs(jelly.update(blobs, 6000)[0].stretch - 1) < 0.03,
+    Math.abs(jelly.update(blobs, 6000)[0]!.stretch - 1) < 0.03,
     `${end.stretch}`,
   );
 });
@@ -317,7 +322,12 @@ test("the drawn bot plans once per folded step and side", () => {
 });
 
 test("a classic side-out is not reported as a point", () => {
-  const room = started({ display: false, scoring: "classic", bot: 1 });
+  const room = started({
+    display: false,
+    scoring: "classic",
+    bot: 1,
+    doubles: false,
+  });
   const server = room.world!.server;
   const watch = createPointWatch();
   const me = server === 0 ? "b" : "a";

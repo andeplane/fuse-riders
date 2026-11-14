@@ -54,15 +54,12 @@ const clamp = (value: number, limit: number) =>
   Math.max(-limit, Math.min(limit, value));
 
 export interface Jelly {
-  /** Advances both blobs to wall time `nowMs` with the views shown now; returns each blob's pose. */
-  update(
-    blobs: readonly [BlobView, BlobView],
-    nowMs: number,
-  ): [JellyPose, JellyPose];
-  /** A squash kick for `side`, from a hit (`strength` 0–1) or a landing. */
-  kick(side: 0 | 1, strength: number): void;
+  /** Advances every blob to wall time `nowMs` with the views shown now; returns each blob's pose, by slot. */
+  update(blobs: readonly BlobView[], nowMs: number): JellyPose[];
+  /** A squash kick for the blob in `slot`, from a hit (`strength` 0–1) or a landing. */
+  kick(slot: number, strength: number): void;
   /** A stretch kick, for a jump. */
-  spring(side: 0 | 1, strength: number): void;
+  spring(slot: number, strength: number): void;
   /** Forgets motion, for a new match or a teleport. */
   reset(): void;
 }
@@ -78,7 +75,8 @@ export function createJelly(random: () => number = Math.random): Jelly {
     blinkAt: 0,
     blinkStart: -1e9,
   });
-  let blobs: [BlobJelly, BlobJelly] = [fresh(), fresh()];
+  let blobs: BlobJelly[] = [];
+  const at = (slot: number): BlobJelly => (blobs[slot] ??= fresh());
   let last = -1;
   return {
     update(views, nowMs) {
@@ -86,7 +84,7 @@ export function createJelly(random: () => number = Math.random): Jelly {
         last < 0 ? 0 : Math.min(0.05, Math.max(0, (nowMs - last) / 1000));
       last = nowMs;
       return views.map((view, side) => {
-        const jelly = blobs[side]!;
+        const jelly = at(side);
         if (!jelly.seen || Math.abs(view.x - jelly.x) > 60) {
           jelly.x = view.x;
           jelly.y = view.y;
@@ -133,17 +131,16 @@ export function createJelly(random: () => number = Math.random): Jelly {
           lean: jelly.lean.value,
           blink,
         };
-      }) as [JellyPose, JellyPose];
+      });
     },
-    kick(side, strength) {
-      blobs[side].stretch.speed -=
-        2.6 + 2.2 * Math.max(0, Math.min(1, strength));
+    kick(slot, strength) {
+      at(slot).stretch.speed -= 2.6 + 2.2 * Math.max(0, Math.min(1, strength));
     },
-    spring(side, strength) {
-      blobs[side].stretch.speed += 1.6 * Math.max(0, Math.min(1, strength));
+    spring(slot, strength) {
+      at(slot).stretch.speed += 1.6 * Math.max(0, Math.min(1, strength));
     },
     reset() {
-      blobs = [fresh(), fresh()];
+      blobs = [];
       last = -1;
     },
   };
