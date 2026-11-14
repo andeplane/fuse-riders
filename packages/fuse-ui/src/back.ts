@@ -138,6 +138,8 @@ export function backOnEscape(
     if (!back.isConnected || back.closest("[hidden]")) return;
     if (back.hasAttribute("disabled")) return;
     if (doc.querySelector("dialog[open]")) return;
+    // An open game menu is on top of the page: this Escape closes it, and the next one goes back.
+    if (doc.querySelector(".fui-game-menu-panel:not([hidden])")) return;
     if (options.enabled && !options.enabled()) return;
     event.preventDefault();
     back.click();

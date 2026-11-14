@@ -514,6 +514,7 @@ function landing(): void {
     if (!keepMusic) preview.stop();
     settings.dispose();
     card.menu.dispose();
+    menu.dispose();
     document.removeEventListener("keydown", onKey);
   };
   // PLAY and OPTIONS stay in the dialog's bar beside CLOSE: the select under them scrolls, they do not.
@@ -540,15 +541,17 @@ function landing(): void {
       );
       store.setItem(names.host(room.code), room.token);
       // Into the room without leaving the page: the menu's music plays on into the lobby.
+      const url = withFlags(endpoints.appUrl(`?room=${room.code}`));
       leaveLanding(true);
-      history.pushState(
-        null,
-        "",
-        withFlags(endpoints.appUrl(`?room=${room.code}`)),
-      );
+      history.pushState(null, "", url);
       window.addEventListener("popstate", () => location.reload());
       audio.unlock();
-      enterRoom(false, library, choice, preview);
+      try {
+        enterRoom(false, library, choice, preview);
+      } catch {
+        // The landing is gone and the room did not come up: the room's own address starts it afresh.
+        location.href = url;
+      }
     },
     onSolo: () => {
       leaveLanding();
@@ -846,11 +849,13 @@ function enterRoom(
   tvOption.append(tvLabel, tvLink);
   tvOption.hidden = true;
   tvToggle.onchange = () => {
-    store.setItem(names.shared, tvToggle.checked ? "1" : "0");
-    runtime.command({
+    const sent = runtime.command({
       type: "settings",
       settings: { ...settings, display: tvToggle.checked },
     });
+    // Refused (the room is not up yet, or this is no longer the host): the box goes back to what the room has.
+    if (sent) store.setItem(names.shared, tvToggle.checked ? "1" : "0");
+    else tvToggle.checked = settings.display;
   };
   let inviteCard: HTMLElement | undefined;
   if (!solo) {

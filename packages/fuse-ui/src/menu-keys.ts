@@ -50,6 +50,8 @@ export function menuKeys(
     )
       return;
     if (!menu.isConnected || menu.closest("[hidden]")) return;
+    // Hidden by a style, not the attribute (a menu a game covers while it plays): the arrows are the game's.
+    if (menu.checkVisibility?.() === false) return;
     const dialog = doc.querySelector("dialog[open]");
     if (dialog && !dialog.contains(menu)) return;
     const target = event.target as Element | null;
