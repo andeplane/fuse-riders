@@ -16,6 +16,7 @@ import {
   Touch,
   gameKey,
   holdToFlapFrom,
+  releaseWhenAway,
   settle,
   stickBits,
   type PadLike,
@@ -353,4 +354,80 @@ test("attack: J, B / Circle or the left bumper, and the touch ATTACK button, eac
   touch.strike(true);
   assert.deepEqual(log, ["attack", "attack"]);
   assert.equal(controls.lastUsed(), "touch");
+});
+
+/** A typed stand-in for `window` / `document`: it keeps its listeners so a test can fire and then abort them. */
+class FakePage {
+  visibilityState = "visible";
+  readonly listeners = new Map<string, (() => void)[]>();
+  addEventListener(
+    type: string,
+    listener: () => void,
+    options?: { signal?: AbortSignal },
+  ): void {
+    const kept = this.listeners.get(type) ?? [];
+    kept.push(listener);
+    this.listeners.set(type, kept);
+    options?.signal?.addEventListener("abort", () => {
+      this.listeners.set(
+        type,
+        (this.listeners.get(type) ?? []).filter((one) => one !== listener),
+      );
+    });
+  }
+  fire(type: string): void {
+    for (const listener of [...(this.listeners.get(type) ?? [])]) listener();
+  }
+}
+
+test("a hidden tab lets go of the controls, as losing focus does: a phone fires no blur", () => {
+  const { log, controls } = rig();
+  const keys = new Keys(controls);
+  const window = new FakePage(),
+    document = new FakePage();
+  const abort = new AbortController();
+  releaseWhenAway(
+    window,
+    document,
+    () => {
+      keys.clear();
+      controls.release();
+    },
+    { signal: abort.signal },
+  );
+
+  keys.press("ArrowRight");
+  keys.press("Space");
+  assert.equal(controls.value(), INPUT_RIGHT | INPUT_HELD);
+  // The phone case: the tab is hidden without the window ever losing focus.
+  document.visibilityState = "hidden";
+  document.fire("visibilitychange");
+  assert.equal(controls.value(), 0, "the held bits are let go");
+  // And the keyboard's own set is cleared with them, so coming back does not re-hold what was down.
+  log.length = 0;
+  keys.lift("ArrowRight");
+  keys.lift("Space");
+  assert.deepEqual(log, [], "nothing was still held to lift");
+  keys.press("ArrowRight");
+  assert.equal(controls.value(), INPUT_RIGHT, "the keys work again");
+
+  // Coming back into view holds nothing of its own.
+  document.visibilityState = "visible";
+  document.fire("visibilitychange");
+  assert.equal(controls.value(), INPUT_RIGHT, "a visible tab releases nothing");
+
+  window.fire("blur");
+  assert.equal(controls.value(), 0, "focus loss still releases");
+
+  // The listeners come off with the page's others: an aborted room releases nothing more.
+  keys.press("ArrowLeft");
+  abort.abort();
+  document.visibilityState = "hidden";
+  document.fire("visibilitychange");
+  window.fire("blur");
+  assert.equal(controls.value(), INPUT_LEFT, "nothing is listening any more");
+  assert.deepEqual(
+    [...window.listeners.values(), ...document.listeners.values()].flat(),
+    [],
+  );
 });

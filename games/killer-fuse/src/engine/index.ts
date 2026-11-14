@@ -23,6 +23,7 @@ export {
   type LevelRules,
 } from "./bot.js";
 export { teamOf, isQueenSlot } from "./units.js";
+export { navEdgeCount } from "./nav.js";
 export {
   viewOf,
   type RoundView,

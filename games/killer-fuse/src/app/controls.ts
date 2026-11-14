@@ -161,6 +161,40 @@ export class Keys {
   }
 }
 
+/** As much of `window` and `document` as `releaseWhenAway` uses. */
+export interface ReleaseTarget {
+  addEventListener(
+    type: string,
+    listener: () => void,
+    options?: { signal?: AbortSignal },
+  ): void;
+}
+export interface VisibilityTarget extends ReleaseTarget {
+  readonly visibilityState: string;
+}
+
+/**
+ * Lets go of every control when the page stops being played. Focus loss alone is not enough: a phone switching apps
+ * or locking hides the tab without firing `blur`, and the bits the runtime last logged would stay held — the rider
+ * walks into a wall until its player comes back. `visibilitychange` covers that, and a desktop tab that fires both
+ * simply releases twice, which holds nothing either way. `signal` takes both listeners off with the page's others.
+ */
+export function releaseWhenAway(
+  window: ReleaseTarget,
+  document: VisibilityTarget,
+  release: () => void,
+  options?: { signal?: AbortSignal },
+): void {
+  window.addEventListener("blur", release, options);
+  document.addEventListener(
+    "visibilitychange",
+    () => {
+      if (document.visibilityState === "hidden") release();
+    },
+    options,
+  );
+}
+
 /** What a gamepad reports, as much of the browser's `Gamepad` as this reads. */
 export interface PadLike {
   readonly axes: readonly number[];

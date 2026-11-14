@@ -2,6 +2,10 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 import {
+  publicFilePath,
+  publicRequestPath,
+} from "./scripts/lib/game-public.ts";
+import {
   parsePortalEntry,
   type PortalGame,
 } from "./packages/fuse-ui/src/portal.ts";
@@ -116,17 +120,17 @@ const gamePublic = (): Plugin => {
     configureServer(server) {
       server.middlewares.use((request, _response, next) => {
         const url = new URL(request.url ?? "/", "http://localhost");
-        if (url.pathname.startsWith(server.config.base)) {
-          const path = decodeURIComponent(
-            url.pathname.slice(server.config.base.length),
-          );
+        // A request path is attacker-controlled: a bad escape, an absolute path or a whole URL is not a file here.
+        const asked = publicRequestPath(url.pathname, server.config.base);
+        if (asked !== undefined) {
           const id = owners.find((game) => {
-            if (path.split("/").includes("..")) return false;
-            const file = new URL(path, folder(game));
-            return existsSync(file) && statSync(file).isFile();
+            const file = publicFilePath(fileURLToPath(folder(game)), asked);
+            return (
+              file !== undefined && existsSync(file) && statSync(file).isFile()
+            );
           });
           if (id)
-            request.url = `${server.config.base}games/${id}/public/${path}${url.search}`;
+            request.url = `${server.config.base}games/${id}/public/${asked}${url.search}`;
         }
         next();
       });

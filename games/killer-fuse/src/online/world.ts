@@ -6,11 +6,13 @@ import {
   cloneRound,
   createRound,
   isQueenSlot,
+  navEdgeCount,
   stepRound,
   teamOf,
   type BotGoal,
   type BotLevel,
   type LooseBerry,
+  type MapDef,
   type MapId,
   type Round,
   type UnitKind,
@@ -97,10 +99,47 @@ function conforms(template: unknown, value: unknown): boolean {
 const within = (value: number, low: number, high: number): boolean =>
   value >= low && value <= high;
 
+/**
+ * How many values a bot's `target` can take, by goal: it is a slot for the goals about another unit, and otherwise
+ * an index into the map's own lists. `idle` and `ride` are about nothing and hold -1 when they are chosen, but a
+ * bot that dies keeps the target it had while its goal becomes `idle`, so those accept any of the lists. Without
+ * the top, `state.units[mind.target]!` under `flee` is a throw inside a later fold, which a checkpoint from a peer
+ * must never be able to cause; a target inside its list is one the engine's own lookups cope with.
+ */
+function targetBound(goal: BotGoal, map: MapDef, team: number): number {
+  switch (goal) {
+    case "gather":
+      return map.piles.length;
+    case "bank":
+      return map.holes[team]!.length;
+    case "gate":
+    case "claim":
+      return map.gates.length;
+    // A slot: `flee`, `stall`, `hunt`, `evade` and `guard` are aimed at a unit, and take their target with the goal.
+    case "flee":
+    case "stall":
+    case "hunt":
+    case "evade":
+    case "guard":
+      return MAX_PLAYERS;
+    default:
+      return Math.max(
+        MAX_PLAYERS,
+        map.piles.length,
+        map.gates.length,
+        map.holes[team]!.length,
+      );
+  }
+}
+
 /** The ranges the shape cannot say: indices into the map and the slots, enums, and counters that never go negative. */
 function inRange(world: Round): boolean {
   const map = MAPS[world.mapId],
     slot = (value: number) => within(value, -1, MAX_PLAYERS - 1);
+  // The bots' nav: `node` is a platform, as `unit.ground` is, and `edge` indexes the moves built for this map.
+  const edges = world.bots.some((mind) => mind.edge >= 0)
+    ? navEdgeCount(world.mapId)
+    : 0;
   return (
     within(world.rng, 0, 0xffff_ffff) &&
     within(world.step, 0, 0xffff_ffff) &&
@@ -141,7 +180,7 @@ function inRange(world: Round): boolean {
     (world.snail.facing === 1 || world.snail.facing === -1) &&
     world.eggs.every((eggs) => within(eggs, 0, QUEEN_EGGS)) &&
     world.bots.every(
-      (mind) =>
+      (mind, index) =>
         (GOALS as readonly string[]).includes(mind.goal) &&
         mind.think >= 0 &&
         mind.edgeStep >= 0 &&
@@ -150,9 +189,13 @@ function inRange(world: Round): boolean {
         mind.strike >= 0 &&
         mind.plunge >= 0 &&
         mind.noise >= 0 &&
-        mind.target >= -1 &&
-        mind.node >= -1 &&
-        mind.edge >= -1,
+        within(
+          mind.target,
+          -1,
+          targetBound(mind.goal, map, teamOf(index)) - 1,
+        ) &&
+        within(mind.node, -1, map.platforms.length - 1) &&
+        within(mind.edge, -1, edges - 1),
     )
   );
 }

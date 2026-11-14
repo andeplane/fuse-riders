@@ -47,6 +47,7 @@ import {
   Touch,
   gameKey,
   holdToFlapFrom,
+  releaseWhenAway,
 } from "./controls.js";
 import {
   readIconSheets,
@@ -1113,10 +1114,14 @@ function room(solo: boolean): void {
     runtime.flush();
     driver.draw();
   };
+  // The page's own listeners, taken off together when the room is destroyed.
+  const listeners = new AbortController(),
+    signal = listeners.signal;
   installRoomLifecycle(window, {
     stop: () => runtime.stop(),
     destroy: () => {
       cancelAnimationFrame(frameRequest);
+      listeners.abort();
       driver.close();
       menu.dispose();
     },
@@ -1126,19 +1131,31 @@ function room(solo: boolean): void {
   const inGame = () =>
     (main.dataset.stage === "running" || main.dataset.stage === "between") &&
     !menu.isOpen();
-  document.addEventListener("keydown", (event) => {
-    if (event.target instanceof HTMLInputElement || !inGame()) return;
-    if (event.metaKey || event.ctrlKey || event.altKey) return;
-    if (!gameKey(event.code)) return;
-    event.preventDefault();
-    if (!event.repeat) keyboard.press(event.code);
+  document.addEventListener(
+    "keydown",
+    (event) => {
+      if (event.target instanceof HTMLInputElement || !inGame()) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (!gameKey(event.code)) return;
+      event.preventDefault();
+      if (!event.repeat) keyboard.press(event.code);
+    },
+    { signal },
+  );
+  document.addEventListener("keyup", (event) => keyboard.lift(event.code), {
+    signal,
   });
-  document.addEventListener("keyup", (event) => keyboard.lift(event.code));
-  window.addEventListener("blur", () => {
-    keyboard.clear();
-    controls.release();
-  });
-  window.addEventListener("resize", () => driver.resize());
+  // A hidden tab lets go too: a phone that switches app or locks fires no `blur`, and held keys would stay logged.
+  releaseWhenAway(
+    window,
+    document,
+    () => {
+      keyboard.clear();
+      controls.release();
+    },
+    { signal },
+  );
+  window.addEventListener("resize", () => driver.resize(), { signal });
   runtime.start();
   frameRequest = requestAnimationFrame(loop);
 }

@@ -454,6 +454,17 @@ export function workerNav(mapId: MapId, speed: boolean): WorkerNav {
   return nav;
 }
 
+/**
+ * The most moves a bot on `mapId` can be flying: the larger of the two speed variants' edge lists, so an index a
+ * round carries (`BotMind.edge`) is in range whichever gate its unit has been through. For the checkpoint boundary,
+ * which refuses an index no nav could have produced; the pilot itself indexes the nav of its own unit's speed.
+ */
+export const navEdgeCount = (mapId: MapId): number =>
+  Math.max(
+    workerNav(mapId, false).edges.length,
+    workerNav(mapId, true).edges.length,
+  );
+
 /** The platform whose top is the surface at feet point (x, y), or -1. */
 export function platformAt(arena: Arena, x: number, y: number): number {
   const at = wrapX(x);

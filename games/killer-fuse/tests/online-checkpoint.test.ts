@@ -8,7 +8,19 @@ import {
   packMessage,
   unpackMessage,
 } from "fuse-netcode";
-import { INPUT_HELD, INPUT_LEFT, INPUT_RIGHT } from "../src/engine/index.js";
+import {
+  INPUT_HELD,
+  INPUT_LEFT,
+  INPUT_RIGHT,
+  MAPS,
+  MAP_IDS,
+  MAX_PLAYERS,
+  botInput,
+  createRound,
+  navEdgeCount,
+  stepRound,
+  type MapDef,
+} from "../src/engine/index.js";
 import {
   BETWEEN_TICKS,
   countdownTicks,
@@ -495,6 +507,107 @@ const worldCases: [string, (world: World) => void][] = [
   ["a bot at no node", (w) => (w.bots[0]!.node = -2)],
   ["a bot on no edge", (w) => (w.bots[0]!.edge = -2)],
 ];
+
+/**
+ * A bot's `target`, `node` and `edge` index lists the map owns, so each has a top as well as a bottom. An index
+ * above it is refused here, where the round is rejected whole and the room keeps the state it had, rather than in
+ * a later fold: `state.units[mind.target]!` is a throw, and a checkpoint from a peer must not be able to cause one.
+ */
+const indexCases: [
+  string,
+  (world: World, map: MapDef, edges: number) => void,
+][] = [
+  [
+    "a bot fleeing a slot that is no unit",
+    (w) => {
+      w.bots[0]!.goal = "flee";
+      w.bots[0]!.target = MAX_PLAYERS;
+    },
+  ],
+  [
+    "a bot gathering from a pile the map has not",
+    (w, map) => {
+      w.bots[0]!.goal = "gather";
+      w.bots[0]!.target = map.piles.length;
+    },
+  ],
+  [
+    "a bot banking in a hole its hive has not",
+    (w, map) => {
+      w.bots[2]!.goal = "bank";
+      w.bots[2]!.target = map.holes[0].length;
+    },
+  ],
+  [
+    "a bot claiming a gate the map has not",
+    (w, map) => {
+      w.bots[1]!.goal = "claim";
+      w.bots[1]!.target = map.gates.length;
+    },
+  ],
+  [
+    "a bot idling after an index no list holds",
+    (w, map) =>
+      (w.bots[3]!.target = Math.max(
+        MAX_PLAYERS,
+        map.piles.length,
+        map.gates.length,
+        map.holes[1].length,
+      )),
+  ],
+  [
+    "a bot heading for a platform the map has not",
+    (w, map) => (w.bots[1]!.node = map.platforms.length),
+  ],
+  [
+    "a bot flying a move the nav has not",
+    (w, _map, edges) => (w.bots[2]!.edge = edges),
+  ],
+  ["a bot flying a move far past the nav", (w) => (w.bots[3]!.edge = 2 ** 30)],
+];
+
+test("a bot index above the map's own lists is refused, and the healthy round beside it still restores", () => {
+  const room = stage("play"),
+    plain = () => unpackMessage(packMessage(encodeWorld(room.world!))) as World;
+  const map = MAPS[expected(room).mapId],
+    edges = navEdgeCount(expected(room).mapId);
+  assert.ok(edges > 0 && map.platforms.length > 0 && map.piles.length > 0);
+  // The index one past each list is the first one refused; the one below it is a round the engine could be in.
+  for (const [name, change] of indexCases) {
+    const world = plain();
+    change(world, map, edges);
+    assert.equal(decodeWorld(world, expected(room)), undefined, name);
+  }
+  const last = plain();
+  last.bots[0]!.goal = "gather";
+  last.bots[0]!.target = map.piles.length - 1;
+  last.bots[1]!.node = map.platforms.length - 1;
+  last.bots[2]!.edge = edges - 1;
+  assert.ok(decodeWorld(last, expected(room)), "the last of each list");
+  // Refusing leaves the room it was offered to alone: it still checkpoints and restores bit for bit.
+  const whole = stage("play");
+  assert.equal(hash(restore(whole)!), hash(whole));
+  assert.deepEqual(wire(whole), wire(room));
+});
+
+test("every bot mind a played-out game reaches is inside the bounds the boundary checks", () => {
+  // A bound too tight would refuse a healthy checkpoint, which is the worse failure: play real games past it.
+  for (const mapId of MAP_IDS) {
+    const world = createRound({ seed: 11 + mapId, mapId, botLevel: "hard" });
+    const at = { seed: world.seed, mapId, botLevel: "hard" as const };
+    for (let step = 0; step < 4_000 && !world.winner; step += 1) {
+      stepRound(
+        world,
+        world.units.map((unit) => botInput(world, unit.slot)),
+      );
+      if (step % 17 === 0)
+        assert.ok(
+          decodeWorld(encodeWorld(world), at),
+          `map ${mapId} at step ${world.step}, goals ${world.bots.map((mind) => mind.goal).join(" ")}`,
+        );
+    }
+  }
+});
 
 test("a round that is not one the engine could have made is refused", () => {
   const room = stage("play"),

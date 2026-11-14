@@ -1,19 +1,5 @@
-# Screenshots from check.mjs are regenerated; only these small ones are in git.
+# Every screenshot here is output: `preview/check.mjs` and `preview/burst.mjs` write them to look at by hand, and
+# the `keep-*.png` set was ~3.5 MB of them in git. Regenerate what you need; a screenshot a pull request or a
+# document needs belongs in its description or beside that document, not here.
 *
 !.gitignore
-!keep-opening.png
-!keep-mid-fight.png
-!keep-snail-ride.png
-!keep-kill.png
-!keep-deposit.png
-!keep-queen-kill-0.png
-!keep-speed-units.png
-!keep-warrior-dash.png
-!keep-queen-dash.png
-!keep-glance.png
-!keep-dive-kill.png
-!keep-gate-lock.png
-!keep-snail-eat.png
-!keep-ending-economy.png
-!keep-ending-military.png
-!keep-ending-snail.png
