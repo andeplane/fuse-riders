@@ -22,7 +22,7 @@ async function measure(page: Page, flags: string): Promise<number[]> {
   await start();
   const latencies: number[] = [];
   for (let i = 0; i < presses; i++) {
-    // Let the blob come to rest, at a different point of the 50 ms tick each time.
+    // Presses that do not move the blob (against the net or a wall) are dropped. Let the blob come to rest, at a different point of the 50 ms tick each time.
     await page.waitForTimeout(700 + ((i * 13) % 50));
     if (!(await page.evaluate(live))) {
       const back = await page
@@ -35,13 +35,15 @@ async function measure(page: Page, flags: string): Promise<number[]> {
     const key = i % 2 ? "ArrowLeft" : "ArrowRight";
     // A plain string: the TypeScript loader would otherwise inject helpers into a serialized function that the page lacks.
     const waiting = page.evaluate<number>(`new Promise((resolve) => {
-      const probe = () => window.__fuseVolleyProbe;
+      const probe = () => window.__fuseVolleyProbe ?? {};
       let pressed = -1, from;
-      window.addEventListener("keydown", (event) => {
-        if (event.code !== ${JSON.stringify(key)} || pressed >= 0) return;
+      const down = (event) => {
+        if (event.code !== ${JSON.stringify(key)}) return;
+        window.removeEventListener("keydown", down, { capture: true });
         pressed = performance.now();
         from = probe().x;
-      }, { capture: true });
+      };
+      window.addEventListener("keydown", down, { capture: true });
       const started = performance.now();
       const poll = () => {
         const now = probe();
@@ -76,7 +78,7 @@ try {
     ).newPage();
     const values = await measure(page, flags);
     console.log(
-      `${mode} ${name}: ${values.length}/${presses} presses, press to picture p50 ${percentile(values, 0.5)?.toFixed(0)} ms, p95 ${percentile(values, 0.95)?.toFixed(0)} ms, max ${Math.max(...values).toFixed(0)} ms`,
+      `${mode} ${name}: ${values.length}/${presses} presses, press to picture p50 ${percentile(values, 0.5)?.toFixed(0)} ms, p95 ${percentile(values, 0.95)?.toFixed(0)} ms, max ${values.length ? Math.max(...values).toFixed(0) : "-"} ms`,
     );
     await page.close();
   }
