@@ -1,13 +1,14 @@
 /**
- * Every sound of the arena, synthesised with WebAudio: there are no audio files. The context is only made after
- * the first key or pointer press (browsers refuse earlier) and never while muted. Music is a sixteen-step loop
- * scheduled a little ahead of the clock from the render loop.
+ * Every sound of the arena, synthesised with WebAudio: there are no effect files. The context is only made after
+ * the first press (key, pointer, finger or gamepad — browsers refuse earlier) and never while muted. The
+ * synthesised music bed is a sixteen-step loop scheduled a little ahead of the clock from the render loop; the
+ * page switches it off when it has a music file to play instead (`src/app/music.ts`).
  */
 import type { SoundCue, SoundName } from "./effects.js";
 
 type Wave = OscillatorType;
 
-interface Note {
+export interface Note {
   readonly wave: Wave;
   readonly from: number;
   /** Frequency to slide to by the end; the same as `from` when absent. */
@@ -18,7 +19,7 @@ interface Note {
   readonly gain: number;
 }
 
-interface Hiss {
+export interface Hiss {
   readonly at: number;
   readonly length: number;
   readonly gain: number;
@@ -27,7 +28,7 @@ interface Hiss {
   readonly to: number;
 }
 
-interface Recipe {
+export interface Recipe {
   readonly notes?: readonly Note[];
   readonly hiss?: readonly Hiss[];
   /** Least seconds between two plays, so six flapping units do not become a buzz. */
@@ -72,6 +73,14 @@ const RECIPES: Readonly<Record<SoundName, Recipe>> = {
       { wave: "square", from: 260, to: 540, at: 0, length: 0.09, gain: 0.22 },
     ],
     gap: 0.05,
+  },
+  // Feet back on stone: a short thud with a scuff of grit, no tail.
+  land: {
+    notes: [
+      { wave: "sine", from: 170, to: 65, at: 0, length: 0.07, gain: 0.4 },
+    ],
+    hiss: [{ at: 0, length: 0.045, gain: 0.22, from: 1300, to: 420 }],
+    gap: 0.07,
   },
   pickup: { notes: arp("square", [up(A4), up(E4, 2)], 0.05, 0.07, 0.22) },
   deposit: {
@@ -201,6 +210,22 @@ const RECIPES: Readonly<Record<SoundName, Recipe>> = {
       0.16,
     ),
   },
+  // The three, two, one over the arena: one dry blip a second, and the same blip an octave up on GO.
+  countdown: {
+    notes: [
+      { wave: "square", from: up(E4), at: 0, length: 0.08, gain: 0.3 },
+      { wave: "triangle", from: up(E4) / 2, at: 0, length: 0.1, gain: 0.18 },
+    ],
+    gap: 0.35,
+  },
+  go: {
+    notes: [
+      ...arp("square", [up(A4), up(E4, 2)], 0.055, 0.1, 0.32),
+      { wave: "sine", from: 190, to: 70, at: 0, length: 0.14, gain: 0.5 },
+    ],
+    hiss: [{ at: 0, length: 0.12, gain: 0.3, from: 1200, to: 5000 }],
+    gap: 0.35,
+  },
   // Military: a hard minor fanfare.
   victoryMilitary: {
     notes: [
@@ -265,7 +290,89 @@ const RECIPES: Readonly<Record<SoundName, Recipe>> = {
       },
     ],
   },
+  // The other side of a win: three steps down onto a held minor chord, and the floor drops out under it.
+  defeat: {
+    notes: [
+      { wave: "square", from: up(A4), at: 0, length: 0.16, gain: 0.26 },
+      { wave: "square", from: up(F4), at: 0.18, length: 0.16, gain: 0.26 },
+      { wave: "square", from: up(D4), at: 0.36, length: 0.16, gain: 0.26 },
+      ...[A4, up(C4), E4].map((from) => ({
+        wave: "triangle" as const,
+        from,
+        at: 0.54,
+        length: 0.9,
+        gain: 0.2,
+      })),
+      {
+        wave: "sawtooth",
+        from: A4 / 2,
+        to: A4 / 8,
+        at: 0.54,
+        length: 1,
+        gain: 0.22,
+      },
+    ],
+    hiss: [{ at: 0.54, length: 0.5, gain: 0.18, from: 1200, to: 200 }],
+  },
 };
+
+/**
+ * A sting plays alone: whatever else was sounding is hushed under it and the music ducked, as the arcade's win
+ * tune does. Each side of a finished game hears one of these.
+ */
+export const STINGS: ReadonlySet<SoundName> = new Set<SoundName>([
+  "victoryMilitary",
+  "victoryEconomy",
+  "victorySnail",
+  "defeat",
+]);
+
+/** Loud enough for the music to step back under it, without taking the stage the way a sting does. */
+const LOUD: ReadonlySet<SoundName> = new Set<SoundName>([
+  "kill",
+  "queenKill",
+  "gateUse",
+  "go",
+]);
+
+/** What one admitted cue does: its recipe, how loud and where, and what it does to the rest of the mix. */
+export interface Voicing {
+  readonly recipe: Recipe;
+  readonly volume: number;
+  /** -1 to 1, clamped from the cue. */
+  readonly pan: number;
+  readonly sting: boolean;
+  /** The music should duck under this one. */
+  readonly duck: boolean;
+}
+
+/**
+ * Whether a cue sounds now, and how. Kept apart from WebAudio so the rate limiting and the mixing decisions can
+ * be tested without a browser: six Queens flapping on the same step is one flap, and a sting silences the rest.
+ */
+export class SfxGate {
+  private readonly last = new Map<SoundName, number>();
+
+  /** The voicing for `cue` at `now` seconds, or null when its name played too recently. */
+  admit(cue: SoundCue, now: number): Voicing | null {
+    const recipe = RECIPES[cue.name];
+    if (now - (this.last.get(cue.name) ?? -9) < (recipe.gap ?? 0.02))
+      return null;
+    this.last.set(cue.name, now);
+    const sting = STINGS.has(cue.name);
+    return {
+      recipe,
+      volume: Math.max(0, Math.min(1, cue.volume)),
+      pan: Math.max(-1, Math.min(1, cue.pan)),
+      sting,
+      duck: sting || LOUD.has(cue.name),
+    };
+  }
+
+  clear(): void {
+    this.last.clear();
+  }
+}
 
 /** The music bed: four bars of sixteenths, A minor, F, C, G. `0` is a rest. */
 const STEP_SECONDS = 60 / 132 / 4;
@@ -345,6 +452,28 @@ const LEAD = [
   0,
 ];
 
+/**
+ * The presses a browser accepts as the gesture that lets sound through. iOS counts `touchend`, `pointerup` and
+ * `click` but not their starts, so all of them are listened for, and for the page's life: an `AudioContext` can
+ * fall back to "suspended" (a call, a lock) and needs the next press to wake it again. `gamepadconnected` fires
+ * on the first button a pad sends, which is the only press a pad makes that reaches the window.
+ */
+const UNLOCK_EVENTS = [
+  "pointerdown",
+  "pointerup",
+  "touchstart",
+  "touchend",
+  "click",
+  "keydown",
+  "gamepadconnected",
+] as const;
+
+export interface SoundOptions {
+  readonly muted: boolean;
+  /** Called when something loud sounds, so the page can hold its music down for a moment. */
+  readonly duck?: () => void;
+}
+
 export class Sound {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -352,9 +481,13 @@ export class Sound {
   /** Everything but the music and the win sting, so the sting can cut it off as the arcade's does. */
   private effects: GainNode | null = null;
   private noise: AudioBuffer | null = null;
-  private readonly lastPlayed = new Map<SoundName, number>();
+  private readonly gate = new SfxGate();
+  private muted: boolean;
+  private readonly duck: (() => void) | undefined;
   private unlocked = false;
   private playing = false;
+  /** The synthesised bed may be switched off, for silence or for a music file playing in its place. */
+  private bed = true;
   private nextStep = 0;
   private stepAt = 0;
   private readonly unlock = (): void => {
@@ -362,15 +495,25 @@ export class Sound {
     this.wake();
   };
 
-  constructor(private muted: boolean) {
-    window.addEventListener("pointerdown", this.unlock);
-    window.addEventListener("keydown", this.unlock);
+  constructor(options: SoundOptions) {
+    this.muted = options.muted;
+    this.duck = options.duck;
+    for (const name of UNLOCK_EVENTS)
+      window.addEventListener(name, this.unlock);
   }
 
   setMuted(muted: boolean): void {
     this.muted = muted;
     if (muted) void this.context?.suspend();
     else this.wake();
+  }
+
+  /** Whether the synthesised music bed may run at all: off while a music file is playing, or the music is off. */
+  setBed(bed: boolean): void {
+    if (bed === this.bed) return;
+    this.bed = bed;
+    if (!bed && this.music && this.context)
+      this.music.gain.setTargetAtTime(0, this.context.currentTime, 0.25);
   }
 
   /** Whether the music bed should run: on during a round, off once it is won. */
@@ -381,7 +524,7 @@ export class Sound {
       this.effects.gain.setTargetAtTime(1, this.context.currentTime, 0.02);
     if (this.music && this.context)
       this.music.gain.setTargetAtTime(
-        playing ? 0.5 : 0,
+        playing && this.bed ? 0.5 : 0,
         this.context.currentTime,
         0.25,
       );
@@ -397,7 +540,7 @@ export class Sound {
       master.gain.value = 0.5;
       master.connect(squash);
       const music = context.createGain();
-      music.gain.value = this.playing ? 0.5 : 0;
+      music.gain.value = this.playing && this.bed ? 0.5 : 0;
       music.connect(master);
       const effects = context.createGain();
       effects.connect(master);
@@ -473,31 +616,36 @@ export class Sound {
 
   play(cue: SoundCue): void {
     const context = this.context;
-    if (!context || !this.master || this.muted || context.state !== "running")
+    if (!context || !this.master || this.muted) return;
+    if (context.state !== "running") {
+      // Suspended after a lock or an interruption: ask again, and let the next cue be the one that is heard.
+      if (this.unlocked) void context.resume();
       return;
-    const recipe = RECIPES[cue.name];
+    }
     const now = context.currentTime;
-    if (now - (this.lastPlayed.get(cue.name) ?? -9) < (recipe.gap ?? 0.02))
-      return;
-    this.lastPlayed.set(cue.name, now);
+    const voicing = this.gate.admit(cue, now);
+    if (!voicing) return;
     const pan = context.createStereoPanner();
-    pan.pan.value = Math.max(-1, Math.min(1, cue.pan));
-    if (cue.name.startsWith("victory") && this.effects && this.music) {
-      // The win sound plays alone: whatever else was sounding stops.
+    pan.pan.value = voicing.pan;
+    if (voicing.sting && this.effects && this.music) {
+      // The win and defeat stings play alone: whatever else was sounding stops.
       this.effects.gain.setTargetAtTime(0, now, 0.015);
       this.music.gain.setTargetAtTime(0, now, 0.015);
       pan.connect(this.master);
     } else pan.connect(this.effects ?? this.master);
+    if (voicing.duck) this.duck?.();
+    const { recipe } = voicing;
     for (const note of recipe.notes ?? [])
-      this.note(note, now, cue.volume, pan);
-    for (const hiss of recipe.hiss ?? []) this.hiss(hiss, now, cue.volume, pan);
+      this.note(note, now, voicing.volume, pan);
+    for (const hiss of recipe.hiss ?? [])
+      this.hiss(hiss, now, voicing.volume, pan);
   }
 
   /** Schedules the music a fifth of a second ahead. Call it every display frame. */
   tick(): void {
     const context = this.context;
     const out = this.music;
-    if (!context || !out || this.muted || !this.playing) return;
+    if (!context || !out || this.muted || !this.playing || !this.bed) return;
     if (context.state !== "running") return;
     const now = context.currentTime;
     if (this.stepAt < now) this.stepAt = now + 0.05;
@@ -578,8 +726,8 @@ export class Sound {
   }
 
   destroy(): void {
-    window.removeEventListener("pointerdown", this.unlock);
-    window.removeEventListener("keydown", this.unlock);
+    for (const name of UNLOCK_EVENTS)
+      window.removeEventListener(name, this.unlock);
     void this.context?.close();
     this.context = null;
     this.master = null;

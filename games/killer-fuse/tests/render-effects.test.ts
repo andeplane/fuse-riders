@@ -15,6 +15,7 @@ import {
   HATCH,
   isLoud,
   JUMP_DUST,
+  LAND_HEARD,
   loudIdentity,
   STOMP_SPECKS,
   planLanding,
@@ -981,11 +982,22 @@ test("a Queen hatches in a burst of shell at her egg, a Worker in its beam", () 
   assert.deepEqual(kinds(beam), ["sprite"]);
 });
 
-test("a landing raises dust at the feet and makes no sound", () => {
-  const plan = planLanding(unitView({ x: 50, y: 80, facing: -1 }));
-  assert.deepEqual(plan.effects, [
+test("a landing raises dust at the feet, and thuds once the fall is worth hearing", () => {
+  const unit = unitView({ slot: 1, x: 50, y: 80, facing: -1 });
+  const soft = planLanding(unit, LAND_HEARD - 0.01, 1);
+  assert.deepEqual(soft.effects, [
     { kind: "sprite", sheet: "flap-puff", x: 50, y: 79, flip: true },
   ]);
-  assert.deepEqual(plan.sounds, []);
-  assert.equal(plan.shake, 0);
+  assert.deepEqual(soft.sounds, [], "a step off a ledge is not a thud");
+  assert.equal(soft.shake, 0);
+  const mine = planLanding(unit, 1, 1);
+  assert.deepEqual(
+    mine.sounds.map((cue) => cue.name),
+    ["land"],
+  );
+  const theirs = planLanding(unit, 1, 4);
+  assert.ok(
+    (theirs.sounds[0]?.volume ?? 0) < (mine.sounds[0]?.volume ?? 0),
+    "someone else's landing is quieter than this device's own",
+  );
 });

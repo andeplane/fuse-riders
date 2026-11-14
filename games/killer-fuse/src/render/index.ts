@@ -24,6 +24,7 @@ import type {
   ArenaView,
   CreateArenaView,
   EventFeed,
+  SoundCue,
 } from "./api.js";
 import {
   EventLedger,
@@ -125,7 +126,11 @@ class Arena implements ArenaView {
     this.ctx = ctx;
     this.wrapper.append(this.canvas);
     host.append(this.wrapper);
-    this.sound = new Sound(options.muted);
+    this.sound = new Sound({
+      muted: options.muted,
+      ...(options.duck ? { duck: options.duck } : {}),
+    });
+    this.sound.setBed(options.bed !== false);
     this.observer =
       typeof ResizeObserver === "undefined"
         ? null
@@ -167,6 +172,11 @@ class Arena implements ArenaView {
   update(options: Partial<Options>): void {
     this.options = { ...this.options, ...options };
     if (options.muted !== undefined) this.sound.setMuted(options.muted);
+    if (options.bed !== undefined) this.sound.setBed(options.bed);
+  }
+
+  cue(cue: SoundCue): void {
+    this.sound.play(cue);
   }
 
   advance(view: RoundView, feed: EventFeed): void {
@@ -246,7 +256,7 @@ class Arena implements ArenaView {
       const unit = view.units[slot];
       if (!unit) continue;
       this.landed[slot] = { at: now, strength };
-      plans.push(planLanding(unit));
+      plans.push(planLanding(unit, strength, local));
     }
     for (const event of events) {
       if (event.type === "gateUse") this.gateOpened[event.gate] = now;

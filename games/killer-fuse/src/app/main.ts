@@ -60,6 +60,7 @@ import {
 } from "./art.js";
 import { buttonLabel, cardKey, countdownCard, deviceFor } from "./briefing.js";
 import { highlightUntil, type UnitSnap } from "./highlight.js";
+import { MUSIC_UNLOCK_EVENTS, Music, browserMusicDeps } from "./music.js";
 import { lobbyTips, tipIndex } from "./tips.js";
 import {
   FRESH,
@@ -148,7 +149,12 @@ const social = createGameSocial({
 const store = safeStore(() => localStorage);
 const names = keys(GAME);
 const MUTED = `${GAME}-muted`;
+/** The music and effects toggles beside the master one; `?mute` silences the page without writing either. */
+const MUSIC_ON = `${GAME}-music`;
+const EFFECTS_ON = `${GAME}-effects`;
 const ART_URL = `${import.meta.env.BASE_URL}${GAME}/art/`;
+/** Optional music files and the manifest that says which of them are there; see `docs/MUSIC.md`. */
+const MUSIC_URL = `${import.meta.env.BASE_URL}${GAME}/audio/music/`;
 const query = new URLSearchParams(location.search);
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 /** A link within the game, carrying this page's `mute` flag on; see `keepFlags`. */
@@ -484,31 +490,71 @@ function room(solo: boolean): void {
   tipBox.append(tipTitle, tipHints, tipText);
   let lobbySince = performance.now(),
     tipShown = "";
-  // `?mute` (previews, smoke runs) silences the page whatever was stored.
+  // `?mute` (previews, smoke runs) silences the page whatever was stored, and writes no choice of its own.
   const forcedMute = query.has("mute");
   let muted = forcedMute || store.getItem(MUTED) === "1";
-  const mute = button("", "kf-mute");
-  const showMute = () => {
+  let musicOn = store.getItem(MUSIC_ON) !== "0";
+  let effectsOn = store.getItem(EFFECTS_ON) !== "0";
+  const music = new Music(browserMusicDeps(MUSIC_URL), { muted, on: musicOn });
+  const mute = button("", "kf-mute"),
+    musicToggle = button("", "kf-mute kf-sub-toggle"),
+    effectsToggle = button("", "kf-mute kf-sub-toggle");
+  /** The effects are hushed by the master switch too; the arena's own bed stops once a music file plays. */
+  const effectsMuted = () => muted || !effectsOn;
+  const showSound = () => {
     mute.textContent = muted ? "SOUND OFF" : "SOUND ON";
     mute.setAttribute("aria-pressed", String(muted));
     mute.title = muted ? "Turn the sound on" : "Turn the sound off";
+    musicToggle.textContent = musicOn ? "MUSIC" : "MUSIC OFF";
+    musicToggle.setAttribute("aria-pressed", String(!musicOn));
+    musicToggle.title = musicOn ? "Turn the music off" : "Turn the music on";
+    effectsToggle.textContent = effectsOn ? "SFX" : "SFX OFF";
+    effectsToggle.setAttribute("aria-pressed", String(!effectsOn));
+    effectsToggle.title = effectsOn
+      ? "Turn the sound effects off"
+      : "Turn the sound effects on";
+    for (const toggle of [musicToggle, effectsToggle]) toggle.disabled = muted;
   };
-  showMute();
-  mute.onclick = () => {
-    muted = !muted;
-    store.setItem(MUTED, muted ? "1" : "0");
-    showMute();
+  /** Pushes the current choices to the music and, when there is an arena, to it as well. */
+  const applySound = () => {
+    showSound();
+    music.setMuted(muted);
+    music.setOn(musicOn);
     if (model)
       driver.update({
         names: model.arena.names,
         localSlot: model.arena.localSlot,
-        muted,
+        muted: effectsMuted(),
         highlight: performance.now() < highlightEnd,
+        bed: musicOn && !muted && music.playing === null,
       });
+  };
+  // Only the labels here: `driver` and `model` are made further down, and the music already has its state.
+  showSound();
+  // Until a room says otherwise — the landing page, the lobby — the lobby track is the one that belongs.
+  music.want("lobby");
+  mute.onclick = () => {
+    muted = !muted;
+    store.setItem(MUTED, muted ? "1" : "0");
+    applySound();
     mute.blur();
   };
+  musicToggle.onclick = () => {
+    musicOn = !musicOn;
+    store.setItem(MUSIC_ON, musicOn ? "1" : "0");
+    applySound();
+    musicToggle.blur();
+  };
+  effectsToggle.onclick = () => {
+    effectsOn = !effectsOn;
+    store.setItem(EFFECTS_ON, effectsOn ? "1" : "0");
+    applySound();
+    effectsToggle.blur();
+  };
   const codeChip = el("strong", solo ? "SOLO" : code, "kf-code");
-  const top = header([codeChip, status.element, mute, menu.element]);
+  const sound = el("div", "", "kf-sound");
+  sound.append(mute, musicToggle, effectsToggle);
+  const top = header([codeChip, status.element, sound, menu.element]);
 
   // Lobby: invitation, the two teams, settings, start.
   const lobby = el("section", "", "kf-lobby"),
@@ -702,6 +748,8 @@ function room(solo: boolean): void {
     artUrl: ART_URL,
     timing: () => runtime.frameTiming(),
     confirmed: () => runtime.confirmedTick(),
+    // A kill, a gate opening or a sting holds the music down for a moment so it is heard over it.
+    duck: () => music.duck(),
   });
 
   // Touch: the pad follows the thumb from where it came down; the button is the whole right side.
@@ -747,6 +795,8 @@ function room(solo: boolean): void {
   touchRow.addEventListener("contextmenu", (event) => event.preventDefault());
 
   let model: PageModel | undefined;
+  /** The countdown digit last beeped, so a card redrawn every frame still beeps once a second. */
+  let countBeat = "";
   const render = (next: PageModel) => {
     const first = model?.screen !== next.screen;
     model = next;
@@ -804,6 +854,13 @@ function room(solo: boolean): void {
       shown = countdown
         ? countdownCard(countdown, mySlot, device, countdown.map)
         : undefined;
+    // The countdown is heard as well as seen: one beep on each of 3, 2, 1, and a GO as the card leaves.
+    const beat = shown && /^\d+$/.test(shown.title) ? shown.title : "";
+    if (beat !== countBeat) {
+      if (beat) driver.cue({ name: "countdown", volume: 0.7, pan: 0 });
+      else if (countBeat) driver.cue({ name: "go", volume: 0.9, pan: 0 });
+      countBeat = beat;
+    }
     card.hidden = !shown;
     // The card counts down; the banner is for the pause after a game.
     if (shown) banner.hidden = true;
@@ -1037,11 +1094,25 @@ function room(solo: boolean): void {
         highlightEnd,
       );
       lastSnap = snap;
+      // The music follows the room: the lobby track until a game starts, then the map's, then the set's ending.
+      const mine = next.arena.localSlot;
+      music.show({
+        stage: frame.stage,
+        mapId: frame.world?.map.id,
+        outcome:
+          frame.stage === "over" && mine >= 0
+            ? mine % 2 === frame.winner
+              ? "won"
+              : "lost"
+            : undefined,
+      });
       driver.update({
         names: next.arena.names,
         localSlot: next.arena.localSlot,
-        muted,
+        muted: effectsMuted(),
         highlight: performance.now() < highlightEnd,
+        // A music file takes the synthesised bed's place rather than playing over it.
+        bed: musicOn && !muted && music.playing === null,
       });
       driver.feed(frame, next.layout === "arena");
       const state = runtime.roomState();
@@ -1140,6 +1211,7 @@ function room(solo: boolean): void {
       cancelAnimationFrame(frameRequest);
       listeners.abort();
       driver.close();
+      music.destroy();
       menu.dispose();
     },
     reload: () => location.reload(),
@@ -1175,6 +1247,10 @@ function room(solo: boolean): void {
   );
   // A pad unplugged mid-match lets go the moment the browser says so, whether or not the loop is polling.
   watchPads(window, pads, { signal });
+  // The music waits for the browser's autoplay unlock, which is any press: key, pointer, finger or gamepad button
+  // (`gamepadconnected` is the first press a pad sends). The arena's effects listen for the same on their own.
+  for (const name of MUSIC_UNLOCK_EVENTS)
+    window.addEventListener(name, () => music.unlock(), { signal });
   window.addEventListener("resize", () => driver.resize(), { signal });
   runtime.start();
   frameRequest = requestAnimationFrame(loop);

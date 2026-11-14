@@ -74,6 +74,20 @@ body.kf-page {
 .kf-mute[aria-pressed="true"] {
   color: var(--fui-text-dim);
 }
+/* Master sound, then the music and effects toggles under it. */
+.kf-sound {
+  display: flex;
+  gap: var(--fui-space-2);
+  align-items: center;
+}
+.fui-app .kf-sub-toggle {
+  min-height: 1.875rem;
+  padding: 0 var(--fui-space-2);
+  font-size: 0.5rem;
+}
+.fui-app .kf-sub-toggle:disabled {
+  opacity: 0.35;
+}
 @media (max-width: 34rem) {
   /* On a phone the status line takes its own row under the brand, code and buttons. */
   .kf-status {

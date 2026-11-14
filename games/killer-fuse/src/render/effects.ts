@@ -3,13 +3,19 @@
  * says which effects, sounds and shake an event deserves, and `EventLedger` makes sure a step that is fed
  * again (a rollback re-simulates steps the renderer has already seen) does not fire them twice.
  */
-import type { GameEvent, RoundView, UnitView } from "../engine/view.js";
+import type {
+  GameEvent,
+  RoundView,
+  UnitView,
+  VictoryKind,
+} from "../engine/view.js";
 import { teamName } from "./manifest.js";
 import type { Sizes } from "./metrics.js";
 
 export type SoundName =
   | "flap"
   | "jump"
+  | "land"
   | "pickup"
   | "deposit"
   | "kick"
@@ -28,9 +34,14 @@ export type SoundName =
   | "snailEat"
   | "respawn"
   | "regrow"
+  /** The page's own, from the countdown over the arena: a beep a second, then the start. */
+  | "countdown"
+  | "go"
   | "victoryMilitary"
   | "victoryEconomy"
-  | "victorySnail";
+  | "victorySnail"
+  /** The sting the losing side hears instead of the winner's. */
+  | "defeat";
 
 export interface SoundCue {
   readonly name: SoundName;
@@ -407,6 +418,17 @@ const VICTORY_SOUND = {
   economy: "victoryEconomy",
   snail: "victorySnail",
 } as const;
+
+/**
+ * The sting a win plays here: the winner's fanfare for the winning side and for a watcher, and the defeat fall for
+ * the side that lost. Seats are team 0 on even slots, team 1 on odd.
+ */
+export const victorySound = (
+  kind: VictoryKind,
+  team: number,
+  localSlot: number,
+): SoundName =>
+  localSlot >= 0 && localSlot % 2 !== team ? "defeat" : VICTORY_SOUND[kind];
 
 /**
  * How a unit comes apart, after the arcade: no death animation, the body is gone at once and big and small specks of
@@ -1022,7 +1044,13 @@ export function planEvent(
     case "victory":
       return {
         effects: [],
-        sounds: [{ name: VICTORY_SOUND[event.kind], volume: 1, pan: 0 }],
+        sounds: [
+          {
+            name: victorySound(event.kind, event.team, localSlot),
+            volume: 1,
+            pan: 0,
+          },
+        ],
         shake: 0,
       };
     default:
@@ -1075,8 +1103,18 @@ export function planFlap(unit: UnitView, localSlot: number): Plan {
   };
 }
 
-/** The dust a landing raises; it has no sound of its own. */
-export function planLanding(unit: UnitView): Plan {
+/**
+ * The dust a landing raises and the thud under it. `strength` is 0 for a step off a ledge and 1 for a full fall;
+ * a feather-light touch stays silent so walking along a row of platforms does not knock.
+ */
+export const LAND_HEARD = 0.25;
+
+export function planLanding(
+  unit: UnitView,
+  strength: number,
+  localSlot: number,
+): Plan {
+  const heard = strength >= LAND_HEARD;
   return {
     effects: [
       {
@@ -1087,7 +1125,17 @@ export function planLanding(unit: UnitView): Plan {
         flip: unit.facing < 0,
       },
     ],
-    sounds: [],
+    sounds: heard
+      ? [
+          {
+            name: "land",
+            volume:
+              (unit.slot === localSlot ? 0.6 : 0.2) *
+              Math.min(1, 0.5 + strength),
+            pan: panOf(unit.x),
+          },
+        ]
+      : [],
     shake: 0,
   };
 }

@@ -1,7 +1,12 @@
 import type { Frame, FrameTiming } from "fuse-netcode";
 import type { GameEvent } from "../engine/index.js";
 import type { View } from "../online/index.js";
-import type { ArenaOptions, ArenaView, TickEvents } from "../render/api.js";
+import type {
+  ArenaOptions,
+  ArenaView,
+  SoundCue,
+  TickEvents,
+} from "../render/api.js";
 
 /**
  * Between the room and the renderer (`src/render/api.ts`). The room hands over a frame per log tick and, before
@@ -18,6 +23,8 @@ export interface ArenaSetup<Host = HTMLElement> {
   timing: () => FrameTiming<View> | undefined;
   /** The runtime's `confirmedTick`: the game clock no rollback can reach back past. */
   confirmed: () => number;
+  /** Called when the arena plays something loud, so the page's music steps back under it. */
+  duck?: () => void;
 }
 
 /** The queue may hold this many ticks' events; a frame always drains it, so more means frames stopped coming. */
@@ -87,6 +94,8 @@ export interface ArenaLook {
   muted: boolean;
   /** Outline this device's unit (a few seconds after it spawns, respawns or transforms). */
   highlight: boolean;
+  /** Let the synthesised music bed run: off while a music file plays, and off with the music switched off. */
+  bed: boolean;
 }
 
 const sameGame = (a: Frame<View>, b: Frame<View>): boolean =>
@@ -99,6 +108,7 @@ export class ArenaDriver<Host = HTMLElement> {
     localSlot: -1,
     muted: false,
     highlight: false,
+    bed: true,
   };
   private shown = "";
   private fed: Frame<View> | undefined;
@@ -127,7 +137,16 @@ export class ArenaDriver<Host = HTMLElement> {
       localSlot: look.localSlot,
       muted: look.muted,
       highlight: look.highlight,
+      bed: look.bed,
     });
+  }
+
+  /**
+   * One sound the page asks for, the countdown's: dropped when there is no arena to play it, since this device is
+   * then in the lobby or only a controller.
+   */
+  cue(cue: SoundCue): void {
+    this.arena?.cue(cue);
   }
   /**
    * The room's newest frame, from the runtime's `state` callback: once per new log tick, and again when a rollback
@@ -147,6 +166,8 @@ export class ArenaDriver<Host = HTMLElement> {
         localSlot: this.look.localSlot,
         muted: this.look.muted,
         highlight: this.look.highlight,
+        bed: this.look.bed,
+        ...(this.setup.duck ? { duck: this.setup.duck } : {}),
       });
       // A failed load leaves an empty arena; the page's own screens still work.
       this.arena.ready.catch(() => undefined);

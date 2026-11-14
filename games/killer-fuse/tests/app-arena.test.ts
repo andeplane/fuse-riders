@@ -8,6 +8,7 @@ import type {
   ArenaOptions,
   ArenaView,
   EventFeed,
+  SoundCue,
   TickEvents,
 } from "../src/render/api.js";
 import { fold, lobby, started, toPlay } from "./fixtures/room.js";
@@ -16,6 +17,7 @@ type Call =
   | { kind: "create"; options: ArenaOptions }
   | { kind: "advance"; step: number; feed: EventFeed }
   | { kind: "render"; from: number; to: number; alpha: number }
+  | { kind: "cue"; sound: SoundCue }
   | { kind: "update"; options: Partial<ArenaOptions> }
   | { kind: "resize" }
   | { kind: "destroy" };
@@ -44,6 +46,7 @@ function fake(ready: Promise<void> = Promise.resolve()) {
         }),
       advance: (world: RoundView, feed: EventFeed) =>
         void calls.push({ kind: "advance", step: world.step, feed }),
+      cue: (sound) => void calls.push({ kind: "cue", sound }),
       update: (options) => void calls.push({ kind: "update", options }),
       resize: () => void calls.push({ kind: "resize" }),
       destroy: () => void calls.push({ kind: "destroy" }),
@@ -92,6 +95,7 @@ test("the arena opens with the first game, hears each frame once, and closes in 
     localSlot: 0,
     muted: true,
     highlight: false,
+    bed: true,
   });
   driver.feed(frame(waiting), true);
   driver.draw();
@@ -113,6 +117,7 @@ test("the arena opens with the first game, hears each frame once, and closes in 
         localSlot: 0,
         muted: true,
         highlight: false,
+        bed: true,
       },
     },
     { kind: "advance", step: 0, feed: own(first) },
@@ -312,6 +317,7 @@ test("the renderer hears of a change of names, seat or sound, and only of a chan
       localSlot: -1,
       muted: false,
       highlight: false,
+      bed: true,
     },
   });
   const look = {
@@ -319,11 +325,13 @@ test("the renderer hears of a change of names, seat or sound, and only of a chan
     localSlot: 0,
     muted: false,
     highlight: false,
+    bed: true,
   };
   driver.update(look);
   driver.update({ ...look, names: [...look.names] });
   driver.update({ ...look, muted: true });
   driver.update({ ...look, muted: true, highlight: true });
+  driver.update({ ...look, muted: true, highlight: true, bed: false });
   assert.deepEqual(calls.slice(2), [
     { kind: "update", options: look },
     { kind: "update", options: { ...look, muted: true } },
@@ -331,7 +339,26 @@ test("the renderer hears of a change of names, seat or sound, and only of a chan
       kind: "update",
       options: { ...look, muted: true, highlight: true },
     },
+    {
+      kind: "update",
+      options: { ...look, muted: true, highlight: true, bed: false },
+    },
   ]);
+});
+
+test("a page cue reaches the open arena and is dropped when there is none", () => {
+  const { calls, driver } = rig();
+  const beep: SoundCue = { name: "countdown", volume: 0.7, pan: 0 };
+  driver.cue(beep);
+  assert.deepEqual(
+    calls,
+    [],
+    "no arena yet: the countdown beep has nowhere to go",
+  );
+  driver.feed(frame(started()), true);
+  calls.length = 0;
+  driver.cue(beep);
+  assert.deepEqual(calls, [{ kind: "cue", sound: beep }]);
 });
 
 test("a display frame blends the two newest frames of one game at the presentation tick", () => {

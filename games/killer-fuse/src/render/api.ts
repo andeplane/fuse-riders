@@ -3,9 +3,9 @@
  * The page owns the room, input and menus; the renderer only draws supplied views and plays sound.
  */
 import type { RoundView } from "../engine/view.js";
-import type { EventFeed } from "./effects.js";
+import type { EventFeed, SoundCue } from "./effects.js";
 
-export type { EventFeed, TickEvents } from "./effects.js";
+export type { EventFeed, SoundCue, SoundName, TickEvents } from "./effects.js";
 
 export interface ArenaOptions {
   /** Base URL of the art folder, ending in a slash. */
@@ -19,6 +19,15 @@ export interface ArenaOptions {
   readonly highlight?: boolean;
   /** Set false to leave the end-of-game iris and winner text to the page; shown when omitted. */
   readonly banner?: boolean;
+  /**
+   * Set false while the page plays a music file, so the synthesised bed does not play under it; also false when
+   * the music is switched off. The bed runs when this is omitted.
+   */
+  readonly bed?: boolean;
+  /**
+   * Called when a loud effect sounds, so the page can duck its music for a moment. Set once; `update` ignores it.
+   */
+  readonly duck?: () => void;
 }
 
 export interface ArenaView {
@@ -35,6 +44,11 @@ export interface ArenaView {
    * not double its effects; its loud ones wait for `feed.confirmed` to pass the tick.
    */
   advance(view: RoundView, feed: EventFeed): void;
+  /**
+   * One sound the page asks for rather than the simulation: the countdown's beeps and its GO. Rate limiting is the
+   * renderer's, so asking on every frame still beeps once a second.
+   */
+  cue(cue: SoundCue): void;
   update(options: Partial<ArenaOptions>): void;
   resize(): void;
   destroy(): void;
