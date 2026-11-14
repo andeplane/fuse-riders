@@ -18,6 +18,7 @@ import { safeStorage } from "fuse-ui/safe-storage";
 import "./fusemania.css";
 import "./song-picker.css";
 import "./settings.css";
+import "./options.css";
 import QRCode from "qrcode";
 import {
   PeerTransport,
@@ -54,6 +55,7 @@ import {
 } from "../engine/index.js";
 import { GAME_ID } from "../basics.js";
 import {
+  SESSION_LENGTHS,
   createFusemaniaGame,
   type Settings,
   type View,
@@ -76,11 +78,13 @@ import {
   savePrefs,
   type Prefs,
 } from "./prefs.js";
+import { createPlayOptions } from "./options.js";
 import {
   bestText,
   present,
   type Model,
   type Row,
+  type SessionModel,
   type Viewer,
 } from "./presenter.js";
 import { dueReports, sendReport } from "./reports.js";
@@ -192,6 +196,46 @@ const bestLookup = (library: Library) => (song: string, chart: number) => {
   const rating = key ? bestRating(store, key) : undefined;
   return rating === undefined ? undefined : bestText(rating);
 };
+
+/** A song other than `current`, any of them as likely as the next: what RANDOM SONG picks. */
+function randomSong(library: Library, current: string): string | undefined {
+  const others = library.songs.filter(
+    (song) => song.id !== current && song.id !== CUSTOM,
+  );
+  return others[Math.floor(Math.random() * others.length)]?.id;
+}
+/** A session's standings under their heading: in the lobby between two songs, and on the result. */
+function sessionBlock() {
+  const element = el("section", "", "fm-session"),
+    title = el("h3"),
+    list = el("ol");
+  element.append(title, list);
+  element.hidden = true;
+  return {
+    element,
+    update(model: SessionModel | null) {
+      element.hidden = !model;
+      if (!model) return;
+      setText(title, model.title);
+      const rows = JSON.stringify(model.rows);
+      if (list.dataset.rows === rows) return;
+      list.dataset.rows = rows;
+      list.replaceChildren(
+        ...model.rows.map((row) => {
+          const node = el("li", "", row.you ? "you" : "");
+          if (row.slot >= 0) node.style.setProperty("--c", slotColor(row.slot));
+          node.append(
+            el("span", String(row.place)),
+            el("b", row.you ? `${row.name} (you)` : row.name),
+            el("small", row.wins),
+            el("em", row.points),
+          );
+          return node;
+        }),
+      );
+    },
+  };
+}
 
 /** The song select's music: the chosen song on the shared radio, a moment after the choice settles. */
 function createPreview(library: Library) {
@@ -346,6 +390,28 @@ function landing(): void {
     picker.update({ ...choice, host: true });
     preview.show(choice.song);
   };
+  // A solo select: this player's speed and a random song. Sessions are a room's.
+  const options = createPlayOptions({
+    document,
+    onSpeed: (speed) => {
+      sfx.blip();
+      prefs = { ...prefs, speed };
+      savePrefs(store, prefs);
+      settings.refresh();
+      showOptions();
+    },
+    onRandomSong: () => {
+      const song = randomSong(library, choice.song);
+      if (song) show({ ...choice, song });
+    },
+  });
+  const showOptions = () =>
+    options.update({
+      speed: prefs.speed,
+      host: true,
+      songs: 1,
+      random: false,
+    });
   const leaveLanding = () => {
     preview.stop();
     settings.dispose();
@@ -436,13 +502,14 @@ function landing(): void {
     });
   };
   const select = el("section", "", "fm-landing-select");
-  select.append(picker.element);
+  select.append(picker.element, options.element);
   card.solo?.before(select);
   card.solo?.classList.add("fui-button-primary", "fm-solo-play");
   card.solo?.after(own);
-  const settings = settingsPanel(() =>
-    help.dispatchEvent(new Event("fm-refresh")),
-  );
+  const settings = settingsPanel(() => {
+    help.dispatchEvent(new Event("fm-refresh"));
+    showOptions();
+  });
   const help = keyHelp();
   card.menu.addSettings(settings.element);
   card.menu.help.append(help);
@@ -472,6 +539,7 @@ function landing(): void {
   menu.update({ canLobby: false, canLeave: false, touch: coarse() });
   app.replaceChildren(header([back, menu.element]), card.element);
   picker.update({ ...choice, host: true });
+  showOptions();
   preview.show(choice.song);
 }
 
@@ -546,7 +614,13 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   const modalOpen = () => Boolean(document.querySelector("dialog[open]"));
 
   // Lobby: the invitation and the players on one side, the song select and START on the other.
-  let settings: Settings = { display: false, ...choice };
+  // A host's rooms start with the session it set last; a solo run is one song.
+  const storedSongs = Number(store.getItem(names.songs));
+  const sessionChoice = {
+    songs: !solo && SESSION_LENGTHS.includes(storedSongs) ? storedSongs : 1,
+    random: !solo && store.getItem(names.order) === "random",
+  };
+  let settings: Settings = { display: false, ...sessionChoice, ...choice };
   const lobby = el("section", "", "fm-lobby"),
     lobbyMain = el("div", "", "fm-panel"),
     roster = createRoster({ emptyText: "No players yet" }),
@@ -614,13 +688,49 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       runtime.command({ type: "settings", settings: { ...settings, mode } }),
     best: bestLookup(library),
   });
+  // Beside the song select: every player's own speed, and the host's random song and session.
+  const options = createPlayOptions({
+    document,
+    ...(solo ? {} : { lengths: SESSION_LENGTHS }),
+    onSpeed: (speed) => {
+      sfx.blip();
+      prefs = { ...prefs, speed };
+      savePrefs(store, prefs);
+      panel.refresh();
+      showOptions();
+    },
+    onRandomSong: () => {
+      const song = randomSong(library, settings.song);
+      if (!song) return;
+      sfx.blip();
+      runtime.command({ type: "settings", settings: { ...settings, song } });
+    },
+    onSongs: (songs) => {
+      store.setItem(names.songs, String(songs));
+      runtime.command({ type: "settings", settings: { ...settings, songs } });
+    },
+    onOrder: (random) => {
+      store.setItem(names.order, random ? "random" : "host");
+      runtime.command({ type: "settings", settings: { ...settings, random } });
+    },
+  });
+  options.element.hidden = display;
+  const showOptions = () =>
+    options.update({
+      speed: prefs.speed,
+      host: viewer.host,
+      songs: settings.songs,
+      random: settings.random,
+    });
+  const lobbySession = sessionBlock();
   const lobbyActions = el("div", "", "fm-actions");
   lobbyActions.append(tvLink, start);
   lobby.append(lobbyMain);
   const help = keyHelp();
-  const panel = settingsPanel(() =>
-    help.dispatchEvent(new Event("fm-refresh")),
-  );
+  const panel = settingsPanel(() => {
+    help.dispatchEvent(new Event("fm-refresh"));
+    showOptions();
+  });
 
   // The song: the canvas, the result over it, the touch pads under it.
   const stage = el("section", "", "fm-stage"),
@@ -632,6 +742,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   const card = el("section", "", "fm-card"),
     cardTitle = el("h2"),
     cardRows = el("ol", "", "fm-rows"),
+    cardSession = sessionBlock(),
     cardCounts = el("dl", "", "fm-counts"),
     cardLines = el("ul", "", "fm-lines"),
     cardFoot = el("p", "", "fm-card-foot"),
@@ -643,6 +754,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   card.append(
     cardTitle,
     cardRows,
+    cardSession.element,
     cardCounts,
     cardLines,
     cardFoot,
@@ -653,8 +765,11 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   loadFailed.onclick = () => {
     if (playing) playing.failures = playing.retryAt = 0;
   };
-  rematch.onclick = () =>
-    runtime.command({ type: "action", action: "rematch" });
+  // The result says what its buttons do: another go, a session's next song, or back to the song select.
+  rematch.onclick = () => {
+    const action = model?.result?.primary.action;
+    if (action) runtime.command({ type: "action", action });
+  };
   toLobby.onclick = () => runtime.command({ type: "action", action: "lobby" });
   toMenu.onclick = leave;
   screen.append(canvas, unlock, loadFailed, card, roundControls.element);
@@ -788,8 +903,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     join: nameEntry.form,
     addAI: addBot,
     settings: [panel.element, help],
-    modes: [picker.element],
-    actions: [lobbyNote, lobbyActions],
+    modes: [picker.element, options.element],
+    actions: [lobbySession.element, lobbyNote, lobbyActions],
   });
   lobby.hidden = true;
   stage.hidden = true;
@@ -920,6 +1035,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       down: prefs.down,
       title: model.title,
       chartNames: model.chartNames,
+      totals: model.totals,
       itemKey: coarse() ? "ITEM" : keyLabel(prefs.keys.item[0] ?? ""),
     });
   };
@@ -1021,6 +1137,9 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     addBot.hidden = !next.lobby.canAddBot;
     start.hidden = !next.lobby.showStart;
     start.disabled = !next.lobby.canStart;
+    setText(start, next.lobby.startText);
+    lobbySession.update(next.lobby.session);
+    showOptions();
     setText(lobbyNote, next.lobby.note);
     lobbyNote.hidden = !next.lobby.note;
     tvLink.hidden = !(
@@ -1107,6 +1226,19 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       cardFoot.hidden = !result.waiting;
       cardActions.hidden = !result.host;
       toMenu.hidden = !result.solo;
+      // A session's standings: under the song's result, and above it once the session is over.
+      cardSession.update(result.session);
+      const anchor = result.final ? cardTitle : cardRows;
+      if (cardSession.element.previousElementSibling !== anchor)
+        anchor.after(cardSession.element);
+      for (const [main, other] of [
+        [rematch, toLobby],
+        [controllerRematch, controllerLobby],
+      ] as const) {
+        setText(main, result.primary.text);
+        other.hidden = !result.secondary;
+        if (result.secondary) setText(other, result.secondary.text);
+      }
     }
   };
 
@@ -1231,7 +1363,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     !solo && role === "host" && store.getItem(names.shared) === "1";
   const runtime = new FusemaniaRuntime(
     code,
-    { display: shared, ...choice },
+    { display: shared, ...sessionChoice, ...choice },
     callbacks,
     // A solo battle needs someone to throw things at: three AI rivals.
     createFusemaniaGame(library, solo && choice.mode === BATTLE_MODE ? 3 : 0),

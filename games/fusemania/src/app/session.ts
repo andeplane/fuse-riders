@@ -13,6 +13,9 @@ export const keys = (gameId: string) => ({
   song: `${gameId}-song`,
   chart: `${gameId}-chart`,
   mode: `${gameId}-mode`,
+  /** The session a host last set: how many songs, and "random" or "host" for who chooses them. */
+  songs: `${gameId}-session-songs`,
+  order: `${gameId}-session-order`,
   best: (song: string, chart: string) => `${gameId}-best-${song}-${chart}`,
   host: (code: string) => `${gameId}-room-${code}`,
   peer: (code: string) => `${gameId}-peer-${code}`,

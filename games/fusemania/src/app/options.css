@@ -1,0 +1,127 @@
+/* The options beside the song select: a random song, this player's speed, a room's session. */
+.fm-options {
+  display: grid;
+  gap: var(--fui-space-3);
+  min-width: 0;
+  margin-top: var(--fui-space-3);
+}
+.fm-options-row {
+  display: grid;
+  gap: var(--fui-space-1);
+  min-width: 0;
+}
+.fm-options-row[hidden] {
+  display: none;
+}
+.fm-options-label {
+  color: var(--fui-text-muted);
+  font: 0.625rem/1.4 var(--fui-font-pixel);
+  letter-spacing: 0.06em;
+}
+.fm-options-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fui-space-1);
+}
+.fm-options-hint {
+  color: var(--fui-text-muted);
+  font: 0.75rem/1.35 var(--fui-font-body);
+}
+.fm-options .fm-option {
+  --fm-option: var(--fui-cyan);
+  flex: 0 0 auto;
+  min-width: 3.25rem;
+  min-height: 2.25rem;
+  margin: 0;
+  padding: var(--fui-space-1) var(--fui-space-2);
+  color: var(--fui-text-muted);
+  font: 0.625rem/1.4 var(--fui-font-pixel);
+  background: var(--fui-surface);
+  border: var(--fui-stroke) solid var(--fui-line);
+  border-radius: var(--fui-radius-small);
+  box-shadow: var(--fui-edge);
+  cursor: pointer;
+}
+.fm-options .fm-option-songs,
+.fm-options .fm-option-order {
+  --fm-option: var(--fui-pink);
+}
+.fm-options .fm-option[aria-pressed="true"] {
+  color: var(--fui-text-bright);
+  border-color: var(--fm-option);
+  box-shadow:
+    0 0 1rem color-mix(in srgb, var(--fm-option) 40%, transparent),
+    var(--fui-edge);
+}
+/* A guest still has to read what the host chose. */
+.fm-options .fm-option:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.fm-options .fm-option:disabled[aria-pressed="false"] {
+  opacity: 0.45;
+}
+.fm-options .fm-option-random {
+  --fm-option: var(--fui-yellow, #ffd84a);
+  justify-self: start;
+  padding: var(--fui-space-2) var(--fui-space-3);
+  color: var(--fm-option);
+  border-color: color-mix(in srgb, var(--fm-option) 60%, transparent);
+}
+.fm-options .fm-option-random[hidden] {
+  display: none;
+}
+
+/* A session's standings: in the lobby between two songs, and on the result. */
+.fm-session {
+  display: grid;
+  gap: var(--fui-space-1);
+  min-width: 0;
+}
+.fm-session[hidden] {
+  display: none;
+}
+.fm-session h3 {
+  margin: 0;
+  color: var(--fui-pink);
+  font: 0.6875rem/1.4 var(--fui-font-pixel);
+  letter-spacing: 0.06em;
+}
+.fm-session ol {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fm-session li {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr) auto auto;
+  gap: var(--fui-space-2);
+  align-items: baseline;
+  padding: var(--fui-space-1) var(--fui-space-2);
+  background: color-mix(in srgb, var(--fui-surface) 80%, transparent);
+  border-left: 3px solid var(--c, var(--fui-line));
+  font: 0.8125rem/1.35 var(--fui-font-body);
+}
+.fm-session li.you {
+  background: color-mix(in srgb, var(--c, var(--fui-cyan)) 14%, transparent);
+}
+.fm-session li span {
+  color: var(--fui-text-muted);
+  font: 0.625rem/1.4 var(--fui-font-pixel);
+}
+.fm-session li b {
+  overflow: hidden;
+  color: var(--fui-text-bright);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fm-session li small {
+  color: var(--fui-text-muted);
+}
+.fm-session li em {
+  color: var(--fui-text-bright);
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
