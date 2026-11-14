@@ -1,13 +1,13 @@
 import { createContext } from "react";
 
 import type { SystemSoundEvent } from "./soundEvents";
-import { isSystemSoundEvent } from "./soundEvents";
+import { isSystemSoundEvent, soundDefaultOn } from "./soundEvents";
 
 /** Control Panel > Sounds: the master switch and one toggle per event, persisted per browser. */
 export type SoundPrefs = {
   /** "Play system sounds"; off silences everything. */
   master: boolean;
-  /** Absent means on. */
+  /** Only explicit user choices are stored; an absent event follows `soundDefaultOn` (start-up is off, the rest on). */
   events: Partial<Record<SystemSoundEvent, boolean>>;
 };
 
@@ -42,12 +42,20 @@ export function parseSoundPrefs(raw: string | null | undefined): SoundPrefs {
   }
 }
 
+/** The event's own toggle: the user's explicit choice, else its default. */
+export function eventEnabled(
+  prefs: SoundPrefs,
+  event: SystemSoundEvent,
+): boolean {
+  return prefs.events[event] ?? soundDefaultOn(event);
+}
+
 /** Whether `event` sounds under `prefs` (the master switch and the event's own toggle). */
 export function soundEnabled(
   prefs: SoundPrefs,
   event: SystemSoundEvent,
 ): boolean {
-  return prefs.master && prefs.events[event] !== false;
+  return prefs.master && eventEnabled(prefs, event);
 }
 
 type KeyValueStorage = Pick<Storage, "getItem" | "setItem">;

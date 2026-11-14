@@ -19,9 +19,11 @@ export type SoundEventInfo = {
   gain: number;
   /**
    * Browsers refuse audio before the first click or key press. A sound marked here is held
-   * until then (the start-up chime plays on the first gesture); any other is simply dropped.
+   * until then (the start-up chime, when switched on, plays on the first gesture); any other is simply dropped.
    */
   deferUntilUnlocked?: boolean;
+  /** Whether the sound plays until the user says otherwise in Control Panel > Sounds. Absent means on. */
+  defaultOn?: boolean;
   /** Where the trigger lives or should live; the integrator's checklist (docs/fuseos/README-sounds.md). */
   trigger: string;
 };
@@ -30,9 +32,11 @@ export const SOUND_EVENTS: readonly SoundEventInfo[] = [
   {
     event: "startup",
     label: "Start FuseOS",
-    description: "The chime when the desktop appears",
+    description:
+      "The chime when the desktop appears (off unless you switch it on)",
     gain: 0.8,
     deferUntilUnlocked: true,
+    defaultOn: false,
     trigger:
       "SystemSoundTriggers in Shell: desktop mount and wake-up after shut down",
   },
@@ -98,6 +102,11 @@ export function isSystemSoundEvent(value: unknown): value is SystemSoundEvent {
     typeof value === "string" &&
     SYSTEM_SOUND_EVENTS.includes(value as SystemSoundEvent)
   );
+}
+
+/** The event's setting when the user has not chosen one: on, except the start-up chime. */
+export function soundDefaultOn(event: SystemSoundEvent): boolean {
+  return soundEventInfo(event).defaultOn !== false;
 }
 
 export function soundEventInfo(event: SystemSoundEvent): SoundEventInfo {
