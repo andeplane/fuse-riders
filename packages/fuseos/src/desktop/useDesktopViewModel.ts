@@ -1,6 +1,7 @@
 import { useCallback, useContext } from "react";
 
 import { FuseGamesContext } from "../fusegames/registry";
+import { openNetworkNeighborhood } from "../network/openNetworkNeighborhood";
 import type { WindowKind, WindowState } from "../state/appState";
 import { activeWindowId } from "../state/appState";
 import { useAppState } from "../state/useAppState";
@@ -113,6 +114,12 @@ export function useDesktopViewModel(): DesktopViewModel {
       label: "Control Panel",
       icon: "settings",
       open: openControlPanel,
+    },
+    {
+      id: "network-neighborhood",
+      label: "Network Neighborhood",
+      icon: "network",
+      open: () => openNetworkNeighborhood(commands),
     },
   ];
 

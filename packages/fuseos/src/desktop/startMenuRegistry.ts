@@ -1,5 +1,6 @@
 import { createContext } from "react";
 
+import { openNetworkNeighborhood } from "../network/openNetworkNeighborhood";
 import type { IconName } from "../ui/icons";
 import type { WindowCommands } from "../windows/useWindowCommands";
 
@@ -49,6 +50,14 @@ export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
     id: "my-computer",
     label: "My Computer",
     icon: "computer",
+  },
+  {
+    slot: "programs",
+    id: "network-neighborhood",
+    label: "Network Neighborhood",
+    icon: "network",
+    order: 10,
+    open: (commands) => openNetworkNeighborhood(commands),
   },
 ];
 

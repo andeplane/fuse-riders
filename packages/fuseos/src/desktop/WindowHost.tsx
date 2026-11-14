@@ -5,6 +5,8 @@ import { ControlPanelWindow } from "../controlpanel/ControlPanelWindow";
 import { WallpaperWindow } from "../controlpanel/WallpaperWindow";
 import { FuseGameWindow } from "../fusegames/FuseGameWindow";
 import { FuseGamesContext } from "../fusegames/registry";
+import { NetworkWindow } from "../network/NetworkWindow";
+import { RoomGameWindow } from "../network/RoomGameWindow";
 import { PaintWindow } from "../paint/PaintWindow";
 import { GameWindow } from "../retro/GameWindow";
 import type { WindowState } from "../state/appState";
@@ -35,6 +37,17 @@ function WindowContent({
           onActivate={() => commands.focus(window.id)}
         />
       );
+    case "roomgame":
+      return (
+        <RoomGameWindow
+          gameId={window.gameId}
+          code={window.code}
+          active={active}
+          onActivate={() => commands.focus(window.id)}
+        />
+      );
+    case "network":
+      return <NetworkWindow windowId={window.id} />;
     case "retro":
       return (
         <GameWindow

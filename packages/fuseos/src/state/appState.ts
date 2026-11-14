@@ -1,3 +1,4 @@
+import { isRoomCode } from "../network/roomCode";
 import type { GameId } from "../retro/gameIds";
 import { isGameId } from "../retro/gameIds";
 
@@ -49,8 +50,23 @@ export interface WinampWindowContent {
   kind: "winamp";
 }
 
+/** Network Neighborhood: rooms by game, recent rooms, Join room. Single instance (opened with id `NETWORK_WINDOW_ID`). */
+export interface NetworkWindowContent {
+  kind: "network";
+}
+
+/** A Fuse game opened straight into an online room (`?room=CODE`) by the Network Neighborhood. */
+export interface RoomGameWindowContent {
+  kind: "roomgame";
+  gameId: string;
+  /** The room code as the service issues it, e.g. "AB42"; validated by `isRoomCode` when stored. */
+  code: string;
+}
+
 export type WindowContent =
   | FuseGameWindowContent
+  | NetworkWindowContent
+  | RoomGameWindowContent
   | RetroGameWindowContent
   | ControlPanelWindowContent
   | WallpaperWindowContent
@@ -205,9 +221,16 @@ function isWindowContent(
       return isGameId(value.game);
     case "controlpanel":
       return isControlPanelApplet(value.applet);
+    case "roomgame":
+      return (
+        typeof value.gameId === "string" &&
+        value.gameId.length > 0 &&
+        isRoomCode(value.code)
+      );
     case "wallpaper":
     case "about":
     case "winamp":
+    case "network":
       return true;
     case "dialog":
       return (

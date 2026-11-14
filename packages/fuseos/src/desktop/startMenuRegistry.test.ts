@@ -24,6 +24,7 @@ describe("START_MENU_REGISTRATIONS", () => {
     ).toEqual([
       ["accessories", "notepadpp", false],
       ["my-computer", "my-computer", false],
+      ["programs", "network-neighborhood", true],
     ]);
   });
 });

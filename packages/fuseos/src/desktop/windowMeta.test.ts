@@ -3,6 +3,7 @@ import type { WindowContent, WindowState } from "../state/appState";
 
 import {
   FUSE_GAME_WINDOW_SIZE,
+  NETWORK_WINDOW_SIZE,
   PAINT_WINDOW_SIZE,
   WINAMP_WINDOW_SIZE,
   windowMeta,
@@ -29,6 +30,32 @@ describe(windowMeta.name, () => {
     expect(
       windowMeta(window({ kind: "fusegame", gameId: "gone" }), games).title,
     ).toBe("gone");
+  });
+
+  it("names a room window after the game and the room, and the Network Neighborhood after itself", () => {
+    expect(
+      windowMeta(
+        window({ kind: "roomgame", gameId: "fuseball", code: "AB42" }),
+        games,
+      ),
+    ).toEqual({
+      title: "Fuseball - Room AB42",
+      icon: "network",
+      resizable: true,
+      size: FUSE_GAME_WINDOW_SIZE,
+    });
+    expect(
+      windowMeta(
+        window({ kind: "roomgame", gameId: "gone", code: "AB42" }),
+        games,
+      ).title,
+    ).toBe("gone - Room AB42");
+    expect(windowMeta(window({ kind: "network" }), games)).toEqual({
+      title: "Network Neighborhood",
+      icon: "network",
+      resizable: true,
+      size: NETWORK_WINDOW_SIZE,
+    });
   });
 
   it("gives each retro game its own icon and size", () => {

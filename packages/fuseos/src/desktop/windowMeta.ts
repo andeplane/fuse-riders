@@ -23,6 +23,9 @@ export const WINAMP_WINDOW_SIZE: Size = { width: 320, height: 440 };
 /** A Fuse game opens at the size its lobby is laid out for; the window clamps to the desktop. */
 export const FUSE_GAME_WINDOW_SIZE: Size = { width: 1024, height: 700 };
 
+/** Room for the tree pane, a few rows of rooms and the status bar. */
+export const NETWORK_WINDOW_SIZE: Size = { width: 640, height: 420 };
+
 export const OS_NAME = "FuseOS";
 
 /** Title bar text and icon for each window kind. */
@@ -37,6 +40,20 @@ export function windowMeta(
         icon: "fusegame",
         resizable: true,
         size: FUSE_GAME_WINDOW_SIZE,
+      };
+    case "roomgame":
+      return {
+        title: `${games.find(window.gameId)?.name ?? window.gameId} - Room ${window.code}`,
+        icon: "network",
+        resizable: true,
+        size: FUSE_GAME_WINDOW_SIZE,
+      };
+    case "network":
+      return {
+        title: "Network Neighborhood",
+        icon: "network",
+        resizable: true,
+        size: NETWORK_WINDOW_SIZE,
       };
     case "retro":
       return {
