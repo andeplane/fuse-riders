@@ -14,3 +14,8 @@ export const RESPAWN = Math.round(1.2 * STEPS_PER_SECOND);
 export const RACE_LIMIT = 5 * 60 * STEPS_PER_SECOND;
 /** Once somebody is home the rest have this long. */
 export const RACE_GRACE = 30 * STEPS_PER_SECOND;
+
+/** How far a rider's own clock may run ahead of the race's: its device's clock is never exactly the room's. */
+export const RIDER_AHEAD = 2 * STEPS_PER_SECOND;
+/** How long past its close a race waits for the riders' last steps to arrive. */
+export const CLOSE_LAG = 3 * STEPS_PER_SECOND;

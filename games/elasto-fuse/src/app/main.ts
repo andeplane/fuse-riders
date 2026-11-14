@@ -62,13 +62,7 @@ import {
   bindButton,
   type PadSurface,
 } from "./controls.js";
-import {
-  blendViews,
-  createLeadClock,
-  forward,
-  forwardInputs,
-  stepsAhead,
-} from "./forward.js";
+import { createGhosts, project } from "./forward.js";
 import { GamepadInput, browserGamepads } from "./gamepad.js";
 import {
   LEVEL_CHOICES,
@@ -133,7 +127,12 @@ const audioControl = createAudioControl(document, audio, { music: false });
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 /** A link within the game that keeps this page's developer flags. */
 const withFlags = (path: string) =>
-  muted ? `${path}${path.includes("?") ? "&" : "?"}mute` : path;
+  ["mute", "probe"]
+    .filter((flag) => query.has(flag))
+    .reduce(
+      (link, flag) => `${link}${link.includes("?") ? "&" : "?"}${flag}`,
+      path,
+    );
 const setText = (node: HTMLElement, value: string) => {
   if (node.textContent !== value) node.textContent = value;
 };
@@ -613,43 +612,62 @@ function room(solo: boolean): void {
     controls.hold("gamepad", bits);
   });
   let model: Model | undefined;
-  const leadClock = createLeadClock();
-  /** What to draw now: the forward run when the newest frame is the room's newest world, otherwise the two frames blended. */
+  const ghosts = createGhosts();
+  /** `?probe`: the last frames drawn, for a smoke test to read how evenly each bike moved. Off otherwise. */
+  const probe = query.has("probe")
+    ? (now: number, own: number | undefined, view: WorldView) => {
+        const frames = ((
+          window as { __elastoFrames?: unknown[] }
+        ).__elastoFrames ??= []);
+        frames.push({
+          now,
+          own,
+          phase: view.phase,
+          riders: view.riders.map((rider) => ({
+            x: rider.bike.x,
+            y: rider.bike.y,
+            step: rider.step,
+            status: rider.status,
+          })),
+        });
+        if (frames.length > 2000) frames.shift();
+      }
+    : undefined;
+  /**
+   * What to draw now: every bike played on from the room's newest world to its own clock. This device's bike runs
+   * on this device's clock alone; the others are ghosts, eased.
+   */
   const picture = (): WorldView | undefined => {
-    const timing = runtime.frameTiming();
-    const newer = timing?.newer.world;
-    if (!timing || !newer) return undefined;
     const state = runtime.roomState();
-    let view: WorldView;
-    if (
-      state?.world &&
-      state.simulationTick === timing.newer.tick &&
-      state.stage !== "lobby"
-    ) {
-      const ahead = leadClock(
-        stepsAhead(timing, timing.newer.tick),
-        timing.newer.tick,
-        performance.now(),
-      );
-      view = forward(
-        state.world,
-        ahead,
-        forwardInputs(state, viewer.me, (step) => runtime.heldAhead(step)),
-      );
-    } else {
-      const older = timing.older?.world;
-      const span = timing.older ? timing.newer.tick - timing.older.tick : 0;
+    const world = state?.world;
+    if (!state || !world || state.stage === "lobby") return undefined;
+    const now = performance.now();
+    const plans = ghosts(state, viewer.me, now);
+    const ride = runtime.localRide();
+    if (ride) plans[ride.slot] = { to: ride.step, bits: ride.bits };
+    let view = project(world, plans);
+    if (ride && view.phase !== "over") {
+      // The start and the clock are this device's too: its bike goes on its own count.
+      const step = Math.max(0, Math.floor(ride.step));
       view =
-        older && span > 0
-          ? blendViews(older, newer, (timing.tick - timing.older!.tick) / span)
-          : newer;
+        ride.step < 0
+          ? { ...view, phase: "countdown", go: Math.ceil(-ride.step), step: 0 }
+          : {
+              ...view,
+              phase: "racing",
+              go: 0,
+              step,
+              left: Math.max(0, world.close - step),
+            };
     }
-    return smoother.apply(
+    const shown = smoother.apply(
       view,
-      timing.revision ?? 0,
-      performance.now(),
+      runtime.frameTiming()?.revision ?? 0,
+      now,
       model?.localSlot ?? -1,
     );
+    probe?.(now, ride?.step, shown);
+    return shown;
   };
   /** What of the canvas the touch buttons float over (a phone on its side), in CSS pixels; nothing when they sit below it. */
   let covered: { left: number; right: number; bottom: number } | undefined;
