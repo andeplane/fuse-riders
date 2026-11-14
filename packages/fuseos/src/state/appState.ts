@@ -83,9 +83,25 @@ export interface NotepadPlusPlusWindowContent {
   activePath?: string;
 }
 
+/** DC++, the pretend Direct Connect client (`src/dcpp`): one instance, its hubs live in the window. */
+export interface DcppWindowContent {
+  kind: "dcpp";
+}
+
 /** Fusteam, the game launcher (`src/launcher`): opens on every boot, one instance, focused rather than duplicated. */
 export interface LauncherWindowContent {
   kind: "launcher";
+}
+
+/** Napster v2.0 beta (`src/napster`): a fake file-sharing client with a pretend network. One instance. */
+export interface NapsterWindowContent {
+  kind: "napster";
+}
+
+/** mIRC (`src/mirc`): an IRC client on simulated networks (docs/fuseos/mirc.md). One instance; `caption` mirrors a maximized child's title. */
+export interface MircWindowContent {
+  kind: "mirc";
+  caption?: string;
 }
 
 /** The Recycle Bin's Explorer-style window. Reused when already open. */
@@ -128,6 +144,18 @@ export interface RoomGameWindowContent {
   code: string;
 }
 
+/** Start > Programs > Hall of Fame: one Fuse game's leaderboard. The picked game is kept so a reload shows it again. */
+export interface HallOfFameWindowContent {
+  kind: "halloffame";
+  /** A portal game id; absent (or no longer installed) means the first game. */
+  gameId?: string;
+}
+
+/** Task Manager (Ctrl+Shift+Esc): open windows, frame rates, heap. Reused when already open. */
+export interface TaskManagerWindowContent {
+  kind: "taskmanager";
+}
+
 export type WindowContent =
   | FuseGameWindowContent
   | NetworkWindowContent
@@ -148,7 +176,12 @@ export type WindowContent =
   | RunWindowContent
   | DialUpWindowContent
   | FriendsWindowContent
-  | DefragWindowContent;
+  | DefragWindowContent
+  | HallOfFameWindowContent
+  | TaskManagerWindowContent
+  | NapsterWindowContent
+  | MircWindowContent
+  | DcppWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -211,12 +244,17 @@ export function sameInstance(
     case "about":
     case "retroFolder":
     case "launcher":
-    case "recyclebin":
-    case "run":
-    case "defrag":
+    case "napster":
     case "dialup":
     case "network":
     case "friends":
+    case "defrag":
+    case "halloffame":
+    case "taskmanager":
+    case "mirc":
+    case "dcpp":
+    case "recyclebin":
+    case "run":
       return existing.kind === content.kind;
     case "mediaplayer":
       return existing.kind === "mediaplayer" && existing.file === content.file;
@@ -422,8 +460,11 @@ function isWindowContent(
     case "winamp":
     case "retroFolder":
     case "launcher":
+    case "napster":
     case "network":
     case "friends":
+    case "taskmanager":
+    case "dcpp":
       return true;
     case "dialog":
       return (
@@ -440,6 +481,8 @@ function isWindowContent(
       return typeof value.location === "string";
     case "defrag":
       return isDefragWindowContent(value);
+    case "mirc":
+      return value.caption === undefined || typeof value.caption === "string";
     case "notepadpp":
       return (
         Array.isArray(value.paths) &&
@@ -461,6 +504,8 @@ function isWindowContent(
         value.then === undefined ||
         (isRecord(value.then) && isWindowContent(value.then))
       );
+    case "halloffame":
+      return value.gameId === undefined || typeof value.gameId === "string";
     default:
       return false;
   }

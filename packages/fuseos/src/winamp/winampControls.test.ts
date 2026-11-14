@@ -82,6 +82,25 @@ describe(createWinampControls.name, () => {
     expect(previous).toHaveBeenCalledTimes(1);
   });
 
+  it("appends Napster's files under their own names and plays the first of them", () => {
+    const player = createFakeWebampPlayer();
+    player.appendTracks([{ url: "a.mp3" }]);
+    const names = new Map<string, string>();
+    const { controls } = createWinampControls(player, names);
+    controls.playFiles([]);
+    expect(player.getMediaStatus()).toBe("STOPPED");
+    controls.playFiles([
+      { track: { url: "b.mp3#napster-1" }, name: "Eminem - Stan" },
+      { track: { url: "c.mp3#napster-2" }, name: "Blur - Song 2" },
+    ]);
+    expect(player.currentIndex).toBe(1);
+    expect(controls.status()).toMatchObject({
+      trackCount: 3,
+      currentTrack: "Eminem - Stan",
+      playing: true,
+    });
+  });
+
   it("stops tracking the current track once disposed", () => {
     const player = createFakeWebampPlayer();
     const names = new Map([["blob:1", "one.mp3"]]);

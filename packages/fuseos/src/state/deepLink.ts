@@ -20,9 +20,14 @@ const APPS: Record<string, WindowContent> = {
   dosgames: { kind: "retroFolder" },
   run: { kind: "run" },
   friends: { kind: "friends" },
-  network: { kind: "network" },
+  halloffame: { kind: "halloffame" },
+  taskmanager: { kind: "taskmanager" },
   defrag: { kind: "defrag" },
   mycomputer: { kind: "explorer", location: MY_COMPUTER },
+  napster: { kind: "napster" },
+  mirc: { kind: "mirc" },
+  dcpp: { kind: "dcpp" },
+  network: { kind: "network" },
 };
 
 /** The window an app name opens; undefined for a name that is not an app (a game, or nothing). */

@@ -69,6 +69,24 @@ function renderGag(deps: Partial<System32Deps> = {}) {
   return { ...utils, scheduler, advance, foldAllStages };
 }
 
+/** The provider on its own, outside the desktop's shell: nothing hands it a blue screen, so it draws its own. */
+function renderStandalone(deps: Partial<System32Deps> = {}) {
+  const scheduler = new MemoryScheduler();
+  const utils = render(
+    <System32DepsContext.Provider value={{ scheduler, ...deps }}>
+      <System32Provider>
+        <FakeExplorer />
+        <Probe title="Control Panel" />
+      </System32Provider>
+    </System32DepsContext.Provider>,
+  );
+  const advance = (ms: number) => act(() => scheduler.advance(ms));
+  const foldAllStages = () => {
+    for (const stage of FOLD_STAGES) advance(stage.delayMs);
+  };
+  return { ...utils, scheduler, advance, foldAllStages };
+}
+
 async function sayYesThreeTimes() {
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Delete" }));
@@ -126,7 +144,7 @@ describe(System32Provider.name, () => {
   });
 
   it("folds stage by stage on the scheduler, misspells titles, crashes, restarts and restores everything", async () => {
-    const { advance, scheduler } = renderGag();
+    const { advance, scheduler } = renderStandalone();
     await sayYesThreeTimes();
 
     expect(
@@ -182,8 +200,32 @@ describe(System32Provider.name, () => {
     expect(scheduler.pending).toBe(0);
   });
 
-  it("restarts by itself when nobody presses a key on the blue screen, and on a click", async () => {
+  it("on the desktop, crashes into the desktop's own Blue Screen of Death and restarts when it is dismissed", async () => {
     const { advance, foldAllStages } = renderGag();
+    await sayYesThreeTimes();
+    foldAllStages();
+    advance(CRASH_AFTER_LAST_STAGE_MS);
+    expect(root()).toHaveClass("s32-crashed");
+    // The same screen Ctrl+Alt+Delete raises, not the gag's own.
+    expect(
+      screen.getByRole("alertdialog", { name: "Windows fatal exception" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    // It holds until someone presses a key; the usual hold does not restart it.
+    advance(BSOD_MS);
+    expect(root()).toHaveClass("s32-crashed");
+    await userEvent.keyboard("x");
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(root()).toHaveClass("s32-restarting");
+    advance(RESTART_MS);
+    expect(root().className).toBe("s32-root");
+    expect(
+      screen.getByRole("listitem", { name: "SYSTEM32" }),
+    ).toBeInTheDocument();
+  });
+
+  it("restarts by itself when nobody presses a key on the blue screen, and on a click", async () => {
+    const { advance, foldAllStages } = renderStandalone();
     await sayYesThreeTimes();
     foldAllStages();
     advance(CRASH_AFTER_LAST_STAGE_MS);
@@ -300,7 +342,7 @@ describe(System32Provider.name, () => {
   });
 
   it("goes straight to the blue screen for ?fold=bsod, then restarts and is healthy", () => {
-    const { advance } = renderGag({ demo: { kind: "bsod" } });
+    const { advance } = renderStandalone({ demo: { kind: "bsod" } });
     expect(screen.getByRole("alert")).toBeInTheDocument();
     advance(BSOD_MS);
     advance(RESTART_MS);

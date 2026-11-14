@@ -16,7 +16,7 @@ describe("START_MENU_REGISTRATIONS", () => {
     });
   });
 
-  it("lists the accessories, Fusteam, the Retro Games folder, My Computer and the screen saver, every one of them openable", () => {
+  it("lists the accessories, Fusteam, Napster, the Retro Games folder, My Computer and the screen saver, every one of them openable", () => {
     expect(
       START_MENU_REGISTRATIONS.map((entry) => [
         entry.slot,
@@ -31,12 +31,17 @@ describe("START_MENU_REGISTRATIONS", () => {
       ["accessories", "wallpaper", true],
       ["system-tools", "defrag", true],
       ["programs", "fusteam", true],
+      ["programs", "napster", true],
+      ["programs", "mirc", true],
+      ["programs", "dcpp", true],
       ["retro-games", "retro-folder", true],
       ["my-computer", "my-computer", true],
       ["settings", "screensaver", true],
       ["accessories", "dialup", true],
       ["programs", "network-neighborhood", true],
       ["programs", "friends", true],
+      ["programs", "halloffame", true],
+      ["accessories", "taskmanager", true],
     ]);
   });
 
@@ -69,12 +74,17 @@ describe("START_MENU_REGISTRATIONS", () => {
       { kind: "wallpaper" },
       { kind: "defrag" },
       [{ kind: "launcher" }, { id: "launcher", maximized: false }],
+      { kind: "napster" },
+      { kind: "mirc" },
+      { kind: "dcpp" },
       { kind: "retroFolder" },
       { kind: "explorer", location: "" },
       { kind: "controlpanel", applet: "display", tab: "screensaver" },
       { kind: "dialup" },
       [{ kind: "network" }, { id: "network-neighborhood" }],
       [{ kind: "friends" }, { id: "friends" }],
+      [{ kind: "halloffame" }, { id: "halloffame" }],
+      [{ kind: "taskmanager" }, { id: "taskmanager" }],
     ]);
   });
 

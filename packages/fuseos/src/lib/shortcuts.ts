@@ -83,6 +83,12 @@ export const SHORTCUTS: readonly Shortcut[] = [
     scope: "Desktop",
   },
   {
+    id: "desktop.taskManager",
+    keys: "Ctrl+Shift+Esc",
+    description: "Open the Task Manager",
+    scope: "Desktop",
+  },
+  {
     // Matched by `isRunChord` rather than `matchShortcut`: the Windows key is not one of its modifiers.
     id: "desktop.run",
     keys: "Win+R",

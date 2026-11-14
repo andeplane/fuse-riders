@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { AssistantToolsProvider } from "./assistant/assistantToolsContext";
+import { BsodProvider } from "./bsod/BsodProvider";
 import { Desktop } from "./desktop/Desktop";
 import { DesktopUiProvider } from "./desktop/DesktopUiProvider";
 import { DisplayViewportProvider } from "./desktop/DisplayViewportProvider";
@@ -32,13 +33,15 @@ export function Shell({ store, initialOpen, children }: ShellProps) {
             <DisplayEffectsProvider>
               <WindowManagerProvider>
                 <SystemSoundTriggers />
-                <AssistantToolsProvider>
-                  <System32BsodProvider>
-                    <RunAgentProvider>
-                      {children ?? <Desktop />}
-                    </RunAgentProvider>
-                  </System32BsodProvider>
-                </AssistantToolsProvider>
+                <BsodProvider>
+                  <AssistantToolsProvider>
+                    <System32BsodProvider>
+                      <RunAgentProvider>
+                        {children ?? <Desktop />}
+                      </RunAgentProvider>
+                    </System32BsodProvider>
+                  </AssistantToolsProvider>
+                </BsodProvider>
               </WindowManagerProvider>
             </DisplayEffectsProvider>
           </DisplayViewportProvider>

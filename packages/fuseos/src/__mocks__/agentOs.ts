@@ -260,6 +260,10 @@ export function createFakeAgentOs(
         log.push("music play");
         winamp.playing = true;
       },
+      playFiles: (files) => {
+        log.push(`music files ${files.length}`);
+        winamp.playing = files.length > 0;
+      },
       pause: () => {
         log.push("music pause");
         winamp.playing = false;

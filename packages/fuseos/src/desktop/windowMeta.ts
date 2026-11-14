@@ -5,7 +5,9 @@ import {
   LAUNCHER_TITLE,
   LAUNCHER_WINDOW_SIZE,
 } from "../launcher/launcherFacts";
+import { NAPSTER_TITLE } from "../napster/napsterFacts";
 import { GAMES } from "../retro/games";
+import { DOS_GAMES_TITLE } from "../retro/RetroFolderWindow";
 import type { WindowState } from "../state/appState";
 import type { IconRef } from "../ui/icons";
 import type { Size } from "../windows/windowManager";
@@ -19,6 +21,9 @@ export type WindowMeta = {
 
 /** Room for the 640x400 canvas next to the toolbox, above the palette and status bar. */
 export const PAINT_WINDOW_SIZE: Size = { width: 780, height: 580 };
+
+/** A message box: an icon, a few lines of text and OK, rather than the default app-sized window. */
+export const MESSAGE_BOX_SIZE: Size = { width: 440, height: 190 };
 
 /** Room for the monitor preview, the picker buttons and Apply/OK/Cancel. */
 export const WALLPAPER_WINDOW_SIZE: Size = { width: 320, height: 400 };
@@ -61,6 +66,21 @@ export const NETWORK_WINDOW_SIZE: Size = { width: 640, height: 420 };
 /** A tall narrow buddy list, as ICQ and MSN Messenger were laid out. */
 export const FRIENDS_WINDOW_SIZE: Size = { width: 320, height: 540 };
 
+/** Room for the game picker, a dozen rows of the list and the status bar. */
+export const HALL_OF_FAME_WINDOW_SIZE: Size = { width: 560, height: 420 };
+
+/** Room for the task list with its buttons, or three frame-rate graphs over the heap graph. */
+export const TASK_MANAGER_WINDOW_SIZE: Size = { width: 440, height: 600 };
+
+/** Room for the banner, the tab bar, the Search form above a dozen result rows, and the status bar. */
+export const NAPSTER_WINDOW_SIZE: Size = { width: 780, height: 610 };
+
+/** Room for the toolbar, the switchbar and a channel window with its nicklist. */
+export const MIRC_WINDOW_SIZE: Size = { width: 760, height: 540 };
+
+/** Room for the MDI area with a hub's chat and user list, the window tabs, the Transfers pane and status bar. */
+export const DCPP_WINDOW_SIZE: Size = { width: 900, height: 620 };
+
 export const OS_NAME = "FuseOS";
 
 /** Title bar text and icon for each window kind. */
@@ -101,8 +121,8 @@ export function windowMeta(
       };
     case "retroFolder":
       return {
-        title: "Retro Games",
-        icon: "gamesFolder",
+        title: DOS_GAMES_TITLE,
+        icon: "folder",
         resizable: true,
         size: RETRO_FOLDER_WINDOW_SIZE,
       };
@@ -123,7 +143,12 @@ export function windowMeta(
         size: ABOUT_WINDOW_SIZE,
       };
     case "dialog":
-      return { title: window.title, icon: window.icon, resizable: false };
+      return {
+        title: window.title,
+        icon: window.icon,
+        resizable: false,
+        size: MESSAGE_BOX_SIZE,
+      };
     case "paint":
       return {
         title: `${window.fileName ?? "untitled"} - Paint`,
@@ -157,12 +182,26 @@ export function windowMeta(
     }
     case "defrag":
       return { ...defragWindowMeta(window), icon: "defrag", resizable: false };
+    case "mirc":
+      return {
+        title: window.caption ?? "mIRC",
+        icon: "mirc",
+        resizable: true,
+        size: MIRC_WINDOW_SIZE,
+      };
     case "launcher":
       return {
         title: LAUNCHER_TITLE,
         icon: "fusteam",
         resizable: true,
         size: LAUNCHER_WINDOW_SIZE,
+      };
+    case "napster":
+      return {
+        title: NAPSTER_TITLE,
+        icon: "napster",
+        resizable: true,
+        size: NAPSTER_WINDOW_SIZE,
       };
     case "recyclebin":
       return {
@@ -201,6 +240,27 @@ export function windowMeta(
         icon: "messenger",
         resizable: true,
         size: FRIENDS_WINDOW_SIZE,
+      };
+    case "halloffame":
+      return {
+        title: "Hall of Fame",
+        icon: "trophy",
+        resizable: true,
+        size: HALL_OF_FAME_WINDOW_SIZE,
+      };
+    case "taskmanager":
+      return {
+        title: `${OS_NAME} Task Manager`,
+        icon: "taskmanager",
+        resizable: true,
+        size: TASK_MANAGER_WINDOW_SIZE,
+      };
+    case "dcpp":
+      return {
+        title: "DC++ 0.401",
+        icon: "dcpp",
+        resizable: true,
+        size: DCPP_WINDOW_SIZE,
       };
   }
 }

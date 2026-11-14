@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect, useRef } from "react";
 
 import { AboutDialog } from "../about/AboutDialog";
+import { DcppWindow } from "../dcpp/DcppWindow";
 import { DefragRunner } from "../defrag/DefragRunner";
 import { DefragWindow } from "../defrag/DefragWindow";
 import { ControlPanelWindow } from "../controlpanel/ControlPanelWindow";
@@ -15,10 +16,13 @@ import {
 } from "../fusegames/FuseGameWindow";
 import { FuseGamesContext } from "../fusegames/registry";
 import { LauncherWindow } from "../launcher/LauncherWindow";
+import { MircWindow } from "../mirc/MircWindow";
+import { NapsterWindow } from "../napster/NapsterWindow";
 import { NotepadPlusPlusWindow } from "../notepadpp/NotepadPlusPlusWindow";
 import { MediaPlayerWindow } from "../mediaplayer/MediaPlayerWindow";
 import { NetworkWindow } from "../network/NetworkWindow";
 import { RoomGameWindow } from "../network/RoomGameWindow";
+import { HallOfFameWindow } from "../halloffame/HallOfFameWindow";
 import { PaintWindow } from "../paint/PaintWindow";
 import { RecycleBinWindow } from "../recyclebin/RecycleBinWindow";
 import { GameWindow } from "../retro/GameWindow";
@@ -26,6 +30,7 @@ import { RetroFolderWindow } from "../retro/RetroFolderWindow";
 import { RunWindow } from "../run/RunWindow";
 import { DialUpWindow } from "../sounds/dialup/DialUpWindow";
 import type { WindowState } from "../state/appState";
+import { TaskManagerWindow } from "../taskmanager/TaskManagerWindow";
 import { WinampPlayer } from "../winamp/WinampPlayer";
 import { MessageBox } from "../windows/MessageBox";
 import { useWindowCommands } from "../windows/useWindowCommands";
@@ -110,6 +115,8 @@ function WindowContent({
       );
     case "launcher":
       return <LauncherWindow windowId={window.id} active={active} />;
+    case "napster":
+      return <NapsterWindow windowId={window.id} />;
     case "run":
       return <RunWindow windowId={window.id} />;
     case "recyclebin":
@@ -129,6 +136,14 @@ function WindowContent({
       return <FriendsWindow windowId={window.id} />;
     case "defrag":
       return <DefragWindow windowId={window.id} />;
+    case "halloffame":
+      return <HallOfFameWindow windowId={window.id} gameId={window.gameId} />;
+    case "taskmanager":
+      return <TaskManagerWindow windowId={window.id} />;
+    case "mirc":
+      return <MircWindow windowId={window.id} />;
+    case "dcpp":
+      return <DcppWindow windowId={window.id} />;
   }
 }
 

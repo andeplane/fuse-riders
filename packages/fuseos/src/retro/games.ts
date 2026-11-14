@@ -127,6 +127,16 @@ export const GAMES: Record<GameId, GameInfo> = {
 
 export const GAME_LIST: GameInfo[] = GAME_IDS.map((id) => GAMES[id]);
 
+/** The DOS programs (js-dos): what the DOS Games folder on the desktop is named for. */
+export const DOS_GAMES: GameInfo[] = GAME_LIST.filter(
+  (game) => game.runtime === "jsdos",
+);
+
+/** The rest, the games Windows itself came with or ran: a group of their own at the bottom of the folder. */
+export const WINDOWS_GAMES: GameInfo[] = GAME_LIST.filter(
+  (game) => game.runtime !== "jsdos",
+);
+
 /** Page to show in the game window, relative to the app root. Native games have none. */
 export function gamePage(game: GameInfo): string | undefined {
   switch (game.runtime) {

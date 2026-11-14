@@ -111,3 +111,11 @@ main, equalizer and playlist windows docked in one 275x464 column, the playlist
 four rows taller than Webamp's default so eight tracks show at once, with
 hotkeys and double-size mode off, so the player never grabs the desktop's
 keyboard.
+
+## Where it opens
+
+Winamp opens on every boot (queued, not playing) under the Fusteam launcher, in the desktop's top right corner
+rather than its centre, where the launcher is. Webamp centres its windows in the node it renders into and has
+no option for a position, so `renderWebampInCorner` (`webampLayout.ts`) hands it a box whose centre is where
+the stack should be for the one measurement `renderInto` makes, and the mount is the desktop's size again
+before anything is drawn. A desktop too small for the stack and its margins keeps Webamp's centring.

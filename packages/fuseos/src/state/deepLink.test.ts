@@ -37,6 +37,7 @@ describe(deepLinkContents.name, () => {
           "fusteam",
           "mycomputer",
           "explorer",
+          "napster",
           "nope",
         ],
         games,
@@ -51,6 +52,17 @@ describe(deepLinkContents.name, () => {
       { kind: "launcher" },
       { kind: "explorer", location: "" },
       { kind: "explorer", location: "" },
+      { kind: "napster" },
+    ]);
+  });
+
+  it("opens the Hall of Fame, the Task Manager and the DOS Games folder by name", () => {
+    expect(
+      deepLinkContents(["halloffame", "taskmanager", "dosgames"], games),
+    ).toEqual([
+      { kind: "halloffame" },
+      { kind: "taskmanager" },
+      { kind: "retroFolder" },
     ]);
   });
 

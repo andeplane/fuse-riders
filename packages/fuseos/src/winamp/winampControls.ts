@@ -1,4 +1,4 @@
-import type { WebampPlayer } from "./webampPlayer";
+import type { WebampPlayer, WebampTrack } from "./webampPlayer";
 
 /** What Winamp is doing right now: how many tracks are queued, their display names in playlist order, the loaded one's name and whether it is playing. */
 export type WinampStatus = {
@@ -24,6 +24,8 @@ export interface WinampControls {
   previous(): void;
   /** Sets the volume, 0 to 100; absent when the player has no volume control. */
   setVolume?(percent: number): void;
+  /** Appends files to the playlist under their own names and plays the first of them (Napster's downloads). */
+  playFiles(files: readonly { track: WebampTrack; name: string }[]): void;
 }
 
 /**
@@ -64,6 +66,14 @@ export function createWinampControls(
     ...(player.setVolume
       ? { setVolume: (percent: number) => player.setVolume?.(percent) }
       : {}),
+    playFiles: (files) => {
+      if (files.length === 0) return;
+      const first = player.getPlaylistTracks().length;
+      files.forEach(({ track, name }) => trackNames.set(track.url, name));
+      player.appendTracks(files.map(({ track }) => track));
+      player.setCurrentTrack(first);
+      player.play();
+    },
   };
   return { controls, dispose: unsubscribe };
 }

@@ -12,7 +12,7 @@ import {
 import { Desktop } from "./Desktop";
 
 describe(Desktop.name, () => {
-  it("boots to a desktop with Fusteam, My Computer, one icon per Fuse game, then Paint, Winamp and Control Panel, a taskbar and the clock", () => {
+  it("boots to a desktop in Windows 98's order: My Computer, Network Neighborhood, the DOS Games folder, Fusteam, one icon per Fuse game, then the programs and Control Panel, with a taskbar and the clock", () => {
     renderWithProviders(<Desktop />);
     const icons = within(screen.getByRole("list", { name: "Desktop icons" }));
     expect(
@@ -20,15 +20,19 @@ describe(Desktop.name, () => {
         .getAllByRole("button")
         .map((item) => item.lastElementChild?.textContent),
     ).toEqual([
-      "Fusteam",
       "My Computer",
+      "Network Neighborhood",
+      "DOS Games",
+      "Fusteam",
       "Fuseball",
       "Fuse Riders",
       "Fuse Birds",
       "Paint",
       "Winamp",
+      "mIRC",
+      "Napster",
+      "DC++",
       "Control Panel",
-      "Network Neighborhood",
     ]);
     expect(screen.getByRole("toolbar", { name: "Taskbar" })).toHaveTextContent(
       /2:34 PM/,
@@ -36,6 +40,21 @@ describe(Desktop.name, () => {
     expect(
       screen.getByRole("complementary", { name: "Office Assistant" }),
     ).toBeInTheDocument();
+  });
+
+  it("opens the DOS Games folder from its yellow folder icon, once", async () => {
+    const user = userEvent.setup();
+    const { store } = renderWithProviders(<Desktop />);
+    const icon = screen.getByRole("button", { name: "DOS Games" });
+    expect(icon.querySelector("svg[data-icon='folder']")).not.toBeNull();
+    await user.dblClick(icon);
+    await user.dblClick(icon);
+    expect(screen.getAllByRole("dialog", { name: "DOS Games" })).toHaveLength(
+      1,
+    );
+    expect(store.load().windows).toEqual([
+      expect.objectContaining({ kind: "retroFolder" }),
+    ]);
   });
 
   it("draws a game's bitmap icon at 32px, the accent tile with the mark for a game without one, and app icons from the icon set", () => {
@@ -197,7 +216,7 @@ describe(Desktop.name, () => {
     expect(launcher).toHaveAttribute("data-active", "true");
   });
 
-  it("boots with Fusteam focused when the store is wrapped for boot, under the deep link's windows", () => {
+  it("boots with Winamp open and Fusteam focused above it when the store is wrapped for boot, under the deep link's windows", () => {
     renderWithProviders(<Desktop />, {
       store: withLauncherOnBoot(
         new MemoryStateStore({
@@ -230,9 +249,15 @@ describe(Desktop.name, () => {
     expect(
       taskbar
         .getAllByRole("button")
-        .slice(0, 4)
+        .slice(0, 5)
         .map((button) => button.textContent),
-    ).toEqual(["Start", "untitled - Paint", "Fusteam", "About FuseOS"]);
+    ).toEqual([
+      "Start",
+      "untitled - Paint",
+      "Winamp",
+      "Fusteam",
+      "About FuseOS",
+    ]);
   });
 
   it("opens the deep link's windows on top of the stored ones", () => {

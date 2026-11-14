@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, screen } from "@testing-library/react";
 
 import { createWrapper } from "../__mocks__/renderWithProviders";
 import { useAgentTools } from "../agenttools/useAgentTools";
@@ -72,9 +72,13 @@ describe("RunAgentProvider", () => {
       ok: true,
       message: "Raised the Blue Screen of Death",
     });
+    // The desktop's own blue screen (`src/bsod`), not the SYSTEM32 gag's: nothing folds.
+    expect(
+      screen.getByRole("alertdialog", { name: "Windows fatal exception" }),
+    ).toBeInTheDocument();
     expect(document.querySelector("[data-system32]")).toHaveAttribute(
       "data-system32",
-      "crashed",
+      "idle",
     );
   });
 });

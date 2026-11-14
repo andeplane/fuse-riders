@@ -59,6 +59,9 @@ export const RUN_ALIASES: Readonly<Record<string, string>> = {
   duke: "duke3d",
   rasphone: "dialup",
   "dial-up": "dialup",
+  irc: "mirc",
+  "dc++": "dcpp",
+  dcplusplus: "dcpp",
 };
 
 export const RUN_NOT_FOUND_TITLE = "Run";
@@ -135,6 +138,9 @@ const RUN_SUGGESTED_APPS = [
   "network",
   "halloffame",
   "taskmanager",
+  "mirc",
+  "napster",
+  "dcpp",
   "recyclebin",
   "control",
   "bsod",

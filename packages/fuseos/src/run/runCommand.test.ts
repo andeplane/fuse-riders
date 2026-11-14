@@ -81,6 +81,21 @@ describe(resolveRunCommand.name, () => {
     }
   });
 
+  it("runs mIRC, Napster and DC++ by name", () => {
+    expect(resolveRunCommand("mirc.exe", games)).toEqual({
+      type: "open",
+      content: { kind: "mirc" },
+    });
+    expect(resolveRunCommand("Napster", games)).toEqual({
+      type: "open",
+      content: { kind: "napster" },
+    });
+    expect(resolveRunCommand("DC++", games)).toEqual({
+      type: "open",
+      content: { kind: "dcpp" },
+    });
+  });
+
   it("raises the blue screen for bsod", () => {
     expect(resolveRunCommand("BSOD", games)).toEqual({ type: "bsod" });
     expect(resolveRunCommand("bsod.exe", games)).toEqual({ type: "bsod" });

@@ -4,6 +4,7 @@ import { MY_COMPUTER } from "../disk/diskPath";
 import { LAUNCHER_TITLE } from "../launcher/launcherFacts";
 import { openLauncher } from "../launcher/useOpenLauncher";
 import { openNetworkNeighborhood } from "../network/openNetworkNeighborhood";
+import { TASK_MANAGER_REGISTRATION } from "../taskmanager/taskManagerRegistration";
 import type { IconName } from "../ui/icons";
 import type { WindowCommands } from "../windows/useWindowCommands";
 import type { Size } from "../windows/windowManager";
@@ -117,9 +118,33 @@ export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
     open: openLauncher,
   },
   {
+    slot: "programs",
+    id: "napster",
+    label: "Napster",
+    icon: "napster",
+    order: 20,
+    open: (commands) => commands.open({ kind: "napster" }),
+  },
+  {
+    slot: "programs",
+    id: "mirc",
+    label: "mIRC",
+    icon: "mirc",
+    order: 20,
+    open: (commands) => commands.open({ kind: "mirc" }),
+  },
+  {
+    slot: "programs",
+    id: "dcpp",
+    label: "DC++",
+    icon: "dcpp",
+    order: 20,
+    open: (commands) => commands.open({ kind: "dcpp" }),
+  },
+  {
     slot: "retro-games",
     id: "retro-folder",
-    label: "Open Retro Games folder",
+    label: "Open DOS Games folder",
     icon: "folderOpen",
     open: (commands) => commands.open({ kind: "retroFolder" }),
     separatorAfter: true,
@@ -169,10 +194,23 @@ export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
     open: (commands) =>
       commands.open({ kind: "friends" }, { id: FRIENDS_WINDOW_ID }),
   },
+  {
+    slot: "programs",
+    id: "halloffame",
+    label: "Hall of Fame",
+    icon: "trophy",
+    order: 10,
+    // One Hall of Fame at a time: choosing it again brings the open window to the front.
+    open: (commands) =>
+      commands.open({ kind: "halloffame" }, { id: HALL_OF_FAME_WINDOW_ID }),
+  },
+  TASK_MANAGER_REGISTRATION,
 ];
 
 /** The buddy list's window id; never one `nextWindowId` hands out (`w<n>`), so it is the same window every time. */
 export const FRIENDS_WINDOW_ID = "friends";
+
+export const HALL_OF_FAME_WINDOW_ID = "halloffame";
 
 /** The registrations in force; tests hand in their own list. */
 export const StartMenuRegistryContext = createContext<

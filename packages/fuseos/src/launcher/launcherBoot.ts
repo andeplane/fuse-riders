@@ -22,15 +22,29 @@ export function withLauncherOnTop(state: AppState, viewport: Size): AppState {
 }
 
 /**
- * Wraps the desktop's store so every boot loads with the launcher focused (`?open=` windows are opened on top of
- * what this returns). Saves pass straight through.
+ * The state as the desktop boots it: Winamp open (frameless, its playlist loaded, nothing playing until someone
+ * presses play) with the launcher on top of it and focused. Both are single-instance programs, so a Winamp or a
+ * launcher the stored desktop already holds is brought up rather than doubled, and a `?open=winamp` on top of
+ * this only focuses it. A display the launcher fills (a phone) boots without Winamp: it would sit unseen behind
+ * the launcher and cost the player's download for nothing.
+ */
+export function withBootWindows(state: AppState, viewport: Size): AppState {
+  const withWinamp = shouldMaximizeLauncher(viewport)
+    ? state
+    : appStateReducer(state, { type: "open", content: { kind: "winamp" } });
+  return withLauncherOnTop(withWinamp, viewport);
+}
+
+/**
+ * Wraps the desktop's store so every boot loads with Winamp open and the launcher focused above it (`?open=`
+ * windows are opened on top of what this returns). Saves pass straight through.
  */
 export function withLauncherOnBoot(
   store: StateStore,
   viewport: () => Size,
 ): StateStore {
   return {
-    load: () => withLauncherOnTop(store.load(), viewport()),
+    load: () => withBootWindows(store.load(), viewport()),
     save: (state) => store.save(state),
   };
 }
