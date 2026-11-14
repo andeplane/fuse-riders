@@ -1,0 +1,813 @@
+/*
+ * Windows Explorer as Windows 98 drew it, measured from a 640x480 screenshot of "Exploring - My
+ * Computer": a rebar of three bands (menu, buttons, address), an "All Folders" pane with a 16px-row
+ * tree, a sunken listing and a three-panel status bar. Sizes are in px on purpose: the bevels and
+ * row heights are the look. This file is unlayered, so it wins over 98.css (layer base) and the
+ * desktop's own component layer without !important.
+ */
+
+.explorer {
+  /* Display Properties > Appearance writes the --w95-* properties; the fallbacks are Windows Standard. */
+  --explorer-face: var(--w95-surface, #c0c0c0);
+  --explorer-text: var(--w95-surface-text, #000);
+  --explorer-shadow: var(--w95-shadow, #808080);
+  --explorer-dark: var(--w95-dark-shadow, #000);
+  --explorer-light: var(--w95-light-shadow, #dfdfdf);
+  --explorer-hilight: var(--w95-light, #fff);
+  --explorer-select: var(--w95-highlight, #000080);
+  --explorer-select-text: var(--w95-highlight-text, #fff);
+  --explorer-field: var(--w95-field, #fff);
+  --explorer-field-text: var(--w95-field-text, #000);
+  position: relative;
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  color: var(--explorer-text);
+  cursor: default;
+}
+
+.explorer button {
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  color: var(--explorer-text);
+}
+
+/* ---- Rebar ------------------------------------------------------------------------------- */
+
+/* Bevels are inset shadows, not borders: a border's corners are mitred, Windows' are not. */
+.explorer-rebar {
+  flex-shrink: 0;
+  margin-top: 1px;
+  padding: 1px;
+  box-shadow:
+    inset -1px 0 var(--explorer-hilight),
+    inset 0 -1px var(--explorer-hilight),
+    inset 1px 0 var(--explorer-shadow),
+    inset 0 1px var(--explorer-shadow);
+}
+
+.explorer-band {
+  display: flex;
+  align-items: stretch;
+  padding: 1px;
+  box-shadow:
+    inset 1px 0 var(--explorer-hilight),
+    inset -1px 0 var(--explorer-shadow),
+    inset 0 1px var(--explorer-hilight),
+    inset 0 -1px var(--explorer-shadow);
+}
+
+.explorer-band-menu,
+.explorer-band-address {
+  height: 24px;
+}
+
+.explorer-band-toolbar {
+  height: 42px;
+}
+
+.explorer-gripper {
+  flex: none;
+  width: 3px;
+  margin: 2px 5px 2px 2px;
+  box-shadow:
+    inset -1px -1px var(--explorer-shadow),
+    inset 1px 1px var(--explorer-hilight);
+}
+
+/* The shared MenuBar, tightened to the band: 22px tall, 7px either side of each word. */
+.explorer-band-menu [role="menubar"] {
+  flex: 1;
+  align-items: center;
+}
+
+.explorer-band-menu [role="menubar"] > div > button {
+  height: 18px;
+  padding: 0 8px;
+  line-height: 18px;
+}
+
+.explorer-band-menu [role="menubar"] u {
+  text-underline-offset: 1px;
+}
+
+.explorer-throbber {
+  display: flex;
+  flex: none;
+  width: 38px;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  box-shadow:
+    -1px 0 var(--explorer-hilight),
+    -2px 0 var(--explorer-shadow);
+}
+
+.explorer-throbber svg {
+  transform: skewY(-8deg);
+}
+
+.explorer-throbber.busy svg {
+  animation: explorer-throb 0.6s steps(4) infinite;
+}
+
+@keyframes explorer-throb {
+  0% {
+    transform: skewY(-8deg) translateX(-2px);
+  }
+  50% {
+    transform: skewY(8deg) translateX(2px);
+  }
+  100% {
+    transform: skewY(-8deg) translateX(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .explorer-throbber.busy svg {
+    animation: none;
+  }
+}
+
+/* ---- Standard Buttons ---------------------------------------------------------------------- */
+
+.explorer-toolbar {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  overflow: hidden;
+}
+
+.explorer-toolbar-group,
+.explorer-toolbar-item {
+  display: flex;
+  flex: none;
+  align-items: stretch;
+}
+
+.explorer-toolbar-separator {
+  width: 2px;
+  height: 36px;
+  margin: 0 3px;
+  border-left: 1px solid var(--explorer-shadow);
+  border-right: 1px solid var(--explorer-hilight);
+}
+
+.explorer button.explorer-toolbar-button {
+  display: flex;
+  width: 54px;
+  height: 36px;
+  flex-direction: column;
+  align-items: center;
+  padding: 2px 0 0;
+  background: transparent;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+.explorer-toolbar-label {
+  margin-top: 1px;
+  line-height: 13px;
+  white-space: nowrap;
+}
+
+/* Cool until the pointer arrives: grey pictures that take their colour on hover. */
+.explorer-pixel-icon {
+  display: block;
+  flex: none;
+  filter: grayscale(1);
+}
+
+.explorer-toolbar-item:hover .explorer-pixel-icon,
+.explorer-toolbar-button:focus-visible .explorer-pixel-icon {
+  filter: none;
+}
+
+.explorer button.explorer-toolbar-button:hover:not(:disabled),
+.explorer button.explorer-toolbar-button:focus-visible,
+.explorer-toolbar-item:hover > button.explorer-toolbar-arrow:not(:disabled),
+.explorer button.explorer-toolbar-arrow:focus-visible {
+  box-shadow:
+    inset 1px 1px var(--explorer-hilight),
+    inset -1px -1px var(--explorer-shadow);
+  outline: none;
+}
+
+.explorer button.explorer-toolbar-button:active:not(:disabled),
+.explorer button.explorer-toolbar-arrow:active:not(:disabled),
+.explorer button.explorer-toolbar-arrow[aria-expanded="true"] {
+  box-shadow:
+    inset 1px 1px var(--explorer-shadow),
+    inset -1px -1px var(--explorer-hilight);
+}
+
+.explorer button.explorer-toolbar-button:active:not(:disabled) > * {
+  transform: translate(1px, 1px);
+}
+
+.explorer button.explorer-toolbar-button:disabled {
+  color: var(--explorer-shadow);
+  text-shadow: 1px 1px var(--explorer-hilight);
+}
+
+.explorer button.explorer-toolbar-arrow {
+  position: relative;
+  width: 13px;
+  height: 36px;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* The 5x3 triangle, two pixels in from the left and seventeen down. */
+.explorer-toolbar-arrow::after,
+.explorer-address-drop::after {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-color: #000 transparent transparent;
+  content: "";
+}
+
+.explorer-toolbar-arrow::after {
+  top: 17px;
+  left: 3px;
+  border-width: 3px 2.5px 0;
+}
+
+.explorer-toolbar-arrow:disabled::after {
+  border-top-color: var(--explorer-shadow);
+  filter: drop-shadow(1px 1px 0 var(--explorer-hilight));
+}
+
+/* ---- Address ------------------------------------------------------------------------------- */
+
+.explorer-address {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: stretch;
+}
+
+.explorer label.explorer-address-label {
+  flex: none;
+  margin-right: 3px;
+  margin-left: -1px;
+  line-height: 24px;
+}
+
+.explorer-address-combo {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  margin-right: 4px;
+  padding: 2px 2px 2px 4px;
+  background: var(--explorer-field);
+  color: var(--explorer-field-text);
+  box-shadow:
+    inset -1px -1px var(--explorer-hilight),
+    inset 1px 1px var(--explorer-shadow),
+    inset -2px -2px var(--explorer-light),
+    inset 2px 2px var(--explorer-dark);
+}
+
+.explorer-address-combo svg,
+.explorer-address-combo img {
+  flex: none;
+}
+
+.explorer .explorer-address-combo input {
+  min-width: 0;
+  height: 18px;
+  flex: 1;
+  margin: 0;
+  padding: 1px 2px 0 4px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  line-height: 17px;
+  outline: none;
+}
+
+.explorer button.explorer-address-drop {
+  position: relative;
+  width: 16px;
+  height: 18px;
+  flex: none;
+  padding: 0;
+  background: var(--explorer-face);
+}
+
+.win98 .explorer button.explorer-address-drop:not(.flat):active,
+.win98 .explorer button.explorer-address-drop:not(.flat)[aria-expanded="true"] {
+  box-shadow: inset 0 0 0 1px var(--explorer-shadow);
+}
+
+.explorer-address-drop::after {
+  top: 7px;
+  left: 4px;
+  border-width: 4px 3.5px 0;
+}
+
+/* ---- Panes --------------------------------------------------------------------------------- */
+
+.explorer-panes {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  margin-top: 3px;
+}
+
+.explorer-folders {
+  display: flex;
+  min-width: 0;
+  flex: none;
+  flex-direction: column;
+  /* An etched frame: grey then white on every side, the white ring winning the outer corners. */
+  padding: 2px;
+  box-shadow:
+    inset -1px 0 var(--explorer-hilight),
+    inset 0 -1px var(--explorer-hilight),
+    inset 1px 0 var(--explorer-shadow),
+    inset 0 1px var(--explorer-shadow),
+    inset -2px 0 var(--explorer-shadow),
+    inset 0 -2px var(--explorer-shadow),
+    inset 2px 0 var(--explorer-hilight),
+    inset 0 2px var(--explorer-hilight);
+}
+
+.explorer-folders-header {
+  display: flex;
+  height: 18px;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 8px 0 11px;
+  border-bottom: 1px solid var(--explorer-shadow);
+  box-sizing: content-box;
+  white-space: nowrap;
+}
+
+.explorer .explorer-folders-header button {
+  display: flex;
+  width: 16px;
+  height: 14px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.explorer .explorer-folders-header button:hover {
+  box-shadow:
+    inset 1px 1px var(--explorer-hilight),
+    inset -1px -1px var(--explorer-shadow);
+}
+
+.explorer-tree {
+  min-height: 0;
+  flex: 1;
+  margin: 0;
+  padding: 1px 0 0;
+  overflow: auto;
+  background: var(--explorer-field);
+  color: var(--explorer-field-text);
+}
+
+.explorer-tree ul {
+  margin: 0;
+  padding: 0;
+}
+
+.explorer-tree-row {
+  display: flex;
+  width: max-content;
+  height: 16px;
+  align-items: stretch;
+  padding-left: 1px;
+}
+
+/* One level of indent: 19px, with the dotted line of an ancestor that still has folders below. */
+.explorer-tree-guide,
+.explorer-tree-branch {
+  position: relative;
+  width: 19px;
+  flex: none;
+}
+
+.explorer-tree-guide.line,
+.explorer-tree-branch {
+  background-image: linear-gradient(
+    to bottom,
+    var(--explorer-shadow) 50%,
+    transparent 50%
+  );
+  background-position: 7px 0;
+  background-repeat: repeat-y;
+  background-size: 1px 2px;
+}
+
+/* The elbow: the line stops at the row's middle on the last folder, and starts there on the first under the Desktop. */
+.explorer-tree-branch.last {
+  background-repeat: no-repeat;
+  background-size: 1px 8px;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    var(--explorer-shadow) 0 1px,
+    transparent 1px 2px
+  );
+}
+
+.explorer-tree-branch.first {
+  background-position: 7px 8px;
+}
+
+.explorer-tree-branch.first.last {
+  background-image: none;
+}
+
+.explorer-tree-branch::before {
+  position: absolute;
+  top: 8px;
+  left: 7px;
+  width: 11px;
+  height: 1px;
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--explorer-shadow) 0 1px,
+    transparent 1px 2px
+  );
+  content: "";
+}
+
+/* The 9x9 box with a plus or a minus in it. */
+.explorer button.explorer-tree-toggle {
+  position: absolute;
+  top: 4px;
+  left: 3px;
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border: 1px solid var(--explorer-shadow);
+  background:
+    linear-gradient(#000, #000) center / 5px 1px no-repeat,
+    #fff;
+  box-shadow: none;
+  color: #000;
+}
+
+.explorer button.explorer-tree-toggle[data-expanded="false"] {
+  background:
+    linear-gradient(#000, #000) center / 5px 1px no-repeat,
+    linear-gradient(#000, #000) center / 1px 5px no-repeat,
+    #fff;
+}
+
+.explorer-tree-item {
+  display: flex;
+  align-items: center;
+  margin-left: 1px;
+  color: inherit;
+  cursor: default;
+  outline: none;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.explorer-tree-label {
+  height: 16px;
+  margin-left: 1px;
+  padding: 0 2px 0 3px;
+  line-height: 16px;
+}
+
+.explorer-tree-item[aria-current="page"] .explorer-tree-label,
+.explorer-icon-item[aria-selected="true"] .explorer-item-label,
+.explorer-details tr[aria-selected="true"] .explorer-item-label {
+  background: var(--explorer-select);
+  color: var(--explorer-select-text);
+  outline: 1px dotted #ffff7f;
+  outline-offset: -1px;
+}
+
+.explorer-tree-item:focus-visible .explorer-tree-label {
+  outline: 1px dotted #000;
+  outline-offset: -1px;
+}
+
+.explorer-tree-item[aria-current="page"]:focus-visible .explorer-tree-label {
+  outline-color: #ffff7f;
+}
+
+.explorer-splitter {
+  width: 4px;
+  flex: none;
+  cursor: col-resize;
+  user-select: none;
+}
+
+.explorer-contents {
+  min-width: 0;
+  flex: 1;
+  padding: 2px;
+  overflow: auto;
+  background: var(--explorer-field);
+  color: var(--explorer-field-text);
+  box-shadow:
+    inset -1px -1px var(--explorer-hilight),
+    inset 1px 1px var(--explorer-shadow),
+    inset -2px -2px var(--explorer-light),
+    inset 2px 2px var(--explorer-dark);
+  outline: none;
+}
+
+.explorer-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+}
+
+.explorer-notice-empty {
+  color: var(--explorer-shadow);
+}
+
+.explorer .explorer-notice button {
+  min-width: 75px;
+  min-height: 23px;
+}
+
+.explorer-modified-mark {
+  margin-left: 1px;
+  color: var(--explorer-select);
+  font-weight: 700;
+}
+
+[aria-selected="true"] .explorer-modified-mark,
+[aria-current="page"] .explorer-modified-mark {
+  color: inherit;
+}
+
+/* ---- Icon views ---------------------------------------------------------------------------- */
+
+.explorer-icons {
+  margin: 0;
+  padding: 0;
+}
+
+.explorer-icon-item {
+  display: flex;
+  cursor: default;
+}
+
+.explorer-item-label {
+  padding: 0 2px 0 1px;
+  white-space: nowrap;
+}
+
+/* List: 16px icons in 17px rows that fill a column, then start the next one. */
+.explorer-icons-list {
+  display: flex;
+  height: 100%;
+  flex-flow: column wrap;
+  align-content: flex-start;
+}
+
+.explorer-icons-list .explorer-icon-item,
+.explorer-icons-small .explorer-icon-item {
+  height: 17px;
+  align-items: flex-start;
+  padding: 0 10px 0 0;
+}
+
+/* The name starts two pixels after the icon, its first letter one pixel into the highlight. */
+.explorer-icons-list .explorer-item-label,
+.explorer-icons-small .explorer-item-label {
+  height: 17px;
+  margin-left: 2px;
+  padding-top: 1px;
+  line-height: 16px;
+}
+
+/* Small Icons: the same rows, filling the pane left to right. */
+.explorer-icons-small {
+  display: grid;
+  align-content: start;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+.explorer-icons-small .explorer-icon-item {
+  min-width: 0;
+}
+
+.explorer-icons-small .explorer-item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Large Icons: 32px icons on a 75px grid, the name centred under each. */
+.explorer-icons-large {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+}
+
+.explorer-icons-large .explorer-icon-item {
+  width: 75px;
+  min-height: 75px;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 2px;
+  text-align: center;
+}
+
+.explorer-icons-large .explorer-item-label {
+  max-width: 73px;
+  margin-top: 4px;
+  padding: 1px 2px;
+  line-height: 13px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+/* ---- Details ------------------------------------------------------------------------------- */
+
+.explorer table.explorer-details {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.explorer-details col.explorer-col-name {
+  width: 168px;
+}
+
+.explorer-details col.explorer-col-size {
+  width: 62px;
+}
+
+.explorer-details col.explorer-col-type {
+  width: 120px;
+}
+
+.explorer-details col.explorer-col-modified {
+  width: 112px;
+}
+
+.explorer-details th {
+  position: sticky;
+  top: -2px;
+  z-index: 1;
+  height: 18px;
+  padding: 0;
+  background: var(--explorer-face);
+  box-shadow:
+    inset -1px -1px var(--explorer-dark),
+    inset 1px 1px var(--explorer-hilight),
+    inset -2px -2px var(--explorer-shadow);
+  font-weight: 400;
+  text-align: left;
+}
+
+.explorer .explorer-details th button {
+  display: flex;
+  width: 100%;
+  height: 18px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  background: transparent;
+  box-shadow: none;
+  line-height: 16px;
+  text-align: left;
+}
+
+.explorer .explorer-details th button:active {
+  box-shadow: inset 0 0 0 1px var(--explorer-shadow);
+}
+
+.explorer .explorer-details th button:active > * {
+  transform: translate(1px, 1px);
+}
+
+.explorer-details th.explorer-col-size button {
+  justify-content: flex-end;
+}
+
+.explorer-sort-arrow {
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-color: transparent transparent var(--explorer-shadow);
+  border-width: 0 3.5px 4px;
+}
+
+.explorer-sort-arrow.desc {
+  border-color: var(--explorer-shadow) transparent transparent;
+  border-width: 4px 3.5px 0;
+}
+
+.explorer-details td {
+  height: 17px;
+  padding: 0 6px;
+  overflow: hidden;
+  line-height: 17px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explorer-details td.explorer-col-name {
+  padding: 0;
+}
+
+.explorer-details td.explorer-col-name > svg,
+.explorer-details td.explorer-col-name > img {
+  vertical-align: top;
+}
+
+.explorer-details td.explorer-col-name .explorer-item-label {
+  display: inline-block;
+  height: 17px;
+  margin-left: 2px;
+  vertical-align: top;
+}
+
+.explorer-details td.explorer-col-size {
+  text-align: right;
+}
+
+/* ---- Status bar ---------------------------------------------------------------------------- */
+
+.explorer-status {
+  display: flex;
+  height: 18px;
+  flex: none;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.explorer-status p {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  margin: 0;
+  padding: 0 3px;
+  overflow: hidden;
+  box-shadow:
+    inset 1px 1px var(--explorer-shadow),
+    inset -1px -1px var(--explorer-hilight);
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.explorer-status-text {
+  flex: 0 0 40.5%;
+}
+
+.explorer-status-size {
+  flex: 0 0 22%;
+}
+
+/* The last panel carries the window's size grip, three diagonal ridges. */
+.explorer-status-zone {
+  position: relative;
+  flex: 1;
+  gap: 4px;
+}
+
+.explorer-status-zone span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.explorer-status-zone::after {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 12px;
+  height: 12px;
+  background: linear-gradient(
+    135deg,
+    transparent 0 4px,
+    var(--explorer-hilight) 4px 5px,
+    var(--explorer-shadow) 5px 7px,
+    transparent 7px 8px,
+    var(--explorer-hilight) 8px 9px,
+    var(--explorer-shadow) 9px 11px,
+    transparent 11px 12px,
+    var(--explorer-hilight) 12px 13px,
+    var(--explorer-shadow) 13px 15px,
+    transparent 15px
+  );
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  content: "";
+}
