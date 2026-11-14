@@ -22,6 +22,7 @@ import { StatusBar } from "./StatusBar";
 import { Toolbar } from "./Toolbar";
 import type { ExplorerViewModel } from "./useExplorerViewModel";
 import { useExplorerViewModel } from "./useExplorerViewModel";
+import { NetworkPasswordDialog } from "./NetworkPasswordDialog";
 import { WinZipDialog } from "./WinZipDialog";
 
 export type ExplorerWindowProps = { windowId: string; location: string };
@@ -291,6 +292,13 @@ export function ExplorerWindow({ windowId, location }: ExplorerWindowProps) {
           position={vm.contextMenu.position}
           items={entryMenuItems(vm)}
           onClose={vm.closeContextMenu}
+        />
+      ) : null}
+      {vm.password ? (
+        <NetworkPasswordDialog
+          prompt={vm.password}
+          onSubmit={vm.submitPassword}
+          onCancel={vm.cancelPassword}
         />
       ) : null}
       {vm.winzip ? (

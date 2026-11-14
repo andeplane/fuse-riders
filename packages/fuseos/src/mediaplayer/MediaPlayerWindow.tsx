@@ -57,9 +57,24 @@ export function MediaPlayerWindow(props: MediaPlayerWindowProps) {
           role="img"
           aria-label={`Video: ${vm.status}`}
         >
-          <span className="font-mono text-sm">
-            {buffering ? vm.status : vm.playback.phase === "playing" ? "▶" : ""}
-          </span>
+          {vm.stream && vm.playback.phase === "playing" ? (
+            <iframe
+              className="h-full w-full border-0"
+              title={vm.stream.title}
+              src={vm.stream.embedUrl}
+              allow="autoplay; encrypted-media; picture-in-picture"
+              referrerPolicy="strict-origin-when-cross-origin"
+              allowFullScreen
+            />
+          ) : (
+            <span className="font-mono text-sm">
+              {buffering
+                ? vm.status
+                : vm.playback.phase === "playing"
+                  ? "▶"
+                  : ""}
+            </span>
+          )}
         </div>
         <div
           className="sunken flex h-3 w-full bg-white"

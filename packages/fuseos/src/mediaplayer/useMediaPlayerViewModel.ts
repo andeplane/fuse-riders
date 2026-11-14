@@ -6,6 +6,8 @@ import { useWindowCommands } from "../windows/useWindowCommands";
 
 import { MediaPlayerDepsContext } from "./mediaPlayerDepsContext";
 import type { PlaybackState } from "./playback";
+import type { MediaStream, MediaStreamId } from "./streams";
+import { MEDIA_STREAMS } from "./streams";
 import {
   advancePlayback,
   BUFFER_TICK_MS,
@@ -16,6 +18,8 @@ import {
 
 export type MediaPlayerViewModel = {
   file: string;
+  /** What the screen shows while playing, for a file that really plays. */
+  stream: MediaStream | undefined;
   playback: PlaybackState;
   /** The status bar's left field. */
   status: string;
@@ -34,6 +38,8 @@ export type MediaPlayerOptions = {
   file: string;
   /** The game this "video" really is; buffering completes and launches it. */
   launches?: string;
+  /** A video that really plays (`streams.ts`); buffering completes and the screen shows it. */
+  stream?: MediaStreamId;
 };
 
 /**
@@ -45,6 +51,7 @@ export function useMediaPlayerViewModel({
   windowId,
   file,
   launches,
+  stream,
 }: MediaPlayerOptions): MediaPlayerViewModel {
   const deps = useContext(MediaPlayerDepsContext);
   const games = useContext(FuseGamesContext);
@@ -58,11 +65,15 @@ export function useMediaPlayerViewModel({
     return deps.schedule(
       () =>
         setPlayback((current) =>
-          advancePlayback(current, file, launches !== undefined),
+          advancePlayback(
+            current,
+            file,
+            launches !== undefined || stream !== undefined,
+          ),
         ),
       BUFFER_TICK_MS,
     );
-  }, [playback, deps, file, launches]);
+  }, [playback, deps, file, launches, stream]);
 
   const launchGame = deps.launchGame;
   const openFuseGame = launcher.launch;
@@ -104,6 +115,7 @@ export function useMediaPlayerViewModel({
 
   return {
     file,
+    stream: stream === undefined ? undefined : MEDIA_STREAMS[stream],
     playback,
     status: playbackStatus(playback),
     time: `00:00:00 / ${fakeDuration(file)}`,

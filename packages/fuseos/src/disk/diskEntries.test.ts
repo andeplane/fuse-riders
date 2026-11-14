@@ -12,7 +12,7 @@ import {
   WINDOWS_MODIFIED,
 } from "./diskEntries";
 import { MY_COMPUTER } from "./diskPath";
-import { HOMEWORK_LOCATION } from "./floppy";
+import { HOMEWORK_LOCATION, RICKROLL_LOCATION } from "./floppy";
 import { RepoTree } from "./repoTree";
 
 const manifest = createFixtureManifest();
@@ -93,7 +93,7 @@ describe(listEntries.name, () => {
     expect(listEntries("D:", inputs)).toEqual([]);
   });
 
-  it("lists the floppy: the joke folder and the one archive, then homework.txt inside", () => {
+  it("lists the floppy: the joke folder and the one archive, then the one video inside", () => {
     const floppy = listEntries("A:", inputs);
     expect(floppy.map((entry) => entry.name)).toEqual([
       "porn",
@@ -108,10 +108,12 @@ describe(listEntries.name, () => {
     const inside = listEntries("A:/porn", inputs);
     expect(inside).toHaveLength(1);
     expect(inside[0]).toMatchObject({
-      name: "homework.txt",
-      location: HOMEWORK_LOCATION,
-      fileKind: "text",
-      modified: true,
+      name: "definitely_not_porn.avi",
+      location: RICKROLL_LOCATION,
+      icon: "video",
+      typeLabel: "Video Clip",
+      fileKind: "binary",
+      modified: false,
     });
     expect(listEntries("A:/elsewhere", inputs)).toEqual([]);
   });

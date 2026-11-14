@@ -1,6 +1,14 @@
 import type { KeyboardEvent } from "react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
+import { DesktopUiContext } from "../desktop/desktopUiContext";
 import type { DiskEntry } from "../disk/diskEntries";
 import {
   listEntries,
@@ -8,18 +16,27 @@ import {
   SYSTEM32_LOCATION,
 } from "../disk/diskEntries";
 import {
+  DRIVE_A,
   driveOf,
   formatAddress,
   MY_COMPUTER,
-  nameOf,
   parentOf,
   parseAddress,
 } from "../disk/diskPath";
 import { formatSize } from "../disk/fileTypes";
-import { ACCESS_DENIED_MESSAGE, WINZIP_ERROR_MESSAGE } from "../disk/floppy";
+import {
+  CLIPPY_PORN_HELP,
+  FLOPPY_JOKE_LOCATION,
+  PASSWORD_DIALOG_TITLE,
+  PASSWORD_HINT_AFTER,
+  PASSWORD_INCORRECT_MESSAGE,
+  RICKROLL_TITLE,
+} from "../disk/floppy";
+import { WINZIP_ERROR_MESSAGE } from "../disk/floppy";
 import { useDiskDeps, useDiskManifest, useOverlayPaths } from "../disk/useDisk";
 import { matchShortcut } from "../lib/shortcuts";
 import { useOpenInNotepad } from "../notepadpp/useOpenInNotepad";
+import type { WindowContent } from "../state/appState";
 import { useAppState } from "../state/useAppState";
 import { useSystem32Folder } from "../system32/explorerContract";
 import type { IconName } from "../ui/icons";
@@ -80,6 +97,11 @@ export type ExplorerViewModel = {
   winzip: boolean;
   winzipFailed: () => void;
   winzipCancel: () => void;
+  /** A:\\porn's "Enter Network Password" box, while it is up; null otherwise. */
+  password: PasswordPrompt | null;
+  /** OK in the password box: a wrong one gets the error box (the box stays up), the right one logs on. */
+  submitPassword: (text: string) => "granted" | "denied";
+  cancelPassword: () => void;
   /** File > Revert to original on a modified file. */
   revert: (entry: DiskEntry) => void;
   /** File > Delete: SYSTEM32 starts the gag's questions; everything else on these drives refuses. */
@@ -90,6 +112,24 @@ export type ExplorerViewModel = {
   onKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
   close: () => void;
 };
+
+/** Where the network password box is: asking, then the two beats of a logon that worked. */
+export type PasswordPrompt = { phase: "asking" | "connecting" | "granted" };
+
+/** What A:\\porn's only file opens: the Media Player, playing the real thing. */
+export const RICKROLL_PLAYER: WindowContent = {
+  kind: "mediaplayer",
+  file: RICKROLL_TITLE,
+  stream: "rickroll",
+};
+
+/** A:\\porn itself or anything under it. */
+export function isInJokeFolder(location: string): boolean {
+  return (
+    location === FLOPPY_JOKE_LOCATION ||
+    location.startsWith(`${FLOPPY_JOKE_LOCATION}/`)
+  );
+}
 
 export const ADDRESS_NOT_FOUND_TITLE = "Explorer";
 
@@ -114,6 +154,7 @@ export function useExplorerViewModel(
   const overlayPaths = useOverlayPaths(deps.overlay);
   const openInNotepad = useOpenInNotepad();
   const system32 = useSystem32Folder();
+  const { assistantDispatch } = useContext(DesktopUiContext);
 
   const [history, setHistory] = useState<{ back: string[]; forward: string[] }>(
     { back: [], forward: [] },
@@ -130,6 +171,7 @@ export function useExplorerViewModel(
     ExplorerContextMenu | undefined
   >(undefined);
   const [winzip, setWinzip] = useState(false);
+  const [password, setPassword] = useState<PasswordPrompt | null>(null);
   // The floppy seeks when A: is entered from another drive; a subfolder of A: is already spinning.
   const [seeking, setSeeking] = useState(false);
   const seekToken = useRef(0);
@@ -166,9 +208,26 @@ export function useExplorerViewModel(
     [dispatch, windowId],
   );
 
+  // A:\\porn and anything under it stay behind the password, however they are reached: a double click,
+  // the address bar, Back, the folders tree or a window restored from an earlier visit.
+  const lockedOut = useCallback(
+    (target: string) => isInJokeFolder(target) && !deps.jokeGate.isUnlocked(),
+    [deps.jokeGate],
+  );
+  const restoredInside = lockedOut(location);
+  useEffect(() => {
+    if (!restoredInside) return;
+    setLocation(DRIVE_A);
+    setPassword({ phase: "asking" });
+  }, [restoredInside, setLocation]);
+
   const go = useCallback(
     (next: string, record: boolean) => {
       if (next === location) return;
+      if (lockedOut(next)) {
+        setPassword({ phase: "asking" });
+        return;
+      }
       if (record)
         setHistory((current) => ({
           back: [...current.back, location],
@@ -184,7 +243,7 @@ export function useExplorerViewModel(
         });
       }
     },
-    [location, setLocation, deps],
+    [location, setLocation, deps, lockedOut],
   );
 
   const navigate = useCallback((next: string) => go(next, true), [go]);
@@ -233,12 +292,11 @@ export function useExplorerViewModel(
           navigate(decision.location);
           return;
         case "jokeFolder":
-          if (deps.jokeGate.tryOpen() === "denied")
-            commands.showError(
-              nameOf(decision.location),
-              ACCESS_DENIED_MESSAGE,
-            );
-          else navigate(decision.location);
+          // Behind a network password until someone on this desktop has given it (see `go`).
+          navigate(decision.location);
+          return;
+        case "rickroll":
+          commands.open(RICKROLL_PLAYER);
           return;
         case "winzip":
           setWinzip(true);
@@ -267,7 +325,38 @@ export function useExplorerViewModel(
           return;
       }
     },
-    [navigate, deps.jokeGate, deps.source, commands, openInNotepad],
+    [navigate, deps.source, commands, openInNotepad],
+  );
+
+  const submitPassword = useCallback(
+    (text: string): "granted" | "denied" => {
+      if (deps.jokeGate.tryPassword(text) === "denied") {
+        commands.showError(PASSWORD_DIALOG_TITLE, PASSWORD_INCORRECT_MESSAGE);
+        // Every third wrong guess, the paperclip notices.
+        if (deps.jokeGate.failures() % PASSWORD_HINT_AFTER === 0)
+          assistantDispatch({
+            type: "say",
+            text: CLIPPY_PORN_HELP,
+            mood: "idea",
+          });
+        return "denied";
+      }
+      setPassword({ phase: "connecting" });
+      void deps
+        .logonPause("connecting")
+        .then(() => {
+          setPassword({ phase: "granted" });
+          return deps.logonPause("granted");
+        })
+        .then(() => {
+          setPassword(null);
+          navigate(FLOPPY_JOKE_LOCATION);
+          // The folder's only file plays by itself, as if someone had double-clicked it.
+          commands.open(RICKROLL_PLAYER);
+        });
+      return "granted";
+    },
+    [deps, commands, assistantDispatch, navigate],
   );
 
   const winzipFailed = useCallback(() => {
@@ -419,6 +508,9 @@ export function useExplorerViewModel(
     winzip,
     winzipFailed,
     winzipCancel: () => setWinzip(false),
+    password,
+    submitPassword,
+    cancelPassword: () => setPassword(null),
     revert,
     remove,
     statusText,

@@ -1,4 +1,4 @@
-import type { DiskDeps } from "../disk/diskDepsContext";
+import type { DiskDeps, LogonStep } from "../disk/diskDepsContext";
 import { MemoryDiskOverlay } from "../disk/diskOverlay";
 import type { MemoryDiskSourceOptions } from "../disk/diskSource";
 import { MemoryDiskSource } from "../disk/diskSource";
@@ -48,6 +48,8 @@ export type TestDiskOptions = {
   overlay?: Readonly<Record<string, string>>;
   /** Controls when the floppy seek ends; by default it is over at once. */
   floppySeek?: () => Promise<void>;
+  /** Controls when each network logon beat ends; by default at once. */
+  logonPause?: (step: LogonStep) => Promise<void>;
 };
 
 export type TestDiskDeps = DiskDeps & {
@@ -55,6 +57,8 @@ export type TestDiskDeps = DiskDeps & {
   overlay: MemoryDiskOverlay;
   jokeGate: MemoryFloppyJokeGate;
   seeks: number;
+  /** The logon beats waited for, in order. */
+  logonSteps: LogonStep[];
 };
 
 /** Disk deps over the fixture repository: no network, no IndexedDB, no sound. */
@@ -70,6 +74,11 @@ export function createTestDiskDeps(
     overlay: new MemoryDiskOverlay(options.overlay),
     jokeGate: new MemoryFloppyJokeGate(),
     seeks: 0,
+    logonSteps: [],
+    logonPause: (step) => {
+      deps.logonSteps.push(step);
+      return options.logonPause ? options.logonPause(step) : Promise.resolve();
+    },
     floppySeek: () => {
       deps.seeks += 1;
       return options.floppySeek ? options.floppySeek() : Promise.resolve();

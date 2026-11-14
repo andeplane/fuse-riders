@@ -39,6 +39,16 @@ restart. `remove()` is a no-op while a sequence is running. The provider is moun
 Window titles: `WindowChrome` already shows `useSystem32Title(title)`. The taskbar buttons and
 anything else that prints a window title can call the same hook.
 
+## In the desktop
+
+C: lists a fake `WINDOWS` folder holding `SYSTEM32` (`disk/diskEntries.ts`); Delete on it (context
+menu, File > Delete, the Delete key) asks the first question, and on anything else Explorer refuses
+with "Access is denied". `Shell` mounts `System32BsodProvider`, which ends the fold in the desktop's
+own Blue Screen of Death where the build has one: `desktopBsod.ts` looks for
+`src/bsod/bsodContext.ts` (Phase D1) with an `import.meta.glob`, so a build without it falls back to
+`BlueScreen.tsx` and nothing fails to import. Start > Run... `bsod` uses the same detection, falling
+back to the `crash` event (straight to this blue screen and the restart).
+
 ## Dependencies
 
 `System32DepsContext` (`system32Deps.ts`): a `Scheduler` (`window.setTimeout` in the app,

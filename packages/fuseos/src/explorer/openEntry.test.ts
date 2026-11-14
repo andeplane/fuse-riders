@@ -63,6 +63,9 @@ describe(decideOpen.name, () => {
     expect(decideOpen(file(FLOPPY_ZIP_LOCATION, "binary", 1))).toEqual({
       type: "winzip",
     });
+    expect(
+      decideOpen(file("A:/porn/definitely_not_porn.avi", "binary", 1)),
+    ).toEqual({ type: "rickroll" });
   });
 
   it("opens text in Notepad++ by its editor path, up to the size cap", () => {

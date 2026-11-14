@@ -63,10 +63,17 @@ Audio, no asset) and shows "Reading drive A:..." for 1.4 s. The disk holds exact
   "extracts" a 1997 home directory with a progress bar, then fails at 87%:
   _"slackbacup.zip is corrupt. Disk in drive A: may be a coaster."_ Nothing is extracted; there is
   no archive.
-- a folder named `porn` (the joke is the name; the contents are strictly safe for work). The first
-  attempt anywhere on the desktop answers "A:\porn is not accessible. Access is denied."; the
-  second opens it. It contains only `homework.txt`, which Notepad++ opens to
-  _"Nice try. Go play Fuseball."_
+- a folder named `porn` (the joke is the name; the contents are strictly safe for work). It is behind
+  Windows 98's "Enter Network Password" box (`explorer/NetworkPasswordDialog.tsx`: "You must supply
+  a password to make this connection:", Resource `\\A:\porn`, a masked field, OK/Cancel), however
+  it is reached: a double click, the address bar, Back, the tree or a window restored inside it. A
+  wrong password gets "The password is incorrect. Access is denied."; every third wrong one, Clippy
+  says _"It looks like you're trying to get into the porn folder. Would you like help?"_. The
+  password is `mender`, in any case: the box says "Connecting to \\A:\porn..." and "Access
+  granted." (`DiskDeps.logonPause`), then the folder opens on its only file,
+  `definitely_not_porn.avi`, which plays by itself in the Media Player titled "Never Gonna Give You
+  Up.avi": a rickroll through YouTube's privacy-enhanced embed (`mediaplayer/streams.ts`; nothing is
+  downloaded or copied). The gate is per desktop and in memory: a reload asks again.
 
 Everything on A: lives in `src/disk/floppy.ts`.
 

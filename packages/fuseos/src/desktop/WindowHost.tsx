@@ -95,6 +95,7 @@ function WindowContent({
           windowId={window.id}
           file={window.file}
           launches={window.launches}
+          stream={window.stream}
         />
       );
   }

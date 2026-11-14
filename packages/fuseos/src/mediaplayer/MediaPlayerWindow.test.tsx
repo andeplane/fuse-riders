@@ -36,6 +36,74 @@ function renderPlayer(
 }
 
 describe("MediaPlayerWindow", () => {
+  it("buffers a stream all the way and then plays it in the screen, from YouTube's privacy-enhanced embed", () => {
+    const result = renderWithProviders(<Desktop />, {
+      initialOpen: [
+        {
+          kind: "mediaplayer",
+          file: "Never Gonna Give You Up.avi",
+          stream: "rickroll",
+        },
+      ],
+    });
+    const window = screen.getByRole("dialog", {
+      name: "Never Gonna Give You Up.avi - Windows Media Player",
+    });
+    expect(within(window).queryByTitle(/Never Gonna Give You Up/)).toBeNull();
+    // Past the codec check that every joke video dies on.
+    for (let index = 0; index < 40; index += 1)
+      act(() => result.mediaPlayerTimers.fire());
+    expect(
+      within(window).queryByRole("dialog", { name: "Windows Media Player" }),
+    ).toBeNull();
+    expect(within(window).getByText("Playing")).toBeInTheDocument();
+    const video = within(window).getByTitle(
+      "Rick Astley - Never Gonna Give You Up",
+    );
+    expect(video.getAttribute("src")).toBe(
+      "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0",
+    );
+    // Nothing is launched and the player stays open.
+    expect(result.store.load().windows).toEqual([
+      expect.objectContaining({ kind: "mediaplayer", stream: "rickroll" }),
+    ]);
+  });
+
+  it("buffers a stream all the way and then plays it in the screen, from YouTube's privacy-enhanced embed", () => {
+    const user = userEvent.setup();
+    const result = renderWithProviders(<Desktop />, {
+      initialOpen: [
+        {
+          kind: "mediaplayer",
+          file: "Never Gonna Give You Up.avi",
+          stream: "rickroll",
+        },
+      ],
+    });
+    const window = screen.getByRole("dialog", {
+      name: "Never Gonna Give You Up.avi - Windows Media Player",
+    });
+    expect(within(window).queryByTitle(/Never Gonna Give You Up/)).toBeNull();
+    // Past the codec check that every joke video dies on.
+    for (let index = 0; index < 40; index += 1)
+      act(() => result.mediaPlayerTimers.fire());
+    expect(
+      within(window).queryByRole("dialog", { name: "Windows Media Player" }),
+    ).toBeNull();
+    expect(within(window).getByText("Playing")).toBeInTheDocument();
+    const video = within(window).getByTitle(
+      "Rick Astley - Never Gonna Give You Up",
+    );
+    expect(video.getAttribute("src")).toBe(
+      "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0",
+    );
+    // Nothing is launched and the player stays open.
+    expect(result.store.load().windows).toEqual([
+      expect.objectContaining({ kind: "mediaplayer", stream: "rickroll" }),
+    ]);
+    void user;
+  });
+
   it("buffers on the schedule from the moment it opens and fails the codec check", async () => {
     const { user, window, tick, progress, mediaPlayerTimers } = renderPlayer(
       "Debbie_Does_Netcode.avi",

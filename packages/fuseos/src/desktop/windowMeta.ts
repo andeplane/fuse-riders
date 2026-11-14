@@ -45,6 +45,12 @@ export const RECYCLE_BIN_WINDOW_SIZE: Size = { width: 640, height: 380 };
 /** The classic 4:3 Media Player: a small screen, the seek bar and the transport buttons. */
 export const MEDIA_PLAYER_WINDOW_SIZE: Size = { width: 400, height: 340 };
 
+/** A video that really plays gets a 16:9 screen big enough to watch it in. */
+export const MEDIA_PLAYER_STREAM_WINDOW_SIZE: Size = {
+  width: 560,
+  height: 420,
+};
+
 /** The Run box: the prompt, one line to type in and three buttons. */
 export const RUN_WINDOW_SIZE: Size = { width: 360, height: 176 };
 
@@ -149,8 +155,11 @@ export function windowMeta(
       return {
         title: `${window.file} - Windows Media Player`,
         icon: "mediaplayer",
-        resizable: false,
-        size: MEDIA_PLAYER_WINDOW_SIZE,
+        resizable: window.stream !== undefined,
+        size:
+          window.stream === undefined
+            ? MEDIA_PLAYER_WINDOW_SIZE
+            : MEDIA_PLAYER_STREAM_WINDOW_SIZE,
       };
     case "run":
       return {

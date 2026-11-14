@@ -17,10 +17,16 @@ import { FakePaintFileDeps } from "../__mocks__/paintFiles";
 import { renderWithProviders } from "../__mocks__/renderWithProviders";
 import { Desktop } from "../desktop/Desktop";
 import { DRIVE_A, DRIVE_C, MY_COMPUTER } from "../disk/diskPath";
-import { HOMEWORK_LOCATION, HOMEWORK_TEXT } from "../disk/floppy";
+import {
+  CLIPPY_PORN_HELP,
+  PASSWORD_DIALOG_TITLE,
+  RICKROLL_NAME,
+  RICKROLL_TITLE,
+} from "../disk/floppy";
 import type { AppState, WindowState } from "../state/appState";
 
 import { MODIFIED_LABEL } from "./IconView";
+import { CONNECTING_STATUS, GRANTED_STATUS } from "./NetworkPasswordDialog";
 import {
   addressNotFoundMessage,
   DELETE_DENIED_TITLE,
@@ -235,7 +241,7 @@ describe("Explorer", () => {
     );
     expect(row(/porn/)).toBeInTheDocument();
     // A subfolder of A: is already spinning: no second seek.
-    diskDeps.jokeGate.tryOpen();
+    diskDeps.jokeGate.tryPassword("mender");
     await user.dblClick(row(/porn/));
     expect(diskDeps.seeks).toBe(1);
     expect(screen.getByRole("textbox", { name: "Address" })).toHaveValue(
@@ -291,31 +297,135 @@ describe("Explorer", () => {
     expect(screen.queryByText(/may be a coaster/)).not.toBeInTheDocument();
   });
 
-  it("denies the joke folder once, then opens it to homework.txt in Notepad++", async () => {
+  it("asks for A:\\porn's network password, refuses wrong ones and brings Clippy in on the third", async () => {
     const user = userEvent.setup();
     const { diskDeps } = renderWithProviders(<Desktop />, {
       initialOpen: [explorerAt(DRIVE_A)],
     });
     await user.dblClick(row(/porn/));
-    const denied = screen.getByRole("dialog", { name: "porn" });
-    expect(within(denied).getByText(/Access is denied\./)).toHaveTextContent(
-      /^A:\\porn is not accessible\. Access is denied\.$/,
+    const box = screen.getByRole("dialog", { name: PASSWORD_DIALOG_TITLE });
+    expect(box).toHaveTextContent(
+      "You must supply a password to make this connection:",
     );
+    expect(within(box).getByTestId("password-resource")).toHaveTextContent(
+      "\\\\A:\\porn",
+    );
+    const field = within(box).getByLabelText("Password:");
+    expect(field).toHaveAttribute("type", "password");
+    expect(field).toHaveFocus();
     expect(screen.getByRole("textbox", { name: "Address" })).toHaveValue(
       "A:\\",
     );
-    await user.click(screen.getByRole("button", { name: "OK" }));
-    await user.dblClick(row(/porn/));
-    expect(diskDeps.jokeGate.attempts()).toBe(2);
-    expect(row(/homework\.txt 1 KB Text Document/)).toBeInTheDocument();
-    await user.dblClick(row(/homework\.txt/));
+    for (const guess of ["password", "hunter2", "letmein"]) {
+      await user.type(within(box).getByLabelText("Password:"), guess);
+      await user.click(within(box).getByRole("button", { name: "OK" }));
+      const error = screen
+        .getAllByRole("dialog", { name: PASSWORD_DIALOG_TITLE })
+        .find((dialog) => dialog !== box);
+      expect(error).toHaveTextContent(
+        "The password is incorrect. Access is denied.",
+      );
+      if (!error) return;
+      expect(within(box).getByLabelText("Password:")).toHaveValue("");
+      if (guess !== "letmein")
+        expect(screen.queryByText(CLIPPY_PORN_HELP)).not.toBeInTheDocument();
+      await user.click(within(error).getByRole("button", { name: "OK" }));
+    }
+    expect(diskDeps.jokeGate.failures()).toBe(3);
+    expect(screen.getByText(CLIPPY_PORN_HELP)).toBeInTheDocument();
+    // Cancel leaves the folder shut.
+    await user.click(within(box).getByRole("button", { name: "Cancel" }));
     expect(
-      await screen.findByRole("tab", { name: /homework\.txt/ }),
-    ).toBeInTheDocument();
-    expect(await screen.findByRole("textbox", { name: "Editor" })).toHaveValue(
-      HOMEWORK_TEXT,
+      screen.queryByRole("dialog", { name: PASSWORD_DIALOG_TITLE }),
+    ).not.toBeInTheDocument();
+    expect(contents().queryByText(RICKROLL_NAME)).not.toBeInTheDocument();
+  });
+
+  it("logs on with the password in any case, shows the one video and plays it in the Media Player", async () => {
+    const user = userEvent.setup();
+    const beats: (() => void)[] = [];
+    const diskDeps = createTestDiskDeps({
+      logonPause: () =>
+        new Promise<void>((resolve) => {
+          beats.push(resolve);
+        }),
+    });
+    const { store } = renderWithProviders(<Desktop />, {
+      initialOpen: [explorerAt(DRIVE_A)],
+      diskDeps,
+    });
+    await user.dblClick(row(/porn/));
+    const box = screen.getByRole("dialog", { name: PASSWORD_DIALOG_TITLE });
+    await user.type(within(box).getByLabelText("Password:"), "MeNdEr{Enter}");
+    expect(box).toHaveTextContent(CONNECTING_STATUS);
+    expect(within(box).getByRole("button", { name: "OK" })).toBeDisabled();
+    await act(async () => {
+      beats.shift()?.();
+      await Promise.resolve();
+    });
+    expect(box).toHaveTextContent(GRANTED_STATUS);
+    await act(async () => {
+      beats.shift()?.();
+      await Promise.resolve();
+    });
+    expect(diskDeps.logonSteps).toEqual(["connecting", "granted"]);
+    expect(
+      screen.queryByRole("dialog", { name: PASSWORD_DIALOG_TITLE }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Address" })).toHaveValue(
+      "A:\\porn",
     );
-    expect(diskDeps.source.reads).toEqual([]);
+    expect(
+      contents()
+        .getAllByRole("row")
+        .slice(1)
+        .map((item) => item.querySelector("td")?.textContent),
+    ).toEqual([RICKROLL_NAME]);
+    expect(
+      screen.getByRole("dialog", {
+        name: `${RICKROLL_TITLE} - Windows Media Player`,
+      }),
+    ).toBeInTheDocument();
+    expect(store.load().windows).toContainEqual(
+      expect.objectContaining({ kind: "mediaplayer", stream: "rickroll" }),
+    );
+    // Once in, the folder opens without asking, and the video opens the same player again.
+    await user.click(screen.getByRole("button", { name: "Up" }));
+    await user.dblClick(row(/porn/));
+    expect(
+      screen.queryByRole("dialog", { name: PASSWORD_DIALOG_TITLE }),
+    ).not.toBeInTheDocument();
+    await user.dblClick(row(/definitely_not_porn/));
+    expect(
+      store.load().windows.filter((window) => window.kind === "mediaplayer"),
+    ).toHaveLength(1);
+  });
+
+  it("keeps A:\\porn shut from the address bar and from a window restored inside it", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Desktop />, {
+      initialOpen: [explorerAt("A:/porn")],
+    });
+    expect(
+      await screen.findByRole("dialog", { name: PASSWORD_DIALOG_TITLE }),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: "Address" })).toHaveValue(
+        "A:\\",
+      ),
+    );
+    await user.keyboard("{Escape}");
+    expect(
+      screen.queryByRole("dialog", { name: PASSWORD_DIALOG_TITLE }),
+    ).not.toBeInTheDocument();
+    await user.type(
+      screen.getByRole("textbox", { name: "Address" }),
+      "{Control>}a{/Control}A:\\porn{Enter}",
+    );
+    expect(
+      screen.getByRole("dialog", { name: PASSWORD_DIALOG_TITLE }),
+    ).toBeInTheDocument();
+    expect(contents().queryByText(RICKROLL_NAME)).not.toBeInTheDocument();
   });
 
   it("deletes SYSTEM32 into the gag's questions, and refuses to delete anything else", async () => {
@@ -402,22 +512,6 @@ describe("Explorer", () => {
     expect(
       screen.getByRole("menuitemcheckbox", { name: "Revert to original" }),
     ).toBeDisabled();
-  });
-
-  it("reverts the floppy's homework too", async () => {
-    const user = userEvent.setup();
-    const { diskDeps } = renderWithProviders(<Desktop />, {
-      initialOpen: [explorerAt("A:/porn")],
-      disk: { overlay: { [HOMEWORK_LOCATION]: "PS." } },
-    });
-    await waitFor(() =>
-      expect(
-        screen.getByRole("img", { name: MODIFIED_LABEL }),
-      ).toBeInTheDocument(),
-    );
-    await user.click(row(/homework/));
-    await openMenu("File", "Revert to original");
-    await expect(diskDeps.overlay.list()).resolves.toEqual([]);
   });
 
   it("moves the selection with the keyboard, opens with Enter and goes up with Backspace", async () => {

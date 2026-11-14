@@ -13,6 +13,7 @@ import { InfoBubble } from "@react95/icons/InfoBubble";
 import { Jgdwmie101 } from "@react95/icons/Jgdwmie101";
 import { Joy102 } from "@react95/icons/Joy102";
 import { KeyboardMouse } from "@react95/icons/KeyboardMouse";
+import { Keys } from "@react95/icons/Keys";
 import { Lights100 } from "@react95/icons/Lights100";
 import { Mplayer10 } from "@react95/icons/Mplayer10";
 import { Mplayer11 } from "@react95/icons/Mplayer11";
@@ -91,7 +92,8 @@ export type IconName =
   | "fusteam"
   | "recycleFull"
   | "mediaplayer"
-  | "video";
+  | "video"
+  | "keys";
 
 type IconVariant = "32x32_4" | "16x16_4";
 type IconProps = Omit<SVGProps<SVGSVGElement>, "ref">;
@@ -159,6 +161,7 @@ const ICONS: Record<IconName, IconComponent> = {
   recycleFull: RecycleFull,
   mediaplayer: Mplayer10,
   video: Mplayer11,
+  keys: fixed(Keys, "32x32_4"),
 };
 
 export type Win98IconProps = {

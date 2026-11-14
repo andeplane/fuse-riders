@@ -18,9 +18,9 @@ import {
   FLOPPY_ZIP_MODIFIED,
   FLOPPY_ZIP_NAME,
   FLOPPY_ZIP_SIZE,
-  HOMEWORK_LOCATION,
-  HOMEWORK_NAME,
-  HOMEWORK_TEXT,
+  RICKROLL_LOCATION,
+  RICKROLL_NAME,
+  RICKROLL_SIZE,
 } from "./floppy";
 import type { RepoTree } from "./repoTree";
 
@@ -130,10 +130,8 @@ export function driveEntries(): DiskEntry[] {
   ];
 }
 
-export function floppyEntries(
-  location: string,
-  overlayPaths: ReadonlySet<string> = new Set(),
-): DiskEntry[] {
+/** A: lists the folder and the archive; behind the password the folder holds only the "video". */
+export function floppyEntries(location: string): DiskEntry[] {
   if (location === DRIVE_A)
     return [
       {
@@ -160,15 +158,15 @@ export function floppyEntries(
   if (location === FLOPPY_JOKE_LOCATION)
     return [
       {
-        location: HOMEWORK_LOCATION,
-        name: HOMEWORK_NAME,
+        location: RICKROLL_LOCATION,
+        name: RICKROLL_NAME,
         kind: "file",
-        icon: "textFile",
-        typeLabel: "Text Document",
-        size: HOMEWORK_TEXT.length,
+        icon: "video",
+        typeLabel: "Video Clip",
+        size: RICKROLL_SIZE,
         modifiedAt: FLOPPY_JOKE_FOLDER_MODIFIED,
-        modified: overlayPaths.has(HOMEWORK_LOCATION),
-        fileKind: "text",
+        modified: false,
+        fileKind: "binary",
       },
     ];
   return [];
@@ -208,7 +206,7 @@ export function listEntries(
   if (location === MY_COMPUTER) return driveEntries();
   switch (driveOf(location)) {
     case "A":
-      return floppyEntries(location, inputs.overlayPaths);
+      return floppyEntries(location);
     case "C": {
       const windows = windowsEntries(location, inputs.system32Present ?? true);
       if (windows) return windows;

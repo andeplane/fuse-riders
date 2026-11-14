@@ -1,5 +1,7 @@
 import type { GameId } from "../retro/gameIds";
 import { isGameId } from "../retro/gameIds";
+import type { MediaStreamId } from "../mediaplayer/streams";
+import { isMediaStreamId } from "../mediaplayer/streams";
 
 export type ControlPanelApplet =
   "home" | "display" | "system" | "assistant" | "keyboard" | "games";
@@ -88,6 +90,8 @@ export interface MediaPlayerWindowContent {
   file: string;
   /** The Fuse game this "video" turns out to be, launched once it has "buffered"; absent means the codec is missing. */
   launches?: string;
+  /** A video that really plays once it has "buffered" (`mediaplayer/streams.ts`): A:\\porn's only file. */
+  stream?: MediaStreamId;
 }
 
 /** Start > Run...: the one-line Run box (`src/run`). One instance. */
@@ -390,7 +394,8 @@ function isWindowContent(
       return (
         typeof value.file === "string" &&
         value.file.length > 0 &&
-        (value.launches === undefined || typeof value.launches === "string")
+        (value.launches === undefined || typeof value.launches === "string") &&
+        (value.stream === undefined || isMediaStreamId(value.stream))
       );
     default:
       return false;
