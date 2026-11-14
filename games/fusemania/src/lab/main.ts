@@ -87,6 +87,7 @@ const SHOWN_KEY = "fusemania-lab:shown";
 const EDITS_KEY = (song: string) => `fusemania-lab:edits:${song}`;
 const MARKER_KEY = (song: string) => `fusemania-lab:marker:${song}`;
 const TAPS_KEY = (song: string) => `fusemania-lab:taps:${song}`;
+const RECORD_FROM_KEY = (song: string) => `fusemania-lab:record-from:${song}`;
 /** The key of the column that shows the tapped rhythm. */
 const TAPPED = "taps";
 const HEADER = 30;
@@ -169,6 +170,9 @@ const keyLegend = el(
   " record, then tap ",
   key("WASD"),
   key("IJKL"),
+  el("span", { className: "lab-keys-gap" }),
+  key("⇧R"),
+  " record from here",
   el("span", { className: "lab-keys-gap" }),
   key("⌘Z"),
   " undo tap",
@@ -258,7 +262,7 @@ const helpBox = el(
   el("h2", { textContent: "How to use" }),
   el("p", {
     textContent:
-      "Record mode (r, or the record box): while the song plays, tap the rhythm you hear on WASD or IJKL (left, down, up, right). Each tap lands in a Custom chart beside the song's own and is saved with your notes. Press x to drop a marker at the playhead (the yellow line) and enter to jump back to it, as often as you like. Scroll to move through the song, ctrl/⌘ + scroll (or + and −) to zoom. Space plays and pauses at the playhead (the white line); ← and → move it back and forward by 0.5 s, 3 s with shift and 10 s with option (as in VLC), playing or paused. Click the ruler or the spectrogram to put it somewhere else.",
+      "Record mode (r, or the record box): while the song plays, tap the rhythm you hear on WASD or IJKL (left, down, up, right). Each tap lands in a Custom chart beside the song's own and is saved with your notes. Shift + R puts a red line at the playhead where recording starts: play from before it and tap along, and only the taps after the line are kept (shift + R on the line removes it). Press x to drop a marker at the playhead (the yellow line) and enter to jump back to it, as often as you like. Scroll to move through the song, ctrl/⌘ + scroll (or + and −) to zoom. Space plays and pauses at the playhead (the white line); ← and → move it back and forward by 0.5 s, 3 s with shift and 10 s with option (as in VLC), playing or paused. Click the ruler or the spectrogram to put it somewhere else.",
   }),
   el("p", {
     textContent:
@@ -379,6 +383,8 @@ let marker: number | undefined;
 /** The rhythm tapped in record mode for this song, in time order. */
 let taps: Tap[] = [];
 let tapsTimer: ReturnType<typeof setTimeout> | undefined;
+/** Where recording starts (shift + R): taps before it are not kept, so the hands can find the rhythm first. */
+let recordFrom: number | undefined;
 /** The taps of this visit in the order they were pressed: ⌘Z takes back the latest. */
 let tapHistory: Tap[] = [];
 /** In local development the URL remembers the playhead (`#t=…`), so a reload carries on from there. */
@@ -443,6 +449,8 @@ async function loadSong(id: string): Promise<void> {
       save(TAPS_KEY(data.id), null);
     }
   }
+  const from = Number(load(RECORD_FROM_KEY(data.id)) ?? NaN);
+  recordFrom = Number.isFinite(from) && from >= 0 ? from : undefined;
   const marked = Number(load(MARKER_KEY(data.id)) ?? NaN);
   marker = Number.isFinite(marked) && marked >= 0 ? marked : undefined;
   playBuffer = undefined;
@@ -882,6 +890,15 @@ function draw(): void {
     g.fillStyle = "rgba(59,255,208,0.7)";
     g.fillRect(listening.from - 1, HEADER, 1, height - HEADER);
     g.fillRect(listening.to, HEADER, 1, height - HEADER);
+  }
+
+  // Where recording starts.
+  if (recordFrom !== undefined) {
+    const ry = yOf(recordFrom);
+    g.fillStyle = "#ff2e6e";
+    g.fillRect(RULER - 10, ry - 1, width, 2);
+    g.font = "bold 10px ui-monospace, monospace";
+    g.fillText(`rec from ${recordFrom.toFixed(2)}s`, 2, ry - 4);
   }
 
   // The marker to come back to.
@@ -1345,6 +1362,7 @@ function recordTap(column: number): void {
   const timing = charts[0]?.timing;
   if (!source || !timing) return;
   const time = Math.max(0, heardTime());
+  if (recordFrom !== undefined && time < recordFrom) return;
   const tap: Tap = {
     time: Number(time.toFixed(3)),
     beat: Number(timing.beatAt(time).toFixed(3)),
@@ -2077,6 +2095,31 @@ window.addEventListener("keydown", (event) => {
   ) {
     event.preventDefault();
     undoTap();
+  } else if (
+    event.key.toLowerCase() === "r" &&
+    event.shiftKey &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.altKey
+  ) {
+    // Recording starts here: taps before this line are not kept. Pressed again on the line, it goes away.
+    const here = Math.max(0, heardTime());
+    if (recordFrom !== undefined && Math.abs(recordFrom - here) < 0.3) {
+      recordFrom = undefined;
+      save(RECORD_FROM_KEY(songId), null);
+      say("recording start line removed");
+    } else {
+      recordFrom = here;
+      save(RECORD_FROM_KEY(songId), here.toFixed(3));
+      if (!recordInput.checked) {
+        recordInput.checked = true;
+        recordInput.onchange?.(new Event("change"));
+      }
+      say(
+        `recording starts at ${here.toFixed(2)} s: taps before it are not kept`,
+      );
+    }
+    draw();
   } else if (
     event.key.toLowerCase() === "r" &&
     !event.metaKey &&
