@@ -2,7 +2,7 @@
 
 Every game reports product events to Mixpanel through [`fuse-ui/analytics`](../packages/fuse-ui/src/analytics.ts).
 All event names start with `fuse.` and every event carries `gameId`, the stable platform id
-(`fuse-riders`, `dice`, `fuse-axe`, `fuse-bombers`, `fuse-choppers`, `fuse-craft`, `fuse-freight`, `fuse-lane`, `fuseball`, `killer-fuse` or `hook-havok`).
+(the game route id, including `dice` for Pig; see `games/*/index.html` for the current inventory).
 Use the same events for cross-game dashboards, and filter or break down by `gameId`.
 The rename from `FlowRiders.*` is an intentional breaking change: existing dashboards must switch to `fuse.*`;
 historical events are not renamed and there is no dual reporting.
@@ -19,6 +19,10 @@ page. A mid-match join after round one does not invent a start; duration is pres
 Open-ended Craft sandbox/combat-lab and Hook Havok free play report a start, but no fabricated end.
 Bombers' local multiplayer and Fusetown's solo/pass-and-play paths are included; attract scenes and showcases only report opening.
 The Pig template contains the integration, so `scripts/new-game.ts` includes it in new games.
+
+Fuse Front observes its room view for the same seat and match events. Its player count includes every army
+slot, and its bot count includes vacant or disconnected slots currently driven by the AI, even though those
+slots have no bot seat record. Landing-page attract battles do not report play events.
 
 Fuseball (`gameId: fuseball`) adds `fuse.Goal Scored`, from `createGoalWatch` in
 [`games/fuseball/src/app/presenter.ts`](../games/fuseball/src/app/presenter.ts): once per point, sixty micro-steps into

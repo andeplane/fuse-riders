@@ -20,6 +20,10 @@ const browser = await chromium.launch({ args: ["--mute-audio"] });
 const evidence: { gameId: string; events: string[] }[] = [];
 try {
   for (const { gameId, path } of pages) {
+    const required = ["fuse.App Opened"];
+    // Front once initialized analytics without ever reporting play. Exercise its real solo runtime too.
+    if (gameId === "fuse-front")
+      required.push("fuse.Seat Taken", "fuse.Match Started");
     const context = await browser.newContext();
     const reported: { event: string; properties: Record<string, unknown> }[] =
       [];
@@ -35,7 +39,11 @@ try {
         const payload: unknown = JSON.parse(raw);
         assert.ok(Array.isArray(payload));
         reported.push(...payload);
-        if (reported.some((event) => event.event === "fuse.App Opened"))
+        if (
+          required.every((name) =>
+            reported.some((event) => event.event === name),
+          )
+        )
           opened();
       }
       await route.fulfill({
@@ -48,7 +56,9 @@ try {
     const bootErrors: string[] = [];
     page.on("pageerror", (error) => bootErrors.push(error.name));
     try {
-      await page.goto(`${base}${path}?mute&analytics=1`);
+      await page.goto(
+        `${base}${path}?mute&analytics=1${gameId === "fuse-front" ? "&solo=1&2d" : ""}`,
+      );
       let timer: ReturnType<typeof setTimeout>;
       try {
         await Promise.race([
@@ -58,7 +68,7 @@ try {
               () =>
                 reject(
                   new Error(
-                    `${gameId}: no App Opened payload; page errors: ${bootErrors.join(", ") || "none"}`,
+                    `${gameId}: missing ${required.filter((name) => !reported.some((event) => event.event === name)).join(", ")}; page errors: ${bootErrors.join(", ") || "none"}`,
                   ),
                 ),
               45000,
@@ -73,6 +83,12 @@ try {
         1,
         gameId,
       );
+      for (const name of required)
+        assert.equal(
+          reported.filter((event) => event.event === name).length,
+          1,
+          `${gameId}: ${name}`,
+        );
       for (const event of reported) {
         assert.ok(event.event.startsWith("fuse."), event.event);
         assert.equal(event.properties.gameId, gameId);
@@ -84,7 +100,9 @@ try {
           assert.equal(event.properties[forbidden], undefined);
       }
       evidence.push({ gameId, events: reported.map((event) => event.event) });
-      console.log(`${gameId}: shared prefix, gameId and opening verified`);
+      console.log(
+        `${gameId}: shared prefix, gameId and ${required.join(", ")} verified`,
+      );
     } finally {
       await context.close();
     }
