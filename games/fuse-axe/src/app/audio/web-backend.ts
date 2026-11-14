@@ -26,6 +26,8 @@ export class WebAudioBackend implements AudioBackend {
   private song: Song | null = null;
   private failed = false;
 
+  constructor(private readonly externalMusic = false) {}
+
   unlock(): void {
     if (this.failed) return;
     try {
@@ -56,6 +58,7 @@ export class WebAudioBackend implements AudioBackend {
   }
 
   music(song: Song | null): void {
+    if (this.externalMusic) return; // fuse-music owns the soundtrack.
     this.song = song;
     this.mixer?.music(song);
   }

@@ -68,7 +68,7 @@ export interface AppPortalOptions {
   document: Document;
   /** The id of the game showing the portal; its tile is marked as the current page. */
   current: string;
-  /** The site base, `import.meta.env.BASE_URL` (e.g. "/" or "/fuse-riders/"). */
+  /** The site base, `import.meta.env.BASE_URL` (e.g. "/" or "/fuse-games/"). */
   base: string;
   /** The page's `location.search`; a `mute` flag carries over to the other games. */
   search?: string;

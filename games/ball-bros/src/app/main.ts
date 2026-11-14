@@ -2,6 +2,7 @@ import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
 import "fuse-ui/social.css";
+import { createTopBar } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import { createPlayMetrics, startGameAnalytics } from "fuse-ui/play-metrics";
 import "./style.css";
@@ -51,6 +52,21 @@ const playerStore = {
   setItem: (key: string, value: string) => store.setItem(key, value),
 };
 const muted = new URLSearchParams(location.search).has("mute");
+let soundEnabled = !muted;
+let activeAudio: Audio | undefined;
+let activeRadio: ReturnType<typeof createRadio> | undefined;
+const sound = {
+  forcedMute: muted,
+  enabled: () => soundEnabled,
+  setEnabled(on: boolean) {
+    if (muted) return;
+    soundEnabled = on;
+    if (activeAudio) {
+      activeAudio.setMuted(!on);
+    }
+    activeRadio?.setMuted(!on);
+  },
+};
 const link = (query = "") =>
   endpoints.appUrl(`${query}${muted ? (query ? "&mute" : "?mute") : ""}`);
 const navigate = (query = "") => {
@@ -62,6 +78,8 @@ let generation = 0;
 function render() {
   const mounted = ++generation;
   destroy();
+  activeAudio = undefined;
+  activeRadio = undefined;
   destroy = () => {};
   root.replaceChildren();
   root.className = "";
@@ -94,12 +112,12 @@ function render() {
       store: playerStore,
       settings,
       qr: (text) => QRCode.toDataURL(text, { margin: 1, width: 240 }),
-      audio: new Audio(muted),
-      radio: createRadio(
+      audio: (activeAudio = new Audio(!soundEnabled)),
+      radio: (activeRadio = createRadio(
         document,
         import.meta.env.BASE_URL,
         new window.Audio(),
-      ),
+      )),
       renderer: (parent) => createRenderer(parent, import.meta.env.BASE_URL),
       runtime: (callbacks) =>
         new BallRuntime(
@@ -135,8 +153,24 @@ function render() {
       search: location.search,
       observePlay,
     });
+    activeRadio?.setMuted(!soundEnabled);
   }
   root.querySelector("header")?.append(social.element());
+  const top = root.querySelector<HTMLElement>("header");
+  if (top) {
+    const brand =
+      ([...top.children].find((node) => node.tagName === "A") as
+        HTMLElement | undefined) ??
+      top.querySelector<HTMLElement>(".fui-top-bar-brand");
+    if (brand) brand.textContent = "BALL BROS";
+    createTopBar({
+      music: false,
+      element: top,
+      brand: brand ?? undefined,
+      gameId: "ball-bros",
+      sound,
+    });
+  }
 }
 window.addEventListener("popstate", render);
 installLifecycle(window, {

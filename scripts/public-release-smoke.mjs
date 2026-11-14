@@ -47,12 +47,12 @@ for (const [name, type] of [
         name,
       );
     const release = await hostContext.request.get(
-      "https://andeplane.github.io/fuse-riders/release.json",
+      "https://andeplane.github.io/fuse-games/release.json",
     );
     result.release = await release.json();
     // ?analytics=0 sticks for the browser context, so the whole smoke — room included — stays out of the production project.
     await host.goto(
-      "https://andeplane.github.io/fuse-riders/fuse-riders/?analytics=0&mute",
+      "https://andeplane.github.io/fuse-games/fuse-riders/?analytics=0&mute",
     );
     await host.getByRole("button", { name: "Play", exact: true }).click();
     await host.waitForURL(/room=/);

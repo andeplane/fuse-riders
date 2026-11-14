@@ -11,7 +11,7 @@ import {
 import { createScene } from "../render/scene.js";
 import { browserCanvas, browserImages, browserTint, loadArt } from "./art.js";
 import { blendViews } from "./forward.js";
-import { rideBits } from "./rides.js";
+import { RECORDED, rideBits } from "./rides.js";
 
 /** Steps the demo counts down before a ride, and rests on a finished one. */
 const LEAD = 40,
@@ -24,6 +24,9 @@ const TICK_MS = 50;
  * engine and the real renderer. Nothing here touches a room, an account, storage or the sounds.
  */
 export function createAttract(host: HTMLElement) {
+  const demoLevels = LEVELS.flatMap((level, index) =>
+    RECORDED.rides[level.id] ? [index] : [],
+  );
   const renderer = createScene(demoCanvas(host), {
     art: loadArt(import.meta.env.BASE_URL, browserImages, browserTint),
     createCanvas: browserCanvas,
@@ -38,9 +41,10 @@ export function createAttract(host: HTMLElement) {
     after: WorldView,
     at = 0;
   const begin = (index: number) => {
-    level = index % LEVELS.length;
-    world = createWorld(["demo"], level, LEAD);
-    bits = rideBits(LEVELS[level]!.id);
+    level = index % demoLevels.length;
+    const levelIndex = demoLevels[level]!;
+    world = createWorld(["demo"], levelIndex, LEAD);
+    bits = rideBits(LEVELS[levelIndex]!.id);
     step = 0;
     rest = 0;
     before = after = toView(world);

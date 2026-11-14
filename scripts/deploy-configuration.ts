@@ -237,7 +237,7 @@ async function main() {
           "api",
           "-H",
           "Accept: application/vnd.github.raw",
-          `repos/andeplane/fuse-riders/contents/${path}?ref=main`,
+          `repos/andeplane/fuse-games/contents/${path}?ref=main`,
         ]) !== sources[i]!.trim(),
     );
     if (newerOnMain.length)

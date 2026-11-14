@@ -39,14 +39,16 @@ export interface RiderView {
   status: RiderStatus;
   bike: BikeView;
   /** The apples eaten this run: bit `n` is the level's `n`th apple. */
-  taken: number;
+  taken: bigint;
   apples: number;
   /** Which way is down: 0 up, 1 down, 2 left, 3 right. */
   gravity: number;
   /** Steps the current run has lasted; the finishing run's length once finished. */
   run: number;
-  /** The race step it finished on, or 0. */
+  /** The step of its own clock it finished on, or 0. */
   finish: number;
+  /** Race steps it has run: its own clock. */
+  step: number;
   /** 1 for the leader; finishers first. */
   place: number;
   deaths: number;
@@ -72,9 +74,9 @@ export interface WorldView {
   riders: RiderView[];
 }
 
-const bitCount = (bits: number): number => {
+const bitCount = (bits: bigint): number => {
   let count = 0;
-  for (; bits; bits &= bits - 1) count++;
+  for (; bits; bits &= bits - 1n) count++;
   return count;
 };
 
@@ -114,6 +116,7 @@ export function toView(world: World): WorldView {
         gravity: b.gravity,
         run: rider.run,
         finish: rider.finish,
+        step: rider.step,
         place: places.indexOf(slot) + 1,
         deaths: rider.deaths,
         wait: rider.wait,

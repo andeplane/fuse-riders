@@ -37,4 +37,5 @@ when shrunk to 32 pixels."
 | fuse-riders     | `public/gallery/fuse-riders.jpg`                | a cyan light-cycle rider with a magenta trail  |
 | fuseball        | `public/gallery/fuseball.jpg`                   | a neon yellow ball with a rocket flame         |
 | graveyard-shift | `public/gallery/graveyard-shift.jpg`            | a mint ghost pulled into a vacuum nozzle       |
+| fusemania       | `public/gallery/fusemania.jpg`                  | a magenta rhythm arrow with a cyan music note  |
 | killer-fuse     | `games/killer-fuse/public/killer-fuse/art/cover.png` | the crowned cyan queen bee with her spear |

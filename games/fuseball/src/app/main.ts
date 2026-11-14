@@ -1,3 +1,4 @@
+import { createTopBar } from "fuse-ui";
 import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
@@ -131,10 +132,9 @@ const audio = createGameAudio(
   browserAudioDependencies(safeStorage(() => localStorage)),
   { forceMute: muted },
 );
-audio.setSongs(FUSEBALL_SONGS, import.meta.env.BASE_URL);
-audio.startMusic();
+// Music is supplied by the shared header; this bus owns the game effects.
 bindAudioInput(audio, document, window);
-const audioControl = createAudioControl(document, audio);
+const audioControl = createAudioControl(document, audio, { music: false });
 const app = document.querySelector<HTMLElement>("#app")!;
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 /** For smokes and demos: `?autopilot` rides this device's rider with the bot's answers, through the same held controls. */
@@ -225,7 +225,10 @@ function logo(): HTMLElement {
   );
   return brand;
 }
-function header(extra: HTMLElement[] = []): HTMLElement {
+function header(
+  extra: HTMLElement[] = [],
+  onOpenChange?: (open: boolean) => void,
+): HTMLElement {
   const bar = el("header", "", "fb-top");
   // Every game opens the app portal top left; it lists the games that have a portal.json.
   const portal = createAppPortal({
@@ -241,7 +244,13 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     audioControl.element,
     ...extra,
   );
-  return bar;
+  return createTopBar({
+    music: FUSEBALL_SONGS,
+    element: bar,
+    gameId: GAME,
+    onOpenChange,
+    sound: audioControl.sound,
+  });
 }
 
 function keyHelp(): HTMLElement {
@@ -642,11 +651,20 @@ function room(solo: boolean): void {
     },
   });
   const roundControls = createRoundControls(QUICK_GUIDE);
-  const top = header([
-    el("strong", solo ? "SOLO" : code, "fb-code"),
-    status.element,
-    menu.element,
-  ]);
+  const top = header(
+    [
+      el("strong", solo ? "SOLO" : code, "fb-code"),
+      status.element,
+      menu.element,
+    ],
+    (open) => {
+      if (open) {
+        controls.clear();
+        captured.clear();
+      }
+    },
+  );
+  const modalOpen = () => Boolean(document.querySelector("dialog[open]"));
 
   // Lobby: the invitation and the riders on one side, the arena and START on the other.
   let settings: Settings = { ...DEFAULT_SETTINGS };
@@ -1165,6 +1183,7 @@ function room(solo: boolean): void {
   document.addEventListener("keydown", (event) => {
     if (
       menu.isOpen() ||
+      modalOpen() ||
       typing(event.target) ||
       event.metaKey ||
       event.ctrlKey ||

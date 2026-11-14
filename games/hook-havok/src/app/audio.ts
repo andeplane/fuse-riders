@@ -101,6 +101,7 @@ export interface ToneSink {
 }
 /** Effects are gesture-unlocked, bounded in the sink, and have no engine side effects. */
 export class EffectsAudio {
+  private readonly forcedMute: boolean;
   private sink?: ToneSink;
   private disposed = false;
   private ready = false;
@@ -111,7 +112,9 @@ export class EffectsAudio {
     private muted: boolean,
     private create: () => ToneSink,
     private now: () => number = () => performance.now(),
-  ) {}
+  ) {
+    this.forcedMute = muted;
+  }
   unlock(): void {
     if (this.muted || this.disposed || this.ready) return;
     try {
@@ -131,6 +134,12 @@ export class EffectsAudio {
   setVolume(volume: number): void {
     if (Number.isFinite(volume)) this.volume = Math.max(0, Math.min(1, volume));
     if (!this.volume) this.sink?.silence();
+  }
+  setMuted(muted: boolean): void {
+    if (this.forcedMute) return;
+    this.muted = muted;
+    if (muted) this.pause();
+    else this.unlock();
   }
   cue(cue: Cue): void {
     if (!this.ready || this.muted || this.disposed || this.volume <= 0) return;

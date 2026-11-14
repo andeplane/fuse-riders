@@ -6,7 +6,7 @@ The online beta is deployed; exact source/image versions and public acceptance a
 
 | Component                                   | Configuration                                                                                     |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Static frontend                             | GitHub Pages, `https://andeplane.github.io/fuse-riders/` (verify actual Pages configuration)      |
+| Static frontend                             | GitHub Pages, `https://andeplane.github.io/fuse-games/` (verify actual Pages configuration)       |
 | Gateway                                     | Cloud Run service, configurable `CLOUD_RUN_SERVICE` (script default `fuse-riders-gateway`)        |
 | Region/project                              | `europe-west1`, `andershaf-87`                                                                    |
 | Simulation                                  | Creator browser; the gateway does not run game ticks                                              |
@@ -106,11 +106,13 @@ gcloud iam workload-identity-pools providers create-oidc fuse-riders \
   --project=$P --location=global --workload-identity-pool=github \
   --issuer-uri=https://token.actions.githubusercontent.com \
   --attribute-mapping='google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.ref=assertion.ref' \
-  --attribute-condition="assertion.repository=='andeplane/fuse-riders' && assertion.ref=='refs/heads/main'"
+  --attribute-condition="(assertion.repository=='andeplane/fuse-riders' || assertion.repository=='andeplane/fuse-games') && assertion.ref=='refs/heads/main'"
 
-gcloud iam service-accounts add-iam-policy-binding "$DEP" --project=$P \
-  --role=roles/iam.workloadIdentityUser \
-  --member="principalSet://iam.googleapis.com/$POOL/attribute.repository/andeplane/fuse-riders"
+for REPO in andeplane/fuse-riders andeplane/fuse-games; do
+  gcloud iam service-accounts add-iam-policy-binding "$DEP" --project=$P \
+    --role=roles/iam.workloadIdentityUser \
+    --member="principalSet://iam.googleapis.com/$POOL/attribute.repository/$REPO"
+done
 
 gcloud projects add-iam-policy-binding $P --member="serviceAccount:$DEP" --condition=None \
   --role=roles/cloudbuild.builds.editor
@@ -137,7 +139,7 @@ gcloud projects add-iam-policy-binding $P --member="serviceAccount:$DEP" --role=
   --condition='title=fuse-riders-database-only,expression=resource.name=="projects/andershaf-87/databases/fuse-riders"'
 ```
 
-The attribute condition is the authorization boundary: only tokens issued to `andeplane/fuse-riders` on `refs/heads/main` can impersonate the deployer, so forks and pull-request branches cannot deploy. `roles/run.admin` is scoped to the one service rather than the project because redeploying a public service reads and rewrites that service's IAM policy.
+The attribute condition is the authorization boundary: only tokens issued to this repository on `refs/heads/main` can impersonate the deployer. The repository was renamed from `andeplane/fuse-riders` to `andeplane/fuse-games` on 2026-11-14; the condition and the binding name both until the old name is removed, and the provider, service accounts and other resources keep their `fuse-riders` names, so forks and pull-request branches cannot deploy. `roles/run.admin` is scoped to the one service rather than the project because redeploying a public service reads and rewrites that service's IAM policy.
 
 ## Pages pipeline
 

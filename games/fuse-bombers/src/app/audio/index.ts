@@ -1,4 +1,5 @@
 import "./audio.css";
+import type { TopBarSound } from "fuse-ui";
 import type { RoundView, TickEvent } from "../../engine/index.js";
 import { ROUND_EVENTS, ROUND_START } from "../../render/round-scene.js";
 import {
@@ -21,6 +22,7 @@ export interface RoundSceneLike {
 }
 
 export interface GameAudio {
+  readonly master: TopBarSound;
   /** True with `?mute`: nothing plays, and the toggle and stored choice are left alone. */
   readonly disabled: boolean;
   readonly muted: boolean;
@@ -55,7 +57,7 @@ export function createAudio(
 ): GameAudio {
   const disabled = mutedByQuery(search);
   const director = new AudioDirector(
-    new WebAudioBackend(import.meta.env.BASE_URL),
+    new WebAudioBackend(import.meta.env.BASE_URL, true),
     disabled ? undefined : localStorageOrNone(),
     disabled,
   );
@@ -71,6 +73,12 @@ export function createAudio(
 
   return {
     disabled,
+    master: {
+      enabled: () => !director.muted,
+      forcedMute: disabled,
+      setEnabled: (on) => director.setMuted(!on),
+      onChange: (changed) => director.onChange(changed),
+    },
     get muted() {
       return director.muted;
     },

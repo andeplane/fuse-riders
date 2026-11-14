@@ -70,7 +70,7 @@ try {
   // The host creates the room and is seated in it, under the name this browser remembers, with nothing in between.
   const host = await open("host", `${base}?mute=1&benchmark=1`, "Hosty");
   await openPlayOptions(host);
-  await host.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
+  await host.getByRole("button", { name: "Host room", exact: true }).click();
   await host.waitForURL(/room=/);
   await takeHostSeat(host, "Hosty");
   const code = new URL(host.url()).searchParams.get("room")!;

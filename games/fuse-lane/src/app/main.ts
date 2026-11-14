@@ -1,3 +1,4 @@
+import { createTopBar } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import { requestedRoomSlot } from "fuse-ui";
 import "fuse-ui/social.css";
@@ -135,7 +136,7 @@ function header(extra: HTMLElement[] = [], allGames = false): HTMLElement {
     button.addEventListener("click", () => portal.open());
     bar.append(button);
   }
-  return bar;
+  return createTopBar({ element: bar, gameId: GAME });
 }
 
 /** A still picture of the city for the menu: the board with nobody on it, redrawn while its pictures load. */

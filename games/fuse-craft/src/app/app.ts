@@ -15,7 +15,12 @@ import {
   TERRITORY,
 } from "../engine/index.js";
 import { updateContent } from "./dom-update.js";
-import { createMainMenu, roomLayoutMarkup, mountAttract } from "fuse-ui";
+import {
+  createMainMenu,
+  roomLayoutMarkup,
+  mountAttract,
+  createTopBar,
+} from "fuse-ui";
 import { planNeuronPlacement } from "./neuron-placement.js";
 import { minimapMarkup, minimapCell } from "../render/minimap.js";
 import { battleFocusCell } from "../render/battle-focus.js";
@@ -1462,12 +1467,28 @@ export function mountFuseCraft(
       const play = root.querySelector<HTMLElement>(".menu-layout")!;
       const marker = root.ownerDocument.createComment("Shared menu");
       play.before(marker);
+      const singlePlayerOptions = root.ownerDocument.createElement("div");
+      singlePlayerOptions.className = "fui-single-player-options";
+      const newGame = play.querySelector<HTMLElement>(
+        '[data-action="new-game"]',
+      )!;
+      newGame.textContent = "New game";
+      singlePlayerOptions.append(
+        newGame,
+        play.querySelector<HTMLElement>('[data-action="tutorial"]')!,
+      );
       const menu = createMainMenu({
         background: async (host) =>
           (await import("./attract.js")).createAttract(host),
         title: "FUSE CRAFT",
         description: "Build your network. Keep the signal alive.",
         play,
+        singlePlayerContent: [singlePlayerOptions],
+        onJoinRoom: () => {
+          roomError = null;
+          screen = "multiplayer";
+          render();
+        },
         onPlay: dependencies.online
           ? async () => {
               screen = "multiplayer";
@@ -1529,11 +1550,28 @@ export function mountFuseCraft(
     // One portal element survives re-renders, so an open grid stays open.
     // Reconciling a header drops it, so it goes back first in each header.
     const head = root.querySelector(".nd-header");
-    if (head && dependencies.social) head.append(dependencies.social());
+    if (head && dependencies.social) {
+      const social = dependencies.social();
+      if (!head.contains(social)) head.append(social);
+    }
     if (head && dependencies.portal) {
       portal ??= dependencies.portal();
-      if (head.firstElementChild !== portal) head.prepend(portal);
+      if (!head.contains(portal)) head.prepend(portal);
     }
+    if (head)
+      createTopBar({
+        element: head as HTMLElement,
+        gameId: "fuse-craft",
+        sound: dependencies.audio
+          ? {
+              enabled: () => !preferences.mute,
+              forcedMute: dependencies.forcedMute,
+              setEnabled(on) {
+                if (on === preferences.mute) toggleMute();
+              },
+            }
+          : undefined,
+      });
   }
 
   /**

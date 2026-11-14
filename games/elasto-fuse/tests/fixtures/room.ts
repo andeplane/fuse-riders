@@ -45,10 +45,19 @@ export function started(settings: Settings = DEFAULT_SETTINGS): Room {
   fold(room, { a: [[ACTION, "start", "m1"]] });
   return room;
 }
+/** A play entry's body for the room's current match and race: `bits` from step `at` of the rider's own clock. */
+export const play = (room: Room, bits: number, at = 0): unknown[] => [
+  PLAY,
+  room.matchId,
+  bits,
+  at,
+  room.round,
+];
+
 /**
- * Rides `id` through the room's current race on the recorded ride, logging the held bits whenever they change, until
- * the race is no longer running. The recorded ride changes its bits on tick boundaries (a decision is three ticks),
- * and its turns are presses: down for one step, which the fold gives a bit logged and let go inside one tick.
+ * Rides `id` through the room's current race on the recorded ride, as its device would: every tick it logs each
+ * change of the held bits with the step of its own clock it took hold on, and how far it has run, until the race is
+ * no longer running.
  */
 export function rideHome(room: Room, id: string): void {
   const world = room.world!;
@@ -62,12 +71,13 @@ export function rideHome(room: Room, id: string): void {
     step < bits.length && room.stage === "running" && room.world === world;
     step += STEPS_PER_TICK
   ) {
-    const first = bits[step]!,
-      rest = bits[step + 1] ?? first;
     const entries: unknown[][] = [];
-    if (first !== held) entries.push([PLAY, room.matchId, first]);
-    if (rest !== first) entries.push([PLAY, room.matchId, rest]);
-    held = rest;
-    fold(room, entries.length ? { [id]: entries } : {});
+    for (let at = step; at < step + STEPS_PER_TICK; at++) {
+      const now = bits[at] ?? held;
+      if (now !== held) entries.push(play(room, now, at));
+      held = now;
+    }
+    entries.push(play(room, held, step + STEPS_PER_TICK));
+    fold(room, { [id]: entries });
   }
 }
