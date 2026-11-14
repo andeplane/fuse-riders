@@ -422,9 +422,21 @@ test("each round is reported once, by a device that rode it, after its end has s
   assert.equal(last[0]!.round, room.world!.round);
   // A new match starts the count again.
   fold(room, { a: [[ACTION, "rematch", "m2"]] });
+  assert.deepEqual(mine(view(room), "b"), []);
   finishRound(room, 1);
   run(room, ROUND_SETTLE_STEPS / STEPS_PER_TICK + 1);
   assert.equal(mine(view(room), "b")[0]!.round, 1);
+  // A page that loads into a match under way (a reload) reports only the rounds that end from then on.
+  const reloaded = createRoundWatch();
+  assert.deepEqual(reloaded(view(room), "b"), [], "this round was reported");
+  run(room, T.BREAK_STEPS / STEPS_PER_TICK);
+  assert.equal(room.world!.round, 2);
+  const midRound = createRoundWatch();
+  assert.deepEqual(midRound(view(room), "b"), []);
+  finishRound(room, 1);
+  run(room, ROUND_SETTLE_STEPS / STEPS_PER_TICK + 1);
+  assert.equal(reloaded(view(room), "b")[0]!.round, 2);
+  assert.equal(midRound(view(room), "b")[0]!.round, 2);
 });
 
 /** Two views a few steps apart, played with `bits`. */
@@ -732,20 +744,25 @@ test("storage that refuses falls back to memory for the page's life", () => {
   assert.equal(refused.getItem("a"), null);
   const data = new Map<string, string>();
   let broken = false;
-  const flaky = {
-    getItem: (key: string) => {
+  const flaky: Storage = {
+    get length() {
+      return data.size;
+    },
+    key: (index) => [...data.keys()][index] ?? null,
+    clear: () => data.clear(),
+    getItem: (key) => {
       if (broken) throw new Error("gone");
       return data.get(key) ?? null;
     },
-    setItem: (key: string, value: string) => {
+    setItem: (key, value) => {
       if (broken) throw new Error("full");
       data.set(key, value);
     },
-    removeItem: (key: string) => {
+    removeItem: (key) => {
       if (broken) throw new Error("gone");
       data.delete(key);
     },
-  } as unknown as Storage;
+  };
   const store = safeStore(() => flaky);
   store.setItem("a", "1");
   assert.equal(store.getItem("a"), "1");

@@ -52,7 +52,7 @@ import {
   FuseSurgeRuntime,
   type FuseSurgeCallbacks,
 } from "../online/runtime.js";
-import { cuesBetween, type Cue } from "../render/cues.js";
+import { createCueWatch, type Cue } from "../render/cues.js";
 import { laneColor, laneName } from "../render/palette.js";
 import { createScene } from "../render/scene.js";
 import { createSmoother } from "../render/smooth.js";
@@ -92,6 +92,9 @@ import {
   roomFailure,
   safeStore,
   sessionFor,
+  settingsFrom,
+  settingsQuery,
+  settingsToSave,
 } from "./session.js";
 
 /**
@@ -138,8 +141,6 @@ const autopilot = query.has("autopilot");
 const localLead = query.get("lead") === "local";
 /** `?debug` puts the room's view and a settings setter on `window.fuseSurge`, for tuning a match by hand. */
 const debug = query.has("debug");
-/** The match settings a link may carry; the dev tools' way to try values the lobby's buttons do not offer. */
-const SETTING_PARAMS = ["hits", "seconds", "pace", "target", "bot"] as const;
 /** A link within the game that keeps this page's developer flags. */
 const withFlags = (path: string) => {
   const kept = ["mute", "autopilot", "debug"].filter((flag) => query.has(flag));
@@ -157,31 +158,11 @@ const coarse = () => matchMedia("(pointer: coarse)").matches;
 const canBuzz = () =>
   coarse() && navigator.userActivation?.hasBeenActive === true;
 
-/** The settings this browser last chose, with anything the link asks for on top; whatever does not parse is dropped. */
-function chosenSettings(): Settings {
-  let saved: unknown;
-  try {
-    saved = JSON.parse(store.getItem(settingsKey) ?? "null");
-  } catch {
-    saved = null;
-  }
-  let settings = parseSettings(saved) ?? { ...DEFAULT_SETTINGS };
-  settings = { ...settings, display: false };
-  for (const key of SETTING_PARAMS) {
-    const raw = query.get(key);
-    if (raw === null || raw.trim() === "") continue;
-    settings = parseSettings({ ...settings, [key]: Number(raw) }) ?? settings;
-  }
-  const recover = query.get("recover");
-  if (recover === "0" || recover === "1")
-    settings = { ...settings, recover: recover === "1" };
-  return settings;
-}
+/** The settings this browser last chose, with anything the link asks for on top. */
+const chosenSettings = (): Settings =>
+  settingsFrom(location.search, store.getItem(settingsKey));
 const remember = (settings: Settings) =>
-  store.setItem(settingsKey, JSON.stringify({ ...settings, display: false }));
-/** The settings as the query a solo link carries them in. */
-const settingsQuery = (settings: Settings) =>
-  `hits=${settings.hits}&seconds=${settings.seconds}&pace=${settings.pace}&target=${settings.target}&recover=${settings.recover ? 1 : 0}&bot=${settings.bot}`;
+  store.setItem(settingsKey, settingsToSave(settings));
 
 const GUIDE = {
   controls: [
@@ -638,13 +619,8 @@ function room(solo: boolean): void {
     }
     return smoother.apply(view, timing.revision ?? 0, performance.now(), local);
   };
-  /** A phone controller draws nothing, but still hears and feels the match: the same cues, read off the same views. */
-  let felt: WorldView | undefined;
-  const feel = (view: WorldView): readonly Cue[] => {
-    const cues = cuesBetween(felt, view);
-    felt = view;
-    return cues;
-  };
+  /** A phone controller draws nothing, but still feels its rider struck: the same cues, read off the same views. */
+  const feel: (view: WorldView) => readonly Cue[] = createCueWatch();
   const frame = (now: number) => {
     // Asked first, so one bad frame cannot stop the drawing for good.
     requestAnimationFrame(frame);

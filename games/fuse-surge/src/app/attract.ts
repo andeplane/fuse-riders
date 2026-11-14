@@ -7,7 +7,9 @@ import { createScene } from "../render/scene.js";
 /** The silent demo behind the menus: four bots on the deck, drawn by the match's own scene. */
 export function createAttract(host: HTMLElement) {
   const demo = createAttractGame(fuseSurgeGame, DEFAULT_SETTINGS, { bots: 4 });
-  const renderer = createScene(demoCanvas(host));
+  const renderer = createScene(demoCanvas(host), {
+    reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+  });
   return {
     advance: demo.advance,
     tick: demo.tick,

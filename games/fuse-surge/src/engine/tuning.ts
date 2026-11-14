@@ -101,7 +101,10 @@ export const MAX_SURGES = 24;
 
 /** The most a match can count: a round always awards a win, so a match is at most 5 × 4 + 1 rounds. */
 export const MAX_ROUNDS = CAPACITY * (MAX_TARGET - 1) + 1;
-/** A match's dodges and hits stay far below these (a surge at most every 70 steps, a hit at most every 66); the counts stop here. */
+/**
+ * The most a match counts of surges dodged and hits taken. Ordinary matches stay far below; a long one with the
+ * comeback rule could in principle pass them, so the counts stop here and the service takes no more (`basics.ts`).
+ */
 export const MOST_DODGES = 20000;
 export const MOST_TAKEN = 5000;
 /** The hit cue counts round and round below this. */

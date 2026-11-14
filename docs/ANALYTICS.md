@@ -31,7 +31,8 @@ steps into the break after it so a rolled-back ending is never counted, and only
 the round. Its properties are `round` (its number in the match), `reason` (`last`: one rider left standing; `time`:
 the clock ran out; `wipe`: the last riders fell together), `won` (this device's rider took the round, alone or
 shared), `riders`, and the match's `seconds` and `hits`. The TV and spectators report none; a device that slept
-through several rounds reports the last.
+through several rounds reports the last, and one that loads into a match under way (a reload, a late join) reports only
+the rounds that end from then on, so none is counted twice.
 
 [`games/fuse-riders/src/online/analytics.ts`](../games/fuse-riders/src/online/analytics.ts) also reports its detailed
 funnel, weapon and match properties, using the same prefix and game property.

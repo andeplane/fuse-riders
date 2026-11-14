@@ -87,3 +87,42 @@ export function cuesBetween(
     cues.push({ kind: "over", winners: [...after.winners] });
   return cues;
 }
+
+/** A view this many steps behind the last one is a new match, not a correction. */
+export const REWIND_STEPS = 600;
+
+/**
+ * Cues for a stream of views that may step back. The screen draws a prediction that the room can correct, so the
+ * view it is given sometimes rewinds a few steps and plays forward again. A plain comparison of neighbours would
+ * then say everything twice, so this keeps the furthest view it has spoken for (a rewound view says nothing, and the
+ * next one is compared with that furthest view) and a high-water mark of each rider's hits and dodges, so a hit that
+ * was already sounded is not sounded again when the correction replays it.
+ */
+export function createCueWatch(): (view: WorldView) => Cue[] {
+  let furthest: WorldView | undefined;
+  let taken: number[] = [],
+    dodges: number[] = [];
+  return (view) => {
+    if (!furthest || view.step + REWIND_STEPS < furthest.step) {
+      furthest = view;
+      taken = view.riders.map((rider) => rider.taken);
+      dodges = view.riders.map((rider) => rider.dodges);
+      return [];
+    }
+    if (view.step <= furthest.step) return [];
+    const cues = cuesBetween(furthest, view).filter((cue) => {
+      const rider = "slot" in cue ? view.riders[cue.slot] : undefined;
+      if (!rider) return true;
+      if (cue.kind === "hit" && !cue.out)
+        return rider.taken > (taken[cue.slot] ?? 0);
+      if (cue.kind === "dodge") return rider.dodges > (dodges[cue.slot] ?? 0);
+      return true;
+    });
+    furthest = view;
+    view.riders.forEach((rider, slot) => {
+      taken[slot] = Math.max(taken[slot] ?? 0, rider.taken);
+      dodges[slot] = Math.max(dodges[slot] ?? 0, rider.dodges);
+    });
+    return cues;
+  };
+}

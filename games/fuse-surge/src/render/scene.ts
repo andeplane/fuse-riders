@@ -10,7 +10,7 @@ import {
   footholds,
   secondsLeft,
 } from "../engine/view-kit.js";
-import { cuesBetween, type Cue } from "./cues.js";
+import { createCueWatch, type Cue } from "./cues.js";
 import {
   DANGER,
   DECK,
@@ -128,7 +128,7 @@ export function createScene(
     (() => (typeof devicePixelRatio === "number" ? devicePixelRatio : 1));
   const calm = options.reducedMotion === true;
   let box = { w: -1, h: -1, r: -1 };
-  let previous: WorldView | undefined;
+  const watch = createCueWatch();
   let lastNow = -1;
   let destroyed = false;
   let particles: Particle[] = [];
@@ -144,6 +144,8 @@ export function createScene(
     const r = Math.min(MAX_RATIO, Math.max(1, ratio())),
       w = canvas.clientWidth,
       h = canvas.clientHeight;
+    // Setting a canvas's size clears it, so a size that has not changed is left alone.
+    if (box.w === w && box.h === h && box.r === r) return;
     box = { w, h, r };
     canvas.width = Math.max(1, Math.round(w * r));
     canvas.height = Math.max(1, Math.round(h * r));
@@ -811,8 +813,7 @@ export function createScene(
     if (box.w !== canvas.clientWidth || box.h !== canvas.clientHeight) resize();
     const dtMs = lastNow < 0 ? 0 : Math.min(100, Math.max(0, nowMs - lastNow));
     lastNow = nowMs;
-    const cues = cuesBetween(previous, view);
-    previous = view;
+    const cues = watch(view);
     react(cues, view, nowMs, names);
     flow += view.speed * (dtMs / 1000) * STEPS_PER_SECOND;
 

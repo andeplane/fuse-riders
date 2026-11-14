@@ -1,3 +1,9 @@
+import {
+  DEFAULT_SETTINGS,
+  parseSettings,
+  type Settings,
+} from "../online/game.js";
+
 /** What `localStorage` offers, or a stand-in when the browser refuses it (Safari with every cookie blocked). */
 export interface Store {
   getItem(key: string): string | null;
@@ -104,3 +110,40 @@ export function roomFailure(message: string): string {
     return "That code is a room of another game";
   return message;
 }
+
+/** The match settings a link may carry as numbers; the way to try values the lobby's buttons do not offer. */
+const SETTING_PARAMS = ["hits", "seconds", "pace", "target", "bot"] as const;
+
+/**
+ * The settings a page starts with: what this browser last chose (`saved`, as `settingsToSave` wrote it), with
+ * anything the link asks for on top. Whatever does not parse is dropped, one field at a time, so a bad link or a
+ * stale store never keeps a match from starting. Whether the room is a shared screen is never read from here.
+ */
+export function settingsFrom(search: string, saved: string | null): Settings {
+  let stored: unknown;
+  try {
+    stored = JSON.parse(saved ?? "null");
+  } catch {
+    stored = null;
+  }
+  let settings: Settings = {
+    ...(parseSettings(stored) ?? DEFAULT_SETTINGS),
+    display: false,
+  };
+  const query = new URLSearchParams(search);
+  for (const key of SETTING_PARAMS) {
+    const raw = query.get(key);
+    if (raw === null || raw.trim() === "") continue;
+    settings = parseSettings({ ...settings, [key]: Number(raw) }) ?? settings;
+  }
+  const recover = query.get("recover");
+  if (recover === "0" || recover === "1")
+    settings = { ...settings, recover: recover === "1" };
+  return settings;
+}
+/** What the store keeps of a choice: everything but the shared screen, which belongs to a room, not a browser. */
+export const settingsToSave = (settings: Settings): string =>
+  JSON.stringify({ ...settings, display: false });
+/** The settings as the query a solo link carries them in. */
+export const settingsQuery = (settings: Settings): string =>
+  `hits=${settings.hits}&seconds=${settings.seconds}&pace=${settings.pace}&target=${settings.target}&recover=${settings.recover ? 1 : 0}&bot=${settings.bot}`;

@@ -279,7 +279,8 @@ export const ROUND_SETTLE_STEPS = 60;
 
 /**
  * Finds the rounds a device should report, once each: only rounds its own rider played, counted once the break
- * after them has run `ROUND_SETTLE_STEPS`, so a predicted ending that a rollback takes back is never reported.
+ * after them has run `ROUND_SETTLE_STEPS`, so a predicted ending that a rollback takes back is never reported. A page
+ * that first sees a match part-way through reports only the rounds that end after that, so a reload counts none twice.
  */
 export function createRoundWatch(): (view: View, me: string) => RoundReport[] {
   let match = "",
@@ -289,7 +290,10 @@ export function createRoundWatch(): (view: View, me: string) => RoundReport[] {
     if (!world || view.stage === "lobby" || !view.matchId) return [];
     if (view.matchId !== match) {
       match = view.matchId;
-      counted = 0;
+      // A page that loads into a match under way (a reload, a late join) reports only the rounds that end from
+      // now on: the ones before were reported by the page that saw them end.
+      const ended = world.phase === "break" || world.phase === "over";
+      counted = ended ? world.round : world.round - 1;
     }
     if (world.round <= counted) return [];
     const settled =

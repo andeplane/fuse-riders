@@ -27,6 +27,8 @@ function fallOnDeck(rider: Rider, gravity: number): boolean {
   rider.vy -= gravity;
   if (rider.vy < -T.MAX_FALL_V) rider.vy = -T.MAX_FALL_V;
   rider.y += rider.vy;
+  // No jump reaches this height: only a checkpoint that put a rider there could, and it stays a world that decodes.
+  if (rider.y > T.MAX_Y) rider.y = T.MAX_Y;
   if (rider.y > 0) return false;
   rider.y = 0;
   rider.vy = 0;
