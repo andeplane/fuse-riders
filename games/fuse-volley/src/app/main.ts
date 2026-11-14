@@ -1,3 +1,4 @@
+import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
 import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
@@ -5,6 +6,14 @@ import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
+import {
+  bindAudioInput,
+  browserAudioDependencies,
+  createAudioControl,
+  createGameAudio,
+} from "fuse-ui/game-audio";
+import "fuse-ui/game-audio.css";
+import { safeStorage } from "fuse-ui/safe-storage";
 import "./fuse-volley.css";
 import QRCode from "qrcode";
 import {
@@ -21,6 +30,7 @@ import {
   createGameMenu,
   createInviteCard,
   createLandingCard,
+  createRoomLayout,
   createNameEntry,
   createNotice,
   createRoster,
@@ -31,13 +41,23 @@ import {
   JUMP,
   SCORINGS,
   botInput,
+  blobsFor,
   isBotLevel,
+  isFormat,
   type BotLevel,
+  type Format,
   type Scoring,
 } from "../engine/index.js";
 import type { WorldView } from "../engine/view.js";
 import { GAME_ID } from "../basics.js";
-import { DEFAULT_SETTINGS, type Settings, type View } from "../online/game.js";
+import {
+  DEFAULT_SETTINGS,
+  createFuseVolleyGame,
+  fuseVolleyGame,
+  type Settings,
+  type View,
+  teamOfSlot,
+} from "../online/game.js";
 import { seatName } from "../online/names.js";
 import {
   FuseVolleyRuntime,
@@ -47,8 +67,8 @@ import { SIDE_NAMES, sideColor } from "../render/palette.js";
 import type { Cue } from "../render/cues.js";
 import { createScene } from "../render/scene.js";
 import { createSmoother } from "../render/smooth.js";
-import { artBase, browserImages, loadArt } from "./art.js";
-import { createSfx } from "./audio.js";
+import { browserImages, loadArt } from "./art.js";
+import { createSfx, VOLLEY_SONGS } from "./audio.js";
 import {
   HeldControls,
   PadSet,
@@ -68,9 +88,11 @@ import {
 import { GamepadInput, browserGamepads } from "./gamepad.js";
 import {
   BOT_CHOICES,
+  MODE_CHOICES,
   SCORING_CHOICES,
   createPointWatch,
   present,
+  teamLabel,
   type Model,
   type Viewer,
 } from "./presenter.js";
@@ -110,9 +132,21 @@ const social = createGameSocial({
 const store = safeStore(() => localStorage);
 const names = keys(GAME);
 const scoringKey = `${GAME}-scoring`,
-  botKey = `${GAME}-bot`;
+  botKey = `${GAME}-bot`,
+  formatKey = `${GAME}-format`,
+  teamKey = `${GAME}-team`,
+  doublesKey = `${GAME}-doubles`;
 const query = new URLSearchParams(location.search);
 const muted = query.has("mute");
+/** One sound bus for the page: the mute and volumes are remembered across games, `?mute` keeps a preview silent. */
+const audio = createGameAudio(
+  browserAudioDependencies(safeStorage(() => localStorage)),
+  { forceMute: muted },
+);
+audio.setSongs(VOLLEY_SONGS, import.meta.env.BASE_URL);
+audio.startMusic();
+bindAudioInput(audio, document, window);
+const audioControl = createAudioControl(document, audio);
 const app = document.querySelector<HTMLElement>("#app")!;
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 /** For smokes and demos: `?autopilot` plays this device's blob with the bot's answers, through the same held controls. */
@@ -151,6 +185,18 @@ const coarse = () => matchMedia("(pointer: coarse)").matches;
 const chosenScoring = (): Scoring => {
   const asked = query.get("scoring") ?? store.getItem(scoringKey);
   return SCORINGS.find((known) => known === asked) ?? DEFAULT_SETTINGS.scoring;
+};
+/**
+ * The format: `?mode=` (1v1, 2v2, 3v3 or 2v2v2), else the last choice, else an older page's `?team=` or doubles flag.
+ */
+const chosenFormat = (): Format => {
+  const asked = query.get("mode") ?? store.getItem(formatKey);
+  if (isFormat(asked)) return asked;
+  const team = query.get("team") ?? store.getItem(teamKey);
+  if (team === "2" || team === "3") return `${team}v${team}` as Format;
+  return (query.get("doubles") ?? store.getItem(doublesKey)) === "1"
+    ? "2v2"
+    : DEFAULT_SETTINGS.format;
 };
 const chosenBot = (): BotLevel => {
   const raw = Number(query.get("bot") ?? store.getItem(botKey) ?? NaN);
@@ -200,7 +246,13 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     base: import.meta.env.BASE_URL,
     search: location.search,
   });
-  bar.append(portal.element, logo(), social.element(), ...extra);
+  bar.append(
+    portal.element,
+    logo(),
+    social.element(),
+    audioControl.element,
+    ...extra,
+  );
   return bar;
 }
 
@@ -233,6 +285,30 @@ function createScoringPicker(onPick: (id: Scoring) => void) {
         node.disabled = !editable && id !== selected;
         node.classList.toggle("fv-locked", !editable);
       }
+    },
+  };
+}
+
+/** The formats, as four small buttons. */
+function createModePicker(onPick: (format: Format) => void) {
+  const element = el("div", "", "fv-levels fv-modes");
+  element.setAttribute("role", "group");
+  element.setAttribute("aria-label", "Players");
+  const buttons = MODE_CHOICES.map((choice) => {
+    const node = button(choice.title, "fv-level fv-mode");
+    node.dataset.format = choice.format;
+    node.onclick = () => onPick(choice.format);
+    element.append(node);
+    return node;
+  });
+  return {
+    element,
+    update(format: Format, editable: boolean) {
+      buttons.forEach((node, index) => {
+        const mine = MODE_CHOICES[index]!.format === format;
+        node.setAttribute("aria-pressed", String(mine));
+        node.disabled = !editable && !mine;
+      });
     },
   };
 }
@@ -270,13 +346,17 @@ function landing(): void {
   shared.append(toggle, el("span", "Shared TV: phones are the controllers"));
   const solo = () =>
     withFlags(
-      endpoints.appUrl(`?solo=1&scoring=${chosenScoring()}&bot=${chosenBot()}`),
+      endpoints.appUrl(
+        `?solo=1&scoring=${chosenScoring()}&bot=${chosenBot()}${chosenFormat() !== "1v1" ? `&mode=${chosenFormat()}` : ""}`,
+      ),
     );
   const card = createLandingCard({
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     title: "FUSE VOLLEY",
     tagline:
-      "Jelly blobs, one ball, one net. Bounce the ball over to the other side and keep it off your own sand: three touches at most. Play a friend online, on one TV with phones as pads, or a bot.",
-    soloText: "PLAY SOLO VS BOT",
+      "Jelly blobs, one ball, one net. Bounce the ball over to the other side and keep it off your own sand: three touches a side at most. Play one on one, two on two, three on three, or three teams of two as king of the court: friends online, on one TV with phones as pads, or bots.",
+    soloText: "PLAY SOLO VS BOTS",
     async onCreate() {
       const room = await createRoom(endpoints.apiUrl, fetch, GAME).catch(
         (error: unknown) => {
@@ -297,13 +377,6 @@ function landing(): void {
     },
   });
   card.create.after(shared);
-  const hero = el("img", "", "fv-hero");
-  hero.src = `${artBase(import.meta.env.BASE_URL)}hero.webp`;
-  hero.alt = "";
-  hero.width = 1536;
-  hero.height = 864;
-  hero.decoding = "async";
-  card.element.prepend(hero);
   const scoring = createScoringPicker((id) => {
     store.setItem(scoringKey, id);
     scoring.update(id, true);
@@ -314,14 +387,22 @@ function landing(): void {
     bots.update(level, true);
   });
   bots.update(chosenBot(), true);
+  const modes = createModePicker((format) => {
+    store.setItem(formatKey, format);
+    modes.update(format, true);
+  });
+  modes.update(chosenFormat(), true);
   const rules = el("section", "", "fv-landing-rules");
   rules.append(
+    el("h2", "PLAYERS", "fui-lobby-title"),
+    modes.element,
     el("h2", "SCORING", "fui-lobby-title"),
     scoring.element,
     el("h2", "SOLO BOT", "fui-lobby-title"),
     bots.element,
   );
-  card.element.append(rules, keyHelp());
+  card.menu.addSettings(rules);
+  card.menu.help.append(keyHelp());
   const back = el("a", "← ALL GAMES", "fv-back");
   back.href = import.meta.env.BASE_URL + (muted ? "?mute" : "");
   const menu = createGameMenu(GUIDE);
@@ -370,7 +451,7 @@ function room(solo: boolean): void {
     display = role === "display";
   document.body.classList.toggle("fv-display", display);
   const viewer: Viewer = { me: "", host: solo, solo, display };
-  const sfx = createSfx(muted);
+  const sfx = createSfx(audio);
 
   // ---- the page ----
   const status = createNotice({ className: "fv-status" });
@@ -420,7 +501,11 @@ function room(solo: boolean): void {
     buttonText: "JOIN",
     onSubmit: (name) => {
       store.setItem(names.name, name);
-      runtime.command({ type: "join", name });
+      runtime.command({
+        type: "join",
+        name,
+        slot: requestedRoomSlot(nameEntry.form),
+      });
     },
   });
   lobbyMain.append(
@@ -428,8 +513,18 @@ function room(solo: boolean): void {
     roster.element,
     addBot,
   );
-  addBot.onclick = () => runtime.command({ type: "bot", action: "add" });
-  start.onclick = () => runtime.command({ type: "action", action: "start" });
+  addBot.onclick = () =>
+    runtime.command({
+      type: "bot",
+      action: "add",
+      slot: requestedRoomSlot(addBot),
+    });
+  start.onclick = () => {
+    // Two or three a side starts with whoever is seated: bots take the empty seats first, in the same tick as the start.
+    for (let i = 0; i < (model?.lobby.fill ?? 0); i++)
+      runtime.command({ type: "bot", action: "add" });
+    runtime.command({ type: "action", action: "start" });
+  };
   tvLink.onclick = () =>
     window.open(
       withFlags(endpoints.appUrl(`?room=${code}&display=1`)),
@@ -439,6 +534,10 @@ function room(solo: boolean): void {
     store.setItem(scoringKey, scoring);
     runtime.command({ type: "settings", settings: { ...settings, scoring } });
   });
+  const modePicker = createModePicker((format) => {
+    store.setItem(formatKey, format);
+    runtime.command({ type: "settings", settings: { ...settings, format } });
+  });
   const botPicker = createBotPicker((bot) => {
     store.setItem(botKey, String(bot));
     runtime.command({ type: "settings", settings: { ...settings, bot } });
@@ -447,6 +546,8 @@ function room(solo: boolean): void {
   const lobbyActions = el("div", "", "fv-actions");
   lobbyActions.append(tvLink, start);
   lobbySide.append(
+    el("h2", "PLAYERS", "fui-lobby-title"),
+    modePicker.element,
     el("h2", "SCORING", "fui-lobby-title"),
     scoringPicker.element,
     botTitle,
@@ -558,6 +659,23 @@ function room(solo: boolean): void {
   const main = el("main", "", "fv-room");
   main.append(connecting, closed, nameEntry.form, lobby, stage, controller);
   app.replaceChildren(top, main);
+  const roomLayout = createRoomLayout({
+    primaryAction: start,
+    playerName: () => social.playerName(undefined) ?? undefined,
+    slotColor: (slot) => sideColor(teamOfSlot(slot, settings.format)),
+    slotLabel: (slot) =>
+      `${["Cyan", "Pink", "Lime"][teamOfSlot(slot, settings.format)]} · Slot ${slot + 1}`,
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
+    element: lobby,
+    roster,
+    capacity: 2,
+    join: nameEntry.form,
+    addAI: addBot,
+    modes: [modePicker.element],
+    settings: [scoringPicker.element, botTitle, botPicker.element],
+    actions: [lobbyNote, tvLink, start],
+  });
   lobby.hidden = true;
   stage.hidden = true;
   controller.hidden = true;
@@ -583,7 +701,7 @@ function room(solo: boolean): void {
     const newer = timing?.newer.world;
     if (!timing || !newer) return undefined;
     const state = runtime.roomState();
-    const local = (model?.localSlot ?? -1) as -1 | 0 | 1;
+    const local = model?.localSlot ?? -1;
     let view: WorldView;
     if (
       state?.world &&
@@ -622,6 +740,7 @@ function room(solo: boolean): void {
           {
             kind: "hit",
             side: view.lastTouch,
+            slot: -1,
             x: 0,
             y: 0,
             speed: 0,
@@ -636,26 +755,28 @@ function room(solo: boolean): void {
     gamepads.poll(!menu.isOpen() && !document.hidden && !over);
     const view = stage.hidden && controller.hidden ? undefined : picture();
     if (view) {
-      const local = (model?.localSlot ?? -1) as -1 | 0 | 1;
+      const local = model?.localSlot ?? -1;
       if (trace) {
         trace.push({
           t: now,
           bx: view.ball.x,
           by: view.ball.y,
-          x0: view.blobs[0].x,
-          x1: view.blobs[1].x,
-          y0: view.blobs[0].y,
-          y1: view.blobs[1].y,
+          x0: view.blobs[0]?.x ?? 0,
+          x1: view.blobs[1]?.x ?? 0,
+          y0: view.blobs[0]?.y ?? 0,
+          y1: view.blobs[1]?.y ?? 0,
           ...drawn,
         });
         if (trace.length > 1200) trace.splice(0, trace.length - 1200);
       }
       const cues = stage.hidden
         ? feel(view)
-        : scene.draw(view, now, local, model?.names);
+        : scene.draw(view, now, local, model?.names, model?.tags);
+      const localSide = model?.localSide ?? -1;
       for (const cue of cues) {
         if (!stage.hidden) sfx.play(cue);
-        if (cue.kind === "hit" && cue.side === local && !controller.hidden)
+        // A phone feels its own side's touches: it cannot tell which teammate touched without drawing.
+        if (cue.kind === "hit" && cue.side === localSide && !controller.hidden)
           navigator.vibrate?.(12);
       }
     }
@@ -671,6 +792,8 @@ function room(solo: boolean): void {
     main.dataset.phase = view.world?.phase ?? "";
     main.dataset.score = view.world ? view.world.score.join("-") : "";
     main.dataset.riding = String(next.riding);
+    main.dataset.team = String(view.world?.court.team ?? 1);
+    main.dataset.format = view.world?.format ?? view.settings.format;
     lobby.hidden = next.screen !== "lobby";
     stage.hidden = next.screen !== "play";
     controller.hidden = next.screen !== "controller";
@@ -679,12 +802,15 @@ function room(solo: boolean): void {
     roster.update(
       next.lobby.members.map((member) => ({
         id: member.id,
+        slot: member.slot,
         name: member.you ? `${member.name} (you)` : member.name,
-        color: sideColor(member.slot),
+        color: sideColor(teamOfSlot(member.slot, view.settings.format)),
         status: member.bot
           ? "BOT"
           : member.connected
-            ? SIDE_NAMES[member.slot === 1 ? 1 : 0]
+            ? SIDE_NAMES[
+                teamOfSlot(member.slot, view.settings.format) as 0 | 1 | 2
+              ]
             : "OFFLINE",
       })),
     );
@@ -712,8 +838,14 @@ function room(solo: boolean): void {
       !solo
     );
     scoringPicker.update(view.settings.scoring, next.lobby.editable);
+    modePicker.update(view.settings.format, next.lobby.editable);
+    roomLayout.update(
+      next.lobby.members.length,
+      blobsFor(view.settings.format),
+    );
     botPicker.update(view.settings.bot, next.lobby.editable);
-    botTitle.hidden = botPicker.element.hidden = !next.lobby.hasBot;
+    botTitle.hidden = botPicker.element.hidden =
+      !next.lobby.hasBot && !next.lobby.fill;
     lobbySide.hidden = display;
     const touchGuide = coarse() || next.screen === "controller";
     const watching = display || (view.stage !== "lobby" && !next.riding);
@@ -734,13 +866,24 @@ function room(solo: boolean): void {
     if (roundControls.element.parentElement !== guideParent)
       guideParent.append(roundControls.element);
     // The court.
-    next.sides.forEach((side) => {
-      const node = sideNodes[side.slot]!;
+    ([0, 1] as const).forEach((team) => {
+      const node = sideNodes[team]!;
+      const members = next.sides.filter((side) => side.side === team);
+      // A team keeps its colour on either side (three teams of two move about).
+      node.style.setProperty("--c", sideColor(members[0]?.team ?? team));
       setText(
         node,
-        `${side.name}${side.you ? " (you)" : ""}${side.away ? " · away" : ""}`,
+        teamLabel(
+          members.map(
+            (side) =>
+              `${side.name}${side.you ? " (you)" : ""}${side.away ? " · away" : ""}`,
+          ),
+        ),
       );
-      node.classList.toggle("you", side.you);
+      node.classList.toggle(
+        "you",
+        members.some((side) => side.you),
+      );
     });
     // The court says the rule on its sand; the controller's status line carries the score.
     setText(scoringName, "");
@@ -754,8 +897,11 @@ function room(solo: boolean): void {
     // The phone controller.
     const mine = next.sides.find((side) => side.you);
     if (mine) {
-      controller.style.setProperty("--c", sideColor(mine.slot));
-      setText(controllerName, `${SIDE_NAMES[mine.slot]} · ${mine.name}`);
+      controller.style.setProperty("--c", sideColor(mine.team));
+      setText(
+        controllerName,
+        `${SIDE_NAMES[mine.team as 0 | 1 | 2]} · ${mine.name}`,
+      );
     }
     setText(controllerState, next.status);
     controllerResult.hidden = !(next.result && next.result.host);
@@ -802,9 +948,13 @@ function room(solo: boolean): void {
         analytics.track("Point Scored", { ...point });
       settings = roomSettings;
       const next = present(frame, viewer);
-      if (next.askName && remembered && !joinSent) {
+      if (next.askName && remembered && !joinSent && !viewer.host) {
         joinSent = true;
-        runtime.command({ type: "join", name: remembered });
+        runtime.command({
+          type: "join",
+          slot: requestedRoomSlot(nameEntry.form),
+          name: remembered,
+        });
       }
       if (next.seated) joinSent = false;
       render(next, frame);
@@ -863,7 +1013,12 @@ function room(solo: boolean): void {
     !solo && role === "host" && store.getItem(names.shared) === "1";
   const runtime = new FuseVolleyRuntime(
     code,
-    { display: shared, scoring: chosenScoring(), bot: chosenBot() },
+    {
+      display: shared,
+      scoring: chosenScoring(),
+      bot: chosenBot(),
+      format: chosenFormat(),
+    },
     callbacks,
     session.kind === "room"
       ? {
@@ -884,6 +1039,10 @@ function room(solo: boolean): void {
       : {
           humanName: social.playerName(store.getItem(names.name)) ?? undefined,
         },
+    // Solo in a team format seats three or five bots beside the player.
+    solo && chosenFormat() !== "1v1"
+      ? createFuseVolleyGame(botInput, blobsFor(chosenFormat()) - 1)
+      : fuseVolleyGame,
   );
   installRoomLifecycle(window, {
     stop: () => runtime.stop(),
@@ -903,7 +1062,6 @@ function room(solo: boolean): void {
     (target instanceof HTMLButtonElement && !model?.riding);
   const captured = new Set<string>();
   document.addEventListener("keydown", (event) => {
-    sfx.resume();
     if (
       menu.isOpen() ||
       typing(event.target) ||
@@ -933,10 +1091,6 @@ function room(solo: boolean): void {
       gamepads.letGo();
     }
   });
-  document.addEventListener("pointerdown", () => sfx.resume(), {
-    passive: true,
-  });
-  window.addEventListener("gamepadconnected", () => sfx.resume());
   runtime.start();
 }
 

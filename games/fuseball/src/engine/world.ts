@@ -1,7 +1,14 @@
 import { BTN } from "./input.js";
 import { SUB } from "./math.js";
 import { freshBarriers, type BarrierState } from "./gadgets.js";
-import { RANDOM, arenaOf, isSeed, type MapId } from "./maps.js";
+import {
+  RANDOM,
+  arenaOf,
+  isSeed,
+  mapOf,
+  type MapDef,
+  type MapId,
+} from "./maps.js";
 import { COUNTDOWN_STEPS, SPEED_FULL } from "./tuning.js";
 
 /**
@@ -11,10 +18,23 @@ import { COUNTDOWN_STEPS, SPEED_FULL } from "./tuning.js";
  */
 export const PHASES = ["countdown", "play", "zap", "over"] as const;
 export type Phase = (typeof PHASES)[number];
+/** A side of the arena and its colour: 0 starts on the left, 1 on the right. A duel has one rider a side. */
 export type Slot = 0 | 1;
+
+/** Two or more of something: a match always has a rider on each side. */
+export type Several<T> = [T, T, ...T[]];
+export function several<T>(list: T[]): Several<T> {
+  const [first, second, ...rest] = list;
+  if (first === undefined || second === undefined)
+    throw new Error("A match needs a rider on each side");
+  return [first, second, ...rest];
+}
 
 export interface Rider {
   id: string;
+  /** This rider's place in `World.riders`, and their bubble's in `World.bubbles`. */
+  index: number;
+  /** The side this rider plays for: `index % 2`, so the sides take turns down the list. */
   slot: Slot;
   x: number;
   y: number;
@@ -59,8 +79,8 @@ export interface Ball {
   live: boolean;
   /** Bounces, kicks and bumps so far, for the presentation. */
   bounces: number;
-  /** Whose rider or bubble last sent it, or −1 for nobody (or both at once). */
-  touch: -1 | Slot;
+  /** The place in `World.riders` of whoever last sent it, themselves or by their bubble; −1 for nobody (or several at once). */
+  touch: number;
 }
 
 export interface World {
@@ -69,6 +89,11 @@ export interface World {
   seed: number;
   /** Micro-steps simulated so far. */
   step: number;
+  /**
+   * Micro-steps this point has been in motion: it starts at 0 with the point and stands still through the countdown
+   * and a goal's freeze, when nothing moves. The arena's movers are where this says they are.
+   */
+  clock: number;
   phase: Phase;
   /** Steps left of the countdown or the zap; 0 in play and when the match is over. */
   phaseSteps: number;
@@ -86,21 +111,24 @@ export interface World {
   linger: number;
   /** Micro-steps left of the freeze that follows a goal; nothing moves while it lasts. */
   freeze: number;
-  riders: [Rider, Rider];
-  bubbles: [Bubble, Bubble];
+  /** Two, four or six riders: a duel, 2v2 or 3v3. Even places ride for side 0, odd for side 1. */
+  riders: Several<Rider>;
+  /** Each rider's one bubble, in the riders' order. */
+  bubbles: Several<Bubble>;
   ball: Ball;
   /** The state of the map's barriers (force fields and gates), in the map's order; every point starts them afresh. */
   barriers: BarrierState[];
 }
 
-const rider = (id: string, slot: Slot): Rider => ({
+const rider = (id: string, index: number): Rider => ({
   id,
-  slot,
+  index,
+  slot: index % 2 === 0 ? 0 : 1,
   x: 0,
   y: 0,
   vx: 0,
   vy: 0,
-  facing: slot === 0 ? 1 : -1,
+  facing: index % 2 === 0 ? 1 : -1,
   grounded: true,
   prev: BTN,
   slide: 0,
@@ -122,7 +150,7 @@ const bubble = (): Bubble => ({
 export function resetPoint(world: World): void {
   const map = arenaOf(world);
   for (const r of world.riders) {
-    const spawn = map.spawns[r.slot];
+    const spawn = map.spawns[r.index] ?? map.spawns[r.slot];
     r.x = spawn.x * SUB;
     r.y = spawn.y * SUB;
     r.vx = 0;
@@ -146,6 +174,7 @@ export function resetPoint(world: World): void {
   ball.live = true;
   ball.touch = -1;
   world.barriers = freshBarriers(map);
+  world.clock = 0;
   world.phase = "countdown";
   world.phaseSteps = COUNTDOWN_STEPS;
   world.speed = SPEED_FULL;
@@ -154,19 +183,27 @@ export function resetPoint(world: World): void {
   world.freeze = 0;
 }
 
+/** How many riders a match on `map` may have: two at least, an even number, and no more than it has marks for. */
+export const fits = (map: MapDef, riders: number): boolean =>
+  riders >= 2 && riders % 2 === 0 && riders <= map.spawns.length;
+
 /**
- * A new match on `mapId` at 0–0, in its first countdown; `ids[0]` rides in slot 0, on the left. `seed` picks the
- * level when the map is the random one, and is not kept otherwise.
+ * A new match on `mapId` at 0–0, in its first countdown; `ids` are the riders in order, the sides taking turns, so
+ * `ids[0]` rides on the left and `ids[1]` on the right. `seed` picks the level when the map is the random one, and
+ * is not kept otherwise. It throws when the arena has no marks for that many riders.
  */
 export function createWorld(
   mapId: MapId,
-  ids: readonly [string, string],
+  ids: readonly string[],
   seed = 0,
 ): World {
+  if (!fits(mapOf(mapId, seed), ids.length))
+    throw new Error(`${mapId} does not seat ${ids.length} riders`);
   const world: World = {
     mapId,
     seed: mapId === RANDOM && isSeed(seed) ? seed : 0,
     step: 0,
+    clock: 0,
     phase: "countdown",
     phaseSteps: COUNTDOWN_STEPS,
     score: [0, 0],
@@ -176,8 +213,8 @@ export function createWorld(
     budget: 0,
     linger: 0,
     freeze: 0,
-    riders: [rider(ids[0], 0), rider(ids[1], 1)],
-    bubbles: [bubble(), bubble()],
+    riders: several(ids.map(rider)),
+    bubbles: several(ids.map(bubble)),
     ball: { x: 0, y: 0, vx: 0, vy: 0, live: true, bounces: 0, touch: -1 },
     barriers: [],
   };
@@ -187,13 +224,11 @@ export function createWorld(
 
 /** A world of its own with the same state: what is done to the copy leaves the original alone. */
 export function copyWorld(world: World): World {
-  const [a, b] = world.riders,
-    [p, q] = world.bubbles;
   return {
     ...world,
     score: [world.score[0], world.score[1]],
-    riders: [{ ...a }, { ...b }],
-    bubbles: [{ ...p }, { ...q }],
+    riders: several(world.riders.map((each) => ({ ...each }))),
+    bubbles: several(world.bubbles.map((each) => ({ ...each }))),
     ball: { ...world.ball },
     barriers: world.barriers.map((barrier) => ({ ...barrier })),
   };

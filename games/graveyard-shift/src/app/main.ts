@@ -1,3 +1,4 @@
+import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
 import "@fontsource/press-start-2p/latin.css";
@@ -18,6 +19,7 @@ import {
   button,
   createAppPortal,
   createLandingCard,
+  createRoomLayout,
   createInviteCard,
   createNameEntry,
   createNotice,
@@ -33,16 +35,12 @@ import {
   PULSE,
   DURATION,
   carried,
-  createWorld,
-  botInput,
-  stepWorld,
   type World,
 } from "../engine/world.js";
 import { GraveyardRuntime } from "../online/runtime.js";
 import type { View } from "../online/game.js";
 import { seatName } from "../online/names.js";
 import { draw, COLORS } from "../render/scene.js";
-import { toView } from "../engine/view.js";
 import {
   keys,
   safeStore,
@@ -186,6 +184,9 @@ function landing() {
     ),
   );
   art.append(c, title);
+  title.remove();
+  hero.classList.add("fui-menu-stage");
+  art.classList.add("fui-menu-scene");
   const shared = el("label", "", "shared"),
     toggle = el("input");
   toggle.type = "checkbox";
@@ -194,7 +195,9 @@ function landing() {
     store.setItem(names.shared, toggle.checked ? "1" : "0");
   shared.append(toggle, el("span", "Shared TV + phone controllers"));
   const card = createLandingCard({
-    title: "CLOCK IN",
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
+    title: "GRAVEYARD SHIFT",
     tagline:
       "Catch ghosts. Fill your tank. Reach a shrine before a rival blows your haul loose.",
     soloText: "START SOLO SHIFT",
@@ -210,33 +213,12 @@ function landing() {
   card.create.after(shared);
   const guide = button("HOW TO PLAY", "guide");
   guide.onclick = handbook;
-  card.element.append(
+  card.menu.help.append(
     guide,
     el("p", "2–5 HUNTERS • SOLO + BOTS • 90 SECONDS", "meta"),
   );
   hero.append(art, card.element);
   app.append(hero);
-  const demo = createWorld(47, [
-    { id: "a", slot: 0 },
-    { id: "b", slot: 1 },
-    { id: "c", slot: 2 },
-  ]);
-  let last = 0;
-  const animate = (now: number) => {
-    if (!alive) return;
-    if (now - last > 50) {
-      stepWorld(
-        demo,
-        new Map(demo.hunters.map((h) => [h.id, botInput(demo, h)])),
-      );
-      last = now;
-      if (demo.tick >= DURATION) demo.tick = 0;
-    }
-    draw(c.getContext("2d")!, toView(demo), "");
-    audio.frame();
-    requestAnimationFrame(animate);
-  };
-  requestAnimationFrame(animate);
 }
 function room() {
   const session = sessionFor(
@@ -267,7 +249,12 @@ function room() {
     tv = button("OPEN TV"),
     help = button("HOW TO PLAY");
   help.onclick = handbook;
-  add.onclick = () => runtime?.command({ type: "bot", action: "add" });
+  add.onclick = () =>
+    runtime?.command({
+      type: "bot",
+      action: "add",
+      slot: requestedRoomSlot(add),
+    });
   ready.onclick = () => runtime?.readyUp();
   tv.onclick = () => window.open(url(`?room=${code}&display=1`), "_blank");
   if (!solo) {
@@ -279,8 +266,12 @@ function room() {
     lobby.append(invite.element);
   }
   const rememberedName = social.playerName(store.getItem(names.name)) ?? null;
-  const admission = createSeatAdmission(rememberedName, (name) =>
-    runtime?.command({ type: "join", name }),
+  const admission = createSeatAdmission(rememberedName, (playerName) =>
+    runtime?.command({
+      type: "join",
+      name: playerName,
+      slot: requestedRoomSlot(name.form),
+    }),
   );
   const name = createNameEntry({
     initial: rememberedName ?? "",
@@ -437,6 +428,18 @@ function room() {
   result.hidden = true;
   name.form.hidden = true;
   app.append(main);
+  createRoomLayout({
+    primaryAction: ready,
+    playerName: () => social.playerName(undefined) ?? undefined,
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
+    element: lobby,
+    roster,
+    capacity: 5,
+    join: name.form,
+    addAI: add,
+    actions: [ready, tv, help],
+  });
   let previous: World | undefined;
   runtime = new GraveyardRuntime(
     code,
@@ -484,12 +487,13 @@ function room() {
           ? "WAITING FOR CREW…"
           : "READY FOR ANOTHER SHIFT";
         back.hidden = !host;
-        if (!display) admission.observe(!!mine);
+        if (!display && !host) admission.observe(!!mine);
         roster.update(
           frame.seats
             .filter((s) => !s.watcher)
             .map((s) => ({
               id: s.id,
+              slot: s.slot,
               name:
                 s.name +
                 (s.bot ? " / BOT" : frame.ready[s.id] ? " / READY" : ""),

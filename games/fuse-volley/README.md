@@ -1,6 +1,6 @@
 # Fuse Volley
 
-Fuse Volley is jelly-blob beach volleyball for two, served at `/fuse-volley/` (locally
+Fuse Volley is jelly-blob beach volleyball for two, four or six, served at `/fuse-volley/` (locally
 **http://localhost:8787/fuse-volley/?mute**). Two blobs, one ball, one net: bounce the ball over to the other side
 and keep it off your own sand. Play a friend online, on one TV with phones as the controllers, or a bot.
 
@@ -13,6 +13,35 @@ and keep it off your own sand. Play a friend online, on one TV with phones as th
 - **Hold jump to jump higher.** A tap is a hop; held, the blob rises about twice as high.
 - **Serving.** The server's ball hovers over its half until a blob touches it, or drops by itself after five seconds.
 - **The net** is a post with a round top: the ball bounces off it, and a blob cannot cross it.
+
+## Doubles (2 V 2)
+
+Pick **2 V 2** under PLAYERS in the lobby (or on the landing page for solo): two blobs a side on a court 1.75 times
+as wide. Seats alternate sides, so seats 1 and 3 play cyan and 2 and 4 pink; START fills empty seats with bots. The
+three touches are the side's, however the two teammates split them. Teammates are solid to each other: running into
+one shoves it, two pushing stand still, and you get past by jumping over its head (land on the head and you pop off).
+A flat hit from the back line only just carries over the net, so the back blob usually passes to the front.
+
+## Three a side (3 V 3)
+
+Pick **3 V 3** under PLAYERS: three blobs a side on one big 2000 px court, the singles net and heights, no lanes.
+Seats 1, 3 and 5 play cyan, 2, 4 and 6 pink, and START fills empty seats with bots. It plays like doubles scaled up:
+every blob may run its whole half, the three are solid to each other as doubles teammates are, and the side shares
+its three touches. Bots take a ball by whoever is nearest; the other two step to the free front, middle or back spot.
+
+## Three teams of two (2 V 2 V 2)
+
+Pick **2 V 2 V 2**: king of the court on the doubles court. Seats 1 and 4 play cyan, 2 and 5 pink, 3 and 6 lime. Two
+teams play each rally while the third waits on the NEXT UP bench at the top. The side that wins the rally stays on;
+the side that loses walks off when the next serve starts, and the waiting team comes on in its place and serves. A team
+keeps its colour on either side.
+
+| Choice      | Rule                                                                                                                     |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **QUICK**   | Every rally scores a point for the team that wins it. First to 11.                                                       |
+| **CLASSIC** | Only the receiving (king) side scores. A serving team that wins the rally takes the king side with no point. First to 7. |
+
+There is no win by two with three teams: first to the target wins, and the other two place second and third by points.
 
 ## Scoring
 

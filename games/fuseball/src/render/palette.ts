@@ -25,6 +25,8 @@ export const CLOUD = "#aab4ff";
 /** Gates: hazard amber, which is nobody's colour and not the ball's yellow. */
 export const GADGET = "#ff9d3c";
 export const GADGET_DARK = "#4a2408";
+/** Ledges and the lights on a mover: mint, which is no team's and no wall's. */
+export const LEDGE = "#7dffc9";
 /** The two portal pairs: lime and orange. */
 export const PORTAL = ["#8dff6a", "#ff9d3c"] as const;
 export const WHITE = "#ffffff";

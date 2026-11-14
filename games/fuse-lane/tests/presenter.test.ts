@@ -586,6 +586,7 @@ test("the lobby: the host starts with two players and manages bots, a guest wait
     {
       id: "a",
       name: "Ada (you)",
+      slot: 0,
       status: "READY",
       avatar: "fox",
       color: colorOf(0),

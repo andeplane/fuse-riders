@@ -1,3 +1,4 @@
+import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
 import "fuse-ui/components.css";
@@ -98,6 +99,8 @@ export function showLanding(store: Store, error = ""): void {
     store.setItem(names.shared, toggle.checked ? "1" : "0");
   shared.append(toggle, el("span", "Shared TV: phones are the controllers"));
   const card = ui.createLandingCard({
+    background: async (host, signal) =>
+      (await import("./attract.js")).createAttract(host, signal),
     title: "FUSE BOMBERS",
     tagline:
       "Fly a gunship round a floating temple and fire as the launcher turns: online, against bots, or everyone at one screen.",
@@ -124,6 +127,12 @@ export function showLanding(store: Store, error = ""): void {
   card.solo?.after(local);
   card.create.after(shared);
   card.error.textContent = error;
+  card.menu.help.append(
+    el(
+      "p",
+      "Your gunship flies around its castle while the launcher rotates. Press to fire toward the other castles. Dodge enemy shots and be the last castle standing. Use the same fire button on a keyboard or phone.",
+    ),
+  );
   page(card.element);
 }
 
@@ -169,7 +178,12 @@ export function showRoom(
     initial: social.playerName(store.getItem(names.name)) ?? "",
     onInput: (value) => store.setItem(names.name, value),
     buttonText: "JOIN",
-    onSubmit: (name) => runtime.command({ type: "join", name }),
+    onSubmit: (name) =>
+      runtime.command({
+        type: "join",
+        name,
+        slot: requestedRoomSlot(nameEntry.form),
+      }),
   });
   // The host cycles the settings as in the local lobby: rounds to win 1–9; bots easy, normal, hard.
   const lobby = el("section", "", "fb-lobby"),
@@ -186,7 +200,12 @@ export function showRoom(
         type: "settings",
         settings: { ...settings, ...change },
       });
-  addBot.onclick = () => runtime.command({ type: "bot", action: "add" });
+  addBot.onclick = () =>
+    runtime.command({
+      type: "bot",
+      action: "add",
+      slot: requestedRoomSlot(addBot),
+    });
   start.onclick = () => runtime.command({ type: "action", action: "start" });
   wins.onclick = () => set({ wins: (settings.wins % MAX_WINS) + 1 });
   level.onclick = () => set({ difficulty: after(LEVELS, settings.difficulty) });
@@ -205,6 +224,19 @@ export function showRoom(
     );
   pilots.append(el("h2", "PILOTS", "fui-lobby-title"), roster.element, addBot);
   lobby.append(pilots, match);
+  ui.createRoomLayout({
+    primaryAction: start,
+    playerName: () => social.playerName(undefined) ?? undefined,
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
+    element: lobby,
+    roster,
+    capacity: 5,
+    join: nameEntry.form,
+    addAI: addBot,
+    settings: [wins, level],
+    actions: [note, tv, start],
+  });
   // A phone's controller for the shared TV: who it flies, hull and launcher, the round's word; the pads are the input
   // layer's, laid out big (`controllerPadLayout`).
   const pad = el("section", "", "fb-pad"),

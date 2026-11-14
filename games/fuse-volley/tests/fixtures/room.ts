@@ -9,7 +9,7 @@ import {
   type Room,
   type Settings,
 } from "../../src/online/game.js";
-import type { Side } from "../../src/engine/index.js";
+import { courtOf, type Side } from "../../src/engine/index.js";
 import * as T from "../../src/engine/tuning.js";
 
 export type Bodies = Record<string, readonly unknown[][]>;
@@ -53,7 +53,7 @@ export function finish(room: Room, loser: Side): void {
     if (world.phase === "serve" || world.phase === "rally") {
       // Drop the ball onto the loser's sand.
       Object.assign(world.ball, {
-        x: (loser === 0 ? 200 : 600) * T.BU,
+        x: courtOf(world).serveX[loser],
         y: T.BALL_FLOOR + 10,
         vx: 0,
         vy: -50,

@@ -9,6 +9,7 @@ import {
   createWorld,
   encodeWorld,
   stepWorld,
+  type Format,
   type Scoring,
   type World,
 } from "../src/engine/index.js";
@@ -29,8 +30,122 @@ const GOLDEN: {
   rules: string;
   hashes: Record<Scoring, string[]>;
   bots: Record<Scoring, string[]>;
+  /** Two a side on the wide court: the pilots, then the bots (hard and normal against easy and normal). */
+  doubles: { pilots: string[]; bots: string[] };
+  /** Three a side on the big court: the pilots, then the bots. */
+  triples: { pilots: string[]; bots: string[] };
+  /** Three teams of two, king of the court: the pilots, then the bots, under rally scoring and then classic. */
+  kings: { pilots: string[]; bots: string[]; classic: string[] };
 } = {
-  rules: "fuse-volley-2",
+  triples: {
+    pilots: [
+      "e9fcb94d",
+      "2db990a0",
+      "3fc6e486",
+      "81a01497",
+      "05972f58",
+      "5d87b68c",
+      "933c11c2",
+      "0c0b7b43",
+      "e99d85a6",
+      "3eebb05d",
+      "419711ed",
+      "393fd70a",
+      "ce0d8289",
+      "2d1a5e40",
+      "069da0c8",
+      "0c9b0167",
+      "f14defb4",
+      "440a402c",
+      "cd8db81f",
+      "616c3196",
+      "7596e3ea",
+      "bb7cc38f",
+      "f754b4cc",
+      "61835c98",
+      "cc67d44d",
+      "28feca15",
+      "1f071ea8",
+      "d9fcdcb4",
+      "f0393499",
+      "1e3bda28",
+      "3635a977",
+      "88caa9b6",
+      "aaf543ff",
+    ],
+    bots: [
+      "c191f51d",
+      "714d704f",
+      "090e105c",
+      "fa71b69e",
+      "0ca7e7de",
+      "7b785082",
+      "73c75462",
+      "9ffd46a8",
+      "9ffd46a8",
+    ],
+  },
+  kings: {
+    pilots: [
+      "fc7dd4a8",
+      "9d8860a8",
+      "f07715b9",
+      "96dc1da5",
+      "5ac8a56a",
+      "60286db3",
+      "1c601c51",
+      "b3306daf",
+      "8d959538",
+      "fd6785cb",
+    ],
+    bots: [
+      "21a466dc",
+      "5dbec5a2",
+      "c2e57b2e",
+      "6f5f6c07",
+      "c0072ca6",
+      "f8c1e5c9",
+      "15f8731b",
+      "5cdf7050",
+      "735ac89a",
+      "17784001",
+      "f73ec90f",
+      "17c85983",
+    ],
+    classic: [
+      "9cded3ff",
+      "126dee93",
+      "fee38e32",
+      "8125dfaf",
+      "d9f8ac90",
+      "e9ccae9b",
+      "8281b373",
+      "1f1231c4",
+    ],
+  },
+  doubles: {
+    pilots: [
+      "692e8d88",
+      "36c7d18f",
+      "24cbbbb5",
+      "3507ac8b",
+      "5fc929e8",
+      "7d99b543",
+      "c21f5f4b",
+    ],
+    bots: [
+      "0d7d7905",
+      "f8f5d3a1",
+      "44baf032",
+      "9f87995d",
+      "dac2636a",
+      "be738071",
+      "b77f7e22",
+      "94b450a8",
+      "5367a090",
+    ],
+  },
+  rules: "fuse-volley-5",
   hashes: {
     rally: [
       "7a4b3e99",
@@ -101,8 +216,9 @@ function fnv(text: string): string {
 }
 
 /** Mostly under the ball on its own side, sometimes wandering; jumps by the roll. */
-function pilot(world: World, side: 0 | 1, roll: number): number {
-  const me = world.blobs[side],
+function pilot(world: World, slot: number, roll: number): number {
+  const me = world.blobs[slot]!,
+    side = me.side,
     bx = world.ball.x / T.BU;
   const behind = side === 0 ? -14 : 14;
   let bits = bx + behind > me.x ? RIGHT : LEFT;
@@ -115,17 +231,29 @@ function pilot(world: World, side: 0 | 1, roll: number): number {
 const TICKS = 12_000,
   EVERY = 300;
 
-function record(bots = false): Record<Scoring, string[]> {
+function record(
+  bots = false,
+  blobs = 2,
+  format?: Format,
+): Record<Scoring, string[]> {
   const recorded = { rally: [] as string[], classic: [] as string[] };
   for (const scoring of ["rally", "classic"] as const) {
-    const world = createWorld(["bot:1", "bot:2"], scoring, 20261114),
+    const world = createWorld(
+        ["bot:1", "bot:2", "bot:3", "bot:4", "bot:5", "bot:6"].slice(0, blobs),
+        scoring,
+        20261114,
+        format,
+      ),
       next = scripted(20261114),
       hashes = recorded[scoring];
     const hash = () => hashes.push(fnv(JSON.stringify(encodeWorld(world))));
     for (let tick = 1; tick <= TICKS && world.phase !== "over"; tick++) {
-      const inputs: [number, number] = bots
-        ? [botInput(world, 0, 2), botInput(world, 1, 0)]
-        : [pilot(world, 0, next()), pilot(world, 1, next())];
+      const levels = [2, 0, 1, 1, 0, 2] as const;
+      const inputs = world.blobs.map((_, slot) =>
+        bots
+          ? botInput(world, slot, levels[slot]!)
+          : pilot(world, slot, next()),
+      );
       for (let i = 0; i < T.STEPS_PER_TICK; i++) stepWorld(world, inputs);
       if (tick % EVERY === 0) hash();
     }
@@ -136,9 +264,25 @@ function record(bots = false): Record<Scoring, string[]> {
 
 test("recorded matches replay to their recorded hashes under the current rules", () => {
   const hashes = record(),
-    bots = record(true);
+    bots = record(true),
+    doubles = {
+      pilots: record(false, 4).rally,
+      bots: record(true, 4).rally,
+    },
+    triples = {
+      pilots: record(false, 6, "3v3").rally,
+      bots: record(true, 6, "3v3").rally,
+    },
+    kingBots = record(true, 6, "2v2v2"),
+    kings = {
+      pilots: record(false, 6, "2v2v2").rally,
+      bots: kingBots.rally,
+      classic: kingBots.classic,
+    };
   if (process.env.GOLDEN_RECORD)
-    console.log(JSON.stringify({ rules: RULES, hashes, bots }));
+    console.log(
+      JSON.stringify({ rules: RULES, hashes, bots, doubles, triples, kings }),
+    );
   assert.equal(
     RULES,
     GOLDEN.rules,
@@ -153,5 +297,20 @@ test("recorded matches replay to their recorded hashes under the current rules",
     bots,
     GOLDEN.bots,
     "the bot's play changed: bump RULES and re-record, or fix the regression",
+  );
+  assert.deepEqual(
+    doubles,
+    GOLDEN.doubles,
+    "doubles changed: bump RULES and re-record, or fix the regression",
+  );
+  assert.deepEqual(
+    triples,
+    GOLDEN.triples,
+    "three a side changed: bump RULES and re-record, or fix the regression",
+  );
+  assert.deepEqual(
+    kings,
+    GOLDEN.kings,
+    "three teams of two changed: bump RULES and re-record, or fix the regression",
   );
 });

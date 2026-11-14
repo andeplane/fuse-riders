@@ -1,7 +1,9 @@
+import { requestedRoomSlot } from "fuse-ui";
 import {
   createInviteCard,
   createNameEntry,
   createRoster,
+  createRoomLayout,
   elementsFor,
 } from "fuse-ui";
 import type { RoomCommand } from "fuse-netcode";
@@ -42,6 +44,9 @@ export function roomPanel(
       options.store.setItem(NAME_KEY, value);
       options.command({
         type: "join",
+        ...(requestedRoomSlot(name.form) === undefined
+          ? {}
+          : { slot: requestedRoomSlot(name.form) }),
         name: value,
         avatarId: chosenAvatar(options.store),
       });
@@ -49,7 +54,12 @@ export function roomPanel(
   });
   name.form.prepend(avatarChoice(document, options.store));
   const add = el("button", "+ ADD BOT", "quiet-button");
-  add.onclick = () => options.command({ type: "bot", action: "add" });
+  add.onclick = () =>
+    options.command({
+      type: "bot",
+      action: "add",
+      slot: requestedRoomSlot(add),
+    });
   const start = el("button", "START MATCH", "primary");
   start.onclick = () => options.command({ type: "action", action: "start" });
   const tv = el("a", "OPEN TV SCREEN", "quiet-button");
@@ -82,6 +92,19 @@ export function roomPanel(
     actions,
   );
   root.append(element);
+  createRoomLayout({
+    primaryAction: start,
+    playerName: () => options.store.getItem(NAME_KEY) ?? undefined,
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
+    element,
+    roster,
+    capacity: 5,
+    join: name.form,
+    addAI: add,
+    settings: [mapChoice],
+    actions: [note, start, tv],
+  });
   let key = "";
   let lastDisplay = false;
   name.form.hidden = true;

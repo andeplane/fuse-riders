@@ -22,8 +22,10 @@ import {
   RULES,
   SCORINGS,
   STEPS_PER_TICK,
+  blobsFor,
   botInput,
   createWorld,
+  isFormat,
   decodeWorld,
   encodeWorld,
   isBotLevel,
@@ -33,8 +35,8 @@ import {
   toView,
   winnerOf,
   type BotLevel,
+  type Format,
   type Scoring,
-  type Side,
   type World,
   type WorldView,
 } from "../engine/index.js";
@@ -61,14 +63,23 @@ export interface Settings {
   scoring: Scoring;
   /** How well bots play: 0 easy, 1 normal, 2 hard. */
   bot: BotLevel;
+  /**
+   * One on one (two seats), two a side on the wide court (four), three a side on the big court (six), or three teams of
+   * two playing king of the court (six).
+   */
+  format: Format;
 }
 export const DEFAULT_SETTINGS: Settings = {
   display: false,
   scoring: "rally",
   bot: 1,
+  format: "1v1",
 };
-const SETTING_KEYS = ["display", "scoring", "bot"];
-/** The settings boundary, for a logged entry, a command and a checkpoint alike: exactly the three fields, each checked. */
+const SETTING_KEYS = ["display", "scoring", "bot", "format"];
+/** Seats a match under `settings` takes: one a blob. */
+export const seatsFor = (settings: Settings): number =>
+  blobsFor(settings.format);
+/** The settings boundary, for a logged entry, a command and a checkpoint alike: exactly the four fields, each checked. */
 export function parseSettings(raw: unknown): Settings | undefined {
   if (!plain(raw)) return;
   const keys = Object.keys(raw);
@@ -77,14 +88,15 @@ export function parseSettings(raw: unknown): Settings | undefined {
     !SETTING_KEYS.every((key) => Object.hasOwn(raw, key))
   )
     return;
-  const { display, scoring, bot } = raw;
+  const { display, scoring, bot, format } = raw;
   if (
     typeof display !== "boolean" ||
+    !isFormat(format) ||
     !SCORINGS.some((known) => known === scoring) ||
     !isBotLevel(bot)
   )
     return;
-  return { display, scoring: scoring as Scoring, bot };
+  return { display, scoring: scoring as Scoring, bot, format };
 }
 
 export const PLAY = 0;
@@ -106,20 +118,27 @@ export type RoomStage = "lobby" | "running" | "over";
  * A bot's controls for the tick about to run: ordinary held bits, read off the world like a player reads the screen.
  * It is asked once per log tick, so a bot presses and releases no faster than a device can.
  */
-export type BotInput = (world: World, side: Side, level: BotLevel) => number;
+export type BotInput = (world: World, slot: number, level: BotLevel) => number;
 /** A bot that holds nothing. */
 export const idleBot: BotInput = () => 0;
 /** A rider of the current match as it started: the result names them even if the seat is gone by the end. */
 export interface Entrant {
   id: string;
   name: string;
-  slot: Side;
+  /** The blob it rides: even slots play the left side, odd ones the right; three teams of two, slot % 3 is the team. */
+  slot: number;
   bot: boolean;
 }
+/** The team a blob slot plays for under `format`: its side (0 left, 1 right), or three teams of two, 0–2. */
+export const teamOfSlot = (slot: number, format: Format): number =>
+  format === "2v2v2" ? slot % 3 : slot % 2;
+/** Teams a format has. */
+export const teamsIn = (format: Format): number => (format === "2v2v2" ? 3 : 2);
 /** The finished match, frozen on the tick it was decided so every replica reports the same thing. */
 export interface Decided {
   /** The game clock (`simulationTick`) as of the deciding tick: a report waits until it is confirmed. */
   clock: number;
+  /** The winning team's first blob (its slot is the team); its teammates won too. */
   winner: string;
   /** The humans still seated when it ended, sorted: who can attest the result. */
   finishers: string[];
@@ -134,7 +153,7 @@ export interface Room extends ManagedRoom<Settings> {
   play: Settings;
   /** Each rider's held bits, from the latest entry its seat logged this match; absent when nothing is held. */
   held: Record<string, number>;
-  /** The match's two players in side order; empty in the lobby. */
+  /** The match's players in blob slot order (two, four or six); empty in the lobby. */
   roster: Entrant[];
   decided: Decided | null;
   world: World | null;
@@ -230,21 +249,25 @@ function resetMatch(room: Room, matchId: string): void {
   room.decided = null;
   room.world = null;
 }
-/** Starts a match for the two seats, or leaves the room in its lobby when it does not have two. */
+/**
+ * Starts a match for the seats, in seat order (so seats alternate sides: 0, 2 and 4 play the left), or leaves the room in
+ * its lobby when it does not have exactly the seats the match's settings take.
+ */
 function beginMatch(room: Room): void {
-  const [left, right, ...extra] = riders(room);
-  if (!left || !right || extra.length) return;
+  const seated = riders(room);
+  if (seated.length !== seatsFor(room.play)) return;
   room.stage = "running";
-  room.roster = [left, right].map((seat, index) => ({
+  room.roster = seated.map((seat, index) => ({
     id: seat.id,
     name: seat.name,
-    slot: index === 0 ? 0 : 1,
+    slot: index,
     bot: seat.bot,
   }));
   room.world = createWorld(
-    [left.id, right.id],
+    seated.map((seat) => seat.id),
     room.play.scoring,
     seedOf(room.matchId),
+    room.play.format,
   );
 }
 
@@ -254,7 +277,7 @@ export const lifecycle: LifecycleHooks<Room, Settings> = {
   parseSettings,
   botAvatar: AVATAR,
   start(room, matchId) {
-    if (riders(room).length !== CAPACITY) return;
+    if (riders(room).length !== seatsFor(room.settings)) return;
     resetMatch(room, matchId);
     beginMatch(room);
   },
@@ -311,7 +334,7 @@ function decide(room: Room, world: World, clock: number): void {
   room.held = {};
   room.decided = {
     clock,
-    winner: world.blobs[slot].id,
+    winner: world.blobs[slot]!.id,
     finishers: room.roster
       .filter((entrant) => {
         const seat = room.seats.get(entrant.id);
@@ -333,14 +356,14 @@ export function foldTick(
   applyManagementTick(room, tick, creatorId, streams, lifecycle);
   const world = room.world;
   if (room.stage === "running" && world) {
-    const held: [number, number] = [0, 0],
-      first: [number, number] = [0, 0];
-    for (const blob of world.blobs) {
+    const held = world.blobs.map(() => 0),
+      first = world.blobs.map(() => 0);
+    for (const [slot, blob] of world.blobs.entries()) {
       const seat = room.seats.get(blob.id);
       let bits = 0,
         tapped = 0;
       if (seat?.bot) {
-        const answer = bot(world, blob.side, room.play.bot);
+        const answer = bot(world, slot, room.play.bot);
         bits = isInput(answer) ? answer : 0;
       } else if (seat?.connected) {
         bits = room.held[blob.id] ?? 0;
@@ -352,8 +375,8 @@ export function foldTick(
       // Only what a seat logged is held: a bot answers afresh every tick, and a seat that is away holds nothing.
       if (bits && !seat?.bot) room.held[blob.id] = bits;
       else delete room.held[blob.id];
-      held[blob.side] = bits;
-      first[blob.side] = firstStepBits(bits, tapped);
+      held[slot] = bits;
+      first[slot] = firstStepBits(bits, tapped);
     }
     for (let step = 0; step < count; step++)
       stepWorld(world, step === 0 ? first : held);
@@ -477,7 +500,13 @@ function decodeHeld(raw: unknown): Record<string, number> | undefined {
 }
 
 function decodeRoster(raw: unknown): Entrant[] | undefined {
-  if (!Array.isArray(raw) || (raw.length !== 0 && raw.length !== CAPACITY))
+  if (
+    !Array.isArray(raw) ||
+    (raw.length !== 0 &&
+      raw.length !== 2 &&
+      raw.length !== 4 &&
+      raw.length !== 6)
+  )
     return;
   const roster: Entrant[] = [];
   for (const item of raw) {
@@ -490,7 +519,7 @@ function decodeRoster(raw: unknown): Entrant[] | undefined {
       roster.some((entrant) => entrant.id === id)
     )
       return;
-    roster.push({ id, name, slot: roster.length === 0 ? 0 : 1, bot });
+    roster.push({ id, name, slot: roster.length, bot });
   }
   return roster;
 }
@@ -578,16 +607,18 @@ export function decode(
       stage === "lobby" ||
       (stage === "over") !== over ||
       (decided !== null) !== over ||
-      roster.length !== CAPACITY ||
+      roster.length !== seatsFor(play) ||
+      world.blobs.length !== roster.length ||
       world.scoring !== play.scoring ||
-      world.blobs.some((blob, side) => blob.id !== roster[side]!.id) ||
+      world.format !== play.format ||
+      world.blobs.some((blob, slot) => blob.id !== roster[slot]!.id) ||
       Object.keys(held).some(
         (id) => !roster.some((entrant) => entrant.id === id && !entrant.bot),
       ) ||
       (over && Object.keys(held).length > 0) ||
       (decided !== null &&
         (decided.clock > simulationTick ||
-          decided.winner !== roster[winnerOf(world) === 1 ? 1 : 0]!.id))
+          decided.winner !== roster[Math.max(winnerOf(world), 0)]!.id))
     )
       return;
   }
@@ -654,7 +685,11 @@ export type FuseVolleyGame = RollbackGame<Room, Entry, View, never, Settings>;
  * The game with `bot` answering for bot seats. Every device in a room must fold with the same bot, which is why the
  * default is the engine's own (covered by `RULES`); a test passes a typed fake.
  */
-export function createFuseVolleyGame(bot: BotInput = botInput): FuseVolleyGame {
+export function createFuseVolleyGame(
+  bot: BotInput = botInput,
+  /** Bots a solo room seats beside its player: 1 for one a side, 3 two a side, 5 three a side. */
+  soloBots = 1,
+): FuseVolleyGame {
   return {
     id: GAME_ID,
     rules: RULES,
@@ -679,6 +714,7 @@ export function createFuseVolleyGame(bot: BotInput = botInput): FuseVolleyGame {
     matchSettings: (room) => room.play,
     seating: {
       capacity: CAPACITY,
+      capacityFor: (room) => seatsFor(room.settings),
       maxWatchers: MAX_WATCHERS,
       seatName,
       isAvatar,
@@ -697,7 +733,7 @@ export function createFuseVolleyGame(bot: BotInput = botInput): FuseVolleyGame {
         return `${BOT_PREFIX}${number}`;
       },
       botName: (slot) => BOT_NAMES[slot % BOT_NAMES.length]!,
-      solo: { name: "You", bots: 1 },
+      solo: { name: "You", bots: soloBots },
     },
     text: {
       ...defaultText,

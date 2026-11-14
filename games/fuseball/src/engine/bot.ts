@@ -5,7 +5,7 @@ import { SUB, abs, delta, div, isqrt } from "./math.js";
 import {
   arenaOf,
   barrierBoxesOf,
-  boxesOf,
+  boxesAt,
   isCircle,
   type Box,
   type MapDef,
@@ -114,12 +114,11 @@ function flight(
   steps: number,
   rider?: Rider,
 ): Flight {
-  const boxes = boxesOf(map);
   const ball = { x: from.x, y: from.y, vx: from.vx, vy: from.vy },
     barriers = world.barriers.map((barrier) => ({ ...barrier }));
   let meet: { x: number; y: number } | undefined;
   for (let step = 1; step <= steps; step++) {
-    drift(ball, boxes, map, barriers, false);
+    drift(ball, map, barriers, world.clock + step, false);
     const goal = map.goals.find((each) => inShape(ball.x, ball.y, each, map));
     if (goal) return { ...(meet ?? ball), into: goal.team };
     if (rider && !meet && step % STRIDE === 0) {
@@ -133,7 +132,7 @@ function flight(
 
 /**
  * Where the ball ends up if this rider holds `bits` for the next `PREVIEW` micro-steps: the world is copied and
- * stepped with the real rules (the other rider holding what they hold now), then the ball is flown on by itself.
+ * stepped with the real rules (everyone else holding what they hold now), then the ball is flown on by itself.
  * The answer is the colour of the goal it falls into, or −1. This is how it sees that a touch would come back off a
  * wall and into the other colour's goal before it makes it.
  */
@@ -144,11 +143,12 @@ function outcome(
   map: MapDef,
 ): -1 | Slot {
   const ahead = copyWorld(world),
-    other = ahead.riders[rider.slot === 0 ? 1 : 0],
-    inputs = new Map([
-      [rider.id, bits],
-      [other.id, other.prev],
-    ]);
+    inputs = new Map(
+      ahead.riders.map((each) => [
+        each.id,
+        each.index === rider.index ? bits : each.prev,
+      ]),
+    );
   for (let step = 0; step < PREVIEW; step++) {
     stepWorld(ahead, inputs);
     if (ahead.phase !== "play") return ahead.lastScorer;
@@ -219,7 +219,16 @@ function meetsAny(
 ): boolean {
   for (const kx of map.wrapX ? [0, -1, 1] : [0])
     for (const ky of map.wrapY ? [0, -1, 1] : [0])
-      if (meets(dx, dy, at.dx + kx * T.WORLD_W, at.dy + ky * T.WORLD_H, hw, hh))
+      if (
+        meets(
+          dx,
+          dy,
+          at.dx + kx * map.w * SUB,
+          at.dy + ky * map.h * SUB,
+          hw,
+          hh,
+        )
+      )
         return true;
   return false;
 }
@@ -238,7 +247,7 @@ function barred(
   dx: number,
   dy: number,
 ): boolean {
-  for (const box of boxesOf(map)) {
+  for (const box of boxesAt(map, world.clock)) {
     const at = apart(box.cx, box.cy, bx, by, map);
     if (
       abs(dy) <= abs(dx) &&
@@ -307,22 +316,22 @@ function aim(
         const x = tall ? cx : cx + off,
           y = tall ? cy + off : cy,
           shut = barred(world, map, slot, bx, by, x, y);
-        weigh(x, y, shut ? T.WORLD_W : 0, shut);
+        weigh(x, y, shut ? map.w * SUB : 0, shut);
       }
       continue;
     }
-    for (const x of ways(goal.x * SUB, bx, T.WORLD_W, map.wrapX)) {
+    for (const x of ways(goal.x * SUB, bx, map.w * SUB, map.wrapX)) {
       // The other colour's round goals that this line would carry the ball under or over.
       const crosses = map.goals.some((other) => {
         if (other.team === slot || !isCircle(other)) return false;
         const at = other.x * SUB - bx,
           reach = (other.r + T.BALL_RADIUS) * SUB;
-        return [at, at - T.WORLD_W, at + T.WORLD_W].some((ox) =>
+        return [at, at - map.w * SUB, at + map.w * SUB].some((ox) =>
           x > 0 ? ox > -reach && ox < x : ox < reach && ox > x,
         );
       });
-      for (const y of ways(goal.y * SUB, by, T.WORLD_H, map.wrapY))
-        weigh(x, y, crosses ? T.WORLD_W : 0);
+      for (const y of ways(goal.y * SUB, by, map.h * SUB, map.wrapY))
+        weigh(x, y, crosses ? map.w * SUB : 0);
     }
   }
   return best;
@@ -341,7 +350,7 @@ function route(
   ball: { x: number; y: number },
   depth = 0,
 ): { dx: number; dy: number; clear: boolean; trip: number } {
-  const boxes = boxesOf(map),
+  const boxes = boxesAt(map, world.clock),
     snug = T.RIDER_R - SUB,
     body = T.RIDER_R + CLEAR;
   const solidAt = (x: number, y: number) =>
@@ -350,8 +359,8 @@ function route(
       return abs(at.dx) < box.hw + snug && abs(at.dy) < box.hh + snug;
     });
   const fits = (x: number, y: number) =>
-    (map.wrapX || (x >= T.RIDER_R && x <= T.WORLD_W - T.RIDER_R)) &&
-    (map.wrapY || (y >= T.RIDER_R && y <= T.WORLD_H - T.RIDER_R)) &&
+    (map.wrapX || (x >= T.RIDER_R && x <= map.w * SUB - T.RIDER_R)) &&
+    (map.wrapY || (y >= T.RIDER_R && y <= map.h * SUB - T.RIDER_R)) &&
     !solidAt(x, y);
   // A spot hard against a solid (a ball lying on the floor) is as near as it gets: that solid is not in the way.
   // Unless the ball is on its far face: a ball on a ledge is not reached through the ledge from below.
@@ -381,7 +390,11 @@ function route(
   if (!box) return { ...to, clear: true, trip: straight };
   const at = apart(box.cx, box.cy, rider.x, rider.y, map);
   // With no corner to go round by, it presses on, and the trip counts as longer than any other way.
-  let best = { ...to, clear: false, trip: straight + T.WORLD_W + T.WORLD_H },
+  let best = {
+      ...to,
+      clear: false,
+      trip: straight + map.w * SUB + map.h * SUB,
+    },
     open = false,
     behind = false;
   for (const sx of [-1, 1])
@@ -398,7 +411,7 @@ function route(
           abs(dy) +
           abs(to.dx - dx) +
           abs(to.dy - dy) +
-          (shut ? T.WORLD_W : 0);
+          (shut ? map.w * SUB : 0);
       if (!open || trip < best.trip) {
         best = { dx, dy, clear: false, trip };
         open = true;
@@ -427,8 +440,8 @@ function path(
 ): { dx: number; dy: number } {
   const short = route(world, rider, map, to, ball);
   if (short.clear || !(map.wrapX || map.wrapY)) return short;
-  const otherX = to.dx > 0 ? to.dx - T.WORLD_W : to.dx + T.WORLD_W,
-    otherY = to.dy > 0 ? to.dy - T.WORLD_H : to.dy + T.WORLD_H;
+  const otherX = to.dx > 0 ? to.dx - map.w * SUB : to.dx + map.w * SUB,
+    otherY = to.dy > 0 ? to.dy - map.h * SUB : to.dy + map.h * SUB;
   let best = short;
   for (const dx of map.wrapX ? [to.dx, otherX] : [to.dx])
     for (const dy of map.wrapY ? [to.dy, otherY] : [to.dy]) {
@@ -442,7 +455,9 @@ function path(
 export function botInput(world: World, rider: Rider): number {
   if (world.phase !== "play" || rider.zapped || !world.ball.live) return 0;
   const map = arenaOf(world),
-    bits = plan(world, rider, map);
+    bits = keeps(world, rider, map)
+      ? guard(world, rider, map)
+      : plan(world, rider, map);
   // Near the ball it looks before it touches: what it means to hold is played forward, and when that ends in the
   // other colour's goal it holds the first thing that does not. With no such thing, it carries on as it meant to.
   const gap = apart(world.ball.x, world.ball.y, rider.x, rider.y, map);
@@ -509,11 +524,112 @@ function trapdoor(
   return undefined;
 }
 
+/** How far it is from the ball, as it counts a trip: along plus up or down. */
+const farFrom = (world: World, rider: Rider, map: MapDef): number => {
+  const gap = apart(world.ball.x, world.ball.y, rider.x, rider.y, map);
+  return abs(gap.dx) + abs(gap.dy);
+};
+
+/**
+ * Whether this rider is its side's keeper for now: with two or three riders on a side, the one furthest from the
+ * ball minds the goal the other side scores in while the rest go for the ball. Riders who are zapped are not
+ * counted, and a tie goes to the later rider, so every device picks the same one. A player on the side is counted
+ * like a bot: when they are the one furthest back, the bots leave the goal to them and go forward.
+ */
+function keeps(world: World, rider: Rider, map: MapDef): boolean {
+  const mine = farFrom(world, rider, map);
+  let mates = 0;
+  for (const mate of world.riders) {
+    if (mate.slot !== rider.slot || mate.index === rider.index || mate.zapped)
+      continue;
+    mates++;
+    const theirs = farFrom(world, mate, map);
+    if (theirs > mine || (theirs === mine && mate.index > rider.index))
+      return false;
+  }
+  return mates > 0;
+}
+
+/**
+ * The keeper: it stands `POST` in front of the other colour's goal nearest the ball, on the ball's side of it, and
+ * when the ball comes within `DANGER` of that goal it goes for the ball like anybody else.
+ */
+const POST = 44 * SUB,
+  DANGER = 120 * SUB,
+  AT_POST = 8 * SUB;
+function guard(world: World, rider: Rider, map: MapDef): number {
+  const ball = world.ball;
+  let post: { dx: number; dy: number } | undefined,
+    nearest = -1;
+  for (const goal of map.goals) {
+    if (goal.team === rider.slot) continue;
+    const gx = isCircle(goal)
+        ? goal.x * SUB
+        : div((goal.x * 2 + goal.w) * SUB, 2),
+      gy = isCircle(goal) ? goal.y * SUB : div((goal.y * 2 + goal.h) * SUB, 2),
+      out = apart(ball.x, ball.y, gx, gy, map),
+      far = isqrt(out.dx * out.dx + out.dy * out.dy);
+    if (nearest >= 0 && far >= nearest) continue;
+    nearest = far;
+    const step = far > 0 ? div(POST * UNIT, far) : 0,
+      to = apart(
+        gx + div(out.dx * step, UNIT),
+        gy + div(out.dy * step, UNIT),
+        rider.x,
+        rider.y,
+        map,
+      );
+    post = to;
+  }
+  if (!post || nearest < DANGER) return plan(world, rider, map);
+  if (abs(post.dx) < AT_POST && abs(post.dy) < AT_POST) return 0;
+  const { dx, dy } = path(world, rider, map, post, ball);
+  return fly(world, rider, map, dx, dy);
+}
+
+/** The bits that take a rider towards a spot `(dx, dy)` away: run, hop a kerb, flap up, drop down. */
+function fly(
+  world: World,
+  rider: Rider,
+  map: MapDef,
+  dx: number,
+  dy: number,
+): number {
+  const way = dx > DEAD ? RIGHT : dx < -DEAD ? LEFT : 0,
+    press = (rider.prev & BTN) === 0 ? BTN : 0;
+  // Letting go of the button ends a slide.
+  if (rider.slide > 0) return way;
+  if (!rider.grounded) {
+    if (dy < -CLIMB) {
+      const rising =
+        rider.vy < 0 ? div(rider.vy * rider.vy, 2 * T.GRAVITY_RISE) : 0;
+      return way | (rising < -dy ? press : 0);
+    }
+    return dy > SINK ? way | DOWN : way;
+  }
+  if (dy < -CLIMB) return way | press;
+  const stick = way & RIGHT ? 1 : way & LEFT ? -1 : 0,
+    kerb =
+      stick !== 0 &&
+      boxesAt(map, world.clock).some((box) => {
+        const at = apart(box.cx, box.cy, rider.x, rider.y, map);
+        return (
+          at.dx * stick > 0 &&
+          abs(at.dx) < box.hw + T.RIDER_R + HOP &&
+          abs(at.dy) < box.hh + T.RIDER_R - SUB
+        );
+      });
+  if (kerb) return way | press;
+  // The spot is below this ledge: walk off it.
+  if (dy > SINK) return way || (rider.facing > 0 ? RIGHT : LEFT);
+  return way;
+}
+
 /** What it means to do, before it has looked at what that would do to the ball. */
 function plan(world: World, rider: Rider, map: MapDef): number {
   // A breather now and then, at different moments for each side, so two bots never mirror each other for long.
   const spell = div(world.step, SPELL);
-  if ((spell * 5 + rider.slot * 4 + div(spell, SPELLS)) % SPELLS < REST_OF)
+  if ((spell * 5 + rider.index * 4 + div(spell, SPELLS)) % SPELLS < REST_OF)
     return 0;
   const ahead = flight(world, map, world.ball, SIGHT, rider);
   // It is going in by itself: stay out of its way. Unless it is under this rider's feet, where it is going nowhere.
@@ -531,7 +647,9 @@ function plan(world: World, rider: Rider, map: MapDef): number {
     return 0;
   // Standing in the ball (it is jammed under it in a corner) helps nobody: step off it, away from the wall.
   if (on.dx * on.dx + on.dy * on.dy < BURIED * BURIED)
-    return on.dx > 0 || (on.dx === 0 && rider.x * 2 > T.WORLD_W) ? LEFT : RIGHT;
+    return on.dx > 0 || (on.dx === 0 && rider.x * 2 > map.w * SUB)
+      ? LEFT
+      : RIGHT;
   const bx = ahead.x,
     by = ahead.y;
   const goal = aim(world, map, rider.slot, bx, by),
@@ -637,9 +755,11 @@ function plan(world: World, rider: Rider, map: MapDef): number {
     if (lifts && sitting && !door) {
       // A sitting ball wants a lift when the goal is above, and when the other rider is leaning on its far side:
       // then the two take turns, so a pair of bots never lifts as one.
-      const other = world.riders[rider.slot === 0 ? 1 : 0],
-        gap = apart(other.x, other.y, world.ball.x, world.ball.y, map),
-        pinned = !other.zapped && abs(gap.dx) + abs(gap.dy) < PIN,
+      const pinned = world.riders.some((other) => {
+          if (other.slot === rider.slot || other.zapped) return false;
+          const gap = apart(other.x, other.y, world.ball.x, world.ball.y, map);
+          return abs(gap.dx) + abs(gap.dy) < PIN;
+        }),
         turn = (div(world.step, 2 * T.STEPS_PER_TICK) + rider.slot) % 2 === 0;
       if (along < 0) {
         if (uy < 0 || (pinned && turn)) return way | (fresh ? BTN : 0);
@@ -660,7 +780,7 @@ function plan(world: World, rider: Rider, map: MapDef): number {
     const stick = way & RIGHT ? 1 : way & LEFT ? -1 : 0,
       kerb =
         stick !== 0 &&
-        boxesOf(map).some((box) => {
+        boxesAt(map, world.clock).some((box) => {
           const at = apart(box.cx, box.cy, rider.x, rider.y, map);
           return (
             at.dx * stick > 0 &&

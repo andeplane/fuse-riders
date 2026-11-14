@@ -48,8 +48,8 @@ test("the court is fair: a mirrored world plays out mirrored", () => {
   b.server = a.server === 0 ? 1 : 0;
   b.ball.x = T.COURT_W * T.BU - a.ball.x;
   b.ball.prevX = b.ball.x;
-  b.blobs[0].id = a.blobs[1].id;
-  b.blobs[1].id = a.blobs[0].id;
+  b.blobs[0]!.id = a.blobs[1]!.id;
+  b.blobs[1]!.id = a.blobs[0]!.id;
   for (let t = 0; t < 3000; t++) {
     const left = botInput(a, 0, 2),
       right = botInput(a, 1, 2);
@@ -61,7 +61,7 @@ test("the court is fair: a mirrored world plays out mirrored", () => {
     }
     assert.equal(a.ball.x, T.COURT_W * T.BU - b.ball.x);
     assert.equal(a.ball.y, b.ball.y);
-    assert.equal(a.blobs[0].x, T.COURT_W - b.blobs[1].x);
+    assert.equal(a.blobs[0]!.x, T.COURT_W - b.blobs[1]!.x);
     assert.deepEqual(a.score, [b.score[1], b.score[0]]);
   }
   assert.ok(a.score[0] + a.score[1] > 0, "and points were played");

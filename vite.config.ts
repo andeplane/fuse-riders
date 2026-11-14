@@ -1,6 +1,10 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
+import {
+  publicFilePath,
+  publicRequestPath,
+} from "./scripts/lib/game-public.ts";
 import {
   parsePortalEntry,
   type PortalGame,
@@ -67,8 +71,14 @@ const gamePages = (): Plugin => {
         const id = games.find((game) =>
           url.pathname.startsWith(`${server.config.base}${game}/`),
         );
-        if (id)
-          request.url = `${server.config.base}games/${id}/${url.pathname.slice(`${server.config.base}${id}/`.length) || "index.html"}${url.search}`;
+        if (id) {
+          const suffix = url.pathname.slice(
+            `${server.config.base}${id}/`.length,
+          );
+          // Keep public game assets at their deployed URLs instead of rewriting them into source-page paths.
+          if (!suffix || !existsSync(`${root}public/${id}/${suffix}`))
+            request.url = `${server.config.base}games/${id}/${suffix || "index.html"}${url.search}`;
+        }
         next();
       });
     },
@@ -91,6 +101,58 @@ const gamePages = (): Plugin => {
   };
 };
 
+/** Every file under `dir`, as paths relative to it. */
+const filesUnder = (dir: URL): string[] =>
+  readdirSync(dir, { withFileTypes: true, recursive: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) =>
+      `${entry.parentPath}/${entry.name}`
+        .slice(fileURLToPath(dir).length)
+        .replaceAll("\\", "/"),
+    )
+    .sort();
+
+/**
+ * A game may keep the files it serves as they are (art sheets, a manifest) in `games/<id>/public/`, laid out as the
+ * site serves them: `games/killer-fuse/public/killer-fuse/art/x.png` is `<base>killer-fuse/art/x.png`. The build
+ * copies them beside the root `public/`; the dev server answers the same URLs from the source folder.
+ */
+const gamePublic = (): Plugin => {
+  const folder = (id: string) =>
+    new URL(`games/${id}/public/`, import.meta.url);
+  const owners = games.filter((id) => existsSync(folder(id)));
+  return {
+    name: "game-public",
+    configureServer(server) {
+      server.middlewares.use((request, _response, next) => {
+        const url = new URL(request.url ?? "/", "http://localhost");
+        // A request path is attacker-controlled: a bad escape, an absolute path or a whole URL is not a file here.
+        const asked = publicRequestPath(url.pathname, server.config.base);
+        if (asked !== undefined) {
+          const id = owners.find((game) => {
+            const file = publicFilePath(fileURLToPath(folder(game)), asked);
+            return (
+              file !== undefined && existsSync(file) && statSync(file).isFile()
+            );
+          });
+          if (id)
+            request.url = `${server.config.base}games/${id}/public/${asked}${url.search}`;
+        }
+        next();
+      });
+    },
+    generateBundle() {
+      for (const id of owners)
+        for (const file of filesUnder(folder(id)))
+          this.emitFile({
+            type: "asset",
+            fileName: file,
+            source: readFileSync(new URL(file, folder(id))),
+          });
+    },
+  };
+};
+
 export default defineConfig({
   build: {
     target: "es2022",
@@ -104,6 +166,7 @@ export default defineConfig({
     },
   },
   define: { __FUSE_PORTAL_GAMES__: JSON.stringify(portalGames()) },
-  plugins: [gamePages()],
+  // `gamePublic` first: its dev middleware must see a public URL before `gamePages` rewrites it.
+  plugins: [gamePublic(), gamePages()],
   server: { host: "0.0.0.0" },
 });

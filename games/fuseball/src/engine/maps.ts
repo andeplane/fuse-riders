@@ -1,8 +1,10 @@
 import { generateLevel } from "./generate.js";
+import { TEAM_MAPS, TEAM_MAP_IDS, type TeamArenaId } from "./team-maps.js";
 import { SUB } from "./math.js";
 
 /**
- * The arenas, as data in whole pixels on the 640×360 field. Every one is its own mirror image left to right, with
+ * The arenas, as data in whole pixels on the map's field: 640×360 for a duel, bigger for the team arenas
+ * (`team-maps.ts`). Every one is its own mirror image left to right, with
  * slot 0 starting on the left and slot 1 on the right, so neither rider is favoured.
  *
  * An axis that wraps has no edge: what leaves one side comes back on the other. A rect may therefore run past the
@@ -44,6 +46,7 @@ export const MAP_IDS = [
   "bouncerate",
   "portforward",
   "backdoor",
+  "stacktrace",
   "quadcore",
   "bitstream",
   "memoryleak",
@@ -56,10 +59,18 @@ export type ArenaId = (typeof MAP_IDS)[number];
  */
 export const RANDOM = "random";
 export const RANDOM_INDEX = 255;
-export type MapId = ArenaId | typeof RANDOM;
+export { TEAM_MAP_IDS, TEAM_MAPS, type TeamArenaId };
+/** A team arena's place in a checkpoint: `TEAM_INDEX` plus its place in `TEAM_MAP_IDS`, clear of the duel arenas'. */
+export const TEAM_INDEX = 128;
+export type MapId = ArenaId | TeamArenaId | typeof RANDOM;
+export const isTeamMapId = (value: unknown): value is TeamArenaId =>
+  typeof value === "string" &&
+  (TEAM_MAP_IDS as readonly string[]).includes(value);
 export const isMapId = (value: unknown): value is MapId =>
   typeof value === "string" &&
-  (value === RANDOM || (MAP_IDS as readonly string[]).includes(value));
+  (value === RANDOM ||
+    (MAP_IDS as readonly string[]).includes(value) ||
+    isTeamMapId(value));
 /** A level's seed: any unsigned 32-bit integer. Every one of them rolls a playable level. */
 export const MAX_SEED = 0xffff_ffff;
 export const isSeed = (value: unknown): value is number =>
@@ -103,34 +114,78 @@ export interface Portal {
 export type Goo = Rect & { hue: 0 | 1 };
 /** A jet of liquid running straight up: a ball whose centre is in it is slowed and pushed upwards, so it rides on top. */
 export type Stream = Rect & { hue: 0 | 1 };
+/**
+ * A ledge is a one-way platform: riders and the ball come up through it from below and land on it from above. Only
+ * its top edge is there; `h` is how thick it is drawn. A rider holding down drops through it.
+ */
+export type Ledge = Rect;
+/**
+ * A mover is a solid that travels: from where it is written down to `travel` pixels away and back, at a steady
+ * speed, once every `period` micro-steps, waiting `dwell` micro-steps at each end. It travels along one axis, and
+ * where it is depends on the world's step count alone, so it has no state of its own. Whatever stands or lies on it
+ * is carried along.
+ */
+export interface Mover extends Rect {
+  /** `travel`, `period` and `dwell` are whole even numbers (`gadgetFaults` checks), so every position is too. */
+  travel: Pt;
+  period: number;
+  dwell: number;
+}
+/** How far along its travel a mover is on `step`, out of `of`: out, a wait, back, a wait. */
+function along(mover: Mover, step: number): { at: number; of: number } {
+  const half = mover.period / 2,
+    of = half - mover.dwell,
+    phase = ((step % mover.period) + mover.period) % mover.period,
+    gone = phase < half ? phase : phase - half,
+    moved = gone < of ? gone : of;
+  return { at: phase < half ? moved : of - moved, of };
+}
+/** The field every duel arena is played on, in pixels. */
+export const DUEL_W = 640,
+  DUEL_H = 360;
 
 export interface MapDef {
   id: MapId;
   name: string;
+  /** The field's size in pixels. */
+  w: number;
+  h: number;
   wrapX: boolean;
   wrapY: boolean;
   solids: readonly Rect[];
   goals: readonly Goal[];
   /** While the ball's centre is inside one, the whole arena runs in slow motion, slower the nearer its centre. */
   clouds: readonly Circle[];
-  /** Where each slot's rider stands (its centre) when a point starts. */
-  spawns: readonly [Pt, Pt];
+  /**
+   * Where each rider stands (its centre) when a point starts, in the order of `World.riders`: even places are the
+   * left side's, odd the right's. A duel arena has two; a team arena has one for every rider it holds.
+   */
+  spawns: readonly [Pt, Pt, ...Pt[]];
   /** Where the ball's centre waits out the countdown. */
   ballAnchor: Pt;
   /** The gadgets, in a fixed order: a barrier's state in the world is found by its place here. */
   barriers: readonly Barrier[];
   bumpers: readonly Bumper[];
   portals: readonly Portal[];
+  ledges: readonly Ledge[];
+  /** Movers are solids too: `boxesAt` has them where they are on a given step. */
+  movers: readonly Mover[];
   goo: readonly Goo[];
   streams: readonly Stream[];
 }
-type Gadgets = "barriers" | "bumpers" | "portals" | "goo" | "streams";
+type Gadgets =
+  "barriers" | "bumpers" | "portals" | "ledges" | "movers" | "goo" | "streams";
 /** A map as it is written down: the gadgets it does not have are left out. */
-type MapSpec = Omit<MapDef, Gadgets> & Partial<Pick<MapDef, Gadgets>>;
-const arena = (spec: MapSpec): MapDef => ({
+export type MapSpec = Omit<MapDef, Gadgets | "w" | "h"> &
+  Partial<Pick<MapDef, Gadgets | "w" | "h">>;
+export const arena = (spec: MapSpec): MapDef => ({
+  w: DUEL_W,
+  h: DUEL_H,
   barriers: [],
   bumpers: [],
   portals: [],
+  ledges: [],
+  movers: [],
   goo: [],
   streams: [],
   ...spec,
@@ -549,6 +604,62 @@ const backdoor: MapDef = arena({
 });
 
 /**
+ * Stack Trace is a closed box. Each goal is an alcove high in a side wall, and beside each wall a lift goes up and
+ * down: it waits a second at the top of its ride, level with the alcove's sill, so a ball lying on it can be rolled in. Up the
+ * middle is a stack of ledges that riders and the ball come up through and land on; the ball starts on the top one.
+ */
+const stacktrace: MapDef = arena({
+  id: "stacktrace",
+  name: "Stack Trace",
+  wrapX: false,
+  wrapY: false,
+  solids: [
+    rect(0, 0, 640, 12),
+    rect(0, 348, 640, 12),
+    rect(0, 12, 24, 78),
+    rect(0, 90, 6, 80),
+    rect(0, 170, 24, 178),
+    rect(616, 12, 24, 78),
+    rect(634, 90, 6, 80),
+    rect(616, 170, 24, 178),
+  ],
+  goals: [
+    { team: 0, ...rect(616, 90, 18, 80) },
+    { team: 1, ...rect(6, 90, 18, 80) },
+  ],
+  clouds: [
+    { x: 66, y: 130, r: 40 },
+    { x: 574, y: 130, r: 40 },
+  ],
+  spawns: [
+    { x: 200, y: 339 },
+    { x: 440, y: 339 },
+  ],
+  ballAnchor: { x: 320, y: 110 },
+  ledges: [
+    rect(270, 140, 100, 6),
+    rect(240, 210, 160, 6),
+    rect(270, 280, 100, 6),
+    rect(130, 244, 80, 6),
+    rect(430, 244, 80, 6),
+  ],
+  movers: [
+    {
+      ...rect(24, 310, 64, 10),
+      travel: { x: 0, y: -140 },
+      period: 840,
+      dwell: 120,
+    },
+    {
+      ...rect(552, 310, 64, 10),
+      travel: { x: 0, y: -140 },
+      period: 840,
+      dwell: 120,
+    },
+  ],
+});
+
+/**
  * A side wall 24 thick from `top` to `bottom` with a goal slot in it between `from` and `to`, as in Bounce Rate:
  * the slot's back is the last 6 pixels of the wall. `left` picks the side.
  */
@@ -709,6 +820,7 @@ export const MAPS: Readonly<Record<ArenaId, MapDef>> = {
   bouncerate,
   portforward,
   backdoor,
+  stacktrace,
   quadcore,
   bitstream,
   memoryleak,
@@ -735,7 +847,13 @@ function rolledLevel(seed: number): MapDef {
 
 /** The arena `id` names. Only the random one reads `seed`: a seed that is not one rolls as seed 0. */
 export const mapOf = (id: MapId, seed = 0): MapDef =>
-  id === RANDOM ? rolledLevel(isSeed(seed) ? seed : 0) : MAPS[id];
+  id === RANDOM
+    ? rolledLevel(isSeed(seed) ? seed : 0)
+    : isTeamMapId(id)
+      ? TEAM_MAPS[id]
+      : MAPS[id];
+/** The most riders a side the arena has marks for. */
+export const teamSizeOf = (map: MapDef): number => map.spawns.length >> 1;
 /** The arena a world or a view of one is played in. */
 export const arenaOf = (at: { mapId: MapId; seed: number }): MapDef =>
   mapOf(at.mapId, at.seed);
@@ -756,7 +874,8 @@ export const boxOf = (rect: Rect): Box => ({
 });
 /** Derived once per arena and dropped with it: a memo keyed by the arena itself, so it holds nothing alive. */
 const BOXES = new WeakMap<MapDef, readonly Box[]>(),
-  BARRIER_BOXES = new WeakMap<MapDef, readonly Box[]>();
+  BARRIER_BOXES = new WeakMap<MapDef, readonly Box[]>(),
+  LEDGE_BOXES = new WeakMap<MapDef, readonly Box[]>();
 /** The map's solids in sub-units. */
 export function boxesOf(map: MapDef): readonly Box[] {
   let boxes = BOXES.get(map);
@@ -766,8 +885,8 @@ export function boxesOf(map: MapDef): readonly Box[] {
 /** A liquid's rect in sub-units, where it is and again one field back on each wrapping axis it runs past. */
 const zonesOf = (map: MapDef, rects: readonly Rect[]): Rect[] =>
   rects.flatMap((r) => {
-    const xs = map.wrapX && r.x + r.w > 640 ? [r.x, r.x - 640] : [r.x],
-      ys = map.wrapY && r.y + r.h > 360 ? [r.y, r.y - 360] : [r.y];
+    const xs = map.wrapX && r.x + r.w > map.w ? [r.x, r.x - map.w] : [r.x],
+      ys = map.wrapY && r.y + r.h > map.h ? [r.y, r.y - map.h] : [r.y];
     return xs.flatMap((x) =>
       ys.map((y) => rect(x * SUB, y * SUB, r.w * SUB, r.h * SUB)),
     );
@@ -791,4 +910,85 @@ export function barrierBoxesOf(map: MapDef): readonly Box[] {
   let boxes = BARRIER_BOXES.get(map);
   if (!boxes) BARRIER_BOXES.set(map, (boxes = map.barriers.map(boxOf)));
   return boxes;
+}
+/** The map's ledges in sub-units: only the top face of each box is there. */
+export function ledgeBoxesOf(map: MapDef): readonly Box[] {
+  let boxes = LEDGE_BOXES.get(map);
+  if (!boxes) LEDGE_BOXES.set(map, (boxes = map.ledges.map(boxOf)));
+  return boxes;
+}
+
+/**
+ * How far a mover is from where it is written down on micro-step `step`, in sub-units: out along `travel`, a wait,
+ * and back. Whole numbers in, whole numbers out, and a mirrored mover is mirrored.
+ */
+export function moverOffset(mover: Mover, step: number): Pt {
+  const { at, of } = along(mover, step),
+    // Truncated toward zero either way, so a travel of −n is the mirror image of a travel of n.
+    out = (pixels: number) => Math.trunc((pixels * SUB * at) / of) + 0;
+  return { x: out(mover.travel.x), y: out(mover.travel.y) };
+}
+/**
+ * Where a mover's top left corner is on step `step`, in pixels, for whoever draws it: `step` may be a fraction
+ * between two steps, and the answer is one too. The rules never read this.
+ */
+export function moverPlace(mover: Mover, step: number): Pt {
+  const { at, of } = along(mover, step);
+  return {
+    x: mover.x + (mover.travel.x * at) / of,
+    y: mover.y + (mover.travel.y * at) / of,
+  };
+}
+/** A mover as a box where it is on micro-step `step`. */
+export function moverBoxAt(mover: Mover, step: number): Box {
+  const box = boxOf(mover),
+    off = moverOffset(mover, step);
+  return { ...box, cx: box.cx + off.x, cy: box.cy + off.y };
+}
+/**
+ * Where the movers are comes round again every so often, so it is worked out once per place in that round and kept:
+ * a memo keyed by the arena, which holds nothing alive. A map whose movers keep different periods has no short round
+ * and is worked out afresh each time.
+ */
+interface Round {
+  period: number;
+  movers: (readonly Box[] | undefined)[];
+  all: (readonly Box[] | undefined)[];
+}
+const ROUNDS = new WeakMap<MapDef, Round>();
+function roundOf(map: MapDef): Round {
+  let round = ROUNDS.get(map);
+  if (!round) {
+    const period = map.movers[0]?.period ?? 0,
+      shared =
+        Number.isInteger(period) &&
+        period > 0 &&
+        period <= 3600 &&
+        map.movers.every((mover) => mover.period === period);
+    ROUNDS.set(
+      map,
+      (round = { period: shared ? period : 0, movers: [], all: [] }),
+    );
+  }
+  return round;
+}
+const place = (step: number, period: number): number =>
+  ((step % period) + period) % period;
+/** The map's movers as boxes where they are on micro-step `step`, in the order of `MapDef.movers`. */
+export function moverBoxesAt(map: MapDef, step: number): readonly Box[] {
+  const round = roundOf(map),
+    work = () => map.movers.map((mover) => moverBoxAt(mover, step));
+  if (!round.period) return work();
+  return (round.movers[place(step, round.period)] ??= work());
+}
+/**
+ * Everything solid on micro-step `step`: the map's solids, then its movers where they are then. With no movers it
+ * is the solids themselves.
+ */
+export function boxesAt(map: MapDef, step: number): readonly Box[] {
+  if (map.movers.length === 0) return boxesOf(map);
+  const round = roundOf(map),
+    work = () => [...boxesOf(map), ...moverBoxesAt(map, step)];
+  if (!round.period) return work();
+  return (round.all[place(step, round.period)] ??= work());
 }

@@ -1,3 +1,4 @@
+import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
 import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
@@ -22,6 +23,7 @@ import {
   createGameMenu,
   createInviteCard,
   createLandingCard,
+  createRoomLayout,
   createNameEntry,
   createNotice,
   createRoster,
@@ -110,6 +112,8 @@ function landing(): void {
     store.setItem(names.shared, toggle.checked ? "1" : "0");
   shared.append(toggle, el("span", "Shared TV: phones are the controllers"));
   const card = createLandingCard({
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     title: "ROLL OR HOLD",
     tagline:
       "Roll as often as you dare: every roll adds up, but a 1 loses the lot. Hold to bank it. First to 50 wins the round, two rounds win the match.",
@@ -238,7 +242,11 @@ function room(solo: boolean): void {
     buttonText: "JOIN",
     onSubmit: (name) => {
       store.setItem(names.name, name);
-      runtime.command({ type: "join", name });
+      runtime.command({
+        type: "join",
+        name,
+        slot: requestedRoomSlot(nameEntry.form),
+      });
     },
   });
   const lobbyActions = el("div", "", "dice-lobby-actions");
@@ -249,7 +257,12 @@ function room(solo: boolean): void {
     lobbyNote,
     lobbyActions,
   );
-  addBot.onclick = () => runtime.command({ type: "bot", action: "add" });
+  addBot.onclick = () =>
+    runtime.command({
+      type: "bot",
+      action: "add",
+      slot: requestedRoomSlot(addBot),
+    });
   start.onclick = () => runtime.command({ type: "action", action: "start" });
   tvLink.onclick = () =>
     window.open(endpoints.appUrl(`?room=${code}&display=1`), "_blank");
@@ -323,6 +336,18 @@ function room(solo: boolean): void {
   main.tabIndex = -1;
   main.append(nameEntry.form, lobby, table, result);
   app.replaceChildren(top, main);
+  createRoomLayout({
+    primaryAction: start,
+    playerName: () => social.playerName(undefined) ?? undefined,
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
+    element: lobby,
+    roster,
+    capacity: 5,
+    join: nameEntry.form,
+    addAI: addBot,
+    actions: [lobbyNote, tvLink, start],
+  });
   table.hidden = true;
   nameEntry.form.hidden = true;
 
@@ -333,9 +358,9 @@ function room(solo: boolean): void {
     nameEntry.form.hidden = !model.askName;
     // Lobby.
     roster.update(
-      model.lobby.members.map((member, index) => ({
+      model.lobby.members.map((member) => ({
         ...member,
-        color: COLORS[index % COLORS.length]!,
+        color: COLORS[(member.slot ?? 0) % COLORS.length]!,
       })),
     );
     for (const [id, row] of roster.entries()) {
@@ -469,9 +494,13 @@ function room(solo: boolean): void {
       lastDie = model.die?.key ?? "";
       // A page that loads into a room with a name remembered from before (a reload frees a lobby seat) joins under it
       // once; a name typed on this page joins only through JOIN.
-      if (model.askName && remembered && !joinSent) {
+      if (model.askName && remembered && !joinSent && !viewer.host) {
         joinSent = true;
-        runtime.command({ type: "join", name: remembered });
+        runtime.command({
+          type: "join",
+          slot: requestedRoomSlot(nameEntry.form),
+          name: remembered,
+        });
       }
       if (model.seated) joinSent = false;
       render(model);

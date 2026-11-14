@@ -1,3 +1,4 @@
+import { openPlayOptions, takeHostSeat } from "./lib/main-menu.js";
 import type { Page } from "playwright";
 import { readyRoom } from "./lib/ready-room.js";
 import { launchBrowser } from "./lib/browser.js";
@@ -144,8 +145,10 @@ try {
   );
   await host.goto(base);
   console.log("Home loaded");
+  await openPlayOptions(host);
   await host.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
   await host.waitForURL(/room=/);
+  await takeHostSeat(host, "Host");
   console.log("Room created");
   const url = `${host.url()}&renderer=phaser-canvas`;
   await host.locator(".room-riders > .room-rider").first().waitFor();

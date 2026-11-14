@@ -1,13 +1,6 @@
 import { inShape, apart } from "./collide.js";
 import { drift, freshBarriers } from "./gadgets.js";
-import {
-  boxesOf,
-  isCircle,
-  isSeed,
-  type MapDef,
-  type Rect,
-  type Goal,
-} from "./maps.js";
+import { isCircle, isSeed, type MapDef, type Rect, type Goal } from "./maps.js";
 import { SUB } from "./math.js";
 
 const W = 640,
@@ -33,8 +26,12 @@ const rect = (x: number, y: number, w: number, h: number): Rect => ({
 });
 const flip = (r: Rect): Rect => ({ ...r, x: W - r.x - r.w });
 
-/** Original parameterised construction; it never copies a handmade arena. */
-export function levelCandidate(seed: number): MapDef {
+/**
+ * Original parameterised construction; it never copies a handmade arena. With `gadgets`, the seed's last rolls add
+ * one kind of gadget where it fits; without, the same layout is left bare, which is what a level falls back to when
+ * its gadgets make it unplayable.
+ */
+export function levelCandidate(seed: number, gadgets = true): MapDef {
   const next = random(seed),
     pick = (n: number) => next() % n;
   const wrapX = pick(2) === 1,
@@ -82,19 +79,22 @@ export function levelCandidate(seed: number): MapDef {
       r = 18 + pick(3) * 2;
     goals.push({ team: 1, x: 60, y, r }, { team: 0, x: 580, y, r });
   }
-  const rows = pick(4);
+  const rows = pick(4),
+    shelves: Rect[] = [];
   for (let row = 0; row < rows; row++) {
     const x = 100 + pick(4) * 16,
       w = 56 + pick(4) * 8;
-    pair(rect(x, 160 + row * 64, w, 10));
+    shelves.push(rect(x, 160 + row * 64, w, 10));
   }
   if (pick(2)) solids.push(rect(264, pick(4) === 0 ? 96 : 192, 112, 12));
   if (pick(3) === 0) solids.push(rect(314, 272, 12, floor - 272));
   const cloudY = 216 + pick(3) * 16,
     radius = 28 + pick(4) * 4;
-  return {
+  const level: Level = {
     id: "random",
     name: "Random",
+    w: W,
+    h: H,
     wrapX,
     wrapY,
     solids,
@@ -113,10 +113,118 @@ export function levelCandidate(seed: number): MapDef {
     barriers: [],
     bumpers: [],
     portals: [],
+    ledges: [],
+    movers: [],
     goo: [],
     streams: [],
   };
+
+  // The gadgets come last, so a seed's layout is the same with or without them. One kind a level, from those that
+  // fit its goals; two rolls in every handful leave it bare.
+  const kinds: (() => void)[] = [];
+  /** Up to `tries` rolls of `place`; the first whose gadgets pass the check stays, and the rest are undone. */
+  const attempt = (tries: number, place: () => () => void): void => {
+    for (let n = 0; n < tries; n++) {
+      const undo = place();
+      if (gadgetFaults(level).length === 0) return;
+      undo();
+    }
+  };
+  // A force field across each goal mouth in the side walls: three strikes break it.
+  if (kind === 0)
+    kinds.push(() => {
+      const field = rect((wrapX ? 12 : 24) + 4, mouth, 8, height);
+      level.barriers.push(
+        { kind: "field", hits: 3, ...flip(field) },
+        { kind: "field", hits: 3, ...field },
+      );
+    });
+  // A trapdoor over each pit that has a bottom: knocked open by a ball that lands on it hard.
+  if (pits && !wrapY)
+    kinds.push(() => {
+      const gate = rect(start, floor, width, 6);
+      level.barriers.push(
+        { kind: "gate", ...flip(gate) },
+        { kind: "gate", ...gate },
+      );
+    });
+  // One or two pairs of bumpers in the open air.
+  kinds.push(() => {
+    for (let pairs = 1 + pick(2); pairs > 0; pairs--)
+      attempt(6, () => {
+        const x = 120 + pick(8) * 20,
+          y = 70 + pick(8) * 24;
+        level.bumpers.push({ x, y, r: 12 }, { x: W - x, y, r: 12 });
+        return () => level.bumpers.splice(-2);
+      });
+  });
+  // A portal low on each side whose other end hangs high over the far side.
+  kinds.push(() =>
+    attempt(6, () => {
+      const a = { x: 40 + pick(4) * 12, y: floor - 30 - pick(3) * 30 },
+        b = { x: W - 90 - pick(5) * 30, y: 60 + pick(4) * 20 };
+      level.portals.push(
+        { hue: 0, r: 14, a, b },
+        {
+          hue: 1,
+          r: 14,
+          a: { x: W - a.x, y: a.y },
+          b: { x: W - b.x, y: b.y },
+        },
+      );
+      return () => level.portals.splice(-2);
+    }),
+  );
+  // The shelves as ledges to come up through, or a pair of ledges where there are no shelves.
+  const asLedges = () => {
+    if (shelves.length) {
+      for (const shelf of shelves.splice(0)) {
+        const ledge = { ...shelf, h: 6 };
+        level.ledges.push(ledge, flip(ledge));
+      }
+      return;
+    }
+    attempt(6, () => {
+      const ledge = rect(110 + pick(4) * 16, 170 + pick(4) * 30, 72, 6);
+      level.ledges.push(ledge, flip(ledge));
+      return () => level.ledges.splice(-2);
+    });
+  };
+  kinds.push(asLedges);
+  // A pair of movers: lifts up from near the floor, or shuttles that slide towards the middle and back.
+  kinds.push(() =>
+    attempt(8, () => {
+      const lift = pick(3) !== 0,
+        far = 80 + pick(4) * 20,
+        dwell = 60,
+        body = lift
+          ? rect(96 + pick(6) * 20, floor - 44 - pick(2) * 20, 56, 10)
+          : rect(60 + pick(4) * 20, 150 + pick(4) * 20, 56, 10),
+        // Half a pixel a step.
+        period = 2 * (2 * far + dwell),
+        travel = lift ? { x: 0, y: -far } : { x: far, y: 0 };
+      level.movers.push(
+        { ...body, travel, period, dwell },
+        { ...flip(body), travel: { x: -travel.x, y: travel.y }, period, dwell },
+      );
+      return () => level.movers.splice(-2);
+    }),
+  );
+  const roll = pick(kinds.length + 2),
+    chosen = gadgets ? kinds[roll] : undefined;
+  // The shelves are solid unless they are the ledges, and they are in place before anything is put among them.
+  if (chosen !== asLedges) for (const shelf of shelves.splice(0)) pair(shelf);
+  chosen?.();
+  return level;
 }
+/** A level while it is being put together: its gadget lists can still be added to. */
+type Level = MapDef & {
+  barriers: MapDef["barriers"][number][];
+  bumpers: MapDef["bumpers"][number][];
+  portals: MapDef["portals"][number][];
+  ledges: Rect[];
+  movers: MapDef["movers"][number][];
+};
 
 /** Squared pixel distance to a solid, measured across wrapping seams. */
 function gapAt(map: MapDef, x: number, y: number, r: Rect): number {
@@ -128,8 +236,8 @@ function gapAt(map: MapDef, x: number, y: number, r: Rect): number {
 const gap = (map: MapDef, x: number, y: number, r: Rect) =>
   gapAt(map, x * SUB, y * SUB, r);
 const freeAt = (map: MapDef, x: number, y: number, radius: number): boolean =>
-  (map.wrapX || (x >= radius && x <= W * SUB - radius)) &&
-  (map.wrapY || (y >= radius && y <= H * SUB - radius)) &&
+  (map.wrapX || (x >= radius && x <= map.w * SUB - radius)) &&
+  (map.wrapY || (y >= radius && y <= map.h * SUB - radius)) &&
   map.solids.every((r) => gapAt(map, x, y, r) >= radius * radius);
 export const levelFree = (
   map: MapDef,
@@ -141,8 +249,8 @@ export const levelFree = (
 /** Flood the ball's free configuration space; infinite air-jumps also let riders use these corridors. */
 function reachable(map: MapDef): boolean {
   const size = 8,
-    cols = W / size,
-    rows = H / size;
+    cols = Math.floor(map.w / size),
+    rows = Math.floor(map.h / size);
   const seen = new Set<number>(),
     queue: number[] = [];
   const add = (x: number, y: number) => {
@@ -181,7 +289,8 @@ function reachable(map: MapDef): boolean {
 
 /** The same drop grid as handmade-map tests, using the engine's autonomous ball flight. */
 function deadRest(map: MapDef): string | undefined {
-  const boxes = boxesOf(map);
+  const W = map.w,
+    H = map.h;
   for (let x = 10; x < W; x += 20)
     for (let y = 15; y < H; y += 30) {
       if (
@@ -199,7 +308,7 @@ function deadRest(map: MapDef): string | undefined {
         for (let step = 0; step < 4920; step++) {
           const beforeX = ball.x,
             beforeY = ball.y;
-          drift(ball, boxes, map, barriers);
+          const by = drift(ball, map, barriers, step + 1);
           if (step === 4799) {
             lastX = ball.x;
             lastY = ball.y;
@@ -208,7 +317,11 @@ function deadRest(map: MapDef): string | undefined {
             scored = true;
             break;
           }
-          still = ball.x === beforeX && ball.y === beforeY ? still + 1 : 0;
+          // Lying on a mover is at rest too: it has gone only as far as the mover took it.
+          still =
+            ball.x === beforeX + by.x && ball.y === beforeY + by.y
+              ? still + 1
+              : 0;
           if (still >= 120) break;
         }
         if (scored) continue;
@@ -231,9 +344,249 @@ function deadRest(map: MapDef): string | undefined {
   return;
 }
 
+const overlap = (a: Rect, b: Rect, margin = 0): boolean =>
+  a.x < b.x + b.w + margin &&
+  b.x < a.x + a.w + margin &&
+  a.y < b.y + b.h + margin &&
+  b.y < a.y + a.h + margin;
+const around = (x: number, y: number, r: number): Rect =>
+  rect(x - r, y - r, 2 * r, 2 * r);
+const even = (r: Rect): boolean =>
+  [r.x, r.y, r.w, r.h].every((n) => Number.isInteger(n) && n % 2 === 0) &&
+  r.w > 0 &&
+  r.h > 0;
+const inField = (r: Rect): boolean =>
+  r.x >= 0 && r.y >= 0 && r.x + r.w <= W && r.y + r.h <= H;
+/** Everything a mover passes over, end to end. */
+export const sweepOf = (mover: MapDef["movers"][number]): Rect =>
+  rect(
+    Math.min(mover.x, mover.x + mover.travel.x),
+    Math.min(mover.y, mover.y + mover.travel.y),
+    mover.w + Math.abs(mover.travel.x),
+    mover.h + Math.abs(mover.travel.y),
+  );
+/** Room for a rider between a mover at the end of its travel and whatever is past it, so nothing is crushed. */
+const CRUSH = 2 * RIDER + 4;
+
+/**
+ * What is wrong with a map's gadgets: each kind on whole even pixels inside the field, clear of the solids and of
+ * each other by enough that the ball is never wedged, and its own mirror image left to right.
+ */
+export function gadgetFaults(map: MapDef): string[] {
+  const faults: string[] = [];
+  const mirrored = (
+    rects: readonly Rect[],
+    same: (a: Rect, b: Rect) => boolean,
+  ) => rects.every((r) => rects.some((other) => same(flip(r), other)));
+  const sameRect = (a: Rect, b: Rect) =>
+    a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+
+  for (const kind of ["field", "gate"] as const) {
+    const barriers = map.barriers.filter((b) => b.kind === kind);
+    if (!mirrored(barriers, sameRect)) faults.push("barrier symmetry");
+  }
+  for (const barrier of map.barriers) {
+    if (!even(barrier) || !inField(barrier)) faults.push("barrier");
+    if (barrier.kind === "field" && !(barrier.hits >= 2 && barrier.hits <= 9))
+      faults.push("field hits");
+    if (map.solids.some((solid) => overlap(barrier, solid)))
+      faults.push("barrier in a solid");
+  }
+
+  for (const bumper of map.bumpers) {
+    const box = around(bumper.x, bumper.y, bumper.r);
+    if (
+      ![bumper.x, bumper.y, bumper.r].every(Number.isInteger) ||
+      bumper.r < BALL ||
+      !inField(box)
+    )
+      faults.push("bumper");
+    if (
+      !map.bumpers.some(
+        (o) => o.x === W - bumper.x && o.y === bumper.y && o.r === bumper.r,
+      )
+    )
+      faults.push("bumper symmetry");
+    // Clear of every solid by more than the ball, so the ball is never wedged between the two.
+    if (
+      [...map.solids, ...map.ledges, ...map.movers.map(sweepOf)].some((solid) =>
+        overlap(box, solid, 2 * BALL + 2),
+      )
+    )
+      faults.push("bumper near a solid");
+    if (
+      map.goals.some((goal) =>
+        overlap(box, isCircle(goal) ? around(goal.x, goal.y, goal.r) : goal),
+      )
+    )
+      faults.push("bumper in a goal");
+    if (
+      map.bumpers.some(
+        (o) =>
+          o !== bumper &&
+          squared(o.x - bumper.x) + squared(o.y - bumper.y) <=
+            squared(o.r + bumper.r + 2 * BALL),
+      )
+    )
+      faults.push("bumpers too close");
+    if (
+      squared(bumper.x - map.ballAnchor.x) +
+        squared(bumper.y - map.ballAnchor.y) <=
+        squared(bumper.r + BALL) ||
+      map.spawns.some(
+        (spawn) =>
+          squared(bumper.x - spawn.x) + squared(bumper.y - spawn.y) <=
+          squared(bumper.r + 2 * BALL + RIDER),
+      )
+    )
+      faults.push("bumper on a mark");
+  }
+
+  const ends = map.portals.flatMap((portal) =>
+    [portal.a, portal.b].map((end) => ({ ...end, r: portal.r })),
+  );
+  const pairKey = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+    [`${a.x},${a.y}`, `${b.x},${b.y}`].sort().join(">");
+  const pairs = new Set(map.portals.map((p) => pairKey(p.a, p.b)));
+  for (const portal of map.portals) {
+    if (
+      !pairs.has(
+        pairKey(
+          { x: W - portal.a.x, y: portal.a.y },
+          { x: W - portal.b.x, y: portal.b.y },
+        ),
+      )
+    )
+      faults.push("portal symmetry");
+    if (portal.hue !== 0 && portal.hue !== 1) faults.push("portal");
+  }
+  for (const end of ends) {
+    const box = around(end.x, end.y, BALL);
+    if (
+      ![end.x, end.y, end.r].every(Number.isInteger) ||
+      end.r < BALL + 4 ||
+      !inField(around(end.x, end.y, end.r))
+    )
+      faults.push("portal");
+    // A ball arriving at an end's centre is not inside a solid, a goal, a gadget or another portal.
+    if (
+      [
+        ...map.solids,
+        ...map.ledges,
+        ...map.barriers,
+        ...map.movers.map(sweepOf),
+      ].some((solid) => overlap(box, solid))
+    )
+      faults.push("portal in a solid");
+    if (
+      map.goals.some((goal) =>
+        overlap(
+          around(end.x, end.y, end.r),
+          isCircle(goal) ? around(goal.x, goal.y, goal.r) : goal,
+        ),
+      )
+    )
+      faults.push("portal in a goal");
+    if (
+      ends.some(
+        (o) =>
+          o !== end &&
+          squared(o.x - end.x) + squared(o.y - end.y) <= squared(o.r + end.r),
+      ) ||
+      map.bumpers.some(
+        (o) =>
+          squared(o.x - end.x) + squared(o.y - end.y) <=
+          squared(o.r + end.r + BALL),
+      )
+    )
+      faults.push("portal too close");
+  }
+
+  if (!mirrored(map.ledges, sameRect)) faults.push("ledge symmetry");
+  for (const ledge of map.ledges) {
+    if (!even(ledge) || !inField(ledge) || ledge.w < 2 * RIDER + 6)
+      faults.push("ledge");
+    if (
+      [...map.solids, ...map.barriers].some((solid) => overlap(ledge, solid)) ||
+      map.ledges.some((o) => o !== ledge && overlap(ledge, o, 2 * BALL))
+    )
+      faults.push("ledge in a solid");
+    if (
+      map.goals.some((goal) =>
+        overlap(ledge, isCircle(goal) ? around(goal.x, goal.y, goal.r) : goal),
+      )
+    )
+      faults.push("ledge in a goal");
+  }
+
+  for (const mover of map.movers) {
+    const { travel, period, dwell } = mover,
+      sweep = sweepOf(mover),
+      far = Math.abs(travel.x) + Math.abs(travel.y);
+    if (
+      !even(mover) ||
+      ![travel.x, travel.y, period, dwell].every(
+        (n) => Number.isInteger(n) && n % 2 === 0,
+      ) ||
+      dwell < 0 ||
+      (travel.x !== 0) === (travel.y !== 0) ||
+      // No faster than a pixel a step, and never so slow a ride is a wait.
+      period < 2 * (far + dwell) ||
+      period > 1800 ||
+      !inField(sweep) ||
+      mover.w < 2 * RIDER + 6
+    )
+      faults.push("mover");
+    if (
+      !map.movers.some(
+        (o) =>
+          sameRect(o, flip(mover)) &&
+          o.travel.x === -travel.x &&
+          o.travel.y === travel.y &&
+          o.period === period &&
+          o.dwell === dwell,
+      )
+    )
+      faults.push("mover symmetry");
+    // Past either end of its travel there is room for a rider, so nothing is crushed against a solid.
+    const reach = rect(
+      sweep.x - (travel.x ? CRUSH : 0),
+      sweep.y - (travel.y ? CRUSH : 0),
+      sweep.w + (travel.x ? 2 * CRUSH : 0),
+      sweep.h + (travel.y ? 2 * CRUSH : 0),
+    );
+    if (
+      [...map.solids, ...map.ledges, ...map.barriers].some((solid) =>
+        overlap(reach, solid),
+      ) ||
+      map.movers.some((o) => o !== mover && overlap(reach, sweepOf(o)))
+    )
+      faults.push("mover in a solid");
+    if (
+      map.goals.some((goal) =>
+        overlap(sweep, isCircle(goal) ? around(goal.x, goal.y, goal.r) : goal),
+      )
+    )
+      faults.push("mover in a goal");
+    if (
+      overlap(sweep, around(map.ballAnchor.x, map.ballAnchor.y, BALL)) ||
+      map.spawns.some((spawn) =>
+        overlap(sweep, around(spawn.x, spawn.y, RIDER)),
+      )
+    )
+      faults.push("mover on a mark");
+  }
+  return faults;
+}
+
 /** Shared acceptance checks for written and generated maps. Empty means playable. */
 export function levelFaults(map: MapDef): string[] {
-  const faults: string[] = [];
+  const faults: string[] = [],
+    W = map.w,
+    H = map.h,
+    flip = (r: Rect): Rect => ({ ...r, x: W - r.x - r.w });
+  if (![W, H].every((n) => Number.isInteger(n) && n % 2 === 0 && n >= 64))
+    faults.push("field");
   const key = (r: Rect) =>
     `${map.wrapX ? (r.x + W) % W : r.x},${map.wrapY ? (r.y + H) % H : r.y},${r.w},${r.h}`;
   const solids = new Set(map.solids.map(key));
@@ -254,9 +607,23 @@ export function levelFaults(map: MapDef): string[] {
   }
   if (
     map.ballAnchor.x !== W / 2 ||
-    map.spawns[0].x !== W - map.spawns[1].x ||
-    map.spawns[0].y !== map.spawns[1].y ||
-    Math.abs(map.spawns[0].x - map.spawns[1].x) <= 4 * RIDER
+    map.spawns.length % 2 !== 0 ||
+    map.spawns.some((spawn, place) => {
+      // Every mark has its mirror image on the other side, and a side's marks stand on its own half.
+      const other = map.spawns[place ^ 1];
+      return (
+        !other ||
+        spawn.x !== W - other.x ||
+        spawn.y !== other.y ||
+        (place % 2 === 0 ? spawn.x >= W / 2 - 2 * RIDER : false)
+      );
+    }) ||
+    map.spawns.some((a, i) =>
+      map.spawns.some(
+        (b, j) =>
+          i < j && squared(a.x - b.x) + squared(a.y - b.y) < squared(3 * RIDER),
+      ),
+    )
   )
     faults.push("fairness");
   if (!map.clouds.length) faults.push("clouds");
@@ -309,6 +676,7 @@ export function levelFaults(map: MapDef): string[] {
   }
   if (![0, 1].every((team) => map.goals.some((g) => g.team === team)))
     faults.push("goals");
+  faults.push(...gadgetFaults(map));
   const opening = (length: number, open: (at: number) => boolean) => {
     let best = 0,
       run = 0;
@@ -338,7 +706,7 @@ export function levelFaults(map: MapDef): string[] {
 
 /** Bounded work even for adversarial seeds. This original, open-corridor layout is independently tested. */
 export const fallbackLevel = (): MapDef => {
-  const level = levelCandidate(0);
+  const level = levelCandidate(0, false);
   return { ...level, solids: level.solids.filter((r) => r.y !== 96) };
 };
 export function generateLevel(seed: number): MapDef {
@@ -346,6 +714,18 @@ export function generateLevel(seed: number): MapDef {
   for (let count = 0; count < 8; count++) {
     const level = levelCandidate(attempt);
     if (!levelFaults(level).length) return level;
+    // The gadgets may be what is wrong with it: the same layout without them is tried before moving on.
+    if (
+      level.barriers.length +
+        level.bumpers.length +
+        level.portals.length +
+        level.ledges.length +
+        level.movers.length >
+      0
+    ) {
+      const bare = levelCandidate(attempt, false);
+      if (!levelFaults(bare).length) return bare;
+    }
     attempt = (attempt + 0x9e3779b9) >>> 0;
   }
   return fallbackLevel();

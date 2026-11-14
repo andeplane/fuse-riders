@@ -1,3 +1,4 @@
+import { openPlayOptions, takeHostSeat } from "./lib/main-menu.js";
 import { readyRoom } from "./lib/ready-room.js";
 import type { Page } from "playwright";
 import { launchSelected } from "./lib/browser.js";
@@ -139,6 +140,7 @@ try {
   });
   const beforeEnter = await music();
   assert.ok(beforeEnter.src, "the landing page owns a music element");
+  await openPlayOptions(host);
   await host.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
   await host.waitForURL(/room=/);
   {
@@ -168,12 +170,13 @@ try {
     target.searchParams.set("renderer", "phaser-canvas");
   target.searchParams.set("benchmark", "1");
   await host.goto(target.href);
+  await takeHostSeat(host, "Host");
   const url = host.url().replace(/&benchmark=1/, "");
   await rosterHas(host, "Host");
   assert.equal(
     await host.locator(".online-join").isVisible(),
     false,
-    "the creator is seated without being asked: no join form in its lobby",
+    "the creator's explicit Join action dismisses admission",
   );
   // Everything the creator used to settle on that form is in the action bar beside READY, and stays there until it
   // readies up: its name, its head, its colour and which side of the room it is on.
@@ -291,7 +294,7 @@ try {
   await guest.screenshot({ path: "artifacts/online-phone.png" });
   assert.equal(
     await guest
-      .getByRole("button", { name: "ROOM SETTINGS", exact: true })
+      .getByRole("button", { name: "Game settings", exact: true })
       .isVisible(),
     false,
   );
@@ -506,7 +509,7 @@ try {
   console.log("Creator refresh mid-round confirmed");
   await closeRecap(host);
   await host
-    .getByRole("button", { name: "ROOM SETTINGS", exact: true })
+    .getByRole("button", { name: "Game settings", exact: true })
     .click();
   await host.getByLabel("Match length").fill("2"); // saves on input
   await host.getByRole("button", { name: "CLOSE", exact: true }).click();
@@ -555,7 +558,7 @@ try {
     .first()
     .waitFor();
   await host
-    .getByRole("button", { name: "ROOM SETTINGS", exact: true })
+    .getByRole("button", { name: "Game settings", exact: true })
     .waitFor({ state: "visible" });
   console.log("Creator lobby reload confirmed");
   // One rider leaves so an AI rider can take the seat; a match with a bot runs on every replica alike.
@@ -570,7 +573,7 @@ try {
       { timeout: smokeTimeout(20000) },
     );
   }
-  await host.getByRole("button", { name: "ADD AI", exact: true }).click();
+  await host.getByRole("button", { name: /^Add AI$/i, exact: true }).click();
   await host.getByRole("button", { name: /Remove AI/ }).waitFor();
   assert.match(
     (await host
@@ -599,10 +602,10 @@ try {
       ?.textContent?.startsWith("Ready up"),
   );
   await host
-    .getByRole("button", { name: "ROOM SETTINGS", exact: true })
+    .getByRole("button", { name: "Game settings", exact: true })
     .waitFor({ state: "visible" });
   await host
-    .getByRole("button", { name: "ROOM SETTINGS", exact: true })
+    .getByRole("button", { name: "Game settings", exact: true })
     .click();
   await host
     .getByRole("radio", { name: "Shared TV + phone controls", exact: true })
@@ -625,7 +628,7 @@ try {
     .waitFor();
   assert.equal(
     await display
-      .getByRole("button", { name: "ROOM SETTINGS", exact: true })
+      .getByRole("button", { name: "Game settings", exact: true })
       .isVisible(),
     false,
   );

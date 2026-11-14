@@ -12,7 +12,8 @@ export const STEPS_PER_TICK = 6;
 /** Steps in one original 33 ms frame: touches are counted once a frame. */
 export const FRAME_STEPS = 4;
 
-export const CAPACITY = 2;
+/** Seats a room has: two for one blob a side, four for two a side, six for three a side. */
+export const CAPACITY = 6;
 export const RALLY_TARGET = 11,
   CLASSIC_TARGET = 15;
 /** A match level at this many is decided by the next point: the score never runs past it. */
@@ -82,11 +83,48 @@ export const GUARD_LINE = 11776,
 // ---- the blobs ----
 /** Feet on the sand: 100 px up, in height units (`cmp [blob+0x14],0x64`). */
 export const BLOB_FLOOR = 100 * HU;
+/** How close a blob's centre comes to the net's line, px. */
+export const NET_GAP = 40;
 /** Blob centre x limits in px, left side and right side (0x168, 0x1b8, 0x320). */
 export const BLOB_MIN = [0, 440] as const,
   BLOB_MAX = [360, 800] as const;
 /** Where blobs start. */
 export const BLOB_START = [200, 600] as const;
+
+// ---- two a side ----
+/**
+ * The doubles court's width, px: the singles court's net, pole and heights on a beach 1.75 times as wide. A flat hit
+ * from the back line just about carries over the net, so the back blob can still score but usually passes; at twice
+ * the width bot matches ended a third of their rallies on a third touch that could not reach.
+ */
+export const TEAM_COURT_W = 1400;
+/** Where a doubles side's two blobs start, px from the net. */
+export const TEAM_FRONT = 180,
+  TEAM_BACK = 490;
+/** Teammates are solid to each other: two blob centres stay this far apart unless one is above the other's head. */
+export const BLOB_HALF = 32;
+/** A blob coming down on a teammate's head pops back up at this speed (height units a step) as it slides off. */
+export const HEAD_BOUNCE = 1400;
+// ---- three a side ----
+/**
+ * The three-a-side court's width, px: one big beach with the singles court's net, pole and heights, and no lanes, a
+ * third of a side for each blob. Normal bots played rallies as long as doubles' (8 to 10 s, about 10 touches) on every
+ * width from 1700 to 2100, each of the three taking its share; 2000 keeps the blobs big enough on a phone.
+ */
+export const TRIPLE_COURT_W = 2000;
+/** Where a three-a-side side's blobs start, px from the net: front, middle (under the serve) and back. */
+export const TRIPLE_FRONT = 180,
+  TRIPLE_MID = 500,
+  TRIPLE_BACK = 800;
+
+// ---- three teams of two ----
+/**
+ * Three teams of two play king of the court on the doubles court: two teams play each rally while the third waits;
+ * the side that loses a rally walks off and the waiting team comes on in its place and serves. First to the target
+ * wins outright (no lead of two: with three teams a deuce never settles).
+ */
+export const KINGS_RALLY_TARGET = 11,
+  KINGS_CLASSIC_TARGET = 7;
 /** px per step, no inertia, the same in the air (the exe's 12 px a frame). */
 export const RUN_SPEED = 3;
 /** Jump launch in height units per step. The exe's 10 000 a frame, resampled to 120 Hz to keep its 264 px apex. */

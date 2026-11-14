@@ -73,6 +73,7 @@ export interface RoomPresenterInput {
 }
 
 export interface LobbyRiderView {
+  slot: number;
   id: string;
   name: string;
   color: string;
@@ -297,6 +298,7 @@ function standings(input: RoomPresenterInput): StandingView[] {
     const points = `${scoreText(p.matchScoreUnits)} PTS · +${scoreText(p.roundScoreUnits)}`;
     return {
       id: p.id,
+      slot: p.slot,
       name: `${p.name}${p.waitingForNextRound ? " · next round" : p.connected ? "" : " · offline"}`,
       points,
       title: `${p.name} · ${points} this round`,
@@ -463,6 +465,7 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
       empty: state.players.length === 0,
       riders: state.players.map((p) => ({
         id: p.id,
+        slot: p.slot,
         name: p.name,
         color: p.color,
         avatarId: p.avatarId,

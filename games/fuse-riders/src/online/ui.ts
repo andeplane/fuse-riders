@@ -14,6 +14,7 @@ import { createFriendsPanel } from "./friends-panel.js";
 import { isRiderAvatarId } from "../engine/avatar-id.js";
 import { validRiderName } from "../engine/rider-name.js";
 import { createTopMenuToggle } from "./top-menu-toggle.js";
+import { requestedRoomSlot } from "fuse-ui";
 import {
   accountUsername,
   fetchUsername,
@@ -106,6 +107,8 @@ import QRCode from "qrcode";
 import {
   createControllerRow,
   createInviteCard,
+  createRoomLayout,
+  createRoomAppearance,
   createLobbyShell,
   createRoster,
 } from "fuse-ui";
@@ -286,8 +289,7 @@ export async function startOnline(): Promise<void> {
    *
    * `display` is not a member and takes no seat; solo is seated by the runtime itself, with no room to arrive at.
    */
-  const seatsItself =
-    role === "joiner" || (role === "host" && settings.mode !== "shared");
+  const seatsItself = role === "joiner";
   let readyPlayers: readonly string[] = [];
   startAnalytics({ role, mode: settings.mode, solo });
   track("App Opened");
@@ -387,6 +389,7 @@ export async function startOnline(): Promise<void> {
       // recolour a seat this device might take minutes later for another reason.
       const sent = runtime.command({
         type: "join",
+        slot: requestedRoomSlot(joinForm.element),
         name: playerName,
         avatarId,
       });
@@ -399,6 +402,17 @@ export async function startOnline(): Promise<void> {
       ? undefined
       : (playerName) => runtime.command({ type: "spectate", name: playerName }),
   );
+  const appearance = createRoomAppearance(
+    [
+      joinForm.picker.summary!,
+      joinForm.picker.element,
+      joinForm.colors.summary!,
+      joinForm.colors.element,
+    ],
+    document,
+  );
+  joinForm.element.append(appearance);
+  joinForm.submitButton.textContent = "Join";
   // Signed in on this browser but never opened MY GAMES here (an invite link on a new phone): learn the username while the form is still up.
   if (!solo && remembersSignIn() && !accountUsername())
     void fetchUsername(apiUrl("/api/me"), (input, init) =>
@@ -796,6 +810,7 @@ export async function startOnline(): Promise<void> {
     share = node("button", "TV VIEW"),
     addAI = node("button", "ADD AI");
   const readyButton = node("button", "READY");
+  const primaryPlay = node("div", "", "room-primary-play");
   readyButton.type = "button";
   readyButton.className = "room-ready-button";
   readyButton.hidden = true;
@@ -970,17 +985,31 @@ export async function startOnline(): Promise<void> {
   );
   // Where the movable parts of the page sit on this screen. Pure placement: what the screen is was decided by `roomScreen`.
   const placeElements = (screen: RoomScreen) => {
+    for (const action of [readyButton, start]) {
+      const parent =
+        action === readyButton &&
+        screen.controllerOnly &&
+        screen.kind === "recap"
+          ? controllerRematch
+          : screen.lobbyCard
+            ? primaryPlay
+            : hostControls;
+      if (action.parentElement !== parent) parent.append(action);
+    }
     // Keep the creator's seat invitation beside the riders while the lobby is
     // visible. Outside the lobby it must remain reachable for mid-game joins.
-    if (role !== "joiner") {
-      const joinParent = screen.lobbyCard ? lobbyRiders : app;
+    if (role !== "joiner" && !screen.lobbyCard) {
+      const joinParent = screen.lobbyCard
+        ? (sharedLobby.querySelector<HTMLElement>(".fui-room-join") ??
+          lobbyRiders)
+        : app;
       if (joinPanel.parentElement !== joinParent) {
         if (joinParent === app) {
           joinForm.element.querySelector("input")!.after(joinForm.submitButton);
           scoreboard.after(joinPanel);
         } else {
           joinForm.element.append(joinForm.submitButton);
-          lobbyRiders.prepend(joinPanel);
+          joinParent.prepend(joinPanel);
         }
         // Both ways in stay together wherever the seat invitation lands.
         joinForm.submitButton.after(joinForm.spectateButton);
@@ -1004,9 +1033,18 @@ export async function startOnline(): Promise<void> {
         ? header
         : footer;
     if (hostControls.parentElement !== actionsParent) {
-      if (desktop) header.insertBefore(hostControls, topMenu);
+      if (actionsParent === header) header.insertBefore(hostControls, topMenu);
       else actionsParent.append(hostControls);
     }
+    const aiParent = screen.lobbyCard
+      ? sharedLobby.querySelector<HTMLElement>(".fui-room-join")
+      : hostControls;
+    if (aiParent && addAI.parentElement !== aiParent) aiParent.append(addAI);
+    const settingsParent = screen.lobbyCard
+      ? sharedLobby.querySelector<HTMLElement>(".fui-room-invitation")
+      : hostControls;
+    if (settingsParent && settingsButton.parentElement !== settingsParent)
+      settingsParent.append(settingsButton);
     const noticeParent = desktop ? header : scoreboard;
     if (notice.parentElement !== noticeParent) noticeParent.append(notice);
   };
@@ -1085,7 +1123,7 @@ export async function startOnline(): Promise<void> {
     if (controllerResults) {
       if (readyButton.parentElement !== controllerRematch)
         controllerRematch.append(readyButton);
-    } else if (readyButton.parentElement !== hostControls)
+    } else if (!next.lobbyCard && readyButton.parentElement !== hostControls)
       hostControls.prepend(readyButton);
     placeElements(next);
   };
@@ -1432,6 +1470,7 @@ export async function startOnline(): Promise<void> {
         heldMotion: runtime.heldControls(id),
         players: state.players.map((p) => ({
           id: p.id,
+          slot: p.slot,
           alive: p.alive,
           x: p.x,
           y: p.y,
@@ -1518,6 +1557,7 @@ export async function startOnline(): Promise<void> {
       });
       // Every write below goes through setIfChanged: the view is rewritten each frame, and an unchanged value must not touch the DOM.
       setIfChanged(joinPanel, "hidden", view.joinPanelHidden);
+      setIfChanged(joinForm.element, "hidden", view.joinPanelHidden);
       // Name, head and colour are one choice in three parts: all three are offered while this rider is in the lobby
       // and not yet ready, all three leave together, and a picker left open closes when the round starts. They are
       // one element now, so the group goes rather than three buttons agreeing to.
@@ -1581,6 +1621,7 @@ export async function startOnline(): Promise<void> {
       lobbyRoster.update(
         view.lobby.riders.map((p) => ({
           id: p.id,
+          slot: p.slot,
           name: p.name,
           status: p.status,
           color: p.color,
@@ -1814,6 +1855,7 @@ export async function startOnline(): Promise<void> {
       setIfChanged(settingsButton, "hidden", !manages);
       setIfChanged(addAI, "hidden", !manages);
       setIfChanged(hostControls, "hidden", view.actions.hidden);
+      setIfChanged(primaryPlay, "hidden", view.actions.hidden);
       setIfChanged(reset, "disabled", view.actions.reset.disabled);
       setIfChanged(reset, "hidden", !manages || view.actions.reset.hidden);
       // The invite is the creator's: it carries the room code its device owns.
@@ -1925,7 +1967,12 @@ export async function startOnline(): Promise<void> {
     });
   };
   announceAction.onclick = () => (solo ? start.click() : readyButton.click());
-  addAI.onclick = () => runtime.command({ type: "bot", action: "add" });
+  addAI.onclick = () =>
+    runtime.command({
+      type: "bot",
+      action: "add",
+      slot: requestedRoomSlot(addAI),
+    });
   // Link quality for the player: hidden unless asked for (?stats=1 or the menu), so a bad Wi-Fi is a fact, not a guess.
   const statsPanel = node("pre", "", "net-stats");
   statsPanel.hidden = solo || !url.searchParams.has("stats");
@@ -2075,6 +2122,24 @@ export async function startOnline(): Promise<void> {
   ];
   hud.after(...dialogElements);
   settingsButton.onclick = () => openSettings();
+  settingsButton.textContent = "Game settings";
+  createRoomLayout({
+    primaryAction: primaryPlay,
+    background: async (host) =>
+      (await import("./menu-attract.js")).createAttract(host),
+    element: sharedLobby,
+    invite: qrCard,
+    roster: lobbyRoster,
+    capacity: 5,
+    join: joinForm.element,
+    addAI,
+    settingsTrigger: settingsButton,
+    onSettings: () => openSettings(),
+    actions: [lobbyFooter],
+  });
+  sharedLobby.querySelector(".fui-room-invitation")!.append(settingsButton);
+  sharedLobby.querySelector(".fui-room-join")!.append(addAI);
+  addAI.textContent = "Add AI";
   // Ctrl+P (⌘P on a Mac) goes to the power-ups page instead of the browser's print dialog (#168). The key is only taken when it will act:
   // a joiner, a display or an ended room keeps the browser's print dialog, and an open dialog keeps its own chrome.
   window.addEventListener("keydown", (event) => {

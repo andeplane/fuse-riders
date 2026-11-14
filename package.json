@@ -39,6 +39,7 @@
     "fuse-bombers": "workspace:*",
     "fuse-choppers": "workspace:*",
     "fuse-craft": "workspace:*",
+    "elasto-fuse": "workspace:*",
     "fuseball": "workspace:*",
     "fuse-freight": "workspace:*",
     "fuse-front": "workspace:*",
@@ -47,6 +48,7 @@
     "fuse-network-be": "workspace:*",
     "fuse-platform": "workspace:*",
     "fuse-riders-game": "workspace:*",
+    "killer-fuse": "workspace:*",
     "jose": "^6.2.12",
     "tsx": "^4.20.5",
     "ws": "^8.18.3"

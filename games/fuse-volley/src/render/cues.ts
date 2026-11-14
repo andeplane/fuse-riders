@@ -11,6 +11,8 @@ export type Cue =
   | {
       kind: "hit";
       side: 0 | 1;
+      /** The blob nearest the ball on that side: the one that touched it. */
+      slot: number;
       x: number;
       y: number;
       speed: number;
@@ -20,10 +22,10 @@ export type Cue =
   | { kind: "net"; x: number; y: number }
   /** The ball hit the sand hard enough to hear. */
   | { kind: "floor"; x: number; speed: number }
-  /** A blob landed from a jump. */
-  | { kind: "land"; side: 0 | 1; x: number }
+  /** A blob (by slot) landed from a jump. */
+  | { kind: "land"; side: 0 | 1; slot: number; x: number }
   /** A blob left the sand. */
-  | { kind: "jump"; side: 0 | 1; x: number }
+  | { kind: "jump"; side: 0 | 1; slot: number; x: number }
   /** A rally ended against `loser`; `scored` is false for a classic side-out. */
   | { kind: "point"; loser: 0 | 1; scored: boolean; matchPoint: -1 | 0 | 1 }
   /** A new serve hovers over `side`'s half. */
@@ -45,24 +47,37 @@ export function cuesBetween(
   const cues: Cue[] = [];
   const ball = after.ball,
     speed = Math.hypot(ball.vx, ball.vy);
-  if (advanced(before.hitCounter, after.hitCounter) && after.lastTouch !== -1)
+  if (advanced(before.hitCounter, after.hitCounter) && after.lastTouch !== -1) {
+    const side = after.lastTouch;
+    let slot = -1,
+      best = Infinity;
+    for (const [index, blob] of after.blobs.entries()) {
+      const away = Math.hypot(blob.x - ball.x, blob.y - ball.y);
+      if (blob.side === side && !blob.benched && away < best) {
+        best = away;
+        slot = index;
+      }
+    }
     cues.push({
       kind: "hit",
-      side: after.lastTouch,
+      side,
+      slot: slot < 0 ? side : slot,
       x: ball.x,
       y: ball.y,
       speed,
-      touches: after.blobs[after.lastTouch].touches,
+      touches: after.blobs[slot < 0 ? side : slot]?.touches ?? 0,
     });
+  }
   if (advanced(before.netCounter, after.netCounter))
     cues.push({ kind: "net", x: ball.x, y: ball.y });
   if (advanced(before.floorCounter, after.floorCounter))
     cues.push({ kind: "floor", x: ball.x, speed });
-  for (const side of [0, 1] as const) {
-    const was = before.blobs[side],
-      now = after.blobs[side];
-    if (was.air && !now.air) cues.push({ kind: "land", side, x: now.x });
-    if (!was.air && now.air) cues.push({ kind: "jump", side, x: now.x });
+  for (const [slot, now] of after.blobs.entries()) {
+    const was = before.blobs[slot];
+    if (!was || now.benched || was.benched) continue;
+    const side = now.side;
+    if (was.air && !now.air) cues.push({ kind: "land", side, slot, x: now.x });
+    if (!was.air && now.air) cues.push({ kind: "jump", side, slot, x: now.x });
   }
   if (
     advanced(before.pointCounter, after.pointCounter) &&

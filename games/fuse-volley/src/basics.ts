@@ -4,11 +4,14 @@
  * which may not import from outside its folder; `tests/engine.test.ts` holds the two in step.
  */
 export const GAME_ID = "fuse-volley";
-/** Seats per room: one blob a side, a bot included. */
-export const CAPACITY = 2;
+/** Seats per room: one, two or three blobs a side, bots included. */
+export const CAPACITY = 6;
 /** Points that win a match, by scoring rule; both need a lead of two. */
 export const RALLY_TARGET = 11;
 export const CLASSIC_TARGET = 15;
+/** Three teams of two (king of the court): first to these, by scoring rule, with no lead needed. */
+export const KINGS_RALLY_TARGET = 11;
+export const KINGS_CLASSIC_TARGET = 7;
 /**
  * The most points one side can have when a match ends. Win by two has no ceiling in principle, so a match that is
  * still level at this many is decided by the next point (`engine/tuning.ts` `SCORE_CAP`): a report never carries more.

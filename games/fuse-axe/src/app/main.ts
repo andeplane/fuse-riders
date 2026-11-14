@@ -1,3 +1,4 @@
+import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
 import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
@@ -23,6 +24,7 @@ import {
   createInviteCard,
   createKeyList,
   createLandingCard,
+  createRoomLayout,
   createNameEntry,
   createNotice,
   createPhoneLayout,
@@ -160,6 +162,8 @@ function landing(): void {
     touch: matchMedia("(pointer: coarse)").matches,
   });
   const card = createLandingCard({
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     title: "FUSE AXE",
     tagline:
       "Three heroes take the road east to the Dark Keep. Cleave through Vorhal's raiders alone or with up to four friends.",
@@ -183,7 +187,7 @@ function landing(): void {
       location.href = withFlags(endpoints.appUrl(`?room=${code}`));
     },
   });
-  card.element.append(keyHelp());
+  card.menu.help.append(keyHelp());
   const back = el("a", "← FUSE RIDERS", "fa-back");
   back.href = import.meta.env.BASE_URL + (query.has("mute") ? "?mute" : "");
   app.replaceChildren(header([back, menu.element]), card.element);
@@ -362,7 +366,12 @@ function room(solo: boolean): void {
       "_blank",
     );
   // The host seats bot companions (solo too), each playing its seat's hero, and removes them before setting out.
-  addBot.onclick = () => runtime.command({ type: "bot", action: "add" });
+  addBot.onclick = () =>
+    runtime.command({
+      type: "bot",
+      action: "add",
+      slot: requestedRoomSlot(addBot),
+    });
   lobbyMain.append(
     el("h2", "HEROES", "fui-lobby-title"),
     roster.element,
@@ -484,13 +493,31 @@ function room(solo: boolean): void {
     buttonText: "JOIN",
     onSubmit: (name) => {
       store.setItem(names.name, name);
-      runtime.command({ type: "join", name, avatarId: storedHero() });
+      runtime.command({
+        type: "join",
+        slot: requestedRoomSlot(nameEntry.form),
+        name,
+        avatarId: storedHero(),
+      });
     },
   });
   const main = el("main", "", "fa-room");
   main.tabIndex = -1;
   main.append(connecting, closed, nameEntry.form, lobby, stage, controller);
   app.replaceChildren(top, main, roundControls.element);
+  createRoomLayout({
+    primaryAction: start,
+    playerName: () => social.playerName(undefined) ?? undefined,
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
+    element: lobby,
+    roster,
+    capacity: 5,
+    join: nameEntry.form,
+    addAI: addBot,
+    settings: [picker.element, blurb, share],
+    actions: [lobbyNote, tvLink, start],
+  });
   for (const part of [
     closed,
     nameEntry.form,
@@ -642,6 +669,7 @@ function room(solo: boolean): void {
     roster.update(
       next.members.map((member) => ({
         id: member.id,
+        slot: member.slot,
         name: member.name,
         color: member.color,
         status: member.status,
@@ -747,7 +775,7 @@ function room(solo: boolean): void {
       audio.frame(frame, next.screen === "controller");
       main.dataset.audio = audio.state;
       main.dataset.cues = String(audio.heard);
-      if (next.askName && remembered && !joinSent) {
+      if (next.askName && remembered && !joinSent && !viewer.host) {
         joinSent = true;
         runtime.command({
           type: "join",

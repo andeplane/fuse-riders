@@ -1,3 +1,4 @@
+import type { Cue } from "../src/render/cues.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -27,7 +28,9 @@ import {
   type Viewer,
 } from "../src/app/presenter.js";
 import { loadArt, type ImageLoader } from "../src/app/art.js";
-import { createSfx, type SfxDependencies } from "../src/app/audio.js";
+import { createSfx } from "../src/app/audio.js";
+import { createGameAudio } from "fuse-ui/game-audio";
+import { createAudioRig } from "fuse-ui/game-audio-fake";
 import { advanced, cuesBetween } from "../src/render/cues.js";
 import { createJelly } from "../src/render/jelly.js";
 import { DECAY_MS, createSmoother } from "../src/render/smooth.js";
@@ -138,7 +141,12 @@ test("in a match each player sees their side; on a shared screen a phone becomes
   assert.equal(a.riding, true);
   assert.equal(a.controlsVisible, true, "the guide shows for the first serve");
   assert.deepEqual(a.names, ["Ada", "Bo"]);
-  const shared = started({ display: true, scoring: "classic", bot: 1 });
+  const shared = started({
+    display: true,
+    scoring: "classic",
+    bot: 1,
+    format: "1v1",
+  });
   const phone = present(view(shared), viewer("b"));
   assert.equal(phone.screen, "controller");
   assert.match(phone.status, /^0 – 0 · /);
@@ -195,7 +203,7 @@ test("cues come from counters moving forward, once each", () => {
   world.hitCounter = 1;
   world.lastTouch = 0;
   world.netCounter = 1;
-  world.blobs[1].air = true;
+  world.blobs[1]!.air = true;
   const after = toView(world);
   const kinds = cuesBetween(before, after).map((cue) => cue.kind);
   assert.deepEqual(kinds, ["hit", "net", "jump"]);
@@ -212,8 +220,8 @@ const moved = (base: WorldView, dx: number): WorldView => ({
   ...base,
   ball: { ...base.ball, x: base.ball.x + dx },
   blobs: [
-    { ...base.blobs[0], x: base.blobs[0].x + dx },
-    { ...base.blobs[1], x: base.blobs[1].x + dx },
+    { ...base.blobs[0]!, x: base.blobs[0]!.x + dx },
+    { ...base.blobs[1]!, x: base.blobs[1]!.x + dx },
   ],
 });
 
@@ -225,11 +233,11 @@ test("a rollback correction eases in, the local blob never does, and a teleport 
   const first = smoother.apply(corrected, 2, 0, 0);
   assert.equal(first.ball.x, base.ball.x, "drawn where it was");
   assert.equal(
-    first.blobs[0].x,
-    corrected.blobs[0].x,
+    first.blobs[0]!.x,
+    corrected.blobs[0]!.x,
     "the local blob follows its player exactly",
   );
-  assert.equal(first.blobs[1].x, base.blobs[1].x);
+  assert.equal(first.blobs[1]!.x, base.blobs[1]!.x);
   const later = smoother.apply(corrected, 2, DECAY_MS, 0);
   assert.ok(Math.abs(later.ball.x - (corrected.ball.x - 20 / Math.E)) < 0.01);
   const settled = smoother.apply(corrected, 2, DECAY_MS * 20, 0);
@@ -242,21 +250,21 @@ test("the jelly wobbles after a kick and comes back to rest", () => {
   const jelly = createJelly(() => 0.5);
   const blobs = toView(fresh()).blobs;
   const rest = jelly.update(blobs, 0);
-  assert.equal(rest[0].stretch, 1);
+  assert.equal(rest[0]!.stretch, 1);
   jelly.kick(0, 1);
   let low = 1,
     high = 1;
   for (let t = 16; t < 400; t += 16) {
-    const pose = jelly.update(blobs, t)[0];
+    const pose = jelly.update(blobs, t)[0]!;
     low = Math.min(low, pose.stretch);
     high = Math.max(high, pose.stretch);
   }
   assert.ok(low < 0.95, `squashed: ${low}`);
   assert.ok(high > 1, `overshoots back past rest: ${high}`);
-  const end = jelly.update(blobs, 3000)[0];
+  const end = jelly.update(blobs, 3000)[0]!;
   for (let t = 3016; t < 6000; t += 16) jelly.update(blobs, t);
   assert.ok(
-    Math.abs(jelly.update(blobs, 6000)[0].stretch - 1) < 0.03,
+    Math.abs(jelly.update(blobs, 6000)[0]!.stretch - 1) < 0.03,
     `${end.stretch}`,
   );
 });
@@ -264,11 +272,13 @@ test("the jelly wobbles after a kick and comes back to rest", () => {
 test("art arrives in the background and a missing file leaves its fallback", async () => {
   const asked: string[] = [];
   const image = { width: 1 } as unknown as CanvasImageSource;
+  const lime = { width: 2 } as unknown as CanvasImageSource;
   const loader: ImageLoader = {
     load(url) {
       asked.push(url);
       return Promise.resolve(url.endsWith("ball.png") ? undefined : image);
     },
+    recolour: () => lime,
   };
   const art = loadArt("/base/", loader);
   assert.deepEqual(art(), {});
@@ -278,26 +288,36 @@ test("art arrives in the background and a missing file leaves its fallback", asy
   );
   assert.equal(art().court, image);
   assert.equal(art().ball, undefined);
-  assert.deepEqual(art().blobs, [image, image]);
+  // The third team's lime blob is the cyan one recoloured.
+  assert.deepEqual(art().blobs, [image, image, lime]);
 });
 
-test("a muted page never opens the browser's audio", () => {
-  let opened = 0;
-  const deps: SfxDependencies = {
-    open() {
-      opened++;
-      return undefined;
-    },
-    later() {},
-    random: () => 0.5,
-  };
-  const muted = createSfx(true, deps);
-  muted.resume();
-  muted.play({ kind: "point", loser: 0, scored: true, matchPoint: -1 });
-  assert.equal(opened, 0);
-  const sounding = createSfx(false, deps);
-  sounding.play({ kind: "serve", side: 0 });
-  assert.equal(opened, 1);
+test("sounds: silent when muted, a voice for each cue once the page may play", async () => {
+  const quiet = createAudioRig();
+  const muted = createGameAudio(quiet.deps, { forceMute: true });
+  const cues: Cue[] = [
+    { kind: "hit", side: 0, slot: 0, x: 1, y: 2, speed: 6, touches: 1 },
+    { kind: "net", x: 1, y: 2 },
+    { kind: "floor", x: 1, speed: 4 },
+    { kind: "floor", x: 1, speed: 0.1 },
+    { kind: "land", side: 0, slot: 0, x: 1 },
+    { kind: "jump", side: 0, slot: 0, x: 1 },
+    { kind: "point", loser: 0, scored: true, matchPoint: 1 },
+    { kind: "serve", side: 0 },
+    { kind: "over", winner: 0 },
+  ];
+  for (const cue of cues) createSfx(muted).play(cue);
+  assert.equal(quiet.log.opens, 0, "a muted page never opens audio");
+  const rig = createAudioRig("suspended");
+  const audio = createGameAudio(rig.deps);
+  const sfx = createSfx(audio);
+  sfx.play(cues[0]!);
+  assert.equal(rig.log.oscillators, 0, "nothing before the first input");
+  audio.unlock();
+  await Promise.resolve();
+  for (const cue of cues) sfx.play(cue);
+  rig.timers.forEach((run) => run());
+  assert.ok(rig.log.oscillators > 10 && rig.log.noises >= 2);
 });
 
 test("the drawn bot plans once per folded step and side", () => {
@@ -317,7 +337,12 @@ test("the drawn bot plans once per folded step and side", () => {
 });
 
 test("a classic side-out is not reported as a point", () => {
-  const room = started({ display: false, scoring: "classic", bot: 1 });
+  const room = started({
+    display: false,
+    scoring: "classic",
+    bot: 1,
+    format: "1v1",
+  });
   const server = room.world!.server;
   const watch = createPointWatch();
   const me = server === 0 ? "b" : "a";

@@ -1,6 +1,8 @@
 import {
   apart,
+  carried,
   inShape,
+  landLedges,
   resolveSolids,
   settle,
   type Body,
@@ -10,7 +12,13 @@ import {
 import { meetGadgets } from "./gadgets.js";
 import { BTN, DOWN, LEFT, RIGHT, isInput } from "./input.js";
 import { SUB, abs, clamp, div, isqrt, toward } from "./math.js";
-import { arenaOf, boxesOf, type Box } from "./maps.js";
+import {
+  arenaOf,
+  boxesAt,
+  ledgeBoxesOf,
+  type Box,
+  type MapDef,
+} from "./maps.js";
 import * as T from "./tuning.js";
 import {
   resetPoint,
@@ -21,9 +29,10 @@ import {
 } from "./world.js";
 
 /**
- * One micro-step of the arena (120 a second): a pure function of the world and the bits each rider holds. Both
- * riders act on the world as it stood before the step and what they do to the ball is summed, so the order they are
- * stored in decides nothing.
+ * One micro-step of the arena (120 a second): a pure function of the world and the bits each rider holds. Every
+ * rider acts on the world as it stood before the step and what they do to the ball is summed, so in a duel the order
+ * they are stored in decides nothing. With more riders, those in contact are pushed apart pair by pair in the
+ * riders' order, which every device shares.
  */
 const stickOf = (bits: number): -1 | 0 | 1 =>
   bits & RIGHT ? 1 : bits & LEFT ? -1 : 0;
@@ -38,7 +47,8 @@ const count = (value: number): number => (value + 1) % T.COUNTER;
 interface Lift {
   riders: number;
   vx: number;
-  slot: -1 | 0 | 1;
+  /** The lifter's place in the riders, or −1 when several lift at once. */
+  by: number;
 }
 
 function popUp(rider: Rider): void {
@@ -79,7 +89,7 @@ function control(
       if (abs(dx) < T.LIFT_X && abs(dy) < T.LIFT_Y) {
         lift.riders++;
         lift.vx += div(rider.vx * T.LIFT_CARRY_NUM, T.LIFT_CARRY_DEN);
-        lift.slot = lift.riders === 1 ? rider.slot : -1;
+        lift.by = lift.riders === 1 ? rider.index : -1;
       }
     }
     return;
@@ -88,7 +98,7 @@ function control(
   else rider.vy = (rider.vy < 0 ? rider.vy : 0) - T.JUMP;
   rider.jumps = count(rider.jumps);
   // Every press in the air leaves the rider's one bubble where they are; it is hard until the button comes up.
-  const bubble = world.bubbles[rider.slot];
+  const bubble = world.bubbles[rider.index]!;
   bubble.active = true;
   bubble.hard = true;
   bubble.x = rider.x;
@@ -97,8 +107,8 @@ function control(
 }
 
 /**
- * A rider against the other rider's bubble: touching a normal one pops it, and a hard one throws the rider back off
- * its surface and stays. A rider's own bubble is nothing to them.
+ * A rider against a bubble of the other side: touching a normal one pops it, and a hard one throws the rider back
+ * off its surface and stays. Their own side's bubbles are nothing to them.
  */
 function meetBubble(rider: Rider, bubble: Bubble, space: Space): void {
   if (rider.zapped || !bubble.active) return;
@@ -145,14 +155,16 @@ function hold(body: Body, radius: number, fromX: number, fromY: number): void {
   body.y = fromY + held.y;
 }
 
-/** Gravity, running and drag, then the move and the solids. */
+/** A mover's carry, then gravity, running and drag, then the move, the ledges and the solids. */
 function moveRider(
   rider: Rider,
   bits: number,
   boxes: readonly Box[],
-  space: Space,
+  space: MapDef,
+  step: number,
 ): void {
   const stick = stickOf(bits);
+  carried(rider, T.RIDER_R, space, step, T.CARRY_SLOP);
   if (rider.slide > 0) rider.vx = rider.facing * slideSpeed(rider.slide);
   else {
     if (stick) {
@@ -173,7 +185,21 @@ function moveRider(
   rider.vy = clamp(rider.vy, -T.MAX_RISE, T.MAX_FALL);
   rider.x += rider.vx;
   rider.y += rider.vy;
-  rider.grounded = resolveSolids(rider, T.RIDER_R, boxes, space, 0, 1).ground;
+  const touch: Touch = { hit: false, ground: false, impact: 0 };
+  // Holding down drops a rider through a ledge; one in a slide is holding down to slide and stays on it.
+  if (!(bits & DOWN) || rider.slide > 0)
+    landLedges(
+      rider,
+      T.RIDER_R,
+      ledgeBoxesOf(space),
+      space,
+      0,
+      1,
+      T.LEDGE_SLOP,
+      touch,
+    );
+  rider.grounded =
+    resolveSolids(rider, T.RIDER_R, boxes, space, 0, 1).ground || touch.ground;
 }
 
 /** Two riders in contact are pushed apart by the same amount and trade their speed along the line between them. */
@@ -201,17 +227,19 @@ function bumpRiders(a: Rider, b: Rider, space: Space): void {
   b.vy += iy;
 }
 
-/**
- * The ball: gravity, the solids, then every rider touching it, all measured from where the solids left it, then the
- * bubbles, and the solids again so that nothing can push the ball into one.
- */
-function moveBall(world: World, boxes: readonly Box[], space: Space): void {
-  const ball = world.ball;
-  ball.vy += T.BALL_GRAVITY;
-  ball.vx = clamp(ball.vx, -T.BALL_MAX, T.BALL_MAX);
-  ball.vy = clamp(ball.vy, -T.BALL_MAX, T.BALL_MAX);
-  ball.x += ball.vx;
-  ball.y += ball.vy;
+/** The ball after its own move: the ledges it lands on, then the solids. `drift` in `gadgets.ts` does the same. */
+function fall(ball: Body, boxes: readonly Box[], space: MapDef): Touch {
+  const landed: Touch = { hit: false, ground: false, impact: 0 };
+  landLedges(
+    ball,
+    T.BALL_R,
+    ledgeBoxesOf(space),
+    space,
+    T.BALL_BOUNCE_NUM,
+    T.BALL_BOUNCE_DEN,
+    T.LEDGE_SLOP,
+    landed,
+  );
   const touch = resolveSolids(
     ball,
     T.BALL_R,
@@ -220,6 +248,26 @@ function moveBall(world: World, boxes: readonly Box[], space: Space): void {
     T.BALL_BOUNCE_NUM,
     T.BALL_BOUNCE_DEN,
   );
+  return {
+    hit: touch.hit || landed.hit,
+    ground: touch.ground || landed.ground,
+    impact: Math.max(touch.impact, landed.impact),
+  };
+}
+
+/**
+ * The ball: gravity, the solids, then every rider touching it, all measured from where the solids left it, then the
+ * bubbles, and the solids again so that nothing can push the ball into one.
+ */
+function moveBall(world: World, boxes: readonly Box[], space: MapDef): void {
+  const ball = world.ball;
+  carried(ball, T.BALL_R, space, world.clock, T.CARRY_SLOP);
+  ball.vy += T.BALL_GRAVITY;
+  ball.vx = clamp(ball.vx, -T.BALL_MAX, T.BALL_MAX);
+  ball.vy = clamp(ball.vy, -T.BALL_MAX, T.BALL_MAX);
+  ball.x += ball.vx;
+  ball.y += ball.vy;
+  const touch = fall(ball, boxes, space);
   if (touch.hit) {
     ball.vx -= div(ball.vx, T.BALL_SCRUB);
     ball.vy -= div(ball.vy, T.BALL_SCRUB);
@@ -236,7 +284,7 @@ function moveBall(world: World, boxes: readonly Box[], space: Space): void {
     kickX = 0,
     kickY = 0,
     kickers = 0,
-    kicker: -1 | 0 | 1 = -1,
+    kicker = -1,
     hard = false;
   const reach = T.RIDER_R + T.BALL_R,
     fromX = ball.x,
@@ -262,7 +310,7 @@ function moveBall(world: World, boxes: readonly Box[], space: Space): void {
       if (div(-closing, d) >= T.BOUNCE_FX) hard = true;
     }
     kickers++;
-    kicker = kickers === 1 ? rider.slot : -1;
+    kicker = kickers === 1 ? rider.index : -1;
   }
   if (kickers) {
     ball.x += pushX;
@@ -325,9 +373,14 @@ function unpin(
     if (!rider.zapped)
       pinnedBy(rider.x, rider.y, T.RIDER_R + T.BALL_R, rider.facing);
   const pinning = world.bubbles.filter(
-    (bubble, slot) =>
+    (bubble, index) =>
       bubble.active &&
-      pinnedBy(bubble.x, bubble.y, T.BALL_R + T.BUBBLE_R, slot === 0 ? 1 : -1),
+      pinnedBy(
+        bubble.x,
+        bubble.y,
+        T.BALL_R + T.BUBBLE_R,
+        index % 2 === 0 ? 1 : -1,
+      ),
   );
   if (!pinned) return;
   // Squeezed, not struck: the speed it was given into the solid is not thrown back at whoever is on it.
@@ -362,12 +415,15 @@ function unpin(
   // Pinned from both sides at once, or the way out is shut too (a corner): a bubble holding the ball there pops
   // rather than keep it.
   if (out < div(T.SQUIRT, 2))
-    for (const bubble of pinning) bubble.active = false;
+    for (const bubble of pinning) {
+      bubble.active = false;
+      bubble.hard = false;
+    }
 }
 
 /**
- * The ball against the bubbles, either rider's: a bubble halves the ball's speed and throws it away from its centre.
- * A normal bubble pops doing it; a hard one stays. Both bubbles are measured from the same ball, and their throws
+ * The ball against the bubbles, anybody's: a bubble halves the ball's speed and throws it away from its centre.
+ * A normal bubble pops doing it; a hard one stays. Every bubble is measured from the same ball, and their throws
  * are summed.
  */
 function bumpBall(world: World, space: Space): void {
@@ -378,9 +434,9 @@ function bumpBall(world: World, space: Space): void {
     throwX = 0,
     throwY = 0,
     bumps = 0,
-    owner: -1 | 0 | 1 = -1;
-  for (const slot of [0, 1] as const) {
-    const bubble = world.bubbles[slot];
+    owner = -1;
+  for (let index = 0; index < world.bubbles.length; index++) {
+    const bubble = world.bubbles[index]!;
     if (!bubble.active) continue;
     const { dx, dy } = apart(ball.x, ball.y, bubble.x, bubble.y, space),
       d2 = dx * dx + dy * dy;
@@ -392,7 +448,7 @@ function bumpBall(world: World, space: Space): void {
     throwX += away.x;
     throwY += away.y;
     bumps++;
-    owner = bumps === 1 ? slot : -1;
+    owner = bumps === 1 ? index : -1;
     if (!bubble.hard) bubble.active = false;
   }
   if (!bumps) return;
@@ -411,28 +467,30 @@ export function stepWorld(
   if (world.phase === "over" || world.step >= T.MAX_STEP) return;
   world.step++;
   const map = arenaOf(world),
-    boxes = boxesOf(map),
-    [a, b] = world.riders;
-  const held = (rider: Rider): number => {
-    const bits = inputs.get(rider.id);
-    return !rider.zapped && isInput(bits) ? bits : 0;
+    { riders, bubbles } = world;
+  const bits = riders.map((rider) => {
+    const held = inputs.get(rider.id);
+    return !rider.zapped && isInput(held) ? held : 0;
+  });
+  const remember = (): void => {
+    for (const rider of riders) rider.prev = bits[rider.index]!;
   };
-  const bitsA = held(a),
-    bitsB = held(b);
+  // A bubble stays hard only while its owner keeps holding the press that placed it.
+  const soften = (): void => {
+    for (const rider of riders)
+      if (!(bits[rider.index]! & BTN)) bubbles[rider.index]!.hard = false;
+  };
 
   if (world.phase === "countdown") {
     // Everything waits on its mark; only what is held is remembered, so a press made here is not one later.
-    a.prev = bitsA;
-    b.prev = bitsB;
+    remember();
     if (--world.phaseSteps === 0) world.phase = "play";
     return;
   }
   if (world.freeze > 0) {
     // The freeze after a goal: nothing moves, and what is held is remembered as in a countdown.
-    a.prev = bitsA;
-    b.prev = bitsB;
-    if (!(bitsA & BTN)) world.bubbles[0].hard = false;
-    if (!(bitsB & BTN)) world.bubbles[1].hard = false;
+    remember();
+    soften();
     if (--world.freeze === 0) world.speed = T.ZAP_SPEED;
     return;
   }
@@ -446,37 +504,37 @@ export function stepWorld(
     return;
   }
 
-  const lift: Lift = { riders: 0, vx: 0, slot: -1 };
-  control(world, a, bitsA, map, lift);
-  control(world, b, bitsB, map, lift);
+  // Something moves this step, so the movers do too.
+  world.clock++;
+  const boxes = boxesAt(map, world.clock);
+  const lift: Lift = { riders: 0, vx: 0, by: -1 };
+  for (const rider of riders)
+    control(world, rider, bits[rider.index]!, map, lift);
   if (lift.riders) {
     world.ball.vy = -T.LIFT_SPEED;
     world.ball.vx += lift.vx;
-    world.ball.touch = lift.slot;
+    world.ball.touch = lift.by;
     world.ball.bounces = count(world.ball.bounces);
   }
+  soften();
 
-  // A bubble stays hard only while its owner keeps holding the press that placed it.
-  if (!(bitsA & BTN)) world.bubbles[0].hard = false;
-  if (!(bitsB & BTN)) world.bubbles[1].hard = false;
-
-  if (!a.zapped) moveRider(a, bitsA, boxes, map);
-  if (!b.zapped) moveRider(b, bitsB, boxes, map);
-  const ax = a.x,
-    ay = a.y,
-    bx = b.x,
-    by = b.y;
-  meetBubble(a, world.bubbles[1], map);
-  meetBubble(b, world.bubbles[0], map);
-  bumpRiders(a, b, map);
-  // A rider thrown by a bubble or shouldered by the other rider is not thrown into a solid.
-  if (a.x !== ax || a.y !== ay) {
-    hold(a, T.RIDER_R, ax, ay);
-    resolveSolids(a, T.RIDER_R, boxes, map, 0, 1);
-  }
-  if (b.x !== bx || b.y !== by) {
-    hold(b, T.RIDER_R, bx, by);
-    resolveSolids(b, T.RIDER_R, boxes, map, 0, 1);
+  for (const rider of riders)
+    if (!rider.zapped)
+      moveRider(rider, bits[rider.index]!, boxes, map, world.clock);
+  const was = riders.map((rider) => ({ x: rider.x, y: rider.y }));
+  for (const rider of riders)
+    for (const other of riders)
+      if (other.slot !== rider.slot)
+        meetBubble(rider, bubbles[other.index]!, map);
+  for (let i = 0; i < riders.length; i++)
+    for (let j = i + 1; j < riders.length; j++)
+      bumpRiders(riders[i]!, riders[j]!, map);
+  // A rider thrown by a bubble or shouldered by another rider is not thrown into a solid.
+  for (const rider of riders) {
+    const from = was[rider.index]!;
+    if (rider.x === from.x && rider.y === from.y) continue;
+    hold(rider, T.RIDER_R, from.x, from.y);
+    resolveSolids(rider, T.RIDER_R, boxes, map, 0, 1);
   }
   if (world.ball.live) moveBall(world, boxes, map);
 
@@ -488,8 +546,7 @@ export function stepWorld(
   settle(world.ball, T.BALL_R, map);
   world.ball.vx = clamp(world.ball.vx, -T.BALL_MAX, T.BALL_MAX);
   world.ball.vy = clamp(world.ball.vy, -T.BALL_MAX, T.BALL_MAX);
-  a.prev = bitsA;
-  b.prev = bitsB;
+  remember();
 
   if (world.phase === "play") {
     const goal = map.goals.find((each) =>
@@ -500,21 +557,24 @@ export function stepWorld(
 }
 
 /**
- * The ball is in `team`'s goal: a point for that team whoever sent it, and the other rider is zapped. It is that
- * rider's own goal when they (or their bubble) were the last to send the ball; otherwise it is the scorer's.
+ * The ball is in `team`'s goal: a point for that side whoever sent it, and every rider of the other side is zapped.
+ * It is an own goal when a rider of the other side (or their bubble) was the last to send the ball, and theirs to
+ * answer for; otherwise the goal is the scoring side's rider who sent it, or its first rider's when nobody did.
  */
 function score(world: World, team: Slot): void {
-  const scorer = world.riders[team],
-    other = world.riders[team === 0 ? 1 : 0],
-    ball = world.ball;
+  const ball = world.ball,
+    last = world.riders[ball.touch];
   world.score[team]++;
   world.lastScorer = team;
-  if (ball.touch === other.slot) other.ownGoals++;
-  else scorer.goals++;
-  other.zapped = true;
-  other.vx = 0;
-  other.vy = 0;
-  other.slide = 0;
+  if (last && last.slot !== team) last.ownGoals++;
+  else (last ?? world.riders[team]!).goals++;
+  for (const rider of world.riders) {
+    if (rider.slot === team) continue;
+    rider.zapped = true;
+    rider.vx = 0;
+    rider.vy = 0;
+    rider.slide = 0;
+  }
   ball.live = false;
   ball.vx = 0;
   ball.vy = 0;

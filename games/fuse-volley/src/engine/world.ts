@@ -1,3 +1,10 @@
+import {
+  blobsFor,
+  courtFor,
+  formatFor,
+  type Court,
+  type Format,
+} from "./court.js";
 import { xorshift } from "./math.js";
 import * as T from "./tuning.js";
 
@@ -25,7 +32,7 @@ export interface Blob {
   /** Squash animation frame, 0–4, and where it is heading (−1, 0 or 1). It moves the head, so it is a rule. */
   frame: number;
   dir: -1 | 0 | 1;
-  /** Touches this side has made in a row, 0–3 (a fourth is a fault). */
+  /** Touches this side has made in a row, 0–3 (a fourth is a fault): a side's count, so teammates always agree. */
   touches: number;
   /** Frames of unbroken contact with the ball: more than `MAX_HOLD` is carrying. */
   hold: number;
@@ -60,8 +67,22 @@ export interface World {
   /** The xorshift32 state: the first server and the net's nudge come from it. */
   rng: number;
   ball: Ball;
-  blobs: [Blob, Blob];
+  /** One, two or three a side, or three teams of two (king of the court); it picks the court (`courtFor`). */
+  format: Format;
+  /**
+   * Two blobs (one a side), four (two a side) or six, by slot. On two sides, even slots play the left side and odd ones
+   * the right. Three teams of two, slot % 3 is the team (`teamOf`), and a team plays whichever side `onCourt` puts it on.
+   */
+  blobs: Blob[];
+  /** Points by side; three teams of two keep theirs in `points` instead, and this stays 0–0. */
   score: [number, number];
+  /** Three teams of two, each team's points by team; empty in the other formats. */
+  points: number[];
+  /**
+   * Three teams of two, the team playing the left side and the team playing the right; the third waits off court.
+   * [0, 1] in the other formats.
+   */
+  onCourt: [number, number];
   scoring: Scoring;
   target: number;
   /** The side serving now (or next, during the settle). */
@@ -82,16 +103,56 @@ export interface World {
 
 export const otherSide = (side: Side): Side => (side === 0 ? 1 : 0);
 
+/** A copy of the world deep enough for `stepWorld` to run on without touching the original. */
+export const cloneWorld = (world: World): World => ({
+  ...world,
+  ball: { ...world.ball },
+  blobs: world.blobs.map((blob) => ({ ...blob })),
+  score: [world.score[0], world.score[1]],
+  points: [...world.points],
+  onCourt: [world.onCourt[0], world.onCourt[1]],
+});
+
 /** A number below `n` from the world's generator. */
 export function rng(world: World, n: number): number {
   world.rng = xorshift(world.rng);
   return world.rng % n;
 }
 
-const blob = (id: string, side: Side): Blob => ({
+/** The court this world plays on. */
+export const courtOf = (world: World): Court => courtFor(world.format);
+
+/** The blobs on `side`, in slot order. */
+export const team = (world: World, side: Side): Blob[] =>
+  world.blobs.filter(
+    (blob, slot) => blob.side === side && !benched(world, slot),
+  );
+
+/** Touches `side` has made in a row (its blobs all hold the count). */
+export const touchesOf = (world: World, side: Side): number =>
+  team(world, side)[0]?.touches ?? 0;
+
+/** The team a blob slot plays for: its side on two sides, or three teams of two, slot % 3. */
+export const teamOf = (world: World, slot: number): number =>
+  world.format === "2v2v2" ? slot % 3 : slot % 2;
+
+/** Three teams of two, whether the blob in `slot` is waiting off court. Never in the other formats. */
+export const benched = (world: World, slot: number): boolean =>
+  world.format === "2v2v2" && !world.onCourt.includes(slot % 3);
+
+/** The blobs on court: every blob, except the waiting team's in king of the court. */
+export const playing = (world: World): Blob[] =>
+  world.blobs.filter((_, slot) => !benched(world, slot));
+
+/** Sets `side`'s touch count on each of its blobs. */
+export function setTouches(world: World, side: Side, touches: number): void {
+  for (const blob of team(world, side)) blob.touches = touches;
+}
+
+const blob = (id: string, slot: number, court: Court): Blob => ({
   id,
-  side,
-  x: T.BLOB_START[side],
+  side: slot % 2 === 0 ? 0 : 1,
+  x: court.start[slot] ?? 0,
   y: T.BLOB_FLOOR,
   vy: 0,
   air: false,
@@ -104,10 +165,45 @@ const blob = (id: string, side: Side): Blob => ({
   hits: 0,
 });
 
-/** The ball hovers over the server's half until someone touches it; the blobs stay where they are. */
+/**
+ * Three teams of two, a blob is put on `side` at its doubles start (the team's first blob in front, its second behind)
+ * fresh on the sand, or, waiting off court, parked at the left wall: it is drawn on the bench, not there.
+ */
+function place(world: World, slot: number, side: Side | -1): void {
+  const each = world.blobs[slot]!,
+    court = courtOf(world);
+  each.side = side === -1 ? 0 : side;
+  each.x = side === -1 ? 0 : court.start[side + 2 * Math.floor(slot / 3)]!;
+  each.y = T.BLOB_FLOOR;
+  each.vy = 0;
+  each.air = false;
+  each.frame = 0;
+  each.dir = 0;
+}
+
+/** Puts every team where `onCourt` says: the two playing teams on their sides, the third on the bench. */
+function seatTeams(world: World): void {
+  for (const slot of world.blobs.keys()) {
+    const side = world.onCourt.indexOf(slot % 3);
+    place(world, slot, side === 0 ? 0 : side === 1 ? 1 : -1);
+  }
+}
+
+/** The team waiting off court in king of the court. */
+export const benchTeam = (world: World): number =>
+  3 - world.onCourt[0] - world.onCourt[1];
+
+/**
+ * The ball hovers over the server's half until someone touches it; the blobs stay where they are. Three teams of two,
+ * after a rally the side that lost it walks off and the waiting team comes on in its place (it serves).
+ */
 export function serve(world: World): void {
+  if (world.format === "2v2v2" && world.lastFault !== -1) {
+    world.onCourt[world.lastFault] = benchTeam(world);
+    seatTeams(world);
+  }
   const ball = world.ball;
-  ball.x = T.SERVE_X[world.server];
+  ball.x = courtOf(world).serveX[world.server];
   ball.y = T.SERVE_Y;
   ball.vx = 0;
   ball.vy = 0;
@@ -125,16 +221,35 @@ export function serve(world: World): void {
   world.phaseSteps = 0;
 }
 
-export const targetOf = (scoring: Scoring): number =>
-  scoring === "rally" ? T.RALLY_TARGET : T.CLASSIC_TARGET;
+export const targetOf = (scoring: Scoring, format: Format = "1v1"): number =>
+  format === "2v2v2"
+    ? scoring === "rally"
+      ? T.KINGS_RALLY_TARGET
+      : T.KINGS_CLASSIC_TARGET
+    : scoring === "rally"
+      ? T.RALLY_TARGET
+      : T.CLASSIC_TARGET;
 
-/** A new match at 0–0 with the first serve hovering; `ids[0]` plays the left side. `seed` must not be 0. */
+/** Blobs a match may have: one, two or three a side, or three teams of two. */
+export const isPlayerCount = (count: number): boolean =>
+  count === 2 || count === 4 || count === 6;
+
+/**
+ * A new match at 0–0 with the first serve hovering. `ids` are the blobs by slot, as many as the format takes: `ids[0]`
+ * plays the left side and `ids[1]` the right, and the rest alternate the same way (`ids[2]` left, `ids[3]` right, ...).
+ * Three teams of two, `ids[t]` and `ids[t + 3]` are team t: teams 0 and 1 start on the left and right, team 2 waits.
+ * `seed` must not be 0.
+ */
 export function createWorld(
-  ids: readonly [string, string],
+  ids: readonly string[],
   scoring: Scoring,
   seed: number,
+  format: Format = formatFor(ids.length),
 ): World {
+  if (!isPlayerCount(ids.length) || blobsFor(format) !== ids.length)
+    throw new Error("A match has 2, 4 or 6 blobs, as its format takes");
   const start = seed >>> 0 || 0x9e3779b9;
+  const court = courtFor(format);
   const world: World = {
     seed: start,
     step: 0,
@@ -151,10 +266,13 @@ export function createWorld(
       live: false,
       spin: 0,
     },
-    blobs: [blob(ids[0], 0), blob(ids[1], 1)],
+    blobs: ids.map((id, slot) => blob(id, slot, court)),
+    format,
     score: [0, 0],
+    points: format === "2v2v2" ? [0, 0, 0] : [],
+    onCourt: [0, 1],
     scoring,
-    target: targetOf(scoring),
+    target: targetOf(scoring, format),
     server: 0,
     lastFault: -1,
     winner: -1,
@@ -165,6 +283,7 @@ export function createWorld(
     netCounter: 0,
     floorCounter: 0,
   };
+  if (format === "2v2v2") seatTeams(world);
   world.server = rng(world, 2) === 0 ? 0 : 1;
   serve(world);
   return world;

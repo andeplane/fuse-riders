@@ -1,6 +1,7 @@
 import {
   STEPS_PER_SECOND,
   STEPS_PER_TICK,
+  cloneWorld,
   stepWorld,
   toView,
   type Side,
@@ -20,21 +21,14 @@ import type { BotInput, Room } from "../online/game.js";
  */
 export interface ForwardInputs {
   /** What `blob` is taken to hold: a human's last logged bits (or this device's own, live), 0 when away. */
-  held(world: World, side: Side): number;
+  held(world: World, slot: number): number;
 }
 
 /** The furthest the screen plays past the newest folded world: one log tick, plus one more while the fold is late. */
 export const MAX_AHEAD = STEPS_PER_TICK * 2;
 
 /** A copy of the world deep enough for `stepWorld` to run on without touching the original. */
-export function copyWorld(world: World): World {
-  return {
-    ...world,
-    ball: { ...world.ball },
-    blobs: [{ ...world.blobs[0] }, { ...world.blobs[1] }],
-    score: [world.score[0], world.score[1]],
-  };
-}
+export const copyWorld = (world: World): World => cloneWorld(world);
 
 const mix = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -47,11 +41,10 @@ export function blendViews(a: WorldView, b: WorldView, t: number): WorldView {
     return a;
   return {
     ...a,
-    blobs: [0, 1].map((side) => ({
-      ...a.blobs[side as Side],
-      x: mix(a.blobs[side as Side].x, b.blobs[side as Side].x, t),
-      y: mix(a.blobs[side as Side].y, b.blobs[side as Side].y, t),
-    })) as WorldView["blobs"],
+    blobs: a.blobs.map((blob, slot) => {
+      const next = b.blobs[slot] ?? blob;
+      return { ...blob, x: mix(blob.x, next.x, t), y: mix(blob.y, next.y, t) };
+    }),
     ball: {
       ...a.ball,
       x: mix(a.ball.x, b.ball.x, t),
@@ -71,7 +64,7 @@ export function forward(
   const whole = Math.floor(steps),
     part = steps - whole;
   const copy = copyWorld(world);
-  const held: [number, number] = [inputs.held(world, 0), inputs.held(world, 1)];
+  const held = world.blobs.map((_, slot) => inputs.held(world, slot));
   for (let i = 0; i < whole; i++) stepWorld(copy, held);
   const a = toView(copy);
   if (part <= 0.001 || copy.phase === "over") return a;
@@ -108,10 +101,10 @@ export function forwardInputs(
   bot: BotInput,
 ): ForwardInputs {
   return {
-    held(world, side) {
-      const id = world.blobs[side].id;
+    held(world, slot) {
+      const id = world.blobs[slot]?.id ?? "";
       const seat = room.seats.get(id);
-      if (seat?.bot) return bot(world, side, room.play.bot);
+      if (seat?.bot) return bot(world, slot, room.play.bot);
       if (!seat?.connected) return 0;
       if (localLead && id === me) return live;
       return room.held[id] ?? 0;
@@ -147,20 +140,20 @@ export function createLeadClock(): (
 
 /**
  * The bot's answer for a world is the same every frame until the next tick is folded, and planning it steps many
- * ghost worlds: ask it once per folded step and side.
+ * ghost worlds: ask it once per folded step and blob.
  */
 export function memoBot(bot: BotInput): BotInput {
   const cache = new Map<string, number>();
   let at = -1;
-  return (world, side, level) => {
+  return (world, slot, level) => {
     if (world.step !== at) {
       at = world.step;
       cache.clear();
     }
-    const key = `${side}:${level}:${world.seed}`;
+    const key = `${slot}:${level}:${world.seed}`;
     let bits = cache.get(key);
     if (bits === undefined) {
-      bits = bot(world, side, level);
+      bits = bot(world, slot, level);
       cache.set(key, bits);
     }
     return bits;

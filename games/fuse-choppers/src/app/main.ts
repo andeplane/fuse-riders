@@ -1,3 +1,4 @@
+import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import { AVATAR_ATLAS } from "fuse-ui/assets";
 import { pilotPosition } from "../render/pilots.js";
@@ -23,6 +24,7 @@ import {
   createGameMenu,
   createInviteCard,
   createLandingCard,
+  createRoomLayout,
   createNameEntry,
   createPicker,
   createNotice,
@@ -283,6 +285,8 @@ function landing(): void {
     store.setItem(names.shared, toggle.checked ? "1" : "0");
   shared.append(toggle, el("span", "Shared TV: phones are the controllers"));
   const card = createLandingCard({
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     title: "FUSE CHOPPERS",
     tagline:
       "Hold to climb, let go to fall. The cave scrolls, the crush zone closes in and your friends' shots knock you about. Be the last chopper flying, or first through the exit.",
@@ -308,7 +312,7 @@ function landing(): void {
   });
   card.create.after(shared);
   card.create.parentElement!.before(pilotPicker());
-  card.element.append(keyHelp());
+  card.menu.help.append(keyHelp());
   const back = el("a", "← FUSE RIDERS", "fc-back");
   back.href = import.meta.env.BASE_URL + (muted ? "?mute" : "");
   const menu = createGameMenu(flightGuide(devSettings().lift));
@@ -414,16 +418,25 @@ function room(solo: boolean): void {
     buttonText: "JOIN",
     onSubmit: (name) => {
       store.setItem(names.name, name);
-      runtime.command({ type: "join", name, avatarId: chosenAvatar() });
+      runtime.command({
+        type: "join",
+        slot: requestedRoomSlot(nameEntry.form),
+        name,
+        avatarId: chosenAvatar(),
+      });
     },
   });
-  nameEntry.form.prepend(pilotPicker());
   lobbyMain.append(
     el("h2", "PILOTS", "fui-lobby-title"),
     roster.element,
     addBot,
   );
-  addBot.onclick = () => runtime.command({ type: "bot", action: "add" });
+  addBot.onclick = () =>
+    runtime.command({
+      type: "bot",
+      action: "add",
+      slot: requestedRoomSlot(addBot),
+    });
   start.onclick = () => runtime.command({ type: "action", action: "start" });
   tvLink.onclick = () =>
     window.open(
@@ -633,6 +646,20 @@ function room(solo: boolean): void {
   screen.append(roundControls.element);
   main.append(connecting, closed, nameEntry.form, lobby, stage, controller);
   app.replaceChildren(top, main);
+  createRoomLayout({
+    primaryAction: start,
+    playerName: () => social.playerName(undefined) ?? undefined,
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
+    element: lobby,
+    roster,
+    capacity: 5,
+    join: nameEntry.form,
+    appearance: [pilotPicker()],
+    addAI: addBot,
+    settings: [rules],
+    actions: [lobbyNote, tvLink, start],
+  });
   lobby.hidden = true;
   stage.hidden = true;
   controller.hidden = true;
@@ -756,6 +783,7 @@ function room(solo: boolean): void {
     roster.update(
       next.lobby.members.map((member) => ({
         id: member.id,
+        slot: member.slot,
         name: member.you ? `${member.name} (you)` : member.name,
         color: seatColor(member.slot),
         status: member.bot
@@ -931,7 +959,7 @@ function room(solo: boolean): void {
       settings = roomSettings;
       const next = present(frame, viewer);
       main.dataset.round = String(frame.round);
-      if (next.askName && remembered && !joinSent) {
+      if (next.askName && remembered && !joinSent && !viewer.host) {
         joinSent = true;
         runtime.command({
           type: "join",
