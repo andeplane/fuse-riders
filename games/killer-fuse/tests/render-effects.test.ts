@@ -391,3 +391,13 @@ test("effects sit on the art's measured sizes", () => {
   );
   assert.equal(at(eat, tall)?.y, view.snail.y - 10);
 });
+
+test("the body's middle is known for every kind and never fails", () => {
+  for (const kind of ["worker", "warrior", "queen"] as const) {
+    assert.equal(bodyLift(unitView({ kind }), SIZES), SIZES[kind] / 2);
+    assert.equal(bodyLift(unitView({ kind }), undefined), 0);
+    assert.equal(bodyLift(unitView({ kind }), {}), 0);
+  }
+  assert.equal(bodyLift(undefined, SIZES), 0);
+  assert.equal(bodyLift(undefined, undefined), 0);
+});

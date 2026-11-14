@@ -113,20 +113,16 @@ test("a speed Worker uses its own sheet and quicker legs", () => {
   assert.equal(pose.frame, frameOf("speed-worker-cyan", "run2"));
 });
 
-test("a Worker in a gate plays the transformation loop", () => {
-  const seen = new Set<number>();
-  for (let time = 0; time < 60; time += 1) {
-    const pose = unitPose(art, unitView({ team: 1, invulnerable: true }), {
-      ...still,
-      time,
-      inGate: true,
-    });
-    assert.equal(pose.sheet, "transform-pink");
-    assert.equal(pose.animation, "transform");
-    assert.equal(pose.flash, false);
-    seen.add(pose.frame);
-  }
-  assert.deepEqual([...seen].sort(), [1, 2, 3]);
+test("a Worker in a gate stands between the pillars with empty hands", () => {
+  const pose = unitPose(
+    art,
+    unitView({ team: 1, invulnerable: true, carrying: true, speed: true }),
+    { ...still, inGate: true },
+  );
+  assert.equal(pose.sheet, "worker-pink");
+  assert.equal(pose.frame, frameOf("worker-pink", "idle"));
+  assert.equal(pose.animation, "transform");
+  assert.equal(pose.flash, false);
 });
 
 test("the wings beat once per flap and then glide", () => {
@@ -306,7 +302,7 @@ test("a sheet the manifest lacks is an error, not a blank unit", () => {
   );
   assert.throws(
     () => unitPose(broken, unitView(), { ...still, inGate: true }),
-    /no sheet transform-cyan/,
+    /no sheet worker-cyan/,
   );
 });
 

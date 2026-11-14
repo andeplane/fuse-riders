@@ -101,8 +101,10 @@ const NOTHING: Plan = {
 };
 
 /** Height of a unit's middle above its feet, for effects centred on the body. The art's, not the hitbox's. */
-export const bodyLift = (unit: UnitView, sizes: Sizes): number =>
-  Math.round(sizes[unit.kind] / 2);
+export const bodyLift = (
+  unit: Pick<UnitView, "kind"> | undefined,
+  sizes: Partial<Sizes> | undefined,
+): number => Math.round(((unit && sizes?.[unit.kind]) ?? 0) / 2);
 
 const panOf = (x: number): number =>
   Math.max(-1, Math.min(1, (x - 240) / 240)) * 0.7;

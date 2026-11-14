@@ -99,11 +99,11 @@ export function unitPose(
   const flash = flashing(unit, context.time);
   const seconds = context.time / TICK_HZ;
   if (unit.kind === "worker" && context.inGate) {
-    // The manifest's note: loop frames 1 to 3 while the Worker waits in the gate.
-    const def = sheetOf(manifest, `transform-${teamName(unit.team)}`);
+    // Standing between the pillars with empty hands: the berry it paid lies on top of the gate.
+    const id = unitSheet({ ...unit, speed: false });
     return {
-      sheet: `transform-${teamName(unit.team)}`,
-      frame: 1 + (Math.floor(seconds * def.fps) % 3),
+      sheet: id,
+      frame: animationFrame(sheetOf(manifest, id), "idle", seconds),
       animation: "transform",
       flash: false,
     };

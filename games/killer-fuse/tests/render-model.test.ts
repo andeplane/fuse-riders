@@ -8,11 +8,17 @@ import {
   SNAIL_NEAR,
   botTagAlpha,
   dangerOf,
+  hexHalfWidth,
   hiveAnchor,
+  IRIS_RADIUS,
+  IRIS_SECONDS,
+  IRIS_WORDS,
+  irisCentre,
+  irisRadius,
+  victoryFocus,
+  victoryLines,
   respawnCount,
-  snailFraction,
   snailThreat,
-  stripMarker,
   tagOf,
 } from "../src/render/hud-model.js";
 import {
@@ -47,7 +53,13 @@ import {
   toneColors,
 } from "../src/render/particles.js";
 import { SHAKE_REACH, Shake } from "../src/render/shake.js";
-import { manifest, openingView, rawManifest } from "./render-kit.js";
+import {
+  manifest,
+  openingView,
+  rawManifest,
+  SIZES,
+  withUnit,
+} from "./render-kit.js";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -331,20 +343,10 @@ test("the floor is a track row over filler that is the same every frame", () => 
 test("the snail's progress and each team's danger come from the view", () => {
   const view = openingView();
   const { start, goals } = view.map.snail;
-  assert.equal(snailFraction(view), (start - goals[0]) / (goals[1] - goals[0]));
   const at = (x: number, rider = 2) => ({
     ...view,
     snail: { ...view.snail, x, rider },
   });
-  assert.equal(snailFraction(at(goals[0] - 50)), 0);
-  assert.equal(snailFraction(at(goals[1] + 50)), 1);
-  assert.equal(
-    snailFraction({
-      ...view,
-      map: { ...view.map, snail: { ...view.map.snail, goals: [9, 9] } },
-    }),
-    0.5,
-  );
   assert.equal(snailThreat(view, 0), 0);
   assert.equal(snailThreat(at(goals[1]), 1), 1);
   assert.equal(
@@ -422,18 +424,6 @@ test("the hive sprite is placed so its holes land on the engine's", () => {
   });
   assert.equal(hiveAnchor([], def), null, "a map with no holes");
   assert.equal(hiveAnchor(cyan, { holes: [] }), null, "art with no holes");
-});
-
-test("the strip's marker runs from its middle to the goal ends of the lane", () => {
-  const view = openingView();
-  const { start, goals } = view.map.snail;
-  const lane = [8, 191] as const;
-  const at = (x: number) => ({ ...view, snail: { ...view.snail, x } });
-  assert.equal(stripMarker(view, lane), 100);
-  assert.equal(stripMarker(at(goals[0]), lane), 8);
-  assert.equal(stripMarker(at(goals[1]), lane), 191);
-  assert.equal(stripMarker(at(goals[0] - 30), lane), 8, "never off the end");
-  assert.equal(stripMarker(at((start + goals[1]) / 2), lane), 145);
 });
 
 test("a bot's tag shows for the opening seconds and fades away", () => {
@@ -643,4 +633,86 @@ test("a ring is a one-pixel circle and a banner lands with a little overshoot", 
   assert.equal(easeOutBack(7), 1);
   assert.ok(Math.abs(easeOutBack(-1)) < 1e-9);
   assert.ok(easeOutBack(0.7) > 1, "past the end before settling");
+});
+
+test("the ending closes on what decided the round", () => {
+  const base = openingView();
+  const middle = { x: 240, y: 135 };
+  assert.deepEqual(victoryFocus(base, SIZES), middle, "nobody has won");
+  const won = (
+    team: number,
+    kind: "military" | "economy" | "snail",
+    timeUp = false,
+  ) => ({ ...base, winner: { team, kind }, timeUp });
+  const loser = base.units.find(
+    (unit) => unit.kind === "queen" && unit.team === 0,
+  );
+  assert.ok(loser);
+  const fallen = withUnit(won(1, "military"), loser.slot, { x: 77, y: 99 });
+  assert.deepEqual(victoryFocus(fallen, SIZES), {
+    x: 77,
+    y: 99 - SIZES.queen / 2,
+  });
+  const queenless = { ...won(1, "military"), units: [] };
+  assert.deepEqual(victoryFocus(queenless, SIZES), middle);
+  assert.deepEqual(victoryFocus(won(0, "snail"), SIZES), {
+    x: base.snail.x,
+    y: base.snail.y - SIZES.snail / 2,
+  });
+  const holes = base.hives[1] ?? [];
+  assert.ok(holes.length > 0);
+  const hive = victoryFocus(won(1, "economy"), SIZES);
+  assert.ok(hive.x >= Math.min(...holes.map((hole) => hole.x)));
+  assert.ok(hive.x <= Math.max(...holes.map((hole) => hole.x)));
+  assert.ok(hive.y >= Math.min(...holes.map((hole) => hole.y)));
+  assert.ok(hive.y <= Math.max(...holes.map((hole) => hole.y)));
+  assert.deepEqual(
+    victoryFocus({ ...won(1, "economy"), hives: [] }, SIZES),
+    middle,
+  );
+  const clock = withUnit(won(0, "economy", true), loser.slot, { x: 50, y: 60 });
+  assert.deepEqual(
+    victoryFocus(clock, SIZES),
+    { x: 50, y: 60 - SIZES.queen / 2 },
+    "the clock's winner is shown by her Queen",
+  );
+});
+
+test("the iris is a hexagon that closes and stays on screen with its words", () => {
+  assert.ok(irisRadius(0) > 600, "open: the whole picture shows");
+  assert.equal(irisRadius(IRIS_SECONDS), IRIS_RADIUS);
+  assert.equal(irisRadius(99), IRIS_RADIUS);
+  assert.equal(irisRadius(-1), irisRadius(0));
+  assert.ok(irisRadius(0.2) > irisRadius(0.5));
+  assert.equal(hexHalfWidth(40, 0), 40);
+  const reach = (40 * Math.sqrt(3)) / 2;
+  assert.ok(Math.abs(hexHalfWidth(40, reach) - 20) < 1e-9, "the flat top");
+  assert.equal(hexHalfWidth(40, -reach - 0.01), 0);
+  assert.equal(hexHalfWidth(40, 10), hexHalfWidth(40, -10));
+  assert.deepEqual(irisCentre({ x: 240, y: 135 }), { x: 240, y: 135 });
+  const corner = irisCentre({ x: 2, y: 3 });
+  assert.equal(corner.x, IRIS_RADIUS);
+  assert.ok(corner.y >= IRIS_WORDS + 39);
+  const far = irisCentre({ x: 900, y: 900 });
+  assert.equal(far.x, 480 - IRIS_RADIUS);
+  assert.ok(far.y < 270 - 39);
+});
+
+test("the ending says who won and how", () => {
+  assert.deepEqual(victoryLines({ team: 0, kind: "military" }, false), {
+    title: `${teamName(0).toUpperCase()} WINS!`,
+    kind: "MILITARY VICTORY",
+  });
+  assert.equal(
+    victoryLines({ team: 1, kind: "snail" }, false).kind,
+    "SNAIL VICTORY",
+  );
+  assert.equal(
+    victoryLines({ team: 1, kind: "economy" }, true).kind,
+    "TIME UP",
+  );
+  for (const line of Object.values(
+    victoryLines({ team: 1, kind: "economy" }, false),
+  ))
+    assert.ok(textWidth(line, "big") > line.length * 5, `${line} can be drawn`);
 });

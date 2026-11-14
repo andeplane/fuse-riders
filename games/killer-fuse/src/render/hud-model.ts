@@ -1,16 +1,11 @@
 /**
- * What the HUD shows, worked out from a view without drawing anything: how far the snail is toward each goal, which
- * win is one move away, and what a seat's tag reads.
+ * What is shown about a round beyond its things, worked out from a view without drawing anything: which win is one
+ * move away, what a seat's tag reads, and where the ending closes in and what it says.
  */
 import type { RoundView } from "../engine/index.js";
-import type { SheetDef } from "./manifest.js";
-
-/** The snail's place between the goals: 0 at team 0's goal, 1 at team 1's, with the start in between. */
-export function snailFraction(view: RoundView): number {
-  const [a, b] = view.map.snail.goals;
-  if (a === b) return 0.5;
-  return Math.max(0, Math.min(1, (view.snail.x - a) / (b - a)));
-}
+import { VIEW_HEIGHT, VIEW_WIDTH } from "./layout.js";
+import { teamName, type SheetDef } from "./manifest.js";
+import type { Sizes } from "./metrics.js";
 
 /** How close the snail is to `team`'s goal, 0 at the start line and 1 on the goal. */
 export function snailThreat(view: RoundView, team: number): number {
@@ -97,22 +92,6 @@ export function hiveAnchor(
   return { x: first.x - offset[0], y: first.y - offset[1] };
 }
 
-/**
- * The marker's column on the snail strip: the strip's middle at the snail's start, `lane[0]` on team 0's goal and
- * `lane[1]` on team 1's, whatever the map's distances are.
- */
-export function stripMarker(
-  view: RoundView,
-  lane: readonly [number, number],
-): number {
-  const middle = (lane[0] + lane[1]) / 2;
-  return Math.round(
-    middle +
-      snailThreat(view, 0) * (lane[0] - middle) +
-      snailThreat(view, 1) * (lane[1] - middle),
-  );
-}
-
 /** Steps into a round for which bots carry their BOT tag, the last of them fading. */
 export const BOT_TAG_STEPS = 300,
   BOT_TAG_FADE = 60;
@@ -121,4 +100,79 @@ export const BOT_TAG_STEPS = 300,
 export function botTagAlpha(step: number): number {
   if (step >= BOT_TAG_STEPS) return 0;
   return 0.5 * Math.min(1, (BOT_TAG_STEPS - Math.max(0, step)) / BOT_TAG_FADE);
+}
+
+export interface Point {
+  readonly x: number;
+  readonly y: number;
+}
+
+/**
+ * What decided the round, for the ending to close in on: the Queen who fell, the hive that filled or the snail at
+ * its goal. A round the clock decided closes on the winning Queen.
+ */
+export function victoryFocus(view: RoundView, sizes: Sizes): Point {
+  const middle = { x: VIEW_WIDTH / 2, y: VIEW_HEIGHT / 2 };
+  const { winner } = view;
+  if (!winner) return middle;
+  const queenOf = (team: number): Point | undefined => {
+    const queen = view.units.find(
+      (unit) => unit.kind === "queen" && unit.team === team,
+    );
+    return queen && { x: queen.x, y: queen.y - sizes.queen / 2 };
+  };
+  if (view.timeUp) return queenOf(winner.team) ?? middle;
+  if (winner.kind === "military") return queenOf(1 - winner.team) ?? middle;
+  if (winner.kind === "snail")
+    return { x: view.snail.x, y: view.snail.y - sizes.snail / 2 };
+  const holes = view.hives[winner.team] ?? [];
+  if (holes.length === 0) return middle;
+  return {
+    x: holes.reduce((sum, hole) => sum + hole.x, 0) / holes.length,
+    y: holes.reduce((sum, hole) => sum + hole.y, 0) / holes.length,
+  };
+}
+
+/** The hexagon's corner radius once it has closed, and the seconds it takes to close. */
+export const IRIS_RADIUS = 46,
+  IRIS_SECONDS = 0.9;
+/** Wide enough that the hexagon holds the whole picture wherever its centre is. */
+const IRIS_OPEN = 700;
+const ROOT3 = Math.sqrt(3);
+
+/** The hexagon's corner radius `age` seconds after the win: fast at first, settling at the end. */
+export function irisRadius(age: number): number {
+  const t = Math.max(0, Math.min(1, age / IRIS_SECONDS));
+  return IRIS_RADIUS + (IRIS_OPEN - IRIS_RADIUS) * (1 - t) ** 3;
+}
+
+/** Half the width of a flat-topped hexagon of corner radius `radius`, `dy` rows from its middle; 0 outside it. */
+export function hexHalfWidth(radius: number, dy: number): number {
+  const reach = (radius * ROOT3) / 2;
+  return Math.abs(dy) > reach ? 0 : radius - Math.abs(dy) / ROOT3;
+}
+
+/** Room kept above and below the closed hexagon for the two lines of words. */
+export const IRIS_WORDS = 28;
+
+/** The closed hexagon's middle: on the focus, moved only as far as it takes to keep it and its words on screen. */
+export function irisCentre(focus: Point): Point {
+  const reach = (IRIS_RADIUS * ROOT3) / 2;
+  const clamp = (value: number, low: number, high: number): number =>
+    Math.round(Math.max(low, Math.min(high, value)));
+  return {
+    x: clamp(focus.x, IRIS_RADIUS, VIEW_WIDTH - IRIS_RADIUS),
+    y: clamp(focus.y, reach + IRIS_WORDS, VIEW_HEIGHT - reach - IRIS_WORDS + 8),
+  };
+}
+
+/** The two lines of the ending: who won, and how. */
+export function victoryLines(
+  winner: NonNullable<RoundView["winner"]>,
+  timeUp: boolean,
+): { title: string; kind: string } {
+  return {
+    title: `${teamName(winner.team).toUpperCase()} WINS!`,
+    kind: timeUp ? "TIME UP" : `${winner.kind.toUpperCase()} VICTORY`,
+  };
 }

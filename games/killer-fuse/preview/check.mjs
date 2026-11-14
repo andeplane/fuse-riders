@@ -163,14 +163,24 @@ async function tour(context, prefix) {
     await shoot(page, `${prefix}queen-wait`);
   }
   // A Worker riding the snail home, in the last quarter before a goal.
-  for (const seed of [5, 4, 6, 2, 3, 1, 7, 8]) {
-    await page.evaluate((s) => window.__game.restart({ seed: s }), seed);
+  for (const [map, seed] of [
+    [2, 3],
+    [1, 5],
+    [1, 4],
+    [2, 1],
+    [3, 1],
+    [3, 2],
+  ]) {
+    await page.evaluate(
+      ([m, s]) => window.__game.restart({ map: m, seed: s }),
+      [map, seed],
+    );
     const near = await reach(page, (view) => {
       const { start, goals } = view.map.snail;
       const done = Math.max(
         ...goals.map((goal) => (view.snail.x - start) / (goal - start)),
       );
-      return view.snail.rider >= 0 && done >= 0.8;
+      return view.snail.rider >= 0 && done >= 0.5;
     });
     if (!near) continue;
     await page.evaluate(() => window.__game.step(6));

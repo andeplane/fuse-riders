@@ -109,7 +109,12 @@ class Arena implements ArenaView {
       if (this.destroyed) return;
       this.sprites = new Sprites(art);
       this.scene = new Scene(this.sprites);
-      this.hud = new Hud(this.sprites);
+      const { sprites, scene } = this;
+      this.hud = new Hud({
+        sizes: sprites.sizes,
+        ramp: (team) => sprites.ramp(team),
+        label: (...args) => scene.label(...args),
+      });
     });
   }
 
@@ -353,8 +358,6 @@ class Arena implements ArenaView {
     hud.draw(low, {
       view: shown.view,
       now,
-      danger,
-      eggLost: this.eggLost,
       wonAt:
         this.options.banner === false || this.host.dataset.banner === BANNER_OFF
           ? null

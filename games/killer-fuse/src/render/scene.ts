@@ -161,9 +161,10 @@ export class Scene {
     this.goals(ctx, frame);
     for (const gate of view.gates) this.gate(ctx, gate, frame);
     for (const pile of view.piles) this.pile(ctx, pile);
-    this.units(ctx, frame, (unit) => unit.eaten);
+    // The rider sits astride, its far leg behind the shell; a meal is half inside the mouth.
+    this.units(ctx, frame, (unit) => unit.eaten || unit.riding);
     this.snail(ctx, frame);
-    this.units(ctx, frame, (unit) => !unit.eaten);
+    this.units(ctx, frame, (unit) => !unit.eaten && !unit.riding);
     this.berries(ctx, frame);
     this.effects(ctx, frame);
     this.tags(ctx, frame);
@@ -254,7 +255,6 @@ export class Scene {
       holeDef = this.sprites.def(holeId);
     const at = this.hiveAt(team, holes);
     if (!def || !holeDef || !at) return;
-    const ramp = this.sprites.ramp(team);
     const blink =
       frame.danger.lastBerry[team] === true &&
       Math.floor(frame.now * 6) % 2 === 0;
@@ -292,17 +292,6 @@ export class Scene {
       );
       ctx.globalAlpha = 1;
     });
-    if (!def.count) return;
-    const filled = holes.filter((hole) => hole.filled).length;
-    const count = `${filled}/${holes.length}`;
-    this.text(
-      ctx,
-      count,
-      at.x + def.count[0] - Math.floor(textWidth(count, "big") / 2),
-      at.y + def.count[1],
-      blink ? "#ffffff" : (ramp[3] ?? "#fff"),
-      "big",
-    );
   }
 
   private goals(ctx: Ctx, frame: SceneFrame): void {
@@ -339,22 +328,16 @@ export class Scene {
     const name = gate.user >= 0 ? `${owner}Active` : owner;
     this.sprites.draw(ctx, id, frameIndex(def, name), gate.x, gate.y - 1);
     if (gate.user < 0) return;
-    // How far the transformation is, as a bar over the arch.
-    const team = frame.view.units[gate.user]?.team ?? 0;
-    const ramp = this.sprites.ramp(team);
-    const width = def.frameWidth,
-      left = gate.x - def.anchor[0],
-      y = gate.y - def.frameHeight - 5;
-    ctx.fillStyle = INK;
-    ctx.fillRect(left - 1, y - 1, width + 2, 5);
-    ctx.fillStyle = "#1c2a6e";
-    ctx.fillRect(left, y, width, 3);
-    const done = Math.round(width * Math.max(0, Math.min(1, gate.progress)));
-    ctx.fillStyle = ramp[2] ?? "#fff";
-    ctx.fillRect(left, y, done, 3);
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(left, y, done, 1);
-    if (done > 0) ctx.fillRect(left + done - 1, y, 1, 3);
+    // The berry that pays for the change rests on top of the gate while the Worker stands between the pillars.
+    const berry = this.sprites.def("berry");
+    if (berry)
+      this.sprites.draw(
+        ctx,
+        "berry",
+        0,
+        gate.x,
+        gate.y - this.sprites.sizes.gate - (Math.round(frame.now * 6) % 2),
+      );
   }
 
   private pile(ctx: Ctx, pile: RoundView["piles"][number]): void {
@@ -689,7 +672,7 @@ export class Scene {
           // Bots are named only while the round opens: after that the tags would compete with the fight.
           if (botAlpha > 0) {
             ctx.globalAlpha = botAlpha;
-            this.text(ctx, tag, x - 5, y - 5, ramp[2] ?? "#888");
+            this.label(ctx, tag, x + 0.5, y - 5, ramp[2] ?? "#888");
             ctx.globalAlpha = 1;
           }
         } else if (tag) {
