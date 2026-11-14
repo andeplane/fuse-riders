@@ -740,7 +740,7 @@ function draw(): void {
 
   // Notes and the selection, under the arrows.
   for (const note of notes.notes.filter((n) => n.song === songId))
-    drawSpan(g, note, "rgba(59,255,208,0.12)", "rgba(59,255,208,0.7)", false);
+    drawSavedNote(g, note);
   if (selection)
     drawSpan(g, selection, "rgba(255,107,213,0.14)", "#ff6bd5", true);
 
@@ -864,6 +864,28 @@ function drawSpan(
   g.setLineDash(dashed ? [4, 3] : []);
   g.strokeRect(x0 + 0.5, y0 + 0.5, x1 - x0 - 1, y1 - y0 - 1);
   g.setLineDash([]);
+}
+
+/** A saved note on the canvas: its rectangle, and what was written about it on a label at its top. */
+function drawSavedNote(g: CanvasRenderingContext2D, note: LabNote): void {
+  if (yOf(note.end) < HEADER || yOf(note.start) > layout.height) return;
+  g.lineWidth = 2;
+  drawSpan(g, note, "rgba(59,255,208,0.16)", "#3bffd0", false);
+  g.lineWidth = 1;
+  const words = [note.text, ...note.tags].filter(Boolean).join(" · ");
+  if (!words) return;
+  const banded = note.lowHz !== undefined && note.highHz !== undefined;
+  const x = banded ? xOfHz(note.lowHz!) : layout.curvesX;
+  g.font = "11px ui-sans-serif, system-ui, sans-serif";
+  const room = layout.width - x - 12;
+  let label = words;
+  while (label.length > 4 && g.measureText(label).width > room)
+    label = `${label.slice(0, -4)}…`;
+  const y = Math.max(HEADER + 2, yOf(note.start) + 2);
+  g.fillStyle = "rgba(4,9,26,0.85)";
+  g.fillRect(x + 2, y, g.measureText(label).width + 10, 16);
+  g.fillStyle = "#3bffd0";
+  g.fillText(label, x + 7, y + 12);
 }
 
 function visibleNotes(
@@ -1866,8 +1888,25 @@ new ResizeObserver(() => draw()).observe(stage);
   },
 };
 
-// Notes already in this browser reach the folder on this machine too.
-if (notes.notes.length) void writeToDevServer();
+// In local development the folder on this machine and this browser share their notes: whatever was written before,
+// in any browser, shows up here, and notes only this browser has reach the folder.
+void (async () => {
+  if (!import.meta.env.DEV) return;
+  try {
+    const response = await fetch(`${BASE}${NOTES_UPLOAD_PATH}`);
+    if (response.ok) {
+      const merged = mergeNotes(parseNotes(await response.text()), notes);
+      if (merged.notes.length !== notes.notes.length) {
+        setNotes(merged);
+        draw();
+        return;
+      }
+    }
+  } catch {
+    /* no folder yet, or an unreadable file: this browser's notes stand */
+  }
+  if (notes.notes.length) void writeToDevServer();
+})();
 
 void loadSong(
   new URLSearchParams(location.search).get("song") ?? "final-chase",

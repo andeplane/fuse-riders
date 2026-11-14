@@ -1,9 +1,9 @@
 /**
- * The dev server's side of the Fusemania chart lab's notes: `POST <base>__chart-lab/notes` writes the lab's notes to
+ * The dev server's side of the Fusemania chart lab's notes: `GET <base>__chart-lab/notes` returns the notes on disk and `POST` writes the lab's notes to
  * `<dir>/notes.json` and a note's picture to `<dir>/shots/<note id>.png`. Development only (the built site has no
  * server), and only for a page this same dev server served to this machine.
  */
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Plugin } from "vite";
 import { NotesError } from "../../games/fusemania/src/lab/notes.ts";
@@ -65,6 +65,21 @@ export function chartLabNotes(dir: string): Plugin {
           response.setHeader("content-type", "application/json");
           response.end(JSON.stringify(body));
         };
+        if (request.method === "GET") {
+          // The notes as they are on disk, for a page that has none of them yet.
+          const file = join(dir, "notes.json");
+          if (
+            !request.socket.remoteAddress ||
+            !LOOPBACK.has(request.socket.remoteAddress)
+          )
+            reply(403, { error: "not allowed" });
+          else if (!existsSync(file)) reply(404, { error: "no notes yet" });
+          else {
+            response.setHeader("content-type", "application/json");
+            response.end(readFileSync(file));
+          }
+          return;
+        }
         if (
           request.method !== "POST" ||
           !mayStoreNotes({
