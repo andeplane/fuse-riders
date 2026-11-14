@@ -10,6 +10,8 @@ export type FakeWebampPlayer = WebampPlayer & {
   tracks: WebampTrack[];
   renderedInto: HTMLElement[];
   disposed: boolean;
+  /** What `setVolume` was last given; Webamp starts at its own default. */
+  volume: number | undefined;
   /** The playlist index of the loaded track, -1 before anything loads. */
   currentIndex: number;
   /** Loads the track at `index` without starting it, as a click in Webamp's playlist would. */
@@ -37,6 +39,10 @@ export function createFakeWebampPlayer(): FakeWebampPlayer {
     tracks: [],
     renderedInto: [],
     disposed: false,
+    volume: undefined,
+    setVolume(volume) {
+      player.volume = volume;
+    },
     currentIndex: -1,
     async renderInto(node) {
       player.renderedInto.push(node);

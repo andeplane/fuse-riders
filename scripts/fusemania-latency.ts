@@ -6,17 +6,18 @@ import { chromium } from "playwright";
 // headless Chromium has no display and no audio device, and injected keys skip the keyboard and the operating
 // system. Run against a served build: `pnpm exec tsx service/dev.ts --port 8890` after `pnpm build`.
 //
-// `LAB=1` drives the `?debugtiming` lab instead: the steady click track (`click-150` unless `SONG` says otherwise),
-// the panel's figures and the session file the dev server writes. `MIC=1` adds the microphone, heard through a
-// loopback this script puts in the page (see `LOOPBACK`): the page's own sound, delayed like a speaker, and a thud
-// for each key. That exercises the real capture path (worklet, frames, envelopes, the session) against a room
-// whose delays are known; it says nothing about a real microphone's sound. `AUDIOCLOCK=reported` plays on the
-// stepped audio clock, to compare with the clock pair.
+// `LAB=1` drives the Sync timing screen (`?timing`) instead: one run on the steady tick (`RATE` ticks a minute,
+// `SECONDS` long, by eye with `MUTE=1`), a key `BIAS_MS` from every tick, then the screen's advice, the panel's
+// figures and the session file the dev server writes. `MIC=1` adds the microphone, heard through a loopback this
+// script puts in the page (see `LOOPBACK`): the page's own sound, delayed like a speaker, and a thud for each key.
+// That exercises the real capture path (worklet, frames, envelopes, the session) against a room whose delays are
+// known; it says nothing about a real microphone's sound. `AUDIOCLOCK=reported` plays on the stepped audio clock,
+// to compare with the clock pair.
 const base = process.env.ONLINE_URL ?? "http://localhost:8890/",
   lab = !!process.env.LAB,
   mic = lab && !!process.env.MIC,
-  song = process.env.SONG ?? (lab ? "click-150" : "arcade-adventure"),
-  chart = process.env.CHART ?? (lab ? "0" : "1"),
+  song = process.env.SONG ?? "arcade-adventure",
+  chart = process.env.CHART ?? "1",
   bias = Number(process.env.BIAS_MS ?? -18),
   seconds = Number(process.env.SECONDS ?? 0),
   shot = process.env.SCREENSHOT;
@@ -87,12 +88,117 @@ const page = await browser.newPage({
 });
 if (mic) await page.addInitScript(LOOPBACK);
 const flags = [
-  lab ? "debugtiming&mode=0" : "latency",
+  lab ? "debugtiming" : "latency",
   process.env.MUTE ? "mute" : "",
   process.env.AUDIOCLOCK ? `audioclock=${process.env.AUDIOCLOCK}` : "",
 ]
   .filter(Boolean)
   .join("&");
+const sleep = (ms: number) =>
+  new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
+if (lab) {
+  interface State {
+    phase: string;
+    bpm: number;
+    heardMs?: number;
+    countIn: number;
+    ticks: number;
+    advice?: unknown;
+  }
+  const state = () =>
+    page.evaluate("window.fusemania.timingState()") as Promise<State>;
+  const rate = process.env.RATE ? `&rate=${process.env.RATE}` : "";
+  await page.goto(
+    `${base}fusemania/?timing&seconds=${seconds > 0 ? seconds : 30}${rate}&${flags}`,
+  );
+  await page.locator(".fm-ts").waitFor({ timeout: 30_000 });
+  // A click anywhere unlocks the audio clock where the browser wants a gesture.
+  await page.mouse.click(640, 700);
+  await page
+    .getByRole("button", { name: process.env.MUTE ? /BY EYE/ : /START BY EAR/ })
+    .click();
+  if (mic) {
+    await page
+      .getByRole("button", { name: "LISTEN WITH THE MICROPHONE" })
+      .click();
+    // Off and on again: a second microphone on the same audio context must open like the first.
+    await page.getByRole("button", { name: "STOP THE MICROPHONE" }).click();
+    await page
+      .getByRole("button", { name: "LISTEN WITH THE MICROPHONE" })
+      .click();
+    await page.getByRole("button", { name: "STOP THE MICROPHONE" }).waitFor();
+  }
+  await page.waitForFunction(
+    "window.fusemania.timingState().heardMs !== undefined",
+    undefined,
+    { timeout: 30_000 },
+  );
+  /** The run's position minus this process's clock: the sample with the shortest round trip. */
+  let skew = Number.POSITIVE_INFINITY,
+    first = await state();
+  const sync = async () => {
+    const before = performance.now(),
+      now = await state(),
+      after = performance.now();
+    if (now.heardMs !== undefined && after - before < 8)
+      skew = now.heardMs - (before + after) / 2;
+    return now;
+  };
+  for (let i = 0; i < 10; i++) first = await sync();
+  const beat = 60000 / first.bpm;
+  let sent = 0;
+  for (let tick = 0; tick < first.countIn + first.ticks; tick++) {
+    // The lead-in is left alone, as a player finding the pulse would leave it.
+    if (tick < first.countIn) continue;
+    const due = tick * beat + bias - skew;
+    if (due < performance.now() - 5) continue;
+    await sleep(due - performance.now());
+    void page.keyboard
+      .down("KeyS")
+      .then(() => sleep(60))
+      .then(() => page.keyboard.up("KeyS"));
+    if (++sent % 20 === 0 && (await sync()).phase !== "run") break;
+  }
+  await page.waitForFunction(
+    "window.fusemania.timingState().phase !== 'run'",
+    undefined,
+    { timeout: 10_000 },
+  );
+  await sleep(300);
+  console.log(`presses sent: ${sent}, ${bias} ms from each tick`);
+  console.log("advice:", JSON.stringify((await state()).advice));
+  console.log(
+    await page.evaluate("document.querySelector('.fm-ts-info').innerText"),
+  );
+  // The whole panel as text, the way COPY gives it.
+  console.log(
+    await page.evaluate("document.querySelector('.fm-dt').innerText"),
+  );
+  if (mic)
+    console.log(
+      "microphone:",
+      JSON.stringify(
+        await page.evaluate(
+          "(({ report, ...rest }) => ({ ...rest, report: report && { ...report, recent: undefined } }))(window.fusemania.timing().mic)",
+        ),
+      ),
+      "\n" +
+        `loopback room: speaker ${ROOM.speakerMs} ms, keyboard ${ROOM.keyboardMs} ms; the microphone should find ` +
+        `${ROOM.speakerMs + ROOM.keyboardMs} ms less the latency the song clock already counts`,
+    );
+  if (shot) await page.screenshot({ path: shot });
+  if (process.env.APPLY) {
+    await page.getByRole("button", { name: "APPLY", exact: true }).click();
+    console.log(
+      "after APPLY:",
+      await page.evaluate(
+        "document.querySelector('.fm-ts-measured').textContent + ' | stored ' + localStorage.getItem('fusemania-prefs-v1')",
+      ),
+    );
+  }
+  await browser.close();
+  process.exit(0);
+}
 await page.goto(
   `${base}fusemania/?solo=1&song=${song}&chart=${chart}&${flags}`,
 );
@@ -110,19 +216,6 @@ await page.waitForFunction(
   },
 );
 await page.waitForTimeout(500);
-if (mic) {
-  await page
-    .getByRole("button", { name: "LISTEN WITH THE MICROPHONE" })
-    .click();
-  // Off and on again: a second microphone on the same audio context must open like the first.
-  await page.getByRole("button", { name: "STOP THE MICROPHONE" }).click();
-  await page
-    .getByRole("button", { name: "LISTEN WITH THE MICROPHONE" })
-    .click();
-  await page.getByRole("button", { name: "STOP THE MICROPHONE" }).waitFor();
-  // The ticks before the first arrow are the ones it learns the round trip from.
-  await page.waitForTimeout(300);
-}
 
 type Note = [ms: number, column: number, kind: number];
 const notes = (await page.evaluate("window.fusemania.notes()")) as Note[];
@@ -139,8 +232,6 @@ const sync = async () => {
 };
 for (let i = 0; i < 10; i++) await sync();
 const until = seconds > 0 ? seconds * 1000 : Number.POSITIVE_INFINITY;
-const sleep = (ms: number) =>
-  new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
 let sent = 0;
 for (const [ms, column, kind] of notes) {
   // Mines are not pressed.
@@ -163,26 +254,6 @@ if (seconds > 0) {
   await sleep(800);
 }
 console.log(`presses sent: ${sent}, ${bias} ms from each note`);
-if (lab) {
-  // The whole panel as text, the way COPY gives it.
-  console.log(
-    await page.evaluate(
-      "document.querySelector('.fm-dt')?.innerText ?? 'no timing panel'",
-    ),
-  );
-  if (mic)
-    console.log(
-      "microphone:",
-      JSON.stringify(
-        await page.evaluate(
-          "(({ report, ...rest }) => ({ ...rest, report: report && { ...report, recent: undefined } }))(window.fusemania.timing().mic)",
-        ),
-      ),
-      "\n" +
-        `loopback room: speaker ${ROOM.speakerMs} ms, keyboard ${ROOM.keyboardMs} ms; the microphone should find ` +
-        `${ROOM.speakerMs + ROOM.keyboardMs} ms less the latency the song clock already counts`,
-    );
-}
 console.log(await page.evaluate("window.fusemania.latencyText()"));
 console.log(
   "result offer:",

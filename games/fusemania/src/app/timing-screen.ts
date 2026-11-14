@@ -108,6 +108,8 @@ interface Run {
   /** Ticks already tapped: a second tap on one is not another measurement. */
   hit: Set<number>;
   last: { offMs: number; judgment: number; at: number } | undefined;
+  /** A run by ear had its sound off while ticks were counted: its taps were not by ear. */
+  deaf: boolean;
 }
 
 export function createTimingScreen(deps: TimingScreenDeps): TimingScreen {
@@ -155,6 +157,8 @@ export function createTimingScreen(deps: TimingScreenDeps): TimingScreen {
     advice: TimingAdvice | undefined,
     /** What the newest finished run was, for RUN AGAIN, and what was said after an APPLY. */
     lastKind: "ear" | "eye" = "ear",
+    /** The newest finished run's judged errors: what the details go on showing after it. */
+    lastErrors: readonly number[] = [],
     note = "",
     /** The lag the newest by-ear run found, with the offsets it was found under. */
     earLag: { ms: number; audioMs: number } | undefined,
@@ -193,6 +197,7 @@ export function createTimingScreen(deps: TimingScreenDeps): TimingScreen {
         errors: [],
         hit: new Set(),
         last: undefined,
+        deaf: false,
       };
     run = next;
     advice = undefined;
@@ -209,14 +214,25 @@ export function createTimingScreen(deps: TimingScreenDeps): TimingScreen {
     // the arrows are then exactly where a song's arrows would be.
     if (audio.clock())
       void audio.loadSong(lapUrl(rate)).then((song) => {
-        if (disposed || turn !== generation || !song) return;
+        // A run that was stopped while its click was loading is not this one any more.
+        if (disposed || run !== next) return;
+        if (!song) return abort("The click could not be loaded. Try again.");
         next.song = song;
         next.loop = createTickLoop({
           clock: () => audio.clock(),
           song,
           bpm: rate,
+          count: RUN_COUNT_IN + next.ticks,
         });
       });
+  };
+  /** Ends the run with no result, and says why. */
+  const abort = (why: string) => {
+    stop();
+    advice = undefined;
+    lastErrors = [];
+    note = why;
+    readout();
   };
   /** The heard position at page time `at`, in ms from tick 0 of the run. */
   const position = (at: number): number | undefined => {
@@ -255,6 +271,7 @@ export function createTimingScreen(deps: TimingScreenDeps): TimingScreen {
           ? undefined
           : { ms: advice.lagMs, audioMs: now.audioMs };
     lastKind = done.kind;
+    lastErrors = done.errors;
     // Everything the advice was made from, for whoever reads the session afterwards.
     lab.record("result", {
       run: generation,
@@ -366,13 +383,13 @@ export function createTimingScreen(deps: TimingScreenDeps): TimingScreen {
     setPrefs: deps.setPrefs,
     latencyContext() {
       const detail = audio.clock()?.latencies?.(),
-        errors = meanOf(run?.errors ?? []);
+        errors = meanOf(run?.errors ?? lastErrors);
       return {
         baseMs: detail?.base === undefined ? undefined : detail.base * 1000,
         outputMs:
           detail?.output === undefined ? undefined : detail.output * 1000,
         driftMs: 0,
-        audible: run?.kind === "ear" && soundOn(),
+        audible: (run?.kind ?? lastKind) === "ear" && soundOn(),
         offsetMs: deps.prefs().offsetMs,
         hits: { biasMs: errors.mean, spreadMs: errors.sd, used: errors.n },
       };
@@ -385,6 +402,7 @@ export function createTimingScreen(deps: TimingScreenDeps): TimingScreen {
           run: generation,
           heardMs: () => position(deps.now()),
           scheduledAt: loop.scheduledAt,
+          last: loop.last,
         }
       );
     },
@@ -417,11 +435,11 @@ export function createTimingScreen(deps: TimingScreenDeps): TimingScreen {
       { source, column, stamp, handled: now, used, songMs: ms },
       fresh && counted ? judged : undefined,
     );
-    if (counted) run.taps.push(heard - RUN_COUNT_IN * beatS(run.bpm) * 1000);
     if (!fresh) return;
     run.hit.add(judged.index);
     run.last = { offMs: judged.offMs, judgment: judged.judgment, at: now };
     if (!counted) return;
+    run.taps.push(heard - RUN_COUNT_IN * beatS(run.bpm) * 1000);
     run.errors.push(judged.offMs);
     lab.judged({
       at: ms,
@@ -443,7 +461,10 @@ export function createTimingScreen(deps: TimingScreenDeps): TimingScreen {
       target instanceof HTMLSelectElement
     )
       return;
-    if (event.code === "Enter" && !run) {
+    // Enter on a link or a button is that control's.
+    const control =
+      target instanceof Element && target.closest("a, button, summary");
+    if (event.code === "Enter" && !run && !control) {
       event.preventDefault();
       start(advice || note ? lastKind : audio.clock() ? "ear" : "eye");
       return readout();
@@ -452,11 +473,12 @@ export function createTimingScreen(deps: TimingScreenDeps): TimingScreen {
       stop();
       return readout();
     }
-    const action = actionOf(deps.prefs(), event.code);
-    if (!action) return;
-    // An arrow key would scroll the page, Space would press whatever has the focus.
+    const action = actionOf(deps.prefs(), event.code),
+      column = action ? COLUMN_ACTIONS.indexOf(action) : -1;
+    if (!action || (control && column < 0)) return;
+    // An arrow key would scroll the page, and so would the power-up's key (Space): that one is not a tap.
     event.preventDefault();
-    tap("key", Math.max(0, COLUMN_ACTIONS.indexOf(action)), event.timeStamp);
+    if (column >= 0) tap("key", column, event.timeStamp);
   };
   const onPointer = (event: PointerEvent) => {
     // Any finger or the main mouse button; a right click is not a tap.
@@ -665,7 +687,20 @@ export function createTimingScreen(deps: TimingScreenDeps): TimingScreen {
     if (mapping?.pairedMs !== undefined) probe.pair(mapping.pairedMs);
     const live = run;
     if (live) {
-      live.loop?.frame();
+      const loop = live.loop;
+      loop?.frame();
+      if (loop && loop.run > 0 && !audio.clock()?.running && loop.over) {
+        // The sound stopped after the last tick had left: the run is whole, bar the taps still to come.
+        finish(live);
+        shown = 0;
+        return readout();
+      }
+      // The audio clock stopped under the run (the page was hidden): its ticks are gone, or started over.
+      if (
+        loop &&
+        (loop.run > 1 || (loop.run === 1 && loop.origin === undefined))
+      )
+        return abort("The sound stopped during the run. Run it again.");
       // By eye the click is there and cannot be heard.
       live.song?.shape(live.kind === "eye" ? 0 : 1, 0);
     }
@@ -678,6 +713,7 @@ export function createTimingScreen(deps: TimingScreenDeps): TimingScreen {
       running: heard !== undefined,
       audible:
         live?.kind === "ear" &&
+        soundOn() &&
         live.loop?.origin !== undefined &&
         mapping !== undefined,
       epoch: generation,
@@ -687,11 +723,17 @@ export function createTimingScreen(deps: TimingScreenDeps): TimingScreen {
     // The run is over a moment after its last counted tick, before another one sounds.
     if (live && heard !== undefined) {
       const beat = beatS(live.bpm) * 1000;
+      if (live.kind === "ear" && heard > RUN_COUNT_IN * beat && !soundOn())
+        live.deaf = true;
       if (
         heard >
         (RUN_COUNT_IN + live.ticks - 1) * beat + Math.min(200, beat * 0.45)
       ) {
-        finish(live);
+        if (live.deaf)
+          abort(
+            "The sound was off during the run, so nothing was measured by ear. Turn it on and run again, or check the picture by eye.",
+          );
+        else finish(live);
         shown = 0;
       }
     }

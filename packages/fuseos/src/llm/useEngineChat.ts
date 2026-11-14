@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { runAgentLoop } from "./agentLoop";
 import type {
   ChatBackend,
   ChatEngine,
@@ -8,14 +9,22 @@ import type {
   ChatOptions,
   LlmMessage,
 } from "./llmChat";
+import type { ToolCallEvent } from "./tools";
 import { parseToolMarkers, runToolCalls, visibleReplyText } from "./tools";
 
 /** How many earlier lines a model sees; the small models have a 4k context and the desktop prompt takes some. */
 export const HISTORY_LINES = 8;
 
+/** A turn of the event loop, long enough for React to commit what a tool dispatched. */
+export function nextTask(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 /**
  * A `ChatHandle` over any `ChatEngine`: owns the conversation, streams the reply into the last message with the
- * tool markers hidden, then runs the tools the finished reply asked for. Changing the engine starts a new chat.
+ * tool markers hidden, then runs the tools the finished reply asked for. An engine whose model can drive the
+ * agent loop (`loopStyle`) gets that instead: tool call, result, next tool call, until it answers.
+ * Changing the engine starts a new chat.
  */
 export function useEngineChat(
   engine: ChatEngine,
@@ -90,14 +99,56 @@ export function useEngineChat(
       ];
 
       let raw = "";
+      const onProgress = (report: string) => {
+        if (!abort.signal.aborted) setProgress(report);
+      };
+      const onToolCall = (event: ToolCallEvent) =>
+        latest.current.onToolCall?.(event);
+      const settle = latest.current.agent?.settle ?? nextTask;
+
+      /** The agent loop, for a model that can drive it; false when the turn is the marker pipeline's after all. */
+      const runAgent = async (): Promise<boolean> => {
+        const agent = latest.current.agent;
+        const style = engine.loopStyle?.() ?? "markers";
+        if (style === "markers" || !agent || !engine.complete) return false;
+        const complete = engine.complete.bind(engine);
+        try {
+          await engine.ready?.(onProgress);
+          const outcome = await runAgentLoop({
+            style,
+            complete: (request) => complete({ ...request, onProgress }),
+            tools: agent.tools,
+            system: [
+              agent.getPrompt(),
+              `Current desktop: ${latest.current.getAppContext()}`,
+            ].join("\n\n"),
+            messages: lines,
+            signal: abort.signal,
+            onStep: onToolCall,
+            onProgress,
+            timers: agent.timers,
+            settle,
+            maxSteps: agent.maxSteps,
+            checklist: agent.checklist?.(text),
+          });
+          patchReply({ text: outcome.text, isStreaming: false });
+          setProgress(null);
+          return true;
+        } catch (caught) {
+          // The model could not load: the engine has switched to the rules, which answer through `reply`.
+          if (engine.loopStyle?.() === "markers" && !abort.signal.aborted)
+            return false;
+          throw caught;
+        }
+      };
+
       try {
+        if (await runAgent()) return;
         const reply = engine.reply({
           system,
           messages: lines,
           signal: abort.signal,
-          onProgress: (report) => {
-            if (!abort.signal.aborted) setProgress(report);
-          },
+          onProgress,
         });
         for await (const delta of reply) {
           if (abort.signal.aborted) break;
@@ -118,9 +169,7 @@ export function useEngineChat(
         });
         setProgress(null);
         if (invocations.length > 0)
-          await runToolCalls(invocations, tools, (event) =>
-            latest.current.onToolCall?.(event),
-          );
+          await runToolCalls(invocations, tools, onToolCall, settle);
       } catch (caught) {
         if (!abort.signal.aborted)
           setError(

@@ -22,6 +22,8 @@ export interface WinampControls {
   stop(): void;
   next(): void;
   previous(): void;
+  /** Sets the volume, 0 to 100; absent when the player has no volume control. */
+  setVolume?(percent: number): void;
 }
 
 /**
@@ -59,6 +61,9 @@ export function createWinampControls(
     stop: () => player.stop(),
     next: () => player.nextTrack(),
     previous: () => player.previousTrack(),
+    ...(player.setVolume
+      ? { setVolume: (percent: number) => player.setVolume?.(percent) }
+      : {}),
   };
   return { controls, dispose: unsubscribe };
 }
