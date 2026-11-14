@@ -72,6 +72,8 @@ describe("FriendsWindow", () => {
     expect(
       within(window).getByText("4 of 6 buddies online"),
     ).toBeInTheDocument();
+    // A buddy's own status line (#665), as plain text.
+    expect(within(window).getByText("brb, lag spike")).toBeInTheDocument();
     expect(within(window).getAllByRole("img", { name: "Online" })).toHaveLength(
       3, // two buddies and the player's own status
     );
@@ -85,6 +87,34 @@ describe("FriendsWindow", () => {
     // Joining the same room again brings that window forward rather than opening another.
     await user.click(within(window).getByRole("button", { name: "Join game" }));
     expect(screen.getAllByRole("dialog", { name: "Fuseball" })).toHaveLength(1);
+  });
+
+  it("says when an offline buddy was last seen, when the service tells it", async () => {
+    const timers = createManualTimers();
+    const demo = createDemoPresenceService({
+      schedule: timers.schedule,
+      signedIn: true,
+    });
+    const seenAt = Date.UTC(1998, 5, 25, 7);
+    const snapshot = {
+      ...demo.snapshot(),
+      buddies: [
+        {
+          publicId: "e5e5e5e5e5e5e5e5e5e5",
+          name: "xXx_RocketMan_xXx",
+          status: "offline" as const,
+          lastSeen: seenAt,
+        },
+      ],
+    };
+    // A stable snapshot, as a real service hands out until something changes.
+    const presence: PresenceService = { ...demo, snapshot: () => snapshot };
+    renderFriends({ presence });
+    const window = await dialog();
+    // The test clock is 12:34 the same day.
+    expect(
+      within(window).getByText("Last seen 5 hours ago"),
+    ).toBeInTheDocument();
   });
 
   it("offers sign-in when signed out and lists buddies once signed in", async () => {

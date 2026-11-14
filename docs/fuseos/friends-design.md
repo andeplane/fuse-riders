@@ -59,8 +59,10 @@ map one-to-one onto routes that exist.
 - `createRealPresenceService` (`src/friends/realPresenceService.ts`) composes `fuse-ui/friends-client` with
   `fuse-ui/browser-account`. It reports no name or avatar (the desktop has none; the service keeps whatever a game
   last reported) and derives the four buddy states as: online + room = **Playing &lt;game&gt;**, online = **Online**,
-  otherwise **Offline**. **Away** is never produced by the real service; `capabilities.away` is `false` so the UI can
-  say so.
+  online + `away` = **Away**, otherwise **Offline**; an online friend's `status` shows under the name as plain text
+  and an offline friend's `lastSeen` as "Last seen 5 hours ago". These fields came with #665 and are read only when
+  present, so an older room service gives the list it always did. The desktop polls with `passive: true`: it keeps
+  the account online and never touches the room claim a game's own page made (an older service ignores the flag).
 - The desktop **suspends its own polling while a Fuse game window is open**: the embedded game polls for itself with
   its room claim, and the desktop's poll would clear it. While suspended the buddy list keeps its last snapshot and
   says "Updated by the game in the open window". When the last game window closes the desktop resumes.

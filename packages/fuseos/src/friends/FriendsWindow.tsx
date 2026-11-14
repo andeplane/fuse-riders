@@ -70,6 +70,14 @@ function BuddyRow({
           <span className="block truncate text-[10px] opacity-80">
             Playing {vm.gameName(buddy.room!.gameId)} · room {buddy.room!.code}
           </span>
+        ) : buddy.statusLine ? (
+          <span className="block truncate text-[10px] opacity-80">
+            {buddy.statusLine}
+          </span>
+        ) : buddy.lastSeen !== undefined ? (
+          <span className="block truncate text-[10px] text-gray-500">
+            Last seen {vm.lastSeen(buddy.lastSeen)}
+          </span>
         ) : null}
       </span>
       {playing ? (

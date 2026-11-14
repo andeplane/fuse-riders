@@ -193,6 +193,24 @@ describe(buddyFrom.name, () => {
       { publicId: "3".repeat(20), name: "Cat", status: "offline" },
     ]);
   });
+  it("reads away, the status line and last seen when the service sends them (#665)", () => {
+    const base = { publicId: "4".repeat(20), name: "Dee" };
+    expect(
+      buddyFrom({
+        ...base,
+        online: true,
+        away: true,
+        status: "brb <b>tea</b>",
+      }),
+    ).toEqual({ ...base, status: "away", statusLine: "brb <b>tea</b>" });
+    expect(buddyFrom({ ...base, online: true, status: "" })).toEqual({
+      ...base,
+      status: "online",
+    });
+    expect(
+      buddyFrom({ ...base, online: false, lastSeen: 3_600_000, status: "x" }),
+    ).toEqual({ ...base, status: "offline", lastSeen: 3_600_000 });
+  });
 });
 
 describe(createRealPresenceService.name, () => {
@@ -204,7 +222,9 @@ describe(createRealPresenceService.name, () => {
     );
     expect(service.snapshot().account).toEqual({ kind: "signed-out" });
     expect(client.calls).toEqual(["signedIn:false"]);
-    expect(service.capabilities).toEqual({ away: false, demo: false });
+    expect(service.capabilities).toEqual({ away: true, demo: false });
+    // The desktop is never the page in a room (#665 passive polls).
+    expect(client.dependencies.passive).toBe(true);
 
     account.signIn("Anders");
     expect(client.calls).toEqual(["signedIn:false", "signedIn:true"]);

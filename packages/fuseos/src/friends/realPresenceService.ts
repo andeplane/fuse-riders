@@ -76,15 +76,32 @@ export function apiUrlFor(
   };
 }
 
-/** The four desktop states from what the view says: in a room is playing; "away" is not reported yet. */
+/**
+ * The four desktop states from what the view says: in a room is playing, `away` (sent by services with #665) is
+ * away. The status line and last-seen time are kept when the service sends them; an older service leaves them
+ * out and the list looks as it did.
+ */
 export function buddyFrom(friend: FriendsView["friends"][number]): Buddy {
+  const status = friend.online
+    ? friend.room
+      ? "playing"
+      : friend.away === true
+        ? "away"
+        : "online"
+    : "offline";
   return {
     publicId: friend.publicId,
     name: friend.name,
     ...(friend.avatarId ? { avatarId: friend.avatarId } : {}),
-    status: friend.online ? (friend.room ? "playing" : "online") : "offline",
+    status,
     ...(friend.online && friend.room
       ? { room: { code: friend.room.code, gameId: friend.room.gameId } }
+      : {}),
+    ...(friend.online && typeof friend.status === "string" && friend.status
+      ? { statusLine: friend.status }
+      : {}),
+    ...(!friend.online && typeof friend.lastSeen === "number"
+      ? { lastSeen: friend.lastSeen }
       : {}),
   };
 }
@@ -102,6 +119,9 @@ export function createRealPresenceService(
     token: auth.token,
     apiUrl: options.apiUrl,
     identity: () => ({}),
+    // The desktop is never the page in a room: its polls keep the account online and leave the room claim to the
+    // game's own page. A service without #665 ignores the flag.
+    passive: true,
     ...(options.clock ? { clock: options.clock } : {}),
     ...(options.pollMs ? { pollMs: options.pollMs } : {}),
   });
@@ -183,7 +203,7 @@ export function createRealPresenceService(
     }
   };
   return {
-    capabilities: { away: false, demo: false },
+    capabilities: { away: true, demo: false },
     snapshot: () => store.get(),
     subscribe: (listener) => store.subscribe(listener),
     warmSignIn: () => auth.warm(),

@@ -40,7 +40,12 @@ export const DEMO_BUDDIES: readonly Buddy[] = [
   },
   { publicId: "b2b2b2b2b2b2b2b2b2b2", name: "sk8rgrl99", status: "online" },
   { publicId: "c3c3c3c3c3c3c3c3c3c3", name: "Clippy_Fan", status: "online" },
-  { publicId: "d4d4d4d4d4d4d4d4d4d4", name: "NetcodeNina", status: "away" },
+  {
+    publicId: "d4d4d4d4d4d4d4d4d4d4",
+    name: "NetcodeNina",
+    status: "away",
+    statusLine: "brb, lag spike",
+  },
   {
     publicId: "e5e5e5e5e5e5e5e5e5e5",
     name: "xXx_RocketMan_xXx",

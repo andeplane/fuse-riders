@@ -12,6 +12,7 @@ import { useAppState } from "../state/useAppState";
 import { useDialUpCommands } from "../sounds/dialup/useDialUpCommands";
 import { useWindowCommands } from "../windows/useWindowCommands";
 
+import { FriendsDepsContext } from "./friendsDepsContext";
 import type {
   Buddy,
   BuddyStatus,
@@ -102,6 +103,8 @@ export type FriendsViewModel = {
   groups: BuddyGroup[];
   onlineCount: number;
   gameName: (gameId: string) => string;
+  /** An offline buddy's last-seen time, said relative to now ("3 hours ago"). */
+  lastSeen: (at: number) => string;
   /** The last action's failure, cleared by the next action; the sign-in popup closing says nothing. */
   actionError: string | undefined;
   busy: boolean;
@@ -117,8 +120,20 @@ export type FriendsViewModel = {
   capabilities: PresenceService["capabilities"];
 };
 
+const HOUR_MS = 3_600_000;
+
+/** How long ago `at` was, as the buddy list says it; the service rounds last-seen times to the hour. */
+export function formatLastSeen(at: number, now: number): string {
+  const hours = Math.floor((now - at) / HOUR_MS);
+  if (hours < 1) return "within the hour";
+  if (hours < 24) return hours === 1 ? "an hour ago" : `${hours} hours ago`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? "yesterday" : `${days} days ago`;
+}
+
 export function useFriendsViewModel(): FriendsViewModel {
   const presence = useContext(PresenceServiceContext);
+  const { now } = useContext(FriendsDepsContext);
   const snapshot = usePresenceSnapshot(presence);
   const gameName = useGameName();
   const joinRoom = useJoinRoom();
@@ -147,6 +162,7 @@ export function useFriendsViewModel(): FriendsViewModel {
     groups,
     onlineCount,
     gameName,
+    lastSeen: (at) => formatLastSeen(at, now()),
     actionError,
     busy,
     signIn: () => run(() => presence.signIn()),

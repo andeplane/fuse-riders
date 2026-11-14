@@ -7,7 +7,7 @@ import { createContext } from "react";
  * one (`demoPresenceService.ts`) plays a script. See docs/fuseos/friends-design.md.
  */
 
-/** ICQ/MSN states. "away" exists in the interface so the UI is complete; the live service never produces it yet. */
+/** ICQ/MSN states. The live service reports "away" once the room service sends it (#665); older ones never do. */
 export type BuddyStatus = "online" | "away" | "playing" | "offline";
 
 export interface BuddyRoom {
@@ -26,6 +26,10 @@ export interface Buddy extends PlayerCard {
   status: BuddyStatus;
   /** The room the buddy is in, when playing. */
   room?: BuddyRoom;
+  /** The line an online buddy chose to show; plain text, rendered as text. */
+  statusLine?: string;
+  /** For an offline buddy: when it was last online (ms since the epoch, rounded to the hour by the service). */
+  lastSeen?: number;
 }
 
 export interface RoomInvite {
