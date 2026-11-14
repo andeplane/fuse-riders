@@ -101,14 +101,6 @@ import {
 } from "./session.js";
 import { createSettingsPanel } from "./settings.js";
 import { createLatencyProbe, latencyText } from "./latency.js";
-import {
-  DEFAULT_CLICK_RATE,
-  clickAudioRate,
-  clickId,
-  clickRate,
-  clickSources,
-  clickWav,
-} from "./click-track.js";
 import { createFrameLead } from "./frame-lead.js";
 import type { TimingLab } from "./timing-lab.js";
 import {
@@ -151,7 +143,7 @@ const social = createGameSocial({
 const store = safeStore(() => localStorage);
 const names = keys(GAME);
 const muted = new URLSearchParams(location.search).has("mute");
-/** `?debugtiming`: the timing lab's panel, its click tracks and its session log. */
+/** `?debugtiming`: the timing panel beside a game, and the Timing screen's details open. */
 const debugTiming = new URLSearchParams(location.search).has("debugtiming");
 /** `?audioclock=reported`: read the song position from the stepped audio clock, to compare with the clock pair. */
 const pairedClock =
@@ -183,24 +175,10 @@ const PAGE_KEYS: ReadonlySet<string> = new Set(["Tab", "KeyM"]);
 /** How often a song's audio is fetched again by itself before the page asks the player. */
 const SONG_LOAD_TRIES = 3;
 /** Where a song's audio is fetched from: the site's own files, or a file the player loaded. */
-const clickUrls = new Map<number, string>();
-const songUrl = (path: string) => {
-  const bpm = clickAudioRate(path);
-  if (bpm !== undefined) {
-    // A click track has no file: its audio is made here, once, from the numbers its chart was made from.
-    let url = clickUrls.get(bpm);
-    if (!url) {
-      url = URL.createObjectURL(
-        new Blob([clickWav(bpm)], { type: "audio/wav" }),
-      );
-      clickUrls.set(bpm, url);
-    }
-    return url;
-  }
-  return /^(blob:|https?:)/.test(path) ? path : `${BASE}${path}`;
-};
-/** A song that exists only on this page: a loaded simfile, or the timing lab's click track. */
-const localSong = (id: string) => id === CUSTOM || clickRate(id) !== undefined;
+const songUrl = (path: string) =>
+  /^(blob:|https?:)/.test(path) ? path : `${BASE}${path}`;
+/** A song that exists only on this page: a loaded simfile. */
+const localSong = (id: string) => id === CUSTOM;
 /** A song's cover image, for the songs that ship with one. */
 const coverUrl = (song: { id: string }): string | undefined => {
   const path = coverPath(song.id);
@@ -308,7 +286,7 @@ function createPreview(library: Library) {
         timer = undefined;
         const info = library.song(id);
         // A loaded file has no address the radio can play from.
-        if (!info || /^(blob:|https?:|click:)/.test(info.audio)) {
+        if (!info || /^(blob:|https?:)/.test(info.audio)) {
           audio.setSongs([], BASE);
           return;
         }
@@ -503,6 +481,11 @@ function landing(): void {
     },
   });
   card.create.after(shared);
+  // The Timing screen is on the front door: lining the game up with a device is not a setting to dig for.
+  card.menu.addEntry("Sync timing", () => {
+    leaveLanding();
+    openTiming();
+  });
 
   // A player's own simfile: any 4-panel .sm or .ssc with its music, for a solo run on this device.
   const own = el("details", "", "fm-own"),
@@ -621,6 +604,50 @@ function startSolo(library: Library, choice: Choice): void {
   window.addEventListener("popstate", () => location.reload());
   audio.unlock();
   room(true, library, choice);
+}
+
+/** From the menu to the Timing screen without leaving the page, so the click that asked for it lets the tick out. */
+function openTiming(): void {
+  history.pushState(null, "", withFlags(endpoints.appUrl("?timing")));
+  window.addEventListener("popstate", () => location.reload());
+  audio.unlock();
+  timing();
+}
+
+/** The Timing screen ("sync"): thirty seconds of a steady tick, then what to set. No song, no room. */
+function timing(): void {
+  const back = el("a", "← BACK TO THE MENU", "fm-ts-back");
+  back.href = withFlags(endpoints.appUrl());
+  const loading = el("p", "Loading…", "fm-connecting");
+  app.replaceChildren(header(), loading);
+  void import("./timing-screen.js").then(({ createTimingScreen }) => {
+    const screen = createTimingScreen({
+      doc: document,
+      win: window,
+      audio,
+      prefs: () => prefs,
+      setPrefs(next) {
+        prefs = next;
+        savePrefs(store, prefs);
+      },
+      now: () => performance.now(),
+      createCanvas: browserCanvas,
+      bpm: Number(new URLSearchParams(location.search).get("rate")),
+      seconds: Number(new URLSearchParams(location.search).get("seconds")),
+      details: debugTiming,
+      back,
+      pairing: pairedClock,
+    });
+    loading.replaceWith(screen.element);
+    // For smokes and for an agent reading a session: what the panel shows, its log, and where the run is.
+    Object.assign(window, {
+      fusemania: {
+        timing: () => screen.snapshot(),
+        timingLog: () => screen.logText(),
+        timingState: () => screen.state(),
+      },
+    });
+  });
 }
 
 function room(solo: boolean, library: Library, first?: Choice): void {
@@ -860,7 +887,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   });
   const probe = createLatencyProbe();
   const frameLead = createFrameLead();
-  /** The timing lab, on a `?debugtiming` page once its code has arrived. */
+  /** The timing panel beside the game, on a `?debugtiming` page once its code has arrived. */
   let lab: TimingLab | undefined,
     labGone = false;
   /** A browser's stamp is used when it is one: not zero, and within half a second of now. */
@@ -1242,6 +1269,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     void import("./timing-lab.js").then(({ createTimingLab }) => {
       if (labGone) return;
       lab = createTimingLab({
+        mode: "game",
         doc: document,
         win: window,
         audio,
@@ -1255,10 +1283,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
           panel.refresh();
         },
         latencyContext,
-        startClick(bpm) {
-          location.href = withFlags(
-            endpoints.appUrl(`?solo=1&song=${clickId(bpm)}&chart=0&mode=0`),
-          );
+        openScreen() {
+          location.href = withFlags(endpoints.appUrl("?timing"));
         },
         now: () => performance.now(),
       });
@@ -1708,20 +1734,9 @@ function room(solo: boolean, library: Library, first?: Choice): void {
 }
 
 const query = new URLSearchParams(location.search);
-if (query.get("solo") === "1")
-  // The timing lab's click tracks are this page's own: a solo run can play them, a room never sees them.
-  room(
-    true,
-    debugTiming ? createLibrary([...SONGS_DATA, ...clickSources()]) : LIBRARY,
-  );
+if (query.has("timing") || query.has("sync")) timing();
+else if (query.get("solo") === "1") room(true, LIBRARY);
 else if (query.has("room")) room(false, LIBRARY);
-else if (debugTiming)
-  // The lab opens on its steady click track.
-  location.replace(
-    withFlags(
-      endpoints.appUrl(
-        `?solo=1&song=${clickId(DEFAULT_CLICK_RATE)}&chart=0&mode=0`,
-      ),
-    ),
-  );
+// The flag alone is the Timing screen with its details open.
+else if (debugTiming) location.replace(withFlags(endpoints.appUrl("?timing")));
 else landing();

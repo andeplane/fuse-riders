@@ -232,3 +232,27 @@ test("Play submenu separates single player, host and join while Escape returns t
   assert.equal(menu.element.querySelector(".fui-main-menu-other"), null);
   assert.equal(menu.play.className, "fui-menu-primary");
 });
+
+test("main menu: a game's own screen sits on the front door after Play and opens when asked", () => {
+  const { document } = page();
+  const menu = createMainMenu({
+    title: "Fuse",
+    play: document.createElement("section"),
+    document,
+  });
+  let opened = 0;
+  const entry = menu.addEntry("Sync timing", () => opened++);
+  assert.deepEqual(
+    [
+      ...menu.element.querySelectorAll<HTMLButtonElement>(
+        ".fui-main-menu-nav:not(.fui-play-menu) button",
+      ),
+    ]
+      .filter((node) => !node.hidden)
+      .map((node) => node.textContent),
+    ["Play", "Sync timing", "How to play", "About"],
+  );
+  assert.equal(entry.type, "button");
+  entry.click();
+  assert.equal(opened, 1);
+});

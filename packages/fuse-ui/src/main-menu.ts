@@ -225,6 +225,13 @@ export function createMainMenu(options: MainMenuOptions) {
   };
   if (options.settings?.length) addSettings(...options.settings);
   navigation.append(play, how, about, settingsButton);
+  /** A screen of the game's own on the front door, after Play: `label` is its button, `open` goes there. */
+  const addEntry = (label: string, open: () => void) => {
+    const entry = button(label, "", doc);
+    entry.onclick = () => open();
+    how.before(entry);
+    return entry;
+  };
   home.append(title, description, navigation, choices, hosting, error);
   element.append(home, dialog.dialog, parking);
   let backgroundActive = false,
@@ -246,6 +253,7 @@ export function createMainMenu(options: MainMenuOptions) {
     help,
     settings,
     addSettings,
+    addEntry,
     play,
     singlePlayer,
     hostRoom,
