@@ -26,6 +26,7 @@ import {
   roomFailure,
   safeStore,
   sessionFor,
+  seedFromText,
 } from "../src/app/session.js";
 import { sendReport, type DueReport } from "../src/app/reports.js";
 import type { Cue } from "../src/render/effects.js";
@@ -33,6 +34,40 @@ import type { Cue } from "../src/render/effects.js";
 const host: Viewer = { me: "a", host: true, solo: false, display: false };
 const guest: Viewer = { me: "b", host: false, solo: false, display: false };
 const tv: Viewer = { me: "tv", host: false, solo: false, display: true };
+
+test("seed text accepts decimal uint32 values and rejects coercions", () => {
+  for (const seed of [0, 1, 2147483648, 4294967295])
+    assert.equal(seedFromText(String(seed)), seed);
+  for (const raw of [
+    null,
+    "",
+    " ",
+    "1.5",
+    "-0",
+    "-1",
+    "+1",
+    "0xff",
+    "1e2",
+    "4294967296",
+    "12345678901",
+    " 12",
+    "12 ",
+  ])
+    assert.equal(seedFromText(raw), undefined);
+});
+
+test("a random lobby and running match show their actual seeds", () => {
+  const state = createRoom("m", { display: false, mapId: "random", seed: 5 });
+  let model = present(view(state), host);
+  assert.equal(model.mapName, "Random · 5");
+  assert.ok(model.lobby.maps.find((map) => map.id === "random")?.selected);
+  state.world = createWorld("random", ["a", "b"], 5);
+  state.stage = "running";
+  state.settings.seed = 4;
+  model = present(view(state), guest);
+  assert.equal(model.mapName, "Random · 5");
+  assert.equal(model.lobby.editable, false);
+});
 
 const seat = (
   id: string,
@@ -56,7 +91,7 @@ function room(
   shape: (room: Room, world: World | null) => void = () => {},
   mapId: MapId = "gridlock",
 ): View {
-  const state = createRoom("m1", { display: false, mapId });
+  const state = createRoom("m1", { display: false, mapId, seed: 0 });
   state.seats.set("a", seat("a", "Ada", 0));
   state.seats.set("b", seat("b", "Bo", 1));
   if (stage !== "lobby") {
@@ -104,6 +139,9 @@ test("the lobby: the host picks the arena, adds a bot and starts; a guest waits;
   assert.deepEqual(
     two.lobby.maps.map((m) => [m.id, m.name, m.selected]),
     [
+      ["quadcore", "Quad Core", false],
+      ["bitstream", "Bitstream", false],
+      ["memoryleak", "Memory Leak", false],
       ["gridlock", "Gridlock", true],
       ["downlink", "Downlink", false],
       ["halo", "Halo", false],
@@ -115,12 +153,10 @@ test("the lobby: the host picks the arena, adds a bot and starts; a guest waits;
       ["bouncerate", "Bounce Rate", false],
       ["portforward", "Port Forward", false],
       ["backdoor", "Backdoor", false],
-      ["quadcore", "Quad Core", false],
-      ["bitstream", "Bitstream", false],
-      ["memoryleak", "Memory Leak", false],
+      ["random", "Random", false],
     ],
   );
-  assert.equal(two.lobby.maps[2]!.blurb, MAP_BLURBS.halo);
+  assert.equal(two.lobby.maps[5]!.blurb, MAP_BLURBS.halo);
   assert.equal(two.mapName, "Gridlock");
   assert.deepEqual(two.sides, []);
   assert.equal(two.names, undefined);
@@ -134,7 +170,7 @@ test("the lobby: the host picks the arena, adds a bot and starts; a guest waits;
   assert.equal(alone.lobby.canStart, false);
   assert.equal(alone.lobby.canAddBot, true);
   assert.match(alone.lobby.note, /needs two riders/);
-  assert.equal(alone.lobby.maps[2]!.selected, true);
+  assert.equal(alone.lobby.maps[5]!.selected, true);
 
   const bots = present(
     room("lobby", (r) => {

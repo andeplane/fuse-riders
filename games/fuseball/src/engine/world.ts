@@ -1,12 +1,13 @@
 import { BTN } from "./input.js";
 import { SUB } from "./math.js";
 import { freshBarriers, type BarrierState } from "./gadgets.js";
-import { mapOf, type MapId } from "./maps.js";
+import { RANDOM, arenaOf, isSeed, type MapId } from "./maps.js";
 import { COUNTDOWN_STEPS, SPEED_FULL } from "./tuning.js";
 
 /**
  * One match's world: plain integer data, so the netcode can clone, hash and checkpoint it. Positions are sub-units,
- * centre of the body, always inside the field. The arena itself is fixed data in `maps.ts`, found by `mapId`.
+ * centre of the body, always inside the field. The arena itself is fixed data in `maps.ts`, found by `mapId`, or,
+ * for the random one, the level `generate.ts` rolls from `seed`.
  */
 export const PHASES = ["countdown", "play", "zap", "over"] as const;
 export type Phase = (typeof PHASES)[number];
@@ -64,6 +65,8 @@ export interface Ball {
 
 export interface World {
   mapId: MapId;
+  /** The seed of a rolled level: any unsigned 32-bit integer when `mapId` is the random one, otherwise 0. */
+  seed: number;
   /** Micro-steps simulated so far. */
   step: number;
   phase: Phase;
@@ -117,7 +120,7 @@ const bubble = (): Bubble => ({
 
 /** Riders back on their marks, the ball on its anchor, bubbles gone, and the countdown running. */
 export function resetPoint(world: World): void {
-  const map = mapOf(world.mapId);
+  const map = arenaOf(world);
   for (const r of world.riders) {
     const spawn = map.spawns[r.slot];
     r.x = spawn.x * SUB;
@@ -151,13 +154,18 @@ export function resetPoint(world: World): void {
   world.freeze = 0;
 }
 
-/** A new match on `mapId` at 0–0, in its first countdown; `ids[0]` rides in slot 0, on the left. */
+/**
+ * A new match on `mapId` at 0–0, in its first countdown; `ids[0]` rides in slot 0, on the left. `seed` picks the
+ * level when the map is the random one, and is not kept otherwise.
+ */
 export function createWorld(
   mapId: MapId,
   ids: readonly [string, string],
+  seed = 0,
 ): World {
   const world: World = {
     mapId,
+    seed: mapId === RANDOM && isSeed(seed) ? seed : 0,
     step: 0,
     phase: "countdown",
     phaseSteps: COUNTDOWN_STEPS,

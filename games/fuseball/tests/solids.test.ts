@@ -38,9 +38,9 @@ function sunk(
   body: { x: number; y: number },
   radius: number,
 ): number {
-  const map = mapOf(world.mapId);
+  const map = mapOf(world.mapId, world.seed);
   let most = 0;
-  for (const box of boxesOf(world.mapId)) {
+  for (const box of boxesOf(map)) {
     const { dx, dy } = apart(body.x, body.y, box.cx, box.cy, map),
       ex = abs(dx) > box.hw ? abs(dx) - box.hw : 0,
       ey = abs(dy) > box.hh ? abs(dy) - box.hh : 0,

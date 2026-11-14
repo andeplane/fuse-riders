@@ -2,6 +2,8 @@ import {
   CAPACITY,
   MAPS,
   MAP_IDS,
+  RANDOM,
+  mapOf,
   ZAP_STEPS,
   type MapId,
 } from "../engine/index.js";
@@ -36,7 +38,19 @@ export const MAP_BLURBS: Readonly<Record<MapId, string>> = {
   quadcore: "A closed box. Four grass pads, and a goal in each wall.",
   bitstream: "Holes in the floor drop from the roof. Jets lift the ball.",
   memoryleak: "Goo pits leak from the roof. Thin pillars, no middle floor.",
+  random: "A mirrored arena from a seed. Re-roll or share your favourite.",
 };
+
+/**
+ * The order the lobby and the landing page offer the arenas in: the arcade three first, then the rest as they were
+ * added, then the random one. `MAP_IDS` keeps its own order, which is the wire format.
+ */
+const ARCADE: readonly MapId[] = ["quadcore", "bitstream", "memoryleak"];
+export const MAP_ORDER: readonly MapId[] = [
+  ...ARCADE,
+  ...MAP_IDS.filter((id) => !ARCADE.includes(id)),
+  RANDOM,
+];
 
 export interface Side {
   id: string;
@@ -235,16 +249,19 @@ export function present(view: View, viewer: Viewer): Model {
       canStart: seats.length === CAPACITY,
       editable: viewer.host,
       note: lobbyNote,
-      maps: MAP_IDS.map((id) => ({
+      maps: MAP_ORDER.map((id) => ({
         id,
-        name: MAPS[id].name,
+        name: id === RANDOM ? "Random" : MAPS[id].name,
         blurb: MAP_BLURBS[id],
         selected: id === view.settings.mapId,
       })),
     },
     sides,
     names,
-    mapName: MAPS[playing].name,
+    mapName:
+      playing === RANDOM
+        ? `Random · ${inMatch ? view.play.seed : view.settings.seed}`
+        : mapOf(playing).name,
     status,
     note,
     result,

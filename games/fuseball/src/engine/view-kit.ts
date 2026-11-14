@@ -1,5 +1,6 @@
 /**
- * The engine data the renderer may read beside the view: the arenas (fixed data, found by the view's `mapId`) and
+ * The engine data the renderer may read beside the view: the arenas (fixed data, found by the view's `mapId`, or rolled
+ * from its `seed`: `arenaOf(view)`) and
  * the sizes and timings it draws to. Everything here is in pixels and micro-steps.
  *
  * A solid may run past the field's edge on an axis that wraps (see `maps.ts`): draw it again one field back.
@@ -7,9 +8,12 @@
 export {
   MAP_IDS,
   MAPS,
+  RANDOM,
   mapOf,
+  arenaOf,
   isCircle,
   type MapId,
+  type ArenaId,
   type MapDef,
   type Goal,
   type Rect,

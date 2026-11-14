@@ -1,4 +1,10 @@
-import { apart, resolveSolids, type Body, type Touch } from "./collide.js";
+import {
+  apart,
+  resolveSolids,
+  settle,
+  type Body,
+  type Touch,
+} from "./collide.js";
 import { SUB, abs, clamp, div, isqrt, toward } from "./math.js";
 import {
   barrierBoxesOf,
@@ -67,16 +73,16 @@ export function meetGadgets(
 ): number {
   let struck = 0;
   // The liquids first, since they only change its speed: goo takes a share of it, a jet pushes it up.
-  if (within(ball, gooZonesOf(map.id))) {
+  if (within(ball, gooZonesOf(map))) {
     ball.vx -= div(ball.vx, T.GOO_DRAG);
     ball.vy -= div(ball.vy, T.GOO_DRAG);
   }
-  if (within(ball, streamZonesOf(map.id))) {
+  if (within(ball, streamZonesOf(map))) {
     ball.vx -= div(ball.vx, T.STREAM_DRAG);
     ball.vy -= div(ball.vy, T.STREAM_DRAG);
     if (ball.vy > -T.STREAM_SPEED) ball.vy -= T.STREAM_PUSH;
   }
-  const boxes = barrierBoxesOf(map.id);
+  const boxes = barrierBoxesOf(map);
   for (let i = 0; i < map.barriers.length; i++) {
     const barrier = map.barriers[i]!,
       state = barriers[i]!,
@@ -174,4 +180,43 @@ export function meetGadgets(
       break portals;
     }
   return struck;
+}
+
+/**
+ * One micro-step of a ball nobody touches: gravity, the solids and the gadgets, as `step.ts` moves it. `barriers`
+ * is the flight's own copy of the fields and gates, which it wears down and opens as the real ones would be. The
+ * bot reads a ball's flight with it, and the level generator drops balls with it to see where they come to rest.
+ * The bot's approximate forecast retains tiny velocities, as its planner did before generation was introduced;
+ * validation uses the live engine's rest threshold. Snapping the forecast changes its landing estimates.
+ */
+export function drift(
+  ball: Body,
+  boxes: readonly Box[],
+  map: MapDef,
+  barriers: BarrierState[],
+  snapAtRest = true,
+): void {
+  ball.vy += T.BALL_GRAVITY;
+  ball.vx = clamp(ball.vx, -T.BALL_MAX, T.BALL_MAX);
+  ball.vy = clamp(ball.vy, -T.BALL_MAX, T.BALL_MAX);
+  ball.x += ball.vx;
+  ball.y += ball.vy;
+  const touch = resolveSolids(
+    ball,
+    T.BALL_R,
+    boxes,
+    map,
+    T.BALL_BOUNCE_NUM,
+    T.BALL_BOUNCE_DEN,
+  );
+  if (touch.hit) {
+    ball.vx -= div(ball.vx, T.BALL_SCRUB);
+    ball.vy -= div(ball.vy, T.BALL_SCRUB);
+    if (snapAtRest) {
+      if (abs(ball.vx) < T.BALL_SCRUB) ball.vx = 0;
+      if (abs(ball.vy) < T.BALL_SCRUB) ball.vy = 0;
+    }
+  }
+  meetGadgets(map, barriers, ball);
+  settle(ball, T.BALL_R, map);
 }

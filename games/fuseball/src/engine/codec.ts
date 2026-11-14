@@ -1,6 +1,15 @@
 import { freshBarriers, type BarrierState } from "./gadgets.js";
 import { BTN, isInput } from "./input.js";
-import { MAP_IDS, mapOf, type MapDef } from "./maps.js";
+import {
+  MAP_IDS,
+  RANDOM,
+  RANDOM_INDEX,
+  arenaOf,
+  isSeed,
+  mapOf,
+  type MapDef,
+  type MapId,
+} from "./maps.js";
 import * as T from "./tuning.js";
 import {
   PHASES,
@@ -16,11 +25,11 @@ import {
  * decoder that checks every one against the bounds and the consistency the simulation keeps. `decodeWorld` returns
  * a whole new world or nothing; it never changes what it was given and never returns a half-checked one.
  */
-const VERSION = 2;
+const VERSION = 3;
 const RIDER_FIELDS = 14,
   BUBBLE_FIELDS = 5,
   BALL_FIELDS = 7,
-  WORLD_FIELDS = 16,
+  WORLD_FIELDS = 17,
   PACE_FIELDS = 4;
 
 const int = (value: unknown, low: number, high: number): value is number =>
@@ -73,7 +82,7 @@ export function encodeWorld(world: World): unknown[] {
   const { ball } = world;
   return [
     VERSION,
-    MAP_IDS.indexOf(world.mapId),
+    world.mapId === RANDOM ? RANDOM_INDEX : MAP_IDS.indexOf(world.mapId),
     world.step,
     PHASES.indexOf(world.phase),
     world.phaseSteps,
@@ -96,6 +105,7 @@ export function encodeWorld(world: World): unknown[] {
     ],
     [world.speed, world.budget, world.linger, world.freeze],
     world.barriers.map((barrier) => [barrier.left, barrier.timer]),
+    world.seed,
   ];
 }
 
@@ -243,7 +253,7 @@ function consistent(world: World): boolean {
   if (freeze > 0 && budget !== 0) return false;
   // Every point starts its barriers afresh: in a countdown no field is worn and no gate is open.
   if (phase === "countdown") {
-    const fresh = freshBarriers(mapOf(world.mapId));
+    const fresh = freshBarriers(arenaOf(world));
     if (
       world.barriers.some(
         (barrier, i) => barrier.timer !== 0 || barrier.left !== fresh[i]?.left,
@@ -305,10 +315,14 @@ export function decodeWorld(raw: unknown): World | undefined {
     rawBall,
     rawPace,
     rawBarriers,
+    seed,
   ] = raw;
   if (
     version !== VERSION ||
-    !int(mapIndex, 0, MAP_IDS.length - 1) ||
+    !(mapIndex === RANDOM_INDEX || int(mapIndex, 0, MAP_IDS.length - 1)) ||
+    // Only a rolled level has a seed; any unsigned 32-bit integer is one.
+    !isSeed(seed) ||
+    (mapIndex !== RANDOM_INDEX && seed !== 0) ||
     !int(step, 0, T.MAX_STEP) ||
     !int(phaseIndex, 0, PHASES.length - 1) ||
     !int(phaseSteps, 0, T.MAX_STEP) ||
@@ -327,10 +341,11 @@ export function decodeWorld(raw: unknown): World | undefined {
     !int(freeze, 0, T.GOAL_FREEZE_STEPS)
   )
     return;
-  const mapId = MAP_IDS[mapIndex],
+  const mapId: MapId | undefined =
+      mapIndex === RANDOM_INDEX ? RANDOM : MAP_IDS[mapIndex],
     phase = PHASES[phaseIndex];
   if (!mapId || !phase) return;
-  const map = mapOf(mapId),
+  const map = mapOf(mapId, seed),
     a = decodeRider(riderA, 0, map),
     b = decodeRider(riderB, 1, map),
     bubble0 = decodeBubble(bubbleA),
@@ -340,6 +355,7 @@ export function decodeWorld(raw: unknown): World | undefined {
   if (!a || !b || !bubble0 || !bubble1 || !ball || !barriers) return;
   const world: World = {
     mapId,
+    seed,
     step,
     phase,
     phaseSteps,

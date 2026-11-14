@@ -7,6 +7,7 @@ import {
   toView,
   type World,
   type WorldView,
+  createWorld,
 } from "../src/engine/index.js";
 import {
   BUBBLE_RADIUS,
@@ -48,6 +49,13 @@ import {
   steps,
   until,
 } from "./fixtures/world.js";
+
+test("a different random seed is a different arena for interpolation and effects", () => {
+  const older = toView(createWorld("random", ["a", "b"], 1));
+  const newer = toView(createWorld("random", ["a", "b"], 4));
+  assert.equal(blend(older, newer, 0.5), newer);
+  assert.deepEqual(cues(older, newer), []);
+});
 
 /** A 2D context that records what was drawn: every member of `Paint`, so the scene draws on it in Node as it is. */
 function recorder() {

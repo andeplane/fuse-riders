@@ -43,13 +43,13 @@ interface Turf {
   y: number;
   h: number;
 }
-const TURF = new Map<MapId, readonly Turf[]>();
+const TURF = new WeakMap<MapDef, readonly Turf[]>();
 /**
  * The grass of an arena: a blade every other pixel along the top of each solid wide enough to stand about on,
  * except under another solid or right under the roof.
  */
 function turfOf(map: MapDef): readonly Turf[] {
-  const known = TURF.get(map.id);
+  const known = TURF.get(map);
   if (known) return known;
   const all = map.solids.flatMap((solid) => wrapped(map, solid)),
     covered = (x: number, y: number) =>
@@ -62,7 +62,7 @@ function turfOf(map: MapDef): readonly Turf[] {
     for (let x = s.x + 3; x < s.x + s.w - 3; x += 2)
       if (!covered(x, s.y - 3)) turf.push({ x, y: s.y - 1, h: blade(x) });
   }
-  TURF.set(map.id, turf);
+  TURF.set(map, turf);
   return turf;
 }
 

@@ -12,6 +12,7 @@ import {
   GOAL_STEPS,
   ZAP_STEPS,
   isCircle,
+  arenaOf,
   stepWorld,
   toView,
   winnerOf,
@@ -36,7 +37,7 @@ import {
 
 /** Puts the ball in the middle of `team`'s first goal and steps once: the point is scored. */
 function scoreFor(world: World, team: Slot): void {
-  const goal = MAPS[world.mapId].goals.find((each) => each.team === team)!;
+  const goal = arenaOf(world).goals.find((each) => each.team === team)!;
   if (isCircle(goal)) ballAt(world, goal.x, goal.y);
   else ballAt(world, goal.x + goal.w / 2, goal.y + goal.h / 2);
   stepWorld(world, new Map());
@@ -335,6 +336,6 @@ test("the renderer's kit carries the arenas and the sizes it draws to", () => {
     [kit.RIDER_RADIUS, kit.BALL_RADIUS, kit.BUBBLE_RADIUS],
     [9, 8, 14],
   );
-  const ids: readonly MapId[] = kit.MAP_IDS;
+  const ids = kit.MAP_IDS;
   for (const id of ids) assert.equal(kit.mapOf(id), MAPS[id]);
 });
