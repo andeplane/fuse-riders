@@ -3,6 +3,8 @@ import { RecycleBinDesktopIcon } from "../recyclebin/RecycleBinDesktopIcon";
 import { FriendsTray } from "../friends/FriendsTray";
 import { useTaskManagerShortcut } from "../taskmanager/useTaskManagerShortcut";
 import { ContextMenu } from "../windows/ContextMenu";
+import { Y2kGlitchOverlay } from "../y2k/Y2kGlitchOverlay";
+import { Y2kProvider } from "../y2k/Y2kProvider";
 
 import { DesktopIcon } from "./DesktopIcon";
 import { DisplaySurface } from "./DisplaySurface";
@@ -106,7 +108,12 @@ export function Desktop() {
         />
       ) : null}
       {vm.shutdownScreen ? <ShutdownScreen onWakeUp={vm.wakeUp} /> : null}
+      <Y2kGlitchOverlay />
     </div>
   );
-  return <DisplaySurface>{desktop}</DisplaySurface>;
+  return (
+    <DisplaySurface>
+      <Y2kProvider>{desktop}</Y2kProvider>
+    </DisplaySurface>
+  );
 }

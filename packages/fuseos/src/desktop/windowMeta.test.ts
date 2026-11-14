@@ -6,6 +6,7 @@ import {
   FUSE_GAME_WINDOW_SIZE,
   HALL_OF_FAME_WINDOW_SIZE,
   NETWORK_WINDOW_SIZE,
+  MESSAGE_BOX_SIZE,
   PAINT_WINDOW_SIZE,
   TASK_MANAGER_WINDOW_SIZE,
   WINAMP_WINDOW_SIZE,
@@ -124,7 +125,12 @@ describe(windowMeta.name, () => {
         }),
         games,
       ),
-    ).toEqual({ title: "Oops", icon: "warning", resizable: false });
+    ).toEqual({
+      title: "Oops",
+      icon: "warning",
+      resizable: false,
+      size: MESSAGE_BOX_SIZE,
+    });
     expect(windowMeta(window({ kind: "launcher" }), games)).toEqual({
       title: "Fusteam",
       icon: "fusteam",
