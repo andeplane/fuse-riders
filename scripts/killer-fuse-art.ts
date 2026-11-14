@@ -68,26 +68,19 @@ import {
   type Rgb,
 } from "../games/killer-fuse/art/pixel.ts";
 import {
-  banner,
   berryPop,
-  deathPuff,
+  clash,
   flapPuff,
-  gateSparkle,
-  killBurst,
-  queenDeath,
   respawn,
-  snailMarker,
-  snailStrip,
-  STRIP_LANE,
   tile,
   TILES,
-  type WinKind,
 } from "../games/killer-fuse/art/procedural.ts";
 import {
   berries,
   carrySpot,
   egg,
   emerge,
+  fallenQueen,
   EMERGE,
   gate,
   GATE,
@@ -100,7 +93,6 @@ import {
   PILE,
   UNIT_SPECS,
   unitFrame,
-  unitLayout,
   type UnitSpec,
 } from "../games/killer-fuse/art/arcade.ts";
 
@@ -757,7 +749,7 @@ const buildUnits = () => {
       namesOf(warrior),
       warrior.animations,
       {
-        note: "Feet on the anchor. Warriors do not dive: there is no `dive` frame. Standing and walking, the sword points diagonally up and forward; flying, straight forward.",
+        note: "Feet on the anchor. Warriors do not dive: there is no `dive` frame. Standing and walking, the sword points diagonally up and forward; flying, straight forward. `attack` is a lunge: the body 2 pixels forward, the sword level at arm's length with its tip 14 pixels ahead of the anchor and 4 above it. The cell is 31 wide (it was 19) to hold that; every other frame is unchanged about the anchor.",
       },
       0,
       speed ? cellsOf(warrior, speed, true) : undefined,
@@ -770,50 +762,10 @@ const buildUnits = () => {
     namesOf(queen),
     queen.animations,
     {
-      note: "Feet on the anchor. The rows under it are only used by `dive`: a column 7 wide, wings folded up the back, the sword straight down with its tip 4 pixels under the feet.",
+      note: "Feet on the anchor. The rows under it are only used by `dive`: a column 7 wide, wings folded up the back, the sword straight down with its tip 4 pixels under the feet. `attack` is a level dash: the body 17 by 4 centred on the anchor's column, its rows 7 to 10 above the anchor, wings streaming over the back, the sword straight ahead in the body's third row with its tip 15 pixels ahead of the anchor. The cell is 33 wide (it was 23) to hold that; every other frame is unchanged about the anchor.",
     },
     queen.below,
   );
-  // A worker inside a gate: its shape turning to light and swelling, drawn in the gate's lit alcove.
-  const spec = UNIT_SPECS.worker;
-  const idle = cellsOf(spec, false)[0] ?? img(1, 1);
-  const at = unitLayout(spec);
-  const grown = outline(idle, WHITE);
-  for (const team of PLAYING) {
-    const ramp = TEAMS[team];
-    const shape = (m: Img, fill: Rgb, rim: Rgb) =>
-      outlined(
-        recolour(m, () => fill),
-        rim,
-      );
-    const big = img(idle.w, idle.h);
-    blit(big, crop(grown, 1, 1, idle.w, idle.h), 0, 0);
-    // Wing buds on the last frame: the warrior it is about to be.
-    const budded = img(idle.w, idle.h);
-    blit(budded, big, 0, 0);
-    for (const [dx, dy] of [
-      [-2, 0],
-      [-3, -1],
-      [-3, 1],
-    ] as const)
-      put(budded, at.x + dx, at.torso + 1 + dy, WHITE);
-    emit(
-      `transform-${team}`,
-      `effects/transform-${team}.png`,
-      [
-        shape(idle, ramp[3], ramp[2]),
-        shape(idle, WHITE, ramp[3]),
-        shape(big, WHITE, ramp[3]),
-        shape(budded, WHITE, ramp[3]),
-      ],
-      ["0", "1", "2", "3"],
-      [Math.floor(idle.w / 2), idle.h - 1],
-      {
-        fps: 8,
-        note: "A worker transforming inside a gate: draw instead of the worker, anchored like it, over the gate's <owner>Active frame; loop 1-3 while it waits, then swap to the new unit.",
-      },
-    );
-  }
 };
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -966,26 +918,6 @@ const buildProcedural = () => {
       note: "Frame n is the pile with n berries left, stacked 3-2-1 on its leaf: nothing else needs drawing. The leaf stands on the anchor.",
     },
   );
-  emit(
-    "snail-strip",
-    "hud/snail-strip.png",
-    [snailStrip(TEAMS.cyan, TEAMS.pink)],
-    ["strip"],
-    [0, 0],
-    {
-      // The x of the marker's anchor at Cyan's goal and at Pink's goal.
-      lane: STRIP_LANE,
-      note: "Fixed size. Cyan's goal cap is on the left, Pink's on the right, the white tick is the middle of the track. Put `snail-marker` with its anchor on row 6, between lane[0] and lane[1].",
-    },
-  );
-  emit(
-    "snail-marker",
-    "hud/snail-marker.png",
-    [snailMarker()],
-    ["marker"],
-    [4, 6],
-    { note: "Faces right; flip it when the snail heads left." },
-  );
   for (const team of PLAYING) {
     const ramp = TEAMS[team];
     for (const [time, size] of Object.entries(HIVE_SIZES)) {
@@ -1014,13 +946,17 @@ const buildProcedural = () => {
     emit(
       `egg-${team}`,
       `hives/egg-${team}.png`,
-      [egg(ramp, "full"), egg(ramp, "broken"), egg(ramp, "cracked")].map((e) =>
-        outlined(centred(e, 10, 16)),
+      // The whole egg's rim is amber, so it glows against the wall; the others have the usual dark one.
+      (["full", "broken", "cracked"] as const).map((state) =>
+        outlined(
+          centred(egg(ramp, state), 10, 16),
+          state === "full" ? GOLD[0] : NAVY.void,
+        ),
       ),
       ["full", "broken", "cracked"],
       [5, 15],
       {
-        note: "A Queen's spare life, standing on the hive floor on its anchor. Show `cracked` for a few frames when a life is lost, then `broken` (the empty shell).",
+        note: "A Queen's spare life, standing on the hive floor on its anchor: `full` glows yellow with a band in the team's colour. Show `cracked` (dimmer) for a few frames when a life is lost, then `broken` (the dull empty shell).",
       },
     );
     const net = outlined(centred(goalNet(ramp), 29, 19));
@@ -1035,29 +971,6 @@ const buildProcedural = () => {
       },
     );
     emit(
-      `kill-burst-${team}`,
-      `effects/kill-burst-${team}.png`,
-      killBurst(ramp),
-      ["0", "1", "2", "3", "4", "5"],
-      [42, 42],
-      {
-        fps: 20,
-        note: "A scatter of 44 one- and two-pixel specks in the victim's colour, flung about 40 pixels; no flash. Centred on the victim's body, drawn once.",
-      },
-    );
-    emit(
-      `queen-death-${team}`,
-      `effects/queen-death-${team}.png`,
-      queenDeath(ramp),
-      ["0", "1", "2", "3", "4", "5", "6", "7"],
-      [50, 50],
-      {
-        fps: 16,
-        note: "A Queen's death, centred on her body; pair it with her egg's `cracked` frame.",
-      },
-      4,
-    );
-    emit(
       `respawn-${team}`,
       `effects/respawn-${team}.png`,
       respawn(ramp),
@@ -1069,22 +982,15 @@ const buildProcedural = () => {
       },
     );
     emit(
-      `death-puff-${team}`,
-      `effects/death-puff-${team}.png`,
-      deathPuff(ramp),
-      ["0", "1", "2", "3", "4"],
-      [8, 8],
-      { fps: 14 },
+      `win-military-${team}`,
+      `hud/win-military-${team}.png`,
+      [outlined(centred(fallenQueen(ramp), 22, 13))],
+      ["icon"],
+      [11, 12],
+      {
+        note: "The military win as a picture: this team's Queen dead with a sword through her. Show the losing team's (for a player, the enemy's).",
+      },
     );
-    const name = team.toUpperCase();
-    for (const kind of ["military", "economy", "snail"] as WinKind[])
-      emit(
-        `banner-${kind}-${team}`,
-        `banners/${kind}-${team}.png`,
-        [banner(ramp, name, kind)],
-        ["banner"],
-        [116, 22],
-      );
   }
   emit(
     "flap-puff",
@@ -1096,14 +1002,10 @@ const buildProcedural = () => {
       fps: 16,
     },
   );
-  emit(
-    "gate-sparkle",
-    "effects/gate-sparkle.png",
-    gateSparkle(),
-    ["0", "1", "2", "3", "4", "5"],
-    [17, 27],
-    { fps: 12, note: "Drawn over a gate, anchored like it." },
-  );
+  emit("clash", "effects/clash.png", clash(), ["0", "1", "2", "3"], [7, 7], {
+    fps: 20,
+    note: "Two blades meeting: centred where they cross, drawn once.",
+  });
   emit(
     "berry-pop",
     "effects/berry-pop.png",
@@ -1384,15 +1286,17 @@ const mockScene = () => {
   place(scene, "queen-cyan", "flapMid", 215, 100);
   place(scene, "queen-pink", "dive", 262, 108, true);
   place(scene, "queen-pink", "idle", 440, 55, true);
-  place(scene, "kill-burst-pink", "2", 300, 190);
+  place(scene, "warrior-cyan", "attack", 262, 190);
+  place(scene, "queen-pink", "attack", 304, 195, true);
+  place(scene, "clash", "1", 283, 186);
   place(scene, "respawn-cyan", "2", 20, 235);
   place(scene, "flap-puff", "1", 200, 152);
   place(scene, "berry", "loose1", 268, 160);
   write(`${ART}preview/mock-scene.png`, scaleUp(scene, 4));
-  // The same moment with a victory banner and the title, to judge those against the scene.
+  // The same moment with the military win's picture and the title, to judge those against the scene.
   const win = img(480, 270);
   blit(win, scene, 0, 0);
-  place(win, "banner-snail-cyan", "banner", 240, 150);
+  place(win, "win-military-pink", "icon", 240, 150);
   place(win, "logo", "logo", 240, 60);
   write(`${ART}preview/mock-victory.png`, scaleUp(win, 4));
 };

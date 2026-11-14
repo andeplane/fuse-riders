@@ -5,6 +5,7 @@
  * them and lays them out into sheets.
  */
 import {
+  CREAM,
   FROST,
   GOLD,
   ICE,
@@ -47,6 +48,8 @@ interface Body {
   head: readonly string[];
   /** The same head with the eyes shut. */
   blink?: readonly string[];
+  /** The same head with the antennae spread, for the idle twitch. */
+  twitch?: readonly string[];
   torso: readonly string[];
   /** The torso when standing still: hands on hips, elbows out. */
   akimbo?: readonly string[];
@@ -56,6 +59,7 @@ interface Body {
 const WORKER: Body = {
   head: [".A..A.", ".3333.", "333333", "2kwkwk", "222222"],
   blink: [".A..A.", ".3333.", "333333", "2kkkkk", "222222"],
+  twitch: ["A....A", ".3333.", "333333", "2kwkwk", "222222"],
   torso: [".2222.", "122223", "122222"],
   akimbo: ["122223", "1.22.3", ".2222."],
   legs: {
@@ -87,6 +91,8 @@ const WARRIOR: Body = {
     d: ["..1111..", "...11...", "...11...", "...B...."],
     air: ["..1111..", ".11.11..", ".1..1...", "B..B...."],
     tuck: [".11..11.", "11...11.", ".B....B.", "........"],
+    // A lunge: the back leg stretched out behind, the front knee bent.
+    lunge: [".11..11.", "11....11", "1......1", "B......B"],
   },
 };
 
@@ -166,9 +172,15 @@ export interface UnitFrame {
   wing?: string;
   /**
    * How the sword is held: level at the waist, low (forward and down from the hip), up (diagonally up and forward),
-   * or raised (straight up over the head, leaving a gate).
+   * raised (straight up over the head, leaving a gate) or thrust (level at arm's length, `thrust` pixels long).
    */
-  sword?: "level" | "low" | "up" | "raised";
+  sword?: "level" | "low" | "up" | "raised" | "thrust";
+  /** Pixels the whole body is thrown forward (a lunge). */
+  lean?: number;
+  /** Drawn from the spec's `dash` rows instead of its parts. */
+  dash?: boolean;
+  /** The antennae spread (the idle twitch). */
+  twitch?: boolean;
   /** Drawn from the spec's `dive` rows instead of its parts. */
   dive?: boolean;
   blink?: boolean;
@@ -186,6 +198,13 @@ export interface UnitSpec {
    * sword hangs straight down under it.
    */
   dive?: readonly string[];
+  /**
+   * The attack as one level body flying forward, wings streaming over the back: its last four rows are the body,
+   * and the sword goes straight on from its front.
+   */
+  dash?: readonly string[];
+  /** Blade length of a thrust, past the outstretched hand. */
+  thrust?: number;
   /** A plume sweeping back from the top of the head (the Queen's crest). */
   crest?: readonly string[];
   wings?: Record<string, Wing>;
@@ -219,6 +238,16 @@ const flier = (queen: boolean): UnitFrame[] => {
     // Only the Queen dives.
     ...(queen ? [{ name: "dive", legs: "tuck", dive: true }] : []),
     ...walk,
+    // The attack: a warrior lunges behind his sword, the Queen dashes level behind hers.
+    queen
+      ? { name: "attack", legs: "tuck", dash: true }
+      : {
+          name: "attack",
+          legs: "lunge",
+          wing: "swept",
+          sword: "thrust",
+          lean: 2,
+        },
   ];
 };
 
@@ -231,7 +260,18 @@ const FLY = {
   },
   glide: { frames: ["glide"], fps: 1, loop: false },
   walk: { frames: ["walk1", "walk2", "walk3", "walk4"], fps: 12, loop: true },
+  attack: { frames: ["attack"], fps: 1, loop: false },
 };
+
+/** The Queen's attack: a level dash, 17 wide and 4 tall, her wings a streak over her back. */
+const QUEEN_DASH = [
+  "..WWWWWW.........",
+  ".WIIIIFF.233.....",
+  "31312222222333333",
+  "13112222222kkkwwk",
+  "31312222222222222",
+  "B1.1111111.22222.",
+];
 
 /** The Queen's dive: a column five wide, her wings a streak up her back. */
 const QUEEN_DIVE = [
@@ -263,6 +303,20 @@ const WORKER_POSES: UnitFrame[] = [
   { name: "jump", legs: "air" },
   { name: "fall", legs: "tuck" },
   { name: "blink", legs: "stand", blink: true },
+  { name: "idle2", legs: "stand", twitch: true },
+];
+
+/** The Worker's idle at 80 ms a frame: two seconds with two antenna twitches and a blink. */
+const WORKER_IDLE = [
+  ...Array<string>(8).fill("idle"),
+  "idle2",
+  "idle2",
+  ...Array<string>(8).fill("idle"),
+  "idle2",
+  "idle2",
+  ...Array<string>(3).fill("idle"),
+  "blink",
+  "blink",
 ];
 
 export const UNIT_SPECS: Record<"worker" | "warrior" | "queen", UnitSpec> = {
@@ -278,24 +332,33 @@ export const UNIT_SPECS: Record<"worker" | "warrior" | "queen", UnitSpec> = {
       })),
     ],
     animations: {
-      idle: { frames: ["idle", "idle", "idle", "blink"], fps: 3, loop: true },
-      run: { frames: ["run1", "run2", "run3", "run4"], fps: 12, loop: true },
+      idle: { frames: WORKER_IDLE, fps: 12.5, loop: true },
+      // 70 ms a frame (14.3 fps), kept exact so a whole loop comes round to its first frame.
+      run: {
+        frames: ["run1", "run2", "run3", "run4"],
+        fps: 1000 / 70,
+        loop: true,
+      },
       jump: { frames: ["jump"], fps: 1, loop: false },
       fall: { frames: ["fall"], fps: 1, loop: false },
     },
   },
   warrior: {
     body: WARRIOR,
-    cell: [19, 18],
+    // Wide enough for the lunge: the sword's tip is 14 pixels ahead of the anchor.
+    cell: [31, 18],
     wings: WARRIOR_WINGS,
     blade: 4,
+    thrust: 8,
     frames: flier(false),
     animations: FLY,
   },
   queen: {
     body: QUEEN,
-    cell: [23, 24],
+    // Wide enough for the dash: the sword's tip is 15 pixels ahead of the anchor.
+    cell: [33, 24],
     below: 5,
+    dash: QUEEN_DASH,
     wings: QUEEN_WINGS,
     blade: 7,
     abdomen: true,
@@ -368,17 +431,29 @@ export const unitFrame = (
         put(cell, middle + 1, at.y - 1 + rows.h + i, blade(i, 4));
     return cell;
   }
+  if (pose.dash && spec.dash) {
+    const rows = fromRows(spec.dash, key);
+    const left = middle - Math.floor(rows.w / 2);
+    // The four body rows sit round the middle of the standing body.
+    const top = at.y + Math.floor((feet + 4 - at.y) / 2) - rows.h + 2;
+    blit(cell, rows, left, top);
+    if (spec.blade && !bare)
+      for (let i = 0; i < spec.blade; i++)
+        put(cell, left + rows.w + i, top + rows.h - 2, blade(i, spec.blade));
+    return cell;
+  }
+  const lean = pose.lean ?? 0;
   const shoulder = at.torso + 1;
   const wing = pose.wing && !bare ? spec.wings?.[pose.wing] : undefined;
   if (wing)
     blit(
       cell,
       fromRows(wing.rows, key),
-      at.x - wing.root[0],
+      at.x + lean - wing.root[0],
       shoulder - wing.root[1],
     );
   if (wing?.front)
-    blit(cell, fromRows(wing.front, key), at.x + at.width, shoulder - 1);
+    blit(cell, fromRows(wing.front, key), at.x + lean + at.width, shoulder - 1);
   if (spec.abdomen)
     blit(cell, fromRows([".3", "31", "13"], key), at.x - 2, at.torso + 2);
   if (spec.crest) blit(cell, fromRows(spec.crest, key), at.x - 2, at.y);
@@ -386,17 +461,28 @@ export const unitFrame = (
     blit(cell, fromRows(["hbb", "bbb", "sbb"], key), at.x - 3, at.torso);
   const legs = spec.body.legs[pose.legs];
   if (!legs) throw new Error(`no legs ${pose.legs}`);
-  const head = pose.blink
-    ? (spec.body.blink ?? spec.body.head)
-    : spec.body.head;
+  const head =
+    (pose.blink
+      ? spec.body.blink
+      : pose.twitch
+        ? spec.body.twitch
+        : undefined) ?? spec.body.head;
   const torso =
     pose.legs === "stand"
       ? (spec.body.akimbo ?? spec.body.torso)
       : spec.body.torso;
-  blit(cell, fromRows([...head, ...torso, ...legs], key), at.x, at.y);
+  blit(cell, fromRows([...head, ...torso, ...legs], key), at.x + lean, at.y);
   if (spec.blade && pose.sword && !bare) {
     const hand = feet - 2;
-    const front = at.x + at.width;
+    const front = at.x + lean + at.width;
+    if (pose.sword === "thrust") {
+      // The arm straight out, then the blade.
+      const length = spec.thrust ?? spec.blade;
+      put(cell, front, hand, team[3]);
+      for (let i = 0; i < length; i++)
+        put(cell, front + 1 + i, hand, blade(i, length));
+      return cell;
+    }
     for (let i = 0; i < spec.blade; i++) {
       const c = blade(i, spec.blade);
       if (pose.sword === "level") put(cell, front + i, hand, c);
@@ -569,14 +655,53 @@ const EGG: Record<string, readonly string[]> = {
 };
 
 /** A Queen's egg standing on the hive floor, 8 by 14 without its outline: whole, cracked, or hatched. */
-export const egg = (team: Ramp, state: "full" | "cracked" | "broken"): Img =>
-  fromRows(EGG[state] ?? [], {
-    W: WHITE,
-    w: ICE,
-    i: FROST,
-    f: NAVY.steel,
-    t: team[2],
+export const egg = (team: Ramp, state: "full" | "cracked" | "broken"): Img => {
+  // A whole egg glows warm yellow; a cracked one has dimmed and a shell is dull.
+  const [light, body, shade, foot] =
+    state === "full"
+      ? [CREAM, GOLD[3], GOLD[2], GOLD[1]]
+      : state === "cracked"
+        ? [GOLD[3], GOLD[2], GOLD[1], GOLD[0]]
+        : [GOLD[2], GOLD[1], GOLD[0], NAVY.steel];
+  return fromRows(EGG[state] ?? [], {
+    W: light,
+    w: body,
+    i: shade,
+    f: foot,
+    t: state === "full" ? team[2] : team[1],
     x: VOID,
+  });
+};
+
+// ---------------------------------------------------------------------------------------------------------------
+// Military victory
+
+const FALLEN = [
+  ".........VV.........",
+  ".........VV.........",
+  ".......vVVVVv.......",
+  ".........WI.........",
+  ".........WI.........",
+  ".........WI.........",
+  "..WII....WI..233....",
+  ".3131222.WI.2333333.",
+  ".1311222.WI.22kkkkk.",
+  ".3131222222222222222",
+  ".B1.1111111.22222...",
+];
+
+/** The military win: `team`'s Queen lying dead, eyes shut, a sword planted through her. 22 by 13 with its rim. */
+export const fallenQueen = (team: Ramp): Img =>
+  fromRows(FALLEN, {
+    "1": team[1],
+    "2": team[2],
+    "3": team[3],
+    k: INK,
+    B: team[0],
+    W: WHITE,
+    I: ICE,
+    V: VIOLET[3],
+    v: VIOLET[2],
   });
 
 // ---------------------------------------------------------------------------------------------------------------

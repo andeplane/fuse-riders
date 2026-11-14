@@ -6,7 +6,7 @@ Hand-pixelled insects and arena at arcade scale in Fuse Riders' neon-on-navy pal
 | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `assets.ts`                                                         | Palette, every image-model prompt (`GENERATIONS`), and how each generated sheet is cut and animated |
 | `arcade.ts`                                                         | Units and props pixelled by hand at arcade scale: units, berries, hives, eggs, gates, goal nets     |
-| `procedural.ts`                                                     | The rest drawn in code: tiles, effects, HUD strip, banners                                          |
+| `procedural.ts`                                                     | The rest drawn in code: tiles and effects                                                           |
 | `pixel.ts`                                                          | Dependency-free image tools (PNG codec, chroma key, grid detection, palette, outline)               |
 | `raw/`                                                              | Generated sheets after `cut`: real pixels on the shared palette, team colour in neutral green       |
 | `raw-full/`                                                         | The model's original 1–1.5 MB images; not committed                                                 |
@@ -49,38 +49,37 @@ Poses and proportions follow footage of the arcade original; the pixels are our 
 
 - **Queen.** Flying: slim body, a crest swept back from the head in the team colour, thin legs trailing, two pairs of wings, the sword level at the waist pointing forward. Diving: a column 7 wide, wings folded up the back, the sword straight down with its tip 4 pixels under the feet. On the ground the sword rests forward and down.
 - **Warrior.** Horned helmet, small wings. Standing and walking, the sword points diagonally up and forward; flying, straight forward. Warriors do not dive.
-- **Worker.** Upright, a dark visor with two eyes; standing still its hands are on its hips.
+- **Worker.** Upright, a dark visor with two eyes; standing still its hands are on its hips. Idle plays at 12.5 fps (80 ms a frame: two antenna twitches and a blink in two seconds), the run at 14.3 fps (70 ms).
 - **Gate.** The worker goes into the dark doorway and is not drawn; the warrior comes out of the top sword first (`gate-emerge-*`, half a second).
-- **Kill.** No fireball: `kill-burst-*` is 44 specks of one or two pixels in the victim's colour, flung about 40 pixels.
+- **Attack.** A warrior lunges, the sword level at arm's length with its tip 14 pixels ahead of the anchor; the Queen dashes level, body 17 × 4, blade tip 15 pixels ahead. `clash` is the glint where two blades meet. Kills and deaths are drawn by the renderer, not from sheets.
+- **Egg.** A whole egg glows yellow with a band in the team's colour; cracked is dimmer and the broken shell dull.
+- **Military win.** `win-military-*` is that team's Queen dead with a sword through her.
 
 ## Sizes
 
 Art pixels, including the one-pixel outline. Anchors are in the manifest; units and props stand on their anchor.
 
-| Asset                           | Cell                      | Drawn size, about                             |
-| ------------------------------- | ------------------------- | --------------------------------------------- |
-| Worker, speed worker            | 14 × 14                   | 8 × 13; 11 wide with a berry on its back      |
-| Warrior, speed warrior          | 19 × 18                   | body 10 × 17, 17 across with wings and sword  |
-| Queen                           | 23 × 24                   | body 9 × 18, 22 across with wings and sword   |
-| Snail                           | 40 × 20                   | 29–37 × 17                                    |
-| Gates                           | 35 × 28                   | pillars 21 × 13; wings 31 across; 24–27 tall  |
-| Gate emerge (6 frames)          | 35 × 40                   |                                               |
-| Hive: day, dusk, night          | 54 × 54, 59 × 79, 85 × 51 | the bottom row is empty: it is the anchor row |
-| Hive hole                       | 5 × 5                     |                                               |
-| Egg                             | 10 × 16                   |                                               |
-| Berry                           | 5 × 5                     |                                               |
-| Berry pile (frames 0 to 6)      | 27 × 18                   | leaf 25 wide, berries 15 × 13                 |
-| Goal net                        | 29 × 19                   |                                               |
-| Tiles                           | 8 × 8                     | ground 5 rows drawn, platform 7               |
-| Kill burst (6)                  | 84 × 84                   |                                               |
-| Queen death (8)                 | 100 × 100                 |                                               |
-| Respawn (7)                     | 14 × 24                   |                                               |
-| Transform overlay (4)           | 14 × 14                   |                                               |
-| Banner                          | 232 × 44                  |                                               |
-| Snail strip, snail marker (HUD) | 200 × 7, 9 × 7            |                                               |
-| Logo                            | 106 × 60                  | draw at 2×                                    |
-| Backgrounds                     | 480 × 270                 |                                               |
-| Cover                           | 512 × 512                 | 256 × 256 at 2×                               |
+| Asset                      | Cell                      | Drawn size, about                             |
+| -------------------------- | ------------------------- | --------------------------------------------- |
+| Worker, speed worker       | 14 × 14                   | 8 × 13; 11 wide with a berry on its back      |
+| Warrior, speed warrior     | 31 × 18                   | body 10 × 17, 17 across with wings and sword  |
+| Queen                      | 33 × 24                   | body 9 × 18, 22 across with wings and sword   |
+| Snail                      | 40 × 20                   | 29–37 × 17                                    |
+| Gates                      | 35 × 28                   | pillars 21 × 13; wings 31 across; 24–27 tall  |
+| Gate emerge (6 frames)     | 35 × 40                   |                                               |
+| Hive: day, dusk, night     | 54 × 54, 59 × 79, 85 × 51 | the bottom row is empty: it is the anchor row |
+| Hive hole                  | 5 × 5                     |                                               |
+| Egg                        | 10 × 16                   |                                               |
+| Berry                      | 5 × 5                     |                                               |
+| Berry pile (frames 0 to 6) | 27 × 18                   | leaf 25 wide, berries 15 × 13                 |
+| Goal net                   | 29 × 19                   |                                               |
+| Tiles                      | 8 × 8                     | ground 5 rows drawn, platform 7               |
+| Respawn (7)                | 14 × 24                   |                                               |
+| Clash (4)                  | 15 × 15                   |                                               |
+| Military win               | 22 × 13                   |                                               |
+| Logo                       | 106 × 60                  | draw at 2×                                    |
+| Backgrounds                | 480 × 270                 |                                               |
+| Cover                      | 512 × 512                 | 256 × 256 at 2×                               |
 
 A unit's anchor is under its feet. The Queen's is at [11, 18], five rows above the cell's bottom: those rows hold only her diving sword.
 
