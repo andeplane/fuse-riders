@@ -323,6 +323,7 @@ describe(tipPrompt.name, () => {
       "Open Fuseball",
       "Play some music",
       "Which games are there?",
+      "Open Paint, maximize it and play some music",
     ]);
   });
 

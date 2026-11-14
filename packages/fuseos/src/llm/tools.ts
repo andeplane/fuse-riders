@@ -106,11 +106,14 @@ export async function runToolCalls(
   invocations: readonly ToolInvocation[],
   tools: readonly AssistantTool[],
   report: (event: ToolCallEvent) => void,
+  /** Awaited between two calls, so the second sees what the first did to the desktop. */
+  settle: () => Promise<void> = () => Promise.resolve(),
 ): Promise<ToolResult[]> {
   const results: ToolResult[] = [];
   for (const invocation of invocations) {
     const tool = tools.find((candidate) => candidate.name === invocation.name);
     if (!tool) continue;
+    if (results.length > 0) await settle();
     const sentence = tool.sentence(invocation);
     report({ name: tool.name, sentence, phase: "started" });
     let result: ToolResult;

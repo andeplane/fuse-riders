@@ -1,10 +1,16 @@
 import type {
+  AgentCompletion,
+  AgentCompletionRequest,
+  FunctionToolDef,
+} from "./agentLoop";
+import type {
   ChatBackend,
   ChatEngine,
   LlmMessage,
+  LoopStyle,
   ReplyRequest,
 } from "./llmChat";
-import { modelLabel } from "./modelCatalog";
+import { loopStyleFor, modelLabel } from "./modelCatalog";
 
 /**
  * Clippy's model, over `@mlc-ai/web-llm` in a module worker. The library and the weights are reached only
@@ -26,6 +32,16 @@ export interface LlmEngine {
     messages: readonly LlmMessage[],
     signal: AbortSignal,
   ): AsyncIterable<string>;
+  /**
+   * One whole reply for the agent loop: held to `jsonSchema` by the grammar when given, or free to call the
+   * native `tools`. Aborting the signal interrupts generation.
+   */
+  complete(
+    request: Pick<
+      AgentCompletionRequest,
+      "messages" | "signal" | "jsonSchema" | "tools"
+    >,
+  ): Promise<AgentCompletion>;
   /** Releases the model's GPU memory and its worker. */
   unload(): Promise<void>;
 }
@@ -68,6 +84,8 @@ export function loadFailureReason(modelId: string, error: unknown): string {
 }
 
 export const GENERATION = { temperature: 0.7, max_tokens: 200 } as const;
+/** A tool call wants the likeliest token, not a lively one, and room for a file's worth of content. */
+export const AGENT_GENERATION = { temperature: 0.2, max_tokens: 512 } as const;
 
 /**
  * The chat engine over a lazily loaded model. The first reply loads the model (download, then warm-up), later ones
@@ -97,23 +115,39 @@ export function createWebLlmChatEngine(
       ? { kind: "model", modelId, label: modelLabel(modelId) }
       : { kind: "rules", reason: failure };
 
+  /** The loaded model, with the load's progress going to `report`; rejects when it cannot load (`failure` says why). */
+  const loaded = async (report: (text: string) => void): Promise<LlmEngine> => {
+    onProgress = report;
+    try {
+      return await load();
+    } finally {
+      onProgress = () => undefined;
+    }
+  };
+
   return {
     backend,
+    loopStyle: (): LoopStyle =>
+      failure === undefined ? loopStyleFor(modelId) : "markers",
+    async ready(report) {
+      await loaded(report);
+    },
+    async complete(request) {
+      const engine = await loaded(request.onProgress);
+      return engine.complete(request);
+    },
     async *reply(request: ReplyRequest) {
       if (failure !== undefined) {
         yield* fallback.reply(request);
         return;
       }
-      onProgress = request.onProgress;
       let engine: LlmEngine;
       try {
-        engine = await load();
+        engine = await loaded(request.onProgress);
       } catch {
         // `load` recorded why; the rules answer this question and the next ones.
         yield* fallback.reply(request);
         return;
-      } finally {
-        onProgress = () => undefined;
       }
       if (request.signal.aborted) return;
       request.onProgress("Thinking");
@@ -132,16 +166,39 @@ export function createWebLlmChatEngine(
   };
 }
 
+export type MlcStreamRequest = {
+  messages: LlmMessage[];
+  stream: true;
+  temperature: number;
+  max_tokens: number;
+};
+
+export type MlcCompletionRequest = {
+  messages: LlmMessage[];
+  stream: false;
+  temperature: number;
+  max_tokens: number;
+  response_format?: { type: "json_object"; schema: string };
+  tools?: FunctionToolDef[];
+  tool_choice?: "auto";
+};
+
+export type MlcCompletion = {
+  choices: readonly {
+    message: {
+      content?: string | null;
+      tool_calls?:
+        readonly { function: { name: string; arguments: string } }[] | null;
+    };
+  }[];
+};
+
 /** The slice of web-llm's engine the adapter drives; `WebWorkerMLCEngine` satisfies it. */
 export type MlcEngineLike = {
   chat: {
     completions: {
-      create(request: {
-        messages: LlmMessage[];
-        stream: true;
-        temperature: number;
-        max_tokens: number;
-      }): Promise<AsyncIterable<MlcChunk>>;
+      create(request: MlcStreamRequest): Promise<AsyncIterable<MlcChunk>>;
+      create(request: MlcCompletionRequest): Promise<MlcCompletion>;
     };
   };
   interruptGenerate(): void;
@@ -172,6 +229,38 @@ export function adaptMlcEngine(
           const delta = chunk.choices[0]?.delta.content;
           if (delta) yield delta;
         }
+      } finally {
+        signal.removeEventListener("abort", interrupt);
+      }
+    },
+    async complete({ messages, signal, jsonSchema, tools }) {
+      const interrupt = () => engine.interruptGenerate();
+      signal.addEventListener("abort", interrupt, { once: true });
+      try {
+        const completion = await engine.chat.completions.create({
+          messages: [...messages],
+          stream: false,
+          ...AGENT_GENERATION,
+          ...(jsonSchema === undefined
+            ? {}
+            : { response_format: { type: "json_object", schema: jsonSchema } }),
+          ...(tools === undefined || tools.length === 0
+            ? {}
+            : { tools: [...tools], tool_choice: "auto" as const }),
+        });
+        const message = completion.choices[0]?.message;
+        const calls = message?.tool_calls ?? [];
+        return {
+          text: message?.content ?? "",
+          ...(calls.length === 0
+            ? {}
+            : {
+                toolCalls: calls.map((call) => ({
+                  name: call.function.name,
+                  arguments: call.function.arguments,
+                })),
+              }),
+        };
       } finally {
         signal.removeEventListener("abort", interrupt);
       }

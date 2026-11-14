@@ -143,6 +143,33 @@ describe(runToolCalls.name, () => {
     ]);
   });
 
+  it("lets the desktop settle between two calls, not before the first or after the last", async () => {
+    const order: string[] = [];
+    const step = (name: string): AssistantTool => ({
+      name,
+      describe: () => name,
+      sentence: () => name,
+      run: () => {
+        order.push(name);
+        return { ok: true, sentence: name };
+      },
+    });
+    await runToolCalls(
+      [
+        { name: "a", arg: "" },
+        { name: "b", arg: "" },
+        { name: "missing", arg: "" },
+        { name: "c", arg: "" },
+      ],
+      [step("a"), step("b"), step("c")],
+      () => undefined,
+      async () => {
+        order.push("settle");
+      },
+    );
+    expect(order).toEqual(["a", "settle", "b", "settle", "c"]);
+  });
+
   it("reports a thrown non-Error as its text", async () => {
     const events: ToolCallEvent[] = [];
     await runToolCalls(

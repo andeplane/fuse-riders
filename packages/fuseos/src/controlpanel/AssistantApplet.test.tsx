@@ -15,7 +15,7 @@ import type { AppState } from "../state/appState";
 import { DEFAULT_STATE } from "../state/appState";
 
 import { ControlPanelWindow } from "./ControlPanelWindow";
-import { NO_WEBGPU_NOTICE } from "./AssistantApplet";
+import { formatDownload, NO_WEBGPU_NOTICE } from "./AssistantApplet";
 
 const OPEN_ON_ASSISTANT: AppState = {
   ...DEFAULT_STATE,
@@ -70,10 +70,17 @@ describe("AssistantApplet", () => {
     const user = userEvent.setup();
     const { assistantOptions } = renderApplet();
     const radios = within(brain()).getAllByRole("radio");
-    expect(radios).toHaveLength(2);
+    expect(radios).toHaveLength(3);
     expect(
-      within(brain()).getByLabelText(/Qwen 2.5 0.5B \(about 300 MB\)/),
+      within(brain()).getByLabelText(/^Qwen 2.5 0.5B \(about 290 MB\)/),
     ).toBeChecked();
+    // The model that works step by step is flagged, with its download size.
+    expect(
+      within(brain()).getByLabelText(
+        /^Clippy Pro \(Qwen 2.5 1.5B\) \(about 880 MB, recommended\): Works through a request step by step/,
+      ),
+    ).not.toBeChecked();
+    expect(formatDownload(1817)).toBe("about 1.8 GB");
     await waitFor(() =>
       expect(
         within(brain()).getByRole("status", { name: "Model status" }),
@@ -85,7 +92,7 @@ describe("AssistantApplet", () => {
     expect(within(brain()).queryByText(NO_WEBGPU_NOTICE)).toBeNull();
 
     await user.click(
-      within(brain()).getByLabelText(/Llama 3.2 1B \(about 700 MB\)/),
+      within(brain()).getByLabelText(/Llama 3.2 1B \(about 705 MB\)/),
     );
     expect(assistantOptions.get().model).toBe(
       "Llama-3.2-1B-Instruct-q4f16_1-MLC",

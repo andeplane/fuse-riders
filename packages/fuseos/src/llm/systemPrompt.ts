@@ -1,3 +1,6 @@
+import type { AgentTool } from "../agenttools/agentTool";
+import { ANSWER_TOOL, describeTool } from "../agenttools/agentTool";
+
 import type { AssistantTool } from "./tools";
 import { toolInstructions } from "./tools";
 
@@ -34,4 +37,37 @@ export function buildSystemPrompt(
   return [CLIPPY_PERSONA, games, retro, apps, toolInstructions(tools)]
     .filter((section) => section !== "")
     .join("\n\n");
+}
+
+/**
+ * Clippy's instructions for the agent loop: the persona, the games, and every typed tool with its call shape.
+ * The same text serves both wire formats; the JSON one also needs the reply shape spelled out.
+ */
+export function buildAgentPrompt(
+  catalog: PromptCatalog,
+  tools: readonly AgentTool[],
+  style: "json" | "native" = "json",
+): string {
+  const games =
+    catalog.games.length === 0
+      ? "No Fuse games are installed."
+      : `Fuse games: ${catalog.games.map((game) => `${game.name} (${game.tagline})`).join("; ")}.`;
+  const format =
+    style === "json"
+      ? [
+          `You operate the desktop for the user by calling tools, one per reply. Every reply is exactly one JSON object and nothing else: {"tool":"<name>","args":{...}}.`,
+          `After each call you are told the result. Then call the next tool, or finish with {"tool":"${ANSWER_TOOL}","args":{"text":"<what you say to the user>"}}.`,
+          `Example. User: "open paint and play music". You: {"tool":"open_app","args":{"id":"paint"}} then {"tool":"music","args":{"action":"play"}} then {"tool":"${ANSWER_TOOL}","args":{"text":"Paint is open and the music is playing!"}}`,
+        ]
+      : [
+          "You operate the desktop for the user by calling tools. After each call you are told the result; call the next tool, or answer the user in plain words when the request is done.",
+        ];
+  return [
+    CLIPPY_PERSONA,
+    ...format,
+    `Do exactly what the user asked and nothing more. When the user asks for several things, call one tool for each of them before you answer, and never say you did something you did not call a tool for. A question or a chat needs no tool: ${style === "json" ? `use ${ANSWER_TOOL}` : "just answer"} straight away. Never invent ids, windows or paths; look first (get_desktop_state, list_games, list_dir) when unsure.`,
+    "Tools:",
+    ...tools.map(describeTool),
+    games,
+  ].join("\n");
 }

@@ -143,14 +143,14 @@ export function AssistantBalloon({ vm }: { vm: OfficeAssistantViewModel }) {
           {chat.messages.map((message) => (
             <Message key={message.id} message={message} />
           ))}
+          {chat.calls.map((call, index) => (
+            <ToolCallLine key={`${call.name}-${index}`} call={call} />
+          ))}
           {chat.isStreaming && chat.progress ? (
             <li className="assistant-tool assistant-tool-running" role="status">
               {chat.progress}...
             </li>
           ) : null}
-          {chat.calls.map((call, index) => (
-            <ToolCallLine key={`${call.name}-${index}`} call={call} />
-          ))}
         </ul>
       ) : null}
       {chat.error ? <p className="text-[maroon]">{chat.error}</p> : null}
@@ -180,8 +180,12 @@ export function AssistantBalloon({ vm }: { vm: OfficeAssistantViewModel }) {
           Send
         </button>
         {chat.isStreaming ? (
-          <button type="button" onClick={vm.stopChat}>
-            Stop
+          <button
+            type="button"
+            title="Stop what Clippy is doing"
+            onClick={vm.stopChat}
+          >
+            Cancel
           </button>
         ) : (
           <button

@@ -16,6 +16,13 @@ const ASSISTANT_FLAGS: {
   { key: "sounds", label: "Play sounds" },
 ];
 
+/** "about 290 MB", "about 1.8 GB": the download as the model list shows it. */
+export function formatDownload(megabytes: number): string {
+  return megabytes < 1000
+    ? `about ${megabytes} MB`
+    : `about ${(megabytes / 1000).toFixed(1)} GB`;
+}
+
 export const NO_WEBGPU_NOTICE =
   "This browser has no WebGPU, so Clippy follows simple commands instead of running a model. Chrome or Edge on a computer runs the model.";
 
@@ -105,7 +112,9 @@ export function AssistantApplet({ windowId }: { windowId: string }) {
         <p>
           Questions are answered by a small model that runs in this browser on
           your graphics card. It downloads once, on the first question, and
-          nothing you type leaves this device.
+          nothing you type leaves this device. The small models do one thing per
+          request; a Clippy Pro model works through several steps (open this,
+          maximize that, play music) and shows each one as it goes.
         </p>
         {hasWebGpu ? null : <p className="text-[maroon]">{NO_WEBGPU_NOTICE}</p>}
         <div
@@ -124,7 +133,8 @@ export function AssistantApplet({ windowId }: { windowId: string }) {
                 onChange={() => vm.setAssistantOptions({ model: model.id })}
               />
               <label htmlFor={`assistant-model-${model.id}`}>
-                {model.label} (about {model.downloadMb} MB): {model.description}
+                {model.label} ({formatDownload(model.downloadMb)}
+                {model.recommended ? ", recommended" : ""}): {model.description}
               </label>
             </div>
           ))}
