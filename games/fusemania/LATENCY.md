@@ -76,6 +76,8 @@ The lab shows this live: `room clock: moved 0 of N presses (least room M ms)`. `
 
 ## The timing lab
 
+![The timing lab beside a click track, the microphone listening](../../docs/images/fusemania-debugtiming.jpg)
+
 `/fusemania/?debugtiming` opens a solo game on a click track with a panel beside it. The flag also works on any room or solo URL and stays on through the menus.
 
 - **Offsets.** The three knobs in steps of 1 and 5 ms, applied at once.
@@ -144,7 +146,7 @@ These are a cloud container's figures: no display, no audio device, and keys inj
 | Expected (62 − counted latency)    | +20.8 ms                   | +30.0 ms               |
 | Presses moved by the room clock    | 0 of 31, least room 158 ms | 0 of 31                |
 
-So the microphone finds a known error to within half a millisecond through the real capture path, and the two mappings differ by exactly the 9 ms of output delay that this browser's `outputLatency` leaves out and its clock pair includes.
+So the microphone finds a known error to within about a millisecond through the real capture path (three more runs gave +19.4 to +20.4 against +20.5 to +20.9 expected), and the two mappings differ by exactly the 9 ms of output delay that this browser's `outputLatency` leaves out and its clock pair includes.
 
 On a MacBook (Chrome 157, 120 Hz display, a silent context on the live site, so no keys and no sound): `outputLatency` 168 ms and steady, the audio clock advancing 5.3 or 10.7 ms at a time with a reading up to 5.3 ms stale, the clock pair holding within 0.17 ms from frame to frame and putting the output 176 ms behind the clock, 8 ms more than `outputLatency` says. Those 8 ms were in every judgment before the clock pair was used.
 
