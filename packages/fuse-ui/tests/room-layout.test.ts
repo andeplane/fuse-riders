@@ -508,6 +508,24 @@ test("header actions put a game's own actions, Settings and the main action acro
   );
 });
 
+test("a compact room whose seats are roles is marked to show every open seat, and only when compact", () => {
+  const { document } = page();
+  const build = (compact: boolean) => {
+    const root = document.createElement("section");
+    document.body.append(root);
+    createRoomLayout({
+      element: root,
+      roster: createRoster({ document }),
+      capacity: 6,
+      compactShowsEverySeat: true,
+      ...(compact ? { compact: true } : {}),
+    });
+    return root;
+  };
+  assert.equal(build(true).classList.contains("fui-room-every-seat"), true);
+  assert.equal(build(false).classList.contains("fui-room-every-seat"), false);
+});
+
 test("a compact room is one column: no invitation, the heading beside Back, and the same header actions", () => {
   const { document } = page(),
     root = document.createElement("section"),

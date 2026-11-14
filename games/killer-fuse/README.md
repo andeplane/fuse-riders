@@ -18,8 +18,8 @@ npx tsx service/dev.ts --port 8890     # serves dist/ and the room service
 
 Open `http://localhost:8890/killer-fuse/?mute`. The shared main menu opens with a silent six-bot demo playing behind it:
 
-- **Play** creates a room with a QR invite. Others join by the code or the link. The room lists its six numbered seats — Cyan and Pink, the Queens first — and **Join** takes one; a seated player taps another open seat to move there. Empty seats are played by the engine's bots, so one person can start. **Game settings** holds the bot level, the map, the set length and **Shared TV**; with Shared TV on, **OPEN TV SCREEN** opens `?room=CODE&display=1` and every phone becomes a controller.
-- **How to play** and **About** open the guide and the credits; **Settings** holds this device's sound, Hold to flap and Shared TV choices.
+- **Play** creates a room with a QR invite. Others join by the code or the link. The room lists its six numbered seats — Cyan and Pink, the Queens first — and **Join** takes one; a seated player taps another open seat to move there. Empty seats are played by the engine's bots, so one person can start. **Settings** and **START** sit at the top of the room beside Back. **Settings** holds the bot level, the map and the set length. The host ticks **Shared TV** under the invitation; with it on, **OPEN TV SCREEN** opens `?room=CODE&display=1` and every phone becomes a controller.
+- **How to play** and **About** open the guide and the credits; **Settings** holds this device's sound and Hold to flap choices.
 - **Join a room · Solo & local play** keeps joining by code, **PLAY SOLO WITH BOTS** (`?solo=1`) and the tutorial lessons (`?solo=1&tutorial=<id>`).
 
 `pnpm dev` does the build and starts the service on port 8787 in one step.
