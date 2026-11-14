@@ -55,7 +55,8 @@ const SITTING = 600;
 const NUDGE_RANGE = 300 * SUB,
   NUDGE_FROM = 60 * SUB,
   NUDGE = 3200;
-/** With the ball's centre this close to its own, it is standing in the ball. */
+/** The ball is at its feet inside this, and it is standing in the ball inside `BURIED`. */
+const TOUCHING = T.RIDER_R + T.BALL_R + SUB;
 const BURIED = div(T.RIDER_R + T.BALL_R, 2);
 /** The other rider this close to a sitting ball is pinning it. */
 const PIN = 30 * SUB;
@@ -452,8 +453,7 @@ export function botInput(world: World, rider: Rider): number {
   const ahead = flight(world, map, world.ball, SIGHT, rider);
   // It is going in by itself: stay out of its way. Unless it is under this rider's feet, where it is going nowhere.
   const on = apart(world.ball.x, world.ball.y, rider.x, rider.y, map),
-    touching =
-      on.dx * on.dx + on.dy * on.dy < (T.RIDER_R + T.BALL_R + SUB) ** 2;
+    touching = on.dx * on.dx + on.dy * on.dy < TOUCHING * TOUCHING;
   if (ahead.into === rider.slot && !touching) return 0;
   // Standing in the ball (it is jammed under it in a corner) helps nobody: step off it, away from the wall.
   if (on.dx * on.dx + on.dy * on.dy < BURIED * BURIED)
