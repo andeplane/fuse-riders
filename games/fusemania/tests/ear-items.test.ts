@@ -225,6 +225,20 @@ test("shaping a song changes only its loudness per ear, never when it plays", as
   song.play(20, 0);
   assert.equal(r.buffers.at(-1)!.output, gain);
   assert.equal(r.gains.length, gains + 1, "one way out per song");
+
+  // Stopped mid-effect, or run out: the next play starts as the song itself.
+  song.shape(0.04, 0.8);
+  song.stop();
+  assert.equal(gain.gain.value, 1);
+  assert.equal(panner.pan.value, 0);
+  song.play(30, 0);
+  song.shape(0.04, 0.8);
+  r.buffers.at(-1)!.end();
+  assert.equal(gain.gain.value, 1);
+  assert.equal(panner.pan.value, 0);
+  song.play(40, 0);
+  song.shape(0.3, 0);
+  assert.equal(gain.gain.value, 0.3, "and can be shaped again");
 });
 
 test("a browser without a stereo panner still fades", async () => {

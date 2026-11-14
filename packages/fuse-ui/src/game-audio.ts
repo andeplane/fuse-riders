@@ -211,7 +211,7 @@ export interface ClockedSong {
    * Shapes this song alone, for an effect a game puts on its music: `level` (0 to 1) scales how loud it is and `pan`
    * (-1 left to 1 right) moves it between the speakers. Both are eased over `SHAPE_EASE` seconds so a frame-by-frame
    * caller makes no clicks. Only loudness changes, per ear: nothing is delayed, so the song stays on the clock. The
-   * shape is the song's own and outlives `stop`; `shape(1, 0)` is the song as it is.
+   * shape lasts until `stop` or the end of the song; `shape(1, 0)` is the song as it is.
    */
   shape(level: number, pan: number): void;
 }
@@ -400,6 +400,19 @@ export function createGameAudio(
       param.setValueAtTime(param.value, now);
       param.linearRampToValueAtTime(value, now + SHAPE_EASE);
     };
+    // A song that stops or runs out is itself again at once, so the next play never starts faded or to one side.
+    const unshape = () => {
+      shaped = { level: 1, pan: 0 };
+      if (!shaper) return;
+      for (const [param, value] of [
+        [shaper.gain.gain, 1],
+        [shaper.panner?.pan, 0],
+      ] as const) {
+        if (!param) continue;
+        param.cancelScheduledValues(audio.currentTime);
+        param.value = value;
+      }
+    };
     const release = () => {
       clocked.delete(song);
       syncMusic();
@@ -440,6 +453,7 @@ export function createGameAudio(
           if (source !== next) return;
           source = undefined;
           next.disconnect();
+          unshape();
           release();
         };
         next.start(when, from);
@@ -454,6 +468,7 @@ export function createGameAudio(
         old.onended = null;
         old.stop();
         old.disconnect();
+        unshape();
         release();
       },
       shape(level, pan) {
