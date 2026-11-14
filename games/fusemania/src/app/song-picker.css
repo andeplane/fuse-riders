@@ -609,3 +609,45 @@
     height: 5rem;
   }
 }
+/* A song this device has not downloaded yet: a mark on the corner of its cover. */
+.fm-picker-row-audio {
+  position: absolute;
+  top: 0.375rem;
+  right: 0.375rem;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--fui-cyan);
+  background: rgb(4 6 20 / 0.82);
+  border: var(--fui-stroke) solid currentcolor;
+  border-radius: 50%;
+  font:
+    700 0.875rem/1 system-ui,
+    sans-serif;
+  pointer-events: none;
+}
+.fm-picker-row-audio[hidden] {
+  display: none;
+}
+.fm-picker-row-audio[data-audio="loading"] {
+  color: var(--fui-yellow);
+  animation: fm-audio-fetch 0.7s ease-in-out infinite alternate;
+}
+.fm-picker-row-audio[data-audio="failed"] {
+  color: var(--fui-pink-soft);
+}
+@keyframes fm-audio-fetch {
+  from {
+    transform: translateY(-0.125rem);
+  }
+  to {
+    transform: translateY(0.125rem);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fm-picker-row-audio[data-audio="loading"] {
+    animation: none;
+  }
+}

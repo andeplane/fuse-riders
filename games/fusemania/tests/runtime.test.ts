@@ -6,6 +6,7 @@ import {
   MARVELOUS,
   MISS,
   NO_JUDGMENT,
+  LEAD_IN_MS,
   SOLO_LEAD_IN_MS,
 } from "../src/engine/index.js";
 import { createFusemaniaGame } from "../src/online/game.js";
@@ -50,6 +51,12 @@ function match(): { mesh: Mesh; host: TestRuntime; guest: TestRuntime } {
   mesh.run(3_000);
   assert.equal(host.roomState()!.seats.size, 2);
   assert.ok(host.command({ type: "action", action: "start" }));
+  // Both devices have the song: they say so, and the room lets it go.
+  mesh.run(600, () => {
+    host.ready();
+    guest.ready();
+  });
+  assert.equal(host.held(), false);
   return { mesh, host, guest };
 }
 
@@ -169,6 +176,8 @@ test("a device that joins mid-song recovers the match from a peer and watches on
   mesh.run(3_000, keys);
   assert.ok(late.command({ type: "spectate", name: "Late" }));
   mesh.run(3_000, keys);
+  // The guest's newest key is still on its way to the others: they are compared once it has arrived.
+  mesh.run(200);
   assert.ok(mesh.align());
   const room = late.roomState()!;
   assert.ok(room.world, "the late device has the match");
@@ -277,4 +286,37 @@ test("a press keeps its own song time while it is inside its tick's bounds, howe
   const lost = judgedOff(400, 13);
   assert.ok(lost.slack < 0, `slack ${lost.slack}`);
   assert.notEqual(lost.off, 13);
+});
+
+test("a song waits for a device that is still getting it, and starts for both when it has it", () => {
+  const mesh = new Mesh("host", SETTINGS);
+  const host = mesh.join("host"),
+    guest = mesh.join("guest");
+  mesh.run(300);
+  host.command({ type: "join", name: "Host" });
+  guest.command({ type: "join", name: "Guest" });
+  mesh.run(3_000);
+  assert.ok(host.command({ type: "action", action: "start" }));
+  // The host has the song and says so again and again; the guest's is still on its way.
+  mesh.run(4_000, () => host.ready());
+  for (const each of [host, guest]) {
+    assert.equal(each.held(), true);
+    assert.equal(each.songMs(), -LEAD_IN_MS, "the song has not moved");
+    assert.equal(each.key(0, true, 0), false, "and takes no keys");
+  }
+  assert.deepEqual(mesh.frames.get("host")!.at(-1)!.waiting, {
+    ids: ["guest"],
+    screen: false,
+  });
+  mesh.run(600, () => {
+    host.ready();
+    guest.ready();
+  });
+  assert.ok(mesh.align());
+  assert.equal(host.held(), false);
+  assert.equal(guest.held(), false);
+  assert.ok(host.songMs()! > -LEAD_IN_MS);
+  assert.equal(game.hash(host.roomState()!), game.hash(guest.roomState()!));
+  // Said once it was heard: the log holds one word from each, not one a frame.
+  assert.equal(host.metrics().mismatches, 0);
 });
