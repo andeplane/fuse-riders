@@ -1,0 +1,1839 @@
+{
+ "source": "https://ccbs.sesse.net/tournaments.pl",
+ "fetched": "2026-11-14",
+ "tournaments": [
+  {
+   "id": 61,
+   "name": "Euromix2 serie 01",
+   "season": "Euromix 2-serie 2002",
+   "place": "Akers Mic",
+   "date": "2002-10-06",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Daniil (HDC)",
+     22
+    ],
+    [
+     "Lars Christian",
+     19
+    ],
+    [
+     "Havok",
+     17
+    ],
+    [
+     "Th0rny",
+     15
+    ],
+    [
+     "kjmcw",
+     13
+    ],
+    [
+     "Eilin",
+     11
+    ],
+    [
+     "Slusk",
+     9
+    ],
+    [
+     "Snute (HDC)",
+     8
+    ]
+   ]
+  },
+  {
+   "id": 62,
+   "name": "Euromix2 serie 02",
+   "season": "Euromix 2-serie 2002",
+   "place": "Akers Mic",
+   "date": "2002-10-13",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Daniil (HDC)",
+     22
+    ],
+    [
+     "Lars Christian",
+     19
+    ],
+    [
+     "Tom",
+     17
+    ],
+    [
+     "Draconia (HDC)",
+     15
+    ],
+    [
+     "Slusk",
+     13
+    ],
+    [
+     "Snute (HDC)",
+     11
+    ],
+    [
+     "Th0rny",
+     9
+    ],
+    [
+     "Magnar",
+     8
+    ]
+   ]
+  },
+  {
+   "id": 63,
+   "name": "Euromix2 serie 03",
+   "season": "Euromix 2-serie 2002",
+   "place": "Akers Mic",
+   "date": "2002-10-20",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Havok",
+     22
+    ],
+    [
+     "Daniil (HDC)",
+     19
+    ],
+    [
+     "Snute (HDC)",
+     17
+    ],
+    [
+     "kjmcw",
+     15
+    ],
+    [
+     "Th0rny",
+     13
+    ],
+    [
+     "Magnar",
+     11
+    ],
+    [
+     "Lars Christian",
+     9
+    ],
+    [
+     "Lejordet",
+     8
+    ]
+   ]
+  },
+  {
+   "id": 65,
+   "name": "Euromix2 serie 05",
+   "season": "Euromix 2-serie 2002",
+   "place": "Akers Mic",
+   "date": "2002-11-03",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Daniil (HDC)",
+     22
+    ],
+    [
+     "Th0rny",
+     19
+    ],
+    [
+     "Snute (HDC)",
+     17
+    ],
+    [
+     "kjmcw",
+     15
+    ],
+    [
+     "Slusk",
+     13
+    ],
+    [
+     "Eilin",
+     11
+    ],
+    [
+     "wa-ho",
+     9
+    ],
+    [
+     "Lejordet",
+     8
+    ]
+   ]
+  },
+  {
+   "id": 64,
+   "name": "Euromix2 serie 04",
+   "season": "Euromix 2-serie 2002",
+   "place": "Akers Mic",
+   "date": "2002-11-10",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Havok",
+     22
+    ],
+    [
+     "Lars Christian",
+     19
+    ],
+    [
+     "Daniil (HDC)",
+     17
+    ],
+    [
+     "Draconia (HDC)",
+     15
+    ],
+    [
+     "Ole",
+     13
+    ],
+    [
+     "kjmcw",
+     11
+    ],
+    [
+     "Snute (HDC)",
+     9
+    ],
+    [
+     "Th0rny",
+     8
+    ]
+   ]
+  },
+  {
+   "id": 66,
+   "name": "Euromix2 serie 06",
+   "season": "Euromix 2-serie 2002",
+   "place": "Akers Mic",
+   "date": "2002-11-10",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Th0rny",
+     22
+    ],
+    [
+     "kjmcw",
+     19
+    ],
+    [
+     "Slusk",
+     17
+    ],
+    [
+     "Snute (HDC)",
+     15
+    ],
+    [
+     "Daniil (HDC)",
+     13
+    ],
+    [
+     "Lejordet",
+     11
+    ],
+    [
+     "Draconia (HDC)",
+     9
+    ],
+    [
+     "Eilin",
+     8
+    ]
+   ]
+  },
+  {
+   "id": 67,
+   "name": "Euromix2 serie 07",
+   "season": "Euromix 2-serie 2002",
+   "place": "Akers Mic",
+   "date": "2002-11-17",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Th0rny",
+     22
+    ],
+    [
+     "Lars Christian",
+     19
+    ],
+    [
+     "Havok",
+     17
+    ],
+    [
+     "kjmcw",
+     15
+    ],
+    [
+     "Draconia (HDC)",
+     13
+    ],
+    [
+     "Snute (HDC)",
+     11
+    ],
+    [
+     "Psychofreud",
+     9
+    ],
+    [
+     "Daniil (HDC)",
+     8
+    ]
+   ]
+  },
+  {
+   "id": 68,
+   "name": "Euromix2 serie 08",
+   "season": "Euromix 2-serie 2002",
+   "place": "Akers Mic",
+   "date": "2002-11-24",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Th0rny",
+     22
+    ],
+    [
+     "Snute (HDC)",
+     19
+    ],
+    [
+     "Slusk",
+     17
+    ],
+    [
+     "Draconia (HDC)",
+     15
+    ],
+    [
+     "kjmcw",
+     13
+    ],
+    [
+     "Daniil (HDC)",
+     11
+    ],
+    [
+     "Lejordet",
+     9
+    ]
+   ]
+  },
+  {
+   "id": 69,
+   "name": "Euromix2 serie 09",
+   "season": "Euromix 2-serie 2002",
+   "place": "Akers Mic",
+   "date": "2002-12-01",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Th0rny",
+     22
+    ],
+    [
+     "kjmcw",
+     19
+    ],
+    [
+     "Snute (HDC)",
+     17
+    ],
+    [
+     "Daniil (HDC)",
+     15
+    ],
+    [
+     "Slusk",
+     13
+    ],
+    [
+     "Lejordet",
+     11
+    ]
+   ]
+  },
+  {
+   "id": 70,
+   "name": "Euromix2 serie 10",
+   "season": "Euromix 2-serie 2002",
+   "place": "Akers Mic",
+   "date": "2002-12-08",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Th0rny",
+     22
+    ],
+    [
+     "Snute (HDC)",
+     19
+    ],
+    [
+     "Draconia (HDC)",
+     17
+    ],
+    [
+     "Slusk",
+     15
+    ],
+    [
+     "Daniil (HDC)",
+     13
+    ],
+    [
+     "kjmcw",
+     11
+    ],
+    [
+     "Fiskelim",
+     9
+    ],
+    [
+     "Lejordet",
+     8
+    ]
+   ]
+  },
+  {
+   "id": 71,
+   "name": "Euromix2 serie 11",
+   "season": "Euromix 2-serie 2002",
+   "place": "Akers Mic",
+   "date": "2002-12-15",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Th0rny",
+     22
+    ],
+    [
+     "Snute (HDC)",
+     19
+    ],
+    [
+     "kjmcw",
+     17
+    ],
+    [
+     "Daniil (HDC)",
+     15
+    ],
+    [
+     "Havok",
+     13
+    ],
+    [
+     "Draconia (HDC)",
+     11
+    ],
+    [
+     "Slusk",
+     9
+    ],
+    [
+     "Oxehunden",
+     8
+    ]
+   ]
+  },
+  {
+   "id": 88,
+   "name": "NM i Euromix 2 våren 2003",
+   "season": "Norgesmesterskap",
+   "place": "The Gathering",
+   "date": "2003-04-19",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": []
+  },
+  {
+   "id": 9,
+   "name": "Challenge Cup 1",
+   "season": "Challenge Cup 2003",
+   "place": "Oslo Bowling",
+   "date": "2003-05-25",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Tom",
+     100
+    ],
+    [
+     "Snute (HDC)",
+     90
+    ],
+    [
+     "Th0rny",
+     81
+    ],
+    [
+     "DufF (HDC)",
+     73
+    ],
+    [
+     "Draconia (HDC)",
+     66
+    ],
+    [
+     "Daniil (HDC)",
+     60
+    ],
+    [
+     "Slusk",
+     55
+    ],
+    [
+     "Telc",
+     51
+    ]
+   ]
+  },
+  {
+   "id": 10,
+   "name": "Challenge Cup 2",
+   "season": "Challenge Cup 2003",
+   "place": "Ski Metro Bowling",
+   "date": "2003-06-22",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Snute (HDC)",
+     100
+    ],
+    [
+     "Th0rny",
+     90
+    ],
+    [
+     "Tom",
+     81
+    ],
+    [
+     "Daniil (HDC)",
+     73
+    ],
+    [
+     "Oliyzia (HDC)",
+     66
+    ],
+    [
+     "Draconia (HDC)",
+     60
+    ],
+    [
+     "DufF (HDC)",
+     55
+    ],
+    [
+     "Slusk",
+     51
+    ]
+   ]
+  },
+  {
+   "id": 11,
+   "name": "Challenge Cup 3",
+   "season": "Challenge Cup 2003",
+   "place": "Drammen Bowling",
+   "date": "2003-08-03",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Tom",
+     100
+    ],
+    [
+     "Snute (HDC)",
+     90
+    ],
+    [
+     "Daniil (HDC)",
+     81
+    ],
+    [
+     "DufF (HDC)",
+     73
+    ],
+    [
+     "Oliyzia (HDC)",
+     66
+    ],
+    [
+     "Telc",
+     60
+    ],
+    [
+     "Yeye",
+     55
+    ],
+    [
+     "Slusk",
+     51
+    ]
+   ]
+  },
+  {
+   "id": 80,
+   "name": "Fredrikstad Turnering",
+   "season": "Frittstående",
+   "place": "Fredrikstad Mestern Bowling",
+   "date": "2003-09-21",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": []
+  },
+  {
+   "id": 78,
+   "name": "Aftenposten Cup",
+   "season": "Frittstående",
+   "place": "Oslo Bowling",
+   "date": "2003-09-23",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": []
+  },
+  {
+   "id": 110,
+   "name": "DDRUK vs. DDRNO",
+   "season": "International",
+   "place": "Namco Station - London (United Kingdom)",
+   "date": "2003-09-28",
+   "machine": "DDR Extreme",
+   "top": []
+  },
+  {
+   "id": 13,
+   "name": "Challenge Cup 5",
+   "season": "Challenge Cup 2003",
+   "place": "Oslo Bowling",
+   "date": "2003-10-19",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Tom",
+     100
+    ],
+    [
+     "Snute (HDC)",
+     90
+    ],
+    [
+     "DufF (HDC)",
+     81
+    ],
+    [
+     "OJK (NST)",
+     73
+    ],
+    [
+     "Oliyzia (HDC)",
+     66
+    ],
+    [
+     "FantNo",
+     60
+    ],
+    [
+     "RiChY (HDC)",
+     55
+    ],
+    [
+     "Draconia (HDC)",
+     51
+    ]
+   ]
+  },
+  {
+   "id": 12,
+   "name": "Challenge Cup 4",
+   "season": "Challenge Cup 2003",
+   "place": "Oslo Bowling",
+   "date": "2003-10-27",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Tom",
+     100
+    ],
+    [
+     "Snute (HDC)",
+     90
+    ],
+    [
+     "Oliyzia (HDC)",
+     81
+    ],
+    [
+     "Daniil (HDC)",
+     73
+    ],
+    [
+     "DufF (HDC)",
+     66
+    ],
+    [
+     "kjmcw",
+     60
+    ],
+    [
+     "Draconia (HDC)",
+     55
+    ],
+    [
+     "Slusk",
+     51
+    ]
+   ]
+  },
+  {
+   "id": 14,
+   "name": "Challenge Cup 6",
+   "season": "Challenge Cup 2003",
+   "place": "Oslo Bowling",
+   "date": "2003-11-02",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Tom",
+     100
+    ],
+    [
+     "Snute (HDC)",
+     90
+    ],
+    [
+     "Oliyzia (HDC)",
+     81
+    ],
+    [
+     "OJK (NST)",
+     73
+    ],
+    [
+     "DufF (HDC)",
+     66
+    ],
+    [
+     "RiChY (HDC)",
+     60
+    ],
+    [
+     "Havok",
+     55
+    ],
+    [
+     "Draconia (HDC)",
+     51
+    ]
+   ]
+  },
+  {
+   "id": 98,
+   "name": "Tønsberg Turnering",
+   "season": "Frittstående",
+   "place": "Tønsberg - Sjøsenteret bowling",
+   "date": "2003-11-09",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": []
+  },
+  {
+   "id": 15,
+   "name": "Challenge Cup 7",
+   "season": "Challenge Cup 2003",
+   "place": "Oslo Bowling",
+   "date": "2003-11-23",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Tom",
+     100
+    ],
+    [
+     "Snute (HDC)",
+     90
+    ],
+    [
+     "DufF (HDC)",
+     81
+    ],
+    [
+     "OJK (NST)",
+     73
+    ],
+    [
+     "Oliyzia (HDC)",
+     66
+    ],
+    [
+     "Snofox",
+     60
+    ],
+    [
+     "T|na (NST)",
+     55
+    ],
+    [
+     "Pfxp",
+     51
+    ]
+   ]
+  },
+  {
+   "id": 16,
+   "name": "Challenge Cup 8",
+   "season": "Challenge Cup 2003",
+   "place": "Oslo Bowling",
+   "date": "2003-12-14",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Snute (HDC)",
+     100
+    ],
+    [
+     "Tom",
+     90
+    ],
+    [
+     "DufF (HDC)",
+     81
+    ],
+    [
+     "Daniil (HDC)",
+     73
+    ],
+    [
+     "Oliyzia (HDC)",
+     66
+    ],
+    [
+     "RiChY (HDC)",
+     60
+    ],
+    [
+     "T|na (NST)",
+     55
+    ],
+    [
+     "Snofox",
+     51
+    ]
+   ]
+  },
+  {
+   "id": 111,
+   "name": "European Tournament in London",
+   "season": "International",
+   "place": "Namco Station - London (United Kingdom)",
+   "date": "2004-01-25",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": []
+  },
+  {
+   "id": 75,
+   "name": "Pingleturnering",
+   "season": "Frittstående",
+   "place": "Ski Metro Bowling",
+   "date": "2004-02-08",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": []
+  },
+  {
+   "id": 76,
+   "name": "European Cup 1",
+   "season": "European Cup",
+   "place": "The Gathering (Norway)",
+   "date": "2004-04-10",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": []
+  },
+  {
+   "id": 97,
+   "name": "Trondheimsturnering",
+   "season": "Frittstående",
+   "place": "Megazone Trondheim",
+   "date": "2004-04-23",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": []
+  },
+  {
+   "id": 2,
+   "name": "Challenge Cup 2",
+   "season": "Challenge Cup 2004",
+   "place": "Kino 1 Sandvika",
+   "date": "2004-04-25",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "OJK (NST)",
+     100
+    ],
+    [
+     "Snute (HDC)",
+     0
+    ],
+    [
+     "DufF (HDC)",
+     0
+    ],
+    [
+     "Snofox",
+     73
+    ],
+    [
+     "T|na (NST)",
+     66
+    ],
+    [
+     "RiChY (HDC)",
+     60
+    ],
+    [
+     "Stream (HDC)",
+     55
+    ],
+    [
+     "Olemann (HDC)",
+     51
+    ]
+   ]
+  },
+  {
+   "id": 3,
+   "name": "Challenge Cup 3",
+   "season": "Challenge Cup 2004",
+   "place": "Askim",
+   "date": "2004-05-23",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Snute (HDC)",
+     100
+    ],
+    [
+     "DufF (HDC)",
+     90
+    ],
+    [
+     "Hugo",
+     81
+    ],
+    [
+     "Oliyzia (HDC)",
+     73
+    ],
+    [
+     "RiChY (HDC)",
+     66
+    ],
+    [
+     "OJK (NST)",
+     0
+    ],
+    [
+     "Haggar (BDG)",
+     0
+    ],
+    [
+     "T|na (NST)",
+     51
+    ]
+   ]
+  },
+  {
+   "id": 85,
+   "name": "Geneva Tournament IV (score)",
+   "season": "Geneva Tournament",
+   "place": "Las Vegas - Switzerland",
+   "date": "2004-06-19",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": []
+  },
+  {
+   "id": 4,
+   "name": "Challenge Cup 4",
+   "season": "Challenge Cup 2004",
+   "place": "Askim",
+   "date": "2004-08-28",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Snute (HDC)",
+     100
+    ],
+    [
+     "DufF (HDC)",
+     90
+    ],
+    [
+     "RiChY (HDC)",
+     81
+    ],
+    [
+     "Haggar (BDG)",
+     73
+    ],
+    [
+     "Nameless (BDG)",
+     66
+    ],
+    [
+     "OJK (NST)",
+     0
+    ],
+    [
+     "Snofox",
+     55
+    ],
+    [
+     "Tom",
+     51
+    ]
+   ]
+  },
+  {
+   "id": 5,
+   "name": "Challenge Cup 5 - NM",
+   "season": "Challenge Cup 2004",
+   "place": "OsloLan",
+   "date": "2004-10-02",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Snute (HDC)",
+     200
+    ],
+    [
+     "DufF (HDC)",
+     180
+    ],
+    [
+     "Haggar (BDG)",
+     162
+    ],
+    [
+     "OJK (NST)",
+     146
+    ],
+    [
+     "RiChY (HDC)",
+     132
+    ],
+    [
+     "Nameless (BDG)",
+     120
+    ],
+    [
+     "Gogo (NJS)",
+     110
+    ],
+    [
+     "T|na (NST)",
+     102
+    ]
+   ]
+  },
+  {
+   "id": 6,
+   "name": "Challenge Cup 6",
+   "season": "Challenge Cup 2004",
+   "place": "Fredrikstad Mestern Bowling",
+   "date": "2004-10-24",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Snute (HDC)",
+     0
+    ],
+    [
+     "DufF (HDC)",
+     0
+    ],
+    [
+     "OJK (NST)",
+     81
+    ],
+    [
+     "Snofox",
+     73
+    ],
+    [
+     "Oliyzia (HDC)",
+     66
+    ],
+    [
+     "Haggar (BDG)",
+     60
+    ],
+    [
+     "Nameless (BDG)",
+     55
+    ],
+    [
+     "Ylini (HDC)",
+     51
+    ]
+   ]
+  },
+  {
+   "id": 7,
+   "name": "Challenge Cup 7",
+   "season": "Challenge Cup 2004",
+   "place": "Tønsberg - Sjøsenteret bowling",
+   "date": "2004-11-21",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Haggar (BDG)",
+     100
+    ],
+    [
+     "Snute (HDC)",
+     0
+    ],
+    [
+     "Nameless (BDG)",
+     81
+    ],
+    [
+     "Snofox",
+     73
+    ],
+    [
+     "Bonzo (HDC)",
+     66
+    ],
+    [
+     "Oliyzia (HDC)",
+     60
+    ],
+    [
+     "RiChY (HDC)",
+     0
+    ],
+    [
+     "OJK (NST)",
+     0
+    ]
+   ]
+  },
+  {
+   "id": 8,
+   "name": "Challenge Cup 8",
+   "season": "Challenge Cup 2004",
+   "place": "Bowling 1 Lillehammer",
+   "date": "2004-12-19",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Snute (HDC)",
+     100
+    ],
+    [
+     "Haggar (BDG)",
+     90
+    ],
+    [
+     "DufF (HDC)",
+     81
+    ],
+    [
+     "OJK (NST)",
+     73
+    ],
+    [
+     "RiChY (HDC)",
+     66
+    ],
+    [
+     "Gogo (NJS)",
+     60
+    ],
+    [
+     "Oliyzia (HDC)",
+     55
+    ],
+    [
+     "Pingo",
+     51
+    ]
+   ]
+  },
+  {
+   "id": 100,
+   "name": "European PG Cup 2",
+   "season": "European Cup",
+   "place": "The Gathering, Norway",
+   "date": "2005-03-26",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Kasu (SWE)",
+     100
+    ],
+    [
+     "K-Dogg (GBR)",
+     91
+    ],
+    [
+     "Stelisevil (GBR)",
+     83
+    ],
+    [
+     "Snute (NOR)",
+     76
+    ],
+    [
+     "T_Bone_X_Zeo (NED)",
+     70
+    ],
+    [
+     "Haggar (NOR)",
+     65
+    ],
+    [
+     "Drummer (ITA)",
+     61
+    ],
+    [
+     "Bonzo (NOR)",
+     58
+    ]
+   ]
+  },
+  {
+   "id": 113,
+   "name": "Challenge Cup 2005 #1",
+   "season": "Challenge Cup 2005",
+   "place": "Megazone, Oslo",
+   "date": "2005-04-24",
+   "machine": "DDR Extreme",
+   "top": [
+    [
+     "Snute (HDC)",
+     100
+    ],
+    [
+     "Pyro (NJS)",
+     90
+    ],
+    [
+     "Bonzo (HDC)",
+     81
+    ],
+    [
+     "RiChY (HDC)",
+     73
+    ],
+    [
+     "Zredna (HDC)",
+     66
+    ],
+    [
+     "Andeplane (NJS)",
+     60
+    ],
+    [
+     "Nameless (BDG)",
+     55
+    ],
+    [
+     "Electron (OSL)",
+     51
+    ]
+   ]
+  },
+  {
+   "id": 159,
+   "name": "Challenge Cup 2005 #2",
+   "season": "Challenge Cup 2005",
+   "place": "Megazone, Oslo",
+   "date": "2005-05-29",
+   "machine": "DDR Extreme",
+   "top": [
+    [
+     "Snute (HDC)",
+     100
+    ],
+    [
+     "Haggar (BDG)",
+     90
+    ],
+    [
+     "Bonzo (HDC)",
+     81
+    ],
+    [
+     "Nameless (BDG)",
+     73
+    ],
+    [
+     "Andeplane (NJS)",
+     66
+    ],
+    [
+     "Pyro (NJS)",
+     60
+    ],
+    [
+     "DufF (HDC)",
+     55
+    ],
+    [
+     "RiChY (HDC)",
+     51
+    ]
+   ]
+  },
+  {
+   "id": 152,
+   "name": "Challenge Cup 2005 #3",
+   "season": "Challenge Cup 2005",
+   "place": "Megazone",
+   "date": "2005-06-12",
+   "machine": "DDR Extreme",
+   "top": [
+    [
+     "Snute (HDC)",
+     100
+    ],
+    [
+     "Pyro (NJS)",
+     90
+    ],
+    [
+     "Haggar (BDG)",
+     81
+    ],
+    [
+     "Nameless (BDG)",
+     73
+    ],
+    [
+     "RiChY (HDC)",
+     66
+    ],
+    [
+     "Zredna (HDC)",
+     60
+    ],
+    [
+     "Gogo (NJS)",
+     55
+    ],
+    [
+     "Bonzo (HDC)",
+     51
+    ]
+   ]
+  },
+  {
+   "id": 153,
+   "name": "Challenge Cup 2005 #4",
+   "season": "Challenge Cup 2005",
+   "place": "Megazone",
+   "date": "2005-08-28",
+   "machine": "DDR Extreme",
+   "top": [
+    [
+     "Haggar (BDG)",
+     100
+    ],
+    [
+     "Bonzo (HDC)",
+     91
+    ],
+    [
+     "Pyro (NJS)",
+     83
+    ],
+    [
+     "Snute (HDC)",
+     76
+    ],
+    [
+     "RiChY (HDC)",
+     70
+    ],
+    [
+     "Andeplane (NJS)",
+     65
+    ],
+    [
+     "DufF (HDC)",
+     61
+    ],
+    [
+     "Zredna (HDC)",
+     58
+    ]
+   ]
+  },
+  {
+   "id": 154,
+   "name": "Challenge Cup 2005 #5",
+   "season": "Challenge Cup 2005",
+   "place": "MegaZone",
+   "date": "2005-09-18",
+   "machine": "DDR Extreme",
+   "top": [
+    [
+     "Bonzo (HDC)",
+     100
+    ],
+    [
+     "Pyro (NJS)",
+     90
+    ],
+    [
+     "Haggar (BDG)",
+     81
+    ],
+    [
+     "DufF (HDC)",
+     73
+    ],
+    [
+     "Zredna (HDC)",
+     66
+    ],
+    [
+     "Cuivien (HDC)",
+     60
+    ],
+    [
+     "Gogo (NJS)",
+     55
+    ],
+    [
+     "Andeplane (NJS)",
+     51
+    ]
+   ]
+  },
+  {
+   "id": 155,
+   "name": "Challenge Cup 2005 #6",
+   "season": "Challenge Cup 2005",
+   "place": "MegaZone",
+   "date": "2005-10-09",
+   "machine": "DDR Extreme",
+   "top": [
+    [
+     "Snute (HDC)",
+     100
+    ],
+    [
+     "Haggar (BDG)",
+     91
+    ],
+    [
+     "Pyro (NJS)",
+     83
+    ],
+    [
+     "Bonzo (HDC)",
+     76
+    ],
+    [
+     "Andeplane (NJS)",
+     70
+    ],
+    [
+     "DufF (HDC)",
+     65
+    ],
+    [
+     "RiChY (HDC)",
+     61
+    ],
+    [
+     "Cuivien (HDC)",
+     58
+    ]
+   ]
+  },
+  {
+   "id": 161,
+   "name": "NM05 - Expert Double Gutter",
+   "season": "Norgesmesterskap",
+   "place": "Dansehuset",
+   "date": "2005-11-05",
+   "machine": "DDR Extreme",
+   "top": [
+    [
+     "Haggar (BDG)",
+     100
+    ],
+    [
+     "Bonzo (HDC)",
+     91
+    ],
+    [
+     "Pyro (NJS)",
+     83
+    ],
+    [
+     "RiChY (HDC)",
+     76
+    ],
+    [
+     "DufF (HDC)",
+     70
+    ],
+    [
+     "Andeplane (NJS)",
+     65
+    ],
+    [
+     "Daniil (HDC)",
+     61
+    ],
+    [
+     "Cehtna (NJS)",
+     58
+    ]
+   ]
+  },
+  {
+   "id": 163,
+   "name": "NM05 - Expert Double Jenter",
+   "season": "Norgesmesterskap",
+   "place": "Dansehustet - Oslo",
+   "date": "2005-11-05",
+   "machine": "DDR Extreme",
+   "top": [
+    [
+     "T|na (NST)",
+     100
+    ],
+    [
+     "Ylini (HDC)",
+     91
+    ],
+    [
+     "Marilla (NST)",
+     83
+    ],
+    [
+     "Eruanna (NST)",
+     76
+    ],
+    [
+     "Smiph (HDC)",
+     70
+    ]
+   ]
+  },
+  {
+   "id": 164,
+   "name": "NM05 - Expert Single Gutter",
+   "season": "Norgesmesterskap",
+   "place": "Dansehuset",
+   "date": "2005-11-05",
+   "machine": "DDR Extreme",
+   "top": [
+    [
+     "Haggar (BDG)",
+     100
+    ],
+    [
+     "Bonzo (HDC)",
+     90
+    ],
+    [
+     "Snute (HDC)",
+     81
+    ],
+    [
+     "RiChY (HDC)",
+     73
+    ],
+    [
+     "DufF (HDC)",
+     66
+    ],
+    [
+     "Andeplane (NJS)",
+     60
+    ],
+    [
+     "Cuivien (HDC)",
+     55
+    ],
+    [
+     "Pyro (NJS)",
+     51
+    ]
+   ]
+  },
+  {
+   "id": 165,
+   "name": "NM05 - Expert Single Jenter",
+   "season": "Norgesmesterskap",
+   "place": "Dansehuset - Oslo",
+   "date": "2005-11-05",
+   "machine": "DDR Extreme",
+   "top": [
+    [
+     "Ylini (HDC)",
+     100
+    ],
+    [
+     "T|na (NST)",
+     91
+    ],
+    [
+     "Smiph (HDC)",
+     83
+    ],
+    [
+     "Eruanna (NST)",
+     76
+    ],
+    [
+     "Marilla (NST)",
+     70
+    ],
+    [
+     "Athena (HDC)",
+     65
+    ],
+    [
+     "Annkakris",
+     61
+    ],
+    [
+     "Twidd (NJS)",
+     58
+    ]
+   ]
+  },
+  {
+   "id": 169,
+   "name": "NM05 - Nybegynner gutter",
+   "season": "Norgesmesterskap",
+   "place": "Dansethuset",
+   "date": "2005-11-05",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Dandy Arsehole (HDC)",
+     100
+    ],
+    [
+     "Jørgen (HDC)",
+     91
+    ],
+    [
+     "Gosse (HDC)",
+     83
+    ],
+    [
+     "Haugen (HDC)",
+     76
+    ],
+    [
+     "Frank (HDC)",
+     70
+    ],
+    [
+     "Metaknighet (NJS)",
+     65
+    ]
+   ]
+  },
+  {
+   "id": 156,
+   "name": "Challenge Cup 2005 #7",
+   "season": "Challenge Cup 2005",
+   "place": "Megazone",
+   "date": "2005-11-27",
+   "machine": "DDR Extreme",
+   "top": [
+    [
+     "Pyro (NJS)",
+     100
+    ],
+    [
+     "Snute (HDC)",
+     90
+    ],
+    [
+     "Haggar (BDG)",
+     81
+    ],
+    [
+     "Bonzo (HDC)",
+     73
+    ],
+    [
+     "RiChY (HDC)",
+     66
+    ],
+    [
+     "Nuust",
+     60
+    ],
+    [
+     "Andeplane (NJS)",
+     55
+    ],
+    [
+     "DufF (HDC)",
+     51
+    ]
+   ]
+  },
+  {
+   "id": 158,
+   "name": "Challenge Cup 2005 #8",
+   "season": "Challenge Cup 2005",
+   "place": "Megazone",
+   "date": "2005-12-18",
+   "machine": "DDR Extreme",
+   "top": [
+    [
+     "Haggar (BDG)",
+     100
+    ],
+    [
+     "Bonzo (HDC)",
+     91
+    ],
+    [
+     "Pyro (NJS)",
+     83
+    ],
+    [
+     "Snute (HDC)",
+     76
+    ],
+    [
+     "RiChY (HDC)",
+     70
+    ],
+    [
+     "Nameless (BDG)",
+     65
+    ],
+    [
+     "Cuivien (HDC)",
+     61
+    ],
+    [
+     "Nuust",
+     58
+    ]
+   ]
+  },
+  {
+   "id": 173,
+   "name": "Sandefjord-turnering #1",
+   "season": "Frittstående",
+   "place": "Sandefjord",
+   "date": "2006-02-25",
+   "machine": "DDR Extreme",
+   "top": []
+  },
+  {
+   "id": 174,
+   "name": "Sandefjord-turnering #2",
+   "season": "Frittstående",
+   "place": "Sandefjord",
+   "date": "2006-05-27",
+   "machine": "DDR Extreme",
+   "top": []
+  },
+  {
+   "id": 175,
+   "name": "Sandefjord-turnering #3",
+   "season": "Frittstående",
+   "place": "Sandefjord",
+   "date": "2007-05-19",
+   "machine": "DDR 4th Mix Plus",
+   "top": []
+  },
+  {
+   "id": 178,
+   "name": "DDR Norway Reunion",
+   "season": "Frittstående",
+   "place": "Metro Bowling, Sandejford",
+   "date": "2012-04-28",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Andeplane (NJS)",
+     100
+    ],
+    [
+     "OJK (NST)",
+     90
+    ],
+    [
+     "Cuivien (HDC)",
+     81
+    ],
+    [
+     "Nameless (BDG)",
+     73
+    ],
+    [
+     "SLC (CRS)",
+     66
+    ],
+    [
+     "Duckling (NST)",
+     60
+    ],
+    [
+     "uSimen",
+     55
+    ],
+    [
+     "Ylini (HDC)",
+     51
+    ]
+   ]
+  },
+  {
+   "id": 179,
+   "name": "DDR Norway Reunion lagturnering",
+   "season": "Frittstående",
+   "place": "Metro Bowling, Sandefjord",
+   "date": "2012-04-29",
+   "machine": "Dancing Stage EuroMix 2",
+   "top": [
+    [
+     "Lag 1",
+     100
+    ],
+    [
+     "Lag 3",
+     90
+    ],
+    [
+     "Lag 2",
+     81
+    ],
+    [
+     "Lag 4",
+     73
+    ]
+   ]
+  }
+ ]
+}
