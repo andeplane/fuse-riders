@@ -60,6 +60,11 @@ export interface AudioLike {
   readonly outputLatency?: number;
   /** Seconds the context itself adds; the fallback where `outputLatency` is missing. */
   readonly baseLatency?: number;
+  /**
+   * The sample leaving the device and the page-clock time it does so (`AudioContext.getOutputTimestamp`), where the
+   * browser has it.
+   */
+  getOutputTimestamp?(): { contextTime?: number; performanceTime?: number };
   decodeAudioData(data: ArrayBuffer): Promise<BufferLike>;
   resume(): Promise<void>;
   suspend(): Promise<void>;
@@ -182,6 +187,13 @@ export interface AudioClock {
    * (or 0). For diagnostics: `latency()` is the one to schedule with.
    */
   latencies?(): { base: number | undefined; output: number | undefined };
+  /**
+   * The browser's own pairing of the two clocks: the audio-clock time (seconds) of the sample leaving the device
+   * and the page-clock time (ms, `performance.now()`) it does so. Undefined where the browser has none, or
+   * reports nothing yet (zeros before the context has run). Unlike `now()`, which moves in steps, the pair is
+   * taken at one instant, so a mapping built on it needs no smoothing.
+   */
+  output?(): { contextTime: number; performanceTime: number } | undefined;
   /** Whether the clock is advancing (context running, page unlocked and visible). */
   readonly running: boolean;
 }
@@ -236,6 +248,11 @@ export interface GameAudio {
   nextSong(): void;
   /** The audio clock, or undefined when there is none (a `?mute` page, no Web Audio). Opens the context if needed. */
   clock(): AudioClock | undefined;
+  /**
+   * The page's one audio context, for a diagnostic that wires its own nodes to it (a microphone analyser reading
+   * the same clock the songs are scheduled on). Undefined where there is none. Nothing a game plays goes this way.
+   */
+  context?(): AudioLike | undefined;
   /**
    * Fetches and decodes a song for clocked playback; undefined when muted by `?mute`, when it cannot be fetched or
    * decoded. Decoded songs are cached by URL (the latest `SONG_CACHE`), so asking again returns the same song.
@@ -664,12 +681,26 @@ export function createGameAudio(
           base: known(audio.baseLatency),
           output: known(audio.outputLatency),
         }),
+        output: () => {
+          const stamp = audio.getOutputTimestamp?.(),
+            contextTime = stamp?.contextTime,
+            performanceTime = stamp?.performanceTime;
+          return typeof contextTime === "number" &&
+            typeof performanceTime === "number" &&
+            Number.isFinite(contextTime) &&
+            Number.isFinite(performanceTime) &&
+            contextTime > 0 &&
+            performanceTime > 0
+            ? { contextTime, performanceTime }
+            : undefined;
+        },
         get running() {
           return unlocked && !hidden && audio.state === "running";
         },
       };
       return clockView;
     },
+    context: () => ensure(),
     loadSong(url) {
       const audio = ensure(),
         fetchAudio = deps.fetchAudio;

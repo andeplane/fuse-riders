@@ -41,6 +41,11 @@ export interface LatencyReport {
   frameLagMs: Spread;
   /** Absolute distance of each audio clock reading from the smoothed mapping. */
   clockJitterMs: Spread;
+  /**
+   * Absolute distance of each of the browser's clock pairs from the mapping in use: the jitter a press's song
+   * time really carries where the browser pairs the clocks. Empty where it does not.
+   */
+  pairJitterMs: Spread;
   /** Presses by source. */
   keys: number;
   touches: number;
@@ -99,6 +104,8 @@ export interface LatencyProbe {
   frameEnd(now: number): void;
   /** An audio clock reading this frame and the smoothed value it is compared with, both in seconds. */
   clock(reading: number, smoothed: number): void;
+  /** How far this frame's clock pair was from the mapping in use, ms. */
+  pair(ms: number): void;
   report(): LatencyReport;
   reset(): void;
 }
@@ -110,7 +117,8 @@ export function createLatencyProbe(size = PROBE_SAMPLES): LatencyProbe {
     interval = ring(size),
     work = ring(size),
     lag = ring(size),
-    jitter = ring(size);
+    jitter = ring(size),
+    pairs = ring(size);
   /** Stamps of presses not yet followed by a frame. */
   let waiting: number[] = [],
     /** Stamps of presses whose frame has begun and not ended. */
@@ -148,6 +156,9 @@ export function createLatencyProbe(size = PROBE_SAMPLES): LatencyProbe {
     clock(reading, smoothed) {
       jitter.push(Math.abs(reading - smoothed) * 1000);
     },
+    pair(ms) {
+      pairs.push(Math.abs(ms));
+    },
     report: () => ({
       handlerMs: spread(handler.values()),
       frameMs: spread(toFrame.values()),
@@ -156,12 +167,22 @@ export function createLatencyProbe(size = PROBE_SAMPLES): LatencyProbe {
       frameWorkMs: spread(work.values()),
       frameLagMs: spread(lag.values()),
       clockJitterMs: spread(jitter.values()),
+      pairJitterMs: spread(pairs.values()),
       keys,
       touches,
       unstamped,
     }),
     reset() {
-      for (const each of [handler, toFrame, drawn, interval, work, lag, jitter])
+      for (const each of [
+        handler,
+        toFrame,
+        drawn,
+        interval,
+        work,
+        lag,
+        jitter,
+        pairs,
+      ])
         each.clear();
       waiting = [];
       drawing = [];
@@ -207,7 +228,8 @@ export function latencyText(
     line("frame interval", report.frameIntervalMs),
     line("frame work", report.frameWorkMs),
     line("frame start lag", report.frameLagMs),
-    line("audio clock jitter", report.clockJitterMs),
+    line("audio clock step", report.clockJitterMs),
+    line("clock pair jitter", report.pairJitterMs),
     `audio base latency  ${known(context.baseMs)}`,
     `audio output latency  ${known(context.outputMs)}`,
     `song ${context.audible ? "on the audio clock" : "on the room clock (no sound)"}, drift ${ms(context.driftMs)} ms`,

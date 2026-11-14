@@ -101,6 +101,16 @@ import {
 import { createSettingsPanel } from "./settings.js";
 import { createLatencyProbe, latencyText } from "./latency.js";
 import {
+  DEFAULT_CLICK_RATE,
+  clickAudioRate,
+  clickId,
+  clickRate,
+  clickSources,
+  clickWav,
+} from "./click-track.js";
+import { createFrameLead } from "./frame-lead.js";
+import type { TimingLab } from "./timing-lab.js";
+import {
   createHitCollector,
   loadHistory,
   measureBias,
@@ -138,6 +148,11 @@ const social = createGameSocial({
 const store = safeStore(() => localStorage);
 const names = keys(GAME);
 const muted = new URLSearchParams(location.search).has("mute");
+/** `?debugtiming`: the timing lab's panel, its click tracks and its session log. */
+const debugTiming = new URLSearchParams(location.search).has("debugtiming");
+/** `?audioclock=reported`: read the song position from the stepped audio clock, to compare with the clock pair. */
+const pairedClock =
+  new URLSearchParams(location.search).get("audioclock") !== "reported";
 const app = document.querySelector<HTMLElement>("#app")!;
 /** One sound bus for the page: the header's button, `M` and the remembered volumes are the shared module's. */
 const audio = createGameAudio(
@@ -150,8 +165,12 @@ const sfx = createSfx(audio);
 let prefs: Prefs = loadPrefs(store);
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 /** A link within the game that keeps this page's developer flags. */
-const withFlags = (path: string) =>
-  muted ? `${path}${path.includes("?") ? "&" : "?"}mute` : path;
+const withFlags = (path: string) => {
+  let out = path;
+  for (const flag of [muted ? "mute" : "", debugTiming ? "debugtiming" : ""])
+    if (flag) out = `${out}${out.includes("?") ? "&" : "?"}${flag}`;
+  return out;
+};
 const setText = (node: HTMLElement, value: string) => {
   if (node.textContent !== value) node.textContent = value;
 };
@@ -161,8 +180,24 @@ const PAGE_KEYS: ReadonlySet<string> = new Set(["Tab", "KeyM"]);
 /** How often a song's audio is fetched again by itself before the page asks the player. */
 const SONG_LOAD_TRIES = 3;
 /** Where a song's audio is fetched from: the site's own files, or a file the player loaded. */
-const songUrl = (path: string) =>
-  /^(blob:|https?:)/.test(path) ? path : `${BASE}${path}`;
+const clickUrls = new Map<number, string>();
+const songUrl = (path: string) => {
+  const bpm = clickAudioRate(path);
+  if (bpm !== undefined) {
+    // A click track has no file: its audio is made here, once, from the numbers its chart was made from.
+    let url = clickUrls.get(bpm);
+    if (!url) {
+      url = URL.createObjectURL(
+        new Blob([clickWav(bpm)], { type: "audio/wav" }),
+      );
+      clickUrls.set(bpm, url);
+    }
+    return url;
+  }
+  return /^(blob:|https?:)/.test(path) ? path : `${BASE}${path}`;
+};
+/** A song that exists only on this page: a loaded simfile, or the timing lab's click track. */
+const localSong = (id: string) => id === CUSTOM || clickRate(id) !== undefined;
 
 /** The id a loaded simfile's song goes by. */
 const CUSTOM = "custom";
@@ -193,13 +228,13 @@ function chosen(library: Library): Choice {
   return { song, chart, mode };
 }
 function remember(choice: Choice): void {
-  if (choice.song !== CUSTOM) store.setItem(names.song, choice.song);
+  if (!localSong(choice.song)) store.setItem(names.song, choice.song);
   store.setItem(names.chart, String(choice.chart));
   store.setItem(names.mode, String(choice.mode));
 }
 const bestKey = (library: Library, song: string, chart: number) => {
   // A player's own file keeps no best: every loaded file would share the one key.
-  const info = song === CUSTOM ? undefined : library.song(song)?.charts;
+  const info = localSong(song) ? undefined : library.song(song)?.charts;
   const picked = info?.[Math.min(chart, info.length - 1)];
   return picked ? names.best(song, picked.name.toLowerCase()) : undefined;
 };
@@ -265,7 +300,7 @@ function createPreview(library: Library) {
         timer = undefined;
         const info = library.song(id);
         // A loaded file has no address the radio can play from.
-        if (!info || /^(blob:|https?:)/.test(info.audio)) {
+        if (!info || /^(blob:|https?:|click:)/.test(info.audio)) {
           audio.setSongs([], BASE);
           return;
         }
@@ -803,8 +838,13 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   const songClock = createSongClock({
     now: () => performance.now(),
     audio: () => audio.clock(),
+    extraLatencyMs: () => prefs.audioMs,
+    pairing: () => pairedClock,
   });
   const probe = createLatencyProbe();
+  const frameLead = createFrameLead();
+  /** The timing lab, on a `?debugtiming` page once its code has arrived. */
+  let lab: TimingLab | undefined;
   /** A browser's stamp is used when it is one: not zero, and within half a second of now. */
   const stamped = (at: number, now: number) =>
     at > 0 && Math.abs(at - now) < 500;
@@ -823,7 +863,18 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     // A second finger on a column that is already down is a new step: up and down again at the same instant.
     if (held[column]!.size) runtime.key(column, false, ms);
     held[column]!.add(source);
-    runtime.key(column, true, ms);
+    const logged = runtime.key(column, true, ms);
+    lab?.press({
+      source: source.startsWith("fm-") ? "touch" : "key",
+      column,
+      stamp: at,
+      handled: now,
+      used: stamped(at, now),
+      songMs: ms,
+      ...(logged && runtime.lastSlackMs !== undefined
+        ? { slackMs: runtime.lastSlackMs }
+        : {}),
+    });
   };
   const lift = (column: number, source: string, at: number) => {
     if (!held[column]!.delete(source) || held[column]!.size) return;
@@ -1014,7 +1065,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
         estimateMs: prefs.offsetMs + bias.biasMs,
         used: bias.used,
         at: Date.now(),
-        deviceMs: (audio.clock()?.latency() ?? 0) * 1000,
+        // The audio offset is part of the device as the run heard it: a changed one starts the comparison over.
+        deviceMs: (audio.clock()?.latency() ?? 0) * 1000 + prefs.audioMs,
       };
       const history = loadHistory(store);
       const proposal = propose(run, history, prefs.offsetMs, MAX_OFFSET_MS);
@@ -1062,10 +1114,13 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   const frame = (now: number) => {
     // Asked first, so one bad frame cannot stop the drawing for good.
     if (!over) requestAnimationFrame(frame);
-    probe.frameStart(now, performance.now());
+    const began = performance.now();
+    probe.frameStart(now, began);
+    frameLead.frame(now);
     songClock.sample();
     const mapping = songClock.mapping();
     if (mapping) probe.clock(mapping.reading, mapping.smoothed);
+    if (mapping?.pairedMs !== undefined) probe.pair(mapping.pairedMs);
     const state = runtime.roomState();
     const roomMs = runtime.songMs();
     const world = state?.world;
@@ -1123,7 +1178,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     if (mine && !mine.bot && running && songClock.audible)
       collector.observe(mine, `${epoch}:${prefs.offsetMs}`);
     if (stage.hidden) return;
-    const drawn = heard + prefs.visualMs;
+    // The frame is seen a refresh after it starts: the arrows are drawn where the sound will be then.
+    const drawn = heard + frameLead.ms + prefs.visualMs;
     const timing = library.timing(view.song);
     const beat = timing?.beatAt(drawn / 1000) ?? 0;
     scene.draw(view, {
@@ -1142,12 +1198,45 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     });
     const done = performance.now();
     probe.frameEnd(done);
+    lab?.frame(began, done, {
+      mine: mine && !mine.bot ? mine : undefined,
+      running,
+      audible: songClock.audible,
+      epoch,
+      song: view.song,
+      title: model.title,
+    });
     if (latencyBox && done - latencyShown > 500) {
       latencyShown = done;
       latencyBox.textContent = latencyText(probe.report(), latencyContext());
     }
   };
   requestAnimationFrame(frame);
+  if (debugTiming)
+    void import("./timing-lab.js").then(({ createTimingLab }) => {
+      lab = createTimingLab({
+        doc: document,
+        win: window,
+        audio,
+        songClock,
+        probe,
+        frameLead,
+        prefs: () => prefs,
+        setPrefs(next) {
+          prefs = next;
+          savePrefs(store, prefs);
+          panel.refresh();
+        },
+        latencyContext,
+        startClick(bpm) {
+          location.href = withFlags(
+            endpoints.appUrl(`?solo=1&song=${clickId(bpm)}&chart=0&mode=0`),
+          );
+        },
+        now: () => performance.now(),
+      });
+      document.body.append(lab.element);
+    });
   // For smokes and for a player's bug report: where the sound, the room and the picture are, read from the console.
   Object.assign(window, {
     fusemania: {
@@ -1163,6 +1252,9 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       /** Press-to-handler and press-to-frame percentiles, the audio clock's figures and this run's hit errors. */
       latency: () => ({ ...probe.report(), ...latencyContext() }),
       latencyText: () => latencyText(probe.report(), latencyContext()),
+      /** A `?debugtiming` page's whole session: what the panel shows, and its log as JSON lines. */
+      timing: () => lab?.snapshot(),
+      timingLog: () => lab?.logText() ?? "",
       /** This device's own notes in the song being played: `[ms, column, kind]`. */
       notes: () => {
         const world = runtime.roomState()?.world;
@@ -1583,6 +1675,20 @@ function room(solo: boolean, library: Library, first?: Choice): void {
 }
 
 const query = new URLSearchParams(location.search);
-if (query.get("solo") === "1") room(true, LIBRARY);
+if (query.get("solo") === "1")
+  // The timing lab's click tracks are this page's own: a solo run can play them, a room never sees them.
+  room(
+    true,
+    debugTiming ? createLibrary([...SONGS_DATA, ...clickSources()]) : LIBRARY,
+  );
 else if (query.has("room")) room(false, LIBRARY);
+else if (debugTiming)
+  // The lab opens on its steady click track.
+  location.replace(
+    withFlags(
+      endpoints.appUrl(
+        `?solo=1&song=${clickId(DEFAULT_CLICK_RATE)}&chart=0&mode=0`,
+      ),
+    ),
+  );
 else landing();

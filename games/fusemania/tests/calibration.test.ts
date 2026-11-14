@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { calibrate } from "../src/app/calibration.js";
+import { AUDIO_SHARE_MS, calibrate, placeLag } from "../src/app/calibration.js";
 
 const BEAT = 500;
 /** A tap on every beat from the first, each off by the matching entry of `errors`. */
@@ -83,4 +83,47 @@ test("no taps, or no beat, is no result", () => {
   assert.deepEqual(calibrate([250, 750], BEAT), none);
   assert.deepEqual(calibrate([10, 510], 0), none);
   assert.deepEqual(calibrate([10, 510], Number.NaN), none);
+});
+
+test("a small lag is the input offset, a large one is the sound's and goes to the audio offset", () => {
+  const limits = { input: 150, audio: 500 };
+  // A keyboard, a habit of tapping early: the input offset, and the audio offset is left alone.
+  assert.deepEqual(placeLag(-23.4, 0, limits), {
+    offsetMs: -23,
+    audioMs: 0,
+    moved: "input",
+  });
+  assert.deepEqual(placeLag(AUDIO_SHARE_MS - 1, 120, limits), {
+    offsetMs: AUDIO_SHARE_MS - 1,
+    audioMs: 120,
+    moved: "input",
+  });
+  // Bluetooth: no keyboard is 190 ms late. The arrows have to move with the judging.
+  assert.deepEqual(placeLag(190.2, 0, limits), {
+    offsetMs: 0,
+    audioMs: 190,
+    moved: "audio",
+  });
+  // It adds to an audio offset already in use, in either direction.
+  assert.deepEqual(placeLag(-90, 200, limits), {
+    offsetMs: 0,
+    audioMs: 110,
+    moved: "audio",
+  });
+  // What the audio offset cannot take stays with the input offset, inside its own limit.
+  assert.deepEqual(placeLag(140, 450, limits), {
+    offsetMs: 90,
+    audioMs: 500,
+    moved: "audio",
+  });
+  assert.deepEqual(placeLag(400, 450, limits), {
+    offsetMs: 150,
+    audioMs: 500,
+    moved: "audio",
+  });
+  assert.deepEqual(placeLag(Number.NaN, 30, limits), {
+    offsetMs: 0,
+    audioMs: 30,
+    moved: "input",
+  });
 });

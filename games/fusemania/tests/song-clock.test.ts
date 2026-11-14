@@ -379,3 +379,170 @@ test("a tap is placed against a click scheduled on the audio clock", () => {
   p.songClock.sample();
   near((p.songClock.audioTime()! - click) * 1000, 0, 2);
 });
+
+// ---- the browser's own clock pair, and the audio offset ----
+
+/**
+ * A page whose browser pairs the clocks: the audio clock is read in steps of `step`, the reported latency is
+ * `reported`, and the sample really leaving the device is `truly` behind the clock. The pair is taken every
+ * `renew` ms, as an audio callback would.
+ */
+function pairedPage(spec: {
+  step?: number;
+  reported?: number;
+  truly?: number;
+  /** How far behind the clock the browser's pair says the output is; `truly` unless the browser does not know. */
+  known?: number;
+  extra?: () => number;
+  pairing?: () => boolean;
+}) {
+  const step = spec.step ?? 256 / 48000,
+    truly = spec.truly ?? 0.176,
+    known = spec.known ?? truly;
+  let perf = 9000.25,
+    context = 3.5,
+    paired = perf,
+    renewing = true;
+  const clock = createFakeAudioClock({ lag: spec.reported ?? 0.168 });
+  const song = createFakeClockedSong(120, clock);
+  const roomAtStart = -perf;
+  const read = () => {
+    clock.time = Math.floor(context / step + 1e-9) * step;
+    if (renewing && (perf - paired >= 2.5 || clock.pair === undefined)) {
+      paired = perf;
+      clock.pair = { contextTime: context - known, performanceTime: perf };
+    }
+  };
+  read();
+  const songClock = createSongClock({
+    now: () => perf,
+    audio: () => clock,
+    ...(spec.extra ? { extraLatencyMs: spec.extra } : {}),
+    ...(spec.pairing ? { pairing: spec.pairing } : {}),
+  });
+  const self = {
+    clock,
+    song,
+    songClock,
+    truly,
+    room: () => roomAtStart + perf,
+    /** The position truly leaving the device now, ms. */
+    heard: () => {
+      const seconds = song.scheduled(context - truly);
+      return seconds === undefined ? undefined : seconds * 1000;
+    },
+    frame(ms = FRAME_144) {
+      perf += ms;
+      context += ms / 1000;
+      read();
+      songClock.sample();
+      songClock.follow(self.room(), song);
+    },
+    frames(count: number, ms = FRAME_144) {
+      for (let i = 0; i < count; i++) self.frame(ms);
+    },
+    /** The audio thread stops (or resumes) renewing the pair. */
+    renew(on: boolean) {
+      renewing = on;
+    },
+    get perf() {
+      return perf;
+    },
+  };
+  return self;
+}
+
+test("with the browser's clock pair the position is the sample leaving the device, to a hundredth of a ms", () => {
+  // Chrome on macOS as measured: 5.3 ms steps, 168 ms reported, the output 176 ms behind the clock.
+  const p = pairedPage({});
+  p.frames(SETTLE_SAMPLES + 400);
+  assert.equal(p.songClock.audible, true);
+  const mapping = p.songClock.mapping()!;
+  assert.equal(mapping.source, "paired");
+  near(mapping.lagMs, 176, 0.5);
+  let worst = 0;
+  for (let i = 0; i < 300; i++) {
+    p.frame();
+    worst = Math.max(worst, Math.abs(p.songClock.songMs() - p.heard()!));
+  }
+  assert.ok(worst < 0.01, `the heard position is exact (${worst} ms off)`);
+  // And it was started so that what is heard is the room's position, the real latency taken into account.
+  near(p.heard(), p.room(), 0.3);
+});
+
+test("without the pair the same page reads the stepped clock and the reported latency: 8 ms early here", () => {
+  const p = pairedPage({ pairing: () => false });
+  p.frames(SETTLE_SAMPLES + 400);
+  assert.equal(p.songClock.mapping()!.source, "reported");
+  near(p.songClock.mapping()!.lagMs, 168, 0.01);
+  // The game believes the position is 8 ms further on than the one leaving the device.
+  near(p.songClock.songMs() - p.heard()!, 8, 0.3);
+});
+
+test("a pair that is stale, from the future or absurd is not used, and the mapping returns when it is good again", () => {
+  const p = pairedPage({});
+  p.frames(SETTLE_SAMPLES + 50);
+  assert.equal(p.songClock.mapping()!.source, "paired");
+  // Zeros are filtered by the audio module; a pair that says the output is ahead of the clock is not a pair.
+  for (const bad of [
+    { contextTime: p.clock.time + 5, performanceTime: p.perf },
+    { contextTime: p.clock.time - 30, performanceTime: p.perf },
+    { contextTime: p.clock.time - 0.176, performanceTime: p.perf + 800 },
+  ]) {
+    p.clock.pair = bad;
+    const before = p.songClock.songMs();
+    p.songClock.sample();
+    near(p.songClock.songMs(), before, 1e-6);
+    assert.equal(p.songClock.mapping()!.pairedMs, undefined);
+  }
+  // A pair that stopped being renewed (the audio thread stalled) is held for a second, then let go.
+  p.clock.pair = undefined;
+  p.frame();
+  p.renew(false);
+  p.frames(20);
+  assert.equal(p.songClock.mapping()!.source, "paired", "held for a moment");
+  p.frames(200);
+  assert.equal(p.songClock.mapping()!.source, "reported");
+  p.renew(true);
+  p.frames(60);
+  assert.equal(p.songClock.mapping()!.source, "paired");
+  near(p.songClock.songMs(), p.heard()!, 0.5);
+});
+
+test("the audio offset is latency the browser does not know of: the song starts earlier and the position follows", () => {
+  let extra = 150;
+  // Bluetooth the browser underestimates by 150 ms.
+  const p = pairedPage({
+    truly: 0.176 + 0.15,
+    known: 0.176,
+    extra: () => extra,
+  });
+  const frame = () => p.frame();
+  for (let i = 0; i < SETTLE_SAMPLES + 300; i++) frame();
+  near(p.songClock.mapping()!.lagMs, 326, 0.5);
+  // What the player hears is where the room is, and where the game says it is.
+  near(p.heard(), p.room(), 1);
+  near(p.songClock.songMs(), p.heard()!, 0.5);
+  // Turned while playing, the position glides to it without a restart.
+  const plays = p.song.plays.length;
+  extra = 170;
+  for (let i = 0; i < 400; i++) frame();
+  near(p.songClock.songMs(), p.heard()! - 20, 0.5);
+  assert.equal(p.song.plays.length, plays);
+});
+
+test("the schedule, the clock's own time and the count of starts are there for a listener", () => {
+  const p = page({ lag: 0.04 });
+  assert.equal(p.songClock.scheduledAt(1000), undefined);
+  assert.equal(p.songClock.clockTime(p.perf), undefined);
+  assert.equal(p.songClock.starts, 0);
+  p.frames(SETTLE_SAMPLES + 30);
+  assert.equal(p.songClock.starts, 1);
+  const { at, offset } = p.song.plays[0]!;
+  near(p.songClock.scheduledAt(2500), at + 2.5 - offset, 1e-9);
+  // A sample scheduled then is heard one latency later: where the song clock says position 2500 is.
+  near(p.songClock.clockTime(p.perf), p.clock.time, 1e-6);
+  p.glitch(400);
+  p.frames(200);
+  assert.equal(p.songClock.starts, 2, "a realignment is a start");
+});

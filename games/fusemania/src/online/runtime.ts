@@ -1,5 +1,7 @@
 import { RoomRuntime, type Callbacks, type RuntimeOptions } from "fuse-netcode";
 import {
+  EARLY_MS,
+  LATE_MS,
   MAX_SONG_MS,
   MIN_SONG_MS,
   RELEASE,
@@ -48,6 +50,8 @@ export class FusemaniaRuntime extends RoomRuntime<
   private down = [false, false, false, false];
   /** The match `down` is about: a new match starts with every key up. */
   private epoch = -1;
+  /** How much room the newest logged input had inside its tick's bounds, ms; negative when the fold will move it. */
+  private slack: number | undefined;
   constructor(
     code: string,
     settings: Settings,
@@ -68,6 +72,11 @@ export class FusemaniaRuntime extends RoomRuntime<
     const tick = this.recorder.next();
     this.logged = this.logged.filter((entry) => entry.tick > room.tick);
     this.logged.push({ tick, epoch: room.epoch, code, ms });
+    if (room.world) {
+      // The fold takes a timestamp no further than `LATE_MS` behind its tick and `EARLY_MS` ahead (`applyInput`).
+      const at = room.world.ms + (tick - room.tick) * TICK_MS;
+      this.slack = Math.min(ms - (at - TICK_MS - LATE_MS), at + EARLY_MS - ms);
+    }
     this.recorder.at(tick, [
       PLAY,
       room.epoch,
@@ -132,6 +141,14 @@ export class FusemaniaRuntime extends RoomRuntime<
           at: room.world.ms + (entry.tick - room.tick) * TICK_MS,
         });
     return toView(library, forecast(library, room.world, slot, pending, now));
+  }
+  /**
+   * How far inside its tick's bounds the newest input this device logged was, in ms of song time; undefined before
+   * the first. Diagnostics: an input is judged at its own song time as long as this is not negative, and a negative
+   * one is where the room's clock (and so the network) would reach a judgment.
+   */
+  get lastSlackMs(): number | undefined {
+    return this.slack;
   }
   /** The newest simulated room, for reports and tests. */
   roomState(): Room | undefined {
