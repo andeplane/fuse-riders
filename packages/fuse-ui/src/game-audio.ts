@@ -418,7 +418,15 @@ export function createGameAudio(
       return {
         set(frequency, volume) {
           const out = output();
-          if (!context || !out) return;
+          if (!context) return;
+          if (!out) {
+            // Muted, hidden or suspended: a voice must not keep its last volume for when sound returns.
+            if (voice) {
+              voice.gain.gain.cancelScheduledValues(context.currentTime);
+              voice.gain.gain.setValueAtTime(0, context.currentTime);
+            }
+            return;
+          }
           if (!voice) {
             if (volume <= 0) return;
             const main = context.createOscillator(),

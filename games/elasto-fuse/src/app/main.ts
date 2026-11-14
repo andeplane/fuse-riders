@@ -883,6 +883,8 @@ function room(solo: boolean): void {
     ended() {
       status.show("Room ended", "error");
       over = true;
+      // The frames stop here, so nothing else would let the engine go.
+      sfx.engine(0, false, false);
       controls.clear();
       for (const part of [connecting, nameEntry.form, lobby, stage, controller])
         part.hidden = true;

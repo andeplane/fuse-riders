@@ -211,6 +211,15 @@ test("a hum is made when first heard, glides, and falls silent when the tab hide
   assert.equal(r.log.oscillators, 2, "one voice and its octave, made once");
   const gain = r.gains.at(-1)!;
   assert.equal(gain.gain.value, 0.08);
+  hum.set(140, 0);
+  assert.equal(gain.gain.value, 0, "silence is heard by a live voice");
+  hum.set(140, 0.08);
+  audio.setMuted(true);
+  hum.set(140, 0.08);
+  assert.equal(gain.gain.value, 0, "a muted voice keeps no volume for later");
+  audio.setMuted(false);
+  hum.set(140, 0.08);
+  assert.equal(gain.gain.value, 0.08);
   audio.setHidden(true);
   assert.equal(gain.gain.value, 0);
   hum.set(140, 0.08);
