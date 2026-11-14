@@ -729,6 +729,12 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"])) #app {
 }
 
 /* ---- the timing lab (?debugtiming) ---- */
+/* On a wide screen the open panel takes its own column, so the song bar, the lanes and the song select stay whole beside it. */
+@media (min-width: 48rem) {
+  body:has(.fm-dt:not(.fm-dt-closed)) #app {
+    padding-right: calc(min(23.5rem, 100vw - 1rem) + 1rem);
+  }
+}
 .fm-dt {
   position: fixed;
   top: 3.75rem;
@@ -815,12 +821,15 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"])) #app {
   align-items: center;
   margin: 0.25rem 0;
 }
-.fm-dt-button {
+/* `.fm-dt` in front: the page's own `.fui-app button` would otherwise give these the game's large buttons. */
+.fm-dt .fm-dt-button {
+  min-height: 0;
   padding: 0.125rem 0.4375rem;
   color: #cfe;
   background: #0a2030;
   border: 1px solid #2a6a7a;
   border-radius: 0.25rem;
+  box-shadow: none;
   font: inherit;
   cursor: pointer;
 }
