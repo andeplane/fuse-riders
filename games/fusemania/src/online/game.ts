@@ -90,6 +90,10 @@ export type PickEntry = [
 export type Entry = ManagementEntry<Settings> | PlayEntry | PickEntry;
 
 export const MAX_WATCHERS = 5;
+/** The room's size, whatever library the game is made with: what the service sizes its rooms by. */
+export const ROOM = {
+  seating: { capacity: CAPACITY, maxWatchers: MAX_WATCHERS },
+} as const;
 export type RoomStage = "lobby" | "running" | "over";
 
 /** A rider of the current match as it started: the result names them even if the seat is gone by the end. */
@@ -716,9 +720,8 @@ export function createFusemaniaGame(
     settings: (room) => room.settings,
     matchSettings: (room) => room.play,
     seating: {
-      capacity: CAPACITY,
+      ...ROOM.seating,
       minPlayers: 1,
-      maxWatchers: MAX_WATCHERS,
       seatName,
       isAvatar,
       defaultAvatar: AVATAR,
