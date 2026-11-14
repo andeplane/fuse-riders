@@ -397,7 +397,10 @@ async function checkBombersDisplay(): Promise<void> {
     await openPlayOptions(host);
     await host.getByRole("button", { name: "Host room", exact: true }).click();
     await takeHostSeat(host, "Menu smoke");
-    await host.getByRole("button", { name: /^Add AI$/i, exact: true }).click();
+    await host
+      .getByRole("button", { name: /^Add AI$/i, exact: true })
+      .first()
+      .click();
     const display = await context.newPage();
     display.setDefaultTimeout(smokeTimeout(20_000));
     const url = new URL(host.url());
@@ -437,7 +440,10 @@ async function checkTownOnlineResume(): Promise<void> {
     }, room);
     await page.goto(new URL(`fuse-lane/?room=${room.code}&mute`, base).href);
     await takeHostSeat(page, "Menu smoke");
-    await page.getByRole("button", { name: /^Add AI$/i, exact: true }).click();
+    await page
+      .getByRole("button", { name: /^Add AI$/i, exact: true })
+      .first()
+      .click();
     await page
       .getByRole("button", { name: "START MATCH", exact: true })
       .click();

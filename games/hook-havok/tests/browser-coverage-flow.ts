@@ -4,6 +4,10 @@ import { dirname, resolve } from "node:path";
 import type { Page } from "playwright";
 import { launchSelected } from "../../../scripts/lib/browser.js";
 import { startGameCoverage } from "../../../scripts/lib/game-browser-coverage.js";
+import {
+  openPlayOptions,
+  takeHostSeat,
+} from "../../../scripts/lib/main-menu.js";
 
 interface HookKeeper {
   id: string;
@@ -139,6 +143,14 @@ async function saveFailure(
   });
 }
 
+/** The header's game menu holds the trigger of the in-game menu. */
+async function openMenu(page: Page) {
+  await page.getByRole("button", { name: "Open game menu" }).click();
+  await page
+    .getByRole("button", { name: "Game controls", exact: true })
+    .click();
+}
+
 // Ordinary room controls and rendered outcomes only. Native coverage is
 // collected by the shared harness when FUSE_GAME_COVERAGE_DIR is supplied.
 const origin = process.env.ONLINE_URL ?? "http://127.0.0.1:8787/";
@@ -160,7 +172,9 @@ try {
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(new URL("hook-havok/?mute&play", origin).href);
   await page.locator('#status[data-state="ready"]').waitFor();
-  await page.locator("#start").click();
+  // Single player opens a room of one; the keeper enters once it takes a seat.
+  await openPlayOptions(page, "single");
+  await takeHostSeat(page, "Keeper");
   await page.locator('#status[data-state="playing"]').waitFor();
   // Room status can precede the first local rendered frame. Initial round and
   // phase transitions cancel held input, so wait for the playable keeper before
@@ -178,11 +192,15 @@ try {
   initialTick =
     (await page.locator("#scene").getAttribute("data-tick")) ?? undefined;
   stage = "visible room controls select Neon Spire";
-  await page.getByRole("button", { name: "MENU", exact: true }).click();
+  await openMenu(page);
   await page
     .getByRole("button", { name: "BACK TO LOBBY", exact: true })
     .click();
+  await page
+    .getByRole("button", { name: "Game settings", exact: true })
+    .click();
   await page.locator("#map").selectOption("spire");
+  await page.keyboard.press("Escape");
   // Native precise coverage left the simulation at log tick 183 against room tick 543 on main CI
   // (run 38647662723), so the applied map change never rendered within 30 s. Quarantined under
   // flaky-test epic #250 only while collecting native coverage; ordinary runs keep both waits.
@@ -194,7 +212,7 @@ try {
     );
   }
   stage = "menu controls and focus restoration";
-  await page.getByRole("button", { name: "MENU", exact: true }).click();
+  await openMenu(page);
   await page.getByRole("button", { name: "CONTROLS", exact: true }).click();
   const menu = page.locator(".fui-game-menu-panel");
   await menu.getByText("WASD / ARROWS + K", { exact: true }).waitFor();
@@ -228,7 +246,7 @@ try {
       return keeper.tally.thrown;
     });
     stage = "menu cancels charge without throwing";
-    await page.getByRole("button", { name: "MENU", exact: true }).click();
+    await openMenu(page);
     await page.waitForFunction(
       () =>
         Number(

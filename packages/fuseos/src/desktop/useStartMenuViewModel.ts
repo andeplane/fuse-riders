@@ -7,6 +7,8 @@ import { useAppState } from "../state/useAppState";
 import type { IconRef } from "../ui/icons";
 import type { WindowCommands } from "../windows/useWindowCommands";
 import { useWindowCommands } from "../windows/useWindowCommands";
+import type { Size } from "../windows/windowManager";
+import { WindowManagerContext } from "../windows/windowManagerContext";
 
 import { DesktopDepsContext } from "./desktopDepsContext";
 import { DesktopUiContext } from "./desktopUiContext";
@@ -35,6 +37,7 @@ function registeredItems(
   registrations: readonly StartMenuRegistration[],
   slot: StartMenuSlot,
   commands: WindowCommands,
+  viewport: Size,
   wrap: (action: () => void) => () => void,
 ): StartMenuItem[] {
   return registrationsFor(registrations, slot).map((entry) => {
@@ -44,7 +47,7 @@ function registeredItems(
       label: entry.label,
       icon: entry.icon,
       disabled: open === undefined,
-      onSelect: open ? wrap(() => open(commands)) : undefined,
+      onSelect: open ? wrap(() => open(commands, viewport)) : undefined,
       separatorAfter: entry.separatorAfter,
     };
   });
@@ -60,6 +63,7 @@ export function useStartMenuViewModel(): {
   const deps = useContext(DesktopDepsContext);
   const games = useContext(FuseGamesContext);
   const registrations = useContext(StartMenuRegistryContext);
+  const { viewport } = useContext(WindowManagerContext);
   const desktop = useDesktopViewModel();
 
   const close = () => ui.setStartMenuOpen(false);
@@ -68,7 +72,7 @@ export function useStartMenuViewModel(): {
     action();
   };
   const registered = (slot: StartMenuSlot) =>
-    registeredItems(registrations, slot, commands, wrap);
+    registeredItems(registrations, slot, commands, viewport, wrap);
 
   const fuseGameItems: StartMenuItem[] = games.games.map((game) => ({
     id: `fusegame:${game.id}`,
@@ -133,6 +137,7 @@ export function useStartMenuViewModel(): {
             },
           ],
         },
+        // Fusteam and any other program a package registers (`startMenuRegistry.ts`).
         ...registered("programs"),
       ],
     },

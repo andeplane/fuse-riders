@@ -588,6 +588,14 @@ function fail(message: string) {
   entrance.show();
   entrance.busy(false, graphicsReady);
 }
+// Under the entrance menu the arena cannot be seen, and the menu draws its own scene: this one rests until play.
+const restScene = () =>
+  scene?.setAwake(!document.body.classList.contains("at-entrance"));
+const entranceWatch = new MutationObserver(restScene);
+entranceWatch.observe(document.body, {
+  attributes: true,
+  attributeFilter: ["class"],
+});
 async function graphics() {
   scene?.destroy();
   scene = undefined;
@@ -653,6 +661,7 @@ async function graphics() {
       time: () => {},
     });
     scene.setFollow(followCam.checked);
+    restScene();
   } catch {
     clearTimeout(deadline);
     if (token === attempt) {
@@ -1265,6 +1274,7 @@ window.addEventListener("pagehide", () => {
   stopRoom();
   touch?.destroy();
   scene?.destroy();
+  entranceWatch.disconnect();
   entrance.destroy();
   menu.dispose();
 });

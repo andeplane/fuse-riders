@@ -1,3 +1,5 @@
+import type { WindowCommands } from "../windows/useWindowCommands";
+
 import type { StartMenuRegistration } from "./startMenuRegistry";
 import {
   registrationsFor,
@@ -14,7 +16,7 @@ describe("START_MENU_REGISTRATIONS", () => {
     });
   });
 
-  it("lists the accessories, the Retro Games folder and the screen saver, with Notepad++ and My Computer disabled until their package lands", () => {
+  it("lists the accessories, Fusteam, the Retro Games folder and the screen saver, with Notepad++ and My Computer disabled until their package lands", () => {
     expect(
       START_MENU_REGISTRATIONS.map((entry) => [
         entry.slot,
@@ -26,17 +28,19 @@ describe("START_MENU_REGISTRATIONS", () => {
       ["accessories", "winamp", true],
       ["accessories", "notepadpp", false],
       ["accessories", "wallpaper", true],
+      ["programs", "fusteam", true],
       ["retro-games", "retro-folder", true],
       ["my-computer", "my-computer", false],
       ["settings", "screensaver", true],
     ]);
   });
 
-  it("opens each registered program through the window commands", () => {
+  function recordingCommands(): WindowCommands & { opened: unknown[] } {
     const opened: unknown[] = [];
-    const commands = {
-      open: (content: unknown) => {
-        opened.push(content);
+    return {
+      opened,
+      open: (content, options) => {
+        opened.push(options === undefined ? content : [content, options]);
       },
       close: () => undefined,
       focus: () => undefined,
@@ -45,13 +49,31 @@ describe("START_MENU_REGISTRATIONS", () => {
       showError: () => undefined,
       showInfo: () => undefined,
     };
-    START_MENU_REGISTRATIONS.forEach((entry) => entry.open?.(commands));
-    expect(opened).toEqual([
+  }
+
+  it("opens each registered program through the window commands", () => {
+    const commands = recordingCommands();
+    START_MENU_REGISTRATIONS.forEach((entry) =>
+      entry.open?.(commands, { width: 1280, height: 800 }),
+    );
+    expect(commands.opened).toEqual([
       { kind: "paint" },
       { kind: "winamp" },
       { kind: "wallpaper" },
+      [{ kind: "launcher" }, { id: "launcher", maximized: false }],
       { kind: "retroFolder" },
       { kind: "controlpanel", applet: "display", tab: "screensaver" },
+    ]);
+  });
+
+  it("opens Fusteam maximized on a display it would not fit", () => {
+    const commands = recordingCommands();
+    const fusteam = START_MENU_REGISTRATIONS.find(
+      (entry) => entry.id === "fusteam",
+    );
+    fusteam?.open?.(commands, { width: 390, height: 844 });
+    expect(commands.opened).toEqual([
+      [{ kind: "launcher" }, { id: "launcher", maximized: true }],
     ]);
   });
 });

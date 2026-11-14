@@ -1,4 +1,8 @@
 import type { FuseGameRegistry } from "../fusegames/registry";
+import {
+  LAUNCHER_TITLE,
+  LAUNCHER_WINDOW_SIZE,
+} from "../launcher/launcherFacts";
 import { GAMES } from "../retro/games";
 import type { WindowState } from "../state/appState";
 import type { IconRef } from "../ui/icons";
@@ -91,6 +95,13 @@ export function windowMeta(
         icon: "winamp",
         resizable: false,
         size: WINAMP_WINDOW_SIZE,
+      };
+    case "launcher":
+      return {
+        title: LAUNCHER_TITLE,
+        icon: "fusteam",
+        resizable: true,
+        size: LAUNCHER_WINDOW_SIZE,
       };
   }
 }

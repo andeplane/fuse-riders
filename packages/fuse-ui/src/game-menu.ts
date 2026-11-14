@@ -114,6 +114,10 @@ export function createGameMenu(options: GameMenuOptions): GameMenu {
     "fui-game-menu-action fui-game-menu-leave",
     doc,
   );
+  // A host that shows this menu inside its own modal (the shared top bar) dismisses that modal first on these, so
+  // the game's focus restoration in onOpenChange lands on the page rather than on inert content.
+  for (const action of [resume, lobby, leave])
+    action.dataset.fuiMenuDismiss = "";
   navigation.append(resume, controls, lobby, leave);
   const help = el("div", "", "fui-game-menu-controls", doc);
   help.hidden = true;

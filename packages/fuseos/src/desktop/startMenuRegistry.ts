@@ -1,12 +1,15 @@
 import { createContext } from "react";
 
+import { LAUNCHER_TITLE } from "../launcher/launcherFacts";
+import { openLauncher } from "../launcher/useOpenLauncher";
 import type { IconName } from "../ui/icons";
 import type { WindowCommands } from "../windows/useWindowCommands";
+import type { Size } from "../windows/windowManager";
 
 /**
  * Where a registered entry lands in the Start menu:
  * - `accessories`: Programs > Accessories (Paint, Winamp, Notepad++, ...)
- * - `programs`: Programs, after Accessories and Games
+ * - `programs`: Programs, after Accessories and Games (Fusteam, the game launcher)
  * - `games`: Programs > Games, after the Fuse games and before Retro Games
  * - `retro-games`: Programs > Games > Retro Games, before the games themselves (the folder window)
  * - `my-computer`: the top-level My Computer item itself (one registration fills it)
@@ -29,10 +32,11 @@ export type StartMenuRegistration = {
   label: string;
   icon: IconName;
   /**
-   * What choosing the item does, given the window commands. Absent means the program is not
-   * installed in this build: the item shows disabled so the menu's shape is complete.
+   * What choosing the item does, given the window commands and the desktop's viewport (a program that
+   * opens maximized on a small display). Absent means the program is not installed in this build: the
+   * item shows disabled so the menu's shape is complete.
    */
-  open?: (commands: WindowCommands) => void;
+  open?: (commands: WindowCommands, viewport: Size) => void;
   /** Lower first within a slot; registrations without one keep their list order after those with one. */
   order?: number;
   /** A menu separator under the item (Windows draws one under "Open folder" lines). */
@@ -76,6 +80,14 @@ export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
     icon: "wallpaper",
     order: 40,
     open: (commands) => commands.open({ kind: "wallpaper" }),
+  },
+  {
+    slot: "programs",
+    id: "fusteam",
+    label: LAUNCHER_TITLE,
+    icon: "fusteam",
+    order: 10,
+    open: openLauncher,
   },
   {
     slot: "retro-games",
