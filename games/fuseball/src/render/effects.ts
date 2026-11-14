@@ -70,12 +70,12 @@ const SLOTS = [0, 1] as const;
 
 /** The centre of `team`'s goal nearest (`x`, `y`), the short way round on an axis that wraps. */
 export function goalNear(
-  view: Pick<WorldView, "mapId">,
+  view: Pick<WorldView, "mapId" | "seed">,
   team: 0 | 1,
   x: number,
   y: number,
 ): { x: number; y: number } {
-  const map = mapOf(view.mapId);
+  const map = mapOf(view.mapId, view.seed);
   const gap = (a: number, b: number, size: number, wraps: boolean) => {
     const d = Math.abs(a - b);
     return wraps ? Math.min(d, size - d) : d;
@@ -95,7 +95,8 @@ export function goalNear(
 }
 
 export function cues(older: WorldView | undefined, newer: WorldView): Cue[] {
-  if (!older || older.mapId !== newer.mapId) return [];
+  if (!older || older.mapId !== newer.mapId || older.seed !== newer.seed)
+    return [];
   const found: Cue[] = [];
   const reset = newer.phase === "countdown" && older.phase !== "countdown";
   for (const slot of SLOTS) {
@@ -423,7 +424,7 @@ export function createEffects(options: EffectsOptions = {}): Effects {
     // The vignette follows the arena's speed: clear at full speed, full at a cloud's core and below.
     slow += (vignetteFor(view.speed) - slow) * Math.min(1, seconds * 9);
     // Clouds breathe a little all the time and boil while they hold the ball.
-    const clouds = mapOf(view.mapId).clouds;
+    const clouds = mapOf(view.mapId, view.seed).clouds;
     puffDebt = Math.min(4, puffDebt + seconds * (view.slow ? 26 : 5));
     while (puffDebt >= 1 && clouds.length > 0) {
       puffDebt--;

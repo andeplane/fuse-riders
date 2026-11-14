@@ -1,3 +1,5 @@
+import { isSeed } from "../engine/index.js";
+
 /** What `localStorage` offers, or a stand-in when the browser refuses it (Safari with every cookie blocked). */
 export interface Store {
   getItem(key: string): string | null;
@@ -104,4 +106,10 @@ export function roomFailure(message: string): string {
   if (/another game/i.test(message))
     return "That code is a room of another game";
   return message;
+}
+/** Decimal text only: no coercion of empty strings, exponents, signs, fractions or hex. */
+export function seedFromText(raw: string | null): number | undefined {
+  if (raw === null || !/^\d{1,10}$/.test(raw)) return;
+  const value = Number(raw);
+  return isSeed(value) ? value : undefined;
 }

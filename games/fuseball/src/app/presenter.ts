@@ -2,6 +2,8 @@ import {
   CAPACITY,
   MAPS,
   MAP_IDS,
+  RANDOM,
+  mapOf,
   ZAP_STEPS,
   type MapId,
 } from "../engine/index.js";
@@ -33,6 +35,7 @@ export const MAP_BLURBS: Readonly<Record<MapId, string>> = {
   bouncerate: "A closed box of bumpers. One guards each goal.",
   portforward: "Corner portals carry the ball across. Roofed pits.",
   backdoor: "Trapdoors shut the pits. Knock one open, then drop in.",
+  random: "A mirrored arena from a seed. Re-roll or share your favourite.",
 };
 
 export interface Side {
@@ -232,16 +235,19 @@ export function present(view: View, viewer: Viewer): Model {
       canStart: seats.length === CAPACITY,
       editable: viewer.host,
       note: lobbyNote,
-      maps: MAP_IDS.map((id) => ({
+      maps: ([...MAP_IDS, RANDOM] as const).map((id) => ({
         id,
-        name: MAPS[id].name,
+        name: id === RANDOM ? "Random" : MAPS[id].name,
         blurb: MAP_BLURBS[id],
         selected: id === view.settings.mapId,
       })),
     },
     sides,
     names,
-    mapName: MAPS[playing].name,
+    mapName:
+      playing === RANDOM
+        ? `Random · ${inMatch ? view.play.seed : view.settings.seed}`
+        : mapOf(playing).name,
     status,
     note,
     result,
