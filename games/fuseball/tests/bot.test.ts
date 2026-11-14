@@ -270,6 +270,7 @@ test("the room's bot seats are folded with the engine's bot", () => {
     display: false,
     mapId: "gridlock",
     seed: 0,
+    size: 1,
   });
   room.seats.set("me", {
     id: "me",

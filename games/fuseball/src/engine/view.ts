@@ -4,10 +4,18 @@ import { arenaOf, type MapId } from "./maps.js";
 import { SUB } from "./math.js";
 import { slowed, winnerOf } from "./step.js";
 import { SPEED_FULL, STEPS_PER_SECOND, TARGET } from "./tuning.js";
-import type { Phase, Slot, World } from "./world.js";
+import {
+  several,
+  type Bubble,
+  type Phase,
+  type Rider,
+  type Several,
+  type Slot,
+  type World,
+} from "./world.js";
 
 /**
- * What the presentation sees of a match: positions in pixels on the 640×360 field (fractions allowed), speeds in
+ * What the presentation sees of a match: positions in pixels on the arena's field (640×360 in a duel) (fractions allowed), speeds in
  * pixels per micro-step, timers in micro-steps. The arena is not here: the renderer reads it from `view-kit.ts` by
  * `mapId`. Effects are the presentation's own, driven by the counters (`jumps`, `pops`, `seq`, `bounces`) changing
  * between two views; a rollback that replays a step leaves a counter where it was, so nothing is drawn twice.
@@ -16,6 +24,9 @@ import type { Phase, Slot, World } from "./world.js";
  */
 export interface RiderView {
   id: string;
+  /** This rider's place among the riders; their bubble has the same place among the bubbles. */
+  index: number;
+  /** The side they play for, and so their colour. */
   slot: Slot;
   x: number;
   y: number;
@@ -36,7 +47,9 @@ export interface RiderView {
   ownGoals: number;
 }
 export interface BubbleView {
-  /** The owner's slot: the bubble wears that side's colour. */
+  /** Its owner's place among the riders. */
+  index: number;
+  /** The owner's side: the bubble wears that side's colour. */
   slot: Slot;
   active: boolean;
   /** Held hard by its owner: draw the second ring. */
@@ -56,7 +69,7 @@ export interface BallView {
   live: boolean;
   /** Bounces, kicks, lifts and bumps so far (wraps at 65536). */
   bounces: number;
-  /** Whose rider or bubble last sent it, or −1. */
+  /** The side whose rider or bubble last sent it, or −1. */
   touch: -1 | Slot;
 }
 export interface WorldView {
@@ -86,8 +99,10 @@ export interface WorldView {
   speed: number;
   /** A goal has just been scored and nothing moves yet: draw the ball where it went in. */
   frozen: boolean;
-  riders: [RiderView, RiderView];
-  bubbles: [BubbleView, BubbleView];
+  /** Two, four or six riders, the sides taking turns down the list. */
+  riders: Several<RiderView>;
+  /** Each rider's bubble, in the riders' order. */
+  bubbles: Several<BubbleView>;
   ball: BallView;
   /** The map's barriers, in the map's order (`MapDef.barriers` has where they are). */
   barriers: BarrierView[];
@@ -101,11 +116,11 @@ export interface BarrierView {
   timer: number;
 }
 
-const riderView = (world: World, slot: Slot): RiderView => {
-  const r = world.riders[slot];
+const riderView = (world: World, r: Rider): RiderView => {
   return {
     id: r.id,
-    slot,
+    index: r.index,
+    slot: r.slot,
     x: r.x / SUB,
     y: r.y / SUB,
     vx: r.vx / SUB,
@@ -121,10 +136,10 @@ const riderView = (world: World, slot: Slot): RiderView => {
     ownGoals: r.ownGoals,
   };
 };
-const bubbleView = (world: World, slot: Slot): BubbleView => {
-  const b = world.bubbles[slot];
+const bubbleView = (b: Bubble, index: number): BubbleView => {
   return {
-    slot,
+    index,
+    slot: index % 2 === 0 ? 0 : 1,
     active: b.active,
     hard: b.hard,
     x: b.x / SUB,
@@ -155,8 +170,8 @@ export function toView(world: World): WorldView {
     slow: slowed(world),
     speed: world.speed / SPEED_FULL,
     frozen: world.freeze > 0,
-    riders: [riderView(world, 0), riderView(world, 1)],
-    bubbles: [bubbleView(world, 0), bubbleView(world, 1)],
+    riders: several(world.riders.map((rider) => riderView(world, rider))),
+    bubbles: several(world.bubbles.map(bubbleView)),
     ball: {
       x: ball.x / SUB,
       y: ball.y / SUB,
@@ -164,7 +179,7 @@ export function toView(world: World): WorldView {
       vy: ball.vy / SUB,
       live: ball.live,
       bounces: ball.bounces,
-      touch: ball.touch,
+      touch: world.riders[ball.touch]?.slot ?? -1,
     },
     barriers: world.barriers.map((state, i) => {
       const barrier = map.barriers[i];

@@ -30,6 +30,8 @@ import {
 import {
   BTN,
   MAP_IDS,
+  TEAM_MAP_IDS,
+  isTeamMapId,
   RANDOM,
   mapOf,
   isCircle,
@@ -38,7 +40,12 @@ import {
   type MapId,
 } from "../engine/index.js";
 import { GAME_ID } from "../basics.js";
-import { DEFAULT_SETTINGS, type Settings, type View } from "../online/game.js";
+import {
+  DEFAULT_SETTINGS,
+  settingsFor,
+  type Settings,
+  type View,
+} from "../online/game.js";
 import { seatName } from "../online/names.js";
 import { FuseballRuntime, type FuseballCallbacks } from "../online/runtime.js";
 import { blend, fraction } from "../render/interpolate.js";
@@ -61,6 +68,7 @@ import {
 } from "./controls.js";
 import {
   MAP_BLURBS,
+  MODES,
   createGoalWatch,
   playRound,
   present,
@@ -105,6 +113,7 @@ const store = safeStore(() => localStorage);
 const names = keys(GAME);
 const mapKey = `${GAME}-map`;
 const seedKey = `${GAME}-seed`;
+const sizeKey = `${GAME}-size`;
 const query = new URLSearchParams(location.search);
 const muted = query.has("mute");
 const app = document.querySelector<HTMLElement>("#app")!;
@@ -127,6 +136,12 @@ const chosenMap = (): MapId => {
   const asked = query.get("map"),
     saved = store.getItem(mapKey);
   return isMapId(asked) ? asked : isMapId(saved) ? saved : MAP_IDS[0];
+};
+/** Riders a side, as this device last chose: `?size=` overrides it, and the arena has the last word. */
+const chosenSize = (): number => {
+  const asked = Number(query.get("size") ?? store.getItem(sizeKey) ?? 0),
+    size = asked === 2 || asked === 3 ? asked : 1;
+  return isTeamMapId(chosenMap()) ? Math.max(2, size) : 1;
 };
 const chosenSeed = () =>
   seedFromText(query.get("seed")) ?? seedFromText(store.getItem(seedKey)) ?? 0;
@@ -211,7 +226,7 @@ const SVG = "http://www.w3.org/2000/svg";
 /** A small drawing of an arena from its map data: solids, both goals, the clouds and where the ball starts. */
 function mapThumb(map: MapDef): SVGSVGElement {
   const svg = document.createElementNS(SVG, "svg");
-  svg.setAttribute("viewBox", "0 0 640 360");
+  svg.setAttribute("viewBox", `0 0 ${map.w} ${map.h}`);
   svg.setAttribute("aria-hidden", "true");
   svg.classList.add("fb-map-thumb");
   const add = (tag: string, attributes: Record<string, string | number>) => {
@@ -318,7 +333,7 @@ function createMapPicker(onPick: (id: MapId) => void) {
   element.setAttribute("role", "group");
   element.setAttribute("aria-label", "Arena");
   const buttons = new Map<MapId, HTMLButtonElement>();
-  for (const id of [...MAP_IDS, RANDOM] as const) {
+  for (const id of [...MAP_IDS, RANDOM, ...TEAM_MAP_IDS] as const) {
     const map = mapOf(id);
     const choice = button("", "fb-map");
     choice.dataset.map = id;
@@ -342,10 +357,37 @@ function createMapPicker(onPick: (id: MapId) => void) {
           .replaceWith(mapThumb(mapOf(RANDOM, seed)));
         previewSeed = seed;
       }
+      // Only the arenas of the mode being played are offered: team arenas for teams, the rest for a duel.
+      const teams = isTeamMapId(selected);
       for (const [id, choice] of buttons) {
+        choice.hidden = isTeamMapId(id) !== teams;
         choice.setAttribute("aria-pressed", String(id === selected));
         choice.disabled = !editable && id !== selected;
         choice.classList.toggle("fb-map-locked", !editable);
+      }
+    },
+  };
+}
+
+/** Duel, 2 v 2 or 3 v 3 as a row of buttons; `onPick` hears a choice, `update` shows the room's. */
+function createModePicker(onPick: (size: number) => void) {
+  const element = el("div", "", "fb-modes");
+  element.setAttribute("role", "group");
+  element.setAttribute("aria-label", "Mode");
+  const buttons = MODES.map((mode) => {
+    const choice = button("", "fb-mode");
+    choice.dataset.size = String(mode.size);
+    choice.append(el("strong", mode.name), el("small", mode.blurb));
+    choice.onclick = () => onPick(mode.size);
+    element.append(choice);
+    return { size: mode.size, choice };
+  });
+  return {
+    element,
+    update(size: number, editable: boolean) {
+      for (const { size: each, choice } of buttons) {
+        choice.setAttribute("aria-pressed", String(each === size));
+        choice.disabled = !editable && each !== size;
       }
     },
   };
@@ -416,18 +458,19 @@ function landing(): void {
     store.setItem(names.shared, toggle.checked ? "1" : "0");
   shared.append(toggle, el("span", "Shared TV: phones are the controllers"));
   let selectedMap = chosenMap(),
-    selectedSeed = chosenSeed();
+    selectedSeed = chosenSeed(),
+    selectedSize = chosenSize();
   const solo = () =>
     withFlags(
       endpoints.appUrl(
-        `?solo=1&map=${selectedMap}${selectedMap === RANDOM ? `&seed=${selectedSeed}` : ""}`,
+        `?solo=1&map=${selectedMap}${selectedMap === RANDOM ? `&seed=${selectedSeed}` : ""}${selectedSize > 1 ? `&size=${selectedSize}` : ""}`,
       ),
     );
   const card = createLandingCard({
     title: "FUSEBALL",
     tagline:
-      "A neon ball duel for two. Knock the ball into the goal in your own colour to score and zap the other rider. Air-jump as often as you like: every one leaves a bubble that bumps the ball away. First to three wins.",
-    soloText: "PLAY SOLO VS BOT",
+      "A neon ball game for two to six: a duel, 2 v 2 or 3 v 3. Knock the ball into the goal in your own colour to score and zap the other side. Air-jump as often as you like: every one leaves a bubble that bumps the ball away. First to three wins.",
+    soloText: "PLAY SOLO WITH BOTS",
     async onCreate() {
       const room = await createRoom(endpoints.apiUrl, fetch, GAME).catch(
         (error: unknown) => {
@@ -439,6 +482,7 @@ function landing(): void {
       store.setItem(names.host(room.code), room.token);
       store.setItem(mapKey, selectedMap);
       store.setItem(seedKey, String(selectedSeed));
+      store.setItem(sizeKey, String(selectedSize));
       location.href = withFlags(endpoints.appUrl(`?room=${room.code}`));
     },
     onSolo: () => {
@@ -456,6 +500,25 @@ function landing(): void {
     picker.update(id, true, selectedSeed);
     seeds.update(id, selectedSeed, true);
   });
+  const modes = createModePicker((size) => {
+    const next = settingsFor(
+      {
+        display: false,
+        mapId: selectedMap,
+        seed: selectedMap === RANDOM ? selectedSeed : 0,
+        size: selectedSize,
+      },
+      size,
+    );
+    selectedSize = next.size;
+    selectedMap = next.mapId;
+    store.setItem(sizeKey, String(next.size));
+    store.setItem(mapKey, next.mapId);
+    modes.update(next.size, true);
+    picker.update(next.mapId, true, selectedSeed);
+    seeds.update(next.mapId, selectedSeed, true);
+  });
+  modes.update(selectedSize, true);
   const seeds = createSeedPicker((seed) => {
     selectedSeed = seed;
     store.setItem(seedKey, String(seed));
@@ -466,6 +529,8 @@ function landing(): void {
   seeds.update(selectedMap, selectedSeed, true);
   const arena = el("section", "", "fb-landing-arena");
   arena.append(
+    el("h2", "MODE", "fui-lobby-title"),
+    modes.element,
     el("h2", "ARENA", "fui-lobby-title"),
     picker.element,
     seeds.element,
@@ -558,6 +623,7 @@ function room(solo: boolean): void {
     lobbySide = el("aside", "", "fb-panel fb-lobby-side"),
     roster = createRoster({ emptyText: "No riders yet" }),
     addBot = button("+ ADD BOT", "fb-add-bot"),
+    switchSide = button("SWITCH SIDE", "fb-switch-side"),
     start = button("START MATCH", "fui-button-primary fb-start"),
     lobbyNote = el("p", "", "fui-lobby-note"),
     tvLink = button("OPEN TV SCREEN", "fb-tv");
@@ -583,7 +649,9 @@ function room(solo: boolean): void {
     el("h2", "RIDERS", "fui-lobby-title"),
     roster.element,
     addBot,
+    switchSide,
   );
+  switchSide.onclick = () => runtime.switchSide();
   addBot.onclick = () => runtime.command({ type: "bot", action: "add" });
   start.onclick = () => runtime.command({ type: "action", action: "start" });
   tvLink.onclick = () =>
@@ -609,9 +677,17 @@ function room(solo: boolean): void {
     store.setItem(seedKey, String(seed));
     runtime.command({ type: "settings", settings: { ...settings, seed } });
   });
+  const modes = createModePicker((size) => {
+    const next = settingsFor(settings, size);
+    store.setItem(sizeKey, String(next.size));
+    store.setItem(mapKey, next.mapId);
+    runtime.command({ type: "settings", settings: next });
+  });
   const lobbyActions = el("div", "", "fb-actions");
   lobbyActions.append(tvLink, start);
   lobbySide.append(
+    el("h2", "MODE", "fui-lobby-title"),
+    modes.element,
     el("h2", "ARENA", "fui-lobby-title"),
     picker.element,
     seeds.element,
@@ -748,6 +824,7 @@ function room(solo: boolean): void {
         now,
         model?.localSlot ?? -1,
         model?.names,
+        model?.localIndex ?? -1,
       ))
         sfx.play(cue);
     }
@@ -773,11 +850,13 @@ function room(solo: boolean): void {
       next.lobby.members.map((member) => ({
         id: member.id,
         name: member.you ? `${member.name} (you)` : member.name,
-        color: teamColor(member.slot),
+        color: teamColor(member.side),
         status: member.bot
-          ? "BOT"
+          ? next.lobby.size > 1
+            ? `BOT · ${member.side === 0 ? "CYAN" : "MAGENTA"}`
+            : "BOT"
           : member.connected
-            ? member.slot === 0
+            ? member.side === 0
               ? "CYAN"
               : "MAGENTA"
             : "OFFLINE",
@@ -796,6 +875,8 @@ function room(solo: boolean): void {
       if (remove) remove.hidden = !removable;
     }
     addBot.hidden = !next.lobby.canAddBot;
+    switchSide.hidden = !next.lobby.canSwitch;
+    modes.update(next.lobby.size, next.lobby.editable);
     start.hidden = !next.lobby.showStart;
     start.disabled = !next.lobby.canStart;
     setText(lobbyNote, next.lobby.note);
@@ -828,13 +909,21 @@ function room(solo: boolean): void {
     if (roundControls.element.parentElement !== guideParent)
       guideParent.append(roundControls.element);
     // The arena.
-    next.sides.forEach((side) => {
-      const node = sideNodes[side.slot]!;
+    sideNodes.forEach((node, slot) => {
+      const mates = next.sides.filter((side) => side.slot === slot);
       setText(
         node,
-        `${side.name}${side.you ? " (you)" : ""}${side.away ? " · away" : ""}`,
+        mates
+          .map(
+            (side) =>
+              `${side.name}${side.you ? " (you)" : ""}${side.away ? " · away" : ""}`,
+          )
+          .join(" · "),
       );
-      node.classList.toggle("you", side.you);
+      node.classList.toggle(
+        "you",
+        mates.some((side) => side.you),
+      );
     });
     setText(arenaName, next.mapName.toUpperCase());
     setText(note, next.note);
@@ -970,6 +1059,7 @@ function room(solo: boolean): void {
       display: shared,
       mapId: chosenMap(),
       seed: chosenMap() === RANDOM ? chosenSeed() : 0,
+      size: chosenSize(),
     },
     callbacks,
     session.kind === "room"

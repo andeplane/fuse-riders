@@ -42,7 +42,7 @@ const W = 640,
   BALL = 8;
 const maps = MAP_IDS.map((id) => MAPS[id]);
 /** Where barriers sit in an encoded world: one `[left, timer]` per barrier, the last field. */
-const BARRIERS = 15;
+const BARRIERS = 13;
 
 /** A world in play with both riders out of it, so only the arena acts on the ball. */
 function empty(mapId: MapId): World {

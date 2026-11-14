@@ -44,7 +44,10 @@ import { drawRider, frameFor, type Paint } from "./sprites.js";
 
 /**
  * Draws one frame of a Fuseball match on a 2D canvas: the arena, the riders, their bubbles and the ball, the
- * effects and the lettering, on a 640×360 field scaled to fit the canvas and centred in it.
+ * effects and the lettering, on a 640×360 screen scaled to fit the canvas and centred in it. A duel's arena fills
+ * that screen. A team arena is bigger, and is seen through a camera: the whole of it where that leaves the riders
+ * big enough to read (a desktop, a TV), and otherwise (a phone) a closer view that keeps this device's rider and the
+ * ball in frame.
  *
  * It keeps no loop, timer or physics of its own: the app calls `draw` from its frame callback with the view to
  * show (usually `blend` of the last two) and the wall clock, and everything cosmetic here — particles, the ball's
@@ -69,15 +72,17 @@ export interface Scene {
   /** Fits the canvas's backing store to its CSS box and the pixel ratio. `draw` does it too when the box changes. */
   resize(): void;
   /**
-   * Draws `view` at wall time `nowMs`. `localSlot` is this device's rider, or −1 for a watcher or a shared screen;
-   * `names` replaces CYAN and MAGENTA on the winner's banner. Returns what happened since the last frame, for the
-   * app's sounds.
+   * Draws `view` at wall time `nowMs`. `localSlot` is this device's side, or −1 for a watcher or a shared screen;
+   * `names` replaces CYAN and MAGENTA on the winner's banner; `localIndex` is this device's rider's place among the
+   * riders (its side when left out, which is its place in a duel). Returns what happened since the last frame, for
+   * the app's sounds.
    */
   draw(
     view: WorldView,
     nowMs: number,
     localSlot: 0 | 1 | -1,
     names?: readonly [string, string],
+    localIndex?: number,
   ): readonly Cue[];
   /** Forgets every effect; `draw` does nothing afterwards. */
   destroy(): void;
@@ -100,12 +105,63 @@ export function letterbox(
   };
 }
 
+/** What the camera shows: the arena point at the middle of the screen, and screen pixels per arena pixel. */
+export interface Camera {
+  x: number;
+  y: number;
+  zoom: number;
+}
+/** Riders drawn smaller than this many CSS pixels across are too small to play: the camera moves in. */
+export const MIN_RIDER_CSS = 16;
+/** Room kept round the rider and the ball in a close view, in arena pixels. */
+const FRAME_MARGIN = 90,
+  /** How fast the camera closes on where it wants to be: most of the way in this many seconds. */
+  CAMERA_EASE_S = 0.22;
+
+/**
+ * Where the camera wants to be. `cssScale` is CSS pixels per screen pixel, and `local` this device's rider's place
+ * (−1 for none).
+ *
+ * An arena no bigger than the screen is shown whole at its own size, as a duel always was. A bigger one is shown
+ * whole too when its riders stay at least `MIN_RIDER_CSS` across, or when this device has no rider to follow.
+ * Otherwise the view closes in on the box round this device's rider and the ball, as far as full size, and stays
+ * inside the arena.
+ */
+export function cameraFor(
+  map: Pick<MapDef, "w" | "h">,
+  view: Pick<WorldView, "riders" | "ball" | "frozen">,
+  local: number,
+  cssScale: number,
+): Camera {
+  const whole = Math.min(1, VIEW_W / map.w, VIEW_H / map.h),
+    centre = { x: map.w / 2, y: map.h / 2, zoom: whole },
+    me = view.riders[local];
+  if (!me || RIDER_RADIUS * 2 * whole * cssScale >= MIN_RIDER_CSS)
+    return centre;
+  const ball = view.ball.live || view.frozen ? view.ball : me,
+    wide = Math.abs(ball.x - me.x) + 2 * FRAME_MARGIN,
+    tall = Math.abs(ball.y - me.y) + 2 * FRAME_MARGIN,
+    zoom = Math.max(whole, Math.min(1, VIEW_W / wide, VIEW_H / tall)),
+    hold = (at: number, size: number, screen: number) => {
+      const half = screen / zoom / 2;
+      return half * 2 >= size
+        ? size / 2
+        : Math.max(half, Math.min(size - half, at));
+    };
+  return {
+    x: hold((me.x + ball.x) / 2, map.w, VIEW_W),
+    y: hold((me.y + ball.y) / 2, map.h, VIEW_H),
+    zoom,
+  };
+}
+
 /**
  * Where to draw something `reach` pixels across centred on (`x`, `y`): where it is, and again one field over on
  * each wrapping axis whose seam it overlaps, so a body leaving by one edge is already arriving at the other.
  */
+type Seams = Pick<MapDef, "wrapX" | "wrapY"> & Partial<Pick<MapDef, "w" | "h">>;
 export function copies(
-  map: Pick<MapDef, "wrapX" | "wrapY">,
+  map: Seams,
   x: number,
   y: number,
   reach: number,
@@ -116,8 +172,8 @@ export function copies(
     if (wraps && at > size - reach) all.push(at - size);
     return all;
   };
-  const ys = along(y, VIEW_H, map.wrapY);
-  return along(x, VIEW_W, map.wrapX).flatMap((cx) =>
+  const ys = along(y, map.h ?? VIEW_H, map.wrapY);
+  return along(x, map.w ?? VIEW_W, map.wrapX).flatMap((cx) =>
     ys.map((cy) => ({ x: cx, y: cy })),
   );
 }
@@ -126,18 +182,13 @@ export function copies(
  * Where to draw a solid: where it is, and one field back on each wrapping axis it runs past the end of, so the
  * part over the edge shows at the start.
  */
-export function solidCopies(
-  map: Pick<MapDef, "wrapX" | "wrapY">,
-  solid: Rect,
-): Rect[] {
-  const xs =
-      map.wrapX && solid.x + solid.w > VIEW_W
-        ? [solid.x, solid.x - VIEW_W]
-        : [solid.x],
+export function solidCopies(map: Seams, solid: Rect): Rect[] {
+  const w = map.w ?? VIEW_W,
+    h = map.h ?? VIEW_H,
+    xs =
+      map.wrapX && solid.x + solid.w > w ? [solid.x, solid.x - w] : [solid.x],
     ys =
-      map.wrapY && solid.y + solid.h > VIEW_H
-        ? [solid.y, solid.y - VIEW_H]
-        : [solid.y];
+      map.wrapY && solid.y + solid.h > h ? [solid.y, solid.y - h] : [solid.y];
   return xs.flatMap((x) => ys.map((y) => ({ ...solid, x, y })));
 }
 
@@ -151,8 +202,8 @@ export function guarded(map: MapDef, field: Rect): -1 | 0 | 1 {
     const gx = isCircle(goal) ? goal.x : goal.x + goal.w / 2,
       gy = isCircle(goal) ? goal.y : goal.y + goal.h / 2,
       far =
-        along(gx - (field.x + field.w / 2), VIEW_W, map.wrapX) +
-        along(gy - (field.y + field.h / 2), VIEW_H, map.wrapY);
+        along(gx - (field.x + field.w / 2), map.w, map.wrapX) +
+        along(gy - (field.y + field.h / 2), map.h, map.wrapY);
     if (far < nearest) {
       nearest = far;
       team = goal.team;
@@ -178,6 +229,28 @@ export function createScene(
     dead = false;
   /** Where the ball has just been, newest last: its tail. */
   let tail: { x: number; y: number }[] = [];
+  /** Where the camera is, eased towards where it wants to be; undefined until the first frame of an arena. */
+  let camera: (Camera & { map: MapDef; at: number }) | undefined;
+  const look = (
+    map: MapDef,
+    view: WorldView,
+    local: number,
+    now: number,
+  ): Camera => {
+    const ratio = box?.ratio ?? 1,
+      want = cameraFor(map, view, local, fit.scale / ratio);
+    if (!camera || camera.map !== map || options.reducedMotion)
+      camera = { ...want, map, at: now };
+    else {
+      const k =
+        1 - Math.exp(-Math.max(0, now - camera.at) / 1000 / CAMERA_EASE_S);
+      camera.x += (want.x - camera.x) * k;
+      camera.y += (want.y - camera.y) * k;
+      camera.zoom += (want.zoom - camera.zoom) * k;
+      camera.at = now;
+    }
+    return camera;
+  };
 
   const resize = () => {
     const ratio = Math.max(1, Math.min(MAX_RATIO, ratioOf() || 1)),
@@ -195,14 +268,16 @@ export function createScene(
   };
 
   const backdrop = (map: MapDef, now: number) => {
-    const sky = g.createLinearGradient(0, 0, 0, VIEW_H);
+    const W = map.w,
+      H = map.h;
+    const sky = g.createLinearGradient(0, 0, 0, H);
     sky.addColorStop(0, NIGHT);
     sky.addColorStop(1, INK);
     g.fillStyle = sky;
-    g.fillRect(0, 0, VIEW_W, VIEW_H);
+    g.fillRect(0, 0, W, H);
     g.fillStyle = hexA(GRID, 0.7);
-    for (let x = 40; x < VIEW_W; x += 40) g.fillRect(x, 0, 1, VIEW_H);
-    for (let y = 40; y < VIEW_H; y += 40) g.fillRect(0, y, VIEW_W, 1);
+    for (let x = 40; x < W; x += 40) g.fillRect(x, 0, 1, H);
+    for (let y = 40; y < H; y += 40) g.fillRect(0, y, W, 1);
     // An open edge glows and its dashes drift outwards: what leaves here comes back on the far side.
     const drift = (now / 60) % 12,
       seam = (
@@ -221,21 +296,21 @@ export function createScene(
       };
     g.fillStyle = hexA(EDGE, 0.2);
     if (map.wrapX) {
-      seam(0, 0, 14, 0, 14, VIEW_H);
-      seam(VIEW_W, 0, VIEW_W - 14, 0, 14, VIEW_H);
+      seam(0, 0, 14, 0, 14, H);
+      seam(W, 0, W - 14, 0, 14, H);
       g.fillStyle = hexA(EDGE, 0.55);
-      for (let y = -12 + drift; y < VIEW_H; y += 12) {
+      for (let y = -12 + drift; y < H; y += 12) {
         g.fillRect(0, y, 1, 5);
-        g.fillRect(VIEW_W - 1, VIEW_H - y - 5, 1, 5);
+        g.fillRect(W - 1, H - y - 5, 1, 5);
       }
     }
     if (map.wrapY) {
-      seam(0, 0, 0, 14, VIEW_W, 14);
-      seam(0, VIEW_H, 0, VIEW_H - 14, VIEW_W, 14);
+      seam(0, 0, 0, 14, W, 14);
+      seam(0, H, 0, H - 14, W, 14);
       g.fillStyle = hexA(EDGE, 0.55);
-      for (let x = -12 + drift; x < VIEW_W; x += 12) {
+      for (let x = -12 + drift; x < W; x += 12) {
         g.fillRect(x, 0, 5, 1);
-        g.fillRect(VIEW_W - x - 5, VIEW_H - 1, 5, 1);
+        g.fillRect(W - x - 5, H - 1, 5, 1);
       }
     }
   };
@@ -580,7 +655,7 @@ export function createScene(
 
   const bubble = (map: MapDef, b: BubbleView, now: number) => {
     if (!b.active) return;
-    const age = fx.bubbleAge(b.slot, now),
+    const age = fx.bubbleAge(b.index, now),
       // It swells past its size and settles in the first sixth of a second.
       swell =
         age < 160
@@ -701,17 +776,17 @@ export function createScene(
     const frame = frameFor(r);
     if (r.zapped && !view.frozen) {
       // What is left of a zapped rider: a flicker where they stood, once the shards have flown.
-      if (fx.zapAge(r.slot, now) < 500) return;
+      if (fx.zapAge(r.index, now) < 500) return;
       g.globalAlpha = 0.1 + 0.06 * Math.sin(now / 70);
       for (const at of copies(map, r.x, r.y, RIDER_RADIUS + 4))
         drawRider(g, frame, r.slot, at.x, at.y, r.facing);
       g.globalAlpha = 1;
       return;
     }
-    const held = view.bubbles[r.slot];
+    const held = view.bubbles[r.index];
     for (const at of copies(map, r.x, r.y, RIDER_RADIUS + 8)) {
       // A hard bubble is held on a thread of light.
-      if (held.active && held.hard) {
+      if (held?.active && held.hard) {
         const dx = held.x - r.x,
           dy = held.y - r.y;
         if (Math.abs(dx) + Math.abs(dy) < 160) {
@@ -776,7 +851,7 @@ export function createScene(
 
   return {
     resize,
-    draw(view, nowMs, localSlot, names) {
+    draw(view, nowMs, localSlot, names, localIndex = localSlot) {
       if (dead) return [];
       if (
         !box ||
@@ -799,6 +874,11 @@ export function createScene(
       g.clip();
       g.save();
       g.translate(shake.x, shake.y);
+      // The camera: the arena point it looks at goes to the middle of the screen.
+      const eye = look(map, view, localIndex, nowMs);
+      g.translate(VIEW_W / 2, VIEW_H / 2);
+      g.scale(eye.zoom, eye.zoom);
+      g.translate(-eye.x, -eye.y);
       backdrop(map, nowMs);
       for (const c of map.clouds) cloud(c, nowMs, view.slow);
       const scored = view.phase === "zap" || view.phase === "over";
@@ -810,10 +890,10 @@ export function createScene(
       for (const b of view.bubbles) bubble(map, b, nowMs);
       ball(map, view, nowMs);
       for (const r of view.riders)
-        if (r.slot !== localSlot) rider(map, view, r, nowMs, false);
-      // This device's rider last, so it is never hidden behind the other.
+        if (r.index !== localIndex) rider(map, view, r, nowMs, false);
+      // This device's rider last, so it is never hidden behind the others.
       for (const r of view.riders)
-        if (r.slot === localSlot) rider(map, view, r, nowMs, true);
+        if (r.index === localIndex) rider(map, view, r, nowMs, true);
       fx.drawFront(g);
       g.restore();
       fx.drawOverlay(g);
@@ -824,6 +904,7 @@ export function createScene(
     destroy() {
       dead = true;
       tail = [];
+      camera = undefined;
       fx.reset();
       hud.reset();
     },
