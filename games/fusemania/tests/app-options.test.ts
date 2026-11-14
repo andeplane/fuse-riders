@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { parseHTML } from "linkedom";
 import {
+  createOptionsMenu,
   createPlayOptions,
   lengthLabel,
   sessionLine,
@@ -129,8 +130,8 @@ test("the session is the host's: how many songs, and who chooses them", () => {
 });
 
 test("RANDOM SONG is the host's, and gone where the room draws the songs itself", () => {
-  const { options, asked, all } = setup();
-  const random = all(".fm-option-random")[0]!;
+  const { options, asked } = setup();
+  const random = options.random;
   options.update(state());
   assert.equal(random.hidden, false);
   random.click();
@@ -147,7 +148,51 @@ test("a solo select has the speed and the random song, and no session", () => {
   const { options, all } = setup({ lengths: undefined });
   options.update(state());
   assert.equal(all(".fm-option-speed").length, 8);
-  assert.equal(all(".fm-option-random").length, 1);
+  assert.equal(options.random.hidden, false);
   assert.equal(all(".fm-option-songs").length, 0);
   assert.equal(options.element.querySelector(".fm-options-order"), null);
+});
+
+test("RANDOM SONG is not among the options under the levels: the page places it with the carousel", () => {
+  const { options } = setup();
+  options.update(state());
+  assert.equal(options.random.textContent, "RANDOM SONG");
+  assert.equal(options.element.contains(options.random), false);
+  assert.equal(options.element.querySelector(".fm-option-random"), null);
+});
+
+test("OPTIONS opens the speeds under the bar and closes on a second press, an outside press or Escape", () => {
+  const { document, window } = parseHTML("<html><body></body></html>");
+  const options = createPlayOptions({
+    document,
+    onSpeed() {},
+    onRandomSong() {},
+  });
+  const menu = createOptionsMenu({ document, content: [options.element] });
+  const outside = document.createElement("p");
+  document.body.append(menu.element, outside);
+  const open = () => menu.button.getAttribute("aria-expanded");
+  assert.equal(menu.button.textContent, "OPTIONS");
+  assert.equal(menu.panel.hidden, true);
+  assert.equal(open(), "false");
+  assert.equal(menu.panel.querySelectorAll(".fm-option-speed").length, 8);
+  menu.button.click();
+  assert.equal(menu.panel.hidden, false);
+  assert.equal(open(), "true");
+  // A press on a speed is inside: the panel stays for another try.
+  menu.panel
+    .querySelector(".fm-option-speed")!
+    .dispatchEvent(new window.Event("pointerdown", { bubbles: true }));
+  assert.equal(menu.panel.hidden, false);
+  outside.dispatchEvent(new window.Event("pointerdown", { bubbles: true }));
+  assert.equal(menu.panel.hidden, true);
+  assert.equal(open(), "false");
+  menu.button.click();
+  menu.button.click();
+  assert.equal(menu.panel.hidden, true);
+  menu.button.click();
+  const escape = new window.Event("keydown", { bubbles: true });
+  Object.defineProperty(escape, "key", { value: "Escape" });
+  menu.button.dispatchEvent(escape);
+  assert.equal(menu.panel.hidden, true);
 });

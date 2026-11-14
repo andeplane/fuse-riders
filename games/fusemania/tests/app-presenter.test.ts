@@ -160,11 +160,18 @@ test("the result ranks the players, says who won and what this device's best was
   assert.equal(winner.result!.rows[0]!.detail, "EASY 3 · 90.0%");
   assert.equal(winner.result!.rows[0]!.combo, "MAX COMBO 64");
   assert.deepEqual(winner.result!.counts[1], ["PERFECT", "64"]);
-  assert.deepEqual(winner.result!.lines, ["NEW BEST! (WAS 50.0%)"]);
+  assert.deepEqual(winner.result!.lines, ["NEW BEST! +400,000 (WAS 50.0%)"]);
+  assert.deepEqual(winner.result!.own, {
+    grade: "A",
+    score: "900,000",
+    detail: "EASY 3 · 90.0% · MAX COMBO 64",
+    badge: "FULL PERFECT COMBO",
+  });
   assert.equal(winner.result!.host, true);
   const loser = present(library, view, viewer("b"), 990_000);
   assert.equal(loser.result!.title, "ADA WINS");
-  assert.deepEqual(loser.result!.lines, ["BEST AAA 99.0%"]);
+  assert.deepEqual(loser.result!.lines, ["BEST AAA 99.0% · −990,000"]);
+  assert.equal(loser.result!.own!.badge, "");
   assert.equal(
     loser.result!.waiting,
     "Waiting for the host to pick the next song",

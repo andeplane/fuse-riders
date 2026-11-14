@@ -185,7 +185,8 @@ export const HASH_INTERVAL = 20,
 /** A page's generation: 100 ms units since 2020-09-13, so two loads of the same page never share one (the previous whole-second value collided on quick reloads); wraps in 2034. */
 export const pageGeneration = (nowMs = Date.now()): number =>
   Math.floor((nowMs - 1_600_000_000_000) / 100) >>> 0;
-const browserDependencies: RuntimeDependencies = {
+/** The browser's own clock, timers and page state: what a runtime uses unless it is given others. */
+export const browserDependencies: RuntimeDependencies = {
   now: () => performance.now(),
   hidden: () => document.hidden,
   token: uuid,
