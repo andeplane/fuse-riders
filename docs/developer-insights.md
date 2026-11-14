@@ -174,6 +174,11 @@ before acknowledging. Delivery retries transient failures; inspect visible
 permanent failures and retry them after correction. Keep object finalization,
 push delivery, worker authentication and transcription failure evidence private.
 
+Action evidence links at most 20 ready, unexpired reports per transcript segment,
+ordered by recording offset, expiry and ID. This bounds extraction context even
+when many reports cover the same speech. The recording's paginated reports list
+remains the complete source; the evidence list is a bounded selection.
+
 `OPENAI_TRANSCRIPTION_MODEL` defaults to `gpt-transcribe`, documented at
 $0.0045/minute (about $0.27/hour), excluding storage/hosting. Preserve Norwegian
 and English speech. `OPENAI_ACTION_MODEL` defaults to `gpt-6.1-sol` with medium
