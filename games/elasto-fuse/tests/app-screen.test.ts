@@ -41,10 +41,12 @@ import {
 } from "../src/app/art.js";
 import {
   createSfx,
+  ELASTO_SONGS,
   humPitch,
   humVolume,
-  type SfxDependencies,
 } from "../src/app/audio.js";
+import { createGameAudio } from "fuse-ui/game-audio";
+import { createAudioRig } from "fuse-ui/game-audio-fake";
 import {
   bestTime,
   createBestTimes,
@@ -678,26 +680,33 @@ test("art arrives in the background, a missing file leaves its fallback, and eac
 });
 
 test("a muted page never opens the browser's audio; the hum follows the gas and the wheel", () => {
-  let opened = 0;
-  const deps: SfxDependencies = {
-    open() {
-      opened++;
-      return undefined;
-    },
-    later: () => undefined,
-    random: () => 0.5,
-  };
-  const muted = createSfx(true, deps);
-  muted.resume();
+  const quiet = createAudioRig();
+  const mutedAudio = createGameAudio(quiet.deps, { forceMute: true });
+  const muted = createSfx(mutedAudio);
+  mutedAudio.unlock();
   muted.play({ kind: "go" });
   muted.engine(1, true, true);
-  assert.equal(opened, 0);
-  // Unmuted without audio (no AudioContext): asked for, and silent without throwing.
-  const silent = createSfx(false, deps);
-  silent.resume();
-  silent.play({ kind: "crash", slot: 0, x: 0, y: 0 });
-  silent.engine(0.5, true, true);
-  assert.ok(opened > 0);
+  assert.equal(quiet.log.opens, 0);
+
+  const rig = createAudioRig();
+  const audio = createGameAudio(rig.deps);
+  const sfx = createSfx(audio);
+  sfx.engine(0.5, true, true);
+  sfx.play({ kind: "go" });
+  assert.equal(rig.log.oscillators, 0, "nothing before the first input");
+  audio.unlock();
+  sfx.engine(0, false, false);
+  assert.equal(rig.log.oscillators, 0, "no bike on the track: no engine");
+  sfx.engine(0.5, true, true);
+  sfx.engine(0.9, true, true);
+  assert.equal(rig.log.oscillators, 2, "one engine: a voice and its octave");
+  sfx.play({ kind: "crash", slot: 0, x: 0, y: 0 });
+  assert.equal(rig.log.noises, 1);
+  assert.equal(rig.log.oscillators, 3);
+  audio.setMuted(true);
+  sfx.play({ kind: "go" });
+  assert.equal(rig.log.oscillators, 3, "the header's mute rules the effects");
+  assert.deepEqual(ELASTO_SONGS, []);
 
   assert.ok(humPitch(1, false) > humPitch(0, false));
   assert.ok(humPitch(0.5, true) > humPitch(0.5, false));
