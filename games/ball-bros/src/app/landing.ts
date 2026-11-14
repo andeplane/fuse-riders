@@ -40,6 +40,8 @@ export function landing(
   const mapChoice = el("label", "", "map-choice");
   mapChoice.append(el("span", "ARENA"), map);
   const card = createLandingCard({
+    background: async (host, signal) =>
+      (await import("./attract.js")).createAttract(host, signal),
     document: root.ownerDocument,
     title: "BALL BROS",
     tagline: "Five cores. One survivor. Orbit, reach, ricochet.",
@@ -62,6 +64,7 @@ export function landing(
   });
   card.create.before(choice);
   choice.before(avatarChoice(root.ownerDocument, options.store), mapChoice);
+  card.menu.addSettings(mapChoice);
   const help = el(
     "p",
     "A / D orbit · W / S out / in · Space launch",
@@ -79,6 +82,7 @@ export function landing(
     }).element,
     back,
   );
-  root.replaceChildren(top, card.element, help);
+  card.menu.help.append(help);
+  root.replaceChildren(top, card.element);
   return card;
 }

@@ -57,12 +57,12 @@ import type { RoomTransport, TransportEvents } from "fuse-network-fe";
 
 /** The room commands every game has; a game adds its own input commands in a subclass. */
 export type RoomCommand<Settings = unknown, Avatar extends string = string> =
-  | { type: "join"; name: string; avatarId?: Avatar }
+  | { type: "join"; name: string; avatarId?: Avatar; slot?: number }
   /** Take a place in the watching list instead of a seat: no inputs, no slot, no score. */
   | { type: "spectate"; name: string }
   | { type: "action"; action: RoomAction }
   | { type: "settings"; settings: Settings }
-  | { type: "bot"; action: "add" | "remove"; id?: string }
+  | { type: "bot"; action: "add" | "remove"; id?: string; slot?: number }
   /** Remove a human player or a watcher: the manager's escape hatch for an absent friend, between rounds like AI removal. */
   | { type: "kick"; id: string };
 export type { RoomTransport, TransportEvents };
@@ -233,6 +233,7 @@ export class RoomRuntime<
   private lastFrame: Frame<View> | undefined;
   private pendingJoin?: {
     name: string;
+    slot?: number;
     avatarId?: string;
     /** Whether this asks for the watching list rather than a seat. */
     spectator: boolean;
@@ -519,6 +520,7 @@ export class RoomRuntime<
       error?: unknown;
       world?: unknown;
       role?: unknown;
+      slot?: unknown;
       hidden?: unknown;
     };
     const member = this.members.get(id);
@@ -588,6 +590,7 @@ export class RoomRuntime<
                   this.game.seating.isAvatar(data.avatarId)
                     ? data.avatarId
                     : undefined,
+                  data.slot,
                 );
           if (error) this.transport!.send(id, { type: "error", error });
         }
@@ -1042,6 +1045,14 @@ export class RoomRuntime<
     if (!command || typeof command !== "object") return false;
     if (command.type === "join" || command.type === "spectate") {
       if (this.options.displayOnly) return false;
+      // The first slot request may already be logged by the manager. Keep it stable until admission or refusal.
+      if (
+        command.type === "join" &&
+        command.slot !== undefined &&
+        this.pendingJoin &&
+        !this.pendingJoin.spectator
+      )
+        return this.pendingJoin.slot === command.slot;
       // A member the room already lists, asking for the other side, is switching rather than arriving. Whether it may
       // is answered here as well as at the writer, because the one refusal no writer can deliver is the one about
       // having nobody to write it: that request would be addressed to this device itself and answered by nobody.
@@ -1067,6 +1078,7 @@ export class RoomRuntime<
       const wanted = this.game.seating.seatName(command.name);
       this.pendingJoin = {
         name: command.name,
+        slot: command.type === "join" ? command.slot : undefined,
         avatarId: command.type === "join" ? command.avatarId : undefined,
         spectator: command.type === "spectate",
         rename:
@@ -1135,7 +1147,7 @@ export class RoomRuntime<
     }
     if (command.type === "bot") {
       if (command.action === "add") {
-        const slot = this.claimSlot();
+        const slot = this.management.claimSlot(command.slot);
         if (slot < 0) {
           this.status.notice(this.text.fullWithBots);
           return false;
@@ -1169,7 +1181,7 @@ export class RoomRuntime<
       if (!this.world) return true;
       const error = join.spectator
         ? this.management.spectate(this.id, join.name)
-        : this.management.join(this.id, join.name, join.avatarId);
+        : this.management.join(this.id, join.name, join.avatarId, join.slot);
       if (error) {
         this.status.notice(error);
         this.pendingJoin = undefined;
@@ -1199,6 +1211,7 @@ export class RoomRuntime<
       type: "join",
       name: join.name,
       avatarId: join.avatarId,
+      ...(join.slot !== undefined ? { slot: join.slot } : {}),
       ...(join.spectator ? { role: "spectator" } : {}),
     });
   }

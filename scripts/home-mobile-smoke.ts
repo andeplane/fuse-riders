@@ -1,3 +1,4 @@
+import { openPlayOptions } from "./lib/main-menu.js";
 import type { Page, Locator, Browser } from "playwright";
 import { BOTH_ENGINES, launchBrowser } from "./lib/browser.js";
 import { POWERUP_GUIDE } from "../games/fuse-riders/src/client/powerup-guide.js"; // count the guide against its source, not a literal that rots with the next pickup
@@ -26,7 +27,7 @@ async function inside(page: Page, locator: Locator) {
 async function ready(page: Page) {
   await page.waitForFunction(() =>
     document
-      .querySelector("canvas")
+      .querySelector(".fui-main-menu")
       ?.getAttribute("data-renderer")
       ?.startsWith("phaser-"),
   );
@@ -75,6 +76,7 @@ async function rapidNavigation(browser: Browser, browserName: string) {
     );
     await page.goto(base);
     await pending;
+    await openPlayOptions(page);
     await page.getByRole("link", { name: /PLAY SOLO/ }).click();
     await page.locator(".online-controls").waitFor({ state: "visible" });
     await page.reload();
@@ -160,7 +162,7 @@ for (const { name: browserName, kind } of BOTH_ENGINES) {
           () =>
             Number(
               document
-                .querySelector("canvas")
+                .querySelector(".fui-main-menu")
                 ?.getAttribute("data-attract-tick"),
             ) > 2,
         );
@@ -178,6 +180,9 @@ for (const { name: browserName, kind } of BOTH_ENGINES) {
           ".landing-mute",
         ])
           await inside(page, page.locator(control));
+        await page
+          .getByRole("button", { name: "How to play", exact: true })
+          .click();
         const guide = page.getByRole("region", { name: "POWER-UPS" });
         assert.equal(
           await guide.getByRole("listitem").count(),
@@ -196,52 +201,43 @@ for (const { name: browserName, kind } of BOTH_ENGINES) {
           undefined,
           { timeout: smokeTimeout(10000) },
         );
-        const soloBox = await page
-            .getByRole("link", { name: /PLAY SOLO/ })
-            .boundingBox(),
-          createBox = await page
-            .getByRole("button", { name: "CREATE ROOM" })
-            .boundingBox(),
-          guideBox = await guide.boundingBox();
-        assert.ok(
-          soloBox &&
-            createBox &&
-            guideBox &&
-            soloBox.y < guideBox.y &&
-            createBox.y < guideBox.y,
-          "play and room actions stay above the power-up guide",
-        );
+        await page.keyboard.press("Escape");
         await page.evaluate(() => scrollTo(0, 0));
-        await page.getByRole("button", { name: /PAUSE BACKGROUND/ }).click();
+        await page.getByRole("button", { name: /PAUSE BACKGROUND/i }).click();
         await frames(page);
         const paused = await page
-          .locator("canvas")
+          .locator(".fui-main-menu")
           .getAttribute("data-attract-tick");
         await frames(page);
         assert.equal(
-          await page.locator("canvas").getAttribute("data-attract-tick"),
+          await page
+            .locator(".fui-main-menu")
+            .getAttribute("data-attract-tick"),
           paused,
         );
-        await page.getByRole("button", { name: /PLAY BACKGROUND/ }).click();
+        await page.getByRole("button", { name: /PLAY BACKGROUND/i }).click();
         await page.waitForFunction(
           (t) =>
             document
-              .querySelector("canvas")
+              .querySelector(".fui-main-menu")
               ?.getAttribute("data-attract-tick") !== t,
           paused,
         );
         await page.emulateMedia({ reducedMotion: "reduce" });
-        await page.getByRole("button", { name: /PLAY BACKGROUND/ }).waitFor();
+        await page.getByRole("button", { name: /PLAY BACKGROUND/i }).waitFor();
         await frames(page);
         const reduced = await page
-          .locator("canvas")
+          .locator(".fui-main-menu")
           .getAttribute("data-attract-tick");
         await frames(page);
         assert.equal(
-          await page.locator("canvas").getAttribute("data-attract-tick"),
+          await page
+            .locator(".fui-main-menu")
+            .getAttribute("data-attract-tick"),
           reduced,
         );
         await page.screenshot({ path: `artifacts/home-${tag}.png` });
+        await openPlayOptions(page);
         await page.getByRole("link", { name: /PLAY SOLO/ }).click();
         await page
           .locator(".online-roster")
@@ -268,7 +264,7 @@ for (const { name: browserName, kind } of BOTH_ENGINES) {
           .getByRole("button", { name: "BACK TO LOBBY", exact: true })
           .click();
         await powerHud.waitFor({ state: "hidden" });
-        for (const name of ["ROOM SETTINGS", "SETTINGS", "AVATAR", "EXIT"]) {
+        for (const name of ["Game settings", "SETTINGS", "AVATAR", "EXIT"]) {
           // SETTINGS and EXIT are the bar's; on a short viewport the bar is one ☰. ROOM SETTINGS and AVATAR are the
           // lobby's own, and the sheet would cover them, so it stays shut for those.
           if (name === "SETTINGS" || name === "EXIT") await openTopMenu(page);
@@ -282,7 +278,7 @@ for (const { name: browserName, kind } of BOTH_ENGINES) {
               .evaluate((e) => e.scrollWidth <= e.clientWidth + 1),
             "dialog body horizontal overflow",
           );
-          if (name === "ROOM SETTINGS") {
+          if (name === "Game settings") {
             assert.equal(
               await dialog.locator("select").count(),
               0,
@@ -407,7 +403,7 @@ for (const { name: browserName, kind } of BOTH_ENGINES) {
               .click();
             await dialog.waitFor({ state: "hidden" });
             await page
-              .getByRole("button", { name: "ROOM SETTINGS", exact: true })
+              .getByRole("button", { name: "Game settings", exact: true })
               .click();
             assert.equal(
               await page.getByLabel("Match length").inputValue(),

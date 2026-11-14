@@ -421,7 +421,7 @@ test("room screen follows lobby, own identity, controls, corrected results, rema
     "connection failures stay visible outside the hidden arena",
   );
   assert.match(s.root.querySelector(".status")!.textContent!, /Reconnect/);
-  button(s.root, "+ ADD BOT").click();
+  button(s.root, "Add AI").click();
   const map = s.root.querySelector<HTMLSelectElement>(
     ".room-panel .map-select",
   )!;

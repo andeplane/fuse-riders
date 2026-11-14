@@ -158,6 +158,7 @@ function lobby(view: DiceView, viewer: Viewer): LobbyModel {
   return {
     members: players.map((player) => ({
       id: player.id,
+      slot: player.slot,
       name:
         player.id === viewer.me && player.name !== "You"
           ? `${player.name} (you)`

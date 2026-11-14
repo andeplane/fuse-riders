@@ -5,10 +5,10 @@
   width: 100%;
   visibility: hidden;
 }
-#entrance[hidden] {
+:where(#entrance)[hidden] {
   display: none;
 }
-#entrance {
+:where(#entrance) {
   min-height: 100svh;
   position: relative;
   isolation: isolate;
@@ -71,7 +71,7 @@
   letter-spacing: 0.3em;
   margin: 0 0 20px;
 }
-#entrance h1 {
+:where(#entrance) h1 {
   font-family: Georgia, serif;
   font-size: clamp(68px, 7.8vw, 120px);
   line-height: 0.87;
@@ -81,10 +81,10 @@
   margin: 0 0 24px -5px;
   text-shadow: 0 4px 24px #0008;
 }
-#entrance h1 span {
+:where(#entrance) h1 span {
   display: block;
 }
-#entrance h1 span:last-child {
+:where(#entrance) h1 span:last-child {
   color: #e1bc77;
 }
 .entrance-tagline {
@@ -99,7 +99,7 @@
   color: #bdc1ce;
   margin-bottom: 27px;
 }
-#entrance label {
+:where(#entrance) label {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -108,7 +108,7 @@
     sans-serif;
   color: #c5bdab;
 }
-#entrance input:not([type="checkbox"]):not([type="range"]) {
+:where(#entrance) input:not([type="checkbox"]):not([type="range"]) {
   width: 100%;
   border: 1px solid #83735577;
   border-radius: 3px;
@@ -121,7 +121,7 @@
     sans-serif;
 }
 /* The app portal's toggle keeps fuse-ui's own look. */
-#entrance button:not(.fui-portal-toggle) {
+:where(#entrance) button:not(.fui-portal-toggle) {
   border: 1px solid #887656;
   border-radius: 3px;
   background: #111b2adc;
@@ -136,15 +136,15 @@
     background 0.2s,
     border-color 0.2s;
 }
-#entrance button:not(.fui-portal-toggle):hover:not(:disabled) {
+:where(#entrance) button:not(.fui-portal-toggle):hover:not(:disabled) {
   background: #263144;
   border-color: #e9ce93;
 }
-#entrance button:disabled {
+:where(#entrance) button:disabled {
   opacity: 0.48;
   cursor: wait;
 }
-#entrance :focus-visible {
+:where(#entrance) :focus-visible {
   outline: 2px solid #fae0a0;
   outline-offset: 4px;
 }
@@ -157,14 +157,14 @@
   width: 100%;
   text-align: left;
 }
-#entrance #start {
+:where(#entrance) #start {
   background: linear-gradient(110deg, #ebd2a1, #b48a4f);
   color: #1b1b24;
   border-color: #efdaa9;
   font-weight: 700;
   min-height: 54px;
 }
-#entrance #start:hover:not(:disabled) {
+:where(#entrance) #start:hover:not(:disabled) {
   background: #f1d8a4;
 }
 #menu-join span {
@@ -184,7 +184,7 @@
   min-height: 42px;
   margin-top: 14px;
 }
-#entrance #status {
+:where(#entrance) #status {
   color: #bdc8d5;
   font:
     12px/1.5 system-ui,
@@ -192,7 +192,7 @@
   margin: 0;
   padding: 0;
 }
-#entrance #status[data-state="error"],
+:where(#entrance) #status[data-state="error"],
 .join-error {
   color: #ffc4b0;
 }
@@ -221,7 +221,7 @@
 .entrance-footer span {
   margin-left: auto;
 }
-#entrance dialog {
+:where(#entrance) dialog {
   position: fixed;
   color: #e9dfce;
   background: linear-gradient(145deg, #202637, #111724);
@@ -232,23 +232,23 @@
   max-height: calc(100svh - 40px);
   box-shadow: 0 20px 100px #000b;
 }
-#entrance dialog::backdrop {
+:where(#entrance) dialog::backdrop {
   background: #050911c9;
   backdrop-filter: blur(5px);
 }
-#entrance dialog h2 {
+:where(#entrance) dialog h2 {
   font-size: 32px;
   font-weight: 400;
   margin: 0 0 20px;
 }
-#entrance dialog p,
-#entrance dialog dd {
+:where(#entrance) dialog p,
+:where(#entrance) dialog dd {
   font:
     13px/1.6 system-ui,
     sans-serif;
   color: #bdc3cf;
 }
-#entrance dialog .dialog-close {
+:where(#entrance) dialog .dialog-close {
   position: absolute;
   top: 9px;
   right: 9px;
@@ -258,12 +258,12 @@
   padding: 4px 10px;
   font-size: 24px;
 }
-#entrance dialog dt {
+:where(#entrance) dialog dt {
   color: #e2c58b;
   margin-top: 20px;
   font-size: 17px;
 }
-#entrance dialog dd {
+:where(#entrance) dialog dd {
   margin: 6px 0;
 }
 #menu-join-form {
@@ -273,22 +273,22 @@
 #menu-join-form button {
   width: 100%;
 }
-#entrance dialog [data-slot="atmosphere"],
-#entrance dialog [data-slot="touch"] {
+:where(#entrance) dialog [data-slot="atmosphere"],
+:where(#entrance) dialog [data-slot="touch"] {
   padding: 12px 0;
 }
-#entrance dialog label:has(input[type="checkbox"]) {
+:where(#entrance) dialog label:has(input[type="checkbox"]) {
   flex-direction: row;
   align-items: center;
   gap: 12px;
 }
-#entrance dialog [data-radio] {
+:where(#entrance) dialog [data-radio] {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
   margin-top: 22px;
 }
-#entrance dialog .entrance-note {
+:where(#entrance) dialog .entrance-note {
   border-top: 1px solid #76674b66;
   margin-top: 25px;
   padding-top: 18px;
@@ -344,12 +344,12 @@
     animation: none;
     opacity: 0.3;
   }
-  #entrance button {
+  :where(#entrance) button {
     transition: none;
   }
 }
 @media (max-width: 650px) {
-  #entrance {
+  :where(#entrance) {
     padding-top: 22px;
   }
   .entrance-art {
@@ -364,19 +364,19 @@
   .entrance-content {
     padding-top: 34px;
   }
-  #entrance h1 {
+  :where(#entrance) h1 {
     font-size: 78px;
   }
   .entrance-footer {
     letter-spacing: 0.1em;
     gap: 8px;
   }
-  #entrance dialog {
+  :where(#entrance) dialog {
     padding: 34px 24px 24px;
   }
 }
 @media (max-height: 600px) and (min-width: 651px) {
-  #entrance {
+  :where(#entrance) {
     padding-top: 14px;
     padding-bottom: 46px;
   }
@@ -387,7 +387,7 @@
     grid-template-columns: 1fr 1fr;
     column-gap: 38px;
   }
-  #entrance h1 {
+  :where(#entrance) h1 {
     font-size: 68px;
     grid-column: 1;
     grid-row: 1 / 3;
@@ -425,20 +425,20 @@
   #retry-entrance-art {
     grid-column: 2;
   }
-  #entrance .entrance-actions button {
+  :where(#entrance) .entrance-actions button {
     min-height: 40px;
     padding: 10px 14px;
   }
-  #entrance #start {
+  :where(#entrance) #start {
     min-height: 44px;
   }
   .entrance-footer {
     bottom: 10px;
   }
-  #entrance .entrance-content label {
+  :where(#entrance) .entrance-content label {
     gap: 4px;
   }
-  #entrance .entrance-content input {
+  :where(#entrance) .entrance-content input {
     min-height: 38px;
   }
   .entrance-art-status:empty {

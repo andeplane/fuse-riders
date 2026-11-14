@@ -1,4 +1,5 @@
 export * from "./game.js";
+export { createAttractGame } from "./attract-game.js";
 export * from "./wire.js";
 export * from "./management.js";
 export * from "./text.js";

@@ -88,6 +88,7 @@ export function presentTable(
 
   const members: RosterMember[] = view.drivers.map((driver) => ({
     id: driver.id,
+    slot: driver.slot,
     name: marked(driver.name, driver.id === viewer.me),
     status: driver.bot ? "CPU" : driver.connected ? "READY" : "AWAY",
     avatar: driver.avatarId,
@@ -119,6 +120,7 @@ export function presentTable(
         driver.truck >= 0 ? race.placements.indexOf(driver.truck) + 1 : 0;
       return {
         id: driver.id,
+        slot: driver.slot,
         name: driver.name,
         label: marked(driver.name, driver.id === viewer.me),
         truck: driver.truck,
