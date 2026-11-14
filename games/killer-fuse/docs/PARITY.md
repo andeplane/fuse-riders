@@ -13,7 +13,7 @@ Nothing has been playtested by a person yet. No physical gamepad or phone has be
 | 1   | Military win: enemy Queen killed three times                                                  | yes     | Engine                                                                                |
 | 2   | Economic win: every hive hole filled                                                          | yes     | Engine; 12 holes per hive                                                             |
 | 3   | Snail win: ridden into the rider's own goal                                                   | yes     | Engine; the rider must still be on it after that step's combat                        |
-| 4   | Controls: stick, one jump / flap button, attack button                                        | yes     | Keyboard, gamepad and touch                                                           |
+| 4   | Controls: stick, one jump / flap button, attack button                                        | yes     | Keyboard (arrows, Space, X / Z, Shift or J), gamepad and touch                        |
 | 5   | Up bound to nothing; dive on Down                                                             | yes     | The dive starts on the press, not on a Down already held; see "Not verified"          |
 | 6   | "Hold to flap" option                                                                         | yes     | Off by default; repeats the press 7.5 times a second. Black's repeat rate not checked |
 | 7   | Input buffers: jump / flap 3 steps, attack 6 steps, 3 steps of ledge grace                    | yes     | Engine                                                                                |

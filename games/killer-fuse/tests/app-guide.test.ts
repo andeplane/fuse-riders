@@ -112,12 +112,12 @@ test("combat is the sword's, berries do not regrow, and banking takes time", () 
   assert.match(all, /1\.5 s inside/);
 });
 
-test("attack is J, B / Circle or the left bumper, and the touch ATTACK button", () => {
+test("attack is X, B / Circle or the left bumper, and the touch ATTACK button", () => {
   assert.deepEqual(
     [DEVICE_KEYS.keys.attack, DEVICE_KEYS.pad.attack, DEVICE_KEYS.touch.attack],
-    ["J", "B / Circle", "ATTACK"],
+    ["X", "B / Circle", "ATTACK"],
   );
-  assert.equal(DEVICE_CONTROLS.keys[2]!.keys, "J");
+  assert.equal(DEVICE_CONTROLS.keys[2]!.keys, "X or Z (also Shift or J)");
   assert.match(DEVICE_CONTROLS.pad[2]!.keys, /left bumper/);
   for (const device of ["keys", "pad", "touch"] as const)
     assert.ok(
@@ -132,11 +132,24 @@ test("attack is J, B / Circle or the left bumper, and the touch ATTACK button", 
   assert.deepEqual(
     PLAY_CONTROLS.map((hint) => hint.keys),
     [
-      "A / D or ← / → · stick / D-pad",
+      "← / → or A / D · stick / D-pad",
       "Space · A / Cross",
-      "S or ↓ · stick / D-pad ↓",
-      "J · B / Circle or left bumper",
+      "↓ or S · stick / D-pad ↓",
+      "X or Z (also Shift or J) · B / Circle or left bumper",
     ],
   );
   assert.match(PLAY_CONTROLS[1]!.action, /tap repeatedly to fly/);
+});
+
+test("the keyboard leads with the arrows, Space and X", () => {
+  assert.deepEqual(DEVICE_KEYS.keys, {
+    move: "← → / A D",
+    button: "Space",
+    attack: "X",
+    down: "↓ / S",
+  });
+  assert.deepEqual(
+    DEVICE_CONTROLS.keys.map((hint) => hint.keys),
+    ["← / → or A / D", "Space", "X or Z (also Shift or J)", "↓ or S"],
+  );
 });

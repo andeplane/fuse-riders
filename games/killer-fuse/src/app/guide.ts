@@ -139,14 +139,16 @@ export const DEVICE_NAMES: Record<Device, string> = {
   touch: "TOUCH",
 };
 /**
- * The bindings of `controls.ts` in a few characters, per device: move, the jump / flap button, attack and down. As in
- * the original, nothing is bound to up: flying is only ever the button.
+ * The bindings of `controls.ts` in a few characters, per device: move, the jump / flap button, attack and down. The
+ * keyboard names the keys a player reaching for the arrows and Space finds first (X attacks; Z, Shift and J do the
+ * same, and A/D/S move and dive for a W A S D hand). As in the original, nothing is bound to up: flying is only ever
+ * the button.
  */
 export const DEVICE_KEYS: Record<
   Device,
   { move: string; button: string; attack: string; down: string }
 > = {
-  keys: { move: "A D / ← →", button: "Space", attack: "J", down: "S / ↓" },
+  keys: { move: "← → / A D", button: "Space", attack: "X", down: "↓ / S" },
   pad: {
     move: "Stick / D-pad ← →",
     button: "A / Cross",
@@ -165,10 +167,10 @@ const DIVE = "Dive (Queen, in the air): hold";
 const ATTACK = "Attack (Warrior, Queen): sword dash the way you face";
 export const DEVICE_CONTROLS: Record<Device, readonly ControlHint[]> = {
   keys: [
-    { keys: "A / D or ← / →", action: "Move" },
+    { keys: "← / → or A / D", action: "Move" },
     { keys: "Space", action: FLAP },
-    { keys: "J", action: ATTACK },
-    { keys: "S or ↓", action: DIVE },
+    { keys: "X or Z (also Shift or J)", action: ATTACK },
+    { keys: "↓ or S", action: DIVE },
   ],
   pad: [
     { keys: "Left stick or D-pad ← / →", action: "Move" },
@@ -190,10 +192,13 @@ export const HOLD_TO_FLAP = {
 } as const;
 /** Keyboard and gamepad side by side: the controls every player sees as play starts (unless on touch). */
 export const PLAY_CONTROLS: readonly ControlHint[] = [
-  { keys: "A / D or ← / → · stick / D-pad", action: "Move" },
+  { keys: "← / → or A / D · stick / D-pad", action: "Move" },
   { keys: "Space · A / Cross", action: FLAP },
-  { keys: "S or ↓ · stick / D-pad ↓", action: DIVE },
-  { keys: "J · B / Circle or left bumper", action: ATTACK },
+  { keys: "↓ or S · stick / D-pad ↓", action: DIVE },
+  {
+    keys: "X or Z (also Shift or J) · B / Circle or left bumper",
+    action: ATTACK,
+  },
 ];
 /** The keyboard and gamepad, as the in-game menu lists them. */
 export const CONTROLS: readonly ControlHint[] = [

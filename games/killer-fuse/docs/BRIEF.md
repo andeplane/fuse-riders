@@ -22,7 +22,7 @@ Two teams, Cyan and Pink (`team = slot % 2`). Slots 0 and 1 are the Queens, slot
 
 ## Controls
 
-Left, right, down, one jump / flap button and one attack button. Up is bound to nothing. Down in the air is the Queen's dive: it starts on the press, so Down already held when she leaves a ledge or ends a dash starts none until it is pressed again. Jump and flap act on the press; holding does nothing, except that a Worker's jump goes higher while held. A device option, "Hold to flap", repeats the press 7.5 times a second while the button is held; it is off by default. Keyboard (A/D or arrows, S or down, Space, J), gamepad and touch.
+Left, right, down, one jump / flap button and one attack button. Up is bound to nothing. Down in the air is the Queen's dive: it starts on the press, so Down already held when she leaves a ledge or ends a dash starts none until it is pressed again. Jump and flap act on the press; holding does nothing, except that a Worker's jump goes higher while held. A device option, "Hold to flap", repeats the press 7.5 times a second while the button is held; it is off by default. Keyboard (arrows or A/D to move, Down or S held to dive, Space to jump and flap, X or Z to attack — Shift and J attack too), gamepad and touch.
 
 ## Rules in short
 

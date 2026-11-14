@@ -57,7 +57,7 @@ test("every seat sees all four controls as rows, its own role's first", () => {
   );
   assert.deepEqual(queen[0], {
     action: "MOVE",
-    keys: ["A", "D", "←", "→"],
+    keys: ["←", "→", "A", "D"],
     pad: ["Stick", "D-pad"],
     touch: ["Left pad"],
     note: "",
@@ -75,7 +75,13 @@ test("every seat sees all four controls as rows, its own role's first", () => {
       queen[3]!.pad,
       queen[3]!.note,
     ],
-    [["S", "↓"], "Queen, hold", ["J"], ["B / Circle", "LB"], "Warrior, Queen"],
+    [
+      ["↓", "S"],
+      "Queen, hold",
+      ["X", "Z", "Shift", "J"],
+      ["B / Circle", "LB"],
+      "Warrior, Queen",
+    ],
   );
   const worker = controlRows(5);
   assert.deepEqual(

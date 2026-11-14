@@ -25,13 +25,17 @@ Open `http://localhost:8890/killer-fuse/?mute` and pick one of:
 
 ## Controls
 
-| Input            | Action                                                |
-| ---------------- | ----------------------------------------------------- |
-| A / D or ← / →   | Move                                                  |
-| Space, Z, W or ↑ | Jump as a Worker; flap as a Queen or a Warrior        |
-| S or ↓           | Dive as the Queen; drop through a platform            |
-| Gamepad          | Stick or D-pad to move, a face button to jump or flap |
-| Touch            | Left thumb slides to move and dive; right thumb FLAP  |
+Arrows move, Space flaps, X attacks, hold Down to dive.
+
+| Input                    | Action                                                           |
+| ------------------------ | ---------------------------------------------------------------- |
+| ← / → (or A / D)         | Move                                                             |
+| Space                    | Jump as a Worker; flap as a Queen or a Warrior                   |
+| X or Z (also Shift or J) | Attack: a sword dash the way you face, as a Warrior or the Queen |
+| ↓ (or S), held           | Dive as the Queen; drop through a platform                       |
+| ↑                        | Nothing, as in the original: flying is only ever the flap button |
+| Gamepad                  | Stick or D-pad to move, A / Cross to flap, B / Circle to attack  |
+| Touch                    | Left thumb slides to move and dive; right thumb FLAP and ATTACK  |
 
 ## Layout
 

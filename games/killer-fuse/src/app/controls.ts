@@ -8,7 +8,7 @@ import {
 
 /**
  * This device's controls, Killer Queen Black's: left, right, down, the jump / flap button and the attack button, from
- * the keyboard, a gamepad and the touch pad at once. Jump / flap acts on its press edge (a jump on the ground, a flap
+ * the keyboard (the arrows, Space and X), a gamepad and the touch pad at once. Jump / flap acts on its press edge (a jump on the ground, a flap
  * in the air); down is the Queen's dive; attack is a press edge only. Up does nothing. Each source says what it holds;
  * `Controls` merges them into the held bits the runtime logs (`input`) and passes every press on as its own edge
  * (`press`, `attack`), so a tap shorter than a frame still counts.
@@ -120,8 +120,18 @@ const KEY_BITS: Record<string, number> = {
 };
 /** The jump / flap button. Up and W are bound to nothing, as in the original. */
 const BUTTON_KEYS = new Set(["Space"]);
-/** The attack button, as Killer Queen Black binds it. */
-const ATTACK_KEYS = new Set(["KeyJ"]);
+/**
+ * The attack button. X and Z sit next to Space under the left hand, which is where a player holding the arrows with
+ * the right hand can reach them, and Shift is beside them; J is Killer Queen Black's own key, kept for anyone who
+ * learned it there or plays with W A S D.
+ */
+const ATTACK_KEYS = new Set([
+  "KeyX",
+  "KeyZ",
+  "ShiftLeft",
+  "ShiftRight",
+  "KeyJ",
+]);
 /** Keys the page swallows during play so they do not scroll it, though they do nothing. */
 const QUIET_KEYS = new Set(["ArrowUp"]);
 /** Whether the game owns the key (`KeyboardEvent.code`) during play: the page keeps it from scrolling. */
@@ -131,7 +141,10 @@ export const gameKey = (code: string): boolean =>
   ATTACK_KEYS.has(code) ||
   QUIET_KEYS.has(code);
 
-/** The keyboard: A/D or the arrows to move, S or down to dive, Space to jump and flap, J to attack. */
+/**
+ * The keyboard: the arrows (or A/D) to move, Down (or S) held to dive, Space to jump and flap, X, Z or Shift (or J)
+ * to attack.
+ */
 export class Keys {
   private readonly down = new Set<string>();
   constructor(private readonly controls: Controls) {}

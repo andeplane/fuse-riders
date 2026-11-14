@@ -222,7 +222,7 @@ test("the step's text names the keys of the device in use", () => {
   const snail = lesson("snail");
   assert.match(
     stepText(snail, { ...FRESH, step: 1 }, "keys"),
-    /Hold A \/ ← \(toward your goal\) and the snail crawls home\. Space hops off\./,
+    /Hold ← \/ A \(toward your goal\) and the snail crawls home\. Space hops off\./,
   );
   assert.match(
     stepText(snail, { ...FRESH, step: 1 }, "pad"),
@@ -237,7 +237,7 @@ test("the step's text names the keys of the device in use", () => {
   const queen = lesson("queen");
   assert.match(
     stepText(queen, { ...FRESH, step: 1 }, "keys"),
-    /hold S \/ ↓ to dive/,
+    /hold ↓ \/ S to dive/,
   );
   assert.match(
     stepText(queen, { ...FRESH, step: 2 }, "pad"),
@@ -245,7 +245,7 @@ test("the step's text names the keys of the device in use", () => {
   );
   assert.match(
     stepText(lesson("warrior"), { ...FRESH, step: 4 }, "keys"),
-    /press J: the blade kills what is in front of it/,
+    /press X: the blade kills what is in front of it/,
   );
   assert.equal(
     stepText(berries, { ...FRESH, step: 3, outcome: "won" }, "keys"),

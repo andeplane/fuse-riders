@@ -79,7 +79,7 @@ export function controlRows(slot: number): ControlRow[] {
     rows: ControlRow[] = [
       {
         action: "MOVE",
-        keys: ["A", "D", "←", "→"],
+        keys: ["←", "→", "A", "D"],
         pad: ["Stick", "D-pad"],
         touch: ["Left pad"],
         note: "",
@@ -97,7 +97,7 @@ export function controlRows(slot: number): ControlRow[] {
       },
       {
         action: "DIVE",
-        keys: ["S", "↓"],
+        keys: ["↓", "S"],
         pad: ["Stick ↓"],
         touch: ["Left pad ↓"],
         note: "Queen, hold",
@@ -105,7 +105,7 @@ export function controlRows(slot: number): ControlRow[] {
       },
       {
         action: "ATTACK",
-        keys: ["J"],
+        keys: ["X", "Z", "Shift", "J"],
         pad: ["B / Circle", "LB"],
         touch: ["ATTACK"],
         note: "Warrior, Queen",

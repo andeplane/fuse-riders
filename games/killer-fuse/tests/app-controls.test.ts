@@ -79,7 +79,7 @@ test("the source that last held something is the device in use", () => {
   assert.equal(controls.lastUsed(), "touch", "letting go keeps the device");
 });
 
-test("the keyboard: A/D or arrows move, S or down dives, Space is the one button", () => {
+test("the keyboard: arrows or A/D move, down or S dives, Space is the one button", () => {
   const { log, controls } = rig();
   const keys = new Keys(controls);
   for (const code of [
@@ -93,7 +93,7 @@ test("the keyboard: A/D or arrows move, S or down dives, Space is the one button
   ])
     assert.ok(gameKey(code), code);
   assert.ok(gameKey("ArrowUp"), "up is kept from scrolling the page");
-  for (const code of ["KeyW", "KeyZ", "Enter", "toString"])
+  for (const code of ["KeyW", "KeyK", "Enter", "toString"])
     assert.equal(gameKey(code), false, code);
   assert.equal(keys.press("Enter"), false);
   assert.deepEqual(log, []);
@@ -136,6 +136,37 @@ test("up and W are bound to nothing: no held bits and no press", () => {
   assert.deepEqual(log, []);
   assert.equal(controls.value(), 0);
   assert.equal(controls.lastUsed(), undefined);
+  // Up held while flying is still nothing: the flap is only ever the button.
+  keys.press("ArrowUp");
+  keys.press("Space");
+  assert.deepEqual(log, [INPUT_HELD, "press"]);
+  assert.equal(controls.value(), INPUT_HELD, "up adds no bit of its own");
+});
+
+test("Space is the only key that flaps: no attack key or arrow holds the button", () => {
+  const { log, controls } = rig();
+  const keys = new Keys(controls);
+  for (const code of [
+    "KeyX",
+    "KeyZ",
+    "ShiftLeft",
+    "ShiftRight",
+    "KeyJ",
+    "ArrowUp",
+    "ArrowLeft",
+    "ArrowRight",
+    "ArrowDown",
+    "KeyA",
+    "KeyD",
+    "KeyS",
+  ]) {
+    keys.press(code);
+    assert.equal(controls.value() & INPUT_HELD, 0, `${code} does not flap`);
+    keys.lift(code);
+  }
+  assert.equal(log.includes("press"), false, "nothing but Space presses");
+  keys.press("Space");
+  assert.deepEqual(log.slice(-2), [INPUT_HELD, "press"]);
 });
 
 test("a gamepad: stick or d-pad past half way to move and dive, A / Cross for the button, up for nothing", () => {
@@ -317,18 +348,22 @@ test("the touch pad: sideways past the dead zone, down on a clear pull, and the 
   assert.deepEqual(log.slice(-2), [INPUT_HELD, "press"]);
 });
 
-test("attack: J, B / Circle or the left bumper, and the touch ATTACK button, each a press edge only", () => {
+test("attack: X, Z, either Shift or J, B / Circle or the left bumper, and the touch ATTACK button, each a press edge only", () => {
   const { log, controls } = rig();
   const keys = new Keys(controls);
-  assert.ok(gameKey("KeyJ"));
-  keys.press("KeyJ");
-  keys.press("KeyJ");
-  assert.deepEqual(log, ["attack"], "held J attacks once and holds nothing");
-  assert.equal(controls.value(), 0);
-  assert.equal(controls.lastUsed(), "keys");
-  keys.lift("KeyJ");
-  keys.press("KeyJ");
-  assert.deepEqual(log, ["attack", "attack"]);
+  for (const code of ["KeyX", "KeyZ", "ShiftLeft", "ShiftRight", "KeyJ"]) {
+    assert.ok(gameKey(code), code);
+    keys.press(code);
+    keys.press(code);
+    assert.deepEqual(log, ["attack"], `held ${code} attacks once`);
+    assert.equal(controls.value(), 0, `${code} holds nothing`);
+    assert.equal(controls.lastUsed(), "keys");
+    keys.lift(code);
+    keys.press(code);
+    assert.deepEqual(log, ["attack", "attack"], `${code} again is an edge`);
+    keys.lift(code);
+    log.length = 0;
+  }
 
   log.length = 0;
   const pads = new Pads(controls);

@@ -69,7 +69,7 @@ export function factsOf(
 type Keys = (typeof DEVICE_KEYS)[Device] & { left: string };
 /** The device's keys, with the way to Cyan's goal (left) for the snail lesson. */
 const LEFT: Record<Device, string> = {
-  keys: "A / ←",
+  keys: "← / A",
   pad: "the stick left",
   touch: "the pad left",
 };
