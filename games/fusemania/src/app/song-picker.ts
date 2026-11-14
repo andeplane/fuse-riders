@@ -57,6 +57,11 @@ export interface SongPickerOptions {
     readonly name: string;
     readonly songs: readonly string[];
   }[];
+  /**
+   * What else acts on the song (RANDOM SONG): shown at the top of the carousel, beside the pack tabs, never under
+   * the levels.
+   */
+  tools?: readonly Node[];
 }
 export interface SongPicker {
   element: HTMLElement;
@@ -308,7 +313,12 @@ export function createSongPicker(options: SongPickerOptions): SongPicker {
     return [{ index, name: pack.name, first: first.song.id, element }];
   });
   tabs.hidden = packTabs.length === 0;
-  wheel.append(tabs, before, list, after);
+  const top = el("div", "", "fm-picker-top"),
+    tools = el("div", "", "fm-picker-tools");
+  tools.append(...(options.tools ?? []));
+  tools.hidden = !options.tools?.length;
+  top.append(tabs, tools);
+  wheel.append(top, before, list, after);
 
   // A swipe or a sideways scroll turns the carousel, one song for each stretch of the drag.
   let dragFrom: { id: number; x: number } | undefined;
