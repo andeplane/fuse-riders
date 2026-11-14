@@ -49,7 +49,7 @@ Hard bots should beat medium, and medium should beat easy, in at least 70% of ga
 ## Feel numbers (art pixels, 60 Hz simulation)
 
 - Run speed 62.5 px/s (crosses the 480 px screen in 7.7 s); speed gate 1.35 times; a winged unit walking 0.84 times.
-- No jump buffer; one step of coyote time.
+- A jump or flap press is remembered for 3 steps (an attack press for 6), and a Worker may still jump for 3 steps after walking off a ledge, as in Killer Queen Black. Since rules `killer-fuse-4` the engine uses Black's figures throughout; see [engine.md](engine.md).
 - Gravity, flap impulse, dive speed and terminal velocity are not published. Tune them so sustained flight needs 7 to 15 presses a second and a full Worker jump clears one platform level.
 
 ## Tech
