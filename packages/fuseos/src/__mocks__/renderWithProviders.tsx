@@ -69,6 +69,13 @@ import {
 import type { LaunchDevice } from "../settings/launchDevice";
 import { LaunchDeviceContext } from "../settings/launchDevice";
 import { Shell } from "../Shell";
+import type { DialUpDeps } from "../sounds/dialup/dialUpDepsContext";
+import { DialUpDepsContext } from "../sounds/dialup/dialUpDepsContext";
+import {
+  DialUpSessionContext,
+  MemoryDialUpSession,
+} from "../sounds/dialup/dialUpSession";
+import { SoundServiceContext } from "../sounds/soundContext";
 import type { AppState, WindowContent } from "../state/appState";
 import { DEFAULT_STATE } from "../state/appState";
 import type { AppStateDeps } from "../state/appStateContext";
@@ -92,7 +99,9 @@ import { createTestAssistantDeps } from "./assistantDeps";
 import type { FakeEngineFactory } from "./llmEngine";
 import { createFakeEngineFactory } from "./llmEngine";
 import { FakePaintFileDeps } from "./paintFiles";
+import { ManualScheduler } from "./dialUpDeps";
 import { FakePaintSurface } from "./paintSurface";
+import { FakeSoundService } from "./soundService";
 import type { FakeWebampPlayer } from "./webampPlayer";
 import { createFakeWebampPlayer } from "./webampPlayer";
 
@@ -184,6 +193,12 @@ export type ProviderOptions = {
   /** Defaults to the fixture repository with an empty overlay and an instant floppy seek. */
   disk?: TestDiskOptions;
   diskDeps?: TestDiskDeps;
+  /** Defaults to a recording fake that reports every sound as audible. */
+  sounds?: FakeSoundService;
+  /** Defaults to an offline session, so Network-style windows go through Dial-Up Networking first. */
+  dialUpSession?: MemoryDialUpSession;
+  /** Defaults to a manual scheduler, so the handshake's status lines advance only when a test says. */
+  dialUpDeps?: DialUpDeps;
 };
 
 export const immediateAppStateDeps: AppStateDeps = {
@@ -408,6 +423,9 @@ export function createWrapper(options: ProviderOptions = {}) {
   const diskDeps = options.diskDeps ?? createTestDiskDeps(options.disk);
   const editors: FakeEditor[] = [];
   const editorDeps = createFakeEditorDeps(editors);
+  const sounds = options.sounds ?? new FakeSoundService();
+  const dialUpSession = options.dialUpSession ?? new MemoryDialUpSession();
+  const dialUpDeps = options.dialUpDeps ?? new ManualScheduler();
 
   /** Outermost first; each entry wraps everything after it. */
   const providers: readonly ProviderEntry[] = [
@@ -438,6 +456,9 @@ export function createWrapper(options: ProviderOptions = {}) {
     provider(DiskDepsContext, diskDeps),
     provider(EditorDepsContext, editorDeps),
     provider(LauncherDepsContext, launcherDeps),
+    provider(SoundServiceContext, sounds),
+    provider(DialUpSessionContext, dialUpSession),
+    provider(DialUpDepsContext, dialUpDeps),
   ];
 
   function Wrapper({ children }: { children: ReactNode }) {
@@ -479,6 +500,9 @@ export function createWrapper(options: ProviderOptions = {}) {
     diskDeps,
     editors,
     launcherDeps,
+    sounds,
+    dialUpSession,
+    dialUpDeps,
   };
 }
 

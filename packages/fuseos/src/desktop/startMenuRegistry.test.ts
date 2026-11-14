@@ -33,6 +33,7 @@ describe("START_MENU_REGISTRATIONS", () => {
       ["retro-games", "retro-folder", true],
       ["my-computer", "my-computer", true],
       ["settings", "screensaver", true],
+      ["accessories", "dialup", true],
     ]);
   });
 
@@ -67,6 +68,7 @@ describe("START_MENU_REGISTRATIONS", () => {
       { kind: "retroFolder" },
       { kind: "explorer", location: "" },
       { kind: "controlpanel", applet: "display", tab: "screensaver" },
+      { kind: "dialup" },
     ]);
   });
 

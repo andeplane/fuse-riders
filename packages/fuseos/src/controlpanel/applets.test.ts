@@ -12,13 +12,14 @@ describe("APPLETS", () => {
     });
   });
 
-  it("lists Display, Games, System, Assistant and Keyboard, each with its own icon", () => {
+  it("lists Display, Games, System, Assistant, Keyboard and Sounds, each with its own icon", () => {
     expect(APPLETS.map((entry) => entry.applet)).toEqual([
       "display",
       "games",
       "system",
       "assistant",
       "keyboard",
+      "sounds",
     ]);
     // Two applets sharing an icon would be indistinguishable in the Home grid.
     const icons = APPLETS.map((entry) => entry.icon);

@@ -11,6 +11,7 @@ import { NotepadPlusPlusWindow } from "../notepadpp/NotepadPlusPlusWindow";
 import { PaintWindow } from "../paint/PaintWindow";
 import { GameWindow } from "../retro/GameWindow";
 import { RetroFolderWindow } from "../retro/RetroFolderWindow";
+import { DialUpWindow } from "../sounds/dialup/DialUpWindow";
 import type { WindowState } from "../state/appState";
 import { WinampPlayer } from "../winamp/WinampPlayer";
 import { MessageBox } from "../windows/MessageBox";
@@ -82,6 +83,8 @@ function WindowContent({
       );
     case "launcher":
       return <LauncherWindow windowId={window.id} active={active} />;
+    case "dialup":
+      return <DialUpWindow windowId={window.id} then={window.then} />;
   }
 }
 

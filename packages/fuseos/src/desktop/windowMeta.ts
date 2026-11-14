@@ -39,6 +39,8 @@ export const EXPLORER_WINDOW_SIZE: Size = { width: 720, height: 480 };
 
 /** Room for the tab bar, a code pane with line numbers and the six-field status bar. */
 export const NOTEPADPP_WINDOW_SIZE: Size = { width: 760, height: 520 };
+/** Room for the Connect To form (user name, password, phone number, location) and its buttons. */
+export const DIAL_UP_WINDOW_SIZE: Size = { width: 400, height: 260 };
 
 export const OS_NAME = "FuseOS";
 
@@ -129,6 +131,13 @@ export function windowMeta(
         icon: "fusteam",
         resizable: true,
         size: LAUNCHER_WINDOW_SIZE,
+      };
+    case "dialup":
+      return {
+        title: "Connect To",
+        icon: "dialup",
+        resizable: false,
+        size: DIAL_UP_WINDOW_SIZE,
       };
   }
 }

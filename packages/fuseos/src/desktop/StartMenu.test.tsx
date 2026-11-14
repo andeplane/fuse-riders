@@ -90,6 +90,7 @@ describe("StartMenu", () => {
       "System",
       "Assistant",
       "Keyboard",
+      "Sounds",
       "Screen Saver",
     ]);
 
@@ -109,6 +110,7 @@ describe("StartMenu", () => {
       "Notepad++",
       "Windows Explorer",
       "Change desktop background",
+      "Dial-Up Networking",
     ]);
     expect(
       within(accessories).getByRole("menuitem", { name: "Notepad++" }),
