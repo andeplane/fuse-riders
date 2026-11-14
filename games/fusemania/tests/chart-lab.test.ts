@@ -59,6 +59,7 @@ import {
   removeTap,
   tapAt,
   tapColumn,
+  tapGridBeat,
   writeTaps,
 } from "../src/lab/taps.js";
 
@@ -615,4 +616,17 @@ test("chart lab: a click picks the nearest tap in its lane, within reach", () =>
   assert.equal(tapAt(taps, 1.05, 2, 0.1), taps[2]);
   assert.equal(tapAt(taps, 1.05, 1, 0.1), undefined);
   assert.equal(tapAt(taps, 2, 0, 0.1), undefined);
+});
+
+test("chart lab: a tapped beat reads as 4ths, 8ths, 16ths, triplets, 24ths or 32nds", () => {
+  const near = (beat: number, want: number) =>
+    assert.ok(Math.abs(tapGridBeat(beat) - want) < 1e-9, `${beat} → ${want}`);
+  near(4.02, 4); // a late quarter
+  near(4.48, 4.5); // an early 8th
+  near(4.27, 4.25); // a late 16th stays a 16th
+  near(4.32, 4 + 1 / 3); // nearer the triplet
+  near(4.66, 4 + 2 / 3);
+  near(4.17, 4 + 1 / 6); // a 24th
+  near(4.12, 4.125); // a 32nd
+  near(4.875, 4.875);
 });

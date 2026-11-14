@@ -61,6 +61,7 @@ import {
   removeSpan,
   removeTap,
   tapAt,
+  tapGridBeat,
   tapColumn,
   writeTaps,
   type Tap,
@@ -1094,9 +1095,9 @@ function drawNote(
     g.fillRect(cx - LANE * 0.22, y, LANE * 0.44, yOf(note.endTime) - y);
   }
   // The game's own arrow for this beat and lane.
-  // A tapped note is never exactly on the grid: it takes the colour of the 16th it is nearest.
+  // A tapped note is never exactly on the grid: it takes the colour of the subdivision it most plausibly means.
   const sprite =
-    set.arrows[gameQuantOf(tapped ? snapBeat(note.beat, 4) : note.beat)]?.[
+    set.arrows[gameQuantOf(tapped ? tapGridBeat(note.beat) : note.beat)]?.[
       note.column
     ];
   if (sprite) blit(g, sprite, cx, y);

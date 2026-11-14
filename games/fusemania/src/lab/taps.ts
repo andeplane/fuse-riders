@@ -77,6 +77,21 @@ export function tapAt(
   return best;
 }
 
+/**
+ * The grid position a tapped beat most plausibly means, for its colour: the first of 4ths, 8ths, 16ths, 12ths
+ * (triplets), 24ths and 32nds that the tap is within a 24th of a beat of, else its nearest 32nd. Straight
+ * subdivisions come first, so a slightly late 16th is not read as a triplet; a tap midway between them is.
+ */
+export function tapGridBeat(beat: number): number {
+  // Just under a 24th of a beat: a tap exactly on a 32nd is not pulled to the 24th beside it.
+  const reach = 1 / 24 - 1e-6;
+  for (const perBeat of [1, 2, 4, 3, 6, 8]) {
+    const snapped = Math.round(beat * perBeat) / perBeat;
+    if (Math.abs(snapped - beat) <= reach) return snapped;
+  }
+  return Math.round(beat * 8) / 8;
+}
+
 export const writeTaps = (file: TapsFile): string =>
   `${JSON.stringify(file, null, 2)}\n`;
 
