@@ -124,27 +124,20 @@ const row = (from: number, to: number, gap: number, up: number): Spot[] => {
   return spots;
 };
 
+/** Flat out: holding the gas is enough here, and nowhere else. */
 const warmUp = level({
   id: "warm-up",
   name: "Warm Up",
-  floor: path(0, 0)
-    .flat(8)
-    .hill(8, 1)
-    .flat(6)
-    .hill(10, -1.6)
-    .flat(6)
-    .ease(8, 2.5)
-    .flat(8)
-    .ease(10, -2.5)
-    .flat(10),
-  top: 14,
+  floor: path(0, 0).flat(70),
+  top: 10,
   start: 2,
   apples: [
-    [12, 0.8],
-    [27, 0.8],
-    [50, 0.8],
+    [14, 0.8],
+    [28, 0.8],
+    [42, 0.8],
+    [54, 0.8],
   ],
-  flower: [71, 0.9],
+  flower: [66, 0.9],
 });
 
 const rollers = level({

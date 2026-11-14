@@ -162,7 +162,9 @@ const args = process.argv.slice(2);
 const beamAt = args.indexOf("--beam");
 const beam = beamAt >= 0 ? Number(args[beamAt + 1]) : 300;
 const chosen = args
-  .filter((arg, index) => /^\d+$/.test(arg) && index !== beamAt + 1)
+  .filter(
+    (arg, index) => /^\d+$/.test(arg) && (beamAt < 0 || index !== beamAt + 1),
+  )
   .map(Number);
 const rides: Record<string, { ride: string; steps: number }> = existsSync(OUT)
   ? (JSON.parse(readFileSync(OUT, "utf8")) as { rides: typeof rides }).rides
