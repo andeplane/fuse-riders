@@ -105,7 +105,7 @@ const RESULT_COLUMNS: readonly Column<SearchResult>[] = [
   {
     key: "filename",
     label: "Filename",
-    width: 236,
+    width: 300,
     render: (row) => row.filename,
     sortValue: (row) => row.filename.toLowerCase(),
   },
