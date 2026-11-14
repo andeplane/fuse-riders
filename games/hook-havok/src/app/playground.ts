@@ -17,19 +17,8 @@ import {
   memberToken,
   validRoomCode,
 } from "fuse-network-fe";
-import {
-  MAX_PACKET_BYTES,
-  createLeadClock,
-  roomManager,
-  ticksAhead,
-} from "fuse-netcode";
-import {
-  confirmed,
-  createEventLatch,
-  createSmoother,
-  forward,
-  memoBots,
-} from "./forward.js";
+import { MAX_PACKET_BYTES, roomManager } from "fuse-netcode";
+import { createPicture } from "./forward.js";
 import { HookRuntime } from "../online/runtime.js";
 import {
   DEFAULT_TUNING,
@@ -531,49 +520,25 @@ touchLayout();
 const drawAhead = query.get("lead") !== "off",
   /** For latency measurements: `?probe` publishes where this device's keeper was last drawn. */
   probe = query.has("probe"),
-  smoother = createSmoother(),
-  leadClock = createLeadClock(),
-  drawBots = memoBots(),
-  latch = createEventLatch();
+  picture = createPicture();
 /**
- * What to draw now: the newest folded room played forward to the clock when the newest frame is that room, otherwise
- * the two newest frames blended a tick behind it.
+ * What to draw now: the newest folded room played forward to the clock (`createPicture`), or, when there is nothing
+ * to lead with, the two newest frames blended a tick behind it.
  */
 function sample(): WorldView {
   const timing = runtime?.frameTiming();
   if (!timing) return latest;
-  const lead = drawAhead ? runtime?.lead() : undefined;
-  let drawn: WorldView;
-  if (!lead || lead.room.simulation.tick !== timing.newer.tick)
-    drawn = interpolate(
-      timing.older && localView(timing.older),
-      localView(timing.newer),
-      timing.tick,
-    );
-  else {
-    const now = performance.now(),
-      revision = timing.revision ?? 0,
-      me = display ? "" : selfId;
-    drawn = localView(
-      latch(
-        smoother.apply(
-          confirmed(
-            forward(
-              lead.room,
-              leadClock(ticksAhead(timing), timing.newer.logTick, now),
-              { me, live: lead.held, bots: drawBots(revision) },
-            ),
-            timing.newer,
-          ),
-          revision,
-          lead.room,
-          now,
-          me,
-        ),
-        `${lead.room.matchId}:${lead.room.round}`,
-      ),
-    );
-  }
+  const ahead =
+    drawAhead && runtime
+      ? picture(runtime, display ? "" : selfId, performance.now())
+      : undefined;
+  const drawn = ahead
+    ? localView(ahead)
+    : interpolate(
+        timing.older && localView(timing.older),
+        localView(timing.newer),
+        timing.tick,
+      );
   if (probe)
     Reflect.set(window, "__hookHavokProbe", {
       at: performance.now(),

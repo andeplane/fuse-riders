@@ -1,6 +1,9 @@
 import {
   createCorrectionSmoother,
+  createLeadClock,
+  ticksAhead,
   type CorrectionSmoother,
+  type FrameTiming,
 } from "fuse-netcode";
 import { stepArena, type Arena } from "../engine/arena.js";
 import { planBots } from "../engine/bot.js";
@@ -353,5 +356,53 @@ export function createSmoother(
       if (!moved && !thrown) return view;
       return around(view, moved ? keepers : view.keepers, { bombs });
     },
+  };
+}
+
+/** What the picture is made from: the runtime's frame timing, its newest folded room and this device's live input. */
+export interface LeadSource {
+  frameTiming(): FrameTiming<View> | undefined;
+  lead(): { room: Room; held: Input } | undefined;
+}
+
+/**
+ * The whole of drawing at the clock, for one screen: the newest folded room played forward to the clock, outcomes as
+ * the room folded them, corrections hidden and events stamped onto the drawn timeline. Undefined when there is
+ * nothing to lead with (no running match, or the newest frame is not the room's newest world): the screen then
+ * blends the two newest frames a tick behind the clock, as before.
+ */
+export function createPicture(): (
+  source: LeadSource,
+  me: string,
+  nowMs: number,
+) => View | undefined {
+  const smoother = createSmoother(),
+    leadClock = createLeadClock(),
+    bots = memoBots(),
+    latch = createEventLatch();
+  return (source, me, nowMs) => {
+    const timing = source.frameTiming(),
+      lead = source.lead();
+    if (!timing || !lead || lead.room.simulation.tick !== timing.newer.tick)
+      return undefined;
+    const revision = timing.revision ?? 0,
+      { room } = lead;
+    return latch(
+      smoother.apply(
+        confirmed(
+          forward(
+            room,
+            leadClock(ticksAhead(timing), timing.newer.logTick, nowMs),
+            { me, live: lead.held, bots: bots(revision) },
+          ),
+          timing.newer,
+        ),
+        revision,
+        room,
+        nowMs,
+        me,
+      ),
+      `${room.matchId}:${room.round}`,
+    );
   };
 }

@@ -21,11 +21,14 @@ import {
 import {
   confirmed,
   createEventLatch,
+  createPicture,
   createSmoother,
   forward,
   memoBots,
   type ForwardInputs,
 } from "../src/app/forward.js";
+
+import { Mesh } from "./fixtures/mesh.js";
 
 const host = "host",
   guest = "guest";
@@ -293,4 +296,56 @@ test("the smoother hides a correction to another keeper and a bomb, and never to
   );
   assert.equal(body(hidden).x, body(jumped).x);
   assert.equal(hidden.bombs[0]!.x, jumped.bombs[0]!.x, "no rollback: as drawn");
+});
+
+test("under the real runtime a press is drawn on the next frame, well before the blended picture shows it", () => {
+  const mesh = new Mesh(),
+    runtime = mesh.join("a");
+  mesh.run(500);
+  runtime.command({ type: "join", name: "A" });
+  mesh.run(500);
+  runtime.command({ type: "action", action: "start" });
+  mesh.run(1000);
+  const picture = createPicture();
+  /** Where the local keeper is drawn at the clock, and where the two newest frames blended a tick behind put it. */
+  const drawn = () => {
+    const timing = runtime.frameTiming()!,
+      ahead = picture(runtime, "a", mesh.now);
+    assert.ok(ahead, "a running room is drawn at the clock");
+    const at = (view: View | undefined) => view && body(view, "a").x,
+      older = at(timing.older),
+      newer = at(timing.newer)!,
+      span = timing.older ? timing.newer.tick - timing.older.tick : 0,
+      part = span > 0 ? (timing.tick - timing.older!.tick) / span : 1;
+    return {
+      lead: at(ahead)!,
+      blended: older === undefined ? newer : older + (newer - older) * part,
+    };
+  };
+  const lead: number[] = [],
+    blended: number[] = [];
+  for (let i = 0; i < 20; i++) {
+    runtime.input({ ...NEUTRAL });
+    // Come to rest, then press at a different point of the 50 ms tick each time.
+    mesh.run(700 + ((i * 13) % 50));
+    const from = drawn();
+    runtime.input({ ...NEUTRAL, move: i % 2 ? -1 : 1 });
+    let shown: number | undefined, late: number | undefined;
+    for (let ms = 10; late === undefined && ms < 1000; ms += 10) {
+      mesh.run(10);
+      const now = drawn();
+      if (now.lead !== from.lead) shown ??= ms;
+      if (now.blended !== from.blended) late = ms;
+    }
+    lead.push(shown!);
+    blended.push(late!);
+  }
+  const mean = (values: number[]) =>
+    values.reduce((sum, each) => sum + each, 0) / values.length;
+  if (process.env.LEAD_REPORT)
+    console.log(
+      `Hook Havok press to picture, 10 ms frames: at the clock mean ${mean(lead)} ms, max ${Math.max(...lead)} ms; a tick behind mean ${mean(blended)} ms, max ${Math.max(...blended)} ms`,
+    );
+  assert.ok(Math.max(...lead) <= 20, `at the clock: ${lead.join(",")}`);
+  assert.ok(mean(blended) - mean(lead) >= 20, `blended: ${blended.join(",")}`);
 });
