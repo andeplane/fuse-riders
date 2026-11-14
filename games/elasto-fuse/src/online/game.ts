@@ -46,19 +46,25 @@ import {
 
 /**
  * Elasto Fuse behind the netcode's `RollbackGame`. The room keeps the seats, the lobby's settings and one match: a
- * race on one level, or the tour, a race on every level in turn with points for the places. One log tick folds the
+ * solo race or a bounded consecutive/random series with points for the places. One log tick folds the
  * management entries and each rider's held controls, then runs the tick's steps of the race; between two races of a
- * tour the room rests on the finished one for a few seconds.
+ * series the room rests on the finished one for a few seconds.
  */
-export const TOUR = -1;
 export interface Settings {
   /** One shared screen with phones as controllers. */
   display: boolean;
-  /** The level to race, or `TOUR` for all of them in order. */
+  /** First level for a consecutive series. */
   level: number;
+  count: 1 | 3 | 5 | 10;
+  order: "consecutive" | "random";
 }
-export const DEFAULT_SETTINGS: Settings = { display: false, level: TOUR };
-const SETTING_KEYS = ["display", "level"];
+export const DEFAULT_SETTINGS: Settings = {
+  display: false,
+  level: 0,
+  count: 3,
+  order: "consecutive",
+};
+const SETTING_KEYS = ["display", "level", "count", "order"];
 /** The settings boundary, for a logged entry, a command and a checkpoint alike: exactly the fields, each checked. */
 export function parseSettings(raw: unknown): Settings | undefined {
   if (!plain(raw)) return;
@@ -68,16 +74,37 @@ export function parseSettings(raw: unknown): Settings | undefined {
     !SETTING_KEYS.every((key) => Object.hasOwn(raw, key))
   )
     return;
-  const { display, level } = raw;
-  if (typeof display !== "boolean" || !(level === TOUR || isLevel(level)))
+  const { display, level, count, order } = raw;
+  if (
+    typeof display !== "boolean" ||
+    !isLevel(level) ||
+    (count !== 1 && count !== 3 && count !== 5 && count !== 10) ||
+    (order !== "consecutive" && order !== "random")
+  )
     return;
-  return { display, level: level as number };
+  return { display, level: level as number, count, order };
 }
-/** The levels a match under `settings` races, in order. */
-export const levelsOf = (settings: Settings): number[] =>
-  settings.level === TOUR
-    ? Array.from({ length: LEVEL_COUNT }, (_, index) => index)
-    : [settings.level];
+/** Pure sequence derived from settings and the checkpointed match id; no mutable random state. */
+export function levelsOf(settings: Settings, matchId: string): number[] {
+  if (settings.order === "consecutive")
+    return Array.from(
+      { length: settings.count },
+      (_, i) => (settings.level + i) % LEVEL_COUNT,
+    );
+  let seed = 2166136261;
+  for (let i = 0; i < matchId.length; i++)
+    seed = Math.imul(seed ^ matchId.charCodeAt(i), 16777619) >>> 0;
+  if (!seed) seed = 1;
+  const pool = Array.from({ length: LEVEL_COUNT }, (_, i) => i);
+  for (let i = pool.length - 1; i > 0; i--) {
+    seed ^= seed << 13;
+    seed ^= seed >>> 17;
+    seed ^= seed << 5;
+    const j = (seed >>> 0) % (i + 1);
+    [pool[i], pool[j]] = [pool[j]!, pool[i]!];
+  }
+  return pool.slice(0, settings.count);
+}
 
 export const PLAY = 0;
 /**
@@ -269,7 +296,7 @@ function beginRace(room: Room): void {
   room.pause = 0;
   room.world = createWorld(
     room.roster.map((entrant) => entrant.id),
-    levelsOf(room.play)[room.round]!,
+    levelsOf(room.play, room.matchId)[room.round]!,
     room.roster.length === 1 ? SOLO_COUNTDOWN : COUNTDOWN,
   );
 }
@@ -409,7 +436,7 @@ function closeRace(room: Room, world: World, clock: number): void {
       place++;
     } else standing.clock += world.close;
   }
-  if (room.round + 1 < levelsOf(room.play).length) {
+  if (room.round + 1 < levelsOf(room.play, room.matchId).length) {
     room.stage = "between";
     room.pause = INTERMISSION;
     return;
@@ -726,7 +753,7 @@ export function decode(
     !uint32(pause)
   )
     return;
-  const levels = levelsOf(play);
+  const levels = levelsOf(play, matchId);
   const standings = decodeStandings(rawStandings, roster.length, levels.length);
   const decided = decodeDecided(rawDecided, roster);
   const world = rawWorld === null ? null : decodeWorld(rawWorld);
@@ -823,7 +850,7 @@ export function view(room: Room): View {
     })),
     roster: room.roster.map((entrant) => ({ ...entrant })),
     round: room.round,
-    rounds: levelsOf(room.play).length,
+    rounds: levelsOf(room.play, room.matchId).length,
     standings: room.standings.map((standing) => ({ ...standing })),
     order: order(room.standings),
     pause: room.pause,
@@ -863,7 +890,12 @@ export const elastoFuseGame: ElastoFuseGame = {
     isAvatar,
     defaultAvatar: AVATAR,
     parseSettings,
-    soloSettings: (settings) => ({ ...settings, display: false }),
+    soloSettings: (settings) => ({
+      ...settings,
+      display: false,
+      count: 1,
+      order: "consecutive",
+    }),
     sharedScreen: (settings) => settings.display,
     botId(room, pending) {
       // Never an id the match remembers, so a new bot is not mistaken for a departed one in its result.

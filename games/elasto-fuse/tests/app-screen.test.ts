@@ -57,10 +57,10 @@ import {
   NOT_OPEN,
   type Store,
 } from "../src/app/session.js";
-import { PLAY, TOUR, view, type Room } from "../src/online/game.js";
+import { PLAY, DEFAULT_SETTINGS, view, type Room } from "../src/online/game.js";
 import { fold, run, seated, started } from "./fixtures/room.js";
 
-const SINGLE = { display: false, level: 0 };
+const SINGLE = { ...DEFAULT_SETTINGS, count: 1 as const };
 const everyone = (bits: readonly number[]): ForwardInputs => ({
   held: (_world, slot) => bits[slot] ?? 0,
   present: () => true,
@@ -246,10 +246,9 @@ const viewer = (me: string, extra: Partial<Viewer> = {}): Viewer => ({
 });
 
 test("the lobby offers the tour and every level, and one rider is enough to start", () => {
-  assert.equal(LEVEL_CHOICES[0]!.level, TOUR);
-  assert.equal(LEVEL_CHOICES[0]!.title, `TOUR · ALL ${LEVELS.length} MAPS`);
-  assert.equal(LEVEL_CHOICES.length, LEVELS.length + 1);
-  assert.equal(LEVEL_CHOICES[1]!.title, LEVELS[0]!.name.toUpperCase());
+  assert.equal(LEVEL_CHOICES[0]!.level, 0);
+  assert.equal(LEVEL_CHOICES.length, LEVELS.length);
+  assert.equal(LEVEL_CHOICES[0]!.title, LEVELS[0]!.name.toUpperCase());
   assert.equal(levelFrom("3", 0), 3);
   for (const bad of [null, "", "x", "-1", String(LEVELS.length), "1.5"])
     assert.equal(levelFrom(bad, 7), 7, String(bad));
@@ -296,10 +295,7 @@ test("a race is shown to its riders one pane each, to a watcher and the TV as ev
   assert.equal(ada.localSlot, 0);
   assert.deepEqual(ada.follow, [0]);
   assert.deepEqual(ada.tags, ["Ada", "Bo"]);
-  assert.equal(
-    ada.title,
-    `${LEVELS[0]!.name.toUpperCase()} · 1 / ${LEVELS.length}`,
-  );
+  assert.equal(ada.title, `${LEVELS[0]!.name.toUpperCase()} · 1 / 3`);
   assert.equal(
     ada.controlsVisible,
     true,
@@ -335,7 +331,7 @@ test("a race is shown to its riders one pane each, to a watcher and the TV as ev
 });
 
 test("a shared screen makes every rider's phone a controller and leaves the race to the TV", () => {
-  const room = started({ display: true, level: 0 });
+  const room = started({ ...SINGLE, display: true });
   const frame = view(room);
   assert.equal(present(frame, viewer("a")).screen, "controller");
   assert.equal(present(frame, viewer("b")).screen, "controller");
@@ -360,10 +356,7 @@ test("between two races of a tour the table shows the race's places, times and t
   );
   assert.equal(model.result, null);
   const table = model.table!;
-  assert.equal(
-    table.title,
-    `${LEVELS[0]!.name.toUpperCase()} · RACE 1 OF ${LEVELS.length}`,
-  );
+  assert.equal(table.title, `${LEVELS[0]!.name.toUpperCase()} · RACE 1 OF 3`);
   assert.deepEqual(table.rows, [
     {
       place: 1,
@@ -419,7 +412,7 @@ test("a rider who never reached the flower is listed without a time or points", 
 
 test("a tour's result ranks by points and says how many maps each rider finished", () => {
   const room = started();
-  for (let race = 0; race < LEVELS.length; race++) {
+  for (let race = 0; race < 3; race++) {
     assert.equal(room.stage, "running", `race ${race}`);
     // Bo wins the first race, Ada every other.
     finishRace(room, race === 0 ? [960, 800] : [800, 960]);
@@ -434,16 +427,16 @@ test("a tour's result ranks by points and says how many maps each rider finished
       slot: 0,
       name: "Ada",
       you: false,
-      detail: `${LEVELS.length} / ${LEVELS.length} MAPS`,
-      points: `${PLACE_POINTS[0] * (LEVELS.length - 1) + PLACE_POINTS[1]} PTS`,
+      detail: "3 / 3 MAPS",
+      points: "27 PTS",
     },
     {
       place: 2,
       slot: 1,
       name: "Bo",
       you: true,
-      detail: `${LEVELS.length} / ${LEVELS.length} MAPS`,
-      points: `${PLACE_POINTS[1] * (LEVELS.length - 1) + PLACE_POINTS[0]} PTS`,
+      detail: "3 / 3 MAPS",
+      points: "24 PTS",
     },
   ]);
   assert.equal(model.table, null);
@@ -451,7 +444,7 @@ test("a tour's result ranks by points and says how many maps each rider finished
 
 /** A solo room: one rider, one level, started. */
 function soloRoom(level = 0): Room {
-  const room = seated({ display: false, level });
+  const room = seated({ ...SINGLE, level });
   fold(room, { a: [[PRESENCE, "b", false, 1]] });
   fold(room, { a: [[ACTION, "start", "s1"]] });
   assert.equal(room.roster.length, 1);
@@ -503,7 +496,7 @@ test("NEXT MAP is a settings change and a rematch on one tick", () => {
   finishRace(room, [500]);
   fold(room, {
     a: [
-      [SETTINGS, { display: false, level: 1 }],
+      [SETTINGS, { ...SINGLE, level: 1 }],
       [ACTION, "rematch", "s2"],
     ],
   });

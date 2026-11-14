@@ -6,7 +6,6 @@ import {
   DEFAULT_SETTINGS,
   INTERMISSION,
   PLAY,
-  TOUR,
   createRoom,
   decode,
   elastoFuseGame,
@@ -23,6 +22,8 @@ import {
 } from "../src/online/game.js";
 import {
   GAS,
+  COUNTDOWN,
+  RACE_LIMIT,
   LEVEL_COUNT,
   RESTART,
   STEPS_PER_TICK,
@@ -33,20 +34,60 @@ import { PLACE_POINTS } from "../src/basics.js";
 import { parseElastoFuseStats, validElastoFuseField } from "../src/platform.js";
 import { fold, rideHome, run, seated, started } from "./fixtures/room.js";
 
-const single = { display: false, level: 0 };
+const single = { ...DEFAULT_SETTINGS, count: 1 as const };
+
+test("series lengths, wraparound and seeded random order agree across checkpoints", () => {
+  for (const count of [3, 5, 10] as const) {
+    const settings = { ...DEFAULT_SETTINGS, level: LEVEL_COUNT - 2, count };
+    const consecutive = levelsOf(settings, "m1");
+    assert.equal(consecutive.length, count);
+    assert.deepEqual(consecutive.slice(0, 3), [
+      LEVEL_COUNT - 2,
+      LEVEL_COUNT - 1,
+      0,
+    ]);
+    const random = { ...settings, order: "random" as const };
+    const sequence = levelsOf(random, "m1");
+    assert.equal(new Set(sequence).size, count, "no repeat within a match");
+    assert.ok(sequence.every((level) => level >= 0 && level < LEVEL_COUNT));
+    assert.deepEqual(levelsOf(random, "m1"), sequence);
+    assert.notDeepEqual(
+      levelsOf(random, "m2"),
+      sequence,
+      "rematch gets a new sequence",
+    );
+    const room = started(random);
+    const restored = decode(encode(room), room.tick)!;
+    assert.ok(restored);
+    assert.equal(restored.world!.level, sequence[0]);
+    const ticks = (COUNTDOWN + RACE_LIMIT + INTERMISSION) / STEPS_PER_TICK;
+    run(room, ticks);
+    run(restored, ticks);
+    assert.equal(room.world!.level, sequence[1]);
+    assert.equal(
+      hash(restored),
+      hash(room),
+      "recovered room advances through the same sequence",
+    );
+  }
+});
 /** Folds empty ticks until the room leaves `stage`. */
 const leave = (room: Room, stage: string) => {
   for (let i = 0; i < 2_000 && room.stage === stage; i++) fold(room);
   assert.notEqual(room.stage, stage);
 };
 
-test("settings are exactly a display flag and a level, or the tour", () => {
+test("settings validate the starting level, order and bounded match length", () => {
   assert.deepEqual(parseSettings(DEFAULT_SETTINGS), DEFAULT_SETTINGS);
-  assert.equal(DEFAULT_SETTINGS.level, TOUR);
-  assert.deepEqual(parseSettings({ display: true, level: 3 }), {
-    display: true,
-    level: 3,
-  });
+  assert.equal(DEFAULT_SETTINGS.level, 0);
+  assert.deepEqual(
+    parseSettings({ ...DEFAULT_SETTINGS, display: true, level: 3 }),
+    {
+      ...DEFAULT_SETTINGS,
+      display: true,
+      level: 3,
+    },
+  );
   for (const bad of [
     null,
     {},
@@ -58,8 +99,15 @@ test("settings are exactly a display flag and a level, or the tour", () => {
     { display: false, level: 0, extra: 1 },
   ])
     assert.equal(parseSettings(bad), undefined, JSON.stringify(bad));
-  assert.equal(levelsOf(DEFAULT_SETTINGS).length, LEVEL_COUNT);
-  assert.deepEqual(levelsOf(single), [0]);
+  assert.deepEqual(levelsOf(DEFAULT_SETTINGS, "m1"), [0, 1, 2]);
+  assert.deepEqual(levelsOf(single, "m1"), [0]);
+  for (const bad of [
+    { count: 2 },
+    { count: 11 },
+    { order: "unknown" },
+    { level: LEVEL_COUNT },
+  ])
+    assert.equal(parseSettings({ ...DEFAULT_SETTINGS, ...bad }), undefined);
 });
 
 test("entries: play names a match and carries six held bits; management uses the shared kinds", () => {
@@ -73,7 +121,7 @@ test("entries: play names a match and carries six held bits; management uses the
   assert.ok(!isEntry([1, 1, PLAY, "", GAS]));
   assert.ok(!isEntry([0, 1, PLAY, "m1", GAS]));
   assert.ok(isEntry([1, 1, JOIN, "a", "Ada", 0, "robot", 1]));
-  assert.ok(isEntry([1, 1, SETTINGS, { display: false, level: 2 }]));
+  assert.ok(isEntry([1, 1, SETTINGS, { ...DEFAULT_SETTINGS, level: 2 }]));
   assert.ok(!isEntry([1, 1, SETTINGS, { display: false, level: LEVEL_COUNT }]));
   assert.ok(!isEntry([1, 1, JOIN, "__proto__", "Ada", 0, "robot", 1]));
 });
@@ -195,7 +243,7 @@ test("a restart tapped inside one tick restarts; a volt held across ticks volts 
 
 test("a tour races every level in turn with place points, resting between races", () => {
   const room = started();
-  assert.equal(view(room).rounds, LEVEL_COUNT);
+  assert.equal(view(room).rounds, DEFAULT_SETTINGS.count);
   rideHome(room, "a");
   // a is home; b never moved, so the race runs out its grace.
   leave(room, "running");
