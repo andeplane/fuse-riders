@@ -10,7 +10,7 @@
  * for the physics: `tests/rides.test.ts` replays them and expects the same finishing step. They are not good rides.
  * Rerun it after a change to the physics or a level (and bump `RULES`).
  */
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   BRAKE,
@@ -24,6 +24,7 @@ import {
   stepWorld,
   type World,
 } from "../games/elasto-fuse/src/engine/index.js";
+import { RECORDED } from "../games/elasto-fuse/src/app/rides-data.js";
 
 const OUT = fileURLToPath(
   new URL("../games/elasto-fuse/src/app/rides-data.ts", import.meta.url),
@@ -177,14 +178,10 @@ export const RECORDED: {
   decision: number;
   rides: Record<string, { ride: string; steps: number }>;
 } = `;
-const written = existsSync(OUT) ? readFileSync(OUT, "utf8") : "";
-const rides: Record<string, { ride: string; steps: number }> = written
-  ? (
-      JSON.parse(
-        written.slice(written.indexOf("} = {") + 4, written.lastIndexOf(";")),
-      ) as { rides: typeof rides }
-    ).rides
-  : {};
+// What is recorded so far: a run for some levels keeps the others' rides.
+const rides: Record<string, { ride: string; steps: number }> = {
+  ...RECORDED.rides,
+};
 for (const [index, level] of LEVELS.entries()) {
   if (chosen.length && !chosen.includes(index)) continue;
   const started = Date.now();
