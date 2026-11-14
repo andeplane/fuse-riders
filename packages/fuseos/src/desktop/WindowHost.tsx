@@ -1,6 +1,8 @@
 import { useContext, useEffect } from "react";
 
 import { AboutDialog } from "../about/AboutDialog";
+import { DefragRunner } from "../defrag/DefragRunner";
+import { DefragWindow } from "../defrag/DefragWindow";
 import { ControlPanelWindow } from "../controlpanel/ControlPanelWindow";
 import { ExplorerWindow } from "../explorer/ExplorerWindow";
 import { WallpaperWindow } from "../controlpanel/WallpaperWindow";
@@ -82,6 +84,8 @@ function WindowContent({
       );
     case "launcher":
       return <LauncherWindow windowId={window.id} active={active} />;
+    case "defrag":
+      return <DefragWindow windowId={window.id} />;
   }
 }
 
@@ -147,6 +151,17 @@ export function WindowHost({ windows, activeId }: WindowHostProps) {
           </WindowFrame>
         );
       })}
+      {/* Disk Defragmenter's run outlives its minimized window: the runner is mounted for as long as the window exists. */}
+      {windows.map((window) =>
+        window.kind === "defrag" ? (
+          <DefragRunner
+            key={window.id}
+            windowId={window.id}
+            drive={window.drive}
+            stage={window.stage}
+          />
+        ) : null,
+      )}
       {/* Winamp is Webamp's own windows on a desktop-sized layer, above the frames; minimized keeps it playing unseen. */}
       {winamp ? (
         <WinampPlayer windowId={winamp.id} minimized={winamp.minimized} />

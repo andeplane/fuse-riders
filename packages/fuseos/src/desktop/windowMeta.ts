@@ -1,3 +1,4 @@
+import { defragWindowMeta } from "../defrag/defragWindowContent";
 import { formatAddress, MY_COMPUTER } from "../disk/diskPath";
 import type { FuseGameRegistry } from "../fusegames/registry";
 import {
@@ -123,6 +124,8 @@ export function windowMeta(
         size: NOTEPADPP_WINDOW_SIZE,
       };
     }
+    case "defrag":
+      return { ...defragWindowMeta(window), icon: "defrag", resizable: false };
     case "launcher":
       return {
         title: LAUNCHER_TITLE,
