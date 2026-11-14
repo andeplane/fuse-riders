@@ -35,7 +35,9 @@ A step is judged by how far the press is from the note: Marvelous within 22 ms, 
 
 ## Battle mode
 
-Every few seconds one arrow glows. Hitting it puts a power-up in your slot, better ones the further behind you are; Space throws it.
+Every few seconds one arrow glows. Hitting it puts a power-up in your slot; Space throws it.
+
+The drops rubber-band on the score. Each power-up has a power from 1 to 10 (`ITEM_POWER` in `src/engine/rules.ts`): for an attack, how hard it is to keep playing through (Flip 10, Blackout 8, Mines and Lag 7, down to Wave 2); for your own items, how much they are worth (Star 9, Double 8, Shield 2). A rider behind the others draws the high-power ones more often and a rider ahead the low-power ones, in proportion to the gap: your rating against the others' average, as a share of the best rating, with 20% counting as a full gap. At a full gap Flip is about one drop in 150 for the leader and one in 8 for the rider behind; level riders get the plain `ITEM_BASE` table. `ITEM_BASE`, `ITEM_POWER`, `ITEM_TILT`, `ITEM_GAP_FULL_PCT` and `ITEM_GAP_FLOOR` are the knobs.
 
 | Power-up                                                       | What it does                                                |
 | -------------------------------------------------------------- | ----------------------------------------------------------- |

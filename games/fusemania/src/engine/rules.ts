@@ -99,13 +99,32 @@ export const BOT_ITEM_DELAY_MS = 1500;
 /** Effects a rider can be under at once; a throw past this is dropped. */
 export const MAX_EFFECTS = 12;
 /**
- * How likely each item is, by place: the leader's row first, the last place's row last (rows between are blended).
- * Indexed by item kind; the leader gets mostly mischief, the last place the strong ones.
+ * The tuning table for battle drops, indexed by item kind (`NO_ITEM` first):
+ *
+ * - `ITEM_BASE` is how common each item is between riders who are level.
+ * - `ITEM_POWER` rates each from 1 to 10: for an attack, how hard it is for the rider it lands on to keep hitting
+ *   notes (Flip mirrors the columns and is close to the worst; Wave only sways them); for an item used on its holder,
+ *   how much it is worth (Star plays for you; Shield only matters if somebody throws).
+ *
+ * A rider who is behind draws the high-power items more often and the low-power ones less, a rider who is ahead the
+ * other way round, and by how much follows the score gap (see `itemEdge` and `itemWeights` in `play.ts`).
  */
-export const ITEM_WEIGHTS: readonly (readonly number[])[] = [
-  [0, 12, 12, 8, 8, 10, 8, 8, 6, 6, 6, 4, 2, 10],
-  [0, 8, 8, 10, 10, 8, 8, 8, 8, 10, 8, 12, 10, 4],
+//                                        -  DRU WAV BOO TOR HID FLI TUR BLA MIN LAG DOU STA SHI
+export const ITEM_BASE: readonly number[] = [
+  0, 10, 10, 10, 10, 10, 8, 10, 8, 10, 8, 10, 8, 10,
 ];
+export const ITEM_POWER: readonly number[] = [
+  0, 3, 2, 6, 5, 6, 10, 4, 8, 7, 7, 8, 9, 2,
+];
+/**
+ * How far a full gap tilts the table, out of 1000: at 900 a power-10 item is 1.9 times as likely for a rider a full
+ * gap behind and a tenth as likely for one a full gap ahead, and a power-1 item the reverse. 0 turns the balancing off.
+ */
+export const ITEM_TILT = 900;
+/** The gap that counts as full: a rider this many percent of the leader's rating from the others' average. */
+export const ITEM_GAP_FULL_PCT = 20;
+/** The gap is measured against at least this much rating, so one early miss is not a landslide. */
+export const ITEM_GAP_FLOOR = 50_000;
 
 /** A bot's judgments out of 1000, best first (Marvelous, Perfect, Great, Good, Boo); the rest are misses. */
 export const BOT_SKILL: readonly number[] = [430, 330, 150, 40, 15];
