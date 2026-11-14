@@ -2,7 +2,7 @@ import type { GameId } from "../retro/gameIds";
 import { isGameId } from "../retro/gameIds";
 
 export type ControlPanelApplet =
-  "home" | "display" | "system" | "assistant" | "keyboard" | "games";
+  "home" | "display" | "system" | "assistant" | "keyboard" | "games" | "sounds";
 
 /** A Fuse game (`games/<id>/`, listed in the portal) running in an iframe window. */
 export interface FuseGameWindowContent {
@@ -49,6 +49,12 @@ export interface WinampWindowContent {
   kind: "winamp";
 }
 
+/** Dial-Up Networking's "Connect To" dialog (`sounds/dialup`); on connect it closes and opens `then`, when given. */
+export interface DialUpWindowContent {
+  kind: "dialup";
+  then?: WindowContent;
+}
+
 export type WindowContent =
   | FuseGameWindowContent
   | RetroGameWindowContent
@@ -57,7 +63,8 @@ export type WindowContent =
   | AboutWindowContent
   | DialogWindowContent
   | PaintWindowContent
-  | WinampWindowContent;
+  | WinampWindowContent
+  | DialUpWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -187,6 +194,7 @@ const APPLETS = new Set<string>([
   "assistant",
   "keyboard",
   "games",
+  "sounds",
 ]);
 
 export function isControlPanelApplet(
@@ -217,6 +225,11 @@ function isWindowContent(
       );
     case "paint":
       return value.fileName === undefined || typeof value.fileName === "string";
+    case "dialup":
+      return (
+        value.then === undefined ||
+        (isRecord(value.then) && isWindowContent(value.then))
+      );
     default:
       return false;
   }

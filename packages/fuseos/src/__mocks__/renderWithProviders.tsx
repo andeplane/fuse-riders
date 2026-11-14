@@ -42,6 +42,13 @@ import {
   MemoryFuseOsPrefsStore,
 } from "../settings/fuseosPrefsStore";
 import { Shell } from "../Shell";
+import type { DialUpDeps } from "../sounds/dialup/dialUpDepsContext";
+import { DialUpDepsContext } from "../sounds/dialup/dialUpDepsContext";
+import {
+  DialUpSessionContext,
+  MemoryDialUpSession,
+} from "../sounds/dialup/dialUpSession";
+import { SoundServiceContext } from "../sounds/soundContext";
 import type { AppState, WindowContent } from "../state/appState";
 import { DEFAULT_STATE } from "../state/appState";
 import type { AppStateDeps } from "../state/appStateContext";
@@ -57,7 +64,9 @@ import { WindowsDepsContext } from "../windows/windowsDepsContext";
 
 import type { TestAssistantDeps } from "./assistantDeps";
 import { createTestAssistantDeps } from "./assistantDeps";
+import { ManualScheduler } from "./dialUpDeps";
 import { FakePaintSurface } from "./paintSurface";
+import { FakeSoundService } from "./soundService";
 import type { FakeWebampPlayer } from "./webampPlayer";
 import { createFakeWebampPlayer } from "./webampPlayer";
 
@@ -129,6 +138,12 @@ export type ProviderOptions = {
   /** Defaults to a fresh store, i.e. a first visit: the greeting shows. */
   assistantOptions?: MemoryAssistantOptionsStore;
   systemProbe?: SystemProbe;
+  /** Defaults to a recording fake that reports every sound as audible. */
+  sounds?: FakeSoundService;
+  /** Defaults to an offline session, so Network-style windows go through Dial-Up Networking first. */
+  dialUpSession?: MemoryDialUpSession;
+  /** Defaults to a manual scheduler, so the handshake's status lines advance only when a test says. */
+  dialUpDeps?: DialUpDeps;
 };
 
 export const immediateAppStateDeps: AppStateDeps = {
@@ -258,6 +273,9 @@ export function createWrapper(options: ProviderOptions = {}) {
   const winampDeps = createTestWinampDeps(winampPlayers, options.winampDeps);
   const winampRegistry = new Map<string, WinampControls>();
   const systemProbe = options.systemProbe ?? TEST_SYSTEM_PROBE;
+  const sounds = options.sounds ?? new FakeSoundService();
+  const dialUpSession = options.dialUpSession ?? new MemoryDialUpSession();
+  const dialUpDeps = options.dialUpDeps ?? new ManualScheduler();
 
   function Wrapper({ children }: { children: ReactNode }) {
     return (
@@ -290,12 +308,26 @@ export function createWrapper(options: ProviderOptions = {}) {
                                       <SystemProbeContext.Provider
                                         value={() => systemProbe}
                                       >
-                                        <Shell
-                                          store={store}
-                                          initialOpen={options.initialOpen}
+                                        <SoundServiceContext.Provider
+                                          value={sounds}
                                         >
-                                          {children}
-                                        </Shell>
+                                          <DialUpSessionContext.Provider
+                                            value={dialUpSession}
+                                          >
+                                            <DialUpDepsContext.Provider
+                                              value={dialUpDeps}
+                                            >
+                                              <Shell
+                                                store={store}
+                                                initialOpen={
+                                                  options.initialOpen
+                                                }
+                                              >
+                                                {children}
+                                              </Shell>
+                                            </DialUpDepsContext.Provider>
+                                          </DialUpSessionContext.Provider>
+                                        </SoundServiceContext.Provider>
                                       </SystemProbeContext.Provider>
                                     </AssistantOptionsStoreContext.Provider>
                                   </AssistantDepsContext.Provider>
@@ -334,6 +366,9 @@ export function createWrapper(options: ProviderOptions = {}) {
     winampDeps,
     winampPlayers,
     winampRegistry,
+    sounds,
+    dialUpSession,
+    dialUpDeps,
   };
 }
 

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Desktop } from "./desktop/Desktop";
 import { DesktopUiProvider } from "./desktop/DesktopUiProvider";
 import { DisplayViewportProvider } from "./desktop/DisplayViewportProvider";
+import { SystemSoundTriggers } from "./sounds/SystemSoundTriggers";
 import type { WindowContent } from "./state/appState";
 import { AppStateProvider } from "./state/AppStateProvider";
 import type { StateStore } from "./state/stateStore";
@@ -22,6 +23,7 @@ export function Shell({ store, initialOpen, children }: ShellProps) {
       <DesktopUiProvider>
         <DisplayViewportProvider>
           <WindowManagerProvider>
+            <SystemSoundTriggers />
             {children ?? <Desktop />}
           </WindowManagerProvider>
         </DisplayViewportProvider>

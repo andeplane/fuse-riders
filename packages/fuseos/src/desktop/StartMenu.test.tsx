@@ -62,6 +62,7 @@ describe("StartMenu", () => {
       "System",
       "Assistant",
       "Keyboard",
+      "Sounds",
     ]);
 
     await user.click(within(menu).getByRole("menuitem", { name: "Programs" }));
@@ -74,7 +75,13 @@ describe("StartMenu", () => {
       within(accessories)
         .getAllByRole("menuitem")
         .map((item) => item.textContent),
-    ).toEqual(["Paint", "Winamp", "Notepad++", "Change desktop background"]);
+    ).toEqual([
+      "Paint",
+      "Winamp",
+      "Notepad++",
+      "Dial-Up Networking",
+      "Change desktop background",
+    ]);
     expect(
       within(accessories).getByRole("menuitem", { name: "Notepad++" }),
     ).toBeDisabled();

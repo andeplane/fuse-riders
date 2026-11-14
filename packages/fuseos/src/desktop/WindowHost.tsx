@@ -7,6 +7,7 @@ import { FuseGameWindow } from "../fusegames/FuseGameWindow";
 import { FuseGamesContext } from "../fusegames/registry";
 import { PaintWindow } from "../paint/PaintWindow";
 import { GameWindow } from "../retro/GameWindow";
+import { DialUpWindow } from "../sounds/dialup/DialUpWindow";
 import type { WindowState } from "../state/appState";
 import { WinampWindow } from "../winamp/WinampWindow";
 import { MessageBox } from "../windows/MessageBox";
@@ -62,6 +63,8 @@ function WindowContent({
       return <PaintWindow windowId={window.id} />;
     case "winamp":
       return <WinampWindow windowId={window.id} />;
+    case "dialup":
+      return <DialUpWindow windowId={window.id} then={window.then} />;
   }
 }
 

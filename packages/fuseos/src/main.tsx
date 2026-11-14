@@ -8,6 +8,11 @@ import {
   parseOpenParam,
   withoutOpenParam,
 } from "./state/deepLink";
+import { SoundServiceContext } from "./sounds/soundContext";
+import { LocalStorageSoundPrefsStore } from "./sounds/soundPrefsStore";
+import type { SoundAudioContext } from "./sounds/soundService";
+import { documentGestures, WebAudioSoundService } from "./sounds/soundService";
+import { loadSynth } from "./sounds/synth";
 import { LocalStorageStateStore } from "./state/stateStore";
 import { WEBAMP_EMBED_OPTIONS } from "./winamp/webampLayout";
 import type { WinampDeps } from "./winamp/winampDepsContext";
@@ -43,12 +48,25 @@ const winampDeps: WinampDeps = {
   },
 };
 
+// System sounds: synthesised on first use, and only after the first click or key press (autoplay policy).
+// `?mute` silences them all, as it does the games.
+const sounds = new WebAudioSoundService({
+  createContext: (): SoundAudioContext | undefined =>
+    typeof AudioContext === "undefined" ? undefined : new AudioContext(),
+  prefs: new LocalStorageSoundPrefsStore(),
+  muted,
+  loadSynth,
+  gestures: documentGestures(window),
+});
+
 export function mountFuseOs(container: HTMLElement): void {
   // No React.StrictMode: its double mount in development restarts every embedded game twice.
   ReactDOM.createRoot(container).render(
     <FuseGamesContext.Provider value={games}>
       <WinampDepsContext.Provider value={winampDeps}>
-        <App store={new LocalStorageStateStore()} initialOpen={initialOpen} />
+        <SoundServiceContext.Provider value={sounds}>
+          <App store={new LocalStorageStateStore()} initialOpen={initialOpen} />
+        </SoundServiceContext.Provider>
       </WinampDepsContext.Provider>
     </FuseGamesContext.Provider>,
   );

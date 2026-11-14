@@ -50,6 +50,14 @@ export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
     label: "My Computer",
     icon: "computer",
   },
+  {
+    slot: "accessories",
+    id: "dialup",
+    label: "Dial-Up Networking",
+    icon: "dialup",
+    order: 40,
+    open: (commands) => commands.open({ kind: "dialup" }),
+  },
 ];
 
 /** The registrations in force; tests hand in their own list. */

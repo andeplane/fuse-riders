@@ -3,6 +3,7 @@ import { Computer } from "@react95/icons/Computer";
 import { ComputerFind } from "@react95/icons/ComputerFind";
 import { CurvesAndColors100 } from "@react95/icons/CurvesAndColors100";
 import { Desk100 } from "@react95/icons/Desk100";
+import { Dialmon200 } from "@react95/icons/Dialmon200";
 import { Explorer100 } from "@react95/icons/Explorer100";
 import { FileText } from "@react95/icons/FileText";
 import { Folder } from "@react95/icons/Folder";
@@ -15,6 +16,7 @@ import { Jgdwmie101 } from "@react95/icons/Jgdwmie101";
 import { Joy102 } from "@react95/icons/Joy102";
 import { KeyboardMouse } from "@react95/icons/KeyboardMouse";
 import { Lights100 } from "@react95/icons/Lights100";
+import { Mmsys110 } from "@react95/icons/Mmsys110";
 import { Mspaint } from "@react95/icons/Mspaint";
 import { Network } from "@react95/icons/Network";
 import { Progman22 } from "@react95/icons/Progman22";
@@ -69,7 +71,9 @@ export type IconName =
   | "micropolis"
   | "solitaire"
   | "paint"
-  | "winamp";
+  | "winamp"
+  | "sounds"
+  | "dialup";
 
 type IconVariant = "32x32_4" | "16x16_4";
 type IconProps = Omit<SVGProps<SVGSVGElement>, "ref">;
@@ -125,6 +129,8 @@ const ICONS: Record<IconName, IconComponent> = {
   solitaire: Sol1,
   paint: Mspaint,
   winamp: WinampLogo,
+  sounds: Mmsys110,
+  dialup: fixed(Dialmon200, "32x32_4"),
 };
 
 export type Win98IconProps = {
