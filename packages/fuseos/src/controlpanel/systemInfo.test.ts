@@ -1,6 +1,11 @@
 import { TEST_SYSTEM_PROBE } from "../__mocks__/renderWithProviders";
 
-import { browserName, formatBytes, systemInfo } from "./systemInfo";
+import {
+  browserName,
+  formatBytes,
+  probeBrowser,
+  systemInfo,
+} from "./systemInfo";
 
 describe(browserName.name, () => {
   it("names the common browsers with their major version", () => {
@@ -76,5 +81,25 @@ describe(formatBytes.name, () => {
     expect(formatBytes(3.25 * 1024 ** 4)).toBe("3.3 TB");
     expect(formatBytes(-1)).toBe("Unknown");
     expect(formatBytes(Number.NaN)).toBe("Unknown");
+  });
+});
+
+describe(probeBrowser.name, () => {
+  it("reads the real browser: agent, screen, storage, pointer and a storage estimate when the browser offers one", async () => {
+    const probe = probeBrowser();
+    expect(probe.userAgent).toBe(navigator.userAgent);
+    expect(probe.platform).toBe(navigator.platform);
+    expect(probe.language).toBe(navigator.language);
+    expect(probe.screen).toEqual({
+      width: window.screen.width,
+      height: window.screen.height,
+    });
+    expect(probe.storageAvailable).toBe(true);
+    expect(typeof probe.hasWebGpu).toBe("boolean");
+    expect(typeof probe.coarsePointer).toBe("boolean");
+    expect(probe.pixelRatio).toBe(window.devicePixelRatio);
+    // happy-dom has no deviceMemory and no storage estimate.
+    expect(probe.deviceMemoryGb).toBeUndefined();
+    await expect(probe.estimateStorage?.()).resolves.toBeUndefined();
   });
 });
