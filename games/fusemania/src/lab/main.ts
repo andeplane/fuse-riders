@@ -46,7 +46,13 @@ import {
   type Spectra,
 } from "./spectrum.js";
 import type { SpectrumReply, SpectrumRequest } from "./spectrum-worker.js";
-import { revealTop, seekDelta, typingIn } from "./playback.js";
+import {
+  parseResume,
+  resumeHash,
+  revealTop,
+  seekDelta,
+  typingIn,
+} from "./playback.js";
 import { hiddenAtStart, parseShown } from "./shown.js";
 import { NOTES_UPLOAD_PATH, writeNotesUpload } from "./notes-upload.js";
 import {
@@ -326,6 +332,14 @@ let tickBuffer: AudioBuffer | undefined;
 /** Ticks scheduled on the audio clock and not yet heard; a stop or a seek silences them. */
 const pendingTicks = new Set<AudioBufferSourceNode>();
 let follow = true;
+/** In local development the URL remembers the playhead (`#t=…`), so a reload carries on from there. */
+let resumeAt = import.meta.env.DEV ? parseResume(location.hash) : undefined;
+if (import.meta.env.DEV)
+  setInterval(() => {
+    const hash = resumeHash(playhead);
+    if (resumeAt === undefined && location.hash !== hash)
+      history.replaceState(null, "", hash);
+  }, 1000);
 /** The listening band: outside these frequencies the song is turned down to a tenth. Undefined: all of them. */
 let band: { lowHz: number; highHz: number } | undefined;
 /** The playback graph: every song source goes in at `mixIn`; the band's filters are `bandFilters` (2 high-pass, 2 low-pass). */
@@ -399,6 +413,13 @@ async function loadSong(id: string): Promise<void> {
     if (token !== loadToken) return;
     playBuffer = decoded;
     duration = decoded.duration;
+    if (resumeAt !== undefined) {
+      // Back where the page was before it was reloaded.
+      playhead = Math.min(resumeAt, duration);
+      topTime = playhead - viewSeconds() * 0.3;
+      clampView();
+      resumeAt = undefined;
+    }
     const offline = new OfflineAudioContext(1, 1, LAB_RATE);
     const low = await offline.decodeAudioData(bytes);
     if (token !== loadToken) return;

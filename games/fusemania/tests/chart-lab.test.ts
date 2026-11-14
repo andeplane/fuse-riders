@@ -31,6 +31,8 @@ import {
 } from "../src/lab/notes.js";
 
 import {
+  parseResume,
+  resumeHash,
   revealTop,
   seekDelta,
   typingIn,
@@ -488,4 +490,15 @@ test("chart lab: stored notes land in notes.json with the picture beside them", 
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("chart lab: the URL fragment remembers the playhead across a reload", () => {
+  assert.equal(resumeHash(83.44), "#t=83.4");
+  assert.equal(resumeHash(-1), "#t=0.0");
+  assert.equal(parseResume(resumeHash(83.44)), 83.4);
+  assert.equal(parseResume("#t=12"), 12);
+  assert.equal(parseResume(""), undefined);
+  assert.equal(parseResume("#t=abc"), undefined);
+  assert.equal(parseResume("#t=1e9"), undefined);
+  assert.equal(parseResume("#other"), undefined);
 });

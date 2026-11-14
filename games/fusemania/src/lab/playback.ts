@@ -72,3 +72,13 @@ export function revealTop(
     return topTime;
   return playhead - viewSeconds * 0.3;
 }
+
+/** The URL fragment that remembers where the playhead is, to a tenth of a second: `#t=83.4`. */
+export const resumeHash = (seconds: number): string =>
+  `#t=${Math.max(0, seconds).toFixed(1)}`;
+
+/** The playhead a URL fragment remembers, or undefined when it has none. */
+export function parseResume(hash: string): number | undefined {
+  const match = /^#t=(\d{1,6}(?:\.\d{1,3})?)$/.exec(hash);
+  return match ? Number(match[1]) : undefined;
+}
