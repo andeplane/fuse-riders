@@ -1379,11 +1379,15 @@ function enterRoom(
   /** A room's song has a menu, not a pause: the song is everybody's and goes on behind it. */
   const menuable = () =>
     !solo && !display && model?.screen === "play" && lastStage === "running";
+  /** Whether the open room menu is the host's: the room can change hands under it. */
+  let menuHost = false;
   const openRoomMenu = () => {
-    if (playMenu.isOpen || !menuable()) return;
+    // A restart that is on its way is not asked for twice.
+    if (playMenu.isOpen || !menuable() || restarting) return;
     letGoAll();
+    menuHost = viewer.host;
     playMenu.open({
-      kind: viewer.host ? "host" : "guest",
+      kind: menuHost ? "host" : "guest",
       title: model?.title ?? "",
       speed: prefs.speed,
     });
@@ -1489,6 +1493,11 @@ function enterRoom(
     }
     // A room's menu goes with its song: the song ended, or the host took the room elsewhere.
     if (!solo && playMenu.isOpen && !menuable()) playMenu.close();
+    // The room changed hands under the menu: it shows what this player may do now.
+    if (!solo && playMenu.isOpen && menuHost !== viewer.host) {
+      playMenu.close();
+      openRoomMenu();
+    }
     flash.frame(performance.now());
     // A paused song is silent and stays where it stood: it is not followed until the clock runs again.
     if (leavingSong && state?.stage !== "running") leavingSong = false;
@@ -2118,7 +2127,8 @@ function enterRoom(
     const nudge = action ? undefined : SPEED_KEYS[event.code];
     if (nudge) {
       event.preventDefault();
-      nudgeSpeed(nudge);
+      // One step a press: a held key does not run through every speed.
+      if (!event.repeat) nudgeSpeed(nudge);
       return;
     }
     if (!action) return;
