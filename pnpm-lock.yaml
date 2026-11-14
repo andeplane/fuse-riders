@@ -720,9 +720,16 @@ importers:
       react-rnd:
         specifier: ^10.5.3
         version: 10.5.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      three:
+        specifier: 0.186.1
+        version: 0.186.1
       webamp:
         specifier: 2.3.1
         version: 2.3.1
+    devDependencies:
+      '@types/three':
+        specifier: 0.186.0
+        version: 0.186.0
 
 packages:
 

@@ -1,0 +1,64 @@
+/*
+ * The Windows 98 style boot screen: the cloud splash (`assets/boot-splash.jpg`) over its sky
+ * blue, and the blue band sliding along the bottom edge forever. Class names carry the boot-
+ * prefix and live here, next to the component, so nothing in styles.css applies by accident.
+ */
+
+.boot-splash {
+  animation: boot-fade-in 700ms ease-out both;
+}
+
+/* The bar along the bottom edge: a blue gradient block that slides across forever. */
+.boot-bar {
+  height: 12px;
+  background: #000;
+  overflow: hidden;
+}
+
+.boot-bar-glow {
+  width: 20%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    #0b2a6b 25%,
+    #4a8fff 50%,
+    #9ec5ff 60%,
+    #4a8fff 70%,
+    #0b2a6b 85%,
+    transparent 100%
+  );
+  animation: boot-bar-slide 1.8s linear infinite;
+}
+
+@keyframes boot-bar-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(500%);
+  }
+}
+
+@keyframes boot-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* A still band for people who asked their system for less motion; the screen still reads as "loading". */
+@media (prefers-reduced-motion: reduce) {
+  .boot-bar-glow {
+    width: 100%;
+    animation: none;
+  }
+
+  .boot-splash {
+    animation: none;
+  }
+}

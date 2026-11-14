@@ -96,7 +96,7 @@ export interface DisplayPrefsStore {
   set(prefs: DisplayPrefs): void;
 }
 
-export const DISPLAY_PREFS_KEY = "industrial-os.display";
+export const DISPLAY_PREFS_KEY = "fuseos.display";
 
 /** localStorage backed store; every access is guarded because storage can be unavailable. */
 export class LocalStorageDisplayPrefsStore implements DisplayPrefsStore {

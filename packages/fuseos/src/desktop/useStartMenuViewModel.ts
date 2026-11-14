@@ -1,14 +1,22 @@
 import { useContext } from "react";
 
+import { APPLETS } from "../controlpanel/applets";
 import { FuseGamesContext } from "../fusegames/registry";
-import { LAUNCHER_TITLE } from "../launcher/launcherFacts";
 import { GAME_LIST } from "../retro/games";
 import { useAppState } from "../state/useAppState";
 import type { IconRef } from "../ui/icons";
+import type { WindowCommands } from "../windows/useWindowCommands";
 import { useWindowCommands } from "../windows/useWindowCommands";
+import type { Size } from "../windows/windowManager";
+import { WindowManagerContext } from "../windows/windowManagerContext";
 
 import { DesktopDepsContext } from "./desktopDepsContext";
 import { DesktopUiContext } from "./desktopUiContext";
+import type { StartMenuRegistration, StartMenuSlot } from "./startMenuRegistry";
+import {
+  registrationsFor,
+  StartMenuRegistryContext,
+} from "./startMenuRegistry";
 import { useDesktopViewModel } from "./useDesktopViewModel";
 import { OS_NAME } from "./windowMeta";
 
@@ -25,6 +33,26 @@ export type StartMenuItem = {
 /** Start > Help > Help Topics: the project's README. */
 export const HELP_URL = "https://github.com/andeplane/fuse-riders#readme";
 
+function registeredItems(
+  registrations: readonly StartMenuRegistration[],
+  slot: StartMenuSlot,
+  commands: WindowCommands,
+  viewport: Size,
+  wrap: (action: () => void) => () => void,
+): StartMenuItem[] {
+  return registrationsFor(registrations, slot).map((entry) => {
+    const open = entry.open;
+    return {
+      id: entry.id,
+      label: entry.label,
+      icon: entry.icon,
+      disabled: open === undefined,
+      onSelect: open ? wrap(() => open(commands, viewport)) : undefined,
+      separatorAfter: entry.separatorAfter,
+    };
+  });
+}
+
 export function useStartMenuViewModel(): {
   items: StartMenuItem[];
   close: () => void;
@@ -34,6 +62,8 @@ export function useStartMenuViewModel(): {
   const ui = useContext(DesktopUiContext);
   const deps = useContext(DesktopDepsContext);
   const games = useContext(FuseGamesContext);
+  const registrations = useContext(StartMenuRegistryContext);
+  const { viewport } = useContext(WindowManagerContext);
   const desktop = useDesktopViewModel();
 
   const close = () => ui.setStartMenuOpen(false);
@@ -41,6 +71,8 @@ export function useStartMenuViewModel(): {
     close();
     action();
   };
+  const registered = (slot: StartMenuSlot) =>
+    registeredItems(registrations, slot, commands, viewport, wrap);
 
   const fuseGameItems: StartMenuItem[] = games.games.map((game) => ({
     id: `fusegame:${game.id}`,
@@ -49,12 +81,24 @@ export function useStartMenuViewModel(): {
     onSelect: wrap(() => desktop.openFuseGame(game.id)),
   }));
 
-  const retroGameItems: StartMenuItem[] = GAME_LIST.map((game) => ({
-    id: `retro:${game.id}`,
-    label: game.name,
-    icon: game.icon,
-    onSelect: wrap(() => commands.open({ kind: "retro", game: game.id })),
-  }));
+  // The folder window first (a registration), then one item per retro game; the reducer keeps each to one window.
+  const retroGameItems: StartMenuItem[] = [
+    ...registered("retro-games"),
+    ...GAME_LIST.map((game): StartMenuItem => ({
+      id: `retro:${game.id}`,
+      label: game.name,
+      icon: game.icon,
+      onSelect: wrap(() => commands.open({ kind: "retro", game: game.id })),
+    })),
+  ];
+
+  // One registration fills the top-level My Computer item; none leaves it disabled, so the menu keeps its shape.
+  const myComputer = registered("my-computer")[0] ?? {
+    id: "my-computer",
+    label: "My Computer",
+    icon: "computer" as const,
+    disabled: true,
+  };
 
   const items: StartMenuItem[] = [
     {
@@ -63,35 +107,11 @@ export function useStartMenuViewModel(): {
       icon: "programs",
       children: [
         {
-          id: "fusteam",
-          label: LAUNCHER_TITLE,
-          icon: "fusteam",
-          onSelect: wrap(desktop.openLauncher),
-        },
-        {
           id: "accessories",
           label: "Accessories",
           icon: "programs",
-          children: [
-            {
-              id: "paint",
-              label: "Paint",
-              icon: "paint",
-              onSelect: wrap(desktop.openPaint),
-            },
-            {
-              id: "winamp",
-              label: "Winamp",
-              icon: "winamp",
-              onSelect: wrap(desktop.openWinamp),
-            },
-            {
-              id: "wallpaper",
-              label: "Change desktop background",
-              icon: "wallpaper",
-              onSelect: wrap(desktop.openWallpaper),
-            },
-          ],
+          // Paint, Winamp, Notepad++ and the wallpaper picker are registrations too (`startMenuRegistry.ts`).
+          children: registered("accessories"),
         },
         {
           id: "games",
@@ -108,6 +128,7 @@ export function useStartMenuViewModel(): {
                     disabled: true,
                   },
                 ]),
+            ...registered("games"),
             {
               id: "retro",
               label: "Retro Games",
@@ -116,8 +137,11 @@ export function useStartMenuViewModel(): {
             },
           ],
         },
+        // Fusteam and any other program a package registers (`startMenuRegistry.ts`).
+        ...registered("programs"),
       ],
     },
+    myComputer,
     {
       id: "settings",
       label: "Settings",
@@ -129,30 +153,16 @@ export function useStartMenuViewModel(): {
           icon: "settings",
           onSelect: wrap(desktop.openControlPanel),
         },
-        {
-          id: "display",
-          label: "Display",
-          icon: "display",
+        // One entry per Control Panel applet, so a package that registers an applet is in the Start menu too.
+        ...APPLETS.map((applet): StartMenuItem => ({
+          id: `applet:${applet.applet}`,
+          label: applet.label,
+          icon: applet.icon,
           onSelect: wrap(() =>
-            commands.open({ kind: "controlpanel", applet: "display" }),
+            commands.open({ kind: "controlpanel", applet: applet.applet }),
           ),
-        },
-        {
-          id: "system",
-          label: "System",
-          icon: "system",
-          onSelect: wrap(() =>
-            commands.open({ kind: "controlpanel", applet: "system" }),
-          ),
-        },
-        {
-          id: "keyboard",
-          label: "Keyboard",
-          icon: "keyboard",
-          onSelect: wrap(() =>
-            commands.open({ kind: "controlpanel", applet: "keyboard" }),
-          ),
-        },
+        })),
+        ...registered("settings"),
       ],
     },
     {
@@ -176,12 +186,12 @@ export function useStartMenuViewModel(): {
             if (hidden) ui.assistantDispatch({ type: "show" });
           }),
         },
+        ...registered("help"),
         {
           id: "about",
           label: `About ${OS_NAME}`,
           icon: "info",
           onSelect: wrap(() => commands.open({ kind: "about" })),
-          separatorAfter: false,
         },
       ],
       separatorAfter: true,

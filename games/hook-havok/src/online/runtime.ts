@@ -45,6 +45,14 @@ export class HookRuntime extends RoomRuntime<Room, Entry, View, never, Tuning> {
     return tick;
   }
   /**
+   * For a screen that draws at the clock: the newest folded room and what this device holds right now, whether the
+   * room has folded it or not. Undefined outside a running match.
+   */
+  lead(): { room: Room; held: Input } | undefined {
+    const room = this.world?.state;
+    return room?.stage === "running" ? { room, held: this.held } : undefined;
+  }
+  /**
    * Cancels every button through the same match/round-scoped log as input.
    * Unlike an ordinary release, lifecycle clearing never throws a charge.
    */

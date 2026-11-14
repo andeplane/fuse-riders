@@ -5,7 +5,12 @@ import type { RaceState } from "../../game/sim/race.js";
 import { parseTrack, type Track } from "../../game/sim/track.js";
 import { TRACK_DATA } from "../../game/tracks-data.js";
 import { defaultAssetBase } from "./assets.js";
-import { focusTruck, truckNames, type ArenaFrame } from "./frame.js";
+import {
+  focusTruck,
+  truckNames,
+  type ArenaFrame,
+  type ArenaLead,
+} from "./frame.js";
 import { HudScene } from "./hud-scene.js";
 import { renderSnapshot } from "./interpolate.js";
 import { RaceScene } from "./race-scene.js";
@@ -37,7 +42,12 @@ export interface ArenaEngineOptions {
 export interface ArenaEngine {
   /** Resolves once both scenes exist and the automatic loop has been stopped. */
   ready: Promise<void>;
-  render(view: FuseDriversView, alpha: number, selfId?: string): void;
+  render(
+    view: FuseDriversView,
+    alpha: number,
+    selfId?: string,
+    lead?: ArenaLead,
+  ): void;
   destroy(): void;
 }
 
@@ -103,14 +113,19 @@ export function createArena(
 
   return {
     ready,
-    render(view, alpha, selfId) {
+    render(view, alpha, selfId, lead) {
       if (!booted || destroyed) return;
       const next = view.race;
       if (!next) return;
       const track = trackByName(next.trackName);
       if (!track) return;
       let newTick = true;
-      if (!current || next.tick < current.tick) {
+      if (lead) {
+        // A forward run hands over its own step before; a run that steps back a step shows no new tick.
+        newTick =
+          !current || next.tick > current.tick || next.tick < current.tick - 4;
+        previous = lead.previous;
+      } else if (!current || next.tick < current.tick) {
         // A first view, or a clock that moved back: there is nothing to interpolate from.
         previous = undefined;
       } else if (next.tick > current.tick) previous = current;
@@ -122,7 +137,9 @@ export function createArena(
         race: next,
         previous,
         alpha: between,
-        poses: renderSnapshot(previous, next, between),
+        poses: renderSnapshot(previous, next, between).map((pose, slot) =>
+          lead?.place ? lead.place(slot, pose) : pose,
+        ),
         track,
         focus: focusTruck(view, next, selfId),
         newTick,

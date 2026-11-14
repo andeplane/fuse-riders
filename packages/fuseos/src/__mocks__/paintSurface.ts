@@ -14,6 +14,8 @@ export class FakePaintSurface implements PaintSurface {
   pixelColor = "#ff0000";
   /** Size reported (and applied) when an image blob is loaded. */
   nextImageSize: Size = { width: 320, height: 200 };
+  /** When set, `loadImage` rejects with it, like a file that is not an image. */
+  loadError: Error | undefined;
   private readonly snapshots = new WeakMap<PaintSnapshot, string[]>();
 
   size(): Size {
@@ -71,6 +73,7 @@ export class FakePaintSurface implements PaintSurface {
     return `data:${mimeType};base64,FAKE`;
   }
   async loadImage(blob: Blob): Promise<Size> {
+    if (this.loadError) throw this.loadError;
     this.width = this.nextImageSize.width;
     this.height = this.nextImageSize.height;
     this.ops = [`image ${blob.type || "blob"} ${this.width}x${this.height}`];

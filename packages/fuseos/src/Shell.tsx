@@ -1,8 +1,12 @@
 import type { ReactNode } from "react";
 
+import { AssistantToolsProvider } from "./assistant/assistantToolsContext";
 import { Desktop } from "./desktop/Desktop";
 import { DesktopUiProvider } from "./desktop/DesktopUiProvider";
 import { DisplayViewportProvider } from "./desktop/DisplayViewportProvider";
+import { DisplayEffectsProvider } from "./display/effects/DisplayEffectsProvider";
+import { ScreenSaverOverlay } from "./screensaver/ScreenSaverOverlay";
+import { ScreenSaverProvider } from "./screensaver/ScreenSaverProvider";
 import type { WindowContent } from "./state/appState";
 import { AppStateProvider } from "./state/AppStateProvider";
 import type { StateStore } from "./state/stateStore";
@@ -20,11 +24,19 @@ export function Shell({ store, initialOpen, children }: ShellProps) {
   return (
     <AppStateProvider store={store} initialOpen={initialOpen}>
       <DesktopUiProvider>
-        <DisplayViewportProvider>
-          <WindowManagerProvider>
-            {children ?? <Desktop />}
-          </WindowManagerProvider>
-        </DisplayViewportProvider>
+        <ScreenSaverProvider>
+          <DisplayViewportProvider>
+            <DisplayEffectsProvider>
+              <WindowManagerProvider>
+                <AssistantToolsProvider>
+                  {children ?? <Desktop />}
+                </AssistantToolsProvider>
+              </WindowManagerProvider>
+            </DisplayEffectsProvider>
+          </DisplayViewportProvider>
+          {/* Over the desktop, outside the retro-resolution fit, so it covers the real viewport. */}
+          <ScreenSaverOverlay />
+        </ScreenSaverProvider>
       </DesktopUiProvider>
     </AppStateProvider>
   );

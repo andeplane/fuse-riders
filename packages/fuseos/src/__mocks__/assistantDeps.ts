@@ -6,7 +6,7 @@ import type {
   ChatOptions,
 } from "../assistant/assistantDepsContext";
 import type { SpriteAgent, SpriteAnimation } from "../assistant/spritePlayer";
-import type { ChatMessage } from "../llm/llmChat";
+import type { ChatBackend, ChatMessage } from "../llm/llmChat";
 
 function twoFrames(x: number): SpriteAnimation {
   return {
@@ -57,6 +57,7 @@ export type FakeChatController = {
   setStreaming: (streaming: boolean) => void;
   setProgress: (progress: string | null) => void;
   setError: (error: string | null) => void;
+  setBackend: (backend: ChatBackend) => void;
   /** vi.fn at runtime: assert with `expect(controller.reset).toHaveBeenCalled()`. */
   reset: () => void;
   abort: () => void;
@@ -67,6 +68,7 @@ type ChatState = {
   isStreaming: boolean;
   progress: string | null;
   error: string | null;
+  backend: ChatBackend;
 };
 
 let messageSeq = 0;
@@ -90,6 +92,7 @@ export function createFakeChat(): {
     isStreaming: false,
     progress: null,
     error: null,
+    backend: { kind: "model", modelId: "fake-model", label: "Fake model" },
   };
   const listeners = new Set<() => void>();
   const update = (patch: Partial<ChatState>) => {
@@ -104,6 +107,7 @@ export function createFakeChat(): {
     setStreaming: (isStreaming) => update({ isStreaming }),
     setProgress: (progress) => update({ progress }),
     setError: (error) => update({ error }),
+    setBackend: (backend) => update({ backend }),
     reset: vi.fn(() =>
       update({ messages: [], isStreaming: false, progress: null, error: null }),
     ),

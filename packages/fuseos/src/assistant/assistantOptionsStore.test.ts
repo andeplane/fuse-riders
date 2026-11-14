@@ -1,3 +1,5 @@
+import { DEFAULT_MODEL_ID } from "../llm/modelCatalog";
+
 import {
   ASSISTANT_OPTIONS_KEY,
   DEFAULT_ASSISTANT_OPTIONS,
@@ -37,12 +39,27 @@ describe(parseAssistantOptions.name, () => {
       animate: true,
       sounds: true,
       greeted: true,
+      model: DEFAULT_MODEL_ID,
     });
     expect(
       Object.keys(
         parseAssistantOptions(JSON.stringify({ agentExternalId: "my-agent" })),
       ).sort(),
-    ).toEqual(["animate", "greeted", "narrate", "showTips", "sounds"]);
+    ).toEqual(["animate", "greeted", "model", "narrate", "showTips", "sounds"]);
+  });
+
+  it("keeps a model from the catalogue and drops one that left it", () => {
+    expect(
+      parseAssistantOptions(
+        JSON.stringify({ model: "Llama-3.2-1B-Instruct-q4f16_1-MLC" }),
+      ).model,
+    ).toBe("Llama-3.2-1B-Instruct-q4f16_1-MLC");
+    expect(
+      parseAssistantOptions(JSON.stringify({ model: "Gone-7B-MLC" })).model,
+    ).toBe(DEFAULT_MODEL_ID);
+    expect(parseAssistantOptions(JSON.stringify({ model: 7 })).model).toBe(
+      DEFAULT_MODEL_ID,
+    );
   });
 });
 

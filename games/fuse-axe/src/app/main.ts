@@ -16,7 +16,12 @@ import {
   installRoomLifecycle,
   validRoomCode,
 } from "fuse-network-fe";
-import { MAX_PACKET_BYTES, uuid } from "fuse-netcode";
+import {
+  MAX_PACKET_BYTES,
+  createLeadClock,
+  ticksAhead,
+  uuid,
+} from "fuse-netcode";
 import {
   button,
   createAppPortal,
@@ -34,7 +39,12 @@ import {
   createRoundControls,
   el,
 } from "fuse-ui";
-import { HERO_KINDS, type HeroKind } from "../engine/index.js";
+import {
+  HERO_KINDS,
+  botInput,
+  type HeroKind,
+  type WorldView,
+} from "../engine/index.js";
 import { VIEW_H, VIEW_W } from "../engine/view-kit.js";
 import { axeGame, type View } from "../online/game.js";
 import { DEFAULT_HERO, isHero, seatName } from "../online/names.js";
@@ -53,6 +63,13 @@ import {
 import { PendingPick, SoloOpening } from "./flow.js";
 import { GamepadInput, browserGamepads } from "./gamepad.js";
 import { drawn } from "./interpolate.js";
+import {
+  createSmoother,
+  forward,
+  forwardInputs,
+  loggedBits,
+  memoBot,
+} from "./forward.js";
 import { DPad, directionName, padButtons, releasePads } from "./pad.js";
 import {
   HEROES,
@@ -110,6 +127,10 @@ const social = createGameSocial({
 const store = safeStore(() => localStorage);
 const names = keys(GAME);
 const query = new URLSearchParams(location.search);
+/** `?lead=off` draws the old way, a tick behind the clock and blended, to compare the feel against. */
+const drawAhead = query.get("lead") !== "off",
+  /** `?probe` publishes where this device's hero was last drawn, for `scripts/lead-press-latency.ts`. */
+  probe = query.has("probe");
 const app = document.querySelector<HTMLElement>("#app")!;
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 /** A link within the game that keeps this page's `mute` flag. */
@@ -587,6 +608,52 @@ function room(solo: boolean): void {
     canvas.style.height = `${canvas.height / ratio}px`;
   };
   new ResizeObserver(fit).observe(screen);
+  // ---- the newest folded world played forward to the clock, once per animation frame ----
+  const smoother = createSmoother(),
+    leadClock = createLeadClock(),
+    drawBot = memoBot(botInput);
+  /** What to draw now: the forward run while heroes can be steered, otherwise the two newest frames blended. */
+  const picture = (now: number): WorldView | null => {
+    const timing = runtime.frameTiming(),
+      state = runtime.roomState(),
+      newer = timing?.newer,
+      world = state?.world;
+    if (
+      !drawAhead ||
+      !timing ||
+      !newer?.world ||
+      !state ||
+      !world ||
+      !(
+        state.stage === "running" ||
+        (state.stage === "between" && world.camp)
+      ) ||
+      newer.matchId !== state.matchId ||
+      newer.round !== state.round ||
+      newer.world.camp !== world.camp ||
+      newer.world.step !== world.step
+    )
+      return drawn(timing);
+    const revision = timing.revision ?? 0;
+    return smoother.apply(
+      forward(
+        world,
+        leadClock(ticksAhead(timing), newer.logTick, now),
+        forwardInputs(
+          state,
+          runtime.self,
+          runtime.heldNow,
+          drawBot(`${state.matchId}:${state.round}:${world.camp}:${revision}`),
+        ),
+      ),
+      `${state.matchId}:${state.round}:${world.camp}`,
+      revision,
+      world.step,
+      loggedBits(state, world),
+      now,
+      state.seats.get(runtime.self)?.slot ?? -1,
+    );
+  };
   const paint = (now: number) => {
     // A room that has ended draws nothing more, so its loop ends with it.
     if (over) return;
@@ -594,8 +661,17 @@ function room(solo: boolean): void {
     gamepads.poll(
       !document.hidden && !phone.blocked() && !menu.isOpen() && !modalOpen(),
     );
-    const world = stage.hidden ? null : drawn(runtime.frameTiming());
+    const world = stage.hidden ? null : picture(now);
     if (world) {
+      if (probe) {
+        const slot = runtime.roomState()?.seats.get(runtime.self)?.slot,
+          mine = world.heroes.find((hero) => hero.seat === slot);
+        Reflect.set(window, "__leadProbe", {
+          at: performance.now(),
+          x: mine?.x,
+          y: mine?.y,
+        });
+      }
       scene.draw(native, world, Math.floor((now * 60) / 1000), model?.hud);
       // Resizing the canvas resets its context, smoothing included.
       g.imageSmoothingEnabled = false;

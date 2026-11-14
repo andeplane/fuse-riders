@@ -22,6 +22,22 @@
     return;
   }
 
+  // js-dos locks the keyboard (navigator.keyboard.lock) so Escape and W reach the
+  // game, but Chromium only allows that from a top-level page and rejects the
+  // promise inside our same-origin game frame, which js-dos never catches. The
+  // call is kept where it works and its rejection is swallowed where it does not.
+  var keyboard = navigator.keyboard;
+  if (keyboard && typeof keyboard.lock === 'function') {
+    var lock = keyboard.lock.bind(keyboard);
+    keyboard.lock = function (keys) {
+      try {
+        return Promise.resolve(lock(keys)).catch(function () {});
+      } catch (error) {
+        return Promise.resolve();
+      }
+    };
+  }
+
   var here = window.location.href;
   window.Dos(root, {
     url: new URL('../retro/' + bundle + '.jsdos.wasm', here).href,

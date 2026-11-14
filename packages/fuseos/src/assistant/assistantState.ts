@@ -67,6 +67,8 @@ export type AssistantAction =
   | { type: "wave" }
   /** The user sent a chat message: a new turn starts. */
   | { type: "chatSent" }
+  /** The chat is downloading or loading the model (Processing until the first token arrives). */
+  | { type: "chatLoading" }
   /** The chat finished answering. */
   | { type: "chatAnswered"; failed?: boolean };
 
@@ -75,11 +77,14 @@ export const GREETING =
 
 export const ASSISTANT_TIPS: readonly string[] = [
   "Every Fuse game on the desktop opens in a window of its own; double click one to start it.",
+  'Tell me "Open Fuseball" and I will start it for you; any game or app on this desktop works.',
+  'Say "Play some music" and I will fire up Winamp with the Fuse soundtrack.',
   "Start, Programs, Games, Retro Games has DOOM, Wolfenstein 3D, Commander Keen, Duke Nukem 3D, Minesweeper, Solitaire, SkiFree and Micropolis.",
   "Add ?open=fuseball to the address to boot straight into a game; several ids separated by commas open several windows.",
-  "Winamp (Start, Programs, Accessories) plays your own music files; they never leave this device.",
+  'Ask me "Which games are there?" for the full list, taglines included.',
   "Paint is the real thing: brushes, shapes, fill and text on a 640x400 canvas.",
   "Control Panel, Display changes the background, icon spacing, colours and font size.",
+  "My brain is a small model that downloads once (about 300 MB) and then runs on your graphics card. Nothing you type leaves this device; Control Panel, Assistant swaps or forgets it.",
   "Right click me for Options, or to hide me. Start, Help, Office Assistant brings me back.",
 ];
 
@@ -245,6 +250,8 @@ export function assistantReducer(
       return state.busy > 0 ? state : play(state, "Wave");
     case "chatSent":
       return play({ ...state, turnCalls: [] }, "Writing");
+    case "chatLoading":
+      return play(state, "Processing");
     case "chatAnswered":
       return play(
         state,

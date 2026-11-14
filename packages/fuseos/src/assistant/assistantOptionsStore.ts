@@ -1,5 +1,7 @@
 import { createContext } from "react";
 
+import { DEFAULT_MODEL_ID, isLlmModelId } from "../llm/modelCatalog";
+
 /** The Office Assistant's Options: per browser, never shared through links. */
 export type AssistantOptions = {
   /** Offer tips in the balloon. */
@@ -12,6 +14,8 @@ export type AssistantOptions = {
   sounds: boolean;
   /** The first-visit greeting has been answered. */
   greeted: boolean;
+  /** The model that answers questions (`llm/modelCatalog.ts`), downloaded on the first question. */
+  model: string;
 };
 
 export const DEFAULT_ASSISTANT_OPTIONS: AssistantOptions = {
@@ -20,6 +24,7 @@ export const DEFAULT_ASSISTANT_OPTIONS: AssistantOptions = {
   animate: true,
   sounds: false,
   greeted: false,
+  model: DEFAULT_MODEL_ID,
 };
 
 export interface AssistantOptionsStore {
@@ -48,6 +53,8 @@ export function parseAssistantOptions(
       animate: flag(record.animate, DEFAULT_ASSISTANT_OPTIONS.animate),
       sounds: flag(record.sounds, DEFAULT_ASSISTANT_OPTIONS.sounds),
       greeted: flag(record.greeted, DEFAULT_ASSISTANT_OPTIONS.greeted),
+      // A model that left the catalogue falls back to the default rather than failing to load.
+      model: isLlmModelId(record.model) ? record.model : DEFAULT_MODEL_ID,
     };
   } catch {
     return DEFAULT_ASSISTANT_OPTIONS;

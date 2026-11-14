@@ -18,6 +18,7 @@ import {
   validRoomCode,
 } from "fuse-network-fe";
 import { MAX_PACKET_BYTES, roomManager } from "fuse-netcode";
+import { createPicture } from "./forward.js";
 import { HookRuntime } from "../online/runtime.js";
 import {
   DEFAULT_TUNING,
@@ -515,14 +516,36 @@ el<HTMLSelectElement>("aim-mode").onchange = (event) => {
 touchLayout();
 // Not on resize: a phone's URL bar and rotation resize mid-charge, and a
 // clear would throw the bomb.
+/** `?lead=off` draws the old way, a tick behind the clock and blended, to compare the feel against. */
+const drawAhead = query.get("lead") !== "off",
+  /** For latency measurements: `?probe` publishes where this device's keeper was last drawn. */
+  probe = query.has("probe"),
+  picture = createPicture();
+/**
+ * What to draw now: the newest folded room played forward to the clock (`createPicture`), or, when there is nothing
+ * to lead with, the two newest frames blended a tick behind it.
+ */
 function sample(): WorldView {
   const timing = runtime?.frameTiming();
   if (!timing) return latest;
-  return interpolate(
-    timing.older && localView(timing.older),
-    localView(timing.newer),
-    timing.tick,
-  );
+  const ahead =
+    drawAhead && runtime
+      ? picture(runtime, display ? "" : selfId, performance.now())
+      : undefined;
+  const drawn = ahead
+    ? localView(ahead)
+    : interpolate(
+        timing.older && localView(timing.older),
+        localView(timing.newer),
+        timing.tick,
+      );
+  if (probe)
+    Reflect.set(window, "__hookHavokProbe", {
+      at: performance.now(),
+      x: drawn.x,
+      feet: drawn.feet,
+    });
+  return drawn;
 }
 function localView(view: WorldView): WorldView {
   const local = view.keepers.find((k) => k.id === selfId);

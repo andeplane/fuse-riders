@@ -14,8 +14,14 @@ const LOADING_MESSAGE: Record<"loading" | "unavailable" | "error", string> = {
 };
 
 export function WinampWindow({ windowId }: { windowId: string }) {
-  const { attachContainer, loadState, errorMessage, addFiles } =
-    useWinampViewModel(windowId);
+  const {
+    attachContainer,
+    loadState,
+    errorMessage,
+    soundtrackLength,
+    addFiles,
+    playSoundtrack,
+  } = useWinampViewModel(windowId);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const ready = loadState === "ready";
   const message =
@@ -30,6 +36,9 @@ export function WinampWindow({ windowId }: { windowId: string }) {
         role="toolbar"
         aria-label="Winamp"
       >
+        <button type="button" onClick={playSoundtrack} disabled={!ready}>
+          Fuse soundtrack
+        </button>
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
@@ -51,7 +60,8 @@ export function WinampWindow({ windowId }: { windowId: string }) {
         />
       </div>
       <p className="shrink-0 px-1 pb-1 text-xs">
-        Local files never leave this device.
+        {soundtrackLength} tracks from the Fuse games are queued. Local files
+        never leave this device.
       </p>
       <div
         className="sunken-panel relative min-h-0 flex-1 overflow-auto p-1"
