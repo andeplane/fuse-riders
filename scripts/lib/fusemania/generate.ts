@@ -16,6 +16,13 @@
  * Everything random is drawn from a hash of the song id, the difficulty and the place in the song.
  */
 import { beatSeconds, decodeSeries, type Analysis } from "./analysis.js";
+import {
+  ARROWS,
+  referenceFor,
+  speedOf,
+  type Reference,
+  type Speed,
+} from "./reference.js";
 
 export type Difficulty = "Easy" | "Medium" | "Hard" | "Challenge";
 export const DIFFICULTIES: readonly Difficulty[] = [
@@ -43,12 +50,21 @@ export interface Chart {
 }
 
 interface Tuning {
-  /** Rows per second aimed at in the quietest and the busiest bars. */
-  density: readonly [number, number];
+  /**
+   * Notes per second over the whole chart, for a song at 135 beats a minute: the median of the published charts of
+   * this difficulty. A slower song gets fewer and a faster one more (the square root of the tempo, within 15%).
+   */
+  nps: number;
+  /** How a bar's share of that moves with its energy: times this in the quietest bars and in the busiest. */
+  range: readonly [number, number];
   /** The most rows per second any four-beat window may hold. */
   cap: number;
   /** How much a slot of each level counts: beat, off-beat eighth, sixteenth level. 0 bars the level. */
   levels: { Q: number; E: number; S: number };
+  /** The share of the bars, busiest first, that may use the sixteenth level: fast runs come in bursts. */
+  sixteenths: number;
+  /** How much an off-beat eighth gains from the off-beat a beat away being stepped: 1 for nothing. */
+  runs: number;
   /** How much hi-hats count as something to step on. */
   hats: number;
   /** The least salience a slot needs to carry a step (1 is a strong onset). */
@@ -57,20 +73,21 @@ interface Tuning {
   burst: number;
   /** The least time between two rows, in seconds, whatever the grid allows. */
   gap: number;
-  /** Jumps: the least accent, how many per bar at most, and the clear space needed either side, in beats. */
-  jump: { accent: number; perBar: number; clear: number };
-  /** Freezes: how many per bar at most, and how many rows the other foot may take while one is held. */
-  hold: { perBar: number; rowsInside: number };
-  /** Whether a foot may cross the other, and what it costs. */
+  /** Jumps: how many a bar may have, and the clear space needed either side, in beats. How many: the reference. */
+  jump: { perBar: number; clear: number };
+  /** Freezes: how many rows the other foot may take while one is held. How many and how long: the reference. */
+  hold: { rowsInside: number; clears: number };
+  /** Mines: how many at most, and how many beats apart. */
+  mines: { most: number; apart: number };
+  /** Whether a foot may cross the other, and what it costs on top of how rare the pattern is in the reference. */
   crossover: number | undefined;
-  /** What a foot going straight from Up to Down (or back) costs. */
+  /** What a foot going straight from Up to Down (or back) costs, likewise. */
   candle: number;
   /** The shortest gap, in beats, at which the same arrow may come twice running. */
   jack: number;
-  /**
-   * The meter from the chart's notes per second. Every chart of a difficulty aims at the same density range, so the
-   * steps are narrow: a meter ranks the songs of this pack against each other more than against other packs.
-   */
+  /** How often a bar that repeats an earlier bar's rhythm is given its arrows (or their mirror image) again. */
+  echo: number;
+  /** The meter from the chart's rows per second, over the whole chart and over its busiest four beats. */
   meter: (average: number, peak: number) => number;
 }
 
@@ -79,65 +96,85 @@ const clamp = (value: number, low: number, high: number): number =>
 
 const TUNING: Record<Difficulty, Tuning> = {
   Easy: {
-    density: [0.8, 1.6],
-    cap: 2.0,
+    nps: 1.55,
+    range: [0.7, 1.25],
+    cap: 2.2,
     levels: { Q: 1, E: 0, S: 0 },
+    sixteenths: 0,
+    runs: 1,
     hats: 0.5,
     floor: 0.3,
     gap: 0.3,
     burst: 1,
-    jump: { accent: 1.15, perBar: 0.125, clear: 1 },
-    hold: { perBar: 0.25, rowsInside: 0 },
+    jump: { perBar: 1, clear: 1.5 },
+    hold: { rowsInside: 0, clears: 2 },
+    mines: { most: 0, apart: 0 },
     crossover: undefined,
-    candle: 6,
-    jack: 2,
-    meter: (average) => 2 + clamp(Math.round((average - 1.16) / 0.11), 0, 2),
+    candle: 1,
+    jack: 1,
+    echo: 0.6,
+    meter: (average) => 2 + clamp(Math.round((average - 1.2) / 0.15), 0, 2),
   },
   Medium: {
-    density: [1.7, 3.0],
-    cap: 3.5,
-    levels: { Q: 1, E: 0.62, S: 0 },
+    nps: 2.37,
+    range: [0.6, 1.35],
+    cap: 3.6,
+    levels: { Q: 1, E: 1.1, S: 0 },
+    sixteenths: 0,
+    runs: 1,
     hats: 0.7,
     floor: 0.3,
     gap: 0.16,
     burst: 1,
-    jump: { accent: 1.05, perBar: 0.45, clear: 0.75 },
-    hold: { perBar: 0.5, rowsInside: 1 },
+    jump: { perBar: 2, clear: 1 },
+    hold: { rowsInside: 1, clears: 2 },
+    mines: { most: 0, apart: 0 },
     crossover: undefined,
-    candle: 4,
-    jack: 1,
-    meter: (average) => 5 + clamp(Math.round((average - 2.4) / 0.12), 0, 2),
+    candle: 0.6,
+    jack: 0.5,
+    echo: 0.4,
+    meter: (average) => 5 + clamp(Math.round((average - 1.9) / 0.2), 0, 2),
   },
   Hard: {
-    density: [2.8, 5.0],
-    cap: 6.0,
-    levels: { Q: 1, E: 0.85, S: 0.5 },
+    nps: 3.3,
+    range: [0.5, 1.5],
+    cap: 5.5,
+    levels: { Q: 1, E: 1.05, S: 2.1 },
+    sixteenths: 0.5,
+    runs: 1.6,
     hats: 0.85,
     floor: 0.25,
     gap: 0.095,
     burst: 5,
-    jump: { accent: 0.95, perBar: 0.8, clear: 0.4 },
-    hold: { perBar: 0.75, rowsInside: 3 },
-    crossover: 2.8,
-    candle: 1.1,
+    jump: { perBar: 2, clear: 0.5 },
+    hold: { rowsInside: 3, clears: 0 },
+    mines: { most: 4, apart: 16 },
+    crossover: 0.8,
+    candle: 0.2,
     jack: 0.5,
-    meter: (average) => 8 + clamp(Math.round((average - 3.8) / 0.3), 0, 2),
+    echo: 0.3,
+    meter: (average) => 8 + clamp(Math.round((average - 2.7) / 0.3), 0, 2),
   },
   Challenge: {
-    density: [3.8, 7.6],
-    cap: 9.0,
-    levels: { Q: 1, E: 0.95, S: 0.8 },
+    nps: 4.8,
+    range: [0.5, 1.5],
+    cap: 8.5,
+    levels: { Q: 1, E: 0.85, S: 2.3 },
+    sixteenths: 0.6,
+    runs: 1.6,
     hats: 1,
     floor: 0.2,
     gap: 0.07,
-    burst: 33,
-    jump: { accent: 0.9, perBar: 1.1, clear: 0.3 },
-    hold: { perBar: 1, rowsInside: 6 },
-    crossover: 2.2,
-    candle: 0.8,
+    burst: 17,
+    jump: { perBar: 3, clear: 0.3 },
+    hold: { rowsInside: 6, clears: 0 },
+    mines: { most: 12, apart: 6 },
+    crossover: 0.5,
+    candle: 0.1,
     jack: 0.5,
+    echo: 0.25,
     meter: (average, peak) =>
-      10 + clamp(Math.round((0.6 * average + 0.4 * peak - 6.3) / 0.3), 0, 3),
+      10 + clamp(Math.round((0.6 * average + 0.4 * peak - 4.6) / 0.5), 0, 3),
   },
 };
 
@@ -286,6 +323,8 @@ interface Row {
   jump: boolean;
   /** The tail's slot, when the row starts a freeze. */
   holdEnd?: number;
+  /** Whether the row gave way to a freeze held alone. */
+  dropped?: boolean;
 }
 
 /**
@@ -297,9 +336,59 @@ function pickRows(
   base: ReadonlySet<number>,
 ): Row[] {
   const tuning = TUNING[difficulty];
+  const reference = referenceFor(difficulty);
   const { slotsPerBeat, perBar, analysis } = song;
   const levelOf = (slot: number): "Q" | "E" | "S" | "X" =>
     analysis.levels[slot % slotsPerBeat] as "Q" | "E" | "S" | "X";
+  const jumpShare = reference.scalars.jump_share?.p50 ?? 0.07;
+
+  // How many rows a second the chart aims at, and each bar's share of them.
+  const firstBar = Math.floor(song.first / perBar),
+    lastBar = Math.floor(song.last / perBar),
+    barCount = lastBar - firstBar + 1;
+  const span = song.seconds[song.last]! - song.seconds[song.first]!;
+  const bpm =
+    (60 * (song.last - song.first)) / slotsPerBeat / Math.max(1, span);
+  const rowsPerSecond =
+    (tuning.nps * clamp(Math.sqrt(bpm / 135), 0.85, 1.15)) / (1 + jumpShare);
+  // The bars of a four-bar phrase aim at much the same density, so a rhythm that repeats is stepped the same way.
+  const energyOf = (bar: number): number => {
+    const phraseStart = bar - ((((bar - analysis.phrase) % 4) + 4) % 4);
+    let phraseEnergy = 0,
+      phraseBars = 0;
+    for (let other = Math.max(0, phraseStart); other < phraseStart + 4; other++)
+      if (other < song.bars) {
+        phraseEnergy += song.energy[other]!;
+        phraseBars++;
+      }
+    return (
+      0.7 * (phraseEnergy / Math.max(1, phraseBars)) +
+      0.3 * (song.energy[bar] ?? 0)
+    );
+  };
+  const barSeconds = (bar: number): number =>
+    song.seconds[Math.min(song.slots, (bar + 1) * perBar)]! -
+    song.seconds[Math.min(song.slots, bar * perBar)]!;
+  // Quiet bars thin out and busy ones fill in, and a chart builds the way published ones do (they are a few percent
+  // busier in their last fifth): the reference's density curve, a tenth of the chart at a time.
+  const shape = new Map<number, number>();
+  let weighted = 0;
+  for (let bar = firstBar; bar <= lastBar; bar++) {
+    const tenth = Math.min(9, Math.floor((10 * (bar - firstBar)) / barCount));
+    const value =
+      (tuning.range[0] + (tuning.range[1] - tuning.range[0]) * energyOf(bar)) *
+      (reference.densityCurve[tenth] ?? 1);
+    shape.set(bar, value);
+    weighted += value * barSeconds(bar);
+  }
+  const norm = weighted / Math.max(1e-9, span);
+  // The sixteenth level only in the busiest bars.
+  const ranked = [...shape.keys()].map(energyOf).sort((a, b) => b - a);
+  const gate =
+    tuning.sixteenths >= 1
+      ? -1
+      : (ranked[Math.floor(tuning.sixteenths * ranked.length)] ?? 2);
+  const fast = (bar: number): boolean => energyOf(bar) > gate;
   const salience = new Float32Array(song.slots);
   for (let slot = 0; slot < song.slots; slot++)
     salience[slot] = Math.max(
@@ -334,10 +423,6 @@ function pickRows(
   let phraseMean = 0;
 
   const chosen = new Set<number>();
-  for (const slot of base)
-    if (slot >= song.first && slot <= song.last) chosen.add(slot);
-  chosen.add(song.first);
-  chosen.add(song.last);
   const beatGap = (a: number, b: number): number =>
     Math.abs(a - b) / slotsPerBeat;
   /** Whether adding `slot` keeps every four-beat window under the cap and its neighbours far enough away. */
@@ -385,64 +470,93 @@ function pickRows(
     return length;
   };
 
-  for (
-    let bar = Math.floor(song.first / perBar);
-    bar * perBar <= song.last;
-    bar++
-  ) {
-    const from = bar * perBar,
-      to = Math.min(song.slots, from + perBar);
-    const barSeconds = song.seconds[to]! - song.seconds[from]!;
-    // The bars of a four-bar phrase aim at much the same density, so a rhythm that repeats is stepped the same way.
-    const phraseStart = bar - ((((bar - analysis.phrase) % 4) + 4) % 4);
-    let phraseEnergy = 0,
-      phraseBars = 0;
-    for (let other = Math.max(0, phraseStart); other < phraseStart + 4; other++)
-      if (other < song.bars) {
-        phraseEnergy += song.energy[other]!;
-        phraseBars++;
+  /** The chart's rows, aiming `scale` times as high as `rowsPerSecond`. */
+  const fill = (scale: number): void => {
+    chosen.clear();
+    for (const slot of base)
+      if (slot >= song.first && slot <= song.last) chosen.add(slot);
+    chosen.add(song.first);
+    chosen.add(song.last);
+    // What rounding a bar's rows leaves over goes to the next bar.
+    let carry = 0;
+    for (let bar = firstBar; bar <= lastBar; bar++) {
+      const from = bar * perBar,
+        to = Math.min(song.slots, from + perBar);
+      const exact =
+        ((scale * rowsPerSecond * (shape.get(bar) ?? 1)) / norm) *
+          barSeconds(bar) +
+        carry;
+      const target = Math.round(exact);
+      carry = clamp(exact - target, -0.5, 0.5);
+      const candidates: number[] = [];
+      let count = 0;
+      for (let slot = from; slot < to; slot++) {
+        if (chosen.has(slot)) count++;
+        else if (
+          slot > song.first &&
+          slot < song.last &&
+          priority(slot) > 0 &&
+          (levelOf(slot) !== "S" || fast(bar)) &&
+          // A slot the rest of the phrase hits hard needs only a faint onset of its own to keep the rhythm going.
+          salience[slot]! >= (phraseMean >= 0.6 ? 0.5 : 1) * tuning.floor
+        )
+          candidates.push(slot);
       }
-    const energy =
-      0.7 * (phraseEnergy / Math.max(1, phraseBars)) +
-      0.3 * (song.energy[bar] ?? 0);
-    const target = Math.round(
-      (tuning.density[0] + (tuning.density[1] - tuning.density[0]) * energy) *
-        barSeconds,
-    );
-    const candidates: number[] = [];
-    let count = 0;
-    for (let slot = from; slot < to; slot++) {
-      if (chosen.has(slot)) count++;
-      else if (
-        slot > song.first &&
-        slot < song.last &&
-        priority(slot) > 0 &&
-        // A slot the rest of the phrase hits hard needs only a faint onset of its own to keep the rhythm going.
-        salience[slot]! >= (phraseMean >= 0.6 ? 0.5 : 1) * tuning.floor
+      // A slot the bar two back stepped on comes first among equals: published charts repeat a bar's rhythm two
+      // bars on about a third of the time.
+      const rank = new Map(
+        candidates.map((slot) => [
+          slot,
+          priority(slot) * (chosen.has(slot - 2 * perBar) ? 1.4 : 1),
+        ]),
+      );
+      candidates.sort((a, b) => rank.get(b)! - rank.get(a)! || a - b);
+      // An off-beat next to one already stepped comes sooner, so eighths gather into runs and do not scatter.
+      const joined = (slot: number): number =>
+        levelOf(slot) === "E" &&
+        (chosen.has(slot - slotsPerBeat) || chosen.has(slot + slotsPerBeat))
+          ? tuning.runs
+          : 1;
+      const left = new Set(candidates);
+      while (count < target && left.size > 0) {
+        let slot = -1,
+          best = -1;
+        for (const other of left) {
+          const value = rank.get(other)! * joined(other);
+          if (value > best) {
+            best = value;
+            slot = other;
+          }
+        }
+        left.delete(slot);
+        if (!fits(slot) || runLength(slot) > tuning.burst) continue;
+        chosen.add(slot);
+        count++;
+      }
+    }
+    // On a straight grid a sixteenth needs the step it leads into: alone it reads as a mistake. (A swung one is the
+    // rhythm itself.)
+    for (const slot of [...chosen].sort((a, b) => a - b)) {
+      if (slotsPerBeat !== 4 || levelOf(slot) !== "S" || base.has(slot))
+        continue;
+      let leads = false;
+      for (
+        let next = slot + 1;
+        next < song.slots && beatGap(slot, next) < 0.4;
+        next++
       )
-        candidates.push(slot);
+        if (chosen.has(next)) leads = true;
+      if (!leads) chosen.delete(slot);
     }
-    candidates.sort((a, b) => priority(b) - priority(a) || a - b);
-    for (const slot of candidates) {
-      if (count >= target) break;
-      if (!fits(slot)) continue;
-      if (runLength(slot) > tuning.burst) continue;
-      chosen.add(slot);
-      count++;
-    }
-  }
-  // On a straight grid a sixteenth needs the step it leads into: alone it reads as a mistake. (A swung one is the
-  // rhythm itself.)
-  for (const slot of [...chosen].sort((a, b) => a - b)) {
-    if (slotsPerBeat !== 4 || levelOf(slot) !== "S" || base.has(slot)) continue;
-    let leads = false;
-    for (
-      let next = slot + 1;
-      next < song.slots && beatGap(slot, next) < 0.4;
-      next++
-    )
-      if (chosen.has(next)) leads = true;
-    if (!leads) chosen.delete(slot);
+  };
+  // Where the music leaves fewer places to step than the aim, aim higher until the chart is as busy as it should be.
+  let scale = 1;
+  fill(scale);
+  for (let round = 0; round < 3; round++) {
+    const actual = (chosen.size - 1) / Math.max(1, span);
+    if (Math.abs(actual / rowsPerSecond - 1) < 0.03) break;
+    scale = clamp((scale * rowsPerSecond) / actual, 0.4, 2.5);
+    fill(scale);
   }
 
   const slots = [...chosen].sort((a, b) => a - b);
@@ -471,33 +585,50 @@ function pickRows(
     .map((slot, at) => ({ slot, at, value: accent(slot) }))
     .filter(
       ({ slot, at, value }) =>
-        value >= tuning.jump.accent &&
+        value >= 0.45 &&
         levelOf(slot) !== "S" &&
-        (difficulty === "Hard" || difficulty === "Challenge"
-          ? true
-          : levelOf(slot) === "Q") &&
-        clearOf(at) >= tuning.jump.clear,
+        (difficulty !== "Easy" || levelOf(slot) === "Q") &&
+        // Off the beat the rows either side are an eighth away at best.
+        clearOf(at) >=
+          (levelOf(slot) === "Q"
+            ? tuning.jump.clear
+            : Math.min(tuning.jump.clear, 0.5)),
     )
     .sort((a, b) => b.value - a.value || a.slot - b.slot);
-  const jumpBudget = Math.floor(
-    tuning.jump.perBar * ((song.last - song.first) / perBar),
-  );
+  // As many jumps as published charts have, and on the beats of the bar they have them on: the strongest accents
+  // of each beat first, then whatever accents are left.
+  const jumpBudget = Math.round(jumpShare * slots.length);
   const jumpsInBar = new Map<number, number>();
   let jumps = 0;
-  for (const { slot, at } of jumpable) {
-    if (jumps >= jumpBudget) break;
+  const makeJump = (slot: number, at: number): boolean => {
     const bar = Math.floor(slot / perBar);
     const inBar = jumpsInBar.get(bar) ?? 0;
-    if (inBar >= Math.max(1, Math.ceil(tuning.jump.perBar))) continue;
+    if (rows[at]!.jump || inBar >= tuning.jump.perBar) return false;
     // Never two jumps on neighbouring rows below Challenge.
     if (
       difficulty !== "Challenge" &&
       (rows[at - 1]?.jump === true || rows[at + 1]?.jump === true)
     )
-      continue;
+      return false;
     rows[at]!.jump = true;
     jumpsInBar.set(bar, inBar + 1);
     jumps++;
+    return true;
+  };
+  const beatOf = (slot: number): string =>
+    levelOf(slot) === "Q" ? String((slot % perBar) / slotsPerBeat) : "off";
+  for (const beat of ["0", "1", "2", "3", "off"]) {
+    let quota = Math.round(
+      jumpBudget * (reference.tables.jump_beat?.[beat] ?? 0.2),
+    );
+    for (const { slot, at } of jumpable) {
+      if (quota <= 0 || jumps >= jumpBudget) break;
+      if (beatOf(slot) === beat && makeJump(slot, at)) quota--;
+    }
+  }
+  for (const { slot, at } of jumpable) {
+    if (jumps >= jumpBudget) break;
+    makeJump(slot, at);
   }
   // The last row is the song's last hit: a jump from Medium up.
   if (difficulty !== "Easy" && clearOf(rows.length - 1) >= tuning.jump.clear)
@@ -505,9 +636,14 @@ function pickRows(
 
   // Freezes on sustained notes: a new pitch that rings on with no new pitch after it.
   const half = slotsPerBeat % 2 === 0 ? slotsPerBeat / 2 : slotsPerBeat;
-  const holdBudget = Math.floor(
-    tuning.hold.perBar * ((song.last - song.first) / perBar),
+  // As many freezes as published charts have, and no longer: one beat, two or up to four, as often as theirs are.
+  const holdBudget = Math.round(
+    (reference.scalars.hold_share?.p50 ?? 0.04) * (slots.length + jumps),
   );
+  const lengths = reference.tables.hold_beats ?? {};
+  const one = lengths["<=1"] ?? 0.45,
+    two = lengths["<=2"] ?? 0.3,
+    four = lengths["<=4"] ?? 0.2;
   const sustain = (slot: number): number => {
     // Slots until the sound stops or a new note starts.
     const reference = Math.max(song.level[slot + 1] ?? 0, song.level[slot]!);
@@ -539,44 +675,67 @@ function pickRows(
     );
   let holds = 0,
     heldUntil: [number, number][] = [];
-  for (const { slot, at, length } of holdable) {
-    if (holds >= holdBudget) break;
-    // The tail lands on a beat or an eighth, before the sound stops.
-    let end = slot + Math.floor((length - 1) / half) * half;
-    // Rows while it is held go to the other foot: only so many, none of them fast, and never a jump (a hand).
-    let inside = 0;
-    for (
-      let next = at + 1;
-      next < slots.length && slots[next]! <= end;
-      next++
-    ) {
-      const gap = beatGap(slots[next]!, slots[next - 1]!);
-      if (
-        inside >= tuning.hold.rowsInside ||
-        rows[next]!.jump ||
-        rows[next]!.holdEnd !== undefined ||
-        gap < 0.45
+  // The long ones first, wherever the music and the rows around leave room for one, then the shorter.
+  const tiers: readonly (readonly [number, number, number])[] = [
+    [4, 2, Math.round((holdBudget * four) / (one + two + four))],
+    [2, 1, Math.round((holdBudget * (two + four)) / (one + two + four))],
+    [1, 0, holdBudget],
+  ];
+  for (const [most, over, quota] of tiers)
+    for (const { slot, at, length } of holdable) {
+      if (holds >= quota) break;
+      if (rows[at]!.holdEnd !== undefined || rows[at]!.dropped === true)
+        continue;
+      // The tail lands on a beat or an eighth, before the sound stops.
+      let end =
+        slot +
+        Math.floor(Math.min(length - 1, most * slotsPerBeat) / half) * half;
+      // Rows while it is held go to the other foot: only so many, none of them fast, and never a jump (a hand).
+      let inside = 0;
+      // On the easier charts a long freeze is held alone, as published ones are: a row or two under it give way.
+      const dropped: number[] = [];
+      for (
+        let next = at + 1;
+        next < slots.length && slots[next]! <= end;
+        next++
       ) {
-        // Let go an eighth (a beat, on a triplet grid) before the row that cannot be taken while holding.
-        end = slots[next]! - half;
-        end = slot + Math.floor((end - slot) / half) * half;
-        break;
+        if (rows[next]!.dropped === true) continue;
+        const gap = beatGap(slots[next]!, slots[next - 1]!);
+        const fixed = rows[next]!.jump || rows[next]!.holdEnd !== undefined;
+        if (inside >= tuning.hold.rowsInside || fixed || gap < 0.45) {
+          if (
+            most > 1 &&
+            !fixed &&
+            dropped.length < tuning.hold.clears &&
+            next < slots.length - 1
+          ) {
+            dropped.push(next);
+            continue;
+          }
+          // Let go an eighth (a beat, on a triplet grid) before the row that cannot be taken while holding.
+          end = slots[next]! - half;
+          end = slot + Math.floor((end - slot) / half) * half;
+          break;
+        }
+        inside++;
       }
-      inside++;
+      if (end - slot < slotsPerBeat || end - slot <= over * slotsPerBeat)
+        continue;
+      // One freeze at a time, with a breath between them.
+      if (heldUntil.some(([a, b]) => slot <= b + half && end + half >= a))
+        continue;
+      // The row after the tail needs a moment too.
+      const after = slots.find(
+        (other, found) => other > end && rows[found]!.dropped !== true,
+      );
+      if (after !== undefined && after - end < half && inside === 0) continue;
+      rows[index.get(slot)!]!.holdEnd = end;
+      for (const gone of dropped) rows[gone]!.dropped = true;
+      heldUntil.push([slot, end]);
+      holds++;
     }
-    if (end - slot < slotsPerBeat) continue;
-    // One freeze at a time, with a breath between them.
-    if (heldUntil.some(([a, b]) => slot <= b + half && end + half >= a))
-      continue;
-    // The row after the tail needs a moment too.
-    const after = slots.find((other) => other > end);
-    if (after !== undefined && after - end < half && inside === 0) continue;
-    rows[index.get(slot)!]!.holdEnd = end;
-    heldUntil.push([slot, end]);
-    holds++;
-  }
   heldUntil = [];
-  return rows;
+  return rows.filter((row) => row.dropped !== true);
 }
 
 /** Where the feet are and how the search got there. */
@@ -608,6 +767,55 @@ interface State {
 const ACROSS = [0, 1, 1, 2] as const;
 const MIRROR = [3, 1, 2, 0] as const;
 
+/** How likely each arrow is after one arrow (`two`, by `4 * last + next`) and after two (`three`). */
+interface Prior {
+  two: Float64Array;
+  three: Float64Array;
+}
+
+/** The slower speeds a speed borrows from when the reference has no table for it at this difficulty. */
+const FALLBACK: Record<Speed, readonly Speed[]> = {
+  "4th": ["4th"],
+  "8th": ["8th", "4th"],
+  "16th": ["16th", "8th", "4th"],
+};
+
+/**
+ * What published charts step next, by how fast the steps come: sixteenths are mostly drills (there and back),
+ * eighths sweep and turn, quarters repeat an arrow often. From the reference's bigram and trigram frequencies.
+ */
+function priors(reference: Reference): Record<Speed, Prior> {
+  const conditional = (kind: string, speed: Speed, size: number) => {
+    const table = FALLBACK[speed]
+      .map((from) => reference.tables[`${kind}_${from}`])
+      .find((found) => found !== undefined);
+    const out = new Float64Array(4 ** size).fill(0.25);
+    if (!table) return out;
+    for (let context = 0; context < 4 ** (size - 1); context++) {
+      const share = (next: number): number => {
+        let key = ARROWS[next]!;
+        for (let rest = context, at = 0; at < size - 1; at++, rest >>= 2)
+          key = ARROWS[rest & 3]! + key;
+        // A pattern the reference never has is rare here, not impossible.
+        return (table[key] ?? 0) + 0.0005;
+      };
+      const sum = share(0) + share(1) + share(2) + share(3);
+      for (let next = 0; next < 4; next++)
+        out[context * 4 + next] = share(next) / sum;
+    }
+    return out;
+  };
+  const prior = (speed: Speed): Prior => ({
+    two: conditional("bigram", speed, 2),
+    three: conditional("trigram", speed, 3),
+  });
+  return { "4th": prior("4th"), "8th": prior("8th"), "16th": prior("16th") };
+}
+
+/** A draw from the Gumbel distribution: added to log-likelihoods, the best choice is a fair sample of them. */
+const gumbel = (uniform: number): number =>
+  -Math.log(-Math.log(clamp(uniform, 1e-9, 1 - 1e-9)));
+
 /** The arrows of every row. */
 function placeSteps(
   song: Song,
@@ -617,7 +825,7 @@ function placeSteps(
   const tuning = TUNING[difficulty];
   const seed = hash(`${song.analysis.id}/${difficulty}`);
   const { slotsPerBeat, perBar } = song;
-  const BEAM = 14;
+  const BEAM = 20;
 
   // A bar's signature is its rhythm and its jumps. (The melody's rise and fall into each row steers the arrows too.)
   const contour = (at: number): number => {
@@ -644,6 +852,14 @@ function placeSteps(
   /** The arrows the row should repeat, if its bar repeats one remembered. */
   const remembered = new Map<number, readonly number[]>();
 
+  const reference = referenceFor(difficulty);
+  const prior = priors(reference);
+  const jumpPairs = reference.tables.jump_pair ?? {};
+  const afterJumpIn = reference.tables.after_jump?.in ?? 0.42;
+  /** Whether the bar's remembered arrows are used: a repeat should repeat. */
+  const ECHO = 4;
+  const JACK = 0.2;
+
   const stepCost = (
     state: State,
     foot: number,
@@ -652,6 +868,12 @@ function placeSteps(
     gapBeats: number,
     gapSeconds: number,
   ): number | undefined => {
+    const speed = speedOf(gapBeats);
+    // Whether the step before came at this speed too: then the last two arrows say what comes next.
+    const chained =
+      at >= 2 &&
+      speedOf((rows[at - 1]!.slot - rows[at - 2]!.slot) / slotsPerBeat) ===
+        speed;
     const other = foot === 0 ? state.right : state.left,
       from = foot === 0 ? state.left : state.right;
     if (column === other) return undefined;
@@ -662,38 +884,45 @@ function placeSteps(
       // A crossover: one foot over the other, only on the harder charts and never both arrows across.
       if (tuning.crossover === undefined || ACROSS[left]! - ACROSS[right]! > 1)
         return undefined;
-      cost += tuning.crossover + (gapSeconds < 0.2 ? 2 : 0);
+      cost += tuning.crossover + (gapSeconds < 0.15 ? 1 : 0);
     }
     if ((from === 1 && column === 2) || (from === 2 && column === 1))
       cost += tuning.candle;
     const [last, second] = state.recent;
-    if (column === last) {
-      // The same arrow again: a jack, only at a speed the difficulty allows and only a few running.
-      if (gapBeats < tuning.jack || state.jacks >= 2) return undefined;
-      const same =
-        song.pitch[rows[at]!.slot]! !== 0 &&
-        Math.abs(
-          song.pitch[rows[at]!.slot]! - song.pitch[rows[at - 1]!.slot]!,
-        ) <= 1;
-      cost += (same ? 0.5 : 1.6) + 0.8 * state.jacks;
-    } else if (column === second) {
-      cost += 0.2 + (state.trill >= 3 ? 0.8 * (state.trill - 2) : 0);
-    } else if (last >= 0 && second >= 0 && column - last === last - second) {
-      // Carrying on in the same direction: a staircase.
-      cost -= 0.4;
+    // The same arrow again: a jack, only at a speed the difficulty allows and only a few running.
+    if (column === last && (gapBeats < tuning.jack || state.jacks >= 2))
+      return undefined;
+    // A drill may run on, but not for ever.
+    if (column === second && column !== last && state.trill >= 6)
+      cost += 0.6 * (state.trill - 5);
+    if (last >= 0) {
+      // What published charts step after these arrows at this speed.
+      const likely =
+        chained && second >= 0
+          ? prior[speed].three[second * 16 + last * 4 + column]!
+          : prior[speed].two[last * 4 + column]!;
+      cost -= Math.log(4 * likely);
+      // The feet here alternate more strictly than a player's do, which makes the same arrow twice rarer than it
+      // should be: this much puts it back.
+      if (column === last) cost -= JACK;
+    } else if (state.columns.length === 2) {
+      // After a jump: one of its arrows again about as often as published charts do.
+      const stays = state.columns.includes(column);
+      cost -= Math.log((stays ? afterJumpIn : 1 - afterJumpIn) / 0.5);
     }
     // The melody: up moves right, down moves left.
     const direction = contour(at);
     if (direction !== 0 && last >= 0) {
       const moved = Math.sign(column - last);
-      cost += moved === direction ? -0.35 : moved === 0 ? 0.3 : 0.7;
+      cost += moved === direction ? -0.35 : moved === 0 ? 0 : 0.7;
     }
     // Even use of the four arrows.
     const total = state.uses[0] + state.uses[1] + state.uses[2] + state.uses[3];
     cost += 2.2 * (state.uses[column]! / (total + 6) - 0.25);
     const wanted = remembered.get(at);
-    if (wanted && wanted.length === 1 && wanted[0] === column) cost -= 1.5;
-    cost += 0.35 * noise(seed, rows[at]!.slot, column, foot);
+    if (wanted && wanted.length === 1 && wanted[0] === column) cost -= ECHO;
+    // The draw that makes the cheapest arrow a sample of the likely ones and not always the likeliest.
+    cost -= gumbel(noise(seed, rows[at]!.slot, column));
     return cost;
   };
 
@@ -744,10 +973,14 @@ function placeSteps(
         memoryPhrase = phrase;
       }
       const found = memory.get(signature.get(bar)!);
-      if (found && found.columns.length >= 3) {
+      if (
+        found &&
+        found.columns.length >= 3 &&
+        noise(seed, bar, 5) < tuning.echo
+      ) {
         found.uses++;
-        // Every other repeat is the mirror image.
-        const mirror = found.uses % 2 === 1 && noise(seed, bar, 7) < 0.7;
+        // The mirror image a little more often than the same arrows, as in published charts.
+        const mirror = noise(seed, bar, 7) < 0.55;
         found.columns.forEach((columns, offset) =>
           remembered.set(
             at + offset,
@@ -809,11 +1042,12 @@ function placeSteps(
                   ]
                 : [[a, b]];
             for (const [left, right] of ways) {
-              let cost =
-                a === 0 && b === 3 ? 0 : a === 1 && b === 2 ? 0.9 : 0.35;
+              // The pairs published charts jump on, as often as they do.
+              let cost = -Math.log(
+                6 * ((jumpPairs[ARROWS[a]! + ARROWS[b]!] ?? 0) + 0.005),
+              );
               // Not the same jump as the one before, unless the bar is a repeat.
               if (state.lastJump === a * 4 + b) cost += 0.45;
-              if (difficulty === "Easy" && !(a === 0 && b === 3)) cost += 1.5;
               for (const [from, to] of [
                 [state.left, left],
                 [state.right, right],
@@ -833,8 +1067,8 @@ function placeSteps(
                 wanted[0] === a &&
                 wanted[1] === b
               )
-                cost -= 1.5;
-              cost += 0.45 * noise(seed, row.slot, a * 4 + b, 9);
+                cost -= ECHO;
+              cost -= gumbel(noise(seed, row.slot, a * 4 + b, 9));
               // A jump counts as the step of the foot whose turn it was, so the feet go on alternating after it.
               const holdFoot = noise(seed, row.slot, 11) < 0.5 ? 0 : 1;
               push(cost, left, right, 1 - state.foot, [a, b], false, holdFoot);
@@ -879,7 +1113,7 @@ function placeSteps(
     const seen = new Set<string>();
     beam = [];
     for (const state of next) {
-      const key = `${state.left}${state.right}${state.foot}${state.recent[0]}${state.holding}`;
+      const key = `${state.left}${state.right}${state.foot}${state.recent[0]},${state.recent[1]},${state.holding}`;
       if (seen.has(key)) continue;
       seen.add(key);
       beam.push(state);
@@ -901,8 +1135,13 @@ function placeSteps(
   return notes.sort((a, b) => a.slot - b.slot || a.column - b.column);
 }
 
-/** A few mines for flavour on Challenge: in rests, on an arrow no foot is resting on. */
-function addMines(song: Song, notes: Note[]): void {
+/** A few mines for flavour on Hard and Challenge: in rests, on an arrow no foot is resting on. */
+function addMines(
+  song: Song,
+  notes: Note[],
+  most: number,
+  apart: number,
+): void {
   const seed = hash(`${song.analysis.id}/mines`);
   const { slotsPerBeat } = song;
   const rowSlots = [...new Set(notes.map((note) => note.slot))].sort(
@@ -912,11 +1151,11 @@ function addMines(song: Song, notes: Note[]): void {
   let placed = 0,
     lastMine = -Infinity;
   const half = slotsPerBeat % 2 === 0 ? slotsPerBeat / 2 : slotsPerBeat;
-  for (let at = 0; at + 1 < rowSlots.length && placed < 10; at++) {
+  for (let at = 0; at + 1 < rowSlots.length && placed < most; at++) {
     const from = rowSlots[at]!,
       to = rowSlots[at + 1]!;
     if (to - from < slotsPerBeat) continue;
-    if (from - lastMine < 8 * slotsPerBeat) continue;
+    if (from - lastMine < apart * slotsPerBeat) continue;
     if (holds.some((hold) => hold.slot <= to && hold.endSlot! >= from))
       continue;
     // In the middle of the rest, on a beat or an eighth.
@@ -996,7 +1235,8 @@ export function generateCharts(analysis: Analysis): Chart[] {
     const rows = pickRows(song, difficulty, base);
     base = new Set(rows.map((row) => row.slot));
     const notes = placeSteps(song, difficulty, rows);
-    if (difficulty === "Challenge") addMines(song, notes);
+    const { mines } = TUNING[difficulty];
+    if (mines.most > 0) addMines(song, notes, mines.most, mines.apart);
     const chart: Chart = { difficulty, meter: 0, notes };
     const stats = chartStats(analysis, chart);
     chart.meter = TUNING[difficulty].meter(stats.average, stats.peak);

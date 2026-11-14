@@ -29,7 +29,17 @@ import {
   type Analysis,
 } from "./lib/fusemania/analysis.js";
 import { analyzeFile } from "./lib/fusemania/analyze.js";
-import { chartStats, generateCharts } from "./lib/fusemania/generate.js";
+import {
+  compareText,
+  measureChart,
+  type Measures,
+} from "./lib/fusemania/compare.js";
+import {
+  DIFFICULTIES,
+  chartStats,
+  generateCharts,
+  type Difficulty,
+} from "./lib/fusemania/generate.js";
 import { SONGS, songById, type SongSpec } from "./lib/fusemania/songs.js";
 import { songsDataModule, sscText } from "./lib/fusemania/ssc.js";
 
@@ -98,6 +108,21 @@ function report(songs: readonly SongSpec[]): void {
   }
 }
 
+/** The generated charts beside the published ones' statistics, a difficulty at a time. */
+function compare(songs: readonly SongSpec[]): void {
+  const measures = new Map<Difficulty, Measures[]>();
+  for (const song of songs) {
+    const analysis = readAnalysis(song.id);
+    for (const chart of generateCharts(analysis)) {
+      const found = measures.get(chart.difficulty) ?? [];
+      found.push(measureChart(analysis, chart));
+      measures.set(chart.difficulty, found);
+    }
+  }
+  for (const difficulty of DIFFICULTIES)
+    console.log(`${compareText(difficulty, measures.get(difficulty) ?? [])}\n`);
+}
+
 /** `analyze` for several songs at once: one child process per song, a few at a time (each is CPU-bound). */
 function analyzeInParallel(songs: readonly SongSpec[]): void {
   const queue = songs.map((song) => song.id);
@@ -123,10 +148,17 @@ function analyzeInParallel(songs: readonly SongSpec[]): void {
 }
 
 const [command, ...ids] = process.argv.slice(2);
-const commands = ["analyze", "analyze-one", "generate", "bundle", "report"];
+const commands = [
+  "analyze",
+  "analyze-one",
+  "generate",
+  "bundle",
+  "report",
+  "compare",
+];
 if (command !== undefined && !commands.includes(command)) {
   console.error(
-    `usage: fusemania-charts.ts [analyze|generate|bundle|report] [song id...]`,
+    `usage: fusemania-charts.ts [analyze|generate|bundle|report|compare] [song id...]`,
   );
   process.exit(2);
 }
@@ -149,3 +181,4 @@ if (command === undefined || command === "generate") {
 }
 if (command === undefined || command === "bundle") bundle();
 if (command === undefined || command === "report") report(chosen);
+if (command === "compare") compare(chosen);
