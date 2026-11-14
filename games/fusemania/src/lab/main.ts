@@ -1563,7 +1563,11 @@ function renderSelection(): void {
     draw();
   };
   text.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) saveNote();
+    // Enter saves; shift + enter is a new line.
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      saveNote();
+    }
     event.stopPropagation();
   });
   selectionBox.replaceChildren(
@@ -1585,7 +1589,7 @@ function renderSelection(): void {
     el(
       "div",
       { className: "lab-row" },
-      button("Save note", saveNote, "⌘/ctrl + Enter"),
+      button("Save note", saveNote, "Enter (shift + Enter for a new line)"),
       button("Play span", () => {
         seek(span.start);
         if (!source) play();
