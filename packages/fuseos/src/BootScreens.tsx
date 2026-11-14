@@ -1,33 +1,31 @@
+import { FuseOsSplash } from "./assets/FuseOsSplash";
 import { OS_NAME } from "./desktop/windowMeta";
 
-/** The classic boot blue; the splash and progress bar of the real boot screen are Phase B's. */
-export const BOOT_BLUE = "#000080";
+import "./BootScreens.css";
 
 /**
- * The boot screen: the OS name over Windows 95 blue, with the endlessly scrolling bar along
- * the bottom edge, for at least `BOOT_HOLD_MS` so a cached load still boots visibly.
+ * The boot screen: the FuseOS splash (`assets/FuseOsSplash`) over black with a status line and,
+ * along the bottom edge, the endlessly scrolling band of the Windows 95 boot screen in Fuse
+ * neon. `App` keeps it up for at least `BOOT_HOLD_MS`, so a cached load still boots visibly.
  */
 export function BootScreen() {
   return (
     <main
-      className="win98 boot-screen relative flex h-full w-full flex-col items-center justify-center overflow-hidden text-white"
-      style={{ backgroundColor: BOOT_BLUE }}
+      className="win98 fuseos-boot relative flex h-full w-full flex-col items-center justify-center overflow-hidden"
       aria-live="polite"
       aria-label={`Starting ${OS_NAME}`}
     >
-      <h1
-        className="m-0 text-5xl font-bold tracking-widest"
-        style={{ textShadow: "3px 3px #000" }}
-      >
-        {OS_NAME}
-      </h1>
-      <p className="mt-3 text-base">Starting {OS_NAME}...</p>
+      <div className="fuseos-boot-splash">
+        <FuseOsSplash />
+      </div>
+      <p className="fuseos-boot-status">Starting {OS_NAME}...</p>
       <div
-        className="boot-bar absolute bottom-0 left-0 w-full"
+        className="fuseos-boot-bar"
         role="progressbar"
         aria-label="Loading"
+        aria-valuetext="Starting"
       >
-        <div className="boot-bar-glow" />
+        <div className="fuseos-boot-band" />
       </div>
     </main>
   );
