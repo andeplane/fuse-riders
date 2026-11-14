@@ -37,6 +37,22 @@ class FakePad implements PadSurface {
     if (this.refuseCapture) throw new Error("no such pointer");
     this.captured.push(pointerId);
   }
+  /** The listeners watching the whole page for a press to end, as `watch` handed them out. */
+  readonly watching = new Set<(pointer: PadPointer) => void>();
+  watch(ended: (pointer: PadPointer) => void): () => void {
+    this.watching.add(ended);
+    return () => void this.watching.delete(ended);
+  }
+  /** A press ends somewhere off the pad: only the page-wide listeners hear it. */
+  endElsewhere(id: number): void {
+    const pointer: PadPointer = {
+      pointerId: id,
+      clientX: 0,
+      clientY: 0,
+      preventDefault: () => {},
+    };
+    for (const listener of [...this.watching]) listener(pointer);
+  }
   box() {
     return { left: 200, top: 300, width: 100, height: 100 };
   }
@@ -211,6 +227,73 @@ test("pads hidden under a thumb let go of it, and the next touch is theirs", () 
   jump.fire("up", 6);
   stick.fire("up", 5);
   assert.equal(controls.bits, 0);
+});
+
+test("a thumb that lifts off the pad without its capture still lets go, and the pad stops listening to the page", () => {
+  const stick = new FakePad(),
+    jump = new FakePad(),
+    seen: number[] = [],
+    pressed: number[] = [];
+  stick.refuseCapture = true;
+  jump.refuseCapture = true;
+  bindStick(stick, (bits) => seen.push(bits));
+  bindButton(jump, BTN, (bits) => pressed.push(bits));
+  assert.equal(stick.watching.size, 0, "nothing listens while nobody presses");
+  stick.fire("down", 1, 40, 0);
+  assert.equal(stick.watching.size, 1);
+  // Another finger lifting somewhere is not this thumb.
+  stick.endElsewhere(7);
+  assert.deepEqual(seen, [RIGHT]);
+  stick.endElsewhere(1);
+  assert.deepEqual(seen, [RIGHT, 0]);
+  assert.deepEqual(stick.shown.at(-1), { held: false, x: 0, y: 0 });
+  assert.equal(stick.watching.size, 0);
+  // The stick is free for the next thumb, and a lift on the pad itself still ends a press exactly once.
+  stick.fire("down", 2, -40, 0);
+  stick.fire("up", 2);
+  stick.endElsewhere(2);
+  assert.deepEqual(seen, [RIGHT, 0, LEFT, 0]);
+  assert.equal(stick.watching.size, 0);
+
+  jump.fire("down", 1);
+  jump.fire("down", 2);
+  assert.equal(jump.watching.size, 1, "one listener however many thumbs");
+  jump.endElsewhere(1);
+  assert.deepEqual(pressed, [BTN, BTN], "the other thumb still holds it");
+  jump.endElsewhere(2);
+  jump.endElsewhere(2);
+  assert.deepEqual(pressed, [BTN, BTN, 0]);
+  assert.deepEqual(jump.shown.at(-1), { held: false, x: 0, y: 0 });
+  assert.equal(jump.watching.size, 0);
+});
+
+test("clearing the controls (a blur, a hidden page) lets the pads go too: owner, visual and page listener", () => {
+  const controls = new HeldControls(() => {}),
+    stick = new FakePad(),
+    jump = new FakePad(),
+    set = new PadSet(controls);
+  set.add(bindStick(stick, (bits) => controls.hold("stick", bits)));
+  set.add(bindButton(jump, BTN, (bits) => controls.hold("jump", bits)));
+  set.show(true);
+  stick.fire("down", 1, 40, 0);
+  jump.fire("down", 2);
+  assert.equal(controls.bits, RIGHT | BTN);
+  // The page loses focus under both thumbs; their lifts are never delivered.
+  controls.clear();
+  assert.equal(controls.bits, 0);
+  assert.deepEqual(stick.shown.at(-1), { held: false, x: 0, y: 0 });
+  assert.deepEqual(jump.shown.at(-1), { held: false, x: 0, y: 0 });
+  assert.equal(stick.watching.size + jump.watching.size, 0);
+  // Back again: a new thumb owns the stick at once, where the old owner would have locked it out.
+  stick.fire("down", 5, -40, 0);
+  jump.fire("down", 6);
+  assert.equal(controls.bits, LEFT | BTN);
+  jump.fire("up", 2);
+  assert.equal(
+    controls.bits,
+    LEFT | BTN,
+    "the old thumb's late lift is nobody's",
+  );
 });
 
 test("the autopilot holds the bot's answer only while a match is running", () => {

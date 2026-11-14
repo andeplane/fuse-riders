@@ -234,6 +234,17 @@ export function present(view: View, viewer: Viewer): Model {
   };
 }
 
+/**
+ * The match's round for the play metrics, which count a match as started only in round 1: 1 while the first countdown
+ * is running and 2 from then on. A device that loads into a match already under way (a late join, a reload) is not
+ * a second start with a shortened duration.
+ */
+export const playRound = (view: View): number =>
+  view.world?.phase === "countdown" &&
+  view.world.score[0] + view.world.score[1] === 0
+    ? 1
+    : 2;
+
 /** One goal as the metrics report it: nothing here names a player or a room. */
 export interface GoalReport {
   mapId: MapId;
@@ -252,7 +263,8 @@ export const GOAL_SETTLE_STEPS = 60;
  * Finds the goals a device should report, once each. Every device in a room sees every goal, so only the points this
  * device's rider was in are its to report, and of those only the ones it won — plus the ones it lost to a bot, which
  * has no device of its own. A point is counted once its celebration has run `GOAL_SETTLE_STEPS` (or play has moved
- * on), so a predicted goal that a rollback takes back is never reported.
+ * on), so a predicted goal that a rollback takes back is never reported. Only points scored while this page watched
+ * count: one already on the board at the first frame is not reported again.
  */
 export function createGoalWatch(): (view: View, me: string) => GoalReport[] {
   let match = "",
@@ -261,20 +273,23 @@ export function createGoalWatch(): (view: View, me: string) => GoalReport[] {
   return (view, me) => {
     const world = view.world;
     if (!world || view.stage === "lobby" || !view.matchId) return [];
+    const total = world.score[0] + world.score[1],
+      given = world.riders[0].ownGoals + world.riders[1].ownGoals;
     if (view.matchId !== match) {
+      // The first frame seen of a match is where the count starts: the points already on the board when a device
+      // loads into it (a reload, a late join) were reported, or were never this page's to report.
       match = view.matchId;
-      counted = 0;
-      ownGoals = 0;
+      counted = total;
+      ownGoals = given;
     }
-    const total = world.score[0] + world.score[1];
-    if (total <= counted) return [];
+    // Until this device knows who it is, a point waits: it is weighed once it does, not dropped.
+    if (!me || total <= counted) return [];
     const settled =
       world.phase !== "zap" ||
       world.remaining <= 0 ||
       ZAP_STEPS - world.remaining >= GOAL_SETTLE_STEPS;
     if (!settled) return [];
     const reports: GoalReport[] = [];
-    const given = world.riders[0].ownGoals + world.riders[1].ownGoals;
     // Normally one point at a time; a device that slept through several reports the last and skips the rest.
     if (total === counted + 1 && world.lastScorer !== -1) {
       const scorer = world.lastScorer,

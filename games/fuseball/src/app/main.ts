@@ -42,7 +42,7 @@ import { seatName } from "../online/names.js";
 import { FuseballRuntime, type FuseballCallbacks } from "../online/runtime.js";
 import { blend, fraction } from "../render/interpolate.js";
 import { TEAM, teamColor } from "../render/palette.js";
-import { createScene } from "../render/scene.js";
+import { createScene, solidCopies } from "../render/scene.js";
 import { createSfx } from "./audio.js";
 import {
   HeldControls,
@@ -55,6 +55,7 @@ import {
 import {
   MAP_BLURBS,
   createGoalWatch,
+  playRound,
   present,
   type Model,
   type Viewer,
@@ -210,16 +211,13 @@ function mapThumb(map: MapDef): SVGSVGElement {
   for (const cloud of map.clouds)
     add("circle", { cx: cloud.x, cy: cloud.y, r: cloud.r, class: "cloud" });
   for (const solid of map.solids)
-    // A solid past the edge of a wrapping axis shows again at the start of it.
-    for (const [dx, dy] of [
-      [0, 0],
-      [map.wrapX ? -640 : 0, map.wrapY ? -360 : 0],
-    ] as const)
+    // A solid past the edge of a wrapping axis shows again at the start of it, as the scene draws it.
+    for (const copy of solidCopies(map, solid))
       add("rect", {
-        x: solid.x + dx,
-        y: solid.y + dy,
-        width: solid.w,
-        height: solid.h,
+        x: copy.x,
+        y: copy.y,
+        width: copy.w,
+        height: copy.h,
         class: "solid",
       });
   for (const goal of map.goals)
@@ -247,7 +245,7 @@ function mapThumb(map: MapDef): SVGSVGElement {
   return svg;
 }
 
-/** The three arenas as a row of buttons; `onPick` hears a choice, `update` shows the room's. */
+/** The arenas as a grid of buttons; `onPick` hears a choice, `update` shows the room's. */
 function createMapPicker(onPick: (id: MapId) => void) {
   const element = el("div", "", "fb-maps");
   element.setAttribute("role", "group");
@@ -341,6 +339,14 @@ function surface(node: HTMLElement, knob?: HTMLElement): PadSurface {
         node.addEventListener(type, (event) => listener(event as PointerEvent));
     },
     capture: (pointerId) => node.setPointerCapture(pointerId),
+    watch(ended) {
+      const types = ["pointerup", "pointercancel"] as const,
+        listener = (event: PointerEvent) => ended(event);
+      for (const type of types) window.addEventListener(type, listener);
+      return () => {
+        for (const type of types) window.removeEventListener(type, listener);
+      };
+    },
     box: () => node.getBoundingClientRect(),
     show({ held, x, y }) {
       node.classList.toggle("held", held);
@@ -705,6 +711,7 @@ function room(solo: boolean): void {
         matchId: frame.matchId,
         active: frame.stage === "running",
         ended: frame.stage === "over",
+        round: playRound(frame),
         playerCount: riders.length,
         botCount: riders.filter((rider) => rider.bot).length,
         seated: riders.some((rider) => rider.id === viewer.me),
