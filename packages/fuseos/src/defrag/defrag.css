@@ -1,0 +1,112 @@
+/* Disk Defragmenter: the cluster grid, the segmented progress bar and the legend swatches. */
+
+.defrag-progress {
+  height: 18px;
+  padding: 3px;
+  background: #c0c0c0;
+}
+
+.defrag-progress > div {
+  height: 100%;
+  /* Win98's chunky blocks: 8px of navy, 2px of gap. */
+  background: repeating-linear-gradient(
+    to right,
+    #000080 0,
+    #000080 8px,
+    transparent 8px,
+    transparent 10px
+  );
+}
+
+.defrag-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 3px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.defrag-row {
+  display: flex;
+  gap: 1px;
+}
+
+.defrag-row > i,
+.defrag-swatch {
+  display: block;
+  flex: none;
+  width: 8px;
+  height: 10px;
+  box-sizing: border-box;
+  border: 1px solid #000;
+}
+
+/* Free space: an empty box, barely there. */
+.defrag-c0 {
+  background: #fff;
+  border-color: #c0c0c0 !important;
+}
+/* Unoptimized data that belongs at the beginning, the middle and the end of the drive. */
+.defrag-c1 {
+  background: #00ffff;
+}
+.defrag-c2 {
+  background: #00a8a8;
+}
+.defrag-c3 {
+  background: #a8a8ff;
+}
+/* Optimized (defragmented) data. */
+.defrag-c4 {
+  background: #0000c0;
+  border-color: #000060 !important;
+}
+/* Data that will not be moved: white with a red corner. */
+.defrag-c5 {
+  background: linear-gradient(135deg, #fff 55%, #ff0000 55%);
+}
+/* Bad (damaged) area of the disk. */
+.defrag-c6 {
+  background:
+    linear-gradient(
+      45deg,
+      transparent 40%,
+      #000 40%,
+      #000 60%,
+      transparent 60%
+    ),
+    #ffff00;
+}
+/* Being read, being written. */
+.defrag-c7 {
+  background: #00e000;
+}
+.defrag-c8 {
+  background: #ff0000;
+}
+
+.defrag-anim {
+  display: block;
+  flex: none;
+  animation: defrag-bob 0.9s steps(2, end) infinite;
+}
+
+.defrag-anim[data-paused="true"] {
+  animation-play-state: paused;
+}
+
+@keyframes defrag-bob {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .defrag-anim {
+    animation: none;
+  }
+}

@@ -29,11 +29,15 @@ describe("START_MENU_REGISTRATIONS", () => {
       ["accessories", "notepadpp", true],
       ["accessories", "explorer", true],
       ["accessories", "wallpaper", true],
+      ["system-tools", "defrag", true],
       ["programs", "fusteam", true],
       ["programs", "mirc", true],
       ["retro-games", "retro-folder", true],
       ["my-computer", "my-computer", true],
       ["settings", "screensaver", true],
+      ["accessories", "dialup", true],
+      ["programs", "network-neighborhood", true],
+      ["programs", "friends", true],
     ]);
   });
 
@@ -64,11 +68,15 @@ describe("START_MENU_REGISTRATIONS", () => {
       { kind: "notepadpp", paths: ["README.md"], activePath: "README.md" },
       { kind: "explorer", location: "" },
       { kind: "wallpaper" },
+      { kind: "defrag" },
       [{ kind: "launcher" }, { id: "launcher", maximized: false }],
       { kind: "mirc" },
       { kind: "retroFolder" },
       { kind: "explorer", location: "" },
       { kind: "controlpanel", applet: "display", tab: "screensaver" },
+      { kind: "dialup" },
+      [{ kind: "network" }, { id: "network-neighborhood" }],
+      [{ kind: "friends" }, { id: "friends" }],
     ]);
   });
 

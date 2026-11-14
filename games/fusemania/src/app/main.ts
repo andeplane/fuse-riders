@@ -27,7 +27,7 @@ import {
   installRoomLifecycle,
   validRoomCode,
 } from "fuse-network-fe";
-import { MAX_PACKET_BYTES, uuid } from "fuse-netcode";
+import { MAX_PACKET_BYTES, browserDependencies, uuid } from "fuse-netcode";
 import {
   button,
   createAppPortal,
@@ -80,7 +80,7 @@ import {
   savePrefs,
   type Prefs,
 } from "./prefs.js";
-import { createPlayOptions } from "./options.js";
+import { createOptionsMenu, createPlayOptions } from "./options.js";
 import {
   bestText,
   present,
@@ -101,14 +101,6 @@ import {
 } from "./session.js";
 import { createSettingsPanel } from "./settings.js";
 import { createLatencyProbe, latencyText } from "./latency.js";
-import {
-  DEFAULT_CLICK_RATE,
-  clickAudioRate,
-  clickId,
-  clickRate,
-  clickSources,
-  clickWav,
-} from "./click-track.js";
 import { createFrameLead } from "./frame-lead.js";
 import type { TimingLab } from "./timing-lab.js";
 import {
@@ -122,6 +114,14 @@ import {
   type Proposal,
 } from "./timing-bias.js";
 import { createSongClock } from "./song-clock.js";
+import { RESUME_MS, createPauseClock, resumeCount } from "./pause.js";
+import {
+  createRunLogger,
+  runStats,
+  statLines,
+  type RunLog,
+} from "./run-log.js";
+import { drawTimingGraph } from "./timing-graph.js";
 import { createSongPicker } from "./song-picker.js";
 import { coverPath } from "./covers.js";
 import { packsOf } from "./packs.js";
@@ -151,7 +151,7 @@ const social = createGameSocial({
 const store = safeStore(() => localStorage);
 const names = keys(GAME);
 const muted = new URLSearchParams(location.search).has("mute");
-/** `?debugtiming`: the timing lab's panel, its click tracks and its session log. */
+/** `?debugtiming`: the timing panel beside a game, and the Timing screen's details open. */
 const debugTiming = new URLSearchParams(location.search).has("debugtiming");
 /** `?audioclock=reported`: read the song position from the stepped audio clock, to compare with the clock pair. */
 const pairedClock =
@@ -183,24 +183,10 @@ const PAGE_KEYS: ReadonlySet<string> = new Set(["Tab", "KeyM"]);
 /** How often a song's audio is fetched again by itself before the page asks the player. */
 const SONG_LOAD_TRIES = 3;
 /** Where a song's audio is fetched from: the site's own files, or a file the player loaded. */
-const clickUrls = new Map<number, string>();
-const songUrl = (path: string) => {
-  const bpm = clickAudioRate(path);
-  if (bpm !== undefined) {
-    // A click track has no file: its audio is made here, once, from the numbers its chart was made from.
-    let url = clickUrls.get(bpm);
-    if (!url) {
-      url = URL.createObjectURL(
-        new Blob([clickWav(bpm)], { type: "audio/wav" }),
-      );
-      clickUrls.set(bpm, url);
-    }
-    return url;
-  }
-  return /^(blob:|https?:)/.test(path) ? path : `${BASE}${path}`;
-};
-/** A song that exists only on this page: a loaded simfile, or the timing lab's click track. */
-const localSong = (id: string) => id === CUSTOM || clickRate(id) !== undefined;
+const songUrl = (path: string) =>
+  /^(blob:|https?:)/.test(path) ? path : `${BASE}${path}`;
+/** A song that exists only on this page: a loaded simfile. */
+const localSong = (id: string) => id === CUSTOM;
 /** A song's cover image, for the songs that ship with one. */
 const coverUrl = (song: { id: string }): string | undefined => {
   const path = coverPath(song.id);
@@ -308,7 +294,7 @@ function createPreview(library: Library) {
         timer = undefined;
         const info = library.song(id);
         // A loaded file has no address the radio can play from.
-        if (!info || /^(blob:|https?:|click:)/.test(info.audio)) {
+        if (!info || /^(blob:|https?:)/.test(info.audio)) {
           audio.setSongs([], BASE);
           return;
         }
@@ -430,23 +416,6 @@ function landing(): void {
   toggle.onchange = () =>
     store.setItem(names.shared, toggle.checked ? "1" : "0");
   shared.append(toggle, el("span", "Shared TV: phones are the controllers"));
-  const picker = createSongPicker({
-    document,
-    songs: library.songs,
-    onSong: (song) => show({ ...choice, song }),
-    onChart: (chart) => show({ ...choice, chart }),
-    onMode: (mode) => show({ ...choice, mode }),
-    best: bestLookup(library),
-    cover: coverUrl,
-    packs: packsOf(library.songs, CUSTOM),
-  });
-  const show = (next: Choice) => {
-    if (next.song !== choice.song || next.chart !== choice.chart) sfx.blip();
-    choice = next;
-    remember(choice);
-    picker.update({ ...choice, host: true });
-    preview.show(choice.song);
-  };
   // A solo select: this player's speed and a random song. Sessions are a room's.
   const options = createPlayOptions({
     document,
@@ -462,6 +431,24 @@ function landing(): void {
       if (song) show({ ...choice, song });
     },
   });
+  const picker = createSongPicker({
+    document,
+    songs: library.songs,
+    onSong: (song) => show({ ...choice, song }),
+    onChart: (chart) => show({ ...choice, chart }),
+    onMode: (mode) => show({ ...choice, mode }),
+    best: bestLookup(library),
+    cover: coverUrl,
+    packs: packsOf(library.songs, CUSTOM),
+    tools: [options.random],
+  });
+  const show = (next: Choice) => {
+    if (next.song !== choice.song || next.chart !== choice.chart) sfx.blip();
+    choice = next;
+    remember(choice);
+    picker.update({ ...choice, host: true });
+    preview.show(choice.song);
+  };
   const showOptions = () =>
     options.update({
       speed: prefs.speed,
@@ -475,7 +462,14 @@ function landing(): void {
     card.menu.dispose();
     document.removeEventListener("keydown", onKey);
   };
+  // PLAY and OPTIONS stay in the dialog's bar beside CLOSE: the select under them scrolls, they do not.
+  const optionsMenu = createOptionsMenu({
+    document,
+    content: [options.element],
+  });
   const card = createLandingCard({
+    soloInBar: true,
+    soloActions: [optionsMenu.element],
     background: async (host) =>
       (await import("./attract.js")).createAttract(host),
     title: "FUSEMANIA",
@@ -503,6 +497,11 @@ function landing(): void {
     },
   });
   card.create.after(shared);
+  // The Timing screen is on the front door: lining the game up with a device is not a setting to dig for.
+  card.menu.addEntry("Sync timing", () => {
+    leaveLanding();
+    openTiming();
+  });
 
   // A player's own simfile: any 4-panel .sm or .ssc with its music, for a solo run on this device.
   const own = el("details", "", "fm-own"),
@@ -559,10 +558,11 @@ function landing(): void {
     });
   };
   const select = el("section", "", "fm-landing-select");
-  select.append(picker.element, options.element);
-  card.solo?.before(select);
+  select.append(picker.element);
+  card.soloDetails.append(select, own);
+  // A select that is opened again starts with the speeds put away.
+  card.menu.dialog.addEventListener("close", () => optionsMenu.close());
   card.solo?.classList.add("fui-button-primary", "fm-solo-play");
-  card.solo?.after(own);
   const settings = settingsPanel(() => {
     help.dispatchEvent(new Event("fm-refresh"));
     showOptions();
@@ -584,6 +584,8 @@ function landing(): void {
       !picker.element.isConnected ||
       picker.element.offsetParent === null ||
       otherDialogOpen() ||
+      // The speeds are open over the select: their keys are not the carousel's.
+      !optionsMenu.panel.hidden ||
       menu.isOpen() ||
       event.target instanceof HTMLInputElement ||
       event.target instanceof HTMLTextAreaElement ||
@@ -623,6 +625,50 @@ function startSolo(library: Library, choice: Choice): void {
   room(true, library, choice);
 }
 
+/** From the menu to the Timing screen without leaving the page, so the click that asked for it lets the tick out. */
+function openTiming(): void {
+  history.pushState(null, "", withFlags(endpoints.appUrl("?timing")));
+  window.addEventListener("popstate", () => location.reload());
+  audio.unlock();
+  timing();
+}
+
+/** The Timing screen ("sync"): thirty seconds of a steady tick, then what to set. No song, no room. */
+function timing(): void {
+  const back = el("a", "← BACK TO THE MENU", "fm-ts-back");
+  back.href = withFlags(endpoints.appUrl());
+  const loading = el("p", "Loading…", "fm-connecting");
+  app.replaceChildren(header(), loading);
+  void import("./timing-screen.js").then(({ createTimingScreen }) => {
+    const screen = createTimingScreen({
+      doc: document,
+      win: window,
+      audio,
+      prefs: () => prefs,
+      setPrefs(next) {
+        prefs = next;
+        savePrefs(store, prefs);
+      },
+      now: () => performance.now(),
+      createCanvas: browserCanvas,
+      bpm: Number(new URLSearchParams(location.search).get("rate")),
+      seconds: Number(new URLSearchParams(location.search).get("seconds")),
+      details: debugTiming,
+      back,
+      pairing: pairedClock,
+    });
+    loading.replaceWith(screen.element);
+    // For smokes and for an agent reading a session: what the panel shows, its log, and where the run is.
+    Object.assign(window, {
+      fusemania: {
+        timing: () => screen.snapshot(),
+        timingLog: () => screen.logText(),
+        timingState: () => screen.state(),
+      },
+    });
+  });
+}
+
 function room(solo: boolean, library: Library, first?: Choice): void {
   const session = solo
     ? ({ kind: "solo" } as const)
@@ -652,13 +698,27 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   const status = createNotice({ className: "fm-status" });
   /** Lets go of every key and pad: a menu opened, or the page lost focus. */
   let letGoAll = () => {};
+  // ---- a solo song can be paused: its room clock is this one, and it stops ----
+  const pauseClock = createPauseClock(() => performance.now());
+  /** Stops a solo song that is playing, and takes the pause away without a count-in. */
+  let pause = () => {},
+    unpause = (_leaving = false) => {};
+  /** When a menu last closed: the Escape that closed it is not also a pause key. */
+  let menuClosedAt = Number.NEGATIVE_INFINITY;
+  const menuMoved = (open: boolean) => {
+    if (open) {
+      letGoAll();
+      pause();
+    } else menuClosedAt = performance.now();
+  };
   const menu = createGameMenu({
     ...guide(),
-    onLobby: () => runtime.command({ type: "action", action: "lobby" }),
-    onLeave: leave,
-    onOpenChange: (open) => {
-      if (open) letGoAll();
+    onLobby: () => {
+      unpause(true);
+      runtime.command({ type: "action", action: "lobby" });
     },
+    onLeave: leave,
+    onOpenChange: menuMoved,
   });
   const roundControls = createRoundControls(quickGuide());
   const top = header([
@@ -669,9 +729,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   createTopBar({
     music: false,
     element: top,
-    onOpenChange: (open) => {
-      if (open) letGoAll();
-    },
+    onOpenChange: menuMoved,
   });
   const modalOpen = () => Boolean(document.querySelector("dialog[open]"));
 
@@ -731,27 +789,6 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       withFlags(endpoints.appUrl(`?room=${code}&display=1`)),
       "_blank",
     );
-  const picker = createSongPicker({
-    document,
-    songs: library.songs,
-    onSong: (song) => {
-      sfx.blip();
-      runtime.command({ type: "settings", settings: { ...settings, song } });
-    },
-    onChart: (chart) => {
-      sfx.blip();
-      store.setItem(names.chart, String(chart));
-      runtime.pick(chart);
-      // The host's chart is also what a seat without a choice of its own plays, the AI rivals included.
-      if (viewer.host)
-        runtime.command({ type: "settings", settings: { ...settings, chart } });
-    },
-    onMode: (mode) =>
-      runtime.command({ type: "settings", settings: { ...settings, mode } }),
-    best: bestLookup(library),
-    cover: coverUrl,
-    packs: packsOf(library.songs, CUSTOM),
-  });
   // Beside the song select: every player's own speed, and the host's random song and session.
   const options = createPlayOptions({
     document,
@@ -777,6 +814,28 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       store.setItem(names.order, random ? "random" : "host");
       runtime.command({ type: "settings", settings: { ...settings, random } });
     },
+  });
+  const picker = createSongPicker({
+    document,
+    songs: library.songs,
+    onSong: (song) => {
+      sfx.blip();
+      runtime.command({ type: "settings", settings: { ...settings, song } });
+    },
+    onChart: (chart) => {
+      sfx.blip();
+      store.setItem(names.chart, String(chart));
+      runtime.pick(chart);
+      // The host's chart is also what a seat without a choice of its own plays, the AI rivals included.
+      if (viewer.host)
+        runtime.command({ type: "settings", settings: { ...settings, chart } });
+    },
+    onMode: (mode) =>
+      runtime.command({ type: "settings", settings: { ...settings, mode } }),
+    best: bestLookup(library),
+    cover: coverUrl,
+    packs: packsOf(library.songs, CUSTOM),
+    tools: [options.random],
   });
   options.element.hidden = display;
   const showOptions = () =>
@@ -807,8 +866,18 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     cardTitle = el("h2"),
     cardRows = el("ol", "", "fm-rows"),
     cardSession = sessionBlock(),
+    cardReport = el("div", "", "fm-report"),
+    cardSide = el("div", "", "fm-report-side"),
+    cardOwn = el("div", "", "fm-own"),
+    ownGrade = el("strong", "", "fm-grade fm-own-grade"),
+    ownScore = el("em", "", "fm-own-score"),
+    ownDetail = el("small", "", "fm-own-detail"),
+    ownBadge = el("b", "", "fm-own-badge"),
     cardCounts = el("dl", "", "fm-counts"),
     cardLines = el("ul", "", "fm-lines"),
+    cardGraph = el("div", "", "fm-report-graph"),
+    graph = el("canvas", "", "fm-graph"),
+    graphStats = el("dl", "", "fm-graph-stats"),
     cardFoot = el("p", "", "fm-card-foot"),
     cardTiming = el("section", "", "fm-card-timing"),
     timingText = el("p", ""),
@@ -819,16 +888,37 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     toLobby = button("SONG SELECT", "fm-to-lobby"),
     toMenu = button("MENU", "fm-to-menu");
   cardActions.append(toMenu, toLobby, rematch);
+  cardOwn.append(ownGrade, ownScore, ownDetail, ownBadge);
+  cardSide.append(cardOwn, cardCounts, cardLines);
+  graph.setAttribute("role", "img");
+  cardGraph.append(graph, graphStats, cardTiming);
+  cardGraph.hidden = true;
+  cardReport.append(cardSide, cardGraph);
   card.append(
     cardTitle,
     cardRows,
     cardSession.element,
-    cardCounts,
-    cardLines,
-    cardTiming,
+    cardReport,
     cardFoot,
     cardActions,
   );
+  // The pause: over the field, with what a paused song can do next.
+  const pauseCard = el("section", "", "fm-pause"),
+    pauseTitle = el("h2", "PAUSED"),
+    pauseSong = el("p", "", "fm-pause-song"),
+    pauseCount = el("strong", "", "fm-pause-count"),
+    pauseActions = el("div", "", "fm-actions fm-pause-actions"),
+    pauseResume = button("RESUME", "fui-button-primary fm-pause-resume"),
+    pauseRestart = button("RESTART", "fm-pause-restart"),
+    pauseSelect = button("SONG SELECT", "fm-pause-select"),
+    pauseHint = el("p", "ESC RESUMES", "fm-pause-hint"),
+    pauseButton = button("II", "fm-pause-button");
+  pauseCard.setAttribute("role", "dialog");
+  pauseCard.setAttribute("aria-label", "Paused");
+  pauseButton.setAttribute("aria-label", "Pause");
+  pauseActions.append(pauseResume, pauseRestart, pauseSelect);
+  pauseCard.append(pauseTitle, pauseSong, pauseCount, pauseActions, pauseHint);
+  pauseCard.hidden = pauseButton.hidden = pauseCount.hidden = true;
   timingText.setAttribute("role", "status");
   cardTiming.append(timingText, timingApply, timingSkip);
   cardTiming.hidden = true;
@@ -844,7 +934,15 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   };
   toLobby.onclick = () => runtime.command({ type: "action", action: "lobby" });
   toMenu.onclick = leave;
-  screen.append(canvas, unlock, loadFailed, card, roundControls.element);
+  screen.append(
+    canvas,
+    unlock,
+    loadFailed,
+    pauseButton,
+    pauseCard,
+    card,
+    roundControls.element,
+  );
 
   // ---- keys and pads: every one is stamped with the song time this device heard it at ----
   /** What holds each column down right now: key codes and pads. */
@@ -860,7 +958,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   });
   const probe = createLatencyProbe();
   const frameLead = createFrameLead();
-  /** The timing lab, on a `?debugtiming` page once its code has arrived. */
+  /** The timing panel beside the game, on a `?debugtiming` page once its code has arrived. */
   let lab: TimingLab | undefined,
     labGone = false;
   /** A browser's stamp is used when it is one: not zero, and within half a second of now. */
@@ -870,6 +968,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   const stamp = (at: number, now = performance.now()): number =>
     songClock.songMs(stamped(at, now) ? at : now) - prefs.offsetMs;
   const press = (column: number, source: string, at: number) => {
+    if (pauseClock.paused) return;
     const now = performance.now(),
       ms = stamp(at, now);
     probe.press(
@@ -898,7 +997,9 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     if (!held[column]!.delete(source) || held[column]!.size) return;
     runtime.key(column, false, stamp(at));
   };
-  const throwItem = (at: number) => runtime.useItem(stamp(at));
+  const throwItem = (at: number) => {
+    if (!pauseClock.paused) runtime.useItem(stamp(at));
+  };
   const pads = (className: string) => {
     const row = el("div", "", className);
     [0, 1, 2, 3].forEach((column) => {
@@ -1108,6 +1209,91 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     timingNote = "";
     showTiming();
   };
+  // ---- the run as the result graphs it: every step's offset, the misses and the combo ----
+  const runLogger = createRunLogger();
+  /** The finished run on the result, and whether the song that just ended still has to be read into it. */
+  let report: RunLog | undefined,
+    reportEnd = 0,
+    reportDue = false;
+  const drawGraph = () => {
+    const width = graph.clientWidth,
+      height = graph.clientHeight;
+    if (!report || !width || !height) return;
+    const scale = Math.min(2, window.devicePixelRatio || 1);
+    graph.width = Math.round(width * scale);
+    graph.height = Math.round(height * scale);
+    const context = graph.getContext("2d");
+    if (!context) return;
+    context.setTransform(scale, 0, 0, scale, 0, 0);
+    drawTimingGraph(context, width, height, report, {
+      endMs: reportEnd,
+      font: getComputedStyle(graph).fontFamily,
+    });
+  };
+  const showReport = (log: RunLog | undefined, endMs: number) => {
+    report = log && (log.steps.length || log.misses.length) ? log : undefined;
+    reportEnd = endMs;
+    cardGraph.hidden = !report;
+    card.classList.toggle("fm-card-graphed", !!report);
+    if (!report) return;
+    const stats = runStats(report.steps);
+    graphStats.replaceChildren(
+      ...statLines(stats).flatMap(([label, value]) => [
+        el("dt", label),
+        el("dd", value),
+      ]),
+    );
+    graph.setAttribute(
+      "aria-label",
+      stats.hits
+        ? `Timing of ${stats.hits} steps: mean ${stats.meanMs.toFixed(1)} ms, standard deviation ${stats.spreadMs.toFixed(1)} ms, ${report.misses.length} misses`
+        : `${report.misses.length} misses`,
+    );
+    drawGraph();
+  };
+  // ---- the pause ----
+  /** The song time the picture stands at while paused, and when RESUME's count-in ends (0: none is running). */
+  /** A paused song was given up: it stays silent and still until the room has left it. */
+  let leavingSong = false;
+  let pausedMs = 0,
+    resumeAt = 0;
+  const pausable = () =>
+    solo && !!model?.playing && runtime.songMs() !== undefined;
+  pause = () => {
+    if (pauseClock.paused || !pausable()) return;
+    letGoAll();
+    // Before the song clock has the room's position it reads 0: the room's own is the one to stand at.
+    pausedMs = songClock.songMs() || (runtime.songMs() ?? 0);
+    pauseClock.pause();
+    // The song stops where it is; RESUME starts it again on the room's clock.
+    songClock.stop();
+    resumeAt = 0;
+    setText(pauseSong, model?.title ?? "");
+    pauseCount.hidden = true;
+    pauseActions.hidden = pauseHint.hidden = false;
+    pauseCard.hidden = false;
+    pauseResume.focus();
+  };
+  unpause = (leaving = false) => {
+    leavingSong = leaving && pauseClock.paused;
+    resumeAt = 0;
+    pauseCard.hidden = true;
+    pauseClock.resume();
+  };
+  /** Counts in, so the hands are back on the keys when the arrows move again. */
+  const resume = () => {
+    if (!pauseClock.paused || resumeAt) return;
+    resumeAt = performance.now() + RESUME_MS;
+    pauseActions.hidden = pauseHint.hidden = true;
+    pauseCount.hidden = false;
+    setText(pauseCount, resumeCount(RESUME_MS));
+  };
+  pauseButton.onclick = () => pause();
+  pauseResume.onclick = resume;
+  pauseSelect.onclick = () => {
+    unpause(true);
+    runtime.command({ type: "action", action: "lobby" });
+  };
   const latencyBox = new URLSearchParams(location.search).has("latency")
     ? el("pre", "", "fm-latency")
     : undefined;
@@ -1129,6 +1315,12 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   let restarting = false,
     startedSilent = false,
     heardEpoch = -1;
+  pauseRestart.onclick = () => {
+    unpause(true);
+    // START is refused while the match runs: it is sent once the room is back at the song select.
+    runtime.command({ type: "action", action: "lobby" });
+    restarting = true;
+  };
   const frame = (now: number) => {
     // Asked first, so one bad frame cannot stop the drawing for good.
     if (!over) requestAnimationFrame(frame);
@@ -1147,9 +1339,22 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       world && roomMs !== undefined && model?.screen === "play"
         ? songOf(world.song, now)
         : undefined;
-    songClock.follow(roomMs, song);
+    const paused = pauseClock.paused;
+    if (paused && !pausable()) unpause();
+    else if (paused && resumeAt) {
+      if (now >= resumeAt) unpause();
+      else setText(pauseCount, resumeCount(resumeAt - now));
+    }
+    // A paused song is silent and stays where it stood: it is not followed until the clock runs again.
+    if (leavingSong && state?.stage !== "running") leavingSong = false;
+    const still = pauseClock.paused || leavingSong;
+    if (!still) songClock.follow(roomMs, song);
+    pauseButton.hidden =
+      pauseClock.paused || !pausable() || !coarse() || display;
     if (restarting && state?.stage === "lobby") {
       restarting = false;
+      // Should START be refused, the song select it was hidden behind is there again.
+      lobby.hidden = model?.screen !== "lobby";
       runtime.command({ type: "action", action: "start" });
     }
     if (!model || model.screen === "lobby" || !world) {
@@ -1179,7 +1384,11 @@ function room(solo: boolean, library: Library, first?: Choice): void {
         restarting = true;
       }
     }
-    const heard = running ? songClock.songMs(now) : world.ms;
+    const heard = !running
+      ? world.ms
+      : still
+        ? pausedMs
+        : songClock.songMs(now);
     const view = runtime.picture(heard - prefs.offsetMs);
     if (!view) return;
     const local = model.localSlot;
@@ -1195,6 +1404,23 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     const mine = local === -1 ? undefined : view.players[local];
     if (mine && !mine.bot && running && songClock.audible)
       collector.observe(mine, `${epoch}:${prefs.offsetMs}`);
+    if (mine && !mine.bot) {
+      runLogger.observe(mine, String(epoch), heard - prefs.offsetMs);
+      // The frame after the song ended has its last steps in it: that is the run the result graphs.
+      if (reportDue && state?.stage === "over") {
+        reportDue = false;
+        const log = runLogger.log();
+        showReport(
+          {
+            steps: [...log.steps],
+            misses: [...log.misses],
+            combo: [...log.combo],
+            unplaced: log.unplaced,
+          },
+          view.endMs,
+        );
+      }
+    }
     const timing = library.timing(view.song);
     // Fade and Ping-pong change this device's own song, for the rider playing on it. A shared screen plays one song
     // for everybody in the room, so there it is left alone.
@@ -1242,6 +1468,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     void import("./timing-lab.js").then(({ createTimingLab }) => {
       if (labGone) return;
       lab = createTimingLab({
+        mode: "game",
         doc: document,
         win: window,
         audio,
@@ -1255,10 +1482,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
           panel.refresh();
         },
         latencyContext,
-        startClick(bpm) {
-          location.href = withFlags(
-            endpoints.appUrl(`?solo=1&song=${clickId(bpm)}&chart=0&mode=0`),
-          );
+        openScreen() {
+          location.href = withFlags(endpoints.appUrl("?timing"));
         },
         now: () => performance.now(),
       });
@@ -1321,12 +1546,13 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     main.dataset.stage = view.stage;
     main.dataset.song = view.world?.song ?? view.settings.song;
     main.dataset.playing = String(next.playing);
-    lobby.hidden = next.screen !== "lobby";
+    // A restart passes through the song select for a moment: it is not shown.
+    lobby.hidden = next.screen !== "lobby" || restarting;
     stage.hidden = next.screen !== "play";
     controller.hidden = next.screen !== "controller";
     nameEntry.form.hidden = !next.askName;
     // The song select's music plays in the lobby only; a match's song is the audio clock's.
-    if (next.screen === "lobby" && !display) {
+    if (next.screen === "lobby" && !display && !restarting) {
       preview.show(view.settings.song);
       // Decoded while the players choose, so START never waits for it.
       songOf(view.settings.song, performance.now());
@@ -1335,12 +1561,17 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       sfx.fanfare(
         !next.result.rows.some((row) => row.you && /^[CD]$/.test(row.grade)),
       );
-    if (view.stage === "over" && lastStage === "running" && view.world)
+    if (view.stage === "over" && lastStage === "running" && view.world) {
       judgeTiming(view.world.song);
-    else if (view.stage !== "over" && (timingOffer || timingNote)) {
-      timingOffer = undefined;
-      timingNote = "";
-      showTiming();
+      reportDue = true;
+    } else if (view.stage !== "over") {
+      if (timingOffer || timingNote) {
+        timingOffer = undefined;
+        timingNote = "";
+        showTiming();
+      }
+      reportDue = false;
+      if (report) showReport(undefined, 0);
     }
     // A calibration or a key capture left open takes every key: it ends when the room moves on.
     if (view.stage !== lastStage) panel.cancel();
@@ -1438,14 +1669,40 @@ function room(solo: boolean, library: Library, first?: Choice): void {
         cardRows.dataset.rows = rows;
         cardRows.replaceChildren(...result.rows.map(rowNode));
       }
+      // Alone, the one row says nothing the big grade does not.
+      cardRows.hidden = !!result.own && result.rows.length === 1;
+      cardOwn.hidden = !result.own;
+      card.classList.toggle("fm-card-own", !!result.own);
+      if (result.own) {
+        const own = result.own;
+        setText(ownGrade, own.grade);
+        ownGrade.className = `fm-grade fm-own-grade fm-grade-${own.grade.toLowerCase()}`;
+        setText(ownScore, own.score);
+        setText(ownDetail, own.detail);
+        setText(ownBadge, own.badge);
+        ownBadge.hidden = !own.badge;
+      }
       const counts = JSON.stringify(result.counts);
       if (cardCounts.dataset.counts !== counts) {
         cardCounts.dataset.counts = counts;
+        // The six judgments share one scale: each bar is its share of the steps.
+        const steps = result.counts
+          .slice(0, 6)
+          .reduce((sum, [, value]) => sum + (Number(value) || 0), 0);
         cardCounts.replaceChildren(
-          ...result.counts.flatMap(([label, value]) => [
-            el("dt", label, `fm-count-${label.toLowerCase().split(" ")[0]}`),
-            el("dd", value),
-          ]),
+          ...result.counts.map(([label, value], index) => {
+            const row = el("div", "", "fm-count-row"),
+              bar = el("i", "", "fm-count-bar"),
+              kind = `fm-count-${label.toLowerCase().split(" ")[0]}`;
+            // A judgment's bar is its share of the steps; the holds' bar is how many were kept.
+            const [kept = 0, all = 0] = value.split(" / ").map(Number);
+            const share =
+              index < 6 ? (steps ? kept / steps : 0) : all ? kept / all : 0;
+            bar.style.setProperty("--share", share.toFixed(4));
+            bar.classList.add(kind);
+            row.append(el("dt", label, kind), bar, el("dd", value));
+            return row;
+          }),
         );
       }
       cardCounts.hidden = !result.counts.length;
@@ -1622,6 +1879,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
         }
       : {
           humanName: social.playerName(store.getItem(names.name)) ?? undefined,
+          // Alone, the room keeps this page's time, and that can stand still.
+          dependencies: { ...browserDependencies, now: pauseClock.now },
         },
   );
   installRoomLifecycle(window, {
@@ -1637,7 +1896,10 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     },
     reload: () => location.reload(),
   });
-  window.addEventListener("resize", () => scene.resize());
+  window.addEventListener("resize", () => {
+    scene.resize();
+    drawGraph();
+  });
 
   // Keys: while this device plays, ours are swallowed so Space never scrolls or presses a focused button.
   const typing = (target: EventTarget | null) =>
@@ -1656,6 +1918,16 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       event.altKey
     )
       return;
+    // Escape pauses a solo song and takes the pause away again; the Escape that closed a menu does neither.
+    if (event.code === "Escape" && (pauseClock.paused || pausable())) {
+      event.preventDefault();
+      if (event.repeat || performance.now() - menuClosedAt < 100) return;
+      if (pauseClock.paused) resume();
+      else pause();
+      return;
+    }
+    // A paused song takes no steps; its buttons keep Enter, Space and Tab.
+    if (pauseClock.paused) return;
     if (!model?.playing) {
       if (event.repeat) return;
       // A result that offers another go takes Enter as its main button, without the mouse.
@@ -1698,6 +1970,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     if (document.hidden) {
       letGoAll();
       panel.cancel();
+      // Nobody is watching the arrows: a solo song waits.
+      pause();
     }
   });
   // A pinch or a double tap must never zoom the arrows away from under the thumbs.
@@ -1708,20 +1982,9 @@ function room(solo: boolean, library: Library, first?: Choice): void {
 }
 
 const query = new URLSearchParams(location.search);
-if (query.get("solo") === "1")
-  // The timing lab's click tracks are this page's own: a solo run can play them, a room never sees them.
-  room(
-    true,
-    debugTiming ? createLibrary([...SONGS_DATA, ...clickSources()]) : LIBRARY,
-  );
+if (query.has("timing") || query.has("sync")) timing();
+else if (query.get("solo") === "1") room(true, LIBRARY);
 else if (query.has("room")) room(false, LIBRARY);
-else if (debugTiming)
-  // The lab opens on its steady click track.
-  location.replace(
-    withFlags(
-      endpoints.appUrl(
-        `?solo=1&song=${clickId(DEFAULT_CLICK_RATE)}&chart=0&mode=0`,
-      ),
-    ),
-  );
+// The flag alone is the Timing screen with its details open.
+else if (debugTiming) location.replace(withFlags(endpoints.appUrl("?timing")));
 else landing();

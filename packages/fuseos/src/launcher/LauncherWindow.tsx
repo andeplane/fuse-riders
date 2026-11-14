@@ -5,11 +5,7 @@ import { AppIcon } from "../ui/icons";
 import { WindowManagerContext } from "../windows/windowManagerContext";
 
 import { centeredLauncherRect } from "./launcherFacts";
-import type {
-  LauncherGame,
-  LauncherTab,
-  LauncherViewModel,
-} from "./useLauncherViewModel";
+import type { LauncherGame, LauncherViewModel } from "./useLauncherViewModel";
 import { LAUNCHER_TABS, useLauncherViewModel } from "./useLauncherViewModel";
 
 import "./launcher.css";
@@ -75,7 +71,8 @@ function GamesPage({ vm, active }: { vm: LauncherViewModel; active: boolean }) {
         vm.selectPrevious();
         break;
       case "Enter":
-        vm.play();
+        if (event.shiftKey) vm.playInNewTab();
+        else vm.play();
         break;
       default:
         return;
@@ -141,14 +138,24 @@ function GamesPage({ vm, active }: { vm: LauncherViewModel; active: boolean }) {
           <p className="fst-tagline">{selected.tagline}</p>
           <div className="fst-detail-row">
             <div className="fst-facts">
-              <button
-                type="button"
-                className="fst-play"
-                onClick={vm.play}
-                aria-label={`Play ${selected.name}`}
-              >
-                <span aria-hidden>▶</span> PLAY
-              </button>
+              <div className="fst-actions">
+                <button
+                  type="button"
+                  className="fst-play"
+                  onClick={vm.play}
+                  aria-label={`Play ${selected.name}`}
+                >
+                  <span aria-hidden>▶</span> PLAY
+                </button>
+                <button
+                  type="button"
+                  className="fst-play fst-play-tab"
+                  onClick={vm.playInNewTab}
+                  aria-label={`Play ${selected.name} in new tab`}
+                >
+                  <span aria-hidden>↗</span> PLAY IN NEW TAB
+                </button>
+              </div>
               <dl className="fst-dl">
                 <dt>Status:</dt>
                 <dd className="fst-status">{details.status}</dd>
@@ -178,9 +185,11 @@ function GamesPage({ vm, active }: { vm: LauncherViewModel; active: boolean }) {
               </a>
               <a
                 className="fst-link"
-                href={selected.url}
-                target="_blank"
-                rel="noopener"
+                href="#"
+                onClick={(event) => {
+                  event.preventDefault();
+                  vm.openFriends();
+                }}
               >
                 Friends
               </a>
@@ -198,40 +207,18 @@ function GamesPage({ vm, active }: { vm: LauncherViewModel; active: boolean }) {
   );
 }
 
-const PLACEHOLDERS: Record<
-  Exclude<LauncherTab, "games">,
-  { heading: string; lines: string[] }
-> = {
-  friends: {
-    heading: "Friends",
-    lines: [
-      "No friends online.",
-      "Fusteam Friends arrives in a later update. Until then, invite friends with a room link from inside a game.",
-    ],
-  },
-  servers: {
-    heading: "Servers",
-    lines: [
-      "Rooms are hosted by the players in them, so there is no server list.",
-      "Open a game, create a room and share its code; friends join from any device.",
-    ],
-  },
-  news: {
-    heading: "News",
-    lines: [
-      "Fusteam launcher released: pick a game from MY GAMES and press PLAY.",
-      "Every game on this desktop updates itself; there is nothing to download.",
-    ],
-  },
-};
+const NEWS_LINES = [
+  "Fusteam launcher released: pick a game from MY GAMES and press PLAY.",
+  "Every game on this desktop updates itself; there is nothing to download.",
+];
 
-function PlaceholderPage({ tab }: { tab: Exclude<LauncherTab, "games"> }) {
-  const page = PLACEHOLDERS[tab];
+/** Fusteam's own News page, for a build without the Hall of Fame. */
+function NewsPage() {
   return (
     <div className="fst-placeholder">
-      <h2 className="fst-heading">{page.heading}</h2>
+      <h2 className="fst-heading">News</h2>
       <div className="fst-panel">
-        {page.lines.map((line) => (
+        {NEWS_LINES.map((line) => (
           <p key={line}>{line}</p>
         ))}
       </div>
@@ -267,7 +254,7 @@ export function LauncherWindow({ windowId, active }: LauncherWindowProps) {
             aria-selected={vm.tab === tab.id}
             aria-controls="fst-page"
             className={`fst-tab ${vm.tab === tab.id ? "selected" : ""}`}
-            onClick={() => vm.setTab(tab.id)}
+            onClick={() => vm.openTab(tab.id)}
           >
             {tab.label}
           </button>
@@ -282,7 +269,7 @@ export function LauncherWindow({ windowId, active }: LauncherWindowProps) {
         {vm.tab === "games" ? (
           <GamesPage vm={vm} active={active} />
         ) : (
-          <PlaceholderPage tab={vm.tab} />
+          <NewsPage />
         )}
       </div>
       <div className="fst-footer">
@@ -293,11 +280,7 @@ export function LauncherWindow({ windowId, active }: LauncherWindowProps) {
         <button type="button" className="fst-button" onClick={vm.addGame}>
           ADD A GAME...
         </button>
-        <button
-          type="button"
-          className="fst-button"
-          onClick={() => vm.setTab("friends")}
-        >
+        <button type="button" className="fst-button" onClick={vm.openFriends}>
           FRIENDS &amp; CHAT
         </button>
       </div>

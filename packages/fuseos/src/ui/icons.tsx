@@ -1,8 +1,10 @@
 import { CdMusic } from "@react95/icons/CdMusic";
 import { Computer } from "@react95/icons/Computer";
 import { ComputerFind } from "@react95/icons/ComputerFind";
+import { Conf100 } from "@react95/icons/Conf100";
 import { CurvesAndColors100 } from "@react95/icons/CurvesAndColors100";
 import { Desk100 } from "@react95/icons/Desk100";
+import { Dialmon200 } from "@react95/icons/Dialmon200";
 import { Desktop } from "@react95/icons/Desktop";
 import { Explorer100 } from "@react95/icons/Explorer100";
 import { FileText } from "@react95/icons/FileText";
@@ -18,6 +20,7 @@ import { Jgdwmie101 } from "@react95/icons/Jgdwmie101";
 import { Joy102 } from "@react95/icons/Joy102";
 import { KeyboardMouse } from "@react95/icons/KeyboardMouse";
 import { Lights100 } from "@react95/icons/Lights100";
+import { Mmsys110 } from "@react95/icons/Mmsys110";
 import { Mspaint } from "@react95/icons/Mspaint";
 import { Network } from "@react95/icons/Network";
 import { Notepad2 } from "@react95/icons/Notepad2";
@@ -43,6 +46,7 @@ import { Winmine1 } from "@react95/icons/Winmine1";
 import type { ComponentType, SVGProps } from "react";
 
 import { WinampLogo } from "../assets/WinampLogo";
+import { DefragIcon } from "../defrag/DefragIcon";
 import { FusteamLogo } from "../launcher/FusteamLogo";
 import { MircLogo } from "../mirc/mircIcons";
 
@@ -92,6 +96,10 @@ export type IconName =
   | "codeFile"
   | "unknownFile"
   | "fusteam"
+  | "sounds"
+  | "dialup"
+  | "messenger"
+  | "defrag"
   | "desktop"
   | "printers"
   | "controlPanelFolder"
@@ -161,6 +169,10 @@ const ICONS: Record<IconName, IconComponent> = {
   codeFile: Shell322,
   unknownFile: Shell321,
   fusteam: FusteamLogo,
+  sounds: Mmsys110,
+  dialup: fixed(Dialmon200, "32x32_4"),
+  messenger: Conf100,
+  defrag: DefragIcon,
   desktop: Desktop,
   printers: FolderPrint,
   controlPanelFolder: FolderSettings,

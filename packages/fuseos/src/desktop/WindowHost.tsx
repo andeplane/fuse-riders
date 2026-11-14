@@ -1,17 +1,28 @@
-import { useContext, useEffect } from "react";
+import { useCallback, useContext, useEffect, useRef } from "react";
 
 import { AboutDialog } from "../about/AboutDialog";
+import { DefragRunner } from "../defrag/DefragRunner";
+import { DefragWindow } from "../defrag/DefragWindow";
 import { ControlPanelWindow } from "../controlpanel/ControlPanelWindow";
 import { ExplorerWindow } from "../explorer/ExplorerWindow";
 import { WallpaperWindow } from "../controlpanel/WallpaperWindow";
-import { FuseGameWindow } from "../fusegames/FuseGameWindow";
+import { FriendsWindow } from "../friends/FriendsWindow";
+import {
+  FuseGameWindow,
+  POP_OUT_HINT,
+  POP_OUT_LABEL,
+  useGamePopOut,
+} from "../fusegames/FuseGameWindow";
 import { FuseGamesContext } from "../fusegames/registry";
 import { LauncherWindow } from "../launcher/LauncherWindow";
 import { MircWindow } from "../mirc/MircWindow";
 import { NotepadPlusPlusWindow } from "../notepadpp/NotepadPlusPlusWindow";
+import { NetworkWindow } from "../network/NetworkWindow";
+import { RoomGameWindow } from "../network/RoomGameWindow";
 import { PaintWindow } from "../paint/PaintWindow";
 import { GameWindow } from "../retro/GameWindow";
 import { RetroFolderWindow } from "../retro/RetroFolderWindow";
+import { DialUpWindow } from "../sounds/dialup/DialUpWindow";
 import type { WindowState } from "../state/appState";
 import { WinampPlayer } from "../winamp/WinampPlayer";
 import { MessageBox } from "../windows/MessageBox";
@@ -26,9 +37,11 @@ import { windowMeta } from "./windowMeta";
 function WindowContent({
   window,
   active,
+  onGameFrame,
 }: {
   window: WindowState;
   active: boolean;
+  onGameFrame: (windowId: string, element: HTMLIFrameElement | null) => void;
 }) {
   const commands = useWindowCommands();
   switch (window.kind) {
@@ -36,11 +49,23 @@ function WindowContent({
       return (
         <FuseGameWindow
           gameId={window.gameId}
-          windowId={window.id}
+          room={window.room}
+          active={active}
+          onActivate={() => commands.focus(window.id)}
+          onFrame={(element) => onGameFrame(window.id, element)}
+        />
+      );
+    case "roomgame":
+      return (
+        <RoomGameWindow
+          gameId={window.gameId}
+          code={window.code}
           active={active}
           onActivate={() => commands.focus(window.id)}
         />
       );
+    case "network":
+      return <NetworkWindow windowId={window.id} />;
     case "retro":
       return (
         <GameWindow
@@ -83,6 +108,12 @@ function WindowContent({
       );
     case "launcher":
       return <LauncherWindow windowId={window.id} active={active} />;
+    case "dialup":
+      return <DialUpWindow windowId={window.id} then={window.then} />;
+    case "friends":
+      return <FriendsWindow windowId={window.id} />;
+    case "defrag":
+      return <DefragWindow windowId={window.id} />;
     case "mirc":
       return <MircWindow windowId={window.id} />;
   }
@@ -101,6 +132,20 @@ export function WindowHost({ windows, activeId }: WindowHostProps) {
   const { rectFor, setRect, pruneRects, compact } =
     useContext(WindowManagerContext);
   const commands = useWindowCommands();
+  // Each game window's iframe, so the title bar's Pop out can read where the game has navigated to.
+  const frames = useRef(new Map<string, HTMLIFrameElement>());
+  const setGameFrame = useCallback(
+    (windowId: string, element: HTMLIFrameElement | null) => {
+      if (element) frames.current.set(windowId, element);
+      else frames.current.delete(windowId);
+    },
+    [],
+  );
+  const frameFor = useCallback(
+    (windowId: string) => frames.current.get(windowId) ?? null,
+    [],
+  );
+  const popOut = useGamePopOut(frameFor);
   const winampIndex = windows.findIndex((window) => window.kind === "winamp");
   const winamp = windows[winampIndex];
   // Window ids are reused after a close; forget the old rectangle so the next window with that id opens at its own size.
@@ -145,12 +190,40 @@ export function WindowHost({ windows, activeId }: WindowHostProps) {
               onToggleMaximize={() => commands.toggleMaximize(window.id)}
               onClose={() => commands.close(window.id)}
               onActivate={activate}
+              extraTitleButtons={
+                window.kind === "fusegame" && games.find(window.gameId) ? (
+                  <button
+                    type="button"
+                    className="title-pop-out"
+                    aria-label={POP_OUT_LABEL}
+                    title={POP_OUT_HINT}
+                    onClick={() => popOut(window.id, window.gameId)}
+                  >
+                    ↗
+                  </button>
+                ) : undefined
+              }
             >
-              <WindowContent window={window} active={active} />
+              <WindowContent
+                window={window}
+                active={active}
+                onGameFrame={setGameFrame}
+              />
             </WindowChrome>
           </WindowFrame>
         );
       })}
+      {/* Disk Defragmenter's run outlives its minimized window: the runner is mounted for as long as the window exists. */}
+      {windows.map((window) =>
+        window.kind === "defrag" ? (
+          <DefragRunner
+            key={window.id}
+            windowId={window.id}
+            drive={window.drive}
+            stage={window.stage}
+          />
+        ) : null,
+      )}
       {/* Winamp is Webamp's own windows on a desktop-sized layer that stacks like any other window (10 + index); minimized keeps it playing unseen. */}
       {winamp ? (
         <WinampPlayer

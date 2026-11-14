@@ -1,3 +1,4 @@
+import { defragWindowMeta } from "../defrag/defragWindowContent";
 import { explorerTitle } from "../explorer/shellNamespace";
 import type { FuseGameRegistry } from "../fusegames/registry";
 import {
@@ -39,6 +40,12 @@ export const EXPLORER_WINDOW_SIZE: Size = { width: 720, height: 480 };
 
 /** Room for the tab bar, a code pane with line numbers and the six-field status bar. */
 export const NOTEPADPP_WINDOW_SIZE: Size = { width: 760, height: 520 };
+/** Room for the Connect To form (user name, password, phone number, location) and its buttons. */
+export const DIAL_UP_WINDOW_SIZE: Size = { width: 400, height: 260 };
+/** Room for the tree pane, a few rows of rooms and the status bar. */
+export const NETWORK_WINDOW_SIZE: Size = { width: 640, height: 420 };
+/** A tall narrow buddy list, as ICQ and MSN Messenger were laid out. */
+export const FRIENDS_WINDOW_SIZE: Size = { width: 320, height: 540 };
 
 /** Room for the toolbar, the switchbar and a channel window with its nicklist. */
 export const MIRC_WINDOW_SIZE: Size = { width: 760, height: 540 };
@@ -60,6 +67,20 @@ export function windowMeta(
         size: FUSE_GAME_WINDOW_SIZE,
       };
     }
+    case "roomgame":
+      return {
+        title: `${games.find(window.gameId)?.name ?? window.gameId} - Room ${window.code}`,
+        icon: "network",
+        resizable: true,
+        size: FUSE_GAME_WINDOW_SIZE,
+      };
+    case "network":
+      return {
+        title: "Network Neighborhood",
+        icon: "network",
+        resizable: true,
+        size: NETWORK_WINDOW_SIZE,
+      };
     case "retro":
       return {
         title: GAMES[window.game].name,
@@ -123,6 +144,8 @@ export function windowMeta(
         size: NOTEPADPP_WINDOW_SIZE,
       };
     }
+    case "defrag":
+      return { ...defragWindowMeta(window), icon: "defrag", resizable: false };
     case "mirc":
       return {
         title: window.caption ?? "mIRC",
@@ -136,6 +159,20 @@ export function windowMeta(
         icon: "fusteam",
         resizable: true,
         size: LAUNCHER_WINDOW_SIZE,
+      };
+    case "dialup":
+      return {
+        title: "Connect To",
+        icon: "dialup",
+        resizable: false,
+        size: DIAL_UP_WINDOW_SIZE,
+      };
+    case "friends":
+      return {
+        title: "Fuse Messenger",
+        icon: "messenger",
+        resizable: true,
+        size: FRIENDS_WINDOW_SIZE,
       };
   }
 }

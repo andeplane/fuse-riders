@@ -123,7 +123,7 @@ body.fusemania-page {
   margin: 0;
   accent-color: var(--fui-cyan);
 }
-/* The song select needs the width: its dialog is wider than a menu's, and the list keeps PLAY in view. */
+/* The song select needs the width: its dialog is wider than a menu's. PLAY is in the dialog's bar, not under the select. */
 .fusemania-page .fui-menu-dialog:has(.fm-picker) {
   width: min(68rem, calc(100vw - 1.5rem));
 }
@@ -728,7 +728,185 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"])) #app {
   overflow: hidden;
 }
 
-/* ---- the timing lab (?debugtiming) ---- */
+/* The result with this device's own run in it: the grade large, the judgments as bars, the timing graph beside. */
+.fm-card.fm-card-own {
+  width: min(96%, 34rem);
+}
+.fm-card.fm-card-graphed {
+  width: min(96%, 66rem);
+}
+.fm-report {
+  display: grid;
+  gap: var(--fui-space-3);
+  min-width: 0;
+}
+.fm-report-side,
+.fm-report-graph {
+  display: grid;
+  align-content: start;
+  gap: var(--fui-space-3);
+  min-width: 0;
+}
+@media (min-width: 56rem) {
+  .fm-card-graphed .fm-report {
+    grid-template-columns: minmax(15rem, 19rem) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+.fm-own {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0 var(--fui-space-3);
+  padding: var(--fui-space-3);
+  background: #12245499;
+  border-radius: var(--fui-radius-small);
+  text-align: left;
+}
+.fm-own-grade {
+  grid-row: span 3;
+  min-width: 4.5rem;
+  font-size: 2.75rem;
+}
+.fm-own-grade.fm-grade-aaaa,
+.fm-own-grade.fm-grade-aaa {
+  font-size: 1.75rem;
+}
+.fm-own-score {
+  color: var(--fui-yellow);
+  font: 1.125rem/1.4 var(--fui-font-pixel);
+  font-style: normal;
+  text-shadow: 0 0 1rem #ffe46b88;
+}
+.fm-own-detail {
+  color: var(--fui-text-muted);
+  font: 0.75rem/1.5 var(--fui-font-body, inherit);
+}
+.fm-own-badge {
+  justify-self: start;
+  margin-top: var(--fui-space-1);
+  padding: 0.125rem var(--fui-space-2);
+  color: var(--fui-ink);
+  background: var(--fui-yellow);
+  border-radius: var(--fui-radius-small);
+  font: 0.5rem/1.8 var(--fui-font-pixel);
+  font-weight: normal;
+}
+.fm-card-own .fm-counts {
+  display: grid;
+  grid-template-columns: auto minmax(2rem, 1fr) auto;
+  justify-content: stretch;
+  align-items: center;
+  gap: var(--fui-space-1) var(--fui-space-2);
+}
+.fm-count-row {
+  display: contents;
+}
+.fm-count-bar {
+  height: 0.5rem;
+  background: #0a1838;
+  border-radius: 0.25rem;
+  overflow: hidden;
+}
+.fm-count-bar::before {
+  content: "";
+  display: block;
+  width: calc(var(--share, 0) * 100%);
+  height: 100%;
+  background: currentColor;
+  box-shadow: 0 0 0.5rem currentColor;
+}
+.fm-graph {
+  display: block;
+  width: 100%;
+  height: clamp(11rem, 34vh, 17rem);
+  font-family: var(--fui-font-pixel);
+}
+.fm-graph-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--fui-space-1) var(--fui-space-4);
+  margin: 0;
+  font: 0.5625rem/1.6 var(--fui-font-pixel);
+}
+.fm-graph-stats dt {
+  display: inline;
+  color: var(--fui-text-muted);
+}
+.fm-graph-stats dd {
+  display: inline;
+  margin: 0 0 0 var(--fui-space-2);
+  color: var(--fui-text-bright);
+}
+/* The buttons stay in reach however long the result is. */
+.fm-card-own .fm-actions {
+  position: sticky;
+  bottom: calc(-1 * var(--fui-space-4));
+  margin: 0 calc(-1 * var(--fui-space-4)) calc(-1 * var(--fui-space-4));
+  padding: var(--fui-space-3) var(--fui-space-4);
+  background: #050e25;
+}
+
+/* A paused solo song */
+.fm-pause {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--fui-space-3);
+  padding: var(--fui-space-4);
+  background: #050e25f0;
+  text-align: center;
+  touch-action: manipulation;
+}
+.fm-pause[hidden] {
+  display: none;
+}
+.fm-pause h2 {
+  margin: 0;
+  color: var(--fui-cyan);
+  font: 1.5rem/1.4 var(--fui-font-pixel);
+  text-shadow: 0 0 1.5rem #16e7ff88;
+}
+.fm-pause-song,
+.fm-pause-hint {
+  margin: 0;
+  color: var(--fui-text-muted);
+  font: 0.5625rem/1.6 var(--fui-font-pixel);
+}
+.fm-pause-count {
+  color: var(--fui-yellow);
+  font: 4rem/1 var(--fui-font-pixel);
+  font-weight: normal;
+  text-shadow: 0 0 2rem #ffe46b88;
+}
+.fm-pause-actions {
+  flex-direction: column;
+  align-items: stretch;
+  width: min(100%, 16rem);
+}
+.fui-app .fm-pause-button {
+  position: absolute;
+  top: var(--fui-space-2);
+  left: var(--fui-space-2);
+  z-index: 2;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
+  opacity: 0.7;
+  font: 0.75rem/1 var(--fui-font-pixel);
+}
+
+/* ---- the timing panel: the Timing screen's side, and a ?debugtiming game's overlay ---- */
+/* Over a game, on a wide screen, the open panel takes its own column: the song bar and the lanes stay whole beside it. */
+@media (min-width: 48rem) {
+  body:has(.fm-dt:not(.fm-dt-closed, .fm-dt-screen)) #app {
+    padding-right: calc(min(23.5rem, 100vw - 1rem) + 1rem);
+  }
+}
 .fm-dt {
   position: fixed;
   top: 3.75rem;
@@ -815,22 +993,37 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"])) #app {
   align-items: center;
   margin: 0.25rem 0;
 }
-.fm-dt-button {
+/* `.fm-dt` in front: the page's own `.fui-app button` would otherwise give these the game's large buttons. */
+.fm-dt .fm-dt-button {
+  min-height: 0;
   padding: 0.125rem 0.4375rem;
   color: #cfe;
   background: #0a2030;
   border: 1px solid #2a6a7a;
   border-radius: 0.25rem;
+  box-shadow: none;
   font: inherit;
   cursor: pointer;
 }
-.fm-dt-button:hover:not(:disabled) {
+.fm-dt .fm-dt-button:hover:not(:disabled) {
   color: #fff;
   border-color: #9ff;
 }
-.fm-dt-button:disabled {
+.fm-dt .fm-dt-button:disabled {
   opacity: 0.4;
   cursor: default;
+}
+.fm-dt .fm-dt-button.fm-dt-on {
+  color: #021;
+  background: #9ff;
+  border-color: #9ff;
+}
+.fm-dt-details > summary {
+  margin: 0.75rem 0 0.25rem;
+  color: #fd5;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
 }
 .fm-dt-select {
   max-width: 11rem;
@@ -856,5 +1049,136 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"])) #app {
   .fm-dt {
     top: auto;
     max-height: 45vh;
+  }
+}
+
+/* ---- the Timing screen: one lane on a steady click, the read-out beside it, the panel as its own column ---- */
+/* The shared top bar floats over the page: the screen starts under it. */
+body:has(.fui-top-bar) .fm-ts {
+  padding-top: calc(68px + env(safe-area-inset-top));
+}
+.fm-ts {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--fui-space-3);
+  min-width: 0;
+  padding-bottom: var(--fui-space-3);
+}
+.fm-ts-field {
+  display: grid;
+  grid-template-columns: minmax(6rem, 11rem) minmax(0, 1fr);
+  gap: var(--fui-space-4);
+  min-width: 0;
+  height: min(34rem, 70dvh);
+}
+.fm-ts-lane {
+  width: 100%;
+  height: 100%;
+  background: var(--fui-panel);
+  border: var(--fui-border);
+  border-radius: var(--fui-radius-small);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+.fm-ts-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fui-space-2);
+  align-items: flex-start;
+  min-width: 0;
+  overflow-y: auto;
+}
+.fm-ts-title {
+  margin: 0;
+  color: var(--fui-yellow);
+  font: 1rem var(--fui-font-pixel);
+}
+.fm-ts-status,
+.fm-ts-mean,
+.fm-ts-word,
+.fm-ts-measured,
+.fm-ts-advice {
+  margin: 0;
+  color: var(--fui-text-muted);
+  font: 0.625rem/1.7 var(--fui-font-pixel);
+}
+.fm-ts-running,
+.fm-ts-result,
+.fm-ts-setup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fui-space-2);
+  align-items: flex-start;
+  width: 100%;
+}
+.fm-ts-running[hidden],
+.fm-ts-result[hidden],
+.fm-ts-setup[hidden],
+.fm-ts-actions[hidden] {
+  display: none;
+}
+.fm-ts-last {
+  display: block;
+  color: var(--fui-text);
+  font: clamp(1.5rem, 6vw, 2.75rem) var(--fui-font-pixel);
+  font-variant-numeric: tabular-nums;
+}
+.fm-ts-word {
+  color: var(--fui-text);
+}
+.fm-ts-progress {
+  width: min(100%, 20rem);
+  height: 0.5rem;
+  accent-color: var(--fui-cyan);
+}
+/* The result is the screen's point: what was measured in the game's own yellow, what to do under it. */
+.fm-ts-measured {
+  color: var(--fui-yellow);
+  font-size: 0.75rem;
+}
+.fm-ts-advice {
+  color: var(--fui-text);
+}
+.fm-ts-actions,
+.fm-ts-rates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fui-space-2);
+}
+.fm-ts-back {
+  margin-top: var(--fui-space-3);
+  color: var(--fui-cyan);
+  font: 0.625rem var(--fui-font-pixel);
+}
+.fm-ts-label {
+  margin: var(--fui-space-2) 0 0;
+  color: var(--fui-cyan);
+  font: 0.625rem var(--fui-font-pixel);
+}
+.fm-ts-rate.fm-ts-on {
+  color: var(--fui-ink);
+  background: var(--fui-cyan);
+}
+/* On its own screen the panel is part of the page: nothing floats over the lane. */
+.fm-dt.fm-dt-screen {
+  position: static;
+  width: auto;
+  max-height: none;
+}
+.fm-dt.fm-dt-screen .fm-dt-body {
+  overflow: visible;
+}
+@media (min-width: 60rem) {
+  .fm-ts {
+    grid-template-columns: minmax(0, 1fr) 24rem;
+    align-items: start;
+  }
+  .fm-ts-field {
+    position: sticky;
+    top: calc(68px + env(safe-area-inset-top));
+    height: calc(100dvh - 68px - env(safe-area-inset-top) - 1.5rem);
+    max-height: 44rem;
   }
 }

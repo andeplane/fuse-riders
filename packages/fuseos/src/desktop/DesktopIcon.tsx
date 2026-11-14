@@ -30,7 +30,7 @@ export type DesktopIconProps = {
   onContextMenu?: (position: MenuPosition) => void;
 };
 
-/** The Windows 95 shortcut overlay: a white box with a small arrow, bottom left of any icon. */
+/** The Windows 98 shortcut overlay: a white box with a small arrow, bottom left of any icon. */
 function ShortcutArrow() {
   return (
     <svg
