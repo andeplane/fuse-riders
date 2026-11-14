@@ -1540,6 +1540,22 @@
     flex: 1 1 0;
     min-width: 0;
   }
+  /* Two or three buttons share a phone's width: tighter sides keep a two-word label ("START MATCH") inside its own.
+     Only the header's own buttons: a game's menu in the header (Fusemania's OPTIONS panel) keeps its buttons as they are. */
+  .fui-room-layout.fui-room-actions-top
+    > .fui-room-head
+    > .fui-page-actions
+    > button,
+  .fui-room-layout.fui-room-actions-top
+    > .fui-room-head
+    > .fui-page-actions
+    > .fui-room-primary-action
+    > button {
+    padding-inline: var(--fui-space-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .fui-room-layout.fui-room-actions-top
     .fui-room-head
     .fui-room-primary-action

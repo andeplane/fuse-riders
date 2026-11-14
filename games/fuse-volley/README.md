@@ -64,7 +64,7 @@ Either way a match stops at 40 points if nobody gets two clear.
 The newest direction wins: holding one way and pressing the other turns at once, and letting go goes back to the key
 still held. The touch rocker turns as soon as the thumb slides back a few pixels, wherever it has wandered.
 
-On a shared screen (tick **Shared TV** before creating the room, then **OPEN TV SCREEN** in the lobby) the TV shows
+On a shared screen (the host ticks **Shared TV** in the room, under the invitation, then **OPEN TV SCREEN**) the TV shows
 the court and each phone becomes a full-screen rocker and jump button that buzzes on your own touches.
 
 ## How it is built
