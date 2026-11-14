@@ -873,6 +873,12 @@
 .fui-room-join > button {
   min-height: 46px;
 }
+.fui-room-layout .fui-room-join > button {
+  width: auto;
+  flex: none;
+  margin: 0;
+  align-self: flex-start;
+}
 .fui-room-actions {
   display: flex;
   gap: 12px;
