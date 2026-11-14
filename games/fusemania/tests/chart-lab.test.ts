@@ -41,6 +41,15 @@ import { hiddenAtStart, parseShown } from "../src/lab/shown.js";
 
 import { bandMix, coversAll, dragSpan, grabAt } from "../src/lab/band.js";
 
+import { parseNotesUpload, writeNotesUpload } from "../src/lab/notes-upload.js";
+import {
+  mayStoreNotes,
+  storeNotes,
+} from "../../../scripts/lib/chart-lab-notes.js";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 const sine = (hz: number, seconds: number, rate = LAB_RATE) =>
   Float32Array.from({ length: Math.round(seconds * rate) }, (_, i) =>
     Math.sin((2 * Math.PI * hz * i) / rate),
@@ -375,4 +384,108 @@ test("chart lab: outside the band the song keeps a tenth of its level", () => {
   const mix = bandMix(true);
   assert.equal(mix.dry, 0.1);
   assert.equal(mix.dry + mix.band, 1);
+});
+
+/** The smallest PNG: its signature and nothing else, which is all the upload checks. */
+const TINY_PNG = `data:image/png;base64,${btoa("\x89PNG\r\n\x1a\n")}`;
+const uploadNote: LabNote = {
+  id: "abc-123",
+  created: "2026-11-14T20:00:00.000Z",
+  song: "final-chase",
+  start: 12.5,
+  end: 14,
+  startBeat: 30,
+  endBeat: 34,
+  lowHz: 400,
+  highHz: 900,
+  tags: ["melody"],
+  text: "the lead should carry the steps here",
+};
+
+test("chart lab: an upload becomes a notes file and a picture named by its note", () => {
+  const stored = parseNotesUpload(
+    writeNotesUpload({
+      notes: { version: 1, notes: [uploadNote] },
+      shot: { id: uploadNote.id, png: TINY_PNG },
+    }),
+  );
+  assert.deepEqual(parseNotes(stored.notes).notes, [uploadNote]);
+  assert.equal(stored.shot?.file, "abc-123.png");
+  assert.deepEqual(
+    [...(stored.shot?.bytes ?? [])].slice(0, 4),
+    [0x89, 0x50, 0x4e, 0x47],
+  );
+  const plain = parseNotesUpload(
+    writeNotesUpload({ notes: { version: 1, notes: [] } }),
+  );
+  assert.equal(plain.shot, undefined);
+});
+
+test("chart lab: a bad upload is refused before anything is written", () => {
+  const notes = { version: 1 as const, notes: [uploadNote] };
+  const bad = (body: string) =>
+    assert.throws(() => parseNotesUpload(body), NotesError);
+  bad("not json");
+  bad("7");
+  bad(JSON.stringify({ notes: { version: 2, notes: [] } }));
+  bad(JSON.stringify({ notes, shot: 3 }));
+  // A picture cannot choose its own file name, or be for a note that is not there.
+  bad(JSON.stringify({ notes, shot: { id: "../../etc/x", png: TINY_PNG } }));
+  bad(JSON.stringify({ notes, shot: { id: "other", png: TINY_PNG } }));
+  bad(
+    JSON.stringify({ notes, shot: { id: "abc-123", png: "data:text/html,x" } }),
+  );
+  bad(
+    JSON.stringify({
+      notes,
+      shot: { id: "abc-123", png: "data:image/png;base64,%%%" },
+    }),
+  );
+  bad(
+    JSON.stringify({
+      notes,
+      shot: { id: "abc-123", png: `data:image/png;base64,${btoa("GIF89a..")}` },
+    }),
+  );
+});
+
+test("chart lab: the dev server stores notes only for a page it served to this machine", () => {
+  const ok = {
+    remoteAddress: "127.0.0.1",
+    host: "localhost:5180",
+    origin: "http://localhost:5180",
+    contentType: "application/json",
+  };
+  assert.equal(mayStoreNotes(ok), true);
+  assert.equal(mayStoreNotes({ ...ok, remoteAddress: "::1" }), true);
+  assert.equal(mayStoreNotes({ ...ok, origin: undefined }), true);
+  assert.equal(mayStoreNotes({ ...ok, remoteAddress: "192.168.1.20" }), false);
+  assert.equal(mayStoreNotes({ ...ok, remoteAddress: undefined }), false);
+  assert.equal(mayStoreNotes({ ...ok, host: "evil.example" }), false);
+  assert.equal(mayStoreNotes({ ...ok, origin: "https://evil.example" }), false);
+  assert.equal(mayStoreNotes({ ...ok, origin: "nonsense" }), false);
+  assert.equal(mayStoreNotes({ ...ok, contentType: "text/plain" }), false);
+  assert.equal(mayStoreNotes({ ...ok, contentType: undefined }), false);
+});
+
+test("chart lab: stored notes land in notes.json with the picture beside them", () => {
+  const dir = mkdtempSync(join(tmpdir(), "chart-lab-notes-"));
+  try {
+    const written = storeNotes(
+      dir,
+      writeNotesUpload({
+        notes: { version: 1, notes: [uploadNote] },
+        shot: { id: uploadNote.id, png: TINY_PNG },
+      }),
+    );
+    assert.deepEqual(written, ["notes.json", "shots/abc-123.png"]);
+    assert.deepEqual(
+      parseNotes(readFileSync(join(dir, "notes.json"), "utf8")).notes,
+      [uploadNote],
+    );
+    assert.equal(readFileSync(join(dir, "shots", "abc-123.png")).length, 8);
+    assert.throws(() => storeNotes(dir, "not json"), NotesError);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -48,6 +48,7 @@ import {
 import type { SpectrumReply, SpectrumRequest } from "./spectrum-worker.js";
 import { revealTop, seekDelta, typingIn } from "./playback.js";
 import { hiddenAtStart, parseShown } from "./shown.js";
+import { NOTES_UPLOAD_PATH, writeNotesUpload } from "./notes-upload.js";
 import {
   bandMix,
   coversAll,
@@ -1523,7 +1524,17 @@ function renderSelection(): void {
       note.highHz = span.highHz;
     }
     if (span.chart) note.chart = span.chart;
-    setNotes(mergeNotes(notes, { version: 1, notes: [note] }));
+    // A picture of the lab as it is now, the selection still marked, to go with the note.
+    let png: string | undefined;
+    try {
+      png = canvas.toDataURL("image/png");
+    } catch {
+      png = undefined;
+    }
+    setNotes(
+      mergeNotes(notes, { version: 1, notes: [note] }),
+      png ? { id: note.id, png } : undefined,
+    );
     selection = undefined;
     flux = undefined;
     renderSelection();
@@ -1570,12 +1581,38 @@ function renderSelection(): void {
 
 const round = (value: number, digits: number) => Number(value.toFixed(digits));
 
-function setNotes(next: NotesFile): void {
+function setNotes(next: NotesFile, shot?: { id: string; png: string }): void {
   notes = next;
   save(NOTES_KEY, writeNotes(notes));
   void writeLinked();
+  void writeToDevServer(shot);
   renderNotes();
 }
+
+/**
+ * In local development the notes also go to the dev server, which writes them (and a new note's picture) to a
+ * folder on this machine. The deployed page has no such server and skips this.
+ */
+async function writeToDevServer(shot?: {
+  id: string;
+  png: string;
+}): Promise<void> {
+  if (!import.meta.env.DEV) return;
+  try {
+    const response = await fetch(`${BASE}${NOTES_UPLOAD_PATH}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: writeNotesUpload({ notes, ...(shot ? { shot } : {}) }),
+    });
+    const reply = (await response.json()) as { dir?: string; error?: string };
+    diskState.textContent = response.ok
+      ? `Also saved on this Mac: ${reply.dir ?? ""}`
+      : `Could not save to this Mac: ${reply.error ?? response.status}`;
+  } catch (error) {
+    diskState.textContent = `Could not save to this Mac: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+const diskState = el("p", { className: "lab-dim" });
 
 async function writeLinked(): Promise<void> {
   if (!linkedFile) return;
@@ -1740,6 +1777,7 @@ function renderNotes(): void {
     tools,
     linking,
     fileState,
+    diskState,
   );
 }
 
@@ -1827,6 +1865,9 @@ new ResizeObserver(() => draw()).observe(stage);
     draw();
   },
 };
+
+// Notes already in this browser reach the folder on this machine too.
+if (notes.notes.length) void writeToDevServer();
 
 void loadSong(
   new URLSearchParams(location.search).get("song") ?? "final-chase",

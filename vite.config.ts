@@ -12,6 +12,7 @@ import {
   type PortalGame,
 } from "./packages/fuse-ui/src/portal.ts";
 import { repoTree } from "./scripts/fuseos/repo-tree-plugin.ts";
+import { chartLabNotes } from "./scripts/lib/chart-lab-notes.ts";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 /** Every game with a page of its own (`games/<id>/index.html`); the root is the gallery. */
@@ -200,6 +201,16 @@ export default defineConfig({
   define: { __FUSE_PORTAL_GAMES__: JSON.stringify(portalGames()) },
   // `gamePublic` first: its dev middleware must see a public URL before `gamePages` rewrites it. React and Tailwind
   // serve FuseOS (packages/fuseos), the root page; the games are plain TypeScript and their CSS is untouched.
-  plugins: [gamePublic(), gamePages(), react(), tailwindcss(), repoTree()],
+  plugins: [
+    gamePublic(),
+    gamePages(),
+    react(),
+    tailwindcss(),
+    repoTree(),
+    // The chart lab's review notes, kept out of git (`artifacts/` is ignored) where a person or an agent can read them.
+    chartLabNotes(
+      process.env.CHART_LAB_NOTES ?? `${root}artifacts/chart-lab-notes`,
+    ),
+  ],
   server: { host: "0.0.0.0" },
 });
