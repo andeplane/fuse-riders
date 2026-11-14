@@ -78,7 +78,10 @@ export function createPlayOptions(options: PlayOptionsOptions): PlayOptions {
     if (node.hidden !== hidden) node.hidden = hidden;
   };
 
-  const random = chip("RANDOM SONG", "fm-option-random");
+  // "RANDOM" and " SONG" apart: a narrow screen shows the first word only, the name stays whole.
+  const random = chip("RANDOM", "fm-option-random");
+  random.append(el("span", " SONG", "fm-option-random-more"));
+  random.setAttribute("aria-label", "RANDOM SONG");
   random.onclick = () => options.onRandomSong();
 
   const speed = row("YOUR SPEED", "fm-options-speed");
