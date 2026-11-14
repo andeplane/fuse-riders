@@ -152,18 +152,40 @@ body {
   color: #9fdcff;
 }
 
-.fc-code {
-  font-family: var(--fui-font-pixel, monospace);
-  font-size: 12px;
-  color: var(--fc-yellow);
-  padding: 6px 10px;
-  border: 1px solid rgba(255, 210, 63, 0.5);
-  border-radius: 6px;
+/* What went wrong, said above the room wherever the pilot is. */
+.fc-alert {
+  margin: 12px auto 0;
+  padding: 0 16px;
+  color: var(--fc-red);
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+}
+/* During a match it floats over the top of the sky: a line that appears must not push the screen or the pads
+   out from under a thumb. */
+.fc-room:is([data-screen="play"], [data-screen="controller"]) > .fc-alert {
+  position: fixed;
+  z-index: var(--fui-z-overlay);
+  top: 4.25rem;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  margin: 0;
+  padding: 8px 16px;
+  border: 1px solid var(--fc-red);
+  border-radius: 8px;
+  background: #0b0620f2;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
-.fc-status {
+/* The room's state beside the menu while a match is on; in the lobby it is the line at the lobby's foot. */
+.fc-live {
   flex: 1;
   min-width: 0;
+}
+body:has(.fc-lobby:not([hidden])) .fc-live {
+  display: none !important;
 }
 
 .fc-back {
@@ -180,13 +202,6 @@ body {
 }
 
 /* ---- landing ---- */
-.fui-landing .fc-shared {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin: 12px 0;
-  font-size: 14px;
-}
 
 .fc-keys {
   display: grid;
@@ -965,7 +980,7 @@ body.fc-display .fc-screen {
     gap: 8px 12px;
     padding: 8px 12px;
   }
-  .fc-top .fc-status {
+  .fc-top .fc-live {
     order: 5;
     flex-basis: 100%;
     font-size: 12px;
