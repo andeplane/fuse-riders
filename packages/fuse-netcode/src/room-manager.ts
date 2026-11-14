@@ -142,8 +142,13 @@ export class RoomManager<
     if (
       seated &&
       !seated.watcher &&
-      requestedSlot !== undefined &&
-      requestedSlot !== seated.slot
+      typeof requestedSlot === "number" &&
+      requestedSlot !== seated.slot &&
+      // A new name is a rename, whatever seat the request still carries from the click that first seated it.
+      (name === seated.name || !this.room.game.seating.renameable) &&
+      // Only in the lobby: between rounds a seat carries what its player has won, and `LEAVE` would drop it. Anywhere
+      // else the request is what it always was, a reconnection.
+      this.room.game.stage(this.room.world.state) === "lobby"
     ) {
       // A seated member asking for another seat is moving to it: `LEAVE` frees the seat it holds and `JOIN` takes the
       // one it asked for, a pair at one tick like a side switch, with no new entry kind for any game's fold to learn.
@@ -313,7 +318,12 @@ export class RoomManager<
       this.room.game.seat(this.room.world.state, this.room.id);
     if (own === undefined) return false;
     if ((own.watcher === true) !== spectator) return true;
-    return !spectator && slot !== undefined && slot !== own.slot;
+    return (
+      !spectator &&
+      slot !== undefined &&
+      slot !== own.slot &&
+      this.room.game.stage(this.room.world!.state) === "lobby"
+    );
   }
   /**
    * Own management entries logged but not yet applied: seats they will take or free when their tick arrives.
@@ -444,6 +454,12 @@ export class RoomManager<
       if (seat.slot < capacity) continue;
       if (pending.ids.has(seat.id) || pending.freed.has(seat.id)) continue;
       if (seat.id === this.room.id && !this.room.creator) continue;
+      // Only a member that is here: a `JOIN` marks its seat present, which an absent or away one is not.
+      const live =
+        seat.bot ||
+        seat.id === this.room.id ||
+        this.room.members.get(seat.id) !== undefined;
+      if (!live || (!seat.bot && (!seat.connected || seat.away))) continue;
       const slot = Array.from({ length: capacity }, (_, i) => i).find(
         (free) => !taken.has(free),
       );
@@ -451,7 +467,7 @@ export class RoomManager<
       const generation =
         seat.id === this.room.id
           ? this.room.generation
-          : (this.room.members.get(seat.id)?.generation ?? seat.generation);
+          : this.room.members.get(seat.id)?.generation;
       if (!seat.bot && generation === undefined) continue;
       taken.add(slot);
       const tick = this.room.recorder.next();

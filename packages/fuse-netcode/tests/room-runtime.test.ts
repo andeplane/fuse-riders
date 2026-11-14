@@ -554,9 +554,10 @@ test("nobody moves seats while a round runs", () => {
   assert.equal(host!.command({ type: "action", action: "start" }), true);
   mesh.run(100);
   assert.equal(room(host!).stage, "running");
-  assert.equal(host!.command({ type: "join", name: "HOST", slot: 3 }), false);
-  assert.equal(guest!.command({ type: "join", name: "GUEST", slot: 2 }), false);
-  mesh.run(200);
+  // Outside the lobby a join from a seated member is its reconnection, whatever seat it names.
+  host!.command({ type: "join", name: "HOST", slot: 3 });
+  guest!.command({ type: "join", name: "GUEST", slot: 2 });
+  mesh.run(3000);
   assert.deepEqual(
     [room(host!).seats.get("host")?.slot, room(host!).seats.get("guest")?.slot],
     [0, 1],

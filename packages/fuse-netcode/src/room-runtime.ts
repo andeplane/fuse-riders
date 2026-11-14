@@ -1099,6 +1099,8 @@ export class RoomRuntime<
           wanted !== seated.name,
         sentAt: -Infinity,
       };
+      // A rename is not a move: the seat its form still carries from the click that first seated it is not asked for.
+      if (this.pendingJoin.rename) this.pendingJoin.slot = undefined;
       if (this.creator || this.solo) return this.sendJoin();
       this.sendJoin();
       return true;
@@ -1502,7 +1504,8 @@ export class RoomRuntime<
             // A seat it asked for by number is the seat it waits for: a move is not done while it holds the old one.
             (this.pendingJoin.spectator ||
               this.pendingJoin.slot === undefined ||
-              own.slot === this.pendingJoin.slot) &&
+              own.slot === this.pendingJoin.slot ||
+              this.game.stage(world.state) !== "lobby") &&
             (!this.pendingJoin.rename ||
               own.name === this.game.seating.seatName(this.pendingJoin.name));
         if (admitted) this.pendingJoin = undefined;

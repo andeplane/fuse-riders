@@ -320,3 +320,41 @@ test("a song waits for a device that is still getting it, and starts for both wh
   // Said once it was heard: the log holds one word from each, not one a frame.
   assert.equal(host.metrics().mismatches, 0);
 });
+
+test("a lobby seat is a choice: a guest joins the seat it asks for, host and guest move to any free one, and a taken one is refused", () => {
+  const mesh = new Mesh("host", SETTINGS);
+  const host = mesh.join("host"),
+    guest = mesh.join("guest");
+  mesh.run(300);
+  const slots = (runtime: TestRuntime) =>
+    Object.fromEntries(
+      [...runtime.roomState()!.seats.values()].map((seat) => [
+        seat.id,
+        seat.slot,
+      ]),
+    );
+  host.command({ type: "join", name: "Host" });
+  guest.command({ type: "join", name: "Guest", slot: 3 });
+  mesh.run(3_000);
+  assert.deepEqual(slots(host), { host: 0, guest: 3 });
+  assert.ok(guest.command({ type: "join", name: "Guest", slot: 1 }));
+  mesh.run(3_000);
+  assert.ok(host.command({ type: "join", name: "Host", slot: 4 }));
+  mesh.run(800);
+  assert.deepEqual(slots(host), { host: 4, guest: 1 });
+  assert.deepEqual(slots(guest), slots(host));
+  // A seat somebody holds is not on offer, and asking for it moves nobody.
+  guest.command({ type: "join", name: "Guest", slot: 4 });
+  mesh.run(3_000);
+  assert.deepEqual(slots(host), { host: 4, guest: 1 });
+  // The moved seats still start a match, in seat order.
+  assert.ok(host.command({ type: "action", action: "start" }));
+  mesh.run(600, () => {
+    host.ready();
+    guest.ready();
+  });
+  assert.deepEqual(
+    host.roomState()!.roster.map((entrant) => entrant.id),
+    ["guest", "host"],
+  );
+});
