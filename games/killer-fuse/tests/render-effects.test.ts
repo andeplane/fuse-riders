@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import type { GameEvent, RoundView } from "../src/engine/index.js";
 import {
   EventLedger,
+  HeldPlans,
+  HELD_PATIENCE,
+  NO_ART,
   bodyLift,
   BUMP_SPARKS,
   CLAIM_SECONDS,
@@ -10,6 +13,7 @@ import {
   DEATH,
   CLASH_SHEET,
   HATCH,
+  isLoud,
   JUMP_DUST,
   STOMP_SPECKS,
   planLanding,
@@ -18,7 +22,9 @@ import {
   mergePlans,
   planEvent,
   planFlap,
+  stands,
   type Plan,
+  type TickEvents,
 } from "../src/render/effects.js";
 import { openingView, SIZES, unitView, withUnit } from "./render-kit.js";
 
@@ -31,36 +37,185 @@ const withEvents = (
   step,
   events,
 });
+const tick = (at: number, events: GameEvent[]): TickEvents => ({
+  tick: at,
+  events,
+});
 const kinds = (plan: Plan): string[] =>
   plan.effects.map((effect) => effect.kind);
 const sounds = (plan: Plan): string[] => plan.sounds.map((cue) => cue.name);
+const heard = (ledger: EventLedger, ...ticks: TickEvents[]): GameEvent[] =>
+  ledger.fresh(ticks).map((occurrence) => occurrence.event);
 
-test("a step fed again does not fire its events twice", () => {
+test("a tick fed again does not fire its events twice", () => {
   const ledger = new EventLedger();
   const kill: GameEvent = { type: "kill", victim: 1, killer: 3 };
-  const view = withEvents(openingView(), 40, [kill, { type: "berryRegrow" }]);
-  assert.deepEqual(ledger.fresh(view), view.events);
-  assert.deepEqual(ledger.fresh(view), []);
-  assert.deepEqual(ledger.fresh({ ...view, events: [...view.events] }), []);
+  const events: GameEvent[] = [kill, { type: "berryRegrow" }];
+  assert.deepEqual(ledger.fresh([tick(120, events)]), [
+    { tick: 120, index: 0, event: kill },
+    { tick: 120, index: 1, event: events[1] },
+  ]);
+  assert.deepEqual(ledger.fresh([tick(120, events)]), []);
+  assert.deepEqual(
+    ledger.fresh([
+      tick(
+        120,
+        events.map((event) => ({ ...event })),
+      ),
+    ]),
+    [],
+  );
 });
 
-test("a rollback that changes what happened on a step shows the new outcome only", () => {
+test("several ticks folded at once are all heard, oldest first", () => {
+  const ledger = new EventLedger();
+  const early: GameEvent = { type: "kill", victim: 1, killer: 3 };
+  const late: GameEvent = { type: "berryPickup", slot: 2, pile: 0 };
+  assert.deepEqual(ledger.fresh([tick(114, [early]), tick(120, [late])]), [
+    { tick: 114, index: 0, event: early },
+    { tick: 120, index: 0, event: late },
+  ]);
+  assert.deepEqual(
+    heard(ledger, tick(117, []), tick(120, [late])),
+    [],
+    "the newest tick again, from the frame that carries it",
+  );
+});
+
+test("a rollback that changes what happened on a tick shows the new outcome only", () => {
   const ledger = new EventLedger();
   const first: GameEvent = { type: "kill", victim: 1, killer: 3 };
   const second: GameEvent = { type: "kill", victim: 3, killer: 1 };
-  const base = openingView();
-  assert.equal(ledger.fresh(withEvents(base, 40, [first])).length, 1);
-  assert.equal(ledger.fresh(withEvents(base, 41, [])).length, 0);
-  assert.deepEqual(ledger.fresh(withEvents(base, 40, [first, second])), [
-    second,
-  ]);
+  assert.equal(heard(ledger, tick(120, [first])).length, 1);
+  assert.equal(heard(ledger, tick(123, [])).length, 0);
+  assert.deepEqual(heard(ledger, tick(120, [first, second])), [second]);
   assert.deepEqual(
-    ledger.fresh(withEvents(base, 41, [first])),
+    heard(ledger, tick(123, [first])),
     [first],
-    "the same event on another step is another event",
+    "the same event on another tick is another event",
   );
-  assert.notEqual(eventKey(40, first), eventKey(40, second));
-  assert.equal(eventKey(40, first), "40:kill,1,3");
+  assert.deepEqual(
+    heard(ledger, tick(123, [second])),
+    [second],
+    "a rollback that changed who died at the same index is news",
+  );
+  assert.notEqual(eventKey(120, 0, first), eventKey(120, 0, second));
+  assert.notEqual(eventKey(120, 0, first), eventKey(120, 1, first));
+  assert.equal(eventKey(120, 0, first), "120:0:kill,1,3");
+});
+
+test("a rollback that moves an impact by a pixel is not a new impact", () => {
+  const ledger = new EventLedger();
+  const clash: GameEvent = { type: "glance", a: 0, b: 3, x: 105, y: 91 };
+  const moved: GameEvent = { type: "glance", a: 0, b: 3, x: 106, y: 92 };
+  const others: GameEvent = { type: "glance", a: 0, b: 4, x: 105, y: 91 };
+  assert.equal(eventKey(120, 0, clash), eventKey(120, 0, moved));
+  assert.equal(eventKey(120, 0, clash), "120:0:glance,0,3");
+  assert.deepEqual(heard(ledger, tick(120, [clash])), [clash]);
+  assert.deepEqual(heard(ledger, tick(120, [moved])), []);
+  assert.deepEqual(heard(ledger, tick(120, [others])), [others]);
+  const used: GameEvent = {
+    type: "gateUse",
+    slot: 1,
+    gate: 0,
+    kind: "warrior",
+    x: 10,
+    y: 20,
+  };
+  assert.equal(eventKey(120, 2, used), "120:2:gateUse,1,0,warrior");
+});
+
+test("loud events are the deaths and the win, and stand while the view shows them", () => {
+  const kill: GameEvent = { type: "kill", victim: 1, killer: 3 };
+  const queen: GameEvent = {
+    type: "queenKill",
+    victim: 0,
+    killer: 3,
+    eggsLeft: 1,
+  };
+  const won: GameEvent = { type: "victory", team: 1, kind: "military" };
+  assert.ok(isLoud(kill) && isLoud(queen) && isLoud(won));
+  assert.equal(isLoud({ type: "berryRegrow" }), false);
+  assert.equal(isLoud({ type: "glance", a: 0, b: 3, x: 1, y: 1 }), false);
+  const alive = openingView();
+  assert.equal(stands(kill, alive), false, "the victim is alive: overturned");
+  assert.equal(stands(kill, withUnit(alive, 1, { dead: true })), true);
+  assert.equal(stands(queen, withUnit(alive, 0, { dead: true })), true);
+  assert.equal(stands(kill, { ...alive, units: [] }), false);
+  assert.equal(stands(won, alive), false);
+  assert.equal(
+    stands(won, { ...alive, winner: { team: 1, kind: "military" } }),
+    true,
+  );
+  assert.equal(
+    stands(won, { ...alive, winner: { team: 1, kind: "snail" } }),
+    false,
+  );
+  assert.equal(stands({ type: "berryRegrow" }, alive), true);
+});
+
+test("a held sound plays once its tick is confirmed and the kill still stands", () => {
+  const held = new HeldPlans();
+  const kill: GameEvent = { type: "kill", victim: 1, killer: 3 };
+  const dead = withUnit(openingView(), 1, { dead: true });
+  const plan: Plan = {
+    effects: [],
+    sounds: [{ name: "kill", volume: 1, pan: 0 }],
+    shake: 0,
+  };
+  held.hold(120, kill, plan);
+  assert.deepEqual(held.release(117, 120, dead), [], "not confirmed yet");
+  assert.equal(held.size, 1);
+  assert.deepEqual(held.release(120, 123, dead), [plan]);
+  assert.equal(held.size, 0);
+  assert.deepEqual(held.release(126, 126, dead), [], "played once");
+});
+
+test("a held sound of a kill a rollback erased is dropped, not played late", () => {
+  const held = new HeldPlans();
+  const kill: GameEvent = { type: "kill", victim: 1, killer: 3 };
+  const plan: Plan = {
+    effects: [],
+    sounds: [{ name: "kill", volume: 1, pan: 0 }],
+    shake: 0,
+  };
+  held.hold(120, kill, plan);
+  assert.deepEqual(held.release(120, 120, openingView()), []);
+  assert.equal(held.size, 0);
+  held.hold(120, kill, plan);
+  held.clear();
+  assert.equal(held.size, 0);
+});
+
+test("a tick that is never confirmed plays its sound after a while, and the held list is bounded", () => {
+  const held = new HeldPlans();
+  const kill: GameEvent = { type: "kill", victim: 1, killer: 3 };
+  const dead = withUnit(openingView(), 1, { dead: true });
+  const plan: Plan = {
+    effects: [],
+    sounds: [{ name: "kill", volume: 1, pan: 0 }],
+    shake: 0,
+  };
+  held.hold(120, kill, plan);
+  assert.deepEqual(held.release(-1, 120 + HELD_PATIENCE - 1, dead), []);
+  assert.deepEqual(held.release(-1, 120 + HELD_PATIENCE, dead), [plan]);
+  const small = new HeldPlans(HELD_PATIENCE, 3);
+  for (let at = 0; at < 5; at += 1) small.hold(at, kill, plan);
+  assert.equal(small.size, 3);
+  assert.equal(small.release(4, 4, dead).length, 3, "the newest are kept");
+});
+
+test("sounds are planned before the art has loaded", () => {
+  // Slot 2 is a Worker: a Queen's death is announced by `queenKill`, not by its `kill`.
+  const view = withUnit(openingView(), 2, { dead: true });
+  const plan = planEvent(
+    { type: "kill", victim: 2, killer: 3 },
+    view,
+    -1,
+    NO_ART,
+  );
+  assert.deepEqual(sounds(plan), ["kill"]);
+  assert.equal(bodyLift(view.units[2], NO_ART), 0);
 });
 
 test("flaps are reported once per unit and step, and never for the dead", () => {
@@ -74,18 +229,25 @@ test("flaps are reported once per unit and step, and never for the dead", () => 
   assert.deepEqual(ledger.freshFlaps({ ...view, step: 13 }), [0, 4]);
 });
 
-test("a new round forgets the old one and old steps are dropped", () => {
+test("a new round forgets the old one and old ticks are dropped", () => {
   const ledger = new EventLedger(10);
   const kill: GameEvent = { type: "kill", victim: 1, killer: 3 };
-  const base = openingView();
-  for (let step = 1; step <= 60; step += 1)
-    assert.equal(ledger.fresh(withEvents(base, step, [kill])).length, 1);
+  for (let at = 1; at <= 60; at += 1)
+    assert.equal(heard(ledger, tick(at, [kill])).length, 1);
   assert.ok(ledger.size <= 41, `kept ${ledger.size}`);
-  assert.equal(ledger.fresh(withEvents(base, 55, [kill])).length, 0);
-  // Far behind the newest step: a new round, where step 1 happens again.
-  assert.equal(ledger.fresh(withEvents(base, 1, [kill])).length, 1);
+  assert.equal(heard(ledger, tick(55, [kill])).length, 0);
+  // Far behind the newest tick: a new round, where tick 1 happens again.
+  assert.equal(heard(ledger, tick(1, [kill])).length, 1);
   assert.equal(ledger.size, 1);
-  assert.equal(ledger.fresh(withEvents(base, 2, [kill])).length, 1);
+  assert.equal(heard(ledger, tick(2, [kill])).length, 1);
+  // Flaps count on the round's step, apart from the events' clock.
+  const flapped = withUnit(openingView({ step: 9000 }), 0, { flapped: true });
+  assert.deepEqual(ledger.freshFlaps(flapped), [0]);
+  assert.deepEqual(ledger.freshFlaps(flapped), []);
+  assert.equal(heard(ledger, tick(3, [kill])).length, 1, "not a new round");
+  ledger.clear();
+  assert.equal(ledger.size, 0);
+  assert.deepEqual(ledger.freshFlaps(flapped), [0]);
 });
 
 test("a kill is specks of the victim's colour, big and small, and nothing else", () => {
@@ -373,26 +535,24 @@ test("plans merge into one: everything in order, the strongest shake", () => {
 
 test("a victory fires once a round, however often a rollback feeds it", () => {
   const ledger = new EventLedger();
-  const base = openingView();
   const won: GameEvent = { type: "victory", team: 1, kind: "military" };
-  assert.equal(ledger.fresh(withEvents(base, 900, [won])).length, 1);
-  assert.equal(ledger.fresh(withEvents(base, 900, [won])).length, 0);
+  assert.equal(heard(ledger, tick(900, [won])).length, 1);
+  assert.equal(heard(ledger, tick(900, [won])).length, 0);
   assert.equal(
-    ledger.fresh(withEvents(base, 903, [won])).length,
+    heard(ledger, tick(903, [won])).length,
     0,
-    "the same win on a later step after a rollback",
+    "the same win on a later tick after a rollback",
   );
   assert.equal(
-    ledger.fresh(
-      withEvents(base, 903, [{ type: "victory", team: 0, kind: "snail" }]),
-    ).length,
+    heard(ledger, tick(903, [{ type: "victory", team: 0, kind: "snail" }]))
+      .length,
     1,
     "a different outcome is news",
   );
   ledger.clear();
   assert.equal(ledger.size, 0);
   assert.equal(
-    ledger.fresh(withEvents(base, 40, [won])).length,
+    heard(ledger, tick(40, [won])).length,
     1,
     "a new round can be won the same way",
   );
@@ -627,14 +787,13 @@ test("a re-fed step with sword events plays them once", () => {
     { type: "snailCatch", victim: 4, rider: 1 },
     { type: "respawn", slot: 0, egg: 1 },
   ];
-  const view = withEvents(openingView(), 77, events);
-  assert.deepEqual(ledger.fresh(view), events);
-  assert.deepEqual(ledger.fresh(view), [], "the same step again");
+  assert.deepEqual(heard(ledger, tick(231, events)), events);
+  assert.deepEqual(heard(ledger, tick(231, events)), [], "the same tick again");
   assert.deepEqual(
-    ledger.fresh(
-      withEvents(
-        view,
-        77,
+    heard(
+      ledger,
+      tick(
+        231,
         events.map((event) => ({ ...event })),
       ),
     ),
@@ -643,9 +802,21 @@ test("a re-fed step with sword events plays them once", () => {
   );
   const moved: GameEvent = { type: "glance", a: 0, b: 3, x: 106, y: 91 };
   assert.deepEqual(
-    ledger.fresh(withEvents(view, 77, [...events, moved])),
-    [moved],
-    "a rollback that moved the clash shows the new one only",
+    heard(
+      ledger,
+      tick(
+        231,
+        events.map((event, index) => (index === 1 ? moved : event)),
+      ),
+    ),
+    [],
+    "a rollback that moved the clash by a pixel is the same clash",
+  );
+  const more: GameEvent = { type: "glance", a: 1, b: 4, x: 106, y: 91 };
+  assert.deepEqual(
+    heard(ledger, tick(231, [...events, more])),
+    [more],
+    "a rollback that added a clash shows the new one only",
   );
 });
 

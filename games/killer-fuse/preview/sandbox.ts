@@ -23,6 +23,15 @@ import {
   type RoundView,
 } from "../src/engine/index.js";
 import { createArenaView } from "../src/render/index.js";
+import type { EventFeed } from "../src/render/api.js";
+
+/** No room here, so nothing is ever rolled back: every step is confirmed as soon as it is shown. */
+function feedOf(view: RoundView): EventFeed {
+  return {
+    ticks: [{ tick: view.step, events: view.events }],
+    confirmed: view.step,
+  };
+}
 
 interface Setup {
   seat: number;
@@ -142,7 +151,7 @@ function begin(): void {
   stepsWaiting = 0;
   arena.update({ localSlot: setup.seat, names: names() });
   // Step zero tells the renderer a new round began, so nothing of the last one lingers.
-  arena.advance(current);
+  arena.advance(current, feedOf(current));
 }
 begin();
 
@@ -195,7 +204,7 @@ function simulate(show: boolean): void {
   current = { ...view, events: waiting };
   waiting = [];
   stepsWaiting = 0;
-  if (show) arena.advance(current);
+  if (show) arena.advance(current, feedOf(current));
 }
 
 /**
@@ -348,7 +357,7 @@ window.__game = {
       if (state.winner && type !== "victory") return false;
       simulate(false);
       if (current.events.some((event) => event.type === type)) {
-        arena.advance(current);
+        arena.advance(current, feedOf(current));
         return true;
       }
       if (state.winner) return false;
@@ -360,7 +369,7 @@ window.__game = {
     previous = current;
   },
   show: () => {
-    arena.advance(current);
+    arena.advance(current, feedOf(current));
     drawBoxes();
   },
   setSpeed: (value) => {

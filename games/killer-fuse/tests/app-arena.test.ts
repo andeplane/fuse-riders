@@ -1,19 +1,30 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { Frame, FrameTiming } from "fuse-netcode";
-import type { RoundView } from "../src/engine/index.js";
+import type { GameEvent, RoundView } from "../src/engine/index.js";
 import { view, type Room, type View } from "../src/online/index.js";
-import { ArenaDriver } from "../src/app/arena.js";
-import type { ArenaOptions, ArenaView } from "../src/render/api.js";
+import { ArenaDriver, EventQueue, QUEUE_LIMIT } from "../src/app/arena.js";
+import type {
+  ArenaOptions,
+  ArenaView,
+  EventFeed,
+  TickEvents,
+} from "../src/render/api.js";
 import { fold, lobby, started, toPlay } from "./fixtures/room.js";
 
 type Call =
   | { kind: "create"; options: ArenaOptions }
-  | { kind: "advance"; step: number }
+  | { kind: "advance"; step: number; feed: EventFeed }
   | { kind: "render"; from: number; to: number; alpha: number }
   | { kind: "update"; options: Partial<ArenaOptions> }
   | { kind: "resize" }
   | { kind: "destroy" };
+
+/** The feed a frame carries when nothing was queued for it: its own events, nothing confirmed. */
+const own = (frame: Frame<View>, confirmed = -1): EventFeed => ({
+  ticks: [{ tick: frame.tick, events: frame.world?.events ?? [] }],
+  confirmed,
+});
 
 /** A renderer that only writes down what it was asked. */
 function fake(ready: Promise<void> = Promise.resolve()) {
@@ -31,8 +42,8 @@ function fake(ready: Promise<void> = Promise.resolve()) {
           to: current.step,
           alpha,
         }),
-      advance: (world: RoundView) =>
-        void calls.push({ kind: "advance", step: world.step }),
+      advance: (world: RoundView, feed: EventFeed) =>
+        void calls.push({ kind: "advance", step: world.step, feed }),
       update: (options) => void calls.push({ kind: "update", options }),
       resize: () => void calls.push({ kind: "resize" }),
       destroy: () => void calls.push({ kind: "destroy" }),
@@ -51,11 +62,13 @@ const HOST: Host = { id: "stage" };
 function rig(ready?: Promise<void>) {
   const renderer = fake(ready);
   let timing: FrameTiming<View> | undefined;
+  let confirmed = -1;
   const driver = new ArenaDriver({
     create: renderer.create,
     host: HOST,
     artUrl: "/killer-fuse/art/",
     timing: () => timing,
+    confirmed: () => confirmed,
   });
   return {
     ...renderer,
@@ -63,8 +76,13 @@ function rig(ready?: Promise<void>) {
     time(next: FrameTiming<View> | undefined) {
       timing = next;
     },
+    confirm(tick: number) {
+      confirmed = tick;
+    },
   };
 }
+const fed = (calls: Call[]): EventFeed[] =>
+  calls.flatMap((call) => (call.kind === "advance" ? [call.feed] : []));
 
 test("the arena opens with the first game, hears each frame once, and closes in the lobby", () => {
   const { calls, hosts, driver } = rig();
@@ -97,7 +115,7 @@ test("the arena opens with the first game, hears each frame once, and closes in 
         highlight: false,
       },
     },
-    { kind: "advance", step: 0 },
+    { kind: "advance", step: 0, feed: own(first) },
   ]);
   driver.feed(first, true);
   assert.equal(calls.length, 2, "the same frame is not fed twice");
@@ -105,10 +123,18 @@ test("the arena opens with the first game, hears each frame once, and closes in 
   fold(room);
   const second = frame(room);
   driver.feed(second, true);
-  assert.deepEqual(calls.at(-1), { kind: "advance", step: 3 });
+  assert.deepEqual(calls.at(-1), {
+    kind: "advance",
+    step: 3,
+    feed: own(second),
+  });
   // A rollback hands over a new frame for the same tick: the renderer dedupes its effects itself.
   driver.feed(frame(room), true);
-  assert.deepEqual(calls.at(-1), { kind: "advance", step: 3 });
+  assert.deepEqual(calls.at(-1), {
+    kind: "advance",
+    step: 3,
+    feed: own(second),
+  });
   assert.equal(calls.length, 4);
   driver.resize();
   assert.deepEqual(calls.at(-1), { kind: "resize" });
@@ -124,6 +150,101 @@ test("the arena opens with the first game, hears each frame once, and closes in 
     ["create", "advance"],
     "the next set gets a fresh arena, and its frame is fed again",
   );
+});
+
+test("events the runtime delivers between frames reach the arena with the frame that carries their tick", () => {
+  const { calls, driver, confirm } = rig();
+  const room = started();
+  toPlay(room);
+  fold(room);
+  const first = frame(room);
+  const kill: GameEvent = { type: "kill", victim: 1, killer: 3 };
+  const pickup: GameEvent = { type: "berryPickup", slot: 2, pile: 0 };
+  const regrow: GameEvent = { type: "berryRegrow" };
+  // Three ticks folded at once: the runtime says each tick's events, then publishes the newest frame.
+  driver.event(kill, first.matchId, first.round, first.tick + 3);
+  driver.event(pickup, first.matchId, first.round, first.tick + 3);
+  driver.event(regrow, first.matchId, first.round, first.tick + 6);
+  fold(room);
+  fold(room);
+  fold(room);
+  const fourth = frame(room);
+  assert.equal(fourth.tick, first.tick + 9);
+  // What the fold says of the newest tick is the frame's own list, not the queue's.
+  driver.event(kill, fourth.matchId, fourth.round, fourth.tick);
+  confirm(first.tick + 3);
+  driver.feed(fourth, true);
+  assert.deepEqual(fed(calls), [
+    {
+      ticks: [
+        { tick: first.tick + 3, events: [kill, pickup] },
+        { tick: first.tick + 6, events: [regrow] },
+        { tick: fourth.tick, events: fourth.world?.events ?? [] },
+      ],
+      confirmed: first.tick + 3,
+    },
+  ]);
+  // A rollback re-runs the last ticks and adds what a late attack did; the new frame carries it, once.
+  const late: GameEvent = { type: "attack", slot: 0 };
+  driver.event(late, fourth.matchId, fourth.round, first.tick + 6);
+  const replaced = frame(room);
+  confirm(fourth.tick);
+  driver.feed(replaced, true);
+  assert.deepEqual(fed(calls).at(-1), {
+    ticks: [
+      { tick: first.tick + 6, events: [late] },
+      { tick: fourth.tick, events: fourth.world?.events ?? [] },
+    ],
+    confirmed: fourth.tick,
+  });
+  fold(room);
+  const fifth = frame(room);
+  driver.feed(fifth, true);
+  assert.deepEqual(fed(calls).at(-1), own(fifth, fourth.tick), "all taken");
+});
+
+test("the queue keeps only the game being shown, holds what no frame has reached, and is bounded", () => {
+  const queue = new EventQueue();
+  const room = started();
+  toPlay(room);
+  fold(room);
+  const now = frame(room);
+  const kill: GameEvent = { type: "kill", victim: 1, killer: 3 };
+  const regrow: GameEvent = { type: "berryRegrow" };
+  queue.add(kill, "m0", 1, now.tick - 3);
+  queue.add(regrow, now.matchId, now.round, now.tick - 3);
+  assert.equal(queue.size, 1, "another game's events are dropped");
+  queue.add(kill, now.matchId, now.round, now.tick + 3);
+  const ticks: TickEvents[] = queue.take(now, [kill]);
+  assert.deepEqual(ticks, [
+    { tick: now.tick - 3, events: [regrow] },
+    { tick: now.tick, events: [kill] },
+  ]);
+  assert.equal(queue.size, 1, "a tick the frame has not reached waits");
+  assert.deepEqual(queue.take({ ...now, round: 2 }, []), [
+    { tick: now.tick, events: [] },
+  ]);
+  assert.equal(queue.size, 0, "the next game starts clean");
+  for (let tick = 0; tick < QUEUE_LIMIT + 5; tick += 1)
+    queue.add(regrow, now.matchId, now.round, tick * 3);
+  assert.equal(queue.size, QUEUE_LIMIT, "the oldest are dropped");
+  queue.clear();
+  assert.equal(queue.size, 0);
+});
+
+test("closing the arena forgets the events queued for it", () => {
+  const { calls, driver } = rig();
+  const room = started();
+  toPlay(room);
+  fold(room);
+  const first = frame(room);
+  driver.feed(first, true);
+  driver.event({ type: "berryRegrow" }, first.matchId, first.round, first.tick);
+  driver.close();
+  fold(room);
+  const next = frame(room);
+  driver.feed(next, true);
+  assert.deepEqual(fed(calls).at(-1), own(next));
 });
 
 test("a controller phone never opens the arena, and leaves it when the room turns shared", () => {

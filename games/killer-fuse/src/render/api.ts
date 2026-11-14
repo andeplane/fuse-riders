@@ -2,7 +2,10 @@
  * The contract between the page (`src/app`) and the arena renderer (`src/render`).
  * The page owns the room, input and menus; the renderer only draws supplied views and plays sound.
  */
-import type { RoundView } from "../engine/index.js";
+import type { RoundView } from "../engine/view.js";
+import type { EventFeed } from "./effects.js";
+
+export type { EventFeed, TickEvents } from "./effects.js";
 
 export interface ArenaOptions {
   /** Base URL of the art folder, ending in a slash. */
@@ -27,10 +30,11 @@ export interface ArenaView {
    */
   render(previous: RoundView, current: RoundView, alpha: number): void;
   /**
-   * Feeds a newly confirmed or predicted step so its events start effects and sounds.
-   * Call it once per step, in order; a rolled-back step may be fed again and must not double its effects.
+   * Feeds the newest view with the events of every log tick since the last feed (`feed.ticks`, the newest tick's
+   * being the view's own), so each starts its effects and sounds once. A rolled-back tick may be fed again and must
+   * not double its effects; its loud ones wait for `feed.confirmed` to pass the tick.
    */
-  advance(view: RoundView): void;
+  advance(view: RoundView, feed: EventFeed): void;
   update(options: Partial<ArenaOptions>): void;
   resize(): void;
   destroy(): void;

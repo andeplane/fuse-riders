@@ -3,20 +3,7 @@
  * diving, carrying); the only memory the renderer adds is how long ago each unit last flapped and which way it is
  * moving vertically.
  */
-import {
-  COLLIDERS,
-  WEAPONS,
-  FLAP_THRUST,
-  FLY_GRAVITY,
-  FLY_TERMINAL,
-  GATE_LOCK,
-  GATE_OFFER,
-  GATE_STEPS,
-  S,
-  TICK_HZ,
-  type RoundView,
-  type UnitView,
-} from "../engine/index.js";
+import type { RoundView, UnitView, ViewRules } from "../engine/view.js";
 import {
   animationFrame,
   frameIndex,
@@ -32,11 +19,13 @@ import {
  */
 export const FLAP_SECONDS = { queen: 0.1, warrior: 0.08, glide: 0.27 } as const;
 /** Steps one wing beat takes for a kind of unit, and steps after a flap at which the falling pose starts. */
-export const beatSteps = (kind: UnitView["kind"]): number =>
-  (kind === "queen" ? FLAP_SECONDS.queen : FLAP_SECONDS.warrior) * TICK_HZ;
-export const GLIDE_STEPS = FLAP_SECONDS.glide * TICK_HZ;
+export const beatSteps = (kind: UnitView["kind"], rules: ViewRules): number =>
+  (kind === "queen" ? FLAP_SECONDS.queen : FLAP_SECONDS.warrior) * rules.tickHz;
+export const glideSteps = (rules: ViewRules): number =>
+  FLAP_SECONDS.glide * rules.tickHz;
 /** An invulnerable unit blinks white on a cycle of a sixth of a second: this many steps on, as many off. */
-export const FLASH_BEAT_STEPS = Math.round((0.167 * TICK_HZ) / 2);
+export const flashBeatSteps = (rules: ViewRules): number =>
+  Math.round((0.167 * rules.tickHz) / 2);
 /** A stunned unit blinks white much faster: this many steps on, as many off. */
 export const STUN_BEAT_STEPS = 2;
 /** A landing squashes a body for this long, down to this share of its height at full falling speed. */
@@ -55,11 +44,13 @@ export const WINGS_DY = 1;
  * speed than gravity gives it. This much less, in pixels a step each step, is one flap pushing: half its thrust, so
  * the lighter gravity after a take-off does not count as one.
  */
-export const FLAP_SLOWING = FLAP_THRUST / S / 2;
+export const flapSlowing = (rules: ViewRules): number => rules.flapThrust / 2;
 /** A move of more than this many pixels a step is a respawn or a wrap, not flight. */
 export const FLAP_JUMP = 8;
 
 export interface PoseContext {
+  /** The view's rule values: the steps in a second, and the flight the poses read. */
+  readonly rules: ViewRules;
   /** The display frame's time in steps, fractional. */
   readonly time: number;
   /** Change of `y` per step: negative while rising. */
@@ -86,10 +77,14 @@ export function unitSheet(unit: UnitView): string {
   return `${speed}${unit.kind}-${teamName(unit.team)}`;
 }
 
-export const flashing = (unit: UnitView, time: number): boolean =>
+export const flashing = (
+  unit: UnitView,
+  time: number,
+  rules: ViewRules,
+): boolean =>
   unit.stunned
     ? Math.floor(time / STUN_BEAT_STEPS) % 2 === 0
-    : unit.invulnerable && Math.floor(time / FLASH_BEAT_STEPS) % 2 === 0;
+    : unit.invulnerable && Math.floor(time / flashBeatSteps(rules)) % 2 === 0;
 
 /**
  * How many pixels a dashing unit's sprite is raised over its feet. The engine lifts a dashing unit's movement box
@@ -97,20 +92,21 @@ export const flashing = (unit: UnitView, time: number): boolean =>
  * floor. The sprite is raised until the lowest painted row of its pose, `gap` pixels over the anchor, sits on the
  * bottom of that box: it then skims the floor in a ground dash and its blade is level with the engine's in the air.
  */
-export function dashLift(unit: UnitView, gap: number): number {
+export function dashLift(
+  unit: UnitView,
+  gap: number,
+  rules: ViewRules,
+): number {
   if (!unit.dashing || unit.kind === "worker") return 0;
-  const box =
-    unit.kind === "queen" ? COLLIDERS.queenDash : COLLIDERS.warriorDash;
-  return Math.max(0, box.lift / S - gap);
+  return Math.max(0, rules.dashLift[unit.kind] - gap);
 }
 
 /**
  * How far a diving Queen's blade must be drawn on below the painted one, whose tip is `painted` pixels under her
- * feet, to end where the engine's does. Nothing when the art is within a pixel of it.
+ * feet, to end where the engine's does (`rules.diveTip`). Nothing when the art is within a pixel of it.
  */
-export function diveReach(painted: number): number {
-  const tip = Math.max(...WEAPONS.queenDive.map((box) => box.y + box.hh)) / S;
-  const missing = Math.round(tip - painted);
+export function diveReach(painted: number, rules: ViewRules): number {
+  const missing = Math.round(rules.diveTip - painted);
   return missing > 1 ? missing : 0;
 }
 
@@ -144,7 +140,8 @@ function wingedAnimation(unit: UnitView, context: PoseContext): string {
   if (unit.stunned && !unit.grounded) return "glide";
   if (unit.grounded) return unit.moving ? "walk" : "idle";
   if (unit.diving) return "dive";
-  if (context.sinceFlap < GLIDE_STEPS || context.dy < WINGS_DY) return "fly";
+  if (context.sinceFlap < glideSteps(context.rules) || context.dy < WINGS_DY)
+    return "fly";
   return "glide";
 }
 
@@ -153,8 +150,8 @@ export function unitPose(
   unit: UnitView,
   context: PoseContext,
 ): Pose {
-  const flash = flashing(unit, context.time);
-  const seconds = context.time / TICK_HZ;
+  const flash = flashing(unit, context.time, context.rules);
+  const seconds = context.time / context.rules.tickHz;
   if (unit.kind === "worker" && context.inGate) {
     // Standing between the pillars with empty hands: the berry it paid lies on top of the gate.
     const id = unitSheet({ ...unit, speed: false });
@@ -191,9 +188,9 @@ export function unitPose(
     // are held raised, on the beat's first frame.
     const beat = def.animations.fly?.frames ?? [];
     const length = Math.max(1, beat.length);
-    const steps = beatSteps(unit.kind);
+    const steps = beatSteps(unit.kind, context.rules);
     // With no flap seen lately the unit is still holding itself up, so the beat runs on the clock.
-    const seen = context.sinceFlap < GLIDE_STEPS;
+    const seen = context.sinceFlap < glideSteps(context.rules);
     const since = Math.max(0, seen ? context.sinceFlap : context.time);
     const at =
       seen && since >= steps
@@ -275,13 +272,14 @@ export function velocityFlaps(
     dy[slot] = speed;
     const last = trace.dy[slot];
     if (last === undefined) return;
+    const { rules } = after;
     const falling = Math.min(
-      FLY_TERMINAL / S,
-      last + (FLY_GRAVITY / S) * steps,
+      rules.flyTerminal,
+      last + rules.flyGravity * steps,
     );
     const pushing = Math.max(
       0,
-      Math.round((falling - speed) / steps / (FLAP_SLOWING * 2)),
+      Math.round((falling - speed) / steps / (flapSlowing(rules) * 2)),
     );
     lift[slot] = pushing;
     // A dive that ends slows the fall too; a flap already seen on either view explains the change.
@@ -328,7 +326,10 @@ export function landings(
     const fall = (unit.y - was.y) / steps;
     if (fall <= 0 || fall > FLAP_JUMP) return [];
     return [
-      { slot: unit.slot, strength: Math.min(1, fall / (FLY_TERMINAL / S)) },
+      {
+        slot: unit.slot,
+        strength: Math.min(1, fall / after.rules.flyTerminal),
+      },
     ];
   });
 }
@@ -405,15 +406,15 @@ export interface GateDoor {
 }
 
 /** What a gate's doors show at `progress` (0 to 1 of the whole stay, as the view gives it). */
-export function gateDoor(progress: number): GateDoor {
-  const steps = Math.max(0, Math.min(1, progress)) * GATE_STEPS;
-  if (steps < GATE_OFFER)
-    return { offer: steps / GATE_OFFER, closed: 0, lock: 0 };
-  const held = steps - GATE_OFFER;
+export function gateDoor(progress: number, rules: ViewRules): GateDoor {
+  const steps = Math.max(0, Math.min(1, progress)) * rules.gateSteps;
+  if (steps < rules.gateOffer)
+    return { offer: steps / rules.gateOffer, closed: 0, lock: 0 };
+  const held = steps - rules.gateOffer;
   return {
     offer: 1,
     closed: Math.min(1, (held + 1) / DOOR_SHUT_STEPS),
-    lock: Math.min(1, held / GATE_LOCK),
+    lock: Math.min(1, held / rules.gateLock),
   };
 }
 

@@ -7,8 +7,12 @@ import {
   type RoundView,
   type UnitView,
 } from "../src/engine/index.js";
+import { VIEW_RULES, type ViewRules } from "../src/engine/view.js";
 import { parseManifest, type ArtManifest } from "../src/render/manifest.js";
 import type { Sizes } from "../src/render/metrics.js";
+
+/** The rule values every view carries, for calling the animation helpers directly. */
+export const RULES: ViewRules = VIEW_RULES;
 
 /** Art heights for tests that place effects: made-up but distinct, so a mixed-up kind shows. */
 export const SIZES: Sizes = {

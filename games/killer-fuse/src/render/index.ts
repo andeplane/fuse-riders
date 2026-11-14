@@ -7,7 +7,7 @@
  * drawing; a retained scene graph would have to be reconciled with the view every frame, and the horizontal wrap
  * (everything near an edge shows on both sides) is one more draw call here but a second set of objects there.
  */
-import type { RoundView } from "../engine/index.js";
+import type { RoundView } from "../engine/view.js";
 import {
   bodyShape,
   diveEnds,
@@ -19,10 +19,18 @@ import {
   velocityFlaps,
   type FlightTrace,
 } from "./animation.js";
-import type { ArenaOptions, ArenaView, CreateArenaView } from "./api.js";
+import type {
+  ArenaOptions,
+  ArenaView,
+  CreateArenaView,
+  EventFeed,
+} from "./api.js";
 import {
   EventLedger,
+  HeldPlans,
+  isLoud,
   mergePlans,
+  NO_ART,
   planEvent,
   planFlap,
   planLanding,
@@ -78,6 +86,7 @@ class Arena implements ArenaView {
   private hud: Hud | null = null;
   private readonly sound: Sound;
   private readonly ledger = new EventLedger();
+  private readonly held = new HeldPlans();
   private readonly flaps = new FlapClock();
   private readonly shake = new Shake();
   private readonly pool = new EffectPool();
@@ -160,7 +169,7 @@ class Arena implements ArenaView {
     if (options.muted !== undefined) this.sound.setMuted(options.muted);
   }
 
-  advance(view: RoundView): void {
+  advance(view: RoundView, feed: EventFeed): void {
     const now = performance.now() / 1000;
     // A step far behind the last one, or the very first step again, is a new round: nothing of the old one may
     // linger. A rollback only ever goes back a few steps.
@@ -171,7 +180,8 @@ class Arena implements ArenaView {
       this.reset();
     this.lastStep = view.step;
     this.flaps.rewind(view.step);
-    const events = this.ledger.fresh(view);
+    const fresh = this.ledger.fresh(feed.ticks);
+    const events = fresh.map((occurrence) => occurrence.event);
     const flapped = this.ledger.freshFlaps(view);
     // The page feeds one view per network tick, so most flaps happen on steps never shown: read them from the fall.
     const moved = this.fed
@@ -206,9 +216,24 @@ class Arena implements ArenaView {
     for (const slot of flapped) this.flaps.note(slot, view.step);
     const local = this.options.localSlot;
     const sizes = this.sprites?.sizes;
-    const plans: Plan[] = sizes
-      ? events.map((event) => planEvent(event, view, local, sizes))
-      : [];
+    // Before the art loads the sounds still play; the effects planned without it are dropped by `apply`.
+    const plans: Plan[] = [];
+    for (const { tick, event } of fresh) {
+      const plan = planEvent(event, view, local, sizes ?? NO_ART);
+      if (!isLoud(event)) {
+        plans.push(plan);
+        continue;
+      }
+      // A loud event shows its particles now and keeps its sound and shake for the tick to be confirmed.
+      plans.push({ effects: plan.effects, sounds: [], shake: 0 });
+      this.held.hold(tick, event, {
+        effects: [],
+        sounds: plan.sounds,
+        shake: plan.shake,
+      });
+    }
+    const newest = feed.ticks.at(-1)?.tick ?? feed.confirmed;
+    plans.push(...this.held.release(feed.confirmed, newest, view));
     for (const slot of flapped) {
       const unit = view.units[slot];
       if (!unit) continue;
@@ -255,6 +280,7 @@ class Arena implements ArenaView {
     this.runDust = [];
     this.wonAt = null;
     this.ledger.clear();
+    this.held.clear();
     this.fed = null;
     this.flight = NO_FLIGHT;
   }

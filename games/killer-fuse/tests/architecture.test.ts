@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 import {
   deterministicViolations,
   imports,
@@ -114,6 +115,153 @@ test("the guard refuses Math.sin added to an engine file, and every other form i
     "exponentiation",
     "performance",
   ]);
+});
+
+/**
+ * The render boundary: `src/render/` draws the view and nothing else of the game. From the engine it imports the
+ * types of `engine/view.ts` (never its values: `viewOf` would bring the rules in behind the contract) and the pure
+ * kernels of `engine/view-kit.ts`, should one be needed; a rule value it needs travels as data in the view
+ * (`RoundView.rules`). It never imports `online/` or `app/`, nor the netcode, and the room knows the renderer only
+ * through `render/api.ts`.
+ */
+const renderDir = path.join(game, "src", "render");
+const engineModule = (name: string): string => path.join(engineDir, name);
+
+/** Why `specifier`, imported from the render file `source`, crosses the boundary; undefined when it may. */
+export function renderViolation(
+  source: string,
+  specifier: string,
+  typeOnly: boolean,
+): string | undefined {
+  if (!specifier.startsWith("."))
+    return /^fuse-(netcode|network|platform)/.test(specifier)
+      ? `${specifier}: the renderer knows nothing of the room or the platform`
+      : undefined;
+  const target = path
+    .resolve(path.dirname(source), specifier)
+    .replace(/\.js$/, ".ts");
+  const relative = path.relative(renderDir, target);
+  if (!relative.startsWith("..") && !path.isAbsolute(relative))
+    return undefined;
+  if (target === engineModule("view-kit.ts")) return undefined;
+  if (target === engineModule("view.ts"))
+    return typeOnly
+      ? undefined
+      : `${specifier}: a value import of the view contract; import its types only`;
+  return `${specifier}: the renderer imports only engine/view.ts (types) and engine/view-kit.ts`;
+}
+
+/** Every module `file` imports, with whether the import brings no values (`import type`, or every binding typed). */
+export function importEdges(
+  file: ts.SourceFile,
+): { specifier: string; typeOnly: boolean }[] {
+  const found: { specifier: string; typeOnly: boolean }[] = [];
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isImportDeclaration(node) &&
+      ts.isStringLiteralLike(node.moduleSpecifier)
+    ) {
+      const clause = node.importClause;
+      found.push({
+        specifier: node.moduleSpecifier.text,
+        typeOnly:
+          !!clause &&
+          (clause.isTypeOnly ||
+            (!clause.name &&
+              !!clause.namedBindings &&
+              ts.isNamedImports(clause.namedBindings) &&
+              clause.namedBindings.elements.every((e) => e.isTypeOnly))),
+      });
+    } else if (
+      ts.isExportDeclaration(node) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteralLike(node.moduleSpecifier)
+    )
+      found.push({
+        specifier: node.moduleSpecifier.text,
+        typeOnly:
+          node.isTypeOnly ||
+          (!!node.exportClause &&
+            ts.isNamedExports(node.exportClause) &&
+            node.exportClause.elements.every((e) => e.isTypeOnly)),
+      });
+    else if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments[0] &&
+      ts.isStringLiteralLike(node.arguments[0])
+    )
+      found.push({ specifier: node.arguments[0].text, typeOnly: false });
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return found;
+}
+
+test("src/render/ imports only the view contract's types from the engine, and nothing of online/ or app/", () => {
+  const files = sourceFiles(renderDir);
+  assert.ok(files.some((file) => file.endsWith("scene.ts")));
+  const found = files.flatMap((file) =>
+    importEdges(syntax(file)).flatMap(({ specifier, typeOnly }) => {
+      const reason = renderViolation(file, specifier, typeOnly);
+      return reason ? [`${path.relative(game, file)}: ${reason}`] : [];
+    }),
+  );
+  assert.deepEqual(
+    found,
+    [],
+    "put the rule value on the view (RoundView.rules) or a kernel in engine/view-kit.ts",
+  );
+});
+
+test("the render guard refuses the engine's values, the barrel, the online and app layers and the netcode", () => {
+  const source = path.join(renderDir, "scene.ts");
+  for (const [specifier, typeOnly] of [
+    ["../engine/index.js", true],
+    ["../engine/index.js", false],
+    ["../engine/tuning.js", true],
+    ["../engine/view.js", false],
+    ["../online/index.js", true],
+    ["../online/game.js", false],
+    ["../app/main.js", true],
+    ["../../tests/render-kit.js", false],
+    ["fuse-netcode", true],
+    ["fuse-network-fe", false],
+    ["fuse-platform", false],
+  ] as const)
+    assert.ok(renderViolation(source, specifier, typeOnly), specifier);
+  for (const [specifier, typeOnly] of [
+    ["../engine/view.js", true],
+    ["../engine/view-kit.js", false],
+    ["./animation.js", false],
+    ["./effects.js", true],
+    ["typescript", false],
+  ] as const)
+    assert.equal(
+      renderViolation(source, specifier, typeOnly),
+      undefined,
+      specifier,
+    );
+  assert.deepEqual(
+    importEdges(
+      syntax(
+        "sample.ts",
+        `import type { A } from "./a.js"; import { type B, type C } from "./b.js"; import { type D, e } from "./d.js";
+         import f from "./f.js"; export type { G } from "./g.js"; export { type H } from "./h.js"; export * from "./i.js";
+         const j = await import("./j.js");`,
+      ),
+    ),
+    [
+      { specifier: "./a.js", typeOnly: true },
+      { specifier: "./b.js", typeOnly: true },
+      { specifier: "./d.js", typeOnly: false },
+      { specifier: "./f.js", typeOnly: false },
+      { specifier: "./g.js", typeOnly: true },
+      { specifier: "./h.js", typeOnly: true },
+      { specifier: "./i.js", typeOnly: false },
+      { specifier: "./j.js", typeOnly: false },
+    ],
+  );
 });
 
 /** The state must survive a structured clone and JSON, so no engine module may build it from classes or collections. */

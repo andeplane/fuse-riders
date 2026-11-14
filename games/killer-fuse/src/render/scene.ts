@@ -3,18 +3,13 @@
  * effects on top. It draws one blended view and keeps nothing between frames except caches of things that never
  * change (the platform layer of a map, glyph layouts).
  */
-import {
-  PILE_HEIGHT,
-  QUEEN_LETHAL,
-  RESPAWN_STEPS,
-  S,
-  TICK_HZ,
-  WARRIOR_LETHAL,
-  type GateView,
-  type MapDef,
-  type RoundView,
-  type UnitView,
-} from "../engine/index.js";
+import type {
+  GateView,
+  MapDef,
+  RoundView,
+  UnitView,
+  ViewRules,
+} from "../engine/view.js";
 import {
   dashLift,
   diveReach,
@@ -200,7 +195,7 @@ export class Scene {
     view.hives.forEach((holes, team) => this.hive(ctx, team, holes, frame));
     this.eggs(ctx, frame);
     for (const gate of view.gates) this.gate(ctx, gate);
-    for (const pile of view.piles) this.pile(ctx, pile);
+    for (const pile of view.piles) this.pile(ctx, pile, view.rules.pileHeight);
     // The rider sits astride, its far leg behind the shell; a meal is half inside the mouth.
     // The nets stand in front of the track, and the snail crawls into its basket; a snail that has won is shown
     // in front of it, so the ending reads as the snail home and not as a net.
@@ -433,7 +428,11 @@ export class Scene {
     this.sprites.draw(ctx, id, frameIndex(def, name), gate.x, gate.y - 1);
   }
 
-  private pile(ctx: Ctx, pile: RoundView["piles"][number]): void {
+  private pile(
+    ctx: Ctx,
+    pile: RoundView["piles"][number],
+    pileHeight: number,
+  ): void {
     const def = this.sprites.def("berry-pile");
     if (!def) return;
     // One frame per number of berries left.
@@ -446,7 +445,7 @@ export class Scene {
         "berry-pile",
         frame,
         pile.x,
-        pile.y - PILE_HEIGHT / S,
+        pile.y - pileHeight,
       );
     else this.sprites.draw(ctx, "berry-pile", frame, pile.x, pile.y - 1);
   }
@@ -455,7 +454,7 @@ export class Scene {
     const def = this.sprites.def("snail");
     if (!def) return 0;
     const { snail } = frame.view;
-    const seconds = frame.time / TICK_HZ;
+    const seconds = frame.time / frame.view.rules.tickHz;
     if (snail.victim >= 0) return animationFrame(def, "eat", seconds);
     if (snail.rider >= 0) return animationFrame(def, "crawl", seconds);
     return animationFrame(def, "idle", seconds);
@@ -533,6 +532,7 @@ export class Scene {
       if (this.emerging(unit, frame)) continue;
       const inGate = view.gates.some((gate) => gate.user === unit.slot);
       const pose = unitPose(this.sprites.art.manifest, unit, {
+        rules: view.rules,
         time: frame.time,
         dy: frame.dy[unit.slot] ?? 0,
         sinceFlap: frame.flaps.since(unit.slot, frame.time),
@@ -541,7 +541,7 @@ export class Scene {
       const stood = this.place(unit, frame);
       const base = unitSheet(unit);
       const gap = this.below(base, pose.frame);
-      const at = { x: stood.x, y: stood.y - dashLift(unit, gap) };
+      const at = { x: stood.x, y: stood.y - dashLift(unit, gap, view.rules) };
       const flip = unit.facing < 0;
       // A dive, and a speed unit always, leave after-images where they have been; a dash has its streak.
       if (
@@ -562,7 +562,8 @@ export class Scene {
           born: frame.now,
         });
       this.shaped(ctx, at, frame.shapes[unit.slot], (x) => {
-        if (unit.dashing) this.streak(ctx, unit, base, pose.frame, x, at.y);
+        if (unit.dashing)
+          this.streak(ctx, unit, base, pose.frame, x, at.y, view.rules);
         const outline = outlineOf(unit, frame.localSlot, frame.highlight);
         if (outline && !inGate)
           this.rim(ctx, unit, pose.frame, { x, y: at.y }, flip, outline);
@@ -584,7 +585,8 @@ export class Scene {
           this.sprites.draw(ctx, pose.sheet, pose.frame, x, at.y, flip);
           ctx.globalAlpha = 1;
         } else this.sprites.draw(ctx, pose.sheet, pose.frame, x, at.y, flip);
-        if (unit.diving) this.diveBlade(ctx, base, pose.frame, x, at.y, flip);
+        if (unit.diving)
+          this.diveBlade(ctx, base, pose.frame, x, at.y, flip, view.rules);
         this.glint(ctx, unit, base, pose.frame, x, at.y, frame);
       });
     }
@@ -640,10 +642,11 @@ export class Scene {
     x: number,
     y: number,
     flip: boolean,
+    rules: ViewRules,
   ): void {
     const foot = this.sprites.foot(sheet, poseFrame);
     if (!foot) return;
-    const reach = diveReach(foot.down);
+    const reach = diveReach(foot.down, rules);
     if (reach === 0) return;
     const px = x + (flip ? -foot.ahead : foot.ahead),
       py = Math.round(y) + foot.down;
@@ -661,6 +664,7 @@ export class Scene {
     poseFrame: number,
     x: number,
     y: number,
+    rules: ViewRules,
   ): void {
     const def = this.sprites.def(sheet);
     const box = this.sprites.box(sheet, poseFrame);
@@ -668,7 +672,9 @@ export class Scene {
     const ramp = this.sprites.ramp(unit.team);
     const lines = dashStreak(
       unit.attackStep,
-      unit.kind === "queen" ? QUEEN_LETHAL : WARRIOR_LETHAL,
+      unit.kind === "queen"
+        ? rules.lethalSteps.queen
+        : rules.lethalSteps.warrior,
       def.anchor[1] - box.bottom,
       def.anchor[1] - box.top,
       def.anchor[0] - box.left,
@@ -779,7 +785,7 @@ export class Scene {
     const tall = sizes.worker + 1;
     frame.view.gates.forEach((gate, index) => {
       const user = frame.view.units[gate.user];
-      const door = gateDoor(gate.progress);
+      const door = gateDoor(gate.progress, frame.view.rules);
       const ramp = this.sprites.ramp(
         user ? user.team : gate.owner < 0 ? 0 : gate.owner,
       );
@@ -902,7 +908,7 @@ export class Scene {
       (unit.kind === "queen" ? this.eggHeight(unit.team) : sizes.worker) + 9;
     this.label(
       ctx,
-      `${respawnCount(unit.respawn, RESPAWN_STEPS / TICK_HZ)}`,
+      `${respawnCount(unit.respawn, view.rules.respawnSteps / view.rules.tickHz)}`,
       at.x + 0.5,
       at.y - lift,
       ramp[3] ?? "#fff",
@@ -918,7 +924,11 @@ export class Scene {
   private berries(ctx: Ctx, frame: SceneFrame): void {
     const def = this.sprites.def("berry");
     if (!def) return;
-    const at = animationFrame(def, "loose", frame.time / TICK_HZ);
+    const at = animationFrame(
+      def,
+      "loose",
+      frame.time / frame.view.rules.tickHz,
+    );
     for (const berry of frame.view.loose)
       this.sprites.drawWrapped(
         ctx,

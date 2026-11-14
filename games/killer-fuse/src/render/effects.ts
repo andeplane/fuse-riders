@@ -3,7 +3,7 @@
  * says which effects, sounds and shake an event deserves, and `EventLedger` makes sure a step that is fed
  * again (a rollback re-simulates steps the renderer has already seen) does not fire them twice.
  */
-import type { GameEvent, RoundView, UnitView } from "../engine/index.js";
+import type { GameEvent, RoundView, UnitView } from "../engine/view.js";
 import { teamName } from "./manifest.js";
 import type { Sizes } from "./metrics.js";
 
@@ -134,6 +134,19 @@ const NOTHING: Plan = {
   shake: 0,
 };
 
+/**
+ * Art heights before the art has loaded: sounds are planned with these so an event fed early still plays, and the
+ * effects planned with them are dropped, since there is nothing to draw them with yet.
+ */
+export const NO_ART: Sizes = Object.freeze({
+  worker: 0,
+  warrior: 0,
+  queen: 0,
+  gate: 0,
+  snail: 0,
+  snailFront: 0,
+});
+
 /** Height of a unit's middle above its feet, for effects centred on the body. The art's, not the hitbox's. */
 export const bodyLift = (
   unit: Pick<UnitView, "kind"> | undefined,
@@ -143,68 +156,206 @@ export const bodyLift = (
 const panOf = (x: number): number =>
   Math.max(-1, Math.min(1, (x - 240) / 240)) * 0.7;
 
-/** A plain key of one event on one step: the same event fed again gives the same key. */
-export const eventKey = (step: number, event: GameEvent): string =>
-  `${step}:${Object.values(event).join(",")}`;
+/**
+ * One log tick's events as the page hears of them from the netcode: in the engine's order, stamped with the game
+ * clock after the tick (`View.tick`), which is what the netcode stamps its events and the confirmed tick with.
+ */
+export interface TickEvents {
+  readonly tick: number;
+  readonly events: readonly GameEvent[];
+}
+
+/** What `advance` is fed with a view: the ticks since the last feed, oldest first, and how far history is final. */
+export interface EventFeed {
+  readonly ticks: readonly TickEvents[];
+  /** The game clock through which no rollback can change what happened; -1 while nothing is confirmed. */
+  readonly confirmed: number;
+}
+
+/** One event the ledger let through: which tick it was on and where in that tick's list. */
+export interface Occurrence {
+  readonly tick: number;
+  readonly index: number;
+  readonly event: GameEvent;
+}
 
 /**
- * Remembers which events and flaps have already fired. Keys are the step plus the event's own content, so a step
- * fed again is silent, while a rollback that changes what happened on that step still shows the new outcome.
+ * A plain key of one event at one place in one tick: its type and the slots and places it names, never the pixel
+ * it happened at, so a rollback that moves a clash by a pixel gives the same key, and one that changes who died
+ * at the same index gives another.
  */
-export class EventLedger {
-  private readonly seen = new Map<string, number>();
+export const eventKey = (
+  tick: number,
+  index: number,
+  event: GameEvent,
+): string =>
+  `${tick}:${index}:${Object.entries(event)
+    .filter(([field]) => field !== "x" && field !== "y")
+    .map(([, value]) => value)
+    .join(",")}`;
+
+/** Keys with the time they were first seen, forgotten once far behind the newest, or all at once far before it. */
+class Seen {
+  private readonly at = new Map<string, number>();
   private newest = 0;
 
-  constructor(private readonly horizon = 600) {}
+  constructor(private readonly horizon: number) {}
 
-  /** The events of `view` that have not fired before, in order. */
-  fresh(view: RoundView): GameEvent[] {
-    this.reach(view.step);
-    return view.events.filter((event) =>
-      // A round is won once: a rollback may move the winning step, and the sting must not play again for it.
-      event.type === "victory"
-        ? this.first(`won:${event.team},${event.kind}`, Infinity)
-        : this.first(eventKey(view.step, event), view.step),
-    );
+  /** Moves the horizon to `time` and says whether `key` is new; `keep` is the time it is forgotten by. */
+  first(key: string, time: number, keep = time): boolean {
+    this.reach(time);
+    if (this.at.has(key)) return false;
+    this.at.set(key, keep);
+    return true;
+  }
+
+  clear(): void {
+    this.at.clear();
+    this.newest = 0;
+  }
+
+  /** A time far behind the newest one is a new round: forget everything. Otherwise drop what is too old to return. */
+  private reach(time: number): void {
+    if (time < this.newest - this.horizon) this.at.clear();
+    if (time < this.newest - this.horizon || time > this.newest)
+      this.newest = time;
+    if (this.at.size > this.horizon * 4)
+      for (const [key, at] of this.at)
+        if (at < this.newest - this.horizon) this.at.delete(key);
+  }
+
+  get size(): number {
+    return this.at.size;
+  }
+}
+
+/**
+ * Remembers which events and flaps have already fired. An event's key is its tick, its index in the tick and its own
+ * content (`eventKey`), so a tick fed again is silent, while a rollback that changes what happened on it still shows
+ * the new outcome. Flaps are keyed by the round's step, which is what the view carries.
+ */
+export class EventLedger {
+  private readonly events: Seen;
+  private readonly flaps: Seen;
+
+  /** `horizon` is in game-clock steps, for both scales: ten seconds. */
+  constructor(horizon = 600) {
+    this.events = new Seen(horizon);
+    this.flaps = new Seen(horizon);
+  }
+
+  /** The events of `ticks` that have not fired before, oldest tick first and in order within a tick. */
+  fresh(ticks: readonly TickEvents[]): Occurrence[] {
+    const found: Occurrence[] = [];
+    for (const { tick, events } of ticks)
+      events.forEach((event, index) => {
+        const first =
+          // A round is won once: a rollback may move the winning tick, and the sting must not play again for it.
+          event.type === "victory"
+            ? this.events.first(
+                `won:${event.team},${event.kind}`,
+                tick,
+                Infinity,
+              )
+            : this.events.first(eventKey(tick, index, event), tick);
+        if (first) found.push({ tick, index, event });
+      });
+    return found;
   }
 
   /** A new round: everything may happen again. */
   clear(): void {
-    this.seen.clear();
-    this.newest = 0;
+    this.events.clear();
+    this.flaps.clear();
   }
 
   /** The slots that flapped or jumped on this step and have not been reported for it before. */
   freshFlaps(view: RoundView): number[] {
-    this.reach(view.step);
     return view.units
       .filter(
         (unit) =>
           unit.flapped &&
           !unit.dead &&
-          this.first(`${view.step}:flap,${unit.slot}`, view.step),
+          this.flaps.first(`${view.step}:flap,${unit.slot}`, view.step),
       )
       .map((unit) => unit.slot);
   }
 
-  private first(key: string, step: number): boolean {
-    if (this.seen.has(key)) return false;
-    this.seen.set(key, step);
-    return true;
+  get size(): number {
+    return this.events.size + this.flaps.size;
+  }
+}
+
+/** Loud: a death, a Queen's death and the win. Their sound and shake wait for the tick to be confirmed. */
+export const isLoud = (event: GameEvent): boolean =>
+  event.type === "kill" ||
+  event.type === "queenKill" ||
+  event.type === "victory";
+
+/**
+ * Whether `view` still shows what a loud event said: a rollback that erased a kill leaves its victim alive, and one
+ * that undid the win leaves the round undecided. A respawn takes seconds and a win stands to the end, so the few
+ * ticks before confirmation cannot clear either.
+ */
+export function stands(event: GameEvent, view: RoundView): boolean {
+  switch (event.type) {
+    case "kill":
+    case "queenKill":
+      return view.units[event.victim]?.dead === true;
+    case "victory":
+      return (
+        view.winner !== null &&
+        view.winner.team === event.team &&
+        view.winner.kind === event.kind
+      );
+    default:
+      return true;
+  }
+}
+
+/** A held plan is let go once this many game-clock steps have passed without its tick being confirmed. */
+export const HELD_PATIENCE = 120;
+
+/**
+ * The loud parts of a plan, kept until the tick they happened on is confirmed (no rollback can take them back) and
+ * played only if the view still shows the outcome. Particles are cheap to be wrong about and are not held: the
+ * body is gone from the picture at once and its specks fly with it. A tick that stays unconfirmed for `patience`
+ * steps (a peer gone quiet) is played anyway if it stands, rather than never.
+ */
+export class HeldPlans {
+  private held: { tick: number; event: GameEvent; plan: Plan }[] = [];
+
+  constructor(
+    private readonly patience = HELD_PATIENCE,
+    private readonly limit = 64,
+  ) {}
+
+  hold(tick: number, event: GameEvent, plan: Plan): void {
+    this.held.push({ tick, event, plan });
+    if (this.held.length > this.limit)
+      this.held.splice(0, this.held.length - this.limit);
   }
 
-  /** A step far behind the newest one is a new round: forget everything. Otherwise drop what is too old to return. */
-  private reach(step: number): void {
-    if (step < this.newest - this.horizon) this.seen.clear();
-    if (step < this.newest - this.horizon || step > this.newest)
-      this.newest = step;
-    if (this.seen.size > this.horizon * 4)
-      for (const [key, at] of this.seen)
-        if (at < this.newest - this.horizon) this.seen.delete(key);
+  /**
+   * The plans whose tick is confirmed, or `patience` steps behind `newest`, and whose outcome `view` still shows,
+   * in order; the rest of those are dropped.
+   */
+  release(confirmed: number, newest: number, view: RoundView): Plan[] {
+    const due: Plan[] = [];
+    this.held = this.held.filter(({ tick, event, plan }) => {
+      if (tick > confirmed && newest - tick < this.patience) return true;
+      if (stands(event, view)) due.push(plan);
+      return false;
+    });
+    return due;
+  }
+
+  clear(): void {
+    this.held = [];
   }
 
   get size(): number {
-    return this.seen.size;
+    return this.held.length;
   }
 }
 

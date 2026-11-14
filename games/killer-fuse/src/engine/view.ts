@@ -3,19 +3,75 @@
  * feeds back into the simulation, so these numbers may be fractions; the state itself stays integer subpixels.
  */
 import { MAPS, type GateKind, type MapDef } from "./maps.js";
-import { lethal } from "./shapes.js";
+import { COLLIDERS, WEAPONS, lethal } from "./shapes.js";
 import { mealSteps } from "./snail.js";
 import { timedOut } from "./step.js";
 import {
+  FLAP_THRUST,
+  FLY_GRAVITY,
+  FLY_TERMINAL,
+  GATE_LOCK,
+  GATE_OFFER,
   GATE_STEPS,
+  PILE_HEIGHT,
   QUEEN_EGGS,
+  QUEEN_LETHAL,
   RESPAWN_STEPS,
   S,
   TICK_HZ,
   TIME_LIMIT,
+  WARRIOR_LETHAL,
 } from "./tuning.js";
 import { gateLocked } from "./units.js";
 import type { GameEvent, Round, UnitKind, VictoryKind } from "./types.js";
+
+/** The types a renderer needs besides the views, so it imports this module alone. */
+export type { GameEvent, GateKind, MapDef, UnitKind, VictoryKind };
+
+/**
+ * The rule values presentation runs on, as data in every view so the renderer never imports the tuning. Lengths are
+ * in art pixels and times in engine steps, the units the rest of the view uses. One frozen object serves every view.
+ */
+export interface ViewRules {
+  /** Engine steps per second: `step`, `attackStep` and every count below are in them. */
+  readonly tickHz: number;
+  /** Steps a dead unit waits to respawn. */
+  readonly respawnSteps: number;
+  /** Height of a hanging pile's art over its anchor. */
+  readonly pileHeight: number;
+  /** Steps of an attack, from the press, on which the weapon kills and the dash carries the body. */
+  readonly lethalSteps: { readonly queen: number; readonly warrior: number };
+  /** How far a dash raises the body's movement box over the feet. */
+  readonly dashLift: { readonly queen: number; readonly warrior: number };
+  /** How far below her feet a diving Queen's blade reaches. */
+  readonly diveTip: number;
+  /** Flight, in pixels a step each step: what a flap pushes up, what gravity pulls down, and the fastest fall. */
+  readonly flapThrust: number;
+  readonly flyGravity: number;
+  readonly flyTerminal: number;
+  /** A Worker's stay in a gate, in steps: the offer, the lock, and both together. */
+  readonly gateOffer: number;
+  readonly gateLock: number;
+  readonly gateSteps: number;
+}
+
+export const VIEW_RULES: ViewRules = Object.freeze({
+  tickHz: TICK_HZ,
+  respawnSteps: RESPAWN_STEPS,
+  pileHeight: PILE_HEIGHT / S,
+  lethalSteps: Object.freeze({ queen: QUEEN_LETHAL, warrior: WARRIOR_LETHAL }),
+  dashLift: Object.freeze({
+    queen: COLLIDERS.queenDash.lift / S,
+    warrior: COLLIDERS.warriorDash.lift / S,
+  }),
+  diveTip: Math.max(...WEAPONS.queenDive.map((box) => box.y + box.hh)) / S,
+  flapThrust: FLAP_THRUST / S,
+  flyGravity: FLY_GRAVITY / S,
+  flyTerminal: FLY_TERMINAL / S,
+  gateOffer: GATE_OFFER,
+  gateLock: GATE_LOCK,
+  gateSteps: GATE_STEPS,
+});
 
 export interface UnitView {
   slot: number;
@@ -65,6 +121,7 @@ export interface GateView {
 
 export interface RoundView {
   map: MapDef;
+  rules: ViewRules;
   step: number;
   units: UnitView[];
   /** Berries left per pile, at the map's pile positions. */
@@ -101,6 +158,7 @@ export function viewOf(state: Round): RoundView {
   const meal = mealSteps(state.units[state.snail.rider]);
   return {
     map,
+    rules: VIEW_RULES,
     step: state.step,
     units: state.units.map((unit) => ({
       slot: unit.slot,

@@ -3,7 +3,7 @@
  * and the hive's holes are the score. So this is only the ending: the iris that closes on what decided the round,
  * with who won written above it and how below.
  */
-import type { RoundView } from "../engine/index.js";
+import type { RoundView } from "../engine/view.js";
 import {
   hexHalfWidth,
   IRIS_RADIUS,

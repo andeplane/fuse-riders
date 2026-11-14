@@ -692,6 +692,7 @@ function room(solo: boolean): void {
     host: canvasHost,
     artUrl: ART_URL,
     timing: () => runtime.frameTiming(),
+    confirmed: () => runtime.confirmedTick(),
   });
 
   // Touch: the pad follows the thumb from where it came down; the button is the whole right side.
@@ -1048,8 +1049,10 @@ function room(solo: boolean): void {
           );
         }
     },
-    event() {
-      // Everything shown comes from the view: a rollback can undo what an event said.
+    event(event, matchId, round, tick) {
+      // Every tick's events reach the arena this way, folded-together and rolled-back ticks included; the arena
+      // plays nothing loud until the tick is confirmed, since a rollback can undo what an event said.
+      driver.event(event, matchId, round, tick);
     },
     status(text) {
       const shown = roomFailure(text);

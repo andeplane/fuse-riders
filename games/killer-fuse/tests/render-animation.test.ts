@@ -5,7 +5,9 @@ import {
   GATE_LOCK,
   GATE_OFFER,
   GATE_STEPS,
+  PILE_HEIGHT,
   QUEEN_LETHAL,
+  RESPAWN_STEPS,
   WARRIOR_LETHAL,
   WEAPONS,
   FLAP_THRUST,
@@ -14,23 +16,24 @@ import {
   FLY_TERMINAL,
   S,
   TICK_HZ,
+  type UnitView,
 } from "../src/engine/index.js";
 import {
   beatSteps,
   bodyShape,
   FLAP_SECONDS,
-  GLIDE_STEPS,
+  glideSteps,
   JUMP_SECONDS,
   JUMP_SHAPE,
   LAND_HEIGHT,
   LAND_SECONDS,
   landings,
   FLAP_JUMP,
-  FLAP_SLOWING,
+  flapSlowing,
   WINGS_DY,
   velocityFlaps,
   diveEnds,
-  FLASH_BEAT_STEPS,
+  flashBeatSteps,
   STUN_BEAT_STEPS,
   STREAK_LENGTH,
   DOOR_SHUT_STEPS,
@@ -47,10 +50,17 @@ import {
   type PoseContext,
 } from "../src/render/animation.js";
 import { frameIndex } from "../src/render/manifest.js";
-import { manifest, openingView, unitView, withUnit } from "./render-kit.js";
+import {
+  manifest,
+  openingView,
+  RULES,
+  unitView,
+  withUnit,
+} from "./render-kit.js";
 
 const art = manifest();
 const still: PoseContext = {
+  rules: RULES,
   time: 0,
   dy: WINGS_DY,
   sinceFlap: Infinity,
@@ -165,7 +175,7 @@ test("a press plays the whole wing beat fast, holds the wings up, then glides", 
     assert.ok(beat.length > 1);
     const at = (sinceFlap: number) =>
       unitPose(art, unit, { ...still, sinceFlap });
-    const steps = beatSteps(kind);
+    const steps = beatSteps(kind, RULES);
     assert.equal(
       steps,
       (kind === "queen" ? FLAP_SECONDS.queen : FLAP_SECONDS.warrior) * TICK_HZ,
@@ -178,14 +188,14 @@ test("a press plays the whole wing beat fast, holds the wings up, then glides", 
     const held = at(steps + 0.01);
     assert.equal(held.animation, "fly");
     assert.equal(held.frame, frameOf(sheet, beat[0] ?? ""), "wings held ready");
-    assert.equal(at(GLIDE_STEPS - 0.01).animation, "fly");
-    const glide = at(GLIDE_STEPS);
+    assert.equal(at(glideSteps(RULES) - 0.01).animation, "fly");
+    const glide = at(glideSteps(RULES));
     assert.equal(glide.animation, "glide");
     assert.equal(glide.frame, frameOf(sheet, "glide"));
     assert.equal(at(Infinity).animation, "glide");
   }
-  assert.ok(beatSteps("warrior") < beatSteps("queen"));
-  assert.equal(GLIDE_STEPS, FLAP_SECONDS.glide * TICK_HZ);
+  assert.ok(beatSteps("warrior", RULES) < beatSteps("queen", RULES));
+  assert.equal(glideSteps(RULES), FLAP_SECONDS.glide * TICK_HZ);
 });
 
 test("a unit holding its height beats its wings though no flap was seen", () => {
@@ -201,13 +211,13 @@ test("a unit holding its height beats its wings though no flap was seen", () => 
   assert.deepEqual(
     beat.map(
       (_, index) =>
-        at(0, (index + 0.5) * (beatSteps("queen") / beat.length)).frame,
+        at(0, (index + 0.5) * (beatSteps("queen", RULES) / beat.length)).frame,
     ),
     beat.map((name) => frameOf("queen-cyan", name)),
     "the beat runs on the clock",
   );
   assert.equal(
-    at(0, beatSteps("queen") + 0.01).frame,
+    at(0, beatSteps("queen", RULES) + 0.01).frame,
     at(0, 0.01).frame,
     "and loops",
   );
@@ -261,7 +271,7 @@ test("flaps between fed views are read from the fall", () => {
     [],
     "terminal speed is not a flap",
   );
-  assert.ok(FLAP_SLOWING * 2 * S > FLY_GRAVITY - FLY_GRAVITY_LIGHT);
+  assert.ok(flapSlowing(RULES) * 2 * S > FLY_GRAVITY - FLY_GRAVITY_LIGHT);
   assert.deepEqual(
     pair((FLY_GRAVITY_LIGHT / S) * steps, 0.2).slots,
     [],
@@ -325,13 +335,13 @@ test("only a Queen dives: a Warrior dropping fast glides", () => {
 
 test("an invulnerable unit shows its white sheet on alternate beats", () => {
   const unit = unitView({ invulnerable: true });
-  assert.equal(flashing(unit, 0), true);
-  assert.equal(flashing(unit, FLASH_BEAT_STEPS), false);
-  assert.equal(flashing(unitView(), 0), false);
+  assert.equal(flashing(unit, 0, RULES), true);
+  assert.equal(flashing(unit, flashBeatSteps(RULES), RULES), false);
+  assert.equal(flashing(unitView(), 0, RULES), false);
   const on = unitPose(art, unit, still);
   assert.equal(on.sheet, "worker-flash");
   assert.equal(on.flash, true);
-  const off = unitPose(art, unit, { ...still, time: FLASH_BEAT_STEPS });
+  const off = unitPose(art, unit, { ...still, time: flashBeatSteps(RULES) });
   assert.equal(off.sheet, "worker-cyan");
   const queen = unitPose(
     art,
@@ -390,7 +400,7 @@ test("a dive that ends in the air goes back to beating wings", () => {
 });
 
 test("invulnerability blinks on a cycle of a sixth of a second", () => {
-  assert.equal((FLASH_BEAT_STEPS * 2) / TICK_HZ, 10 / 60);
+  assert.equal((flashBeatSteps(RULES) * 2) / TICK_HZ, 10 / 60);
 });
 
 test("a landing is read from two views, harder the faster the fall", () => {
@@ -495,12 +505,15 @@ test("a fighter lunges while its dash carries it or its sword can kill", () => {
 
 test("a stunned unit blinks fast and hangs limp in the air; a Worker in a hive hole sits still", () => {
   const stunned = unitView({ kind: "warrior", stunned: true, stun: 20 });
-  assert.equal(flashing(stunned, 0), true);
-  assert.equal(flashing(stunned, STUN_BEAT_STEPS), false);
-  assert.equal(flashing(stunned, STUN_BEAT_STEPS * 2), true);
-  assert.ok(STUN_BEAT_STEPS < FLASH_BEAT_STEPS, "quicker than invulnerability");
+  assert.equal(flashing(stunned, 0, RULES), true);
+  assert.equal(flashing(stunned, STUN_BEAT_STEPS, RULES), false);
+  assert.equal(flashing(stunned, STUN_BEAT_STEPS * 2, RULES), true);
+  assert.ok(
+    STUN_BEAT_STEPS < flashBeatSteps(RULES),
+    "quicker than invulnerability",
+  );
   assert.equal(
-    flashing({ ...stunned, invulnerable: true }, STUN_BEAT_STEPS),
+    flashing({ ...stunned, invulnerable: true }, STUN_BEAT_STEPS, RULES),
     false,
     "the stun's beat wins",
   );
@@ -525,12 +538,13 @@ test("a stunned unit blinks fast and hangs limp in the air; a Worker in a hive h
 test("a dashing unit is raised until its pose sits on its lifted box", () => {
   const warrior = unitView({ kind: "warrior", dashing: true });
   const queen = unitView({ kind: "queen", dashing: true });
-  assert.equal(dashLift(warrior, 0), COLLIDERS.warriorDash.lift / S);
-  assert.ok(dashLift(warrior, 0) > 3 && dashLift(warrior, 0) < 3.5);
-  assert.equal(dashLift(queen, 6), COLLIDERS.queenDash.lift / S - 6);
-  assert.equal(dashLift(queen, 20), 0, "a pose painted higher is not lowered");
-  assert.equal(dashLift({ ...warrior, dashing: false }, 0), 0);
-  assert.equal(dashLift(unitView({ dashing: true }), 0), 0, "a Worker never");
+  const lift = (unit: UnitView, gap: number) => dashLift(unit, gap, RULES);
+  assert.equal(lift(warrior, 0), COLLIDERS.warriorDash.lift / S);
+  assert.ok(lift(warrior, 0) > 3 && lift(warrior, 0) < 3.5);
+  assert.equal(lift(queen, 6), COLLIDERS.queenDash.lift / S - 6);
+  assert.equal(lift(queen, 20), 0, "a pose painted higher is not lowered");
+  assert.equal(lift({ ...warrior, dashing: false }, 0), 0);
+  assert.equal(lift(unitView({ dashing: true }), 0), 0, "a Worker never");
 });
 
 test("a diving blade is drawn on to the engine's tip when the art's is short", () => {
@@ -539,14 +553,15 @@ test("a diving blade is drawn on to the engine's tip when the art's is short", (
     tip > 10 && tip < 11,
     `the engine's tip is ${tip} px under the feet`,
   );
-  assert.equal(diveReach(4), Math.round(tip - 4));
+  assert.equal(RULES.diveTip, tip);
+  assert.equal(diveReach(4, RULES), Math.round(tip - 4));
   assert.equal(
-    diveReach(Math.round(tip) - 1),
+    diveReach(Math.round(tip) - 1, RULES),
     0,
     "a pixel short is close enough",
   );
-  assert.equal(diveReach(Math.round(tip)), 0);
-  assert.equal(diveReach(40), 0, "never shortened");
+  assert.equal(diveReach(Math.round(tip), RULES), 0);
+  assert.equal(diveReach(40, RULES), 0, "never shortened");
 });
 
 test("a sword is ready, lethal or cooling down", () => {
@@ -594,7 +609,7 @@ test("a Worker's jump is seen between two views, though its step was not shown",
 });
 
 test("a gate glows for the half second of the offer, then shuts for the two it holds the Worker", () => {
-  const at = (steps: number) => gateDoor(steps / GATE_STEPS);
+  const at = (steps: number) => gateDoor(steps / GATE_STEPS, RULES);
   assert.deepEqual(at(0), { offer: 0, closed: 0, lock: 0 });
   assert.equal(GATE_OFFER / TICK_HZ, 0.5);
   assert.equal(GATE_LOCK / TICK_HZ, 2);
@@ -610,8 +625,31 @@ test("a gate glows for the half second of the offer, then shuts for the two it h
   assert.equal(shut.closed, 1);
   assert.ok(Math.abs(at(GATE_OFFER + GATE_LOCK / 2).lock - 0.5) < 1e-9);
   assert.deepEqual(at(GATE_STEPS), { offer: 1, closed: 1, lock: 1 });
-  assert.deepEqual(gateDoor(7), { offer: 1, closed: 1, lock: 1 });
-  assert.deepEqual(gateDoor(-1), { offer: 0, closed: 0, lock: 0 });
+  assert.deepEqual(gateDoor(7, RULES), { offer: 1, closed: 1, lock: 1 });
+  assert.deepEqual(gateDoor(-1, RULES), { offer: 0, closed: 0, lock: 0 });
+});
+
+test("the rule values a view carries are the engine's, in art pixels and steps", () => {
+  const { rules } = openingView();
+  assert.equal(rules, RULES, "one frozen object serves every view");
+  assert.ok(Object.isFrozen(rules));
+  assert.deepEqual(rules, {
+    tickHz: TICK_HZ,
+    respawnSteps: RESPAWN_STEPS,
+    pileHeight: PILE_HEIGHT / S,
+    lethalSteps: { queen: QUEEN_LETHAL, warrior: WARRIOR_LETHAL },
+    dashLift: {
+      queen: COLLIDERS.queenDash.lift / S,
+      warrior: COLLIDERS.warriorDash.lift / S,
+    },
+    diveTip: Math.max(...WEAPONS.queenDive.map((box) => box.y + box.hh)) / S,
+    flapThrust: FLAP_THRUST / S,
+    flyGravity: FLY_GRAVITY / S,
+    flyTerminal: FLY_TERMINAL / S,
+    gateOffer: GATE_OFFER,
+    gateLock: GATE_LOCK,
+    gateSteps: GATE_STEPS,
+  });
 });
 
 test("a dash trails three lines over the body, long at the start and short at the end", () => {

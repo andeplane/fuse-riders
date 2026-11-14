@@ -3,7 +3,7 @@
  * shortest way across the horizontal wrap; anything that jumped (a respawn, a rollback to another place, a new
  * round) snaps to the newer step instead of sliding across the screen.
  */
-import type { RoundView, UnitView } from "../engine/index.js";
+import type { RoundView, UnitView } from "../engine/view.js";
 import { VIEW_WIDTH } from "./layout.js";
 
 /** Further than this in one step is a teleport, not motion: the fastest thing in the game does about 5 px a step. */

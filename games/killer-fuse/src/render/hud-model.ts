@@ -2,7 +2,7 @@
  * What is shown about a round beyond its things, worked out from a view without drawing anything: which win is one
  * move away, what a seat's tag reads, and where the ending closes in and what it says.
  */
-import type { RoundView, UnitView } from "../engine/index.js";
+import type { RoundView, UnitView } from "../engine/view.js";
 import { VIEW_HEIGHT, VIEW_WIDTH } from "./layout.js";
 import { teamName, type SheetDef } from "./manifest.js";
 import type { Sizes } from "./metrics.js";
