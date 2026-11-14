@@ -1,10 +1,52 @@
-import { FieldPath, Timestamp, type Firestore } from "@google-cloud/firestore";
+import {
+  FieldPath,
+  Timestamp,
+  type Firestore,
+  type WhereFilterOp,
+} from "@google-cloud/firestore";
 import {
   storedDebugRecord,
   type DebugDatabase,
   type DebugMutation,
   type DebugRecord,
+  type ReportRecord,
 } from "./debug-store.js";
+
+/** Small query capability shared by the SDK and query-shape regression fake. */
+export interface DebugReportQuery {
+  where(
+    field: string,
+    operation: WhereFilterOp,
+    value: unknown,
+  ): DebugReportQuery;
+  orderBy(field: string | FieldPath): DebugReportQuery;
+  limit(count: number): DebugReportQuery;
+  get(): Promise<{ docs: readonly { data(): unknown }[] }>;
+}
+export async function queryRecordingReports(
+  query: DebugReportQuery,
+  recordingId: string,
+  startMs: number,
+  endMs: number,
+  now: number,
+  limit: number,
+): Promise<ReportRecord[]> {
+  const rows = await query
+    .where("recordingId", "==", recordingId)
+    .where("ready", "==", true)
+    .where("offsetMs", ">=", startMs)
+    .where("offsetMs", "<=", endMs)
+    .where("expiresAt", ">", now)
+    .orderBy("offsetMs")
+    .orderBy("expiresAt")
+    .orderBy(FieldPath.documentId())
+    .limit(limit)
+    .get();
+  return rows.docs.flatMap((doc) => {
+    const value = storedDebugRecord(doc.data());
+    return value?.kind === "report" ? [value] : [];
+  });
+}
 
 /** Separate documents keep transcript growth outside Firestore's per-document size limit. */
 export class FirestoreDebugDatabase implements DebugDatabase {
@@ -59,6 +101,22 @@ export class FirestoreDebugDatabase implements DebugDatabase {
   }
   async read(key: string) {
     return storedDebugRecord((await this.ref(key).get()).data());
+  }
+  async reportsInRange(
+    recordingId: string,
+    startMs: number,
+    endMs: number,
+    now: number,
+    limit: number,
+  ) {
+    return queryRecordingReports(
+      this.ref("report:placeholder").parent,
+      recordingId,
+      startMs,
+      endMs,
+      now,
+      limit,
+    );
   }
   async list(
     kind: "recording" | "report" | "segment",

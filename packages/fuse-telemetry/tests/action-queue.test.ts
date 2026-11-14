@@ -293,6 +293,19 @@ test("saved transcript delivery retries extraction after failure, then retries a
   });
 });
 
+test("worker transcript deliveries retain current-segment report links from saved context", async () => {
+  const f = fixture();
+  const saved = segment(0, "Fix the stuck menu.");
+  f.transcripts.set(0, { ...saved, reportIds: ["attached-report"] });
+  const { reportIds: _reportIds, ...delivery } = saved;
+  await f.service.process(delivery);
+  await f.service.process(delivery);
+  assert.deepEqual((await one(f.service)).evidence[0]!.reportIds, [
+    "attached-report",
+  ]);
+  assert.equal(f.calls(), 1);
+});
+
 test("overlapping repeated instructions reconcile one task and never expose claim secrets", async () => {
   const f = fixture();
   await f.process(segment(0, "Fix the stuck menu."));

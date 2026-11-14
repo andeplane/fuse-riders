@@ -144,7 +144,14 @@ export function createActionService(options: ActionServiceOptions) {
         ...neighbors
           .filter((segment) => segment.sequence !== input.sequence)
           .map(canonical),
-        canonical(input),
+        canonical({
+          ...input,
+          // Worker deliveries carry transcript data, while saved context owns
+          // report links added separately through the reporting endpoint.
+          reportIds:
+            neighbors.find((segment) => segment.sequence === input.sequence)
+              ?.reportIds ?? input.reportIds,
+        }),
       ].sort((a, b) => a.sequence - b.sequence);
       if (
         new Set(segments.map((segment) => segment.sequence)).size !==

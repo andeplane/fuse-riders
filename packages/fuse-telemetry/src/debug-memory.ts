@@ -2,6 +2,7 @@ import type {
   DebugDatabase,
   DebugMutation,
   DebugRecord,
+  ReportRecord,
 } from "./debug-store.js";
 
 export class MemoryDebugDatabase implements DebugDatabase {
@@ -61,6 +62,34 @@ export class MemoryDebugDatabase implements DebugDatabase {
       .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
       .slice(0, limit)
       .map(([key, value]) => ({ key, value: structuredClone(value) }));
+  }
+  async reportsInRange(
+    recordingId: string,
+    startMs: number,
+    endMs: number,
+    now: number,
+    limit: number,
+  ) {
+    await this.pending;
+    return [...this.records.values()]
+      .filter(
+        (value): value is ReportRecord =>
+          value.kind === "report" &&
+          value.recordingId === recordingId &&
+          value.ready &&
+          value.expiresAt > now &&
+          value.offsetMs !== undefined &&
+          value.offsetMs >= startMs &&
+          value.offsetMs <= endMs,
+      )
+      .sort(
+        (a, b) =>
+          a.offsetMs! - b.offsetMs! ||
+          a.expiresAt - b.expiresAt ||
+          (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+      )
+      .slice(0, limit)
+      .map((value) => structuredClone(value));
   }
 }
 import type { PrivateObjectStorage, StoredObject } from "./storage.js";

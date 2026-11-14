@@ -1,6 +1,16 @@
 {
   "indexes": [
     {
+      "collectionGroup": "fuse-production-telemetry-reports",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "recordingId", "order": "ASCENDING" },
+        { "fieldPath": "ready", "order": "ASCENDING" },
+        { "fieldPath": "offsetMs", "order": "ASCENDING" },
+        { "fieldPath": "expiresAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "fuse-production-matches",
       "queryScope": "COLLECTION",
       "fields": [
@@ -112,6 +122,140 @@
     }
   ],
   "fieldOverrides": [
+    {
+      "collectionGroup": "fuse-production-telemetry-events",
+      "fieldPath": "cleanupAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-rollups",
+      "fieldPath": "cleanupAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-memberships",
+      "fieldPath": "cleanupAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-limits",
+      "fieldPath": "cleanupAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-recordings",
+      "fieldPath": "cleanupAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-recording-segments",
+      "fieldPath": "cleanupAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-reports",
+      "fieldPath": "cleanupAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-actions",
+      "fieldPath": "cleanupAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-action-tokens",
+      "fieldPath": "cleanupAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-events",
+      "fieldPath": "properties",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-events",
+      "fieldPath": "userId",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-events",
+      "fieldPath": "sessionId",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-events",
+      "fieldPath": "fingerprint",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-rollups",
+      "fieldPath": "eventCounts",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-recordings",
+      "fieldPath": "fingerprint",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-reports",
+      "fieldPath": "text",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-reports",
+      "fieldPath": "fingerprint",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-reports",
+      "fieldPath": "screenshotKey",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-recording-segments",
+      "fieldPath": "transcript",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-recording-segments",
+      "fieldPath": "objectKey",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-actions",
+      "fieldPath": "items",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-actions",
+      "fieldPath": "processed",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-actions",
+      "fieldPath": "leaseSecrets",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-actions",
+      "fieldPath": "extractionLease",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-telemetry-action-tokens",
+      "fieldPath": "hash",
+      "indexes": []
+    },
     {
       "collectionGroup": "fuse-production-creation-limits",
       "fieldPath": "cleanupAt",

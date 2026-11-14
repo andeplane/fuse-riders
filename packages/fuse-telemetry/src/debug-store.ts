@@ -54,6 +54,14 @@ export interface DebugDatabase {
     operation: (records: ReadonlyMap<string, DebugRecord>) => DebugMutation<T>,
   ): Promise<T>;
   read(key: string): Promise<DebugRecord | undefined>;
+  /** Ready, unexpired links in an inclusive chunk range, ordered by offset, expiry then id. */
+  reportsInRange(
+    recordingId: string,
+    startMs: number,
+    endMs: number,
+    now: number,
+    limit: number,
+  ): Promise<ReportRecord[]>;
   /** Bounded keyset pagination. Implementations must order by document id. */
   list(
     kind: "recording" | "report" | "segment",
