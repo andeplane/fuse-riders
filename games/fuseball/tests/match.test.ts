@@ -2,19 +2,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   BTN,
-  CLOUD_STEPS_PER_TICK,
   COUNTDOWN_STEPS,
   LEFT,
   MAPS,
   MAP_IDS,
   RIGHT,
-  STEPS_PER_TICK,
   TARGET,
+  GOAL_FREEZE_STEPS,
+  GOAL_STEPS,
   ZAP_STEPS,
   isCircle,
-  slowed,
   stepWorld,
-  stepsPerTick,
   toView,
   winnerOf,
   type MapId,
@@ -46,7 +44,7 @@ function scoreFor(world: World, team: Slot): void {
 /** Plays out a whole point for `team`: the goal, the zap, and the next countdown if the match goes on. */
 function point(world: World, team: Slot): void {
   scoreFor(world, team);
-  steps(world, ZAP_STEPS);
+  steps(world, GOAL_STEPS);
   if (world.phase === "countdown") steps(world, COUNTDOWN_STEPS);
 }
 
@@ -178,7 +176,7 @@ test("during the zap the scorer still moves, the zapped rider does not, and noth
   const where = { x: zapped.x, y: zapped.y },
     ball = { ...world.ball },
     start = scorer.x;
-  for (let i = 0; i < ZAP_STEPS - 1; i++) {
+  for (let i = 0; i < GOAL_STEPS - 1; i++) {
     stepWorld(world, held(RIGHT, LEFT | BTN));
     assert.equal(world.phase, "zap");
   }
@@ -203,6 +201,8 @@ test("a zapped rider is no obstacle and their bubble goes soft", () => {
   scoreFor(world, 0);
   stepWorld(world, held(0, BTN));
   assert.ok(!world.bubbles[1].hard, "nobody is holding it any more");
+  // Nothing moves until the freeze that follows the goal is over.
+  steps(world, GOAL_FREEZE_STEPS);
   place(world, 0, at(zapped.x) - 30, at(zapped.y));
   scorer.vx = 3 * SUB;
   steps(world, 30, held(RIGHT));
@@ -216,7 +216,7 @@ test("after the zap the point resets: marks, anchor, no bubbles, a new countdown
   stepWorld(world, held(BTN));
   assert.ok(world.bubbles[0].active);
   scoreFor(world, 1);
-  steps(world, ZAP_STEPS - 1, held(RIGHT | BTN));
+  steps(world, GOAL_STEPS - 1, held(RIGHT | BTN));
   assert.equal(world.phase, "zap");
   stepWorld(world, held(RIGHT | BTN));
   assert.equal(world.phase, "countdown");
@@ -252,7 +252,7 @@ test("first to three wins: the match is over after the last zap and nothing move
   assert.deepEqual(world.score, [3, 1]);
   assert.equal(world.phase, "zap", "the last point gets its zap too");
   assert.equal(winnerOf(world), 0);
-  steps(world, ZAP_STEPS);
+  steps(world, GOAL_STEPS);
   assert.equal(world.phase, "over");
   assert.equal(world.phaseSteps, 0);
   const view = toView(world);
@@ -273,7 +273,7 @@ test("at 2–2 the next point is sudden death, flagged from the goal that made i
   assert.deepEqual(world.score, [2, 2]);
   assert.ok(world.suddenDeath);
   assert.ok(toView(world).suddenDeath);
-  steps(world, ZAP_STEPS + COUNTDOWN_STEPS);
+  steps(world, GOAL_STEPS + COUNTDOWN_STEPS);
   assert.equal(world.phase, "play");
   assert.ok(world.suddenDeath);
   point(world, 1);
@@ -288,52 +288,6 @@ test("at 2–2 the next point is sudden death, flagged from the goal that made i
   point(plain, 0);
   assert.equal(plain.phase, "over");
   assert.ok(!plain.suddenDeath);
-});
-
-test("a tick is six steps, and three while the ball is in a cloud during play", () => {
-  assert.equal(STEPS_PER_TICK, 6);
-  assert.equal(CLOUD_STEPS_PER_TICK, 3);
-  for (const mapId of MAP_IDS) {
-    const world = playing(mapId),
-      cloud = MAPS[mapId].clouds[0]!;
-    assert.equal(stepsPerTick(world), 6, "the ball starts outside every cloud");
-    ballAt(world, cloud.x, cloud.y);
-    assert.ok(slowed(world));
-    assert.equal(stepsPerTick(world), 3);
-    assert.ok(toView(world).slow);
-    ballAt(world, cloud.x + cloud.r - 1, cloud.y);
-    assert.equal(stepsPerTick(world), 3, "just inside the edge");
-    ballAt(world, cloud.x + cloud.r + 1, cloud.y);
-    assert.equal(stepsPerTick(world), 6, "just outside it");
-  }
-});
-
-test("slow motion is only for play: not the countdown, the zap or a finished match", () => {
-  const inCloud = (world: World) => {
-    const cloud = MAPS[world.mapId].clouds[0]!;
-    ballAt(world, cloud.x, cloud.y);
-  };
-  const waiting = fresh();
-  inCloud(waiting);
-  assert.equal(stepsPerTick(waiting), 6);
-
-  const world = playing();
-  point(world, 0);
-  point(world, 0);
-  scoreFor(world, 0);
-  inCloud(world);
-  assert.equal(world.phase, "zap");
-  assert.equal(stepsPerTick(world), 6);
-  steps(world, ZAP_STEPS);
-  assert.equal(world.phase, "over");
-  assert.equal(stepsPerTick(world), 6);
-});
-
-test("a rider in a cloud does not slow the arena; only the ball does", () => {
-  const world = playing(),
-    cloud = MAPS.gridlock.clouds[0]!;
-  place(world, 0, cloud.x, cloud.y);
-  assert.equal(stepsPerTick(world), 6);
 });
 
 test("the view is the world in pixels, with what the presentation needs", () => {

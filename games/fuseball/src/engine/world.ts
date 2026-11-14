@@ -1,7 +1,7 @@
 import { BTN } from "./input.js";
 import { SUB } from "./math.js";
 import { mapOf, type MapId } from "./maps.js";
-import { COUNTDOWN_STEPS } from "./tuning.js";
+import { COUNTDOWN_STEPS, SPEED_FULL } from "./tuning.js";
 
 /**
  * One match's world: plain integer data, so the netcode can clone, hash and checkpoint it. Positions are sub-units,
@@ -72,6 +72,16 @@ export interface World {
   lastScorer: -1 | Slot;
   /** Both sides are one point from winning (or were, when the last point was scored). */
   suddenDeath: boolean;
+  /**
+   * The arena's pace, set once per log tick by `paceTick`: its speed in 1/256ths of full speed (0 while a goal's
+   * freeze lasts), and what is left over, in 1/256ths of a micro-step, of the steps the ticks so far were owed.
+   */
+  speed: number;
+  budget: number;
+  /** Log ticks the speed still holds where it is after the ball has left a cloud. */
+  linger: number;
+  /** Micro-steps left of the freeze that follows a goal; nothing moves while it lasts. */
+  freeze: number;
   riders: [Rider, Rider];
   bubbles: [Bubble, Bubble];
   ball: Ball;
@@ -131,6 +141,10 @@ export function resetPoint(world: World): void {
   ball.touch = -1;
   world.phase = "countdown";
   world.phaseSteps = COUNTDOWN_STEPS;
+  world.speed = SPEED_FULL;
+  world.budget = 0;
+  world.linger = 0;
+  world.freeze = 0;
 }
 
 /** A new match on `mapId` at 0–0, in its first countdown; `ids[0]` rides in slot 0, on the left. */
@@ -146,6 +160,10 @@ export function createWorld(
     score: [0, 0],
     lastScorer: -1,
     suddenDeath: false,
+    speed: SPEED_FULL,
+    budget: 0,
+    linger: 0,
+    freeze: 0,
     riders: [rider(ids[0], 0), rider(ids[1], 1)],
     bubbles: [bubble(), bubble()],
     ball: { x: 0, y: 0, vx: 0, vy: 0, live: true, bounces: 0, touch: -1 },

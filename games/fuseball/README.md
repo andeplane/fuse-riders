@@ -9,7 +9,8 @@ Fuseball is a neon arena ball duel for two riders, served at `/fuseball/`. Knock
 - **Bubbles.** Every jump made in the air leaves a bubble where you were. It is a bumper: the ball is thrown away from its centre and the bubble pops. You have one bubble at a time. The other rider pops your bubble by touching it, and you pass through your own.
 - **Hard bubbles.** Keep the button held after placing a bubble and it hardens: the ball and the other rider bounce off it and it stays. While you hold, you cannot jump again. A hard bubble that wedges the ball into a corner with no way out pops.
 - **Nothing buries the ball.** Land or stand on the ball and it squirts out along the floor, away from you; squeeze it against a wall and it pops up.
-- **Clouds.** While the ball is inside a cloud the whole arena runs at half speed.
+- **Clouds.** While the ball is inside a cloud the whole arena goes into slow motion: it eases down to half speed at the cloud's rim and about a third at its centre, holds for a moment after the ball is out, then eases back. Only the ball counts; a rider or a bubble in a cloud slows nothing.
+- **Goals.** A goal freezes everything for a little over a second, then the loser is zapped in slow motion before the next countdown.
 - **Wrap.** The arenas have no outer edge on at least one axis: what leaves one side comes back on the other, so a rider or the ball that drops through an open floor falls in again from the top. Riders fly through goals untouched; only the ball scores.
 
 | Arena       | Wraps         | Goals                                                                                                                 |
@@ -77,8 +78,8 @@ Both pick the next free port when theirs is taken and print the one they got; pa
 
 ## How it fits together
 
-- **One log, every device simulates.** A device logs only the bits it holds (`runtime.input`), each 50 ms log tick folds every rider's bits and runs six micro-steps (three while the ball is in a cloud), and rollback re-folds when a late input arrives. The room service coordinates the room; it does not simulate or relay play.
-- **Determinism.** The engine uses integers only: no floats, clocks, `Math.random` or trigonometry. A change to what it does must bump `RULES` in `src/engine/index.ts` and re-record the golden in `tests/golden.test.ts` in the same commit (`GOLDEN_RECORD=1 pnpm exec tsx --test games/fuseball/tests/golden.test.ts` prints the new hashes).
+- **One log, every device simulates.** A device logs only the bits it holds (`runtime.input`), each 50 ms log tick folds every rider's bits and runs the micro-steps the arena's speed allows (six at full speed, fewer in slow motion: the speed and the leftover fraction of a step are checkpointed world state, set once per tick by `paceTick`), and rollback re-folds when a late input arrives. The room service coordinates the room; it does not simulate or relay play.
+- **Determinism.** The engine uses integers only: no floats, clocks, `Math.random` or trigonometry. A change to what it does must bump `RULES` in `src/engine/index.ts` and re-record the golden in the same commit (`GOLDEN_RECORD=1 pnpm exec tsx --test games/fuseball/tests/golden.test.ts` rewrites `tests/fixtures/golden.json`).
 - **The bot** (`src/engine/bot.ts`) reads the world and answers with ordinary held bits once per log tick, so it has no physics a player lacks. It is part of the rules, since every device folds bot seats with it.
 - **Drawing.** The page's one `requestAnimationFrame` loop blends the runtime's two newest views and hands the result to `scene.draw`. Nothing in the app or the renderer simulates; effects and sounds come from counters changing between views.
 - **Results.** In an online room every rider still seated at the end reports the match once the deciding tick is confirmed (`app/reports.ts`); solo reports nothing.

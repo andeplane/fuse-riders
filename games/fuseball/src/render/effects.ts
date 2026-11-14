@@ -141,7 +141,10 @@ export function cues(older: WorldView | undefined, newer: WorldView): Cue[] {
   }
   for (const slot of SLOTS) {
     const rider = newer.riders[slot];
-    if (!rider.zapped || older.riders[slot].zapped) continue;
+    // The rider is struck when the freeze that follows the goal lets go.
+    const struck = rider.zapped && !newer.frozen,
+      was = older.riders[slot].zapped && !older.frozen;
+    if (!struck || was) continue;
     const from = goalNear(newer, slot === 0 ? 1 : 0, ball.x, ball.y);
     found.push({
       kind: "zap",
@@ -189,6 +192,10 @@ interface Beam {
 
 /** The most particles alive at once; a spawn past it takes over the oldest slot. */
 export const MAX_PARTICLES = 360;
+/** How strong the slow-motion vignette is at `speed` (a fraction of full speed): 0 at full speed, 1 at 0.35 and below. */
+export const vignetteFor = (speed: number): number =>
+  Math.max(0, Math.min(1, (1 - speed) / 0.65));
+
 const BEAM_S = 0.6,
   FLASH_S = 0.45,
   SHAKE_S = 0.35,
@@ -396,8 +403,8 @@ export function createEffects(options: EffectsOptions = {}): Effects {
   };
 
   const advance = (view: WorldView, seconds: number) => {
-    // Sparks hang in the air with the arena while the ball is in a cloud.
-    const dt = view.slow ? seconds / 2 : seconds;
+    // Sparks hang in the air with the arena in slow motion, though never quite still.
+    const dt = seconds * Math.max(0.15, view.speed);
     for (const p of pool) {
       if (!p.live) continue;
       p.age += dt;
@@ -413,7 +420,8 @@ export function createEffects(options: EffectsOptions = {}): Effects {
     if (beam && (beam.age += seconds) >= BEAM_S) beam = undefined;
     if (flash && (flash.age += seconds) >= FLASH_S) flash = undefined;
     shaking = Math.min(SHAKE_S, shaking + seconds);
-    slow += ((view.slow ? 1 : 0) - slow) * Math.min(1, seconds * 9);
+    // The vignette follows the arena's speed: clear at full speed, full at a cloud's core and below.
+    slow += (vignetteFor(view.speed) - slow) * Math.min(1, seconds * 9);
     // Clouds breathe a little all the time and boil while they hold the ball.
     const clouds = mapOf(view.mapId).clouds;
     puffDebt = Math.min(4, puffDebt + seconds * (view.slow ? 26 : 5));

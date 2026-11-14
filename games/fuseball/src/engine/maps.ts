@@ -51,7 +51,7 @@ export interface MapDef {
   wrapY: boolean;
   solids: readonly Rect[];
   goals: readonly Goal[];
-  /** While the ball's centre is inside one, the whole arena runs at half speed. */
+  /** While the ball's centre is inside one, the whole arena runs in slow motion, slower the nearer its centre. */
   clouds: readonly Circle[];
   /** Where each slot's rider stands (its centre) when a point starts. */
   spawns: readonly [Pt, Pt];

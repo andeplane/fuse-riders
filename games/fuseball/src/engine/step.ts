@@ -412,10 +412,22 @@ export function stepWorld(
     if (--world.phaseSteps === 0) world.phase = "play";
     return;
   }
+  if (world.freeze > 0) {
+    // The freeze after a goal: nothing moves, and what is held is remembered as in a countdown.
+    a.prev = bitsA;
+    b.prev = bitsB;
+    if (!(bitsA & BTN)) world.bubbles[0].hard = false;
+    if (!(bitsB & BTN)) world.bubbles[1].hard = false;
+    if (--world.freeze === 0) world.speed = T.ZAP_SPEED;
+    return;
+  }
   if (world.phase === "zap" && --world.phaseSteps === 0) {
     // The celebration is over: the match too if that was the winning point, otherwise back to the marks.
-    if (winnerOf(world) >= 0) world.phase = "over";
-    else resetPoint(world);
+    if (winnerOf(world) >= 0) {
+      world.phase = "over";
+      world.speed = T.SPEED_FULL;
+      world.budget = 0;
+    } else resetPoint(world);
     return;
   }
 
@@ -493,6 +505,10 @@ function score(world: World, team: Slot): void {
   ball.vy = 0;
   world.phase = "zap";
   world.phaseSteps = T.ZAP_STEPS;
+  world.speed = 0;
+  world.budget = 0;
+  world.linger = 0;
+  world.freeze = T.GOAL_FREEZE_STEPS;
   world.suddenDeath =
     world.score[0] >= T.TARGET - 1 && world.score[1] >= T.TARGET - 1;
 }
@@ -501,7 +517,7 @@ function score(world: World, team: Slot): void {
 export const winnerOf = (world: World): -1 | Slot =>
   world.score[0] >= T.TARGET ? 0 : world.score[1] >= T.TARGET ? 1 : -1;
 
-/** Whether the arena is in slow motion: the ball is in play and its centre is inside a cloud. */
+/** Whether the ball is in play with its centre inside a cloud: what slows the arena down. */
 export function slowed(world: World): boolean {
   if (world.phase !== "play") return false;
   const map = mapOf(world.mapId);
@@ -510,9 +526,88 @@ export function slowed(world: World): boolean {
   );
 }
 
+/** The speed the ball's place in the clouds asks for: slower the nearer a cloud's centre, or −1 outside them all. */
+function cloudSpeed(world: World): number {
+  const map = mapOf(world.mapId);
+  let speed = -1;
+  for (const cloud of map.clouds) {
+    if (!inShape(world.ball.x, world.ball.y, cloud, map)) continue;
+    const { dx, dy } = apart(
+        world.ball.x,
+        world.ball.y,
+        cloud.x * SUB,
+        cloud.y * SUB,
+        map,
+      ),
+      here =
+        T.CLOUD_SPEED_CORE +
+        div(
+          (T.CLOUD_SPEED_EDGE - T.CLOUD_SPEED_CORE) * isqrt(dx * dx + dy * dy),
+          cloud.r * SUB,
+        );
+    if (speed < 0 || here < speed) speed = here;
+  }
+  return speed;
+}
+
+/** The pace of one log tick: the speed, hold and leftover it leaves in the world, and the micro-steps it runs. */
+interface Pace {
+  speed: number;
+  budget: number;
+  linger: number;
+  steps: number;
+}
+
+function paceOf(world: World): Pace {
+  // A goal's freeze: the clock runs on at its full six steps a tick, each of which moves nothing. The last tick of
+  // it runs only what is left, so the zap starts on a tick of its own.
+  if (world.freeze > 0)
+    return {
+      speed: 0,
+      budget: 0,
+      linger: 0,
+      steps: Math.min(T.STEPS_PER_TICK, world.freeze),
+    };
+  let speed = T.SPEED_FULL,
+    linger = 0;
+  if (world.phase === "zap") speed = T.ZAP_SPEED;
+  else if (world.phase === "play") {
+    let target = cloudSpeed(world);
+    linger = world.linger;
+    if (target >= 0) linger = T.SLOW_HOLD_TICKS;
+    else if (linger > 0) {
+      linger--;
+      target = world.speed;
+    } else target = T.SPEED_FULL;
+    speed =
+      world.speed > target
+        ? Math.max(target, world.speed - T.SLOW_EASE_IN)
+        : Math.min(target, world.speed + T.SLOW_EASE_OUT);
+  } else return { speed, budget: 0, linger, steps: T.STEPS_PER_TICK };
+  const owed = world.budget + speed * T.STEPS_PER_TICK;
+  return {
+    speed,
+    budget: owed % T.SPEED_FULL,
+    linger,
+    steps: div(owed, T.SPEED_FULL),
+  };
+}
+
 /**
- * How many micro-steps the next 50 ms log tick runs: six, or three while the arena is in slow motion. Read it once
- * at the start of a tick, from the world as it stands then.
+ * How many micro-steps the next 50 ms log tick runs, read from the world as it stands at the start of the tick:
+ * six at full speed and through a goal's freeze (where they move nothing), fewer in slow motion, never fewer than
+ * one. It changes nothing; `paceTick` gives the same answer and sets the pace.
  */
-export const stepsPerTick = (world: World): number =>
-  slowed(world) ? T.CLOUD_STEPS_PER_TICK : T.STEPS_PER_TICK;
+export const stepsPerTick = (world: World): number => paceOf(world).steps;
+
+/**
+ * Starts a log tick: eases the arena's speed toward what the ball's place asks for, and returns the micro-steps
+ * this tick runs. Call it once per log tick, before the tick's `stepWorld` calls.
+ */
+export function paceTick(world: World): number {
+  const pace = paceOf(world);
+  world.speed = pace.speed;
+  world.budget = pace.budget;
+  world.linger = pace.linger;
+  return pace.steps;
+}

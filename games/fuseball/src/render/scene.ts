@@ -371,7 +371,8 @@ export function createScene(
 
   const ball = (map: MapDef, view: WorldView, now: number) => {
     const b = view.ball;
-    if (!b.live) {
+    // In a goal the ball is gone, once the freeze that shows where it went in is over.
+    if (!b.live && !view.frozen) {
       tail = [];
       return;
     }
@@ -446,7 +447,7 @@ export function createScene(
     local: boolean,
   ) => {
     const frame = frameFor(r);
-    if (r.zapped) {
+    if (r.zapped && !view.frozen) {
       // What is left of a zapped rider: a flicker where they stood, once the shards have flown.
       if (fx.zapAge(r.slot, now) < 500) return;
       g.globalAlpha = 0.1 + 0.06 * Math.sin(now / 70);

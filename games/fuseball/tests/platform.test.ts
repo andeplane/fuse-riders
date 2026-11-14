@@ -11,7 +11,7 @@ import {
   COUNTDOWN_STEPS,
   STEPS_PER_TICK,
   TARGET,
-  ZAP_STEPS,
+  GOAL_TICKS,
   mapOf,
   type Slot,
 } from "../src/engine/index.js";
@@ -89,7 +89,7 @@ function point(room: Room, team: Slot, toucher: Slot = team): void {
     touch: toucher,
   });
   fold(room);
-  run(room, ZAP_STEPS / STEPS_PER_TICK);
+  run(room, GOAL_TICKS);
   if (room.stage === "running") run(room, COUNTDOWN_STEPS / STEPS_PER_TICK);
 }
 /** A 3–1 win for `A`: two goals and one own goal by `B` against one goal. */

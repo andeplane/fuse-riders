@@ -11,15 +11,48 @@ export const WORLD_W = px(VIEW_W),
   WORLD_H = px(VIEW_H);
 
 export const STEPS_PER_SECOND = 120;
-/** Micro-steps in one 50 ms log tick, and in one while the ball is in a cloud (half speed). */
-export const STEPS_PER_TICK = 6,
-  CLOUD_STEPS_PER_TICK = 3;
+/** Micro-steps in one 50 ms log tick at full speed. */
+export const STEPS_PER_TICK = 6;
+/** Log ticks in a second: the pace of the arena (its slow motion) is set once per log tick. */
+export const TICKS_PER_SECOND = 20;
+
+/**
+ * Slow motion. The arena's speed is a fraction of full speed in 1/256ths, set once per log tick; a tick runs
+ * `speed × 6 / 256` micro-steps, with the remainder carried to the next tick, so any speed plays out exactly.
+ *
+ * While the ball's centre is in a cloud the speed eases down to between `CLOUD_SPEED_EDGE` (at the cloud's rim) and
+ * `CLOUD_SPEED_CORE` (at its centre), `SLOW_EASE_IN` a tick. Once the ball is out, the speed holds for
+ * `SLOW_HOLD_TICKS` and then eases back up, `SLOW_EASE_OUT` a tick.
+ */
+export const SPEED_FULL = 256,
+  /** 0.5 of full speed. */
+  CLOUD_SPEED_EDGE = 128,
+  /** 0.35 of full speed. */
+  CLOUD_SPEED_CORE = 90,
+  /** Full speed to the rim's in 0.4 s, to the core's in a little over 0.5 s. */
+  SLOW_EASE_IN = 16,
+  /** Back to full speed in 0.3 to 0.45 s. */
+  SLOW_EASE_OUT = 20,
+  /** 0.2 s. */
+  SLOW_HOLD_TICKS = 4,
+  /** The slowest the arena runs: every log tick still runs at least one micro-step. */
+  MIN_SPEED = 43;
+/**
+ * A goal: nothing moves for `GOAL_FREEZE_STEPS` micro-steps, which the clock counts at full speed (1.3 s), then the
+ * zap plays at `ZAP_SPEED` (a quarter of full speed) for `ZAP_STEPS` micro-steps, which at that speed is 94 log
+ * ticks (4.7 s). `GOAL_STEPS` is every `stepWorld` call from a goal to the next countdown, and `GOAL_TICKS` the log
+ * ticks that takes after the one the goal fell in.
+ */
+export const GOAL_FREEZE_STEPS = 156,
+  ZAP_SPEED = 64,
+  ZAP_STEPS = 141,
+  GOAL_STEPS = GOAL_FREEZE_STEPS + ZAP_STEPS,
+  GOAL_TICKS = 26 + 94;
 
 export const CAPACITY = 2;
 /** Points that win the match. */
 export const TARGET = 3;
-export const COUNTDOWN_STEPS = 3 * STEPS_PER_SECOND,
-  ZAP_STEPS = 3 * STEPS_PER_SECOND;
+export const COUNTDOWN_STEPS = 3 * STEPS_PER_SECOND;
 
 /** Radii in pixels, for whoever draws them, and in sub-units for the rules. */
 export const RIDER_RADIUS = 9,

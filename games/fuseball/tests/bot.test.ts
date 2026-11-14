@@ -9,7 +9,7 @@ import {
   isInput,
   mirrored,
   stepWorld,
-  stepsPerTick,
+  paceTick,
   type MapId,
   type Rider,
   type World,
@@ -36,8 +36,7 @@ function match(mapId: MapId, left: Pilot, right: Pilot, seconds: number) {
     for (const bits of inputs.values())
       assert.ok(isInput(bits), `${bits} is a stick and a button`);
     const before = world.score[0] + world.score[1];
-    for (let left = stepsPerTick(world); left > 0; left--)
-      stepWorld(world, inputs);
+    for (let left = paceTick(world); left > 0; left--) stepWorld(world, inputs);
     if (world.score[0] + world.score[1] > before)
       points.push({ at: tick / 20, to: world.lastScorer });
   }
@@ -91,8 +90,7 @@ test("the bot answers from the world alone: the same world, the same bits, and n
       [A, bits[0]!],
       [B, bits[1]!],
     ]);
-    for (let left = stepsPerTick(world); left > 0; left--)
-      stepWorld(world, inputs);
+    for (let left = paceTick(world); left > 0; left--) stepWorld(world, inputs);
   }
 });
 
@@ -161,8 +159,7 @@ function alone(world: World, seconds: number, done: () => boolean): number {
   for (let tick = 0; tick < seconds * 20; tick++) {
     if (done() || world.phase !== "play") return tick / 20;
     const inputs = new Map([[A, botInput(world, world.riders[0])]]);
-    for (let left = stepsPerTick(world); left > 0; left--)
-      stepWorld(world, inputs);
+    for (let left = paceTick(world); left > 0; left--) stepWorld(world, inputs);
   }
   return -1;
 }
@@ -226,8 +223,7 @@ test("a ball pinned against a kerb by a rider who will not move is carried off w
   let free = -1;
   for (let tick = 0; tick < 200 && free < 0; tick++) {
     const inputs = new Map([[A, botInput(world, world.riders[0])]]);
-    for (let left = stepsPerTick(world); left > 0; left--)
-      stepWorld(world, inputs);
+    for (let left = paceTick(world); left > 0; left--) stepWorld(world, inputs);
     if (world.ball.x > 200 * 4096) free = tick / 20;
   }
   assert.ok(free >= 0, "the ball left the corner within ten seconds");

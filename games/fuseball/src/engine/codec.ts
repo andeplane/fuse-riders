@@ -15,11 +15,12 @@ import {
  * decoder that checks every one against the bounds and the consistency the simulation keeps. `decodeWorld` returns
  * a whole new world or nothing; it never changes what it was given and never returns a half-checked one.
  */
-const VERSION = 1;
+const VERSION = 2;
 const RIDER_FIELDS = 14,
   BUBBLE_FIELDS = 5,
   BALL_FIELDS = 7,
-  WORLD_FIELDS = 14;
+  WORLD_FIELDS = 15,
+  PACE_FIELDS = 4;
 
 const int = (value: unknown, low: number, high: number): value is number =>
   typeof value === "number" &&
@@ -92,6 +93,7 @@ export function encodeWorld(world: World): unknown[] {
       ball.bounces,
       ball.touch,
     ],
+    [world.speed, world.budget, world.linger, world.freeze],
   ];
 }
 
@@ -198,6 +200,19 @@ function consistent(world: World): boolean {
     won = score[0] === T.TARGET || score[1] === T.TARGET,
     scored = phase === "zap" || phase === "over";
   if (a.id === b.id) return false;
+  // The pace: stopped exactly while a goal's freeze lasts, a quarter speed for the rest of the zap, slowed only in
+  // play, and never so slow that a log tick would run no step.
+  const { speed, budget, linger, freeze } = world;
+  if (freeze > 0 ? phase !== "zap" || speed !== 0 : speed < T.MIN_SPEED)
+    return false;
+  if (phase === "zap" && freeze === 0 && speed !== T.ZAP_SPEED) return false;
+  if (phase === "zap" && freeze > 0 && phaseSteps !== T.ZAP_STEPS) return false;
+  if (phase !== "play" && (linger !== 0 || (phase !== "zap" && budget !== 0)))
+    return false;
+  if ((phase === "countdown" || phase === "over") && speed !== T.SPEED_FULL)
+    return false;
+  if (phase === "play" && speed < T.CLOUD_SPEED_CORE) return false;
+  if (freeze > 0 && budget !== 0) return false;
   // Timers: a countdown or a zap is always running down, and nothing else has one.
   if (phase === "countdown" && !int(phaseSteps, 1, T.COUNTDOWN_STEPS))
     return false;
@@ -250,6 +265,7 @@ export function decodeWorld(raw: unknown): World | undefined {
     bubbleA,
     bubbleB,
     rawBall,
+    rawPace,
   ] = raw;
   if (
     version !== VERSION ||
@@ -260,7 +276,16 @@ export function decodeWorld(raw: unknown): World | undefined {
     !int(score0, 0, T.TARGET) ||
     !int(score1, 0, T.TARGET) ||
     !side(lastScorer) ||
-    !flag(suddenDeath)
+    !flag(suddenDeath) ||
+    !tuple(rawPace, PACE_FIELDS)
+  )
+    return;
+  const [speed, budget, linger, freeze] = rawPace;
+  if (
+    !int(speed, 0, T.SPEED_FULL) ||
+    !int(budget, 0, T.SPEED_FULL - 1) ||
+    !int(linger, 0, T.SLOW_HOLD_TICKS) ||
+    !int(freeze, 0, T.GOAL_FREEZE_STEPS)
   )
     return;
   const mapId = MAP_IDS[mapIndex],
@@ -281,6 +306,10 @@ export function decodeWorld(raw: unknown): World | undefined {
     score: [score0, score1],
     lastScorer,
     suddenDeath: suddenDeath === 1,
+    speed,
+    budget,
+    linger,
+    freeze,
     riders: [a, b],
     bubbles: [bubble0, bubble1],
     ball,

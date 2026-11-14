@@ -2,7 +2,7 @@ import { BTN } from "./input.js";
 import type { MapId } from "./maps.js";
 import { SUB } from "./math.js";
 import { slowed, winnerOf } from "./step.js";
-import { STEPS_PER_SECOND, TARGET } from "./tuning.js";
+import { SPEED_FULL, STEPS_PER_SECOND, TARGET } from "./tuning.js";
 import type { Phase, Slot, World } from "./world.js";
 
 /**
@@ -75,8 +75,12 @@ export interface WorldView {
   winner: -1 | Slot;
   /** Both sides are one point from winning: the point being played (or just played) is sudden death. */
   suddenDeath: boolean;
-  /** The ball is in a cloud: the arena runs at half speed. */
+  /** The ball is in a cloud: the arena is slowing down, or already slow. */
   slow: boolean;
+  /** The arena's speed as a fraction of full speed: 1 normally, less in slow motion, 0 while a goal's freeze lasts. */
+  speed: number;
+  /** A goal has just been scored and nothing moves yet: draw the ball where it went in. */
+  frozen: boolean;
   riders: [RiderView, RiderView];
   bubbles: [BubbleView, BubbleView];
   ball: BallView;
@@ -131,6 +135,8 @@ export function toView(world: World): WorldView {
     winner: winnerOf(world),
     suddenDeath: world.suddenDeath,
     slow: slowed(world),
+    speed: world.speed / SPEED_FULL,
+    frozen: world.freeze > 0,
     riders: [riderView(world, 0), riderView(world, 1)],
     bubbles: [bubbleView(world, 0), bubbleView(world, 1)],
     ball: {
