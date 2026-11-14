@@ -12,6 +12,8 @@ export interface ArenaOptions {
   /** Display names by seat; an empty string leaves the seat unnamed. */
   readonly names: readonly string[];
   readonly muted: boolean;
+  /** Outlines the local player's unit while true; the page turns it on for a few seconds at spawn and after a transform. */
+  readonly highlight?: boolean;
 }
 
 export interface ArenaView {
