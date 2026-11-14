@@ -1,0 +1,190 @@
+{
+  "version": 1,
+  "theme": "neon-night-trials",
+  "provenance": "Original assets generated for this project with OpenAI image generation by scripts/elasto-fuse-art.ts. Prompts are retained there and in docs/design/elasto-fuse-art.md. No Elasto Mania art is used.",
+  "layout": {
+    "pxPerUnit": 240,
+    "rearHub": [-0.85, -0.6],
+    "frontHub": [0.85, -0.6],
+    "wheelRadius": 0.4,
+    "head": [0, 0.44],
+    "headRadius": 0.24,
+    "frameBody": [-0.75, -0.45, 0.75, 0.35]
+  },
+  "assets": [
+    {
+      "file": "wheel.png",
+      "role": "bike wheel (both wheels; the code spins it)",
+      "width": 256,
+      "height": 256,
+      "transparent": true,
+      "sampling": "linear",
+      "pivot": [0.5, 0.5],
+      "trim": [0, 0, 256, 256],
+      "note": "The tyre's outer edge fills the circle inscribed in the square; hub at the centre (128, 128)."
+    },
+    {
+      "file": "frame.png",
+      "role": "bike body without wheels, fork or swingarm",
+      "width": 512,
+      "height": 320,
+      "transparent": true,
+      "sampling": "linear",
+      "pivot": [0.5, 0.5],
+      "trim": [0, 0, 512, 320],
+      "note": "Faces right. The image centre is the frame's centre (world origin) at 240 px per unit; the body stays within x 76..436 and y 76..268 px. The code draws the fork and swingarm as lines to the wheels."
+    },
+    {
+      "file": "torso.png",
+      "role": "rider torso and hips",
+      "width": 192,
+      "height": 96,
+      "transparent": true,
+      "sampling": "linear",
+      "pivot": [0.125, 0.5],
+      "joints": {
+        "hip": [24, 48],
+        "shoulder": [168, 48]
+      },
+      "trim": [0, 0, 192, 96],
+      "note": "Laid horizontally: hip joint at the left end, neck/shoulder at the right end."
+    },
+    {
+      "file": "head.png",
+      "role": "rider helmet",
+      "width": 160,
+      "height": 160,
+      "transparent": true,
+      "sampling": "linear",
+      "pivot": [0.5, 0.5],
+      "trim": [0, 0, 160, 160],
+      "note": "Faces right; the helmet fills the inscribed circle and the image centre is the head centre."
+    },
+    {
+      "file": "thigh.png",
+      "role": "rider thigh",
+      "width": 160,
+      "height": 64,
+      "transparent": true,
+      "sampling": "linear",
+      "pivot": [0.15, 0.5],
+      "joints": {
+        "hip": [24, 32],
+        "knee": [136, 32]
+      },
+      "trim": [0, 0, 160, 64],
+      "note": "Laid horizontally, hip at the left."
+    },
+    {
+      "file": "shin.png",
+      "role": "rider shin and boot",
+      "width": 160,
+      "height": 64,
+      "transparent": true,
+      "sampling": "linear",
+      "pivot": [0.15, 0.5],
+      "joints": {
+        "knee": [24, 32],
+        "ankle": [136, 32]
+      },
+      "trim": [0, 0, 160, 64],
+      "note": "Laid horizontally, knee at the left; ends in a boot at the right."
+    },
+    {
+      "file": "upper-arm.png",
+      "role": "rider upper arm",
+      "width": 160,
+      "height": 64,
+      "transparent": true,
+      "sampling": "linear",
+      "pivot": [0.15, 0.5],
+      "joints": {
+        "shoulder": [24, 32],
+        "elbow": [136, 32]
+      },
+      "trim": [0, 0, 160, 64],
+      "note": "Laid horizontally, shoulder at the left."
+    },
+    {
+      "file": "forearm.png",
+      "role": "rider forearm and glove",
+      "width": 160,
+      "height": 64,
+      "transparent": true,
+      "sampling": "linear",
+      "pivot": [0.15, 0.5],
+      "joints": {
+        "elbow": [24, 32],
+        "hand": [136, 32]
+      },
+      "trim": [0, 0, 160, 64],
+      "note": "Laid horizontally, elbow at the left; ends in a glove at the right."
+    },
+    {
+      "file": "apple.png",
+      "role": "pick-up",
+      "width": 192,
+      "height": 192,
+      "transparent": true,
+      "sampling": "linear",
+      "pivot": [0.5, 0.5],
+      "trim": [0, 0, 192, 192],
+      "note": "Fills about 85% of the square, centred."
+    },
+    {
+      "file": "flower.png",
+      "role": "exit",
+      "width": 256,
+      "height": 256,
+      "transparent": true,
+      "sampling": "linear",
+      "pivot": [0.5, 0.5],
+      "trim": [0, 0, 256, 256],
+      "note": "Flower head seen front-on, no stem; fills about 85% of the square, centred."
+    },
+    {
+      "file": "killer.png",
+      "role": "hazard (the code spins it)",
+      "width": 256,
+      "height": 256,
+      "transparent": true,
+      "sampling": "linear",
+      "pivot": [0.5, 0.5],
+      "trim": [0, 0, 256, 256],
+      "note": "Radially symmetric; fills about 90% of the square, centred."
+    },
+    {
+      "file": "ground.webp",
+      "role": "terrain fill, tiled",
+      "width": 1024,
+      "height": 1024,
+      "transparent": false,
+      "sampling": "linear",
+      "pivot": [0, 0],
+      "trim": [0, 0, 1024, 1024],
+      "note": "Tiles in both directions (the script cross-fades the edges)."
+    },
+    {
+      "file": "sky.webp",
+      "role": "parallax backdrop",
+      "width": 2048,
+      "height": 1024,
+      "transparent": false,
+      "sampling": "linear",
+      "pivot": [0, 0],
+      "trim": [0, 0, 2048, 1024],
+      "note": "Tiles horizontally (the script cross-fades the left and right edges)."
+    },
+    {
+      "file": "hero.webp",
+      "role": "landing art",
+      "width": 1536,
+      "height": 864,
+      "transparent": false,
+      "sampling": "linear",
+      "pivot": [0.5, 0.5],
+      "trim": [0, 0, 1536, 864],
+      "note": "Rider on the bike mid-jump over neon terrain with apples and the flower; no text."
+    }
+  ]
+}
