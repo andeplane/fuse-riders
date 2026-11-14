@@ -122,7 +122,7 @@ async function voice(page: Page) {
   await page.getByRole("region", { name: "Voice chat" }).waitFor();
 }
 async function close(page: Page) {
-  await page.getByRole("button", { name: "CLOSE", exact: true }).click();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
 }
 /** An invited device seats itself on arrival, under the name this browser remembers. */
 async function join(page: Page, name: string, url: string) {

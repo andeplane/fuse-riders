@@ -29,17 +29,23 @@ import {
 } from "fuse-network-fe";
 import { MAX_PACKET_BYTES, browserDependencies, uuid } from "fuse-netcode";
 import {
+  backOnEscape,
   button,
   createAppPortal,
+  createBackLink,
   createGameMenu,
   createInviteCard,
   createLandingCard,
   createRoomLayout,
   createNameEntry,
   createNotice,
+  createPageHeader,
+  createPageMessage,
   createRoster,
   createRoundControls,
+  createSubPage,
   createTopBar,
+  menuKeys,
   el,
 } from "fuse-ui";
 import {
@@ -82,6 +88,7 @@ import {
   type Prefs,
 } from "./prefs.js";
 import { createOptionsMenu, createPlayOptions } from "./options.js";
+import { createLobbyBar } from "./lobby-bar.js";
 import {
   bestText,
   holdText,
@@ -458,13 +465,6 @@ function landing(): void {
   const library = LIBRARY;
   let choice = chosen(library);
   const preview = createPreview(library);
-  const shared = el("label", "", "fm-shared"),
-    toggle = el("input");
-  toggle.type = "checkbox";
-  toggle.checked = store.getItem(names.shared) === "1";
-  toggle.onchange = () =>
-    store.setItem(names.shared, toggle.checked ? "1" : "0");
-  shared.append(toggle, el("span", "Shared TV: phones are the controllers"));
   // A solo select: this player's speed and a random song. Sessions are a room's.
   const options = createPlayOptions({
     document,
@@ -509,10 +509,12 @@ function landing(): void {
       songs: 1,
       random: false,
     });
-  const leaveLanding = () => {
-    preview.stop();
+  /** `keepMusic`: the room that opens next plays the same preview on, without a gap. */
+  const leaveLanding = (keepMusic = false) => {
+    if (!keepMusic) preview.stop();
     settings.dispose();
     card.menu.dispose();
+    menu.dispose();
     document.removeEventListener("keydown", onKey);
   };
   // PLAY and OPTIONS stay in the dialog's bar beside CLOSE: the select under them scrolls, they do not.
@@ -538,7 +540,18 @@ function landing(): void {
         },
       );
       store.setItem(names.host(room.code), room.token);
-      location.href = withFlags(endpoints.appUrl(`?room=${room.code}`));
+      // Into the room without leaving the page: the menu's music plays on into the lobby.
+      const url = withFlags(endpoints.appUrl(`?room=${room.code}`));
+      leaveLanding(true);
+      history.pushState(null, "", url);
+      window.addEventListener("popstate", () => location.reload());
+      audio.unlock();
+      try {
+        enterRoom(false, library, choice, preview);
+      } catch {
+        // The landing is gone and the room did not come up: the room's own address starts it afresh.
+        location.href = url;
+      }
     },
     onSolo: () => {
       leaveLanding();
@@ -549,7 +562,6 @@ function landing(): void {
       location.href = withFlags(endpoints.appUrl(`?room=${code}`));
     },
   });
-  card.create.after(shared);
   // The Timing screen is on the front door: lining the game up with a device is not a setting to dig for.
   card.menu.addEntry("Sync timing", () => {
     leaveLanding();
@@ -650,11 +662,11 @@ function landing(): void {
       event.preventDefault();
   };
   document.addEventListener("keydown", onKey);
-  const back = el("a", "← ALL GAMES", "fm-back");
-  back.href = BASE + (muted ? "?mute" : "");
+  const allGames = el("a", "All games", "fm-all-games");
+  allGames.href = BASE + (muted ? "?mute" : "");
   const menu = createGameMenu(guide());
   menu.update({ canLobby: false, canLeave: false, touch: coarse() });
-  app.replaceChildren(header([back, menu.element]), card.element);
+  app.replaceChildren(header([allGames, menu.element]), card.element);
   picker.update({ ...choice, host: true });
   showOptions();
   preview.show(choice.song);
@@ -678,7 +690,7 @@ function startSolo(library: Library, choice: Choice): void {
   );
   window.addEventListener("popstate", () => location.reload());
   audio.unlock();
-  room(true, library, choice);
+  enterRoom(true, library, choice);
 }
 
 /** From the menu to the Timing screen without leaving the page, so the click that asked for it lets the tick out. */
@@ -691,10 +703,13 @@ function openTiming(): void {
 
 /** The Timing screen ("sync"): thirty seconds of a steady tick, then what to set. No song, no room. */
 function timing(): void {
-  const back = el("a", "← BACK TO THE MENU", "fm-ts-back");
-  back.href = withFlags(endpoints.appUrl());
   const loading = el("p", "Loading…", "fm-connecting");
-  app.replaceChildren(header(), loading);
+  const page = createSubPage({
+    title: "Sync timing",
+    backHref: withFlags(endpoints.appUrl()),
+    content: [loading],
+  });
+  app.replaceChildren(header(), page.element);
   void import("./timing-screen.js").then(({ createTimingScreen }) => {
     const screen = createTimingScreen({
       doc: document,
@@ -710,10 +725,11 @@ function timing(): void {
       bpm: Number(new URLSearchParams(location.search).get("rate")),
       seconds: Number(new URLSearchParams(location.search).get("seconds")),
       details: debugTiming,
-      back,
       pairing: pairedClock,
     });
     loading.replaceWith(screen.element);
+    // After the screen's own keys: Escape stops a run first, and only then goes back.
+    backOnEscape(page.back);
     // For smokes and for an agent reading a session: what the panel shows, its log, and where the run is.
     Object.assign(window, {
       fusemania: {
@@ -725,7 +741,12 @@ function timing(): void {
   });
 }
 
-function room(solo: boolean, library: Library, first?: Choice): void {
+function enterRoom(
+  solo: boolean,
+  library: Library,
+  first?: Choice,
+  preview = createPreview(library),
+): void {
   // The landing select is gone: its late fetch must not take the place of the song this room plays.
   clearTimeout(landingFetch);
   audioWatchers.clear();
@@ -734,12 +755,15 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     ? ({ kind: "solo" } as const)
     : sessionFor(location.search, store, GAME, validRoomCode, secret);
   if (session.kind === "invalid" || session.kind === "landing") {
-    const back = el("a", "← BACK", "fm-back");
-    back.href = withFlags(endpoints.appUrl());
-    app.replaceChildren(
-      header([back]),
-      el("p", "That is not a room code: check it and try again.", "fm-error"),
-    );
+    const page = createSubPage({
+      title: "Join room",
+      backHref: withFlags(endpoints.appUrl()),
+      content: [
+        createPageMessage("That is not a room code: check it and try again."),
+      ],
+    });
+    app.replaceChildren(header(), page.element);
+    backOnEscape(page.back);
     return;
   }
   const code = session.kind === "room" ? session.code : "SOLO",
@@ -748,14 +772,25 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   document.body.classList.toggle("fm-display", display);
   const viewer: Viewer = { me: "", host: solo, solo, display };
   const choice = first ?? chosen(library);
-  const preview = createPreview(library);
   const leave = () => {
     runtime.stop();
     location.href = withFlags(endpoints.appUrl());
   };
 
   // ---- the page ----
-  const status = createNotice({ className: "fm-status" });
+  // The quiet states sit at the lobby's foot; what went wrong is said over whatever the page shows.
+  const status = createNotice({ className: "fm-status" }),
+    problem = createNotice({ className: "fm-alert" });
+  problem.element.setAttribute("role", "alert");
+  const say = (text: string, tone: "info" | "error") => {
+    if (tone === "error") {
+      status.clear();
+      problem.show(text, "error");
+    } else {
+      problem.clear();
+      status.show(text, "info");
+    }
+  };
   /** Lets go of every key and pad: a menu opened, or the page lost focus. */
   let letGoAll = () => {};
   // ---- a solo song can be paused: its room clock is this one, and it stops ----
@@ -781,11 +816,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     onOpenChange: menuMoved,
   });
   const roundControls = createRoundControls(quickGuide());
-  const top = header([
-    el("strong", solo ? "SOLO" : code, "fm-code"),
-    status.element,
-    menu.element,
-  ]);
+  // The room's code is on its invitation and its state at the lobby's foot: the bar holds neither.
+  const top = header([menu.element]);
   createTopBar({
     music: false,
     element: top,
@@ -807,7 +839,24 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     addBot = button("+ ADD AI RIVAL", "fm-add-bot"),
     start = button("START", "fui-button-primary fm-start"),
     lobbyNote = el("p", "", "fui-lobby-note"),
-    tvLink = button("OPEN TV SCREEN", "fm-tv");
+    tvLink = button("OPEN TV SCREEN", "fui-button fm-tv"),
+    tvOption = el("div", "", "fui-room-extra fm-tv-option"),
+    tvLabel = el("label"),
+    tvToggle = el("input");
+  // The host's choice for this room, made in the room: phones become the controllers of one shared screen.
+  tvToggle.type = "checkbox";
+  tvLabel.append(tvToggle, el("span", "Shared TV: phones are the controllers"));
+  tvOption.append(tvLabel, tvLink);
+  tvOption.hidden = true;
+  tvToggle.onchange = () => {
+    const sent = runtime.command({
+      type: "settings",
+      settings: { ...settings, display: tvToggle.checked },
+    });
+    // Refused (the room is not up yet, or this is no longer the host): the box goes back to what the room has.
+    if (sent) store.setItem(names.shared, tvToggle.checked ? "1" : "0");
+    else tvToggle.checked = settings.display;
+  };
   let inviteCard: HTMLElement | undefined;
   if (!solo) {
     const invite = createInviteCard({
@@ -898,7 +947,6 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     packs: packsOf(library.songs, CUSTOM),
     tools: [options.random],
   });
-  options.element.hidden = display;
   const showOptions = () =>
     options.update({
       speed: prefs.speed,
@@ -907,8 +955,14 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       random: settings.random,
     });
   const lobbySession = sessionBlock();
-  const lobbyActions = el("div", "", "fm-actions");
-  lobbyActions.append(tvLink, start);
+  // OPTIONS, Settings and START across the room's top; the speeds are behind OPTIONS, never a row in the lobby.
+  const lobbyBar = createLobbyBar({
+    document,
+    picker: picker.element,
+    options: options.element,
+    session: lobbySession.element,
+  });
+  lobbyBar.menu.element.hidden = display;
   lobby.append(lobbyMain);
   const help = keyHelp();
   const panel = settingsPanel(() => {
@@ -944,11 +998,11 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     cardTiming = el("section", "", "fm-card-timing"),
     timingText = el("p", ""),
     timingApply = button("APPLY", "fui-button-primary fm-timing-apply"),
-    timingSkip = button("NO THANKS", "fm-timing-skip"),
+    timingSkip = button("NO THANKS", "fui-button fm-timing-skip"),
     cardActions = el("div", "", "fm-actions"),
     rematch = button("PLAY AGAIN", "fui-button-primary fm-rematch"),
-    toLobby = button("SONG SELECT", "fm-to-lobby"),
-    toMenu = button("MENU", "fm-to-menu");
+    toLobby = button("SONG SELECT", "fui-button fm-to-lobby"),
+    toMenu = button("MENU", "fui-button fm-to-menu");
   cardActions.append(toMenu, toLobby, rematch);
   cardOwn.append(ownGrade, ownScore, ownDetail, ownBadge);
   cardSide.append(cardOwn, cardCounts, cardLines);
@@ -971,8 +1025,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     pauseCount = el("strong", "", "fm-pause-count"),
     pauseActions = el("div", "", "fm-actions fm-pause-actions"),
     pauseResume = button("RESUME", "fui-button-primary fm-pause-resume"),
-    pauseRestart = button("RESTART", "fm-pause-restart"),
-    pauseSelect = button("SONG SELECT", "fm-pause-select"),
+    pauseRestart = button("RESTART", "fui-button fm-pause-restart"),
+    pauseSelect = button("SONG SELECT", "fui-button fm-pause-select"),
     pauseHint = el("p", "ESC RESUMES", "fm-pause-hint"),
     pauseButton = button("II", "fm-pause-button");
   pauseCard.setAttribute("role", "dialog");
@@ -1117,7 +1171,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   controllerHead.append(controllerName, controllerState);
   const controllerResult = el("div", "", "fm-actions fm-controller-result"),
     controllerRematch = button("PLAY AGAIN", "fui-button-primary"),
-    controllerLobby = button("SONG SELECT");
+    controllerLobby = button("SONG SELECT", "fui-button");
   controllerRematch.onclick = rematch.onclick;
   controllerLobby.onclick = toLobby.onclick;
   controllerResult.append(controllerLobby, controllerRematch);
@@ -1125,17 +1179,17 @@ function room(solo: boolean, library: Library, first?: Choice): void {
 
   const connecting = el("p", "Connecting to the room…", "fm-connecting"),
     closed = el("section", "", "fm-panel fm-closed"),
-    closedRetry = button("TRY AGAIN", "fm-retry"),
-    closedBack = el(
-      "a",
-      "BACK TO FUSEMANIA",
-      "fui-button-primary fm-closed-back",
-    );
+    closedRetry = button("TRY AGAIN", "fui-button fm-retry"),
+    closedBack = el("a", "MAIN MENU", "fui-button-primary fm-closed-back"),
+    closedHead = createPageHeader({
+      back: createBackLink({ href: withFlags(endpoints.appUrl()) }),
+    });
   closedBack.href = withFlags(endpoints.appUrl());
   closedRetry.onclick = () => location.reload();
   const closedActions = el("div", "", "fm-actions");
   closedActions.append(closedRetry, closedBack);
   closed.append(
+    closedHead.element,
     el("h2", "ROOM CLOSED", "fui-lobby-title"),
     el(
       "p",
@@ -1145,13 +1199,20 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   );
   closed.hidden = true;
   const main = el("main", "", "fm-room");
-  main.append(connecting, closed, nameEntry.form, lobby, stage, controller);
+  main.append(
+    problem.element,
+    connecting,
+    closed,
+    nameEntry.form,
+    lobby,
+    stage,
+    controller,
+  );
   app.replaceChildren(top, main);
   const roomLayout = createRoomLayout({
     primaryAction: start,
     playerName: () => social.playerName(undefined) ?? undefined,
     slotColor,
-    slotLabel: (slot) => `Player ${slot + 1}`,
     background: async (host) =>
       (await import("./attract.js")).createAttract(host),
     element: lobby,
@@ -1161,8 +1222,15 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     join: nameEntry.form,
     addAI: addBot,
     settings: [panel.element, help],
-    modes: [picker.element, options.element, lobbySession.element],
-    actions: [lobbyNote, lobbyActions],
+    headerActions: lobbyBar.headerActions,
+    modes: lobbyBar.modes,
+    actions: [lobbyNote],
+    extras: [tvOption],
+    status: status.element,
+    // Alone, the room is the song select, as the menu's own: no invitation and no row of empty seats.
+    ...(solo
+      ? { compact: true, heading: "Single player" }
+      : { heading: "Room" }),
   });
   lobby.hidden = true;
   stage.hidden = true;
@@ -1317,6 +1385,9 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     pauseCount.hidden = false;
     setText(pauseCount, resumeCount(RESUME_MS));
   };
+  // Arrows walk the pause's buttons and a result's, Enter presses the one in focus: no mouse needed.
+  menuKeys(pauseActions);
+  menuKeys(cardActions, { enabled: () => !model?.playing });
   pauseButton.onclick = () => pause();
   pauseResume.onclick = resume;
   pauseSelect.onclick = () => {
@@ -1621,7 +1692,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       next.lobby.members.map((member) => ({
         id: member.id,
         slot: member.slot,
-        name: member.you ? `${member.name} (you)` : member.name,
+        // Alone there is nobody to tell apart from.
+        name: member.you && !solo ? `${member.name} (you)` : member.name,
         color: slotColor(member.slot),
         status: !member.connected
           ? "OFFLINE"
@@ -1650,12 +1722,10 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     showOptions();
     setText(lobbyNote, next.lobby.note);
     lobbyNote.hidden = !next.lobby.note;
-    tvLink.hidden = !(
-      view.settings.display &&
-      viewer.host &&
-      !display &&
-      !solo
-    );
+    tvOption.hidden = !(viewer.host && !display && !solo);
+    if (tvToggle.checked !== view.settings.display)
+      tvToggle.checked = view.settings.display;
+    tvLink.hidden = !view.settings.display;
     picker.update({
       song: view.settings.song,
       chart: next.chart,
@@ -1865,17 +1935,17 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     },
     status(text) {
       const shown = roomFailure(text);
-      status.show(shown, shown === text ? "info" : "error");
+      say(shown, shown === text ? "info" : "error");
     },
     ready(id, host) {
       viewer.me = id;
       viewer.host = host;
     },
     kicked() {
-      status.show("The host removed you from the room", "error");
+      say("The host removed you from the room", "error");
     },
     ended() {
-      status.show("Room ended", "error");
+      say("Room ended", "error");
       over = true;
       songClock.stop();
       preview.stop();
@@ -1886,7 +1956,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
         .then(async (response) => {
           const body = (await response.json()) as { error?: unknown };
           if (roomFailure(String(body.error ?? "")) === NOT_OPEN)
-            status.show(NOT_OPEN, "error");
+            say(NOT_OPEN, "error");
         })
         .catch(() => {
           /* offline: "Room ended" stands */
@@ -1980,6 +2050,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
         rematch.click();
       } else if (
         model?.screen === "lobby" &&
+        // The speeds are open over the select: their keys are not the carousel's.
+        lobbyBar.menu.panel.hidden &&
         // A cover, an arrow or a chip that was just clicked keeps the focus: the carousel's keys still turn it.
         (!typing(event.target) ||
           (event.target instanceof HTMLButtonElement &&
@@ -2023,6 +2095,6 @@ function room(solo: boolean, library: Library, first?: Choice): void {
 
 const query = new URLSearchParams(location.search);
 if (query.has("timing") || query.has("sync")) timing();
-else if (query.get("solo") === "1") room(true, LIBRARY);
-else if (query.has("room")) room(false, LIBRARY);
+else if (query.get("solo") === "1") enterRoom(true, LIBRARY);
+else if (query.has("room")) enterRoom(false, LIBRARY);
 else landing();

@@ -168,7 +168,7 @@ export function createOptionsMenu(options: {
   const doc = options.document,
     el = elementsFor(doc);
   const root = el("span", "", "fm-options-menu"),
-    toggle = button("OPTIONS", "fm-options-toggle", doc),
+    toggle = button("OPTIONS", "fui-button fm-options-toggle", doc),
     panel = el("div", "", "fm-options-panel");
   panel.id = "fm-options-panel";
   panel.hidden = true;

@@ -31,7 +31,7 @@ try {
       await page.keyboard.press("Space");
       const menu = page.locator(".fui-top-bar-menu[open]");
       await menu.waitFor();
-      const close = menu.getByRole("button", { name: "CLOSE", exact: true });
+      const close = menu.getByRole("button", { name: "Back", exact: true });
       await close.focus();
       await page.keyboard.press("Space");
       await menu.waitFor({ state: "hidden" });

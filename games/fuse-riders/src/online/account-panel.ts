@@ -261,7 +261,7 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
       bar: "fui-dialog-bar dialog-bar",
       title: "fui-dialog-title",
       actions: "fui-dialog-actions dialog-actions",
-      close: "dialog-close",
+      back: "dialog-close",
       body: "fui-dialog-body dialog-body account-panel",
     },
   });

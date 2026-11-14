@@ -99,7 +99,7 @@ async function checkSharedMenu(page: Page): Promise<void> {
     (await controls.locator(".fui-controls-row").count()) > 0,
     "controls list is populated",
   );
-  await controls.getByRole("button", { name: "← BACK", exact: true }).click();
+  await controls.getByRole("button", { name: "Menu", exact: true }).click();
   await page.keyboard.press("Escape");
   assert.equal(await trigger.getAttribute("aria-expanded"), "false");
   await trigger.click();
@@ -134,7 +134,7 @@ async function checkRidersMenu(page: Page): Promise<void> {
     .click();
   const help = page.getByRole("dialog");
   await help.getByText("Driving", { exact: true }).waitFor();
-  await help.getByRole("button", { name: "CLOSE", exact: true }).click();
+  await help.getByRole("button", { name: "Back", exact: true }).click();
   await page
     .getByRole("button", { name: "BACK TO LOBBY", exact: true })
     .click();

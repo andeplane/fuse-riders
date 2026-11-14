@@ -406,7 +406,7 @@ for (const { name, kind } of BOTH_ENGINES) {
     // The shared layout preference is reachable in arena play as well as TV controller mode.
     await clickInTools("SETTINGS", true);
     await page.getByLabel("Landscape bomb side").selectOption("left");
-    await page.getByRole("button", { name: "CLOSE", exact: true }).click();
+    await page.getByRole("button", { name: "Back", exact: true }).click();
     if (await page.locator(".mobile-tools-open").count())
       await page.locator(".mobile-tools-toggle").click();
     await page.setViewportSize({ width: 844, height: 390 });

@@ -1,4 +1,8 @@
 /* Shared Fuse UI owns typography, controls and palette; this file arranges Fuse Craft. */
+:root {
+  /* The subtitle under the brand: a page's Back starts below it. */
+  --fui-page-top: calc(96px + env(safe-area-inset-top));
+}
 html,
 body {
   margin: 0;
@@ -1903,6 +1907,9 @@ select {
   }
   .header-subtitle {
     display: none;
+  }
+  :root {
+    --fui-page-top: calc(72px + env(safe-area-inset-top));
   }
   .debug-badge {
     margin-left: auto;

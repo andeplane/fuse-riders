@@ -34,6 +34,19 @@ body.fusemania-page {
   gap: var(--fui-space-2) var(--fui-space-3);
   padding: var(--fui-space-3) 0;
 }
+/* The lobby scrolls under the fixed top bar: what passes behind it blurs out, so the brand stays readable. */
+body:has(.fm-lobby:not([hidden])) .fm-top::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: -1;
+  height: 5rem;
+  background: #03091980;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  mask-image: linear-gradient(#000 70%, transparent);
+  pointer-events: none;
+}
 .fm-brand {
   display: grid;
   grid-template-columns: auto auto;
@@ -56,45 +69,22 @@ body.fusemania-page {
   font-size: 0.5rem;
   letter-spacing: 0.125rem;
 }
-.fm-back {
-  margin-left: auto;
-  color: var(--fui-cyan);
-  font: 0.625rem var(--fui-font-pixel);
-}
-.fm-code {
-  padding: var(--fui-space-1) var(--fui-space-2);
-  color: var(--fui-ink);
-  background: var(--fui-yellow);
-  border-radius: var(--fui-radius-small);
-  font: 0.75rem var(--fui-font-pixel);
-}
-.fm-status {
-  flex: 1 1 10rem;
-  /* One line, always laid out: a status that appears, changes or wraps must not move the buttons beside it. */
-  min-width: 0;
-  min-height: 1.25rem;
-  overflow: hidden;
-  font-size: 0.75rem;
-  line-height: 1.25rem;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.fui-app .fm-status[hidden] {
-  display: block !important;
-  visibility: hidden;
+/* What went wrong with the room, over whatever the page shows: the lobby's foot has the quiet states. */
+.fm-alert {
+  margin: var(--fui-space-3) auto 0;
+  padding: 0 var(--fui-space-4);
+  color: var(--fui-pink-soft);
+  font: 0.875rem/1.5 var(--fui-font-sans);
+  text-align: center;
 }
 .fm-top .fui-game-menu {
   margin-left: auto;
-}
-.fm-back + .fui-game-menu {
-  margin-left: 0;
 }
 .fm-error,
 .fm-connecting {
   margin: var(--fui-space-6) auto;
   color: var(--fui-text-muted);
-  font: 0.75rem/1.6 var(--fui-font-pixel);
+  font: 1rem/1.6 var(--fui-font-sans);
   text-align: center;
 }
 .fm-error {
@@ -110,27 +100,9 @@ body.fusemania-page {
   color: var(--fui-pink);
   text-shadow: var(--fui-glow-pink);
 }
-.fm-shared {
-  display: flex;
-  align-items: center;
-  gap: var(--fui-space-2);
-  color: var(--fui-text-muted);
-  font-size: 0.8125rem;
-}
-.fui-app .fm-shared input {
-  width: 1.25rem;
-  height: 1.25rem;
-  margin: 0;
-  accent-color: var(--fui-cyan);
-}
 /* The song select needs the width: its dialog is wider than a menu's. PLAY is in the dialog's bar, not under the select. */
 .fusemania-page .fui-menu-dialog:has(.fm-picker) {
   width: min(68rem, calc(100vw - 1.5rem));
-}
-.fui-app .fm-solo-play {
-  width: 100%;
-  min-height: 3.25rem;
-  font-size: 1rem;
 }
 .fm-landing-select {
   display: grid;
@@ -220,6 +192,8 @@ body.fusemania-page {
   gap: var(--fui-space-3);
   width: min(100%, 76rem);
   margin: 0 auto;
+  /* Back, OPTIONS and START stay right under the top bar while the room scrolls. */
+  --fui-room-sticky-top: 4.25rem;
 }
 @media (min-width: 60rem) {
   .fm-lobby {
@@ -253,9 +227,9 @@ body.fusemania-page {
   border-color: var(--fui-pink);
   text-align: center;
 }
-.fm-closed-back {
-  padding: var(--fui-space-3) var(--fui-space-4);
-  text-decoration: none;
+.fm-closed > .fui-page-head {
+  justify-self: stretch;
+  margin: 0;
 }
 /* The TV has no song to choose: its lobby is the invitation and the players, centred. */
 body.fm-display .fm-lobby {
@@ -263,18 +237,12 @@ body.fm-display .fm-lobby {
   justify-content: center;
 }
 
-/* The shared top bar floats over the page: the room starts under it, and a song has no use for the room's code. */
+/* The shared top bar floats over the page: the room starts under it. */
 body:has(.fui-top-bar) .fm-room {
   padding-top: calc(68px + env(safe-area-inset-top));
 }
 body:has(.fui-top-bar) .fm-room:has(> .fui-room-layout:not([hidden])) {
   padding-top: 0;
-}
-body:has(.fm-room:is([data-screen="play"], [data-screen="controller"]))
-  .fm-code,
-body:has(.fm-room:is([data-screen="play"], [data-screen="controller"]))
-  .fm-status:not([data-tone="error"]) {
-  display: none !important;
 }
 /* A lobby: the players in rows of seats on top, the song select under them with the room it needs. */
 @media (min-width: 641px) {
@@ -286,12 +254,13 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"]))
 .fm-lobby .fui-room-open-slots {
   grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
 }
-.fui-app .fui-menu-dialog .fm-solo-play {
-  color: var(--fui-ink);
-  background: var(--fui-cyan);
-  border-color: var(--fui-cyan);
-  box-shadow: var(--fui-glow-cyan);
-  font: 0.875rem/1 var(--fui-font-pixel);
+/* Down a phone one open seat says it for the rest (the count is beside "Players"): the song select stays near. */
+@media (max-width: 600px) {
+  .fm-lobby
+    .fui-room-open-slot:not(.fui-slot-occupied)
+    ~ .fui-room-open-slot:not(.fui-slot-occupied) {
+    display: none;
+  }
 }
 
 /* The song */
@@ -705,15 +674,6 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"]))
   .fm-brand {
     font-size: 1rem;
   }
-  .fm-top .fm-status {
-    order: 5;
-    flex-basis: 100%;
-  }
-  body:has(.fm-room:is([data-screen="play"], [data-screen="controller"]))
-    .fm-top
-    .fm-status {
-    display: none !important;
-  }
   .fm-card {
     padding: var(--fui-space-3);
   }
@@ -1054,9 +1014,6 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"])) #app {
 
 /* ---- the Timing screen: one lane on a steady click, the read-out beside it, the panel as its own column ---- */
 /* The shared top bar floats over the page: the screen starts under it. */
-body:has(.fui-top-bar) .fm-ts {
-  padding-top: calc(68px + env(safe-area-inset-top));
-}
 .fm-ts {
   flex: 1;
   display: grid;
@@ -1090,11 +1047,6 @@ body:has(.fui-top-bar) .fm-ts {
   min-width: 0;
   overflow-y: auto;
 }
-.fm-ts-title {
-  margin: 0;
-  color: var(--fui-yellow);
-  font: 1rem var(--fui-font-pixel);
-}
 .fm-ts-status,
 .fm-ts-mean,
 .fm-ts-word,
@@ -1102,7 +1054,7 @@ body:has(.fui-top-bar) .fm-ts {
 .fm-ts-advice {
   margin: 0;
   color: var(--fui-text-muted);
-  font: 0.625rem/1.7 var(--fui-font-pixel);
+  font: 0.9375rem/1.6 var(--fui-font-sans);
 }
 .fm-ts-running,
 .fm-ts-result,
@@ -1147,19 +1099,18 @@ body:has(.fui-top-bar) .fm-ts {
   flex-wrap: wrap;
   gap: var(--fui-space-2);
 }
-.fm-ts-back {
-  margin-top: var(--fui-space-3);
-  color: var(--fui-cyan);
-  font: 0.625rem var(--fui-font-pixel);
-}
 .fm-ts-label {
   margin: var(--fui-space-2) 0 0;
   color: var(--fui-cyan);
   font: 0.625rem var(--fui-font-pixel);
 }
-.fm-ts-rate.fm-ts-on {
-  color: var(--fui-ink);
-  background: var(--fui-cyan);
+.fui-app .fm-ts-rate {
+  text-transform: none;
+}
+.fui-app .fm-ts-rate.fm-ts-on {
+  color: var(--fui-primary-text);
+  background: var(--fui-primary-fill);
+  border-color: var(--fui-primary-fill);
 }
 /* On its own screen the panel is part of the page: nothing floats over the lane. */
 .fm-dt.fm-dt-screen {

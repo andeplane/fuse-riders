@@ -1314,7 +1314,8 @@ export function mountFuseCraft(
         primaryAction: room.manager
           ? `<button data-action="start-room" class="primary" ${canStart ? "" : "disabled"}>Start match</button>`
           : undefined,
-        mainMenu: '<button data-action="leave-room">Main menu</button>',
+        mainMenu:
+          '<button class="fui-back" data-action="leave-room" aria-label="Back">Back</button>',
         actions: `<p class="room-status" role="status">${escape(room.stage === "connecting" ? "Connecting to the room…" : players.length > capacity ? `Too many players for this map: it seats ${capacity}. Pick a larger map or ask someone to leave.` : room.status)}</p>${!room.manager ? "<span>Waiting for the host to start…</span>" : ""}`,
       })
     );

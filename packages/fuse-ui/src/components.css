@@ -44,30 +44,25 @@
   border-radius: var(--fui-radius);
   padding: var(--fui-space-2);
 }
+/* The shape every button shares; the menu system at the end of this file adds the type, sizes and roles. */
 .fui-app button {
   cursor: pointer;
-  border-color: color-mix(in srgb, var(--fui-cyan-deep) 40%, var(--fui-line));
-  background: var(--fui-button-fill);
-  box-shadow: var(--fui-edge);
+  color: var(--fui-control-text);
+  border-color: var(--fui-control-line);
+  border-radius: var(--fui-control-radius);
+  background: var(--fui-control-fill);
+  box-shadow: none;
 }
 .fui-app button:enabled:hover {
   filter: brightness(1.15);
 }
 .fui-app button:focus-visible,
 .fui-app input:focus-visible {
-  outline: 0.1875rem solid #b4f7ff;
-  outline-offset: 0.1875rem;
+  outline: var(--fui-focus-ring);
+  outline-offset: var(--fui-focus-offset);
 }
 .fui-app button:disabled {
   opacity: 0.4;
-}
-.fui-app .fui-button-primary {
-  color: var(--fui-ink);
-  font-family: var(--fui-font-pixel);
-  font-size: 0.875rem;
-  background: var(--fui-cyan-fill);
-  border-color: var(--fui-cyan);
-  box-shadow: var(--fui-glow-cyan);
 }
 
 /* Landing */
@@ -260,27 +255,35 @@
   background: #010612c9;
   backdrop-filter: blur(0.3125rem);
 }
+/* The bar: Back, the title, then the dialog's actions with the primary one last. A page's header is the same. */
 .fui-dialog-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--fui-space-3);
   padding: var(--fui-space-3) var(--fui-space-4);
   background: #102039;
   border-bottom: 0.0625rem solid #334965;
 }
 .fui-dialog-title {
-  font-size: 0.75rem;
-  letter-spacing: 0.0625rem;
-  color: #a3c5dc;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--fui-heading-font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fui-text-bright);
 }
 .fui-dialog-actions {
   display: flex;
+  flex: 0 0 auto;
+  align-items: center;
   gap: var(--fui-space-2);
+  margin-left: auto;
 }
-.fui-app .fui-dialog-close {
-  border-color: var(--fui-pink-soft);
-  background: #3b1734;
+.fui-dialog-actions:empty {
+  display: none;
 }
 .fui-dialog-body {
   min-height: 0;
@@ -466,25 +469,25 @@
   margin-top: 0.5rem;
 }
 .fui-game-menu button.fui-game-menu-resume {
-  color: var(--fui-ink, #030919);
-  background: var(--fui-cyan, #16e7ff);
-  border-color: transparent;
+  color: var(--fui-primary-text, #031b29);
+  background: var(--fui-primary-fill, #18dbeb);
+  border-color: var(--fui-primary-fill, #18dbeb);
   box-shadow: none;
   text-shadow: none;
 }
 .fui-game-menu button.fui-game-menu-resume:hover {
-  background: #90f7ff;
+  background: var(--fui-primary-fill-hover, #75edf5);
 }
 .fui-game-menu button.fui-game-menu-leave {
-  color: #ffb8cb;
+  color: var(--fui-danger-text, #ffb8cb);
   background: transparent;
-  border-color: #ffb8cb66;
+  border-color: var(--fui-danger-line, #ffb8cb66);
   box-shadow: none;
   text-shadow: none;
 }
 .fui-game-menu button:focus-visible {
-  outline: 2px solid var(--fui-cyan, #16e7ff);
-  outline-offset: 3px;
+  outline: var(--fui-focus-ring, 3px solid #f7dc61);
+  outline-offset: var(--fui-focus-offset, 3px);
 }
 .fui-controls-goal,
 .fui-controls-note {
@@ -574,22 +577,42 @@
   }
 }
 /* The shared front door and waiting room. Keep game canvases and their clocks game-owned. */
+/*
+ * The column hangs from the top instead of being centred, and Back sits outside it, under the top bar: the title
+ * and the first button stay exactly where they are when the menu under them changes.
+ */
 .fui-main-menu {
   position: relative;
   z-index: 2;
   display: grid;
-  place-items: center;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  justify-items: center;
   min-height: min(820px, calc(100svh - 100px));
   width: 100%;
   padding: clamp(24px, 5vw, 72px) 24px;
   box-sizing: border-box;
   color: #e8f5ff;
 }
+/* Where a page's Back always is: the top left, under the top bar and in line with it. */
+.fui-main-menu > .fui-page-head {
+  position: fixed;
+  top: var(--fui-page-top);
+  left: var(--fui-page-gutter);
+  z-index: 1;
+  margin: 0;
+}
 .fui-main-menu-home {
   width: min(100%, 540px);
+  margin-top: clamp(44px, 12svh, 120px);
   text-align: center;
   position: relative;
   z-index: 1;
+}
+@media (max-height: 520px) {
+  .fui-main-menu-home {
+    margin-top: 44px;
+  }
 }
 .fui-attract {
   position: absolute;
@@ -665,38 +688,38 @@
 .fui-menu-dialog button {
   cursor: pointer;
 }
+/* Every button in the column is one size, the primary one included: only its colour sets it apart. */
 .fui-main-menu .fui-main-menu-nav > button {
-  min-height: 54px;
+  box-sizing: border-box;
+  height: var(--fui-menu-height);
+  min-height: var(--fui-menu-height);
   width: 100%;
-  border-radius: 10px;
-  border: 1px solid #365370;
-  background: #101f35;
-  color: #e8f5ff;
-  font:
-    600 17px/1.3 system-ui,
-    sans-serif;
-  text-transform: none;
-  letter-spacing: 0;
+  margin: 0;
+  padding: 0 var(--fui-space-4);
+  border-radius: var(--fui-control-radius);
+  border: 0.0625rem solid var(--fui-control-line);
+  background: var(--fui-control-fill);
+  color: var(--fui-control-text);
+  font: var(--fui-menu-font);
+  text-transform: uppercase;
+  letter-spacing: var(--fui-control-tracking);
   box-shadow: none;
 }
 .fui-main-menu .fui-main-menu-nav > .fui-menu-primary {
-  background: #18dbeb;
-  border-color: #18dbeb;
-  color: #031b29;
-  min-height: 64px;
-  font-size: 21px;
-  margin-bottom: 10px;
+  background: var(--fui-primary-fill);
+  border-color: var(--fui-primary-fill);
+  color: var(--fui-primary-text);
 }
 .fui-main-menu-nav > button:hover {
-  border-color: #18dbeb;
-  background: #19334d;
+  border-color: var(--fui-primary-fill);
+  background: var(--fui-control-fill-hover);
 }
 .fui-main-menu-nav > .fui-menu-primary:hover {
-  background: #75edf5;
+  background: var(--fui-primary-fill-hover);
 }
 .fui-main-menu-nav > button:disabled {
-  cursor: wait;
-  opacity: 0.65;
+  cursor: default;
+  opacity: 0.5;
 }
 .fui-main-menu .fui-main-menu-other {
   margin: 22px 0 0;
@@ -738,11 +761,7 @@
   top: 0;
   z-index: 2;
   background: #101f35;
-  padding: 18px 24px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
+  padding: 12px 16px;
 }
 .fui-menu-dialog .fui-dialog-body {
   padding: 24px;
@@ -792,8 +811,8 @@
 .fui-main-menu :focus-visible,
 .fui-menu-dialog :focus-visible,
 .fui-room-layout :focus-visible {
-  outline: 3px solid #f7dc61;
-  outline-offset: 4px;
+  outline: var(--fui-focus-ring);
+  outline-offset: var(--fui-focus-offset);
 }
 .fui-room-layout.fui-room-layout {
   display: grid;
@@ -1028,15 +1047,13 @@
 }
 .fui-room-layout.fui-room-layout button,
 .fui-menu-dialog.fui-menu-dialog button {
-  font:
-    600 14px/1.4 system-ui,
-    sans-serif;
+  font: var(--fui-control-font);
   text-transform: none;
   letter-spacing: 0;
-  background: #16334c;
-  color: #e8f5ff;
-  border: 1px solid #456582;
-  border-radius: 8px;
+  background: var(--fui-control-fill);
+  color: var(--fui-control-text);
+  border: 0.0625rem solid var(--fui-control-line);
+  border-radius: var(--fui-control-radius);
   padding: 12px 16px;
   box-shadow: none;
 }
@@ -1194,9 +1211,6 @@
   .fui-room-invitation > .fui-room-configure {
     order: 6;
   }
-  .fui-room-invitation > .fui-room-main-menu {
-    order: 7;
-  }
   .fui-room-layout > .fui-attract-toggle {
     order: 8;
   }
@@ -1220,7 +1234,7 @@
 /* A seat reserves its space before admission; content and pressed states never move its neighbours. */
 .fui-room-layout.fui-room-layout .fui-room-open-slot {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-rows: 20px 42px;
   align-content: center;
   align-items: center;
@@ -1231,9 +1245,30 @@
   min-width: 0;
   padding: 12px 16px;
   overflow: hidden;
+  /* A seat arranges itself by its own width: three across a wide room or one down a phone, the same rules. */
+  container-type: inline-size;
+}
+/* The seat's number, in the seat's colour: filled once somebody sits there. */
+.fui-room-layout .fui-slot-chip {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  box-sizing: border-box;
+  border: 0.125rem solid var(--slot-color, var(--fui-control-line));
+  border-radius: 50%;
+  color: color-mix(in srgb, var(--slot-color, #b9d0e1) 75%, white);
+  font: 700 0.875rem/1 var(--fui-font-sans);
+  font-variant-numeric: tabular-nums;
+}
+.fui-room-layout .fui-slot-occupied > .fui-slot-chip {
+  background: var(--slot-color, var(--fui-control-line));
+  color: #06101d;
 }
 .fui-room-layout .fui-slot-label {
-  grid-column: 1;
+  grid-column: 2;
   grid-row: 1;
   min-width: 0;
   overflow: hidden;
@@ -1241,19 +1276,69 @@
   white-space: nowrap;
   line-height: 20px;
 }
+/* An open seat reads across: its number, that it is open, and what to do about it. */
+.fui-room-layout .fui-room-open-slot:not(.fui-slot-occupied) > .fui-slot-label {
+  grid-row: 1 / 3;
+}
 .fui-room-layout .fui-slot-controls {
-  grid-column: 2;
+  grid-column: 3;
   grid-row: 1 / 3;
   flex-wrap: nowrap;
   width: auto;
   align-items: center;
 }
 .fui-room-layout .fui-slot-occupant {
-  grid-column: 1 / -1;
+  grid-column: 2 / -1;
   grid-row: 2;
   min-width: 0;
   height: 42px;
   overflow: hidden;
+}
+/* A seat with nothing to say but its number gives both rows to whoever sits there. */
+.fui-room-layout .fui-slot-plain.fui-slot-occupied > .fui-slot-label {
+  display: none;
+}
+.fui-room-layout .fui-slot-plain > .fui-slot-occupant {
+  grid-row: 1 / 3;
+}
+/* Too narrow for the words and the buttons side by side: the buttons take the second row, full width. */
+@container (max-width: 21rem) {
+  .fui-room-layout
+    .fui-room-open-slot:not(.fui-slot-plain.fui-slot-occupied)
+    > .fui-slot-chip {
+    grid-row: 1;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-width: 0.0625rem;
+    font-size: 0.6875rem;
+  }
+  .fui-room-layout
+    .fui-room-open-slot:not(.fui-slot-occupied)
+    > .fui-slot-label {
+    grid-row: 1;
+  }
+  .fui-room-layout .fui-slot-controls {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+  }
+  .fui-room-layout.fui-room-layout .fui-slot-controls button {
+    flex: 1;
+    min-width: 0;
+  }
+  .fui-room-layout
+    .fui-room-open-slot:not(.fui-slot-plain)
+    > .fui-slot-occupant {
+    grid-column: 1 / -1;
+  }
+}
+/* An open seat this viewer can do nothing about: quieter, its number and "Open seat" on one line. */
+.fui-room-layout .fui-room-open-slot.fui-slot-idle {
+  opacity: 0.6;
+}
+.fui-room-layout .fui-room-open-slot.fui-slot-idle > .fui-slot-chip,
+.fui-room-layout .fui-room-open-slot.fui-slot-idle > .fui-slot-label {
+  grid-row: 1 / 3;
 }
 .fui-room-layout .fui-slot-occupant > * {
   display: flex;
@@ -1286,8 +1371,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
-  line-height: 18px;
+  /* A name is read, not a title: the body face, as the buttons beside it. */
+  font: 600 15px/18px var(--fui-font-sans);
 }
 .fui-room-layout .fui-slot-occupant small,
 .fui-room-layout .fui-slot-occupant .fui-roster-status {
@@ -1362,20 +1447,142 @@
 .fui-room-layout .fui-room-primary-action:has(> [hidden]:only-child) {
   display: none;
 }
-.fui-room-layout .fui-room-main-menu {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  padding: 12px 16px;
-  text-align: center;
-  font:
-    600 14px/1.4 system-ui,
-    sans-serif;
-  color: #e8f5ff;
-  border: 1px solid #456582;
-  border-radius: 8px;
-  background: #16334c;
-  text-decoration: none;
+/* Back leads the room, across both columns: top left, where every page and dialog has it. */
+.fui-room-layout > .fui-room-head {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.fui-room-layout.fui-room-layout {
+  row-gap: 16px;
+}
+/* The host's own choices for the room, under the invitation: a shared TV, and its screen to open. */
+.fui-room-invitation > .fui-room-extra {
+  display: grid;
+  gap: var(--fui-space-2);
+  font: 0.875rem/1.4 var(--fui-font-sans);
+  color: var(--fui-text);
+}
+.fui-room-extra > label {
+  display: flex;
+  align-items: center;
+  gap: var(--fui-space-2);
+  min-height: var(--fui-control-height);
+  cursor: pointer;
+}
+.fui-room-layout.fui-room-layout .fui-room-extra input[type="checkbox"] {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--fui-primary-fill);
+}
+/* The connection's state: one quiet line at the foot of the room, not a badge beside the brand. */
+.fui-room-layout > .fui-room-status {
+  grid-column: 1 / -1;
+  min-width: 0;
+  color: var(--fui-text-dim);
+  font: 0.75rem/1.4 var(--fui-font-sans);
+}
+.fui-room-status:empty,
+.fui-room-status:has(> :only-child:empty) {
+  display: none;
+}
+@media (max-width: 640px) {
+  .fui-room-layout > .fui-room-status {
+    order: 7;
+  }
+}
+/*
+ * A room on one device: one column, no invitation. Back, the heading, Settings and START share the header, as a
+ * dialog's bar does, and the seats are a strip of who is here and the next open one.
+ */
+.fui-room-layout.fui-room-compact {
+  grid-template-columns: minmax(0, 1fr);
+}
+/* Settings and the main action in the room's header stay on screen: the header follows the page down. */
+.fui-room-actions-top > .fui-room-head {
+  position: sticky;
+  top: var(--fui-room-sticky-top, 84px);
+  z-index: 3;
+  margin: calc(var(--fui-space-2) * -1);
+  padding: var(--fui-space-2);
+  border-radius: var(--fui-control-radius);
+  background: #0b1426f2;
+}
+.fui-room-actions-top .fui-room-head .fui-room-primary-action {
+  position: static;
+  width: auto;
+  height: auto;
+  min-height: 0;
+}
+.fui-room-layout.fui-room-actions-top
+  .fui-room-head
+  .fui-room-primary-action
+  button {
+  width: auto;
+  min-width: 7rem;
+  height: var(--fui-control-height);
+  min-height: var(--fui-control-height);
+  max-height: var(--fui-control-height);
+}
+@media (max-width: 640px) {
+  /* A phone's header has room for Back and the heading: its actions take a row of their own, shared evenly. */
+  .fui-room-actions-top > .fui-room-head {
+    top: var(--fui-room-sticky-top, 72px);
+    flex-wrap: wrap;
+    order: 0;
+  }
+  .fui-room-actions-top > .fui-room-head > .fui-page-actions {
+    flex: 1 1 100%;
+  }
+  .fui-room-actions-top > .fui-room-head > .fui-page-actions > * {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .fui-room-layout.fui-room-actions-top
+    .fui-room-head
+    .fui-room-primary-action
+    button {
+    width: 100%;
+    min-width: 0;
+  }
+}
+.fui-room-compact .fui-room-players > h2 {
+  display: none;
+}
+.fui-room-compact .fui-room-open-slots {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 0;
+}
+.fui-room-layout.fui-room-compact .fui-room-open-slot {
+  flex: 0 1 17.5rem;
+  grid-template-rows: 18px 26px;
+  height: 64px;
+  min-height: 64px;
+  max-height: 64px;
+  padding: 8px 12px;
+  container-type: normal;
+}
+.fui-room-compact .fui-slot-occupant,
+.fui-room-compact .fui-slot-occupant > * {
+  height: 40px;
+  max-height: 40px;
+}
+/* One open seat is the invitation to add somebody: the rest of an empty room is not shown. */
+.fui-room-compact
+  .fui-room-open-slot:not(.fui-slot-occupied)
+  ~ .fui-room-open-slot:not(.fui-slot-occupied) {
+  display: none;
+}
+@media (max-width: 640px) {
+  .fui-room-compact .fui-room-players > * {
+    order: 1;
+  }
+  .fui-room-layout.fui-room-compact .fui-room-open-slot {
+    flex: 1 1 100%;
+  }
 }
 .fui-room-layout .fui-room-primary-action button {
   width: 100%;
@@ -1431,22 +1638,261 @@
   min-width: 0;
 }
 @media (max-width: 600px) {
-  .fui-room-layout.fui-room-layout .fui-room-open-slot {
-    grid-template-columns: minmax(0, 1fr);
+  /* A phone's seat has two rows whatever its width: who or what it is, then its buttons across. A compact
+     room's strip keeps its one row. */
+  .fui-room-layout.fui-room-layout:not(.fui-room-compact) .fui-room-open-slot {
     grid-template-rows: 20px 44px;
-    gap: 8px;
+    gap: 8px 12px;
     height: 104px;
     min-height: 104px;
     max-height: 104px;
     padding: 12px 14px;
   }
-  .fui-room-layout .fui-slot-controls {
-    grid-column: 1;
+  .fui-room-layout:not(.fui-room-compact) .fui-slot-controls {
+    grid-column: 1 / -1;
     grid-row: 2;
     width: 100%;
   }
-  .fui-room-layout .fui-slot-controls button {
+  .fui-room-layout:not(.fui-room-compact)
+    .fui-room-open-slot:not(.fui-slot-occupied)
+    > .fui-slot-label {
+    grid-row: 1;
+  }
+  .fui-room-layout:not(.fui-room-compact)
+    .fui-room-open-slot:not(.fui-slot-plain.fui-slot-occupied)
+    > .fui-slot-chip {
+    grid-row: 1;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-width: 0.0625rem;
+    font-size: 0.6875rem;
+  }
+  .fui-room-layout:not(.fui-room-compact) .fui-slot-controls button {
     flex: 1;
     min-width: 0;
+  }
+  /* Down a phone the seats stack, so one nobody here can fill is a line, not a tile. */
+  .fui-room-layout.fui-room-layout:not(.fui-room-compact)
+    .fui-room-open-slot.fui-slot-idle {
+    grid-template-rows: 20px;
+    height: 44px;
+    min-height: 44px;
+    max-height: 44px;
+  }
+  .fui-room-layout:not(.fui-room-compact)
+    .fui-room-open-slot.fui-slot-idle
+    > :is(.fui-slot-chip, .fui-slot-label) {
+    grid-row: 1;
+  }
+}
+
+/*
+ * ===== Menu system =====
+ * One set of patterns for every menu, dialog, room and page in every game. Before adding a button style, a close
+ * control or a header of a game's own, use these (the README's "Menu patterns" has the rules):
+ *
+ *   Back      `createBackButton` / `createBackLink` (.fui-back): the top-left control of a page or a dialog.
+ *   Header    `createPageHeader` (.fui-page-head) and a dialog's bar: Back, title, then actions, primary last.
+ *   Buttons   .fui-button (secondary), .fui-button-primary, .fui-button-danger; .fui-button-menu is the tall
+ *             size of a menu column. A row has its primary action last, a column has it first.
+ *   Type      the pixel face for titles, the sans face for buttons and text, the monospace face for readouts.
+ */
+:is(button, a).fui-back.fui-back.fui-back,
+.fui-app .fui-button,
+.fui-app .fui-button-primary,
+.fui-app .fui-button-danger,
+.fui-dialog-bar.fui-dialog-bar .fui-dialog-actions > button,
+.fui-page-head.fui-page-head .fui-page-actions > button,
+.fui-room-layout.fui-room-layout .fui-slot-controls button,
+.fui-room-layout.fui-room-layout .fui-room-configure,
+.fui-room-layout.fui-room-layout .fui-room-primary-action button,
+.fui-menu-dialog.fui-menu-dialog .fui-join-code button,
+.fui-top-bar-menu.fui-top-bar-menu .fui-top-bar-actions :is(button, a),
+.fui-game-menu.fui-game-menu .fui-game-menu-action {
+  box-sizing: border-box;
+  min-height: var(--fui-control-height);
+  margin: 0;
+  padding: 0 var(--fui-space-4);
+  color: var(--fui-control-text);
+  background: var(--fui-control-fill);
+  border: 0.0625rem solid var(--fui-control-line);
+  border-radius: var(--fui-control-radius);
+  box-shadow: none;
+  font: var(--fui-control-font);
+  letter-spacing: var(--fui-control-tracking);
+  text-transform: uppercase;
+  text-decoration: none;
+  text-shadow: none;
+  cursor: pointer;
+  transform: none;
+}
+:is(button, a).fui-back.fui-back.fui-back:hover,
+.fui-app .fui-button:enabled:hover,
+.fui-dialog-bar.fui-dialog-bar .fui-dialog-actions > button:enabled:hover,
+.fui-page-head.fui-page-head .fui-page-actions > button:enabled:hover,
+.fui-room-layout.fui-room-layout .fui-slot-controls button:enabled:hover,
+.fui-room-layout.fui-room-layout .fui-room-configure:enabled:hover,
+.fui-top-bar-menu.fui-top-bar-menu .fui-top-bar-actions :is(button, a):hover,
+.fui-game-menu.fui-game-menu .fui-game-menu-action:enabled:hover {
+  border-color: var(--fui-primary-fill);
+  background: var(--fui-control-fill-hover);
+  filter: none;
+}
+/* An anchor dressed as a button centres its label as a button does. */
+a.fui-button,
+a.fui-button-primary,
+a.fui-button-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Roles. Primary: the one action the page is for. Danger: leaving, ending, removing. */
+.fui-app .fui-button-primary,
+.fui-dialog-bar.fui-dialog-bar .fui-dialog-actions > .fui-button-primary,
+.fui-page-head.fui-page-head .fui-page-actions > .fui-button-primary,
+.fui-room-layout.fui-room-layout .fui-room-primary-action .fui-button-primary,
+.fui-menu-dialog.fui-menu-dialog .fui-button-primary {
+  color: var(--fui-primary-text);
+  background: var(--fui-primary-fill);
+  border-color: var(--fui-primary-fill);
+}
+.fui-app .fui-button-primary:enabled:hover,
+.fui-dialog-bar.fui-dialog-bar
+  .fui-dialog-actions
+  > .fui-button-primary:enabled:hover,
+.fui-page-head.fui-page-head
+  .fui-page-actions
+  > .fui-button-primary:enabled:hover,
+.fui-menu-dialog.fui-menu-dialog .fui-button-primary:enabled:hover {
+  background: var(--fui-primary-fill-hover);
+  border-color: var(--fui-primary-fill-hover);
+  filter: none;
+}
+.fui-app .fui-button-danger {
+  color: var(--fui-danger-text);
+  background: transparent;
+  border-color: var(--fui-danger-line);
+}
+/* The tall size: the buttons of a menu column, one under the other. */
+.fui-app .fui-button-menu {
+  width: 100%;
+  min-height: var(--fui-menu-height);
+  font: var(--fui-menu-font);
+}
+
+/* Back: a chevron and a word. */
+:is(button, a).fui-back.fui-back.fui-back {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.5rem;
+  width: auto;
+  height: var(--fui-control-height);
+  max-height: var(--fui-control-height);
+  padding: 0 0.875rem 0 0.75rem;
+  white-space: nowrap;
+}
+:is(button, a).fui-back.fui-back.fui-back::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-left: 0.125rem;
+  border-left: 0.125rem solid currentColor;
+  border-bottom: 0.125rem solid currentColor;
+  transform: rotate(45deg);
+}
+:is(button, a).fui-back.fui-back.fui-back:focus-visible {
+  outline: var(--fui-focus-ring);
+  outline-offset: var(--fui-focus-offset);
+}
+:is(button, a).fui-back.fui-back.fui-back:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* A page's header: the same bar a dialog has, without the box. */
+.fui-page-head {
+  display: flex;
+  align-items: center;
+  gap: var(--fui-space-3);
+  min-width: 0;
+  min-height: var(--fui-control-height);
+  margin: 0 0 var(--fui-space-4);
+}
+.fui-page-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--fui-heading-font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fui-text-bright);
+}
+.fui-page-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--fui-space-2);
+  margin-left: auto;
+}
+.fui-page-actions:empty,
+.fui-page-title[hidden] {
+  display: none;
+}
+/*
+ * A sub page (`createSubPage`): it starts under the top bar, and its header lines up with the bar's left edge.
+ * The games' pages keep --fui-space-3 at their sides, which is what the header steps out of.
+ */
+.fui-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  box-sizing: border-box;
+  padding-top: var(--fui-page-top);
+}
+.fui-page > .fui-page-head {
+  margin-inline: calc(var(--fui-page-gutter) - var(--fui-space-3));
+}
+.fui-page-message {
+  margin: var(--fui-space-6) auto;
+  max-width: 40rem;
+  color: var(--fui-pink-soft);
+  font: 1rem/1.6 var(--fui-font-sans);
+  text-align: center;
+}
+
+/* The game menu behind the top bar's button: a column of the same controls, each as wide as the menu. */
+.fui-top-bar-menu.fui-top-bar-menu .fui-top-bar-actions :is(button, a) {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+}
+.fui-game-menu.fui-game-menu .fui-game-menu-action {
+  width: 100%;
+  text-align: left;
+}
+.fui-game-menu-controls > .fui-page-head {
+  margin-bottom: var(--fui-space-3);
+}
+
+/* On a phone the bar's actions keep to one row: the title gives way before a button wraps or leaves the bar. */
+@media (max-width: 600px) {
+  :root {
+    --fui-page-gutter: 12px;
+  }
+  .fui-dialog-bar,
+  .fui-menu-dialog .fui-dialog-bar {
+    gap: var(--fui-space-2);
+    padding: 10px 12px;
+  }
+  .fui-dialog-bar:has(.fui-dialog-actions > :nth-child(2)) .fui-dialog-title {
+    display: none;
   }
 }

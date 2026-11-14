@@ -146,7 +146,7 @@ function landing(): void {
   shared.onchange = () =>
     store.set(storageKeys.shared, shared.checked ? "1" : "0");
   const message = notice(""),
-    back = el("a", "← More Fuse games", "birds-back");
+    back = el("a", "All games", "birds-back");
   back.href = import.meta.env.BASE_URL;
   create.onclick = async () => {
     if (create.disabled) return;

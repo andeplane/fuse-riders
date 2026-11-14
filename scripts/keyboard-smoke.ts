@@ -253,7 +253,7 @@ for (const { name, kind } of BOTH_ENGINES) {
       await openTopMenu(page);
       await page.getByRole("button", { name: /^(ROOM|EXIT)$/ }).click();
       await page.keyboard.up("Space");
-      await page.getByRole("button", { name: "CLOSE", exact: true }).click();
+      await page.getByRole("button", { name: "Back", exact: true }).click();
       const cancelTick = latest().tick;
       await wait(() => latest().tick >= cancelTick + 6);
       if (latest().authorityScope === cancelScope && !actor().alive)

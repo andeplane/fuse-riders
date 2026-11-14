@@ -52,8 +52,6 @@ export interface TimingScreenDeps {
   seconds?: number;
   /** Opens the panel's details (`?debugtiming`). */
   details?: boolean;
-  /** The page's way back to the menu, shown under the screen's own controls. */
-  back?: HTMLElement;
   /** False reads the heard position from the stepped clock and the reported latency (`?audioclock=reported`). */
   pairing?: boolean;
 }
@@ -360,15 +358,7 @@ export function createTimingScreen(deps: TimingScreenDeps): TimingScreen {
   actions.append(apply, byEar, byEye);
   result.append(measured, todo);
   setup.append(el("h2", "TICKS A SECOND", "fm-ts-label"), rates);
-  info.append(
-    el("h1", "SYNC TIMING", "fm-ts-title"),
-    status,
-    running,
-    result,
-    actions,
-    setup,
-  );
-  if (deps.back) info.append(deps.back);
+  info.append(status, running, result, actions, setup);
   field.append(canvas, info);
 
   const lab = createTimingLab({
@@ -470,6 +460,8 @@ export function createTimingScreen(deps: TimingScreenDeps): TimingScreen {
       return readout();
     }
     if (event.code === "Escape" && run) {
+      // This Escape is the run's: it is not also the page's Back.
+      event.preventDefault();
       stop();
       return readout();
     }

@@ -214,7 +214,7 @@ try {
     path: `artifacts/arcade-landscape-settings-${kind}.png`,
   });
   await phone.getByLabel("Landscape bomb side").selectOption("left");
-  await phone.getByRole("button", { name: "CLOSE", exact: true }).click();
+  await phone.getByRole("button", { name: "Back", exact: true }).click();
   if (await phone.locator(".mobile-tools-open").count())
     await phone.locator(".mobile-tools-toggle").click();
   await layout(false, "left");

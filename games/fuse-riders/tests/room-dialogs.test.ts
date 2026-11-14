@@ -101,11 +101,11 @@ test("the registry knows which dialog is open, and a second one swaps with it wi
   ]);
 });
 
-test("Escape or CLOSE ends the open dialog at once, and listeners hear it from the close event", () => {
+test("Escape or Back ends the open dialog at once, and listeners hear it from the close event", () => {
   const { dialogs, fake, flush, changes } = registry();
   const menu = fake("menu");
   dialogs.open("menu");
-  menu.close(); // Escape, the backdrop or the bar's CLOSE: the element closes itself.
+  menu.close(); // Escape, the backdrop or the bar's Back: the element closes itself.
   assert.equal(dialogs.current(), undefined, "as `dialog.open` did");
   assert.deepEqual(changes, [["menu", undefined]]);
   flush();
@@ -190,42 +190,36 @@ test("the shell is the markup Fuse Riders' dialogs share", () => {
         "header.fui-dialog-bar dialog-bar",
         {},
         [
-          ["strong.fui-dialog-title", {}, "SETTINGS"],
           [
-            "span.fui-dialog-actions dialog-actions",
-            {},
-            [
-              [
-                "button.dialog-close",
-                { type: "button", "aria-label": "CLOSE" },
-                "✕  CLOSE",
-              ],
-            ],
+            "button.fui-back dialog-close",
+            { type: "button", "aria-label": "Back" },
+            "Back",
           ],
+          ["strong.fui-dialog-title", {}, "SETTINGS"],
+          ["span.fui-dialog-actions dialog-actions", {}, ""],
         ],
       ],
       ["div.fui-dialog-body dialog-body", {}, ""],
     ],
   ]);
-  // The landing page's SETTINGS has a CLOSE with no class of its own.
+  // The landing page's SETTINGS has a Back with no class of its own: only the shared one.
   const landing = createDialogShell({
     title: "SETTINGS",
     label: "Settings",
     closeClass: "",
     document,
   });
-  assert.equal(landing.close.className, "");
-  // The results are the wide variant, with their own ✕.
+  assert.equal(landing.back.className, "fui-back");
+  // The results are the wide variant, with the same Back.
   const recap = createDialogShell({
     title: "MATCH RESULTS",
     label: "Match results",
     variant: "recap-dialog",
-    closeText: "✕",
     document,
   });
   assert.equal(recap.dialog.className, "fui-dialog game-dialog recap-dialog");
-  assert.equal(recap.close.textContent, "✕");
-  assert.equal(recap.close.getAttribute("aria-label"), "CLOSE");
+  assert.equal(recap.back.textContent, "Back");
+  assert.equal(recap.back.getAttribute("aria-label"), "Back");
 });
 
 test("Ctrl+A opens the radio, closes it, and leaves the results alone", () => {
@@ -288,24 +282,20 @@ test("the results bar: READY, Back to lobby for whoever runs the room, and the f
   assert.deepEqual(
     [...bar.children].map((child) => child.className),
     [
+      "fui-back dialog-close",
       "fui-dialog-title",
       "recap-stats-toggle",
       "fui-dialog-actions dialog-actions",
     ],
   );
-  const [lobby, ready, rematch, close] = [
+  const [lobby, ready, rematch] = [
     ...bar.querySelector(".dialog-actions")!.children,
   ] as HTMLElement[];
   assert.deepEqual(
-    [
-      lobby!.textContent,
-      ready!.className,
-      rematch!.textContent,
-      close!.textContent,
-    ],
-    ["Back to lobby", "ready-summary", "REMATCH", "✕"],
+    [lobby!.textContent, ready!.className, rematch!.textContent],
+    ["Back to lobby", "ready-summary", "REMATCH"],
   );
-  assert.equal(close!.getAttribute("aria-label"), "CLOSE");
+  assert.equal(bar.firstElementChild!.getAttribute("aria-label"), "Back");
   const report = document.createElement("section"),
     details = document.createElement("div");
   details.className = "recap-details";

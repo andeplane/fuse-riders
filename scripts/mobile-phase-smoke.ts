@@ -171,7 +171,7 @@ for (const { name, kind } of BOTH_ENGINES) {
     assert.equal(await hintsOpacity(), 0, "outlines disappear as play starts");
     seen.playing = await capture("playing");
     await notice(/MATCH COMPLETE/, 180000);
-    await page.getByRole("button", { name: "CLOSE", exact: true }).click();
+    await page.getByRole("button", { name: "Back", exact: true }).click();
     await page.getByRole("dialog").waitFor({ state: "hidden" });
     assert.equal(
       await page.locator(".mobile-tools-open").count(),

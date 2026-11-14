@@ -298,7 +298,7 @@ try {
           .click();
         assert.equal(await page.getByLabel("Match length").inputValue(), "3");
         await page.getByLabel("Match length").fill("1"); // saves on input
-        await page.getByRole("button", { name: "CLOSE", exact: true }).click();
+        await page.getByRole("button", { name: "Back", exact: true }).click();
         await dialog.waitFor({ state: "hidden" });
         await page
           .getByRole("button", { name: "BACK TO LOBBY", exact: true })
@@ -427,7 +427,7 @@ try {
       await inside(page, page.getByRole("button", { name: /full stats/ }));
       screenshots.push(`artifacts/match-recap-${tag}-scrolled.png`);
       await page.screenshot({ path: screenshots[1]! });
-      await page.getByRole("button", { name: "CLOSE", exact: true }).click();
+      await page.getByRole("button", { name: "Back", exact: true }).click();
       await page.getByRole("dialog").waitFor({ state: "hidden" });
       // Every menu is its own dialog (#255): none is left open, and the wide results variant is the results dialog's alone.
       await page.waitForFunction(() => {

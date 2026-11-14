@@ -1,6 +1,8 @@
 :root {
   color-scheme: dark;
   --fui-accent: #7cf3cc;
+  /* The line under the brand: a page's Back starts below it. */
+  --fui-page-top: calc(96px + env(safe-area-inset-top));
   font-family: Arial, sans-serif;
   color: #d5e9e1;
   background: #0c1420;
@@ -385,6 +387,9 @@ a {
   }
   .top > .eyebrow {
     display: none;
+  }
+  :root {
+    --fui-page-top: calc(72px + env(safe-area-inset-top));
   }
   .brand {
     font-size: 9px;

@@ -159,7 +159,7 @@ try {
       .every((p) => p.bombChargeStartedTick === undefined),
   );
   for (const key of ["a", "f", "i", "m", "k"]) await page.keyboard.up(key);
-  await page.getByRole("button", { name: "CLOSE", exact: true }).click();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
   assert.deepEqual(errors, []);
   console.log(
     JSON.stringify({
