@@ -68,3 +68,39 @@ export function calibrate(
       spreadMs < CALIBRATION_MAX_SPREAD_MS,
   };
 }
+
+/** A measured lag this large is not a keyboard's or a player's: it is sound that arrives late (or early). */
+export const AUDIO_SHARE_MS = 80;
+
+/**
+ * Where a measured lag goes. `totalMs` is what the presses were late by with the audio offset `audioMs` in use
+ * (so it is the input offset that would centre them). A small one is the input offset. A large one is the sound's:
+ * it is added to the audio offset, so the arrows move with the judging, and the input offset starts from zero;
+ * what the audio offset cannot take stays with the input offset.
+ */
+export function placeLag(
+  totalMs: number,
+  audioMs: number,
+  limits: { input: number; audio: number },
+): { offsetMs: number; audioMs: number; moved: "input" | "audio" } {
+  const clamp = (value: number, max: number) =>
+    Math.max(-max, Math.min(max, Math.round(value)));
+  if (!Number.isFinite(totalMs))
+    return {
+      offsetMs: 0,
+      audioMs: clamp(audioMs, limits.audio),
+      moved: "input",
+    };
+  if (Math.abs(totalMs) < AUDIO_SHARE_MS)
+    return {
+      offsetMs: clamp(totalMs, limits.input),
+      audioMs: clamp(audioMs, limits.audio),
+      moved: "input",
+    };
+  const audio = clamp(audioMs + totalMs, limits.audio);
+  return {
+    offsetMs: clamp(audioMs + totalMs - audio, limits.input),
+    audioMs: audio,
+    moved: "audio",
+  };
+}

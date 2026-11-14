@@ -32,6 +32,8 @@ export {
   type Barrier,
   type Bumper,
   type Portal,
+  type Goo,
+  type Stream,
 } from "./maps.js";
 export { several, type Several } from "./world.js";
 export {

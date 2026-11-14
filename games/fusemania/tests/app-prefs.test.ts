@@ -5,6 +5,7 @@ import {
   COLUMN_ACTIONS,
   DEFAULT_PREFS,
   MAX_KEYS,
+  MAX_AUDIO_MS,
   MAX_OFFSET_MS,
   MAX_SPEED,
   MAX_VISUAL_MS,
@@ -55,6 +56,7 @@ const custom = (): Prefs => ({
   down: true,
   offsetMs: -35,
   visualMs: 20,
+  audioMs: 140,
 });
 
 // ---- the defaults ----
@@ -136,7 +138,7 @@ test("each field is kept when valid and defaulted when not", () => {
   // Unknown fields are not carried along.
   assert.deepEqual(
     Object.keys(parsePrefs({ speed: 2, extra: 1, __proto__: { x: 1 } })).sort(),
-    ["down", "keys", "offsetMs", "speed", "visualMs"],
+    ["audioMs", "down", "keys", "offsetMs", "speed", "visualMs"],
   );
 });
 
@@ -145,8 +147,18 @@ test("numbers are clamped to their limits, and offsets are whole milliseconds", 
   assert.equal(parsePrefs({ speed: 0 }).speed, MIN_SPEED);
   assert.equal(parsePrefs({ speed: -3 }).speed, MIN_SPEED);
   assert.equal(parsePrefs({ speed: 2.75 }).speed, 2.75);
-  assert.equal(parsePrefs({ offsetMs: 9999 }).offsetMs, MAX_OFFSET_MS);
-  assert.equal(parsePrefs({ offsetMs: -9999 }).offsetMs, -MAX_OFFSET_MS);
+  assert.equal(
+    parsePrefs({ offsetMs: 9999, audioMs: 0 }).offsetMs,
+    MAX_OFFSET_MS,
+  );
+  assert.equal(
+    parsePrefs({ offsetMs: -9999, audioMs: 0 }).offsetMs,
+    -MAX_OFFSET_MS,
+  );
+  assert.equal(parsePrefs({ audioMs: 9999 }).audioMs, MAX_AUDIO_MS);
+  assert.equal(parsePrefs({ audioMs: -9999 }).audioMs, -MAX_AUDIO_MS);
+  assert.equal(parsePrefs({ audioMs: 12.6 }).audioMs, 13);
+  assert.equal(parsePrefs({ audioMs: "late" }).audioMs, 0);
   assert.equal(parsePrefs({ offsetMs: 37.6 }).offsetMs, 38);
   assert.equal(parsePrefs({ offsetMs: -12.4 }).offsetMs, -12);
   assert.equal(parsePrefs({ visualMs: 9999 }).visualMs, MAX_VISUAL_MS);
@@ -397,6 +409,7 @@ test("what is saved is always valid, whatever it was given", () => {
     down: true,
     offsetMs: 1e6,
     visualMs: -12.7,
+    audioMs: 61.2,
   };
   savePrefs(store, wild);
   assert.deepEqual(JSON.parse(data.get(PREFS_KEY)!), {
@@ -411,7 +424,40 @@ test("what is saved is always valid, whatever it was given", () => {
     down: true,
     offsetMs: MAX_OFFSET_MS,
     visualMs: -13,
+    audioMs: 61,
   });
+});
+
+test("an input offset too large to be a keyboard's, from before the audio offset, becomes the audio offset", () => {
+  // Bluetooth sound calibrated into the input offset: the room would pull such presses to its tick.
+  const moved = parsePrefs({ offsetMs: 230, visualMs: 5 });
+  assert.equal(moved.offsetMs, 0);
+  assert.equal(moved.audioMs, 230);
+  assert.equal(moved.visualMs, 5);
+  assert.deepEqual(
+    [
+      parsePrefs({ offsetMs: -300 }).offsetMs,
+      parsePrefs({ offsetMs: -300 }).audioMs,
+    ],
+    [0, -300],
+  );
+  // One that fits stays where it is, and a stored audio offset is never overwritten.
+  assert.deepEqual(
+    [
+      parsePrefs({ offsetMs: 90 }).offsetMs,
+      parsePrefs({ offsetMs: 90 }).audioMs,
+    ],
+    [90, 0],
+  );
+  assert.deepEqual(
+    [
+      parsePrefs({ offsetMs: 230, audioMs: 40 }).offsetMs,
+      parsePrefs({ offsetMs: 230, audioMs: 40 }).audioMs,
+    ],
+    [MAX_OFFSET_MS, 40],
+  );
+  // Saved once, it loads the same: the move happens one time.
+  assert.deepEqual(parsePrefs(JSON.parse(JSON.stringify(moved))), moved);
 });
 
 test("a stored value that is not preferences loads as the defaults", () => {

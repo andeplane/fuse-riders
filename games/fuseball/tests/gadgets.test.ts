@@ -582,3 +582,55 @@ test("the bot knocks its trapdoor open with a ball lying on it, from either side
     assert.equal(me.ownGoals, 0);
   }
 });
+
+test("goo is thick: a ball dropped into Memory Leak's pit sinks slowly, then leaks out of the roof above it", () => {
+  const world = empty("memoryleak");
+  ballAt(world, 208, 300);
+  assert.ok(until(world, () => at(world.ball.y) > 332, new Map(), 400) > 0);
+  // In the pool: it sinks at well under a pixel a step, and a kick sideways dies within a few pixels.
+  world.ball.vx = 2 * SUB;
+  const from = at(world.ball.x);
+  steps(world, 60);
+  assert.ok(world.ball.vy > 0 && world.ball.vy < SUB / 3);
+  assert.ok(at(world.ball.x) - from < 34 && world.ball.vx < SUB / 8);
+  // Out of the bottom and in at the top, still in the pit's column, and on down it again.
+  assert.ok(until(world, () => at(world.ball.y) < 40, new Map(), 400) > 0);
+  assert.ok(at(world.ball.x) > 182 && at(world.ball.x) < 234);
+  assert.equal(world.phase, "play");
+  assert.deepEqual(world.score, [0, 0]);
+});
+
+test("a jet lifts the ball: one rolled slowly into Bitstream's is caught and rides on top of it", () => {
+  const world = empty("bitstream");
+  ballAt(world, 240, 339, 0.3, 0);
+  steps(world, 1200);
+  const { ball } = world;
+  assert.ok(at(ball.x) > 276 && at(ball.x) < 292, "it is in the jet");
+  assert.ok(
+    at(ball.y) > 284 && at(ball.y) < 312,
+    "off the floor, under the pad",
+  );
+  // A fast one hops over it and carries on.
+  ballAt(world, 240, 339, 2, 0);
+  steps(world, 60);
+  assert.ok(at(ball.x) > 300);
+});
+
+test("liquids keep no state and act on the ball only: riders run through them, and the two sides mirror", () => {
+  for (const map of maps) {
+    const flip = (r: Rect) => ({ x: W - r.x - r.w, y: r.y, w: r.w, h: r.h });
+    const key = (rs: readonly Rect[]) =>
+      rs.map((r) => `${r.x},${r.y},${r.w},${r.h}`).sort();
+    assert.deepEqual(key(map.goo.map(flip)), key(map.goo));
+    assert.deepEqual(key(map.streams.map(flip)), key(map.streams));
+  }
+  const world = playing("bitstream");
+  world.riders[1].zapped = true;
+  place(world, 0, 240, 339);
+  steps(world, 200, held(RIGHT));
+  assert.ok(
+    at(world.riders[0].x) > 380,
+    "the rider ran straight through both jets",
+  );
+  assert.ok(at(world.riders[0].y) > 330);
+});

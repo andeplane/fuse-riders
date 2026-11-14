@@ -45,7 +45,6 @@ import {
 } from "fuse-ui";
 import {
   BTN,
-  MAP_IDS,
   TEAM_MAP_IDS,
   botInput,
   isTeamMapId,
@@ -93,6 +92,7 @@ import {
 } from "./controls.js";
 import {
   MAP_BLURBS,
+  MAP_ORDER,
   MODES,
   createGoalWatch,
   playRound,
@@ -174,7 +174,7 @@ const coarse = () => matchMedia("(pointer: coarse)").matches;
 const chosenMap = (): MapId => {
   const asked = query.get("map"),
     saved = store.getItem(mapKey);
-  const map = isMapId(asked) ? asked : isMapId(saved) ? saved : MAP_IDS[0];
+  const map = isMapId(asked) ? asked : isMapId(saved) ? saved : MAP_ORDER[0]!;
   // A link that asks for a team size and no team arena gets the first one.
   return /^[23]$/.test(query.get("size") ?? "") && !isTeamMapId(map)
     ? TEAM_MAP_IDS[0]
@@ -359,6 +359,17 @@ function mapThumb(map: MapDef): SVGSVGElement {
       class: "mover",
     });
   }
+  // Goo and jets in the colour they wear, see-through as the scene draws them.
+  for (const liquid of [...map.goo, ...map.streams])
+    for (const copy of solidCopies(map, liquid))
+      add("rect", {
+        x: copy.x,
+        y: copy.y,
+        width: copy.w,
+        height: copy.h,
+        fill: TEAM[liquid.hue],
+        "fill-opacity": 0.6,
+      });
   for (const bumper of map.bumpers)
     add("circle", {
       cx: bumper.x,
@@ -391,7 +402,7 @@ function createMapPicker(onPick: (id: MapId) => void) {
   element.setAttribute("role", "group");
   element.setAttribute("aria-label", "Arena");
   const buttons = new Map<MapId, HTMLButtonElement>();
-  for (const id of [...MAP_IDS, RANDOM, ...TEAM_MAP_IDS] as const) {
+  for (const id of [...MAP_ORDER, ...TEAM_MAP_IDS]) {
     const map = mapOf(id);
     const choice = button("", "fb-map");
     choice.dataset.map = id;

@@ -11,7 +11,6 @@ import { useWindowCommands } from "../windows/useWindowCommands";
 
 import { FUSE_TRACKS, fuseSoundtrack } from "./fuseTracks";
 import type { MediaErrorInfo } from "./mediaErrorReporting";
-import { WINAMP_LAYER_Z_INDEX } from "./WinampPlayer";
 
 /** The nth Webamp player created; fails the test when there is none. */
 function playerAt(
@@ -84,7 +83,8 @@ describe("Winamp", () => {
     const player = await openReadyWinamp(user, winampPlayers);
     expect(screen.queryByRole("dialog", { name: "Winamp" })).toBeNull();
     expect(screen.getByRole("region", { name: "Winamp" })).toBe(layer());
-    expect(layer()).toHaveStyle({ zIndex: WINAMP_LAYER_Z_INDEX });
+    // Winamp stacks like any other window: 10 + its place in the window order (it is the only one open).
+    expect(layer()).toHaveStyle({ zIndex: 10 });
     expect(layer()).toHaveClass("winamp-layer");
     const mount = player.renderedInto[0];
     expect(mount).toBe(screen.getByTestId("winamp-mount"));
@@ -95,6 +95,37 @@ describe("Winamp", () => {
     expect(within(layer()).queryByText(/soundtrack/i)).toBeNull();
     // The taskbar still lists it, so it can be minimized and restored like a window.
     expect(taskbarButton("Winamp")).toBeInTheDocument();
+  });
+
+  it("stacks with the other windows: a window opened after Winamp is in front, clicking Webamp brings Winamp back, and a window click puts it behind again", async () => {
+    const user = userEvent.setup();
+    const { winampPlayers } = renderWithProviders(<Desktop />);
+    await openReadyWinamp(user, winampPlayers);
+    const winampZ = () => Number(layer().style.zIndex);
+    await user.dblClick(desktopIcon("Paint"));
+    const paint = await screen.findByRole("dialog", { name: /Paint/ });
+    const paintFrame = paint.closest<HTMLElement>("[style*='z-index']");
+    const paintZ = () => Number(paintFrame?.style.zIndex);
+    expect(paintZ()).toBeGreaterThan(winampZ());
+    expect(taskbarButton("Winamp")).not.toHaveAttribute("aria-pressed", "true");
+
+    // Any pointer-down inside Webamp's windows brings Winamp to the front and presses its taskbar button.
+    await user.pointer({
+      keys: "[MouseLeft>]",
+      target: screen.getByTestId("winamp-mount"),
+    });
+    expect(winampZ()).toBeGreaterThan(paintZ());
+    expect(taskbarButton("Winamp")).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(within(paint).getByText(/Paint/, { selector: "*" }));
+    expect(paintZ()).toBeGreaterThan(winampZ());
+  });
+
+  it("keeps Winamp under the taskbar and the Start menu whatever its place in the order", async () => {
+    const user = userEvent.setup();
+    const { winampPlayers } = renderWithProviders(<Desktop />);
+    await openReadyWinamp(user, winampPlayers);
+    expect(Number(layer().style.zIndex)).toBeLessThan(40);
   });
 
   it("queues the whole Fuse soundtrack, with tags and lengths, without playing anything", async () => {

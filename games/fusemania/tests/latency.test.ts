@@ -64,6 +64,16 @@ test("the audio clock's jitter is read from its readings", () => {
   assert.equal(report.clockJitterMs.n, 4);
   assert.ok(Math.abs(report.clockJitterMs.max - 2) < 1e-6);
   assert.equal(report.clockJitterMs.p50, 0);
+  // Where the browser pairs the clocks, it is the pairs that carry a press's time.
+  assert.equal(report.pairJitterMs.n, 0);
+  probe.pair(-0.17);
+  probe.pair(0.05);
+  assert.deepEqual(
+    [probe.report().pairJitterMs.n, probe.report().pairJitterMs.max],
+    [2, 0.17],
+  );
+  probe.reset();
+  assert.equal(probe.report().pairJitterMs.n, 0);
 });
 
 test("only the newest samples are kept, and reset forgets everything", () => {
