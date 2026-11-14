@@ -131,8 +131,8 @@ export function unitIcons(
 }
 
 /**
- * The three ways to win as pictures, for a player of `team` (a watcher passes -1): the enemy Queen, a berry pile,
- * the snail. Each picture is scaled on its own to fit `height`.
+ * The three ways to win as pictures, for a player of `team` (a watcher passes -1): the military win picture in the
+ * enemy's colour, a berry pile, the snail. Each picture is scaled on its own to fit `height`.
  */
 export function winIcons(
   sheets: IconSheets,
@@ -141,7 +141,10 @@ export function winIcons(
   height: number,
 ): Partial<Record<VictoryKind, Icon>> {
   const picks: Record<VictoryKind, { id: string; frame: string }> = {
-    military: { id: `queen-${teamName(team === 0 ? 1 : 0)}`, frame: "idle" },
+    military: {
+      id: `win-military-${teamName(team === 0 ? 1 : 0)}`,
+      frame: "icon",
+    },
     economy: { id: "berry-pile", frame: "5" },
     snail: { id: "snail", frame: "idle" },
   };

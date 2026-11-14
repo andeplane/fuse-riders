@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createRound, viewOf, QUEEN_EGGS } from "../src/engine/index.js";
+import {
+  LESSONS as ENGINE_LESSONS,
+  QUEEN_EGGS,
+  createRound,
+  viewOf,
+} from "../src/engine/index.js";
 import { DEFAULT_SETTINGS, type Settings } from "../src/online/index.js";
 import {
   CLIMB,
@@ -67,6 +72,11 @@ test("four lessons: berries, warrior and snail as a Cyan Worker, then the Queen"
       ["snail", 2, 2],
       ["queen", 0, 4],
     ],
+  );
+  assert.deepEqual(
+    LESSONS.map((each) => each.id),
+    [...ENGINE_LESSONS],
+    "the engine sets up the same lessons",
   );
   assert.equal(lessonById("nope"), undefined);
   assert.equal(lessonById(null), undefined);
@@ -191,6 +201,19 @@ test("the step's text names the keys of the device in use", () => {
     stepText(berries, FRESH, "keys"),
     "BERRIES 1/3 · Press Space to jump. Hold it for a higher jump.",
   );
+  const snail = lesson("snail");
+  assert.match(
+    stepText(snail, { ...FRESH, step: 1 }, "keys"),
+    /Hold A \/ ← \(toward your goal\) and the snail crawls home\. Space hops off\./,
+  );
+  assert.match(
+    stepText(snail, { ...FRESH, step: 1 }, "pad"),
+    /Hold the stick left/,
+  );
+  assert.match(
+    stepText(snail, { ...FRESH, step: 1 }, "touch"),
+    /Hold the pad left/,
+  );
   assert.match(stepText(berries, FRESH, "pad"), /Press A \/ Cross to jump/);
   assert.match(stepText(berries, FRESH, "touch"), /Press Big button to jump/);
   const queen = lesson("queen");
@@ -204,7 +227,7 @@ test("the step's text names the keys of the device in use", () => {
   );
   assert.match(
     stepText(lesson("warrior"), { ...FRESH, step: 4 }, "keys"),
-    /press J: your first kill/,
+    /press J: the blade kills what is in front of it/,
   );
   assert.equal(
     stepText(berries, { ...FRESH, step: 3, outcome: "won" }, "keys"),
@@ -218,7 +241,13 @@ test("the step's text names the keys of the device in use", () => {
     for (const step of each.steps)
       for (const device of ["keys", "pad", "touch"] as const)
         assert.doesNotMatch(
-          step.text({ move: "M", button: "B", attack: "X", down: "D" }),
+          step.text({
+            move: "M",
+            button: "B",
+            attack: "X",
+            down: "D",
+            left: "L",
+          }),
           /↑|\bUp\b|\bW\b/,
           device,
         );
@@ -265,18 +294,26 @@ test("facts are read off a real round view", () => {
 });
 
 test("the page steers the solo room into the lesson's seat and settings, and plays again after a loss", () => {
-  const right = tutorialSettings(DEFAULT_SETTINGS);
-  assert.deepEqual(
-    [right.botLevel, right.map, right.wins, right.display],
-    ["easy", 1, 1, false],
-  );
   const worker = lesson("berries"),
-    at = (
-      stage: "lobby" | "running" | "between" | "over",
-      slot: number,
-      settings: Settings,
-      outcome: Progress["outcome"] = "playing",
-    ) => setupAction({ stage, slot, settings }, worker, outcome);
+    right = tutorialSettings(DEFAULT_SETTINGS, worker);
+  assert.deepEqual(
+    [
+      right.botLevel,
+      right.map,
+      right.wins,
+      right.display,
+      right.passive,
+      right.lesson,
+      right.quick,
+    ],
+    ["easy", 1, 1, false, true, "berries", true],
+  );
+  const at = (
+    stage: "lobby" | "running" | "between" | "over",
+    slot: number,
+    settings: Settings,
+    outcome: Progress["outcome"] = "playing",
+  ) => setupAction({ stage, slot, settings }, worker, outcome);
   assert.equal(
     at("running", 0, DEFAULT_SETTINGS),
     "lobby",
@@ -286,6 +323,14 @@ test("the page steers the solo room into the lesson's seat and settings, and pla
   assert.equal(at("lobby", 0, DEFAULT_SETTINGS), "seat");
   assert.equal(at("lobby", 2, DEFAULT_SETTINGS), "settings");
   assert.equal(at("lobby", 2, right), "start");
+  for (const wrong of [
+    { ...right, passive: false },
+    { ...right, lesson: "snail" as const },
+    { ...right, quick: false },
+  ]) {
+    assert.equal(at("lobby", 2, wrong), "settings");
+    assert.equal(at("running", 2, wrong), "lobby");
+  }
   assert.equal(at("running", 2, right), "none");
   assert.equal(at("between", 2, right), "none");
   assert.equal(at("over", 2, right, "lost"), "rematch");
@@ -293,7 +338,11 @@ test("the page steers the solo room into the lesson's seat and settings, and pla
   assert.equal(at("over", 2, right, "won"), "none");
   assert.equal(
     setupAction(
-      { stage: "running", slot: 0, settings: right },
+      {
+        stage: "running",
+        slot: 0,
+        settings: tutorialSettings(DEFAULT_SETTINGS, lesson("queen")),
+      },
       lesson("queen"),
       "playing",
     ),

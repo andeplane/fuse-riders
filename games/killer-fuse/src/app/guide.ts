@@ -58,7 +58,7 @@ export const UNITS: readonly UnitGuide[] = [
   {
     art: "warrior",
     name: "Warrior",
-    can: "Fly by tapping, attack: dash forward with the sword to kill what is in front of the blade, pop loose berries up by touching them.",
+    can: "Fly by tapping, attack: a sword dash the way it faces kills an enemy in front of the blade; pops loose berries up by touching them.",
     cannot:
       "Carry berries, use gates or ride the snail. Comes back as a plain Worker after dying.",
   },
@@ -71,7 +71,7 @@ export const UNITS: readonly UnitGuide[] = [
   {
     art: "queen",
     name: "Queen",
-    can: "Fly, attack with the sword (it reaches above and to the side), dive (hold down in the air, release to stop; she can attack-dash out of it), claim gates by touching them.",
+    can: "Fly, attack with a sword dash, dive (hold down in the air; her blade kills what it touches below her), claim gates by touching them.",
     cannot: `Carry berries, use gates or ride the snail. She has ${QUEEN_EGGS} lives; losing the last loses the game.`,
   },
 ];
@@ -84,10 +84,10 @@ export const RULES: readonly GuideSection[] = [
   {
     title: "COMBAT",
     lines: [
-      "Kills come from the sword: press attack as a Warrior or Queen to dash forward with it, or dive onto an enemy as the Queen.",
-      "A Warrior hits with the front of the blade; the Queen's sword reaches above her and to the side.",
-      "Two blades meeting knock both back. Landing on a head is a harmless bounce.",
-      `The dead come back at their spawn after ${seconds(RESPAWN_STEPS)}, briefly invulnerable.`,
+      "Kills come from the sword: press attack as a Warrior or Queen to dash the way you face (or the way you hold). The dash kills an enemy in front of the blade, so a hit from behind always kills.",
+      "The Queen's dive kills whatever her blade touches below her.",
+      "Two swords that meet head-on glance off: both fighters are stunned and thrown apart. Landing on a head only bounces; bodies that bump are pushed apart. Workers have no weapon.",
+      `The dead come back after ${seconds(RESPAWN_STEPS)}, briefly invulnerable.`,
     ],
   },
   {
@@ -101,7 +101,7 @@ export const RULES: readonly GuideSection[] = [
   {
     title: "GATES",
     lines: [
-      "Holding a berry, a Worker stands completely still on the ground in a gate: 0.5 s to commit (moving cancels it), then 2 s locked in and safe. A warrior gate makes a Warrior, a speed gate a speed Worker; the berry is spent.",
+      "Holding a berry, a Worker stands still in a gate for about 2.5 s: 0.5 s to offer it (moving or jumping cancels, and it can still be killed), then 2 s locked in and safe. A warrior gate makes a Warrior, a speed gate a speed Worker; the berry is spent.",
       "Only gates of your colour or neutral ones work for you; an enemy-coloured gate does nothing.",
       "Gates start neutral. A Queen claims one by touching it; then only her team can use it until the other Queen touches it.",
     ],
@@ -109,16 +109,16 @@ export const RULES: readonly GuideSection[] = [
   {
     title: "SNAIL",
     lines: [
-      "A Worker who walks into the snail on the floor climbs on, and it crawls toward the rider's own goal. Press the button to hop off.",
+      "A Worker who stands on the snail climbs on. It crawls toward the rider's own goal while the rider holds that way. Press the jump button to hop off.",
       "It catches an enemy Worker in front of its mouth and eats it for 5 s (3.5 s with a speed rider); then that Worker dies. The rider can't hop off while it eats.",
-      "Killing or knocking off the rider frees the Worker being eaten. Nothing is banked: the other team can ride it back.",
+      "Killing the rider frees the Worker being eaten. Nothing is banked: the other team can ride it back.",
     ],
   },
   {
     title: "FLYING",
     lines: [
-      `Queens and Warriors flap once per tap. About ${HOVER_TAPS} taps a second hold your height; tap faster to climb, slower to sink.`,
-      "As the Queen, hold down in the air to dive straight down at once; release to stop. She can attack-dash out of a dive.",
+      `Queens and Warriors flap once per tap: tap repeatedly to fly. About ${HOVER_TAPS} taps a second hold your height; tap faster to climb, slower to sink. Holding the button does nothing more.`,
+      "As the Queen, hold down in the air to dive straight down; release to stop. She can attack-dash out of a dive.",
       "The screen wraps: leave on one side, come back on the other.",
     ],
   },
@@ -160,9 +160,9 @@ export const DEVICE_KEYS: Record<
     down: "Left pad ↓",
   },
 };
-const FLAP = `Jump / flap: tap about ${HOVER_TAPS} times a second to hold height`;
-const DIVE = "Queen dive, hold (release to stop)";
-const ATTACK = "Attack as a Warrior or Queen: dash forward with the sword";
+const FLAP = `Jump / flap: tap repeatedly to fly (about ${HOVER_TAPS} a second hold height)`;
+const DIVE = "Dive (Queen, in the air): hold";
+const ATTACK = "Attack (Warrior, Queen): sword dash the way you face";
 export const DEVICE_CONTROLS: Record<Device, readonly ControlHint[]> = {
   keys: [
     { keys: "A / D or ← / →", action: "Move" },
@@ -188,6 +188,13 @@ export const HOLD_TO_FLAP = {
   label: "Hold to flap",
   how: "Off: one flap per tap, as in the original. On: holding the button flaps 7.5 times a second. The switch is beside HOW TO PLAY on the start page and in the lobby.",
 } as const;
+/** Keyboard and gamepad side by side: the controls every player sees as play starts (unless on touch). */
+export const PLAY_CONTROLS: readonly ControlHint[] = [
+  { keys: "A / D or ← / → · stick / D-pad", action: "Move" },
+  { keys: "Space · A / Cross", action: FLAP },
+  { keys: "S or ↓ · stick / D-pad ↓", action: DIVE },
+  { keys: "J · B / Circle or left bumper", action: ATTACK },
+];
 /** The keyboard and gamepad, as the in-game menu lists them. */
 export const CONTROLS: readonly ControlHint[] = [
   ...DEVICE_CONTROLS.keys,

@@ -2,6 +2,7 @@ import {
   QUEEN_EGGS,
   TICK_HZ,
   type RoundView,
+  type Lesson as EngineLesson,
   type UnitKind,
 } from "../engine/index.js";
 import type { BotLevel, Settings } from "../online/index.js";
@@ -14,7 +15,8 @@ import { DEVICE_KEYS, HOVER_TAPS, type Device } from "./guide.js";
  * the keys of the device in use. A lesson whose game is decided before its last step restarts; a finished one records
  * its time, and the best time is kept on this device.
  */
-export type LessonId = "berries" | "warrior" | "snail" | "queen";
+/** The engine sets each lesson's starting position (`lesson` room setting); the page teaches the same four. */
+export type LessonId = EngineLesson;
 
 /** What the steps look at, read off the round each frame. */
 export interface Facts {
@@ -64,7 +66,13 @@ export function factsOf(
   };
 }
 
-type Keys = (typeof DEVICE_KEYS)[Device];
+type Keys = (typeof DEVICE_KEYS)[Device] & { left: string };
+/** The device's keys, with the way to Cyan's goal (left) for the snail lesson. */
+const LEFT: Record<Device, string> = {
+  keys: "A / ←",
+  pad: "the stick left",
+  touch: "the pad left",
+};
 export interface Step {
   text: (keys: Keys) => string;
   /** Done, given the facts now and when the step began. */
@@ -111,7 +119,7 @@ export const LESSONS: readonly Lesson[] = [
     slot: 2,
     steps: [
       {
-        text: () => "Pick up a berry from a pile.",
+        text: () => "Pick up the berry beside you.",
         done: (now) => now.carrying,
       },
       {
@@ -126,12 +134,13 @@ export const LESSONS: readonly Lesson[] = [
           now.kind === "warrior" && start.y - now.y >= CLIMB,
       },
       {
-        text: (k) => `Press ${k.attack} to dash forward with your sword.`,
+        text: (k) =>
+          `Press ${k.attack} to attack: a sword dash the way you face.`,
         done: (now, start) => now.attacks > start.attacks,
       },
       {
         text: (k) =>
-          `Face an enemy Worker and press ${k.attack}: your first kill.`,
+          `Face an enemy Worker and press ${k.attack}: the blade kills what is in front of it.`,
         done: (now, start) => now.kills > start.kills,
       },
     ],
@@ -142,12 +151,12 @@ export const LESSONS: readonly Lesson[] = [
     slot: 2,
     steps: [
       {
-        text: () => "Walk into the snail on the floor to climb on.",
+        text: () => "Walk onto the snail and stand on it to climb on.",
         done: (now) => now.riding,
       },
       {
         text: (k) =>
-          `Stay on: it crawls to your goal. ${k.button} hops off if you must.`,
+          `Hold ${k.left} (toward your goal) and the snail crawls home. ${k.button} hops off.`,
         done: (now) =>
           now.winner?.team === team(2) && now.winner.kind === "snail",
       },
@@ -163,16 +172,18 @@ export const LESSONS: readonly Lesson[] = [
         done: (now, start) => now.gates > start.gates,
       },
       {
-        text: (k) => `Fly up high, then hold ${k.down} to dive.`,
+        text: (k) =>
+          `Tap ${k.button} repeatedly to fly up, then hold ${k.down} to dive.`,
         done: (now) => now.diving,
       },
       {
-        text: (k) => `Press ${k.attack} to dash forward with your sword.`,
+        text: (k) =>
+          `Press ${k.attack} to attack: a sword dash the way you face.`,
         done: (now, start) => now.attacks > start.attacks,
       },
       {
         text: (k) =>
-          `Kill the enemy Queen: dive onto her, or dash into her with ${k.attack}.`,
+          `Kill the enemy Queen: dive onto her, or face her and press ${k.attack}.`,
         done: (now, start) => now.enemyEggs < start.enemyEggs,
       },
     ],
@@ -225,7 +236,7 @@ export function stepText(
   if (progress.outcome === "won") return `${lesson.title}: DONE`;
   if (progress.outcome === "lost")
     return `${lesson.title}: the game ended first. Again!`;
-  return `${head} · ${lesson.steps[progress.step]!.text(DEVICE_KEYS[device])}`;
+  return `${head} · ${lesson.steps[progress.step]!.text({ ...DEVICE_KEYS[device], left: LEFT[device] })}`;
 }
 
 /** Seconds of play a round has run, from its step count. */
@@ -234,12 +245,22 @@ export const playSeconds = (step: number): number =>
 
 /** The room the lesson needs, and what the page should ask for next to get there or to play again. */
 export const TUTORIAL_BOTS: BotLevel = "easy";
-export const tutorialSettings = (settings: Settings): Settings => ({
+/**
+ * The lesson's room: easy, passive bots (they hold no controls, so nobody attacks the learner), map 1, one game, the
+ * engine's starting position for the lesson, and the one-second countdown.
+ */
+export const tutorialSettings = (
+  settings: Settings,
+  lesson: Lesson,
+): Settings => ({
   ...settings,
   botLevel: TUTORIAL_BOTS,
   map: 1,
   wins: 1,
   display: false,
+  passive: true,
+  lesson: lesson.id,
+  quick: true,
 });
 export type SetupAction =
   "none" | "lobby" | "seat" | "settings" | "start" | "rematch";
@@ -253,11 +274,14 @@ export function setupAction(
   lesson: Lesson,
   outcome: Progress["outcome"],
 ): SetupAction {
-  const wanted = tutorialSettings(room.settings),
+  const wanted = tutorialSettings(room.settings, lesson),
     right =
       room.settings.botLevel === wanted.botLevel &&
       room.settings.map === wanted.map &&
-      room.settings.wins === wanted.wins;
+      room.settings.wins === wanted.wins &&
+      room.settings.passive &&
+      room.settings.lesson === lesson.id &&
+      room.settings.quick;
   if (room.stage === "lobby") {
     if (room.slot !== lesson.slot) return "seat";
     return right ? "start" : "settings";

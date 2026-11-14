@@ -7,6 +7,7 @@ import {
   DEVICE_KEYS,
   HIVE_HOLES,
   HOLD_TO_FLAP,
+  PLAY_CONTROLS,
   HOVER_TAPS,
   RULES,
   TOUCH_CONTROLS,
@@ -33,10 +34,10 @@ test("the figures come from the engine's tuning", () => {
   const gates = RULES.find((section) => section.title === "GATES")!.lines.join(
     " ",
   );
-  assert.match(gates, /completely still on the ground/);
+  assert.match(gates, /stands still in a gate for about 2\.5 s/);
   assert.match(
     gates,
-    /0\.5 s to commit \(moving cancels it\), then 2 s locked in and safe/,
+    /0\.5 s to offer it \(moving or jumping cancels, and it can still be killed\), then 2 s locked in and safe/,
   );
   assert.match(gates, /enemy-coloured gate does nothing/);
   const berries = RULES.find(
@@ -80,8 +81,11 @@ test("the controls name the bindings of controls.ts and no platform drop", () =>
   ];
   assert.ok(!all.some((hint) => /drop through/i.test(hint.action)));
   assert.equal(DEVICE_CONTROLS.keys[1]!.keys, "Space");
-  assert.match(DEVICE_CONTROLS.keys[1]!.action, /tap about 3 times a second/);
-  assert.match(DEVICE_CONTROLS.keys[3]!.action, /Queen dive, hold/);
+  assert.match(DEVICE_CONTROLS.keys[1]!.action, /tap repeatedly to fly/);
+  assert.match(
+    DEVICE_CONTROLS.keys[3]!.action,
+    /Dive \(Queen, in the air\): hold/,
+  );
   assert.equal(DEVICE_CONTROLS.pad[1]!.keys, "A / Cross");
   assert.match(HOLD_TO_FLAP.how, /7\.5 times a second/);
   assert.equal(TOUCH_CONTROLS, DEVICE_CONTROLS.touch);
@@ -95,10 +99,15 @@ test("combat is the sword's, berries do not regrow, and banking takes time", () 
   ].join("\n");
   assert.doesNotMatch(all, /higher one wins|on contact|no attack button/i);
   assert.match(all, /Kills come from the sword/);
-  assert.match(all, /front of the blade/);
-  assert.match(all, /above her and to the side/);
-  assert.match(all, /Two blades meeting knock both back/);
-  assert.match(all, /harmless bounce/);
+  assert.match(all, /dash the way you face/);
+  assert.match(all, /in front of the blade/);
+  assert.match(all, /hit from behind always kills/);
+  assert.match(all, /dive kills whatever her blade touches below her/);
+  assert.match(all, /meet head-on glance off/);
+  assert.match(all, /Landing on a head only bounces/);
+  assert.match(all, /Workers have no weapon/);
+  assert.match(all, /about 2\.5 s/);
+  assert.match(all, /eats it for 5 s/);
   assert.match(all, /never regrow/);
   assert.match(all, /1\.5 s inside/);
 });
@@ -113,9 +122,21 @@ test("attack is J, B / Circle or the left bumper, and the touch ATTACK button", 
   for (const device of ["keys", "pad", "touch"] as const)
     assert.ok(
       DEVICE_CONTROLS[device].some((hint) =>
-        /dash forward with the sword/.test(hint.action),
+        /Attack \(Warrior, Queen\): sword dash the way you face/.test(
+          hint.action,
+        ),
       ),
       device,
     );
   assert.match(CONTROLS.at(-1)!.action, /B \/ Circle or left bumper to attack/);
+  assert.deepEqual(
+    PLAY_CONTROLS.map((hint) => hint.keys),
+    [
+      "A / D or ← / → · stick / D-pad",
+      "Space · A / Cross",
+      "S or ↓ · stick / D-pad ↓",
+      "J · B / Circle or left bumper",
+    ],
+  );
+  assert.match(PLAY_CONTROLS[1]!.action, /tap repeatedly to fly/);
 });

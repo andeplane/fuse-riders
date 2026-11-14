@@ -1,12 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DEVICE_CONTROLS } from "../src/app/guide.js";
+import { DEVICE_CONTROLS, PLAY_CONTROLS } from "../src/app/guide.js";
 import { RULE_TIPS, TIP_MS, lobbyTips, tipIndex } from "../src/app/tips.js";
 
 test("the first tip is the controls of the device in use, then one rule each", () => {
   const tips = lobbyTips("pad");
-  assert.equal(tips[0]!.title, "CONTROLS · GAMEPAD");
-  assert.equal(tips[0]!.hints, DEVICE_CONTROLS.pad);
+  assert.equal(tips[0]!.title, "CONTROLS · KEYBOARD · GAMEPAD");
+  assert.equal(
+    tips[0]!.hints,
+    PLAY_CONTROLS,
+    "keyboard and gamepad side by side",
+  );
+  assert.equal(lobbyTips("keys")[0]!.hints, PLAY_CONTROLS);
+  assert.equal(lobbyTips("touch")[0]!.title, "CONTROLS · TOUCH");
   assert.equal(lobbyTips("touch")[0]!.hints, DEVICE_CONTROLS.touch);
   assert.deepEqual(tips.slice(1), RULE_TIPS);
   const titles = RULE_TIPS.map((tip) => tip.title);

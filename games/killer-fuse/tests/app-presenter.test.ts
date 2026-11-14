@@ -6,6 +6,7 @@ import {
   COUNTDOWN_TICKS,
   DEFAULT_SETTINGS,
   FIRST_COUNTDOWN_TICKS,
+  countdownTicks,
   SEAT,
   createRoom,
   view,
@@ -240,6 +241,16 @@ test("a game: the countdown, then the controls, then the pause banner and the re
     "8 s from the start command to the first step",
   );
   assert.ok(countdown.left > 140, "the countdown has just begun");
+  const quick = present(
+    frame(started({ ...DEFAULT_SETTINGS, map: 1, wins: 2, quick: true })),
+    viewer(),
+  ).arena.countdown!;
+  assert.equal(
+    quick.elapsed + quick.left,
+    countdownTicks(1, true) + 1,
+    "a tutorial room counts down one second",
+  );
+  assert.ok(countdownTicks(1, true) < FIRST_COUNTDOWN_TICKS);
   assert.equal(model.playing, false, "nothing to steer during the countdown");
   assert.equal(present(frame(room), viewer({ me: "b" })).arena.localSlot, 1);
   assert.ok(

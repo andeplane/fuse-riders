@@ -19,6 +19,8 @@ export interface ArenaLook {
   names: readonly string[];
   localSlot: number;
   muted: boolean;
+  /** Outline this device's unit (a few seconds after it spawns, respawns or transforms). */
+  highlight: boolean;
 }
 
 const sameGame = (a: Frame<View>, b: Frame<View>): boolean =>
@@ -26,7 +28,12 @@ const sameGame = (a: Frame<View>, b: Frame<View>): boolean =>
 
 export class ArenaDriver<Host = HTMLElement> {
   private arena: ArenaView | undefined;
-  private look: ArenaLook = { names: [], localSlot: -1, muted: false };
+  private look: ArenaLook = {
+    names: [],
+    localSlot: -1,
+    muted: false,
+    highlight: false,
+  };
   private shown = "";
   private fed: Frame<View> | undefined;
   constructor(private readonly setup: ArenaSetup<Host>) {}
@@ -44,6 +51,7 @@ export class ArenaDriver<Host = HTMLElement> {
       names: [...look.names],
       localSlot: look.localSlot,
       muted: look.muted,
+      highlight: look.highlight,
     });
   }
   /**
@@ -62,6 +70,7 @@ export class ArenaDriver<Host = HTMLElement> {
         names: [...this.look.names],
         localSlot: this.look.localSlot,
         muted: this.look.muted,
+        highlight: this.look.highlight,
       });
       // A failed load leaves an empty arena; the page's own screens still work.
       this.arena.ready.catch(() => undefined);

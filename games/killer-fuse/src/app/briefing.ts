@@ -56,27 +56,29 @@ export interface CountdownCard {
 export const buttonLabel = (kind: UnitKind | undefined): string =>
   kind === "worker" ? "JUMP" : "FLAP";
 
-/** The keys that play `slot` on `device`, one short line; none for a watcher. */
+/**
+ * The controls shown as play starts, for every seat (the user requires them all on screen): move, jump / flap, the
+ * Queen's dive and the Warrior's and Queen's attack. On a keyboard or gamepad both are named, keyboard first; on touch
+ * the on-screen buttons. A Worker's line says that a tap is a hop and a hold jumps higher. None for a watcher.
+ */
 export function roleControls(slot: number, device: Device): ControlHint[] {
   if (slot < 0) return [];
-  const keys = DEVICE_KEYS[device];
-  // On touch the big button is labelled with what it does; name it so.
-  if (isQueenSlot(slot))
-    return [
-      { keys: keys.move, action: "move" },
-      {
-        keys: device === "touch" ? "FLAP" : keys.button,
-        action: `flap (~${HOVER_TAPS}×/s holds height)`,
-      },
-      { keys: keys.attack, action: "attack (sword dash)" },
-      { keys: keys.down, action: "dive, hold" },
-    ];
+  const touch = device === "touch",
+    keys = DEVICE_KEYS.keys,
+    pad = DEVICE_KEYS.pad,
+    both = (key: "move" | "button" | "attack" | "down"): string =>
+      touch ? DEVICE_KEYS.touch[key] : `${keys[key]} · ${pad[key]}`,
+    queen = isQueenSlot(slot);
   return [
-    { keys: keys.move, action: "move" },
+    { keys: both("move"), action: "move" },
     {
-      keys: device === "touch" ? "JUMP" : keys.button,
-      action: "jump (hold for higher)",
+      keys: touch ? (queen ? "FLAP" : "JUMP") : both("button"),
+      action: queen
+        ? `flap: tap repeatedly to fly (~${HOVER_TAPS}/s holds height)`
+        : "jump (hold for higher); tap repeatedly to fly as a Warrior",
     },
+    { keys: both("down"), action: "dive (Queen, hold)" },
+    { keys: both("attack"), action: "attack (Warrior, Queen)" },
   ];
 }
 

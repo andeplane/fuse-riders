@@ -133,17 +133,27 @@ test("unit pictures share one scale fitted to the tallest unit", () => {
   assert.deepEqual(unitIcons({}, "/art/", 0, 48), {});
 });
 
-test("the win pictures: the enemy Queen, a full berry pile, the snail", () => {
+test("the win pictures: the military win picture in the enemy's colour, a full berry pile, the snail", () => {
   const sheets = {
-    "queen-pink": sheet({
-      file: "queen-pink.png",
-      frameHeight: 24,
-      anchor: [11, 18],
+    "win-military-pink": sheet({
+      file: "hud/win-military-pink.png",
+      width: 22,
+      height: 13,
+      frameWidth: 22,
+      frameHeight: 13,
+      frameCount: 1,
+      frames: { icon: 0 },
+      anchor: [11, 12],
     }),
-    "queen-cyan": sheet({
-      file: "queen-cyan.png",
-      frameHeight: 24,
-      anchor: [11, 18],
+    "win-military-cyan": sheet({
+      file: "hud/win-military-cyan.png",
+      width: 22,
+      height: 13,
+      frameWidth: 22,
+      frameHeight: 13,
+      frameCount: 1,
+      frames: { icon: 0 },
+      anchor: [11, 12],
     }),
     "berry-pile": sheet({
       file: "pile.png",
@@ -154,12 +164,23 @@ test("the win pictures: the enemy Queen, a full berry pile, the snail", () => {
     snail: sheet({ file: "snail.png", frameHeight: 20, anchor: [20, 19] }),
   };
   const cyan = winIcons(sheets, "/", 0, 40);
-  assert.equal(cyan.military!.url, "/queen-pink.png");
-  assert.equal(cyan.military!.height, 38);
+  assert.deepEqual(cyan.military, {
+    url: "/hud/win-military-pink.png",
+    width: 66,
+    height: 39,
+    size: "66px 39px",
+    position: "0px 0px",
+  });
   assert.equal(cyan.economy!.url, "/pile.png");
   assert.equal(cyan.economy!.height, 36);
   assert.equal(cyan.snail!.height, 40);
-  assert.equal(winIcons(sheets, "/", 1, 40).military!.url, "/queen-cyan.png");
-  assert.equal(winIcons(sheets, "/", -1, 40).military!.url, "/queen-cyan.png");
+  assert.equal(
+    winIcons(sheets, "/", 1, 40).military!.url,
+    "/hud/win-military-cyan.png",
+  );
+  assert.equal(
+    winIcons(sheets, "/", -1, 40).military!.url,
+    "/hud/win-military-cyan.png",
+  );
   assert.deepEqual(winIcons({}, "/", 0, 40), {});
 });

@@ -54,6 +54,7 @@ import {
   type IconSheets,
 } from "./art.js";
 import { buttonLabel, cardKey, countdownCard, deviceFor } from "./briefing.js";
+import { highlightUntil, type UnitSnap } from "./highlight.js";
 import { lobbyTips, tipIndex } from "./tips.js";
 import {
   FRESH,
@@ -132,8 +133,6 @@ const ART_URL = `${import.meta.env.BASE_URL}${GAME}/art/`;
 const query = new URLSearchParams(location.search);
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 const app = document.querySelector<HTMLElement>("#app")!;
-/** The engine takes the attack edge: show the touch ATTACK button. False until that input lands. */
-const ATTACK_LIVE = false;
 
 function header(extra: HTMLElement[] = []): HTMLElement {
   const bar = el("header", "", "kf-top"),
@@ -387,6 +386,9 @@ function room(solo: boolean): void {
   const coarse = window.matchMedia("(pointer: coarse)").matches;
   // A tutorial lesson (`?solo=1&tutorial=<id>`): an ordinary solo room the page steers into the lesson's seat.
   const lesson = solo ? lessonById(query.get("tutorial")) : undefined;
+  // The outline on this device's unit: until when, and the unit as the last frame showed it.
+  let highlightEnd = 0,
+    lastSnap: UnitSnap | undefined;
   let attacks = 0,
     presses = 0,
     progress: Progress = FRESH,
@@ -404,9 +406,8 @@ function room(solo: boolean): void {
         press: () => {
           if (runtime.press()) presses += 1;
         },
-        // The engine's attack edge is not in the input yet; the bindings are ready and log nothing until it lands.
         attack: () => {
-          attacks += 1;
+          if (runtime.attack()) attacks += 1;
         },
       },
       () => performance.now(),
@@ -479,6 +480,7 @@ function room(solo: boolean): void {
         names: model.arena.names,
         localSlot: model.arena.localSlot,
         muted,
+        highlight: performance.now() < highlightEnd,
       });
     mute.blur();
   };
@@ -925,7 +927,7 @@ function room(solo: boolean): void {
           else if (action === "settings")
             runtime.command({
               type: "settings",
-              settings: tutorialSettings(roomSettings),
+              settings: tutorialSettings(roomSettings, lesson),
             });
           else runtime.command({ type: "action", action });
         }
@@ -969,12 +971,28 @@ function room(solo: boolean): void {
       }
       const kind = frame.world?.units[next.arena.localSlot]?.kind;
       flap.textContent = buttonLabel(kind);
-      // Workers have no sword; the button waits for the engine's attack edge as well.
-      strike.hidden = !ATTACK_LIVE || kind === undefined || kind === "worker";
+      // Workers have no sword.
+      strike.hidden = kind === undefined || kind === "worker";
+      const unit = frame.world?.units[next.arena.localSlot],
+        snap: UnitSnap | undefined = unit && {
+          game: `${frame.matchId}:${frame.round}`,
+          live: frame.stage === "running" && frame.logTick >= frame.startAt,
+          dead: unit.dead,
+          kind: unit.kind,
+          speed: unit.speed,
+        };
+      highlightEnd = highlightUntil(
+        lastSnap,
+        snap,
+        performance.now(),
+        highlightEnd,
+      );
+      lastSnap = snap;
       driver.update({
         names: next.arena.names,
         localSlot: next.arena.localSlot,
         muted,
+        highlight: performance.now() < highlightEnd,
       });
       driver.feed(frame, next.layout === "arena");
       const state = runtime.roomState();

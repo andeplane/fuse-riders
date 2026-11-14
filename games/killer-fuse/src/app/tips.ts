@@ -1,6 +1,6 @@
 import type { ControlHint } from "fuse-ui";
 import { QUEEN_EGGS } from "../engine/index.js";
-import { DEVICE_CONTROLS, DEVICE_NAMES, type Device } from "./guide.js";
+import { DEVICE_CONTROLS, PLAY_CONTROLS, type Device } from "./guide.js";
 
 /**
  * The tips the lobby turns through while people wait, after the original's loading tips: the first is the controls of
@@ -28,22 +28,22 @@ export const RULE_TIPS: readonly Tip[] = [
   {
     title: "ONLY THE QUEEN DIVES",
     hints: [],
-    text: "Hold down in the air to dive straight down at once; she can attack-dash out of it. Warriors cannot dive.",
+    text: "As the Queen, hold down in the air to dive: her blade kills what it touches below her. Warriors cannot dive.",
   },
   {
     title: "GATES TAKE A BERRY",
     hints: [],
-    text: "Hold a berry and stand completely still in a gate of your colour or a neutral one: after 0.5 s you are locked in, safe, for 2 s. A warrior gate makes a Warrior, a speed gate makes you fast.",
+    text: "Hold a berry and stand still in a gate of your colour or a neutral one for about 2.5 s: after 0.5 s you are locked in, safe. A warrior gate makes a Warrior, a speed gate makes you fast.",
   },
   {
     title: "THE SWORD",
     hints: [],
-    text: "Warriors and the Queen kill with the sword: attack dashes forward. Two blades meeting knock both back; landing on a head only bounces.",
+    text: "Warriors and the Queen kill with the sword: attack dashes the way you face and kills an enemy in front of the blade. Two swords meeting head-on glance off; landing on a head only bounces.",
   },
   {
     title: "THE SNAIL EATS WORKERS",
     hints: [],
-    text: "A ridden snail eats an enemy Worker in front of it, 5 s (3.5 s with a speed rider). Kill or knock off the rider to free your Worker.",
+    text: "A ridden snail eats an enemy Worker in front of it, 5 s (3.5 s with a speed rider). Kill the rider to free your Worker.",
   },
   {
     title: "THREE WAYS TO WIN",
@@ -54,11 +54,13 @@ export const RULE_TIPS: readonly Tip[] = [
 
 export function lobbyTips(device: Device): readonly Tip[] {
   return [
-    {
-      title: `CONTROLS · ${DEVICE_NAMES[device]}`,
-      hints: DEVICE_CONTROLS[device],
-      text: "",
-    },
+    device === "touch"
+      ? { title: "CONTROLS · TOUCH", hints: DEVICE_CONTROLS.touch, text: "" }
+      : {
+          title: "CONTROLS · KEYBOARD · GAMEPAD",
+          hints: PLAY_CONTROLS,
+          text: "",
+        },
     ...RULE_TIPS,
   ];
 }

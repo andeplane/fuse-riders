@@ -38,19 +38,34 @@ const texts = (shown: CountdownCard): string[] => [
   ...shown.controls.flatMap((hint) => [hint.keys, hint.action]),
 ];
 
-test("a Queen's controls: move, flap, attack, dive; a Worker's: move, jump", () => {
+test("every seat sees all four controls, keyboard and gamepad side by side", () => {
   assert.deepEqual(roleControls(0, "keys"), [
-    { keys: "A D / ← →", action: "move" },
-    { keys: "Space", action: "flap (~3×/s holds height)" },
-    { keys: "J", action: "attack (sword dash)" },
-    { keys: "S / ↓", action: "dive, hold" },
+    { keys: "A D / ← → · Stick / D-pad ← →", action: "move" },
+    {
+      keys: "Space · A / Cross",
+      action: "flap: tap repeatedly to fly (~3/s holds height)",
+    },
+    { keys: "S / ↓ · Stick / D-pad ↓", action: "dive (Queen, hold)" },
+    { keys: "J · B / Circle", action: "attack (Warrior, Queen)" },
   ]);
-  assert.deepEqual(roleControls(5, "pad"), [
-    { keys: "Stick / D-pad ← →", action: "move" },
-    { keys: "A / Cross", action: "jump (hold for higher)" },
-  ]);
-  assert.equal(roleControls(1, "touch")[1]!.keys, "FLAP");
-  assert.equal(roleControls(1, "touch")[2]!.keys, "ATTACK");
+  assert.deepEqual(
+    roleControls(5, "pad"),
+    roleControls(5, "keys"),
+    "the same on either",
+  );
+  assert.deepEqual(
+    roleControls(5, "keys").map((hint) => hint.action),
+    [
+      "move",
+      "jump (hold for higher); tap repeatedly to fly as a Warrior",
+      "dive (Queen, hold)",
+      "attack (Warrior, Queen)",
+    ],
+  );
+  assert.deepEqual(
+    roleControls(1, "touch").map((hint) => hint.keys),
+    ["Left pad", "FLAP", "Left pad ↓", "ATTACK"],
+  );
   assert.equal(roleControls(3, "touch")[1]!.keys, "JUMP");
   assert.deepEqual(roleControls(-1, "keys"), [], "a watcher has no keys");
 });
@@ -140,7 +155,7 @@ test("the card's key changes with what it shows and only then", () => {
   assert.notEqual(cardKey(card(first(31))), cardKey(card(first(32))));
   assert.notEqual(
     cardKey(card(first(10))),
-    cardKey(countdownCard(first(10), 0, "pad", "Twin Hives")),
+    cardKey(countdownCard(first(10), 0, "touch", "Twin Hives")),
   );
 });
 

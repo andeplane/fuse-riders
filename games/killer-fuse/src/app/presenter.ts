@@ -256,7 +256,8 @@ function arena(view: View, viewer: Viewer): ArenaModel {
           map: world.map.name,
           elapsed: Math.max(
             0,
-            view.logTick - (view.startAt - 1 - countdownTicks(view.round)),
+            view.logTick -
+              (view.startAt - 1 - countdownTicks(view.round, view.play.quick)),
           ),
           left: view.startAt - view.logTick,
         }

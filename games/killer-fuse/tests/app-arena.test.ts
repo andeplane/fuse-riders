@@ -69,7 +69,12 @@ function rig(ready?: Promise<void>) {
 test("the arena opens with the first game, hears each frame once, and closes in the lobby", () => {
   const { calls, hosts, driver } = rig();
   const waiting = lobby();
-  driver.update({ names: ["Ada", "Bo"], localSlot: 0, muted: true });
+  driver.update({
+    names: ["Ada", "Bo"],
+    localSlot: 0,
+    muted: true,
+    highlight: false,
+  });
   driver.feed(frame(waiting), true);
   driver.draw();
   driver.resize();
@@ -89,6 +94,7 @@ test("the arena opens with the first game, hears each frame once, and closes in 
         names: ["Ada", "Bo"],
         localSlot: 0,
         muted: true,
+        highlight: false,
       },
     },
     { kind: "advance", step: 0 },
@@ -143,15 +149,26 @@ test("the renderer hears of a change of names, seat or sound, and only of a chan
       names: [],
       localSlot: -1,
       muted: false,
+      highlight: false,
     },
   });
-  const look = { names: ["Ada", ""], localSlot: 0, muted: false };
+  const look = {
+    names: ["Ada", ""],
+    localSlot: 0,
+    muted: false,
+    highlight: false,
+  };
   driver.update(look);
   driver.update({ ...look, names: [...look.names] });
   driver.update({ ...look, muted: true });
+  driver.update({ ...look, muted: true, highlight: true });
   assert.deepEqual(calls.slice(2), [
     { kind: "update", options: look },
     { kind: "update", options: { ...look, muted: true } },
+    {
+      kind: "update",
+      options: { ...look, muted: true, highlight: true },
+    },
   ]);
 });
 
