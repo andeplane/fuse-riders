@@ -1,6 +1,8 @@
 import bootSplash from "./assets/boot-splash.jpg";
 import { OS_NAME } from "./desktop/windowMeta";
 
+import "./BootScreens.css";
+
 /** The sky blue behind the splash while the image decodes. */
 export const BOOT_SKY = "#a9c6e8";
 

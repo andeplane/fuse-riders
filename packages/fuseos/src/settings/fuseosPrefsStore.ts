@@ -1,4 +1,4 @@
-import { createContext } from "react";
+import { createContext, useContext, useSyncExternalStore } from "react";
 
 /** Where a Fuse game opens from the desktop: in a window on this desktop, or in a browser tab of its own. */
 export type GameLaunch = "window" | "tab";
@@ -9,8 +9,11 @@ export type FuseOsPrefs = {
 };
 
 export interface FuseOsPrefsStore {
+  /** The same object until the next `set`, so React can compare it by identity. */
   get(): FuseOsPrefs;
   set(prefs: FuseOsPrefs): void;
+  /** Calls `listener` after every `set` on this page; returns the unsubscribe. */
+  subscribe(listener: () => void): () => void;
 }
 
 export const FUSEOS_PREFS_KEY = "fuseos.prefs";
@@ -64,39 +67,78 @@ function safeLocalStorage(): KeyValueStorage | undefined {
   }
 }
 
-/** localStorage backed; every access is guarded because storage can be unavailable. */
+class Listeners {
+  private readonly listeners = new Set<() => void>();
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+  notify(): void {
+    for (const listener of [...this.listeners]) listener();
+  }
+}
+
+/**
+ * localStorage backed; every access is guarded because storage can be unavailable. Reads once and keeps the
+ * result, so `get` is stable between sets and a page never re-parses storage on every render.
+ */
 export class LocalStorageFuseOsPrefsStore implements FuseOsPrefsStore {
+  private cached: FuseOsPrefs | undefined;
+  private readonly listeners = new Listeners();
+
   constructor(
     private readonly storage: KeyValueStorage | undefined = safeLocalStorage(),
   ) {}
 
   get(): FuseOsPrefs {
+    if (this.cached) return this.cached;
     try {
-      return parsePrefs(this.storage?.getItem(FUSEOS_PREFS_KEY));
+      this.cached = parsePrefs(this.storage?.getItem(FUSEOS_PREFS_KEY));
     } catch {
-      return {};
+      this.cached = {};
     }
+    return this.cached;
   }
 
   set(prefs: FuseOsPrefs): void {
+    this.cached = prefs;
     try {
       this.storage?.setItem(FUSEOS_PREFS_KEY, JSON.stringify(prefs));
     } catch {
-      // Storage blocked or full: the choice simply is not remembered.
+      // Storage blocked or full: the choice holds for this page and simply is not remembered.
     }
+    this.listeners.notify();
+  }
+
+  subscribe(listener: () => void): () => void {
+    return this.listeners.subscribe(listener);
   }
 }
 
 export class MemoryFuseOsPrefsStore implements FuseOsPrefsStore {
+  private readonly listeners = new Listeners();
   constructor(private prefs: FuseOsPrefs = {}) {}
   get(): FuseOsPrefs {
     return this.prefs;
   }
   set(prefs: FuseOsPrefs): void {
     this.prefs = prefs;
+    this.listeners.notify();
+  }
+  subscribe(listener: () => void): () => void {
+    return this.listeners.subscribe(listener);
   }
 }
 
 export const FuseOsPrefsStoreContext = createContext<FuseOsPrefsStore>(
   new LocalStorageFuseOsPrefsStore(),
 );
+
+/** The preferences as stored, re-rendering whoever reads them when they change. */
+export function useFuseOsPrefs(): FuseOsPrefs {
+  const store = useContext(FuseOsPrefsStoreContext);
+  return useSyncExternalStore(
+    (listener) => store.subscribe(listener),
+    () => store.get(),
+  );
+}

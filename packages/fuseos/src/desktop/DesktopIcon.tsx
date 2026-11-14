@@ -14,17 +14,44 @@ import {
  */
 export type GameTile = { kind: "tile"; mark: string; accent: string };
 
+export const SHORTCUT_HINT = "Opens in a new browser tab";
+
 export type DesktopIconArt = IconRef | GameTile;
 
 export type DesktopIconProps = {
   label: string;
   icon: DesktopIconArt;
+  /** Adds the Windows shortcut arrow: the program opens in a browser tab rather than a window here. */
+  shortcut?: boolean;
   selected: boolean;
   onSelect: () => void;
   onOpen: () => void;
   /** Right click, Shift+F10 or the menu key; the position is in viewport coordinates. */
   onContextMenu?: (position: MenuPosition) => void;
 };
+
+/** The Windows 95 shortcut overlay: a white box with a small arrow, bottom left of any icon. */
+function ShortcutArrow() {
+  return (
+    <svg
+      width={12}
+      height={12}
+      viewBox="0 0 12 12"
+      className="absolute bottom-0 left-0"
+      data-icon="shortcut"
+      style={{ imageRendering: "pixelated" }}
+    >
+      <title>{SHORTCUT_HINT}</title>
+      <rect x={0.5} y={0.5} width={11} height={11} fill="#fff" stroke="#000" />
+      <path
+        d="M3 9 L9 3 M5 3 L9 3 L9 7"
+        fill="none"
+        stroke="#000"
+        strokeWidth={1.2}
+      />
+    </svg>
+  );
+}
 
 /** The generated icon of a Fuse game: an accent square with the mark, crisp at 32px. */
 export function GameTileIcon({ mark, accent }: Omit<GameTile, "kind">) {
@@ -60,6 +87,7 @@ export function GameTileIcon({ mark, accent }: Omit<GameTile, "kind">) {
 export function DesktopIcon({
   label,
   icon,
+  shortcut = false,
   selected,
   onSelect,
   onOpen,
@@ -85,11 +113,14 @@ export function DesktopIcon({
         }
       }}
     >
-      {typeof icon !== "string" && icon.kind === "tile" ? (
-        <GameTileIcon mark={icon.mark} accent={icon.accent} />
-      ) : (
-        <AppIcon icon={icon} size={32} />
-      )}
+      <span className="relative inline-flex" aria-hidden data-icon-art>
+        {typeof icon !== "string" && icon.kind === "tile" ? (
+          <GameTileIcon mark={icon.mark} accent={icon.accent} />
+        ) : (
+          <AppIcon icon={icon} size={32} />
+        )}
+        {shortcut ? <ShortcutArrow /> : null}
+      </span>
       <span
         className={`px-0.5 leading-tight ${selected ? "selected-label" : ""}`}
       >

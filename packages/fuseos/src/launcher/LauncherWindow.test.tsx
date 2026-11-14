@@ -2,7 +2,10 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import type { ProviderOptions } from "../__mocks__/renderWithProviders";
-import { renderWithProviders } from "../__mocks__/renderWithProviders";
+import {
+  PHONE_DEVICE,
+  renderWithProviders,
+} from "../__mocks__/renderWithProviders";
 import { Desktop } from "../desktop/Desktop";
 import { MemoryFuseOsPrefsStore } from "../settings/fuseosPrefsStore";
 
@@ -168,9 +171,7 @@ describe("LauncherWindow", () => {
 
   it("launches in a tab on a touch device when nothing is chosen, and in a window with a mouse", async () => {
     const user = userEvent.setup();
-    const touch = renderLauncher({
-      launcherDeps: { finePointer: () => false },
-    });
+    const touch = renderLauncher({ launchDevice: PHONE_DEVICE });
     await user.click(
       touch.inside.getByRole("button", { name: "Play Fuseball" }),
     );

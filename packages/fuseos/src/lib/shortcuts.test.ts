@@ -24,12 +24,30 @@ describe("SHORTCUTS", () => {
     );
   });
 
-  it("writes keys the way Windows 98 does: Ctrl+A, Shift+F10, Alt+Enter, Backspace, F2", () => {
+  it("writes keys the way Windows 98 does: Ctrl+A, Shift+F10, Alt+Enter, Backspace, F2, Ctrl+Esc", () => {
     expect(keysFor("explorer.selectAll")).toBe("Ctrl+A");
     expect(keysFor("explorer.contextMenu")).toBe("Shift+F10");
     expect(keysFor("explorer.properties")).toBe("Alt+Enter");
     expect(keysFor("explorer.up")).toBe("Backspace");
     expect(keysFor("solitaire.newGame")).toBe("F2");
+    expect(keysFor("desktop.startMenu")).toBe("Ctrl+Esc");
+  });
+
+  it("lists the Start menu keys under Desktop", () => {
+    expect(
+      SHORTCUTS.filter((entry) => entry.scope === "Desktop").map(
+        (entry) => entry.id,
+      ),
+    ).toEqual([
+      "desktop.startMenu",
+      "desktop.openIcon",
+      "desktop.contextMenu",
+      "desktop.closeMenu",
+      "desktop.navigateMenu",
+      "desktop.openSubmenu",
+      "desktop.closeSubmenu",
+      "desktop.chooseMenuItem",
+    ]);
   });
 });
 
@@ -184,6 +202,39 @@ describe(matchShortcut.name, () => {
         },
         "explorer.toggleSelection",
       ),
+    ).toBe(false);
+  });
+
+  it("maps the sheet's Esc, Left and Right spellings to the browser's key names", () => {
+    const plain = {
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+      altKey: false,
+    };
+    expect(
+      matchShortcut(
+        { ...plain, key: "Escape", ctrlKey: true },
+        "desktop.startMenu",
+      ),
+    ).toBe(true);
+    expect(
+      matchShortcut(
+        { ...plain, key: "Escape", metaKey: true },
+        "desktop.startMenu",
+      ),
+    ).toBe(true);
+    expect(
+      matchShortcut({ ...plain, key: "Escape" }, "desktop.startMenu"),
+    ).toBe(false);
+    expect(
+      matchShortcut({ ...plain, key: "ArrowRight" }, "desktop.openSubmenu"),
+    ).toBe(true);
+    expect(
+      matchShortcut({ ...plain, key: "ArrowLeft" }, "desktop.closeSubmenu"),
+    ).toBe(true);
+    expect(
+      matchShortcut({ ...plain, key: "ArrowLeft" }, "desktop.openSubmenu"),
     ).toBe(false);
   });
 

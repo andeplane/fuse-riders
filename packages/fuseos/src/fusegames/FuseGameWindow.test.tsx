@@ -3,9 +3,24 @@ import userEvent from "@testing-library/user-event";
 
 import { renderWithProviders } from "../__mocks__/renderWithProviders";
 import { Desktop } from "../desktop/Desktop";
+import type { AppState } from "../state/appState";
+import { DEFAULT_STATE } from "../state/appState";
 import { GAME_IFRAME_ALLOW } from "../windows/IframeGame";
 
-import { FuseGameWindow } from "./FuseGameWindow";
+import { FuseGameWindow, POP_OUT_HINT } from "./FuseGameWindow";
+
+const FUSEBALL_OPEN: AppState = {
+  ...DEFAULT_STATE,
+  windows: [
+    {
+      id: "w1",
+      kind: "fusegame",
+      gameId: "fuseball",
+      minimized: false,
+      maximized: false,
+    },
+  ],
+};
 
 describe(FuseGameWindow.name, () => {
   it("embeds the game's page with the permissions a Fuse game needs and the capture behind it", () => {
@@ -22,6 +37,14 @@ describe(FuseGameWindow.name, () => {
     expect(
       screen.queryByRole("button", { name: "Activate Fuseball" }),
     ).not.toBeInTheDocument();
+    const toolbar = within(
+      screen.getByRole("toolbar", { name: "Fuseball toolbar" }),
+    );
+    expect(toolbar.getByText("Five-a-side with rockets")).toBeInTheDocument();
+    expect(toolbar.getByRole("button", { name: "Pop out ↗" })).toHaveAttribute(
+      "title",
+      POP_OUT_HINT,
+    );
   });
 
   it("passes ?mute through to the game when the OS was opened muted", () => {
@@ -53,18 +76,19 @@ describe(FuseGameWindow.name, () => {
     expect(onActivate).toHaveBeenCalledTimes(1);
   });
 
-  it("explains a game that is not installed", () => {
+  it("explains a game that is not installed, with no toolbar", () => {
     renderWithProviders(
       <FuseGameWindow gameId="pong" active onActivate={() => undefined} />,
     );
     expect(screen.getByRole("alert")).toHaveTextContent(
       'The game "pong" is not installed',
     );
+    expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
   });
 
-  it("opens from the desktop icon, once, and restores from the stored state", async () => {
+  it("opens from the desktop icon, once, restores from the stored state and reports the launch", async () => {
     const user = userEvent.setup();
-    const { store } = renderWithProviders(<Desktop />, {
+    const { store, osAnalytics } = renderWithProviders(<Desktop />, {
       initialState: {
         version: 1,
         windows: [
@@ -89,5 +113,39 @@ describe(FuseGameWindow.name, () => {
       "fusegame",
       "fusegame",
     ]);
+    expect(osAnalytics.launches).toEqual([
+      { game: "fuseball", launch: "window" },
+    ]);
+  });
+
+  it("pops the game out into a tab at the frame's live address and closes the window", async () => {
+    const user = userEvent.setup();
+    const { store, desktopDeps, osAnalytics } = renderWithProviders(
+      <Desktop />,
+      { initialState: FUSEBALL_OPEN },
+    );
+    const dialog = screen.getByRole("dialog", { name: "Fuseball" });
+    // happy-dom never loads the page, so the frame has no address of its own; the embed address stands in.
+    await user.click(within(dialog).getByRole("button", { name: "Pop out ↗" }));
+    expect(desktopDeps.openExternal).toHaveBeenCalledWith(
+      "/fuse-riders/fuseball/",
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "Fuseball" }),
+    ).not.toBeInTheDocument();
+    expect(store.load().windows).toEqual([]);
+    expect(osAnalytics.launches).toEqual([
+      { game: "fuseball", launch: "popout" },
+    ]);
+  });
+
+  it("keeps the window when it has no id to close", async () => {
+    const user = userEvent.setup();
+    const { desktopDeps } = renderWithProviders(
+      <FuseGameWindow gameId="fuseball" active onActivate={() => undefined} />,
+    );
+    await user.click(screen.getByRole("button", { name: "Pop out ↗" }));
+    expect(desktopDeps.openExternal).toHaveBeenCalledTimes(1);
+    expect(screen.getByTitle("Fuseball")).toBeInTheDocument();
   });
 });

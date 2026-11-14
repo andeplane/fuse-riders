@@ -35,6 +35,12 @@ export interface Shortcut {
 export const SHORTCUTS: readonly Shortcut[] = [
   // Desktop — the icons on the wallpaper and whatever menu is open, wherever one is.
   {
+    id: "desktop.startMenu",
+    keys: "Ctrl+Esc",
+    description: "Open or close the Start menu",
+    scope: "Desktop",
+  },
+  {
     id: "desktop.openIcon",
     keys: "Enter",
     description: "Open the selected desktop icon",
@@ -55,7 +61,25 @@ export const SHORTCUTS: readonly Shortcut[] = [
   {
     id: "desktop.navigateMenu",
     keys: "Up/Down",
-    description: "Move through an open context menu",
+    description: "Move through the open menu",
+    scope: "Desktop",
+  },
+  {
+    id: "desktop.openSubmenu",
+    keys: "Right",
+    description: "Open the highlighted Start menu folder",
+    scope: "Desktop",
+  },
+  {
+    id: "desktop.closeSubmenu",
+    keys: "Left",
+    description: "Close the open Start menu folder",
+    scope: "Desktop",
+  },
+  {
+    id: "desktop.chooseMenuItem",
+    keys: "Enter",
+    description: "Choose the highlighted menu item",
     scope: "Desktop",
   },
 
@@ -166,7 +190,15 @@ type ParsedShortcut = {
   alt: boolean;
 };
 
-const KEY_ALIASES: Record<string, string> = { Space: " " };
+/** Windows 98 spellings on the sheet to the `KeyboardEvent.key` values the browser reports. */
+const KEY_ALIASES: Record<string, string> = {
+  Space: " ",
+  Esc: "Escape",
+  Left: "ArrowLeft",
+  Right: "ArrowRight",
+  Up: "ArrowUp",
+  Down: "ArrowDown",
+};
 
 function shortcutById(id: string): Shortcut {
   const shortcut = SHORTCUTS.find((entry) => entry.id === id);

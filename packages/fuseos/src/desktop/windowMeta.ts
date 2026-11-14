@@ -27,6 +27,12 @@ export const WINAMP_WINDOW_SIZE: Size = { width: 320, height: 440 };
 /** A Fuse game opens at the size its lobby is laid out for; the window clamps to the desktop. */
 export const FUSE_GAME_WINDOW_SIZE: Size = { width: 1024, height: 700 };
 
+/** Room for the splash, the version lines, the licence line and a scrolling credits list. */
+export const ABOUT_WINDOW_SIZE: Size = { width: 480, height: 540 };
+
+/** Room for two rows of eight large icons, or the Details licence table, above the status bar. */
+export const RETRO_FOLDER_WINDOW_SIZE: Size = { width: 640, height: 420 };
+
 export const OS_NAME = "FuseOS";
 
 /** Title bar text and icon for each window kind. */
@@ -51,6 +57,13 @@ export function windowMeta(
         resizable: true,
         size: GAMES[window.game].windowSize,
       };
+    case "retroFolder":
+      return {
+        title: "Retro Games",
+        icon: "gamesFolder",
+        resizable: true,
+        size: RETRO_FOLDER_WINDOW_SIZE,
+      };
     case "controlpanel":
       return { title: "Control Panel", icon: "settings", resizable: true };
     case "wallpaper":
@@ -65,7 +78,7 @@ export function windowMeta(
         title: `About ${OS_NAME}`,
         icon: "help",
         resizable: false,
-        size: { width: 440, height: 360 },
+        size: ABOUT_WINDOW_SIZE,
       };
     case "dialog":
       return { title: window.title, icon: window.icon, resizable: false };

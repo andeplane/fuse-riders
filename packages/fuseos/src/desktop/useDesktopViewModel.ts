@@ -1,9 +1,11 @@
 import { useCallback, useContext } from "react";
 
 import { FuseGamesContext } from "../fusegames/registry";
+import { useFuseGameLauncher } from "../fusegames/useFuseGameLauncher";
 import { LAUNCHER_TITLE } from "../launcher/launcherFacts";
 import { useOpenLauncher } from "../launcher/useOpenLauncher";
-import type { WindowKind, WindowState } from "../state/appState";
+import { useGameLaunch } from "../settings/useGameLaunch";
+import type { WindowState } from "../state/appState";
 import { activeWindowId } from "../state/appState";
 import { useAppState } from "../state/useAppState";
 import type { MenuPosition } from "../windows/menuPosition";
@@ -17,6 +19,8 @@ export type DesktopIconModel = {
   id: string;
   label: string;
   icon: DesktopIconArt;
+  /** The Windows shortcut arrow: the program opens in a browser tab here (the Games applet's choice). */
+  shortcut?: boolean;
   open: () => void;
 };
 
@@ -59,46 +63,26 @@ export function useDesktopViewModel(): DesktopViewModel {
   const ui = useContext(DesktopUiContext);
   const commands = useWindowCommands();
   const games = useContext(FuseGamesContext);
+  const launcher = useFuseGameLauncher();
+  // Re-renders the icons when the Games applet changes where games open (the shortcut arrow on the tiles).
+  const { launch } = useGameLaunch();
   const openLauncher = useOpenLauncher();
 
-  // Single-instance windows (Winamp, the wallpaper picker, a game) are focused rather than duplicated:
-  // true when an open window matched and was brought to the front.
-  const focusExisting = useCallback(
-    (
-      kind: WindowKind,
-      matches: (window: WindowState) => boolean = () => true,
-    ) => {
-      const existing = state.windows.find(
-        (window) => window.kind === kind && matches(window),
-      );
-      if (!existing) return false;
-      commands.focus(existing.id);
-      return true;
-    },
-    [state.windows, commands],
+  // A window here (focused rather than duplicated) or a browser tab, as the Games applet says.
+  const openFuseGame = launcher.launch;
+  // Single-instance windows (Winamp, the wallpaper picker, Fusteam) are the reducer's business: `open` focuses an existing one.
+  const openWallpaper = useCallback(
+    () => commands.open({ kind: "wallpaper" }),
+    [commands],
   );
-  const openFuseGame = useCallback(
-    (gameId: string) => {
-      if (
-        !focusExisting(
-          "fusegame",
-          (window) => window.kind === "fusegame" && window.gameId === gameId,
-        )
-      )
-        commands.open({ kind: "fusegame", gameId });
-    },
-    [focusExisting, commands],
-  );
-  const openWallpaper = useCallback(() => {
-    if (!focusExisting("wallpaper")) commands.open({ kind: "wallpaper" });
-  }, [focusExisting, commands]);
   const openPaint = useCallback(
     () => commands.open({ kind: "paint" }),
     [commands],
   );
-  const openWinamp = useCallback(() => {
-    if (!focusExisting("winamp")) commands.open({ kind: "winamp" });
-  }, [focusExisting, commands]);
+  const openWinamp = useCallback(
+    () => commands.open({ kind: "winamp" }),
+    [commands],
+  );
   const openControlPanel = useCallback(
     () => commands.open({ kind: "controlpanel", applet: "home" }),
     [commands],
@@ -117,6 +101,7 @@ export function useDesktopViewModel(): DesktopViewModel {
       icon:
         games.icon(game) ??
         ({ kind: "tile", mark: game.mark, accent: game.accent } as const),
+      shortcut: launch === "tab",
       open: () => openFuseGame(game.id),
     })),
     { id: "paint", label: "Paint", icon: "paint", open: openPaint },

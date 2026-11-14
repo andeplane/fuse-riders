@@ -9,9 +9,9 @@ are already there; pass --source to use another folder.
 
 The script is idempotent: the bundles are written with fixed timestamps so a
 rerun produces byte-identical files. It also extracts each game's own licence
-or vendor text into docs/games/licenses (App Hosting rejects .DOC/.DIZ uploads, so they stay out of public/).
+or vendor text into docs/fuseos/licenses (they are documentation, not assets, so they stay out of public/).
 
-Usage: python3 scripts/build-jsdos-bundles.py [--source DIR]
+Usage: python3 scripts/fuseos/build-jsdos-bundles.py [--source DIR]
 """
 
 from __future__ import annotations
@@ -24,9 +24,9 @@ import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-GAMES_DIR = ROOT / 'public' / 'games'
-LICENSES_DIR = GAMES_DIR.parent.parent / 'docs' / 'games' / 'licenses'
+ROOT = Path(__file__).resolve().parent.parent.parent
+GAMES_DIR = ROOT / 'public' / 'fuseos' / 'retro'
+LICENSES_DIR = ROOT / 'docs' / 'fuseos' / 'licenses'
 DEFAULT_SOURCE = ROOT / 'scripts' / '.shareware'
 
 # Fixed so rebuilding never changes the committed bundles.
@@ -97,7 +97,7 @@ class Game:
     skip: tuple[str, ...] = ()
     # A self extracting archive inside the archive whose contents are the game.
     inner_archive: str | None = None
-    # (archive member, name in docs/games/licenses)
+    # (archive member, name in docs/fuseos/licenses)
     licenses: list[tuple[str, str]] = field(default_factory=list)
     # Files generated into the bundle next to the game (name, content).
     extra: dict[str, str] = field(default_factory=dict)
@@ -345,7 +345,7 @@ def main() -> int:
                 if text is None:
                     text = archive.read(member)
                 (LICENSES_DIR / target_name).write_bytes(text)
-        # Named .jsdos.wasm: App Hosting rejects .jsdos and .zip uploads but accepts .wasm,
+        # Named .jsdos.wasm: some static hosts reject .jsdos and .zip uploads but accept .wasm,
         # and js-dos never looks at the extension, only at the bytes.
         target = GAMES_DIR / f'{game.bundle}.jsdos.wasm'
         for name, content in game.extra.items():

@@ -4,7 +4,7 @@ import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { DisplayViewportContext } from "../desktop/displayViewportContext";
 
 import type { Rect, RectState, Size } from "./windowManager";
-import { clampRect, defaultRect } from "./windowManager";
+import { clampRect, defaultRect, isCompactViewport } from "./windowManager";
 import { WindowManagerContext } from "./windowManagerContext";
 import { WindowsDepsContext } from "./windowsDepsContext";
 
@@ -15,6 +15,8 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
   const [available, setViewport] = useState(getViewport);
   const display = useContext(DisplayViewportContext);
   const viewport = display?.viewport ?? available;
+  // Judged on the physical screen, not the emulated desktop area: a 640x480 desktop on a laptop still floats its windows.
+  const compact = isCompactViewport(available);
 
   useEffect(
     () => subscribeViewport(() => setViewport(getViewport())),
@@ -48,8 +50,8 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ rects, viewport, rectFor, setRect, pruneRects }),
-    [rects, viewport, rectFor, setRect, pruneRects],
+    () => ({ rects, viewport, compact, rectFor, setRect, pruneRects }),
+    [rects, viewport, compact, rectFor, setRect, pruneRects],
   );
   return (
     <WindowManagerContext.Provider value={value}>

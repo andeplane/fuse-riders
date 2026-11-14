@@ -3,12 +3,27 @@ import { useEffect, useRef, useState } from "react";
 
 import type { ChatMessage } from "../llm/llmChat";
 
+import type { ToolCallReport } from "./assistantState";
 import type { OfficeAssistantViewModel } from "./useOfficeAssistantViewModel";
+
+/** One tool call of the current turn, as an inline status line: running, done, or what went wrong. */
+function ToolCallLine({ call }: { call: ToolCallReport }) {
+  return (
+    <li
+      className={`assistant-tool${call.phase === "started" ? " assistant-tool-running" : ""}`}
+      data-phase={call.phase}
+      role={call.phase === "started" ? "status" : undefined}
+    >
+      {call.phase === "started" ? `${call.sentence}...` : call.sentence}
+      {call.phase === "failed" ? " (that did not work)" : null}
+    </li>
+  );
+}
 
 function Message({ message }: { message: ChatMessage }) {
   return (
     <li
-      className={message.role === "user" ? "assistant-user" : "assistant-atlas"}
+      className={message.role === "user" ? "assistant-user" : "assistant-reply"}
       data-role={message.role}
     >
       {message.role === "user" ? (
@@ -33,7 +48,7 @@ export function AssistantBalloon({ vm }: { vm: OfficeAssistantViewModel }) {
   useEffect(() => {
     const element = log.current;
     if (element) element.scrollTop = element.scrollHeight;
-  }, [chat.messages, chat.progress]);
+  }, [chat.messages, chat.progress, chat.calls]);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -133,11 +148,19 @@ export function AssistantBalloon({ vm }: { vm: OfficeAssistantViewModel }) {
               {chat.progress}...
             </li>
           ) : null}
+          {chat.calls.map((call, index) => (
+            <ToolCallLine key={`${call.name}-${index}`} call={call} />
+          ))}
         </ul>
       ) : null}
       {chat.error ? <p className="text-[maroon]">{chat.error}</p> : null}
       {!chat.available && chat.unavailableReason ? (
         <p className="text-[grey]">{chat.unavailableReason}</p>
+      ) : null}
+      {chat.available && chat.backend.kind === "rules" ? (
+        <p className="text-[grey]" data-testid="chat-backend-notice">
+          {chat.backend.reason}
+        </p>
       ) : null}
 
       <form className="flex gap-1" onSubmit={submit}>

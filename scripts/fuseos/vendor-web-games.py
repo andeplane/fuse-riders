@@ -3,8 +3,8 @@
 
 - SkiFree: https://github.com/basicallydan/skifree.js (MIT). The prebuilt
   dist/skifree.js, sprites and stylesheets are copied; index.html is rewritten
-  without the analytics snippet and the GitHub banners (inline scripts are
-  blocked by the Flows content security policy anyway).
+  without the analytics snippet and the GitHub banners (no inline scripts, so
+  the page runs under a strict content security policy too).
 - Micropolis: https://github.com/graememcc/micropolisJS (GPL-3.0 with the
   Micropolis Public Name License). The repo has no prebuilt output, so it is
   built with its own webpack toolchain in a temporary folder (needs node, npm
@@ -19,10 +19,11 @@
   columns (A..K) by 4 rows (clubs, diamonds, hearts, spades) of 142x192 px
   (twice the 71x96 Windows card size).
 
-All land under public/games/<game>/ with their licence files, and are
-committed so `npm run build` needs neither network nor a second toolchain.
+All land under public/fuseos/retro/<game>/, their licence files under
+docs/fuseos/licenses/<game>/, and are committed so `pnpm build` needs neither
+network nor a second toolchain.
 
-Usage: python3 scripts/vendor-web-games.py [--only skifree|micropolis|solitaire]
+Usage: python3 scripts/fuseos/vendor-web-games.py [--only skifree|micropolis|solitaire]
 """
 
 from __future__ import annotations
@@ -37,13 +38,13 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-GAMES_DIR = ROOT / 'public' / 'games'
+ROOT = Path(__file__).resolve().parent.parent.parent
+GAMES_DIR = ROOT / 'public' / 'fuseos' / 'retro'
 
 
-# Licence and readme texts go next to the credits, not into public/: App Hosting rejects
-# uploads with extensions like .md or none at all.
-DOCS_DIR = ROOT / 'docs' / 'games'
+# Licence and readme texts go next to the credits, not into public/: they are
+# documentation, not assets the game pages load.
+DOCS_DIR = ROOT / 'docs' / 'fuseos' / 'licenses'
 
 
 def move_docs(target: Path, docs: Path, names: tuple[str, ...]) -> None:
