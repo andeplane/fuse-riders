@@ -41,8 +41,14 @@ import { DEFAULT_SETTINGS, type Settings, type View } from "../online/game.js";
 import { seatName } from "../online/names.js";
 import { FuseballRuntime, type FuseballCallbacks } from "../online/runtime.js";
 import { blend, fraction } from "../render/interpolate.js";
-import { TEAM, teamColor } from "../render/palette.js";
-import { createScene, solidCopies } from "../render/scene.js";
+import {
+  GADGET,
+  PORTAL,
+  TEAM,
+  TEAM_LIGHT,
+  teamColor,
+} from "../render/palette.js";
+import { createScene, guarded, solidCopies } from "../render/scene.js";
 import { createSfx } from "./audio.js";
 import {
   HeldControls,
@@ -235,6 +241,36 @@ function mapThumb(map: MapDef): SVGSVGElement {
         width: goal.w,
         height: goal.h,
         fill: TEAM[goal.team],
+      });
+  // The gadgets, as the scene colours them: a field in the colour of the goal it guards, a gate in amber, a bumper
+  // as a ring, a portal pair in its own hue.
+  for (const barrier of map.barriers)
+    for (const copy of solidCopies(map, barrier)) {
+      const team = barrier.kind === "field" ? guarded(map, barrier) : -1;
+      add("rect", {
+        x: copy.x - (copy.h >= copy.w ? 2 : 0),
+        y: copy.y - (copy.h >= copy.w ? 0 : 2),
+        width: copy.w + (copy.h >= copy.w ? 4 : 0),
+        height: copy.h + (copy.h >= copy.w ? 0 : 4),
+        fill: team === -1 ? GADGET : TEAM_LIGHT[team],
+      });
+    }
+  for (const bumper of map.bumpers)
+    add("circle", {
+      cx: bumper.x,
+      cy: bumper.y,
+      r: bumper.r,
+      class: "bumper",
+    });
+  for (const portal of map.portals)
+    for (const end of [portal.a, portal.b])
+      add("circle", {
+        cx: end.x,
+        cy: end.y,
+        r: portal.r,
+        fill: "none",
+        stroke: PORTAL[portal.hue],
+        "stroke-width": 6,
       });
   add("circle", {
     cx: map.ballAnchor.x,

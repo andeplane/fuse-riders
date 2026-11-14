@@ -2,6 +2,8 @@ import type { BubbleView, RiderView, WorldView } from "../engine/view.js";
 import {
   BALL_RADIUS,
   BUBBLE_RADIUS,
+  FIELD_COOL_STEPS,
+  GATE_OPEN_STEPS,
   RIDER_RADIUS,
   VIEW_H,
   VIEW_W,
@@ -20,10 +22,13 @@ import {
   CLOUD,
   EDGE,
   EDGE_DIM,
+  GADGET,
+  GADGET_DARK,
   GRID,
   INK,
   NIGHT,
   PIXEL_FONT,
+  PORTAL,
   SOLID,
   SOLID_DARK,
   TEAM,
@@ -132,6 +137,26 @@ export function solidCopies(
         ? [solid.y, solid.y - VIEW_H]
         : [solid.y];
   return xs.flatMap((x) => ys.map((y) => ({ ...solid, x, y })));
+}
+
+/** The team whose goal a force field stands nearest to, which is the one it guards; −1 with no goal on the map. */
+export function guarded(map: MapDef, field: Rect): -1 | 0 | 1 {
+  let team: -1 | 0 | 1 = -1,
+    nearest = Infinity;
+  const along = (d: number, size: number, wraps: boolean) =>
+    wraps ? Math.min(Math.abs(d), size - Math.abs(d)) : Math.abs(d);
+  for (const goal of map.goals) {
+    const gx = isCircle(goal) ? goal.x : goal.x + goal.w / 2,
+      gy = isCircle(goal) ? goal.y : goal.y + goal.h / 2,
+      far =
+        along(gx - (field.x + field.w / 2), VIEW_W, map.wrapX) +
+        along(gy - (field.y + field.h / 2), VIEW_H, map.wrapY);
+    if (far < nearest) {
+      nearest = far;
+      team = goal.team;
+    }
+  }
+  return team;
 }
 
 export function createScene(
@@ -326,6 +351,181 @@ export function createScene(
     g.fillRect(x + w - 1, y, 1, h);
   };
 
+  /**
+   * The gadgets, each in a look of its own so none reads as a wall, a goal or a team's bubble: a force field is a
+   * curtain of light in the colour of the goal it guards, with a pip for every strike it can still take; a gate is
+   * an amber hazard plate that slides apart; a bumper is a white-cored violet stud; a portal pair shares a hue.
+   */
+  const gadgets = (map: MapDef, view: WorldView, now: number) => {
+    map.barriers.forEach((barrier, i) => {
+      const state = view.barriers[i];
+      if (!state) return;
+      for (const b of solidCopies(map, barrier)) {
+        const tall = b.h >= b.w,
+          long = tall ? b.h : b.w,
+          mx = b.x + b.w / 2,
+          my = b.y + b.h / 2;
+        if (barrier.kind === "field") {
+          const team = guarded(map, barrier),
+            color = team === -1 ? EDGE : TEAM[team],
+            light = team === -1 ? WHITE : TEAM_LIGHT[team],
+            struck = Math.min(1, state.timer / FIELD_COOL_STEPS);
+          // The emitters at either end stay when the field is down.
+          g.fillStyle = state.up ? light : hexA(color, 0.5);
+          if (tall) {
+            g.fillRect(b.x - 2, b.y - 2, b.w + 4, 3);
+            g.fillRect(b.x - 2, b.y + b.h - 1, b.w + 4, 3);
+          } else {
+            g.fillRect(b.x - 2, b.y - 2, 3, b.h + 4);
+            g.fillRect(b.x + b.w - 1, b.y - 2, 3, b.h + 4);
+          }
+          if (!state.up) {
+            // Broken: a few dying sparks of its outline, nothing in the ball's way.
+            g.fillStyle = hexA(color, 0.25 + 0.2 * struck);
+            for (let at = 6; at < long - 4; at += 12)
+              if (tall) g.fillRect(mx - 0.5, b.y + at, 1, 3);
+              else g.fillRect(b.x + at, my - 0.5, 3, 1);
+            continue;
+          }
+          const glow = 0.16 + 0.1 * state.left + 0.5 * struck;
+          g.fillStyle = hexA(color, glow * 0.5);
+          g.fillRect(b.x - 3, b.y, b.w + 6, b.h);
+          g.fillStyle = hexA(struck > 0.5 ? WHITE : color, glow);
+          g.fillRect(b.x, b.y, b.w, b.h);
+          // Light running along both faces.
+          g.fillStyle = hexA(light, 0.9);
+          const run = (now / 40) % 8;
+          for (let at = run; at < long - 3; at += 8)
+            if (tall) {
+              g.fillRect(b.x, b.y + at, 1, 4);
+              g.fillRect(b.x + b.w - 1, b.y + long - at - 4, 1, 4);
+            } else {
+              g.fillRect(b.x + at, b.y, 4, 1);
+              g.fillRect(b.x + long - at - 4, b.y + b.h - 1, 4, 1);
+            }
+          // One pip for every strike it can still take.
+          g.fillStyle = WHITE;
+          for (let pip = 0; pip < state.left; pip++) {
+            const at = (pip - (state.left - 1) / 2) * 9;
+            if (tall) g.fillRect(mx - 2, my + at - 2, 4, 4);
+            else g.fillRect(mx + at - 2, my - 2, 4, 4);
+          }
+          continue;
+        }
+        // A gate: two leaves that meet in the middle when shut and slide apart when knocked.
+        const open = state.up
+            ? 0
+            : Math.min(
+                1,
+                state.timer / 24,
+                (GATE_OPEN_STEPS - state.timer) / 12 + 0.3,
+              ),
+          leaf = (long / 2) * (1 - 0.82 * open);
+        const plate = (x: number, y: number, w: number, h: number) => {
+          g.fillStyle = GADGET_DARK;
+          g.fillRect(x, y, w, h);
+          g.fillStyle = GADGET;
+          // Hazard stripes.
+          for (let at = 0; at < (tall ? h : w); at += 8)
+            if (tall) g.fillRect(x, y + at, w, 4);
+            else g.fillRect(x + at, y, 4, h);
+          g.fillStyle = hexA(WHITE, 0.8);
+          if (tall) g.fillRect(x, y, 1, h);
+          else g.fillRect(x, y, w, 1);
+        };
+        if (tall) {
+          plate(b.x, b.y, b.w, leaf);
+          plate(b.x, b.y + b.h - leaf, b.w, leaf);
+        } else {
+          plate(b.x, b.y, leaf, b.h);
+          plate(b.x + b.w - leaf, b.y, leaf, b.h);
+        }
+        if (!state.up) {
+          // How long it stays open, running down between the leaves.
+          const left = state.timer / GATE_OPEN_STEPS,
+            span = (long - 2 * leaf) * left;
+          g.fillStyle = hexA(GADGET, 0.75);
+          if (tall) g.fillRect(mx - 1, my - span / 2, 2, span);
+          else g.fillRect(mx - span / 2, my - 1, span, 2);
+        }
+      }
+    });
+
+    for (const bumper of map.bumpers) {
+      const beat = 0.5 + 0.5 * Math.sin(now / 240 + bumper.x),
+        // The ball close by sets it ringing.
+        near = Math.hypot(view.ball.x - bumper.x, view.ball.y - bumper.y),
+        ring = view.ball.live ? Math.max(0, 1 - (near - bumper.r) / 26) : 0;
+      for (const at of copies(map, bumper.x, bumper.y, bumper.r + 8)) {
+        const halo = g.createRadialGradient(
+          at.x,
+          at.y,
+          bumper.r - 2,
+          at.x,
+          at.y,
+          bumper.r + 8 + 4 * ring,
+        );
+        halo.addColorStop(0, hexA(EDGE, 0.5 + 0.4 * ring));
+        halo.addColorStop(1, hexA(EDGE, 0));
+        g.fillStyle = halo;
+        g.beginPath();
+        g.arc(at.x, at.y, bumper.r + 8 + 4 * ring, 0, TAU);
+        g.fill();
+        g.beginPath();
+        g.arc(at.x, at.y, bumper.r, 0, TAU);
+        g.fillStyle = SOLID;
+        g.fill();
+        g.lineWidth = 2.5;
+        g.strokeStyle = ring > 0.5 ? WHITE : EDGE;
+        g.stroke();
+        g.beginPath();
+        g.arc(at.x, at.y, bumper.r * (0.42 + 0.08 * beat), 0, TAU);
+        g.fillStyle = hexA(WHITE, 0.75 + 0.25 * ring);
+        g.fill();
+        g.fillStyle = EDGE;
+        g.fillRect(at.x - 1, at.y - 1, 2, 2);
+      }
+    }
+
+    for (const portal of map.portals) {
+      const color = PORTAL[portal.hue];
+      [portal.a, portal.b].forEach((end, which) => {
+        for (const at of copies(map, end.x, end.y, portal.r + 8)) {
+          const well = g.createRadialGradient(
+            at.x,
+            at.y,
+            1,
+            at.x,
+            at.y,
+            portal.r + 6,
+          );
+          well.addColorStop(0, hexA(INK, 0.95));
+          well.addColorStop(0.55, hexA(color, 0.3));
+          well.addColorStop(1, hexA(color, 0));
+          g.fillStyle = well;
+          g.beginPath();
+          g.arc(at.x, at.y, portal.r + 6, 0, TAU);
+          g.fill();
+          g.lineWidth = 2;
+          g.strokeStyle = color;
+          g.beginPath();
+          g.arc(at.x, at.y, portal.r, 0, TAU);
+          g.stroke();
+          // Three arcs spiralling in; the two ends of a pair turn opposite ways.
+          g.strokeStyle = hexA(WHITE, 0.85);
+          g.lineWidth = 1.5;
+          const turn = (which === 0 ? 1 : -1) * (now / 260);
+          for (let arm = 0; arm < 3; arm++) {
+            const start = turn + (arm * TAU) / 3;
+            g.beginPath();
+            g.arc(at.x, at.y, portal.r - 3 - arm * 2.5, start, start + 1.1);
+            g.stroke();
+          }
+        }
+      });
+    }
+  };
+
   const bubble = (map: MapDef, b: BubbleView, now: number) => {
     if (!b.active) return;
     const age = fx.bubbleAge(b.slot, now),
@@ -371,7 +571,8 @@ export function createScene(
 
   const ball = (map: MapDef, view: WorldView, now: number) => {
     const b = view.ball;
-    if (!b.live) {
+    // In a goal the ball is gone, once the freeze that shows where it went in is over.
+    if (!b.live && !view.frozen) {
       tail = [];
       return;
     }
@@ -446,7 +647,7 @@ export function createScene(
     local: boolean,
   ) => {
     const frame = frameFor(r);
-    if (r.zapped) {
+    if (r.zapped && !view.frozen) {
       // What is left of a zapped rider: a flicker where they stood, once the shards have flown.
       if (fx.zapAge(r.slot, now) < 500) return;
       g.globalAlpha = 0.1 + 0.06 * Math.sin(now / 70);
@@ -552,6 +753,7 @@ export function createScene(
       for (const shape of map.goals)
         goal(shape, nowMs, scored && view.lastScorer === shape.team);
       solids(map);
+      gadgets(map, view, nowMs);
       fx.drawBehind(g);
       for (const b of view.bubbles) bubble(map, b, nowMs);
       ball(map, view, nowMs);

@@ -15,6 +15,9 @@ export {
   type Rect,
   type Circle,
   type Pt,
+  type Barrier,
+  type Bumper,
+  type Portal,
 } from "./maps.js";
 export {
   VIEW_W,
@@ -24,9 +27,14 @@ export {
   BUBBLE_RADIUS,
   STEPS_PER_SECOND,
   STEPS_PER_TICK,
-  CLOUD_STEPS_PER_TICK,
   COUNTDOWN_STEPS,
   ZAP_STEPS,
+  FIELD_COOL_STEPS,
+  GATE_OPEN_STEPS,
+  ZAP_SPEED,
+  GOAL_FREEZE_STEPS,
+  SPEED_FULL,
+  TICKS_PER_SECOND,
   SLIDE_STEPS,
   TARGET,
 } from "./tuning.js";

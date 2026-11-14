@@ -186,6 +186,11 @@ body.fuseball-page {
 .fb-map-thumb .cloud {
   fill: #aab4ff33;
 }
+.fb-map-thumb .bumper {
+  fill: #141f4f;
+  stroke: #ffffff;
+  stroke-width: 5;
+}
 .fb-map-thumb .ball {
   fill: var(--fui-yellow);
 }

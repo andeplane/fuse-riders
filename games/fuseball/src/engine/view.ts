@@ -1,8 +1,9 @@
 import { BTN } from "./input.js";
-import type { MapId } from "./maps.js";
+import { barrierUp } from "./gadgets.js";
+import { mapOf, type MapId } from "./maps.js";
 import { SUB } from "./math.js";
 import { slowed, winnerOf } from "./step.js";
-import { STEPS_PER_SECOND, TARGET } from "./tuning.js";
+import { SPEED_FULL, STEPS_PER_SECOND, TARGET } from "./tuning.js";
 import type { Phase, Slot, World } from "./world.js";
 
 /**
@@ -75,11 +76,25 @@ export interface WorldView {
   winner: -1 | Slot;
   /** Both sides are one point from winning: the point being played (or just played) is sudden death. */
   suddenDeath: boolean;
-  /** The ball is in a cloud: the arena runs at half speed. */
+  /** The ball is in a cloud: the arena is slowing down, or already slow. */
   slow: boolean;
+  /** The arena's speed as a fraction of full speed: 1 normally, less in slow motion, 0 while a goal's freeze lasts. */
+  speed: number;
+  /** A goal has just been scored and nothing moves yet: draw the ball where it went in. */
+  frozen: boolean;
   riders: [RiderView, RiderView];
   bubbles: [BubbleView, BubbleView];
   ball: BallView;
+  /** The map's barriers, in the map's order (`MapDef.barriers` has where they are). */
+  barriers: BarrierView[];
+}
+export interface BarrierView {
+  /** It stands in the ball's way: a field not yet broken, a gate that is shut. */
+  up: boolean;
+  /** A field: strikes left until it breaks. A gate: 0. */
+  left: number;
+  /** A field: micro-steps since it was last struck that it still glows for. A gate: micro-steps it stays open. */
+  timer: number;
 }
 
 const riderView = (world: World, slot: Slot): RiderView => {
@@ -115,7 +130,8 @@ const bubbleView = (world: World, slot: Slot): BubbleView => {
 };
 
 export function toView(world: World): WorldView {
-  const { ball } = world;
+  const { ball } = world,
+    map = mapOf(world.mapId);
   return {
     mapId: world.mapId,
     step: world.step,
@@ -131,6 +147,8 @@ export function toView(world: World): WorldView {
     winner: winnerOf(world),
     suddenDeath: world.suddenDeath,
     slow: slowed(world),
+    speed: world.speed / SPEED_FULL,
+    frozen: world.freeze > 0,
     riders: [riderView(world, 0), riderView(world, 1)],
     bubbles: [bubbleView(world, 0), bubbleView(world, 1)],
     ball: {
@@ -142,5 +160,13 @@ export function toView(world: World): WorldView {
       bounces: ball.bounces,
       touch: ball.touch,
     },
+    barriers: world.barriers.map((state, i) => {
+      const barrier = map.barriers[i];
+      return {
+        up: barrier !== undefined && barrierUp(barrier, state),
+        left: state.left,
+        timer: state.timer,
+      };
+    }),
   };
 }

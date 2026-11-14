@@ -9,7 +9,7 @@ import {
   UP,
   botInput,
   stepWorld,
-  stepsPerTick,
+  paceTick,
   type MapId,
   type World,
 } from "../src/engine/index.js";
@@ -264,7 +264,7 @@ test("fuzz: on every map, whoever plays, no step leaves the ball or a rider's ce
           else if (next() % 10 < 3) hold[slot] = BITS[next() % BITS.length]!;
         });
         const inputs = held(hold[0]!, hold[1]!);
-        for (let left = stepsPerTick(world); left > 0; left--) {
+        for (let left = paceTick(world); left > 0; left--) {
           stepWorld(world, inputs);
           assertClear(world, `${mapId} game ${game} step ${world.step}`);
         }

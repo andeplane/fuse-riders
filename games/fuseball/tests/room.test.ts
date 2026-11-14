@@ -34,7 +34,8 @@ import { seatName } from "../src/online/names.js";
 import { matchResult } from "../src/online/result.js";
 import {
   BTN,
-  CLOUD_STEPS_PER_TICK,
+  CLOUD_SPEED_CORE,
+  SPEED_FULL,
   COUNTDOWN_STEPS,
   DOWN,
   LEFT,
@@ -43,7 +44,7 @@ import {
   STEPS_PER_TICK,
   TARGET,
   UP,
-  ZAP_STEPS,
+  GOAL_TICKS,
   mapOf,
   type Slot,
 } from "../src/engine/index.js";
@@ -66,7 +67,7 @@ const run = (room: Room, ticks: number, bodies: () => Bodies = () => ({})) => {
   for (let i = 0; i < ticks; i++) fold(room, bodies());
 };
 const COUNTDOWN_TICKS = COUNTDOWN_STEPS / STEPS_PER_TICK,
-  ZAP_TICKS = ZAP_STEPS / STEPS_PER_TICK;
+  ZAP_TICKS = GOAL_TICKS;
 
 /** `a` and `b` seated in a lobby. */
 function seated(settings: Settings = DEFAULT_SETTINGS): Room {
@@ -246,31 +247,49 @@ test("a press and release inside one tick is still a press, on the tick's first 
   assert.equal(firstStepBits(UP, DOWN | LEFT), UP | LEFT);
 });
 
-test("a tick runs six steps, three while the ball is in a cloud, and the game clock follows", () => {
+test("a tick runs six steps, fewer as a cloud slows the arena, and the game clock follows what `steps` said", () => {
   const lobby = seated();
   assert.equal(steps(lobby), STEPS_PER_TICK);
   const room = playing();
   assert.equal(room.simulationTick, room.tick * STEPS_PER_TICK);
   assert.equal(steps(room), STEPS_PER_TICK);
-  const cloud = mapOf(room.world!.mapId).clouds[0]!;
-  Object.assign(room.world!.ball, {
-    x: cloud.x * SUB,
-    y: cloud.y * SUB,
-    vx: 0,
-    vy: 0,
-  });
-  assert.equal(steps(room), CLOUD_STEPS_PER_TICK);
-  const clock = room.simulationTick,
-    step = room.world!.step;
-  fold(room);
-  assert.equal(room.simulationTick - clock, CLOUD_STEPS_PER_TICK);
-  assert.equal(room.world!.step - step, CLOUD_STEPS_PER_TICK);
+  const cloud = mapOf(room.world!.mapId).clouds[0]!,
+    counts: number[] = [];
+  // The ball held at the cloud's centre: every tick runs exactly what `steps` read off the room before it.
+  for (let tick = 0; tick < 30; tick++) {
+    Object.assign(room.world!.ball, {
+      x: cloud.x * SUB,
+      y: cloud.y * SUB,
+      vx: 0,
+      vy: 0,
+    });
+    const told = steps(room),
+      clock = room.simulationTick,
+      step = room.world!.step;
+    assert.equal(fuseballGame.steps(room), told);
+    fold(room);
+    assert.equal(room.simulationTick - clock, told);
+    assert.equal(room.world!.step - step, told);
+    assert.ok(told >= 1 && told <= fuseballGame.maxSteps);
+    counts.push(told);
+    // A slowing room still checkpoints, speed and leftover included.
+    const back = decode(encode(room), room.tick);
+    assert.ok(back);
+    assert.equal(back.world!.speed, room.world!.speed);
+    assert.equal(back.world!.budget, room.world!.budget);
+    assert.equal(steps(back), steps(room));
+  }
+  assert.equal(
+    counts[0],
+    5,
+    "it eases in: the first slow tick is barely slower",
+  );
+  assert.equal(room.world!.speed, CLOUD_SPEED_CORE);
+  assert.ok(counts.slice(-8).every((count) => count === 2 || count === 3));
   assert.equal(view(room).world?.slow, true);
+  assert.equal(view(room).world?.speed, CLOUD_SPEED_CORE / SPEED_FULL);
   assert.equal(fuseballGame.clock(room), view(room).tick);
-  assert.equal(fuseballGame.steps(room), steps(room));
   assert.ok(fuseballGame.maxSteps >= STEPS_PER_TICK);
-  // A slowed room still checkpoints: its clock is inside the three-to-six window.
-  assert.ok(decode(encode(room), room.tick));
 });
 
 test("what is held stays held across a point reset, without becoming a fresh press", () => {
@@ -329,12 +348,13 @@ test("the third point ends the match; rematch and lobby start over, and the lobb
   fold(room);
   run(room, ZAP_TICKS - 1);
   assert.equal(room.stage, "running", "the last zap plays inside the match");
-  const before = room.simulationTick;
+  const before = room.simulationTick,
+    last = steps(room);
   fold(room);
   assert.equal(room.stage, "over");
   assert.deepEqual(room.world!.score, [TARGET, 1]);
   assert.deepEqual(room.decided, {
-    clock: before + STEPS_PER_TICK,
+    clock: before + last,
     winner: "a",
     finishers: ["a", "b"],
   });
@@ -576,11 +596,7 @@ test("a corrupt checkpoint is refused whole, and refusing it changes nothing", (
     ],
     ["a score past the target", room, world((w) => (w[5] = TARGET + 1))],
     ["a clock ahead of the log", room, at(9, room.tick * STEPS_PER_TICK + 1)],
-    [
-      "a clock behind the log",
-      room,
-      at(9, room.tick * CLOUD_STEPS_PER_TICK - 1),
-    ],
+    ["a clock behind the log", room, at(9, room.tick - 1)],
     ["a fractional clock", room, at(9, room.simulationTick + 0.5)],
     ["an ended match with no decision", over, at(7, null)],
     ["the wrong winner", over, at(7, [over.decided!.clock, "b", ["a", "b"]])],
@@ -623,7 +639,7 @@ test("a corrupt checkpoint is refused whole, and refusing it changes nothing", (
   assert.equal(decode(encode(room), -1), undefined, "a negative tick");
   assert.equal(decode(encode(room), room.tick + 0.5), undefined);
   assert.equal(
-    decode(encode(room), room.tick * 3),
+    decode(encode(room), room.tick * 7),
     undefined,
     "a tick this clock cannot belong to",
   );

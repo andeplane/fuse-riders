@@ -281,8 +281,13 @@ test("a point gives a goal cue at the goal and a zap cue from it to the rider it
     const before = toView(world);
     const goal = scored(world, 0);
     const found = cues(before, toView(world));
-    const point = found.find((cue) => cue.kind === "goal"),
-      zap = found.find((cue) => cue.kind === "zap");
+    const point = found.find((cue) => cue.kind === "goal");
+    // The goal first; the rider is struck when the freeze lets go, and only then.
+    assert.ok(!found.some((cue) => cue.kind === "zap"), mapId);
+    const frozen = toView(world);
+    assert.ok(frozen.frozen);
+    until(world, () => world.freeze === 0);
+    const zap = cues(frozen, toView(world)).find((cue) => cue.kind === "zap");
     assert.ok(point && point.kind === "goal", mapId);
     assert.equal(point.team, 0);
     assert.deepEqual({ x: point.x, y: point.y }, goal, mapId);
@@ -320,6 +325,7 @@ test("effects fire once per change, stay inside their pool and die out on the cl
   // Far more than the pool holds: a goal and a zap every frame.
   const before = toView(world);
   scored(world, 0);
+  until(world, () => world.freeze === 0);
   const after = toView(world);
   for (let i = 0; i < 40; i++) {
     fx.update(before, (now += 1));
@@ -455,9 +461,10 @@ test("the scene draws every arena in every phase, a hard bubble with a second ri
     assert.equal(rings.length, 1, mapId);
 
     scored(world, 1);
-    const point = kinds(draw(1));
-    assert.ok(point.includes("goal") && point.includes("zap"), mapId);
+    assert.deepEqual(kinds(draw(1)), ["goal"], mapId);
     assert.ok(paper.texts().includes("GOAL!"));
+    until(world, () => world.freeze === 0);
+    assert.ok(kinds(draw(1)).includes("zap"), mapId);
     world.score = [1, 2];
     until(world, () => world.phase === "countdown");
     until(world, () => world.phase === "play");

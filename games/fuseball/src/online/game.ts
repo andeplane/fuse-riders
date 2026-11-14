@@ -17,7 +17,6 @@ import {
 import {
   BTN,
   CAPACITY,
-  CLOUD_STEPS_PER_TICK,
   DOWN,
   INPUT_MASK,
   LEFT,
@@ -32,6 +31,7 @@ import {
   encodeWorld,
   isInput,
   isMapId,
+  paceTick,
   stepWorld,
   stepsPerTick,
   toView,
@@ -55,7 +55,7 @@ import {
 /**
  * Fuseball behind the netcode's `RollbackGame`. The room keeps the seats, the lobby's settings and one match: its
  * world, who rides in it and, once it is won, who was there to see it. One log tick folds the management entries,
- * each rider's held controls and the bots' answers, then runs the tick's micro-steps (six, or three in slow motion).
+ * each rider's held controls and the bots' answers, then runs the tick's micro-steps (six, or fewer in slow motion).
  * A match is one world from 0–0 to its third point: points and countdowns are the engine's, so there are no rounds.
  */
 export interface Settings {
@@ -148,7 +148,7 @@ export interface SeatView {
 }
 /** What the screen renders. Outcomes are read from here, never from events, so a rollback's correction shows. */
 export interface View {
-  /** The game clock: micro-steps simulated, six per log tick or three in slow motion. */
+  /** The game clock: micro-steps simulated, six per log tick, fewer in slow motion. */
   tick: number;
   logTick: number;
   stage: RoomStage;
@@ -293,9 +293,12 @@ export function firstStepBits(held: number, tapped: number): number {
   return bits;
 }
 
-/** Micro-steps the next log tick runs: the engine's answer in a match, the plain six everywhere else. */
+/**
+ * Micro-steps the next log tick runs: the engine's answer in a match (`stepsPerTick`, the count `paceTick` then
+ * gives the fold), the plain six everywhere else. Slow motion runs fewer, and never fewer than one.
+ */
 export const MAX_STEPS_PER_TICK = STEPS_PER_TICK;
-const MIN_STEPS_PER_TICK = Math.min(STEPS_PER_TICK, CLOUD_STEPS_PER_TICK);
+const MIN_STEPS_PER_TICK = 1;
 export const steps = (room: Room): number =>
   room.stage === "running" && room.world
     ? stepsPerTick(room.world)
@@ -327,10 +330,14 @@ export function foldTick(
   bot: BotInput = idleBot,
 ): never[] {
   const tick = room.tick + 1;
-  const count = steps(room);
+  const count = steps(room),
+    paced = room.stage === "running" ? room.world : null;
   applyManagementTick(room, tick, creatorId, streams, lifecycle);
   const world = room.world;
   if (room.stage === "running" && world) {
+    // The world `steps` read sets its pace for this tick and runs the same count. A match that began on this tick
+    // is in its countdown, which runs the plain six that `steps` gave for the room it replaced.
+    if (world === paced) paceTick(world);
     const held = new Map<string, number>(),
       first = new Map<string, number>();
     for (const rider of world.riders) {
@@ -548,7 +555,7 @@ export function decode(
   if (
     !validMatchId(matchId) ||
     !uint32(simulationTick) ||
-    // The clock moves three to six steps every log tick, whatever the room is doing.
+    // The clock moves one to six steps every log tick, whatever the room is doing.
     simulationTick < tick * MIN_STEPS_PER_TICK ||
     simulationTick > tick * MAX_STEPS_PER_TICK ||
     !STAGES.some((known) => known === stage) ||

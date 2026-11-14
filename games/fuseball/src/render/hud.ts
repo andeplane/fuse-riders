@@ -1,11 +1,5 @@
 import type { WorldView } from "../engine/view.js";
-import {
-  STEPS_PER_SECOND,
-  VIEW_H,
-  VIEW_W,
-  ZAP_STEPS,
-  mapOf,
-} from "../engine/view-kit.js";
+import { STEPS_PER_SECOND, VIEW_H, VIEW_W, mapOf } from "../engine/view-kit.js";
 import {
   BALL,
   INK,
@@ -30,7 +24,9 @@ const BAR_W = 8,
   SEGMENT_GAP = 3,
   BAR_INSET = 2;
 const BANNER_Y = 74,
-  GO_MS = 700;
+  GO_MS = 700,
+  /** "GOAL!" stays up through the freeze and into the zap. */
+  GOAL_BANNER_S = 2.2;
 
 /** Where `slot`'s score segments are, bottom one first: slot 0 on the left edge, slot 1 on the right. */
 export function scoreSegments(
@@ -74,7 +70,8 @@ export interface Hud {
 
 export function createHud(): Hud {
   let phase: WorldView["phase"] | undefined,
-    wentAt = -Infinity;
+    wentAt = -Infinity,
+    scoredAt = -Infinity;
 
   const write = (
     g: Paint,
@@ -159,6 +156,7 @@ export function createHud(): Hud {
   return {
     draw(g, view, nowMs, localSlot, names = TEAM_NAMES) {
       if (phase === "countdown" && view.phase === "play") wentAt = nowMs;
+      if (phase !== "zap" && view.phase === "zap") scoredAt = nowMs;
       phase = view.phase;
       bars(g, view, nowMs, localSlot);
       const banner = bannerOf(view, names),
@@ -219,8 +217,9 @@ export function createHud(): Hud {
         return;
       }
       if (view.phase === "zap" && view.lastScorer >= 0) {
-        const into = (ZAP_STEPS - view.remaining) / STEPS_PER_SECOND;
-        if (into < 1.4) {
+        // Seconds since this page first saw the goal: through the freeze and into the zap.
+        const into = Math.max(0, nowMs - scoredAt) / 1000;
+        if (into < GOAL_BANNER_S) {
           const pop = Math.max(0, 1 - into * 5);
           write(
             g,
@@ -229,7 +228,7 @@ export function createHud(): Hud {
             BANNER_Y,
             26 + 18 * pop,
             teamColor(view.lastScorer),
-            Math.min(1, (1.4 - into) * 3),
+            Math.min(1, (GOAL_BANNER_S - into) * 3),
           );
         }
         return;
@@ -262,6 +261,7 @@ export function createHud(): Hud {
     reset() {
       phase = undefined;
       wentAt = -Infinity;
+      scoredAt = -Infinity;
     },
   };
 }

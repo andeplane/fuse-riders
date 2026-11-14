@@ -9,7 +9,7 @@ import {
   MAP_IDS,
   RIGHT,
   UP,
-  ZAP_STEPS,
+  GOAL_STEPS,
   decodeWorld,
   encodeWorld,
   riderId,
@@ -63,17 +63,17 @@ function samples(): Record<string, World> {
 
   const second = playing();
   goal(second, 1);
-  steps(second, ZAP_STEPS + 100);
+  steps(second, GOAL_STEPS + 100);
 
   const over = playing();
   for (let i = 0; i < 2; i++) {
     goal(over, 0);
-    steps(over, ZAP_STEPS + COUNTDOWN_STEPS);
+    steps(over, GOAL_STEPS + COUNTDOWN_STEPS);
     goal(over, 1);
-    steps(over, ZAP_STEPS + COUNTDOWN_STEPS);
+    steps(over, GOAL_STEPS + COUNTDOWN_STEPS);
   }
   goal(over, 1);
-  steps(over, ZAP_STEPS);
+  steps(over, GOAL_STEPS);
 
   return {
     countdown: fresh("halo"),
@@ -162,7 +162,7 @@ test("decoding refuses anything that is not a whole encoded world", () => {
   ])
     assert.equal(decodeWorld(raw), undefined);
   assert.equal(
-    decodeWorld(altered(playing(), (f) => (f[0] = 2))),
+    decodeWorld(altered(playing(), (f) => (f[0] = 99))),
     undefined,
     "an unknown version",
   );
