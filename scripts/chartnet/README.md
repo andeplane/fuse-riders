@@ -78,7 +78,7 @@ On Easy and Medium the learned arrows look like the human ones. On Hard and Chal
 too many crossovers, so the game's ChartNet charts take the rule generator's arrows. With the learned (denser) rhythm
 the rule generator's arrows cross over more than on its own rhythm; playtesting decides whether that matters.
 
-## ChartNet v2 (what the game offers)
+## ChartNet v2
 
 v2 learns the arrows too, and makes Hard and Challenge busier:
 
@@ -130,6 +130,65 @@ These are the game's charts: `bundle.ts` writes them into `games/fusemania/chart
 which `fusemania-charts.ts generate` leaves alone), and `gen.py fixup` keeps a one-second lead-in and ends a freeze
 before any row that would need a third arrow. To rebuild: train (`onset.py --density 1 --name onset_dens`, `arrows.py`), then `gen2.py fuse` and
 `pnpm exec tsx scripts/chartnet/bundle.ts $CHARTNET_WORK/out_fuse2`.
+
+## ChartNet v3 (what the game offers now)
+
+v3 is v2's two small models retrained on much more data, with sampling tuned against human charts.
+
+- **Data.** 89 community packs from 2005 to 2016 (`community-packs.txt`, downloaded by `packs.py`) on top of the DDR
+  and In The Groove packs: 3,417 songs and 11,028 charts, up from 480 and 1,950, and 2,959 Challenge charts where
+  there were 182. The 48 DDR/ITG test songs are frozen in `$CHARTNET_WORK/test_keys.json`; `test2_keys.json` holds out
+  128 community songs; a song held out in one pack is not trained on from another (`data.split`).
+- **Training** runs on a rented GPU: all songs at once need about 18 GB of memory per run. `extract.py` (with
+  `OMP_NUM_THREADS=1`: one thread per worker is 15 times faster than letting every worker thread), then
+  `onset.py --phase 1 --density 1 --wide 1 --len 1000 --steps 12000 --name onset_v3` and
+  `arrows.py --steps 24000 --name arrows_v3`. Scoring and generation run on the Mac and load only the songs they need.
+- **Features.** `data.band_rhythm` adds the onset strength in 8 bands, bass to high melody, and each band's share of
+  the onset energy over 4 seconds; `--wide 1` lets placement look about 5 seconds each way.
+- **Sampling** (`arrows.generate`, `gen.place`): six candidate continuations per 16 rows, keeping the one the model
+  likes best that repeats least; costs on jumps, freezes and jacks set so held-out charts land on human rates; the
+  last 11% of a Challenge chart's steps prefer positions a sixteenth from a step already placed, so near-runs close
+  up into streams; 24ths are placed by the model and kept only as runs.
+- **Review notes** (`guidance.py`): a span and frequency band marked in the chart lab becomes steps on that band's
+  onsets, placed before anything else.
+
+What was measured, on the 48 held-out DDR/ITG songs (`gen2.py eval`, `gen2.py place-eval`):
+
+| Held-out DDR/ITG charts     | Human | v2    | v3    |
+| --------------------------- | ----- | ----- | ----- |
+| Challenge: step timing F1   |       | 0.69  | 0.71  |
+| Challenge: steps in streams | 0.25  | 0.12  | 0.25  |
+| Challenge: longest 16th run | 28.7  | 4.9   | 11.9  |
+| Challenge: jumps            | 0.074 | 0.137 | 0.087 |
+| Challenge: freezes          | 0.065 | 0.052 | 0.079 |
+| Challenge: jacks            | 0.034 | 0.025 | 0.028 |
+| Hard: step timing F1        |       | 0.75  | 0.75  |
+| Hard: jumps                 | 0.080 | 0.125 | 0.097 |
+| Hard: freezes               | 0.022 | 0.018 | 0.022 |
+| Hard: jacks                 | 0.042 | 0.015 | 0.034 |
+
+Placement alone, told each human chart's step count: 0.737 overall for v2 and 0.742 for v3 (Challenge 0.691 and
+0.729; the stream preference then trades 0.02 of that for the stream share). On the held-out community songs 0.750 and
+0.765 (Challenge 0.794 and 0.823). What did not help: the band features (0.738 without, 0.742 with), the wider context
+alone (0.740 without, 0.738 with), and a bigger arrow model (8 layers, d=384: best validation loss 1.06 against 1.04
+for the small one, then it overfits). Data did: the arrow model's best validation loss is 1.19 on a quarter of the
+songs, 1.10 on half and 1.04 on all of them.
+
+Over the game's 36 songs (`gen2.py fuse`; a cover's Challenge aims at its original's density):
+
+| Difficulty | Steps/s | 16th-stream share | 24th share | Longest 16th run | 4-gram variety | Jacks | Jumps | Freezes |
+| ---------- | ------- | ----------------- | ---------- | ---------------- | -------------- | ----- | ----- | ------- |
+| Easy       | 1.63    | 0                 | 0          | 1                | 0.62           | 0     | 0.034 | 0.037   |
+| Medium     | 2.51    | 0                 | 0          | 1                | 0.58           | 0.003 | 0.073 | 0.040   |
+| Hard       | 3.75    | 0.15              | 0.009      | 5.1              | 0.56           | 0.057 | 0.061 | 0.048   |
+| Challenge  | 5.62    | 0.54              | 0.096      | 38.1             | 0.42           | 0.040 | 0.051 | 0.034   |
+
+Human Challenge charts at 5.5 to 7.5 steps a second: 0.53 in 16th streams, 0.05 in 24ths, variety 0.42, jumps 0.05,
+freezes 0.07. v2's Challenge charts for the same songs had variety 0.33.
+
+Whole-chart variety (the share of distinct four-row patterns) falls as a chart gets denser, so compare it at equal
+density: human Challenge charts score 0.58 at 4 to 5 steps a second and 0.42 at 5.5 to 7.5. `variety_w64` measures
+it inside 64-row windows instead.
 
 ## Chart lab (reviewing charts against the music)
 

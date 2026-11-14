@@ -16,9 +16,10 @@ import torch
 import torch.nn as nn
 
 from data import DIFFS, diff_index, load, split, targets
+from features import FPS
 
 ROOT = Path(os.environ.get("CHARTNET_WORK", Path.home() / "projects/personal/fusemania-songs/chartnet"))
-DEV = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+DEV = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
 
 class Res(nn.Module):
@@ -34,14 +35,17 @@ class Res(nn.Module):
 class OnsetNet(nn.Module):
     """Conv front end over (time) on log-mel, then a dilated residual stack (~+-1.3 s context)."""
 
-    def __init__(self, n_in: int, use_phase: bool, h: int = 160, use_density: bool = False):
+    def __init__(self, n_in: int, use_phase: bool, h: int = 160, use_density: bool = False, wide: bool = False):
         super().__init__()
         self.use_phase = use_phase
         self.use_density = use_density
+        self.n_in = n_in
         extra = (6 if use_phase else 0) + len(DIFFS) + (1 if use_density else 0)
         self.front = nn.Sequential(nn.Conv1d(n_in, h, 7, padding=3), nn.GELU(), nn.BatchNorm1d(h))
         self.mix = nn.Conv1d(h + extra, h, 1)
-        self.body = nn.Sequential(*[Res(h, d) for d in (1, 2, 4, 8, 16, 32, 64, 1, 2, 4)])
+        # `wide` looks about +-5 s around each moment instead of +-1.3 s: enough to hear which phrase a step is in
+        dils = (1, 2, 4, 8, 16, 32, 64, 128, 256, 1, 2, 4, 8) if wide else (1, 2, 4, 8, 16, 32, 64, 1, 2, 4)
+        self.body = nn.Sequential(*[Res(h, d) for d in dils])
         self.head = nn.Conv1d(h, 1, 1)
 
     def forward(self, x: torch.Tensor, phase: torch.Tensor, diff: torch.Tensor,
@@ -59,6 +63,18 @@ def examples(songs):
     return [(s, c) for s in songs for c in s.meta["charts"]]
 
 
+_STEP_FRAMES: dict[int, tuple[np.ndarray, float]] = {}
+
+
+def step_frames(c) -> tuple[np.ndarray, float]:
+    """A chart's step frames and density, computed once (training samples each chart many times)."""
+    hit = _STEP_FRAMES.get(id(c))
+    if hit is None:
+        fr = np.array(sorted({int(round(t * FPS)) for _, t, r in c["rows"] if any(x in "124" for x in r)}), dtype=np.int64)
+        hit = _STEP_FRAMES[id(c)] = (fr, chart_nps(c))
+    return hit
+
+
 def chart_nps(c) -> float:
     ts = [t for _, t, r in c["rows"] if any(x in "124" for x in r)]
     return len(ts) / max(ts[-1] - ts[0], 1.0) if len(ts) > 1 else 1.0
@@ -69,22 +85,24 @@ def batch(exs, L: int):
     for s, c in exs:
         n = len(s.feats)
         st = random.randint(0, max(0, n - L))
-        y = targets(c, n)[st:st + L]
-        pad = L - len(y)
+        fr, nps = step_frames(c)
+        y = np.zeros(L, np.float32)
+        y[fr[(fr >= st) & (fr < min(st + L, n))] - st] = 1.0
+        pad = L - len(s.feats[st:st + L])
         f = np.pad(s.feats[st:st + L], ((0, pad), (0, 0)))
         xs.append(f)
         ps.append(np.pad(s.phase[st:st + L], ((0, pad), (0, 0))))
-        ys.append(np.pad(y, (0, pad)))
+        ys.append(y)
         ds.append(diff_index(c["difficulty"]))
-        ns.append(chart_nps(c))
-    t = lambda a: torch.tensor(np.stack(a)).to(DEV)  # noqa: E731
+        ns.append(nps)
+    t = lambda a: torch.tensor(np.stack(a).astype(np.float32)).to(DEV)  # noqa: E731
     return t(xs), t(ps), torch.tensor(ds).to(DEV), t(ys), torch.tensor(ns, dtype=torch.float32).to(DEV)
 
 
 @torch.no_grad()
 def predict(model: OnsetNet, song, difficulty: str, nps: float | None = None) -> np.ndarray:
     model.eval()
-    x = torch.tensor(song.feats)[None].to(DEV)
+    x = torch.tensor(song.feats[:, :model.n_in].astype(np.float32))[None].to(DEV)
     p = torch.tensor(song.phase)[None].to(DEV)
     d = torch.tensor([diff_index(difficulty)]).to(DEV)
     n = torch.tensor([nps or 3.0], dtype=torch.float32).to(DEV)
@@ -159,12 +177,16 @@ def main() -> None:
     ap.add_argument("--steps", type=int, default=4000)
     ap.add_argument("--name", default="onset")
     ap.add_argument("--density", type=int, default=0)
+    ap.add_argument("--wide", type=int, default=0)
+    ap.add_argument("--len", type=int, default=800)
     a = ap.parse_args()
     songs, stats = load("cache")
-    np.savez(ROOT / "feat_stats.npz", mean=stats[0], std=stats[1])
+    np.savez(ROOT / f"feat_stats_{a.name}.npz", mean=stats[0], std=stats[1])
+    (ROOT / f"{a.name}.json").write_text(json.dumps({"n_in": int(songs[0].feats.shape[1]), "wide": bool(a.wide),
+                                                     "stats": f"feat_stats_{a.name}.npz"}))
     tr, va, te = split(songs)
     print(len(tr), len(va), len(te), "songs", DEV, flush=True)
-    model = OnsetNet(songs[0].feats.shape[1], bool(a.phase), use_density=bool(a.density)).to(DEV)
+    model = OnsetNet(songs[0].feats.shape[1], bool(a.phase), use_density=bool(a.density), wide=bool(a.wide)).to(DEV)
     opt = torch.optim.AdamW(model.parameters(), 1e-3, weight_decay=1e-4)
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, 2e-3, total_steps=a.steps)
     lossf = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(4.0, device=DEV))
@@ -172,7 +194,7 @@ def main() -> None:
     t0 = time.time()
     for step in range(a.steps):
         model.train()
-        x, p, d, y, n = batch(random.sample(trex, 32), 800)
+        x, p, d, y, n = batch(random.sample(trex, 32), a.len)
         loss = lossf(model(x, p, d, n), y)
         opt.zero_grad()
         loss.backward()
