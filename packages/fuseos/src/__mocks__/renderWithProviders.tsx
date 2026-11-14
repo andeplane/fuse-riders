@@ -45,6 +45,8 @@ import { LauncherDepsContext } from "../launcher/launcherDepsContext";
 import type { LlmDeps } from "../llm/llmDepsContext";
 import { LlmDepsContext } from "../llm/llmDepsContext";
 import { MemoryModelCache } from "../llm/modelCache";
+import type { MediaPlayerDeps } from "../mediaplayer/mediaPlayerDepsContext";
+import { MediaPlayerDepsContext } from "../mediaplayer/mediaPlayerDepsContext";
 import type { PaintControls } from "../paint/paintControls";
 import type { PaintDeps } from "../paint/paintDepsContext";
 import { PaintDepsContext } from "../paint/paintDepsContext";
@@ -54,6 +56,10 @@ import {
 } from "../paint/paintPrefsStore";
 import { EditorDepsContext } from "../notepadpp/editorDeps";
 import { PaintRegistryContext } from "../paint/paintRegistryContext";
+import {
+  MemoryRecycleBinStore,
+  RecycleBinStoreContext,
+} from "../recyclebin/recycleBinStore";
 import type { GamesDeps } from "../retro/gamesDepsContext";
 import { GamesDepsContext } from "../retro/gamesDepsContext";
 import type { ScreenSaverDeps } from "../screensaver/screenSaverDepsContext";
@@ -184,7 +190,41 @@ export type ProviderOptions = {
   /** Defaults to the fixture repository with an empty overlay and an instant floppy seek. */
   disk?: TestDiskOptions;
   diskDeps?: TestDiskDeps;
+  /** Defaults to a full bin. */
+  recycleBinStore?: MemoryRecycleBinStore;
+  /** Defaults to a manual scheduler (`mediaPlayerTimers.fire()` advances the fake player one tick). */
+  mediaPlayerDeps?: Partial<MediaPlayerDeps>;
 };
+
+/** The media player's scheduled ticks, fired by the test rather than a clock. */
+export class ManualScheduler {
+  private pending: (() => void)[] = [];
+
+  schedule = (callback: () => void, _ms: number): (() => void) => {
+    this.pending.push(callback);
+    return () => {
+      this.pending = this.pending.filter((entry) => entry !== callback);
+    };
+  };
+
+  get size(): number {
+    return this.pending.length;
+  }
+
+  /** Runs every pending callback once (each may schedule the next). */
+  fire(): void {
+    const batch = this.pending;
+    this.pending = [];
+    for (const callback of batch) callback();
+  }
+}
+
+export function createTestMediaPlayerDeps(
+  scheduler: ManualScheduler,
+  overrides: Partial<MediaPlayerDeps> = {},
+): MediaPlayerDeps {
+  return { schedule: scheduler.schedule, ...overrides };
+}
 
 export const immediateAppStateDeps: AppStateDeps = {
   setTimeout: (callback) => {
@@ -409,6 +449,14 @@ export function createWrapper(options: ProviderOptions = {}) {
   const editors: FakeEditor[] = [];
   const editorDeps = createFakeEditorDeps(editors);
 
+  const recycleBinStore =
+    options.recycleBinStore ?? new MemoryRecycleBinStore();
+  const mediaPlayerTimers = new ManualScheduler();
+  const mediaPlayerDeps = createTestMediaPlayerDeps(
+    mediaPlayerTimers,
+    options.mediaPlayerDeps,
+  );
+
   /** Outermost first; each entry wraps everything after it. */
   const providers: readonly ProviderEntry[] = [
     provider(ScreenSaverStoreContext, screenSaverStore),
@@ -438,6 +486,8 @@ export function createWrapper(options: ProviderOptions = {}) {
     provider(DiskDepsContext, diskDeps),
     provider(EditorDepsContext, editorDeps),
     provider(LauncherDepsContext, launcherDeps),
+    provider(RecycleBinStoreContext, recycleBinStore),
+    provider(MediaPlayerDepsContext, mediaPlayerDeps),
   ];
 
   function Wrapper({ children }: { children: ReactNode }) {
@@ -479,6 +529,9 @@ export function createWrapper(options: ProviderOptions = {}) {
     diskDeps,
     editors,
     launcherDeps,
+    recycleBinStore,
+    mediaPlayerDeps,
+    mediaPlayerTimers,
   };
 }
 
