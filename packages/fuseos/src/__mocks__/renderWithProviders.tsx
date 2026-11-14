@@ -81,6 +81,8 @@ import type { AppStateDeps } from "../state/appStateContext";
 import { AppStateDepsContext } from "../state/appStateContext";
 import type { StateStore } from "../state/stateStore";
 import { MemoryStateStore } from "../state/stateStore";
+import type { System32Deps } from "../system32/system32Deps";
+import { MemoryScheduler, System32DepsContext } from "../system32/system32Deps";
 import type { WinampDeps } from "../winamp/winampDepsContext";
 import { WinampDepsContext } from "../winamp/winampDepsContext";
 import { createWinampRegistry } from "../winamp/winampRegistry";
@@ -194,6 +196,8 @@ export type ProviderOptions = {
   recycleBinStore?: MemoryRecycleBinStore;
   /** Defaults to a manual scheduler (`mediaPlayerTimers.fire()` advances the fake player one tick). */
   mediaPlayerDeps?: Partial<MediaPlayerDeps>;
+  /** Defaults to a hand-stepped scheduler and no demo, so nothing folds unless a test asks. */
+  system32Deps?: Partial<System32Deps>;
 };
 
 /** The media player's scheduled ticks, fired by the test rather than a clock. */
@@ -435,6 +439,10 @@ export function createWrapper(options: ProviderOptions = {}) {
   const winampDeps = createTestWinampDeps(winampPlayers, options.winampDeps);
   const winampRegistry = createWinampRegistry();
   const systemProbe = options.systemProbe ?? TEST_SYSTEM_PROBE;
+  const system32Deps: System32Deps = {
+    scheduler: new MemoryScheduler(),
+    ...options.system32Deps,
+  };
   const llmFactory: FakeEngineFactory = createFakeEngineFactory();
   const modelCache = new MemoryModelCache();
   const llmDeps: LlmDeps = {
@@ -459,6 +467,7 @@ export function createWrapper(options: ProviderOptions = {}) {
 
   /** Outermost first; each entry wraps everything after it. */
   const providers: readonly ProviderEntry[] = [
+    provider(System32DepsContext, system32Deps),
     provider(ScreenSaverStoreContext, screenSaverStore),
     provider(ScreenSaverDepsContext, screenSaverDeps),
     provider(FuseGamesContext, games),
