@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { AssistantToolsProvider } from "./assistant/assistantToolsContext";
 import { Desktop } from "./desktop/Desktop";
 import { DesktopUiProvider } from "./desktop/DesktopUiProvider";
 import { DisplayViewportProvider } from "./desktop/DisplayViewportProvider";
@@ -22,7 +23,9 @@ export function Shell({ store, initialOpen, children }: ShellProps) {
       <DesktopUiProvider>
         <DisplayViewportProvider>
           <WindowManagerProvider>
-            {children ?? <Desktop />}
+            <AssistantToolsProvider>
+              {children ?? <Desktop />}
+            </AssistantToolsProvider>
           </WindowManagerProvider>
         </DisplayViewportProvider>
       </DesktopUiProvider>
