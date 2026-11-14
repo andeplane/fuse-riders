@@ -10,7 +10,6 @@ import {
   rng,
   serve,
   setTouches,
-  team,
   touchesOf,
   type Blob,
   type Side,
@@ -49,13 +48,16 @@ export function stepBlob(
   const jump = (bits & JUMP) !== 0;
   if (jump && !blob.air) {
     blob.air = true;
-    blob.vy = T.JUMP_SPEED;
+    // Off a teammate's head the launch is stronger: a head is a springboard.
+    blob.vy = blob.on === -1 ? T.JUMP_SPEED : T.STACK_JUMP_SPEED;
+    blob.on = -1;
     if (blob.frame !== T.SQUASH_FRAMES) blob.dir = 1;
   }
   if (blob.air) {
     blob.y += blob.vy;
     // Holding jump halves gravity: the longer the hold, the higher the jump.
     blob.vy -= jump ? T.BLOB_GRAVITY : 2 * T.BLOB_GRAVITY;
+    if (blob.y > T.BLOB_CEILING) blob.y = T.BLOB_CEILING;
     if (blob.y <= T.BLOB_FLOOR) {
       blob.y = T.BLOB_FLOOR;
       blob.vy = 0;
@@ -97,20 +99,40 @@ export const headTop = (blob: Blob): number =>
 /**
  * Two teammates are solid to each other. Overlapping side by side, they are pushed apart evenly, as far as the side's
  * limits allow, so a blob running into a standing one shoves it at half speed and two pushing each other stand still.
- * A blob whose feet are above the other's head passes over it; one coming down onto the head pops back up and slides
- * off. Blobs on opposite sides never meet: the net keeps them 80 px apart.
+ * A blob whose feet are above the other's head passes over it; one coming down onto the head, its centre within
+ * `STACK_REACH` of the other's, lands and stands there (`Blob.on`); further out it slides off the side. A blob and
+ * the one it stands on do not push each other. Blobs on opposite sides never meet: the net keeps them 80 px apart.
  */
-export function separate(a: Blob, b: Blob, court: Court): void {
+export function separate(
+  blobs: readonly Blob[],
+  i: number,
+  j: number,
+  court: Court,
+): void {
+  const a = blobs[i]!,
+    b = blobs[j]!;
+  if (a.on === j || b.on === i) return;
   const gap = 2 * T.BLOB_HALF - abs(b.x - a.x);
   if (gap <= 0 || a.side !== b.side) return;
-  const [low, high] = a.y <= b.y ? [a, b] : [b, a];
-  const over = low.y + headTop(low) * T.HU - high.y;
+  const [low, high, lowSlot] = a.y <= b.y ? [a, b, i] : [b, a, j];
+  const top = low.y + headTop(low) * T.HU,
+    over = top - high.y;
   if (over <= 0) return;
-  // Mostly above the other's head and coming down onto it: a pop up, as well as the push off below.
-  if (high.y > low.y && over < gap * T.HU && high.vy <= low.vy) {
-    high.vy = T.HEAD_BOUNCE;
-    high.air = true;
+  // Coming down onto the head from above (its feet were over the head a step ago, give or take `STACK_SINK`).
+  if (
+    high.air &&
+    high.vy <= low.vy &&
+    over <= low.vy - high.vy + T.STACK_SINK &&
+    abs(high.x - low.x) <= T.STACK_REACH
+  ) {
+    high.on = lowSlot;
+    high.air = false;
+    high.y = top;
+    high.vy = low.vy;
+    high.frame = 0;
+    high.dir = 1;
     if (low.frame === 0 && low.dir === 0) low.dir = 1;
+    return;
   }
   // Worked in the side's own frame (from its wall towards the net), so both sides of the court play alike: the blob
   // nearer the wall, or level, the lower slot (passed first), goes towards the wall and takes the smaller half.
@@ -120,18 +142,56 @@ export function separate(a: Blob, b: Blob, court: Court): void {
   const [outer, inner] = at(b) < at(a) ? [b, a] : [a, b];
   const wall = side === 0 ? court.blobMin[0] : -court.blobMax[1],
     limit = side === 0 ? court.blobMax[0] : -court.blobMin[1];
-  let o = at(outer) - div(gap, 2),
-    i = at(inner) + gap - div(gap, 2);
+  // A blob coming down past the edge of a head slides off it without shoving the one below: it takes the whole push.
+  const sliding = high.y > low.y && high.vy <= low.vy;
+  const share = sliding ? (outer === high ? gap : 0) : div(gap, 2);
+  let o = at(outer) - share,
+    i2 = at(inner) + gap - share;
   if (o < wall) {
-    i += wall - o;
+    i2 += wall - o;
     o = wall;
   }
-  if (i > limit) {
-    o -= i - limit;
-    i = limit;
+  if (i2 > limit) {
+    o -= i2 - limit;
+    i2 = limit;
   }
   outer.x = sign * o;
-  inner.x = sign * i;
+  inner.x = sign * i2;
+}
+
+/**
+ * Blobs standing on a teammate go where it went this step (`before` is every blob's x as the step began): carried
+ * sideways by as much as it moved or was pushed, feet on its head, at its vertical speed. Lowest first, so a blob on a
+ * blob on a blob follows the whole tower. Only a blob that already stood there as the step began is carried. One
+ * whose centre is then more than `STACK_REACH` from the head's falls off, keeping the speed it was carried at.
+ */
+export function carry(
+  blobs: readonly Blob[],
+  before: readonly number[],
+  rode: readonly number[],
+  court: Court,
+): void {
+  const riders = [...blobs.keys()]
+    .filter((slot) => blobs[slot]!.on !== -1)
+    .sort((p, q) => blobs[p]!.y - blobs[q]!.y || p - q);
+  for (const slot of riders) {
+    const rider = blobs[slot]!,
+      base = blobs[rider.on]!;
+    if (rode[slot] === rider.on)
+      rider.x = Math.min(
+        Math.max(
+          rider.x + base.x - before[rider.on]!,
+          court.blobMin[rider.side],
+        ),
+        court.blobMax[rider.side],
+      );
+    rider.y = Math.min(base.y + headTop(base) * T.HU, T.BLOB_CEILING);
+    rider.vy = base.vy;
+    if (abs(rider.x - base.x) > T.STACK_REACH) {
+      rider.on = -1;
+      rider.air = true;
+    }
+  }
 }
 
 /** Moves the ball out along its new speed until it is `out` from (cx, cy), in at most `PUSH_PASSES` passes. */
@@ -391,22 +451,27 @@ export function stepWorld(world: World, inputs: readonly number[]): void {
   };
   const court = courtOf(world),
     blobs = world.blobs;
+  const before = blobs.map((blob) => blob.x),
+    rode = blobs.map((blob) => blob.on);
   for (const [slot, blob] of blobs.entries())
     if (!benched(world, slot)) stepBlob(blob, bits(slot), world.step, court);
   // Teammates after both have moved: two a side, slots two apart; three a side, every pair of a side, nearest first;
   // three teams of two, the two on each side.
   if (world.format === "2v2")
     for (let slot = 0; slot + 2 < blobs.length; slot++)
-      separate(blobs[slot]!, blobs[slot + 2]!, court);
+      separate(blobs, slot, slot + 2, court);
   else if (world.format === "3v3")
     // Twice over: a push on one pair can shove a blob into the third.
     for (let pass = 0; pass < 2; pass++)
-      for (const [a, b] of TRIPLE_PAIRS) separate(blobs[a]!, blobs[b]!, court);
+      for (const [a, b] of TRIPLE_PAIRS) separate(blobs, a, b, court);
   else if (world.format === "2v2v2")
     for (const side of [0, 1] as const) {
-      const [a, b] = team(world, side);
-      if (a && b) separate(a, b, court);
+      const [a, b] = [...blobs.keys()].filter(
+        (slot) => blobs[slot]!.side === side && !benched(world, slot),
+      );
+      if (a !== undefined && b !== undefined) separate(blobs, a, b, court);
     }
+  carry(blobs, before, rode, court);
   const live = world.phase === "serve" || world.phase === "rally";
   if (live && world.step % 2 === 0) collide(world);
   if (world.phase === "serve" && world.ball.live) {

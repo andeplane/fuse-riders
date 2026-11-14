@@ -19,12 +19,33 @@ and keep it off your own sand. Play a friend online, on one TV with phones as th
 Pick **2 V 2** under PLAYERS in the lobby (or on the landing page for solo): two blobs a side on a court 1.75 times
 as wide. Seats alternate sides, so seats 1 and 3 play cyan and 2 and 4 pink; START fills empty seats with bots. The
 three touches are the side's, however the two teammates split them. Teammates are solid to each other: running into
-one shoves it, two pushing stand still, and you get past by jumping over its head (land on the head and you pop off).
+one shoves it, two pushing stand still, and you get past by jumping over its head, or stand on it (see Stacking).
 A flat hit from the back line only just carries over the net, so the back blob usually passes to the front.
+
+## Stacking
+
+In every team format a blob can stand on a teammate's head.
+
+- **Landing.** Come down onto a teammate's head with your centre within 48 px of theirs (three quarters of a blob's
+  width) and you stand there. Further out you slide off the side without shoving them. A rising blob never lands.
+- **Carried.** While you stand there you go where the blob below goes: sideways as it runs or is pushed, and up and
+  down when it jumps. The blob below is not slowed and jumps as high as ever.
+- **Walking.** You still walk on the head. Past 48 px from its centre you fall off; so do you when the net or a wall
+  stops you and the blob below walks on.
+- **The springboard.** A jump off a head launches 1.22 times as fast as one off the sand (3150 against 2575), which
+  is 1.5 times the rise: a held jump goes 388 px above the head, against 264 px above the sand. The head is 90 px
+  up, so a jump off a standing teammate tops out 478 px above the sand, and about 740 px when the blob below is at
+  the top of its own jump. Landing on a head with jump held jumps again at once, like a trampoline. The boost is one
+  jump's: there is none in the air and none off the sand, and it never builds up.
+- **Towers.** Three a side, a third blob can stand on the second. A blob that jumps off takes whoever is on it along.
+- **The ball.** Nothing changes: each blob's head and body play the ball as always and the side still shares three
+  touches, so a ball that meets both blobs of a stack costs two of them.
+- **Opponents** never stack: the net keeps the two sides 80 px apart. One blob a side, there is nobody to stand on.
+- A stack is taken apart when king of the court sends a team off. Bots do not build stacks on purpose.
 
 ## Three a side (3 V 3)
 
-Pick **3 V 3** under PLAYERS: three blobs a side on one big 2000 px court, the singles net and heights, no lanes.
+Pick **3 V 3** under PLAYERS: three blobs a side on one big 1750 px court, the singles net and heights, no lanes.
 Seats 1, 3 and 5 play cyan, 2, 4 and 6 pink, and START fills empty seats with bots. It plays like doubles scaled up:
 every blob may run its whole half, the three are solid to each other as doubles teammates are, and the side shares
 its three touches. Bots take a ball by whoever is nearest; the other two step to the free front, middle or back spot.

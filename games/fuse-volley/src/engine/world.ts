@@ -29,6 +29,11 @@ export interface Blob {
   y: number;
   vy: number;
   air: boolean;
+  /**
+   * The slot of the teammate whose head this blob stands on, or −1. Standing there it is not in the air: it is carried
+   * with that blob (`carry`) and its next jump is the stronger `STACK_JUMP_SPEED`.
+   */
+  on: number;
   /** Squash animation frame, 0–4, and where it is heading (−1, 0 or 1). It moves the head, so it is a rule. */
   frame: number;
   dir: -1 | 0 | 1;
@@ -156,6 +161,7 @@ const blob = (id: string, slot: number, court: Court): Blob => ({
   y: T.BLOB_FLOOR,
   vy: 0,
   air: false,
+  on: -1,
   frame: 0,
   dir: 0,
   touches: 0,
@@ -177,6 +183,7 @@ function place(world: World, slot: number, side: Side | -1): void {
   each.y = T.BLOB_FLOOR;
   each.vy = 0;
   each.air = false;
+  each.on = -1;
   each.frame = 0;
   each.dir = 0;
 }

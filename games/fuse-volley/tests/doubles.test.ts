@@ -85,7 +85,7 @@ test("teammates are solid: a runner shoves a standing teammate at half speed, tw
   assert.deepEqual([back.x, front.x], at);
 });
 
-test("a teammate is jumped over, and one landing on a head pops off it", () => {
+test("a teammate is jumped over, never shoved", () => {
   const world = doubles();
   const front = world.blobs[0]!,
     back = world.blobs[2]!;
@@ -99,23 +99,6 @@ test("a teammate is jumped over, and one landing on a head pops off it", () => {
   }
   assert.ok(passed, "the back blob is past its teammate");
   assert.equal(front.x, DOUBLES.net - 200, "and never shoved it");
-  // Dropped onto a head, a blob bounces up and the two slide apart.
-  const fresh = doubles();
-  const low = fresh.blobs[0]!,
-    high = fresh.blobs[2]!;
-  high.x = low.x;
-  high.air = true;
-  high.y = T.BLOB_FLOOR + 100 * T.HU;
-  high.vy = -400;
-  let popped = false;
-  for (let i = 0; i < 30 && !popped; i++) {
-    stepWorld(fresh, [0, 0, 0, 0]);
-    popped = high.vy > 0;
-  }
-  assert.ok(popped, "a pop up off the head");
-  hold(fresh, 200, [0, 0, 0, 0]);
-  assert.ok(Math.abs(high.x - low.x) >= 2 * T.BLOB_HALF, "side by side");
-  assert.ok(!high.air && !low.air);
 });
 
 test("three touches a side, shared by teammates: a fourth by either is a fault", () => {
@@ -147,7 +130,7 @@ test("a doubles world survives the codec, and teammates that disagree on touches
   const encoded = encodeWorld(world);
   assert.deepEqual(decodeWorld(encoded), world);
   const wrong = structuredClone(encoded) as unknown[];
-  (wrong[19 + 2] as unknown[])[7] = 1;
+  (wrong[19 + 2] as unknown[])[8] = 1;
   assert.equal(decodeWorld(wrong), undefined);
   assert.equal(decodeWorld(encoded.slice(0, -1)), undefined, "three blobs");
   // A doubles blob outside the singles court's right half still decodes only on the wide court.

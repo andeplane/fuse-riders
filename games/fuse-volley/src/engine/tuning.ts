@@ -103,19 +103,35 @@ export const TEAM_FRONT = 180,
   TEAM_BACK = 490;
 /** Teammates are solid to each other: two blob centres stay this far apart unless one is above the other's head. */
 export const BLOB_HALF = 32;
-/** A blob coming down on a teammate's head pops back up at this speed (height units a step) as it slides off. */
-export const HEAD_BOUNCE = 1400;
+// ---- stacking ----
+/**
+ * A blob coming down on a teammate's head lands and stands there when its centre is within this of the other's, px
+ * (three quarters of a blob's width); further out it slides off the side. Standing there it is carried with the blob
+ * below, and walks off (or is left behind) once its centre is further than this from the head's.
+ */
+export const STACK_REACH = 48;
+/** A landing is a blob whose feet were above the head a step ago, with this much slack (height units). */
+export const STACK_SINK = 8 * HU;
+/**
+ * The launch of a jump off a teammate's head, height units a step: a springboard, 3150² / 2575² = 1.5 times a jump
+ * off the sand (a held jump rises 388 px above the head instead of 264 px above the sand; a tap half of each). The
+ * head is 90 px up, so a held jump off a standing teammate tops out with the feet 478 px above the sand. Landing on a
+ * head with jump held jumps again at once, which is the trampoline. The boost is one jump's: there is no second one
+ * until the blob has come down on a head again, and each tower costs a side a blob that is not covering the sand.
+ */
+export const STACK_JUMP_SPEED = 3150;
 // ---- three a side ----
 /**
  * The three-a-side court's width, px: one big beach with the singles court's net, pole and heights, and no lanes, a
  * third of a side for each blob. Normal bots played rallies as long as doubles' (8 to 10 s, about 10 touches) on every
- * width from 1700 to 2100, each of the three taking its share; 2000 keeps the blobs big enough on a phone.
+ * width from 1700 to 2100. It was 2000 and felt too long to play on, so it is an eighth shorter: 1750, which is 292 px
+ * of sand a blob against doubles' 350.
  */
-export const TRIPLE_COURT_W = 2000;
+export const TRIPLE_COURT_W = 1750;
 /** Where a three-a-side side's blobs start, px from the net: front, middle (under the serve) and back. */
 export const TRIPLE_FRONT = 180,
-  TRIPLE_MID = 500,
-  TRIPLE_BACK = 800;
+  TRIPLE_MID = 440,
+  TRIPLE_BACK = 700;
 
 // ---- three teams of two ----
 /**
@@ -166,11 +182,14 @@ export const MAX_STEP = 0x7fff_ffff;
 // ---- bounds the codec checks ----
 /** Ball speed never leaves this: a hit is 256 along the normal and gravity tops out near 400 falling. */
 export const BALL_MAX_SPEED = 1024;
-/** Blob vertical speed never leaves this. */
-export const BLOB_MAX_VY = JUMP_SPEED;
+/** Blob vertical speed never leaves this: the launch off a teammate's head. */
+export const BLOB_MAX_VY = STACK_JUMP_SPEED;
 export const BLOB_MIN_VY = -8 * JUMP_SPEED;
-/** The highest a blob can be: a held jump's apex, with room. */
-export const BLOB_CEILING = BLOB_FLOOR + 300 * HU;
+/**
+ * The highest a blob can be, and the simulation holds it there: three a side, a tower of three all jumping at each
+ * other's apex reaches about 1220 px, so this is never met in play.
+ */
+export const BLOB_CEILING = BLOB_FLOOR + 2000 * HU;
 /** The ball has no ceiling; the codec refuses anything past this, far above any reachable height. */
 export const BALL_CEILING = 8000 * BU;
 /** Counted touches one match reports per blob, at most (repeats `MOST_HITS` in `basics.ts`). */

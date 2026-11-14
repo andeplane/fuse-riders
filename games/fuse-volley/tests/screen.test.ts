@@ -222,3 +222,14 @@ test("a classic side-out is not reported as a point", () => {
   assert.deepEqual(room.world!.score, [0, 0]);
   assert.deepEqual(watch(view(room), me), []);
 });
+
+test("after a rally the side that lost it looks sad and the other happy; in play both are calm", async () => {
+  const { moodOf } = await import("../src/render/scene.js");
+  assert.equal(moodOf({ phase: "rally", lastFault: 0 }, 0), "calm");
+  assert.equal(moodOf({ phase: "serve", lastFault: 1 }, 1), "calm");
+  assert.equal(moodOf({ phase: "dead", lastFault: -1 }, 0), "calm");
+  assert.equal(moodOf({ phase: "dead", lastFault: 0 }, 0), "sad");
+  assert.equal(moodOf({ phase: "dead", lastFault: 0 }, 1), "happy");
+  assert.equal(moodOf({ phase: "over", lastFault: 1 }, 1), "sad");
+  assert.equal(moodOf({ phase: "over", lastFault: 1 }, 0), "happy");
+});

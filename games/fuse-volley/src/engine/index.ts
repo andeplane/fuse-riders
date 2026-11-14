@@ -2,7 +2,7 @@
  * Fuse Volley's engine: deterministic integer rules with no imports from outside this folder. A change to what any of
  * it does must bump `RULES` and re-record the golden (`tests/golden.test.ts`) in the same commit.
  */
-export const RULES = "fuse-volley-5";
+export const RULES = "fuse-volley-6";
 export * from "./input.js";
 export {
   PHASES,
