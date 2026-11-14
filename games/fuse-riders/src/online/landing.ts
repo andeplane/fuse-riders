@@ -177,7 +177,7 @@ export function showLanding(host: LandingHost): void {
   const create = node("button", "CREATE ROOM");
   const error = node("p");
   // `enter` keeps the document, so Room Created no longer needs a send-before-unload flush: nothing unloads out from
-  // under the request, and the room stops waiting up to 700ms for Mixpanel before it appears.
+  // under the request, and analytics never blocks the room appearing.
   create.onclick = async () => {
     create.disabled = true;
     try {

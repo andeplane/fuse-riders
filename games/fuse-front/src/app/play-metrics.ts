@@ -13,6 +13,8 @@ export function frontPlayFrame(
     display || (view.stage === "lobby" ? view.settings : view.play).display;
   return {
     matchId: view.matchId,
+    roundActive: view.stage === "running" && view.tick >= view.startAt,
+    roundEnded: view.stage === "over",
     active: view.stage === "running",
     ended: view.stage === "over",
     playerCount: view.world?.players.length ?? seats.length,

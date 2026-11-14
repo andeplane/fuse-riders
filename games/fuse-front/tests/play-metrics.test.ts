@@ -25,6 +25,12 @@ function match() {
 
 test("Front reports the funnel once, counts bot-filled slots and scopes rematches", () => {
   const room = match();
+  assert.equal(
+    frontPlayFrame(view(room), "self", false, false).roundActive,
+    false,
+    "countdown is not a round play",
+  );
+  while (room.tick < room.startAt) foldTick(room, "self", new Map());
   const events: { event: string; properties: unknown }[] = [];
   const report = createPlayMetrics(
     (event, properties) => events.push({ event, properties }),
@@ -44,7 +50,15 @@ test("Front reports the funnel once, counts bot-filled slots and scopes rematche
   report({ ...playing, matchId: "rematch" });
   assert.deepEqual(
     events.map(({ event }) => event),
-    ["Seat Taken", "Match Started", "Match Ended", "Match Started"],
+    [
+      "Round Started",
+      "Seat Taken",
+      "Match Started",
+      "Round Ended",
+      "Match Ended",
+      "Round Started",
+      "Match Started",
+    ],
   );
   assert.ok(!JSON.stringify(events).includes("Private name"));
   assert.ok(!JSON.stringify(events).includes("match-1"));

@@ -56,6 +56,8 @@ test("seat observations count riders while displays and watchers never claim a p
     matchId: "lobby-scope",
     active: false,
     ended: false,
+    roundActive: false,
+    roundEnded: false,
     playerCount: 2,
     botCount: 0,
     seated: true,
@@ -107,6 +109,14 @@ test("preparation and faults are not starts or results; completed battles are re
   );
   assert.equal(ended.active, false);
   assert.equal(ended.ended, true);
+  assert.equal(ended.roundEnded, true);
+  assert.equal(
+    birdsPlayFrame({ ...frame, world: { ...world, phase: "over" } }, settings, {
+      ...context,
+      practice: true,
+    }).roundEnded,
+    false,
+  );
 });
 
 test("practice new maps get fresh deduplication scopes, including rounds after the first", () => {
@@ -126,6 +136,14 @@ test("practice new maps get fresh deduplication scopes, including rounds after t
   );
   assert.equal(first.mode, "practice");
   assert.notEqual(first.matchId, next.matchId);
+  assert.notEqual(
+    first.matchId,
+    birdsPlayFrame(
+      { ...frame, world: { ...world, phase: "aiming" } },
+      settings,
+      { ...practice, roomScope: "new-practice-session" },
+    ).matchId,
+  );
   assert.equal(next.active, true);
   assert.equal(
     "round" in next,

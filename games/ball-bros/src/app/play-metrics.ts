@@ -9,6 +9,8 @@ export function playFrame(
   const players = view.players.filter((seat) => !seat.watcher);
   return {
     matchId: view.matchId,
+    roundActive: view.arena?.phase === "playing",
+    roundEnded: view.arena?.phase === "over",
     active: view.stage === "running",
     ended: view.stage === "over",
     playerCount: players.length,

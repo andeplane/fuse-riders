@@ -46,7 +46,7 @@ export function createOsAnalytics(
   };
 }
 
-/** The page's one instance; the Mixpanel SDK is downloaded lazily and only where analytics is on. */
+/** The page's one instance; first-party metrics are sent only where analytics is on. */
 export function createBrowserOsAnalytics(): OsAnalytics {
   return createOsAnalytics(createBrowserAnalytics(OS_GAME_ID), {
     embedded: isEmbeddedPage(window),

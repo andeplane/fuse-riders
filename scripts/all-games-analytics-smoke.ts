@@ -3,7 +3,7 @@ import { readdir, access, mkdir, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 import { startRoomService } from "./lib/server.js";
 
-/** Intercept real SDK requests from every shipped page; never send test metrics to Mixpanel. Build first. */
+/** Intercept first-party metrics from every shipped page; never persist smoke data. Build first. */
 const server = process.env.HOME_URL ? undefined : await startRoomService();
 const base = process.env.HOME_URL ?? server!.url;
 const pages = [{ gameId: "fuse-riders", path: "fuse-riders/" }];
@@ -31,25 +31,31 @@ try {
     const opening = new Promise<void>((resolve) => {
       opened = resolve;
     });
-    await context.route("**/*mixpanel.com/**", async (route) => {
-      const raw = new URLSearchParams(route.request().postData() ?? "").get(
-        "data",
+    await context.route("**/api/telemetry/events", async (route) => {
+      const payload: {
+        events: {
+          id: string;
+          name: string;
+          gameId: string;
+          properties: Record<string, unknown>;
+        }[];
+      } = JSON.parse(route.request().postData() ?? "{}");
+      reported.push(
+        ...payload.events.map((event) => ({
+          event: event.name,
+          properties: { ...event.properties, gameId: event.gameId },
+        })),
       );
-      if (raw) {
-        const payload: unknown = JSON.parse(raw);
-        assert.ok(Array.isArray(payload));
-        reported.push(...payload);
-        if (
-          required.every((name) =>
-            reported.some((event) => event.event === name),
-          )
-        )
-          opened();
-      }
+      if (
+        required.every((name) => reported.some((event) => event.event === name))
+      )
+        opened();
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: '{"status":1}',
+        body: JSON.stringify({
+          acknowledgedIds: payload.events.map((event) => event.id),
+        }),
       });
     });
     const page = await context.newPage();

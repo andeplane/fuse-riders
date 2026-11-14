@@ -1,383 +1,142 @@
 # Product analytics
 
-Every game reports product events to Mixpanel through [`fuse-ui/analytics`](../packages/fuse-ui/src/analytics.ts).
-All event names start with `fuse.` and every event carries `gameId`, the stable platform id
-(the game route id, including `dice` for Pig; see `games/*/index.html` for the current inventory).
-Use the same events for cross-game dashboards, and filter or break down by `gameId`.
-The rename from `FlowRiders.*` is an intentional breaking change: existing dashboards must switch to `fuse.*`;
-historical events are not renamed and there is no dual reporting.
-
-All pages report `fuse.App Opened`, with `embedded`: `true` when the page runs inside a FuseOS desktop window
-(`window.self !== window.top`, [`fuse-ui/embedded`](../packages/fuse-ui/src/embedded.ts)), `false` in a tab of its
-own, so the two ways of playing can be told apart on the same `gameId`. The desktop reports its own opening and
-every launch under `gameId: fuseos` (see "FuseOS" below). Actual play reports `fuse.Seat Taken`, `fuse.Match Started` and
-`fuse.Match Ended` through [`play-metrics`](../packages/fuse-ui/src/play-metrics.ts), with player/bot/human counts,
-`played` and `mode`. Counts are observations **per browser**, not one global event per room: TV displays and
-spectators report `played: false`, and a shared-screen match can appear on several devices.
-Repeated frames and round transitions do not repeat match events. Seat Taken is the first seat observed on the
-page. A mid-match join after round one does not invent a start; duration is present only when a start was observed.
-Open-ended Craft sandbox/combat-lab and Hook Havok free play report a start, but no fabricated end.
-Bombers' local multiplayer and Fusetown's solo/pass-and-play paths are included; attract scenes and showcases only report opening.
-The Pig template contains the integration, so `scripts/new-game.ts` includes it in new games.
-
-Fuse Front observes its room view for the same seat and match events. Its player count includes every army
-slot, and its bot count includes vacant or disconnected slots currently driven by the AI, even though those
-slots have no bot seat record. Landing-page attract battles do not report play events.
-
-Fuseball (`gameId: fuseball`) adds `fuse.Goal Scored`, from `createGoalWatch` in
-[`games/fuseball/src/app/presenter.ts`](../games/fuseball/src/app/presenter.ts): once per point, sixty micro-steps into
-its celebration so a rolled-back goal is never counted, from the device whose rider won it, or lost it to a bot (which
-has no device). Its properties are `mapId` (the arena's id), `ownGoal` (the loser sent the ball in), `suddenDeath`
-(the point was played at 2–2) and `mine` (it went to this device's rider). The TV and spectators report none. A
-device that loads into a match under way (a reload, a late join) reports only the points scored from then on, and
-its Match Started counts only if it saw the first countdown, so neither is counted twice.
-
-[`games/fuse-riders/src/online/analytics.ts`](../games/fuse-riders/src/online/analytics.ts) also reports its detailed
-funnel, weapon and match properties, using the same prefix and game property.
-It is unrelated to [`games/fuse-riders/src/online/telemetry.ts`](../games/fuse-riders/src/online/telemetry.ts), which posts raw runtime diagnostics
-(inputs, packets, repairs, rewinds) to `/telemetry` on whatever origin served the page. It too is on only for a ported address or `?telemetry=1`,
-but the receiver lived in the LAN server removed by #271, so nothing records those posts today.
-
-## When it is on
-
-| Address                                             | Analytics                 |
-| --------------------------------------------------- | ------------------------- |
-| Deployed site, no port                              | on                        |
-| `localhost:5173`, a LAN IP, any address with a port | off                       |
-| `?analytics=1`                                      | on, whatever the address  |
-| `?analytics=0`                                      | off, whatever the address |
-
-Only exactly `1` and `0` override; any other value (`?analytics=off`, `?analytics=false`, bare `?analytics=`)
-falls through to the address rule rather than being read as "on", so a plausible-looking opt-out cannot report a
-dev session into the production project.
-
-The override sticks for the browser under `fuse-analytics`, rather than riding the URL. `appUrl` replaces the
-query string on every navigation out of the landing page — deliberately, so an invite can never inherit a
-capability — so a flag read only from `location.search` would last exactly one page: `?analytics=0` would come
-back on at CREATE ROOM, and `?analytics=1` could never reach the room half of the funnel it exists to verify.
-Set it once on any page; clear it with the opposite flag.
-
-Test rooms therefore never reach the production project, and `?analytics=1` is how a build gets verified against
-it on purpose. The Mixpanel bundle is imported only once analytics is on, so a local game never downloads it.
-
-The project token is a write-only public identifier. Every browser bundle that reports to a Mixpanel project
-ships one; it is not a credential and grants no read access, so it is checked in rather than plumbed through the
-build environment.
-
-### The switch in SETTINGS, and Do Not Track
-
-The address rule above decides whether analytics _may_ run. Two things can still switch it off on a device. In
-every "off" case nothing is sent, and a page that loads in one never downloads the Mixpanel bundle:
-
-| Status       | When                                                                               | SETTINGS shows                             |
-| ------------ | ---------------------------------------------------------------------------------- | ------------------------------------------ |
-| `on`         | the address rule says on, and neither of the two below                             | `ANALYTICS ON`, a working switch           |
-| `optedOut`   | this device switched it off in SETTINGS (`fuse-analytics-opt-out` = `1`)           | `ANALYTICS OFF`, a working switch          |
-| `doNotTrack` | the browser sends Do Not Track (`navigator.doNotTrack` of `1` / `yes`, as the SDK) | `ANALYTICS OFF`, disabled, with the reason |
-| `addressOff` | a ported address without `?analytics=1`                                            | `ANALYTICS OFF`, disabled, with the reason |
-| `flagOff`    | `?analytics=0`, now or remembered                                                  | `ANALYTICS OFF`, disabled, with the reason |
-
-The reasons win from the bottom up: the address and the flag first, then Do Not Track, then the device's own
-choice. `?analytics=1` overrides the address and nothing else — it never overrides a rider who switched analytics
-off, nor Do Not Track.
-
-The switch is a PRIVACY row with a one-line notice — "Anonymous play stats (matches, powerups) go to Mixpanel to
-help tune the game. No names, room codes or location." — in the two per-device SETTINGS dialogs: the room's
-(beside MUSIC, SOUND and VISUAL STYLE) and the landing page's (a disclosure under the room-settings draft). It is
-deliberately not in ROOM SETTINGS, which the whole room shares. Where the switch could do nothing it is shown
-disabled with the reason rather than hidden, so the row never claims a choice that is not there.
-
-Switching off takes effect at once, in every open tab, and nothing the SDK already holds is sent afterwards. That
-takes four things, because the SDK batches: it sends on a five-second timer and again as the page hides, from a
-queue it keeps in local storage.
-
-1. `track` stops handing events to the SDK. The status is re-read from storage on every call, and once more when
-   the SDK finishes downloading, so a switch flipped mid-download — or in another tab — still wins.
-2. `opt_out_tracking()` stops the SDK's batch sender, empties the batch it had queued, disables its unload flush
-   and deletes what it had stored, device id included. The tab that made the change calls it directly; every other
-   tab calls it when the browser's `storage` event tells it `fuse-analytics-opt-out` changed, and re-renders its
-   PRIVACY row from the same event.
-3. A `before_send_events` hook re-reads the status as each batch is about to be sent and drops every event if it
-   is not `on`. This is the one synchronous gate: it closes the gap between another tab's switch and the `storage`
-   event arriving, and it holds in a browser that delivers no `storage` event at all.
-4. The SDK's queue keys (`__mpq_<token>_ev`, `_pp`, `_gr`) are removed on opt-out, on every page load while opted
-   out, and on switching back on. The SDK enqueues asynchronously behind a lock it polls every 100 ms, so an event
-   accepted a moment before the switch can land in storage just after step 2 emptied it; nothing would send it
-   while off, and this keeps it from being replayed later.
-
-What this cannot do is recall a request already in flight at the moment of the switch. Where storage is refused
-altogether (Safari "Block all cookies") the choice lives in memory, for that tab and that page load only: there is
-nothing shared for another tab to read.
-
-The choice is stored under `fuse-analytics-opt-out` on the device and survives a reload, where an opted-out page
-never downloads the SDK at all. Switching back on clears the SDK's own opt-out flag
-(`clear_opt_in_out_tracking()`, which — unlike `opt_in_tracking()` — sends no `$opt_in` event of its own) and
-resumes: under a fresh device id if a page load came in between, under the one still in memory if not. Events
-from the time in between are not replayed. The PRIVACY rows also re-read the status whenever SETTINGS opens, so a
-label is never older than the dialog showing it. There is no consent
-prompt: the default is unchanged — on for the deployed site — and that default is the project owner's to weigh.
-
-Do Not Track is honoured because Mixpanel's SDK honours it by default (`ignore_dnt: false`, pinned in the init
-options); the game applies the SDK's own test one step earlier so that such a browser does not download the SDK
-just to be told to send nothing. Global Privacy Control (`navigator.globalPrivacyControl`) is **not** consulted,
-by the SDK or by the game.
-
-### What Mixpanel is initialised with
-
-`MIXPANEL_CONFIG` in `analytics.ts`, checked by `games/fuse-riders/tests/analytics.test.ts`:
-
-| Option                   | Value                                            | Why                                                                                                                                                                                           |
-| ------------------------ | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ip`                     | `false`                                          | Every request carries `ip=0`, which tells Mixpanel not to derive `$city`, `$region` or `mp_country_code` from the connection. The request still arrives from an address, as any request does. |
-| `persistence`            | `"localStorage"`                                 | The game stores everything else there too, and a batch that outlives a navigation is what lets CREATE ROOM report before the page it triggers replaces this one.                              |
-| `cross_subdomain_cookie` | `false`                                          | Where local storage is refused the SDK falls back to a cookie; this keeps that cookie on this host rather than the SDK's default of the parent domain.                                        |
-| `ignore_dnt`             | `false`                                          | The SDK default, pinned (above).                                                                                                                                                              |
-| `track_pageview`         | `false`                                          | A pageview event carries the page's URL, path and query.                                                                                                                                      |
-| `autocapture`            | `false`                                          | No clicks, inputs or page content.                                                                                                                                                            |
-| `property_blacklist`     | `$current_url`, `$referrer`, `$initial_referrer` | See "The page URL" below.                                                                                                                                                                     |
-
-Everything else is the SDK default for the pinned `mixpanel-browser` 2.83: session recording off
-(`record_sessions_percent: 0`), no feature flags, and UTM parameters and ad click ids in the landing URL kept as
-`utm_*` properties (`track_marketing`) — none of which is a room code.
-
-Storage is only ever reached through `safeStorage`, and Mixpanel's `init` runs inside the promise every caller
-already ignores: Safari with "Block all cookies" throws on merely evaluating `localStorage`, and neither that nor
-a Mixpanel that cannot start may break boot.
-
-## The events
-
-Every name is prefixed `fuse.` — one shared constant, `EVENT_PREFIX`. `gameId` is attached at the shared send boundary,
-so an individual event cannot override its game. The remaining event details below describe Fuse Riders.
-`role` (`landing` / `solo` / `display` / `host` / `joiner` / `boot`) is a
-super property on every event. `mode` and `solo` are registered only on the room path, so the landing page's
-`App Opened` and `Room Created` and the boot path's `Boot Failed` carry `role` alone.
-
-`renderer` (`webgl`, or `canvas` for Phaser's fallback when WebGL is unavailable or `?renderer=phaser-canvas`
-forces it) is registered as a super property once the arena first draws, together with a `Graphics Ready` event.
-Events before that do not carry it: `App Opened`, and in solo usually `Seat Taken` and `Match Started` too, which
-fire while Phaser is still downloading. Count renderers with `Graphics Ready`. The landing page's backdrop and a room's arena each report one, even when CREATE ROOM keeps the same page, and `role` (`landing` or the room role) tells them apart. A device that never draws an arena,
-such as a shared-TV rider's phone, reports neither. This shows how many players still depend on the Canvas fallback.
-
-| Event              | Fires                                                                                             | Key properties                                                                                                                                                                                                                                                                                                                                                 |
-| ------------------ | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `App Opened`       | once per page load                                                                                | `role`                                                                                                                                                                                                                                                                                                                                                         |
-| `Room Created`     | CREATE ROOM succeeded                                                                             | `mode`                                                                                                                                                                                                                                                                                                                                                         |
-| `Seat Taken`       | first snapshot showing this device holding a rider                                                | `avatarId`, `playerCount`                                                                                                                                                                                                                                                                                                                                      |
-| `Match Started`    | the first round of a match id reaches its countdown                                               | `matchNumber`, `playerCount`, `botCount`, `match`, `matchLength`, `powerupTypes`, `host`                                                                                                                                                                                                                                                                       |
-| `Match Ended`      | the recap becomes available                                                                       | always `playerCount`, `botCount`, `humanCount`, `rounds`, `played`; plus `placement`, `won`, `roundWins`, `eliminations`, `pickups`, `bombsPlaced`, `bombsExploded`, `distance`, `survivalSeconds` and `deathsWall` / `deathsTrail` / `deathsExplosion` / `deathsRider` when this device held a rider; plus `durationSeconds` when it also saw the match start |
-| `Kill`             | once per rider this device's rider killed, once that round is decided and confirmed               | the pull's properties below, plus `victimBot`, `shotKills`, `firstKillOfShot`, `secondsToKill`                                                                                                                                                                                                                                                                 |
-| `Miss`             | once per pull of this device's rider that killed nobody, once that round is decided and confirmed | the pull's properties below                                                                                                                                                                                                                                                                                                                                    |
-| `Recap Reopened`   | the RESULTS button                                                                                | —                                                                                                                                                                                                                                                                                                                                                              |
-| `Settings Changed` | a draft the runtime accepted                                                                      | `mode`, `match`, `matchLength`, `bombChargeTicks`, `chainReaction`, `aimBounce`, `map`, `powerupTypes`                                                                                                                                                                                                                                                         |
-| `Connect Failed`   | 20s with no link to the host                                                                      | `status` (the status line, `null` if none yet), `secondsWaiting`                                                                                                                                                                                                                                                                                               |
-| `Boot Failed`      | the boot-failure card is shown                                                                    | `name`, `code`, `message`                                                                                                                                                                                                                                                                                                                                      |
-| `Graphics Ready`   | the arena first draws on this page, and again after a successful RETRY GRAPHICS                   | `renderer` (super property)                                                                                                                                                                                                                                                                                                                                    |
-| `Graphics Failed`  | the RETRY GRAPHICS card is shown                                                                  | `stage`: `startup` (download, boot or its 10 s deadline), `context` (lost GPU context not restored in 2 s), `render` (a frame threw)                                                                                                                                                                                                                           |
-| `Signed In`        | a Google sign-in from the landing page's account dialog succeeded                                 | —                                                                                                                                                                                                                                                                                                                                                              |
-
-When `Match Started`, `Kill` / `Miss`, `Seat Taken` and `Match Ended` fire is
-[`games/fuse-riders/src/online/funnel.ts`](../games/fuse-riders/src/online/funnel.ts): the room UI hands it every snapshot it renders and the funnel
-does the once-only bookkeeping, outside the render callback and under test (`games/fuse-riders/tests/funnel.test.ts`). A frame it
-cannot process never throws into the render callback; the first such failure is reported once with
-`console.warn` (there is no diagnostic event), and an event whose properties could not be built is not consumed —
-it fires on the next frame that can build it.
-
-`Boot Failed` reports the error's class (`name`, e.g. `TypeError`), a stable `code` to count by (`module-load`,
-`storage`, `webgl`, `network` or `unknown`) and a `message` to read. The message is the one place an event carries
-text the game did not write, so it is bounded and scrubbed — see "Free text" below.
-
-`matchNumber` counts matches within a page load, so a rematch is the same signal a separate `Rematch` event
-would carry, with one fewer event to reconcile. `played` is false on a shared-TV display or for a spectator,
-which report the shape of the match they watched and no rider line of their own.
-
-A match start is keyed on the first round of a match id, not on a phase transition: every round opens with its
-own countdown, and solo never passes through the lobby at all — `LocalRuntime.start` seats four bots and starts
-the match before the first snapshot reaches the UI. Two consequences worth knowing when reading the funnel: a
-device that loads into a match already past round 1 reports `Match Ended` but no `Match Started` and no
-`durationSeconds`, so ended can exceed started; and a reload mid-match restarts `matchNumber`.
-
-### Which powerup kills, and how often it misses
-
-`Kill` and `Miss` are the one place analytics reports per occurrence rather than per match: one `Kill` per rider
-killed and one `Miss` per trigger pull that killed nobody. `weapon` is what the pull fired — `bomb` (the ordinary
-lobbed bomb every rider has, the baseline), `triple`, `five`, `gun` or `shell`.
-
-The point is histograms, so both events carry every dimension an outcome might be broken down by:
-
-| Property                                                 | On     | Meaning                                                                                                 |
-| -------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
-| `weapon`                                                 | both   | what the pull fired                                                                                     |
-| `bombs`                                                  | both   | bombs the pull put in the air — more than 1 for a volley or with Extra Bomb (Gun and Shell fan out too) |
-| `power`, `extraBombs`, `fuseLevel`, `rangeLevel`, `grip` | both   | the shooter's round-long upgrades at the moment of the pull, not at the round's end                     |
-| `round`, `secondsIntoRound`                              | both   | when the trigger was pulled, to a tenth of a second                                                     |
-| `riders`, `bots`                                         | both   | the room when the round was reported                                                                    |
-| `victimBot`                                              | `Kill` | whether the rider killed was an AI                                                                      |
-| `secondsToKill`                                          | `Kill` | from the pull to the death, to a tenth — long for a bouncing shell, zero for Gun                        |
-| `shotKills`, `firstKillOfShot`                           | `Kill` | how many riders the pull killed, and one `true` per pull                                                |
-
-| Reading                       | Mixpanel                                                       |
-| ----------------------------- | -------------------------------------------------------------- |
-| Which powerup kills most      | `Kill`, broken down by `weapon`                                |
-| How often a powerup misses    | `Miss` over `Miss` + `Kill where firstKillOfShot`, by `weapon` |
-| Kills per pull                | `Kill` over `Miss` + `Kill where firstKillOfShot`, by `weapon` |
-| Whether it beats a plain bomb | any of the above against `weapon = bomb`                       |
-
-**Exactly one device sends each event**: the shooter's own. A kill is reported only by the killer's device and a
-miss only by the device of the rider who pulled the trigger, so a room of four still sends one `Kill` per kill.
-The victim, the other riders, a shared-TV display and a spectator send nothing about it, and nobody reports a
-bot's pulls.
-
-**They are sent after the round, once it is final — not live.** Every replica simulates ahead of confirmed input,
-and a rollback cannot retract an event already sent, so a kill reported the moment it appeared on one screen could
-be one a late packet undoes. Even the round-over screen a device shows is its own prediction. So the simulation
-keeps a log of the round's pulls and kills in the state every replica agrees on, and when the round is decided it
-keeps that log (with the tick it was decided at) until the next round is decided. The shooter's device reports
-from it once every connected rider's input is confirmed through that tick — normally a fraction of a second into
-the round-over pause.
-
-The last reported round is remembered per rider in local storage, so a reload or a reopened tab does not send it
-twice, while a second tab seated as a different rider still reports its own. Because the decided log lasts through
-the whole next round, a device that catches up past the round-over pause in one jump (a backgrounded phone, a
-resynchronised snapshot) still reports it. What is lost: a round whose shooter's device leaves before it is
-confirmed, and a round a device skips entirely by catching up across two decisions at once.
-
-Gun shots resolve the tick they are fired (on release): a visible tracer is already a hit or miss.
-
-A pull whose bomb or shell is still in the air when the round ends — and has killed nobody — is **not** a
-`Miss`: the round's end interrupted it. Without that rule, weapons that stay in flight longest (Shell, lobbed
-bombs) would be charged misses they never had the chance to turn into kills.
-
-A **pull** is one trigger press: a volley is one pull however many bombs it puts in the air, and every bomb of it
-names the pull. A rider can hold several weapons at once and a pull spends only some of them, so it is labelled
-with the first of these that it spent:
-
-`gun` → `shell` → `five` → `triple` → `bomb`
-
-Gun and Shell come first because they launch on a path of their own; a Triple or Five they fan out is spent
-under their label. Rules before `fuse-p2p-40` also reported `target`, for the Target Bomb, and rules before
-`fuse-p2p-24` reported `gravity`, for the Singularity bomb that Gravity used to arm. The
-round-long upgrades are never a `weapon`: Power, Extra Bomb, Shorter Fuse, Range and GRIP sharpen every pull rather than
-being spent by one.
-
-A **kill** is exactly an elimination credited to an explosion, as the recap's `eliminations` counts it: a wall, a
-trail or a rider collision has no weapon behind it, blowing yourself up credits nobody, and two riders whose blasts
-reach the same victim share the blame so neither is credited. Where several of one rider's bombs reach the same
-victim, the one with the lowest id names the pull, so every replica logs the same one. `shotKills` is how many
-riders that pull killed, so a double kill is two `Kill` events that agree on it, and `firstKillOfShot` is true on
-exactly one — which is what turns kills back into pulls for a miss rate.
-
-Two consequences of chain reactions, both inherited from how eliminations have always been credited: a bomb set
-off by someone else's blast still belongs to its owner, so a rider whose Five bomb a rival detonates is credited
-the kill; and where a rider's own older plain bomb chains alongside its volley, the lowest-id rule credits `bomb`.
-What cannot be seen at all: a black hole that bends a rider into a wall, or swallows one in its core, is a `wall` death with no owner. And a
-pull whose only effect was uncredited — an own goal, a blast shared with another rider, or setting off someone
-else's bomb — is a `Miss`, because no kill is credited to it.
-
-**Never name a property `length`.** Mixpanel's bundled Underscore-style `each` treats any object whose `length`
-is a number as an array, so one such key makes it iterate indices instead of keys and drop the whole property
-bag — super properties included — while the API still answers `200`. The room setting called `length` is
-reported as `matchLength` for exactly this reason.
-
-### Killer Fuse: how each game of a set was won
-
-Killer Fuse (`gameId` `killer-fuse`) reports the shared four and one event of its own,
-[`games/killer-fuse/src/app/metrics.ts`](../games/killer-fuse/src/app/metrics.ts). The shared `Match Started` and
-`Match Ended` are about a **set** — the first to the set's wins; a set is several games, each on its own map with
-its own way of being won, and the set's events say nothing about which. `Game Ended` fills that in: one per decided
-game, in the same `fuse.` namespace with the same `gameId`, so it needs no namespace of its own.
-
-| Property          | Meaning                                                                                                   |
-| ----------------- | --------------------------------------------------------------------------------------------------------- |
-| `round`           | which game of the set, from 1                                                                             |
-| `mapId`           | the map it was played on                                                                                  |
-| `winKind`         | how it was won: `military` (the Queen's three lives), `economy` (a full hive) or `snail` (the snail home) |
-| `winningTeam`     | `cyan` or `pink`                                                                                          |
-| `durationSeconds` | from the countdown to the win, to the second                                                              |
-| `humanCount`      | people in the crew that played it                                                                         |
-| `botCount`        | bots filling the rest of the six slots                                                                    |
-| `played`          | whether this device held a slot; `won` comes with it when it did                                          |
-| `mode`            | the shared room mode, as on the other events                                                              |
-
-It is **a per-device observation, like the shared four**, not one event per room: every seated device reports the
-game it watched end, so a room of three sends three. Break down by `played` to count games rather than devices.
-
-It is sent only once the game's record can no longer be rolled back — the recorded tick is confirmed — and only
-for games this page saw end: a device that joins or reloads midway adopts the set's finished games as already
-reported rather than inventing them, and sends nothing for them. No name, room code, slot id or invite URL is in
-it; `winningTeam` is a team colour and the crew is reported as counts.
-
-### FuseOS: the desktop and how games are launched
-
-The desktop at the site root ([`packages/fuseos`](../packages/fuseos)) is a page like the games, on the same
-client with the same prefix, guard, opt-out and scrubbing; its `gameId` is `fuseos`. It reports from
-[`src/analytics/osAnalytics.ts`](../packages/fuseos/src/analytics/osAnalytics.ts):
-
-| Event           | Fires                                                                                                  | Properties                                                                                                                                                                                                              |
-| --------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `App Opened`    | once per desktop boot                                                                                  | `embedded` (the desktop itself inside a frame; expected `false`), `role: desktop` (super property)                                                                                                                      |
-| `Game Launched` | a Fuse game started from an icon, the Start menu, a `?open=` link, the assistant or a window's Pop out | `game`: the game's portal id (`fuseball`, …); `launch`: `window` (a window on the desktop), `tab` (a browser tab, the phone default or the Games applet's choice) or `popout` (Pop out moved a running window to a tab) |
-
-`gameId` is attached at the shared send boundary and an event cannot override it, so the game launched travels
-as `game`, never as `gameId`. The launched game then reports its own `App Opened` (`embedded: true` in a window,
-`false` in a tab), so a launch and an opening are two events on two ids, and a game a window focused again (it
-was already open) is not a second launch. A `?open=<game>` link on a device that opens games in a tab goes
-straight to the game — no desktop boots and nothing is reported under `fuseos`.
-
-Pop out opens the frame's live address so a game that has entered a room stays in it; that address — and the
-room code in it — goes to the new tab and nowhere else. No event carries a room code, a rider name, a game's
-address or the launch preference's reason.
-
-## What is deliberately not tracked
-
-- **Per-tick, per-pickup and per-explosion events, and eliminations other than weapon kills.** A match produces
-  thousands of these. Its detail rides along on `Match Ended` instead, read from the authoritative `matchStats`
-  the recap renders. `Kill` and `Miss` are the deliberate exception, bounded by pulls rather than ticks: a rider
-  can pull the trigger at most once per reload, and only its own device reports.
-- **Locally served games.** `pnpm dev` serves on a ported loopback address, and analytics is off on any ported
-  address unless `?analytics=1` forces it on. (The LAN `/controller` and `/display` server this item once named
-  was removed in #271.)
-- **Bots.** They are counted in `botCount` and never identified as users.
-- **Identity beyond Mixpanel's own anonymous device id.** The `fuse-peer-*` and `fuse-room-*` values are room
-  authentication tokens and never leave the browser.
-- **Accounts.** `Signed In` says that a sign-in happened and nothing about whose: the Firebase `uid`, the Google
-  name and the ID token are never event properties, and Mixpanel is never `identify`-ed with them. Match history
-  lives in the game's own database (README, "Login and match history"), not here.
-- **The page URL.** A room page is `?room=AB42` and that code is the whole join credential, so `$current_url`,
-  `$referrer` and `$initial_referrer` — which Mixpanel would otherwise attach to every event — are blacklisted at
-  `init`. Sending them would hand a live, joinable invite to a third party on every seat, match and setting
-  change. `$referring_domain` and `$initial_referring_domain` survive: they answer where players come from and
-  carry no room code.
-- **Location.** `ip: false` at `init`: Mixpanel is told not to geolocate the request, so no event carries a city,
-  region or country.
-- **Free text.** Every string property of every event and super property passes through `sanitizeText`
-  ([`analytics-text.ts`](../games/fuse-riders/src/online/analytics-text.ts)) inside `track`, so a call site cannot forget to: one
-  line, at most 200 characters, with URLs (`[url]`), query strings (`[query]`), `room=` / `token=` style pairs,
-  e-mail addresses, JWTs, UUIDs and any long hex or base64 run (`[token]` — the `fuse-peer-*` and `fuse-room-*`
-  tokens are 64 hex characters) removed, and this page's own room code removed wherever it appears. Today that
-  matters for two properties, `Boot Failed`'s `message` and `Connect Failed`'s `status`; a browser's "Failed to
-  fetch dynamically imported module: https://…?room=AB42" would otherwise name a live invite. Anything that is not
-  a string, number, boolean, `null` or an array of those is reported as its type, never serialised. `Bearer` /
-  `Basic` schemes, percent-encoded separators (`room%3DAB42`) and zero-width characters splitting a token are
-  handled; an input over 4 096 characters is cut first and marked `[truncated]`. It is a scrubber for the shapes
-  this game's credentials take, not a general PII filter: IPv4 addresses, file paths and short `key=value` pairs
-  under other names pass through.
-- **Rider names.** They are in no event. The one place one could have ridden along is `Connect Failed`'s `status`,
-  the runtime's status line, two wordings of which name a rider ("Waiting for <name>", "Connected · <name>
-  lagging"); `connectStatus` replaces the name with `[rider]` before the status is sent.
-
-## Cost
-
-The Mixpanel project is the repository owner's, and this change enables no paid service. Event volume is bounded
-by design — one event per match rather than per pickup or per tick — so a busy arena cannot run the project's
-plan up; check the plan's own ceiling before reading that as a guarantee. `Kill` and `Miss` are the largest
-source: one per pull. A rider cannot pull again while its own lobbed bomb is still in the air, so an
-ordinary bomb allows roughly one pull every three to four seconds; only spent pickups come faster. Only human
-riders' own devices send them, and nothing is sent for bots.
-
-## The bundle cost
-
-Mixpanel's browser SDK is ~130 kB gzip, in its own lazily loaded chunk. It is paid only on the deployed site,
-only after the page is interactive, and it buys correct `$device_id` semantics, batching that survives a
-navigation, retry and unload flush. Posting to Mixpanel's `/track` HTTP endpoint directly would be roughly
-twenty-five lines and no bundle at all, at the cost of hand-rolling those. If the chunk ever becomes a problem
-on a phone joining over cellular, that is the trade to revisit.
+Every game, Pig (the scaffold template), and FuseOS report first-party product metrics
+through [fuse-ui/analytics](../packages/fuse-ui/src/analytics.ts). The browser posts
+bounded event batches to the existing service's `POST /api/telemetry/events`.
+No third-party analytics SDK or analytics provider receives new events.
+Existing Mixpanel history is neither migrated nor deleted.
+
+## Identity and sessions
+
+A user is one anonymous browser installation, identified by a random UUID saved on
+this origin. It is not a verified person or an account, and contains no fingerprint,
+email or Firebase UID. Different devices count separately. With storage refused,
+the safe-storage adapter keeps an in-memory identity for that page.
+
+One session spans same-origin games, tabs and FuseOS windows until 30 minutes of
+inactivity. Real pointer/key interaction refreshes activity. An accepted local event
+also refreshes it. A game session is a distinct session/game pair. Sessions and
+users are counted distinctly for each UTC day, ISO week and calendar month; weekly
+and monthly uniques must never be computed by adding daily uniques.
+
+The envelope contains `v:1`, random event `id`, stable `gameId`, anonymous
+`userId`, `sessionId`, `name`, `occurredAt`, and primitive `properties`.
+Names keep the shared `fuse.` prefix. A game name belongs in `gameId`, not the
+event namespace. The service validates the envelope and adds receipt/expiry metadata.
+
+## Delivery and privacy
+
+The client retains at most 200 unsent events for seven days, sends at most ten per
+request, and removes only explicitly acknowledged event IDs. Retries retain the
+same IDs, so service-side idempotency prevents double counting. Retry delay backs
+off to one minute. The next visit, online event, visibility change or page hide
+also attempts delivery. Browser keepalive is best effort: an unacknowledged event
+remains queued. This is product telemetry, not guaranteed match history.
+
+Same-origin Web Locks serialize persisted mutations across tabs when available.
+Browsers without Web Locks still work, but simultaneous storage writes can race;
+the bounded outbox is best effort rather than a gameplay dependency.
+
+Analytics stays off on ported development/test addresses unless `?analytics=1`
+explicitly enables it. Exact `?analytics=0` or `1` overrides persist across
+navigation. The settings opt-out and browser Do Not Track always win over enabling
+the address. DNT/opt-out creates no new identity and queues no new events. Opt-out
+clears pending events; enabling again does not replay activity from while it was off.
+Other tabs recheck privacy before sending and react to the storage event.
+A request already in flight cannot be recalled.
+
+Properties are scrubbed centrally, not by each caller. Strings are single-line and
+bounded to 160 characters. URLs, query strings, room codes known to the page,
+email addresses, bearer/token-shaped text and long credential runs are removed.
+There are at most 24 properties, with bounded identifier keys and finite primitive
+values. Object/array payloads are not serialized as arbitrary data. Reserved identity,
+room, match, player-name and credential keys are dropped. No event carries page URLs,
+invitations, room capabilities, names, account tokens, audio, report text or screenshots.
+The API never derives stored location from the request IP. Network infrastructure
+still receives requests normally.
+
+Screenshots, reports and recordings are intentionally private playtest content on
+separate APIs, governed by [developer insights](design/developer-insights.md).
+
+## Match observations and round participation
+
+`App Opened` occurs once per page boot; `embedded` distinguishes FuseOS windows
+from standalone pages. Page `role` is solo, display, joiner or landing (desktop
+for FuseOS). `Seat Taken`, `Match Started` and `Match Ended` retain the existing
+browser-observation contract. Match observations include displays/spectators with
+`played:false`; counting these is not counting unique multiplayer rooms.
+A mid-match arrival after round one does not invent a match start or duration.
+
+**Round plays** count `fuse.Round Started`: a participating browser's first actual
+active frame in a game-defined round. Four participating browsers may count four
+plays. Countdown, lobby, attract/demo, spectator and display frames do not count.
+Joining an already active round counts participation when the device actually has a
+seat. Local pass-and-play still counts one participating browser, not each person.
+
+**Rounds completed** count `fuse.Round Ended`, separately from starts.
+A completion requires that browser session's prior recorded participation in the
+same semantic round. Open-ended play and abandoned rounds have no fabricated end.
+A bounded local ledger (512 recent start/end marks) prevents repeated frames,
+rollback publication, reload or popout from recounting the same participation.
+Its raw match/round keys never leave the browser. Very long sessions exceeding that
+ledger capacity can forget their oldest marks; these metrics are not billing records.
+
+| Game              | Round unit and active boundary                                                   |
+| ----------------- | -------------------------------------------------------------------------------- |
+| Fuse Riders       | Engine round; playing, completion after the decision tick is confirmed           |
+| Pig               | Pig game, not a turn or die roll                                                 |
+| Bombers           | Engine round after its countdown; local and online paths                         |
+| Choppers, Freight | Engine round; world play phase                                                   |
+| Elasto Fuse       | Each level/race in a tour; racing phase                                          |
+| Killer Fuse       | Each game within a set, after its countdown                                      |
+| Fuse Axe          | Combat stage; exclude camp and continue retries                                  |
+| Fuse Drivers      | Race; racing until finished                                                      |
+| Ball Bros         | Survival game; playing until over                                                |
+| Fuseball          | Whole first-to-three match; first active play, not each point                    |
+| Fuse Volley       | Whole match; first actual rally, not each serve/point                            |
+| Fuse Front        | Battle, once its start tick is reached                                           |
+| Graveyard Shift   | One shift                                                                        |
+| Fuse Craft        | One scenario/match; sandbox has no invented end                                  |
+| Fuse Birds        | One artillery battle/map; preparing/fault excluded, practice has no invented end |
+| Fusemania         | One song after lead-in; playlists contain several song matches                   |
+| Fusetown          | Whole race to four goals; weeks remain turns                                     |
+| Hook Havok        | Contest; open-ended free arena has no invented end                               |
+
+Fuseball's existing `playRound` helper is only a match-start guard (first countdown
+versus the rest of the match); round participation uses an explicit constant key.
+
+## Other product events
+
+Existing game-specific events use the same namespace and privacy boundary:
+Riders' funnel/settings/graphics events and confirmed human-owned `Kill`/`Miss`,
+Killer Fuse's decided `Game Ended`, Fuseball's `Goal Scored`, Volley's
+`Point Scored` and Elasto's `Race Finished`. No per-tick stream is added.
+Riders weapon credit follows the authoritative decided shot log, not speculative
+rendered explosions; the shooter reports its own shots and bots have no user identity.
+
+FuseOS uses `gameId:fuseos` for its own `App Opened` and `Game Launched`.
+The launched game's portal id travels in `game`, preserving the event's owning
+`gameId`. Refocusing an already open window is not another launch.
+
+Graphics readiness registers the renderer and emits `Graphics Ready`; failure
+reports its bounded stage. `Boot Failed` contains a scrubbed message, stable code
+and error class, with event-only role `boot` so later room events retain their role.
+
+## Verification and operation
+
+[analytics.test.ts](../packages/fuse-ui/tests/analytics.test.ts) exercises identity,
+idle sessions, persisted retry IDs, acknowledgements, privacy gates, queue bounds,
+round deduplication and diagnostics with typed injected storage/clocks/transports.
+Per-game adapter tests cover their observation boundaries.
+
+`scripts/analytics-smoke.ts` plays a real Riders match and checks lifecycle,
+weapon properties and cross-tab opt-out. `scripts/all-games-analytics-smoke.ts`
+opens each shipped page. Both intercept the first-party endpoint and acknowledge
+its actual envelope; they never write smoke events into production storage.
+Backend tests separately verify durable idempotency and period membership/rollups.
+Browser request evidence is not proof that a production event was durably stored.
+
+The private `/dev/` metrics interface shows exact per-period aggregates and sortable
+games. Production setup, retention, access control and rollout status are recorded
+in [developer insights](design/developer-insights.md); implementing this client
+does not claim deployment or production provisioning.

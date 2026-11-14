@@ -171,8 +171,13 @@ test("a decided round's kills and misses go out once it is confirmed, once, and 
   );
   for (let repeat = 0; repeat < 20; repeat++)
     first.funnel.onFrame(frame, device({ confirmedTick: 500 }));
-  assert.deepEqual(first.names(), ["Seat Taken", "Kill", "Miss"]);
-  assert.deepEqual(first.sent[1]!.properties, {
+  assert.deepEqual(first.names(), [
+    "Seat Taken",
+    "Round Ended",
+    "Kill",
+    "Miss",
+  ]);
+  assert.deepEqual(first.sent[2]!.properties, {
     weapon: "bomb",
     round: 2,
     secondsIntoRound: 1,
@@ -194,7 +199,7 @@ test("a decided round's kills and misses go out once it is confirmed, once, and 
   // A reload is a new funnel over the same storage: the round is not sent again, the next one is.
   const reloaded = harness(storage);
   reloaded.funnel.onFrame(frame, device({ confirmedTick: 500 }));
-  assert.deepEqual(reloaded.names(), ["Seat Taken"]);
+  assert.deepEqual(reloaded.names(), ["Round Ended", "Seat Taken"]);
   reloaded.funnel.onFrame(
     view({
       phase: "roundOver",
@@ -203,7 +208,13 @@ test("a decided round's kills and misses go out once it is confirmed, once, and 
     }),
     device({ confirmedTick: 900 }),
   );
-  assert.deepEqual(reloaded.names(), ["Seat Taken", "Kill", "Miss"]);
+  assert.deepEqual(reloaded.names(), [
+    "Round Ended",
+    "Seat Taken",
+    "Round Ended",
+    "Kill",
+    "Miss",
+  ]);
 });
 
 test("storage that forgets everything still reports a round only once per funnel", () => {
@@ -219,7 +230,41 @@ test("storage that forgets everything still reports a round only once per funnel
   });
   for (let repeat = 0; repeat < 5; repeat++)
     funnel.onFrame(frame, device({ confirmedTick: 10 }));
-  assert.deepEqual(names(), ["Miss", "Seat Taken"]);
+  assert.deepEqual(names(), ["Round Ended", "Miss", "Seat Taken"]);
+});
+
+test("round participation excludes countdown and observers and confirms a prior round after advancing", () => {
+  const { funnel, sent } = harness();
+  funnel.onFrame(view({ phase: "countdown", round: 1 }), device());
+  funnel.onFrame(
+    view({ phase: "playing", round: 1 }),
+    device({ playerId: "" }),
+  );
+  assert.equal(
+    sent.filter((event) => event.event === "Round Started").length,
+    0,
+  );
+  funnel.onFrame(view({ phase: "playing", round: 1 }), device());
+  funnel.onFrame(view({ phase: "playing", round: 1 }), device());
+  const decided = { matchId: "m1", round: 1, tick: 50, shots: [] };
+  funnel.onFrame(
+    view({ phase: "playing", round: 2, decidedRound: decided }),
+    device({ confirmedTick: 49 }),
+  );
+  assert.equal(sent.filter((event) => event.event === "Round Ended").length, 0);
+  funnel.onFrame(
+    view({ phase: "playing", round: 2, decidedRound: decided }),
+    device({ confirmedTick: 50 }),
+  );
+  funnel.onFrame(
+    view({ phase: "playing", round: 2, decidedRound: decided }),
+    device({ confirmedTick: 50 }),
+  );
+  assert.equal(
+    sent.filter((event) => event.event === "Round Started").length,
+    2,
+  );
+  assert.equal(sent.filter((event) => event.event === "Round Ended").length, 1);
 });
 
 test("a match end fires once per recap, only after the closing pause, with a duration only for a match it saw begin", () => {

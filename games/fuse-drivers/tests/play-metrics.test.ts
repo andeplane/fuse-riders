@@ -8,6 +8,8 @@ test("play metrics count the actual grid, omit identities, and distinguish spect
   const frame = playFrame(room, "a", "online");
   assert.deepEqual(frame, {
     matchId: "m1",
+    roundActive: false,
+    roundEnded: false,
     active: true,
     ended: false,
     round: 1,
@@ -17,6 +19,10 @@ test("play metrics count the actual grid, omit identities, and distinguish spect
     mode: "online",
   });
   assert.equal(playFrame(room, "tv", "display").seated, false);
+  room.race = { ...room.race!, phase: "racing" };
+  assert.equal(playFrame(room, "a", "online").roundActive, true);
+  room.race = { ...room.race!, phase: "finished" };
+  assert.equal(playFrame(room, "a", "online").roundEnded, true);
   room.stage = "over";
   assert.equal(playFrame(room, "a", "online").ended, true);
   assert.equal(playFrame(room, "a", "online").active, false);

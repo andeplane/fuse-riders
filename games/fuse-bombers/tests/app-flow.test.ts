@@ -565,19 +565,21 @@ test("the touch pads stay off the winner screen, and the lobby brings them back"
   assert.deepEqual(metricEvents, [
     "Seat Taken",
     "Match Started",
+    "Round Started",
+    "Round Ended",
     "Match Ended",
   ]);
   frame(undefined, 100);
   assert.equal(
     metricEvents.length,
-    3,
+    5,
     "repeated winner frames do not repeat results",
   );
   assert.deepEqual(shown(), [false, false], "no pad over PLAY AGAIN");
   click("lobby");
   assert.equal(
     metricEvents.length,
-    3,
+    5,
     "returning to attract play sends nothing",
   );
   assert.deepEqual(shown(), [true, true], "the lobby's JOIN pads");

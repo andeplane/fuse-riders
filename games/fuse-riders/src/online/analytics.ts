@@ -11,9 +11,7 @@ import {
 } from "fuse-ui/analytics";
 export {
   EVENT_PREFIX,
-  MIXPANEL_CONFIG,
   OPT_OUT_KEY,
-  SDK_QUEUE_KEYS,
   analyticsOverride,
   analyticsEnabled,
   doNotTrackOn,
@@ -21,7 +19,6 @@ export {
   type AnalyticsStatus,
   type AnalyticsEnvironment,
   type Analytics,
-  type MixpanelLike,
 } from "fuse-ui/analytics";
 
 export const createAnalytics = (environment: AnalyticsEnvironment) =>

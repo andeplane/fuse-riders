@@ -11,6 +11,8 @@ export function observeLocalPlay(
     const view = session.view();
     report({
       matchId: view.matchId,
+      roundActive: !view.finished,
+      roundEnded: view.finished,
       active: !view.finished,
       ended: view.finished,
       playerCount: view.players.length,
@@ -35,6 +37,8 @@ export function observeOnlinePlay(
     if (room.stage === "connecting") return;
     report({
       matchId: session.view().matchId,
+      roundActive: room.stage === "running",
+      roundEnded: room.stage === "over",
       active: room.stage === "running",
       ended: room.stage === "over",
       playerCount: room.seats.filter((seat) => !seat.watcher).length,

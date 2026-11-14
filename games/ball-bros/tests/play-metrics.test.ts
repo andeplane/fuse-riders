@@ -28,6 +28,8 @@ test("play metrics report actual room membership and match state without names",
   const lobby = playFrame(ballGame.view(room), "a", "online");
   assert.deepEqual(lobby, {
     matchId: "match",
+    roundActive: false,
+    roundEnded: false,
     active: false,
     ended: false,
     playerCount: 2,
