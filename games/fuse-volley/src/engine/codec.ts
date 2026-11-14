@@ -1,5 +1,5 @@
 import { courtFor, type Court } from "./court.js";
-import { decided } from "./step.js";
+import { decided, inLanes } from "./step.js";
 import * as T from "./tuning.js";
 import {
   PHASES,
@@ -87,6 +87,8 @@ export function encodeWorld(world: World): unknown[] {
     world.floorCounter,
     encodeBall(world.ball),
     ...world.blobs.map(encodeBlob),
+    // Three a side, the two sides' rotations follow the blobs; the other courts never rotate and carry none.
+    ...(world.blobs.length === 6 ? [world.rotation[0], world.rotation[1]] : []),
   ];
 }
 
@@ -177,6 +179,8 @@ function consistent(world: World): boolean {
     return false;
   if (world.touchStep > world.step) return false;
   if (world.target !== targetOf(world.scoring)) return false;
+  // Three a side, a serve only starts with every blob in its lane.
+  if (phase === "serve" && !inLanes(world)) return false;
   // Timers: a serve counts up to its timeout, the settle counts down, nothing else has one.
   if (phase === "serve" && phaseSteps >= T.SERVE_TIMEOUT) return false;
   if (phase === "dead" && phaseSteps > T.DEAD_STEPS) return false;
@@ -227,7 +231,9 @@ function consistent(world: World): boolean {
 export function decodeWorld(raw: unknown): World | undefined {
   if (
     !Array.isArray(raw) ||
-    (raw.length !== HEAD_FIELDS + 2 && raw.length !== HEAD_FIELDS + 4)
+    (raw.length !== HEAD_FIELDS + 2 &&
+      raw.length !== HEAD_FIELDS + 4 &&
+      raw.length !== HEAD_FIELDS + 6 + 2)
   )
     return;
   const [
@@ -250,8 +256,12 @@ export function decodeWorld(raw: unknown): World | undefined {
     netCounter,
     floorCounter,
     rawBall,
-    ...rawBlobs
+    ...rest
   ] = raw as unknown[];
+  const trios = rest.length === 8,
+    rawBlobs = trios ? rest.slice(0, 6) : rest,
+    rotation = trios ? rest.slice(6) : [0, 0];
+  const [rotation0, rotation1] = rotation;
   if (
     version !== VERSION ||
     !uint32(seed) ||
@@ -270,7 +280,9 @@ export function decodeWorld(raw: unknown): World | undefined {
     !counter(hitCounter) ||
     !counter(pointCounter) ||
     !counter(netCounter) ||
-    !counter(floorCounter)
+    !counter(floorCounter) ||
+    !int(rotation0, 0, 2) ||
+    !int(rotation1, 0, 2)
   )
     return;
   const phase = PHASES[phaseIndex],
@@ -290,6 +302,7 @@ export function decodeWorld(raw: unknown): World | undefined {
     ball,
     blobs: blobs as Blob[],
     score: [score0, score1],
+    rotation: [rotation0, rotation1],
     scoring,
     target: targetOf(scoring),
     server,

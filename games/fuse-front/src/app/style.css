@@ -24,6 +24,7 @@ body.fui-app {
   color: #eef1f4;
 }
 .ff-top {
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -38,6 +39,17 @@ body.fui-app {
 }
 .ff-top-gap {
   flex: 1;
+}
+.ff-top .fui-social {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .ff-top .fui-social {
+    order: 10;
+    flex-basis: 100%;
+    justify-content: center;
+  }
 }
 /* MUSIC and SFX: this browser's choices, dim while off. */
 .ff-sound {

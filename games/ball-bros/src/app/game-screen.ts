@@ -315,8 +315,9 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
         activeSettings,
       );
       panel!.render(m);
+      heading.hidden = m.lobby;
       const remembered = options.store.getItem(NAME_KEY);
-      if (m.askName && remembered && !joined) {
+      if (m.askName && remembered && !joined && !runtime?.canManage) {
         joined = true;
         runtime?.command({
           type: "join",

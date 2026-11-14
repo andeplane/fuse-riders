@@ -1,3 +1,4 @@
+import { openPlayOptions, takeHostSeat } from "./lib/main-menu.js";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -107,8 +108,10 @@ try {
     await route.continue();
   });
   await host.goto(`http://127.0.0.1:${port}/fuse-riders/?mute&benchmark=1`);
+  await openPlayOptions(host);
   await host.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
   await host.waitForURL(/room=/);
+  await takeHostSeat(host, "Host");
   await phone.goto(host.url());
   await host.waitForFunction(
     () => Number(Reflect.get(window, "joinEvidence")?.duplicates) > 0,

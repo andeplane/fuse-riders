@@ -717,8 +717,11 @@ test("menu uses Fuse controls and actual board scenery without starting a simula
   const f = fixture();
   assert.ok(f.root.classList.contains("fui-app"));
   assert.deepEqual(
-    Array.from(f.root.querySelectorAll("button"), (b) => b.dataset.action),
-    ["new-game", "tutorial", "guide", "settings"],
+    Array.from(
+      f.root.querySelectorAll(".fui-main-menu-nav button"),
+      (b) => b.textContent,
+    ),
+    ["Play", "How to play", "About", "Settings"],
   );
   assert.ok(
     f.root

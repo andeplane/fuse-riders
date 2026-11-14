@@ -1,3 +1,4 @@
+import { openPlayOptions, takeHostSeat } from "./lib/main-menu.js";
 import { readyRoom } from "./lib/ready-room.js";
 import type { Page } from "playwright";
 import { BOTH_ENGINES, launchBrowser } from "./lib/browser.js";
@@ -47,10 +48,12 @@ for (const { name, kind } of BOTH_ENGINES) {
       });
       try {
         await phone.goto(base);
+        await openPlayOptions(phone);
         await phone
           .getByRole("button", { name: "CREATE ROOM", exact: true })
           .click();
         await phone.waitForURL(/room=/);
+        await takeHostSeat(phone, "Phone host");
         await phone
           .locator(".phone-lobby .shared-lobby")
           .waitFor({ state: "visible" });
@@ -116,7 +119,7 @@ for (const { name, kind } of BOTH_ENGINES) {
             "COPY LINK",
             phone.getByRole("button", { name: "COPY LINK", exact: true }),
           );
-          for (const action of ["ROOM SETTINGS", "ADD AI"])
+          for (const action of ["Game settings", "Add AI"])
             await onScreen(
               action,
               phone.getByRole("button", { name: action, exact: true }),
@@ -232,8 +235,10 @@ for (const { name, kind } of BOTH_ENGINES) {
       name: "Shared TV",
       exact: true,
     });
+    await openPlayOptions(host);
     await host.locator(".landing-mode label", { has: sharedMode }).click();
     assert.equal(await sharedMode.isChecked(), true, "Shared TV is selected");
+    await openPlayOptions(host);
     await host
       .getByRole("button", { name: "CREATE ROOM", exact: true })
       .click();
@@ -441,7 +446,7 @@ for (const { name, kind } of BOTH_ENGINES) {
       await display.locator(".shared-room-code").textContent(),
       code,
     );
-    await host.getByRole("button", { name: "ADD AI", exact: true }).click();
+    await host.getByRole("button", { name: /^Add AI$/i, exact: true }).click();
     await host.getByRole("button", { name: /Remove AI/ }).waitFor();
     await host.screenshot({ path: `artifacts/shared-qr-${name}.png` });
     await readyRoom(host);
@@ -556,6 +561,7 @@ for (const { name, kind } of BOTH_ENGINES) {
     await qr(display);
     await host.getByRole("button", { name: "ROOM", exact: true }).click();
     await host.getByRole("button", { name: "END ROOM", exact: true }).click();
+    await openPlayOptions(host);
     await host.getByRole("link", { name: /PLAY SOLO/ }).waitFor(); // #44: a joined phone must see the ended room without opening ☰ MENU — the thirds controller gives way to the ordinary header, status and MENU.
     const ended = guest.getByText(/room.*(ended|expired)/i).first();
     await ended.waitFor({ state: "visible" });

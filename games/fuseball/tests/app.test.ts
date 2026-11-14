@@ -19,7 +19,9 @@ import {
   present,
   type Viewer,
 } from "../src/app/presenter.js";
-import { createSfx, type SfxDependencies } from "../src/app/audio.js";
+import { createSfx } from "../src/app/audio.js";
+import { createGameAudio } from "fuse-ui/game-audio";
+import { createAudioRig } from "fuse-ui/game-audio-fake";
 import {
   NOT_OPEN,
   keys,
@@ -743,57 +745,12 @@ test("a report is retried on a lost race, a reconnecting socket and a dropped co
   );
 });
 
-test("sounds: silent when muted or before the page may play, then a voice per cue and jingle notes later", () => {
-  const started: string[] = [];
-  const param = {
-    setValueAtTime() {},
-    exponentialRampToValueAtTime() {},
-    value: 0,
-  };
-  const node = (kind: string) => ({
-    connect: (next: unknown) => next,
-    start: () => void started.push(kind),
-    stop() {},
-    frequency: param,
-    gain: param,
-    type: "",
-    buffer: null,
-  });
-  let state = "suspended",
-    opened = 0;
-  const audio = {
-    get state() {
-      return state;
-    },
-    currentTime: 0,
-    sampleRate: 8000,
-    destination: {},
-    createOscillator: () => node("tone"),
-    createGain: () => node("gain"),
-    createBiquadFilter: () => node("filter"),
-    createBufferSource: () => node("noise"),
-    createBuffer: (_channels: number, length: number) => ({
-      getChannelData: () => new Float32Array(length),
-    }),
-    resume: async () => {
-      state = "running";
-    },
-  };
-  const later: (() => void)[] = [];
-  const deps: SfxDependencies = {
-    open: () => {
-      opened++;
-      return audio as unknown as AudioContext;
-    },
-    later: (run) => void later.push(run),
-    random: () => 0.5,
-  };
+test("sounds: silent when muted or before the page may play, then a voice per cue and jingle notes later", async () => {
   const at = { slot: 0, index: 0, x: 1, y: 2 } as const;
   const cues: Cue[] = [
     { kind: "jump", ...at, grounded: true },
     { kind: "jump", ...at, grounded: false },
     { kind: "bubble", ...at },
-    { kind: "trail", ...at },
     { kind: "pop", ...at },
     { kind: "harden", ...at },
     { kind: "bounce", x: 1, y: 2, speed: 2, touch: 0 },
@@ -804,25 +761,28 @@ test("sounds: silent when muted or before the page may play, then a voice per cu
     { kind: "go" },
     { kind: "over", winner: 0 },
   ];
-  const muted = createSfx(true, deps);
-  muted.resume();
+  const quiet = createAudioRig();
+  const muted = createSfx(createGameAudio(quiet.deps, { forceMute: true }));
   for (const cue of cues) muted.play(cue);
-  assert.equal(opened, 0, "a muted page never opens audio");
-  const sfx = createSfx(false, deps);
+  assert.equal(quiet.log.opens, 0, "a muted page never opens audio");
+  const rig = createAudioRig("suspended");
+  const audio = createGameAudio(rig.deps);
+  const sfx = createSfx(audio);
   sfx.play(cues[0]!);
-  assert.equal(started.length, 0, "nothing before the page may play");
-  sfx.resume();
+  assert.equal(rig.log.oscillators, 0, "nothing before the page may play");
+  audio.unlock();
+  await Promise.resolve();
   for (const cue of cues) sfx.play(cue);
-  assert.ok(started.includes("tone") && started.includes("noise"));
-  const before = started.length;
+  assert.ok(rig.log.oscillators > 0 && rig.log.noises > 0);
+  const before = rig.log.oscillators;
   sfx.play({ kind: "trail", ...at });
   sfx.play({ kind: "bounce", x: 1, y: 2, speed: 0.1, touch: -1 });
-  assert.equal(started.length, before, "a trail and a soft tap are silent");
-  for (const run of later) run();
-  assert.ok(started.length > before, "the jingles' later notes play");
-  assert.equal(opened, 1, "one audio context for the page");
-  // A browser without audio stays quiet rather than throwing.
-  const none = createSfx(false, { ...deps, open: () => undefined });
-  none.resume();
-  none.play({ kind: "go" });
+  assert.equal(
+    rig.log.oscillators,
+    before,
+    "a trail and a soft tap are silent",
+  );
+  rig.timers.forEach((run) => run());
+  assert.ok(rig.log.oscillators > before, "the jingles' later notes play");
+  assert.equal(rig.log.opens, 1, "one audio context for the page");
 });

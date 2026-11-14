@@ -628,7 +628,10 @@ body.fv-display .fv-sides {
   }
 }
 
-/* Doubles plays on a court 1.75 times as wide: the frame follows it, so the court fills it. */
-.fv-room[data-doubles="true"] {
+/* Two a side plays on a court 1.75 times as wide, three a side 1.8 times: the frame follows it, so the court fills it. */
+.fv-room[data-team="2"] {
   --fv-aspect: 7 / 3;
+}
+.fv-room[data-team="3"] {
+  --fv-aspect: 12 / 5;
 }

@@ -72,6 +72,7 @@ export const TEXT = {
 } as const;
 
 export interface Member {
+  slot: number;
   id: string;
   name: string;
   tag: string;
@@ -198,6 +199,7 @@ export function present(view: View, viewer: Viewer): Model {
     canPick: seated && mine.connected && !mine.away && picksApply(view.stage),
     members: seats.map((seat) => ({
       id: seat.id,
+      slot: seat.slot,
       name: seat.id === viewer.me ? `${seat.name} (you)` : seat.name,
       tag: tag(seat.slot),
       color: SEAT_COLORS[seat.slot % SEAT_COLORS.length]!,

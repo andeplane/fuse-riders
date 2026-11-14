@@ -31,13 +31,16 @@ const join = async (page: Page, name: string) => {
 try {
   const host = await open("host");
   await host.goto(`${base}/fuse-craft/?mute`);
-  await host.locator('[data-action="multiplayer"]').click();
-  await host.locator('[data-action="create-room"]').click();
-  await host.locator(".room-code").waitFor({ timeout: 15_000 });
-  const code = (await host.locator(".room-code").innerText()).trim();
+  await host.getByRole("button", { name: "Play", exact: true }).click();
+  await host.locator(".fui-room-code").waitFor({ timeout: 15_000 });
+  const code = (await host.locator(".fui-room-code").innerText()).trim();
   assert.match(host.url(), new RegExp(`room=${code}`));
   await join(host, "Host");
+  await host
+    .getByRole("button", { name: "Game settings", exact: true })
+    .click();
   await host.locator("#room-map").selectOption(mapId);
+  await host.keyboard.press("Escape");
   const guests: Page[] = [];
   for (const name of names.slice(1)) {
     const page = await open(name.toLowerCase());

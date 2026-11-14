@@ -1,3 +1,4 @@
+import type { Cue } from "../src/render/cues.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -27,7 +28,9 @@ import {
   type Viewer,
 } from "../src/app/presenter.js";
 import { loadArt, type ImageLoader } from "../src/app/art.js";
-import { createSfx, type SfxDependencies } from "../src/app/audio.js";
+import { createSfx } from "../src/app/audio.js";
+import { createGameAudio } from "fuse-ui/game-audio";
+import { createAudioRig } from "fuse-ui/game-audio-fake";
 import { advanced, cuesBetween } from "../src/render/cues.js";
 import { createJelly } from "../src/render/jelly.js";
 import { DECAY_MS, createSmoother } from "../src/render/smooth.js";
@@ -142,7 +145,7 @@ test("in a match each player sees their side; on a shared screen a phone becomes
     display: true,
     scoring: "classic",
     bot: 1,
-    doubles: false,
+    team: 1,
   });
   const phone = present(view(shared), viewer("b"));
   assert.equal(phone.screen, "controller");
@@ -286,23 +289,32 @@ test("art arrives in the background and a missing file leaves its fallback", asy
   assert.deepEqual(art().blobs, [image, image]);
 });
 
-test("a muted page never opens the browser's audio", () => {
-  let opened = 0;
-  const deps: SfxDependencies = {
-    open() {
-      opened++;
-      return undefined;
-    },
-    later() {},
-    random: () => 0.5,
-  };
-  const muted = createSfx(true, deps);
-  muted.resume();
-  muted.play({ kind: "point", loser: 0, scored: true, matchPoint: -1 });
-  assert.equal(opened, 0);
-  const sounding = createSfx(false, deps);
-  sounding.play({ kind: "serve", side: 0 });
-  assert.equal(opened, 1);
+test("sounds: silent when muted, a voice for each cue once the page may play", async () => {
+  const quiet = createAudioRig();
+  const muted = createGameAudio(quiet.deps, { forceMute: true });
+  const cues: Cue[] = [
+    { kind: "hit", side: 0, slot: 0, x: 1, y: 2, speed: 6, touches: 1 },
+    { kind: "net", x: 1, y: 2 },
+    { kind: "floor", x: 1, speed: 4 },
+    { kind: "floor", x: 1, speed: 0.1 },
+    { kind: "land", side: 0, slot: 0, x: 1 },
+    { kind: "jump", side: 0, slot: 0, x: 1 },
+    { kind: "point", loser: 0, scored: true, matchPoint: 1 },
+    { kind: "serve", side: 0 },
+    { kind: "over", winner: 0 },
+  ];
+  for (const cue of cues) createSfx(muted).play(cue);
+  assert.equal(quiet.log.opens, 0, "a muted page never opens audio");
+  const rig = createAudioRig("suspended");
+  const audio = createGameAudio(rig.deps);
+  const sfx = createSfx(audio);
+  sfx.play(cues[0]!);
+  assert.equal(rig.log.oscillators, 0, "nothing before the first input");
+  audio.unlock();
+  await Promise.resolve();
+  for (const cue of cues) sfx.play(cue);
+  rig.timers.forEach((run) => run());
+  assert.ok(rig.log.oscillators > 10 && rig.log.noises >= 2);
 });
 
 test("the drawn bot plans once per folded step and side", () => {
@@ -326,7 +338,7 @@ test("a classic side-out is not reported as a point", () => {
     display: false,
     scoring: "classic",
     bot: 1,
-    doubles: false,
+    team: 1,
   });
   const server = room.world!.server;
   const watch = createPointWatch();

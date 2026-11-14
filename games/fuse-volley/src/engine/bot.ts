@@ -3,7 +3,9 @@ import { div, mix } from "./math.js";
 import { stepBall, stepWorld } from "./step.js";
 import * as T from "./tuning.js";
 import {
+  cloneWorld,
   courtOf,
+  laneOf,
   otherSide,
   touchesOf,
   type Blob,
@@ -21,6 +23,9 @@ import {
  * Two a side, the teammate nearer where the ball comes down takes it and the other gets out of the way; between
  * rallies the one nearer the net covers the front and the other the back. A human teammate is read the same way, so a
  * bot leaves a ball its human partner is closer to.
+ *
+ * Three a side, each bot keeps to its lane: it plays the balls coming down in its lane and waits in the middle of it
+ * otherwise. The middle lane holds the serve, so whoever plays it serves.
  *
  * It thinks in its own frame, as if it played the left side: x runs from its own wall (0) to the net.
  */
@@ -67,14 +72,7 @@ const ownBall = (world: World, side: Side, units: number): number =>
   div(side === 0 ? units : courtOf(world).w * T.BU - units, T.BU);
 
 /** A copy of the world the bot can play forward without touching the real one. */
-function copy(world: World): World {
-  return {
-    ...world,
-    ball: { ...world.ball },
-    blobs: world.blobs.map((blob) => ({ ...blob })),
-    score: [world.score[0], world.score[1]],
-  };
-}
+const copy = cloneWorld;
 
 /** Where the ball, untouched, first comes down through `height` px: its own-frame x, or undefined if not soon. */
 export function landing(
@@ -177,7 +175,12 @@ export function botInput(
   if (!me) return 0;
   const side = me.side,
     net = courtOf(world).net;
-  const mate = world.blobs.find((blob) => blob !== me && blob.side === side);
+  const court = courtOf(world),
+    lane = laneOf(world, slot);
+  const mate =
+    lane >= 0
+      ? undefined
+      : world.blobs.find((blob) => blob !== me && blob.side === side);
   const ball = world.ball,
     x = own(world, side, me.x),
     bx = ownBall(world, side, ball.x);
@@ -191,7 +194,24 @@ export function botInput(
     x > own(world, side, mate.x) ||
     (x === own(world, side, mate.x) &&
       world.blobs.indexOf(me) < world.blobs.indexOf(mate));
-  const home = !mate ? net - HOME : front ? net - FRONT_HOME : net - BACK_HOME;
+  const home =
+    lane >= 0
+      ? own(
+          world,
+          side,
+          (court.laneMin[side]![lane]! + court.laneMax[side]![lane]!) / 2,
+        )
+      : !mate
+        ? net - HOME
+        : front
+          ? net - FRONT_HOME
+          : net - BACK_HOME;
+  /** Three a side, whether a ball coming down at `spot` (own frame) is in this bot's lane. */
+  const mine = (spot: number): boolean => {
+    if (lane < 0) return true;
+    const out = net - spot;
+    return (out < T.TRIO_LANE ? 0 : out < 2 * T.TRIO_LANE ? 1 : 2) === lane;
+  };
   if (world.phase === "over" || world.phase === "dead") return walk(home);
   // Holding jump while rising makes the most of a jump it already chose; it lets go before landing, or holding it
   // through the landing would jump again.
@@ -201,6 +221,7 @@ export function botInput(
   if (world.phase === "serve" && !ball.live) {
     if (world.server !== side) return walk(home);
     if (mate && !takes(world, me, mate, bx)) return walk(home);
+    if (!mine(bx)) return walk(home);
     centre = bx;
     // A moment's pause before serving, so the other side sees it coming.
     if (world.phaseSteps < 60) return walk(bx - OFFSETS[1]);
@@ -218,6 +239,8 @@ export function botInput(
       return walk(
         land > net - (net - T.NET_GAP) / 2 ? net - BACK_HOME : net - FRONT_HOME,
       );
+    // Three a side: a ball in another lane is a teammate's.
+    if (!mine(land)) return walk(home);
     centre = land;
   }
   // Its own aim error for this touch of the rally, the same on every device.
@@ -230,7 +253,7 @@ export function botInput(
   const serving = world.phase === "serve" && !ball.live;
   let best = -Infinity,
     bits = walk(centre - OFFSETS[1] + aim);
-  for (const offset of mate ? WIDE_OFFSETS : OFFSETS) {
+  for (const offset of mate || lane >= 0 ? WIDE_OFFSETS : OFFSETS) {
     const target = centre - offset + aim;
     for (const jump of serving || skill.attacks ? [false, true] : [false]) {
       // A serve needs a jump: the ball hovers above a standing head.

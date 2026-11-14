@@ -1,3 +1,4 @@
+import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
 import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
@@ -5,6 +6,14 @@ import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
+import {
+  bindAudioInput,
+  browserAudioDependencies,
+  createAudioControl,
+  createGameAudio,
+} from "fuse-ui/game-audio";
+import "fuse-ui/game-audio.css";
+import { safeStorage } from "fuse-ui/safe-storage";
 import "./fuseball.css";
 import QRCode from "qrcode";
 import {
@@ -21,6 +30,7 @@ import {
   createGameMenu,
   createInviteCard,
   createLandingCard,
+  createRoomLayout,
   createNameEntry,
   createNotice,
   createRoster,
@@ -57,7 +67,7 @@ import {
   teamColor,
 } from "../render/palette.js";
 import { createScene, guarded, solidCopies } from "../render/scene.js";
-import { createSfx } from "./audio.js";
+import { createSfx, FUSEBALL_SONGS } from "./audio.js";
 import {
   HeldControls,
   PadSet,
@@ -116,6 +126,15 @@ const seedKey = `${GAME}-seed`;
 const sizeKey = `${GAME}-size`;
 const query = new URLSearchParams(location.search);
 const muted = query.has("mute");
+/** One sound bus for the page: the mute and volumes are remembered across games, `?mute` keeps a preview silent. */
+const audio = createGameAudio(
+  browserAudioDependencies(safeStorage(() => localStorage)),
+  { forceMute: muted },
+);
+audio.setSongs(FUSEBALL_SONGS, import.meta.env.BASE_URL);
+audio.startMusic();
+bindAudioInput(audio, document, window);
+const audioControl = createAudioControl(document, audio);
 const app = document.querySelector<HTMLElement>("#app")!;
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 /** For smokes and demos: `?autopilot` rides this device's rider with the bot's answers, through the same held controls. */
@@ -215,7 +234,13 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     base: import.meta.env.BASE_URL,
     search: location.search,
   });
-  bar.append(portal.element, logo(), social.element(), ...extra);
+  bar.append(
+    portal.element,
+    logo(),
+    social.element(),
+    audioControl.element,
+    ...extra,
+  );
   return bar;
 }
 
@@ -471,6 +496,8 @@ function landing(): void {
       ),
     );
   const card = createLandingCard({
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     title: "FUSEBALL",
     tagline:
       "A neon ball game for two to six: a duel, 2 v 2 or 3 v 3. Knock the ball into the goal in your own colour to score and zap the other side. Air-jump as often as you like: every one leaves a bubble that bumps the ball away. First to three wins.",
@@ -539,7 +566,8 @@ function landing(): void {
     picker.element,
     seeds.element,
   );
-  card.element.append(arena, keyHelp());
+  card.menu.addSettings(arena);
+  card.menu.help.append(keyHelp());
   const back = el("a", "← ALL GAMES", "fb-back");
   back.href = import.meta.env.BASE_URL + (muted ? "?mute" : "");
   const menu = createGameMenu(GUIDE);
@@ -597,7 +625,7 @@ function room(solo: boolean): void {
     display = role === "display";
   document.body.classList.toggle("fb-display", display);
   const viewer: Viewer = { me: "", host: solo, solo, display };
-  const sfx = createSfx(muted);
+  const sfx = createSfx(audio);
 
   // ---- the page ----
   const status = createNotice({ className: "fb-status" });
@@ -646,7 +674,11 @@ function room(solo: boolean): void {
     buttonText: "JOIN",
     onSubmit: (name) => {
       store.setItem(names.name, name);
-      runtime.command({ type: "join", name });
+      runtime.command({
+        type: "join",
+        name,
+        slot: requestedRoomSlot(nameEntry.form),
+      });
     },
   });
   lobbyMain.append(
@@ -656,7 +688,12 @@ function room(solo: boolean): void {
     switchSide,
   );
   switchSide.onclick = () => runtime.switchSide();
-  addBot.onclick = () => runtime.command({ type: "bot", action: "add" });
+  addBot.onclick = () =>
+    runtime.command({
+      type: "bot",
+      action: "add",
+      slot: requestedRoomSlot(addBot),
+    });
   start.onclick = () => runtime.command({ type: "action", action: "start" });
   tvLink.onclick = () =>
     window.open(
@@ -803,6 +840,21 @@ function room(solo: boolean): void {
   const main = el("main", "", "fb-room");
   main.append(connecting, closed, nameEntry.form, lobby, stage, controller);
   app.replaceChildren(top, main);
+  const roomLayout = createRoomLayout({
+    playerName: () => social.playerName(undefined) ?? undefined,
+    slotColor: (slot) => (slot % 2 ? "#ff2e9d" : "#16e7ff"),
+    slotLabel: (slot) => `${slot % 2 ? "Pink" : "Cyan"} · Slot ${slot + 1}`,
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
+    element: lobby,
+    roster,
+    capacity: 2,
+    join: nameEntry.form,
+    addAI: addBot,
+    modes: [modes.element],
+    settings: [picker.element, seeds.element],
+    actions: [lobbyNote, switchSide, tvLink, start],
+  });
   lobby.hidden = true;
   stage.hidden = true;
   controller.hidden = true;
@@ -853,6 +905,7 @@ function room(solo: boolean): void {
     roster.update(
       next.lobby.members.map((member) => ({
         id: member.id,
+        slot: member.slot,
         name: member.you ? `${member.name} (you)` : member.name,
         color: teamColor(member.side),
         status: member.bot
@@ -866,6 +919,7 @@ function room(solo: boolean): void {
             : "OFFLINE",
       })),
     );
+    roomLayout.update(next.lobby.members.length, 2 * view.settings.size);
     for (const [id, row] of roster.entries()) {
       let remove = row.querySelector<HTMLButtonElement>(".fb-remove");
       const removable = next.lobby.removable.includes(id);
@@ -995,9 +1049,13 @@ function room(solo: boolean): void {
       const next = present(frame, viewer);
       // A page that loads into a room with a name remembered from before joins under it once; a name typed on this
       // page joins only through JOIN.
-      if (next.askName && remembered && !joinSent) {
+      if (next.askName && remembered && !joinSent && !viewer.host) {
         joinSent = true;
-        runtime.command({ type: "join", name: remembered });
+        runtime.command({
+          type: "join",
+          slot: requestedRoomSlot(nameEntry.form),
+          name: remembered,
+        });
       }
       if (next.seated) joinSent = false;
       render(next, frame);
@@ -1104,7 +1162,6 @@ function room(solo: boolean): void {
     (target instanceof HTMLButtonElement && !model?.riding);
   const captured = new Set<string>();
   document.addEventListener("keydown", (event) => {
-    sfx.resume();
     if (
       menu.isOpen() ||
       typing(event.target) ||
@@ -1125,9 +1182,6 @@ function room(solo: boolean): void {
   window.addEventListener("blur", () => controls.clear());
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) controls.clear();
-  });
-  document.addEventListener("pointerdown", () => sfx.resume(), {
-    passive: true,
   });
   runtime.start();
 }

@@ -1,3 +1,4 @@
+import { openPlayOptions, takeHostSeat } from "./lib/main-menu.js";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
@@ -59,8 +60,10 @@ try {
     localStorage.setItem("fuse-riders-player-name", "Pilot"),
   );
   await host.goto(entrance.href);
+  await openPlayOptions(host);
   await host.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
   await host.waitForURL(/room=/);
+  await takeHostSeat(host, "Anchor");
   // Admission awaits ICE configuration. Let it finish before a parameter-normalizing navigation,
   // otherwise WebKit reports the cancelled fetch as a page error from the departing document.
   await host
@@ -70,7 +73,10 @@ try {
   const invite = new URL(host.url());
   for (const [key, value] of entrance.searchParams)
     invite.searchParams.set(key, value);
-  if (host.url() !== invite.href) await host.goto(invite.href);
+  if (host.url() !== invite.href) {
+    await host.goto(invite.href);
+    await takeHostSeat(host, "Anchor");
+  }
   await guest.goto(invite.href);
   await host
     .locator(".room-rider strong")

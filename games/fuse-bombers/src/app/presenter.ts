@@ -50,6 +50,7 @@ export function present(view: View, viewer: Viewer) {
   const mine = view.seats.find((seat) => seat.id === viewer.me);
   const members = players.map((seat) => ({
     id: seat.id,
+    slot: seat.slot,
     name: seat.name,
     color: css(playerColor(seat.slot)),
     status:

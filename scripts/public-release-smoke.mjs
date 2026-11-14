@@ -54,10 +54,13 @@ for (const [name, type] of [
     await host.goto(
       "https://andeplane.github.io/fuse-riders/fuse-riders/?analytics=0&mute",
     );
-    await host
-      .getByRole("button", { name: "CREATE ROOM", exact: true })
-      .click();
+    await host.getByRole("button", { name: "Play", exact: true }).click();
     await host.waitForURL(/room=/);
+    await host.locator(".fui-room-join input").first().fill("Public host");
+    await host
+      .locator(".fui-room-join")
+      .getByRole("button", { name: "Join", exact: true })
+      .click();
     const invite = host.url();
     result.created = true;
     // Both pages are seated by the room on arrival, under the name the browser remembers, with no form in between
@@ -66,7 +69,7 @@ for (const [name, type] of [
       .locator(":is(.online-roster,.room-riders):visible")
       .getByText("Public host", { exact: false })
       .waitFor();
-    await host.getByRole("button", { name: "ADD AI", exact: true }).click();
+    await host.getByRole("button", { name: "Add AI", exact: true }).click();
     await host.getByRole("button", { name: /Remove AI/ }).waitFor();
     result.aiAdded = true;
     await guest.goto(`${invite}&analytics=0&mute`);
@@ -128,7 +131,7 @@ for (const [name, type] of [
     await guest.locator(".shared-lobby").waitFor({ state: "visible" });
     result.reset = true;
     await host
-      .getByRole("button", { name: "ROOM SETTINGS", exact: true })
+      .getByRole("button", { name: "Game settings", exact: true })
       .click();
     await host
       .getByRole("radio", { name: "Shared TV + phone controls", exact: true })
@@ -164,7 +167,7 @@ for (const [name, type] of [
       .getByText("Public host", { exact: false })
       .waitFor();
     await host
-      .getByRole("button", { name: "ROOM SETTINGS", exact: true })
+      .getByRole("button", { name: "Game settings", exact: true })
       .click();
     assert.equal(
       await host
@@ -211,7 +214,7 @@ for (const [name, type] of [
       .waitFor();
     assert.equal(
       await display
-        .getByRole("button", { name: "ROOM SETTINGS", exact: true })
+        .getByRole("button", { name: "Game settings", exact: true })
         .isVisible(),
       false,
     );

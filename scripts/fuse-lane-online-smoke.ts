@@ -1,3 +1,4 @@
+import { openPlayOptions, takeHostSeat } from "./lib/main-menu.js";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { chromium, type Page } from "playwright";
@@ -23,19 +24,22 @@ async function page(phone = false): Promise<Page> {
 async function create(host: Page, shared: boolean): Promise<string> {
   await host.goto(`${service.url}?mute`);
   await host.locator('.arcade-game[href*="fuse-lane/"]').click();
+  await openPlayOptions(host);
   await host.getByRole("tab", { name: "PLAY ONLINE" }).click();
   await host.getByRole("textbox", { name: "Your name" }).fill("Host");
   if (shared)
     await host.getByRole("button", { name: "SHARED TV", exact: true }).click();
+  await openPlayOptions(host);
   await host.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
   await host.locator(".fl-code").waitFor();
+  if (!shared) await takeHostSeat(host, "Host");
   return (await host.locator(".fl-code").innerText()).trim();
 }
 async function join(phone: Page, code: string, name: string): Promise<void> {
   await phone.goto(`${service.url}fuse-lane/?room=${code}&mute`);
-  await phone.locator(".fl-join-card").waitFor();
+  await phone.locator(".fui-room-join").waitFor();
   await phone.getByRole("textbox").fill(name);
-  await phone.getByRole("button", { name: "JOIN", exact: true }).click();
+  await phone.getByRole("button", { name: /^Join$/i, exact: true }).click();
   await phone.locator(".fl-roster-name").filter({ hasText: name }).waitFor();
 }
 async function running(target: Page, layout: string): Promise<void> {

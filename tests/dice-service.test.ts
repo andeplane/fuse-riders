@@ -58,6 +58,7 @@ test("the service hosts dice rooms beside Fuse Riders, and a room refuses the ot
     "fuse-front",
     "fuseball",
     "fuse-volley",
+    "elasto-fuse",
   ]);
   assert.equal(platform.game("fuse-front").parseStats({}, 1), undefined);
   assert.equal(platform.game("fuse-lane").parseStats({}, 1), undefined);

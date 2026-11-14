@@ -1,4 +1,6 @@
 import { el, partClass, type PartClasses } from "./dom.js";
+import { createMainMenu } from "./main-menu.js";
+import type { AttractFactory } from "./attract.js";
 
 export type JoinByCodePart = "root" | "input" | "button" | "rejoin";
 
@@ -69,6 +71,7 @@ export function createJoinByCode(options: JoinByCodeOptions): JoinByCode {
 }
 
 export interface LandingOptions {
+  background?: AttractFactory;
   /** The game's name, the card's heading. */
   title: string;
   /** One line under the title. */
@@ -92,6 +95,7 @@ export interface LandingCard {
   join: JoinByCode;
   /** One `role="alert"` line for create and join failures. */
   error: HTMLElement;
+  menu: ReturnType<typeof createMainMenu>;
 }
 
 /**
@@ -115,7 +119,7 @@ export function createLandingCard(options: LandingOptions): LandingCard {
   element.append(heading);
   if (options.tagline)
     element.append(el("p", options.tagline, "fui-landing-tagline", doc));
-  create.onclick = async () => {
+  const runCreate = async () => {
     create.disabled = true;
     error.textContent = "";
     try {
@@ -123,9 +127,13 @@ export function createLandingCard(options: LandingOptions): LandingCard {
     } catch (failure) {
       error.textContent =
         failure instanceof Error ? failure.message : String(failure);
+      throw failure;
     } finally {
       create.disabled = false;
     }
+  };
+  create.onclick = () => {
+    void runCreate().catch(() => {});
   };
   const join = createJoinByCode({
     valid: options.valid,
@@ -148,5 +156,13 @@ export function createLandingCard(options: LandingOptions): LandingCard {
     actions.append(solo);
   }
   element.append(actions, error);
-  return { element, create, solo, join, error };
+  const menu = createMainMenu({
+    background: options.background,
+    title: options.title,
+    description: options.tagline,
+    play: element,
+    onPlay: runCreate,
+    document: doc,
+  });
+  return { element: menu.element, create, solo, join, error, menu };
 }

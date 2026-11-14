@@ -1,3 +1,4 @@
+import { openPlayOptions, takeHostSeat } from "./lib/main-menu.js";
 /**
  * Captures the gallery card image of a game from real play: `public/gallery/<id>.jpg`, the file a game's
  * `portal.json` names as its `screenshot`.
@@ -34,6 +35,7 @@ type Recipe = (page: Page) => Promise<void>;
 
 const RECIPES: Record<string, Recipe> = {
   "ball-bros": async (page) => {
+    await openPlayOptions(page);
     await page.getByRole("button", { name: "PLAY SOLO", exact: true }).click();
     await page
       .getByText("SPACE TO LAUNCH", { exact: true })
@@ -44,6 +46,7 @@ const RECIPES: Record<string, Recipe> = {
     await hold(page, ["KeyD", "KeyW", "KeyA", "KeyS", "KeyD"], 1800);
   },
   "fuse-birds": async (page) => {
+    await openPlayOptions(page);
     await page
       .getByRole("button", { name: "1 PLAYER PRACTICE", exact: true })
       .click();
@@ -53,8 +56,10 @@ const RECIPES: Record<string, Recipe> = {
     await page.waitForTimeout(2500);
   },
   "fuse-front": async (page) => {
+    await openPlayOptions(page);
     await page.getByRole("button", { name: "CREATE ROOM" }).click();
-    await page.locator(".ff-t1 .ff-cycle").waitFor({ timeout: 15_000 });
+    await takeHostSeat(page, "Gallery");
+    await page.getByRole("button", { name: "Add AI", exact: true }).click();
     await page.getByRole("button", { name: "START" }).click();
     await page
       .locator("p.ff-hud", { hasText: "right-click: move" })
@@ -68,7 +73,17 @@ const RECIPES: Record<string, Recipe> = {
     });
     await page.waitForTimeout(20_000);
   },
+  "elasto-fuse": async (page) => {
+    await page.getByRole("button", { name: "PLAY SOLO", exact: true }).click();
+    await page
+      .locator('.ef-room[data-stage="running"]')
+      .waitFor({ timeout: 30_000 });
+    // On the gas from the countdown (from a standstill, full gas loops the bike over backwards), up to the first apple.
+    await page.keyboard.down("ArrowUp");
+    await page.waitForTimeout(5000);
+  },
   "fuse-volley": async (page) => {
+    await openPlayOptions(page);
     await page
       .getByRole("button", { name: "PLAY SOLO VS BOT", exact: true })
       .click();
@@ -83,6 +98,7 @@ const RECIPES: Record<string, Recipe> = {
     await page.waitForTimeout(700);
   },
   fuseball: async (page) => {
+    await openPlayOptions(page);
     await page
       .getByRole("button", { name: "PLAY SOLO VS BOT", exact: true })
       .click();
