@@ -75,7 +75,7 @@ try {
   await takeHostSeat(host, "Hosty");
   const code = new URL(host.url()).searchParams.get("room")!;
   const roomUrl = `${base}?room=${code}&mute=1&benchmark=1`;
-  await host.locator(".room-riders > .room-rider").first().waitFor();
+  await host.locator(".fui-slot-occupant > .room-rider").first().waitFor();
 
   // An invited device is seated by the room itself (`docs/design/room-is-the-join-screen.md`).
   const rider = await open("rider", roomUrl, "Rider");
@@ -106,7 +106,7 @@ try {
       (color) =>
         [
           ...document.querySelectorAll<HTMLElement>(
-            ".room-riders > .room-rider:not(.room-watcher)",
+            ".fui-slot-occupant > .room-rider",
           ),
         ].some(
           (row) =>
@@ -169,7 +169,7 @@ try {
   ] as const) {
     // The watching list is nested inside `.room-riders`, so say "a seat's row" rather than "anything in the list".
     const badges = page.locator(
-      ".room-riders > .room-rider:not(.room-watcher) .host-badge:visible",
+      ".fui-slot-occupant > .room-rider .host-badge:visible",
     );
     await badges.first().waitFor();
     assert.equal(await badges.count(), 1, `${label} names one host`);
@@ -188,7 +188,7 @@ try {
   // Changing sides, both ways, in the browser: the watcher takes a free seat and gives it straight back. The room ends
   // where it started, so what follows is unaffected.
   const seats = (page: Page) =>
-    page.locator(".room-riders > .room-rider:not(.room-watcher)").count();
+    page.locator(".fui-slot-occupant > .room-rider").count();
   const watchers = (page: Page) => page.locator(".room-watcher").count();
   // One button, beside READY, about this device rather than about a row: a watcher's page offers the seat, and the
   // pages watching it offer their own direction instead.
@@ -219,7 +219,7 @@ try {
     await page.waitForFunction(
       () =>
         document.querySelectorAll(
-          ".room-riders > .room-rider:not(.room-watcher)",
+          ".fui-slot-occupant > .room-rider",
         ).length === 3 &&
         document.querySelectorAll(".room-watcher").length === 0,
       undefined,
@@ -260,7 +260,7 @@ try {
     await page.waitForFunction(
       () =>
         document.querySelectorAll(
-          ".room-riders > .room-rider:not(.room-watcher)",
+          ".fui-slot-occupant > .room-rider",
         ).length === 2 &&
         document.querySelectorAll(".room-watcher").length === 1,
       undefined,
@@ -353,7 +353,7 @@ try {
   await waitPhase(rider, ["lobby"]);
   await rider.screenshot({ path: "artifacts/spectator-handover.png" });
   const riderBadges = rider.locator(
-    ".room-riders > .room-rider:not(.room-watcher) .host-badge:visible",
+    ".fui-slot-occupant > .room-rider .host-badge:visible",
   );
   await riderBadges.first().waitFor();
   assert.equal(

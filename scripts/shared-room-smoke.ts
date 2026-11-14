@@ -363,7 +363,7 @@ for (const { name, kind } of BOTH_ENGINES) {
     releaseConnection();
     await guest.locator(".room-boot-note").waitFor({ state: "hidden" });
     await host
-      .locator(".room-riders")
+      .locator(".fui-room-players")
       .getByText("QR guest", { exact: true })
       .waitFor();
     await guest
@@ -394,7 +394,7 @@ for (const { name, kind } of BOTH_ENGINES) {
         "no rotate gate in the lobby",
       );
       const me = guest
-        .locator(".room-riders")
+        .locator(".fui-room-players")
         .getByText("QR guest", { exact: true });
       await me.scrollIntoViewIfNeeded();
       const rider = (await me.boundingBox())!;

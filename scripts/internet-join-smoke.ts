@@ -120,7 +120,7 @@ try {
   await host.unrouteAll({ behavior: "wait" });
   for (const page of [host, phone]) {
     await page
-      .locator(".room-riders")
+      .locator(".fui-room-players")
       .getByText("Internet Guest", { exact: true })
       .waitFor();
     await page.waitForFunction(() =>

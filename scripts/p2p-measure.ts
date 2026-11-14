@@ -141,13 +141,13 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
       .click();
     await host.waitForURL(/room=/);
     await takeHostSeat(host, "Host");
-    await host.locator(".room-riders > .room-rider").first().waitFor();
+    await host.locator(".fui-slot-occupant > .room-rider").first().waitFor();
     const target = new URL(host.url());
     target.searchParams.set("benchmark", "1");
     target.searchParams.set("renderer", "phaser-canvas");
     await host.goto(target.href);
     await takeHostSeat(host, "Host");
-    await host.locator(".room-riders > .room-rider").first().waitFor();
+    await host.locator(".fui-slot-occupant > .room-rider").first().waitFor();
     const invite = host.url();
     for (let index = 1; index < 5; index++) {
       const page = await (
@@ -163,7 +163,7 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
       );
       await page.goto(invite);
       await host
-        .locator(":is(.online-roster,.room-riders):visible")
+        .locator(":is(.online-roster,.fui-room-players):visible")
         .getByText(`Rider ${index}`, { exact: false })
         .waitFor();
     }
@@ -175,7 +175,7 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
     await instrument(tv, impaired);
     await tv.goto(invite + "&display=1");
     await tv
-      .locator(":is(.online-roster,.room-riders):visible")
+      .locator(":is(.online-roster,.fui-room-players):visible")
       .getByText("Rider 4", { exact: false })
       .waitFor();
     await readyRoom(host);

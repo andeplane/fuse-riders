@@ -288,7 +288,7 @@ try {
       if (!phone) {
         // The desktop run picks the shortest format through the real settings menu; a new length applies to the next match.
         await page
-          .getByRole("button", { name: "ROOM SETTINGS", exact: true })
+          .getByRole("button", { name: "Game settings", exact: true })
           .click();
         const dialog = page.getByRole("dialog");
         await dialog.waitFor({ state: "visible" });
