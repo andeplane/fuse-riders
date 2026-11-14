@@ -76,6 +76,12 @@ export interface LauncherWindowContent {
   kind: "launcher";
 }
 
+/** mIRC (`src/mirc`): an IRC client over WebSockets. One instance; `caption` mirrors a maximized child's title. */
+export interface MircWindowContent {
+  kind: "mirc";
+  caption?: string;
+}
+
 export type WindowContent =
   | FuseGameWindowContent
   | RetroGameWindowContent
@@ -88,7 +94,8 @@ export type WindowContent =
   | WinampWindowContent
   | ExplorerWindowContent
   | NotepadPlusPlusWindowContent
-  | LauncherWindowContent;
+  | LauncherWindowContent
+  | MircWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -151,6 +158,7 @@ export function sameInstance(
     case "about":
     case "retroFolder":
     case "launcher":
+    case "mirc":
       return existing.kind === content.kind;
     case "retro":
       return existing.kind === "retro" && existing.game === content.game;
@@ -351,6 +359,8 @@ function isWindowContent(
       );
     case "explorer":
       return typeof value.location === "string";
+    case "mirc":
+      return value.caption === undefined || typeof value.caption === "string";
     case "notepadpp":
       return (
         Array.isArray(value.paths) &&

@@ -28,6 +28,7 @@ import {
   WinampDepsContext,
 } from "./winamp/winampDepsContext";
 import { defaultWindowsDeps } from "./windows/windowsDepsContext";
+import { browserMircDeps, MircDepsContext } from "./mirc/mircDeps";
 
 import "./styles.css";
 
@@ -83,7 +84,9 @@ export function mountFuseOs(container: HTMLElement): void {
       <FuseOsPrefsStoreContext.Provider value={prefsStore}>
         <OsAnalyticsContext.Provider value={analytics}>
           <WinampDepsContext.Provider value={winampDeps}>
-            <App store={store} initialOpen={initialOpen} />
+            <MircDepsContext.Provider value={browserMircDeps()}>
+              <App store={store} initialOpen={initialOpen} />
+            </MircDepsContext.Provider>
           </WinampDepsContext.Provider>
         </OsAnalyticsContext.Provider>
       </FuseOsPrefsStoreContext.Provider>

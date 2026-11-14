@@ -40,6 +40,9 @@ export const EXPLORER_WINDOW_SIZE: Size = { width: 720, height: 480 };
 /** Room for the tab bar, a code pane with line numbers and the six-field status bar. */
 export const NOTEPADPP_WINDOW_SIZE: Size = { width: 760, height: 520 };
 
+/** Room for the toolbar, the switchbar and a channel window with its nicklist. */
+export const MIRC_WINDOW_SIZE: Size = { width: 760, height: 540 };
+
 export const OS_NAME = "FuseOS";
 
 /** Title bar text and icon for each window kind. */
@@ -120,6 +123,13 @@ export function windowMeta(
         size: NOTEPADPP_WINDOW_SIZE,
       };
     }
+    case "mirc":
+      return {
+        title: window.caption ?? "mIRC",
+        icon: "mirc",
+        resizable: true,
+        size: MIRC_WINDOW_SIZE,
+      };
     case "launcher":
       return {
         title: LAUNCHER_TITLE,
