@@ -7,28 +7,45 @@ import {
   renderWithProviders,
 } from "../__mocks__/renderWithProviders";
 import { Desktop } from "../desktop/Desktop";
+import type { StartMenuRegistration } from "../desktop/startMenuRegistry";
+import {
+  START_MENU_REGISTRATIONS,
+  StartMenuRegistryContext,
+} from "../desktop/startMenuRegistry";
 import { MemoryFuseOsPrefsStore } from "../settings/fuseosPrefsStore";
+import { MemoryDialUpSession } from "../sounds/dialup/dialUpSession";
 
 import { MemoryLastPlayedStore } from "./lastPlayedStore";
 import { LAUNCHER_WINDOW_ID } from "./launcherFacts";
-import { ADD_GAME_MESSAGE } from "./useLauncherViewModel";
+import {
+  ADD_GAME_MESSAGE,
+  HALL_OF_FAME_REGISTRATION_IDS,
+} from "./useLauncherViewModel";
 
 /** The desktop with the launcher open, as every boot has it. */
-function renderLauncher(options: ProviderOptions = {}) {
-  const result = renderWithProviders(<Desktop />, {
-    initialState: {
-      version: 1,
-      windows: [
-        {
-          id: LAUNCHER_WINDOW_ID,
-          kind: "launcher",
-          minimized: false,
-          maximized: false,
-        },
-      ],
+function renderLauncher(
+  options: ProviderOptions = {},
+  registrations: readonly StartMenuRegistration[] = START_MENU_REGISTRATIONS,
+) {
+  const result = renderWithProviders(
+    <StartMenuRegistryContext.Provider value={registrations}>
+      <Desktop />
+    </StartMenuRegistryContext.Provider>,
+    {
+      initialState: {
+        version: 1,
+        windows: [
+          {
+            id: LAUNCHER_WINDOW_ID,
+            kind: "launcher",
+            minimized: false,
+            maximized: false,
+          },
+        ],
+      },
+      ...options,
     },
-    ...options,
-  });
+  );
   const launcher = screen.getByRole("dialog", { name: "Fusteam" });
   return { ...result, launcher, inside: within(launcher) };
 }
@@ -72,7 +89,7 @@ describe("LauncherWindow", () => {
     expect(details).toHaveTextContent(/Disk usage:\d+ MB/);
     expect(details).toHaveTextContent("Last played:Never");
     const links = within(details).getByRole("navigation", { name: "Links" });
-    for (const name of ["Open in new tab", "Leaderboard", "Friends"]) {
+    for (const name of ["Open in new tab", "Leaderboard"]) {
       const link = within(links).getByRole("link", { name });
       expect(link).toHaveAttribute("href", "/fuse-riders/fuseball/");
       expect(link).toHaveAttribute("target", "_blank");
@@ -203,36 +220,95 @@ describe("LauncherWindow", () => {
     ).toHaveTextContent("Last played:Yesterday");
   });
 
-  it("switches to the Friends, Servers and News placeholders and back", async () => {
+  it("opens Fuse Messenger and Network Neighborhood from their tabs, dialling in first, and stays on My Games", async () => {
+    const user = userEvent.setup();
+    const { inside, dialUpSession } = renderLauncher();
+    await user.click(inside.getByRole("tab", { name: "Friends" }));
+    // Nothing has connected yet this session: Dial-Up Networking comes first; Cancel skips the modem.
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Connect To" })).getByRole(
+        "button",
+        { name: "Cancel" },
+      ),
+    );
+    expect(dialUpSession.connected).toBe(true);
+    expect(
+      await screen.findByRole("dialog", { name: "Fuse Messenger" }),
+    ).toBeInTheDocument();
+    await user.click(inside.getByRole("tab", { name: "Servers" }));
+    expect(
+      await screen.findByRole("dialog", { name: "Network Neighborhood" }),
+    ).toBeInTheDocument();
+    expect(inside.getByRole("tab", { name: "My Games" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      inside.getByRole("listbox", { name: "My Games" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows its own News page while no Hall of Fame is installed, and back", async () => {
     const user = userEvent.setup();
     const { inside } = renderLauncher();
-    for (const [tab, text] of [
-      ["Friends", "No friends online."],
-      ["Servers", "no server list"],
-      ["News", "Fusteam launcher released"],
-    ] as const) {
-      await user.click(inside.getByRole("tab", { name: tab }));
-      expect(inside.getByRole("tab", { name: tab })).toHaveAttribute(
-        "aria-selected",
-        "true",
-      );
-      expect(inside.getByRole("tabpanel")).toHaveTextContent(text);
-      expect(inside.queryByRole("listbox")).toBeNull();
-    }
+    await user.click(inside.getByRole("tab", { name: "News" }));
+    expect(inside.getByRole("tab", { name: "News" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(inside.getByRole("tabpanel")).toHaveTextContent(
+      "Fusteam launcher released",
+    );
+    expect(inside.queryByRole("listbox")).toBeNull();
     await user.click(inside.getByRole("tab", { name: "My Games" }));
     expect(
       inside.getByRole("listbox", { name: "My Games" }),
     ).toBeInTheDocument();
   });
 
-  it("FRIENDS & CHAT opens the Friends tab and ADD A GAME... a message box", async () => {
+  it("opens the Hall of Fame from News when the build registers one", async () => {
     const user = userEvent.setup();
-    const { inside } = renderLauncher();
-    await user.click(inside.getByRole("button", { name: "FRIENDS & CHAT" }));
-    expect(inside.getByRole("tab", { name: "Friends" })).toHaveAttribute(
+    const opened: string[] = [];
+    const registrations: StartMenuRegistration[] = [
+      ...START_MENU_REGISTRATIONS,
+      {
+        slot: "programs",
+        id: HALL_OF_FAME_REGISTRATION_IDS[0] ?? "halloffame",
+        label: "Hall of Fame",
+        icon: "games",
+        open: (_commands, viewport) =>
+          opened.push(`${viewport.width}x${viewport.height}`),
+      },
+    ];
+    const { inside } = renderLauncher({}, registrations);
+    await user.click(inside.getByRole("tab", { name: "News" }));
+    expect(opened).toHaveLength(1);
+    expect(inside.getByRole("tab", { name: "My Games" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
+  });
+
+  it("FRIENDS & CHAT and the Friends link open Fuse Messenger, ADD A GAME... a message box", async () => {
+    const user = userEvent.setup();
+    const dialUpSession = new MemoryDialUpSession();
+    dialUpSession.markConnected();
+    const { inside } = renderLauncher({ dialUpSession });
+    await user.click(inside.getByRole("button", { name: "FRIENDS & CHAT" }));
+    const messenger = await screen.findByRole("dialog", {
+      name: "Fuse Messenger",
+    });
+    await user.click(within(messenger).getByRole("button", { name: /close/i }));
+    expect(screen.queryByRole("dialog", { name: "Fuse Messenger" })).toBeNull();
+    await user.click(
+      within(inside.getByRole("navigation", { name: "Links" })).getByRole(
+        "link",
+        { name: "Friends" },
+      ),
+    );
+    expect(
+      await screen.findByRole("dialog", { name: "Fuse Messenger" }),
+    ).toBeInTheDocument();
     await user.click(inside.getByRole("button", { name: "ADD A GAME..." }));
     // The message box is titled after the launcher, so two dialogs carry the name.
     const boxes = await screen.findAllByRole("dialog", { name: "Fusteam" });

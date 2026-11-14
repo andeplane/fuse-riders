@@ -1,10 +1,17 @@
 import { useCallback, useContext, useMemo, useState } from "react";
 
 import { DesktopDepsContext } from "../desktop/desktopDepsContext";
+import {
+  FRIENDS_WINDOW_ID,
+  StartMenuRegistryContext,
+} from "../desktop/startMenuRegistry";
 import { FuseGamesContext } from "../fusegames/registry";
 import { useFuseGameLauncher } from "../fusegames/useFuseGameLauncher";
+import { openNetworkNeighborhood } from "../network/openNetworkNeighborhood";
+import { useDialUpCommands } from "../sounds/dialup/useDialUpCommands";
 import type { ImageIcon } from "../ui/icons";
 import { useWindowCommands } from "../windows/useWindowCommands";
+import { WindowManagerContext } from "../windows/windowManagerContext";
 
 import { LauncherDepsContext } from "./launcherDepsContext";
 import {
@@ -42,9 +49,26 @@ export type LauncherDetails = {
   lastPlayed: string;
 };
 
+/** The pages Fusteam draws itself; the other tabs open programs of their own. */
+export type LauncherPage = "games" | "news";
+
+/** Start menu ids the Hall of Fame may register under; News opens it when one is installed. */
+export const HALL_OF_FAME_REGISTRATION_IDS: readonly string[] = [
+  "halloffame",
+  "hall-of-fame",
+];
+
 export type LauncherViewModel = {
-  tab: LauncherTab;
-  setTab: (tab: LauncherTab) => void;
+  /** The page under the tabs: My Games, or News while no Hall of Fame is installed. */
+  tab: LauncherPage;
+  /**
+   * A tab across the top. Friends opens Fuse Messenger and Servers Network Neighborhood, each as a window of its
+   * own (dialling in first where the session has not connected); News opens the Hall of Fame when this build
+   * registers one, and Fusteam's own news page otherwise.
+   */
+  openTab: (tab: LauncherTab) => void;
+  /** FRIENDS & CHAT and the Friends link: Fuse Messenger. */
+  openFriends: () => void;
   games: LauncherGame[];
   selected: LauncherGame | undefined;
   details: LauncherDetails | undefined;
@@ -67,6 +91,10 @@ export function useLauncherViewModel(): LauncherViewModel {
   const desktopDeps = useContext(DesktopDepsContext);
   const launcherDeps = useContext(LauncherDepsContext);
   const commands = useWindowCommands();
+  // Fuse Messenger and Network Neighborhood dial in the first time one is opened by hand.
+  const online = useDialUpCommands();
+  const registrations = useContext(StartMenuRegistryContext);
+  const { viewport } = useContext(WindowManagerContext);
   const { launch } = useFuseGameLauncher();
 
   const games = useMemo<LauncherGame[]>(
@@ -84,7 +112,7 @@ export function useLauncherViewModel(): LauncherViewModel {
     [registry],
   );
 
-  const [tab, setTab] = useState<LauncherTab>("games");
+  const [tab, setTab] = useState<LauncherPage>("games");
   const [selectedId, setSelectedId] = useState<string | undefined>(
     games[0]?.id,
   );
@@ -126,6 +154,35 @@ export function useLauncherViewModel(): LauncherViewModel {
     if (selected) playGame(selected.id);
   }, [selected, playGame]);
 
+  const openFriends = useCallback(
+    () => online.open({ kind: "friends" }, { id: FRIENDS_WINDOW_ID }),
+    [online],
+  );
+  // Capability-detected: the Hall of Fame is its own package and may not be in this build.
+  const openHallOfFame = registrations.find(
+    (entry) => HALL_OF_FAME_REGISTRATION_IDS.includes(entry.id) && entry.open,
+  )?.open;
+  const openTab = useCallback(
+    (next: LauncherTab) => {
+      switch (next) {
+        case "games":
+          setTab("games");
+          return;
+        case "friends":
+          openFriends();
+          return;
+        case "servers":
+          openNetworkNeighborhood(online);
+          return;
+        case "news":
+          if (openHallOfFame) openHallOfFame(commands, viewport);
+          else setTab("news");
+          return;
+      }
+    },
+    [openFriends, online, openHallOfFame, commands, viewport],
+  );
+
   const addGame = useCallback(
     () => commands.showInfo(LAUNCHER_TITLE, ADD_GAME_MESSAGE),
     [commands],
@@ -144,7 +201,8 @@ export function useLauncherViewModel(): LauncherViewModel {
 
   return {
     tab,
-    setTab,
+    openTab,
+    openFriends,
     games,
     selected,
     details,
