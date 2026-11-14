@@ -259,11 +259,22 @@ body:has(.kf-lobby:not([hidden])) .kf-live {
   text-wrap: pretty;
   overflow-wrap: anywhere;
 }
-@media (max-width: 640px) {
-  /* Alone with the bots the six roles are short tiles down a phone: the label is set a size down to stay inside. */
+@media (max-width: 1100px) {
+  /* Alone with the bots the six roles are short tiles: where a tile is narrow enough for the label to take three
+     lines, it is set a size down to stay inside. */
   .kf-lobby.fui-room-compact .fui-slot-label {
     font-size: 0.8125rem;
     line-height: 1.2;
+  }
+}
+@media (max-width: 640px) {
+  /* A seat nobody here can take folds to a line on a phone; this game's label can run to two, so the line grows. */
+  .kf-lobby.fui-room-layout.fui-room-layout:not(.fui-room-compact)
+    .fui-room-open-slot.fui-slot-idle {
+    grid-template-rows: auto;
+    height: auto;
+    min-height: 44px;
+    max-height: none;
   }
 }
 /* What the two roles do, beside the slots a player is choosing between. */
