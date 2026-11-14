@@ -42,7 +42,7 @@ A settings entry carries exactly these four keys. With `map` 0 the rotation star
 
 1. **Lobby.** The first person to join gets the lowest free slot; anyone moves or swaps with `SEAT`. A watcher can take a free seat (JOIN THE GAME). The host changes the settings and presses START. A set needs one seated person; bots take the rest.
 2. **Countdown.** Each game shows its arena for 60 ticks (3 s) before the first step; the first game of a set for 160 ticks (8 s), as the original does, while the card shows the three ways to win (`countdownTicks` in `src/online/game.ts`). Its seed is a hash of the match id and the game's number.
-3. **Play.** Three engine steps a tick on the pilots' controls, until the engine names a winner by military, economic or snail victory. The engine has no time limit.
+3. **Play.** Three engine steps a tick on the pilots' controls, until the engine names a winner by military, economic or snail victory. After 300 s of play the engine's safety clock decides the game: more Queen eggs, then more berries banked, then the snail nearer its goal, then a coin flip from the seed.
 4. **Victory.** The arena stays for 60 ticks (3 s), then the game is recorded: map, winning team and kind, steps, who sat in each slot and who was connected.
 5. **Between games.** If no team has the wins yet, the next game starts after 100 ticks (5 s).
 6. **Over.** The team that reached `wins` takes the set. The host starts a rematch with the same seats, or returns everyone to the lobby.

@@ -1,6 +1,6 @@
 # Killer Fuse: brief
 
-Killer Fuse is a 3v3 side-view team arena for up to six players, with bots in every empty seat. It follows Killer Queen Black (the Steam version of the arcade game Killer Queen) throughout: its controls, sword combat, movement, gates, snail and berries. Three ways to win draw on the same few bodies and the same finite berries. It looks like the arcade's chunky pixel insects in Fuse Riders' neon-on-navy palette. The name, sprites and sounds are our own; the three maps are the arcade's Day, Dusk and Night, ported. Engine rules version: `killer-fuse-4`. The rules as built are in [engine.md](engine.md), the bots in [bots.md](bots.md), the measured results in [balance.md](balance.md).
+Killer Fuse is a 3v3 side-view team arena for up to six players, with bots in every empty seat. It follows Killer Queen Black (the Steam version of the arcade game Killer Queen) throughout: its controls, sword combat, movement, gates, snail and berries. Three ways to win draw on the same few bodies and the same finite berries. It looks like the arcade's chunky pixel insects in Fuse Riders' neon-on-navy palette. The name, sprites and sounds are our own; the three maps are the arcade's Day, Dusk and Night, ported. Engine rules version: `killer-fuse-5` (it changed only the bots and the lesson berry from `killer-fuse-4`). The rules as built are in [engine.md](engine.md), the bots in [bots.md](bots.md), the measured results in [balance.md](balance.md).
 
 ## Loop
 
@@ -36,7 +36,7 @@ Left, right, down, one jump / flap button and one attack button. Up is bound to 
 ## Deliberate differences from Killer Queen Black
 
 - 3v3 on six seats, not 4v4 on eight.
-- Three bot levels (easy, medium, hard) fill every empty seat.
+- Three bot levels (easy, medium, hard) fill every empty seat. Medium and hard bot Queens attack an enemy Queen that cannot answer and press harder once the enemy hive holds 8 berries; their flyers hunt a snail rider ahead of everything, and berry carriers first from 4 filled enemy holes. Hard bots beat a Queen whose player holds nothing in 93 to 96% of games.
 - The three arcade maps (Day, Dusk, Night) on a 480 by 270 screen, not Black's maps.
 - A 300 s safety clock: an undecided game goes to the team with more Queen eggs, then more berries banked, then the snail nearer its goal, then a coin flip from the seed.
 - The sword is the only weapon.
@@ -54,7 +54,7 @@ Out of scope: other weapons, the shield, berry throwing, upgrade choices, Black'
 | Queen deaths per game | 3.3 to 3.7                           | The same arcade logs                   | 3 to 4                                                |
 | Level ordering        | None                                 | Ours                                   | Hard beats medium, medium beats easy, in at least 70% |
 
-No reference comes from Killer Queen Black games. With Black's rules several targets are missed; see [balance.md](balance.md).
+No reference comes from Killer Queen Black games. At rules `killer-fuse-5` map 1 meets every target at 300 games, but over 10,000 games its military share is 73.5%, 1.5 points above the band; maps 2 and 3 stay economy-heavy. See [balance.md](balance.md).
 
 ## Tech
 
@@ -67,10 +67,10 @@ No reference comes from Killer Queen Black games. With Black's rules several tar
 ## Steps and acceptance
 
 1. **Engine and headless runner.** Done: all rules on all three maps, unit tests, 300-game runs with a determinism check.
-2. **Bots.** Done: three levels that use all three win conditions; the level ordering holds on every map (medium over easy on map 1 only just, at 70.0%).
+2. **Bots.** Done: three levels that use all three win conditions; the level ordering holds on every map (hard over medium 86 to 90%, medium over easy 73 to 93%).
 3. **Online game and page.** Done: six seats, bot level, keyboard, gamepad and touch, sets, golden hash and checkpoint tests. No physical gamepad or phone has been tried.
 4. **Rendering and art.** Done: sprites, HUD, effects and sound.
 5. **Maps 2 and 3, and sets.** Done.
-6. **Polish.** Open: the balance targets are not met (see [balance.md](balance.md)), and nobody has played it yet.
+6. **Polish.** Open: map 1's military share is slightly high, maps 2 and 3 miss the win mix (see [balance.md](balance.md)), and nobody has played it yet.
 
 Each step ends with [PARITY.md](PARITY.md) re-scored and a batch of headless games. A playthrough by a person is still to come.
