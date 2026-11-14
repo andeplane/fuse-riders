@@ -107,7 +107,7 @@ export function toView(world: World): WorldView {
           right: { x: b.rx, y: b.ry, rot: b.rrot },
           body: { x: b.bx, y: b.by },
           head: { x: b.hx, y: b.hy },
-          flipped: b.flipped === 1,
+          flipped: b.flipped === 0,
         },
         taken: rider.taken,
         apples: bitCount(rider.taken),

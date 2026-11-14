@@ -26,8 +26,10 @@ export interface Level {
   readonly id: string;
   readonly name: string;
   readonly polygons: readonly (readonly Point[])[];
-  /** Where the bike's rear (left) wheel starts, facing right. */
+  /** Where the centre of the bike's left wheel starts. */
   readonly start: Point;
+  /** The bike starts facing left; it faces right otherwise. */
+  readonly faceLeft?: boolean;
   readonly objects: readonly LevelObject[];
 }
 
@@ -143,7 +145,7 @@ export function compile(level: Level): Compiled {
     minY,
     cols,
     rows,
-    cells: buckets.map((bucket) => bucket ?? EMPTY),
+    cells: Array.from(buckets, (bucket) => bucket ?? EMPTY),
     apples,
   };
   compiled.set(level, result);

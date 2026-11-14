@@ -52,6 +52,7 @@ export type BikeKey = (typeof BIKE_KEYS)[number];
 /**
  * `f*` the frame, `l*`/`r*` the left and right wheel (position, velocity, rotation, spin), `b*` the rider's body
  * point, `h*` the head's centre. `relL`/`relR` are the wheels' angles to the frame as the brake caught them.
+ * `flipped` is 1 when the bike faces right (the original's bike starts facing left, unflipped).
  * `voltR`/`voltL` say a volt's kick is still to be taken back, `volt*At` and `lastVolt` are steps of `clock`, the
  * steps this bike has been ridden.
  */
@@ -72,8 +73,8 @@ const GRAVITY = 10;
 export const WHEEL_DX = 0.85,
   WHEEL_DY = -0.6,
   BODY_UP = 0.44;
-/** The head's centre from the body point: ahead of it and up. */
-export const HEAD_AHEAD = -0.09,
+/** The head's centre from the body point: towards the way the bike faces, and up. */
+export const HEAD_AHEAD = 0.09,
   HEAD_UP = 0.63;
 const SPRING = 10000,
   DAMPING = 1000;
@@ -85,6 +86,18 @@ const BRAKE_SPRING = 1000,
   BRAKE_DAMPING = 100;
 const VOLT_SPIN = 12,
   VOLT_BLEED = 3;
+/** A wheel is held this far inside a contact, leaves it only when moving away faster than `LEAVING`, and two touch points closer than `MERGE` are one. */
+const SINK = 0.005,
+  LEAVING = -0.01,
+  MERGE = 0.1;
+/** The rider's body point stays inside this region of the frame, in the frame's axes with x towards the bike's back. */
+const LEAN_AX = -0.35,
+  LEAN_AY = 0.13,
+  LEAN_NX = -0.23 / 0.5413871073455666,
+  LEAN_NY = 0.49 / 0.5413871073455666,
+  LEAN_TOP = 0.48,
+  LEAN_FRONT = -0.5,
+  LEAN_BACK = 0.26;
 /** A volt's kick is taken back after this long, and the next volt waits this long, in steps. */
 const VOLT_LENGTH = 0.1 / DT,
   VOLT_GAP = 0.4 / DT;
@@ -103,12 +116,13 @@ const GX = [0, 0, -1, 1],
   GY = [1, -1, 0, 0];
 export const GRAVITY_DOWN = 1;
 
-/** The bike at rest on the level's start: the left wheel on it, facing right. */
+/** The bike at rest on the level's start: its left wheel on it, facing right unless the level says left. */
 export function resetBike(level: Compiled): Bike {
   const lx = level.level.start.x,
     ly = level.level.start.y;
   const fx = lx + WHEEL_DX,
     fy = ly - WHEEL_DY;
+  const flipped = level.level.faceLeft ? 0 : 1;
   return {
     fx,
     fy,
@@ -132,9 +146,9 @@ export function resetBike(level: Compiled): Bike {
     by: fy + BODY_UP,
     bvx: 0,
     bvy: 0,
-    hx: fx + HEAD_AHEAD,
+    hx: fx + (flipped ? HEAD_AHEAD : -HEAD_AHEAD),
     hy: fy + BODY_UP + HEAD_UP,
-    flipped: 0,
+    flipped,
     gravity: GRAVITY_DOWN,
     braking: 0,
     relL: 0,
@@ -184,9 +198,9 @@ function runaway(bike: Bike): boolean {
   );
 }
 
-/** `angle` brought into (−π, π]. */
+/** `angle` brought back towards (−π, π] by one turn, as the original does once a step. */
 const wrap = (angle: number): number =>
-  angle > PI || angle <= -PI ? angle - Math.round(angle / TAU) * TAU : angle;
+  angle < -PI ? angle + TAU : angle > PI ? angle - TAU : angle;
 
 // The suspension's answer for one wheel, written here by `suspension` and read straight after: wheel force, frame
 // force, frame torque.
@@ -325,11 +339,12 @@ export function stepBike(
   bodyFy += ffy;
   bodyTq += ftq;
 
-  volts(b, pressed);
+  volts(b, bits);
 
   const gx = GX[b.gravity]!,
     gy = GY[b.gravity]!;
   // The rider's body point: a stiff spring to its seat above the frame, damped against the seat's own motion.
+  lean(b, ax, ay, ux, uy);
   {
     const ox = b.bx - b.fx,
       oy = b.by - b.fy;
@@ -371,10 +386,12 @@ export function stepBike(
     tqR,
   );
 
-  const side = b.flipped ? -HEAD_AHEAD : HEAD_AHEAD;
-  // The head rides on the body point, placed along the frame's axes as they were at the start of the step.
-  b.hx = b.bx + side * ax + HEAD_UP * ux;
-  b.hy = b.by + side * ay + HEAD_UP * uy;
+  // The head rides on the body point, placed along the frame's axes as the step left them.
+  const side = b.flipped ? HEAD_AHEAD : -HEAD_AHEAD;
+  const nax = cos(b.frot),
+    nay = sin(b.frot);
+  b.hx = b.bx + side * nax - HEAD_UP * nay;
+  b.hy = b.by + side * nay + HEAD_UP * nax;
   b.clock++;
 
   touch(level, b);
@@ -382,24 +399,25 @@ export function stepBike(
   return outcome;
 }
 
-/** A volt: a kick of spin one way that is taken back a moment later, leaving the bike turned. */
-function volts(b: Bike, pressed: number): void {
-  let right = (pressed & VOLT_RIGHT) !== 0,
-    left = (pressed & VOLT_LEFT) !== 0;
-  if (b.clock <= b.lastVolt + VOLT_GAP) right = left = false;
-  // Both at once: the right one is taken.
-  if (right && left) left = false;
+/**
+ * A volt: a kick of spin one way that is taken back a moment later, never leaving more spin that way than before it.
+ * A held volt key volts again each time the wait is over. Both keys on one step start both (the alovolt).
+ */
+function volts(b: Bike, bits: number): void {
+  const ready = b.clock > b.lastVolt + VOLT_GAP;
+  const right = ready && (bits & VOLT_RIGHT) !== 0,
+    left = ready && (bits & VOLT_LEFT) !== 0;
   const any = right || left;
   const old = b.fspin;
   if (b.voltR && (any || b.clock > b.voltRAt + VOLT_LENGTH)) {
     b.fspin += VOLT_SPIN;
-    b.fspin = Math.min(b.fspin, b.savedR);
+    if (b.fspin > b.savedR) b.fspin = b.savedR;
     if (b.fspin > 0) b.fspin = Math.max(0, b.fspin - VOLT_BLEED);
     b.voltR = 0;
   }
   if (b.voltL && (any || b.clock > b.voltLAt + VOLT_LENGTH)) {
     b.fspin -= VOLT_SPIN;
-    b.fspin = Math.max(b.fspin, b.savedL);
+    if (b.fspin < b.savedL) b.fspin = b.savedL;
     if (b.fspin < 0) b.fspin = Math.min(0, b.fspin + VOLT_BLEED);
     b.voltL = 0;
   }
@@ -423,7 +441,222 @@ function volts(b: Bike, pressed: number): void {
   }
 }
 
-/** One wheel's step under `fx`, `fy` and the drive torque `tq`: free flight for now. */
+/** Keeps the rider's body point inside its region of the frame; only its position is moved. */
+function lean(b: Bike, ax: number, ay: number, ux: number, uy: number): void {
+  const relX = b.bx - b.fx,
+    relY = b.by - b.fy;
+  let x = ax * relX + ay * relY,
+    y = ux * relX + uy * relY;
+  if (b.flipped) x = -x;
+  const s = (x - LEAN_AX) * LEAN_NX + (y - LEAN_AY) * LEAN_NY;
+  if (s < 0) {
+    x -= LEAN_NX * s;
+    y -= LEAN_NY * s;
+  }
+  if (y > LEAN_TOP) y = LEAN_TOP;
+  if (x < LEAN_FRONT) x = LEAN_FRONT;
+  if (x > LEAN_BACK) x = LEAN_BACK;
+  if (x > 0 && y > 0) {
+    const ratio = LEAN_TOP / LEAN_BACK;
+    const e = ratio * ratio * x * x + y * y;
+    if (e > LEAN_TOP * LEAN_TOP) {
+      const k = LEAN_TOP / Math.sqrt(e);
+      x *= k;
+      y *= k;
+    }
+  }
+  if (b.flipped) x = -x;
+  b.bx = b.fx + ux * y + ax * x;
+  b.by = b.fy + uy * y + ay * x;
+}
+
+// The touch points of the last `contacts` call: how many (0 to 2) and where.
+let touches = 0,
+  p1x = 0,
+  p1y = 0,
+  p2x = 0,
+  p2y = 0;
+/**
+ * Where a circle at (`x`, `y`) of radius `r` touches the level's edges: the closest point of each edge nearer than
+ * `r`, the first two distinct ones in edge order. Points closer than `MERGE` are one point, their average.
+ */
+function contacts(level: Compiled, x: number, y: number, r: number): void {
+  touches = 0;
+  const edges = level.edges;
+  for (const edge of edgesNear(level, x, y)) {
+    const o = edge * 4;
+    const ex = edges[o]!,
+      ey = edges[o + 1]!,
+      dx = edges[o + 2]! - ex,
+      dy = edges[o + 3]! - ey;
+    let t = ((x - ex) * dx + (y - ey) * dy) / (dx * dx + dy * dy);
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const qx = ex + t * dx,
+      qy = ey + t * dy;
+    if (length(x - qx, y - qy) >= r) continue;
+    if (touches === 0) {
+      p1x = qx;
+      p1y = qy;
+      touches = 1;
+    } else if (length(p1x - qx, p1y - qy) < MERGE) {
+      p1x = (p1x + qx) * 0.5;
+      p1y = (p1y + qy) * 0.5;
+    } else {
+      p2x = qx;
+      p2y = qy;
+      touches = 2;
+      return;
+    }
+  }
+}
+
+// The wheel being stepped, copied out of the bike and back so one routine serves both.
+let wx = 0,
+  wy = 0,
+  wvx = 0,
+  wvy = 0,
+  wrot = 0,
+  wspin = 0;
+
+function pushOut(px: number, py: number): void {
+  const dx = wx - px,
+    dy = wy - py;
+  const d = length(dx, dy);
+  if (d < WHEEL_RADIUS - SINK && d > 1e-12) {
+    const move = (WHEEL_RADIUS - SINK - d) / d;
+    wx += dx * move;
+    wy += dy * move;
+  }
+}
+/** Whether the wheel presses on the point; if it does, its speed into the point is taken away (no bounce). */
+function pressing(px: number, py: number, fx: number, fy: number): boolean {
+  let nx = wx - px,
+    ny = wy - py;
+  const d = length(nx, ny) || 1e-12;
+  nx /= d;
+  ny /= d;
+  const into = nx * wvx + ny * wvy;
+  if (into > LEAVING && nx * fx + ny * fy > 0) return false;
+  wvx -= nx * into;
+  wvy -= ny * into;
+  return true;
+}
+/** Whether the wheel, turning about the pivot as it moves now, turns towards the other point. */
+function staysByMotion(
+  ox: number,
+  oy: number,
+  px: number,
+  py: number,
+): boolean {
+  const rx = wx - px,
+    ry = wy - py;
+  const d = length(rx, ry) || 1e-12;
+  const tx = -ry / d,
+    ty = rx / d;
+  return (
+    ((ox - px) * tx + (oy - py) * ty) * ((tx * wvx + ty * wvy) * d + wspin) >= 0
+  );
+}
+/** The same, by the force and torque on the wheel: what a wheel at rest is about to do. */
+function staysByForce(
+  ox: number,
+  oy: number,
+  px: number,
+  py: number,
+  fx: number,
+  fy: number,
+  tq: number,
+): boolean {
+  const rx = wx - px,
+    ry = wy - py;
+  const d = length(rx, ry) || 1e-12;
+  const tx = -ry / d,
+    ty = rx / d;
+  return (
+    ((ox - px) * tx + (oy - py) * ty) * ((tx * fx + ty * fy) * d + tq) >= 0
+  );
+}
+/** Rolling about a touch point without slipping: the spin follows the wheel's speed along the ground. */
+function roll(
+  px: number,
+  py: number,
+  fx: number,
+  fy: number,
+  tq: number,
+): void {
+  const rx = wx - px,
+    ry = wy - py;
+  const d = length(rx, ry) || 1e-12;
+  const tx = -ry / d,
+    ty = rx / d;
+  wspin = (wvx * tx + wvy * ty) / WHEEL_RADIUS;
+  wspin +=
+    (((fx * tx + fy * ty) * WHEEL_RADIUS + tq) /
+      (WHEEL_MASS * d * d + WHEEL_INERTIA)) *
+    DT;
+  wrot += wspin * DT;
+  wvx = tx * (wspin * WHEEL_RADIUS);
+  wvy = ty * (wspin * WHEEL_RADIUS);
+  wx += wvx * DT;
+  wy += wvy * DT;
+}
+function fly(fx: number, fy: number, tq: number): void {
+  wspin += (tq / WHEEL_INERTIA) * DT;
+  wrot += wspin * DT;
+  wvx += (fx / WHEEL_MASS) * DT;
+  wvy += (fy / WHEEL_MASS) * DT;
+  wx += wvx * DT;
+  wy += wvy * DT;
+}
+
+/**
+ * The scratch wheel's step under the force (`fx`, `fy`) and the drive torque `tq`. Off the ground it flies. On one
+ * touch point it rolls about it; on two it either turns away from one of them and rolls about the other, or is
+ * wedged and does not move this step.
+ */
+function wheelMove(level: Compiled, fx: number, fy: number, tq: number): void {
+  contacts(level, wx, wy, WHEEL_RADIUS);
+  let n = touches,
+    ax = p1x,
+    ay = p1y;
+  const bx = p2x,
+    by = p2y;
+  if (n === 0) return fly(fx, fy, tq);
+  pushOut(ax, ay);
+  if (n === 2) {
+    pushOut(bx, by);
+    const speed = length(wvx, wvy);
+    let dropped = false;
+    if (speed > 1) {
+      if (!staysByMotion(ax, ay, bx, by)) {
+        ax = bx;
+        ay = by;
+        dropped = true;
+      } else if (!staysByMotion(bx, by, ax, ay)) dropped = true;
+    }
+    if (!dropped && speed < 1) {
+      if (!staysByForce(ax, ay, bx, by, fx, fy, tq)) {
+        ax = bx;
+        ay = by;
+        dropped = true;
+      } else if (!staysByForce(bx, by, ax, ay, fx, fy, tq)) dropped = true;
+    }
+    if (dropped || !pressing(bx, by, fx, fy)) n = 1;
+  }
+  if (pressing(ax, ay, fx, fy)) {
+    if (n === 2) {
+      wvx = 0;
+      wvy = 0;
+      wspin = 0;
+      return;
+    }
+    return roll(ax, ay, fx, fy, tq);
+  }
+  if (n === 2) return roll(bx, by, fx, fy, tq);
+  fly(fx, fy, tq);
+}
+
+/** One wheel's step: `which` is 0 for the left wheel, 1 for the right. */
 function wheelStep(
   level: Compiled,
   b: Bike,
@@ -432,27 +665,78 @@ function wheelStep(
   fy: number,
   tq: number,
 ): void {
-  void level;
-  void edgesNear;
   if (which === 0) {
-    b.lspin += (tq / WHEEL_INERTIA) * DT;
-    b.lrot += b.lspin * DT;
-    b.lvx += (fx / WHEEL_MASS) * DT;
-    b.lvy += (fy / WHEEL_MASS) * DT;
-    b.lx += b.lvx * DT;
-    b.ly += b.lvy * DT;
+    wx = b.lx;
+    wy = b.ly;
+    wvx = b.lvx;
+    wvy = b.lvy;
+    wrot = b.lrot;
+    wspin = b.lspin;
+    wheelMove(level, fx, fy, tq);
+    b.lx = wx;
+    b.ly = wy;
+    b.lvx = wvx;
+    b.lvy = wvy;
+    b.lrot = wrot;
+    b.lspin = wspin;
   } else {
-    b.rspin += (tq / WHEEL_INERTIA) * DT;
-    b.rrot += b.rspin * DT;
-    b.rvx += (fx / WHEEL_MASS) * DT;
-    b.rvy += (fy / WHEEL_MASS) * DT;
-    b.rx += b.rvx * DT;
-    b.ry += b.rvy * DT;
+    wx = b.rx;
+    wy = b.ry;
+    wvx = b.rvx;
+    wvy = b.rvy;
+    wrot = b.rrot;
+    wspin = b.rspin;
+    wheelMove(level, fx, fy, tq);
+    b.rx = wx;
+    b.ry = wy;
+    b.rvx = wvx;
+    b.rvy = wvy;
+    b.rrot = wrot;
+    b.rspin = wspin;
   }
 }
 
-/** Apples, killers, the flower and the ground against the head. */
+const near = (
+  x: number,
+  y: number,
+  r: number,
+  ox: number,
+  oy: number,
+): boolean => length(x - ox, y - oy) < OBJECT_RADIUS + r;
+/** Whether either wheel or the head touches the object at (`ox`, `oy`). */
+const reaches = (b: Bike, ox: number, oy: number): boolean =>
+  near(b.lx, b.ly, WHEEL_RADIUS, ox, oy) ||
+  near(b.rx, b.ry, WHEEL_RADIUS, ox, oy) ||
+  near(b.hx, b.hy, HEAD_RADIUS, ox, oy);
+
+/**
+ * What the bike touches after its step: the ground against the head and a killer against anything kill; an apple
+ * is eaten (and may turn gravity); the flower finishes the run once every apple is eaten.
+ */
 function touch(level: Compiled, b: Bike): void {
-  void level;
-  void b;
+  contacts(level, b.hx, b.hy, HEAD_RADIUS);
+  if (touches > 0) {
+    outcome.flags |= DIED;
+    return;
+  }
+  const objects = level.level.objects;
+  for (const object of objects)
+    if (object.kind === "killer" && reaches(b, object.x, object.y)) {
+      outcome.flags |= DIED;
+      return;
+    }
+  for (const [bit, index] of level.apples.entries()) {
+    if (outcome.taken & (1 << bit)) continue;
+    const apple = objects[index]!;
+    if (!reaches(b, apple.x, apple.y)) continue;
+    outcome.taken |= 1 << bit;
+    // An apple's gravity 1 to 4 is up, down, left, right: the bike's 0 to 3.
+    if (apple.gravity) b.gravity = apple.gravity - 1;
+  }
+  if (outcome.taken !== (1 << level.apples.length) - 1) return;
+  for (const object of objects)
+    if (object.kind === "flower" && reaches(b, object.x, object.y)) {
+      outcome.flags |= FLOWER;
+      return;
+    }
 }
