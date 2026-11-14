@@ -20,6 +20,7 @@ const games = [
   "fuseball",
   "fuse-volley",
   "elasto-fuse",
+  "fusemania",
 ];
 const only = process.env.ONLY?.split(",").filter(Boolean);
 const selected = only ? games.filter((game) => only.includes(game)) : games;

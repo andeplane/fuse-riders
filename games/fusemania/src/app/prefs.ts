@@ -5,7 +5,12 @@
 export const ACTIONS = ["left", "down", "up", "right", "item"] as const;
 export type Action = (typeof ACTIONS)[number];
 /** The arrow columns, in the engine's order. */
-export const COLUMN_ACTIONS: readonly Action[] = ["left", "down", "up", "right"];
+export const COLUMN_ACTIONS: readonly Action[] = [
+  "left",
+  "down",
+  "up",
+  "right",
+];
 
 export interface Prefs {
   /** `KeyboardEvent.code`s per action; a code belongs to one action at most. */
