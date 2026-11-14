@@ -3,7 +3,6 @@ import { useContext } from "react";
 import { APPLETS } from "../controlpanel/applets";
 import { FuseGamesContext } from "../fusegames/registry";
 import { GAME_LIST } from "../retro/games";
-import { useRetroCommands } from "../retro/useRetroCommands";
 import { useAppState } from "../state/useAppState";
 import type { IconName } from "../ui/icons";
 import type { WindowCommands } from "../windows/useWindowCommands";
@@ -46,6 +45,7 @@ function registeredItems(
       icon: entry.icon,
       disabled: open === undefined,
       onSelect: open ? wrap(() => open(commands)) : undefined,
+      separatorAfter: entry.separatorAfter,
     };
   });
 }
@@ -61,7 +61,6 @@ export function useStartMenuViewModel(): {
   const games = useContext(FuseGamesContext);
   const registrations = useContext(StartMenuRegistryContext);
   const desktop = useDesktopViewModel();
-  const retro = useRetroCommands();
 
   const close = () => ui.setStartMenuOpen(false);
   const wrap = (action: () => void) => () => {
@@ -78,19 +77,14 @@ export function useStartMenuViewModel(): {
     onSelect: wrap(() => desktop.openFuseGame(game.id)),
   }));
 
+  // The folder window first (a registration), then one item per retro game; the reducer keeps each to one window.
   const retroGameItems: StartMenuItem[] = [
-    {
-      id: "retro-folder",
-      label: "Open Retro Games folder",
-      icon: "folderOpen",
-      onSelect: wrap(retro.openFolder),
-      separatorAfter: true,
-    },
+    ...registered("retro-games"),
     ...GAME_LIST.map((game): StartMenuItem => ({
       id: `retro:${game.id}`,
       label: game.name,
       icon: game.icon,
-      onSelect: wrap(() => retro.openGame(game.id)),
+      onSelect: wrap(() => commands.open({ kind: "retro", game: game.id })),
     })),
   ];
 
@@ -112,27 +106,8 @@ export function useStartMenuViewModel(): {
           id: "accessories",
           label: "Accessories",
           icon: "programs",
-          children: [
-            {
-              id: "paint",
-              label: "Paint",
-              icon: "paint",
-              onSelect: wrap(desktop.openPaint),
-            },
-            {
-              id: "winamp",
-              label: "Winamp",
-              icon: "winamp",
-              onSelect: wrap(desktop.openWinamp),
-            },
-            ...registered("accessories"),
-            {
-              id: "wallpaper",
-              label: "Change desktop background",
-              icon: "wallpaper",
-              onSelect: wrap(desktop.openWallpaper),
-            },
-          ],
+          // Paint, Winamp, Notepad++ and the wallpaper picker are registrations too (`startMenuRegistry.ts`).
+          children: registered("accessories"),
         },
         {
           id: "games",

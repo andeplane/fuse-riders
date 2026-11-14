@@ -62,6 +62,7 @@ describe("StartMenu", () => {
       "System",
       "Assistant",
       "Keyboard",
+      "Screen Saver",
     ]);
 
     await user.click(within(menu).getByRole("menuitem", { name: "Programs" }));
@@ -224,6 +225,14 @@ describe("StartMenu", () => {
     });
     expect(
       within(controlPanel).getByRole("tab", { name: "Display" }),
+    ).toHaveAttribute("aria-selected", "true");
+    await choose(user, "Settings", "Screen Saver");
+    const dialogs = screen.getAllByRole("dialog", { name: "Control Panel" });
+    expect(dialogs).toHaveLength(1);
+    expect(
+      within(dialogs[0] ?? controlPanel).getByRole("tab", {
+        name: "Screen Saver",
+      }),
     ).toHaveAttribute("aria-selected", "true");
     await choose(user, "Settings", "Keyboard");
     expect(

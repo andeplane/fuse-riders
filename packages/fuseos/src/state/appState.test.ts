@@ -7,6 +7,7 @@ import {
   isControlPanelApplet,
   nextWindowId,
   parseAppState,
+  sameInstance,
   serializeAppState,
 } from "./appState";
 
@@ -50,6 +51,62 @@ describe(appStateReducer.name, () => {
     expect(state.windows.map((window) => window.id)).toEqual(["w1", "w2"]);
     expect(activeWindowId(state)).toBe("w2");
     expect(nextWindowId(state.windows)).toBe("w3");
+  });
+
+  it("keeps single-instance programs to one window and focuses it instead", () => {
+    const state = open(open(DEFAULT_STATE, "winamp"), "paint");
+    const again = open(state, "winamp");
+    expect(again.windows.map((window) => window.kind)).toEqual([
+      "paint",
+      "winamp",
+    ]);
+    expect(activeWindowId(again)).toBe("w1");
+    const minimized = appStateReducer(again, { type: "minimize", id: "w1" });
+    expect(open(minimized, "winamp").windows[1]?.minimized).toBe(false);
+  });
+
+  it("opens Paint and dialogs as often as asked, but one window per game and per applet", () => {
+    const twoPaints = open(open(DEFAULT_STATE, "paint"), "paint");
+    expect(twoPaints.windows).toHaveLength(2);
+    const dialog = {
+      kind: "dialog",
+      title: "T",
+      message: "M",
+      icon: "info",
+    } as const;
+    const twoDialogs = appStateReducer(
+      appStateReducer(DEFAULT_STATE, { type: "open", content: dialog }),
+      { type: "open", content: dialog },
+    );
+    expect(twoDialogs.windows).toHaveLength(2);
+
+    const games = open(open(DEFAULT_STATE, "fusegame"), "fusegame");
+    expect(games.windows).toHaveLength(1);
+    const retro = { kind: "retro", game: "doom" } as const;
+    const retros = appStateReducer(
+      appStateReducer(
+        appStateReducer(DEFAULT_STATE, { type: "open", content: retro }),
+        { type: "open", content: retro },
+      ),
+      { type: "open", content: { kind: "retro", game: "skifree" } },
+    );
+    expect(
+      retros.windows.map((window) => window.kind === "retro" && window.game),
+    ).toEqual(["doom", "skifree"]);
+    const display = { kind: "controlpanel", applet: "display" } as const;
+    const applets = appStateReducer(
+      appStateReducer(
+        appStateReducer(DEFAULT_STATE, { type: "open", content: display }),
+        { type: "open", content: display },
+      ),
+      { type: "open", content: { kind: "controlpanel", applet: "games" } },
+    );
+    expect(applets.windows).toHaveLength(2);
+    expect(sameInstance({ kind: "about" }, { kind: "about" })).toBe(true);
+    expect(sameInstance({ kind: "wallpaper" }, { kind: "about" })).toBe(false);
+    expect(sameInstance({ kind: "retroFolder" }, { kind: "retroFolder" })).toBe(
+      true,
+    );
   });
 
   it("re-focuses an existing window when opened with the same id", () => {
@@ -191,6 +248,14 @@ describe(isAppState.name, () => {
     expect(isAppState(window({ kind: "controlpanel", applet: "games" }))).toBe(
       true,
     );
+    expect(
+      isAppState(
+        window({ kind: "controlpanel", applet: "display", tab: "screensaver" }),
+      ),
+    ).toBe(true);
+    expect(
+      isAppState(window({ kind: "controlpanel", applet: "display", tab: 3 })),
+    ).toBe(false);
     expect(isAppState(window({ kind: "controlpanel", applet: "users" }))).toBe(
       false,
     );

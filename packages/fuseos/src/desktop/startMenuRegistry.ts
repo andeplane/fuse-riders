@@ -8,12 +8,19 @@ import type { WindowCommands } from "../windows/useWindowCommands";
  * - `accessories`: Programs > Accessories (Paint, Winamp, Notepad++, ...)
  * - `programs`: Programs, after Accessories and Games
  * - `games`: Programs > Games, after the Fuse games and before Retro Games
+ * - `retro-games`: Programs > Games > Retro Games, before the games themselves (the folder window)
  * - `my-computer`: the top-level My Computer item itself (one registration fills it)
  * - `settings`: Settings, after Control Panel and its applets
  * - `help`: Help, after Help Topics and the Office Assistant
  */
 export type StartMenuSlot =
-  "accessories" | "programs" | "games" | "my-computer" | "settings" | "help";
+  | "accessories"
+  | "programs"
+  | "games"
+  | "retro-games"
+  | "my-computer"
+  | "settings"
+  | "help";
 
 export type StartMenuRegistration = {
   slot: StartMenuSlot;
@@ -28,6 +35,8 @@ export type StartMenuRegistration = {
   open?: (commands: WindowCommands) => void;
   /** Lower first within a slot; registrations without one keep their list order after those with one. */
   order?: number;
+  /** A menu separator under the item (Windows draws one under "Open folder" lines). */
+  separatorAfter?: boolean;
 };
 
 /**
@@ -39,16 +48,60 @@ export type StartMenuRegistration = {
 export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
   {
     slot: "accessories",
+    id: "paint",
+    label: "Paint",
+    icon: "paint",
+    order: 10,
+    open: (commands) => commands.open({ kind: "paint" }),
+  },
+  {
+    slot: "accessories",
+    id: "winamp",
+    label: "Winamp",
+    icon: "winamp",
+    order: 20,
+    open: (commands) => commands.open({ kind: "winamp" }),
+  },
+  {
+    slot: "accessories",
     id: "notepadpp",
     label: "Notepad++",
     icon: "file",
     order: 30,
   },
   {
+    slot: "accessories",
+    id: "wallpaper",
+    label: "Change desktop background",
+    icon: "wallpaper",
+    order: 40,
+    open: (commands) => commands.open({ kind: "wallpaper" }),
+  },
+  {
+    slot: "retro-games",
+    id: "retro-folder",
+    label: "Open Retro Games folder",
+    icon: "folderOpen",
+    open: (commands) => commands.open({ kind: "retroFolder" }),
+    separatorAfter: true,
+  },
+  {
     slot: "my-computer",
     id: "my-computer",
     label: "My Computer",
     icon: "computer",
+  },
+  {
+    slot: "settings",
+    id: "screensaver",
+    label: "Screen Saver",
+    icon: "display",
+    open: (commands) =>
+      commands.open({
+        kind: "controlpanel",
+        applet: "display",
+        tab: "screensaver",
+      }),
   },
 ];
 

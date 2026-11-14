@@ -1,6 +1,5 @@
 import { useCallback, useMemo } from "react";
 
-import { useAppState } from "../state/useAppState";
 import { useWindowCommands } from "../windows/useWindowCommands";
 
 import type { GameId } from "./gameIds";
@@ -12,26 +11,16 @@ export type RetroCommands = {
   openFolder: () => void;
 };
 
-/** Window commands for Programs > Games > Retro Games: one window per game and one folder, never duplicated. */
+/** Window commands for Programs > Games > Retro Games: one window per game and one folder (the reducer's single-instance rule). */
 export function useRetroCommands(): RetroCommands {
-  const { state } = useAppState();
   const commands = useWindowCommands();
   const openGame = useCallback(
-    (game: GameId) => {
-      const existing = state.windows.find(
-        (window) => window.kind === "retro" && window.game === game,
-      );
-      if (existing) commands.focus(existing.id);
-      else commands.open({ kind: "retro", game });
-    },
-    [state.windows, commands],
+    (game: GameId) => commands.open({ kind: "retro", game }),
+    [commands],
   );
-  const openFolder = useCallback(() => {
-    const existing = state.windows.find(
-      (window) => window.kind === "retroFolder",
-    );
-    if (existing) commands.focus(existing.id);
-    else commands.open({ kind: "retroFolder" });
-  }, [state.windows, commands]);
+  const openFolder = useCallback(
+    () => commands.open({ kind: "retroFolder" }),
+    [commands],
+  );
   return useMemo(() => ({ openGame, openFolder }), [openGame, openFolder]);
 }

@@ -25,6 +25,8 @@ export interface RetroFolderWindowContent {
 export interface ControlPanelWindowContent {
   kind: "controlpanel";
   applet: ControlPanelApplet;
+  /** The tab the applet opens on (Display Properties: "screensaver"); absent for the first one. */
+  tab?: string;
 }
 
 /** Start > Programs > Accessories > Change desktop background: a small window over the wallpaper picker. Reused when already open. */
@@ -102,6 +104,37 @@ export function nextWindowId(windows: readonly WindowState[]): string {
   return `w${max + 1}`;
 }
 
+/**
+ * Whether `content` would open the same window as `existing`: the single-instance programs (Winamp, the
+ * wallpaper picker, About, the Retro Games folder), one window per retro game, per Fuse game and per
+ * Control Panel applet. Paint and dialogs open as many times as asked. `open` focuses the existing window
+ * instead of adding another, whatever asked: an icon, the Start menu, Clippy or a `?open=` deep link over a
+ * stored desktop that already holds it.
+ */
+export function sameInstance(
+  content: WindowContent,
+  existing: WindowContent,
+): boolean {
+  switch (content.kind) {
+    case "winamp":
+    case "wallpaper":
+    case "about":
+    case "retroFolder":
+      return existing.kind === content.kind;
+    case "retro":
+      return existing.kind === "retro" && existing.game === content.game;
+    case "fusegame":
+      return existing.kind === "fusegame" && existing.gameId === content.gameId;
+    case "controlpanel":
+      return (
+        existing.kind === "controlpanel" && existing.applet === content.applet
+      );
+    case "paint":
+    case "dialog":
+      return false;
+  }
+}
+
 function toFront(windows: WindowState[], id: string): WindowState[] {
   const target = windows.find((window) => window.id === id);
   if (!target) return windows;
@@ -122,10 +155,24 @@ function patchWindow(
 export function appStateReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case "open": {
-      const id = action.id ?? nextWindowId(state.windows);
-      if (state.windows.some((window) => window.id === id)) {
-        return { ...state, windows: toFront(state.windows, id) };
+      const existing =
+        action.id === undefined
+          ? state.windows.find((window) => sameInstance(action.content, window))
+          : state.windows.find((window) => window.id === action.id);
+      if (existing) {
+        // The content asked for wins (a Display window re-opened on its Screen Saver tab), the window stays.
+        return {
+          ...state,
+          windows: toFront(
+            patchWindow(state.windows, existing.id, (window) => ({
+              ...window,
+              ...action.content,
+            })),
+            existing.id,
+          ),
+        };
       }
+      const id = action.id ?? nextWindowId(state.windows);
       return {
         ...state,
         windows: [
@@ -212,7 +259,10 @@ function isWindowContent(
     case "retro":
       return isGameId(value.game);
     case "controlpanel":
-      return isControlPanelApplet(value.applet);
+      return (
+        isControlPanelApplet(value.applet) &&
+        (value.tab === undefined || typeof value.tab === "string")
+      );
     case "wallpaper":
     case "about":
     case "winamp":
