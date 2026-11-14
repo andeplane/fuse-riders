@@ -10,3 +10,6 @@ pnpm-lock.yaml
 # Generated level table; keep the generator's bytes (5 MiB) and re-run the script to change it.
 games/elasto-fuse/src/engine/levels-data.ts
 games/fusemania/src/engine/songs-data.ts
+# FuseOS's vendored runtimes and games (js-dos, Clippy sprites, the web games); `pnpm fuseos:sync` and
+# scripts/fuseos refresh them, so they keep upstream bytes.
+public/fuseos/

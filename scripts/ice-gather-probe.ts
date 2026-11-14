@@ -6,8 +6,7 @@ const browser = await (
 ).launch({ headless: true });
 const page = await browser.newPage();
 await page.goto(
-  process.env.PROBE_URL ??
-    "https://andeplane.github.io/fuse-games/?analytics=0",
+  process.env.PROBE_URL ?? "https://fusegames.ai/?analytics=0&mute",
 );
 const servers: RTCIceServer[] = process.env.ICE_SERVERS
   ? process.env.ICE_SERVERS.split(",").map((urls) => ({ urls }))
