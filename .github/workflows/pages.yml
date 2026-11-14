@@ -45,7 +45,7 @@ jobs:
             const manual = context.eventName === 'workflow_dispatch';
             // An automatic run publishes the revision the live backend reports, not the newest CD-verified one and
             // not whichever run triggered this: a frontend is only safe to publish once the backend it was built
-            // against is serving. The backend deploys the newest CD-verified main revision, so this is that
+            // against is serving. The backend deploys each main revision whose CD gate passed, so this is the newest such
             // revision or, while a newer one is still building, the one before it; that one's own backend
             // deployment triggers this workflow again.
             let sha = context.payload.inputs?.revision;
@@ -79,7 +79,7 @@ jobs:
             if (!/^[a-f0-9]{40}$/.test(sha ?? '')) throw new Error('An exact full revision is required.');
             if (manual && !context.payload.inputs.local_verification?.trim()) throw new Error('Local verification evidence is required.');
             // The revision must still be on main — never publish one force-pushed away — but it need not still
-            // be main's head. CD takes about ten minutes and main moves faster than that during active
+            // be main's head. A release takes minutes and main can move faster than that during active
             // development, so demanding equality refused almost every verified revision and nothing deployed at
             // all. A newer commit's own run supersedes this one moments later, and the github-pages concurrency
             // group serialises them, so the worst case is a release a few commits behind rather than no release.
@@ -90,6 +90,18 @@ jobs:
         with:
           ref: ${{ steps.revision.outputs.sha }}
           persist-credentials: false
+          # The same checkout ci.yml's `checks` job builds from: the build reads none of the screenshots,
+          # videos and recorded evidence under docs/, which are most of the tree.
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/docs/**/*.png
+            !/docs/**/*.jpg
+            !/docs/**/*.gz
+            !/docs/**/*.mp4
+            !/games/*/docs/**/*.png
+            !/docs/online/evidence/*.json
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
