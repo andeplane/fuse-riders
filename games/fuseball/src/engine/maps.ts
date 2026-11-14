@@ -173,7 +173,7 @@ const overflow: MapDef = {
   wrapX: true,
   wrapY: true,
   solids: [
-    rect(628, 180, 24, 270),
+    rect(628, 210, 24, 270),
     rect(490, 344, 300, 32),
     rect(220, 344, 200, 32),
     rect(70, 262, 90, 10),
@@ -182,12 +182,12 @@ const overflow: MapDef = {
     rect(360, 170, 90, 10),
   ],
   goals: [
-    { team: 0, ...rect(628, 90, 12, 90) },
-    { team: 1, ...rect(0, 90, 12, 90) },
+    { team: 0, ...rect(628, 120, 12, 90) },
+    { team: 1, ...rect(0, 120, 12, 90) },
   ],
   clouds: [
-    { x: 64, y: 135, r: 44 },
-    { x: 576, y: 135, r: 44 },
+    { x: 64, y: 165, r: 44 },
+    { x: 576, y: 165, r: 44 },
   ],
   spawns: [
     { x: 115, y: 253 },
@@ -198,8 +198,8 @@ const overflow: MapDef = {
 
 /**
  * Firewall wraps both ways and has no floor or ceiling at all: whatever is not standing on a pad falls for ever,
- * out of the bottom and in at the top. The goals are the tall gaps in the seam wall, each behind a short wall of its
- * own that the ball has to be sent over or under. The ball starts in the open and lands on the high pad from above.
+ * out of the bottom and in at the top. The goals are the gaps in the seam wall, each behind a short wall of its own
+ * that the ball has to be sent over or under. The ball starts in the open and lands on the high pad from above.
  */
 const firewall: MapDef = {
   id: "firewall",
@@ -207,7 +207,7 @@ const firewall: MapDef = {
   wrapX: true,
   wrapY: true,
   solids: [
-    rect(628, 270, 24, 180),
+    rect(628, 240, 24, 240),
     rect(62, 130, 12, 100),
     rect(566, 130, 12, 100),
     rect(200, 280, 60, 10),
@@ -215,8 +215,8 @@ const firewall: MapDef = {
     rect(290, 90, 60, 10),
   ],
   goals: [
-    { team: 0, ...rect(628, 90, 12, 180) },
-    { team: 1, ...rect(0, 90, 12, 180) },
+    { team: 0, ...rect(628, 120, 12, 120) },
+    { team: 1, ...rect(0, 120, 12, 120) },
   ],
   clouds: [
     { x: 34, y: 180, r: 34 },
