@@ -28,6 +28,7 @@ describe(Desktop.name, () => {
       "Paint",
       "Winamp",
       "Control Panel",
+      "Network Neighborhood",
     ]);
     expect(screen.getByRole("toolbar", { name: "Taskbar" })).toHaveTextContent(
       /2:34 PM/,

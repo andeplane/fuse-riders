@@ -50,6 +50,19 @@ import { MediaPlayerDepsContext } from "../mediaplayer/mediaPlayerDepsContext";
 import type { HallOfFameDeps } from "../halloffame/hallOfFameDepsContext";
 import { HallOfFameDepsContext } from "../halloffame/hallOfFameDepsContext";
 import { MemoryLeaderboardService } from "../halloffame/leaderboardService";
+import type { NetworkDeps } from "../network/networkDeps";
+import { NetworkDepsContext } from "../network/networkDeps";
+import {
+  MemoryRecentRoomsStore,
+  RecentRoomsStoreContext,
+} from "../network/recentRooms";
+import type { RoomDirectory } from "../network/roomDirectory";
+import {
+  RoomDirectoryContext,
+  UNSUPPORTED_ROOM_DIRECTORY,
+} from "../network/roomDirectory";
+import type { RoomLauncher } from "../network/roomLauncher";
+import { RoomLauncherContext } from "../network/roomLauncher";
 import type { PaintControls } from "../paint/paintControls";
 import type { PaintDeps } from "../paint/paintDepsContext";
 import { PaintDepsContext } from "../paint/paintDepsContext";
@@ -199,6 +212,13 @@ export type ProviderOptions = {
   mediaPlayerDeps?: Partial<MediaPlayerDeps>;
   /** Defaults to an empty memory leaderboard service (every game: no rated players yet). */
   hallOfFameDeps?: HallOfFameDeps;
+  /** Defaults to an empty in-memory list. */
+  recentRooms?: MemoryRecentRoomsStore;
+  /** Defaults to the production "unsupported" directory (the service lists no rooms). */
+  roomDirectory?: RoomDirectory;
+  /** Defaults to the built-in launcher over `prefsStore`; pass one to observe joins directly. */
+  roomLauncher?: RoomLauncher;
+  networkDeps?: Partial<NetworkDeps>;
 };
 
 /** The media player's scheduled ticks, fired by the test rather than a clock. */
@@ -375,6 +395,25 @@ export function createTestScreenSaverDeps(
   };
 }
 
+/** A fixed clock, a mouse-driven device and timers that never fire on their own (`tick` runs every scheduled callback once). */
+export function createTestNetworkDeps(
+  overrides: Partial<NetworkDeps> = {},
+): NetworkDeps & { tick: () => void } {
+  const callbacks = new Set<() => void>();
+  return {
+    now: () => Date.UTC(1998, 5, 25, 12, 34),
+    finePointer: () => true,
+    every: (callback) => {
+      callbacks.add(callback);
+      return () => {
+        callbacks.delete(callback);
+      };
+    },
+    tick: () => callbacks.forEach((callback) => callback()),
+    ...overrides,
+  };
+}
+
 /** Launcher deps with an empty in-memory last-played map; where a game opens comes from `launchDevice` and `prefsStore`. */
 export function createTestLauncherDeps(
   overrides: Partial<LauncherDeps> = {},
@@ -461,6 +500,10 @@ export function createWrapper(options: ProviderOptions = {}) {
       ),
     ),
   };
+  const recentRooms = options.recentRooms ?? new MemoryRecentRoomsStore();
+  const roomDirectory = options.roomDirectory ?? UNSUPPORTED_ROOM_DIRECTORY;
+  const roomLauncher = options.roomLauncher ?? null;
+  const networkDeps = createTestNetworkDeps(options.networkDeps);
   const recycleBinStore =
     options.recycleBinStore ?? new MemoryRecycleBinStore();
   const mediaPlayerTimers = new ManualScheduler();
@@ -501,6 +544,10 @@ export function createWrapper(options: ProviderOptions = {}) {
     provider(RecycleBinStoreContext, recycleBinStore),
     provider(MediaPlayerDepsContext, mediaPlayerDeps),
     provider(HallOfFameDepsContext, hallOfFameDeps),
+    provider(RecentRoomsStoreContext, recentRooms),
+    provider(RoomDirectoryContext, roomDirectory),
+    provider(RoomLauncherContext, roomLauncher),
+    provider(NetworkDepsContext, networkDeps),
   ];
 
   function Wrapper({ children }: { children: ReactNode }) {
@@ -515,6 +562,9 @@ export function createWrapper(options: ProviderOptions = {}) {
     Wrapper,
     screenSaverStore,
     screenSaverDeps,
+    recentRooms,
+    roomDirectory,
+    networkDeps,
     store,
     games,
     desktopDeps,

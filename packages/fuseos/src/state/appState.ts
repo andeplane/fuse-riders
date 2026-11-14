@@ -1,3 +1,4 @@
+import { isRoomCode } from "../network/roomCode";
 import type { GameId } from "../retro/gameIds";
 import { isGameId } from "../retro/gameIds";
 
@@ -97,8 +98,23 @@ export interface HallOfFameWindowContent {
   gameId?: string;
 }
 
+/** Network Neighborhood: rooms by game, recent rooms, Join room. Single instance (opened with id `NETWORK_WINDOW_ID`). */
+export interface NetworkWindowContent {
+  kind: "network";
+}
+
+/** A Fuse game opened straight into an online room (`?room=CODE`) by the Network Neighborhood. */
+export interface RoomGameWindowContent {
+  kind: "roomgame";
+  gameId: string;
+  /** The room code as the service issues it, e.g. "AB42"; validated by `isRoomCode` when stored. */
+  code: string;
+}
+
 export type WindowContent =
   | FuseGameWindowContent
+  | NetworkWindowContent
+  | RoomGameWindowContent
   | RetroGameWindowContent
   | RetroFolderWindowContent
   | ControlPanelWindowContent
@@ -177,7 +193,14 @@ export function sameInstance(
     case "launcher":
     case "recyclebin":
     case "halloffame":
+    case "network":
       return existing.kind === content.kind;
+    case "roomgame":
+      return (
+        existing.kind === "roomgame" &&
+        existing.gameId === content.gameId &&
+        existing.code === content.code
+      );
     case "mediaplayer":
       return existing.kind === "mediaplayer" && existing.file === content.file;
     case "retro":
@@ -360,11 +383,18 @@ function isWindowContent(
         isControlPanelApplet(value.applet) &&
         (value.tab === undefined || typeof value.tab === "string")
       );
+    case "roomgame":
+      return (
+        typeof value.gameId === "string" &&
+        value.gameId.length > 0 &&
+        isRoomCode(value.code)
+      );
     case "wallpaper":
     case "about":
     case "winamp":
     case "retroFolder":
     case "launcher":
+    case "network":
       return true;
     case "dialog":
       return (

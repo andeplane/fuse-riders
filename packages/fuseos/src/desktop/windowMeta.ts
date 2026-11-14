@@ -49,6 +49,9 @@ export const MEDIA_PLAYER_WINDOW_SIZE: Size = { width: 400, height: 340 };
 /** Room for the game picker, a dozen rows of the list and the status bar. */
 export const HALL_OF_FAME_WINDOW_SIZE: Size = { width: 560, height: 420 };
 
+/** Room for the tree pane, a few rows of rooms and the status bar. */
+export const NETWORK_WINDOW_SIZE: Size = { width: 640, height: 420 };
+
 export const OS_NAME = "FuseOS";
 
 /** Title bar text and icon for each window kind. */
@@ -66,6 +69,20 @@ export function windowMeta(
         size: FUSE_GAME_WINDOW_SIZE,
       };
     }
+    case "roomgame":
+      return {
+        title: `${games.find(window.gameId)?.name ?? window.gameId} - Room ${window.code}`,
+        icon: "network",
+        resizable: true,
+        size: FUSE_GAME_WINDOW_SIZE,
+      };
+    case "network":
+      return {
+        title: "Network Neighborhood",
+        icon: "network",
+        resizable: true,
+        size: NETWORK_WINDOW_SIZE,
+      };
     case "retro":
       return {
         title: GAMES[window.game].name,

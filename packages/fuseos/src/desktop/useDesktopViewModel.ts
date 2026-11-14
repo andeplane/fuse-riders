@@ -7,6 +7,7 @@ import { LAUNCHER_TITLE } from "../launcher/launcherFacts";
 import { useOpenLauncher } from "../launcher/useOpenLauncher";
 import { useGameLaunch } from "../settings/useGameLaunch";
 import type { WindowState } from "../state/appState";
+import { openNetworkNeighborhood } from "../network/openNetworkNeighborhood";
 import { activeWindowId } from "../state/appState";
 import { useAppState } from "../state/useAppState";
 import type { MenuPosition } from "../windows/menuPosition";
@@ -118,6 +119,12 @@ export function useDesktopViewModel(): DesktopViewModel {
       label: "Control Panel",
       icon: "settings",
       open: openControlPanel,
+    },
+    {
+      id: "network-neighborhood",
+      label: "Network Neighborhood",
+      icon: "network",
+      open: () => openNetworkNeighborhood(commands),
     },
   ];
 

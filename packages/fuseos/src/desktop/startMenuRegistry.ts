@@ -3,6 +3,7 @@ import { createContext } from "react";
 import { MY_COMPUTER } from "../disk/diskPath";
 import { LAUNCHER_TITLE } from "../launcher/launcherFacts";
 import { openLauncher } from "../launcher/useOpenLauncher";
+import { openNetworkNeighborhood } from "../network/openNetworkNeighborhood";
 import type { IconName } from "../ui/icons";
 import type { WindowCommands } from "../windows/useWindowCommands";
 import type { Size } from "../windows/windowManager";
@@ -142,6 +143,14 @@ export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
     // One Hall of Fame at a time: choosing it again brings the open window to the front.
     open: (commands) =>
       commands.open({ kind: "halloffame" }, { id: HALL_OF_FAME_WINDOW_ID }),
+  },
+  {
+    slot: "programs",
+    id: "network-neighborhood",
+    label: "Network Neighborhood",
+    icon: "network",
+    order: 10,
+    open: (commands) => openNetworkNeighborhood(commands),
   },
 ];
 

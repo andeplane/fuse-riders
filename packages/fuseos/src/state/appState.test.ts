@@ -365,6 +365,20 @@ describe(isAppState.name, () => {
       true,
     );
     expect(isAppState(window({ kind: "halloffame", gameId: 7 }))).toBe(false);
+    expect(isAppState(window({ kind: "network" }))).toBe(true);
+    expect(
+      isAppState(
+        window({ kind: "roomgame", gameId: "fuseball", code: "AB42" }),
+      ),
+    ).toBe(true);
+    expect(
+      isAppState(
+        window({ kind: "roomgame", gameId: "fuseball", code: "ab42" }),
+      ),
+    ).toBe(false);
+    expect(
+      isAppState(window({ kind: "roomgame", gameId: "", code: "AB42" })),
+    ).toBe(false);
     expect(
       isAppState(
         window({ kind: "dialog", title: "t", message: "m", icon: "info" }),
