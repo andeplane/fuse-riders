@@ -35,7 +35,9 @@ describe("ControlPanelWindow", () => {
     renderControlPanel();
     const dialog = await screen.findByRole("dialog", { name: "Control Panel" });
     await user.click(within(dialog).getByRole("button", { name: "Display" }));
-    expect(within(dialog).getByLabelText("Color palette")).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("group", { name: "Display Properties" }),
+    ).toBeInTheDocument();
     await user.click(
       within(dialog).getByRole("tab", { name: "Control Panel" }),
     );
@@ -47,15 +49,18 @@ describe("ControlPanelWindow", () => {
   it("shows the browser, graphics and storage the system probe reports", async () => {
     renderControlPanel("system");
     const dialog = await screen.findByRole("dialog", { name: "Control Panel" });
-    const table = await within(dialog).findByRole("table", {
+    const system = await within(dialog).findByRole("table", {
       name: "System information",
     });
-    expect(table).toHaveTextContent("Chrome 131");
-    expect(table).toHaveTextContent("MacIntel");
-    expect(table).toHaveTextContent("1920 x 1080 pixels");
-    expect(table).toHaveTextContent("en-GB");
-    expect(table).toHaveTextContent("Available");
-    expect(table).toHaveTextContent("Windows are remembered between visits");
+    expect(system).toHaveTextContent("Chrome 131");
+    expect(system).toHaveTextContent("MacIntel");
+    expect(system).toHaveTextContent("en-GB");
+    const computer = within(dialog).getByRole("table", {
+      name: "Computer information",
+    });
+    expect(computer).toHaveTextContent("1920 x 1080 pixels");
+    expect(computer).toHaveTextContent("Available");
+    expect(computer).toHaveTextContent("Windows are remembered between visits");
   });
 
   it("says when WebGPU and storage are not available", async () => {
@@ -67,11 +72,11 @@ describe("ControlPanelWindow", () => {
       },
     });
     const dialog = await screen.findByRole("dialog", { name: "Control Panel" });
-    const table = await within(dialog).findByRole("table", {
-      name: "System information",
+    const computer = await within(dialog).findByRole("table", {
+      name: "Computer information",
     });
-    expect(table).toHaveTextContent("Not available");
-    expect(table).toHaveTextContent("Not available; nothing is remembered");
+    expect(computer).toHaveTextContent("Not available");
+    expect(computer).toHaveTextContent("Not available; nothing is remembered");
   });
 
   it("lists the installed games in the Games applet", async () => {
@@ -150,8 +155,10 @@ describe("ControlPanelWindow", () => {
   });
 
   it("sets and clamps desktop icon spacing", async () => {
+    const user = userEvent.setup();
     const { displayPrefsStore } = renderControlPanel("display");
     const dialog = await screen.findByRole("dialog", { name: "Control Panel" });
+    await user.click(within(dialog).getByRole("tab", { name: "Settings" }));
     const horizontal = within(dialog).getByLabelText("Horizontal");
     const vertical = within(dialog).getByLabelText("Vertical");
     expect(horizontal).toHaveValue(75);
@@ -170,6 +177,7 @@ describe("ControlPanelWindow", () => {
     const user = userEvent.setup();
     renderControlPanel("display");
     const dialog = await screen.findByRole("dialog", { name: "Control Panel" });
+    await user.click(within(dialog).getByRole("tab", { name: "Settings" }));
     expect(within(dialog).getByLabelText("Small fonts")).toBeChecked();
     expect(document.documentElement).not.toHaveClass("large-fonts");
 

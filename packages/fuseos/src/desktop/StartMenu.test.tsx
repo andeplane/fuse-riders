@@ -4,6 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "../__mocks__/renderWithProviders";
 
 import { Desktop } from "./Desktop";
+import type { StartMenuRegistration } from "./startMenuRegistry";
+import { StartMenuRegistryContext } from "./startMenuRegistry";
 import { HELP_URL } from "./useStartMenuViewModel";
 
 type User = ReturnType<typeof userEvent.setup>;
@@ -29,7 +31,7 @@ describe("StartMenu", () => {
       within(menu)
         .getAllByRole("menuitem")
         .map((item) => item.textContent?.replace("▸", "")),
-    ).toEqual(["Programs", "Settings", "Help", "Shut Down..."]);
+    ).toEqual(["Programs", "My Computer", "Settings", "Help", "Shut Down..."]);
     await user.click(within(menu).getByRole("menuitem", { name: "Programs" }));
     await user.click(within(menu).getByRole("menuitem", { name: "Games" }));
     const games = within(menu).getAllByRole("menu").at(-1);
@@ -40,6 +42,148 @@ describe("StartMenu", () => {
         .getAllByRole("menuitem")
         .map((item) => item.textContent?.replace("▸", "")),
     ).toEqual(["Fuseball", "Fuse Riders", "Fuse Birds", "Retro Games"]);
+  });
+
+  it("lists the Control Panel applets under Settings and the accessories with Notepad++ pending", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Desktop />);
+    const menu = await openStartMenu(user);
+    await user.click(within(menu).getByRole("menuitem", { name: "Settings" }));
+    const settings = within(menu).getAllByRole("menu").at(-1);
+    if (!settings) throw new Error("no Settings submenu");
+    expect(
+      within(settings)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual([
+      "Control Panel",
+      "Display",
+      "Games",
+      "System",
+      "Assistant",
+      "Keyboard",
+    ]);
+
+    await user.click(within(menu).getByRole("menuitem", { name: "Programs" }));
+    await user.click(
+      within(menu).getByRole("menuitem", { name: "Accessories" }),
+    );
+    const accessories = within(menu).getAllByRole("menu").at(-1);
+    if (!accessories) throw new Error("no Accessories submenu");
+    expect(
+      within(accessories)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual(["Paint", "Winamp", "Notepad++", "Change desktop background"]);
+    expect(
+      within(accessories).getByRole("menuitem", { name: "Notepad++" }),
+    ).toBeDisabled();
+    // Nothing registers My Computer in this build either: the item is there, disabled.
+    expect(
+      within(menu).getByRole("menuitem", { name: "My Computer" }),
+    ).toBeDisabled();
+  });
+
+  it("opens a registered program and fills My Computer from the registry", async () => {
+    const user = userEvent.setup();
+    const registrations: StartMenuRegistration[] = [
+      {
+        slot: "accessories",
+        id: "notepadpp",
+        label: "Notepad++",
+        icon: "file",
+        order: 30,
+        open: (commands) => commands.showInfo("Notepad++", "Hello from B11"),
+      },
+      {
+        slot: "my-computer",
+        id: "my-computer",
+        label: "My Computer",
+        icon: "computer",
+        open: (commands) => commands.open({ kind: "about" }),
+      },
+      {
+        slot: "help",
+        id: "tour",
+        label: "Take a tour",
+        icon: "help",
+        open: (commands) => commands.showInfo("Tour", "Welcome"),
+      },
+    ];
+    renderWithProviders(
+      <StartMenuRegistryContext.Provider value={registrations}>
+        <Desktop />
+      </StartMenuRegistryContext.Provider>,
+    );
+    await choose(user, "Programs", "Accessories", "Notepad++");
+    expect(
+      await screen.findByRole("dialog", { name: "Notepad++" }),
+    ).toHaveTextContent("Hello from B11");
+    await choose(user, "My Computer");
+    expect(
+      await screen.findByRole("dialog", { name: "About FuseOS" }),
+    ).toBeInTheDocument();
+    const menu = await openStartMenu(user);
+    await user.click(within(menu).getByRole("menuitem", { name: "Help" }));
+    const help = within(menu).getAllByRole("menu").at(-1);
+    if (!help) throw new Error("no Help submenu");
+    expect(
+      within(help)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual([
+      "Help Topics",
+      "Office Assistant",
+      "Take a tour",
+      "About FuseOS",
+    ]);
+  });
+
+  it("is driven by the keyboard: Ctrl+Esc opens it on the first item, arrows move, Right opens a folder, Left closes it, Enter chooses, Escape closes", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Desktop />);
+    await user.keyboard("{Control>}{Escape}{/Control}");
+    const menu = screen.getByRole("menu", { name: "Start menu" });
+    expect(
+      within(menu).getByRole("menuitem", { name: "Programs" }),
+    ).toHaveFocus();
+
+    await user.keyboard("{ArrowDown}");
+    expect(
+      within(menu).getByRole("menuitem", { name: "Settings" }),
+    ).toHaveFocus();
+    await user.keyboard("{ArrowUp}{ArrowUp}");
+    expect(
+      within(menu).getByRole("menuitem", { name: "Shut Down..." }),
+    ).toHaveFocus();
+
+    await user.keyboard("{ArrowDown}{ArrowRight}");
+    expect(
+      within(menu).getByRole("menuitem", { name: "Accessories" }),
+    ).toHaveFocus();
+    await user.keyboard("{ArrowLeft}");
+    expect(
+      within(menu).getByRole("menuitem", { name: "Programs" }),
+    ).toHaveFocus();
+    expect(
+      within(menu).queryByRole("menuitem", { name: "Accessories" }),
+    ).toBeNull();
+
+    await user.keyboard("{Enter}{Enter}{Enter}");
+    expect(
+      await screen.findByRole("dialog", { name: "untitled - Paint" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("menu", { name: "Start menu" })).toBeNull();
+
+    await user.keyboard("{Control>}{Escape}{/Control}");
+    expect(
+      screen.getByRole("menu", { name: "Start menu" }),
+    ).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu", { name: "Start menu" })).toBeNull();
+    await user.keyboard("{Control>}{Escape}{/Control}");
+    await user.keyboard("{Control>}{Escape}{/Control}");
+    expect(screen.queryByRole("menu", { name: "Start menu" })).toBeNull();
   });
 
   it("opens the accessories, a Fuse game, a retro game and the control panel applets", async () => {

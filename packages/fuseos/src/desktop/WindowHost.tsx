@@ -75,7 +75,8 @@ export function WindowHost({ windows, activeId }: WindowHostProps) {
   const display = useContext(DisplayViewportContext);
   const games = useContext(FuseGamesContext);
   const { WindowFrame } = useContext(WindowsDepsContext);
-  const { rectFor, setRect, pruneRects } = useContext(WindowManagerContext);
+  const { rectFor, setRect, pruneRects, compact } =
+    useContext(WindowManagerContext);
   const commands = useWindowCommands();
   // Window ids are reused after a close; forget the old rectangle so the next window with that id opens at its own size.
   useEffect(
@@ -92,13 +93,17 @@ export function WindowHost({ windows, activeId }: WindowHostProps) {
         const activate = () => {
           if (!active) commands.focus(window.id);
         };
+        // On a phone every resizable window fills the screen; the stored `maximized` flag is left
+        // alone so the window floats again where there is room (a rotated tablet, a desktop).
+        const maximized = meta.resizable && (window.maximized || compact);
+        const resizable = meta.resizable && !compact;
         return (
           <WindowFrame
             key={window.id}
             id={window.id}
             rect={rectFor(window.id, index, meta.size, !meta.resizable)}
-            maximized={meta.resizable && window.maximized}
-            resizable={meta.resizable}
+            maximized={maximized}
+            resizable={resizable}
             scale={display?.scale ?? 1}
             active={active}
             zIndex={10 + index}
@@ -109,8 +114,8 @@ export function WindowHost({ windows, activeId }: WindowHostProps) {
               title={meta.title}
               icon={meta.icon}
               active={active}
-              maximized={meta.resizable && window.maximized}
-              resizable={meta.resizable}
+              maximized={maximized}
+              resizable={resizable}
               onMinimize={() => commands.minimize(window.id)}
               onToggleMaximize={() => commands.toggleMaximize(window.id)}
               onClose={() => commands.close(window.id)}

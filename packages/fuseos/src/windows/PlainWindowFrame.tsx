@@ -1,4 +1,3 @@
-import { TASKBAR_HEIGHT } from "./windowManager";
 import type { WindowFrameProps } from "./windowsDepsContext";
 
 /** Static frame used in tests: no dragging, no resizing, no layout dependencies. */
@@ -10,12 +9,13 @@ export function PlainWindowFrame({
   onFocus,
   children,
 }: WindowFrameProps) {
+  // The host already stops above the taskbar (Desktop.tsx, `bottom-7`), so a maximized window fills it.
   const style = maximized
     ? {
         left: 0,
         top: 0,
         width: "100%",
-        height: `calc(100% - ${TASKBAR_HEIGHT}px)`,
+        height: "100%",
         zIndex,
       }
     : {

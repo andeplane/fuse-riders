@@ -6,11 +6,13 @@ import { DisplaySurface } from "./DisplaySurface";
 import { ShutdownScreen } from "./ShutdownScreen";
 import { StartMenu } from "./StartMenu";
 import { Taskbar } from "./Taskbar";
+import { useDesktopKeyboard } from "./useDesktopKeyboard";
 import { useDesktopViewModel } from "./useDesktopViewModel";
 import { WindowHost } from "./WindowHost";
 
 export function Desktop() {
   const vm = useDesktopViewModel();
+  useDesktopKeyboard();
 
   const desktop = (
     <div

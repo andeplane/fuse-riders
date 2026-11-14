@@ -1,10 +1,6 @@
 import { Rnd } from "react-rnd";
 
-import {
-  MIN_WINDOW_HEIGHT,
-  MIN_WINDOW_WIDTH,
-  TASKBAR_HEIGHT,
-} from "./windowManager";
+import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from "./windowManager";
 import type { WindowFrameProps } from "./windowsDepsContext";
 
 /** Draggable and resizable frame backed by react-rnd. Not used in tests (needs layout). */
@@ -19,12 +15,13 @@ export function RndWindowFrame({
   onRectChange,
   children,
 }: WindowFrameProps) {
+  // The host already stops above the taskbar (Desktop.tsx, `bottom-7`), so a maximized window fills it.
   if (maximized) {
     return (
       <div
         data-window-id={id}
-        className="pointer-events-auto absolute left-0 top-0 w-full"
-        style={{ zIndex, height: `calc(100% - ${TASKBAR_HEIGHT}px)` }}
+        className="pointer-events-auto absolute left-0 top-0 h-full w-full"
+        style={{ zIndex }}
         onMouseDown={onFocus}
       >
         {children}
