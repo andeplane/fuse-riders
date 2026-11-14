@@ -1,8 +1,8 @@
 # Fuse Riders
 
-## [Browse all games →](https://andeplane.github.io/fuse-games/)
+## [Browse all games →](https://fusegames.ai/)
 
-The site root is the **Fuse Games** gallery, with gameplay screenshots and a play link for each game listed in `games/<id>/portal.json`. [Play Fuse Riders directly](https://andeplane.github.io/fuse-games/fuse-riders/). Every game's app launcher has an **ALL GAMES** link back to the gallery. Existing root `?room=…`, `?solo=1` and `?display=1` links still open Riders.
+The site root is the **Fuse Games** gallery, with gameplay screenshots and a play link for each game listed in `games/<id>/portal.json`. [Play Fuse Riders directly](https://fusegames.ai/fuse-riders/). Every game's app launcher has an **ALL GAMES** link back to the gallery. Existing root `?room=…`, `?solo=1` and `?display=1` links still open Riders.
 
 **Play solo or with friends.** Every game shares the same main menu and lobby. **Play** creates a room; use **Join** to take a slot, **Add AI** for opponents and **Game settings** below the QR code for match options. **Join a room · Solo & local play** retains room-code entry, **PLAY SOLO** and **PLAY LOCAL** where supported. Solo and local controller play use no room service or WebRTC; refreshing starts a fresh run. In a room every device simulates the game, so any rider can refresh or drop and rejoin while the others keep playing. Online gameplay requires a direct WebRTC connection; unsupported networks show a retry state. Physical-phone qualification is still pending.
 
@@ -278,7 +278,7 @@ The online beta is deployed on **GitHub Pages, Cloud Run, Firestore (room metada
 
 The supported hosting model is GitHub Pages plus the Cloud Run room service; consult the deployment inventory for recorded endpoints and verify current external state before claiming publication. Local server processes and LAN addresses are ephemeral; read startup output rather than reusing a recorded PID or IP.
 
-See [GCP deployment instructions](docs/online/GCP-DEPLOY.md) and [the direct-only decision](docs/adr/035-direct-gameplay-only.md). The public [Play link](https://andeplane.github.io/fuse-games/) connects to `https://fuse-riders-gateway-oaaqztec5a-ew.a.run.app`. The [deployment inventory](docs/online/GCP-INVENTORY.md) records the exact frontend/backend source, immutable image, runtime identity and completed public service checks.
+See [GCP deployment instructions](docs/online/GCP-DEPLOY.md) and [the direct-only decision](docs/adr/035-direct-gameplay-only.md). The public [Play link](https://fusegames.ai/) connects to `https://fuse-riders-gateway-oaaqztec5a-ew.a.run.app`. The [deployment inventory](docs/online/GCP-INVENTORY.md) records the exact frontend/backend source, immutable image, runtime identity and completed public service checks.
 
 Release only through the GCP/Pages flow above. Complete the roadmap's review and verification requirements first, deploy a preview of the tested artifact, and verify it before promoting anything to production. See [the browser-hosted topology and the local stack](docs/online/DEPLOYMENT.md). Verify current provider quotas/pricing before enabling paid services. Keep claim URLs, room/host capabilities, cloud credentials and raw secret-bearing logs out of git, copied invites and public diagnostics.
 
@@ -499,20 +499,20 @@ browser ──Authorization: Bearer <ID token>──▶ Cloud Run gateway ──
 
 ### What is configured
 
-| Thing                        | Value                                                                                                                                                              |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Firebase project             | `andershaf-87` (number `867594018708`), see [`.firebaserc`](.firebaserc)                                                                                           |
-| Web app                      | "Fuse Riders", app ID `1:867594018708:web:4444ada96e29685f063981`                                                                                                  |
-| Sign-in providers            | **Google only**, enabled 2026-09-17. Email/password, anonymous and phone are disabled                                                                              |
-| Authorized domains           | `localhost`, `andeplane.github.io`, and the two popup-handler hosts `andershaf-87.firebaseapp.com` and `fuse-riders.web.app`                                       |
-| Hosting site                 | `fuse-riders` → `https://fuse-riders.web.app`. Nothing is deployed to it; it exists so the sign-in handler has a name players recognise (below)                    |
-| Email enumeration protection | on                                                                                                                                                                 |
-| Web API key                  | "Fuse Riders web (Firebase Auth only)", key ID `06d6ec38-6348-4b7b-865d-1ea58a9b7d91`                                                                              |
-| Key: API restriction         | `identitytoolkit.googleapis.com` and `securetoken.googleapis.com` only                                                                                             |
-| Key: referrer restriction    | `https://andeplane.github.io/*`, `https://fuse-riders.web.app/*`, `https://andershaf-87.firebaseapp.com/*`, `localhost`, `localhost:*`, `127.0.0.1`, `127.0.0.1:*` |
-| Firestore rules              | deny-all, released to the `fuse-riders` database ([`firebase.json`](firebase.json))                                                                                |
-| Firestore indexes and TTL    | [`firestore.indexes.json`](firestore.indexes.json), deployed with the rules                                                                                        |
-| Firestore delete protection  | enabled on `fuse-riders`, because it will hold history that no TTL cleans up                                                                                       |
+| Thing                        | Value                                                                                                                                                                                                                      |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Firebase project             | `andershaf-87` (number `867594018708`), see [`.firebaserc`](.firebaserc)                                                                                                                                                   |
+| Web app                      | "Fuse Riders", app ID `1:867594018708:web:4444ada96e29685f063981`                                                                                                                                                          |
+| Sign-in providers            | **Google only**, enabled 2026-09-17. Email/password, anonymous and phone are disabled                                                                                                                                      |
+| Authorized domains           | `localhost`, `fusegames.ai`, `www.fusegames.ai`, `andeplane.github.io`, and the two popup-handler hosts `andershaf-87.firebaseapp.com` and `fuse-riders.web.app`                                                           |
+| Hosting site                 | `fuse-riders` → `https://fuse-riders.web.app`. Nothing is deployed to it; it exists so the sign-in handler has a name players recognise (below)                                                                            |
+| Email enumeration protection | on                                                                                                                                                                                                                         |
+| Web API key                  | "Fuse Riders web (Firebase Auth only)", key ID `06d6ec38-6348-4b7b-865d-1ea58a9b7d91`                                                                                                                                      |
+| Key: API restriction         | `identitytoolkit.googleapis.com` and `securetoken.googleapis.com` only                                                                                                                                                     |
+| Key: referrer restriction    | `https://fusegames.ai/*`, `https://www.fusegames.ai/*`, `https://andeplane.github.io/*`, `https://fuse-riders.web.app/*`, `https://andershaf-87.firebaseapp.com/*`, `localhost`, `localhost:*`, `127.0.0.1`, `127.0.0.1:*` |
+| Firestore rules              | deny-all, released to the `fuse-riders` database ([`firebase.json`](firebase.json))                                                                                                                                        |
+| Firestore indexes and TTL    | [`firestore.indexes.json`](firestore.indexes.json), deployed with the rules                                                                                                                                                |
+| Firestore delete protection  | enabled on `fuse-riders`, because it will hold history that no TTL cleans up                                                                                                                                               |
 
 The `(default)` database in this project is Datastore-mode and unrelated; security rules do not apply to it.
 

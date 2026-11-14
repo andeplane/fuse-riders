@@ -132,7 +132,7 @@ export async function runPublicSmoke(
 ): Promise<PublicSmokeReport> {
   const origin = validateOrigin(options.origin, options.allowLoopback),
     browserOrigin = validateOrigin(
-      options.browserOrigin ?? "https://andeplane.github.io",
+      options.browserOrigin ?? "https://fusegames.ai",
       options.allowLoopback,
     ),
     timeout = options.timeoutMs ?? 25_000;
