@@ -51,7 +51,8 @@
     "killer-fuse": "workspace:*",
     "jose": "^6.2.12",
     "tsx": "^4.20.5",
-    "ws": "^8.18.3"
+    "ws": "^8.18.3",
+    "fuse-music": "workspace:*"
   },
   "devDependencies": {
     "@fontsource/press-start-2p": "^5.3.0",

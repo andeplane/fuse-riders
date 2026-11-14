@@ -21,7 +21,10 @@ export class WebAudioBackend implements AudioBackend {
   private fadeTimer: ReturnType<typeof setInterval> | undefined;
 
   /** `base` is the site's base URL, so tracks load under the Pages sub-path too. */
-  constructor(private readonly base: string) {}
+  constructor(
+    private readonly base: string,
+    private readonly externalMusic = false,
+  ) {}
 
   now(): number {
     return performance.now() / 1000;
@@ -65,6 +68,7 @@ export class WebAudioBackend implements AudioBackend {
   }
 
   music(kind: MusicKind | null): void {
+    if (this.externalMusic) return; // fuse-music owns the soundtrack.
     const next = kind ? this.element(kind) : null;
     // A track still fading out fades back in from where it is, without a restart.
     if (next && next !== this.current && next.paused) {

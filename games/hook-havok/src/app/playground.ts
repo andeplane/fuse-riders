@@ -313,6 +313,7 @@ el("home").textContent = "HOOK HAVOK";
 const gameHeader = homeBar.closest<HTMLElement>("header")!;
 gameHeader.replaceChildren(homeBar);
 createTopBar({
+  music: false,
   element: gameHeader,
   brand: el("home"),
   gameId: "hook-havok",

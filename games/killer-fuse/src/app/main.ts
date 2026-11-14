@@ -311,7 +311,7 @@ function soundRow(onChange: () => void = () => undefined): HTMLElement {
   buttons.music.onclick = () => write(MUSIC_ON, !soundChoices().musicOn);
   buttons.effects.onclick = () => write(EFFECTS_ON, !soundChoices().effectsOn);
   show();
-  row.append(buttons.mute, buttons.music, buttons.effects);
+  row.append(buttons.effects);
   return row;
 }
 
@@ -589,20 +589,23 @@ function room(solo: boolean): void {
   let lobbySince = performance.now(),
     tipShown = "";
   let { muted, musicOn, effectsOn } = soundChoices();
-  const music = new Music(browserMusicDeps(MUSIC_URL), { muted, on: musicOn });
+  const music = new Music(browserMusicDeps(MUSIC_URL), {
+    muted: true,
+    on: false,
+  });
   /** The effects are hushed by the master switch too; the arena's own bed stops once a music file plays. */
   const effectsMuted = () => muted || !effectsOn;
   /** Pushes the current choices to the music and, when there is an arena, to it as well. */
   const applySound = () => {
-    music.setMuted(muted);
-    music.setOn(musicOn);
+    music.setMuted(true);
+    music.setOn(false);
     if (model)
       driver.update({
         names: model.arena.names,
         localSlot: model.arena.localSlot,
         muted: effectsMuted(),
         highlight: performance.now() < highlightEnd,
-        bed: musicOn && !muted && music.playing === null,
+        bed: false,
       });
   };
   // Until a room says otherwise — the landing page, the lobby — the lobby track is the one that belongs.
@@ -1250,7 +1253,7 @@ function room(solo: boolean): void {
         muted: effectsMuted(),
         highlight: performance.now() < highlightEnd,
         // A music file takes the synthesised bed's place rather than playing over it.
-        bed: musicOn && !muted && music.playing === null,
+        bed: false,
       });
       driver.feed(frame, next.layout === "arena");
       const state = runtime.roomState();

@@ -318,6 +318,7 @@ export function showLanding(host: LandingHost): void {
     accountPanel.button,
   );
   createTopBar({
+    music: false,
     element: top,
     brand,
     account: accountPanel.button,

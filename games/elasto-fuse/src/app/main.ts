@@ -54,7 +54,7 @@ import { slotColor, slotName } from "../render/palette.js";
 import { createScene } from "../render/scene.js";
 import { createSmoother } from "../render/smooth.js";
 import { browserCanvas, browserImages, browserTint, loadArt } from "./art.js";
-import { createSfx, ELASTO_SONGS } from "./audio.js";
+import { createSfx } from "./audio.js";
 import {
   HeldControls,
   PadSet,
@@ -127,8 +127,7 @@ const audio = createGameAudio(
   browserAudioDependencies(safeStorage(() => localStorage)),
   { forceMute: muted },
 );
-audio.setSongs(ELASTO_SONGS, import.meta.env.BASE_URL);
-audio.startMusic();
+// Music is supplied by the shared header; this bus owns the game effects.
 bindAudioInput(audio, document, window);
 const audioControl = createAudioControl(document, audio);
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
