@@ -4,9 +4,9 @@ import { DesktopDepsContext } from "../desktop/desktopDepsContext";
 import { MY_COMPUTER } from "../disk/diskPath";
 import { FuseGamesContext } from "../fusegames/registry";
 import { useFuseGameLauncher } from "../fusegames/useFuseGameLauncher";
+import { useDialUpCommands } from "../sounds/dialup/useDialUpCommands";
 import { useDesktopBsod } from "../system32/desktopBsod";
 import { useSystem32 } from "../system32/System32Provider";
-import { useWindowCommands } from "../windows/useWindowCommands";
 
 import {
   resolveRunCommand,
@@ -31,7 +31,8 @@ export type RunViewModel = {
 export function useRunViewModel(windowId: string): RunViewModel {
   const games = useContext(FuseGamesContext);
   const { openExternal } = useContext(DesktopDepsContext);
-  const commands = useWindowCommands();
+  // Network Neighborhood and Fuse Messenger dial in first, as they do from the Start menu.
+  const commands = useDialUpCommands();
   const { launch } = useFuseGameLauncher();
   // The desktop's Blue Screen of Death where the build has one (D1), else the SYSTEM32 gag's own.
   const desktopBsod = useDesktopBsod();
