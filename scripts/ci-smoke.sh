@@ -36,8 +36,9 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     echo '```'
   } >> "$GITHUB_STEP_SUMMARY"
 fi
-# Keep a history across runs on main, where flakes block deployment. Best effort: reporting never fails the job.
-if [ "${GITHUB_EVENT_NAME:-}" = "push" ] && [ -n "${GH_TOKEN:-}" ]; then
+# Keep a history across the release suite's runs on main. ci.yml hands this job a token only there, never on a
+# pull request. Best effort: reporting never fails the job.
+if [ "${GITHUB_EVENT_NAME:-}" != "pull_request" ] && [ -n "${GH_TOKEN:-}" ]; then
   run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
   body=$(printf '**%s** failed once, then passed on retry at `%s` ([run](%s)).\n\n```\n%s\n```\n' \
     "$label" "${GITHUB_SHA:0:7}" "$run_url" "$(tail -n 25 "$log")")

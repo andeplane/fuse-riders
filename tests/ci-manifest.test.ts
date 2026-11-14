@@ -24,9 +24,12 @@ const manifest = loadManifest();
 const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
 const cd = readFileSync(".github/workflows/cd.yml", "utf8");
 const local = readFileSync("scripts/ci-local.sh", "utf8");
-/** When the release jobs (coverage and the browser matrix) run: CD, a dispatch, or a pull request with `full-ci`. */
+/**
+ * When the release jobs (coverage and the browser matrix) run: suite.yml's weekly call (`release: true`), a dispatch,
+ * or a pull request with `full-ci`. Not cd.yml's call: the gate a deployment waits for is the gate alone.
+ */
 const RELEASE =
-  "github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci')";
+  "inputs.release || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-ci')";
 
 /** The text of one job, without a YAML parser: jobs are the two-space keys after `jobs:`. */
 function job(name: string): string {
@@ -95,7 +98,7 @@ test("verify is the one check name, and it reports every gate job", () => {
   );
 });
 
-test("the unit shards cover the whole suite, and only a pull request thins the replay check", () => {
+test("the unit shards cover the whole suite, and only the gate thins the replay check", () => {
   const unit = job("unit");
   const list = / {8}shard: \[([\d, ]+)\]/.exec(unit)?.[1];
   const divisor = / {6}TEST_SHARD: \$\{\{ matrix\.shard \}\}\/(\d+)/.exec(
@@ -108,11 +111,11 @@ test("the unit shards cover the whole suite, and only a pull request thins the r
     Array.from({ length: Number(divisor) }, (_, index) => index + 1),
     "the shard list and the TEST_SHARD divisor must agree",
   );
-  // A sampled replay budget is the pull request's alone; anything else (a push, a dispatch) checks every tick.
+  // A sampled replay budget is the gate's (a pull request, cd.yml's call); the suite and a dispatch check every tick.
   assert.match(
     unit,
-    /FUSE_REPLAY_STRIDE: \$\{\{ github\.event_name == 'pull_request' && '\d+' \|\| '1' \}\}/,
-    "the replay stride must fall back to 1",
+    /FUSE_REPLAY_STRIDE: \$\{\{ \(inputs\.release \|\| github\.event_name == 'workflow_dispatch'\) && '1' \|\| '\d+' \}\}/,
+    "the release suite and a dispatch must check every tick",
   );
 });
 
@@ -243,57 +246,115 @@ test("verify passes a pull request on the gate alone, and a release run only wit
   );
 });
 
-test("CD runs this workflow for main pushes one at a time, and the deployment waits for CD", () => {
-  // Called by CD: on a push the release jobs run, and the gate runs first.
+test("a main push is gated by CD and deployed beside it, and the release suite runs weekly", () => {
   const on = workflow.slice(
     workflow.indexOf("\non:\n"),
     workflow.indexOf("\npermissions:\n"),
   );
-  assert.match(on, /^ {2}workflow_call:$/m);
+  // Called without `release`, this workflow is the gate alone.
+  assert.match(
+    on,
+    /^ {2}workflow_call:\n {4}inputs:\n {6}release:\n(?: {8}.*\n)*? {8}default: false$/m,
+  );
   // Superseded pull-request runs are cancelled; a CD run never is, or its deployment would be withheld.
   assert.ok(
     workflow.includes(
       "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
     ),
   );
+  // Nor replaced while it waits: off a pull request the group is the commit's own.
+  assert.ok(
+    workflow.includes(
+      "  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}\n",
+    ),
+  );
   assert.doesNotMatch(
     workflow,
     /^ {2}push:/m,
-    "a main push runs through CD, not here",
+    "a main push runs through CD and the release suite, not here",
   );
+  // A called workflow gets no more than its caller grants, and the smoke job asks for `issues: write`
+  // (to report flakes) even where it is skipped.
+  const calls = (caller: string) =>
+    caller.includes("    uses: ./.github/workflows/ci.yml\n") &&
+    /^ {4}permissions:\n {6}contents: read\n(?: {6}.*\n)*? {6}issues: write$/m.test(
+      caller,
+    );
+  assert.ok(job("smoke").includes("      issues: write\n"));
+
+  // CD: the gate, for every main push, one run per commit. The deployment waits for the run of its own
+  // commit, so no run may be replaced by a newer push.
   assert.match(cd, /^ {2}push:\n {4}branches: \[main\]$/m);
-  // One running, at most one waiting: a newer push replaces the waiting run, never the running one.
   assert.match(
     cd,
-    /^concurrency:\n {2}group: cd\n {2}cancel-in-progress: false$/m,
+    /^concurrency:\n {2}group: cd-\$\{\{ github\.sha \}\}\n {2}cancel-in-progress: false$/m,
   );
-  assert.ok(cd.includes("    uses: ./.github/workflows/ci.yml\n"));
-  // A called workflow gets no more than its caller grants, and the smokes report flakes to an issue.
+  assert.ok(calls(cd));
+  assert.doesNotMatch(cd, /release: true/, "CD must stay the gate alone");
+
+  // The release suite: the same workflow with the release jobs, on a weekly schedule and on a dispatch, for
+  // main only. It is not a push workflow: nothing waits for it.
+  const suite = readFileSync(".github/workflows/suite.yml", "utf8");
+  assert.match(
+    suite,
+    /^ {2}schedule:\n(?: {4}#.*\n)* {4}- cron: "\d+ \d+ \* \* \d"$/m,
+  );
+  assert.match(suite, /^ {2}workflow_dispatch:$/m);
+  assert.doesNotMatch(suite, /^ {2}push:/m);
+  assert.ok(suite.includes("    if: github.ref == 'refs/heads/main'\n"));
+  assert.match(
+    suite,
+    /^concurrency:\n {2}group: release-suite\n {2}cancel-in-progress: false$/m,
+  );
+  // Flakes are reported from main's runs only, so pull-request smoke code never sees an issue-writing token.
   assert.ok(
-    cd.includes(
-      "    uses: ./.github/workflows/ci.yml\n    permissions:\n      contents: read\n",
-    ) && /^ {4}permissions:\n(?: {6}.*\n)*? {6}issues: write$/m.test(cd),
+    job("smoke").includes(
+      "      GH_TOKEN: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.token || '' }}\n",
+    ),
   );
-  assert.ok(job("smoke").includes("      issues: write\n"));
+  assert.ok(calls(suite));
+  assert.ok(suite.includes("    with:\n      release: true\n"));
   // The browser matrix leaves runners for pull requests.
   assert.match(job("smoke"), /^ {6}max-parallel: \d+$/m);
+
+  // The backend starts on the push, beside the gate, in push order and never cancelled mid-rollout.
   const backend = readFileSync(".github/workflows/backend.yml", "utf8");
-  assert.ok(backend.includes("  workflow_run:\n    workflows: [CD]\n"));
-  assert.ok(
-    backend.includes("      github.event.workflow_run.event == 'push' &&\n"),
+  assert.match(backend, /^ {2}push:\n {4}branches: \[main\]$/m);
+  assert.doesNotMatch(backend, /workflow_run/);
+  assert.match(
+    backend,
+    /^concurrency:\n(?: {2}#.*\n)* {2}group: cloud-run-gateway\n {2}cancel-in-progress: false$/m,
   );
+  // So the script is what holds production back until the gate of this exact commit has passed: it may submit
+  // the image build first, and nothing else.
+  const deploy = readFileSync("scripts/deploy-cloud.sh", "utf8");
   assert.ok(
-    backend.includes("actions/workflows/cd.yml/runs?branch=main&event=push"),
-  );
-  assert.ok(
-    readFileSync("scripts/deploy-cloud.sh", "utf8").includes(
+    deploy.includes(
       "actions/workflows/cd.yml/runs?branch=main&event=push&head_sha=$revision",
     ),
   );
-  assert.match(
-    readFileSync(".github/workflows/pages.yml", "utf8"),
-    /\['cd\.yml', 'ci\.yml'\]/,
+  const order = [
+    "gcloud builds submit",
+    "\nrequire_gate\n",
+    "scripts/deploy-configuration.ts --apply",
+    'gcloud run deploy "$CLOUD_RUN_SERVICE"',
+  ].map((step) => deploy.indexOf(step));
+  assert.ok(
+    order.every((at, index) => at > (order[index - 1] ?? -1)),
+    "deploy-cloud.sh must wait for the gate before it applies configuration or rolls Cloud Run",
   );
+  assert.ok(
+    deploy.includes(
+      '  [[ "$ci_result" == success ]] || refuse_gate "CD for $revision is $ci_result"\n  echo "CD gate',
+    ),
+    "the gate must end in success and nothing else",
+  );
+  // Pages follows the backend and publishes only a revision whose gate passed.
+  const pages = readFileSync(".github/workflows/pages.yml", "utf8");
+  assert.ok(
+    pages.includes("  workflow_run:\n    workflows: [Deploy backend]\n"),
+  );
+  assert.match(pages, /\['cd\.yml', 'ci\.yml'\]/);
 });
 
 test("a named or multi-line step in a job is seen, not only `- run:` steps", () => {
@@ -427,13 +488,12 @@ test("the matrix keeps its triggers and one stable result", () => {
     workflow,
     /pull_request:\n(?: +#.*\n)* +types: \[opened, synchronize, reopened, labeled, unlabeled\]/,
   );
-  // The matrix runs in CD, on a dispatch and on `full-ci`, after the gate passed.
-  const gate = `github.event_name != 'pull_request' ||\n      contains(github.event.pull_request.labels.*.name, 'full-ci')`;
+  // The matrix runs in the release suite, on a dispatch and on `full-ci`, after the gate passed.
   assert.ok(job("plan").includes("    needs: [checks, unit]\n"));
-  assert.ok(job("plan").includes(`    if: >-\n      ${gate}\n`));
+  assert.ok(job("plan").includes(`    if: ${RELEASE}\n`));
   const e2e = job("e2e");
   assert.ok(
-    e2e.includes(`    if: >-\n      always() &&\n      (${gate})\n`),
+    e2e.includes(`    if: always() && (${RELEASE})\n`),
     "e2e must report even when a smoke failed, and only when the matrix was asked for",
   );
   assert.ok(e2e.includes("    needs: [smoke]\n"));
