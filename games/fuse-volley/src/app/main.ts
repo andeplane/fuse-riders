@@ -653,6 +653,7 @@ function room(solo: boolean): void {
   main.append(connecting, closed, nameEntry.form, lobby, stage, controller);
   app.replaceChildren(top, main);
   const roomLayout = createRoomLayout({
+    primaryAction: start,
     playerName: () => social.playerName(undefined) ?? undefined,
     slotColor: (slot) => (slot % 2 ? "#ff2e9d" : "#16e7ff"),
     slotLabel: (slot) => `${slot % 2 ? "Pink" : "Cyan"} · Slot ${slot + 1}`,

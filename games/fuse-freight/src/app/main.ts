@@ -711,6 +711,7 @@ function room(solo: boolean): void {
   screen.append(roundControls.element);
   app.replaceChildren(top, main, lobbyConfirm);
   createRoomLayout({
+    primaryAction: start,
     playerName: () => social.playerName(undefined) ?? undefined,
     background: async (host) =>
       (await import("./attract.js")).createAttract(host),

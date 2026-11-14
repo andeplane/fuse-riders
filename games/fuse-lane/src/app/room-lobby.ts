@@ -163,6 +163,7 @@ export function createRoomLobby(options: RoomLobbyOptions) {
   body.append(who, goalsBlock, levelBlock, weekBlock, note, buttons);
   element.append(side, body);
   const layout = createRoomLayout({
+    primaryAction: start,
     playerName: actions.playerName,
     background: async (host) =>
       (await import("./attract.js")).createAttract(host),

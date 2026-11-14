@@ -8,6 +8,102 @@ import {
 } from "fuse-ui";
 import { page } from "./dom-fixture.js";
 
+test("Main menu follows Game settings and can reuse the game's leave handler", () => {
+  const { document } = page(),
+    root = document.createElement("section"),
+    leave = document.createElement("button");
+  document.body.append(root);
+  leave.textContent = "Main menu";
+  let left = 0;
+  leave.onclick = () => left++;
+  const layout = createRoomLayout({
+    element: root,
+    roster: createRoster({ document }),
+    capacity: 2,
+    mainMenuAction: leave,
+  });
+  assert.equal(
+    root.querySelector(".fui-room-settings")?.nextElementSibling,
+    leave,
+  );
+  leave.click();
+  assert.equal(left, 1);
+  const configure = root.querySelector<HTMLElement>(".fui-room-settings")!;
+  configure.parentElement!.append(configure);
+  layout.update(0);
+  assert.equal(
+    configure.nextElementSibling,
+    leave,
+    "a game moving its settings trigger cannot reorder the shared actions",
+  );
+  const other = document.createElement("section");
+  document.body.append(other);
+  createRoomLayout({
+    element: other,
+    roster: createRoster({ document }),
+    capacity: 2,
+    mainMenuHref: "/fuse-volley/?mute",
+  });
+  assert.equal(
+    other
+      .querySelector<HTMLAnchorElement>(".fui-room-main-menu")
+      ?.getAttribute("href"),
+    "/fuse-volley/?mute",
+  );
+});
+
+test("the main room action stays above Game settings without changing its handler or disabled state", () => {
+  const { document } = page(),
+    root = document.createElement("section"),
+    start = document.createElement("button");
+  document.body.append(root);
+  start.textContent = "Play";
+  start.disabled = true;
+  let starts = 0;
+  start.onclick = () => starts++;
+  createRoomLayout({
+    element: root,
+    roster: createRoster({ document }),
+    capacity: 6,
+    primaryAction: start,
+    actions: [start],
+  });
+  const configure = root.querySelector(".fui-room-settings")!;
+  assert.equal(configure.previousElementSibling, start.parentElement);
+  assert.equal(start.parentElement?.className, "fui-room-primary-action");
+  assert.ok(start.closest(".fui-room-invitation"));
+  assert.equal(start.disabled, true);
+  start.disabled = false;
+  start.click();
+  assert.equal(starts, 1);
+  assert.ok(!root.querySelector(".fui-room-actions")!.contains(start));
+});
+
+test("HTML room markup puts its primary action before settings in the invitation column", () => {
+  const { document } = page(),
+    root = document.createElement("div");
+  root.innerHTML = roomLayoutMarkup({
+    invite: "<p>Scan to join</p>",
+    primaryAction: "<button disabled data-start>Play</button>",
+    players: "",
+    join: "",
+    settings: "",
+    actions: "",
+    occupied: 0,
+    capacity: 6,
+  });
+  const primary = root.querySelector(".fui-room-primary-action")!;
+  assert.equal(
+    primary.nextElementSibling?.getAttribute("data-action"),
+    "open-room-settings",
+  );
+  assert.equal(primary.parentElement?.className, "fui-room-invitation");
+  assert.equal(
+    root.querySelector<HTMLButtonElement>("[data-start]")?.disabled,
+    true,
+  );
+});
+
 test("switching teams moves the existing row to its new slot without losing its controls", () => {
   const { document } = page(),
     root = document.createElement("section"),
