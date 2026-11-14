@@ -29,6 +29,8 @@ FUSE_NPS = {"Easy": 1.8, "Medium": 2.8, "Hard": 4.3, "Challenge": 7.0}
 # Placement: peaks above the density model's validation threshold (it is told the density it should reach), or with
 # PLACE_THR=0 the strongest peaks up to the target count.
 THR = float(os.environ.get("PLACE_THR", "0"))
+_COVERS_FILE = Path(__file__).resolve().parents[2] / "games/fusemania/charts/covers-challenge.json"
+COVERS = {k: v for k, v in json.loads(_COVERS_FILE.read_text()).items() if k != "about"} if _COVERS_FILE.exists() else {}
 METERS = {"Easy": 3, "Medium": 6, "Hard": 9, "Challenge": 13}
 
 
@@ -167,21 +169,35 @@ def fuse():
     agg: dict = {}
     bursts_: dict = {}
     placement = {}
+    only = set(sys.argv[2:])  # song ids, or every song
     for s in songs:
+        if only and s.key not in only:
+            continue
         tm = timing(s.meta)
         swing = any(abs((b * 3) - round(b * 3)) < 1e-3 and abs(b * 2 - round(b * 2)) > 1e-3
                     for c in s.meta["charts"] for b, _, _ in c["rows"])
         charts = []
         placement[s.key] = {}
+        # A cover's Challenge aims at its original's hardest chart (charts/covers-challenge.json); the easier
+        # charts stay below it.
+        target = dict(FUSE_NPS)
+        meters = dict(METERS)
+        if s.key in COVERS:
+            top = COVERS[s.key]["nps"]
+            target["Challenge"] = top
+            target["Hard"] = max(min(target["Hard"], 0.8 * top), 3.3)  # never thinner than a Hard may be
+            target["Medium"] = min(target["Medium"], 0.6 * top)
+            target["Easy"] = min(target["Easy"], 0.4 * top)
+            meters["Challenge"] = min(15, max(11, COVERS[s.key]["meter"]))  # the game's Challenge runs 11 to 15
         for d in FUSE_DIFFS:
-            prob = predict(om, s, d, FUSE_NPS[d])
-            n_target = None if THR > 0 else int(FUSE_NPS[d] * 0.9 * len(s.feats) / FPS)
+            prob = predict(om, s, d, target[d])
+            n_target = None if THR > 0 else int(target[d] * 0.9 * len(s.feats) / FPS)
             beats = place(prob, tm, d, THR, n_target=n_target, swing=swing)
             if d == "Challenge":  # 24th bursts where the music itself moves at 24th speed
                 beats, n_burst = with_bursts(beats, burst_beats(s.onset, tm, beats[0], beats[-1]))
                 bursts_[s.key] = n_burst
-            rows = generate(am, s, beats, tm, d, FUSE_NPS[d], seed=zlib.crc32((s.key + d).encode()))
-            charts.append((d, METERS[d], rows))
+            rows = generate(am, s, beats, tm, d, target[d], seed=zlib.crc32((s.key + d).encode()))
+            charts.append((d, meters[d], rows))
             agg.setdefault(d, []).append(stats2(rows))
         (outdir / f"{s.key}.ssc").write_text(ssc(s.meta["ssc_head"], charts))
         print(s.key, [(d, len(r)) for d, _, r in charts], flush=True)
