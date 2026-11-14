@@ -4,7 +4,7 @@ import { FriendsTray } from "../friends/FriendsTray";
 import { useTaskManagerShortcut } from "../taskmanager/useTaskManagerShortcut";
 import { ContextMenu } from "../windows/ContextMenu";
 import { Y2kGlitchOverlay } from "../y2k/Y2kGlitchOverlay";
-import { Y2kProvider } from "../y2k/Y2kProvider";
+import { Y2kAssistantProvider } from "../y2k/Y2kAssistantProvider";
 
 import { DesktopIcon } from "./DesktopIcon";
 import { DisplaySurface } from "./DisplaySurface";
@@ -113,7 +113,7 @@ export function Desktop() {
   );
   return (
     <DisplaySurface>
-      <Y2kProvider>{desktop}</Y2kProvider>
+      <Y2kAssistantProvider>{desktop}</Y2kAssistantProvider>
     </DisplaySurface>
   );
 }

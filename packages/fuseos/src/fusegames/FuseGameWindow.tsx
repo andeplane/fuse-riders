@@ -2,6 +2,7 @@ import { useContext, useRef } from "react";
 
 import { OsAnalyticsContext } from "../analytics/osAnalytics";
 import { DesktopDepsContext } from "../desktop/desktopDepsContext";
+import { useRecordRoomFromFrame } from "../network/roomObserver";
 import { Win98Icon } from "../ui/icons";
 import { IframeGame, liveFrameUrl } from "../windows/IframeGame";
 import { useWindowCommands } from "../windows/useWindowCommands";
@@ -46,6 +47,8 @@ export function FuseGameWindow({
   const analytics = useContext(OsAnalyticsContext);
   const commands = useWindowCommands();
   const frame = useRef<HTMLIFrameElement | null>(null);
+  // A game puts `?room=CODE` in its own address when it creates or joins a room; Network Neighborhood lists it.
+  useRecordRoomFromFrame(frame, gameId);
   const game = registry.find(gameId);
   if (!game) {
     return (

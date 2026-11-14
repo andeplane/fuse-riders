@@ -139,6 +139,8 @@ describe(Y2kProvider.name, () => {
     expect(screen.getByText(/rolled over to 01\/01\/1900/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "OK" })).toBeInTheDocument();
     expect(deps.notices).toEqual([Y2K_CLIPPY_LINE]);
+    // Clippy says it too, in his balloon.
+    expect(screen.getByText(Y2K_CLIPPY_LINE)).toBeInTheDocument();
     jump(deps, TOTAL_MS);
     // The box is a window of its own and stays until OK; the clock is back.
     expect(screen.getAllByText(Y2K_WARNING_TITLE)).toHaveLength(2);
