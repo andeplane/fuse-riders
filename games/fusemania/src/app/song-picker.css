@@ -1,0 +1,368 @@
+/*
+ * The song select (song-picker.ts). Needs fuse-ui/tokens.css first.
+ *
+ * The list and the selected song's details sit side by side, list on the left, while the container has room for
+ * both (20rem + 24rem and the gap: about 720px) and stack below that, details on top: the wrap is the container's
+ * own, so the picker lays out the same in a page column, a lobby panel or a dialog. Rules carry the `.fm-picker`
+ * prefix to sit above the `.fui-app button` base styles.
+ */
+.fm-picker {
+  display: flex;
+  /* The list comes first in the document and on a wide row; wrapped, the second line (the details) goes on top. */
+  flex-wrap: wrap-reverse;
+  gap: var(--fui-space-3);
+  width: 100%;
+  min-width: 0;
+  color: var(--fui-text);
+  text-align: left;
+}
+.fm-picker *,
+.fm-picker *::before,
+.fm-picker *::after {
+  box-sizing: border-box;
+}
+.fm-picker [hidden] {
+  display: none !important;
+}
+.fm-picker-empty {
+  flex: 1 1 100%;
+  margin: 0;
+  padding: var(--fui-space-5) var(--fui-space-3);
+  color: var(--fui-text-muted);
+  font: 0.75rem/1.6 var(--fui-font-pixel);
+  text-align: center;
+}
+
+/* Difficulty colours: read as --fm-level by rows' meters and by chips. */
+.fm-picker [data-level] {
+  --fm-level: var(--fui-text-dim);
+}
+.fm-picker [data-level="beginner"] {
+  --fm-level: var(--fui-cyan);
+}
+.fm-picker [data-level="easy"] {
+  --fm-level: var(--fui-lime);
+}
+.fm-picker [data-level="medium"] {
+  --fm-level: var(--fui-yellow);
+}
+.fm-picker [data-level="hard"] {
+  --fm-level: var(--fui-pink);
+}
+.fm-picker [data-level="challenge"] {
+  --fm-level: color-mix(in srgb, var(--fui-violet) 55%, var(--fui-white));
+}
+
+/* The songs */
+.fm-picker-list {
+  /* Rows measure their offsetTop from here: the picker scrolls this box itself, never the page. */
+  position: relative;
+  flex: 1 1 20rem;
+  display: grid;
+  align-content: start;
+  /* Rows keep their own height: an auto track under the max-height would squeeze a wrapped title's row. */
+  grid-auto-rows: max-content;
+  gap: var(--fui-space-1);
+  min-width: 0;
+  max-height: min(36rem, 72dvh);
+  padding: var(--fui-space-1);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--fui-line) transparent;
+  background: var(--fui-panel);
+  border: var(--fui-border);
+  border-radius: var(--fui-radius);
+}
+.fm-picker .fm-picker-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--fui-space-1) var(--fui-space-2);
+  width: 100%;
+  min-height: 3rem;
+  margin: 0;
+  padding: var(--fui-space-2) var(--fui-space-2) var(--fui-space-2)
+    var(--fui-space-3);
+  color: var(--fui-text-muted);
+  font: inherit;
+  text-align: left;
+  background: transparent;
+  border: var(--fui-hairline) solid transparent;
+  border-left: 0.25rem solid transparent;
+  border-radius: var(--fui-radius-small);
+  box-shadow: none;
+  cursor: pointer;
+}
+.fm-picker[data-host="true"] .fm-picker-row:hover {
+  color: var(--fui-text);
+  background: color-mix(in srgb, var(--fui-cyan) 9%, transparent);
+}
+.fm-picker .fm-picker-row[aria-selected="true"] {
+  color: var(--fui-text-bright);
+  background: var(--fui-button-fill);
+  border-color: var(--fui-cyan);
+  /* Inset, so the list's scroll box does not clip the glow. */
+  box-shadow: inset 0 0 0.75rem
+    color-mix(in srgb, var(--fui-cyan) 28%, transparent);
+}
+.fm-picker .fm-picker-row:focus-visible {
+  outline: 0.1875rem solid var(--fui-text-bright);
+  outline-offset: -0.1875rem;
+}
+/* A guest reads the list and sees the host's choice move, but the rows are not theirs to press. */
+.fm-picker[data-host="false"] .fm-picker-row {
+  cursor: default;
+}
+.fm-picker[data-host="false"] .fm-picker-row:hover {
+  filter: none;
+}
+.fm-picker[data-host="false"] .fm-picker-row[aria-selected="false"] {
+  opacity: 0.62;
+}
+.fm-picker-row-title {
+  min-width: 0;
+  font: 0.6875rem/1.5 var(--fui-font-pixel);
+  overflow-wrap: anywhere;
+}
+.fm-picker-row-meters {
+  display: flex;
+  gap: 0.375rem;
+  font: 0.625rem/1 var(--fui-font-pixel);
+}
+.fm-picker-row-meter {
+  color: var(--fm-level);
+}
+.fm-picker-row-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--fui-space-2);
+  min-width: 0;
+  color: var(--fui-text-dim);
+  font: 0.75rem/1.35 var(--fui-font-body);
+}
+.fm-picker-row-artist {
+  min-width: 0;
+  color: var(--fui-text-muted);
+  overflow-wrap: anywhere;
+}
+.fm-picker-row-facts {
+  white-space: nowrap;
+}
+.fm-picker-row-best {
+  color: var(--fui-yellow);
+  font: 0.5625rem/1.4 var(--fui-font-pixel);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* The selected song */
+.fm-picker-detail {
+  flex: 1.3 1 24rem;
+  display: grid;
+  align-content: start;
+  gap: var(--fui-space-3);
+  min-width: 0;
+  padding: var(--fui-space-3);
+  background: var(--fui-panel);
+  border: var(--fui-border);
+  border-radius: var(--fui-radius);
+}
+.fm-picker-head {
+  display: grid;
+  gap: var(--fui-space-2);
+  min-width: 0;
+}
+.fm-picker-title {
+  margin: 0;
+  color: var(--fui-cyan);
+  font: 1.25rem/1.35 var(--fui-font-pixel);
+  text-shadow: var(--fui-glow-text);
+  overflow-wrap: anywhere;
+}
+.fm-picker-artist {
+  margin: 0;
+  color: var(--fui-text-muted);
+  font: 0.875rem/1.35 var(--fui-font-body);
+  overflow-wrap: anywhere;
+}
+.fm-picker-artist:empty {
+  display: none;
+}
+.fm-picker-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fui-space-1) var(--fui-space-4);
+  margin: 0;
+  color: var(--fui-yellow);
+  font: 0.625rem/1.4 var(--fui-font-pixel);
+}
+
+/* The charts */
+.fm-picker-charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--fui-space-2);
+}
+.fm-picker .fm-picker-chip {
+  display: grid;
+  align-content: start;
+  gap: 0.375rem;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: var(--fui-space-2);
+  color: var(--fui-text-muted);
+  font: inherit;
+  text-align: left;
+  background: var(--fui-surface);
+  border: var(--fui-stroke) solid
+    color-mix(in srgb, var(--fm-level) 32%, var(--fui-line));
+  border-radius: var(--fui-radius-small);
+  box-shadow: var(--fui-edge);
+  cursor: pointer;
+}
+.fm-picker .fm-picker-chip[aria-pressed="true"] {
+  color: var(--fui-text-bright);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--fm-level) 24%, var(--fui-deep)),
+    var(--fui-ink)
+  );
+  border-color: var(--fm-level);
+  box-shadow:
+    0 0 1rem color-mix(in srgb, var(--fm-level) 45%, transparent),
+    var(--fui-edge);
+}
+.fm-picker-chip-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--fui-space-1) 0.375rem;
+}
+.fm-picker-chip-name {
+  min-width: 0;
+  color: var(--fm-level);
+  font: 0.625rem/1.4 var(--fui-font-pixel);
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.fm-picker-chip-meter {
+  color: var(--fui-text-bright);
+  font: 1rem/1 var(--fui-font-pixel);
+}
+.fm-picker-chip[aria-pressed="true"] .fm-picker-chip-meter {
+  color: var(--fm-level);
+  text-shadow: var(--fui-glow-text);
+}
+.fm-picker-chip-bars {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 0.125rem;
+}
+.fm-picker-chip-bars i {
+  height: 0.375rem;
+  background: color-mix(in srgb, var(--fm-level) 20%, transparent);
+}
+.fm-picker-chip-bars .fm-picker-on {
+  background: var(--fm-level);
+}
+.fm-picker-chip-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.125rem 0.625rem;
+  color: var(--fui-text-dim);
+  font: 0.6875rem/1.4 var(--fui-font-body);
+}
+.fm-picker-stat {
+  white-space: nowrap;
+}
+.fm-picker-stat b {
+  color: var(--fui-text);
+  font-weight: 600;
+}
+.fm-picker-chip-best {
+  color: var(--fui-yellow);
+  font: 0.5625rem/1.5 var(--fui-font-pixel);
+  overflow-wrap: anywhere;
+}
+.fm-picker-chip-best:empty {
+  display: none;
+}
+
+/* The mode */
+.fm-picker-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fui-space-2);
+}
+.fm-picker .fm-picker-mode {
+  --fm-mode: var(--fui-cyan);
+  flex: 1 1 13rem;
+  display: grid;
+  align-content: start;
+  gap: var(--fui-space-1);
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: var(--fui-space-2) var(--fui-space-3);
+  color: var(--fui-text-muted);
+  font: inherit;
+  text-align: left;
+  background: var(--fui-surface);
+  border: var(--fui-stroke) solid var(--fui-line);
+  border-radius: var(--fui-radius-small);
+  box-shadow: var(--fui-edge);
+  cursor: pointer;
+}
+.fm-picker .fm-picker-mode[data-mode="battle"] {
+  --fm-mode: var(--fui-pink);
+}
+.fm-picker .fm-picker-mode[aria-pressed="true"] {
+  color: var(--fui-text-bright);
+  border-color: var(--fm-mode);
+  box-shadow:
+    0 0 1rem color-mix(in srgb, var(--fm-mode) 40%, transparent),
+    var(--fui-edge);
+}
+/* A guest still has to read which mode the host chose. */
+.fm-picker .fm-picker-mode:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.fm-picker .fm-picker-mode:disabled[aria-pressed="false"] {
+  opacity: 0.5;
+}
+.fm-picker-mode-name {
+  color: var(--fm-mode);
+  font: 0.6875rem/1.4 var(--fui-font-pixel);
+}
+.fm-picker-mode-line {
+  font: 0.75rem/1.35 var(--fui-font-body);
+}
+.fm-picker-note {
+  margin: 0;
+  color: var(--fui-yellow);
+  font: 0.75rem/1.4 var(--fui-font-body);
+}
+
+/* A phone: the details are on top, so they stay short and the list keeps a useful height under them. */
+@media (max-width: 45rem) {
+  .fm-picker {
+    gap: var(--fui-space-2);
+  }
+  .fm-picker-list {
+    max-height: max(14rem, 45dvh);
+  }
+  .fm-picker-detail {
+    gap: var(--fui-space-2);
+    padding: var(--fui-space-2);
+  }
+  .fm-picker-head {
+    gap: var(--fui-space-1);
+  }
+  .fm-picker-title {
+    font-size: 0.9375rem;
+  }
+}

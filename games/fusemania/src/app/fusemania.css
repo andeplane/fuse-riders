@@ -1,0 +1,692 @@
+/* The Fusemania page, on fuse-ui's tokens and components. Phone first; a wide screen puts the lobby in two columns. */
+html:has(body.fusemania-page) {
+  overscroll-behavior: none;
+}
+body.fusemania-page {
+  padding: 0;
+  overscroll-behavior: none;
+  /* A double tap never zooms: the pads are tapped fast and often. */
+  touch-action: manipulation;
+  background:
+    radial-gradient(ellipse at 12% -10%, #3a0b66 0%, transparent 50%),
+    radial-gradient(ellipse at 92% 110%, #0a3a5c 0%, transparent 45%),
+    var(--fui-ink);
+}
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  /* The column is the screen, never the widest unbreakable line in it: a phone must not scroll sideways. */
+  min-width: 0;
+  padding: 0 max(var(--fui-space-3), env(safe-area-inset-right))
+    env(safe-area-inset-bottom)
+    max(var(--fui-space-3), env(safe-area-inset-left));
+}
+.fui-app [hidden] {
+  display: none !important;
+}
+
+/* Header */
+.fm-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--fui-space-2) var(--fui-space-3);
+  padding: var(--fui-space-3) 0;
+}
+.fm-brand {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: start;
+  text-decoration: none;
+  font: 1.25rem/1 var(--fui-font-pixel);
+}
+.fm-brand-fuse {
+  color: var(--fui-cyan);
+  text-shadow: var(--fui-glow-cyan);
+}
+.fm-brand-mania {
+  color: var(--fui-pink);
+  text-shadow: var(--fui-glow-pink);
+}
+.fm-brand small {
+  grid-column: 1 / -1;
+  margin-top: var(--fui-space-1);
+  color: var(--fui-text-dim);
+  font-size: 0.5rem;
+  letter-spacing: 0.125rem;
+}
+.fm-back {
+  margin-left: auto;
+  color: var(--fui-cyan);
+  font: 0.625rem var(--fui-font-pixel);
+}
+.fm-code {
+  padding: var(--fui-space-1) var(--fui-space-2);
+  color: var(--fui-ink);
+  background: var(--fui-yellow);
+  border-radius: var(--fui-radius-small);
+  font: 0.75rem var(--fui-font-pixel);
+}
+.fm-status {
+  flex: 1 1 10rem;
+  /* One line, always laid out: a status that appears, changes or wraps must not move the buttons beside it. */
+  min-width: 0;
+  min-height: 1.25rem;
+  overflow: hidden;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fui-app .fm-status[hidden] {
+  display: block !important;
+  visibility: hidden;
+}
+.fm-top .fui-game-menu {
+  margin-left: auto;
+}
+.fm-back + .fui-game-menu {
+  margin-left: 0;
+}
+.fm-error,
+.fm-connecting {
+  margin: var(--fui-space-6) auto;
+  color: var(--fui-text-muted);
+  font: 0.75rem/1.6 var(--fui-font-pixel);
+  text-align: center;
+}
+.fm-error {
+  color: var(--fui-pink-soft);
+}
+
+/* Landing */
+.fusemania-page .fui-landing {
+  width: min(100%, 60rem);
+  margin: 0 auto var(--fui-space-5);
+}
+.fusemania-page .fui-landing-title {
+  color: var(--fui-pink);
+  text-shadow: var(--fui-glow-pink);
+}
+.fm-shared {
+  display: flex;
+  align-items: center;
+  gap: var(--fui-space-2);
+  color: var(--fui-text-muted);
+  font-size: 0.8125rem;
+}
+.fui-app .fm-shared input {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  accent-color: var(--fui-cyan);
+}
+/* The song select needs the width: its dialog is wider than a menu's, and the list keeps PLAY in view. */
+.fusemania-page .fui-menu-dialog:has(.fm-picker) {
+  width: min(68rem, calc(100vw - 1.5rem));
+}
+.fui-menu-dialog .fm-picker-list {
+  max-height: min(30rem, 58dvh);
+}
+.fui-app .fm-solo-play {
+  width: 100%;
+  min-height: 3.25rem;
+  font-size: 1rem;
+}
+.fm-landing-select {
+  display: grid;
+  gap: var(--fui-space-3);
+  width: 100%;
+  min-width: 0;
+  margin-bottom: var(--fui-space-3);
+  text-align: left;
+}
+.fm-keys {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--fui-space-1) var(--fui-space-3);
+  margin: var(--fui-space-4) 0 0;
+  font-size: 0.75rem;
+}
+.fm-keys dt {
+  color: var(--fui-yellow);
+  font: 0.5625rem/1.6 var(--fui-font-pixel);
+}
+.fm-keys dd {
+  margin: 0;
+  color: var(--fui-text-muted);
+}
+.fm-own {
+  padding: var(--fui-space-2) var(--fui-space-3);
+  color: var(--fui-text-muted);
+  background: #06102a;
+  border: var(--fui-stroke) solid var(--fui-line);
+  border-radius: var(--fui-radius-small);
+  font-size: 0.8125rem;
+}
+.fm-own summary {
+  color: var(--fui-cyan);
+  font: 0.5625rem/1.8 var(--fui-font-pixel);
+  cursor: pointer;
+}
+.fm-own-field {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--fui-space-2);
+  margin: var(--fui-space-2) 0;
+}
+.fm-own-field input {
+  min-width: 0;
+  color: var(--fui-text);
+  font: inherit;
+}
+.fm-own-error {
+  margin: var(--fui-space-2) 0 0;
+  color: var(--fui-pink-soft);
+}
+.fm-own-error:empty {
+  display: none;
+}
+
+/* Room */
+.fm-room {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--fui-space-3);
+  min-width: 0;
+  padding-bottom: var(--fui-space-3);
+}
+.fm-room > .fui-name-entry {
+  width: min(100%, 32rem);
+  margin: 0 auto;
+}
+.fm-panel {
+  min-width: 0;
+  padding: var(--fui-space-4);
+  background: var(--fui-panel);
+  border: var(--fui-border);
+  border-radius: var(--fui-radius);
+}
+.fm-panel > .fui-lobby-title {
+  margin: var(--fui-space-3) 0 var(--fui-space-2);
+}
+.fm-panel > .fui-lobby-title:first-child {
+  margin-top: 0;
+}
+.fm-lobby {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--fui-space-3);
+  width: min(100%, 76rem);
+  margin: 0 auto;
+}
+@media (min-width: 60rem) {
+  .fm-lobby {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+    align-items: start;
+  }
+}
+.fm-lobby .fui-roster-row {
+  align-items: center;
+}
+.fui-app .fm-remove {
+  min-width: 2rem;
+  min-height: 2rem;
+  margin-left: auto;
+  padding: 0;
+  color: var(--fui-pink-soft);
+  border-color: var(--fui-pink);
+}
+.fm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--fui-space-2);
+}
+.fm-closed {
+  display: grid;
+  gap: var(--fui-space-3);
+  justify-items: center;
+  width: min(100%, 32rem);
+  margin: var(--fui-space-6) auto;
+  border-color: var(--fui-pink);
+  text-align: center;
+}
+.fm-closed-back {
+  padding: var(--fui-space-3) var(--fui-space-4);
+  text-decoration: none;
+}
+/* The TV has no song to choose: its lobby is the invitation and the players, centred. */
+body.fm-display .fm-lobby {
+  grid-template-columns: minmax(0, 46rem);
+  justify-content: center;
+}
+
+/* The shared top bar floats over the page: the room starts under it, and a song has no use for the room's code. */
+body:has(.fui-top-bar) .fm-room {
+  padding-top: calc(68px + env(safe-area-inset-top));
+}
+body:has(.fui-top-bar) .fm-room:has(> .fui-room-layout:not([hidden])) {
+  padding-top: 0;
+}
+body:has(.fm-room:is([data-screen="play"], [data-screen="controller"]))
+  .fm-code,
+body:has(.fm-room:is([data-screen="play"], [data-screen="controller"]))
+  .fm-status:not([data-tone="error"]) {
+  display: none !important;
+}
+/* A lobby shows the players beside the song select: the list stays a few songs tall. */
+.fui-room-modes .fm-picker-list {
+  max-height: min(19rem, 40dvh);
+}
+.fui-app .fui-menu-dialog .fm-solo-play {
+  color: var(--fui-ink);
+  background: var(--fui-cyan);
+  border-color: var(--fui-cyan);
+  box-shadow: var(--fui-glow-cyan);
+  font: 0.875rem/1 var(--fui-font-pixel);
+}
+
+/* The song */
+.fm-stage {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--fui-space-2);
+  min-width: 0;
+  min-height: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+.fm-screen {
+  position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 16rem;
+  overflow: hidden;
+  background: var(--fui-ink);
+  border: var(--fui-stroke) solid #4a3fa8;
+  border-radius: var(--fui-radius-small);
+  box-shadow: 0 0 2.5rem #6544c255;
+}
+.fm-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.fm-note {
+  margin: 0;
+  color: var(--fui-text-muted);
+  font: 0.5625rem/1.6 var(--fui-font-pixel);
+  text-align: center;
+}
+.fm-unlock {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  z-index: 2;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  padding: var(--fui-space-3) var(--fui-space-4);
+  color: var(--fui-ink);
+  background: var(--fui-yellow);
+  border-radius: var(--fui-radius-small);
+  box-shadow: 0 0 2rem #ffe46b88;
+  font: 0.75rem/1.6 var(--fui-font-pixel);
+  text-align: center;
+  animation: fm-pulse 0.9s ease-in-out infinite alternate;
+}
+.fm-retry {
+  border: 0;
+  cursor: pointer;
+  animation: none;
+}
+@keyframes fm-pulse {
+  to {
+    box-shadow: 0 0 3.5rem #ffe46b;
+  }
+}
+/* The control guide sits at the bottom of the field; its close button must not cover the first line. */
+.fm-screen .fui-round-controls {
+  bottom: 0.5rem;
+  font-size: 0.75rem;
+}
+.fm-screen .fui-round-controls .fui-controls-goal {
+  padding-right: 2.5rem;
+}
+
+/* The result: one card over the field */
+.fm-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  transform: translate(-50%, -50%);
+  display: grid;
+  gap: var(--fui-space-3);
+  width: min(94%, 34rem);
+  max-height: 94%;
+  padding: var(--fui-space-4);
+  overflow: auto;
+  background: #050e25f2;
+  border: var(--fui-stroke) solid var(--fui-pink);
+  border-radius: var(--fui-radius);
+  box-shadow: 0 0 2.5rem #ff2e9d55;
+  text-align: center;
+  touch-action: pan-y;
+  animation: fm-card-in 0.35s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+@keyframes fm-card-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.92);
+  }
+}
+.fm-card h2 {
+  margin: 0;
+  color: var(--fui-yellow);
+  font: 0.875rem/1.5 var(--fui-font-pixel);
+  text-shadow: 0 0 1rem #ffe46b88;
+}
+.fm-rows {
+  display: grid;
+  gap: var(--fui-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font: 0.5625rem/1.6 var(--fui-font-pixel);
+}
+.fm-rows li {
+  display: grid;
+  grid-template-columns: 1.25rem 3.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--fui-space-2);
+  padding: var(--fui-space-2);
+  color: var(--fui-text-muted);
+  background: #0a1838aa;
+  border-left: 0.25rem solid var(--c, var(--fui-cyan));
+  border-radius: var(--fui-radius-small);
+  text-align: left;
+}
+.fm-rows li.you {
+  color: var(--fui-text-bright);
+  background: #12245499;
+}
+.fm-row-who {
+  display: grid;
+  min-width: 0;
+}
+.fm-rows li b {
+  overflow: hidden;
+  color: var(--c, var(--fui-cyan));
+  font-weight: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fm-rows li small {
+  color: var(--fui-text-dim);
+  font: 0.6875rem/1.5 var(--fui-font-body, inherit);
+}
+@media (max-width: 30rem) {
+  .fm-rows li {
+    grid-template-columns: 1rem 2rem minmax(0, 1fr) auto;
+  }
+}
+.fm-rows li em {
+  color: var(--fui-yellow);
+  font-style: normal;
+}
+.fm-grade {
+  color: var(--fui-cyan);
+  font: 0.875rem/1 var(--fui-font-pixel);
+  text-align: center;
+  text-shadow: 0 0 0.75rem currentColor;
+}
+.fm-grade-aaaa,
+.fm-grade-aaa {
+  color: #fff;
+}
+.fm-grade-aa {
+  color: var(--fui-yellow);
+}
+.fm-grade-a {
+  color: #4dff7c;
+}
+.fm-grade-c,
+.fm-grade-d {
+  color: var(--fui-pink-soft);
+}
+.fm-counts {
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  justify-content: center;
+  gap: var(--fui-space-1) var(--fui-space-3);
+  margin: 0;
+  font: 0.5625rem/1.6 var(--fui-font-pixel);
+  text-align: left;
+}
+.fm-counts dt {
+  color: var(--fui-text-muted);
+}
+.fm-counts dd {
+  margin: 0;
+  color: var(--fui-text-bright);
+  text-align: right;
+}
+.fm-count-marvelous {
+  color: #fff !important;
+  text-shadow: 0 0 0.5rem #16e7ff;
+}
+.fm-count-perfect {
+  color: var(--fui-yellow) !important;
+}
+.fm-count-great {
+  color: #4dff7c !important;
+}
+.fm-count-good {
+  color: var(--fui-cyan) !important;
+}
+.fm-count-boo {
+  color: #a47bff !important;
+}
+.fm-count-miss,
+.fm-count-mines {
+  color: var(--fui-pink-soft) !important;
+}
+.fm-lines {
+  display: grid;
+  gap: var(--fui-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--fui-text-muted);
+  font: 0.5625rem/1.6 var(--fui-font-pixel);
+}
+.fm-lines li.best {
+  color: var(--fui-yellow);
+  font-size: 0.6875rem;
+  text-shadow: 0 0 1rem #ffe46b88;
+}
+.fm-card-foot {
+  margin: 0;
+  color: var(--fui-cyan);
+  font: 0.5625rem/1.6 var(--fui-font-pixel);
+}
+.fm-card .fm-actions {
+  justify-content: center;
+}
+
+/* Touch pads: one per arrow under the field, and the power-up beside them in a battle */
+.fm-touch,
+.fm-controller-pads {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--fui-space-2);
+  width: 100%;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+.fm-touch {
+  flex: none;
+  height: min(11rem, 26dvh);
+}
+.fm-pad {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  color: var(--fui-text-bright);
+  background: #08163acc;
+  border: var(--fui-stroke) solid #9a86ff;
+  border-radius: var(--fui-radius);
+  box-shadow: inset 0 0 1.5rem #6544c255;
+  font: 1.75rem/1 var(--fui-font-pixel);
+  touch-action: none;
+  cursor: pointer;
+}
+.fm-pad-arrow {
+  width: min(2.75rem, 55%);
+  aspect-ratio: 1;
+  background: currentColor;
+  clip-path: polygon(
+    0 50%,
+    50% 0,
+    50% 30%,
+    100% 30%,
+    100% 70%,
+    50% 70%,
+    50% 100%
+  );
+  pointer-events: none;
+}
+.fm-pad-1 .fm-pad-arrow {
+  rotate: -90deg;
+}
+.fm-pad-2 .fm-pad-arrow {
+  rotate: 90deg;
+}
+.fm-pad-3 .fm-pad-arrow {
+  rotate: 180deg;
+}
+.fm-pad-0 {
+  border-color: var(--fui-pink);
+}
+.fm-pad-1 {
+  border-color: var(--fui-cyan);
+}
+.fm-pad-2 {
+  border-color: #4dff7c;
+}
+.fm-pad-3 {
+  border-color: var(--fui-yellow);
+}
+.fm-pad.held {
+  transform: scale(0.96);
+  background: #16306acc;
+  box-shadow:
+    inset 0 0 1.5rem #ffffff55,
+    0 0 1.25rem #ffffff66;
+}
+.fm-pad-item {
+  grid-column: 1 / -1;
+  min-height: 3rem;
+  color: var(--fui-ink);
+  background: radial-gradient(circle at 35% 30%, #fff8d6, var(--fui-yellow));
+  border-color: #fff8d6;
+  font-size: 0.75rem;
+}
+
+/* The phone controller for a shared screen */
+.fm-controller {
+  --c: var(--fui-cyan);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--fui-space-3);
+  min-width: 0;
+  min-height: 0;
+  touch-action: none;
+}
+.fm-controller > .fui-round-controls {
+  position: relative;
+  inset: auto;
+  order: -1;
+  width: 100%;
+  max-width: none;
+  transform: none;
+}
+.fm-controller-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fui-space-2);
+  padding: var(--fui-space-3) var(--fui-space-4);
+  background: var(--fui-panel);
+  border: var(--fui-stroke) solid var(--c);
+  border-radius: var(--fui-radius);
+  box-shadow: 0 0 1.25rem color-mix(in srgb, var(--c) 40%, transparent);
+  font: 0.6875rem/1.5 var(--fui-font-pixel);
+}
+.fm-controller-head b {
+  color: var(--c);
+}
+.fm-controller-head span {
+  color: var(--fui-yellow);
+}
+.fm-controller-result {
+  justify-content: center;
+}
+.fm-controller-pads {
+  flex: 1;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 12rem;
+}
+
+/* On a phone the field needs the room: the account buttons wait in the lobby, and the status line folds away. */
+@media (max-width: 34rem) {
+  body:has(.fm-room:is([data-screen="play"], [data-screen="controller"]))
+    .fm-top
+    .fui-social {
+    display: none;
+  }
+  .fm-top {
+    gap: var(--fui-space-2);
+  }
+  .fm-brand {
+    font-size: 1rem;
+  }
+  .fm-top .fm-status {
+    order: 5;
+    flex-basis: 100%;
+  }
+  body:has(.fm-room:is([data-screen="play"], [data-screen="controller"]))
+    .fm-top
+    .fm-status {
+    display: none !important;
+  }
+  .fm-card {
+    padding: var(--fui-space-3);
+  }
+  .fm-counts {
+    grid-template-columns: repeat(2, auto);
+  }
+}
+
+/* While a song is on the screen the page is exactly one screen tall: nothing scrolls. */
+body:has(.fm-room:is([data-screen="play"], [data-screen="controller"])) #app {
+  height: 100dvh;
+  overflow: hidden;
+}

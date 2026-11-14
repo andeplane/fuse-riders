@@ -77,6 +77,9 @@ importers:
       fuseball:
         specifier: workspace:*
         version: link:games/fuseball
+      fusemania:
+        specifier: workspace:*
+        version: link:games/fusemania
       graveyard-shift:
         specifier: workspace:*
         version: link:games/graveyard-shift
@@ -482,6 +485,28 @@ importers:
         version: 1.5.4
 
   games/fuseball:
+    dependencies:
+      fuse-netcode:
+        specifier: workspace:*
+        version: link:../../packages/fuse-netcode
+      fuse-platform:
+        specifier: workspace:*
+        version: link:../../packages/fuse-platform
+      fuse-ui:
+        specifier: workspace:*
+        version: link:../../packages/fuse-ui
+    devDependencies:
+      '@fontsource/press-start-2p':
+        specifier: ^5.3.0
+        version: 5.3.0
+      fuse-network-fe:
+        specifier: workspace:*
+        version: link:../../packages/fuse-network-fe
+      qrcode:
+        specifier: ^1.5.4
+        version: 1.5.4
+
+  games/fusemania:
     dependencies:
       fuse-netcode:
         specifier: workspace:*
