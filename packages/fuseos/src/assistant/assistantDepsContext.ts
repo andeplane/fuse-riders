@@ -1,9 +1,9 @@
 import { createContext } from "react";
 
 import type { ChatHandle, ChatOptions } from "../llm/llmChat";
-import { useNoChat } from "../llm/llmChat";
 import { publicUrl } from "../retro/publicUrl";
 
+import { useClippyChat } from "./clippyChat";
 import type { SpriteAgent } from "./spritePlayer";
 import { isSpriteAgent } from "./spritePlayer";
 
@@ -22,9 +22,9 @@ export type AssistantDeps = {
   clearTimeout: (handle: number) => void;
   /** Uniform random number in [0, 1). */
   random: () => number;
-  /** The chat hook; `useNoChat` until a model is wired in. */
+  /** The chat hook: `useClippyChat` (a model, or the rules without WebGPU); `useNoChat` for a host with no chat. */
   useChat: (options: ChatOptions) => ChatHandle;
-  /** Whether a model can answer at all; false shows `unavailableReason` instead of the input. */
+  /** Whether anything can answer at all; false shows `unavailableReason` instead of the input. */
   chatAvailable: boolean;
 };
 
@@ -69,8 +69,8 @@ export const defaultAssistantDeps: AssistantDeps = {
   setTimeout: (callback, ms) => window.setTimeout(callback, ms),
   clearTimeout: (handle) => window.clearTimeout(handle),
   random: () => Math.random(),
-  useChat: useNoChat,
-  chatAvailable: false,
+  useChat: useClippyChat,
+  chatAvailable: true,
 };
 
 export const AssistantDepsContext =

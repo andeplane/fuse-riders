@@ -27,6 +27,9 @@ import {
   createFuseGameRegistry,
   FuseGamesContext,
 } from "../fusegames/registry";
+import type { LlmDeps } from "../llm/llmDepsContext";
+import { LlmDepsContext } from "../llm/llmDepsContext";
+import { MemoryModelCache } from "../llm/modelCache";
 import type { PaintControls } from "../paint/paintControls";
 import type { PaintDeps } from "../paint/paintDepsContext";
 import { PaintDepsContext } from "../paint/paintDepsContext";
@@ -57,6 +60,8 @@ import { WindowsDepsContext } from "../windows/windowsDepsContext";
 
 import type { TestAssistantDeps } from "./assistantDeps";
 import { createTestAssistantDeps } from "./assistantDeps";
+import type { FakeEngineFactory } from "./llmEngine";
+import { createFakeEngineFactory } from "./llmEngine";
 import { FakePaintSurface } from "./paintSurface";
 import type { FakeWebampPlayer } from "./webampPlayer";
 import { createFakeWebampPlayer } from "./webampPlayer";
@@ -129,6 +134,8 @@ export type ProviderOptions = {
   /** Defaults to a fresh store, i.e. a first visit: the greeting shows. */
   assistantOptions?: MemoryAssistantOptionsStore;
   systemProbe?: SystemProbe;
+  /** Defaults to the fake engine factory (no download, no worker) and an empty in-memory model cache. */
+  llmDeps?: Partial<LlmDeps>;
 };
 
 export const immediateAppStateDeps: AppStateDeps = {
@@ -258,6 +265,13 @@ export function createWrapper(options: ProviderOptions = {}) {
   const winampDeps = createTestWinampDeps(winampPlayers, options.winampDeps);
   const winampRegistry = new Map<string, WinampControls>();
   const systemProbe = options.systemProbe ?? TEST_SYSTEM_PROBE;
+  const llmFactory: FakeEngineFactory = createFakeEngineFactory();
+  const modelCache = new MemoryModelCache();
+  const llmDeps: LlmDeps = {
+    createEngine: llmFactory.createEngine,
+    modelCache,
+    ...options.llmDeps,
+  };
 
   function Wrapper({ children }: { children: ReactNode }) {
     return (
@@ -290,12 +304,16 @@ export function createWrapper(options: ProviderOptions = {}) {
                                       <SystemProbeContext.Provider
                                         value={() => systemProbe}
                                       >
-                                        <Shell
-                                          store={store}
-                                          initialOpen={options.initialOpen}
+                                        <LlmDepsContext.Provider
+                                          value={llmDeps}
                                         >
-                                          {children}
-                                        </Shell>
+                                          <Shell
+                                            store={store}
+                                            initialOpen={options.initialOpen}
+                                          >
+                                            {children}
+                                          </Shell>
+                                        </LlmDepsContext.Provider>
                                       </SystemProbeContext.Provider>
                                     </AssistantOptionsStoreContext.Provider>
                                   </AssistantDepsContext.Provider>
@@ -334,6 +352,8 @@ export function createWrapper(options: ProviderOptions = {}) {
     winampDeps,
     winampPlayers,
     winampRegistry,
+    llmFactory,
+    modelCache,
   };
 }
 

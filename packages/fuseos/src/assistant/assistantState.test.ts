@@ -317,8 +317,21 @@ describe(tipPrompt.name, () => {
     expect(tipPrompt('An empty "" quote')).toBeUndefined();
   });
 
-  it("finds nothing to send in the shipped tips, so they offer no Try this", () => {
-    ASSISTANT_TIPS.forEach((tip) => expect(tipPrompt(tip)).toBeUndefined());
+  it("finds the question a shipped tip suggests, and nothing in the others", () => {
+    expect(tipPrompt(ASSISTANT_TIPS[0] ?? "")).toBeUndefined();
+    expect(ASSISTANT_TIPS.map(tipPrompt).filter(Boolean)).toEqual([
+      "Open Fuseball",
+      "Play some music",
+      "Which games are there?",
+    ]);
+  });
+
+  it("plays Processing while the model loads", () => {
+    const state = assistantReducer(INITIAL_ASSISTANT_STATE, {
+      type: "chatLoading",
+    });
+    expect(state.play).toEqual({ name: "Processing", seq: 1 });
+    expect(state.speech).toBeNull();
   });
 });
 
