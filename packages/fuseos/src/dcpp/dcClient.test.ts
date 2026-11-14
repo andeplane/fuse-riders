@@ -21,7 +21,11 @@ const REPO = [
   { path: "README.md", size: 300 * MiB },
   { path: "packages/fuseos/src/App.tsx", size: 300 * MiB },
 ];
-const C_DRIVE = { virtualName: "fuse-games", directory: "C:\\", size: 600 * MiB };
+const C_DRIVE = {
+  virtualName: "fuse-games",
+  directory: "C:\\",
+  size: 600 * MiB,
+};
 
 function setup(overrides: Partial<DcClientDeps> = {}): {
   clock: FakeDcClock;
@@ -137,10 +141,16 @@ describe("DcClient hubs", () => {
 
   it("is not fooled by an empty share either", () => {
     const { clock, client, chat } = setup();
-    client.setShareDirs([{ virtualName: "x", directory: "D:\\", size: 300 * MiB }]);
+    client.setShareDirs([
+      { virtualName: "x", directory: "D:\\", size: 300 * MiB },
+    ]);
     client.connect(RETRO);
-    clock.advance(CONNECT_DELAY_MS + CHECK_DELAY_MS + FAKE_SHARE_DELAY_MS + 3_000);
-    expect(chat(RETRO)).toContain("<[OP]Bitmaster> Your file list is empty. Nice try.");
+    clock.advance(
+      CONNECT_DELAY_MS + CHECK_DELAY_MS + FAKE_SHARE_DELAY_MS + 3_000,
+    );
+    expect(chat(RETRO)).toContain(
+      "<[OP]Bitmaster> Your file list is empty. Nice try.",
+    );
   });
 
   it("warns on a fake-share hub too when the share is under the minimum, then checks it once it passes", () => {
@@ -191,7 +201,10 @@ describe("DcClient hubs", () => {
     expect(chat(EU)).toHaveLength(1);
     clock.advance(CONNECT_DELAY_MS);
     client.reconnect(EU);
-    expect(chat(EU).slice(-2)).toEqual(["*** Disconnected", `*** Connecting to ${EU}...`]);
+    expect(chat(EU).slice(-2)).toEqual([
+      "*** Disconnected",
+      `*** Connecting to ${EU}...`,
+    ]);
     clock.advance(CONNECT_DELAY_MS);
     expect(hub(EU).status).toBe("connected");
     client.reconnect("not-open:411");
@@ -227,12 +240,18 @@ describe("DcClient hubs", () => {
     client.sendChat(FUSEHUB, "hi all");
     expect(chat(FUSEHUB).at(-1)).toBe(`<${nick}> hi all`);
     client.sendChat(FUSEHUB, "/me waves");
-    expect(client.connection(FUSEHUB)?.chat.at(-1)).toMatchObject({ kind: "me", nick, text: "waves" });
+    expect(client.connection(FUSEHUB)?.chat.at(-1)).toMatchObject({
+      kind: "me",
+      nick,
+      text: "waves",
+    });
     client.sendChat(FUSEHUB, "+help");
     client.sendChat(FUSEHUB, "+rules");
     client.sendChat(FUSEHUB, "+myinfo");
     clock.advance(400);
-    const replies = chat(FUSEHUB).filter((line) => line.startsWith("<FuseBot> "));
+    const replies = chat(FUSEHUB).filter((line) =>
+      line.startsWith("<FuseBot> "),
+    );
     expect(replies.slice(-3)).toEqual([
       "<FuseBot> Commands: +help, +rules, +myinfo. That is all, this bot is from 2002.",
       "<FuseBot> Min share 512.00 MB. No fakers. Be nice.",
@@ -282,8 +301,12 @@ describe("DcClient search and file lists", () => {
     const repoRows = results.filter((row) => row.delivery.kind === "repo");
     expect(repoRows.length).toBeGreaterThan(0);
     expect(repoRows.every((row) => row.hubAddress === FUSEHUB)).toBe(true);
-    expect(results.some((row) => row.file === "readme_IMPORTANT.txt.vbs")).toBe(true);
-    expect(message).toBe(`${results.length} item${results.length === 1 ? "" : "s"}`);
+    expect(results.some((row) => row.file === "readme_IMPORTANT.txt.vbs")).toBe(
+      true,
+    );
+    expect(message).toBe(
+      `${results.length} item${results.length === 1 ? "" : "s"}`,
+    );
     client.search(query("Pixel Sax"));
     clock.advance(SEARCH_DELAY_MS);
     expect(client.getState().search.results[0]?.delivery.kind).toBe("track");
@@ -303,7 +326,9 @@ describe("DcClient search and file lists", () => {
     client.search(query("only-one"));
     clock.advance(SEARCH_DELAY_MS);
     const { results, message } = client.getState().search;
-    expect(message).toBe(`${results.length} item${results.length === 1 ? "" : "s"}`);
+    expect(message).toBe(
+      `${results.length} item${results.length === 1 ? "" : "s"}`,
+    );
   });
 
   it("opens one file list per user and hub, and closes it", () => {
@@ -329,13 +354,20 @@ const JOKE = {
 
 describe("DcClient downloads", () => {
   // The constructor draws the nick, `download` four IP octets, then `start` rolls the outcome.
-  const dice = (...rolls: number[]) => scriptedRandom([0.5, 0, 0, 0, 0, ...rolls]);
+  const dice = (...rolls: number[]) =>
+    scriptedRandom([0.5, 0, 0, 0, 0, ...rolls]);
 
   it("runs out of slots, then tries again on Force attempt", () => {
     const { clock, client } = setup({ random: dice(0.1) });
     const item = client.download(JOKE);
-    expect(item).toMatchObject({ state: "connecting", status: "Connecting...", ip: "62.1.1.1" });
-    expect(client.getState().statusText).toBe(`Added ${JOKE.file} to the download queue`);
+    expect(item).toMatchObject({
+      state: "connecting",
+      status: "Connecting...",
+      ip: "62.1.1.1",
+    });
+    expect(client.getState().statusText).toBe(
+      `Added ${JOKE.file} to the download queue`,
+    );
     expect(client.download(JOKE).id).toBe(item.id);
     clock.advance(1_500);
     expect(client.getState().queue[0]).toMatchObject({
@@ -352,7 +384,10 @@ describe("DcClient downloads", () => {
     const { clock, client } = setup({ random: dice(0.5) });
     client.download(JOKE);
     clock.advance(5_000);
-    expect(client.getState().queue[0]).toMatchObject({ state: "failed", error: "Connection timeout" });
+    expect(client.getState().queue[0]).toMatchObject({
+      state: "failed",
+      error: "Connection timeout",
+    });
   });
 
   it("crawls to 99% and then the other end disconnects", () => {
@@ -363,7 +398,9 @@ describe("DcClient downloads", () => {
     expect(running?.state).toBe("running");
     expect(running?.speed).toBe(Math.round((JOKE.size * 0.99) / 15));
     clock.advance(500);
-    expect(client.getState().queue[0]?.status).toMatch(/^Downloaded .* \(\d+\.\d%\) in 1s$/);
+    expect(client.getState().queue[0]?.status).toMatch(
+      /^Downloaded .* \(\d+\.\d%\) in 1s$/,
+    );
     client.retry(running?.id ?? "");
     expect(client.getState().queue[0]?.state).toBe("running");
     clock.advance(20_000);
@@ -372,7 +409,9 @@ describe("DcClient downloads", () => {
       error: "Disconnected",
       downloaded: Math.floor(JOKE.size * 0.99),
     });
-    expect(client.getState().downloadedTotal).toBe(Math.floor(JOKE.size * 0.99));
+    expect(client.getState().downloadedTotal).toBe(
+      Math.floor(JOKE.size * 0.99),
+    );
     expect(client.getState().finished).toEqual([]);
   });
 
@@ -393,7 +432,9 @@ describe("DcClient downloads", () => {
       status: "Download finished, idle...",
       downloaded: 400 * 1024,
     });
-    expect(client.getState().finished.map((entry) => entry.file)).toEqual(["README.md"]);
+    expect(client.getState().finished.map((entry) => entry.file)).toEqual([
+      "README.md",
+    ]);
     expect(deliveries.map((event) => event.item.delivery)).toEqual([
       { kind: "repo", path: "README.md" },
     ]);
@@ -401,9 +442,13 @@ describe("DcClient downloads", () => {
     client.retry(item.id);
     expect(client.getState().queue[0]?.state).toBe("done");
     // A finished file can be queued again.
-    expect(client.download({ ...item, delivery: item.delivery }).id).not.toBe(item.id);
+    expect(client.download({ ...item, delivery: item.delivery }).id).not.toBe(
+      item.id,
+    );
     client.removeFinished();
-    expect(client.getState().queue.map((entry) => entry.state)).toEqual(["connecting"]);
+    expect(client.getState().queue.map((entry) => entry.state)).toEqual([
+      "connecting",
+    ]);
     client.clearFinished();
     expect(client.getState().finished).toEqual([]);
   });

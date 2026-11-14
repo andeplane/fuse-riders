@@ -82,7 +82,9 @@ function ChatRow({ line }: { line: HubConnection["chat"][number] }) {
 
 /** "[21:37] Connected": the hub status bar's first part, the newest status line with its time. */
 function lastStatus(connection: HubConnection): string {
-  const line = [...connection.chat].reverse().find((entry) => entry.kind === "status");
+  const line = [...connection.chat]
+    .reverse()
+    .find((entry) => entry.kind === "status");
   if (!line) return "";
   const date = new Date(line.time);
   const pad = (value: number) => String(value).padStart(2, "0");
@@ -144,19 +146,19 @@ export function HubFrame({
           ))}
         </div>
         {showUsers ? (
-        <ListView
-          className="dc-userlist"
-          label="Users"
-          columns={COLUMNS}
-          rows={connection.users}
-          rowKey={(user) => user.nick}
-          selected={selected}
-          onSelect={setSelected}
-          onOpen={(user) => {
-            if (user.nick !== self && user.shared > 0) onFileList(user.nick);
-          }}
-          onContextMenu={(user, position) => setMenu({ user, ...position })}
-        />
+          <ListView
+            className="dc-userlist"
+            label="Users"
+            columns={COLUMNS}
+            rows={connection.users}
+            rowKey={(user) => user.nick}
+            selected={selected}
+            onSelect={setSelected}
+            onOpen={(user) => {
+              if (user.nick !== self && user.shared > 0) onFileList(user.nick);
+            }}
+            onContextMenu={(user, position) => setMenu({ user, ...position })}
+          />
         ) : null}
       </div>
       <form
@@ -193,7 +195,11 @@ export function HubFrame({
         ) : null}
         <span className="dc-cell">{total} Users</span>
         <span className="dc-cell">
-          {formatBytes(connection.status === "connected" ? Math.max(shared, connection.hub.shared) : 0)}
+          {formatBytes(
+            connection.status === "connected"
+              ? Math.max(shared, connection.hub.shared)
+              : 0,
+          )}
         </span>
         <label className="dc-cell dc-toggle">
           <input

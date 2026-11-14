@@ -4,7 +4,12 @@ import { ContextMenu } from "../windows/ContextMenu";
 
 import type { FinishedItem, QueueItem } from "./dcClient";
 import { FileIcon, FolderIcon } from "./DcppIcons";
-import { formatBytes, formatDuration, formatExact, formatSpeed } from "./format";
+import {
+  formatBytes,
+  formatDuration,
+  formatExact,
+  formatSpeed,
+} from "./format";
 import type { Column } from "./ListView";
 import { ListView } from "./ListView";
 
@@ -43,7 +48,13 @@ const QUEUE_COLUMNS: readonly Column<QueueItem>[] = [
     ),
     sort: (item) => item.file,
   },
-  { key: "status", label: "Status", width: 170, render: queueStatus, sort: queueStatus },
+  {
+    key: "status",
+    label: "Status",
+    width: 170,
+    render: queueStatus,
+    sort: queueStatus,
+  },
   {
     key: "size",
     label: "Size",
@@ -70,7 +81,13 @@ const QUEUE_COLUMNS: readonly Column<QueueItem>[] = [
       `${item.nick} (${item.state === "failed" ? "Offline" : "Online"})`,
     sort: (item) => item.nick,
   },
-  { key: "path", label: "Path", width: 200, render: (item) => item.path, sort: (item) => item.path },
+  {
+    key: "path",
+    label: "Path",
+    width: 200,
+    render: (item) => item.path,
+    sort: (item) => item.path,
+  },
   {
     key: "exact",
     label: "Exact size",
@@ -79,8 +96,19 @@ const QUEUE_COLUMNS: readonly Column<QueueItem>[] = [
     render: (item) => formatExact(item.size),
     sort: (item) => item.size,
   },
-  { key: "errors", label: "Errors", width: 140, render: (item) => item.error ?? "" },
-  { key: "added", label: "Added", width: 115, render: (item) => time(item.added), sort: (item) => item.added },
+  {
+    key: "errors",
+    label: "Errors",
+    width: 140,
+    render: (item) => item.error ?? "",
+  },
+  {
+    key: "added",
+    label: "Added",
+    width: 115,
+    render: (item) => time(item.added),
+    sort: (item) => item.added,
+  },
 ];
 
 /** Download Queue: the folders on the left (the sharers' paths), the queued files on the right. */
@@ -106,14 +134,22 @@ export function QueueFrame({
       <div className="dc-tree-split">
         <ul className="dc-tree" role="tree" aria-label="Queued folders">
           <li role="treeitem" aria-selected={folder === undefined}>
-            <button type="button" className="flat" onClick={() => setFolder(undefined)}>
+            <button
+              type="button"
+              className="flat"
+              onClick={() => setFolder(undefined)}
+            >
               <FolderIcon open />
               Download Queue
             </button>
             <ul role="group">
               {folders.map((path) => (
                 <li key={path} role="treeitem" aria-selected={folder === path}>
-                  <button type="button" className="flat" onClick={() => setFolder(path)}>
+                  <button
+                    type="button"
+                    className="flat"
+                    onClick={() => setFolder(path)}
+                  >
                     <FolderIcon />
                     {path}
                   </button>
@@ -164,7 +200,13 @@ export function QueueFrame({
 }
 
 const FINISHED_COLUMNS: readonly Column<FinishedItem>[] = [
-  { key: "time", label: "Time", width: 115, render: (item) => time(item.time), sort: (item) => item.time },
+  {
+    key: "time",
+    label: "Time",
+    width: 115,
+    render: (item) => time(item.time),
+    sort: (item) => item.time,
+  },
   {
     key: "file",
     label: "Filename",
@@ -177,9 +219,27 @@ const FINISHED_COLUMNS: readonly Column<FinishedItem>[] = [
     ),
     sort: (item) => item.file,
   },
-  { key: "path", label: "Path", width: 220, render: (item) => item.path, sort: (item) => item.path },
-  { key: "nick", label: "Nick", width: 110, render: (item) => item.nick, sort: (item) => item.nick },
-  { key: "hub", label: "Hub", width: 150, render: (item) => item.hub, sort: (item) => item.hub },
+  {
+    key: "path",
+    label: "Path",
+    width: 220,
+    render: (item) => item.path,
+    sort: (item) => item.path,
+  },
+  {
+    key: "nick",
+    label: "Nick",
+    width: 110,
+    render: (item) => item.nick,
+    sort: (item) => item.nick,
+  },
+  {
+    key: "hub",
+    label: "Hub",
+    width: 150,
+    render: (item) => item.hub,
+    sort: (item) => item.hub,
+  },
   {
     key: "size",
     label: "Size",
@@ -210,7 +270,11 @@ export function FinishedFrame({
   onClear: () => void;
 }) {
   const [selected, setSelected] = useState<string>();
-  const [menu, setMenu] = useState<{ item: FinishedItem; x: number; y: number }>();
+  const [menu, setMenu] = useState<{
+    item: FinishedItem;
+    x: number;
+    y: number;
+  }>();
   const bytes = finished.reduce((sum, item) => sum + item.size, 0);
   const speed =
     finished.length === 0
@@ -255,10 +319,18 @@ export function FinishedFrame({
 function TransferStatus({ item, now }: { item: QueueItem; now: number }) {
   if (item.state !== "running") return <>{item.status}</>;
   const ratio = item.downloaded / Math.max(1, item.size);
-  const seconds = Math.max(0, Math.round((now - (item.startedAt ?? now)) / 1000));
+  const seconds = Math.max(
+    0,
+    Math.round((now - (item.startedAt ?? now)) / 1000),
+  );
   const text = `Downloaded ${formatBytes(item.downloaded)} (${(ratio * 100).toFixed(1)}%) in ${formatDuration(seconds)}`;
   return (
-    <span className="dc-progress" role="progressbar" aria-valuenow={Math.round(ratio * 100)} aria-label={text}>
+    <span
+      className="dc-progress"
+      role="progressbar"
+      aria-valuenow={Math.round(ratio * 100)}
+      aria-label={text}
+    >
       <span className="dc-progress-text">{text}</span>
       <span className="dc-progress-fill" style={{ width: `${ratio * 100}%` }}>
         <span className="dc-progress-text" aria-hidden>
@@ -320,7 +392,8 @@ export function TransferView({
       label: "Speed",
       width: 75,
       align: "right",
-      render: (item) => (item.state === "running" ? formatSpeed(item.speed) : ""),
+      render: (item) =>
+        item.state === "running" ? formatSpeed(item.speed) : "",
     },
     { key: "file", label: "Filename", width: 220, render: (item) => item.file },
     {
@@ -363,8 +436,14 @@ export function TransferView({
               onSelect: () => onRetry(menu.item.id),
             },
             { separator: true },
-            { label: "Remove user from queue", onSelect: () => onRemove(menu.item.id) },
-            { label: "Close connection", onSelect: () => onRemove(menu.item.id) },
+            {
+              label: "Remove user from queue",
+              onSelect: () => onRemove(menu.item.id),
+            },
+            {
+              label: "Close connection",
+              onSelect: () => onRemove(menu.item.id),
+            },
           ]}
           onClose={() => setMenu(undefined)}
         />

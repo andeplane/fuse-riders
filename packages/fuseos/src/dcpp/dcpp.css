@@ -15,10 +15,13 @@
   --dc-select-text: var(--w95-highlight-text, #fff);
   --dc-field: var(--w95-field, #fff);
   --dc-field-text: var(--w95-field-text, #000);
-  --dc-sunken: inset -1px -1px var(--dc-hilight), inset 1px 1px var(--dc-shadow);
-  --dc-sunken2: inset -1px -1px var(--dc-hilight), inset 1px 1px var(--dc-shadow),
+  --dc-sunken:
+    inset -1px -1px var(--dc-hilight), inset 1px 1px var(--dc-shadow);
+  --dc-sunken2:
+    inset -1px -1px var(--dc-hilight), inset 1px 1px var(--dc-shadow),
     inset -2px -2px var(--dc-light), inset 2px 2px var(--dc-dark);
-  --dc-raised: inset -1px -1px var(--dc-dark), inset 1px 1px var(--dc-hilight),
+  --dc-raised:
+    inset -1px -1px var(--dc-dark), inset 1px 1px var(--dc-hilight),
     inset -2px -2px var(--dc-shadow), inset 2px 2px var(--dc-light);
   position: relative;
   display: flex;
@@ -78,11 +81,15 @@
 }
 
 .dcpp .dc-toolbutton:hover:not(:disabled) {
-  box-shadow: inset -1px -1px var(--dc-shadow), inset 1px 1px var(--dc-hilight);
+  box-shadow:
+    inset -1px -1px var(--dc-shadow),
+    inset 1px 1px var(--dc-hilight);
 }
 
 .dcpp .dc-toolbutton:active:not(:disabled) {
-  box-shadow: inset 1px 1px var(--dc-shadow), inset -1px -1px var(--dc-hilight);
+  box-shadow:
+    inset 1px 1px var(--dc-shadow),
+    inset -1px -1px var(--dc-hilight);
 }
 
 .dcpp .dc-toolbutton:focus {
@@ -166,7 +173,9 @@
   padding: 0 5px;
   overflow: hidden;
   background: var(--dc-face);
-  box-shadow: inset -1px -1px var(--dc-dark), inset 1px 1px var(--dc-hilight),
+  box-shadow:
+    inset -1px -1px var(--dc-dark),
+    inset 1px 1px var(--dc-hilight),
     inset -2px -2px var(--dc-shadow);
   font-weight: normal;
   text-align: left;
@@ -175,7 +184,9 @@
 }
 
 .dc-list th:active {
-  box-shadow: inset 1px 1px var(--dc-shadow), inset -1px -1px var(--dc-shadow);
+  box-shadow:
+    inset 1px 1px var(--dc-shadow),
+    inset -1px -1px var(--dc-shadow);
 }
 
 .dc-sort {
@@ -559,7 +570,9 @@
 
 /* The coloured line along the bottom, above the black outline. */
 .dcpp .dc-tab {
-  box-shadow: inset 0 -1px var(--dc-dark), inset 0 -2px var(--dc-tab-line);
+  box-shadow:
+    inset 0 -1px var(--dc-dark),
+    inset 0 -2px var(--dc-tab-line);
 }
 
 .dcpp .dc-line-online {

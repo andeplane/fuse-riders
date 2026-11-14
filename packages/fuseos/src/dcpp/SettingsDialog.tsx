@@ -44,7 +44,11 @@ export function SettingsDialog({
           </div>
         </div>
         <div className="window-body dc-settings-body">
-          <ul className="dc-settings-tree" role="tree" aria-label="Settings pages">
+          <ul
+            className="dc-settings-tree"
+            role="tree"
+            aria-label="Settings pages"
+          >
             {(
               [
                 ["general", "General"],
@@ -52,20 +56,33 @@ export function SettingsDialog({
               ] as const
             ).map(([id, label]) => (
               <li key={id} role="treeitem" aria-selected={page === id}>
-                <button type="button" className="flat" onClick={() => setPage(id)}>
+                <button
+                  type="button"
+                  className="flat"
+                  onClick={() => setPage(id)}
+                >
                   {label}
                 </button>
               </li>
             ))}
-            {["Downloads", "Appearance", "Logs and Sound", "Advanced", "User Commands"].map(
-              (label) => (
-                <li key={label} role="treeitem" aria-selected={false} aria-disabled>
-                  <button type="button" className="flat" disabled>
-                    {label}
-                  </button>
-                </li>
-              ),
-            )}
+            {[
+              "Downloads",
+              "Appearance",
+              "Logs and Sound",
+              "Advanced",
+              "User Commands",
+            ].map((label) => (
+              <li
+                key={label}
+                role="treeitem"
+                aria-selected={false}
+                aria-disabled
+              >
+                <button type="button" className="flat" disabled>
+                  {label}
+                </button>
+              </li>
+            ))}
           </ul>
           <div className="dc-settings-page">
             {page === "general" ? (
@@ -99,11 +116,21 @@ export function SettingsDialog({
                 <fieldset className="dc-group">
                   <legend>Connection settings</legend>
                   <div className="field-row">
-                    <input id="dc-active" type="radio" name="dc-mode" defaultChecked />
+                    <input
+                      id="dc-active"
+                      type="radio"
+                      name="dc-mode"
+                      defaultChecked
+                    />
                     <label htmlFor="dc-active">Active</label>
                   </div>
                   <div className="field-row">
-                    <input id="dc-passive" type="radio" name="dc-mode" disabled />
+                    <input
+                      id="dc-passive"
+                      type="radio"
+                      name="dc-mode"
+                      disabled
+                    />
                     <label htmlFor="dc-passive">Passive</label>
                   </div>
                 </fieldset>
@@ -146,7 +173,9 @@ export function SettingsDialog({
                       type="button"
                       disabled={!selected}
                       onClick={() => {
-                        setDirs(dirs.filter((dir) => dir.directory !== selected));
+                        setDirs(
+                          dirs.filter((dir) => dir.directory !== selected),
+                        );
                         setSelected(undefined);
                       }}
                     >
@@ -177,13 +206,21 @@ export function SettingsDialog({
         </div>
       </div>
       {browsing ? (
-        <div className="window dc-browse" role="dialog" aria-label="Browse for Folder">
+        <div
+          className="window dc-browse"
+          role="dialog"
+          aria-label="Browse for Folder"
+        >
           <div className="title-bar">
             <div className="title-bar-text">Browse for Folder</div>
           </div>
           <div className="window-body">
             <p>Choose a directory to share:</p>
-            <ul className="dc-tree dc-browsetree" role="tree" aria-label="Folders">
+            <ul
+              className="dc-tree dc-browsetree"
+              role="tree"
+              aria-label="Folders"
+            >
               <li role="treeitem" aria-selected={false}>
                 <button type="button" className="flat" disabled>
                   3½ Floppy (A:) — drive not ready
@@ -197,12 +234,17 @@ export function SettingsDialog({
                   onClick={() => {
                     setDirs([
                       ...dirs,
-                      { virtualName: "fuse-games", directory: "C:\\", size: repoSize },
+                      {
+                        virtualName: "fuse-games",
+                        directory: "C:\\",
+                        size: repoSize,
+                      },
                     ]);
                     setBrowsing(false);
                   }}
                 >
-                  (C:) fuse-games — {repoReady ? formatBytes(repoSize) : "reading drive..."}
+                  (C:) fuse-games —{" "}
+                  {repoReady ? formatBytes(repoSize) : "reading drive..."}
                 </button>
               </li>
             </ul>

@@ -56,11 +56,7 @@ export type HubConnection = {
 };
 
 export type TransferState =
-  | "connecting"
-  | "running"
-  | "waiting"
-  | "failed"
-  | "done";
+  "connecting" | "running" | "waiting" | "failed" | "done";
 
 export type QueueItem = {
   id: string;
@@ -438,7 +434,13 @@ export class DcClient {
               ? [...CHATTER, ...FUSEHUB_CHATTER]
               : [...CHATTER];
           const text = lines[Math.floor(this.deps.random() * lines.length)];
-          if (text) this.line(address, "chat", text, pick(this.deps.random, [first, ...rest]).nick);
+          if (text)
+            this.line(
+              address,
+              "chat",
+              text,
+              pick(this.deps.random, [first, ...rest]).nick,
+            );
         }
         this.chatter(address);
       },
@@ -563,7 +565,9 @@ export class DcClient {
   closeHub(address: string): void {
     this.cancel(this.hubKey(address));
     this.cancel(`${this.hubKey(address)}:kick`);
-    this.set({ hubs: this.state.hubs.filter((hub) => hub.address !== address) });
+    this.set({
+      hubs: this.state.hubs.filter((hub) => hub.address !== address),
+    });
   }
 
   /** Main chat. `/clear` empties the window; everything else is said out loud. */
@@ -618,8 +622,8 @@ export class DcClient {
     if (address === FUSEHUB)
       return [
         ...trackFiles(this.deps.tracks),
-        ...repoFiles(this.repo),
         ...JOKE_FILES,
+        ...repoFiles(this.repo),
       ];
     return [...JOKE_FILES];
   }

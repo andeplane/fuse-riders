@@ -72,8 +72,16 @@ function Tree({
 }) {
   const open = current.startsWith(folder.path);
   return (
-    <li role="treeitem" aria-selected={current === folder.path} aria-expanded={open}>
-      <button type="button" className="flat" onClick={() => onPick(folder.path)}>
+    <li
+      role="treeitem"
+      aria-selected={current === folder.path}
+      aria-expanded={open}
+    >
+      <button
+        type="button"
+        className="flat"
+        onClick={() => onPick(folder.path)}
+      >
         <FolderIcon open={open} />
         {label}
       </button>
@@ -104,24 +112,42 @@ export function FileListFrame({
 }) {
   const [path, setPath] = useState("");
   const [selected, setSelected] = useState<string>();
-  const [menu, setMenu] = useState<{ file: CatalogueFile; x: number; y: number }>();
+  const [menu, setMenu] = useState<{
+    file: CatalogueFile;
+    x: number;
+    y: number;
+  }>();
   const folder = folderAt(view.root, path) ?? view.root;
   const entries: Entry[] = [
-    ...folder.folders.map((child): Entry => ({ kind: "folder", folder: child })),
+    ...folder.folders.map((child): Entry => ({
+      kind: "folder",
+      folder: child,
+    })),
     ...folder.files.map((file): Entry => ({ kind: "file", file })),
   ];
   return (
     <div className="dc-frame dc-filelist">
       <div className="dc-tree-split">
-        <ul className="dc-tree" role="tree" aria-label={`${view.nick}'s folders`}>
-          <Tree folder={view.root} current={path} onPick={setPath} label={view.nick} />
+        <ul
+          className="dc-tree"
+          role="tree"
+          aria-label={`${view.nick}'s folders`}
+        >
+          <Tree
+            folder={view.root}
+            current={path}
+            onPick={setPath}
+            label={view.nick}
+          />
         </ul>
         <ListView
           label={`${view.nick}'s files`}
           columns={COLUMNS}
           rows={entries}
           rowKey={(entry) =>
-            entry.kind === "folder" ? `d:${entry.folder.path}` : `f:${entry.file.name}`
+            entry.kind === "folder"
+              ? `d:${entry.folder.path}`
+              : `f:${entry.file.name}`
           }
           selected={selected}
           onSelect={setSelected}
@@ -130,14 +156,13 @@ export function FileListFrame({
             else onDownload(entry.file);
           }}
           onContextMenu={(entry, position) => {
-            if (entry.kind === "file") setMenu({ file: entry.file, ...position });
+            if (entry.kind === "file")
+              setMenu({ file: entry.file, ...position });
           }}
         />
       </div>
       <div className="dc-framestatus">
-        <span className="dc-cell dc-grow">
-          Files: {countFiles(view.root)}
-        </span>
+        <span className="dc-cell dc-grow">Files: {countFiles(view.root)}</span>
         <span className="dc-cell">Size: {formatBytes(view.root.size)}</span>
         <span className="dc-cell">Items: {entries.length}</span>
         <span className="dc-cell">Size: {formatBytes(folder.size)}</span>
@@ -147,7 +172,11 @@ export function FileListFrame({
           label="File"
           position={{ x: menu.x, y: menu.y }}
           items={[
-            { label: "Download", bold: true, onSelect: () => onDownload(menu.file) },
+            {
+              label: "Download",
+              bold: true,
+              onSelect: () => onDownload(menu.file),
+            },
             { label: "Download to...", disabled: true },
             { label: "View as text", disabled: true },
           ]}

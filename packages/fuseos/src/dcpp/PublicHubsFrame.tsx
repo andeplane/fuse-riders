@@ -11,7 +11,13 @@ import { ListView } from "./ListView";
 export const HUBLIST_URL = "http://www.hublist.org/PublicHubList.config.bz2";
 
 const COLUMNS: readonly Column<Hub>[] = [
-  { key: "name", label: "Name", width: 230, render: (hub) => hub.name, sort: (hub) => hub.name },
+  {
+    key: "name",
+    label: "Name",
+    width: 230,
+    render: (hub) => hub.name,
+    sort: (hub) => hub.name,
+  },
   {
     key: "description",
     label: "Description",
@@ -99,7 +105,8 @@ export function PublicHubsFrame({
             value={manual}
             onChange={(event) => setManual(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter" && manual.trim()) onConnect(manual.trim());
+              if (event.key === "Enter" && manual.trim())
+                onConnect(manual.trim());
             }}
           />
         </fieldset>
@@ -130,7 +137,11 @@ export function PublicHubsFrame({
           label="Hub"
           position={{ x: menu.x, y: menu.y }}
           items={[
-            { label: "Connect", bold: true, onSelect: () => onConnect(menu.hub.address) },
+            {
+              label: "Connect",
+              bold: true,
+              onSelect: () => onConnect(menu.hub.address),
+            },
             { label: "Add To Favorites", disabled: true },
             { label: "Copy address to clipboard", disabled: true },
           ]}

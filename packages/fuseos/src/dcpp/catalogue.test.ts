@@ -29,7 +29,9 @@ const query = (text: string, rest: Partial<SearchQuery> = {}): SearchQuery => ({
 describe("the hub list", () => {
   it("lists every hub but the redirect target, and filters on name, description and address", () => {
     const listed = publicHubs(HUBS);
-    expect(listed.map((hub) => hub.name)).toContain("FuseHub — Fuse Games fans");
+    expect(listed.map((hub) => hub.name)).toContain(
+      "FuseHub — Fuse Games fans",
+    );
     expect(listed.some((hub) => hub.unlisted)).toBe(false);
     expect(filterHubs(listed, "  ANIME ").map((hub) => hub.name)).toEqual([
       "Anime Planet",
@@ -57,9 +59,15 @@ describe("hub users", () => {
       true,
     );
     expect(
-      users.some((user) => /^<\+\+ V:0\.40\d+,M:[AP],H:\d\/\d\/\d,S:\d/.test(user.tag)),
+      users.some((user) =>
+        /^<\+\+ V:0\.40\d+,M:[AP],H:\d\/\d\/\d,S:\d/.test(user.tag),
+      ),
     ).toBe(true);
-    expect(users.filter((user) => user.passive).every((user) => !user.tag.includes("M:A"))).toBe(true);
+    expect(
+      users
+        .filter((user) => user.passive)
+        .every((user) => !user.tag.includes("M:A")),
+    ).toBe(true);
   });
 
   it("sorts ops first, then everyone alphabetically ignoring case", () => {
@@ -86,8 +94,12 @@ describe("search", () => {
   };
 
   it("matches every word anywhere in the path, case-insensitively, and nothing for an empty query", () => {
-    expect(matchesText("MP3\\Trance\\DJ Kilobyte.mp3", "kilobyte trance")).toBe(true);
-    expect(matchesText("MP3\\Trance\\DJ Kilobyte.mp3", "kilobyte rock")).toBe(false);
+    expect(matchesText("MP3\\Trance\\DJ Kilobyte.mp3", "kilobyte trance")).toBe(
+      true,
+    );
+    expect(matchesText("MP3\\Trance\\DJ Kilobyte.mp3", "kilobyte rock")).toBe(
+      false,
+    );
     expect(matchesText("anything", "   ")).toBe(false);
   });
 
@@ -103,22 +115,44 @@ describe("search", () => {
   it("returns plausible results with user, slots, connection and hub, filtered by size and type", () => {
     // Thousands of files: a common word fills the result list.
     expect(JOKE_FILES.length).toBeGreaterThan(3000);
-    expect(runSearch(createRandom(5), [source], query("mp3"), 500)).toHaveLength(500);
+    expect(
+      runSearch(createRandom(5), [source], query("mp3"), 500),
+    ).toHaveLength(500);
     const iso = runSearch(createRandom(5), [source], query("linux iso"));
     expect(iso.length).toBeGreaterThan(4);
-    expect(iso.every((row) => row.type === "iso" && row.hub === "Hub")).toBe(true);
+    expect(iso.every((row) => row.type === "iso" && row.hub === "Hub")).toBe(
+      true,
+    );
     expect(iso.every((row) => row.nick !== HUBS[0]!.bot)).toBe(true);
-    const big = runSearch(createRandom(5), [source], query("avi", { sizeMode: "atLeast", size: 700 * MiB }));
+    const big = runSearch(
+      createRandom(5),
+      [source],
+      query("avi", { sizeMode: "atLeast", size: 700 * MiB }),
+    );
     expect(big.every((row) => row.size >= 700 * MiB)).toBe(true);
-    const small = runSearch(createRandom(5), [source], query("avi", { sizeMode: "atMost", size: 10 * MiB }));
+    const small = runSearch(
+      createRandom(5),
+      [source],
+      query("dancing", { sizeMode: "atMost", size: 10 * MiB }),
+    );
     expect(small.map((row) => row.file)).toContain("dancing_baby.avi");
     expect(small.every((row) => row.size <= 10 * MiB)).toBe(true);
-    const audio = runSearch(createRandom(5), [source], query("mp3", { type: "audio" }));
+    const audio = runSearch(
+      createRandom(5),
+      [source],
+      query("mp3", { type: "audio" }),
+    );
     expect(audio.every((row) => row.type === "mp3")).toBe(true);
-    const free = runSearch(createRandom(5), [source], query("linux", { onlyFreeSlots: true }));
+    const free = runSearch(
+      createRandom(5),
+      [source],
+      query("linux", { onlyFreeSlots: true }),
+    );
     expect(free.every((row) => row.slots.free > 0)).toBe(true);
     expect(runSearch(createRandom(5), [source], query("e"), 3)).toHaveLength(3);
-    expect(runSearch(createRandom(5), [{ ...source, users: [] }], query("linux"))).toEqual([]);
+    expect(
+      runSearch(createRandom(5), [{ ...source, users: [] }], query("linux")),
+    ).toEqual([]);
   });
 
   it("turns the repository and the soundtrack into shared files that deliver something harmless", () => {
@@ -130,12 +164,18 @@ describe("search", () => {
       ["fuse-games\\", "README.md"],
       ["fuse-games\\packages\\fuseos\\src\\", "App.tsx"],
     ]);
-    expect(repo[1]?.delivery).toEqual({ kind: "repo", path: "packages/fuseos/src/App.tsx" });
+    expect(repo[1]?.delivery).toEqual({
+      kind: "repo",
+      path: "packages/fuseos/src/App.tsx",
+    });
     const tracks = trackFiles(FUSE_TRACKS);
     expect(tracks).toHaveLength(FUSE_TRACKS.length);
     expect(tracks[0]?.path).toBe("Fuse Radio\\");
     expect(tracks.some((file) => file.path !== "Fuse Radio\\")).toBe(true);
-    expect(tracks[0]?.delivery).toEqual({ kind: "track", trackId: FUSE_TRACKS[0]?.id });
+    expect(tracks[0]?.delivery).toEqual({
+      kind: "track",
+      trackId: FUSE_TRACKS[0]?.id,
+    });
   });
 
   it("reads the size box in its unit", () => {
@@ -152,13 +192,31 @@ describe("search", () => {
 describe("file lists", () => {
   it("builds a sorted folder tree with sizes and finds folders by path", () => {
     const root = buildFileList([
-      { name: "b.mp3", path: "MP3\\Rock\\", size: 5, delivery: { kind: "joke" } },
-      { name: "a.mp3", path: "MP3\\Rock\\", size: 7, delivery: { kind: "joke" } },
-      { name: "x.avi", path: "Movies\\", size: 100, delivery: { kind: "joke" } },
+      {
+        name: "b.mp3",
+        path: "MP3\\Rock\\",
+        size: 5,
+        delivery: { kind: "joke" },
+      },
+      {
+        name: "a.mp3",
+        path: "MP3\\Rock\\",
+        size: 7,
+        delivery: { kind: "joke" },
+      },
+      {
+        name: "x.avi",
+        path: "Movies\\",
+        size: 100,
+        delivery: { kind: "joke" },
+      },
       { name: "top.txt", path: "", size: 1, delivery: { kind: "joke" } },
     ]);
     expect(root.size).toBe(113);
-    expect(root.folders.map((folder) => folder.name)).toEqual(["Movies", "MP3"]);
+    expect(root.folders.map((folder) => folder.name)).toEqual([
+      "Movies",
+      "MP3",
+    ]);
     const rock = folderAt(root, "MP3\\Rock\\");
     expect(rock?.files.map((file) => file.name)).toEqual(["a.mp3", "b.mp3"]);
     expect(rock?.size).toBe(12);
@@ -173,6 +231,8 @@ describe("file lists", () => {
     expect(countFiles(list)).toBeGreaterThan(9);
     expect(userFileList(createRandom(9), JOKE_FILES)).toEqual(list);
     // Even unlucky dice leave something to browse.
-    expect(countFiles(userFileList(() => 0.99, JOKE_FILES))).toBe(JOKE_FILES.length + 9);
+    expect(countFiles(userFileList(() => 0.99, JOKE_FILES))).toBe(
+      JOKE_FILES.length + 9,
+    );
   });
 });

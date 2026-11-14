@@ -41,7 +41,8 @@ export const LINUX_HUB_2 = "linuxiso2.dyndns.org:4111";
 export const HUBS: readonly Hub[] = [
   {
     name: "[EU] Movies & Music 100GB+ min share",
-    description: "DivX, MP3, VCD. 100 GB min share, 3 slots min. No passive users! No fakers!",
+    description:
+      "DivX, MP3, VCD. 100 GB min share, 3 slots min. No passive users! No fakers!",
     address: "eu-movies.myftp.org:411",
     users: 1873,
     shared: 412 * TiB,
@@ -58,7 +59,8 @@ export const HUBS: readonly Hub[] = [
   },
   {
     name: "Anime Planet",
-    description: "Fansubs, OSTs and AMVs. 5 GB min. Be nice, no hentai in main chat",
+    description:
+      "Fansubs, OSTs and AMVs. 5 GB min. Be nice, no hentai in main chat",
     address: "animeplanet.dns2go.com:411",
     users: 642,
     shared: 61 * TiB,
@@ -74,7 +76,8 @@ export const HUBS: readonly Hub[] = [
   },
   {
     name: "Linux ISO Lovers",
-    description: "Distros, source tarballs and kernel trees. Debian, Slackware, Mandrake, RedHat 9",
+    description:
+      "Distros, source tarballs and kernel trees. Debian, Slackware, Mandrake, RedHat 9",
     address: LINUX_HUB,
     users: 500,
     shared: 18 * TiB,
@@ -103,7 +106,8 @@ export const HUBS: readonly Hub[] = [
   },
   {
     name: "Retro Gaming Vault",
-    description: "ROMs? Never heard of it. Homebrew, demos and abandonware. 256 MB min",
+    description:
+      "ROMs? Never heard of it. Homebrew, demos and abandonware. 256 MB min",
     address: "retrovault.servegame.com:411",
     users: 211,
     shared: 9 * TiB,

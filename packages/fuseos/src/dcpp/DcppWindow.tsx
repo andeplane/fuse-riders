@@ -57,7 +57,11 @@ function Toolbar({ buttons }: { buttons: readonly ToolButton[] }) {
   );
 }
 
-function FavoritesFrame({ onConnect }: { onConnect: (address: string) => void }) {
+function FavoritesFrame({
+  onConnect,
+}: {
+  onConnect: (address: string) => void;
+}) {
   const [selected, setSelected] = useState<string>();
   const hub = findHub(useContext(DcppDepsContext).hubs, FUSEHUB);
   const rows = hub ? [hub] : [];
@@ -66,11 +70,26 @@ function FavoritesFrame({ onConnect }: { onConnect: (address: string) => void })
       <ListView
         label="Favorite hubs"
         columns={[
-          { key: "auto", label: "Auto connect / Name", width: 260, render: (row) => row.name },
-          { key: "description", label: "Description", width: 300, render: (row) => row.description },
+          {
+            key: "auto",
+            label: "Auto connect / Name",
+            width: 260,
+            render: (row) => row.name,
+          },
+          {
+            key: "description",
+            label: "Description",
+            width: 300,
+            render: (row) => row.description,
+          },
           { key: "nick", label: "Nick", width: 90, render: () => "" },
           { key: "password", label: "Password", width: 80, render: () => "" },
-          { key: "server", label: "Server", width: 170, render: (row) => row.address },
+          {
+            key: "server",
+            label: "Server",
+            width: 170,
+            render: (row) => row.address,
+          },
         ]}
         rows={rows}
         rowKey={(row) => row.address}
@@ -171,10 +190,14 @@ function FrameBody({ frame, vm }: { frame: Frame; vm: DcppViewModel }) {
       );
     case "fileList": {
       const view = state.fileLists.find(
-        (list) => list.nick === frame.nick && list.hubAddress === frame.hubAddress,
+        (list) =>
+          list.nick === frame.nick && list.hubAddress === frame.hubAddress,
       );
       if (!view) return <div className="dc-frame" />;
-      const hubName = frameTitle({ kind: "hub", address: frame.hubAddress }, state);
+      const hubName = frameTitle(
+        { kind: "hub", address: frame.hubAddress },
+        state,
+      );
       return (
         <FileListFrame
           view={view}
@@ -231,7 +254,9 @@ function tabLine(frame: Frame, state: DcState): string {
 }
 
 function statusSegments(state: DcState) {
-  const connected = state.hubs.filter((hub) => hub.status === "connected").length;
+  const connected = state.hubs.filter(
+    (hub) => hub.status === "connected",
+  ).length;
   const running = state.queue.filter((item) => item.state === "running");
   const down = running.reduce((sum, item) => sum + item.speed, 0);
   return [
@@ -255,14 +280,19 @@ export function DcppWindow({ windowId }: { windowId: string }) {
   const unread = useUnread(vm);
   const { state, client } = vm;
   const activeHub =
-    vm.active?.kind === "hub" ? client.connection(vm.active.address) : undefined;
+    vm.active?.kind === "hub"
+      ? client.connection(vm.active.address)
+      : undefined;
 
   const menus: MenuDef[] = [
     {
       label: "File",
       items: [
         { label: "Open file list...", disabled: true },
-        { label: "Refresh file list", onSelect: () => client.note("File list refreshed") },
+        {
+          label: "Refresh file list",
+          onSelect: () => client.note("File list refreshed"),
+        },
         { label: "Open downloads directory", disabled: true },
         { separator: true },
         {
@@ -281,20 +311,40 @@ export function DcppWindow({ windowId }: { windowId: string }) {
     {
       label: "View",
       items: [
-        { label: "Public Hubs", onSelect: () => vm.openFrame({ kind: "publicHubs" }) },
-        { label: "Favorite Hubs", onSelect: () => vm.openFrame({ kind: "favorites" }) },
+        {
+          label: "Public Hubs",
+          onSelect: () => vm.openFrame({ kind: "publicHubs" }),
+        },
+        {
+          label: "Favorite Hubs",
+          onSelect: () => vm.openFrame({ kind: "favorites" }),
+        },
         { label: "Favorite Users", disabled: true },
         { label: "Search", onSelect: () => vm.openFrame({ kind: "search" }) },
         { label: "ADL Search", disabled: true },
         { label: "Search Spy", disabled: true },
         { label: "Notepad", onSelect: () => vm.openFrame({ kind: "notepad" }) },
         { separator: true },
-        { label: "Download Queue", onSelect: () => vm.openFrame({ kind: "queue" }) },
-        { label: "Finished Downloads", onSelect: () => vm.openFrame({ kind: "finished" }) },
+        {
+          label: "Download Queue",
+          onSelect: () => vm.openFrame({ kind: "queue" }),
+        },
+        {
+          label: "Finished Downloads",
+          onSelect: () => vm.openFrame({ kind: "finished" }),
+        },
         { label: "Finished Uploads", disabled: true },
         { separator: true },
-        { label: "Toolbar", checked: showToolbar, onSelect: () => setShowToolbar(!showToolbar) },
-        { label: "Status bar", checked: showStatus, onSelect: () => setShowStatus(!showStatus) },
+        {
+          label: "Toolbar",
+          checked: showToolbar,
+          onSelect: () => setShowToolbar(!showToolbar),
+        },
+        {
+          label: "Status bar",
+          checked: showStatus,
+          onSelect: () => setShowStatus(!showStatus),
+        },
         {
           label: "Transfer view",
           checked: showTransfers,
@@ -339,29 +389,61 @@ export function DcppWindow({ windowId }: { windowId: string }) {
   ];
 
   const buttons: ToolButton[] = [
-    { icon: "publicHubs", label: "Public Hubs", onClick: () => vm.openFrame({ kind: "publicHubs" }) },
-    { icon: "reconnect", label: "Reconnect", onClick: activeHub ? vm.reconnect : undefined },
+    {
+      icon: "publicHubs",
+      label: "Public Hubs",
+      onClick: () => vm.openFrame({ kind: "publicHubs" }),
+    },
+    {
+      icon: "reconnect",
+      label: "Reconnect",
+      onClick: activeHub ? vm.reconnect : undefined,
+    },
     {
       icon: "redirect",
       label: "Follow last redirect",
       onClick: activeHub?.redirect ? vm.followRedirect : undefined,
     },
     { separator: true },
-    { icon: "favorites", label: "Favorite Hubs", onClick: () => vm.openFrame({ kind: "favorites" }) },
+    {
+      icon: "favorites",
+      label: "Favorite Hubs",
+      onClick: () => vm.openFrame({ kind: "favorites" }),
+    },
     { icon: "favoriteUsers", label: "Favorite Users" },
     { separator: true },
-    { icon: "queue", label: "Download Queue", onClick: () => vm.openFrame({ kind: "queue" }) },
-    { icon: "finished", label: "Finished Downloads", onClick: () => vm.openFrame({ kind: "finished" }) },
+    {
+      icon: "queue",
+      label: "Download Queue",
+      onClick: () => vm.openFrame({ kind: "queue" }),
+    },
+    {
+      icon: "finished",
+      label: "Finished Downloads",
+      onClick: () => vm.openFrame({ kind: "finished" }),
+    },
     { icon: "finishedUploads", label: "Finished Uploads" },
     { separator: true },
-    { icon: "search", label: "Search", onClick: () => vm.openFrame({ kind: "search" }) },
+    {
+      icon: "search",
+      label: "Search",
+      onClick: () => vm.openFrame({ kind: "search" }),
+    },
     { icon: "adlSearch", label: "ADL Search" },
     { icon: "searchSpy", label: "Search Spy" },
     { separator: true },
     { icon: "openFileList", label: "Open file list..." },
     { separator: true },
-    { icon: "settings", label: "Settings", onClick: () => vm.setSettingsOpen(true) },
-    { icon: "notepad", label: "Notepad", onClick: () => vm.openFrame({ kind: "notepad" }) },
+    {
+      icon: "settings",
+      label: "Settings",
+      onClick: () => vm.setSettingsOpen(true),
+    },
+    {
+      icon: "notepad",
+      label: "Notepad",
+      onClick: () => vm.openFrame({ kind: "notepad" }),
+    },
   ];
 
   return (
@@ -455,7 +537,11 @@ export function DcppWindow({ windowId }: { windowId: string }) {
       ) : null}
       {vm.aboutOpen ? (
         <div className="dc-modal" role="presentation">
-          <div className="window dc-about" role="dialog" aria-label="About DC++">
+          <div
+            className="window dc-about"
+            role="dialog"
+            aria-label="About DC++"
+          >
             <div className="title-bar">
               <div className="title-bar-text">About DC++</div>
             </div>
@@ -465,8 +551,8 @@ export function DcppWindow({ windowId }: { windowId: string }) {
               </p>
               <p>A Direct Connect client, as it looked in 2003.</p>
               <p>
-                This copy is a FuseOS toy: every hub, user and file is made up and
-                nothing connects to anything.
+                This copy is a FuseOS toy: every hub, user and file is made up
+                and nothing connects to anything.
               </p>
               <p>
                 Total up: {formatBytes(state.uploadedTotal)} · Total down:{" "}

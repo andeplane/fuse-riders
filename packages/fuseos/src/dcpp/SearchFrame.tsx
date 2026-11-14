@@ -33,8 +33,20 @@ const COLUMNS: readonly Column<SearchResult>[] = [
     ),
     sort: (row) => row.file,
   },
-  { key: "user", label: "User", width: 110, render: (row) => row.nick, sort: (row) => row.nick },
-  { key: "type", label: "Type", width: 45, render: (row) => row.type, sort: (row) => row.type },
+  {
+    key: "user",
+    label: "User",
+    width: 110,
+    render: (row) => row.nick,
+    sort: (row) => row.nick,
+  },
+  {
+    key: "type",
+    label: "Type",
+    width: 45,
+    render: (row) => row.type,
+    sort: (row) => row.type,
+  },
   {
     key: "size",
     label: "Size",
@@ -43,7 +55,13 @@ const COLUMNS: readonly Column<SearchResult>[] = [
     render: (row) => formatBytes(row.size),
     sort: (row) => row.size,
   },
-  { key: "path", label: "Path", width: 200, render: (row) => row.path, sort: (row) => row.path },
+  {
+    key: "path",
+    label: "Path",
+    width: 200,
+    render: (row) => row.path,
+    sort: (row) => row.path,
+  },
   {
     key: "slots",
     label: "Slots",
@@ -58,7 +76,13 @@ const COLUMNS: readonly Column<SearchResult>[] = [
     render: (row) => row.connection,
     sort: (row) => row.connection,
   },
-  { key: "hub", label: "Hub", width: 170, render: (row) => row.hub, sort: (row) => row.hub },
+  {
+    key: "hub",
+    label: "Hub",
+    width: 170,
+    render: (row) => row.hub,
+    sort: (row) => row.hub,
+  },
   {
     key: "exact",
     label: "Exact size",
@@ -67,7 +91,13 @@ const COLUMNS: readonly Column<SearchResult>[] = [
     render: (row) => formatExact(row.size),
     sort: (row) => row.size,
   },
-  { key: "ip", label: "IP", width: 100, render: (row) => row.ip, sort: (row) => row.ip },
+  {
+    key: "ip",
+    label: "IP",
+    width: 100,
+    render: (row) => row.ip,
+    sort: (row) => row.ip,
+  },
 ];
 
 /** Search: the options panel on the left, the results on the right, a status strip under them. */
@@ -93,7 +123,11 @@ export function SearchFrame({
   const [onlyFree, setOnlyFree] = useState(false);
   const [selected, setSelected] = useState<string>();
   const [unticked, setUnticked] = useState<ReadonlySet<string>>(new Set());
-  const [menu, setMenu] = useState<{ row: SearchResult; x: number; y: number }>();
+  const [menu, setMenu] = useState<{
+    row: SearchResult;
+    x: number;
+    y: number;
+  }>();
 
   const submit = () =>
     onSearch({
@@ -237,7 +271,11 @@ export function SearchFrame({
           label="Search result"
           position={{ x: menu.x, y: menu.y }}
           items={[
-            { label: "Download", bold: true, onSelect: () => onDownload(menu.row) },
+            {
+              label: "Download",
+              bold: true,
+              onSelect: () => onDownload(menu.row),
+            },
             { label: "Download to...", disabled: true },
             { label: "Download whole directory", disabled: true },
             { separator: true },

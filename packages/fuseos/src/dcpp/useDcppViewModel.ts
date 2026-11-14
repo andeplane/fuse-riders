@@ -150,7 +150,9 @@ export function useDcppViewModel(): DcppViewModel {
       const { delivery } = item;
       if (delivery.kind === "repo") openInNotepad(delivery.path);
       else if (delivery.kind === "track") {
-        const track = deps.tracks.find((entry) => entry.id === delivery.trackId);
+        const track = deps.tracks.find(
+          (entry) => entry.id === delivery.trackId,
+        );
         if (!track) return;
         commands.open({ kind: "winamp" });
         playTrack(registry, fuseTrackName(track));

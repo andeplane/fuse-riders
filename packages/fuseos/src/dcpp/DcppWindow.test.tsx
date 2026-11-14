@@ -1,9 +1,18 @@
-import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import type { FakeDcClock } from "../__mocks__/dcpp";
 import { createFakeDcClock, createTestDcppDeps } from "../__mocks__/dcpp";
-import { createTestGames, renderWithProviders } from "../__mocks__/renderWithProviders";
+import {
+  createTestGames,
+  renderWithProviders,
+} from "../__mocks__/renderWithProviders";
 import { Desktop } from "../desktop/Desktop";
 import { windowMeta } from "../desktop/windowMeta";
 import { isWindowState, sameInstance } from "../state/appState";
@@ -50,7 +59,10 @@ const row = (gridName: string, text: string | RegExp) => {
   return tr;
 };
 const searchButton = () =>
-  within(dcpp().getByRole("form", { name: "Search options" })).getByRole("button", { name: "Search" });
+  within(dcpp().getByRole("form", { name: "Search options" })).getByRole(
+    "button",
+    { name: "Search" },
+  );
 const log = () => dcpp().getByRole("log", { name: "Main chat" });
 
 async function menu(name: string, item: string) {
@@ -70,18 +82,29 @@ async function shareC() {
   const settings = within(screen.getByRole("dialog", { name: "Settings" }));
   await user.click(settings.getByRole("button", { name: "Sharing" }));
   await user.click(settings.getByRole("button", { name: "Add folder" }));
-  const pick = await screen.findByRole("button", { name: /^\(C:\) fuse-games — \d/ });
+  const pick = await screen.findByRole("button", {
+    name: /^\(C:\) fuse-games — \d/,
+  });
   await user.click(pick);
-  expect(settings.getByText(/^Total size: [\d.]+ (kB|MB)$/)).toBeInTheDocument();
+  expect(
+    settings.getByText(/^Total size: [\d.]+ (kB|MB)$/),
+  ).toBeInTheDocument();
   await user.click(settings.getByRole("button", { name: "OK" }));
 }
 
 describe("DC++ registration", () => {
   it("opens from ?open=dcpp, keeps one window and validates as stored state", () => {
-    expect(deepLinkContents(["dcpp"], { has: () => false })).toEqual([{ kind: "dcpp" }]);
+    expect(deepLinkContents(["dcpp"], { has: () => false })).toEqual([
+      { kind: "dcpp" },
+    ]);
     expect(sameInstance({ kind: "dcpp" }, { kind: "dcpp" })).toBe(true);
     expect(sameInstance({ kind: "dcpp" }, { kind: "winamp" })).toBe(false);
-    const window = { id: "w1", minimized: false, maximized: false, kind: "dcpp" } as const;
+    const window = {
+      id: "w1",
+      minimized: false,
+      maximized: false,
+      kind: "dcpp",
+    } as const;
     expect(isWindowState(window)).toBe(true);
     expect(windowMeta(window, createTestGames())).toMatchObject({
       title: "DC++ 0.401",
@@ -94,13 +117,20 @@ describe("DC++ registration", () => {
 describe("DC++", () => {
   it("opens on Public Hubs with the toolbar, the window tabs and the status bar", async () => {
     renderDcpp();
-    expect(screen.getByRole("dialog", { name: "DC++ 0.401" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "DC++ 0.401" }),
+    ).toBeInTheDocument();
     const hubs = grid("Public hubs");
     expect(hubs.getByText("FuseHub — Fuse Games fans")).toBeInTheDocument();
     expect(hubs.queryByText("Linux ISO Lovers #2")).toBeNull();
     expect(dcpp().getByText("Hubs: 7")).toBeInTheDocument();
-    expect(dcpp().getByRole("status")).toHaveTextContent("ReadyH: 0/0/0Slots: 3/3D: 0 BU: 0 BD: 0 B/s (0)U: 0 B/s (0)");
-    expect(dcpp().getByRole("tab", { name: "Public Hubs" })).toHaveAttribute("aria-selected", "true");
+    expect(dcpp().getByRole("status")).toHaveTextContent(
+      "ReadyH: 0/0/0Slots: 3/3D: 0 BU: 0 BD: 0 B/s (0)U: 0 B/s (0)",
+    );
+    expect(dcpp().getByRole("tab", { name: "Public Hubs" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     expect(toolbar("Reconnect")).toBeDisabled();
     const user = userEvent.setup();
     await user.type(dcpp().getByRole("textbox", { name: "Filter" }), "anime");
@@ -108,31 +138,54 @@ describe("DC++", () => {
     await user.click(dcpp().getByRole("button", { name: "Refresh" }));
     expect(dcpp().getByRole("status")).toHaveTextContent("Hub list downloaded");
     // Column sort: the header toggles up and down.
-    await user.click(grid("Public hubs").getByRole("columnheader", { name: "Users" }));
-    expect(grid("Public hubs").getByRole("columnheader", { name: /Users/ })).toHaveAttribute("aria-sort", "ascending");
-    await user.click(grid("Public hubs").getByRole("columnheader", { name: /Users/ }));
-    expect(grid("Public hubs").getByRole("columnheader", { name: /Users/ })).toHaveAttribute("aria-sort", "descending");
-    await user.click(grid("Public hubs").getByRole("columnheader", { name: "Address" }));
-    await user.click(grid("Public hubs").getByRole("columnheader", { name: "Min share" }));
+    await user.click(
+      grid("Public hubs").getByRole("columnheader", { name: "Users" }),
+    );
+    expect(
+      grid("Public hubs").getByRole("columnheader", { name: /Users/ }),
+    ).toHaveAttribute("aria-sort", "ascending");
+    await user.click(
+      grid("Public hubs").getByRole("columnheader", { name: /Users/ }),
+    );
+    expect(
+      grid("Public hubs").getByRole("columnheader", { name: /Users/ }),
+    ).toHaveAttribute("aria-sort", "descending");
+    await user.click(
+      grid("Public hubs").getByRole("columnheader", { name: "Address" }),
+    );
+    await user.click(
+      grid("Public hubs").getByRole("columnheader", { name: "Min share" }),
+    );
   });
 
   it("joins FuseHub, warns about the 0 B share, and keeps you once C:\\ is shared", async () => {
     const { advance } = renderDcpp();
     await connectFuseHub(advance);
-    expect(dcpp().getByRole("tab", { name: "FuseHub — Fuse Games fans" })).toHaveAttribute("aria-selected", "true");
+    expect(
+      dcpp().getByRole("tab", { name: "FuseHub — Fuse Games fans" }),
+    ).toHaveAttribute("aria-selected", "true");
     expect(log()).toHaveTextContent("*** Connected");
-    expect(log()).toHaveTextContent("<FuseBot> Welcome to FuseHub, home of the Fuse Games fans!");
-    expect(log()).toHaveTextContent(/You must share at least 100.00 kB to stay in this hub. You share 0 B. Kicking in 30s/);
+    expect(log()).toHaveTextContent(
+      "<FuseBot> Welcome to FuseHub, home of the Fuse Games fans!",
+    );
+    expect(log()).toHaveTextContent(
+      /You must share at least 100.00 kB to stay in this hub. You share 0 B. Kicking in 30s/,
+    );
     const users = grid("Users");
     expect(users.getByText("[OP]fuse_admin")).toBeInTheDocument();
     expect(dcpp().getByText(/^\d+ Users$/)).toBeInTheDocument();
     expect(dcpp().getByRole("status")).toHaveTextContent("H: 1/0/0");
     await shareC();
-    expect(log()).toHaveTextContent(/<FuseBot> Share check passed: [\d.]+ (kB|MB)\. Welcome, fuse_user\d+!/);
+    expect(log()).toHaveTextContent(
+      /<FuseBot> Share check passed: [\d.]+ (kB|MB)\. Welcome, fuse_user\d+!/,
+    );
     advance(31_000);
     expect(log()).not.toHaveTextContent("is kicking");
     const user = userEvent.setup();
-    await user.type(dcpp().getByRole("textbox", { name: "Message" }), "hello 2003{Enter}");
+    await user.type(
+      dcpp().getByRole("textbox", { name: "Message" }),
+      "hello 2003{Enter}",
+    );
     expect(log()).toHaveTextContent(/<fuse_user\d+> hello 2003/);
   });
 
@@ -140,16 +193,26 @@ describe("DC++", () => {
     const { advance } = renderDcpp();
     await connectFuseHub(advance);
     advance(30_000);
-    expect(log()).toHaveTextContent(/<FuseBot> FuseBot is kicking fuse_user\d+ because: Share below minimum \(0 B \/ 100\.00 kB\)/);
+    expect(log()).toHaveTextContent(
+      /<FuseBot> FuseBot is kicking fuse_user\d+ because: Share below minimum \(0 B \/ 100\.00 kB\)/,
+    );
     expect(dcpp().getByText(/^\[21:00\] Disconnected$/)).toBeInTheDocument();
-    expect(dcpp().getByRole("tab", { name: "FuseHub — Fuse Games fans" })).toHaveClass("dc-tab-offline");
+    expect(
+      dcpp().getByRole("tab", { name: "FuseHub — Fuse Games fans" }),
+    ).toHaveClass("dc-tab-offline");
     const user = userEvent.setup();
     // The status strip's own button, after the toolbar's.
-    await user.click(dcpp().getAllByRole("button", { name: "Reconnect" })[1] ?? document.body);
-    expect(dcpp().getByText(/^\[21:00\] Connecting to fusehub/)).toBeInTheDocument();
+    await user.click(
+      dcpp().getAllByRole("button", { name: "Reconnect" })[1] ?? document.body,
+    );
+    expect(
+      dcpp().getByText(/^\[21:00\] Connecting to fusehub/),
+    ).toBeInTheDocument();
     advance(CONNECT_DELAY_MS);
     await user.click(toolbar("Reconnect"));
-    expect(dcpp().getByText(/^\[21:00\] Connecting to fusehub/)).toBeInTheDocument();
+    expect(
+      dcpp().getByText(/^\[21:00\] Connecting to fusehub/),
+    ).toBeInTheDocument();
   });
 
   it("follows a full hub's redirect from the toolbar", async () => {
@@ -157,16 +220,24 @@ describe("DC++", () => {
     fireEvent.doubleClick(row("Public hubs", "Linux ISO Lovers"));
     advance(CONNECT_DELAY_MS);
     expect(log()).toHaveTextContent("This hub is full (500/500)");
-    expect(dcpp().getAllByText(/Use Follow redirect to go to linuxiso2/).length).toBeGreaterThan(0);
+    expect(
+      dcpp().getAllByText(/Use Follow redirect to go to linuxiso2/).length,
+    ).toBeGreaterThan(0);
     const user = userEvent.setup();
     await user.click(toolbar("Follow last redirect"));
     advance(CONNECT_DELAY_MS);
-    expect(dcpp().getByRole("tab", { name: "Linux ISO Lovers #2" })).toHaveAttribute("aria-selected", "true");
-    expect(log()).toHaveTextContent("Welcome to Linux ISO Lovers #2, the overflow hub.");
+    expect(
+      dcpp().getByRole("tab", { name: "Linux ISO Lovers #2" }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(log()).toHaveTextContent(
+      "Welcome to Linux ISO Lovers #2, the overflow hub.",
+    );
     // Back on the full hub, the status strip's button does the same.
     await user.click(dcpp().getByRole("tab", { name: "Linux ISO Lovers" }));
     await user.click(dcpp().getByRole("button", { name: "Follow redirect" }));
-    expect(dcpp().getByRole("tab", { name: "Linux ISO Lovers #2" })).toHaveAttribute("aria-selected", "true");
+    expect(
+      dcpp().getByRole("tab", { name: "Linux ISO Lovers #2" }),
+    ).toHaveAttribute("aria-selected", "true");
     expect(LINUX_HUB).toMatch(/linuxiso/);
   });
 
@@ -176,19 +247,32 @@ describe("DC++", () => {
     await shareC();
     const user = userEvent.setup();
     await user.click(toolbar("Search"));
-    await user.type(dcpp().getByRole("textbox", { name: "Search for" }), "README{Enter}");
-    expect(dcpp().getAllByText("Searching for README...").length).toBeGreaterThan(0);
+    await user.type(
+      dcpp().getByRole("textbox", { name: "Search for" }),
+      "README{Enter}",
+    );
+    expect(
+      dcpp().getAllByText("Searching for README...").length,
+    ).toBeGreaterThan(0);
     advance(SEARCH_DELAY_MS);
     const results = grid("Search results");
     expect(results.getAllByText("README.md").length).toBeGreaterThan(0);
     expect(results.getAllByText("fuse-games\\").length).toBeGreaterThan(0);
     fireEvent.doubleClick(row("Search results", "README.md"));
     advance(1_000);
-    expect(within(dcpp().getByRole("grid", { name: "Transfers" })).getByRole("progressbar")).toBeInTheDocument();
+    expect(
+      within(dcpp().getByRole("grid", { name: "Transfers" })).getByRole(
+        "progressbar",
+      ),
+    ).toBeInTheDocument();
     advance(30_000);
-    expect(await screen.findByRole("dialog", { name: "README.md - Notepad++" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("dialog", { name: "README.md - Notepad++" }),
+    ).toBeInTheDocument();
     await menu("View", "Finished Downloads");
-    expect(grid("Finished downloads").getByText("README.md")).toBeInTheDocument();
+    expect(
+      grid("Finished downloads").getByText("README.md"),
+    ).toBeInTheDocument();
     expect(dcpp().getByText("Items: 1")).toBeInTheDocument();
   });
 
@@ -199,34 +283,62 @@ describe("DC++", () => {
     await user.click(toolbar("Search"));
     const track = FUSE_TRACKS[3];
     if (!track) throw new Error("no track");
-    await user.type(dcpp().getByRole("textbox", { name: "Search for" }), `${track.title}{Enter}`);
+    await user.type(
+      dcpp().getByRole("textbox", { name: "Search for" }),
+      `${track.title}{Enter}`,
+    );
     advance(SEARCH_DELAY_MS);
-    fireEvent.doubleClick(row("Search results", new RegExp(`^${track.title}\\.`)));
+    fireEvent.doubleClick(
+      row("Search results", new RegExp(`^${track.title}\\.`)),
+    );
     advance(30_000);
-    expect(await screen.findByRole("region", { name: "Winamp" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("region", { name: "Winamp" }),
+    ).toBeInTheDocument();
     await waitFor(() => expect(winampPlayers[0]?.currentIndex).toBe(3));
     // Double-clicking it in Finished Downloads plays it again.
     await user.click(toolbar("Finished Downloads"));
-    fireEvent.doubleClick(row("Finished downloads", new RegExp(`^${track.title}\\.`)));
-    await user.click(dcpp().getAllByText(new RegExp(`^${track.title}\\.`))[0] ?? document.body);
-    fireEvent.contextMenu(row("Finished downloads", new RegExp(`^${track.title}\\.`)));
+    fireEvent.doubleClick(
+      row("Finished downloads", new RegExp(`^${track.title}\\.`)),
+    );
+    await user.click(
+      dcpp().getAllByText(new RegExp(`^${track.title}\\.`))[0] ?? document.body,
+    );
+    fireEvent.contextMenu(
+      row("Finished downloads", new RegExp(`^${track.title}\\.`)),
+    );
     await user.click(screen.getByRole("menuitem", { name: "Remove all" }));
     expect(grid("Finished downloads").queryAllByRole("row")).toHaveLength(1);
   });
 
   it("shows the classic failures in the Transfers pane and the Download Queue", async () => {
     const { advance } = renderDcpp();
-    fireEvent.doubleClick(row("Public hubs", "[EU] Movies & Music 100GB+ min share"));
+    fireEvent.doubleClick(
+      row("Public hubs", "[EU] Movies & Music 100GB+ min share"),
+    );
     advance(CONNECT_DELAY_MS);
     const user = userEvent.setup();
     await user.click(toolbar("Search"));
     await user.type(dcpp().getByRole("textbox", { name: "Search for" }), "iso");
-    await user.selectOptions(dcpp().getByRole("combobox", { name: "File type" }), "Any");
-    await user.selectOptions(dcpp().getByRole("combobox", { name: "Size mode" }), "atMost");
+    await user.selectOptions(
+      dcpp().getByRole("combobox", { name: "File type" }),
+      "Any",
+    );
+    await user.selectOptions(
+      dcpp().getByRole("combobox", { name: "Size mode" }),
+      "atMost",
+    );
     await user.type(dcpp().getByRole("textbox", { name: "Size" }), "1");
-    await user.selectOptions(dcpp().getByRole("combobox", { name: "Size unit" }), "GB");
-    await user.click(dcpp().getByRole("checkbox", { name: "Only users with free slots" }));
-    await user.click(dcpp().getByRole("checkbox", { name: "Only users with free slots" }));
+    await user.selectOptions(
+      dcpp().getByRole("combobox", { name: "Size unit" }),
+      "GB",
+    );
+    await user.click(
+      dcpp().getByRole("checkbox", { name: "Only users with free slots" }),
+    );
+    await user.click(
+      dcpp().getByRole("checkbox", { name: "Only users with free slots" }),
+    );
     await user.click(searchButton());
     advance(SEARCH_DELAY_MS);
     const isoRows = grid("Search results").getAllByText(/\.iso$/);
@@ -237,7 +349,9 @@ describe("DC++", () => {
     advance(60_000);
     const transfers = within(dcpp().getByRole("grid", { name: "Transfers" }));
     expect(
-      transfers.getAllByText(/No slots available|Connection timeout|Disconnected|File not available|Connection closed by remote user/).length,
+      transfers.getAllByText(
+        /No slots available|Connection timeout|Disconnected|File not available|Connection closed by remote user/,
+      ).length,
     ).toBeGreaterThan(0);
     await user.click(toolbar("Download Queue"));
     const queue = grid("Queued files");
@@ -245,21 +359,38 @@ describe("DC++", () => {
     await user.click(dcpp().getByRole("button", { name: "ISO\\Linux\\" }));
     fireEvent.contextMenu(queue.getAllByRole("row")[1] ?? document.body);
     await user.click(screen.getByRole("menuitem", { name: "Force attempt" }));
-    fireEvent.contextMenu(grid("Queued files").getAllByRole("row")[1] ?? document.body);
+    fireEvent.contextMenu(
+      grid("Queued files").getAllByRole("row")[1] ?? document.body,
+    );
     await user.click(screen.getByRole("menuitem", { name: "Remove" }));
     await user.click(
-      within(dcpp().getByRole("tree", { name: "Queued folders" })).getByRole("button", { name: "Download Queue" }),
+      within(dcpp().getByRole("tree", { name: "Queued folders" })).getByRole(
+        "button",
+        { name: "Download Queue" },
+      ),
     );
-    fireEvent.contextMenu(within(dcpp().getByRole("grid", { name: "Transfers" })).getAllByRole("row")[1] ?? document.body);
+    fireEvent.contextMenu(
+      within(dcpp().getByRole("grid", { name: "Transfers" })).getAllByRole(
+        "row",
+      )[1] ?? document.body,
+    );
     await user.click(screen.getByRole("menuitem", { name: "Force attempt" }));
-    fireEvent.contextMenu(within(dcpp().getByRole("grid", { name: "Transfers" })).getAllByRole("row")[1] ?? document.body);
-    await user.click(screen.getByRole("menuitem", { name: "Close connection" }));
+    fireEvent.contextMenu(
+      within(dcpp().getByRole("grid", { name: "Transfers" })).getAllByRole(
+        "row",
+      )[1] ?? document.body,
+    );
+    await user.click(
+      screen.getByRole("menuitem", { name: "Close connection" }),
+    );
     // Searching again with no hub left says why nothing comes back.
     await user.click(dcpp().getByRole("tab", { name: /\[EU\] Movies/ }));
     await user.click(dcpp().getByRole("button", { name: /^Close \[EU\]/ }));
     await user.click(dcpp().getByRole("tab", { name: "Search" }));
     await user.click(searchButton());
-    expect(dcpp().getAllByText("You are not connected to any hubs").length).toBeGreaterThan(0);
+    expect(
+      dcpp().getAllByText("You are not connected to any hubs").length,
+    ).toBeGreaterThan(0);
   });
 
   it("browses another user's file list and queues a file from it", async () => {
@@ -272,16 +403,27 @@ describe("DC++", () => {
     expect(dcpp().getAllByRole("tab")).toHaveLength(2);
     fireEvent.contextMenu(row("Users", "[OP]Mellow"));
     await user.click(screen.getByRole("menuitem", { name: "Get file list" }));
-    expect(dcpp().getByRole("tab", { name: "[OP]Mellow" })).toHaveAttribute("aria-selected", "true");
-    const tree = within(dcpp().getByRole("tree", { name: "[OP]Mellow's folders" }));
-    expect(tree.getByRole("button", { name: "[OP]Mellow" })).toBeInTheDocument();
+    expect(dcpp().getByRole("tab", { name: "[OP]Mellow" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    const tree = within(
+      dcpp().getByRole("tree", { name: "[OP]Mellow's folders" }),
+    );
+    expect(
+      tree.getByRole("button", { name: "[OP]Mellow" }),
+    ).toBeInTheDocument();
     fireEvent.doubleClick(row("[OP]Mellow's files", "Software"));
     expect(tree.getByRole("button", { name: "Software" })).toBeInTheDocument();
     fireEvent.contextMenu(row("[OP]Mellow's files", "DCPlusPlus-0.401.exe"));
     await user.click(screen.getByRole("menuitem", { name: "Download" }));
     fireEvent.doubleClick(row("[OP]Mellow's files", "Winamp 2.91 full.exe"));
     await user.click(tree.getByRole("button", { name: "[OP]Mellow" }));
-    expect(within(dcpp().getByRole("grid", { name: "Transfers" })).getByText("DCPlusPlus-0.401.exe")).toBeInTheDocument();
+    expect(
+      within(dcpp().getByRole("grid", { name: "Transfers" })).getByText(
+        "DCPlusPlus-0.401.exe",
+      ),
+    ).toBeInTheDocument();
     expect(dcpp().getByText(/^Files: \d+$/)).toBeInTheDocument();
     // Middle-click closes a tab.
     fireEvent(
@@ -293,7 +435,9 @@ describe("DC++", () => {
       dcpp().getByRole("tab", { name: "Chill Out Lounge" }),
       new MouseEvent("auxclick", { bubbles: true, button: 2 }),
     );
-    expect(dcpp().getByRole("tab", { name: "Chill Out Lounge" })).toBeInTheDocument();
+    expect(
+      dcpp().getByRole("tab", { name: "Chill Out Lounge" }),
+    ).toBeInTheDocument();
   });
 
   it("gets a file list from a search result too", async () => {
@@ -302,15 +446,22 @@ describe("DC++", () => {
     advance(CONNECT_DELAY_MS);
     const user = userEvent.setup();
     await menu("View", "Search");
-    await user.type(dcpp().getByRole("textbox", { name: "Search for" }), "kilobyte{Enter}");
+    await user.type(
+      dcpp().getByRole("textbox", { name: "Search for" }),
+      "kilobyte{Enter}",
+    );
     advance(SEARCH_DELAY_MS);
     fireEvent.contextMenu(row("Search results", /Kilobyte/));
     await user.click(screen.getByRole("menuitem", { name: "Get file list" }));
-    expect(dcpp().getByRole("tree", { name: /'s folders$/ })).toBeInTheDocument();
+    expect(
+      dcpp().getByRole("tree", { name: /'s folders$/ }),
+    ).toBeInTheDocument();
     await user.click(dcpp().getByRole("tab", { name: "Search" }));
     fireEvent.contextMenu(row("Search results", /Kilobyte/));
     await user.click(screen.getByRole("menuitem", { name: "Download" }));
-    expect(dcpp().getByRole("status")).toHaveTextContent("to the download queue");
+    expect(dcpp().getByRole("status")).toHaveTextContent(
+      "to the download queue",
+    );
   });
 
   it("marks hubs with unread chat in bold and lists every window in the Window menu", async () => {
@@ -319,12 +470,18 @@ describe("DC++", () => {
     const user = userEvent.setup();
     await user.click(dcpp().getByRole("tab", { name: "Public Hubs" }));
     advance(60_000);
-    expect(dcpp().getByRole("tab", { name: "FuseHub — Fuse Games fans" })).toHaveClass("dc-tab-unread");
+    expect(
+      dcpp().getByRole("tab", { name: "FuseHub — Fuse Games fans" }),
+    ).toHaveClass("dc-tab-unread");
     await menu("Window", "FuseHub — Fuse Games fans");
-    expect(dcpp().getByRole("tab", { name: "FuseHub — Fuse Games fans" })).not.toHaveClass("dc-tab-unread");
+    expect(
+      dcpp().getByRole("tab", { name: "FuseHub — Fuse Games fans" }),
+    ).not.toHaveClass("dc-tab-unread");
     advance(30_000);
     await menu("Window", "Close disconnected");
-    expect(dcpp().queryByRole("tab", { name: "FuseHub — Fuse Games fans" })).toBeNull();
+    expect(
+      dcpp().queryByRole("tab", { name: "FuseHub — Fuse Games fans" }),
+    ).toBeNull();
   });
 
   it("toggles the toolbar, status bar and transfer view, and opens Notepad, Favorites and About", async () => {
@@ -340,15 +497,22 @@ describe("DC++", () => {
     expect(dcpp().queryByRole("grid", { name: "Transfers" })).toBeNull();
     await menu("View", "Transfer view");
     await menu("View", "Notepad");
-    await user.type(dcpp().getByRole("textbox", { name: "Notepad" }), "hub list: fusehub");
+    await user.type(
+      dcpp().getByRole("textbox", { name: "Notepad" }),
+      "hub list: fusehub",
+    );
     await menu("View", "Download Queue");
     await user.click(toolbar("Notepad"));
-    expect(dcpp().getByRole("textbox", { name: "Notepad" })).toHaveValue("hub list: fusehub");
+    expect(dcpp().getByRole("textbox", { name: "Notepad" })).toHaveValue(
+      "hub list: fusehub",
+    );
     await menu("File", "Refresh file list");
     expect(dcpp().getByRole("status")).toHaveTextContent("File list refreshed");
     await menu("View", "Favorite Hubs");
     await user.click(toolbar("Favorite Hubs"));
-    await user.click(grid("Favorite hubs").getByText("FuseHub — Fuse Games fans"));
+    await user.click(
+      grid("Favorite hubs").getByText("FuseHub — Fuse Games fans"),
+    );
     await user.click(dcpp().getByRole("button", { name: "Connect" }));
     advance(CONNECT_DELAY_MS);
     expect(log()).toHaveTextContent("*** Connected");
@@ -358,10 +522,19 @@ describe("DC++", () => {
     await user.click(toolbar("Public Hubs"));
     fireEvent.contextMenu(row("Public hubs", "Anime Planet"));
     await user.click(screen.getByRole("menuitem", { name: "Connect" }));
-    expect(dcpp().getByRole("tab", { name: "Anime Planet" })).toBeInTheDocument();
+    expect(
+      dcpp().getByRole("tab", { name: "Anime Planet" }),
+    ).toBeInTheDocument();
     await menu("Help", "About DC++...");
-    expect(screen.getByRole("dialog", { name: "About DC++" })).toHaveTextContent("DC++ v0.401");
-    await user.click(within(screen.getByRole("dialog", { name: "About DC++" })).getByRole("button", { name: "OK" }));
+    expect(
+      screen.getByRole("dialog", { name: "About DC++" }),
+    ).toHaveTextContent("DC++ v0.401");
+    await user.click(
+      within(screen.getByRole("dialog", { name: "About DC++" })).getByRole(
+        "button",
+        { name: "OK" },
+      ),
+    );
     expect(screen.queryByRole("dialog", { name: "About DC++" })).toBeNull();
     await menu("View", "Finished Downloads");
   });
@@ -376,12 +549,20 @@ describe("DC++", () => {
     await user.type(nick, "Neo");
     await user.click(settings.getByRole("button", { name: "Sharing" }));
     await user.click(settings.getByRole("button", { name: "Add folder" }));
-    await user.click(within(screen.getByRole("dialog", { name: "Browse for Folder" })).getByRole("button", { name: "Cancel" }));
+    await user.click(
+      within(
+        screen.getByRole("dialog", { name: "Browse for Folder" }),
+      ).getByRole("button", { name: "Cancel" }),
+    );
     await user.click(settings.getByRole("button", { name: "Add folder" }));
     await user.click(await screen.findByRole("button", { name: /^\(C:\)/ }));
     await user.click(settings.getByRole("button", { name: "Add folder" }));
     expect(screen.getByRole("button", { name: /^\(C:\)/ })).toBeDisabled();
-    await user.click(within(screen.getByRole("dialog", { name: "Browse for Folder" })).getByRole("button", { name: "Cancel" }));
+    await user.click(
+      within(
+        screen.getByRole("dialog", { name: "Browse for Folder" }),
+      ).getByRole("button", { name: "Cancel" }),
+    );
     await user.click(settings.getByText("C:\\"));
     await user.click(settings.getByRole("button", { name: "Remove" }));
     expect(settings.getByText("Total size: 0 B")).toBeInTheDocument();
@@ -394,9 +575,16 @@ describe("DC++", () => {
     settings = within(screen.getByRole("dialog", { name: "Settings" }));
     await user.click(settings.getByRole("button", { name: "Cancel" }));
     await user.click(toolbar("Settings"));
-    await user.click(within(screen.getByRole("dialog", { name: "Settings" })).getByRole("button", { name: "Close" }));
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Settings" })).getByRole(
+        "button",
+        { name: "Close" },
+      ),
+    );
     // The child's close box, then the last one, leaves an empty MDI area.
-    await user.click(dcpp().getByRole("button", { name: "Close Chill Out Lounge" }));
+    await user.click(
+      dcpp().getByRole("button", { name: "Close Chill Out Lounge" }),
+    );
     await user.click(dcpp().getByRole("button", { name: "Close Public Hubs" }));
     expect(dcpp().queryAllByRole("tab")).toEqual([]);
     await menu("File", "Exit");

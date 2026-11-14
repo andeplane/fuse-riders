@@ -31,7 +31,18 @@ export const FILE_TYPES: readonly { value: FileType; label: string }[] = [
 
 const EXTENSIONS: Record<Exclude<FileType, "any" | "directory">, string[]> = {
   audio: ["mp3", "mp2", "wav", "au", "aiff", "m4a", "ogg", "wma", "mid", "mod"],
-  compressed: ["zip", "arj", "rar", "lzh", "gz", "z", "arc", "pak", "ace", "tgz"],
+  compressed: [
+    "zip",
+    "arj",
+    "rar",
+    "lzh",
+    "gz",
+    "z",
+    "arc",
+    "pak",
+    "ace",
+    "tgz",
+  ],
   document: ["htm", "html", "doc", "txt", "nfo", "pdf", "md", "json", "yml"],
   executable: ["exe", "com", "bat", "msi"],
   picture: ["gif", "jpg", "jpeg", "bmp", "pcx", "png", "wmf", "psd", "svg"],
@@ -103,8 +114,9 @@ export type SearchResult = {
 /** A stable made-up IP for a nick, so the same person keeps one address. */
 export function fakeIp(nick: string): string {
   let hash = 2166136261;
-  for (const char of nick) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619) >>> 0;
-  return `${62 + (hash % 150)}.${(hash >>> 8) % 254 + 1}.${(hash >>> 16) % 254 + 1}.${(hash >>> 24) % 254 + 1}`;
+  for (const char of nick)
+    hash = Math.imul(hash ^ char.charCodeAt(0), 16777619) >>> 0;
+  return `${62 + (hash % 150)}.${((hash >>> 8) % 254) + 1}.${((hash >>> 16) % 254) + 1}.${((hash >>> 24) % 254) + 1}`;
 }
 
 /** Every word must appear somewhere in the full path, as DC++'s substring search did. */
@@ -129,7 +141,8 @@ export function repoFiles(
 ): CatalogueFile[] {
   return files.map((file) => {
     const cut = file.path.lastIndexOf("/");
-    const folder = cut < 0 ? "" : `${file.path.slice(0, cut).replaceAll("/", "\\")}\\`;
+    const folder =
+      cut < 0 ? "" : `${file.path.slice(0, cut).replaceAll("/", "\\")}\\`;
     return {
       name: file.path.slice(cut + 1),
       path: `fuse-games\\${folder}`,
@@ -150,6 +163,19 @@ export function trackFiles(tracks: readonly FuseTrack[]): CatalogueFile[] {
     size: Math.round(track.duration * 16 * KiB),
     delivery: { kind: "track", trackId: track.id },
   }));
+}
+
+/** Results arrive as each user's client answers, not in share order: a seeded shuffle. */
+function arrivalOrder<T>(random: Random, items: T[]): T[] {
+  for (let index = items.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(random() * (index + 1));
+    const item = items[index];
+    const other = items[swap];
+    if (item === undefined || other === undefined) continue;
+    items[index] = other;
+    items[swap] = item;
+  }
+  return items;
 }
 
 /** One connected hub, with who is in it and what its people share. */
@@ -177,7 +203,7 @@ export function runSearch(
     if (!first) continue;
     const people: [HubUser, ...HubUser[]] = [first, ...rest];
     for (const file of source.files) {
-      if (results.length >= limit) return results;
+      if (results.length >= limit) return arrivalOrder(random, results);
       if (!matchesQuery(file, query)) continue;
       const copies = randomInt(random, 1, 3);
       for (let copy = 0; copy < copies && results.length < limit; copy += 1) {
@@ -200,7 +226,7 @@ export function runSearch(
       }
     }
   }
-  return results;
+  return arrivalOrder(random, results);
 }
 
 /** "At least 700 MB" from the Size box and its unit. */

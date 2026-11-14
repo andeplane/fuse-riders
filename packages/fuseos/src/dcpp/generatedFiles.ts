@@ -44,7 +44,18 @@ const ARTISTS: List = [
   "Midnight Telnet",
 ];
 
-const GENRES: List = ["Trance", "Rock", "Pop", "Hip-Hop", "Dance", "Metal", "Ambient", "Techno", "Drum & Bass", "Punk"];
+const GENRES: List = [
+  "Trance",
+  "Rock",
+  "Pop",
+  "Hip-Hop",
+  "Dance",
+  "Metal",
+  "Ambient",
+  "Techno",
+  "Drum & Bass",
+  "Punk",
+];
 
 const WORDS: List = [
   "Love",
@@ -79,7 +90,17 @@ const WORDS: List = [
   "Crystal",
 ];
 
-const MIXES: List = ["", "", "", " (Radio Edit)", " (Extended Mix)", " (Club Mix)", " (Live)", " (Acoustic)", " (Remix)"];
+const MIXES: List = [
+  "",
+  "",
+  "",
+  " (Radio Edit)",
+  " (Extended Mix)",
+  " (Club Mix)",
+  " (Live)",
+  " (Acoustic)",
+  " (Remix)",
+];
 
 const MOVIE_WORDS: List = [
   "Teh Matricks",
@@ -104,9 +125,29 @@ const MOVIE_WORDS: List = [
   "Cast Away Again",
 ];
 
-const SOURCES: List = ["DVDRip", "DVDRip", "TS", "CAM", "TC", "SCREENER", "VCD", "SVCD"];
+const SOURCES: List = [
+  "DVDRip",
+  "DVDRip",
+  "TS",
+  "CAM",
+  "TC",
+  "SCREENER",
+  "VCD",
+  "SVCD",
+];
 const CODECS: List = ["DivX", "XviD", "XviD", "DivX5"];
-const GROUPS: List = ["LAMERZ", "DiVXFREAK", "SVCDTEAM", "BLiNG", "MOViEKiDS", "NoGRP", "iNVENTED", "FAKE", "56KTEAM", "DSLRiPS"];
+const GROUPS: List = [
+  "LAMERZ",
+  "DiVXFREAK",
+  "SVCDTEAM",
+  "BLiNG",
+  "MOViEKiDS",
+  "NoGRP",
+  "iNVENTED",
+  "FAKE",
+  "56KTEAM",
+  "DSLRiPS",
+];
 
 const SHOWS: List = [
   "Friendz",
@@ -134,7 +175,14 @@ const ANIME: List = [
   "Fullmetal Panic Button",
 ];
 
-const FANSUBS: List = ["AnimeKai", "Ani-Kraze", "SubZero-Fansubs", "Lunar", "Hikari-Subs", "DattebaYo"];
+const FANSUBS: List = [
+  "AnimeKai",
+  "Ani-Kraze",
+  "SubZero-Fansubs",
+  "Lunar",
+  "Hikari-Subs",
+  "DattebaYo",
+];
 
 const DISTROS: readonly [string, number][] = [
   ["debian-30r1-i386-binary-1.iso", 646],
@@ -189,11 +237,38 @@ const GAMES: List = [
   "Liero 1.36.zip",
 ];
 
-const BOOK_TOPICS: List = ["C++", "Java", "Linux", "PHP", "Perl", "HTML 4", "Networking", "Photoshop 7", "SQL", "Windows XP", "Python", "Flash MX"];
+const BOOK_TOPICS: List = [
+  "C++",
+  "Java",
+  "Linux",
+  "PHP",
+  "Perl",
+  "HTML 4",
+  "Networking",
+  "Photoshop 7",
+  "SQL",
+  "Windows XP",
+  "Python",
+  "Flash MX",
+];
 
-const BOOK_FORMS: List = ["Learn {} Fast.pdf", "{} Bible 2nd Edition.chm", "Teach Yourself {} in a Weekend.pdf", "{} Cookbook.chm", "{} Pocket Reference.pdf"];
+const BOOK_FORMS: List = [
+  "Learn {} Fast.pdf",
+  "{} Bible 2nd Edition.chm",
+  "Teach Yourself {} in a Weekend.pdf",
+  "{} Cookbook.chm",
+  "{} Pocket Reference.pdf",
+];
 
-const PHOTO_FOLDERS: List = ["Party 2003", "Vacation Spain", "Christmas 2002", "LAN party", "Graduation", "New car", "Cat"];
+const PHOTO_FOLDERS: List = [
+  "Party 2003",
+  "Vacation Spain",
+  "Christmas 2002",
+  "LAN party",
+  "Graduation",
+  "New car",
+  "Cat",
+];
 
 const FUNNY: List = [
   "dancing_baby.avi",
@@ -233,7 +308,11 @@ function albums(random: Random, count: number): CatalogueFile[] {
     const tracks = randomInt(random, 8, 15);
     for (let track = 1; track <= tracks; track += 1)
       files.push(
-        joke(folder, `${pad2(track)} - ${artist} - ${songTitle(random)}.mp3`, randomInt(random, 2800, 9500) * KiB),
+        joke(
+          folder,
+          `${pad2(track)} - ${artist} - ${songTitle(random)}.mp3`,
+          randomInt(random, 2800, 9500) * KiB,
+        ),
       );
   }
   return files;
@@ -242,7 +321,11 @@ function albums(random: Random, count: number): CatalogueFile[] {
 function singles(random: Random, count: number): CatalogueFile[] {
   return Array.from({ length: count }, () => {
     const artist = pick(random, ARTISTS);
-    return joke(`MP3\\Singles\\`, `${artist} - ${songTitle(random)}.mp3`, randomInt(random, 2500, 12_000) * KiB);
+    return joke(
+      `MP3\\Singles\\`,
+      `${artist} - ${songTitle(random)}.mp3`,
+      randomInt(random, 2500, 12_000) * KiB,
+    );
   });
 }
 
@@ -260,9 +343,20 @@ function movies(random: Random, count: number): CatalogueFile[] {
     const ext = svcd ? "mpg" : "avi";
     const folder = `Movies\\${release}\\`;
     for (let disc = 1; disc <= discs; disc += 1)
-      files.push(joke(folder, `${release}.CD${disc}.${ext}`, randomInt(random, 680, 800) * MiB));
-    files.push(joke(folder, `${group.toLowerCase()}.nfo`, randomInt(random, 2, 9) * KiB));
-    if (random() < 0.6) files.push(joke(folder, `${release}.sub`, randomInt(random, 40, 90) * KiB));
+      files.push(
+        joke(
+          folder,
+          `${release}.CD${disc}.${ext}`,
+          randomInt(random, 680, 800) * MiB,
+        ),
+      );
+    files.push(
+      joke(folder, `${group.toLowerCase()}.nfo`, randomInt(random, 2, 9) * KiB),
+    );
+    if (random() < 0.6)
+      files.push(
+        joke(folder, `${release}.sub`, randomInt(random, 40, 90) * KiB),
+      );
   }
   return files;
 }
@@ -301,11 +395,21 @@ function anime(random: Random, count: number): CatalogueFile[] {
         .toUpperCase()
         .padStart(8, "0");
       files.push(
-        joke(`Anime\\${show}\\`, `[${fansub}] ${show} - ${pad2(episode)} [${crc}].${ext}`, randomInt(random, 160, 240) * MiB),
+        joke(
+          `Anime\\${show}\\`,
+          `[${fansub}] ${show} - ${pad2(episode)} [${crc}].${ext}`,
+          randomInt(random, 160, 240) * MiB,
+        ),
       );
     }
     if (random() < 0.4)
-      files.push(joke(`Anime\\OST\\${show}\\`, `${show} OST - ${pad2(randomInt(random, 1, 20))} - ${songTitle(random)}.mp3`, randomInt(random, 3000, 8000) * KiB));
+      files.push(
+        joke(
+          `Anime\\OST\\${show}\\`,
+          `${show} OST - ${pad2(randomInt(random, 1, 20))} - ${songTitle(random)}.mp3`,
+          randomInt(random, 3000, 8000) * KiB,
+        ),
+      );
   }
   return files;
 }
@@ -317,7 +421,13 @@ function photos(random: Random, folders: number): CatalogueFile[] {
     const first = randomInt(random, 1, 4000);
     const count = randomInt(random, 10, 40);
     for (let photo = first; photo < first + count; photo += 1)
-      files.push(joke(`My Pictures\\${name}\\`, `DSC${String(photo).padStart(5, "0")}.JPG`, randomInt(random, 450, 1400) * KiB));
+      files.push(
+        joke(
+          `My Pictures\\${name}\\`,
+          `DSC${String(photo).padStart(5, "0")}.JPG`,
+          randomInt(random, 450, 1400) * KiB,
+        ),
+      );
   }
   return files;
 }
@@ -334,16 +444,34 @@ export function generateCatalogue(random: Random): CatalogueFile[] {
     ...DISTROS.map(([name, size]) => joke("ISO\\Linux\\", name, size * MiB)),
     joke("Source\\Kernel\\", "linux-2.4.22.tar.gz", 31 * MiB),
     joke("Source\\Kernel\\", "linux-2.6.0-test9.tar.bz2", 32 * MiB),
-    ...APPS.map((name) => joke("Software\\", name, randomInt(random, 900, 90_000) * KiB)),
-    ...GAMES.map((name) => joke("Games\\", name, randomInt(random, 20, 400) * MiB)),
+    ...APPS.map((name) =>
+      joke("Software\\", name, randomInt(random, 900, 90_000) * KiB),
+    ),
+    ...GAMES.map((name) =>
+      joke("Games\\", name, randomInt(random, 20, 400) * MiB),
+    ),
     joke("Games\\Emulators\\", "ZSNES 1.36 + Every Rom Ever.zip", 2.3 * GiB),
     ...BOOK_TOPICS.flatMap((topic) =>
       BOOK_FORMS.filter(() => random() < 0.6).map((form) =>
-        joke(`eBooks\\Computers\\`, form.replace("{}", topic), randomInt(random, 900, 14_000) * KiB),
+        joke(
+          `eBooks\\Computers\\`,
+          form.replace("{}", topic),
+          randomInt(random, 900, 14_000) * KiB,
+        ),
       ),
     ),
-    ...FUNNY.map((name) => joke("Funny\\", name, randomInt(random, 300, 6000) * KiB)),
-    joke("Software\\Skins\\", "Winamp Skins Mega Collection 2003.zip", 48 * MiB),
-    joke("Pictures\\Wallpapers\\", "Cute Kitten Wallpapers 1024x768.zip", 23 * MiB),
+    ...FUNNY.map((name) =>
+      joke("Funny\\", name, randomInt(random, 300, 6000) * KiB),
+    ),
+    joke(
+      "Software\\Skins\\",
+      "Winamp Skins Mega Collection 2003.zip",
+      48 * MiB,
+    ),
+    joke(
+      "Pictures\\Wallpapers\\",
+      "Cute Kitten Wallpapers 1024x768.zip",
+      23 * MiB,
+    ),
   ];
 }
