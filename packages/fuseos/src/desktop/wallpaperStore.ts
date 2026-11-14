@@ -14,7 +14,7 @@ export interface WallpaperStore {
   set(dataUrl: string | undefined): void;
 }
 
-export const WALLPAPER_KEY = "industrial-os.wallpaper";
+export const WALLPAPER_KEY = "fuseos.wallpaper";
 
 /** localStorage backed store; every access is guarded because storage can be unavailable. */
 export class LocalStorageWallpaperStore implements WallpaperStore {

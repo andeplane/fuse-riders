@@ -235,7 +235,7 @@ export function isEntry(raw: unknown): raw is Entry {
 }
 
 /** The engine command an accepted control entry asks of `seat`. */
-function command(entry: ControlEntry, seat: number): Command {
+export function command(entry: ControlEntry, seat: number): Command {
   const [, , kind, , a = 0, b = 0, c = 0, d, e, f] = entry;
   if (kind === STEER) return { seat, type: "steer", dx: a, dy: b };
   if (kind === BUY) return { seat, type: "buy", item: a };
@@ -290,7 +290,7 @@ const seatOrder = (seats: Iterable<SeatRecord>) =>
 const sitter = (room: Room, slot: number) =>
   [...room.seats.values()].find((s) => !s.watcher && s.slot === slot);
 /** Whether `slot`'s hero and army follow a connected rider (else a bot plays it). */
-const ridden = (room: Room, slot: number) => {
+export const ridden = (room: Room, slot: number) => {
   const seat = sitter(room, slot);
   return seat !== undefined && !seat.bot && seat.connected;
 };

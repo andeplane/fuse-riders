@@ -4,7 +4,7 @@ export type MediaErrorCause = "csp" | "unknown";
  * What went wrong loading a track: a definitive CSP report naming the blocked directive, or
  * a generic media load failure. `element` (the `<audio>` element itself) is only carried on
  * the generic 'unknown' cause, from the direct `error` event listener; it lets the caller
- * retry a CDF track once with a freshly resolved download URL before treating it as a real
+ * retry a remote track once with a freshly resolved download URL before treating it as a real
  * failure (an expired signed URL looks identical to a broken file otherwise).
  */
 export type MediaErrorInfo = {

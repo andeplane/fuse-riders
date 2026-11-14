@@ -14,8 +14,12 @@ pnpm dev          # builds, then serves every game; open the printed URL plus /f
 `pnpm exec tsx service/dev.ts --port 8890` serves an existing `dist/` and walks to the next free port if that one is taken. Open `/fusemania/?mute` (silent: no sound and no sound preference is stored, and the arrows follow the room's clock) or `/fusemania/` to hear it, and pick one of:
 
 - **Play, Single player**: the song select. Pick a song (or press **RANDOM SONG**), a level and a mode, then **PLAY**. The result shows the grade, the score, every judgment count and this browser's best on that chart. **PLAY YOUR OWN STEPMANIA FILE** takes a simfile and its music from this device; nothing is uploaded.
-- **Play, Host room**: a room with a QR invite, for up to five players. The host picks the song and the mode; every player picks their own level. **+ ADD AI RIVAL** seats a bot. Tick **Shared TV** first to play on one screen: the TV shows every field and each phone becomes four pads.
+- **Play, Host room**: a room with a QR invite, for up to five players. The players and their Join buttons are on top. Under them the host has the song select, the mode and the session; every other player sees the chosen song as one card (cover, tempo, mode, session) and picks only their own level and speed. **+ ADD AI RIVAL** seats a bot. Tick **Shared TV** first to play on one screen: the TV shows every field and each phone becomes four pads.
 - **Settings**: keys, scroll speed and direction, the three timing offsets (audio, input, visual) and **CALIBRATE**.
+
+**The song select** is a carousel of covers, the selected song in the middle. Left/Right (A/D, J/L), a swipe, a sideways scroll, the arrows at its sides or a click on a cover turn it; Up/Down (W/S, I/K) change the level; PageUp/PageDown or a pack's tab jump to another pack. Songs are grouped in **packs** (`src/app/packs.ts`), shown in pack order with a tab each: FUSEMANIA is the Fuse soundtrack, and DDR JAZZ MIX and ITG JAZZ MIX have their place in the order and appear when their first song is added (see "Adding a song" in `charts/README.md`). Each bundled song has a cover image in `public/music/covers/<id>.jpg`; a song without one, and a player's own simfile, wears a cover drawn from its id.
+
+**The other players' fields.** With more than one player, a device shows every field: its own lit and framed in the player's colour (in the middle of three or five players, on the left of two or four) and the others' smaller beside it, so an attack can be seen landing. Their judgments, combos, attacks and power-ups are shown as they are, but their arrows are not there to be read: every column is drawn in another column's place, the same shuffle for every opponent, changing from match to match (`src/render/scramble.ts`). It is only the picture; the Shared TV and a watcher see every field as it is.
 
 **Your speed.** The song select shows every player's own speed as chips (0.5x, 1x, 1.5x, 2x, 2.5x, 3x, 4x, 5x), and the Settings slider reaches the values between. It is saved on the device and only spreads that player's arrows apart on their own screen: the engine never sees it, so the beat, the judging and every other player are unchanged.
 
@@ -43,7 +47,9 @@ A step is judged by how far the press is from the note: Marvelous within 22 ms, 
 
 ## Battle mode
 
-Every few seconds one arrow glows. Hitting it puts a power-up in your slot, better ones the further behind you are; Space throws it.
+Every few seconds one arrow glows. Hitting it puts a power-up in your slot; Space throws it.
+
+The drops rubber-band on the score. Each power-up has a power from 1 to 10 (`ITEM_POWER` in `src/engine/rules.ts`): for an attack, how hard it is to keep playing through (Flip 10, Blackout 8, Mines and Lag 7, down to Wave 2); for your own items, how much they are worth (Star 9, Double 8, Shield 2); Fade is 6 and Ping-pong 3. A rider behind the others draws the high-power ones more often and a rider ahead the low-power ones, in proportion to the gap: your rating against the others' average, as a share of the best rating, with 20% counting as a full gap. At a full gap Flip is about one drop in 170 for the leader and one in 9 for the rider behind; level riders get the plain `ITEM_BASE` table. `ITEM_BASE`, `ITEM_POWER`, `ITEM_TILT`, `ITEM_GAP_FULL_PCT` and `ITEM_GAP_FLOOR` are the knobs.
 
 | Power-up                                                       | What it does                                                |
 | -------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -53,8 +59,12 @@ Every few seconds one arrow glows. Hitting it puts a power-up in your slot, bett
 | Double                                                         | Your points count twice for a while                         |
 | Star                                                           | Plays your arrows for you, perfectly, for a few seconds     |
 | Shield                                                         | Blocks the next attack thrown at you                        |
+| Fade                                                           | One rival's music fades away for five to ten seconds        |
+| Ping-pong                                                      | One rival's music bounces from ear to ear on the beat       |
 
 An attack takes hold a moment after it is thrown, so a rival sees it coming.
+
+Fade and Ping-pong go for the ears, and land on one rival picked by the match's seed (a rider before a bot, the same one on every device). They change only how loud that rival's own device plays the song in each ear (`src/app/song-fx.ts`, through `ClockedSong.shape`): nothing is delayed or filtered, so the clock, the arrows and the judging are untouched. A fade leaves a trace of the song (4%) and Ping-pong is turned down as it swings, so neither is ever louder than the song. On a shared screen the one song is everybody's, so they do nothing there.
 
 ## Timing
 

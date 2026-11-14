@@ -250,6 +250,44 @@ describe(Solitaire.name, () => {
     ).toHaveAttribute("data-back", "Robot");
   });
 
+  it("picks a card back with a double click, and Cancel in either dialog changes nothing", async () => {
+    const user = userEvent.setup();
+    renderGame();
+    await user.click(screen.getByRole("menuitem", { name: "Game" }));
+    await user.click(screen.getByRole("menuitem", { name: "Deck..." }));
+    const deck = screen.getByRole("dialog", { name: "Select Card Back" });
+    await user.click(within(deck).getByRole("button", { name: "Robot" }));
+    await user.click(within(deck).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    const stock = () =>
+      within(screen.getByRole("button", { name: "Stock, 24 cards" })).getByRole(
+        "img",
+      );
+    expect(stock()).toHaveAttribute("data-back", "Blue diamonds");
+
+    await user.click(screen.getByRole("menuitem", { name: "Game" }));
+    await user.click(screen.getByRole("menuitem", { name: "Deck..." }));
+    await user.dblClick(
+      within(
+        screen.getByRole("dialog", { name: "Select Card Back" }),
+      ).getByRole("button", { name: "Robot" }),
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(stock()).toHaveAttribute("data-back", "Robot");
+
+    await user.click(screen.getByRole("menuitem", { name: "Game" }));
+    await user.click(screen.getByRole("menuitem", { name: "Options..." }));
+    const options = screen.getByRole("dialog", { name: "Options" });
+    await user.click(within(options).getByLabelText("Draw one"));
+    await user.click(within(options).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    // Still dealing three: the stock is untouched and the waste takes three on a click.
+    await user.click(screen.getByRole("button", { name: "Stock, 24 cards" }));
+    expect(
+      screen.getByRole("button", { name: "Stock, 21 cards" }),
+    ).toBeInTheDocument();
+  });
+
   it("redeals with the options chosen in the Options dialog", async () => {
     const user = userEvent.setup();
     renderGame();

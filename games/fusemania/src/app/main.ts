@@ -70,6 +70,7 @@ import { createScene } from "../render/scene.js";
 import { LIBRARY, SONGS_DATA } from "../songs.js";
 import { browserCanvas } from "./attract.js";
 import { createSfx, cuesBetween } from "./audio.js";
+import { songShape } from "./song-fx.js";
 import {
   COLUMN_ACTIONS,
   MAX_OFFSET_MS,
@@ -122,6 +123,8 @@ import {
 } from "./timing-bias.js";
 import { createSongClock } from "./song-clock.js";
 import { createSongPicker } from "./song-picker.js";
+import { coverPath } from "./covers.js";
+import { packsOf } from "./packs.js";
 
 /**
  * The Fusemania page's glue: it reads the query, builds the screens from fuse-ui components, wires the runtime to
@@ -198,6 +201,11 @@ const songUrl = (path: string) => {
 };
 /** A song that exists only on this page: a loaded simfile, or the timing lab's click track. */
 const localSong = (id: string) => id === CUSTOM || clickRate(id) !== undefined;
+/** A song's cover image, for the songs that ship with one. */
+const coverUrl = (song: { id: string }): string | undefined => {
+  const path = coverPath(song.id);
+  return path && `${BASE}${path}`;
+};
 
 /** The id a loaded simfile's song goes by. */
 const CUSTOM = "custom";
@@ -429,6 +437,8 @@ function landing(): void {
     onChart: (chart) => show({ ...choice, chart }),
     onMode: (mode) => show({ ...choice, mode }),
     best: bestLookup(library),
+    cover: coverUrl,
+    packs: packsOf(library.songs, CUSTOM),
   });
   const show = (next: Choice) => {
     if (next.song !== choice.song || next.chart !== choice.chart) sfx.blip();
@@ -560,6 +570,11 @@ function landing(): void {
   const help = keyHelp();
   card.menu.addSettings(settings.element);
   card.menu.help.append(help);
+  /** The select sits in the menu's own dialog: only another one on top takes the keys away. */
+  const otherDialogOpen = () =>
+    [...document.querySelectorAll("dialog[open]")].some(
+      (dialog) => !dialog.contains(picker.element),
+    );
   const onKey = (event: KeyboardEvent) => {
     if (
       settings.busy ||
@@ -568,7 +583,7 @@ function landing(): void {
       event.altKey ||
       !picker.element.isConnected ||
       picker.element.offsetParent === null ||
-      document.querySelector("dialog[open]") ||
+      otherDialogOpen() ||
       menu.isOpen() ||
       event.target instanceof HTMLInputElement ||
       event.target instanceof HTMLTextAreaElement ||
@@ -734,6 +749,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     onMode: (mode) =>
       runtime.command({ type: "settings", settings: { ...settings, mode } }),
     best: bestLookup(library),
+    cover: coverUrl,
+    packs: packsOf(library.songs, CUSTOM),
   });
   // Beside the song select: every player's own speed, and the host's random song and session.
   const options = createPlayOptions({
@@ -1177,10 +1194,18 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     const mine = local === -1 ? undefined : view.players[local];
     if (mine && !mine.bot && running && songClock.audible)
       collector.observe(mine, `${epoch}:${prefs.offsetMs}`);
+    const timing = library.timing(view.song);
+    // Fade and Ping-pong change this device's own song, for the rider playing on it. A shared screen plays one song
+    // for everybody in the room, so there it is left alone.
+    if (song) {
+      const shape = mine
+        ? songShape(mine.effects, heard, timing?.beatAt(heard / 1000) ?? 0)
+        : undefined;
+      song.shape(shape?.level ?? 1, shape?.pan ?? 0);
+    }
     if (stage.hidden) return;
     // The frame is seen a refresh after it starts: the arrows are drawn where the sound will be then.
     const drawn = heard + frameLead.ms + prefs.visualMs;
-    const timing = library.timing(view.song);
     const beat = timing?.beatAt(drawn / 1000) ?? 0;
     scene.draw(view, {
       songMs: drawn,
@@ -1638,7 +1663,10 @@ function room(solo: boolean, library: Library, first?: Choice): void {
         rematch.click();
       } else if (
         model?.screen === "lobby" &&
-        !typing(event.target) &&
+        // A cover, an arrow or a chip that was just clicked keeps the focus: the carousel's keys still turn it.
+        (!typing(event.target) ||
+          (event.target instanceof HTMLButtonElement &&
+            picker.element.contains(event.target))) &&
         picker.element.offsetParent !== null &&
         !PAGE_KEYS.has(event.code) &&
         picker.key(event.code)

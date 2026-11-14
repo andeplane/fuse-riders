@@ -4,6 +4,7 @@ import { parseHTML } from "linkedom";
 import {
   createPlayOptions,
   lengthLabel,
+  sessionLine,
   speedLabel,
   type OptionsState,
   type PlayOptionsOptions,
@@ -96,13 +97,34 @@ test("the session is the host's: how many songs, and who chooses them", () => {
   options.update(state({ songs: 5, random: true }));
   assert.deepEqual(pressed(".fm-option-order"), ["RANDOM"]);
 
-  // A guest reads the host's choice and cannot change it.
+  // The host has the chips and no summary line.
+  const songs =
+      options.element.querySelector<HTMLElement>(".fm-options-songs")!,
+    summary = options.element.querySelector<HTMLElement>(
+      ".fm-options-summary",
+    )!;
+  assert.equal(songs.hidden, false);
+  assert.equal(summary.hidden, true);
+
+  // A guest reads the host's choice as one line and has no chips to press.
   options.update(state({ songs: 5, random: true, host: false }));
-  assert.deepEqual(pressed(".fm-option-songs"), ["5 SONGS"]);
+  assert.equal(songs.hidden, true);
+  assert.equal(order.hidden, true);
+  assert.equal(summary.hidden, false);
+  assert.equal(summary.querySelector("b")?.textContent, "5 SONGS · RANDOM");
   assert.ok(
     [...all(".fm-option-songs"), ...all(".fm-option-order")].every(
       (node) => node.disabled,
     ),
+  );
+  options.update(state({ songs: 3, host: false }));
+  assert.equal(summary.querySelector("b")?.textContent, "3 SONGS · HOST PICKS");
+  assert.equal(sessionLine(1, true), "1 SONG", "one song has no order");
+  // The speed stays every player's own.
+  assert.equal(all(".fm-option-speed").length > 0, true);
+  assert.equal(
+    options.element.querySelector<HTMLElement>(".fm-options-speed")!.hidden,
+    false,
   );
 });
 

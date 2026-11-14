@@ -17,9 +17,16 @@ export interface RetroGameWindowContent {
   game: GameId;
 }
 
+/** Start > Programs > Games > Retro Games: a folder window listing the retro games as icons. Reused when already open. */
+export interface RetroFolderWindowContent {
+  kind: "retroFolder";
+}
+
 export interface ControlPanelWindowContent {
   kind: "controlpanel";
   applet: ControlPanelApplet;
+  /** The tab the applet opens on (Display Properties: "screensaver"); absent for the first one. */
+  tab?: string;
 }
 
 /** Start > Programs > Accessories > Change desktop background: a small window over the wallpaper picker. Reused when already open. */
@@ -42,11 +49,26 @@ export interface PaintWindowContent {
   kind: "paint";
   /** Name of the local file on the canvas; absent for a new drawing. */
   fileName?: string;
+  /** An image to fetch and draw when the window mounts (Explorer opening a repo image); Save downloads a copy, never writes back. */
+  sourceUrl?: string;
 }
 
 /** Winamp: a media player over Webamp. The playlist itself is transient (object URLs do not survive a reload). Reused when already open. */
 export interface WinampWindowContent {
   kind: "winamp";
+}
+
+/** Explorer over My Computer: `location` is "" (My Computer), "C:", "C:/packages/fuseos", "A:" (see disk/diskPath.ts). */
+export interface ExplorerWindowContent {
+  kind: "explorer";
+  location: string;
+}
+
+/** Notepad++ with its open tabs (repository paths or "A:/..." locations); drafts live in the window, saves in the overlay. Reused when already open. */
+export interface NotepadPlusPlusWindowContent {
+  kind: "notepadpp";
+  paths: string[];
+  activePath?: string;
 }
 
 /** Fusteam, the game launcher (`src/launcher`): opens on every boot, one instance, focused rather than duplicated. */
@@ -57,12 +79,15 @@ export interface LauncherWindowContent {
 export type WindowContent =
   | FuseGameWindowContent
   | RetroGameWindowContent
+  | RetroFolderWindowContent
   | ControlPanelWindowContent
   | WallpaperWindowContent
   | AboutWindowContent
   | DialogWindowContent
   | PaintWindowContent
   | WinampWindowContent
+  | ExplorerWindowContent
+  | NotepadPlusPlusWindowContent
   | LauncherWindowContent;
 
 export type WindowKind = WindowContent["kind"];
@@ -82,8 +107,16 @@ export interface AppState {
 
 export const DEFAULT_STATE: AppState = { version: 1, windows: [] };
 
+/** How `open` creates a window it does not find already open; an existing one keeps its id and size state. */
+export type OpenOptions = {
+  /** A fixed id (the launcher's) instead of the next `w<n>`; an open window under that id is focused instead. */
+  id?: string;
+  /** Opens maximized (the launcher on a display it would not fit); default restored. */
+  maximized?: boolean;
+};
+
 export type AppAction =
-  | { type: "open"; content: WindowContent; id?: string }
+  | { type: "open"; content: WindowContent; options?: OpenOptions }
   | { type: "close"; id: string }
   | { type: "focus"; id: string }
   | { type: "minimize"; id: string }
@@ -98,6 +131,71 @@ export function nextWindowId(windows: readonly WindowState[]): string {
     return match ? Math.max(acc, Number(match[1])) : acc;
   }, 0);
   return `w${max + 1}`;
+}
+
+/**
+ * Whether `content` would open the same window as `existing`: the single-instance programs (Winamp, the
+ * wallpaper picker, About, the Retro Games folder, the Fusteam launcher, Notepad++ with its tabs), one window per
+ * retro game, per Fuse game, per Control Panel applet, per Explorer location and per picture. Paint and dialogs
+ * open as many times as asked. `open` focuses the existing window instead of adding another, whatever asked: an
+ * icon, the Start menu, Clippy or a `?open=` deep link over a stored desktop that already holds it (the boot's
+ * launcher, say).
+ */
+export function sameInstance(
+  content: WindowContent,
+  existing: WindowContent,
+): boolean {
+  switch (content.kind) {
+    case "winamp":
+    case "wallpaper":
+    case "about":
+    case "retroFolder":
+    case "launcher":
+      return existing.kind === content.kind;
+    case "retro":
+      return existing.kind === "retro" && existing.game === content.game;
+    case "fusegame":
+      return existing.kind === "fusegame" && existing.gameId === content.gameId;
+    case "controlpanel":
+      return (
+        existing.kind === "controlpanel" && existing.applet === content.applet
+      );
+    case "notepadpp":
+      return existing.kind === "notepadpp";
+    case "explorer":
+      return (
+        existing.kind === "explorer" && existing.location === content.location
+      );
+    case "paint":
+    case "dialog":
+      return false;
+  }
+}
+
+/**
+ * What re-opening an instance asks of the window it already has: the Display dialog switches to the tab
+ * named (Start > Settings > Screen Saver while it is up), Notepad++ gains the files as tabs and shows the
+ * one asked for; everything else keeps the window as it is.
+ */
+export function mergeInstance(
+  existing: WindowState,
+  content: WindowContent,
+): WindowState {
+  if (existing.kind === "controlpanel" && content.kind === "controlpanel")
+    return content.tab === undefined
+      ? existing
+      : { ...existing, tab: content.tab };
+  if (existing.kind === "notepadpp" && content.kind === "notepadpp") {
+    const added = content.paths.filter(
+      (path) => !existing.paths.includes(path),
+    );
+    return {
+      ...existing,
+      paths: [...existing.paths, ...added],
+      activePath: content.activePath ?? content.paths[0] ?? existing.activePath,
+    };
+  }
+  return existing;
 }
 
 function toFront(windows: WindowState[], id: string): WindowState[] {
@@ -120,15 +218,35 @@ function patchWindow(
 export function appStateReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case "open": {
-      const id = action.id ?? nextWindowId(state.windows);
-      if (state.windows.some((window) => window.id === id)) {
-        return { ...state, windows: toFront(state.windows, id) };
+      const options = action.options ?? {};
+      // The same program by kind first (a launcher a deep link once stored under a generated id), then by id.
+      const existing =
+        state.windows.find((window) => sameInstance(action.content, window)) ??
+        (options.id === undefined
+          ? undefined
+          : state.windows.find((window) => window.id === options.id));
+      if (existing) {
+        return {
+          ...state,
+          windows: toFront(
+            patchWindow(state.windows, existing.id, (window) =>
+              mergeInstance(window, action.content),
+            ),
+            existing.id,
+          ),
+        };
       }
+      const id = options.id ?? nextWindowId(state.windows);
       return {
         ...state,
         windows: [
           ...state.windows,
-          { id, minimized: false, maximized: false, ...action.content },
+          {
+            id,
+            minimized: false,
+            maximized: options.maximized ?? false,
+            ...action.content,
+          },
         ],
       };
     }
@@ -210,10 +328,14 @@ function isWindowContent(
     case "retro":
       return isGameId(value.game);
     case "controlpanel":
-      return isControlPanelApplet(value.applet);
+      return (
+        isControlPanelApplet(value.applet) &&
+        (value.tab === undefined || typeof value.tab === "string")
+      );
     case "wallpaper":
     case "about":
     case "winamp":
+    case "retroFolder":
     case "launcher":
       return true;
     case "dialog":
@@ -223,7 +345,18 @@ function isWindowContent(
         (value.icon === "warning" || value.icon === "info")
       );
     case "paint":
-      return value.fileName === undefined || typeof value.fileName === "string";
+      return (
+        (value.fileName === undefined || typeof value.fileName === "string") &&
+        (value.sourceUrl === undefined || typeof value.sourceUrl === "string")
+      );
+    case "explorer":
+      return typeof value.location === "string";
+    case "notepadpp":
+      return (
+        Array.isArray(value.paths) &&
+        value.paths.every((path) => typeof path === "string") &&
+        (value.activePath === undefined || typeof value.activePath === "string")
+      );
     default:
       return false;
   }

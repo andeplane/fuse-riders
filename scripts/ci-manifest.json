@@ -274,6 +274,19 @@
       "serviceUrlEnv": "ONLINE_URL",
       "timeoutMinutes": 20,
       "retries": 1
+    },
+    {
+      "id": "fuseos",
+      "batch": "chrome-batch",
+      "group": "fuseos",
+      "name": "FuseOS desktop boots, embeds a game and restores a deep link",
+      "why": "The desktop fronts every game from the built site: boot, a game window whose frame is the game's own muted page, the Games applet's tab launch through a stubbed window.open, and a ?open= link. Screenshots in artifacts/fuseos.",
+      "command": "pnpm exec tsx scripts/fuseos-smoke.ts",
+      "browsers": ["chrome"],
+      "env": {},
+      "serviceUrlEnv": "HOME_URL",
+      "timeoutMinutes": 10,
+      "retries": 1
     }
   ]
 }

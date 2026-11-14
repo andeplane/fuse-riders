@@ -39,7 +39,27 @@ describe("Programs > Games", () => {
     const games = within(lastList)
       .getAllByRole("menuitem")
       .map((item) => item.textContent);
-    expect(games).toEqual(GAME_LIST.map((game) => game.name));
+    expect(games).toEqual([
+      "Open Retro Games folder",
+      ...GAME_LIST.map((game) => game.name),
+    ]);
+  });
+
+  it("brings an open game to the front instead of opening it twice", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Desktop />);
+    await openGame(user, "DOOM");
+    await openGame(user, "SkiFree");
+    expect(screen.getByRole("dialog", { name: "DOOM" })).toHaveAttribute(
+      "data-active",
+      "false",
+    );
+    await openGame(user, "DOOM");
+    expect(screen.getAllByRole("dialog", { name: "DOOM" })).toHaveLength(1);
+    expect(screen.getByRole("dialog", { name: "DOOM" })).toHaveAttribute(
+      "data-active",
+      "true",
+    );
   });
 
   it("opens DOOM in a resizable window that boots the self-hosted DOS player straight away", async () => {

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-0.5 0 8 8" shape-rendering="crispEdges">
+  <!-- The FuseOS mark: four waving panes in the Fuse games' accents (packages/fuseos/src/assets/fuseOsMark.ts). -->
+  <rect x="0" y="0" width="1" height="3" fill="#16e7ff"/><rect x="1" y="1" width="1" height="3" fill="#16e7ff"/><rect x="2" y="0" width="1" height="3" fill="#16e7ff"/>
+  <rect x="4" y="0" width="1" height="3" fill="#ff2e9d"/><rect x="5" y="1" width="1" height="3" fill="#ff2e9d"/><rect x="6" y="0" width="1" height="3" fill="#ff2e9d"/>
+  <rect x="0" y="4" width="1" height="3" fill="#ffe46b"/><rect x="1" y="5" width="1" height="3" fill="#ffe46b"/><rect x="2" y="4" width="1" height="3" fill="#ffe46b"/>
+  <rect x="4" y="4" width="1" height="3" fill="#3ddc84"/><rect x="5" y="5" width="1" height="3" fill="#3ddc84"/><rect x="6" y="4" width="1" height="3" fill="#3ddc84"/>
+</svg>

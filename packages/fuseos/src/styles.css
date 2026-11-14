@@ -121,124 +121,6 @@
       inset 2px 2px #0a0a0a;
   }
 
-  .boot-screen {
-    background: radial-gradient(ellipse at center, #06213f 0%, #000 70%);
-  }
-
-  .boot-title {
-    font-family: "Inter", "Space Grotesk", Arial, sans-serif;
-    text-shadow: 0 0 24px rgba(74, 143, 255, 0.6);
-    animation: boot-fade-in 900ms ease-out both;
-  }
-
-  .boot-title-accent {
-    color: #4a8fff;
-  }
-
-  .boot-progress {
-    width: 240px;
-    height: 12px;
-    padding: 2px;
-    border: 1px solid #808080;
-    background: #000;
-    overflow: hidden;
-  }
-
-  .boot-progress-bar {
-    width: 33%;
-    height: 100%;
-    background: repeating-linear-gradient(
-      90deg,
-      #4a8fff 0 8px,
-      #1c4fa8 8px 10px
-    );
-    animation: boot-slide 1.4s linear infinite;
-  }
-
-  @keyframes boot-slide {
-    from {
-      transform: translateX(-100%);
-    }
-    to {
-      transform: translateX(300%);
-    }
-  }
-
-  @keyframes boot-fade-in {
-    from {
-      opacity: 0;
-      transform: translateY(8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  /* Windows 98 boot screen, recoloured. */
-  .boot-screen {
-    background: #000;
-  }
-
-  .boot-splash {
-    animation: boot-fade-in 700ms ease-out both;
-  }
-
-  .boot-title {
-    font-family: "Inter", "Space Grotesk", Arial, sans-serif;
-    letter-spacing: -0.02em;
-    text-shadow: 0 0 28px rgba(74, 143, 255, 0.45);
-    animation: boot-fade-in 900ms ease-out both;
-  }
-
-  .boot-title-accent {
-    color: #4a8fff;
-    margin-left: 0.15em;
-  }
-
-  /* The bar along the bottom edge: a blue gradient block that slides across forever. */
-  .boot-bar {
-    height: 12px;
-    background: #000;
-    overflow: hidden;
-  }
-
-  .boot-bar-glow {
-    width: 20%;
-    height: 100%;
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      #0b2a6b 25%,
-      #4a8fff 50%,
-      #9ec5ff 60%,
-      #4a8fff 70%,
-      #0b2a6b 85%,
-      transparent 100%
-    );
-    animation: boot-bar-slide 1.8s linear infinite;
-  }
-
-  @keyframes boot-bar-slide {
-    from {
-      transform: translateX(-100%);
-    }
-    to {
-      transform: translateX(500%);
-    }
-  }
-
-  @keyframes boot-fade-in {
-    from {
-      opacity: 0;
-      transform: translateY(8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
   /* The Office Assistant's balloon: the classic yellow bubble with a tail pointing at the character. */
   .assistant-balloon {
     position: relative;
@@ -323,16 +205,44 @@
     writing-mode: vertical-rl;
     transform: rotate(180deg);
   }
+
+  /* Keyboard navigation of the Start menu highlights the focused item the way hover does. */
+  .menu-item:focus-visible {
+    background: navy;
+    color: #fff;
+    outline: none;
+  }
 }
 
-/* Keep event names inside the narrow day cells; the full label is also a tooltip. */
-.calendar-event {
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: left;
-  font-size: 11px;
-  padding: 2px 3px;
+/*
+ * Touch screens: the chrome keeps its Windows 98 proportions but the targets grow to a
+ * finger's width (title bar buttons, taskbar, menu rows). Windows themselves open maximized
+ * below 900px (windows/windowManager.ts, COMPACT_MAX_WIDTH), so there is nothing to drag.
+ */
+@media (pointer: coarse) {
+  .win98 .title-bar {
+    padding: 4px 3px;
+  }
+
+  .win98 .title-bar-controls button {
+    min-width: 22px;
+    min-height: 20px;
+  }
+
+  .win98 .menu-item {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .win98 [role="menu"] [role="menuitem"] {
+    min-height: 32px;
+  }
+}
+
+/* Narrow screens: one icon column of room, a taskbar that does not spill, and a Start menu that scrolls. */
+@media (max-width: 899px) {
+  .win98 [data-start-menu] [role="menu"] {
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+  }
 }

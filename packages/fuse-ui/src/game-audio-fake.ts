@@ -10,6 +10,7 @@ import type {
   MusicElement,
   NodeLike,
   OscillatorLike,
+  PannerLike,
   ParamLike,
 } from "./game-audio.js";
 import { createMemoryStorage } from "./safe-storage.js";
@@ -60,6 +61,8 @@ export function createAudioRig(state: AudioContextState = "running") {
     fetches: 0,
   };
   const gains: GainLike[] = [];
+  /** Every stereo panner made: one per shaped song. */
+  const panners: PannerLike[] = [];
   /** Every buffer source made: the noises and the clocked songs. */
   const buffers: FakeBufferSource[] = [];
   /** What `fetchAudio` serves, by URL; `addSong` fills it with a file that decodes. */
@@ -97,6 +100,11 @@ export function createAudioRig(state: AudioContextState = "running") {
       type: "lowpass",
       frequency: param(),
     }),
+    createStereoPanner: () => {
+      const p: PannerLike = { ...node(), pan: param() };
+      panners.push(p);
+      return p;
+    },
     createBuffer: (_c, length, sampleRate) => ({
       duration: length / sampleRate,
       getChannelData: () => new Float32Array(length),
@@ -189,6 +197,7 @@ export function createAudioRig(state: AudioContextState = "running") {
     timers,
     storage,
     gains,
+    panners,
     buffers,
     files,
     addSong,
@@ -225,6 +234,8 @@ export interface FakeClockedSong extends ClockedSong {
   /** Every `play`, as it was asked for. */
   readonly plays: { at: number; offset: number }[];
   stops: number;
+  /** The newest `shape`. */
+  shaped: { level: number; pan: number };
   /**
    * The song position (seconds) scheduled at audio-clock time `at`: negative while a delayed start waits, undefined
    * when nothing is playing. What is heard at clock time `t` is `scheduled(t - latency)`.
@@ -246,6 +257,7 @@ export function createFakeClockedSong(
     duration,
     plays: [],
     stops: 0,
+    shaped: { level: 1, pan: 0 },
     get playing() {
       return live !== undefined;
     },
@@ -260,6 +272,9 @@ export function createFakeClockedSong(
     stop() {
       if (live) song.stops++;
       live = undefined;
+    },
+    shape(level, pan) {
+      song.shaped = { level, pan };
     },
     scheduled: (at) => (live ? live.offset + (at - live.at) : undefined),
     end() {

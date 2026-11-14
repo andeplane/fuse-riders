@@ -1,4 +1,5 @@
 import { RoomRuntime, type Callbacks, type RuntimeOptions } from "fuse-netcode";
+import type { Command } from "../engine/index.js";
 import {
   ATTACK,
   ATTACK_MOVE,
@@ -8,6 +9,7 @@ import {
   SELL,
   STEER,
   USE_ITEM,
+  command,
   frontGame,
   type Entry,
   type FrontEvent,
@@ -35,6 +37,8 @@ export class FrontRuntime extends RoomRuntime<
   FrontEvent,
   Settings
 > {
+  /** The orders this device has logged that the room may not have folded yet, with the log tick each was stamped. */
+  private logged: { tick: number; matchId: string; command: Command }[] = [];
   constructor(
     code: string,
     settings: Settings,
@@ -59,9 +63,31 @@ export class FrontRuntime extends RoomRuntime<
   /** Logs `[kind, matchId, ...args]` for this device's slot; false when it rides none or the page is hidden. */
   control(kind: number, ...args: number[]): boolean {
     if (this.slot() < 0 || this.hiddenState) return false;
-    this.append(kind, this.world!.state.matchId, ...args);
+    this.record(kind, args);
     this.sendPackets(this.deps.now());
     return true;
+  }
+  private record(kind: number, args: number[]): void {
+    const matchId = this.world!.state.matchId,
+      tick = this.append(kind, matchId, ...args);
+    this.logged.push({
+      tick,
+      matchId,
+      command: command([0, tick, kind, matchId, ...args], this.slot()),
+    });
+    // The fold takes no more than a handful a tick; a burst beyond that is not worth predicting.
+    if (this.logged.length > 16) this.logged.shift();
+  }
+  /**
+   * This device's orders the newest folded world has not seen: the screen plays them on its forward run, so a click
+   * shows before the room folds it. Empty once the fold has caught up.
+   */
+  pending(): readonly Command[] {
+    const room = this.world?.state;
+    this.logged = this.logged.filter(
+      (each) => room && each.matchId === room.matchId && each.tick > room.tick,
+    );
+    return this.logged.map((each) => each.command);
   }
   /** Sends the hero to a tile; `queued` puts the order behind its current one (shift-click) instead. */
   move(x: number, y: number, queued = false): boolean {
@@ -112,8 +138,12 @@ export class FrontRuntime extends RoomRuntime<
   /** A hidden page lets go of the stick, so the hero does not walk on unattended. */
   protected releaseControls(): void {
     if (this.slot() >= 0) {
-      this.append(STEER, this.world!.state.matchId, 0, 0);
+      this.record(STEER, [0, 0]);
       this.sendPackets(this.deps.now());
     }
+  }
+  /** The log was reset (a resync): what was logged before it is gone. */
+  protected resetControls(): void {
+    this.logged = [];
   }
 }

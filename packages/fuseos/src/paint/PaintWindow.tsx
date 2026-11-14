@@ -5,7 +5,12 @@ import type { MenuDef } from "../windows/MenuBar";
 import { MenuBar } from "../windows/MenuBar";
 import { useWindowCommands } from "../windows/useWindowCommands";
 
-import { ConfirmDialog, PaintModal, TextDialog } from "./PaintDialogs";
+import {
+  ConfirmDialog,
+  PaintModal,
+  SaveAsDialog,
+  TextDialog,
+} from "./PaintDialogs";
 import { PaintStateProvider } from "./PaintStateProvider";
 import type { Point } from "./paintTools";
 import { BRUSH_SIZES, PAINT_TOOLS } from "./paintTools";
@@ -196,6 +201,15 @@ function Dialogs({ vm }: { vm: PaintViewModel }) {
           onCancel={vm.cancelText}
         />
       );
+    case "saveAs":
+      return (
+        <SaveAsDialog
+          defaultName={vm.saveDefaults.name}
+          defaultFormat={vm.saveDefaults.format}
+          onSave={vm.requestSave}
+          onCancel={vm.closeDialog}
+        />
+      );
     case "busy":
       return (
         <PaintModal title="Paint">
@@ -215,7 +229,7 @@ function PaintBody({ windowId }: { windowId: string }) {
         { label: "New", onSelect: vm.newImage },
         { label: "Open...", onSelect: vm.openImage },
         { label: "Save", onSelect: vm.save },
-        { label: "Save As...", onSelect: vm.save },
+        { label: "Save As...", onSelect: vm.showSaveAs },
         { separator: true },
         { label: "Set As Wallpaper", onSelect: vm.setAsWallpaper },
         { separator: true },

@@ -28,8 +28,9 @@ import {
   PeerTransport,
   validRoomCode,
 } from "fuse-network-fe";
-import { MAX_PACKET_BYTES } from "fuse-netcode";
-import { DRAW, teamOf, type WorldView } from "../engine/index.js";
+import { MAX_PACKET_BYTES, createLeadClock, ticksAhead } from "fuse-netcode";
+import { DRAW, TILE, teamOf, type WorldView } from "../engine/index.js";
+import { createForward, createSmoother, ordersOf } from "./forward.js";
 import { DEFAULT_SETTINGS, type View } from "../online/game.js";
 import { mapsFor } from "../online/maps.js";
 import { FrontRuntime } from "../online/runtime.js";
@@ -94,6 +95,10 @@ const store = safeStorage(() => localStorage);
 // `?mute` and `?2d` (the pixel battlefield) stay on every link the page makes; `?quality=low|high`, read once here, fixes
 // the 3D look.
 const params = new URLSearchParams(location.search);
+/** `?lead=off` draws the old way, a tick behind the clock and blended, to compare the feel against. */
+const drawAhead = params.get("lead") !== "off",
+  /** `?probe` publishes where this device's hero was last drawn, for `scripts/lead-press-latency.ts`. */
+  probe = params.has("probe");
 const sticky = ["mute", "2d"].filter((flag) => params.has(flag));
 const link = (query = "") =>
   endpoints.appUrl(
@@ -599,6 +604,10 @@ function room(code: string, token: string | undefined, display: boolean): void {
   let drag: { id: number; x: number; y: number; moved: boolean } | undefined;
   let last = performance.now();
   let raf = 0;
+  // The battlefield alone is drawn ahead of the fold (`forward.ts`); the HUD and every sound read the folded world.
+  const forward = createForward(),
+    smoother = createSmoother(3 * TILE),
+    leadClock = createLeadClock();
   const fit = (world: WorldView) => {
     const width = play.getBoundingClientRect().width - 6;
     const top = canvas.getBoundingClientRect().top + scrollY;
@@ -649,7 +658,51 @@ function room(code: string, token: string | undefined, display: boolean): void {
       }
     }
     const before = older?.world ?? undefined;
-    field.draw(newer.matchId, world, before, t, runtime.slot(), now);
+    const room = runtime.roomState(),
+      lead =
+        drawAhead && room?.world && room.world.step === world.step
+          ? forward(
+              room,
+              leadClock(ticksAhead(timing), newer.logTick, now),
+              timing.revision ?? 0,
+              runtime.pending(),
+            )
+          : undefined;
+    const ahead =
+      lead &&
+      room?.world &&
+      smoother.apply(
+        lead,
+        newer.matchId,
+        timing.revision ?? 0,
+        now,
+        runtime.slot(),
+        room.world.step,
+        ordersOf(room.world),
+      );
+    if (probe) {
+      const seat = runtime.slot(),
+        mine = (view: WorldView | undefined) =>
+          view?.heroes.find((hero) => hero.seat === seat);
+      const to = mine(ahead ? ahead.world : world),
+        from = mine(ahead ? ahead.before : before) ?? to,
+        part = ahead ? ahead.t : t;
+      Reflect.set(window, "__leadProbe", {
+        at: performance.now(),
+        x: to && from && from.x + (to.x - from.x) * part,
+        y: to && from && from.y + (to.y - from.y) * part,
+      });
+    }
+    if (ahead)
+      field.draw(
+        newer.matchId,
+        ahead.world,
+        ahead.before,
+        ahead.t,
+        runtime.slot(),
+        now,
+      );
+    else field.draw(newer.matchId, world, before, t, runtime.slot(), now);
     const box = field.box(world);
     hud.cameraBox(box);
     audio.camera = box;

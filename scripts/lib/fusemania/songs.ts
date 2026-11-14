@@ -12,7 +12,21 @@ export interface SongSpec {
   readonly file: string;
   /** The site-relative URL of the audio, no leading slash. */
   readonly audio: string;
+  /** The id of the pack (`PACKS`) the song select groups the song under. */
+  readonly pack: string;
 }
+
+/**
+ * The song packs, in the order the song select shows them. A pack with no songs yet is simply not shown.
+ * A pack's audio lives in `public/music/<pack id>/`: see `packed` below.
+ */
+export const PACKS: readonly { readonly id: string; readonly name: string }[] =
+  [
+    { id: "fusemania", name: "FUSEMANIA" },
+    { id: "ddr-jazz-mix", name: "DDR JAZZ MIX" },
+    { id: "itg-jazz-mix", name: "ITG JAZZ MIX" },
+  ];
+const FUSE_PACK = "fusemania";
 
 const radio = (id: string, title: string): SongSpec => ({
   id,
@@ -20,6 +34,7 @@ const radio = (id: string, title: string): SongSpec => ({
   artist: "Fuse",
   file: `public/music/${id}.m4a`,
   audio: `music/${id}.m4a`,
+  pack: FUSE_PACK,
 });
 const game = (folder: string, id: string, title: string): SongSpec => ({
   id,
@@ -27,6 +42,7 @@ const game = (folder: string, id: string, title: string): SongSpec => ({
   artist: "Fuse",
   file: `public/music/${folder}/${id}.mp3`,
   audio: `music/${folder}/${id}.mp3`,
+  pack: FUSE_PACK,
 });
 // `games/killer-fuse/public/` is served from the site root (the `gamePublic` plugin in vite.config.ts).
 const killerFuse = (id: string, title: string): SongSpec => ({
@@ -35,6 +51,25 @@ const killerFuse = (id: string, title: string): SongSpec => ({
   artist: "Fuse",
   file: `games/killer-fuse/public/killer-fuse/audio/music/${id}.mp3`,
   audio: `killer-fuse/audio/music/${id}.mp3`,
+  pack: FUSE_PACK,
+});
+/**
+ * A song of a pack other than the first: its audio is `public/music/<pack>/<id>.<ext>`. One line here, the audio
+ * file there, and `pnpm exec tsx scripts/fusemania-charts.ts` charts it and puts it in the carousel under its pack.
+ */
+export const packed = (
+  pack: string,
+  id: string,
+  title: string,
+  artist = "Fuse",
+  ext = "mp3",
+): SongSpec => ({
+  id,
+  title,
+  artist,
+  file: `public/music/${pack}/${id}.${ext}`,
+  audio: `music/${pack}/${id}.${ext}`,
+  pack,
 });
 
 export const SONGS: readonly SongSpec[] = [
@@ -58,6 +93,8 @@ export const SONGS: readonly SongSpec[] = [
   game("fuseball", "sudden-death", "Sudden Death"),
   killerFuse("match-day", "Match Day"),
   killerFuse("victory", "Victory"),
+  // DDR JAZZ MIX: packed("ddr-jazz-mix", "<file name>", "<Title>"),
+  // ITG JAZZ MIX: packed("itg-jazz-mix", "<file name>", "<Title>"),
 ];
 
 export const songById = (id: string): SongSpec | undefined =>

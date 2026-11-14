@@ -1,24 +1,39 @@
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { DesktopUiContext } from "../desktop/desktopUiContext";
 import { FuseGamesContext } from "../fusegames/registry";
-import type { ChatMessage } from "../llm/llmChat";
+import type { ChatBackend, ChatMessage } from "../llm/llmChat";
+import { buildSystemPrompt } from "../llm/systemPrompt";
+import type { AssistantTool, ToolCallEvent } from "../llm/tools";
 import { useAppState } from "../state/useAppState";
 import type { MenuPosition } from "../windows/menuPosition";
 import { useWindowCommands } from "../windows/useWindowCommands";
 
 import { AssistantDepsContext } from "./assistantDepsContext";
-import type { AnimationRequest, AssistantSpeech } from "./assistantState";
+import type {
+  AnimationRequest,
+  AssistantSpeech,
+  ToolCallReport,
+} from "./assistantState";
 import {
   assistantZIndex,
   currentMood,
   tipPrompt,
   visibleSpeech,
 } from "./assistantState";
+import { useRegisteredAssistantTools } from "./assistantToolsContext";
+import { useDesktopTools } from "./desktopTools";
 import type { SpriteAgent } from "./spritePlayer";
 
 export const NO_CHAT_REASON =
-  "Clippy cannot answer questions yet: a model that runs in this browser arrives in a later update. The tips still work.";
+  "Clippy cannot answer questions here: no chat is wired into this desktop. The tips still work.";
 /** How long the GoodBye animation gets before the character is hidden. */
 export const GOODBYE_MS = 1800;
 
@@ -57,6 +72,12 @@ export type OfficeAssistantViewModel = {
     isStreaming: boolean;
     progress: string | null;
     error: string | null;
+    /** Who answers: the model, or the rules (with why) in a browser without WebGPU. */
+    backend: ChatBackend;
+    /** The tool calls of the current turn, for the inline status lines. */
+    calls: readonly ToolCallReport[];
+    /** Every tool a reply may invoke: the desktop's and the ones windows registered. */
+    tools: readonly AssistantTool[];
   };
   ask: (text: string) => Promise<void>;
   newChat: () => void;
@@ -113,9 +134,41 @@ export function useOfficeAssistantViewModel(): OfficeAssistantViewModel {
       `FuseOS desktop. Games installed: ${games.games.map((game) => game.name).join(", ") || "none"}. Windows open: ${state.windows.map((window) => window.kind).join(", ") || "none"}.`,
     [games, state.windows],
   );
-  const chat = deps.useChat({ getAppContext });
+  const desktopTools = useDesktopTools();
+  const registeredTools = useRegisteredAssistantTools();
+  const tools = useMemo(
+    () => [...desktopTools.tools, ...registeredTools],
+    [desktopTools.tools, registeredTools],
+  );
+  const getSystemPrompt = useCallback(
+    () => buildSystemPrompt(desktopTools.prompt, tools),
+    [desktopTools.prompt, tools],
+  );
+  const onToolCall = useCallback(
+    (event: ToolCallEvent) =>
+      assistantDispatch({
+        type: "toolCall",
+        report: { ...event, origin: "chat" },
+      }),
+    [assistantDispatch],
+  );
+  const chat = deps.useChat({
+    getAppContext,
+    getSystemPrompt,
+    tools,
+    onToolCall,
+  });
   const available = deps.chatAvailable;
   const unavailableReason = available ? undefined : NO_CHAT_REASON;
+
+  // The model is downloading or loading: the character processes until the first token.
+  const wasLoading = useRef(false);
+  useEffect(() => {
+    const loading = chat.progress !== null && chat.progress !== "Thinking";
+    if (loading && !wasLoading.current)
+      assistantDispatch({ type: "chatLoading" });
+    wasLoading.current = loading;
+  }, [chat.progress, assistantDispatch]);
 
   // The first visit: greet, and open the balloon, until the greeting is answered.
   useEffect(() => {
@@ -217,6 +270,9 @@ export function useOfficeAssistantViewModel(): OfficeAssistantViewModel {
       isStreaming: chat.isStreaming,
       progress: chat.progress,
       error: chat.error,
+      backend: chat.backend,
+      calls: assistant.turnCalls,
+      tools,
     },
     ask,
     newChat: () => {

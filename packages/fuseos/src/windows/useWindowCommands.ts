@@ -1,10 +1,11 @@
 import { useCallback, useMemo } from "react";
 
-import type { WindowContent } from "../state/appState";
+import type { OpenOptions, WindowContent } from "../state/appState";
 import { useAppState } from "../state/useAppState";
 
 export type WindowCommands = {
-  open: (content: WindowContent, id?: string) => void;
+  /** Opens a window, or focuses the one already open for a single-instance program (`sameInstance`). */
+  open: (content: WindowContent, options?: OpenOptions) => void;
   close: (id: string) => void;
   focus: (id: string) => void;
   minimize: (id: string) => void;
@@ -17,8 +18,8 @@ export type WindowCommands = {
 export function useWindowCommands(): WindowCommands {
   const { dispatch } = useAppState();
   const open = useCallback(
-    (content: WindowContent, id?: string) =>
-      dispatch({ type: "open", content, id }),
+    (content: WindowContent, options?: OpenOptions) =>
+      dispatch({ type: "open", content, options }),
     [dispatch],
   );
   const close = useCallback(

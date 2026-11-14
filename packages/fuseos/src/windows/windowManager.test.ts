@@ -1,9 +1,11 @@
 import {
+  COMPACT_MAX_WIDTH,
   MIN_WINDOW_HEIGHT,
   MIN_WINDOW_WIDTH,
   TASKBAR_HEIGHT,
   clampRect,
   defaultRect,
+  isCompactViewport,
 } from "./windowManager";
 
 const viewport = { width: 1200, height: 800 };
@@ -61,5 +63,18 @@ describe(clampRect.name, () => {
     );
     expect(rect.x).toBe(0);
     expect(rect.y).toBe(0);
+  });
+});
+
+describe(isCompactViewport.name, () => {
+  it("is compact below the window launch cut-off, whatever the height", () => {
+    expect(isCompactViewport({ width: 390, height: 844 })).toBe(true);
+    expect(
+      isCompactViewport({ width: COMPACT_MAX_WIDTH - 1, height: 400 }),
+    ).toBe(true);
+    expect(isCompactViewport({ width: COMPACT_MAX_WIDTH, height: 400 })).toBe(
+      false,
+    );
+    expect(isCompactViewport({ width: 1280, height: 800 })).toBe(false);
   });
 });

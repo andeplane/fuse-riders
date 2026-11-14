@@ -1,7 +1,7 @@
 /**
  * Copies the Clippy Office Assistant from the clippyjs package into
- * public/assistant/clippy so the sprite sheet, the frame table and the sounds
- * are served from our own origin (the Flows CSP allows nothing else).
+ * public/fuseos/clippy so the sprite sheet, the frame table and the sounds
+ * are served from our own origin.
  *
  * clippyjs ships the agent as ES modules: the frame table as an object, the
  * sprite sheet and every sound as data URIs. They are written out as
@@ -9,15 +9,15 @@
  * the clippyjs runtime itself is not used.
  *
  * The copied files are committed; this script keeps them in sync with the
- * installed clippyjs version and runs before every build.
+ * installed clippyjs version; run it by hand through `pnpm fuseos:sync`.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const source = join(root, "node_modules", "clippyjs");
-const target = join(root, "public", "assistant", "clippy");
+const target = join(root, "public", "fuseos", "clippy");
 
 function dataUriToBuffer(uri, expectedType) {
   const match = /^data:([^;,]+);base64,(.*)$/s.exec(uri);
@@ -55,5 +55,5 @@ writeFileSync(
   `clippyjs ${version} (${license})\nhttps://github.com/pi0/clippyjs\nSprites and sounds: Microsoft Office Assistant "Clippit".\n`,
 );
 console.log(
-  `Copied Clippy from clippyjs ${version} to public/assistant/clippy (${Object.keys(agent.animations).length} animations, ${Object.keys(sounds).length} sounds)`,
+  `Copied Clippy from clippyjs ${version} to public/fuseos/clippy (${Object.keys(agent.animations).length} animations, ${Object.keys(sounds).length} sounds)`,
 );

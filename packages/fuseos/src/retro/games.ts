@@ -18,7 +18,7 @@ export type GameInfo = {
   source: string;
   /** How to play, in one line. */
   controls: string;
-  /** Licence or distribution terms, shown in listings and credited in docs/games/README.md. */
+  /** Licence or distribution terms, shown in the Retro Games folder's Details view and credited in docs/fuseos/retro-games.md. */
   licence: string;
   /** Window size the game opens at (clamped to the desktop). */
   windowSize: { width: number; height: number };

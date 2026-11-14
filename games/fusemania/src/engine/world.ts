@@ -4,6 +4,8 @@ import {
   advance,
   createPlayer,
   finish,
+  hash,
+  itemEdge,
   press,
   release,
   type Player,
@@ -16,6 +18,8 @@ import {
   CAPACITY,
   COLUMNS,
   EARLY_MS,
+  FADE,
+  FADE_EXTRA_MS,
   FULL_RATING,
   ITEM_EVERY_MS,
   ITEM_FIRST_MS,
@@ -25,6 +29,7 @@ import {
   NO_ITEM,
   SHIELD,
   TICK_MS,
+  hitsOne,
   isAttack,
 } from "./rules.js";
 import { MINE, type Steps } from "./steps.js";
@@ -134,7 +139,9 @@ export function ranking(library: Library, world: World): number[] {
 }
 
 function contexts(library: Library, world: World): PlayContext[] {
-  const order = ranking(library, world);
+  const ratings = world.players.map((player) =>
+    rating(stepsOf(library, world, player), player.score),
+  );
   return world.players.map((player, slot) => {
     const steps = stepsOf(library, world, player);
     return {
@@ -142,13 +149,12 @@ function contexts(library: Library, world: World): PlayContext[] {
       seed: world.seed,
       slot,
       ...(world.mode === BATTLE_MODE ? { items: itemNotes(steps) } : {}),
-      place: order.indexOf(slot),
+      edge: itemEdge(ratings, slot),
       of: world.players.length,
     };
   });
 }
 
-/** The rider in `slot` uses what it holds, at the room's song time `now`. */
 function useItem(world: World, slot: number, now: number): void {
   const player = world.players[slot]!,
     item = player.item;
@@ -160,16 +166,37 @@ function useItem(world: World, slot: number, now: number): void {
     else addEffect(player, item, now, now + ITEM_MS[item]!, slot);
     return;
   }
+  const only = hitsOne(item) ? oneRival(world, slot, now) : -1;
+  const lasts =
+    ITEM_MS[item]! +
+    (item === FADE
+      ? hash(world.seed, now, 0xfa0e + slot) % (FADE_EXTRA_MS + 1)
+      : 0);
   for (const [other, target] of world.players.entries()) {
-    if (other === slot) continue;
+    if (other === slot || (only !== -1 && other !== only)) continue;
     if (target.shield > now) {
       target.shield = 0;
       target.blocked = now;
       continue;
     }
     const from = now + ATTACK_LEAD_MS;
-    addEffect(target, item, from, from + ITEM_MS[item]!, slot);
+    addEffect(target, item, from, from + lasts, slot);
   }
+}
+
+/**
+ * The one rival an attack on the ears lands on: by the match's seed, the throw's tick and the thrower, so every
+ * device picks the same one. A bot hears nothing, so a rider is picked over a bot wherever there is one.
+ */
+function oneRival(world: World, slot: number, now: number): number {
+  const rivals: number[] = [],
+    bots: number[] = [];
+  for (const [other, player] of world.players.entries())
+    if (other !== slot) (player.bot ? bots : rivals).push(other);
+  const from = rivals.length > 0 ? rivals : bots;
+  return from.length > 0
+    ? from[hash(world.seed, now, 0x0ea5 + slot) % from.length]!
+    : -1;
 }
 
 /**

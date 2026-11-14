@@ -14,6 +14,8 @@ import { SystemProbeContext } from "./systemProbeContext";
 
 export type ControlPanelViewModel = {
   applet: ControlPanelApplet;
+  /** The tab the window was opened on (Start > Settings > Screen Saver), for an applet with tabs. */
+  tab: string | undefined;
   openApplet: (applet: ControlPanelApplet) => void;
   system: SystemInfo;
   wallpaper: string | undefined;
@@ -68,13 +70,14 @@ export function useControlPanelViewModel(
     setAssistantOptions,
     assistantDispatch,
   } = useContext(DesktopUiContext);
-  const applet = appletOf(
-    state.windows.find((window) => window.id === windowId),
-  );
+  const window = state.windows.find((window) => window.id === windowId);
+  const applet = appletOf(window);
+  const tab = window?.kind === "controlpanel" ? window.tab : undefined;
   const system = useMemo(() => systemInfo(probe()), [probe]);
 
   return {
     applet,
+    tab,
     openApplet: (next) =>
       dispatch({
         type: "patch",

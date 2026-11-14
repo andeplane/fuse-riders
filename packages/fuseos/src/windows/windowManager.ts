@@ -7,6 +7,18 @@ export const MIN_WINDOW_WIDTH = 240;
 export const MIN_WINDOW_HEIGHT = 160;
 
 /**
+ * Narrower than this (a phone, a tablet held upright), windows open maximized: a draggable
+ * frame on a 390px screen is all title bar and no content. The same cut-off decides where a
+ * Fuse game opens by default (`settings/fuseosPrefsStore.ts`, `WINDOW_LAUNCH_MIN_WIDTH`).
+ */
+export const COMPACT_MAX_WIDTH = 900;
+
+/** Whether the physical viewport is too narrow for free-floating windows. */
+export function isCompactViewport(viewport: Size): boolean {
+  return viewport.width < COMPACT_MAX_WIDTH;
+}
+
+/**
  * Cascaded default placement for the n-th window, sized relative to the
  * viewport unless the window asks for a size of its own (games that need room).
  */

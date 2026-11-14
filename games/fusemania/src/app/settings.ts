@@ -28,8 +28,8 @@ import {
 import { createSongClock, type SongClock } from "./song-clock.js";
 
 /**
- * The settings panel: the keys, the scroll, the three timing offsets and the tap calibration that measures the sound and input
- * of them. It owns no preferences: it reads them from the page and hands every change back as a new object.
+ * The settings panel: the keys, the scroll, the three timing offsets and the tap calibration that measures the audio
+ * and input ones. It owns no preferences: it reads them from the page and hands every change back as a new object.
  */
 export interface SettingsOptions {
   document: Document;

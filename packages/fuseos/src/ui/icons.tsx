@@ -17,10 +17,17 @@ import { KeyboardMouse } from "@react95/icons/KeyboardMouse";
 import { Lights100 } from "@react95/icons/Lights100";
 import { Mspaint } from "@react95/icons/Mspaint";
 import { Network } from "@react95/icons/Network";
+import { Notepad2 } from "@react95/icons/Notepad2";
+import { Packager } from "@react95/icons/Packager";
 import { Progman22 } from "@react95/icons/Progman22";
 import { Progman33 } from "@react95/icons/Progman33";
 import { RecycleEmpty } from "@react95/icons/RecycleEmpty";
 import { Settings } from "@react95/icons/Settings";
+import { Shell321 } from "@react95/icons/Shell321";
+import { Shell322 } from "@react95/icons/Shell322";
+import { Shell323 } from "@react95/icons/Shell323";
+import { Shell326 } from "@react95/icons/Shell326";
+import { Shell328 } from "@react95/icons/Shell328";
 import { Shell3242 } from "@react95/icons/Shell3242";
 import { Sol1 } from "@react95/icons/Sol1";
 import { User } from "@react95/icons/User";
@@ -71,6 +78,13 @@ export type IconName =
   | "solitaire"
   | "paint"
   | "winamp"
+  | "floppy"
+  | "drive"
+  | "zip"
+  | "notepadpp"
+  | "textFile"
+  | "codeFile"
+  | "unknownFile"
   | "fusteam";
 
 type IconVariant = "32x32_4" | "16x16_4";
@@ -127,6 +141,13 @@ const ICONS: Record<IconName, IconComponent> = {
   solitaire: Sol1,
   paint: Mspaint,
   winamp: WinampLogo,
+  floppy: Shell326,
+  drive: Shell328,
+  zip: fixed(Packager, "32x32_4"),
+  notepadpp: Notepad2,
+  textFile: Shell323,
+  codeFile: Shell322,
+  unknownFile: Shell321,
   fusteam: FusteamLogo,
 };
 

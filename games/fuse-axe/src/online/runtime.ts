@@ -116,6 +116,10 @@ export class AxeRuntime extends RoomRuntime<
     this.sendPackets(this.deps.now());
     return true;
   }
+  /** What this device holds right now, logged or not: the screen leads its own hero with it. */
+  get heldNow(): number {
+    return this.bits;
+  }
   /** The newest simulated room, for reports and tests; the screen renders from frames. */
   roomState(): Room | undefined {
     return this.world?.state;
