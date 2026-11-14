@@ -47,6 +47,7 @@ import {
   CAPACITY,
   COLUMNS,
   MAX_SIMFILE_BYTES,
+  RULES,
   SCORE_MODE,
   createLibrary,
   type Library,
@@ -83,6 +84,7 @@ import {
 import { createOptionsMenu, createPlayOptions } from "./options.js";
 import {
   bestText,
+  holdText,
   present,
   type Model,
   type Row,
@@ -114,6 +116,8 @@ import {
   type Proposal,
 } from "./timing-bias.js";
 import { createSongClock } from "./song-clock.js";
+import { createSongStore } from "./song-cache.js";
+import { SONG_LOAD_TRIES, createSongLoader } from "./song-load.js";
 import { RESUME_MS, createPauseClock, resumeCount } from "./pause.js";
 import {
   createRunLogger,
@@ -158,8 +162,19 @@ const pairedClock =
   new URLSearchParams(location.search).get("audioclock") !== "reported";
 const app = document.querySelector<HTMLElement>("#app")!;
 /** One sound bus for the page: the header's button, `M` and the remembered volumes are the shared module's. */
+/** The songs' files stay in the browser between visits, so a song is downloaded once. */
+const songStore = createSongStore({
+  caches: typeof caches === "undefined" ? undefined : caches,
+  fetch: (url) => fetch(url),
+  prefix: "fusemania-songs-",
+  version: RULES,
+  absolute: (url) => new URL(url, location.href).href,
+});
 const audio = createGameAudio(
-  browserAudioDependencies(safeStorage(() => localStorage)),
+  {
+    ...browserAudioDependencies(safeStorage(() => localStorage)),
+    fetchAudio: (url) => songStore.fetch(url),
+  },
   { forceMute: muted },
 );
 bindAudioInput(audio, document, window);
@@ -180,8 +195,6 @@ const setText = (node: HTMLElement, value: string) => {
 const coarse = () => matchMedia("(pointer: coarse)").matches;
 /** Keys the song select leaves alone: Tab is the browser's, and M is the shared mute. */
 const PAGE_KEYS: ReadonlySet<string> = new Set(["Tab", "KeyM"]);
-/** How often a song's audio is fetched again by itself before the page asks the player. */
-const SONG_LOAD_TRIES = 3;
 /** Where a song's audio is fetched from: the site's own files, or a file the player loaded. */
 const songUrl = (path: string) =>
   /^(blob:|https?:)/.test(path) ? path : `${BASE}${path}`;
@@ -195,6 +208,41 @@ const coverUrl = (song: { id: string }): string | undefined => {
 
 /** The id a loaded simfile's song goes by. */
 const CUSTOM = "custom";
+/** The landing select's wait before it fetches the song it stands on; a room starting cancels it. */
+let landingFetch: ReturnType<typeof setTimeout> | undefined;
+/** Called when what a song select shows about the songs' audio has changed. */
+const audioWatchers = new Set<() => void>();
+/** The library the songs on screen are from: the bundled one, or it with the player's own file. */
+let songLibrary: Library | undefined;
+/** Which songs this device has the audio of, for the page's whole life: the song selects and the room share it. */
+const songs = createSongLoader({
+  now: () => performance.now(),
+  url: (id) => {
+    const info = songLibrary?.song(id);
+    return info && songUrl(info.audio);
+  },
+  load: (url) => audio.loadSong(url),
+  enabled: () => !audio.forcedMute,
+  hasClock: () => audio.clock() !== undefined,
+  local: localSong,
+  changed: () => {
+    for (const watcher of audioWatchers) watcher();
+  },
+});
+/** The songs of `library` are the ones on screen: the ones downloaded on an earlier visit are marked so. */
+function useLibrary(library: Library): void {
+  songLibrary = library;
+  void songStore.stored().then((urls) => {
+    const have = new Set(urls);
+    songs.stored(
+      library.songs
+        .filter((info) =>
+          have.has(new URL(songUrl(info.audio), location.href).href),
+        )
+        .map((info) => info.id),
+    );
+  });
+}
 interface Choice {
   song: string;
   chart: number;
@@ -406,6 +454,7 @@ function settingsPanel(onChange?: () => void) {
 }
 
 function landing(): void {
+  useLibrary(LIBRARY);
   const library = LIBRARY;
   let choice = chosen(library);
   const preview = createPreview(library);
@@ -438,6 +487,7 @@ function landing(): void {
     onChart: (chart) => show({ ...choice, chart }),
     onMode: (mode) => show({ ...choice, mode }),
     best: bestLookup(library),
+    audio: songs.status,
     cover: coverUrl,
     packs: packsOf(library.songs, CUSTOM),
     tools: [options.random],
@@ -448,6 +498,9 @@ function landing(): void {
     remember(choice);
     picker.update({ ...choice, host: true });
     preview.show(choice.song);
+    // Downloaded while the player chooses, so PLAY does not wait for it; a carousel being turned fetches nothing.
+    clearTimeout(landingFetch);
+    landingFetch = setTimeout(() => songs.song(choice.song), 350);
   };
   const showOptions = () =>
     options.update({
@@ -605,6 +658,9 @@ function landing(): void {
   picker.update({ ...choice, host: true });
   showOptions();
   preview.show(choice.song);
+  landingFetch = setTimeout(() => songs.song(choice.song), 350);
+  // Until a room takes the page over (`room` clears the watchers and the timer).
+  audioWatchers.add(() => picker.update({ ...choice, host: true }));
 }
 
 /** From the menu into a solo song without leaving the page, so the click that asked for it is what lets sound out. */
@@ -670,6 +726,10 @@ function timing(): void {
 }
 
 function room(solo: boolean, library: Library, first?: Choice): void {
+  // The landing select is gone: its late fetch must not take the place of the song this room plays.
+  clearTimeout(landingFetch);
+  audioWatchers.clear();
+  useLibrary(library);
   const session = solo
     ? ({ kind: "solo" } as const)
     : sessionFor(location.search, store, GAME, validRoomCode, secret);
@@ -833,6 +893,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     onMode: (mode) =>
       runtime.command({ type: "settings", settings: { ...settings, mode } }),
     best: bestLookup(library),
+    audio: songs.status,
     cover: coverUrl,
     packs: packsOf(library.songs, CUSTOM),
     tools: [options.random],
@@ -861,6 +922,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     canvas = el("canvas", "", "fm-canvas"),
     note = el("p", "", "fm-note"),
     unlock = el("p", "TAP OR PRESS A KEY FOR SOUND", "fm-unlock"),
+    holdNote = el("p", "", "fm-unlock fm-hold"),
     loadFailed = button("THE SONG DID NOT LOAD · RETRY", "fm-unlock fm-retry");
   const card = el("section", "", "fm-card"),
     cardTitle = el("h2"),
@@ -923,10 +985,9 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   cardTiming.append(timingText, timingApply, timingSkip);
   cardTiming.hidden = true;
   card.hidden = true;
-  unlock.hidden = loadFailed.hidden = true;
-  loadFailed.onclick = () => {
-    if (playing) playing.failures = playing.retryAt = 0;
-  };
+  unlock.hidden = loadFailed.hidden = holdNote.hidden = true;
+  holdNote.setAttribute("role", "status");
+  loadFailed.onclick = () => songs.retry();
   // The result says what its buttons do: another go, a session's next song, or back to the song select.
   rematch.onclick = () => {
     const action = model?.result?.primary.action;
@@ -937,6 +998,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   screen.append(
     canvas,
     unlock,
+    holdNote,
     loadFailed,
     pauseButton,
     pauseCard,
@@ -1114,41 +1176,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     createCanvas: browserCanvas,
   });
   let model: Model | undefined;
-  /** The song being played, decoded for the audio clock; the shared module keeps the last few. */
-  let playing:
-    | {
-        id: string;
-        song?: ClockedSong;
-        loading: boolean;
-        retryAt: number;
-        failures: number;
-      }
-    | undefined;
-  const songOf = (id: string, now: number): ClockedSong | undefined => {
-    if (playing?.id !== id)
-      playing = { id, loading: false, retryAt: 0, failures: 0 };
-    const mine = playing;
-    if (
-      !mine.song &&
-      !mine.loading &&
-      now >= mine.retryAt &&
-      mine.failures < SONG_LOAD_TRIES &&
-      !audio.forcedMute
-    ) {
-      const info = library.song(id);
-      mine.loading = true;
-      void (info ? audio.loadSong(songUrl(info.audio)) : Promise.resolve())
-        .catch(() => undefined)
-        .then((song) => {
-          mine.loading = false;
-          if (song) mine.song = song;
-          // No clock yet (no gesture) is not a failure of the file: ask again without counting it.
-          else if (audio.clock()) mine.failures++;
-          mine.retryAt = performance.now() + (song ? 0 : 5000);
-        });
-    }
-    return mine.song;
-  };
+  /** The song being played, decoded for the audio clock, once this device has it. */
+  const songOf = (id: string): ClockedSong | undefined => songs.song(id);
   let stepsKey = "",
     steps: Steps[] = [];
   const stepsOf = (view: WorldView): readonly Steps[] => {
@@ -1337,8 +1366,13 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     // A phone that is a controller makes no music: the shared screen does.
     const song =
       world && roomMs !== undefined && model?.screen === "play"
-        ? songOf(world.song, now)
+        ? songOf(world.song)
         : undefined;
+    // A started song waits for every device's audio: this one says when it is done getting it, or needs none (a
+    // phone that is a pad makes no music).
+    const held = runtime.held();
+    if (held && world && model && model.screen !== "lobby")
+      if (model.screen !== "play" || songs.settled(world.song)) runtime.ready();
     const paused = pauseClock.paused;
     if (paused && !pausable()) unpause();
     else if (paused && resumeAt) {
@@ -1348,7 +1382,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     // A paused song is silent and stays where it stood: it is not followed until the clock runs again.
     if (leavingSong && state?.stage !== "running") leavingSong = false;
     const still = pauseClock.paused || leavingSong;
-    if (!still) songClock.follow(roomMs, song);
+    // Held, the song is silent at its first moment; it starts when the room lets it go.
+    if (!still) songClock.follow(roomMs, held ? undefined : song);
     pauseButton.hidden =
       pauseClock.paused || !pausable() || !coarse() || display;
     if (restarting && state?.stage === "lobby") {
@@ -1359,9 +1394,13 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     }
     if (!model || model.screen === "lobby" || !world) {
       before = undefined;
-      unlock.hidden = loadFailed.hidden = true;
+      unlock.hidden = loadFailed.hidden = holdNote.hidden = true;
       return;
     }
+    const waiting = held;
+    holdNote.hidden = !waiting || model.screen !== "play";
+    if (waiting && !holdNote.hidden)
+      setText(holdNote, holdText(model.waiting, songs.settled(world.song)));
     const running = roomMs !== undefined;
     const silent =
       running &&
@@ -1369,9 +1408,9 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       !audio.forcedMute &&
       !audio.prefs.muted &&
       audio.clock()?.running === false;
-    unlock.hidden = !silent;
+    unlock.hidden = !silent || !!waiting;
     loadFailed.hidden =
-      silent || !running || (playing?.failures ?? 0) < SONG_LOAD_TRIES;
+      silent || !running || !!waiting || songs.failures() < SONG_LOAD_TRIES;
     // Sound that has been heard in this match and stops for a moment (a tab left and returned to) restarts nothing.
     const epoch = state?.epoch ?? -1;
     if (!silent && running && audio.clock()?.running) heardEpoch = epoch;
@@ -1498,7 +1537,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
         heardMs: songClock.songMs(),
         roomMs: runtime.songMs(),
         latencyMs: (audio.clock()?.latency() ?? 0) * 1000,
-        loaded: !!playing?.song,
+        loaded: songs.settled(runtime.roomState()?.world?.song ?? ""),
+        held: runtime.held(),
       }),
       view: () => runtime.picture(songClock.songMs() - prefs.offsetMs),
       /** Press-to-handler and press-to-frame percentiles, the audio clock's figures and this run's hit errors. */
@@ -1554,8 +1594,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     // The song select's music plays in the lobby only; a match's song is the audio clock's.
     if (next.screen === "lobby" && !display && !restarting) {
       preview.show(view.settings.song);
-      // Decoded while the players choose, so START never waits for it.
-      songOf(view.settings.song, performance.now());
+      // Decoded while the players choose, so START rarely waits for it.
+      songOf(view.settings.song);
     } else preview.stop();
     if (view.stage === "over" && lastStage === "running" && next.result)
       sfx.fanfare(

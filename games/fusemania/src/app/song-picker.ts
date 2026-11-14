@@ -41,6 +41,12 @@ export interface SongPickerOptions {
    * once per chip) so a new best shows without a state change: keep it a lookup.
    */
   best?(song: string, chart: number): string | undefined;
+  /**
+   * Whether this device has a song's audio: a song that is not downloaded yet wears a download mark on its cover,
+   * one being fetched a moving one, and one that would not load a warning. Read again on every `update`, like
+   * `best`. Leave out for no marks.
+   */
+  audio?(song: string): "none" | "loading" | "ready" | "failed";
   /** Leave the mode switch out (a caller that has no modes). Default false. */
   hideMode?: boolean;
   /**
@@ -157,12 +163,22 @@ const WHEEL_IDLE_MS = 250;
 /** Lit segments of a chip's meter bar: a meter above this shows them all, and the number says the rest. */
 const BARS = 10;
 const NO_SONG = "SELECT A SONG";
+/** What a cover's download mark reads as. */
+const AUDIO_LABELS = {
+  none: { mark: "↓", text: "Not downloaded yet" },
+  loading: { mark: "↓", text: "Downloading" },
+  failed: { mark: "!", text: "Could not download" },
+  ready: { mark: "", text: "" },
+} as const;
 
 interface Row {
   song: SongInfo;
   element: HTMLButtonElement;
   best: HTMLElement;
   bestText: string;
+  /** The download mark on the cover, and the state it shows. */
+  audio: HTMLElement;
+  audioState: string;
   /** The cover image, until it has been asked for: far covers are not fetched before they come near. */
   image: { node: HTMLImageElement; url: string } | undefined;
   /** The `data-offset` last written. */
@@ -260,7 +276,9 @@ export function createSongPicker(options: SongPickerOptions): SongPicker {
     foot.append(meters, best);
     // The title is the drawn cover's lettering: an image covers it, and it stays the option's name.
     cover.node.prepend(el("span", info.title, "fm-picker-row-title"));
-    element.append(cover.node, foot);
+    const audio = el("span", "", "fm-picker-row-audio");
+    audio.hidden = true;
+    element.append(cover.node, audio, foot);
     element.setAttribute("tabindex", "-1");
     element.addEventListener("click", (event) => {
       // A drag ends in a pointer's click; a key's (detail 0) is never part of one.
@@ -272,6 +290,8 @@ export function createSongPicker(options: SongPickerOptions): SongPicker {
       element,
       best,
       bestText: "",
+      audio,
+      audioState: "ready",
       image: cover.image,
       offset: undefined,
       pack: packOf.get(info.id) ?? -1,
@@ -549,6 +569,23 @@ export function createSongPicker(options: SongPickerOptions): SongPicker {
     }
   }
 
+  /** The download marks, which change under an unchanged state as the audio arrives. */
+  function showAudio() {
+    const audio = options.audio;
+    if (!audio) return;
+    for (const row of order) {
+      const state = audio(row.song.id);
+      if (state === row.audioState) continue;
+      row.audioState = state;
+      row.audio.hidden = state === "ready";
+      row.audio.dataset.audio = state;
+      const label = AUDIO_LABELS[state];
+      row.audio.textContent = label.mark;
+      row.audio.title = label.text;
+      row.audio.setAttribute("aria-label", label.text);
+    }
+  }
+
   function update(state: PickerState) {
     const last = shown;
     const next: PickerState = {
@@ -602,6 +639,7 @@ export function createSongPicker(options: SongPickerOptions): SongPicker {
     }
     if (next.host && (songChanged || !last?.host)) fetchNear();
     showBests(next);
+    showAudio();
   }
 
   function stepSong(by: number): boolean {
