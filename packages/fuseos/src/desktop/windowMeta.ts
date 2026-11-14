@@ -4,6 +4,7 @@ import {
   LAUNCHER_TITLE,
   LAUNCHER_WINDOW_SIZE,
 } from "../launcher/launcherFacts";
+import { NAPSTER_TITLE } from "../napster/napsterFacts";
 import { GAMES } from "../retro/games";
 import type { WindowState } from "../state/appState";
 import type { IconRef } from "../ui/icons";
@@ -39,6 +40,9 @@ export const EXPLORER_WINDOW_SIZE: Size = { width: 720, height: 480 };
 
 /** Room for the tab bar, a code pane with line numbers and the six-field status bar. */
 export const NOTEPADPP_WINDOW_SIZE: Size = { width: 760, height: 520 };
+
+/** Room for the banner, the tab bar, the Search form above a dozen result rows, and the status bar. */
+export const NAPSTER_WINDOW_SIZE: Size = { width: 780, height: 610 };
 
 export const OS_NAME = "FuseOS";
 
@@ -126,6 +130,13 @@ export function windowMeta(
         icon: "fusteam",
         resizable: true,
         size: LAUNCHER_WINDOW_SIZE,
+      };
+    case "napster":
+      return {
+        title: NAPSTER_TITLE,
+        icon: "napster",
+        resizable: true,
+        size: NAPSTER_WINDOW_SIZE,
       };
   }
 }

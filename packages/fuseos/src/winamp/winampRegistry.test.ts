@@ -15,6 +15,7 @@ function controls(label: string): WinampControls & { label: string } {
     stop: () => undefined,
     next: () => undefined,
     previous: () => undefined,
+    playFiles: () => undefined,
   };
 }
 

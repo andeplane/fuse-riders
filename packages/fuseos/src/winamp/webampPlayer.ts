@@ -27,6 +27,8 @@ export interface WebampPlayer {
   stop(): void;
   nextTrack(): void;
   previousTrack(): void;
+  /** Loads and plays the track at `index` in the playlist. */
+  setCurrentTrack(index: number): void;
   /** Every queued track, in playlist order; the real method returns much more per track. */
   getPlaylistTracks(): WebampPlaylistTrack[];
   getMediaStatus(): WebampStatus;

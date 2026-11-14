@@ -76,6 +76,11 @@ export interface LauncherWindowContent {
   kind: "launcher";
 }
 
+/** Napster v2.0 beta (`src/napster`): a fake file-sharing client with a pretend network. One instance. */
+export interface NapsterWindowContent {
+  kind: "napster";
+}
+
 export type WindowContent =
   | FuseGameWindowContent
   | RetroGameWindowContent
@@ -88,7 +93,8 @@ export type WindowContent =
   | WinampWindowContent
   | ExplorerWindowContent
   | NotepadPlusPlusWindowContent
-  | LauncherWindowContent;
+  | LauncherWindowContent
+  | NapsterWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -151,6 +157,7 @@ export function sameInstance(
     case "about":
     case "retroFolder":
     case "launcher":
+    case "napster":
       return existing.kind === content.kind;
     case "retro":
       return existing.kind === "retro" && existing.game === content.game;
@@ -337,6 +344,7 @@ function isWindowContent(
     case "winamp":
     case "retroFolder":
     case "launcher":
+    case "napster":
       return true;
     case "dialog":
       return (
