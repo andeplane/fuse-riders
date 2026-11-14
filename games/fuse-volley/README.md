@@ -74,13 +74,18 @@ the court and each phone becomes a full-screen rocker and jump button that buzze
   ordinary held bits. No floats affect play; `RULES` in `src/engine/index.ts` names the rules version.
 - `src/online/`: the game behind `fuse-netcode`'s `RollbackGame` and the room runtime, the same stack as Fuseball.
 - `src/render/`: the Canvas 2D scene (generated court, blobs and ball from `public/games/fuse-volley/art/v1/`, see
-  `docs/design/fuse-volley-art.md`, with a procedural fallback), the jelly springs, cues and rollback smoothing.
+  `docs/design/fuse-volley-art.md`, with a procedural fallback), the jelly springs and cues.
   Everything here is cosmetic and reads views only.
-- `src/app/`: the page, controls (keys, touch rocker, gamepads), sounds and the forward run: each frame plays the
-  newest folded world forward on a copy to the clock, so a press shows within one log tick.
+- `src/app/`: the page, controls (keys, touch rocker, gamepads), sounds and the forward run (`forward.ts`, on
+  fuse-netcode's shared presentation kit): each frame plays the newest folded world forward on a copy to the clock,
+  your own blob on the keys held right now, the others on what they last logged and bots as the fold would ask them,
+  so a press shows on the next frame. The run stops short of the end of a rally: points, side-outs and serves show
+  when the room has folded them. A rollback, or another player's logged controls changing, is eased in rather than
+  snapped; your own blob is never smoothed. Effect counters are latched so a predicted touch is not heard twice.
 
-Developer flags: `?mute`, `?autopilot` (this device plays with the bot's answers), `?lead=local` (draw your own blob
-with the keys held right now rather than the ones last logged), `?trace` (keeps drawn positions on
+Developer flags: `?mute`, `?autopilot` (this device plays with the bot's answers), `?lead=off` (draw the old way, a tick
+behind the clock and blended, to compare the feel), `?probe` (publishes where your blob was last drawn on
+`window.__fuseVolleyProbe`, for `scripts/fuse-volley-input-latency.ts`), `?trace` (keeps drawn positions on
 `window.fuseVolleyTrace` for smoothness checks).
 
 Production serves its rooms, like every game registered in `service/history.ts`.

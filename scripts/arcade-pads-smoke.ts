@@ -58,7 +58,10 @@ try {
   );
   await phone.goto(invite.href);
   await phone.locator(".online-join").waitFor({ state: "hidden" });
-  await host.getByRole("button", { name: /^Add AI$/i, exact: true }).click();
+  await host
+    .getByRole("button", { name: /^Add AI$/i, exact: true })
+    .first()
+    .click();
   await readyRoom(host);
   await phone.locator(".mobile-play.controller-only").waitFor();
 

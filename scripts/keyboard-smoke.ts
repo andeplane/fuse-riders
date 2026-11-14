@@ -268,7 +268,7 @@ for (const { name, kind } of BOTH_ENGINES) {
       .getByRole("button", { name: "BACK TO LOBBY", exact: true })
       .click();
     await page
-      .getByRole("button", { name: "ROOM SETTINGS", exact: true })
+      .getByRole("button", { name: "Game settings", exact: true })
       .click();
     const length = page.getByLabel("Match length");
     await length.fill("12");
