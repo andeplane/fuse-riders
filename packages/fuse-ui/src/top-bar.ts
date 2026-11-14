@@ -90,11 +90,7 @@ export function createTopBar(options: TopBarOptions): HTMLElement {
   toggle.setAttribute("aria-expanded", "false");
   toggle.innerHTML =
     '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-  const menu = createDialog({
-    title: "Game menu",
-    closeText: "Close",
-    document: doc,
-  });
+  const menu = createDialog({ title: "Game menu", document: doc });
   menu.dialog.classList.add("fui-top-bar-menu");
   menu.body.classList.add("fui-top-bar-actions");
   const owned = new Set<Node>([left, right, context, menu.dialog]);

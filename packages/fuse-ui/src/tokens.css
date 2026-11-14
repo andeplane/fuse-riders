@@ -59,6 +59,33 @@
   --fui-glow-cyan: 0 0 1rem #16e7ff66;
   --fui-glow-pink: 0 0 1rem #ff2e9d66;
 
+  /*
+   * Menu system: every menu, dialog and room control is one shape in two sizes and three roles (primary,
+   * secondary, danger). See "Menu patterns" in the package README before adding a button style of your own.
+   */
+  --fui-control-height: 2.75rem;
+  --fui-menu-height: 3.5rem;
+  --fui-control-radius: 0.625rem;
+  --fui-control-font: 600 0.875rem/1.25 var(--fui-font-sans);
+  --fui-menu-font: 600 1rem/1.25 var(--fui-font-sans);
+  --fui-control-tracking: 0.05em;
+  --fui-control-fill: #14283f;
+  --fui-control-fill-hover: #1b3a57;
+  --fui-control-line: #456582;
+  --fui-control-text: #e8f5ff;
+  --fui-primary-fill: #18dbeb;
+  --fui-primary-fill-hover: #75edf5;
+  --fui-primary-text: #031b29;
+  --fui-danger-text: #ffb8cb;
+  --fui-danger-line: #ffb8cb66;
+  --fui-focus-ring: 0.1875rem solid #f7dc61;
+  --fui-focus-offset: 0.1875rem;
+  /* A page's or dialog's heading: the pixel face is for titles only, never for buttons or body text. */
+  --fui-heading-font: 0.8125rem/1.5 var(--fui-font-pixel);
+  /* Where a page's content starts under the shared top bar, and the bar's distance from the screen's side. */
+  --fui-page-top: calc(72px + env(safe-area-inset-top));
+  --fui-page-gutter: 20px;
+
   /* Stacking: one named layer per role, lowest first. Local stacking inside a component uses 1 and 2. */
   --fui-z-scene: -1;
   --fui-z-raised: 1;

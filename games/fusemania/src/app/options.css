@@ -137,14 +137,13 @@
   display: none;
 }
 
-/* The solo select's bar: OPTIONS and PLAY beside CLOSE, in reach however far the select scrolls. */
+/* The solo select's bar: Back at the left, OPTIONS and PLAY at the right, in reach however far the select scrolls. */
 .fm-options-menu {
   display: flex;
 }
 .fui-app .fui-menu-dialog .fui-dialog-actions .fm-options-toggle,
 .fui-app .fui-menu-dialog .fui-dialog-actions .fm-solo-play {
   width: auto;
-  min-height: 0;
   white-space: nowrap;
 }
 .fui-app .fui-menu-dialog .fui-dialog-actions .fm-solo-play {
@@ -174,22 +173,18 @@
   margin-top: 0;
 }
 @media (max-width: 640px) {
-  /* Three buttons and a title do not fit a phone's bar: the buttons stay. */
+  /* Three buttons and a title do not fit a phone's bar: the buttons stay, and PLAY takes the room that is left. */
   .fui-menu-dialog .fui-dialog-bar:has(.fm-solo-play) .fui-dialog-title {
     display: none;
   }
   .fui-menu-dialog .fui-dialog-bar:has(.fm-solo-play) .fui-dialog-actions {
     flex: 1;
-    justify-content: space-between;
-  }
-  .fui-app .fui-menu-dialog .fui-dialog-bar:has(.fm-solo-play) button {
-    min-height: 2.75rem;
-    padding-inline: var(--fui-space-2);
-    white-space: nowrap;
+    justify-content: flex-end;
   }
   .fui-app .fui-menu-dialog .fui-dialog-actions .fm-solo-play {
     flex: 1;
     min-width: 0;
+    max-width: 12rem;
   }
 }
 

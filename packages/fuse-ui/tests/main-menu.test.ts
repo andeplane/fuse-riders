@@ -204,13 +204,33 @@ test("Play submenu separates single player, host and join while Escape returns t
   });
   document.body.append(menu.element);
   dialogs(menu.dialog, window);
+  // Back is the page's first control, top left, and is not there on the front door.
+  const head = menu.element.firstElementChild as HTMLElement,
+    back = head.querySelector<HTMLButtonElement>(".fui-back")!;
+  assert.equal(head.className, "fui-page-head");
+  assert.equal(back.textContent, "Back");
+  assert.equal(head.hidden, true);
   menu.play.click();
+  assert.equal(head.hidden, false);
   assert.deepEqual(
-    [...menu.element.querySelectorAll(".fui-play-menu button")].map(
-      (node) => node.textContent,
-    ),
-    ["Single player", "Host room", "Join room", "Back"],
+    [...menu.element.querySelectorAll(".fui-play-menu button")].map((node) => [
+      node.textContent,
+      node.className,
+    ]),
+    [
+      // The first choice takes Play's place as the page's primary action.
+      ["Single player", "fui-menu-primary"],
+      ["Host room", ""],
+      ["Join room", ""],
+    ],
   );
+  back.click();
+  assert.equal(head.hidden, true);
+  assert.equal(
+    menu.element.querySelector<HTMLElement>(".fui-play-menu")!.hidden,
+    true,
+  );
+  menu.play.click();
   menu.singlePlayer.click();
   await settle();
   assert.deepEqual(calls, ["solo"]);
@@ -220,11 +240,13 @@ test("Play submenu separates single player, host and join while Escape returns t
   assert.equal(menu.play.textContent, "Play");
   const escape = event(window, "keydown");
   Object.defineProperty(escape, "key", { value: "Escape" });
-  menu.element.dispatchEvent(escape);
+  // Escape is Back wherever the focus is: the page hears it, not only the menu.
+  document.dispatchEvent(escape);
   assert.equal(
     menu.element.querySelector<HTMLElement>(".fui-play-menu")!.hidden,
     true,
   );
+  assert.equal(head.hidden, true);
   assert.equal(
     menu.element.querySelector<HTMLElement>(".fui-main-menu-nav")!.hidden,
     false,
@@ -257,7 +279,7 @@ test("main menu: a game's own screen sits on the front door after Play and opens
   assert.equal(opened, 1);
 });
 
-test("soloInBar keeps what starts the game in the dialog's bar beside CLOSE, above details that scroll", () => {
+test("soloInBar keeps what starts the game in the dialog's bar, Back at its left, above details that scroll", () => {
   const { document, window } = page();
   let solos = 0;
   const optionsButton = document.createElement("button");
@@ -279,15 +301,20 @@ test("soloInBar keeps what starts the game in the dialog's bar beside CLOSE, abo
   landing.soloDetails.append(details);
   document.body.append(landing.element);
   dialogs(landing.menu.dialog, window);
-  const bar = landing.menu.dialog.querySelector(".fui-dialog-actions")!,
+  const bar = landing.menu.dialog.querySelector(".fui-dialog-bar")!,
+    actions = bar.querySelector(".fui-dialog-actions")!,
     body = landing.menu.dialog.querySelector(".fui-dialog-body")!;
-  const inBar = () => [...bar.children].map((node) => node.textContent);
-  assert.deepEqual(inBar(), ["✕  CLOSE"], "nothing in the bar before it opens");
+  const inBar = () => [...actions.children].map((node) => node.textContent);
+  assert.deepEqual(inBar(), [], "nothing in the bar before it opens");
+  // Back is the bar's first control, in this view and in every other: there is no CLOSE to look for.
+  assert.equal(bar.firstElementChild!.className, "fui-back fui-dialog-back");
+  assert.equal(bar.querySelectorAll(".fui-back").length, 1);
 
   landing.menu.play.click();
   landing.menu.singlePlayer.click();
-  // The bar is the dialog's header and does not scroll: OPTIONS, then the solo button, then CLOSE.
-  assert.deepEqual(inBar(), ["OPTIONS", "PLAY SOLO", "✕  CLOSE"]);
+  // The bar is the dialog's header and does not scroll: OPTIONS, then the solo button last, as the primary action.
+  assert.deepEqual(inBar(), ["OPTIONS", "PLAY SOLO"]);
+  assert.equal(bar.firstElementChild!.textContent, "Back");
   assert.equal(body.contains(landing.solo!), false);
   assert.equal(body.contains(details), true);
   landing.solo!.click();
@@ -295,11 +322,11 @@ test("soloInBar keeps what starts the game in the dialog's bar beside CLOSE, abo
 
   // Another view of the same dialog has no solo button, and it comes back with the single-player view.
   landing.menu.dialog.close();
-  assert.deepEqual(inBar(), ["✕  CLOSE"]);
+  assert.deepEqual(inBar(), []);
   landing.menu.joinRoom.click();
-  assert.deepEqual(inBar(), ["✕  CLOSE"]);
+  assert.deepEqual(inBar(), []);
   landing.menu.dialog.close();
   landing.menu.singlePlayer.click();
-  assert.deepEqual(inBar(), ["OPTIONS", "PLAY SOLO", "✕  CLOSE"]);
+  assert.deepEqual(inBar(), ["OPTIONS", "PLAY SOLO"]);
   assert.equal(body.contains(details), true);
 });

@@ -338,7 +338,7 @@ try {
       before,
       "switching back restores the first style",
     );
-    await host.getByRole("button", { name: "CLOSE", exact: true }).click();
+    await host.getByRole("button", { name: "Back", exact: true }).click();
     console.log(
       `Visual style switched and switched back (${before} -> ${after})`,
     );
@@ -384,7 +384,7 @@ try {
   // The first match may have ended by now: the results dialog opens on its own and must be closed before the room actions.
   const closeRecap = async (page: Page) => {
     if (await page.locator("dialog[open]").count())
-      await page.getByRole("button", { name: "CLOSE", exact: true }).click();
+      await page.getByRole("button", { name: "Back", exact: true }).click();
   };
   // A rematch keeps the refresh checks inside a running match whichever rider won three rounds first.
   const ensurePlaying = async () => {
@@ -514,7 +514,7 @@ try {
     .getByRole("button", { name: "Game settings", exact: true })
     .click();
   await host.getByLabel("Match length").fill("2"); // saves on input
-  await host.getByRole("button", { name: "CLOSE", exact: true }).click();
+  await host.getByRole("button", { name: "Back", exact: true }).click();
   await host
     .getByRole("button", { name: "BACK TO LOBBY", exact: true })
     .click();
@@ -615,7 +615,7 @@ try {
   await host
     .getByRole("radio", { name: "Shared TV + phone controls", exact: true })
     .check(); // saves on change
-  await host.getByRole("button", { name: "CLOSE", exact: true }).click();
+  await host.getByRole("button", { name: "Back", exact: true }).click();
   const phones = [guest, ...riders].slice(0, 2);
   for (const page of phones)
     await page.locator(".online-arena").waitFor({ state: "hidden" });

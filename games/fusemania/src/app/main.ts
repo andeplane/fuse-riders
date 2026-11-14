@@ -29,16 +29,21 @@ import {
 } from "fuse-network-fe";
 import { MAX_PACKET_BYTES, browserDependencies, uuid } from "fuse-netcode";
 import {
+  backOnEscape,
   button,
   createAppPortal,
+  createBackLink,
   createGameMenu,
   createInviteCard,
   createLandingCard,
   createRoomLayout,
   createNameEntry,
   createNotice,
+  createPageHeader,
+  createPageMessage,
   createRoster,
   createRoundControls,
+  createSubPage,
   createTopBar,
   el,
 } from "fuse-ui";
@@ -597,11 +602,11 @@ function landing(): void {
       event.preventDefault();
   };
   document.addEventListener("keydown", onKey);
-  const back = el("a", "← ALL GAMES", "fm-back");
-  back.href = BASE + (muted ? "?mute" : "");
+  const allGames = el("a", "All games", "fm-all-games");
+  allGames.href = BASE + (muted ? "?mute" : "");
   const menu = createGameMenu(guide());
   menu.update({ canLobby: false, canLeave: false, touch: coarse() });
-  app.replaceChildren(header([back, menu.element]), card.element);
+  app.replaceChildren(header([allGames, menu.element]), card.element);
   picker.update({ ...choice, host: true });
   showOptions();
   preview.show(choice.song);
@@ -635,10 +640,13 @@ function openTiming(): void {
 
 /** The Timing screen ("sync"): thirty seconds of a steady tick, then what to set. No song, no room. */
 function timing(): void {
-  const back = el("a", "← BACK TO THE MENU", "fm-ts-back");
-  back.href = withFlags(endpoints.appUrl());
   const loading = el("p", "Loading…", "fm-connecting");
-  app.replaceChildren(header(), loading);
+  const page = createSubPage({
+    title: "Sync timing",
+    backHref: withFlags(endpoints.appUrl()),
+    content: [loading],
+  });
+  app.replaceChildren(header(), page.element);
   void import("./timing-screen.js").then(({ createTimingScreen }) => {
     const screen = createTimingScreen({
       doc: document,
@@ -654,10 +662,11 @@ function timing(): void {
       bpm: Number(new URLSearchParams(location.search).get("rate")),
       seconds: Number(new URLSearchParams(location.search).get("seconds")),
       details: debugTiming,
-      back,
       pairing: pairedClock,
     });
     loading.replaceWith(screen.element);
+    // After the screen's own keys: Escape stops a run first, and only then goes back.
+    backOnEscape(page.back);
     // For smokes and for an agent reading a session: what the panel shows, its log, and where the run is.
     Object.assign(window, {
       fusemania: {
@@ -674,12 +683,15 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     ? ({ kind: "solo" } as const)
     : sessionFor(location.search, store, GAME, validRoomCode, secret);
   if (session.kind === "invalid" || session.kind === "landing") {
-    const back = el("a", "← BACK", "fm-back");
-    back.href = withFlags(endpoints.appUrl());
-    app.replaceChildren(
-      header([back]),
-      el("p", "That is not a room code: check it and try again.", "fm-error"),
-    );
+    const page = createSubPage({
+      title: "Join room",
+      backHref: withFlags(endpoints.appUrl()),
+      content: [
+        createPageMessage("That is not a room code: check it and try again."),
+      ],
+    });
+    app.replaceChildren(header(), page.element);
+    backOnEscape(page.back);
     return;
   }
   const code = session.kind === "room" ? session.code : "SOLO",
@@ -882,11 +894,11 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     cardTiming = el("section", "", "fm-card-timing"),
     timingText = el("p", ""),
     timingApply = button("APPLY", "fui-button-primary fm-timing-apply"),
-    timingSkip = button("NO THANKS", "fm-timing-skip"),
+    timingSkip = button("NO THANKS", "fui-button fm-timing-skip"),
     cardActions = el("div", "", "fm-actions"),
     rematch = button("PLAY AGAIN", "fui-button-primary fm-rematch"),
-    toLobby = button("SONG SELECT", "fm-to-lobby"),
-    toMenu = button("MENU", "fm-to-menu");
+    toLobby = button("SONG SELECT", "fui-button fm-to-lobby"),
+    toMenu = button("MENU", "fui-button fm-to-menu");
   cardActions.append(toMenu, toLobby, rematch);
   cardOwn.append(ownGrade, ownScore, ownDetail, ownBadge);
   cardSide.append(cardOwn, cardCounts, cardLines);
@@ -909,8 +921,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     pauseCount = el("strong", "", "fm-pause-count"),
     pauseActions = el("div", "", "fm-actions fm-pause-actions"),
     pauseResume = button("RESUME", "fui-button-primary fm-pause-resume"),
-    pauseRestart = button("RESTART", "fm-pause-restart"),
-    pauseSelect = button("SONG SELECT", "fm-pause-select"),
+    pauseRestart = button("RESTART", "fui-button fm-pause-restart"),
+    pauseSelect = button("SONG SELECT", "fui-button fm-pause-select"),
     pauseHint = el("p", "ESC RESUMES", "fm-pause-hint"),
     pauseButton = button("II", "fm-pause-button");
   pauseCard.setAttribute("role", "dialog");
@@ -1055,7 +1067,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   controllerHead.append(controllerName, controllerState);
   const controllerResult = el("div", "", "fm-actions fm-controller-result"),
     controllerRematch = button("PLAY AGAIN", "fui-button-primary"),
-    controllerLobby = button("SONG SELECT");
+    controllerLobby = button("SONG SELECT", "fui-button");
   controllerRematch.onclick = rematch.onclick;
   controllerLobby.onclick = toLobby.onclick;
   controllerResult.append(controllerLobby, controllerRematch);
@@ -1063,17 +1075,17 @@ function room(solo: boolean, library: Library, first?: Choice): void {
 
   const connecting = el("p", "Connecting to the room…", "fm-connecting"),
     closed = el("section", "", "fm-panel fm-closed"),
-    closedRetry = button("TRY AGAIN", "fm-retry"),
-    closedBack = el(
-      "a",
-      "BACK TO FUSEMANIA",
-      "fui-button-primary fm-closed-back",
-    );
+    closedRetry = button("TRY AGAIN", "fui-button fm-retry"),
+    closedBack = el("a", "MAIN MENU", "fui-button-primary fm-closed-back"),
+    closedHead = createPageHeader({
+      back: createBackLink({ href: withFlags(endpoints.appUrl()) }),
+    });
   closedBack.href = withFlags(endpoints.appUrl());
   closedRetry.onclick = () => location.reload();
   const closedActions = el("div", "", "fm-actions");
   closedActions.append(closedRetry, closedBack);
   closed.append(
+    closedHead.element,
     el("h2", "ROOM CLOSED", "fui-lobby-title"),
     el(
       "p",

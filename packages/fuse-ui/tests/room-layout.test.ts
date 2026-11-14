@@ -8,12 +8,12 @@ import {
 } from "fuse-ui";
 import { page } from "./dom-fixture.js";
 
-test("Main menu follows Game settings and can reuse the game's leave handler", () => {
+test("Back is the room's first control, top left, and can reuse the game's leave handler", () => {
   const { document } = page(),
     root = document.createElement("section"),
     leave = document.createElement("button");
   document.body.append(root);
-  leave.textContent = "Main menu";
+  leave.textContent = "Back";
   let left = 0;
   leave.onclick = () => left++;
   const layout = createRoomLayout({
@@ -22,19 +22,21 @@ test("Main menu follows Game settings and can reuse the game's leave handler", (
     capacity: 2,
     mainMenuAction: leave,
   });
-  assert.equal(
-    root.querySelector(".fui-room-settings")?.nextElementSibling,
-    leave,
-  );
+  const head = root.firstElementChild!;
+  assert.equal(head.className, "fui-page-head fui-room-head");
+  assert.equal(head.firstElementChild === leave, true);
+  assert.equal(leave.classList.contains("fui-back"), true);
   leave.click();
   assert.equal(left, 1);
-  const configure = root.querySelector<HTMLElement>(".fui-room-settings")!;
-  configure.parentElement!.append(configure);
+  const configure = root.querySelector<HTMLElement>(".fui-room-settings")!,
+    column = configure.parentElement!;
+  assert.equal(column.lastElementChild === configure, true);
+  column.append(document.createElement("p"));
   layout.update(0);
   assert.equal(
-    configure.nextElementSibling,
-    leave,
-    "a game moving its settings trigger cannot reorder the shared actions",
+    column.lastElementChild === configure,
+    true,
+    "Game settings closes the invitation's column whatever a game adds to it",
   );
   const other = document.createElement("section");
   document.body.append(other);

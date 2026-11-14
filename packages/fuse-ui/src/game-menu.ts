@@ -1,3 +1,4 @@
+import { createBackButton, createPageHeader } from "./back.js";
 import { button, el } from "./dom.js";
 
 export interface ControlHint {
@@ -121,10 +122,13 @@ export function createGameMenu(options: GameMenuOptions): GameMenu {
   navigation.append(resume, controls, lobby, leave);
   const help = el("div", "", "fui-game-menu-controls", doc);
   help.hidden = true;
-  const back = button("← BACK", "fui-game-menu-action", doc);
-  const helpTitle = el("h3", "CONTROLS", "fui-game-menu-title", doc);
+  // A view inside the menu names where its Back returns to: the dialog around it already has a plain Back.
+  const back = createBackButton({ label: "Menu", document: doc });
+  const helpTitle = el("h3", "CONTROLS", "fui-page-title", doc);
+  const helpHead = createPageHeader({ back, document: doc });
+  helpHead.title.replaceWith(helpTitle);
   const helpContent = el("div", "", "", doc);
-  help.append(back, helpTitle, helpContent);
+  help.append(helpHead.element, helpContent);
   panel.append(heading, navigation, help);
   element.append(trigger, panel);
 

@@ -6,7 +6,7 @@ export const FUSE_DIALOG_CLASSES = {
   bar: "fui-dialog-bar dialog-bar",
   title: "fui-dialog-title",
   actions: "fui-dialog-actions dialog-actions",
-  close: "",
+  back: "",
   body: "fui-dialog-body dialog-body",
 } as const;
 
@@ -17,36 +17,33 @@ export interface DialogShellOptions {
   label: string;
   /** Classes besides `game-dialog` (the results use `recap-dialog`). */
   variant?: string;
-  /** The CLOSE button's text; its accessible name is always CLOSE. */
-  closeText?: string;
-  /** The CLOSE button's class: the room's dialogs use `dialog-close`, the landing page's SETTINGS none. */
+  /** Back's class besides `fui-back`: the room's dialogs use `dialog-close`, the landing page's SETTINGS none. */
   closeClass?: string;
   document?: Document;
 }
 
-/** A game dialog's parts. `actions` holds CLOSE; a dialog adds its own buttons before it. */
+/** A game dialog's parts. Back is at the bar's left; a dialog adds its own buttons to `actions`, at the right. */
 export type GameDialogShell = Omit<DialogShell, "show">;
 
 /**
- * One game dialog on fuse-ui's shell: `dialog.game-dialog` > `header.dialog-bar` (title, actions with CLOSE) and
- * `div.dialog-body`. CLOSE, Escape and a click on the backdrop close it. Each dialog keeps its own title; which
+ * One game dialog on fuse-ui's shell: `dialog.game-dialog` > `header.dialog-bar` (Back, title, actions) and
+ * `div.dialog-body`. Back, Escape and a click on the backdrop close it. Each dialog keeps its own title; which
  * dialog is open is the registry's.
  */
 export function createDialogShell(
   options: DialogShellOptions,
 ): GameDialogShell {
-  const { dialog, bar, title, actions, close, body } = createDialog({
+  const { dialog, bar, title, actions, back, body } = createDialog({
     title: options.title,
     label: options.label,
-    ...(options.closeText ? { closeText: options.closeText } : {}),
     classes: {
       ...FUSE_DIALOG_CLASSES,
       root: options.variant
         ? `${FUSE_DIALOG_CLASSES.root} ${options.variant}`
         : FUSE_DIALOG_CLASSES.root,
-      close: options.closeClass ?? "dialog-close",
+      back: options.closeClass ?? "dialog-close",
     },
     ...(options.document ? { document: options.document } : {}),
   });
-  return { dialog, bar, title, actions, close, body };
+  return { dialog, bar, title, actions, back, body };
 }

@@ -1,3 +1,4 @@
+import { backOnEscape, createBackButton, createPageHeader } from "./back.js";
 import { button, el } from "./dom.js";
 import { createDialog } from "./dialog.js";
 import { mountAttract, type AttractFactory } from "./attract.js";
@@ -62,8 +63,15 @@ export function createMainMenu(options: MainMenuOptions) {
   const singlePlayer = button("Single player", "", doc);
   const hostRoom = button("Host room", "", doc);
   const joinRoom = button("Join room", "", doc);
-  const back = button("Back", "fui-play-menu-back", doc);
-  choices.append(singlePlayer, hostRoom, joinRoom, back);
+  choices.append(singlePlayer, hostRoom, joinRoom);
+  // Back is the page's top-left control, as in every dialog; its bar keeps its place on the front door, where
+  // there is nowhere to go back to, so the menu under it does not move between the two.
+  const back = createBackButton({
+    className: "fui-play-menu-back",
+    document: doc,
+  });
+  const head = createPageHeader({ back, document: doc });
+  head.element.hidden = true;
   const hosting = el("details", "", "fui-play-hosting", doc);
   hosting.append(el("summary", "Hosting options", "", doc));
   if (options.hostingOptions) hosting.append(options.hostingOptions);
@@ -127,31 +135,33 @@ export function createMainMenu(options: MainMenuOptions) {
     dialog.show({ title: name, content: nodes });
   };
   let pending = false;
+  /** The first choice that can be taken is the page's primary action: it lands where Play was, at Play's size. */
+  const markPrimary = () => {
+    const first = singlePlayer.disabled ? hostRoom : singlePlayer;
+    for (const choice of [singlePlayer, hostRoom, joinRoom])
+      choice.classList.toggle("fui-menu-primary", choice === first);
+    return first;
+  };
   const showPlayMenu = () => {
     navigation.hidden = true;
     choices.hidden = false;
+    head.element.hidden = false;
     hosting.hidden = !options.hostingOptions || options.hostingOptions.hidden;
-    (singlePlayer.disabled ? hostRoom : singlePlayer).focus();
+    markPrimary().focus();
   };
   const showMainMenu = () => {
     navigation.hidden = false;
     choices.hidden = true;
+    head.element.hidden = true;
     hosting.hidden = true;
     error.textContent = "";
     play.focus();
   };
   play.onclick = showPlayMenu;
   back.onclick = showMainMenu;
-  element.addEventListener("keydown", (event) => {
-    if (
-      event.key === "Escape" &&
-      !choices.hidden &&
-      !dialog.dialog.open &&
-      !pending
-    ) {
-      event.preventDefault();
-      showMainMenu();
-    }
+  const releaseEscape = backOnEscape(back, {
+    enabled: () => !pending,
+    document: doc,
   });
   const run = async (
     action: () => Promise<void> | void,
@@ -177,6 +187,7 @@ export function createMainMenu(options: MainMenuOptions) {
       singlePlayer.disabled =
         !options.onSinglePlayer && !singlePlayerContent().length;
       trigger.textContent = label;
+      markPrimary();
     }
   };
   hostRoom.onclick = () => {
@@ -195,7 +206,7 @@ export function createMainMenu(options: MainMenuOptions) {
     if (content.length) {
       content.forEach((node) => owned.add(node));
       open("Single player", content);
-      dialog.close.before(...barActions);
+      dialog.actions.append(...barActions);
       // Enter right after opening plays: the action that starts the game is the last in the bar.
       const start = barActions[barActions.length - 1];
       if (start instanceof (doc.defaultView?.HTMLElement ?? HTMLElement))
@@ -244,8 +255,9 @@ export function createMainMenu(options: MainMenuOptions) {
     how.before(entry);
     return entry;
   };
+  markPrimary();
   home.append(title, description, navigation, choices, hosting, error);
-  element.append(home, dialog.dialog, parking);
+  element.append(head.element, home, dialog.dialog, parking);
   let backgroundActive = false,
     stopBackground = () => {};
   const startBackground = () => {
@@ -258,6 +270,7 @@ export function createMainMenu(options: MainMenuOptions) {
   const dispose = () => {
     backgroundActive = false;
     stopBackground();
+    releaseEscape();
   };
   startBackground();
   return {

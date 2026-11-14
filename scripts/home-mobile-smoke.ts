@@ -308,11 +308,11 @@ for (const { name: browserName, kind } of BOTH_ENGINES) {
             await power.fill("42");
             await inside(
               page,
-              page.getByRole("button", { name: "CLOSE", exact: true }),
+              page.getByRole("button", { name: "Back", exact: true }),
             );
             await page
               .getByRole("button", {
-                name: "← BACK TO ROOM SETTINGS",
+                name: "Room settings",
                 exact: true,
               })
               .click();
@@ -332,7 +332,7 @@ for (const { name: browserName, kind } of BOTH_ENGINES) {
             assert.equal(await power.inputValue(), "42");
             await page
               .getByRole("button", {
-                name: "← BACK TO ROOM SETTINGS",
+                name: "Room settings",
                 exact: true,
               })
               .click();
@@ -374,7 +374,7 @@ for (const { name: browserName, kind } of BOTH_ENGINES) {
               .click();
             await page
               .getByRole("button", {
-                name: "← BACK TO ROOM SETTINGS",
+                name: "Room settings",
                 exact: true,
               })
               .click();
@@ -403,7 +403,7 @@ for (const { name: browserName, kind } of BOTH_ENGINES) {
               .waitFor({ state: "hidden" });
             assert.equal((await stored()).bombChargeTicks, 24);
             await page
-              .getByRole("button", { name: "CLOSE", exact: true })
+              .getByRole("button", { name: "Back", exact: true })
               .click();
             await dialog.waitFor({ state: "hidden" });
             await page
@@ -424,7 +424,7 @@ for (const { name: browserName, kind } of BOTH_ENGINES) {
             assert.equal(await power.inputValue(), "42");
             await page
               .getByRole("button", {
-                name: "← BACK TO ROOM SETTINGS",
+                name: "Room settings",
                 exact: true,
               })
               .click();
@@ -466,14 +466,12 @@ for (const { name: browserName, kind } of BOTH_ENGINES) {
           });
           await inside(
             page,
-            page.getByRole("button", { name: "CLOSE", exact: true }),
+            page.getByRole("button", { name: "Back", exact: true }),
           );
           await page.screenshot({
             path: `artifacts/menu-${tag}-${name === "SETTINGS" ? "audio" : name.replaceAll(" ", "-")}.png`,
           });
-          await page
-            .getByRole("button", { name: "CLOSE", exact: true })
-            .click();
+          await page.getByRole("button", { name: "Back", exact: true }).click();
           await dialog.waitFor({ state: "hidden" });
         }
         await page.reload();

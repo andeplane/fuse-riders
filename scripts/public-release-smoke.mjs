@@ -144,10 +144,10 @@ for (const [name, type] of [
       .locator("input")
       .fill("0");
     await host
-      .getByRole("button", { name: "← BACK TO ROOM SETTINGS", exact: true })
+      .getByRole("button", { name: "Room settings", exact: true })
       .click();
     // Every change saved as it was made; CLOSE only closes the dialog.
-    await host.getByRole("button", { name: "CLOSE", exact: true }).click();
+    await host.getByRole("button", { name: "Back", exact: true }).click();
     await guest.locator(".online-arena").waitFor({ state: "hidden" });
     await host.locator(".online-arena").waitFor({ state: "hidden" });
     result.sharedPhoneViewsHidden = true;
@@ -197,7 +197,7 @@ for (const [name, type] of [
       powerWeight: 0,
     });
     result.settingsRestoredInLobby = true;
-    await host.getByRole("button", { name: "CLOSE", exact: true }).click();
+    await host.getByRole("button", { name: "Back", exact: true }).click();
     // Close the guest before adding TV: keep at most two live views on this runner.
     await guestContext.close();
     const displayContext = await browser.newContext({

@@ -256,7 +256,11 @@ test("a game's own menu in the header dialog closes that dialog when it resumes,
 
   trigger.click();
   action("CONTROLS").click();
-  action("← BACK").click();
+  const back = dialog.querySelector<HTMLButtonElement>(
+    ".fui-game-menu .fui-back",
+  )!;
+  assert.equal(back.textContent, "Menu");
+  back.click();
   assert.deepEqual(log, ["menu open"], "reading the controls keeps both open");
   action("BACK TO GAME").click();
   // linkedom runs capture listeners in bubble order, so only a browser shows the dialog closing first

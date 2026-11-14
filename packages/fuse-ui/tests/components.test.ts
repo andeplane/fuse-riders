@@ -22,7 +22,7 @@ import {
 
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 
-test("dialog shell: title bar, CLOSE, body, and part classes a game can rename", () => {
+test("dialog shell: Back, the title and the actions in the bar, a body, and part classes a game can rename", () => {
   const { document } = page();
   const shell = createDialog({ title: HOSTILE, document });
   assert.equal(shell.dialog.className, "fui-dialog");
@@ -33,26 +33,34 @@ test("dialog shell: title bar, CLOSE, body, and part classes a game can rename",
     [...shell.dialog.children].map((child) => child.className),
     ["fui-dialog-bar", "fui-dialog-body"],
   );
-  assert.deepEqual([...shell.bar.children], [shell.title, shell.actions]);
-  assert.deepEqual([...shell.actions.children], [shell.close]);
-  assert.equal(shell.close.type, "button");
-  assert.equal(shell.close.getAttribute("aria-label"), "CLOSE");
+  // Back leads the bar, top left; the actions slot is the game's, and empty until it adds to it.
+  assert.deepEqual(
+    [...shell.bar.children],
+    [shell.back, shell.title, shell.actions],
+  );
+  assert.equal(shell.actions.children.length, 0);
+  assert.equal(shell.back.type, "button");
+  assert.equal(shell.back.className, "fui-back fui-dialog-back");
+  assert.equal(shell.back.textContent, "Back");
+  assert.equal(shell.back.getAttribute("aria-label"), "Back");
   const closed = recordClose(shell.dialog);
-  shell.close.click();
+  shell.back.click();
   assert.equal(closed.count, 1);
 
   const fuse = createDialog({
     title: "SETTINGS",
     label: "Settings",
-    closeText: "DONE",
-    classes: { root: "game-dialog", title: "", close: "" },
+    backText: "Done",
+    classes: { root: "game-dialog", title: "", back: "" },
     document,
   });
   assert.equal(fuse.dialog.className, "game-dialog");
   assert.equal(fuse.dialog.getAttribute("aria-label"), "Settings");
   assert.equal(fuse.title.hasAttribute("class"), false);
-  assert.equal(fuse.close.hasAttribute("class"), false);
-  assert.equal(fuse.close.textContent, "DONE");
+  // A game can drop the part's own class, never the shared one: Back looks the same in every dialog.
+  assert.equal(fuse.back.className, "fui-back");
+  assert.equal(fuse.back.textContent, "Done");
+  assert.equal(fuse.back.getAttribute("aria-label"), "Done");
   assert.equal(fuse.bar.className, "fui-dialog-bar");
 });
 

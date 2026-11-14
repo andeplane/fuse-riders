@@ -271,7 +271,7 @@ test("matches: everyone by default, yours on demand, each row opening its result
     body.querySelector(".detail")!.textContent,
     `${HOSTILE} · TODAY`,
   );
-  f.named("‹ MATCHES")!.click();
+  f.named("Matches")!.click();
   assert.equal(body.dataset.view, "matches");
   assert.equal(
     f.requests.length,
@@ -383,7 +383,7 @@ test("a recent-finish chip opens its match in the MATCHES tab", async () => {
   body.querySelector<HTMLButtonElement>(".chip")!.click();
   assert.equal(body.dataset.view, "match");
   assert.equal(f.tab("MATCHES")!.getAttribute("aria-current"), "page");
-  f.named("‹ MATCHES")!.click();
+  f.named("Matches")!.click();
   assert.equal(
     body
       .querySelector<HTMLButtonElement>(".fui-account-scope button")!

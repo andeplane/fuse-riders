@@ -25,6 +25,7 @@ import {
 import {
   button,
   createAppPortal,
+  createBackButton,
   createGameMenu,
   createInviteCard,
   createLandingCard,
@@ -406,7 +407,7 @@ function guideNodes(): HTMLElement[] {
 }
 
 /**
- * How to play: a button for the lobby that opens the whole guide in a dialog (Escape or CLOSE shuts it).
+ * How to play: a button for the lobby that opens the whole guide in a dialog (Escape or Back shuts it).
  * `#how-to-play` in the address opens it on load.
  */
 function howToPlay(): HTMLElement {
@@ -414,12 +415,12 @@ function howToPlay(): HTMLElement {
     dialog = el("dialog", "", "fui-dialog kf-how"),
     bar = el("div", "", "fui-dialog-bar"),
     title = el("h2", "HOW TO PLAY", "fui-dialog-title kf-how-title"),
-    close = button("CLOSE", "fui-dialog-close"),
+    close = createBackButton({ className: "fui-dialog-back" }),
     body = el("div", "", "fui-dialog-body kf-how-body");
   title.id = "kf-how-title";
   dialog.setAttribute("aria-labelledby", title.id);
   open.setAttribute("aria-haspopup", "dialog");
-  bar.append(title, close);
+  bar.append(close, title);
   body.append(...guideNodes());
   dialog.append(bar, body);
   const show = () => {
