@@ -41,8 +41,8 @@ export const ROLL_GRACE_MS = 500;
 export const POINTS = [10, 9, 6, 3, 1, 0] as const;
 export const HOLD_POINTS = 5;
 export const MINE_PENALTY = 6;
-/** The worst judgment that keeps a combo going. */
-export const COMBO_KEEPS = GOOD;
+/** The worst judgment that keeps a combo going: a Good or worse breaks it. */
+export const COMBO_KEEPS = GREAT;
 /** What a rating is out of: every note Marvelous and every hold kept is this many. */
 export const FULL_RATING = 1_000_000;
 

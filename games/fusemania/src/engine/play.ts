@@ -75,6 +75,8 @@ export interface Player {
   last: number;
   score: number;
   combo: number;
+  /** The worst judgment in the running combo (`MARVELOUS`…`COMBO_KEEPS`), or `NO_JUDGMENT` when there is none. */
+  worst: number;
   best: number;
   /** How many of each judgment (`MARVELOUS`…`MINED`). */
   counts: number[];
@@ -128,6 +130,7 @@ export function createPlayer(
     last: MIN_SONG_MS,
     score: 0,
     combo: 0,
+    worst: NO_JUDGMENT,
     best: 0,
     counts: Array.from({ length: COUNTS }, () => 0),
     hits: Array.from({ length: Math.ceil(steps.notes.length / 32) }, () => 0),
@@ -257,10 +260,16 @@ export function rollItem(ctx: PlayContext, id: number): number {
   return NO_ITEM;
 }
 
+/** The combo is lost, and with it what its worst judgment was. */
+function breakCombo(player: Player): void {
+  player.combo = 0;
+  player.worst = NO_JUDGMENT;
+}
+
 function blow(player: Player, at: number): void {
   player.counts[MINED]!++;
   player.score = Math.max(0, player.score - MINE_PENALTY);
-  player.combo = 0;
+  breakCombo(player);
   player.judged = MINED;
   player.judgedAt = at;
   player.judgedOff = 0;
@@ -316,8 +325,9 @@ function award(
   player.counts[judgment]!++;
   if (judgment <= COMBO_KEEPS) {
     player.combo++;
+    if (judgment > player.worst) player.worst = judgment;
     if (player.combo > player.best) player.best = player.combo;
-  } else player.combo = 0;
+  } else breakCombo(player);
   player.score +=
     POINTS[judgment]! * (under(player.effects, DOUBLE, note.ms) ? 2 : 1);
   setHit(player, id, true);
@@ -339,7 +349,7 @@ function miss(player: Player, note: StepNote): void {
   player.next[note.column]!++;
   player.counts[MISS]!++;
   if (note.kind !== TAP) player.counts[DROPPED]!++;
-  player.combo = 0;
+  breakCombo(player);
   player.judged = MISS;
   player.judgedAt = note.ms + WORST_WINDOW;
   player.judgedOff = 0;

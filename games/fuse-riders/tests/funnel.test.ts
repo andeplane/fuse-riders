@@ -170,7 +170,10 @@ test("a decided round's kills and misses go out once it is confirmed, once, and 
     "not while the decision is speculative, and not by a device without a rider",
   );
   for (let repeat = 0; repeat < 20; repeat++)
-    first.funnel.onFrame(frame, device({ confirmedTick: 500 }));
+    first.funnel.onFrame(
+      frame,
+      device({ confirmedTick: 500, confirmedRoundFrame: frame }),
+    );
   assert.deepEqual(first.names(), [
     "Seat Taken",
     "Round Ended",
@@ -198,7 +201,10 @@ test("a decided round's kills and misses go out once it is confirmed, once, and 
 
   // A reload is a new funnel over the same storage: the round is not sent again, the next one is.
   const reloaded = harness(storage);
-  reloaded.funnel.onFrame(frame, device({ confirmedTick: 500 }));
+  reloaded.funnel.onFrame(
+    frame,
+    device({ confirmedTick: 500, confirmedRoundFrame: frame }),
+  );
   assert.deepEqual(reloaded.names(), ["Round Ended", "Seat Taken"]);
   reloaded.funnel.onFrame(
     view({
@@ -206,7 +212,14 @@ test("a decided round's kills and misses go out once it is confirmed, once, and 
       round: 3,
       decidedRound: { ...decided, round: 3, tick: 900 },
     }),
-    device({ confirmedTick: 900 }),
+    device({
+      confirmedTick: 900,
+      confirmedRoundFrame: view({
+        phase: "roundOver",
+        round: 3,
+        decidedRound: { ...decided, round: 3, tick: 900 },
+      }),
+    }),
   );
   assert.deepEqual(reloaded.names(), [
     "Round Ended",
@@ -229,7 +242,10 @@ test("storage that forgets everything still reports a round only once per funnel
     decidedRound: { matchId: "m1", round: 1, tick: 10, shots: [pull(1, "me")] },
   });
   for (let repeat = 0; repeat < 5; repeat++)
-    funnel.onFrame(frame, device({ confirmedTick: 10 }));
+    funnel.onFrame(
+      frame,
+      device({ confirmedTick: 10, confirmedRoundFrame: frame }),
+    );
   assert.deepEqual(names(), ["Round Ended", "Miss", "Seat Taken"]);
 });
 
@@ -249,16 +265,30 @@ test("round participation excludes countdown and observers and confirms a prior 
   const decided = { matchId: "m1", round: 1, tick: 50, shots: [] };
   funnel.onFrame(
     view({ phase: "playing", round: 2, decidedRound: decided }),
-    device({ confirmedTick: 49 }),
+    device({ confirmedTick: 900 }),
   );
   assert.equal(sent.filter((event) => event.event === "Round Ended").length, 0);
   funnel.onFrame(
     view({ phase: "playing", round: 2, decidedRound: decided }),
-    device({ confirmedTick: 50 }),
+    device({
+      confirmedTick: 50,
+      confirmedRoundFrame: view({
+        phase: "roundOver",
+        round: 1,
+        decidedRound: decided,
+      }),
+    }),
   );
   funnel.onFrame(
     view({ phase: "playing", round: 2, decidedRound: decided }),
-    device({ confirmedTick: 50 }),
+    device({
+      confirmedTick: 50,
+      confirmedRoundFrame: view({
+        phase: "roundOver",
+        round: 1,
+        decidedRound: decided,
+      }),
+    }),
   );
   assert.equal(
     sent.filter((event) => event.event === "Round Started").length,

@@ -1423,6 +1423,7 @@ export async function startOnline(): Promise<void> {
         playerId: id,
         host: isHost,
         confirmedTick: runtime.confirmedTick(),
+        confirmedRoundFrame: runtime.confirmedFrame(),
         rules,
       });
       const roundReport =

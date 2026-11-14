@@ -477,11 +477,13 @@ export class World<
   private confirmedSnapshot: Room | undefined;
   private confirmedSnapshotFrame: Frame<View> | undefined;
   /**
-   * A detached view of retained final history, at most one materialization per snapshot (four log ticks).
+   * A detached view of rollback-closed history, at most one materialization per snapshot (four log ticks).
+   * Waiting one rollback window also covers unfinished inputs from departed members, which `completeTick`
+   * deliberately excludes. `receive` cannot replay this prefix; while replay is owed its bound is `work.tick`.
    * Unlike `servable`, never falls back to speculative state on a gap or missing history.
    */
   confirmedFrame(): Frame<View> | undefined {
-    const complete = this.completeTick();
+    const complete = this.work.tick - ROLLBACK_TICKS;
     const at = Math.max(
       ...[...this.snapshots.keys()].filter((tick) => tick <= complete),
       -1,

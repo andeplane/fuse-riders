@@ -42,7 +42,13 @@ export interface RoomSnapshot extends RoomRules {
 /** A Versus room: a game session plus its lobby. */
 export interface OnlineSession extends NeuralSession {
   /** Detached final history for irreversible observations such as completed rounds. */
-  confirmedView(): Readonly<World> | undefined;
+  confirmedView():
+    | (Readonly<World> & {
+        seats: readonly (Pick<RoomSeat, "id" | "bot"> & {
+          watcher?: boolean;
+        })[];
+      })
+    | undefined;
   readonly code: string;
   room(): RoomSnapshot;
   join(name: string, slot?: number): void;

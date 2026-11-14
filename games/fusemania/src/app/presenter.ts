@@ -88,7 +88,7 @@ export interface Own {
   score: string;
   /** "CHALLENGE 13 · 94.2% · MAX COMBO 212". */
   detail: string;
-  /** What a run with no broken combo earned ("FULL COMBO", "FULL PERFECT COMBO", ...), or "". */
+  /** What a run with no broken combo earned ("FULL GREAT COMBO", "FULL PERFECT COMBO", ...), or "". */
   badge: string;
 }
 /** One line of a session's standings. */
@@ -212,17 +212,16 @@ export const comboBadge = (counts: readonly number[]): string => {
   if (
     at(MISS) ||
     at(BOO) ||
+    at(GOOD) ||
     at(DROPPED) ||
-    at(MARVELOUS) + at(PERFECT) + at(GREAT) + at(GOOD) === 0
+    at(MARVELOUS) + at(PERFECT) + at(GREAT) === 0
   )
     return "";
-  return at(GOOD)
-    ? "FULL COMBO"
-    : at(GREAT)
-      ? "FULL GREAT COMBO"
-      : at(PERFECT)
-        ? "FULL PERFECT COMBO"
-        : "ALL MARVELOUS";
+  return at(GREAT)
+    ? "FULL GREAT COMBO"
+    : at(PERFECT)
+      ? "FULL PERFECT COMBO"
+      : "ALL MARVELOUS";
 };
 
 const standingRows = (

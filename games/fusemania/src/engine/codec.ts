@@ -10,10 +10,12 @@ import {
 import {
   CAPACITY,
   COLUMNS,
+  COMBO_KEEPS,
   COUNTS,
   ITEM_KINDS,
   MAX_EFFECTS,
   MAX_SONG_MS,
+  MARVELOUS,
   MINED,
   MIN_SONG_MS,
   MODES,
@@ -47,6 +49,7 @@ export function encodeWorld(world: World): unknown[] {
       player.last,
       player.score,
       player.combo,
+      player.worst,
       player.best,
       [...player.counts],
       [...player.hits],
@@ -76,7 +79,7 @@ const list = (
 ): value is number[] =>
   Array.isArray(value) && value.length === length && value.every(each);
 
-const PLAYER_FIELDS = 23;
+const PLAYER_FIELDS = 24;
 function decodePlayer(
   raw: unknown,
   steps: (chart: number) => Steps | undefined,
@@ -96,6 +99,7 @@ function decodePlayer(
     last,
     score,
     combo,
+    worst,
     best,
     counts,
     hits,
@@ -148,6 +152,9 @@ function decodePlayer(
     !int(score, 0, chartSteps.full * 2) ||
     !int(best, 0, chartSteps.steps) ||
     !int(combo, 0, best) ||
+    // A running combo has a worst judgment that keeps it; no combo has none.
+    !int(worst, NO_JUDGMENT, COMBO_KEEPS) ||
+    (combo === 0) !== (worst === NO_JUDGMENT) ||
     !list(counts, COUNTS, (value) => int(value, 0, notes.length)) ||
     !list(hits, Math.ceil(notes.length / 32), (value) =>
       int(value, 0, 0xffff_ffff),
@@ -190,6 +197,7 @@ function decodePlayer(
     last,
     score,
     combo,
+    worst,
     best,
     counts: [...counts],
     hits: [...hits],

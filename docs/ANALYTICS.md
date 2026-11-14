@@ -79,11 +79,15 @@ same semantic round. Open-ended play and abandoned rounds have no fabricated end
 Rollback games use `observeConfirmedPlay`: starts still observe current active
 play, while completions observe a separate confirmed frame with its own match and
 round key. `RoomRuntime.confirmedFrame()` returns a detached view of a retained
-snapshot no later than input confirmation; it never falls back to speculative
-state. The view is cached per snapshot (normally four log ticks), so repeated
-rendering does not clone the world. Drivers and games with decided outcome records
-may instead compare the outcome tick with `confirmedTick()`. These observations
-change no simulation rules or snapshot format.
+snapshot outside the rollback window (about two seconds behind play); it never
+falls back to speculative state, including when a departed member still has late
+inputs. The view is cached per snapshot (normally four log ticks), and selection
+scans only the bounded snapshot ring, so repeated rendering does not clone the
+world or retain a growing roster. Riders and Drivers also use that final history
+for their round completions. These observations change no simulation rules or
+snapshot format.
+Closing the page before that finality window can omit a completion; starts still
+record participation immediately.
 A bounded local ledger (512 recent start/end marks) prevents repeated frames,
 rollback publication, reload or popout from recounting the same participation.
 Its raw match/round keys never leave the browser. Very long sessions exceeding that

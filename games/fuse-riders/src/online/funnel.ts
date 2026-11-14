@@ -52,6 +52,8 @@ export interface FunnelDevice {
   playerId: string;
   host: boolean;
   confirmedTick: number;
+  /** Detached rollback-closed history for irreversible round completion. */
+  confirmedRoundFrame?: FunnelView;
   rules: Pick<RoomSettings, "mode" | "match" | "length"> & {
     weights?: RoomSettings["weights"];
   };
@@ -107,22 +109,21 @@ export function createFunnel(
         view.players.some((player) => player.id === device.playerId),
       mode: device.rules.mode,
     });
-    if (
-      view.decidedRound &&
-      view.decidedRound.matchId === view.matchId &&
-      view.decidedRound.tick <= device.confirmedTick
-    )
+    const final = device.confirmedRoundFrame;
+    if (final?.decidedRound && final.decidedRound.matchId === final.matchId)
       observeRound({
-        matchId: view.matchId,
-        round: view.decidedRound.round,
+        matchId: final.matchId,
+        round: final.decidedRound.round,
         active: false,
         ended: false,
         roundEnded: true,
-        playerCount: view.players.length,
-        botCount,
+        playerCount: final.players.length,
+        botCount: final.players.filter((player) =>
+          player.id.startsWith(BOT_ID_PREFIX),
+        ).length,
         seated:
           device.playerId !== "" &&
-          view.players.some((player) => player.id === device.playerId),
+          final.players.some((player) => player.id === device.playerId),
         mode: device.rules.mode,
       });
 

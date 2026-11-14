@@ -54,7 +54,7 @@ import { presentTable, type TableModel, type Viewer } from "./presenter.js";
 import { createReportDispatcher, dueReports, sendReport } from "./reports.js";
 import { FuseDriversRuntime, type FuseDriversCallbacks } from "./runtime.js";
 import { keys, roomFailure, safeStore, sessionFor } from "./session.js";
-import { playFrame } from "./play-metrics.js";
+import { playFrame, confirmedPlayFrame } from "./play-metrics.js";
 
 /**
  * The page's glue: it reads the query, builds the screens from fuse-ui, wires the runtime to the transport,
@@ -564,21 +564,19 @@ function room(solo: boolean): void {
         arena?.render(latest, alpha, runtime.self);
       }
     }
-    if (room)
-      observePlay(
-        playFrame(
-          room,
-          runtime.self,
-          solo
-            ? "solo"
-            : display
-              ? "display"
-              : viewer.shared
-                ? "controller"
-                : "online",
-          runtime.confirmedTick(),
-        ),
-      );
+    if (room) {
+      const final = runtime.confirmedFrame();
+      const mode = solo
+        ? "solo"
+        : display
+          ? "display"
+          : viewer.shared
+            ? "controller"
+            : "online";
+      observePlay(playFrame(room, runtime.self, mode), {
+        frame: final && confirmedPlayFrame(final, runtime.self, mode),
+      });
+    }
     if (room && session.kind === "room")
       reports.tick(
         dueReports(

@@ -69,6 +69,22 @@ export const JUDGMENT_COLORS = [
   "#ff3b4f",
   "#ff8a2e",
 ] as const;
+/**
+ * A combo's colour, by the worst judgment in it: white while every step was a Marvelous, yellow once a Perfect is in
+ * it, green once a Great is. Anything else (no combo, a value this build does not know) is white.
+ */
+export const COMBO_COLORS = [WHITE, "#ffe14d", "#4dff7c"] as const;
+export const comboColor = (worst: number): string =>
+  COMBO_COLORS[worst] ?? WHITE;
+/** How long one blink of the combo takes, and how far it dims between two. */
+export const COMBO_BLINK_MS = 280;
+export const COMBO_BLINK_DIM = 0.45;
+/** The combo's opacity at `songMs`: full for the first half of each blink, dimmed for the second. */
+export const comboBlink = (songMs: number): number =>
+  (((songMs % COMBO_BLINK_MS) + COMBO_BLINK_MS) % COMBO_BLINK_MS) * 2 <
+  COMBO_BLINK_MS
+    ? 1
+    : COMBO_BLINK_DIM;
 /** What a Marvelous shimmers through. */
 export const SHIMMER = ["#ffffff", "#bff6ff", "#ffc8f2", "#fff3a8"] as const;
 /** What a starred rider's targets cycle through. */

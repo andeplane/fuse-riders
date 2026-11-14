@@ -290,6 +290,7 @@ function player(
     rating: 0,
     place: 1,
     combo: 0,
+    worst: -1,
     best: 0,
     counts,
     next: [0, 0, 0, 0],

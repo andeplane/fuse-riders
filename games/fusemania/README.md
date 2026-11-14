@@ -45,7 +45,9 @@ In the song select a cover wears a download mark while its song is not on the de
 | Right         | D, L or Right       | **→**    |
 | Throw an item | Space (battle only) | **ITEM** |
 
-**Esc pauses a solo song** (a touch device has a pause button, and leaving the tab or opening a menu pauses too). The pause offers **RESUME**, which counts in 3, 2, 1, **RESTART** and **SONG SELECT**. A solo room keeps this page's time, so the pause is a clock that stands still (`src/app/pause.ts`): nothing is judged while it stands, and the engine knows nothing of it. A room with other riders cannot be paused.
+**Esc pauses a solo song** (a touch device has a pause button, and leaving the tab or opening a menu pauses too). The pause offers **RESUME**, which counts in 3, 2, 1, **RESTART** and **SONG SELECT**. A solo room keeps this page's time, so the pause is a clock that stands still (`src/app/pause.ts`): nothing is judged while it stands, and the engine knows nothing of it. A room with other riders cannot be paused: its song is everybody's, so there **Esc opens the player's own menu over a song that keeps playing** (`src/app/play-menu.ts`). The host's menu has **RESTART FOR EVERYONE** and **SONG SELECT FOR EVERYONE**; every other player's has only what is theirs, their speed and **LEAVE ROOM**, and they are told in a line over the page when the host restarted the song or went back to the song select. Arrow keys and Enter work the menu, and no step is taken while it is open.
+
+**The speed can change in the middle of a song.** **−** and **+** step this device's speed along the chips' values and a line shows the new speed for a moment; the menu over a song has the same two buttons (Left and Right on its speed row). It is the same saved speed as in OPTIONS and Settings, and still only this player's own picture.
 
 ## The result
 
@@ -57,7 +59,7 @@ Every key can be changed in Settings, up to four keys an arrow. WASD and IJKL ar
 
 ## Judging and scoring
 
-A step is judged by how far the press is from the note: Marvelous within 22 ms, Perfect 45, Great 90, Good 135, Boo 180, otherwise a Miss. The combo counts Marvelous to Good. The score is a rating out of 1,000,000: the share of the chart's best possible points, so players on different levels compare. Grades run D to AAAA.
+A step is judged by how far the press is from the note: Marvelous within 22 ms, Perfect 45, Great 90, Good 135, Boo 180, otherwise a Miss. The combo counts Marvelous to Great; a Good or worse breaks it. The combo number blinks in the colour of the worst judgment in it: white while every step was a Marvelous, yellow once a Perfect is in it, green once a Great is (the engine keeps that as `worst` beside the combo, so a device that recovers the match shows the same colour); with reduced motion it holds the colour without blinking. The score is a rating out of 1,000,000: the share of the chart's best possible points, so players on different levels compare. Grades run D to AAAA.
 
 ## Battle mode
 

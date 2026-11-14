@@ -28,12 +28,13 @@ import {
   type NeuralRoom,
   type NeuralEntry,
   type NeuralSettings,
+  type NeuralView,
 } from "./game.js";
 
 class NeuralRuntime extends RoomRuntime<
   NeuralRoom,
   NeuralEntry,
-  World,
+  NeuralView,
   never,
   NeuralSettings
 > {

@@ -38,6 +38,7 @@ import {
   SLOT_COLORS,
   TEXT,
   WHITE,
+  comboColor,
   hexA,
   placeName,
   slotColor,
@@ -190,7 +191,7 @@ function box(
         right,
         y + height * 0.72,
         size,
-        GOLD,
+        comboColor(player.worst),
         "right",
         size * 4,
       );
@@ -287,7 +288,7 @@ function box(
       left,
       third,
       size,
-      player.combo >= COMBO_FROM ? GOLD : MUTED,
+      player.combo >= COMBO_FROM ? comboColor(player.worst) : MUTED,
       "left",
       size * 5,
     );

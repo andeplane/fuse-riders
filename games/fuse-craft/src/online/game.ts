@@ -338,10 +338,14 @@ const MAX_WATCHERS = 4;
  * of 256 commands, which would stop the match for everyone.
  */
 export const COMMANDS_PER_SEAT = 16;
+/** Presentation metadata belongs to the same historical frame as its world. */
+export interface NeuralView extends World {
+  seats: SeatRecord[];
+}
 export const neuralGame: RollbackGame<
   NeuralRoom,
   NeuralEntry,
-  World,
+  NeuralView,
   never,
   NeuralSettings
 > = {
@@ -445,7 +449,10 @@ export const neuralGame: RollbackGame<
   clock: (r) => r.world.tick,
   steps: () => 1,
   maxSteps: 1,
-  view: (r) => r.world,
+  view: (r) => ({
+    ...r.world,
+    seats: [...r.seats.values()].map((seat) => ({ ...seat })),
+  }),
   hash: roomHash,
   checkpoint: {
     leading: 1,

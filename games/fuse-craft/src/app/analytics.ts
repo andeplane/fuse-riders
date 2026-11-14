@@ -39,21 +39,25 @@ export function observeOnlinePlay(
   const update = () => {
     const room = session.room();
     if (room.stage === "connecting") return;
-    observeConfirmedPlay(
+    observeConfirmedPlay<{
+      world: ReturnType<NeuralSession["view"]>;
+      seats: readonly { id: string; bot: boolean; watcher?: boolean }[];
+    }>(
       report,
-      session.view(),
-      () => session.confirmedView(),
-      (view) => ({
+      { world: session.view(), seats: room.seats },
+      () => {
+        const world = session.confirmedView();
+        return world && { world, seats: world.seats };
+      },
+      ({ world: view, seats }) => ({
         matchId: view.matchId,
         roundActive: room.stage === "running",
         roundEnded: view.finished,
         active: room.stage === "running",
         ended: room.stage === "over",
-        playerCount: room.seats.filter((seat) => !seat.watcher).length,
-        botCount: room.seats.filter((seat) => seat.bot).length,
-        seated: room.seats.some(
-          (seat) => seat.id === room.self && !seat.watcher,
-        ),
+        playerCount: seats.filter((seat) => !seat.watcher).length,
+        botCount: seats.filter((seat) => seat.bot).length,
+        seated: seats.some((seat) => seat.id === room.self && !seat.watcher),
         mode: "online",
       }),
     );

@@ -487,22 +487,24 @@ function room() {
         shared = settings.display;
         runtime?.flush();
         const mine = frame.seats.find((s) => s.id === self && !s.watcher);
-        const players = frame.seats.filter((s) => !s.watcher);
         observeConfirmedPlay(
           observePlay,
           frame,
           () => runtime?.confirmedFrame(),
-          (frame) => ({
-            matchId: frame.matchId,
-            roundActive: frame.stage === "running",
-            roundEnded: frame.stage === "over",
-            active: frame.stage === "running",
-            ended: frame.stage === "over",
-            playerCount: players.length,
-            botCount: players.filter((s) => s.bot).length,
-            seated: !!mine,
-            mode: solo ? "solo" : shared ? "shared" : "online",
-          }),
+          (frame) => {
+            const players = frame.seats.filter((s) => !s.watcher);
+            return {
+              matchId: frame.matchId,
+              roundActive: frame.stage === "running",
+              roundEnded: frame.stage === "over",
+              active: frame.stage === "running",
+              ended: frame.stage === "over",
+              playerCount: players.length,
+              botCount: players.filter((s) => s.bot).length,
+              seated: players.some((seat) => seat.id === self),
+              mode: solo ? "solo" : shared ? "shared" : "online",
+            };
+          },
         );
         main.dataset.phase = frame.stage;
         main.dataset.tick = String(frame.tick);

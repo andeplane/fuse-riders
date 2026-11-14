@@ -53,7 +53,7 @@ A slide is the fastest way along the floor; it ends in a small hop when its time
 
 - **Solo**: `/fuseball/?solo=1` plays one match against the bot on the arena chosen on the landing page (`&map=` with `gridlock`, `downlink`, `halo`, `overflow`, `firewall`, `cornercase`, `coredump`, `bruteforce`, `bouncerate`, `portforward`, `backdoor`, `stacktrace`, `quadcore`, `bitstream` or `memoryleak` overrides it). No room service is involved.
 - **Online room**: CREATE ROOM, share the code, link or QR, pick the arena in the lobby, add a bot if nobody joins, and START MATCH. The host starts rematches and returns the room to the lobby. A third visitor watches.
-- **Shared TV**: tick "Shared TV" before creating the room and open `?room=CODE&display=1` on the big screen. It shows the arena only; each rider's phone becomes a controller with a stick and a JUMP button.
+- **Shared TV**: the host ticks "Shared TV" in the room and presses OPEN TV SCREEN (or opens `?room=CODE&display=1`) on the big screen. It shows the arena only; each rider's phone becomes a controller with a stick and a JUMP button.
 - `?mute` on any URL silences the page for that load without storing a choice.
 
 ## Teams
