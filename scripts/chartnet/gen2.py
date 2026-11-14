@@ -142,6 +142,7 @@ def place_eval(keys_file="test_keys.json"):
     stats_, om, _ = placement_model()
     te, _ = load("cache", stats_, only=set(json.loads((ROOT / keys_file).read_text())))
     tot: dict = {}
+    streams: dict = {}
     for s in te:
         tm = timing(s.meta)
         for c in s.meta["charts"]:
@@ -150,6 +151,16 @@ def place_eval(keys_file="test_keys.json"):
             beats = place(predict(om, s, d, chart_nps(c)), tm, d, 0.0, n_target=len(true),
                           snap24=d == "Challenge" and BURSTS in ("learned", "both"))
             got = f1(np.array([int(round(tm.beat_to_time(b) * FPS)) for b in beats]), true)
+            for name, bs in (("gen", beats), ("human", sorted(b for b, _, r in c["rows"] if any(x in "124" for x in r)))):
+                run = best = 1
+                for x, y in zip(bs, bs[1:]):
+                    run = run + 1 if y - x <= 0.25 + 1e-6 else 1
+                    best = max(best, run)
+                st = streams.setdefault((d, name), [0, 0, 0, 0])
+                st[0] += sum(1 for x, y in zip(bs, bs[1:]) if y - x <= 0.25 + 1e-6)
+                st[1] += max(len(bs) - 1, 1)
+                st[2] += best
+                st[3] += 1
             for k in (d, "all"):
                 t = tot.setdefault(k, [0, 0, 0])
                 t[:] = [x + y for x, y in zip(t, got)]
@@ -158,6 +169,9 @@ def place_eval(keys_file="test_keys.json"):
         p, r = tp / max(npred, 1), tp / max(ntrue, 1)
         out[k] = round(2 * p * r / max(p + r, 1e-9), 3)
     print(WEIGHTS[0], keys_file, " ".join(f"{k}={out[k]}" for k in ["all"] + [d for d in DIFFS if d in out]))
+    for d in ("Hard", "Challenge"):
+        print("  ", d, " ".join(f"{n}: 16th-stream share {streams[d, n][0] / streams[d, n][1]:.3f}, longest run "
+                                f"{streams[d, n][2] / streams[d, n][3]:.1f};" for n in ("gen", "human") if (d, n) in streams))
     return out
 
 

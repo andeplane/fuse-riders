@@ -1,0 +1,180 @@
+# Community packs ChartNet v3 trains on, by name as on the ITG pack release sheet (tab 2016-2005).
+# `packs.py` finds each on stepmaniaonline.net and downloads it. Lines after `## chunk 1` are the second batch.
+In The Groove 3
+In The Groove Rebirth
+In The Groove Rebirth 2
+In The Groove Rebirth +
+Valex's Magical 4-Arrow Adventure
+Valex's Magical 4-Arrow Adventure 2
+Valex's Magical 4-Arrow Adventure 3
+Valex's Magical 4-Arrow Adventure 4
+Valex's Magical 4-Arrow Adventure 5
+Valex's Magical 4-Arrow Adventure 6
+Valex's Magical 4-Arrow Adventure 7
+Fraxtil's Arrow Arrangements
+Fraxtil's Beast Beats
+Tsunamix
+Tsunamix II
+Tsunamix III
+I Hate Dubstep
+Acid Intravenous
+Sudziosis 3
+Sudziosis 4
+Sudziosis 5
+Gpop's Pack of Original Pad Sims
+Gpop's Pack of Original Pad Sims II
+Mungyodance 2
+Mungyodance 3
+KoL DDR Before-Max Edit Pack
+KoL DDR Post-5th & Pre-Supernova Edit Pack
+KoL DDR Supernova 1 Edit Pack
+KoL DDR Supernova 2 Edit Pack
+Mute Sims 3
+Mute Sims 8
+Mute Sims 9
+Easy As Pie 4
+Mandodo's Awesome Pack Of Lovely Simfiles 2
+Sweet Arrows And Hella Steps Vol. 1
+Sweet Arrows And Hella Steps Vol. 2
+Sweet Arrows And Hella Steps Vol. 3
+BemaniBeats 2
+BemaniBeats 3
+BemaniBeats 4
+SwageSteps
+FA and Chill
+Subluminal
+Skittles Selection
+Skittles Seconds
+Rikame's Simfiles 4
+Rikame's Simfiles 5
+r21freak Pad File Comp I
+r21freak Pad File Comp II
+r21freak Pad File Comp III
+r21freak Pad File Comp IV
+r21freak Pad File Comp V
+r21freak Pad File Comp VI
+r21freak Pad File Comp VII
+r21freak Pad File Comp VIII
+MainStream
+MainStream 2
+Disbalance Episode 1
+Disbalance Episode 2
+Kamelot
+Bemagnetmani
+Pendulum Act 1 - Hold Your Colour
+Pendulum Act II - In Silico
+Dream in Streams
+Dampstream
+TranceMania
+TranceMania 2
+TranceNation
+Cirque du Zeppelin
+Cirque du Lykan
+Noisiastreamz
+170 BPM Eternal
+I Have No Feet and I Must Stream
+You're Streaming Again
+You're Streaming Even More
+You're Streaming Forever
+NOISIA Purpose EP
+Aoreo's Ariginals
+Aoreo's Ariginals 2
+AoReStep 1
+AoReStep 2
+Happy Feet Originals
+SOMEBODY STREEEEEAM!!! Episode 1
+Helblinde
+Squirrel Metal
+VocaJawnz
+VocaJawnz II
+Gazebo de Dumpstream
+Xynn's LVTS STREAM Pack
+## chunk 1
+SHARPNELSTREAMZ v2
+SSSC Pack 2
+SSSC Pack 1
+Sexuality Violation 2
+Crispy Liquid
+Sharpnelstreamz v1
+Sexuality Violation 3
+Lolistyle GabberS
+Stamina Showcase
+Straight Outta the Dishwasher
+Cirque du Veyron
+Cirque du Zonda
+Fast Track to Brutetown
+Sharpnelshortz
+NixTrix
+Untitled stream pack
+Metal Pad Pack
+Cirque du Beast
+Disbalance Episode 3
+Rebuild of Mungyodance - Episode 1
+Sexuality Violation
+Sexuality Violation 3 Rejects
+Helblinde 2016
+Hazel Virus-a
+Hazel Virus-b
+Makina Marathon
+Rhapsody of Fire
+Depresso and Pots
+Drum N Bass is Repetitive
+Loak STREaMS
+Belladonnastreamz
+Powerglove
+Really Long Stuff
+SOMEBODY STREEEEEAM!!! Episode 2
+Hopscotch Mix 3 Excel
+Hopscotch Mix Zenith
+Hopscotch Mix 2
+Crossover Spectrum Part I
+The Legend of Zim 4
+r21freak Secret Stepfile Santa 7
+r21freak Secret Stepfile Santa 9
+The Legend of Zim 3
+r21freak Secret Stepfile Santa 3
+r21freak Secret Stepfile Santa 4
+r21freak Secret Stepfile Santa 6
+r21freak Secret Stepfile Santa 8
+The Legend of Zim 2
+SOWNDS
+r21freak Secret Stepfile Santa 5
+Amperage
+r21freak Secret Stepfile Santa 10
+Brother Mojo
+r21freak Secret Stepfile Santa 2
+Crossover Spectrum Part II
+Hopscotch Mix Encore
+r21freak Secret Stepfile Santa 1
+Highflyer's Overstepped Nonsense
+Rikame's Simfiles 2
+The Legend of Zim 1
+Rikame's Simfiles 3
+The League Of Extraordinary Stepmen - Chapter 1
+r21freak Stepfile Scholarship Contest
+r21freak File of the Week 2007
+9V EP
+Gay4Gimmix 3
+I Am Chris 5
+Gay4Gimmix Again
+Voltage
+The Legend of Zim 5
+I'm A Crosswhore
+The Basshunter Pack By Kralde
+We Love Noise 2
+We Love Noise 3
+We Love Noise 4
+We Love Noise Finale
+r21twins
+Resistance
+Loaded Futurepack
+Modulation Rockfestation
+EuroFeet
+Gay4Gimmix
+Happy Feet's Mini Foot Switch Pack
+Monst3rjo3 vs the World
+Ultimate Hits Revolution
+Pandemonium X Bemani Simfiles
+Wister MEGAPACK
+CuoReNeRo MeGaPacK 4
+CuoReNeRo MeGaPacK 3

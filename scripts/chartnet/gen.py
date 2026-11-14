@@ -34,6 +34,10 @@ def timing(meta) -> Timing:
     return Timing(meta["offset"], [tuple(x) for x in meta["bpms"]], [tuple(x) for x in meta.get("stops", [])])
 
 
+RUN_BONUS = float(os.environ.get("CHARTNET_RUN_BONUS", "1"))
+RUN_SHARE = {"Challenge": float(os.environ.get("CHARTNET_RUN_SHARE", "0.11"))}
+
+
 def only_24th(b: float) -> bool:
     """A beat position on the 24th grid that is neither an 8th, a 12th nor a 16th: k + 1/6 or k + 5/6."""
     six = b * 6
@@ -67,20 +71,53 @@ def place(prob: np.ndarray, tm: Timing, diff: str, thr: float, n_target: int | N
         if b >= 0 and not any(abs(t - u) < MIN_GAP[diff] for u in times):
             chosen[b] = 1.0
             times.append(t)
+    subs = SNAP[diff] + ([3] if swing and diff in ("Medium", "Hard", "Challenge") else []) + ([6] if snap24 else [])
+    snapped: list[tuple[float, float]] = []  # (beat, probability), strongest first
     for f in cand:
         b = tm.time_to_beat(f / FPS)
-        subs = SNAP[diff] + ([3] if swing and diff in ("Medium", "Hard", "Challenge") else []) + ([6] if snap24 else [])
         best = min((round(b * s) / s for s in subs), key=lambda x: abs(x - b))
-        if abs(best - b) > 0.2 or best in chosen or best < 0:
-            continue
+        if abs(best - b) <= 0.2 and best >= 0:
+            snapped.append((best, float(prob[f])))
+
+    def take(best: float) -> bool:
+        if best in chosen:
+            return False
         t = tm.beat_to_time(best)
         if any(abs(t - u) < MIN_GAP[diff] for u in times):
-            continue
-        chosen[best] = prob[f]
+            return False
+        chosen[best] = 1.0
         times.append(t)
-        if n_target is not None and len(chosen) >= n_target:
+        return True
+
+    # Streams: human charts put their sixteenths in runs. The strongest peaks go in first; the last share of the
+    # steps (RUN_SHARE) prefers positions a sixteenth from a step already there, so near-runs close up into runs.
+    share = RUN_SHARE.get(diff, 0.0) if n_target is not None else 0.0
+    first = n_target if n_target is None else int(round(n_target * (1 - share)))
+    rest = []
+    for best, p in snapped:
+        if first is not None and len(chosen) >= first:
+            rest.append((best, p))
+            continue
+        take(best)
+    while n_target is not None and len(chosen) < n_target and rest:
+        def score(item: tuple[float, float]) -> float:
+            b, p = item
+            return p * (1 + RUN_BONUS * ((b - 0.25) in chosen) + RUN_BONUS * ((b + 0.25) in chosen))
+        i = max(range(len(rest)), key=lambda j: score(rest[j]))
+        take(rest.pop(i)[0])
+    if not snap24:
+        return sorted(chosen)
+    # isolated 24ths go again; the steps they took are handed to the strongest peaks left on the ordinary grid
+    kept = keep_24th_runs(sorted(chosen))
+    for b in set(chosen) - set(kept):
+        times.remove(tm.beat_to_time(b))
+        del chosen[b]
+    for best, _ in snapped:
+        if n_target is None or len(chosen) >= n_target:
             break
-    return keep_24th_runs(sorted(chosen)) if snap24 else sorted(chosen)
+        if not only_24th(best):
+            take(best)
+    return sorted(chosen)
 
 
 @torch.no_grad()

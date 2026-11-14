@@ -158,7 +158,7 @@ PENALTY = {
     "Challenge": {"crossover": 2.0, "jack": 0.6, "double": 1.5, "hand": 5, "held_hit": 99, "candle": 0.3},
 }
 # Jumps: the model writes more of them than human charts do on Hard and Challenge; this cost brings them level.
-JUMP_COST = {"Beginner": 0.0, "Easy": 0.0, "Medium": 0.0, "Hard": 0.65, "Challenge": 0.75}
+JUMP_COST = {"Beginner": 0.0, "Easy": 0.7, "Medium": 0.3, "Hard": 0.5, "Challenge": 0.5}
 if os.environ.get("CHARTNET_JUMP"):
     JUMP_COST["Hard"], JUMP_COST["Challenge"] = (float(x) for x in os.environ["CHARTNET_JUMP"].split(","))
 
@@ -173,7 +173,7 @@ PHRASE = int(os.environ.get("CHARTNET_PHRASE", "16"))
 VARIETY = float(os.environ.get("CHARTNET_VARIETY", "1.0"))
 # Freezes: a log-probability bonus for a freeze head where the next row leaves room for it (at least half a beat),
 # or, negative, a cost on every freeze. Trained on the community packs the model holds more than DDR/ITG charts do.
-FREEZE_BONUS = {"Beginner": 0.0, "Easy": 0.0, "Medium": 0.0, "Hard": -0.45, "Challenge": -0.45}
+FREEZE_BONUS = {"Beginner": 0.0, "Easy": -1.2, "Medium": -1.0, "Hard": -0.45, "Challenge": -0.45}
 if os.environ.get("CHARTNET_FREEZE"):
     FREEZE_BONUS["Hard"], FREEZE_BONUS["Challenge"] = (float(x) for x in os.environ["CHARTNET_FREEZE"].split(","))
 
