@@ -44,7 +44,10 @@ links that page has stay up. A seat nobody resumed lapses with its lease and is 
 room, which is when the others hear of it. See "Resuming a connection" in
 [PROTOCOL.md](../../docs/online/PROTOCOL.md).
 
-Origin checks are not authentication; tokens are. Requests, query strings and frames are never logged.
+Origin checks are not authentication; tokens are. Requests, query strings and frames are never logged. `/ice` and
+`/end` read the room for any caller, so each address may make 30 of them at once and one more every two seconds
+(`AddressBudget`, kept per instance with no database call); past that they answer `429`. A page refused `/ice`
+uses the same STUN servers it would have been given.
 
 Room lifetime follows active membership: admission and valid member heartbeats
 extend the 90-second reconnect grace, including when the creator has left. A

@@ -9,6 +9,7 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
 import { AdmissionGate } from "./admission-gate.js";
+import { AddressBudget } from "./address-budget.js";
 import {
   RoomError,
   RoomFullError,
@@ -67,6 +68,14 @@ export interface RoomHttpOptions {
   revision?: string;
 }
 
+/**
+ * `/ice` and `/end` read the room for any caller, member or not, so each address has a budget of them: 30 at once and
+ * one more every two seconds. A page asks for ICE servers once per admission (never on a resumed socket) and ends a
+ * room once, so a whole room of devices behind one address joining together is well inside it. A refused `/ice`
+ * costs the page nothing: it falls back to the same STUN servers this service would have named.
+ */
+export const ROOM_LOOKUP_BURST = 30,
+  ROOM_LOOKUP_PER_SECOND = 0.5;
 /** What `ws` reports for a socket that ended without a close frame. */
 const CLOSE_ABNORMAL = 1006;
 const ROOM_ROUTE = /^\/api\/rooms\/([A-Z]{2}[0-9]{2})\/(end|ice|ws)$/;
@@ -151,6 +160,11 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
       code: (error as { code?: unknown })?.code,
     });
   const admissions = new AdmissionGate(store.database, now);
+  const lookups = new AddressBudget(
+    now,
+    ROOM_LOOKUP_BURST,
+    ROOM_LOOKUP_PER_SECOND,
+  );
   const handle = async (
     req: IncomingMessage,
     res: ServerResponse,
@@ -235,6 +249,14 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
         return;
       }
       const route = url.pathname.match(ROOM_ROUTE);
+      if (
+        ((route?.[2] === "end" && req.method === "POST") ||
+          route?.[2] === "ice") &&
+        !lookups.take(options.clientAddress(req))
+      ) {
+        json({ error: "Too many requests; try later" }, 429);
+        return;
+      }
       if (route?.[2] === "end" && req.method === "POST") {
         await store.end(route[1]!, bearer(req));
         json({ ok: true });
