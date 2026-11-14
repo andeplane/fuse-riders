@@ -214,6 +214,17 @@
   }
 }
 
+/* A game window's Pop out: a fourth title-bar button, the size and bevel of the others, with a glyph in place of an icon. */
+.win98 .title-bar-controls button.title-pop-out {
+  min-width: 16px;
+  padding: 0;
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+}
+
 /*
  * Touch screens: the chrome keeps its Windows 98 proportions but the targets grow to a
  * finger's width (title bar buttons, taskbar, menu rows). Windows themselves open maximized
