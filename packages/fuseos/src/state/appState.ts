@@ -118,6 +118,11 @@ export interface RoomGameWindowContent {
   code: string;
 }
 
+/** Task Manager (Ctrl+Shift+Esc): open windows, frame rates, heap. Reused when already open. */
+export interface TaskManagerWindowContent {
+  kind: "taskmanager";
+}
+
 export type WindowContent =
   | FuseGameWindowContent
   | NetworkWindowContent
@@ -136,7 +141,8 @@ export type WindowContent =
   | RecycleBinWindowContent
   | MediaPlayerWindowContent
   | HallOfFameWindowContent
-  | FriendsWindowContent;
+  | FriendsWindowContent
+  | TaskManagerWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -203,6 +209,7 @@ export function sameInstance(
     case "halloffame":
     case "network":
     case "friends":
+    case "taskmanager":
       return existing.kind === content.kind;
     case "roomgame":
       return (
@@ -416,6 +423,7 @@ function isWindowContent(
     case "launcher":
     case "network":
     case "friends":
+    case "taskmanager":
       return true;
     case "dialog":
       return (

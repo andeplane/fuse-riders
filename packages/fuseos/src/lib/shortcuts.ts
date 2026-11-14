@@ -82,6 +82,12 @@ export const SHORTCUTS: readonly Shortcut[] = [
     description: "Choose the highlighted menu item",
     scope: "Desktop",
   },
+  {
+    id: "desktop.taskManager",
+    keys: "Ctrl+Shift+Esc",
+    description: "Open the Task Manager",
+    scope: "Desktop",
+  },
 
   // Explorer
   {

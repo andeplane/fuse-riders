@@ -1,6 +1,7 @@
 import { OfficeAssistant } from "../assistant/OfficeAssistant";
 import { RecycleBinDesktopIcon } from "../recyclebin/RecycleBinDesktopIcon";
 import { FriendsTray } from "../friends/FriendsTray";
+import { useTaskManagerShortcut } from "../taskmanager/useTaskManagerShortcut";
 import { ContextMenu } from "../windows/ContextMenu";
 
 import { DesktopIcon } from "./DesktopIcon";
@@ -15,6 +16,7 @@ import { WindowHost } from "./WindowHost";
 export function Desktop() {
   const vm = useDesktopViewModel();
   useDesktopKeyboard();
+  useTaskManagerShortcut();
 
   const desktop = (
     <div

@@ -18,6 +18,7 @@ import { RecycleBinWindow } from "../recyclebin/RecycleBinWindow";
 import { GameWindow } from "../retro/GameWindow";
 import { RetroFolderWindow } from "../retro/RetroFolderWindow";
 import type { WindowState } from "../state/appState";
+import { TaskManagerWindow } from "../taskmanager/TaskManagerWindow";
 import { WinampPlayer } from "../winamp/WinampPlayer";
 import { MessageBox } from "../windows/MessageBox";
 import { useWindowCommands } from "../windows/useWindowCommands";
@@ -104,6 +105,8 @@ function WindowContent({
       return <HallOfFameWindow windowId={window.id} gameId={window.gameId} />;
     case "friends":
       return <FriendsWindow windowId={window.id} />;
+    case "taskmanager":
+      return <TaskManagerWindow windowId={window.id} />;
     case "recyclebin":
       return <RecycleBinWindow windowId={window.id} />;
     case "mediaplayer":

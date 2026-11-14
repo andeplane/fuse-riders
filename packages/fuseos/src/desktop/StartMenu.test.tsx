@@ -108,6 +108,7 @@ describe("StartMenu", () => {
       "Winamp",
       "Notepad++",
       "Windows Explorer",
+      "Task Manager",
       "Change desktop background",
     ]);
     expect(

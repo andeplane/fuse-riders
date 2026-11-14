@@ -34,6 +34,7 @@ import { Shell326 } from "@react95/icons/Shell326";
 import { Shell328 } from "@react95/icons/Shell328";
 import { Shell3242 } from "@react95/icons/Shell3242";
 import { Sol1 } from "@react95/icons/Sol1";
+import { Taskman100 } from "@react95/icons/Taskman100";
 import { User } from "@react95/icons/User";
 import { Wab321016 } from "@react95/icons/Wab321016";
 import { Warning } from "@react95/icons/Warning";
@@ -95,7 +96,8 @@ export type IconName =
   | "mediaplayer"
   | "video"
   | "trophy"
-  | "messenger";
+  | "messenger"
+  | "taskmanager";
 
 type IconVariant = "32x32_4" | "16x16_4";
 type IconProps = Omit<SVGProps<SVGSVGElement>, "ref">;
@@ -164,6 +166,7 @@ const ICONS: Record<IconName, IconComponent> = {
   video: Mplayer11,
   trophy: TrophyIcon,
   messenger: Conf100,
+  taskmanager: fixed(Taskman100, "32x32_4"),
 };
 
 export type Win98IconProps = {

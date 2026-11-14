@@ -55,6 +55,9 @@ export const NETWORK_WINDOW_SIZE: Size = { width: 640, height: 420 };
 /** A tall narrow buddy list, as ICQ and MSN Messenger were laid out. */
 export const FRIENDS_WINDOW_SIZE: Size = { width: 320, height: 540 };
 
+/** Room for the task list with its buttons, or three frame-rate graphs over the heap graph. */
+export const TASK_MANAGER_WINDOW_SIZE: Size = { width: 440, height: 600 };
+
 export const OS_NAME = "FuseOS";
 
 /** Title bar text and icon for each window kind. */
@@ -186,6 +189,13 @@ export function windowMeta(
         icon: "messenger",
         resizable: true,
         size: FRIENDS_WINDOW_SIZE,
+      };
+    case "taskmanager":
+      return {
+        title: `${OS_NAME} Task Manager`,
+        icon: "taskmanager",
+        resizable: true,
+        size: TASK_MANAGER_WINDOW_SIZE,
       };
   }
 }

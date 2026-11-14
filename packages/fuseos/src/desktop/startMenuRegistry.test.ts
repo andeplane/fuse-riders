@@ -36,6 +36,7 @@ describe("START_MENU_REGISTRATIONS", () => {
       ["programs", "halloffame", true],
       ["programs", "network-neighborhood", true],
       ["programs", "friends", true],
+      ["accessories", "taskmanager", true],
     ]);
   });
 
@@ -73,6 +74,7 @@ describe("START_MENU_REGISTRATIONS", () => {
       [{ kind: "halloffame" }, { id: "halloffame" }],
       [{ kind: "network" }, { id: "network-neighborhood" }],
       [{ kind: "friends" }, { id: "friends" }],
+      [{ kind: "taskmanager" }, { id: "taskmanager" }],
     ]);
   });
 
