@@ -492,7 +492,7 @@ test("a ball dropped onto a trapdoor knocks it open, falls in on the bounce, and
   ballAt(world, door.x, door.y - 60);
   assert.ok(until(world, () => world.barriers[0]!.timer > 0) > 0, "knocked");
   assert.equal(world.barriers[0]!.timer, GATE_OPEN_STEPS);
-  assert.equal(toView(world, 0).barriers[0]!.up, false, "drawn open");
+  assert.equal(toView(world).barriers[0]!.up, false, "drawn open");
   assert.ok(until(world, () => world.phase === "zap") > 0, "it dropped in");
   assert.equal(world.lastScorer, 0);
   assert.deepEqual(world.score, [1, 0]);
@@ -509,7 +509,7 @@ test("an open trapdoor shuts after its time, but never on the ball: it waits for
   world.barriers[0]!.timer = 40;
   steps(world, 40);
   assert.equal(world.barriers[0]!.timer, 0);
-  assert.equal(toView(world, 0).barriers[0]!.up, true);
+  assert.equal(toView(world).barriers[0]!.up, true);
   // Open with the ball held in the doorway on its last step: it stays open until the ball is out.
   world.barriers[0]!.timer = 1;
   for (let step = 0; step < 30; step++) {
