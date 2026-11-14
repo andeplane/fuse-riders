@@ -86,6 +86,10 @@ export interface FieldInfo {
   chart: string;
   /** This device's own field: it gets the item prompt and the lead banner. */
   local: boolean;
+  /** This device's own field with other riders' beside it: its lanes and frame are lit so it stands out. */
+  marked: boolean;
+  /** Where each column is drawn (`scramble.ts`): its own place, or another's on an opponent's field. */
+  columns: readonly number[];
   texts: RiderTexts;
   /** The gap in score to the rider next to this one in the standings, or NaN to show none. */
   gap: number;
@@ -107,6 +111,7 @@ export const COMBO_FROM = 4;
 const WARNINGS = ITEM_NAMES.map((name) => `INCOMING: ${name}`);
 // The lanes' colour is opaque (the navy over the background, worked out once): an opaque fill is the cheapest there is.
 const LANE = "#08132a",
+  OWN_LANE = "#10214a",
   GUIDE = "rgba(54,84,119,0.4)",
   EDGE = "rgba(54,84,119,0.9)",
   DOUBLE_TINT = "rgba(255,228,107,0.1)",
@@ -236,7 +241,8 @@ export function drawField(
     unit = frame.unit,
     songMs = frame.songMs,
     calm = frame.calm,
-    effects = player.effects;
+    effects = player.effects,
+    columns = info.columns;
   const width = col * COLUMNS;
   modsAt(effects, songMs, mods);
   laneOf(field, frame.speed, frame.down, lane);
@@ -263,7 +269,7 @@ export function drawField(
 
   // ---- the lanes ----
   g.globalAlpha = 1;
-  g.fillStyle = LANE;
+  g.fillStyle = info.marked ? OWN_LANE : LANE;
   g.fillRect(ox, top, width, height);
   g.fillStyle = GUIDE;
   for (let column = 1; column < COLUMNS; column++)
@@ -305,10 +311,17 @@ export function drawField(
       ? QUANT_COLORS[RAINBOW[Math.floor(songMs / 120) % RAINBOW.length]!]!
       : doubled
         ? GOLD
-        : EDGE;
-  const edge = missed || starred || doubled ? thin * 2 : thin;
+        : info.marked
+          ? slotColor(player.slot)
+          : EDGE;
+  const edge = missed || starred || doubled || info.marked ? thin * 2 : thin;
   g.fillRect(ox - edge, top, edge, height);
   g.fillRect(ox + width, top, edge, height);
+  if (info.marked) {
+    // The rider's own field is framed all round, in the rider's colour.
+    g.fillRect(ox - edge, top - edge, width + 2 * edge, edge);
+    g.fillRect(ox - edge, top + height, width + 2 * edge, edge);
+  }
   if (shielded) {
     // The shield: a bubble round the whole field.
     const out = Math.round(col * 0.16);
@@ -329,10 +342,11 @@ export function drawField(
   // ---- the targets ----
   const part = frame.beat - Math.floor(frame.beat);
   const pulse = calm ? 0 : (1 - part) * (1 - part);
-  for (let column = 0; column < COLUMNS; column++) {
+  for (let real = 0; real < COLUMNS; real++) {
+    const column = columns[real]!;
     const x = ox + targetX(mods.flip, column, lane),
       y = lane.targetY;
-    const down = player.down[column] === true;
+    const down = player.down[real] === true;
     if (starred)
       blit(
         g,
@@ -367,11 +381,12 @@ export function drawField(
     const items = player.item === NO_ITEM ? carriers : undefined;
     const mined = has(effects, MINES);
     const mineFrame = set.mines[Math.floor(frame.beat * 2) & 1]!;
-    for (let column = 0; column < COLUMNS; column++) {
-      const ids = steps.lanes[column];
+    for (let real = 0; real < COLUMNS; real++) {
+      const column = columns[real]!;
+      const ids = steps.lanes[real];
       if (ids) {
-        const next = player.next[column] ?? 0,
-          running = player.hold[column] ?? -1;
+        const next = player.next[real] ?? 0,
+          running = player.hold[real] ?? -1;
         const first = firstEndingAt(notes, ids, drawMs - near);
         let last = first;
         while (last < ids.length && notes[ids[last]!]!.ms - drawMs <= far)
@@ -388,7 +403,7 @@ export function drawField(
           if (note.kind !== TAP) {
             // A running hold shortens from the target; one let go dims; a missed or dropped one scrolls on.
             const kept =
-              held && ((player.let[column] ?? -1) < 0 || note.kind === ROLL);
+              held && ((player.let[real] ?? -1) < 0 || note.kind === ROLL);
             body(
               g,
               ox,
@@ -421,7 +436,7 @@ export function drawField(
           blit(g, sprite, ox + at.x, at.y, alpha, at.scale, at.rotation);
         }
       }
-      const mines = steps.mines[column];
+      const mines = steps.mines[real];
       if (mines)
         for (
           let i = firstEndingAt(notes, mines, drawMs - near);
@@ -449,15 +464,16 @@ export function drawField(
 
   // ---- bursts on the targets, in added light ----
   g.globalCompositeOperation = "lighter";
-  for (let column = 0; column < COLUMNS; column++) {
+  for (let real = 0; real < COLUMNS; real++) {
+    const column = columns[real]!;
     const x = ox + targetX(mods.flip, column, lane),
       y = lane.targetY;
     // A hold being kept glows on its target for as long as it is.
-    const running = player.hold[column] ?? -1;
+    const running = player.hold[real] ?? -1;
     if (
       running >= 0 &&
       steps &&
-      ((player.let[column] ?? -1) < 0 || steps.notes[running]?.kind === ROLL)
+      ((player.let[real] ?? -1) < 0 || steps.notes[running]?.kind === ROLL)
     )
       blit(
         g,
@@ -468,9 +484,9 @@ export function drawField(
         1,
         0,
       );
-    const age = songMs - state.burstAt[column]!;
+    const age = songMs - state.burstAt[real]!;
     if (age >= 0 && age < BURST_MS) {
-      const judgment = state.burstJudgment[column]!,
+      const judgment = state.burstJudgment[real]!,
         t = age / BURST_MS,
         fade = (1 - t) * (1 - t);
       if (calm) blit(g, set.glows[judgment]!, x, y, fade * 0.6, 1, 0);
@@ -514,7 +530,7 @@ export function drawField(
         }
       }
     }
-    const heldAge = songMs - state.heldAt[column]!;
+    const heldAge = songMs - state.heldAt[real]!;
     if (heldAge >= 0 && heldAge < BURST_MS) {
       const t = heldAge / BURST_MS,
         fade = (1 - t) * (1 - t);
@@ -534,8 +550,8 @@ export function drawField(
   if (mineAge >= 0 && mineAge < BLAST_MS) {
     const t = mineAge / BLAST_MS;
     const x =
-      state.mineColumn >= 0
-        ? ox + targetX(mods.flip, state.mineColumn, lane)
+      state.mineColumn >= 0 && state.mineColumn < COLUMNS
+        ? ox + targetX(mods.flip, columns[state.mineColumn]!, lane)
         : ox + width / 2;
     blit(
       g,
@@ -832,7 +848,10 @@ function readout(
   const align: CanvasTextAlign = inside ? "left" : "right";
   const x = field.hudX,
     way = inside ? 1 : -1;
-  const span = size * 9,
+  // Over the lanes a label is no wider than the field: an opponent's can be narrow.
+  const span = inside
+      ? Math.min(size * 9, col * COLUMNS - Math.round(col * 0.4))
+      : size * 9,
     pitch = span + size;
   const height = field.laneBottom - field.laneTop;
   // Beside the field the labels are a column that starts level with the targets, where the eyes are. Over the lanes
