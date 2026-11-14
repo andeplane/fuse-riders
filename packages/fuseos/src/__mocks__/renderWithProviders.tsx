@@ -102,6 +102,8 @@ import type { AppStateDeps } from "../state/appStateContext";
 import { AppStateDepsContext } from "../state/appStateContext";
 import type { StateStore } from "../state/stateStore";
 import { MemoryStateStore } from "../state/stateStore";
+import type { System32Deps } from "../system32/system32Deps";
+import { MemoryScheduler, System32DepsContext } from "../system32/system32Deps";
 import type { WinampDeps } from "../winamp/winampDepsContext";
 import { WinampDepsContext } from "../winamp/winampDepsContext";
 import { createWinampRegistry } from "../winamp/winampRegistry";
@@ -227,6 +229,8 @@ export type ProviderOptions = {
   /** Defaults to the built-in launcher over `prefsStore`; pass one to observe joins directly. */
   roomLauncher?: RoomLauncher;
   networkDeps?: Partial<NetworkDeps>;
+  /** Defaults to a hand-stepped scheduler and no demo, so nothing folds unless a test asks. */
+  system32Deps?: Partial<System32Deps>;
 };
 
 /** The media player's scheduled ticks, fired by the test rather than a clock. */
@@ -561,6 +565,10 @@ export function createWrapper(options: ProviderOptions = {}) {
       schedule: friendsDeps.schedule,
       signedIn: false,
     });
+  const system32Deps: System32Deps = {
+    scheduler: new MemoryScheduler(),
+    ...options.system32Deps,
+  };
   const recycleBinStore =
     options.recycleBinStore ?? new MemoryRecycleBinStore();
   const mediaPlayerTimers = new ManualScheduler();
@@ -607,6 +615,7 @@ export function createWrapper(options: ProviderOptions = {}) {
     provider(NetworkDepsContext, networkDeps),
     provider(PresenceServiceContext, presence),
     provider(FriendsDepsContext, friendsDeps),
+    provider(System32DepsContext, system32Deps),
   ];
 
   function Wrapper({ children }: { children: ReactNode }) {

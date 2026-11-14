@@ -11,6 +11,7 @@ import { ScreenSaverProvider } from "./screensaver/ScreenSaverProvider";
 import type { WindowContent } from "./state/appState";
 import { AppStateProvider } from "./state/AppStateProvider";
 import type { StateStore } from "./state/stateStore";
+import { System32Provider } from "./system32/System32Provider";
 import { WindowManagerProvider } from "./windows/WindowManagerProvider";
 
 export type ShellProps = {
@@ -30,9 +31,11 @@ export function Shell({ store, initialOpen, children }: ShellProps) {
             <DisplayEffectsProvider>
               <WindowManagerProvider>
                 <BsodProvider>
-                  <AssistantToolsProvider>
-                    {children ?? <Desktop />}
-                  </AssistantToolsProvider>
+                  <System32Provider>
+                    <AssistantToolsProvider>
+                      {children ?? <Desktop />}
+                    </AssistantToolsProvider>
+                  </System32Provider>
                 </BsodProvider>
               </WindowManagerProvider>
             </DisplayEffectsProvider>
