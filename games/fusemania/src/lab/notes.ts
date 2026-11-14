@@ -47,9 +47,19 @@ const MAX_TEXT = 4000;
 
 export class NotesError extends Error {}
 
-const finite = (value: unknown, name: string): number => {
-  if (typeof value !== "number" || !Number.isFinite(value))
-    throw new NotesError(`${name} must be a number`);
+const finite = (
+  value: unknown,
+  name: string,
+  min = -1e5,
+  max = 1e5,
+): number => {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value < min ||
+    value > max
+  )
+    throw new NotesError(`${name} must be a number from ${min} to ${max}`);
   return value;
 };
 const string = (value: unknown, name: string, max = 200): string => {
@@ -69,19 +79,23 @@ function readNote(raw: unknown, index: number): LabNote {
     id: string(r["id"], at("id"), 64),
     created: string(r["created"], at("created"), 64),
     song: string(r["song"], at("song"), 120),
-    start: finite(r["start"], at("start")),
-    end: finite(r["end"], at("end")),
+    start: finite(r["start"], at("start"), 0),
+    end: finite(r["end"], at("end"), 0),
     startBeat: finite(r["startBeat"], at("startBeat")),
     endBeat: finite(r["endBeat"], at("endBeat")),
-    tags: tags.filter((tag): tag is NoteTag =>
-      (NOTE_TAGS as readonly unknown[]).includes(tag),
-    ),
+    tags: [
+      ...new Set(
+        tags.filter((tag): tag is NoteTag =>
+          (NOTE_TAGS as readonly unknown[]).includes(tag),
+        ),
+      ),
+    ],
     text: string(r["text"] ?? "", at("text"), MAX_TEXT),
   };
   if (note.end < note.start) throw new NotesError(at("end is before start"));
   if (r["lowHz"] !== undefined || r["highHz"] !== undefined) {
-    note.lowHz = finite(r["lowHz"], at("lowHz"));
-    note.highHz = finite(r["highHz"], at("highHz"));
+    note.lowHz = finite(r["lowHz"], at("lowHz"), 1, 24000);
+    note.highHz = finite(r["highHz"], at("highHz"), 1, 24000);
     if (note.highHz < note.lowHz)
       throw new NotesError(at("highHz is below lowHz"));
   }

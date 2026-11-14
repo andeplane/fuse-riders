@@ -77,7 +77,7 @@ export const snapBeat = (beat: number, perBeat: number): number =>
   Math.round(beat * perBeat) / perBeat;
 
 /**
- * The chart with a tap toggled at `beat` in `column`: a note there (or a hold covering that start) is removed,
+ * The chart with a tap toggled at `beat` in `column`: a note starting there (tap, hold or mine) is removed,
  * otherwise a tap is added. Notes stay sorted by beat then column.
  */
 export function toggleTap(
@@ -110,7 +110,8 @@ export function chartStats(notes: readonly PlacedNote[]): ChartStats {
   for (const note of notes) if (note.kind !== "mine") rows.set(note.beat, note);
   const list = [...rows.values()];
   if (list.length === 0) return { steps: 0, perSecond: 0, quants: {} };
-  const span = Math.max(1e-3, list[list.length - 1]!.time - list[0]!.time);
+  // At least a second, so a span with one or two steps does not read as hundreds a second.
+  const span = Math.max(1, list[list.length - 1]!.time - list[0]!.time);
   const quants: Partial<Record<Quant, number>> = {};
   for (const note of list)
     quants[note.quant] = (quants[note.quant] ?? 0) + 1 / list.length;

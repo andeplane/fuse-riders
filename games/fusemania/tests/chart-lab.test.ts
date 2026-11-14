@@ -186,6 +186,8 @@ test("notes files round-trip, merge by id and refuse what is not one", () => {
     JSON.stringify({ version: 1, notes: [note({ start: 5, end: 1 })] }),
     JSON.stringify({ version: 1, notes: [note({ lowHz: 900, highHz: 100 })] }),
     JSON.stringify({ version: 1, notes: [{ ...note(), lowHz: 100 }] }),
+    JSON.stringify({ version: 1, notes: [note({ lowHz: 0, highHz: 100 })] }),
+    JSON.stringify({ version: 1, notes: [note({ start: -3 })] }),
   ])
     assert.throws(() => parseNotes(bad), NotesError, bad);
   // Unknown tags are dropped rather than refused.

@@ -314,6 +314,7 @@ async function loadSong(id: string): Promise<void> {
   tiles = [];
   playhead = 0;
   topTime = -0.5;
+  playBuffer = undefined;
   sim = parseSimfile(data.ssc);
   const edited = load(EDITS_KEY(data.id));
   if (edited) {
@@ -334,8 +335,10 @@ async function loadSong(id: string): Promise<void> {
     const bytes = await (await fetch(audioUrl)).arrayBuffer();
     if (token !== loadToken) return;
     const context = ensureContext();
-    playBuffer = await context.decodeAudioData(bytes.slice(0));
-    duration = playBuffer.duration;
+    const decoded = await context.decodeAudioData(bytes.slice(0));
+    if (token !== loadToken) return;
+    playBuffer = decoded;
+    duration = decoded.duration;
     const offline = new OfflineAudioContext(1, 1, LAB_RATE);
     const low = await offline.decodeAudioData(bytes);
     if (token !== loadToken) return;
@@ -358,6 +361,7 @@ async function loadSong(id: string): Promise<void> {
     updateFlux();
     say(`${data.id}: ${duration.toFixed(1)} s, ${result.frames} frames`);
   } catch (error) {
+    if (token !== loadToken) return;
     say(
       `could not load the audio: ${error instanceof Error ? error.message : String(error)}`,
     );
@@ -919,13 +923,14 @@ function heardTime(): number {
 
 function togglePlay(): void {
   if (source) stop();
-  else void play();
+  else play();
 }
 
-async function play(): Promise<void> {
-  if (!playBuffer) return;
+/** Starts playback from the playhead. Synchronous, so a second call while one is starting finds `source` set. */
+function play(): void {
+  if (!playBuffer || source) return;
   const context = ensureContext();
-  await context.resume();
+  void context.resume();
   rate = Number(speedSelect.value) || 1;
   source = context.createBufferSource();
   source.buffer = playBuffer;
@@ -963,7 +968,9 @@ function stop(): void {
 function scheduleTicks(): void {
   if (!audioContext || !source || !tickBuffer) return;
   const choice = tickSelect.value;
-  const horizon = heardTime() + 0.3 * rate;
+  // Look ahead on the audio clock, not the heard time: output latency must not eat the lookahead.
+  const horizon =
+    startSong + (audioContext.currentTime + 0.3 - startCtx) * rate;
   if (horizon <= scheduledUntil || !choice) {
     scheduledUntil = Math.max(scheduledUntil, horizon);
     return;
@@ -1020,7 +1027,7 @@ function seek(time: number): void {
   const playing = Boolean(source);
   if (playing) stop();
   playhead = Math.max(0, Math.min(duration, time));
-  if (playing) void play();
+  if (playing) play();
   else draw();
 }
 
@@ -1161,6 +1168,11 @@ function editTap(chart: LabChart, column: number, time: number): void {
     chart.timing.beatAt(time),
     Number(snapSelect.value) || 4,
   );
+  const last = chart.timing.beatAt(duration);
+  if (beat < 0 || beat > last) {
+    say("taps go between the song's first beat and its end");
+    return;
+  }
   const replaced: SimChart = toggleTap(target, beat, column);
   sim = {
     ...sim,
@@ -1315,7 +1327,7 @@ function renderSelection(): void {
       button("Save note", saveNote, "⌘/ctrl + Enter"),
       button("Play span", () => {
         seek(span.start);
-        if (!source) void play();
+        if (!source) play();
       }),
       button("Clear", () => {
         selection = undefined;
@@ -1433,8 +1445,7 @@ function renderNotes(): void {
           ...(note.chart ? { chart: note.chart } : {}),
         };
         updateFlux();
-        playhead = note.start;
-        draw();
+        seek(note.start);
       };
       const remove = button(
         "✕",
@@ -1520,7 +1531,7 @@ gridInput.onchange = () => draw();
 speedSelect.onchange = () => {
   if (source) {
     stop();
-    void play();
+    play();
   }
 };
 tickSelect.onchange = () => {

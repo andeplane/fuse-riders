@@ -140,6 +140,7 @@ class Stft {
   private readonly re: Float64Array;
   private readonly im: Float64Array;
   readonly power: Float64Array;
+  private readonly energy: number;
   constructor(readonly size: number) {
     this.fft = new Fft(size);
     this.window = new Float64Array(size);
@@ -148,6 +149,7 @@ class Stft {
     this.re = new Float64Array(size);
     this.im = new Float64Array(size);
     this.power = new Float64Array(size / 2 + 1);
+    this.energy = this.window.reduce((sum, w) => sum + w * w, 0);
   }
   /** Fills `power` for the frame centred on sample `centre` (zeros past either end). */
   frame(samples: Float32Array, centre: number): void {
@@ -159,8 +161,9 @@ class Stft {
       this.im[i] = 0;
     }
     this.fft.transform(this.re, this.im);
+    // Normalised by the window's energy, so bins read from different window sizes agree on a noise floor.
     for (let k = 0; k <= this.size / 2; k++)
-      this.power[k] = this.re[k]! ** 2 + this.im[k]! ** 2;
+      this.power[k] = (this.re[k]! ** 2 + this.im[k]! ** 2) / this.energy;
   }
 }
 
