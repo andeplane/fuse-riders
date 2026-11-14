@@ -33,7 +33,7 @@ export function RunWindow({ windowId }: RunWindowProps) {
       }}
     >
       <div className="flex items-start gap-3">
-        <Win98Icon name="run" size={32} />
+        <Win98Icon name="run" size={32} className="shrink-0" />
         <p className="m-0">{RUN_PROMPT}</p>
       </div>
       <div className="flex items-center gap-2">
