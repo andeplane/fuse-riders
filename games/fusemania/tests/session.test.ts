@@ -330,3 +330,66 @@ test("the session's settings are checked: 1, 3, 5 or 10 songs, and who chooses t
   ])
     assert.equal(parse(bad), undefined, JSON.stringify(bad));
 });
+
+test("a start with nobody seated leaves a session that has not begun, and a checkpoint keeps it", () => {
+  const room = game.createRoom("m0", THREE);
+  act(room, "start", "m1");
+  assert.equal(room.stage, "lobby");
+  assert.deepEqual(room.session, {
+    length: 3,
+    done: 0,
+    songs: [],
+    scores: [],
+  });
+  const restored = game.checkpoint.decode(
+    structuredClone(game.checkpoint.encode(room)),
+    room.tick,
+  )!;
+  assert.equal(game.hash(restored), game.hash(room));
+});
+
+test("settings changed while a song plays wait for the next one, and a checkpoint keeps both", () => {
+  const room = seated(THREE);
+  act(room, "start", "m1");
+  fold(room, {
+    a: [[SETTINGS_ENTRY, { ...SETTINGS, songs: 5, random: true }]],
+  });
+  run(room, 20);
+  const stages = [structuredClone(room)];
+  finish(room);
+  stages.push(structuredClone(room));
+  for (const each of stages) {
+    assert.deepEqual([each.play.songs, each.settings.songs], [3, 5]);
+    assert.equal(sessionOf(each).length, 3);
+    const restored = game.checkpoint.decode(
+      structuredClone(game.checkpoint.encode(each)),
+      each.tick,
+    )!;
+    assert.ok(restored, each.stage);
+    assert.equal(game.hash(restored), game.hash(each));
+  }
+  // The next song is the first of five, drawn by the room.
+  act(room, "rematch", "m2");
+  assert.deepEqual(
+    [sessionOf(room).length, sessionOf(room).done, sessionOf(room).scores],
+    [5, 0, []],
+  );
+});
+
+test("a new AI rival never takes the id of one the session remembers", () => {
+  const room = seated(THREE);
+  fold(room, { a: [[BOT, "add", "bot:1", "Robo", 2]] });
+  act(room, "start", "m1");
+  finish(room);
+  act(room, "lobby", "m2");
+  fold(room, { a: [[BOT, "remove", "bot:1"]] });
+  assert.ok(!room.seats.has("bot:1"));
+  // Its total stays in the session, so the next rival is another one.
+  assert.equal(game.seating.botId!(room, new Set()), "bot:2");
+  act(room, "start", "m3");
+  finish(room);
+  act(room, "rematch", "m4");
+  finish(room);
+  act(room, "lobby", "m5");
+  assert.equal(game.seating.botId!(room, new Set()), "bot:1");
+});

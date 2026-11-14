@@ -290,6 +290,14 @@ test("a session counts its songs on the start button, the title and the result, 
   const changed = present(library, game.view(room), viewer("a")).lobby;
   assert.equal(changed.startText, "START SONG 1 OF 5");
   assert.equal(changed.session, null);
+  assert.equal(
+    changed.note,
+    "Another number of songs starts a new session: pick 3 again to go on with this one.",
+  );
+  assert.equal(
+    present(library, game.view(room), viewer("b")).lobby.note,
+    "Waiting for the host to start",
+  );
   fold(room, { a: [[SETTINGS_ENTRY, THREE]] });
 
   fold(room, { a: [[ACTION, "start", "m3"]] });

@@ -976,12 +976,14 @@ export function createFusemaniaGame(
       soloSettings: (settings) => ({ ...settings, display: false }),
       sharedScreen: (settings) => settings.display,
       botId(room, pending) {
-        // Never an id the match remembers, so a new bot is not mistaken for a departed one in its result.
+        // Never an id the match or the session remembers, so a new bot is not mistaken for a departed one in the
+        // result, and does not start with a departed one's session total.
         let number = 1;
         const taken = (id: string) =>
           room.seats.has(id) ||
           pending.has(id) ||
-          room.roster.some((entrant) => entrant.id === id);
+          room.roster.some((entrant) => entrant.id === id) ||
+          room.session?.scores.some((score) => score.id === id) === true;
         while (taken(`${BOT_PREFIX}${number}`)) number++;
         return `${BOT_PREFIX}${number}`;
       },

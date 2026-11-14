@@ -339,17 +339,22 @@ export function present(
     };
   }
 
+  // A session in the middle that the next song would not continue: the host changed how many songs one plays.
+  const ending =
+    !inMatch && !!session && session.done > 0 && !between && viewer.host;
   const lobbyNote = !seats.length
     ? "Pick a name to take a seat"
-    : viewer.host
-      ? view.settings.display
-        ? "Shared screen: open the TV screen, then every player uses a phone"
-        : seats.length === 1 && !viewer.solo
-          ? "Start alone, add an AI rival, or invite up to four friends."
-          : view.settings.mode === BATTLE_MODE && seats.length === 1
-            ? "A battle needs a rival: add an AI player or invite a friend."
-            : ""
-      : "Waiting for the host to start";
+    : ending
+      ? `Another number of songs starts a new session: pick ${session.length} again to go on with this one.`
+      : viewer.host
+        ? view.settings.display
+          ? "Shared screen: open the TV screen, then every player uses a phone"
+          : seats.length === 1 && !viewer.solo
+            ? "Start alone, add an AI rival, or invite up to four friends."
+            : view.settings.mode === BATTLE_MODE && seats.length === 1
+              ? "A battle needs a rival: add an AI player or invite a friend."
+              : ""
+        : "Waiting for the host to start";
   return {
     screen,
     askName: !seated && !viewer.display && !viewer.solo && !mine,
