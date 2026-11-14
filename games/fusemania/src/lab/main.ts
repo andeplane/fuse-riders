@@ -48,7 +48,14 @@ import {
 import type { SpectrumReply, SpectrumRequest } from "./spectrum-worker.js";
 import { revealTop, seekDelta, typingIn } from "./playback.js";
 import { hiddenAtStart, parseShown } from "./shown.js";
-import { bandMix, dragSpan, grabAt, type Grab, type Span } from "./band.js";
+import {
+  bandMix,
+  coversAll,
+  dragSpan,
+  grabAt,
+  type Grab,
+  type Span,
+} from "./band.js";
 import { quantOf as gameQuantOf } from "../render/palette.js";
 import type { SpriteCanvas } from "../render/pen.js";
 import {
@@ -216,7 +223,7 @@ const helpBox = el(
   }),
   el("p", {
     textContent:
-      "Drag along the frequency axis above the spectrogram to hear one band: everything outside the box drops to a tenth of its level. Drag an edge to resize it, drag the middle to move it, double-click it to remove it.",
+      "The green box on the frequency axis above the spectrogram is what you hear at full level; it starts out covering everything. Drag an edge in to narrow it and drag the middle to move it: everything outside the box drops to a tenth of its level. Double-click it to hear everything again.",
   }),
   el("p", {
     textContent:
@@ -318,7 +325,7 @@ let tickBuffer: AudioBuffer | undefined;
 /** Ticks scheduled on the audio clock and not yet heard; a stop or a seek silences them. */
 const pendingTicks = new Set<AudioBufferSourceNode>();
 let follow = true;
-/** The listening band: outside these frequencies the song is turned down to a tenth. */
+/** The listening band: outside these frequencies the song is turned down to a tenth. Undefined: all of them. */
 let band: { lowHz: number; highHz: number } | undefined;
 /** The playback graph: every song source goes in at `mixIn`; the band's filters are `bandFilters` (2 high-pass, 2 low-pass). */
 let mixIn: GainNode | undefined;
@@ -757,7 +764,7 @@ function draw(): void {
 
   // The listening band: what is turned down is dimmed.
   const listening = bandSpan();
-  if (listening) {
+  if (band) {
     const { specX, specW } = layout;
     g.fillStyle = "rgba(4,9,26,0.62)";
     g.fillRect(specX, HEADER, listening.from - specX, height - HEADER);
@@ -810,22 +817,18 @@ function draw(): void {
     g.fillText(hz >= 1000 ? `${hz / 1000}k` : String(hz), x + 2, 22);
   }
   g.fillText(isModel() ? "mel bands (Hz) →" : "frequency (Hz) →", specX, 10);
-  if (listening && band) {
-    // The box itself, with a handle on each edge.
-    g.fillStyle = "rgba(59,255,208,0.22)";
-    g.fillRect(listening.from, 1, listening.to - listening.from, HEADER - 2);
-    g.fillStyle = "#3bffd0";
-    g.fillRect(listening.from - 2, 1, 3, HEADER - 2);
-    g.fillRect(listening.to - 1, 1, 3, HEADER - 2);
+  // The listening box, always there, with a handle on each edge.
+  g.fillStyle = band ? "rgba(59,255,208,0.22)" : "rgba(59,255,208,0.08)";
+  g.fillRect(listening.from, 1, listening.to - listening.from, HEADER - 2);
+  g.fillStyle = "#3bffd0";
+  g.fillRect(listening.from, 1, 3, HEADER - 2);
+  g.fillRect(listening.to - 3, 1, 3, HEADER - 2);
+  if (band)
     g.fillText(
       `${Math.round(band.lowHz)}–${Math.round(band.highHz)} Hz, rest −90%`,
       Math.min(listening.from + 6, specX + layout.specW - 150),
       HEADER + 12,
     );
-  } else {
-    g.fillStyle = "#6b7590";
-    g.fillText("drag here to listen to a band", specX + 120, 10);
-  }
   if (!spectra) {
     g.fillStyle = "#cfd8ff";
     g.fillText(status.textContent ?? "", specX + 10, HEADER + 30);
@@ -1206,12 +1209,12 @@ interface Drag {
 }
 let drag: Drag | undefined;
 /** A drag on the frequency axis: where it started, the box as it was, and what it took hold of. */
-let bandDrag: { x: number; start: Span | undefined; grab: Grab } | undefined;
+let bandDrag: { x: number; start: Span; grab: Grab } | undefined;
 
 /** The listening band on the frequency axis as it is drawn now, in canvas pixels. */
-function bandSpan(): Span | undefined {
-  if (!band) return undefined;
+function bandSpan(): Span {
   const { specX, specW } = layout;
+  if (!band) return { from: specX, to: specX + specW };
   const clamp = (x: number) => Math.max(specX, Math.min(specX + specW, x));
   return { from: clamp(xOfHz(band.lowHz)), to: clamp(xOfHz(band.highHz)) };
 }
@@ -1248,7 +1251,6 @@ canvas.addEventListener("pointermove", (event) => {
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
   if (bandDrag) {
-    if (bandDrag.grab === "new" && Math.abs(x - bandDrag.x) < 4) return;
     const { specX, specW } = layout;
     const span = dragSpan(
       bandDrag.start,
@@ -1258,7 +1260,9 @@ canvas.addEventListener("pointermove", (event) => {
       specX,
       specX + specW,
     );
-    band = { lowHz: hzOfX(span.from), highHz: hzOfX(span.to) };
+    band = coversAll(span, specX, specX + specW)
+      ? undefined
+      : { lowHz: hzOfX(span.from), highHz: hzOfX(span.to) };
     applyBand();
     draw();
     return;
@@ -1272,9 +1276,7 @@ canvas.addEventListener("pointermove", (event) => {
         ? "grab"
         : grab === "low" || grab === "high"
           ? "ew-resize"
-          : grab === "new"
-            ? "col-resize"
-            : "";
+          : "";
     return;
   }
   if (Math.abs(y - drag.y) < 4 && Math.abs(x - drag.x) < 4) return;

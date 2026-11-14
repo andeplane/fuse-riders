@@ -39,7 +39,7 @@ import {
 
 import { hiddenAtStart, parseShown } from "../src/lab/shown.js";
 
-import { bandMix, dragSpan, grabAt } from "../src/lab/band.js";
+import { bandMix, coversAll, dragSpan, grabAt } from "../src/lab/band.js";
 
 const sine = (hz: number, seconds: number, rate = LAB_RATE) =>
   Float32Array.from({ length: Math.round(seconds * rate) }, (_, i) =>
@@ -307,38 +307,21 @@ test("chart lab: the remembered chart choice survives only as a list of labels",
   assert.deepEqual(parseShown("[]"), []);
 });
 
-test("chart lab: a press on the frequency axis grabs an edge, the box, or starts a new one", () => {
+test("chart lab: a press on the frequency axis grabs an edge or the box", () => {
   const span = { from: 100, to: 200 };
-  assert.equal(grabAt(undefined, 150), "new");
   assert.equal(grabAt(span, 97), "low");
   assert.equal(grabAt(span, 104), "low");
   assert.equal(grabAt(span, 204), "high");
   assert.equal(grabAt(span, 150), "move");
-  assert.equal(grabAt(span, 50), "new");
-  assert.equal(grabAt(span, 260), "new");
+  // Beside the box: the nearer edge, to pull it out.
+  assert.equal(grabAt(span, 50), "low");
+  assert.equal(grabAt(span, 260), "high");
   // A box narrower than the reach: the nearer edge wins.
   assert.equal(grabAt({ from: 100, to: 108 }, 103), "low");
   assert.equal(grabAt({ from: 100, to: 108 }, 106), "high");
 });
 
-test("chart lab: the listening box is drawn, resized and moved inside the axis", () => {
-  // New, in either direction, and never narrower than the minimum or outside the axis.
-  assert.deepEqual(dragSpan(undefined, "new", 120, 180, 0, 400), {
-    from: 120,
-    to: 180,
-  });
-  assert.deepEqual(dragSpan(undefined, "new", 180, 120, 0, 400), {
-    from: 120,
-    to: 180,
-  });
-  assert.deepEqual(dragSpan(undefined, "new", 120, 500, 0, 400), {
-    from: 120,
-    to: 400,
-  });
-  assert.deepEqual(dragSpan(undefined, "new", 120, 122, 0, 400), {
-    from: 120,
-    to: 128,
-  });
+test("chart lab: the listening box is resized and moved inside the axis", () => {
   const span = { from: 100, to: 200 };
   // Edges follow the pointer, stop short of each other and at the axis ends.
   assert.deepEqual(dragSpan(span, "low", 100, 60, 0, 400), {
@@ -361,7 +344,7 @@ test("chart lab: the listening box is drawn, resized and moved inside the axis",
     from: 100,
     to: 108,
   });
-  // Moving keeps the width and stays on the axis.
+  // Moving keeps the width and stays on the axis; a box as wide as the axis has nowhere to go.
   assert.deepEqual(dragSpan(span, "move", 150, 180, 0, 400), {
     from: 130,
     to: 230,
@@ -374,6 +357,17 @@ test("chart lab: the listening box is drawn, resized and moved inside the axis",
     from: 0,
     to: 100,
   });
+  assert.deepEqual(dragSpan({ from: 0, to: 400 }, "move", 150, 250, 0, 400), {
+    from: 0,
+    to: 400,
+  });
+});
+
+test("chart lab: a box over the whole axis turns nothing down", () => {
+  assert.equal(coversAll({ from: 0, to: 400 }, 0, 400), true);
+  assert.equal(coversAll({ from: 0.6, to: 399.5 }, 0, 400), true);
+  assert.equal(coversAll({ from: 20, to: 400 }, 0, 400), false);
+  assert.equal(coversAll({ from: 0, to: 380 }, 0, 400), false);
 });
 
 test("chart lab: outside the band the song keeps a tenth of its level", () => {
