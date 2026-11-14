@@ -156,7 +156,7 @@ test("Play separates local setup, hosting preferences and joining without losing
     dom
       .$$<HTMLButtonElement>("button", choices)
       .map((button) => button.textContent),
-    ["Single player", "Host room", "Join room", "Back"],
+    ["Single player", "Host room", "Join room"],
   );
   assert.equal(
     dom.$<HTMLButtonElement>("button:nth-child(2)", choices).disabled,
