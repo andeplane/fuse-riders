@@ -48,6 +48,7 @@ import {
 import type { SpectrumReply, SpectrumRequest } from "./spectrum-worker.js";
 import { revealTop, seekDelta, typingIn } from "./playback.js";
 import { hiddenAtStart, parseShown } from "./shown.js";
+import { bandMix, dragSpan, grabAt, type Grab, type Span } from "./band.js";
 import { quantOf as gameQuantOf } from "../render/palette.js";
 import type { SpriteCanvas } from "../render/pen.js";
 import {
@@ -215,6 +216,10 @@ const helpBox = el(
   }),
   el("p", {
     textContent:
+      "Drag along the frequency axis above the spectrogram to hear one band: everything outside the box drops to a tenth of its level. Drag an edge to resize it, drag the middle to move it, double-click it to remove it.",
+  }),
+  el("p", {
+    textContent:
       "The arrows are the game's own, in its colours: red 4th, blue 8th, purple 12th, yellow 16th, green 24th and 32nd, grey anything finer.",
   }),
 );
@@ -313,6 +318,13 @@ let tickBuffer: AudioBuffer | undefined;
 /** Ticks scheduled on the audio clock and not yet heard; a stop or a seek silences them. */
 const pendingTicks = new Set<AudioBufferSourceNode>();
 let follow = true;
+/** The listening band: outside these frequencies the song is turned down to a tenth. */
+let band: { lowHz: number; highHz: number } | undefined;
+/** The playback graph: every song source goes in at `mixIn`; the band's filters are `bandFilters` (2 high-pass, 2 low-pass). */
+let mixIn: GainNode | undefined;
+let dryGain: GainNode | undefined;
+let bandGain: GainNode | undefined;
+let bandFilters: BiquadFilterNode[] = [];
 /** The current animation loop; a stop or a new start retires the one before it. */
 let frameLoop = 0;
 
@@ -743,6 +755,23 @@ function draw(): void {
   if (spectra) drawCurve(g, spectra.onset, onsetScale, "#3bffd0", t0, t1);
   if (flux) drawCurve(g, flux, fluxScale, "#ff6bd5", t0, t1);
 
+  // The listening band: what is turned down is dimmed.
+  const listening = bandSpan();
+  if (listening) {
+    const { specX, specW } = layout;
+    g.fillStyle = "rgba(4,9,26,0.62)";
+    g.fillRect(specX, HEADER, listening.from - specX, height - HEADER);
+    g.fillRect(
+      listening.to,
+      HEADER,
+      specX + specW - listening.to,
+      height - HEADER,
+    );
+    g.fillStyle = "rgba(59,255,208,0.7)";
+    g.fillRect(listening.from - 1, HEADER, 1, height - HEADER);
+    g.fillRect(listening.to, HEADER, 1, height - HEADER);
+  }
+
   // Playhead.
   const py = yOf(playhead);
   g.fillStyle = "#ffffff";
@@ -781,6 +810,22 @@ function draw(): void {
     g.fillText(hz >= 1000 ? `${hz / 1000}k` : String(hz), x + 2, 22);
   }
   g.fillText(isModel() ? "mel bands (Hz) →" : "frequency (Hz) →", specX, 10);
+  if (listening && band) {
+    // The box itself, with a handle on each edge.
+    g.fillStyle = "rgba(59,255,208,0.22)";
+    g.fillRect(listening.from, 1, listening.to - listening.from, HEADER - 2);
+    g.fillStyle = "#3bffd0";
+    g.fillRect(listening.from - 2, 1, 3, HEADER - 2);
+    g.fillRect(listening.to - 1, 1, 3, HEADER - 2);
+    g.fillText(
+      `${Math.round(band.lowHz)}–${Math.round(band.highHz)} Hz, rest −90%`,
+      Math.min(listening.from + 6, specX + layout.specW - 150),
+      HEADER + 12,
+    );
+  } else {
+    g.fillStyle = "#6b7590";
+    g.fillText("drag here to listen to a band", specX + 120, 10);
+  }
   if (!spectra) {
     g.fillStyle = "#cfd8ff";
     g.fillText(status.textContent ?? "", specX + 10, HEADER + 30);
@@ -969,8 +1014,42 @@ function ensureContext(): AudioContext {
         Math.sin((2 * Math.PI * 2200 * i) / audioContext.sampleRate) *
         Math.exp(-i / (length / 5)) *
         0.6;
+    // The song, as it is (dry) and through a 4th-order band-pass (band); `applyBand` sets the mix.
+    const context = audioContext;
+    mixIn = context.createGain();
+    dryGain = context.createGain();
+    bandGain = context.createGain();
+    bandFilters = [0.541, 1.307, 0.541, 1.307].map((q, index) => {
+      const filter = context.createBiquadFilter();
+      filter.type = index < 2 ? "highpass" : "lowpass";
+      // For these filter types Web Audio takes Q in decibels; the two stages make a Butterworth response.
+      filter.Q.value = 20 * Math.log10(q);
+      return filter;
+    });
+    mixIn.connect(dryGain).connect(context.destination);
+    let node: AudioNode = mixIn;
+    for (const filter of bandFilters) node = node.connect(filter);
+    node.connect(bandGain).connect(context.destination);
+    applyBand();
   }
   return audioContext;
+}
+
+/** Points the filters at the band and sets the mix; a short ramp, so dragging the box does not click. */
+function applyBand(): void {
+  if (!audioContext || !dryGain || !bandGain) return;
+  const now = audioContext.currentTime;
+  const mix = bandMix(Boolean(band));
+  dryGain.gain.setTargetAtTime(mix.dry, now, 0.015);
+  bandGain.gain.setTargetAtTime(mix.band, now, 0.015);
+  if (!band) return;
+  const top = audioContext.sampleRate * 0.45;
+  for (const [index, filter] of bandFilters.entries())
+    filter.frequency.setTargetAtTime(
+      Math.max(10, Math.min(top, index < 2 ? band.lowHz : band.highHz)),
+      now,
+      0.015,
+    );
 }
 
 /** Seconds into the song the listener hears now. */
@@ -998,7 +1077,7 @@ function play(): void {
   source = context.createBufferSource();
   source.buffer = playBuffer;
   source.playbackRate.value = rate;
-  source.connect(context.destination);
+  source.connect(mixIn ?? context.destination);
   startSong = Math.max(0, Math.min(playhead, duration - 0.05));
   startCtx = context.currentTime + 0.05;
   scheduledUntil = startSong;
@@ -1126,6 +1205,16 @@ interface Drag {
   chart?: LabChart;
 }
 let drag: Drag | undefined;
+/** A drag on the frequency axis: where it started, the box as it was, and what it took hold of. */
+let bandDrag: { x: number; start: Span | undefined; grab: Grab } | undefined;
+
+/** The listening band on the frequency axis as it is drawn now, in canvas pixels. */
+function bandSpan(): Span | undefined {
+  if (!band) return undefined;
+  const { specX, specW } = layout;
+  const clamp = (x: number) => Math.max(specX, Math.min(specX + specW, x));
+  return { from: clamp(xOfHz(band.lowHz)), to: clamp(xOfHz(band.highHz)) };
+}
 
 function zoneAt(x: number): Drag["zone"] {
   if (x < RULER) return "ruler";
@@ -1137,7 +1226,13 @@ canvas.addEventListener("pointerdown", (event) => {
   const rect = canvas.getBoundingClientRect();
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
-  if (y < HEADER) return;
+  if (y < HEADER) {
+    if (x < layout.specX) return;
+    const span = bandSpan();
+    bandDrag = { x, start: span, grab: grabAt(span, x) };
+    canvas.setPointerCapture(event.pointerId);
+    return;
+  }
   const zone = zoneAt(x);
   const column = layout.columns.find((c) => x >= c.x && x < c.x + LANE * 4);
   if (zone === "chart" && editInput.checked && column) {
@@ -1149,16 +1244,62 @@ canvas.addEventListener("pointerdown", (event) => {
 });
 
 canvas.addEventListener("pointermove", (event) => {
-  if (!drag) return;
   const rect = canvas.getBoundingClientRect();
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
+  if (bandDrag) {
+    if (bandDrag.grab === "new" && Math.abs(x - bandDrag.x) < 4) return;
+    const { specX, specW } = layout;
+    const span = dragSpan(
+      bandDrag.start,
+      bandDrag.grab,
+      bandDrag.x,
+      x,
+      specX,
+      specX + specW,
+    );
+    band = { lowHz: hzOfX(span.from), highHz: hzOfX(span.to) };
+    applyBand();
+    draw();
+    return;
+  }
+  if (!drag) {
+    // Over the frequency axis the cursor says what a press would do to the listening band.
+    const grab =
+      y < HEADER && x >= layout.specX ? grabAt(bandSpan(), x) : undefined;
+    canvas.style.cursor =
+      grab === "move"
+        ? "grab"
+        : grab === "low" || grab === "high"
+          ? "ew-resize"
+          : grab === "new"
+            ? "col-resize"
+            : "";
+    return;
+  }
   if (Math.abs(y - drag.y) < 4 && Math.abs(x - drag.x) < 4) return;
   selection = selectionFrom(drag, x, y);
   draw();
 });
 
+canvas.addEventListener("dblclick", (event) => {
+  const rect = canvas.getBoundingClientRect();
+  if (event.clientY - rect.top >= HEADER || !band) return;
+  band = undefined;
+  applyBand();
+  draw();
+});
+
+canvas.addEventListener("pointercancel", () => {
+  bandDrag = undefined;
+  drag = undefined;
+});
+
 canvas.addEventListener("pointerup", (event) => {
+  if (bandDrag) {
+    bandDrag = undefined;
+    return;
+  }
   if (!drag) return;
   const rect = canvas.getBoundingClientRect();
   const x = event.clientX - rect.left;

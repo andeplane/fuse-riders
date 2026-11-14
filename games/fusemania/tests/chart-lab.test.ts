@@ -39,6 +39,8 @@ import {
 
 import { hiddenAtStart, parseShown } from "../src/lab/shown.js";
 
+import { bandMix, dragSpan, grabAt } from "../src/lab/band.js";
+
 const sine = (hz: number, seconds: number, rate = LAB_RATE) =>
   Float32Array.from({ length: Math.round(seconds * rate) }, (_, i) =>
     Math.sin((2 * Math.PI * hz * i) / rate),
@@ -303,4 +305,80 @@ test("chart lab: the remembered chart choice survives only as a list of labels",
   assert.equal(parseShown('{"a":1}'), undefined);
   assert.deepEqual(parseShown('["Hard", 3, "Easy"]'), ["Hard", "Easy"]);
   assert.deepEqual(parseShown("[]"), []);
+});
+
+test("chart lab: a press on the frequency axis grabs an edge, the box, or starts a new one", () => {
+  const span = { from: 100, to: 200 };
+  assert.equal(grabAt(undefined, 150), "new");
+  assert.equal(grabAt(span, 97), "low");
+  assert.equal(grabAt(span, 104), "low");
+  assert.equal(grabAt(span, 204), "high");
+  assert.equal(grabAt(span, 150), "move");
+  assert.equal(grabAt(span, 50), "new");
+  assert.equal(grabAt(span, 260), "new");
+  // A box narrower than the reach: the nearer edge wins.
+  assert.equal(grabAt({ from: 100, to: 108 }, 103), "low");
+  assert.equal(grabAt({ from: 100, to: 108 }, 106), "high");
+});
+
+test("chart lab: the listening box is drawn, resized and moved inside the axis", () => {
+  // New, in either direction, and never narrower than the minimum or outside the axis.
+  assert.deepEqual(dragSpan(undefined, "new", 120, 180, 0, 400), {
+    from: 120,
+    to: 180,
+  });
+  assert.deepEqual(dragSpan(undefined, "new", 180, 120, 0, 400), {
+    from: 120,
+    to: 180,
+  });
+  assert.deepEqual(dragSpan(undefined, "new", 120, 500, 0, 400), {
+    from: 120,
+    to: 400,
+  });
+  assert.deepEqual(dragSpan(undefined, "new", 120, 122, 0, 400), {
+    from: 120,
+    to: 128,
+  });
+  const span = { from: 100, to: 200 };
+  // Edges follow the pointer, stop short of each other and at the axis ends.
+  assert.deepEqual(dragSpan(span, "low", 100, 60, 0, 400), {
+    from: 60,
+    to: 200,
+  });
+  assert.deepEqual(dragSpan(span, "low", 100, 300, 0, 400), {
+    from: 192,
+    to: 200,
+  });
+  assert.deepEqual(dragSpan(span, "low", 100, -50, 0, 400), {
+    from: 0,
+    to: 200,
+  });
+  assert.deepEqual(dragSpan(span, "high", 200, 350, 0, 400), {
+    from: 100,
+    to: 350,
+  });
+  assert.deepEqual(dragSpan(span, "high", 200, 20, 0, 400), {
+    from: 100,
+    to: 108,
+  });
+  // Moving keeps the width and stays on the axis.
+  assert.deepEqual(dragSpan(span, "move", 150, 180, 0, 400), {
+    from: 130,
+    to: 230,
+  });
+  assert.deepEqual(dragSpan(span, "move", 150, 900, 0, 400), {
+    from: 300,
+    to: 400,
+  });
+  assert.deepEqual(dragSpan(span, "move", 150, -900, 0, 400), {
+    from: 0,
+    to: 100,
+  });
+});
+
+test("chart lab: outside the band the song keeps a tenth of its level", () => {
+  assert.deepEqual(bandMix(false), { dry: 1, band: 0 });
+  const mix = bandMix(true);
+  assert.equal(mix.dry, 0.1);
+  assert.equal(mix.dry + mix.band, 1);
 });
