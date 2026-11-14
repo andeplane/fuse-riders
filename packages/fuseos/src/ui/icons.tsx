@@ -15,6 +15,8 @@ import { Jgdwmie101 } from "@react95/icons/Jgdwmie101";
 import { Joy102 } from "@react95/icons/Joy102";
 import { KeyboardMouse } from "@react95/icons/KeyboardMouse";
 import { Lights100 } from "@react95/icons/Lights100";
+import { Mplayer10 } from "@react95/icons/Mplayer10";
+import { Mplayer11 } from "@react95/icons/Mplayer11";
 import { Mspaint } from "@react95/icons/Mspaint";
 import { Network } from "@react95/icons/Network";
 import { Notepad2 } from "@react95/icons/Notepad2";
@@ -22,6 +24,7 @@ import { Packager } from "@react95/icons/Packager";
 import { Progman22 } from "@react95/icons/Progman22";
 import { Progman33 } from "@react95/icons/Progman33";
 import { RecycleEmpty } from "@react95/icons/RecycleEmpty";
+import { RecycleFull } from "@react95/icons/RecycleFull";
 import { Settings } from "@react95/icons/Settings";
 import { Shell321 } from "@react95/icons/Shell321";
 import { Shell322 } from "@react95/icons/Shell322";
@@ -85,7 +88,10 @@ export type IconName =
   | "textFile"
   | "codeFile"
   | "unknownFile"
-  | "fusteam";
+  | "fusteam"
+  | "recycleFull"
+  | "mediaplayer"
+  | "video";
 
 type IconVariant = "32x32_4" | "16x16_4";
 type IconProps = Omit<SVGProps<SVGSVGElement>, "ref">;
@@ -149,6 +155,9 @@ const ICONS: Record<IconName, IconComponent> = {
   codeFile: Shell322,
   unknownFile: Shell321,
   fusteam: FusteamLogo,
+  recycleFull: RecycleFull,
+  mediaplayer: Mplayer10,
+  video: Mplayer11,
 };
 
 export type Win98IconProps = {

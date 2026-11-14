@@ -39,6 +39,11 @@ export const EXPLORER_WINDOW_SIZE: Size = { width: 720, height: 480 };
 
 /** Room for the tab bar, a code pane with line numbers and the six-field status bar. */
 export const NOTEPADPP_WINDOW_SIZE: Size = { width: 760, height: 520 };
+/** Room for the five Explorer columns and a dozen rows above the status bar. */
+export const RECYCLE_BIN_WINDOW_SIZE: Size = { width: 640, height: 380 };
+
+/** The classic 4:3 Media Player: a small screen, the seek bar and the transport buttons. */
+export const MEDIA_PLAYER_WINDOW_SIZE: Size = { width: 400, height: 340 };
 
 export const OS_NAME = "FuseOS";
 
@@ -129,6 +134,20 @@ export function windowMeta(
         icon: "fusteam",
         resizable: true,
         size: LAUNCHER_WINDOW_SIZE,
+      };
+    case "recyclebin":
+      return {
+        title: "Recycle Bin",
+        icon: "recycle",
+        resizable: true,
+        size: RECYCLE_BIN_WINDOW_SIZE,
+      };
+    case "mediaplayer":
+      return {
+        title: `${window.file} - Windows Media Player`,
+        icon: "mediaplayer",
+        resizable: false,
+        size: MEDIA_PLAYER_WINDOW_SIZE,
       };
   }
 }

@@ -8,7 +8,9 @@ import { FuseGameWindow } from "../fusegames/FuseGameWindow";
 import { FuseGamesContext } from "../fusegames/registry";
 import { LauncherWindow } from "../launcher/LauncherWindow";
 import { NotepadPlusPlusWindow } from "../notepadpp/NotepadPlusPlusWindow";
+import { MediaPlayerWindow } from "../mediaplayer/MediaPlayerWindow";
 import { PaintWindow } from "../paint/PaintWindow";
+import { RecycleBinWindow } from "../recyclebin/RecycleBinWindow";
 import { GameWindow } from "../retro/GameWindow";
 import { RetroFolderWindow } from "../retro/RetroFolderWindow";
 import type { WindowState } from "../state/appState";
@@ -82,6 +84,16 @@ function WindowContent({
       );
     case "launcher":
       return <LauncherWindow windowId={window.id} active={active} />;
+    case "recyclebin":
+      return <RecycleBinWindow windowId={window.id} />;
+    case "mediaplayer":
+      return (
+        <MediaPlayerWindow
+          windowId={window.id}
+          file={window.file}
+          launches={window.launches}
+        />
+      );
   }
 }
 
