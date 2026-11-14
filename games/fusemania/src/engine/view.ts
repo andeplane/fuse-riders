@@ -19,6 +19,8 @@ export interface PlayerView {
   /** 1 for the leader. */
   place: number;
   combo: number;
+  /** The worst judgment in the running combo (Marvelous, Perfect or Great), or −1 when there is no combo. */
+  worst: number;
   best: number;
   /** How many of each judgment, by the judgment's number. */
   counts: readonly number[];
@@ -74,6 +76,7 @@ export function toView(library: Library, world: World): WorldView {
       rating: rating(library.steps(world.song, player.chart)!, player.score),
       place: order.indexOf(slot) + 1,
       combo: player.combo,
+      worst: player.worst,
       best: player.best,
       counts: [...player.counts],
       next: [...player.next],

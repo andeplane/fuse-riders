@@ -212,17 +212,16 @@ export const comboBadge = (counts: readonly number[]): string => {
   if (
     at(MISS) ||
     at(BOO) ||
+    at(GOOD) ||
     at(DROPPED) ||
-    at(MARVELOUS) + at(PERFECT) + at(GREAT) + at(GOOD) === 0
+    at(MARVELOUS) + at(PERFECT) + at(GREAT) === 0
   )
     return "";
-  return at(GOOD)
-    ? "FULL COMBO"
-    : at(GREAT)
-      ? "FULL GREAT COMBO"
-      : at(PERFECT)
-        ? "FULL PERFECT COMBO"
-        : "ALL MARVELOUS";
+  return at(GREAT)
+    ? "FULL GREAT COMBO"
+    : at(PERFECT)
+      ? "FULL PERFECT COMBO"
+      : "ALL MARVELOUS";
 };
 
 const standingRows = (

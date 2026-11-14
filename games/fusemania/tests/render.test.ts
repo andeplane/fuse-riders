@@ -49,11 +49,16 @@ import {
   type LaneGeometry,
 } from "../src/render/mods.js";
 import {
+  COMBO_BLINK_DIM,
+  COMBO_BLINK_MS,
   CYAN,
   GOLD,
+  GREEN,
   JUDGMENT_COLORS,
+  MUTED,
   PINK,
   RED,
+  WHITE,
 } from "../src/render/palette.js";
 import type { Pen, SceneCanvas, SpriteCanvas } from "../src/render/pen.js";
 import {
@@ -337,6 +342,7 @@ function rider(slot: number, over: Partial<PlayerView> = {}): PlayerView {
     rating: 0,
     place: slot + 1,
     combo: 0,
+    worst: -1,
     best: 0,
     counts: Array.from({ length: 9 }, () => 0),
     next: each(0),
@@ -874,7 +880,7 @@ test("the judgment word pops in, holds and fades, with EARLY or LATE for anythin
 test("the combo shows from four, bumps on every step and flashes at each hundred", () => {
   const r = rig();
   const at = (combo: number) =>
-    world([struck(PERFECT, { combo, judgedAt: 0 })]);
+    world([struck(PERFECT, { combo, worst: PERFECT, judgedAt: 0 })]);
   const three = r.frame(at(3), shot(CHORD, 3000));
   assert.ok(!texts(three).includes("COMBO"));
   const four = r.frame(at(4), shot(CHORD, 3010));
@@ -892,12 +898,64 @@ test("the combo shows from four, bumps on every step and flashes at each hundred
   // A hundred.
   r.frame(at(99), shot(CHORD, 4000));
   const hundred = r.frame(at(100), shot(CHORD, 4016));
-  assert.equal(textAt(hundred, "100")?.fill, GOLD);
+  assert.equal(textAt(hundred, "100")?.fill, JUDGMENT_COLORS[PERFECT]);
   assert.ok(images(hundred, "glow:1").some((glow) => glow.lighter));
+  // It blinks faster for that moment.
+  assert.equal(textAt(hundred, "100")?.alpha, 1);
+  assert.equal(
+    textAt(r.frame(at(100), shot(CHORD, 4080)), "100")?.alpha,
+    COMBO_BLINK_DIM,
+  );
   // Lost: the old number falls away in red.
   const broken = r.frame(at(0), shot(CHORD, 5000));
   assert.equal(textAt(broken, "100")?.fill, RED);
   assert.ok(!texts(broken).includes("COMBO"));
+});
+
+test("the combo blinks in the colour of the worst judgment in it: white, yellow, green", () => {
+  const on = Math.ceil(3000 / COMBO_BLINK_MS) * COMBO_BLINK_MS,
+    off = on + COMBO_BLINK_MS / 2;
+  const combo = (worst: number, songMs: number, options = {}) =>
+    textAt(
+      rig(1366, 768, 1, options).frame(
+        world([struck(worst, { combo: 12, worst, judgedAt: 0 })]),
+        shot(CHORD, songMs),
+      ),
+      "12",
+    )!;
+  for (const [worst, color] of [
+    [MARVELOUS, WHITE],
+    [PERFECT, JUDGMENT_COLORS[PERFECT]],
+    [GREAT, JUDGMENT_COLORS[GREAT]],
+  ] as const) {
+    // Full for half a blink, dimmed for the other half, in the same colour.
+    assert.equal(combo(worst, on).fill, color);
+    assert.equal(combo(worst, on).alpha, 1);
+    assert.equal(combo(worst, off).fill, color);
+    assert.equal(combo(worst, off).alpha, COMBO_BLINK_DIM);
+    // With reduced motion it holds the colour.
+    assert.equal(combo(worst, off, { reducedMotion: true }).fill, color);
+    assert.equal(combo(worst, off, { reducedMotion: true }).alpha, 1);
+  }
+  assert.equal(JUDGMENT_COLORS[GREAT], GREEN);
+  // The label under it does not blink.
+  const frame = rig().frame(
+    world([struck(GREAT, { combo: 12, worst: GREAT, judgedAt: 0 })]),
+    shot(CHORD, off),
+  );
+  assert.equal(textAt(frame, "COMBO")?.alpha, 1);
+  // The others' boxes show their combos in the same colours.
+  const boxes = rig().frame(
+    world([
+      rider(0, { place: 1, combo: 12, worst: GREAT }),
+      rider(1, { place: 2, combo: 30, worst: MARVELOUS }),
+      rider(2, { place: 3, combo: 2, worst: PERFECT }),
+    ]),
+    shot(CHORD, on),
+  );
+  assert.equal(textAt(boxes, "x12")?.fill, JUDGMENT_COLORS[GREAT]);
+  assert.equal(textAt(boxes, "x30")?.fill, WHITE);
+  assert.equal(textAt(boxes, "x2")?.fill, MUTED);
 });
 
 test("the targets pulse on the beat, and press in and light up under a held key", () => {
