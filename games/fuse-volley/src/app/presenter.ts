@@ -114,6 +114,12 @@ export interface Model {
   } | null;
 }
 
+/** A side's players as one label: "A", "A & B" or "A, B & C". */
+export const teamLabel = (names: readonly string[]): string =>
+  names.length > 2
+    ? `${names.slice(0, -1).join(", ")} & ${names.at(-1)}`
+    : names.join(" & ");
+
 const plural = (count: number, one: string, many: string) =>
   `${count} ${count === 1 ? one : many}`;
 
@@ -152,14 +158,10 @@ export function present(view: View, viewer: Viewer): Model {
           };
         })
       : [];
-  const label = (side: 0 | 1) => {
-    const team = sides
-      .filter((each) => each.side === side)
-      .map((each) => each.name);
-    return team.length > 2
-      ? `${team.slice(0, -1).join(", ")} & ${team.at(-1)}`
-      : team.join(" & ");
-  };
+  const label = (side: 0 | 1) =>
+    teamLabel(
+      sides.filter((each) => each.side === side).map((each) => each.name),
+    );
   const localLane =
     world && localSlot !== -1 ? (world.blobs[localSlot]?.lane ?? -1) : -1;
   const names = sides.length >= 2 ? ([label(0), label(1)] as const) : undefined;

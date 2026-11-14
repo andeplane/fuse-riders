@@ -80,6 +80,7 @@ import {
   SCORING_CHOICES,
   createPointWatch,
   present,
+  teamLabel,
   type Model,
   type Viewer,
 } from "./presenter.js";
@@ -808,12 +809,12 @@ function room(solo: boolean): void {
       const members = next.sides.filter((side) => side.side === team);
       setText(
         node,
-        members
-          .map(
+        teamLabel(
+          members.map(
             (side) =>
               `${side.name}${side.you ? " (you)" : ""}${side.away ? " · away" : ""}`,
-          )
-          .join(" & "),
+          ),
+        ),
       );
       node.classList.toggle(
         "you",
