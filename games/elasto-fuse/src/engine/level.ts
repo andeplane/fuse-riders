@@ -33,10 +33,10 @@ export interface Level {
   readonly objects: readonly LevelObject[];
 }
 
-/** The most apples a level may hold: a rider's eaten apples are one bit each in a 32-bit set. */
-export const MAX_APPLES = 30;
+/** The most apples a level may hold: a rider's eaten apples are one bit each in a BigInt set, so this is the object cap. */
+export const MAX_APPLES = 64;
 export const MAX_OBJECTS = 64;
-export const MAX_VERTICES = 4000;
+export const MAX_VERTICES = 5000;
 /** Levels stay inside this box, so positions and the collision grid stay bounded. */
 export const WORLD_LIMIT = 500;
 

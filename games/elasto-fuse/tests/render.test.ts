@@ -84,7 +84,7 @@ test("an apple, a crash and a finish are each told once, for the rider they happ
   const world = racing(20);
   const before = toView(world);
   const second = appleAt(0, 1)!;
-  world.riders[1]!.taken = 0b10;
+  world.riders[1]!.taken = 0b10n;
   world.riders[0]!.status = DEAD;
   world.riders[0]!.wait = 40;
   stepWorld(world, [0, 0], [true, true]);
@@ -117,15 +117,15 @@ test("an apple, a crash and a finish are each told once, for the rider they happ
 
 test("a restart, a rollback and another level say nothing", () => {
   const world = racing(30, [GAS, 0]);
-  world.riders[0]!.taken = 0b1;
+  world.riders[0]!.taken = 0b1n;
   const before = toView(world);
   // Put back on the start with its apples: the apples coming back is not eating them.
   const restarted = toView(world);
-  restarted.riders[0] = { ...restarted.riders[0]!, taken: 0b11, run: 0 };
+  restarted.riders[0] = { ...restarted.riders[0]!, taken: 0b11n, run: 0 };
   assert.deepEqual(cuesBetween(before, restarted), []);
   // The race clock went backwards: a rollback past what was shown.
   const earlier = { ...toView(world), step: before.step - 4 };
-  earlier.riders[0] = { ...earlier.riders[0]!, taken: 0b11 };
+  earlier.riders[0] = { ...earlier.riders[0]!, taken: 0b11n };
   assert.deepEqual(cuesBetween(before, earlier), []);
   assert.deepEqual(cuesBetween(before, { ...before, level: 1 }), []);
   // The n-th apple is the n-th object of kind "apple".

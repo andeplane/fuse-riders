@@ -115,7 +115,7 @@ function solve(
           const t = targets[target]!;
           const reached =
             t.apple >= 0
-              ? (rider.taken & (1 << t.apple)) !== 0
+              ? (rider.taken & (1n << BigInt(t.apple))) !== 0n
               : t.apple === -1 && Math.hypot(b.fx - t.x, b.fy - t.y) < 1.6;
           if (!reached) break;
           target++;
@@ -169,6 +169,13 @@ const chosen = args
 const rides: Record<string, { ride: string; steps: number }> = existsSync(OUT)
   ? (JSON.parse(readFileSync(OUT, "utf8")) as { rides: typeof rides }).rides
   : {};
+/** Write after every level, so a long run stopped part-way keeps the rides it found. */
+const save = (): void => {
+  writeFileSync(
+    OUT,
+    `${JSON.stringify({ rules: RULES, decision: DECISION, rides }, null, 2)}\n`,
+  );
+};
 for (const [index, level] of LEVELS.entries()) {
   if (chosen.length && !chosen.includes(index)) continue;
   const started = Date.now();
@@ -176,6 +183,7 @@ for (const [index, level] of LEVELS.entries()) {
   if (!path) {
     console.log(`${index} ${level.id}: no ride found`);
     delete rides[level.id];
+    save();
     continue;
   }
   // Replay it for the exact finishing step.
@@ -191,8 +199,5 @@ for (const [index, level] of LEVELS.entries()) {
   console.log(
     `${index} ${level.id}: ${(steps / 80).toFixed(2)} s, searched ${((Date.now() - started) / 1000).toFixed(1)} s`,
   );
+  save();
 }
-writeFileSync(
-  OUT,
-  `${JSON.stringify({ rules: RULES, decision: DECISION, rides }, null, 2)}\n`,
-);

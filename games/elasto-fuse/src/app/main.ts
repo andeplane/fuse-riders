@@ -255,7 +255,7 @@ function landing(): void {
   const card = createLandingCard({
     title: "ELASTO FUSE",
     tagline:
-      "A springy motorbike, twelve neon tracks. Eat every apple, then touch the flower, and keep your head off the ground. Chase your best times alone, or race up to four friends: online, or on one TV with phones as controllers.",
+      "A springy motorbike, every Elasto Mania track. Eat every apple, then touch the flower, and keep your head off the ground. Chase your best times alone, or race up to four friends: online, or on one TV with phones as controllers.",
     soloText: "PLAY SOLO",
     async onCreate() {
       const room = await createRoom(endpoints.apiUrl, fetch, GAME).catch(

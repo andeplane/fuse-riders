@@ -291,7 +291,10 @@ test("a race is shown to its riders one pane each, to a watcher and the TV as ev
   assert.equal(ada.localSlot, 0);
   assert.deepEqual(ada.follow, [0]);
   assert.deepEqual(ada.tags, ["Ada", "Bo"]);
-  assert.equal(ada.title, `${LEVELS[0]!.name.toUpperCase()} · 1 / 12`);
+  assert.equal(
+    ada.title,
+    `${LEVELS[0]!.name.toUpperCase()} · 1 / ${LEVELS.length}`,
+  );
   assert.equal(
     ada.controlsVisible,
     true,
@@ -352,7 +355,10 @@ test("between two races of a tour the table shows the race's places, times and t
   );
   assert.equal(model.result, null);
   const table = model.table!;
-  assert.equal(table.title, `${LEVELS[0]!.name.toUpperCase()} · RACE 1 OF 12`);
+  assert.equal(
+    table.title,
+    `${LEVELS[0]!.name.toUpperCase()} · RACE 1 OF ${LEVELS.length}`,
+  );
   assert.deepEqual(table.rows, [
     {
       place: 1,
@@ -423,16 +429,16 @@ test("a tour's result ranks by points and says how many maps each rider finished
       slot: 0,
       name: "Ada",
       you: false,
-      detail: "12 / 12 MAPS",
-      points: `${PLACE_POINTS[0] * 11 + PLACE_POINTS[1]} PTS`,
+      detail: `${LEVELS.length} / ${LEVELS.length} MAPS`,
+      points: `${PLACE_POINTS[0] * (LEVELS.length - 1) + PLACE_POINTS[1]} PTS`,
     },
     {
       place: 2,
       slot: 1,
       name: "Bo",
       you: true,
-      detail: "12 / 12 MAPS",
-      points: `${PLACE_POINTS[1] * 11 + PLACE_POINTS[0]} PTS`,
+      detail: `${LEVELS.length} / ${LEVELS.length} MAPS`,
+      points: `${PLACE_POINTS[1] * (LEVELS.length - 1) + PLACE_POINTS[0]} PTS`,
     },
   ]);
   assert.equal(model.table, null);
