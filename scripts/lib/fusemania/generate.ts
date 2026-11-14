@@ -715,10 +715,10 @@ function pickRows(
       if (holds >= quota) break;
       if (rows[at]!.holdEnd !== undefined || rows[at]!.dropped === true)
         continue;
-      // The tail lands on a beat or an eighth, before the sound stops.
-      let end =
-        slot +
-        Math.floor(Math.min(length - 1, most * slotsPerBeat) / half) * half;
+      // The tail lands on a beat or an eighth, before the sound stops: on the song's grid, wherever the head is (a
+      // head on a triplet's second note still lets go on a beat).
+      const onGrid = (at: number): number => Math.floor(at / half) * half;
+      let end = onGrid(slot + Math.min(length - 1, most * slotsPerBeat));
       // Rows while it is held go to the other foot: only so many, none of them fast, and never a jump (a hand).
       let inside = 0;
       // On the easier charts a long freeze is held alone, as published ones are: a row or two under it give way.
@@ -742,8 +742,7 @@ function pickRows(
             continue;
           }
           // Let go an eighth (a beat, on a triplet grid) before the row that cannot be taken while holding.
-          end = slots[next]! - half;
-          end = slot + Math.floor((end - slot) / half) * half;
+          end = onGrid(slots[next]! - half);
           break;
         }
         inside++;

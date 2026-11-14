@@ -75,8 +75,8 @@ const isChartNet = (data: { ssc: string }): boolean =>
 const ruleSongs = songs.filter(({ data }) => !isChartNet(data));
 
 test("the bundle is every song of the portfolio, once, with audio that exists", () => {
-  assert.equal(SONGS_DATA.length, 20);
-  assert.equal(new Set(SONGS_DATA.map((song) => song.id)).size, 20);
+  assert.equal(SONGS_DATA.length, SONGS.length);
+  assert.equal(new Set(SONGS_DATA.map((song) => song.id)).size, SONGS.length);
   const titles = songs.map(({ sim }) => sim.title);
   assert.deepEqual(
     titles,

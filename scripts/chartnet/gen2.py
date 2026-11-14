@@ -167,7 +167,10 @@ def fuse():
     agg: dict = {}
     bursts_: dict = {}
     placement = {}
+    only = set(sys.argv[2:])  # song ids, or every song
     for s in songs:
+        if only and s.key not in only:
+            continue
         tm = timing(s.meta)
         swing = any(abs((b * 3) - round(b * 3)) < 1e-3 and abs(b * 2 - round(b * 2)) > 1e-3
                     for c in s.meta["charts"] for b, _, _ in c["rows"])
