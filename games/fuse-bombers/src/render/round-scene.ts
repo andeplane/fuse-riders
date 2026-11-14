@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { registerPhaserPlaytestCapture } from "fuse-ui/playtest-renderer";
 import {
   fuseProgress,
   GHOST_FLIGHT,
@@ -265,6 +266,11 @@ export class RoundScene extends Phaser.Scene {
   }
 
   create(): void {
+    const stopCapture = registerPhaserPlaytestCapture(
+      this.game.canvas.ownerDocument,
+      this.game,
+    );
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, stopCapture);
     // The framing camera starts on the whole world between the HUD bands. The main camera fills the screen with the
     // pose's centre in the middle, which is the bands' middle too.
     this.camera = createCamera({ view: REGION, world: WORLD });

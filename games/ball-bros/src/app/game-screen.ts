@@ -1,4 +1,8 @@
 import { elementsFor } from "fuse-ui";
+import {
+  playtestInputBlocked,
+  registerPlaytestInput,
+} from "fuse-ui/playtest-input";
 import { createAppPortal } from "fuse-ui/portal";
 import type { PlayFrame } from "fuse-ui/play-metrics";
 import { playFrame } from "./play-metrics.js";
@@ -239,6 +243,7 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
     button.addEventListener(
       "pointerdown",
       (e) => {
+        if (playtestInputBlocked(document)) return;
         e.preventDefault();
         button.setPointerCapture(e.pointerId);
         controls.press(`pointer-${e.pointerId}`, action);
@@ -277,7 +282,8 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
         ),
         !!target?.closest("button, a"),
       );
-      if (!action || e.repeat || !playing) return;
+      if (!action || e.repeat || !playing || playtestInputBlocked(document))
+        return;
       e.preventDefault();
       controls.press(e.code, action);
     },
@@ -292,6 +298,7 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
     },
     { signal },
   );
+  const stopPlaytestInput = registerPlaytestInput(document, { cancel });
   options.events.addEventListener("blur", cancel, { signal });
   document.addEventListener(
     "visibilitychange",
@@ -564,6 +571,7 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
   void begin();
   return () => {
     stopped = true;
+    stopPlaytestInput();
     cancel();
     runtime?.stop();
     options.cancelFrame(frame);

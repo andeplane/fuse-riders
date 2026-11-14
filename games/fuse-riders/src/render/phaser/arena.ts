@@ -6,6 +6,7 @@ import {
 } from "../power-indicator.js";
 import { assetUrl } from "../asset-url.js";
 import Phaser from "phaser";
+import { registerPhaserPlaytestCapture } from "fuse-ui/playtest-renderer";
 import type { WorldView } from "../../engine/view.js";
 import type { RiderPoses } from "../time/reconcile.js";
 import { themes, type ThemeDefinition } from "../themes.js";
@@ -249,6 +250,7 @@ export function createPhaserArena(
   window.addEventListener("beforeunload", onLeaving);
   canvas.addEventListener("webglcontextlost", onLost);
   canvas.addEventListener("webglcontextrestored", onRestored);
+  const stopCapture = registerPhaserPlaytestCapture(canvas.ownerDocument, game);
   const resize = (width: number, height: number, crossed = false) => {
     if (destroyed || !booted) return;
     const backing =
@@ -328,6 +330,7 @@ export function createPhaserArena(
     destroy() {
       if (destroyed) return;
       destroyed = true;
+      stopCapture();
       display.destroy();
       canvas.removeEventListener("webglcontextlost", onLost);
       canvas.removeEventListener("webglcontextrestored", onRestored);

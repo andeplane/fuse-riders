@@ -1,3 +1,4 @@
+import { registerPlaytestCapture } from "fuse-ui/playtest-input";
 import {
   LIGHT_STRIDE,
   type LightRenderer,
@@ -75,6 +76,8 @@ const BLOOM_STRENGTH = 0.7;
 
 /** The part of a canvas the light renderer uses; an HTMLCanvasElement fits. */
 export interface LightCanvas {
+  readonly ownerDocument?: Document;
+  toDataURL?(type?: string): string;
   width: number;
   height: number;
   readonly isConnected: boolean;
@@ -161,6 +164,25 @@ export function createWebGlLightRenderer(
     return null;
   }
   let destroyed = false;
+  let last:
+    | { data: Float32Array; count: number; transform: LightTransform }
+    | undefined;
+  const stopCapture =
+    canvas.ownerDocument && canvas.toDataURL
+      ? registerPlaytestCapture(canvas.ownerDocument, async () => {
+          if (
+            !canvas.isConnected ||
+            !pipeline ||
+            context.isContextLost() ||
+            !last
+          )
+            return new Map();
+          pipeline(last.data, last.count, last.transform);
+          return new Map([
+            [canvas as HTMLCanvasElement, canvas.toDataURL!("image/png")],
+          ]);
+        })
+      : () => {};
   const lost = (event: Event) => {
     // Without preventDefault the browser never restores the context.
     event.preventDefault();
@@ -176,6 +198,7 @@ export function createWebGlLightRenderer(
     destroy() {
       if (destroyed) return;
       destroyed = true;
+      stopCapture();
       live.delete(handle);
       canvas.removeEventListener("webglcontextlost", lost);
       canvas.removeEventListener("webglcontextrestored", restored);
@@ -189,6 +212,7 @@ export function createWebGlLightRenderer(
     draw(data, count, t) {
       if (!pipeline || context.isContextLost()) return;
       try {
+        last = { data, count, transform: { ...t } };
         pipeline(data, count, t);
       } catch {
         // Light is cosmetic; the SVG board carries on without it.

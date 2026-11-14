@@ -407,6 +407,64 @@ function pad(
   } satisfies GamepadLike;
 }
 
+test("report cancellation clears hub presses and gamepads need neutral before playing again", () => {
+  let blocked = false;
+  let pads = [pad(0, [0])];
+  const { hub, hold } = recorder();
+  hub.bind(0, "pad:0");
+  const commands: string[] = [];
+  hub.addSource(
+    attachGamepads(
+      () => pads,
+      hold,
+      (_device, command) => commands.push(command),
+      () => 0,
+      () => blocked,
+    ),
+  );
+  hub.poll();
+  assert.equal(hub.heldBits(0), FIRE);
+  blocked = true;
+  hub.cancel();
+  assert.equal(hub.heldBits(0), 0);
+  assert.deepEqual(hub.takePresses(1), [false]);
+  hub.poll();
+  blocked = false;
+  hub.poll();
+  assert.equal(
+    hub.heldBits(0),
+    0,
+    "a physically held fire must not resume on closing",
+  );
+  pads = [pad(0)];
+  hub.poll();
+  pads = [pad(0, [0])];
+  hub.poll();
+  assert.equal(hub.heldBits(0), FIRE);
+  assert.deepEqual(hub.takePresses(1), [true]);
+  assert.deepEqual(commands, []);
+});
+
+test("report cancellation resets keyboard state while leaving key releases usable", () => {
+  let blocked = false;
+  const target = new FakeTarget();
+  const { hub, hold } = recorder();
+  hub.bind(0, "key:WASD");
+  hub.addSource(attachKeyboard(target, hold, { blocked: () => blocked }));
+  target.dispatch("keydown", keyEvent("KeyW"));
+  assert.equal(hub.heldBits(0), UP);
+  blocked = true;
+  hub.cancel();
+  target.dispatch("keydown", keyEvent("KeyD"));
+  assert.equal(hub.heldBits(0), 0);
+  target.dispatch("keyup", keyEvent("KeyW"));
+  blocked = false;
+  target.dispatch("keydown", keyEvent("KeyW", { repeat: true }));
+  assert.equal(hub.heldBits(0), 0);
+  target.dispatch("keydown", keyEvent("KeyW"));
+  assert.equal(hub.heldBits(0), UP);
+});
+
 test("gamepads: any face button presses pad N on its rising edge", () => {
   let pads: (GamepadLike | null)[] = [pad(0), null, pad(2)];
   const { presses, hold } = recorder();

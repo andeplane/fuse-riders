@@ -102,7 +102,7 @@ function ownedByPage(
 export function attachKeyboard(
   target: KeyboardTarget,
   hold: (device: DeviceId, bits: number) => void,
-  options: { arrowsPrimary?: () => boolean } = {},
+  options: { arrowsPrimary?: () => boolean; blocked?: () => boolean } = {},
 ): InputSource {
   let primary = options.arrowsPrimary?.() ?? false;
   const bindings = (): readonly KeyCluster[] =>
@@ -154,6 +154,7 @@ export function attachKeyboard(
 
   const onKeyDown = (event: KeyEventLike): void => {
     refresh();
+    if (options.blocked?.()) return;
     if (event.ctrlKey || event.metaKey || event.altKey) return releaseAll();
     const cluster = clusterOf.get(event.code);
     if (!cluster || ownedByPage(event.code, event.target)) return;
@@ -174,6 +175,7 @@ export function attachKeyboard(
   target.addEventListener("blur", releaseAll);
   target.addEventListener("visibilitychange", releaseAll);
   return {
+    cancel: releaseAll,
     poll: refresh,
     dispose: () => {
       target.removeEventListener("keydown", onKeyDown);

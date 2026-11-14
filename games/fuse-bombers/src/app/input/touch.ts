@@ -224,6 +224,7 @@ export function attachTouch(
   target: PointerTarget,
   hold: (device: DeviceId, bits: number) => void,
   page: PageTarget,
+  blocked: () => boolean = () => false,
 ): TouchSource {
   let sides: readonly number[] = [],
     place: PadLayout = touchPadLayout;
@@ -258,6 +259,7 @@ export function attachTouch(
   const releaseAll = (): void => releaseWhere(() => true);
 
   const onDown = (event: PointerLike): void => {
+    if (blocked()) return;
     const [x, y] = point(event);
     const control = touchControlAt(x, y, pads());
     if (!control) return;
@@ -304,6 +306,7 @@ export function attachTouch(
   page.addEventListener("pointerup", onUp);
   page.addEventListener("pointercancel", onUp);
   return {
+    cancel: releaseAll,
     setSides: (next, layout = touchPadLayout) => {
       place = layout;
       sides = [...new Set(next)]

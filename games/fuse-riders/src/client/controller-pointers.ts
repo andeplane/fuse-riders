@@ -27,6 +27,7 @@ export class ControllerPointerBindings {
       x: number,
       y: number,
     ) => PointerButton | undefined,
+    private readonly enabled: () => boolean = () => true,
   ) {
     terminalTarget.addEventListener(
       "pointerdown",
@@ -38,6 +39,7 @@ export class ControllerPointerBindings {
       button.addEventListener("pointerdown", (event) => {
         const pointer = event as PointerEvent;
         if (
+          !this.enabled() ||
           button.disabled ||
           (pointer.pointerType === "mouse" && pointer.button !== 0)
         )
@@ -68,6 +70,7 @@ export class ControllerPointerBindings {
       (event) => {
         const pointer = event as PointerEvent;
         if (this.interrupted.has(pointer.pointerId)) return;
+        if (!this.enabled()) return;
         if (this.buttonAtPoint && pointer.buttons === 1) {
           const candidate = this.buttonAtPoint(
             pointer.clientX,

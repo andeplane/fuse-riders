@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { registerPhaserPlaytestCapture } from "fuse-ui/playtest-renderer";
 import type { FuseDriversView } from "../../game/game.js";
 import { config } from "../../game/sim/config.js";
 import type { RaceState } from "../../game/sim/race.js";
@@ -106,6 +107,7 @@ export function createArena(
     scene: [race, hud],
   });
 
+  const stopCapture = registerPhaserPlaytestCapture(canvas.ownerDocument, game);
   /** The two newest races the page has handed over, newest last. */
   let previous: RaceState | undefined;
   let current: RaceState | undefined;
@@ -157,6 +159,7 @@ export function createArena(
     destroy() {
       if (destroyed) return;
       destroyed = true;
+      stopCapture();
       race.reset();
       game.destroy(false); // the caller owns the canvas element
       // The SceneManager needs its system scene to flush destruction; otherwise the next frame would.

@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { registerPhaserPlaytestCapture } from "fuse-ui/playtest-renderer";
 import {
   ASSETS,
   crops,
@@ -1170,6 +1171,7 @@ export function createShowcase(
     options.failed("The graphics context was lost.");
   };
   game.canvas.addEventListener("webglcontextlost", lost);
+  const stopCapture = registerPhaserPlaytestCapture(host.ownerDocument, game);
   let previousFrame = 0;
   return {
     drawFrame(now) {
@@ -1214,6 +1216,7 @@ export function createShowcase(
     destroy() {
       if (destroyed) return;
       destroyed = true;
+      stopCapture();
       game.canvas.removeEventListener("webglcontextlost", lost);
       scene.teardown();
       game.destroy(true);
