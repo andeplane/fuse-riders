@@ -48,6 +48,13 @@ import {
 import type { SpectrumReply, SpectrumRequest } from "./spectrum-worker.js";
 import { revealTop, seekDelta, typingIn } from "./playback.js";
 import { hiddenAtStart, parseShown } from "./shown.js";
+import { quantOf as gameQuantOf } from "../render/palette.js";
+import type { SpriteCanvas } from "../render/pen.js";
+import {
+  createSprites,
+  type Sprite,
+  type SpriteSet,
+} from "../render/sprites.js";
 
 const BASE = import.meta.env.BASE_URL;
 const NOTES_KEY = "fusemania-lab:notes";
@@ -55,23 +62,10 @@ const SHOWN_KEY = "fusemania-lab:shown";
 const EDITS_KEY = (song: string) => `fusemania-lab:edits:${song}`;
 const HEADER = 30;
 const RULER = 58;
-const LANE = 16;
+const LANE = 30;
 const CHART_GAP = 10;
 const CURVES = 76;
 const OVERVIEW = 22;
-
-/** Arrow colours by subdivision, StepMania's convention: 4th red, 8th blue, 12th purple, 16th yellow… */
-const QUANT_COLOURS: Record<Quant, string> = {
-  1: "#ff3b5c",
-  2: "#3b8bff",
-  3: "#b84dff",
-  4: "#ffe23b",
-  6: "#ff6bd5",
-  8: "#ff9b3b",
-  12: "#3bffd0",
-  16: "#9cff3b",
-  0: "#9aa3b5",
-};
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Storage: per-viewer conveniences, every access guarded.
@@ -221,7 +215,7 @@ const helpBox = el(
   }),
   el("p", {
     textContent:
-      "Arrow colours are subdivisions: red 4th, blue 8th, purple 12th, yellow 16th, pink 24th, orange 32nd.",
+      "The arrows are the game's own, in its colours: red 4th, blue 8th, purple 12th, yellow 16th, green 24th and 32nd, grey anything finer.",
   }),
 );
 const side = el(
@@ -770,7 +764,8 @@ function draw(): void {
     g.fillStyle = "#cfd8ff";
     g.fillText(chart.label.slice(0, 11), x, 12);
     g.fillStyle = "#6b7590";
-    g.fillText("← ↓ ↑ →", x + 1, 25);
+    for (const [lane, arrow] of ["←", "↓", "↑", "→"].entries())
+      g.fillText(arrow, x + lane * LANE + LANE / 2 - 3, 25);
   }
   g.fillStyle = "#3bffd0";
   g.fillText("onset", curvesX, 12);
@@ -851,38 +846,48 @@ function drawNote(
 ): void {
   const cx = x + note.column * LANE + LANE / 2;
   const y = yOf(note.time);
+  const set = gameSprites();
   if (note.kind === "mine") {
-    g.strokeStyle = "#ff3b5c";
-    g.lineWidth = 2;
-    g.beginPath();
-    g.moveTo(cx - 4, y - 4);
-    g.lineTo(cx + 4, y + 4);
-    g.moveTo(cx + 4, y - 4);
-    g.lineTo(cx - 4, y + 4);
-    g.stroke();
-    g.lineWidth = 1;
+    blit(g, set.mines[0]!, cx, y);
     return;
   }
   if (note.endTime !== undefined) {
     g.fillStyle =
       note.kind === "roll" ? "rgba(255,155,59,0.55)" : "rgba(59,255,120,0.45)";
-    g.fillRect(cx - 4, y, 8, yOf(note.endTime) - y);
+    g.fillRect(cx - LANE * 0.22, y, LANE * 0.44, yOf(note.endTime) - y);
   }
-  const colour = QUANT_COLOURS[note.quant];
-  const r = Math.min(7, Math.max(3, pxPerSec / 40));
-  g.fillStyle = colour;
-  g.beginPath();
-  // An arrow head pointing the lane's way: left, down, up, right.
-  const angle = [Math.PI, Math.PI / 2, -Math.PI / 2, 0][note.column] ?? 0;
-  for (let i = 0; i < 3; i++) {
-    const a = angle + (i * 2 * Math.PI) / 3;
-    const px = cx + Math.cos(a) * r;
-    const py = y + Math.sin(a) * r;
-    if (i === 0) g.moveTo(px, py);
-    else g.lineTo(px, py);
+  // The game's own arrow for this beat and lane.
+  const sprite = set.arrows[gameQuantOf(note.beat)]?.[note.column];
+  if (sprite) blit(g, sprite, cx, y);
+}
+
+/** The game's note sprites at the lab's lane width, redrawn when the screen's pixel ratio changes. */
+const spriteElements = new WeakMap<SpriteCanvas, HTMLCanvasElement>();
+let spriteSet: SpriteSet | undefined;
+let spriteRatio = 0;
+function gameSprites(): SpriteSet {
+  const ratio = window.devicePixelRatio || 1;
+  if (!spriteSet || spriteRatio !== ratio) {
+    spriteRatio = ratio;
+    spriteSet = createSprites((width, height) => {
+      const element = el("canvas", { width, height });
+      spriteElements.set(element, element);
+      return element;
+    }, LANE * ratio);
   }
-  g.closePath();
-  g.fill();
+  return spriteSet;
+}
+/** Draws a sprite (device pixels) centred on a point in the lab's CSS pixels. */
+function blit(
+  g: CanvasRenderingContext2D,
+  sprite: Sprite,
+  cx: number,
+  cy: number,
+): void {
+  const image = spriteElements.get(sprite.canvas);
+  if (!image) return;
+  const size = sprite.size / spriteRatio;
+  g.drawImage(image, cx - size / 2, cy - size / 2, size, size);
 }
 
 function drawCurve(
