@@ -233,8 +233,30 @@ body.kf-page {
   min-width: 0;
 }
 .kf-lobby .fui-slot-label {
-  font: 0.5rem/1.6 var(--fui-font-pixel);
+  font: 0.5rem/1.7 var(--fui-font-pixel);
   letter-spacing: 0.0625rem;
+  /* The label carries the role and what it does, so it wraps rather than running out of its slot. */
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+/* What the two roles do, beside the slots a player is choosing between. */
+.kf-roles {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: var(--fui-space-2) var(--fui-space-3);
+  background: #04091a66;
+  border: var(--fui-border);
+  border-radius: var(--fui-radius-small);
+  color: var(--fui-text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  list-style: none;
+  text-wrap: pretty;
+}
+.kf-roles li::before {
+  content: "· ";
+  color: var(--kf-gold);
 }
 .kf-lobby .fui-roster-name {
   color: var(--rider-color, inherit);

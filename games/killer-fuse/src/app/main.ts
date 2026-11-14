@@ -92,6 +92,14 @@ import {
   WINS,
   type Device,
 } from "./guide.js";
+import {
+  FRESH_STEER,
+  ROLE_LEGEND,
+  readSoloSlot,
+  soloSetup,
+  writeSoloSlot,
+  type SoloSteer,
+} from "./solo-seat.js";
 import { createGameMetrics } from "./metrics.js";
 import {
   BOT_LEVELS,
@@ -623,7 +631,10 @@ function room(solo: boolean): void {
     start = button("START", "fui-button-primary kf-start"),
     lobbyNote = el("p", "", "fui-lobby-note"),
     tvLink = button("OPEN TV SCREEN", "kf-tv"),
-    lobbyActions = el("div", "", "kf-actions");
+    lobbyActions = el("div", "", "kf-actions"),
+    // What each role does, beside the slots a player is choosing between.
+    roleLegend = el("ul", "", "kf-roles");
+  roleLegend.append(...ROLE_LEGEND.map((line) => el("li", line)));
   if (!solo)
     lobby.append(
       createInviteCard({
@@ -695,6 +706,15 @@ function room(solo: boolean): void {
   const remembered = seatName(
     social.playerName(store.getItem(names.name)) ?? "",
   );
+  /**
+   * Solo: the role this device chose last, and whether the page is still opening the room on the lobby. A slot the
+   * player actually asks for is remembered; the one the page restores for them is not a fresh choice and is not.
+   */
+  let soloSteer: SoloSteer = FRESH_STEER;
+  const soloSlot = solo && !lesson ? readSoloSlot(store) : undefined;
+  const chooseSolo = (slot: number | undefined): void => {
+    if (solo && !lesson && slot !== undefined) writeSoloSlot(store, slot);
+  };
   /** The slot admission dialog the shared layout parks the form in; a command answered, it has done its job. */
   function closeAdmission(): void {
     const dialog = nameEntry.form.closest("dialog");
@@ -708,6 +728,7 @@ function room(solo: boolean): void {
     onSubmit: (name) => {
       store.setItem(names.name, name);
       const slot = requestedRoomSlot(nameEntry.form);
+      chooseSolo(slot);
       // A seated player tapping an open slot moves there; anyone else takes it by joining.
       if (model?.seated && slot !== undefined) runtime.seat(slot);
       else
@@ -802,7 +823,15 @@ function room(solo: boolean): void {
     capacity: ROOM_CAPACITY,
     join: nameEntry.form,
     settings: [settingsBox, settingsLine],
-    actions: [watchers, takeSeat, lobbyNote, lobbyActions, tipBox, howToPlay()],
+    actions: [
+      roleLegend,
+      watchers,
+      takeSeat,
+      lobbyNote,
+      lobbyActions,
+      tipBox,
+      howToPlay(),
+    ],
     background: demoBackground,
     slotColor,
     slotLabel,
@@ -906,10 +935,10 @@ function room(solo: boolean): void {
           const seat = seatRows.find((other) => other.id === row.id);
           if (!seat) return;
           // Asking for the seat this device holds takes a wish back.
-          const mine = model?.arena.localSlot ?? -1;
-          runtime.seat(
-            seat.action === "withdraw" && mine >= 0 ? mine : seat.slot,
-          );
+          const mine = model?.arena.localSlot ?? -1,
+            wanted = seat.action === "withdraw" && mine >= 0 ? mine : seat.slot;
+          chooseSolo(wanted);
+          runtime.seat(wanted);
         };
         seatActions.set(row.id, action);
       }
@@ -1079,6 +1108,20 @@ function room(solo: boolean): void {
         runtime.command({ type: "join", name: remembered });
       }
       if (next.seated) joinSent = false;
+      // Solo: the runtime opens the room already playing in the first slot. Send that match back to the lobby once,
+      // restore the role this device chose last, and then leave the six slots and START to the player.
+      if (solo && !lesson && !soloSteer.done) {
+        const step = soloSetup(
+          { stage: frame.stage, slot: next.arena.localSlot },
+          soloSlot,
+          soloSteer,
+        );
+        soloSteer = step.steer;
+        if (step.action === "lobby")
+          runtime.command({ type: "action", action: "lobby" });
+        else if (step.action === "seat" && soloSlot !== undefined)
+          runtime.seat(soloSlot);
+      }
       render(next);
       if (lesson) {
         const mine = frame.seats.find((seat) => seat.id === viewer.me),
