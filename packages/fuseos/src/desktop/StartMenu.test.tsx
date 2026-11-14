@@ -40,6 +40,34 @@ describe("StartMenu", () => {
         .getAllByRole("menuitem")
         .map((item) => item.textContent?.replace("▸", "")),
     ).toEqual(["Fuseball", "Fuse Riders", "Fuse Birds", "Retro Games"]);
+    // A game with a desktop icon shows its 16px bitmap; one without keeps the generic joystick.
+    expect(
+      within(games)
+        .getByRole("menuitem", { name: "Fuseball" })
+        .querySelector("img"),
+    ).toHaveAttribute("src", "/fuse-riders/fuseos/game-icons/fuseball-16.png");
+    expect(
+      within(games)
+        .getByRole("menuitem", { name: "Fuse Riders" })
+        .querySelector("svg[data-icon='fusegame']"),
+    ).not.toBeNull();
+  });
+
+  it("puts the game's icon in its window title bar and taskbar button", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Desktop />);
+    await choose(user, "Programs", "Games", "Fuseball");
+    const window = await screen.findByRole("dialog", { name: "Fuseball" });
+    expect(window.querySelector("header img")).toHaveAttribute(
+      "src",
+      "/fuse-riders/fuseos/game-icons/fuseball-16.png",
+    );
+    const taskbar = screen.getByRole("toolbar", { name: "Taskbar" });
+    expect(
+      within(taskbar)
+        .getByRole("button", { name: "Fuseball" })
+        .querySelector("img"),
+    ).toHaveAttribute("src", "/fuse-riders/fuseos/game-icons/fuseball-16.png");
   });
 
   it("opens the accessories, a Fuse game, a retro game and the control panel applets", async () => {

@@ -19,6 +19,11 @@ export interface PortalGame extends PortalEntry {
   id: string;
   /** `<id>/` under the site base. */
   path: string;
+  /**
+   * Site-relative 64x64 desktop icon (`fuseos/game-icons/<id>.png`, with a 32x32 `<id>-16.png` beside it), set by
+   * the build when the file exists; FuseOS draws the lettermark tile for a game without one.
+   */
+  icon?: string;
 }
 
 declare const __FUSE_PORTAL_GAMES__: readonly PortalGame[] | undefined;

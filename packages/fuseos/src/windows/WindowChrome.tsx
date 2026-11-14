@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 
-import type { IconName } from "../ui/icons";
-import { Win98Icon } from "../ui/icons";
+import type { IconRef } from "../ui/icons";
+import { AppIcon } from "../ui/icons";
 
 export type WindowChromeProps = {
   title: string;
-  icon: IconName;
+  icon: IconRef;
   active: boolean;
   maximized: boolean;
   resizable?: boolean;
@@ -42,7 +42,7 @@ export function WindowChrome({
         onDoubleClick={resizable ? onToggleMaximize : undefined}
       >
         <div className="title-bar-text flex items-center gap-1 overflow-hidden whitespace-nowrap">
-          <Win98Icon name={icon} />
+          <AppIcon icon={icon} />
           <span className="truncate">{title}</span>
         </div>
         <div className="title-bar-controls">

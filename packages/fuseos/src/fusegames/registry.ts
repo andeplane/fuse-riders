@@ -1,6 +1,8 @@
 import type { PortalGame } from "fuse-ui/portal";
 import { createContext } from "react";
 
+import type { ImageIcon } from "../ui/icons";
+
 /** A Fuse game as the desktop knows it: the portal entry plus where its page is served. */
 export type FuseGame = PortalGame;
 
@@ -13,6 +15,8 @@ export interface FuseGameRegistry {
   embedUrl(game: FuseGame): string;
   /** The gameplay capture a window shows while the game loads, when the game ships one. */
   screenshotUrl(game: FuseGame): string | undefined;
+  /** The game's desktop icon at both sizes, when the build found one; the caller falls back to the tile. */
+  icon(game: FuseGame): ImageIcon | undefined;
 }
 
 export type FuseGameRegistryOptions = {
@@ -38,6 +42,14 @@ export function createFuseGameRegistry(
     embedUrl: (game) => `${base}${game.path}${query}`,
     screenshotUrl: (game) =>
       game.screenshot ? `${base}${game.screenshot}` : undefined,
+    icon: (game) =>
+      game.icon
+        ? {
+            kind: "image",
+            src: `${base}${game.icon}`,
+            smallSrc: `${base}${game.icon.replace(/\.png$/, "-16.png")}`,
+          }
+        : undefined,
   };
 }
 

@@ -1,6 +1,6 @@
 import { matchShortcut } from "../lib/shortcuts";
-import type { IconName } from "../ui/icons";
-import { Win98Icon } from "../ui/icons";
+import type { IconRef } from "../ui/icons";
+import { AppIcon } from "../ui/icons";
 import type { MenuPosition } from "../windows/menuPosition";
 import {
   isContextMenuKey,
@@ -8,10 +8,13 @@ import {
   menuPositionFor,
 } from "../windows/menuPosition";
 
-/** A Fuse game's tile: its accent square with its one-to-three character mark, like the portal draws it. */
+/**
+ * A Fuse game's tile: its accent square with its one-to-three character mark, like the portal draws it. The
+ * fallback for a game without a bitmap icon.
+ */
 export type GameTile = { kind: "tile"; mark: string; accent: string };
 
-export type DesktopIconArt = IconName | GameTile;
+export type DesktopIconArt = IconRef | GameTile;
 
 export type DesktopIconProps = {
   label: string;
@@ -82,10 +85,10 @@ export function DesktopIcon({
         }
       }}
     >
-      {typeof icon === "string" ? (
-        <Win98Icon name={icon} size={32} />
-      ) : (
+      {typeof icon !== "string" && icon.kind === "tile" ? (
         <GameTileIcon mark={icon.mark} accent={icon.accent} />
+      ) : (
+        <AppIcon icon={icon} size={32} />
       )}
       <span
         className={`px-0.5 leading-tight ${selected ? "selected-label" : ""}`}

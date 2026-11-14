@@ -103,7 +103,9 @@ export function useDesktopViewModel(): DesktopViewModel {
     ...games.games.map((game) => ({
       id: `game:${game.id}`,
       label: game.name,
-      icon: { kind: "tile", mark: game.mark, accent: game.accent } as const,
+      icon:
+        games.icon(game) ??
+        ({ kind: "tile", mark: game.mark, accent: game.accent } as const),
       open: () => openFuseGame(game.id),
     })),
     { id: "paint", label: "Paint", icon: "paint", open: openPaint },
