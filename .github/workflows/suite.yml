@@ -1,0 +1,27 @@
+name: Release suite
+# The heavy suite for main pushes: ci.yml with its release jobs on (coverage, the whole browser matrix) and the
+# whole-recording replays at full stride. It runs beside the deployment, which waits only for cd.yml's gate, so a
+# failure here does not withhold a release: it is a red run on main to fix forward. A pull request runs the same
+# jobs when labelled `full-ci`.
+#
+# One run at a time, newest commit wins: while a run is going, a further push waits, and a still newer push
+# replaces the waiting one. The newest commit contains every older one, so the run that goes ahead covers them
+# all. That keeps the suite to one run's worth of runners however fast main moves, so pull requests' gates are
+# not queued behind it.
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: release-suite
+  cancel-in-progress: false
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    with:
+      release: true
+    permissions:
+      contents: read
+      # ci.yml's smokes comment on the `flaky-test` issue when a smoke on main passes only on retry.
+      issues: write
