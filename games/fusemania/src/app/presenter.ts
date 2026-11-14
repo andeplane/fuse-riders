@@ -88,7 +88,7 @@ export interface Own {
   score: string;
   /** "CHALLENGE 13 · 94.2% · MAX COMBO 212". */
   detail: string;
-  /** What a run with no broken combo earned ("FULL COMBO", "FULL PERFECT COMBO", ...), or "". */
+  /** What a run with no broken combo earned ("FULL GREAT COMBO", "FULL PERFECT COMBO", ...), or "". */
   badge: string;
 }
 /** One line of a session's standings. */
