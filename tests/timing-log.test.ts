@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { createDevRoomService } from "../service/dev.js";
 import {
@@ -97,6 +98,16 @@ test("the local dev service appends a debug session to a file, and takes nothing
         .status,
       413,
     );
+    // Another site open in the same browser is refused before the route sees it.
+    const foreign = await fetch(
+      `${origin}${TIMING_LOG_PATH}?game=fusemania&session=foreign`,
+      {
+        method: "POST",
+        headers: { origin: "https://elsewhere.example" },
+        body: '{"t":1}\n',
+      },
+    );
+    assert.equal(foreign.status, 403);
     assert.deepEqual(await readdir(directory), [
       "fusemania-2026-11-14t17-00-00-000z.jsonl",
     ]);
@@ -124,16 +135,9 @@ test("without a directory the service has no such route", async () => {
   }
 });
 
-test("a session's file stops growing at its limit", async () => {
-  const appended: string[] = [];
-  const files: TimingLogFiles = {
-    ensure: async () => undefined,
-    size: async () => MAX_TIMING_FILE_BYTES - 5,
-    append: async (_, text) => void appended.push(text),
-  };
-  // The route alone, with a file system that says the file is nearly full.
+/** The route alone on a server of its own, with the file system a test gives it. */
+async function routeAlone(files: TimingLogFiles) {
   const http = createTimingLogHttp("logs", files);
-  const { createServer } = await import("node:http");
   const server = createServer((req, res) => {
     void http.handle(req, res, "local").then((handled) => {
       if (!handled) res.writeHead(404).end();
@@ -141,14 +145,59 @@ test("a session's file stops growing at its limit", async () => {
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const port = (server.address() as AddressInfo).port;
+  return {
+    post: (session: string, body: string) =>
+      fetch(
+        `http://127.0.0.1:${port}${TIMING_LOG_PATH}?game=fusemania&session=${session}`,
+        { method: "POST", body },
+      ),
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  };
+}
+
+test("a session's file stops growing at its limit, counted in bytes", async () => {
+  const appended: string[] = [];
+  let size = MAX_TIMING_FILE_BYTES - 5;
+  const route = await routeAlone({
+    ensure: async () => undefined,
+    size: async () => size,
+    append: async (_, text) => void appended.push(text),
+  });
   try {
-    const response = await fetch(
-      `http://127.0.0.1:${port}${TIMING_LOG_PATH}?game=fusemania&session=full`,
-      { method: "POST", body: '{"t":1,"kind":"press"}\n' },
+    // A file system that says the file is nearly full.
+    assert.equal(
+      (await route.post("full", '{"t":1,"kind":"press"}\n')).status,
+      413,
     );
-    assert.equal(response.status, 413);
+    // Twelve characters that are fifteen bytes: there is room for the one and not for the other.
+    size = MAX_TIMING_FILE_BYTES - 13;
+    assert.equal((await route.post("full", '{"s":"ééé"}\n')).status, 413);
     assert.deepEqual(appended, []);
+    size = MAX_TIMING_FILE_BYTES - 15;
+    assert.equal((await route.post("full", '{"s":"ééé"}\n')).status, 200);
+    assert.deepEqual(appended, ['{"s":"ééé"}\n']);
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await route.close();
+  }
+});
+
+test("two writes at once cannot both find room for one", async () => {
+  const line = '{"t":1,"kind":"press"}\n';
+  let size = MAX_TIMING_FILE_BYTES - line.length;
+  const route = await routeAlone({
+    ensure: async () => undefined,
+    // Slow enough that both requests are waiting on it together.
+    size: () => new Promise((resolve) => setImmediate(() => resolve(size))),
+    append: async (_, text) => void (size += Buffer.byteLength(text)),
+  });
+  try {
+    const answers = await Promise.all([
+      route.post("race", line),
+      route.post("race", line),
+    ]);
+    assert.deepEqual(answers.map((each) => each.status).sort(), [200, 413]);
+    assert.equal(size, MAX_TIMING_FILE_BYTES);
+  } finally {
+    await route.close();
   }
 });

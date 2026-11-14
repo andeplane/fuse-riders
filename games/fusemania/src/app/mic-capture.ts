@@ -67,6 +67,27 @@ export async function listMics(
 }
 
 /**
+ * The tap's module, loaded once per context: a processor's name can be registered only once, so a second
+ * microphone on the same context (another device, off and on again) must not load it again. A load that failed
+ * is tried again.
+ */
+const tapModules = new WeakMap<AudioContext, Promise<void>>();
+function tapModule(context: AudioContext): Promise<void> {
+  let loading = tapModules.get(context);
+  if (!loading) {
+    const url = URL.createObjectURL(
+      new Blob([WORKLET], { type: "text/javascript" }),
+    );
+    loading = context.audioWorklet.addModule(url).finally(() => {
+      URL.revokeObjectURL(url);
+    });
+    tapModules.set(context, loading);
+    loading.catch(() => tapModules.delete(context));
+  }
+  return loading;
+}
+
+/**
  * Opens a microphone into `context` and calls `onSamples` with each block and the audio-clock frame of its first
  * sample. Rejects when the browser has no microphone to give, the player says no, or the context cannot run a
  * worklet.
@@ -91,14 +112,7 @@ export async function openMic(
     for (const track of stream.getTracks()) track.stop();
   };
   try {
-    const url = URL.createObjectURL(
-      new Blob([WORKLET], { type: "text/javascript" }),
-    );
-    try {
-      await context.audioWorklet.addModule(url);
-    } finally {
-      URL.revokeObjectURL(url);
-    }
+    await tapModule(context);
     const source = context.createMediaStreamSource(stream),
       tap = new AudioWorkletNode(context, PROCESSOR, {
         numberOfInputs: 1,

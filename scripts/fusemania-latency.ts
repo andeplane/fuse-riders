@@ -73,7 +73,8 @@ const LOOPBACK = `(() => {
     source.start(event.timeStamp / 1000 + Math.max(...skews) - KEYBOARD + AHEAD);
   }, true);
   const media = navigator.mediaDevices;
-  media.getUserMedia = async () => air.stream;
+  // A copy each time: the page stops the tracks of a microphone it closes.
+  media.getUserMedia = async () => air.stream.clone();
   media.enumerateDevices = async () => [{ kind: "audioinput", deviceId: "loopback", label: "Loopback", groupId: "" }];
 })();`;
 
@@ -113,6 +114,12 @@ if (mic) {
   await page
     .getByRole("button", { name: "LISTEN WITH THE MICROPHONE" })
     .click();
+  // Off and on again: a second microphone on the same audio context must open like the first.
+  await page.getByRole("button", { name: "STOP THE MICROPHONE" }).click();
+  await page
+    .getByRole("button", { name: "LISTEN WITH THE MICROPHONE" })
+    .click();
+  await page.getByRole("button", { name: "STOP THE MICROPHONE" }).waitFor();
   // The ticks before the first arrow are the ones it learns the round trip from.
   await page.waitForTimeout(300);
 }

@@ -72,6 +72,7 @@ export class FusemaniaRuntime extends RoomRuntime<
     const tick = this.recorder.next();
     this.logged = this.logged.filter((entry) => entry.tick > room.tick);
     this.logged.push({ tick, epoch: room.epoch, code, ms });
+    this.slack = undefined;
     if (room.world) {
       // The fold takes a timestamp no further than `LATE_MS` behind its tick and `EARLY_MS` ahead (`applyInput`).
       const at = room.world.ms + (tick - room.tick) * TICK_MS;

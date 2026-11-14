@@ -223,6 +223,31 @@ test("too few presses are not acted on", () => {
   assert.equal(micUsable(report), false);
 });
 
+test("a keyboard that changes mid-session is found again after a few unheard presses", () => {
+  const heard = room({
+    ticks: 60,
+    finger: (tick) => (tick < 8 ? undefined : -0.01),
+  });
+  // From the 21st press on the stamps come 80 ms later (another keyboard, a browser that woke up): the key is no
+  // longer where the first presses taught the session to look.
+  for (const press of heard.presses.slice(20)) press.at += 0.08;
+  const report = listen(heard).session.report();
+  assert.equal(report.presses, 52);
+  assert.ok(
+    report.pressesHeard >= 52 - 10,
+    `heard ${report.pressesHeard} of 52`,
+  );
+});
+
+test("a sample that is not a number is silence, not the end of listening", () => {
+  const heard = room({ ticks: 12 });
+  heard.samples[RATE] = Number.NaN;
+  heard.samples[RATE + 1] = Number.POSITIVE_INFINITY;
+  const { session, analyser } = listen(heard);
+  assert.equal(session.report().clicksHeard, 12);
+  assert.ok(Number.isFinite(analyser.noise("click")));
+});
+
 test("silence is no tick, and a reset forgets everything", () => {
   const analyser = createMicAnalyser({ sampleRate: RATE, clickHz: CLICK_HZ }),
     session = createMicSession(analyser, 0.4);

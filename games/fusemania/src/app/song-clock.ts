@@ -151,6 +151,11 @@ export function createSongClock(deps: SongClockDeps): SongClock {
   let paired: number | undefined,
     pairedAt = 0,
     pairedOff: number | undefined;
+  /**
+   * What is left of the step between the two mappings, in seconds, when the pair comes or goes mid-song: the two
+   * differ by whatever output delay the browser's reported latency leaves out, and the position glides over it.
+   */
+  let carry = 0;
   const recent: number[] = [];
   /** The room's position at the last follow. */
   let anchor: { at: number; room: number } | undefined;
@@ -171,7 +176,8 @@ export function createSongClock(deps: SongClockDeps): SongClock {
     drift = 0;
   };
   /** Heard audio-clock seconds minus performance seconds. */
-  const heardSkew = (clockSkew: number) => paired ?? clockSkew - latency;
+  const heardSkew = (clockSkew: number) =>
+    (paired ?? clockSkew - latency) + carry;
   const heard = (
     playing: { at: number; offset: number },
     clockSkew: number,
@@ -201,6 +207,7 @@ export function createSongClock(deps: SongClockDeps): SongClock {
         skew = undefined;
         newest = undefined;
         paired = pairedOff = undefined;
+        carry = 0;
         settled = 0;
         recent.length = 0;
         return;
@@ -214,6 +221,9 @@ export function createSongClock(deps: SongClockDeps): SongClock {
       const before = skew ?? reading,
         fresh = skew === undefined || Math.abs(reading - before) > SNAP_S;
       const elapsed = fresh ? 0 : Math.max(0, Math.min(0.25, at - sampledAt));
+      const had = paired !== undefined,
+        heardBefore = heardSkew(before);
+      carry = fresh ? 0 : carry * Math.exp(-elapsed / PAIR_GLIDE_S);
       const pair = pairOf(clock, nowMs, reading);
       if (pair === undefined) {
         pairedOff = undefined;
@@ -264,6 +274,12 @@ export function createSongClock(deps: SongClockDeps): SongClock {
           ? lag
           : latency +
             (lag - latency) * (1 - Math.exp(-elapsed / LATENCY_GLIDE_S));
+      if (had !== (paired !== undefined)) {
+        // The mapping changed hands: start from where the position was. A difference too large to be the two
+        // mappings disagreeing is a different clock, taken at once like any other.
+        const step = heardBefore - (heardSkew(skew) - carry);
+        carry = Math.abs(step) > SNAP_S ? 0 : step;
+      }
     },
     follow(roomMs, song) {
       if (roomMs === undefined) {

@@ -323,6 +323,25 @@ test("the microphone's APPLY shows only for a residual worth acting on, and the 
   assert.match(text, /getOutputTimestamp/);
 });
 
+test("the panel says where the session's log is: a file, a download, or a server that would not take it", () => {
+  const { panel } = mount();
+  const line = () =>
+    [...panel.element.querySelectorAll("p")]
+      .map((each) => each.textContent ?? "")
+      .find((text) => text.startsWith("Session log")) ?? "";
+  panel.update(view({ log: { lines: 12, file: "" } }));
+  assert.equal(line(), "Session log: 12 lines (SAVE LOG downloads it)");
+  panel.update(
+    view({ log: { lines: 40, file: "timing-logs/fusemania-x.jsonl" } }),
+  );
+  assert.equal(
+    line(),
+    "Session log: 40 lines, written to timing-logs/fusemania-x.jsonl",
+  );
+  panel.update(view({ log: { lines: 40, file: "", refused: true } }));
+  assert.match(line(), /took none of it.*--allow-origin.*SAVE LOG/);
+});
+
 test("hidden, the panel is a chip and does no work", () => {
   const { panel, button } = mount();
   panel.update(view());

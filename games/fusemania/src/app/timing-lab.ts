@@ -93,6 +93,8 @@ export interface TimingLab {
   /** Everything the session knows, for the console and for a script driving the page. */
   snapshot(): TimingView;
   logText(): string;
+  /** The room is gone: the microphone is let go, what is left of the log is written, the panel leaves the page. */
+  dispose(): void;
 }
 
 const clamp = (value: number, max: number) =>
@@ -143,8 +145,11 @@ export function createTimingLab(deps: TimingLabDeps): TimingLab {
     micDevice = "",
     micLevel = 0,
     micBpm: number | undefined,
-    named = -1;
+    named = -1,
+    /** Counts starts and stops, so a microphone that arrives after it was turned off (or asked for again) is closed. */
+    micTurn = 0;
   const stopMic = () => {
+    micTurn++;
     capture?.stop();
     capture = undefined;
     analyser = undefined;
@@ -155,6 +160,7 @@ export function createTimingLab(deps: TimingLabDeps): TimingLab {
   };
   const startMic = async (device?: string) => {
     stopMic();
+    const turn = micTurn;
     const context = audio.context?.(),
       media = win.navigator.mediaDevices;
     if (!(context instanceof AudioContext) || !media?.getUserMedia) {
@@ -178,7 +184,9 @@ export function createTimingLab(deps: TimingLabDeps): TimingLab {
         (samples, first) => heard.push(samples, first),
         device,
       );
+      if (turn !== micTurn) return opened.stop();
       micDevices = await listMics(media);
+      if (turn !== micTurn) return opened.stop();
       // A wireless headset's microphone is late and cannot hear the keyboard: take the computer's own when it was
       // only the default and another is there.
       const better = micDevices.find((each) => !wirelessMic(each.label));
@@ -190,6 +198,7 @@ export function createTimingLab(deps: TimingLabDeps): TimingLab {
           (samples, first) => heard.push(samples, first),
           better.id,
         );
+        if (turn !== micTurn) return opened.stop();
       }
       capture = opened;
       analyser = heard;
@@ -208,14 +217,16 @@ export function createTimingLab(deps: TimingLabDeps): TimingLab {
       ]
         .filter(Boolean)
         .join("\n");
+      // Not the microphone's name: a headset is often named after its owner.
       log.add("mic", {
         on: true,
-        label: opened.label,
+        wireless: wirelessMic(opened.label),
         reportedMs: opened.reportedMs,
         processing: opened.processing,
         sampleRate: opened.sampleRate,
       });
     } catch (error) {
+      if (turn !== micTurn) return;
       micState = "failed";
       micNote =
         error instanceof DOMException && error.name === "NotAllowedError"
@@ -328,7 +339,11 @@ export function createTimingLab(deps: TimingLabDeps): TimingLab {
         devices: micDevices,
         device: micDevice,
       },
-      log: { lines: log.size, file: writer.state === "writing" ? file : "" },
+      log: {
+        lines: log.size,
+        file: writer.state === "writing" ? file : "",
+        refused: local && writer.state === "off",
+      },
     };
   };
 
@@ -547,5 +562,10 @@ export function createTimingLab(deps: TimingLabDeps): TimingLab {
     },
     snapshot: view,
     logText: () => log.text(),
+    dispose() {
+      stopMic();
+      void writer.flush();
+      panel.element.remove();
+    },
   };
 }

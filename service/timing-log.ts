@@ -69,6 +69,13 @@ export function createTimingLogHttp(
   directory: string,
   files: TimingLogFiles = nodeTimingLogFiles,
 ): HttpExtension {
+  /** One write at a time, so two requests cannot both find room under the limit and overshoot it together. */
+  let writing: Promise<unknown> = Promise.resolve();
+  const inTurn = <T>(work: () => Promise<T>): Promise<T> => {
+    const turn = writing.then(work, work);
+    writing = turn.catch(() => undefined);
+    return turn;
+  };
   return {
     async handle(req, res) {
       const url = new URL(req.url ?? "/", "http://local");
@@ -88,10 +95,18 @@ export function createTimingLogHttp(
         return answer(400, { error: "Every line must be a JSON object" });
       const path = join(directory, `${game}-${session}.jsonl`);
       if (lines !== "") {
-        await files.ensure(directory);
-        if ((await files.size(path)) + lines.length > MAX_TIMING_FILE_BYTES)
-          return answer(413, { error: "This session's log is full" });
-        await files.append(path, lines);
+        const full = await inTurn(async () => {
+          await files.ensure(directory);
+          // Bytes, not characters: a song title can be any script.
+          if (
+            (await files.size(path)) + Buffer.byteLength(lines, "utf8") >
+            MAX_TIMING_FILE_BYTES
+          )
+            return true;
+          await files.append(path, lines);
+          return false;
+        });
+        if (full) return answer(413, { error: "This session's log is full" });
       }
       return answer(200, { file: path });
     },

@@ -178,7 +178,9 @@ export function createMicAnalyser(config: {
         if (firstFrame < next) bin = -1;
       }
       for (let index = 0; index < samples.length; index++) {
-        const x = samples[index]!,
+        const raw = samples[index]!,
+          // One sample that is not a number would stay in the filters for good.
+          x = Number.isFinite(raw) ? raw : 0,
           at = Math.floor((firstFrame + index) / binFrames);
         if (at !== bin) {
           if (bin >= 0 && at > bin) {
@@ -329,6 +331,8 @@ export interface MicReport {
   recent: readonly HeardPress[];
 }
 
+/** Presses in a row unheard where the others were heard, before the place to look is learned again. */
+const LEAD_MISSES = 8;
 /** Ticks the round trip is settled on before it is trusted to find the rest. */
 export const ROUND_TRIP_CLICKS = 4;
 /** Presses heard before the residual is offered as a correction. */
@@ -376,7 +380,9 @@ export function createMicSession(
     found = 0,
     presses = 0,
     /** What the stamp leads the key's sound by, once a few presses have shown it. */
-    lead: number | undefined;
+    lead: number | undefined,
+    /** Presses in a row with no key near the lead: enough of them and the lead was wrong. */
+    unheard = 0;
   const leads: number[] = [];
   const settledTrip = () =>
     trips.length >= ROUND_TRIP_CLICKS ? median(trips) : undefined;
@@ -457,7 +463,17 @@ export function createMicSession(
         keyFloor(),
         analyser.binS,
       );
-      if (!start) continue;
+      if (!start) {
+        // A lead learned from something that was not the key (a tick's leak, a knock on the desk) finds nothing
+        // from then on: forget it and look widely again.
+        if (lead !== undefined && ++unheard >= LEAD_MISSES) {
+          lead = undefined;
+          leads.length = 0;
+          unheard = 0;
+        }
+        continue;
+      }
+      unheard = 0;
       const keyAt =
         Math.ceil(from / analyser.binS) * analyser.binS +
         start.bin * analyser.binS;
@@ -527,7 +543,7 @@ export function createMicSession(
       arrivals.clear();
       trips.length = leaks.length = pending.length = heard.length = 0;
       leads.length = 0;
-      looked = found = presses = 0;
+      looked = found = presses = unheard = 0;
       lead = undefined;
     },
   };

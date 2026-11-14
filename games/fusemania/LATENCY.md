@@ -105,7 +105,7 @@ Limits: the key is heard when it bottoms out, a few ms after the switch closes, 
 
 ### The session file
 
-Everything above is also a log of JSON lines: the session's device and settings, every press (stamp, listener, frame, song time, slack to the tick bounds, judgment), clock readings once a second, offset changes, every tick and key the microphone heard, and a summary every five seconds. On a local dev server (`pnpm dev`, or `pnpm exec tsx service/dev.ts`) the page posts it to `/api/dev/timing-log` and the server appends it to `timing-logs/fusemania-<session>.jsonl` in the repository, where whoever debugs the timing next (a person or an agent) can read the whole session. The deployed service has no such route and the page does not ask it; there, **SAVE LOG** downloads the same file. Names in the log are the song and the browser; no player names, room codes or audio.
+Everything above is also a log of JSON lines: the session's device and settings, every press (stamp, listener, frame, song time, slack to the tick bounds, judgment), clock readings once a second, offset changes, every tick and key the microphone heard, and a summary every five seconds. On a local dev server (`pnpm dev`, or `pnpm exec tsx service/dev.ts`) the page posts it to `/api/dev/timing-log` and the server appends it to `timing-logs/fusemania-<session>.jsonl` in the repository, where whoever debugs the timing next (a person or an agent) can read the whole session. The deployed service has no such route and the page does not ask it; there, **SAVE LOG** downloads the same file. A phone on the same network is served by the dev server only when its origin is allowed (`--allow-origin http://<address>:<port>`), and the log with it; the panel says when the server took none. Names in the log are the song and the browser; no player names, room codes or audio.
 
 ### Measured here
 
@@ -146,7 +146,7 @@ These are a cloud container's figures: no display, no audio device, and keys inj
 | Expected (62 − counted latency)    | +20.8 ms                   | +30.0 ms               |
 | Presses moved by the room clock    | 0 of 31, least room 158 ms | 0 of 31                |
 
-So the microphone finds a known error to within about a millisecond through the real capture path (three more runs gave +19.4 to +20.4 against +20.5 to +20.9 expected), and the two mappings differ by exactly the 9 ms of output delay that this browser's `outputLatency` leaves out and its clock pair includes.
+So the microphone finds a known error to within a millisecond or two through the real capture path (four more runs gave +19.4 to +20.4 against +20.5 to +21.5 expected), and the two mappings differ by exactly the 9 ms of output delay that this browser's `outputLatency` leaves out and its clock pair includes.
 
 On a MacBook (Chrome 157, 120 Hz display, a silent context on the live site, so no keys and no sound): `outputLatency` 168 ms and steady, the audio clock advancing 5.3 or 10.7 ms at a time with a reading up to 5.3 ms stale, the clock pair holding within 0.17 ms from frame to frame and putting the output 176 ms behind the clock, 8 ms more than `outputLatency` says. Those 8 ms were in every judgment before the clock pair was used.
 

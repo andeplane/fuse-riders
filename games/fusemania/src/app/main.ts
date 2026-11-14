@@ -861,7 +861,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   const probe = createLatencyProbe();
   const frameLead = createFrameLead();
   /** The timing lab, on a `?debugtiming` page once its code has arrived. */
-  let lab: TimingLab | undefined;
+  let lab: TimingLab | undefined,
+    labGone = false;
   /** A browser's stamp is used when it is one: not zero, and within half a second of now. */
   const stamped = (at: number, now: number) =>
     at > 0 && Math.abs(at - now) < 500;
@@ -1239,6 +1240,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   requestAnimationFrame(frame);
   if (debugTiming)
     void import("./timing-lab.js").then(({ createTimingLab }) => {
+      if (labGone) return;
       lab = createTimingLab({
         doc: document,
         win: window,
@@ -1629,6 +1631,9 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       panel.dispose();
       songClock.stop();
       scene.destroy();
+      lab?.dispose();
+      lab = undefined;
+      labGone = true;
     },
     reload: () => location.reload(),
   });

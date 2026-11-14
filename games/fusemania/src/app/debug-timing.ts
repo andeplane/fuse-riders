@@ -60,7 +60,8 @@ export interface TimingView {
   /** The click track's rate when one is playing. */
   clickBpm: number | undefined;
   mic: MicView;
-  log: { lines: number; file: string };
+  /** `refused`: a local server is there and would not take the log (a page from another device needs its origin allowed). */
+  log: { lines: number; file: string; refused?: boolean };
 }
 export type OffsetKey = "audioMs" | "inputMs" | "visualMs";
 export interface TimingActions {
@@ -543,7 +544,7 @@ export function createTimingPanel(
       );
       setText(
         logLine,
-        `Session log: ${view.log.lines} lines${view.log.file ? `, written to ${view.log.file}` : " (SAVE LOG downloads it)"}`,
+        `Session log: ${view.log.lines} lines${view.log.file ? `, written to ${view.log.file}` : view.log.refused ? " (the dev server took none of it: from another device, start it with --allow-origin; SAVE LOG downloads it)" : " (SAVE LOG downloads it)"}`,
       );
     },
     scope(traces) {

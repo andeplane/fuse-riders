@@ -488,6 +488,8 @@ test("a pair that is stale, from the future or absurd is not used, and the mappi
     { contextTime: p.clock.time + 5, performanceTime: p.perf },
     { contextTime: p.clock.time - 30, performanceTime: p.perf },
     { contextTime: p.clock.time - 0.176, performanceTime: p.perf + 800 },
+    // Taken 300 ms ago: from before a stall, however right it was then.
+    { contextTime: p.clock.time - 0.476, performanceTime: p.perf - 300 },
   ]) {
     p.clock.pair = bad;
     const before = p.songClock.songMs();
@@ -506,7 +508,38 @@ test("a pair that is stale, from the future or absurd is not used, and the mappi
   p.renew(true);
   p.frames(60);
   assert.equal(p.songClock.mapping()!.source, "paired");
+  // The position glides back over the 8 ms between the two mappings.
+  p.frames(300);
   near(p.songClock.songMs(), p.heard()!, 0.5);
+});
+
+test("the position glides when the pair goes and when it returns: the arrows never step", () => {
+  // The two mappings are 8 ms apart here (176 behind by the pair, 168 reported).
+  const p = pairedPage({});
+  p.frames(SETTLE_SAMPLES + 200);
+  let last = p.songClock.songMs(),
+    worst = 0;
+  const frames = (count: number) => {
+    for (let i = 0; i < count; i++) {
+      const before = p.perf;
+      p.frame();
+      const now = p.songClock.songMs();
+      // How far the position moved beyond the time that passed.
+      worst = Math.max(worst, Math.abs(now - last - (p.perf - before)));
+      last = now;
+    }
+  };
+  p.clock.pair = undefined;
+  p.renew(false);
+  frames(500);
+  assert.equal(p.songClock.mapping()!.source, "reported");
+  near(p.songClock.songMs() - p.heard()!, 8, 0.5);
+  assert.ok(worst < 0.5, `released with a step of ${worst} ms`);
+  p.renew(true);
+  frames(400);
+  assert.equal(p.songClock.mapping()!.source, "paired");
+  near(p.songClock.songMs(), p.heard()!, 0.5);
+  assert.ok(worst < 0.5, `returned with a step of ${worst} ms`);
 });
 
 test("the audio offset is latency the browser does not know of: the song starts earlier and the position follows", () => {
