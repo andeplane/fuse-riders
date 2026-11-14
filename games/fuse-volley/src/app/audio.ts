@@ -1,4 +1,4 @@
-import type { GameAudio, Song } from "fuse-ui/game-audio";
+import type { GameAudio } from "fuse-ui/game-audio";
 import type { Cue } from "../render/cues.js";
 
 /**
@@ -9,19 +9,7 @@ export interface Sfx {
   play(cue: Cue): void;
 }
 
-/** The songs, in `public/music/fuse-volley/`; none is fetched until the first key or touch. */
-export const VOLLEY_SONGS: readonly Song[] = [
-  {
-    id: "jelly-beach-bounce",
-    title: "Jelly Beach Bounce",
-    path: "music/fuse-volley/jelly-beach-bounce.mp3",
-  },
-  {
-    id: "sandy-rally",
-    title: "Sandy Rally",
-    path: "music/fuse-volley/sandy-rally.mp3",
-  },
-];
+export { ALL_SONGS as VOLLEY_SONGS } from "fuse-ui/music";
 
 export function createSfx(audio: GameAudio): Sfx {
   const { tone, noise } = audio;

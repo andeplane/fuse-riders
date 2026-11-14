@@ -39,6 +39,11 @@ function reconcile(target: Node, source: Node): void {
     if (current.nodeType === 1) {
       const old = current as Element,
         next = desired as Element;
+      // Stateful shared widgets retain their own DOM while the surrounding room reconciles.
+      if (old.hasAttribute("data-fui-preserve")) {
+        cursor = current.nextSibling;
+        continue;
+      }
       const previousValue = old.getAttribute("value");
       for (const attribute of Array.from(old.attributes))
         if (!next.hasAttribute(attribute.name))

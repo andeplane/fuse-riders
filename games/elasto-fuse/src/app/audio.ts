@@ -1,4 +1,4 @@
-import type { GameAudio, Song } from "fuse-ui/game-audio";
+import type { GameAudio } from "fuse-ui/game-audio";
 import type { Cue } from "../render/cues.js";
 
 /**
@@ -15,8 +15,7 @@ export interface Sfx {
   engine(rev: number, gas: boolean, running: boolean): void;
 }
 
-/** The songs, in `public/music/elasto-fuse/`; none is fetched until the first key or touch. None is made yet. */
-export const ELASTO_SONGS: readonly Song[] = [];
+export { ALL_SONGS as ELASTO_SONGS } from "fuse-ui/music";
 
 /** The hum's pitch in Hz for a wheel speed and throttle: idle, up through the revs, a little more under load. */
 export const humPitch = (rev: number, gas: boolean): number =>

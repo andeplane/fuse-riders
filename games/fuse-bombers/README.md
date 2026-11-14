@@ -4,7 +4,7 @@ A party artillery game for 2–6 players, humans and bots, on one keyboard, a fe
 fly round a destructible floating temple and lob rockets across it, and the rockets fly through multiplier gates to
 turn a handful into a swarm. (Mid-overhaul, see [docs/design.md](docs/design.md).)
 
-**Play it: <https://andeplane.github.io/fuse-riders/fuse-bombers/>**, or pick it from the app portal (the dot-grid
+**Play it: <https://andeplane.github.io/fuse-games/fuse-bombers/>**, or pick it from the app portal (the dot-grid
 button at the top left of every Fuse game's lobby): online in rooms, solo against bots, or everyone at one screen.
 
 ![A keyboard rider's gunship flying over the temple's right terrace with its dotted aim guide, bots firing from round the temple, the fuse burning along the top](docs/images/free-flight.png)

@@ -1,18 +1,17 @@
-import { MUSIC_TRACKS } from "fuse-ui/assets";
+import { ALL_SONGS, MusicPlayer as createMusicPlayer } from "fuse-ui/music";
+import type { MusicPlayer } from "fuse-ui/radio";
+export type { MusicPlayer } from "fuse-ui/radio";
 export interface Radio {
   element: HTMLElement;
   enable(value: boolean): void;
+  setMuted(muted: boolean): void;
   destroy(): void;
 }
-export type MusicPlayer = Pick<
-  HTMLAudioElement,
-  "src" | "volume" | "play" | "pause" | "load" | "onended" | "onerror"
->;
-/** Explicit opt-in radio. It never auto-starts on each controller or leaks across SPA remounts. */
+/** Game-specific controls over the common music player and full default catalogue. */
 export function createRadio(
   document: Document,
   baseUrl: string,
-  player: MusicPlayer,
+  media: MusicPlayer,
 ): Radio {
   const element = document.createElement("div"),
     button = document.createElement("button"),
@@ -20,74 +19,44 @@ export function createRadio(
     title = document.createElement("span");
   element.className = "radio";
   button.className = next.className = "quiet-button";
-  button.textContent = "RADIO OFF";
+  button.type = next.type = "button";
   next.textContent = "NEXT ♫";
   next.setAttribute("aria-label", "Next radio track");
   title.setAttribute("aria-live", "polite");
   element.append(button, title, next);
-  let index = 0,
-    playing = false,
-    disposed = false,
-    enabled = true,
-    attempt = 0;
-  player.volume = 0.18;
-  const select = () => {
-    const track = MUSIC_TRACKS[index]!;
-    player.src = baseUrl + track.path.slice(1);
-    title.textContent = track.title;
+  const player = createMusicPlayer(ALL_SONGS, {
+    base: baseUrl,
+    createMedia: () => media,
+  });
+  let enabled = true;
+  const render = () => {
+    button.textContent = player.playing ? "RADIO ON" : "RADIO OFF";
+    title.textContent = player.error || player.song?.title || "";
   };
-  const stop = () => {
-    attempt++;
-    playing = false;
-    player.pause();
-    button.textContent = "RADIO OFF";
-  };
-  const play = () => {
-    if (!enabled || disposed) return;
-    const current = ++attempt;
-    playing = true;
-    button.textContent = "RADIO ON";
-    void player.play().catch(() => {
-      if (disposed || current !== attempt) return;
-      stop();
-      title.textContent = "Playback unavailable · retry or next";
-    });
-  };
+  const unsubscribe = player.subscribe(render);
   button.onclick = () => {
-    if (playing) stop();
-    else play();
-  };
-  next.onclick = () => {
-    const resume = playing;
-    stop();
-    index = (index + 1) % MUSIC_TRACKS.length;
-    select();
-    if (resume) play();
-  };
-  player.onended = () => {
-    if (playing && !disposed) next.click();
-  };
-  player.onerror = () => {
-    if (!disposed) {
-      stop();
-      title.textContent = "Track unavailable · try next";
+    if (enabled) {
+      if (player.playing) player.pause();
+      else player.play();
     }
   };
-  select();
+  next.onclick = () => {
+    const index = ALL_SONGS.findIndex((song) => song.id === player.song?.id);
+    player.select(ALL_SONGS[(index + 1) % ALL_SONGS.length]!.id);
+  };
+  render();
   return {
     element,
+    setMuted: (value) => player.setMuted(value),
     enable(value) {
       enabled = value;
       element.hidden = !value;
-      if (!value) stop();
+      if (!value) player.pause();
     },
     destroy() {
-      disposed = true;
-      stop();
-      player.onended = player.onerror = null;
+      unsubscribe();
+      player.destroy();
       button.onclick = next.onclick = null;
-      player.src = "";
-      player.load();
     },
   };
 }

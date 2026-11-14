@@ -30,6 +30,7 @@ import {
   toView,
   type Level,
   type World,
+  RIDER_AHEAD,
 } from "../src/engine/index.js";
 import { cos, sin } from "../src/engine/math.js";
 import * as basics from "../src/basics.js";
@@ -353,14 +354,21 @@ test("a world survives its checkpoint exactly and plays on identically; a bad on
     "finished without a finish",
   );
   assert.equal(
-    broken((f) => (((f[6] as unknown[])[8] as unknown[])[0] = null)),
+    broken((f) => (((f[6] as unknown[])[9] as unknown[])[0] = null)),
     undefined,
     "a bike that is not numbers",
   );
   assert.equal(
-    broken((f) => (((f[6] as unknown[])[8] as unknown[])[0] = 1e9)),
+    broken((f) => (((f[6] as unknown[])[9] as unknown[])[0] = 1e9)),
     undefined,
     "a bike out of the world",
+  );
+  assert.equal(
+    broken(
+      (f) => ((f[6] as unknown[])[8] = (f[4] as number) + RIDER_AHEAD + 1),
+    ),
+    undefined,
+    "a rider's clock out of the race's reach",
   );
   assert.equal(decodeWorld(null), undefined);
 });

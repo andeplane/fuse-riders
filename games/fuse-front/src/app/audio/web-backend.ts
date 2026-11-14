@@ -21,6 +21,8 @@ export class WebAudioBackend implements AudioBackend {
   private failed = false;
   private duckedUntil = 0;
 
+  constructor(private readonly externalMusic = false) {}
+
   now(): number {
     return performance.now() / 1000;
   }
@@ -82,6 +84,7 @@ export class WebAudioBackend implements AudioBackend {
   }
 
   schedule(voice: Voice, at: number): void {
+    if (this.externalMusic) return; // fuse-music owns the soundtrack.
     const { context, buses, noise } = this;
     if (!context || !buses || !noise) return;
     // `render` joins the graph only once the voice has started, so a throw leaves nothing behind.

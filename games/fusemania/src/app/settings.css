@@ -1,0 +1,436 @@
+/*
+ * Fusemania's settings panel (src/app/settings.ts): keys, scroll, timing offsets and the tap calibration.
+ * Needs fuse-ui/tokens.css first. Every rule sits under `.fm-settings` with a class of its own, so the panel looks
+ * the same inside a dialog outside `.fui-app` and outranks `.fui-app button` / `.fui-app input` inside it.
+ * It is one column that fits a 360px phone; the key rows fold below 34rem.
+ */
+.fm-settings {
+  display: grid;
+  gap: var(--fui-space-4);
+  min-width: 0;
+  color: var(--fui-text);
+  font-family: var(--fui-font-body);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  text-align: left;
+}
+.fm-settings *,
+.fm-settings *::before,
+.fm-settings *::after {
+  box-sizing: border-box;
+}
+.fm-settings [hidden] {
+  display: none !important;
+}
+
+.fm-settings-section {
+  display: grid;
+  gap: var(--fui-space-3);
+  min-width: 0;
+  padding: var(--fui-space-3);
+  background: var(--fui-surface);
+  border: var(--fui-border);
+  border-radius: var(--fui-radius);
+  box-shadow: var(--fui-edge);
+}
+.fm-settings-heading {
+  margin: 0;
+  color: var(--fui-cyan);
+  font: 0.75rem/1.4 var(--fui-font-pixel);
+  letter-spacing: 0.08em;
+  text-shadow: var(--fui-glow-text);
+}
+.fm-settings-hint,
+.fm-settings-note {
+  margin: 0;
+  color: var(--fui-text-muted);
+  font-size: 0.8125rem;
+}
+.fm-settings-note {
+  color: var(--fui-yellow);
+}
+
+/* Buttons */
+.fm-settings .fm-settings-button {
+  min-height: 2.75rem;
+  margin: 0;
+  padding: var(--fui-space-2) var(--fui-space-3);
+  color: var(--fui-text);
+  background: var(--fui-button-fill);
+  border: var(--fui-hairline) solid
+    color-mix(in srgb, var(--fui-cyan-deep) 40%, var(--fui-line));
+  border-radius: var(--fui-radius-small);
+  box-shadow: var(--fui-edge);
+  font: 0.625rem/1.5 var(--fui-font-pixel);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.fm-settings .fm-settings-button:enabled:hover {
+  filter: brightness(1.15);
+}
+.fm-settings .fm-settings-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.fm-settings .fm-settings-button:focus-visible,
+.fm-settings .fm-settings-range:focus-visible,
+.fm-settings .fm-settings-result:focus-visible {
+  outline: 0.1875rem solid #b4f7ff;
+  outline-offset: 0.1875rem;
+}
+.fm-settings .fm-settings-calibrate,
+.fm-settings .fm-settings-apply,
+.fm-settings .fm-settings-choice[aria-pressed="true"] {
+  color: var(--fui-ink);
+  background: var(--fui-cyan-fill);
+  border-color: var(--fui-cyan);
+  box-shadow: var(--fui-glow-cyan);
+}
+.fm-settings .fm-settings-reset,
+.fm-settings .fm-settings-calibrate {
+  justify-self: start;
+}
+
+/* Keys */
+.fm-settings-keys {
+  display: grid;
+  gap: var(--fui-space-2);
+}
+.fm-settings-key-row {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr) auto;
+  grid-template-areas: "action chips add";
+  align-items: center;
+  gap: var(--fui-space-2);
+  padding: var(--fui-space-2);
+  background: color-mix(in srgb, var(--fui-ink) 70%, transparent);
+  border: var(--fui-border);
+  border-radius: var(--fui-radius-small);
+}
+.fm-settings-action {
+  grid-area: action;
+  display: flex;
+  align-items: center;
+  gap: var(--fui-space-2);
+  color: var(--fui-text-bright);
+  font: 0.625rem/1.4 var(--fui-font-pixel);
+}
+.fm-settings-glyph {
+  width: 1.25rem;
+  color: var(--fui-pink);
+  font: 1.25rem/1 var(--fui-font-body);
+  text-align: center;
+  text-shadow: var(--fui-glow-text);
+}
+.fm-settings-chips {
+  grid-area: chips;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fui-space-1);
+  min-width: 0;
+}
+/* A key cap: the hard lower edge is the pixel look's bevel. */
+.fm-settings-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  color: var(--fui-cyan);
+  background: var(--fui-ink);
+  border: var(--fui-hairline) solid var(--fui-cyan);
+  border-radius: var(--fui-radius-small);
+  box-shadow: 0 0.125rem 0 color-mix(in srgb, var(--fui-cyan) 45%, transparent);
+}
+.fm-settings-chip-label {
+  padding: 0 var(--fui-space-2);
+  font: 0.625rem/1 var(--fui-font-pixel);
+  white-space: nowrap;
+}
+/* The pixel font has no arrows: the four arrow keys are drawn in the body font, all at one size. */
+.fm-settings-chip-arrow {
+  font: 700 1.125rem/1 var(--fui-font-body);
+}
+.fm-settings .fm-settings-remove {
+  min-width: 2rem;
+  min-height: 2rem;
+  padding: 0;
+  color: var(--fui-text-muted);
+  background: transparent;
+  border: 0;
+  border-left: var(--fui-hairline) solid
+    color-mix(in srgb, var(--fui-cyan) 40%, transparent);
+  border-radius: 0 var(--fui-radius-small) var(--fui-radius-small) 0;
+  box-shadow: none;
+  font: 1rem/1 var(--fui-font-body);
+}
+.fm-settings .fm-settings-remove:enabled:hover {
+  color: var(--fui-pink-soft);
+}
+.fm-settings-empty {
+  color: var(--fui-text-dim);
+  font: 0.625rem/1.4 var(--fui-font-pixel);
+}
+/* Wide enough for "PRESS A KEY…", so the row does not move when the capture starts. */
+.fm-settings .fm-settings-add {
+  grid-area: add;
+  min-width: 9.5rem;
+  white-space: nowrap;
+}
+.fm-settings .fm-settings-add[aria-pressed="true"] {
+  color: var(--fui-ink);
+  background: var(--fui-yellow);
+  border-color: var(--fui-yellow);
+  animation: fm-settings-blink 0.9s steps(2, jump-none) infinite;
+}
+
+/* Scroll and timing fields */
+.fm-settings-field {
+  display: grid;
+  gap: var(--fui-space-2);
+  min-width: 0;
+}
+.fm-settings-field-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--fui-space-1) var(--fui-space-3);
+}
+.fm-settings-label,
+.fm-settings-value {
+  font: 0.625rem/1.5 var(--fui-font-pixel);
+}
+.fm-settings-label {
+  color: var(--fui-text-bright);
+}
+.fm-settings-value {
+  color: var(--fui-yellow);
+  font-variant-numeric: tabular-nums;
+  text-shadow: var(--fui-glow-text);
+}
+.fm-settings-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--fui-space-2);
+}
+.fm-settings-stepper {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--fui-space-2);
+}
+.fm-settings .fm-settings-step {
+  min-width: 2.75rem;
+  padding: 0;
+  font: 1.25rem/1 var(--fui-font-body);
+}
+.fm-settings .fm-settings-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  min-width: 0;
+  height: 2.75rem;
+  min-height: 2.75rem;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: var(--fui-radius-small);
+  cursor: pointer;
+}
+.fm-settings .fm-settings-range::-webkit-slider-runnable-track {
+  box-sizing: border-box;
+  height: 0.5rem;
+  background: var(--fui-ink);
+  border: var(--fui-border);
+  border-radius: 0.25rem;
+}
+.fm-settings .fm-settings-range::-moz-range-track {
+  box-sizing: border-box;
+  height: 0.5rem;
+  background: var(--fui-ink);
+  border: var(--fui-border);
+  border-radius: 0.25rem;
+}
+.fm-settings .fm-settings-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.25rem;
+  height: 1.75rem;
+  /* Centred on the track: half of the track's inner height less the thumb's. */
+  margin-top: calc((0.5rem - 2 * var(--fui-hairline) - 1.75rem) / 2);
+  background: var(--fui-cyan-fill);
+  border: 0;
+  border-radius: 0.25rem;
+  box-shadow: var(--fui-glow-cyan);
+}
+.fm-settings .fm-settings-range::-moz-range-thumb {
+  width: 1.25rem;
+  height: 1.75rem;
+  background: var(--fui-cyan-fill);
+  border: 0;
+  border-radius: 0.25rem;
+  box-shadow: var(--fui-glow-cyan);
+}
+
+/* Calibration */
+.fm-settings-calibration {
+  display: grid;
+  gap: var(--fui-space-2);
+  min-width: 0;
+  padding-top: var(--fui-space-3);
+  border-top: var(--fui-border);
+}
+.fm-settings-stage {
+  display: grid;
+  gap: var(--fui-space-2);
+}
+.fm-settings-count {
+  margin: 0;
+  color: var(--fui-yellow);
+  font: 0.75rem/1.5 var(--fui-font-pixel);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  text-shadow: var(--fui-glow-text);
+}
+.fm-settings .fm-settings-pad {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 8rem;
+  overflow: hidden;
+  color: var(--fui-text-bright);
+  background: radial-gradient(
+    circle at 50% 50%,
+    color-mix(in srgb, var(--fui-pink) 24%, var(--fui-ink)),
+    var(--fui-ink) 72%
+  );
+  border: var(--fui-stroke) solid var(--fui-pink);
+  border-radius: var(--fui-radius);
+  box-shadow: var(--fui-glow-pink), var(--fui-edge);
+  font-size: 1.25rem;
+  /* A tap is timed on the press: no scroll, zoom, selection or callout may take it. */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.fm-settings-pad-label {
+  position: relative;
+  z-index: var(--fui-z-raised);
+  pointer-events: none;
+  text-shadow: var(--fui-glow-text);
+}
+/* One ring per click, timed by its animation delay to open as the click is heard. */
+.fm-settings-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5rem;
+  height: 5rem;
+  margin: -2.5rem 0 0 -2.5rem;
+  border: var(--fui-stroke) solid var(--fui-cyan);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  animation: fm-settings-ring 450ms ease-out forwards;
+}
+.fm-settings-ring-ready {
+  border-color: var(--fui-yellow);
+}
+/* Two names for one flash: the panel alternates them so every tap restarts it. */
+.fm-settings .fm-settings-pad[data-tap="a"] {
+  animation: fm-settings-tap-a 140ms ease-out;
+}
+.fm-settings .fm-settings-pad[data-tap="b"] {
+  animation: fm-settings-tap-b 140ms ease-out;
+}
+.fm-settings-result {
+  margin: 0;
+  padding: var(--fui-space-3);
+  color: var(--fui-lime);
+  border: var(--fui-hairline) solid var(--fui-lime);
+  border-radius: var(--fui-radius-small);
+  font: 0.6875rem/1.7 var(--fui-font-pixel);
+}
+.fm-settings-result-bad {
+  color: var(--fui-pink-soft);
+  border-color: var(--fui-pink-soft);
+}
+.fm-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fui-space-2);
+}
+
+@keyframes fm-settings-blink {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.55;
+  }
+}
+@keyframes fm-settings-ring {
+  from {
+    opacity: 0.95;
+    transform: scale(0.3);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+@keyframes fm-settings-tap-a {
+  from {
+    filter: brightness(1.7);
+  }
+  to {
+    filter: brightness(1);
+  }
+}
+@keyframes fm-settings-tap-b {
+  from {
+    filter: brightness(1.7);
+  }
+  to {
+    filter: brightness(1);
+  }
+}
+
+/* A phone, or any dialog this narrow: the keys go under the action's name and its button. */
+@media (max-width: 34rem) {
+  .fm-settings-section {
+    padding: var(--fui-space-2);
+  }
+  .fm-settings-key-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "action add"
+      "chips chips";
+  }
+}
+/* The ring still marks each click, as a flash that does not grow. */
+@media (prefers-reduced-motion: reduce) {
+  .fm-settings .fm-settings-add[aria-pressed="true"] {
+    animation: none;
+  }
+  .fm-settings-ring {
+    animation-name: fm-settings-ring-still;
+  }
+  .fm-settings .fm-settings-pad[data-tap] {
+    animation: none;
+  }
+}
+@keyframes fm-settings-ring-still {
+  from {
+    opacity: 0.95;
+    transform: scale(1.6);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}

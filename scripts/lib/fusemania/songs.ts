@@ -1,0 +1,64 @@
+/**
+ * The Fuse portfolio's music as Fusemania songs: where each file lives in the repository and where the site serves
+ * it. Titles are the ones the games that own the tracks show (`MUSIC_TRACKS` in `packages/fuse-ui/src/assets.ts`,
+ * `games/fuse-volley/src/app/audio.ts`, `games/fuseball/src/app/audio.ts`, Killer Fuse's match and victory music).
+ */
+export interface SongSpec {
+  /** The file's base name: unique, kebab-case. */
+  readonly id: string;
+  readonly title: string;
+  readonly artist: string;
+  /** The audio file, relative to the repository root. */
+  readonly file: string;
+  /** The site-relative URL of the audio, no leading slash. */
+  readonly audio: string;
+}
+
+const radio = (id: string, title: string): SongSpec => ({
+  id,
+  title,
+  artist: "Fuse",
+  file: `public/music/${id}.m4a`,
+  audio: `music/${id}.m4a`,
+});
+const game = (folder: string, id: string, title: string): SongSpec => ({
+  id,
+  title,
+  artist: "Fuse",
+  file: `public/music/${folder}/${id}.mp3`,
+  audio: `music/${folder}/${id}.mp3`,
+});
+// `games/killer-fuse/public/` is served from the site root (the `gamePublic` plugin in vite.config.ts).
+const killerFuse = (id: string, title: string): SongSpec => ({
+  id,
+  title,
+  artist: "Fuse",
+  file: `games/killer-fuse/public/killer-fuse/audio/music/${id}.mp3`,
+  audio: `killer-fuse/audio/music/${id}.mp3`,
+});
+
+export const SONGS: readonly SongSpec[] = [
+  radio("pixel-sax-parade", "Pixel Sax Parade"),
+  radio("coin-op-swing", "Coin Op Swing"),
+  radio("arcade-adventure", "Arcade Adventure"),
+  radio("forest-job", "Forest Job"),
+  radio("neon-grid-chase", "Neon Grid Chase"),
+  radio("final-chase", "Final Chase"),
+  radio("reduced-noise-orchestra", "Reduced Noise Orchestra"),
+  radio("midnight-run", "Midnight Run"),
+  radio("fast-frontier-run", "Fast Frontier Run"),
+  radio("snaky-blue", "Snaky Blue"),
+  radio("arcade-blues", "Arcade Blues"),
+  radio("snabby-jazz", "Snabby Jazz"),
+  radio("snaky-jazz", "Snaky Jazz"),
+  game("fuse-volley", "jelly-beach-bounce", "Jelly Beach Bounce"),
+  game("fuse-volley", "sandy-rally", "Sandy Rally"),
+  game("fuseball", "neon-kickoff", "Neon Kickoff"),
+  game("fuseball", "gadget-overdrive", "Gadget Overdrive"),
+  game("fuseball", "sudden-death", "Sudden Death"),
+  killerFuse("match-day", "Match Day"),
+  killerFuse("victory", "Victory"),
+];
+
+export const songById = (id: string): SongSpec | undefined =>
+  SONGS.find((song) => song.id === id);

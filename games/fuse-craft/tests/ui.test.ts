@@ -1066,15 +1066,19 @@ test("the Fuse app portal comes first in every page header and survives re-rende
       element = parseHTML("<html></html>").document.createElement(
         "nav",
       ) as unknown as HTMLElement;
-      element.className = "portal-stub";
+      element.className = "fui-portal portal-stub";
       return element;
     },
   );
-  const first = () => f.root.querySelector(".nd-header")!.firstElementChild;
-  assert.equal(first(), element);
+  const first = () =>
+    f.root.querySelector(".nd-header .fui-top-bar-left")!.firstElementChild;
+  assert.ok(
+    first() === element,
+    "portal precedes the brand in the shared header",
+  );
   f.click("new-game");
   await settle();
-  assert.equal(first(), element, "the setup header keeps the same portal");
+  assert.ok(first() === element, "the setup header keeps the same portal");
   assert.equal(made, 1, "one portal for the page's lifetime");
   f.app.dispose();
 });

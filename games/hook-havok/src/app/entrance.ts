@@ -2,9 +2,11 @@ import { social } from "./social.js";
 import "fuse-ui/portal.css";
 import "./entrance.css";
 import { createAppPortal } from "fuse-ui/portal";
+import { createTopBar, type TopBarSound } from "fuse-ui";
 import { createMainMenu } from "fuse-ui";
 
 interface EntranceOptions {
+  sound: TopBarSound;
   main: HTMLElement;
   start: HTMLButtonElement;
   status: HTMLElement;
@@ -61,6 +63,14 @@ export function createEntrance(o: EntranceOptions) {
     home,
     social.element(),
   );
+  home.textContent = "HOOK HAVOK";
+  createTopBar({
+    music: false,
+    element: bar,
+    brand: home,
+    gameId: "hook-havok",
+    sound: o.sound,
+  });
   const placements = Object.entries({
     start: o.start,
     status: o.status,
@@ -165,6 +175,13 @@ export function createEntrance(o: EntranceOptions) {
   function show() {
     menu.startBackground();
     bar.append(social.element());
+    createTopBar({
+      music: false,
+      element: bar,
+      brand: home,
+      gameId: "hook-havok",
+      sound: o.sound,
+    });
     root.hidden = false;
     root.setAttribute("role", "main");
     o.main.inert = true;
@@ -200,6 +217,14 @@ export function createEntrance(o: EntranceOptions) {
       close();
       placements.forEach((p) => p.marker.after(p.node));
       roomSocialParent?.append(social.element());
+      const roomBar = roomSocialParent?.closest<HTMLElement>(".fui-top-bar");
+      if (roomBar)
+        createTopBar({
+          music: false,
+          element: roomBar,
+          gameId: "hook-havok",
+          sound: o.sound,
+        });
       root.hidden = true;
       root.removeAttribute("role");
       o.main.inert = false;

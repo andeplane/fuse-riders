@@ -1,0 +1,602 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { parseHTML } from "linkedom";
+import {
+  BATTLE_MODE,
+  SCORE_MODE,
+  type ChartInfo,
+  type SongInfo,
+} from "../src/engine/index.js";
+import {
+  chartLevel,
+  createSongPicker,
+  lengthText,
+  tempoText,
+  type PickerState,
+  type SongPickerOptions,
+} from "../src/app/song-picker.js";
+import { testLibrary } from "./fixtures/songs.js";
+
+const chart = (name: string, meter: number): ChartInfo => ({
+  name,
+  meter,
+  steps: meter * 40,
+  holds: meter,
+  mines: meter > 6 ? 3 : 0,
+  peak: meter + 2,
+});
+const FOUR = [
+  chart("Easy", 2),
+  chart("Medium", 5),
+  chart("Hard", 8),
+  chart("Challenge", 11),
+];
+const song = (id: string, charts: ChartInfo[] = FOUR): SongInfo => ({
+  id,
+  title: `Song ${id}`,
+  artist: `Artist ${id}`,
+  audio: `music/${id}.mp3`,
+  bpm: [128, 128],
+  sampleStart: 0,
+  sampleLength: 10,
+  charts,
+  endMs: 105_000,
+});
+/** Three songs: `b` has only two charts. */
+const THREE = [
+  song("a"),
+  song("b", [chart("Easy", 3), chart("Hard", 9)]),
+  song("c"),
+];
+
+const state = (over: Partial<PickerState> = {}): PickerState => ({
+  song: "a",
+  chart: 0,
+  mode: SCORE_MODE,
+  host: true,
+  ...over,
+});
+
+function setup(
+  songs: readonly SongInfo[] = THREE,
+  extra: Pick<SongPickerOptions, "best" | "hideMode"> = {},
+) {
+  const { document, window } = parseHTML(
+    "<!doctype html><html><body></body></html>",
+  );
+  const calls: string[] = [];
+  const picker = createSongPicker({
+    document: document as unknown as Document,
+    songs,
+    onSong: (id) => calls.push(`song ${id}`),
+    onChart: (index) => calls.push(`chart ${index}`),
+    onMode: (mode) => calls.push(`mode ${mode}`),
+    ...extra,
+  });
+  document.body.append(picker.element);
+  const all = <T extends HTMLElement = HTMLElement>(selector: string): T[] => [
+    ...picker.element.querySelectorAll<T>(selector),
+  ];
+  const one = (selector: string): HTMLElement => {
+    const found = picker.element.querySelector<HTMLElement>(selector);
+    assert.ok(found, `${selector} is in the picker`);
+    return found;
+  };
+  return {
+    picker,
+    calls,
+    all,
+    one,
+    rows: () => all<HTMLButtonElement>(".fm-picker-row"),
+    /** The chips on screen: a song with fewer charts hides the rest. */
+    chips: () =>
+      all<HTMLButtonElement>(".fm-picker-chip").filter((chip) => !chip.hidden),
+    modes: () => all<HTMLButtonElement>(".fm-picker-mode"),
+    selected: () =>
+      all(".fm-picker-row[aria-selected='true']").map(
+        (row) => row.querySelector(".fm-picker-row-title")?.textContent,
+      ),
+    pressed: () =>
+      all(".fm-picker-chip[aria-pressed='true']").map(
+        (chip) => chip.querySelector(".fm-picker-chip-name")?.textContent,
+      ),
+    /** Every DOM write under the picker since the last call, as "type:attribute". */
+    writes: (() => {
+      const observer = new window.MutationObserver(() => {});
+      observer.observe(picker.element, {
+        attributes: true,
+        childList: true,
+        characterData: true,
+        subtree: true,
+      });
+      return (): string[] =>
+        observer
+          .takeRecords()
+          .map(
+            (record: MutationRecord) =>
+              `${record.type}:${record.attributeName ?? ""}`,
+          );
+    })(),
+  };
+}
+
+test("tempo, length and difficulty read as the song select shows them", () => {
+  assert.equal(tempoText([128, 128]), "128 BPM");
+  assert.equal(tempoText([120, 140]), "120–140 BPM");
+  assert.equal(tempoText([127.6, 128.4]), "128 BPM");
+  assert.equal(lengthText(105_000), "1:45");
+  assert.equal(lengthText(59_600), "1:00");
+  assert.equal(lengthText(0), "0:00");
+  assert.equal(chartLevel("Challenge"), "challenge");
+  assert.equal(chartLevel("BEGINNER"), "beginner");
+  assert.equal(chartLevel("Edit"), "edit");
+  assert.equal(chartLevel("Oni"), "other");
+});
+
+test("lists every song of the library with its tempo, length and meters", () => {
+  const library = testLibrary();
+  const f = setup(library.songs);
+  const rows = f.rows();
+  assert.equal(rows.length, library.songs.length);
+  library.songs.forEach((info, index) => {
+    const row = rows[index]!;
+    assert.equal(row.getAttribute("role"), "option");
+    assert.equal(row.type, "button");
+    const text = (part: string) =>
+      row.querySelector(`.fm-picker-row-${part}`)?.textContent;
+    assert.equal(text("title"), info.title);
+    assert.equal(text("artist"), info.artist);
+    assert.equal(
+      text("facts"),
+      `${tempoText(info.bpm)} · ${lengthText(info.endMs)}`,
+    );
+    assert.deepEqual(
+      [...row.querySelectorAll<HTMLElement>(".fm-picker-row-meter")].map(
+        (meter) => [meter.textContent, meter.dataset.level],
+      ),
+      info.charts.map((item) => [String(item.meter), chartLevel(item.name)]),
+    );
+  });
+  assert.equal(
+    rows[0]!
+      .querySelector(".fm-picker-row-facts")
+      ?.textContent?.startsWith("120 BPM · "),
+    true,
+  );
+  assert.equal(f.one(".fm-picker-list").getAttribute("role"), "listbox");
+  // Nothing is selected until the page says what is.
+  assert.deepEqual(f.selected(), []);
+  assert.deepEqual(f.chips(), []);
+});
+
+test("shows the selected song's details and one chip per chart", () => {
+  const library = testLibrary();
+  const grid = library.song("grid")!;
+  const f = setup(library.songs);
+  f.picker.update(state({ song: "grid", chart: 1 }));
+  assert.deepEqual(f.selected(), ["Grid"]);
+  assert.equal(f.one(".fm-picker-title").textContent, "Grid");
+  assert.equal(f.one(".fm-picker-artist").textContent, "Test");
+  assert.equal(f.one(".fm-picker-tempo").textContent, "120 BPM");
+  assert.equal(f.one(".fm-picker-length").textContent, lengthText(grid.endMs));
+  const chips = f.chips();
+  assert.equal(chips.length, 2);
+  grid.charts.forEach((info, index) => {
+    const chip = chips[index]!;
+    const text = (part: string) =>
+      chip.querySelector(`.fm-picker-chip-${part}`)?.textContent;
+    assert.equal(text("name"), info.name);
+    assert.equal(text("meter"), String(info.meter));
+    assert.equal(
+      text("stats"),
+      `STEPS ${info.steps}HOLDS ${info.holds}MINES ${info.mines}PEAK ${info.peak}/s`,
+    );
+    assert.equal(chip.dataset.level, chartLevel(info.name));
+    assert.equal(
+      chip.querySelectorAll(".fm-picker-chip-bars .fm-picker-on").length,
+      Math.min(info.meter, 10),
+    );
+    assert.equal(chip.querySelectorAll(".fm-picker-chip-bars i").length, 10);
+  });
+  assert.deepEqual(f.pressed(), ["Hard"]);
+  assert.deepEqual(
+    chips.map((chip) => chip.getAttribute("aria-pressed")),
+    ["false", "true"],
+  );
+});
+
+test("a row click asks for the song, for a host only, and the picker waits for the page's answer", () => {
+  const f = setup();
+  f.picker.update(state());
+  f.rows()[2]!.click();
+  assert.deepEqual(f.calls, ["song c"]);
+  // It never moves on its own: in a room the choice goes through the log first.
+  assert.deepEqual(f.selected(), ["Song a"]);
+  f.rows()[0]!.click();
+  assert.deepEqual(f.calls, ["song c"], "the song already shown is not news");
+
+  f.picker.update(state({ host: false }));
+  f.rows()[1]!.click();
+  f.rows()[2]!.click();
+  assert.deepEqual(f.calls, ["song c"]);
+  assert.equal(f.picker.element.dataset.host, "false");
+  assert.equal(f.one(".fm-picker-list").getAttribute("aria-disabled"), "true");
+  // Disabled-looking, not disabled: a guest still reads, focuses and scrolls the list.
+  assert.equal(
+    f.rows().some((row) => row.disabled),
+    false,
+  );
+
+  f.picker.update(state({ host: true }));
+  assert.equal(f.one(".fm-picker-list").hasAttribute("aria-disabled"), false);
+  f.rows()[1]!.click();
+  assert.deepEqual(f.calls, ["song c", "song b"]);
+});
+
+test("a chip click asks for the chart, for a guest as much as a host", () => {
+  for (const host of [true, false]) {
+    const f = setup();
+    f.picker.update(state({ host }));
+    f.chips()[2]!.click();
+    assert.deepEqual(f.calls, ["chart 2"]);
+    assert.deepEqual(f.pressed(), ["Easy"], "until the page answers");
+    f.chips()[0]!.click();
+    assert.deepEqual(
+      f.calls,
+      ["chart 2"],
+      "the chart already shown is not news",
+    );
+    assert.equal(
+      f.chips().some((chip) => chip.disabled),
+      false,
+    );
+  }
+});
+
+test("the mode switch is the host's", () => {
+  const f = setup();
+  f.picker.update(state());
+  const [score, battle] = f.modes();
+  assert.ok(score && battle);
+  assert.equal(score.textContent, "SCORE ATTACKBest accuracy wins");
+  assert.equal(
+    battle.textContent,
+    "BATTLEHit the glowing arrows for power-ups, throw them at your friends",
+  );
+  assert.deepEqual(
+    [score.getAttribute("aria-pressed"), battle.getAttribute("aria-pressed")],
+    ["true", "false"],
+  );
+  assert.deepEqual([score.disabled, battle.disabled], [false, false]);
+  battle.click();
+  score.click();
+  assert.deepEqual(f.calls, [`mode ${BATTLE_MODE}`]);
+
+  f.picker.update(state({ mode: BATTLE_MODE }));
+  assert.deepEqual(
+    [score.getAttribute("aria-pressed"), battle.getAttribute("aria-pressed")],
+    ["false", "true"],
+  );
+  score.click();
+  assert.deepEqual(f.calls, [`mode ${BATTLE_MODE}`, `mode ${SCORE_MODE}`]);
+
+  f.calls.length = 0;
+  f.picker.update(state({ mode: BATTLE_MODE, host: false }));
+  assert.deepEqual([score.disabled, battle.disabled], [true, true]);
+  score.click();
+  battle.click();
+  assert.deepEqual(f.calls, []);
+  assert.equal(
+    battle.getAttribute("aria-pressed"),
+    "true",
+    "a guest still sees the mode",
+  );
+});
+
+test("a guest is told who picks what, a host is not", () => {
+  const f = setup();
+  const note = f.one(".fm-picker-note");
+  f.picker.update(state({ host: false }));
+  assert.equal(note.hidden, false);
+  assert.match(note.textContent ?? "", /host picks the song/i);
+  assert.match(note.textContent ?? "", /you pick your difficulty/i);
+  f.picker.update(state({ host: true }));
+  assert.equal(note.hidden, true);
+});
+
+test("hideMode leaves the mode switch out", () => {
+  const f = setup(THREE, { hideMode: true });
+  f.picker.update(state());
+  assert.deepEqual(f.modes(), []);
+  assert.equal(f.picker.key("Tab"), false);
+  assert.equal(f.picker.key("KeyM"), false);
+  assert.deepEqual(f.calls, []);
+  f.picker.update(state({ host: false }));
+  assert.doesNotMatch(f.one(".fm-picker-note").textContent ?? "", /mode/i);
+});
+
+test("update moves the selection and the pressed states to the new state", () => {
+  const f = setup();
+  f.picker.update(state());
+  assert.deepEqual(f.selected(), ["Song a"]);
+  assert.deepEqual(f.pressed(), ["Easy"]);
+
+  f.picker.update(state({ song: "c", chart: 3, mode: BATTLE_MODE }));
+  assert.deepEqual(f.selected(), ["Song c"]);
+  assert.equal(f.one(".fm-picker-title").textContent, "Song c");
+  assert.equal(f.one(".fm-picker-artist").textContent, "Artist c");
+  assert.deepEqual(f.pressed(), ["Challenge"]);
+  assert.deepEqual(
+    f.modes().map((mode) => mode.getAttribute("aria-pressed")),
+    ["false", "true"],
+  );
+
+  f.picker.update(state({ song: "c", chart: 1, mode: BATTLE_MODE }));
+  assert.deepEqual(f.selected(), ["Song c"]);
+  assert.deepEqual(f.pressed(), ["Medium"]);
+});
+
+test("update with an equal state writes nothing to the DOM", () => {
+  const f = setup(THREE, { best: () => "AA 94.2%" });
+  const shown = state({ song: "b", chart: 1, mode: BATTLE_MODE, host: false });
+  f.picker.update(shown);
+  const rows = f.rows(),
+    chips = f.chips(),
+    html = f.picker.element.outerHTML;
+  f.writes();
+
+  f.picker.update(shown);
+  f.picker.update({ ...shown });
+  assert.deepEqual(f.writes(), []);
+  assert.equal(f.picker.element.outerHTML, html);
+  f.rows().forEach((row, index) => assert.equal(row, rows[index]));
+  f.chips().forEach((chip, index) => assert.equal(chip, chips[index]));
+});
+
+test("a change writes only what changed", () => {
+  const f = setup();
+  f.picker.update(state());
+  f.writes();
+  f.picker.update(state({ chart: 2 }));
+  // Two chips change their pressed state; rows, texts and the mode are left alone.
+  assert.deepEqual(f.writes(), [
+    "attributes:aria-pressed",
+    "attributes:aria-pressed",
+  ]);
+  f.picker.update(state({ chart: 2, mode: BATTLE_MODE }));
+  assert.deepEqual(f.writes(), [
+    "attributes:aria-pressed",
+    "attributes:aria-pressed",
+  ]);
+});
+
+test("a state object the caller reuses and changes is still drawn", () => {
+  const f = setup();
+  const live = state();
+  f.picker.update(live);
+  live.song = "c";
+  live.chart = 2;
+  f.picker.update(live);
+  assert.deepEqual(f.selected(), ["Song c"]);
+  assert.deepEqual(f.pressed(), ["Hard"]);
+});
+
+test("chips are refilled for another song, not rebuilt, so a focused one stays", () => {
+  const f = setup();
+  f.picker.update(state({ chart: 1 }));
+  const before = f.chips();
+  assert.equal(before.length, 4);
+
+  f.picker.update(state({ song: "b", chart: 1 }));
+  const two = f.chips();
+  assert.equal(two.length, 2);
+  two.forEach((chip, index) => assert.equal(chip, before[index]));
+  assert.deepEqual(
+    two.map((chip) => chip.querySelector(".fm-picker-chip-name")?.textContent),
+    ["Easy", "Hard"],
+  );
+  assert.deepEqual(
+    two.map((chip) => chip.dataset.level),
+    ["easy", "hard"],
+  );
+
+  f.picker.update(state({ song: "c", chart: 1 }));
+  const back = f.chips();
+  assert.equal(back.length, 4);
+  back.forEach((chip, index) => assert.equal(chip, before[index]));
+  assert.deepEqual(f.pressed(), ["Medium"]);
+});
+
+test("a chart past the song's charts shows its last one", () => {
+  const f = setup();
+  f.picker.update(state({ song: "b", chart: 3 }));
+  assert.deepEqual(f.pressed(), ["Hard"]);
+  // The last chip is what is shown, so pressing it asks for nothing; the other is a change.
+  f.chips()[1]!.click();
+  assert.deepEqual(f.calls, []);
+  f.chips()[0]!.click();
+  assert.deepEqual(f.calls, ["chart 0"]);
+
+  // The preference survives: back on a song with four charts it is the fourth again.
+  f.picker.update(state({ song: "c", chart: 3 }));
+  assert.deepEqual(f.pressed(), ["Challenge"]);
+  for (const odd of [-1, Number.NaN, 2.7]) {
+    f.picker.update(state({ song: "c", chart: odd }));
+    assert.equal(f.pressed().length, 1, `chart ${odd} still shows one chip`);
+  }
+});
+
+test("a song the library does not have selects nothing", () => {
+  const f = setup();
+  f.picker.update(state({ song: "a" }));
+  f.picker.update(state({ song: "gone" }));
+  assert.deepEqual(f.selected(), []);
+  assert.deepEqual(f.chips(), []);
+  assert.equal(f.one(".fm-picker-title").textContent, "SELECT A SONG");
+  assert.equal(f.one(".fm-picker-facts").hidden, true);
+  assert.equal(f.picker.key("ArrowRight"), false);
+  // From nowhere, down is the first song and up the last.
+  assert.equal(f.picker.key("ArrowDown"), true);
+  assert.equal(f.picker.key("ArrowUp"), true);
+  assert.deepEqual(f.calls, ["song a", "song c"]);
+});
+
+test("keys move the song for a host and wrap at both ends", () => {
+  const f = setup();
+  assert.equal(f.picker.key("ArrowDown"), false, "nothing is shown yet");
+  const press = (code: string, from: Partial<PickerState>) => {
+    f.calls.length = 0;
+    f.picker.update(state(from));
+    return [f.picker.key(code), ...f.calls];
+  };
+  for (const down of ["ArrowDown", "KeyS", "KeyK"]) {
+    assert.deepEqual(press(down, { song: "a" }), [true, "song b"]);
+    assert.deepEqual(press(down, { song: "c" }), [true, "song a"]);
+  }
+  for (const up of ["ArrowUp", "KeyW", "KeyI"]) {
+    assert.deepEqual(press(up, { song: "b" }), [true, "song a"]);
+    assert.deepEqual(press(up, { song: "a" }), [true, "song c"]);
+  }
+  // The song is the host's: a guest's key is left for the page.
+  for (const code of ["ArrowDown", "ArrowUp", "KeyW", "KeyS", "KeyI", "KeyK"])
+    assert.deepEqual(press(code, { song: "a", host: false }), [false]);
+  for (const code of ["Enter", "Space", "KeyQ", ""])
+    assert.deepEqual(press(code, {}), [false]);
+});
+
+test("keys move the chart for anyone and wrap at both ends", () => {
+  const f = setup();
+  const press = (code: string, from: Partial<PickerState>) => {
+    f.calls.length = 0;
+    f.picker.update(state(from));
+    return [f.picker.key(code), ...f.calls];
+  };
+  for (const host of [true, false]) {
+    for (const right of ["ArrowRight", "KeyD", "KeyL"]) {
+      assert.deepEqual(press(right, { chart: 0, host }), [true, "chart 1"]);
+      assert.deepEqual(press(right, { chart: 3, host }), [true, "chart 0"]);
+    }
+    for (const left of ["ArrowLeft", "KeyA", "KeyJ"]) {
+      assert.deepEqual(press(left, { chart: 2, host }), [true, "chart 1"]);
+      assert.deepEqual(press(left, { chart: 0, host }), [true, "chart 3"]);
+    }
+  }
+  // On a song with two charts a fourth-chart preference stands on its last, and moves from there.
+  assert.deepEqual(press("ArrowLeft", { song: "b", chart: 3 }), [
+    true,
+    "chart 0",
+  ]);
+  assert.deepEqual(press("ArrowRight", { song: "b", chart: 3 }), [
+    true,
+    "chart 0",
+  ]);
+});
+
+test("Tab and M toggle the mode for a host", () => {
+  const f = setup();
+  f.picker.update(state());
+  assert.equal(f.picker.key("Tab"), true);
+  f.picker.update(state({ mode: BATTLE_MODE }));
+  assert.equal(f.picker.key("KeyM"), true);
+  assert.deepEqual(f.calls, [`mode ${BATTLE_MODE}`, `mode ${SCORE_MODE}`]);
+  f.picker.update(state({ host: false }));
+  assert.equal(
+    f.picker.key("Tab"),
+    false,
+    "a guest's Tab still moves the focus",
+  );
+  assert.equal(f.picker.key("KeyM"), false);
+  assert.equal(f.calls.length, 2);
+});
+
+test("one song and one chart: the keys are used but there is nothing to ask for", () => {
+  const f = setup([song("solo", [chart("Medium", 5)])]);
+  f.picker.update(state({ song: "solo" }));
+  for (const code of ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"])
+    assert.equal(f.picker.key(code), true);
+  assert.deepEqual(f.calls, []);
+});
+
+test("best results show on the chips and, for the chart the player would play, on the rows", () => {
+  const bests = new Map([
+    ["a/0", "B 71.0%"],
+    ["a/2", "AA 94.2%"],
+    ["b/1", "S 99.1%"],
+  ]);
+  const f = setup(THREE, { best: (id, index) => bests.get(`${id}/${index}`) });
+  const chipBests = () =>
+    f
+      .chips()
+      .map((chip) => chip.querySelector(".fm-picker-chip-best")?.textContent);
+  const rowBests = () =>
+    f
+      .rows()
+      .map((row) => row.querySelector(".fm-picker-row-best")?.textContent);
+
+  f.picker.update(state({ chart: 2 }));
+  assert.deepEqual(chipBests(), ["B 71.0%", "", "AA 94.2%", ""]);
+  // Row b has two charts, so chart 2 plays its second.
+  assert.deepEqual(rowBests(), ["AA 94.2%", "S 99.1%", ""]);
+
+  f.picker.update(state({ chart: 0 }));
+  assert.deepEqual(rowBests(), ["B 71.0%", "", ""]);
+
+  f.picker.update(state({ song: "b", chart: 0 }));
+  assert.deepEqual(chipBests(), ["", "S 99.1%"]);
+
+  // A new best after a song shows on the next update although the state is the same, and is all that is written.
+  f.writes();
+  bests.set("b/0", "A 88.0%");
+  f.picker.update(state({ song: "b", chart: 0 }));
+  assert.deepEqual(chipBests(), ["A 88.0%", "S 99.1%"]);
+  assert.deepEqual(rowBests(), ["B 71.0%", "A 88.0%", ""]);
+  assert.deepEqual(f.writes(), ["childList:", "childList:"]);
+});
+
+test("the list scrolls itself to a newly selected song, once", () => {
+  const f = setup();
+  const list = f.one(".fm-picker-list");
+  // linkedom lays nothing out: give the list a 100px window over three 40px rows, as a browser would report it.
+  const layout = (node: HTMLElement, values: Record<string, number>) => {
+    for (const [name, value] of Object.entries(values))
+      Object.defineProperty(node, name, { value, configurable: true });
+  };
+  f.rows().forEach((row, index) =>
+    layout(row, { offsetTop: index * 40, offsetHeight: 40 }),
+  );
+  list.scrollTop = 0;
+
+  // Not laid out yet (the picker is updated before the page shows it): nothing to scroll, and it is not forgotten.
+  f.picker.update(state({ song: "c" }));
+  assert.equal(list.scrollTop, 0);
+  layout(list, { clientHeight: 100 });
+  f.picker.update(state({ song: "c" }));
+  assert.equal(
+    list.scrollTop,
+    20,
+    "row c ends at 120: scrolled just far enough",
+  );
+
+  // The player scrolls away; an unchanged state does not pull the list back.
+  list.scrollTop = 0;
+  f.picker.update(state({ song: "c" }));
+  f.picker.update(state({ song: "c", chart: 2 }));
+  assert.equal(list.scrollTop, 0);
+
+  list.scrollTop = 60;
+  f.picker.update(state({ song: "a" }));
+  assert.equal(list.scrollTop, 0, "a row above the window comes to its top");
+  f.picker.update(state({ song: "b" }));
+  assert.equal(list.scrollTop, 0, "a row already in view moves nothing");
+});
+
+test("with no songs it says so and ignores everything", () => {
+  const f = setup([]);
+  assert.equal(f.picker.element.textContent, "No songs loaded");
+  assert.deepEqual(f.rows(), []);
+  f.picker.update(state());
+  for (const code of ["ArrowDown", "ArrowRight", "Tab"])
+    assert.equal(f.picker.key(code), false);
+  assert.equal(f.picker.element.textContent, "No songs loaded");
+  assert.deepEqual(f.calls, []);
+});

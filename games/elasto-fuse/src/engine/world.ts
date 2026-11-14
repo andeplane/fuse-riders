@@ -40,6 +40,11 @@ export interface Rider {
   deaths: number;
   /** The race step the rider reached the flower on; 0 until then. */
   finish: number;
+  /**
+   * Race steps this rider has run: its own clock. Riders never touch, so each runs on the clock of the device that
+   * steers it; `stepWorld` moves them all together, an online room moves each as far as its device says it rode.
+   */
+  step: number;
 }
 export interface World {
   /** Index into `LEVELS`. */
@@ -47,9 +52,9 @@ export interface World {
   phase: Phase;
   /** Countdown: steps until the start. */
   go: number;
-  /** Steps raced since the start. */
+  /** Steps since the start on the race's own clock: what a rider's clock may not run far ahead of. */
   step: number;
-  /** The race step it closes on: the time limit, pulled in once somebody finishes. */
+  /** The step, on a rider's own clock, its race closes on: the time limit, pulled in once somebody finishes. */
   close: number;
   riders: Rider[];
 }
@@ -72,6 +77,7 @@ function freshRider(id: string, level: Compiled): Rider {
     wait: 0,
     deaths: 0,
     finish: 0,
+    step: 0,
   };
 }
 
@@ -104,8 +110,82 @@ function restart(rider: Rider, level: Compiled): void {
 }
 
 /**
- * One step. `inputs[slot]` is what each rider holds; `present[slot]` is false for a rider nobody is steering (gone or
- * away), whose bike coasts and whom the race does not wait for.
+ * One step of one rider's own run with `bits` held. False when it runs no further: home, or its clock has reached
+ * the race's close.
+ */
+export function stepRider(
+  world: World,
+  level: Compiled,
+  slot: number,
+  bits: number,
+): boolean {
+  const rider = world.riders[slot];
+  if (!rider) return false;
+  const pressed = bits & ~rider.prev;
+  rider.prev = bits;
+  if (rider.status === FINISHED || rider.step >= world.close) return false;
+  rider.step++;
+  if (rider.status === DEAD) {
+    if (--rider.wait <= 0 || pressed & RESTART) restart(rider, level);
+    return true;
+  }
+  if (pressed & RESTART) {
+    rider.deaths++;
+    restart(rider, level);
+    return true;
+  }
+  rider.run++;
+  const outcome = stepBike(level, rider.bike, bits, pressed, rider.taken);
+  rider.taken = outcome.taken;
+  if (outcome.flags & FLOWER) {
+    rider.status = FINISHED;
+    rider.finish = rider.step;
+    world.close = Math.min(world.close, rider.step + T.RACE_GRACE);
+  } else if (outcome.flags & DIED) {
+    rider.status = DEAD;
+    rider.wait = T.RESPAWN;
+    rider.deaths++;
+    // A bike flung out of the world waits at the start: where it flew to is no state a checkpoint may hold.
+    if (!validBike(rider.bike)) rider.bike = resetBike(level);
+  }
+  return true;
+}
+
+/**
+ * Runs the rider in `slot` on with `held` until its own clock reads `upTo`, or it runs no further. A rider's first
+ * step starts from nothing held, whenever its device took the bits up; a device leaves a press it held through the
+ * start out of what it logs (`ElastoFuseRuntime`), so a turn held at the start does not turn.
+ */
+export function advanceRider(
+  world: World,
+  slot: number,
+  upTo: number,
+  held: number,
+): void {
+  const rider = world.riders[slot];
+  if (!rider || world.phase === "over") return;
+  const level = levelOf(world);
+  while (rider.step < upTo && stepRider(world, level, slot, held));
+}
+
+/**
+ * Closes a race whose riders run on their own clocks: once nobody `present` is still riding, or the race's own
+ * clock is `CLOSE_LAG` past the close (a rider whose device stopped saying how far it rode is not waited for).
+ */
+export function settleRace(world: World, present: readonly boolean[]): void {
+  if (world.phase !== "racing") return;
+  const waiting = world.riders.some(
+    (rider, slot) =>
+      present[slot] === true &&
+      rider.status !== FINISHED &&
+      rider.step < world.close,
+  );
+  if (!waiting || world.step >= world.close + T.CLOSE_LAG) world.phase = "over";
+}
+
+/**
+ * One step for everybody together. `inputs[slot]` is what each rider holds; `present[slot]` is false for a rider
+ * nobody is steering (gone or away), whose bike coasts and whom the race does not wait for.
  */
 export function stepWorld(
   world: World,
@@ -123,34 +203,8 @@ export function stepWorld(
   }
   const level = levelOf(world);
   world.step++;
-  world.riders.forEach((rider, slot) => {
-    const bits = inputs[slot] ?? 0,
-      pressed = bits & ~rider.prev;
-    rider.prev = bits;
-    if (rider.status === FINISHED) return;
-    if (rider.status === DEAD) {
-      if (--rider.wait <= 0 || pressed & RESTART) restart(rider, level);
-      return;
-    }
-    if (pressed & RESTART) {
-      rider.deaths++;
-      restart(rider, level);
-      return;
-    }
-    rider.run++;
-    const outcome = stepBike(level, rider.bike, bits, pressed, rider.taken);
-    rider.taken = outcome.taken;
-    if (outcome.flags & FLOWER) {
-      rider.status = FINISHED;
-      rider.finish = world.step;
-      world.close = Math.min(world.close, world.step + T.RACE_GRACE);
-    } else if (outcome.flags & DIED) {
-      rider.status = DEAD;
-      rider.wait = T.RESPAWN;
-      rider.deaths++;
-      // A bike flung out of the world waits at the start: where it flew to is no state a checkpoint may hold.
-      if (!validBike(rider.bike)) rider.bike = resetBike(level);
-    }
+  world.riders.forEach((_, slot) => {
+    stepRider(world, level, slot, inputs[slot] ?? 0);
   });
   const waiting = world.riders.some(
     (rider, slot) => rider.status !== FINISHED && present[slot] === true,
