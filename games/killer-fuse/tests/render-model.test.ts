@@ -268,6 +268,7 @@ test("the picture is scaled by whole pixels and centred", () => {
     cssHeight: 1080,
     left: 0,
     top: 0,
+    smooth: false,
   });
   const tall = fitView(1000, 900, 1);
   assert.equal(tall.scale, 2);
@@ -280,6 +281,26 @@ test("the picture is scaled by whole pixels and centred", () => {
   assert.equal(fitView(-5, -5, 1).scale, 1);
   assert.equal(fitView(960, 540, 0).scale, 2, "a bad pixel ratio counts as 1");
   assert.equal(fitView(960, 540, Number.NaN).scale, 2);
+});
+
+test("a window between whole scales is filled rather than left a third empty", () => {
+  const laptop = fitView(1280, 720, 1);
+  assert.equal(laptop.smooth, true);
+  assert.equal(laptop.scale, 3, "drawn at the next whole scale");
+  assert.equal(laptop.width, 1440);
+  assert.equal(Math.round(laptop.cssWidth), 1280);
+  assert.equal(Math.round(laptop.cssHeight), 720);
+  assert.equal(Math.round(laptop.left), 0);
+  const near = fitView(1000, 562, 1);
+  assert.equal(near.smooth, false, "2.08 is close enough to 2 to stay crisp");
+  assert.equal(near.scale, 2);
+  assert.equal(near.cssWidth, 960);
+  assert.equal(fitView(100, 50, 1).smooth, false, "never shrunk below the art");
+  assert.equal(
+    fitView(1280, 720, 2).smooth,
+    false,
+    "5.33 device pixels: 5 fills 94%",
+  );
 });
 
 test("something over the seam is drawn on both sides", () => {

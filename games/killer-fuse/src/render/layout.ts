@@ -18,12 +18,18 @@ export interface Fit {
   readonly cssHeight: number;
   readonly left: number;
   readonly top: number;
+  /** The picture is shown shrunk from the next whole scale to fill the host, so it must be smoothed. */
+  readonly smooth: boolean;
 }
 
+/** A whole scale that covers less of the host than this, each way, wastes too much of a small window. */
+export const FILL = 0.85;
+
 /**
- * The largest whole number of device pixels per art pixel that fits the host. Scaling by anything else blurs or
- * doubles rows of pixels, so the leftover is letterboxed. A host smaller than the art gets scale 1 and is cropped
- * by the page rather than shrunk.
+ * The largest whole number of device pixels per art pixel that fits the host: scaling by anything else doubles some
+ * rows of pixels, so the leftover is letterboxed. When that would leave more than a sixth of the window empty (a
+ * 1280 by 720 window fits 2.67), the picture is drawn at the next whole scale up and shown shrunk to fill the host,
+ * smoothed (`smooth`) so no row is dropped. A host smaller than the art gets scale 1 and is cropped by the page.
  */
 export function fitView(
   hostWidth: number,
@@ -33,22 +39,22 @@ export function fitView(
   const ratio = pixelRatio > 0 && Number.isFinite(pixelRatio) ? pixelRatio : 1;
   const widthPx = Math.max(0, hostWidth) * ratio,
     heightPx = Math.max(0, hostHeight) * ratio;
-  const scale = Math.max(
-    1,
-    Math.floor(Math.min(widthPx / VIEW_WIDTH, heightPx / VIEW_HEIGHT)),
-  );
-  const width = VIEW_WIDTH * scale,
-    height = VIEW_HEIGHT * scale;
-  const cssWidth = width / ratio,
-    cssHeight = height / ratio;
+  const exact = Math.min(widthPx / VIEW_WIDTH, heightPx / VIEW_HEIGHT);
+  const whole = Math.max(1, Math.floor(exact));
+  const smooth = exact > 1 && whole / exact < FILL;
+  const scale = smooth ? whole + 1 : whole;
+  const shown = smooth ? exact : whole;
+  const cssWidth = (VIEW_WIDTH * shown) / ratio,
+    cssHeight = (VIEW_HEIGHT * shown) / ratio;
   return {
     scale,
-    width,
-    height,
+    width: VIEW_WIDTH * scale,
+    height: VIEW_HEIGHT * scale,
     cssWidth,
     cssHeight,
     left: (hostWidth - cssWidth) / 2,
     top: (hostHeight - cssHeight) / 2,
+    smooth,
   };
 }
 

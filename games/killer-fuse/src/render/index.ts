@@ -134,6 +134,7 @@ class Arena implements ArenaView {
     this.canvas.style.height = `${fit.cssHeight}px`;
     this.canvas.style.left = `${fit.left}px`;
     this.canvas.style.top = `${fit.top}px`;
+    this.canvas.style.imageRendering = fit.smooth ? "auto" : "pixelated";
   }
 
   update(options: Partial<Options>): void {
