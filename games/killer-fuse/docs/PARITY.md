@@ -1,36 +1,85 @@
-# Parity with the original
+# Parity with Killer Queen Black
 
-One row per feature of the arcade game. Status is `no`, `partial` or `yes`; re-score it at the end of every step, with a note on any deliberate difference.
+One row per feature of Killer Queen Black (the Steam version). Status is `no`, `partial` or `yes`. "Deliberate" marks a difference we chose; the full list is in [BRIEF.md](BRIEF.md) and [engine.md](engine.md).
 
-Last scored after step 2 (engine and bots, commit `126d70d1`). "Engine" means the rule exists and is tested headless; nothing has been played by a person or drawn yet.
+Scored at commit `a8f0b921`, rules `killer-fuse-4`. "Engine" means the rule is in `src/engine` and covered by headless tests. Values were taken from the figures we had of Black and checked against our code, not against the running game frame by frame.
 
-| #   | Feature of the original                                           | Status  | Note                                                                                   |
-| --- | ----------------------------------------------------------------- | ------- | -------------------------------------------------------------------------------------- |
-| 1   | Military win: enemy Queen killed three times                      | yes     | Engine                                                                                 |
-| 2   | Economic win: every hive hole filled                              | yes     | Engine; 12 holes as in the original                                                    |
-| 3   | Snail win: ridden into the rider's own goal                       | yes     | Engine                                                                                 |
-| 4   | One stick, one button; no attack button                           | partial | Engine input only; no keyboard, gamepad or touch yet                                   |
-| 5   | Worker: run, variable jump, carry one berry                       | yes     | Engine; feel not yet judged by a person                                                |
-| 6   | Warrior and Queen flight by repeated presses                      | yes     | Engine; feel not yet judged by a person                                                |
-| 7   | Queen dive                                                        | yes     | Engine                                                                                 |
-| 8   | Contact combat by height and facing, bounce otherwise             | yes     | Engine                                                                                 |
-| 9   | Workers bump military units                                       | partial | Only an invulnerable Worker bumps                                                      |
-| 10  | Warrior gate: one berry, short transformation, invulnerable after | yes     | Engine; a Worker inside a gate can still be killed                                     |
-| 11  | Speed gate: 1.35 times; speed then warrior makes a speed warrior  | yes     | Engine                                                                                 |
-| 12  | Queen claims gates by touch; enemy locked out; re-claimable       | yes     | Engine                                                                                 |
-| 13  | Death respawns at the hive; Warrior returns as Worker             | yes     | Engine                                                                                 |
-| 14  | Carried berry drops on death; loose berries are kicked            | yes     | Engine                                                                                 |
-| 15  | Berry kicked into a hole counts                                   | yes     | Engine; bots never do it on purpose                                                    |
-| 16  | Finite berries; regrow 90 s after the map runs dry                | yes     | Engine                                                                                 |
-| 17  | Snail moves toward the rider's goal, both ways, nothing banked    | yes     | Engine; mounting is automatic on touch, the button dismounts                           |
-| 18  | Snail eats an enemy Worker in front of it and halts 3.67 s        | yes     | Engine                                                                                 |
-| 19  | Killing the rider frees the Worker being eaten                    | yes     | Engine                                                                                 |
-| 20  | Speed rider moves the snail faster and is eaten faster            | yes     | Engine                                                                                 |
-| 21  | Screen wrap                                                       | yes     | Engine                                                                                 |
-| 22  | Three maps that favour different wins                             | partial | Three maps exist; only map 1 is tuned, map 3 is not military-heavy                     |
-| 23  | Sets of games on rotating maps                                    | no      |                                                                                        |
-| 24  | Bots fill empty seats                                             | partial | Engine; not yet in a room                                                              |
-| 25  | Eggs, holes and snail position readable at a glance               | no      | Art exists, no renderer yet                                                            |
-| 26  | Win mix near 62 / 24 / 14                                         | partial | Map 1, hard bots: 60 / 23 / 17 over 1000 games; medium and easy are about 90% military |
-| 27  | Median game 68 to 84 s                                            | partial | Map 1, hard bots: 61 to 64 s; medium and easy 31 to 39 s                               |
-| 28  | 5v5                                                               | no      | Deliberate: 3v3, six seats                                                             |
+Nothing has been playtested by a person yet. No physical gamepad or phone has been used; gamepad and touch are covered by unit tests only.
+
+## Rules
+
+| #   | Feature                                                                                       | Status  | Note                                                                                  |
+| --- | --------------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------- |
+| 1   | Military win: enemy Queen killed three times                                                  | yes     | Engine                                                                                |
+| 2   | Economic win: every hive hole filled                                                          | yes     | Engine; 12 holes per hive                                                             |
+| 3   | Snail win: ridden into the rider's own goal                                                   | yes     | Engine                                                                                |
+| 4   | Controls: stick, one jump / flap button, attack button                                        | yes     | Keyboard, gamepad and touch                                                           |
+| 5   | Up bound to nothing; dive on Down                                                             | yes     |                                                                                       |
+| 6   | "Hold to flap" option                                                                         | yes     | Off by default; repeats the press 7.5 times a second. Black's repeat rate not checked |
+| 7   | Input buffers: jump / flap 3 steps, attack 6 steps, 3 steps of ledge grace                    | yes     | Engine                                                                                |
+| 8   | Worker: runs 7 u/s, stops dead, variable jump from 0.86 u to 3.8 u                            | partial | Jump apex and landing steps differ slightly; see "Not verified"                       |
+| 9   | Flight: each press 0.3 s of push, up to five at once, climb and fall capped at 10 u/s         | yes     | Hover at about 2.7 presses a second                                                   |
+| 10  | Queen dive at 20 u/s while Down is held, lethal from every side                               | yes     | Engine                                                                                |
+| 11  | Warrior sword dash: lethal steps 1 to 19, 5.07 u, every 44 steps                              | yes     | A flap during the dash bends it                                                       |
+| 12  | Queen sword dash: lethal steps 1 to 17, flat 16 u/s, every 36 steps                           | yes     | Engine                                                                                |
+| 13  | Glance when two lethal swords meet face to face: stun 0.35 s, thrown apart                    | partial | Throw scaling differs; see "Not verified"                                             |
+| 14  | Head bounce: landing on a head springs off, nobody hurt                                       | yes     | Engine                                                                                |
+| 15  | Body bump: other contact stuns both and throws them apart at 10 u/s                           | yes     | Engine                                                                                |
+| 16  | Gate offer 0.5 s (cancelled by moving, jumping or enemy Queen tag), lock 2.0 s                | yes     | Engine                                                                                |
+| 17  | Invulnerable 2.2 s after a gate                                                               | yes     | Engine                                                                                |
+| 18  | Queen claims a gate by touch; enemy locked out until re-claimed; tag ends her invulnerability | yes     | Engine                                                                                |
+| 19  | Speed gate: 1.3 times run, flight and snail speed; Warrior climb 1.15 times                   | yes     | Engine                                                                                |
+| 20  | Snail: 0.8 u/s, moves only while the rider holds toward the goal                              | yes     | Engine                                                                                |
+| 21  | Snail meal 5 s (3.5 s with a speed rider); killing the rider frees the victim                 | yes     | Engine                                                                                |
+| 22  | Berries: 6 per pile, no regrowth                                                              | yes     | Engine                                                                                |
+| 23  | Loose berries kicked; one that reaches an open hole scores                                    | yes     | Engine; bots never kick one in on purpose                                             |
+| 24  | Deposit: 1.5 s in the hole, untouchable                                                       | yes     | Engine                                                                                |
+| 25  | Respawn after 3.2 s, invulnerable 2.2 s; Warrior returns as Worker; Queen from a spare egg    | yes     | Engine                                                                                |
+| 26  | Screen wrap                                                                                   | yes     | Except where a map has walls                                                          |
+| 27  | Other weapons, shield, berry throwing, upgrade choices                                        | no      | Deliberate: sword only                                                                |
+| 28  | No game clock                                                                                 | partial | Deliberate: 300 s safety clock, decided by eggs, berries, snail, then a coin flip     |
+
+## Game around the rules
+
+| #   | Feature                                                                 | Status  | Note                                                                                                                                                                                               |
+| --- | ----------------------------------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 29  | Maps                                                                    | partial | Deliberate: the arcade's Day, Dusk and Night, ported to 480 by 270, not Black's maps. Platforms do not dip when landed on                                                                          |
+| 30  | Sets of games                                                           | partial | Deliberate: first to N wins, N from 1 to 3 (default 2), one map or rotating                                                                                                                        |
+| 31  | Bots in empty seats                                                     | partial | Deliberate: three levels of our own (easy, medium, hard); see [bots.md](bots.md)                                                                                                                   |
+| 32  | Countdown: 8 s before the first game with a "three ways to win" overlay | yes     | Later games count down 3 s; our card also shows the seat's controls                                                                                                                                |
+| 33  | Rotating tips while waiting                                             | yes     | Lobby turns a tip every 15 s; the first shows the device's controls                                                                                                                                |
+| 34  | Tutorial                                                                | partial | Four short solo lessons (berries, Warrior, snail, Queen) against passive bots, not Black's episodes                                                                                                |
+| 35  | "Highlight me" outline on spawn, respawn and gate exit                  | yes     | 3 s                                                                                                                                                                                                |
+| 36  | Visuals and animation timings                                           | partial | Own art. Wing beat 0.1 s (Queen) and 0.08 s (Warrior), glide pose after 0.27 s, invulnerability blink at 1/6 s, taken from the arcade. Dive particle stream not judged with a dive of human length |
+| 37  | Online multiplayer                                                      | partial | Rollback netcode, six seats, up to six watchers, shared screen with phones as controllers. No ranked play or matchmaking                                                                           |
+| 38  | Player count                                                            | no      | Deliberate: 3v3 on six seats, not 4v4 on eight                                                                                                                                                     |
+
+## Balance
+
+From [balance.md](balance.md), revision `cced7bb3`, hard against hard on map 1, 300 games. Every figure comes from bots. Another builder is still tuning the bots, so these numbers may move.
+
+| #   | Measure                  | Target                              | Measured           | Status  |
+| --- | ------------------------ | ----------------------------------- | ------------------ | ------- |
+| 39  | Win mix (mil/eco/snail)  | 62 / 24 / 14, each within 10 points | 47.3 / 20.7 / 32.0 | no      |
+| 40  | Median game              | 68 to 84 s                          | 61.0 s             | no      |
+| 41  | Left team's wins         | 47 to 53%                           | 51.3%              | yes     |
+| 42  | Queen deaths per game    | 3 to 4                              | 2.53               | no      |
+| 43  | Hard beats medium        | at least 70%                        | 73.3%              | yes     |
+| 44  | Medium beats easy        | at least 70%                        | 70.0%              | partial |
+| 45  | Games reaching the clock | none                                | 0 of 300           | yes     |
+
+Row 44 is exactly on the line and inside the noise. On maps 2 and 3, hard against hard leans to economy (46.5% and 46.6%) and a few games reach the clock (3 and 2 of 300).
+
+## Not verified against the original
+
+These follow the figures we had but could not be checked frame by frame:
+
+- A full Worker jump tops out on step 22 and lands on step 46; the figures suggested 24 and 50.
+- The glance throw is normalised on the longer axis of the line between the two units and capped at 10 u/s per axis.
+- The snap of a loose berry into a hole, and the Queen's guard against standing up under a ceiling, test squares, not circles.
+- A flying berry bounces off the snail's whole box.
+- A Warrior comes out of a gate standing on the gate's floor.
+- The branch where a dash ends on a floor or ceiling is unreachable here.
+- The rule that lets a body slip under a wall when its lower quarter is below the wall's middle only matters for walls thinner than 6.3 px, which no map has.
+- Platforms do not dip when landed on.
+- The dive particle stream has not been judged with a dive of human length.
