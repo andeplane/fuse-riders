@@ -1,5 +1,6 @@
 import type { ControlHint } from "fuse-ui";
 import {
+  HOVER_HZ,
   MAPS,
   QUEEN_EGGS,
   RESPAWN_STEPS,
@@ -14,11 +15,8 @@ import {
  */
 const seconds = (steps: number): string =>
   `${Math.round((steps / TICK_HZ) * 10) / 10} s`;
-/**
- * Presses a second that hold a flying unit level. The engine's flight is being retuned so that each tap is a short
- * burst of thrust and about three a second hover; once the engine exports that figure (`HOVER_HZ`), read it here.
- */
-export const HOVER_TAPS = 3;
+/** Presses a second that hold a flying unit level: each tap is a short burst of thrust (the engine's `HOVER_HZ`). */
+export const HOVER_TAPS = HOVER_HZ;
 /** Holes in each hive (every map has the same comb). */
 export const HIVE_HOLES = MAPS[1].holes[0].length;
 

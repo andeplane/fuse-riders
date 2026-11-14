@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MAPS, QUEEN_EGGS } from "../src/engine/index.js";
+import { HOVER_HZ, MAPS, QUEEN_EGGS } from "../src/engine/index.js";
 import {
   CONTROLS,
   DEVICE_CONTROLS,
@@ -16,6 +16,7 @@ import {
 } from "../src/app/guide.js";
 
 test("the figures come from the engine's tuning", () => {
+  assert.equal(HOVER_TAPS, HOVER_HZ, "the engine's hover rate");
   assert.equal(HOVER_TAPS, 3, "about three taps a second hover");
   assert.equal(HIVE_HOLES, MAPS[1].holes[0].length);
   for (const id of [1, 2, 3] as const)
