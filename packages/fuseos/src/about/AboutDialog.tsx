@@ -7,7 +7,7 @@ import { CREDITS } from "./credits";
 import { FUSEOS_VERSION } from "./version";
 
 export const MADE_BY = "Anders Hafreager";
-export const SOURCE_URL = "https://github.com/andeplane/fuse-riders";
+export const SOURCE_URL = "https://github.com/andeplane/fuse-games";
 
 function CreditLine({ credit }: { credit: Credit }) {
   const name = credit.url ? (
@@ -57,11 +57,11 @@ export function AboutDialog({ windowId, credits = CREDITS }: AboutDialogProps) {
             Copyright &copy; {year} {MADE_BY}
           </p>
           <p>
-            A Windows 95 desktop for the Fuse games: every game opens in a
+            A Windows 98 desktop for the Fuse games: every game opens in a
             window of its own, with Paint, Winamp, Clippy and the retro games
             under Start, Programs along for the ride. Source at{" "}
             <a href={SOURCE_URL} target="_blank" rel="noreferrer">
-              github.com/andeplane/fuse-riders
+              github.com/andeplane/fuse-games
             </a>
             .
           </p>

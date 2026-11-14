@@ -148,6 +148,41 @@ describe("LauncherWindow", () => {
     expect(game).toHaveAttribute("data-active", "true");
   });
 
+  it("opens the game's own page in a new tab from PLAY IN NEW TAB and records when, even when windows are the preference", async () => {
+    const user = userEvent.setup();
+    const lastPlayed = new MemoryLastPlayedStore();
+    const { inside, desktopDeps } = renderLauncher({
+      launcherDeps: { lastPlayed },
+    });
+    await user.click(
+      inside.getByRole("button", { name: "Play Fuseball in new tab" }),
+    );
+    expect(desktopDeps.openExternal).toHaveBeenCalledTimes(1);
+    expect(desktopDeps.openExternal).toHaveBeenCalledWith(
+      "/fuse-riders/fuseball/",
+    );
+    expect(screen.queryByRole("dialog", { name: "Fuseball" })).toBeNull();
+    expect(lastPlayed.get()).toEqual({ fuseball: desktopDeps.now() });
+    expect(
+      inside.getByRole("region", { name: "Fuseball details" }),
+    ).toHaveTextContent("Last played:Today, 12:34");
+  });
+
+  it("plays the selected row in a new tab with Shift+Enter", async () => {
+    const user = userEvent.setup();
+    const lastPlayed = new MemoryLastPlayedStore();
+    const { inside, desktopDeps } = renderLauncher({
+      launcherDeps: { lastPlayed },
+    });
+    inside.getByRole("listbox", { name: "My Games" }).focus();
+    await user.keyboard("{ArrowDown}{Shift>}{Enter}{/Shift}");
+    expect(desktopDeps.openExternal).toHaveBeenCalledWith(
+      "/fuse-riders/fuse-riders/",
+    );
+    expect(screen.queryByRole("dialog", { name: "Fuse Riders" })).toBeNull();
+    expect(lastPlayed.get()).toEqual({ "fuse-riders": desktopDeps.now() });
+  });
+
   it("plays on a double click of a row", async () => {
     const user = userEvent.setup();
     const { inside } = renderLauncher();

@@ -16,7 +16,7 @@ import type { Plugin } from "vite";
 export const REPO_TREE_PATH = "fuseos/repo-tree.json";
 
 /** The repository the manifest describes when no remote or CI variable says otherwise. */
-export const DEFAULT_REPO = "andeplane/fuse-riders";
+export const DEFAULT_REPO = "andeplane/fuse-games";
 
 /** Raw contents of a file at a commit the build may not have pushed fall back to this branch. */
 export const FALLBACK_REF = "main";

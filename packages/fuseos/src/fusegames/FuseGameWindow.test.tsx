@@ -7,7 +7,7 @@ import type { AppState } from "../state/appState";
 import { DEFAULT_STATE } from "../state/appState";
 import { GAME_IFRAME_ALLOW } from "../windows/IframeGame";
 
-import { FuseGameWindow, POP_OUT_HINT } from "./FuseGameWindow";
+import { FuseGameWindow, POP_OUT_HINT, POP_OUT_LABEL } from "./FuseGameWindow";
 
 const FUSEBALL_OPEN: AppState = {
   ...DEFAULT_STATE,
@@ -37,14 +37,8 @@ describe(FuseGameWindow.name, () => {
     expect(
       screen.queryByRole("button", { name: "Activate Fuseball" }),
     ).not.toBeInTheDocument();
-    const toolbar = within(
-      screen.getByRole("toolbar", { name: "Fuseball toolbar" }),
-    );
-    expect(toolbar.getByText("Five-a-side with rockets")).toBeInTheDocument();
-    expect(toolbar.getByRole("button", { name: "Pop out ↗" })).toHaveAttribute(
-      "title",
-      POP_OUT_HINT,
-    );
+    // The game has the whole window: no toolbar strip in the body.
+    expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
   });
 
   it("passes ?mute through to the game when the OS was opened muted", () => {
@@ -76,7 +70,7 @@ describe(FuseGameWindow.name, () => {
     expect(onActivate).toHaveBeenCalledTimes(1);
   });
 
-  it("explains a game that is not installed, with no toolbar", () => {
+  it("explains a game that is not installed, ", () => {
     renderWithProviders(
       <FuseGameWindow gameId="pong" active onActivate={() => undefined} />,
     );
@@ -118,6 +112,20 @@ describe(FuseGameWindow.name, () => {
     ]);
   });
 
+  it("puts Pop out in the title bar next to the window controls, and only on game windows", () => {
+    renderWithProviders(<Desktop />, { initialState: FUSEBALL_OPEN });
+    const button = within(
+      screen.getByRole("dialog", { name: "Fuseball" }),
+    ).getByRole("button", { name: POP_OUT_LABEL });
+    expect(button).toHaveAttribute("title", POP_OUT_HINT);
+    expect(button.closest(".title-bar-controls")).not.toBeNull();
+    expect(
+      [...(button.parentElement?.children ?? [])].map((child) =>
+        child.getAttribute("aria-label"),
+      ),
+    ).toEqual([POP_OUT_LABEL, "Minimize", "Maximize", "Close"]);
+  });
+
   it("pops the game out into a tab at the frame's live address and closes the window", async () => {
     const user = userEvent.setup();
     const { store, desktopDeps, osAnalytics } = renderWithProviders(
@@ -126,7 +134,9 @@ describe(FuseGameWindow.name, () => {
     );
     const dialog = screen.getByRole("dialog", { name: "Fuseball" });
     // happy-dom never loads the page, so the frame has no address of its own; the embed address stands in.
-    await user.click(within(dialog).getByRole("button", { name: "Pop out ↗" }));
+    await user.click(
+      within(dialog).getByRole("button", { name: POP_OUT_LABEL }),
+    );
     expect(desktopDeps.openExternal).toHaveBeenCalledWith(
       "/fuse-riders/fuseball/",
     );
@@ -137,15 +147,5 @@ describe(FuseGameWindow.name, () => {
     expect(osAnalytics.launches).toEqual([
       { game: "fuseball", launch: "popout" },
     ]);
-  });
-
-  it("keeps the window when it has no id to close", async () => {
-    const user = userEvent.setup();
-    const { desktopDeps } = renderWithProviders(
-      <FuseGameWindow gameId="fuseball" active onActivate={() => undefined} />,
-    );
-    await user.click(screen.getByRole("button", { name: "Pop out ↗" }));
-    expect(desktopDeps.openExternal).toHaveBeenCalledTimes(1);
-    expect(screen.getByTitle("Fuseball")).toBeInTheDocument();
   });
 });

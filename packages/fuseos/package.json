@@ -2,7 +2,7 @@
   "name": "fuseos",
   "version": "0.1.0",
   "private": true,
-  "description": "FuseOS: the Windows 95 desktop that fronts the Fuse games, served at the site root in place of the old gallery.",
+  "description": "FuseOS: the Windows 98 desktop that fronts the Fuse games, served at the site root in place of the old gallery.",
   "type": "module",
   "engines": {
     "node": ">=22.12.0"

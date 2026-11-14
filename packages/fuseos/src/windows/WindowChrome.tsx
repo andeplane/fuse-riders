@@ -13,6 +13,8 @@ export type WindowChromeProps = {
   onToggleMaximize: () => void;
   onClose: () => void;
   onActivate: () => void;
+  /** Extra title-bar buttons, drawn before Minimize in the same size and bevel (a game window's Pop out). */
+  extraTitleButtons?: ReactNode;
   children: ReactNode;
 };
 
@@ -27,6 +29,7 @@ export function WindowChrome({
   onToggleMaximize,
   onClose,
   onActivate,
+  extraTitleButtons,
   children,
 }: WindowChromeProps) {
   return (
@@ -46,6 +49,7 @@ export function WindowChrome({
           <span className="truncate">{title}</span>
         </div>
         <div className="title-bar-controls">
+          {extraTitleButtons}
           <button type="button" aria-label="Minimize" onClick={onMinimize} />
           {resizable ? (
             <button

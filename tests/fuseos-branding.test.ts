@@ -62,3 +62,19 @@ test("the About credits name what the desktop stands on", () => {
   ])
     assert.ok(credits.includes(name), `credits mention ${name}`);
 });
+
+/** FuseOS is a Windows 98 desktop, never 95 (public/fuseos holds minified vendor bundles, so it is not scanned). */
+test("no user-visible Windows 95 in packages/fuseos/src or docs/fuseos", () => {
+  const found: string[] = [];
+  let scanned = 0;
+  for (const file of ["packages/fuseos/src", "docs/fuseos"].flatMap(walk)) {
+    scanned++;
+    const text = readFileSync(file, "latin1");
+    for (const match of text.matchAll(/\b(windows|win) ?95\b/gi)) {
+      const line = text.slice(0, match.index).split("\n").length;
+      found.push(`${file}:${line} ${match[0]}`);
+    }
+  }
+  assert.ok(scanned > 100, `scanned ${scanned} files`);
+  assert.deepEqual(found, []);
+});
