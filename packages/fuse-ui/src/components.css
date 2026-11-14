@@ -589,6 +589,50 @@
   position: relative;
   z-index: 1;
 }
+.fui-attract {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0.32;
+}
+.fui-attract > canvas,
+.fui-attract > svg,
+.fui-attract canvas {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+}
+.fui-main-menu:has(.fui-attract) {
+  background: #050d1b;
+  isolation: isolate;
+}
+.fui-main-menu:has(.fui-attract)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: #050d1b66;
+}
+.fui-main-menu .fui-attract-toggle {
+  position: absolute;
+  bottom: 16px;
+  left: 20px;
+  z-index: 1;
+  background: #0b192be6;
+  color: #c6dfef;
+  border: 1px solid #365370;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font:
+    12px/1.4 system-ui,
+    sans-serif;
+  text-transform: none;
+  box-shadow: none;
+}
 .fui-main-menu .fui-main-menu-title {
   font-style: normal;
   font-weight: 400;

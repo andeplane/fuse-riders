@@ -284,6 +284,8 @@ function landing(): void {
     store.setItem(names.shared, toggle.checked ? "1" : "0");
   shared.append(toggle, el("span", "Shared TV: phones are the controllers"));
   const card = createLandingCard({
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     title: "FUSE CHOPPERS",
     tagline:
       "Hold to climb, let go to fall. The cave scrolls, the crush zone closes in and your friends' shots knock you about. Be the last chopper flying, or first through the exit.",

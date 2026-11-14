@@ -34,16 +34,12 @@ import {
   PULSE,
   DURATION,
   carried,
-  createWorld,
-  botInput,
-  stepWorld,
   type World,
 } from "../engine/world.js";
 import { GraveyardRuntime } from "../online/runtime.js";
 import type { View } from "../online/game.js";
 import { seatName } from "../online/names.js";
 import { draw, COLORS } from "../render/scene.js";
-import { toView } from "../engine/view.js";
 import {
   keys,
   safeStore,
@@ -198,6 +194,8 @@ function landing() {
     store.setItem(names.shared, toggle.checked ? "1" : "0");
   shared.append(toggle, el("span", "Shared TV + phone controllers"));
   const card = createLandingCard({
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     title: "GRAVEYARD SHIFT",
     tagline:
       "Catch ghosts. Fill your tank. Reach a shrine before a rival blows your haul loose.",
@@ -220,27 +218,6 @@ function landing() {
   );
   hero.append(art, card.element);
   app.append(hero);
-  const demo = createWorld(47, [
-    { id: "a", slot: 0 },
-    { id: "b", slot: 1 },
-    { id: "c", slot: 2 },
-  ]);
-  let last = 0;
-  const animate = (now: number) => {
-    if (!alive) return;
-    if (now - last > 50) {
-      stepWorld(
-        demo,
-        new Map(demo.hunters.map((h) => [h.id, botInput(demo, h)])),
-      );
-      last = now;
-      if (demo.tick >= DURATION) demo.tick = 0;
-    }
-    draw(c.getContext("2d")!, toView(demo), "");
-    audio.frame();
-    requestAnimationFrame(animate);
-  };
-  requestAnimationFrame(animate);
 }
 function room() {
   const session = sessionFor(

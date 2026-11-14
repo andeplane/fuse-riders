@@ -203,6 +203,8 @@ function landing(): void {
   const header = el("header", "", "birds-top");
   header.append(portal(), brand(), social.element());
   const mainMenu = createMainMenu({
+    background: async (host, signal) =>
+      (await import("./attract.js")).createAttract(host, signal),
     title: "FUSE BIRDS",
     description: intro.textContent ?? "",
     play: card,

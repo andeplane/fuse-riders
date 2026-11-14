@@ -142,6 +142,8 @@ function landing(error = ""): void {
   name.value = store.getItem(keys.name) ?? "";
   name.oninput = () => store.setItem(keys.name, name.value.trim());
   const card = createLandingCard({
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     title: "FUSE FRONT",
     tagline: "Push the lanes. Hold the jungle. Raze the fort.",
     soloText: "SOLO VS BOTS",

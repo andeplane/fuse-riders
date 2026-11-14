@@ -27,7 +27,7 @@ async function inside(page: Page, locator: Locator) {
 async function ready(page: Page) {
   await page.waitForFunction(() =>
     document
-      .querySelector("canvas")
+      .querySelector(".fui-main-menu")
       ?.getAttribute("data-renderer")
       ?.startsWith("phaser-"),
   );
@@ -162,7 +162,7 @@ for (const { name: browserName, kind } of BOTH_ENGINES) {
           () =>
             Number(
               document
-                .querySelector("canvas")
+                .querySelector(".fui-main-menu")
                 ?.getAttribute("data-attract-tick"),
             ) > 2,
         );
@@ -203,33 +203,37 @@ for (const { name: browserName, kind } of BOTH_ENGINES) {
         );
         await page.keyboard.press("Escape");
         await page.evaluate(() => scrollTo(0, 0));
-        await page.getByRole("button", { name: /PAUSE BACKGROUND/ }).click();
+        await page.getByRole("button", { name: /PAUSE BACKGROUND/i }).click();
         await frames(page);
         const paused = await page
-          .locator("canvas")
+          .locator(".fui-main-menu")
           .getAttribute("data-attract-tick");
         await frames(page);
         assert.equal(
-          await page.locator("canvas").getAttribute("data-attract-tick"),
+          await page
+            .locator(".fui-main-menu")
+            .getAttribute("data-attract-tick"),
           paused,
         );
-        await page.getByRole("button", { name: /PLAY BACKGROUND/ }).click();
+        await page.getByRole("button", { name: /PLAY BACKGROUND/i }).click();
         await page.waitForFunction(
           (t) =>
             document
-              .querySelector("canvas")
+              .querySelector(".fui-main-menu")
               ?.getAttribute("data-attract-tick") !== t,
           paused,
         );
         await page.emulateMedia({ reducedMotion: "reduce" });
-        await page.getByRole("button", { name: /PLAY BACKGROUND/ }).waitFor();
+        await page.getByRole("button", { name: /PLAY BACKGROUND/i }).waitFor();
         await frames(page);
         const reduced = await page
-          .locator("canvas")
+          .locator(".fui-main-menu")
           .getAttribute("data-attract-tick");
         await frames(page);
         assert.equal(
-          await page.locator("canvas").getAttribute("data-attract-tick"),
+          await page
+            .locator(".fui-main-menu")
+            .getAttribute("data-attract-tick"),
           reduced,
         );
         await page.screenshot({ path: `artifacts/home-${tag}.png` });

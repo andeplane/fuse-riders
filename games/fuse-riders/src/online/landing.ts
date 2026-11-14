@@ -25,7 +25,6 @@ import {
 import { GAME_ID } from "../shared/game-id.js";
 import { createAnalyticsSetting } from "./analytics-setting.js";
 import { startAnalytics, track } from "./analytics.js";
-import { startAttract } from "./attract.js";
 import { FUSE_DIALOG_CLASSES } from "./dialogs/shell.js";
 import { node } from "./dom.js";
 import { apiUrl, appUrl } from "./endpoints.js";
@@ -330,6 +329,8 @@ export function showLanding(host: LandingHost): void {
   const playOptions = node("div", "", "fui-landing");
   playOptions.append(soloLink, localLink, form);
   const mainMenu = createMainMenu({
+    background: async (host) =>
+      (await import("./menu-attract.js")).createAttract(host),
     title: "FUSE RIDERS",
     description: "Outrun your friends. Blow up their plans.",
     play: playOptions,
@@ -342,7 +343,8 @@ export function showLanding(host: LandingHost): void {
   });
   content.replaceWith(mainMenu.element);
   live.remove();
-  footerBar.replaceChildren(attractToggle);
+  footerBar.remove();
+  arena.remove();
   topEnd.querySelector(".landing-tag")?.remove();
   mainMenu.help.prepend(
     node(
@@ -352,13 +354,4 @@ export function showLanding(host: LandingHost): void {
   );
   app.append(friendsPanel.banner);
   window.addEventListener("pagehide", accountPanel.dispose, { once: true });
-  // The attract loop stays Fuse Riders' own: it runs the game's engine and renderer behind the landing page.
-  void startAttract(arena, attractToggle)
-    .then((stop) => {
-      if (ended) stop();
-      else cleanup = stop;
-    })
-    .catch(() => {
-      live.remove();
-    });
 }

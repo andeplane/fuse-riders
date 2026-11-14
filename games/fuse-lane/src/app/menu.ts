@@ -472,6 +472,8 @@ export function createMenu(options: MenuOptions): HTMLElement {
   }
   update(true);
   const menu = createMainMenu({
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     title: "FUSETOWN",
     description:
       "Work, study, shop and invest. First to reach all four goals wins.",

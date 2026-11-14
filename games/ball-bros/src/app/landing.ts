@@ -40,6 +40,8 @@ export function landing(
   const mapChoice = el("label", "", "map-choice");
   mapChoice.append(el("span", "ARENA"), map);
   const card = createLandingCard({
+    background: async (host, signal) =>
+      (await import("./attract.js")).createAttract(host, signal),
     document: root.ownerDocument,
     title: "BALL BROS",
     tagline: "Five cores. One survivor. Orbit, reach, ricochet.",

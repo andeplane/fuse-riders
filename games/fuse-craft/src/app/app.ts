@@ -1436,6 +1436,8 @@ export function mountFuseCraft(
       const marker = root.ownerDocument.createComment("Shared menu");
       play.before(marker);
       const menu = createMainMenu({
+        background: async (host) =>
+          (await import("./attract.js")).createAttract(host),
         title: "FUSE CRAFT",
         description: "Build your network. Keep the signal alive.",
         play,

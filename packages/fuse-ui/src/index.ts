@@ -142,6 +142,14 @@ export {
   type MainMenuOptions,
 } from "./main-menu.js";
 export {
+  awaitAttractReady,
+  demoCanvas,
+  mountAttract,
+  type AttractDriver,
+  type AttractFactory,
+  type AttractEnvironment,
+} from "./attract.js";
+export {
   createRoomLayout,
   createRoomAppearance,
   roomLayoutMarkup,

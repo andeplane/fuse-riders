@@ -48,7 +48,7 @@ import { SIDE_NAMES, sideColor } from "../render/palette.js";
 import type { Cue } from "../render/cues.js";
 import { createScene } from "../render/scene.js";
 import { createSmoother } from "../render/smooth.js";
-import { artBase, browserImages, loadArt } from "./art.js";
+import { browserImages, loadArt } from "./art.js";
 import { createSfx } from "./audio.js";
 import {
   HeldControls,
@@ -274,6 +274,8 @@ function landing(): void {
       endpoints.appUrl(`?solo=1&scoring=${chosenScoring()}&bot=${chosenBot()}`),
     );
   const card = createLandingCard({
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     title: "FUSE VOLLEY",
     tagline:
       "Jelly blobs, one ball, one net. Bounce the ball over to the other side and keep it off your own sand: three touches at most. Play a friend online, on one TV with phones as pads, or a bot.",
@@ -298,14 +300,6 @@ function landing(): void {
     },
   });
   card.create.after(shared);
-  const hero = el("img", "", "fv-hero");
-  hero.src = `${artBase(import.meta.env.BASE_URL)}hero.webp`;
-  hero.alt = "";
-  hero.width = 1536;
-  hero.height = 864;
-  hero.decoding = "async";
-  hero.classList.add("fui-menu-backdrop");
-  card.element.prepend(hero);
   const scoring = createScoringPicker((id) => {
     store.setItem(scoringKey, id);
     scoring.update(id, true);

@@ -35,12 +35,7 @@ import {
   ROUND_SECONDS,
   WIN_TARGETS,
   botInput,
-  createWorld,
-  roundDone,
-  stepWorld,
-  toView,
   type Settings,
-  type World,
 } from "../engine/index.js";
 import { freightGame, type View } from "../online/game.js";
 import { seatName } from "../online/names.js";
@@ -316,54 +311,6 @@ function landing(): void {
   document.body.classList.add("ff-landing-page");
   audio.mood("menu");
   const splash = el("section", "", "ff-splash");
-  const { canvas, g } = (() => {
-    const canvas = el("canvas", "", "ff-attract") as HTMLCanvasElement;
-    return { canvas, g: canvas.getContext("2d")! };
-  })();
-  const scene = createScene(g, make);
-  // A live round of five AI trains behind the menu, on the real rules.
-  let world: World = attractWorld(),
-    carry = 0,
-    lastNow = 0,
-    inputs = new Map<string, number>();
-  const labels = new Map(
-    [0, 1, 2, 3, 4].map((slot) => [`bot:${slot + 1}`, `P${slot + 1}`]),
-  );
-  const fit = () => {
-    const ratio = Math.min(2, window.devicePixelRatio || 1);
-    canvas.width = Math.max(1, Math.round(canvas.clientWidth * ratio));
-    canvas.height = Math.max(1, Math.round(canvas.clientHeight * ratio));
-  };
-  new ResizeObserver(fit).observe(canvas);
-  const shown = onScreen(canvas);
-  animations.add((now) => {
-    // Scrolled away (the rules below it), the depot waits rather than running on.
-    if (!shown()) {
-      lastNow = now;
-      return;
-    }
-    carry += Math.min(100, lastNow ? now - lastNow : 0);
-    lastNow = now;
-    while (carry >= 1000 / 60) {
-      carry -= 1000 / 60;
-      if (world.step % 3 === 0)
-        inputs = new Map(world.trains.map((t) => [t.id, botInput(world, t)]));
-      stepWorld(world, inputs);
-      if (roundDone(world)) world = attractWorld();
-    }
-    // Cover the canvas with the 16:9 depot, cropped at the edges on other shapes.
-    const scale = Math.max(canvas.width / VIEW_W, canvas.height / VIEW_H);
-    g.setTransform(
-      scale,
-      0,
-      0,
-      scale,
-      (canvas.width - VIEW_W * scale) / 2,
-      (canvas.height - VIEW_H * scale) / 2,
-    );
-    scene.draw({ world: toView(world), me: "", labels, now, reducedMotion });
-  });
-
   const shared = el("label", "", "ff-shared"),
     toggle = el("input");
   toggle.type = "checkbox";
@@ -372,6 +319,8 @@ function landing(): void {
     store.setItem(names.shared, toggle.checked ? "1" : "0");
   shared.append(toggle, el("span", "Shared TV: phones are the controllers"));
   const card = createLandingCard({
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     title: "FUSE FREIGHT",
     tagline:
       "Little trains, big plans. Collect loose carts, cut your rivals' tails and deliver before the whistle.",
@@ -401,19 +350,11 @@ function landing(): void {
   back.href = import.meta.env.BASE_URL + (muted ? "?mute" : "");
   const front = el("div", "", "ff-splash-front");
   front.append(card.element);
-  splash.append(canvas, front);
+  splash.append(front);
   const menu = createGameMenu(controllerGuide);
   menu.update({ canLobby: false, touch: coarse() });
   app.replaceChildren(header([soundToggles(), back, menu.element]), splash);
   card.menu.help.append(howToPlay());
-}
-
-function attractWorld(): World {
-  return createWorld(
-    (Math.random() * 0xffff_ffff) >>> 0,
-    [0, 1, 2, 3, 4].map((slot) => ({ id: `bot:${slot + 1}`, slot })),
-    { seconds: 60 },
-  );
 }
 
 /** A button that holds `bits` while a pointer is down on it. */

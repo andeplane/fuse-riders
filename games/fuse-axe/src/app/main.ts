@@ -161,6 +161,8 @@ function landing(): void {
     touch: matchMedia("(pointer: coarse)").matches,
   });
   const card = createLandingCard({
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     title: "FUSE AXE",
     tagline:
       "Three heroes take the road east to the Dark Keep. Cleave through Vorhal's raiders alone or with up to four friends.",

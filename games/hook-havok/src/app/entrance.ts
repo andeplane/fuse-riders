@@ -128,6 +128,8 @@ export function createEntrance(o: EntranceOptions) {
   const menuMarker = document.createComment("Shared menu");
   entranceContent.before(menuMarker);
   const menu = createMainMenu({
+    background: async (host, signal) =>
+      (await import("./attract.js")).createAttract(host, signal),
     title: "HOOK HAVOK",
     description: "Find your foothold. Take theirs.",
     play: entranceContent,
@@ -148,6 +150,7 @@ export function createEntrance(o: EntranceOptions) {
     entranceContent.querySelector<HTMLElement>('[data-slot="retry"]')!,
   );
   function show() {
+    menu.startBackground();
     bar.append(social.element());
     root.hidden = false;
     root.setAttribute("role", "main");
@@ -179,6 +182,7 @@ export function createEntrance(o: EntranceOptions) {
     },
     play() {
       if (root.hidden) return;
+      menu.dispose();
       close();
       placements.forEach((p) => p.marker.after(p.node));
       roomSocialParent?.append(social.element());
@@ -192,6 +196,7 @@ export function createEntrance(o: EntranceOptions) {
       document.getElementById("scene")?.focus({ preventScroll: true });
     },
     destroy() {
+      menu.dispose();
       close();
       o.atmosphere.removeEventListener("change", atmosphere);
       root.remove();

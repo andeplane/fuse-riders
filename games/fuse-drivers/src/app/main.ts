@@ -91,6 +91,8 @@ function landing(): void {
   const choice = el("label", "", "fd-shared-choice");
   choice.append(shared, el("span", "Shared TV + phone controllers"));
   const card = createLandingCard({
+    background: async (host, signal) =>
+      (await import("./attract.js")).createAttract(host, signal),
     title: "FUSE DRIVERS",
     tagline: "Offroad racing with weapons. Two to five drivers, one screen.",
     soloText: "RACE THE CPU",

@@ -98,6 +98,8 @@ export function showLanding(store: Store, error = ""): void {
     store.setItem(names.shared, toggle.checked ? "1" : "0");
   shared.append(toggle, el("span", "Shared TV: phones are the controllers"));
   const card = ui.createLandingCard({
+    background: async (host, signal) =>
+      (await import("./attract.js")).createAttract(host, signal),
     title: "FUSE BOMBERS",
     tagline:
       "Fly a gunship round a floating temple and fire as the launcher turns: online, against bots, or everyone at one screen.",

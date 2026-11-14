@@ -1,5 +1,6 @@
 import { el, partClass, type PartClasses } from "./dom.js";
 import { createMainMenu } from "./main-menu.js";
+import type { AttractFactory } from "./attract.js";
 
 export type JoinByCodePart = "root" | "input" | "button" | "rejoin";
 
@@ -70,6 +71,7 @@ export function createJoinByCode(options: JoinByCodeOptions): JoinByCode {
 }
 
 export interface LandingOptions {
+  background?: AttractFactory;
   /** The game's name, the card's heading. */
   title: string;
   /** One line under the title. */
@@ -155,6 +157,7 @@ export function createLandingCard(options: LandingOptions): LandingCard {
   }
   element.append(actions, error);
   const menu = createMainMenu({
+    background: options.background,
     title: options.title,
     description: options.tagline,
     play: element,

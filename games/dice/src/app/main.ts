@@ -111,6 +111,8 @@ function landing(): void {
     store.setItem(names.shared, toggle.checked ? "1" : "0");
   shared.append(toggle, el("span", "Shared TV: phones are the controllers"));
   const card = createLandingCard({
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     title: "ROLL OR HOLD",
     tagline:
       "Roll as often as you dare: every roll adds up, but a 1 loses the lot. Hold to bank it. First to 50 wins the round, two rounds win the match.",

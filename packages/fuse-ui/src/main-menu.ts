@@ -1,5 +1,6 @@
 import { button, el } from "./dom.js";
 import { createDialog } from "./dialog.js";
+import { mountAttract, type AttractFactory } from "./attract.js";
 
 export const VIBE_CODING_GANG = [
   "Anders Hafreager",
@@ -12,6 +13,7 @@ export const VIBE_CODING_GANG = [
 ] as const;
 
 export interface MainMenuOptions {
+  background?: AttractFactory;
   title: string;
   description?: string;
   /** Existing create/join/solo/local controls, with their original handlers. */
@@ -117,5 +119,28 @@ export function createMainMenu(options: MainMenuOptions) {
   navigation.append(play, how, about, settingsButton);
   home.append(title, description, navigation, other, error);
   element.append(home, dialog.dialog, parking);
-  return { element, help, settings, addSettings, play, dialog: dialog.dialog };
+  let backgroundActive = false,
+    stopBackground = () => {};
+  const startBackground = () => {
+    if (backgroundActive || !options.background) return;
+    element.querySelector(".fui-attract")?.remove();
+    element.querySelector(".fui-attract-toggle")?.remove();
+    backgroundActive = true;
+    stopBackground = mountAttract(element, options.background);
+  };
+  const dispose = () => {
+    backgroundActive = false;
+    stopBackground();
+  };
+  startBackground();
+  return {
+    element,
+    help,
+    settings,
+    addSettings,
+    play,
+    dialog: dialog.dialog,
+    dispose,
+    startBackground,
+  };
 }

@@ -400,6 +400,8 @@ function landing(): void {
       ),
     );
   const card = createLandingCard({
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     title: "FUSEBALL",
     tagline:
       "A neon ball duel for two. Knock the ball into the goal in your own colour to score and zap the other rider. Air-jump as often as you like: every one leaves a bubble that bumps the ball away. First to three wins.",

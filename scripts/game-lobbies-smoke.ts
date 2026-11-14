@@ -30,6 +30,33 @@ try {
     try {
       await page.goto(new URL(`${game}/?mute`, base).href);
       const menu = page.locator(".fui-main-menu");
+      await page.waitForFunction(
+        () =>
+          document.querySelector<HTMLElement>(".fui-main-menu")?.dataset
+            .attractState === "running",
+      );
+      assert.ok(
+        await menu.locator(".fui-attract canvas, .fui-attract svg").count(),
+        "real gameplay renderer is present",
+      );
+      const firstTick = await menu.getAttribute("data-attract-tick");
+      await page.waitForFunction(
+        (first) =>
+          document.querySelector<HTMLElement>(".fui-main-menu")?.dataset
+            .attractTick !== first,
+        firstTick,
+      );
+      await menu
+        .getByRole("button", { name: "Pause background", exact: true })
+        .click();
+      await page.waitForFunction(
+        () =>
+          document.querySelector<HTMLElement>(".fui-main-menu")?.dataset
+            .attractState === "paused",
+      );
+      await menu
+        .getByRole("button", { name: "Play background", exact: true })
+        .click();
       await menu.getByRole("button", { name: "About", exact: true }).click();
       const about = page.locator("dialog[open]");
       assert.match(await about.innerText(), /Made by the vibe coding gang/);
