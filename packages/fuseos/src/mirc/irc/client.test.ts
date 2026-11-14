@@ -19,9 +19,7 @@ import { channelId, findWindow, LIST_ID, queryId, STATUS_ID } from "./session";
 const TEST_NET: IrcNetwork = {
   id: "testnet",
   name: "TestNet",
-  servers: [{ host: "irc.test", port: 6697, websocket: "wss://irc.test/ws" }],
-  browserNote: [],
-  connectNote: ["* Test servers log everything."],
+  servers: [{ host: "irc.test", port: 6697 }],
 };
 
 function setup(overrides: Partial<ClientDeps> = {}) {
@@ -71,12 +69,9 @@ describe("IrcClient connecting", () => {
   it("registers with CAP LS, NICK and USER once the socket opens", () => {
     const { client, transport, changes } = setup();
     client.connect(TEST_NET);
-    expect(transport.last.url).toBe("wss://irc.test/ws");
+    expect(transport.last.url).toBe("sim://testnet");
     expect(client.getState().phase).toBe("connecting");
-    expect(statusText(client)).toEqual([
-      "* Connecting to irc.test (6697)",
-      "* Test servers log everything.",
-    ]);
+    expect(statusText(client)).toEqual(["* Connecting to irc.test (6697)"]);
     transport.last.open();
     expect(transport.last.sent).toEqual([
       "CAP LS 302",
@@ -92,23 +87,6 @@ describe("IrcClient connecting", () => {
     });
     expect(client.connected).toBe(true);
     expect(changes()).toBeGreaterThan(3);
-  });
-
-  it("explains a network browsers cannot reach instead of connecting", () => {
-    const { client, transport } = setup();
-    const efnet = findNetwork("efnet");
-    if (!efnet) throw new Error("EFnet missing");
-    client.connect(efnet);
-    expect(transport.links).toHaveLength(0);
-    expect(client.getState().phase).toBe("offline");
-    const lines = statusText(client);
-    expect(lines[0]).toBe("* Connecting to irc.efnet.org (6667)");
-    expect(
-      lines.some((text) =>
-        text.includes("EFnet doesn't accept browser connections"),
-      ),
-    ).toBe(true);
-    expect(lines.at(-1)).toBe("* Disconnected");
   });
 
   it("goes through a configured bridge for a network without its own WebSocket", () => {
@@ -327,22 +305,17 @@ describe("IrcClient commands", () => {
     expect(transport.last.sent[1]).toBe("NICK Zero");
   });
 
-  it("connects with /server by network name, host or WebSocket URL", () => {
+  it("connects with /server by network name or host, and reconnects to the last one", () => {
     const { client, transport } = setup();
-    client.submit(STATUS_ID, "/server ergo");
-    expect(transport.last.url).toBe("wss://testnet.ergo.chat/webirc");
-    client.submit(STATUS_ID, "/server wss://irc.example.net:8443/ws");
-    expect(transport.last.url).toBe("wss://irc.example.net:8443/ws");
+    client.submit(STATUS_ID, "/server efnet");
+    expect(transport.last.url).toBe("sim://efnet");
+    client.submit(STATUS_ID, "/server irc.example.net:7000");
+    expect(transport.last.url).toBe("sim://irc.example.net");
+    expect(statusText(client)).toContain("* Connecting to irc.example.net (7000)");
     client.submit(STATUS_ID, "/disconnect");
     client.submit(STATUS_ID, "/server");
     expect(transport.links).toHaveLength(3);
-    client.submit(STATUS_ID, "/server irc.undernet.org");
-    expect(transport.links).toHaveLength(3);
-    expect(
-      statusText(client).some((t) =>
-        t.includes("Undernet doesn't accept browser connections"),
-      ),
-    ).toBe(true);
+    expect(transport.last.url).toBe("sim://irc.example.net");
   });
 
   it("handles /help, /clear, /close, /list and errors locally", () => {

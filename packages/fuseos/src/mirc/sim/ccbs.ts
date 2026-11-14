@@ -62,7 +62,11 @@ export function findTournament(
   if (words.length === 0) return undefined;
   const matches = ranked(tournaments).filter((t) => {
     const haystack = `${t.name} ${t.season} ${t.date}`.toLowerCase();
-    return words.every((word) => haystack.includes(word));
+    const tokens = haystack.split(/[^a-z0-9æøå]+/);
+    // A number must be a whole word ("1" is not the 1 in "2003-11-23"); other words may be part of one.
+    return words.every((word) =>
+      /^\d+$/.test(word) ? tokens.includes(word) : haystack.includes(word),
+    );
   });
   return matches.at(-1);
 }
