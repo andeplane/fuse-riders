@@ -117,6 +117,14 @@ useEngineChat ─ engine.loopStyle() = "json" ─▶ runAgentLoop (llm/agentLoop
   done so far. A reply with no JSON at all is taken as the answer.
 - **Cancel.** The balloon's Cancel button aborts the turn: the generation is
   interrupted and Clippy says what got done.
+- **Checklist.** Where the rules can split the request into parts
+  (`requestChecklist` in `llm/intent.ts`: "open Paint", "maximize it", "256
+  colors"), the loop does not take an answer while a part has had no tool
+  call: it replies `Not finished: you have not done "maximize it" yet. Call
+maximize_window for it now` once per part. A 1.5B model otherwise does the
+  first part and reports all three. The model still chooses the call and its
+  arguments; a single request, or one the rules do not follow, has no
+  checklist.
 - **Step log.** Each tool call is a line in the balloon while it runs and after
   ("Opening Paint...", then "Opened Paint"), with "Thinking (step 3 of 8)..."
   under it.
@@ -176,9 +184,20 @@ Hermes 3 (Llama 3.2 3B, 1.8 GB) was tried by hand on the live desktop and was
 worse than the 1.5B Qwen: it kept calling tools nobody asked for (it edited a
 file after being asked what a folder holds), repeated calls until the step cap,
 and took twice as long per step. Qwen 2.5 3B is non-commercial. So Clippy Pro is
-Qwen 2.5 1.5B with the plain format. What it still gets wrong: about one
-two-part request in four it does the first part and claims the second, and
-rarer tools (`show_message`, `read_file`, volume) sometimes lose to `open_app`.
+Qwen 2.5 1.5B with the plain format and the checklist. Prompt-side fixes for
+the dropped second part (a thought, a numbered list, batching) all scored
+below the plain format; the checklist, which is code, fixed it. What the model
+still gets wrong: rarer tools (`show_message`, `read_file`, volume) sometimes
+lose to `open_app` or `set_display`, and the answer then claims success.
+
+### The download in the chat
+
+While the model loads, the conversation shows a panel instead of a status
+line (`ModelLoadPanel` in `AssistantBalloon.tsx`): the progress line, a
+progress bar, the model's name and download size from the catalogue, and what
+the phase means ("It downloads once and then stays in this browser",
+"Already downloaded: loading it from this browser"). `parseLoadProgress` reads
+the phase and percentage back from the progress line `formatLoadProgress` writes.
 
 ## The rules: several commands in one sentence
 

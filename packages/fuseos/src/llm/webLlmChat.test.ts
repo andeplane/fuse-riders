@@ -17,6 +17,7 @@ import {
   formatLoadProgress,
   GENERATION,
   loadFailureReason,
+  parseLoadProgress,
 } from "./webLlmChat";
 
 const MODEL = "Qwen2.5-0.5B-Instruct-q4f16_1-MLC";
@@ -65,6 +66,35 @@ describe(formatLoadProgress.name, () => {
     expect(formatLoadProgress({ progress: -1, text: "Fetching" })).toBe(
       "Downloading the model 0%",
     );
+  });
+});
+
+describe(parseLoadProgress.name, () => {
+  it("reads a load line back as its phase and percentage, and nothing else", () => {
+    expect(parseLoadProgress("Downloading the model 42%")).toEqual({
+      phase: "downloading",
+      percent: 42,
+    });
+    expect(parseLoadProgress("Loading the model 80%")).toEqual({
+      phase: "loading",
+      percent: 80,
+    });
+    expect(parseLoadProgress("Preparing the model 0%")).toEqual({
+      phase: "preparing",
+      percent: 0,
+    });
+    expect(parseLoadProgress("Warming up the model")).toEqual({
+      phase: "warming",
+      percent: 100,
+    });
+    for (const other of ["Thinking", "Thinking (step 2 of 8)", "", null])
+      expect(parseLoadProgress(other)).toBeUndefined();
+    // Whatever `formatLoadProgress` writes, this reads.
+    expect(
+      parseLoadProgress(
+        formatLoadProgress({ progress: 0.5, text: "Fetching param cache" }),
+      ),
+    ).toEqual({ phase: "downloading", percent: 50 });
   });
 });
 

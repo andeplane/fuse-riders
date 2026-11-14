@@ -105,6 +105,55 @@ describe("Clippy as an agent, on the desktop", () => {
     );
   });
 
+  it("shows the model coming in as a panel in the chat: what, how large, how far", async () => {
+    const context = await renderClippy();
+    let ready: () => void = () => undefined;
+    context.llmFactory.loadGate = new Promise<void>((resolve) => {
+      ready = resolve;
+    });
+    context.llmFactory.script = [call("answer", { text: "Hello!" })];
+    await ask(context.user, "hi");
+    await waitFor(() => expect(context.llmFactory.loads).toHaveLength(1));
+    const report = context.llmFactory.loads[0]?.onProgress;
+    const panel = () =>
+      within(balloon()).getByRole("status", { name: "Model download" });
+    const bar = () =>
+      within(panel()).getByRole("progressbar", {
+        name: "Model download progress",
+      });
+
+    act(() => report?.({ progress: 0.42, text: "Fetching param cache[3/10]" }));
+    await waitFor(() =>
+      expect(panel()).toHaveTextContent("Downloading the model 42%..."),
+    );
+    expect(panel()).toHaveTextContent(
+      "Clippy Pro (Qwen 2.5 1.5B), about 880 MB. It downloads once and then stays in this browser.",
+    );
+    expect(bar()).toHaveAttribute("aria-valuenow", "42");
+    expect(bar().firstElementChild).toHaveStyle({ width: "42%" });
+
+    act(() =>
+      report?.({ progress: 0.8, text: "Loading model from cache[8/10]" }),
+    );
+    await waitFor(() => expect(bar()).toHaveAttribute("aria-valuenow", "80"));
+    expect(panel()).toHaveTextContent(
+      "Already downloaded: loading it from this browser.",
+    );
+    act(() => report?.({ progress: 0.1, text: "Start to fetch params" }));
+    await waitFor(() =>
+      expect(panel()).toHaveTextContent("Getting the model ready."),
+    );
+    act(() => report?.({ progress: 1, text: "Finish loading on WebGPU" }));
+    await waitFor(() => expect(panel()).toHaveTextContent("Almost there."));
+    expect(bar()).toHaveAttribute("aria-valuenow", "100");
+
+    act(() => ready());
+    await waitFor(() => expect(log()).toHaveTextContent("Hello!"));
+    expect(
+      within(balloon()).queryByRole("status", { name: "Model download" }),
+    ).toBeNull();
+  });
+
   it("does not let the model report a part of the request it never did", async () => {
     const context = await renderClippy();
     context.llmFactory.script = [

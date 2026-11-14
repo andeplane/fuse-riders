@@ -73,6 +73,13 @@ export function findLlmModel(id: string): LlmModel | undefined {
   return LLM_MODELS.find((model) => model.id === id);
 }
 
+/** "about 290 MB", "about 1.8 GB": a download size as the Control Panel and the balloon show it. */
+export function formatDownload(megabytes: number): string {
+  return megabytes < 1000
+    ? `about ${megabytes} MB`
+    : `about ${(megabytes / 1000).toFixed(1)} GB`;
+}
+
 /** The label for an id, or the id itself for a model not in the catalogue. */
 export function modelLabel(id: string): string {
   return findLlmModel(id)?.label ?? id;

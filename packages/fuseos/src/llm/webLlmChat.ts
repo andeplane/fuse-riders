@@ -71,6 +71,30 @@ export function formatLoadProgress(report: LoadProgress): string {
   return `${verb} ${percent}%`;
 }
 
+export type LoadPhase = "downloading" | "loading" | "preparing" | "warming";
+
+/**
+ * A progress line of `formatLoadProgress` read back as its phase and percentage, for the balloon's download
+ * panel; undefined for any other progress ("Thinking", a step of the agent loop).
+ */
+export function parseLoadProgress(
+  text: string | null,
+): { phase: LoadPhase; percent: number } | undefined {
+  if (text === "Warming up the model")
+    return { phase: "warming", percent: 100 };
+  const match = /^(Downloading|Loading|Preparing) the model (\d+)%$/.exec(
+    text ?? "",
+  );
+  if (!match) return undefined;
+  const phase: LoadPhase =
+    match[1] === "Downloading"
+      ? "downloading"
+      : match[1] === "Loading"
+        ? "loading"
+        : "preparing";
+  return { phase, percent: Number(match[2]) };
+}
+
 /** A model failed to load; the rules answer from now on. Plain words for the balloon. */
 export function loadFailureReason(modelId: string, error: unknown): string {
   const message =

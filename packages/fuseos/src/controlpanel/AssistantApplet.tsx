@@ -1,7 +1,9 @@
 import { useContext, useEffect, useState } from "react";
 
 import { LlmDepsContext } from "../llm/llmDepsContext";
-import { LLM_MODELS } from "../llm/modelCatalog";
+import { formatDownload, LLM_MODELS } from "../llm/modelCatalog";
+
+export { formatDownload } from "../llm/modelCatalog";
 
 import { SystemProbeContext } from "./systemProbeContext";
 import { useControlPanelViewModel } from "./useControlPanelViewModel";
@@ -15,13 +17,6 @@ const ASSISTANT_FLAGS: {
   { key: "animate", label: "Play animations" },
   { key: "sounds", label: "Play sounds" },
 ];
-
-/** "about 290 MB", "about 1.8 GB": the download as the model list shows it. */
-export function formatDownload(megabytes: number): string {
-  return megabytes < 1000
-    ? `about ${megabytes} MB`
-    : `about ${(megabytes / 1000).toFixed(1)} GB`;
-}
 
 export const NO_WEBGPU_NOTICE =
   "This browser has no WebGPU, so Clippy follows simple commands instead of running a model. Chrome or Edge on a computer runs the model.";
