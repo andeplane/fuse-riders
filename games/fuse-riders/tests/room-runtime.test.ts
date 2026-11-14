@@ -869,6 +869,41 @@ test("a burst of settings saves reaches every rider within a second, with no sna
   guest.stop();
 });
 
+test("settings saves lost on the way are repaired by a nack even when the repair does not fit one packet", () => {
+  const { net, join } = room();
+  const host = join(HOST, "Host");
+  net.step(200);
+  const guest = join(GUESTS[0]!, "Guest");
+  net.step(900);
+  const requests = () =>
+      net.reliableLog.filter((message) => message.type === "snapshotRequest")
+        .length,
+    before = requests();
+  const save = (length: number) => {
+    assert.equal(
+      host.command({ type: "settings", settings: { ...settings, length } }),
+      true,
+    );
+    net.step(50);
+  };
+  // Five saves never leave the host, then three more arrive: the guest's copy of the host's stream has a gap, and the
+  // six entries from that gap on are more than one packet holds (a settings entry is about 260 bytes, four to a packet).
+  // The repair has to carry the first missing entry, or the guest asks for it again and again until it resyncs.
+  net.muted.add(HOST);
+  for (const length of [5, 6, 7, 8, 9]) save(length);
+  net.muted.delete(HOST);
+  for (const length of [8, 7, 6]) save(length);
+  net.step(700);
+  assert.equal(
+    world(guest).state.settings.length,
+    6,
+    "the guest caught up inside a second, before the stalled-gap resync",
+  );
+  assert.equal(requests(), before, "the nack repaired it, with no snapshot");
+  host.stop();
+  guest.stop();
+});
+
 test("after a lobby reset drops an absent rider, a joiner still receives a valid world", () => {
   const { net, join } = room();
   const host = join(HOST, "Host");

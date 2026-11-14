@@ -84,6 +84,7 @@ function recorder() {
         ...args.filter((a) => typeof a === "number"),
       ]),
     translate: note("translate"),
+    scale: note("scale"),
     beginPath: note("beginPath"),
     closePath: note("closePath"),
     moveTo: note("moveTo"),

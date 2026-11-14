@@ -3,7 +3,7 @@ import { demoCanvas } from "fuse-ui";
 import { fuseballGame, DEFAULT_SETTINGS } from "../online/game.js";
 import { createScene } from "../render/scene.js";
 export function createAttract(host: HTMLElement) {
-  const demo = createAttractGame(fuseballGame, DEFAULT_SETTINGS);
+  const demo = createAttractGame(fuseballGame, DEFAULT_SETTINGS, { bots: 2 });
   const renderer = createScene(demoCanvas(host));
   return {
     advance: demo.advance,

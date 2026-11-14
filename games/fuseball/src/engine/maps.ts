@@ -1,8 +1,10 @@
 import { generateLevel } from "./generate.js";
+import { TEAM_MAPS, TEAM_MAP_IDS, type TeamArenaId } from "./team-maps.js";
 import { SUB } from "./math.js";
 
 /**
- * The arenas, as data in whole pixels on the 640×360 field. Every one is its own mirror image left to right, with
+ * The arenas, as data in whole pixels on the map's field: 640×360 for a duel, bigger for the team arenas
+ * (`team-maps.ts`). Every one is its own mirror image left to right, with
  * slot 0 starting on the left and slot 1 on the right, so neither rider is favoured.
  *
  * An axis that wraps has no edge: what leaves one side comes back on the other. A rect may therefore run past the
@@ -54,10 +56,18 @@ export type ArenaId = (typeof MAP_IDS)[number];
  */
 export const RANDOM = "random";
 export const RANDOM_INDEX = 255;
-export type MapId = ArenaId | typeof RANDOM;
+export { TEAM_MAP_IDS, TEAM_MAPS, type TeamArenaId };
+/** A team arena's place in a checkpoint: `TEAM_INDEX` plus its place in `TEAM_MAP_IDS`, clear of the duel arenas'. */
+export const TEAM_INDEX = 128;
+export type MapId = ArenaId | TeamArenaId | typeof RANDOM;
+export const isTeamMapId = (value: unknown): value is TeamArenaId =>
+  typeof value === "string" &&
+  (TEAM_MAP_IDS as readonly string[]).includes(value);
 export const isMapId = (value: unknown): value is MapId =>
   typeof value === "string" &&
-  (value === RANDOM || (MAP_IDS as readonly string[]).includes(value));
+  (value === RANDOM ||
+    (MAP_IDS as readonly string[]).includes(value) ||
+    isTeamMapId(value));
 /** A level's seed: any unsigned 32-bit integer. Every one of them rolls a playable level. */
 export const MAX_SEED = 0xffff_ffff;
 export const isSeed = (value: unknown): value is number =>
@@ -117,18 +127,27 @@ function along(mover: Mover, step: number): { at: number; of: number } {
     moved = gone < of ? gone : of;
   return { at: phase < half ? moved : of - moved, of };
 }
+/** The field every duel arena is played on, in pixels. */
+export const DUEL_W = 640,
+  DUEL_H = 360;
 
 export interface MapDef {
   id: MapId;
   name: string;
+  /** The field's size in pixels. */
+  w: number;
+  h: number;
   wrapX: boolean;
   wrapY: boolean;
   solids: readonly Rect[];
   goals: readonly Goal[];
   /** While the ball's centre is inside one, the whole arena runs in slow motion, slower the nearer its centre. */
   clouds: readonly Circle[];
-  /** Where each slot's rider stands (its centre) when a point starts. */
-  spawns: readonly [Pt, Pt];
+  /**
+   * Where each rider stands (its centre) when a point starts, in the order of `World.riders`: even places are the
+   * left side's, odd the right's. A duel arena has two; a team arena has one for every rider it holds.
+   */
+  spawns: readonly [Pt, Pt, ...Pt[]];
   /** Where the ball's centre waits out the countdown. */
   ballAnchor: Pt;
   /** The gadgets, in a fixed order: a barrier's state in the world is found by its place here. */
@@ -141,8 +160,11 @@ export interface MapDef {
 }
 type Gadgets = "barriers" | "bumpers" | "portals" | "ledges" | "movers";
 /** A map as it is written down: the gadgets it does not have are left out. */
-type MapSpec = Omit<MapDef, Gadgets> & Partial<Pick<MapDef, Gadgets>>;
-const arena = (spec: MapSpec): MapDef => ({
+export type MapSpec = Omit<MapDef, Gadgets | "w" | "h"> &
+  Partial<Pick<MapDef, Gadgets | "w" | "h">>;
+export const arena = (spec: MapSpec): MapDef => ({
+  w: DUEL_W,
+  h: DUEL_H,
   barriers: [],
   bumpers: [],
   portals: [],
@@ -655,7 +677,13 @@ function rolledLevel(seed: number): MapDef {
 
 /** The arena `id` names. Only the random one reads `seed`: a seed that is not one rolls as seed 0. */
 export const mapOf = (id: MapId, seed = 0): MapDef =>
-  id === RANDOM ? rolledLevel(isSeed(seed) ? seed : 0) : MAPS[id];
+  id === RANDOM
+    ? rolledLevel(isSeed(seed) ? seed : 0)
+    : isTeamMapId(id)
+      ? TEAM_MAPS[id]
+      : MAPS[id];
+/** The most riders a side the arena has marks for. */
+export const teamSizeOf = (map: MapDef): number => map.spawns.length >> 1;
 /** The arena a world or a view of one is played in. */
 export const arenaOf = (at: { mapId: MapId; seed: number }): MapDef =>
   mapOf(at.mapId, at.seed);

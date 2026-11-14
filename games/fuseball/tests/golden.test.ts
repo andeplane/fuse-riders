@@ -7,6 +7,7 @@ import {
   DOWN,
   LEFT,
   MAP_IDS,
+  TEAM_MAP_IDS,
   RIGHT,
   RULES,
   botInput,
@@ -65,16 +66,32 @@ const TICKS = 6000,
 
 function record(bots = false): Record<string, string[]> {
   const recorded: Record<string, string[]> = {};
-  const arenas: { mapId: MapId; seed: number }[] = [
-    ...MAP_IDS.map((mapId) => ({ mapId, seed: 0 })),
-    ...[0, 1, 4, 5].map((seed) => ({ mapId: "random" as const, seed })),
+  const arenas: { mapId: MapId; seed: number; riders: number }[] = [
+    ...MAP_IDS.map((mapId) => ({ mapId, seed: 0, riders: 2 })),
+    ...[0, 1, 4, 5].map((seed) => ({
+      mapId: "random" as const,
+      seed,
+      riders: 2,
+    })),
+    // The team arenas: a 3v3 and a 2v2 by turns under the pilots. The bots, which cost more with every rider, play
+    // one 2v2, and for a quarter as long.
+    ...TEAM_MAP_IDS.map((mapId, place) => ({
+      mapId,
+      seed: 0,
+      riders: place % 2 === 0 ? 6 : 4,
+    })).slice(0, bots ? 1 : TEAM_MAP_IDS.length),
   ];
-  for (const { mapId, seed } of arenas) {
-    const world = createWorld(mapId, ["bot:1", "bot:2"], seed),
+  for (const { mapId, seed, riders } of arenas) {
+    const ticks = riders > 2 && bots ? TICKS / 4 : TICKS;
+    const world = createWorld(
+        mapId,
+        Array.from({ length: riders }, (_, i) => `bot:${i + 1}`),
+        seed,
+      ),
       next = scripted(20261113),
       hashes: string[] = [];
     const hash = () => hashes.push(fnv(JSON.stringify(encodeWorld(world))));
-    for (let tick = 1; tick <= TICKS && world.phase !== "over"; tick++) {
+    for (let tick = 1; tick <= ticks && world.phase !== "over"; tick++) {
       const inputs = new Map(
         world.riders.map((rider) => [
           rider.id,
