@@ -179,8 +179,7 @@ export function createLandingCard(options: LandingOptions): LandingCard {
     onPlay: runCreate,
     onSinglePlayer: options.onSolo,
     singlePlayerContent: () =>
-      solo &&
-      singlePlayerOptions.children.length > (options.soloInBar ? 0 : 1)
+      solo && singlePlayerOptions.children.length > (options.soloInBar ? 0 : 1)
         ? [singlePlayerOptions]
         : [],
     ...(solo && options.soloInBar

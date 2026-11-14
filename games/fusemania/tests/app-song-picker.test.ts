@@ -62,7 +62,9 @@ const state = (over: Partial<PickerState> = {}): PickerState => ({
 
 function setup(
   songs: readonly SongInfo[] = THREE,
-  extra: Pick<SongPickerOptions, "best" | "hideMode" | "cover" | "packs" | "tools"
+  extra: Pick<
+    SongPickerOptions,
+    "best" | "hideMode" | "cover" | "packs" | "tools"
   > = {},
 ) {
   const { document, window } = parseHTML(
