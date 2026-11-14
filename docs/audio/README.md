@@ -3,7 +3,7 @@
 Shared module: `fuse-ui/game-audio` (`createGameAudio`, `bindAudioInput`, `createAudioControl`, plus `fuse-ui/game-audio.css`).
 It owns one audio bus per page, the mute and the music/effects volumes (remembered in `localStorage` under `fuse-audio-v1`, shared by every game), the start on the first key, touch or pad press, `M` to mute, ducking (`audio.duck()`), and lazy looping songs. `?mute` keeps a preview silent and writes nothing.
 
-A game keeps only its own sounds: `games/<id>/src/app/audio.ts` exports `createSfx(audio)` (cue to `audio.tone` / `noise` / `jingle`) and a `<GAME>_SONGS` list. Wiring: create the audio once in `main.ts`, call `audio.setSongs(SONGS, import.meta.env.BASE_URL)` and `audio.startMusic()`, call `bindAudioInput(audio, document, window)`, and put `createAudioControl(document, audio).element` in the header. Tests use `fuse-ui/game-audio-fake`.
+A game keeps only its own sounds: `games/<id>/src/app/audio.ts` exports `createSfx(audio)` (cue to `audio.tone` / `noise` / `jingle`, and `audio.hum()` for a sound that lasts, such as an engine) and a `<GAME>_SONGS` list. Wiring: create the audio once in `main.ts`, call `audio.setSongs(SONGS, import.meta.env.BASE_URL)` and `audio.startMusic()`, call `bindAudioInput(audio, document, window)`, and put `createAudioControl(document, audio).element` in the header. Tests use `fuse-ui/game-audio-fake`.
 
 Effects are synthesised, so they cost no files. Songs are mp3 files in `public/music/<game>/`, about 2 to 3 minutes, 128 kbps or lower so a track stays near 2 to 3 MB, and made to loop. Nothing is fetched until the player's first input and music is audible.
 
@@ -27,4 +27,8 @@ To add songs: drop the mp3s in `public/music/<game>/` and list them in the game'
 
 ### Elasto Fuse
 
-Not wired yet; use `fuse-ui/game-audio` as above and add a third folder.
+Effects and the engine are wired (`games/elasto-fuse/src/app/audio.ts`; the engine is `audio.hum()`, a sustained voice on the effects bus). No songs yet: `ELASTO_SONGS` is empty, so the music slider has nothing to play until mp3s land in `public/music/elasto-fuse/`. Prompt ideas (a springy trials bike over neon hills, focused rather than frantic, since a ride is retried many times):
+
+1. "Springy Hills": instrumental chiptune synthwave, bouncy plucked bass, bright arpeggios, light breakbeat, playful and focused, 112 bpm, major key, loopable, no vocals
+2. "Apple Run": instrumental retro arcade funk, rubbery synth bass, wah clav, crisp drums, 8-bit lead melody, cheerful momentum, 120 bpm, loopable, no vocals
+3. "Night Trials": instrumental mellow synthwave, warm pads, steady four-on-the-floor, glassy bell lead, calm concentration, 104 bpm, minor key, loopable, no vocals
