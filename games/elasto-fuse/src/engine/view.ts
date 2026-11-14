@@ -39,7 +39,7 @@ export interface RiderView {
   status: RiderStatus;
   bike: BikeView;
   /** The apples eaten this run: bit `n` is the level's `n`th apple. */
-  taken: number;
+  taken: bigint;
   apples: number;
   /** Which way is down: 0 up, 1 down, 2 left, 3 right. */
   gravity: number;
@@ -72,9 +72,9 @@ export interface WorldView {
   riders: RiderView[];
 }
 
-const bitCount = (bits: number): number => {
+const bitCount = (bits: bigint): number => {
   let count = 0;
-  for (; bits; bits &= bits - 1) count++;
+  for (; bits; bits &= bits - 1n) count++;
   return count;
 };
 

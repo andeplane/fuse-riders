@@ -9,22 +9,21 @@ import { HOVER_TAPS, type Device } from "./guide.js";
 import { seatTitle } from "./presenter.js";
 
 /**
- * The card over the arena while a game counts down: the first game of a set opens on "three
- * ways to win", its three pictures arriving one by one, and the title turns into 3, 2, 1 for the last three seconds.
- * Later games count down only. This seat's controls stay on the card the whole time, so nobody starts a game not
- * knowing the button. A watcher gets no controls.
+ * The card over the arena while a game counts down: the first game of a set opens on "three ways to win", all three
+ * pictures there from the first frame and unchanged until play starts, and the title turns into 3, 2, 1 for the last
+ * three seconds. Nothing on the card arrives late, blinks or loops: a player reads it in the order they choose, not
+ * the order the card reveals. Later games count down only. This seat's controls stay on the card the whole time, so
+ * nobody starts a game not knowing the button. A watcher gets no controls.
  */
 const TICKS_PER_SECOND = 20;
-/** When the title appears and each win picture after it, in log ticks from the countdown's start (0.16, 1.6, 2.3, 3.0 s). */
-export const TITLE_AT = 3;
-export const WIN_STAGES: readonly {
+/** The three ways to win, always all three: the card never stages them. */
+export const WIN_WAYS: readonly {
   kind: VictoryKind;
-  at: number;
   caption: string;
 }[] = [
-  { kind: "military", at: 32, caption: `Kill the Queen ${QUEEN_EGGS}×` },
-  { kind: "economy", at: 46, caption: "Fill your hive with berries" },
-  { kind: "snail", at: 60, caption: "Ride the snail home" },
+  { kind: "military", caption: `Kill the Queen ${QUEEN_EGGS}×` },
+  { kind: "economy", caption: "Fill your hive with berries" },
+  { kind: "snail", caption: "Ride the snail home" },
 ];
 /** The last ticks of a countdown show 3, 2, 1. */
 export const FINAL_TICKS = 3 * TICKS_PER_SECOND;
@@ -32,10 +31,19 @@ export const FINAL_TICKS = 3 * TICKS_PER_SECOND;
 export interface CountdownState {
   /** The game's number in its set: the first opens with the three ways to win. */
   round: number;
-  /** Log ticks since the countdown began, and until the game's first step. */
+  /** Log ticks since the countdown began; the card reads only `left`, so nothing on it is staged by time. */
   elapsed: number;
+  /** Log ticks until the game's first step. */
   left: number;
 }
+/**
+ * What this seat's role can and cannot do, where the card's win pictures might otherwise mislead: a Queen neither
+ * carries a berry nor rides the snail, and a player on her asked how to ride it. A Worker's own lines already say it.
+ */
+export const roleNote = (slot: number): string =>
+  slot >= 0 && isQueenSlot(slot)
+    ? "Queens cannot carry berries or ride the snail · play a Worker to carry berries and ride the snail"
+    : "";
 export interface CountdownCard {
   /** "THREE WAYS TO WIN", "GET READY", or the 3, 2, 1. */
   title: string;
@@ -45,8 +53,10 @@ export interface CountdownCard {
   team: number | undefined;
   /** The game opens a set: a big card over a dimmed arena, not a strip at its foot. */
   first: boolean;
-  /** The win pictures shown so far. */
+  /** The win pictures: all three, from the countdown's first frame, or none after the first game of a set. */
   wins: readonly { kind: VictoryKind; caption: string }[];
+  /** One line about what this seat's role cannot do; "" when its own lines already cover it. */
+  role: string;
   /** The controls, one row per action, this seat's own first. */
   controls: readonly ControlRow[];
   /**
@@ -131,22 +141,17 @@ export function countdownCard(
     final = state.left <= FINAL_TICKS,
     title = final
       ? String(Math.max(1, Math.ceil(state.left / TICKS_PER_SECOND)))
-      : !first
-        ? "GET READY"
-        : state.elapsed >= TITLE_AT
-          ? "THREE WAYS TO WIN"
-          : "",
+      : first
+        ? "THREE WAYS TO WIN"
+        : "GET READY",
     who = slot < 0 ? "watching" : `you are the ${seatTitle(slot)}`;
   return {
     title,
     subtitle: `GAME ${state.round} · ${mapName.toUpperCase()} · ${who.toUpperCase()}`,
     team: slot < 0 ? undefined : slot % 2,
     first,
-    wins: first
-      ? WIN_STAGES.filter((stage) => state.elapsed >= stage.at).map(
-          ({ kind, caption }) => ({ kind, caption }),
-        )
-      : [],
+    wins: first ? WIN_WAYS : [],
+    role: first ? roleNote(slot) : "",
     controls: controlRows(slot),
     device,
   };
@@ -169,14 +174,17 @@ export function deviceFor(clues: DeviceClues): Device {
   return clues.coarse || clues.controller ? "touch" : "keys";
 }
 
-/** A string that changes exactly when the card's content does, so the page rebuilds it only then. */
+/**
+ * A string that changes exactly when the card's body does, so the page rebuilds it only then. The title is left out
+ * on purpose: it counts 3, 2, 1 every second, and rebuilding the pictures under it is what made them flash.
+ */
 export const cardKey = (card: CountdownCard): string =>
   JSON.stringify([
-    card.title,
     card.subtitle,
     card.team,
     card.first,
     card.wins.map((win) => win.kind),
+    card.role,
     card.controls,
     card.device,
   ]);

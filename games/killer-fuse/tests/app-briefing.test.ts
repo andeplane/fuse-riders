@@ -3,13 +3,13 @@ import assert from "node:assert/strict";
 import { QUEEN_EGGS } from "../src/engine/index.js";
 import {
   FINAL_TICKS,
-  TITLE_AT,
-  WIN_STAGES,
+  WIN_WAYS,
   buttonLabel,
   cardKey,
   countdownCard,
   deviceFor,
   controlRows,
+  roleNote,
   type CountdownCard,
   type CountdownState,
   type DeviceClues,
@@ -34,6 +34,7 @@ const card = (state: CountdownState, slot = 0): CountdownCard =>
 const texts = (shown: CountdownCard): string[] => [
   shown.title,
   shown.subtitle,
+  shown.role,
   ...shown.wins.map((win) => win.caption),
   ...shown.controls.flatMap((row) => [
     row.action,
@@ -109,28 +110,26 @@ test("every seat sees all four controls as rows, its own role's first", () => {
   );
 });
 
-test("the first game opens on the three ways to win, one picture at a time, with the controls throughout", () => {
-  assert.equal(card(first(0)).title, "", "a dark beat before the title");
-  assert.equal(card(first(TITLE_AT)).title, "THREE WAYS TO WIN");
+test("the first game shows all three ways to win from its first frame, with the controls throughout", () => {
+  assert.equal(card(first(0)).title, "THREE WAYS TO WIN", "no dark beat first");
   assert.deepEqual(
-    WIN_STAGES.map((stage) => stage.at),
-    [32, 46, 60],
-    "1.6, 2.3 and 3.0 s at 20 ticks a second",
-  );
-  const counts = [0, 31, 32, 45, 46, 59, 60, 100].map(
-    (elapsed) => card(first(elapsed)).wins.length,
-  );
-  assert.deepEqual(counts, [0, 0, 1, 1, 2, 2, 3, 3]);
-  assert.deepEqual(
-    card(first(60)).wins.map((win) => win.kind),
+    WIN_WAYS.map((way) => way.kind),
     ["military", "economy", "snail"],
   );
-  for (const win of card(first(60)).wins) {
+  // Every frame of the countdown carries all three, identical: nothing arrives, nothing leaves.
+  const ticks = [0, 1, 10, 31, 32, 45, 46, 59, 60, 100, 140, 160];
+  for (const elapsed of ticks)
+    assert.deepEqual(
+      card(first(elapsed)).wins,
+      WIN_WAYS,
+      `tick ${elapsed} shows all three`,
+    );
+  for (const win of WIN_WAYS) {
     const words = win.caption.split(" ").length;
     assert.ok(words >= 3 && words <= 5, win.caption);
   }
-  assert.match(card(first(60)).wins[0]!.caption, new RegExp(`${QUEEN_EGGS}×`));
-  for (const elapsed of [0, 10, 60, 120, 160])
+  assert.match(WIN_WAYS[0]!.caption, new RegExp(`${QUEEN_EGGS}×`));
+  for (const elapsed of ticks)
     assert.equal(card(first(elapsed)).controls.length, 4, "controls stay");
   const opening = card(first(10), 3);
   assert.equal(opening.first, true);
@@ -139,6 +138,42 @@ test("the first game opens on the three ways to win, one picture at a time, with
     opening.subtitle,
     "GAME 1 · TWIN HIVES · YOU ARE THE PINK WORKER",
   );
+});
+
+test("nothing on the card changes over a countdown except the 3, 2, 1", () => {
+  for (const slot of [-1, 0, 3])
+    for (const device of ["keys", "pad", "touch"] as const) {
+      const frames = Array.from({ length: 162 }, (_, elapsed) =>
+        countdownCard(first(elapsed), slot, device, "Twin Hives"),
+      );
+      const bodies = new Set(frames.map((frame) => cardKey(frame)));
+      assert.equal(
+        bodies.size,
+        1,
+        `slot ${slot} on ${device}: one body for the whole countdown`,
+      );
+      const titles = [...new Set(frames.map((frame) => frame.title))];
+      assert.deepEqual(
+        titles,
+        ["THREE WAYS TO WIN", "3", "2", "1"],
+        "the title is the only thing that moves, and only forwards",
+      );
+    }
+});
+
+test("a Queen is told she cannot carry berries or ride the snail", () => {
+  const queen = card(first(0), 0);
+  assert.equal(queen.role, roleNote(0));
+  assert.match(queen.role, /Queens cannot carry berries or ride the snail/);
+  assert.match(queen.role, /play a Worker to carry berries and ride the snail/);
+  assert.equal(roleNote(1), roleNote(0), "both Queens");
+  // A Worker keeps its own lines and gets no extra one; a watcher plays nothing.
+  assert.equal(card(first(0), 2).role, "");
+  assert.equal(card(first(0), 5).role, "");
+  assert.equal(card(first(0), -1).role, "");
+  assert.equal(roleNote(-1), "");
+  // Later games count down only, so the line goes with the rest of the briefing.
+  assert.equal(card({ round: 2, elapsed: 0, left: 61 }, 0).role, "");
 });
 
 test("the last three seconds count 3, 2, 1, and later games only count down", () => {
@@ -155,6 +190,7 @@ test("the last three seconds count 3, 2, 1, and later games only count down", ()
     3,
     "the pictures stay for 3, 2, 1",
   );
+  assert.equal(card(first(140)).wins.length, card(first(0)).wins.length);
   const later = card({ round: 2, elapsed: 0, left: 61 });
   assert.deepEqual(
     [later.title, later.first, later.wins.length, later.controls.length],
@@ -189,12 +225,19 @@ test("the device: what was used last, else a gamepad, else touch on a phone, els
   assert.equal(deviceFor(clues({ last: "touch" })), "touch");
 });
 
-test("the card's key changes with what it shows and only then", () => {
+test("the card's key changes with its body and never with the title", () => {
+  // The 3, 2, 1 is outside the key on purpose: rebuilding the pictures under it is what made them flash.
   assert.equal(cardKey(card(first(33))), cardKey(card(first(34))));
-  assert.notEqual(cardKey(card(first(31))), cardKey(card(first(32))));
+  assert.equal(cardKey(card(first(31))), cardKey(card(first(32))));
+  assert.equal(cardKey(card(first(100))), cardKey(card(first(160))));
   assert.notEqual(
     cardKey(card(first(10))),
     cardKey(countdownCard(first(10), 0, "touch", "Twin Hives")),
+  );
+  assert.notEqual(
+    cardKey(card(first(10), 0)),
+    cardKey(card(first(10), 2)),
+    "a Queen's role line is part of the body",
   );
 });
 

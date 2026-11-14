@@ -8,7 +8,7 @@ test("Riders smoke URL resolves from the site root including a GitHub Pages base
     "http://localhost:8787/fuse-riders/",
   );
   assert.equal(
-    ridersPageUrl("https://andeplane.github.io/fuse-riders/"),
-    "https://andeplane.github.io/fuse-riders/fuse-riders/",
+    ridersPageUrl("https://andeplane.github.io/fuse-games/"),
+    "https://andeplane.github.io/fuse-games/fuse-riders/",
   );
 });

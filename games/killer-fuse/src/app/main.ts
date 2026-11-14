@@ -56,13 +56,14 @@ import {
   watchPads,
 } from "./controls.js";
 import {
+  paint,
   readIconSheets,
   unitIcons,
   winIcons,
-  type Icon,
   type IconSheets,
 } from "./art.js";
-import { buttonLabel, cardKey, countdownCard, deviceFor } from "./briefing.js";
+import { buttonLabel, countdownCard, deviceFor } from "./briefing.js";
+import { createBriefCardView } from "./brief-view.js";
 import { highlightUntil, type UnitSnap } from "./highlight.js";
 import { MUSIC_UNLOCK_EVENTS, Music, browserMusicDeps } from "./music.js";
 import { lobbyTips, tipIndex } from "./tips.js";
@@ -92,6 +93,15 @@ import {
   WINS,
   type Device,
 } from "./guide.js";
+import {
+  FRESH_STEER,
+  ROLE_LEGEND,
+  readSoloSlot,
+  SOLO_SETUP_TRIES,
+  soloSetup,
+  writeSoloSlot,
+  type SoloSteer,
+} from "./solo-seat.js";
 import { createGameMetrics } from "./metrics.js";
 import {
   BOT_LEVELS,
@@ -194,18 +204,6 @@ const loadManifest = () =>
   (manifest ??= fetch(`${ART_URL}manifest.json`)
     .then(async (response) => (sheets = readIconSheets(await response.json())))
     .catch(() => ({})));
-/** Draws `icon` as the background of `slot`. */
-function paint(slot: HTMLElement, icon: Icon | undefined): void {
-  if (!icon) return;
-  Object.assign(slot.style, {
-    width: `${icon.width}px`,
-    height: `${icon.height}px`,
-    backgroundImage: `url("${icon.url}")`,
-    backgroundSize: icon.size,
-    backgroundPosition: icon.position,
-  });
-}
-
 /** This device's "Hold to flap" choice, kept in local storage; the room's controls follow a change at once. */
 let holdToFlap = holdToFlapFrom(store.getItem(HOLD_TO_FLAP_KEY));
 let onHoldToFlap: (on: boolean) => void = () => undefined;
@@ -561,14 +559,8 @@ function room(solo: boolean): void {
     },
   });
   // Over the countdown: this seat's controls and the three ways to win.
-  const card = el("aside", "", "kf-brief"),
-    cardTitle = el("strong", "", "kf-brief-title"),
-    cardSub = el("p", "", "kf-brief-sub"),
-    cardWins = el("ul", "", "kf-brief-wins"),
-    cardControls = el("div", "", "kf-brief-controls");
-  card.append(cardTitle, cardSub, cardWins, cardControls);
-  card.setAttribute("role", "status");
-  card.hidden = true;
+  const briefCard = createBriefCardView(document),
+    card = briefCard.element;
   void loadManifest();
   // While people wait in the lobby, a tip every 15 s; the first is the controls of the device last used.
   const tipBox = el("section", "", "kf-tip"),
@@ -652,7 +644,10 @@ function room(solo: boolean): void {
     start = button("START", "fui-button-primary kf-start"),
     lobbyNote = el("p", "", "fui-lobby-note"),
     tvLink = button("OPEN TV SCREEN", "kf-tv"),
-    lobbyActions = el("div", "", "kf-actions");
+    lobbyActions = el("div", "", "kf-actions"),
+    // What each role does, beside the slots a player is choosing between.
+    roleLegend = el("ul", "", "kf-roles");
+  roleLegend.append(...ROLE_LEGEND.map((line) => el("li", line)));
   if (!solo)
     lobby.append(
       createInviteCard({
@@ -724,6 +719,15 @@ function room(solo: boolean): void {
   const remembered = seatName(
     social.playerName(store.getItem(names.name)) ?? "",
   );
+  /**
+   * Solo: the role this device chose last, and whether the page is still opening the room on the lobby. A slot the
+   * player actually asks for is remembered; the one the page restores for them is not a fresh choice and is not.
+   */
+  let soloSteer: SoloSteer = FRESH_STEER;
+  const soloSlot = solo && !lesson ? readSoloSlot(store) : undefined;
+  const chooseSolo = (slot: number | undefined): void => {
+    if (solo && !lesson && slot !== undefined) writeSoloSlot(store, slot);
+  };
   /** The slot admission dialog the shared layout parks the form in; a command answered, it has done its job. */
   function closeAdmission(): void {
     const dialog = nameEntry.form.closest("dialog");
@@ -737,6 +741,7 @@ function room(solo: boolean): void {
     onSubmit: (name) => {
       store.setItem(names.name, name);
       const slot = requestedRoomSlot(nameEntry.form);
+      chooseSolo(slot);
       // A seated player tapping an open slot moves there; anyone else takes it by joining.
       if (model?.seated && slot !== undefined) runtime.seat(slot);
       else
@@ -832,7 +837,15 @@ function room(solo: boolean): void {
     capacity: ROOM_CAPACITY,
     join: nameEntry.form,
     settings: [settingsBox, settingsLine],
-    actions: [watchers, takeSeat, lobbyNote, lobbyActions, tipBox, howToPlay()],
+    actions: [
+      roleLegend,
+      watchers,
+      takeSeat,
+      lobbyNote,
+      lobbyActions,
+      tipBox,
+      howToPlay(),
+    ],
     background: demoBackground,
     slotColor,
     slotLabel,
@@ -936,10 +949,10 @@ function room(solo: boolean): void {
           const seat = seatRows.find((other) => other.id === row.id);
           if (!seat) return;
           // Asking for the seat this device holds takes a wish back.
-          const mine = model?.arena.localSlot ?? -1;
-          runtime.seat(
-            seat.action === "withdraw" && mine >= 0 ? mine : seat.slot,
-          );
+          const mine = model?.arena.localSlot ?? -1,
+            wanted = seat.action === "withdraw" && mine >= 0 ? mine : seat.slot;
+          chooseSolo(wanted);
+          runtime.seat(wanted);
         };
         seatActions.set(row.id, action);
       }
@@ -1000,58 +1013,15 @@ function room(solo: boolean): void {
       else if (countBeat) driver.cue({ name: "go", volume: 0.9, pan: 0 });
       countBeat = beat;
     }
-    card.hidden = !shown;
     // The card counts down; the banner is for the pause after a game.
-    if (shown) banner.hidden = true;
     if (shown) {
-      const key = cardKey(shown) + String(Object.keys(sheets).length);
-      if (card.dataset.key !== key) {
-        card.dataset.key = key;
-        card.dataset.team = shown.team === undefined ? "" : String(shown.team);
-        card.dataset.first = String(shown.first);
-        cardTitle.textContent = shown.title;
-        cardTitle.hidden = !shown.title;
-        cardSub.textContent = shown.subtitle;
-        const pictures = winIcons(sheets, ART_URL, shown.team ?? -1, 40);
-        cardWins.replaceChildren(
-          ...shown.wins.map((win) => {
-            const item = el("li", "", "kf-brief-win"),
-              picture = el("i", "", "kf-brief-icon");
-            picture.setAttribute("aria-hidden", "true");
-            paint(picture, pictures[win.kind]);
-            item.dataset.kind = win.kind;
-            item.append(picture, el("span", win.caption));
-            return item;
-          }),
-        );
-        cardWins.hidden = shown.wins.length === 0;
-        // One row per action: its name, the caps (keyboard and gamepad, or the touch buttons) and a short note.
-        const caps = (labels: readonly string[], kind: string) => {
-          const cell = el("span", "", `kf-caps kf-caps-${kind}`);
-          cell.append(...labels.map((label) => el("kbd", label)));
-          return cell;
-        };
-        cardControls.dataset.device = shown.device;
-        cardControls.replaceChildren(
-          ...shown.controls.map((row) => {
-            const line = el("div", "", "kf-control");
-            line.dataset.mine = String(row.mine);
-            line.append(
-              el("strong", row.action, "kf-control-name"),
-              // The gamepad's caps alone once a pad is what this device plays with; otherwise both, keyboard first.
-              ...(shown.device === "touch"
-                ? [caps(row.touch, "touch")]
-                : shown.device === "pad"
-                  ? [caps(row.pad, "pad")]
-                  : [caps(row.keys, "keys"), caps(row.pad, "pad")]),
-              el("span", row.note, "kf-control-note"),
-            );
-            return line;
-          }),
-        );
-        cardControls.hidden = shown.controls.length === 0;
-      }
-    }
+      banner.hidden = true;
+      briefCard.show(
+        shown,
+        winIcons(sheets, ART_URL, shown.team ?? -1, 40),
+        String(Object.keys(sheets).length),
+      );
+    } else briefCard.hide();
     // Lobby tips.
     if (next.screen !== "lobby") lobbySince = performance.now();
     else {
@@ -1115,18 +1085,26 @@ function room(solo: boolean): void {
       settings = roomSettings;
       const next = present(frame, viewer),
         mode = solo ? "solo" : roomSettings.display ? "shared" : "online",
-        between = frame.stage === "running" || frame.stage === "between";
-      reportPlay({
-        matchId: frame.matchId,
-        active: between,
-        ended: frame.stage === "over",
-        round: Math.max(1, frame.round),
-        playerCount: next.humans + next.bots,
-        botCount: next.bots,
-        seated: next.seated,
-        mode,
-      });
-      reportGame(frame, viewer.me, runtime.confirmedTick(), mode);
+        between = frame.stage === "running" || frame.stage === "between",
+        // The match a solo room opens in is sent back to the lobby: it is not play, so it is neither reported nor drawn.
+        opening =
+          solo &&
+          !lesson &&
+          !soloSteer.done &&
+          soloSteer.tries < SOLO_SETUP_TRIES &&
+          frame.stage !== "lobby";
+      if (!opening)
+        reportPlay({
+          matchId: frame.matchId,
+          active: between,
+          ended: frame.stage === "over",
+          round: Math.max(1, frame.round),
+          playerCount: next.humans + next.bots,
+          botCount: next.bots,
+          seated: next.seated,
+          mode,
+        });
+      if (!opening) reportGame(frame, viewer.me, runtime.confirmedTick(), mode);
       const spectator = display || !next.seated;
       menu.update({
         canLobby: next.host && frame.stage !== "lobby",
@@ -1152,7 +1130,21 @@ function room(solo: boolean): void {
         runtime.command({ type: "join", name: remembered });
       }
       if (next.seated) joinSent = false;
-      render(next);
+      // Solo: the runtime opens the room already playing in the first slot. Send that match back to the lobby once,
+      // restore the role this device chose last, and then leave the six slots and START to the player.
+      if (solo && !lesson && !soloSteer.done) {
+        const step = soloSetup(
+          { stage: frame.stage, slot: next.arena.localSlot },
+          soloSlot,
+          soloSteer,
+        );
+        soloSteer = step.steer;
+        if (step.action === "lobby")
+          runtime.command({ type: "action", action: "lobby" });
+        else if (step.action === "seat" && soloSlot !== undefined)
+          runtime.seat(soloSlot);
+      }
+      if (!opening) render(next);
       if (lesson) {
         const mine = frame.seats.find((seat) => seat.id === viewer.me),
           action = setupAction(

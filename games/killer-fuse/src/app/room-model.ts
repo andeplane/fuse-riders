@@ -12,14 +12,19 @@ import {
   type SeatAction,
   type SeatModel,
 } from "./presenter.js";
+import { roleHint } from "./solo-seat.js";
 
 /** Cyan and Pink, as the arena and the stylesheet draw them. */
 export const TEAM_COLORS: readonly [string, string] = ["#2ee6f6", "#ff5fa2"];
 /** Seats 1 and 2 are the Queens; the layout numbers every slot from one. */
 export const slotColor = (slot: number): string =>
   TEAM_COLORS[teamOfSlot(slot) === 0 ? 0 : 1];
+/**
+ * A slot names its number, its role and, in a few words, what that role does: a player choosing a seat should not
+ * have to know already that a Queen cannot carry a berry.
+ */
 export const slotLabel = (slot: number): string =>
-  `${slot + 1} · ${seatTitle(slot).toUpperCase()}`;
+  `${slot + 1} · ${seatTitle(slot).toUpperCase()} · ${roleHint(slot).toUpperCase()}`;
 
 /** One person in the room, as the layout's roster shows them inside their slot. */
 export interface RoomSeatRow {

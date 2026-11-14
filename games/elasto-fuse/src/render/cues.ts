@@ -61,8 +61,8 @@ export function cuesBetween(
     if (!was || was.id !== now.id) continue;
     if (sameRun(was, now)) {
       const gained = now.taken & ~was.taken;
-      for (let n = 0; n < 31; n++)
-        if (gained & (1 << n)) {
+      for (let n = 0, bits = gained; bits; n++, bits >>= 1n)
+        if (bits & 1n) {
           const apple = appleAt(after.level, n);
           if (apple) cues.push({ kind: "apple", slot, ...apple });
         }

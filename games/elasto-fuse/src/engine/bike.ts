@@ -107,8 +107,8 @@ export const DIED = 1,
   FLOWER = 2;
 export interface Outcome {
   flags: number;
-  /** The rider's apples after the step. */
-  taken: number;
+  /** The rider's apples after the step, one bit each in the level's apple order. */
+  taken: bigint;
 }
 
 /** Which way gravity pulls, by `gravity`: 0 up, 1 down, 2 left, 3 right. */
@@ -263,7 +263,7 @@ function suspension(
 }
 
 /** The step's answer, reused: the caller reads it before the next step. */
-const outcome: Outcome = { flags: 0, taken: 0 };
+const outcome: Outcome = { flags: 0, taken: 0n };
 
 /**
  * One step of `bike` on `level` with `bits` held and `pressed` gone down this step. `taken` is the rider's apples
@@ -274,7 +274,7 @@ export function stepBike(
   b: Bike,
   bits: number,
   pressed: number,
-  taken: number,
+  taken: bigint,
 ): Outcome {
   outcome.flags = 0;
   outcome.taken = taken;
@@ -727,14 +727,15 @@ function touch(level: Compiled, b: Bike): void {
       return;
     }
   for (const [bit, index] of level.apples.entries()) {
-    if (outcome.taken & (1 << bit)) continue;
+    const mask = 1n << BigInt(bit);
+    if (outcome.taken & mask) continue;
     const apple = objects[index]!;
     if (!reaches(b, apple.x, apple.y)) continue;
-    outcome.taken |= 1 << bit;
+    outcome.taken |= mask;
     // An apple's gravity 1 to 4 is up, down, left, right: the bike's 0 to 3.
     if (apple.gravity) b.gravity = apple.gravity - 1;
   }
-  if (outcome.taken !== (1 << level.apples.length) - 1) return;
+  if (outcome.taken !== (1n << BigInt(level.apples.length)) - 1n) return;
   for (const object of objects)
     if (object.kind === "flower" && reaches(b, object.x, object.y)) {
       outcome.flags |= FLOWER;
