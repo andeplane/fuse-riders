@@ -342,16 +342,76 @@ test("out-of-order transcripts wait for a predecessor and recover cross-chunk No
 });
 
 test("missing preceding negation cannot produce a prematurely actionable task", async () => {
-  const f = fixture(async (value) => [
-    candidate("fix the menu.", value.currentSequence),
-  ]);
+  const f = fixture(async (value) =>
+    value.currentSequence === 0
+      ? []
+      : [candidate("fix the menu.", value.currentSequence)],
+  );
   await assert.rejects(
     f.process(segment(1, "fix the menu.")),
     /Previous transcript/,
   );
-  f.transcripts.set(0, segment(0, "Do not"));
+  await f.process(segment(0, "Do not"));
   await f.process(segment(1, "fix the menu."));
   assert.deepEqual((await f.service.list({}, admin)).actions, []);
+});
+
+for (const kind of ["retract", "correct"] as const) {
+  test(`saved out-of-order transcripts apply a later ${kind} after the proposal commits`, async () => {
+    const quote =
+      kind === "retract"
+        ? "Cancel the menu fix."
+        : "Add a close button instead.";
+    const f = fixture(async (value) => {
+      if (value.currentSequence === 0)
+        return [candidate("Fix the stuck menu.")];
+      const target = value.existing[0];
+      return target
+        ? [
+            candidate(quote, 1, {
+              kind,
+              targetId: target.id,
+              title: "Add a close button",
+            }),
+          ]
+        : [];
+    });
+    // Transcription may finish both chunks before either extraction delivery.
+    f.transcripts.set(0, segment(0, "Fix the stuck menu."));
+    f.transcripts.set(1, segment(1, quote));
+    await assert.rejects(
+      f.process(segment(1, quote)),
+      /Previous action extraction.*retry/,
+    );
+    assert.equal(f.calls(), 0);
+    await f.process(segment(0, "Fix the stuck menu."));
+    await f.process(segment(1, quote));
+    const action = await one(f.service);
+    assert.equal(action.status, kind === "retract" ? "retracted" : "proposed");
+    if (kind === "retract") assert.equal(action.retraction?.quote, quote);
+    else {
+      assert.equal(action.title, "Add a close button");
+      assert.equal(action.correction?.evidence[0]?.quote, quote);
+    }
+    assert.equal(f.calls(), 2);
+  });
+}
+
+test("empty saved predecessors complete the extraction dependency without a provider call", async () => {
+  const f = fixture();
+  f.transcripts.set(0, segment(0, ""));
+  await assert.rejects(
+    f.process(segment(1, "Fix the stuck menu.")),
+    /Previous action extraction.*retry/,
+  );
+  assert.equal(f.calls(), 0);
+  await f.process(segment(0, ""));
+  assert.equal((await one(f.service)).status, "proposed");
+  const stored = await f.database.read("recording-one");
+  assert.ok(stored?.processed["0"]);
+  assert.ok(stored?.processed["1"]);
+  await f.process(segment(1, "Fix the stuck menu."));
+  assert.equal(f.calls(), 1);
 });
 
 test("competing claims serialize, lease expires, and former owner cannot complete", async () => {

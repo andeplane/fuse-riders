@@ -151,7 +151,7 @@ export function createActionService(options: ActionServiceOptions) {
         segments.length
       )
         throw new Error("Duplicate action context");
-      // A late predecessor replays its immediate successor, repairing chunk-crossing directives.
+      // A late predecessor also processes its immediate successor, repairing chunk-crossing directives.
       for (const current of segments.filter(
         (segment) =>
           segment.sequence === input.sequence ||
@@ -179,10 +179,9 @@ export function createActionService(options: ActionServiceOptions) {
               },
             ]
           : [];
-        const fingerprint = hash(JSON.stringify([current, prior]));
         const lease = id(),
           startedAt = now();
-        const state = await db.transact(input.recordingId, (stored) => {
+        const acquired = await db.transact(input.recordingId, (stored) => {
           const state: ActionState = stored ?? {
             recordingId: input.recordingId,
             gameId: input.gameId,
@@ -194,6 +193,17 @@ export function createActionService(options: ActionServiceOptions) {
           };
           if (state.expiresAt <= startedAt)
             throw new Error("Action recording expired");
+          const predecessor = state.processed[String(current.sequence - 1)];
+          // Saved text is not enough: a later cancellation/correction must see
+          // the actions committed by every earlier extraction, even empty ones.
+          // Reject rather than wait while another delivery owns that work.
+          if (current.sequence > 0 && !predecessor)
+            throw new Error(
+              "Previous action extraction is not complete; retry delivery",
+            );
+          const fingerprint = hash(
+            JSON.stringify([current, prior, predecessor]),
+          );
           if (state.processed[String(current.sequence)] === fingerprint)
             return { result: undefined };
           if (
@@ -205,9 +215,10 @@ export function createActionService(options: ActionServiceOptions) {
             token: lease,
             expiresAt: startedAt + 10 * 60_000,
           };
-          return { state, result: state };
+          return { state, result: { state, fingerprint } };
         });
-        if (!state) continue;
+        if (!acquired) continue;
+        const { state, fingerprint } = acquired;
         try {
           const candidates: ActionCandidate[] = [];
           for (
