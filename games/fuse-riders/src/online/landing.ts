@@ -328,13 +328,19 @@ export function showLanding(host: LandingHost): void {
   card.append(accountPanel.dialog, friendsPanel.dialog);
   const playOptions = node("div", "", "fui-landing");
   playOptions.append(soloLink, localLink, form);
+  const hostingOptions = node("div");
+  hostingOptions.append(mode, localLink);
   const mainMenu = createMainMenu({
     background: async (host) =>
       (await import("./menu-attract.js")).createAttract(host),
     title: "FUSE RIDERS",
     description: "Outrun your friends. Blow up their plans.",
     play: playOptions,
+    onSinglePlayer: () => soloLink.click(),
+    joinContent: [joinRow, error],
+    hostingOptions,
     onPlay: async () => {
+      error.textContent = "";
       await create.onclick?.call(create, new PointerEvent("click"));
       if (error.textContent) throw new Error(error.textContent);
     },

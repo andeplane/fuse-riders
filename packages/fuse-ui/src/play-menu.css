@@ -1,0 +1,36 @@
+.fui-play-menu[hidden],
+.fui-main-menu-nav[hidden],
+.fui-play-hosting[hidden] {
+  display: none !important;
+}
+.fui-main-menu .fui-play-menu button {
+  box-sizing: border-box;
+  min-height: 54px;
+  height: 54px;
+  border-width: 1px;
+}
+.fui-main-menu .fui-play-menu .fui-play-menu-back {
+  margin-top: 12px;
+}
+.fui-play-hosting {
+  width: min(100%, 360px);
+  margin-top: 16px;
+  text-align: left;
+}
+.fui-play-hosting > summary {
+  cursor: pointer;
+  padding: 12px 0;
+}
+.fui-play-hosting > div {
+  display: grid;
+  gap: 12px;
+}
+.fui-single-player-options {
+  display: grid;
+  gap: 12px;
+}
+.fui-single-player-options button {
+  width: 100%;
+  min-height: 54px;
+  box-sizing: border-box;
+}

@@ -36,7 +36,9 @@ type Recipe = (page: Page) => Promise<void>;
 const RECIPES: Record<string, Recipe> = {
   "ball-bros": async (page) => {
     await openPlayOptions(page);
-    await page.getByRole("button", { name: "PLAY SOLO", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Single player", exact: true })
+      .click();
     await page
       .getByText("SPACE TO LAUNCH", { exact: true })
       .waitFor({ timeout: 30_000 });
@@ -48,7 +50,7 @@ const RECIPES: Record<string, Recipe> = {
   "fuse-birds": async (page) => {
     await openPlayOptions(page);
     await page
-      .getByRole("button", { name: "1 PLAYER PRACTICE", exact: true })
+      .getByRole("button", { name: "Single player", exact: true })
       .click();
     await page
       .locator('canvas[data-ready="true"]')
@@ -57,7 +59,7 @@ const RECIPES: Record<string, Recipe> = {
   },
   "fuse-front": async (page) => {
     await openPlayOptions(page);
-    await page.getByRole("button", { name: "CREATE ROOM" }).click();
+    await page.getByRole("button", { name: "Host room" }).click();
     await takeHostSeat(page, "Gallery");
     await page.getByRole("button", { name: "Add AI", exact: true }).click();
     await page.getByRole("button", { name: "START" }).click();
@@ -86,7 +88,7 @@ const RECIPES: Record<string, Recipe> = {
   "fuse-volley": async (page) => {
     await openPlayOptions(page);
     await page
-      .getByRole("button", { name: "PLAY SOLO VS BOT", exact: true })
+      .getByRole("button", { name: "Single player", exact: true })
       .click();
     await page
       .locator('.fv-room[data-stage="running"]')
@@ -101,7 +103,7 @@ const RECIPES: Record<string, Recipe> = {
   fuseball: async (page) => {
     await openPlayOptions(page);
     await page
-      .getByRole("button", { name: "PLAY SOLO VS BOT", exact: true })
+      .getByRole("button", { name: "Single player", exact: true })
       .click();
     const room = page.locator(".fb-room");
     await room

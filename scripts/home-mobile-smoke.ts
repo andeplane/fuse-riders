@@ -77,7 +77,9 @@ async function rapidNavigation(browser: Browser, browserName: string) {
     await page.goto(base);
     await pending;
     await openPlayOptions(page);
-    await page.getByRole("link", { name: /PLAY SOLO/ }).click();
+    await page
+      .getByRole("button", { name: "Single player", exact: true })
+      .click();
     await page.locator(".online-controls").waitFor({ state: "visible" });
     await page.reload();
     await ready(page);
@@ -238,7 +240,9 @@ for (const { name: browserName, kind } of BOTH_ENGINES) {
         );
         await page.screenshot({ path: `artifacts/home-${tag}.png` });
         await openPlayOptions(page);
-        await page.getByRole("link", { name: /PLAY SOLO/ }).click();
+        await page
+          .getByRole("button", { name: "Single player", exact: true })
+          .click();
         await page
           .locator(".online-roster")
           .getByText("You", { exact: false })
