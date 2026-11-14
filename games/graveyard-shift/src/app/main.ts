@@ -15,7 +15,12 @@ import {
   installRoomLifecycle,
   validRoomCode,
 } from "fuse-network-fe";
-import { MAX_PACKET_BYTES, uuid } from "fuse-netcode";
+import {
+  MAX_PACKET_BYTES,
+  createLeadClock,
+  ticksAhead,
+  uuid,
+} from "fuse-netcode";
 import {
   button,
   createAppPortal,
@@ -35,9 +40,12 @@ import {
   VACUUM,
   PULSE,
   DURATION,
+  botInput,
   carried,
   type World,
 } from "../engine/world.js";
+import type { WorldView } from "../engine/view.js";
+import { createSmoother, forward, forwardInputs, memoBot } from "./forward.js";
 import { GraveyardRuntime } from "../online/runtime.js";
 import type { View } from "../online/game.js";
 import { seatName } from "../online/names.js";
@@ -57,6 +65,10 @@ const GAME = "graveyard-shift",
   store = safeStore(() => localStorage),
   names = keys(GAME),
   query = new URLSearchParams(location.search);
+/** `?lead=off` draws the old way, the newest folded tick as it is, to compare the feel against. */
+const drawAhead = query.get("lead") !== "off",
+  /** `?probe` publishes where this device's hunter was last drawn, for `scripts/lead-input-latency.ts`. */
+  probe = query.has("probe");
 const analytics = startGameAnalytics(GAME);
 const observePlay = createPlayMetrics(analytics.track, () => performance.now());
 const social = createGameSocial({
@@ -626,10 +638,53 @@ function room() {
     reload: () => location.reload(),
   });
   runtime.start();
-  const render = () => {
+  // ---- drawing: the newest folded night played forward to the clock, once per animation frame ----
+  const smoother = createSmoother(),
+    leadClock = createLeadClock(),
+    drawBot = memoBot(botInput);
+  /** What to draw now: the forward run while the night runs, otherwise the newest folded world as it is. */
+  const picture = (now: number): WorldView | null | undefined => {
+    const timing = runtime?.frameTiming(),
+      state = runtime?.roomState(),
+      newer = timing?.newer.world;
+    if (
+      !drawAhead ||
+      !runtime ||
+      !timing ||
+      !newer ||
+      state?.stage !== "running" ||
+      state.world?.tick !== newer.tick
+    )
+      return latest?.world;
+    const revision = timing.revision ?? 0;
+    return smoother.apply(
+      forward(
+        state.world,
+        leadClock(ticksAhead(timing), timing.newer.logTick, now),
+        forwardInputs(state, self, runtime.heldNow, drawBot(revision)),
+      ),
+      `${state.matchId}:${state.round}`,
+      revision,
+      newer.tick,
+      state.held,
+      now,
+      self,
+    );
+  };
+  const render = (now: number) => {
     if (!alive) return;
-    if (latest?.world && !c.hidden)
-      draw(c.getContext("2d")!, latest.world, self);
+    const world = c.hidden ? undefined : picture(now);
+    if (world) {
+      if (probe) {
+        const mine = world.hunters.find((h) => h.id === self);
+        Reflect.set(window, "__leadProbe", {
+          at: performance.now(),
+          x: mine?.x,
+          y: mine?.y,
+        });
+      }
+      draw(c.getContext("2d")!, world, self);
+    }
     audio.frame();
     requestAnimationFrame(render);
   };

@@ -21,6 +21,15 @@ export interface ArenaFrame {
   names: string[];
 }
 
+/**
+ * A frame drawn ahead of the newest folded race (`../forward.ts`): the page hands over the race one step before the
+ * one in the view, and may move each truck's pose (to hide a correction) before it is drawn.
+ */
+export interface ArenaLead {
+  previous: RaceState | undefined;
+  place?(slot: number, pose: TruckPose): TruckPose;
+}
+
 /** Which truck this device drives, or the current leader when it drives none (a shared screen, a watcher). */
 export function focusTruck(
   view: FuseDriversView,

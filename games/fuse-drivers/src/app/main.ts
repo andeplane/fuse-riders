@@ -18,7 +18,13 @@ import {
   installRoomLifecycle,
   validRoomCode,
 } from "fuse-network-fe";
-import { MAX_PACKET_BYTES, TICK_MS, uuid } from "fuse-netcode";
+import {
+  MAX_PACKET_BYTES,
+  TICK_MS,
+  createLeadClock,
+  ticksAhead,
+  uuid,
+} from "fuse-netcode";
 import {
   button,
   createControllerRow,
@@ -33,7 +39,13 @@ import {
 import { DEFAULT_SETTINGS, fuseDriversGame, seatName } from "../game/index.js";
 import { TRACK_NAMES } from "../game/tracks-data.js";
 import { NEUTRAL_INPUT, type TruckInput } from "../game/sim/input.js";
-import { mountArena, type MountedArena } from "./arena/index.js";
+import type { RaceState } from "../game/sim/race.js";
+import {
+  mountArena,
+  renderSnapshot,
+  type MountedArena,
+} from "./arena/index.js";
+import { createSmoother, forward } from "./forward.js";
 import { presentTable, type TableModel, type Viewer } from "./presenter.js";
 import { createReportDispatcher, dueReports, sendReport } from "./reports.js";
 import { FuseDriversRuntime, type FuseDriversCallbacks } from "./runtime.js";
@@ -46,6 +58,11 @@ import { playFrame } from "./play-metrics.js";
  * session modules, which are unit-tested; this file only puts their answers on the page.
  */
 const GAME = fuseDriversGame.id;
+const query = new URLSearchParams(location.search);
+/** `?lead=off` draws the old way, between the two newest folded races, to compare the feel against. */
+const drawAhead = query.get("lead") !== "off",
+  /** `?probe` publishes the heading this device's truck was last drawn at, for `scripts/lead-input-latency.ts`. */
+  probe = query.has("probe");
 const analytics = startGameAnalytics(GAME);
 const observePlay = createPlayMetrics(analytics.track, () => performance.now());
 const social = createGameSocial({
@@ -347,11 +364,15 @@ function room(solo: boolean): void {
   let latest: Parameters<FuseDriversCallbacks["state"]>[0] | undefined;
   /** When the newest view arrived, so a frame between two views draws part way between them. */
   let viewAt = 0;
+  /** The race of the view before `latest`, as the arena poses from it: only the latency probe reads it. */
+  let shownBefore: RaceState | undefined;
   const callbacks: FuseDriversCallbacks = {
     state(frame, settings) {
       viewer.shared = settings.display;
+      if (frame.race !== latest?.race) shownBefore = latest?.race;
       latest = frame;
       main.dataset.tick = String(frame.tick);
+      main.dataset.race = frame.race?.phase ?? "";
       const slot = frame.drivers.find(
         (driver) => driver.id === viewer.me,
       )?.truck;
@@ -436,6 +457,9 @@ function room(solo: boolean): void {
         : Promise.resolve(true),
   });
 
+  // ---- drawing: the newest folded race played forward to the clock, once per animation frame ----
+  const smoother = createSmoother(),
+    leadClock = createLeadClock();
   const frame = () => {
     if (stopped) return;
     requestAnimationFrame(frame);
@@ -453,12 +477,6 @@ function room(solo: boolean): void {
           status.show("The arena could not start", "error");
         },
       });
-    // Views arrive one log tick apart; alpha is how far into that gap this frame falls.
-    const alpha = Math.min(
-      1,
-      Math.max(0, (performance.now() - viewAt) / TICK_MS),
-    );
-    if (drawArena) arena?.render(latest, alpha, runtime.self);
     if (!display)
       runtime.drive(
         modalInput.blocked()
@@ -473,6 +491,66 @@ function room(solo: boolean): void {
             },
       );
     const room = runtime.roomState();
+    if (drawArena) {
+      const now = performance.now(),
+        timing = runtime.frameTiming(),
+        lead =
+          drawAhead &&
+          timing &&
+          room?.stage === "running" &&
+          room.race &&
+          room.race === latest.race
+            ? forward(
+                room,
+                leadClock(ticksAhead(timing), timing.newer.logTick, now),
+                runtime.self,
+                runtime.heldNow,
+              )
+            : undefined;
+      if (lead && room) {
+        const own = room.grid.indexOf(runtime.self);
+        smoother.begin(
+          `${room.matchId}:${room.round}`,
+          timing?.revision ?? 0,
+          room.tick,
+          room.grid.map((id) => room.controls[id] ?? 0),
+          now,
+        );
+        if (probe) {
+          const pose = renderSnapshot(lead.previous, lead.race, lead.alpha)[
+            own
+          ];
+          Reflect.set(window, "__leadProbe", {
+            at: now,
+            x: pose?.heading,
+            y: 0,
+          });
+        }
+        arena?.render(
+          { ...latest, race: lead.race },
+          lead.alpha,
+          runtime.self,
+          {
+            previous: lead.previous,
+            place: (slot, pose) =>
+              slot === own ? pose : smoother.place(slot, pose),
+          },
+        );
+      } else {
+        // Views arrive one log tick apart; alpha is how far into that gap this frame falls.
+        const alpha = Math.min(1, Math.max(0, (now - viewAt) / TICK_MS));
+        if (probe && latest.race) {
+          const slot = room?.grid.indexOf(runtime.self) ?? -1,
+            pose = renderSnapshot(shownBefore, latest.race, alpha)[slot];
+          Reflect.set(window, "__leadProbe", {
+            at: now,
+            x: pose?.heading,
+            y: 0,
+          });
+        }
+        arena?.render(latest, alpha, runtime.self);
+      }
+    }
     if (room)
       observePlay(
         playFrame(
@@ -512,7 +590,6 @@ function room(solo: boolean): void {
   runtime.start();
 }
 
-const query = new URLSearchParams(location.search);
 if (query.get("solo") === "1") room(true);
 else if (query.has("room")) room(false);
 else landing();
