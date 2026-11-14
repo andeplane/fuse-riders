@@ -327,18 +327,32 @@ test("a lobby seat is a choice: a guest joins the seat it asks for, anyone moves
   mesh.run(3_000);
   assert.deepEqual(slots(host), { host: 1, guest: 4, "bot:1": 0 });
   assert.equal(teamOfSlot(4, "2v2v2"), 1, "the guest joined the host's team");
-  // A seat beyond a smaller format is not on offer.
+  // A smaller format keeps everyone seated: whoever sat beyond it is moved to the lowest free seat it has.
   assert.ok(
     host.command({
       type: "settings",
       settings: { ...DEFAULT_SETTINGS, format: "2v2" },
     }),
   );
-  mesh.run(300);
-  assert.ok(!host.command({ type: "join", name: "Host", slot: 5 }));
-  assert.ok(guest.command({ type: "join", name: "Guest", slot: 2 }));
-  mesh.run(3_000);
+  mesh.run(800);
   assert.deepEqual(slots(host), { host: 1, guest: 2, "bot:1": 0 });
+  assert.deepEqual(slots(guest), slots(host));
+  assert.ok(
+    !host.command({ type: "join", name: "Host", slot: 5 }),
+    "a seat beyond the format is not on offer",
+  );
+  assert.ok(guest.command({ type: "join", name: "Guest", slot: 3 }));
+  mesh.run(3_000);
+  assert.deepEqual(slots(host), { host: 1, guest: 3, "bot:1": 0 });
+  // A duel has two seats for three: the bot and the host fit, the guest keeps its seat until someone makes room.
+  assert.ok(
+    host.command({
+      type: "settings",
+      settings: { ...DEFAULT_SETTINGS, format: "1v1" },
+    }),
+  );
+  mesh.run(800);
+  assert.deepEqual(slots(guest), { host: 1, guest: 3, "bot:1": 0 });
   assert.ok(mesh.align());
   assert.equal(hash(guest.roomState()!), hash(host.roomState()!));
 });

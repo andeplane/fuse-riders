@@ -418,6 +418,59 @@ export class RoomManager<
     this.room.recorder.append([LEAVE, seat.id]);
     return seat.slot;
   }
+  /**
+   * A lobby whose format shrank (`seating.capacityFor`) keeps everyone seated: whoever holds a seat the format no
+   * longer has is moved to the lowest free one it does have, in seat order, by the same pair a seat move writes (a
+   * bot's is `BOT remove` and `BOT add`). With no free seat left they stay where they are and the game says the room
+   * is over-full, as it did before. One move per member at a time, and never this device's own unless it opened the
+   * room (`switchable`).
+   */
+  seatWithinCapacity(): void {
+    const room = this.room.world!.state;
+    if (this.room.game.stage(room) !== "lobby") return;
+    const capacity =
+      this.room.game.seating.capacityFor?.(room) ??
+      this.room.game.seating.capacity;
+    const seats = [...this.room.game.members(room)]
+      .filter((seat) => !seat.watcher)
+      .sort((a, b) => a.slot - b.slot);
+    if (!seats.some((seat) => seat.slot >= capacity)) return;
+    const pending = this.pending();
+    const taken = new Set([
+      ...seats.map((seat) => seat.slot),
+      ...pending.slots,
+    ]);
+    for (const seat of seats) {
+      if (seat.slot < capacity) continue;
+      if (pending.ids.has(seat.id) || pending.freed.has(seat.id)) continue;
+      if (seat.id === this.room.id && !this.room.creator) continue;
+      const slot = Array.from({ length: capacity }, (_, i) => i).find(
+        (free) => !taken.has(free),
+      );
+      if (slot === undefined) return;
+      const generation =
+        seat.id === this.room.id
+          ? this.room.generation
+          : (this.room.members.get(seat.id)?.generation ?? seat.generation);
+      if (!seat.bot && generation === undefined) continue;
+      taken.add(slot);
+      const tick = this.room.recorder.next();
+      if (seat.bot) {
+        this.room.recorder.at(tick, [BOT, "remove", seat.id]);
+        this.room.recorder.at(tick, [BOT, "add", seat.id, seat.name, slot]);
+      } else {
+        this.room.recorder.at(tick, [LEAVE, seat.id]);
+        this.room.recorder.at(tick, [
+          JOIN,
+          seat.id,
+          seat.name,
+          slot,
+          seat.avatarId ?? this.room.game.seating.defaultAvatar,
+          generation!,
+        ]);
+      }
+    }
+  }
   selfMember(): Member {
     return this.room.members.self(
       this.room.generation,
@@ -460,6 +513,7 @@ export class RoomManager<
       own = this.room.game.seat(room, this.room.id),
       stalled = now - this.room.lastLoopAt > DISCONNECT_MS / 2;
     if (own?.away) return;
+    this.seatWithinCapacity();
     for (const [id, member] of this.room.members) {
       const player = this.room.game.seat(room, id);
       if (!player) continue;

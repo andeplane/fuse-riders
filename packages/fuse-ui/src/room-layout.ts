@@ -212,8 +212,10 @@ export function createRoomLayout(options: RoomLayoutOptions) {
     }
   };
   /** Seated already, in a game that lets a seat be changed: an open seat is somewhere to move, not to join. */
+  // Not asked while the layout is being built: a game's `ownSlot` reads state it declares after its room.
+  let built = false;
   const moving = () =>
-    options.onMove !== undefined && options.ownSlot?.() !== undefined;
+    built && options.onMove !== undefined && options.ownSlot?.() !== undefined;
   const createSlot = (index: number) => {
     const slot = el("div", "", "fui-room-open-slot", doc);
     // The number is the seat's own: a label says more only when a game has more to say.
@@ -414,6 +416,7 @@ export function createRoomLayout(options: RoomLayoutOptions) {
     });
   }
   update(0);
+  built = true;
   const Observer = doc.defaultView?.MutationObserver;
   const observer = Observer
     ? new Observer(() => {
