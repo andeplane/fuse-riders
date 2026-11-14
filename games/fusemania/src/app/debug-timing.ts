@@ -14,9 +14,11 @@ import {
 } from "./timing-session.js";
 
 /**
- * The `?debugtiming` panel: everything the page knows about a press on its way to a judgment, live, with the
- * three offsets a player can turn while watching what they do. It draws what it is given and reports clicks; the
- * measuring is the page's (`main.ts`), the arithmetic `latency.ts`, `timing-session.ts` and `mic.ts`.
+ * The timing panel: the three offsets a player can turn while watching what they do, the hit errors, a microphone
+ * check and, folded away, everything the page knows about a press on its way to a judgment. It is the Timing
+ * screen's side (`mode: "screen"`) and a `?debugtiming` game's overlay (`mode: "game"`, no click and no
+ * microphone, the details open). It draws what it is given and reports clicks; the measuring is the page's, the
+ * arithmetic `latency.ts`, `timing-session.ts` and `mic.ts`.
  */
 
 export interface ClockView {
@@ -45,6 +47,8 @@ export interface MicView {
   device: string;
 }
 export interface TimingView {
+  /** The Timing screen, or a game with the panel over it. */
+  mode: "screen" | "game";
   report: LatencyReport;
   context: LatencyContext;
   clock: ClockView;
@@ -57,7 +61,7 @@ export interface TimingView {
   bent: number;
   leastSlackMs: number | undefined;
   song: string;
-  /** The click track's rate when one is playing. */
+  /** The click's rate when one is playing. */
   clickBpm: number | undefined;
   mic: MicView;
   /** `refused`: a local server is there and would not take the log (a page from another device needs its origin allowed). */
@@ -71,6 +75,8 @@ export interface TimingActions {
   centre(): void;
   resetHits(): void;
   click(bpm: number): void;
+  /** Leaves a game for the Timing screen. */
+  openScreen(): void;
   mic(on: boolean, device?: string): void;
   /** Applies the microphone's residual. */
   applyMic(): void;
@@ -150,27 +156,39 @@ export function clockText(view: TimingView): string {
   const { clock, context } = view;
   const known = (value: number | undefined) =>
     value === undefined ? "not reported" : `${value.toFixed(1)} ms`;
+  const game = view.mode === "game";
   const source =
     clock.source === "paired"
       ? "the browser's clock pair (getOutputTimestamp)"
       : clock.source === "reported"
         ? "the stepped audio clock and reported latency"
-        : "the room clock (no sound)";
+        : game
+          ? "the room clock (no sound)"
+          : "the page's clock (no sound)";
   return [
-    `song position from ${source}`,
+    `${game ? "song" : "click"} position from ${source}`,
     `heard ${clock.lagMs.toFixed(1)} ms behind the audio clock` +
       (clock.pairedMs === undefined
         ? ""
         : ` (newest pair ${signed(clock.pairedMs, 2)} ms from it)`),
     `reported: output ${known(context.outputMs)}, base ${known(context.baseMs)}` +
       (clock.sampleRate ? `, ${clock.sampleRate} Hz` : ""),
-    `song ${signed(context.driftMs)} ms from the room clock, ${clock.restarts} restart${clock.restarts === 1 ? "" : "s"}`,
+    // A room's clock is a game's: the Timing screen has no room, so nothing there can move a press.
+    ...(game
+      ? [
+          `song ${signed(context.driftMs)} ms from the room clock, ${clock.restarts} restart${clock.restarts === 1 ? "" : "s"}`,
+        ]
+      : []),
     `display ${clock.hz ? clock.hz.toFixed(0) : "?"} Hz, picture drawn ${clock.leadMs.toFixed(1)} ms ahead for it`,
-    view.totalPresses === 0
-      ? "room clock: no presses yet"
-      : view.bent === 0
-        ? `room clock: moved 0 of ${view.totalPresses} presses (least room ${Math.round(view.leastSlackMs ?? 0)} ms)`
-        : `room clock: MOVED ${view.bent} of ${view.totalPresses} presses`,
+    ...(game
+      ? [
+          view.totalPresses === 0
+            ? "room clock: no presses yet"
+            : view.bent === 0
+              ? `room clock: moved 0 of ${view.totalPresses} presses (least room ${Math.round(view.leastSlackMs ?? 0)} ms)`
+              : `room clock: MOVED ${view.bent} of ${view.totalPresses} presses`,
+        ]
+      : []),
   ].join("\n");
 }
 
@@ -296,6 +314,8 @@ function bars(doc: Document, width: number, height: number): Bars {
 export function createTimingPanel(
   doc: Document,
   actions: TimingActions,
+  /** `details` opens the press chain and the clocks on the Timing screen, where they start folded away. */
+  options: { details?: boolean } = {},
 ): TimingPanel {
   const el = <K extends keyof HTMLElementTagNameMap>(
     tag: K,
@@ -337,9 +357,10 @@ export function createTimingPanel(
     hide.textContent = body.hidden ? "TIMING" : "HIDE";
     root.classList.toggle("fm-dt-closed", body.hidden);
   });
-  const head = el("header", "", "fm-dt-head");
+  const head = el("header", "", "fm-dt-head"),
+    title = el("b", "TIMING");
   head.append(
-    el("b", "TIMING DEBUG"),
+    title,
     button("COPY", () => last && actions.copy(timingReport(last))),
     button("SAVE LOG", () => actions.download()),
     hide,
@@ -428,22 +449,32 @@ export function createTimingPanel(
   micRow.append(micToggle, devices, meter, applyMic);
   const micHint = el(
     "p",
-    "Play a click track through the speaker and tap along. The microphone hears each tick and each key; nothing is recorded or sent. White line: the tick. Green: your finger. Red: where the game put the press.",
+    "Turn the speaker up and tap along. The microphone hears each tick and each key; nothing is recorded or sent. White line: the tick. Green: your finger. Red: where the game put the press.",
     "fm-dt-note",
   );
 
-  // ---- click track ----
-  const clickRow = el("div", "", "fm-dt-actions");
-  for (const bpm of CLICK_RATES)
-    clickRow.append(
-      button(`${bpm / 60} / s`, () => actions.click(bpm), "fm-dt-click"),
-    );
+  // ---- the click ----
+  const clickRow = el("div", "", "fm-dt-actions"),
+    rates = CLICK_RATES.map((bpm) => ({
+      bpm,
+      node: button(`${bpm / 60} / s`, () => actions.click(bpm), "fm-dt-click"),
+    })),
+    openScreen = button("OPEN THE TIMING SCREEN", () => actions.openScreen());
+  clickRow.append(...rates.map((rate) => rate.node), openScreen);
   const songLine = el("p", "", "fm-dt-note"),
     logLine = el("p", "", "fm-dt-note");
 
+  const micSection = section("MICROPHONE", micRow, micLines, scope, micHint),
+    details = el("details", "", "fm-dt-details");
+  details.append(
+    el("summary", "DETAILS: PRESS TO JUDGMENT, CLOCKS, LOG"),
+    section("PRESS TO JUDGMENT", chain, toFrame.canvas, recent),
+    section("CLOCKS", clocks),
+    logLine,
+  );
   body.append(
     section("OFFSETS", ...rows.map((row) => row.row)),
-    section("STEADY CLICK TRACK", clickRow, songLine),
+    section("STEADY CLICK", clickRow, songLine),
     section(
       "HIT ERROR (early ← 0 → late)",
       errors.canvas,
@@ -451,17 +482,29 @@ export function createTimingPanel(
       eyeNote,
       errorActions,
     ),
-    section("MICROPHONE", micRow, micLines, scope, micHint),
-    section("PRESS TO JUDGMENT", chain, toFrame.canvas, recent),
-    section("CLOCKS", clocks),
-    logLine,
+    micSection,
+    details,
   );
   root.append(head, body);
+  let mode: TimingView["mode"] | undefined;
 
   return {
     element: root,
     update(view) {
       last = view;
+      if (mode !== view.mode) {
+        // The screen is the panel's own page: nothing to hide it from, and the details wait to be asked for. Over
+        // a game it is a debug overlay: no click to play there, so no microphone to hear it.
+        mode = view.mode;
+        const game = mode === "game";
+        root.classList.toggle("fm-dt-screen", !game);
+        setText(title, game ? "TIMING DEBUG" : "TIMING");
+        hide.hidden = !game;
+        for (const rate of rates) rate.node.hidden = game;
+        openScreen.hidden = !game;
+        micSection.hidden = game;
+        details.open = game || options.details === true;
+      }
       if (body.hidden) return;
       for (const row of rows)
         setText(row.value, `${whole(view.offsets[row.key])} ms`);
@@ -472,7 +515,7 @@ export function createTimingPanel(
       );
       setText(
         errorLines,
-        `${errorText("by ear", view.ear)}\n${errorText("by eye (press M: sound off)", view.eye)}`,
+        `${errorText("by ear", view.ear)}\n${errorText(view.mode === "screen" ? "by eye (no sound)" : "by eye (press M: sound off)", view.eye)}`,
       );
       centre.disabled = view.ear.length < EYE_MIN_HITS;
       const eye =
@@ -485,7 +528,9 @@ export function createTimingPanel(
       setText(
         eyeNote,
         eye === undefined
-          ? `Mute (M) and play ${EYE_MIN_HITS} notes by eye to measure the picture against the sound.`
+          ? view.mode === "screen"
+            ? "Run by ear, then CHECK THE PICTURE BY EYE, to measure the picture against the sound."
+            : `Mute (M) and play ${EYE_MIN_HITS} notes by eye to measure the picture against the sound.`
           : eye === 0
             ? "By eye and by ear agree: the picture is on the sound."
             : `By eye you hit ${Math.abs(eye)} ms ${eye > 0 ? "later" : "earlier"} than by ear: the picture is ${eye > 0 ? "late" : "early"}. SET VISUAL makes it ${whole(view.offsets.visualMs + eye)} ms.`,
@@ -536,11 +581,13 @@ export function createTimingPanel(
         Math.abs(report.residualMs.median) >= 3
       );
       scope.hidden = view.mic.state !== "on";
+      for (const rate of rates)
+        rate.node.classList.toggle("fm-dt-on", rate.bpm === view.clickBpm);
       setText(
         songLine,
-        view.clickBpm
-          ? `Playing: ${view.clickBpm / 60} ticks a second. A note sits on every tick.`
-          : `Playing: ${view.song}. A click track has nothing but the beat, so what is left is the device and you.`,
+        view.mode === "screen"
+          ? `${(view.clickBpm ?? 0) / 60} ticks a second, an arrow on every tick. Tap any arrow key, or the lane, on the tick.`
+          : `Playing: ${view.song}. The steady click and the microphone check are on the Timing screen.`,
       );
       setText(
         logLine,

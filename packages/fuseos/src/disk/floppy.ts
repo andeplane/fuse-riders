@@ -1,7 +1,7 @@
 /**
  * The A: drive. A floppy from 1997 with one backup archive on it and a folder whose name promises
  * more than it delivers; everything here is a joke and strictly safe for work. Nothing is a real
- * file: the archive "extracts" to a Win95 error and the folder holds one deadpan text file.
+ * file: the archive "extracts" to a Win98 error and the folder holds one deadpan text file.
  */
 
 export const FLOPPY_ZIP_NAME = "slackbacup.zip";

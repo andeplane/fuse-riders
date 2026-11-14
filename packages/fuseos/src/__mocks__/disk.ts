@@ -34,7 +34,7 @@ export function createFixtureManifest(): RepoManifest {
   );
   return {
     version: 1,
-    repo: "andeplane/fuse-riders",
+    repo: "andeplane/fuse-games",
     sha: FIXTURE_SHA,
     committedAt: "2026-11-14T13:39:08Z",
     fallbackRef: "main",

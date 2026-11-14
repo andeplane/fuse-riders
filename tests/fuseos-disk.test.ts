@@ -65,16 +65,16 @@ test("parseLsTree keeps blobs with their sizes, sorted, and skips submodules", (
 
 test("repoSlugFromRemote reads https and ssh remotes, with or without .git", () => {
   assert.equal(
-    repoSlugFromRemote("https://github.com/andeplane/fuse-riders"),
-    "andeplane/fuse-riders",
+    repoSlugFromRemote("https://github.com/andeplane/fuse-games"),
+    "andeplane/fuse-games",
   );
   assert.equal(
-    repoSlugFromRemote("https://github.com/andeplane/fuse-riders.git\n"),
-    "andeplane/fuse-riders",
+    repoSlugFromRemote("https://github.com/andeplane/fuse-games.git\n"),
+    "andeplane/fuse-games",
   );
   assert.equal(
-    repoSlugFromRemote("git@github.com:andeplane/fuse-riders.git"),
-    "andeplane/fuse-riders",
+    repoSlugFromRemote("git@github.com:andeplane/fuse-games.git"),
+    "andeplane/fuse-games",
   );
   assert.equal(repoSlugFromRemote("https://gitlab.com/a/b"), undefined);
   assert.equal(repoSlugFromRemote(""), undefined);
@@ -83,9 +83,9 @@ test("repoSlugFromRemote reads https and ssh remotes, with or without .git", () 
 test("buildRepoManifest names the repo from CI, else the remote, else the default", () => {
   const git = fakeGit();
   const fromEnv = buildRepoManifest(git, {
-    env: { GITHUB_REPOSITORY: "andeplane/fuse-riders" },
+    env: { GITHUB_REPOSITORY: "andeplane/fuse-games" },
   });
-  assert.equal(fromEnv.repo, "andeplane/fuse-riders");
+  assert.equal(fromEnv.repo, "andeplane/fuse-games");
   assert.equal(fromEnv.sha, SHA);
   assert.equal(fromEnv.committedAt, "2026-11-14T14:39:08+01:00");
   assert.equal(fromEnv.fallbackRef, "main");

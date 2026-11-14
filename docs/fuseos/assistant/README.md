@@ -5,7 +5,7 @@ The sprite sheet, the frame table and the sounds come from the
 [clippyjs](https://github.com/pi0/clippyjs) npm package (MIT licensed code,
 copyright 2012 Fireplace, Inc and 2017 Pooya Parsa); the artwork and sounds
 themselves are Microsoft's Office Assistant assets, used here for the
-Windows 95 look of the desktop.
+Windows 98 look of the desktop.
 
 `scripts/fuseos/copy-clippy.mjs` (`pnpm fuseos:sync`) writes, from
 `node_modules/clippyjs/dist/agents/clippy`:

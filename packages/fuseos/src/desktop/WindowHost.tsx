@@ -1,4 +1,4 @@
-import { useContext, useEffect } from "react";
+import { useCallback, useContext, useEffect, useRef } from "react";
 
 import { AboutDialog } from "../about/AboutDialog";
 import { DefragRunner } from "../defrag/DefragRunner";
@@ -6,7 +6,12 @@ import { DefragWindow } from "../defrag/DefragWindow";
 import { ControlPanelWindow } from "../controlpanel/ControlPanelWindow";
 import { ExplorerWindow } from "../explorer/ExplorerWindow";
 import { WallpaperWindow } from "../controlpanel/WallpaperWindow";
-import { FuseGameWindow } from "../fusegames/FuseGameWindow";
+import {
+  FuseGameWindow,
+  POP_OUT_HINT,
+  POP_OUT_LABEL,
+  useGamePopOut,
+} from "../fusegames/FuseGameWindow";
 import { FuseGamesContext } from "../fusegames/registry";
 import { LauncherWindow } from "../launcher/LauncherWindow";
 import { NotepadPlusPlusWindow } from "../notepadpp/NotepadPlusPlusWindow";
@@ -30,9 +35,11 @@ import { windowMeta } from "./windowMeta";
 function WindowContent({
   window,
   active,
+  onGameFrame,
 }: {
   window: WindowState;
   active: boolean;
+  onGameFrame: (windowId: string, element: HTMLIFrameElement | null) => void;
 }) {
   const commands = useWindowCommands();
   switch (window.kind) {
@@ -40,9 +47,9 @@ function WindowContent({
       return (
         <FuseGameWindow
           gameId={window.gameId}
-          windowId={window.id}
           active={active}
           onActivate={() => commands.focus(window.id)}
+          onFrame={(element) => onGameFrame(window.id, element)}
         />
       );
     case "retro":
@@ -118,6 +125,20 @@ export function WindowHost({ windows, activeId }: WindowHostProps) {
   const { rectFor, setRect, pruneRects, compact } =
     useContext(WindowManagerContext);
   const commands = useWindowCommands();
+  // Each game window's iframe, so the title bar's Pop out can read where the game has navigated to.
+  const frames = useRef(new Map<string, HTMLIFrameElement>());
+  const setGameFrame = useCallback(
+    (windowId: string, element: HTMLIFrameElement | null) => {
+      if (element) frames.current.set(windowId, element);
+      else frames.current.delete(windowId);
+    },
+    [],
+  );
+  const frameFor = useCallback(
+    (windowId: string) => frames.current.get(windowId) ?? null,
+    [],
+  );
+  const popOut = useGamePopOut(frameFor);
   const winampIndex = windows.findIndex((window) => window.kind === "winamp");
   const winamp = windows[winampIndex];
   // Window ids are reused after a close; forget the old rectangle so the next window with that id opens at its own size.
@@ -162,8 +183,25 @@ export function WindowHost({ windows, activeId }: WindowHostProps) {
               onToggleMaximize={() => commands.toggleMaximize(window.id)}
               onClose={() => commands.close(window.id)}
               onActivate={activate}
+              extraTitleButtons={
+                window.kind === "fusegame" && games.find(window.gameId) ? (
+                  <button
+                    type="button"
+                    className="title-pop-out"
+                    aria-label={POP_OUT_LABEL}
+                    title={POP_OUT_HINT}
+                    onClick={() => popOut(window.id, window.gameId)}
+                  >
+                    ↗
+                  </button>
+                ) : undefined
+              }
             >
-              <WindowContent window={window} active={active} />
+              <WindowContent
+                window={window}
+                active={active}
+                onGameFrame={setGameFrame}
+              />
             </WindowChrome>
           </WindowFrame>
         );
