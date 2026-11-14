@@ -18,6 +18,7 @@ Fuse Riders is a small TypeScript game for 2–5 friends under active developmen
 - When asked for a plan, review, audit or issues, produce only that artifact. Do not edit code, run mutating commands or create repositories until the user says to execute.
 - For removals and layout changes, state what goes and what stays (or where things go) before editing when the request leaves it open.
 - Size work in agent sessions or hours, not developer days or weeks. This project ships at agent speed.
+- The game-dev skills from [andeplane/gamevibing](https://github.com/andeplane/gamevibing) are vendored as `.claude/skills/game-*` (pinned commit in `.claude/skills/GAMEVIBING_VERSION`), so every checkout loads them. Refresh with `scripts/sync-gamevibing.sh`; change them upstream, not here. When starting a new game, scaffold it with `scripts/new-game.ts` and load `game-dev-index` and `game-direction-workflow`; where a skill's generic advice (engine, netcode, hosting) conflicts with this file, this file wins.
 - Dev servers pick a free port when theirs is taken (`listenFree`); never let `EADDRINUSE` reach the user. End with the URL to open on its own line.
 
 ## Context and token use
