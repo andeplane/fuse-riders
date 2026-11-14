@@ -32,10 +32,15 @@ function openDisplayAndGame() {
   };
 }
 
-async function openEffectsTab(user: ReturnType<typeof userEvent.setup>) {
+async function openTab(
+  user: ReturnType<typeof userEvent.setup>,
+  name: "Settings" | "Effects" | "Appearance",
+) {
   const dialog = await screen.findByRole("dialog", { name: "Control Panel" });
-  const tabs = within(dialog).getByRole("tablist", { name: "Display effects" });
-  await user.click(within(tabs).getByRole("tab", { name: "Effects" }));
+  const tabs = within(dialog).getByRole("tablist", {
+    name: "Display Properties tabs",
+  });
+  await user.click(within(tabs).getByRole("tab", { name }));
   return dialog;
 }
 
@@ -45,9 +50,9 @@ describe("Display Properties: Effects", () => {
     const { displayPrefsStore } = renderWithProviders(<Desktop />, {
       initialState: openDisplayAndGame(),
     });
-    const dialog = await openEffectsTab(user);
+    const dialog = await openTab(user, "Settings");
     await user.selectOptions(
-      within(dialog).getByLabelText("Palette"),
+      within(dialog).getByLabelText("Color palette"),
       "16-colors",
     );
     expect(displayPrefsStore.get().colorMode).toBe("16-colors");
@@ -59,13 +64,13 @@ describe("Display Properties: Effects", () => {
     expect(frame.tagName).toBe("IFRAME");
     expect(footprint.contains(frame)).toBe(true);
     await user.selectOptions(
-      within(dialog).getByLabelText("Palette"),
+      within(dialog).getByLabelText("Color palette"),
       "monochrome",
     );
     expect(footprint).toHaveStyle({ filter: "url(#display-monochrome)" });
     expect(document.querySelector("filter#display-monochrome")).not.toBeNull();
     await user.selectOptions(
-      within(dialog).getByLabelText("Palette"),
+      within(dialog).getByLabelText("Color palette"),
       "true-color",
     );
     expect(footprint.style.filter).toBe("");
@@ -77,7 +82,7 @@ describe("Display Properties: Effects", () => {
       initialState: openDisplayAndGame(),
       effectsDeps: { createCurvatureMap: () => "data:image/png;base64,MAP" },
     });
-    const dialog = await openEffectsTab(user);
+    const dialog = await openTab(user, "Effects");
     expect(screen.queryByTestId("crt-overlay")).not.toBeInTheDocument();
     const curvature = within(dialog).getByLabelText("Curved tube");
     expect(curvature).toBeDisabled();
@@ -143,7 +148,7 @@ describe("Display Properties: Effects", () => {
         scheme: "windows-standard",
       }),
     });
-    await openEffectsTab(user);
+    await openTab(user, "Effects");
     expect(screen.getByTestId("crt-overlay")).toHaveAttribute(
       "data-crt",
       "full",
@@ -158,13 +163,13 @@ describe("Display Properties: Effects", () => {
       <Desktop />,
       { initialState: openDisplayAndGame() },
     );
-    const dialog = await openEffectsTab(user);
+    const dialog = await openTab(user, "Settings");
     expect(document.documentElement).not.toHaveAttribute(
       "data-resolution-emulation",
     );
 
     await user.selectOptions(
-      within(dialog).getByLabelText("Screen resolution"),
+      within(dialog).getByLabelText("Desktop area"),
       "640x480",
     );
     expect(displayPrefsStore.get().desktopArea).toBe("640x480");
@@ -211,9 +216,9 @@ describe("Display Properties: Effects", () => {
       <Desktop />,
       { initialState: openDisplayAndGame() },
     );
-    const dialog = await openEffectsTab(user);
+    const dialog = await openTab(user, "Settings");
     await user.selectOptions(
-      within(dialog).getByLabelText("Screen resolution"),
+      within(dialog).getByLabelText("Desktop area"),
       "800x600",
     );
     act(() => effectsTimers.advance(KEEP_SETTINGS_SECONDS * 1000));
@@ -223,7 +228,7 @@ describe("Display Properties: Effects", () => {
     expect(displayPrefsStore.get().desktopArea).toBe("current");
 
     await user.selectOptions(
-      within(dialog).getByLabelText("Screen resolution"),
+      within(dialog).getByLabelText("Desktop area"),
       "1024x768",
     );
     const box = screen.getByRole("dialog", { name: "Monitor Settings" });
@@ -236,12 +241,12 @@ describe("Display Properties: Effects", () => {
     expect(effectsTimers.pending()).toBe(0);
   });
 
-  it("asks to keep a resolution picked through the legacy Desktop area select too", async () => {
+  it("takes Escape in the Monitor Settings box as No", async () => {
     const user = userEvent.setup();
     const { displayPrefsStore } = renderWithProviders(<Desktop />, {
       initialState: openDisplayAndGame(),
     });
-    const dialog = await screen.findByRole("dialog", { name: "Control Panel" });
+    const dialog = await openTab(user, "Settings");
     await user.selectOptions(
       within(dialog).getByLabelText("Desktop area"),
       "800x600",
@@ -260,7 +265,7 @@ describe("Display Properties: Appearance", () => {
       <Desktop />,
       { initialState: openDisplayAndGame() },
     );
-    const dialog = await screen.findByRole("dialog", { name: "Control Panel" });
+    const dialog = await openTab(user, "Appearance");
     const root = document.documentElement;
     expect(root.style.getPropertyValue("--w95-surface")).toBe("silver");
     expect(root).toHaveAttribute("data-color-scheme", "windows-standard");
@@ -295,7 +300,7 @@ describe("Display Properties: Appearance", () => {
       initialState: openDisplayAndGame(),
       wallpaperStore,
     });
-    const dialog = await screen.findByRole("dialog", { name: "Control Panel" });
+    const dialog = await openTab(user, "Appearance");
     await user.selectOptions(
       within(dialog).getByLabelText("Scheme"),
       "fuse-neon",

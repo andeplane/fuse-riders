@@ -1,6 +1,5 @@
 import {
   COLOR_MODES,
-  DESKTOP_AREAS,
   isColorMode,
   isDesktopArea,
 } from "../desktop/displayModes";
@@ -9,6 +8,10 @@ import {
   MIN_ICON_SPACING,
 } from "../desktop/displayPrefsStore";
 import { OS_NAME } from "../desktop/windowMeta";
+import {
+  KEEP_SETTINGS_SECONDS,
+  RESOLUTIONS,
+} from "../display/effects/resolutionEmulation";
 
 import type { DisplayTabProps } from "./displayTabs";
 import { useControlPanelViewModel } from "./useControlPanelViewModel";
@@ -47,16 +50,18 @@ export function DisplaySettingsTab({ windowId }: DisplayTabProps) {
                 vm.setDesktopArea(event.target.value);
             }}
           >
-            {DESKTOP_AREAS.map((area) => (
-              <option key={area.value} value={area.value}>
-                {area.label}
+            {RESOLUTIONS.map((resolution) => (
+              <option key={resolution.value} value={resolution.value}>
+                {resolution.label}
               </option>
             ))}
           </select>
         </div>
         <p>
-          Simulated display settings for {OS_NAME}. The desktop fits inside this
-          window; your monitor settings stay the same.
+          Simulated display settings for {OS_NAME}: the palette reaches the
+          games in their windows too, and a new desktop area stays only if you
+          keep it within {KEEP_SETTINGS_SECONDS} seconds. Your monitor settings
+          stay the same.
         </p>
       </fieldset>
       <fieldset className="flex flex-col gap-2">

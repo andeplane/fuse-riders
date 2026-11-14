@@ -39,7 +39,13 @@ describe("DisplayApplet", () => {
       within(tabs)
         .getAllByRole("tab")
         .map((tab) => tab.textContent),
-    ).toEqual(["Background", "Settings"]);
+    ).toEqual([
+      "Background",
+      "Screen Saver",
+      "Appearance",
+      "Effects",
+      "Settings",
+    ]);
     expect(
       within(tabs).getByRole("tab", { name: "Background" }),
     ).toHaveAttribute("aria-selected", "true");
@@ -81,10 +87,13 @@ describe("DisplayApplet", () => {
       seen.push(windowId);
       return <p>3D Pipes goes here</p>;
     }
+    const background = DISPLAY_TABS[0];
+    const settings = DISPLAY_TABS[DISPLAY_TABS.length - 1];
+    if (!background || !settings) throw new Error("built-in tabs missing");
     const tabs: DisplayTab[] = [
-      ...DISPLAY_TABS.slice(0, 1),
+      background,
       { id: "screensaver", label: "Screen Saver", component: ScreenSaverTab },
-      ...DISPLAY_TABS.slice(1),
+      settings,
     ];
     renderWithProviders(
       <DisplayTabsContext.Provider value={tabs}>

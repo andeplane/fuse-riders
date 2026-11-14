@@ -4,9 +4,9 @@ FuseOS has one screen saver, the Windows 95 **3D Pipes**, as remade in three.js 
 
 ## Settings
 
-Control Panel, Display, **Screen Saver** (`src/controlpanel/ScreenSaverApplet.tsx`, exported as the `SCREEN_SAVER_DISPLAY_TAB` registration for the tabbed Display applet):
+Control Panel, Display, **Screen Saver** (`src/controlpanel/ScreenSaverApplet.tsx`, exported as the `SCREEN_SAVER_DISPLAY_TAB` registration that `controlpanel/displayTabs.ts` mounts; Start > Settings > Screen Saver opens the dialog on this tab):
 
-- **Screen saver**: `None` or `3D Pipes`; **Wait** 1 to 60 idle minutes (default 3D Pipes after 5 minutes); **Preview** starts it at once.
+- **Screen saver**: `(None)` or `3D Pipes`; **Wait** 1 to 60 idle minutes (default 3D Pipes after 5 minutes); **Preview** starts it at once.
 - **Settings for 3D Pipes**: joint style (Elbows, Balls, Mixed, or Cycle through all, one style per scene), Multiple pipes (two or three per scene), Teapots now and then (the Utah teapot at one turn in two hundred, one in twenty on a candy cane scene, which is one scene in twenty).
 
 The preferences live in `localStorage` under `fuseos.screensaver` (`screenSaverStore.ts`, with a `MemoryScreenSaverStore` for tests). Corrupt or blocked storage falls back to the defaults.

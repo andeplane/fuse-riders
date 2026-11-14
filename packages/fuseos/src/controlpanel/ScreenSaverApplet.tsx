@@ -1,5 +1,3 @@
-import type { ComponentType } from "react";
-
 import {
   isJointStyle,
   JOINT_STYLE_LABELS,
@@ -12,12 +10,7 @@ import {
 } from "../screensaver/screenSaverStore";
 import { useScreenSaverViewModel } from "../screensaver/useScreenSaverViewModel";
 
-/** A Display Properties tab, as the tabbed Display applet registers them. */
-export type DisplayTabDefinition = {
-  id: string;
-  label: string;
-  component: ComponentType<{ windowId: string }>;
-};
+import type { DisplayTab } from "./displayTabs";
 
 /** A few pipes on the preview monitor, so the tab shows what it is about without loading three.js. */
 function MonitorPreview({ saver }: { saver: "none" | "pipes" }) {
@@ -98,7 +91,7 @@ function MonitorPreview({ saver }: { saver: "none" | "pipes" }) {
   );
 }
 
-/** Display Properties, Screen Saver: pick None or 3D Pipes, how long to wait, the pipes' options, and Preview. */
+/** Display Properties, Screen Saver: pick (None) or 3D Pipes, how long to wait, the pipes' options, and Preview. */
 export function ScreenSaverTab({ windowId }: { windowId: string }) {
   const vm = useScreenSaverViewModel();
   const id = (name: string) => `screensaver-${name}-${windowId}`;
@@ -118,7 +111,7 @@ export function ScreenSaverTab({ windowId }: { windowId: string }) {
                 vm.setSaver(event.target.value);
             }}
           >
-            <option value="none">None</option>
+            <option value="none">(None)</option>
             <option value="pipes">3D Pipes</option>
           </select>
           <button
@@ -198,7 +191,7 @@ export function ScreenSaverTab({ windowId }: { windowId: string }) {
 }
 
 /** The registration the tabbed Display applet mounts; `ScreenSaverApplet` is the same tab under its Control Panel name. */
-export const SCREEN_SAVER_DISPLAY_TAB: DisplayTabDefinition = {
+export const SCREEN_SAVER_DISPLAY_TAB: DisplayTab = {
   id: "screensaver",
   label: "Screen Saver",
   component: ScreenSaverTab,

@@ -15,7 +15,7 @@ import { WindowManagerProvider } from "./windows/WindowManagerProvider";
 export type ShellProps = {
   store: StateStore;
   /** Windows a deep link asks for; opened once, on top of the stored ones. */
-  initialOpen?: WindowContent[];
+  initialOpen?: readonly WindowContent[];
   children?: ReactNode;
 };
 

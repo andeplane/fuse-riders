@@ -1,8 +1,11 @@
 import type { ComponentType } from "react";
 import { createContext } from "react";
 
+import { DISPLAY_EFFECT_TABS } from "../display/effects/displayTabs";
+
 import { DisplayBackgroundTab } from "./DisplayBackgroundTab";
 import { DisplaySettingsTab } from "./DisplaySettingsTab";
+import { SCREEN_SAVER_DISPLAY_TAB } from "./ScreenSaverApplet";
 
 /** What every Display Properties tab receives: the Control Panel window it lives in, for its view model. */
 export type DisplayTabProps = { windowId: string };
@@ -25,6 +28,8 @@ export type DisplayTab = {
  */
 export const DISPLAY_TABS: readonly DisplayTab[] = [
   { id: "background", label: "Background", component: DisplayBackgroundTab },
+  SCREEN_SAVER_DISPLAY_TAB,
+  ...DISPLAY_EFFECT_TABS,
   { id: "settings", label: "Settings", component: DisplaySettingsTab },
 ];
 
