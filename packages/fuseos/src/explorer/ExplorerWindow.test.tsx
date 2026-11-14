@@ -15,6 +15,7 @@ import {
 } from "../__mocks__/disk";
 import { FakePaintFileDeps } from "../__mocks__/paintFiles";
 import { renderWithProviders } from "../__mocks__/renderWithProviders";
+import type { FakeSoundService } from "../__mocks__/soundService";
 import { Desktop } from "../desktop/Desktop";
 import { DRIVE_A, DRIVE_C, MY_COMPUTER } from "../disk/diskPath";
 import { HOMEWORK_LOCATION, HOMEWORK_TEXT } from "../disk/floppy";
@@ -26,6 +27,13 @@ import { WINZIP_STEP_MS } from "./WinZipDialog";
 
 const explorerAt = (location: string) =>
   ({ kind: "explorer", location }) as const;
+
+/** What the drives were heard doing; the start-up chime the desktop plays on mount is not theirs. */
+function driveSounds(sounds: FakeSoundService): string[] {
+  return sounds.plays
+    .map((play) => play.event)
+    .filter((event) => event === "floppy" || event === "seek");
+}
 
 function contents() {
   return within(screen.getByLabelText("Folder contents"));
@@ -213,13 +221,15 @@ describe("Explorer", () => {
           finishSeek = resolve;
         }),
     });
-    renderWithProviders(<Desktop />, {
+    const { sounds } = renderWithProviders(<Desktop />, {
       initialOpen: [explorerAt(MY_COMPUTER)],
       diskDeps,
     });
     await user.dblClick(row(/3½ Floppy/));
     expect(contents().getByText("Reading drive A:...")).toBeInTheDocument();
     expect(diskDeps.seeks).toBe(1);
+    // The drive is heard spinning up while the listing waits.
+    expect(driveSounds(sounds)).toEqual(["floppy"]);
     await act(async () => {
       finishSeek();
       await Promise.resolve();
@@ -234,6 +244,8 @@ describe("Explorer", () => {
     diskDeps.jokeGate.tryOpen();
     await user.dblClick(row(/porn/));
     expect(diskDeps.seeks).toBe(1);
+    // ...only the short seek every folder gets.
+    expect(driveSounds(sounds)).toEqual(["floppy", "seek"]);
     expect(screen.getByRole("textbox", { name: "Address" })).toHaveValue(
       "A:\\porn",
     );

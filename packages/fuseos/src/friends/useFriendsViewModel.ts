@@ -9,6 +9,7 @@ import {
 import { FRIENDS_WINDOW_ID } from "../desktop/startMenuRegistry";
 import { FuseGamesContext } from "../fusegames/registry";
 import { useAppState } from "../state/useAppState";
+import { useDialUpCommands } from "../sounds/dialup/useDialUpCommands";
 import { useWindowCommands } from "../windows/useWindowCommands";
 
 import type {
@@ -75,7 +76,8 @@ export function useJoinRoom(): (gameId: string, code: string) => void {
 
 /** Open Fuse Messenger, or bring it to the front: one window, always the same id. */
 export function useOpenFriends(): () => void {
-  const commands = useWindowCommands();
+  // Dials in first when nothing has connected yet this session (Dial-Up Networking).
+  const commands = useDialUpCommands();
   return useCallback(
     () => commands.open({ kind: "friends" }, { id: FRIENDS_WINDOW_ID }),
     [commands],

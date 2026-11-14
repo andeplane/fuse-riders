@@ -16,6 +16,7 @@ import { ACCESS_DENIED_MESSAGE, WINZIP_ERROR_MESSAGE } from "../disk/floppy";
 import { useDiskDeps, useDiskManifest, useOverlayPaths } from "../disk/useDisk";
 import { matchShortcut } from "../lib/shortcuts";
 import { useOpenInNotepad } from "../notepadpp/useOpenInNotepad";
+import { usePlaySystemSound } from "../sounds/useSystemSound";
 import { useAppState } from "../state/useAppState";
 import type { IconName } from "../ui/icons";
 import type { MenuPosition } from "../windows/menuPosition";
@@ -100,6 +101,7 @@ export function useExplorerViewModel(
   const manifest = useDiskManifest();
   const overlayPaths = useOverlayPaths(deps.overlay);
   const openInNotepad = useOpenInNotepad();
+  const playSystemSound = usePlaySystemSound();
 
   const [history, setHistory] = useState<{ back: string[]; forward: string[] }>(
     { back: [], forward: [] },
@@ -162,14 +164,19 @@ export function useExplorerViewModel(
       setSelected(null);
       setLocation(next);
       if (driveOf(next) === "A" && driveOf(location) !== "A") {
+        // The drive spins up and seeks (Control Panel > Sounds, "Floppy drive") while the listing waits.
+        playSystemSound("floppy");
         const token = (seekToken.current += 1);
         setSeeking(true);
         void deps.floppySeek().finally(() => {
           if (seekToken.current === token) setSeeking(false);
         });
+      } else if (next !== MY_COMPUTER) {
+        // Any other folder or drive: one short head seek.
+        playSystemSound("seek");
       }
     },
-    [location, setLocation, deps],
+    [location, setLocation, deps, playSystemSound],
   );
 
   const navigate = useCallback((next: string) => go(next, true), [go]);

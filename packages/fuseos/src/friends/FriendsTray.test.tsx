@@ -6,6 +6,7 @@ import {
   renderWithProviders,
 } from "../__mocks__/renderWithProviders";
 import { Desktop } from "../desktop/Desktop";
+import { MemoryDialUpSession } from "../sounds/dialup/dialUpSession";
 
 import { createDemoPresenceService, DEMO_BUDDIES } from "./demoPresenceService";
 import { toastText, TOAST_MS } from "./FriendsTray";
@@ -20,9 +21,13 @@ function renderTray() {
     schedule: timers.schedule,
     beatMs: BEAT_MS,
   });
+  // Already online: the tray opens Fuse Messenger without Dial-Up Networking in front of it.
+  const dialUpSession = new MemoryDialUpSession();
+  dialUpSession.markConnected();
   const result = renderWithProviders(<Desktop />, {
     presence,
     friendsDeps: { schedule: timers.schedule },
+    dialUpSession,
   });
   return { ...result, presence, timers, user: userEvent.setup() };
 }

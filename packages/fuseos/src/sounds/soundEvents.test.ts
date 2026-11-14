@@ -15,6 +15,7 @@ describe("SOUND_EVENTS", () => {
       "error",
       "recycle",
       "floppy",
+      "seek",
       "modem",
     ]);
     expect(new Set(SYSTEM_SOUND_EVENTS).size).toBe(SOUND_EVENTS.length);

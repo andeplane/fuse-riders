@@ -396,9 +396,21 @@ describe(NetworkWindow.name, () => {
 describe("Network Neighborhood on the desktop", () => {
   it("opens once from its desktop icon and once from Start > Programs, then a room window from it", async () => {
     const user = userEvent.setup();
-    const { store } = renderWithProviders(<Desktop />);
+    const { store, dialUpSession } = renderWithProviders(<Desktop />);
     const icon = screen.getByRole("button", { name: "Network Neighborhood" });
     await user.dblClick(icon);
+    // The first open of the session dials in; Cancel never blocks, it just skips the modem.
+    expect(dialUpSession.connected).toBe(false);
+    expect(
+      screen.queryByRole("dialog", { name: "Network Neighborhood" }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Connect To" })).getByRole(
+        "button",
+        { name: "Cancel" },
+      ),
+    );
+    expect(dialUpSession.connected).toBe(true);
     expect(
       await screen.findByRole("dialog", { name: "Network Neighborhood" }),
     ).toBeInTheDocument();
@@ -428,8 +440,9 @@ describe("Network Neighborhood on the desktop", () => {
     expect(
       store.load().windows.map((window) => [window.kind, window.id]),
     ).toEqual([
-      ["network", NETWORK_WINDOW_ID],
-      ["roomgame", "w1"],
+      // Opened by Dial-Up Networking once it had connected, so under a generated id; one window by kind either way.
+      ["network", "w1"],
+      ["roomgame", "w2"],
     ]);
   });
 });

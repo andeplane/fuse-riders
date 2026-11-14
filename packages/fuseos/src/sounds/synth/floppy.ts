@@ -124,3 +124,22 @@ export function renderFloppy(
 
   return normalize(track.samples, 0.8);
 }
+
+/** How long the short seek lasts. */
+export const DRIVE_SEEK_DURATION = 0.42;
+
+/**
+ * One short head seek with the head settling after it: what the drive does when a folder opens.
+ * The same step pulses and clunk as `renderFloppy`, without the motor spinning up or down.
+ */
+export function renderDriveSeek(
+  sampleRate: number,
+  random: Random = seededRandom(0x5e_e4),
+): Float32Array {
+  const track = new PcmTrack(sampleRate, DRIVE_SEEK_DURATION);
+  track.add(0.01, renderSeek(sampleRate, 0.16, random, 1.1));
+  track.add(0.18, renderClunk(sampleRate, random, 0.7));
+  track.add(0.24, renderSeek(sampleRate, 0.07, random, 0.9));
+  track.ramp(DRIVE_SEEK_DURATION - 0.08, DRIVE_SEEK_DURATION, 1, 0);
+  return normalize(track.samples, 0.7);
+}

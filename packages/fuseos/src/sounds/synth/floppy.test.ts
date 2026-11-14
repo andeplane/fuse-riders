@@ -1,4 +1,10 @@
-import { FLOPPY_DURATION, renderFloppy, STEP_RATE } from "./floppy";
+import {
+  DRIVE_SEEK_DURATION,
+  FLOPPY_DURATION,
+  renderDriveSeek,
+  renderFloppy,
+  STEP_RATE,
+} from "./floppy";
 import { at, goertzel, peak, rms, sameSamples, seededRandom } from "./pcm";
 
 const RATE = 16000;
@@ -46,5 +52,28 @@ describe(renderFloppy.name, () => {
     const quiet = windows.filter((level) => level < loudest * 0.4).length;
     expect(loud).toBeGreaterThan(5);
     expect(quiet).toBeGreaterThan(5);
+  });
+});
+
+describe(renderDriveSeek.name, () => {
+  const seek = renderDriveSeek(RATE);
+
+  it("is one short burst, normalised, deterministic and silent at the end", () => {
+    expect(DRIVE_SEEK_DURATION).toBeLessThan(0.6);
+    expect(seek).toHaveLength(Math.ceil(DRIVE_SEEK_DURATION * RATE));
+    expect(peak(seek)).toBeCloseTo(0.7, 2);
+    expect(sameSamples(renderDriveSeek(RATE), seek)).toBe(true);
+    expect(sameSamples(renderDriveSeek(RATE, seededRandom(7)), seek)).toBe(
+      false,
+    );
+    expect(Math.abs(seek[seek.length - 1] ?? 1)).toBeLessThan(0.01);
+  });
+
+  it("steps the head at the drive's step rate", () => {
+    const from = at(RATE, 0.03);
+    const to = at(RATE, 0.15);
+    const stepping = goertzel(seek, RATE, STEP_RATE * 6, from, to).power;
+    const between = goertzel(seek, RATE, STEP_RATE * 6.5, from, to).power;
+    expect(stepping).toBeGreaterThan(between * 2);
   });
 });
