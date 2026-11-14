@@ -161,3 +161,61 @@ test("a frame that comes late keeps the beat, and a clock that stopped starts a 
   assert.equal(loop.run, 2);
   assert.deepEqual(song.plays[2], { at: 500 + TICK_LEAD_S, offset: 0 });
 });
+
+test("a click with an end falls silent on the audio clock right after its last tick, and keeps its origin", () => {
+  const clock = createFakeAudioClock({ time: 0 }),
+    bpm = 150,
+    beat = beatS(bpm),
+    lapS = LAP_TICKS * beat,
+    song = createFakeClockedSong(lapS, clock),
+    // 40 ticks: two whole laps and half of a third.
+    loop = createTickLoop({ clock: () => clock, song, bpm, count: 40 });
+  assert.equal(loop.last, 39);
+  loop.frame();
+  const origin = loop.origin!;
+  let silentAt: number | undefined;
+  for (let t = 0; t < origin + 60 * beat; t += 1 / 60) {
+    clock.time = t;
+    loop.frame();
+    if (silentAt === undefined && !song.playing) silentAt = t;
+  }
+  assert.deepEqual(
+    song.plays.map((play) => play.at),
+    [0, 1, 2].map((lap) => origin + lap * lapS),
+    "no lap is started that has no tick left to sound",
+  );
+  // The last tick has sounded in full; the one after it never leaves for the speakers.
+  assert.ok(silentAt! > origin + 39 * beat + CLICK_S, `${silentAt}`);
+  assert.ok(silentAt! < origin + 40 * beat, `${silentAt}`);
+  assert.equal(song.stops, 1);
+  // Whoever is still hearing the last ticks (a long output latency) can still place them.
+  assert.equal(loop.origin, origin);
+  assert.equal(loop.run, 1);
+  assert.equal(loop.scheduledAt(39), origin + 39 * beat);
+  // A clock that stops after the end changes nothing: the click stays ended and does not start over.
+  assert.equal(loop.over, true);
+  clock.running = false;
+  loop.frame();
+  assert.equal(loop.origin, origin);
+  clock.running = true;
+  clock.time += 10;
+  loop.frame();
+  assert.equal(loop.over, true);
+  assert.equal(loop.run, 1);
+  assert.equal(song.plays.length, 3);
+  assert.equal(song.stops, 1);
+  loop.stop();
+  assert.equal(loop.over, false);
+  assert.equal(song.stops, 1, "already silent");
+  assert.equal(loop.origin, undefined);
+  // A click that ends on a lap's edge does not start the lap after it.
+  const even = createFakeClockedSong(lapS, clock),
+    exact = createTickLoop({ clock: () => clock, song: even, bpm, count: 32 });
+  clock.time = 100;
+  exact.frame();
+  for (let t = 100; t < 100 + 50 * beat; t += 1 / 60) {
+    clock.time = t;
+    exact.frame();
+  }
+  assert.equal(even.plays.length, 2);
+});

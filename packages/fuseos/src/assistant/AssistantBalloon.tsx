@@ -1,7 +1,10 @@
 import type { FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 
-import type { ChatMessage } from "../llm/llmChat";
+import type { ChatBackend, ChatMessage } from "../llm/llmChat";
+import { findLlmModel, formatDownload } from "../llm/modelCatalog";
+import type { LoadPhase } from "../llm/webLlmChat";
+import { parseLoadProgress } from "../llm/webLlmChat";
 
 import type { ToolCallReport } from "./assistantState";
 import type { OfficeAssistantViewModel } from "./useOfficeAssistantViewModel";
@@ -16,6 +19,57 @@ function ToolCallLine({ call }: { call: ToolCallReport }) {
     >
       {call.phase === "started" ? `${call.sentence}...` : call.sentence}
       {call.phase === "failed" ? " (that did not work)" : null}
+    </li>
+  );
+}
+
+const LOAD_NOTES: Record<LoadPhase, string> = {
+  downloading: "It downloads once and then stays in this browser.",
+  loading: "Already downloaded: loading it from this browser.",
+  preparing: "Getting the model ready.",
+  warming: "Almost there.",
+};
+
+/**
+ * The model on its way in, as a panel in the conversation: what is coming, how large it is, and how far along,
+ * so a first question that waits on several hundred megabytes says so.
+ */
+function ModelLoadPanel({
+  progress,
+  load,
+  backend,
+}: {
+  progress: string;
+  load: { phase: LoadPhase; percent: number };
+  backend: ChatBackend;
+}) {
+  const model =
+    backend.kind === "model" ? findLlmModel(backend.modelId) : undefined;
+  return (
+    <li
+      className="assistant-download"
+      role="status"
+      aria-label="Model download"
+      data-phase={load.phase}
+    >
+      <span>{progress}...</span>
+      <div
+        className="progress-indicator segmented"
+        role="progressbar"
+        aria-label="Model download progress"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={load.percent}
+      >
+        <span
+          className="progress-indicator-bar"
+          style={{ width: `${load.percent}%` }}
+        />
+      </div>
+      <span className="text-[grey]">
+        {model ? `${model.label}, ${formatDownload(model.downloadMb)}. ` : null}
+        {LOAD_NOTES[load.phase]}
+      </span>
     </li>
   );
 }
@@ -43,6 +97,7 @@ export function AssistantBalloon({ vm }: { vm: OfficeAssistantViewModel }) {
   const [draft, setDraft] = useState("");
   const log = useRef<HTMLUListElement>(null);
   const { chat } = vm;
+  const load = parseLoadProgress(chat.progress);
 
   // Keep the newest turn in view.
   useEffect(() => {
@@ -143,14 +198,20 @@ export function AssistantBalloon({ vm }: { vm: OfficeAssistantViewModel }) {
           {chat.messages.map((message) => (
             <Message key={message.id} message={message} />
           ))}
-          {chat.isStreaming && chat.progress ? (
+          {chat.calls.map((call, index) => (
+            <ToolCallLine key={`${call.name}-${index}`} call={call} />
+          ))}
+          {chat.isStreaming && chat.progress && load ? (
+            <ModelLoadPanel
+              progress={chat.progress}
+              load={load}
+              backend={chat.backend}
+            />
+          ) : chat.isStreaming && chat.progress ? (
             <li className="assistant-tool assistant-tool-running" role="status">
               {chat.progress}...
             </li>
           ) : null}
-          {chat.calls.map((call, index) => (
-            <ToolCallLine key={`${call.name}-${index}`} call={call} />
-          ))}
         </ul>
       ) : null}
       {chat.error ? <p className="text-[maroon]">{chat.error}</p> : null}
@@ -180,8 +241,12 @@ export function AssistantBalloon({ vm }: { vm: OfficeAssistantViewModel }) {
           Send
         </button>
         {chat.isStreaming ? (
-          <button type="button" onClick={vm.stopChat}>
-            Stop
+          <button
+            type="button"
+            title="Stop what Clippy is doing"
+            onClick={vm.stopChat}
+          >
+            Cancel
           </button>
         ) : (
           <button

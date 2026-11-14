@@ -170,12 +170,12 @@ describe("OfficeAssistant", () => {
     const log = within(balloon()).getByRole("log", { name: "Conversation" });
     expect(log).toHaveTextContent("Agent thinking...");
     expect(
-      within(balloon()).getByRole("button", { name: "Stop" }),
+      within(balloon()).getByRole("button", { name: "Cancel" }),
     ).toBeInTheDocument();
     expect(
       within(balloon()).getByRole("textbox", { name: "Ask Clippy" }),
     ).toBeDisabled();
-    await user.click(within(balloon()).getByRole("button", { name: "Stop" }));
+    await user.click(within(balloon()).getByRole("button", { name: "Cancel" }));
     expect(assistantDeps.chat.abort).toHaveBeenCalled();
     await act(async () => finish());
     await waitFor(() =>

@@ -198,6 +198,19 @@
     color: #444;
   }
 
+  .assistant-download {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 4px;
+    border: 1px dotted grey;
+    background: #ffffe8;
+  }
+
+  .assistant-download .progress-indicator {
+    height: 16px;
+  }
+
   .start-banner {
     background: linear-gradient(180deg, #1084d0, navy);
     color: silver;

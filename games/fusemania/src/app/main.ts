@@ -1985,6 +1985,4 @@ const query = new URLSearchParams(location.search);
 if (query.has("timing") || query.has("sync")) timing();
 else if (query.get("solo") === "1") room(true, LIBRARY);
 else if (query.has("room")) room(false, LIBRARY);
-// The flag alone is the Timing screen with its details open.
-else if (debugTiming) location.replace(withFlags(endpoints.appUrl("?timing")));
 else landing();

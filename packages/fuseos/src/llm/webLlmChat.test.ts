@@ -2,13 +2,22 @@ import { createFakeEngineFactory } from "../__mocks__/llmEngine";
 
 import { createIntentEngine } from "./intent";
 import type { LlmMessage, ReplyRequest } from "./llmChat";
-import type { MlcChunk, MlcEngineLike } from "./webLlmChat";
+import type { FunctionToolDef } from "./agentLoop";
+import type {
+  MlcChunk,
+  MlcCompletion,
+  MlcCompletionRequest,
+  MlcEngineLike,
+  MlcStreamRequest,
+} from "./webLlmChat";
 import {
   adaptMlcEngine,
+  AGENT_GENERATION,
   createWebLlmChatEngine,
   formatLoadProgress,
   GENERATION,
   loadFailureReason,
+  parseLoadProgress,
 } from "./webLlmChat";
 
 const MODEL = "Qwen2.5-0.5B-Instruct-q4f16_1-MLC";
@@ -57,6 +66,35 @@ describe(formatLoadProgress.name, () => {
     expect(formatLoadProgress({ progress: -1, text: "Fetching" })).toBe(
       "Downloading the model 0%",
     );
+  });
+});
+
+describe(parseLoadProgress.name, () => {
+  it("reads a load line back as its phase and percentage, and nothing else", () => {
+    expect(parseLoadProgress("Downloading the model 42%")).toEqual({
+      phase: "downloading",
+      percent: 42,
+    });
+    expect(parseLoadProgress("Loading the model 80%")).toEqual({
+      phase: "loading",
+      percent: 80,
+    });
+    expect(parseLoadProgress("Preparing the model 0%")).toEqual({
+      phase: "preparing",
+      percent: 0,
+    });
+    expect(parseLoadProgress("Warming up the model")).toEqual({
+      phase: "warming",
+      percent: 100,
+    });
+    for (const other of ["Thinking", "Thinking (step 2 of 8)", "", null])
+      expect(parseLoadProgress(other)).toBeUndefined();
+    // Whatever `formatLoadProgress` writes, this reads.
+    expect(
+      parseLoadProgress(
+        formatLoadProgress({ progress: 0.5, text: "Fetching param cache" }),
+      ),
+    ).toEqual({ phase: "downloading", percent: 50 });
   });
 });
 
@@ -188,24 +226,95 @@ describe(createWebLlmChatEngine.name, () => {
   });
 });
 
+describe("the agent side of the model engine", () => {
+  const PRO = "Qwen2.5-1.5B-Instruct-q4f16_1-MLC";
+  const catalog = { targets: [], gameNames: [] };
+
+  it("says how its model drives the desktop, and goes back to markers once the model has failed to load", async () => {
+    const factory = createFakeEngineFactory();
+    const small = createWebLlmChatEngine({
+      modelId: MODEL,
+      createEngine: factory.createEngine,
+      fallback: createIntentEngine(catalog, "no"),
+    });
+    expect(small.loopStyle?.()).toBe("markers");
+    const pro = createWebLlmChatEngine({
+      modelId: PRO,
+      createEngine: factory.createEngine,
+      fallback: createIntentEngine(catalog, "no"),
+    });
+    expect(pro.loopStyle?.()).toBe("json");
+    factory.failLoad = new Error("Cannot find WebGPU adapter");
+    await expect(pro.ready?.(() => undefined)).rejects.toThrow(
+      "Cannot find WebGPU adapter",
+    );
+    expect(pro.loopStyle?.()).toBe("markers");
+    expect(pro.backend().kind).toBe("rules");
+    expect(createIntentEngine(catalog, "no").loopStyle?.()).toBe("markers");
+  });
+
+  it("loads the model once, with progress, before the loop asks for whole replies", async () => {
+    const factory = createFakeEngineFactory();
+    factory.loadProgress = [{ progress: 0.5, text: "Fetching param cache" }];
+    factory.script = ['{"tool":"answer","args":{"text":"hi"}}'];
+    const engine = createWebLlmChatEngine({
+      modelId: PRO,
+      createEngine: factory.createEngine,
+      fallback: createIntentEngine(catalog, "no"),
+    });
+    const progress: string[] = [];
+    await engine.ready?.((text) => progress.push(text));
+    expect(progress).toEqual(["Downloading the model 50%"]);
+    const signal = new AbortController().signal;
+    const messages: LlmMessage[] = [{ role: "user", content: "hi" }];
+    expect(
+      await engine.complete?.({
+        messages,
+        signal,
+        jsonSchema: "{}",
+        onProgress: (text) => progress.push(text),
+      }),
+    ).toEqual({ text: '{"tool":"answer","args":{"text":"hi"}}' });
+    expect(factory.loads).toHaveLength(1);
+    expect(factory.engines[0]?.completions).toEqual([
+      { messages, jsonSchema: "{}", tools: undefined },
+    ]);
+    // The script is spent: a completion answers with what `reply` would stream.
+    expect(
+      await engine.complete?.({
+        messages,
+        signal,
+        onProgress: () => undefined,
+      }),
+    ).toEqual({
+      text: "Echo: hi",
+    });
+  });
+});
+
 describe(adaptMlcEngine.name, () => {
-  function fakeMlc(chunks: MlcChunk[]) {
-    const calls: Parameters<
-      MlcEngineLike["chat"]["completions"]["create"]
-    >[0][] = [];
+  function fakeMlc(
+    chunks: MlcChunk[],
+    completion: MlcCompletion = { choices: [] },
+  ) {
+    const calls: (MlcStreamRequest | MlcCompletionRequest)[] = [];
     let interrupted = 0;
     let unloaded = 0;
+    function create(
+      request: MlcStreamRequest,
+    ): Promise<AsyncIterable<MlcChunk>>;
+    function create(request: MlcCompletionRequest): Promise<MlcCompletion>;
+    async function create(
+      request: MlcStreamRequest | MlcCompletionRequest,
+    ): Promise<AsyncIterable<MlcChunk> | MlcCompletion> {
+      calls.push(request);
+      if (!request.stream) return completion;
+      return (async function* () {
+        for (const chunk of chunks) yield chunk;
+      })();
+    }
     const engine: MlcEngineLike = {
-      chat: {
-        completions: {
-          create: async (req) => {
-            calls.push(req);
-            return (async function* () {
-              for (const chunk of chunks) yield chunk;
-            })();
-          },
-        },
-      },
+      chat: { completions: { create } },
       interruptGenerate: () => {
         interrupted += 1;
       },
@@ -220,6 +329,93 @@ describe(adaptMlcEngine.name, () => {
       unloaded: () => unloaded,
     };
   }
+
+  it("asks for one whole reply held to the schema, at the agent's settings", async () => {
+    const mlc = fakeMlc([], {
+      choices: [
+        { message: { content: '{"tool":"answer","args":{"text":"hi"}}' } },
+      ],
+    });
+    const engine = adaptMlcEngine(mlc.engine);
+    const messages: LlmMessage[] = [{ role: "user", content: "hi" }];
+    expect(
+      await engine.complete({
+        messages,
+        signal: new AbortController().signal,
+        jsonSchema: '{"anyOf":[]}',
+      }),
+    ).toEqual({ text: '{"tool":"answer","args":{"text":"hi"}}' });
+    expect(mlc.calls).toEqual([
+      {
+        messages,
+        stream: false,
+        ...AGENT_GENERATION,
+        response_format: { type: "json_object", schema: '{"anyOf":[]}' },
+      },
+    ]);
+  });
+
+  it("declares native tools and hands back the calls the model made", async () => {
+    const tools: FunctionToolDef[] = [
+      {
+        type: "function",
+        function: {
+          name: "open_app",
+          description: "Opens a program.",
+          parameters: { type: "object" },
+        },
+      },
+    ];
+    const mlc = fakeMlc([], {
+      choices: [
+        {
+          message: {
+            content: null,
+            tool_calls: [
+              { function: { name: "open_app", arguments: '{"id":"paint"}' } },
+            ],
+          },
+        },
+      ],
+    });
+    const engine = adaptMlcEngine(mlc.engine);
+    const signal = new AbortController().signal;
+    expect(await engine.complete({ messages: [], signal, tools })).toEqual({
+      text: "",
+      toolCalls: [{ name: "open_app", arguments: '{"id":"paint"}' }],
+    });
+    expect(mlc.calls[0]).toMatchObject({ tools, tool_choice: "auto" });
+    // No tools to declare, no choice either; and an empty reply is empty text.
+    const bare = fakeMlc([]);
+    expect(
+      await adaptMlcEngine(bare.engine).complete({
+        messages: [],
+        signal,
+        tools: [],
+      }),
+    ).toEqual({ text: "" });
+    expect(bare.calls).toEqual([
+      { messages: [], stream: false, ...AGENT_GENERATION },
+    ]);
+  });
+
+  it("interrupts a whole reply on abort", async () => {
+    const mlc = fakeMlc([]);
+    const controller = new AbortController();
+    const engine = adaptMlcEngine(mlc.engine);
+    const pending = engine.complete({
+      messages: [],
+      signal: controller.signal,
+    });
+    controller.abort();
+    await pending;
+    expect(mlc.interrupted()).toBe(1);
+    // Once the reply is in, a late abort interrupts nothing.
+    const late = new AbortController();
+    await engine.complete({ messages: [], signal: late.signal });
+    late.abort();
+    expect(mlc.interrupted()).toBe(1);
+  });
 
   it("streams the deltas of a streaming completion with the generation settings", async () => {
     const mlc = fakeMlc([

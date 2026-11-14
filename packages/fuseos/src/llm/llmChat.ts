@@ -1,3 +1,11 @@
+import type { AgentTool } from "../agenttools/agentTool";
+
+import type {
+  AgentChecklistItem,
+  AgentCompletion,
+  AgentCompletionRequest,
+  AgentTimers,
+} from "./agentLoop";
 import type { AssistantTool, ToolCallEvent } from "./tools";
 
 /**
@@ -44,7 +52,28 @@ export type ChatOptions = {
   tools?: readonly AssistantTool[];
   /** Reports each tool call as it starts and ends, for the balloon and the character. */
   onToolCall?: (event: ToolCallEvent) => void;
+  /** What the agent loop needs, for an engine whose model can drive it (`ChatEngine.loopStyle`). */
+  agent?: AgentChatOptions;
 };
+
+/** The agent loop's side of the desktop: the typed tools, their prompt and the clock for the step timeouts. */
+export type AgentChatOptions = {
+  tools: readonly AgentTool[];
+  /** Clippy's instructions for the loop (`buildAgentPrompt`); the app context is appended. */
+  getPrompt: () => string;
+  timers: AgentTimers;
+  /** The parts of a request the loop holds the model to (`requestChecklist`); none when absent. */
+  checklist?: (request: string) => readonly AgentChecklistItem[];
+  /** Lets the desktop re-render between steps; defaults to a turn of the event loop. */
+  settle?: () => Promise<void>;
+  maxSteps?: number;
+};
+
+/**
+ * How a model's reply acts on the desktop: "markers" is one reply ending in `[name:argument]` markers (the
+ * small models and the rules); "json" and "native" are the multi-step agent loop (`agentLoop.ts`).
+ */
+export type LoopStyle = "markers" | "json" | "native";
 
 /** One line of the conversation as a model sees it. */
 export type LlmMessage = {
@@ -69,6 +98,17 @@ export interface ChatEngine {
   /** Who answers right now; an engine may change its mind (a model that failed to load falls back to the rules). */
   backend(): ChatBackend;
   reply(request: ReplyRequest): AsyncIterable<string>;
+  /** How replies act right now; absent means "markers". A model that failed to load goes back to "markers". */
+  loopStyle?(): LoopStyle;
+  /**
+   * Loads the model ahead of the agent loop, so a download does not count against a step's timeout. Rejects
+   * when the model cannot load; `loopStyle()` then says "markers" and the caller asks `reply` instead.
+   */
+  ready?(onProgress: (text: string) => void): Promise<void>;
+  /** One whole reply for the agent loop (the model loads first if `ready` was not awaited). */
+  complete?(
+    request: AgentCompletionRequest & { onProgress: (text: string) => void },
+  ): Promise<AgentCompletion>;
   /** Releases the model; the next reply loads it again. */
   dispose(): void;
 }
