@@ -29,7 +29,7 @@ import {
   STUN_STEPS,
 } from "./tuning.js";
 import type { Round, Unit } from "./types.js";
-import { centreY, held, killUnit } from "./units.js";
+import { centreY, held, killUnit, turnOrder } from "./units.js";
 
 /** Whether a unit takes part in combat at all: it can be hit, bumped and, when armed, hit others. */
 export const exposed = (unit: Unit): boolean =>
@@ -222,7 +222,10 @@ export function resolveCombat(state: Round): void {
       if (kind !== 0) bodies.push([a, b, kind]);
     }
   for (const [a, b] of glances) glance(state, arena, a, b);
-  for (const [victim, killer] of kills) killUnit(state, victim, killer.slot);
+  // Kills land in the step's turn order, so two killers of one victim credit the one the step serves first.
+  for (const slot of turnOrder(state))
+    for (const [victim, killer] of kills)
+      if (killer.slot === slot) killUnit(state, victim, slot);
   for (const [a, b, kind] of bodies) {
     if (a.dead || b.dead) continue;
     if (kind === 1) bump(state, arena, a, b);

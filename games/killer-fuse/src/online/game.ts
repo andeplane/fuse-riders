@@ -488,7 +488,9 @@ function tally(
     if (event.type === "kill") {
       bump(event.killer, "kills");
       bump(event.victim, "deaths");
-    } else if (event.type === "berryDeposit" || event.type === "berryKickIn")
+    } else if (event.type === "berryDeposit") bump(event.slot, "berries");
+    // A loose berry fills either hive; only one in the sender's own hive is to the sender's credit.
+    else if (event.type === "berryKickIn" && teamOf(event.slot) === event.team)
       bump(event.slot, "berries");
 }
 

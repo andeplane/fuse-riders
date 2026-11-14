@@ -2,7 +2,7 @@
 
 The rules of Killer Fuse live in `games/killer-fuse/src/engine`, a headless simulation with no rendering, no network and no clock. The page, the online layer (`src/online`) and the headless runner (`scripts/killer-fuse-sim.ts`) all drive the same `stepRound`. The bots are described in [bots.md](bots.md) and the measured results in [balance.md](balance.md).
 
-Since rules version `killer-fuse-4` (now `killer-fuse-5`, which changed only the bots and the lesson berry) the engine follows Killer Queen Black throughout: its movement, its sword combat with an attack button, and its timings. One Black unit ("u") is 11 art pixels here. What is deliberately ours, and what could not be checked against the original, is listed under "Deliberate differences" and "Not verified" below.
+Since rules version `killer-fuse-4` (now `killer-fuse-6`; `killer-fuse-5` changed only the bots and the lesson berry, and `killer-fuse-6` four edge rules: same-step victories go to the step's coin whatever their kinds, a snail win needs the rider still on it after combat, the snail cannot catch an invulnerable Worker, and kills land in the step's turn order) the engine follows Killer Queen Black throughout: its movement, its sword combat with an attack button, and its timings. One Black unit ("u") is 11 art pixels here. What is deliberately ours, and what could not be checked against the original, is listed under "Deliberate differences" and "Not verified" below.
 
 ## Determinism
 
@@ -23,7 +23,7 @@ Everything is exported from `src/engine/index.ts`.
 
 | Export                                                         | What it is                                                                                   |
 | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `RULES = "killer-fuse-5"`                                      | Bumped on any behaviour change; peers on different rules refuse each other                   |
+| `RULES = "killer-fuse-6"`                                      | Bumped on any behaviour change; peers on different rules refuse each other                   |
 | `TICK_HZ = 60`, `MAX_PLAYERS = 6`, `S = 1024`, `UNIT = 11 * S` | Step rate, seats, subpixels per art pixel, one Black unit                                    |
 | `teamOf(slot)`, `isQueenSlot(slot)`                            | `slot % 2` and `slot < 2`: slots 0 and 1 are the Queens, 2 to 5 the Workers                  |
 | `createRound(options: RoundOptions): Round`                    | A new round: `{ seed, mapId?, botLevel?, humans?, teamLevels?, passive?, lesson? }`          |
@@ -117,29 +117,29 @@ For the renderer: a dashing unit's movement box is lifted off its feet (0.29 u f
 5. Combat: glances, then kills, then bodies.
 6. Berries: pickups, deposits, loose berry physics, kicks.
 7. Gates: claims by Queens, Workers offering, locking and stepping out.
-8. Victory: military, then economy, then snail.
+8. Victory: for the team the step's coin serves first, military, then economy, then snail; then the same for the other team. The snail's counts only with its rider still on it after combat.
 
-The step after 300 s of play only decides the round by the clock. When both teams could take the same thing on the same step (a berry, the snail, a gate, or a victory), the team served first is a coin flipped from the seed and the step number (`firstTeam`).
+The step after 300 s of play only decides the round by the clock. When both teams could take the same thing on the same step (a berry, the snail, a gate, or a victory of any kind), the team served first is a coin flipped from the seed and the step number (`firstTeam`).
 
 ## Rules as built
 
 Controls are a stick, a jump / flap button and an attack button. `pressed` and `attack` are edges: holding either button repeats nothing.
 
 - **Worker.** Runs at 7 u/s (77 px/s) and stops dead when the stick is let go. The button jumps at 14 u/s; holding it keeps pushing, so the jump height runs from 0.86 u (a tap) to 3.8 u (42 px, a full hold). A press up to 3 steps before landing still jumps, and so does one up to 3 steps after walking off a ledge. Carries one berry. A Worker has no weapon.
-- **Warrior and Queen.** A press in the air starts a flap: 0.3 s of upward push. Up to five run at once and add up, so presses about 0.37 s apart hold a height and faster ones climb, to at most 10 u/s. A press on the ground is a take-off. They fly at 6 u/s sideways and walk at 5.6 u/s. The press rate against height gained is tabled in [balance.md](balance.md).
-- **Dive.** A Queen who presses down in the air dives at 20 u/s for as long as down stays held. Her blade kills whatever it touches from any side.
+- **Warrior and Queen.** A press in the air starts a flap: 0.3 s of upward push. Up to five run at once and add up, so presses about 0.36 s apart (2.8 a second; `HOVER_HZ` rounds it to 3 for the page) hold a height and faster ones climb, to at most 10 u/s. A press on the ground is a take-off. They fly at 6 u/s sideways and walk at 5.6 u/s. The press rate against height gained is tabled in [balance.md](balance.md).
+- **Dive.** A Queen who presses down in the air dives at 20 u/s for as long as down stays held. Her blade kills whatever it touches from any side. The dive starts on the press: down already held when she walks off a ledge or when a dash ends starts none until she presses it again (`downHeld`).
 - **Attack.** The attack button starts a sword dash. A Warrior's is lethal on steps 1 to 19, carries it 5.07 u and may be repeated every 44 steps; a Queen's is lethal on steps 1 to 17, a flat 16 u/s, every 36 steps. A press up to 6 steps early is remembered. The dash goes the held way unless that opposes the unit's motion; a flap during a Warrior's dash bends it into an arc. A dash ends at a wall it meets squarely; a body that sticks out below the wall slips under and a Queen that sticks out above is lifted onto the ledge.
 - **Combat** (`combat.ts`), for each pair of enemies in this order:
   1. Two lethal weapons that touch, with their owners facing each other, **glance**: nobody dies, both attacks end, both are stunned for 21 steps and thrown apart.
-  2. A lethal weapon that touches an enemy's hit box **kills**, when the enemy is in front of the attacker and no platform is on the line between them. So a hit from behind always kills, and two fighters can kill each other on the same step.
+  2. A lethal weapon that touches an enemy's hit box **kills**, when the enemy is in front of the attacker and no platform is on the line between them. So a hit from behind always kills, and two fighters can kill each other on the same step. Kills land in the step's turn order, so two killers of one victim credit the one the step serves first.
   3. Bodies that touch **bounce**. One that overlaps the other by less than 0.2 u from above springs off its head (`stomped`) and nobody is hurt. Anything else is a bump: both are stunned and thrown apart sideways at 10 u/s, and a dash ends. A bump's stun does not block attacking, so a bumped Warrior can dash at once.
 
   Teammates never interact. Invulnerable units, a Worker locked in a gate or sitting in a hive hole, and a Worker in the snail's mouth take no part.
 
 - **Death.** A unit respawns after 3.2 s, invulnerable for 2.2 s. A Warrior comes back as a plain Worker on its spawn point. A Queen has three lives: she hatches in the air above the next of her two spare eggs, and her third death loses the game. Tagging a gate ends a Queen's invulnerability.
-- **Berries.** Each pile holds a fixed number and nothing grows back. A Worker picks one up by touching a pile or a loose berry, and banks it by touching an open hole of its own hive: it sits in the hole for 1.5 s, untouchable, then the berry counts, and 0.56 s later it pops out, invulnerable for 2.2 s. A carrier that dies drops the berry. A unit that cannot pick up a resting berry kicks it straight up at 5 u/s; a flying berry is knocked away by bodies and the snail, and one that comes to an open hole fills it for that hive's team.
+- **Berries.** Each pile holds a fixed number and nothing grows back. A Worker picks one up by touching a pile or a loose berry, and banks it by touching an open hole of its own hive: it sits in the hole for 1.5 s, untouchable, then the berry counts, and 0.56 s later it pops out, invulnerable for 2.2 s. A carrier that dies drops the berry. A unit that cannot pick up a resting berry kicks it straight up at 5 u/s; a flying berry is knocked away by bodies and the snail, and one that comes to an open hole of either hive fills it for that hive's team, whoever sent it (the online statistics credit the sender only for its own hive).
 - **Gates.** A Worker holding a berry that stands still in a gate offers it for 0.5 s; moving, jumping or the enemy Queen tagging the gate cancels the offer, and the Worker can be killed. Then the gate locks it in for 2.0 s, untouchable, and it steps out transformed and invulnerable for 2.2 s. A warrior gate makes a Warrior, a speed gate a speed Worker (1.3 times run, flight and snail speed), and a speed Worker in a warrior gate a speed Warrior. A gate is neutral until a Queen touches it; then only her team may use it until the other Queen does. One Worker uses a gate at a time.
-- **Snail.** A Worker standing wholly on the snail mounts it. It crawls toward that Worker's own goal at 0.8 u/s, only while the rider holds that way. An enemy Worker at its head is caught: the snail halts for a 5 s meal (3.5 s with a speed rider) and then the Worker dies. The rider being killed frees the Worker. The button hops the rider off, but not during a meal. Reaching the goal wins.
+- **Snail.** A Worker standing wholly on the snail mounts it. It crawls toward that Worker's own goal at 0.8 u/s, only while the rider holds that way. An enemy Worker at its head is caught, unless it is invulnerable: the snail halts for a 5 s meal (3.5 s with a speed rider) and then the Worker dies. The rider being killed frees the Worker. The button hops the rider off, but not during a meal. Reaching the goal with the rider still on it after that step's combat wins; a rider killed as it arrives leaves the snail waiting at the goal for the next of its team to mount.
 - **Clock.** After 300 s the team with more Queen eggs wins, then more berries banked, then the snail nearer its goal, then a coin flip from the seed.
 - **Wrap.** The screen wraps horizontally for units, berries and distances, except where a map has walls. The snail stays between its goals.
 
@@ -173,6 +173,9 @@ These were built from the figures we were given and could not be checked frame b
 - A dash ending on a floor or ceiling cannot happen here: a dash has no vertical speed of its own, so that branch of the original is unreachable.
 - The rule that lets a Warrior slip under a wall only when its lower quarter is below the wall's middle matters only for walls thinner than 6.3 px, which the three maps do not have.
 - The bump event is named `bounce`, the name the renderer already used.
+- A Queen's dive starts only on a Down press, not on a Down already held when she leaves a ledge or ends a dash.
+- The snail does not catch an invulnerable Worker, in keeping with invulnerable units taking no part in combat.
+- Same-step ties between victories, and the credit for a victim with two killers on one step, follow the step's coin and turn order.
 
 ## Maps
 

@@ -10,7 +10,7 @@ export const S = 1024;
 export const TICK_HZ = 60;
 export const MAX_PLAYERS = 6;
 /** Bump on any behaviour change: peers on different rules refuse each other. */
-export const RULES = "killer-fuse-5";
+export const RULES = "killer-fuse-6";
 
 /** One Black unit in subpixels. */
 export const UNIT = 11 * S;

@@ -19,6 +19,8 @@ import {
   LESSONS,
   MAP_IDS,
   RULES,
+  S,
+  arenaOf,
 } from "../src/engine/index.js";
 import {
   BETWEEN_TICKS,
@@ -358,6 +360,46 @@ test("kills, deaths and berries are credited to the people who play the slots", 
   );
   assert.ok(all.some((stats) => stats.deaths > 0));
   assert.ok(all.every((stats) => stats.kills === 0 && stats.berries === 0));
+});
+
+test("a loose berry that fills a hive counts for that hive, and as a berry only for a sender of that team", () => {
+  // Passive bots: nothing else happens in the round.
+  const room = started({ ...SETUP, passive: true });
+  toPlay(room);
+  fold(room);
+  const world = room.world!;
+  const hive = arenaOf(world.mapId).holes[1];
+  const dropInto = (hole: number, by: number): void => {
+    const at = hive[hole];
+    assert.ok(at);
+    world.loose.push({
+      x: at.x,
+      y: at.y + 2 * S,
+      vx: 0,
+      vy: 0,
+      resting: false,
+      wait: 0,
+      by,
+    });
+  };
+  // Ada (slot 0, team 0) sends one into team 1's hive: it fills the hole, but she banked nothing.
+  dropInto(0, 0);
+  let events = fold(room);
+  assert.deepEqual(
+    events.filter((event) => event.type === "berryKickIn"),
+    [{ type: "berryKickIn", slot: 0, team: 1, hole: 0 }],
+  );
+  assert.equal(world.holes[1]?.[0], true);
+  assert.equal(room.stats.a?.berries ?? 0, 0);
+  // Bo (slot 1, team 1) sends one into his own hive: a berry to his credit.
+  dropInto(1, 1);
+  events = fold(room);
+  assert.deepEqual(
+    events.filter((event) => event.type === "berryKickIn"),
+    [{ type: "berryKickIn", slot: 1, team: 1, hole: 1 }],
+  );
+  assert.equal(room.stats.b?.berries, 1);
+  assert.equal(room.stats.a?.berries ?? 0, 0);
 });
 
 test("a set: games on rotating maps to the wins it takes, with a victory screen and a pause between", () => {

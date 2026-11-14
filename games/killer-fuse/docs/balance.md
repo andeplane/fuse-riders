@@ -1,6 +1,6 @@
 # Killer Fuse balance
 
-What the headless runner measures when bots play each other at rules `killer-fuse-5`, against the targets in [BRIEF.md](BRIEF.md). Every number here comes from bots; no person's play has been measured. The rules and values are Killer Queen Black's and were not tuned toward the targets: only the bots were. The targets that are still missed are listed as misses below.
+What the headless runner measures when bots play each other at rules `killer-fuse-6`, against the targets in [BRIEF.md](BRIEF.md). Every number here comes from bots; no person's play has been measured. The rules and values are Killer Queen Black's and were not tuned toward the targets: only the bots were. The targets that are still missed are listed as misses below.
 
 ## How to measure
 
@@ -14,7 +14,7 @@ pnpm exec tsx scripts/killer-fuse-sim.ts --games 300 --level hard [--level-b med
 - Every game is played twice and the two final state hashes must match; the run fails otherwise.
 - A game undecided after `--max-seconds` is counted as a timeout and left out of the win and length figures. At the default of 300 s that is exactly the games the engine's own clock would decide (by eggs, then berries, then the snail, then a coin flip).
 
-All results below are from revision `c5003446`, 300 games per row, seeds 20001 to 20300, unless a row says otherwise. With 300 games a share near 50% is uncertain by about 6 points either way (95%), and one near 70% by about 5.
+All results below are from revision `c5003446` (rules `killer-fuse-5`), 300 games per row, seeds 20001 to 20300, unless a row says otherwise; the hard-against-hard rows were rerun at rules `killer-fuse-6` and are listed under "Rules `killer-fuse-6`" below. With 300 games a share near 50% is uncertain by about 6 points either way (95%), and one near 70% by about 5.
 
 ## Targets and results on map 1
 
@@ -70,6 +70,18 @@ Over 10,000 games (seeds 100001 to 110000, each played once) the same matchup re
 
 The levels are ordered on every map: hard beats medium in 86 to 90%, medium beats easy in 73 to 93%, hard beats easy in 97 to 100%.
 
+### Rules `killer-fuse-6`
+
+Rules `killer-fuse-6` changed four edge rules and no value: same-step victories of any kinds go to the step's coin, a snail win needs the rider still on it after combat, the snail cannot catch an invulnerable Worker, and kills land in the step's turn order. Hard against hard, 300 games per map, seeds 20001 to 20300, rerun at that revision; the other matchups were not rerun.
+
+| Map | Mix                | Median | p90     | QD   | Side  | Clock | At `killer-fuse-5` |
+| --- | ------------------ | ------ | ------- | ---- | ----- | ----- | ------------------ |
+| 1   | 71.3 / 17.7 / 11.0 | 73.3 s | 124.4 s | 3.43 | 51.7% | 0     | 71.7 / 17.7 / 10.7 |
+| 2   | 49.7 / 38.0 / 12.3 | 95.8 s | 138.6 s | 3.01 | 50.0% | 0     | 51.7 / 37.0 / 11.3 |
+| 3   | 47.3 / 41.7 / 11.0 | 78.8 s | 111.1 s | 2.95 | 53.0% | 0     | 47.3 / 41.7 / 11.0 |
+
+Nothing moved beyond the noise of 300 games (map 2 by 2 points, the others by a game or two): the edge rules decide a handful of steps in 300 games, so the targets met and missed at `killer-fuse-5` stand.
+
 ### A Queen whose player holds nothing
 
 Hard bots on both teams, one team's Queen seat held by a player who presses nothing (`--idle-queen`).
@@ -121,6 +133,9 @@ Hard against hard. The earlier rows are the figures recorded when each revision 
 | `c5003446`                     | Same rules, better bots (`killer-fuse-5`)                        | 1   | 71.7 / 17.7 / 10.7               | 73.2 s  | 3.45 | 51.7%     |
 | `c5003446`                     |                                                                  | 2   | 51.7 / 37.0 / 11.3               | 94.3 s  | 3.02 | 49.3%     |
 | `c5003446`                     |                                                                  | 3   | 47.3 / 41.7 / 11.0               | 78.8 s  | 2.95 | 53.0%     |
+| `killer-fuse-6`                | Four edge rules: ties, snail arrival, invulnerable, kill order   | 1   | 71.3 / 17.7 / 11.0               | 73.3 s  | 3.43 | 51.7%     |
+| `killer-fuse-6`                |                                                                  | 2   | 49.7 / 38.0 / 12.3               | 95.8 s  | 3.01 | 50.0%     |
+| `killer-fuse-6`                |                                                                  | 3   | 47.3 / 41.7 / 11.0               | 78.8 s  | 2.95 | 53.0%     |
 
 What changed in the bots between the last two revisions, in the order it mattered:
 
@@ -143,6 +158,6 @@ A Warrior starting at rest in the air, pressing at a fixed period for 5 s. Posit
 | 10 steps    | 6.0                | 528.7 px             |
 | 6 steps     | 10.0               | 534.2 px             |
 
-Hovering takes about 2.7 presses a second, and pressing faster than about 4 a second gains almost nothing, because the climb is capped at 10 u/s. Holding the button does nothing: only presses flap. The BRIEF's older line asked for sustained flight at 7 to 15 presses a second; Black's values give this instead, and they were kept.
+Hovering takes about 2.8 presses a second (22 steps apart just holds, 21 apart climbs; the engine's `HOVER_HZ` rounds it to 3 for the page), and pressing faster than about 4 a second gains almost nothing, because the climb is capped at 10 u/s. Holding the button does nothing: only presses flap. The BRIEF's older line asked for sustained flight at 7 to 15 presses a second; Black's values give this instead, and they were kept.
 
 Other measured motion figures: a Worker's jump peaks at 0.86 u for a tap and 3.82 u for a full hold (apex on step 22, landing on step 46); a Warrior's dash lasts 19 steps and covers 5.07 u; a Queen's covers about 4.5 u.

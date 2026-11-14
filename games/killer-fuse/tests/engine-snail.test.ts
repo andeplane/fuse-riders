@@ -136,8 +136,13 @@ test("the snail catches an enemy Worker at its mouth, halts for a 5 s meal and t
   stepRound(state, []);
   const victim = stand(state, 3, state.snail.x / S - 14, TRACK, {
     carrying: true,
-    invuln: 50,
+    invuln: 2,
   });
+  // While invulnerable it is not caught; the step its invulnerability runs out, it is.
+  stepRound(state, PUSH());
+  assert.equal(state.events.length, 0);
+  assert.equal(victim.eaten, false);
+  assert.equal(victim.carrying, true);
   stepRound(state, PUSH());
   assert.deepEqual(
     state.events.map((event) => event.type),
@@ -237,5 +242,39 @@ test("riding the snail to its goal is a snail victory", () => {
   assert.deepEqual(ofType(events, "victory"), [
     { type: "victory", team: 1, kind: "snail" },
   ]);
+  assert.deepEqual(state.winner, { team: 1, kind: "snail" });
+});
+
+test("a rider killed on the step the snail reaches the goal does not win; the next rider home does", () => {
+  const state = bare();
+  const goal = MAP.snail.goals[1] * S;
+  // One push short of the goal: the first step of crawling arrives.
+  state.snail.x = goal - Math.trunc(SNAIL_ACCEL / 2);
+  const rider = stand(state, 5, state.snail.x / S, TRACK);
+  stepRound(state, []);
+  assert.equal(state.snail.rider, 5);
+  // A Warrior's sword meets the rider on the arrival step.
+  put(state, 2, rider.x / S - 8, TRACK, {
+    kind: "warrior",
+    attack: 3,
+    dashing: true,
+    facing: 1,
+  });
+  stepRound(state, PUSH());
+  assert.ok(state.snail.x >= goal, "the snail reached the goal");
+  assert.deepEqual(ofType(state.events, "kill"), [
+    { type: "kill", victim: 5, killer: 2 },
+  ]);
+  assert.equal(state.snail.rider, -1);
+  assert.equal(state.winner, null);
+  assert.deepEqual(ofType(state.events, "victory"), []);
+  // The snail waits at the goal: the next Worker of that team to mount it wins on the spot.
+  put(state, 2, 100, 100, { dead: true, respawn: 1000 });
+  stand(state, 3, state.snail.x / S, TRACK);
+  stepRound(state, PUSH());
+  assert.deepEqual(
+    state.events.map((event) => event.type),
+    ["snailMount", "victory"],
+  );
   assert.deepEqual(state.winner, { team: 1, kind: "snail" });
 });

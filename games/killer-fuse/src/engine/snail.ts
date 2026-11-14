@@ -2,7 +2,7 @@
  * The snail. A Worker standing wholly on it mounts, and it crawls toward that Worker's own goal only while the rider
  * holds that way; nothing is banked, so the other team can ride it back. An enemy Worker touching its head is caught:
  * the snail halts for the meal and then the Worker dies. The rider being killed, or leaving, frees the Worker. The
- * button hops the rider off, but not during a meal.
+ * button hops the rider off, but not during a meal. An invulnerable Worker cannot be caught.
  */
 import { arenaOf, wrapX } from "./maps.js";
 import { approach, dirOf } from "./motion.js";
@@ -109,10 +109,12 @@ export function stepSnail(state: Round, inputs: readonly Input[]): number {
     const head = snail.x + dir * (SNAIL_HALF + Math.trunc(MOUTH_REACH / 2));
     for (const slot of turnOrder(state)) {
       const unit = state.units[slot]!;
+      // An invulnerable Worker (fresh from a respawn, a gate or a hive hole) walks past the mouth unharmed.
       if (
         !freeWorker(unit) ||
         unit.team === rider.team ||
         unit.mountWait > 0 ||
+        unit.invuln > 0 ||
         !boxesTouch(
           unit.x,
           unit.y,
@@ -125,12 +127,11 @@ export function stepSnail(state: Round, inputs: readonly Input[]): number {
         )
       )
         continue;
-      // Caught: it lets go of everything, and no invulnerability saves it.
+      // Caught: it lets go of everything.
       dropBerry(state, unit);
       release(state, unit);
       settle(unit);
       unit.eaten = true;
-      unit.invuln = 0;
       unit.x = mouth;
       unit.y = track;
       unit.ground = -1;

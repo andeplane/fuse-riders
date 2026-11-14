@@ -241,6 +241,36 @@ test("a swing at a Warrior that is not attacking kills it, and it comes back as 
   assert.equal(cooling.dead, true);
 });
 
+test("kills land in the step's turn order: the first team's strike first, and two killers of one victim credit the one served first", () => {
+  // A step the coin gives to team 1: slot 3 kills slot 4 and slot 2 kills slot 5, 3's kill first.
+  const state = bare();
+  for (state.step = 1; firstTeam(state) !== 1; state.step += 1);
+  put(state, 3, 300, 200, { ...SWING, facing: 1 });
+  const worker = put(state, 4, 308, 200);
+  put(state, 2, 400, 200, { ...SWING, facing: 1 });
+  const other = put(state, 5, 408, 200);
+  resolveCombat(state);
+  assert.deepEqual(ofType(state.events, "kill"), [
+    { type: "kill", victim: 4, killer: 3 },
+    { type: "kill", victim: 5, killer: 2 },
+  ]);
+  assert.equal(worker.dead && other.dead, true);
+  // Queen and Warrior of one team strike one Worker on the same step: one kill, credited by the turn order.
+  for (const coin of [0, 1]) {
+    const shared = bare();
+    for (shared.step = 1; firstTeam(shared) !== coin; shared.step += 1);
+    put(shared, 0, 300, 200, { attack: 2, dashing: true, facing: 1 });
+    put(shared, 2, 299, 200, { ...SWING, facing: 1 });
+    const victim = put(shared, 3, 305, 200);
+    resolveCombat(shared);
+    const killer = turnOrder(shared).find((slot) => slot === 0 || slot === 2);
+    assert.deepEqual(ofType(shared.events, "kill"), [
+      { type: "kill", victim: 3, killer: killer! },
+    ]);
+    assert.equal(victim.dead, true);
+  }
+});
+
 test("two swords that pass each other's guard kill each other on the same step", () => {
   const state = bare();
   // Point-blank, a Queen's thin dash blade is already past the Warrior's sword: each finds the other's body.

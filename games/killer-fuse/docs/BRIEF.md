@@ -1,6 +1,6 @@
 # Killer Fuse: brief
 
-Killer Fuse is a 3v3 side-view team arena for up to six players, with bots in every empty seat. It follows Killer Queen Black (the Steam version of the arcade game Killer Queen) throughout: its controls, sword combat, movement, gates, snail and berries. Three ways to win draw on the same few bodies and the same finite berries. It looks like the arcade's chunky pixel insects in Fuse Riders' neon-on-navy palette. The name, sprites and sounds are our own; the three maps are the arcade's Day, Dusk and Night, ported. Engine rules version: `killer-fuse-5` (it changed only the bots and the lesson berry from `killer-fuse-4`). The rules as built are in [engine.md](engine.md), the bots in [bots.md](bots.md), the measured results in [balance.md](balance.md).
+Killer Fuse is a 3v3 side-view team arena for up to six players, with bots in every empty seat. It follows Killer Queen Black (the Steam version of the arcade game Killer Queen) throughout: its controls, sword combat, movement, gates, snail and berries. Three ways to win draw on the same few bodies and the same finite berries. It looks like the arcade's chunky pixel insects in Fuse Riders' neon-on-navy palette. The name, sprites and sounds are our own; the three maps are the arcade's Day, Dusk and Night, ported. Engine rules version: `killer-fuse-6` (from `killer-fuse-5` it changed four edge rules: same-step victories of any kinds go to the step's coin, a snail win needs the rider still on it after combat, the snail cannot catch an invulnerable Worker, and kills land in the step's turn order). The rules as built are in [engine.md](engine.md), the bots in [bots.md](bots.md), the measured results in [balance.md](balance.md).
 
 ## Loop
 
@@ -22,16 +22,17 @@ Two teams, Cyan and Pink (`team = slot % 2`). Slots 0 and 1 are the Queens, slot
 
 ## Controls
 
-Left, right, down, one jump / flap button and one attack button. Up is bound to nothing. Down in the air is the Queen's dive. Jump and flap act on the press; holding does nothing, except that a Worker's jump goes higher while held. A device option, "Hold to flap", repeats the press 7.5 times a second while the button is held; it is off by default. Keyboard (A/D or arrows, S or down, Space, J), gamepad and touch.
+Left, right, down, one jump / flap button and one attack button. Up is bound to nothing. Down in the air is the Queen's dive: it starts on the press, so Down already held when she leaves a ledge or ends a dash starts none until it is pressed again. Jump and flap act on the press; holding does nothing, except that a Worker's jump goes higher while held. A device option, "Hold to flap", repeats the press 7.5 times a second while the button is held; it is off by default. Keyboard (A/D or arrows, S or down, Space, J), gamepad and touch.
 
 ## Rules in short
 
 - **Combat:** a sword dash kills an enemy in front of it during its lethal window (Warrior steps 1 to 19, every 44 steps; Queen 1 to 17, every 36). Two lethal swords that meet face to face glance: nobody dies. Landing on a head bounces off; other body contact is a bump that stuns both.
-- **Flight:** each press is 0.3 s of upward push; about 2.7 presses a second hold height, and the climb is capped at 10 u/s (1 u = 11 art pixels).
+- **Flight:** each press is 0.3 s of upward push; about 2.8 presses a second hold height (the page rounds that to 3; presses 22 steps apart just hold, 21 apart climb), and the climb is capped at 10 u/s (1 u = 11 art pixels).
 - **Death:** respawn after 3.2 s, invulnerable for 2.2 s. A Warrior comes back a plain Worker. A Queen hatches from a spare egg; her third death loses the game.
-- **Berries:** piles of 6, no regrowth. Banking takes 1.5 s in the hole. A loose berry can be kicked, and one that reaches an open hole fills it.
+- **Berries:** piles of 6, no regrowth. Banking takes 1.5 s in the hole. A loose berry can be kicked, and one that reaches an open hole of either hive fills it for that hive, whoever sent it; only a berry in the sender's own hive counts in the sender's statistics.
 - **Gates:** a Worker with a berry stands still for a 0.5 s offer, then is locked in for 2.0 s and steps out transformed, invulnerable for 2.2 s. A Queen claims a gate by touch.
-- **Snail:** moves at 0.8 u/s only while the rider holds toward its goal. A meal takes 5 s (3.5 s with a speed rider); killing the rider frees the victim.
+- **Snail:** moves at 0.8 u/s only while the rider holds toward its goal. A meal takes 5 s (3.5 s with a speed rider); killing the rider frees the victim. An invulnerable Worker cannot be caught. The snail wins only with its rider still on it after that step's combat: a rider killed as it arrives has not brought it home.
+- **Ties:** victories reached on the same step, of whatever kinds, go to the step's coin flip from the seed (the same coin that settles a contested pickup, mount or gate); one team's own victories rank military, economy, snail. Two killers of one victim on one step credit the one the step serves first.
 
 ## Deliberate differences from Killer Queen Black
 
@@ -54,7 +55,7 @@ Out of scope: other weapons, the shield, berry throwing, upgrade choices, Black'
 | Queen deaths per game | 3.3 to 3.7                           | The same arcade logs                   | 3 to 4                                                |
 | Level ordering        | None                                 | Ours                                   | Hard beats medium, medium beats easy, in at least 70% |
 
-No reference comes from Killer Queen Black games. At rules `killer-fuse-5` map 1 meets every target at 300 games, but over 10,000 games its military share is 73.5%, 1.5 points above the band; maps 2 and 3 stay economy-heavy. See [balance.md](balance.md).
+No reference comes from Killer Queen Black games. At rules `killer-fuse-5` map 1 met every target at 300 games, but over 10,000 games its military share was 73.5%, 1.5 points above the band; maps 2 and 3 stay economy-heavy. The `killer-fuse-6` edge rules did not move the 300-game figures beyond their noise. See [balance.md](balance.md).
 
 ## Tech
 

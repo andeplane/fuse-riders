@@ -20,15 +20,17 @@ function win(state: Round, team: number, kind: VictoryKind): void {
 }
 
 function checkVictory(state: Round, snailTeam: number): void {
-  // A tie on the same step (both Queens' last egg, both hives' last hole) goes to the step's coin flip.
-  const first = firstTeam(state),
-    second = 1 - first;
-  for (const team of [first, second])
+  // Victories on the same step, of any kinds, go to the step's coin flip: the first team's are checked before any
+  // of the other's. The snail counts only while its rider is still on it after combat: a rider killed on the step
+  // of arrival did not bring it home.
+  const first = firstTeam(state);
+  const rode = state.snail.rider >= 0 ? snailTeam : -1;
+  for (const team of [first, 1 - first]) {
     if (state.eggs[1 - team]! <= 0) return win(state, team, "military");
-  for (const team of [first, second])
     if (state.holes[team]!.every((filled) => filled))
       return win(state, team, "economy");
-  if (snailTeam >= 0) win(state, snailTeam, "snail");
+    if (rode === team) return win(state, team, "snail");
+  }
 }
 
 /**
