@@ -1540,6 +1540,16 @@
     flex: 1 1 0;
     min-width: 0;
   }
+  /* Two or three buttons share a phone's width: tighter sides keep a two-word label ("START MATCH") inside its own. */
+  .fui-room-layout.fui-room-actions-top
+    .fui-room-head
+    .fui-page-actions
+    button {
+    padding-inline: var(--fui-space-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .fui-room-layout.fui-room-actions-top
     .fui-room-head
     .fui-room-primary-action

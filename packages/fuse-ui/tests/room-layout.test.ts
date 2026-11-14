@@ -426,6 +426,35 @@ test("a seat says what it is: its number on a chip, Open seat while empty, a gam
     ["Queen · Open", "Worker"],
   );
   assert.equal(roles.querySelector(".fui-slot-plain"), null);
+
+  // A label that only describes the open seats: a taken one shows the player alone, as a seat without a label does.
+  const teams = document.createElement("section");
+  document.body.append(teams);
+  const teamRoom = createRoomLayout({
+    element: teams,
+    roster: createRoster({ document }),
+    capacity: 2,
+    slotLabel: (slot) => (slot === 0 ? "Cyan" : "Pink"),
+    slotLabelOpenOnly: true,
+  });
+  teamRoom.update(1, 2, [0]);
+  const teamSeats = [
+    ...teams.querySelectorAll<HTMLElement>(".fui-room-open-slot"),
+  ];
+  assert.deepEqual(
+    teamSeats.map((seat) => seat.classList.contains("fui-slot-plain")),
+    [true, false],
+  );
+  assert.equal(
+    teamSeats[1]!.querySelector(".fui-slot-label")!.textContent,
+    "Pink · Open",
+  );
+  teamRoom.update(0, 2, []);
+  assert.equal(
+    teams.querySelector(".fui-slot-plain"),
+    null,
+    "a seat that empties gets its label back",
+  );
 });
 
 test("header actions put a game's own actions, Settings and the main action across the room's top, primary last", () => {

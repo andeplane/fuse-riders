@@ -32,6 +32,11 @@ export interface RoomLayoutOptions {
   slotColor?: (slot: number) => string;
   /** What a seat is, when that is more than its number (a role, a team). The seat's number is on its chip. */
   slotLabel?: (slot: number) => string;
+  /**
+   * The label says what an open seat is (a team, a role) and the row of whoever sits there already says it too: a
+   * taken seat then shows the player alone, as a seat with no label does.
+   */
+  slotLabelOpenOnly?: boolean;
   playerName?: () => string | undefined;
   /**
    * Settings and the main action across the room's top, beside Back, where a dialog's bar has them: they stay on
@@ -325,6 +330,10 @@ export function createRoomLayout(options: RoomLayoutOptions) {
       const text = slot.querySelector(".fui-slot-label")!;
       if (text.textContent !== label) text.textContent = label;
       slot.classList.toggle("fui-slot-occupied", taken);
+      slot.classList.toggle(
+        "fui-slot-plain",
+        !options.slotLabel || (taken && !!options.slotLabelOpenOnly),
+      );
       (slot.querySelector(".fui-slot-controls") as HTMLElement).hidden = taken;
       if (!taken) slot.querySelector(".fui-slot-occupant")!.replaceChildren();
       const join = slot.querySelector<HTMLButtonElement>(".fui-slot-join")!,
