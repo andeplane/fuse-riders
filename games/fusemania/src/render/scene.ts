@@ -11,7 +11,13 @@ import {
   riderTexts,
   type Frame,
 } from "./frame.js";
-import { layoutFor, type Field, type Layout } from "./layout.js";
+import {
+  layoutFor,
+  raceBand,
+  type Field,
+  type Layout,
+  type Race,
+} from "./layout.js";
 import { BACKGROUND, CYAN, GOLD, MUTED, TEXT, WHITE } from "./palette.js";
 import type { CanvasFactory, SceneCanvas, SpriteCanvas } from "./pen.js";
 import { drawRace } from "./race.js";
@@ -128,6 +134,7 @@ export function createScene(canvas: SceneCanvas, options: SceneOptions): Scene {
     banner: 0,
     bannerAt: 0,
   };
+  const band: Race = { x: 0, y: 0, width: 0, height: 0 };
   const boardInfo: BoardInfo = {
     names: [],
     chartNames: [],
@@ -251,8 +258,8 @@ export function createScene(canvas: SceneCanvas, options: SceneOptions): Scene {
         );
       }
 
-      if (plan.race)
-        drawRace(frame, plan.race, view, feedback.riders, shot.steps, local);
+      const race = raceBand(plan, local, shot.down, band);
+      if (race) drawRace(frame, race, view, feedback.riders, shot.steps, local);
 
       // The title bar, with the song's progress along its bottom edge.
       const pad = Math.round(8 * unit),

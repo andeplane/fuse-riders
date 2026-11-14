@@ -9,11 +9,11 @@ import {
 } from "../engine/view-kit.js";
 import type { RiderFeedback } from "./feedback.js";
 import type { Frame } from "./frame.js";
-import type { Race } from "./layout.js";
+import { RACE_HEIGHT, type Race } from "./layout.js";
 import { GOLD, INK, LINE, TEXT, WHITE, hexA, slotColor } from "./palette.js";
 
 /**
- * The race line under the lanes: a track from nothing to the chart's full score, with every rider on it at the share
+ * The race line, in the lanes right below the targets (`raceBand` in `layout.ts`), drawn over the notes: a track from nothing to the chart's full score, with every rider on it at the share
  * of the full score it has so far, so who is ahead and by how much reads at a glance. The local rider's marker is the
  * biggest, with the others' drawn over it so that none hides behind it. The track fills up to the pace: the share a rider would have by now with every note so far
  * Marvelous and every hold kept, so the gap between a marker and the gold edge of the fill is what was dropped.
@@ -74,13 +74,17 @@ export const raceShare = (shown: number): number =>
 export const OWN_MARKER = 12,
   RIVAL_MARKER = 7;
 
+/** How much smaller than full size the line is drawn, in a band shorter than the full one. */
+export const raceScale = (race: Race, unit: number): number =>
+  Math.min(1, race.height / (RACE_HEIGHT * unit));
+
 /** Where the track runs in its band: clear of half the biggest marker at both ends. */
 export function raceTrack(
   race: Race,
   unit: number,
   out: { left: number; width: number },
 ): { left: number; width: number } {
-  const margin = Math.round(OWN_MARKER * unit);
+  const margin = Math.round(OWN_MARKER * unit * raceScale(race, unit));
   out.left = race.x + margin;
   out.width = Math.max(1, race.width - 2 * margin);
   return out;
@@ -104,7 +108,8 @@ export function drawRace(
     unit = frame.unit;
   const { left, width } = raceTrack(race, unit, track);
   const y = Math.round(race.y + race.height / 2);
-  const thick = Math.max(2, Math.round(4 * unit));
+  const scale = raceScale(race, unit);
+  const thick = Math.max(2, Math.round(4 * unit * scale));
 
   // The pace: the furthest any rider could be by now, and never behind the one who is furthest.
   let pace = 0;
@@ -122,12 +127,12 @@ export function drawRace(
   g.fillStyle = FILLED;
   g.fillRect(left, y - thick / 2, Math.round(width * pace), thick);
   // Quarter marks, and the finish: a little chequered flag.
-  const tick = Math.round(5 * unit),
+  const tick = Math.round(5 * unit * scale),
     hair = Math.max(1, Math.round(unit));
   g.fillStyle = LINE;
   for (const quarter of QUARTERS)
     g.fillRect(Math.round(left + width * quarter), y - tick, hair, tick * 2);
-  const square = Math.max(2, Math.round(3 * unit));
+  const square = Math.max(2, Math.round(3 * unit * scale));
   for (let row = 0; row < 4; row++)
     for (let column = 0; column < 2; column++) {
       g.fillStyle = (row + column) % 2 === 0 ? WHITE : FLAG_DARK;
@@ -152,13 +157,21 @@ export function drawRace(
   // The riders: the local rider's big marker first, then the others' small ones over it from last place up, so a
   // rival level with the local rider still shows on its marker and the leader is on top.
   const own = riders[local];
-  if (own) marker(frame, left + width * raceShare(own.score), y, local, true);
+  if (own)
+    marker(frame, left + width * raceShare(own.score), y, local, true, scale);
   for (let place = view.players.length; place >= 1; place--)
     for (let slot = 0; slot < view.players.length; slot++) {
       const rider = riders[slot];
       if (slot === local || !rider || view.players[slot]!.place !== place)
         continue;
-      marker(frame, left + width * raceShare(rider.score), y, slot, false);
+      marker(
+        frame,
+        left + width * raceShare(rider.score),
+        y,
+        slot,
+        false,
+        scale,
+      );
     }
   g.globalAlpha = 1;
   g.shadowBlur = 0;
@@ -171,10 +184,11 @@ function marker(
   y: number,
   slot: number,
   own: boolean,
+  scale: number,
 ): void {
   const g = frame.pen,
     unit = frame.unit;
-  const half = (own ? OWN_MARKER : RIVAL_MARKER) * unit;
+  const half = (own ? OWN_MARKER : RIVAL_MARKER) * unit * scale;
   const color = slotColor(slot);
   g.beginPath();
   g.moveTo(x + half, y);
