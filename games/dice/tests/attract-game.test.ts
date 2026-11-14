@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createAttractGame } from "fuse-netcode";
-import {
-  diceGame,
-  DEFAULT_SETTINGS,
-} from "../../../games/dice/src/game/index.js";
+import { diceGame, DEFAULT_SETTINGS } from "../src/game/index.js";
 
 test("a local attract game runs genuine seeded bot turns, with bounded deterministic loops", () => {
   const a = createAttractGame(diceGame, DEFAULT_SETTINGS, {

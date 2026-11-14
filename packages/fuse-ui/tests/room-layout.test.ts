@@ -102,6 +102,20 @@ test("room layout: custom rosters can attach admission after mounting and omit s
   layout.update(2);
   assert.equal(second.parentElement?.className, "fui-room-join");
   assert.equal(root.querySelector(".fui-room-count")?.textContent, "2 / 2");
+  layout.update(2, 4);
+  assert.equal(root.querySelector(".fui-room-count")?.textContent, "2 / 4");
+  assert.equal(
+    [...root.querySelectorAll<HTMLElement>(".fui-room-open-slot")].filter(
+      (slot) => !slot.hidden,
+    ).length,
+    2,
+  );
+  layout.update(2, 2);
+  assert.ok(
+    [...root.querySelectorAll<HTMLElement>(".fui-room-open-slot")].every(
+      (slot) => slot.hidden,
+    ),
+  );
 });
 
 test("HTML room renderer shares the layout and respects map-dependent capacity", () => {

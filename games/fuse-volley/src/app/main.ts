@@ -609,13 +609,19 @@ function room(solo: boolean): void {
   const main = el("main", "", "fv-room");
   main.append(connecting, closed, nameEntry.form, lobby, stage, controller);
   app.replaceChildren(top, main);
-  createRoomLayout({
+  const roomLayout = createRoomLayout({
     element: lobby,
     roster,
     capacity: 2,
     join: nameEntry.form,
     addAI: addBot,
-    settings: [scoringPicker.element, botTitle, botPicker.element],
+    settings: [
+      el("h2", "PLAYERS", "fui-lobby-title"),
+      modePicker.element,
+      scoringPicker.element,
+      botTitle,
+      botPicker.element,
+    ],
     actions: [lobbyNote, tvLink, start],
   });
   lobby.hidden = true;
@@ -777,6 +783,7 @@ function room(solo: boolean): void {
     );
     scoringPicker.update(view.settings.scoring, next.lobby.editable);
     modePicker.update(view.settings.doubles, next.lobby.editable);
+    roomLayout.update(view.seats.length, view.settings.doubles ? 4 : 2);
     botPicker.update(view.settings.bot, next.lobby.editable);
     botTitle.hidden = botPicker.element.hidden =
       !next.lobby.hasBot && !next.lobby.fill;

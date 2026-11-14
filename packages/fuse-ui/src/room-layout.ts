@@ -92,11 +92,18 @@ export function createRoomLayout(options: RoomLayoutOptions) {
   right.append(heading, roster, slots, joinActions, actions);
   root.classList.add("fui-room-layout");
   root.replaceChildren(left, right, settings.dialog);
-  const update = (occupied: number) => {
-    const text = `${occupied} / ${options.capacity}`;
+  let capacity = options.capacity;
+  const update = (occupied: number, nextCapacity = capacity) => {
+    capacity = nextCapacity;
+    while (emptySlots.length < capacity) {
+      const slot = el("div", "", "fui-room-open-slot", doc);
+      emptySlots.push(slot);
+      slots.append(slot);
+    }
+    const text = `${occupied} / ${capacity}`;
     if (count.textContent !== text) count.textContent = text;
     emptySlots.forEach((slot, index) => {
-      slot.hidden = index < occupied;
+      slot.hidden = index < occupied || index >= capacity;
       const label = `Slot ${index + 1} · Open`;
       if (slot.textContent !== label) slot.textContent = label;
     });
