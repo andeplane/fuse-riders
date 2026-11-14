@@ -1,3 +1,5 @@
+import type { DefragWindowContent } from "../defrag/defragWindowContent";
+import { isDefragWindowContent } from "../defrag/defragWindowContent";
 import type { GameId } from "../retro/gameIds";
 import { isGameId } from "../retro/gameIds";
 import type { MediaStreamId } from "../mediaplayer/streams";
@@ -114,7 +116,8 @@ export type WindowContent =
   | LauncherWindowContent
   | RecycleBinWindowContent
   | MediaPlayerWindowContent
-  | RunWindowContent;
+  | RunWindowContent
+  | DefragWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -179,6 +182,7 @@ export function sameInstance(
     case "launcher":
     case "recyclebin":
     case "run":
+    case "defrag":
       return existing.kind === content.kind;
     case "mediaplayer":
       return existing.kind === "mediaplayer" && existing.file === content.file;
@@ -381,6 +385,8 @@ function isWindowContent(
       );
     case "explorer":
       return typeof value.location === "string";
+    case "defrag":
+      return isDefragWindowContent(value);
     case "notepadpp":
       return (
         Array.isArray(value.paths) &&

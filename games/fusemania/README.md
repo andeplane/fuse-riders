@@ -39,6 +39,14 @@ Every finished song adds each rider's rating to their session total, and the win
 | Right         | D, L or Right       | **→**    |
 | Throw an item | Space (battle only) | **ITEM** |
 
+**Esc pauses a solo song** (a touch device has a pause button, and leaving the tab or opening a menu pauses too). The pause offers **RESUME**, which counts in 3, 2, 1, **RESTART** and **SONG SELECT**. A solo room keeps this page's time, so the pause is a clock that stands still (`src/app/pause.ts`): nothing is judged while it stands, and the engine knows nothing of it. A room with other riders cannot be paused.
+
+## The result
+
+The result shows this device's own run large: the grade, the score, the chart, the accuracy, the longest combo, a badge for a run that never broke its combo, the difference to this browser's best on the chart, and every judgment as a bar. Beside them is the **timing graph** (`src/app/timing-graph.ts`): one dot per step in its judgment's colour, from the song's start to its end, around a line at 0 ms with early above and late below; misses are red ticks on the floor; a histogram on the same scale shows the spread, a dashed line the mean; the combo runs under it on the same time axis. The numbers under it are the mean offset, the standard deviation, the mean distance from the note and how many steps were early or late outside a Marvelous. With other riders the ranking of everyone leads, and the breakdown is still this device's own.
+
+The graph is read from the picture frame by frame (`src/app/run-log.ts`), so it is this device's run only, a page reloaded on a finished song has none, and two steps hit in one frame with different judgments leave one without a dot.
+
 Every key can be changed in Settings, up to four keys an arrow. WASD and IJKL are both the arrows so two hands can share the work; a second key on an arrow that is already down counts as a new step.
 
 ## Judging and scoring

@@ -70,6 +70,16 @@ export interface Row {
   /** "MAX COMBO 212". */
   combo: string;
 }
+/** This device's own run on the result. */
+export interface Own {
+  grade: string;
+  /** The score with thousands separators. */
+  score: string;
+  /** "CHALLENGE 13 · 94.2% · MAX COMBO 212". */
+  detail: string;
+  /** What a run with no broken combo earned ("FULL COMBO", "FULL PERFECT COMBO", ...), or "". */
+  badge: string;
+}
 /** One line of a session's standings. */
 export interface Standing {
   place: number;
@@ -139,6 +149,8 @@ export interface Model {
   result: {
     title: string;
     rows: Row[];
+    /** This device's own run, large: null for a watcher and for the TV. */
+    own: Own | null;
     /** This device's own judgments, one line each: ["MARVELOUS", "212"]. */
     counts: [label: string, value: string][];
     /** Extra lines: a new best. */
@@ -177,6 +189,25 @@ const countLines = (player: PlayerView): [string, string][] => [
     ? [["MINES HIT", String(player.counts[MINED])] as [string, string]]
     : []),
 ];
+
+/** A run that never broke its combo, named after the worst judgment in it. */
+export const comboBadge = (counts: readonly number[]): string => {
+  const at = (judgment: number) => counts[judgment] ?? 0;
+  if (
+    at(MISS) ||
+    at(BOO) ||
+    at(DROPPED) ||
+    at(MARVELOUS) + at(PERFECT) + at(GREAT) + at(GOOD) === 0
+  )
+    return "";
+  return at(GOOD)
+    ? "FULL COMBO"
+    : at(GREAT)
+      ? "FULL GREAT COMBO"
+      : at(PERFECT)
+        ? "FULL PERFECT COMBO"
+        : "ALL MARVELOUS";
+};
 
 const standingRows = (
   session: SessionView,
@@ -280,9 +311,14 @@ export function present(
         lines.push(
           bestBefore === undefined
             ? "FIRST SCORE ON THIS CHART"
-            : `NEW BEST! (WAS ${percent(bestBefore)})`,
+            : `NEW BEST! +${scoreText(player.rating - bestBefore)} (WAS ${percent(bestBefore)})`,
         );
-      else lines.push(`BEST ${bestText(bestBefore)}`);
+      else
+        lines.push(
+          player.rating === bestBefore
+            ? `BEST ${bestText(bestBefore)}`
+            : `BEST ${bestText(bestBefore)} · −${scoreText(bestBefore - player.rating)}`,
+        );
     }
     const final = !!session && session.done >= session.length;
     const leader = session?.standings[0];
@@ -314,6 +350,14 @@ export function present(
                 ? "YOU WIN!"
                 : `${winner.name.toUpperCase()} WINS`,
       rows,
+      own: player
+        ? {
+            grade: grade(player.rating),
+            score: scoreText(player.rating),
+            detail: `${chartLabel(library, world.song, player.chart)} · ${percent(player.rating)} · MAX COMBO ${player.best}`,
+            badge: comboBadge(player.counts),
+          }
+        : null,
       counts: player ? countLines(player) : [],
       lines,
       host: viewer.host,
