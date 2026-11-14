@@ -126,6 +126,8 @@ export function useMircViewModel(deps: MircDeps) {
   const [client] = useState(() => {
     const brain: RegularsBrain = {
       describe: () => brainRef.current.describe(),
+      usesModel: () => brainRef.current.usesModel(),
+      prepare: (signal) => brainRef.current.prepare(signal),
       reply: (request, signal) => brainRef.current.reply(request, signal),
       dispose: () => undefined,
     };

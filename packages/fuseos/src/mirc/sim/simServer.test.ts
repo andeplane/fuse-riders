@@ -5,14 +5,25 @@ import type { SessionState } from "../irc/session";
 import { channelId, findWindow, queryId, STATUS_ID } from "../irc/session";
 
 import type { BrainRequest, RegularsBrain } from "./brain";
+import { CCBS_LISTED_PLAYERS, ircNick } from "./ddrPlayers";
+import { regularsIn } from "./regulars";
 import { IDLE_MS } from "./simServer";
 import { createSimTransport, simHost, SimServer } from "./simServer";
 
 class ScriptedBrain implements RegularsBrain {
   readonly requests: BrainRequest[] = [];
   answer: string | undefined = "hei hei";
+  model = false;
+  prepares = 0;
   describe() {
     return "a script";
+  }
+  usesModel() {
+    return this.model;
+  }
+  prepare() {
+    this.prepares += 1;
+    return Promise.resolve(this.model);
   }
   reply(request: BrainRequest) {
     this.requests.push(request);
@@ -23,9 +34,8 @@ class ScriptedBrain implements RegularsBrain {
 
 const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-function setup(random = () => 0) {
+function setup(random = () => 0, brain = new ScriptedBrain()) {
   const scheduler = new ManualScheduler();
-  const brain = new ScriptedBrain();
   const transport = createSimTransport(
     { scheduler, now: scheduler.now, random, brain },
     simNetwork,
@@ -45,11 +55,17 @@ function setup(random = () => 0) {
 const text = (state: SessionState, id: string) =>
   findWindow(state, id)?.lines.map((l) => l.text) ?? [];
 
-function joined() {
-  const env = setup();
+function joined(brain = new ScriptedBrain()) {
+  const env = setup(() => 0, brain);
   env.client.join("#ddrnorway");
   env.scheduler.advance(8000);
   return env;
+}
+
+/** Lets the model promise schedule its line, then the manual clock posts it. */
+async function posted(scheduler: ManualScheduler) {
+  await flush();
+  scheduler.advance(0);
 }
 
 describe("simulated network", () => {
@@ -84,6 +100,11 @@ describe("simulated network", () => {
     const lines = text(client.getState(), channelId("#ddrnorway")).join("\n");
     expect(lines).toContain("-CCBSbot- Velkommen til #ddrnorway!");
     expect(lines).toContain("<@RiChY> hei Guest1 :)");
+    const nicks = new Set(window?.members.map((m) => m.nick.toLowerCase()));
+    for (const player of CCBS_LISTED_PLAYERS)
+      expect(nicks.has(ircNick(player.nick).toLowerCase())).toBe(true);
+    expect(window?.members).toHaveLength(regularsIn("#ddrnorway").length + 1);
+    expect(nicks.has("tha_dragon")).toBe(true);
   });
 
   it("lets a mentioned regular answer through the brain, with the channel's recent lines", async () => {
@@ -236,6 +257,46 @@ describe("simulated network", () => {
     scheduler.advance(10);
     expect(client.getState().phase).toBe("offline");
     expect(scheduler.pending).toBe(0);
+  });
+
+  it("answers anyone who is named or queried, and not a nick hidden inside a word", async () => {
+    const { client, scheduler, brain } = joined();
+    client.submit(channelId("#ddrnorway"), "skal vi ta butterfly?");
+    await flush();
+    scheduler.advance(5000);
+    expect(
+      brain.requests.some((request) => request.regular.nick === "Al"),
+    ).toBe(false);
+    client.submit(channelId("#ddrnorway"), "Bonzo, kommer du?");
+    await flush();
+    scheduler.advance(5000);
+    expect(brain.requests.at(-1)?.regular.nick).toBe("Bonzo");
+    expect(text(client.getState(), channelId("#ddrnorway"))).toContain(
+      "<Bonzo> hei hei",
+    );
+    client.submit(STATUS_ID, "/msg Snute hei");
+    await flush();
+    scheduler.advance(5000);
+    expect(text(client.getState(), queryId("Snute"))).toContain(
+      "<Snute> hei hei",
+    );
+  });
+
+  it("runs a model conversation of the heaviest-weighted players every 10 seconds", async () => {
+    const brain = new ScriptedBrain();
+    brain.model = true;
+    const { client, scheduler } = joined(brain);
+    expect(brain.prepares).toBe(1);
+    const lines = () => text(client.getState(), channelId("#ddrnorway"));
+    expect(lines().some((line) => line.includes("<Abra>"))).toBe(false);
+    scheduler.advance(2_000);
+    await posted(scheduler);
+    expect(lines()).toContain("<Abra> hei hei");
+    expect(brain.requests.at(-1)?.company).toEqual(["Advena", "Al"]);
+    scheduler.advance(10_000);
+    await posted(scheduler);
+    expect(lines()).toContain("<Advena> hei hei");
+    expect(brain.prepares).toBe(1);
   });
 
   it("refuses commands before registration and ignores garbage", () => {

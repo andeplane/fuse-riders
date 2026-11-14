@@ -27,6 +27,11 @@ class FakeEngine implements ChatEngine {
     if (this.answer instanceof Error) throw this.answer;
     for (const piece of this.answer.match(/.{1,5}/gs) ?? []) yield piece;
   }
+  loads = 0;
+  ready() {
+    this.loads += 1;
+    return Promise.resolve();
+  }
   dispose() {
     this.disposed = true;
   }
@@ -107,6 +112,27 @@ describe("brains", () => {
     sent?.onProgress("loading");
     brain.dispose();
     expect(engine.disposed).toBe(true);
+    expect(brain.usesModel()).toBe(true);
+    expect(await brain.prepare(signal)).toBe(true);
+    expect(engine.loads).toBe(1);
+    const snuteEngine = new FakeEngine("ok");
+    const snute = engineBrain(snuteEngine, () => 0);
+    expect(
+      await snute.reply(
+        { ...request("Snute"), company: ["Abra", "Al"] },
+        signal,
+      ),
+    ).toBe("ok");
+    expect(snuteEngine.requests.at(-1)?.system).toContain(
+      "conversation with Abra, Al",
+    );
+    expect(snuteEngine.requests.at(-1)?.system).toContain("36 tournaments");
+    const rules = engineBrain(new FakeEngine("", "rules"), () => 0);
+    expect(rules.usesModel()).toBe(false);
+    expect(await rules.prepare(signal)).toBe(false);
+    expect(
+      await cannedBrain(() => 0).reply(request("Snute"), signal),
+    ).toContain("36 turneringer");
   });
 
   it("uses canned lines for non-AI regulars, failures, empty answers and while busy", async () => {

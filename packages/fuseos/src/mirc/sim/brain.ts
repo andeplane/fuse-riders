@@ -1,5 +1,6 @@
 import type { ChatEngine } from "../../llm/llmChat";
 
+import { fallbackLine } from "./ddrPlayers";
 import type { Regular } from "./regulars";
 import { systemPromptFor } from "./regulars";
 
@@ -11,12 +12,18 @@ export type BrainRequest = {
   userNick: string;
   /** The channel's recent lines, oldest first; the one being answered last. */
   history: readonly ChatTurn[];
+  /** The other people in the current model conversation, when this line is part of one. */
+  company?: readonly string[];
 };
 
 /** What decides a regular's next line: the shared language model, or their canned lines. */
 export interface RegularsBrain {
   /** Who is thinking, for the Status window ("the regulars are AI" or "canned"). */
   describe(): string;
+  /** True when a language model will answer. It may still be loading. */
+  usesModel(): boolean;
+  /** Loads the model. Resolves false when this brain has no model or the load fails. */
+  prepare(signal: AbortSignal): Promise<boolean>;
   reply(
     request: BrainRequest,
     signal: AbortSignal,
@@ -36,10 +43,19 @@ export function cannedLine(
   );
 }
 
+function spokenLine(
+  regular: Regular,
+  random: () => number,
+): string | undefined {
+  return cannedLine(regular, random) ?? fallbackLine(regular.nick);
+}
+
 export function cannedBrain(random: () => number): RegularsBrain {
   return {
     describe: () => "canned lines (no language model in this browser)",
-    reply: (request) => Promise.resolve(cannedLine(request.regular, random)),
+    usesModel: () => false,
+    prepare: () => Promise.resolve(false),
+    reply: (request) => Promise.resolve(spokenLine(request.regular, random)),
     dispose: () => undefined,
   };
 }
@@ -80,9 +96,19 @@ export function engineBrain(
         ? `${backend.label}, running in this browser`
         : "canned lines";
     },
+    usesModel: () => engine.backend().kind === "model",
+    async prepare(signal) {
+      if (signal.aborted || engine.backend().kind !== "model") return false;
+      try {
+        await engine.ready?.(() => undefined);
+      } catch {
+        return false;
+      }
+      return !signal.aborted && engine.backend().kind === "model";
+    },
     async reply(request, signal) {
       if (!request.regular.ai || busy)
-        return cannedLine(request.regular, random);
+        return spokenLine(request.regular, random);
       busy = true;
       try {
         let text = "";
@@ -91,6 +117,7 @@ export function engineBrain(
             request.regular,
             request.channel,
             request.userNick,
+            request.company,
           ),
           messages: request.history.map((turn) => ({
             role:
@@ -110,10 +137,10 @@ export function engineBrain(
         }
         return (
           toIrcLine(text, request.regular.nick) ??
-          cannedLine(request.regular, random)
+          spokenLine(request.regular, random)
         );
       } catch {
-        return cannedLine(request.regular, random);
+        return spokenLine(request.regular, random);
       } finally {
         busy = false;
       }

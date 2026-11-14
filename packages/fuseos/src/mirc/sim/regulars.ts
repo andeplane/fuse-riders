@@ -1,9 +1,11 @@
 import { describe, playerRecord } from "./ccbs";
+import { CCBS_LISTED_PLAYERS, ccbsPersona, ircNick } from "./ddrPlayers";
 
 /**
- * The people in the simulated channels. RiChY, Andeplane and Zredna are real members of the Norwegian DDR scene
- * who agreed to be voiced here; everyone else is fictional. Other real players appear only when CCBSbot cites
- * a result, never as members or speakers.
+ * The people in the simulated channels. Everyone on CCBS with at least five tournaments sits in #ddrnorway
+ * and can be voiced by the language model from their public results. RiChY, Andeplane and Zredna keep
+ * hand-written personas; the rest are modelled by `ccbsPersona`. Everyone else here is fictional. Players
+ * with fewer tournaments appear only when CCBSbot cites a result.
  */
 export type Regular = {
   nick: string;
@@ -39,7 +41,7 @@ function recordLine(nick: string): string {
 const SCENE =
   "It is around 2004 in Norway. People play Dancing Stage EuroMix 2 and DDR Extreme at bowling alleys, Megazone and LAN parties like The Gathering, and meet at Challenge Cup tournaments.";
 
-export const REGULARS: readonly Regular[] = [
+const NAMED_REGULARS: readonly Regular[] = [
   {
     nick: "RiChY",
     user: "richy",
@@ -188,6 +190,32 @@ export const REGULARS: readonly Regular[] = [
   },
 ];
 
+/** CCBS players who are not already a named regular. Present, and voiced from their results. */
+function listedCcbsRegulars(named: readonly Regular[]): Regular[] {
+  const taken = new Set(named.map((regular) => regular.nick.toLowerCase()));
+  return CCBS_LISTED_PLAYERS.filter(
+    (player) => !taken.has(ircNick(player.nick).toLowerCase()),
+  ).map((player) => {
+    const nick = ircNick(player.nick);
+    return {
+      nick,
+      user: nick.toLowerCase(),
+      host: "players.ddr.no",
+      realName: player.club ? `${player.nick} (${player.club})` : player.nick,
+      prefix: "" as const,
+      channels: [DDR_CHANNEL],
+      persona: ccbsPersona(player),
+      lines: [],
+      ai: true,
+    };
+  });
+}
+
+export const REGULARS: readonly Regular[] = [
+  ...NAMED_REGULARS,
+  ...listedCcbsRegulars(NAMED_REGULARS),
+];
+
 export const SCENE_PROMPT = SCENE;
 
 export function findRegular(nick: string): Regular | undefined {
@@ -207,11 +235,16 @@ export function systemPromptFor(
   regular: Regular,
   channel: string,
   userNick: string,
+  company: readonly string[] = [],
 ): string {
+  const withWhom =
+    company.length > 0
+      ? ` You are in a conversation with ${company.join(", ")}.`
+      : "";
   return [
     regular.persona,
     SCENE,
-    `You are chatting on IRC in ${channel} with ${userNick} and others.`,
+    `You are chatting on IRC in ${channel} with ${userNick} and others.${withWhom}`,
     "Reply with ONE short IRC line (at most 20 words) in the same language as the last message (Norwegian or English).",
     "No quotes, no name prefix, no emojis except :) :D ;) -_-.",
     "Never speak for, quote or pretend to be anyone else. Do not invent tournament results; only mention the ones you were told.",
