@@ -2,6 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync } from "node:fs";
 import { ALL_SONGS, MusicPlayer, type MusicMedia } from "../src/index.js";
+import { PACKS } from "../../../scripts/lib/fusemania/songs.js";
+
+/** The music folders of Fusemania's packs other than its own soundtrack. */
+const FUSEMANIA_ONLY = PACKS.map((pack) => pack.id).filter(
+  (id) => id !== "fusemania",
+);
 
 function fixture() {
   let plays = 0,
@@ -69,7 +75,10 @@ test("the default catalogue contains every shipped music asset once", () => {
   )
     .filter(
       (path): path is string =>
-        typeof path === "string" && /\.(m4a|mp3|ogg)$/.test(path),
+        typeof path === "string" &&
+        /\.(m4a|mp3|ogg)$/.test(path) &&
+        // Fusemania's own packs (its jazz mixes) are Fusemania and FuseOS music, never the radio's.
+        !FUSEMANIA_ONLY.some((pack) => path.startsWith(`${pack}/`)),
     )
     .map((path) => `/music/${path}`);
   assert.equal(
