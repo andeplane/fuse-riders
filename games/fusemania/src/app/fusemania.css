@@ -727,3 +727,175 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"])) #app {
   height: 100dvh;
   overflow: hidden;
 }
+
+/* The result with this device's own run in it: the grade large, the judgments as bars, the timing graph beside. */
+.fm-card.fm-card-own {
+  width: min(96%, 34rem);
+}
+.fm-card.fm-card-graphed {
+  width: min(96%, 66rem);
+}
+.fm-report {
+  display: grid;
+  gap: var(--fui-space-3);
+  min-width: 0;
+}
+.fm-report-side,
+.fm-report-graph {
+  display: grid;
+  align-content: start;
+  gap: var(--fui-space-3);
+  min-width: 0;
+}
+@media (min-width: 56rem) {
+  .fm-card-graphed .fm-report {
+    grid-template-columns: minmax(15rem, 19rem) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+.fm-own {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0 var(--fui-space-3);
+  padding: var(--fui-space-3);
+  background: #12245499;
+  border-radius: var(--fui-radius-small);
+  text-align: left;
+}
+.fm-own-grade {
+  grid-row: span 3;
+  min-width: 4.5rem;
+  font-size: 2.75rem;
+}
+.fm-own-grade.fm-grade-aaaa,
+.fm-own-grade.fm-grade-aaa {
+  font-size: 1.75rem;
+}
+.fm-own-score {
+  color: var(--fui-yellow);
+  font: 1.125rem/1.4 var(--fui-font-pixel);
+  font-style: normal;
+  text-shadow: 0 0 1rem #ffe46b88;
+}
+.fm-own-detail {
+  color: var(--fui-text-muted);
+  font: 0.75rem/1.5 var(--fui-font-body, inherit);
+}
+.fm-own-badge {
+  justify-self: start;
+  margin-top: var(--fui-space-1);
+  padding: 0.125rem var(--fui-space-2);
+  color: var(--fui-ink);
+  background: var(--fui-yellow);
+  border-radius: var(--fui-radius-small);
+  font: 0.5rem/1.8 var(--fui-font-pixel);
+  font-weight: normal;
+}
+.fm-card-own .fm-counts {
+  display: grid;
+  grid-template-columns: auto minmax(2rem, 1fr) auto;
+  justify-content: stretch;
+  align-items: center;
+  gap: var(--fui-space-1) var(--fui-space-2);
+}
+.fm-count-row {
+  display: contents;
+}
+.fm-count-bar {
+  height: 0.5rem;
+  background: #0a1838;
+  border-radius: 0.25rem;
+  overflow: hidden;
+}
+.fm-count-bar::before {
+  content: "";
+  display: block;
+  width: calc(var(--share, 0) * 100%);
+  height: 100%;
+  background: currentColor;
+  box-shadow: 0 0 0.5rem currentColor;
+}
+.fm-graph {
+  display: block;
+  width: 100%;
+  height: clamp(11rem, 34vh, 17rem);
+  font-family: var(--fui-font-pixel);
+}
+.fm-graph-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--fui-space-1) var(--fui-space-4);
+  margin: 0;
+  font: 0.5625rem/1.6 var(--fui-font-pixel);
+}
+.fm-graph-stats dt {
+  display: inline;
+  color: var(--fui-text-muted);
+}
+.fm-graph-stats dd {
+  display: inline;
+  margin: 0 0 0 var(--fui-space-2);
+  color: var(--fui-text-bright);
+}
+/* The buttons stay in reach however long the result is. */
+.fm-card-own .fm-actions {
+  position: sticky;
+  bottom: calc(-1 * var(--fui-space-4));
+  margin: 0 calc(-1 * var(--fui-space-4)) calc(-1 * var(--fui-space-4));
+  padding: var(--fui-space-3) var(--fui-space-4);
+  background: #050e25;
+}
+
+/* A paused solo song */
+.fm-pause {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--fui-space-3);
+  padding: var(--fui-space-4);
+  background: #050e25d9;
+  text-align: center;
+  touch-action: manipulation;
+}
+.fm-pause[hidden] {
+  display: none;
+}
+.fm-pause h2 {
+  margin: 0;
+  color: var(--fui-cyan);
+  font: 1.5rem/1.4 var(--fui-font-pixel);
+  text-shadow: 0 0 1.5rem #16e7ff88;
+}
+.fm-pause-song,
+.fm-pause-hint {
+  margin: 0;
+  color: var(--fui-text-muted);
+  font: 0.5625rem/1.6 var(--fui-font-pixel);
+}
+.fm-pause-count {
+  color: var(--fui-yellow);
+  font: 4rem/1 var(--fui-font-pixel);
+  font-weight: normal;
+  text-shadow: 0 0 2rem #ffe46b88;
+}
+.fm-pause-actions {
+  flex-direction: column;
+  align-items: stretch;
+  width: min(100%, 16rem);
+}
+.fui-app .fm-pause-button {
+  position: absolute;
+  top: var(--fui-space-2);
+  left: var(--fui-space-2);
+  z-index: 2;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
+  opacity: 0.7;
+  font: 0.75rem/1 var(--fui-font-pixel);
+}
