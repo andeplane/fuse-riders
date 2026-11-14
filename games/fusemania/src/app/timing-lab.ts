@@ -65,6 +65,8 @@ export interface TickTrack {
   heardMs(): number | undefined;
   /** The audio-clock time (seconds) tick `index` leaves the context at. */
   scheduledAt(index: number): number | undefined;
+  /** The index of the last tick that sounds, when the click has an end. */
+  last?: number;
 }
 export interface TimingLabDeps {
   mode: "screen" | "game";
@@ -292,7 +294,12 @@ export function createTimingLab(deps: TimingLabDeps): TimingLab {
     }
     const beat = 60000 / bpm;
     const from = Math.max(named + 1, nearestTick(bpm, heardMs - 500).index);
-    for (let index = from; index * beat <= heardMs + 3000; index++) {
+    const last = track.last ?? Number.POSITIVE_INFINITY;
+    for (
+      let index = from;
+      index <= last && index * beat <= heardMs + 3000;
+      index++
+    ) {
       const at = track.scheduledAt(index);
       if (at === undefined) break;
       micSession.expectClick({ index, at });
@@ -559,10 +566,9 @@ export function createTimingLab(deps: TimingLabDeps): TimingLab {
       }
       if (analyser && capture) {
         micLevel = Math.max(analyser.level(), micLevel * 0.9);
-        if (track && next.audible) {
-          nameClicks(track);
-          micSession?.settle();
-        }
+        if (track && next.audible) nameClicks(track);
+        // Also after the click has ended: its last ticks and presses are still on their way in.
+        micSession?.settle();
       }
       if (done - logged > 1000) {
         logged = done;
