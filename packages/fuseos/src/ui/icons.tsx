@@ -47,6 +47,7 @@ import { Winmine1 } from "@react95/icons/Winmine1";
 import type { ComponentType, SVGProps } from "react";
 
 import { WinampLogo } from "../assets/WinampLogo";
+import { DcppLogo } from "../dcpp/DcppLogo";
 import { DefragIcon } from "../defrag/DefragIcon";
 import { FusteamLogo } from "../launcher/FusteamLogo";
 import { TrophyIcon } from "../halloffame/TrophyIcon";
@@ -111,7 +112,8 @@ export type IconName =
   | "trophy"
   | "taskmanager"
   | "napster"
-  | "mirc";
+  | "mirc"
+  | "dcpp";
 
 type IconVariant = "32x32_4" | "16x16_4";
 type IconProps = Omit<SVGProps<SVGSVGElement>, "ref">;
@@ -188,6 +190,7 @@ const ICONS: Record<IconName, IconComponent> = {
   taskmanager: fixed(Taskman100, "32x32_4"),
   napster: NapsterLogo,
   mirc: MircLogo,
+  dcpp: DcppLogo,
 };
 
 export type Win98IconProps = {

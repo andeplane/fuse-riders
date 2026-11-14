@@ -23,6 +23,7 @@ const APPS: Record<string, WindowContent> = {
   explorer: { kind: "explorer", location: MY_COMPUTER },
   napster: { kind: "napster" },
   mirc: { kind: "mirc" },
+  dcpp: { kind: "dcpp" },
 };
 
 /** Something that knows which Fuse games exist; the registry in production, a fixture in tests. */

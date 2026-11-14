@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect, useRef } from "react";
 
 import { AboutDialog } from "../about/AboutDialog";
+import { DcppWindow } from "../dcpp/DcppWindow";
 import { DefragRunner } from "../defrag/DefragRunner";
 import { DefragWindow } from "../defrag/DefragWindow";
 import { ControlPanelWindow } from "../controlpanel/ControlPanelWindow";
@@ -125,6 +126,8 @@ function WindowContent({
       return <TaskManagerWindow windowId={window.id} />;
     case "mirc":
       return <MircWindow windowId={window.id} />;
+    case "dcpp":
+      return <DcppWindow windowId={window.id} />;
   }
 }
 

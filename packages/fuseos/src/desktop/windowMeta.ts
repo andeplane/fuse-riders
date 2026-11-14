@@ -64,6 +64,9 @@ export const NAPSTER_WINDOW_SIZE: Size = { width: 780, height: 610 };
 /** Room for the toolbar, the switchbar and a channel window with its nicklist. */
 export const MIRC_WINDOW_SIZE: Size = { width: 760, height: 540 };
 
+/** Room for the MDI area with a hub's chat and user list, the window tabs, the Transfers pane and status bar. */
+export const DCPP_WINDOW_SIZE: Size = { width: 900, height: 620 };
+
 export const OS_NAME = "FuseOS";
 
 /** Title bar text and icon for each window kind. */
@@ -213,6 +216,13 @@ export function windowMeta(
         icon: "taskmanager",
         resizable: true,
         size: TASK_MANAGER_WINDOW_SIZE,
+      };
+    case "dcpp":
+      return {
+        title: "DC++ 0.401",
+        icon: "dcpp",
+        resizable: true,
+        size: DCPP_WINDOW_SIZE,
       };
   }
 }

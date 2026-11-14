@@ -138,6 +138,12 @@ export function useDesktopViewModel(): DesktopViewModel {
       open: () => commands.open({ kind: "mirc" }),
     },
     {
+      id: "dcpp",
+      label: "DC++",
+      icon: "dcpp",
+      open: () => commands.open({ kind: "dcpp" }),
+    },
+    {
       id: "control-panel",
       label: "Control Panel",
       icon: "settings",

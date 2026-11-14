@@ -134,6 +134,14 @@ export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
     open: (commands) => commands.open({ kind: "mirc" }),
   },
   {
+    slot: "programs",
+    id: "dcpp",
+    label: "DC++",
+    icon: "dcpp",
+    order: 20,
+    open: (commands) => commands.open({ kind: "dcpp" }),
+  },
+  {
     slot: "retro-games",
     id: "retro-folder",
     label: "Open DOS Games folder",

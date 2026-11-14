@@ -81,6 +81,11 @@ export interface NotepadPlusPlusWindowContent {
   activePath?: string;
 }
 
+/** DC++, the pretend Direct Connect client (`src/dcpp`): one instance, its hubs live in the window. */
+export interface DcppWindowContent {
+  kind: "dcpp";
+}
+
 /** Fusteam, the game launcher (`src/launcher`): opens on every boot, one instance, focused rather than duplicated. */
 export interface LauncherWindowContent {
   kind: "launcher";
@@ -149,7 +154,8 @@ export type WindowContent =
   | HallOfFameWindowContent
   | TaskManagerWindowContent
   | NapsterWindowContent
-  | MircWindowContent;
+  | MircWindowContent
+  | DcppWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -220,6 +226,7 @@ export function sameInstance(
     case "halloffame":
     case "taskmanager":
     case "mirc":
+    case "dcpp":
       return existing.kind === content.kind;
     case "roomgame":
       return (
@@ -427,6 +434,7 @@ function isWindowContent(
     case "network":
     case "friends":
     case "taskmanager":
+    case "dcpp":
       return true;
     case "dialog":
       return (

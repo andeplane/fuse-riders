@@ -30,6 +30,7 @@ describe(Desktop.name, () => {
       "Winamp",
       "Napster",
       "mIRC",
+      "DC++",
       "Control Panel",
       "Network Neighborhood",
     ]);
