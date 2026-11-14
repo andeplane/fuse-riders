@@ -161,6 +161,7 @@ test("events the runtime delivers between frames reach the arena with the frame 
   const kill: GameEvent = { type: "kill", victim: 1, killer: 3 };
   const pickup: GameEvent = { type: "berryPickup", slot: 2, pile: 0 };
   const regrow: GameEvent = { type: "berryRegrow" };
+  driver.feed(first, true);
   // Three ticks folded at once: the runtime says each tick's events, then publishes the newest frame.
   driver.event(kill, first.matchId, first.round, first.tick + 3);
   driver.event(pickup, first.matchId, first.round, first.tick + 3);
@@ -175,6 +176,7 @@ test("events the runtime delivers between frames reach the arena with the frame 
   confirm(first.tick + 3);
   driver.feed(fourth, true);
   assert.deepEqual(fed(calls), [
+    own(first),
     {
       ticks: [
         { tick: first.tick + 3, events: [kill, pickup] },
@@ -230,6 +232,45 @@ test("the queue keeps only the game being shown, holds what no frame has reached
   assert.equal(queue.size, QUEUE_LIMIT, "the oldest are dropped");
   queue.clear();
   assert.equal(queue.size, 0);
+});
+
+test("events heard while the arena is closed are dropped, so opening it mid-game does not replay them", () => {
+  const { calls, driver } = rig();
+  const room = started();
+  toPlay(room);
+  fold(room);
+  const first = frame(room);
+  const kill: GameEvent = { type: "kill", victim: 2, killer: 3 };
+  // A controller phone: frames come, the arena stays shut, and every tick's events are delivered.
+  driver.feed(first, false);
+  for (let i = 0; i < 80; i += 1) {
+    driver.event(kill, first.matchId, first.round, first.tick + 3 * i);
+    if (i % 10 === 9) {
+      fold(room);
+      driver.feed(frame(room), false);
+    }
+  }
+  assert.equal(calls.length, 0);
+  fold(room);
+  const shown = frame(room);
+  driver.feed(shown, true);
+  assert.deepEqual(fed(calls), [own(shown)]);
+  driver.event(kill, shown.matchId, shown.round, shown.tick + 3);
+  fold(room);
+  fold(room);
+  const next = frame(room);
+  driver.feed(next, true);
+  assert.deepEqual(
+    fed(calls).at(-1),
+    {
+      ticks: [
+        { tick: shown.tick + 3, events: [kill] },
+        { tick: next.tick, events: next.world?.events ?? [] },
+      ],
+      confirmed: -1,
+    },
+    "open, it hears what the room says",
+  );
 });
 
 test("closing the arena forgets the events queued for it", () => {

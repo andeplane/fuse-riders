@@ -180,19 +180,22 @@ export interface Occurrence {
 }
 
 /**
- * A plain key of one event at one place in one tick: its type and the slots and places it names, never the pixel
- * it happened at, so a rollback that moves a clash by a pixel gives the same key, and one that changes who died
- * at the same index gives another.
+ * What an event is about: its type and the slots and places it names, never the pixel it happened at, so a
+ * rollback that moves a clash by a pixel says the same thing and one that changes who died says another.
  */
-export const eventKey = (
-  tick: number,
-  index: number,
-  event: GameEvent,
-): string =>
-  `${tick}:${index}:${Object.entries(event)
+export const contentKey = (event: GameEvent): string =>
+  Object.entries(event)
     .filter(([field]) => field !== "x" && field !== "y")
     .map(([, value]) => value)
-    .join(",")}`;
+    .join(",");
+
+/**
+ * A plain key of one event in one tick: the tick, the event's content and which repeat of that content it is
+ * within the tick (`nth`, from 0), not its place in the tick's list, which a rollback shifts by inserting or
+ * removing an earlier event without changing the later ones.
+ */
+export const eventKey = (tick: number, nth: number, event: GameEvent): string =>
+  `${tick}:${contentKey(event)}#${nth}`;
 
 /** Keys with the time they were first seen, forgotten once far behind the newest, or all at once far before it. */
 class Seen {
@@ -230,9 +233,10 @@ class Seen {
 }
 
 /**
- * Remembers which events and flaps have already fired. An event's key is its tick, its index in the tick and its own
- * content (`eventKey`), so a tick fed again is silent, while a rollback that changes what happened on it still shows
- * the new outcome. Flaps are keyed by the round's step, which is what the view carries.
+ * Remembers which events and flaps have already fired. An event's key is its tick, its own content and which repeat
+ * of that content it is within the tick (`eventKey`), so a tick fed again is silent, a rollback that adds or drops
+ * an event beside it leaves the rest silent, and one that changes what happened still shows the new outcome. Flaps
+ * are keyed by the round's step, which is what the view carries.
  */
 export class EventLedger {
   private readonly events: Seen;
@@ -247,8 +251,12 @@ export class EventLedger {
   /** The events of `ticks` that have not fired before, oldest tick first and in order within a tick. */
   fresh(ticks: readonly TickEvents[]): Occurrence[] {
     const found: Occurrence[] = [];
-    for (const { tick, events } of ticks)
+    for (const { tick, events } of ticks) {
+      const repeats = new Map<string, number>();
       events.forEach((event, index) => {
+        const content = contentKey(event),
+          nth = repeats.get(content) ?? 0;
+        repeats.set(content, nth + 1);
         const first =
           // A round is won once: a rollback may move the winning tick, and the sting must not play again for it.
           event.type === "victory"
@@ -257,9 +265,10 @@ export class EventLedger {
                 tick,
                 Infinity,
               )
-            : this.events.first(eventKey(tick, index, event), tick);
+            : this.events.first(eventKey(tick, nth, event), tick);
         if (first) found.push({ tick, index, event });
       });
+    }
     return found;
   }
 
@@ -317,6 +326,17 @@ export function stands(event: GameEvent, view: RoundView): boolean {
 export const HELD_PATIENCE = 120;
 
 /**
+ * What a loud event is the one of: a unit dies once before it respawns, whoever the rollback credits and whichever
+ * tick it settles on, and a round is won once. Held plans with the same identity are one plan.
+ */
+export const loudIdentity = (event: GameEvent): string =>
+  event.type === "kill" || event.type === "queenKill"
+    ? `${event.type}:${event.victim}`
+    : event.type === "victory"
+      ? `won:${event.team},${event.kind}`
+      : contentKey(event);
+
+/**
  * The loud parts of a plan, kept until the tick they happened on is confirmed (no rollback can take them back) and
  * played only if the view still shows the outcome. Particles are cheap to be wrong about and are not held: the
  * body is gone from the picture at once and its specks fly with it. A tick that stays unconfirmed for `patience`
@@ -330,10 +350,29 @@ export class HeldPlans {
     private readonly limit = 64,
   ) {}
 
+  /**
+   * Holds `plan`; a plan already held for the same death or win (`loudIdentity`) is replaced by it, since a rollback
+   * that moved the kill to another tick or credited another killer re-emits it, and the victim died once.
+   */
   hold(tick: number, event: GameEvent, plan: Plan): void {
+    const identity = loudIdentity(event);
+    this.held = this.held.filter(
+      (entry) => loudIdentity(entry.event) !== identity,
+    );
     this.held.push({ tick, event, plan });
     if (this.held.length > this.limit)
       this.held.splice(0, this.held.length - this.limit);
+  }
+
+  /**
+   * `tick` was fed again with `events`: whatever was held for it and is not among them any more was undone by the
+   * rollback, and is dropped before it can be confirmed.
+   */
+  retract(tick: number, events: readonly GameEvent[]): void {
+    const kept = new Set(events.map(contentKey));
+    this.held = this.held.filter(
+      (entry) => entry.tick !== tick || kept.has(contentKey(entry.event)),
+    );
   }
 
   /**

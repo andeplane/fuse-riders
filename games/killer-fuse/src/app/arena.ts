@@ -104,9 +104,13 @@ export class ArenaDriver<Host = HTMLElement> {
   private fed: Frame<View> | undefined;
   private readonly queue = new EventQueue();
   constructor(private readonly setup: ArenaSetup<Host>) {}
-  /** One event from the runtime's `event` callback: kept for the frame that carries its tick to the renderer. */
+  /**
+   * One event from the runtime's `event` callback: kept for the frame that carries its tick to the renderer. With
+   * no arena on the page (the lobby, a phone that is only a controller) there is nothing to play it, and an arena
+   * opened later must not start on seconds of old events, so it is dropped.
+   */
   event(event: GameEvent, matchId: string, round: number, tick: number): void {
-    this.queue.add(event, matchId, round, tick);
+    if (this.arena) this.queue.add(event, matchId, round, tick);
   }
   /** Whether the arena is on the page. */
   get open(): boolean {

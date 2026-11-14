@@ -132,6 +132,24 @@ function targetBound(goal: BotGoal, map: MapDef, team: number): number {
   }
 }
 
+/**
+ * The least a bot's `target` can be, by goal. `flee`, `stall`, `hunt` and `evade` always take the slot of the unit
+ * they are about (`aimWorker` and `aimFlyer` are handed `threat.slot`, `rider.slot`, `target.slot`), and `flee`
+ * reads `state.units[mind.target]!` on the next fold, so -1 there is a throw a checkpoint must not pass on. `guard`
+ * is aimed at a place and holds -1 for nobody; the rest keep whatever list index, or -1, the goal left.
+ */
+function targetFloor(goal: BotGoal): number {
+  switch (goal) {
+    case "flee":
+    case "stall":
+    case "hunt":
+    case "evade":
+      return 0;
+    default:
+      return -1;
+  }
+}
+
 /** The ranges the shape cannot say: indices into the map and the slots, enums, and counters that never go negative. */
 function inRange(world: Round): boolean {
   const map = MAPS[world.mapId],
@@ -191,7 +209,7 @@ function inRange(world: Round): boolean {
         mind.noise >= 0 &&
         within(
           mind.target,
-          -1,
+          targetFloor(mind.goal),
           targetBound(mind.goal, map, teamOf(index)) - 1,
         ) &&
         within(mind.node, -1, map.platforms.length - 1) &&

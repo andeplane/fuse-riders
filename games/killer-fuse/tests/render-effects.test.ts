@@ -15,6 +15,7 @@ import {
   HATCH,
   isLoud,
   JUMP_DUST,
+  loudIdentity,
   STOMP_SPECKS,
   planLanding,
   QUEEN_FLARE,
@@ -101,7 +102,7 @@ test("a rollback that changes what happened on a tick shows the new outcome only
   );
   assert.notEqual(eventKey(120, 0, first), eventKey(120, 0, second));
   assert.notEqual(eventKey(120, 0, first), eventKey(120, 1, first));
-  assert.equal(eventKey(120, 0, first), "120:0:kill,1,3");
+  assert.equal(eventKey(120, 0, first), "120:kill,1,3#0");
 });
 
 test("a rollback that moves an impact by a pixel is not a new impact", () => {
@@ -110,7 +111,7 @@ test("a rollback that moves an impact by a pixel is not a new impact", () => {
   const moved: GameEvent = { type: "glance", a: 0, b: 3, x: 106, y: 92 };
   const others: GameEvent = { type: "glance", a: 0, b: 4, x: 105, y: 91 };
   assert.equal(eventKey(120, 0, clash), eventKey(120, 0, moved));
-  assert.equal(eventKey(120, 0, clash), "120:0:glance,0,3");
+  assert.equal(eventKey(120, 0, clash), "120:glance,0,3#0");
   assert.deepEqual(heard(ledger, tick(120, [clash])), [clash]);
   assert.deepEqual(heard(ledger, tick(120, [moved])), []);
   assert.deepEqual(heard(ledger, tick(120, [others])), [others]);
@@ -122,7 +123,7 @@ test("a rollback that moves an impact by a pixel is not a new impact", () => {
     x: 10,
     y: 20,
   };
-  assert.equal(eventKey(120, 2, used), "120:2:gateUse,1,0,warrior");
+  assert.equal(eventKey(120, 2, used), "120:gateUse,1,0,warrior#2");
 });
 
 test("loud events are the deaths and the win, and stand while the view shows them", () => {
@@ -200,9 +201,14 @@ test("a tick that is never confirmed plays its sound after a while, and the held
   assert.deepEqual(held.release(-1, 120 + HELD_PATIENCE - 1, dead), []);
   assert.deepEqual(held.release(-1, 120 + HELD_PATIENCE, dead), [plan]);
   const small = new HeldPlans(HELD_PATIENCE, 3);
-  for (let at = 0; at < 5; at += 1) small.hold(at, kill, plan);
+  for (let at = 0; at < 5; at += 1)
+    small.hold(at, { ...kill, victim: at + 1 }, plan);
   assert.equal(small.size, 3);
-  assert.equal(small.release(4, 4, dead).length, 3, "the newest are kept");
+  const everyone = {
+    ...dead,
+    units: dead.units.map((unit) => ({ ...unit, dead: true })),
+  };
+  assert.equal(small.release(4, 4, everyone).length, 3, "the newest are kept");
 });
 
 test("sounds are planned before the art has loaded", () => {
@@ -834,6 +840,91 @@ test("a claimed gate sends its new colour up for a second", () => {
   assert.equal(rising.team, 1);
   assert.equal(rising.tone, "team");
   assert.equal(rising.x, view.gates[0]?.x);
+});
+
+test("a rollback that inserts or removes an earlier event in a tick does not re-fire the later ones", () => {
+  const ledger = new EventLedger();
+  const dust: GameEvent = { type: "stomped", slot: 1, by: 4, x: 210, y: 130 };
+  const clash: GameEvent = { type: "glance", a: 0, b: 3, x: 105, y: 91 };
+  const flap: GameEvent = { type: "attack", slot: 2 };
+  assert.deepEqual(heard(ledger, tick(120, [dust, clash])), [dust, clash]);
+  assert.deepEqual(
+    heard(ledger, tick(120, [flap, dust, clash])),
+    [flap],
+    "one inserted before them",
+  );
+  assert.deepEqual(heard(ledger, tick(120, [clash])), [], "one removed");
+  assert.deepEqual(
+    heard(ledger, tick(120, [clash, clash])),
+    [clash],
+    "the same thing twice in a tick is two events",
+  );
+  assert.deepEqual(heard(ledger, tick(120, [clash, flap, clash])), []);
+  assert.equal(eventKey(120, 1, clash), "120:glance,0,3#1");
+  assert.deepEqual(
+    ledger.fresh([tick(120, [flap, clash, dust, clash, clash])]),
+    [{ tick: 120, index: 4, event: clash }],
+    "the index is still its place in the list",
+  );
+});
+
+test("a kill a rollback moves to another tick or credits to another killer is one held sound", () => {
+  const held = new HeldPlans();
+  const kill: GameEvent = { type: "kill", victim: 2, killer: 3 };
+  const credited: GameEvent = { type: "kill", victim: 2, killer: 5 };
+  const dead = withUnit(openingView(), 2, { dead: true });
+  const plan = (volume: number): Plan => ({
+    effects: [],
+    sounds: [{ name: "kill", volume, pan: 0 }],
+    shake: 0,
+  });
+  held.hold(120, kill, plan(1));
+  held.hold(123, kill, plan(0.5));
+  assert.equal(held.size, 1);
+  held.hold(123, credited, plan(0.25));
+  assert.equal(held.size, 1);
+  assert.deepEqual(held.release(123, 123, dead), [plan(0.25)], "the newest");
+  assert.deepEqual(held.release(126, 126, dead), []);
+  const other: GameEvent = { type: "kill", victim: 4, killer: 3 };
+  const queen: GameEvent = {
+    type: "queenKill",
+    victim: 0,
+    killer: 3,
+    eggsLeft: 1,
+  };
+  held.hold(120, kill, plan(1));
+  held.hold(120, other, plan(1));
+  held.hold(120, queen, plan(1));
+  assert.equal(held.size, 3, "other deaths are their own");
+  assert.equal(loudIdentity(kill), "kill:2");
+  assert.equal(loudIdentity(queen), "queenKill:0");
+  assert.equal(
+    loudIdentity({ type: "victory", team: 1, kind: "snail" }),
+    "won:1,snail",
+  );
+  assert.equal(loudIdentity({ type: "attack", slot: 2 }), "attack,2");
+});
+
+test("a tick fed again without a held kill takes it back before it is confirmed", () => {
+  const held = new HeldPlans();
+  const kill: GameEvent = { type: "kill", victim: 2, killer: 3 };
+  const other: GameEvent = { type: "kill", victim: 4, killer: 3 };
+  const dead = withUnit(withUnit(openingView(), 2, { dead: true }), 4, {
+    dead: true,
+  });
+  const plan: Plan = {
+    effects: [],
+    sounds: [{ name: "kill", volume: 1, pan: 0 }],
+    shake: 0,
+  };
+  held.hold(120, kill, plan);
+  held.hold(123, other, plan);
+  held.retract(120, [{ type: "berryRegrow" }]);
+  assert.equal(held.size, 1, "the kill at 120 is gone");
+  held.retract(123, [{ type: "attack", slot: 1 }, { ...other }]);
+  assert.equal(held.size, 1, "the same kill again, beside a new event");
+  held.retract(126, []);
+  assert.deepEqual(held.release(126, 126, dead), [plan], "another tick's");
 });
 
 test("a Queen hatches in a burst of shell at her egg, a Worker in its beam", () => {

@@ -525,6 +525,34 @@ const indexCases: [
     },
   ],
   [
+    "a bot fleeing nobody: `flee` reads its target's unit on the next fold",
+    (w) => {
+      w.bots[0]!.goal = "flee";
+      w.bots[0]!.target = -1;
+    },
+  ],
+  [
+    "a bot stalling nobody",
+    (w) => {
+      w.bots[2]!.goal = "stall";
+      w.bots[2]!.target = -1;
+    },
+  ],
+  [
+    "a bot hunting nobody",
+    (w) => {
+      w.bots[1]!.goal = "hunt";
+      w.bots[1]!.target = -1;
+    },
+  ],
+  [
+    "a bot evading nobody",
+    (w) => {
+      w.bots[3]!.goal = "evade";
+      w.bots[3]!.target = -1;
+    },
+  ],
+  [
     "a bot gathering from a pile the map has not",
     (w, map) => {
       w.bots[0]!.goal = "gather";
@@ -583,6 +611,13 @@ test("a bot index above the map's own lists is refused, and the healthy round be
   last.bots[0]!.target = map.piles.length - 1;
   last.bots[1]!.node = map.platforms.length - 1;
   last.bots[2]!.edge = edges - 1;
+  // A guard is aimed at a place and watches nobody; the goals about a unit take the first slot like any other.
+  last.bots[3]!.goal = "guard";
+  last.bots[3]!.target = -1;
+  last.bots[4]!.goal = "hunt";
+  last.bots[4]!.target = 0;
+  last.bots[5]!.goal = "flee";
+  last.bots[5]!.target = 0;
   assert.ok(decodeWorld(last, expected(room)), "the last of each list");
   // Refusing leaves the room it was offered to alone: it still checkpoints and restores bit for bit.
   const whole = stage("play");
