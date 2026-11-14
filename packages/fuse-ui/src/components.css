@@ -932,8 +932,9 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+/* A game's own choices sit under the players: who is here and where to join are always on top. */
 .fui-room-modes {
-  margin-bottom: 20px;
+  margin-top: 20px;
 }
 .fui-room-modes > * {
   display: flex;
@@ -1156,8 +1157,57 @@
     margin: 16px auto;
     padding: 20px;
   }
-  .fui-room-invitation {
-    grid-template-columns: 1fr;
+  /*
+   * One column: the players and their Join buttons lead, then the invitation, the game's own choices, START and
+   * the rest. Both columns dissolve into the page's grid so their parts can be ordered across each other.
+   */
+  .fui-room-layout.fui-room-layout {
+    gap: 14px;
+  }
+  /* Clipped, not scrollable: START sticks to the page's own scroll, not to a box that never scrolls. */
+  .fui-room-layout:has(> .fui-attract) {
+    overflow: clip;
+  }
+  .fui-room-invitation,
+  .fui-room-players {
+    display: contents;
+  }
+  .fui-room-players > * {
+    order: 1;
+  }
+  .fui-room-invitation > * {
+    order: 2;
+  }
+  .fui-room-players > .fui-room-modes {
+    order: 3;
+  }
+  /* START follows the page down: a long lobby never hides it. */
+  .fui-room-invitation > .fui-room-primary-action {
+    order: 4;
+    position: sticky;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    z-index: 3;
+  }
+  .fui-room-players > .fui-room-actions {
+    order: 5;
+  }
+  .fui-room-invitation > .fui-room-configure {
+    order: 6;
+  }
+  .fui-room-invitation > .fui-room-main-menu {
+    order: 7;
+  }
+  .fui-room-layout > .fui-attract-toggle {
+    order: 8;
+  }
+  .fui-room-layout .fui-room-players > h2,
+  .fui-room-layout .fui-room-open-slots,
+  .fui-room-layout .fui-room-modes,
+  .fui-room-layout .fui-room-actions {
+    margin: 0;
+  }
+  .fui-room-layout .fui-room-actions:empty {
+    display: none;
   }
   .fui-room-layout .fui-invite-qr {
     width: 150px;
@@ -1286,6 +1336,10 @@
   box-sizing: border-box;
   height: 46px;
   min-height: 46px;
+}
+/* A guest has no START: the place it would take closes up. */
+.fui-room-layout .fui-room-primary-action:has(> [hidden]:only-child) {
+  display: none;
 }
 .fui-room-layout .fui-room-main-menu {
   display: block;

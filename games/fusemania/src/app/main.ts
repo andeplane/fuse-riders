@@ -112,6 +112,8 @@ import {
 } from "./timing-bias.js";
 import { createSongClock } from "./song-clock.js";
 import { createSongPicker } from "./song-picker.js";
+import { coverPath } from "./covers.js";
+import { packsOf } from "./packs.js";
 
 /**
  * The Fusemania page's glue: it reads the query, builds the screens from fuse-ui components, wires the runtime to
@@ -163,6 +165,11 @@ const SONG_LOAD_TRIES = 3;
 /** Where a song's audio is fetched from: the site's own files, or a file the player loaded. */
 const songUrl = (path: string) =>
   /^(blob:|https?:)/.test(path) ? path : `${BASE}${path}`;
+/** A song's cover image, for the songs that ship with one. */
+const coverUrl = (song: { id: string }): string | undefined => {
+  const path = coverPath(song.id);
+  return path && `${BASE}${path}`;
+};
 
 /** The id a loaded simfile's song goes by. */
 const CUSTOM = "custom";
@@ -394,6 +401,8 @@ function landing(): void {
     onChart: (chart) => show({ ...choice, chart }),
     onMode: (mode) => show({ ...choice, mode }),
     best: bestLookup(library),
+    cover: coverUrl,
+    packs: packsOf(library.songs, CUSTOM),
   });
   const show = (next: Choice) => {
     if (next.song !== choice.song || next.chart !== choice.chart) sfx.blip();
@@ -525,6 +534,11 @@ function landing(): void {
   const help = keyHelp();
   card.menu.addSettings(settings.element);
   card.menu.help.append(help);
+  /** The select sits in the menu's own dialog: only another one on top takes the keys away. */
+  const otherDialogOpen = () =>
+    [...document.querySelectorAll("dialog[open]")].some(
+      (dialog) => !dialog.contains(picker.element),
+    );
   const onKey = (event: KeyboardEvent) => {
     if (
       settings.busy ||
@@ -533,7 +547,7 @@ function landing(): void {
       event.altKey ||
       !picker.element.isConnected ||
       picker.element.offsetParent === null ||
-      document.querySelector("dialog[open]") ||
+      otherDialogOpen() ||
       menu.isOpen() ||
       event.target instanceof HTMLInputElement ||
       event.target instanceof HTMLTextAreaElement ||
@@ -699,6 +713,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     onMode: (mode) =>
       runtime.command({ type: "settings", settings: { ...settings, mode } }),
     best: bestLookup(library),
+    cover: coverUrl,
+    packs: packsOf(library.songs, CUSTOM),
   });
   // Beside the song select: every player's own speed, and the host's random song and session.
   const options = createPlayOptions({
@@ -1546,7 +1562,10 @@ function room(solo: boolean, library: Library, first?: Choice): void {
         rematch.click();
       } else if (
         model?.screen === "lobby" &&
-        !typing(event.target) &&
+        // A cover, an arrow or a chip that was just clicked keeps the focus: the carousel's keys still turn it.
+        (!typing(event.target) ||
+          (event.target instanceof HTMLButtonElement &&
+            picker.element.contains(event.target))) &&
         picker.element.offsetParent !== null &&
         !PAGE_KEYS.has(event.code) &&
         picker.key(event.code)

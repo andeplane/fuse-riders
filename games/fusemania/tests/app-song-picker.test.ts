@@ -8,10 +8,13 @@ import {
   type SongInfo,
 } from "../src/engine/index.js";
 import {
+  WHEEL_REACH,
   chartLevel,
+  coverTint,
   createSongPicker,
   lengthText,
   tempoText,
+  wheelOffset,
   type PickerState,
   type SongPickerOptions,
 } from "../src/app/song-picker.js";
@@ -59,7 +62,7 @@ const state = (over: Partial<PickerState> = {}): PickerState => ({
 
 function setup(
   songs: readonly SongInfo[] = THREE,
-  extra: Pick<SongPickerOptions, "best" | "hideMode"> = {},
+  extra: Pick<SongPickerOptions, "best" | "hideMode" | "cover" | "packs"> = {},
 ) {
   const { document, window } = parseHTML(
     "<!doctype html><html><body></body></html>",
@@ -133,7 +136,7 @@ test("tempo, length and difficulty read as the song select shows them", () => {
   assert.equal(chartLevel("Oni"), "other");
 });
 
-test("lists every song of the library with its tempo, length and meters", () => {
+test("has a cover for every song of the library, with its title and meters", () => {
   const library = testLibrary();
   const f = setup(library.songs);
   const rows = f.rows();
@@ -145,11 +148,7 @@ test("lists every song of the library with its tempo, length and meters", () => 
     const text = (part: string) =>
       row.querySelector(`.fm-picker-row-${part}`)?.textContent;
     assert.equal(text("title"), info.title);
-    assert.equal(text("artist"), info.artist);
-    assert.equal(
-      text("facts"),
-      `${tempoText(info.bpm)} · ${lengthText(info.endMs)}`,
-    );
+    assert.ok(row.querySelector(".fm-cover"), "every song wears a cover");
     assert.deepEqual(
       [...row.querySelectorAll<HTMLElement>(".fm-picker-row-meter")].map(
         (meter) => [meter.textContent, meter.dataset.level],
@@ -157,12 +156,6 @@ test("lists every song of the library with its tempo, length and meters", () => 
       info.charts.map((item) => [String(item.meter), chartLevel(item.name)]),
     );
   });
-  assert.equal(
-    rows[0]!
-      .querySelector(".fm-picker-row-facts")
-      ?.textContent?.startsWith("120 BPM · "),
-    true,
-  );
   assert.equal(f.one(".fm-picker-list").getAttribute("role"), "listbox");
   // Nothing is selected until the page says what is.
   assert.deepEqual(f.selected(), []);
@@ -221,7 +214,7 @@ test("a row click asks for the song, for a host only, and the picker waits for t
   assert.deepEqual(f.calls, ["song c"]);
   assert.equal(f.picker.element.dataset.host, "false");
   assert.equal(f.one(".fm-picker-list").getAttribute("aria-disabled"), "true");
-  // Disabled-looking, not disabled: a guest still reads, focuses and scrolls the list.
+  // The covers are never disabled: the page shows a guest the chosen song as a card instead of the carousel.
   assert.equal(
     f.rows().some((row) => row.disabled),
     false,
@@ -358,7 +351,7 @@ test("a change writes only what changed", () => {
   f.picker.update(state());
   f.writes();
   f.picker.update(state({ chart: 2 }));
-  // Two chips change their pressed state; rows, texts and the mode are left alone.
+  // Two chips change their pressed state; covers, texts and the mode are left alone.
   assert.deepEqual(f.writes(), [
     "attributes:aria-pressed",
     "attributes:aria-pressed",
@@ -434,31 +427,38 @@ test("a song the library does not have selects nothing", () => {
   assert.deepEqual(f.chips(), []);
   assert.equal(f.one(".fm-picker-title").textContent, "SELECT A SONG");
   assert.equal(f.one(".fm-picker-facts").hidden, true);
-  assert.equal(f.picker.key("ArrowRight"), false);
-  // From nowhere, down is the first song and up the last.
-  assert.equal(f.picker.key("ArrowDown"), true);
-  assert.equal(f.picker.key("ArrowUp"), true);
+  assert.equal(f.picker.key("ArrowDown"), false, "no song, no chart to change");
+  // From nowhere, right is the first song and left the last.
+  assert.equal(f.picker.key("ArrowRight"), true);
+  assert.equal(f.picker.key("ArrowLeft"), true);
   assert.deepEqual(f.calls, ["song a", "song c"]);
 });
 
-test("keys move the song for a host and wrap at both ends", () => {
+test("keys turn the carousel for a host and wrap at both ends", () => {
   const f = setup();
-  assert.equal(f.picker.key("ArrowDown"), false, "nothing is shown yet");
+  assert.equal(f.picker.key("ArrowRight"), false, "nothing is shown yet");
   const press = (code: string, from: Partial<PickerState>) => {
     f.calls.length = 0;
     f.picker.update(state(from));
     return [f.picker.key(code), ...f.calls];
   };
-  for (const down of ["ArrowDown", "KeyS", "KeyK"]) {
-    assert.deepEqual(press(down, { song: "a" }), [true, "song b"]);
-    assert.deepEqual(press(down, { song: "c" }), [true, "song a"]);
+  for (const right of ["ArrowRight", "KeyD", "KeyL"]) {
+    assert.deepEqual(press(right, { song: "a" }), [true, "song b"]);
+    assert.deepEqual(press(right, { song: "c" }), [true, "song a"]);
   }
-  for (const up of ["ArrowUp", "KeyW", "KeyI"]) {
-    assert.deepEqual(press(up, { song: "b" }), [true, "song a"]);
-    assert.deepEqual(press(up, { song: "a" }), [true, "song c"]);
+  for (const left of ["ArrowLeft", "KeyA", "KeyJ"]) {
+    assert.deepEqual(press(left, { song: "b" }), [true, "song a"]);
+    assert.deepEqual(press(left, { song: "a" }), [true, "song c"]);
   }
   // The song is the host's: a guest's key is left for the page.
-  for (const code of ["ArrowDown", "ArrowUp", "KeyW", "KeyS", "KeyI", "KeyK"])
+  for (const code of [
+    "ArrowLeft",
+    "ArrowRight",
+    "KeyA",
+    "KeyD",
+    "KeyJ",
+    "KeyL",
+  ])
     assert.deepEqual(press(code, { song: "a", host: false }), [false]);
   for (const code of ["Enter", "Space", "KeyQ", ""])
     assert.deepEqual(press(code, {}), [false]);
@@ -472,21 +472,21 @@ test("keys move the chart for anyone and wrap at both ends", () => {
     return [f.picker.key(code), ...f.calls];
   };
   for (const host of [true, false]) {
-    for (const right of ["ArrowRight", "KeyD", "KeyL"]) {
-      assert.deepEqual(press(right, { chart: 0, host }), [true, "chart 1"]);
-      assert.deepEqual(press(right, { chart: 3, host }), [true, "chart 0"]);
+    for (const down of ["ArrowDown", "KeyS", "KeyK"]) {
+      assert.deepEqual(press(down, { chart: 0, host }), [true, "chart 1"]);
+      assert.deepEqual(press(down, { chart: 3, host }), [true, "chart 0"]);
     }
-    for (const left of ["ArrowLeft", "KeyA", "KeyJ"]) {
-      assert.deepEqual(press(left, { chart: 2, host }), [true, "chart 1"]);
-      assert.deepEqual(press(left, { chart: 0, host }), [true, "chart 3"]);
+    for (const up of ["ArrowUp", "KeyW", "KeyI"]) {
+      assert.deepEqual(press(up, { chart: 2, host }), [true, "chart 1"]);
+      assert.deepEqual(press(up, { chart: 0, host }), [true, "chart 3"]);
     }
   }
   // On a song with two charts a fourth-chart preference stands on its last, and moves from there.
-  assert.deepEqual(press("ArrowLeft", { song: "b", chart: 3 }), [
+  assert.deepEqual(press("ArrowUp", { song: "b", chart: 3 }), [
     true,
     "chart 0",
   ]);
-  assert.deepEqual(press("ArrowRight", { song: "b", chart: 3 }), [
+  assert.deepEqual(press("ArrowDown", { song: "b", chart: 3 }), [
     true,
     "chart 0",
   ]);
@@ -553,41 +553,278 @@ test("best results show on the chips and, for the chart the player would play, o
   assert.deepEqual(f.writes(), ["childList:", "childList:"]);
 });
 
-test("the list scrolls itself to a newly selected song, once", () => {
+test("the carousel is a ring: each song's place is the nearest way round from the selected one", () => {
+  assert.equal(wheelOffset(3, 3, 20), 0);
+  assert.equal(wheelOffset(4, 3, 20), 1);
+  assert.equal(wheelOffset(2, 3, 20), -1);
+  // Round the ends: the last song sits left of the first.
+  assert.equal(wheelOffset(19, 0, 20), -1);
+  assert.equal(wheelOffset(0, 19, 20), 1);
+  // One past the reach waits off the edge; further out is not drawn.
+  assert.equal(wheelOffset(WHEEL_REACH + 1, 0, 20), WHEEL_REACH + 1);
+  assert.equal(wheelOffset(WHEEL_REACH + 2, 0, 20), undefined);
+  assert.equal(wheelOffset(10, 0, 20), undefined);
+  // A short ring puts each song on one side only, and nothing selected places nothing.
+  assert.deepEqual(
+    [0, 1, 2].map((index) => wheelOffset(index, 0, 3)),
+    [0, 1, -1],
+  );
+  assert.deepEqual(
+    [0, 1].map((index) => wheelOffset(index, 0, 2)),
+    [0, 1],
+  );
+  assert.equal(wheelOffset(0, -1, 3), undefined);
+  assert.equal(wheelOffset(0, 0, 0), undefined);
+});
+
+test("update turns the carousel to the selected song and writes only the covers that moved", () => {
+  const many = Array.from({ length: 12 }, (_, index) => song(`s${index}`));
+  const f = setup(many);
+  const offsets = () => f.rows().map((row) => row.dataset.offset ?? "");
+  f.picker.update(state({ song: "s0" }));
+  assert.deepEqual(offsets(), [
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "",
+    "",
+    "",
+    "-4",
+    "-3",
+    "-2",
+    "-1",
+  ]);
+  f.picker.update(state({ song: "s1" }));
+  assert.deepEqual(offsets(), [
+    "-1",
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "",
+    "",
+    "",
+    "-4",
+    "-3",
+    "-2",
+  ]);
+  // Tab stops on the selected cover alone.
+  assert.deepEqual(
+    f.rows().map((row) => row.getAttribute("tabindex")),
+    ["-1", "0", ...many.slice(2).map(() => "-1")],
+  );
+  // A song the library does not have leaves nothing on the carousel.
+  f.picker.update(state({ song: "nope" }));
+  assert.deepEqual(
+    offsets(),
+    many.map(() => ""),
+  );
+  assert.ok(f.rows().every((row) => row.getAttribute("tabindex") === "-1"));
+});
+
+test("a click on a side cover or an arrow asks for that song, for a host only", () => {
   const f = setup();
-  const list = f.one(".fm-picker-list");
-  // linkedom lays nothing out: give the list a 100px window over three 40px rows, as a browser would report it.
-  const layout = (node: HTMLElement, values: Record<string, number>) => {
-    for (const [name, value] of Object.entries(values))
-      Object.defineProperty(node, name, { value, configurable: true });
-  };
-  f.rows().forEach((row, index) =>
-    layout(row, { offsetTop: index * 40, offsetHeight: 40 }),
-  );
-  list.scrollTop = 0;
-
-  // Not laid out yet (the picker is updated before the page shows it): nothing to scroll, and it is not forgotten.
-  f.picker.update(state({ song: "c" }));
-  assert.equal(list.scrollTop, 0);
-  layout(list, { clientHeight: 100 });
-  f.picker.update(state({ song: "c" }));
-  assert.equal(
-    list.scrollTop,
-    20,
-    "row c ends at 120: scrolled just far enough",
-  );
-
-  // The player scrolls away; an unchanged state does not pull the list back.
-  list.scrollTop = 0;
-  f.picker.update(state({ song: "c" }));
-  f.picker.update(state({ song: "c", chart: 2 }));
-  assert.equal(list.scrollTop, 0);
-
-  list.scrollTop = 60;
+  const [before, after] = [
+    f.one(".fm-picker-prev") as HTMLButtonElement,
+    f.one(".fm-picker-next") as HTMLButtonElement,
+  ];
+  // Nobody can turn it until the page says who may.
+  assert.equal(before.disabled, true);
   f.picker.update(state({ song: "a" }));
-  assert.equal(list.scrollTop, 0, "a row above the window comes to its top");
+  assert.equal(before.disabled, false);
+  after.click();
+  before.click();
+  assert.deepEqual(f.calls, ["song b", "song c"]);
+  f.picker.update(state({ song: "a", host: false }));
+  assert.equal(after.disabled, true);
+  f.calls.length = 0;
+  after.click();
+  f.rows()[1]!.click();
+  assert.deepEqual(f.calls, []);
+  assert.equal(f.picker.element.dataset.host, "false");
+});
+
+test("a sideways drag turns the carousel one song for each stretch, and swallows the click that ends it", () => {
+  const f = setup();
+  f.picker.update(state({ song: "a" }));
+  const list = f.one(".fm-picker-list");
+  const window = list.ownerDocument.defaultView!;
+  const pointer = (type: string, clientX: number) => {
+    const event = new window.Event(type, { bubbles: true });
+    Object.assign(event, { pointerId: 1, clientX });
+    list.dispatchEvent(event);
+  };
+  pointer("pointerdown", 200);
+  pointer("pointermove", 180);
+  assert.deepEqual(f.calls, [], "a short move is not a turn");
+  pointer("pointermove", 140);
+  assert.deepEqual(f.calls, ["song b"], "dragging left brings the next song");
+  pointer("pointerup", 140);
+  f.rows()[2]!.click();
+  assert.deepEqual(f.calls, ["song b"], "the drag's own click asks nothing");
+  // The next press is a click again.
+  pointer("pointerdown", 100);
+  pointer("pointerup", 100);
+  f.rows()[2]!.click();
+  assert.deepEqual(f.calls, ["song b", "song c"]);
+  // Dragging right goes back.
+  f.calls.length = 0;
+  pointer("pointerdown", 100);
+  pointer("pointermove", 170);
+  assert.deepEqual(f.calls, ["song c"]);
+  // A drag that ended off the covers leaves no click behind: a key's click (detail 0) on a cover still asks.
+  pointer("pointerup", 170);
+  const byKey = new window.Event("click", { bubbles: true });
+  Object.assign(byKey, { detail: 0 });
+  f.rows()[1]!.dispatchEvent(byKey);
+  assert.deepEqual(f.calls, ["song c", "song b"]);
+});
+
+test("a cover is drawn from the song's id, and wears the song's image once it comes near", () => {
+  assert.deepEqual(coverTint("snaky-blue"), coverTint("snaky-blue"));
+  assert.notDeepEqual(coverTint("snaky-blue"), coverTint("snaky-jazz"));
+  for (const id of ["", "a", "victory", "reduced-noise-orchestra"]) {
+    const tint = coverTint(id);
+    assert.ok(tint.a >= 0 && tint.a < 360 && tint.b >= 0 && tint.b < 360);
+    assert.ok(tint.angle >= 20 && tint.angle <= 160);
+  }
+  const many = Array.from({ length: 12 }, (_, index) => song(`s${index}`));
+  const f = setup(many, {
+    cover: (info) => (info.id === "s3" ? undefined : `covers/${info.id}.jpg`),
+  });
+  const images = () =>
+    f.rows().map((row) => {
+      const image = row.querySelector<HTMLImageElement>(".fm-cover-image");
+      return image ? image.getAttribute("src") : "none";
+    });
+  // Nothing is fetched before the page shows a song.
+  assert.deepEqual(new Set(images()), new Set([null, "none"]));
+  // A guest never sees the carousel: only the chosen song's card fetches its cover.
+  f.picker.update(state({ song: "s0", host: false }));
+  assert.deepEqual(new Set(images()), new Set([null, "none"]));
+  assert.equal(
+    f.one(".fm-picker-art .fm-cover-image").getAttribute("src"),
+    "covers/s0.jpg",
+  );
+  f.picker.update(state({ song: "s0" }));
+  assert.deepEqual(images(), [
+    "covers/s0.jpg",
+    "covers/s1.jpg",
+    "covers/s2.jpg",
+    "none",
+    "covers/s4.jpg",
+    null,
+    null,
+    null,
+    "covers/s8.jpg",
+    "covers/s9.jpg",
+    "covers/s10.jpg",
+    "covers/s11.jpg",
+  ]);
+  // The selected song's card carries its cover too: what a guest sees of the host's choice.
+  assert.equal(
+    f.one(".fm-picker-art .fm-cover-image").getAttribute("src"),
+    "covers/s0.jpg",
+  );
+  f.picker.update(state({ song: "s3" }));
+  assert.equal(f.picker.element.querySelector(".fm-picker-art img"), null);
+  assert.ok(f.one(".fm-picker-art .fm-cover"));
+  // An image that fails to load leaves the drawn cover.
+  const broken = f.rows()[0]!.querySelector(".fm-cover-image")!;
+  broken.dispatchEvent(new broken.ownerDocument.defaultView!.Event("error"));
+  assert.equal(f.rows()[0]!.querySelector(".fm-cover-image"), null);
+});
+
+test("packs group the carousel: a tab each, the songs pack by pack, and PageUp/PageDown between them", () => {
+  const six = ["a", "b", "c", "d", "e", "f"].map((id) => song(id));
+  const f = setup(six, {
+    packs: [
+      { id: "jazz", name: "JAZZ MIX", songs: ["e", "b"] },
+      { id: "empty", name: "EMPTY", songs: ["not-here"] },
+      { id: "fuse", name: "FUSE", songs: ["a", "d"] },
+    ],
+  });
+  const titles = () =>
+    f
+      .rows()
+      .map((row) => row.querySelector(".fm-picker-row-title")?.textContent);
+  // Pack by pack in the pack's order; the songs no pack names come last. An empty pack has no tab.
+  assert.deepEqual(titles(), [
+    "Song e",
+    "Song b",
+    "Song a",
+    "Song d",
+    "Song c",
+    "Song f",
+  ]);
+  const tabs = () => f.all<HTMLButtonElement>(".fm-picker-pack");
+  const lit = () =>
+    tabs()
+      .filter((tab) => tab.getAttribute("aria-selected") === "true")
+      .map((tab) => tab.querySelector(".fm-picker-pack-name")?.textContent);
+  assert.deepEqual(
+    tabs().map((tab) => tab.textContent),
+    ["JAZZ MIX2 SONGS", "FUSE2 SONGS"],
+  );
+  assert.deepEqual(lit(), []);
+
+  f.picker.update(state({ song: "d" }));
+  assert.deepEqual(lit(), ["FUSE"]);
+  assert.equal(f.one(".fm-picker-pack-of").textContent, "FUSE");
+  // Turning past a pack's last song goes on into what follows.
+  assert.equal(f.picker.key("ArrowRight"), true);
+  assert.deepEqual(f.calls, ["song c"]);
+  f.picker.update(state({ song: "c" }));
+  assert.deepEqual(lit(), [], "a song outside every pack lights none");
+  assert.equal(f.one(".fm-picker-pack-of").textContent, "");
+
+  // A tab or a page key goes to the pack's first song; the pack already shown asks nothing.
+  f.calls.length = 0;
+  f.picker.update(state({ song: "d" }));
+  tabs()[1]!.click();
+  tabs()[0]!.click();
+  assert.deepEqual(f.calls, ["song e"]);
+  assert.equal(f.picker.key("PageDown"), true);
+  assert.equal(f.picker.key("PageUp"), true);
+  assert.deepEqual(f.calls, ["song e", "song e", "song e"], "two packs wrap");
   f.picker.update(state({ song: "b" }));
-  assert.equal(list.scrollTop, 0, "a row already in view moves nothing");
+  assert.equal(f.picker.key("PageDown"), true);
+  assert.equal(f.calls.at(-1), "song a");
+
+  // The packs are the host's to change.
+  f.calls.length = 0;
+  f.picker.update(state({ song: "b", host: false }));
+  assert.equal(tabs()[1]!.disabled, true);
+  tabs()[1]!.click();
+  assert.equal(f.picker.key("PageDown"), false);
+  assert.deepEqual(f.calls, []);
+});
+
+test("without packs there are no tabs and the songs keep the library's order", () => {
+  const one = setup(THREE, {
+    packs: [{ id: "only", name: "ONLY", songs: ["a", "b", "c"] }],
+  });
+  one.picker.update(state());
+  assert.equal(one.all(".fm-picker-pack").length, 1);
+  assert.equal(
+    one.picker.key("PageDown"),
+    false,
+    "one pack: the key stays the page's",
+  );
+  const f = setup();
+  assert.equal(f.one(".fm-picker-packs").hidden, true);
+  assert.deepEqual(f.all(".fm-picker-pack"), []);
+  f.picker.update(state());
+  assert.equal(f.picker.key("PageDown"), false);
+  assert.deepEqual(
+    f
+      .rows()
+      .map((row) => row.querySelector(".fm-picker-row-title")?.textContent),
+    ["Song a", "Song b", "Song c"],
+  );
 });
 
 test("with no songs it says so and ignores everything", () => {
