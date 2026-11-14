@@ -3,18 +3,18 @@ import assert from "node:assert/strict";
 import { createEndpoints } from "../src/endpoints.js";
 test("Pages invites preserve project path while API requests use configured backend", () => {
   const endpoints = createEndpoints(
-    { basePath: "/fuse-riders/", apiOrigin: "https://backend.run.app" },
+    { basePath: "/fuse-games/", apiOrigin: "https://backend.run.app" },
     "https://andeplane.github.io",
   );
   assert.equal(
     endpoints.appUrl("?room=ABC&display=1"),
-    "https://andeplane.github.io/fuse-riders/?room=ABC&display=1",
+    "https://andeplane.github.io/fuse-games/?room=ABC&display=1",
   );
   assert.equal(
     endpoints.apiUrl("/api/rooms"),
     "https://backend.run.app/api/rooms",
   );
-  assert.equal(endpoints.appUrl(), "https://andeplane.github.io/fuse-riders/");
+  assert.equal(endpoints.appUrl(), "https://andeplane.github.io/fuse-games/");
 });
 test("local origin default and endpoint boundaries are explicit", () => {
   const endpoints = createEndpoints({ basePath: "/" }, "http://localhost:8787");

@@ -121,7 +121,7 @@ jobs:
       - name: Build the checked revision for its Pages path
         env:
           VITE_API_ORIGIN: ${{ vars.VITE_API_ORIGIN }}
-        run: pnpm build --base=/fuse-riders/
+        run: pnpm build --base=/fuse-games/
       - name: Record exact frontend artifact contents
         env:
           RELEASE_REVISION: ${{ steps.revision.outputs.sha }}
@@ -138,7 +138,7 @@ jobs:
             verifiedCiRun: process.env.VERIFICATION_MODE === 'ci' ? process.env.CI_RUN_ID : null,
             sourceVerification: { mode: process.env.VERIFICATION_MODE, ...(process.env.VERIFICATION_MODE === 'local' ? { note: process.env.LOCAL_VERIFICATION_NOTE } : {}) },
             apiOrigin: process.env.VITE_API_ORIGIN,
-            base: '/fuse-riders/',
+            base: '/fuse-games/',
             builtAt: new Date().toISOString()
           }, null, 2) + '\n');
           NODE
