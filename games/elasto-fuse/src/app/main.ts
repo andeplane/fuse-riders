@@ -6,6 +6,14 @@ import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
+import {
+  bindAudioInput,
+  browserAudioDependencies,
+  createAudioControl,
+  createGameAudio,
+} from "fuse-ui/game-audio";
+import "fuse-ui/game-audio.css";
+import { safeStorage } from "fuse-ui/safe-storage";
 import "./elasto-fuse.css";
 import QRCode from "qrcode";
 import {
@@ -50,7 +58,7 @@ import { slotColor, slotName } from "../render/palette.js";
 import { createScene } from "../render/scene.js";
 import { createSmoother } from "../render/smooth.js";
 import { browserCanvas, browserImages, browserTint, loadArt } from "./art.js";
-import { createSfx } from "./audio.js";
+import { createSfx, ELASTO_SONGS } from "./audio.js";
 import {
   HeldControls,
   PadSet,
@@ -118,6 +126,15 @@ const roomLevelKey = `${GAME}-room-level`;
 const query = new URLSearchParams(location.search);
 const muted = query.has("mute");
 const app = document.querySelector<HTMLElement>("#app")!;
+/** One sound bus for the page: the header's button, `M` and the remembered volumes are the shared module's. */
+const audio = createGameAudio(
+  browserAudioDependencies(safeStorage(() => localStorage)),
+  { forceMute: muted },
+);
+audio.setSongs(ELASTO_SONGS, import.meta.env.BASE_URL);
+audio.startMusic();
+bindAudioInput(audio, document, window);
+const audioControl = createAudioControl(document, audio);
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 /** A link within the game that keeps this page's developer flags. */
 const withFlags = (path: string) =>
@@ -192,7 +209,13 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     base: import.meta.env.BASE_URL,
     search: location.search,
   });
-  bar.append(portal.element, logo(), social.element(), ...extra);
+  bar.append(
+    portal.element,
+    logo(),
+    social.element(),
+    audioControl.element,
+    ...extra,
+  );
   return bar;
 }
 
@@ -323,7 +346,7 @@ function room(solo: boolean): void {
     display = role === "display";
   document.body.classList.toggle("ef-display", display);
   const viewer: Viewer = { me: "", host: solo, solo, display };
-  const sfx = createSfx(muted);
+  const sfx = createSfx(audio);
   const leave = () => {
     runtime.stop();
     location.href = withFlags(endpoints.appUrl());
@@ -511,6 +534,7 @@ function room(solo: boolean): void {
   main.append(connecting, closed, nameEntry.form, lobby, stage, controller);
   app.replaceChildren(top, main);
   const roomLayout = createRoomLayout({
+    primaryAction: start,
     playerName: () => social.playerName(undefined) ?? undefined,
     slotColor,
     slotLabel: (slot) => `${slotName(slot)} · Slot ${slot + 1}`,
@@ -854,6 +878,8 @@ function room(solo: boolean): void {
     ended() {
       status.show("Room ended", "error");
       over = true;
+      // The frames stop here, so nothing else would let the engine go.
+      sfx.engine(0, false, false);
       controls.clear();
       for (const part of [connecting, nameEntry.form, lobby, stage, controller])
         part.hidden = true;
@@ -916,7 +942,6 @@ function room(solo: boolean): void {
     (target instanceof HTMLButtonElement && !model?.riding);
   const captured = new Set<string>();
   document.addEventListener("keydown", (event) => {
-    sfx.resume();
     if (
       menu.isOpen() ||
       typing(event.target) ||
@@ -957,10 +982,6 @@ function room(solo: boolean): void {
       gamepads.letGo();
     }
   });
-  document.addEventListener("pointerdown", () => sfx.resume(), {
-    passive: true,
-  });
-  window.addEventListener("gamepadconnected", () => sfx.resume());
   // A pinch or a double tap must never zoom the race away from under the thumbs.
   for (const type of ["gesturestart", "gesturechange", "dblclick"])
     stage.addEventListener(type, (event) => event.preventDefault());

@@ -136,6 +136,18 @@ export interface NoiseOptions {
   cutoff?: number;
   delay?: number;
 }
+export interface HumOptions {
+  type?: OscillatorType;
+  /** A second voice an octave under the first. */
+  sub?: OscillatorType;
+  /** Low-pass cutoff in Hz. */
+  cutoff?: number;
+}
+/** A sound that lasts (an engine): on the effects bus, so the mute and the effects volume apply to it. */
+export interface Hum {
+  /** The pitch in Hz and the volume now; volume 0 is silence. Call it every frame: it glides. */
+  set(frequency: number, volume: number): void;
+}
 export interface DuckOptions {
   /** How much of the music stays while ducked, 0 to 1. */
   keep?: number;
@@ -156,6 +168,8 @@ export interface GameAudio {
   setVolume(which: "music" | "effects", level: number): void;
   tone(options: ToneOptions): void;
   noise(options: NoiseOptions): void;
+  /** A sustained voice; nothing is made until it is first heard. It falls silent while the tab is hidden. */
+  hum(options?: HumOptions): Hum;
   /** `notes` in Hz, one every `gap` ms. */
   jingle(
     notes: readonly number[],
@@ -197,6 +211,14 @@ export function createGameAudio(
     element: MusicElement | undefined,
     duckToken = 0,
     failures = 0;
+  const hums: GainLike[] = [];
+  const glide = (param: ParamLike, value: number, seconds: number) => {
+    if (!context) return;
+    const at = context.currentTime;
+    param.cancelScheduledValues(at);
+    param.setValueAtTime(param.value, at);
+    param.linearRampToValueAtTime(value, at + seconds);
+  };
 
   const ensure = (): AudioLike | undefined => {
     if (forcedMute) return undefined;
@@ -389,6 +411,54 @@ export function createGameAudio(
       gain.connect(out);
       source.start(context.currentTime + delay);
     },
+    hum({ type = "sawtooth", sub, cutoff = 520 } = {}) {
+      let voice:
+        | { main: OscillatorLike; under?: OscillatorLike; gain: GainLike }
+        | undefined;
+      return {
+        set(frequency, volume) {
+          const out = output();
+          if (!context) return;
+          if (!out) {
+            // Muted, hidden or suspended: a voice must not keep its last volume for when sound returns.
+            if (voice) {
+              voice.gain.gain.cancelScheduledValues(context.currentTime);
+              voice.gain.gain.setValueAtTime(0, context.currentTime);
+            }
+            return;
+          }
+          if (!voice) {
+            if (volume <= 0) return;
+            const main = context.createOscillator(),
+              filter = context.createBiquadFilter(),
+              gain = context.createGain(),
+              at = context.currentTime;
+            main.type = type;
+            main.frequency.setValueAtTime(frequency, at);
+            filter.type = "lowpass";
+            filter.frequency.value = cutoff;
+            gain.gain.setValueAtTime(0, at);
+            main.connect(filter);
+            filter.connect(gain);
+            gain.connect(out);
+            main.start(at);
+            voice = { main, gain };
+            if (sub) {
+              const under = context.createOscillator();
+              under.type = sub;
+              under.frequency.setValueAtTime(frequency / 2, at);
+              under.connect(filter);
+              under.start(at);
+              voice.under = under;
+            }
+            hums.push(gain);
+          }
+          glide(voice.main.frequency, frequency, 0.05);
+          if (voice.under) glide(voice.under.frequency, frequency / 2, 0.05);
+          glide(voice.gain.gain, Math.max(0, volume), 0.06);
+        },
+      };
+    },
     jingle(
       notes,
       gap,
@@ -459,6 +529,12 @@ export function createGameAudio(
       hidden = value;
       // Pause the song itself too: not every browser stops a media element when its context is suspended.
       if (value) element?.pause();
+      // A hum would otherwise hold its last note when the frames stop; the next frame's `set` brings it back.
+      if (value && context)
+        for (const gain of hums) {
+          gain.gain.cancelScheduledValues(context.currentTime);
+          gain.gain.setValueAtTime(0, context.currentTime);
+        }
       if (context && unlocked) {
         if (value) void context.suspend().catch(() => undefined);
         else

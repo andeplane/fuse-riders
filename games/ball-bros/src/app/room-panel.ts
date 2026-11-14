@@ -93,6 +93,7 @@ export function roomPanel(
   );
   root.append(element);
   createRoomLayout({
+    primaryAction: start,
     playerName: () => options.store.getItem(NAME_KEY) ?? undefined,
     background: async (host) =>
       (await import("./attract.js")).createAttract(host),

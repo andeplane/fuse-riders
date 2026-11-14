@@ -196,3 +196,38 @@ test("the first gesture starts the song at once, and a hidden tab pauses it", ()
   audio.setSongs([songs[1]!], "/");
   assert.equal(el.onended, null, "a replaced song's handlers are dropped");
 });
+
+test("a hum is made when first heard, glides, and falls silent when the tab hides", () => {
+  const r = createAudioRig();
+  const audio = createGameAudio(r.deps);
+  const hum = audio.hum({ sub: "square" });
+  hum.set(100, 0.05);
+  assert.equal(r.log.oscillators, 0, "nothing before the first input");
+  audio.unlock();
+  hum.set(100, 0);
+  assert.equal(r.log.oscillators, 0, "silence makes nothing");
+  hum.set(100, 0.05);
+  hum.set(140, 0.08);
+  assert.equal(r.log.oscillators, 2, "one voice and its octave, made once");
+  const gain = r.gains.at(-1)!;
+  assert.equal(gain.gain.value, 0.08);
+  hum.set(140, 0);
+  assert.equal(gain.gain.value, 0, "silence is heard by a live voice");
+  hum.set(140, 0.08);
+  audio.setMuted(true);
+  hum.set(140, 0.08);
+  assert.equal(gain.gain.value, 0, "a muted voice keeps no volume for later");
+  audio.setMuted(false);
+  hum.set(140, 0.08);
+  assert.equal(gain.gain.value, 0.08);
+  audio.setHidden(true);
+  assert.equal(gain.gain.value, 0);
+  hum.set(140, 0.08);
+  assert.equal(gain.gain.value, 0, "still hidden");
+  audio.setHidden(false);
+  // The fake's context resumes on a microtask.
+  return Promise.resolve().then(() => {
+    hum.set(140, 0.08);
+    assert.equal(gain.gain.value, 0.08);
+  });
+});

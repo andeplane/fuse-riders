@@ -209,6 +209,8 @@ function landing(): void {
     title: "FUSE BIRDS",
     description: intro.textContent ?? "",
     play: card,
+    onSinglePlayer: () => practice.click(),
+    joinContent: [joinForm, message],
     onPlay: async () => {
       await create.onclick?.call(create, new PointerEvent("click"));
       if (message.textContent?.includes("Try again"))
@@ -375,6 +377,7 @@ function room(code: string, display: boolean, practice = false): void {
     document.createTextNode("Shared TV + phone controllers"),
   );
   const roomLayout = createRoomLayout({
+    primaryAction: start,
     playerName: () => social.playerName(undefined) ?? undefined,
     background: async (host) =>
       (await import("./attract.js")).createAttract(host),

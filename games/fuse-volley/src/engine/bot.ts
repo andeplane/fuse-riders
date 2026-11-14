@@ -3,10 +3,12 @@ import { div, mix } from "./math.js";
 import { stepBall, stepWorld } from "./step.js";
 import * as T from "./tuning.js";
 import {
+  benched,
   cloneWorld,
   courtOf,
-  laneOf,
   otherSide,
+  playing,
+  team,
   touchesOf,
   type Blob,
   type Side,
@@ -24,8 +26,8 @@ import {
  * rallies the one nearer the net covers the front and the other the back. A human teammate is read the same way, so a
  * bot leaves a ball its human partner is closer to.
  *
- * Three a side, each bot keeps to its lane: it plays the balls coming down in its lane and waits in the middle of it
- * otherwise. The middle lane holds the serve, so whoever plays it serves.
+ * Three a side, the nearest of the three takes the ball and the other two step to the front, middle or back spots the
+ * ball is not coming down on. Three teams of two, a team on court plays as two a side and a waiting one stands still.
  *
  * It thinks in its own frame, as if it played the left side: x runs from its own wall (0) to the net.
  */
@@ -57,6 +59,8 @@ const CONTACT_Y = 230;
 const HOME = 210,
   FRONT_HOME = 220,
   BACK_HOME = 490;
+/** Three a side, where the three wait, px from the net: front, middle and back. */
+const TRIPLE_HOMES = [190, 490, 780] as const;
 /** How far behind the ball (towards its own wall) it tries standing, px. */
 const OFFSETS = [4, 16, 28] as const;
 /** Two a side it may stand further behind the ball too: a flatter hit carries a deep ball over the net. */
@@ -127,12 +131,12 @@ function plan(
       if (land === undefined) return 0;
       if (land > net) {
         const depth = land - net;
-        if (world.blobs.length === 2)
+        if (courtOf(world).team === 1)
           // Over: deep or tight to the net are both hard to return; the middle of their half is easiest for them.
           return 800 + (depth > 200 ? depth - 200 : 200 - depth);
-        // Two a side: as far from both of them as it can.
+        // Two or three a side: as far from all of them as it can.
         let gap = 300;
-        for (const other of ghost.blobs)
+        for (const other of playing(ghost))
           if (other.side !== side) {
             const away = abs(land - own(world, side, other.x));
             if (away < gap) gap = away;
@@ -141,7 +145,7 @@ function plan(
       }
       const used = touchesOf(ghost, side);
       if (used >= T.MAX_TOUCHES) return -800;
-      if (world.blobs.length === 2) return 200 - used * 50;
+      if (courtOf(world).team === 1) return 200 - used * 50;
       // Two a side, a set is as good as how easily the next touch goes over: near the net, but not on it.
       const short = net - 140 - land;
       return 300 - used * 100 - (short < 0 ? -short * 2 : short) / 4;
@@ -175,12 +179,9 @@ export function botInput(
   if (!me) return 0;
   const side = me.side,
     net = courtOf(world).net;
-  const court = courtOf(world),
-    lane = laneOf(world, slot);
-  const mate =
-    lane >= 0
-      ? undefined
-      : world.blobs.find((blob) => blob !== me && blob.side === side);
+  if (benched(world, slot)) return 0;
+  const mates = team(world, side).filter((blob) => blob !== me);
+  const mate = mates.length === 1 ? mates[0] : undefined;
   const ball = world.ball,
     x = own(world, side, me.x),
     bx = ownBall(world, side, ball.x);
@@ -188,30 +189,46 @@ export function botInput(
     back = side === 0 ? LEFT : RIGHT;
   const walk = (target: number): number =>
     target > x + SLACK ? forward : target < x - SLACK ? back : 0;
-  // Where it waits: one a side, the middle; two a side, the one nearer the net covers the front.
-  const front =
-    !mate ||
-    x > own(world, side, mate.x) ||
-    (x === own(world, side, mate.x) &&
-      world.blobs.indexOf(me) < world.blobs.indexOf(mate));
+  /** Whether `other` stands nearer the net than `blob` (level, the lower slot counts as nearer). */
+  const ahead = (other: Blob, blob: Blob): boolean => {
+    const at = own(world, side, other.x),
+      mine = own(world, side, blob.x);
+    return (
+      at > mine ||
+      (at === mine && world.blobs.indexOf(other) < world.blobs.indexOf(blob))
+    );
+  };
+  // Where it waits: one a side, the middle; two a side, the one nearer the net covers the front; three a side, front,
+  // middle and back by how near the net each stands now.
+  const rank = mates.filter((other) => ahead(other, me)).length;
   const home =
-    lane >= 0
-      ? own(
-          world,
-          side,
-          (court.laneMin[side]![lane]! + court.laneMax[side]![lane]!) / 2,
-        )
+    mates.length === 2
+      ? net - TRIPLE_HOMES[rank]!
       : !mate
         ? net - HOME
-        : front
+        : rank === 0
           ? net - FRONT_HOME
           : net - BACK_HOME;
-  /** Three a side, whether a ball coming down at `spot` (own frame) is in this bot's lane. */
-  const mine = (spot: number): boolean => {
-    if (lane < 0) return true;
-    const out = net - spot;
-    return (out < T.TRIO_LANE ? 0 : out < 2 * T.TRIO_LANE ? 1 : 2) === lane;
+  /** Whether it is the one for a ball coming down at `spot`: the nearest of its side. */
+  const taker = (spot: number): boolean =>
+    mates.every((other) => takes(world, me, other, spot));
+  /**
+   * Three a side, where a bot that leaves the ball to a teammate waits: of the three spots, the two furthest from where
+   * the ball comes down, the nearer the net for the one of the two nearer it.
+   */
+  const room = (spot: number): number => {
+    const free = TRIPLE_HOMES.map((out) => net - out)
+      .sort((a, b) => abs(spot - b) - abs(spot - a) || b - a)
+      .slice(0, 2)
+      .sort((a, b) => b - a);
+    const others = mates.filter((other) => !taker2(other, spot));
+    const nearer = others.filter((other) => ahead(other, me)).length;
+    return free[nearer] ?? free[0]!;
   };
+  const taker2 = (blob: Blob, spot: number): boolean =>
+    team(world, side).every(
+      (other) => other === blob || takes(world, blob, other, spot),
+    );
   if (world.phase === "over" || world.phase === "dead") return walk(home);
   // Holding jump while rising makes the most of a jump it already chose; it lets go before landing, or holding it
   // through the landing would jump again.
@@ -221,7 +238,7 @@ export function botInput(
   if (world.phase === "serve" && !ball.live) {
     if (world.server !== side) return walk(home);
     if (mate && !takes(world, me, mate, bx)) return walk(home);
-    if (!mine(bx)) return walk(home);
+    if (mates.length === 2 && !taker(bx)) return walk(home);
     centre = bx;
     // A moment's pause before serving, so the other side sees it coming.
     if (world.phaseSteps < 60) return walk(bx - OFFSETS[1]);
@@ -239,8 +256,8 @@ export function botInput(
       return walk(
         land > net - (net - T.NET_GAP) / 2 ? net - BACK_HOME : net - FRONT_HOME,
       );
-    // Three a side: a ball in another lane is a teammate's.
-    if (!mine(land)) return walk(home);
+    // Three a side: the nearest plays it; the other two make room.
+    if (mates.length === 2 && !taker(land)) return walk(room(land));
     centre = land;
   }
   // Its own aim error for this touch of the rally, the same on every device.
@@ -253,7 +270,7 @@ export function botInput(
   const serving = world.phase === "serve" && !ball.live;
   let best = -Infinity,
     bits = walk(centre - OFFSETS[1] + aim);
-  for (const offset of mate || lane >= 0 ? WIDE_OFFSETS : OFFSETS) {
+  for (const offset of mates.length > 0 ? WIDE_OFFSETS : OFFSETS) {
     const target = centre - offset + aim;
     for (const jump of serving || skill.attacks ? [false, true] : [false]) {
       // A serve needs a jump: the ball hovers above a standing head.

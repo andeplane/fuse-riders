@@ -429,6 +429,7 @@ function room() {
   name.form.hidden = true;
   app.append(main);
   createRoomLayout({
+    primaryAction: ready,
     playerName: () => social.playerName(undefined) ?? undefined,
     background: async (host) =>
       (await import("./attract.js")).createAttract(host),

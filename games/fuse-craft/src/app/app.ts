@@ -1306,7 +1306,11 @@ export function mountFuseCraft(
         players: `<ul class="room-seats fui-roster"></ul>`,
         join: `${seated ? "" : `<div class="join-row"><label for="player-name">Your name</label><input id="player-name" data-field="player-name" maxlength="32" autocomplete="nickname" value="${escape(playerName)}" placeholder="Name"><button data-action="join-seat" class="primary">Join</button></div>`}`,
         settings: `<label for="room-map">Map</label><select id="room-map" data-field="room-map" ${disabled}>${ROOM_MAPS.map((map) => `<option value="${map.id}" ${map.id === room.mapId ? "selected" : ""}>${escape(map.title)} · ${map.seats} players</option>`).join("")}</select><label for="room-strategy">Bot opening</label><select id="room-strategy" data-field="room-strategy" ${disabled}>${openingOptions(room.aiStrategy)}</select><label class="toggle-field"><input type="checkbox" data-field="room-powerups" ${room.powerups ? "checked" : ""} ${disabled}> Random powerups</label>`,
-        actions: `<p class="room-status" role="status">${escape(room.stage === "connecting" ? "Connecting to the room…" : players.length > capacity ? `Too many players for this map: it seats ${capacity}. Pick a larger map or ask someone to leave.` : room.status)}</p><button data-action="leave-room">Leave</button>${room.manager ? `<button data-action="start-room" class="primary" ${canStart ? "" : "disabled"}>Start match</button>` : "<span>Waiting for the host to start…</span>"}`,
+        primaryAction: room.manager
+          ? `<button data-action="start-room" class="primary" ${canStart ? "" : "disabled"}>Start match</button>`
+          : undefined,
+        mainMenu: '<button data-action="leave-room">Main menu</button>',
+        actions: `<p class="room-status" role="status">${escape(room.stage === "connecting" ? "Connecting to the room…" : players.length > capacity ? `Too many players for this map: it seats ${capacity}. Pick a larger map or ask someone to leave.` : room.status)}</p>${!room.manager ? "<span>Waiting for the host to start…</span>" : ""}`,
       })
     );
   }
@@ -1458,12 +1462,28 @@ export function mountFuseCraft(
       const play = root.querySelector<HTMLElement>(".menu-layout")!;
       const marker = root.ownerDocument.createComment("Shared menu");
       play.before(marker);
+      const singlePlayerOptions = root.ownerDocument.createElement("div");
+      singlePlayerOptions.className = "fui-single-player-options";
+      const newGame = play.querySelector<HTMLElement>(
+        '[data-action="new-game"]',
+      )!;
+      newGame.textContent = "New game";
+      singlePlayerOptions.append(
+        newGame,
+        play.querySelector<HTMLElement>('[data-action="tutorial"]')!,
+      );
       const menu = createMainMenu({
         background: async (host) =>
           (await import("./attract.js")).createAttract(host),
         title: "FUSE CRAFT",
         description: "Build your network. Keep the signal alive.",
         play,
+        singlePlayerContent: [singlePlayerOptions],
+        onJoinRoom: () => {
+          roomError = null;
+          screen = "multiplayer";
+          render();
+        },
         onPlay: dependencies.online
           ? async () => {
               screen = "multiplayer";

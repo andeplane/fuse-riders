@@ -85,7 +85,7 @@ test("solo is one player against one bot with the chosen scoring, never a shared
   };
   const runtime = new FuseVolleyRuntime(
     "SOLO",
-    { display: true, scoring: "classic", bot: 2, team: 1 },
+    { display: true, scoring: "classic", bot: 2, format: "1v1" },
     { state: () => {}, event: () => {}, status: () => {}, ready: () => {} },
     { humanName: "Ada", humanAvatar: "fox", dependencies },
   );
@@ -224,7 +224,7 @@ test("a played-out match is decided the same everywhere, reported once, and a re
   assert.ok(
     host.command({
       type: "settings",
-      settings: { display: false, scoring: "classic", bot: 1, team: 1 },
+      settings: { display: false, scoring: "classic", bot: 1, format: "1v1" },
     }),
   );
   assert.ok(host.command({ type: "action", action: "rematch" }));
@@ -254,7 +254,7 @@ test("unknown settings are refused, and a bot seat plays through the injected bo
     display: false,
     scoring: "golden",
     bot: 1,
-    team: 1,
+    format: "1v1",
   };
   assert.ok(!host.command({ type: "settings", settings: unknown as Settings }));
   assert.ok(!host.command({ type: "action", action: "start" }), "one player");

@@ -146,7 +146,7 @@ try {
   await host.goto(base);
   console.log("Home loaded");
   await openPlayOptions(host);
-  await host.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
+  await host.getByRole("button", { name: "Host room", exact: true }).click();
   await host.waitForURL(/room=/);
   await takeHostSeat(host, "Host");
   console.log("Room created");

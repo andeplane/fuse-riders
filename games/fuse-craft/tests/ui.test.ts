@@ -718,7 +718,7 @@ test("menu uses Fuse controls and actual board scenery without starting a simula
   assert.ok(f.root.classList.contains("fui-app"));
   assert.deepEqual(
     Array.from(
-      f.root.querySelectorAll(".fui-main-menu-nav button"),
+      f.root.querySelectorAll(".fui-main-menu-nav:not(.fui-play-menu) button"),
       (b) => b.textContent,
     ),
     ["Play", "How to play", "About", "Settings"],

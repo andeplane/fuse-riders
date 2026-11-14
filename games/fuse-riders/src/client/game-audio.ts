@@ -21,6 +21,7 @@ import {
   type TrackId,
 } from "./radio.js";
 import { safeStorage, type SafeStorage } from "./safe-storage.js";
+import { bindAudioSession } from "./audio-session.js";
 import {
   bindMediaSession,
   radioMediaActions,
@@ -46,6 +47,8 @@ export interface GameAudioOptions {
   mediaSession?: MediaSessionPort;
   /** Music starts off until the listener turns it on; defaults to true on touch devices, where nothing can play before a tap anyway. */
   musicOffByDefault?: boolean;
+  /** The host carrying iOS's `audioSession`; defaults to `navigator`. */
+  audioSessionHost?: object;
 }
 export interface GameAudio {
   director: AudioDirector;
@@ -205,7 +208,7 @@ class WebAudioSynth implements GameSynth {
   /**
    * Music plays through a plain media element, never the Web Audio graph: a phone's volume keys reach it, it
    * streams instead of holding ~60 MB of decoded PCM per track, and it plays on while iOS suspends the effects
-   * context on lock. The silent switch is a session matter, see `requestAmbientAudio`.
+   * context on lock. The silent switch and playing on behind the lock screen are session matters, see `audio-session.ts`.
    */
   music(path: string, offset: number): void {
     const element = (this.element ??= this.createElement());
@@ -338,25 +341,6 @@ class WebAudioSynth implements GameSynth {
   }
 }
 
-/**
- * Asks iOS to treat the page as ambient sound, which its silent switch mutes; the default session for a page with a
- * media element is playback, which ignores the switch (WebKit's Audio Session API, Safari 17). Ambient audio also
- * stops when the screen locks, so the lock-screen radio only plays while the phone is awake. Returns whether the
- * host offered the API. Other browsers have no such switch and no such API.
- */
-export function requestAmbientAudio(host: object = navigator): boolean {
-  if (!("audioSession" in host)) return false;
-  const session = host.audioSession;
-  if (typeof session !== "object" || session === null || !("type" in session))
-    return false;
-  try {
-    (session as { type: string }).type = "ambient";
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /** The real `navigator.mediaSession`, or undefined where the browser has none. */
 export function browserMediaSession(): MediaSessionPort | undefined {
   const session =
@@ -414,7 +398,6 @@ export function createGameAudio(
   options: GameAudioOptions = {},
 ): GameAudio {
   const storage = options.storage ?? safeStorage(() => localStorage);
-  requestAmbientAudio();
   const settings = loadAudioSettings(
     storage,
     options.musicOffByDefault ?? touchDevice(),
@@ -474,6 +457,7 @@ export function createGameAudio(
     storage.setItem(AUDIO_SETTINGS_KEY, JSON.stringify(settings));
   const setMuted = (channel: AudioChannel, value: boolean) => {
     settings.muted[channel] = value;
+    refreshSession(); // Before the director starts the track, so it starts in the right session.
     director.setMuted(channel, value);
     store();
     for (const render of rendered) render();
@@ -487,7 +471,21 @@ export function createGameAudio(
     settings.volume[channel] = value;
     director.setVolume(channel, value);
     store();
+    refreshSession();
   };
+  // iOS: a radio that is on plays behind the lock screen and in the background (a playback session); with the
+  // music off the page is ambient, so the silent switch mutes the effects. See `audio-session.ts`.
+  const refreshSession = bindAudioSession(
+    {
+      musicOn: () =>
+        !settings.muted.music &&
+        settings.volume.music > 0 &&
+        !director.state.paused,
+      hidden: () => document.hidden,
+    },
+    options.audioSessionHost,
+  );
+  director.subscribe(refreshSession);
   // Lock screen, CarPlay and car browsers show the track and drive the radio's own queue (#135). "Playing" is the media
   // element's own state: iOS suspends the effects AudioContext on lock while the element plays on. The panel's clock refreshes it.
   const media = bindMediaSession(
@@ -826,6 +824,7 @@ export function createGameAudio(
   // Alt-tabbing must not restart the soundtrack, so a hidden tab keeps its track and only drops effect cues.
   // Coming back re-resumes the context, which the browser may have suspended while the tab was away.
   document.addEventListener("visibilitychange", () => {
+    refreshSession();
     director.setEffectsSilenced(document.hidden);
     if (document.hidden) director.save();
     else {

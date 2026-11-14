@@ -107,6 +107,7 @@ export function createLandingCard(options: LandingOptions): LandingCard {
   const element = el("main", "", "fui-landing", doc),
     heading = el("h1", options.title, "fui-landing-title", doc),
     actions = el("div", "", "fui-landing-actions", doc),
+    hostOptions = el("div", "", "fui-play-host-options", doc),
     create = el(
       "button",
       options.createText ?? "CREATE ROOM",
@@ -146,14 +147,18 @@ export function createLandingCard(options: LandingOptions): LandingCard {
     },
     document: doc,
   });
-  actions.append(create, join.row);
+  hostOptions.append(create);
+  create.hidden = true;
+  actions.append(hostOptions);
   let solo: HTMLButtonElement | undefined;
+  const singlePlayerOptions = el("div", "", "fui-single-player-options", doc);
   if (options.onSolo) {
     const onSolo = options.onSolo;
     solo = el("button", options.soloText ?? "PLAY SOLO", "fui-button", doc);
     solo.type = "button";
     solo.onclick = () => onSolo();
-    actions.append(solo);
+    singlePlayerOptions.append(solo);
+    actions.append(singlePlayerOptions);
   }
   element.append(actions, error);
   const menu = createMainMenu({
@@ -162,7 +167,25 @@ export function createLandingCard(options: LandingOptions): LandingCard {
     description: options.tagline,
     play: element,
     onPlay: runCreate,
+    onSinglePlayer: options.onSolo,
+    singlePlayerContent: () =>
+      solo && singlePlayerOptions.children.length > 1
+        ? [singlePlayerOptions]
+        : [],
+    joinContent: [join.row, error],
+    hostingOptions: hostOptions,
     document: doc,
   });
+  const updateHostingOptions = () => {
+    hostOptions.hidden = ![...hostOptions.children].some(
+      (node) => node !== create,
+    );
+  };
+  updateHostingOptions();
+  const Observer = doc.defaultView?.MutationObserver;
+  if (Observer)
+    new Observer(updateHostingOptions).observe(hostOptions, {
+      childList: true,
+    });
   return { element: menu.element, create, solo, join, error, menu };
 }
