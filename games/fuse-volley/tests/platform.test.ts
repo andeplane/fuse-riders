@@ -43,7 +43,7 @@ test("a player's stats are accepted only whole, known and within one match", () 
     { hits: 20_001 },
     { points: 41, matchScoreUnits: 41 },
     { points: 10 }, // points must be the board
-    { matchScoreUnits: 9, points: 9 }, // a winner short of 11
+    { matchScoreUnits: 6, points: 6 }, // a winner short of every target (7 is the lowest)
     { matchPlacement: 2 },
     { roundsPlayed: 0 },
   ];

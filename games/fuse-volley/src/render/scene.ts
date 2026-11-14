@@ -39,9 +39,10 @@ import {
 } from "./palette.js";
 
 /**
- * Draws one frame of a Fuse Volley match on a 2D canvas: the beach, the net, the two jelly blobs and the ball, the
- * effects and the scoreboard, on the court (800×600, 1400×600 two a side or 1440×600 three a side) scaled to fit the canvas and centred in
- * it.
+ * Draws one frame of a Fuse Volley match on a 2D canvas: the beach, the net, the jelly blobs and the ball, the effects
+ * and the scoreboard, on the court (800×600, 1400×600 two a side and three teams of two, 2000×600 three a side) scaled
+ * to fit the canvas and centred in it. Three teams of two, each team keeps its colour on either side, and the waiting
+ * team stands small on a bench at the top, between the scores.
  *
  * It keeps no loop, timer or physics of its own: the app calls `draw` from its frame callback with the view to show
  * and the wall clock, and everything cosmetic here (the jelly, particles, the ball's trail, the shake) moves only as
@@ -50,10 +51,8 @@ import {
  */
 export interface SceneArt {
   court?: CanvasImageSource;
-  blobs?: readonly [
-    CanvasImageSource | undefined,
-    CanvasImageSource | undefined,
-  ];
+  /** By team colour: cyan, pink and (three teams of two) lime. */
+  blobs?: readonly (CanvasImageSource | undefined)[];
   ball?: CanvasImageSource;
 }
 export interface SceneCanvas {
@@ -77,14 +76,15 @@ export interface Scene {
   resize(): void;
   /**
    * Draws `view` at wall time `nowMs`. `local` is this device's blob slot, or −1 for a watcher or a shared screen;
-   * `names` label the two sides and `tags`, when given, each blob by slot (two and three a side show them under the blobs).
+   * `names` label the two sides (and, three teams of two, the waiting team third) and `tags`, when given, each blob by
+   * slot (teams show them under the blobs).
    * Returns what happened since the last frame, for the app's sounds and haptics.
    */
   draw(
     view: WorldView,
     nowMs: number,
     local: number,
-    names?: readonly [string, string],
+    names?: readonly string[],
     tags?: readonly string[],
   ): readonly Cue[];
   destroy(): void;
@@ -104,6 +104,9 @@ const counters = (view: WorldView): Counters => ({
   floorCounter: view.floorCounter,
   pointCounter: view.pointCounter,
 });
+
+/** A team colour: cyan, pink or lime. */
+type Hue = 0 | 1 | 2;
 
 const MAX_RATIO = 3,
   TAU = Math.PI * 2;
@@ -195,6 +198,8 @@ export function createScene(
   /** The court being drawn: its width and the net's line, px. */
   let W = COURT_W,
     netX = NET_X;
+  /** The team colour of each side: cyan left and pink right, or three teams of two, the colours of the teams on court. */
+  let hues: readonly [Hue, Hue] = [0, 1];
 
   const resize = () => {
     const r = Math.min(MAX_RATIO, Math.max(1, ratio())),
@@ -242,16 +247,26 @@ export function createScene(
     max = 0.3,
   ) => rings.push({ x, y, from, to, life: max, max, color });
 
-  const names = (given?: readonly [string, string]) =>
-    given ?? ([SIDE_NAMES[0], SIDE_NAMES[1]] as const);
+  const names = (view: WorldView, given?: readonly string[]): string[] => {
+    const fallback =
+      view.format === "2v2v2"
+        ? [
+            SIDE_NAMES[view.onCourt[0]]!,
+            SIDE_NAMES[view.onCourt[1]]!,
+            SIDE_NAMES[3 - view.onCourt[0] - view.onCourt[1]]!,
+          ]
+        : [SIDE_NAMES[0], SIDE_NAMES[1]];
+    return fallback.map((name, index) => given?.[index] || name);
+  };
 
   /** Reacts to what happened: jelly kicks, particles, rings, shake and banners. */
   const react = (
     cues: readonly Cue[],
     view: WorldView,
     now: number,
-    labels: readonly [string, string],
+    labels: readonly string[],
   ) => {
+    const kings = view.format === "2v2v2";
     for (const cue of cues) {
       switch (cue.kind) {
         case "hit": {
@@ -263,10 +278,10 @@ export function createScene(
             cue.y,
             BALL_RADIUS,
             BALL_RADIUS + 26,
-            SIDE_LIGHT[cue.side],
+            SIDE_LIGHT[hues[cue.side]]!,
             0.28,
           );
-          burst(cue.x, cue.y, 10, SIDE[cue.side], 260, 60, 500, 3);
+          burst(cue.x, cue.y, 10, SIDE[hues[cue.side]]!, 260, 60, 500, 3);
           ballSquash = 0.22;
           if (!calm) shake = Math.max(shake, 2 + strength * 3);
           break;
@@ -296,31 +311,47 @@ export function createScene(
           jelly.spring(cue.slot, 1);
           break;
         case "point": {
-          const winner = cue.loser === 0 ? 1 : 0;
-          ring(view.ball.x, view.ball.y, 20, 140, SIDE[winner], 0.6);
-          burst(view.ball.x, view.ball.y, 26, SIDE[winner], 380, 120, 600, 3.5);
+          const winner = cue.loser === 0 ? 1 : 0,
+            color = SIDE[hues[winner]]!;
+          ring(view.ball.x, view.ball.y, 20, 140, color, 0.6);
+          burst(view.ball.x, view.ball.y, 26, color, 380, 120, 600, 3.5);
           if (!calm) shake = Math.max(shake, 5);
           const matchPoint = cue.matchPoint !== -1 && view.winner === -1;
-          banner = {
-            text: cue.scored
-              ? `POINT ${labels[winner].toUpperCase()}`
-              : "SIDE OUT",
-            sub: cue.scored
-              ? matchPoint
-                ? "MATCH POINT"
-                : `${view.score[0]} – ${view.score[1]}`
-              : `${labels[winner].toUpperCase()} SERVES`,
-            color: SIDE[winner],
-            at: now,
-            ms: 1500,
-          };
+          const name = labels[winner]!.toUpperCase();
+          banner = kings
+            ? {
+                // King of the court: the winners stay on, the losers make way for the waiting team.
+                text: cue.scored ? `POINT ${name}` : `${name} TAKE THE CROWN`,
+                sub:
+                  view.winner !== -1
+                    ? ""
+                    : matchPoint
+                      ? "MATCH POINT"
+                      : `${labels[cue.loser]!.toUpperCase()} OUT · ${labels[2]!.toUpperCase()} IN`,
+                color,
+                at: now,
+                ms: 1700,
+              }
+            : {
+                text: cue.scored ? `POINT ${name}` : "SIDE OUT",
+                sub: cue.scored
+                  ? matchPoint
+                    ? "MATCH POINT"
+                    : `${view.score[0]} – ${view.score[1]}`
+                  : `${name} SERVES`,
+                color,
+                at: now,
+                ms: 1500,
+              };
           break;
         }
         case "over":
           banner = {
-            text: `${labels[cue.winner].toUpperCase()} WINS!`,
-            sub: `${view.score[0]} – ${view.score[1]}`,
-            color: SIDE[cue.winner],
+            text: `${labels[cue.winner]!.toUpperCase()} WINS!`,
+            sub: kings
+              ? [0, 1, 2].map((team) => view.points[team] ?? 0).join(" – ")
+              : `${view.score[0]} – ${view.score[1]}`,
+            color: SIDE[hues[cue.winner]]!,
             at: now,
             ms: 1e9,
           };
@@ -329,7 +360,7 @@ export function createScene(
               W / 4 + random() * (W / 2),
               150 + random() * 150,
               22,
-              SIDE[cue.winner],
+              SIDE[hues[cue.winner]]!,
               420,
               100,
               400,
@@ -488,18 +519,19 @@ export function createScene(
     ball: BallView,
     local: boolean,
   ) => {
-    const side = blob.side;
+    const side = blob.side,
+      hue = hues[side];
     const height = HEAD_UP[blob.frame]! + HEAD_RADIUS;
     const squash = BLOB_H / height;
     const h = height * pose.stretch,
       w =
         BLOB_H * (SPRITE_W / SPRITE_BODY_H) * Math.sqrt(squash / pose.stretch);
-    const image = art().blobs?.[side];
+    const image = art().blobs?.[hue];
     c.save();
     c.translate(blob.x, blob.y);
     c.transform(1, 0, -pose.lean, 1, 0, 0);
-    // A glow in the side's colour; brighter for a moment after a touch.
-    c.shadowColor = SIDE[side];
+    // A glow in the team's colour; brighter for a moment after a touch.
+    c.shadowColor = SIDE[hue];
     c.shadowBlur = 12 + 18 * flashes[side];
     if (image) {
       const drawnH = h * (SPRITE_H / SPRITE_BODY_H);
@@ -513,9 +545,9 @@ export function createScene(
         -h * 0.4,
         h * 0.7,
       );
-      body.addColorStop(0, SIDE_LIGHT[side]);
-      body.addColorStop(0.45, SIDE[side]);
-      body.addColorStop(1, SIDE_DEEP[side]);
+      body.addColorStop(0, SIDE_LIGHT[hue]);
+      body.addColorStop(0.45, SIDE[hue]);
+      body.addColorStop(1, SIDE_DEEP[hue]);
       c.fillStyle = body;
       const bodyY = -(BODY_UP[blob.frame]! * pose.stretch),
         headY = -(HEAD_UP[blob.frame]! * pose.stretch);
@@ -542,7 +574,7 @@ export function createScene(
     c.shadowBlur = 0;
     if (flashes[side] > 0.02) {
       c.globalCompositeOperation = "lighter";
-      c.fillStyle = hexA(SIDE_LIGHT[side], 0.25 * flashes[side]);
+      c.fillStyle = hexA(SIDE_LIGHT[hue], 0.25 * flashes[side]);
       c.beginPath();
       c.arc(0, -(HEAD_UP[blob.frame]! * pose.stretch), HEAD_RADIUS + 4, 0, TAU);
       c.fill();
@@ -588,7 +620,7 @@ export function createScene(
     if (local) {
       // A small marker over this device's own blob.
       const y = blob.y - h - 22;
-      c.fillStyle = SIDE[side];
+      c.fillStyle = SIDE[hue];
       c.beginPath();
       c.moveTo(blob.x - 7, y);
       c.lineTo(blob.x + 7, y);
@@ -596,48 +628,6 @@ export function createScene(
       c.closePath();
       c.fill();
     }
-  };
-
-  /**
-   * Three a side, the lanes: dashed lines across the sand in each side's colour, fading up into the air, and the middle
-   * lane (which serves) lit faintly on each side, so the rotation reads at a glance.
-   */
-  const drawLanes = (c: CanvasRenderingContext2D, view: WorldView) => {
-    const lines = view.court.lanes;
-    if (lines.length !== 4) return;
-    const [farLeft, nearLeft, nearRight, farRight] = lines as [
-      number,
-      number,
-      number,
-      number,
-    ];
-    for (const [side, from, to] of [
-      [0, farLeft, nearLeft],
-      [1, nearRight, farRight],
-    ] as const) {
-      const glow = c.createLinearGradient(0, SAND_Y - 60, 0, COURT_H);
-      glow.addColorStop(0, hexA(SIDE[side], 0));
-      glow.addColorStop(0.45, hexA(SIDE[side], 0.1));
-      glow.addColorStop(1, hexA(SIDE[side], 0.16));
-      c.fillStyle = glow;
-      c.fillRect(from, SAND_Y - 60, to - from, COURT_H - SAND_Y + 60);
-    }
-    c.save();
-    c.lineWidth = 3;
-    c.setLineDash([10, 8]);
-    for (const x of lines) {
-      const side = x < view.court.net ? 0 : 1;
-      const fade = c.createLinearGradient(0, SAND_Y - 90, 0, COURT_H);
-      fade.addColorStop(0, hexA(SIDE[side], 0));
-      fade.addColorStop(0.5, hexA(SIDE[side], 0.55));
-      fade.addColorStop(1, hexA(SIDE[side], 0.8));
-      c.strokeStyle = fade;
-      c.beginPath();
-      c.moveTo(x, SAND_Y - 90);
-      c.lineTo(x, COURT_H);
-      c.stroke();
-    }
-    c.restore();
   };
 
   /** Two or three a side, a name on the sand under each blob, so teammates of one colour can tell themselves apart. */
@@ -653,8 +643,73 @@ export function createScene(
     c.textBaseline = "alphabetic";
     c.fillStyle = hexA(INK, 0.6);
     c.fillText(text, blob.x + 1, SAND_Y + 31);
-    c.fillStyle = hexA(SIDE_LIGHT[blob.side], 0.9);
+    c.fillStyle = hexA(SIDE_LIGHT[hues[blob.side]], 0.9);
     c.fillText(text, blob.x, SAND_Y + 30);
+  };
+
+  /**
+   * Three teams of two, the waiting team: its two blobs small on a bench at the top between the scores, in its colour,
+   * with its name and points, so everyone sees who comes on next.
+   */
+  const drawBench = (
+    c: CanvasRenderingContext2D,
+    view: WorldView,
+    poses: readonly JellyPose[],
+    label: string,
+  ) => {
+    if (view.format !== "2v2v2") return;
+    const team = (3 - view.onCourt[0] - view.onCourt[1]) as Hue,
+      color = SIDE[team],
+      y = 128,
+      scale = 0.5;
+    c.save();
+    c.textAlign = "center";
+    c.textBaseline = "alphabetic";
+    c.fillStyle = hexA(INK, 0.45);
+    c.fillRect(W / 2 - 96, 20, 192, 128);
+    c.strokeStyle = hexA(color, 0.7);
+    c.lineWidth = 2;
+    c.strokeRect(W / 2 - 96, 20, 192, 128);
+    c.font = `9px ${PIXEL_FONT}`;
+    c.fillStyle = hexA(WHITE, 0.75);
+    c.fillText("NEXT UP", W / 2, 38);
+    c.font = `22px ${PIXEL_FONT}`;
+    c.shadowColor = color;
+    c.shadowBlur = 12;
+    c.fillStyle = WHITE;
+    c.fillText(String(view.points[team] ?? 0), W / 2, 66);
+    c.shadowBlur = 0;
+    c.font = `8px ${PIXEL_FONT}`;
+    c.fillStyle = SIDE_LIGHT[team];
+    c.fillText(
+      Array.from(label.toUpperCase()).slice(0, 20).join(""),
+      W / 2,
+      82,
+    );
+    // The bench itself, and the two blobs waiting on it.
+    c.fillStyle = hexA(color, 0.6);
+    c.fillRect(W / 2 - 70, y + 1, 140, 3);
+    let index = 0;
+    for (const [slot, blob] of view.blobs.entries()) {
+      if (!blob.benched) continue;
+      const x = W / 2 + (index++ === 0 ? -34 : 34);
+      c.save();
+      c.translate(x, y);
+      c.scale(scale, scale);
+      const sat = { ...blob, x: 0, y: 0, side: 0 as const };
+      const keep = hues;
+      hues = [team, team];
+      drawBlob(
+        c,
+        sat,
+        poses[slot]!,
+        { ...view.ball, x: view.ball.x - x, y: view.ball.y - y },
+        false,
+      );
+      hues = keep;
+      c.restore();
+    }
+    c.restore();
   };
 
   const drawBall = (
@@ -733,22 +788,23 @@ export function createScene(
   const drawHud = (
     c: CanvasRenderingContext2D,
     view: WorldView,
-    labels: readonly [string, string],
+    labels: readonly string[],
     now: number,
   ) => {
     c.textAlign = "center";
     c.textBaseline = "alphabetic";
     for (const side of [0, 1] as const) {
-      const x = side === 0 ? W / 4 : (3 * W) / 4;
+      const x = side === 0 ? W / 4 : (3 * W) / 4,
+        hue = hues[side];
       c.font = `44px ${PIXEL_FONT}`;
-      c.shadowColor = SIDE[side];
+      c.shadowColor = SIDE[hue];
       c.shadowBlur = 16;
       c.fillStyle = WHITE;
       c.fillText(String(view.score[side]), x, 78);
       c.shadowBlur = 0;
       c.font = `10px ${PIXEL_FONT}`;
-      c.fillStyle = SIDE_LIGHT[side];
-      c.fillText(labels[side].toUpperCase(), x, 100);
+      c.fillStyle = SIDE_LIGHT[hue];
+      c.fillText(labels[side]!.toUpperCase(), x, 100);
       // The serving side has a ball beside its score.
       if (view.server === side && view.phase !== "over") {
         const bx = x + (side === 0 ? -58 : 58),
@@ -762,16 +818,18 @@ export function createScene(
         c.shadowBlur = 0;
       }
       // Touches used this rally: three pips.
-      const used = view.blobs.find((blob) => blob.side === side)?.touches ?? 0;
+      const used =
+        view.blobs.find((blob) => blob.side === side && !blob.benched)
+          ?.touches ?? 0;
       for (let i = 0; i < MAX_TOUCHES; i++) {
         const px = x - 16 + i * 16;
         c.beginPath();
         c.arc(px, 116, 4.5, 0, TAU);
         if (i < used) {
-          c.fillStyle = i === MAX_TOUCHES - 1 ? WHITE : SIDE[side];
+          c.fillStyle = i === MAX_TOUCHES - 1 ? WHITE : SIDE[hue];
           c.fill();
         } else {
-          c.strokeStyle = hexA(SIDE[side], 0.55);
+          c.strokeStyle = hexA(SIDE[hue], 0.55);
           c.lineWidth = 1.5;
           c.stroke();
         }
@@ -781,9 +839,13 @@ export function createScene(
     c.font = `9px ${PIXEL_FONT}`;
     c.fillStyle = hexA(INK, 0.55);
     const rule =
-      view.scoring === "rally"
-        ? `QUICK · FIRST TO ${view.target}`
-        : `CLASSIC · FIRST TO ${view.target}`;
+      view.format === "2v2v2"
+        ? view.scoring === "rally"
+          ? `KING OF THE COURT · FIRST TO ${view.target}`
+          : `KING OF THE COURT · ONLY THE KING SIDE SCORES · FIRST TO ${view.target}`
+        : view.scoring === "rally"
+          ? `QUICK · FIRST TO ${view.target}`
+          : `CLASSIC · FIRST TO ${view.target}`;
     c.fillText(rule, W / 2 + 1, COURT_H - 13);
     c.fillStyle = hexA(WHITE, 0.7);
     c.fillText(rule, W / 2, COURT_H - 14);
@@ -791,7 +853,7 @@ export function createScene(
       if (view.matchPoint !== -1) {
         const pulse = 0.6 + 0.4 * Math.sin(now / 160);
         c.font = `14px ${PIXEL_FONT}`;
-        c.fillStyle = hexA(SIDE[view.matchPoint], pulse);
+        c.fillStyle = hexA(SIDE[hues[view.matchPoint]], pulse);
         c.fillText("MATCH POINT", W / 2, 160);
       }
       const seconds = serveSeconds(view);
@@ -882,9 +944,13 @@ export function createScene(
       const dt =
         lastNow < 0 ? 0 : Math.min(0.1, Math.max(0, (nowMs - lastNow) / 1000));
       lastNow = nowMs;
-      const labels = names(given);
+      const labels = names(view, given);
       W = view.court.width;
       netX = view.court.net;
+      hues =
+        view.format === "2v2v2"
+          ? [view.onCourt[0] as Hue, view.onCourt[1] as Hue]
+          : [0, 1];
       // A new match, or a view from before the last one: start the presentation over.
       if (previous && view.step < previous.step - STEPS_PER_SECOND) {
         previous = undefined;
@@ -935,8 +1001,8 @@ export function createScene(
       g.rect(0, 0, W, COURT_H);
       g.clip();
       drawCourt(g, nowMs);
-      drawLanes(g, view);
-      for (const blob of view.blobs)
+      const onCourt = view.blobs.filter((blob) => !blob.benched);
+      for (const blob of onCourt)
         drawShadow(g, blob.x, SAND_Y - blob.y, BODY_RADIUS);
       drawShadow(
         g,
@@ -946,10 +1012,12 @@ export function createScene(
       );
       drawNet(g, nowMs);
       if (tags && view.court.team > 1)
-        for (const blob of view.blobs)
+        for (const blob of onCourt)
           drawTag(g, blob, tags[view.blobs.indexOf(blob)] ?? "");
       for (const [slot, blob] of view.blobs.entries())
-        drawBlob(g, blob, poses[slot]!, view.ball, slot === local);
+        if (!blob.benched)
+          drawBlob(g, blob, poses[slot]!, view.ball, slot === local);
+      drawBench(g, view, poses, labels[2] ?? "");
       drawBall(g, view.ball, nowMs);
       drawEffects(g);
       drawBallMarker(g, view.ball);

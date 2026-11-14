@@ -2474,7 +2474,7 @@
   order: -1;
   display: block;
   flex: 0 0 auto;
-  min-height: 0;
+  min-height: 2.1rem;
   font-size: 0.75rem;
   letter-spacing: 0.0625rem;
   line-height: 1.4;

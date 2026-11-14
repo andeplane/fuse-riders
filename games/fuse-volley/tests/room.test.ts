@@ -10,6 +10,7 @@ import {
   type StreamEntries,
 } from "fuse-netcode";
 import { matchResult } from "../src/online/result.js";
+import { validFuseVolleyField } from "../src/platform.js";
 import {
   DEFAULT_SETTINGS,
   PLAY,
@@ -49,20 +50,22 @@ import {
   type Bodies,
 } from "./fixtures/room.js";
 
-test("settings are exactly a display flag, a scoring rule, a bot level and the team size", () => {
+test("settings are exactly a display flag, a scoring rule, a bot level and the format", () => {
   assert.deepEqual(parseSettings(DEFAULT_SETTINGS), DEFAULT_SETTINGS);
   assert.equal(DEFAULT_SETTINGS.scoring, "rally");
-  assert.deepEqual(
-    parseSettings({ display: true, scoring: "classic", bot: 2, team: 2 }),
-    { display: true, scoring: "classic", bot: 2, team: 2 },
-  );
+  for (const format of ["1v1", "2v2", "3v3", "2v2v2"] as const)
+    assert.deepEqual(
+      parseSettings({ display: true, scoring: "classic", bot: 2, format }),
+      { display: true, scoring: "classic", bot: 2, format },
+    );
   for (const bad of [
     null,
     [],
     { display: true, scoring: "classic", bot: 2 },
     { display: true, scoring: "classic", bot: 2, doubles: true },
-    { display: true, scoring: "classic", bot: 2, team: 4 },
-    { display: true, scoring: "classic", bot: 2, team: "3" },
+    { display: true, scoring: "classic", bot: 2, team: 2 },
+    { display: true, scoring: "classic", bot: 2, format: "3v3v3" },
+    { display: true, scoring: "classic", bot: 2, format: 3 },
     { display: true, scoring: "classic", bot: 3 },
     { display: true, scoring: "golden", bot: 1 },
     { display: "yes", scoring: "rally", bot: 1 },
@@ -91,7 +94,7 @@ test("a match needs both seats; it starts with the lobby's scoring, seeded by it
     display: false,
     scoring: "classic",
     bot: 0,
-    team: 1,
+    format: "1v1",
   });
   assert.equal(room.stage, "running");
   assert.equal(room.world!.scoring, "classic");
@@ -139,7 +142,7 @@ test("a bot seat answers through the injected bot, with the lobby's level, once 
     display: false,
     scoring: "rally",
     bot: 2,
-    team: 1,
+    format: "1v1",
   });
   fold(room, {
     a: [
@@ -212,7 +215,7 @@ test("a corrupt checkpoint is refused whole, and refusing it changes nothing", (
     [
       "a scoring the world is not playing",
       room,
-      at(4, { display: false, scoring: "classic", bot: 1, team: 1 }),
+      at(4, { display: false, scoring: "classic", bot: 1, format: "1v1" }),
     ],
     ["held bits for a stranger", room, at(5, [["z", RIGHT]])],
     ["held bits past the mask", room, at(5, [["a", 8]])],
@@ -240,7 +243,7 @@ test("a corrupt checkpoint is refused whole, and refusing it changes nothing", (
 
 test("the game names itself, its rules and six seats, with one bot for solo (three or five for solo teams)", () => {
   assert.equal(fuseVolleyGame.id, "fuse-volley");
-  assert.equal(fuseVolleyGame.rules, "fuse-volley-4");
+  assert.equal(fuseVolleyGame.rules, "fuse-volley-5");
   assert.equal(fuseVolleyGame.seating?.capacity, 6);
   assert.equal(fuseVolleyGame.seating?.solo.bots, 1);
   assert.equal(createFuseVolleyGame(botInput, 3).seating?.solo.bots, 3);
@@ -252,7 +255,7 @@ test("doubles takes four seats in seat order, plays them as two sides and report
     display: false,
     scoring: "rally" as const,
     bot: 1 as const,
-    team: 2 as const,
+    format: "2v2" as const,
   };
   const room = seated(settings);
   // Two seats are not a doubles match.
@@ -297,7 +300,7 @@ test("doubles takes four seats in seat order, plays them as two sides and report
   assert.ok(decode(encode(room), room.tick));
   // Back to singles with four seated: the rematch waits in the lobby.
   fold(room, {
-    a: [[SETTINGS, { ...settings, team: 1 }]],
+    a: [[SETTINGS, { ...settings, format: "1v1" }]],
   });
   fold(room, { a: [[ACTION, "rematch", "m3"]] });
   assert.equal(room.stage, "lobby");
@@ -308,7 +311,7 @@ test("three a side takes six seats in seat order, alternating sides, and reports
     display: false,
     scoring: "rally" as const,
     bot: 1 as const,
-    team: 3 as const,
+    format: "3v3" as const,
   };
   const room = seated(settings);
   fold(room, {
@@ -356,5 +359,52 @@ test("three a side takes six seats in seat order, alternating sides, and reports
     ],
   );
   assert.equal(result.winnerId, undefined, "three winners, no single one");
+  assert.ok(decode(encode(room), room.tick));
+});
+
+test("three teams of two take six seats, slot % 3 the team, and place first, second and third", () => {
+  const settings = {
+    display: false,
+    scoring: "rally" as const,
+    bot: 1 as const,
+    format: "2v2v2" as const,
+  };
+  const room = seated(settings);
+  fold(room, {
+    a: [
+      [JOIN, "c", "Cy", 2, "robot", 1],
+      [JOIN, "d", "Di", 3, "robot", 1],
+      [JOIN, "e", "Ed", 4, "robot", 1],
+      [JOIN, "f", "Fi", 5, "robot", 1],
+    ],
+  });
+  fold(room, { a: [[ACTION, "start", "m2"]] });
+  assert.equal(room.stage, "running");
+  const world = room.world!;
+  assert.equal(world.format, "2v2v2");
+  // Teams 0 (a, d) and 1 (b, e) start on court; team 2 (c, f) waits.
+  assert.deepEqual(world.onCourt, [0, 1]);
+  const restored = decode(encode(room), room.tick);
+  assert.ok(restored);
+  assert.equal(hash(restored), hash(room));
+  // The right side loses every rally: the left team stays on and wins, the other two take turns on the right.
+  finish(room, 1);
+  const done = room.world!;
+  assert.equal(done.points[0], T.KINGS_RALLY_TARGET);
+  assert.ok(done.points[1]! === 0 && done.points[2]! === 0);
+  const result = matchResult(room)!;
+  assert.deepEqual(
+    result.players.map((player) => [player.playerId, player.matchPlacement]),
+    [
+      ["a", 1],
+      ["b", 2],
+      ["c", 2],
+      ["d", 1],
+      ["e", 2],
+      ["f", 2],
+    ],
+  );
+  assert.ok(validFuseVolleyField(result.players));
+  assert.equal(result.winnerId, undefined, "two winners, no single one");
   assert.ok(decode(encode(room), room.tick));
 });

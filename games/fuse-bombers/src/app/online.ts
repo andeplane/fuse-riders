@@ -225,6 +225,7 @@ export function showRoom(
   pilots.append(el("h2", "PILOTS", "fui-lobby-title"), roster.element, addBot);
   lobby.append(pilots, match);
   ui.createRoomLayout({
+    primaryAction: start,
     playerName: () => social.playerName(undefined) ?? undefined,
     background: async (host) =>
       (await import("./attract.js")).createAttract(host),

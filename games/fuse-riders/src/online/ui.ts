@@ -810,6 +810,7 @@ export async function startOnline(): Promise<void> {
     share = node("button", "TV VIEW"),
     addAI = node("button", "ADD AI");
   const readyButton = node("button", "READY");
+  const primaryPlay = node("div", "", "room-primary-play");
   readyButton.type = "button";
   readyButton.className = "room-ready-button";
   readyButton.hidden = true;
@@ -984,6 +985,17 @@ export async function startOnline(): Promise<void> {
   );
   // Where the movable parts of the page sit on this screen. Pure placement: what the screen is was decided by `roomScreen`.
   const placeElements = (screen: RoomScreen) => {
+    for (const action of [readyButton, start]) {
+      const parent =
+        action === readyButton &&
+        screen.controllerOnly &&
+        screen.kind === "recap"
+          ? controllerRematch
+          : screen.lobbyCard
+            ? primaryPlay
+            : hostControls;
+      if (action.parentElement !== parent) parent.append(action);
+    }
     // Keep the creator's seat invitation beside the riders while the lobby is
     // visible. Outside the lobby it must remain reachable for mid-game joins.
     if (role !== "joiner" && !screen.lobbyCard) {
@@ -1111,7 +1123,7 @@ export async function startOnline(): Promise<void> {
     if (controllerResults) {
       if (readyButton.parentElement !== controllerRematch)
         controllerRematch.append(readyButton);
-    } else if (readyButton.parentElement !== hostControls)
+    } else if (!next.lobbyCard && readyButton.parentElement !== hostControls)
       hostControls.prepend(readyButton);
     placeElements(next);
   };
@@ -1843,6 +1855,7 @@ export async function startOnline(): Promise<void> {
       setIfChanged(settingsButton, "hidden", !manages);
       setIfChanged(addAI, "hidden", !manages);
       setIfChanged(hostControls, "hidden", view.actions.hidden);
+      setIfChanged(primaryPlay, "hidden", view.actions.hidden);
       setIfChanged(reset, "disabled", view.actions.reset.disabled);
       setIfChanged(reset, "hidden", !manages || view.actions.reset.hidden);
       // The invite is the creator's: it carries the room code its device owns.
@@ -2111,6 +2124,7 @@ export async function startOnline(): Promise<void> {
   settingsButton.onclick = () => openSettings();
   settingsButton.textContent = "Game settings";
   createRoomLayout({
+    primaryAction: primaryPlay,
     background: async (host) =>
       (await import("./menu-attract.js")).createAttract(host),
     element: sharedLobby,
