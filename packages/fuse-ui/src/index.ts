@@ -180,6 +180,17 @@ export {
   type RoomLayoutOptions,
 } from "./room-layout.js";
 export {
+  createResultsScreen,
+  renderResults,
+  type ResultsAction,
+  type ResultsBar,
+  type ResultsHighlight,
+  type ResultsReport,
+  type ResultsRow,
+  type ResultsScreen,
+  type ResultsScreenOptions,
+} from "./results.js";
+export {
   createSharedTvOption,
   type SharedTvOption,
   type SharedTvOptionOptions,

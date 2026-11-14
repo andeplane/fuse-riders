@@ -6,6 +6,7 @@ import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
+import "fuse-ui/results.css";
 import {
   bindAudioInput,
   browserAudioDependencies,
@@ -42,6 +43,7 @@ import {
   createPageHeader,
   createPageMessage,
   createRoster,
+  createResultsScreen,
   createRoundControls,
   createSubPage,
   createTopBar,
@@ -141,6 +143,7 @@ import {
   type RunLog,
 } from "./run-log.js";
 import { drawTimingGraph } from "./timing-graph.js";
+import { resultBar, resultReport } from "./result-report.js";
 import { createSongPicker } from "./song-picker.js";
 import { coverPath } from "./covers.js";
 import { packsOf } from "./packs.js";
@@ -993,46 +996,32 @@ function enterRoom(
     unlock = el("p", "TAP OR PRESS A KEY FOR SOUND", "fm-unlock"),
     holdNote = el("p", "", "fm-unlock fm-hold"),
     loadFailed = button("THE SONG DID NOT LOAD · RETRY", "fm-unlock fm-retry");
-  const card = el("section", "", "fm-card"),
-    cardTitle = el("h2"),
-    cardRows = el("ol", "", "fm-rows"),
-    cardSession = sessionBlock(),
-    cardReport = el("div", "", "fm-report"),
-    cardSide = el("div", "", "fm-report-side"),
-    cardOwn = el("div", "", "fm-own"),
-    ownGrade = el("strong", "", "fm-grade fm-own-grade"),
-    ownScore = el("em", "", "fm-own-score"),
-    ownDetail = el("small", "", "fm-own-detail"),
-    ownBadge = el("b", "", "fm-own-badge"),
+  // The result: the shared results screen, with this device's own run (judgments, timing graph) as a section of it.
+  const results = createResultsScreen({
+    document,
+    onAction: (id) => {
+      if (id === "menu") leave();
+      else if (id === "primary") resultPrimary();
+      else runtime.command({ type: "action", action: "lobby" });
+    },
+  });
+  const resultPrimary = () => {
+    const action = model?.result?.primary.action;
+    if (action) runtime.command({ type: "action", action });
+  };
+  const cardReport = el("div", "", "fm-report"),
     cardCounts = el("dl", "", "fm-counts"),
-    cardLines = el("ul", "", "fm-lines"),
     cardGraph = el("div", "", "fm-report-graph"),
     graph = el("canvas", "", "fm-graph"),
     graphStats = el("dl", "", "fm-graph-stats"),
-    cardFoot = el("p", "", "fm-card-foot"),
     cardTiming = el("section", "", "fm-card-timing"),
     timingText = el("p", ""),
     timingApply = button("APPLY", "fui-button-primary fm-timing-apply"),
-    timingSkip = button("NO THANKS", "fui-button fm-timing-skip"),
-    cardActions = el("div", "", "fm-actions"),
-    rematch = button("PLAY AGAIN", "fui-button-primary fm-rematch"),
-    toLobby = button("SONG SELECT", "fui-button fm-to-lobby"),
-    toMenu = button("MENU", "fui-button fm-to-menu");
-  cardActions.append(toMenu, toLobby, rematch);
-  cardOwn.append(ownGrade, ownScore, ownDetail, ownBadge);
-  cardSide.append(cardOwn, cardCounts, cardLines);
+    timingSkip = button("NO THANKS", "fui-button fm-timing-skip");
   graph.setAttribute("role", "img");
   cardGraph.append(graph, graphStats, cardTiming);
   cardGraph.hidden = true;
-  cardReport.append(cardSide, cardGraph);
-  card.append(
-    cardTitle,
-    cardRows,
-    cardSession.element,
-    cardReport,
-    cardFoot,
-    cardActions,
-  );
+  cardReport.append(cardCounts, cardGraph);
   // The menu over a song: a pause alone, a player's own menu in a room (`play-menu.ts`).
   const playMenu = createPlayMenu({
     document,
@@ -1057,17 +1046,9 @@ function enterRoom(
   timingText.setAttribute("role", "status");
   cardTiming.append(timingText, timingApply, timingSkip);
   cardTiming.hidden = true;
-  card.hidden = true;
   unlock.hidden = loadFailed.hidden = holdNote.hidden = true;
   holdNote.setAttribute("role", "status");
   loadFailed.onclick = () => songs.retry();
-  // The result says what its buttons do: another go, a session's next song, or back to the song select.
-  rematch.onclick = () => {
-    const action = model?.result?.primary.action;
-    if (action) runtime.command({ type: "action", action });
-  };
-  toLobby.onclick = () => runtime.command({ type: "action", action: "lobby" });
-  toMenu.onclick = leave;
   screen.append(
     canvas,
     unlock,
@@ -1075,7 +1056,6 @@ function enterRoom(
     loadFailed,
     pauseButton,
     playMenu.element,
-    card,
     roundControls.element,
   );
 
@@ -1191,8 +1171,9 @@ function enterRoom(
   const controllerResult = el("div", "", "fm-actions fm-controller-result"),
     controllerRematch = button("PLAY AGAIN", "fui-button-primary"),
     controllerLobby = button("SONG SELECT", "fui-button");
-  controllerRematch.onclick = rematch.onclick;
-  controllerLobby.onclick = toLobby.onclick;
+  controllerRematch.onclick = resultPrimary;
+  controllerLobby.onclick = () =>
+    runtime.command({ type: "action", action: "lobby" });
   controllerResult.append(controllerLobby, controllerRematch);
   controller.append(controllerHead, controllerResult, controllerPads.row);
 
@@ -1227,6 +1208,7 @@ function enterRoom(
     lobby,
     stage,
     controller,
+    results.element,
   );
   app.replaceChildren(top, main);
   const roomLayout = createRoomLayout({
@@ -1351,7 +1333,7 @@ function enterRoom(
     report = log && (log.steps.length || log.misses.length) ? log : undefined;
     reportEnd = endMs;
     cardGraph.hidden = !report;
-    card.classList.toggle("fm-card-graphed", !!report);
+    cardReport.classList.toggle("fm-report-graphed", !!report);
     if (!report) return;
     const stats = runStats(report.steps);
     graphStats.replaceChildren(
@@ -1422,7 +1404,7 @@ function enterRoom(
     playMenu.count(resumeCount(RESUME_MS));
   };
   // Arrows walk a result's buttons, Enter presses the one in focus: no mouse needed. The menu over a song has its own.
-  menuKeys(cardActions, { enabled: () => !model?.playing });
+  menuKeys(results.actions, { enabled: () => !model?.playing });
   /** Escape and the II button: a pause alone, the room's menu with others. */
   const openMenu = () => (solo ? pause() : openRoomMenu());
   pauseButton.onclick = openMenu;
@@ -1681,22 +1663,8 @@ function enterRoom(
     },
   });
 
-  const rowNode = (row: Row) => {
-    const node = el("li", "", row.you ? "you" : "");
-    node.style.setProperty("--c", slotColor(row.slot));
-    const who = el("div", "", "fm-row-who");
-    who.append(
-      el("b", row.you ? `${row.name} (you)` : row.name),
-      el("small", `${row.detail} · ${row.combo}`),
-    );
-    node.append(
-      el("span", String(row.place), "fm-row-place"),
-      el("strong", row.grade, `fm-grade fm-grade-${row.grade.toLowerCase()}`),
-      who,
-      el("em", row.score),
-    );
-    return node;
-  };
+  /** What the results screen last showed: it is rebuilt only when the result itself changed. */
+  let shownResult = "";
   let lastStage = "";
   const render = (next: Model, view: View) => {
     if (over) return;
@@ -1824,27 +1792,10 @@ function enterRoom(
     controllerResult.hidden = !(next.result && next.result.host);
     // The result.
     const result = next.result;
-    card.hidden = !result || next.screen === "controller";
-    if (result) {
-      setText(cardTitle, result.title);
-      const rows = JSON.stringify(result.rows);
-      if (cardRows.dataset.rows !== rows) {
-        cardRows.dataset.rows = rows;
-        cardRows.replaceChildren(...result.rows.map(rowNode));
-      }
-      // Alone, the one row says nothing the big grade does not.
-      cardRows.hidden = !!result.own && result.rows.length === 1;
-      cardOwn.hidden = !result.own;
-      card.classList.toggle("fm-card-own", !!result.own);
-      if (result.own) {
-        const own = result.own;
-        setText(ownGrade, own.grade);
-        ownGrade.className = `fm-grade fm-own-grade fm-grade-${own.grade.toLowerCase()}`;
-        setText(ownScore, own.score);
-        setText(ownDetail, own.detail);
-        setText(ownBadge, own.badge);
-        ownBadge.hidden = !own.badge;
-      }
+    if (!result || next.screen === "controller") {
+      if (results.open) results.hide();
+      shownResult = "";
+    } else {
       const counts = JSON.stringify(result.counts);
       if (cardCounts.dataset.counts !== counts) {
         cardCounts.dataset.counts = counts;
@@ -1869,33 +1820,35 @@ function enterRoom(
         );
       }
       cardCounts.hidden = !result.counts.length;
-      const joined = result.lines.join("\n");
-      if (cardLines.dataset.lines !== joined) {
-        cardLines.dataset.lines = joined;
-        cardLines.replaceChildren(
-          ...result.lines.map((line) =>
-            el("li", line, /^(NEW BEST|FIRST)/.test(line) ? "best" : ""),
-          ),
+      // The friend buttons are part of what is shown: an account that turns up after the song gets its button.
+      const friend = (id: string) => {
+        const publicId = social.friends.publicIdOfMember(id);
+        return publicId ? social.friends.friendButton(publicId) : undefined;
+      };
+      const shown = JSON.stringify([
+        result,
+        result.rows.map((row) => social.friends.publicIdOfMember(row.id)),
+      ]);
+      if (shown !== shownResult) {
+        const first = !shownResult;
+        shownResult = shown;
+        const scroll = results.body.scrollTop;
+        results.show(
+          resultReport(result, {
+            color: slotColor,
+            friend,
+            run: result.own ? [cardReport] : [],
+          }),
         );
+        if (first) results.actions.querySelector("button")?.focus();
+        else results.body.scrollTop = scroll;
+        // The graph's canvas has a size only now that it is on the page.
+        drawGraph();
       }
-      cardLines.hidden = !result.lines.length;
-      setText(cardFoot, result.waiting);
-      cardFoot.hidden = !result.waiting;
-      cardActions.hidden = !result.host;
-      toMenu.hidden = !result.solo;
-      // A session's standings: under the song's result, and above it once the session is over.
-      cardSession.update(result.session);
-      const anchor = result.final ? cardTitle : cardRows;
-      if (cardSession.element.previousElementSibling !== anchor)
-        anchor.after(cardSession.element);
-      for (const [main, other] of [
-        [rematch, toLobby],
-        [controllerRematch, controllerLobby],
-      ] as const) {
-        setText(main, result.primary.text);
-        other.hidden = !result.secondary;
-        if (result.secondary) setText(other, result.secondary.text);
-      }
+      results.update(resultBar(result));
+      setText(controllerRematch, result.primary.text);
+      controllerLobby.hidden = !result.secondary;
+      if (result.secondary) setText(controllerLobby, result.secondary.text);
     }
   };
 
@@ -2105,7 +2058,7 @@ function enterRoom(
         !(event.target instanceof HTMLButtonElement)
       ) {
         event.preventDefault();
-        rematch.click();
+        resultPrimary();
       } else if (
         model?.screen === "lobby" &&
         // The speeds are open over the select: their keys are not the carousel's.

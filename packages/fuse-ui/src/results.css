@@ -1,0 +1,508 @@
+/*
+ * The end of a match (`results.ts`): Fuse Riders' results screen, shared by every game. The screen floats over the
+ * game, which stays visible, dimmed and blurred, behind it.
+ */
+.fui-results {
+  position: fixed;
+  inset: 0;
+  z-index: var(--fui-z-dialog);
+  display: flex;
+  flex-direction: column;
+  color: #eef0ff;
+  background: #050a1cd9;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.fui-results[hidden] {
+  display: none;
+}
+.fui-results-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: max(2.5rem, env(safe-area-inset-top))
+    max(2rem, env(safe-area-inset-right)) 2rem
+    max(2rem, env(safe-area-inset-left));
+}
+.fui-results-report {
+  width: min(100%, 72rem);
+  margin: 0 auto;
+  min-width: 0;
+}
+.fui-results-masthead {
+  padding-right: 5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: var(--fui-space-5);
+}
+.fui-results-brand {
+  color: #f4f0ff;
+  font:
+    clamp(0.75rem, 1.5vw, 1.25rem)/1.5 "Press Start 2P",
+    monospace;
+  text-transform: uppercase;
+  text-shadow: 0 0 1rem #9b63ff70;
+}
+.fui-results-context {
+  display: grid;
+  gap: var(--fui-space-2);
+  text-align: right;
+  color: #a6bee7;
+}
+.fui-results-context > span {
+  font-size: 0.875rem;
+  letter-spacing: 0.24em;
+}
+.fui-results-context small {
+  font-size: 0.75rem;
+}
+.fui-results-victory {
+  --winner-color: #ba8cff;
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 1.25rem;
+  padding: 1.75rem 0 3.5rem;
+}
+.fui-results-crown {
+  width: 3.5rem;
+  height: 2.75rem;
+  background: var(--winner-color);
+  clip-path: polygon(
+    0 20%,
+    14% 20%,
+    14% 40%,
+    28% 40%,
+    28% 20%,
+    42% 20%,
+    42% 0,
+    58% 0,
+    58% 20%,
+    72% 20%,
+    72% 40%,
+    86% 40%,
+    86% 20%,
+    100% 20%,
+    100% 60%,
+    90% 60%,
+    90% 82%,
+    10% 82%,
+    10% 60%,
+    0 60%
+  );
+  filter: drop-shadow(0 0 0.7rem var(--winner-color));
+}
+.fui-results-emblem {
+  color: var(--winner-color);
+  font:
+    clamp(2.5rem, 6vw, 4.5rem)/1 "Press Start 2P",
+    monospace;
+  text-shadow: 0 0 1.5rem var(--winner-color);
+}
+.fui-results-victory h2 {
+  max-width: 100%;
+  margin: 0;
+  font:
+    clamp(1.3rem, 3.8vw, 3.5rem)/1.5 "Press Start 2P",
+    monospace;
+  color: #f7f4ff;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  text-shadow:
+    0 0 0.2rem var(--winner-color),
+    0 0 2rem color-mix(in srgb, var(--winner-color) 45%, transparent);
+}
+.fui-results-victory p {
+  margin: 0;
+  color: #c5c4d9;
+  font-size: clamp(0.85rem, 1.5vw, 1.25rem);
+  overflow-wrap: anywhere;
+}
+.fui-results-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr);
+  gap: 2.5rem;
+}
+.fui-results-overview.is-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+.fui-results-report h3 {
+  margin: 0 0 1.125rem;
+  color: #afc9ff;
+  font:
+    700 1rem/1.5 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+  letter-spacing: 0.19em;
+  text-transform: uppercase;
+}
+.fui-results-standings table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 1rem;
+}
+.fui-results-standings th,
+.fui-results-standings td {
+  padding: 0.95rem var(--fui-space-3);
+  text-align: center;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.fui-results-standings thead th {
+  color: #92a6cb;
+  font-size: 0.75rem;
+}
+.fui-results-standings th:first-child,
+.fui-results-standings td:first-child {
+  width: 3.5rem;
+}
+.fui-results-standings th:nth-child(2) {
+  width: auto;
+  text-align: left;
+}
+.fui-results-standings thead th:nth-child(n + 3) {
+  width: 6.5rem;
+}
+.fui-results-standings tbody tr {
+  border-bottom: 1px solid #24365c;
+}
+.fui-results-standings tbody td:first-child {
+  color: #9bb7e7;
+}
+.fui-results-standings .is-champion {
+  background: color-mix(in srgb, var(--player-color) 13%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--player-color) 50%, transparent);
+  outline-offset: -1px;
+}
+.fui-results-standings .is-you {
+  background: color-mix(in srgb, var(--player-color) 12%, transparent);
+  box-shadow:
+    inset 0 1px color-mix(in srgb, var(--player-color) 50%, transparent),
+    inset 0 -1px color-mix(in srgb, var(--player-color) 50%, transparent);
+}
+.fui-results-name {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  text-align: left;
+  text-transform: uppercase;
+}
+.fui-results-name > span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.fui-results-name > i {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex: 0 0 0.85rem;
+  transform: rotate(45deg);
+  background: var(--player-color);
+  box-shadow: 0 0 1rem color-mix(in srgb, var(--player-color) 50%, transparent);
+}
+.fui-results-marker {
+  flex: 0 0 auto;
+  width: 1.75rem;
+  height: 1.75rem;
+}
+.fui-results-name small {
+  font-size: 0.6rem;
+  color: var(--player-color);
+}
+.fui-results-name small.is-tag {
+  color: #92a6cb;
+}
+.fui-results-standings .is-you .fui-results-name {
+  color: var(--player-color);
+}
+/* FRIENDS, or + ADD FRIEND: the game's own friend button, sized for the table. */
+.fui-app .fui-results-name > button {
+  flex: 0 0 auto;
+  min-height: 0;
+  margin-left: var(--fui-space-2);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.5625rem;
+  letter-spacing: 0.0625rem;
+  white-space: nowrap;
+}
+.fui-results-note {
+  margin: 1.25rem 0 0;
+  color: #94aacf;
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+.fui-results-featured {
+  border-left: 1px solid #253554;
+  padding-left: 2.5rem;
+  min-width: 0;
+}
+.fui-results-feature {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--fui-space-5);
+  margin: 2.5rem 0;
+}
+.fui-results-feature-icon {
+  color: #c6a1ff;
+  font-size: 3.5rem;
+  text-shadow: 0 0 1.5rem currentColor;
+  text-align: center;
+  line-height: 1;
+}
+.fui-results-feature h4 {
+  margin: 0 0 var(--fui-space-2);
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+}
+.fui-results-feature-names {
+  margin: 0 0 var(--fui-space-2);
+  font-size: 1rem;
+  text-transform: uppercase;
+}
+.fui-results-feature small {
+  color: #94aacf;
+  font-size: 0.75rem;
+  line-height: 1.7;
+}
+.fui-results-feature > div {
+  overflow-wrap: anywhere;
+}
+.fui-results-section {
+  padding-top: 3rem;
+  min-width: 0;
+}
+.fui-results-details:not([hidden]) {
+  display: grid;
+  gap: var(--fui-space-4);
+  padding-top: 3rem;
+}
+.fui-results-details {
+  scroll-margin-top: 1rem;
+}
+.fui-results-details > h3 {
+  margin-bottom: 0;
+}
+.fui-results-empty {
+  text-align: center;
+  padding: 4rem 0;
+  color: #94aacf;
+}
+
+/* The bar: full stats at the left; the READY count, the room's other steps and the main one at the right. */
+.fui-results-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--fui-space-4);
+  margin: 0 max(2rem, env(safe-area-inset-right)) 0
+    max(2rem, env(safe-area-inset-left));
+  padding: 1.25rem 0 max(1.5rem, env(safe-area-inset-bottom));
+  border-top: 1px solid #2c3d61;
+}
+.fui-results-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--fui-space-5);
+  margin-left: auto;
+}
+.fui-results-status {
+  color: #a7bfe9;
+  font-size: 0.875rem;
+}
+.fui-app .fui-results-bar button,
+.fui-app .fui-results-back,
+.fui-results-bar button,
+.fui-results-back {
+  min-height: 3rem;
+  color: #a7bfe9;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  background: transparent;
+  box-shadow: none;
+  font:
+    0.875rem/1.4 ui-monospace,
+    monospace;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: var(--fui-space-2) var(--fui-space-1);
+  cursor: pointer;
+}
+.fui-app .fui-results-bar .fui-results-stats-toggle,
+.fui-results-bar .fui-results-stats-toggle {
+  text-decoration: underline;
+  text-underline-offset: 0.35rem;
+  text-align: left;
+}
+.fui-app .fui-results-actions button.is-primary,
+.fui-results-actions button.is-primary {
+  order: 2;
+  padding: var(--fui-space-3) var(--fui-space-6);
+  min-width: 11rem;
+  border-color: #79efff;
+  color: #79efff;
+  background: #53d7ef12;
+  box-shadow:
+    inset 0 0 0 3px #070c1d,
+    0 0 1.5rem #53d7ef0a;
+  font-size: 1.125rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.fui-results-actions button.is-primary::after {
+  content: " →";
+}
+.fui-results-actions button.is-primary[aria-pressed="true"] {
+  color: #050c1a;
+  background: #79efff;
+}
+.fui-app .fui-results-bar button:enabled:hover,
+.fui-app .fui-results-back:hover,
+.fui-results-bar button:enabled:hover,
+.fui-results-back:hover {
+  color: #fff;
+  background-color: #92c7ff12;
+}
+.fui-results-actions button.is-primary[aria-pressed="true"]:enabled:hover {
+  color: #050c1a;
+  background: #b4f6ff;
+}
+.fui-results-bar button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.fui-results button:focus-visible {
+  outline: 2px solid #79efff;
+  outline-offset: 3px;
+}
+.fui-app .fui-results-back,
+.fui-results-back {
+  position: absolute;
+  top: max(0.25rem, env(safe-area-inset-top));
+  right: max(0.25rem, env(safe-area-inset-right));
+  z-index: 2;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: var(--fui-space-2) var(--fui-space-3);
+}
+.fui-results-back::before {
+  content: "‹ ";
+}
+
+@media (max-width: 700px) {
+  .fui-results-body {
+    padding: max(1.25rem, env(safe-area-inset-top)) 1rem 1.5rem;
+  }
+  .fui-results-masthead {
+    padding-right: 4rem;
+  }
+  .fui-results-context > span {
+    font-size: 0.625rem;
+    letter-spacing: 0.12em;
+  }
+  .fui-results-context small {
+    font-size: 0.625rem;
+  }
+  .fui-results-victory {
+    padding: var(--fui-space-6) 0;
+    gap: var(--fui-space-4);
+  }
+  .fui-results-overview {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--fui-space-6);
+  }
+  .fui-results-featured {
+    padding: var(--fui-space-5) 0 0;
+    border-left: 0;
+    border-top: 1px solid #253554;
+  }
+  .fui-results-feature {
+    margin: var(--fui-space-5) 0;
+  }
+  .fui-results-standings th,
+  .fui-results-standings td {
+    padding: 0.9rem 0.25rem;
+    font-size: 0.8125rem;
+  }
+  .fui-results-standings thead th {
+    font-size: 0.5625rem;
+  }
+  .fui-results-standings th:first-child,
+  .fui-results-standings td:first-child {
+    width: 2rem;
+  }
+  .fui-results-standings thead th:nth-child(n + 3) {
+    width: 3.75rem;
+  }
+  .fui-results-name {
+    gap: var(--fui-space-3);
+    flex-wrap: wrap;
+  }
+  .fui-results-name > span {
+    flex: 1;
+  }
+  .fui-results-name > i {
+    width: 0.625rem;
+    height: 0.625rem;
+    flex-basis: 0.625rem;
+  }
+  .fui-results-section,
+  .fui-results-details:not([hidden]) {
+    padding-top: var(--fui-space-6);
+  }
+  .fui-results-bar {
+    margin: 0 var(--fui-space-4);
+    flex-wrap: wrap;
+    gap: var(--fui-space-3);
+    padding-top: var(--fui-space-3);
+  }
+  .fui-results-actions {
+    gap: var(--fui-space-3);
+  }
+  .fui-app .fui-results-actions button.is-primary,
+  .fui-results-actions button.is-primary {
+    min-width: 0;
+    padding: 0.65rem var(--fui-space-4);
+    font-size: 0.875rem;
+  }
+  .fui-app .fui-results-bar button,
+  .fui-results-bar button {
+    font-size: 0.75rem;
+  }
+}
+@media (orientation: landscape) and (max-height: 550px) {
+  .fui-results-body {
+    padding-top: var(--fui-space-4);
+  }
+  .fui-results-victory {
+    padding: var(--fui-space-4) 0 var(--fui-space-5);
+    gap: var(--fui-space-3);
+  }
+  .fui-results-crown {
+    width: 2rem;
+    height: 1.5rem;
+  }
+  .fui-results-emblem {
+    font-size: 2rem;
+  }
+  .fui-results-victory h2 {
+    font-size: 1.5rem;
+  }
+  .fui-results-featured {
+    padding-left: var(--fui-space-5);
+  }
+  .fui-results-feature {
+    gap: var(--fui-space-4);
+    margin: var(--fui-space-5) 0;
+  }
+  .fui-results-bar {
+    padding-top: var(--fui-space-2);
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+}
