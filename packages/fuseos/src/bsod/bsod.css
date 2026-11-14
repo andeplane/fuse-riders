@@ -1,0 +1,77 @@
+/* The Windows 98 fatal exception screen: 80x25 VGA text mode, white on blue. */
+.bsod {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0000aa;
+  color: #ffffff;
+  cursor: none;
+  outline: none;
+  user-select: none;
+  /* 80 columns across, 25 rows down, whichever runs out first. */
+  font-size: min(2.05vw, 3.4vh);
+  font-family:
+    "Perfect DOS VGA 437", "Lucida Console", "Consolas", "Courier New",
+    monospace;
+  font-weight: 700;
+  line-height: 1.25;
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+}
+
+.bsod__text {
+  width: 66ch;
+  max-width: calc(100vw - 2ch);
+  margin: 0;
+}
+
+.bsod__title-row {
+  margin: 0 0 1.25em;
+  text-align: center;
+}
+
+.bsod__title {
+  padding: 0 1ch;
+  background: #aaaaaa;
+  color: #0000aa;
+}
+
+.bsod__summary {
+  margin: 0 0 1.25em;
+}
+
+.bsod__instructions {
+  margin: 0 0 1.25em;
+  padding: 0;
+  list-style: none;
+}
+
+.bsod__instructions li {
+  /* "*  " hangs in the margin, as on the real screen. */
+  padding-left: 3ch;
+  text-indent: -3ch;
+}
+
+.bsod__prompt {
+  margin: 0;
+  text-align: center;
+}
+
+.bsod__cursor {
+  animation: bsod-blink 1s steps(1, end) infinite;
+}
+
+@keyframes bsod-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bsod__cursor {
+    animation: none;
+  }
+}

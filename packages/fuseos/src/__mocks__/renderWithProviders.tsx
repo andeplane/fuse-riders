@@ -63,6 +63,9 @@ import {
 } from "../network/roomDirectory";
 import type { RoomLauncher } from "../network/roomLauncher";
 import { RoomLauncherContext } from "../network/roomLauncher";
+import type { HallOfFameDeps } from "../halloffame/hallOfFameDepsContext";
+import { HallOfFameDepsContext } from "../halloffame/hallOfFameDepsContext";
+import { MemoryLeaderboardService } from "../halloffame/leaderboardService";
 import type { PaintControls } from "../paint/paintControls";
 import type { PaintDeps } from "../paint/paintDepsContext";
 import { PaintDepsContext } from "../paint/paintDepsContext";
@@ -227,6 +230,8 @@ export type ProviderOptions = {
   /** Defaults to the demo presence service, signed out, over the manual scheduler in `friendsDeps`. */
   presence?: PresenceService;
   friendsDeps?: Partial<FriendsDeps>;
+  /** Defaults to an empty memory leaderboard service (every game: no rated players yet). */
+  hallOfFameDeps?: HallOfFameDeps;
 };
 
 /** A scheduler a test fires by hand: `timers.fire()` runs every pending callback in order. */
@@ -527,6 +532,14 @@ export function createWrapper(options: ProviderOptions = {}) {
       signedIn: false,
     });
 
+  const hallOfFameDeps: HallOfFameDeps = options.hallOfFameDeps ?? {
+    leaderboards: new MemoryLeaderboardService(
+      Object.fromEntries(
+        (options.games ?? FIXTURE_GAMES).map((game) => [game.id, []]),
+      ),
+    ),
+  };
+
   /** Outermost first; each entry wraps everything after it. */
   const providers: readonly ProviderEntry[] = [
     provider(ScreenSaverStoreContext, screenSaverStore),
@@ -565,6 +578,7 @@ export function createWrapper(options: ProviderOptions = {}) {
     provider(SoundServiceContext, sounds),
     provider(DialUpSessionContext, dialUpSession),
     provider(DialUpDepsContext, dialUpDeps),
+    provider(HallOfFameDepsContext, hallOfFameDeps),
   ];
 
   function Wrapper({ children }: { children: ReactNode }) {
@@ -615,6 +629,7 @@ export function createWrapper(options: ProviderOptions = {}) {
     sounds,
     dialUpSession,
     dialUpDeps,
+    hallOfFameDeps,
   };
 }
 

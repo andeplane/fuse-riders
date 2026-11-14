@@ -109,6 +109,7 @@ describe("StartMenu", () => {
       "Winamp",
       "Notepad++",
       "Windows Explorer",
+      "Task Manager",
       "Change desktop background",
       "Dial-Up Networking",
       "System Tools▸",

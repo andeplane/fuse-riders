@@ -6,6 +6,7 @@ import { useFuseGameLauncher } from "../fusegames/useFuseGameLauncher";
 import { LAUNCHER_TITLE } from "../launcher/launcherFacts";
 import { useOpenLauncher } from "../launcher/useOpenLauncher";
 import { openNetworkNeighborhood } from "../network/openNetworkNeighborhood";
+import { DOS_GAMES_TITLE } from "../retro/RetroFolderWindow";
 import { useGameLaunch } from "../settings/useGameLaunch";
 import { useDialUpCommands } from "../sounds/dialup/useDialUpCommands";
 import type { WindowState } from "../state/appState";
@@ -105,6 +106,13 @@ export function useDesktopViewModel(): DesktopViewModel {
       label: "My Computer",
       icon: "computer",
       open: () => commands.open({ kind: "explorer", location: MY_COMPUTER }),
+    },
+    {
+      // The yellow folder: DOOM, Wolfenstein 3D, Commander Keen and Duke Nukem 3D, with the Windows games under them.
+      id: "dos-games",
+      label: DOS_GAMES_TITLE,
+      icon: "folder",
+      open: () => commands.open({ kind: "retroFolder" }),
     },
     ...games.games.map((game) => ({
       id: `game:${game.id}`,

@@ -341,6 +341,7 @@ describe(isAppState.name, () => {
     );
     expect(isAppState(window({ kind: "fusegame", gameId: "" }))).toBe(false);
     expect(isAppState(window({ kind: "retro", game: "doom" }))).toBe(true);
+    expect(isAppState(window({ kind: "taskmanager" }))).toBe(true);
     expect(isAppState(window({ kind: "retro", game: "pong" }))).toBe(false);
     expect(isAppState(window({ kind: "controlpanel", applet: "games" }))).toBe(
       true,
@@ -374,6 +375,11 @@ describe(isAppState.name, () => {
     expect(
       isAppState(window({ kind: "roomgame", gameId: "", code: "AB42" })),
     ).toBe(false);
+    expect(isAppState(window({ kind: "halloffame" }))).toBe(true);
+    expect(isAppState(window({ kind: "halloffame", gameId: "fuseball" }))).toBe(
+      true,
+    );
+    expect(isAppState(window({ kind: "halloffame", gameId: 7 }))).toBe(false);
     expect(
       isAppState(
         window({ kind: "dialog", title: "t", message: "m", icon: "info" }),

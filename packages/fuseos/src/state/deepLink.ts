@@ -14,6 +14,10 @@ const APPS: Record<string, WindowContent> = {
   about: { kind: "about" },
   fusteam: { kind: "launcher" },
   friends: { kind: "friends" },
+  halloffame: { kind: "halloffame" },
+  taskmanager: { kind: "taskmanager" },
+  // The DOS Games folder on the desktop (the retro games' folder window).
+  dosgames: { kind: "retroFolder" },
   defrag: { kind: "defrag" },
   mycomputer: { kind: "explorer", location: MY_COMPUTER },
   explorer: { kind: "explorer", location: MY_COMPUTER },

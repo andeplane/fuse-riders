@@ -4,6 +4,7 @@ import { useWindowCommands } from "../windows/useWindowCommands";
 
 import { fuseSoundtrack } from "./fuseTracks";
 import type { MediaErrorInfo } from "./mediaErrorReporting";
+import { renderWebampInCorner } from "./webampLayout";
 import type { WebampPlayer } from "./webampPlayer";
 import { createWinampControls } from "./winampControls";
 import { WinampDepsContext } from "./winampDepsContext";
@@ -100,7 +101,13 @@ export function useWinampViewModel(windowId: string): WinampViewModel {
         const queued = fuseSoundtrack(deps.base);
         queued.forEach(({ track, name }) => names.set(track.url, name));
         created.appendTracks(queued.map(({ track }) => track));
-        if (nodeRef.current) await created.renderInto(nodeRef.current);
+        const mount = nodeRef.current;
+        // Top right of the desktop rather than its centre, where the launcher opens.
+        if (mount)
+          await renderWebampInCorner(created, mount, {
+            width: mount.offsetWidth,
+            height: mount.offsetHeight,
+          });
         if (cancelled) return;
         registry.set(windowId, controls);
         setReadyState("ready");
