@@ -71,7 +71,10 @@ const after = <T>(list: readonly T[], item: T) =>
 const CLOSED = "Online rooms are not open yet: play solo or at this screen";
 
 /** The page under a bar with the app portal and the brand; returns the bar. */
-function page(...parts: HTMLElement[]): HTMLElement {
+function page(
+  audio: GameAudio | undefined,
+  ...parts: HTMLElement[]
+): HTMLElement {
   const root = el("div", "", "fui-app fb-online"),
     bar = el("header", "", "fb-bar"),
     brand = el("a", "FUSE BOMBERS");
@@ -83,14 +86,14 @@ function page(...parts: HTMLElement[]): HTMLElement {
     search: location.search,
   });
   bar.append(portal.element, brand, social.element());
-  ui.createTopBar({ element: bar, brand, gameId: GAME });
+  ui.createTopBar({ element: bar, brand, gameId: GAME, sound: audio?.master });
   root.append(bar, ...parts);
   document.body.append(root);
   return bar;
 }
 
 /** The first screen: create or join a room, play against bots, or everyone at this screen (the local lobby). */
-export function showLanding(store: Store, error = ""): void {
+export function showLanding(store: Store, error = "", audio?: GameAudio): void {
   // A room made with this ticked shows the arena on a TV (OPEN TV SCREEN) and every seated phone is a controller.
   const shared = el("label", "", "fb-shared"),
     toggle = el("input");
@@ -134,7 +137,7 @@ export function showLanding(store: Store, error = ""): void {
       "Your gunship flies around its castle while the launcher rotates. Press to fire toward the other castles. Dodge enemy shots and be the last castle standing. Use the same fire button on a keyboard or phone.",
     ),
   );
-  page(card.element);
+  page(audio, card.element);
 }
 
 /** A room, as its creator, a joiner or the shared TV, or a match against bots (`solo`), drawn by `game`'s round scene;
@@ -262,7 +265,7 @@ export function showRoom(
   pad.append(head, meters, padState, padLine, padActions);
   if (!touch) pad.append(el("p", "WASD OR ARROW KEYS TO FLY · SPACE TO FIRE"));
   pad.hidden = true;
-  const bar = page(card, nameEntry.form, note, lobby, pad);
+  const bar = page(audio, card, nameEntry.form, note, lobby, pad);
   bar.append(el("strong", code), status.element, leave);
   const menu = ui.createGameMenu({
     title: "FUSE BOMBERS",

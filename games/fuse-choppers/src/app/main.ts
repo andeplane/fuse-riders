@@ -129,6 +129,19 @@ const pilotPicker = () => {
 };
 const query = new URLSearchParams(location.search);
 const muted = query.has("mute");
+let soundEnabled = !muted;
+let activeSfx: ReturnType<typeof createSfx> | undefined;
+const sound = {
+  forcedMute: muted,
+  enabled: () => soundEnabled,
+  setEnabled(on: boolean) {
+    if (muted) return;
+    soundEnabled = on;
+    radio.setMuted(!on);
+    activeSfx?.setMuted(!on);
+    if (on) radio.unlock();
+  },
+};
 const radio = createChopperRadio({
   document,
   player: new Audio(),
@@ -262,7 +275,7 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     search: location.search,
   });
   bar.append(portal.element, logo(), social.element(), radioButton(), ...extra);
-  return createTopBar({ element: bar, gameId: GAME });
+  return createTopBar({ element: bar, gameId: GAME, sound });
 }
 
 function keyHelp(): HTMLElement {
@@ -374,6 +387,8 @@ function room(solo: boolean): void {
   document.body.classList.toggle("fc-display", display);
   const viewer: Viewer = { me: "", host: solo, solo, display };
   const sfx = createSfx(muted);
+  activeSfx = sfx;
+  sfx.setMuted(!soundEnabled);
 
   // ---- the page ----
   const status = createNotice({ className: "fc-status" });

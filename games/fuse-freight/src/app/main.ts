@@ -171,48 +171,6 @@ function onScreen(element: Element): () => boolean {
   return () => visible && element.isConnected;
 }
 
-/** The sound toggles; `prompt` adds a TAP FOR SOUND button until the browser lets the page play (the TV screen). */
-function soundToggles(prompt = false): HTMLElement {
-  const box = el("div", "", "ff-sound");
-  if (audio.silenced) {
-    const chip = el("span", "🔇 MUTED", "ff-sound-chip");
-    chip.title = "This page was opened with ?mute";
-    box.append(chip);
-    return box;
-  }
-  const music = button("", "ff-sound-button"),
-    effects = button("", "ff-sound-button");
-  const show = () => {
-    setText(music, audio.prefs.muted.music ? "♫ MUSIC OFF" : "♫ MUSIC ON");
-    setText(effects, audio.prefs.muted.effects ? "FX OFF" : "FX ON");
-    music.setAttribute("aria-pressed", String(!audio.prefs.muted.music));
-    effects.setAttribute("aria-pressed", String(!audio.prefs.muted.effects));
-  };
-  music.onclick = () => {
-    audio.setMuted("music", !audio.prefs.muted.music);
-    savePrefs(store, audio.prefs);
-    audio.resume();
-    show();
-  };
-  effects.onclick = () => {
-    audio.setMuted("effects", !audio.prefs.muted.effects);
-    savePrefs(store, audio.prefs);
-    audio.resume();
-    show();
-  };
-  show();
-  box.append(music, effects);
-  if (prompt) {
-    const tap = button("🔊 TAP FOR SOUND", "ff-sound-button ff-sound-tap");
-    tap.onclick = () => audio.resume();
-    box.prepend(tap);
-    animations.add(() => {
-      tap.hidden = audio.running();
-    });
-  }
-  return box;
-}
-
 // ---- shared pieces ----
 function logo(): HTMLElement {
   const brand = el("a", "", "ff-brand");
@@ -232,7 +190,21 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     search: location.search,
   });
   bar.append(portal.element, logo(), social.element(), ...extra);
-  return createTopBar({ element: bar, gameId: GAME });
+  return createTopBar({
+    element: bar,
+    gameId: GAME,
+    sound: {
+      enabled: () => !audio.prefs.muted.music || !audio.prefs.muted.effects,
+      forcedMute: audio.silenced,
+      setEnabled: (on) => {
+        if (audio.silenced) return;
+        audio.setMuted("music", !on);
+        audio.setMuted("effects", !on);
+        savePrefs(store, audio.prefs);
+        if (on) audio.resume();
+      },
+    },
+  });
 }
 
 /** Canvases that animate while shown: the splash's depot, the rules panels and the lobby's bays. */
@@ -355,7 +327,7 @@ function landing(): void {
   splash.append(front);
   const menu = createGameMenu(controllerGuide);
   menu.update({ canLobby: false, touch: coarse() });
-  app.replaceChildren(header([soundToggles(), back, menu.element]), splash);
+  app.replaceChildren(header([back, menu.element]), splash);
   card.menu.help.append(howToPlay());
 }
 
@@ -457,7 +429,6 @@ function room(solo: boolean): void {
   const top = header([
     el("strong", solo ? "SOLO" : code, "ff-code"),
     status.element,
-    soundToggles(display),
     menu.element,
   ]);
   createTopBar({

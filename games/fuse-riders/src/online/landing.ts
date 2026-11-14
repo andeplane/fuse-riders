@@ -85,14 +85,8 @@ export function showLanding(host: LandingHost): void {
   arena.setAttribute("aria-hidden", "true");
   const brand = link(appUrl(), "landing-brand");
   brand.append("FUSE", node("span", "RIDERS"));
-  const musicButton = button("♫ MUSIC ON", "landing-audio"),
-    muteButton = button("🔊 SOUND ON", "landing-mute"),
-    topEnd = node("div", "", "landing-top-end game-top-menu");
-  topEnd.append(
-    node("span", "TINY RIDERS. BIG TROUBLE.", "landing-tag"),
-    musicButton,
-    muteButton,
-  );
+  const topEnd = node("div", "", "landing-top-end game-top-menu");
+  topEnd.append(node("span", "TINY RIDERS. BIG TROUBLE.", "landing-tag"));
   const topStart = node("div", "", "landing-top-start");
   topStart.append(
     createAppPortal({
@@ -258,9 +252,7 @@ export function showLanding(host: LandingHost): void {
   });
   // The landing page has no room and no snapshots, so its music is background music the toggle owns outright.
   const landingAudio = host.audio;
-  landingAudio.bindMusicToggle(musicButton);
-  landingAudio.bindMuteToggle(muteButton);
-  musicButton.before(landingAudio.controls);
+  topEnd.prepend(landingAudio.controls);
   host.setRadioToggle(() => landingAudio.controls.toggleAttribute("open"));
   // PLAY SOLO is a real link for a new tab or a bookmark; a plain click takes the in-place route with the music.
   soloLink.addEventListener("click", (event) => {
@@ -330,6 +322,7 @@ export function showLanding(host: LandingHost): void {
     brand,
     account: accountPanel.button,
     gameId: GAME_ID,
+    sound: landingAudio.master,
   });
   friendsPanel.banner.classList.add("friends-invite-banner");
   card.append(accountPanel.dialog, friendsPanel.dialog);

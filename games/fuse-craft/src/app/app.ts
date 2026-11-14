@@ -1559,7 +1559,19 @@ export function mountFuseCraft(
       if (!head.contains(portal)) head.prepend(portal);
     }
     if (head)
-      createTopBar({ element: head as HTMLElement, gameId: "fuse-craft" });
+      createTopBar({
+        element: head as HTMLElement,
+        gameId: "fuse-craft",
+        sound: dependencies.audio
+          ? {
+              enabled: () => !preferences.mute,
+              forcedMute: dependencies.forcedMute,
+              setEnabled(on) {
+                if (on === preferences.mute) toggleMute();
+              },
+            }
+          : undefined,
+      });
   }
 
   /**

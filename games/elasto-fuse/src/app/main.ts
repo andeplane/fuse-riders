@@ -217,7 +217,11 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     audioControl.element,
     ...extra,
   );
-  return createTopBar({ element: bar, gameId: GAME });
+  return createTopBar({
+    element: bar,
+    gameId: GAME,
+    sound: audioControl.sound,
+  });
 }
 
 function keyHelp(): HTMLElement {

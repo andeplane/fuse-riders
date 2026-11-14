@@ -436,9 +436,38 @@ test("effects require gesture resume, obey mute/volume, cancel pending unlock an
     created++;
     return sink;
   });
+  muted.setMuted(false);
   muted.unlock();
   muted.cue("fire");
   assert.equal(created, 1);
+});
+test("effects master mute silences playback and normal unmute unlocks it again", async () => {
+  let plays = 0,
+    silences = 0;
+  const sink: ToneSink = {
+    resume: () => Promise.resolve(),
+    play: () => {
+      plays++;
+    },
+    silence: () => {
+      silences++;
+    },
+    close() {},
+  };
+  const audio = new EffectsAudio(false, () => sink);
+  audio.unlock();
+  await Promise.resolve();
+  audio.cue("jump");
+  assert.equal(plays, 1);
+  audio.setMuted(true);
+  audio.cue("jump");
+  assert.equal(plays, 1);
+  assert.equal(silences, 1);
+  audio.setMuted(false);
+  await Promise.resolve();
+  audio.cue("jump");
+  assert.equal(plays, 2);
+  audio.destroy();
 });
 test("bomb cues are rate limited per cue so bounces and chains stay bounded", async () => {
   let clock = 0;

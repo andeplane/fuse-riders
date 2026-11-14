@@ -6,8 +6,16 @@ export interface TopBarOptions {
   brand?: HTMLElement;
   account?: HTMLElement;
   gameId?: string;
+  /** This game's master switch: music and effects change together. */
+  sound?: TopBarSound;
   /** Release held gameplay input before the modal takes keyboard focus. */
   onOpenChange?: (open: boolean) => void;
+}
+export interface TopBarSound {
+  enabled(): boolean;
+  setEnabled(enabled: boolean): void;
+  readonly forcedMute?: boolean;
+  onChange?(changed: () => void): () => void;
 }
 interface InstalledBar {
   refresh(options: TopBarOptions): void;
@@ -34,6 +42,8 @@ export function createTopBar(options: TopBarOptions): HTMLElement {
   const context = el("div", "", "fui-top-bar-context", doc);
   const account = button("Sign in", "fui-top-bar-account", doc);
   account.hidden = true;
+  const sound = button("Sound on", "fui-top-bar-sound", doc);
+  sound.hidden = true;
   const toggle = button("", "fui-top-bar-toggle", doc);
   toggle.setAttribute("aria-label", "Open game menu");
   toggle.setAttribute("aria-haspopup", "dialog");
@@ -49,10 +59,32 @@ export function createTopBar(options: TopBarOptions): HTMLElement {
   menu.body.classList.add("fui-top-bar-actions");
   const owned = new Set<Node>([left, right, context, menu.dialog]);
   let source: HTMLElement | undefined;
+  let soundControl: TopBarSound | undefined;
+  let releaseSound: (() => void) | undefined;
+  const renderSound = () => {
+    sound.hidden = !soundControl;
+    const on = Boolean(
+      soundControl && !soundControl.forcedMute && soundControl.enabled(),
+    );
+    const label = on ? "🔊 Sound on" : "🔇 Sound off";
+    if (sound.textContent !== label) sound.textContent = label;
+    sound.setAttribute("aria-label", on ? "Sound on" : "Sound off");
+    sound.setAttribute("aria-pressed", String(on));
+    sound.disabled = Boolean(soundControl?.forcedMute);
+    sound.title = soundControl?.forcedMute
+      ? "Sound off for this preview"
+      : "Toggle music and sound effects";
+  };
   let onOpenChange = options.onOpenChange;
   let releaseAccount: (() => void) | undefined;
   const refresh = (next: TopBarOptions) => {
     onOpenChange = next.onOpenChange;
+    if (next.sound && next.sound !== soundControl) {
+      releaseSound?.();
+      soundControl = next.sound;
+      releaseSound = soundControl.onChange?.(renderSound);
+    }
+    renderSound();
     const portal = root.querySelector<HTMLElement>(".fui-portal");
     const brand =
       next.brand ??
@@ -116,18 +148,20 @@ export function createTopBar(options: TopBarOptions): HTMLElement {
     ))
       trigger.textContent = "Game controls";
   };
-  right.append(account, toggle);
+  right.append(sound, account, toggle);
   refresh(options);
   root.append(left, right, context, menu.dialog);
   // Header controls keep native keyboard activation while the match continues
   // behind them. Keyup still reaches the game so previously held keys release.
   root.addEventListener("keydown", (event) => event.stopPropagation());
   toggle.onclick = () => {
+    renderSound();
     onOpenChange?.(true);
     menu.show({ title: "Game menu" });
     toggle.setAttribute("aria-expanded", "true");
   };
   menu.dialog.addEventListener("close", () => {
+    renderSound();
     onOpenChange?.(false);
     toggle.setAttribute("aria-expanded", "false");
     toggle.focus();
@@ -135,6 +169,12 @@ export function createTopBar(options: TopBarOptions): HTMLElement {
   account.onclick = () => {
     source?.click();
     if (menu.dialog.open) menu.dialog.close();
+  };
+  sound.onclick = () => {
+    if (soundControl && !soundControl.forcedMute) {
+      soundControl.setEnabled(!soundControl.enabled());
+      renderSound();
+    }
   };
   menu.body.addEventListener("click", () => {
     if (

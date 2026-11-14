@@ -3,6 +3,53 @@ import { test } from "node:test";
 import { createTopBar } from "fuse-ui";
 import { page } from "./dom-fixture.js";
 
+test("one master sound button controls both channels and survives header refreshes", () => {
+  const { document } = page();
+  const root = document.createElement("header");
+  const state = { music: true, effects: true };
+  createTopBar({
+    element: root,
+    sound: {
+      enabled: () => state.music || state.effects,
+      setEnabled(on) {
+        state.music = state.effects = on;
+      },
+    },
+  });
+  const sound = root.querySelector<HTMLButtonElement>(".fui-top-bar-sound")!;
+  sound.click();
+  assert.deepEqual(state, { music: false, effects: false });
+  assert.equal(sound.getAttribute("aria-label"), "Sound off");
+  createTopBar({ element: root });
+  sound.click();
+  assert.deepEqual(state, { music: true, effects: true });
+  assert.equal(root.querySelectorAll(".fui-top-bar-sound").length, 1);
+});
+
+test("preview mute disables the master switch and games without audio hide it", () => {
+  const { document } = page();
+  const root = document.createElement("header");
+  createTopBar({ element: root });
+  const sound = root.querySelector<HTMLButtonElement>(".fui-top-bar-sound")!;
+  assert.equal(sound.hidden, true);
+  let writes = 0;
+  createTopBar({
+    element: root,
+    sound: {
+      enabled: () => true,
+      forcedMute: true,
+      setEnabled() {
+        writes++;
+      },
+    },
+  });
+  sound.click();
+  assert.equal(sound.disabled, true);
+  assert.equal(sound.hidden, false);
+  assert.equal(sound.getAttribute("aria-label"), "Sound off");
+  assert.equal(writes, 0);
+});
+
 test("initially empty room notices remain connected and visible outside the menu", () => {
   const { document } = page();
   const root = document.createElement("header");

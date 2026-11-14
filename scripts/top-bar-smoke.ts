@@ -26,6 +26,19 @@ try {
       const top = page.locator(".fui-top-bar:visible");
       await top.waitFor();
       assert.equal(await top.count(), 1, `${game}: one shared header`);
+      const hasSound = !["dice", "fuse-drivers", "fuse-lane"].includes(game);
+      const sound = top.locator(".fui-top-bar-sound:visible");
+      assert.equal(
+        await sound.count(),
+        hasSound ? 1 : 0,
+        `${game}: one master sound control`,
+      );
+      if (hasSound)
+        assert.equal(
+          await sound.isDisabled(),
+          true,
+          `${game}: preview stays muted`,
+        );
       assert.equal(
         await top.evaluate((node) => getComputedStyle(node).backgroundColor),
         "rgba(0, 0, 0, 0)",

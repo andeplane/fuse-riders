@@ -99,20 +99,24 @@ function header() {
     }),
     brand = el("a", "GRAVEYARD SHIFT", "brand");
   brand.href = url();
-  const sound = button(audio.silent ? "SOUND OFF" : "SOUND", "sound");
-  sound.disabled = audio.silent;
-  sound.onclick = () => {
-    audio.toggle();
-    sound.textContent = audio.prefs.muted.music ? "SOUND OFF" : "SOUND ON";
-  };
   h.append(
     portal.element,
     brand,
     social.element(),
     el("span", "A FUSE GAME", "eyebrow"),
-    sound,
   );
-  return createTopBar({ element: h, gameId: GAME });
+  return createTopBar({
+    element: h,
+    gameId: GAME,
+    sound: {
+      enabled: () => !(audio.prefs.muted.music && audio.prefs.muted.effects),
+      forcedMute: audio.silent,
+      setEnabled(on) {
+        if (on === (audio.prefs.muted.music && audio.prefs.muted.effects))
+          audio.toggle();
+      },
+    },
+  });
 }
 function handbook() {
   const d = el("dialog", "", "handbook");

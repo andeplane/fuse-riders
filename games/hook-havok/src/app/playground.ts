@@ -265,6 +265,17 @@ const radio = createRadio(
   new Audio(),
   muted,
 );
+let soundEnabled = !muted;
+const sound = {
+  forcedMute: muted,
+  enabled: () => soundEnabled,
+  setEnabled(on: boolean) {
+    if (muted) return;
+    soundEnabled = on;
+    effects.setMuted(!on);
+    radio.setMuted(!on);
+  },
+};
 const effectLabel = document.createElement("label"),
   effectVolume = document.createElement("input");
 effectLabel.textContent = "Effects ";
@@ -301,7 +312,12 @@ el<HTMLAnchorElement>("study").href = `?showcase=1${muted ? "&mute" : ""}`;
 el("home").textContent = "HOOK HAVOK";
 const gameHeader = homeBar.closest<HTMLElement>("header")!;
 gameHeader.replaceChildren(homeBar);
-createTopBar({ element: gameHeader, brand: el("home"), gameId: "hook-havok" });
+createTopBar({
+  element: gameHeader,
+  brand: el("home"),
+  gameId: "hook-havok",
+  sound,
+});
 const tuning = el<HTMLFormElement>("tuning");
 const experiment = el<HTMLSelectElement>("experiment");
 experiment.add(new Option("Arena ricochets · gentle", "ricochet"));
@@ -1325,6 +1341,7 @@ document.querySelector("header")!.append(menu.element);
 document.querySelector("main")!.append(roundControls.element);
 menu.update({ canLobby: false, canLeave: false, touch: touchToggle.checked });
 const entrance = createEntrance({
+  sound,
   main: document.querySelector("main")!,
   start,
   status,

@@ -145,9 +145,20 @@ function header(): HTMLElement {
     brand,
     social.element(),
     el("span", "", "ff-top-gap"),
-    ...sound.toggles(),
   );
-  return createTopBar({ element: top, gameId: GAME_ID });
+  return createTopBar({
+    element: top,
+    gameId: GAME_ID,
+    sound: {
+      enabled: () => audio.enabled("music") || audio.enabled("effects"),
+      forcedMute: params.has("mute"),
+      setEnabled: (on) => {
+        audio.set("music", on);
+        audio.set("effects", on);
+        if (on) audio.unlock();
+      },
+    },
+  });
 }
 
 function landing(error = ""): void {

@@ -1147,15 +1147,11 @@ export async function startOnline(): Promise<void> {
   inviteFriends.onclick = roomFriends.open;
   const topMenu = node("nav", "", "game-top-menu");
   topMenu.setAttribute("aria-label", "Player menu");
-  const topRadio = node("button", "♫ RADIO"),
-    topMusic = node("button"),
-    topMute = node("button");
-  topRadio.type = topMusic.type = topMute.type = "button";
+  const topRadio = node("button", "♫ RADIO");
+  topRadio.type = "button";
   topRadio.onclick = () => radioDialog.open();
   topMenu.append(
     topRadio,
-    topMusic,
-    topMute,
     prefsButton,
     roomAccount.matchesButton,
     roomAccount.leaderboardButton,
@@ -1171,6 +1167,7 @@ export async function startOnline(): Promise<void> {
     brand: title,
     account: roomAccount.button,
     gameId: GAME_ID,
+    sound: sharedAudio().master,
   });
   const headerContext = header.querySelector<HTMLElement>(
     ".fui-top-bar-context",
@@ -1179,8 +1176,6 @@ export async function startOnline(): Promise<void> {
     header.querySelector<HTMLDialogElement>(".fui-top-bar-menu")!;
   for (const extra of [
     topRadio,
-    topMusic,
-    topMute,
     roomAccount.matchesButton,
     roomAccount.leaderboardButton,
     results,
@@ -1201,8 +1196,6 @@ export async function startOnline(): Promise<void> {
     { once: true },
   );
   const audio = sharedAudio();
-  audio.bindMusicToggle(topMusic);
-  audio.bindMuteToggle(topMute);
   const radioDialog = createRadioDialog(dialogs, audio);
   radioToggle = radioDialog.toggle;
   // Device preferences: music, effects, radio, visual style and fullscreen are this device's own and change nothing shared, so

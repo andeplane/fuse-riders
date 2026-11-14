@@ -53,6 +53,7 @@
   box-sizing: border-box;
 }
 .fui-top-bar .fui-top-bar-toggle,
+.fui-top-bar .fui-top-bar-sound,
 .fui-top-bar .fui-top-bar-account {
   display: grid;
   place-items: center;
@@ -72,6 +73,10 @@
   box-shadow: none;
   transform: none;
 }
+.fui-top-bar .fui-top-bar-sound {
+  width: 126px;
+  white-space: nowrap;
+}
 .fui-top-bar .fui-top-bar-toggle {
   width: 44px;
   padding: 10px;
@@ -85,6 +90,9 @@
 }
 .fui-top-bar-account-source.fui-top-bar-account-source {
   display: none !important;
+}
+.fui-top-bar:has(.fui-top-bar-sound:not([hidden])) .fui-audio-toggle {
+  display: none;
 }
 .fui-top-bar-context {
   position: absolute;
@@ -194,6 +202,18 @@ body:has(.fui-top-bar) .fui-main-menu:has(> .fui-attract)::after {
   .fui-top-bar .fui-top-bar-account {
     width: 108px;
     font-size: 12px;
+  }
+  .fui-top-bar .fui-top-bar-sound {
+    width: 44px;
+    padding: 8px;
+    font-size: 0;
+  }
+  .fui-top-bar .fui-top-bar-sound::before {
+    content: "🔊";
+    font-size: 18px;
+  }
+  .fui-top-bar .fui-top-bar-sound[aria-pressed="false"]::before {
+    content: "🔇";
   }
   .fui-top-bar-menu.fui-top-bar-menu {
     right: 12px;

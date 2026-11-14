@@ -136,7 +136,21 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     search: location.search,
   });
   bar.append(portal.element, brand, social.element(), ...extra);
-  return createTopBar({ element: bar, gameId: GAME });
+  return createTopBar({
+    element: bar,
+    gameId: GAME,
+    sound: {
+      forcedMute: query.has("mute"),
+      enabled: () =>
+        store.getItem(names.music) !== "0" ||
+        store.getItem(names.effects) !== "0",
+      setEnabled: (on) => {
+        if (query.has("mute")) return;
+        store.setItem(names.music, on ? "1" : "0");
+        store.setItem(names.effects, on ? "1" : "0");
+      },
+    },
+  });
 }
 function keyHelp(): HTMLElement {
   const box = el("div", "", "fa-keys");
@@ -269,26 +283,6 @@ function room(solo: boolean): void {
   // Sound: this browser's MUSIC and EFFECTS choices, kept; `?mute` silences the page and leaves them alone.
   const muted = query.has("mute"),
     audio = new AxeAudio(new WebAudioBackend(), store, names, muted);
-  const soundToggle = (
-    label: string,
-    on: () => boolean,
-    set: (on: boolean) => void,
-  ) => {
-    const toggle = button("", "fa-sound");
-    const show = () => {
-      setText(toggle, `${label} ${on() ? "ON" : "OFF"}`);
-      toggle.setAttribute("aria-pressed", String(on()));
-    };
-    toggle.disabled = muted;
-    if (muted) toggle.title = "Silenced by ?mute";
-    toggle.onclick = () => {
-      set(!on());
-      show();
-      toggle.blur(); // Space or Enter steers the hero, never toggles it again.
-    };
-    show();
-    return toggle;
-  };
   // Browsers hold audio until a gesture; every gesture retries, since a phone can suspend it again later.
   for (const type of ["pointerdown", "keydown", "touchend"] as const)
     window.addEventListener(type, () => audio.unlock(), {
@@ -299,21 +293,20 @@ function room(solo: boolean): void {
     el("strong", code, "fa-code"),
     status.element,
     tvInvite,
-    soundToggle(
-      "♫ MUSIC",
-      () => audio.music,
-      (on) => audio.setMusic(on),
-    ),
-    soundToggle(
-      "EFFECTS",
-      () => audio.effects,
-      (on) => audio.setEffects(on),
-    ),
     menu.element,
   ]);
 
   createTopBar({
     element: top,
+    sound: {
+      enabled: () => audio.music || audio.effects,
+      forcedMute: muted,
+      setEnabled: (on) => {
+        audio.setMusic(on);
+        audio.setEffects(on);
+        if (on) audio.unlock();
+      },
+    },
     onOpenChange: (open) => {
       if (open) letGo();
     },

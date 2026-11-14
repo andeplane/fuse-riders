@@ -257,7 +257,12 @@ function header(
     audioControl.element,
     ...extra,
   );
-  return createTopBar({ element: bar, gameId: GAME, onOpenChange });
+  return createTopBar({
+    element: bar,
+    gameId: GAME,
+    onOpenChange,
+    sound: audioControl.sound,
+  });
 }
 
 function keyHelp(): HTMLElement {
