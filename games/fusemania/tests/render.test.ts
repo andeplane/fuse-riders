@@ -36,6 +36,8 @@ import {
   laneOf,
   layoutFor,
   ownPlace,
+  raceBand,
+  type Race,
   type Field,
   type Layout,
 } from "../src/render/layout.js";
@@ -1921,10 +1923,17 @@ test("the pace is the share of the full score that could be had by now", () => {
 });
 
 /** The markers on the race line of a frame: where each path starts (its tip), its size and its colour. */
-function markers(calls: readonly Call[], top: number) {
+const bandOf = (layout: Layout, local: number, down = false): Race =>
+  raceBand(layout, local, down, { x: 0, y: 0, width: 0, height: 0 })!;
+function markers(calls: readonly Call[], band: Race) {
   const found: { x: number; half: number; fill: string }[] = [];
   for (const [i, call] of calls.entries()) {
-    if (call.op !== "moveTo" || call.y < top) continue;
+    if (
+      call.op !== "moveTo" ||
+      call.y < band.y ||
+      call.y > band.y + band.height
+    )
+      continue;
     const back = calls[i + 1]!;
     const fill = calls.slice(i).find((next) => next.op === "fill")!;
     found.push({ x: call.x, half: call.y - back.y, fill: fill.fill });
@@ -1941,9 +1950,9 @@ test("the race line puts every rider at its share of the full score, the local r
     rider(2, { rating: 0, place: 3 }),
   ]);
   const calls = r.frame(view, shot(steps, 4500, { local: 0 }));
-  const race = layoutFor(1366, 768, 3, 0).race!;
+  const race = bandOf(layoutFor(1366, 768, 3, 0), 0);
   const track = raceTrack(race, 1, { left: 0, width: 0 });
-  const found = markers(calls, race.y);
+  const found = markers(calls, race);
   assert.deepEqual(
     found.map((marker) => marker.fill),
     [CYAN, GOLD, PINK],
@@ -1977,10 +1986,10 @@ test("the race line puts every rider at its share of the full score, the local r
 test("a rider alone has a race line too, and the shared screen draws every marker the same size", () => {
   const steps = stream(8, 1000, 1000);
   const solo = rig();
-  const race = layoutFor(1366, 768, 1, 0).race!;
+  const race = bandOf(layoutFor(1366, 768, 1, 0), 0);
   const alone = markers(
     solo.frame(world([rider(0, { rating: 1_000_000 })]), shot(steps, 9000)),
-    race.y,
+    race,
   );
   assert.equal(alone.length, 1);
   assert.equal(alone[0]!.half, OWN_MARKER);
@@ -1990,7 +1999,7 @@ test("a rider alone has a race line too, and the shared screen draws every marke
   const tv = rig(1920, 1080);
   const shared = markers(
     tv.frame(world([rider(0), rider(1)]), shot(steps, 2000, { local: -1 })),
-    layoutFor(1920, 1080, 2, -1).race!.y,
+    bandOf(layoutFor(1920, 1080, 2, -1), -1),
   );
   assert.deepEqual(
     shared.map((marker) => marker.half),

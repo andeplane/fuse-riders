@@ -13,7 +13,7 @@ import type { Race } from "./layout.js";
 import { GOLD, INK, LINE, TEXT, WHITE, hexA, slotColor } from "./palette.js";
 
 /**
- * The race line under the lanes: a track from nothing to the chart's full score, with every rider on it at the share
+ * The race line, in the lanes right below the targets (`raceBand` in `layout.ts`), drawn over the notes: a track from nothing to the chart's full score, with every rider on it at the share
  * of the full score it has so far, so who is ahead and by how much reads at a glance. The local rider's marker is the
  * biggest, with the others' drawn over it so that none hides behind it. The track fills up to the pace: the share a rider would have by now with every note so far
  * Marvelous and every hold kept, so the gap between a marker and the gold edge of the fill is what was dropped.

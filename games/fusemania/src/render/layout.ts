@@ -45,20 +45,17 @@ export interface Layout {
   /** The fields drawn, left to right: everyone's. On a rider's device its own is the big one, at `ownPlace`. */
   fields: Field[];
   panel?: Panel;
-  /** The race line under the lanes (`race.ts`); left out where the lanes have no height to spare. */
-  race?: Race;
 }
-/** The band the race line is drawn in: as wide as the row of fields. */
+/** The band the race line is drawn in (`race.ts`). */
 export interface Race {
   x: number;
   y: number;
   width: number;
   height: number;
 }
-/** The race line's band and the gap over it, in CSS pixels; and the height it must leave the fields, in CSS pixels. */
-const RACE_HEIGHT = 30,
-  RACE_GAP = 6,
-  RACE_LEAVES = 200;
+/** The race line's band and the gap between it and the targets, in CSS pixels. */
+const RACE_HEIGHT = 26,
+  RACE_GAP = 4;
 
 /** A field's lanes are at least this many columns long, header included. */
 const MIN_COLUMNS_HIGH = 6.5;
@@ -157,16 +154,8 @@ export function layoutFor(
   const own = local >= 0 && local < count;
   const pad = Math.round(8 * unit);
   const barHeight = Math.round(24 * unit);
-  const floor = Math.max(0, height - Math.max(0, inset) * unit - pad);
+  const bottom = Math.max(0, height - Math.max(0, inset) * unit - pad);
   let top = barHeight + Math.round(pad / 2);
-  // The race line takes a band under the lanes, where the lanes can spare it.
-  const raceHeight = Math.round(RACE_HEIGHT * unit);
-  // A rider among others may get its board as a strip over the fields: count that out too.
-  const strip = count > 1 && local >= 0 && local < count ? 50 * unit : 0;
-  const raced = floor - top - raceHeight - strip >= RACE_LEAVES * unit;
-  const bottom = raced
-    ? floor - raceHeight - Math.round(RACE_GAP * unit)
-    : floor;
   let right = width;
   const layout: Layout = { width, height, unit, barHeight, fields: [] };
   if (count === 0) return layout;
@@ -272,15 +261,6 @@ export function layoutFor(
     });
     x += col * COLUMNS + gap;
   }
-  if (raced) {
-    const left = layout.fields[0]!.x;
-    layout.race = {
-      x: left,
-      y: floor - raceHeight,
-      width: x - gap - left,
-      height: raceHeight,
-    };
-  }
   return layout;
 }
 
@@ -305,5 +285,44 @@ export function laneOf(
   out.length = Math.max(1, field.laneBottom - field.laneTop - inset - margin);
   out.runout = Math.max(1, inset - margin);
   out.windowMs = BASE_WINDOW_MS / (speed > 0 ? speed : 1);
+  return out;
+}
+
+/**
+ * Where the race line goes: in the lanes, right below the targets. On a rider's device that is across its own field;
+ * on a shared screen, where every field is the same size, across all of them. With the targets at the top the band is
+ * just under them, where the arrows come in; with the targets at the bottom it is in the run-out beneath them.
+ * `out` is filled and returned; nothing is returned when there is no field to put it on.
+ */
+export function raceBand(
+  layout: Layout,
+  local: number,
+  down: boolean,
+  out: Race,
+): Race | undefined {
+  const fields = layout.fields;
+  let first = fields[0],
+    last = fields[fields.length - 1];
+  for (const field of fields) if (field.slot === local) first = last = field;
+  if (!first || !last) return;
+  const unit = layout.unit,
+    col = first.col;
+  const height = Math.round(RACE_HEIGHT * unit);
+  const under = col * (TARGET_INSET + 0.5);
+  out.x = first.x;
+  out.width = last.x + last.col * COLUMNS - first.x;
+  out.height = height;
+  out.y = Math.floor(
+    down
+      ? // Centred in the run-out, and never past the lanes' end.
+        Math.min(
+          first.laneBottom - height,
+          first.laneBottom - (col * TARGET_INSET - col / 2 + height) / 2,
+        )
+      : Math.min(
+          first.laneBottom - height,
+          first.laneTop + under + RACE_GAP * unit,
+        ),
+  );
   return out;
 }
