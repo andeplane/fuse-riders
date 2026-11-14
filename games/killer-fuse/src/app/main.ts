@@ -55,13 +55,14 @@ import {
   watchPads,
 } from "./controls.js";
 import {
+  paint,
   readIconSheets,
   unitIcons,
   winIcons,
-  type Icon,
   type IconSheets,
 } from "./art.js";
-import { buttonLabel, cardKey, countdownCard, deviceFor } from "./briefing.js";
+import { buttonLabel, countdownCard, deviceFor } from "./briefing.js";
+import { createBriefCardView } from "./brief-view.js";
 import { highlightUntil, type UnitSnap } from "./highlight.js";
 import { MUSIC_UNLOCK_EVENTS, Music, browserMusicDeps } from "./music.js";
 import { lobbyTips, tipIndex } from "./tips.js";
@@ -193,18 +194,6 @@ const loadManifest = () =>
   (manifest ??= fetch(`${ART_URL}manifest.json`)
     .then(async (response) => (sheets = readIconSheets(await response.json())))
     .catch(() => ({})));
-/** Draws `icon` as the background of `slot`. */
-function paint(slot: HTMLElement, icon: Icon | undefined): void {
-  if (!icon) return;
-  Object.assign(slot.style, {
-    width: `${icon.width}px`,
-    height: `${icon.height}px`,
-    backgroundImage: `url("${icon.url}")`,
-    backgroundSize: icon.size,
-    backgroundPosition: icon.position,
-  });
-}
-
 /** This device's "Hold to flap" choice, kept in local storage; the room's controls follow a change at once. */
 let holdToFlap = holdToFlapFrom(store.getItem(HOLD_TO_FLAP_KEY));
 let onHoldToFlap: (on: boolean) => void = () => undefined;
@@ -560,14 +549,8 @@ function room(solo: boolean): void {
     },
   });
   // Over the countdown: this seat's controls and the three ways to win.
-  const card = el("aside", "", "kf-brief"),
-    cardTitle = el("strong", "", "kf-brief-title"),
-    cardSub = el("p", "", "kf-brief-sub"),
-    cardWins = el("ul", "", "kf-brief-wins"),
-    cardControls = el("div", "", "kf-brief-controls");
-  card.append(cardTitle, cardSub, cardWins, cardControls);
-  card.setAttribute("role", "status");
-  card.hidden = true;
+  const briefCard = createBriefCardView(document),
+    card = briefCard.element;
   void loadManifest();
   // While people wait in the lobby, a tip every 15 s; the first is the controls of the device last used.
   const tipBox = el("section", "", "kf-tip"),
@@ -987,58 +970,15 @@ function room(solo: boolean): void {
       else if (countBeat) driver.cue({ name: "go", volume: 0.9, pan: 0 });
       countBeat = beat;
     }
-    card.hidden = !shown;
     // The card counts down; the banner is for the pause after a game.
-    if (shown) banner.hidden = true;
     if (shown) {
-      const key = cardKey(shown) + String(Object.keys(sheets).length);
-      if (card.dataset.key !== key) {
-        card.dataset.key = key;
-        card.dataset.team = shown.team === undefined ? "" : String(shown.team);
-        card.dataset.first = String(shown.first);
-        cardTitle.textContent = shown.title;
-        cardTitle.hidden = !shown.title;
-        cardSub.textContent = shown.subtitle;
-        const pictures = winIcons(sheets, ART_URL, shown.team ?? -1, 40);
-        cardWins.replaceChildren(
-          ...shown.wins.map((win) => {
-            const item = el("li", "", "kf-brief-win"),
-              picture = el("i", "", "kf-brief-icon");
-            picture.setAttribute("aria-hidden", "true");
-            paint(picture, pictures[win.kind]);
-            item.dataset.kind = win.kind;
-            item.append(picture, el("span", win.caption));
-            return item;
-          }),
-        );
-        cardWins.hidden = shown.wins.length === 0;
-        // One row per action: its name, the caps (keyboard and gamepad, or the touch buttons) and a short note.
-        const caps = (labels: readonly string[], kind: string) => {
-          const cell = el("span", "", `kf-caps kf-caps-${kind}`);
-          cell.append(...labels.map((label) => el("kbd", label)));
-          return cell;
-        };
-        cardControls.dataset.device = shown.device;
-        cardControls.replaceChildren(
-          ...shown.controls.map((row) => {
-            const line = el("div", "", "kf-control");
-            line.dataset.mine = String(row.mine);
-            line.append(
-              el("strong", row.action, "kf-control-name"),
-              // The gamepad's caps alone once a pad is what this device plays with; otherwise both, keyboard first.
-              ...(shown.device === "touch"
-                ? [caps(row.touch, "touch")]
-                : shown.device === "pad"
-                  ? [caps(row.pad, "pad")]
-                  : [caps(row.keys, "keys"), caps(row.pad, "pad")]),
-              el("span", row.note, "kf-control-note"),
-            );
-            return line;
-          }),
-        );
-        cardControls.hidden = shown.controls.length === 0;
-      }
-    }
+      banner.hidden = true;
+      briefCard.show(
+        shown,
+        winIcons(sheets, ART_URL, shown.team ?? -1, 40),
+        String(Object.keys(sheets).length),
+      );
+    } else briefCard.hide();
     // Lobby tips.
     if (next.screen !== "lobby") lobbySince = performance.now();
     else {
