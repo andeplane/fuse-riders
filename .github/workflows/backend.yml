@@ -27,7 +27,7 @@ jobs:
       FIRESTORE_DATABASE_ID: fuse-riders
       ROOM_COLLECTION_PREFIX: fuse-production
       PUBSUB_TOPIC: fuse-riders-signalling
-      ALLOWED_ORIGINS: https://andeplane.github.io
+      ALLOWED_ORIGINS: https://fusegames.ai,https://www.fusegames.ai,https://andeplane.github.io
       CLOUD_RUN_SERVICE: fuse-riders-gateway
       ARTIFACT_REPOSITORY: fuse-riders
       BUILD_SOURCE_BUCKET: andershaf-87-fuse-riders-build

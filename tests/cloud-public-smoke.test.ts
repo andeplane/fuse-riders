@@ -20,7 +20,7 @@ async function fixture(brokenCors = false) {
     id: randomUUID,
     error: () => {},
   });
-  const browserOrigin = "https://andeplane.github.io";
+  const browserOrigin = "https://fusegames.ai";
   // A rejection in this fixture should fail the test as node:test's unhandled rejection, not be answered.
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
   const server = createServer(async (req, res) => {
