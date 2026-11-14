@@ -7,9 +7,10 @@ import {
 } from "../engine/index.js";
 
 /**
- * The song select: a list of songs beside the selected song's details, its charts as chips and the mode switch.
- * The same component is the landing page's solo select, a room lobby's (the host chooses the song and the mode,
- * every player their own chart) and the choice of the next song after one.
+ * The song select: a carousel of song covers over the selected song's details, its charts as chips and the mode
+ * switch. The same component is the landing page's solo select and a room lobby's. In a room the carousel is the
+ * host's alone: every other player sees the song the host chose as one card (cover, title, tempo, mode) and picks
+ * only their own chart.
  *
  * It holds no state of its own. A click or a key reports what the player asked for through `onSong`, `onChart`
  * and `onMode`, and the picker goes on showing the last state it was given until the page answers with `update`:
@@ -42,6 +43,20 @@ export interface SongPickerOptions {
   best?(song: string, chart: number): string | undefined;
   /** Leave the mode switch out (a caller that has no modes). Default false. */
   hideMode?: boolean;
+  /**
+   * The URL of a song's cover image, or undefined for a song without one. Every cover is first drawn from the
+   * song's id (`coverTint`), so a song without an image, or one whose image fails to load, still has a cover.
+   */
+  cover?(song: SongInfo): string | undefined;
+  /**
+   * The packs the songs are grouped in: the carousel shows them pack by pack, in this order, under a tab for each
+   * pack. A song that no pack names follows the last pack's songs. Leave out for one unnamed group.
+   */
+  packs?: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly songs: readonly string[];
+  }[];
 }
 export interface SongPicker {
   element: HTMLElement;
@@ -49,9 +64,10 @@ export interface SongPicker {
   update(state: PickerState): void;
   /**
    * Moves the selection by keyboard (`KeyboardEvent.code`): the page forwards keys here while the picker is on
-   * screen. Returns true when the key was used. Up/Down (W/S, I/K) change the song, Left/Right (A/D, J/L) the
-   * chart, Tab or M toggles the mode; all three wrap at the ends. The song and the mode are the host's, so their
-   * keys are left unused (false) for anyone else.
+   * screen. Returns true when the key was used. Left/Right (A/D, J/L) turn the carousel to the next song, Up/Down
+   * (W/S, I/K) change the chart, PageUp/PageDown jump to the previous or next pack, Tab or M toggles the mode; all
+   * wrap at the ends. The song, the pack and the mode are the host's, so their keys are left unused (false) for
+   * anyone else.
    */
   key(code: string): boolean;
 }
@@ -97,6 +113,40 @@ function chartAt(song: SongInfo, chart: number): number {
   return Math.max(0, Math.min(index, song.charts.length - 1));
 }
 
+/** Covers drawn on each side of the selected one; the next one out is placed off the edge so it can slide in. */
+export const WHEEL_REACH = 3;
+/**
+ * Where song `index` sits on the carousel when `selected` is in the middle: 0 for the selected song, -1 for the
+ * one on its left, and so on. The carousel is a ring, so the nearest way round counts. Undefined for a song
+ * further out than the carousel draws.
+ */
+export function wheelOffset(
+  index: number,
+  selected: number,
+  count: number,
+): number | undefined {
+  if (count <= 0 || selected < 0) return undefined;
+  let offset = (((index - selected) % count) + count) % count;
+  // A ring too short to fill both sides keeps each song on one side only.
+  if (offset > count / 2) offset -= count;
+  return Math.abs(offset) <= WHEEL_REACH + 1 ? offset : undefined;
+}
+
+/** A cover drawn from nothing but the song's id: two hues and an angle, the same on every device. */
+export function coverTint(id: string): { a: number; b: number; angle: number } {
+  let hash = 2166136261;
+  for (let index = 0; index < id.length; index++)
+    hash = Math.imul(hash ^ id.charCodeAt(index), 16777619) >>> 0;
+  const a = hash % 360;
+  return {
+    a,
+    b: (a + 40 + ((hash >>> 9) % 120)) % 360,
+    angle: 20 + ((hash >>> 17) % 8) * 20,
+  };
+}
+
+/** A horizontal drag this long turns the carousel one song. */
+const DRAG_STEP_PX = 56;
 /** Lit segments of a chip's meter bar: a meter above this shows them all, and the number says the rest. */
 const BARS = 10;
 const NO_SONG = "SELECT A SONG";
@@ -106,6 +156,12 @@ interface Row {
   element: HTMLButtonElement;
   best: HTMLElement;
   bestText: string;
+  /** The cover image, until it has been asked for: far covers are not fetched before they come near. */
+  image: { node: HTMLImageElement; url: string } | undefined;
+  /** The `data-offset` last written. */
+  offset: string | undefined;
+  /** Index into the picker's packs, or -1 for a song outside them all. */
+  pack: number;
 }
 interface Chip {
   element: HTMLButtonElement;
@@ -136,19 +192,55 @@ export function createSongPicker(options: SongPickerOptions): SongPicker {
   /** What the picker shows: a copy, so a caller reusing one state object still gets its changes drawn. */
   let shown: PickerState | undefined;
   let song: SongInfo | undefined;
-  /** The song whose row the list last scrolled to. */
-  let revealed: string | undefined;
 
-  // The songs.
+  /** A song's cover: drawn from its id, with its image over that once it has loaded. */
+  function coverOf(info: SongInfo) {
+    const node = el("span", "", "fm-cover");
+    const tint = coverTint(info.id);
+    node.style.setProperty("--fm-cover-a", String(tint.a));
+    node.style.setProperty("--fm-cover-b", String(tint.b));
+    node.style.setProperty("--fm-cover-angle", `${tint.angle}deg`);
+    const url = options.cover?.(info);
+    let image: Row["image"];
+    if (url) {
+      const img = el("img", "", "fm-cover-image");
+      img.alt = "";
+      img.draggable = false;
+      img.decoding = "async";
+      // No image is better than a broken one: the drawn cover stays.
+      img.addEventListener("error", () => img.remove());
+      node.append(img);
+      image = { node: img, url };
+    }
+    return { node, image };
+  }
+
+  // The songs: a ring of covers, the selected one in the middle.
+  const wheel = el("div", "", "fm-picker-wheel");
   const list = el("div", "", "fm-picker-list");
   list.setAttribute("role", "listbox");
   list.setAttribute("aria-label", "Songs");
+  list.setAttribute("aria-orientation", "horizontal");
   const rows = new Map<string, Row>();
-  for (const info of songs) {
+  /** A drag that turned the carousel swallows the click that ends it. */
+  let dragged = false;
+  // Pack by pack, each in the pack's own order; a song no pack names comes after them all.
+  const packs = options.packs ?? [];
+  const packOf = new Map<string, number>();
+  packs.forEach((pack, index) => {
+    for (const id of pack.songs) if (!packOf.has(id)) packOf.set(id, index);
+  });
+  const byId = new Map(songs.map((info) => [info.id, info]));
+  const grouped = [
+    ...packs.flatMap((pack) => pack.songs.flatMap((id) => byId.get(id) ?? [])),
+    ...songs.filter((info) => !packOf.has(info.id)),
+  ];
+  for (const info of grouped) {
     if (rows.has(info.id)) continue;
     const element = push("fm-picker-row");
     element.setAttribute("role", "option");
     element.setAttribute("aria-selected", "false");
+    const cover = coverOf(info);
     const meters = el("span", "", "fm-picker-row-meters");
     for (const chart of info.charts) {
       const meter = el("span", String(chart.meter), "fm-picker-row-meter");
@@ -156,32 +248,103 @@ export function createSongPicker(options: SongPickerOptions): SongPicker {
       meter.title = chart.name;
       meters.append(meter);
     }
-    const sub = el("span", "", "fm-picker-row-sub");
-    sub.append(
-      el("span", info.artist, "fm-picker-row-artist"),
-      el(
-        "span",
-        `${tempoText(info.bpm)} · ${lengthText(info.endMs)}`,
-        "fm-picker-row-facts",
-      ),
-    );
     const best = el("span", "", "fm-picker-row-best");
-    element.append(
-      el("span", info.title, "fm-picker-row-title"),
-      meters,
-      sub,
-      best,
-    );
+    const foot = el("span", "", "fm-picker-row-foot");
+    foot.append(meters, best);
+    // The title is the drawn cover's lettering: an image covers it, and it stays the option's name.
+    cover.node.prepend(el("span", info.title, "fm-picker-row-title"));
+    element.append(cover.node, foot);
     element.addEventListener("click", () => {
+      if (dragged) return;
       if (shown?.host && shown.song !== info.id) options.onSong(info.id);
     });
-    rows.set(info.id, { song: info, element, best, bestText: "" });
+    rows.set(info.id, {
+      song: info,
+      element,
+      best,
+      bestText: "",
+      image: cover.image,
+      offset: undefined,
+      pack: packOf.get(info.id) ?? -1,
+    });
     list.append(element);
   }
+  const before = push("fm-picker-step fm-picker-prev"),
+    after = push("fm-picker-step fm-picker-next");
+  before.setAttribute("aria-label", "Previous song");
+  after.setAttribute("aria-label", "Next song");
+  before.disabled = after.disabled = true;
+  before.addEventListener("click", () => stepSong(-1));
+  after.addEventListener("click", () => stepSong(1));
+  // The packs: a tab each, lit for the pack the selected song is in.
+  const tabs = el("div", "", "fm-picker-packs");
+  tabs.setAttribute("role", "tablist");
+  tabs.setAttribute("aria-label", "Song packs");
   const order = [...rows.values()];
+  const packTabs = packs.flatMap((pack, index) => {
+    const first = order.find((row) => row.pack === index);
+    if (!first) return [];
+    const element = push("fm-picker-pack");
+    element.setAttribute("role", "tab");
+    element.setAttribute("aria-selected", "false");
+    const count = order.filter((row) => row.pack === index).length;
+    element.append(
+      el("span", pack.name, "fm-picker-pack-name"),
+      el(
+        "span",
+        count === 1 ? "1 SONG" : `${count} SONGS`,
+        "fm-picker-pack-count",
+      ),
+    );
+    element.addEventListener("click", () => {
+      if (shown?.host && rows.get(shown.song)?.pack !== index)
+        options.onSong(first.song.id);
+    });
+    tabs.append(element);
+    return [{ index, name: pack.name, first: first.song.id, element }];
+  });
+  tabs.hidden = packTabs.length === 0;
+  wheel.append(tabs, before, list, after);
+
+  // A swipe or a sideways scroll turns the carousel, one song for each stretch of the drag.
+  let dragFrom: { id: number; x: number } | undefined;
+  list.addEventListener("pointerdown", (event) => {
+    dragged = false;
+    dragFrom = { id: event.pointerId, x: event.clientX };
+  });
+  list.addEventListener("pointermove", (event) => {
+    if (!dragFrom || dragFrom.id !== event.pointerId) return;
+    const moved = event.clientX - dragFrom.x;
+    if (Math.abs(moved) < DRAG_STEP_PX) return;
+    dragged = true;
+    dragFrom.x = event.clientX;
+    stepSong(moved < 0 ? 1 : -1);
+  });
+  for (const type of ["pointerup", "pointercancel", "pointerleave"])
+    list.addEventListener(type, () => {
+      dragFrom = undefined;
+    });
+  let scrolled = 0;
+  list.addEventListener(
+    "wheel",
+    (event) => {
+      // A vertical scroll is the page's.
+      if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
+      event.preventDefault();
+      scrolled += event.deltaX;
+      if (Math.abs(scrolled) < DRAG_STEP_PX) return;
+      stepSong(scrolled > 0 ? 1 : -1);
+      scrolled = 0;
+    },
+    { passive: false },
+  );
 
   // The selected song.
   const detail = el("section", "", "fm-picker-detail");
+  /** The selected song's cover beside its name: what a player who cannot turn the carousel sees of it. */
+  const art = el("div", "", "fm-picker-art");
+  /** The selected song's pack over its name. */
+  const packName = el("p", "", "fm-picker-pack-of");
   const title = el("h2", NO_SONG, "fm-picker-title");
   const artist = el("p", "", "fm-picker-artist");
   const tempo = el("span", "", "fm-picker-tempo");
@@ -189,6 +352,7 @@ export function createSongPicker(options: SongPickerOptions): SongPicker {
   const facts = el("p", "", "fm-picker-facts");
   facts.append(tempo, length);
   facts.hidden = true;
+  const chartsLabel = el("p", "YOUR DIFFICULTY", "fm-picker-label");
   const charts = el("div", "", "fm-picker-charts");
   charts.setAttribute("role", "group");
   charts.setAttribute("aria-label", "Difficulty");
@@ -285,32 +449,42 @@ export function createSongPicker(options: SongPickerOptions): SongPicker {
   );
   note.hidden = true;
 
-  const head = el("div", "", "fm-picker-head");
-  head.append(title, artist, facts);
-  detail.append(head, charts);
+  const head = el("div", "", "fm-picker-head"),
+    names = el("div", "", "fm-picker-names");
+  names.append(packName, title, artist, facts);
+  head.append(art, names);
+  detail.append(head, chartsLabel, charts);
   if (!hideMode) detail.append(modes);
   detail.append(note);
-  root.append(list, detail);
+  root.append(wheel, detail);
   root.dataset.host = "false";
   list.setAttribute("aria-disabled", "true");
 
-  /**
-   * Scrolls the list, and only the list, until `row` is inside it: `scrollIntoView` would move the page as well,
-   * which on a phone is every guest's page each time the host moves. False while the list has no layout yet (not
-   * in the document, or hidden), so the caller tries again.
-   */
-  function reveal(row: HTMLElement): boolean {
-    const height = list.clientHeight;
-    if (!(height > 0)) return false;
-    const top = row.offsetTop,
-      bottom = top + row.offsetHeight;
-    if (top < list.scrollTop) list.scrollTop = top;
-    else if (bottom > list.scrollTop + height) list.scrollTop = bottom - height;
-    return true;
+  /** Turns the carousel so `selected` is in the middle. Writes only the covers whose place changed. */
+  function place(selected: string) {
+    const at = order.findIndex((row) => row.song.id === selected);
+    order.forEach((row, index) => {
+      const offset = wheelOffset(index, at, order.length);
+      const text = offset === undefined ? undefined : String(offset);
+      if (row.offset !== text) {
+        row.offset = text;
+        if (text === undefined) delete row.element.dataset.offset;
+        else row.element.dataset.offset = text;
+      }
+      if (text !== undefined && row.image) {
+        row.image.node.src = row.image.url;
+        row.image = undefined;
+      }
+    });
   }
 
   function showSong(next: SongInfo | undefined) {
     song = next;
+    if (next) {
+      const cover = coverOf(next);
+      if (cover.image) cover.image.node.src = cover.image.url;
+      art.replaceChildren(cover.node);
+    } else art.replaceChildren();
     write(title, next ? next.title : NO_SONG);
     write(artist, next ? next.artist : "");
     write(tempo, next ? tempoText(next.bpm) : "");
@@ -362,6 +536,16 @@ export function createSongPicker(options: SongPickerOptions): SongPicker {
       const row = rows.get(next.song);
       row?.element.setAttribute("aria-selected", "true");
       showSong(row?.song);
+      place(next.song);
+      for (const tab of packTabs) {
+        const selected = String(tab.index === row?.pack);
+        if (tab.element.getAttribute("aria-selected") !== selected)
+          tab.element.setAttribute("aria-selected", selected);
+      }
+      write(
+        packName,
+        packTabs.find((tab) => tab.index === row?.pack)?.name ?? "",
+      );
     }
     if (song && (songChanged || last?.chart !== next.chart)) {
       const chosen = chartAt(song, next.chart);
@@ -382,14 +566,12 @@ export function createSongPicker(options: SongPickerOptions): SongPicker {
       root.dataset.host = String(next.host);
       if (next.host) list.removeAttribute("aria-disabled");
       else list.setAttribute("aria-disabled", "true");
+      before.disabled = after.disabled = !next.host;
+      for (const tab of packTabs) tab.element.disabled = !next.host;
       for (const button of modeButtons) button.element.disabled = !next.host;
       note.hidden = next.host;
     }
     showBests(next);
-    if (revealed !== next.song) {
-      const row = rows.get(next.song);
-      if (!row || reveal(row.element)) revealed = next.song;
-    }
   }
 
   function stepSong(by: number): boolean {
@@ -403,6 +585,21 @@ export function createSongPicker(options: SongPickerOptions): SongPicker {
         : (at + by + order.length) % order.length;
     const id = order[to]!.song.id;
     if (id !== shown.song) options.onSong(id);
+    return true;
+  }
+  /** To the first song of the pack before or after the selected song's. */
+  function stepPack(by: number): boolean {
+    if (!shown?.host || packTabs.length === 0) return false;
+    const pack = rows.get(shown.song)?.pack;
+    const at = packTabs.findIndex((tab) => tab.index === pack);
+    const to =
+      at < 0
+        ? by > 0
+          ? 0
+          : packTabs.length - 1
+        : (at + by + packTabs.length) % packTabs.length;
+    const id = packTabs[to]!.first;
+    if (id !== shown.song && to !== at) options.onSong(id);
     return true;
   }
   function stepChart(by: number): boolean {
@@ -424,22 +621,26 @@ export function createSongPicker(options: SongPickerOptions): SongPicker {
     update,
     key(code) {
       switch (code) {
-        case "ArrowUp":
-        case "KeyW":
-        case "KeyI":
-          return stepSong(-1);
-        case "ArrowDown":
-        case "KeyS":
-        case "KeyK":
-          return stepSong(1);
         case "ArrowLeft":
         case "KeyA":
         case "KeyJ":
-          return stepChart(-1);
+          return stepSong(-1);
         case "ArrowRight":
         case "KeyD":
         case "KeyL":
+          return stepSong(1);
+        case "ArrowUp":
+        case "KeyW":
+        case "KeyI":
+          return stepChart(-1);
+        case "ArrowDown":
+        case "KeyS":
+        case "KeyK":
           return stepChart(1);
+        case "PageUp":
+          return stepPack(-1);
+        case "PageDown":
+          return stepPack(1);
         case "Tab":
         case "KeyM":
           return toggleMode();

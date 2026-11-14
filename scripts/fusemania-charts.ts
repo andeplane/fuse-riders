@@ -42,13 +42,24 @@ import {
   generateCharts,
   type Difficulty,
 } from "./lib/fusemania/generate.js";
-import { SONGS, songById, type SongSpec } from "./lib/fusemania/songs.js";
-import { songsDataModule, sscText } from "./lib/fusemania/ssc.js";
+import {
+  PACKS,
+  SONGS,
+  songById,
+  type SongSpec,
+} from "./lib/fusemania/songs.js";
+import {
+  packsDataModule,
+  songsDataModule,
+  sscText,
+} from "./lib/fusemania/ssc.js";
 
 process.chdir(fileURLToPath(new URL("..", import.meta.url)));
 const CHARTS = "games/fusemania/charts";
 const ANALYSIS = join(CHARTS, "analysis");
 const BUNDLE = "games/fusemania/src/engine/songs-data.ts";
+const PACKS_BUNDLE = "games/fusemania/src/app/packs-data.ts";
+const COVERS = "public/music/covers";
 
 const analysisPath = (id: string): string => join(ANALYSIS, `${id}.json`);
 const chartPath = (id: string): string => join(CHARTS, `${id}.ssc`);
@@ -87,6 +98,20 @@ function bundle(): void {
     );
   writeFileSync(BUNDLE, songsDataModule(songs));
   console.log(`bundled ${songs.length} songs into ${BUNDLE}`);
+  const covers = existsSync(COVERS)
+    ? readdirSync(COVERS)
+        .filter((name) => name.endsWith(".jpg"))
+        .map((name) => name.slice(0, -4))
+    : [];
+  writeFileSync(
+    PACKS_BUNDLE,
+    packsDataModule(
+      PACKS,
+      songs.map(({ song }) => song),
+      covers,
+    ),
+  );
+  console.log(`bundled the packs and covers into ${PACKS_BUNDLE}`);
 }
 
 function report(songs: readonly SongSpec[]): void {

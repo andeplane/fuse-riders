@@ -1,15 +1,15 @@
 /*
  * The song select (song-picker.ts). Needs fuse-ui/tokens.css first.
  *
- * The list and the selected song's details sit side by side, list on the left, while the container has room for
- * both (20rem + 24rem and the gap: about 720px) and stack below that, details on top: the wrap is the container's
- * own, so the picker lays out the same in a page column, a lobby panel or a dialog. Rules carry the `.fm-picker`
- * prefix to sit above the `.fui-app button` base styles.
+ * A carousel of covers on top and the selected song's details under it, in any container: a page column, a lobby
+ * panel or a dialog. The covers size themselves from the carousel's own width. Rules carry the `.fm-picker` prefix
+ * to sit above the `.fui-app button` base styles.
  */
 .fm-picker {
+  /* The covers size themselves from the picker's own width. */
+  container-type: inline-size;
   display: flex;
-  /* The list comes first in the document and on a wide row; wrapped, the second line (the details) goes on top. */
-  flex-wrap: wrap-reverse;
+  flex-wrap: wrap;
   gap: var(--fui-space-3);
   width: 100%;
   min-width: 0;
@@ -53,77 +53,197 @@
   --fm-level: color-mix(in srgb, var(--fui-violet) 55%, var(--fui-white));
 }
 
-/* The songs */
-.fm-picker-list {
-  /* Rows measure their offsetTop from here: the picker scrolls this box itself, never the page. */
+/* The songs: a ring of covers, the selected one in front and its neighbours turned away on each side. */
+.fm-picker-wheel {
   position: relative;
-  flex: 1 1 20rem;
-  display: grid;
-  align-content: start;
-  /* Rows keep their own height: an auto track under the max-height would squeeze a wrapped title's row. */
-  grid-auto-rows: max-content;
-  gap: var(--fui-space-1);
+  flex: 1 1 100%;
   min-width: 0;
-  max-height: min(36rem, 72dvh);
-  padding: var(--fui-space-1);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--fui-line) transparent;
-  background: var(--fui-panel);
+  /* The selected cover's side: the room the picker has, between a thumb's width and a comfortable poster. */
+  --fm-cover-size: clamp(8.5rem, 34cqi, 13.5rem);
+  /* A stage of its own: whatever plays behind the page stays out of the covers. */
+  background:
+    radial-gradient(
+      ellipse at 50% 108%,
+      color-mix(in srgb, var(--fui-cyan) 22%, transparent),
+      transparent 62%
+    ),
+    var(--fui-panel);
   border: var(--fui-border);
   border-radius: var(--fui-radius);
+  overflow: hidden;
 }
-.fm-picker .fm-picker-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--fui-space-1) var(--fui-space-2);
-  width: 100%;
-  min-height: 3rem;
-  margin: 0;
-  padding: var(--fui-space-2) var(--fui-space-2) var(--fui-space-2)
-    var(--fui-space-3);
-  color: var(--fui-text-muted);
+.fm-picker-list {
+  position: relative;
+  height: calc(var(--fm-cover-size) + var(--fui-space-4));
+  overflow: hidden;
+  perspective: 60rem;
+  /* A sideways swipe turns the carousel; an up or down one still scrolls the page. */
+  touch-action: pan-y;
+  user-select: none;
+}
+.fm-picker.fm-picker .fm-picker-row {
+  position: absolute;
+  top: var(--fui-space-2);
+  left: 50%;
+  width: var(--fm-cover-size);
+  height: var(--fm-cover-size);
+  min-height: 0;
+  margin: 0 0 0 calc(var(--fm-cover-size) / -2);
+  padding: 0;
+  color: var(--fui-text-bright);
   font: inherit;
-  text-align: left;
-  background: transparent;
-  border: var(--fui-hairline) solid transparent;
-  border-left: 0.25rem solid transparent;
+  background: none;
+  border: 0;
   border-radius: var(--fui-radius-small);
   box-shadow: none;
   cursor: pointer;
+  text-transform: none;
+  /* Out of the carousel's reach: gone, and waiting behind the selected cover. */
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: scale(0.4);
+  transition:
+    transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.2s linear,
+    filter 0.2s linear,
+    visibility 0s linear 0.28s;
 }
-.fm-picker[data-host="true"] .fm-picker-row:hover {
-  color: var(--fui-text);
-  background: color-mix(in srgb, var(--fui-cyan) 9%, transparent);
+.fm-picker.fm-picker .fm-picker-row[data-offset] {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.2s linear,
+    filter 0.2s linear;
 }
-.fm-picker .fm-picker-row[aria-selected="true"] {
-  color: var(--fui-text-bright);
-  background: var(--fui-button-fill);
-  border-color: var(--fui-cyan);
-  /* Inset, so the list's scroll box does not clip the glow. */
-  box-shadow: inset 0 0 0.75rem
-    color-mix(in srgb, var(--fui-cyan) 28%, transparent);
-}
-.fm-picker .fm-picker-row:focus-visible {
-  outline: 0.1875rem solid var(--fui-text-bright);
-  outline-offset: -0.1875rem;
-}
-/* A guest reads the list and sees the host's choice move, but the rows are not theirs to press. */
-.fm-picker[data-host="false"] .fm-picker-row {
+.fm-picker.fm-picker .fm-picker-row[data-offset="0"] {
+  z-index: 5;
+  transform: none;
   cursor: default;
 }
-.fm-picker[data-host="false"] .fm-picker-row:hover {
-  filter: none;
+.fm-picker.fm-picker .fm-picker-row[data-offset="-1"] {
+  z-index: 4;
+  transform: translateX(-76%) scale(0.74) rotateY(32deg);
+  filter: brightness(0.72);
 }
-.fm-picker[data-host="false"] .fm-picker-row[aria-selected="false"] {
-  opacity: 0.62;
+.fm-picker.fm-picker .fm-picker-row[data-offset="1"] {
+  z-index: 4;
+  transform: translateX(76%) scale(0.74) rotateY(-32deg);
+  filter: brightness(0.72);
+}
+.fm-picker.fm-picker .fm-picker-row[data-offset="-2"] {
+  z-index: 3;
+  transform: translateX(-134%) scale(0.6) rotateY(42deg);
+  filter: brightness(0.52);
+}
+.fm-picker.fm-picker .fm-picker-row[data-offset="2"] {
+  z-index: 3;
+  transform: translateX(134%) scale(0.6) rotateY(-42deg);
+  filter: brightness(0.52);
+}
+.fm-picker.fm-picker .fm-picker-row[data-offset="-3"] {
+  z-index: 2;
+  transform: translateX(-180%) scale(0.5) rotateY(48deg);
+  filter: brightness(0.36);
+}
+.fm-picker.fm-picker .fm-picker-row[data-offset="3"] {
+  z-index: 2;
+  transform: translateX(180%) scale(0.5) rotateY(-48deg);
+  filter: brightness(0.36);
+}
+/* One further out waits off the edge, so a turn slides a cover in instead of popping it. */
+.fm-picker.fm-picker .fm-picker-row[data-offset="-4"] {
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-222%) scale(0.42) rotateY(52deg);
+}
+.fm-picker.fm-picker .fm-picker-row[data-offset="4"] {
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(222%) scale(0.42) rotateY(-52deg);
+}
+.fm-picker.fm-picker .fm-picker-row:not([data-offset="0"]):hover {
+  filter: brightness(0.95);
+}
+.fm-picker.fm-picker .fm-picker-row:focus-visible {
+  outline: 0.1875rem solid var(--fui-text-bright);
+  outline-offset: 0.125rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fm-picker.fm-picker .fm-picker-row,
+  .fm-picker.fm-picker .fm-picker-row[data-offset] {
+    transition: none;
+  }
+}
+
+/* A cover: drawn from the song's id, with its image over that once it has loaded. */
+.fm-cover {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(
+      var(--fm-cover-angle, 40deg),
+      rgb(255 255 255 / 0.08) 0 0.125rem,
+      transparent 0.125rem 0.875rem
+    ),
+    radial-gradient(
+      circle at 72% 24%,
+      hsl(var(--fm-cover-b, 320) 95% 62%) 0,
+      transparent 48%
+    ),
+    linear-gradient(
+      160deg,
+      hsl(var(--fm-cover-a, 200) 82% 30%),
+      hsl(var(--fm-cover-b, 320) 85% 12%)
+    );
+  border: var(--fui-stroke) solid var(--fui-line);
+  border-radius: var(--fui-radius-small);
+}
+.fm-cover-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .fm-picker-row-title {
-  min-width: 0;
-  font: 0.6875rem/1.5 var(--fui-font-pixel);
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--fui-space-3);
+  font: 0.75rem/1.5 var(--fui-font-pixel);
+  text-align: center;
+  text-shadow: 0 0.125rem 0 rgb(0 0 0 / 0.6);
   overflow-wrap: anywhere;
+}
+.fm-picker.fm-picker .fm-picker-row[data-offset="0"] .fm-cover {
+  border-color: var(--fui-cyan);
+  box-shadow:
+    0 0 1.25rem color-mix(in srgb, var(--fui-cyan) 55%, transparent),
+    0 0.75rem 1.5rem rgb(0 0 0 / 0.5);
+}
+/* Under the cover's art: its charts' levels, and this player's best. */
+.fm-picker-row-foot {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--fui-space-2);
+  padding: var(--fui-space-4) var(--fui-space-2) var(--fui-space-1);
+  background: linear-gradient(transparent, rgb(3 8 20 / 0.92) 62%);
+  border-radius: 0 0 var(--fui-radius-small) var(--fui-radius-small);
+  pointer-events: none;
 }
 .fm-picker-row-meters {
   display: flex;
@@ -133,32 +253,106 @@
 .fm-picker-row-meter {
   color: var(--fm-level);
 }
-.fm-picker-row-sub {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 var(--fui-space-2);
-  min-width: 0;
-  color: var(--fui-text-dim);
-  font: 0.75rem/1.35 var(--fui-font-body);
-}
-.fm-picker-row-artist {
-  min-width: 0;
-  color: var(--fui-text-muted);
-  overflow-wrap: anywhere;
-}
-.fm-picker-row-facts {
-  white-space: nowrap;
-}
 .fm-picker-row-best {
   color: var(--fui-yellow);
-  font: 0.5625rem/1.4 var(--fui-font-pixel);
+  font: 0.5625rem/1 var(--fui-font-pixel);
   text-align: right;
   white-space: nowrap;
+}
+/* The packs: a tab each over the carousel, lit for the pack the selected song is in. */
+.fm-picker-packs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fui-space-1);
+  padding: var(--fui-space-2) var(--fui-space-2) 0;
+}
+.fm-picker.fm-picker .fm-picker-pack {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: var(--fui-space-2);
+  width: auto;
+  min-width: 0;
+  min-height: 2.25rem;
+  margin: 0;
+  padding: var(--fui-space-1) var(--fui-space-3);
+  color: var(--fui-text-muted);
+  background: transparent;
+  border: var(--fui-stroke) solid var(--fui-line);
+  border-radius: var(--fui-radius-small);
+  box-shadow: none;
+  cursor: pointer;
+}
+.fm-picker.fm-picker .fm-picker-pack[aria-selected="true"] {
+  color: var(--fui-text-bright);
+  background: color-mix(in srgb, var(--fui-pink) 16%, transparent);
+  border-color: var(--fui-pink);
+  cursor: default;
+}
+.fm-picker-pack-name {
+  font: 0.625rem/1.4 var(--fui-font-pixel);
+  letter-spacing: 0.06em;
+}
+.fm-picker-pack-count {
+  color: var(--fui-text-dim);
+  font: 0.6875rem/1.4 var(--fui-font-body);
+}
+.fm-picker-pack-of {
+  margin: 0;
+  color: var(--fui-pink);
+  font: 0.5625rem/1.4 var(--fui-font-pixel);
+  letter-spacing: 0.08em;
+}
+.fm-picker-pack-of:empty {
+  display: none;
+}
+/* The arrows on each side: over the far covers, which are also buttons to their songs. */
+.fm-picker.fm-picker .fm-picker-step {
+  position: absolute;
+  /* Half-way up the covers, whatever sits over them. */
+  top: auto;
+  bottom: calc((var(--fm-cover-size) + var(--fui-space-4)) / 2);
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  min-width: 0;
+  height: 2.75rem;
+  min-height: 0;
+  margin: 0 0 -1.375rem;
+  padding: 0;
+  color: var(--fui-cyan);
+  background: color-mix(in srgb, var(--fui-ink) 82%, transparent);
+  border: var(--fui-stroke) solid var(--fui-cyan);
+  border-radius: 50%;
+  box-shadow: var(--fui-glow-cyan);
+  cursor: pointer;
+}
+.fm-picker.fm-picker .fm-picker-prev {
+  left: 0;
+}
+.fm-picker.fm-picker .fm-picker-next {
+  right: 0;
+}
+.fm-picker-step::before {
+  content: "";
+  width: 0.625rem;
+  height: 0.625rem;
+  border: solid currentColor;
+  border-width: 0 0 0.1875rem 0.1875rem;
+  transform: translateX(0.125rem) rotate(45deg);
+}
+.fm-picker-next::before {
+  transform: translateX(-0.125rem) rotate(225deg);
+}
+/* The carousel is the host's: everyone else sees the chosen song as one card, below. */
+.fm-picker[data-host="false"] .fm-picker-wheel {
+  display: none;
 }
 
 /* The selected song */
 .fm-picker-detail {
-  flex: 1.3 1 24rem;
+  flex: 1 1 100%;
   display: grid;
   align-content: start;
   gap: var(--fui-space-3);
@@ -172,6 +366,42 @@
   display: grid;
   gap: var(--fui-space-2);
   min-width: 0;
+  text-align: center;
+}
+.fm-picker-names {
+  display: grid;
+  gap: var(--fui-space-1);
+  min-width: 0;
+}
+.fm-picker-facts {
+  justify-content: center;
+}
+/* The carousel already shows the host the cover; the card of a player who cannot turn it carries the cover. */
+.fm-picker-art {
+  display: none;
+}
+.fm-picker[data-host="false"] .fm-picker-head {
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--fui-space-3);
+  text-align: left;
+}
+.fm-picker[data-host="false"] .fm-picker-art {
+  display: block;
+  width: 6.5rem;
+  height: 6.5rem;
+}
+.fm-picker[data-host="false"] .fm-picker-art .fm-picker-row-title {
+  display: none;
+}
+.fm-picker[data-host="false"] .fm-picker-facts {
+  justify-content: flex-start;
+}
+.fm-picker-label {
+  margin: 0;
+  color: var(--fui-text-muted);
+  font: 0.625rem/1.4 var(--fui-font-pixel);
+  letter-spacing: 0.06em;
 }
 .fm-picker-title {
   margin: 0;
@@ -201,7 +431,7 @@
 /* The charts */
 .fm-picker-charts {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
   gap: var(--fui-space-2);
 }
 .fm-picker .fm-picker-chip {
@@ -326,13 +556,13 @@
     0 0 1rem color-mix(in srgb, var(--fm-mode) 40%, transparent),
     var(--fui-edge);
 }
-/* A guest still has to read which mode the host chose. */
+/* A guest reads the mode the host chose, and only that one. */
 .fm-picker .fm-picker-mode:disabled {
   opacity: 1;
   cursor: default;
 }
-.fm-picker .fm-picker-mode:disabled[aria-pressed="false"] {
-  opacity: 0.5;
+.fm-picker[data-host="false"] .fm-picker-mode[aria-pressed="false"] {
+  display: none;
 }
 .fm-picker-mode-name {
   color: var(--fm-mode);
@@ -347,22 +577,23 @@
   font: 0.75rem/1.4 var(--fui-font-body);
 }
 
-/* A phone: the details are on top, so they stay short and the list keeps a useful height under them. */
+/* A phone: the same carousel with a shorter reach, and tighter details under it. */
 @media (max-width: 45rem) {
   .fm-picker {
     gap: var(--fui-space-2);
-  }
-  .fm-picker-list {
-    max-height: max(14rem, 45dvh);
   }
   .fm-picker-detail {
     gap: var(--fui-space-2);
     padding: var(--fui-space-2);
   }
-  .fm-picker-head {
-    gap: var(--fui-space-1);
-  }
   .fm-picker-title {
     font-size: 0.9375rem;
+  }
+  .fm-picker[data-host="false"] .fm-picker-head {
+    grid-template-columns: 5rem minmax(0, 1fr);
+  }
+  .fm-picker[data-host="false"] .fm-picker-art {
+    width: 5rem;
+    height: 5rem;
   }
 }

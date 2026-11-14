@@ -77,6 +77,7 @@ export function createRoomLayout(options: RoomLayoutOptions) {
     options.settingsTrigger ??
     button("Game settings", "fui-room-settings", doc);
   configure.textContent = "Game settings";
+  configure.classList.add("fui-room-configure");
   configure.onclick =
     options.onSettings ?? (() => settings.show({ title: "Game settings" }));
   if (options.settings?.length) {
@@ -175,7 +176,8 @@ export function createRoomLayout(options: RoomLayoutOptions) {
   actions.append(
     ...(options.actions ?? []).filter((node) => node !== options.primaryAction),
   );
-  right.append(modes, heading, roster, slots, joinActions, actions);
+  // Who is here and where to join come first, in every game: a game's own choices (modes, maps, songs) follow.
+  right.append(heading, roster, slots, joinActions, modes, actions);
   root.classList.add("fui-room-layout");
   root.replaceChildren(
     left,
@@ -402,5 +404,5 @@ export function roomLayoutMarkup(options: {
           ? ""
           : `<div class="fui-room-open-slot" data-slot="${index}" style="--slot-color:${options.slotColors?.[index] ?? "#b9d0e1"}"><span class="fui-slot-label">Slot ${index + 1} · Open</span><div class="fui-slot-controls">${options.canJoin ? `<button data-action="take-slot" data-slot="${index}">Join</button>` : ""}${options.canAddAI ? `<button data-action="add-bot" data-slot="${index}">Add AI</button>` : ""}</div></div>`,
   ).join("");
-  return `<main class="fui-room-layout"><aside class="fui-room-invitation">${options.invite}${options.primaryAction ? `<div class="fui-room-primary-action">${options.primaryAction}</div>` : ""}<button data-action="open-room-settings">Game settings</button>${options.mainMenu ?? '<a class="fui-room-main-menu fui-button" href="./">Main menu</a>'}</aside><section class="fui-room-players"><h2>Players <span class="fui-room-count">${options.occupied} / ${options.capacity}</span></h2>${options.players}<div class="fui-room-open-slots">${open}</div><div class="fui-room-actions">${options.actions}</div></section><dialog class="fui-dialog fui-menu-dialog fui-slot-admission" data-room-name aria-label="Join the game"><header class="fui-dialog-bar"><strong>Join the game</strong><button data-action="close-room-name">Close</button></header><div class="fui-dialog-body">${options.join}</div></dialog><dialog class="fui-dialog fui-menu-dialog" data-room-settings aria-label="Game settings"><header class="fui-dialog-bar"><strong>Game settings</strong><button data-action="close-room-settings">Close</button></header><div class="fui-dialog-body">${options.settings}</div></dialog></main>`;
+  return `<main class="fui-room-layout"><aside class="fui-room-invitation">${options.invite}${options.primaryAction ? `<div class="fui-room-primary-action">${options.primaryAction}</div>` : ""}<button class="fui-room-configure" data-action="open-room-settings">Game settings</button>${options.mainMenu ?? '<a class="fui-room-main-menu fui-button" href="./">Main menu</a>'}</aside><section class="fui-room-players"><h2>Players <span class="fui-room-count">${options.occupied} / ${options.capacity}</span></h2>${options.players}<div class="fui-room-open-slots">${open}</div><div class="fui-room-actions">${options.actions}</div></section><dialog class="fui-dialog fui-menu-dialog fui-slot-admission" data-room-name aria-label="Join the game"><header class="fui-dialog-bar"><strong>Join the game</strong><button data-action="close-room-name">Close</button></header><div class="fui-dialog-body">${options.join}</div></dialog><dialog class="fui-dialog fui-menu-dialog" data-room-settings aria-label="Game settings"><header class="fui-dialog-bar"><strong>Game settings</strong><button data-action="close-room-settings">Close</button></header><div class="fui-dialog-body">${options.settings}</div></dialog></main>`;
 }

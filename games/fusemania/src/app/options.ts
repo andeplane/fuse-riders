@@ -7,7 +7,8 @@ import { SPEEDS } from "./prefs.js";
  *
  * Like the song picker it holds no state: a click reports what was asked for, and the element shows the last state
  * it was given until the page answers with `update`. The speed is this device's own and only spreads the arrows
- * apart; the session is the room's, so only the host's clicks are heard.
+ * apart; the session is the room's and its chips are the host's. Every other player reads what the host set as one
+ * line (`sessionLine`) and has only their own speed to choose.
  */
 export interface OptionsState {
   /** This device's scroll speed. */
@@ -38,6 +39,11 @@ export interface PlayOptions {
 export const speedLabel = (speed: number): string => `${speed}x`;
 export const lengthLabel = (songs: number): string =>
   songs === 1 ? "1 SONG" : `${songs} SONGS`;
+/** What a player who cannot change the session reads of it: "5 SONGS · RANDOM", or "1 SONG". */
+export const sessionLine = (songs: number, random: boolean): string =>
+  songs <= 1
+    ? lengthLabel(1)
+    : `${lengthLabel(songs)} · ${random ? "RANDOM" : "HOST PICKS"}`;
 export const ORDERS = [
   { random: false, name: "HOST PICKS", line: "The host picks every song" },
   { random: true, name: "RANDOM", line: "Every song is a surprise" },
@@ -97,8 +103,13 @@ export function createPlayOptions(options: PlayOptionsOptions): PlayOptions {
     return { random: choice.random, node };
   });
 
+  const summary = el("p", "", "fm-options-summary"),
+    summaryText = el("b");
+  summary.append(el("span", "SESSION", "fm-options-label"), summaryText);
+  summary.hidden = true;
+
   root.append(random, speed.node);
-  if (lengths.length) root.append(songs.node, order.node);
+  if (lengths.length) root.append(songs.node, order.node, summary);
 
   return {
     element: root,
@@ -110,7 +121,12 @@ export function createPlayOptions(options: PlayOptionsOptions): PlayOptions {
         press(each.node, each.value === state.songs);
         each.node.disabled = !state.host;
       }
-      order.node.hidden = state.songs <= 1;
+      // The chips are the host's to press: everyone else gets the line.
+      songs.node.hidden = !state.host;
+      summary.hidden = state.host;
+      const line = sessionLine(state.songs, state.random);
+      if (summaryText.textContent !== line) summaryText.textContent = line;
+      order.node.hidden = !state.host || state.songs <= 1;
       for (const each of orderChips) {
         press(each.node, each.random === state.random);
         each.node.disabled = !state.host;

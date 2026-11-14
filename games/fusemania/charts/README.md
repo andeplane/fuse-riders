@@ -10,6 +10,7 @@ chart does.
 | `analysis/<id>.json`          | What the music does on its beat grid. Made from the audio; needs ffmpeg.          |
 | `<id>.ssc`                    | The song's simfile: timing and four charts. Made from the analysis.               |
 | `../src/engine/songs-data.ts` | Every `.ssc` and its audio URL, bundled for the game. Made from the `.ssc` files. |
+| `../src/app/packs-data.ts`    | The packs with their songs, and which songs have a cover. Made by `bundle`.       |
 | `reference-patterns.json`     | Statistics of published charts that generation aims at. See the last section.     |
 
 All of them are committed, so the game builds without ffmpeg and a chart can be regenerated without the audio.
@@ -30,8 +31,21 @@ pnpm exec tsx --test games/fusemania/tests/charts.test.ts
 deterministic: the same analysis gives the same file, and anything random is seeded from the song id and the
 difficulty.
 
-To add a song, add it to `scripts/lib/fusemania/songs.ts` (id, title, the file's place in the repository and its
-URL on the site) and run the script.
+## Adding a song
+
+1. Put the audio in its pack's folder, named by the song's id in kebab-case: `public/music/ddr-jazz-mix/<id>.mp3`
+   or `public/music/itg-jazz-mix/<id>.mp3`. (The Fuse soundtrack's own files live where their games keep them.)
+2. Add one line to `SONGS` in `scripts/lib/fusemania/songs.ts`: `packed("ddr-jazz-mix", "<id>", "<Title>")`. A new
+   pack is one more entry in `PACKS` in the same file; the order there is the order of the carousel.
+3. Optional: a square cover at `public/music/covers/<id>.jpg` (512 by 512 JPEG, under about 100 KB). Without one
+   the song select draws a cover from the song's id.
+4. Run `pnpm exec tsx scripts/fusemania-charts.ts` (needs ffmpeg for the analysis). It analyses the audio, writes
+   the four charts, and bundles the song (`src/engine/songs-data.ts`) and its pack and cover
+   (`src/app/packs-data.ts`). Check the `report` lines for the new song before trusting its charts.
+5. Bump `RULES` in `games/fusemania/src/engine/index.ts`: the bundled library is part of what every device in a
+   room must agree on.
+
+A pack with no songs is not shown, so the two jazz mixes appear in the song select with their first song.
 
 ## How a chart is made
 
