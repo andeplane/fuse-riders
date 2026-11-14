@@ -135,7 +135,11 @@ const coarse = () => matchMedia("(pointer: coarse)").matches;
 const chosenMap = (): MapId => {
   const asked = query.get("map"),
     saved = store.getItem(mapKey);
-  return isMapId(asked) ? asked : isMapId(saved) ? saved : MAP_IDS[0];
+  const map = isMapId(asked) ? asked : isMapId(saved) ? saved : MAP_IDS[0];
+  // A link that asks for a team size and no team arena gets the first one.
+  return /^[23]$/.test(query.get("size") ?? "") && !isTeamMapId(map)
+    ? TEAM_MAP_IDS[0]
+    : map;
 };
 /** Riders a side, as this device last chose: `?size=` overrides it, and the arena has the last word. */
 const chosenSize = (): number => {

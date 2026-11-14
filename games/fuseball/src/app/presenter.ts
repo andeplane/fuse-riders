@@ -378,12 +378,14 @@ export function createGoalWatch(): (view: View, me: string) => GoalReport[] {
         mySlot = world.riders.find((rider) => rider.id === me)?.slot,
         mine = mySlot === scorer,
         // One device reports a point: the scoring side's first player, or, when that side is all bots, the first
-        // player there is.
-        reporter = (
-          view.roster.find(
-            (entrant) => entrant.slot === scorer && !entrant.bot,
-          ) ?? view.roster.find((entrant) => !entrant.bot)
-        )?.id;
+        // player there is. Players who have left do not count.
+        here = view.roster.filter(
+          (entrant) =>
+            !entrant.bot &&
+            view.seats.some((seat) => seat.id === entrant.id && seat.connected),
+        ),
+        reporter = (here.find((entrant) => entrant.slot === scorer) ?? here[0])
+          ?.id;
       if (mySlot !== undefined && reporter === me)
         reports.push({
           mapId: world.mapId,

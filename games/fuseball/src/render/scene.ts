@@ -128,7 +128,7 @@ const FRAME_MARGIN = 90,
  * inside the arena.
  */
 export function cameraFor(
-  map: Pick<MapDef, "w" | "h">,
+  map: Pick<MapDef, "w" | "h"> & Partial<Pick<MapDef, "wrapX" | "wrapY">>,
   view: Pick<WorldView, "riders" | "ball" | "frozen">,
   local: number,
   cssScale: number,
@@ -138,7 +138,12 @@ export function cameraFor(
     me = view.riders[local];
   if (!me || RIDER_RADIUS * 2 * whole * cssScale >= MIN_RIDER_CSS)
     return centre;
-  const ball = view.ball.live || view.frozen ? view.ball : me,
+  const seen = view.ball.live || view.frozen ? view.ball : me,
+    // A ball that is nearer across a seam cannot share a frame with the rider: the frame stays on the rider.
+    ball = {
+      x: map.wrapX && Math.abs(seen.x - me.x) > map.w / 2 ? me.x : seen.x,
+      y: map.wrapY && Math.abs(seen.y - me.y) > map.h / 2 ? me.y : seen.y,
+    },
     wide = Math.abs(ball.x - me.x) + 2 * FRAME_MARGIN,
     tall = Math.abs(ball.y - me.y) + 2 * FRAME_MARGIN,
     zoom = Math.max(whole, Math.min(1, VIEW_W / wide, VIEW_H / tall)),

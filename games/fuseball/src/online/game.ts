@@ -326,7 +326,11 @@ function seatBot(room: Room, slot: number): SeatRecord {
 function lineUp(room: Room): SeatRecord[] {
   const seated = riders(room);
   if (!isTeamMapId(room.play.mapId)) {
-    const pair = seated.slice(0, 2);
+    // People before bots: a bot left seated by a team match never takes a person's place in a duel.
+    const pair = [
+      ...seated.filter((seat) => !seat.bot),
+      ...seated.filter((seat) => seat.bot),
+    ].slice(0, 2);
     while (pair.length < 2) {
       const free = [0, 1, 2, 3, 4, 5].find(
         (slot) => ![...room.seats.values()].some((seat) => seat.slot === slot),
@@ -470,7 +474,7 @@ export function foldTick(
   const count = steps(room),
     paced = room.stage === "running" ? room.world : null;
   applyManagementTick(room, tick, creatorId, streams, lifecycle);
-  if (room.stage === "lobby")
+  if (room.stage === "lobby" && room.settings.size > 1)
     for (const seat of riders(room)) {
       if (seat.bot || !seat.connected) continue;
       const stream = streams.get(seat.id);

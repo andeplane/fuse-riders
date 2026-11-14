@@ -682,3 +682,38 @@ test("views of a team match blend and cue rider by rider", () => {
   assert.equal(blend(duel, newer, 0.5), newer);
   assert.deepEqual(cues(duel, newer), []);
 });
+
+test("a duel seats people before bots, and a duel's lobby has no change of sides", () => {
+  const room = createRoom("m0", {
+    display: false,
+    mapId: "halo",
+    seed: 0,
+    size: 1,
+  });
+  fold(room, {
+    a: [
+      [BOT, "add", "bot:1", "Fizz", 0],
+      [BOT, "add", "bot:2", "Volta", 1],
+      [JOIN, "a", "Ada", 2, "robot", 1],
+    ],
+  });
+  fold(room, { a: [[SIDE, "m0"]] });
+  assert.equal(room.seats.get("a")!.slot, 2, "no sides to change in a duel");
+  fold(room, { a: [[ACTION, "start", "m1"]] });
+  assert.deepEqual(
+    room.world!.riders.map((rider) => rider.id),
+    ["bot:1", "a"],
+    "Ada rides, though two bots sit lower",
+  );
+});
+
+test("the follow camera stays on the rider when the ball is nearer across a seam", () => {
+  const map = TEAM_MAPS.backbone,
+    seen = toView(playing(4, "backbone"));
+  seen.riders[0]!.x = 20;
+  seen.riders[0]!.y = 270;
+  seen.ball.x = map.w - 20;
+  seen.ball.y = 270;
+  seen.ball.live = true;
+  assert.equal(cameraFor(map, seen, 0, 0.5).zoom, 1);
+});
