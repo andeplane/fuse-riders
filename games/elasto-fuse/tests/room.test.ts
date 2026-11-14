@@ -281,3 +281,17 @@ test("the game names itself, its rules and five seats, and solo is one rider wit
   assert.deepEqual(elastoFuseGame.seating.solo, { name: "You", bots: 0 });
   assert.equal(elastoFuseGame.maxSteps, STEPS_PER_TICK);
 });
+
+test("controls let go between two races are not held into the next", () => {
+  const room = started();
+  rideHome(room, "a");
+  fold(room, { b: [[PLAY, room.matchId, GAS]] });
+  while (room.stage === "running") fold(room);
+  assert.equal(room.stage, "between");
+  assert.equal(room.held["b"], GAS);
+  fold(room, { b: [[PLAY, room.matchId, 0]] });
+  while (room.stage === "between") fold(room);
+  assert.equal(room.stage, "running");
+  assert.equal(room.round, 1);
+  assert.equal(room.held["b"], undefined);
+});

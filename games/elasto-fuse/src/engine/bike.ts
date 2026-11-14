@@ -394,8 +394,9 @@ export function stepBike(
   b.hy = b.by + side * nay + HEAD_UP * nax;
   b.clock++;
 
-  touch(level, b);
+  // Checked before the touch: a bike that left the world has no cell to look for edges in.
   if (runaway(b)) outcome.flags |= DIED;
+  else touch(level, b);
   return outcome;
 }
 

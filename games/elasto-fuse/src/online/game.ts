@@ -404,6 +404,16 @@ export function foldTick(
   applyManagementTick(room, tick, creatorId, streams, lifecycle);
   const world = room.world;
   if (room.stage === "between" && world) {
+    // Controls let go (or taken up) between two races still count: the next race starts on what is held then.
+    for (const rider of world.riders) {
+      const seat = room.seats.get(rider.id);
+      if (!seat || seat.bot || !seat.connected) continue;
+      for (const entry of playEntries(room, seat, streams, tick)) {
+        const bits = entry[4] & INPUT_MASK;
+        if (bits) room.held[rider.id] = bits;
+        else delete room.held[rider.id];
+      }
+    }
     room.pause -= STEPS_PER_TICK;
     if (room.pause <= 0) {
       room.round++;

@@ -11,7 +11,7 @@ import {
   type Camera,
   type Pane,
 } from "./camera.js";
-import { cuesBetween, type Cue } from "./cues.js";
+import { cueGate, cuesBetween, type Cue } from "./cues.js";
 import { createEffects } from "./effects.js";
 import { paneHud, type PaneHud } from "./hud.js";
 import { drawApple, drawFlower, drawKiller } from "./objects.js";
@@ -133,6 +133,7 @@ export function createScene(
   const random = options.random ?? Math.random;
   const effects = createEffects(random);
   const follows = new Map<number, Follow>();
+  const gate = cueGate();
   let destroyed = false,
     last: WorldView | undefined,
     lastMs = -1,
@@ -416,7 +417,7 @@ export function createScene(
         tileAsked = true;
         tile = groundTile(options.createCanvas);
       }
-      const cues = cuesBetween(last, view);
+      const cues = gate(cuesBetween(last, view), nowMs);
       react(cues, view);
 
       // The local rider's engine: how fast its driven wheel turned since the last frame.

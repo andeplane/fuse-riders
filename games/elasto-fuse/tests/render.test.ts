@@ -32,7 +32,13 @@ import {
   paneGrid,
   paneScale,
 } from "../src/render/camera.js";
-import { appleAt, countOf, cuesBetween } from "../src/render/cues.js";
+import {
+  CUE_HOLD,
+  appleAt,
+  countOf,
+  cueGate,
+  cuesBetween,
+} from "../src/render/cues.js";
 import { MAX_PARTICLES, createEffects } from "../src/render/effects.js";
 import { GO_STEPS, clockText, ordinal, paneHud } from "../src/render/hud.js";
 import {
@@ -461,4 +467,18 @@ test("a rollback's correction on another rider glides; this device's own bike an
   // A correction as long as a restart is not dragged across the level.
   const far = smoother.apply(moved(40), 3, 17 + DECAY_MS * 20, 0);
   assert.equal(x(far, 1), x(base, 1) + 40);
+});
+
+test("a cue given again by a rollback a moment later is told once", () => {
+  const gate = cueGate();
+  const apple = { kind: "apple", slot: 0, x: 3, y: 1, gravity: false } as const;
+  const crash = { kind: "crash", slot: 0, x: 0, y: 0 } as const;
+  assert.deepEqual(gate([apple, crash], 1000), [apple, crash]);
+  assert.deepEqual(gate([apple, crash, { kind: "go" }], 1100), [
+    { kind: "go" },
+  ]);
+  assert.deepEqual(gate([{ ...apple, slot: 1 }], 1100), [
+    { ...apple, slot: 1 },
+  ]);
+  assert.deepEqual(gate([apple], 1000 + CUE_HOLD), [apple]);
 });

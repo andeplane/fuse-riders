@@ -48,7 +48,7 @@ export class ElastoFuseRuntime extends RoomRuntime<
     const room = this.world?.state;
     if (
       !room ||
-      room.stage !== "running" ||
+      (room.stage !== "running" && room.stage !== "between") ||
       !this.player()?.connected ||
       !room.world?.riders.some((rider) => rider.id === this.id)
     )

@@ -319,3 +319,14 @@ test("a world survives its checkpoint exactly and plays on identically; a bad on
   );
   assert.equal(decodeWorld(null), undefined);
 });
+
+test("a bike flung out of the world dies and waits at the start, in a state a checkpoint holds", () => {
+  const world = createWorld(["a"], 0, 0);
+  const bike = world.riders[0]!.bike;
+  bike.fy = bike.ly = bike.ry = 1999.99;
+  bike.fvy = bike.lvy = bike.rvy = 500;
+  stepWorld(world, [0], [true]);
+  assert.equal(world.riders[0]!.status, DEAD);
+  assert.deepEqual(world.riders[0]!.bike, resetBike(compile(LEVELS[0]!)));
+  assert.ok(decodeWorld(JSON.parse(JSON.stringify(encodeWorld(world)))));
+});

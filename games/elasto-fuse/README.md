@@ -13,7 +13,7 @@ pnpm dev          # builds, then serves every game; open the printed URL plus /e
 
 `pnpm exec tsx service/dev.ts --port 8890` serves an existing `dist/` and walks to the next free port if that one is taken. Open `/elasto-fuse/?mute` and pick one of:
 
-- **PLAY SOLO**: a time trial on the map picked below the button (the last one ridden is remembered). The result shows the time and the best for that map, kept in this browser; **RETRY** rides it again (so do Enter and R), **NEXT MAP** goes on to the next level, **MENU** goes back.
+- **PLAY SOLO**: a time trial on the map picked below the button (the last one ridden is remembered). The result shows the time and the best for that map, kept in this browser; **NEXT MAP** is the main button after a map ridden home and goes on to the next level (so does Enter), **RETRY** rides it again (so does R), **MENU** goes back.
 - **CREATE ROOM**: a room with a QR invite. Others join by the code or the link; the creator picks **TOUR · ALL 12 MAPS** or one map and starts, alone or with up to four friends. Tick **Shared TV** first to play on one screen: **OPEN TV SCREEN** opens `?room=CODE&display=1`, which shows every rider in a pane of their own, and every phone becomes a full-screen controller.
 
 `?mute` opens the page without sound and stores nothing; use it for previews.

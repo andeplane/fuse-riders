@@ -79,3 +79,28 @@ export function cuesBetween(
   }
   return cues;
 }
+
+/** How long the same apple, crash or finish stays said, in milliseconds: less than a respawn, more than a rollback. */
+export const CUE_HOLD = 500;
+
+/**
+ * Drops a cue already given a moment ago. The picture runs ahead of the agreed world on the rider's live input, so
+ * a rollback can take an eaten apple back and give it again; it is shown and sounded once.
+ */
+export function cueGate(): (cues: readonly Cue[], nowMs: number) => Cue[] {
+  const said = new Map<string, number>();
+  return (cues, nowMs) => {
+    for (const [key, at] of said)
+      if (nowMs - at >= CUE_HOLD || nowMs < at) said.delete(key);
+    return cues.filter((cue) => {
+      if (cue.kind === "count" || cue.kind === "go") return true;
+      const key =
+        cue.kind === "apple"
+          ? `apple ${cue.slot} ${cue.x} ${cue.y}`
+          : `${cue.kind} ${cue.slot}`;
+      if (said.has(key)) return false;
+      said.set(key, nowMs);
+      return true;
+    });
+  };
+}

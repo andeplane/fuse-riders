@@ -1,4 +1,11 @@
-import { resetBike, stepBike, DIED, FLOWER, type Bike } from "./bike.js";
+import {
+  resetBike,
+  stepBike,
+  validBike,
+  DIED,
+  FLOWER,
+  type Bike,
+} from "./bike.js";
 import { RESTART } from "./input.js";
 import { compile, type Compiled } from "./level.js";
 import { LEVELS } from "./levels.js";
@@ -141,6 +148,8 @@ export function stepWorld(
       rider.status = DEAD;
       rider.wait = T.RESPAWN;
       rider.deaths++;
+      // A bike flung out of the world waits at the start: where it flew to is no state a checkpoint may hold.
+      if (!validBike(rider.bike)) rider.bike = resetBike(level);
     }
   });
   const waiting = world.riders.some(

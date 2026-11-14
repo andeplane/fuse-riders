@@ -27,6 +27,7 @@ import {
   createRoundControls,
   el,
 } from "fuse-ui";
+import { GAS, RESTART } from "../engine/input.js";
 import { LEVELS, centiseconds } from "../engine/index.js";
 import type { WorldView } from "../engine/view.js";
 import { GAME_ID } from "../basics.js";
@@ -41,7 +42,7 @@ import {
   ElastoFuseRuntime,
   type ElastoFuseCallbacks,
 } from "../online/runtime.js";
-import { cuesBetween, type Cue } from "../render/cues.js";
+import { cueGate, cuesBetween, type Cue } from "../render/cues.js";
 import { slotColor, slotName } from "../render/palette.js";
 import { createScene } from "../render/scene.js";
 import { createSmoother } from "../render/smooth.js";
@@ -427,13 +428,15 @@ function room(solo: boolean): void {
     toLobby = button("LOBBY", "ef-to-lobby"),
     nextMap = button("NEXT MAP", "ef-next-map"),
     toMenu = button("MENU", "ef-to-menu");
-  cardActions.append(toMenu, toLobby, nextMap, rematch);
+  cardActions.append(toMenu, toLobby, rematch, nextMap);
   card.append(cardTitle, cardRows, cardLines, cardFoot, cardActions);
   card.hidden = true;
   rematch.onclick = () =>
     runtime.command({ type: "action", action: "rematch" });
   toLobby.onclick = () => runtime.command({ type: "action", action: "lobby" });
   toMenu.onclick = leave;
+  /** The result's main button: NEXT MAP after a solo map ridden home, otherwise another go. */
+  const mainAction = () => (model?.result?.solo?.finished ? nextMap : rematch);
   nextMap.onclick = () => {
     const next = model?.result?.solo?.next;
     if (next === undefined) return;
@@ -536,9 +539,15 @@ function room(solo: boolean): void {
     createCanvas: browserCanvas,
   });
   const smoother = createSmoother();
-  const gamepads = new GamepadInput(browserGamepads(navigator), (bits) =>
-    controls.hold("gamepad", bits),
-  );
+  let padBits = 0;
+  const gamepads = new GamepadInput(browserGamepads(navigator), (bits) => {
+    // On a result, a pad's gas pressed afresh is the main button, as Enter is on the keys, and its restart a retry.
+    const fresh = bits & ~padBits & (GAS | RESTART);
+    padBits = bits;
+    if (fresh && !model?.riding && model?.result?.host)
+      (fresh & RESTART ? rematch : mainAction()).click();
+    controls.hold("gamepad", bits);
+  });
   let model: Model | undefined;
   const leadClock = createLeadClock();
   /** What to draw now: the forward run when the newest frame is the room's newest world, otherwise the two frames blended. */
@@ -597,9 +606,10 @@ function room(solo: boolean): void {
   };
   /** A phone controller draws nothing, but still hears and feels its own bike: the cues read off its own views. */
   let felt: WorldView | undefined;
+  const heard = cueGate();
   const frame = (now: number) => {
     // Asked first, so one bad frame cannot stop the drawing for good.
-    requestAnimationFrame(frame);
+    if (!over) requestAnimationFrame(frame);
     gamepads.poll(!menu.isOpen() && !document.hidden && !over);
     const view = stage.hidden && controller.hidden ? undefined : picture();
     if (!view || !model) {
@@ -609,7 +619,7 @@ function room(solo: boolean): void {
     const local = model.localSlot;
     let cues: readonly Cue[];
     if (stage.hidden) {
-      cues = cuesBetween(felt, view);
+      cues = heard(cuesBetween(felt, view), now);
       felt = view;
       sfx.engine(0, false, false);
     } else {
@@ -750,6 +760,10 @@ function room(solo: boolean): void {
       const alone = !!next.result?.solo;
       cardActions.hidden = !next.result?.host;
       setText(rematch, alone ? "RETRY" : "REMATCH");
+      // A map ridden home goes on to the next: NEXT MAP is the main button then, and RETRY the other.
+      const onward = !!next.result?.solo?.finished;
+      nextMap.classList.toggle("fui-button-primary", onward);
+      rematch.classList.toggle("fui-button-primary", !onward);
       nextMap.hidden = toMenu.hidden = !alone;
       toLobby.hidden = alone;
     }
@@ -778,6 +792,8 @@ function room(solo: boolean): void {
         botCount: 0,
         seated: players.some((player) => player.id === viewer.me),
         mode,
+        // A device that opens a tour midway joined a match; it did not start one.
+        round: frame.round + 1,
       });
       for (const finish of finishes(frame, viewer.me))
         analytics.track("Race Finished", { ...finish, mode });
@@ -905,7 +921,7 @@ function room(solo: boolean): void {
       event.altKey
     )
       return;
-    // A result that offers another go takes Enter or R as that go: a trials rider retries without the mouse.
+    // A result that offers another go takes Enter as its main button and R as a retry, without the mouse.
     if (
       !model?.riding &&
       model?.result?.host &&
@@ -913,7 +929,7 @@ function room(solo: boolean): void {
       (event.code === "Enter" || event.code === "KeyR")
     ) {
       event.preventDefault();
-      rematch.click();
+      (event.code === "KeyR" ? rematch : mainAction()).click();
       return;
     }
     // Only a race swallows keys: in the lobby Space and the arrows scroll and press as usual.
