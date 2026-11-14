@@ -134,7 +134,7 @@ const audio = createGameAudio(
 );
 // Music is supplied by the shared header; this bus owns the game effects.
 bindAudioInput(audio, document, window);
-const audioControl = createAudioControl(document, audio);
+const audioControl = createAudioControl(document, audio, { music: false });
 const app = document.querySelector<HTMLElement>("#app")!;
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 /** For smokes and demos: `?autopilot` rides this device's rider with the bot's answers, through the same held controls. */

@@ -116,4 +116,4 @@ UI backed by the same player. See [Fuse Music](../fuse-music/README.md).
 
 ## Tests
 
-`packages/fuse-ui/tests/` runs in `pnpm test` on `linkedom`: structure, hostile names rendered as text, and callbacks. It also checks that the package imports nothing outside itself.
+`packages/fuse-ui/tests/` runs in `pnpm test` on `linkedom`: structure, hostile names rendered as text, and callbacks. Its boundary check permits only explicit shared browser capabilities, including `fuse-music`.

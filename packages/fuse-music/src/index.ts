@@ -81,6 +81,11 @@ export function MusicPlayer(
         }
       };
       media.onplay = () => {
+        if (muted || volume <= 0 || disposed) {
+          ownPlay = false;
+          pauseMedia();
+          return;
+        }
         if (ownPlay) {
           ownPlay = false;
           return;
@@ -95,7 +100,7 @@ export function MusicPlayer(
         if (disposed) return;
         pauseMedia();
         loaded = "";
-        playing = false;
+        if (!options.retryOnGesture) playing = false;
         error = "Track unavailable. Choose another song or retry.";
         changed();
       };
@@ -228,6 +233,7 @@ export function MusicPlayer(
     setMuted(value: boolean) {
       if (options.muted || disposed || muted === value) return;
       muted = value;
+      if (media) media.volume = value ? 0 : volume;
       if (value) pauseMedia();
       else start();
       changed();
@@ -235,7 +241,7 @@ export function MusicPlayer(
     setVolume(value: number) {
       if (disposed || !Number.isFinite(value)) return;
       volume = Math.max(0, Math.min(1, value));
-      if (media) media.volume = volume;
+      if (media) media.volume = muted ? 0 : volume;
       if (volume === 0) pauseMedia();
       else start();
       changed();

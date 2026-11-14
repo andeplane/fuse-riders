@@ -165,6 +165,41 @@ test("stale play failures cannot overwrite a newer track, mute, or teardown", as
   assert.equal(f.media.src, "");
 });
 
+test("external media resume cannot bypass mute or a zero volume", () => {
+  const f = fixture();
+  const player = MusicPlayer(ALL_SONGS, { createMedia: f.createMedia });
+  player.play();
+  player.setMuted(true);
+  assert.equal(f.media.volume, 0);
+  const pauses = f.pauses;
+  fire(f.media, "onplay");
+  assert.equal(f.pauses, pauses + 1);
+  assert.equal(player.audible, false);
+  player.setVolume(0.7);
+  assert.equal(f.media.volume, 0, "changing volume cannot bypass master mute");
+  player.setMuted(false);
+  assert.equal(f.media.volume, 0.7);
+  player.setVolume(0);
+  fire(f.media, "onplay");
+  assert.equal(player.audible, false);
+  player.destroy();
+});
+
+test("a host-owned queue retries a failed track on the next gesture", () => {
+  const f = fixture();
+  const player = MusicPlayer(ALL_SONGS, {
+    createMedia: f.createMedia,
+    retryOnGesture: true,
+  });
+  player.play();
+  fire(f.media, "onerror");
+  assert.equal(player.playing, true);
+  player.unlock();
+  assert.equal(f.plays, 2);
+  assert.equal(f.media.src, ALL_SONGS[0].path);
+  player.destroy();
+});
+
 test("metadata restores a bounded seek; ended advances or delegates to a richer radio", () => {
   const f = fixture();
   const player = MusicPlayer(ALL_SONGS, {

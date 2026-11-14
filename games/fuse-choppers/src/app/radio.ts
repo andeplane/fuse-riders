@@ -45,7 +45,8 @@ export function createChopperRadio(options: {
     heading = doc.createElement("h2"),
     status = doc.createElement("p"),
     select = doc.createElement("select");
-  element.className = "fc-radio-dialog";
+  element.className = "fc-radio";
+  element.setAttribute("aria-label", "Fuse Choppers Radio");
   heading.textContent = "FUSE CHOPPERS RADIO";
   status.setAttribute("role", "status");
   select.setAttribute("aria-label", "Radio track");

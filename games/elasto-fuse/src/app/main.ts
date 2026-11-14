@@ -129,7 +129,7 @@ const audio = createGameAudio(
 );
 // Music is supplied by the shared header; this bus owns the game effects.
 bindAudioInput(audio, document, window);
-const audioControl = createAudioControl(document, audio);
+const audioControl = createAudioControl(document, audio, { music: false });
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 /** A link within the game that keeps this page's developer flags. */
 const withFlags = (path: string) =>
