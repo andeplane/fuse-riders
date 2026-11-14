@@ -2138,6 +2138,9 @@ export async function startOnline(): Promise<void> {
     actions: [lobbyFooter],
   });
   sharedLobby.querySelector(".fui-room-invitation")!.append(settingsButton);
+  // The layout seats each rider's row in a slot and hides the roster they came from, so the watching list
+  // cannot stay nested in it: it goes under the slots, where it is still read after the seats.
+  sharedLobby.querySelector(".fui-room-open-slots")!.after(lobbyWatchers);
   sharedLobby.querySelector(".fui-room-join")!.append(addAI);
   addAI.textContent = "Add AI";
   // Ctrl+P (⌘P on a Mac) goes to the power-ups page instead of the browser's print dialog (#168). The key is only taken when it will act:

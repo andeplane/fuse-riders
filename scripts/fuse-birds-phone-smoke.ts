@@ -38,7 +38,7 @@ try {
   await second.goto(`${base}/fuse-birds/?room=${code}&mute`);
   await second.locator(".fui-name-input").fill("EMBER");
   await second.getByRole("button", { name: "Join" }).click();
-  await first.locator(".birds-roster").getByText("EMBER").waitFor();
+  await first.locator(".fui-room-players").getByText("EMBER").waitFor();
   await tv.goto(`${base}/fuse-birds/?room=${code}&display=1&mute`);
   await first.getByRole("button", { name: "START BATTLE" }).click();
   for (const page of pages)

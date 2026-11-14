@@ -163,7 +163,7 @@ try {
   const code = await first.locator(".birds-code").innerText();
   await second.goto(`${base}/fuse-birds/?room=${code}&mute`);
   await takeHostSeat(second, "EMBER");
-  await first.locator(".birds-roster").getByText("EMBER").waitFor();
+  await first.locator(".fui-room-players").getByText("EMBER").waitFor();
   const tv = await a.newPage();
   finishCoverage.push(await startGameCoverage(tv, { gameId: "fuse-birds" }));
   inspect(tv);
