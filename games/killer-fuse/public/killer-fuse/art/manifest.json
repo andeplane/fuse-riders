@@ -759,22 +759,9 @@
       "frameCount": 1,
       "frames": { "hive": 0 },
       "anchor": [27, 53],
-      "holes": [
-        [-14, -19],
-        [-14, -29],
-        [-7, -14],
-        [-7, -24],
-        [-7, -34],
-        [0, -19],
-        [0, -29],
-        [7, -14],
-        [7, -24],
-        [7, -34],
-        [14, -19],
-        [14, -29]
-      ],
+      "holes": [],
       "hole": "hive-hole-cyan",
-      "note": "A flat wall standing on the anchor (bottom centre, on the floor's top row). Hole i is at anchor + holes[i]; the empty holes are in the art, so draw `hive-hole` `filled` centred there for each banked berry."
+      "note": "A flat wall standing on the anchor (bottom centre, on the floor's top row), sized for the map of its name. Draw `hive-hole` `empty` or `filled` centred on each of the map's holes."
     },
     "hive-dusk-cyan": {
       "file": "hives/hive-dusk-cyan.png",
@@ -785,48 +772,22 @@
       "frameCount": 1,
       "frames": { "hive": 0 },
       "anchor": [29, 78],
-      "holes": [
-        [-14, -19],
-        [-14, -29],
-        [-7, -14],
-        [-7, -24],
-        [-7, -34],
-        [0, -19],
-        [0, -29],
-        [7, -14],
-        [7, -24],
-        [7, -34],
-        [14, -19],
-        [14, -29]
-      ],
+      "holes": [],
       "hole": "hive-hole-cyan",
-      "note": "A flat wall standing on the anchor (bottom centre, on the floor's top row). Hole i is at anchor + holes[i]; the empty holes are in the art, so draw `hive-hole` `filled` centred there for each banked berry."
+      "note": "A flat wall standing on the anchor (bottom centre, on the floor's top row), sized for the map of its name. Draw `hive-hole` `empty` or `filled` centred on each of the map's holes."
     },
     "hive-night-cyan": {
       "file": "hives/hive-night-cyan.png",
-      "width": 86,
-      "height": 55,
-      "frameWidth": 86,
-      "frameHeight": 55,
+      "width": 85,
+      "height": 51,
+      "frameWidth": 85,
+      "frameHeight": 51,
       "frameCount": 1,
       "frames": { "hive": 0 },
-      "anchor": [43, 54],
-      "holes": [
-        [-14, -19],
-        [-14, -29],
-        [-7, -14],
-        [-7, -24],
-        [-7, -34],
-        [0, -19],
-        [0, -29],
-        [7, -14],
-        [7, -24],
-        [7, -34],
-        [14, -19],
-        [14, -29]
-      ],
+      "anchor": [42, 50],
+      "holes": [],
       "hole": "hive-hole-cyan",
-      "note": "A flat wall standing on the anchor (bottom centre, on the floor's top row). Hole i is at anchor + holes[i]; the empty holes are in the art, so draw `hive-hole` `filled` centred there for each banked berry."
+      "note": "A flat wall standing on the anchor (bottom centre, on the floor's top row), sized for the map of its name. Draw `hive-hole` `empty` or `filled` centred on each of the map's holes."
     },
     "hive-hole-cyan": {
       "file": "hives/hole-cyan.png",
@@ -956,22 +917,9 @@
       "frameCount": 1,
       "frames": { "hive": 0 },
       "anchor": [27, 53],
-      "holes": [
-        [14, -19],
-        [14, -29],
-        [7, -14],
-        [7, -24],
-        [7, -34],
-        [0, -19],
-        [0, -29],
-        [-7, -14],
-        [-7, -24],
-        [-7, -34],
-        [-14, -19],
-        [-14, -29]
-      ],
+      "holes": [],
       "hole": "hive-hole-pink",
-      "note": "A flat wall standing on the anchor (bottom centre, on the floor's top row). Hole i is at anchor + holes[i]; the empty holes are in the art, so draw `hive-hole` `filled` centred there for each banked berry."
+      "note": "A flat wall standing on the anchor (bottom centre, on the floor's top row), sized for the map of its name. Draw `hive-hole` `empty` or `filled` centred on each of the map's holes."
     },
     "hive-dusk-pink": {
       "file": "hives/hive-dusk-pink.png",
@@ -982,48 +930,22 @@
       "frameCount": 1,
       "frames": { "hive": 0 },
       "anchor": [29, 78],
-      "holes": [
-        [14, -19],
-        [14, -29],
-        [7, -14],
-        [7, -24],
-        [7, -34],
-        [0, -19],
-        [0, -29],
-        [-7, -14],
-        [-7, -24],
-        [-7, -34],
-        [-14, -19],
-        [-14, -29]
-      ],
+      "holes": [],
       "hole": "hive-hole-pink",
-      "note": "A flat wall standing on the anchor (bottom centre, on the floor's top row). Hole i is at anchor + holes[i]; the empty holes are in the art, so draw `hive-hole` `filled` centred there for each banked berry."
+      "note": "A flat wall standing on the anchor (bottom centre, on the floor's top row), sized for the map of its name. Draw `hive-hole` `empty` or `filled` centred on each of the map's holes."
     },
     "hive-night-pink": {
       "file": "hives/hive-night-pink.png",
-      "width": 86,
-      "height": 55,
-      "frameWidth": 86,
-      "frameHeight": 55,
+      "width": 85,
+      "height": 51,
+      "frameWidth": 85,
+      "frameHeight": 51,
       "frameCount": 1,
       "frames": { "hive": 0 },
-      "anchor": [43, 54],
-      "holes": [
-        [14, -19],
-        [14, -29],
-        [7, -14],
-        [7, -24],
-        [7, -34],
-        [0, -19],
-        [0, -29],
-        [-7, -14],
-        [-7, -24],
-        [-7, -34],
-        [-14, -19],
-        [-14, -29]
-      ],
+      "anchor": [42, 50],
+      "holes": [],
       "hole": "hive-hole-pink",
-      "note": "A flat wall standing on the anchor (bottom centre, on the floor's top row). Hole i is at anchor + holes[i]; the empty holes are in the art, so draw `hive-hole` `filled` centred there for each banked berry."
+      "note": "A flat wall standing on the anchor (bottom centre, on the floor's top row), sized for the map of its name. Draw `hive-hole` `empty` or `filled` centred on each of the map's holes."
     },
     "hive-hole-pink": {
       "file": "hives/hole-pink.png",

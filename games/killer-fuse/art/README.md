@@ -40,7 +40,7 @@ After a regeneration, look at `preview/contact-sheet.png` and `preview/mock-scen
    - Carry frames put the berry on the worker's back at mid torso, so the sprite is no taller; the manifest also gives the spot.
    - The snail is the one generated character: reduced to three quarters, aligned by its shell; its `eat` frame is recoloured with a red head and claws, and the manifest gives `saddle` (the rider's soles) and `mouth`.
    - Gates have six states (neutral, cyan, pink, and each in use, with the berry in the socket and the doorway lit). `gate-emerge-*` is the new warrior rising out of the top of a gate.
-   - A hive is a flat wall per map size (`day`, `dusk`, `night`) with twelve holes. Until the engine exports each map's hole points the build uses one layout (`HIVE_HOLES`); Pink's is Cyan's mirrored. The manifest gives each hole's centre relative to the hive's anchor.
+   - A hive is a flat wall per map size (`day`, `dusk`, `night`) with no holes in the art (`holes` is empty): the renderer draws `hive-hole` `empty` or `filled` at the engine's hole points.
    - `manifest.json` lists every sheet: frame size, frame count, frame names, anchor, animations, and extras (hive holes, pile slots, saddle, mouth and carry spots).
 
 ## Poses
@@ -65,7 +65,7 @@ Art pixels, including the one-pixel outline. Anchors are in the manifest; units 
 | Snail                           | 40 × 20                   | 29–37 × 17                                    |
 | Gates                           | 35 × 28                   | pillars 21 × 13; wings 31 across; 24–27 tall  |
 | Gate emerge (6 frames)          | 35 × 40                   |                                               |
-| Hive: day, dusk, night          | 54 × 54, 59 × 79, 86 × 55 | the bottom row is empty: it is the anchor row |
+| Hive: day, dusk, night          | 54 × 54, 59 × 79, 85 × 51 | the bottom row is empty: it is the anchor row |
 | Hive hole                       | 5 × 5                     |                                               |
 | Egg                             | 10 × 16                   |                                               |
 | Berry                           | 5 × 5                     |                                               |

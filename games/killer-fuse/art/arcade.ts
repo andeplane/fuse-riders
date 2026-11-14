@@ -476,12 +476,12 @@ export const pile = (count: number): Img => {
 export const HIVE_SIZES = {
   day: [54, 54],
   dusk: [59, 79],
-  night: [86, 55],
+  night: [85, 51],
 } as const;
 
 /**
- * Hole centres relative to the hive's anchor (bottom centre, on the floor): five columns of 2-3-2-3-2, for Cyan;
- * Pink's are the same mirrored.
+ * The day map's hole centres relative to the hive's anchor (bottom centre, on the floor), for Cyan: five columns of
+ * 2-3-2-3-2. Only the mock scene uses them; in the game the engine places the holes.
  */
 export const HIVE_HOLES: readonly (readonly [number, number])[] = [
   -14, -7, 0, 7, 14,
@@ -498,12 +498,8 @@ const HOLE_ROWS = [".xxx.", "xxxxx", "xxxxx", "xxxxx", ".xxx."];
 export const hiveHole = (filled: boolean): Img =>
   filled ? fromRows(BERRY, BERRY_KEY) : fromRows(HOLE_ROWS, { x: VOID });
 
-/** A hive: a flat wall in the team's colour with its twelve holes, standing on the floor. */
-export const hive = (
-  team: Ramp,
-  [w, h]: readonly [number, number],
-  holes: readonly (readonly [number, number])[],
-): Img => {
+/** A hive: a flat wall in the team's colour, standing on the floor; the holes are drawn over it. */
+export const hive = (team: Ramp, [w, h]: readonly [number, number]): Img => {
   const m = img(w, h);
   // The bottom row stays empty: it is the anchor row, which lands on the floor.
   rect(m, 0, 0, w, h - 1, VOID);
@@ -515,13 +511,6 @@ export const hive = (
     for (let x = 3; x < w - 5; x++)
       if (hash(x, y) < 0.16)
         rect(m, x, y, 2 + Math.floor(hash(y, x) * 2), 1, team[1]);
-  const ax = Math.floor(w / 2);
-  const ay = h - 1;
-  for (const [x, y] of holes) {
-    // A paler rim under each hole, as if cut into the wall.
-    rect(m, ax + x - 2, ay + y + 3, 5, 1, team[1]);
-    blit(m, hiveHole(false), ax + x - 2, ay + y - 2);
-  }
   return m;
 };
 

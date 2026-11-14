@@ -988,22 +988,18 @@ const buildProcedural = () => {
   );
   for (const team of PLAYING) {
     const ramp = TEAMS[team];
-    const holes = HIVE_HOLES.map(([x, y]): [number, number] => [
-      team === "cyan" ? x : -x,
-      y,
-    ]);
     for (const [time, size] of Object.entries(HIVE_SIZES)) {
       emit(
         `hive-${time}-${team}`,
         `hives/hive-${time}-${team}.png`,
-        [hive(ramp, size, holes)],
+        [hive(ramp, size)],
         ["hive"],
         [Math.floor(size[0] / 2), size[1] - 1],
         {
-          // Centre of each hole relative to the anchor.
-          holes,
+          // The wall has no holes in it: the engine places them, per map.
+          holes: [],
           hole: `hive-hole-${team}`,
-          note: "A flat wall standing on the anchor (bottom centre, on the floor's top row). Hole i is at anchor + holes[i]; the empty holes are in the art, so draw `hive-hole` `filled` centred there for each banked berry.",
+          note: "A flat wall standing on the anchor (bottom centre, on the floor's top row), sized for the map of its name. Draw `hive-hole` `empty` or `filled` centred on each of the map's holes.",
         },
       );
     }
@@ -1320,11 +1316,14 @@ const mockScene = () => {
     ] as const
   ).forEach(([team, x, filled, eggs]) => {
     place(scene, `hive-day-${team}`, "hive", x, 55);
-    (assets[`hive-day-${team}`]?.holes as [number, number][]).forEach(
-      ([hx, hy], i) => {
-        if (i < filled)
-          place(scene, `hive-hole-${team}`, "filled", x + hx, 55 + hy);
-      },
+    HIVE_HOLES.forEach(([hx, hy], i) =>
+      place(
+        scene,
+        `hive-hole-${team}`,
+        i < filled ? "filled" : "empty",
+        x + (team === "cyan" ? hx : -hx),
+        55 + hy,
+      ),
     );
     eggs.forEach((state, i) =>
       place(
