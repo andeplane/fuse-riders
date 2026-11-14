@@ -33,14 +33,17 @@ export const DEFAULT_MAX_FAST_BYTES = 1100;
 /** Player-facing wording the transport emits; a game overrides what should speak its own language. */
 export interface TransportCopy {
   linking: string;
+  /** Shown once the room socket is back after a drop and every link the page had is still its own. */
+  resumed: string;
   protocolChanged: string;
   roomEnded: string;
-  /** Shown when the service closes a full room's socket without a reason of its own. */
+  /** Shown when the room has no free place. A game that sets it names its own roster; otherwise the service's reason is shown. */
   roomFull: string;
   hostAbsent: string;
 }
 export const DEFAULT_TRANSPORT_COPY: TransportCopy = {
   linking: "Connected · linking peers",
+  resumed: "Reconnected",
   protocolChanged: "Room protocol changed — reload this page",
   roomEnded: ROOM_ENDED_TEXT,
   roomFull: "Room full",
@@ -250,6 +253,8 @@ export class PeerTransport implements RoomTransport {
   private readonly gameId: string | undefined;
   private readonly maxFastBytes: number;
   private readonly copy: TransportCopy;
+  /** The game's own wording for a full room, when it gave one. */
+  private readonly ownRoomFull: string | undefined;
   private readonly extension?: PeerTransportExtension;
   private extensionSentAt = -Infinity;
   private reportAt = -Infinity;
@@ -266,6 +271,7 @@ export class PeerTransport implements RoomTransport {
     this.gameId = options.gameId;
     this.maxFastBytes = options.maxFastBytes ?? DEFAULT_MAX_FAST_BYTES;
     this.copy = { ...DEFAULT_TRANSPORT_COPY, ...options.copy };
+    this.ownRoomFull = options.copy?.roomFull;
     this.backoff = new ReconnectBackoff(options.random ?? Math.random);
   }
   /** The smaller id offers; the other answers. Symmetric for every pair, so no member needs the creator to link. */
@@ -286,6 +292,8 @@ export class PeerTransport implements RoomTransport {
       this.token,
       (url) => this.deps.socket(url),
       this.gameId,
+      // The connection this page already holds, if any: the service keeps its seat for a while after a socket drops.
+      this.connectionId || undefined,
     );
     this.socket = ws;
     ws.onmessage = async (event) => {
@@ -303,6 +311,14 @@ export class PeerTransport implements RoomTransport {
           }
           this.backoff.reset();
           this.reportAt = -Infinity;
+          if (
+            this.connectionId !== "" &&
+            message.connectionId === this.connectionId &&
+            message.id === this.id
+          ) {
+            await this.resume(ws, message);
+            return;
+          }
           this.received.clear();
           // Peers that left while our socket was down never produce a peer-offline message; reconcile against the roster first.
           const roster = new Set<string>(
@@ -396,8 +412,11 @@ export class PeerTransport implements RoomTransport {
         ended: () => this.callbacks.ended(),
         status: this.callbacks.status,
         terminated: () => this.terminate(this.copy.roomEnded),
-        // The reason is the service's own wording for its capacity; it is shown as text, never parsed.
-        full: () => this.terminate(event.reason || this.copy.roomFull),
+        // A game that names its own roster says so; otherwise the service's reason, shown as text and never parsed.
+        full: () =>
+          this.terminate(
+            this.ownRoomFull ?? (event.reason || this.copy.roomFull),
+          ),
         // A refusal before the upgrade (HTTP 429) reads as a plain drop here; it backs off like one.
         retry: (refused) => {
           this.cancelRetry = this.deps.delay(
@@ -408,6 +427,44 @@ export class PeerTransport implements RoomTransport {
       });
     };
     ws.onerror = () => ws.close();
+  }
+  /**
+   * The service welcomed this page back as the connection it already was: its socket dropped (the platform cuts
+   * every socket after an hour, and whenever an instance stops) and the seat was still held. No member was told
+   * this page left, so every link that still names a current connection is kept as it is, with whatever it was
+   * carrying, and the room above hears only of the members that came or went meanwhile.
+   */
+  private async resume(
+    ws: RoomServiceSocket,
+    message: {
+      hostId: string;
+      peers: { id: string; connectionId: string }[];
+      grant?: unknown;
+    },
+  ): Promise<void> {
+    const roster = new Map<string, string>();
+    for (const peer of message.peers) roster.set(peer.id, peer.connectionId);
+    // Members that left or reloaded while the socket was down produced no `peer` frame this page could hear.
+    for (const [id, connectionId] of [...this.connections]) {
+      if (roster.get(id) === connectionId) continue;
+      this.drop(id);
+      this.connections.delete(id);
+      this.received.delete(id);
+      if (!roster.has(id)) this.callbacks.peer(id, false);
+    }
+    this.hostId = message.hostId;
+    this.acceptGrant(message.grant);
+    this.sampleTime();
+    this.callbacks.status(this.copy.resumed);
+    for (const [id, connectionId] of roster) {
+      if (ws !== this.socket) return;
+      if (!this.connections.has(id)) {
+        this.connections.set(id, connectionId);
+        this.callbacks.peer(id, true);
+      }
+      // A link that has its channels is left alone; one the drop interrupted before its offer is offered now.
+      if (this.initiator(id)) await this.offer(id);
+    }
   }
   private drop(id: string): void {
     const link = this.links.get(id);

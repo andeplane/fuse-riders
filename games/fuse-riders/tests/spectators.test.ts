@@ -6,7 +6,7 @@ import { type RoomRuntime } from "../src/online/room-runtime.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import { MAX_SPECTATORS, actingCreator } from "../src/engine/apply-tick.js";
 import { MAX_PLAYERS } from "../src/engine/game.js";
-import { ROOM_LIMITS } from "../../../service/room-limits.js";
+import { roomSockets } from "../../../service/room-limits.js";
 
 // The classic arena: these rooms are driven by idle riders, and scenery would end their rounds before the membership
 // behaviour under test had played out.
@@ -50,7 +50,7 @@ const watching = (net: FakeNetwork, id: string) =>
 
 test("the room service admits every member the game can list: five riders, five watchers and a display", () => {
   assert.equal(
-    ROOM_LIMITS.maxGuests + 1,
+    roomSockets("fuse-riders"),
     MAX_PLAYERS + MAX_SPECTATORS + 1,
     "the creator plus its guests is the whole roster plus the TV",
   );

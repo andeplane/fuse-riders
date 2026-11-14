@@ -22,7 +22,20 @@ export interface Member {
   gatewayId: string;
   host: boolean;
   expiresAt: number;
+  /**
+   * How many times a new socket has taken this connection id over (`RoomStore.admit` with `resume`); absent is zero.
+   * A connection id alone no longer names one socket, so the pair of id and count is what a gateway's client is
+   * checked against: an older socket of a resumed connection can neither heartbeat for the seat nor free it.
+   */
+  resumes?: number;
 }
+/** Whether `member`, as one gateway socket holds it, is the socket the stored seat belongs to. */
+export const sameAttachment = (
+  stored: Member | undefined,
+  member: Member,
+): boolean =>
+  stored?.connectionId === member.connectionId &&
+  (stored.resumes ?? 0) === (member.resumes ?? 0);
 export interface RoomRecord {
   version: 2;
   code: string;
@@ -72,17 +85,47 @@ export function roomGuestLimit(maxGuests: number = DEFAULT_MAX_GUESTS): number {
     );
   return maxGuests;
 }
+/** How many members besides the creator a room of `gameId` seats. */
+export type GuestLimits = (gameId: string) => number;
+/**
+ * One limit per game over a default, validated once. A game sizes its room for its own seats, watching list and
+ * shared screen; a game with no entry of its own gets `maxGuests`.
+ */
+export function roomGuestLimits(
+  maxGuests?: number,
+  gameMaxGuests: Readonly<Record<string, number>> = {},
+): GuestLimits {
+  const fallback = roomGuestLimit(maxGuests),
+    games = new Map<string, number>();
+  for (const [gameId, limit] of Object.entries(gameMaxGuests)) {
+    if (!validGameId(gameId))
+      throw new RangeError("gameMaxGuests must be keyed by valid game ids");
+    games.set(gameId, roomGuestLimit(limit));
+  }
+  return (gameId) => games.get(gameId) ?? fallback;
+}
 export interface RoomStoreDependencies {
   now: () => number;
   id: () => string;
   /** Members besides the creator, whose seat is always kept. */
   maxGuests?: number;
+  /** `maxGuests` for the games that need another size, by game id. */
+  gameMaxGuests?: Readonly<Record<string, number>>;
   /** What a member refused for capacity is told. */
   fullMessage?: string;
   /** The games this service hosts; a room for any other is refused. Defaults to `LEGACY_GAME_ID` alone. */
   gameIds?: readonly string[];
 }
 export const CONNECTION_TTL_MS = 30_000;
+/**
+ * How long a seat is kept for its page after the page's socket dropped without a goodbye: Cloud Run cuts every
+ * socket after an hour and whenever an instance stops, and a phone changes networks. The page reconnects after 1.1
+ * to 1.5 s, then 2.3 to 3 s, then 4.5 to 6 s (`ReconnectBackoff`), so this covers three attempts. Until it runs out
+ * the other members are told nothing and keep their links to the page; after it the seat lapses like any lease.
+ */
+export const RESUME_GRACE_MS = 15_000;
+/** A lapsed seat is pruned this long after its lease ran out, so one instance's clock running ahead cannot end a lease early. */
+export const LAPSE_MARGIN_MS = 1_000;
 /** Any admitted member renews the room; an empty room has this long to reconnect. */
 export const ROOM_TTL_MS = ROOM_RECONNECT_GRACE_MS;
 /** Deadline written by an explicit end: before every clock, so no instance's `now` can read the room as live. */
@@ -148,6 +191,9 @@ function seated(room: RoomRecord, member: Member, now: number): Member {
   // Only a seat another connection holds is a replacement (terminal for the browser); a pruned or lapsed one retries.
   if (stored && stored.connectionId !== member.connectionId)
     throw new RoomError(409, "Reconnected elsewhere");
+  // The page resumed this connection on a newer socket: this one is stale, and its page has already let it go.
+  if (stored && !sameAttachment(stored, member))
+    throw new RoomError(410, "Connection resumed on another socket");
   if (!stored || stored.expiresAt <= now)
     throw new RoomError(410, "Connection lease expired");
   return stored;
@@ -176,13 +222,17 @@ export function renewalDue(
   );
 }
 export class RoomStore {
-  private readonly maxGuests: number;
+  /** Members besides the creator, per game. */
+  readonly guestLimit: GuestLimits;
   readonly gameIds: ReadonlySet<string>;
   constructor(
     readonly database: RoomDatabase,
     private dependencies: RoomStoreDependencies,
   ) {
-    this.maxGuests = roomGuestLimit(dependencies.maxGuests);
+    this.guestLimit = roomGuestLimits(
+      dependencies.maxGuests,
+      dependencies.gameMaxGuests,
+    );
     this.gameIds = roomGameIds(dependencies.gameIds);
   }
   /** A game this service hosts, or the refusal. Absent means `LEGACY_GAME_ID`, as it did before rooms carried a game. */
@@ -251,13 +301,20 @@ export class RoomStore {
   /**
    * Seats a member. `gameId` is the game the member's page plays (absent: `LEGACY_GAME_ID`); a room of another game
    * refuses it as not found, so a room code never means two games at once and the page stops retrying.
+   *
+   * `resume` is the connection id the page held before its socket dropped. While the member's seat still carries
+   * that id and its lease has not lapsed, the seat is kept as it is: same connection id, one more `resumes`, this
+   * gateway. Nothing a peer acts on changes, so no other member is told and their links to the page stay up. A
+   * creator keeps its grant rather than waiting out its own lease. Anything else is the ordinary admission under a
+   * new connection id, which every member hears of.
    */
   async admit(
     code: string,
     token: string,
     gatewayId: string,
     gameId?: string,
-  ): Promise<{ room: RoomRecord; member: Member }> {
+    resume?: string,
+  ): Promise<{ room: RoomRecord; member: Member; resumed: boolean }> {
     if (!validCode(code) || !validToken(token))
       throw new RoomError(401, "Invalid identity");
     const game = gameId ?? LEGACY_GAME_ID;
@@ -271,29 +328,49 @@ export class RoomStore {
         throw new RoomError(404, "Room is for another game");
       prune(room, now);
       const host = digest(token) === room.hostHash,
-        guests = this.maxGuests,
+        guests = this.guestLimit(game),
         capacity = host || room.members[room.hostId] ? guests + 1 : guests;
       if (Object.keys(room.members).length >= capacity && !room.members[id])
         throw new RoomFullError(this.dependencies.fullMessage ?? "Room full");
-      const member: Member = {
-        id,
-        connectionId,
-        gatewayId,
-        host,
-        expiresAt: now + CONNECTION_TTL_MS,
-      };
+      const held = room.members[id],
+        resumed = resume !== undefined && held?.connectionId === resume;
+      const member: Member = resumed
+        ? {
+            ...held,
+            gatewayId,
+            expiresAt: now + CONNECTION_TTL_MS,
+            resumes: (held.resumes ?? 0) + 1,
+          }
+        : {
+            id,
+            connectionId,
+            gatewayId,
+            host,
+            expiresAt: now + CONNECTION_TTL_MS,
+          };
       room.members[id] = member;
       room.revision++;
       room.expiresAt = now + ROOM_TTL_MS;
-      if (host)
-        room.grant = reserveAuthority(
-          room.grant,
-          room.incarnation,
-          connectionId,
-          grantId,
-          now,
-        );
-      return { room, result: { room: clone(room), member } };
+      if (host) {
+        // The same connection goes on holding the lease it has, current or still to begin; only one that ran out
+        // is reserved again, which a lease of its own never makes it wait for.
+        const kept =
+          resumed &&
+          room.grant?.holder === member.connectionId &&
+          now < room.grant.expiresAt
+            ? room.grant
+            : undefined;
+        room.grant = kept
+          ? (renewAuthority(kept, kept, now) ?? kept)
+          : reserveAuthority(
+              room.grant,
+              room.incarnation,
+              member.connectionId,
+              grantId,
+              now,
+            );
+      }
+      return { room, result: { room: clone(room), member, resumed } };
     });
   }
   /**
@@ -317,7 +394,8 @@ export class RoomStore {
         seat = known.members[member.id];
       if (
         known.expiresAt > now &&
-        seat?.connectionId === member.connectionId &&
+        seat &&
+        sameAttachment(seat, member) &&
         seat.expiresAt > now &&
         !renewalDue(known, member, renew, now)
       )
@@ -339,10 +417,50 @@ export class RoomStore {
       return { room, result: clone(room) };
     });
   }
+  /**
+   * The member's socket dropped without a goodbye. The seat stays, with at most `RESUME_GRACE_MS` left on its lease,
+   * for the page to resume (`admit`); nobody is told. A seat another socket has taken since is left alone.
+   */
+  async detach(code: string, member: Member): Promise<void> {
+    await this.database.transact(code, (current) => {
+      const stored = current?.members[member.id],
+        now = this.dependencies.now();
+      if (
+        !current ||
+        !stored ||
+        !sameAttachment(stored, member) ||
+        stored.expiresAt <= now + RESUME_GRACE_MS
+      )
+        return { result: undefined };
+      const room = clone(current);
+      room.members[member.id]!.expiresAt = now + RESUME_GRACE_MS;
+      room.revision++;
+      return { room, result: undefined };
+    });
+  }
+  /**
+   * Removes every seat whose lease ran out more than `LAPSE_MARGIN_MS` ago and returns the room as it then stands.
+   * A seat held for a page that never came back (`detach`), or one whose instance died with it, ends here: the
+   * write is what tells the other members. Nothing lapsed, nothing written.
+   */
+  async prune(code: string): Promise<RoomRecord> {
+    return this.database.transact(code, (current) => {
+      const now = this.dependencies.now(),
+        room = live(current, now);
+      prune(room, now - LAPSE_MARGIN_MS);
+      if (
+        Object.keys(room.members).length ===
+        Object.keys(current!.members).length
+      )
+        return { result: room };
+      room.revision++;
+      return { room, result: clone(room) };
+    });
+  }
   async leave(code: string, member: Member): Promise<void> {
     await this.database.transact(code, (current) => {
       const stored = current?.members[member.id];
-      if (!current || stored?.connectionId !== member.connectionId)
+      if (!current || !stored || !sameAttachment(stored, member))
         return { result: undefined };
       const now = this.dependencies.now(),
         room = clone(current);
@@ -358,12 +476,16 @@ export class RoomStore {
     return live(await this.database.read(code), this.dependencies.now());
   }
 }
-/** Runtime boundary: reject incompatible/corrupt stored metadata before authority decisions. */
+/**
+ * Runtime boundary: reject incompatible/corrupt stored metadata before authority decisions. `maxGuests` bounds the
+ * members: one number for every room, or the limit of the room's own game (`roomGuestLimits`).
+ */
 export function parseRoomRecord(
   raw: unknown,
-  maxGuests: number = DEFAULT_MAX_GUESTS,
+  maxGuests: number | GuestLimits = DEFAULT_MAX_GUESTS,
 ): RoomRecord | undefined {
-  const capacity = roomGuestLimit(maxGuests) + 1;
+  const limits =
+    typeof maxGuests === "function" ? maxGuests : roomGuestLimits(maxGuests);
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return;
   const r = raw as Record<string, unknown>,
     members = r.members;
@@ -386,7 +508,8 @@ export function parseRoomRecord(
     !members ||
     typeof members !== "object" ||
     Array.isArray(members) ||
-    Object.keys(members).length > capacity ||
+    Object.keys(members).length >
+      limits(roomGameId({ gameId: r.gameId as string | undefined })) + 1 ||
     (r.grant !== undefined && !isAuthorityGrant(r.grant))
   )
     return;
@@ -406,7 +529,9 @@ export function parseRoomRecord(
       m.host !== (id === r.hostId) ||
       typeof m.expiresAt !== "number" ||
       !Number.isFinite(m.expiresAt) ||
-      m.expiresAt < 0
+      m.expiresAt < 0 ||
+      (m.resumes !== undefined &&
+        !(Number.isSafeInteger(m.resumes) && Number(m.resumes) >= 0))
     )
       return;
   }

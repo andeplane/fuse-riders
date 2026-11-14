@@ -67,6 +67,8 @@ export interface RoomHttpOptions {
   revision?: string;
 }
 
+/** What `ws` reports for a socket that ended without a close frame. */
+const CLOSE_ABNORMAL = 1006;
 const ROOM_ROUTE = /^\/api\/rooms\/([A-Z]{2}[0-9]{2})\/(end|ice|ws)$/;
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -389,19 +391,28 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
                 cancelDeadline?.();
                 reject(error);
               };
-              const admit = (token: string, gameId?: string) => {
+              // Set once the socket has closed: whether the seat is kept for the page to resume. A socket that
+              // just stops (1006: the platform's hourly cut, a network change, a stopped instance) said no goodbye,
+              // so its page is taken to be coming back; a close frame from the page is the page leaving.
+              let hold = false;
+              const admit = (
+                token: string,
+                gameId?: string,
+                resume?: string,
+              ) => {
                 phase = "admitted";
                 cancelDeadline?.();
                 void gateway
-                  .connect(code, token, ws, gameId)
+                  .connect(code, token, ws, gameId, resume)
                   .then((id) => {
                     connectionId = id;
                     if (closed) {
-                      void gateway.disconnect(id);
+                      void gateway.disconnect(id, { socket: ws, hold });
                       resolve();
                       return;
                     }
-                    for (const data of pending) void gateway.receive(id, data);
+                    for (const data of pending)
+                      void gateway.receive(id, data, ws);
                     pending = [];
                     resolve();
                   })
@@ -420,7 +431,7 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
                   if (frame === undefined)
                     // Nothing about the frame is echoed or logged.
                     refuse(new RoomError(401, "Authentication required"));
-                  else admit(frame.token, frame.gameId);
+                  else admit(frame.token, frame.gameId, frame.resume);
                   return;
                 }
                 if (binary) {
@@ -428,12 +439,13 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
                   return;
                 }
                 const data = raw.toString();
-                if (connectionId) void gateway.receive(connectionId, data);
+                if (connectionId) void gateway.receive(connectionId, data, ws);
                 else if (pending.length < 4) pending.push(data);
                 else ws.close(1008, "Wait for welcome");
               });
-              ws.on("close", () => {
+              ws.on("close", (closeCode) => {
                 closed = true;
+                hold = closeCode === CLOSE_ABNORMAL;
                 pending = [];
                 // Leaving before authenticating frees the slot and is not a failure. Charging it would stop nobody —
                 // a slot can be held to the deadline and then authenticated for free — and it would land on honest
@@ -443,7 +455,8 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
                   cancelDeadline?.();
                   resolve();
                 }
-                if (connectionId) void gateway.disconnect(connectionId);
+                if (connectionId)
+                  void gateway.disconnect(connectionId, { socket: ws, hold });
               });
               ws.on("error", () => {
                 // `ws` reports a frame it will not parse (a protocol violation, or one past `maxPayload`) here, not a
