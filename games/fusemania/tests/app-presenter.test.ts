@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ACTION, BOT } from "fuse-netcode";
+import { ACTION, BOT, SETTINGS as SETTINGS_ENTRY } from "fuse-netcode";
 import { BATTLE_MODE, FULL_RATING, MINED } from "../src/engine/index.js";
 import { cuesBetween } from "../src/app/audio.js";
 import {
@@ -203,4 +203,161 @@ test("sounds follow what a player's picture shows: an item taken, thrown, landin
     cuesBetween(game.view(room).world!.players[1]!, { ...base, item: 3 }),
     [],
   );
+});
+
+// ---- sessions ----
+
+const THREE = { ...SETTINGS, songs: 3 };
+const finishSong = (room: ReturnType<typeof seated>) => {
+  while (room.stage === "running") fold(room);
+};
+const buttons = (model: ReturnType<typeof present>) => [
+  model.result!.primary.text,
+  model.result!.primary.action,
+  model.result!.secondary?.text ?? "",
+];
+
+test("a single song offers another go or the song select, with no session anywhere", () => {
+  const room = started();
+  assert.equal(present(library, game.view(room), viewer("a")).title, "GRID");
+  finishSong(room);
+  const model = present(library, game.view(room), viewer("a"));
+  assert.deepEqual(buttons(model), ["PLAY AGAIN", "rematch", "SONG SELECT"]);
+  assert.equal(model.result!.session, null);
+  assert.equal(model.result!.final, false);
+  assert.deepEqual(model.totals, []);
+  const lobby = present(library, game.view(seated()), viewer("a")).lobby;
+  assert.equal(lobby.startText, "START");
+  assert.equal(lobby.session, null);
+});
+
+test("a session counts its songs on the start button, the title and the result, and shows the totals", () => {
+  const room = seated(THREE);
+  assert.equal(
+    present(library, game.view(room), viewer("a")).lobby.startText,
+    "START SONG 1 OF 3",
+  );
+  fold(room, { a: [[ACTION, "start", "m1"]] });
+  let model = present(library, game.view(room), viewer("a"));
+  assert.equal(model.title, "SONG 1 OF 3 · GRID");
+  assert.deepEqual(model.totals, [0, 0]);
+  // Ada hits one step, then the song runs out.
+  runTo(room, beatMs(4));
+  fold(room, { a: [[PLAY, 1, 0, beatMs(4)]] });
+  finishSong(room);
+  const view = game.view(room);
+  const rating = view.world!.players[0]!.rating;
+  assert.ok(rating > 0);
+  model = present(library, view, viewer("a"));
+  assert.equal(model.title, "SONG 1 OF 3 · GRID");
+  assert.equal(model.result!.title, "YOU WIN!");
+  // The box adds the song's score to the total before it, so the song is not counted twice once it is decided.
+  assert.deepEqual(model.totals, [0, 0]);
+  assert.deepEqual(model.result!.session, {
+    title: "SESSION · AFTER SONG 1 OF 3",
+    rows: [
+      {
+        place: 1,
+        name: "Ada",
+        you: true,
+        slot: 0,
+        points: scoreText(rating),
+        wins: "1 WIN",
+      },
+      { place: 2, name: "Bo", you: false, slot: 1, points: "0", wins: "" },
+    ],
+  });
+  // The host picks the next song in the song select; a guest waits for that.
+  assert.deepEqual(buttons(model), ["PICK NEXT SONG", "lobby", ""]);
+  const guest = present(library, view, viewer("b"));
+  assert.equal(
+    guest.result!.waiting,
+    "Waiting for the host to pick the next song",
+  );
+  assert.equal(guest.result!.session!.rows[1]!.you, true);
+
+  // In the lobby between two songs: the standings so far and the next song's number.
+  fold(room, { a: [[ACTION, "lobby", "m2"]] });
+  const between = present(library, game.view(room), viewer("a")).lobby;
+  assert.equal(between.startText, "START SONG 2 OF 3");
+  assert.equal(between.session!.title, "SESSION · 1 OF 3 PLAYED");
+  assert.deepEqual(
+    between.session!.rows.map((row) => row.name),
+    ["Ada", "Bo"],
+  );
+  // Another length is another session: the old standings are not the next song's.
+  fold(room, { a: [[SETTINGS_ENTRY, { ...THREE, songs: 5 }]] });
+  const changed = present(library, game.view(room), viewer("a")).lobby;
+  assert.equal(changed.startText, "START SONG 1 OF 5");
+  assert.equal(changed.session, null);
+  assert.equal(
+    changed.note,
+    "Another number of songs starts a new session: pick 3 again to go on with this one.",
+  );
+  assert.equal(
+    present(library, game.view(room), viewer("b")).lobby.note,
+    "Waiting for the host to start",
+  );
+  fold(room, { a: [[SETTINGS_ENTRY, THREE]] });
+
+  fold(room, { a: [[ACTION, "start", "m3"]] });
+  model = present(library, game.view(room), viewer("a"));
+  assert.equal(model.title, "SONG 2 OF 3 · GRID");
+  assert.deepEqual(model.totals, [rating, 0]);
+  finishSong(room);
+  assert.deepEqual(present(library, game.view(room), viewer("a")).totals, [
+    rating,
+    0,
+  ]);
+
+  // The last song ends the session: its winner leads the card, and the next thing is a new session.
+  fold(room, { a: [[ACTION, "rematch", "m4"]] });
+  finishSong(room);
+  const last = game.view(room);
+  model = present(library, last, viewer("a"));
+  assert.equal(model.result!.title, "YOU WIN THE SESSION!");
+  assert.equal(model.result!.final, true);
+  assert.equal(model.result!.session!.title, "FINAL STANDINGS");
+  assert.equal(model.result!.session!.rows[0]!.wins, "3 WINS");
+  assert.deepEqual(buttons(model), ["NEW SESSION", "lobby", ""]);
+  const loser = present(library, last, viewer("b"));
+  assert.equal(loser.result!.title, "ADA WINS THE SESSION");
+  assert.equal(
+    loser.result!.waiting,
+    "Waiting for the host to start a new session",
+  );
+});
+
+test("a random session's next song is one button away, and a rider who left keeps a row", () => {
+  const room = seated({ ...THREE, random: true });
+  fold(room, { a: [[BOT, "add", "bot:1", "Robo", 2]] });
+  fold(room, { a: [[ACTION, "start", "m1"]] });
+  finishSong(room);
+  let view = game.view(room);
+  let model = present(library, view, viewer("a"));
+  assert.deepEqual(buttons(model), ["NEXT SONG", "rematch", "SONG SELECT"]);
+  assert.equal(
+    present(library, view, viewer("b")).result!.waiting,
+    "Waiting for the host to start the next song",
+  );
+  fold(room, { a: [[ACTION, "lobby", "m2"]] });
+  fold(room, { a: [[BOT, "remove", "bot:1"]] });
+  const rows = present(library, game.view(room), viewer("a")).lobby.session!
+    .rows;
+  // The AI won the song and left: its row stays, without a seat's colour.
+  assert.deepEqual(
+    rows.map((row) => [row.place, row.slot, row.wins]),
+    [
+      [1, -1, "1 WIN"],
+      [2, 0, ""],
+      [3, 1, ""],
+    ],
+  );
+  fold(room, { a: [[ACTION, "start", "m3"]] });
+  finishSong(room);
+  fold(room, { a: [[ACTION, "rematch", "m4"]] });
+  finishSong(room);
+  view = game.view(room);
+  model = present(library, view, viewer("a"));
+  assert.deepEqual(buttons(model), ["NEW SESSION", "rematch", "SONG SELECT"]);
 });

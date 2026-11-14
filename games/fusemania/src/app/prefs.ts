@@ -26,11 +26,13 @@ export interface Prefs {
 }
 
 export const MIN_SPEED = 0.5,
-  MAX_SPEED = 4,
+  MAX_SPEED = 5,
   MAX_OFFSET_MS = 400,
   MAX_VISUAL_MS = 200,
   /** Keys one action may have. */
   MAX_KEYS = 4;
+/** The speeds the song select offers; the settings' slider reaches the ones between. */
+export const SPEEDS: readonly number[] = [0.5, 1, 1.5, 2, 2.5, 3, 4, 5];
 
 /** WASD and IJKL are the arrows, with the arrow keys themselves; Space throws a power-up. */
 export const DEFAULT_PREFS: Prefs = {
