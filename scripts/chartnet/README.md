@@ -154,14 +154,18 @@ v3 is v2's two small models retrained on much more data, with sampling tuned aga
 
 What was measured, on the 48 held-out DDR/ITG songs (`gen2.py eval`, `gen2.py place-eval`):
 
-| Challenge             | Human | v2    | v3    |
-| --------------------- | ----- | ----- | ----- |
-| Step timing F1        |       | 0.69  | 0.71  |
-| Steps in 16th streams | 0.25  | 0.12  | 0.25  |
-| Longest 16th run      | 28.7  | 4.9   | 11.9  |
-| Jumps                 | 0.074 | 0.137 | 0.051 |
-| Freezes               | 0.065 | 0.052 | 0.081 |
-| Jacks                 | 0.034 | 0.025 | 0.033 |
+| Held-out DDR/ITG charts     | Human | v2    | v3    |
+| --------------------------- | ----- | ----- | ----- |
+| Challenge: step timing F1   |       | 0.69  | 0.71  |
+| Challenge: steps in streams | 0.25  | 0.12  | 0.25  |
+| Challenge: longest 16th run | 28.7  | 4.9   | 11.9  |
+| Challenge: jumps            | 0.074 | 0.137 | 0.087 |
+| Challenge: freezes          | 0.065 | 0.052 | 0.079 |
+| Challenge: jacks            | 0.034 | 0.025 | 0.028 |
+| Hard: step timing F1        |       | 0.75  | 0.75  |
+| Hard: jumps                 | 0.080 | 0.125 | 0.097 |
+| Hard: freezes               | 0.022 | 0.018 | 0.022 |
+| Hard: jacks                 | 0.042 | 0.015 | 0.034 |
 
 Placement alone, told each human chart's step count: 0.737 overall for v2 and 0.742 for v3 (Challenge 0.691 and
 0.729; the stream preference then trades 0.02 of that for the stream share). On the held-out community songs 0.750 and
@@ -169,6 +173,18 @@ Placement alone, told each human chart's step count: 0.737 overall for v2 and 0.
 alone (0.740 without, 0.738 with), and a bigger arrow model (8 layers, d=384: best validation loss 1.06 against 1.04
 for the small one, then it overfits). Data did: the arrow model's best validation loss is 1.19 on a quarter of the
 songs, 1.10 on half and 1.04 on all of them.
+
+Over the game's 36 songs (`gen2.py fuse`; a cover's Challenge aims at its original's density):
+
+| Difficulty | Steps/s | 16th-stream share | 24th share | Longest 16th run | 4-gram variety | Jacks | Jumps | Freezes |
+| ---------- | ------- | ----------------- | ---------- | ---------------- | -------------- | ----- | ----- | ------- |
+| Easy       | 1.63    | 0                 | 0          | 1                | 0.62           | 0     | 0.034 | 0.037   |
+| Medium     | 2.51    | 0                 | 0          | 1                | 0.58           | 0.003 | 0.073 | 0.040   |
+| Hard       | 3.75    | 0.15              | 0.009      | 5.1              | 0.56           | 0.057 | 0.061 | 0.048   |
+| Challenge  | 5.62    | 0.54              | 0.096      | 38.1             | 0.42           | 0.040 | 0.051 | 0.034   |
+
+Human Challenge charts at 5.5 to 7.5 steps a second: 0.53 in 16th streams, 0.05 in 24ths, variety 0.42, jumps 0.05,
+freezes 0.07. v2's Challenge charts for the same songs had variety 0.33.
 
 Whole-chart variety (the share of distinct four-row patterns) falls as a chart gets denser, so compare it at equal
 density: human Challenge charts score 0.58 at 4 to 5 steps a second and 0.42 at 5.5 to 7.5. `variety_w64` measures
