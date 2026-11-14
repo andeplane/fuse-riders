@@ -72,9 +72,10 @@ export async function capturePlaytestPage(document: Document): Promise<string> {
   clone.style.margin = "0";
   mount.append(clone);
   document.body.append(mount);
+  let timeout: number | undefined;
   try {
     const { toJpeg } = await import("html-to-image");
-    return await toJpeg(clone, {
+    const capture = toJpeg(clone, {
       width: view.innerWidth,
       height: view.innerHeight,
       canvasWidth: Math.min(1280, view.innerWidth),
@@ -86,7 +87,22 @@ export async function capturePlaytestPage(document: Document): Promise<string> {
       backgroundColor: "#080b12",
       skipAutoScale: false,
     });
+    return await Promise.race([
+      capture,
+      new Promise<never>((_resolve, reject) => {
+        timeout = view.setTimeout(
+          () =>
+            reject(
+              new Error(
+                "Screenshot capture timed out. Retry when the game finishes loading.",
+              ),
+            ),
+          8000,
+        );
+      }),
+    ]);
   } finally {
+    if (timeout !== undefined) view.clearTimeout(timeout);
     mount.remove();
   }
 }
