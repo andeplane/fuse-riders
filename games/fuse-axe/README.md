@@ -73,8 +73,7 @@ node games/fuse-axe/preview/smoke.mjs http://localhost:8787/ [screenshot-dir]   
 node games/fuse-axe/preview/flow.mjs http://localhost:8787/ [screenshot-dir]    # continue and game over, ~2 min
 ```
 
-Production serves Fuse Axe rooms only once `EXTRA_GAME_IDS` names `fuse-axe` ([GCP deploy](../../docs/online/GCP-DEPLOY.md));
-until then the page offers solo only.
+Production serves Fuse Axe rooms, like every game registered in `service/history.ts`.
 
 ## Bots and the golden replay
 

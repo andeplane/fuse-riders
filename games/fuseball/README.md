@@ -50,7 +50,7 @@ A slide is the fastest way along the floor; it ends in a small hop when its time
 - **Shared TV**: tick "Shared TV" before creating the room and open `?room=CODE&display=1` on the big screen. It shows the arena only; each rider's phone becomes a controller with a stick and a JUMP button.
 - `?mute` on any URL silences the page for that load without storing a choice.
 
-Production serves Fuseball's rooms only when `fuseball` is in the `EXTRA_GAME_IDS` repository variable; until then the page offers solo.
+Production serves Fuseball's rooms, like every game registered in `service/history.ts`.
 
 ## Run it locally
 
