@@ -21,7 +21,7 @@ import {
   withoutOpenParam,
 } from "./state/deepLink";
 import { LocalStorageStateStore } from "./state/stateStore";
-import { WEBAMP_EMBED_OPTIONS } from "./winamp/webampLayout";
+import { WEBAMP_OPTIONS } from "./winamp/webampLayout";
 import type { WinampDeps } from "./winamp/winampDepsContext";
 import {
   defaultWinampDeps,
@@ -62,12 +62,12 @@ const store = withLauncherOnBoot(
   defaultWindowsDeps.getViewport,
 );
 
-// Webamp ships its own React and the classic skin inlined; loaded only when a Winamp window opens.
+// Webamp ships its own React and the classic skin inlined; loaded only when Winamp opens.
 const winampDeps: WinampDeps = {
   ...defaultWinampDeps,
   createPlayer: async () => {
     const { default: Webamp } = await import("webamp");
-    return new Webamp(WEBAMP_EMBED_OPTIONS);
+    return new Webamp(WEBAMP_OPTIONS);
   },
 };
 

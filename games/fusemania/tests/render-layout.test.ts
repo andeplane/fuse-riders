@@ -6,6 +6,7 @@ import {
   boxY,
   laneOf,
   layoutFor,
+  ownPlace,
   type Field,
   type Layout,
 } from "../src/render/layout.js";
@@ -69,10 +70,11 @@ test("every field and every leaderboard box is inside the canvas and above the t
           const where = `${screen.name}, ${riders} riders, local ${local}, inset ${inset}`;
           const floor = height - inset * unit;
 
-          assert.equal(layout.fields.length, local >= 0 ? 1 : riders, where);
+          // Every rider's field, each once.
+          assert.equal(layout.fields.length, riders, where);
           assert.deepEqual(
-            layout.fields.map((field) => field.slot),
-            local >= 0 ? [local] : Array.from({ length: riders }, (_, i) => i),
+            layout.fields.map((field) => field.slot).sort(),
+            Array.from({ length: riders }, (_, i) => i),
             where,
           );
           for (const field of layout.fields) {
@@ -98,8 +100,12 @@ test("every field and every leaderboard box is inside the canvas and above the t
             }
           }
           for (const [i, a] of layout.fields.entries())
-            for (const b of layout.fields.slice(i + 1))
+            for (const b of layout.fields.slice(i + 1)) {
               assert.ok(!overlap(fieldBox(a), fieldBox(b)), where);
+              // Left to right, with the lanes starting level.
+              assert.ok(a.x < b.x, where);
+              assert.equal(a.laneTop, b.laneTop, where);
+            }
 
           const panel = boxes(layout);
           assert.equal(panel.length > 0, layout.panel !== undefined);
@@ -139,38 +145,92 @@ test("the leaderboard is a column on the right where there is room, and a strip 
   for (const name of ["small phone, portrait", "phone, portrait"]) {
     const phone = at(name, 4, 1);
     assert.equal(phone.panel?.strip, true, name);
-    // The strip is above the field, which keeps the canvas's width.
-    const field = phone.fields[0]!;
+    // The strip is above the fields, and the rider's own keeps half the canvas's width.
+    const field = phone.fields.find((each) => each.slot === 1)!;
     assert.ok(phone.panel!.y + phone.panel!.boxHeight < field.top);
     assert.ok(
-      field.col * COLUMNS > phone.width * 0.8,
-      "the field keeps its width",
+      field.col * COLUMNS > phone.width * 0.5,
+      "the rider's field keeps its width",
     );
     // The leader's box is the first on the left.
     assert.ok(boxX(phone.panel!, 0) < boxX(phone.panel!, 1));
     assert.equal(boxY(phone.panel!, 0), boxY(phone.panel!, 3));
   }
-  for (const name of ["phone, landscape", "tablet, portrait", "laptop", "TV"]) {
+  for (const name of ["phone, landscape", "laptop", "TV"]) {
     const wide = at(name, 4, 1);
     assert.equal(wide.panel?.strip, false, name);
-    const field = wide.fields[0]!;
-    assert.ok(field.x + field.col * COLUMNS < wide.panel!.x, name);
+    const first = wide.fields[0]!,
+      last = wide.fields[wide.fields.length - 1]!;
+    const end = last.x + last.col * COLUMNS;
+    assert.ok(end < wide.panel!.x, name);
     // The leader's box is on top.
     assert.ok(boxY(wide.panel!, 0) < boxY(wide.panel!, 1));
     assert.equal(boxX(wide.panel!, 0), boxX(wide.panel!, 3));
-    // The field is centred in what the panel leaves.
-    const middle = field.x + (field.col * COLUMNS) / 2;
+    // The row of fields is centred in what the panel leaves.
     assert.ok(
-      Math.abs(middle - wide.panel!.x / 2) < wide.panel!.x * 0.03,
+      Math.abs((first.x + end) / 2 - wide.panel!.x / 2) < wide.panel!.x * 0.03,
       name,
     );
   }
+  // Where a column of boxes would squeeze the other riders' fields, the board is the strip: a tablet held upright.
+  assert.equal(at("tablet, portrait", 4, 1).panel?.strip, true);
+  assert.equal(at("tablet, portrait", 2, 1).panel?.strip, false);
   // The shared screen: every field, and the board beside them when the fields stay a good size.
   assert.equal(at("TV", 5, -1).panel?.strip, false);
   assert.equal(at("TV", 2, -1).panel?.strip, false);
   assert.equal(at("small phone, portrait", 3, -1).panel, undefined);
   // A local slot that is not in the match is a watcher.
   assert.equal(at("laptop", 2, 7).fields.length, 2);
+});
+
+test("a rider's own field is in the middle of an odd number of riders and on the left of an even one, and the biggest", () => {
+  assert.deepEqual([1, 2, 3, 4, 5].map(ownPlace), [0, 0, 1, 0, 2]);
+  for (const screen of SCREENS)
+    for (let riders = 2; riders <= 5; riders++)
+      for (let local = 0; local < riders; local++) {
+        const unit = screen.ratio;
+        const layout = layoutFor(
+          Math.round(screen.width * unit),
+          Math.round(screen.height * unit),
+          riders,
+          local,
+          0,
+          unit,
+        );
+        const where = `${screen.name}, ${riders} riders, local ${local}`;
+        const mine = ownPlace(riders);
+        assert.equal(layout.fields[mine]!.slot, local, where);
+        // The others are in slot order around it, all one size, and smaller.
+        const others = layout.fields.filter((_, i) => i !== mine);
+        assert.deepEqual(
+          others.map((field) => field.slot),
+          Array.from({ length: riders }, (_, i) => i).filter(
+            (slot) => slot !== local,
+          ),
+          where,
+        );
+        const own = layout.fields[mine]!.col;
+        for (const field of others) {
+          assert.equal(field.col, others[0]!.col, where);
+          assert.ok(
+            field.col < own,
+            `${where}: the rider's own is the biggest`,
+          );
+          assert.ok(field.col >= own * 0.2, `${where}: and theirs can be seen`);
+          assert.ok(field.col >= 9 * unit, `${where}: ${field.col / unit}px`);
+        }
+      }
+  // On a big screen two riders' fields are both a good size, and the rider's own is as big as it is alone.
+  const tv = layoutFor(1920, 1080, 2, 1);
+  assert.equal(tv.fields[0]!.col, layoutFor(1920, 1080, 1, 0).fields[0]!.col);
+  assert.ok(tv.fields[1]!.col >= tv.fields[0]!.col * 0.75);
+  // A shared screen and a watcher have no field of their own: every field alike, in slot order.
+  const shared = layoutFor(1920, 1080, 4, -1);
+  assert.deepEqual(
+    shared.fields.map((field) => field.slot),
+    [0, 1, 2, 3],
+  );
+  assert.equal(new Set(shared.fields.map((field) => field.col)).size, 1);
 });
 
 test("a field's columns stop growing with a wide screen, and a lone field is centred", () => {

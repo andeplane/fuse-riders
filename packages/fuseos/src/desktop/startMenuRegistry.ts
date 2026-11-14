@@ -1,5 +1,6 @@
 import { createContext } from "react";
 
+import { MY_COMPUTER } from "../disk/diskPath";
 import { LAUNCHER_TITLE } from "../launcher/launcherFacts";
 import { openLauncher } from "../launcher/useOpenLauncher";
 import type { IconName } from "../ui/icons";
@@ -46,8 +47,8 @@ export type StartMenuRegistration = {
 /**
  * The programs other packages add to the Start menu. Appending an entry here is the whole
  * registration: `useStartMenuViewModel` reads this list, so nothing in `StartMenu.tsx` or the
- * view model needs editing. Placeholders for programs that are planned but not yet in this
- * build stay disabled until their package replaces the entry with one that has `open`.
+ * view model needs editing. An entry without `open` shows disabled, so a program that is planned
+ * but not in a build still has its place in the menu.
  */
 export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
   {
@@ -70,8 +71,23 @@ export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
     slot: "accessories",
     id: "notepadpp",
     label: "Notepad++",
-    icon: "file",
+    icon: "notepadpp",
     order: 30,
+    open: (commands) =>
+      commands.open({
+        kind: "notepadpp",
+        paths: ["README.md"],
+        activePath: "README.md",
+      }),
+  },
+  {
+    slot: "accessories",
+    id: "explorer",
+    label: "Windows Explorer",
+    icon: "explorer",
+    order: 35,
+    open: (commands) =>
+      commands.open({ kind: "explorer", location: MY_COMPUTER }),
   },
   {
     slot: "accessories",
@@ -102,6 +118,8 @@ export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
     id: "my-computer",
     label: "My Computer",
     icon: "computer",
+    open: (commands) =>
+      commands.open({ kind: "explorer", location: MY_COMPUTER }),
   },
   {
     slot: "settings",
