@@ -145,6 +145,12 @@ test("the clock has one rate: a tick per TICK_MS, and half a round trip is that 
 test("a small correction is slewed gently so a jittery link does not change a follower's pace", () => {
   const f = fixture();
   f.clock.sample(100, 0);
+  // The first lock after a start runs at the full rate, so a joiner is in step at once.
+  f.advance(500);
+  f.clock.sample(f.clock.tick() + 0.5, 0);
+  f.advance(500);
+  f.clock.tick();
+  assert.ok(Math.abs(f.clock.diagnostics().offset - 0.5) < 1e-9);
   // The best sample moves by 10 ms (0.2 ticks), as it does whenever a jittery window turns over.
   f.advance(SAMPLE_WINDOW_MS + 1);
   f.clock.sample(f.clock.tick() + 0.2, 0);
@@ -161,7 +167,7 @@ test("a small correction is slewed gently so a jittery link does not change a fo
     `ran at most half a percent fast: ${fastest}`,
   );
   assert.ok(
-    Math.abs(f.clock.diagnostics().offset - 0.2) < 1e-9,
+    Math.abs(f.clock.diagnostics().offset - 0.7) < 1e-9,
     `and still closed the whole error: ${f.clock.diagnostics().offset}`,
   );
   // A large error is still corrected at the full rate, so a follower that starts far out converges as before.

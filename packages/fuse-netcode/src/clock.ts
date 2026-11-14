@@ -2,7 +2,8 @@ export const TICK_MS = 50;
 export const SAMPLE_WINDOW_MS = 2000;
 export const SLEW_TICKS_PER_SECOND = 1;
 /**
- * Below the cap the slew is proportional to the error, closing it with this time constant. A jittery link moves the
+ * Once a follower has locked onto the authority, the slew below the cap is proportional to the error, closing it with
+ * this time constant; the first lock after a start still runs at the full rate, so a joiner is in step within moments. A jittery link moves the
  * best sample by a few milliseconds every time the window turns over, and correcting each of those at the full rate
  * made a follower's game run visibly fast and slow (up to 5%) for a fraction of a second.
  */
@@ -32,6 +33,8 @@ export class TickClock {
   private lastTick = -Infinity;
   private samples: Sample[] = [];
   private pausedAt?: number;
+  /** Whether the offset has reached its target once since the clock started: the first lock runs at the full rate. */
+  private locked = false;
   constructor(private readonly now: () => number) {}
   get started(): boolean {
     return this.t0 !== undefined;
@@ -44,6 +47,7 @@ export class TickClock {
     this.lastAdjust = this.t0;
     this.lastTick = -Infinity;
     this.samples = [];
+    this.locked = false;
   }
   private raw(now: number): number {
     return this.base + (now - (this.t0 ?? now)) / TICK_MS;
@@ -53,18 +57,21 @@ export class TickClock {
     if (this.t0 === undefined) return 0;
     const now = this.pausedAt ?? this.now();
     if (this.offset !== this.target) {
-      const rate = Math.min(
-          SLEW_TICKS_PER_SECOND,
-          Math.max(
-            SLEW_FLOOR_MS_PER_SECOND / TICK_MS,
-            (Math.abs(this.target - this.offset) * 1000) / SLEW_SETTLE_MS,
-          ),
-        ),
+      const rate = this.locked
+          ? Math.min(
+              SLEW_TICKS_PER_SECOND,
+              Math.max(
+                SLEW_FLOOR_MS_PER_SECOND / TICK_MS,
+                (Math.abs(this.target - this.offset) * 1000) / SLEW_SETTLE_MS,
+              ),
+            )
+          : SLEW_TICKS_PER_SECOND,
         budget = (Math.max(0, now - this.lastAdjust) / 1000) * rate;
       this.offset += Math.max(
         -budget,
         Math.min(budget, this.target - this.offset),
       );
+      if (this.offset === this.target) this.locked = true;
     }
     this.lastAdjust = now;
     const tick = Math.max(this.lastTick, this.raw(now) + this.offset);
