@@ -29,6 +29,8 @@ export interface WebampPlayer {
   previousTrack(): void;
   /** 0 to 100, as Webamp's own slider; optional so a player without one still fits. */
   setVolume?(volume: number): void;
+  /** Loads and plays the track at `index` in the playlist. */
+  setCurrentTrack(index: number): void;
   /** Every queued track, in playlist order; the real method returns much more per track. */
   getPlaylistTracks(): WebampPlaylistTrack[];
   getMediaStatus(): WebampStatus;

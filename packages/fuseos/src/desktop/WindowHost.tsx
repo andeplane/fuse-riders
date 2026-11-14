@@ -15,6 +15,7 @@ import {
 } from "../fusegames/FuseGameWindow";
 import { FuseGamesContext } from "../fusegames/registry";
 import { LauncherWindow } from "../launcher/LauncherWindow";
+import { NapsterWindow } from "../napster/NapsterWindow";
 import { NotepadPlusPlusWindow } from "../notepadpp/NotepadPlusPlusWindow";
 import { NetworkWindow } from "../network/NetworkWindow";
 import { RoomGameWindow } from "../network/RoomGameWindow";
@@ -109,6 +110,8 @@ function WindowContent({
       );
     case "launcher":
       return <LauncherWindow windowId={window.id} active={active} />;
+    case "napster":
+      return <NapsterWindow windowId={window.id} />;
     case "dialup":
       return <DialUpWindow windowId={window.id} then={window.then} />;
     case "friends":

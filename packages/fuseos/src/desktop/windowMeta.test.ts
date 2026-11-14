@@ -4,6 +4,7 @@ import type { WindowContent, WindowState } from "../state/appState";
 
 import {
   FUSE_GAME_WINDOW_SIZE,
+  NAPSTER_WINDOW_SIZE,
   NETWORK_WINDOW_SIZE,
   HALL_OF_FAME_WINDOW_SIZE,
   MESSAGE_BOX_SIZE,
@@ -147,5 +148,11 @@ describe(windowMeta.name, () => {
       windowMeta(window({ kind: "halloffame", gameId: "fuseball" }), games)
         .title,
     ).toBe("Hall of Fame");
+    expect(windowMeta(window({ kind: "napster" }), games)).toEqual({
+      title: "Napster v2.0 BETA 7",
+      icon: "napster",
+      resizable: true,
+      size: NAPSTER_WINDOW_SIZE,
+    });
   });
 });

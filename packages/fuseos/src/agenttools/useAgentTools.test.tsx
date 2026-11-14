@@ -190,6 +190,7 @@ describe(useAgentTools.name, () => {
       stop: () => pressed.push("stop"),
       next: () => pressed.push("next"),
       previous: () => pressed.push("previous"),
+      playFiles: () => pressed.push("files"),
     };
     winampRegistry.set("w1", controls);
     expect(pressed).toEqual(["play"]);

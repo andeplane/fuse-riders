@@ -36,6 +36,7 @@ function fakeWinamp(): WinampControls & { pressed: string[] } {
     stop: () => pressed.push("stop"),
     next: () => pressed.push("next"),
     previous: () => pressed.push("previous"),
+    playFiles: () => pressed.push("playFiles"),
   };
 }
 

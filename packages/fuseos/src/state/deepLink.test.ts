@@ -36,6 +36,7 @@ describe(deepLinkContents.name, () => {
           "fusteam",
           "mycomputer",
           "explorer",
+          "napster",
           "nope",
         ],
         games,
@@ -50,6 +51,7 @@ describe(deepLinkContents.name, () => {
       { kind: "launcher" },
       { kind: "explorer", location: "" },
       { kind: "explorer", location: "" },
+      { kind: "napster" },
     ]);
   });
 

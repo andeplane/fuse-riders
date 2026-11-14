@@ -86,6 +86,11 @@ export interface LauncherWindowContent {
   kind: "launcher";
 }
 
+/** Napster v2.0 beta (`src/napster`): a fake file-sharing client with a pretend network. One instance. */
+export interface NapsterWindowContent {
+  kind: "napster";
+}
+
 /** Dial-Up Networking's "Connect To" dialog (`sounds/dialup`); on connect it closes and opens `then`, when given. */
 export interface DialUpWindowContent {
   kind: "dialup";
@@ -136,7 +141,8 @@ export type WindowContent =
   | FriendsWindowContent
   | DefragWindowContent
   | HallOfFameWindowContent
-  | TaskManagerWindowContent;
+  | TaskManagerWindowContent
+  | NapsterWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -199,6 +205,7 @@ export function sameInstance(
     case "about":
     case "retroFolder":
     case "launcher":
+    case "napster":
     case "dialup":
     case "network":
     case "friends":
@@ -408,6 +415,7 @@ function isWindowContent(
     case "winamp":
     case "retroFolder":
     case "launcher":
+    case "napster":
     case "network":
     case "friends":
     case "taskmanager":

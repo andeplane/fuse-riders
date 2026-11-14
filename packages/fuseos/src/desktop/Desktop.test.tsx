@@ -28,6 +28,7 @@ describe(Desktop.name, () => {
       "Fuse Birds",
       "Paint",
       "Winamp",
+      "Napster",
       "Control Panel",
       "Network Neighborhood",
     ]);

@@ -5,6 +5,7 @@ import {
   LAUNCHER_TITLE,
   LAUNCHER_WINDOW_SIZE,
 } from "../launcher/launcherFacts";
+import { NAPSTER_TITLE } from "../napster/napsterFacts";
 import { GAMES } from "../retro/games";
 import { DOS_GAMES_TITLE } from "../retro/RetroFolderWindow";
 import type { WindowState } from "../state/appState";
@@ -56,6 +57,9 @@ export const HALL_OF_FAME_WINDOW_SIZE: Size = { width: 560, height: 420 };
 
 /** Room for the task list with its buttons, or three frame-rate graphs over the heap graph. */
 export const TASK_MANAGER_WINDOW_SIZE: Size = { width: 440, height: 600 };
+
+/** Room for the banner, the tab bar, the Search form above a dozen result rows, and the status bar. */
+export const NAPSTER_WINDOW_SIZE: Size = { width: 780, height: 610 };
 
 export const OS_NAME = "FuseOS";
 
@@ -164,6 +168,13 @@ export function windowMeta(
         icon: "fusteam",
         resizable: true,
         size: LAUNCHER_WINDOW_SIZE,
+      };
+    case "napster":
+      return {
+        title: NAPSTER_TITLE,
+        icon: "napster",
+        resizable: true,
+        size: NAPSTER_WINDOW_SIZE,
       };
     case "dialup":
       return {

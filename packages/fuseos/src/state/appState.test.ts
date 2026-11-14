@@ -116,6 +116,8 @@ describe(appStateReducer.name, () => {
     );
     expect(sameInstance({ kind: "launcher" }, { kind: "launcher" })).toBe(true);
     expect(sameInstance({ kind: "launcher" }, { kind: "about" })).toBe(false);
+    expect(sameInstance({ kind: "napster" }, { kind: "napster" })).toBe(true);
+    expect(sameInstance({ kind: "napster" }, { kind: "winamp" })).toBe(false);
   });
 
   it("opens under a fixed id and maximized when asked, and still keeps the launcher to one window", () => {
@@ -361,6 +363,7 @@ describe(isAppState.name, () => {
     expect(isAppState(window({ kind: "about" }))).toBe(true);
     expect(isAppState(window({ kind: "winamp" }))).toBe(true);
     expect(isAppState(window({ kind: "launcher" }))).toBe(true);
+    expect(isAppState(window({ kind: "napster" }))).toBe(true);
     expect(isAppState(window({ kind: "network" }))).toBe(true);
     expect(
       isAppState(
