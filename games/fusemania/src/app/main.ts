@@ -279,6 +279,8 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     ...extra,
   );
   return createTopBar({
+    // No shared radio here: the song being played is the music, on the audio clock the arrows follow.
+    music: false,
     element: bar,
     gameId: GAME,
     sound: audioControl.sound,
@@ -535,6 +537,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     menu.element,
   ]);
   createTopBar({
+    music: false,
     element: top,
     onOpenChange: (open) => {
       if (open) letGoAll();
