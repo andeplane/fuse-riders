@@ -33,11 +33,14 @@ export const SCORING_CHOICES: readonly {
       "Only the serving side can score; win a rally on the other's serve to take the serve. First to 15, win by 2.",
   },
 ];
-/** One a side or two a side, as the lobby offers them. */
+/** One, two or three a side, as the lobby offers them. */
 export const MODE_CHOICES = [
-  { doubles: false, title: "1 V 1" },
-  { doubles: true, title: "2 V 2" },
+  { team: 1, title: "1 V 1" },
+  { team: 2, title: "2 V 2" },
+  { team: 3, title: "3 V 3" },
 ] as const;
+/** Three a side, the lanes by number from the net out. */
+export const LANE_NAMES = ["FRONT", "MIDDLE", "BACK"] as const;
 export const BOT_CHOICES = [
   { level: 0, title: "EASY" },
   { level: 1, title: "NORMAL" },
@@ -84,7 +87,7 @@ export interface Model {
     removable: string[];
     showStart: boolean;
     canStart: boolean;
-    /** Seats START fills with bots first: doubles starts with whoever is seated and bots for the rest. */
+    /** Seats START fills with bots first: two or three a side starts with whoever is seated and bots for the rest. */
     fill: number;
     editable: boolean;
     note: string;
@@ -93,9 +96,9 @@ export interface Model {
   };
   /** The match's blobs in slot order. */
   sides: Side[];
-  /** Each side's label: its player, or in doubles both, "A & B". */
+  /** Each side's label: its player, or its team, "A & B" or "A, B & C". */
   names: readonly [string, string] | undefined;
-  /** Each blob's name by slot, for the tags under blobs in doubles. */
+  /** Each blob's name by slot, for the tags under blobs two and three a side. */
   tags: readonly string[];
   /** The scoring rule of the match being played (or the lobby's choice), in words. */
   scoringName: string;
@@ -149,11 +152,16 @@ export function present(view: View, viewer: Viewer): Model {
           };
         })
       : [];
-  const label = (side: 0 | 1) =>
-    sides
+  const label = (side: 0 | 1) => {
+    const team = sides
       .filter((each) => each.side === side)
-      .map((each) => each.name)
-      .join(" & ");
+      .map((each) => each.name);
+    return team.length > 2
+      ? `${team.slice(0, -1).join(", ")} & ${team.at(-1)}`
+      : team.join(" & ");
+  };
+  const localLane =
+    world && localSlot !== -1 ? (world.blobs[localSlot]?.lane ?? -1) : -1;
   const names = sides.length >= 2 ? ([label(0), label(1)] as const) : undefined;
 
   let status = "";
@@ -168,9 +176,14 @@ export function present(view: View, viewer: Viewer): Model {
             : "YOU LOSE";
     else if (world.phase === "serve")
       status =
-        localSide !== -1 && world.server === localSide
+        localSide !== -1 &&
+        world.server === localSide &&
+        // Three a side, the middle lane serves.
+        (localLane === -1 || localLane === 1)
           ? `${score} · YOUR SERVE`
-          : `${score} · SERVE`;
+          : localLane !== -1
+            ? `${score} · ${LANE_NAMES[localLane]} LANE`
+            : `${score} · SERVE`;
     else if (world.phase === "dead" && world.lastFault !== -1)
       status =
         localSide === -1
@@ -212,21 +225,27 @@ export function present(view: View, viewer: Viewer): Model {
   }
 
   const needed = seatsFor(view.settings),
-    doubles = view.settings.doubles;
-  const fill = doubles && seats.length < needed ? needed - seats.length : 0;
+    team = view.settings.team,
+    teams = team > 1,
+    mode = `${team} V ${team}`;
+  const fill = teams && seats.length < needed ? needed - seats.length : 0;
+  const colours =
+    team === 3
+      ? "3 V 3 in lanes: seats 1, 3 and 5 play cyan, 2, 4 and 6 pink."
+      : "2 V 2: seats 1 and 3 play cyan, 2 and 4 pink.";
   const lobbyNote = !seats.length
     ? "Pick a name to take a seat"
     : viewer.host
       ? seats.length > needed
-        ? "1 V 1 takes two seats: pick 2 V 2, or remove a bot."
-        : !doubles && seats.length < needed
+        ? `${mode} takes ${needed} seats: pick a bigger match, or remove a bot.`
+        : !teams && seats.length < needed
           ? "A match needs two players: invite a friend or add a bot."
           : fill
-            ? `2 V 2: seats 1 and 3 play cyan, 2 and 4 pink. START adds ${plural(fill, "bot", "bots")} for the empty ${fill === 1 ? "seat" : "seats"}.`
+            ? `${colours} START adds ${plural(fill, "bot", "bots")} for the empty ${fill === 1 ? "seat" : "seats"}.`
             : view.settings.display
               ? "Shared screen: open the TV screen, then every player uses a phone"
-              : doubles
-                ? "2 V 2: seats 1 and 3 play cyan, 2 and 4 pink."
+              : teams
+                ? colours
                 : ""
       : "Waiting for the host to start";
   const scoring = inMatch ? view.play.scoring : view.settings.scoring;
@@ -256,7 +275,7 @@ export function present(view: View, viewer: Viewer): Model {
       canAddBot: viewer.host && seats.length < needed,
       removable: viewer.host ? seats.filter((s) => s.bot).map((s) => s.id) : [],
       showStart: viewer.host,
-      canStart: doubles
+      canStart: teams
         ? seats.length >= 1 && seats.length <= needed
         : seats.length === needed,
       fill,

@@ -39,9 +39,11 @@ import type { WorldView } from "../engine/view.js";
 import { GAME_ID } from "../basics.js";
 import {
   DEFAULT_SETTINGS,
+  TEAMS,
   createFuseVolleyGame,
   fuseVolleyGame,
   type Settings,
+  type Team,
   type View,
 } from "../online/game.js";
 import { seatName } from "../online/names.js";
@@ -118,6 +120,7 @@ const store = safeStore(() => localStorage);
 const names = keys(GAME);
 const scoringKey = `${GAME}-scoring`,
   botKey = `${GAME}-bot`,
+  teamKey = `${GAME}-team`,
   doublesKey = `${GAME}-doubles`;
 const query = new URLSearchParams(location.search);
 const muted = query.has("mute");
@@ -160,8 +163,14 @@ const chosenScoring = (): Scoring => {
   const asked = query.get("scoring") ?? store.getItem(scoringKey);
   return SCORINGS.find((known) => known === asked) ?? DEFAULT_SETTINGS.scoring;
 };
-const chosenDoubles = (): boolean =>
-  (query.get("doubles") ?? store.getItem(doublesKey)) === "1";
+/** Blobs a side: `?team=`, else the last choice, else an older page's doubles flag. */
+const chosenTeam = (): Team => {
+  const asked = Number(query.get("team") ?? store.getItem(teamKey) ?? NaN);
+  if (TEAMS.some((team) => team === asked)) return asked as Team;
+  return (query.get("doubles") ?? store.getItem(doublesKey)) === "1"
+    ? 2
+    : DEFAULT_SETTINGS.team;
+};
 const chosenBot = (): BotLevel => {
   const raw = Number(query.get("bot") ?? store.getItem(botKey) ?? NaN);
   return isBotLevel(raw) ? raw : DEFAULT_SETTINGS.bot;
@@ -247,23 +256,23 @@ function createScoringPicker(onPick: (id: Scoring) => void) {
   };
 }
 
-/** One a side or two a side, as two small buttons. */
-function createModePicker(onPick: (doubles: boolean) => void) {
+/** One, two or three a side, as three small buttons. */
+function createModePicker(onPick: (team: Team) => void) {
   const element = el("div", "", "fv-levels fv-modes");
   element.setAttribute("role", "group");
   element.setAttribute("aria-label", "Players");
   const buttons = MODE_CHOICES.map((choice) => {
     const node = button(choice.title, "fv-level fv-mode");
-    node.dataset.doubles = String(choice.doubles);
-    node.onclick = () => onPick(choice.doubles);
+    node.dataset.team = String(choice.team);
+    node.onclick = () => onPick(choice.team);
     element.append(node);
     return node;
   });
   return {
     element,
-    update(doubles: boolean, editable: boolean) {
+    update(team: Team, editable: boolean) {
       buttons.forEach((node, index) => {
-        const mine = MODE_CHOICES[index]!.doubles === doubles;
+        const mine = MODE_CHOICES[index]!.team === team;
         node.setAttribute("aria-pressed", String(mine));
         node.disabled = !editable && !mine;
       });
@@ -305,13 +314,13 @@ function landing(): void {
   const solo = () =>
     withFlags(
       endpoints.appUrl(
-        `?solo=1&scoring=${chosenScoring()}&bot=${chosenBot()}${chosenDoubles() ? "&doubles=1" : ""}`,
+        `?solo=1&scoring=${chosenScoring()}&bot=${chosenBot()}${chosenTeam() > 1 ? `&team=${chosenTeam()}` : ""}`,
       ),
     );
   const card = createLandingCard({
     title: "FUSE VOLLEY",
     tagline:
-      "Jelly blobs, one ball, one net. Bounce the ball over to the other side and keep it off your own sand: three touches a side at most. Play one on one or two on two: friends online, on one TV with phones as pads, or bots.",
+      "Jelly blobs, one ball, one net. Bounce the ball over to the other side and keep it off your own sand: three touches a side at most. Play one on one, two on two or three on three in lanes: friends online, on one TV with phones as pads, or bots.",
     soloText: "PLAY SOLO VS BOTS",
     async onCreate() {
       const room = await createRoom(endpoints.apiUrl, fetch, GAME).catch(
@@ -350,11 +359,11 @@ function landing(): void {
     bots.update(level, true);
   });
   bots.update(chosenBot(), true);
-  const modes = createModePicker((doubles) => {
-    store.setItem(doublesKey, doubles ? "1" : "0");
-    modes.update(doubles, true);
+  const modes = createModePicker((team) => {
+    store.setItem(teamKey, String(team));
+    modes.update(team, true);
   });
-  modes.update(chosenDoubles(), true);
+  modes.update(chosenTeam(), true);
   const rules = el("section", "", "fv-landing-rules");
   rules.append(
     el("h2", "PLAYERS", "fui-lobby-title"),
@@ -473,7 +482,7 @@ function room(solo: boolean): void {
   );
   addBot.onclick = () => runtime.command({ type: "bot", action: "add" });
   start.onclick = () => {
-    // Doubles starts with whoever is seated: bots take the empty seats first, in the same tick as the start.
+    // Two or three a side starts with whoever is seated: bots take the empty seats first, in the same tick as the start.
     for (let i = 0; i < (model?.lobby.fill ?? 0); i++)
       runtime.command({ type: "bot", action: "add" });
     runtime.command({ type: "action", action: "start" });
@@ -487,9 +496,9 @@ function room(solo: boolean): void {
     store.setItem(scoringKey, scoring);
     runtime.command({ type: "settings", settings: { ...settings, scoring } });
   });
-  const modePicker = createModePicker((doubles) => {
-    store.setItem(doublesKey, doubles ? "1" : "0");
-    runtime.command({ type: "settings", settings: { ...settings, doubles } });
+  const modePicker = createModePicker((team) => {
+    store.setItem(teamKey, String(team));
+    runtime.command({ type: "settings", settings: { ...settings, team } });
   });
   const botPicker = createBotPicker((bot) => {
     store.setItem(botKey, String(bot));
@@ -728,7 +737,7 @@ function room(solo: boolean): void {
     main.dataset.phase = view.world?.phase ?? "";
     main.dataset.score = view.world ? view.world.score.join("-") : "";
     main.dataset.riding = String(next.riding);
-    main.dataset.doubles = String(view.world?.court.team === 2);
+    main.dataset.team = String(view.world?.court.team ?? 1);
     lobby.hidden = next.screen !== "lobby";
     stage.hidden = next.screen !== "play";
     controller.hidden = next.screen !== "controller";
@@ -770,7 +779,7 @@ function room(solo: boolean): void {
       !solo
     );
     scoringPicker.update(view.settings.scoring, next.lobby.editable);
-    modePicker.update(view.settings.doubles, next.lobby.editable);
+    modePicker.update(view.settings.team, next.lobby.editable);
     botPicker.update(view.settings.bot, next.lobby.editable);
     botTitle.hidden = botPicker.element.hidden =
       !next.lobby.hasBot && !next.lobby.fill;
@@ -936,7 +945,7 @@ function room(solo: boolean): void {
       display: shared,
       scoring: chosenScoring(),
       bot: chosenBot(),
-      doubles: chosenDoubles(),
+      team: chosenTeam(),
     },
     callbacks,
     session.kind === "room"
@@ -958,9 +967,9 @@ function room(solo: boolean): void {
       : {
           humanName: social.playerName(store.getItem(names.name)) ?? undefined,
         },
-    // Solo doubles seats three bots beside the player.
-    solo && chosenDoubles()
-      ? createFuseVolleyGame(botInput, 3)
+    // Solo two or three a side seats three or five bots beside the player.
+    solo && chosenTeam() > 1
+      ? createFuseVolleyGame(botInput, chosenTeam() * 2 - 1)
       : fuseVolleyGame,
   );
   installRoomLifecycle(window, {

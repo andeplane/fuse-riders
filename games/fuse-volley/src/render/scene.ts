@@ -40,7 +40,7 @@ import {
 
 /**
  * Draws one frame of a Fuse Volley match on a 2D canvas: the beach, the net, the two jelly blobs and the ball, the
- * effects and the scoreboard, on the court (800×600, or 1400×600 for doubles) scaled to fit the canvas and centred in
+ * effects and the scoreboard, on the court (800×600, 1400×600 two a side or 1440×600 three a side) scaled to fit the canvas and centred in
  * it.
  *
  * It keeps no loop, timer or physics of its own: the app calls `draw` from its frame callback with the view to show
@@ -77,7 +77,7 @@ export interface Scene {
   resize(): void;
   /**
    * Draws `view` at wall time `nowMs`. `local` is this device's blob slot, or −1 for a watcher or a shared screen;
-   * `names` label the two sides and `tags`, when given, each blob by slot (doubles shows them under the blobs).
+   * `names` label the two sides and `tags`, when given, each blob by slot (two and three a side show them under the blobs).
    * Returns what happened since the last frame, for the app's sounds and haptics.
    */
   draw(
@@ -598,7 +598,49 @@ export function createScene(
     }
   };
 
-  /** Two a side, a name on the sand under each blob, so teammates of one colour can tell themselves apart. */
+  /**
+   * Three a side, the lanes: dashed lines across the sand in each side's colour, fading up into the air, and the middle
+   * lane (which serves) lit faintly on each side, so the rotation reads at a glance.
+   */
+  const drawLanes = (c: CanvasRenderingContext2D, view: WorldView) => {
+    const lines = view.court.lanes;
+    if (lines.length !== 4) return;
+    const [farLeft, nearLeft, nearRight, farRight] = lines as [
+      number,
+      number,
+      number,
+      number,
+    ];
+    for (const [side, from, to] of [
+      [0, farLeft, nearLeft],
+      [1, nearRight, farRight],
+    ] as const) {
+      const glow = c.createLinearGradient(0, SAND_Y - 60, 0, COURT_H);
+      glow.addColorStop(0, hexA(SIDE[side], 0));
+      glow.addColorStop(0.45, hexA(SIDE[side], 0.1));
+      glow.addColorStop(1, hexA(SIDE[side], 0.16));
+      c.fillStyle = glow;
+      c.fillRect(from, SAND_Y - 60, to - from, COURT_H - SAND_Y + 60);
+    }
+    c.save();
+    c.lineWidth = 3;
+    c.setLineDash([10, 8]);
+    for (const x of lines) {
+      const side = x < view.court.net ? 0 : 1;
+      const fade = c.createLinearGradient(0, SAND_Y - 90, 0, COURT_H);
+      fade.addColorStop(0, hexA(SIDE[side], 0));
+      fade.addColorStop(0.5, hexA(SIDE[side], 0.55));
+      fade.addColorStop(1, hexA(SIDE[side], 0.8));
+      c.strokeStyle = fade;
+      c.beginPath();
+      c.moveTo(x, SAND_Y - 90);
+      c.lineTo(x, COURT_H);
+      c.stroke();
+    }
+    c.restore();
+  };
+
+  /** Two or three a side, a name on the sand under each blob, so teammates of one colour can tell themselves apart. */
   const drawTag = (
     c: CanvasRenderingContext2D,
     blob: BlobView,
@@ -893,6 +935,7 @@ export function createScene(
       g.rect(0, 0, W, COURT_H);
       g.clip();
       drawCourt(g, nowMs);
+      drawLanes(g, view);
       for (const blob of view.blobs)
         drawShadow(g, blob.x, SAND_Y - blob.y, BODY_RADIUS);
       drawShadow(
@@ -902,7 +945,7 @@ export function createScene(
         BALL_RADIUS * 0.8,
       );
       drawNet(g, nowMs);
-      if (tags && view.court.team === 2)
+      if (tags && view.court.team > 1)
         for (const blob of view.blobs)
           drawTag(g, blob, tags[view.blobs.indexOf(blob)] ?? "");
       for (const [slot, blob] of view.blobs.entries())

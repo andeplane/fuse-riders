@@ -17,7 +17,7 @@ function players(room: Room): FuseVolleyPlayerResult[] | undefined {
   return roster.map((entrant) => {
     const blob = world.blobs[entrant.slot]!,
       side = sideOf(entrant.slot);
-    // Doubles: both blobs of the winning side win, and each reports its side's points.
+    // Two or three a side: every blob of the winning side wins, and each reports its side's points.
     const won = side === sideOf(winner.slot);
     return {
       playerId: entrant.id,
@@ -43,7 +43,7 @@ export function matchResult(
   return {
     matchId: room.matchId,
     length: 1,
-    // Doubles has two winners: the placements say who.
+    // Teams have several winners: the placements say who.
     ...(list.length === 2 ? { winnerId: room.decided.winner } : {}),
     finishers: [...room.decided.finishers],
     players: list,

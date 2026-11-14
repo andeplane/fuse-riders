@@ -31,7 +31,29 @@ const GOLDEN: {
   bots: Record<Scoring, string[]>;
   /** Two a side on the wide court: the pilots, then the bots (hard and normal against easy and normal). */
   doubles: { pilots: string[]; bots: string[] };
+  /** Three a side in lanes: the pilots, then the bots. */
+  trios: { pilots: string[]; bots: string[] };
 } = {
+  trios: {
+    pilots: [
+      "e00b44b3",
+      "753699d2",
+      "e2674ce2",
+      "9c3068c8",
+      "5e8735a9",
+      "013f8a7c",
+      "820702bd",
+    ],
+    bots: [
+      "0d08895e",
+      "2f957722",
+      "bde285e0",
+      "96b0e6f7",
+      "beddafa0",
+      "db76f16a",
+      "1b82edad",
+    ],
+  },
   doubles: {
     pilots: [
       "692e8d88",
@@ -54,7 +76,7 @@ const GOLDEN: {
       "5367a090",
     ],
   },
-  rules: "fuse-volley-3",
+  rules: "fuse-volley-4",
   hashes: {
     rally: [
       "7a4b3e99",
@@ -144,7 +166,7 @@ function record(bots = false, blobs = 2): Record<Scoring, string[]> {
   const recorded = { rally: [] as string[], classic: [] as string[] };
   for (const scoring of ["rally", "classic"] as const) {
     const world = createWorld(
-        ["bot:1", "bot:2", "bot:3", "bot:4"].slice(0, blobs),
+        ["bot:1", "bot:2", "bot:3", "bot:4", "bot:5", "bot:6"].slice(0, blobs),
         scoring,
         20261114,
       ),
@@ -152,7 +174,7 @@ function record(bots = false, blobs = 2): Record<Scoring, string[]> {
       hashes = recorded[scoring];
     const hash = () => hashes.push(fnv(JSON.stringify(encodeWorld(world))));
     for (let tick = 1; tick <= TICKS && world.phase !== "over"; tick++) {
-      const levels = [2, 0, 1, 1] as const;
+      const levels = [2, 0, 1, 1, 0, 2] as const;
       const inputs = world.blobs.map((_, slot) =>
         bots
           ? botInput(world, slot, levels[slot]!)
@@ -172,9 +194,13 @@ test("recorded matches replay to their recorded hashes under the current rules",
     doubles = {
       pilots: record(false, 4).rally,
       bots: record(true, 4).rally,
+    },
+    trios = {
+      pilots: record(false, 6).rally,
+      bots: record(true, 6).rally,
     };
   if (process.env.GOLDEN_RECORD)
-    console.log(JSON.stringify({ rules: RULES, hashes, bots, doubles }));
+    console.log(JSON.stringify({ rules: RULES, hashes, bots, doubles, trios }));
   assert.equal(
     RULES,
     GOLDEN.rules,
@@ -194,5 +220,10 @@ test("recorded matches replay to their recorded hashes under the current rules",
     doubles,
     GOLDEN.doubles,
     "doubles changed: bump RULES and re-record, or fix the regression",
+  );
+  assert.deepEqual(
+    trios,
+    GOLDEN.trios,
+    "three a side changed: bump RULES and re-record, or fix the regression",
   );
 });

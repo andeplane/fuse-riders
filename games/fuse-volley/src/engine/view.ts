@@ -1,10 +1,10 @@
-import { courtOf } from "./world.js";
+import { courtOf, laneOf } from "./world.js";
 import { div } from "./math.js";
 import * as T from "./tuning.js";
 import type { Phase, Scoring, Side, World } from "./world.js";
 
 /**
- * What the presentation sees of a match: screen pixels on the court (800 × 600, or 1600 × 600 two a side) with y pointing down (fractions
+ * What the presentation sees of a match: screen pixels on the court (800 × 600, 1400 × 600 two a side, 1440 × 600 three) with y pointing down (fractions
  * allowed), speeds in pixels per step, timers in steps. Effects are the presentation's own, driven by the counters
  * changing between two views; a rollback that replays a step leaves a counter where it was, so nothing fires twice.
  */
@@ -20,6 +20,8 @@ export interface BlobView {
   /** This blob's side's touches in a row, 0–3. */
   touches: number;
   hits: number;
+  /** Three a side, the lane it plays: 0 front, 1 middle (it serves), 2 back. −1 on courts without lanes. */
+  lane: number;
 }
 export interface BallView {
   x: number;
@@ -32,8 +34,8 @@ export interface BallView {
   spin: number;
 }
 export interface WorldView {
-  /** The court's width and net line, px, and blobs a side. */
-  court: { width: number; net: number; team: 1 | 2 };
+  /** The court's width and net line, px, blobs a side, and three a side, the lane lines' x left to right. */
+  court: { width: number; net: number; team: 1 | 2 | 3; lanes: number[] };
   step: number;
   phase: Phase;
   /** Serve: steps until the ball drops by itself. Dead: steps of the settle left. 0 otherwise. */
@@ -75,7 +77,7 @@ function matchPointOf(world: World): -1 | Side {
 
 export function toView(world: World): WorldView {
   const court = courtOf(world);
-  const blob = (b: World["blobs"][number]): BlobView => {
+  const blob = (b: World["blobs"][number], slot: number): BlobView => {
     return {
       id: b.id,
       side: b.side,
@@ -85,11 +87,17 @@ export function toView(world: World): WorldView {
       frame: b.frame,
       touches: b.touches,
       hits: b.hits,
+      lane: laneOf(world, slot),
     };
   };
   const ball = world.ball;
   return {
-    court: { width: court.w, net: court.net, team: court.team },
+    court: {
+      width: court.w,
+      net: court.net,
+      team: court.team,
+      lanes: [...court.laneLines],
+    },
     step: world.step,
     phase: world.phase,
     remaining:

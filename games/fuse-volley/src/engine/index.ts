@@ -2,12 +2,14 @@
  * Fuse Volley's engine: deterministic integer rules with no imports from outside this folder. A change to what any of
  * it does must bump `RULES` and re-record the golden (`tests/golden.test.ts`) in the same commit.
  */
-export const RULES = "fuse-volley-3";
+export const RULES = "fuse-volley-4";
 export * from "./input.js";
 export {
   PHASES,
   SCORINGS,
+  cloneWorld,
   courtOf,
+  laneOf,
   createWorld,
   isPlayerCount,
   otherSide,
@@ -21,7 +23,7 @@ export {
   type World,
 } from "./world.js";
 export { stepWorld, winnerOf, decided } from "./step.js";
-export { courtFor, DOUBLES, SINGLES, type Court } from "./court.js";
+export { courtFor, DOUBLES, SINGLES, TRIOS, type Court } from "./court.js";
 export { botInput, BOT_LEVELS, isBotLevel, type BotLevel } from "./bot.js";
 export {
   toView,
