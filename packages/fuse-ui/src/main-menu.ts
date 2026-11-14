@@ -1,4 +1,5 @@
 import { backOnEscape, createBackButton, createPageHeader } from "./back.js";
+import { menuKeys } from "./menu-keys.js";
 import { button, el } from "./dom.js";
 import { createDialog } from "./dialog.js";
 import { mountAttract, type AttractFactory } from "./attract.js";
@@ -163,6 +164,15 @@ export function createMainMenu(options: MainMenuOptions) {
     enabled: () => !pending,
     document: doc,
   });
+  // The arrows walk whichever column is showing: the front door's or Play's.
+  const releaseKeys = menuKeys(home, {
+    items: () => [
+      ...navigation.querySelectorAll<HTMLElement>(":scope > button"),
+      ...choices.querySelectorAll<HTMLElement>(":scope > button"),
+    ],
+    enabled: () => !pending,
+    document: doc,
+  });
   const run = async (
     action: () => Promise<void> | void,
     trigger: HTMLButtonElement,
@@ -271,6 +281,7 @@ export function createMainMenu(options: MainMenuOptions) {
     backgroundActive = false;
     stopBackground();
     releaseEscape();
+    releaseKeys();
   };
   startBackground();
   return {

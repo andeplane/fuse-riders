@@ -1234,7 +1234,7 @@
 /* A seat reserves its space before admission; content and pressed states never move its neighbours. */
 .fui-room-layout.fui-room-layout .fui-room-open-slot {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-rows: 20px 42px;
   align-content: center;
   align-items: center;
@@ -1245,9 +1245,30 @@
   min-width: 0;
   padding: 12px 16px;
   overflow: hidden;
+  /* A seat arranges itself by its own width: three across a wide room or one down a phone, the same rules. */
+  container-type: inline-size;
+}
+/* The seat's number, in the seat's colour: filled once somebody sits there. */
+.fui-room-layout .fui-slot-chip {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  box-sizing: border-box;
+  border: 0.125rem solid var(--slot-color, var(--fui-control-line));
+  border-radius: 50%;
+  color: color-mix(in srgb, var(--slot-color, #b9d0e1) 75%, white);
+  font: 700 0.875rem/1 var(--fui-font-sans);
+  font-variant-numeric: tabular-nums;
+}
+.fui-room-layout .fui-slot-occupied > .fui-slot-chip {
+  background: var(--slot-color, var(--fui-control-line));
+  color: #06101d;
 }
 .fui-room-layout .fui-slot-label {
-  grid-column: 1;
+  grid-column: 2;
   grid-row: 1;
   min-width: 0;
   overflow: hidden;
@@ -1255,19 +1276,69 @@
   white-space: nowrap;
   line-height: 20px;
 }
+/* An open seat reads across: its number, that it is open, and what to do about it. */
+.fui-room-layout .fui-room-open-slot:not(.fui-slot-occupied) > .fui-slot-label {
+  grid-row: 1 / 3;
+}
 .fui-room-layout .fui-slot-controls {
-  grid-column: 2;
+  grid-column: 3;
   grid-row: 1 / 3;
   flex-wrap: nowrap;
   width: auto;
   align-items: center;
 }
 .fui-room-layout .fui-slot-occupant {
-  grid-column: 1 / -1;
+  grid-column: 2 / -1;
   grid-row: 2;
   min-width: 0;
   height: 42px;
   overflow: hidden;
+}
+/* A seat with nothing to say but its number gives both rows to whoever sits there. */
+.fui-room-layout .fui-slot-plain.fui-slot-occupied > .fui-slot-label {
+  display: none;
+}
+.fui-room-layout .fui-slot-plain > .fui-slot-occupant {
+  grid-row: 1 / 3;
+}
+/* Too narrow for the words and the buttons side by side: the buttons take the second row, full width. */
+@container (max-width: 21rem) {
+  .fui-room-layout
+    .fui-room-open-slot:not(.fui-slot-plain.fui-slot-occupied)
+    > .fui-slot-chip {
+    grid-row: 1;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-width: 0.0625rem;
+    font-size: 0.6875rem;
+  }
+  .fui-room-layout
+    .fui-room-open-slot:not(.fui-slot-occupied)
+    > .fui-slot-label {
+    grid-row: 1;
+  }
+  .fui-room-layout .fui-slot-controls {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+  }
+  .fui-room-layout.fui-room-layout .fui-slot-controls button {
+    flex: 1;
+    min-width: 0;
+  }
+  .fui-room-layout
+    .fui-room-open-slot:not(.fui-slot-plain)
+    > .fui-slot-occupant {
+    grid-column: 1 / -1;
+  }
+}
+/* An open seat this viewer can do nothing about: quieter, its number and "Open seat" on one line. */
+.fui-room-layout .fui-room-open-slot.fui-slot-idle {
+  opacity: 0.6;
+}
+.fui-room-layout .fui-room-open-slot.fui-slot-idle > .fui-slot-chip,
+.fui-room-layout .fui-room-open-slot.fui-slot-idle > .fui-slot-label {
+  grid-row: 1 / 3;
 }
 .fui-room-layout .fui-slot-occupant > * {
   display: flex;
@@ -1300,8 +1371,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
-  line-height: 18px;
+  /* A name is read, not a title: the body face, as the buttons beside it. */
+  font: 600 15px/18px var(--fui-font-sans);
 }
 .fui-room-layout .fui-slot-occupant small,
 .fui-room-layout .fui-slot-occupant .fui-roster-status {
@@ -1384,6 +1455,135 @@
 .fui-room-layout.fui-room-layout {
   row-gap: 16px;
 }
+/* The host's own choices for the room, under the invitation: a shared TV, and its screen to open. */
+.fui-room-invitation > .fui-room-extra {
+  display: grid;
+  gap: var(--fui-space-2);
+  font: 0.875rem/1.4 var(--fui-font-sans);
+  color: var(--fui-text);
+}
+.fui-room-extra > label {
+  display: flex;
+  align-items: center;
+  gap: var(--fui-space-2);
+  min-height: var(--fui-control-height);
+  cursor: pointer;
+}
+.fui-room-layout.fui-room-layout .fui-room-extra input[type="checkbox"] {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--fui-primary-fill);
+}
+/* The connection's state: one quiet line at the foot of the room, not a badge beside the brand. */
+.fui-room-layout > .fui-room-status {
+  grid-column: 1 / -1;
+  min-width: 0;
+  color: var(--fui-text-dim);
+  font: 0.75rem/1.4 var(--fui-font-sans);
+}
+.fui-room-status:empty,
+.fui-room-status:has(> :only-child:empty) {
+  display: none;
+}
+@media (max-width: 640px) {
+  .fui-room-layout > .fui-room-status {
+    order: 7;
+  }
+}
+/*
+ * A room on one device: one column, no invitation. Back, the heading, Settings and START share the header, as a
+ * dialog's bar does, and the seats are a strip of who is here and the next open one.
+ */
+.fui-room-layout.fui-room-compact {
+  grid-template-columns: minmax(0, 1fr);
+}
+/* Settings and the main action in the room's header stay on screen: the header follows the page down. */
+.fui-room-actions-top > .fui-room-head {
+  position: sticky;
+  top: var(--fui-room-sticky-top, 84px);
+  z-index: 3;
+  margin: calc(var(--fui-space-2) * -1);
+  padding: var(--fui-space-2);
+  border-radius: var(--fui-control-radius);
+  background: #0b1426f2;
+}
+.fui-room-actions-top .fui-room-head .fui-room-primary-action {
+  position: static;
+  width: auto;
+  height: auto;
+  min-height: 0;
+}
+.fui-room-layout.fui-room-actions-top
+  .fui-room-head
+  .fui-room-primary-action
+  button {
+  width: auto;
+  min-width: 7rem;
+  height: var(--fui-control-height);
+  min-height: var(--fui-control-height);
+  max-height: var(--fui-control-height);
+}
+@media (max-width: 640px) {
+  /* A phone's header has room for Back and the heading: its actions take a row of their own, shared evenly. */
+  .fui-room-actions-top > .fui-room-head {
+    top: var(--fui-room-sticky-top, 72px);
+    flex-wrap: wrap;
+    order: 0;
+  }
+  .fui-room-actions-top > .fui-room-head > .fui-page-actions {
+    flex: 1 1 100%;
+  }
+  .fui-room-actions-top > .fui-room-head > .fui-page-actions > * {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .fui-room-layout.fui-room-actions-top
+    .fui-room-head
+    .fui-room-primary-action
+    button {
+    width: 100%;
+    min-width: 0;
+  }
+}
+.fui-room-compact .fui-room-players > h2 {
+  display: none;
+}
+.fui-room-compact .fui-room-open-slots {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 0;
+}
+.fui-room-layout.fui-room-compact .fui-room-open-slot {
+  flex: 0 1 17.5rem;
+  grid-template-rows: 18px 26px;
+  height: 64px;
+  min-height: 64px;
+  max-height: 64px;
+  padding: 8px 12px;
+  container-type: normal;
+}
+.fui-room-compact .fui-slot-occupant,
+.fui-room-compact .fui-slot-occupant > * {
+  height: 40px;
+  max-height: 40px;
+}
+/* One open seat is the invitation to add somebody: the rest of an empty room is not shown. */
+.fui-room-compact
+  .fui-room-open-slot:not(.fui-slot-occupied)
+  ~ .fui-room-open-slot:not(.fui-slot-occupied) {
+  display: none;
+}
+@media (max-width: 640px) {
+  .fui-room-compact .fui-room-players > * {
+    order: 1;
+  }
+  .fui-room-layout.fui-room-compact .fui-room-open-slot {
+    flex: 1 1 100%;
+  }
+}
 .fui-room-layout .fui-room-primary-action button {
   width: 100%;
   height: 46px;
@@ -1438,23 +1638,51 @@
   min-width: 0;
 }
 @media (max-width: 600px) {
-  .fui-room-layout.fui-room-layout .fui-room-open-slot {
-    grid-template-columns: minmax(0, 1fr);
+  /* A phone's seat has two rows whatever its width: who or what it is, then its buttons across. A compact
+     room's strip keeps its one row. */
+  .fui-room-layout.fui-room-layout:not(.fui-room-compact) .fui-room-open-slot {
     grid-template-rows: 20px 44px;
-    gap: 8px;
+    gap: 8px 12px;
     height: 104px;
     min-height: 104px;
     max-height: 104px;
     padding: 12px 14px;
   }
-  .fui-room-layout .fui-slot-controls {
-    grid-column: 1;
+  .fui-room-layout:not(.fui-room-compact) .fui-slot-controls {
+    grid-column: 1 / -1;
     grid-row: 2;
     width: 100%;
   }
-  .fui-room-layout .fui-slot-controls button {
+  .fui-room-layout:not(.fui-room-compact)
+    .fui-room-open-slot:not(.fui-slot-occupied)
+    > .fui-slot-label {
+    grid-row: 1;
+  }
+  .fui-room-layout:not(.fui-room-compact)
+    .fui-room-open-slot:not(.fui-slot-plain.fui-slot-occupied)
+    > .fui-slot-chip {
+    grid-row: 1;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-width: 0.0625rem;
+    font-size: 0.6875rem;
+  }
+  .fui-room-layout:not(.fui-room-compact) .fui-slot-controls button {
     flex: 1;
     min-width: 0;
+  }
+  /* Down a phone the seats stack, so one nobody here can fill is a line, not a tile. */
+  .fui-room-layout.fui-room-layout:not(.fui-room-compact)
+    .fui-room-open-slot.fui-slot-idle {
+    grid-template-rows: 20px;
+    height: 44px;
+    min-height: 44px;
+    max-height: 44px;
+  }
+  .fui-room-layout:not(.fui-room-compact)
+    .fui-room-open-slot.fui-slot-idle
+    > :is(.fui-slot-chip, .fui-slot-label) {
+    grid-row: 1;
   }
 }
 

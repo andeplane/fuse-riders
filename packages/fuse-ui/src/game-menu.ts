@@ -1,4 +1,5 @@
 import { createBackButton, createPageHeader } from "./back.js";
+import { menuKeys } from "./menu-keys.js";
 import { button, el } from "./dom.js";
 
 export interface ControlHint {
@@ -227,6 +228,7 @@ export function createGameMenu(options: GameMenuOptions): GameMenu {
     renderControls();
   };
   update(state);
+  const releaseKeys = menuKeys(navigation, { document: doc });
   return {
     element,
     update,
@@ -235,6 +237,7 @@ export function createGameMenu(options: GameMenuOptions): GameMenu {
     dispose() {
       close();
       disposed = true;
+      releaseKeys();
       doc.removeEventListener("keydown", onKey);
       doc.removeEventListener("pointerdown", onOutside);
       trigger.onclick = null;

@@ -21,6 +21,7 @@ export {
   type SubPage,
   type SubPageOptions,
 } from "./back.js";
+export { menuKeys, type MenuKeysOptions } from "./menu-keys.js";
 export {
   closeOnBackdrop,
   createDialog,

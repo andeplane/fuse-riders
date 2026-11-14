@@ -34,6 +34,19 @@ body.fusemania-page {
   gap: var(--fui-space-2) var(--fui-space-3);
   padding: var(--fui-space-3) 0;
 }
+/* The lobby scrolls under the fixed top bar: what passes behind it blurs out, so the brand stays readable. */
+body:has(.fm-lobby:not([hidden])) .fm-top::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: -1;
+  height: 5rem;
+  background: #03091980;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  mask-image: linear-gradient(#000 70%, transparent);
+  pointer-events: none;
+}
 .fm-brand {
   display: grid;
   grid-template-columns: auto auto;
@@ -56,28 +69,13 @@ body.fusemania-page {
   font-size: 0.5rem;
   letter-spacing: 0.125rem;
 }
-.fm-code {
-  padding: var(--fui-space-1) var(--fui-space-2);
-  color: var(--fui-ink);
-  background: var(--fui-yellow);
-  border-radius: var(--fui-radius-small);
-  font: 0.75rem var(--fui-font-pixel);
-}
-.fm-status {
-  flex: 1 1 10rem;
-  /* One line, always laid out: a status that appears, changes or wraps must not move the buttons beside it. */
-  min-width: 0;
-  min-height: 1.25rem;
-  overflow: hidden;
-  font-size: 0.75rem;
-  line-height: 1.25rem;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.fui-app .fm-status[hidden] {
-  display: block !important;
-  visibility: hidden;
+/* What went wrong with the room, over whatever the page shows: the lobby's foot has the quiet states. */
+.fm-alert {
+  margin: var(--fui-space-3) auto 0;
+  padding: 0 var(--fui-space-4);
+  color: var(--fui-pink-soft);
+  font: 0.875rem/1.5 var(--fui-font-sans);
+  text-align: center;
 }
 .fm-top .fui-game-menu {
   margin-left: auto;
@@ -101,19 +99,6 @@ body.fusemania-page {
 .fusemania-page .fui-landing-title {
   color: var(--fui-pink);
   text-shadow: var(--fui-glow-pink);
-}
-.fm-shared {
-  display: flex;
-  align-items: center;
-  gap: var(--fui-space-2);
-  color: var(--fui-text-muted);
-  font-size: 0.8125rem;
-}
-.fui-app .fm-shared input {
-  width: 1.25rem;
-  height: 1.25rem;
-  margin: 0;
-  accent-color: var(--fui-cyan);
 }
 /* The song select needs the width: its dialog is wider than a menu's. PLAY is in the dialog's bar, not under the select. */
 .fusemania-page .fui-menu-dialog:has(.fm-picker) {
@@ -207,6 +192,8 @@ body.fusemania-page {
   gap: var(--fui-space-3);
   width: min(100%, 76rem);
   margin: 0 auto;
+  /* Back, OPTIONS and START stay right under the top bar while the room scrolls. */
+  --fui-room-sticky-top: 4.25rem;
 }
 @media (min-width: 60rem) {
   .fm-lobby {
@@ -250,18 +237,12 @@ body.fm-display .fm-lobby {
   justify-content: center;
 }
 
-/* The shared top bar floats over the page: the room starts under it, and a song has no use for the room's code. */
+/* The shared top bar floats over the page: the room starts under it. */
 body:has(.fui-top-bar) .fm-room {
   padding-top: calc(68px + env(safe-area-inset-top));
 }
 body:has(.fui-top-bar) .fm-room:has(> .fui-room-layout:not([hidden])) {
   padding-top: 0;
-}
-body:has(.fm-room:is([data-screen="play"], [data-screen="controller"]))
-  .fm-code,
-body:has(.fm-room:is([data-screen="play"], [data-screen="controller"]))
-  .fm-status:not([data-tone="error"]) {
-  display: none !important;
 }
 /* A lobby: the players in rows of seats on top, the song select under them with the room it needs. */
 @media (min-width: 641px) {
@@ -684,15 +665,6 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"]))
   }
   .fm-brand {
     font-size: 1rem;
-  }
-  .fm-top .fm-status {
-    order: 5;
-    flex-basis: 100%;
-  }
-  body:has(.fm-room:is([data-screen="play"], [data-screen="controller"]))
-    .fm-top
-    .fm-status {
-    display: none !important;
   }
   .fm-card {
     padding: var(--fui-space-3);

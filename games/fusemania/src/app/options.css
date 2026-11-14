@@ -264,3 +264,12 @@
     gap: 3px;
   }
 }
+/* In a room's header OPTIONS is one of three across a phone: it fills its share and no more. */
+.fui-room-head .fm-options-menu .fm-options-toggle {
+  width: 100%;
+}
+@media (max-width: 640px) {
+  .fui-room-layout.fui-room-layout .fui-room-head .fui-page-actions button {
+    padding-inline: var(--fui-space-2);
+  }
+}

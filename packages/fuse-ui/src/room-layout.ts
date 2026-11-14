@@ -30,8 +30,27 @@ export interface RoomLayoutOptions {
   modes?: readonly Node[];
   background?: AttractFactory;
   slotColor?: (slot: number) => string;
+  /** What a seat is, when that is more than its number (a role, a team). The seat's number is on its chip. */
   slotLabel?: (slot: number) => string;
   playerName?: () => string | undefined;
+  /**
+   * Settings and the main action across the room's top, beside Back, where a dialog's bar has them: they stay on
+   * screen however long the room's own choices run. Without it they close the invitation's column.
+   */
+  actionsInHeader?: boolean;
+  /** A game's own actions in the header, before Settings (a song select's OPTIONS). Implies `actionsInHeader`. */
+  headerActions?: readonly Node[];
+  /**
+   * A room on one device (a solo game): one column with no invitation, the seats a strip of who is here and the
+   * next open one. Implies `actionsInHeader`.
+   */
+  compact?: boolean;
+  /** Beside Back, in the header. */
+  heading?: string;
+  /** The host's own choices for the room (a shared TV), under the invitation. */
+  extras?: readonly Node[];
+  /** The connection's state: one quiet line at the foot of the room. */
+  status?: HTMLElement;
 }
 
 /** A shared waiting room; adapters keep their existing commands, permissions and state updates. */
@@ -66,18 +85,25 @@ export function createRoomLayout(options: RoomLayoutOptions) {
   const heading = el("h2", options.title ?? "Players", "", doc);
   const count = el("span", "", "fui-room-count", doc);
   heading.append(count);
+  const compact = options.compact === true,
+    inHeader =
+      compact ||
+      options.actionsInHeader === true ||
+      Boolean(options.headerActions?.length);
   if (invite) left.append(invite);
-  else
+  else if (!compact)
     left.append(
       el("h2", "Your room", "", doc),
       el("p", "Play together on this device.", "", doc),
     );
+  left.append(...(options.extras ?? []));
   const settings = createDialog({ title: "Game settings", document: doc });
   settings.dialog.classList.add("fui-menu-dialog");
   const configure =
     options.settingsTrigger ??
     button("Game settings", "fui-room-settings", doc);
-  configure.textContent = "Game settings";
+  configure.textContent = inHeader ? "Settings" : "Game settings";
+  configure.setAttribute("aria-label", "Game settings");
   configure.classList.add("fui-room-configure");
   configure.onclick =
     options.onSettings ?? (() => settings.show({ title: "Game settings" }));
@@ -92,12 +118,14 @@ export function createRoomLayout(options: RoomLayoutOptions) {
         doc,
       ),
     );
-  if (options.primaryAction) {
-    const primary = el("div", "", "fui-room-primary-action", doc);
-    primary.append(options.primaryAction);
-    left.append(primary);
+  const primary = options.primaryAction
+    ? el("div", "", "fui-room-primary-action", doc)
+    : undefined;
+  primary?.append(options.primaryAction!);
+  if (!inHeader) {
+    if (primary) left.append(primary);
+    left.append(configure);
   }
-  left.append(configure);
   // The way out is Back, top left, as on every other page: not a button among the room's own.
   const location = doc.defaultView?.location;
   const mainMenu =
@@ -109,7 +137,23 @@ export function createRoomLayout(options: RoomLayoutOptions) {
       document: doc,
     });
   mainMenu.classList.add("fui-back", "fui-room-main-menu");
-  const head = createPageHeader({ back: mainMenu, document: doc });
+  // In the header the order is a dialog bar's: a game's own actions, Settings, and the main action last.
+  const head = createPageHeader({
+    back: mainMenu,
+    ...(options.heading || compact
+      ? { title: options.heading ?? "Your room" }
+      : {}),
+    ...(inHeader
+      ? {
+          actions: [
+            ...(options.headerActions ?? []),
+            configure,
+            ...(primary ? [primary] : []),
+          ],
+        }
+      : {}),
+    document: doc,
+  });
   head.element.classList.add("fui-room-head");
   let joinHome: Comment | undefined;
   let admission = options.join;
@@ -144,14 +188,18 @@ export function createRoomLayout(options: RoomLayoutOptions) {
     if (input?.value.trim()) {
       admission.requestSubmit();
       if (input.getAttribute("aria-invalid") === "true")
-        admissionDialog.show({ title: `Join slot ${index + 1}` });
+        admissionDialog.show({ title: `Join seat ${index + 1}` });
     } else {
-      admissionDialog.show({ title: `Join slot ${index + 1}` });
+      admissionDialog.show({ title: `Join seat ${index + 1}` });
       input?.focus();
     }
   };
   const createSlot = (index: number) => {
     const slot = el("div", "", "fui-room-open-slot", doc);
+    // The number is the seat's own: a label says more only when a game has more to say.
+    const chip = el("span", String(index + 1), "fui-slot-chip", doc);
+    chip.setAttribute("aria-hidden", "true");
+    if (!options.slotLabel) slot.classList.add("fui-slot-plain");
     const label = el("span", "", "fui-slot-label", doc);
     const controls = el("div", "", "fui-slot-controls", doc);
     const occupant = el("ul", "", "fui-slot-occupant", doc);
@@ -165,7 +213,7 @@ export function createRoomLayout(options: RoomLayoutOptions) {
       }
     };
     controls.append(join, ai);
-    slot.append(label, controls, occupant);
+    slot.append(chip, label, controls, occupant);
     if (options.slotColor)
       slot.style.setProperty("--slot-color", options.slotColor(index));
     slot.dataset.slot = String(index);
@@ -182,10 +230,15 @@ export function createRoomLayout(options: RoomLayoutOptions) {
   // Who is here and where to join come first, in every game: a game's own choices (modes, maps, songs) follow.
   right.append(heading, roster, slots, joinActions, modes, actions);
   root.classList.add("fui-room-layout");
+  root.classList.toggle("fui-room-compact", compact);
+  root.classList.toggle("fui-room-actions-top", inHeader);
+  const foot = el("div", "", "fui-room-status", doc);
+  if (options.status) foot.append(options.status);
   root.replaceChildren(
     head.element,
-    left,
+    ...(compact ? [] : [left]),
     right,
+    ...(options.status ? [foot] : []),
     settings.dialog,
     admissionDialog.dialog,
     parking,
@@ -263,9 +316,14 @@ export function createRoomLayout(options: RoomLayoutOptions) {
     emptySlots.forEach((slot, index) => {
       const taken = occupiedSlots ? occupiedSlots.has(index) : index < occupied;
       slot.hidden = index >= capacity && !taken;
-      const label = options.slotLabel?.(index) ?? `Slot ${index + 1}`;
-      slot.querySelector(".fui-slot-label")!.textContent =
-        `${label}${taken ? "" : " · Open"}`;
+      const custom = options.slotLabel?.(index);
+      const label = taken
+        ? (custom ?? `Seat ${index + 1}`)
+        : custom
+          ? `${custom} · Open`
+          : "Open seat";
+      const text = slot.querySelector(".fui-slot-label")!;
+      if (text.textContent !== label) text.textContent = label;
       slot.classList.toggle("fui-slot-occupied", taken);
       (slot.querySelector(".fui-slot-controls") as HTMLElement).hidden = taken;
       if (!taken) slot.querySelector(".fui-slot-occupant")!.replaceChildren();
@@ -277,6 +335,11 @@ export function createRoomLayout(options: RoomLayoutOptions) {
           ?.disabled ?? false;
       ai.hidden = !options.addAI || options.addAI.hidden;
       ai.disabled = options.addAI?.disabled ?? true;
+      // Open, with nothing this viewer can do about it: the seat says so quietly and takes less room.
+      slot.classList.toggle(
+        "fui-slot-idle",
+        !taken && join.hidden && ai.hidden,
+      );
     });
     for (const [index, row] of rows) {
       if (occupiedSlots ? !occupiedSlots.has(index) : index >= occupied)
@@ -404,10 +467,10 @@ export function roomLayoutMarkup(options: {
           ? options.occupiedSlots.includes(index)
           : index < options.occupied
       )
-        ? `<div class="fui-room-open-slot fui-slot-occupied" data-slot="${index}" style="--slot-color:${options.slotColors?.[index] ?? "#b9d0e1"}"><span class="fui-slot-label">Slot ${index + 1}</span><ul class="fui-slot-occupant">${options.slotPlayers?.find((player) => player.slot === index)?.html ?? ""}</ul></div>`
+        ? `<div class="fui-room-open-slot fui-slot-plain fui-slot-occupied" data-slot="${index}" style="--slot-color:${options.slotColors?.[index] ?? "#b9d0e1"}"><span class="fui-slot-chip" aria-hidden="true">${index + 1}</span><span class="fui-slot-label">Seat ${index + 1}</span><ul class="fui-slot-occupant">${options.slotPlayers?.find((player) => player.slot === index)?.html ?? ""}</ul></div>`
         : index >= options.capacity
           ? ""
-          : `<div class="fui-room-open-slot" data-slot="${index}" style="--slot-color:${options.slotColors?.[index] ?? "#b9d0e1"}"><span class="fui-slot-label">Slot ${index + 1} · Open</span><div class="fui-slot-controls">${options.canJoin ? `<button data-action="take-slot" data-slot="${index}">Join</button>` : ""}${options.canAddAI ? `<button data-action="add-bot" data-slot="${index}">Add AI</button>` : ""}</div></div>`,
+          : `<div class="fui-room-open-slot fui-slot-plain${options.canJoin || options.canAddAI ? "" : " fui-slot-idle"}" data-slot="${index}" style="--slot-color:${options.slotColors?.[index] ?? "#b9d0e1"}"><span class="fui-slot-chip" aria-hidden="true">${index + 1}</span><span class="fui-slot-label">Open seat</span><div class="fui-slot-controls">${options.canJoin ? `<button data-action="take-slot" data-slot="${index}">Join</button>` : ""}${options.canAddAI ? `<button data-action="add-bot" data-slot="${index}">Add AI</button>` : ""}</div></div>`,
   ).join("");
   return `<main class="fui-room-layout"><header class="fui-page-head fui-room-head">${options.mainMenu ?? '<a class="fui-back fui-room-main-menu" href="./" aria-label="Back">Back</a>'}</header><aside class="fui-room-invitation">${options.invite}${options.primaryAction ? `<div class="fui-room-primary-action">${options.primaryAction}</div>` : ""}<button class="fui-room-configure" data-action="open-room-settings">Game settings</button></aside><section class="fui-room-players"><h2>Players <span class="fui-room-count">${options.occupied} / ${options.capacity}</span></h2>${options.players}<div class="fui-room-open-slots">${open}</div><div class="fui-room-actions">${options.actions}</div></section><dialog class="fui-dialog fui-menu-dialog fui-slot-admission" data-room-name aria-label="Join the game"><header class="fui-dialog-bar"><button class="fui-back" data-action="close-room-name" aria-label="Back">Back</button><strong class="fui-dialog-title">Join the game</strong></header><div class="fui-dialog-body">${options.join}</div></dialog><dialog class="fui-dialog fui-menu-dialog" data-room-settings aria-label="Game settings"><header class="fui-dialog-bar"><button class="fui-back" data-action="close-room-settings" aria-label="Back">Back</button><strong class="fui-dialog-title">Game settings</strong></header><div class="fui-dialog-body">${options.settings}</div></dialog></main>`;
 }

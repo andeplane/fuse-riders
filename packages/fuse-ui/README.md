@@ -48,6 +48,18 @@ Fuse Riders loads both files, without `fui-app` (its page has its own base style
 - `copyText(text)`: clipboard write with the `execCommand` fallback. It returns whether the copy worked.
 - `closeOnBackdrop(dialog)`: a click on a modal dialog's backdrop closes it.
 
+## Menu patterns
+
+Every menu, dialog, room and page in every game follows one set of patterns. Use these before adding a button style, a close control or a header of a game's own; a game's CSS arranges its screens and does not restyle them.
+
+- **Back** is the one way out of a page or a dialog: `createBackButton` or `createBackLink` (`.fui-back`), a chevron and the word, the first control at the top left. There is no CLOSE, no ✕ and no "Main menu" button. A view nested inside a dialog names where its Back returns to (`label: "Matches"`), because the dialog around it already has a plain Back.
+- **Escape presses Back** (`backOnEscape`), except while a dialog is open (Escape is that dialog's) or the page says Escape is busy (a song playing, a key being bound). Escape never leaves a room.
+- **A header reads Back, title, actions** (`createPageHeader`, `createSubPage`, and `createDialog`'s bar): secondary actions first, the primary action last, at the right. A page's main action is in its header, never under the content it acts on.
+- **Buttons** have one shape, two heights and three roles: `.fui-button` (secondary), `.fui-button-primary`, `.fui-button-danger`, at `--fui-control-height`; a menu column's buttons are `--fui-menu-height`. A column has its primary action first, a row has it last. The primary differs by colour, never by size, so a button does not jump when one page replaces another.
+- **Type**: the pixel face for titles only, the sans face for buttons, names and text, the monospace face for readouts.
+- **Focus** is one ring (`--fui-focus-ring`). **Arrow keys** walk a menu's buttons (`menuKeys`), Home and End jump to its ends, and Enter presses the focused one; the main menu, the game menu and the top bar's menu have it built in.
+- **A room** (`createRoomLayout`) has Back at its top left. With `actionsInHeader` or `headerActions`, Settings and the main action sit across its top and follow the page down. Seats show their number on a chip in the seat's colour and say "Open seat" until somebody sits there; `slotLabel` is for a seat that is more than a number (a role, a team). `extras` holds the host's own choices for the room under the invitation (a shared TV), `status` puts the connection's state at the room's foot, and `compact` makes a room on one device one column with no invitation. The room's code is on the invitation and nowhere else.
+
 ## Components
 
 Each component is a function that returns its elements. Options take callbacks, and none of them use `innerHTML`. Every component accepts `document` (the tests pass a `linkedom` one). Most also accept `classes`, which renames the class of any part; `""` leaves a part without a class.
@@ -64,7 +76,12 @@ Each component is a function that returns its elements. Options take callbacks, 
 | `createNameEntry`     | Name field and JOIN; your `normalize` decides the seated name; a second way in, a lockable account name and a slot (an avatar)      |
 | `createPicker`        | One choice of a few as pressed buttons (avatars), optionally folded behind a summary with CHANGE                                    |
 | `createNotice`        | A status line, or a toast with `holdMs`; `show(text, tone)` is safe every frame, `flash(text, tone)` is one event                   |
-| `createDialog`        | `<dialog>` with a title bar, an actions slot with CLOSE, and a body; `show({ title, content })` lets one shell serve every menu     |
+| `createDialog`        | `<dialog>` with a bar (Back, the title, an actions slot) and a body; `show({ title, content })` lets one shell serve every menu     |
+| `createBackButton`    | Back, as a button; `createBackLink` is the same control as a link, for a page left by going to another address                      |
+| `createPageHeader`    | A page's bar: Back, the title, then actions with the primary last; `createSubPage` is a whole page under it                         |
+| `backOnEscape`        | Escape presses a Back, unless a dialog is open or the page says Escape is busy; returns what removes the listener                   |
+| `menuKeys`            | Arrow keys, Home and End walk a menu's buttons from wherever the focus is; returns what removes the listener                        |
+| `createRoomLayout`    | A waiting room: Back, the invitation, numbered seats with Join and Add AI, a game's own choices, Game settings and the main action  |
 | `createConfirm`       | A yes/no question for a dialog body (LEAVE ROOM / STAY)                                                                             |
 | `createKeyList`       | Keyboard shortcuts as headed definition lists                                                                                       |
 | `createAccountDialog` | Account and leaderboard buttons and their dialog: sign-in, history pages, username; auth, fetch and renderers are the game's        |

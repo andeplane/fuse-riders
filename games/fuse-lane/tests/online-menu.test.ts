@@ -156,7 +156,12 @@ test("Play separates local setup, hosting preferences and joining without losing
     dom
       .$$<HTMLButtonElement>("button", choices)
       .map((button) => button.textContent),
-    ["Single player", "Host room", "Join room", "Back"],
+    ["Single player", "Host room", "Join room"],
+  );
+  // Back is the page's own control, top left: not a fourth choice under the three.
+  assert.equal(
+    dom.$<HTMLButtonElement>(".fui-page-head .fui-back", root).textContent,
+    "Back",
   );
   assert.equal(
     dom.$<HTMLButtonElement>("button:nth-child(2)", choices).disabled,
