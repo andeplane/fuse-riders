@@ -2,7 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   FLAP_FRAME_STEPS,
+  FLAP_JUMP,
+  FLAP_SLOWING,
   PLUNGE_DY,
+  WINGS_DY,
+  velocityFlaps,
   FLASH_BEAT_STEPS,
   FlapClock,
   flashing,
@@ -11,12 +15,12 @@ import {
   type PoseContext,
 } from "../src/render/animation.js";
 import { frameIndex } from "../src/render/manifest.js";
-import { manifest, unitView } from "./render-kit.js";
+import { manifest, openingView, unitView, withUnit } from "./render-kit.js";
 
 const art = manifest();
 const still: PoseContext = {
   time: 0,
-  dy: 0,
+  dy: WINGS_DY,
   sinceFlap: Infinity,
   inGate: false,
 };
@@ -149,6 +153,86 @@ test("the wings beat once per flap and then glide", () => {
   assert.equal(at(Infinity).animation, "glide");
 });
 
+test("a unit holding its height beats its wings though no flap was seen", () => {
+  const queen = unitView({ kind: "queen", grounded: false });
+  const at = (dy: number, time: number) =>
+    unitPose(art, queen, { ...still, dy, time });
+  assert.equal(at(0, 0).animation, "fly", "hovering");
+  assert.equal(at(-2, 0).animation, "fly", "climbing");
+  assert.equal(at(WINGS_DY - 0.01, 0).animation, "fly");
+  assert.equal(at(WINGS_DY, 0).animation, "glide", "sinking freely");
+  const beat = art.assets["queen-cyan"]?.animations.fly?.frames ?? [];
+  assert.ok(beat.length > 1);
+  assert.deepEqual(
+    beat.map((_, index) => at(0, index * FLAP_FRAME_STEPS).frame),
+    beat.map((name) => frameOf("queen-cyan", name)),
+    "the beat runs on the clock",
+  );
+  assert.equal(
+    at(0, beat.length * FLAP_FRAME_STEPS).frame,
+    at(0, 0).frame,
+    "and loops",
+  );
+});
+
+test("flaps between fed views are read from the fall", () => {
+  const flyer = { kind: "warrior", grounded: false, y: 100 } as const;
+  const pair = (
+    patchBefore: Parameters<typeof unitView>[0],
+    patchAfter: Parameters<typeof unitView>[0],
+    last: number | undefined,
+    steps = 3,
+  ) => {
+    const before = withUnit(openingView({ step: 30 }), 2, {
+      ...flyer,
+      ...patchBefore,
+    });
+    const after = withUnit(openingView({ step: 30 + steps }), 2, {
+      ...flyer,
+      ...patchAfter,
+    });
+    const lastDy: (number | undefined)[] = [];
+    lastDy[2] = last;
+    return velocityFlaps(before, after, lastDy);
+  };
+  const steady = pair({}, { y: 103.3 }, 1);
+  assert.deepEqual(steady.slots, [], "gravity alone");
+  assert.ok(Math.abs((steady.dy[2] ?? 0) - 1.1) < 1e-9);
+  assert.deepEqual(pair({}, { y: 101.5 }, 1).slots, [2], "the fall slowed");
+  assert.deepEqual(pair({}, { y: 98 }, 0).slots, [2], "the climb quickened");
+  assert.deepEqual(
+    pair({}, { y: 107.8 }, 2.6).slots,
+    [],
+    "terminal speed is not a flap",
+  );
+  assert.ok(FLAP_SLOWING > 0.3);
+  assert.deepEqual(
+    pair({}, { y: 103 }, 1).slots,
+    [],
+    "less than half a press is noise",
+  );
+  assert.deepEqual(pair({}, { y: 98 }, undefined).slots, [], "no history");
+  assert.deepEqual(pair({ diving: true }, { y: 101 }, 4).slots, []);
+  assert.deepEqual(pair({}, { y: 101, diving: true }, 4).slots, []);
+  assert.deepEqual(pair({ flapped: true }, { y: 98 }, 0).slots, []);
+  assert.deepEqual(pair({}, { y: 98, flapped: true }, 0).slots, []);
+  for (const [was, now] of [
+    [{ grounded: true }, { y: 98 }],
+    [{}, { y: 98, grounded: true }],
+    [{ dead: true }, { y: 98 }],
+    [{}, { y: 98, dead: true }],
+    [{ kind: "worker" }, { y: 98, kind: "worker" }],
+    [{}, { y: 100 - FLAP_JUMP * 3 - 1 }],
+  ] as const) {
+    const result = pair(was, now, 0);
+    assert.deepEqual(result.slots, []);
+    assert.equal(result.dy[2], undefined);
+  }
+  const same = pair({}, { y: 98 }, 0, 0);
+  assert.deepEqual(same.slots, [], "the same step fed again");
+  assert.equal(same.dy[2], undefined);
+});
+
 test("winged units walk, stand and dive", () => {
   const queen = unitView({ kind: "queen", team: 1 });
   assert.equal(unitPose(art, queen, still).animation, "idle");
@@ -177,7 +261,7 @@ test("a Warrior dropping fast with still wings tips into its dive frame", () => 
     "glide",
     "a slow sink glides",
   );
-  assert.equal(falling(-PLUNGE_DY).animation, "glide", "rising is not a dive");
+  assert.equal(falling(-PLUNGE_DY).animation, "fly", "rising is not a dive");
   assert.equal(falling(PLUNGE_DY, 0).animation, "fly", "a flap comes first");
   assert.equal(
     unitPose(art, unitView({ kind: "queen", grounded: false }), {

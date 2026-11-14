@@ -342,8 +342,8 @@ export class Scene {
     // How far the transformation is, as a bar over the arch.
     const team = frame.view.units[gate.user]?.team ?? 0;
     const ramp = this.sprites.ramp(team);
-    const width = 23,
-      left = gate.x - 11,
+    const width = def.frameWidth,
+      left = gate.x - def.anchor[0],
       y = gate.y - def.frameHeight - 5;
     ctx.fillStyle = INK;
     ctx.fillRect(left - 1, y - 1, width + 2, 5);
@@ -406,7 +406,7 @@ export class Scene {
     const { snail } = frame.view;
     const def = this.sprites.def("snail");
     if (unit.riding && def) {
-      const saddle = def.saddle[this.snailFrame(frame)] ?? [def.anchor[0], 6];
+      const saddle = def.saddle[this.snailFrame(frame)] ?? def.anchor;
       return {
         x: snail.x + snail.facing * (saddle[0] - def.anchor[0]),
         y: snail.y - 1 - def.anchor[1] + saddle[1],
@@ -414,7 +414,10 @@ export class Scene {
     }
     if (unit.eaten)
       return {
-        x: snail.x + snail.facing * 21 + (Math.floor(frame.now * 24) % 2),
+        x:
+          snail.x +
+          snail.facing * (this.sprites.sizes.snailFront + 2) +
+          (Math.floor(frame.now * 24) % 2),
         y: snail.y - 1,
       };
     return { x: unit.x, y: unit.y - 1 };
@@ -559,7 +562,9 @@ export class Scene {
     const id = `respawn-${teamName(unit.team)}`;
     const ramp = this.sprites.ramp(unit.team);
     // The count sits over a Worker's head, and on a Queen's chest: her head is up among the HUD.
-    const lift = unit.kind === "queen" ? 17 : 22;
+    const { sizes } = this.sprites;
+    const lift =
+      unit.kind === "queen" ? Math.round(sizes.queen / 2) : sizes.worker + 4;
     // A ghost of the unit where it will stand, firming up as the wait runs out; the beam joins in at the end.
     const sheet = unitSheet({ ...unit, speed: false });
     const def = this.sprites.def(sheet);
@@ -672,8 +677,7 @@ export class Scene {
       if (unit.dead || unit.eaten) continue;
       if (frame.view.gates.some((gate) => gate.user === unit.slot)) continue;
       const at = this.place(unit, frame);
-      const head =
-        unit.kind === "queen" ? 40 : unit.kind === "warrior" ? 26 : 22;
+      const head = this.sprites.sizes[unit.kind] + 3;
       const ramp = this.sprites.ramp(unit.team);
       const mine = unit.slot === frame.localSlot;
       const tag = tagOf(frame.names[unit.slot], unit.bot);

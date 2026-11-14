@@ -5,6 +5,7 @@
  */
 import type { GameEvent, RoundView, UnitView } from "../engine/index.js";
 import { teamName } from "./manifest.js";
+import type { Sizes } from "./metrics.js";
 
 export type SoundName =
   | "flap"
@@ -100,8 +101,8 @@ const NOTHING: Plan = {
 };
 
 /** Height of a unit's middle above its feet, for effects centred on the body. The art's, not the hitbox's. */
-export const bodyLift = (unit: UnitView): number =>
-  unit.kind === "queen" ? 16 : 9;
+export const bodyLift = (unit: UnitView, sizes: Sizes): number =>
+  Math.round(sizes[unit.kind] / 2);
 
 const panOf = (x: number): number =>
   Math.max(-1, Math.min(1, (x - 240) / 240)) * 0.7;
@@ -124,8 +125,17 @@ export class EventLedger {
   fresh(view: RoundView): GameEvent[] {
     this.reach(view.step);
     return view.events.filter((event) =>
-      this.first(eventKey(view.step, event), view.step),
+      // A round is won once: a rollback may move the winning step, and the sting must not play again for it.
+      event.type === "victory"
+        ? this.first(`won:${event.team},${event.kind}`, Infinity)
+        : this.first(eventKey(view.step, event), view.step),
     );
+  }
+
+  /** A new round: everything may happen again. */
+  clear(): void {
+    this.seen.clear();
+    this.newest = 0;
   }
 
   /** The slots that flapped or jumped on this step and have not been reported for it before. */
@@ -177,13 +187,14 @@ export function planEvent(
   event: GameEvent,
   view: RoundView,
   localSlot: number,
+  sizes: Sizes,
 ): Plan {
   const unit = (slot: number): UnitView | undefined => view.units[slot];
   switch (event.type) {
     case "kill": {
       const victim = unit(event.victim);
       if (!victim) return NOTHING;
-      const y = victim.y - bodyLift(victim);
+      const y = victim.y - bodyLift(victim, sizes);
       // A Queen's death is announced by its own event on the same step.
       if (victim.kind === "queen") return NOTHING;
       const mine = event.victim === localSlot || event.killer === localSlot;
@@ -222,7 +233,7 @@ export function planEvent(
     case "queenKill": {
       const victim = unit(event.victim);
       if (!victim) return NOTHING;
-      const y = victim.y - bodyLift(victim);
+      const y = victim.y - bodyLift(victim, sizes);
       return {
         effects: [
           {
@@ -285,7 +296,7 @@ export function planEvent(
           {
             kind: "burst",
             x: Math.abs(b.x - a.x) > 240 ? a.x : x,
-            y: (a.y - bodyLift(a) + b.y - bodyLift(b)) / 2,
+            y: (a.y - bodyLift(a, sizes) + b.y - bodyLift(b, sizes)) / 2,
             tone: "white",
             team: -1,
             count: 6,
@@ -313,7 +324,7 @@ export function planEvent(
           {
             kind: "burst",
             x: target.x,
-            y: target.y - bodyLift(target),
+            y: target.y - bodyLift(target, sizes),
             tone: "white",
             team: -1,
             count: 5,
@@ -342,7 +353,7 @@ export function planEvent(
             kind: "sprite",
             sheet: "berry-pop",
             x: who.x,
-            y: who.y - 20,
+            y: who.y - sizes[who.kind] - 3,
             flip: false,
           },
         ],
@@ -464,7 +475,7 @@ export function planEvent(
           {
             kind: "burst",
             x: gate.x,
-            y: gate.y - 14,
+            y: gate.y - Math.round(sizes.gate / 2),
             tone: event.kind === "speed" ? "gold" : "team",
             team: who.team,
             count: 18,
@@ -474,7 +485,7 @@ export function planEvent(
           {
             kind: "ring",
             x: gate.x,
-            y: gate.y - 14,
+            y: gate.y - Math.round(sizes.gate / 2),
             tone: "white",
             team: who.team,
             radius: 30,
@@ -507,7 +518,7 @@ export function planEvent(
           {
             kind: "ring",
             x: gate.x,
-            y: gate.y - 20,
+            y: gate.y - Math.round(sizes.gate / 2),
             tone: "team",
             team: event.team,
             radius: 26,
@@ -515,7 +526,7 @@ export function planEvent(
           {
             kind: "burst",
             x: gate.x,
-            y: gate.y - 36,
+            y: gate.y - sizes.gate,
             tone: "team",
             team: event.team,
             count: 8,
@@ -541,7 +552,7 @@ export function planEvent(
           {
             kind: "ring",
             x: view.snail.x,
-            y: view.snail.y - 12,
+            y: view.snail.y - Math.round(sizes.snail / 2),
             tone: "team",
             team: unit(event.slot)?.team ?? -1,
             radius: 20,
@@ -564,8 +575,8 @@ export function planEvent(
         effects: [
           {
             kind: "burst",
-            x: view.snail.x + view.snail.facing * 18,
-            y: view.snail.y - 8,
+            x: view.snail.x + view.snail.facing * sizes.snailFront,
+            y: view.snail.y - Math.round(sizes.snail / 3),
             tone: "team",
             team: victim?.team ?? -1,
             count: 10,

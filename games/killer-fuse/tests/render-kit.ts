@@ -8,6 +8,17 @@ import {
   type UnitView,
 } from "../src/engine/index.js";
 import { parseManifest, type ArtManifest } from "../src/render/manifest.js";
+import type { Sizes } from "../src/render/metrics.js";
+
+/** Art heights for tests that place effects: made-up but distinct, so a mixed-up kind shows. */
+export const SIZES: Sizes = {
+  worker: 16,
+  warrior: 22,
+  queen: 18,
+  gate: 28,
+  snail: 15,
+  snailFront: 19,
+};
 
 export function rawManifest(): unknown {
   const path = fileURLToPath(

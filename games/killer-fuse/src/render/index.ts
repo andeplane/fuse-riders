@@ -8,10 +8,9 @@
  * (everything near an edge shows on both sides) is one more draw call here but a second set of objects there.
  */
 import type { RoundView } from "../engine/index.js";
-import { FlapClock } from "./animation.js";
+import { FlapClock, velocityFlaps } from "./animation.js";
 import type { ArenaOptions, ArenaView, CreateArenaView } from "./api.js";
 import {
-  bodyLift,
   EventLedger,
   mergePlans,
   planEvent,
@@ -36,9 +35,16 @@ interface Shown {
 
 const TRAIL_LENGTH = 8;
 
+/**
+ * The page can switch the "X WINS" banner off when it shows its own result panel: either `banner: false` in the
+ * options or `data-banner="off"` on the host element, read every frame. The sting and the effects still play.
+ */
+type Options = ArenaOptions & { readonly banner?: boolean };
+export const BANNER_OFF = "off";
+
 class Arena implements ArenaView {
   readonly ready: Promise<void>;
-  private options: ArenaOptions;
+  private options: Options;
   private readonly wrapper: HTMLDivElement;
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: Ctx;
@@ -72,10 +78,15 @@ class Arena implements ArenaView {
   private held: Shown | null = null;
   private lastNow = 0;
   private lastStep = -1;
+  private fed: RoundView | null = null;
+  private fedDy: (number | undefined)[] = [];
   private sparkle = 0;
   private destroyed = false;
 
-  constructor(host: HTMLElement, options: ArenaOptions) {
+  constructor(
+    private readonly host: HTMLElement,
+    options: Options,
+  ) {
     this.options = { ...options };
     this.wrapper = document.createElement("div");
     this.wrapper.style.cssText = `position:relative;width:100%;height:100%;overflow:hidden;background:${INK}`;
@@ -120,7 +131,7 @@ class Arena implements ArenaView {
     this.canvas.style.top = `${fit.top}px`;
   }
 
-  update(options: Partial<ArenaOptions>): void {
+  update(options: Partial<Options>): void {
     this.options = { ...this.options, ...options };
     if (options.muted !== undefined) this.sound.setMuted(options.muted);
   }
@@ -138,6 +149,15 @@ class Arena implements ArenaView {
     this.flaps.rewind(view.step);
     const events = this.ledger.fresh(view);
     const flapped = this.ledger.freshFlaps(view);
+    // The page feeds one view per network tick, so most flaps happen on steps never shown: read them from the fall.
+    const moved = this.fed
+      ? velocityFlaps(this.fed, view, this.fedDy)
+      : { slots: [], dy: [] };
+    this.fed = view;
+    this.fedDy = moved.dy;
+    for (const slot of moved.slots)
+      if (!flapped.includes(slot) && this.flaps.since(slot, view.step) > 2)
+        flapped.push(slot);
     for (const slot of flapped) this.flaps.note(slot, view.step);
     this.trails = view.units.map((unit, slot) =>
       [...(this.trails[slot] ?? []), { x: unit.x, y: unit.y }].slice(
@@ -145,7 +165,10 @@ class Arena implements ArenaView {
       ),
     );
     const local = this.options.localSlot;
-    const plans: Plan[] = events.map((event) => planEvent(event, view, local));
+    const sizes = this.sprites?.sizes;
+    const plans: Plan[] = sizes
+      ? events.map((event) => planEvent(event, view, local, sizes))
+      : [];
     for (const slot of flapped) {
       const unit = view.units[slot];
       if (unit) plans.push(planFlap(unit, local));
@@ -155,7 +178,6 @@ class Arena implements ArenaView {
         this.eggLost[view.units[event.victim]?.team ?? 0] = now;
       if (event.type === "berryDeposit" || event.type === "berryKickIn")
         this.holePops.set(`${event.team}:${event.hole}`, now);
-      if (event.type === "victory") this.wonAt = now;
     }
     view.gates.forEach((gate, index) => {
       const before = this.gateUsers[index] ?? -1;
@@ -196,6 +218,9 @@ class Arena implements ArenaView {
     this.eggLost = [-9, -9];
     this.gateUsers = [];
     this.wonAt = null;
+    this.ledger.clear();
+    this.fed = null;
+    this.fedDy = [];
     this.held = null;
     this.freezePending = 0;
     this.freezeUntil = 0;
@@ -218,8 +243,8 @@ class Arena implements ArenaView {
         if (Math.random() < 0.35 + gate.progress * 0.6)
           this.pool.push([
             {
-              x: gate.x - 7 + Math.random() * 14,
-              y: gate.y - 2 - Math.random() * 6,
+              x: gate.x + (Math.random() - 0.5) * sprites.sizes.worker,
+              y: gate.y - 2 - Math.random() * (sprites.sizes.gate / 4),
               vx: (Math.random() - 0.5) * 8,
               vy: -30 - gate.progress * 50 - Math.random() * 20,
               age: 0,
@@ -236,7 +261,7 @@ class Arena implements ArenaView {
       this.pool.push([
         {
           x: unit.x - 5 + Math.random() * 10,
-          y: unit.y - bodyLift(unit) - 8,
+          y: unit.y - sprites.sizes[unit.kind],
           vx: 0,
           vy: -20,
           age: 0,
@@ -330,7 +355,10 @@ class Arena implements ArenaView {
       now,
       danger,
       eggLost: this.eggLost,
-      wonAt: this.wonAt,
+      wonAt:
+        this.options.banner === false || this.host.dataset.banner === BANNER_OFF
+          ? null
+          : this.wonAt,
       flash: this.flash,
     });
     // What the glow is made from: the finished picture with the things that would bloom too much held down.

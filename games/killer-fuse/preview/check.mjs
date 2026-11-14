@@ -188,6 +188,43 @@ async function tour(context, prefix) {
   await page.close();
 }
 
+/** Every map at rest and in a fight, to judge sizes: `suffix` names the scale. */
+async function maps(context, suffix) {
+  const page = await open(context, "seed=2&map=1&level=hard");
+  await page.evaluate(() => window.__game.pause());
+  for (const map of [1, 2, 3]) {
+    await page.evaluate((m) => {
+      window.__game.restart({ map: m, seed: 2 });
+      window.__game.step(30);
+    }, map);
+    await shoot(page, `map${map}-opening${suffix}`);
+    await page.evaluate(() => {
+      window.__game.skip(60 * 20);
+      window.__game.step(6);
+    });
+    await shoot(page, `map${map}-fight${suffix}`);
+  }
+  await page.close();
+}
+
+/** Fed as the online page feeds it: a view every third step, events merged, and the banner switched off. */
+async function pageFeed(context) {
+  const page = await open(context, "seed=3&map=1&level=hard&tick=3&banner=off");
+  await page.evaluate(() => window.__game.skip(60 * 10));
+  for (let i = 0; i < 4; i += 1) {
+    await page.waitForTimeout(160);
+    await page.screenshot({ path: `${shots}page-feed-${i}.png` });
+  }
+  console.log("shot page-feed-0..3");
+  await page.evaluate(() => {
+    window.__game.pause();
+    window.__game.until("victory", 60 * 60 * 8);
+  });
+  await page.waitForTimeout(1300);
+  await shoot(page, "page-feed-victory-no-banner");
+  await page.close();
+}
+
 async function victories(context, prefix) {
   const page = await open(context, "seed=1&map=1&level=hard");
   await page.evaluate(() => window.__game.pause());
@@ -229,6 +266,12 @@ try {
     viewport: { width: 1920, height: 1080 },
   });
   await tour(large, "");
+  await maps(large, "");
+  await maps(
+    await browser.newContext({ viewport: { width: 480, height: 270 } }),
+    "-1x",
+  );
+  await pageFeed(large);
   await victories(large, "");
   await timing(large);
   if (small) {

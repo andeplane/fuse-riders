@@ -3,7 +3,15 @@
  * diving, carrying); the only memory the renderer adds is how long ago each unit last flapped and which way it is
  * moving vertically.
  */
-import { TICK_HZ, type UnitView } from "../engine/index.js";
+import {
+  FLAP_IMPULSE,
+  FLY_GRAVITY,
+  FLY_TERMINAL,
+  S,
+  TICK_HZ,
+  type RoundView,
+  type UnitView,
+} from "../engine/index.js";
 import {
   animationFrame,
   frameIndex,
@@ -16,6 +24,18 @@ import {
 export const FLAP_FRAME_STEPS = 2;
 /** Invulnerable units show their white silhouette on alternate beats of this many steps. */
 export const FLASH_BEAT_STEPS = 4;
+/**
+ * Sinking slower than this many pixels a step, or rising, means the wings are working: gravity alone passes it within
+ * a few steps. It keeps the wings beating when the page feeds only every third step and most flaps are never seen.
+ */
+export const WINGS_DY = 1;
+/**
+ * Falling this many pixels a step slower than gravity alone would have it is a flap: half of one press. Averaged over
+ * a three-step tick, a press shows as a third, two thirds or all of itself, so half counts each press once.
+ */
+export const FLAP_SLOWING = FLAP_IMPULSE / S / 2;
+/** A move of more than this many pixels a step is a respawn or a wrap, not flight. */
+export const FLAP_JUMP = 8;
 /** A Warrior falling at least this many pixels a step, wings still, tips into its dive pose. */
 export const PLUNGE_DY = 2;
 
@@ -65,7 +85,8 @@ function workerAnimation(unit: UnitView, context: PoseContext): string {
 function wingedAnimation(unit: UnitView, context: PoseContext): string {
   if (unit.grounded) return unit.moving ? "walk" : "idle";
   if (unit.diving) return "dive";
-  if (context.sinceFlap < FLAP_FRAME_STEPS * 4) return "fly";
+  if (context.sinceFlap < FLAP_FRAME_STEPS * 4 || context.dy < WINGS_DY)
+    return "fly";
   // Warriors cannot dive, but one dropping at full speed reads better nose-down than gliding flat.
   return unit.kind === "warrior" && context.dy >= PLUNGE_DY ? "dive" : "glide";
 }
@@ -111,10 +132,12 @@ export function unitPose(
   if (animation === "fly") {
     // The beat restarts on every flap, so the wings follow the button and not a clock.
     const beat = def.animations.fly?.frames ?? [];
-    const at = Math.min(
-      beat.length - 1,
-      Math.floor(Math.max(0, context.sinceFlap) / FLAP_FRAME_STEPS),
-    );
+    // With no flap seen lately the unit is still holding itself up, so the beat runs on the clock.
+    const seen = context.sinceFlap < FLAP_FRAME_STEPS * 4;
+    const at =
+      Math.floor(
+        Math.max(0, seen ? context.sinceFlap : context.time) / FLAP_FRAME_STEPS,
+      ) % Math.max(1, beat.length);
     return {
       sheet,
       frame: frameIndex(def, beat[at] ?? "flapMid"),
@@ -149,4 +172,42 @@ export class FlapClock {
     const at = this.last[slot];
     return at === undefined ? Infinity : Math.max(0, time - at);
   }
+}
+
+/**
+ * Flaps read from movement, for a page that feeds one view per network tick: a flying unit that falls slower than
+ * gravity would have it between two fed views flapped in between, whatever the last step's `flapped` says.
+ * `lastDy` is each slot's speed over the previous pair; the result carries the new speeds and who flapped.
+ */
+export function velocityFlaps(
+  before: RoundView,
+  after: RoundView,
+  lastDy: readonly (number | undefined)[],
+): { slots: number[]; dy: (number | undefined)[] } {
+  const steps = after.step - before.step;
+  const slots: number[] = [];
+  const dy = after.units.map((unit, slot) => {
+    const was = before.units[slot];
+    if (steps <= 0 || !was || was.dead || unit.dead) return undefined;
+    if (was.grounded || unit.grounded || unit.kind === "worker")
+      return undefined;
+    if (Math.abs(unit.y - was.y) > FLAP_JUMP * steps) return undefined;
+    const speed = (unit.y - was.y) / steps;
+    const last = lastDy[slot];
+    const falling =
+      last === undefined
+        ? speed
+        : Math.min(FLY_TERMINAL / S, last + (FLY_GRAVITY / S) * steps);
+    // A dive that ends slows the fall too; a flap already seen on the earlier view explains the change.
+    if (
+      speed < falling - FLAP_SLOWING &&
+      !was.diving &&
+      !unit.diving &&
+      !was.flapped &&
+      !unit.flapped
+    )
+      slots.push(slot);
+    return speed;
+  });
+  return { slots, dy };
 }

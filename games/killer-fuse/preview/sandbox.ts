@@ -86,11 +86,16 @@ const setup: Setup = {
 };
 let speed = Math.max(0, Number.parseFloat(params.get("speed") ?? "1") || 1);
 if (params.has("clean")) document.body.classList.add("clean");
+// `tick=3` feeds the renderer as the online page does: one view per three steps, their events merged.
+const tick = Math.max(1, whole(params.get("tick"), 1));
 
 const host = document.getElementById("arena");
 const status = document.getElementById("status");
 if (!host || !status)
   throw new Error("the sandbox page is missing its elements");
+
+// `banner=off` hides the renderer's victory banner, as a page with its own result panel does.
+if (params.get("banner") === "off") host.dataset.banner = "off";
 
 const names = (): string[] =>
   Array.from({ length: 6 }, (_, slot) => (slot === setup.seat ? "YOU" : ""));
@@ -106,6 +111,8 @@ let state: Round;
 let previous: RoundView;
 let current: RoundView;
 let paused = false;
+let waiting: GameEvent[] = [];
+let stepsWaiting = 0;
 
 function begin(): void {
   state = createRound({
@@ -116,6 +123,8 @@ function begin(): void {
   });
   current = viewOf(state);
   previous = current;
+  waiting = [];
+  stepsWaiting = 0;
   arena.update({ localSlot: setup.seat, names: names() });
   // Step zero tells the renderer a new round began, so nothing of the last one lingers.
   arena.advance(current);
@@ -153,8 +162,14 @@ function simulate(show: boolean): void {
     slot === setup.seat ? readInput() : NEUTRAL,
   );
   stepRound(state, inputs);
+  const view = viewOf(state);
+  waiting.push(...view.events);
+  stepsWaiting += 1;
+  if (stepsWaiting < tick && !view.winner) return;
   previous = current;
-  current = viewOf(state);
+  current = { ...view, events: waiting };
+  waiting = [];
+  stepsWaiting = 0;
   if (show) arena.advance(current);
 }
 
@@ -185,7 +200,11 @@ function frame(now: number): void {
     if (steps === 240) owed = 0;
   }
   const before = performance.now();
-  arena.render(previous, current, paused ? 1 : owed / STEP_MS);
+  arena.render(
+    previous,
+    current,
+    paused ? 1 : Math.min(1, (stepsWaiting + owed / STEP_MS) / tick),
+  );
   renderTimes.push(performance.now() - before);
   if (renderTimes.length > SAMPLE) renderTimes.shift();
   if (status && Math.floor(now / 500) !== Math.floor((now - elapsed) / 500))

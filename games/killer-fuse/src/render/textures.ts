@@ -9,6 +9,7 @@ import {
   type ArtManifest,
   type SheetDef,
 } from "./manifest.js";
+import { opaqueBox, sizesOf, type Box, type Sizes } from "./metrics.js";
 
 export type Ctx = CanvasRenderingContext2D;
 
@@ -59,11 +60,39 @@ export function makeCanvas(
 /** Draws sheets by manifest id and keeps the tinted silhouettes it has made. */
 export class Sprites {
   private readonly tinted = new Map<string, HTMLCanvasElement>();
+  private readonly boxes = new Map<string, Box | null>();
+  private measured: Sizes | null = null;
 
   constructor(readonly art: Art) {}
 
   def(id: string): SheetDef | undefined {
     return this.art.manifest.assets[id];
+  }
+
+  /** The painted bounds of a sheet's first frame, in cell coordinates. */
+  box(id: string): Box | null {
+    const known = this.boxes.get(id);
+    if (known !== undefined) return known;
+    const def = this.def(id);
+    const image = this.art.images.get(id);
+    let box: Box | null = null;
+    if (def && image) {
+      const { canvas, ctx } = makeCanvas(def.frameWidth, def.frameHeight);
+      ctx.drawImage(image, 0, 0);
+      box = opaqueBox(
+        ctx.getImageData(0, 0, canvas.width, canvas.height).data,
+        canvas.width,
+        canvas.height,
+      );
+    }
+    this.boxes.set(id, box);
+    return box;
+  }
+
+  /** How tall the units, gates and snail stand in this art. */
+  get sizes(): Sizes {
+    this.measured ??= sizesOf(this.art.manifest, (id) => this.box(id));
+    return this.measured;
   }
 
   /** The team's ramp, dark to light. */
