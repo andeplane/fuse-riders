@@ -2,7 +2,7 @@
 
 ## [Browse all games →](https://andeplane.github.io/fuse-riders/)
 
-The site root is the **Fuse Games** gallery, with gameplay screenshots and a play link for each game listed in `games/<id>/portal.json`. [Play Fuse Riders directly](https://andeplane.github.io/fuse-riders/fuse-riders/). Every game's app launcher has an **ALL GAMES** link back to the gallery. Existing root `?room=…`, `?solo=1` and `?display=1` links still open Riders.
+The site root is **FuseOS** (`packages/fuseos`), a Windows 95 desktop with an icon for each game listed in `games/<id>/portal.json`; a game opens in a window of its own, and `?open=<id>` boots straight into one. [Play Fuse Riders directly](https://andeplane.github.io/fuse-riders/fuse-riders/). Every game's app launcher has an **ALL GAMES** link back to the desktop. Existing root `?room=…`, `?solo=1` and `?display=1` links still open Riders.
 
 **Play solo or with friends.** Every game shares the same main menu and lobby. **Play** creates a room; use **Join** to take a slot, **Add AI** for opponents and **Game settings** below the QR code for match options. **Join a room · Solo & local play** retains room-code entry, **PLAY SOLO** and **PLAY LOCAL** where supported. Solo and local controller play use no room service or WebRTC; refreshing starts a fresh run. In a room every device simulates the game, so any rider can refresh or drop and rejoin while the others keep playing. Online gameplay requires a direct WebRTC connection; unsupported networks show a retry state. Physical-phone qualification is still pending.
 

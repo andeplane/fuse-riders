@@ -10,7 +10,7 @@ export interface PortalEntry {
   accent: string;
   /** Lower sorts first; games without one sort after those with one, by name. */
   order: number;
-  /** Site-relative gameplay capture, used by the landing gallery. */
+  /** Site-relative gameplay capture, shown behind the game's desktop window while it loads. */
   screenshot?: string;
 }
 
@@ -83,7 +83,7 @@ export interface AppPortal {
  */
 export function createAppPortal(options: AppPortalOptions): AppPortal {
   const { document, current } = options;
-  // Every game page lives one level below the gallery, including static --base ./ builds.
+  // Every game page lives one level below the desktop, including static --base ./ builds.
   const base =
     options.base === "./" || options.base === "" ? "../" : options.base;
   const games = options.games ?? PORTAL_GAMES;
