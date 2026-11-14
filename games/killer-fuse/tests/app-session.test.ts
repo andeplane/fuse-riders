@@ -148,6 +148,23 @@ test("a muted page keeps the flag on the links it follows itself", () => {
   );
 });
 
+test("a smoke's ?debug hook survives the links the page follows itself", () => {
+  assert.equal(
+    keepFlags(new URLSearchParams("?debug"), "/killer-fuse/?solo=1"),
+    "/killer-fuse/?solo=1&debug",
+  );
+  assert.equal(
+    keepFlags(new URLSearchParams("?mute&debug"), "/killer-fuse/?room=ABCD"),
+    "/killer-fuse/?room=ABCD&mute&debug",
+    "both flags ride along, in one query",
+  );
+  assert.equal(
+    keepFlags(new URLSearchParams("?solo=1&autopilot"), "/killer-fuse/"),
+    "/killer-fuse/",
+    "a flag this game does not know is not invented onto the link",
+  );
+});
+
 test("a page nobody muted adds nothing to its links", () => {
   const plain = new URLSearchParams("?solo=1");
   assert.equal(keepFlags(plain, "/killer-fuse/"), "/killer-fuse/");
