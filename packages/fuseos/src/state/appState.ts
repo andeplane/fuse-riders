@@ -49,6 +49,13 @@ export interface WinampWindowContent {
   kind: "winamp";
 }
 
+/** Start > Programs > Hall of Fame: one Fuse game's leaderboard. The picked game is kept so a reload shows it again. */
+export interface HallOfFameWindowContent {
+  kind: "halloffame";
+  /** A portal game id; absent (or no longer installed) means the first game. */
+  gameId?: string;
+}
+
 export type WindowContent =
   | FuseGameWindowContent
   | RetroGameWindowContent
@@ -57,7 +64,8 @@ export type WindowContent =
   | AboutWindowContent
   | DialogWindowContent
   | PaintWindowContent
-  | WinampWindowContent;
+  | WinampWindowContent
+  | HallOfFameWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -217,6 +225,8 @@ function isWindowContent(
       );
     case "paint":
       return value.fileName === undefined || typeof value.fileName === "string";
+    case "halloffame":
+      return value.gameId === undefined || typeof value.gameId === "string";
     default:
       return false;
   }

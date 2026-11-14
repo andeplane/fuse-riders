@@ -27,6 +27,9 @@ import {
   createFuseGameRegistry,
   FuseGamesContext,
 } from "../fusegames/registry";
+import type { HallOfFameDeps } from "../halloffame/hallOfFameDepsContext";
+import { HallOfFameDepsContext } from "../halloffame/hallOfFameDepsContext";
+import { MemoryLeaderboardService } from "../halloffame/leaderboardService";
 import type { PaintControls } from "../paint/paintControls";
 import type { PaintDeps } from "../paint/paintDepsContext";
 import { PaintDepsContext } from "../paint/paintDepsContext";
@@ -129,6 +132,8 @@ export type ProviderOptions = {
   /** Defaults to a fresh store, i.e. a first visit: the greeting shows. */
   assistantOptions?: MemoryAssistantOptionsStore;
   systemProbe?: SystemProbe;
+  /** Defaults to an empty memory leaderboard service (every game: no rated players yet). */
+  hallOfFameDeps?: HallOfFameDeps;
 };
 
 export const immediateAppStateDeps: AppStateDeps = {
@@ -258,6 +263,13 @@ export function createWrapper(options: ProviderOptions = {}) {
   const winampDeps = createTestWinampDeps(winampPlayers, options.winampDeps);
   const winampRegistry = new Map<string, WinampControls>();
   const systemProbe = options.systemProbe ?? TEST_SYSTEM_PROBE;
+  const hallOfFameDeps: HallOfFameDeps = options.hallOfFameDeps ?? {
+    leaderboards: new MemoryLeaderboardService(
+      Object.fromEntries(
+        (options.games ?? FIXTURE_GAMES).map((game) => [game.id, []]),
+      ),
+    ),
+  };
 
   function Wrapper({ children }: { children: ReactNode }) {
     return (
@@ -290,12 +302,16 @@ export function createWrapper(options: ProviderOptions = {}) {
                                       <SystemProbeContext.Provider
                                         value={() => systemProbe}
                                       >
-                                        <Shell
-                                          store={store}
-                                          initialOpen={options.initialOpen}
+                                        <HallOfFameDepsContext.Provider
+                                          value={hallOfFameDeps}
                                         >
-                                          {children}
-                                        </Shell>
+                                          <Shell
+                                            store={store}
+                                            initialOpen={options.initialOpen}
+                                          >
+                                            {children}
+                                          </Shell>
+                                        </HallOfFameDepsContext.Provider>
                                       </SystemProbeContext.Provider>
                                     </AssistantOptionsStoreContext.Provider>
                                   </AssistantDepsContext.Provider>
@@ -334,6 +350,7 @@ export function createWrapper(options: ProviderOptions = {}) {
     winampDeps,
     winampPlayers,
     winampRegistry,
+    hallOfFameDeps,
   };
 }
 

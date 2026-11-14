@@ -50,7 +50,19 @@ export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
     label: "My Computer",
     icon: "computer",
   },
+  {
+    slot: "programs",
+    id: "halloffame",
+    label: "Hall of Fame",
+    icon: "trophy",
+    order: 10,
+    // One Hall of Fame at a time: choosing it again brings the open window to the front.
+    open: (commands) =>
+      commands.open({ kind: "halloffame" }, HALL_OF_FAME_WINDOW_ID),
+  },
 ];
+
+export const HALL_OF_FAME_WINDOW_ID = "halloffame";
 
 /** The registrations in force; tests hand in their own list. */
 export const StartMenuRegistryContext = createContext<

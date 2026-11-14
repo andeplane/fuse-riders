@@ -3,6 +3,7 @@ import type { WindowContent, WindowState } from "../state/appState";
 
 import {
   FUSE_GAME_WINDOW_SIZE,
+  HALL_OF_FAME_WINDOW_SIZE,
   PAINT_WINDOW_SIZE,
   WINAMP_WINDOW_SIZE,
   windowMeta,
@@ -82,5 +83,15 @@ describe(windowMeta.name, () => {
         games,
       ),
     ).toEqual({ title: "Oops", icon: "warning", resizable: false });
+    expect(windowMeta(window({ kind: "halloffame" }), games)).toEqual({
+      title: "Hall of Fame",
+      icon: "trophy",
+      resizable: true,
+      size: HALL_OF_FAME_WINDOW_SIZE,
+    });
+    expect(
+      windowMeta(window({ kind: "halloffame", gameId: "fuseball" }), games)
+        .title,
+    ).toBe("Hall of Fame");
   });
 });
