@@ -1,5 +1,6 @@
 import { button, el } from "./dom.js";
 import { createDialog } from "./dialog.js";
+import { menuKeys } from "./menu-keys.js";
 import { ALL_SONGS, type Song, type MusicMedia } from "fuse-music";
 import { createRadio } from "./radio.js";
 
@@ -90,13 +91,11 @@ export function createTopBar(options: TopBarOptions): HTMLElement {
   toggle.setAttribute("aria-expanded", "false");
   toggle.innerHTML =
     '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-  const menu = createDialog({
-    title: "Game menu",
-    closeText: "Close",
-    document: doc,
-  });
+  const menu = createDialog({ title: "Game menu", document: doc });
   menu.dialog.classList.add("fui-top-bar-menu");
   menu.body.classList.add("fui-top-bar-actions");
+  // Heard on the dialog: the bar keeps its keys from the page, and a modal holds the focus in here anyway.
+  menuKeys(menu.body, { scope: menu.dialog, document: doc });
   const owned = new Set<Node>([left, right, context, menu.dialog]);
   let source: HTMLElement | undefined;
   let soundControl: TopBarSound | undefined;

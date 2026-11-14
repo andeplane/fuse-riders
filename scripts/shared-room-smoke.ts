@@ -170,7 +170,7 @@ for (const { name, kind } of BOTH_ENGINES) {
             "fullscreen button only where fullscreen exists",
           );
           await phone
-            .getByRole("button", { name: "CLOSE", exact: true })
+            .getByRole("button", { name: "Back", exact: true })
             .click();
           await phone.screenshot({
             path: `artifacts/shared-phone-host-${name}-${viewport.width}x${viewport.height}.png`,

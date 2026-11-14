@@ -78,7 +78,7 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
     leadClock = createLeadClock();
   const audio = options.audio;
   const top = el("header", "", "topbar"),
-    home = el("a", "← FUSE ARCADE", "back");
+    home = el("a", "All games", "back");
   home.href = "../";
   const badge = el(
     "span",

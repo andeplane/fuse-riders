@@ -1,3 +1,4 @@
+import { createBackButton } from "./back.js";
 import { createDialog, type DialogPart } from "./dialog.js";
 import { el, partClass, type PartClasses } from "./dom.js";
 
@@ -163,7 +164,7 @@ const DEFAULT_TEXT: AccountText = {
   matchesFailed: "Could not load matches.",
   emptyEveryone: "No finished games yet. Start a room and be the first.",
   tryAgain: "TRY AGAIN",
-  back: "‹ MATCHES",
+  back: "Matches",
   today: "TODAY",
   yesterday: "YESTERDAY",
   older: "OLDER MATCHES",
@@ -789,8 +790,12 @@ export function createAccountDialog<
   }
 
   function renderMatch(entry: Match): void {
-    const back = plainButton(text.back, c("back"));
-    back.onclick = () => show("matches");
+    const back = createBackButton({
+      label: text.back,
+      className: c("back"),
+      onBack: () => show("matches"),
+      document: doc,
+    });
     const now = refreshClock.now();
     body.replaceChildren(
       back,

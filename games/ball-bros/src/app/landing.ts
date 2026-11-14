@@ -70,7 +70,7 @@ export function landing(
     "A / D orbit · W / S out / in · Space launch",
     "landing-help",
   );
-  const back = el("a", "← FUSE ARCADE", "back");
+  const back = el("a", "All games", "back");
   back.href = "../";
   const top = el("header", "", "topbar");
   top.append(

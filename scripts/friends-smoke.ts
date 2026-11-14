@@ -179,7 +179,7 @@ try {
     // Bob turns invite alerts on: the permission prompt is asked inside that tap.
     await bob.getByRole("button", { name: "🔕 INVITE ALERTS OFF" }).click();
     await bob.getByRole("button", { name: "🔔 INVITE ALERTS ON" }).waitFor();
-    await bob.getByRole("button", { name: "CLOSE" }).click();
+    await bob.getByRole("button", { name: "Back" }).click();
     await alice.locator('#smoke-add-bob[data-relation="friend"]').waitFor();
     // Alice takes a seat in a room, and her panel learns it; Bob is online and invitable.
     const created = (await (
@@ -229,7 +229,7 @@ try {
       .click();
     assert.deepEqual((await injected(bob)).joined, [created.code]);
     // Alice's list shows Bob's presence; Alice leaves the room and the INVITE goes with it.
-    await alice.getByRole("button", { name: "CLOSE" }).click();
+    await alice.getByRole("button", { name: "Back" }).click();
     await alice.evaluate(() => {
       const { panel } = (window as unknown as { __friends: Injected })
         .__friends;

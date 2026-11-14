@@ -1,6 +1,7 @@
 import { social } from "./social.js";
 import { createModalInputGate } from "fuse-ui/modal-input";
 import "fuse-ui/portal.css";
+import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
 import { reportPlay } from "./analytics.js";
 import "./style.css";

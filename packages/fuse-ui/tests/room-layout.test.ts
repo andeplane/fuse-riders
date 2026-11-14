@@ -8,12 +8,12 @@ import {
 } from "fuse-ui";
 import { page } from "./dom-fixture.js";
 
-test("Main menu follows Game settings and can reuse the game's leave handler", () => {
+test("Back is the room's first control, top left, and can reuse the game's leave handler", () => {
   const { document } = page(),
     root = document.createElement("section"),
     leave = document.createElement("button");
   document.body.append(root);
-  leave.textContent = "Main menu";
+  leave.textContent = "Back";
   let left = 0;
   leave.onclick = () => left++;
   const layout = createRoomLayout({
@@ -22,19 +22,21 @@ test("Main menu follows Game settings and can reuse the game's leave handler", (
     capacity: 2,
     mainMenuAction: leave,
   });
-  assert.equal(
-    root.querySelector(".fui-room-settings")?.nextElementSibling,
-    leave,
-  );
+  const head = root.firstElementChild!;
+  assert.equal(head.className, "fui-page-head fui-room-head");
+  assert.equal(head.firstElementChild === leave, true);
+  assert.equal(leave.classList.contains("fui-back"), true);
   leave.click();
   assert.equal(left, 1);
-  const configure = root.querySelector<HTMLElement>(".fui-room-settings")!;
-  configure.parentElement!.append(configure);
+  const configure = root.querySelector<HTMLElement>(".fui-room-settings")!,
+    column = configure.parentElement!;
+  assert.equal(column.lastElementChild === configure, true);
+  column.append(document.createElement("p"));
   layout.update(0);
   assert.equal(
-    configure.nextElementSibling,
-    leave,
-    "a game moving its settings trigger cannot reorder the shared actions",
+    column.lastElementChild === configure,
+    true,
+    "Game settings closes the invitation's column whatever a game adds to it",
   );
   const other = document.createElement("section");
   document.body.append(other);
@@ -377,4 +379,132 @@ test("an existing settings action is the shared room's single trigger", () => {
   };
   layout.setActive(false);
   assert.equal(layout.settings.open, false);
+});
+
+test("a seat says what it is: its number on a chip, Open seat while empty, a game's own label when it has one", () => {
+  const { document } = page(),
+    plain = document.createElement("section"),
+    roles = document.createElement("section");
+  document.body.append(plain, roles);
+  const layout = createRoomLayout({
+    element: plain,
+    roster: createRoster({ document }),
+    capacity: 3,
+  });
+  layout.update(1, 3, [0]);
+  const seats = [...plain.querySelectorAll<HTMLElement>(".fui-room-open-slot")];
+  assert.deepEqual(
+    seats.map((seat) => seat.querySelector(".fui-slot-chip")!.textContent),
+    ["1", "2", "3"],
+  );
+  assert.deepEqual(
+    seats.map((seat) => seat.querySelector(".fui-slot-label")!.textContent),
+    ["Seat 1", "Open seat", "Open seat"],
+  );
+  assert.equal(
+    seats.every((seat) => seat.classList.contains("fui-slot-plain")),
+    true,
+    "a seat with only a number gives its rows to whoever sits there",
+  );
+  assert.equal(seats[0]!.classList.contains("fui-slot-occupied"), true);
+  assert.deepEqual(
+    seats.map((seat) => seat.classList.contains("fui-slot-idle")),
+    [false, true, true],
+    "an open seat with no Join and no Add AI for this viewer is marked idle, so it can fold to a line",
+  );
+
+  createRoomLayout({
+    element: roles,
+    roster: createRoster({ document }),
+    capacity: 2,
+    slotLabel: (slot) => (slot === 0 ? "Queen" : "Worker"),
+  }).update(1, 2, [1]);
+  assert.deepEqual(
+    [...roles.querySelectorAll(".fui-slot-label")].map(
+      (label) => label.textContent,
+    ),
+    ["Queen · Open", "Worker"],
+  );
+  assert.equal(roles.querySelector(".fui-slot-plain"), null);
+});
+
+test("header actions put a game's own actions, Settings and the main action across the room's top, primary last", () => {
+  const { document } = page(),
+    root = document.createElement("section"),
+    start = document.createElement("button"),
+    optionsButton = document.createElement("button"),
+    extra = document.createElement("label"),
+    status = document.createElement("p");
+  document.body.append(root);
+  start.textContent = "Start";
+  optionsButton.textContent = "Options";
+  status.textContent = "Connected";
+  createRoomLayout({
+    element: root,
+    invite: document.createElement("div"),
+    roster: createRoster({ document }),
+    capacity: 4,
+    primaryAction: start,
+    headerActions: [optionsButton],
+    heading: "Room",
+    extras: [extra],
+    status,
+  });
+  const head = root.firstElementChild!;
+  assert.equal(head.classList.contains("fui-room-head"), true);
+  assert.equal(root.classList.contains("fui-room-actions-top"), true);
+  assert.equal(root.classList.contains("fui-room-compact"), false);
+  assert.equal(head.querySelector(".fui-page-title")!.textContent, "Room");
+  assert.deepEqual(
+    [...head.querySelectorAll("button")].map((button) => button.textContent),
+    ["Options", "Settings", "Start"],
+  );
+  assert.equal(
+    head.querySelector(".fui-room-configure")!.getAttribute("aria-label"),
+    "Game settings",
+  );
+  const column = root.querySelector(".fui-room-invitation")!;
+  assert.equal(column.querySelector("button"), null);
+  assert.equal(column.lastElementChild === extra, true);
+  // The header comes before the players and everything a game puts under them.
+  const order = [...root.children].map((child) => child.className);
+  assert.equal(order[0], "fui-page-head fui-room-head");
+  assert.equal(
+    order.indexOf("fui-room-status") > order.indexOf("fui-room-players"),
+    true,
+  );
+  assert.equal(
+    root.querySelector(".fui-room-status")!.textContent,
+    "Connected",
+  );
+});
+
+test("a compact room is one column: no invitation, the heading beside Back, and the same header actions", () => {
+  const { document } = page(),
+    root = document.createElement("section"),
+    start = document.createElement("button");
+  document.body.append(root);
+  start.textContent = "Start";
+  createRoomLayout({
+    element: root,
+    roster: createRoster({ document }),
+    capacity: 5,
+    primaryAction: start,
+    compact: true,
+    heading: "Single player",
+  });
+  assert.equal(root.classList.contains("fui-room-compact"), true);
+  assert.equal(root.classList.contains("fui-room-actions-top"), true);
+  assert.equal(root.querySelector(".fui-room-invitation"), null);
+  assert.equal(root.textContent!.includes("Your room"), false);
+  const head = root.firstElementChild!;
+  assert.equal(
+    head.querySelector(".fui-page-title")!.textContent,
+    "Single player",
+  );
+  assert.deepEqual(
+    [...head.querySelectorAll("button")].map((button) => button.textContent),
+    ["Settings", "Start"],
+  );
+  assert.equal(head.querySelector(".fui-back")!.textContent, "Back");
 });

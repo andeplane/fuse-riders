@@ -98,7 +98,7 @@ try {
     if (signedIn) {
       const response = await finishedReport!;
       assert.equal(response.status(), 200, await response.text());
-      await page.getByRole("button", { name: "CLOSE", exact: true }).click();
+      await page.getByRole("button", { name: "Back", exact: true }).click();
       await page.getByRole("button", { name: "MATCHES", exact: true }).click();
       await page.getByRole("button", { name: "YOURS", exact: true }).click();
       await page.locator(".account-match").waitFor();

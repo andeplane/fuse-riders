@@ -87,7 +87,7 @@ try {
       await account
         .getByRole("button", { name: "EVERYONE", exact: true })
         .waitFor();
-      await account.getByRole("button", { name: "CLOSE", exact: true }).click();
+      await account.getByRole("button", { name: "Back", exact: true }).click();
       if (game === "hook-havok") {
         await page.goto(new URL(`${game}/?mute&play&touch`, origin).href);
         await page.locator('#status[data-state="ready"]').waitFor();
@@ -180,7 +180,7 @@ try {
             touchPoints: [],
           });
           await modal
-            .getByRole("button", { name: "CLOSE", exact: true })
+            .getByRole("button", { name: "Back", exact: true })
             .click();
         }
         // A fresh ordinary touch release still throws after the dialogs have closed.
@@ -281,7 +281,7 @@ try {
             touchPoints: [],
           });
           await modal
-            .getByRole("button", { name: "CLOSE", exact: true })
+            .getByRole("button", { name: "Back", exact: true })
             .click();
         }
         await page.locator("canvas").click();
@@ -345,7 +345,7 @@ try {
               path: `artifacts/shared-social/graveyard-landscape-${kind}.png`,
             });
             await modal
-              .getByRole("button", { name: "CLOSE", exact: true })
+              .getByRole("button", { name: "Back", exact: true })
               .click();
           }
           assert.deepEqual(landscapeErrors, []);
@@ -432,7 +432,7 @@ try {
           );
           await page.keyboard.up("ArrowRight");
           await modal
-            .getByRole("button", { name: "CLOSE", exact: true })
+            .getByRole("button", { name: "Back", exact: true })
             .click();
         }
         console.log(

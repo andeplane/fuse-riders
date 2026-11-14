@@ -1,14 +1,14 @@
+import { createBackButton } from "./back.js";
 import { el, partClass, type PartClasses } from "./dom.js";
 
-export type DialogPart =
-  "root" | "bar" | "title" | "actions" | "close" | "body";
+export type DialogPart = "root" | "bar" | "title" | "actions" | "back" | "body";
 
 const DIALOG_CLASSES: Record<DialogPart, string> = {
   root: "fui-dialog",
   bar: "fui-dialog-bar",
   title: "fui-dialog-title",
   actions: "fui-dialog-actions",
-  close: "fui-dialog-close",
+  back: "fui-dialog-back",
   body: "fui-dialog-body",
 };
 
@@ -17,8 +17,8 @@ export interface DialogOptions {
   title: string;
   /** The accessible name; defaults to the title. */
   label?: string;
-  /** The close button's text. */
-  closeText?: string;
+  /** What Back says, where "Back" is not it. */
+  backText?: string;
   /** Close when a click lands on the backdrop outside the dialog box. Default true. */
   closeOnBackdrop?: boolean;
   classes?: PartClasses<DialogPart>;
@@ -29,9 +29,10 @@ export interface DialogShell {
   dialog: HTMLDialogElement;
   bar: HTMLElement;
   title: HTMLElement;
-  /** Right of the title: the close button, and anything a game adds before it. */
+  /** Top left, before the title: closes the dialog, as Escape does. */
+  back: HTMLButtonElement;
+  /** Right of the title: what a game adds, secondary actions first and the primary action last. */
   actions: HTMLElement;
-  close: HTMLButtonElement;
   /** Where the game puts the dialog's content. */
   body: HTMLElement;
   /**
@@ -51,8 +52,8 @@ export interface DialogView {
 }
 
 /**
- * A modal `<dialog>` with a title bar, an actions slot with CLOSE, and a body. The game fills the body and calls
- * `dialog.showModal()`; Escape and CLOSE both close it, and a click on the backdrop does too unless turned off.
+ * A modal `<dialog>` with a bar (Back, the title, an actions slot) and a body. The game fills the body and calls
+ * `dialog.showModal()`; Escape and Back both close it, and a click on the backdrop does too unless turned off.
  */
 export function createDialog(options: DialogOptions): DialogShell {
   const doc = options.document ?? document;
@@ -63,12 +64,13 @@ export function createDialog(options: DialogOptions): DialogShell {
   const bar = el("header", "", c("bar"), doc),
     title = el("strong", options.title, c("title"), doc),
     actions = el("span", "", c("actions"), doc),
-    close = el("button", options.closeText ?? "✕  CLOSE", c("close"), doc);
-  close.type = "button";
-  close.setAttribute("aria-label", "CLOSE");
-  close.onclick = () => dialog.close();
-  actions.append(close);
-  bar.append(title, actions);
+    back = createBackButton({
+      ...(options.backText ? { label: options.backText } : {}),
+      className: c("back"),
+      onBack: () => dialog.close(),
+      document: doc,
+    });
+  bar.append(back, title, actions);
   const body = el("div", "", c("body"), doc);
   dialog.append(bar, body);
   if (options.closeOnBackdrop ?? true) closeOnBackdrop(dialog);
@@ -81,8 +83,8 @@ export function createDialog(options: DialogOptions): DialogShell {
     dialog,
     bar,
     title,
+    back,
     actions,
-    close,
     body,
     show(view) {
       title.textContent = view.title;

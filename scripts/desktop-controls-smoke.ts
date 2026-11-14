@@ -64,7 +64,7 @@ try {
   await page.getByLabel("Match length").fill("2");
   await page.keyboard.press("ArrowLeft");
   assert.doesNotMatch((await left.getAttribute("class")) ?? "", /active/);
-  await page.getByRole("button", { name: "CLOSE", exact: true }).click();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
   await page.keyboard.down("Space");
   await page.evaluate(() => window.dispatchEvent(new Event("blur")));
   assert.doesNotMatch((await fire.getAttribute("class")) ?? "", /active/);
@@ -98,7 +98,7 @@ try {
     await shortcuts.getByText(keys, { exact: true }).waitFor();
     await shortcuts.getByText(action, { exact: true }).waitFor();
   }
-  await page.getByRole("button", { name: "CLOSE", exact: true }).click();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
   assert.ok(
     await page.evaluate(
       () => document.documentElement.scrollHeight <= innerHeight,

@@ -8,6 +8,21 @@ export {
   type PartClasses,
 } from "./dom.js";
 export {
+  backOnEscape,
+  createBackButton,
+  createBackLink,
+  createPageHeader,
+  createPageMessage,
+  createSubPage,
+  type BackButtonOptions,
+  type BackOnEscapeOptions,
+  type PageHeader,
+  type PageHeaderOptions,
+  type SubPage,
+  type SubPageOptions,
+} from "./back.js";
+export { menuKeys, type MenuKeysOptions } from "./menu-keys.js";
+export {
   closeOnBackdrop,
   createDialog,
   type DialogOptions,

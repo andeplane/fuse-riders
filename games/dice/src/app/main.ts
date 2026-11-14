@@ -139,7 +139,7 @@ function landing(): void {
     },
   });
   card.create.after(shared);
-  const back = el("a", "← FUSE RIDERS", "dice-back");
+  const back = el("a", "All games", "dice-back");
   back.href = import.meta.env.BASE_URL;
   app.replaceChildren(header([back]), card.element);
 }

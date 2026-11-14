@@ -1,4 +1,4 @@
-import { el as element } from "fuse-ui";
+import { createBackButton, el as element } from "fuse-ui";
 import {
   defaultRoomSettings,
   type RoomSettings,
@@ -247,8 +247,7 @@ export function showRoomSettings(
     // Ctrl+P opens this page directly (#168), so it publishes here too, through the same validate() as the main page.
     commit = () =>
       publish(powerupError, " Go back to room settings to fix it.");
-    const back = element("button", "← BACK TO ROOM SETTINGS");
-    back.onclick = main;
+    const back = createBackButton({ label: "Room settings", onBack: main });
     body.append(
       back,
       element(

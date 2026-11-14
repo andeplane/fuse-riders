@@ -3,18 +3,9 @@
 .fui-play-hosting[hidden] {
   display: none !important;
 }
-.fui-main-menu .fui-play-menu button {
-  box-sizing: border-box;
-  min-height: 54px;
-  height: 54px;
-  border-width: 1px;
-}
-.fui-main-menu .fui-play-menu .fui-play-menu-back {
-  margin-top: 12px;
-}
 .fui-play-hosting {
   width: min(100%, 360px);
-  margin-top: 16px;
+  margin: 16px auto 0;
   text-align: left;
 }
 .fui-play-hosting > summary {
@@ -31,6 +22,6 @@
 }
 .fui-single-player-options button {
   width: 100%;
-  min-height: 54px;
+  min-height: var(--fui-menu-height);
   box-sizing: border-box;
 }

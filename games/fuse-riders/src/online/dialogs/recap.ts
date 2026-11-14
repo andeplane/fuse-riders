@@ -31,7 +31,6 @@ export function createRecapDialog(
     title: "MATCH RESULTS",
     label: "Match results",
     variant: "recap-dialog",
-    closeText: "✕",
     document: doc,
   });
   dialogs.add("recap", shell.dialog);

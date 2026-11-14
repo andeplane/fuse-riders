@@ -23,6 +23,7 @@ import {
   uuid,
 } from "fuse-netcode";
 import {
+  backOnEscape,
   button,
   createAppPortal,
   createControllerRow,
@@ -30,13 +31,15 @@ import {
   createInviteCard,
   createKeyList,
   createLandingCard,
-  createRoomLayout,
   createNameEntry,
   createNotice,
+  createPageMessage,
   createPhoneLayout,
   createPicker,
+  createRoomLayout,
   createRoster,
   createRoundControls,
+  createSubPage,
   el,
 } from "fuse-ui";
 import {
@@ -224,7 +227,7 @@ function landing(): void {
     },
   });
   card.menu.help.append(keyHelp());
-  const back = el("a", "← FUSE RIDERS", "fa-back");
+  const back = el("a", "All games", "fa-back");
   back.href = import.meta.env.BASE_URL + (query.has("mute") ? "?mute" : "");
   app.replaceChildren(header([back, menu.element]), card.element);
 }
@@ -234,12 +237,15 @@ function room(solo: boolean): void {
     ? ({ kind: "solo" } as const)
     : sessionFor(location.search, store, GAME, validRoomCode, secret);
   if (session.kind === "invalid" || session.kind === "landing") {
-    const back = el("a", "← BACK", "fa-back");
-    back.href = withFlags(endpoints.appUrl());
-    app.replaceChildren(
-      header([back]),
-      el("p", "That is not a room code: check it and try again.", "fa-error"),
-    );
+    const page = createSubPage({
+      title: "Join room",
+      backHref: withFlags(endpoints.appUrl()),
+      content: [
+        createPageMessage("That is not a room code: check it and try again."),
+      ],
+    });
+    app.replaceChildren(header(), page.element);
+    backOnEscape(page.back);
     return;
   }
   const code = session.kind === "room" ? session.code : "SOLO",
