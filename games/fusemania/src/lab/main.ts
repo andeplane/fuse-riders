@@ -312,6 +312,8 @@ let tickBuffer: AudioBuffer | undefined;
 /** Ticks scheduled on the audio clock and not yet heard; a stop or a seek silences them. */
 const pendingTicks = new Set<AudioBufferSourceNode>();
 let follow = true;
+/** The current animation loop; a stop or a new start retires the one before it. */
+let frameLoop = 0;
 
 function readStoredNotes(): NotesFile {
   const text = load(NOTES_KEY);
@@ -951,7 +953,11 @@ function ensureContext(): AudioContext {
 function heardTime(): number {
   if (!audioContext || !source) return playhead;
   const latency = (audioContext.outputLatency || 0) + audioContext.baseLatency;
-  return startSong + (audioContext.currentTime - latency - startCtx) * rate;
+  // Never before where this run started: just after a start or a seek the first sample has not been heard yet.
+  return Math.max(
+    startSong,
+    startSong + (audioContext.currentTime - latency - startCtx) * rate,
+  );
 }
 
 function togglePlay(): void {
@@ -979,10 +985,12 @@ function play(): void {
   };
   follow = true;
   playButton.textContent = "❚❚ Pause";
-  requestAnimationFrame(frame);
+  const loop = ++frameLoop;
+  requestAnimationFrame(() => frame(loop));
 }
 
 function stop(): void {
+  frameLoop++;
   if (source) {
     playhead = Math.max(0, heardTime());
     const old = source;
@@ -1054,8 +1062,8 @@ function scheduleTicks(): void {
   scheduledUntil = horizon;
 }
 
-function frame(): void {
-  if (!source) return;
+function frame(loop: number): void {
+  if (!source || loop !== frameLoop) return;
   playhead = heardTime();
   scheduleTicks();
   if (follow) {
@@ -1064,7 +1072,7 @@ function frame(): void {
     if (Math.abs(wanted - topTime) > 0.001) topTime = wanted;
   }
   draw();
-  requestAnimationFrame(frame);
+  requestAnimationFrame(() => frame(loop));
 }
 
 function seek(time: number): void {
