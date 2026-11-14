@@ -14,108 +14,9 @@ import {
   type OscillatorLike,
   type ParamLike,
 } from "../src/game-audio.js";
+import { createAudioRig } from "../src/game-audio-fake.js";
 import { createMemoryStorage } from "../src/safe-storage.js";
 
-function param(): ParamLike {
-  return {
-    value: 1,
-    setValueAtTime(value) {
-      this.value = value;
-    },
-    linearRampToValueAtTime(value) {
-      this.value = value;
-    },
-    exponentialRampToValueAtTime(value) {
-      this.value = value;
-    },
-    cancelScheduledValues() {},
-  };
-}
-const node = (): NodeLike => ({
-  connect: () => undefined,
-  disconnect: () => undefined,
-});
-
-function rig(state: AudioContextState = "running") {
-  const log = { oscillators: 0, noises: 0, resumes: 0, opens: 0, sources: 0 };
-  const gains: GainLike[] = [];
-  const context: AudioLike = {
-    state,
-    currentTime: 0,
-    sampleRate: 100,
-    destination: node(),
-    resume: async () => {
-      log.resumes++;
-      (context as { state: AudioContextState }).state = "running";
-    },
-    suspend: async () => {
-      (context as { state: AudioContextState }).state = "suspended";
-    },
-    createGain: () => {
-      const g: GainLike = { ...node(), gain: param() };
-      gains.push(g);
-      return g;
-    },
-    createOscillator: (): OscillatorLike => {
-      log.oscillators++;
-      return {
-        ...node(),
-        type: "sine",
-        frequency: param(),
-        start() {},
-        stop() {},
-      };
-    },
-    createBiquadFilter: (): FilterLike => ({
-      ...node(),
-      type: "lowpass",
-      frequency: param(),
-    }),
-    createBuffer: (_c, length) => ({
-      getChannelData: () => new Float32Array(length),
-    }),
-    createBufferSource: (): BufferSourceLike => {
-      log.noises++;
-      return { ...node(), buffer: null, start() {} };
-    },
-    createMediaElementSource: () => {
-      log.sources++;
-      return node();
-    },
-  };
-  const elements: (MusicElement & { plays: number; pauses: number })[] = [];
-  const timers: (() => void)[] = [];
-  const storage = createMemoryStorage();
-  const deps: GameAudioDependencies = {
-    open: () => {
-      log.opens++;
-      return context;
-    },
-    createElement: () => {
-      const el = {
-        src: "",
-        loop: false,
-        preload: "none" as MusicElement["preload"],
-        onended: null,
-        onerror: null,
-        plays: 0,
-        pauses: 0,
-        play: async () => {
-          el.plays++;
-        },
-        pause: () => {
-          el.pauses++;
-        },
-      };
-      elements.push(el);
-      return el;
-    },
-    later: (run) => void timers.push(run),
-    random: () => 0,
-    storage,
-  };
-  return { context, deps, log, elements, timers, storage, gains };
-}
 /** Runs a handler the way the browser would: with the element as `this` and an event. */
 function fire(el: MusicElement, which: "onended" | "onerror") {
   el[which]?.call(el as unknown as GlobalEventHandlers, new Event("x"));
@@ -126,7 +27,7 @@ const songs = [
 ];
 
 test("a muted preview never opens audio or writes a choice", () => {
-  const r = rig();
+  const r = createAudioRig();
   const audio = createGameAudio(r.deps, { forceMute: true });
   audio.unlock();
   audio.tone({ frequency: 440, duration: 0.1 });
@@ -141,7 +42,7 @@ test("a muted preview never opens audio or writes a choice", () => {
 });
 
 test("nothing sounds before the first input, then effects play", () => {
-  const r = rig("suspended");
+  const r = createAudioRig("suspended");
   const audio = createGameAudio(r.deps);
   audio.tone({ frequency: 440, duration: 0.1 });
   assert.equal(r.log.oscillators, 0);
@@ -151,7 +52,7 @@ test("nothing sounds before the first input, then effects play", () => {
 });
 
 test("effects, noise and jingles reach the speakers once unlocked", async () => {
-  const r = rig("suspended");
+  const r = createAudioRig("suspended");
   const audio = createGameAudio(r.deps);
   audio.unlock();
   await Promise.resolve();
@@ -164,7 +65,7 @@ test("effects, noise and jingles reach the speakers once unlocked", async () => 
 });
 
 test("mute and volumes are remembered and shared through storage", () => {
-  const r = rig();
+  const r = createAudioRig();
   const audio = createGameAudio(r.deps);
   audio.unlock();
   let changes = 0;
@@ -202,7 +103,7 @@ test("corrupt stored choices fall back to the defaults", () => {
 });
 
 test("songs load only after unlock, loop alone, advance in a list, and pause on mute", async () => {
-  const r = rig("suspended");
+  const r = createAudioRig("suspended");
   const audio = createGameAudio(r.deps);
   audio.setSongs(songs, "/base");
   audio.startMusic();
@@ -232,20 +133,20 @@ test("songs load only after unlock, loop alone, advance in a list, and pause on 
   assert.equal(audio.audible, false);
   audio.setHidden(false);
   await Promise.resolve();
-  const single = createGameAudio(rig().deps);
+  const single = createGameAudio(createAudioRig().deps);
   single.setSongs([songs[0]!], "/");
   single.unlock();
   single.startMusic();
 });
 
 test("a single song loops and a failing song is skipped once", async () => {
-  const r = rig();
+  const r = createAudioRig();
   const audio = createGameAudio(r.deps);
   audio.setSongs([songs[0]!], "/");
   audio.unlock();
   audio.startMusic();
   assert.equal(r.elements[0]!.loop, true);
-  const two = rig();
+  const two = createAudioRig();
   const both = createGameAudio(two.deps);
   both.setSongs(songs, "/");
   both.unlock();
@@ -264,7 +165,7 @@ test("a single song loops and a failing song is skipped once", async () => {
 });
 
 test("ducking drops the music for a moment then restores it", async () => {
-  const r = rig();
+  const r = createAudioRig();
   const audio = createGameAudio(r.deps);
   audio.unlock();
   audio.duck();

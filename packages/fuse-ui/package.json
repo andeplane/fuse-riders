@@ -23,6 +23,7 @@
     "./assets": "./src/assets.ts",
     "./radio": "./src/radio.ts",
     "./game-audio": "./src/game-audio.ts",
+    "./game-audio-fake": "./src/game-audio-fake.ts",
     "./game-audio.css": "./src/game-audio.css",
     "./portal": "./src/portal.ts",
     ".": "./src/index.ts",

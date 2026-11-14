@@ -1,133 +1,114 @@
+import type { GameAudio, Song } from "fuse-ui/game-audio";
 import type { Cue } from "../render/effects.js";
 
 /**
- * Little synthesized sounds for what the arena says happened since the last frame (`Scene.draw`'s cues). Nothing is
- * loaded; a page opened with `?mute` never opens the browser's audio, and no choice is stored.
+ * Fuseball's sound: a harder neon-arena palette of square and sawtooth zaps, sharp kicks, a goal horn and a stadium
+ * countdown. Effects are synthesised through the shared audio bus (no files); the songs are lazy-loaded mp3s.
  */
 export interface Sfx {
   play(cue: Cue): void;
-  /** The browser lets a page make sound only after a key or a touch: call this from one. */
-  resume(): void;
 }
 
-/** Where the sounds come from: the browser's audio, a timer for the notes of a jingle, and the hiss's samples. */
-export interface SfxDependencies {
-  open(): AudioContext | undefined;
-  later(run: () => void, ms: number): void;
-  random(): number;
-}
-const browser: SfxDependencies = {
-  open: () =>
-    typeof AudioContext === "undefined" ? undefined : new AudioContext(),
-  later: (run, ms) => void setTimeout(run, ms),
-  random: () => Math.random(),
-};
+/** The songs, in `public/music/fuseball/`; none is fetched until the first key or touch. */
+export const FUSEBALL_SONGS: readonly Song[] = [];
 
-export function createSfx(
-  muted: boolean,
-  deps: SfxDependencies = browser,
-): Sfx {
-  let context: AudioContext | undefined;
-  const ctx = () => {
-    if (muted) return undefined;
-    context ??= deps.open();
-    return context;
-  };
-  const tone = (
-    frequency: number,
-    duration: number,
-    type: OscillatorType,
-    volume: number,
-    slide = 1,
-  ) => {
-    const audio = ctx();
-    if (!audio || audio.state !== "running") return;
-    const osc = audio.createOscillator(),
-      gain = audio.createGain(),
-      at = audio.currentTime;
-    osc.type = type;
-    osc.frequency.setValueAtTime(frequency, at);
-    osc.frequency.exponentialRampToValueAtTime(
-      Math.max(30, frequency * slide),
-      at + duration,
-    );
-    gain.gain.setValueAtTime(volume, at);
-    gain.gain.exponentialRampToValueAtTime(0.0001, at + duration);
-    osc.connect(gain).connect(audio.destination);
-    osc.start(at);
-    osc.stop(at + duration + 0.02);
-  };
-  const noise = (duration: number, volume: number, cutoff: number) => {
-    const audio = ctx();
-    if (!audio || audio.state !== "running") return;
-    const length = Math.floor(audio.sampleRate * duration),
-      buffer = audio.createBuffer(1, length, audio.sampleRate),
-      data = buffer.getChannelData(0);
-    for (let i = 0; i < length; i++)
-      data[i] = (deps.random() * 2 - 1) * (1 - i / length);
-    const source = audio.createBufferSource(),
-      filter = audio.createBiquadFilter(),
-      gain = audio.createGain();
-    source.buffer = buffer;
-    filter.type = "lowpass";
-    filter.frequency.value = cutoff;
-    gain.gain.value = volume;
-    source.connect(filter).connect(gain).connect(audio.destination);
-    source.start();
-  };
-  const jingle = (notes: readonly number[], gap: number, volume: number) =>
-    notes.forEach((note, i) =>
-      deps.later(() => tone(note, 0.16, "square", volume), i * gap),
-    );
+export function createSfx(audio: GameAudio): Sfx {
+  const { tone, noise } = audio;
   return {
-    resume() {
-      void ctx()?.resume();
-    },
     play(cue) {
       switch (cue.kind) {
         case "jump":
-          tone(cue.grounded ? 330 : 440, 0.09, "square", 0.04, 1.6);
+          tone({
+            frequency: cue.grounded ? 330 : 440,
+            duration: 0.09,
+            type: "square",
+            volume: 0.04,
+            slide: 1.6,
+          });
           break;
         case "bubble":
-          tone(620, 0.12, "sine", 0.07, 1.5);
+          tone({ frequency: 620, duration: 0.12, volume: 0.07, slide: 1.5 });
           break;
         case "pop":
-          tone(900, 0.07, "triangle", 0.09, 0.4);
-          noise(0.08, 0.08, 3000);
+          tone({
+            frequency: 900,
+            duration: 0.07,
+            type: "triangle",
+            volume: 0.09,
+            slide: 0.4,
+          });
+          noise({ duration: 0.08, volume: 0.08, cutoff: 3000 });
           break;
         case "harden":
-          tone(1250, 0.1, "triangle", 0.05, 1.2);
+          tone({
+            frequency: 1250,
+            duration: 0.1,
+            type: "triangle",
+            volume: 0.05,
+            slide: 1.2,
+          });
           break;
         case "bounce":
           // Quiet taps stay quiet: a rolling ball must not rattle.
           if (cue.speed >= 0.5)
-            tone(
-              170 + Math.min(260, cue.speed * 70),
-              0.07,
-              "triangle",
-              Math.min(0.1, 0.03 + cue.speed * 0.02),
-              0.7,
-            );
+            tone({
+              frequency: 170 + Math.min(260, cue.speed * 70),
+              duration: 0.07,
+              type: "triangle",
+              volume: Math.min(0.1, 0.03 + cue.speed * 0.02),
+              slide: 0.7,
+            });
           break;
         case "goal":
-          jingle(
+          // The horn: the song steps back and a rising riff answers the crowd's noise.
+          audio.duck({ keep: 0.25, hold: cue.suddenDeath ? 1800 : 1100 });
+          noise({ duration: 0.5, volume: 0.07, cutoff: 1800 });
+          tone({
+            frequency: 220,
+            duration: 0.55,
+            type: "sawtooth",
+            volume: 0.05,
+          });
+          audio.jingle(
             cue.suddenDeath ? [523, 659, 784, 1046, 1318] : [523, 659, 784],
             90,
-            0.07,
+            { volume: 0.07, duration: 0.16 },
           );
           break;
         case "zap":
-          tone(1400, 0.45, "sawtooth", 0.07, 0.08);
-          noise(0.4, 0.14, 2200);
+          tone({
+            frequency: 1400,
+            duration: 0.45,
+            type: "sawtooth",
+            volume: 0.07,
+            slide: 0.08,
+          });
+          noise({ duration: 0.4, volume: 0.14, cutoff: 2200 });
           break;
         case "count":
-          tone(440, 0.12, "square", 0.06);
+          tone({
+            frequency: 440,
+            duration: 0.12,
+            type: "square",
+            volume: 0.06,
+          });
           break;
         case "go":
-          tone(880, 0.3, "square", 0.08);
+          tone({ frequency: 880, duration: 0.3, type: "square", volume: 0.08 });
+          tone({
+            frequency: 1320,
+            duration: 0.3,
+            type: "square",
+            volume: 0.04,
+            delay: 0.02,
+          });
           break;
         case "over":
-          jingle([659, 784, 1046, 1318, 1568], 110, 0.07);
+          audio.duck({ keep: 0.2, hold: 2400 });
+          audio.jingle([659, 784, 1046, 1318, 1568], 110, {
+            volume: 0.07,
+            duration: 0.16,
+          });
           break;
         default:
           // A trail ring is only seen.
