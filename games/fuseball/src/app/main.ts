@@ -31,7 +31,6 @@ import {
   BTN,
   MAPS,
   MAP_IDS,
-  botInput,
   isCircle,
   isMapId,
   type MapDef,
@@ -47,6 +46,8 @@ import { createScene } from "../render/scene.js";
 import { createSfx } from "./audio.js";
 import {
   HeldControls,
+  PadSet,
+  autopilotBits,
   bindButton,
   bindStick,
   type PadSurface,
@@ -485,15 +486,21 @@ function room(solo: boolean): void {
     jump.setAttribute("aria-label", "Jump");
     stick.append(knob);
     row.append(stick, jump);
-    bindStick(surface(stick, knob), (bits) =>
-      controls.hold(`${className}:stick`, bits),
+    const set = new PadSet(controls);
+    set.add(
+      bindStick(surface(stick, knob), (bits) =>
+        controls.hold(`${className}:stick`, bits),
+      ),
     );
-    bindButton(surface(jump), BTN, (bits) =>
-      controls.hold(`${className}:jump`, bits),
+    set.add(
+      bindButton(surface(jump), BTN, (bits) =>
+        controls.hold(`${className}:jump`, bits),
+      ),
     );
-    return row;
+    return { row, set };
   };
-  const touch = pads("fb-touch");
+  const { row: touch, set: touchPads } = pads("fb-touch"),
+    controllerPads = pads("fb-controller-pads");
   stage.append(sidesRow, screen, note, touch);
 
   const controller = el("section", "", "fb-controller"),
@@ -507,11 +514,7 @@ function room(solo: boolean): void {
   controllerRematch.onclick = rematch.onclick;
   controllerLobby.onclick = toLobby.onclick;
   controllerResult.append(controllerLobby, controllerRematch);
-  controller.append(
-    controllerHead,
-    controllerResult,
-    pads("fb-controller-pads"),
-  );
+  controller.append(controllerHead, controllerResult, controllerPads.row);
 
   // Until the first frame nothing of the room shows, so a room that turns out not to exist never offers its controls.
   const connecting = el("p", "Connecting to the room…", "fb-connecting"),
@@ -654,6 +657,9 @@ function room(solo: boolean): void {
     setText(note, next.note);
     note.hidden = !next.note;
     touch.hidden = !(coarse() && next.riding && !display);
+    // Pads that leave the screen under a thumb let go of it.
+    touchPads.show(!touch.hidden && !stage.hidden);
+    controllerPads.set.show(!controller.hidden);
     // The phone controller.
     const mine = next.sides.find((side) => side.you);
     if (mine) {
@@ -717,11 +723,9 @@ function room(solo: boolean): void {
       if (next.seated) joinSent = false;
       render(next, frame);
       const state = runtime.roomState();
-      const mine = autopilot
-        ? state?.world?.riders.find((rider) => rider.id === viewer.me)
-        : undefined;
-      if (state?.world && mine && state.stage === "running")
-        controls.hold("autopilot", botInput(state.world, mine));
+      // The autopilot lets go when the match is not running, as a thumb would.
+      if (autopilot)
+        controls.hold("autopilot", autopilotBits(state, viewer.me));
       // Keys still down when a match starts or the log is reset are logged again.
       runtime.flush();
       if (session.kind === "room" && !display && state)

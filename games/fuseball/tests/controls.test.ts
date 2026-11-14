@@ -1,10 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BTN, DOWN, LEFT, RIGHT, UP, isInput } from "../src/engine/index.js";
+import {
+  BTN,
+  DOWN,
+  LEFT,
+  RIGHT,
+  UP,
+  botInput,
+  isInput,
+  stepWorld,
+} from "../src/engine/index.js";
+import { ballAt, playing } from "./fixtures/world.js";
 import {
   DEAD_ZONE,
   HeldControls,
   KEYS,
+  PadSet,
+  autopilotBits,
   bindButton,
   bindStick,
   stickFrom,
@@ -162,4 +174,65 @@ test("a touch button holds while any thumb is on it", () => {
   pad.refuseCapture = true;
   pad.fire("down", 3);
   assert.equal(seen.at(-1), BTN);
+});
+
+test("pads hidden under a thumb let go of it, and the next touch is theirs", () => {
+  const seen: number[] = [],
+    controls = new HeldControls((bits) => seen.push(bits)),
+    stick = new FakePad(),
+    jump = new FakePad(),
+    set = new PadSet(controls);
+  set.add(bindStick(stick, (bits) => controls.hold("stick", bits)));
+  set.add(bindButton(jump, BTN, (bits) => controls.hold("jump", bits)));
+  set.show(false);
+  set.show(true);
+  stick.fire("down", 1, 40, 0);
+  jump.fire("down", 2);
+  controls.hold("autopilot", DOWN);
+  assert.equal(controls.bits, RIGHT | BTN | DOWN);
+  set.show(true);
+  assert.equal(controls.bits, RIGHT | BTN | DOWN, "still on screen");
+  // The match ends mid-press: the pads go, and the lifts never arrive.
+  set.show(false);
+  assert.equal(controls.bits, 0);
+  assert.equal(seen.at(-1), 0);
+  assert.deepEqual(stick.shown.at(-1), { held: false, x: 0, y: 0 });
+  assert.deepEqual(jump.shown.at(-1), { held: false, x: 0, y: 0 });
+  set.show(false);
+  // Back for the next match: another thumb takes the stick at once, and the old one's late lift is nobody's.
+  set.show(true);
+  stick.fire("down", 5, -40, 0);
+  assert.equal(controls.bits, LEFT);
+  stick.fire("up", 1);
+  assert.equal(controls.bits, LEFT);
+  jump.fire("up", 2);
+  jump.fire("down", 6);
+  assert.equal(controls.bits, LEFT | BTN);
+  jump.fire("up", 6);
+  stick.fire("up", 5);
+  assert.equal(controls.bits, 0);
+});
+
+test("the autopilot holds the bot's answer only while a match is running", () => {
+  const world = playing();
+  ballAt(world, 400, 300);
+  const [mine] = world.riders;
+  let bits = 0;
+  // Somewhere in a second of play the bot holds something.
+  for (let i = 0; i < 120 && !bits; i++) {
+    stepWorld(world, new Map());
+    bits = autopilotBits({ stage: "running", world }, mine.id);
+  }
+  assert.notEqual(bits, 0);
+  assert.equal(bits, botInput(world, mine));
+  assert.equal(autopilotBits({ stage: "over", world }, mine.id), 0);
+  assert.equal(autopilotBits({ stage: "lobby", world: undefined }, mine.id), 0);
+  assert.equal(autopilotBits({ stage: "running", world }, "nobody"), 0);
+  assert.equal(autopilotBits(undefined, mine.id), 0);
+  // Held through the controls like a thumb, and let go the same way when the match is over.
+  const controls = new HeldControls(() => {});
+  controls.hold("autopilot", bits);
+  assert.equal(controls.bits, bits);
+  controls.hold("autopilot", autopilotBits({ stage: "over", world }, mine.id));
+  assert.equal(controls.bits, 0);
 });

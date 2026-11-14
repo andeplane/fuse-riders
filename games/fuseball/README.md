@@ -7,7 +7,8 @@ Fuseball is a neon arena ball duel for two riders, served at `/fuseball/`. Knock
 - **Score in your own colour.** Cyan starts on the left and its goal is on the far right; magenta is the mirror image. The ball entering a goal scores for that goal's colour whoever sent it, so knocking it into the other colour's goal is an own goal.
 - **Every point** starts with a 3-2-1 countdown with both riders on their marks, and ends with the loser of the point zapped from the goal.
 - **Bubbles.** Every jump made in the air leaves a bubble where you were. It is a bumper: the ball is thrown away from its centre and the bubble pops. You have one bubble at a time. The other rider pops your bubble by touching it, and you pass through your own.
-- **Hard bubbles.** Keep the button held after placing a bubble and it hardens: the ball and the other rider bounce off it and it stays. While you hold, you cannot jump again.
+- **Hard bubbles.** Keep the button held after placing a bubble and it hardens: the ball and the other rider bounce off it and it stays. While you hold, you cannot jump again. A hard bubble that wedges the ball into a corner with no way out pops.
+- **Nothing buries the ball.** Land or stand on the ball and it squirts out along the floor, away from you; squeeze it against a wall and it pops up.
 - **Clouds.** While the ball is inside a cloud the whole arena runs at half speed.
 - **Wrap.** The arenas have no outer edge on at least one axis: what leaves one side comes back on the other. Riders fly through goals untouched; only the ball scores.
 

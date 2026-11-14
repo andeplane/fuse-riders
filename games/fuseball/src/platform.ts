@@ -1,5 +1,11 @@
 import type { GameRegistration, PlayerResult } from "fuse-platform";
-import { CAPACITY, TARGET, isBotId, validName } from "./basics.js";
+import {
+  CAPACITY,
+  MOST_BUBBLES,
+  TARGET,
+  isBotId,
+  validName,
+} from "./basics.js";
 
 /**
  * Fuseball's part of the shared backend (`fuse-platform`): what a player's reported stats are and what a confirmed
@@ -33,8 +39,6 @@ export interface FuseballTotals {
   totals: FuseballTotalsRecord;
 }
 
-/** The engine's cosmetic counters wrap at 65536 (`engine/tuning.ts` `COUNTER`): a match reports at most this many. */
-export const MAX_COUNTER = 0xffff;
 const KEYS = [
   "playerId",
   "name",
@@ -60,8 +64,8 @@ const MOST: Record<Counter, number> = {
   earlyExits: 1,
   goals: TARGET,
   ownGoals: TARGET,
-  bubbles: MAX_COUNTER,
-  pops: MAX_COUNTER,
+  bubbles: MOST_BUBBLES,
+  pops: MOST_BUBBLES,
 };
 const COUNTERS = Object.keys(MOST) as Counter[];
 
@@ -95,6 +99,8 @@ export function parseFuseballStats(
     return;
   if (!COUNTERS.every((key) => count(raw[key], MOST[key]))) return;
   const number = (key: Counter) => raw[key] as number;
+  // One match is one round, and everybody in the result played it.
+  if (number("roundsPlayed") !== 1) return;
   // The winner, and only the winner, has the round and the first place; nobody wins without reaching the target.
   const won = number("roundWins") === 1;
   if (

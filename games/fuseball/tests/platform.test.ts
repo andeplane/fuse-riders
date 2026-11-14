@@ -16,7 +16,7 @@ import {
   type Slot,
 } from "../src/engine/index.js";
 import { SUB } from "../src/engine/math.js";
-import { validName } from "../src/basics.js";
+import { MOST_BUBBLES, validName } from "../src/basics.js";
 import {
   DEFAULT_SETTINGS,
   createRoom,
@@ -27,7 +27,6 @@ import {
 import { matchResult, roundResult } from "../src/online/result.js";
 import { dueReports } from "../src/app/reports.js";
 import {
-  MAX_COUNTER,
   emptyFuseballTotals,
   fuseballRegistration,
   parseFuseballStats,
@@ -167,6 +166,32 @@ test("a finished match reports goals, own goals, bubbles and pops, and the platf
   assert.equal(platform.game("fuseball"), fuseballRegistration);
 });
 
+test("a result stops counting bubbles and pops at what the service accepts, however far the world's counters ran", () => {
+  const room = finished();
+  room.world!.bubbles[0].seq = 0xffff;
+  room.world!.bubbles[1].seq = MOST_BUBBLES + 1;
+  room.world!.riders[0].pops = MOST_BUBBLES;
+  room.world!.riders[1].pops = 0xffff;
+  const result = matchResult(room)!;
+  assert.deepEqual(
+    result.players.map((player) => [player.bubbles, player.pops]),
+    [
+      [MOST_BUBBLES, MOST_BUBBLES],
+      [MOST_BUBBLES, MOST_BUBBLES],
+    ],
+  );
+  assert.deepEqual(
+    parseMatchResult(
+      fuseballRegistration,
+      account,
+      JSON.parse(JSON.stringify(result)),
+    ),
+    result,
+  );
+  // The cap is far past an ordinary match and short of where the engine's counter wraps.
+  assert.ok(MOST_BUBBLES >= 1000 && MOST_BUBBLES < 0xffff);
+});
+
 test("a bot and a rider who left are in the result but not among those who attest it", () => {
   const solo = finished(true);
   const result = matchResult(solo)!;
@@ -217,7 +242,12 @@ test("a player's stats are refused unless every field is present, known and with
   assert.ok(
     parseFuseballStats({ ...loser, playerId: "bot:12", ownGoals: 3 }, 1),
   );
-  assert.ok(parseFuseballStats({ ...winner, bubbles: MAX_COUNTER }, 1));
+  assert.ok(
+    parseFuseballStats(
+      { ...winner, bubbles: MOST_BUBBLES, pops: MOST_BUBBLES },
+      1,
+    ),
+  );
   const { pops: _pops, ...short } = winner;
   const bad: [string, unknown, number?][] = [
     ["not an object", null],
@@ -230,6 +260,8 @@ test("a player's stats are refused unless every field is present, known and with
     ["a padded name", { ...winner, name: " Ada" }],
     ["a third slot", { ...winner, slot: 2 }],
     ["two rounds played", { ...winner, roundsPlayed: 2 }],
+    ["no round played", { ...winner, roundsPlayed: 0 }],
+    ["a loser with no round played", { ...loser, roundsPlayed: 0 }],
     ["more goals than the target", { ...winner, goals: TARGET + 1 }],
     ["more own goals than the target", { ...loser, ownGoals: TARGET + 1 }],
     ["more goals than points", { ...loser, goals: 2 }],
@@ -240,7 +272,9 @@ test("a player's stats are refused unless every field is present, known and with
     ["a loser placed first", { ...loser, matchPlacement: 1 }],
     ["a place of zero", { ...loser, matchPlacement: 0 }],
     ["two early exits", { ...winner, earlyExits: 2 }],
-    ["bubbles past the counter", { ...winner, bubbles: MAX_COUNTER + 1 }],
+    ["more bubbles than a match has", { ...winner, bubbles: MOST_BUBBLES + 1 }],
+    ["more pops than a match has", { ...loser, pops: MOST_BUBBLES + 1 }],
+    ["the engine's whole counter", { ...winner, bubbles: 0xffff }],
     ["negative pops", { ...winner, pops: -1 }],
     ["fractional pops", { ...winner, pops: 0.5 }],
     ["a stat as text", { ...winner, goals: "2" }],

@@ -406,6 +406,7 @@
   "games/fuseball/tests/render.test.ts": 0.9,
   "games/fuseball/tests/room.test.ts": 1.0,
   "games/fuseball/tests/runtime.test.ts": 1.5,
+  "games/fuseball/tests/solids.test.ts": 2.5,
   "games/graveyard-shift/preview/smoke.mjs": 98.1,
   "games/graveyard-shift/tests/game.test.ts": 0.8,
   "games/graveyard-shift/tests/presentation.test.ts": 0.6,

@@ -1,4 +1,5 @@
 import type { MatchResult } from "fuse-platform";
+import { MOST_BUBBLES } from "../basics.js";
 import type { FuseballStats } from "../platform.js";
 import type { Room } from "./game.js";
 
@@ -27,8 +28,9 @@ function players(room: Room): FuseballPlayerResult[] | undefined {
       earlyExits: entrant.bot || decided.finishers.includes(entrant.id) ? 0 : 1,
       goals: rider.goals,
       ownGoals: rider.ownGoals,
-      bubbles: world.bubbles[entrant.slot].seq,
-      pops: rider.pops,
+      // The world's counters are cosmetic and wrap; a result stops counting at what the service accepts.
+      bubbles: Math.min(world.bubbles[entrant.slot].seq, MOST_BUBBLES),
+      pops: Math.min(rider.pops, MOST_BUBBLES),
     };
   });
 }

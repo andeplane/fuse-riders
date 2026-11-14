@@ -3,10 +3,12 @@ import {
   inShape,
   resolveSolids,
   settle,
+  type Body,
   type Space,
+  type Touch,
 } from "./collide.js";
 import { BTN, DOWN, LEFT, RIGHT, isInput } from "./input.js";
-import { abs, clamp, div, isqrt, toward } from "./math.js";
+import { SUB, abs, clamp, div, isqrt, toward } from "./math.js";
 import { boxesOf, mapOf, type Box } from "./maps.js";
 import * as T from "./tuning.js";
 import {
@@ -126,6 +128,22 @@ function meetBubble(rider: Rider, bubble: Bubble, space: Space): void {
   rider.slide = 0;
 }
 
+/**
+ * After something other than its own flight has moved a body (a rider, a bubble) from `(fromX, fromY)`, where the
+ * solids had left it: the shove is held to less than the body's radius, so its centre cannot be carried into or
+ * through a solid in one step. The solids then have the last word (`resolveSolids`), and whatever is left of an
+ * overlap with the thing that shoved is taken up on later steps.
+ */
+function hold(body: Body, radius: number, fromX: number, fromY: number): void {
+  const mx = body.x - fromX,
+    my = body.y - fromY,
+    most = radius - SUB;
+  if (mx * mx + my * my <= most * most) return;
+  const held = toward(mx, my, most);
+  body.x = fromX + held.x;
+  body.y = fromY + held.y;
+}
+
 /** Gravity, running and drag, then the move and the solids. */
 function moveRider(
   rider: Rider,
@@ -182,7 +200,10 @@ function bumpRiders(a: Rider, b: Rider, space: Space): void {
   b.vy += iy;
 }
 
-/** The ball: gravity, the solids, then every rider touching it, all measured from where the solids left it. */
+/**
+ * The ball: gravity, the solids, then every rider touching it, all measured from where the solids left it, then the
+ * bubbles, and the solids again so that nothing can push the ball into one.
+ */
 function moveBall(world: World, boxes: readonly Box[], space: Space): void {
   const ball = world.ball;
   ball.vy += T.BALL_GRAVITY;
@@ -213,7 +234,9 @@ function moveBall(world: World, boxes: readonly Box[], space: Space): void {
     kickers = 0,
     kicker: -1 | 0 | 1 = -1,
     hard = false;
-  const reach = T.RIDER_R + T.BALL_R;
+  const reach = T.RIDER_R + T.BALL_R,
+    fromX = ball.x,
+    fromY = ball.y;
   for (const rider of world.riders) {
     if (rider.zapped) continue;
     let { dx, dy } = apart(ball.x, ball.y, rider.x, rider.y, space);
@@ -246,6 +269,85 @@ function moveBall(world: World, boxes: readonly Box[], space: Space): void {
     if (hard) ball.bounces = count(ball.bounces);
   }
   bumpBall(world, space);
+  if (ball.x !== fromX || ball.y !== fromY)
+    unpin(world, fromX, fromY, boxes, space);
+}
+
+/**
+ * The ball has been pushed by riders or bubbles from `(fromX, fromY)`: the solids take it back out, and when that
+ * leaves it still under whoever pushed, it is pinned between the two. A pinned ball squirts out along the solid,
+ * away from a rider or bubble beside it, or up the wall when the solid is one, so standing or landing on the ball
+ * never buries it. A hard bubble that keeps the ball pinned with no way out gives: it pops.
+ */
+function unpin(
+  world: World,
+  fromX: number,
+  fromY: number,
+  boxes: readonly Box[],
+  space: Space,
+): void {
+  const ball = world.ball,
+    solids = (): Touch =>
+      resolveSolids(
+        ball,
+        T.BALL_R,
+        boxes,
+        space,
+        T.BALL_BOUNCE_NUM,
+        T.BALL_BOUNCE_DEN,
+      );
+  hold(ball, T.BALL_R, fromX, fromY);
+  const heldX = ball.x,
+    heldY = ball.y;
+  solids();
+  const backX = ball.x - heldX,
+    backY = ball.y - heldY;
+  // Unmoved by the solids: nothing is squeezing it against one.
+  if (backX === 0 && backY === 0) return;
+  // A floor or a ceiling pushed back: the way out is sideways. Otherwise it is a wall, and the way out is up it.
+  const sideways = abs(backY) >= abs(backX);
+  let way = 0,
+    pinned = false;
+  const pinnedBy = (x: number, y: number, reach: number, tie: number) => {
+    const { dx, dy } = apart(ball.x, ball.y, x, y, space),
+      room = reach - T.PIN_SLACK;
+    if (dx * dx + dy * dy >= room * room) return false;
+    if (sideways) way += dx > 0 ? 1 : dx < 0 ? -1 : tie;
+    else way += dy > div(reach, 2) ? 1 : -1;
+    pinned = true;
+    return true;
+  };
+  for (const rider of world.riders)
+    if (!rider.zapped)
+      pinnedBy(rider.x, rider.y, T.RIDER_R + T.BALL_R, rider.facing);
+  const pinning = world.bubbles.filter(
+    (bubble, slot) =>
+      bubble.active &&
+      pinnedBy(bubble.x, bubble.y, T.BALL_R + T.BUBBLE_R, slot === 0 ? 1 : -1),
+  );
+  if (!pinned) return;
+  // Squeezed, not struck: the speed it was given into the solid is not thrown back at whoever is on it.
+  if (sideways) ball.vy = 0;
+  else ball.vx = 0;
+  let out = 0;
+  if (way !== 0) {
+    const side = way > 0 ? 1 : -1,
+      beforeX = ball.x,
+      beforeY = ball.y;
+    if (sideways) {
+      ball.x += side * T.SQUIRT;
+      if (ball.vx * side < T.SQUIRT) ball.vx = side * T.SQUIRT;
+    } else {
+      ball.y += side * T.SQUIRT;
+      if (ball.vy * side < T.SQUIRT) ball.vy = side * T.SQUIRT;
+    }
+    solids();
+    out = (sideways ? ball.x - beforeX : ball.y - beforeY) * side;
+  }
+  // Pinned from both sides at once, or the way out is shut too (a corner): a bubble holding the ball there pops
+  // rather than keep it.
+  if (out < div(T.SQUIRT, 2))
+    for (const bubble of pinning) bubble.active = false;
 }
 
 /**
@@ -333,9 +435,22 @@ export function stepWorld(
 
   if (!a.zapped) moveRider(a, bitsA, boxes, map);
   if (!b.zapped) moveRider(b, bitsB, boxes, map);
+  const ax = a.x,
+    ay = a.y,
+    bx = b.x,
+    by = b.y;
   meetBubble(a, world.bubbles[1], map);
   meetBubble(b, world.bubbles[0], map);
   bumpRiders(a, b, map);
+  // A rider thrown by a bubble or shouldered by the other rider is not thrown into a solid.
+  if (a.x !== ax || a.y !== ay) {
+    hold(a, T.RIDER_R, ax, ay);
+    resolveSolids(a, T.RIDER_R, boxes, map, 0, 1);
+  }
+  if (b.x !== bx || b.y !== by) {
+    hold(b, T.RIDER_R, bx, by);
+    resolveSolids(b, T.RIDER_R, boxes, map, 0, 1);
+  }
   if (world.ball.live) moveBall(world, boxes, map);
 
   for (const rider of world.riders) {

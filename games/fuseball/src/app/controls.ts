@@ -1,3 +1,4 @@
+import { botInput, type World } from "../engine/index.js";
 import { BTN, DOWN, LEFT, RIGHT, UP } from "../engine/input.js";
 
 /**
@@ -114,11 +115,14 @@ const capture = (surface: PadSurface, pointer: PadPointer) => {
   }
 };
 
-/** An eight-way stick on `surface`: the first thumb down owns it until it lifts, and `changed` hears its bits. */
+/**
+ * An eight-way stick on `surface`: the first thumb down owns it until it lifts, and `changed` hears its bits. The
+ * function returned lets go for a thumb that will never lift here (the pad was hidden under it).
+ */
 export function bindStick(
   surface: PadSurface,
   changed: (bits: number) => void,
-): void {
+): () => void {
   let owner: number | undefined;
   const read = (pointer: PadPointer) => {
     const box = surface.box(),
@@ -147,14 +151,20 @@ export function bindStick(
     surface.show({ held: false, x: 0, y: 0 });
     changed(0);
   });
+  return () => {
+    if (owner === undefined) return;
+    owner = undefined;
+    surface.show({ held: false, x: 0, y: 0 });
+    changed(0);
+  };
 }
 
-/** A button on `surface` that holds `bits` while any pointer is down on it. */
+/** A button on `surface` that holds `bits` while any pointer is down on it; the function returned lets go of them all. */
 export function bindButton(
   surface: PadSurface,
   bits: number,
   changed: (bits: number) => void,
-): void {
+): () => void {
   const down = new Set<number>();
   surface.on("down", (pointer) => {
     capture(surface, pointer);
@@ -167,4 +177,43 @@ export function bindButton(
     surface.show({ held: false, x: 0, y: 0 });
     changed(0);
   });
+  return () => {
+    if (!down.size) return;
+    down.clear();
+    surface.show({ held: false, x: 0, y: 0 });
+    changed(0);
+  };
+}
+
+/**
+ * One set of touch pads that shows and hides together. A pad hidden under a thumb never hears it lift, so when the
+ * set goes off screen (the match ended mid-press) every pad lets go and so do the controls: nothing stays held, and
+ * the next touch finds the pads free.
+ */
+export class PadSet {
+  private readonly pads: (() => void)[] = [];
+  private shown = false;
+  constructor(private readonly controls: HeldControls) {}
+  /** Adds a pad by what `bindStick` or `bindButton` returned for it. */
+  add(letGo: () => void): void {
+    this.pads.push(letGo);
+  }
+  /** Says whether the set is on screen now. */
+  show(visible: boolean): void {
+    if (this.shown && !visible) {
+      for (const letGo of this.pads) letGo();
+      this.controls.clear();
+    }
+    this.shown = visible;
+  }
+}
+
+/** What `?autopilot` holds for the rider `me`: the bot's answer while a match is running, and nothing otherwise. */
+export function autopilotBits(
+  room: { stage: string; world: World | null | undefined } | undefined,
+  me: string,
+): number {
+  if (room?.stage !== "running" || !room.world) return 0;
+  const mine = room.world.riders.find((rider) => rider.id === me);
+  return mine ? botInput(room.world, mine) : 0;
 }

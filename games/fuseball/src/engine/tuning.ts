@@ -75,6 +75,13 @@ export const BALL_GRAVITY = 62,
 /** A bubble halves the ball's speed, then throws it away from its centre at this speed. */
 export const BUMP = 8704;
 
+/**
+ * A ball still this far inside a rider or bubble once the solids have pushed it back is pinned between the two, and
+ * squirts out along the solid at this speed.
+ */
+export const PIN_SLACK = SUB / 2,
+  SQUIRT = 5120;
+
 /** Cosmetic counters wrap here, so they stay small integers for ever. */
 export const COUNTER = 0x10000;
 /** The last step a world may reach: 207 days of play. */

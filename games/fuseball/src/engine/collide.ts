@@ -44,6 +44,27 @@ export interface Touch {
   impact: number;
 }
 
+/**
+ * The way out of a box along one axis for a centre `d` from the box's middle: the nearer face, unless the body would
+ * come out past the field's edge on an axis that does not wrap (a floor or wall on the edge has only one open face),
+ * in which case the other one. `over` is how far the centre is from that face.
+ */
+function wayOut(
+  at: number,
+  d: number,
+  half: number,
+  radius: number,
+  size: number,
+  wraps: boolean,
+): { side: -1 | 1; over: number } {
+  const side = d < 0 ? -1 : 1,
+    over = half - abs(d);
+  if (wraps) return { side, over };
+  const out = at + side * (over + radius);
+  if (out >= radius && out <= size - radius) return { side, over };
+  return { side: side < 0 ? 1 : -1, over: half + abs(d) };
+}
+
 /** Pushes a circle out of one box and turns back its speed into the surface, keeping `num/den` of it. */
 function hitBox(
   body: Body,
@@ -58,21 +79,19 @@ function hitBox(
   const ex = dx - clamp(dx, -box.hw, box.hw),
     ey = dy - clamp(dy, -box.hh, box.hh);
   if (ex === 0 && ey === 0) {
-    // The centre is inside the box: leave by the nearest face.
-    const overX = box.hw - abs(dx),
-      overY = box.hh - abs(dy);
+    // The centre is inside the box: leave by the nearest face that leads back into the field.
+    const outX = wayOut(body.x, dx, box.hw, radius, WORLD_W, space.wrapX),
+      outY = wayOut(body.y, dy, box.hh, radius, WORLD_H, space.wrapY);
     let into: number;
-    if (overX < overY) {
-      const side = dx < 0 ? -1 : 1;
-      body.x += side * (overX + radius);
-      into = -side * body.vx;
-      if (into > 0) body.vx = side * div(into * num, den) + 0;
+    if (outX.over < outY.over) {
+      body.x += outX.side * (outX.over + radius);
+      into = -outX.side * body.vx;
+      if (into > 0) body.vx = outX.side * div(into * num, den) + 0;
     } else {
-      const side = dy < 0 ? -1 : 1;
-      body.y += side * (overY + radius);
-      into = -side * body.vy;
-      if (into > 0) body.vy = side * div(into * num, den) + 0;
-      if (side < 0) touch.ground = true;
+      body.y += outY.side * (outY.over + radius);
+      into = -outY.side * body.vy;
+      if (into > 0) body.vy = outY.side * div(into * num, den) + 0;
+      if (outY.side < 0) touch.ground = true;
     }
     touch.hit = true;
     if (into > touch.impact) touch.impact = into;
