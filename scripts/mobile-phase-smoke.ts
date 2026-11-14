@@ -117,19 +117,17 @@ for (const { name, kind } of BOTH_ENGINES) {
       `${label}: lobby card`,
     );
     assert.equal(
-      await page.locator(".room-riders .room-rider").count(),
+      await page.locator(".shared-lobby .room-rider").count(),
       5,
       `${label}: riders listed`,
     );
     assert.equal(
-      await page
-        .locator("button:visible")
-        .filter({ hasText: /^(ROOM|EXIT|MENU|☰ MENU)$/ })
-        .count(),
+      await page.locator(".fui-top-bar-toggle:visible").count(),
       1,
       `${label}: one menu button`,
     );
-    for (const name of ["START RACE", "ADD AI", "ROOM SETTINGS"])
+    // The solo room is full, so its slots offer no Add AI; the shared room layout keeps the rest in reach.
+    for (const name of ["START RACE", "Game settings"])
       await onScreen(name, label);
   };
   try {

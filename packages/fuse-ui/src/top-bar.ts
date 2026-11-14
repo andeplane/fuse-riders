@@ -195,18 +195,40 @@ export function createTopBar(options: TopBarOptions): HTMLElement {
   root.append(left, right, context, menu.dialog);
   // Header controls keep native keyboard activation while the match continues
   // behind them. Keyup still reaches the game so previously held keys release.
-  root.addEventListener("keydown", (event) => event.stopPropagation());
+  // The context is the game's own content, lent to the bar (a roster, the host's actions): a key pressed with
+  // focus left there after a click is still the game's, or Space would press that button again instead of the bomb.
+  root.addEventListener("keydown", (event) => {
+    if (!context.contains(event.target as Node | null)) event.stopPropagation();
+  });
   toggle.onclick = () => {
     renderSound();
     onOpenChange?.(true);
     menu.show({ title: "Game menu" });
     toggle.setAttribute("aria-expanded", "true");
   };
+  // A game's own menu lives in this dialog as "Game controls". Its closing actions close the dialog before they run,
+  // and a dialog closed any other way (Escape, Close) collapses that menu: otherwise the game stays paused for input
+  // behind a menu nobody can see, and focus cannot return to the arena while the modal holds the page inert.
+  menu.body.addEventListener(
+    "click",
+    (event) => {
+      const target = event.target as Element | null;
+      if (target?.closest?.("[data-fui-menu-dismiss]") && menu.dialog.open)
+        menu.dialog.close();
+    },
+    true,
+  );
   menu.dialog.addEventListener("close", () => {
     renderSound();
     onOpenChange?.(false);
     toggle.setAttribute("aria-expanded", "false");
-    toggle.focus();
+    for (const trigger of menu.body.querySelectorAll<HTMLElement>(
+      '.fui-game-menu-trigger[aria-expanded="true"]',
+    ))
+      trigger.click();
+    // Keep focus where the game put it when it resumed; otherwise return it to the control that opened the dialog.
+    const active = doc.activeElement;
+    if (!active || active === doc.body || root.contains(active)) toggle.focus();
   });
   account.onclick = () => {
     source?.click();

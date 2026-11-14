@@ -120,6 +120,14 @@ export function countText(
   }
   return memo.text;
 }
+/** A session total with thousands after its label: "TOTAL 1,812,440". */
+export function totalText(memo: NumberText, value: number): string {
+  if (memo.value !== value) {
+    memo.value = value;
+    memo.text = `TOTAL ${Math.max(0, value).toLocaleString("en-US")}`;
+  }
+  return memo.text;
+}
 /** A gap with its sign and thousands: "+12,340". */
 export function gapText(memo: NumberText, value: number): string {
   if (memo.value !== value) {
@@ -176,6 +184,7 @@ export interface RiderTexts {
   boxCombo: NumberText;
   boxBest: NumberText;
   boxBroken: NumberText;
+  boxTotal: NumberText;
   boxName: FittedText;
   boxChart: FittedText;
 }
@@ -191,6 +200,7 @@ export const riderTexts = (): RiderTexts => ({
   boxCombo: numberText(),
   boxBest: numberText(),
   boxBroken: numberText(),
+  boxTotal: numberText(),
   boxName: fittedText(),
   boxChart: fittedText(),
 });

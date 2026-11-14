@@ -151,7 +151,7 @@ try {
   await takeHostSeat(host, "Host");
   console.log("Room created");
   const url = `${host.url()}&renderer=phaser-canvas`;
-  await host.locator(".room-riders > .room-rider").first().waitFor();
+  await host.locator(".fui-slot-occupant > .room-rider").first().waitFor();
   assert.equal((await data(host)).requests, 0, "joining a room never captures");
   await voice(host);
   await host.getByRole("button", { name: "JOIN VOICE", exact: true }).click();
@@ -175,7 +175,7 @@ try {
   await instrument(guest);
   await join(guest, "Guest", url);
   await host
-    .locator(".room-riders")
+    .locator(".fui-room-players")
     .getByText("Guest", { exact: true })
     .waitFor();
   assert.equal((await data(guest)).requests, 0);
@@ -451,11 +451,12 @@ try {
   await close(host);
   // Refresh is a new consent boundary: no saved preference automatically reopens capture.
   await guest.reload();
-  await guest.locator(".voice-toggle").waitFor();
+  await guest.locator(".voice-toggle").waitFor({ state: "attached" }); // it is in the Game menu, shut until asked for
   assert.equal((await data(guest)).requests, 0);
   await voice(guest);
   await guest.getByRole("button", { name: "JOIN VOICE", exact: true }).click();
   await guest.getByRole("button", { name: "MUTE MIC", exact: true }).waitFor();
+  await openTopMenu(host);
   await host.getByRole("button", { name: "ROOM", exact: true }).click();
   await host.getByRole("button", { name: "END ROOM", exact: true }).click();
   await host.waitForURL((url) => !url.searchParams.has("room"));

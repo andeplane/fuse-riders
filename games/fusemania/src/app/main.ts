@@ -18,6 +18,7 @@ import { safeStorage } from "fuse-ui/safe-storage";
 import "./fusemania.css";
 import "./song-picker.css";
 import "./settings.css";
+import "./options.css";
 import QRCode from "qrcode";
 import {
   PeerTransport,
@@ -54,6 +55,7 @@ import {
 } from "../engine/index.js";
 import { GAME_ID } from "../basics.js";
 import {
+  SESSION_LENGTHS,
   createFusemaniaGame,
   type Settings,
   type View,
@@ -70,17 +72,20 @@ import { browserCanvas } from "./attract.js";
 import { createSfx, cuesBetween } from "./audio.js";
 import {
   COLUMN_ACTIONS,
+  MAX_OFFSET_MS,
   actionOf,
   keyLabel,
   loadPrefs,
   savePrefs,
   type Prefs,
 } from "./prefs.js";
+import { createPlayOptions } from "./options.js";
 import {
   bestText,
   present,
   type Model,
   type Row,
+  type SessionModel,
   type Viewer,
 } from "./presenter.js";
 import { dueReports, sendReport } from "./reports.js";
@@ -94,6 +99,17 @@ import {
   sessionFor,
 } from "./session.js";
 import { createSettingsPanel } from "./settings.js";
+import { createLatencyProbe, latencyText } from "./latency.js";
+import {
+  createHitCollector,
+  loadHistory,
+  measureBias,
+  proposalText,
+  propose,
+  remember as rememberRun,
+  saveHistory,
+  type Proposal,
+} from "./timing-bias.js";
 import { createSongClock } from "./song-clock.js";
 import { createSongPicker } from "./song-picker.js";
 
@@ -192,6 +208,46 @@ const bestLookup = (library: Library) => (song: string, chart: number) => {
   const rating = key ? bestRating(store, key) : undefined;
   return rating === undefined ? undefined : bestText(rating);
 };
+
+/** A song other than `current`, any of them as likely as the next: what RANDOM SONG picks. */
+function randomSong(library: Library, current: string): string | undefined {
+  const others = library.songs.filter(
+    (song) => song.id !== current && song.id !== CUSTOM,
+  );
+  return others[Math.floor(Math.random() * others.length)]?.id;
+}
+/** A session's standings under their heading: in the lobby between two songs, and on the result. */
+function sessionBlock() {
+  const element = el("section", "", "fm-session"),
+    title = el("h3"),
+    list = el("ol");
+  element.append(title, list);
+  element.hidden = true;
+  return {
+    element,
+    update(model: SessionModel | null) {
+      element.hidden = !model;
+      if (!model) return;
+      setText(title, model.title);
+      const rows = JSON.stringify(model.rows);
+      if (list.dataset.rows === rows) return;
+      list.dataset.rows = rows;
+      list.replaceChildren(
+        ...model.rows.map((row) => {
+          const node = el("li", "", row.you ? "you" : "");
+          if (row.slot >= 0) node.style.setProperty("--c", slotColor(row.slot));
+          node.append(
+            el("span", String(row.place)),
+            el("b", row.you ? `${row.name} (you)` : row.name),
+            el("small", row.wins),
+            el("em", row.points),
+          );
+          return node;
+        }),
+      );
+    },
+  };
+}
 
 /** The song select's music: the chosen song on the shared radio, a moment after the choice settles. */
 function createPreview(library: Library) {
@@ -346,6 +402,28 @@ function landing(): void {
     picker.update({ ...choice, host: true });
     preview.show(choice.song);
   };
+  // A solo select: this player's speed and a random song. Sessions are a room's.
+  const options = createPlayOptions({
+    document,
+    onSpeed: (speed) => {
+      sfx.blip();
+      prefs = { ...prefs, speed };
+      savePrefs(store, prefs);
+      settings.refresh();
+      showOptions();
+    },
+    onRandomSong: () => {
+      const song = randomSong(library, choice.song);
+      if (song) show({ ...choice, song });
+    },
+  });
+  const showOptions = () =>
+    options.update({
+      speed: prefs.speed,
+      host: true,
+      songs: 1,
+      random: false,
+    });
   const leaveLanding = () => {
     preview.stop();
     settings.dispose();
@@ -436,13 +514,14 @@ function landing(): void {
     });
   };
   const select = el("section", "", "fm-landing-select");
-  select.append(picker.element);
+  select.append(picker.element, options.element);
   card.solo?.before(select);
   card.solo?.classList.add("fui-button-primary", "fm-solo-play");
   card.solo?.after(own);
-  const settings = settingsPanel(() =>
-    help.dispatchEvent(new Event("fm-refresh")),
-  );
+  const settings = settingsPanel(() => {
+    help.dispatchEvent(new Event("fm-refresh"));
+    showOptions();
+  });
   const help = keyHelp();
   card.menu.addSettings(settings.element);
   card.menu.help.append(help);
@@ -472,6 +551,7 @@ function landing(): void {
   menu.update({ canLobby: false, canLeave: false, touch: coarse() });
   app.replaceChildren(header([back, menu.element]), card.element);
   picker.update({ ...choice, host: true });
+  showOptions();
   preview.show(choice.song);
 }
 
@@ -546,7 +626,13 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   const modalOpen = () => Boolean(document.querySelector("dialog[open]"));
 
   // Lobby: the invitation and the players on one side, the song select and START on the other.
-  let settings: Settings = { display: false, ...choice };
+  // A host's rooms start with the session it set last; a solo run is one song.
+  const storedSongs = Number(store.getItem(names.songs));
+  const sessionChoice = {
+    songs: !solo && SESSION_LENGTHS.includes(storedSongs) ? storedSongs : 1,
+    random: !solo && store.getItem(names.order) === "random",
+  };
+  let settings: Settings = { display: false, ...sessionChoice, ...choice };
   const lobby = el("section", "", "fm-lobby"),
     lobbyMain = el("div", "", "fm-panel"),
     roster = createRoster({ emptyText: "No players yet" }),
@@ -614,13 +700,49 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       runtime.command({ type: "settings", settings: { ...settings, mode } }),
     best: bestLookup(library),
   });
+  // Beside the song select: every player's own speed, and the host's random song and session.
+  const options = createPlayOptions({
+    document,
+    ...(solo ? {} : { lengths: SESSION_LENGTHS }),
+    onSpeed: (speed) => {
+      sfx.blip();
+      prefs = { ...prefs, speed };
+      savePrefs(store, prefs);
+      panel.refresh();
+      showOptions();
+    },
+    onRandomSong: () => {
+      const song = randomSong(library, settings.song);
+      if (!song) return;
+      sfx.blip();
+      runtime.command({ type: "settings", settings: { ...settings, song } });
+    },
+    onSongs: (songs) => {
+      store.setItem(names.songs, String(songs));
+      runtime.command({ type: "settings", settings: { ...settings, songs } });
+    },
+    onOrder: (random) => {
+      store.setItem(names.order, random ? "random" : "host");
+      runtime.command({ type: "settings", settings: { ...settings, random } });
+    },
+  });
+  options.element.hidden = display;
+  const showOptions = () =>
+    options.update({
+      speed: prefs.speed,
+      host: viewer.host,
+      songs: settings.songs,
+      random: settings.random,
+    });
+  const lobbySession = sessionBlock();
   const lobbyActions = el("div", "", "fm-actions");
   lobbyActions.append(tvLink, start);
   lobby.append(lobbyMain);
   const help = keyHelp();
-  const panel = settingsPanel(() =>
-    help.dispatchEvent(new Event("fm-refresh")),
-  );
+  const panel = settingsPanel(() => {
+    help.dispatchEvent(new Event("fm-refresh"));
+    showOptions();
+  });
 
   // The song: the canvas, the result over it, the touch pads under it.
   const stage = el("section", "", "fm-stage"),
@@ -632,9 +754,14 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   const card = el("section", "", "fm-card"),
     cardTitle = el("h2"),
     cardRows = el("ol", "", "fm-rows"),
+    cardSession = sessionBlock(),
     cardCounts = el("dl", "", "fm-counts"),
     cardLines = el("ul", "", "fm-lines"),
     cardFoot = el("p", "", "fm-card-foot"),
+    cardTiming = el("section", "", "fm-card-timing"),
+    timingText = el("p", ""),
+    timingApply = button("APPLY", "fui-button-primary fm-timing-apply"),
+    timingSkip = button("NO THANKS", "fm-timing-skip"),
     cardActions = el("div", "", "fm-actions"),
     rematch = button("PLAY AGAIN", "fui-button-primary fm-rematch"),
     toLobby = button("SONG SELECT", "fm-to-lobby"),
@@ -643,18 +770,26 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   card.append(
     cardTitle,
     cardRows,
+    cardSession.element,
     cardCounts,
     cardLines,
+    cardTiming,
     cardFoot,
     cardActions,
   );
+  timingText.setAttribute("role", "status");
+  cardTiming.append(timingText, timingApply, timingSkip);
+  cardTiming.hidden = true;
   card.hidden = true;
   unlock.hidden = loadFailed.hidden = true;
   loadFailed.onclick = () => {
     if (playing) playing.failures = playing.retryAt = 0;
   };
-  rematch.onclick = () =>
-    runtime.command({ type: "action", action: "rematch" });
+  // The result says what its buttons do: another go, a session's next song, or back to the song select.
+  rematch.onclick = () => {
+    const action = model?.result?.primary.action;
+    if (action) runtime.command({ type: "action", action });
+  };
   toLobby.onclick = () => runtime.command({ type: "action", action: "lobby" });
   toMenu.onclick = leave;
   screen.append(canvas, unlock, loadFailed, card, roundControls.element);
@@ -669,16 +804,22 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     now: () => performance.now(),
     audio: () => audio.clock(),
   });
+  const probe = createLatencyProbe();
+  /** A browser's stamp is used when it is one: not zero, and within half a second of now. */
+  const stamped = (at: number, now: number) =>
+    at > 0 && Math.abs(at - now) < 500;
   /** The song time of an event stamped `at` on the page's clock, as the judge hears it. */
-  const stamp = (at: number): number => {
-    const now = performance.now();
-    return (
-      songClock.songMs(at > 0 && Math.abs(at - now) < 500 ? at : now) -
-      prefs.offsetMs
-    );
-  };
+  const stamp = (at: number, now = performance.now()): number =>
+    songClock.songMs(stamped(at, now) ? at : now) - prefs.offsetMs;
   const press = (column: number, source: string, at: number) => {
-    const ms = stamp(at);
+    const now = performance.now(),
+      ms = stamp(at, now);
+    probe.press(
+      source.startsWith("fm-") ? "touch" : "key",
+      at,
+      now,
+      stamped(at, now),
+    );
     // A second finger on a column that is already down is a new step: up and down again at the same instant.
     if (held[column]!.size) runtime.key(column, false, ms);
     held[column]!.add(source);
@@ -788,7 +929,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     join: nameEntry.form,
     addAI: addBot,
     settings: [panel.element, help],
-    modes: [picker.element],
+    modes: [picker.element, options.element, lobbySession.element],
     actions: [lobbyNote, lobbyActions],
   });
   lobby.hidden = true;
@@ -851,13 +992,80 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     return steps;
   };
   let before: WorldView | undefined;
+  // ---- timing: this device's own hit errors, and what they say about its input offset ----
+  const collector = createHitCollector();
+  /** What the result offers, and what it says once answered. */
+  let timingOffer: Extract<Proposal, { kind: "apply" }> | undefined,
+    timingNote = "";
+  const showTiming = () => {
+    setText(timingText, timingNote);
+    cardTiming.hidden = timingNote === "";
+    timingApply.hidden = timingSkip.hidden = !timingOffer;
+  };
+  /** The song is over: measure the run, remember it, and offer a new input offset when the bias is clear. */
+  const judgeTiming = (song: string) => {
+    timingOffer = undefined;
+    timingNote = "";
+    const bias = measureBias(collector.hits());
+    collector.reset();
+    if (bias.verdict === "clear") {
+      const run = {
+        song,
+        estimateMs: prefs.offsetMs + bias.biasMs,
+        used: bias.used,
+        at: Date.now(),
+        deviceMs: (audio.clock()?.latency() ?? 0) * 1000,
+      };
+      const history = loadHistory(store);
+      const proposal = propose(run, history, prefs.offsetMs, MAX_OFFSET_MS);
+      saveHistory(store, rememberRun(history, run));
+      timingNote = proposalText(proposal, bias.used);
+      if (proposal.kind === "apply") timingOffer = proposal;
+    }
+    showTiming();
+  };
+  timingApply.onclick = () => {
+    if (!timingOffer) return;
+    const ms = timingOffer.offsetMs;
+    prefs = { ...prefs, offsetMs: ms };
+    savePrefs(store, prefs);
+    timingOffer = undefined;
+    timingNote = `Input offset set to ${ms > 0 ? "+" : ms < 0 ? "−" : ""}${Math.abs(ms)} ms. Settings has it if you want it back.`;
+    showTiming();
+  };
+  timingSkip.onclick = () => {
+    timingOffer = undefined;
+    timingNote = "";
+    showTiming();
+  };
+  const latencyBox = new URLSearchParams(location.search).has("latency")
+    ? el("pre", "", "fm-latency")
+    : undefined;
+  if (latencyBox) screen.append(latencyBox);
+  const latencyContext = () => {
+    const bias = measureBias(collector.hits()),
+      detail = audio.clock()?.latencies?.();
+    return {
+      baseMs: detail?.base === undefined ? undefined : detail.base * 1000,
+      outputMs: detail?.output === undefined ? undefined : detail.output * 1000,
+      driftMs: songClock.drift,
+      audible: songClock.audible,
+      offsetMs: prefs.offsetMs,
+      hits: bias,
+    };
+  };
+  let latencyShown = 0;
   /** A solo song that began before the browser let sound out starts over once it does. */
-  let startedSilent = false,
+  let restarting = false,
+    startedSilent = false,
     heardEpoch = -1;
   const frame = (now: number) => {
     // Asked first, so one bad frame cannot stop the drawing for good.
     if (!over) requestAnimationFrame(frame);
+    probe.frameStart(now, performance.now());
     songClock.sample();
+    const mapping = songClock.mapping();
+    if (mapping) probe.clock(mapping.reading, mapping.smoothed);
     const state = runtime.roomState();
     const roomMs = runtime.songMs();
     const world = state?.world;
@@ -867,6 +1075,10 @@ function room(solo: boolean, library: Library, first?: Choice): void {
         ? songOf(world.song, now)
         : undefined;
     songClock.follow(roomMs, song);
+    if (restarting && state?.stage === "lobby") {
+      restarting = false;
+      runtime.command({ type: "action", action: "start" });
+    }
     if (!model || model.screen === "lobby" || !world) {
       before = undefined;
       unlock.hidden = loadFailed.hidden = true;
@@ -889,8 +1101,9 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     else if (startedSilent && running) {
       startedSilent = false;
       if (world.ms < 30000) {
+        // START is refused while the match runs: it is sent once the room is back at the song select.
         runtime.command({ type: "action", action: "lobby" });
-        runtime.command({ type: "action", action: "start" });
+        restarting = true;
       }
     }
     const heard = running ? songClock.songMs(now) : world.ms;
@@ -905,6 +1118,10 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       }
     }
     before = view;
+    // Only what was played by ear counts: a silent page or a phone used as a pad plays to another clock.
+    const mine = local === -1 ? undefined : view.players[local];
+    if (mine && !mine.bot && running && songClock.audible)
+      collector.observe(mine, `${epoch}:${prefs.offsetMs}`);
     if (stage.hidden) return;
     const drawn = heard + prefs.visualMs;
     const timing = library.timing(view.song);
@@ -920,8 +1137,15 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       down: prefs.down,
       title: model.title,
       chartNames: model.chartNames,
+      totals: model.totals,
       itemKey: coarse() ? "ITEM" : keyLabel(prefs.keys.item[0] ?? ""),
     });
+    const done = performance.now();
+    probe.frameEnd(done);
+    if (latencyBox && done - latencyShown > 500) {
+      latencyShown = done;
+      latencyBox.textContent = latencyText(probe.report(), latencyContext());
+    }
   };
   requestAnimationFrame(frame);
   // For smokes and for a player's bug report: where the sound, the room and the picture are, read from the console.
@@ -936,6 +1160,9 @@ function room(solo: boolean, library: Library, first?: Choice): void {
         loaded: !!playing?.song,
       }),
       view: () => runtime.picture(songClock.songMs() - prefs.offsetMs),
+      /** Press-to-handler and press-to-frame percentiles, the audio clock's figures and this run's hit errors. */
+      latency: () => ({ ...probe.report(), ...latencyContext() }),
+      latencyText: () => latencyText(probe.report(), latencyContext()),
       /** This device's own notes in the song being played: `[ms, column, kind]`. */
       notes: () => {
         const world = runtime.roomState()?.world;
@@ -989,6 +1216,13 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       sfx.fanfare(
         !next.result.rows.some((row) => row.you && /^[CD]$/.test(row.grade)),
       );
+    if (view.stage === "over" && lastStage === "running" && view.world)
+      judgeTiming(view.world.song);
+    else if (view.stage !== "over" && (timingOffer || timingNote)) {
+      timingOffer = undefined;
+      timingNote = "";
+      showTiming();
+    }
     // A calibration or a key capture left open takes every key: it ends when the room moves on.
     if (view.stage !== lastStage) panel.cancel();
     lastStage = view.stage;
@@ -1021,6 +1255,9 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     addBot.hidden = !next.lobby.canAddBot;
     start.hidden = !next.lobby.showStart;
     start.disabled = !next.lobby.canStart;
+    setText(start, next.lobby.startText);
+    lobbySession.update(next.lobby.session);
+    showOptions();
     setText(lobbyNote, next.lobby.note);
     lobbyNote.hidden = !next.lobby.note;
     tvLink.hidden = !(
@@ -1107,6 +1344,19 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       cardFoot.hidden = !result.waiting;
       cardActions.hidden = !result.host;
       toMenu.hidden = !result.solo;
+      // A session's standings: under the song's result, and above it once the session is over.
+      cardSession.update(result.session);
+      const anchor = result.final ? cardTitle : cardRows;
+      if (cardSession.element.previousElementSibling !== anchor)
+        anchor.after(cardSession.element);
+      for (const [main, other] of [
+        [rematch, toLobby],
+        [controllerRematch, controllerLobby],
+      ] as const) {
+        setText(main, result.primary.text);
+        other.hidden = !result.secondary;
+        if (result.secondary) setText(other, result.secondary.text);
+      }
     }
   };
 
@@ -1231,7 +1481,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     !solo && role === "host" && store.getItem(names.shared) === "1";
   const runtime = new FusemaniaRuntime(
     code,
-    { display: shared, ...choice },
+    { display: shared, ...sessionChoice, ...choice },
     callbacks,
     // A solo battle needs someone to throw things at: three AI rivals.
     createFusemaniaGame(library, solo && choice.mode === BATTLE_MODE ? 3 : 0),

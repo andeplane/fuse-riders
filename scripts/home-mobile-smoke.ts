@@ -24,12 +24,12 @@ async function inside(page: Page, locator: Locator) {
     `Control outside ${v.width}x${v.height}: ${JSON.stringify(r)}`,
   );
 }
+// The landing's attract scene and the room's arena each draw through Phaser onto their own canvas.
 async function ready(page: Page) {
   await page.waitForFunction(() =>
-    document
-      .querySelector(".fui-main-menu")
-      ?.getAttribute("data-renderer")
-      ?.startsWith("phaser-"),
+    [...document.querySelectorAll("canvas")].some((canvas) =>
+      canvas.dataset.renderer?.startsWith("phaser-"),
+    ),
   );
 }
 async function frames(page: Page) {
@@ -177,9 +177,9 @@ for (const { name: browserName, kind } of BOTH_ENGINES) {
         // The landing clips overflow, so a crowded top bar hides controls instead of scrolling: each must be fully on screen.
         for (const control of [
           ".landing-brand",
-          ".landing-top .audio-controls summary",
-          ".landing-audio",
-          ".landing-mute",
+          ".landing-top .fui-top-bar-sound",
+          ".landing-top .fui-top-bar-account",
+          ".landing-top .fui-top-bar-toggle",
         ])
           await inside(page, page.locator(control));
         await page

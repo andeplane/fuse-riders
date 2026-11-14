@@ -250,17 +250,21 @@ export const lifecycle: LifecycleHooks<Room, Settings> = {
 
 /**
  * Every gunship's input bits for each of the tick's steps, from its seat's entries for this tick, match and round (in
- * the stream generation the seat follows). Directions are held from the latest `PLAY` on (a tap shorter than the tick
- * still counts, on its first step). Each `PRESS` sets `FIRE` on exactly the step it names, once per gesture (ordinals
- * rise along a stream, so a repeat in the tick is ignored): a press shorter than the tick fires on the step it was
- * made, and a held button fires nothing more. A bot or an absent seat holds nothing.
+ * the stream generation the seat follows), and the directions each seat holds after it. Directions are held (`before`,
+ * what each seat held going into the tick) from the latest `PLAY` on (a tap shorter than the tick still counts, on its
+ * first step). Each `PRESS` sets `FIRE` on exactly the step it names, once per gesture (ordinals rise along a stream,
+ * so a repeat in the tick is ignored): a press shorter than the tick fires on the step it was made, and a held button
+ * fires nothing more. A bot or an absent seat holds nothing. Nothing is changed: the fold stores `held`, and the
+ * screen's forward run reads the same answer for the ticks not yet folded.
  */
-function inputs(
-  room: Room,
+export function tickInputs(
+  room: Pick<Room, "seats" | "ships" | "matchId" | "round">,
+  before: Readonly<Record<string, number>>,
   streams: ReadonlyMap<string, StreamEntries<Entry>>,
   tick: number,
-): number[][] {
-  const steps: number[][] = [[], [], []];
+): { steps: number[][]; held: Record<string, number> } {
+  const steps: number[][] = [[], [], []],
+    after = { ...before };
   room.ships.forEach((id, ship) => {
     const seat = room.seats.get(id),
       stream = streams.get(id),
@@ -269,7 +273,7 @@ function inputs(
       tapped = 0,
       ordinal = 0;
     if (seat?.connected && !seat.bot) {
-      bits = room.held[id] ?? 0;
+      bits = after[id] ?? 0;
       const source =
         stream?.generation === seat.generation
           ? stream
@@ -290,13 +294,84 @@ function inputs(
           fire[entry[6]] = FIRE;
         }
     }
-    if (bits) room.held[id] = bits;
-    else delete room.held[id];
+    if (bits) after[id] = bits;
+    else delete after[id];
     steps.forEach((held, k) => {
       held[ship] = bits | fire[k]! | (k === 0 ? tapped : 0);
     });
   });
+  return { steps, held: after };
+}
+function inputs(
+  room: Room,
+  streams: ReadonlyMap<string, StreamEntries<Entry>>,
+  tick: number,
+): number[][] {
+  const { steps, held } = tickInputs(room, room.held, streams, tick);
+  room.held = held;
   return steps;
+}
+
+/** How many log ticks past the newest folded one the screen may play forward. */
+export const TICKS_AHEAD = 2;
+/**
+ * What the screen needs to draw at the clock rather than a tick behind it (`app/forward.ts`): the newest folded
+ * round and, for each of the next `TICKS_AHEAD` log ticks, the bits the fold would run its steps on as the log stands
+ * now. This device's own entries are in the log the moment they are made, so its controls are live; everyone else
+ * holds what they last logged, plus whatever of theirs has already arrived for those ticks.
+ */
+export interface Ahead {
+  /** The room's own round at `tick`: to be copied, never stepped. */
+  world: RoundState;
+  /** The newest folded log tick. */
+  tick: number;
+  /** Tells one round from the next. */
+  game: string;
+  /** Per log tick ahead, its steps' input bits by gunship; empty for a tick that runs no step (the countdown). */
+  ticks: number[][][];
+  /**
+   * Per gunship, what its seat's entries alone say for a tick (the three steps' bits, with nothing held going in):
+   * `folded` for the newest folded tick, `next[i]` for the ticks ahead. A gunship's mark for a tick changing between
+   * the frame that drew it ahead and the fold means the forward run had that pilot wrong.
+   */
+  folded: number[];
+  next: number[][];
+}
+export function aheadOf(
+  room: Room,
+  streamsAt: (tick: number) => ReadonlyMap<string, StreamEntries<Entry>>,
+): Ahead | undefined {
+  const world = room.world;
+  if (room.stage !== "running" || !world) return;
+  const mark = (tick: number): number[] => {
+    const { steps } = tickInputs(room, {}, streamsAt(tick), tick);
+    return room.ships.map((_, ship) =>
+      steps.reduce((sum, step, k) => sum | ((step[ship] ?? 0) << (5 * k)), 0),
+    );
+  };
+  const ticks: number[][][] = [],
+    next: number[][] = [];
+  let held: Readonly<Record<string, number>> = room.held;
+  for (let i = 1; i <= TICKS_AHEAD; i++) {
+    const tick = room.tick + i,
+      result = tickInputs(room, held, streamsAt(tick), tick);
+    held = result.held;
+    // The fold steps a decided round through its aftermath, up to and on the tick that ends it.
+    ticks.push(
+      tick >= room.startAt && (!room.endAt || tick <= room.endAt)
+        ? result.steps
+        : [],
+    );
+    next.push(mark(tick));
+  }
+  return {
+    world,
+    tick: room.tick,
+    game: `${room.matchId}:${room.round}`,
+    ticks,
+    folded: mark(room.tick),
+    next,
+  };
 }
 
 /** The match winner once its latest round decides it ("" when nobody won a round); undefined while it plays on. */

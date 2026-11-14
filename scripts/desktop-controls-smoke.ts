@@ -2,6 +2,7 @@ import { launchSelected } from "./lib/browser.js";
 import assert from "node:assert/strict";
 import { smokeTimeout } from "./smoke-timeout.js";
 import { keyboardShortcuts } from "../games/fuse-riders/src/online/keyboard-shortcuts.js";
+import { openTopMenu } from "./lib/top-menu.js";
 
 // Isolated offline solo game: never joins or disturbs an occupied online room.
 const browser = await launchSelected("chrome", { headless: true });
@@ -56,7 +57,7 @@ try {
   }
   await page.keyboard.down("Space");
   await page
-    .getByRole("button", { name: "ROOM SETTINGS", exact: true })
+    .getByRole("button", { name: "Game settings", exact: true })
     .click();
   assert.doesNotMatch((await fire.getAttribute("class")) ?? "", /active/);
   await page.keyboard.up("Space");
@@ -77,6 +78,7 @@ try {
     "desktop arena should use over 80% of viewport height",
   );
   assert.equal(pads, null, "desktop pads are hidden behind keyboard help");
+  await openTopMenu(page);
   await page
     .getByRole("button", { name: "Keyboard controls", exact: true })
     .click();
@@ -211,8 +213,9 @@ try {
       ),
       "long rider names must not truncate match points or the round award",
     );
+    // The shared top bar is a transparent overlay: the arena starts under its bottom padding, not below it.
     assert.ok(
-      layout.arena.y >= layout.bar.bottom &&
+      layout.arena.y >= layout.bar.bottom - 10 * layout.ui &&
         layout.arena.y <= layout.bar.bottom + 5 * layout.ui,
       `Arena/bar placement: ${JSON.stringify(layout)}`,
     );

@@ -5,7 +5,8 @@
     { "id": "lint", "command": "pnpm lint", "job": "checks" },
     { "id": "config", "command": "pnpm config:check", "job": "checks" },
     { "id": "build", "command": "pnpm build", "job": "checks" },
-    { "id": "unit", "command": "pnpm test", "job": "unit" }
+    { "id": "unit", "command": "pnpm test", "job": "unit" },
+    { "id": "os-unit", "command": "pnpm test:os", "job": "os-unit" }
   ],
   "release": [
     {

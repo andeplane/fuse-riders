@@ -5,6 +5,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { defaultRoomSettings } from "../games/fuse-riders/src/engine/room-settings.js";
 import { smokeTimeout } from "./smoke-timeout.js";
+import { openTopMenu } from "./lib/top-menu.js";
 /**
  * End-of-match recap evidence: a solo match plays to completion, the report opens only after the
  * final-round pause, shows standings and highlights with expandable statistics, closes, and reopens from RESULTS on a desktop
@@ -288,7 +289,7 @@ try {
       if (!phone) {
         // The desktop run picks the shortest format through the real settings menu; a new length applies to the next match.
         await page
-          .getByRole("button", { name: "ROOM SETTINGS", exact: true })
+          .getByRole("button", { name: "Game settings", exact: true })
           .click();
         const dialog = page.getByRole("dialog");
         await dialog.waitFor({ state: "visible" });
@@ -444,11 +445,14 @@ try {
           wide[0]!.getAttribute("aria-label") === "Match results"
         );
       });
-      // A joined phone stays the landscape thirds controller in matchOver, so the header (and RESULTS) sits behind the ☰ MENU overlay.
+      // RESULTS is a bar action, so it is in the Game menu. A joined phone stays the landscape thirds controller in
+      // matchOver, where the bar itself sits behind the ☰ MENU overlay.
       const reopen = page.getByRole("button", { name: "RESULTS", exact: true });
-      if (phone && !(await reopen.isVisible()))
+      if (phone && !(await page.locator(".fui-top-bar-toggle").isVisible()))
         await page.locator(".mobile-tools-toggle").click();
+      await openTopMenu(page);
       await reopen.waitFor({ state: "visible" });
+      await reopen.scrollIntoViewIfNeeded(); // the Game menu scrolls on a short phone
       await inside(page, reopen);
       await reopen.click();
       await assertRecapLayout(page);

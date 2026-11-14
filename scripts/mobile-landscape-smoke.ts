@@ -378,11 +378,19 @@ for (const { name, kind } of BOTH_ENGINES) {
     await page.mouse.up();
     // The tools overlay closes by design whenever a solo round enters countdown/play (mobile-play-layout.ts), which can
     // happen between opening it and clicking a button inside it; reopen and retry instead of racing the round clock.
-    const clickInTools = async (name: string) => {
+    // A bar action is one more step in: the bar is inside the tools overlay, and its actions are in its Game menu.
+    const clickInTools = async (name: string, inBar = false) => {
       for (let attempt = 0; attempt < 6; attempt++) {
+        // A Game menu left open by an attempt the round interrupted is modal, and would swallow the next one.
+        if (await page.locator(".fui-top-bar-menu[open]").count())
+          await page.keyboard.press("Escape");
         if (!(await page.locator(".mobile-tools-open").count()))
           await page.locator(".mobile-tools-toggle").click();
         try {
+          if (inBar)
+            await page
+              .locator(".fui-top-bar-toggle")
+              .click({ timeout: smokeTimeout(2500) });
           await page
             .getByRole("button", { name, exact: true })
             .click({ timeout: smokeTimeout(2500) });
@@ -396,7 +404,7 @@ for (const { name, kind } of BOTH_ENGINES) {
       );
     };
     // The shared layout preference is reachable in arena play as well as TV controller mode.
-    await clickInTools("SETTINGS");
+    await clickInTools("SETTINGS", true);
     await page.getByLabel("Landscape bomb side").selectOption("left");
     await page.getByRole("button", { name: "CLOSE", exact: true }).click();
     if (await page.locator(".mobile-tools-open").count())

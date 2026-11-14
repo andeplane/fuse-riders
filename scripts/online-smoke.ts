@@ -21,6 +21,7 @@ interface Snapshot {
 await mkdir("artifacts", { recursive: true });
 const browser = await launchSelected("chromium", { headless: true });
 import { ridersPageUrl } from "./lib/riders-url.js";
+import { openTopMenu } from "./lib/top-menu.js";
 const base = ridersPageUrl(process.env.ONLINE_URL ?? "http://localhost:8787/");
 const phone = {
   viewport: { width: 844, height: 390 },
@@ -76,19 +77,19 @@ const joinAs = async (page: Page, name: string, url: string) => {
   );
   await page.goto(url + "&benchmark=1");
   await page
-    .locator(".room-riders")
+    .locator(".fui-room-players")
     .locator(":is(.room-rider strong, .online-score-name)")
     .filter({ hasText: name })
     .first()
     .waitFor();
 };
 // A member's own name: these lists also carry the HOST badge and the status lines, and `getByText` is not case
-// sensitive, so "Host" would match the badge too. The watching list is nested in `.room-riders`, so this matches a
+// sensitive, so "Host" would match the badge too. The watching list is nested in `.fui-room-players`, so this matches a
 // watcher's name as well as a rider's — no spectator takes part in this smoke.
 const RIDER_NAME = ":is(.room-rider strong, .online-score-name)";
 const rosterHas = (page: Page, name: string) =>
   page
-    .locator(":is(.online-roster,.room-riders):visible")
+    .locator(":is(.online-roster,.fui-room-players):visible")
     .locator(RIDER_NAME)
     .filter({ hasText: name })
     .first()
@@ -253,7 +254,7 @@ try {
     const page = await c.newPage();
     await page.goto(url);
     // It arrives as an ordinary joiner and seats itself; the migration is what this checks, not the screen.
-    await page.locator(".room-riders:visible").waitFor();
+    await page.locator(".fui-room-players:visible").waitFor();
     assert.deepEqual(
       await page.evaluate(
         (code) => [
@@ -301,6 +302,7 @@ try {
   // #68 flattened every visual style to one thin rim in both renderers, so the two modes became
   // indistinguishable and the room had no way to switch. Both must stay reachable and distinct.
   {
+    await openTopMenu(host);
     await host.getByRole("button", { name: "SETTINGS", exact: true }).click();
     const styles = host.getByRole("button", { name: /^Visual style: / });
     assert.equal(
@@ -482,7 +484,7 @@ try {
   const beforeHost = await latest(host);
   await host.reload();
   await host
-    .locator(":is(.online-roster,.room-riders):visible")
+    .locator(":is(.online-roster,.fui-room-players):visible")
     .locator(RIDER_NAME)
     .filter({ hasText: "Guest" })
     .first()
@@ -529,7 +531,7 @@ try {
     "a joined phone in the lobby is a lobby screen",
   );
   await guest
-    .locator(".room-riders")
+    .locator(".fui-room-players")
     .locator(RIDER_NAME)
     .filter({ hasText: "Guest" })
     .first()
@@ -539,7 +541,7 @@ try {
   // A lobby reload frees the seat, and the reloaded page takes one again by itself under the name it remembers —
   // the reload is an arrival, which is the one case that seats itself (`docs/design/room-is-the-join-screen.md`).
   await guest
-    .locator(".phone-lobby .room-riders")
+    .locator(".phone-lobby .fui-room-players")
     .locator(RIDER_NAME)
     .filter({ hasText: "Guest" })
     .first()
@@ -552,7 +554,7 @@ try {
   console.log("Guest lobby reload confirmed");
   await host.reload();
   await host
-    .locator(":is(.online-roster,.room-riders):visible")
+    .locator(":is(.online-roster,.fui-room-players):visible")
     .locator(RIDER_NAME)
     .filter({ hasText: "Guest" })
     .first()
@@ -573,7 +575,10 @@ try {
       { timeout: smokeTimeout(20000) },
     );
   }
-  await host.getByRole("button", { name: /^Add AI$/i, exact: true }).click();
+  await host
+    .getByRole("button", { name: /^Add AI$/i, exact: true })
+    .first()
+    .click();
   await host.getByRole("button", { name: /Remove AI/ }).waitFor();
   assert.match(
     (await host
@@ -621,7 +626,7 @@ try {
   await recording(display);
   await display.goto(url + "&display=1&benchmark=1");
   await display
-    .locator(":is(.online-roster,.room-riders):visible")
+    .locator(":is(.online-roster,.fui-room-players):visible")
     .locator(RIDER_NAME)
     .filter({ hasText: "Host" })
     .first()
@@ -723,7 +728,7 @@ try {
             const canvas =
               document.querySelector<HTMLCanvasElement>(".online-arena");
             const start = [...document.querySelectorAll("button")].find(
-              (button) => button.textContent === "ROOM SETTINGS",
+              (button) => button.textContent === "Game settings",
             );
             const startBox = start?.getBoundingClientRect();
             let savedMode: unknown;

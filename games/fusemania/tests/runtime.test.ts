@@ -98,7 +98,7 @@ const silent = {
 test("solo is one player on the chosen song and chart, with AI rivals when it is a battle", () => {
   const runtime = new FusemaniaRuntime(
     "SOLO",
-    { display: true, song: "other", mode: 0, chart: 0 },
+    { ...SETTINGS, display: true, song: "other" },
     silent,
     game,
     { humanName: "Ada", dependencies: quiet(() => 0) },
