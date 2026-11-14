@@ -47,6 +47,8 @@ export interface Edge {
   second: -1 | 0 | 1;
   /** Steps from a standing launch to the landing. */
   cost: number;
+  /** Where on `to` it lands, subpixels. */
+  lx: number;
 }
 /** A place to touch a hive hole or a berry pile from. */
 export interface Spot {
@@ -65,6 +67,11 @@ export interface WorkerNav {
   out: readonly (readonly number[])[];
   /** Cheapest steps from platform to platform; UNREACHABLE when there is no way. */
   dist: readonly (readonly number[])[];
+  /**
+   * Per route edge and platform: the steps from that edge's landing to standing on the platform, with the walks
+   * between landings and launches counted in full. UNREACHABLE when there is no way.
+   */
+  rest: readonly (readonly number[])[];
   /** Per team and hole, and per pile: where it can be touched from. Empty when nothing reaches it. */
   holes: readonly [readonly (readonly Spot[])[], readonly (readonly Spot[])[]];
   piles: readonly (readonly Spot[])[];
@@ -134,6 +141,8 @@ interface Flight {
   /** The platform landed on (the launch platform again after a hop on the spot) and after how many steps. */
   to: number;
   cost: number;
+  /** Where it landed. */
+  x: number;
   /** Per box, the step on which the Worker first touched it, or -1. */
   touched: number[];
 }
@@ -161,7 +170,7 @@ function fly(
     }
     if (unit.ground < 0) left = true;
     else if (unit.ground !== edge.from || left)
-      return { to: unit.ground, cost: k + 1, touched };
+      return { to: unit.ground, cost: k + 1, x: unit.x, touched };
   }
   return undefined;
 }
@@ -228,11 +237,13 @@ function buildWorkerNav(arena: Arena, speed: boolean): WorkerNav {
               first,
               second,
               cost: 0,
+              lx: x,
             };
             const flight = fly(arena, edge, x, speed, boxes);
             if (!flight) continue;
             edge.to = flight.to;
             edge.cost = flight.cost;
+            edge.lx = flight.x;
             flight.touched.forEach((step, box) => {
               if (step < 0) return;
               const cost = touches(edge, boxes[box]!);
@@ -273,6 +284,7 @@ function buildWorkerNav(arena: Arena, speed: boolean): WorkerNav {
     from: twin(edge.from),
     to: twin(edge.to),
     x: WIDTH - edge.x,
+    lx: WIDTH - edge.lx,
     first: flip(edge.first),
     second: flip(edge.second),
   });
@@ -306,6 +318,41 @@ function buildWorkerNav(arena: Arena, speed: boolean): WorkerNav {
         const via = dist[i]![k]! + dist[k]![j]!;
         if (via < dist[i]![j]!) dist[i]![j] = via;
       }
+  // The same again from each move's landing, with every walk at its real length. The flat allowance above makes two
+  // ledges that meet at the screen edge look closer to everything than they are, and a Worker choosing its next move
+  // by it alone would cross from one to the other for ever.
+  const pace = speedy(RUN_SPEED, speed);
+  const routes = edges.length;
+  const links = edges.map((edge) => {
+    const list: [number, number][] = [];
+    for (const next of out[edge.to]!) {
+      const way = walkWay(arena, edge.to, edge.lx, edges[next]!.x);
+      if (way !== undefined)
+        list.push([next, Math.trunc(Math.abs(way) / pace) + edges[next]!.cost]);
+    }
+    return list;
+  });
+  const rest: number[][] = edges.map((edge) =>
+    Array.from({ length: count }, (_, to) =>
+      to === edge.to ? 0 : UNREACHABLE,
+    ),
+  );
+  for (let changed = true; changed;) {
+    changed = false;
+    for (let index = 0; index < routes; index += 1) {
+      const row = rest[index]!;
+      for (const [next, cost] of links[index]!) {
+        const after = rest[next]!;
+        for (let to = 0; to < count; to += 1) {
+          const via = cost + after[to]!;
+          if (via < row[to]!) {
+            row[to] = via;
+            changed = true;
+          }
+        }
+      }
+    }
+  }
 
   // Where to touch each box from. Standing spots first: a place on a platform where the Worker's box overlaps it.
   const spots: Spot[][] = boxes.map((box) => {
@@ -377,6 +424,7 @@ function buildWorkerNav(arena: Arena, speed: boolean): WorkerNav {
     edges,
     out,
     dist,
+    rest,
     holes: [spots.slice(0, holes), spots.slice(holes, 2 * holes)],
     piles: spots.slice(2 * holes),
   };
@@ -428,32 +476,66 @@ export function platformBelow(arena: Arena, x: number, y: number): number {
   return best;
 }
 
+/** Whether something solid stands in the way of a Worker that walks from `x` by `dx` along a platform top at `y`. */
+function walled(arena: Arena, x: number, y: number, dx: number): boolean {
+  const lo = Math.min(x, x + dx) - WORKER_HALF,
+    hi = Math.max(x, x + dx) + WORKER_HALF;
+  return arena.solids.some(
+    (solid) =>
+      solid.y < y &&
+      solid.y + solid.h > y - WORKER_HEIGHT &&
+      [0, -WIDTH, WIDTH, 2 * WIDTH].some(
+        (shift) => solid.x + shift < hi && solid.x + shift + solid.w > lo,
+      ),
+  );
+}
+
 /**
- * The edge to take from platform `from`, standing at `x`, toward platform `to`: the one with the least walking,
- * flying and remaining way. -1 when there is none.
+ * How far, and which way, a Worker standing on platform `node` at `x` walks to reach `to` on it: the short way
+ * round, or the long way on a platform that spans the screen when a block stands in the short one. Undefined when a
+ * block cuts the platform in two between them.
  */
-export function nextEdge(
+export function walkWay(
+  arena: Arena,
+  node: number,
+  x: number,
+  to: number,
+): number | undefined {
+  const solid = arena.solids[node]!;
+  const short = wrapDelta(to, x);
+  if (!walled(arena, x, solid.y, short)) return short;
+  if (solid.w < WIDTH) return undefined;
+  const long = short > 0 ? short - WIDTH : short + WIDTH;
+  return walled(arena, x, solid.y, long) ? undefined : long;
+}
+
+/**
+ * The edge to take from platform `from`, standing at `x`, toward platform `to`, and the steps the whole way takes:
+ * the walk to the launch, the flight and everything after it. The edge is -1 when there is none.
+ */
+export function route(
   nav: WorkerNav,
+  arena: Arena,
   from: number,
   x: number,
   to: number,
   speed: boolean,
-): number {
+): [edge: number, cost: number] {
   let best = -1,
     bestCost = UNREACHABLE;
   const pace = speedy(RUN_SPEED, speed);
   for (const index of nav.out[from] ?? []) {
     const edge = nav.edges[index]!;
+    const way = walkWay(arena, from, x, edge.x);
+    if (way === undefined) continue;
     const cost =
-      Math.trunc(Math.abs(wrapDelta(edge.x, x)) / pace) +
-      edge.cost +
-      nav.dist[edge.to]![to]!;
+      Math.trunc(Math.abs(way) / pace) + edge.cost + nav.rest[index]![to]!;
     if (cost < bestCost) {
       best = index;
       bestCost = cost;
     }
   }
-  return best;
+  return [best, bestCost];
 }
 
 // --- Flyer grid -----------------------------------------------------------------------------------------------------
@@ -548,26 +630,56 @@ function buildFlyNav(arena: Arena): FlyNav {
     mirror = Array.from({ length: CELLS }, (_, cell) =>
       neighbours(cell, MIRRORED),
     );
-  // The nearest free cell, found ring by ring. A ring is scanned from the cell's own side inward, so a tie resolves
-  // the same way on both halves of the map.
+  /** Whether the straight line between two cell centres stays out of every platform. */
+  const inSolid = (x: number, y: number): boolean =>
+    arena.solids.some(
+      (solid) =>
+        y > solid.y &&
+        y < solid.y + solid.h &&
+        wrapDelta(x, solid.x + (solid.w >> 1)) * 2 < solid.w &&
+        wrapDelta(x, solid.x + (solid.w >> 1)) * 2 > -solid.w,
+    );
+  const clear = (
+    from: { x: number; y: number },
+    dc: number,
+    dr: number,
+  ): boolean => {
+    const steps = 2 * Math.max(Math.abs(dc), Math.abs(dr));
+    for (let k = 1; k < steps; k += 1)
+      if (
+        inSolid(
+          from.x + Math.trunc((dc * CELL * k) / steps),
+          from.y + Math.trunc((dr * CELL * k) / steps),
+        )
+      )
+        return false;
+    return true;
+  };
+  // The nearest free cell in plain sight, found ring by ring: one on the far side of a platform is no use to a
+  // flyer in the gap under it. A ring is scanned from the cell's own side inward, so a tie resolves the same way on
+  // both halves of the map. Where no free cell is in sight, the nearest of all.
   const nearest: number[] = [];
   for (let cell = 0; cell < CELLS; cell += 1) {
     const col = cell % COLS,
       row = Math.floor(cell / COLS);
     const side = col < COLS / 2 ? 1 : -1;
-    let best = free[cell] ? cell : -1;
+    const centre = cellCentre(cell);
+    let best = free[cell] ? cell : -1,
+      hidden = -1;
     for (let ring = 1; best < 0 && ring < COLS; ring += 1)
       for (let dr = -ring; dr <= ring && best < 0; dr += 1) {
         const across = ring - Math.abs(dr);
         for (const dc of across === 0 ? [0] : [-across * side, across * side]) {
           const other = cellIndex(col + dc, row + dr);
-          if (row + dr >= 0 && row + dr < ROWS && free[other]) {
+          if (row + dr < 0 || row + dr >= ROWS || !free[other]) continue;
+          if (clear(centre, dc, dr)) {
             best = other;
             break;
           }
+          if (hidden < 0) hidden = other;
         }
       }
-    nearest.push(Math.max(0, best));
+    nearest.push(Math.max(0, best >= 0 ? best : hidden));
   }
   return { free, nearest, around: [plain, mirror], ways: new Map() };
 }

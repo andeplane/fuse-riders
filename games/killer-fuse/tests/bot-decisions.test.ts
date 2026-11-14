@@ -6,6 +6,7 @@ import {
   MAPS,
   S,
   TICK_HZ,
+  UNIT,
   cloneRound,
   stepRound,
   type BotGoal,
@@ -359,6 +360,163 @@ test("a Warrior goes for the enemy Queen first, then a Warrior, then a Worker, l
   unitOf(state, 1).dead = true;
   unitOf(state, 3).dead = true;
   assert.equal(goalOf(state, 2), "guard");
+});
+
+test("the snail ridden far toward the enemy's goal and left free is ridden back by the nearest free Worker", () => {
+  const state = botRound("hard");
+  stand(state, 2, 300, FLOOR);
+  stand(state, 4, 100, FLOOR);
+  wake(state, 2);
+  wake(state, 4);
+  // A little past the middle is no danger yet.
+  state.snail.x = 262 * S;
+  assert.equal(goalOf(state, 2), "gather");
+  state.snail.x = 330 * S;
+  const ride = decision(state, 2);
+  assert.equal(ride.goal, "ride");
+  assert.equal(ride.tx, 330 * S);
+  assert.equal(goalOf(state, 4), "gather");
+  // The nearer Worker has its hands full, or may not mount yet: the other goes.
+  unitOf(state, 2).carrying = true;
+  assert.equal(goalOf(state, 4), "ride");
+  unitOf(state, 2).carrying = false;
+  unitOf(state, 2).mountWait = 40;
+  assert.equal(goalOf(state, 2), "gather");
+  assert.equal(goalOf(state, 4), "ride");
+  unitOf(state, 2).mountWait = 0;
+  // On the snail's own side of the map it is the other team's worry.
+  state.snail.x = 150 * S;
+  assert.equal(goalOf(state, 2), "gather");
+  state.snail.x = 330 * S;
+  const events = run(state, 12 * TICK_HZ);
+  assert.deepEqual(
+    ofType(events, "snailMount").map((event) => event.slot),
+    [2],
+  );
+  assert.ok(state.snail.x < 330 * S, "on its way back");
+
+  const easy = botRound("easy");
+  stand(easy, 2, 300, FLOOR);
+  wake(easy, 2);
+  easy.snail.x = 330 * S;
+  assert.equal(goalOf(easy, 2), "gather");
+});
+
+test("a carrying Worker whose team has no Warrior buys one once the enemy hive is nearly full", () => {
+  const state = botRound("hard");
+  stand(state, 2, 300, FLOOR, { carrying: true });
+  wake(state, 2);
+  const theirs = state.holes[1];
+  assert.ok(theirs);
+  theirs.fill(true, 0, BOT_LEVELS.hard.muster - 1);
+  assert.equal(goalOf(state, 2), "bank");
+  theirs.fill(true, 0, BOT_LEVELS.hard.muster);
+  const muster = decision(state, 2);
+  assert.equal(muster.goal, "gate");
+  assert.equal(MAP.gates[muster.target]?.kind, "warrior");
+  // One Warrior is enough.
+  put(state, 4, 100, 100, { kind: "warrior" });
+  assert.equal(goalOf(state, 2), "bank");
+
+  const medium = botRound("medium");
+  stand(medium, 2, 300, FLOOR, { carrying: true });
+  wake(medium, 2);
+  medium.holes[1]?.fill(true, 0, 11);
+  assert.equal(goalOf(medium, 2), "bank");
+});
+
+test("a Queen with every egg goes for the other Queen when she cannot answer, and one egg down only when the hive is nearly lost", () => {
+  const state = botRound("hard");
+  put(state, 0, 160, 60);
+  wake(state, 0);
+  for (const gate of state.gates) gate.owner = 0;
+  // On the wing, sword ready and facing her: no opening.
+  put(state, 1, 320, 60, { facing: -1 });
+  assert.equal(goalOf(state, 0), "guard");
+  // Looking the other way, standing on a floor, or with her sword cooling down: an opening each.
+  unitOf(state, 1).facing = 1;
+  const behind = decision(state, 0);
+  assert.deepEqual(
+    [behind.goal, behind.target, behind.dive],
+    ["hunt", 1, true],
+  );
+  assert.ok(behind.ty < 40 * S, "from above, to dive");
+  stand(state, 1, 296, 55, { facing: -1 });
+  assert.equal(decision(state, 0).target, 1);
+  put(state, 1, 320, 60, { facing: -1, attack: 25 });
+  assert.equal(decision(state, 0).target, 1);
+  // Not while the other Queen cannot be hurt.
+  unitOf(state, 1).invuln = 90;
+  assert.equal(goalOf(state, 0), "guard");
+  unitOf(state, 1).invuln = 0;
+
+  // An egg down she leaves the other Queen alone, opening or not...
+  state.eggs[0] = 2;
+  assert.equal(goalOf(state, 0), "guard");
+  // ...until the enemy hive is nearly full: then there is no time left for care, even against a ready sword.
+  state.holes[1]?.fill(true, 0, BOT_LEVELS.hard.press);
+  unitOf(state, 1).attack = 0;
+  assert.deepEqual(
+    [decision(state, 0).goal, decision(state, 0).target],
+    ["hunt", 1],
+  );
+  // On her last life she never does.
+  state.eggs[0] = 1;
+  assert.notEqual(goalOf(state, 0), "hunt");
+
+  const easy = botRound("easy");
+  put(easy, 0, 160, 60);
+  wake(easy, 0);
+  for (const gate of easy.gates) gate.owner = 0;
+  stand(easy, 1, 296, 55);
+  assert.equal(goalOf(easy, 0), "guard");
+});
+
+test("once the enemy hive is filling, flyers go for the berry carriers before anything else", () => {
+  const state = botRound("hard");
+  put(state, 2, 100, 200, { kind: "warrior" });
+  put(state, 1, 200, 180);
+  stand(state, 3, 330, FLOOR, { carrying: true });
+  wake(state, 2);
+  state.holes[1]?.fill(true, 0, BOT_LEVELS.hard.carriers - 1);
+  assert.equal(decision(state, 2).target, 1);
+  state.holes[1]?.fill(true, 0, BOT_LEVELS.hard.carriers);
+  assert.equal(decision(state, 2).target, 3);
+  // An empty-handed Worker is no such hurry.
+  unitOf(state, 3).carrying = false;
+  assert.equal(decision(state, 2).target, 1);
+
+  const easy = botRound("easy");
+  put(easy, 2, 100, 200, { kind: "warrior" });
+  put(easy, 1, 200, 180);
+  stand(easy, 3, 330, FLOOR, { carrying: true });
+  wake(easy, 2);
+  easy.holes[1]?.fill(true, 0, 11);
+  assert.equal(decision(easy, 2).target, 1);
+});
+
+test("a Warrior over its target comes down beside it, where a sword reaches, and straight at one it is level with", () => {
+  const state = botRound("hard");
+  stand(state, 3, 300, FLOOR);
+  put(state, 2, 300, 200, { kind: "warrior" });
+  wake(state, 2);
+  const right = decision(state, 2);
+  assert.deepEqual([right.goal, right.target], ["hunt", 3]);
+  assert.ok(Math.abs(right.tx - (300 * S + 2 * UNIT)) <= 3 * S);
+  unitOf(state, 2).x = 296 * S;
+  assert.ok(Math.abs(decision(state, 2).tx - (300 * S - 2 * UNIT)) <= 3 * S);
+  // Level with it, or well to the side: straight at it.
+  put(state, 2, 340, FLOOR, { kind: "warrior" });
+  assert.ok(Math.abs(decision(state, 2).tx - 300 * S) <= 3 * S);
+  put(state, 2, 360, 200, { kind: "warrior" });
+  assert.ok(Math.abs(decision(state, 2).tx - 300 * S) <= 3 * S);
+  // And it gets its kill: it does not hang over a target that stands still.
+  put(state, 2, 300, 200, { kind: "warrior" });
+  const events = run(state, 8 * TICK_HZ);
+  assert.deepEqual(
+    ofType(events, "kill").map((event) => [event.killer, event.victim]),
+    [[2, 3]],
+  );
 });
 
 test("a dead bot forgets its plan, and a blundering easy bot stands still for a moment", () => {

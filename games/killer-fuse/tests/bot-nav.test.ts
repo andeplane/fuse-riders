@@ -1,6 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MAP_IDS, WIDTH, arenaOf, S } from "../src/engine/index.js";
+import {
+  MAP_IDS,
+  S,
+  WIDTH,
+  arenaOf,
+  wrapDelta,
+  wrapX,
+} from "../src/engine/index.js";
 import {
   CELL,
   COLS,
@@ -10,6 +17,8 @@ import {
   cellOf,
   flyNav,
   flyToward,
+  route,
+  walkWay,
   workerNav,
   type Edge,
 } from "../src/engine/nav.js";
@@ -39,6 +48,7 @@ const key = (edge: Edge): string =>
     edge.first,
     edge.second,
     edge.cost,
+    edge.lx,
   ].join(",");
 
 for (const mapId of MAP_IDS)
@@ -54,6 +64,7 @@ for (const mapId of MAP_IDS)
           from: twin(mapId, edge.from),
           to: twin(mapId, edge.to),
           x: WIDTH - edge.x,
+          lx: WIDTH - edge.lx,
           first: edge.first === 0 ? 0 : edge.first < 0 ? 1 : -1,
           second: edge.second === 0 ? 0 : edge.second < 0 ? 1 : -1,
         };
@@ -111,4 +122,114 @@ for (const mapId of MAP_IDS)
     assert.ok(checked > 3000);
     assert.equal(cellOf(cellCentre(17).x, cellCentre(17).y), 17);
     assert.equal(CELL % S, 0);
+  });
+
+for (const mapId of MAP_IDS)
+  test(`map ${mapId}: every hop brings a Worker closer, with the walks between landings and launches counted in full`, () => {
+    const arena = arenaOf(mapId);
+    for (const speed of [false, true]) {
+      const nav = workerNav(mapId, speed);
+      assert.ok(nav.rest.length > 20 && nav.rest.length <= nav.edges.length);
+      nav.rest.forEach((row, index) => {
+        const edge = nav.edges[index];
+        assert.ok(edge);
+        const landing = arena.solids[edge.to];
+        assert.ok(landing);
+        // A Worker stands with up to half its body over the end of a platform.
+        assert.ok(
+          Math.abs(wrapDelta(edge.lx, landing.x + (landing.w >> 1))) * 2 <=
+            landing.w + 16 * S,
+          "a hop lands on its platform",
+        );
+        assert.equal(row.length, arena.solids.length);
+        row.forEach((cost, to) => {
+          // What is left after the landing is exactly the best next hop from where it landed: a Worker that follows
+          // the table never takes a hop that leaves it further away, so it cannot go back and forth between two.
+          const [next, onward] =
+            edge.to === to
+              ? [-1, 0]
+              : route(nav, arena, edge.to, edge.lx, to, speed);
+          assert.equal(cost, onward, `after move ${index} to ${to}`);
+          if (edge.to !== to && cost < UNREACHABLE) {
+            const hop = nav.edges[next];
+            assert.ok(hop && hop.from === edge.to);
+            assert.ok((nav.rest[next]?.[to] ?? UNREACHABLE) < cost);
+          }
+        });
+      });
+      // Standing on the platform already, or with no way there, there is no hop to take.
+      assert.equal(route(nav, arena, 0, 0, -1, speed)[0], -1);
+    }
+  });
+
+test("a Worker walks round a block on its platform: the long way on a floor that spans the screen, not at all across a pillar", () => {
+  const dusk = arenaOf(3);
+  const floor = dusk.solids.findIndex((solid) => solid.w === WIDTH);
+  assert.ok(floor >= 0);
+  // Open floor: the short way, across the seam when that is shorter.
+  assert.equal(walkWay(dusk, floor, 30 * S, 60 * S), 30 * S);
+  assert.equal(walkWay(dusk, floor, 10 * S, 470 * S), -20 * S);
+  // A block stands between 22 and 262: round the back of the screen instead.
+  assert.equal(walkWay(dusk, floor, 22 * S, 262 * S), -240 * S);
+  assert.equal(walkWay(dusk, floor, 262 * S, 22 * S), 240 * S);
+  // Between the floor's two blocks there is no way in from outside.
+  assert.equal(walkWay(dusk, floor, 6 * S, 222 * S), undefined);
+
+  const night = arenaOf(2);
+  const ledge = night.solids.findIndex(
+    (solid) => solid.x === 220 * S && solid.y === 145 * S,
+  );
+  assert.ok(ledge >= 0);
+  assert.equal(walkWay(night, ledge, 226 * S, 228 * S), 2 * S);
+  assert.equal(walkWay(night, ledge, 226 * S, 254 * S), undefined);
+  // The route from one half takes a hop, never a walk into the pillar.
+  const nav = workerNav(2, false);
+  for (const index of nav.out[ledge] ?? []) {
+    const edge = nav.edges[index];
+    assert.ok(edge);
+    const [hop] = route(nav, night, ledge, 226 * S, edge.to, false);
+    const first = nav.edges[hop];
+    assert.ok(first);
+    assert.notEqual(walkWay(night, ledge, 226 * S, first.x), undefined);
+  }
+});
+
+for (const mapId of MAP_IDS)
+  test(`map ${mapId}: a flyer in a gap is sent to a free cell it can see, not one behind a platform`, () => {
+    const arena = arenaOf(mapId);
+    const nav = flyNav(mapId);
+    const inside = (x: number, y: number): boolean =>
+      arena.solids.some(
+        (solid) =>
+          y > solid.y &&
+          y < solid.y + solid.h &&
+          Math.abs(wrapDelta(x, solid.x + (solid.w >> 1))) * 2 < solid.w,
+      );
+    let gaps = 0;
+    const hidden: number[] = [];
+    for (let cell = 0; cell < COLS * ROWS; cell += 1) {
+      const target = nav.nearest[cell];
+      assert.ok(target !== undefined && nav.free[target], `cell ${cell}`);
+      const from = cellCentre(cell),
+        to = cellCentre(target);
+      if (nav.free[cell]) {
+        assert.equal(target, cell);
+        continue;
+      }
+      if (inside(from.x, from.y)) continue;
+      gaps += 1;
+      const dx = wrapDelta(to.x, from.x),
+        dy = to.y - from.y;
+      for (let k = 1; k < 40 && !hidden.includes(cell); k += 1)
+        if (
+          inside(
+            wrapX(from.x + Math.trunc((dx * k) / 40)),
+            from.y + Math.trunc((dy * k) / 40),
+          )
+        )
+          hidden.push(cell);
+    }
+    // A corner pocket or two has no free cell in sight and takes the nearest of all.
+    assert.ok(hidden.length <= 2, `cells ${hidden.join(", ")}`);
+    assert.ok(gaps > 100);
   });

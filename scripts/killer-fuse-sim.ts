@@ -3,13 +3,14 @@
  * long it takes, for balance work (games/killer-fuse/docs/balance.md). Usage:
  *
  *   pnpm exec tsx scripts/killer-fuse-sim.ts --games 200 --level hard [--level-b medium] [--map 1] [--seed 1]
- *     [--max-seconds 300] [--json]
+ *     [--max-seconds 300] [--idle-queen] [--json]
  *
  * `--level` is the bots' difficulty (easy, medium, hard). With `--level-b` the two teams play at different levels:
  * side A plays `--level`, side B `--level-b`, and they swap screen sides every game so the map's sides cancel out.
  * Game `i` is seeded `seed + i`, so a run is reproducible. Every game is played twice and the two final state hashes
  * must match: the run fails if the engine is not deterministic. A game still undecided after `--max-seconds` is a
- * timeout, counted on its own and left out of the length figures.
+ * timeout, counted on its own and left out of the length figures. With `--idle-queen` side B's Queen is a seat whose
+ * player holds nothing, as someone who has walked away from the keyboard: a check that bots finish such a Queen.
  */
 import {
   TICK_HZ,
@@ -32,6 +33,8 @@ export interface SimOptions {
   map: MapId;
   seed: number;
   maxSeconds: number;
+  /** Side B's Queen is a human seat that holds no controls. */
+  idleQueen: boolean;
   json: boolean;
 }
 
@@ -57,8 +60,15 @@ export function playGame(
   map: MapId,
   levels: [BotLevel, BotLevel],
   maxSeconds: number,
+  /** A team (0 or 1) whose Queen seat is held by a player who presses nothing, or -1. */
+  idleQueen = -1,
 ): GameResult {
-  const state = createRound({ seed, mapId: map, teamLevels: levels });
+  const state = createRound({
+    seed,
+    mapId: map,
+    teamLevels: levels,
+    humans: [idleQueen === 0, idleQueen === 1],
+  });
   const result: GameResult = {
     seed,
     levels,
@@ -100,6 +110,7 @@ export interface Summary {
   seed: number;
   levelA: BotLevel;
   levelB: BotLevel;
+  idleQueen: boolean;
   decided: number;
   timeouts: number;
   /** Wins by screen side: team 0 (left) and team 1 (right). */
@@ -146,6 +157,7 @@ export function runSim(options: SimOptions): Summary {
     seed: options.seed,
     levelA: options.level,
     levelB: options.levelB,
+    idleQueen: options.idleQueen,
     decided: 0,
     timeouts: 0,
     sideWins: [0, 0],
@@ -172,8 +184,9 @@ export function runSim(options: SimOptions): Summary {
       ? [options.levelB, options.level]
       : [options.level, options.levelB];
     const seed = options.seed + i;
-    const game = playGame(seed, options.map, levels, options.maxSeconds);
-    const again = playGame(seed, options.map, levels, options.maxSeconds);
+    const idle = options.idleQueen ? (swapped ? 0 : 1) : -1;
+    const game = playGame(seed, options.map, levels, options.maxSeconds, idle);
+    const again = playGame(seed, options.map, levels, options.maxSeconds, idle);
     if (again.hash !== game.hash || again.steps !== game.steps) {
       summary.deterministic = false;
       throw new Error(
@@ -224,9 +237,9 @@ const percent = (part: number, whole: number): string =>
 
 export function report(summary: Summary): string {
   const { decided } = summary;
-  const mixed = summary.levelA !== summary.levelB;
+  const mixed = summary.levelA !== summary.levelB || summary.idleQueen;
   const lines = [
-    `Killer Fuse, map ${summary.map}: ${summary.games} games, ${summary.levelA} against ${summary.levelB}, seeds ${summary.seed}..${summary.seed + summary.games - 1}`,
+    `Killer Fuse, map ${summary.map}: ${summary.games} games, ${summary.levelA} against ${summary.levelB}${summary.idleQueen ? " with an idle Queen" : ""}, seeds ${summary.seed}..${summary.seed + summary.games - 1}`,
     `decided ${decided}, timeouts ${summary.timeouts}`,
     `side wins: left (team 0) ${summary.sideWins[0]} (${percent(summary.sideWins[0], decided)}), right (team 1) ${summary.sideWins[1]} (${percent(summary.sideWins[1], decided)})`,
   ];
@@ -255,10 +268,12 @@ const isLevel = (value: string): value is BotLevel =>
 
 export function parseArgs(argv: readonly string[]): SimOptions {
   const values = new Map<string, string>();
-  let json = false;
+  let json = false,
+    idleQueen = false;
   for (let i = 0; i < argv.length; i += 1) {
     const flag = argv[i] ?? "";
     if (flag === "--json") json = true;
+    else if (flag === "--idle-queen") idleQueen = true;
     else if (flag.startsWith("--")) {
       const value = argv[i + 1];
       if (value === undefined) throw new Error(`${flag} needs a value`);
@@ -294,6 +309,7 @@ export function parseArgs(argv: readonly string[]): SimOptions {
     map,
     seed: count("seed", 1),
     maxSeconds: count("max-seconds", 300),
+    idleQueen,
     json,
   };
 }

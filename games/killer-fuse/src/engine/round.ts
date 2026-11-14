@@ -19,28 +19,32 @@ export const LESSON_SLOT = 2;
 const LESSON_BERRY = 2 * UNIT;
 
 /**
- * A lesson's berry: at rest on the learner's spawn platform, two units to the side that has that platform under it
- * and nobody standing there, or, where neither side does, falling from beside the platform to whatever lies below.
+ * A lesson's berry, always at rest: on the learner's spawn platform, two units to the side that has that platform
+ * under it and nobody standing there, or, where the platform is too short for either, on the first platform below
+ * that spot, for the learner to step down to.
  */
 function lessonBerry(arena: Arena): LooseBerry {
   const spawn = arena.spawns[LESSON_SLOT]!;
   const ground = standingOn(arena, spawn.x, spawn.y);
   const sides = [wrapX(spawn.x + LESSON_BERRY), wrapX(spawn.x - LESSON_BERRY)];
   // Clear of every other spawn, or a teammate standing there would take it.
-  const x = sides.find(
+  const beside = sides.find(
     (side) =>
       standingOn(arena, side, spawn.y) === ground &&
       arena.spawns.every((other) => Math.abs(wrapDelta(other.x, side)) >= UNIT),
   );
-  return {
-    x: x ?? sides[0]!,
-    y: spawn.y,
-    vx: 0,
-    vy: 0,
-    resting: x !== undefined,
-    wait: 0,
-    by: LESSON_SLOT,
-  };
+  const x = beside ?? sides[0]!;
+  let y = spawn.y;
+  if (beside === undefined) {
+    // The floor spans the map, so there is always a platform below.
+    const below = arena.solids
+      .filter(
+        (solid) => solid.y > spawn.y && x >= solid.x && x <= solid.x + solid.w,
+      )
+      .map((solid) => solid.y);
+    y = Math.min(...below);
+  }
+  return { x, y, vx: 0, vy: 0, resting: true, wait: 0, by: LESSON_SLOT };
 }
 
 export function createRound(options: RoundOptions): Round {

@@ -13,7 +13,8 @@ import {
   UNREACHABLE,
   edgeInput,
   flyToward,
-  nextEdge,
+  route,
+  walkWay,
   platformAt,
   platformBelow,
   standable,
@@ -69,6 +70,18 @@ export interface LevelRules {
   swing: number;
   /** Chance, in percent per step, that a flyer meets a sword coming at it with its own. */
   parry: number;
+  /**
+   * How far along its track toward the enemy's goal the snail must be, in thousandths, before a free Worker rides it
+   * back; 0 never does.
+   */
+  contest: number;
+  /** A Queen who has lost no egg goes for an enemy Queen that cannot answer. */
+  duel: boolean;
+  /** Filled holes in the enemy hive from which flyers hunt berry carriers first, and from which a Queen presses. */
+  carriers: number;
+  press: number;
+  /** Filled holes in the enemy hive from which a team without a Warrior turns its next berry into one. */
+  muster: number;
 }
 
 export const BOT_LEVEL_ORDER: readonly BotLevel[] = ["easy", "medium", "hard"];
@@ -88,6 +101,11 @@ export const BOT_LEVELS: Readonly<Record<BotLevel, LevelRules>> = {
     rider: 40,
     swing: 8,
     parry: 0,
+    contest: 0,
+    duel: false,
+    carriers: 99,
+    press: 99,
+    muster: 99,
   },
   medium: {
     think: 16,
@@ -104,6 +122,11 @@ export const BOT_LEVELS: Readonly<Record<BotLevel, LevelRules>> = {
     rider: 35,
     swing: 30,
     parry: 10,
+    contest: 300,
+    duel: true,
+    carriers: 4,
+    press: 8,
+    muster: 99,
   },
   hard: {
     think: 6,
@@ -116,12 +139,26 @@ export const BOT_LEVELS: Readonly<Record<BotLevel, LevelRules>> = {
     smart: 96,
     lead: 8,
     flee: 70,
-    soldier: 50,
-    rider: 30,
+    soldier: 60,
+    rider: 15,
     swing: 100,
     parry: 90,
+    contest: 200,
+    duel: true,
+    carriers: 4,
+    press: 8,
+    muster: 10,
   },
 };
+
+/** How far the snail is along toward `team`'s goal, in thousandths of the way from its start; negative on the other side. */
+function snailProgress(state: Round, team: number): number {
+  const track = arenaOf(state.mapId).snail;
+  return Math.trunc(
+    ((state.snail.x - track.start) * goalDir(team) * 1000) /
+      Math.abs(track.goals[team === 0 ? 0 : 1] - track.start),
+  );
+}
 
 const FLYER_GOALS: readonly BotMind["goal"][] = [
   "hunt",
@@ -206,16 +243,24 @@ function nearest(
 
 // --- Workers --------------------------------------------------------------------------------------------------------
 
-/** Steps a Worker needs from where it is to a point on platform `node`, by the nav graph. */
+/**
+ * Steps a Worker needs from where it is to a point on platform `node`: the walk there on its own platform, or the
+ * route by the nav graph and a walk the length of the gap for what lies beyond the landing.
+ */
 function travel(state: Round, unit: Unit, node: number, x: number): number {
   const arena = arenaOf(state.mapId);
   const from =
     unit.ground >= 0 ? unit.ground : platformBelow(arena, unit.x, unit.y);
   if (from < 0 || node < 0) return UNREACHABLE;
-  return (
-    workerNav(state.mapId, unit.speed).dist[from]![node]! +
-    Math.trunc(Math.abs(wrapDelta(x, unit.x)) / RUN_SPEED)
-  );
+  if (from === node) {
+    const way = walkWay(arena, node, unit.x, x);
+    return way === undefined
+      ? UNREACHABLE
+      : Math.trunc(Math.abs(way) / RUN_SPEED);
+  }
+  const nav = workerNav(state.mapId, unit.speed);
+  const [, cost] = route(nav, arena, from, unit.x, node, unit.speed);
+  return cost + Math.trunc(Math.abs(wrapDelta(x, unit.x)) / RUN_SPEED);
 }
 
 function aimWorker(
@@ -324,8 +369,15 @@ function decideWorker(
   }
   const floor = platformAt(arena, state.snail.x, arena.snail.y);
   if (unit.carrying) {
+    // The enemy hive is filling and the team has no Warrior to stop it: this berry buys one.
+    const muster =
+      state.holes[1 - unit.team]!.filter(Boolean).length >= level.muster &&
+      !state.units.some(
+        (mate) =>
+          mate.team === unit.team && mate.kind === "warrior" && !mate.dead,
+      );
     const warriorGate =
-      mind.soldier && smart ? bestGate(state, unit, "warrior") : -1;
+      (mind.soldier || muster) && smart ? bestGate(state, unit, "warrior") : -1;
     const speedGate =
       mind.rider && smart && !unit.speed ? bestGate(state, unit, "speed") : -1;
     const gate = warriorGate >= 0 ? warriorGate : speedGate;
@@ -341,7 +393,7 @@ function decideWorker(
     nav.holes[unit.team === 0 ? 0 : 1].forEach((spots, index) => {
       if (state.holes[unit.team]![index]) return;
       const [spot, cost] = quickest(state, unit, spots);
-      if (spot && cost < holeCost) {
+      if (spot && cost < UNREACHABLE && cost < holeCost) {
         hole = index;
         from = spot;
         holeCost = cost;
@@ -377,6 +429,32 @@ function decideWorker(
     }
   }
   const snailFree = !rider || rider === unit;
+  // The snail has been ridden far toward the enemy's goal and stands free: the Worker nearest it rides it back.
+  if (
+    level.contest > 0 &&
+    smart &&
+    snailFree &&
+    unit.mountWait === 0 &&
+    snailProgress(state, 1 - unit.team) >= level.contest
+  ) {
+    const others = state.units.filter(
+      (mate) =>
+        mate !== unit &&
+        !mate.dead &&
+        mate.team === unit.team &&
+        mate.kind === "worker" &&
+        !mate.carrying &&
+        mate.mountWait === 0,
+    );
+    const mine = travel(state, unit, floor, state.snail.x);
+    if (
+      rider === unit ||
+      others.every((mate) => travel(state, mate, floor, state.snail.x) >= mine)
+    ) {
+      aimWorker(mind, "ride", -1, floor, state.snail.x);
+      return;
+    }
+  }
   if (mind.rider && snailFree && unit.mountWait === 0) {
     aimWorker(mind, "ride", -1, floor, state.snail.x);
     return;
@@ -414,7 +492,13 @@ function decideWorker(
 
 function steerWorker(state: Round, unit: Unit, mind: BotMind): Input {
   if (unit.eaten || unit.deposit >= 0) return NEUTRAL;
-  const toTarget = wrapDelta(mind.tx, unit.x);
+  const arena = arenaOf(state.mapId);
+  // On its own platform a Worker walks round a block that stands in the short way.
+  const toward = (x: number): number =>
+    (unit.ground >= 0 ? walkWay(arena, unit.ground, unit.x, x) : undefined) ??
+    wrapDelta(x, unit.x);
+  const toTarget =
+    mind.node === unit.ground ? toward(mind.tx) : wrapDelta(mind.tx, unit.x);
   if (unit.riding) {
     // The snail crawls only while its rider holds toward the goal. Mounted by accident on the way somewhere else:
     // hop off the way it was going.
@@ -449,11 +533,11 @@ function steerWorker(state: Round, unit: Unit, mind: BotMind): Input {
   const hop =
     nav.edges[
       mind.node >= 0 && unit.ground !== mind.node
-        ? nextEdge(nav, unit.ground, unit.x, mind.node, unit.speed)
+        ? route(nav, arena, unit.ground, unit.x, mind.node, unit.speed)[0]
         : spotMove(state, nav, unit, mind)
     ];
   if (hop) {
-    const dx = wrapDelta(hop.x, unit.x);
+    const dx = toward(hop.x);
     if (unit.vx === 0 && Math.abs(dx) <= LAUNCH_SLACK - 100) {
       mind.edge = nav.edges.indexOf(hop);
       mind.edgeStep = 1;
@@ -464,7 +548,6 @@ function steerWorker(state: Round, unit: Unit, mind: BotMind): Input {
   }
   const dir = Math.abs(toTarget) > 2 * S ? sign(toTarget) : 0;
   // The snail mounts whoever stands in it and eats whoever meets its head: hop over it unless it is the plan.
-  const arena = arenaOf(state.mapId);
   const ahead = wrapDelta(state.snail.x, unit.x) * dir;
   const rider = state.units[state.snail.rider];
   const over =
@@ -549,14 +632,24 @@ function hunt(
   above: boolean,
 ): void {
   const lift =
-    above && unit.kind === "queen" && isMilitary(target) ? DIVE_APPROACH : 0;
+    above && unit.kind === "queen" && (isMilitary(target) || target.riding)
+      ? DIVE_APPROACH
+      : 0;
+  // A sword only reaches sideways: a Warrior over or under its target comes level beside it, not on top of it.
+  const dx = wrapDelta(unit.x, target.x);
+  const beside =
+    unit.kind === "warrior" &&
+    Math.abs(dx) < 2 * UNIT &&
+    Math.abs(centreY(target) - centreY(unit)) >= SWORD_BAND
+      ? (dx >= 0 ? 2 : -2) * UNIT
+      : 0;
   aimFlyer(
     state,
     mind,
     level,
     "hunt",
     target.slot,
-    target.x + target.vx * level.lead,
+    target.x + target.vx * level.lead + beside,
     centreY(target) - lift,
     unit.kind === "queen",
   );
@@ -571,13 +664,10 @@ function hiveCentre(arena: Arena, team: number): { x: number; y: number } {
 /** A Queen goes for the other Queen only from this close, or when the other cannot answer. */
 const QUEEN_DUEL = 40 * S;
 
-/** The line of a sword: this far to either side and this far up or down. The column under a Queen. */
-const LINE_REACH = 4 * UNIT,
-  LINE_BAND = Math.trunc((UNIT * 8) / 5),
-  LINE_ABOVE = 6 * UNIT,
-  LINE_COLUMN = Math.trunc((UNIT * 3) / 2);
-
-/** A Queen keeps this far from any enemy fighter whose sword is ready. */
+/**
+ * A Queen keeps this far from any enemy fighter whose sword is ready: wider than the line of a dash and the column
+ * under a diving Queen, so she is never in either.
+ */
 const BUBBLE = 8 * UNIT;
 /** Whether a unit could start an attack now. */
 const armed = (unit: Unit): boolean =>
@@ -606,8 +696,11 @@ function decideFlyer(
   const enemies = enemiesOf(state, unit);
   const queen = unit.kind === "queen";
   const eggs = state.eggs[unit.team]!;
-  // A Queen grows more careful with every egg she loses.
-  const caution = queen ? QUEEN_EGGS - eggs : 0;
+  const filled = state.holes[1 - unit.team]!.filter(Boolean).length;
+  // A hive that is nearly full leaves no time for care: a Queen with a life to spare goes back on the attack.
+  const pressed = filled >= level.press && eggs > 1;
+  // Otherwise a Queen grows more careful with every egg she loses.
+  const caution = !queen || pressed ? 0 : QUEEN_EGGS - eggs;
   const soldiers = enemies.filter(isMilitary);
   if (!chance(state, level.smart)) {
     // A lapse. A Warrior charges whoever is nearest; a Queen, who has a game to lose, drifts home instead.
@@ -625,9 +718,25 @@ function decideFlyer(
     hunt(state, unit, mind, level, rider, false);
     return;
   }
+  const royal = state.units[1 - unit.team]!;
+  // A Queen who has lost no egg goes for the other Queen when the other cannot answer: her sword is cooling down,
+  // she stands on a floor (a dive comes from above), or she looks the other way.
+  const duel =
+    queen &&
+    level.duel &&
+    caution === 0 &&
+    !royal.dead &&
+    royal.invuln === 0 &&
+    !held(royal) &&
+    (pressed ||
+      !armed(royal) ||
+      royal.ground >= 0 ||
+      wrapDelta(unit.x, royal.x) * royal.facing < 0);
   // A sword that is cooling down cannot answer one that is ready; a Queen on her last life answers none.
   const radius = Math.trunc((level.awareness * S * (2 + caution)) / 2);
-  const ready = soldiers.filter((enemy) => armed(enemy) || lethal(enemy));
+  const ready = soldiers.filter(
+    (enemy) => (armed(enemy) || lethal(enemy)) && !(duel && enemy === royal),
+  );
   const threat = nearest(
     unit,
     ready.filter(
@@ -650,44 +759,7 @@ function decideFlyer(
     );
     return;
   }
-  // A dash only goes sideways and a dive only down, so a Queen keeps out of the line of a ready sword and out from
-  // under the other Queen.
-  const lined = queen
-    ? nearest(
-        unit,
-        ready.filter((enemy) => {
-          const dx = Math.abs(wrapDelta(enemy.x, unit.x)),
-            dy = centreY(enemy) - centreY(unit);
-          const under =
-            enemy.kind === "queen" &&
-            enemy.ground < 0 &&
-            dy < 0 &&
-            dy > -LINE_ABOVE &&
-            dx < LINE_COLUMN;
-          return (
-            under ||
-            (Math.abs(dy) < LINE_BAND && dx < LINE_REACH + caution * UNIT)
-          );
-        }),
-      )
-    : undefined;
-  if (lined && unit.invuln === 0) {
-    const dy = centreY(lined) - centreY(unit);
-    const away = wrapDelta(unit.x, lined.x) >= 0 ? 1 : -1;
-    const column = Math.abs(dy) >= LINE_BAND;
-    aimFlyer(
-      state,
-      mind,
-      level,
-      "evade",
-      lined.slot,
-      unit.x + away * (column ? 4 : 1) * UNIT,
-      centreY(unit) + (column ? 0 : dy > 0 ? -3 : 3) * UNIT,
-    );
-    return;
-  }
   const open = enemies.filter((enemy) => enemy.invuln === 0);
-  const royal = state.units[1 - unit.team]!;
   if (!queen && eggs === 1 && !royal.dead) {
     // The Queen is on her last life: her Warriors stay with her and meet whoever comes for her.
     const own = state.units[unit.team]!;
@@ -735,10 +807,16 @@ function decideFlyer(
   // The enemy Queen first, then the nearest Warrior, then the nearest Worker; a target a teammate is already on is
   // left to it. A Queen who has lost an egg leaves the other Queen to her Warriors.
   const targets: Unit[] = [];
+  // A hive that is filling is a threat like a snail near its goal: the carriers come first.
+  const carrier = nearest(
+    unit,
+    workers.filter((enemy) => enemy.carrying),
+  );
+  if (carrier && filled >= level.carriers && caution < 2) targets.push(carrier);
   if (
     open.includes(royal) &&
     caution === 0 &&
-    (!queen || !armed(royal) || distance(unit, royal) < QUEEN_DUEL)
+    (!queen || duel || !armed(royal) || distance(unit, royal) < QUEEN_DUEL)
   )
     targets.push(royal);
   const fighter = nearest(
@@ -815,6 +893,10 @@ function steerFlyer(
   // A flyer glides on when it lets go, so it steers for where the glide would take it.
   const ahead = dx - unit.vx * GLIDE_LOOK;
   let dir: number = Math.abs(ahead) > 2 * S ? sign(ahead) : 0;
+  const under = arenaOf(state.mapId).solids[unit.ground];
+  // Standing right over a point below it: off the nearer end of the platform.
+  if (under && dir === 0 && point.y > y + WALK_BAND)
+    dir = 2 * wrapDelta(unit.x, under.x) >= under.w ? 1 : -1;
   if (mind.strike > 0) mind.strike -= 1;
   if (mind.plunge > 0) mind.plunge -= 1;
   const seen =

@@ -5,13 +5,18 @@ import {
   LESSON_SLOT,
   MAP_IDS,
   NEUTRAL,
+  TICK_HZ,
   UNIT,
   arenaOf,
+  botInput,
   createRound,
   hashRound,
   standingOn,
   stepRound,
   wrapDelta,
+  type GameEvent,
+  type Input,
+  type Lesson,
 } from "../src/engine/index.js";
 import { ofType, unitOf } from "./engine-kit.js";
 
@@ -87,20 +92,103 @@ test("the berry lessons lay one berry two units from seat 2, on its own platform
     }
 });
 
-test("where seat 2's platform is too short, the lesson's berry falls from beside it and comes to rest below", () => {
+test("where seat 2's platform is too short, the lesson's berry rests on the platform below, for the learner to step down to", () => {
   const arena = arenaOf(2),
     spawn = arena.spawns[LESSON_SLOT]!;
-  const state = createRound({ seed: 3, mapId: 2, lesson: "berries" });
+  const state = createRound({
+    seed: 3,
+    mapId: 2,
+    lesson: "berries",
+    passive: true,
+    humans: [false, false, true],
+  });
   const berry = state.loose[0]!;
   assert.equal(wrapDelta(berry.x, spawn.x), 2 * UNIT);
-  assert.equal(standingOn(arena, berry.x, berry.y), -1);
-  assert.equal(berry.resting, false);
-  state.passive = true;
-  for (let i = 0; i < 240; i += 1) stepRound(state, []);
-  assert.equal(state.loose.length, 1);
-  assert.ok(berry.resting);
+  assert.equal(standingOn(arena, berry.x, spawn.y), -1);
   assert.ok(berry.y > spawn.y);
+  assert.ok(standingOn(arena, berry.x, berry.y) >= 0, "it lies on a platform");
+  assert.ok(berry.resting);
+  const before = { ...berry };
+  for (let i = 0; i < 240; i += 1) stepRound(state, []);
+  assert.deepEqual(state.loose, [before]);
+  // Walking off the ledge toward it lands the learner on it.
+  const walk = [NEUTRAL, NEUTRAL, { ...NEUTRAL, right: true }];
+  let picked = false;
+  for (let i = 0; i < 180 && !picked; i += 1) {
+    stepRound(state, walk);
+    picked = ofType(state.events, "berryPickup").length > 0;
+  }
+  assert.ok(picked);
+  assert.ok(unitOf(state, LESSON_SLOT).carrying);
 });
+
+/** What a lesson's last steps ask of the learner, read off the round's events. */
+const LESSON_GOALS: Record<
+  Lesson,
+  (events: readonly GameEvent[], slot: number) => boolean
+> = {
+  berries: (events, slot) =>
+    ofType(events, "berryPickup").some((event) => event.slot === slot) &&
+    ofType(events, "berryDeposit").some((event) => event.slot === slot),
+  warrior: (events, slot) =>
+    ofType(events, "gateUse").some(
+      (event) => event.slot === slot && event.kind === "warrior",
+    ) &&
+    ofType(events, "kill").some(
+      (event) => event.killer === slot && event.victim >= 2,
+    ),
+  snail: (events, slot) =>
+    ofType(events, "snailMount").some((event) => event.slot === slot) &&
+    ofType(events, "victory").some(
+      (event) => event.team === 0 && event.kind === "snail",
+    ),
+  queen: (events, slot) =>
+    ofType(events, "gateClaim").some((event) => event.slot === slot) &&
+    ofType(events, "queenKill").some(
+      (event) => event.killer === slot && event.victim === 1,
+    ),
+};
+
+for (const mapId of MAP_IDS)
+  test(`map ${mapId}: a learner alone, among bots that hold nothing, can finish every lesson`, () => {
+    for (const lesson of LESSONS) {
+      const slot = lesson === "queen" ? 0 : LESSON_SLOT;
+      const humans = [false, false, false, false, false, false];
+      humans[slot] = true;
+      const state = createRound({
+        seed: 3,
+        mapId,
+        lesson,
+        passive: true,
+        humans,
+        botLevel: "hard",
+      });
+      // The learner's controls are those a hard bot would hold in that seat; everyone else holds nothing.
+      const mind = state.bots[slot]!;
+      mind.soldier = lesson === "warrior";
+      mind.rider = lesson === "snail";
+      const events: GameEvent[] = [];
+      const done = LESSON_GOALS[lesson];
+      while (state.step < 120 * TICK_HZ && !done(events, slot)) {
+        state.passive = false;
+        state.humans[slot] = false;
+        const input = botInput(state, slot);
+        state.passive = true;
+        state.humans[slot] = true;
+        const inputs: Input[] = humans.map(() => NEUTRAL);
+        inputs[slot] = input;
+        stepRound(state, inputs);
+        events.push(...state.events);
+      }
+      assert.ok(done(events, slot), `${lesson} on map ${mapId}`);
+      // Nobody else did anything.
+      for (const type of ["attack", "berryPickup", "gateUse"] as const)
+        assert.ok(
+          ofType(events, type).every((event) => event.slot === slot),
+          `${lesson}: only the learner acts`,
+        );
+    }
+  });
 
 test("the snail lesson starts the snail a quarter of the way from Cyan's goal, facing it", () => {
   for (const mapId of MAP_IDS) {

@@ -193,13 +193,15 @@ test("the level ladder: hard beats medium and medium beats easy in most games, f
       map: 1,
       seed: 5000,
       maxSeconds: MAX_SECONDS,
+      idleQueen: false,
       json: false,
     });
     assert.equal(summary.timeouts, 0);
     assert.equal(summary.decided, 40);
     assert.equal(summary.levelWins[0] + summary.levelWins[1], 40);
+    // 300-game runs put both steps of the ladder above 78% on this map; 28 of 40 is the 70% the game asks for.
     assert.ok(
-      summary.levelWins[0] >= 22,
+      summary.levelWins[0] >= 28,
       `${level} won ${summary.levelWins[0]} of 40 against ${levelB}`,
     );
     assert.equal(summary.deterministic, true);
@@ -210,6 +212,43 @@ test("the level ladder: hard beats medium and medium beats easy in most games, f
     );
     assert.match(text, new RegExp(`${levelB} won by: military`));
   }
+});
+
+test("a Queen whose player has walked away dies to hard bots: they win nearly every game, most of them by her eggs", () => {
+  const summary = runSim({
+    ...parseArgs(["--games", "30", "--seed", "7000", "--idle-queen"]),
+  });
+  assert.equal(summary.idleQueen, true);
+  assert.equal(summary.timeouts, 0);
+  assert.ok(
+    summary.levelWins[0] >= 27,
+    `the bots won ${summary.levelWins[0]} of 30`,
+  );
+  assert.ok(
+    summary.kinds.military >= 21,
+    `${summary.kinds.military} of 30 by military`,
+  );
+  // The idle seat swaps sides with its team, so neither screen side is favoured.
+  assert.ok(Math.abs(summary.sideWins[0] - summary.sideWins[1]) <= 6);
+  const text = report(summary);
+  assert.match(
+    text,
+    /hard against hard with an idle Queen, seeds 7000\.\.7029/,
+  );
+  assert.match(text, /level wins: hard/);
+  // The seat really holds nothing: its Queen never leaves her perch of her own will.
+  const state = createRound({ seed: 7000, humans: [false, true] });
+  const perch = unitOf(state, 1).ground;
+  for (let step = 0; step < 2 * TICK_HZ; step += 1) stepRound(state, []);
+  assert.equal(unitOf(state, 1).ground, perch);
+  assert.deepEqual(
+    playGame(7000, 1, ["hard", "hard"], 30, 1),
+    playGame(7000, 1, ["hard", "hard"], 30, 1),
+  );
+  assert.notEqual(
+    playGame(7000, 1, ["hard", "hard"], 30, 1).hash,
+    playGame(7000, 1, ["hard", "hard"], 30, 0).hash,
+  );
 });
 
 test("the headless runner: one game is reproducible, a cut-off game is a timeout, and the report adds up", () => {
@@ -254,6 +293,7 @@ test("the headless runner reads its flags and refuses what it does not understan
     map: 1,
     seed: 1,
     maxSeconds: 300,
+    idleQueen: false,
     json: false,
   });
   assert.deepEqual(
@@ -270,6 +310,7 @@ test("the headless runner reads its flags and refuses what it does not understan
       "40",
       "--max-seconds",
       "90",
+      "--idle-queen",
       "--json",
     ]),
     {
@@ -279,6 +320,7 @@ test("the headless runner reads its flags and refuses what it does not understan
       map: 3,
       seed: 40,
       maxSeconds: 90,
+      idleQueen: true,
       json: true,
     },
   );
