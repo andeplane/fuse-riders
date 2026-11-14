@@ -73,6 +73,15 @@ const RECIPES: Record<string, Recipe> = {
     });
     await page.waitForTimeout(20_000);
   },
+  "elasto-fuse": async (page) => {
+    await page.getByRole("button", { name: "PLAY SOLO", exact: true }).click();
+    await page
+      .locator('.ef-room[data-stage="running"]')
+      .waitFor({ timeout: 30_000 });
+    // On the gas from the countdown (from a standstill, full gas loops the bike over backwards), up to the first apple.
+    await page.keyboard.down("ArrowUp");
+    await page.waitForTimeout(5000);
+  },
   "fuse-volley": async (page) => {
     await openPlayOptions(page);
     await page

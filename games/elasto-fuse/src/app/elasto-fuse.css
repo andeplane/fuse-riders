@@ -1,0 +1,657 @@
+/* The Elasto Fuse page, on fuse-ui's tokens and components. Phone first; a wide screen puts the lobby in two columns. */
+html:has(body.elasto-fuse-page) {
+  overscroll-behavior: none;
+}
+body.elasto-fuse-page {
+  padding: 0;
+  overscroll-behavior: none;
+  /* A double tap never zooms: the touch buttons are tapped fast and often. */
+  touch-action: manipulation;
+  background:
+    radial-gradient(ellipse at 15% -10%, #0b3a66 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 110%, #4a0a4c 0%, transparent 45%),
+    var(--fui-ink);
+}
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  /* The column is the screen, never the widest unbreakable line in it: a phone must not scroll sideways. */
+  min-width: 0;
+  padding: 0 max(var(--fui-space-3), env(safe-area-inset-right))
+    env(safe-area-inset-bottom)
+    max(var(--fui-space-3), env(safe-area-inset-left));
+}
+.fui-app [hidden] {
+  display: none !important;
+}
+
+/* Header */
+.ef-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--fui-space-2) var(--fui-space-3);
+  padding: var(--fui-space-3) 0;
+}
+.ef-brand {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: start;
+  text-decoration: none;
+  font: 1.25rem/1 var(--fui-font-pixel);
+}
+.ef-brand-elasto {
+  color: var(--fui-cyan);
+  text-shadow: var(--fui-glow-cyan);
+}
+.ef-brand-fuse {
+  color: var(--fui-pink);
+  text-shadow: var(--fui-glow-pink);
+}
+.ef-brand small {
+  grid-column: 1 / -1;
+  margin-top: var(--fui-space-1);
+  color: var(--fui-text-dim);
+  font-size: 0.5rem;
+  letter-spacing: 0.125rem;
+}
+.ef-back {
+  margin-left: auto;
+  color: var(--fui-cyan);
+  font: 0.625rem var(--fui-font-pixel);
+}
+.ef-code {
+  padding: var(--fui-space-1) var(--fui-space-2);
+  color: var(--fui-ink);
+  background: var(--fui-yellow);
+  border-radius: var(--fui-radius-small);
+  font: 0.75rem var(--fui-font-pixel);
+}
+.ef-status {
+  flex: 1 1 10rem;
+  /* One line, always laid out: a status that appears, changes or wraps must not move the buttons beside it. */
+  min-width: 0;
+  min-height: 1.25rem;
+  overflow: hidden;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fui-app .ef-status[hidden] {
+  display: block !important;
+  visibility: hidden;
+}
+.ef-top .fui-game-menu {
+  margin-left: auto;
+}
+.ef-back + .fui-game-menu {
+  margin-left: 0;
+}
+.ef-error,
+.ef-connecting {
+  margin: var(--fui-space-6) auto;
+  color: var(--fui-text-muted);
+  font: 0.75rem/1.6 var(--fui-font-pixel);
+  text-align: center;
+}
+.ef-error {
+  color: var(--fui-pink-soft);
+}
+
+/* Landing */
+.elasto-fuse-page .fui-landing {
+  width: min(100%, 44rem);
+  margin: 0 auto var(--fui-space-5);
+}
+.elasto-fuse-page .fui-landing-title {
+  color: var(--fui-yellow);
+}
+.ef-shared {
+  display: flex;
+  align-items: center;
+  gap: var(--fui-space-2);
+  color: var(--fui-text-muted);
+  font-size: 0.8125rem;
+}
+.fui-app .ef-shared input {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  accent-color: var(--fui-cyan);
+}
+.ef-landing-rules {
+  display: grid;
+  gap: var(--fui-space-2);
+  margin-top: var(--fui-space-4);
+}
+.ef-keys {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--fui-space-1) var(--fui-space-3);
+  margin: var(--fui-space-4) 0 0;
+  font-size: 0.75rem;
+}
+.ef-keys dt {
+  color: var(--fui-yellow);
+  font: 0.5625rem/1.6 var(--fui-font-pixel);
+}
+.ef-keys dd {
+  margin: 0;
+  color: var(--fui-text-muted);
+}
+.ef-hero {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  margin-bottom: var(--fui-space-3);
+  border-radius: var(--fui-radius-small);
+  box-shadow: 0 0 2rem #16e7ff33;
+}
+
+/* The level picker: on the landing page and in the lobby */
+.ef-levels {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: var(--fui-space-2);
+}
+.fui-app .ef-level {
+  min-width: 0;
+  padding: var(--fui-space-2);
+  overflow: hidden;
+  color: var(--fui-text-muted);
+  background: #06102a;
+  border: var(--fui-stroke) solid var(--fui-line);
+  font: 0.5rem/1.5 var(--fui-font-pixel);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fui-app .ef-level[data-level="-1"] {
+  grid-column: 1 / -1;
+  font-size: 0.5625rem;
+}
+.fui-app .ef-level[aria-pressed="true"] {
+  color: var(--fui-yellow);
+  border-color: var(--fui-yellow);
+  box-shadow: 0 0 1rem #ffe46b55;
+}
+.fui-app .ef-level:disabled {
+  opacity: 0.45;
+}
+.ef-level small {
+  color: var(--fui-text-dim);
+  font: inherit;
+}
+
+/* Room */
+.ef-room {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--fui-space-3);
+  min-width: 0;
+  padding-bottom: var(--fui-space-3);
+}
+.ef-room > .fui-name-entry {
+  width: min(100%, 32rem);
+  margin: 0 auto;
+}
+.ef-panel {
+  min-width: 0;
+  padding: var(--fui-space-4);
+  background: var(--fui-panel);
+  border: var(--fui-border);
+  border-radius: var(--fui-radius);
+}
+.ef-panel > .fui-lobby-title {
+  margin: var(--fui-space-3) 0 var(--fui-space-2);
+}
+.ef-panel > .fui-lobby-title:first-child {
+  margin-top: 0;
+}
+.ef-lobby {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--fui-space-3);
+  width: min(100%, 68rem);
+  margin: 0 auto;
+}
+@media (min-width: 52rem) {
+  .ef-lobby {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    align-items: start;
+  }
+}
+.ef-lobby-side {
+  display: grid;
+  gap: var(--fui-space-3);
+}
+.ef-lobby .fui-roster-row {
+  align-items: center;
+}
+.ef-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--fui-space-2);
+}
+.ef-closed {
+  display: grid;
+  gap: var(--fui-space-3);
+  justify-items: center;
+  width: min(100%, 32rem);
+  margin: var(--fui-space-6) auto;
+  border-color: var(--fui-pink);
+  text-align: center;
+}
+.ef-closed-back {
+  padding: var(--fui-space-3) var(--fui-space-4);
+  text-decoration: none;
+}
+/* The TV has no level to choose: its lobby is the invitation and the riders, centred. */
+body.ef-display .ef-lobby {
+  grid-template-columns: minmax(0, 46rem);
+  justify-content: center;
+}
+
+/* The race */
+.ef-stage {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--fui-space-2);
+  min-width: 0;
+  min-height: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+.ef-screen {
+  position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 12rem;
+  overflow: hidden;
+  background: var(--fui-ink);
+  border: var(--fui-stroke) solid #4a3fa8;
+  border-radius: var(--fui-radius-small);
+  box-shadow: 0 0 2.5rem #6544c255;
+}
+.ef-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.ef-note {
+  margin: 0;
+  color: var(--fui-text-muted);
+  font: 0.5625rem/1.6 var(--fui-font-pixel);
+  text-align: center;
+}
+/* The control guide sits at the bottom of the race; its close button must not cover the first line. */
+.ef-screen .fui-round-controls {
+  bottom: 0.5rem;
+  font-size: 0.75rem;
+}
+.ef-screen .fui-round-controls .fui-controls-goal {
+  padding-right: 2.5rem;
+}
+
+/* The table between two races and the result: one card over the race */
+.ef-card {
+  /* Low in the picture: the bike rides at its middle and stays in view behind the card's top edge. */
+  position: absolute;
+  bottom: 4%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  gap: var(--fui-space-2);
+  width: min(94%, 30rem);
+  max-height: 92%;
+  padding: var(--fui-space-3) var(--fui-space-4);
+  overflow: auto;
+  background: #050e25ee;
+  border: var(--fui-stroke) solid var(--fui-yellow);
+  border-radius: var(--fui-radius);
+  box-shadow: 0 0 2rem #ffe46b44;
+  text-align: center;
+  touch-action: pan-y;
+}
+.ef-card h2 {
+  margin: 0;
+  color: var(--fui-yellow);
+  font: 0.875rem/1.4 var(--fui-font-pixel);
+}
+.ef-rows {
+  display: grid;
+  gap: var(--fui-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font: 0.5625rem/1.6 var(--fui-font-pixel);
+}
+.ef-rows li {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: var(--fui-space-2);
+  padding: var(--fui-space-1) var(--fui-space-2);
+  color: var(--fui-text-muted);
+  background: #0a1838aa;
+  border-left: 0.25rem solid var(--c, var(--fui-cyan));
+  border-radius: var(--fui-radius-small);
+  text-align: left;
+}
+.ef-rows li.you {
+  color: var(--fui-text-bright);
+}
+.ef-rows li b {
+  overflow: hidden;
+  color: var(--c, var(--fui-cyan));
+  font-weight: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ef-rows li em {
+  color: var(--fui-yellow);
+  font-style: normal;
+}
+.ef-lines {
+  display: grid;
+  gap: var(--fui-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--fui-text-muted);
+  font-size: 0.8125rem;
+}
+.ef-lines li:first-child {
+  color: var(--fui-text-bright);
+  font: 0.75rem/1.6 var(--fui-font-pixel);
+}
+.ef-lines li.best {
+  color: var(--fui-yellow);
+  font: 0.625rem/1.6 var(--fui-font-pixel);
+}
+.ef-card-foot {
+  margin: 0;
+  color: var(--fui-cyan);
+  font: 0.5625rem/1.6 var(--fui-font-pixel);
+}
+.ef-card .ef-actions {
+  justify-content: center;
+}
+
+/* Touch buttons: volts and TURN for the left thumb, BRAKE and GAS for the right, a small RESTART on top */
+.ef-touch,
+.ef-controller-pads {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: var(--fui-space-3);
+  width: 100%;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+.ef-touch {
+  flex: none;
+  height: min(13rem, 34dvh);
+  padding: var(--fui-space-1) 0;
+}
+.ef-cluster {
+  display: grid;
+  gap: var(--fui-space-2);
+  width: min(46%, 17rem);
+  min-height: 0;
+}
+.ef-cluster-left {
+  grid-template: 2fr 3fr / 1fr 1fr;
+}
+.ef-cluster-right {
+  grid-template: 1fr / 2fr 3fr;
+}
+.ef-pad {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  color: var(--fui-text-bright);
+  background: #08163acc;
+  border: var(--fui-stroke) solid #9a86ff;
+  border-radius: var(--fui-radius);
+  box-shadow: inset 0 0 1.5rem #6544c255;
+  font: 0.625rem/1 var(--fui-font-pixel);
+  touch-action: none;
+  cursor: pointer;
+}
+.ef-pad.held {
+  transform: scale(0.96);
+  border-color: var(--fui-cyan);
+  box-shadow:
+    inset 0 0 1.5rem #16e7ff66,
+    0 0 1rem #16e7ff88;
+}
+.ef-pad-turn {
+  grid-column: 1 / -1;
+}
+.ef-pad-volt-left,
+.ef-pad-volt-right {
+  color: var(--fui-cyan);
+  font-size: 1.75rem;
+}
+.ef-pad-gas {
+  color: var(--fui-ink);
+  background: radial-gradient(circle at 35% 30%, #fff8d6, var(--fui-yellow));
+  border-color: #fff8d6;
+  box-shadow: 0 0 1.25rem #ffe46b77;
+  font-size: 0.875rem;
+}
+.ef-pad-gas.held {
+  border-color: #fff;
+  box-shadow: 0 0 2rem #ffe46b;
+}
+.ef-pad-brake {
+  color: #ffc4e3;
+  border-color: var(--fui-pink);
+}
+.ef-pad-restart {
+  position: absolute;
+  top: calc(-1 * var(--fui-space-2));
+  left: 50%;
+  z-index: 2;
+  transform: translate(-50%, -100%);
+  padding: var(--fui-space-2) var(--fui-space-3);
+  color: var(--fui-text-muted);
+  border-color: #4a3fa8;
+  font-size: 0.5rem;
+  opacity: 0.85;
+}
+.ef-pad-restart.held {
+  transform: translate(-50%, -100%) scale(0.96);
+}
+/* Under a phone's own race the RESTART rides at the top of the picture. */
+.ef-stage > .ef-pad-restart {
+  top: var(--fui-space-2);
+  transform: translateX(-50%);
+}
+.ef-stage > .ef-pad-restart.held {
+  transform: translateX(-50%) scale(0.96);
+}
+
+/* The phone controller for a shared screen */
+.ef-controller {
+  --c: var(--fui-cyan);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--fui-space-3);
+  min-width: 0;
+  min-height: 0;
+  touch-action: none;
+}
+.ef-controller > .fui-round-controls {
+  position: relative;
+  inset: auto;
+  order: -1;
+  width: 100%;
+  max-width: none;
+  transform: none;
+}
+.ef-controller-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fui-space-2);
+  padding: var(--fui-space-3) var(--fui-space-4);
+  background: var(--fui-panel);
+  border: var(--fui-stroke) solid var(--c);
+  border-radius: var(--fui-radius);
+  box-shadow: 0 0 1.25rem color-mix(in srgb, var(--c) 40%, transparent);
+  font: 0.6875rem/1.5 var(--fui-font-pixel);
+}
+.ef-controller-head b {
+  color: var(--c);
+}
+.ef-controller-head span {
+  color: var(--fui-yellow);
+}
+.ef-controller-result {
+  justify-content: center;
+}
+/* A slim RESTART across the top, then the two clusters filling the phone. */
+.ef-controller-pads {
+  flex: 1;
+  display: grid;
+  grid-template: auto minmax(0, 1fr) / minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 12rem;
+}
+.ef-controller-pads .ef-pad-restart {
+  position: static;
+  grid-column: 1 / -1;
+  transform: none;
+  padding: var(--fui-space-3);
+  font-size: 0.625rem;
+}
+.ef-controller-pads .ef-pad-restart.held {
+  transform: scale(0.98);
+}
+.ef-controller-pads .ef-cluster {
+  width: auto;
+}
+/* A controller on its side has no room for the account buttons or the room's status. */
+@media (orientation: landscape) and (max-height: 32rem) {
+  body:has(.ef-room[data-screen="controller"]) .ef-top .fui-social,
+  body:has(.ef-room[data-screen="controller"]) .ef-top .ef-status {
+    display: none !important;
+  }
+  body:has(.ef-room[data-screen="controller"]) .ef-top {
+    padding: var(--fui-space-2) 0;
+  }
+}
+
+/* On a phone the race needs the room: the account buttons wait in the lobby, and the status line folds away. */
+@media (max-width: 34rem) {
+  body:has(.ef-room:is([data-screen="play"], [data-screen="controller"]))
+    .ef-top
+    .fui-social {
+    display: none;
+  }
+  body:has(.ef-room:is([data-screen="play"], [data-screen="controller"]))
+    .ef-top
+    .ef-status {
+    order: 0;
+    flex: 1 1 4rem;
+  }
+  .ef-top {
+    gap: var(--fui-space-2);
+  }
+  .ef-brand {
+    font-size: 1rem;
+  }
+  .ef-top .ef-status {
+    order: 5;
+    flex-basis: 100%;
+  }
+  .ef-card {
+    padding: var(--fui-space-2);
+  }
+}
+
+/* While a race is on a phone's screen the page is exactly one screen tall: nothing scrolls. */
+body:has(.ef-room:is([data-screen="play"], [data-screen="controller"])) #app {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* A phone on its side: the race fills the screen and the buttons float over its corners. */
+@media (orientation: landscape) and (max-height: 32rem) {
+  body:has(.ef-room[data-screen="play"]) #app {
+    padding: 0;
+  }
+  .ef-room[data-screen="play"] {
+    padding: 0;
+    gap: 0;
+  }
+  /* The header folds away, all but the menu, which floats in the top corner so a rider can always leave. */
+  body:has(.ef-room[data-screen="play"]) .ef-top {
+    position: fixed;
+    top: max(var(--fui-space-2), env(safe-area-inset-top));
+    right: max(var(--fui-space-2), env(safe-area-inset-right));
+    z-index: calc(var(--fui-z-overlay) + 1);
+    padding: 0;
+  }
+  body:has(.ef-room[data-screen="play"]) .ef-top > :not(.fui-game-menu) {
+    display: none;
+  }
+  body:has(.ef-room[data-screen="play"]) .ef-top .fui-game-menu {
+    opacity: 0.8;
+  }
+  .ef-room[data-screen="play"] .ef-note {
+    display: none;
+  }
+  .ef-screen {
+    border: 0;
+    border-radius: 0;
+  }
+  .ef-touch {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: var(--fui-z-overlay);
+    height: min(10rem, 42dvh);
+    padding: var(--fui-space-2)
+      max(var(--fui-space-3), env(safe-area-inset-right)) var(--fui-space-2)
+      max(var(--fui-space-3), env(safe-area-inset-left));
+    pointer-events: none;
+  }
+  .ef-touch .ef-pad {
+    background: #08163a66;
+    box-shadow: none;
+    pointer-events: auto;
+  }
+  .ef-touch .ef-pad-gas {
+    background: #ffe46b59;
+    color: #fff8d6;
+  }
+  .ef-touch .ef-cluster {
+    width: min(30%, 15rem);
+  }
+  .ef-controller-head {
+    padding: var(--fui-space-2) var(--fui-space-3);
+  }
+  .ef-controller-pads {
+    min-height: 0;
+  }
+}

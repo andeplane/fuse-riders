@@ -80,6 +80,14 @@ most. It has solo against a bot at three levels, rooms with a QR invite, quick (
 (only the server scores, to 15) scoring chosen in the lobby, keyboard, touch and gamepad controls, and a shared TV with
 phones as controllers. See [games/fuse-volley/README.md](games/fuse-volley/README.md).
 
+## Elasto Fuse
+
+**Elasto Fuse** is springy motorbike trials at `/elasto-fuse/` (locally **http://localhost:8787/elasto-fuse/**): ride
+over the terrain on a bike that hangs from its wheels on springs, eat every apple and touch the flower. The physics
+follows Elasto Mania's (`docs/design/elasto-fuse-mechanics.md`); the twelve levels are its own. Ride alone against the
+clock, or race up to five riders through one level or the whole tour, online or on a shared TV with phones as
+controllers. See [games/elasto-fuse/README.md](games/elasto-fuse/README.md).
+
 ## Menus and round controls
 
 Every game shares one Google sign-in, username and friends list on the same backend. Open **FRIENDS** to add a player
