@@ -32,12 +32,7 @@ try {
   await page.getByText("GET READY · 3", { exact: true }).waitFor();
   await page.getByText("RICOCHET REACTOR", { exact: true }).waitFor();
   assert.equal(await page.locator(".scorecard").count(), 5);
-  // The radio sits in the header's game menu.
   const gameMenu = page.getByRole("button", { name: "Open game menu" });
-  await gameMenu.click();
-  await page.getByRole("button", { name: "Next radio track" }).click();
-  await page.getByRole("button", { name: "RADIO OFF", exact: true }).waitFor();
-  await page.keyboard.press("Escape");
   await page.keyboard.down("KeyD");
   await page.keyboard.down("KeyW");
   await page.getByText("GET READY · 2", { exact: true }).waitFor();
@@ -55,6 +50,13 @@ try {
   await page
     .getByText("SPACE TO LAUNCH", { exact: true })
     .waitFor({ state: "hidden" });
+  // The radio sits in the header's game menu. Checked once the ball is away, so the countdown steps above keep
+  // the arena's keys; closing the menu leaves focus on the header, so hand it back to the arena.
+  await gameMenu.click();
+  await page.getByRole("button", { name: "Next radio track" }).click();
+  await page.getByRole("button", { name: "RADIO OFF", exact: true }).waitFor();
+  await page.keyboard.press("Escape");
+  await page.locator(".canvas-host").click({ position: { x: 20, y: 20 } });
   await page.waitForFunction(
     () =>
       [...document.querySelectorAll(".scorecard strong")].some(

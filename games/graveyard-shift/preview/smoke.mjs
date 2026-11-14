@@ -72,6 +72,15 @@ try {
   assert.equal(await splash.locator(".score").count(), 4);
   // A focused header control keeps its own keys (scripts/top-bar-input-smoke.ts); the arena takes them back.
   await splash.getByRole("button", { name: "Open game menu" }).focus();
+  const heldX = await splash.locator(".personal").getAttribute("data-x");
+  await splash.keyboard.down("d");
+  await splash.waitForTimeout(300);
+  await splash.keyboard.up("d");
+  assert.equal(
+    await splash.locator(".personal").getAttribute("data-x"),
+    heldX,
+    "a focused header control keeps the movement key",
+  );
   await splash.locator("canvas.arena").click({ position: { x: 200, y: 200 } });
   const oldX = Number(await splash.locator(".personal").getAttribute("data-x"));
   await splash.keyboard.down("d");
