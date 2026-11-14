@@ -39,6 +39,7 @@
     "fuse-bombers": "workspace:*",
     "fuse-choppers": "workspace:*",
     "fuse-craft": "workspace:*",
+    "elasto-fuse": "workspace:*",
     "fuseball": "workspace:*",
     "fuse-freight": "workspace:*",
     "fuse-front": "workspace:*",
