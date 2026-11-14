@@ -20,7 +20,7 @@ import { scripted } from "./fixtures/world.js";
 
 /**
  * The engine's safety net: on every map two scripted pilots chase the ball through a recorded match (kicks, lifts,
- * slides, bubbles hard and soft, pops, slow motion, goals, zaps, resets and, on two maps, the end of the match) and
+ * slides, bubbles hard and soft, pops, slow motion, goals, zaps, resets and, on some maps, the end of the match) and
  * the world's hash is compared every fifteen seconds. A refactor must keep these; a change to the rules must bump
  * `RULES` in `src/engine/index.ts` and re-record them in the same commit (`GOLDEN_RECORD=1` prints the new ones).
  *
@@ -33,7 +33,7 @@ const GOLDEN: {
   hashes: Record<string, string[]>;
   bots: Record<string, string[]>;
 } = {
-  rules: "fuseball-3",
+  rules: "fuseball-4",
   hashes: {
     gridlock: [
       "38a368e7",
@@ -77,11 +77,100 @@ const GOLDEN: {
       "a925049f",
       "8ef0b2c8",
     ],
+    overflow: [
+      "bb83f67e",
+      "e4b1fdef",
+      "d42b49d7",
+      "f4b83bea",
+      "96a20c1d",
+      "5513b596",
+      "7624d3ae",
+      "86f14453",
+    ],
+    firewall: ["528abc3a", "9806afbe", "0a3c6a8d", "200963fb", "99926a2e"],
+    cornercase: [
+      "f43f058c",
+      "50c015fc",
+      "915aab15",
+      "7a84fe83",
+      "7d1703c4",
+      "0ba9d0d9",
+      "09be3026",
+      "237bc85a",
+      "9b332ea1",
+      "143f338e",
+      "1c2f3753",
+      "2844e550",
+      "5515876d",
+      "0ec54052",
+      "02eac16d",
+      "245b9b60",
+      "617ed56d",
+      "e3386d95",
+      "ab4449c4",
+      "20e64160",
+      "20e64160",
+    ],
+    coredump: [
+      "e0215daa",
+      "8b19332e",
+      "9fce3e18",
+      "d9130055",
+      "891a1693",
+      "4687e7a1",
+      "4543ade3",
+      "8a69ba81",
+      "32b0a242",
+    ],
   },
   bots: {
     gridlock: ["7ec37b16", "21fde060", "bc136f8f", "89de45f5"],
     downlink: ["32dcb285", "2faee30e", "b7b31967", "57347881"],
     halo: ["74e674e2", "8751ea5a", "86b2494d", "d4d2abba"],
+    overflow: [
+      "3502e6af",
+      "5f65ad0f",
+      "ab661690",
+      "00937a91",
+      "4bd5b868",
+      "21c7e35e",
+      "f330d21d",
+    ],
+    firewall: ["1d39e70e", "d4c5e6ca", "321db6e9"],
+    cornercase: [
+      "38073b2a",
+      "f51b021c",
+      "55217177",
+      "fb3855c4",
+      "bb55b67a",
+      "27d83d73",
+      "c1f4f3ac",
+      "a0471ca4",
+      "fc9664ed",
+    ],
+    coredump: [
+      "63e8e6a0",
+      "2641d3df",
+      "3fe0a921",
+      "e29799fa",
+      "9243eb6a",
+      "82211a92",
+      "23bcc8e2",
+      "d2420fd2",
+      "d9556fb2",
+      "cc92f7f2",
+      "b7c7af41",
+      "8c459bc4",
+      "4627e848",
+      "347761bc",
+      "78236858",
+      "5ac872e9",
+      "ca5a76ee",
+      "ef98a00a",
+      "8dce5a1e",
+      "91e08552",
+      "91e08552",
+    ],
   },
 };
 

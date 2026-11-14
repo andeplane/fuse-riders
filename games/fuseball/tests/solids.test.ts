@@ -156,6 +156,13 @@ test("a body whose centre is inside a solid leaves by the nearest face that lead
     // A floating platform lets go by whichever face is nearer.
     ["gridlock", 320, 179, (_x, y) => y <= 168 && y > 167],
     ["gridlock", 320, 184, (_x, y) => y >= 194 && y < 196],
+    // Overflow's floor slab runs past both seams: the same rect is the floor at the left edge and the roof above it.
+    ["overflow", 100, 350, (x, y) => x === 100 && y === 336],
+    ["overflow", 100, 6, (x, y) => x === 100 && y >= 24 && y < 26],
+    ["overflow", 600, 350, (x, y) => x === 600 && y === 336],
+    // Firewall's seam wall is one rect across the corner of the field: it lets go sideways on either side.
+    ["firewall", 636, 300, (x) => x <= 620 && x > 619],
+    ["firewall", 4, 40, (x) => x >= 20 && x < 21],
   ];
   for (const [mapId, x, y, out] of cases) {
     const world = resting(mapId, x, y);

@@ -105,6 +105,10 @@ test("the lobby: the host picks the arena, adds a bot and starts; a guest waits;
       ["gridlock", "Gridlock", true],
       ["downlink", "Downlink", false],
       ["halo", "Halo", false],
+      ["overflow", "Overflow", false],
+      ["firewall", "Firewall", false],
+      ["cornercase", "Corner Case", false],
+      ["coredump", "Core Dump", false],
     ],
   );
   assert.equal(two.lobby.maps[2]!.blurb, MAP_BLURBS.halo);

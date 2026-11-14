@@ -25,6 +25,10 @@ export const MAP_BLURBS: Readonly<Record<MapId, string>> = {
   gridlock: "Wraps sideways. The goals are the gaps in the side wall.",
   downlink: "Wraps top to bottom. The goals are the shafts in the floor.",
   halo: "Wraps every way. Two round goals float up high.",
+  overflow: "Wraps every way. Side-wall goals, and holes in the floor.",
+  firewall: "No floor at all. The goals hide behind two short walls.",
+  cornercase: "Wraps top to bottom. The goals are the corner pockets.",
+  coredump: "Wraps top to bottom. Both goals are pits in the middle.",
 };
 
 export interface Side {

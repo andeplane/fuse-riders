@@ -171,7 +171,7 @@ test("decoding refuses anything that is not a whole encoded world", () => {
 test("decoding refuses each top-level field out of range", () => {
   const world = playing();
   const cases: [string, number, unknown][] = [
-    ["map", MAP, 3],
+    ["map", MAP, MAP_IDS.length],
     ["map", MAP, -1],
     ["map", MAP, "gridlock"],
     ["step", STEP, -1],
