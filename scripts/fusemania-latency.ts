@@ -25,8 +25,17 @@ await page.goto(
 await page.locator('main[data-stage="running"]').waitFor({ timeout: 30_000 });
 // A click anywhere unlocks the audio clock where the browser wants a gesture.
 await page.mouse.click(640, 400);
-await page.waitForFunction("window.fusemania?.clock().loaded === true || true");
-await page.waitForTimeout(1500);
+await page.waitForTimeout(800);
+// A solo song that began before sound was allowed starts over once it is.
+await page.locator('main[data-stage="running"]').waitFor({ timeout: 30_000 });
+await page.waitForFunction(
+  "window.fusemania.clock().audible === true",
+  undefined,
+  {
+    timeout: 30_000,
+  },
+);
+await page.waitForTimeout(500);
 
 type Note = [ms: number, column: number, kind: number];
 const notes = (await page.evaluate("window.fusemania.notes()")) as Note[];

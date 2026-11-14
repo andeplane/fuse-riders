@@ -58,7 +58,24 @@ Add `?latency` to a solo or room URL (for example `/fusemania/?solo=1&latency`) 
 
 ### Measured here
 
-MEASURED
+`ONLINE_URL=http://localhost:8890/ SECONDS=30 pnpm exec tsx scripts/fusemania-latency.ts` on the revision that added this note: headless Chromium in a cloud container, Arcade Adventure on Medium, 56 keys sent 18 ms before their notes through the browser's own input path.
+
+```
+ms                   p50    p95    p99    max
+press > handler      0.6    5.0    5.8    5.8  n=56
+press > frame        8.7   14.9   16.1   16.1  n=56
+press > drawn        9.2   15.5   16.4   16.4  n=56
+frame interval      16.7   16.8   16.8   16.8  n=600
+frame work           0.4    0.8    2.2    5.5  n=600
+frame start lag      0.5    3.8    4.9    7.4  n=600
+audio clock jitter   4.7    9.1    9.8   10.6  n=600
+audio base latency  10.0 ms
+audio output latency  32.0 ms
+presses: 56 key, 0 touch, 0 without a usable stamp
+hit error: −15.1 ±1.9 ms over 47 steps (input offset 0 ms)
+```
+
+Reading it: the listener ran 0.6 ms after the browser's stamp at the median and 6 ms at worst, and a press reached a frame within one frame (8.7 ms median, 16 ms worst at 60 Hz). The same run on a whole song with the unit tests using every core beside it put `press > handler` at 2.2 ms median, 13.7 ms p95 and 27 ms worst, and the judgments did not move: all 118 steps were judged Marvelous at the same 16 ms early, and the result offered −16 ms. That is the stamp doing its job. The keys were sent 18 ms early and read as 15 to 16 ms early, so about 2 to 3 ms went into getting the key from the test process into the browser, which is the part before the stamp that the page cannot see. The audio clock here steps coarsely (jitter of 5 to 10 ms, an audio device that does not exist); the smoothed mapping is what keeps that out of the judgments.
 
 These are a cloud container's figures: no display, no audio device, and keys injected into the browser rather than typed. They show that the page's own share is small and that the stamp, not the handling time, carries the judgment. They say nothing about a keyboard, a screen or a pair of headphones; the overlay on the device in question does, for the rows it can see.
 

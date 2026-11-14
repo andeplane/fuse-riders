@@ -941,7 +941,8 @@ function room(solo: boolean, library: Library, first?: Choice): void {
   };
   let latencyShown = 0;
   /** A solo song that began before the browser let sound out starts over once it does. */
-  let startedSilent = false,
+  let restarting = false,
+    startedSilent = false,
     heardEpoch = -1;
   const frame = (now: number) => {
     // Asked first, so one bad frame cannot stop the drawing for good.
@@ -959,6 +960,10 @@ function room(solo: boolean, library: Library, first?: Choice): void {
         ? songOf(world.song, now)
         : undefined;
     songClock.follow(roomMs, song);
+    if (restarting && state?.stage === "lobby") {
+      restarting = false;
+      runtime.command({ type: "action", action: "start" });
+    }
     if (!model || model.screen === "lobby" || !world) {
       before = undefined;
       unlock.hidden = loadFailed.hidden = true;
@@ -981,8 +986,9 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     else if (startedSilent && running) {
       startedSilent = false;
       if (world.ms < 30000) {
+        // START is refused while the match runs: it is sent once the room is back at the song select.
         runtime.command({ type: "action", action: "lobby" });
-        runtime.command({ type: "action", action: "start" });
+        restarting = true;
       }
     }
     const heard = running ? songClock.songMs(now) : world.ms;
