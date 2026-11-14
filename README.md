@@ -88,6 +88,15 @@ follows Elasto Mania's (`docs/design/elasto-fuse-mechanics.md`); the twelve leve
 clock, or race up to five riders through one level or the whole tour, online or on a shared TV with phones as
 controllers. See [games/elasto-fuse/README.md](games/elasto-fuse/README.md).
 
+## Fusemania
+
+**Fusemania** is a four-arrow rhythm game at `/fusemania/` (locally **http://localhost:8787/fusemania/**): hit the
+arrows on the beat of every song in the Fuse soundtrack, at four levels each. Charts are standard StepMania simfiles
+(`.sm` and `.ssc`), and a player can load their own. The arrows follow the audio clock and every key is judged at the
+song time it was pressed, so the timing holds on any frame rate and across a rollback. Play alone for a grade, or up
+to five in a room: Score Attack, or a Battle with power-ups that bend, hide and booby-trap the rivals' arrows. See
+[games/fusemania/README.md](games/fusemania/README.md).
+
 ## Menus and round controls
 
 Every game shares one Google sign-in, username and friends list on the same backend. Open **FRIENDS** to add a player

@@ -271,18 +271,21 @@ export function drawField(
   if (doubled) {
     g.fillStyle = DOUBLE_TINT;
     g.fillRect(ox, top, width, height);
-    g.globalAlpha = 0.12;
-    label(
-      g,
-      "x2",
-      ox + width / 2,
-      frame.down ? top + col * 1.3 : top + height - col * 1.3,
-      col * 1.3,
-      GOLD,
-      "center",
-      width,
-    );
-    g.globalAlpha = 1;
+    // A big faint "x2" at the far end, where the lanes are long enough to have room for it.
+    if (height >= col * 8) {
+      g.globalAlpha = 0.12;
+      label(
+        g,
+        "x2",
+        ox + width / 2,
+        frame.down ? top + col * 1.3 : top + height - col * 1.3,
+        col * 1.3,
+        GOLD,
+        "center",
+        width,
+      );
+      g.globalAlpha = 1;
+    }
   }
   if (mods.blackout > 0) {
     g.globalAlpha = 0.6 * mods.blackout;
@@ -686,7 +689,7 @@ export function drawField(
       }
     }
     if (incoming > 0 && incoming < ITEM_KINDS) {
-      g.globalAlpha = calm ? 1 : 0.6 + 0.4 * Math.sin(songMs * 0.025);
+      g.globalAlpha = calm ? 1 : 0.75 + 0.25 * Math.sin(songMs * 0.025);
       outlined(
         g,
         WARNINGS[incoming]!,
@@ -850,31 +853,31 @@ function readout(
   let used = 0;
 
   if (player.item > NO_ITEM && player.item < ITEM_KINDS) {
-    // Two rows when there is room: the icon, its name, and the key that throws it. Otherwise one line.
-    const tall = rows >= 2;
+    // The icon, the item's name and the key that throws it: two rows beside the field, one line over the lanes,
+    // where every row is a row less for the effects.
+    const tall = !inside && rows >= 2;
     const side = (tall ? row * 2 : row) - Math.round(4 * unit);
     const icon = frame.icons.get(player.item, side);
     const centre = tall ? y + step / 2 : y;
     if (icon) blit(g, icon, x + (way * side) / 2, centre, 1, 1, 0);
     g.globalAlpha = 1;
     const text = x + way * (side + Math.round(5 * unit));
-    if (tall || !info.local)
-      label(
-        g,
-        ITEM_NAMES[player.item]!,
-        text,
-        tall && info.local ? centre - row * 0.42 : centre,
-        size,
-        itemColor(player.item),
-        align,
-        span,
-      );
+    label(
+      g,
+      ITEM_NAMES[player.item]!,
+      text,
+      tall && info.local ? centre - row * 0.42 : centre,
+      size,
+      itemColor(player.item),
+      align,
+      span,
+    );
     if (info.local) {
       g.globalAlpha = frame.calm ? 1 : 0.65 + 0.35 * Math.sin(songMs * 0.012);
       label(
         g,
         pressText(info.texts.press, frame.itemKey),
-        text,
+        tall ? text : text + way * size * 10,
         tall ? centre + row * 0.42 : centre,
         size,
         WHITE,

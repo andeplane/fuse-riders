@@ -9,3 +9,4 @@ pnpm-lock.yaml
 .claude/skills/game-*/
 # Generated level table; keep the generator's bytes (5 MiB) and re-run the script to change it.
 games/elasto-fuse/src/engine/levels-data.ts
+games/fusemania/src/engine/songs-data.ts

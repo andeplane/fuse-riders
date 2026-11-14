@@ -214,12 +214,16 @@ export function createScene(canvas: SceneCanvas, options: SceneOptions): Scene {
         fieldInfo.gap = Number.NaN;
         if (slot === local && riders > 1) {
           // How far ahead of second place, or behind the leader: from the scores as shown, so it rolls with them.
-          const rival = player.place === 1 ? 2 : 1;
+          // The rolling scores can cross a moment after the places have: the sign is the place's.
+          const leads = player.place === 1,
+            rival = leads ? 2 : 1;
           for (let other = 0; other < riders; other++)
-            if (other !== slot && view.players[other]!.place === rival)
-              fieldInfo.gap =
+            if (other !== slot && view.players[other]!.place === rival) {
+              const gap =
                 Math.round(rider.score) -
                 Math.round(feedback.riders[other]!.score);
+              fieldInfo.gap = leads ? Math.max(0, gap) : Math.min(0, gap);
+            }
         }
         drawField(
           frame,

@@ -37,6 +37,10 @@ To add songs: drop the mp3s in `public/music/<game>/` and list them in the game'
 2. "Gadget Overdrive": instrumental electro-breakbeat, glitchy bass, laser zaps, 8-bit lead, chaotic and fast, 140 bpm, no vocals
 3. "Sudden Death": instrumental dark synth-rock, rising tension, heavy sub bass, siren-like lead, high stakes finale, 136 bpm, no vocals
 
+### Fusemania
+
+The song being played is the music: `audio.loadSong()` decodes it and `games/fusemania/src/app/song-clock.ts` keeps it on the room's clock (see "Clocked songs" above). The song select plays the chosen song on the shared radio (`audio.setSongs([song])`), so the music slider, the Sound button and `?mute` rule both. Effects are `games/fusemania/src/app/audio.ts`: a power-up taken, thrown, landing and blocked, a mine, and a fanfare on the result. There are no hit sounds on the notes: a synthesized tick a few milliseconds off the music reads as lag. Fusemania has no songs of its own; it plays every other game's (`games/fusemania/charts/README.md` lists them), so a new song anywhere can get charts with `scripts/fusemania-charts.ts`.
+
 ### Elasto Fuse
 
 Effects and the engine are wired (`games/elasto-fuse/src/app/audio.ts`; the engine is `audio.hum()`, a sustained voice on the effects bus). No songs yet: `ELASTO_SONGS` is empty, so the music slider has nothing to play until mp3s land in `public/music/elasto-fuse/`. Prompt ideas (a springy trials bike over neon hills, focused rather than frantic, since a ride is retried many times):

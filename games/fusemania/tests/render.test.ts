@@ -1196,8 +1196,6 @@ test("an overtake slides the boxes to their new rows over several frames, the ri
   assert.ok(seen[Math.floor(seen.length / 2)]! - top < (bottom - top) * 0.2);
 
   // While it slides, the riser's box is drawn after the one it passes, and glows.
-  const mid = r.frame(duel(300_000, 320_000), shot(steps, 5416));
-  void mid;
   const sliding = rig();
   sliding.frame(duel(300_000, 200_000), shot(steps, 5000));
   const during = sliding.frame(duel(300_000, 320_000), shot(steps, 5100));
