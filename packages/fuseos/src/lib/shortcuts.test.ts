@@ -47,6 +47,7 @@ describe("SHORTCUTS", () => {
       "desktop.openSubmenu",
       "desktop.closeSubmenu",
       "desktop.chooseMenuItem",
+      "desktop.taskManager",
     ]);
   });
 });

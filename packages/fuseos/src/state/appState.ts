@@ -112,6 +112,11 @@ export interface HallOfFameWindowContent {
   gameId?: string;
 }
 
+/** Task Manager (Ctrl+Shift+Esc): open windows, frame rates, heap. Reused when already open. */
+export interface TaskManagerWindowContent {
+  kind: "taskmanager";
+}
+
 export type WindowContent =
   | FuseGameWindowContent
   | NetworkWindowContent
@@ -130,7 +135,8 @@ export type WindowContent =
   | DialUpWindowContent
   | FriendsWindowContent
   | DefragWindowContent
-  | HallOfFameWindowContent;
+  | HallOfFameWindowContent
+  | TaskManagerWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -198,6 +204,7 @@ export function sameInstance(
     case "friends":
     case "defrag":
     case "halloffame":
+    case "taskmanager":
       return existing.kind === content.kind;
     case "roomgame":
       return (
@@ -403,6 +410,7 @@ function isWindowContent(
     case "launcher":
     case "network":
     case "friends":
+    case "taskmanager":
       return true;
     case "dialog":
       return (

@@ -50,6 +50,9 @@ export const FRIENDS_WINDOW_SIZE: Size = { width: 320, height: 540 };
 /** Room for the game picker, a dozen rows of the list and the status bar. */
 export const HALL_OF_FAME_WINDOW_SIZE: Size = { width: 560, height: 420 };
 
+/** Room for the task list with its buttons, or three frame-rate graphs over the heap graph. */
+export const TASK_MANAGER_WINDOW_SIZE: Size = { width: 440, height: 600 };
+
 export const OS_NAME = "FuseOS";
 
 /** Title bar text and icon for each window kind. */
@@ -173,6 +176,13 @@ export function windowMeta(
         icon: "trophy",
         resizable: true,
         size: HALL_OF_FAME_WINDOW_SIZE,
+      };
+    case "taskmanager":
+      return {
+        title: `${OS_NAME} Task Manager`,
+        icon: "taskmanager",
+        resizable: true,
+        size: TASK_MANAGER_WINDOW_SIZE,
       };
   }
 }

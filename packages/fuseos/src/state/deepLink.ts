@@ -15,6 +15,7 @@ const APPS: Record<string, WindowContent> = {
   fusteam: { kind: "launcher" },
   friends: { kind: "friends" },
   halloffame: { kind: "halloffame" },
+  taskmanager: { kind: "taskmanager" },
   defrag: { kind: "defrag" },
   mycomputer: { kind: "explorer", location: MY_COMPUTER },
   explorer: { kind: "explorer", location: MY_COMPUTER },

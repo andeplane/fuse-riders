@@ -4,6 +4,7 @@ import { MY_COMPUTER } from "../disk/diskPath";
 import { LAUNCHER_TITLE } from "../launcher/launcherFacts";
 import { openLauncher } from "../launcher/useOpenLauncher";
 import { openNetworkNeighborhood } from "../network/openNetworkNeighborhood";
+import { TASK_MANAGER_REGISTRATION } from "../taskmanager/taskManagerRegistration";
 import type { IconName } from "../ui/icons";
 import type { WindowCommands } from "../windows/useWindowCommands";
 import type { Size } from "../windows/windowManager";
@@ -179,6 +180,7 @@ export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
     open: (commands) =>
       commands.open({ kind: "halloffame" }, { id: HALL_OF_FAME_WINDOW_ID }),
   },
+  TASK_MANAGER_REGISTRATION,
 ];
 
 /** The buddy list's window id; never one `nextWindowId` hands out (`w<n>`), so it is the same window every time. */

@@ -38,6 +38,7 @@ import { Shell3234 } from "@react95/icons/Shell3234";
 import { Shell3237 } from "@react95/icons/Shell3237";
 import { Shell3242 } from "@react95/icons/Shell3242";
 import { Sol1 } from "@react95/icons/Sol1";
+import { Taskman100 } from "@react95/icons/Taskman100";
 import { User } from "@react95/icons/User";
 import { Wab321016 } from "@react95/icons/Wab321016";
 import { Warning } from "@react95/icons/Warning";
@@ -105,7 +106,8 @@ export type IconName =
   | "controlPanelFolder"
   | "dialUp"
   | "scheduledTasks"
-  | "trophy";
+  | "trophy"
+  | "taskmanager";
 
 type IconVariant = "32x32_4" | "16x16_4";
 type IconProps = Omit<SVGProps<SVGSVGElement>, "ref">;
@@ -179,6 +181,7 @@ const ICONS: Record<IconName, IconComponent> = {
   dialUp: Shell3234,
   scheduledTasks: Shell3237,
   trophy: TrophyIcon,
+  taskmanager: fixed(Taskman100, "32x32_4"),
 };
 
 export type Win98IconProps = {

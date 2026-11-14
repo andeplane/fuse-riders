@@ -24,6 +24,7 @@ import { GameWindow } from "../retro/GameWindow";
 import { RetroFolderWindow } from "../retro/RetroFolderWindow";
 import { DialUpWindow } from "../sounds/dialup/DialUpWindow";
 import type { WindowState } from "../state/appState";
+import { TaskManagerWindow } from "../taskmanager/TaskManagerWindow";
 import { WinampPlayer } from "../winamp/WinampPlayer";
 import { MessageBox } from "../windows/MessageBox";
 import { useWindowCommands } from "../windows/useWindowCommands";
@@ -116,6 +117,8 @@ function WindowContent({
       return <DefragWindow windowId={window.id} />;
     case "halloffame":
       return <HallOfFameWindow windowId={window.id} gameId={window.gameId} />;
+    case "taskmanager":
+      return <TaskManagerWindow windowId={window.id} />;
   }
 }
 
