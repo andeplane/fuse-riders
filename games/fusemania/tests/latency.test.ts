@@ -53,17 +53,17 @@ test("a press without a usable stamp is counted, not measured", () => {
   assert.equal(report.frameMs.n, 0);
 });
 
-test("the audio clock's jitter and step are read from its readings", () => {
+test("the audio clock's jitter is read from its readings", () => {
   const probe = createLatencyProbe();
-  // Readings 2 ms and 0.5 ms from the smoothed mapping; the clock moved 0, 3 and 6 ms between frames.
-  probe.clock(5.002, 5, 10);
-  probe.clock(4.9995, 5, 10);
-  probe.clock(5, 5, 10.003);
-  probe.clock(5, 5, 10.009);
+  // Readings 2 ms and 0.5 ms from the smoothed mapping, and two on it.
+  probe.clock(5.002, 5);
+  probe.clock(4.9995, 5);
+  probe.clock(5, 5);
+  probe.clock(5, 5);
   const report = probe.report();
   assert.equal(report.clockJitterMs.n, 4);
   assert.ok(Math.abs(report.clockJitterMs.max - 2) < 1e-6);
-  assert.ok(Math.abs(report.clockStepMs - 3) < 1e-6);
+  assert.equal(report.clockJitterMs.p50, 0);
 });
 
 test("only the newest samples are kept, and reset forgets everything", () => {

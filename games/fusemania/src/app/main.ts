@@ -949,7 +949,7 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     probe.frameStart(now, performance.now());
     songClock.sample();
     const mapping = songClock.mapping();
-    if (mapping) probe.clock(mapping.reading, mapping.smoothed, mapping.audio);
+    if (mapping) probe.clock(mapping.reading, mapping.smoothed);
     const state = runtime.roomState();
     const roomMs = runtime.songMs();
     const world = state?.world;

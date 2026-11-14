@@ -11,7 +11,8 @@
  *
  * and, once a frame, the things a judgment's accuracy rests on: the frame interval, how long the frame's work
  * took, how late the frame callback ran after its own timestamp, and how far the audio clock's reading was from
- * the smoothed mapping the stamps are converted with.
+ * the smoothed mapping the stamps are converted with (a reading is the clock's last step, so
+ * this is mostly the size of the clock's steps).
  *
  * What comes before `event.timeStamp` (the switch, USB or Bluetooth polling, the operating system) and what comes
  * after the picture is handed over (compositor, display) or the sound is scheduled (anything the browser's
@@ -40,8 +41,6 @@ export interface LatencyReport {
   frameLagMs: Spread;
   /** Absolute distance of each audio clock reading from the smoothed mapping. */
   clockJitterMs: Spread;
-  /** The largest step the audio clock was seen to take between two different readings. */
-  clockStepMs: number;
   /** Presses by source. */
   keys: number;
   touches: number;
@@ -99,7 +98,7 @@ export interface LatencyProbe {
   /** That frame's work is done. */
   frameEnd(now: number): void;
   /** An audio clock reading this frame and the smoothed value it is compared with, both in seconds. */
-  clock(reading: number, smoothed: number, audioNow: number): void;
+  clock(reading: number, smoothed: number): void;
   report(): LatencyReport;
   reset(): void;
 }
@@ -118,8 +117,6 @@ export function createLatencyProbe(size = PROBE_SAMPLES): LatencyProbe {
     drawing: number[] = [],
     lastFrame = Number.NaN,
     frameBegan = Number.NaN,
-    lastAudio = Number.NaN,
-    step = 0,
     keys = 0,
     touches = 0,
     unstamped = 0;
@@ -148,14 +145,8 @@ export function createLatencyProbe(size = PROBE_SAMPLES): LatencyProbe {
       for (const stamp of drawing) drawn.push(now - stamp);
       drawing = [];
     },
-    clock(reading, smoothed, audioNow) {
+    clock(reading, smoothed) {
       jitter.push(Math.abs(reading - smoothed) * 1000);
-      if (Number.isFinite(lastAudio) && audioNow > lastAudio) {
-        const moved = (audioNow - lastAudio) * 1000;
-        // Between two frames the clock takes one or more steps: the smallest move seen is nearest to one step.
-        step = step === 0 ? moved : Math.min(step, moved);
-      }
-      lastAudio = audioNow;
     },
     report: () => ({
       handlerMs: spread(handler.values()),
@@ -165,7 +156,6 @@ export function createLatencyProbe(size = PROBE_SAMPLES): LatencyProbe {
       frameWorkMs: spread(work.values()),
       frameLagMs: spread(lag.values()),
       clockJitterMs: spread(jitter.values()),
-      clockStepMs: step,
       keys,
       touches,
       unstamped,
@@ -175,8 +165,8 @@ export function createLatencyProbe(size = PROBE_SAMPLES): LatencyProbe {
         each.clear();
       waiting = [];
       drawing = [];
-      lastFrame = frameBegan = lastAudio = Number.NaN;
-      step = keys = touches = unstamped = 0;
+      lastFrame = frameBegan = Number.NaN;
+      keys = touches = unstamped = 0;
     },
   };
 }
@@ -218,7 +208,6 @@ export function latencyText(
     line("frame work", report.frameWorkMs),
     line("frame start lag", report.frameLagMs),
     line("audio clock jitter", report.clockJitterMs),
-    `audio clock step  ${report.clockStepMs ? `${ms(report.clockStepMs)} ms` : "-"}`,
     `audio base latency  ${known(context.baseMs)}`,
     `audio output latency  ${known(context.outputMs)}`,
     `song ${context.audible ? "on the audio clock" : "on the room clock (no sound)"}, drift ${ms(context.driftMs)} ms`,

@@ -193,7 +193,7 @@ export function propose(
   const usable = others.filter(
     (each) =>
       each.song !== run.song &&
-      run.at - each.at <= HISTORY_MS &&
+      Math.abs(run.at - each.at) <= HISTORY_MS &&
       Math.abs(each.deviceMs - run.deviceMs) <= DEVICE_MS,
   );
   const near = (a: number, b: number) => Math.abs(a - b) <= AGREE_MS;
@@ -300,7 +300,8 @@ export function saveHistory(
 /**
  * Collects this device's own hits from the picture, frame by frame. A hit is a step judged Marvelous to Boo since
  * the frame before; steps a Star played, and steps hit while an attack bent, hid or delayed the arrows, are left
- * out because they say nothing about the player's timing. Two steps hit in one frame count once.
+ * out because they say nothing about the player's timing. Two steps hit in one frame count once, and a hit whose
+ * frame also brought a miss, a mine or a hold's end is not counted: the view carries the newest judgment only.
  */
 export interface HitCollector {
   /** `run` names the match and the offset in use: a change of either starts over. */

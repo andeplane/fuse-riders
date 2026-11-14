@@ -53,10 +53,10 @@ export interface SongClock {
    */
   audioTime(at?: number): number | undefined;
   /**
-   * The newest reading of `audio clock - performance seconds`, the smoothed value presses are converted with and
-   * the audio clock itself, all in seconds (diagnostics); undefined while the audio clock is not running.
+   * The newest reading of `audio clock - performance seconds` and the smoothed value presses are converted with,
+   * in seconds (diagnostics); undefined while the audio clock is not running.
    */
-  mapping(): { reading: number; smoothed: number; audio: number } | undefined;
+  mapping(): { reading: number; smoothed: number } | undefined;
   stop(): void;
 }
 
@@ -95,7 +95,7 @@ export function createSongClock(deps: SongClockDeps): SongClock {
   /** Output latency in seconds, smoothed. */
   let latency = 0;
   let sampledAt = 0;
-  let newest: { reading: number; audio: number } | undefined;
+  let newest: number | undefined;
   let settled = 0;
   const recent: number[] = [];
   /** The room's position at the last follow. */
@@ -134,7 +134,7 @@ export function createSongClock(deps: SongClockDeps): SongClock {
       const at = deps.now() / 1000,
         reading = clock.now() - at,
         lag = clock.latency();
-      newest = { reading, audio: reading + at };
+      newest = reading;
       if (skew === undefined || Math.abs(reading - skew) > SNAP_S) {
         if (skew === undefined) latency = lag;
         skew = reading;
@@ -223,9 +223,9 @@ export function createSongClock(deps: SongClockDeps): SongClock {
       return skew === undefined ? undefined : at / 1000 + skew - latency;
     },
     mapping() {
-      return skew === undefined || !newest
+      return skew === undefined || newest === undefined
         ? undefined
-        : { reading: newest.reading, smoothed: skew, audio: newest.audio };
+        : { reading: newest, smoothed: skew };
     },
     stop: halt,
   };
