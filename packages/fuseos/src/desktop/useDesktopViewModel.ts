@@ -1,6 +1,8 @@
 import { useCallback, useContext } from "react";
 
 import { FuseGamesContext } from "../fusegames/registry";
+import { useFuseGameLauncher } from "../fusegames/useFuseGameLauncher";
+import { useGameLaunch } from "../settings/useGameLaunch";
 import type { WindowKind, WindowState } from "../state/appState";
 import { activeWindowId } from "../state/appState";
 import { useAppState } from "../state/useAppState";
@@ -55,8 +57,11 @@ export function useDesktopViewModel(): DesktopViewModel {
   const ui = useContext(DesktopUiContext);
   const commands = useWindowCommands();
   const games = useContext(FuseGamesContext);
+  const launcher = useFuseGameLauncher();
+  // Re-renders the icons when the Games applet changes where games open (the shortcut arrow on the tiles).
+  const { launch } = useGameLaunch();
 
-  // Single-instance windows (Winamp, the wallpaper picker, a game) are focused rather than duplicated:
+  // Single-instance windows (Winamp, the wallpaper picker) are focused rather than duplicated:
   // true when an open window matched and was brought to the front.
   const focusExisting = useCallback(
     (
@@ -72,18 +77,8 @@ export function useDesktopViewModel(): DesktopViewModel {
     },
     [state.windows, commands],
   );
-  const openFuseGame = useCallback(
-    (gameId: string) => {
-      if (
-        !focusExisting(
-          "fusegame",
-          (window) => window.kind === "fusegame" && window.gameId === gameId,
-        )
-      )
-        commands.open({ kind: "fusegame", gameId });
-    },
-    [focusExisting, commands],
-  );
+  // A window here (focused rather than duplicated) or a browser tab, as the Games applet says.
+  const openFuseGame = launcher.launch;
   const openWallpaper = useCallback(() => {
     if (!focusExisting("wallpaper")) commands.open({ kind: "wallpaper" });
   }, [focusExisting, commands]);
@@ -103,7 +98,12 @@ export function useDesktopViewModel(): DesktopViewModel {
     ...games.games.map((game) => ({
       id: `game:${game.id}`,
       label: game.name,
-      icon: { kind: "tile", mark: game.mark, accent: game.accent } as const,
+      icon: {
+        kind: "tile",
+        mark: game.mark,
+        accent: game.accent,
+        shortcut: launch === "tab",
+      } as const,
       open: () => openFuseGame(game.id),
     })),
     { id: "paint", label: "Paint", icon: "paint", open: openPaint },

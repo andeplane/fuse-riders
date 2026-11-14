@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { DesktopIcon } from "./DesktopIcon";
+import { DesktopIcon, GameTileIcon, SHORTCUT_HINT } from "./DesktopIcon";
 import { ShutdownScreen } from "./ShutdownScreen";
 
 describe(DesktopIcon.name, () => {
@@ -26,6 +26,40 @@ describe(DesktopIcon.name, () => {
     button.focus();
     await user.keyboard("{Enter}");
     expect(onOpen).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe(GameTileIcon.name, () => {
+  it("draws the game's mark on its accent, hidden from assistive tech", () => {
+    const { container } = render(<GameTileIcon mark="FB" accent="#ff5533" />);
+    const svg = container.querySelector("svg[data-icon='tile']");
+    expect(svg).toHaveAttribute("aria-hidden", "true");
+    expect(svg).toHaveTextContent("FB");
+    expect(container.querySelector("[data-icon='shortcut']")).toBeNull();
+    expect(screen.queryByTitle(SHORTCUT_HINT)).not.toBeInTheDocument();
+  });
+
+  it("adds the shortcut arrow, and says why, when the game opens in a tab", () => {
+    render(
+      <DesktopIcon
+        label="Fuseball"
+        icon={{ kind: "tile", mark: "FB", accent: "#ff5533", shortcut: true }}
+        selected={false}
+        onSelect={() => undefined}
+        onOpen={() => undefined}
+      />,
+    );
+    const hint = screen.getByTitle(SHORTCUT_HINT);
+    const art = hint.closest("svg[data-icon='tile']");
+    expect(art).toHaveAttribute("aria-hidden", "true");
+    expect(art?.querySelector("[data-icon='shortcut']")).not.toBeNull();
+    // The hint never reaches the button's name: it is still "Fuseball" to assistive tech.
+    expect(screen.getByRole("button", { name: "Fuseball" })).toContainElement(
+      hint,
+    );
+    // A long mark is drawn smaller so it fits the square.
+    render(<GameTileIcon mark="FBi" accent="#ffcc00" />);
+    expect(screen.getByText("FBi")).toHaveAttribute("font-size", "10");
   });
 });
 

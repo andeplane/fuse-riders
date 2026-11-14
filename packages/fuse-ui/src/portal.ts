@@ -1,3 +1,5 @@
+import { isEmbeddedPage } from "./embedded.js";
+
 /** What a game writes in its `games/<id>/portal.json` to appear on the app portal. */
 export interface PortalEntry {
   /** Display name, e.g. "Fuse Riders". */
@@ -68,7 +70,21 @@ export interface AppPortalOptions {
   /** The page's `location.search`; a `mute` flag carries over to the other games. */
   search?: string;
   games?: readonly PortalGame[];
+  /**
+   * The page runs in a FuseOS desktop window (`window.self !== window.top`, read from the document's window
+   * when not given). Every link then targets the top page — the desktop — and a game tile asks the desktop to
+   * open that game (`<base>?open=<id>`) rather than navigating the frame to a page without a desktop around it.
+   */
+  embedded?: boolean;
 }
+
+/** The query that asks the desktop (the root page) to open a game in a window: `?open=<id>`, `&mute` when muted. */
+export function desktopOpenQuery(gameId: string, muted: boolean): string {
+  return `?${OPEN_PARAM}=${encodeURIComponent(gameId)}${muted ? "&mute" : ""}`;
+}
+
+/** The root page's query parameter for opening windows on boot; the desktop reads the same name. */
+export const OPEN_PARAM = "open";
 
 export interface AppPortal {
   element: HTMLElement;
@@ -88,6 +104,7 @@ export function createAppPortal(options: AppPortalOptions): AppPortal {
     options.base === "./" || options.base === "" ? "../" : options.base;
   const games = options.games ?? PORTAL_GAMES;
   const muted = new URLSearchParams(options.search ?? "").has("mute");
+  const embedded = options.embedded ?? isEmbeddedPage(document.defaultView);
   const element = document.createElement("div");
   element.className = "fui-portal";
   const toggle = document.createElement("button");
@@ -113,13 +130,18 @@ export function createAppPortal(options: AppPortalOptions): AppPortal {
   heading.className = "fui-portal-heading";
   heading.textContent = "ALL GAMES ↗";
   heading.href = `${base}${muted ? "?mute" : ""}`;
+  if (embedded) heading.target = "_top";
   const grid = document.createElement("ul");
   grid.className = "fui-portal-grid";
   for (const game of games) {
     const item = document.createElement("li");
     const link = document.createElement("a");
     link.className = "fui-portal-game";
-    link.href = `${base}${game.path}${muted ? "?mute" : ""}`;
+    if (embedded) {
+      // Inside a desktop window the frame stays put: the desktop opens the game in a window of its own.
+      link.href = `${base}${desktopOpenQuery(game.id, muted)}`;
+      link.target = "_top";
+    } else link.href = `${base}${game.path}${muted ? "?mute" : ""}`;
     link.style.setProperty("--fui-portal-accent", game.accent);
     if (game.id === current) link.setAttribute("aria-current", "page");
     const mark = document.createElement("span");

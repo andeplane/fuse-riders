@@ -7,7 +7,10 @@ Use the same events for cross-game dashboards, and filter or break down by `game
 The rename from `FlowRiders.*` is an intentional breaking change: existing dashboards must switch to `fuse.*`;
 historical events are not renamed and there is no dual reporting.
 
-All pages report `fuse.App Opened`. Actual play reports `fuse.Seat Taken`, `fuse.Match Started` and
+All pages report `fuse.App Opened`, with `embedded`: `true` when the page runs inside a FuseOS desktop window
+(`window.self !== window.top`, [`fuse-ui/embedded`](../packages/fuse-ui/src/embedded.ts)), `false` in a tab of its
+own, so the two ways of playing can be told apart on the same `gameId`. The desktop reports its own opening and
+every launch under `gameId: fuseos` (see "FuseOS" below). Actual play reports `fuse.Seat Taken`, `fuse.Match Started` and
 `fuse.Match Ended` through [`play-metrics`](../packages/fuse-ui/src/play-metrics.ts), with player/bot/human counts,
 `played` and `mode`. Counts are observations **per browser**, not one global event per room: TV displays and
 spectators report `played: false`, and a shared-screen match can appear on several devices.
@@ -298,6 +301,27 @@ It is sent only once the game's record can no longer be rolled back — the reco
 for games this page saw end: a device that joins or reloads midway adopts the set's finished games as already
 reported rather than inventing them, and sends nothing for them. No name, room code, slot id or invite URL is in
 it; `winningTeam` is a team colour and the crew is reported as counts.
+
+### FuseOS: the desktop and how games are launched
+
+The desktop at the site root ([`packages/fuseos`](../packages/fuseos)) is a page like the games, on the same
+client with the same prefix, guard, opt-out and scrubbing; its `gameId` is `fuseos`. It reports from
+[`src/analytics/osAnalytics.ts`](../packages/fuseos/src/analytics/osAnalytics.ts):
+
+| Event           | Fires                                                                                                  | Properties                                                                                                                                                                                                              |
+| --------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `App Opened`    | once per desktop boot                                                                                  | `embedded` (the desktop itself inside a frame; expected `false`), `role: desktop` (super property)                                                                                                                      |
+| `Game Launched` | a Fuse game started from an icon, the Start menu, a `?open=` link, the assistant or a window's Pop out | `game`: the game's portal id (`fuseball`, …); `launch`: `window` (a window on the desktop), `tab` (a browser tab, the phone default or the Games applet's choice) or `popout` (Pop out moved a running window to a tab) |
+
+`gameId` is attached at the shared send boundary and an event cannot override it, so the game launched travels
+as `game`, never as `gameId`. The launched game then reports its own `App Opened` (`embedded: true` in a window,
+`false` in a tab), so a launch and an opening are two events on two ids, and a game a window focused again (it
+was already open) is not a second launch. A `?open=<game>` link on a device that opens games in a tab goes
+straight to the game — no desktop boots and nothing is reported under `fuseos`.
+
+Pop out opens the frame's live address so a game that has entered a room stays in it; that address — and the
+room code in it — goes to the new tab and nowhere else. No event carries a room code, a rider name, a game's
+address or the launch preference's reason.
 
 ## What is deliberately not tracked
 

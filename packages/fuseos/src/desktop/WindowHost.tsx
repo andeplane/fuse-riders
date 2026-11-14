@@ -31,6 +31,7 @@ function WindowContent({
       return (
         <FuseGameWindow
           gameId={window.gameId}
+          windowId={window.id}
           active={active}
           onActivate={() => commands.focus(window.id)}
         />
