@@ -49,6 +49,8 @@
     "games/fuse-lane/src/app/main.ts",
     "games/elasto-fuse/src/app/main.ts",
     "games/elasto-fuse/src/render/scene.ts",
+    "games/fuse-surge/src/app/main.ts",
+    "games/fuse-surge/src/render/scene.ts",
     "games/fuse-volley/src/app/main.ts",
     "games/fuse-volley/src/render/scene.ts",
     "games/fuseball/src/app/main.ts",

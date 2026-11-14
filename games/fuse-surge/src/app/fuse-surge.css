@@ -1,0 +1,584 @@
+/* The Fuse Surge page, on fuse-ui's tokens and components. Phone first; a wide screen puts the lobby in two columns. */
+body.fuse-surge-page {
+  padding: 0;
+  background:
+    radial-gradient(ellipse at 15% -10%, #0b3a66 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 110%, #4a0a4c 0%, transparent 45%),
+    var(--fui-ink);
+}
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  /* The column is the screen, never the widest unbreakable line in it: a phone must not scroll sideways. */
+  min-width: 0;
+  padding: 0 max(var(--fui-space-3), env(safe-area-inset-right))
+    env(safe-area-inset-bottom)
+    max(var(--fui-space-3), env(safe-area-inset-left));
+}
+.fui-app [hidden] {
+  display: none !important;
+}
+
+/* Header */
+.fs-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--fui-space-2) var(--fui-space-3);
+  padding: var(--fui-space-3) 0;
+}
+.fs-brand {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: start;
+  text-decoration: none;
+  font: 1.25rem/1 var(--fui-font-pixel);
+}
+.fs-brand-fuse {
+  color: var(--fui-cyan);
+  text-shadow: var(--fui-glow-cyan);
+}
+.fs-brand-surge {
+  color: var(--fui-yellow);
+  text-shadow: 0 0 0.75rem #ffe46b99;
+}
+.fs-brand small {
+  grid-column: 1 / -1;
+  margin-top: var(--fui-space-1);
+  color: var(--fui-text-dim);
+  font-size: 0.5rem;
+  letter-spacing: 0.125rem;
+}
+.fs-back {
+  margin-left: auto;
+  color: var(--fui-cyan);
+  font: 0.625rem var(--fui-font-pixel);
+}
+.fs-code {
+  padding: var(--fui-space-1) var(--fui-space-2);
+  color: var(--fui-ink);
+  background: var(--fui-yellow);
+  border-radius: var(--fui-radius-small);
+  font: 0.75rem var(--fui-font-pixel);
+}
+.fs-status {
+  flex: 1 1 10rem;
+  /* One line, always laid out: a status that appears, changes or wraps must not move the buttons beside it. */
+  min-width: 0;
+  min-height: 1.25rem;
+  overflow: hidden;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fui-app .fs-status[hidden] {
+  display: block !important;
+  visibility: hidden;
+}
+.fs-top .fui-game-menu {
+  margin-left: auto;
+}
+.fs-back + .fui-game-menu {
+  margin-left: 0;
+}
+.fs-error,
+.fs-connecting {
+  margin: var(--fui-space-6) auto;
+  color: var(--fui-text-muted);
+  font: 0.75rem/1.6 var(--fui-font-pixel);
+  text-align: center;
+}
+.fs-error {
+  color: var(--fui-pink-soft);
+}
+
+/* Landing */
+.fuse-surge-page .fui-landing {
+  width: min(100%, 44rem);
+  margin: 0 auto var(--fui-space-5);
+}
+.fuse-surge-page .fui-landing-title {
+  color: var(--fui-yellow);
+}
+.fs-shared {
+  display: flex;
+  align-items: center;
+  gap: var(--fui-space-2);
+  color: var(--fui-text-muted);
+  font-size: 0.8125rem;
+}
+.fui-app .fs-shared input {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  accent-color: var(--fui-cyan);
+}
+.fs-landing-rules {
+  display: grid;
+  gap: var(--fui-space-2);
+  margin-top: var(--fui-space-4);
+}
+.fs-keys {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--fui-space-1) var(--fui-space-3);
+  margin: var(--fui-space-4) 0 0;
+  font-size: 0.75rem;
+}
+.fs-keys dt {
+  color: var(--fui-yellow);
+  font: 0.5625rem/1.6 var(--fui-font-pixel);
+}
+.fs-keys dd {
+  margin: 0;
+  color: var(--fui-text-muted);
+}
+
+/* The scoring and bot pickers: on the landing page and in the lobby */
+.fs-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--fui-space-2);
+}
+.fui-app .fs-choice {
+  display: grid;
+  align-content: start;
+  gap: var(--fui-space-2);
+  justify-items: start;
+  min-width: 0;
+  padding: var(--fui-space-3);
+  color: var(--fui-text-muted);
+  background: #06102a;
+  border: var(--fui-stroke) solid var(--fui-line);
+  border-radius: var(--fui-radius-small);
+  text-align: left;
+  white-space: normal;
+}
+.fui-app .fs-choice[aria-pressed="true"],
+.fui-app .fs-level[aria-pressed="true"] {
+  color: var(--fui-text-bright);
+  border-color: var(--fui-yellow);
+  box-shadow: 0 0 1rem #ffe46b55;
+}
+.fui-app .fs-choice:disabled,
+.fui-app .fs-level:disabled {
+  opacity: 0.45;
+}
+.fs-choice strong {
+  font: 0.5625rem/1.4 var(--fui-font-pixel);
+  overflow-wrap: anywhere;
+}
+.fs-choice[aria-pressed="true"] strong {
+  color: var(--fui-yellow);
+}
+.fs-choice small {
+  font: 0.75rem/1.35 var(--fui-font-sans);
+}
+.fs-levels {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--fui-space-2);
+}
+.fui-app .fs-level {
+  min-width: 0;
+  padding: var(--fui-space-2);
+  font: 0.5625rem/1.4 var(--fui-font-pixel);
+  background: #06102a;
+  border: var(--fui-stroke) solid var(--fui-line);
+}
+.fs-hero {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  margin-bottom: var(--fui-space-3);
+  border-radius: var(--fui-radius-small);
+  box-shadow: 0 0 2rem #16e7ff33;
+}
+
+/* Room */
+.fs-room {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--fui-space-3);
+  min-width: 0;
+  padding-bottom: var(--fui-space-3);
+}
+.fs-room > .fui-name-entry {
+  width: min(100%, 32rem);
+  margin: 0 auto;
+}
+.fs-panel {
+  min-width: 0;
+  padding: var(--fui-space-4);
+  background: var(--fui-panel);
+  border: var(--fui-border);
+  border-radius: var(--fui-radius);
+}
+.fs-panel > .fui-lobby-title {
+  margin: var(--fui-space-3) 0 var(--fui-space-2);
+}
+.fs-panel > .fui-lobby-title:first-child {
+  margin-top: 0;
+}
+.fs-lobby {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--fui-space-3);
+  width: min(100%, 68rem);
+  margin: 0 auto;
+}
+@media (min-width: 52rem) {
+  .fs-lobby {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    align-items: start;
+  }
+}
+.fs-lobby-side {
+  display: grid;
+  gap: var(--fui-space-3);
+}
+.fs-lobby .fui-roster-row {
+  align-items: center;
+}
+.fui-app .fs-remove {
+  margin-left: auto;
+  padding: var(--fui-space-1) var(--fui-space-3);
+}
+.fs-add-bot {
+  margin-top: var(--fui-space-3);
+}
+.fs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--fui-space-2);
+}
+.fs-closed {
+  display: grid;
+  gap: var(--fui-space-3);
+  justify-items: center;
+  width: min(100%, 32rem);
+  margin: var(--fui-space-6) auto;
+  border-color: var(--fui-pink);
+  text-align: center;
+}
+.fs-closed-back {
+  padding: var(--fui-space-3) var(--fui-space-4);
+  text-decoration: none;
+}
+/* The TV has no rules to choose: its lobby is the invitation and the players, centred. */
+body.fs-display .fs-lobby {
+  grid-template-columns: minmax(0, 46rem);
+  justify-content: center;
+}
+
+/* The deck */
+.fs-stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--fui-space-2);
+  min-width: 0;
+}
+.fs-screen {
+  position: relative;
+  width: min(100%, calc((100dvh - 9.5rem) * 16 / 9));
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--fui-ink);
+  border: var(--fui-stroke) solid #4a3fa8;
+  border-radius: var(--fui-radius-small);
+  box-shadow: 0 0 2.5rem #6544c255;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+.fs-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.fs-note {
+  margin: 0;
+  color: var(--fui-text-muted);
+  font: 0.5625rem/1.6 var(--fui-font-pixel);
+  text-align: center;
+}
+/* The control guide sits over the scoreboard; its close button must not cover the first line. */
+.fs-screen .fui-round-controls {
+  bottom: 0.5rem;
+  font-size: 0.75rem;
+}
+.fs-screen .fui-round-controls .fui-controls-goal {
+  padding-right: 2.5rem;
+}
+.fs-result {
+  position: absolute;
+  left: 50%;
+  bottom: 6%;
+  transform: translateX(-50%);
+  display: grid;
+  gap: var(--fui-space-2);
+  width: min(92%, 30rem);
+  padding: var(--fui-space-3) var(--fui-space-4);
+  background: #050e25ee;
+  border: var(--fui-stroke) solid var(--fui-yellow);
+  border-radius: var(--fui-radius);
+  box-shadow: 0 0 2rem #ffe46b44;
+  text-align: center;
+}
+.fs-result h2 {
+  margin: 0;
+  color: var(--fui-yellow);
+  font: 0.875rem/1.4 var(--fui-font-pixel);
+}
+.fs-result ol {
+  display: grid;
+  gap: var(--fui-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--fui-text-muted);
+  font-size: 0.75rem;
+}
+.fs-result li:first-child {
+  color: var(--fui-text-bright);
+  font: 0.625rem/1.6 var(--fui-font-pixel);
+}
+.fs-result .fs-actions {
+  justify-content: center;
+}
+
+/* Touch: a duck button under the left thumb and a jump button under the right */
+.fs-touch,
+.fs-controller-pads {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: var(--fui-space-3);
+  width: 100%;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.fs-touch {
+  flex: 1;
+  min-height: 9rem;
+  padding: var(--fui-space-3) var(--fui-space-2);
+}
+.fs-duck,
+.fs-jump {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: none;
+  touch-action: none;
+  justify-content: center;
+  width: min(32vw, 8.5rem);
+  aspect-ratio: 1;
+  align-self: center;
+  color: var(--fui-ink);
+  background: radial-gradient(circle at 35% 30%, #fff8d6, var(--fui-yellow));
+  border: var(--fui-stroke) solid #fff8d6;
+  border-radius: 50%;
+  box-shadow: 0 0 1.25rem #ffe46b77;
+  font: 0.75rem var(--fui-font-pixel);
+}
+.fs-jump.held {
+  transform: scale(0.94);
+  box-shadow: 0 0 2rem #ffe46b;
+}
+.fs-duck {
+  color: var(--fui-ink);
+  background: radial-gradient(circle at 35% 30%, #efe8ff, #a98bff);
+  border-color: #efe8ff;
+  box-shadow: 0 0 1.25rem #a98bff77;
+}
+.fs-duck.held {
+  transform: scale(0.94);
+  box-shadow: 0 0 2rem #a98bff;
+}
+
+/* The phone controller for a shared screen */
+.fs-controller {
+  --c: var(--fui-cyan);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--fui-space-3);
+  min-width: 0;
+}
+.fs-controller > .fui-round-controls {
+  position: relative;
+  inset: auto;
+  order: -1;
+  width: 100%;
+  max-width: none;
+  transform: none;
+}
+.fs-controller-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fui-space-2);
+  padding: var(--fui-space-3) var(--fui-space-4);
+  background: var(--fui-panel);
+  border: var(--fui-stroke) solid var(--c);
+  border-radius: var(--fui-radius);
+  box-shadow: 0 0 1.25rem color-mix(in srgb, var(--c) 40%, transparent);
+  font: 0.6875rem/1.5 var(--fui-font-pixel);
+}
+.fs-controller-head b {
+  color: var(--c);
+}
+.fs-controller-head span {
+  color: var(--fui-yellow);
+}
+.fs-controller-result {
+  justify-content: center;
+}
+/* On a phone the match needs the room: the account buttons wait in the lobby, and the status line folds away. */
+@media (max-width: 34rem) {
+  body:has(.fs-room:is([data-screen="play"], [data-screen="controller"]))
+    .fs-top
+    .fui-social {
+    display: none;
+  }
+  body:has(.fs-room:is([data-screen="play"], [data-screen="controller"]))
+    .fs-top
+    .fs-status {
+    order: 0;
+    flex: 1 1 4rem;
+  }
+}
+.fs-controller-pads {
+  flex: 1;
+  min-height: 14rem;
+  padding: var(--fui-space-3);
+}
+.fs-controller-pads .fs-duck,
+.fs-controller-pads .fs-jump {
+  width: min(40vw, 44dvh, 14rem);
+  font-size: 0.875rem;
+}
+
+/* The shared TV: the deck as large as the screen allows */
+body.fs-display .fs-screen {
+  width: min(100%, calc((100dvh - 7rem) * 16 / 9));
+}
+
+/* A phone on its side: the deck fills the screen and the pads float over its corners. */
+@media (orientation: landscape) and (max-height: 32rem) {
+  #app {
+    padding: 0;
+  }
+  .fs-room[data-screen="play"] {
+    padding: 0;
+  }
+  /* The header folds away, all but the menu, which floats in the top corner so a player can always leave. */
+  body:has(.fs-room[data-screen="play"]) .fs-top {
+    position: fixed;
+    top: max(var(--fui-space-2), env(safe-area-inset-top));
+    right: max(var(--fui-space-2), env(safe-area-inset-right));
+    z-index: calc(var(--fui-z-overlay) + 1);
+    padding: 0;
+  }
+  body:has(.fs-room[data-screen="play"]) .fs-top > :not(.fui-game-menu) {
+    display: none;
+  }
+  body:has(.fs-room[data-screen="play"]) .fs-top .fui-game-menu {
+    opacity: 0.8;
+  }
+  .fs-room[data-screen="play"] .fs-note {
+    display: none;
+  }
+  .fs-screen {
+    width: min(100%, calc(100dvh * 16 / 9));
+    /* A landscape phone keeps the full-height frame; the deck sits centred in it. */
+    aspect-ratio: 16 / 9;
+    border: 0;
+    border-radius: 0;
+  }
+  .fs-touch {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: var(--fui-z-overlay);
+    min-height: 0;
+    padding: var(--fui-space-2)
+      max(var(--fui-space-3), env(safe-area-inset-right)) var(--fui-space-2)
+      max(var(--fui-space-3), env(safe-area-inset-left));
+    pointer-events: none;
+  }
+  .fs-touch .fs-duck,
+  .fs-touch .fs-jump {
+    opacity: 0.72;
+    pointer-events: auto;
+  }
+  .fs-touch {
+    align-items: flex-end;
+  }
+  .fs-touch .fs-duck,
+  .fs-touch .fs-jump {
+    width: min(34dvh, 8.5rem);
+  }
+  .fs-controller-head {
+    padding: var(--fui-space-2) var(--fui-space-3);
+  }
+  .fs-controller-pads {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 34rem) {
+  .fs-top {
+    gap: var(--fui-space-2);
+  }
+  .fs-brand {
+    font-size: 1rem;
+  }
+  .fs-top .fs-status {
+    order: 5;
+    flex-basis: 100%;
+  }
+  .fs-choices {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .fs-result {
+    bottom: 3%;
+    padding: var(--fui-space-2);
+  }
+  .fs-result ol li:not(:first-child) {
+    display: none;
+  }
+}
+
+/* The lobby's match settings: a label and its choices on each row. */
+.fs-settings {
+  display: grid;
+  gap: var(--fui-space-2);
+}
+.fs-setting {
+  display: grid;
+  grid-template-columns: minmax(5.5rem, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--fui-space-2);
+}
+.fs-setting > span {
+  color: var(--fui-text-muted);
+  font: 0.5625rem/1.4 var(--fui-font-pixel);
+  letter-spacing: 0.0625rem;
+}
+.fs-setting .fs-levels {
+  margin: 0;
+  grid-template-columns: repeat(auto-fit, minmax(3.25rem, 1fr));
+}
