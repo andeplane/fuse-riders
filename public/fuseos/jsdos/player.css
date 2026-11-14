@@ -1,0 +1,25 @@
+/* The js-dos stylesheet restyles body for its own page layout; make the player fill the frame. */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #000;
+}
+
+body {
+  display: block;
+}
+
+#root {
+  position: relative;
+}
+
+#message {
+  color: #c0c0c0;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  padding: 8px;
+}

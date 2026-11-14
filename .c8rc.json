@@ -9,6 +9,7 @@
   "branches": 85,
   "exclude": [
     "**/*.d.ts",
+    "packages/fuseos/**",
     "games/dice/src/app/main.ts",
     "games/killer-fuse/src/app/main.ts",
     "games/killer-fuse/src/render/hud.ts",
