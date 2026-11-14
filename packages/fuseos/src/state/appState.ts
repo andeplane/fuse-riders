@@ -1,3 +1,4 @@
+import { isRoomCode } from "../network/roomCode";
 import type { DefragWindowContent } from "../defrag/defragWindowContent";
 import { isDefragWindowContent } from "../defrag/defragWindowContent";
 import type { GameId } from "../retro/gameIds";
@@ -6,13 +7,20 @@ import type { MediaStreamId } from "../mediaplayer/streams";
 import { isMediaStreamId } from "../mediaplayer/streams";
 
 export type ControlPanelApplet =
-  "home" | "display" | "system" | "assistant" | "keyboard" | "games";
+  "home" | "display" | "system" | "assistant" | "keyboard" | "games" | "sounds";
 
 /** A Fuse game (`games/<id>/`, listed in the portal) running in an iframe window. */
 export interface FuseGameWindowContent {
   kind: "fusegame";
   /** The game's portal id, e.g. "fuseball". Validated against the registry when the window renders, not here. */
   gameId: string;
+  /** A room to join on open (`?room=`), e.g. from a friend's "Join game"; absent opens the game's own landing page. */
+  room?: string;
+}
+
+/** Fuse Messenger, the buddy list (Start > Programs > Fuse Messenger, the tray icon, `?open=friends`). One instance. */
+export interface FriendsWindowContent {
+  kind: "friends";
 }
 
 /** One of the retro games under Start > Programs > Games (DOS bundles, vendored web games, Minesweeper, Solitaire). */
@@ -101,8 +109,29 @@ export interface RunWindowContent {
   kind: "run";
 }
 
+/** Dial-Up Networking's "Connect To" dialog (`sounds/dialup`); on connect it closes and opens `then`, when given. */
+export interface DialUpWindowContent {
+  kind: "dialup";
+  then?: WindowContent;
+}
+
+/** Network Neighborhood: rooms by game, recent rooms, Join room. One instance. */
+export interface NetworkWindowContent {
+  kind: "network";
+}
+
+/** A Fuse game opened straight into an online room (`?room=CODE`) by the Network Neighborhood. */
+export interface RoomGameWindowContent {
+  kind: "roomgame";
+  gameId: string;
+  /** The room code as the service issues it, e.g. "AB42"; validated by `isRoomCode` when stored. */
+  code: string;
+}
+
 export type WindowContent =
   | FuseGameWindowContent
+  | NetworkWindowContent
+  | RoomGameWindowContent
   | RetroGameWindowContent
   | RetroFolderWindowContent
   | ControlPanelWindowContent
@@ -117,6 +146,8 @@ export type WindowContent =
   | RecycleBinWindowContent
   | MediaPlayerWindowContent
   | RunWindowContent
+  | DialUpWindowContent
+  | FriendsWindowContent
   | DefragWindowContent;
 
 export type WindowKind = WindowContent["kind"];
@@ -183,9 +214,18 @@ export function sameInstance(
     case "recyclebin":
     case "run":
     case "defrag":
+    case "dialup":
+    case "network":
+    case "friends":
       return existing.kind === content.kind;
     case "mediaplayer":
       return existing.kind === "mediaplayer" && existing.file === content.file;
+    case "roomgame":
+      return (
+        existing.kind === "roomgame" &&
+        existing.gameId === content.gameId &&
+        existing.code === content.code
+      );
     case "retro":
       return existing.kind === "retro" && existing.game === content.game;
     case "fusegame":
@@ -345,6 +385,7 @@ const APPLETS = new Set<string>([
   "assistant",
   "keyboard",
   "games",
+  "sounds",
 ]);
 
 export function isControlPanelApplet(
@@ -358,7 +399,11 @@ function isWindowContent(
 ): value is Record<string, unknown> & WindowContent {
   switch (value.kind) {
     case "fusegame":
-      return typeof value.gameId === "string" && value.gameId.length > 0;
+      return (
+        typeof value.gameId === "string" &&
+        value.gameId.length > 0 &&
+        (value.room === undefined || isRoomCode(value.room))
+      );
     case "retro":
       return isGameId(value.game);
     case "controlpanel":
@@ -366,11 +411,19 @@ function isWindowContent(
         isControlPanelApplet(value.applet) &&
         (value.tab === undefined || typeof value.tab === "string")
       );
+    case "roomgame":
+      return (
+        typeof value.gameId === "string" &&
+        value.gameId.length > 0 &&
+        isRoomCode(value.code)
+      );
     case "wallpaper":
     case "about":
     case "winamp":
     case "retroFolder":
     case "launcher":
+    case "network":
+    case "friends":
       return true;
     case "dialog":
       return (
@@ -402,6 +455,11 @@ function isWindowContent(
         value.file.length > 0 &&
         (value.launches === undefined || typeof value.launches === "string") &&
         (value.stream === undefined || isMediaStreamId(value.stream))
+      );
+    case "dialup":
+      return (
+        value.then === undefined ||
+        (isRecord(value.then) && isWindowContent(value.then))
       );
     default:
       return false;

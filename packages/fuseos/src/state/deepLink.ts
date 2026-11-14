@@ -19,6 +19,8 @@ const APPS: Record<string, WindowContent> = {
   // The DOS Games folder on the desktop (the Retro Games folder window).
   dosgames: { kind: "retroFolder" },
   run: { kind: "run" },
+  friends: { kind: "friends" },
+  network: { kind: "network" },
   defrag: { kind: "defrag" },
   mycomputer: { kind: "explorer", location: MY_COMPUTER },
 };

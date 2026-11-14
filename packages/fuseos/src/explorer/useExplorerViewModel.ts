@@ -27,6 +27,7 @@ import { useDiskDeps, useDiskManifest, useOverlayPaths } from "../disk/useDisk";
 import { matchShortcut } from "../lib/shortcuts";
 import { useOpenInNotepad } from "../notepadpp/useOpenInNotepad";
 import type { WindowContent } from "../state/appState";
+import { usePlaySystemSound } from "../sounds/useSystemSound";
 import { useAppState } from "../state/useAppState";
 import { useSystem32Folder } from "../system32/explorerContract";
 import type { IconName } from "../ui/icons";
@@ -213,6 +214,7 @@ export function useExplorerViewModel(
   const manifest = useDiskManifest();
   const overlayPaths = useOverlayPaths(deps.overlay);
   const openInNotepad = useOpenInNotepad();
+  const playSystemSound = usePlaySystemSound();
   const registrations = useContext(StartMenuRegistryContext);
   const { viewport } = useContext(WindowManagerContext);
   const system32 = useSystem32Folder();
@@ -308,14 +310,19 @@ export function useExplorerViewModel(
         return new Set([...current, ...above]);
       });
       if (driveOf(next) === "A" && driveOf(location) !== "A") {
+        // The drive spins up and seeks (Control Panel > Sounds, "Floppy drive") while the listing waits.
+        playSystemSound("floppy");
         const token = (seekToken.current += 1);
         setSeeking(true);
         void deps.floppySeek().finally(() => {
           if (seekToken.current === token) setSeeking(false);
         });
+      } else if (driveOf(next) !== undefined) {
+        // Any other folder or drive: one short head seek (the Desktop, My Computer and the like have no disk).
+        playSystemSound("seek");
       }
     },
-    [location, setLocation, deps, lockedOut],
+    [location, setLocation, deps, lockedOut, playSystemSound],
   );
 
   const navigate = useCallback((next: string) => go(next, true), [go]);

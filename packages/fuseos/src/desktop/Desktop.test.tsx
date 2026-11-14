@@ -28,6 +28,7 @@ describe(Desktop.name, () => {
       "Paint",
       "Winamp",
       "Control Panel",
+      "Network Neighborhood",
     ]);
     expect(screen.getByRole("toolbar", { name: "Taskbar" })).toHaveTextContent(
       /2:34 PM/,
@@ -225,8 +226,12 @@ describe(Desktop.name, () => {
       screen.getByRole("dialog", { name: "About FuseOS" }),
     ).toHaveAttribute("data-active", "true");
     const taskbar = within(screen.getByRole("toolbar", { name: "Taskbar" }));
+    // The window buttons, in order; the tray's Fuse Messenger button follows them.
     expect(
-      taskbar.getAllByRole("button").map((button) => button.textContent),
+      taskbar
+        .getAllByRole("button")
+        .slice(0, 4)
+        .map((button) => button.textContent),
     ).toEqual(["Start", "untitled - Paint", "Fusteam", "About FuseOS"]);
   });
 

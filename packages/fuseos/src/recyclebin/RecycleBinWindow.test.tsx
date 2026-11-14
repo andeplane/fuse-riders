@@ -161,7 +161,9 @@ describe("RecycleBinWindow", () => {
 
   it("empties the bin after the classic 'Are you sure you want to delete these N items?'", async () => {
     const store = new MemoryRecycleBinStore();
-    const { user, choose, window, rows } = renderBin(store);
+    const { user, choose, window, rows, sounds } = renderBin(store);
+    const crumples = () =>
+      sounds.plays.filter((play) => play.event === "recycle").length;
     await choose("File", "Empty Recycle Bin");
     const confirm = screen.getByRole("dialog", {
       name: "Confirm Multiple File Delete",
@@ -174,6 +176,8 @@ describe("RecycleBinWindow", () => {
       screen.queryByRole("dialog", { name: "Confirm Multiple File Delete" }),
     ).toBeNull();
     expect(rows()).toHaveLength(RECYCLE_BIN_ITEMS.length);
+    // Nothing was deleted, so nothing crumples.
+    expect(crumples()).toBe(0);
 
     await choose("File", "Empty Recycle Bin");
     await user.click(
@@ -183,6 +187,7 @@ describe("RecycleBinWindow", () => {
     );
     expect(rows()).toHaveLength(0);
     expect(within(window).getByText("0 object(s)")).toBeInTheDocument();
+    expect(crumples()).toBe(1);
     expect(
       within(window).getByText(/The Recycle Bin is empty/),
     ).toBeInTheDocument();

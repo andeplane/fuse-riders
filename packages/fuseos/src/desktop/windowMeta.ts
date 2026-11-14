@@ -54,6 +54,12 @@ export const MEDIA_PLAYER_STREAM_WINDOW_SIZE: Size = {
 
 /** The Run box: the prompt, one line to type in and three buttons. */
 export const RUN_WINDOW_SIZE: Size = { width: 360, height: 176 };
+/** Room for the Connect To form (user name, password, phone number, location) and its buttons. */
+export const DIAL_UP_WINDOW_SIZE: Size = { width: 400, height: 260 };
+/** Room for the tree pane, a few rows of rooms and the status bar. */
+export const NETWORK_WINDOW_SIZE: Size = { width: 640, height: 420 };
+/** A tall narrow buddy list, as ICQ and MSN Messenger were laid out. */
+export const FRIENDS_WINDOW_SIZE: Size = { width: 320, height: 540 };
 
 export const OS_NAME = "FuseOS";
 
@@ -72,6 +78,20 @@ export function windowMeta(
         size: FUSE_GAME_WINDOW_SIZE,
       };
     }
+    case "roomgame":
+      return {
+        title: `${games.find(window.gameId)?.name ?? window.gameId} - Room ${window.code}`,
+        icon: "network",
+        resizable: true,
+        size: FUSE_GAME_WINDOW_SIZE,
+      };
+    case "network":
+      return {
+        title: "Network Neighborhood",
+        icon: "network",
+        resizable: true,
+        size: NETWORK_WINDOW_SIZE,
+      };
     case "retro":
       return {
         title: GAMES[window.game].name,
@@ -167,6 +187,20 @@ export function windowMeta(
         icon: "run",
         resizable: false,
         size: RUN_WINDOW_SIZE,
+      };
+    case "dialup":
+      return {
+        title: "Connect To",
+        icon: "dialup",
+        resizable: false,
+        size: DIAL_UP_WINDOW_SIZE,
+      };
+    case "friends":
+      return {
+        title: "Fuse Messenger",
+        icon: "messenger",
+        resizable: true,
+        size: FRIENDS_WINDOW_SIZE,
       };
   }
 }

@@ -27,13 +27,18 @@ import {
 } from "../desktop/wallpaperStore";
 import type { DisplayEffectsDeps } from "../display/effects/effectsDeps";
 import {
-  createManualTimers,
+  createManualTimers as createManualEffectsTimers,
   DisplayEffectsDepsContext,
 } from "../display/effects/effectsDeps";
 import {
   DisplayEffectsStoreContext,
   MemoryDisplayEffectsStore,
 } from "../display/effects/effectsStore";
+import { createDemoPresenceService } from "../friends/demoPresenceService";
+import type { FriendsDeps } from "../friends/friendsDepsContext";
+import { FriendsDepsContext } from "../friends/friendsDepsContext";
+import type { PresenceService } from "../friends/presenceService";
+import { PresenceServiceContext } from "../friends/presenceService";
 import type { FuseGameRegistry } from "../fusegames/registry";
 import {
   createFuseGameRegistry,
@@ -47,6 +52,19 @@ import { LlmDepsContext } from "../llm/llmDepsContext";
 import { MemoryModelCache } from "../llm/modelCache";
 import type { MediaPlayerDeps } from "../mediaplayer/mediaPlayerDepsContext";
 import { MediaPlayerDepsContext } from "../mediaplayer/mediaPlayerDepsContext";
+import type { NetworkDeps } from "../network/networkDeps";
+import { NetworkDepsContext } from "../network/networkDeps";
+import {
+  MemoryRecentRoomsStore,
+  RecentRoomsStoreContext,
+} from "../network/recentRooms";
+import type { RoomDirectory } from "../network/roomDirectory";
+import {
+  RoomDirectoryContext,
+  UNSUPPORTED_ROOM_DIRECTORY,
+} from "../network/roomDirectory";
+import type { RoomLauncher } from "../network/roomLauncher";
+import { RoomLauncherContext } from "../network/roomLauncher";
 import type { PaintControls } from "../paint/paintControls";
 import type { PaintDeps } from "../paint/paintDepsContext";
 import { PaintDepsContext } from "../paint/paintDepsContext";
@@ -75,6 +93,13 @@ import {
 import type { LaunchDevice } from "../settings/launchDevice";
 import { LaunchDeviceContext } from "../settings/launchDevice";
 import { Shell } from "../Shell";
+import type { DialUpDeps } from "../sounds/dialup/dialUpDepsContext";
+import { DialUpDepsContext } from "../sounds/dialup/dialUpDepsContext";
+import {
+  DialUpSessionContext,
+  MemoryDialUpSession,
+} from "../sounds/dialup/dialUpSession";
+import { SoundServiceContext } from "../sounds/soundContext";
 import type { AppState, WindowContent } from "../state/appState";
 import { DEFAULT_STATE } from "../state/appState";
 import type { AppStateDeps } from "../state/appStateContext";
@@ -100,7 +125,9 @@ import { createTestAssistantDeps } from "./assistantDeps";
 import type { FakeEngineFactory } from "./llmEngine";
 import { createFakeEngineFactory } from "./llmEngine";
 import { FakePaintFileDeps } from "./paintFiles";
+import { ManualScheduler } from "./dialUpDeps";
 import { FakePaintSurface } from "./paintSurface";
+import { FakeSoundService } from "./soundService";
 import type { FakeWebampPlayer } from "./webampPlayer";
 import { createFakeWebampPlayer } from "./webampPlayer";
 
@@ -198,10 +225,26 @@ export type ProviderOptions = {
   mediaPlayerDeps?: Partial<MediaPlayerDeps>;
   /** Defaults to a hand-stepped scheduler and no demo, so nothing folds unless a test asks. */
   system32Deps?: Partial<System32Deps>;
+  /** Defaults to a recording fake that reports every sound as audible. */
+  sounds?: FakeSoundService;
+  /** Defaults to an offline session, so Network-style windows go through Dial-Up Networking first. */
+  dialUpSession?: MemoryDialUpSession;
+  /** Defaults to a manual scheduler, so the handshake's status lines advance only when a test says. */
+  dialUpDeps?: DialUpDeps;
+  /** Defaults to an empty in-memory list. */
+  recentRooms?: MemoryRecentRoomsStore;
+  /** Defaults to the production "unsupported" directory (the service lists no rooms). */
+  roomDirectory?: RoomDirectory;
+  /** Defaults to the built-in launcher over `prefsStore`; pass one to observe joins directly. */
+  roomLauncher?: RoomLauncher;
+  networkDeps?: Partial<NetworkDeps>;
+  /** Defaults to the demo presence service, signed out, over the manual scheduler in `friendsDeps`. */
+  presence?: PresenceService;
+  friendsDeps?: Partial<FriendsDeps>;
 };
 
 /** The media player's scheduled ticks, fired by the test rather than a clock. */
-export class ManualScheduler {
+export class MediaPlayerScheduler {
   private pending: (() => void)[] = [];
 
   schedule = (callback: () => void, _ms: number): (() => void) => {
@@ -224,10 +267,51 @@ export class ManualScheduler {
 }
 
 export function createTestMediaPlayerDeps(
-  scheduler: ManualScheduler,
+  scheduler: MediaPlayerScheduler,
   overrides: Partial<MediaPlayerDeps> = {},
 ): MediaPlayerDeps {
   return { schedule: scheduler.schedule, ...overrides };
+}
+
+/** A scheduler a test fires by hand: `timers.fire()` runs every pending callback in order. */
+export type ManualTimers = {
+  schedule: FriendsDeps["schedule"];
+  /** Runs what is due (everything, or only what was scheduled within `withinMs`). */
+  fire: (withinMs?: number) => void;
+  pending: () => number;
+};
+
+export function createManualTimers(): ManualTimers {
+  let pending: { id: number; delayMs: number; callback: () => void }[] = [];
+  let nextId = 0;
+  return {
+    schedule: (callback, delayMs) => {
+      const id = nextId++;
+      pending.push({ id, delayMs, callback });
+      return () => {
+        pending = pending.filter((timer) => timer.id !== id);
+      };
+    },
+    fire: (withinMs = Number.POSITIVE_INFINITY) => {
+      const due = pending.filter((timer) => timer.delayMs <= withinMs);
+      pending = pending.filter((timer) => timer.delayMs > withinMs);
+      for (const timer of due) timer.callback();
+    },
+    pending: () => pending.length,
+  };
+}
+
+export function createTestFriendsDeps(
+  timers: ManualTimers,
+  overrides: Partial<FriendsDeps> = {},
+): FriendsDeps {
+  return {
+    now: () => Date.UTC(1998, 5, 25, 12, 34),
+    schedule: timers.schedule,
+    playAlert: vi.fn(),
+    copyText: vi.fn(async () => undefined),
+    ...overrides,
+  };
 }
 
 export const immediateAppStateDeps: AppStateDeps = {
@@ -375,6 +459,25 @@ export function createTestScreenSaverDeps(
   };
 }
 
+/** A fixed clock, a mouse-driven device and timers that never fire on their own (`tick` runs every scheduled callback once). */
+export function createTestNetworkDeps(
+  overrides: Partial<NetworkDeps> = {},
+): NetworkDeps & { tick: () => void } {
+  const callbacks = new Set<() => void>();
+  return {
+    now: () => Date.UTC(1998, 5, 25, 12, 34),
+    finePointer: () => true,
+    every: (callback) => {
+      callbacks.add(callback);
+      return () => {
+        callbacks.delete(callback);
+      };
+    },
+    tick: () => callbacks.forEach((callback) => callback()),
+    ...overrides,
+  };
+}
+
 /** Launcher deps with an empty in-memory last-played map; where a game opens comes from `launchDevice` and `prefsStore`. */
 export function createTestLauncherDeps(
   overrides: Partial<LauncherDeps> = {},
@@ -422,7 +525,7 @@ export function createWrapper(options: ProviderOptions = {}) {
   const launchDevice = options.launchDevice ?? DESKTOP_DEVICE;
   const osAnalytics = createRecordingOsAnalytics();
   const effectsStore = options.effectsStore ?? new MemoryDisplayEffectsStore();
-  const effectsTimers = createManualTimers();
+  const effectsTimers = createManualEffectsTimers();
   const effectsDeps: DisplayEffectsDeps = {
     setTimeout: effectsTimers.setTimeout,
     clearTimeout: effectsTimers.clearTimeout,
@@ -457,10 +560,25 @@ export function createWrapper(options: ProviderOptions = {}) {
   const diskDeps = options.diskDeps ?? createTestDiskDeps(options.disk);
   const editors: FakeEditor[] = [];
   const editorDeps = createFakeEditorDeps(editors);
+  const sounds = options.sounds ?? new FakeSoundService();
+  const dialUpSession = options.dialUpSession ?? new MemoryDialUpSession();
+  const dialUpDeps = options.dialUpDeps ?? new ManualScheduler();
+  const recentRooms = options.recentRooms ?? new MemoryRecentRoomsStore();
+  const roomDirectory = options.roomDirectory ?? UNSUPPORTED_ROOM_DIRECTORY;
+  const roomLauncher = options.roomLauncher ?? null;
+  const networkDeps = createTestNetworkDeps(options.networkDeps);
+  const friendTimers = createManualTimers();
+  const friendsDeps = createTestFriendsDeps(friendTimers, options.friendsDeps);
+  const presence =
+    options.presence ??
+    createDemoPresenceService({
+      schedule: friendsDeps.schedule,
+      signedIn: false,
+    });
 
   const recycleBinStore =
     options.recycleBinStore ?? new MemoryRecycleBinStore();
-  const mediaPlayerTimers = new ManualScheduler();
+  const mediaPlayerTimers = new MediaPlayerScheduler();
   const mediaPlayerDeps = createTestMediaPlayerDeps(
     mediaPlayerTimers,
     options.mediaPlayerDeps,
@@ -472,6 +590,12 @@ export function createWrapper(options: ProviderOptions = {}) {
     provider(ScreenSaverStoreContext, screenSaverStore),
     provider(ScreenSaverDepsContext, screenSaverDeps),
     provider(FuseGamesContext, games),
+    provider(PresenceServiceContext, presence),
+    provider(FriendsDepsContext, friendsDeps),
+    provider(RecentRoomsStoreContext, recentRooms),
+    provider(RoomDirectoryContext, roomDirectory),
+    provider(RoomLauncherContext, roomLauncher),
+    provider(NetworkDepsContext, networkDeps),
     provider(AppStateDepsContext, immediateAppStateDeps),
     provider(WindowsDepsContext, testWindowsDeps),
     provider(DesktopDepsContext, desktopDeps),
@@ -498,6 +622,9 @@ export function createWrapper(options: ProviderOptions = {}) {
     provider(LauncherDepsContext, launcherDeps),
     provider(RecycleBinStoreContext, recycleBinStore),
     provider(MediaPlayerDepsContext, mediaPlayerDeps),
+    provider(SoundServiceContext, sounds),
+    provider(DialUpSessionContext, dialUpSession),
+    provider(DialUpDepsContext, dialUpDeps),
   ];
 
   function Wrapper({ children }: { children: ReactNode }) {
@@ -512,8 +639,14 @@ export function createWrapper(options: ProviderOptions = {}) {
     Wrapper,
     screenSaverStore,
     screenSaverDeps,
+    recentRooms,
+    roomDirectory,
+    networkDeps,
     store,
     games,
+    presence,
+    friendsDeps,
+    timers: friendTimers,
     desktopDeps,
     mediaDeps,
     gamesDeps,
@@ -542,6 +675,9 @@ export function createWrapper(options: ProviderOptions = {}) {
     recycleBinStore,
     mediaPlayerDeps,
     mediaPlayerTimers,
+    sounds,
+    dialUpSession,
+    dialUpDeps,
   };
 }
 

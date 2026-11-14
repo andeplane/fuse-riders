@@ -1,8 +1,10 @@
 import { CdMusic } from "@react95/icons/CdMusic";
 import { Computer } from "@react95/icons/Computer";
 import { ComputerFind } from "@react95/icons/ComputerFind";
+import { Conf100 } from "@react95/icons/Conf100";
 import { CurvesAndColors100 } from "@react95/icons/CurvesAndColors100";
 import { Desk100 } from "@react95/icons/Desk100";
+import { Dialmon200 } from "@react95/icons/Dialmon200";
 import { Desktop } from "@react95/icons/Desktop";
 import { FileText } from "@react95/icons/FileText";
 import { Folder } from "@react95/icons/Folder";
@@ -20,6 +22,7 @@ import { Keys } from "@react95/icons/Keys";
 import { Lights100 } from "@react95/icons/Lights100";
 import { Mplayer10 } from "@react95/icons/Mplayer10";
 import { Mplayer11 } from "@react95/icons/Mplayer11";
+import { Mmsys110 } from "@react95/icons/Mmsys110";
 import { Mspaint } from "@react95/icons/Mspaint";
 import { Network } from "@react95/icons/Network";
 import { Notepad2 } from "@react95/icons/Notepad2";
@@ -100,6 +103,9 @@ export type IconName =
   | "mediaplayer"
   | "video"
   | "keys"
+  | "sounds"
+  | "dialup"
+  | "messenger"
   | "defrag"
   | "desktop"
   | "printers"
@@ -174,6 +180,9 @@ const ICONS: Record<IconName, IconComponent> = {
   mediaplayer: Mplayer10,
   video: Mplayer11,
   keys: fixed(Keys, "32x32_4"),
+  sounds: Mmsys110,
+  dialup: fixed(Dialmon200, "32x32_4"),
+  messenger: Conf100,
   defrag: DefragIcon,
   desktop: Desktop,
   printers: FolderPrint,
