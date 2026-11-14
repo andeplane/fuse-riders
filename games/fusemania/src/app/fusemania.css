@@ -254,6 +254,14 @@ body:has(.fui-top-bar) .fm-room:has(> .fui-room-layout:not([hidden])) {
 .fm-lobby .fui-room-open-slots {
   grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
 }
+/* Down a phone one open seat says it for the rest (the count is beside "Players"): the song select stays near. */
+@media (max-width: 600px) {
+  .fm-lobby
+    .fui-room-open-slot:not(.fui-slot-occupied)
+    ~ .fui-room-open-slot:not(.fui-slot-occupied) {
+    display: none;
+  }
+}
 
 /* The song */
 .fm-stage {
