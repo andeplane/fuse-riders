@@ -79,6 +79,11 @@ test("the service's constants are the engine's", () => {
   assert.equal(LEVELS.length, 557);
   assert.equal(LEVELS[0]!.name, "Warm Up");
   assert.equal(LEVELS[53]!.name, "Apple Harvest");
+  assert.equal(LEVELS[30]!.name, "Animal Farm");
+  assert.equal(LEVELS[0]!.polygons.length, 1, "grass is decorative");
+  assert.equal(LEVELS[0]!.polygons[0]!.length, 16);
+  assert.equal(LEVELS[0]!.faceLeft, true, "original starting orientation");
+  assert.ok(LEVELS[10]!.objects.some((object) => object.gravity));
   assert.match(RULES, /^elasto-fuse-\d+$/);
 });
 
@@ -147,6 +152,37 @@ test("apples are eaten, the flower waits for all of them, a killer and the head 
   for (let step = 0; step < 200 && !flags; step++)
     flags = stepBike(prepared, bike, 0, 0, 0n).flags;
   assert.equal(flags, 1);
+});
+
+test("apple masks retain bits above 31 in physics and checkpoints", () => {
+  const many: Level = {
+    ...flat,
+    objects: [
+      ...Array.from({ length: 40 }, () => ({
+        kind: "apple" as const,
+        x: 12,
+        y: 0.8,
+      })),
+      { kind: "flower", x: 20, y: 0.9 },
+    ],
+  };
+  const outcome = ride(many, GAS, 600);
+  assert.equal(outcome.taken, (1n << 40n) - 1n);
+  assert.equal(outcome.flags, 2, "all forty apples permit finishing");
+  const level = LEVELS.findIndex(
+    (candidate) =>
+      candidate.objects.filter((o) => o.kind === "apple").length > 32,
+  );
+  assert.ok(level >= 0);
+  const world = createWorld(["a"], level, 0);
+  world.riders[0]!.taken = 1n << 32n;
+  const fields = encodeWorld(world);
+  assert.equal(decodeWorld(fields)!.riders[0]!.taken, 1n << 32n);
+  for (const bad of ["-1", "01", "1.5", "1e3", "18446744073709551616", 1]) {
+    const invalid = encodeWorld(world);
+    (invalid[6] as unknown[])[2] = bad;
+    assert.equal(decodeWorld(invalid), undefined, String(bad));
+  }
 });
 
 test("a gravity apple turns gravity for the rider that ate it", () => {

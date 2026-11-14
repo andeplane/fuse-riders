@@ -168,11 +168,14 @@ test("a blend never smears a restart, a turn-around, another level or a wrapped 
   );
   // The facing is the earlier step's: the picture flips on a whole step.
   const turned = forward(racing(30, [GAS, 0]), 0.5, everyone([GAS | TURN, 0]));
-  assert.equal(turned.riders[0]!.bike.flipped, false);
+  assert.equal(
+    turned.riders[0]!.bike.flipped,
+    toView(racing(30, [GAS, 0])).riders[0]!.bike.flipped,
+  );
   assert.equal(
     forward(racing(30, [GAS, 0]), 1, everyone([GAS | TURN, 0])).riders[0]!.bike
       .flipped,
-    true,
+    !toView(racing(30, [GAS, 0])).riders[0]!.bike.flipped,
     "a turn held now shows on the next whole step",
   );
 });

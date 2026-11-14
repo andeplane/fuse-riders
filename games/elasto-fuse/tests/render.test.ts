@@ -256,7 +256,11 @@ test("the camera rides level with the bike, 15% of the width from the edge behin
   const wide = 16,
     high = 9;
   // Mid-level, facing right: the bike is 35% of the width behind the pane's centre.
-  const mid: BikeView = { ...bike, x: (box.minX + box.maxX) / 2 };
+  const mid: BikeView = {
+    ...bike,
+    flipped: false,
+    x: (box.minX + box.maxX) / 2,
+  };
   const right = cameraTarget(mid, box, wide, high);
   assert.ok(near(right.x - mid.x, AHEAD_SHARE * wide));
   assert.ok(near((mid.x - (right.x - wide / 2)) / wide, 0.15));
@@ -339,7 +343,7 @@ test("two-bone IK keeps both bones' lengths, bends the asked way, and straighten
 });
 
 test("the rider's joints follow the view and mirror when the bike faces left", () => {
-  const bike = toView(racing()).riders[0]!.bike;
+  const bike = { ...toView(racing()).riders[0]!.bike, flipped: false };
   const pose = poseOf(bike);
   assert.deepEqual(pose.head, bike.head, "the head is the view's");
   assert.ok(near(dist(pose.hip, pose.knee), THIGH));

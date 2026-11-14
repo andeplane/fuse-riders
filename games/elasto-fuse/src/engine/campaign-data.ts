@@ -25,6 +25,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -3.235006730917425, y: 0.3235286563126514 },
+    faceLeft: true,
     objects: [
       { kind: "apple", x: 17.92007209870463, y: 4.719884171577919, gravity: 0 },
       { kind: "flower", x: -11.447344592358615, y: 1.3123307170480596 },
@@ -66,6 +67,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 0.8615143321940071, y: 1.9712908709366601 },
+    faceLeft: true,
     objects: [{ kind: "flower", x: -59.13377560981122, y: 7.249277212886888 }],
   },
   {
@@ -124,6 +126,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 13.630051190319406, y: 6.217024934048666 },
+    faceLeft: true,
     objects: [
       { kind: "killer", x: -16.69339573639155, y: 0.917955436343759 },
       { kind: "killer", x: 5.284561165725178, y: 0.8139367522180994 },
@@ -236,6 +239,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -8.902877107496156, y: 0.14044216389594366 },
+    faceLeft: true,
     objects: [
       { kind: "killer", x: 37.59226415578336, y: 0.8777791845759381 },
       { kind: "killer", x: 48.882016042471534, y: 1.7619593423691096 },
@@ -282,6 +286,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 17.6369730948244, y: 14.401568209884346 },
+    faceLeft: true,
     objects: [
       { kind: "flower", x: -111.28178685623325, y: 22.246209905299043 },
     ],
@@ -414,6 +419,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 15.560045847082854, y: 4.46747284595159 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -500,6 +506,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 0.8700973922572501, y: 2.201997910703078 },
+    faceLeft: true,
     objects: [
       { kind: "killer", x: -19.7417358369382, y: 16.943171261384663 },
       {
@@ -590,6 +597,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 33.56518911616002, y: -10.705691722604776 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -748,6 +756,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -6.265708760338353, y: 3.1814153531587275 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -884,6 +893,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -1.500124145340732, y: 0.9108118015028603 },
+    faceLeft: true,
     objects: [{ kind: "flower", x: 1.5361308289952023, y: 1.223909849679031 }],
   },
   {
@@ -937,6 +947,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 4.646038444753306, y: 0.7789492213757453 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -1058,6 +1069,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -6.801681166423749, y: 1.2660260531165706 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -1130,6 +1142,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 8.866683864441114, y: 1.0960652590356634 },
+    faceLeft: true,
     objects: [
       { kind: "killer", x: 2.2399952591504415, y: 0.8799073774607171 },
       { kind: "killer", x: -8.370861342535994, y: 1.1615733610223842 },
@@ -1217,6 +1230,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -3.7269818478655403, y: 4.167052462963166 },
+    faceLeft: true,
     objects: [
       { kind: "killer", x: -62.75927538281515, y: 1.3998939522500944 },
       {
@@ -1422,6 +1436,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 26.180815086085314, y: 19.69014549556981 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -1693,6 +1708,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -34.11774014060431, y: 51.78784076305948 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -1896,6 +1912,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 1.6439828571597186, y: -2.0367151479644026 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -2087,6 +2104,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -19.679390859605146, y: 20.105172765494576 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -2256,6 +2274,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -1.0625311584027846, y: 2.025162725484077 },
+    faceLeft: true,
     objects: [
       { kind: "killer", x: -26.22578670798327, y: -58.45115448638921 },
       { kind: "flower", x: -53.08260392447855, y: -34.82693639586168 },
@@ -2432,6 +2451,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 1.4187873690913069, y: -0.7002557093297441 },
+    faceLeft: true,
     objects: [
       { kind: "killer", x: -15.528657013262597, y: 0.13740012299874937 },
       {
@@ -2540,6 +2560,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -7.27398976820327, y: 3.6524644056738746 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -2696,6 +2717,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 21.562249206799976, y: 8.853605190684947 },
+    faceLeft: true,
     objects: [
       { kind: "killer", x: 33.556960705301115, y: -4.359887349952326 },
       {
@@ -2769,6 +2791,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 6.344961041760715, y: 2.292285173109489 },
+    faceLeft: true,
     objects: [
       { kind: "killer", x: -15.361840571532088, y: -5.227821544258006 },
       { kind: "killer", x: 1.479929298993336, y: -9.090127553660286 },
@@ -2891,6 +2914,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 1.2865737605733258, y: 2.0122158506147807 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -3005,6 +3029,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -4.121606966758998, y: 3.3464325057635675 },
+    faceLeft: true,
     objects: [
       { kind: "killer", x: -4.528012972154998, y: -8.954992658514401 },
       {
@@ -3171,6 +3196,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 23.489556136584447, y: 4.848390248161621 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -3292,6 +3318,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -4.366251160714288, y: 13.6070255681094 },
+    faceLeft: true,
     objects: [
       { kind: "apple", x: 15.181923644145, y: 6.029688870729319, gravity: 0 },
       {
@@ -3435,6 +3462,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -32.20800317066867, y: 9.824983810993572 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -3634,6 +3662,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -58.0824446430023, y: 30.271552058192377 },
+    faceLeft: true,
     objects: [{ kind: "flower", x: -50.16917293233082, y: -62.6672932330827 }],
   },
   {
@@ -3816,6 +3845,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 50.02558363514934, y: 11.659882190549709 },
+    faceLeft: true,
     objects: [
       { kind: "apple", x: 43.03141521436419, y: 3.568045239512621, gravity: 0 },
       {
@@ -3835,7 +3865,7 @@ export const CAMPAIGN: readonly Level[] = [
   },
   {
     id: "elma-a27",
-    name: "Animal Fram",
+    name: "Animal Farm",
     polygons: [
       [
         { x: -4.96625964836575, y: 9.0949268724513 },
@@ -4435,6 +4465,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -13.638536129316975, y: 15.800161594108488 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -4776,6 +4807,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -11.20769117101115, y: 14.111417140098562 },
+    faceLeft: true,
     objects: [
       { kind: "killer", x: -4.555340712921851, y: 6.344427719585903 },
       { kind: "killer", x: 4.019834900930217, y: 5.306456066372132 },
@@ -4911,6 +4943,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -41.62767356059878, y: 30.68467153516107 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -5602,6 +5635,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -24.168871358962868, y: 17.590891415006016 },
+    faceLeft: true,
     objects: [{ kind: "flower", x: 15.914991679031251, y: -40.67054319476707 }],
   },
   {
@@ -5956,6 +5990,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -7.203329017890502, y: 41.9407736698545 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -6102,6 +6137,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -29.072654508100108, y: 12.436392059388645 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -6272,6 +6308,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -1.137165315183986, y: 19.76098666686531 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -6451,6 +6488,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 10.896462468671174, y: 28.4703860659732 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -6796,6 +6834,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 72.44919963922618, y: 12.296297271033865 },
+    faceLeft: true,
     objects: [
       { kind: "killer", x: 63.74427927117383, y: 10.755299912618597 },
       { kind: "killer", x: 57.58739127231211, y: 7.764811456028617 },
@@ -7141,6 +7180,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 19.886139064824167, y: 10.957658382840219 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -7322,6 +7362,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -9.920945536017797, y: -3.754752930278121 },
+    faceLeft: true,
     objects: [
       { kind: "killer", x: -19.004336490857675, y: -1.7412715625468653 },
       {
@@ -7459,6 +7500,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 23.51793307822947, y: 4.781746608287686 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -7839,6 +7881,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 43.46580055936623, y: 64.62841639547776 },
+    faceLeft: true,
     objects: [
       { kind: "apple", x: 21.20329592450709, y: 46.11397617229095, gravity: 0 },
       {
@@ -8090,6 +8133,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -80.4704405919775, y: 67.80045363588242 },
+    faceLeft: true,
     objects: [
       { kind: "apple", x: -71.1401439453898, y: 68.11241838148003, gravity: 0 },
       { kind: "flower", x: -78.80931687772062, y: 67.79286950929958 },
@@ -8323,6 +8367,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -82.75197729085694, y: 71.24820940613387 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -9050,6 +9095,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 82.32328426215027, y: -14.006597035831069 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -9243,6 +9289,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -30.41707145158608, y: -5.589390907515351 },
+    faceLeft: true,
     objects: [
       { kind: "killer", x: -0.528846864378246, y: -6.072557358373795 },
       { kind: "killer", x: -0.5540123695117013, y: -5.161416210441365 },
@@ -10079,6 +10126,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -1.6442158643438916, y: 68.19771646799953 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -10282,6 +10330,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -8.733558051051766, y: -1.4459867700392288 },
+    faceLeft: true,
     objects: [
       { kind: "killer", x: -2.7772765154699988, y: -1.8315976541180277 },
       {
@@ -10449,6 +10498,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -25.42120030976419, y: 28.47784713767792 },
+    faceLeft: true,
     objects: [
       { kind: "killer", x: -12.40195605734478, y: 17.13879014681504 },
       { kind: "killer", x: -14.852870784521238, y: 13.431161629551834 },
@@ -10623,6 +10673,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -11.109083343142856, y: 2.8004412665672067 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -10741,6 +10792,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 13.52001710763269, y: 6.559976865008466 },
+    faceLeft: true,
     objects: [
       { kind: "killer", x: 28.70547784998269, y: 6.116829421442174 },
       {
@@ -10882,6 +10934,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: -7.192552588303503, y: -3.0287724373614475 },
+    faceLeft: true,
     objects: [
       {
         kind: "apple",
@@ -11102,6 +11155,7 @@ export const CAMPAIGN: readonly Level[] = [
       ],
     ],
     start: { x: 36.095014319504614, y: 24.30388869994364 },
+    faceLeft: true,
     objects: [
       { kind: "apple", x: 18.372138127597044, y: 10.0864975686437, gravity: 0 },
       { kind: "apple", x: 26.00634523872707, y: 9.033503484349904, gravity: 0 },

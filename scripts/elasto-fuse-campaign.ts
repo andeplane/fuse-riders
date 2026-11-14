@@ -43,7 +43,8 @@ const levels = order.map((id, index) => {
   const raw = files.get(`${id}.leb`);
   if (!raw || raw.subarray(0, 5).toString() !== "@@^!@")
     throw new Error(`Missing level ${id}`);
-  const name = names[index]!;
+  // The original getleveldescription() fixes this typo in DESCLIST.TXT too.
+  const name = index === 30 ? "Animal Farm" : names[index]!;
   const polygonCount = Math.trunc(raw.readDoubleLE(130));
   const objectCount = Math.trunc(raw.readDoubleLE(138));
   if (
@@ -88,7 +89,7 @@ const levels = order.map((id, index) => {
     }
   }
   if (!start) throw new Error(`Missing start ${id}`);
-  return { id: `elma-${id}`, name, polygons, start, objects };
+  return { id: `elma-${id}`, name, polygons, start, faceLeft: true, objects };
 });
 writeFileSync(
   "games/elasto-fuse/src/engine/campaign-data.ts",
