@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createTopBar } from "fuse-ui";
+import { createGameMenu, createTopBar } from "fuse-ui";
 import { page } from "./dom-fixture.js";
 import { ALL_SONGS } from "fuse-music";
 import type { MusicPlayer } from "../src/radio.js";
@@ -219,4 +219,71 @@ test("a key pressed in the bar's own controls stays there; one in the game's len
     [lent],
     "focus left on the game's own button must not swallow its keys",
   );
+});
+
+test("a game's own menu in the header dialog closes that dialog when it resumes, and collapses when the dialog closes", () => {
+  const { document, window } = page(),
+    root = document.createElement("header"),
+    log: string[] = [];
+  const gameMenu = createGameMenu({
+    document,
+    controls: [],
+    onLobby: () => log.push("lobby"),
+    onOpenChange: (open) => log.push(open ? "menu open" : "menu closed"),
+  });
+  gameMenu.update({ canLobby: true });
+  root.append(gameMenu.element);
+  document.body.append(root);
+  createTopBar({ element: root, gameId: "test-game", music: false });
+  const dialog = root.querySelector<HTMLDialogElement>(".fui-top-bar-menu")!;
+  // linkedom has no dialog methods: model the open flag and record the order of the close.
+  let open = true;
+  Object.defineProperty(dialog, "open", { get: () => open });
+  Object.defineProperty(dialog, "close", {
+    value: () => {
+      open = false;
+      log.push("dialog closed");
+    },
+  });
+  const trigger = dialog.querySelector<HTMLButtonElement>(
+    ".fui-game-menu-trigger",
+  )!;
+  assert.equal(trigger.textContent, "Game controls");
+  const action = (name: string) =>
+    [
+      ...dialog.querySelectorAll<HTMLButtonElement>(".fui-game-menu-action"),
+    ].find((button) => button.textContent === name)!;
+
+  trigger.click();
+  action("CONTROLS").click();
+  action("← BACK").click();
+  assert.deepEqual(log, ["menu open"], "reading the controls keeps both open");
+  action("BACK TO GAME").click();
+  // linkedom runs capture listeners in bubble order, so only a browser shows the dialog closing first
+  // (games/hook-havok/tests/browser-coverage-flow.ts asserts the arena regains focus).
+  assert.deepEqual([...log].sort(), [
+    "dialog closed",
+    "menu closed",
+    "menu open",
+  ]);
+
+  open = true;
+  log.length = 0;
+  trigger.click();
+  action("BACK TO LOBBY").click();
+  assert.deepEqual([...log].sort(), [
+    "dialog closed",
+    "lobby",
+    "menu closed",
+    "menu open",
+  ]);
+
+  // Escape or the dialog's own Close: the browser closes the dialog, and the menu must not stay open behind it.
+  open = true;
+  log.length = 0;
+  trigger.click();
+  open = false;
+  dialog.dispatchEvent(new window.Event("close"));
+  assert.deepEqual(log, ["menu open", "menu closed"]);
+  assert.equal(gameMenu.isOpen(), false);
 });

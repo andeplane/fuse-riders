@@ -206,11 +206,29 @@ export function createTopBar(options: TopBarOptions): HTMLElement {
     menu.show({ title: "Game menu" });
     toggle.setAttribute("aria-expanded", "true");
   };
+  // A game's own menu lives in this dialog as "Game controls". Its closing actions close the dialog before they run,
+  // and a dialog closed any other way (Escape, Close) collapses that menu: otherwise the game stays paused for input
+  // behind a menu nobody can see, and focus cannot return to the arena while the modal holds the page inert.
+  menu.body.addEventListener(
+    "click",
+    (event) => {
+      const target = event.target as Element | null;
+      if (target?.closest?.("[data-fui-menu-dismiss]") && menu.dialog.open)
+        menu.dialog.close();
+    },
+    true,
+  );
   menu.dialog.addEventListener("close", () => {
     renderSound();
     onOpenChange?.(false);
     toggle.setAttribute("aria-expanded", "false");
-    toggle.focus();
+    for (const trigger of menu.body.querySelectorAll<HTMLElement>(
+      '.fui-game-menu-trigger[aria-expanded="true"]',
+    ))
+      trigger.click();
+    // Keep focus where the game put it when it resumed; otherwise return it to the control that opened the dialog.
+    const active = doc.activeElement;
+    if (!active || active === doc.body || root.contains(active)) toggle.focus();
   });
   account.onclick = () => {
     source?.click();
