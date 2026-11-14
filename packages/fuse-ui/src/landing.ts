@@ -85,6 +85,14 @@ export interface LandingOptions {
   onJoin(code: string): void;
   createText?: string;
   soloText?: string;
+  /**
+   * Keep the solo button in the single-player dialog's bar, beside CLOSE, with `soloActions` before it, rather than
+   * under the details. For a game whose details are long enough to scroll: the button that starts play must not
+   * be at the end of them. The details then go in `soloDetails`.
+   */
+  soloInBar?: boolean;
+  /** With `soloInBar`: what else sits in the bar, before the solo button. */
+  soloActions?: readonly Node[];
   document?: Document;
 }
 
@@ -92,6 +100,8 @@ export interface LandingCard {
   element: HTMLElement;
   create: HTMLButtonElement;
   solo: HTMLButtonElement | undefined;
+  /** Where a game puts what a single player chooses before playing; shown in the single-player dialog. */
+  soloDetails: HTMLElement;
   join: JoinByCode;
   /** One `role="alert"` line for create and join failures. */
   error: HTMLElement;
@@ -157,7 +167,7 @@ export function createLandingCard(options: LandingOptions): LandingCard {
     solo = el("button", options.soloText ?? "PLAY SOLO", "fui-button", doc);
     solo.type = "button";
     solo.onclick = () => onSolo();
-    singlePlayerOptions.append(solo);
+    if (!options.soloInBar) singlePlayerOptions.append(solo);
     actions.append(singlePlayerOptions);
   }
   element.append(actions, error);
@@ -169,9 +179,13 @@ export function createLandingCard(options: LandingOptions): LandingCard {
     onPlay: runCreate,
     onSinglePlayer: options.onSolo,
     singlePlayerContent: () =>
-      solo && singlePlayerOptions.children.length > 1
+      solo &&
+      singlePlayerOptions.children.length > (options.soloInBar ? 0 : 1)
         ? [singlePlayerOptions]
         : [],
+    ...(solo && options.soloInBar
+      ? { singlePlayerActions: [...(options.soloActions ?? []), solo] }
+      : {}),
     joinContent: [join.row, error],
     hostingOptions: hostOptions,
     document: doc,
@@ -187,5 +201,13 @@ export function createLandingCard(options: LandingOptions): LandingCard {
     new Observer(updateHostingOptions).observe(hostOptions, {
       childList: true,
     });
-  return { element: menu.element, create, solo, join, error, menu };
+  return {
+    element: menu.element,
+    create,
+    solo,
+    soloDetails: singlePlayerOptions,
+    join,
+    error,
+    menu,
+  };
 }

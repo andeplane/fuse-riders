@@ -24,6 +24,11 @@ export interface MainMenuOptions {
   onPlay?: () => Promise<void> | void;
   onSinglePlayer?: () => Promise<void> | void;
   singlePlayerContent?: readonly Node[] | (() => readonly Node[]);
+  /**
+   * What starts the single-player game, and anything that goes with it: shown in the dialog's bar beside CLOSE
+   * while the single-player details are open, so it stays in reach however far the details scroll.
+   */
+  singlePlayerActions?: readonly Node[];
   onJoinRoom?: () => void;
   joinContent?: readonly Node[];
   /** Existing shared-screen or local hosting preferences, without another default action. */
@@ -104,7 +109,9 @@ export function createMainMenu(options: MainMenuOptions) {
       ? options.singlePlayerContent()
       : (options.singlePlayerContent ?? []);
   parking.append(...owned);
+  const barActions = options.singlePlayerActions ?? [];
   const park = () => {
+    for (const node of barActions) parking.append(node);
     for (const node of Array.from(dialog.body.childNodes)) {
       if (owned.has(node)) parking.append(node);
       else node.remove();
@@ -188,6 +195,7 @@ export function createMainMenu(options: MainMenuOptions) {
     if (content.length) {
       content.forEach((node) => owned.add(node));
       open("Single player", content);
+      dialog.close.before(...barActions);
     } else if (options.onSinglePlayer)
       void run(
         options.onSinglePlayer,

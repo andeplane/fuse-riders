@@ -123,7 +123,7 @@ body.fusemania-page {
   margin: 0;
   accent-color: var(--fui-cyan);
 }
-/* The song select needs the width: its dialog is wider than a menu's, and the list keeps PLAY in view. */
+/* The song select needs the width: its dialog is wider than a menu's. PLAY is in the dialog's bar, not under the select. */
 .fusemania-page .fui-menu-dialog:has(.fm-picker) {
   width: min(68rem, calc(100vw - 1.5rem));
 }

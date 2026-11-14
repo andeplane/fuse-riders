@@ -80,7 +80,7 @@ import {
   savePrefs,
   type Prefs,
 } from "./prefs.js";
-import { createPlayOptions } from "./options.js";
+import { createOptionsMenu, createPlayOptions } from "./options.js";
 import {
   bestText,
   present,
@@ -395,23 +395,6 @@ function landing(): void {
   toggle.onchange = () =>
     store.setItem(names.shared, toggle.checked ? "1" : "0");
   shared.append(toggle, el("span", "Shared TV: phones are the controllers"));
-  const picker = createSongPicker({
-    document,
-    songs: library.songs,
-    onSong: (song) => show({ ...choice, song }),
-    onChart: (chart) => show({ ...choice, chart }),
-    onMode: (mode) => show({ ...choice, mode }),
-    best: bestLookup(library),
-    cover: coverUrl,
-    packs: packsOf(library.songs, CUSTOM),
-  });
-  const show = (next: Choice) => {
-    if (next.song !== choice.song || next.chart !== choice.chart) sfx.blip();
-    choice = next;
-    remember(choice);
-    picker.update({ ...choice, host: true });
-    preview.show(choice.song);
-  };
   // A solo select: this player's speed and a random song. Sessions are a room's.
   const options = createPlayOptions({
     document,
@@ -427,6 +410,24 @@ function landing(): void {
       if (song) show({ ...choice, song });
     },
   });
+  const picker = createSongPicker({
+    document,
+    songs: library.songs,
+    onSong: (song) => show({ ...choice, song }),
+    onChart: (chart) => show({ ...choice, chart }),
+    onMode: (mode) => show({ ...choice, mode }),
+    best: bestLookup(library),
+    cover: coverUrl,
+    packs: packsOf(library.songs, CUSTOM),
+    tools: [options.random],
+  });
+  const show = (next: Choice) => {
+    if (next.song !== choice.song || next.chart !== choice.chart) sfx.blip();
+    choice = next;
+    remember(choice);
+    picker.update({ ...choice, host: true });
+    preview.show(choice.song);
+  };
   const showOptions = () =>
     options.update({
       speed: prefs.speed,
@@ -440,7 +441,14 @@ function landing(): void {
     card.menu.dispose();
     document.removeEventListener("keydown", onKey);
   };
+  // PLAY and OPTIONS stay in the dialog's bar beside CLOSE: the select under them scrolls, they do not.
+  const optionsMenu = createOptionsMenu({
+    document,
+    content: [options.element],
+  });
   const card = createLandingCard({
+    soloInBar: true,
+    soloActions: [optionsMenu.element],
     background: async (host) =>
       (await import("./attract.js")).createAttract(host),
     title: "FUSEMANIA",
@@ -524,10 +532,9 @@ function landing(): void {
     });
   };
   const select = el("section", "", "fm-landing-select");
-  select.append(picker.element, options.element);
-  card.solo?.before(select);
+  select.append(picker.element);
+  card.soloDetails.append(select, own);
   card.solo?.classList.add("fui-button-primary", "fm-solo-play");
-  card.solo?.after(own);
   const settings = settingsPanel(() => {
     help.dispatchEvent(new Event("fm-refresh"));
     showOptions();
@@ -696,27 +703,6 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       withFlags(endpoints.appUrl(`?room=${code}&display=1`)),
       "_blank",
     );
-  const picker = createSongPicker({
-    document,
-    songs: library.songs,
-    onSong: (song) => {
-      sfx.blip();
-      runtime.command({ type: "settings", settings: { ...settings, song } });
-    },
-    onChart: (chart) => {
-      sfx.blip();
-      store.setItem(names.chart, String(chart));
-      runtime.pick(chart);
-      // The host's chart is also what a seat without a choice of its own plays, the AI rivals included.
-      if (viewer.host)
-        runtime.command({ type: "settings", settings: { ...settings, chart } });
-    },
-    onMode: (mode) =>
-      runtime.command({ type: "settings", settings: { ...settings, mode } }),
-    best: bestLookup(library),
-    cover: coverUrl,
-    packs: packsOf(library.songs, CUSTOM),
-  });
   // Beside the song select: every player's own speed, and the host's random song and session.
   const options = createPlayOptions({
     document,
@@ -742,6 +728,28 @@ function room(solo: boolean, library: Library, first?: Choice): void {
       store.setItem(names.order, random ? "random" : "host");
       runtime.command({ type: "settings", settings: { ...settings, random } });
     },
+  });
+  const picker = createSongPicker({
+    document,
+    songs: library.songs,
+    onSong: (song) => {
+      sfx.blip();
+      runtime.command({ type: "settings", settings: { ...settings, song } });
+    },
+    onChart: (chart) => {
+      sfx.blip();
+      store.setItem(names.chart, String(chart));
+      runtime.pick(chart);
+      // The host's chart is also what a seat without a choice of its own plays, the AI rivals included.
+      if (viewer.host)
+        runtime.command({ type: "settings", settings: { ...settings, chart } });
+    },
+    onMode: (mode) =>
+      runtime.command({ type: "settings", settings: { ...settings, mode } }),
+    best: bestLookup(library),
+    cover: coverUrl,
+    packs: packsOf(library.songs, CUSTOM),
+    tools: [options.random],
   });
   options.element.hidden = display;
   const showOptions = () =>
