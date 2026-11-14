@@ -1,6 +1,6 @@
 /**
  * The dev server's side of the Fusemania chart lab's notes: `GET <base>__chart-lab/notes` returns the notes on disk and `POST` writes the lab's notes to
- * `<dir>/notes.json` and a note's picture to `<dir>/shots/<note id>.png`. Development only (the built site has no
+ * `<dir>/notes.json` a note's picture to `<dir>/shots/<note id>.png` and a song's tapped rhythm to `<dir>/taps/<song>.json`. Development only (the built site has no
  * server), and only for a page this same dev server served to this machine.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -45,6 +45,11 @@ export function storeNotes(dir: string, body: string): string[] {
   if (stored.shot) {
     writeFileSync(join(dir, "shots", stored.shot.file), stored.shot.bytes);
     written.push(`shots/${stored.shot.file}`);
+  }
+  if (stored.taps) {
+    mkdirSync(join(dir, "taps"), { recursive: true });
+    writeFileSync(join(dir, "taps", stored.taps.file), stored.taps.text);
+    written.push(`taps/${stored.taps.file}`);
   }
   return written;
 }

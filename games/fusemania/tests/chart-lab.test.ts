@@ -52,6 +52,8 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { addTap, parseTaps, tapColumn, writeTaps } from "../src/lab/taps.js";
+
 const sine = (hz: number, seconds: number, rate = LAB_RATE) =>
   Float32Array.from({ length: Math.round(seconds * rate) }, (_, i) =>
     Math.sin((2 * Math.PI * hz * i) / rate),
@@ -501,4 +503,72 @@ test("chart lab: the URL fragment remembers the playhead across a reload", () =>
   assert.equal(parseResume("#t=abc"), undefined);
   assert.equal(parseResume("#t=1e9"), undefined);
   assert.equal(parseResume("#other"), undefined);
+});
+
+test("chart lab: WASD and IJKL tap the four lanes", () => {
+  assert.deepEqual(["a", "s", "w", "d"].map(tapColumn), [0, 1, 2, 3]);
+  assert.deepEqual(["J", "K", "I", "L"].map(tapColumn), [0, 1, 2, 3]);
+  assert.equal(tapColumn("x"), undefined);
+  assert.equal(tapColumn(" "), undefined);
+});
+
+test("chart lab: taps stay in time order and survive storage", () => {
+  let taps = addTap([], { time: 2, beat: 4, column: 3 });
+  taps = addTap(taps, { time: 1, beat: 2, column: 0 });
+  taps = addTap(taps, { time: 2, beat: 4, column: 1 });
+  assert.deepEqual(
+    taps.map((tap) => [tap.time, tap.column]),
+    [
+      [1, 0],
+      [2, 1],
+      [2, 3],
+    ],
+  );
+  const file = { version: 1 as const, song: "final-chase", taps };
+  assert.deepEqual(parseTaps(writeTaps(file)), file);
+  const bad = (value: unknown) =>
+    assert.throws(() => parseTaps(JSON.stringify(value)), NotesError);
+  assert.throws(() => parseTaps("nope"), NotesError);
+  bad(3);
+  bad({ ...file, version: 2 });
+  bad({ ...file, song: "../x" });
+  bad({ ...file, taps: "x" });
+  bad({ ...file, taps: [3] });
+  bad({ ...file, taps: [{ time: 1, beat: 1, column: 4 }] });
+  bad({ ...file, taps: [{ time: 1, beat: 1, column: 1.5 }] });
+  bad({ ...file, taps: [{ time: -1, beat: 1, column: 1 }] });
+  bad({ ...file, taps: [{ time: "1", beat: 1, column: 1 }] });
+});
+
+test("chart lab: a tapped rhythm is stored under its song's name", () => {
+  const dir = mkdtempSync(join(tmpdir(), "chart-lab-taps-"));
+  try {
+    const taps = {
+      version: 1 as const,
+      song: "final-chase",
+      taps: [{ time: 1.25, beat: 2.5, column: 2 }],
+    };
+    const written = storeNotes(
+      dir,
+      writeNotesUpload({ notes: { version: 1, notes: [] }, taps }),
+    );
+    assert.deepEqual(written, ["notes.json", "taps/final-chase.json"]);
+    assert.deepEqual(
+      parseTaps(readFileSync(join(dir, "taps", "final-chase.json"), "utf8")),
+      taps,
+    );
+    assert.throws(
+      () =>
+        storeNotes(
+          dir,
+          JSON.stringify({
+            notes: { version: 1, notes: [] },
+            taps: { ...taps, song: "../../x" },
+          }),
+        ),
+      NotesError,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

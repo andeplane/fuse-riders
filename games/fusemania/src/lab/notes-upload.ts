@@ -4,6 +4,7 @@
  * charts (a person or an agent) can read them without the browser. Both ends validate through this module.
  */
 import { NotesError, parseNotes, writeNotes, type NotesFile } from "./notes.js";
+import { parseTaps, writeTaps, type TapsFile } from "./taps.js";
 
 /** Where the page posts, under the site's base. */
 export const NOTES_UPLOAD_PATH = "__chart-lab/notes";
@@ -17,12 +18,15 @@ const NOTE_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
 export interface NotesUpload {
   notes: NotesFile;
   shot?: { id: string; png: string };
+  /** One song's tapped rhythm (record mode), whenever it changes. */
+  taps?: TapsFile;
 }
 
 /** What the server writes: the notes file's text, and the picture's file name and bytes. */
 export interface NotesToStore {
   notes: string;
   shot?: { file: string; bytes: Uint8Array };
+  taps?: { file: string; text: string };
 }
 
 export const writeNotesUpload = (upload: NotesUpload): string =>
@@ -41,9 +45,18 @@ export function parseNotesUpload(text: string): NotesToStore {
   }
   if (typeof body !== "object" || body === null)
     throw new NotesError("the upload is not an object");
-  const { notes, shot } = body as { notes?: unknown; shot?: unknown };
+  const { notes, shot, taps } = body as {
+    notes?: unknown;
+    shot?: unknown;
+    taps?: unknown;
+  };
   const file = parseNotes(JSON.stringify(notes));
   const stored: NotesToStore = { notes: writeNotes(file) };
+  if (taps !== undefined) {
+    // The song id is checked by `parseTaps`, so the file name is never the sender's free choice.
+    const tapped = parseTaps(JSON.stringify(taps));
+    stored.taps = { file: `${tapped.song}.json`, text: writeTaps(tapped) };
+  }
   if (shot === undefined) return stored;
   if (typeof shot !== "object" || shot === null)
     throw new NotesError("the picture is not an object");

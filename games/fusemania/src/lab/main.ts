@@ -56,6 +56,14 @@ import {
 import { hiddenAtStart, parseShown } from "./shown.js";
 import { NOTES_UPLOAD_PATH, writeNotesUpload } from "./notes-upload.js";
 import {
+  addTap,
+  parseTaps,
+  tapColumn,
+  writeTaps,
+  type Tap,
+  type TapsFile,
+} from "./taps.js";
+import {
   bandMix,
   coversAll,
   dragSpan,
@@ -76,6 +84,9 @@ const NOTES_KEY = "fusemania-lab:notes";
 const SHOWN_KEY = "fusemania-lab:shown";
 const EDITS_KEY = (song: string) => `fusemania-lab:edits:${song}`;
 const MARKER_KEY = (song: string) => `fusemania-lab:marker:${song}`;
+const TAPS_KEY = (song: string) => `fusemania-lab:taps:${song}`;
+/** The key of the column that shows the tapped rhythm. */
+const TAPPED = "taps";
 const HEADER = 30;
 const RULER = 58;
 const LANE = 30;
@@ -152,6 +163,11 @@ const keyLegend = el(
   key("→"),
   " 10 s",
   el("span", { className: "lab-keys-gap" }),
+  key("r"),
+  " record, then tap ",
+  key("WASD"),
+  key("IJKL"),
+  el("span", { className: "lab-keys-gap" }),
   key("x"),
   " set marker",
   el("span", { className: "lab-keys-gap" }),
@@ -198,6 +214,11 @@ const editInput = el("input", {
   type: "checkbox",
   title: "Click a lane to add or remove a tap",
 });
+const recordInput = el("input", {
+  type: "checkbox",
+  title:
+    "Record mode (r): while the song plays, tap the rhythm on WASD or IJKL; each tap lands as an arrow in the Tapped column",
+});
 const snapSelect = el("select", { title: "Edit snap" });
 for (const per of [4, 3, 2, 6, 8, 1])
   snapSelect.append(
@@ -229,7 +250,7 @@ const helpBox = el(
   el("h2", { textContent: "How to use" }),
   el("p", {
     textContent:
-      "Press x to drop a marker at the playhead (the yellow line) and enter to jump back to it, as often as you like. Scroll to move through the song, ctrl/⌘ + scroll (or + and −) to zoom. Space plays and pauses at the playhead (the white line); ← and → move it back and forward by 0.5 s, 3 s with shift and 10 s with option (as in VLC), playing or paused. Click the ruler or the spectrogram to put it somewhere else.",
+      "Record mode (r, or the record box): while the song plays, tap the rhythm you hear on WASD or IJKL (left, down, up, right). Each tap lands in the Tapped column and is saved with your notes. Press x to drop a marker at the playhead (the yellow line) and enter to jump back to it, as often as you like. Scroll to move through the song, ctrl/⌘ + scroll (or + and −) to zoom. Space plays and pauses at the playhead (the white line); ← and → move it back and forward by 0.5 s, 3 s with shift and 10 s with option (as in VLC), playing or paused. Click the ruler or the spectrogram to put it somewhere else.",
   }),
   el("p", {
     textContent:
@@ -268,6 +289,12 @@ app.append(
     el("label", {}, "floor ", floorInput),
     el("label", {}, gridInput, " 16ths"),
     el("label", {}, editInput, " edit"),
+    el("label", { className: "lab-record" }, recordInput, " record"),
+    button(
+      "Clear taps",
+      () => clearTaps(),
+      "Throw away the rhythm you tapped for this song",
+    ),
     snapSelect,
     button(
       "Load .ssc…",
@@ -341,6 +368,9 @@ const pendingTicks = new Set<AudioBufferSourceNode>();
 let follow = true;
 /** A place in the song to come back to: `x` sets it at the playhead, enter returns to it. Kept per song. */
 let marker: number | undefined;
+/** The rhythm tapped in record mode for this song, in time order. */
+let taps: Tap[] = [];
+let tapsTimer: ReturnType<typeof setTimeout> | undefined;
 /** In local development the URL remembers the playhead (`#t=…`), so a reload carries on from there. */
 let resumeAt = import.meta.env.DEV ? parseResume(location.hash) : undefined;
 if (import.meta.env.DEV)
@@ -393,6 +423,15 @@ async function loadSong(id: string): Promise<void> {
   tiles = [];
   playhead = 0;
   topTime = -0.5;
+  taps = [];
+  const tapped = load(TAPS_KEY(data.id));
+  if (tapped) {
+    try {
+      taps = parseTaps(tapped).taps;
+    } catch {
+      save(TAPS_KEY(data.id), null);
+    }
+  }
   const marked = Number(load(MARKER_KEY(data.id)) ?? NaN);
   marker = Number.isFinite(marked) && marked >= 0 ? marked : undefined;
   playBuffer = undefined;
@@ -409,6 +448,7 @@ async function loadSong(id: string): Promise<void> {
   // One chart to start with (the ones ticked last time, else Hard); the chips above the charts pick the rest.
   for (const key of hiddenAtStart(charts, parseShown(load(SHOWN_KEY))))
     hidden.add(key);
+  hidden.delete(TAPPED);
   renderChips();
   renderNotes();
   renderSelection();
@@ -506,6 +546,27 @@ function rebuildCharts(): void {
           ),
         ),
       );
+  if (taps.length) {
+    // The tapped rhythm, as a column of its own: where each tap fell, unsnapped.
+    const tapped = placeChart(
+      sim,
+      {
+        stepsType: "dance-single",
+        difficulty: "Tapped",
+        meter: 1,
+        description: "",
+        credit: "tapped in the chart lab",
+        notes: taps.map((tap) => ({
+          beat: tap.beat,
+          column: tap.column,
+          kind: "tap" as const,
+        })),
+      },
+      TAPPED,
+      "recorded",
+    );
+    placed.push({ ...tapped, label: "Tapped" });
+  }
   charts = placed;
   const current = tickSelect.value;
   tickSelect.replaceChildren(
@@ -785,7 +846,7 @@ function draw(): void {
       g.fillRect(x + lane * LANE, HEADER, 1, height - HEADER);
     }
     for (const note of visibleNotes(chart.notes, t0 - 2, t1))
-      drawNote(g, note, x);
+      drawNote(g, note, x, chart.key === TAPPED);
   }
 
   // Curves: ChartNet's onset strength (cyan) and the selected band's flux (pink).
@@ -955,6 +1016,7 @@ function drawNote(
   g: CanvasRenderingContext2D,
   note: PlacedNote,
   x: number,
+  tapped = false,
 ): void {
   const cx = x + note.column * LANE + LANE / 2;
   const y = yOf(note.time);
@@ -969,7 +1031,11 @@ function drawNote(
     g.fillRect(cx - LANE * 0.22, y, LANE * 0.44, yOf(note.endTime) - y);
   }
   // The game's own arrow for this beat and lane.
-  const sprite = set.arrows[gameQuantOf(note.beat)]?.[note.column];
+  // A tapped note is never exactly on the grid: it takes the colour of the 16th it is nearest.
+  const sprite =
+    set.arrows[gameQuantOf(tapped ? snapBeat(note.beat, 4) : note.beat)]?.[
+      note.column
+    ];
   if (sprite) blit(g, sprite, cx, y);
 }
 
@@ -1251,6 +1317,37 @@ function seek(time: number): void {
   playhead = Math.max(0, Math.min(duration, time));
   if (playing) play();
   else draw();
+}
+
+/** Record mode: a tap at the moment it is heard, drawn at once and saved shortly after. */
+function recordTap(column: number): void {
+  const timing = charts[0]?.timing;
+  if (!source || !timing) return;
+  const time = Math.max(0, heardTime());
+  taps = addTap(taps, {
+    time: Number(time.toFixed(3)),
+    beat: Number(timing.beatAt(time).toFixed(3)),
+    column,
+  });
+  hidden.delete(TAPPED);
+  rebuildCharts();
+  saveTaps();
+}
+
+function saveTaps(): void {
+  const file: TapsFile = { version: 1, song: songId, taps };
+  save(TAPS_KEY(songId), taps.length ? writeTaps(file) : null);
+  // To the folder on this machine once the tapping pauses, not on every tap.
+  clearTimeout(tapsTimer);
+  tapsTimer = setTimeout(() => void writeToDevServer(undefined, file), 600);
+}
+
+function clearTaps(): void {
+  if (!taps.length) return;
+  taps = [];
+  rebuildCharts();
+  saveTaps();
+  draw();
 }
 
 /** A seek from the keyboard: moves the playhead from where it is heard, and brings the view back to it. */
@@ -1662,16 +1759,20 @@ function setNotes(next: NotesFile, shot?: { id: string; png: string }): void {
  * In local development the notes also go to the dev server, which writes them (and a new note's picture) to a
  * folder on this machine. The deployed page has no such server and skips this.
  */
-async function writeToDevServer(shot?: {
-  id: string;
-  png: string;
-}): Promise<void> {
+async function writeToDevServer(
+  shot?: { id: string; png: string },
+  tapped?: TapsFile,
+): Promise<void> {
   if (!import.meta.env.DEV) return;
   try {
     const response = await fetch(`${BASE}${NOTES_UPLOAD_PATH}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: writeNotesUpload({ notes, ...(shot ? { shot } : {}) }),
+      body: writeNotesUpload({
+        notes,
+        ...(shot ? { shot } : {}),
+        ...(tapped ? { taps: tapped } : {}),
+      }),
     });
     const reply = (await response.json()) as { dir?: string; error?: string };
     diskState.textContent = response.ok
@@ -1863,6 +1964,15 @@ floorInput.oninput = () => {
   draw();
 };
 gridInput.onchange = () => draw();
+recordInput.onchange = () => {
+  document.body.classList.toggle("lab-recording", recordInput.checked);
+  recordInput.blur();
+  say(
+    recordInput.checked
+      ? "recording: play the song and tap WASD or IJKL"
+      : "recording off",
+  );
+};
 speedSelect.onchange = () => {
   if (source) {
     stop();
@@ -1886,6 +1996,23 @@ window.addEventListener("keydown", (event) => {
   } else if (delta !== undefined) {
     event.preventDefault();
     seekBy(delta);
+  } else if (
+    event.key.toLowerCase() === "r" &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.altKey
+  ) {
+    recordInput.checked = !recordInput.checked;
+    recordInput.onchange?.(new Event("change"));
+  } else if (
+    recordInput.checked &&
+    tapColumn(event.key) !== undefined &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.altKey
+  ) {
+    event.preventDefault();
+    if (!event.repeat) recordTap(tapColumn(event.key)!);
   } else if (
     event.key.toLowerCase() === "x" &&
     !event.metaKey &&
