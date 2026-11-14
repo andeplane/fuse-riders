@@ -1,7 +1,9 @@
 import {
+  LAPSE_MARGIN_MS,
   RoomError,
   RoomStore,
   isGrantIdentity,
+  sameAttachment,
   type RoomRecord,
   type Member,
   digest,
@@ -106,6 +108,27 @@ const PUBLISH_BURST = 512,
 const FLOOD_BURST = 400,
   FLOOD_PER_SECOND = 50;
 const NOTICE_INTERVAL_MS = 1000;
+/**
+ * The room-level allowances above (publishes, the dedupe window that mirrors them, the flood tolerance) were sized
+ * for a room of six. A room with more members has that many times more links to negotiate, so each grows in
+ * proportion to the room's membership and never shrinks below its base. A member is a socket, and sockets are what
+ * an instance has a fixed number of, so the deployment-wide worst case stays the room of two.
+ */
+const BASELINE_MEMBERS = 6;
+const membershipScale = (room: RoomRecord | undefined): number =>
+  Math.max(1, (room ? Object.keys(room.members).length : 0) / BASELINE_MEMBERS);
+/** After a prune that could not write, or that left the view as it was: do not ask again at once. */
+const PRUNE_RETRY_MS = 5_000;
+/** What `disconnect` does with the member's seat. */
+export interface DisconnectOptions {
+  /** Only this socket's client; another socket has since resumed the connection otherwise. */
+  socket?: GatewaySocket;
+  /**
+   * The socket dropped without a goodbye: keep the seat for the page to resume (`RoomStore.detach`) instead of
+   * freeing it, so the other members hear nothing unless the page stays away.
+   */
+  hold?: boolean;
+}
 /** How long, and for how many members, a gateway remembers whom it closed for flooding. */
 const FLAG_MS = 60_000,
   FLAGS = 1024;
@@ -184,12 +207,17 @@ export class RoomGateway {
     });
     return result;
   }
-  /** `gameId` is the game the member's page plays; absent means `LEGACY_GAME_ID` (see `RoomStore.admit`). */
+  /**
+   * `gameId` is the game the member's page plays; absent means `LEGACY_GAME_ID` (see `RoomStore.admit`). `resume`
+   * is the connection id the page held before its socket dropped: while the seat is still held under it, the page
+   * is welcomed back as that connection and no other member is told.
+   */
   async connect(
     code: string,
     token: string,
     socket: GatewaySocket,
     gameId?: string,
+    resume?: string,
   ): Promise<string> {
     if (this.stopping) throw new RoomError(503, "Service restarting");
     return this.inRoom(code, async () => {
@@ -211,9 +239,17 @@ export class RoomGateway {
         return this.busGeneration;
       });
       const priorIncarnation = this.views.get(code)?.room.incarnation;
-      const admission = await this.store.admit(code, token, this.id, gameId);
+      const admission = await this.store.admit(
+        code,
+        token,
+        this.id,
+        gameId,
+        resume,
+      );
       if (generation !== this.busGeneration || this.stateValue !== "ready") {
-        await this.store.leave(code, admission.member);
+        // A resumed seat is handed back as it was found: held, for the page's next attempt.
+        if (admission.resumed) await this.store.detach(code, admission.member);
+        else await this.store.leave(code, admission.member);
         throw new RoomError(503, "Room relay restarting");
       }
       const currentView = this.views.get(code);
@@ -239,13 +275,19 @@ export class RoomGateway {
           signals: new Map(),
           times: { tokens: TIME_BURST, at: this.deps.now() },
           diagnostics: { tokens: 2, at: this.deps.now() },
-          refusals: { tokens: FLOOD_BURST, at: this.deps.now() },
+          refusals: {
+            tokens: FLOOD_BURST * membershipScale(room),
+            at: this.deps.now(),
+          },
           refused: 0,
           noticeAt: -Infinity,
           flagged:
             (this.flags.get(`${code}:${member.id}`) ?? 0) > this.deps.now(),
           closed: false,
         };
+      // The socket this page resumed from, when this instance still thought it open: it is the page's past.
+      const stale = this.clients.get(member.connectionId);
+      if (stale) this.retire(stale);
       this.clients.set(member.connectionId, client);
       this.send(client, {
         type: "welcome",
@@ -253,6 +295,7 @@ export class RoomGateway {
         id: member.id,
         hostId: room.hostId,
         connectionId: member.connectionId,
+        resumed: admission.resumed,
         peers: Object.values(room.members)
           .filter(
             (p) =>
@@ -282,9 +325,15 @@ export class RoomGateway {
       return member.connectionId;
     });
   }
-  receive(connectionId: string, raw: string): Promise<void> {
+  /** `socket`: the one the frame arrived on, so a socket whose connection was resumed elsewhere is not heard. */
+  receive(
+    connectionId: string,
+    raw: string,
+    socket?: GatewaySocket,
+  ): Promise<void> {
     const client = this.clients.get(connectionId);
-    if (!client || client.closed) return Promise.resolve();
+    if (!client || client.closed || (socket && client.socket !== socket))
+      return Promise.resolve();
     const bytes = Buffer.byteLength(raw);
     if (bytes > 32_000) {
       client.socket.close(1009, "Message too large");
@@ -319,7 +368,11 @@ export class RoomGateway {
               : 4000,
           "Room connection interrupted",
         );
-        void this.disconnect(connectionId);
+        // The room refused the member: the seat goes. Anything else is this service's trouble, not the page's.
+        void this.release(
+          client,
+          error instanceof RoomError ? "leave" : "hold",
+        );
       })
       .finally(() => {
         client.pending--;
@@ -329,14 +382,18 @@ export class RoomGateway {
   }
   /**
    * Every limit drops the frame it refuses and leaves the socket open: a close makes the page reconnect, and a
-   * reconnect tears down every link and negotiates the whole mesh again, which is the largest burst there is. Trickle
+   * reconnect that cannot resume tears down every link and negotiates the whole mesh again, which is the largest
+   * burst there is. Trickle
    * ICE survives a lost candidate; a lost description is offered again by the link's restart policy. The sender is
    * told at most once a second. Only a flood of refused frames ends the connection, and the member it belonged to
    * then reconnects without the negotiation burst.
    */
   private refuse(client: Client, now: number): void {
     client.refused++;
-    if (!take(client.refusals, now, FLOOD_BURST, FLOOD_PER_SECOND)) {
+    const scale = membershipScale(this.views.get(client.room)?.room);
+    if (
+      !take(client.refusals, now, FLOOD_BURST * scale, FLOOD_PER_SECOND * scale)
+    ) {
       client.closed = true;
       // Re-inserting keeps the map in expiry order, so the sweep stops at the first entry still in force.
       const flag = `${client.room}:${client.member.id}`;
@@ -346,7 +403,7 @@ export class RoomGateway {
         else break;
       this.flags.set(flag, now + FLAG_MS);
       client.socket.close(1008, "Signalling flood");
-      void this.disconnect(client.member.connectionId);
+      void this.release(client, "leave");
       return;
     }
     if (now - client.noticeAt < NOTICE_INTERVAL_MS) return;
@@ -403,6 +460,7 @@ export class RoomGateway {
     destination: string,
     bytes: number,
     now: number,
+    scale: number,
   ): boolean {
     const key = `${code}:${destination}`;
     let bucket = this.publishes.get(key);
@@ -413,13 +471,13 @@ export class RoomGateway {
         this.publishes.delete(other);
       else break;
     if (!bucket && this.publishes.size >= PUBLISH_ROOMS) return false;
-    bucket ??= { tokens: PUBLISH_BURST, at: now };
+    bucket ??= { tokens: PUBLISH_BURST * scale, at: now };
     this.publishes.set(key, bucket);
     return take(
       bucket,
       now,
-      PUBLISH_BURST,
-      PUBLISH_PER_SECOND,
+      PUBLISH_BURST * scale,
+      PUBLISH_PER_SECOND * scale,
       Math.max(1, bytes / 1000),
     );
   }
@@ -431,7 +489,7 @@ export class RoomGateway {
     if (
       this.stateValue !== "ready" ||
       client.closed ||
-      !this.clients.has(client.member.connectionId)
+      this.clients.get(client.member.connectionId) !== client
     )
       return;
     let data: unknown;
@@ -450,6 +508,10 @@ export class RoomGateway {
     // where "replaced" would tell it, wrongly and terminally, that a newer tab holds its seat.
     if (seat && seat.connectionId !== client.member.connectionId)
       throw new RoomError(409, "Connection replaced");
+    if (seat && !sameAttachment(seat, client.member)) {
+      this.retire(client);
+      return;
+    }
     if (!seat || seat.expiresAt <= this.deps.now())
       throw new RoomError(410, "Connection lease expired");
     if (m.type === "link-report") {
@@ -585,7 +647,13 @@ export class RoomGateway {
     };
     if (target.gatewayId === this.id) await this.route(routed, false);
     else if (
-      this.takePublish(client.room, target.gatewayId, bytes, this.deps.now())
+      this.takePublish(
+        client.room,
+        target.gatewayId,
+        bytes,
+        this.deps.now(),
+        membershipScale(current),
+      )
     )
       await this.bus.publish(routed);
     else this.refuse(client, this.deps.now());
@@ -640,7 +708,11 @@ export class RoomGateway {
             ? "Connection lease expired"
             : "Reconnected elsewhere",
       );
-      void this.disconnect(client.member.connectionId);
+      void this.release(client, "leave");
+      return;
+    }
+    if (!sameAttachment(room.members[client.member.id], client.member)) {
+      this.retire(client);
       return;
     }
     for (const old of Object.values(previous.members))
@@ -720,7 +792,8 @@ export class RoomGateway {
       const seen = this.views.get(message.code)!.seen;
       for (const [id, expires] of seen)
         if (expires <= this.deps.now()) seen.delete(id);
-      if (seen.has(message.id) || seen.size >= 512) return;
+      if (seen.has(message.id) || seen.size >= 512 * membershipScale(room))
+        return;
       seen.set(
         message.id,
         Math.min(message.expiresAt, this.deps.now() + BUS_FRAME_TTL_MS),
@@ -740,7 +813,13 @@ export class RoomGateway {
       },
     );
   }
-  private scheduleExpiry(code: string, view: View): void {
+  /**
+   * One timer per watched room, for whichever comes first: the room's deadline, or a seat whose lease ran out. A
+   * live member renews with two thirds of its lease left, so a lapsed seat is a page that went away without saying
+   * so: one whose socket dropped and that never resumed, or one whose instance died with it. Pruning it is the
+   * write that tells the others it left.
+   */
+  private scheduleExpiry(code: string, view: View, notBefore = 0): void {
     view.cancelExpiry?.();
     const incarnation = view.room.incarnation;
     const same = () =>
@@ -753,13 +832,47 @@ export class RoomGateway {
             status,
             status === 4004 ? "Room expired" : "Room connection interrupted",
           );
-          void this.disconnect(client.member.connectionId);
+          // An ended room has no seat to keep; an interrupted one is this service's trouble, not the page's.
+          void this.release(client, status === 4004 ? "leave" : "hold");
         }
     };
+    const lapsed = (now: number) =>
+      Object.values(view.room.members).some(
+        (member) => member.expiresAt + LAPSE_MARGIN_MS <= now,
+      );
     const expire = () => {
       if (!same()) return;
       if (view.room.expiresAt > this.deps.now()) {
-        this.scheduleExpiry(code, view);
+        if (!lapsed(this.deps.now())) {
+          this.scheduleExpiry(code, view);
+          return;
+        }
+        void this.store
+          .prune(code)
+          .then((current) => {
+            if (!same()) return;
+            if (current.incarnation !== incarnation) {
+              close(4004);
+              return;
+            }
+            this.observe(code, current);
+            // Still lapsed here means the stored room did not move (another instance's clock is behind): ask again,
+            // but not in a loop.
+            if (same())
+              this.scheduleExpiry(
+                code,
+                view,
+                lapsed(this.deps.now()) ? PRUNE_RETRY_MS : 0,
+              );
+          })
+          .catch((error) => {
+            if (error instanceof RoomError && error.status === 404) {
+              close(4004);
+              return;
+            }
+            this.deps.error("prune", error);
+            if (same()) this.scheduleExpiry(code, view, PRUNE_RETRY_MS);
+          });
         return;
       }
       // One metadata recheck at expiry prevents a delayed watch from falsely terminating a renewed room.
@@ -780,7 +893,13 @@ export class RoomGateway {
           );
         });
     };
-    const delay = Math.max(0, view.room.expiresAt - this.deps.now());
+    const due = Math.min(
+      view.room.expiresAt,
+      ...Object.values(view.room.members).map(
+        (member) => member.expiresAt + LAPSE_MARGIN_MS,
+      ),
+    );
+    const delay = Math.max(notBefore, due - this.deps.now());
     if (this.deps.schedule)
       view.cancelExpiry = this.deps.schedule(expire, delay);
     else {
@@ -789,17 +908,44 @@ export class RoomGateway {
       view.cancelExpiry = () => clearTimeout(timer);
     }
   }
-  async disconnect(connectionId: string): Promise<void> {
-    const room = this.clients.get(connectionId)?.room;
-    if (!room) return;
-    return this.inRoom(room, async () => {
-      const client = this.clients.get(connectionId);
-      if (!client) return;
+  /** The socket of `connectionId` is gone. Its seat is freed, or held for the page to resume (`DisconnectOptions.hold`). */
+  async disconnect(
+    connectionId: string,
+    options: DisconnectOptions = {},
+  ): Promise<void> {
+    const client = this.clients.get(connectionId);
+    if (!client || (options.socket && client.socket !== options.socket)) return;
+    return this.release(client, options.hold ? "hold" : "leave");
+  }
+  /**
+   * A socket whose connection a newer socket resumed, here or on another instance. The seat is the newer socket's
+   * now, so nothing is written; the page dropped this socket before it opened the next, so the close reaches no one.
+   */
+  private retire(client: Client): void {
+    // The watch and the admission that resumed it can both find the old socket; it is closed once.
+    if (!client.closed) {
+      client.closed = true;
+      client.socket.close(4000, "Resumed on another socket");
+    }
+    void this.release(client, "forget");
+  }
+  /** Stops serving `client`, and frees its seat (`leave`), keeps it for a resume (`hold`) or leaves the room record alone (`forget`). */
+  private release(
+    client: Client,
+    seat: "leave" | "hold" | "forget",
+  ): Promise<void> {
+    const connectionId = client.member.connectionId;
+    return this.inRoom(client.room, async () => {
+      // The same connection id may by now belong to the socket that resumed it.
+      if (this.clients.get(connectionId) !== client) return;
       this.clients.delete(connectionId);
       try {
-        await this.store.leave(client.room, client.member);
+        if (seat === "leave")
+          await this.store.leave(client.room, client.member);
+        else if (seat === "hold")
+          await this.store.detach(client.room, client.member);
       } catch (error) {
-        this.deps.error("leave", error);
+        this.deps.error(seat, error);
       }
       if (![...this.clients.values()].some((c) => c.room === client.room)) {
         this.views.get(client.room)?.stop();
@@ -811,23 +957,24 @@ export class RoomGateway {
   private send(client: Client, message: unknown): void {
     if (client.socket.bufferedAmount > 256_000) {
       client.socket.close(1013, "Slow connection — reconnect");
-      void this.disconnect(client.member.connectionId);
+      void this.release(client, "hold");
       return;
     }
     try {
       client.socket.send(JSON.stringify(message));
     } catch (error) {
       this.deps.error("socket-send", error);
-      void this.disconnect(client.member.connectionId);
+      void this.release(client, "hold");
     }
   }
   private fail(kind: string, error: Error): void {
     this.stateValue = "failed";
     this.busGeneration++;
     this.deps.error(kind, error);
+    // The pages come straight back, to this instance or another, and resume: their seats are held, not freed.
     for (const client of this.clients.values()) {
       client.socket.close(1012, "Room relay restarting");
-      void this.disconnect(client.member.connectionId);
+      void this.release(client, "hold");
     }
   }
   private async drain(): Promise<void> {
@@ -843,9 +990,12 @@ export class RoomGateway {
   async stop(): Promise<void> {
     this.stopping = true;
     await Promise.all(this.rooms.values());
-    for (const client of this.clients.values())
+    // Cloud Run stops an instance on every deploy and scale-in. Each page reconnects to another instance within a
+    // second or two and resumes its seat there, so the seats are held and the mesh never notices the restart.
+    const clients = [...this.clients.values()];
+    for (const client of clients)
       client.socket.close(1001, "Service restarting");
-    for (const id of [...this.clients.keys()]) await this.disconnect(id);
+    await Promise.all(clients.map((client) => this.release(client, "hold")));
     await this.serial(async () => {
       if (this.stateValue !== "idle") await this.drain();
     });

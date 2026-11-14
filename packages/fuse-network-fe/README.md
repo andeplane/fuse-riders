@@ -39,7 +39,8 @@ transport.send(peerId, { type: "hello" }); // reliable channel
 transport.sendFast(peerId, bytes); // per-tick channel; skipped, never queued, when backed up
 ```
 
-What it handles: admission and reconnects to the room socket, ICE config, offer/answer by id order (the smaller
+What it handles: admission and reconnects to the room socket (resuming its connection id, so a dropped socket
+costs no link), ICE config, offer/answer by id order (the smaller
 id offers), trickle candidates buffered per ICE generation, probe-based link health (an open channel is not proof
 of delivery), bounded ICE restarts and link rebuilds, WebKit's lagging `readyState` (`LinkSendGate`, `linkBye`),
 the creator's authority lease against duplicate tabs (`AuthorityClock`), and redacted link diagnostics

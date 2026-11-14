@@ -23,8 +23,9 @@ export interface DevRoomServiceOptions {
   log?: RoomHttpOptions["log"];
   /** LEGACY-QUERY-TOKEN: the deprecated `?token=` window, passed through for its tests; see `RoomHttpOptions`. */
   legacyQueryToken?: boolean;
-  /** Room capacity and its refusal text; see `RoomStoreDependencies`. */
+  /** Room capacity, per game where a game needs its own, and its refusal text; see `RoomStoreDependencies`. */
   maxGuests?: number;
+  gameMaxGuests?: Readonly<Record<string, number>>;
   fullMessage?: string;
   /** The games this service hosts; see `RoomStoreDependencies.gameIds`. */
   gameIds?: readonly string[];
@@ -65,6 +66,7 @@ export function createDevRoomService(
     now,
     id: randomUUID,
     maxGuests: options.maxGuests,
+    gameMaxGuests: options.gameMaxGuests,
     fullMessage: options.fullMessage,
     gameIds: options.gameIds,
   });
