@@ -70,6 +70,7 @@ describe(desktopTargets.name, () => {
       "explorer",
       "fusteam",
       "retro-games",
+      "defrag",
       "screensaver",
       "system",
       "assistant",

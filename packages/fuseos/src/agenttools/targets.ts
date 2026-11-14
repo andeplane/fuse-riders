@@ -90,6 +90,13 @@ export const APP_TARGETS: readonly OpenTarget[] = [
     content: { kind: "retroFolder" },
     aliases: ["retro games folder", "retro folder", "dos games"],
   },
+  {
+    id: "defrag",
+    name: "Disk Defragmenter",
+    kind: "app",
+    content: { kind: "defrag" },
+    aliases: ["defragmenter", "defragment", "disk defrag"],
+  },
   applet(
     "screensaver",
     "Screen Saver settings",
