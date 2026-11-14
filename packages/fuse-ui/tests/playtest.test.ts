@@ -164,6 +164,7 @@ const session: StoredRecording = {
   kind: "recording",
   key: "recording",
   id: "recording",
+  ownerUid: "admin",
   gameId: "dice",
   startedAt: 10,
   savedMs: 0,
@@ -191,6 +192,7 @@ test("an uncertain upload retains identical audio and retries serially before fi
     finished = 0;
   const uploader = createRecordingUploader({
     store,
+    ownerUid: () => "admin",
     changed: (state) => changes.push(state),
     schedule: (run, ms) => {
       const item = { run, ms };
@@ -252,6 +254,7 @@ test("stopping while an upload is in flight preserves finished and acknowledged 
   let finished = 0;
   const uploader = createRecordingUploader({
     store,
+    ownerUid: () => "admin",
     changed() {},
     schedule: () => () => {},
     upload: {

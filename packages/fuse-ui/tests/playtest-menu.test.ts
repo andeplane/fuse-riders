@@ -7,6 +7,7 @@ import {
   type PlaytestAccount,
 } from "../src/playtest.js";
 import type { OutboxItem, PlaytestOutbox } from "../src/playtest-outbox.js";
+import type { WavSegment } from "../src/playtest-audio.js";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -26,6 +27,9 @@ function fixture() {
   const requests: string[] = [];
   let approval: Promise<Response> | undefined;
   let allowed = true;
+  let ownerUid = "admin";
+  let segmentResponse: Promise<Response> | undefined;
+  let receive: ((chunk: WavSegment) => void) | undefined;
   let starts = 0,
     stops = 0;
   let nextStart: Promise<void> | undefined;
@@ -74,10 +78,12 @@ function fixture() {
         return (
           approval ??
           Response.json(
-            allowed ? { uid: "admin", email: "admin@example.test" } : {},
+            allowed ? { uid: ownerUid, email: "admin@example.test" } : {},
             { status: allowed ? 200 : 403 },
           )
         );
+      if (path.includes("/segments/"))
+        return segmentResponse ?? Response.json({}, { status: 403 });
       if (path.endsWith("/finish"))
         return Response.json({
           recording: { id: path.split("/").at(-2), status: "finished" },
@@ -85,8 +91,9 @@ function fixture() {
       const body = JSON.parse(String(init?.body)) as { id: string };
       return Response.json({ recording: { id: body.id } });
     },
-    startMicrophone: async () => {
+    startMicrophone: async (_dependencies, received) => {
       starts++;
+      receive = received;
       await nextStart;
       return {
         offsetMs: () => 0,
@@ -111,6 +118,7 @@ function fixture() {
     root,
     toggle,
     requests,
+    items,
     starts: () => starts,
     stops: () => stops,
     allow(value: boolean) {
@@ -121,6 +129,20 @@ function fixture() {
     },
     deferStart(value: Promise<void>) {
       nextStart = value;
+    },
+    owner(value: string) {
+      ownerUid = value;
+    },
+    deferSegment(value: Promise<Response>) {
+      segmentResponse = value;
+    },
+    chunk() {
+      receive?.({
+        sequence: 0,
+        startMs: 0,
+        endMs: 1000,
+        blob: new Blob(["audio"]),
+      });
     },
     user(signedIn: boolean) {
       for (const listener of listeners)
@@ -176,6 +198,157 @@ test("the game menu offers recording only after server-approved sign-in, without
     await f.flush();
     assert.equal(f.toggle.hidden, true);
     assert.equal(f.stops(), 2, "sign-out stops active audio capture");
+    assert.equal(f.requests.filter((path) => path === "/api/dev/me").length, 2);
+  } finally {
+    await f.close();
+  }
+});
+
+test("an initially offline developer check recovers online without guest requests or duplicate checks", async () => {
+  const f = fixture();
+  try {
+    f.browser.dispatchEvent(new f.browser.Event("online"));
+    await f.flush();
+    assert.equal(f.requests.length, 0);
+    f.deferApproval(Promise.resolve(Response.json({}, { status: 503 })));
+    f.user(true);
+    await f.flush();
+    assert.equal(f.toggle.hidden, true);
+    const approval = deferred<Response>();
+    f.deferApproval(approval.promise);
+    f.browser.dispatchEvent(new f.browser.Event("online"));
+    f.browser.dispatchEvent(new f.browser.Event("online"));
+    await f.flush();
+    assert.equal(
+      f.requests.length,
+      2,
+      "online events share one pending access check",
+    );
+    approval.resolve(
+      Response.json({ uid: "admin", email: "admin@example.test" }),
+    );
+    await f.flush();
+    assert.equal(f.toggle.hidden, false);
+    assert.equal(f.starts(), 0);
+  } finally {
+    await f.close();
+  }
+});
+
+test("resource denials recheck account access before stopping approved capture", async () => {
+  const f = fixture();
+  try {
+    f.user(true);
+    await f.flush();
+    f.toggle.click();
+    await f.flush();
+    f.chunk();
+    await f.flush();
+    assert.equal(f.toggle.hidden, false);
+    assert.equal(
+      f.stops(),
+      0,
+      "a missing or other-owner resource is not access revocation",
+    );
+    assert.equal(f.toggle.textContent, "Stop recording");
+    assert.equal(f.requests.filter((path) => path === "/api/dev/me").length, 2);
+    f.allow(false);
+    const retry = [...f.doc.querySelectorAll("button")].find(
+      (button) => button.textContent === "Retry uploads",
+    )!;
+    retry.click();
+    await f.flush();
+    assert.equal(f.toggle.hidden, true);
+    assert.equal(f.stops(), 1, "confirmed access denial stops capture");
+  } finally {
+    await f.close();
+  }
+});
+
+test("another developer's durable backlog does not upload or block current capture", async () => {
+  const f = fixture();
+  try {
+    f.items.set("older", {
+      kind: "recording",
+      key: "older",
+      id: "older",
+      ownerUid: "other-admin",
+      gameId: "dice",
+      startedAt: 0,
+      savedMs: 0,
+      finished: true,
+    });
+    f.items.set("older:0", {
+      kind: "segment",
+      key: "older:0",
+      recordingId: "older",
+      sequence: 0,
+      startMs: 0,
+      endMs: 1000,
+      blob: new Blob(["old audio"]),
+    });
+    f.deferSegment(
+      Promise.resolve(
+        Response.json({
+          saved: true,
+          sequence: 0,
+          startMs: 0,
+          endMs: 1000,
+        }),
+      ),
+    );
+    f.user(true);
+    await f.flush();
+    f.toggle.click();
+    await f.flush();
+    assert.equal(f.starts(), 1);
+    assert.equal(
+      f.requests.some((path) => path.includes("/older/")),
+      false,
+    );
+    assert.equal(f.items.has("older"), true);
+    f.chunk();
+    await f.flush();
+    assert.equal(f.stops(), 0);
+    assert.equal(
+      f.requests.some((path) => path.includes("/segments/")),
+      true,
+    );
+    assert.deepEqual(
+      [...f.items.values()]
+        .filter((item) => item.kind === "segment")
+        .map((item) => item.key),
+      ["older:0"],
+      "current audio drains while the other developer's audio remains queued",
+    );
+  } finally {
+    await f.close();
+  }
+});
+
+test("a resource denial from a previous account cannot revoke the current developer", async () => {
+  const f = fixture();
+  try {
+    f.user(true);
+    await f.flush();
+    f.toggle.click();
+    await f.flush();
+    const upload = deferred<Response>();
+    f.deferSegment(upload.promise);
+    f.chunk();
+    await f.flush();
+    f.user(false);
+    await f.flush();
+    f.owner("new-admin");
+    f.user(true);
+    await f.flush();
+    f.toggle.click();
+    await f.flush();
+    assert.equal(f.starts(), 2);
+    upload.resolve(Response.json({}, { status: 403 }));
+    await f.flush();
+    assert.equal(f.toggle.hidden, false);
+    assert.equal(f.stops(), 1);
     assert.equal(f.requests.filter((path) => path === "/api/dev/me").length, 2);
   } finally {
     await f.close();

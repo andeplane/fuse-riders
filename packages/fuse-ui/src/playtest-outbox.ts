@@ -5,6 +5,8 @@ export interface StoredRecording {
   kind: "recording";
   key: string;
   id: string;
+  /** Server-approved owner; another signed-in developer must not upload this backlog. */
+  ownerUid: string;
   gameId: string;
   startedAt: number;
   savedMs: number;
@@ -161,6 +163,7 @@ export interface UploadState {
 }
 export interface UploadDependencies {
   store: PlaytestOutbox;
+  ownerUid(): string | undefined;
   upload: RecordingUpload;
   schedule(run: () => void, ms: number): () => void;
   changed(state: UploadState): void;
@@ -173,8 +176,25 @@ export function createRecordingUploader(deps: UploadDependencies) {
   let retry = 0;
   let cancelRetry: (() => void) | undefined;
   let again = false;
+  async function ownedItems() {
+    const ownerUid = deps.ownerUid();
+    const items = await deps.store.list();
+    const recordings = new Set(
+      items
+        .filter(
+          (item): item is StoredRecording =>
+            item.kind === "recording" &&
+            Boolean(ownerUid) &&
+            item.ownerUid === ownerUid,
+        )
+        .map((item) => item.id),
+    );
+    return items.filter((item) =>
+      recordings.has(item.kind === "recording" ? item.id : item.recordingId),
+    );
+  }
   async function drain() {
-    let items = await deps.store.list();
+    let items = await ownedItems();
     let pending = items.filter((item) => item.kind === "segment").length;
     let savedMs = items.reduce(
       (saved, item) =>
@@ -192,7 +212,7 @@ export function createRecordingUploader(deps: UploadDependencies) {
         )
         .sort((a, b) => a.sequence - b.sequence);
       for (const segment of segments) {
-        if (cancelled) return;
+        if (cancelled || recording.ownerUid !== deps.ownerUid()) return;
         await deps.upload.segment(recording, segment);
         // First persist acknowledgement; a crash before removal simply retries an immutable upload.
         recording = await deps.store.updateRecording(
@@ -207,13 +227,17 @@ export function createRecordingUploader(deps: UploadDependencies) {
         savedMs = recording.savedMs;
         deps.changed({ pending, savedMs });
       }
-      if (recording.finished && !cancelled) {
+      if (
+        recording.finished &&
+        !cancelled &&
+        recording.ownerUid === deps.ownerUid()
+      ) {
         await deps.upload.finish(recording);
         await deps.store.remove(recording.key);
       }
     }
     // New segments may have arrived while a request was pending.
-    items = await deps.store.list();
+    items = await ownedItems();
     if (items.some((item) => item.kind === "segment")) await drain();
     retry = 0;
   }
@@ -232,7 +256,7 @@ export function createRecordingUploader(deps: UploadDependencies) {
       } while (again && !cancelled);
     })()
       .catch(async (error: unknown) => {
-        const items = await deps.store.list().catch(() => []);
+        const items = await ownedItems().catch(() => []);
         const pending = items.filter((item) => item.kind === "segment").length;
         deps.changed({
           pending,

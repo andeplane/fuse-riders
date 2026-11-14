@@ -73,6 +73,14 @@ export function recordingTime(milliseconds: number): string {
 function failure(error: unknown): string {
   return error instanceof Error ? error.message : "Request failed. Try again.";
 }
+class PlaytestRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
 function object(value: unknown): Record<string, unknown> {
   return value && typeof value === "object"
     ? (value as Record<string, unknown>)
@@ -178,6 +186,8 @@ export function installBrowserPlaytest(
         throw new Error(
           "Sign in with an approved developer account to record audio.",
         );
+      if (requestGeneration !== accessGeneration)
+        throw new Error("Account changed. Retry after sign-in.");
       headers.set("Authorization", `Bearer ${token}`);
     }
     const controller = new AbortController();
@@ -197,16 +207,16 @@ export function installBrowserPlaytest(
           requestGeneration === accessGeneration &&
           (response.status === 401 || response.status === 403)
         ) {
-          accessGeneration++;
-          publishRecording({ available: false });
-          stoppedReason = "Developer access expired. Recording stopped.";
-          void endRecording?.();
+          // A resource denial can mean missing audio or a different owner,
+          // rather than revoked developer access. Only /me can revoke access.
+          if (path !== "/api/dev/me") await checkAccess(requestGeneration);
         }
         if (response.status === 401)
-          throw new Error("Sign in again, then retry.");
+          throw new PlaytestRequestError("Sign in again, then retry.", 401);
         if (response.status === 403)
-          throw new Error(
+          throw new PlaytestRequestError(
             "Microphone recording is restricted to approved developer accounts.",
+            403,
           );
         if (response.status === 413)
           throw new Error(
@@ -241,6 +251,10 @@ export function installBrowserPlaytest(
   let beginRecording: (() => Promise<void>) | undefined;
   let endRecording: (() => Promise<void>) | undefined;
   let accessGeneration = 0;
+  let signedIn = false;
+  let approvedUid: string | undefined;
+  let accessCheck: { generation: number; promise: Promise<void> } | undefined;
+  let retryUploads: (() => void) | undefined;
   let recordingState: PlaytestRecordingState = {
     available: false,
     active: false,
@@ -256,6 +270,49 @@ export function installBrowserPlaytest(
           { type: "fuse-playtest-recording-state", state: recordingState },
           win.location.origin,
         );
+  }
+  function revokeAccess(generation: number) {
+    if (disposed || generation !== accessGeneration) return;
+    accessGeneration++;
+    approvedUid = undefined;
+    publishRecording({ available: false });
+    stoppedReason = "Developer access expired. Recording stopped.";
+    void endRecording?.();
+  }
+  function checkAccess(generation = accessGeneration): Promise<void> {
+    if (disposed || !signedIn || generation !== accessGeneration)
+      return Promise.resolve();
+    if (accessCheck?.generation === generation) return accessCheck.promise;
+    const promise = request("/api/dev/me", {}, true)
+      .then((value) => {
+        if (disposed || generation !== accessGeneration) return;
+        const principal = object(value);
+        if (
+          typeof principal.uid !== "string" ||
+          !principal.uid ||
+          typeof principal.email !== "string" ||
+          !principal.email
+        ) {
+          revokeAccess(generation);
+          return;
+        }
+        approvedUid = principal.uid;
+        publishRecording({ available: true });
+        retryUploads?.();
+      })
+      .catch((error: unknown) => {
+        if (
+          error instanceof PlaytestRequestError &&
+          (error.status === 401 || error.status === 403)
+        )
+          revokeAccess(generation);
+        // Network/server failures retain current approval and retry on online.
+      })
+      .finally(() => {
+        if (accessCheck?.generation === generation) accessCheck = undefined;
+      });
+    accessCheck = { generation, promise };
+    return promise;
   }
   const context = (): RecordingContext | undefined =>
     recording && microphone
@@ -586,27 +643,18 @@ export function installBrowserPlaytest(
     // Every account transition invalidates outstanding checks and any active capture.
     identity.watchAccount((user) => {
       const generation = ++accessGeneration;
+      signedIn = Boolean(user);
+      approvedUid = undefined;
       publishRecording({ available: false });
       if (microphone || recordingState.busy) {
         stoppedReason = "Account changed. Recording stopped.";
         void endRecording?.();
       }
       if (!user) return;
-      void request("/api/dev/me", {}, true)
-        .then((value) => {
-          const principal = object(value);
-          if (disposed || generation !== accessGeneration) return;
-          publishRecording({
-            available:
-              typeof principal.uid === "string" &&
-              principal.uid.length > 0 &&
-              typeof principal.email === "string" &&
-              principal.email.length > 0,
-          });
-        })
-        .catch(() => {
-          // A denial or offline check leaves recording hidden; normal play continues.
-        });
+      void checkAccess(generation);
+    });
+    win.addEventListener("online", () => {
+      void checkAccess();
     });
     let stored: string | null = null;
     try {
@@ -768,6 +816,7 @@ export function installBrowserPlaytest(
     };
     const uploader = createRecordingUploader({
       store,
+      ownerUid: () => approvedUid,
       schedule,
       upload: {
         async segment(session, segment) {
@@ -818,6 +867,9 @@ export function installBrowserPlaytest(
         render();
       },
     });
+    retryUploads = () => {
+      void uploader.kick();
+    };
     void uploader.kick();
     let captureStorageFailed = false;
     function received(chunk: WavSegment) {
@@ -856,6 +908,7 @@ export function installBrowserPlaytest(
         kind: "recording",
         key: win.crypto.randomUUID(),
         id: "",
+        ownerUid: approvedUid ?? "",
         gameId,
         startedAt: Date.now(),
         savedMs: 0,
@@ -863,6 +916,10 @@ export function installBrowserPlaytest(
       };
       session.id = session.key;
       try {
+        if (!session.ownerUid)
+          throw new Error(
+            "Sign in with an approved developer account to record audio.",
+          );
         // Authorization succeeds before the microphone is touched; a query flag cannot grant recording access.
         const acknowledgement = object(
           await request(
