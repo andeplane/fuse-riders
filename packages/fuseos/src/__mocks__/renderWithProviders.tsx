@@ -50,6 +50,8 @@ import { LauncherDepsContext } from "../launcher/launcherDepsContext";
 import type { LlmDeps } from "../llm/llmDepsContext";
 import { LlmDepsContext } from "../llm/llmDepsContext";
 import { MemoryModelCache } from "../llm/modelCache";
+import type { MediaPlayerDeps } from "../mediaplayer/mediaPlayerDepsContext";
+import { MediaPlayerDepsContext } from "../mediaplayer/mediaPlayerDepsContext";
 import type { NetworkDeps } from "../network/networkDeps";
 import { NetworkDepsContext } from "../network/networkDeps";
 import {
@@ -63,6 +65,9 @@ import {
 } from "../network/roomDirectory";
 import type { RoomLauncher } from "../network/roomLauncher";
 import { RoomLauncherContext } from "../network/roomLauncher";
+import type { HallOfFameDeps } from "../halloffame/hallOfFameDepsContext";
+import { HallOfFameDepsContext } from "../halloffame/hallOfFameDepsContext";
+import { MemoryLeaderboardService } from "../halloffame/leaderboardService";
 import type { PaintControls } from "../paint/paintControls";
 import type { PaintDeps } from "../paint/paintDepsContext";
 import { PaintDepsContext } from "../paint/paintDepsContext";
@@ -72,6 +77,10 @@ import {
 } from "../paint/paintPrefsStore";
 import { EditorDepsContext } from "../notepadpp/editorDeps";
 import { PaintRegistryContext } from "../paint/paintRegistryContext";
+import {
+  MemoryRecycleBinStore,
+  RecycleBinStoreContext,
+} from "../recyclebin/recycleBinStore";
 import type { GamesDeps } from "../retro/gamesDepsContext";
 import { GamesDepsContext } from "../retro/gamesDepsContext";
 import type { ScreenSaverDeps } from "../screensaver/screenSaverDepsContext";
@@ -100,6 +109,8 @@ import type { AppStateDeps } from "../state/appStateContext";
 import { AppStateDepsContext } from "../state/appStateContext";
 import type { StateStore } from "../state/stateStore";
 import { MemoryStateStore } from "../state/stateStore";
+import type { System32Deps } from "../system32/system32Deps";
+import { MemoryScheduler, System32DepsContext } from "../system32/system32Deps";
 import type { WinampDeps } from "../winamp/winampDepsContext";
 import { WinampDepsContext } from "../winamp/winampDepsContext";
 import { createWinampRegistry } from "../winamp/winampRegistry";
@@ -211,6 +222,12 @@ export type ProviderOptions = {
   /** Defaults to the fixture repository with an empty overlay and an instant floppy seek. */
   disk?: TestDiskOptions;
   diskDeps?: TestDiskDeps;
+  /** Defaults to a full bin. */
+  recycleBinStore?: MemoryRecycleBinStore;
+  /** Defaults to a manual scheduler (`mediaPlayerTimers.fire()` advances the fake player one tick). */
+  mediaPlayerDeps?: Partial<MediaPlayerDeps>;
+  /** Defaults to a hand-stepped scheduler and no demo, so nothing folds unless a test asks. */
+  system32Deps?: Partial<System32Deps>;
   /** Defaults to a recording fake that reports every sound as audible. */
   sounds?: FakeSoundService;
   /** Defaults to an offline session, so Network-style windows go through Dial-Up Networking first. */
@@ -227,7 +244,39 @@ export type ProviderOptions = {
   /** Defaults to the demo presence service, signed out, over the manual scheduler in `friendsDeps`. */
   presence?: PresenceService;
   friendsDeps?: Partial<FriendsDeps>;
+  /** Defaults to an empty memory leaderboard service (every game: no rated players yet). */
+  hallOfFameDeps?: HallOfFameDeps;
 };
+
+/** The media player's scheduled ticks, fired by the test rather than a clock. */
+export class MediaPlayerScheduler {
+  private pending: (() => void)[] = [];
+
+  schedule = (callback: () => void, _ms: number): (() => void) => {
+    this.pending.push(callback);
+    return () => {
+      this.pending = this.pending.filter((entry) => entry !== callback);
+    };
+  };
+
+  get size(): number {
+    return this.pending.length;
+  }
+
+  /** Runs every pending callback once (each may schedule the next). */
+  fire(): void {
+    const batch = this.pending;
+    this.pending = [];
+    for (const callback of batch) callback();
+  }
+}
+
+export function createTestMediaPlayerDeps(
+  scheduler: MediaPlayerScheduler,
+  overrides: Partial<MediaPlayerDeps> = {},
+): MediaPlayerDeps {
+  return { schedule: scheduler.schedule, ...overrides };
+}
 
 /** A scheduler a test fires by hand: `timers.fire()` runs every pending callback in order. */
 export type ManualTimers = {
@@ -328,6 +377,7 @@ export function createTestDesktopDeps(
     subscribeClock: () => () => undefined,
     reload: vi.fn(),
     openExternal: vi.fn(),
+    isApplePlatform: () => false,
     ...overrides,
   };
 }
@@ -498,6 +548,10 @@ export function createWrapper(options: ProviderOptions = {}) {
   const winampDeps = createTestWinampDeps(winampPlayers, options.winampDeps);
   const winampRegistry = createWinampRegistry();
   const systemProbe = options.systemProbe ?? TEST_SYSTEM_PROBE;
+  const system32Deps: System32Deps = {
+    scheduler: new MemoryScheduler(),
+    ...options.system32Deps,
+  };
   const llmFactory: FakeEngineFactory = createFakeEngineFactory();
   const modelCache = new MemoryModelCache();
   const llmDeps: LlmDeps = {
@@ -527,8 +581,24 @@ export function createWrapper(options: ProviderOptions = {}) {
       signedIn: false,
     });
 
+  const hallOfFameDeps: HallOfFameDeps = options.hallOfFameDeps ?? {
+    leaderboards: new MemoryLeaderboardService(
+      Object.fromEntries(
+        (options.games ?? FIXTURE_GAMES).map((game) => [game.id, []]),
+      ),
+    ),
+  };
+  const recycleBinStore =
+    options.recycleBinStore ?? new MemoryRecycleBinStore();
+  const mediaPlayerTimers = new MediaPlayerScheduler();
+  const mediaPlayerDeps = createTestMediaPlayerDeps(
+    mediaPlayerTimers,
+    options.mediaPlayerDeps,
+  );
+
   /** Outermost first; each entry wraps everything after it. */
   const providers: readonly ProviderEntry[] = [
+    provider(System32DepsContext, system32Deps),
     provider(ScreenSaverStoreContext, screenSaverStore),
     provider(ScreenSaverDepsContext, screenSaverDeps),
     provider(FuseGamesContext, games),
@@ -562,9 +632,12 @@ export function createWrapper(options: ProviderOptions = {}) {
     provider(DiskDepsContext, diskDeps),
     provider(EditorDepsContext, editorDeps),
     provider(LauncherDepsContext, launcherDeps),
+    provider(RecycleBinStoreContext, recycleBinStore),
+    provider(MediaPlayerDepsContext, mediaPlayerDeps),
     provider(SoundServiceContext, sounds),
     provider(DialUpSessionContext, dialUpSession),
     provider(DialUpDepsContext, dialUpDeps),
+    provider(HallOfFameDepsContext, hallOfFameDeps),
   ];
 
   function Wrapper({ children }: { children: ReactNode }) {
@@ -612,9 +685,13 @@ export function createWrapper(options: ProviderOptions = {}) {
     diskDeps,
     editors,
     launcherDeps,
+    recycleBinStore,
+    mediaPlayerDeps,
+    mediaPlayerTimers,
     sounds,
     dialUpSession,
     dialUpDeps,
+    hallOfFameDeps,
   };
 }
 

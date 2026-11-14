@@ -6,13 +6,14 @@ import { cuesBetween } from "../src/app/audio.js";
 import {
   bestText,
   grade,
+  holdText,
   ordinal,
   percent,
   present,
   scoreText,
   type Viewer,
 } from "../src/app/presenter.js";
-import { PICK, PLAY } from "../src/online/game.js";
+import { PICK, PLAY, READY } from "../src/online/game.js";
 import {
   SETTINGS,
   fold,
@@ -367,4 +368,26 @@ test("a random session's next song is one button away, and a rider who left keep
   view = game.view(room);
   model = present(library, view, viewer("a"));
   assert.deepEqual(buttons(model), ["NEW SESSION", "rematch", "SONG SELECT"]);
+});
+
+test("a song that waits for its audio says whose download it waits for", () => {
+  const room = seated();
+  fold(room, { a: [[ACTION, "start", "m1"]] });
+  // Everyone is still getting it: each device speaks of its own download first.
+  const mine = present(library, game.view(room), viewer("a"));
+  assert.equal(mine.screen, "play");
+  assert.deepEqual(mine.waiting, ["Bo"]);
+  assert.equal(holdText(mine.waiting, false), "DOWNLOADING SONG…");
+  // This device is done: it names who the room still waits for.
+  fold(room, { a: [[READY, 1]] });
+  const done = present(library, game.view(room), viewer("a"));
+  assert.equal(
+    holdText(done.waiting, true),
+    "WAITING FOR BO · DOWNLOADING SONG…",
+  );
+  assert.deepEqual(present(library, game.view(room), viewer("b")).waiting, []);
+  fold(room, { b: [[READY, 1]] });
+  const moving = present(library, game.view(room), viewer("a"));
+  assert.deepEqual(moving.waiting, []);
+  assert.equal(holdText(moving.waiting, true), "GET READY…");
 });

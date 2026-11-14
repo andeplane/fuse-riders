@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { useSystem32Title } from "../system32/System32Provider";
 import type { IconRef } from "../ui/icons";
 import { AppIcon } from "../ui/icons";
 
@@ -32,6 +33,8 @@ export function WindowChrome({
   extraTitleButtons,
   children,
 }: WindowChromeProps) {
+  // Misspelt while the OS folds (system32/); the plain title otherwise.
+  const shownTitle = useSystem32Title(title);
   return (
     <section
       role="dialog"
@@ -46,7 +49,7 @@ export function WindowChrome({
       >
         <div className="title-bar-text flex items-center gap-1 overflow-hidden whitespace-nowrap">
           <AppIcon icon={icon} />
-          <span className="truncate">{title}</span>
+          <span className="truncate">{shownTitle}</span>
         </div>
         <div className="title-bar-controls">
           {extraTitleButtons}

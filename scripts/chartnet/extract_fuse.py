@@ -4,6 +4,7 @@ from __future__ import annotations
 import io
 import json
 import re
+import sys
 import subprocess
 import os
 from pathlib import Path
@@ -20,6 +21,8 @@ OUT = ROOT / "cache_fuse"
 
 
 def show(path: str) -> bytes:
+    if BRANCH == "WORKTREE":  # the checkout as it is, uncommitted files included
+        return (REPO / path).read_bytes()
     return subprocess.run(["git", "-C", str(REPO), "show", f"{BRANCH}:{path}"], capture_output=True, check=True).stdout
 
 
@@ -31,9 +34,14 @@ def main() -> None:
         specs.append((m.group(1), f"public/music/{m.group(1)}.m4a"))
     for m in re.finditer(r'game\("([^"]+)",\s*"([^"]+)"', src):
         specs.append((m.group(2), f"public/music/{m.group(1)}/{m.group(2)}.mp3"))
+    for m in re.finditer(r'packed\("([^"]+)",\s*"([^"]+)"', src):
+        specs.append((m.group(2), f"public/music/{m.group(1)}/{m.group(2)}.mp3"))
     for m in re.finditer(r'killerFuse\("([^"]+)"', src):
         specs.append((m.group(1), f"games/killer-fuse/public/killer-fuse/audio/music/{m.group(1)}.mp3"))
+    only = set(sys.argv[1:])
     for sid, path in specs:
+        if only and sid not in only:
+            continue
         try:
             ssc = show(f"games/fusemania/charts/{sid}.ssc").decode()
         except subprocess.CalledProcessError:

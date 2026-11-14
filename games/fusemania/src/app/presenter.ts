@@ -29,6 +29,17 @@ export interface Viewer {
   display: boolean;
 }
 
+/**
+ * What a song that waits for its audio says over the field: this device's own download first, then who else the
+ * room waits for.
+ */
+export function holdText(waiting: readonly string[], settled: boolean): string {
+  if (!settled) return "DOWNLOADING SONG…";
+  return waiting.length
+    ? `WAITING FOR ${waiting.join(", ").toUpperCase()} · DOWNLOADING SONG…`
+    : "GET READY…";
+}
+
 /** A rating as a letter grade and a percentage. */
 export function grade(rating: number): string {
   const share = rating / FULL_RATING;
@@ -110,6 +121,11 @@ export interface Model {
   playing: boolean;
   /** This device's player slot in the match, or −1. */
   localSlot: number;
+  /**
+   * Who else the started song waits for while their devices download it, by name ("THE TV" for the shared
+   * screen), this device left out. Empty when the song is not held, or held for this device alone.
+   */
+  waiting: string[];
   lobby: {
     members: {
       id: string;
@@ -405,6 +421,15 @@ export function present(
     seated,
     playing,
     localSlot,
+    waiting: view.waiting
+      ? [
+          ...view.waiting.ids
+            .filter((id) => id !== viewer.me)
+            .map((id) => view.seats.find((seat) => seat.id === id)?.name ?? "")
+            .filter((name) => name !== ""),
+          ...(view.waiting.screen && !viewer.display ? ["THE TV"] : []),
+        ]
+      : [],
     lobby: {
       members: seats.map((seat) => ({
         id: seat.id,

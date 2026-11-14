@@ -23,10 +23,16 @@ import {
   StartMenuRegistryContext,
 } from "../desktop/startMenuRegistry";
 import { DRIVE_A, DRIVE_C, MY_COMPUTER } from "../disk/diskPath";
-import { HOMEWORK_LOCATION, HOMEWORK_TEXT } from "../disk/floppy";
+import {
+  CLIPPY_PORN_HELP,
+  PASSWORD_DIALOG_TITLE,
+  RICKROLL_NAME,
+  RICKROLL_TITLE,
+} from "../disk/floppy";
 import type { AppState, WindowState } from "../state/appState";
 
 import { MODIFIED_LABEL } from "./IconView";
+import { CONNECTING_STATUS, GRANTED_STATUS } from "./NetworkPasswordDialog";
 import {
   DESKTOP,
   DIAL_UP_MESSAGE,
@@ -151,11 +157,12 @@ describe("Explorer", () => {
       "docsFile Folder11/14/26, 1:39 PM",
       "packagesFile Folder11/14/26, 1:39 PM",
       "publicFile Folder11/14/26, 1:39 PM",
+      "WINDOWSFile Folder5/11/98, 8:01 PM",
       "package.json1 KBJSON Document11/14/26, 1:39 PM",
       "README.md1 KBMarkdown Document11/14/26, 1:39 PM",
     ]);
     // The status bar: how many, how much, and which commit C: is a copy of.
-    expect(statusBar().getByText("5 object(s)")).toBeInTheDocument();
+    expect(statusBar().getByText("6 object(s)")).toBeInTheDocument();
     expect(statusBar().getByText("1 KB")).toBeInTheDocument();
     expect(
       statusBar().getByText(
@@ -519,7 +526,7 @@ describe("Explorer", () => {
     await openMenu("View", "List");
     expect(item(/porn/)).toBeInTheDocument();
     // A subfolder of A: is already spinning: no second seek.
-    diskDeps.jokeGate.tryOpen();
+    diskDeps.jokeGate.tryPassword("mender");
     await user.dblClick(item(/porn/));
     expect(diskDeps.seeks).toBe(1);
     // ...only the short seek every folder gets.
@@ -575,31 +582,168 @@ describe("Explorer", () => {
     expect(screen.queryByText(/may be a coaster/)).not.toBeInTheDocument();
   });
 
-  it("denies the joke folder once, then opens it to homework.txt in Notepad++", async () => {
+  it("asks for A:\\porn's network password, refuses wrong ones and brings Clippy in on the third", async () => {
     const user = userEvent.setup();
     const { diskDeps } = renderWithProviders(<Desktop />, {
       initialOpen: [explorerAt(DRIVE_A)],
     });
     await user.dblClick(item(/porn/));
-    const denied = screen.getByRole("dialog", { name: "porn" });
-    expect(within(denied).getByText(/Access is denied\./)).toHaveTextContent(
-      /^A:\\porn is not accessible\. Access is denied\.$/,
+    const box = screen.getByRole("dialog", { name: PASSWORD_DIALOG_TITLE });
+    expect(box).toHaveTextContent(
+      "You must supply a password to make this connection:",
     );
+    expect(within(box).getByTestId("password-resource")).toHaveTextContent(
+      "\\\\A:\\porn",
+    );
+    const field = within(box).getByLabelText("Password:");
+    expect(field).toHaveAttribute("type", "password");
+    expect(field).toHaveFocus();
     expect(address()).toHaveValue("A:\\");
-    await user.click(screen.getByRole("button", { name: "OK" }));
-    await user.dblClick(item(/porn/));
-    expect(diskDeps.jokeGate.attempts()).toBe(2);
-    await openMenu("View", "Details");
-    expect(row(/homework\.txt 1 KB Text Document/)).toBeInTheDocument();
-    await openMenu("View", "List");
-    await user.dblClick(item(/homework\.txt/));
+    for (const guess of ["password", "hunter2", "letmein"]) {
+      await user.type(within(box).getByLabelText("Password:"), guess);
+      await user.click(within(box).getByRole("button", { name: "OK" }));
+      const error = screen
+        .getAllByRole("dialog", { name: PASSWORD_DIALOG_TITLE })
+        .find((dialog) => dialog !== box);
+      expect(error).toHaveTextContent(
+        "The password is incorrect. Access is denied.",
+      );
+      if (!error) return;
+      expect(within(box).getByLabelText("Password:")).toHaveValue("");
+      if (guess !== "letmein")
+        expect(screen.queryByText(CLIPPY_PORN_HELP)).not.toBeInTheDocument();
+      await user.click(within(error).getByRole("button", { name: "OK" }));
+    }
+    expect(diskDeps.jokeGate.failures()).toBe(3);
+    expect(screen.getByText(CLIPPY_PORN_HELP)).toBeInTheDocument();
+    // Cancel leaves the folder shut.
+    await user.click(within(box).getByRole("button", { name: "Cancel" }));
     expect(
-      await screen.findByRole("tab", { name: /homework\.txt/ }),
+      screen.queryByRole("dialog", { name: PASSWORD_DIALOG_TITLE }),
+    ).not.toBeInTheDocument();
+    expect(contents().queryByText(RICKROLL_NAME)).not.toBeInTheDocument();
+  });
+
+  it("logs on with the password in any case, shows the one video and plays it in the Media Player", async () => {
+    const user = userEvent.setup();
+    const beats: (() => void)[] = [];
+    const diskDeps = createTestDiskDeps({
+      logonPause: () =>
+        new Promise<void>((resolve) => {
+          beats.push(resolve);
+        }),
+    });
+    const { store } = renderWithProviders(<Desktop />, {
+      initialOpen: [explorerAt(DRIVE_A)],
+      diskDeps,
+    });
+    await user.dblClick(item(/porn/));
+    const box = screen.getByRole("dialog", { name: PASSWORD_DIALOG_TITLE });
+    await user.type(within(box).getByLabelText("Password:"), "MeNdEr{Enter}");
+    expect(box).toHaveTextContent(CONNECTING_STATUS);
+    expect(within(box).getByRole("button", { name: "OK" })).toBeDisabled();
+    await act(async () => {
+      beats.shift()?.();
+      await Promise.resolve();
+    });
+    expect(box).toHaveTextContent(GRANTED_STATUS);
+    await act(async () => {
+      beats.shift()?.();
+      await Promise.resolve();
+    });
+    expect(diskDeps.logonSteps).toEqual(["connecting", "granted"]);
+    expect(
+      screen.queryByRole("dialog", { name: PASSWORD_DIALOG_TITLE }),
+    ).not.toBeInTheDocument();
+    expect(address()).toHaveValue("A:\\porn");
+    expect(
+      contents()
+        .getAllByRole("option")
+        .map((entry) => entry.textContent),
+    ).toEqual([RICKROLL_NAME]);
+    expect(
+      screen.getByRole("dialog", {
+        name: `${RICKROLL_TITLE} - Windows Media Player`,
+      }),
     ).toBeInTheDocument();
-    expect(await screen.findByRole("textbox", { name: "Editor" })).toHaveValue(
-      HOMEWORK_TEXT,
+    expect(windowsOf(store)).toContainEqual(
+      expect.objectContaining({ kind: "mediaplayer", stream: "rickroll" }),
     );
-    expect(diskDeps.source.reads).toEqual([]);
+    // Once in, the folder opens without asking, and the video opens the same player again.
+    await user.click(screen.getByRole("button", { name: "Up" }));
+    await user.dblClick(item(/porn/));
+    expect(
+      screen.queryByRole("dialog", { name: PASSWORD_DIALOG_TITLE }),
+    ).not.toBeInTheDocument();
+    await user.dblClick(item(/definitely_not_porn/));
+    expect(
+      windowsOf(store).filter((window) => window.kind === "mediaplayer"),
+    ).toHaveLength(1);
+  });
+
+  it("keeps A:\\porn shut from the address bar and from a window restored inside it", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Desktop />, {
+      initialOpen: [explorerAt("A:/porn")],
+    });
+    expect(
+      await screen.findByRole("dialog", { name: PASSWORD_DIALOG_TITLE }),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(address()).toHaveValue("A:\\"));
+    await user.keyboard("{Escape}");
+    expect(
+      screen.queryByRole("dialog", { name: PASSWORD_DIALOG_TITLE }),
+    ).not.toBeInTheDocument();
+    await user.type(address(), "{Control>}a{/Control}A:\\porn{Enter}");
+    expect(
+      screen.getByRole("dialog", { name: PASSWORD_DIALOG_TITLE }),
+    ).toBeInTheDocument();
+    expect(contents().queryByText(RICKROLL_NAME)).not.toBeInTheDocument();
+  });
+
+  it("deletes SYSTEM32 into the gag's questions, and lists what it holds without opening any of it", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Desktop />, {
+      initialOpen: [explorerAt(DRIVE_C)],
+    });
+    await waitFor(() => expect(item(/WINDOWS/)).toBeInTheDocument());
+    await user.dblClick(item(/WINDOWS/));
+    expect(address()).toHaveValue("C:\\WINDOWS");
+    // From the context menu: the first of the three questions, and No keeps the folder.
+    fireEvent.contextMenu(item(/SYSTEM32/), { clientX: 10, clientY: 10 });
+    await user.click(screen.getByRole("menuitem", { name: "Delete" }));
+    expect(screen.getByRole("alertdialog")).toHaveTextContent(
+      "Are you sure you want to remove the folder 'SYSTEM32'",
+    );
+    await user.click(screen.getByRole("button", { name: "No" }));
+    expect(item(/SYSTEM32/)).toBeInTheDocument();
+    // The Delete key asks the same; File > Delete too, and three times Yes and the folder is gone.
+    await user.click(item(/SYSTEM32/));
+    await user.keyboard("{Delete}");
+    await user.click(screen.getByRole("button", { name: "No" }));
+    await user.click(item(/SYSTEM32/));
+    await openMenu("File", "Delete");
+    for (let question = 0; question < 3; question += 1)
+      await user.click(screen.getByRole("button", { name: "Yes" }));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(contents().queryByText("SYSTEM32")).not.toBeInTheDocument();
+  });
+
+  it("lists SYSTEM32's files by address, and none of them opens", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Desktop />, {
+      initialOpen: [explorerAt(DRIVE_C)],
+    });
+    await waitFor(() => expect(item(/WINDOWS/)).toBeInTheDocument());
+    await user.type(
+      address(),
+      "{Control>}a{/Control}C:\\WINDOWS\\SYSTEM32{Enter}",
+    );
+    await waitFor(() => expect(item(/KERNEL32\.DLL/)).toBeInTheDocument());
+    await user.dblClick(item(/KERNEL32\.DLL/));
+    expect(screen.getByRole("dialog", { name: "Open With" })).toHaveTextContent(
+      "Windows cannot open this file",
+    );
   });
 
   it("marks files with a saved copy and reverts them from the context menu", async () => {
@@ -634,22 +778,6 @@ describe("Explorer", () => {
     ).toBeDisabled();
   });
 
-  it("reverts the floppy's homework too", async () => {
-    const user = userEvent.setup();
-    const { diskDeps } = renderWithProviders(<Desktop />, {
-      initialOpen: [explorerAt("A:/porn")],
-      disk: { overlay: { [HOMEWORK_LOCATION]: "PS." } },
-    });
-    await waitFor(() =>
-      expect(
-        screen.getByRole("img", { name: MODIFIED_LABEL }),
-      ).toBeInTheDocument(),
-    );
-    await user.click(item(/homework/));
-    await openMenu("File", "Revert to original");
-    await expect(diskDeps.overlay.list()).resolves.toEqual([]);
-  });
-
   it("moves the selection with the keyboard, opens with Enter and goes up with Backspace", async () => {
     const user = userEvent.setup();
     renderWithProviders(<Desktop />, { initialOpen: [explorerAt(DRIVE_C)] });
@@ -681,7 +809,7 @@ describe("Explorer", () => {
     expect(screen.getByRole("table", { name: "Details" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Views" }));
     const large = screen.getByRole("listbox", { name: "Large icons" });
-    expect(within(large).getAllByRole("option")).toHaveLength(5);
+    expect(within(large).getAllByRole("option")).toHaveLength(6);
     expect(large.querySelector("svg")).toHaveAttribute("width", "32");
     await user.click(screen.getByRole("button", { name: "Views" }));
     const small = screen.getByRole("listbox", { name: "Small icons" });
@@ -721,6 +849,7 @@ describe("Explorer", () => {
     );
     await user.click(screen.getByRole("button", { name: "Name" }));
     expect(names()).toEqual([
+      "WINDOWS",
       "public",
       "packages",
       "docs",
@@ -829,7 +958,7 @@ describe("Explorer", () => {
       name: "Fuse Riders (C:) Properties",
     });
     expect(drive).toHaveTextContent("Type: Drive");
-    expect(drive).toHaveTextContent("Contains: 5 object(s)");
+    expect(drive).toHaveTextContent("Contains: 6 object(s)");
     await user.click(within(drive).getByRole("button", { name: "OK" }));
 
     await user.click(item(/README\.md/));

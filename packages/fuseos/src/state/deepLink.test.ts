@@ -1,4 +1,5 @@
 import {
+  deepLinkApp,
   deepLinkContents,
   deepLinkRedirect,
   parseOpenParam,
@@ -36,6 +37,7 @@ describe(deepLinkContents.name, () => {
           "fusteam",
           "mycomputer",
           "explorer",
+          "napster",
           "nope",
         ],
         games,
@@ -50,7 +52,36 @@ describe(deepLinkContents.name, () => {
       { kind: "launcher" },
       { kind: "explorer", location: "" },
       { kind: "explorer", location: "" },
+      { kind: "napster" },
     ]);
+  });
+
+  it("opens the Hall of Fame, the Task Manager and the DOS Games folder by name", () => {
+    expect(
+      deepLinkContents(["halloffame", "taskmanager", "dosgames"], games),
+    ).toEqual([
+      { kind: "halloffame" },
+      { kind: "taskmanager" },
+      { kind: "retroFolder" },
+    ]);
+  });
+
+  it("opens the Recycle Bin, Explorer, Notepad++, the DOS Games folder and Run by name", () => {
+    expect(
+      deepLinkContents(
+        ["recyclebin", "explorer", "notepad", "dosgames", "run"],
+        games,
+      ),
+    ).toEqual([
+      { kind: "recyclebin" },
+      { kind: "explorer", location: "" },
+      { kind: "notepadpp", paths: ["README.md"], activePath: "README.md" },
+      { kind: "retroFolder" },
+      { kind: "run" },
+    ]);
+    // A name from Object.prototype is not an app.
+    expect(deepLinkApp("constructor")).toBeUndefined();
+    expect(deepLinkApp("paint")).toEqual({ kind: "paint" });
   });
 
   it("prefers a Fuse game over a retro game of the same id", () => {

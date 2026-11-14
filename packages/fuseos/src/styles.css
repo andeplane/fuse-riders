@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @import "98.css/dist/98.css" layer(base);
+/* The "delete SYSTEM32" gag (system32/): stage classes on the desktop root, the blue screen, the restart. */
+@import "./system32/system32.css" layer(components);
 
 /*
  * Control Panel, Display, Font size: Small fonts / Large fonts scales the whole chrome from

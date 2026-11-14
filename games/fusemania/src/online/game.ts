@@ -25,6 +25,7 @@ import {
   RULES,
   SCORE_MODE,
   SOLO_LEAD_IN_MS,
+  TICK_MS,
   UP,
   createWorld,
   decodeWorld,
@@ -77,7 +78,13 @@ export const SESSION_SCORES = 16;
 const SETTING_KEYS = ["display", "song", "mode", "chart", "songs", "random"];
 
 export const PLAY = 0,
-  PICK = 1;
+  PICK = 1,
+  READY = 2;
+/**
+ * The longest a started song waits for its devices to have the audio, in log ticks (30 s): a device that never
+ * answers, a tab left in the background, does not keep the room from its song.
+ */
+export const HOLD_TICKS = Math.round(30000 / TICK_MS);
 /**
  * A key of this seat moved (or its power-up button was pressed) in the match numbered `epoch`, at song time `ms`.
  * The epoch counts the room's matches, so a late entry from the last match never plays in this one.
@@ -97,7 +104,30 @@ export type PickEntry = [
   kind: typeof PICK,
   chart: number,
 ];
-export type Entry = ManagementEntry<Settings> | PlayEntry | PickEntry;
+/**
+ * This device is done getting the song of the match numbered `epoch`: it has the audio, or it will not play any
+ * (muted, a phone that is a pad, a file that would not load).
+ */
+export type ReadyEntry = [
+  seq: number,
+  tick: number,
+  kind: typeof READY,
+  epoch: number,
+];
+export type Entry =
+  ManagementEntry<Settings> | PlayEntry | PickEntry | ReadyEntry;
+/** A started song that stands at its first moment until every device has its audio. */
+export interface Hold {
+  /** Log ticks waited so far: at most `HOLD_TICKS`. */
+  ticks: number;
+  /** The members whose devices are done, sorted. */
+  ready: string[];
+  /**
+   * The shared screen is waited for too: the room's creator when it holds no seat, which is the TV of a shared
+   * screen room. It plays the song for everyone, and the seats cannot speak for it.
+   */
+  screen: boolean;
+}
 
 export const MAX_WATCHERS = 5;
 /** The room's size, whatever library the game is made with: what the service sizes its rooms by. */
@@ -168,6 +198,8 @@ export interface Room extends ManagedRoom<Settings> {
   world: World | null;
   /** The session the room is in the middle of, or just finished; null when it plays single songs. */
   session: Session | null;
+  /** The running song waits for its devices to have the audio; null once it moves, and outside a match. */
+  hold: Hold | null;
 }
 
 export interface SeatView {
@@ -199,6 +231,11 @@ export interface View {
   winner: string;
   world: WorldView | null;
   session: SessionView | null;
+  /**
+   * Who a started song still waits for (their devices are getting its audio): the seats by id and whether the
+   * shared screen is one of them. Null when the song is not held.
+   */
+  waiting: { ids: string[]; screen: boolean } | null;
 }
 
 const plain = (value: unknown): value is Record<string, unknown> =>
@@ -228,7 +265,7 @@ const SEAT_KEYS = [
   "away",
 ];
 const STAGES: readonly RoomStage[] = ["lobby", "running", "over"];
-const FIELDS = 11;
+const FIELDS = 12;
 const seatOrder = (a: SeatRecord, b: SeatRecord) =>
   a.slot - b.slot || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
@@ -501,6 +538,7 @@ export function createFusemaniaGame(
         raw[5] >= MIN_SONG_MS &&
         raw[5] <= MAX_SONG_MS
       );
+    if (raw[2] === READY) return raw.length === 4 && uint32(raw[3]);
     return raw[2] === PICK && raw.length === 4 && chartIndex(raw[3]);
   }
 
@@ -518,6 +556,7 @@ export function createFusemaniaGame(
       decided: null,
       world: null,
       session: null,
+      hold: null,
     };
   }
 
@@ -534,6 +573,7 @@ export function createFusemaniaGame(
     room.roster = [];
     room.decided = null;
     room.world = null;
+    room.hold = null;
   }
   /** Starts a match for the seats, in seat order, or leaves the room in its lobby when nobody is seated. */
   function beginMatch(room: Room): void {
@@ -563,7 +603,20 @@ export function createFusemaniaGame(
     room.world = world;
     room.stage = "running";
     room.epoch++;
+    room.hold = { ticks: 0, ready: [], screen: false };
   }
+  /** The members a held song waits for: every device that is in the room and not done getting the audio. */
+  const awaited = (room: Room, hold: Hold): string[] =>
+    [...room.seats.values()]
+      .filter(
+        (seat) =>
+          !seat.bot &&
+          seat.connected &&
+          seat.away !== true &&
+          !hold.ready.includes(seat.id),
+      )
+      .sort(seatOrder)
+      .map((seat) => seat.id);
   const matchId = (room: Room) => room.matchId;
 
   /**
@@ -656,10 +709,10 @@ export function createFusemaniaGame(
 
   /** The seat's own entries for this tick, from the stream generation its controls follow, in the order written. */
   function ownEntries(
-    seat: SeatRecord,
+    seat: Pick<SeatRecord, "id" | "generation">,
     streams: ReadonlyMap<string, StreamEntries<Entry>>,
     tick: number,
-  ): (PlayEntry | PickEntry)[] {
+  ): (PlayEntry | PickEntry | ReadyEntry)[] {
     const stream = streams.get(seat.id);
     const source =
       stream?.generation === seat.generation
@@ -667,8 +720,9 @@ export function createFusemaniaGame(
         : stream?.retired?.find((old) => old.generation === seat.generation);
     return (source?.entries ?? [])
       .filter(
-        (entry): entry is PlayEntry | PickEntry =>
-          entry[1] === tick && (entry[2] === PLAY || entry[2] === PICK),
+        (entry): entry is PlayEntry | PickEntry | ReadyEntry =>
+          entry[1] === tick &&
+          (entry[2] === PLAY || entry[2] === PICK || entry[2] === READY),
       )
       .sort((a, b) => a[0] - b[0]);
   }
@@ -700,6 +754,7 @@ export function createFusemaniaGame(
       }
       for (const entry of ownEntries(seat, streams, tick)) {
         if (entry[2] === PICK) room.picks[seat.id] = entry[3];
+        else if (entry[2] === READY) continue;
         else if (
           slot >= 0 &&
           room.stage === "running" &&
@@ -708,8 +763,46 @@ export function createFusemaniaGame(
           inputs.push({ slot, code: entry[4], ms: entry[5] });
       }
     }
+    const hold = room.stage === "running" ? room.hold : null;
+    if (hold) {
+      // Anyone in the room says so, a watcher and the shared screen too: they hear the song as the riders do.
+      const said = (seat: Pick<SeatRecord, "id" | "generation">) =>
+        ownEntries(seat, streams, tick).some(
+          (entry) => entry[2] === READY && entry[3] === room.epoch,
+        );
+      for (const seat of room.seats.values())
+        if (
+          !seat.bot &&
+          seat.connected &&
+          !hold.ready.includes(seat.id) &&
+          said(seat)
+        )
+          hold.ready.push(seat.id);
+      // A shared screen room's TV is its creator and holds no seat: its own stream speaks for it.
+      const tv = room.play.display && !room.seats.has(creatorId);
+      if (
+        tv &&
+        !hold.ready.includes(creatorId) &&
+        said({
+          id: creatorId,
+          generation: streams.get(creatorId)?.generation ?? 0,
+        })
+      )
+        hold.ready.push(creatorId);
+      hold.ready = hold.ready
+        .filter((id) => room.seats.has(id) || (tv && id === creatorId))
+        .sort();
+      hold.screen = tv && !hold.ready.includes(creatorId);
+      if (
+        (!hold.screen && !awaited(room, hold).length) ||
+        hold.ticks >= HOLD_TICKS
+      )
+        room.hold = null;
+      else hold.ticks++;
+    }
     const world = room.world;
-    if (room.stage === "running" && world) {
+    // A held song stands at its first moment: nothing is judged and the song time does not move.
+    if (room.stage === "running" && world && !room.hold) {
       // Riders in roster order, each one's inputs as it wrote them.
       inputs.sort((a, b) => a.slot - b.slot);
       stepWorld(library, world, inputs);
@@ -767,6 +860,9 @@ export function createFusemaniaGame(
             ]),
           ]
         : null,
+      room.hold
+        ? [room.hold.ticks, [...room.hold.ready], room.hold.screen]
+        : null,
     ];
   }
 
@@ -788,6 +884,7 @@ export function createFusemaniaGame(
       rawWorld,
       epoch,
       rawSession,
+      rawHold,
     ] = fields;
     const settings = parseSettings(rawSettings),
       play = parseSettings(rawPlay),
@@ -874,6 +971,36 @@ export function createFusemaniaGame(
           return;
       }
     }
+    let hold: Hold | null = null;
+    if (rawHold !== null) {
+      // Only a running song is held, by members of the room, each named once and in order.
+      if (
+        stage !== "running" ||
+        !Array.isArray(rawHold) ||
+        rawHold.length !== 3 ||
+        !uint32(rawHold[0]) ||
+        rawHold[0] > HOLD_TICKS ||
+        !Array.isArray(rawHold[1]) ||
+        typeof rawHold[2] !== "boolean" ||
+        (rawHold[2] && !play.display)
+      )
+        return;
+      const ready: unknown[] = rawHold[1];
+      // At most one of them is no seat: the shared screen, which only a shared screen room has.
+      if (
+        ready.length > seats.size + 1 ||
+        !ready.every(
+          (member, index): member is string =>
+            playerKey(member) &&
+            seats.get(member)?.bot !== true &&
+            (index === 0 || (ready[index - 1] as string) < member),
+        ) ||
+        ready.filter((member) => !seats.has(member)).length >
+          (play.display && !rawHold[2] ? 1 : 0)
+      )
+        return;
+      hold = { ticks: rawHold[0], ready: [...ready], screen: rawHold[2] };
+    }
     return {
       tick,
       matchId: id,
@@ -887,6 +1014,7 @@ export function createFusemaniaGame(
       decided,
       world,
       session,
+      hold,
     };
   }
 
@@ -942,6 +1070,10 @@ export function createFusemaniaGame(
             standings: standings(room.session.scores),
           }
         : null,
+      waiting:
+        room.stage === "running" && room.hold
+          ? { ids: awaited(room, room.hold), screen: room.hold.screen }
+          : null,
     };
   }
 

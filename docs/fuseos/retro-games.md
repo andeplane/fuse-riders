@@ -1,6 +1,6 @@
 # Retro games
 
-Start > Programs > Games > Retro Games holds eight classics: four shareware DOS games booted in js-dos, two open source web games in a frame of their own, and Minesweeper and Solitaire written for FuseOS in React. "Open Retro Games folder" opens them as an Explorer-style folder window (`packages/fuseos/src/retro/RetroFolderWindow.tsx`): a double click starts a game, and View > Details shows the licence table below in the window itself.
+Start > Programs > Games > Retro Games holds eight classics: four shareware DOS games booted in js-dos, two open source web games in a frame of their own, and Minesweeper and Solitaire written for FuseOS in React. The yellow **DOS Games** folder on the desktop (also "Open DOS Games folder" in that menu and `?open=dosgames`) opens them as an Explorer-style folder window (`packages/fuseos/src/retro/RetroFolderWindow.tsx`): the four DOS games first, the Windows games (Minesweeper, SkiFree, Micropolis, Solitaire) in a group under them; a double click starts a game, and View > Details shows the licence table below in the window itself.
 
 The playable files live under `public/fuseos/retro` and the js-dos player under `public/fuseos/jsdos`; the licence texts live in `licenses/` next to this file. Everything is served from the site's own origin, under any base path: GitHub Pages serves the site at `/fuse-riders/`, a static preview at `./`, and the player page resolves the emulator core and the bundles relative to itself, so both work without a rebuild of the assets. Nothing is loaded from js-dos.com or dos.zone (`noCloud`). Nothing here is written by the FuseOS authors except this document, the `.jsdos/dosbox.conf` bundle configs, the js-dos player page and the two native games.
 
@@ -15,7 +15,7 @@ The playable files live under `public/fuseos/retro` and the js-dos player under 
 | SkiFree                                        | `retro/skifree/index.html` in a same-origin frame                                                           | [basicallydan/skifree.js](https://github.com/basicallydan/skifree.js) by Dan Hough                                                                         | MIT, `licenses/skifree/LICENSE.md`                                                                                                                                                         |
 | Micropolis                                     | `retro/micropolis/index.html` in a same-origin frame                                                        | [graememcc/micropolisJS](https://github.com/graememcc/micropolisJS) by Graeme McCutcheon                                                                   | GPL-3.0 with additional terms (`licenses/micropolis/LICENSE`, `licenses/micropolis/COPYING`) and the Micropolis Public Name License (`licenses/micropolis/MicropolisPublicNameLicense.md`) |
 
-The same table, with each game's controls, is the Details view of the Retro Games folder; the one-line summaries come from `packages/fuseos/src/retro/games.ts`.
+The same table, with each game's controls, is the Details view of the DOS Games folder; the one-line summaries come from `packages/fuseos/src/retro/games.ts`.
 
 ## Shareware terms
 

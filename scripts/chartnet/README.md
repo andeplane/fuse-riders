@@ -130,3 +130,18 @@ These are the game's charts: `bundle.ts` writes them into `games/fusemania/chart
 which `fusemania-charts.ts generate` leaves alone), and `gen.py fixup` keeps a one-second lead-in and ends a freeze
 before any row that would need a third arrow. To rebuild: train (`onset.py --density 1 --name onset_dens`, `arrows.py`), then `gen2.py fuse` and
 `pnpm exec tsx scripts/chartnet/bundle.ts $CHARTNET_WORK/out_fuse2`.
+
+## Chart lab (reviewing charts against the music)
+
+`games/fusemania/chart-lab.html`, served at `<base>fusemania/chart-lab.html?song=<id>` (live:
+https://andeplane.github.io/fuse-games/fusemania/chart-lab.html?song=final-chase) and not linked from the game's menus.
+Time runs down the page: the song's charts (arrows coloured by subdivision, StepMania style) beside the onset strength
+ChartNet reads and a spectrogram, either constant-Q (24 bins an octave, each bin from the shortest FFT window that
+resolves it, like a wavelet transform) or the 64 mel bands at a 2048 window that `features.py` feeds the model. It
+plays the song with an assist tick on a chart's steps or on the beats, and edits taps (snapped, exported as `.ssc`).
+
+Drag on the spectrogram to select a time span and a frequency band: the lab plots that band's onset flux (the
+feature such a band would add) and counts each chart's steps by subdivision in the span. A selection becomes a review
+note (`src/lab/notes.ts`, versioned JSON): kept in the browser, downloadable, copyable as text for a chat, or saved to
+a file on every change (Chrome's file picker). `Load .ssc…` adds a candidate's charts (e.g. `gen2.py fuse` output)
+beside the song's own for comparison. The DSP is `src/lab/spectrum.ts` and runs in a worker (about 8 s a song).

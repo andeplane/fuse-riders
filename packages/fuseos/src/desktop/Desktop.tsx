@@ -1,6 +1,10 @@
 import { OfficeAssistant } from "../assistant/OfficeAssistant";
+import { RecycleBinDesktopIcon } from "../recyclebin/RecycleBinDesktopIcon";
 import { FriendsTray } from "../friends/FriendsTray";
+import { useTaskManagerShortcut } from "../taskmanager/useTaskManagerShortcut";
 import { ContextMenu } from "../windows/ContextMenu";
+import { Y2kGlitchOverlay } from "../y2k/Y2kGlitchOverlay";
+import { Y2kAssistantProvider } from "../y2k/Y2kAssistantProvider";
 
 import { DesktopIcon } from "./DesktopIcon";
 import { DisplaySurface } from "./DisplaySurface";
@@ -14,6 +18,7 @@ import { WindowHost } from "./WindowHost";
 export function Desktop() {
   const vm = useDesktopViewModel();
   useDesktopKeyboard();
+  useTaskManagerShortcut();
 
   const desktop = (
     <div
@@ -41,7 +46,9 @@ export function Desktop() {
       }}
     >
       <div
-        className="absolute bottom-7 left-2 top-2 flex flex-col flex-wrap content-start"
+        className="absolute left-2 top-2 flex flex-col flex-wrap content-start"
+        // The grid stops one cell above the taskbar: that cell at the bottom left is the Recycle Bin's.
+        style={{ bottom: 28 + vm.iconSpacingY }}
         role="list"
         aria-label="Desktop icons"
       >
@@ -70,6 +77,7 @@ export function Desktop() {
           </div>
         ))}
       </div>
+      <RecycleBinDesktopIcon />
       <div className="pointer-events-none absolute inset-0 bottom-7">
         <WindowHost windows={vm.windows} activeId={vm.activeId} />
       </div>
@@ -100,7 +108,12 @@ export function Desktop() {
         />
       ) : null}
       {vm.shutdownScreen ? <ShutdownScreen onWakeUp={vm.wakeUp} /> : null}
+      <Y2kGlitchOverlay />
     </div>
   );
-  return <DisplaySurface>{desktop}</DisplaySurface>;
+  return (
+    <DisplaySurface>
+      <Y2kAssistantProvider>{desktop}</Y2kAssistantProvider>
+    </DisplaySurface>
+  );
 }

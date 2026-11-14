@@ -6,6 +6,7 @@ import { useFuseGameLauncher } from "../fusegames/useFuseGameLauncher";
 import { LAUNCHER_TITLE } from "../launcher/launcherFacts";
 import { useOpenLauncher } from "../launcher/useOpenLauncher";
 import { openNetworkNeighborhood } from "../network/openNetworkNeighborhood";
+import { DOS_GAMES_TITLE } from "../retro/RetroFolderWindow";
 import { useGameLaunch } from "../settings/useGameLaunch";
 import { useDialUpCommands } from "../sounds/dialup/useDialUpCommands";
 import type { WindowState } from "../state/appState";
@@ -93,18 +94,33 @@ export function useDesktopViewModel(): DesktopViewModel {
     [commands],
   );
 
+  // Windows 98's own order down the first column: the computer and the network, then the folders and
+  // programs. The grid wraps into further columns, so a long list of games never runs off the screen.
   const icons: DesktopIconModel[] = [
-    {
-      id: "fusteam",
-      label: LAUNCHER_TITLE,
-      icon: "fusteam",
-      open: openLauncher,
-    },
     {
       id: "my-computer",
       label: "My Computer",
       icon: "computer",
       open: () => commands.open({ kind: "explorer", location: MY_COMPUTER }),
+    },
+    {
+      id: "network-neighborhood",
+      label: "Network Neighborhood",
+      icon: "network",
+      open: () => openNetworkNeighborhood(online),
+    },
+    {
+      // The yellow folder: DOOM, Wolfenstein 3D, Commander Keen and Duke Nukem 3D, with the Windows games under them.
+      id: "dos-games",
+      label: DOS_GAMES_TITLE,
+      icon: "folder",
+      open: () => commands.open({ kind: "retroFolder" }),
+    },
+    {
+      id: "fusteam",
+      label: LAUNCHER_TITLE,
+      icon: "fusteam",
+      open: openLauncher,
     },
     ...games.games.map((game) => ({
       id: `game:${game.id}`,
@@ -118,16 +134,28 @@ export function useDesktopViewModel(): DesktopViewModel {
     { id: "paint", label: "Paint", icon: "paint", open: openPaint },
     { id: "winamp", label: "Winamp", icon: "winamp", open: openWinamp },
     {
+      id: "mirc",
+      label: "mIRC",
+      icon: "mirc",
+      open: () => commands.open({ kind: "mirc" }),
+    },
+    {
+      id: "napster",
+      label: "Napster",
+      icon: "napster",
+      open: () => commands.open({ kind: "napster" }),
+    },
+    {
+      id: "dcpp",
+      label: "DC++",
+      icon: "dcpp",
+      open: () => commands.open({ kind: "dcpp" }),
+    },
+    {
       id: "control-panel",
       label: "Control Panel",
       icon: "settings",
       open: openControlPanel,
-    },
-    {
-      id: "network-neighborhood",
-      label: "Network Neighborhood",
-      icon: "network",
-      open: () => openNetworkNeighborhood(online),
     },
   ];
 

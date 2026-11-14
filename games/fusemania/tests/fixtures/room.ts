@@ -1,6 +1,7 @@
 import { ACTION, JOIN, type StreamEntries } from "fuse-netcode";
 import { TICK_MS } from "../../src/engine/index.js";
 import {
+  READY,
   createFusemaniaGame,
   type Entry,
   type FusemaniaGame,
@@ -59,6 +60,13 @@ export function seated(settings: Settings = SETTINGS): Room {
 /** `a` and `b` playing match `m1`. */
 export function started(settings: Settings = SETTINGS): Room {
   const room = seated(settings);
-  fold(room, { a: [[ACTION, "start", "m1"]] });
+  // Both devices have the song already, and say so on the tick the match starts: it is not held.
+  fold(room, {
+    a: [
+      [ACTION, "start", "m1"],
+      [READY, 1],
+    ],
+    b: [[READY, 1]],
+  });
   return room;
 }

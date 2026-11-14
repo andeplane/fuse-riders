@@ -16,13 +16,13 @@ async function openFolder(user: ReturnType<typeof userEvent.setup>) {
   await user.click(within(menu).getByRole("menuitem", { name: "Games" }));
   await user.click(within(menu).getByRole("menuitem", { name: "Retro Games" }));
   await user.click(
-    within(menu).getByRole("menuitem", { name: "Open Retro Games folder" }),
+    within(menu).getByRole("menuitem", { name: "Open DOS Games folder" }),
   );
-  return screen.findByRole("dialog", { name: "Retro Games" });
+  return screen.findByRole("dialog", { name: "DOS Games" });
 }
 
-describe("Retro Games folder", () => {
-  it("opens from the Start menu as a resizable folder listing the eight games as icons", async () => {
+describe("DOS Games folder", () => {
+  it("opens from the Start menu as a resizable folder with the DOS games first and the Windows games under them", async () => {
     const user = userEvent.setup();
     renderWithProviders(<Desktop />);
     const folder = await openFolder(user);
@@ -31,19 +31,33 @@ describe("Retro Games folder", () => {
       width: "640px",
       height: "420px",
     });
-    const list = within(folder).getByRole("listbox", { name: "Retro games" });
-    expect(
-      within(list)
+    const names = (label: string) =>
+      within(within(folder).getByRole("listbox", { name: label }))
         .getAllByRole("option")
-        .map((option) => option.textContent),
-    ).toEqual(GAME_LIST.map((game) => game.name));
+        .map((option) => option.textContent);
+    expect(names("DOS games")).toEqual([
+      "DOOM",
+      "Wolfenstein 3D",
+      "Commander Keen 1: Marooned on Mars",
+      "Duke Nukem 3D",
+    ]);
+    expect(names("Windows games")).toEqual([
+      "Minesweeper",
+      "SkiFree",
+      "Micropolis",
+      "Solitaire",
+    ]);
+    expect([...names("DOS games"), ...names("Windows games")]).toEqual(
+      GAME_LIST.map((game) => game.name),
+    );
+    expect(folder.querySelector("svg[data-icon='folder']")).not.toBeNull();
     expect(within(folder).getByLabelText("Status")).toHaveTextContent(
       "8 object(s)",
     );
     expect(
       within(screen.getByRole("toolbar", { name: "Taskbar" })).getByRole(
         "button",
-        { name: /Retro Games/ },
+        { name: /DOS Games/ },
       ),
     ).toBeInTheDocument();
   });
@@ -85,15 +99,15 @@ describe("Retro Games folder", () => {
     await user.click(
       within(screen.getByRole("toolbar", { name: "Taskbar" })).getByRole(
         "button",
-        { name: /Retro Games/ },
+        { name: /DOS Games/ },
       ),
     );
-    expect(screen.getByRole("dialog", { name: "Retro Games" })).toHaveAttribute(
+    expect(screen.getByRole("dialog", { name: "DOS Games" })).toHaveAttribute(
       "data-active",
       "true",
     );
     await user.dblClick(
-      within(screen.getByRole("dialog", { name: "Retro Games" })).getByRole(
+      within(screen.getByRole("dialog", { name: "DOS Games" })).getByRole(
         "option",
         { name: "Wolfenstein 3D" },
       ),
@@ -119,7 +133,7 @@ describe("Retro Games folder", () => {
       await screen.findByRole("dialog", { name: "Minesweeper" }),
     ).toBeInTheDocument();
 
-    const retro = screen.getByRole("dialog", { name: "Retro Games" });
+    const retro = screen.getByRole("dialog", { name: "DOS Games" });
     await user.click(within(retro).getByRole("option", { name: "Solitaire" }));
     await user.click(within(retro).getByRole("menuitem", { name: "File" }));
     await user.click(
@@ -169,7 +183,7 @@ describe("Retro Games folder", () => {
       within(folder).getByRole("menuitemcheckbox", { name: "Large Icons" }),
     );
     expect(
-      within(folder).getByRole("listbox", { name: "Retro games" }),
+      within(folder).getByRole("listbox", { name: "DOS games" }),
     ).toBeInTheDocument();
   });
 
@@ -180,7 +194,7 @@ describe("Retro Games folder", () => {
     const duke = within(folder).getByRole("option", { name: "Duke Nukem 3D" });
     await user.click(duke);
     expect(duke).toHaveAttribute("aria-selected", "true");
-    const list = within(folder).getByRole("listbox", { name: "Retro games" });
+    const list = within(folder).getByRole("listbox", { name: "DOS games" });
     const background = list.parentElement;
     expect(background).not.toBeNull();
     if (!background) return;
@@ -196,7 +210,7 @@ describe("Retro Games folder", () => {
     await user.click(
       within(folder).getByRole("menuitemcheckbox", { name: "Close" }),
     );
-    expect(screen.queryByRole("dialog", { name: "Retro Games" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "DOS Games" })).toBeNull();
   });
 
   it("is reused rather than duplicated and restores from saved state", async () => {
@@ -209,13 +223,13 @@ describe("Retro Games folder", () => {
       ],
     };
     renderWithProviders(<Desktop />, { initialState: state });
-    const folder = await screen.findByRole("dialog", { name: "Retro Games" });
+    const folder = await screen.findByRole("dialog", { name: "DOS Games" });
     expect(folder).toHaveAttribute("data-active", "false");
     await openFolder(user);
-    expect(screen.getAllByRole("dialog", { name: "Retro Games" })).toHaveLength(
+    expect(screen.getAllByRole("dialog", { name: "DOS Games" })).toHaveLength(
       1,
     );
-    expect(screen.getByRole("dialog", { name: "Retro Games" })).toHaveAttribute(
+    expect(screen.getByRole("dialog", { name: "DOS Games" })).toHaveAttribute(
       "data-active",
       "true",
     );

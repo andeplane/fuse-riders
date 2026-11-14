@@ -22,6 +22,11 @@ import {
   HALL_OF_FAME_REGISTRATION_IDS,
 } from "./useLauncherViewModel";
 
+/** The Start menu of a build the Hall of Fame is not in. */
+const WITHOUT_HALL_OF_FAME = START_MENU_REGISTRATIONS.filter(
+  (entry) => !HALL_OF_FAME_REGISTRATION_IDS.includes(entry.id),
+);
+
 /** The desktop with the launcher open, as every boot has it. */
 function renderLauncher(
   options: ProviderOptions = {},
@@ -283,9 +288,27 @@ describe("LauncherWindow", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows its own News page while no Hall of Fame is installed, and back", async () => {
+  it("opens the Hall of Fame from News, as its own window, and stays on My Games", async () => {
     const user = userEvent.setup();
-    const { inside } = renderLauncher();
+    const { inside, store } = renderLauncher();
+    await user.click(inside.getByRole("tab", { name: "News" }));
+    expect(
+      screen.getByRole("dialog", { name: "Hall of Fame" }),
+    ).toBeInTheDocument();
+    expect(inside.getByRole("tab", { name: "My Games" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    // One Hall of Fame, however often the tab is pressed.
+    await user.click(inside.getByRole("tab", { name: "News" }));
+    expect(
+      store.load().windows.filter((window) => window.kind === "halloffame"),
+    ).toHaveLength(1);
+  });
+
+  it("shows its own News page in a build without the Hall of Fame, and back", async () => {
+    const user = userEvent.setup();
+    const { inside } = renderLauncher({}, WITHOUT_HALL_OF_FAME);
     await user.click(inside.getByRole("tab", { name: "News" }));
     expect(inside.getByRole("tab", { name: "News" })).toHaveAttribute(
       "aria-selected",
@@ -305,7 +328,7 @@ describe("LauncherWindow", () => {
     const user = userEvent.setup();
     const opened: string[] = [];
     const registrations: StartMenuRegistration[] = [
-      ...START_MENU_REGISTRATIONS,
+      ...WITHOUT_HALL_OF_FAME,
       {
         slot: "programs",
         id: HALL_OF_FAME_REGISTRATION_IDS[0] ?? "halloffame",

@@ -64,7 +64,7 @@ function setup(
   songs: readonly SongInfo[] = THREE,
   extra: Pick<
     SongPickerOptions,
-    "best" | "hideMode" | "cover" | "packs" | "tools"
+    "best" | "hideMode" | "cover" | "packs" | "tools" | "audio"
   > = {},
 ) {
   const { document, window } = parseHTML(
@@ -861,4 +861,44 @@ test("the picker's tools (RANDOM SONG) sit at the top of the carousel, before th
   );
   // No tools, no empty strip.
   assert.equal(setup().one(".fm-picker-tools").hidden, true);
+});
+
+test("a song that is not downloaded wears a mark on its cover until it is", () => {
+  const audio: Record<string, "none" | "loading" | "ready" | "failed"> = {
+    a: "ready",
+    b: "none",
+    c: "failed",
+  };
+  const { picker, rows, writes } = setup(THREE, {
+    audio: (id) => audio[id] ?? "none",
+  });
+  picker.update(state());
+  const marks = () =>
+    rows().map((row) => {
+      const mark = row.querySelector<HTMLElement>(".fm-picker-row-audio")!;
+      return mark.hidden
+        ? ""
+        : `${mark.dataset.audio}:${mark.getAttribute("aria-label")}`;
+    });
+  assert.deepEqual(marks(), [
+    "",
+    "none:Not downloaded yet",
+    "failed:Could not download",
+  ]);
+  // The audio arrives under an unchanged state: the next update shows it, and writes nothing once it has.
+  audio.b = "loading";
+  picker.update(state());
+  assert.equal(marks()[1], "loading:Downloading");
+  audio.b = "ready";
+  picker.update(state());
+  assert.equal(marks()[1], "");
+  writes();
+  picker.update(state());
+  assert.deepEqual(writes(), []);
+});
+
+test("without a word on the audio no cover is marked", () => {
+  const { picker, all } = setup();
+  picker.update(state());
+  assert.ok(all(".fm-picker-row-audio").every((mark) => mark.hidden));
 });

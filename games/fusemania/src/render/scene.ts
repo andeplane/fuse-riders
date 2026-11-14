@@ -14,6 +14,7 @@ import {
 import { layoutFor, type Field, type Layout } from "./layout.js";
 import { BACKGROUND, CYAN, GOLD, MUTED, TEXT, WHITE } from "./palette.js";
 import type { CanvasFactory, SceneCanvas, SpriteCanvas } from "./pen.js";
+import { drawRace } from "./race.js";
 import { PLAIN, scrambleFor } from "./scramble.js";
 import { createIcons, createSprites, type SpriteSet } from "./sprites.js";
 
@@ -249,6 +250,9 @@ export function createScene(canvas: SceneCanvas, options: SceneOptions): Scene {
           fieldInfo,
         );
       }
+
+      if (plan.race)
+        drawRace(frame, plan.race, view, feedback.riders, shot.steps, local);
 
       // The title bar, with the song's progress along its bottom edge.
       const pad = Math.round(8 * unit),

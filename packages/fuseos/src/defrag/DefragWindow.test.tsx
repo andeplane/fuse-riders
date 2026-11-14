@@ -394,6 +394,7 @@ describe("Disk Defragmenter: a run", () => {
       stop: () => undefined,
       next: () => undefined,
       previous: () => undefined,
+      playFiles: () => undefined,
     };
     winampRegistry.set("w9", controls);
     await settle();
@@ -433,6 +434,7 @@ describe("Disk Defragmenter: a run", () => {
       stop: () => undefined,
       next: () => undefined,
       previous: () => undefined,
+      playFiles: () => undefined,
     });
     await settle();
     for (

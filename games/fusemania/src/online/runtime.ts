@@ -15,12 +15,16 @@ import {
 import {
   PICK,
   PLAY,
+  READY,
   type Entry,
   type FusemaniaGame,
   type Room,
   type Settings,
   type View,
 } from "./game.js";
+
+/** How long a device waits for the room to hear that it has the song before saying so again. */
+export const READY_AGAIN_MS = 1500;
 
 export type FusemaniaCallbacks = Callbacks<View, never, Settings>;
 
@@ -50,6 +54,8 @@ export class FusemaniaRuntime extends RoomRuntime<
   private down = [false, false, false, false];
   /** The match `down` is about: a new match starts with every key up. */
   private epoch = -1;
+  /** When this device last said it is done getting a match's song, and for which match. */
+  private said = { epoch: -1, at: Number.NEGATIVE_INFINITY };
   /** How much room the newest logged input had inside its tick's bounds, ms; negative when the fold will move it. */
   private slack: number | undefined;
   constructor(
@@ -64,7 +70,14 @@ export class FusemaniaRuntime extends RoomRuntime<
   /** The match this device plays in right now, if it does. */
   private playing(): { room: Room; slot: number } | undefined {
     const room = this.world?.state;
-    if (!room || room.stage !== "running" || !this.player()?.connected) return;
+    // A held song takes no keys: it has not begun.
+    if (
+      !room ||
+      room.stage !== "running" ||
+      room.hold ||
+      !this.player()?.connected
+    )
+      return;
     const slot = room.roster.findIndex((entrant) => entrant.id === this.id);
     return slot < 0 ? undefined : { room, slot };
   }
@@ -113,6 +126,27 @@ export class FusemaniaRuntime extends RoomRuntime<
     this.append(PICK, chart);
     this.sendPackets(this.deps.now());
   }
+  /** Whether the started song is waiting for its devices to have the audio. */
+  held(): boolean {
+    const room = this.world?.state;
+    return room?.stage === "running" && room.hold !== null;
+  }
+  /**
+   * This device is done getting the held song: it has the audio, or it will play none. Said once, and again every
+   * `READY_AGAIN_MS` while the room has not heard it (a log that was reset loses what was written).
+   */
+  ready(): void {
+    const room = this.world?.state;
+    // A watcher and the shared screen say so too: `player()` is a rider's seat only.
+    if (!room || room.stage !== "running" || !room.hold) return;
+    if (room.hold.ready.includes(this.id)) return;
+    const now = this.deps.now();
+    if (this.said.epoch === room.epoch && now - this.said.at < READY_AGAIN_MS)
+      return;
+    this.said = { epoch: room.epoch, at: now };
+    this.append(READY, room.epoch);
+    this.sendPackets(now);
+  }
   /**
    * Where the room's shared clock says the song is right now, in ms (negative during the lead-in), or undefined when
    * no match is running. The audio follows this; a rider's own picture follows the audio.
@@ -120,6 +154,8 @@ export class FusemaniaRuntime extends RoomRuntime<
   songMs(): number | undefined {
     const room = this.world?.state;
     if (!room?.world || room.stage !== "running") return;
+    // Held, the song stands at its first moment whatever the clock reads.
+    if (room.hold) return room.world.ms;
     return room.world.ms + (this.clock.tick() - room.tick) * TICK_MS;
   }
   /**

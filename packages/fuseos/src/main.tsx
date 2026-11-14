@@ -40,6 +40,12 @@ import type { SoundAudioContext } from "./sounds/soundService";
 import { documentGestures, WebAudioSoundService } from "./sounds/soundService";
 import { loadSynth } from "./sounds/synth";
 import { LocalStorageStateStore } from "./state/stateStore";
+import { parseFoldParam, withoutFoldParam } from "./system32/demoTrigger";
+import type { System32Deps } from "./system32/system32Deps";
+import {
+  defaultSystem32Deps,
+  System32DepsContext,
+} from "./system32/system32Deps";
 import { WEBAMP_OPTIONS } from "./winamp/webampLayout";
 import type { WinampDeps } from "./winamp/winampDepsContext";
 import {
@@ -47,6 +53,8 @@ import {
   WinampDepsContext,
 } from "./winamp/winampDepsContext";
 import { defaultWindowsDeps } from "./windows/windowsDepsContext";
+import { createBrowserY2kDeps, Y2kDepsContext } from "./y2k/y2kDeps";
+import { browserMircDeps, MircDepsContext } from "./mirc/mircDeps";
 
 import "./styles.css";
 
@@ -75,7 +83,19 @@ if (!redirect && initialOpen.length > 0)
     withoutOpenParam(window.location.href),
   );
 
-// Fusteam, the game launcher, opens focused on every boot; the deep link's windows land on top of it.
+// `?fold=now|stage:N|bsod` plays the SYSTEM32 gag for a demo or a screenshot; dropped from the
+// address the same way so the fake restart, or a reload, boots a healthy desktop.
+const foldDemo = parseFoldParam(search);
+if (foldDemo)
+  window.history.replaceState(
+    window.history.state,
+    "",
+    withoutFoldParam(window.location.href),
+  );
+const system32Deps: System32Deps = { ...defaultSystem32Deps, demo: foldDemo };
+
+// Winamp (queued, not playing) and Fusteam, the game launcher, open on every boot, Fusteam focused; the deep
+// link's windows land on top of them.
 const store = withLauncherOnBoot(
   new LocalStorageStateStore(),
   defaultWindowsDeps.getViewport,
@@ -116,6 +136,9 @@ const friendsDeps: FriendsDeps = {
   playAlert: muted ? () => undefined : createUhOhSound(),
 };
 
+// The millennium bug strikes at local midnight; `?y2k=now` plays it on boot for a demo.
+const y2kDeps = createBrowserY2kDeps({ search });
+
 export function mountFuseOs(container: HTMLElement): void {
   // Reports the desktop's opening now, and every game launch from here on; the deep link's windows count too.
   const analytics = createBrowserOsAnalytics();
@@ -131,7 +154,13 @@ export function mountFuseOs(container: HTMLElement): void {
             <SoundServiceContext.Provider value={sounds}>
               <PresenceServiceContext.Provider value={presence}>
                 <FriendsDepsContext.Provider value={friendsDeps}>
-                  <App store={store} initialOpen={initialOpen} />
+                  <System32DepsContext.Provider value={system32Deps}>
+                    <Y2kDepsContext.Provider value={y2kDeps}>
+                      <MircDepsContext.Provider value={browserMircDeps()}>
+                        <App store={store} initialOpen={initialOpen} />
+                      </MircDepsContext.Provider>
+                    </Y2kDepsContext.Provider>
+                  </System32DepsContext.Provider>
                 </FriendsDepsContext.Provider>
               </PresenceServiceContext.Provider>
             </SoundServiceContext.Provider>

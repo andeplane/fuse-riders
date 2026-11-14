@@ -33,6 +33,34 @@ export const PACKS_DATA: readonly {
       "victory",
     ],
   },
+  {
+    id: "ddr-jazz-mix",
+    name: "DDR JAZZ MIX",
+    songs: [
+      "afronova",
+      "afronova-radio-edit",
+      "burning-heat",
+      "cant-stop-fallin-in-love",
+      "candy",
+      "electro-tuned",
+      "exotic-ethnic",
+      "paranoia-survivor-max",
+      "rain-of-sorrow",
+      "rain-of-sorrow-night-mix",
+      "the-least-100sec",
+      "the-legend-of-max",
+      "xenon",
+    ],
+  },
+  {
+    id: "itg-jazz-mix",
+    name: "ITG JAZZ MIX",
+    songs: [
+      "determinator",
+      "monolith",
+      "temple-of-boom",
+    ],
+  },
 ];
 
 /** The songs with a cover image at `music/covers/<id>.jpg`. */

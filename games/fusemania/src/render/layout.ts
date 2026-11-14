@@ -45,7 +45,20 @@ export interface Layout {
   /** The fields drawn, left to right: everyone's. On a rider's device its own is the big one, at `ownPlace`. */
   fields: Field[];
   panel?: Panel;
+  /** The race line under the lanes (`race.ts`); left out where the lanes have no height to spare. */
+  race?: Race;
 }
+/** The band the race line is drawn in: as wide as the row of fields. */
+export interface Race {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+/** The race line's band and the gap over it, in CSS pixels; and the height it must leave the fields, in CSS pixels. */
+const RACE_HEIGHT = 30,
+  RACE_GAP = 6,
+  RACE_LEAVES = 200;
 
 /** A field's lanes are at least this many columns long, header included. */
 const MIN_COLUMNS_HIGH = 6.5;
@@ -144,8 +157,16 @@ export function layoutFor(
   const own = local >= 0 && local < count;
   const pad = Math.round(8 * unit);
   const barHeight = Math.round(24 * unit);
-  const bottom = Math.max(0, height - Math.max(0, inset) * unit - pad);
+  const floor = Math.max(0, height - Math.max(0, inset) * unit - pad);
   let top = barHeight + Math.round(pad / 2);
+  // The race line takes a band under the lanes, where the lanes can spare it.
+  const raceHeight = Math.round(RACE_HEIGHT * unit);
+  // A rider among others may get its board as a strip over the fields: count that out too.
+  const strip = count > 1 && local >= 0 && local < count ? 50 * unit : 0;
+  const raced = floor - top - raceHeight - strip >= RACE_LEAVES * unit;
+  const bottom = raced
+    ? floor - raceHeight - Math.round(RACE_GAP * unit)
+    : floor;
   let right = width;
   const layout: Layout = { width, height, unit, barHeight, fields: [] };
   if (count === 0) return layout;
@@ -250,6 +271,15 @@ export function layoutFor(
       hudAlign: gutter ? -1 : 1,
     });
     x += col * COLUMNS + gap;
+  }
+  if (raced) {
+    const left = layout.fields[0]!.x;
+    layout.race = {
+      x: left,
+      y: floor - raceHeight,
+      width: x - gap - left,
+      height: raceHeight,
+    };
   }
   return layout;
 }

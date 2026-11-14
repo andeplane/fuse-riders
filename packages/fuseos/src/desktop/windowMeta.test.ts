@@ -4,8 +4,12 @@ import type { WindowContent, WindowState } from "../state/appState";
 
 import {
   FUSE_GAME_WINDOW_SIZE,
+  NAPSTER_WINDOW_SIZE,
   NETWORK_WINDOW_SIZE,
+  HALL_OF_FAME_WINDOW_SIZE,
+  MESSAGE_BOX_SIZE,
   PAINT_WINDOW_SIZE,
+  TASK_MANAGER_WINDOW_SIZE,
   WINAMP_WINDOW_SIZE,
   windowMeta,
 } from "./windowMeta";
@@ -103,6 +107,12 @@ describe(windowMeta.name, () => {
     expect(windowMeta(window({ kind: "wallpaper" }), games).resizable).toBe(
       false,
     );
+    expect(windowMeta(window({ kind: "taskmanager" }), games)).toEqual({
+      title: "FuseOS Task Manager",
+      icon: "taskmanager",
+      resizable: true,
+      size: TASK_MANAGER_WINDOW_SIZE,
+    });
     expect(windowMeta(window({ kind: "about" }), games).title).toBe(
       "About FuseOS",
     );
@@ -116,12 +126,33 @@ describe(windowMeta.name, () => {
         }),
         games,
       ),
-    ).toEqual({ title: "Oops", icon: "warning", resizable: false });
+    ).toEqual({
+      title: "Oops",
+      icon: "warning",
+      resizable: false,
+      size: MESSAGE_BOX_SIZE,
+    });
     expect(windowMeta(window({ kind: "launcher" }), games)).toEqual({
       title: "Fusteam",
       icon: "fusteam",
       resizable: true,
       size: LAUNCHER_WINDOW_SIZE,
+    });
+    expect(windowMeta(window({ kind: "halloffame" }), games)).toEqual({
+      title: "Hall of Fame",
+      icon: "trophy",
+      resizable: true,
+      size: HALL_OF_FAME_WINDOW_SIZE,
+    });
+    expect(
+      windowMeta(window({ kind: "halloffame", gameId: "fuseball" }), games)
+        .title,
+    ).toBe("Hall of Fame");
+    expect(windowMeta(window({ kind: "napster" }), games)).toEqual({
+      title: "Napster v2.0 BETA 7",
+      icon: "napster",
+      resizable: true,
+      size: NAPSTER_WINDOW_SIZE,
     });
   });
 });
