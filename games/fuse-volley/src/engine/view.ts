@@ -77,10 +77,14 @@ function matchPointOf(world: World): -1 | Side {
   if (world.winner !== -1 || world.phase === "over") return -1;
   if (world.format === "2v2v2") {
     // The serving side scores only under rally scoring; a team at match point on the receiving side always can.
-    const server = world.server;
+    // During the settle the side that lost walks off at the serve: read the teams that will play the next rally.
+    const server = world.server,
+      onCourt: [number, number] = [world.onCourt[0], world.onCourt[1]];
+    if (world.phase === "dead" && world.lastFault !== -1)
+      onCourt[world.lastFault] = 3 - onCourt[0] - onCourt[1];
     for (const side of [otherSide(server), server] as const) {
       if (world.scoring === "classic" && side === server) continue;
-      if (world.points[world.onCourt[side]]! + 1 >= world.target) return side;
+      if (world.points[onCourt[side]]! + 1 >= world.target) return side;
     }
     return -1;
   }

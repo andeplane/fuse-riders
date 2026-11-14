@@ -661,8 +661,9 @@ function room(solo: boolean): void {
   app.replaceChildren(top, main);
   const roomLayout = createRoomLayout({
     playerName: () => social.playerName(undefined) ?? undefined,
-    slotColor: (slot) => (slot % 2 ? "#ff2e9d" : "#16e7ff"),
-    slotLabel: (slot) => `${slot % 2 ? "Pink" : "Cyan"} · Slot ${slot + 1}`,
+    slotColor: (slot) => sideColor(teamOfSlot(slot, settings.format)),
+    slotLabel: (slot) =>
+      `${["Cyan", "Pink", "Lime"][teamOfSlot(slot, settings.format)]} · Slot ${slot + 1}`,
     background: async (host) =>
       (await import("./attract.js")).createAttract(host),
     element: lobby,
