@@ -11,6 +11,8 @@ import { frontRegistration } from "fuse-front/platform";
 import { graveyardRegistration } from "graveyard-shift/platform";
 import { fuseLaneRegistration } from "fuse-lane/platform";
 import { ballBrosRegistration } from "ball-bros/platform";
+import { fuseballRegistration } from "fuseball/platform";
+import { fuseVolleyRegistration } from "fuse-volley/platform";
 import { killerFuseRegistration } from "killer-fuse/platform";
 import {
   ACCOUNT_RULES,
@@ -29,7 +31,7 @@ import {
  * registration: Fuse Riders' is `games/fuse-riders/src/platform.ts`, Pig's `games/dice/src/platform.ts`.
  */
 
-/** Every game this repo can serve; Fuse Riders is always served, the others when a service enables them. */
+/** Every game this repo serves. tests/registered-games.test.ts fails when a game's `src/platform.ts` is missing here. */
 export const GAMES = [
   fuseRiders,
   diceRegistration,
@@ -45,39 +47,21 @@ export const GAMES = [
   fuseDriversRegistration,
   birdsRegistration,
   frontRegistration,
+  fuseballRegistration,
+  fuseVolleyRegistration,
   killerFuseRegistration,
 ] as const;
 
-/**
- * The games named by `EXTRA_GAME_IDS` (comma-separated), beside Fuse Riders. Cloud Run serves only Fuse Riders until
- * the operator sets it (docs/online/GCP-DEPLOY.md: a second game goes live after the match-record backfill). An id
- * this repo has no registration for is a configuration error, not a game to skip.
- */
-export function extraGameIds(value: string | undefined): string[] {
-  const ids = [
-    ...new Set(
-      (value ?? "")
-        .split(",")
-        .map((id) => id.trim())
-        .filter(Boolean),
-    ),
-  ];
-  for (const id of ids)
-    if (id === fuseRiders.id || !GAMES.some((game) => game.id === id))
-      throw new Error(
-        `EXTRA_GAME_IDS names ${JSON.stringify(id)}, which is not an extra game`,
-      );
-  return ids;
-}
-/** Fuse Riders plus the named extra games. The room service is configured with the same ids. */
-export const platformFor = (extra: readonly string[]): Platform =>
+/** Fuse Riders plus the named games: a smaller service for tests. The room service is configured with the same ids. */
+export const platformFor = (ids: readonly string[]): Platform =>
   new Platform(
     ACCOUNT_RULES,
-    GAMES.filter(
-      (game) => game.id === fuseRiders.id || extra.includes(game.id),
-    ),
+    GAMES.filter((game) => game.id === fuseRiders.id || ids.includes(game.id)),
   );
-/** Every game: what the dev service hosts and what a stored record may name. */
+/**
+ * Every registered game: what Cloud Run and the dev service serve and what a stored record may name. A game's rooms
+ * open in production when its registration lands in `GAMES` and the merge deploys; there is no switch to flip.
+ */
 export const platform = platformFor(GAMES.map((game) => game.id));
 
 /** A stored record of any registered game; one without a `gameId` reads as Fuse Riders'. */

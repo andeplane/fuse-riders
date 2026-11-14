@@ -18,7 +18,9 @@ import {
  * match to a winner inside v3 M7's pace bound (10–28 minutes) and the normal matches' median in 14–21. Measured with
  * M7's tuning (rules fuse-front-21) over 16 Twin Wilds and 9 Crown Jungle normal lineups: 2v2 13.8–19.1 minutes
  * (median 17.1), 3v3 14.7–19.4 (median 17.6). A mismatch ends sooner, 10–12 minutes for hard against easy. About
- * three minutes of CPU, so it has its own file.
+ * three minutes of CPU, so it has its own file, and CI's gate leaves it to the weekly release suite, a dispatch
+ * and `full-ci` (SUITE_ONLY in scripts/lib/test-shards.ts); `pnpm test` runs it. Run it, or label the pull
+ * request `full-ci`, when changing Fuse Front's bots, pace or balance.
  */
 const MAPS: { id: string; size: number; cross: HeroKind[][] }[] = [
   {

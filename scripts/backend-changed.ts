@@ -1,6 +1,6 @@
 /**
- * The path filter of .github/workflows/backend.yml. A `workflow_run` trigger cannot use `paths:`, and
- * the previous push is the wrong thing to compare with anyway, so this asks Cloud Run which commit it
+ * The path filter of .github/workflows/backend.yml. A `paths:` filter on its push trigger would compare with
+ * the previous push, which is the wrong thing to compare with, so this asks Cloud Run which commit it
  * really serves (label, ready revision and traffic) and looks at everything since (scripts/lib/backend-paths.ts).
  * When that label is in doubt it also reads the revision carrying all of the traffic, so a stale run
  * never rolls back a newer commit that is already serving.

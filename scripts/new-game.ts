@@ -156,7 +156,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const written = newGame(id, gamesDir);
     console.log(`games/${id}: ${written.length} files`);
     console.log(
-      `Next: pnpm install, then add games/${id}/package.json to Dockerfile.cloud beside games/dice/package.json.`,
+      `Next: pnpm install, then add games/${id}/package.json to Dockerfile.cloud beside games/dice/package.json and its registration to GAMES in service/history.ts (production then opens its rooms on merge, nothing else to set). \`pnpm test\` fails until it has a gallery image: a recipe in scripts/gallery-capture.ts, \`pnpm gallery:capture ${id}\`, and \`screenshot\` in its portal.json.`,
     );
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);

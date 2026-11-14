@@ -7,6 +7,8 @@ import {
   partition,
   readTimings,
   testFiles,
+  SUITE_ONLY,
+  gateFiles,
 } from "../scripts/lib/test-shards.js";
 
 const files = testFiles();
@@ -75,5 +77,23 @@ test("merged timings are the mean of every measurement, rounded and sorted", () 
       ["a", 3],
       ["b", 1],
     ],
+  );
+});
+
+test("the gate leaves out only the listed suite-only files, and each of them is a real test file", () => {
+  const files = testFiles();
+  assert.ok(SUITE_ONLY.length > 0);
+  for (const file of SUITE_ONLY)
+    assert.ok(files.includes(file), `${file} is not a unit test file`);
+  assert.deepEqual(gateFiles(files, false), files);
+  assert.deepEqual(
+    gateFiles(files, true),
+    files.filter((file) => !SUITE_ONLY.includes(file)),
+  );
+  // The gate sets TEST_GATE; the release jobs' runs (the weekly suite, a dispatch, `full-ci`) do not.
+  assert.ok(
+    readFileSync(".github/workflows/ci.yml", "utf8").includes(
+      "      TEST_GATE: ${{ (inputs.release || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-ci')) && '0' || '1' }}\n",
+    ),
   );
 });

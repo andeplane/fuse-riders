@@ -31,6 +31,22 @@ export function testFiles(root = "."): string[] {
   return files;
 }
 
+/**
+ * Files the gate leaves to the release suite. The gate (a pull request, and cd.yml's run that a deployment
+ * waits for) aims at about two minutes, and a shard can never be faster than its slowest file, so a file that
+ * takes minutes by itself belongs here. `pnpm test`, the weekly release suite (.github/workflows/suite.yml), a
+ * dispatch and a `full-ci` pull request still run every file; only `TEST_GATE=1` leaves these out. Keep the list
+ * short and say why each file is on it.
+ */
+export const SUITE_ONLY: readonly string[] = [
+  // The Fuse Front bot league on the team maps: about four minutes of simulated matches in one file.
+  "games/fuse-front/tests/league-big.test.ts",
+];
+
+/** `files` without the suite-only ones when `gate` is set (`TEST_GATE=1`); all of them otherwise. */
+export const gateFiles = (files: readonly string[], gate: boolean): string[] =>
+  files.filter((file) => !gate || !SUITE_ONLY.includes(file));
+
 /** `TEST_SHARD=i/n` as node's `--test-shard` reads it; undefined when unset. */
 export function parseShard(
   value: string | undefined,

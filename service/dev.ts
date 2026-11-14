@@ -24,7 +24,7 @@ export interface DevRoomServiceOptions extends Omit<
   "httpExtension"
 > {
   identity?: IdentityVerifier;
-  /** The games served; every game this repo has by default (Cloud Run serves `platformFor(EXTRA_GAME_IDS)`). */
+  /** The games served; every registered game by default, as on Cloud Run. */
   platform?: Platform;
 }
 

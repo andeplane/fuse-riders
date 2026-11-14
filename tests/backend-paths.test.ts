@@ -97,6 +97,49 @@ test("everything the image is built from is a backend path", () => {
     );
 });
 
+test("the image build is sent exactly what .dockerignore lets into the image", () => {
+  // scripts/deploy-cloud.sh archives only these pathspecs for Cloud Build. A path .dockerignore admits and
+  // the script leaves out would be missing from the image without the build failing, so the two lists are
+  // held together here: every `!` line and every exclusion after the allowlist has its pathspec.
+  const script = readFileSync("scripts/deploy-cloud.sh", "utf8");
+  const list = /^readonly BUILD_CONTEXT=\(\n((?: {2}.*\n)+)\)$/m.exec(
+    script,
+  )?.[1];
+  assert.ok(list, "deploy-cloud.sh must declare BUILD_CONTEXT");
+  assert.ok(
+    script.includes('git archive "$revision" -- "${BUILD_CONTEXT[@]}"'),
+    "the build context must be archived from BUILD_CONTEXT",
+  );
+  const specs = [...list.matchAll(/'([^']+)'|(\S+)/g)].map(
+    (match) => match[1] ?? match[2]!,
+  );
+  const lines = readFileSync(".dockerignore", "utf8")
+    .split("\n")
+    .filter((line) => line && !line.startsWith("#") && line !== "**");
+  const expected = new Set<string>([
+    ".dockerignore",
+    "scripts/cloudbuild.yaml",
+  ]);
+  for (const line of lines) {
+    const admitted = line.startsWith("!");
+    const path = admitted ? line.slice(1) : line;
+    // A directory line only opens the way to what a later line admits; `x/**` is the same subtree as `x/`.
+    if (admitted && path.endsWith("/") && path !== "service/") continue;
+    if (!admitted && lines.includes(`${path}/**`)) continue;
+    const glob = path.includes("*");
+    const spec =
+      path === "service/" || path === "service/**" ? "service" : path;
+    expected.add(
+      admitted
+        ? glob && spec !== "service"
+          ? `:(glob)${spec}`
+          : spec
+        : `:(exclude,glob)${spec}`,
+    );
+  }
+  assert.deepEqual([...specs].sort(), [...expected].sort());
+});
+
 test("the release inputs are backend paths and documentation or browser tooling is not", () => {
   for (const file of [
     "service/index.ts",

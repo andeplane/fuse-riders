@@ -1,25 +1,24 @@
 name: Deploy backend
+# Starts on the main push itself, beside CD's gate rather than after it, so the image builds while the gate
+# runs. Nothing in production changes before that gate has passed: scripts/deploy-cloud.sh submits the image
+# build, then waits for the CD run of this exact commit to succeed before it applies configuration or rolls
+# Cloud Run. A failed gate fails this run with nothing deployed.
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows: [CD]
+  push:
     branches: [main]
-    types: [completed]
 permissions:
   contents: read
   actions: read
   id-token: write
 concurrency:
+  # One deployment at a time, in push order: a newer push waits, and a still newer one replaces the waiting run.
+  # The newest commit contains every older one, so the run that goes ahead deploys them all.
   group: cloud-run-gateway
   cancel-in-progress: false
 jobs:
   deploy:
-    if: >-
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
-      (github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'main' &&
-      github.event.workflow_run.head_repository.full_name == github.repository)
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -29,8 +28,6 @@ jobs:
       ROOM_COLLECTION_PREFIX: fuse-production
       PUBSUB_TOPIC: fuse-riders-signalling
       ALLOWED_ORIGINS: https://andeplane.github.io
-      # Games served beside Fuse Riders (comma-separated, e.g. dice). Empty until the steps in GCP-DEPLOY.md are done.
-      EXTRA_GAME_IDS: ${{ vars.EXTRA_GAME_IDS }}
       CLOUD_RUN_SERVICE: fuse-riders-gateway
       ARTIFACT_REPOSITORY: fuse-riders
       BUILD_SOURCE_BUCKET: andershaf-87-fuse-riders-build
@@ -38,35 +35,8 @@ jobs:
       BUILD_SERVICE_ACCOUNT: fuse-riders-build@andershaf-87.iam.gserviceaccount.com
       GH_TOKEN: ${{ github.token }}
     steps:
-      # Deploy the newest CD-verified main revision, not whichever run triggered this. A dispatch, a rerun or
-      # this concurrency group, which keeps only one waiting run, can leave the trigger's own revision older
-      # than the live one or belonging to a run that was replaced.
-      # Resolving the target here means a replaced or skipped run never loses a deployment.
-      - name: Resolve the newest CD-verified main revision
-        id: target
-        env:
-          TRIGGER_SHA: ${{ github.event.workflow_run.head_sha }}
-          TRIGGER_RUN: ${{ github.event.workflow_run.run_number }}
-        run: |
-          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
-            sha="$GITHUB_SHA"
-          else
-            # Start from the run that triggered this, which is known to have passed, and only move forward to a
-            # later passing run whose commit descends from it. The runs API's `status` filter is eventually
-            # consistent and has answered with a months-old run right after a completion, so it is not used,
-            # and whatever the listing says can never select something older than the trigger.
-            sha="$TRIGGER_SHA"
-            newer="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/cd.yml/runs?branch=main&event=push&per_page=50" --jq "[.workflow_runs[] | select(.conclusion == \"success\" and .run_number > $TRIGGER_RUN)] | max_by(.run_number) | .head_sha // empty" || true)"
-            if [[ "$newer" =~ ^[a-f0-9]{40}$ && "$(gh api "repos/$GITHUB_REPOSITORY/compare/$sha...$newer" --jq .status || true)" == ahead ]]; then
-              sha="$newer"
-            fi
-          fi
-          [[ "$sha" =~ ^[a-f0-9]{40}$ ]] || { echo 'No CD-verified main revision found.' >&2; exit 1; }
-          echo "Deploying $sha (triggered by ${TRIGGER_SHA:-manual dispatch})" | tee -a "$GITHUB_STEP_SUMMARY"
-          echo "sha=$sha" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         with:
-          ref: ${{ steps.target.outputs.sha }}
           persist-credentials: false
           # The path filter below diffs against the commit Cloud Run serves, however far back that is.
           fetch-depth: 0
@@ -80,7 +50,10 @@ jobs:
         with:
           workload_identity_provider: projects/867594018708/locations/global/workloadIdentityPools/github/providers/fuse-riders
           service_account: fuse-riders-deployer@andershaf-87.iam.gserviceaccount.com
+      # The runner image ships gcloud; installing another copy took about twenty seconds of every deployment.
       - uses: google-github-actions/setup-gcloud@v2
+        with:
+          skip_install: true
       # Path filter: a main push that changed nothing the backend is built from (documentation, CI,
       # browser scripts, tests) does not rebuild and roll Cloud Run. The list is
       # scripts/lib/backend-paths.ts; the comparison is with the commit Cloud Run really serves. The
@@ -98,14 +71,14 @@ jobs:
           FORCE_DEPLOY: ${{ github.event_name == 'workflow_dispatch' }}
       - if: steps.changes.outputs.deploy == 'true'
         run: npm ci --prefix tools/firebase
-      # The script re-checks that this revision is still on main and that its CD run passed,
-      # builds the committed source and deploys the resulting immutable digest.
+      # The script re-checks that this revision is still on main, builds the committed source, waits for
+      # this revision's CD gate to pass and only then deploys the resulting immutable digest.
       - if: steps.changes.outputs.deploy == 'true'
         run: ./scripts/deploy-cloud.sh
       - uses: actions/upload-artifact@v4
         if: always() && steps.changes.outputs.deploy == 'true'
         with:
-          name: cloud-release-evidence-${{ steps.target.outputs.sha || github.sha }}
+          name: cloud-release-evidence-${{ github.sha }}
           path: |
             artifacts/cloud-release-*.json
             artifacts/config-release-*.json

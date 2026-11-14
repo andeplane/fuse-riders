@@ -58,4 +58,4 @@ npx prettier --check games/killer-fuse
 
 `tests/online-golden.test.ts` replays a recorded set against recorded hashes. It fails whenever the engine's behaviour changes; record the hashes again when the change is intended.
 
-To go live in production, add `killer-fuse` to `EXTRA_GAME_IDS` ([GCP deploy](../../docs/online/GCP-DEPLOY.md)). Until then the page says online rooms are not open and offers solo play.
+Production serves every game registered in `GAMES` (`service/history.ts`), so Killer Fuse's rooms open when this change merges and the backend deploys ([GCP deploy](../../docs/online/GCP-DEPLOY.md)). Against a service revision from before that, the page says online rooms are not open and offers solo play.
