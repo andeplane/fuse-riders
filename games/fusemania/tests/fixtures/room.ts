@@ -17,6 +17,8 @@ export const SETTINGS: Settings = {
   song: "grid",
   mode: 0,
   chart: 0,
+  songs: 1,
+  random: false,
 };
 
 export type Bodies = Record<string, readonly unknown[][]>;

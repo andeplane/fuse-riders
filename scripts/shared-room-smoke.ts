@@ -93,10 +93,7 @@ for (const { name, kind } of BOTH_ENGINES) {
             "no rotate gate",
           );
           assert.equal(
-            await phone
-              .locator("button:visible")
-              .filter({ hasText: /^(ROOM|MENU|☰ MENU)$/ })
-              .count(),
+            await phone.locator(".fui-top-bar-toggle:visible").count(),
             1,
             "one menu button",
           );
@@ -406,10 +403,7 @@ for (const { name, kind } of BOTH_ENGINES) {
         `rider row must be on screen: ${JSON.stringify(rider)}`,
       );
       assert.equal(
-        await guest
-          .locator("button:visible")
-          .filter({ hasText: /^(ROOM|MENU|☰ MENU)$/ })
-          .count(),
+        await guest.locator(".fui-top-bar-toggle:visible").count(),
         1,
         "one menu button in the lobby",
       );
@@ -563,6 +557,7 @@ for (const { name, kind } of BOTH_ENGINES) {
       .click();
     await qr(host);
     await qr(display);
+    await openTopMenu(host);
     await host.getByRole("button", { name: "ROOM", exact: true }).click();
     await host.getByRole("button", { name: "END ROOM", exact: true }).click();
     await openPlayOptions(host);

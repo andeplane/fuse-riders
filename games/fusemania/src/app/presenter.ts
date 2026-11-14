@@ -14,7 +14,7 @@ import {
   type Library,
   type PlayerView,
 } from "../engine/index.js";
-import type { View } from "../online/game.js";
+import type { SessionView, View } from "../online/game.js";
 
 /**
  * What the page shows, decided from one frame: the screen (the lobby with its song select, the note field, or a
@@ -70,6 +70,28 @@ export interface Row {
   /** "MAX COMBO 212". */
   combo: string;
 }
+/** One line of a session's standings. */
+export interface Standing {
+  place: number;
+  name: string;
+  you: boolean;
+  /** The seat the rider sits in now, for its colour, or −1 for one who left. */
+  slot: number;
+  /** The session total, with thousands separators. */
+  points: string;
+  /** "2 WINS", or "" for none. */
+  wins: string;
+}
+/** A session's standings under a heading: "SESSION · AFTER SONG 2 OF 5", "FINAL STANDINGS". */
+export interface SessionModel {
+  title: string;
+  rows: Standing[];
+}
+/** What a button of the result does: the room action it sends. */
+export interface ResultAction {
+  text: string;
+  action: "rematch" | "lobby";
+}
 export interface Model {
   screen: "lobby" | "play" | "controller";
   askName: boolean;
@@ -96,11 +118,17 @@ export interface Model {
     canStart: boolean;
     editable: boolean;
     note: string;
+    /** What the START button says: "START", or "START SONG 2 OF 5" in a session. */
+    startText: string;
+    /** The session the room is in the middle of, between two of its songs. */
+    session: SessionModel | null;
   };
   /** Each player's name and chart by slot, for the fields. */
   names: string[];
   chartNames: string[];
-  /** The song being played. */
+  /** Each player's session total before this song, by slot; empty when the song is not one of a session. */
+  totals: number[];
+  /** The song being played, after its number in a session: "SONG 2 OF 5 · NEON KICKOFF". */
   title: string;
   /** One line for a phone controller. */
   status: string;
@@ -118,6 +146,13 @@ export interface Model {
     host: boolean;
     waiting: string;
     solo: boolean;
+    /** The session's standings with this song in them. */
+    session: SessionModel | null;
+    /** The session is over: its standings lead the card. */
+    final: boolean;
+    /** The host's main button, and the other one where there is a second thing to do. */
+    primary: ResultAction;
+    secondary: ResultAction | null;
   } | null;
 }
 
@@ -142,6 +177,24 @@ const countLines = (player: PlayerView): [string, string][] => [
     ? [["MINES HIT", String(player.counts[MINED])] as [string, string]]
     : []),
 ];
+
+const standingRows = (
+  session: SessionView,
+  view: View,
+  viewer: Viewer,
+): Standing[] =>
+  session.standings.map((score, index) => ({
+    place: index + 1,
+    name: score.name,
+    you: score.id === viewer.me,
+    slot:
+      view.seats.find((seat) => seat.id === score.id && !seat.watcher)?.slot ??
+      -1,
+    points: scoreText(score.points),
+    wins: score.wins
+      ? `${score.wins} ${score.wins === 1 ? "WIN" : "WINS"}`
+      : "",
+  }));
 
 export function present(
   library: Library,
@@ -168,7 +221,18 @@ export function present(
       ? "controller"
       : "play";
   const song = library.song(inMatch ? view.play.song : view.settings.song);
-  const title = (song?.title ?? "").toUpperCase();
+  // A match of several songs a session is one of its session's; in the lobby the session waits for its next song
+  // unless the host has changed how long a session is.
+  const session = view.session;
+  const between =
+    !inMatch && session && session.length === view.settings.songs
+      ? session
+      : null;
+  const songTitle = (song?.title ?? "").toUpperCase();
+  const title =
+    inMatch && session
+      ? `SONG ${session.songs.length} OF ${session.length} · ${songTitle}`
+      : songTitle;
 
   let status = "";
   if (inMatch && world) {
@@ -181,7 +245,7 @@ export function present(
             ? "YOU WIN!"
             : `${ordinal(player.place)} PLACE`;
     else if (world.ms < 0) status = "GET READY";
-    else if (!player) status = title;
+    else if (!player) status = songTitle;
     else
       status = `${scoreText(player.rating)}${world.players.length > 1 ? ` · ${ordinal(player.place)}` : ""}`;
   }
@@ -220,34 +284,77 @@ export function present(
         );
       else lines.push(`BEST ${bestText(bestBefore)}`);
     }
+    const final = !!session && session.done >= session.length;
+    const leader = session?.standings[0];
+    const random = view.settings.random;
+    const again: ResultAction = { text: "PLAY AGAIN", action: "rematch" };
+    const select: ResultAction = { text: "SONG SELECT", action: "lobby" };
+    // What the host does next: another go at a single song; in a session its next song, drawn by the room or
+    // picked in the song select; and after the last one a new session.
+    const [primary, secondary]: [ResultAction, ResultAction | null] = !session
+      ? [again, select]
+      : final
+        ? random
+          ? [{ text: "NEW SESSION", action: "rematch" }, select]
+          : [{ text: "NEW SESSION", action: "lobby" }, null]
+        : random
+          ? [{ text: "NEXT SONG", action: "rematch" }, select]
+          : [{ text: "PICK NEXT SONG", action: "lobby" }, null];
     result = {
-      title: alone
-        ? `${title} · ${grade(world.players[0]!.rating)}`
-        : !winner
-          ? "SONG OVER"
-          : winner.id === viewer.me
-            ? "YOU WIN!"
-            : `${winner.name.toUpperCase()} WINS`,
+      title:
+        final && leader
+          ? leader.id === viewer.me
+            ? "YOU WIN THE SESSION!"
+            : `${leader.name.toUpperCase()} WINS THE SESSION`
+          : alone
+            ? `${songTitle} · ${grade(world.players[0]!.rating)}`
+            : !winner
+              ? "SONG OVER"
+              : winner.id === viewer.me
+                ? "YOU WIN!"
+                : `${winner.name.toUpperCase()} WINS`,
       rows,
       counts: player ? countLines(player) : [],
       lines,
       host: viewer.host,
-      waiting: viewer.host ? "" : "Waiting for the host to pick the next song",
+      waiting: viewer.host
+        ? ""
+        : final
+          ? "Waiting for the host to start a new session"
+          : session && random
+            ? "Waiting for the host to start the next song"
+            : "Waiting for the host to pick the next song",
       solo: viewer.solo,
+      session: session
+        ? {
+            title: final
+              ? "FINAL STANDINGS"
+              : `SESSION · AFTER SONG ${session.done} OF ${session.length}`,
+            rows: standingRows(session, view, viewer),
+          }
+        : null,
+      final,
+      primary,
+      secondary,
     };
   }
 
+  // A session in the middle that the next song would not continue: the host changed how many songs one plays.
+  const ending =
+    !inMatch && !!session && session.done > 0 && !between && viewer.host;
   const lobbyNote = !seats.length
     ? "Pick a name to take a seat"
-    : viewer.host
-      ? view.settings.display
-        ? "Shared screen: open the TV screen, then every player uses a phone"
-        : seats.length === 1 && !viewer.solo
-          ? "Start alone, add an AI rival, or invite up to four friends."
-          : view.settings.mode === BATTLE_MODE && seats.length === 1
-            ? "A battle needs a rival: add an AI player or invite a friend."
-            : ""
-      : "Waiting for the host to start";
+    : ending
+      ? `Another number of songs starts a new session: pick ${session.length} again to go on with this one.`
+      : viewer.host
+        ? view.settings.display
+          ? "Shared screen: open the TV screen, then every player uses a phone"
+          : seats.length === 1 && !viewer.solo
+            ? "Start alone, add an AI rival, or invite up to four friends."
+            : view.settings.mode === BATTLE_MODE && seats.length === 1
+              ? "A battle needs a rival: add an AI player or invite a friend."
+              : ""
+        : "Waiting for the host to start";
   return {
     screen,
     askName: !seated && !viewer.display && !viewer.solo && !mine,
@@ -272,6 +379,18 @@ export function present(
       canStart: seats.length >= 1,
       editable: viewer.host,
       note: lobbyNote,
+      startText: between
+        ? `START SONG ${between.done + 1} OF ${between.length}`
+        : view.settings.songs > 1
+          ? `START SONG 1 OF ${view.settings.songs}`
+          : "START",
+      session:
+        between && between.done > 0
+          ? {
+              title: `SESSION · ${between.done} OF ${between.length} PLAYED`,
+              rows: standingRows(between, view, viewer),
+            }
+          : null,
     },
     names: inMatch ? view.roster.map((entrant) => entrant.name) : [],
     chartNames:
@@ -279,6 +398,19 @@ export function present(
         ? world.players.map((each) =>
             chartLabel(library, world.song, each.chart),
           )
+        : [],
+    totals:
+      inMatch && world && session
+        ? world.players.map((each) => {
+            const points =
+              session.standings.find((score) => score.id === each.id)?.points ??
+              0;
+            // Once the song is decided its rating is in the total already.
+            return Math.max(
+              0,
+              points - (view.stage === "over" ? each.rating : 0),
+            );
+          })
         : [],
     title,
     status,

@@ -177,9 +177,9 @@ for (const { name: browserName, kind } of BOTH_ENGINES) {
         // The landing clips overflow, so a crowded top bar hides controls instead of scrolling: each must be fully on screen.
         for (const control of [
           ".landing-brand",
-          ".landing-top .audio-controls summary",
-          ".landing-audio",
-          ".landing-mute",
+          ".landing-top .fui-top-bar-sound",
+          ".landing-top .fui-top-bar-account",
+          ".landing-top .fui-top-bar-toggle",
         ])
           await inside(page, page.locator(control));
         await page

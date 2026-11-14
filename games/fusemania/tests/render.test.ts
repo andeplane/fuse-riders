@@ -1128,6 +1128,28 @@ test("more than one rider: a box each on the right, ranked, with place, name, sc
     "MAX 40",
   ]);
   assert.deepEqual(row(2), ["3RD", "CY", "HARD", "0001000", "x0", "MAX 0"]);
+  // In a session the box's last line ends in the rider's total: what it had before plus this song's score.
+  const session = rig().frame(
+    world([
+      rider(0, { rating: 412_345, place: 2, combo: 12, best: 40 }),
+      rider(1, { rating: 600_000, place: 1, combo: 3, best: 57 }),
+    ]),
+    shot(steps, 1000, { totals: [1_000_000, 0] }),
+  );
+  const duo = layoutFor(1366, 768, 2, 0).panel!;
+  const last = (index: number) =>
+    session
+      .filter(
+        (call) =>
+          call.op === "fillText" &&
+          call.x >= duo.x &&
+          call.y > boxY(duo, index) + duo.boxHeight * 0.7 &&
+          call.y < boxY(duo, index) + duo.boxHeight,
+      )
+      .map((call) => call.what);
+  assert.deepEqual(last(0), ["x3", "TOTAL 600,000", "MAX 57"]);
+  // A total too long to sit beside the best combo takes its place.
+  assert.deepEqual(last(1), ["x12", "TOTAL 1,412,345"]);
   // The item in hand and the effects a rider is under, as icons in its box.
   const icons = (index: number) =>
     calls

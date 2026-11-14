@@ -40,8 +40,8 @@ export function blendRound(
   };
 }
 
-/** The round scene's source online, no simulation of its own: the runtime's newest frames blended to the presentation
- * tick, and the events delivered since for the round it shows. `follow` is this device's gunship. */
+/** The round scene's source online, no simulation of its own: the runtime's newest round played forward to the clock
+ * (`lead`), or its newest frames blended to the presentation tick, and the events delivered since for the round it shows. `follow` is this device's gunship. */
 export class OnlineSource implements RoundSource {
   round = "";
   follow: number | undefined;
@@ -50,6 +50,18 @@ export class OnlineSource implements RoundSource {
     private readonly timing: () => FrameTiming<View> | undefined,
     private readonly me: () => string,
     public view: RoundView,
+    /**
+     * The picture drawn at the clock (`forward.ts`), when this device draws that way: the newest folded round played
+     * forward. Undefined falls back to the two newest frames blended, a tick behind the clock.
+     */
+    private readonly lead?: (
+      timing: FrameTiming<View>,
+    ) => RoundView | undefined,
+    /** Called with what each frame shows and the gunship it follows, for a latency probe. */
+    private readonly drawn?: (
+      view: RoundView,
+      follow: number | undefined,
+    ) => void,
   ) {
     this.advance();
   }
@@ -60,14 +72,27 @@ export class OnlineSource implements RoundSource {
     this.events.push({ round: `${matchId}:${round}`, event });
   }
 
-  advance(): readonly TickEvent[] {
+  /**
+   * What a frame drawn now would show, without drawing it or taking any events: a latency probe samples this faster
+   * than the display draws.
+   */
+  peek(): RoundView {
     const timing = this.timing();
     const { newer, older } = timing ?? {};
-    if (timing && newer?.world) {
-      const from = older?.tick ?? newer.tick;
-      const t =
-        newer.tick > from ? (timing.tick - from) / (newer.tick - from) : 1;
-      this.view = blendRound(older?.world, newer.world, Math.max(0, t));
+    if (!timing || !newer?.world) return this.view;
+    const from = older?.tick ?? newer.tick;
+    const t =
+      newer.tick > from ? (timing.tick - from) / (newer.tick - from) : 1;
+    return (
+      this.lead?.(timing) ??
+      blendRound(older?.world, newer.world, Math.max(0, t))
+    );
+  }
+
+  advance(): readonly TickEvent[] {
+    const newer = this.timing()?.newer;
+    if (newer?.world) {
+      this.view = this.peek();
       this.round = `${newer.matchId}:${newer.round}`;
       const ship = newer.ships.indexOf(this.me());
       this.follow = ship < 0 ? undefined : ship;
