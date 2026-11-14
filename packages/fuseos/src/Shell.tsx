@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { BsodProvider } from "./bsod/BsodProvider";
 import { Desktop } from "./desktop/Desktop";
 import { DesktopUiProvider } from "./desktop/DesktopUiProvider";
 import { DisplayViewportProvider } from "./desktop/DisplayViewportProvider";
@@ -22,7 +23,7 @@ export function Shell({ store, initialOpen, children }: ShellProps) {
       <DesktopUiProvider>
         <DisplayViewportProvider>
           <WindowManagerProvider>
-            {children ?? <Desktop />}
+            <BsodProvider>{children ?? <Desktop />}</BsodProvider>
           </WindowManagerProvider>
         </DisplayViewportProvider>
       </DesktopUiProvider>
