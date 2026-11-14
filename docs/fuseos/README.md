@@ -38,6 +38,9 @@ the state of the desktop lives under the `fuseos.state` key in `localStorage`.
 | `src/assistant`, `src/llm`      | Clippy and the in-browser language model behind him ([docs](assistant/README.md))               |
 | `src/paint`, `src/controlpanel` | Paint and the Control Panel applets                                                             |
 | `src/about`                     | The About sheet: version, copyright and credits                                                 |
+| `src/halloffame`                | The Hall of Fame: per-game Elo leaderboards (Start > Programs, Fusteam's News tab)              |
+| `src/taskmanager`               | Task Manager: open windows, their frame rates and the heap (Ctrl+Shift+Esc)                     |
+| `src/bsod`, `src/y2k`           | The blue screen (Ctrl+Alt+Delete) and the millennium bug at local midnight (`?y2k=now`)         |
 | `src/assets`                    | The FuseOS mark, splash and the Winamp icon, drawn in SVG                                       |
 | `public/fuseos`                 | js-dos, the retro game bundles, Clippy's sprites and `fuseos.svg`, the favicon                  |
 | `docs/fuseos`                   | This folder: the desktop's docs and the licence texts of what it bundles                        |

@@ -8,7 +8,7 @@ import { useWindowCommands } from "../windows/useWindowCommands";
 
 import type { GameId } from "./gameIds";
 import type { GameInfo, GameRuntime } from "./games";
-import { GAME_LIST, GAMES } from "./games";
+import { DOS_GAMES, GAME_LIST, GAMES, WINDOWS_GAMES } from "./games";
 import { useRetroCommands } from "./useRetroCommands";
 
 export type RetroFolderView = "icons" | "details";
@@ -22,9 +22,14 @@ export const RUNTIME_LABELS: Record<GameRuntime, string> = {
 
 export type RetroFolderWindowProps = { windowId: string };
 
+/** The folder's name: on its desktop icon, its title bar and its taskbar button. */
+export const DOS_GAMES_TITLE = "DOS Games";
+
 /**
- * The "Retro Games" folder: an Explorer-style window over Programs > Games > Retro Games. A click selects a game,
- * a double click or Enter opens it in a window of its own, and the Details view is the licence table.
+ * The "DOS Games" folder on the desktop (also Start > Programs > Games > Retro Games > Open DOS Games folder):
+ * an Explorer-style window with the DOS programs first and the Windows games in a group under them. A click
+ * selects a game, a double click or Enter opens it in a window of its own, and the Details view is the licence
+ * table.
  */
 export function RetroFolderWindow({ windowId }: RetroFolderWindowProps) {
   const vm = useRetroFolderViewModel(windowId);
@@ -109,14 +114,20 @@ function openOnEnter(
   }
 }
 
-function IconView({ selected, onSelect, onOpen }: ViewProps) {
+function IconGroup({
+  label,
+  games,
+  selected,
+  onSelect,
+  onOpen,
+}: ViewProps & { label: string; games: readonly GameInfo[] }) {
   return (
     <ul
       role="listbox"
-      aria-label="Retro games"
+      aria-label={label}
       className="m-0 flex list-none flex-wrap content-start gap-1 p-3"
     >
-      {GAME_LIST.map((game) => {
+      {games.map((game) => {
         const isSelected = game.id === selected;
         return (
           <li
@@ -145,6 +156,18 @@ function IconView({ selected, onSelect, onOpen }: ViewProps) {
         );
       })}
     </ul>
+  );
+}
+
+function IconView(props: ViewProps) {
+  return (
+    <>
+      <IconGroup label="DOS games" games={DOS_GAMES} {...props} />
+      <h3 className="mx-3 mt-0 mb-0 border-b border-[silver] pb-0.5 text-[11px] font-normal text-[grey]">
+        Windows games
+      </h3>
+      <IconGroup label="Windows games" games={WINDOWS_GAMES} {...props} />
+    </>
   );
 }
 

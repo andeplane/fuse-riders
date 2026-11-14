@@ -53,6 +53,16 @@ describe(deepLinkContents.name, () => {
     ]);
   });
 
+  it("opens the Hall of Fame, the Task Manager and the DOS Games folder by name", () => {
+    expect(
+      deepLinkContents(["halloffame", "taskmanager", "dosgames"], games),
+    ).toEqual([
+      { kind: "halloffame" },
+      { kind: "taskmanager" },
+      { kind: "retroFolder" },
+    ]);
+  });
+
   it("prefers a Fuse game over a retro game of the same id", () => {
     expect(deepLinkContents(["doom"], { has: (id) => id === "doom" })).toEqual([
       { kind: "fusegame", gameId: "doom" },

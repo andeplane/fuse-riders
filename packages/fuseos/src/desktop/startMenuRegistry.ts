@@ -120,7 +120,7 @@ export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
   {
     slot: "retro-games",
     id: "retro-folder",
-    label: "Open Retro Games folder",
+    label: "Open DOS Games folder",
     icon: "folderOpen",
     open: (commands) => commands.open({ kind: "retroFolder" }),
     separatorAfter: true,

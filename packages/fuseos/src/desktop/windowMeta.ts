@@ -6,6 +6,7 @@ import {
   LAUNCHER_WINDOW_SIZE,
 } from "../launcher/launcherFacts";
 import { GAMES } from "../retro/games";
+import { DOS_GAMES_TITLE } from "../retro/RetroFolderWindow";
 import type { WindowState } from "../state/appState";
 import type { IconRef } from "../ui/icons";
 import type { Size } from "../windows/windowManager";
@@ -96,8 +97,8 @@ export function windowMeta(
       };
     case "retroFolder":
       return {
-        title: "Retro Games",
-        icon: "gamesFolder",
+        title: DOS_GAMES_TITLE,
+        icon: "folder",
         resizable: true,
         size: RETRO_FOLDER_WINDOW_SIZE,
       };

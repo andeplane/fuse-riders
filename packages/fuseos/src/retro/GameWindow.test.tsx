@@ -40,7 +40,7 @@ describe("Programs > Games", () => {
       .getAllByRole("menuitem")
       .map((item) => item.textContent);
     expect(games).toEqual([
-      "Open Retro Games folder",
+      "Open DOS Games folder",
       ...GAME_LIST.map((game) => game.name),
     ]);
   });
