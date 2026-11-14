@@ -114,6 +114,12 @@ export function useDesktopViewModel(): DesktopViewModel {
     { id: "paint", label: "Paint", icon: "paint", open: openPaint },
     { id: "winamp", label: "Winamp", icon: "winamp", open: openWinamp },
     {
+      id: "dcpp",
+      label: "DC++",
+      icon: "dcpp",
+      open: () => commands.open({ kind: "dcpp" }),
+    },
+    {
       id: "control-panel",
       label: "Control Panel",
       icon: "settings",

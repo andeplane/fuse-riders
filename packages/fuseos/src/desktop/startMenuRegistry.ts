@@ -106,6 +106,14 @@ export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
     open: openLauncher,
   },
   {
+    slot: "programs",
+    id: "dcpp",
+    label: "DC++",
+    icon: "dcpp",
+    order: 20,
+    open: (commands) => commands.open({ kind: "dcpp" }),
+  },
+  {
     slot: "retro-games",
     id: "retro-folder",
     label: "Open Retro Games folder",

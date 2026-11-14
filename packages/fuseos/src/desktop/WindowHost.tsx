@@ -1,6 +1,7 @@
 import { useContext, useEffect } from "react";
 
 import { AboutDialog } from "../about/AboutDialog";
+import { DcppWindow } from "../dcpp/DcppWindow";
 import { ControlPanelWindow } from "../controlpanel/ControlPanelWindow";
 import { ExplorerWindow } from "../explorer/ExplorerWindow";
 import { WallpaperWindow } from "../controlpanel/WallpaperWindow";
@@ -82,6 +83,8 @@ function WindowContent({
       );
     case "launcher":
       return <LauncherWindow windowId={window.id} active={active} />;
+    case "dcpp":
+      return <DcppWindow windowId={window.id} />;
   }
 }
 

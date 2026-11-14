@@ -40,6 +40,9 @@ export const EXPLORER_WINDOW_SIZE: Size = { width: 720, height: 480 };
 /** Room for the tab bar, a code pane with line numbers and the six-field status bar. */
 export const NOTEPADPP_WINDOW_SIZE: Size = { width: 760, height: 520 };
 
+/** Room for the MDI area with a hub's chat and user list, the window tabs, the Transfers pane and status bar. */
+export const DCPP_WINDOW_SIZE: Size = { width: 900, height: 620 };
+
 export const OS_NAME = "FuseOS";
 
 /** Title bar text and icon for each window kind. */
@@ -126,6 +129,13 @@ export function windowMeta(
         icon: "fusteam",
         resizable: true,
         size: LAUNCHER_WINDOW_SIZE,
+      };
+    case "dcpp":
+      return {
+        title: "DC++ 0.401",
+        icon: "dcpp",
+        resizable: true,
+        size: DCPP_WINDOW_SIZE,
       };
   }
 }

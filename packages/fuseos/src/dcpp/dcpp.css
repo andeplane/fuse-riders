@@ -1,0 +1,677 @@
+/*
+ * DC++ 0.401 as it looked on Windows 98/2000 in 2003: menu bar, a flat 16px toolbar, maximized MDI
+ * children, the Transfers pane, slanted window tabs along the bottom and a segmented status bar.
+ * Sizes are px on purpose: the 16px rows and 1px bevels are the look. Unlayered, so it wins over 98.css.
+ */
+
+.dcpp {
+  --dc-face: var(--w95-surface, #c0c0c0);
+  --dc-text: var(--w95-surface-text, #000);
+  --dc-shadow: var(--w95-shadow, #808080);
+  --dc-dark: var(--w95-dark-shadow, #000);
+  --dc-light: var(--w95-light-shadow, #dfdfdf);
+  --dc-hilight: var(--w95-light, #fff);
+  --dc-select: var(--w95-highlight, #000080);
+  --dc-select-text: var(--w95-highlight-text, #fff);
+  --dc-field: var(--w95-field, #fff);
+  --dc-field-text: var(--w95-field-text, #000);
+  --dc-sunken: inset -1px -1px var(--dc-hilight), inset 1px 1px var(--dc-shadow);
+  --dc-sunken2: inset -1px -1px var(--dc-hilight), inset 1px 1px var(--dc-shadow),
+    inset -2px -2px var(--dc-light), inset 2px 2px var(--dc-dark);
+  --dc-raised: inset -1px -1px var(--dc-dark), inset 1px 1px var(--dc-hilight),
+    inset -2px -2px var(--dc-shadow), inset 2px 2px var(--dc-light);
+  position: relative;
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--dc-face);
+  color: var(--dc-text);
+  font-size: 11px;
+  cursor: default;
+  user-select: none;
+}
+
+.dcpp button {
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ---- Menu bar and the maximized child's close box ---------------------------------------- */
+
+.dc-menurow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px;
+}
+
+.dc-mdicontrols button {
+  width: 16px;
+  height: 14px;
+  padding: 0;
+  font-size: 11px;
+  line-height: 10px;
+  font-weight: bold;
+}
+
+/* ---- Toolbar ------------------------------------------------------------------------------ */
+
+.dc-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 2px 3px;
+  border-top: 1px solid var(--dc-shadow);
+  box-shadow: inset 0 1px var(--dc-hilight);
+}
+
+.dcpp .dc-toolbutton {
+  display: grid;
+  width: 23px;
+  height: 22px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.dcpp .dc-toolbutton:hover:not(:disabled) {
+  box-shadow: inset -1px -1px var(--dc-shadow), inset 1px 1px var(--dc-hilight);
+}
+
+.dcpp .dc-toolbutton:active:not(:disabled) {
+  box-shadow: inset 1px 1px var(--dc-shadow), inset -1px -1px var(--dc-hilight);
+}
+
+.dcpp .dc-toolbutton:focus {
+  outline: none;
+}
+
+.dcpp .dc-toolbutton:disabled svg {
+  filter: grayscale(1) contrast(0.4) brightness(1.25);
+  opacity: 0.7;
+}
+
+.dc-toolsep {
+  width: 2px;
+  height: 20px;
+  margin: 0 3px;
+  border-left: 1px solid var(--dc-shadow);
+  border-right: 1px solid var(--dc-hilight);
+}
+
+/* ---- MDI area and frames ------------------------------------------------------------------ */
+
+.dc-mdi {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  margin: 0 2px;
+  padding: 2px;
+  background: var(--dc-shadow);
+  box-shadow: var(--dc-sunken);
+}
+
+.dc-mdi-empty {
+  flex: 1;
+}
+
+.dc-frame {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--dc-face);
+  padding: 1px;
+}
+
+/* ---- ListView ----------------------------------------------------------------------------- */
+
+.dc-list {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  background: var(--dc-field);
+  color: var(--dc-field-text);
+  box-shadow: var(--dc-sunken2);
+  padding: 2px;
+}
+
+.dc-list table {
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.dc-list th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: 17px;
+  padding: 0 5px;
+  overflow: hidden;
+  background: var(--dc-face);
+  box-shadow: inset -1px -1px var(--dc-dark), inset 1px 1px var(--dc-hilight),
+    inset -2px -2px var(--dc-shadow);
+  font-weight: normal;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dc-list th:active {
+  box-shadow: inset 1px 1px var(--dc-shadow), inset -1px -1px var(--dc-shadow);
+}
+
+.dc-sort {
+  margin-left: 4px;
+  font-size: 7px;
+  color: var(--dc-shadow);
+}
+
+.dc-list td {
+  height: 16px;
+  padding: 0 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 16px;
+}
+
+.dc-list .dc-right {
+  text-align: right;
+}
+
+.dc-list tr[aria-selected="true"] td {
+  background: var(--dc-select);
+  color: var(--dc-select-text);
+}
+
+.dc-iconcell {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 3px;
+  vertical-align: top;
+}
+
+.dc-iconcell svg {
+  flex: none;
+}
+
+/* ---- Group boxes, frame status strips, the main status bar --------------------------------- */
+
+.dcpp fieldset.dc-group {
+  margin: 0;
+  padding: 2px 6px 6px;
+}
+
+.dcpp fieldset.dc-group legend {
+  padding: 0 2px;
+}
+
+.dc-framestatus,
+.dc-statusbar {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+
+.dc-statusbar {
+  padding: 2px 2px 1px;
+}
+
+.dc-cell {
+  min-width: 40px;
+  flex: none;
+  height: 17px;
+  padding: 1px 4px;
+  overflow: hidden;
+  box-shadow: var(--dc-sunken);
+  line-height: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dc-grow {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.dcpp .dc-cellbutton {
+  height: 17px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+
+/* ---- Public Hubs -------------------------------------------------------------------------- */
+
+.dc-hubbar {
+  display: flex;
+  gap: 6px;
+  flex: none;
+  padding: 2px 2px 0;
+}
+
+.dc-filter {
+  flex: 1;
+}
+
+.dc-filter input {
+  width: 100%;
+}
+
+.dc-lists {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1.4;
+}
+
+.dc-lists select {
+  min-width: 0;
+  flex: 1;
+}
+
+/* ---- Hub window --------------------------------------------------------------------------- */
+
+.dc-hub-split {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  gap: 3px;
+}
+
+.dc-chat {
+  min-width: 0;
+  flex: 1 1 60%;
+  overflow-y: scroll;
+  padding: 2px 4px;
+  background: var(--dc-field);
+  color: var(--dc-field-text);
+  box-shadow: var(--dc-sunken2);
+  font-family: "Pixelated MS Sans Serif", Tahoma, Arial, sans-serif;
+  font-size: 11px;
+  line-height: 14px;
+  user-select: text;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.dc-chat-self {
+  color: #000;
+}
+
+.dc-userlist {
+  flex: 0 0 40%;
+}
+
+.dc-message {
+  flex: none;
+}
+
+.dc-message input {
+  width: 100%;
+}
+
+/* ---- Search ------------------------------------------------------------------------------- */
+
+.dc-search-split,
+.dc-tree-split {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  gap: 3px;
+}
+
+.dc-search-options {
+  display: flex;
+  width: 190px;
+  flex: none;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.dc-search-options input[type="text"],
+.dc-search-options select {
+  width: 100%;
+}
+
+.dc-row {
+  display: flex;
+  gap: 3px;
+}
+
+.dc-row select {
+  width: auto;
+  flex: none;
+}
+
+.dcpp .dc-row .dc-size {
+  width: 46px;
+  min-width: 0;
+  flex: 1;
+}
+
+.dc-searchbutton {
+  align-self: flex-end;
+}
+
+/* ---- Trees (queue, file list, settings) --------------------------------------------------- */
+
+.dc-tree {
+  width: 200px;
+  flex: none;
+  margin: 0;
+  overflow: auto;
+  padding: 2px;
+  background: var(--dc-field);
+  color: var(--dc-field-text);
+  box-shadow: var(--dc-sunken2);
+  list-style: none;
+}
+
+.dc-tree ul {
+  margin: 0;
+  padding-left: 16px;
+  list-style: none;
+}
+
+.dcpp .dc-tree button {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 3px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.dcpp .dc-tree button:focus {
+  outline: none;
+}
+
+.dc-tree li[aria-selected="true"] > button {
+  background: var(--dc-select);
+  color: var(--dc-select-text);
+}
+
+/* ---- Transfers pane ----------------------------------------------------------------------- */
+
+.dc-transfers {
+  display: flex;
+  height: 118px;
+  flex: none;
+  margin: 3px 2px 0;
+}
+
+.dc-dl-arrow {
+  color: #0a8a0a;
+  font-size: 9px;
+}
+
+.dc-progress {
+  position: relative;
+  display: block;
+  height: 14px;
+  margin-top: 1px;
+  background: var(--dc-field);
+  outline: 1px solid var(--dc-shadow);
+}
+
+.dc-progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  overflow: hidden;
+  background: #008000;
+}
+
+.dc-progress-text {
+  position: absolute;
+  inset: 0 auto 0 0;
+  padding-left: 3px;
+  color: #000;
+  line-height: 14px;
+  white-space: nowrap;
+}
+
+.dc-progress-fill .dc-progress-text {
+  color: #fff;
+}
+
+.dc-t-failed td,
+.dc-q-failed td {
+  color: #a00000;
+}
+
+.dc-t-waiting td,
+.dc-q-waiting td {
+  color: #6a6a00;
+}
+
+/* ---- Window tabs: DC++'s slanted tabs along the bottom ------------------------------------- */
+
+.dc-tabs {
+  display: flex;
+  height: 19px;
+  flex: none;
+  margin: 2px 2px 0;
+  padding-left: 4px;
+  overflow: hidden;
+  border-top: 1px solid var(--dc-dark);
+}
+
+.dcpp .dc-tab {
+  position: relative;
+  height: 16px;
+  margin-right: -7px;
+  padding: 0 14px;
+  border: 0;
+  background: var(--dc-face);
+  box-shadow: none;
+  color: var(--dc-text);
+  font-size: 11px;
+  line-height: 15px;
+  white-space: nowrap;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 9px) 100%, 9px 100%);
+}
+
+.dcpp .dc-tab::before,
+.dcpp .dc-tab::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 9px;
+  content: "";
+}
+
+.dcpp .dc-tab::before {
+  left: 0;
+  background: linear-gradient(
+    to top right,
+    transparent calc(50% - 0.8px),
+    var(--dc-dark) 50%,
+    transparent calc(50% + 0.8px)
+  );
+}
+
+.dcpp .dc-tab::after {
+  right: 0;
+  background: linear-gradient(
+    to top left,
+    transparent calc(50% - 0.8px),
+    var(--dc-dark) 50%,
+    transparent calc(50% + 0.8px)
+  );
+}
+
+.dcpp .dc-tab:focus {
+  outline: none;
+}
+
+.dcpp .dc-tab[aria-selected="true"] {
+  z-index: 1;
+  background: var(--dc-field);
+  border-bottom: 1px solid var(--dc-dark);
+  margin-top: -1px;
+  height: 17px;
+}
+
+.dcpp .dc-tab[aria-selected="false"] {
+  border-bottom: 1px solid var(--dc-dark);
+}
+
+.dcpp .dc-tab-unread {
+  font-weight: bold;
+}
+
+.dcpp .dc-tab-offline {
+  color: var(--dc-shadow);
+}
+
+/* ---- Favorites, notepad ------------------------------------------------------------------- */
+
+.dc-favbuttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 3px;
+}
+
+.dcpp .dc-notepad {
+  flex: 1;
+  resize: none;
+  font-family: "Courier New", monospace;
+  font-size: 12px;
+  user-select: text;
+}
+
+/* ---- Dialogs (Settings, Browse for Folder, About) ------------------------------------------ */
+
+.dc-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  background: transparent;
+}
+
+.dc-settings {
+  width: min(520px, 96%);
+}
+
+.dc-settings-body {
+  display: flex;
+  height: 300px;
+  gap: 8px;
+}
+
+.dc-settings-tree {
+  width: 140px;
+  flex: none;
+  margin: 0;
+  padding: 2px;
+  overflow: auto;
+  background: var(--dc-field);
+  box-shadow: var(--dc-sunken2);
+  list-style: none;
+}
+
+.dcpp .dc-settings-tree button {
+  width: 100%;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: left;
+}
+
+.dcpp .dc-settings-tree button:disabled {
+  color: var(--dc-shadow);
+  text-shadow: none;
+}
+
+.dc-settings-tree li[aria-selected="true"] > button {
+  background: var(--dc-select);
+  color: var(--dc-select-text);
+}
+
+.dc-settings-page {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dc-formrow {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.dc-sharing {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dc-sharelist table {
+  width: 100%;
+}
+
+.dc-sharebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dc-sharebuttons {
+  display: flex;
+  gap: 6px;
+}
+
+.dc-dialogbuttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 6px 8px 8px;
+}
+
+.dc-browse {
+  position: absolute;
+  z-index: 31;
+  width: 280px;
+}
+
+.dc-browsetree {
+  width: auto;
+  height: 90px;
+}
+
+.dc-about {
+  width: 320px;
+}
+
+.dc-about p {
+  margin: 6px 4px;
+}

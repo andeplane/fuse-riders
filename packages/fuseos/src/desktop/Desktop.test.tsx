@@ -12,7 +12,7 @@ import {
 import { Desktop } from "./Desktop";
 
 describe(Desktop.name, () => {
-  it("boots to a desktop with Fusteam, My Computer, one icon per Fuse game, then Paint, Winamp and Control Panel, a taskbar and the clock", () => {
+  it("boots to a desktop with Fusteam, My Computer, one icon per Fuse game, then Paint, Winamp, DC++ and Control Panel, a taskbar and the clock", () => {
     renderWithProviders(<Desktop />);
     const icons = within(screen.getByRole("list", { name: "Desktop icons" }));
     expect(
@@ -27,6 +27,7 @@ describe(Desktop.name, () => {
       "Fuse Birds",
       "Paint",
       "Winamp",
+      "DC++",
       "Control Panel",
     ]);
     expect(screen.getByRole("toolbar", { name: "Taskbar" })).toHaveTextContent(

@@ -15,6 +15,7 @@ const APPS: Record<string, WindowContent> = {
   fusteam: { kind: "launcher" },
   mycomputer: { kind: "explorer", location: MY_COMPUTER },
   explorer: { kind: "explorer", location: MY_COMPUTER },
+  dcpp: { kind: "dcpp" },
 };
 
 /** Something that knows which Fuse games exist; the registry in production, a fixture in tests. */

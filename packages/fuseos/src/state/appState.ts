@@ -71,6 +71,11 @@ export interface NotepadPlusPlusWindowContent {
   activePath?: string;
 }
 
+/** DC++, the pretend Direct Connect client (`src/dcpp`): one instance, its hubs live in the window. */
+export interface DcppWindowContent {
+  kind: "dcpp";
+}
+
 /** Fusteam, the game launcher (`src/launcher`): opens on every boot, one instance, focused rather than duplicated. */
 export interface LauncherWindowContent {
   kind: "launcher";
@@ -88,7 +93,8 @@ export type WindowContent =
   | WinampWindowContent
   | ExplorerWindowContent
   | NotepadPlusPlusWindowContent
-  | LauncherWindowContent;
+  | LauncherWindowContent
+  | DcppWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -151,6 +157,7 @@ export function sameInstance(
     case "about":
     case "retroFolder":
     case "launcher":
+    case "dcpp":
       return existing.kind === content.kind;
     case "retro":
       return existing.kind === "retro" && existing.game === content.game;
@@ -337,6 +344,7 @@ function isWindowContent(
     case "winamp":
     case "retroFolder":
     case "launcher":
+    case "dcpp":
       return true;
     case "dialog":
       return (
