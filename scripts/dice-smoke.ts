@@ -1,3 +1,4 @@
+import { openPlayOptions } from "./lib/main-menu.js";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import type { Browser, Page } from "playwright";
@@ -54,7 +55,7 @@ const joinAs = async (tab: Page, name: string) => {
   const field = tab.getByPlaceholder("Your name");
   await field.waitFor();
   await field.fill(name);
-  await tab.getByRole("button", { name: "JOIN", exact: true }).click();
+  await tab.getByRole("button", { name: /^Join$/i, exact: true }).click();
   await tab
     .locator(".fui-roster-name", { hasText: name })
     .first()
@@ -103,6 +104,7 @@ async function twoPlayers(browser: Browser): Promise<void> {
     tab.on("pageerror", (error) => console.error("page error:", error));
   await a.goto(`${page}?mute`);
   await a.screenshot({ path: `${shots}/dice-landing-${engine}.png` });
+  await openPlayOptions(a);
   await a.getByRole("button", { name: "CREATE ROOM" }).click();
   await a.waitForURL(/\?room=[A-Z0-9]+/);
   const code = new URL(a.url()).searchParams.get("room")!;
@@ -175,7 +177,9 @@ async function sharedScreen(browser: Browser): Promise<void> {
   phone.setDefaultTimeout(smokeTimeout(30_000));
   const h = await host.newPage();
   await h.goto(`${page}?mute`);
+  await openPlayOptions(h);
   await h.getByLabel(/Shared TV/).check();
+  await openPlayOptions(h);
   await h.getByRole("button", { name: "CREATE ROOM" }).click();
   await h.waitForURL(/\?room=[A-Z0-9]+/);
   const code = new URL(h.url()).searchParams.get("room")!;

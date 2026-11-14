@@ -1,3 +1,7 @@
+import { requestedRoomSlot } from "fuse-ui";
+import { createGameSocial } from "fuse-ui/social";
+import { startGameAnalytics } from "fuse-ui/play-metrics";
+import "fuse-ui/social.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
@@ -10,8 +14,10 @@ import {
   createInviteCard,
   createLandingCard,
   createLobbyShell,
+  createRoomLayout,
   el,
 } from "fuse-ui";
+import QRCode from "qrcode";
 import { createAppPortal } from "fuse-ui/portal";
 import { safeStorage } from "fuse-ui/safe-storage";
 import {
@@ -66,6 +72,16 @@ import { createAudio } from "./audio/index.js";
 
 const app = document.querySelector<HTMLElement>("#app")!;
 const base = import.meta.env.BASE_URL;
+const analytics = startGameAnalytics(GAME_ID);
+const social = createGameSocial({
+  gameId: GAME_ID,
+  base,
+  apiOrigin: import.meta.env.VITE_API_ORIGIN,
+  document,
+  window,
+  fetch: (input, init) => fetch(input, init),
+  track: analytics.track,
+});
 const endpoints = createEndpoints(
   {
     basePath: `${base}${GAME_ID}/`,
@@ -126,6 +142,7 @@ function header(): HTMLElement {
       search: location.search,
     }).element,
     brand,
+    social.element(),
     el("span", "", "ff-top-gap"),
     ...sound.toggles(),
   );
@@ -140,6 +157,8 @@ function landing(error = ""): void {
   name.value = store.getItem(keys.name) ?? "";
   name.oninput = () => store.setItem(keys.name, name.value.trim());
   const card = createLandingCard({
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     title: "FUSE FRONT",
     tagline: "Push the lanes. Hold the jungle. Raze the fort.",
     soloText: "SOLO VS BOTS",
@@ -171,6 +190,8 @@ function landing(error = ""): void {
       "ff-help",
     ),
   );
+  const help = app.querySelector<HTMLElement>(".ff-help");
+  if (help) card.menu.help.append(help);
 }
 
 function room(code: string, token: string | undefined, display: boolean): void {
@@ -189,6 +210,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
   // Hero portraits come from the 3D models where the 3D battlefield runs; the pixel ones otherwise.
   if (field instanceof Field3D) loadPortraits();
   let shown: WorldView | undefined;
+  let currentLobby: ReturnType<typeof createRoomLayout> | undefined;
   // What the next map click means, and the tile under the mouse, for the aiming overlay.
   let mode: Mode = IDLE;
   let cursor: { x: number; y: number } | undefined;
@@ -256,7 +278,8 @@ function room(code: string, token: string | undefined, display: boolean): void {
     DEFAULT_SETTINGS,
     {
       ready: () => {
-        if (online && !display) runtime.command({ type: "join", name: name() });
+        if (online && !display && !store.getItem(keys.host(code)))
+          runtime.command({ type: "join", name: name() });
       },
       state: (frame) => show(frame),
       event: (event, matchId) => {
@@ -301,6 +324,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
   function show(view: View): void {
     const inLobby = view.stage === "lobby";
     lobby.hidden = !inLobby;
+    currentLobby?.setActive(inLobby);
     play.hidden = inLobby;
     // A phone drops the page header in a match, so the board gets the height (`style.css`).
     app.classList.toggle("ff-in-match", !inLobby);
@@ -323,6 +347,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
         picking = slots.find((s) => s.self)?.slot ?? 0;
       const key = JSON.stringify([
         slots,
+        view.seats,
         picking,
         view.settings.size,
         view.settings.map,
@@ -363,6 +388,10 @@ function room(code: string, token: string | undefined, display: boolean): void {
     back.hidden = !runtime.creator && !runtime.solo;
   }
   function renderLobby(view: View): void {
+    const settingsWereOpen = currentLobby?.settings.open ?? false;
+    const focused = document.activeElement;
+    const focusedLabel = focused?.getAttribute("aria-label");
+    const focusedText = focused?.textContent;
     const host = runtime.creator || runtime.solo;
     const sizes = el("div", "", "ff-sizes");
     for (const size of SIZES) {
@@ -403,7 +432,11 @@ function room(code: string, token: string | undefined, display: boolean): void {
       const column = el("div", "", `ff-team ff-t${team}`);
       const seats = el("div", "", "ff-seats");
       column.append(el("h3", `${TEAMS[team]} ARMY`, "ff-team-name"), seats);
-      for (const slot of slots.filter((s) => s.team === team)) {
+      for (const slot of slots.filter(
+        (s) =>
+          s.team === team &&
+          view.seats.some((seat) => !seat.watcher && seat.slot === s.slot),
+      )) {
         const chip = el("span", "", "ff-seat");
         const who = slot.self ? "You" : slot.name;
         const name = el("button", `${who} · ${slot.hero}`, "ff-seat-pick");
@@ -424,11 +457,12 @@ function room(code: string, token: string | undefined, display: boolean): void {
           chip.append(cycle);
         }
         seats.append(chip);
+        chip.dataset.slot = String(slot.slot);
       }
       teams.append(column);
     }
     const roster = el("div", "", "ff-roster");
-    roster.append(el("h2", "HEROES"), heroPicker(view, slots, host), teams);
+    roster.append(teams);
     const start = el("button", "START", "fui-button ff-start");
     start.onclick = () => runtime.command({ type: "action", action: "start" });
     const shell = createLobbyShell({
@@ -441,14 +475,77 @@ function room(code: string, token: string | undefined, display: boolean): void {
       ],
       ...(online
         ? {
-            invite: createInviteCard({ code, link: link(`?room=${code}`) })
-              .element,
+            invite: createInviteCard({
+              code,
+              link: link(`?room=${code}`),
+              qr: (text) => QRCode.toDataURL(text, { margin: 1, width: 300 }),
+            }).element,
           }
         : {}),
       roster,
       footer: [host ? start : el("p", "Waiting for the host to start…")],
     });
     lobby.replaceChildren(shell.element);
+    const join = el("form");
+    const playerName = el("input");
+    playerName.value = social.playerName(store.getItem(keys.name)) ?? "";
+    playerName.setAttribute("aria-label", "Your name");
+    const joinButton = el("button", "Join");
+    joinButton.type = "submit";
+    join.append(playerName, joinButton);
+    join.hidden = display || slots.some((s) => s.self);
+    join.onsubmit = (event) => {
+      event.preventDefault();
+      store.setItem(keys.name, playerName.value);
+      runtime.command({
+        type: "join",
+        name: playerName.value,
+        slot: requestedRoomSlot(join),
+      });
+    };
+    const addAI = el("button", "Add AI");
+    addAI.hidden = !host || view.seats.length >= 2 * view.settings.size;
+    addAI.onclick = () =>
+      runtime.command({
+        type: "bot",
+        action: "add",
+        slot: requestedRoomSlot(addAI),
+      });
+    const layout = createRoomLayout({
+      slotColor: (slot) => (slot % 2 ? "#3a6ae0" : "#d8402a"),
+      slotLabel: (slot) => `${slot % 2 ? "Blue" : "Red"} · Slot ${slot + 1}`,
+      background: async (host) =>
+        (await import("./attract.js")).createAttract(host),
+      element: shell.element,
+      roster,
+      capacity: 2 * view.settings.size,
+      join,
+      modes: [sizes],
+      playerName: () => social.playerName(undefined) ?? undefined,
+      addAI,
+      settings: [maps, el("h2", "Heroes"), heroPicker(view, slots, host)],
+      actions: [host ? start : el("p", "Waiting for the host to start…")],
+    });
+    layout.update(
+      view.seats.filter((seat) => !seat.watcher).length,
+      2 * view.settings.size,
+      view.seats.filter((seat) => !seat.watcher).map((seat) => seat.slot),
+    );
+    currentLobby = layout;
+    if (settingsWereOpen) {
+      layout.settings.showModal();
+      const candidates = [
+        ...layout.settings.querySelectorAll<HTMLElement>(
+          "button, select, input",
+        ),
+      ];
+      const replacement = candidates.find((node) =>
+        focusedLabel
+          ? node.getAttribute("aria-label") === focusedLabel
+          : node.textContent === focusedText,
+      );
+      replacement?.focus();
+    }
   }
   /** The picking seat's hero cards, its hero lit; the host picks by clicking one (each hero once a team). */
   function heroPicker(

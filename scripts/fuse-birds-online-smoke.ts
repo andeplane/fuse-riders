@@ -1,3 +1,4 @@
+import { openPlayOptions } from "./lib/main-menu.js";
 import type { Page } from "playwright";
 import { launchSelected } from "./lib/browser.js";
 import { mkdir } from "node:fs/promises";
@@ -153,14 +154,17 @@ try {
     await wireProbe(second, output, "second");
   }
   await first.goto(`${base}/fuse-birds/?mute`);
+  await first.getByRole("button", { name: "Settings", exact: true }).click();
   await first.getByLabel("Shared TV + phone controllers").check();
+  await first.keyboard.press("Escape");
+  await openPlayOptions(first);
   await first.getByRole("button", { name: "CREATE ROOM" }).click();
   await first.locator(".fui-name-input").fill("SKYE");
-  await first.getByRole("button", { name: "JOIN BATTLE" }).click();
+  await first.getByRole("button", { name: "Join" }).click();
   const code = await first.locator(".birds-code").innerText();
   await second.goto(`${base}/fuse-birds/?room=${code}&mute`);
   await second.locator(".fui-name-input").fill("EMBER");
-  await second.getByRole("button", { name: "JOIN BATTLE" }).click();
+  await second.getByRole("button", { name: "Join" }).click();
   await first.locator(".birds-roster").getByText("EMBER").waitFor();
   const tv = await a.newPage();
   finishCoverage.push(await startGameCoverage(tv, { gameId: "fuse-birds" }));

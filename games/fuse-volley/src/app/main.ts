@@ -1,3 +1,4 @@
+import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
 import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
@@ -21,6 +22,7 @@ import {
   createGameMenu,
   createInviteCard,
   createLandingCard,
+  createRoomLayout,
   createNameEntry,
   createNotice,
   createRoster,
@@ -55,7 +57,7 @@ import { SIDE_NAMES, sideColor } from "../render/palette.js";
 import type { Cue } from "../render/cues.js";
 import { createScene } from "../render/scene.js";
 import { createSmoother } from "../render/smooth.js";
-import { artBase, browserImages, loadArt } from "./art.js";
+import { browserImages, loadArt } from "./art.js";
 import { createSfx } from "./audio.js";
 import {
   HeldControls,
@@ -319,6 +321,8 @@ function landing(): void {
       ),
     );
   const card = createLandingCard({
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     title: "FUSE VOLLEY",
     tagline:
       "Jelly blobs, one ball, one net. Bounce the ball over to the other side and keep it off your own sand: three touches a side at most. Play one on one, two on two or three on three in lanes: friends online, on one TV with phones as pads, or bots.",
@@ -343,13 +347,6 @@ function landing(): void {
     },
   });
   card.create.after(shared);
-  const hero = el("img", "", "fv-hero");
-  hero.src = `${artBase(import.meta.env.BASE_URL)}hero.webp`;
-  hero.alt = "";
-  hero.width = 1536;
-  hero.height = 864;
-  hero.decoding = "async";
-  card.element.prepend(hero);
   const scoring = createScoringPicker((id) => {
     store.setItem(scoringKey, id);
     scoring.update(id, true);
@@ -374,7 +371,8 @@ function landing(): void {
     el("h2", "SOLO BOT", "fui-lobby-title"),
     bots.element,
   );
-  card.element.append(rules, keyHelp());
+  card.menu.addSettings(rules);
+  card.menu.help.append(keyHelp());
   const back = el("a", "← ALL GAMES", "fv-back");
   back.href = import.meta.env.BASE_URL + (muted ? "?mute" : "");
   const menu = createGameMenu(GUIDE);
@@ -473,7 +471,11 @@ function room(solo: boolean): void {
     buttonText: "JOIN",
     onSubmit: (name) => {
       store.setItem(names.name, name);
-      runtime.command({ type: "join", name });
+      runtime.command({
+        type: "join",
+        name,
+        slot: requestedRoomSlot(nameEntry.form),
+      });
     },
   });
   lobbyMain.append(
@@ -481,7 +483,12 @@ function room(solo: boolean): void {
     roster.element,
     addBot,
   );
-  addBot.onclick = () => runtime.command({ type: "bot", action: "add" });
+  addBot.onclick = () =>
+    runtime.command({
+      type: "bot",
+      action: "add",
+      slot: requestedRoomSlot(addBot),
+    });
   start.onclick = () => {
     // Two or three a side starts with whoever is seated: bots take the empty seats first, in the same tick as the start.
     for (let i = 0; i < (model?.lobby.fill ?? 0); i++)
@@ -622,6 +629,21 @@ function room(solo: boolean): void {
   const main = el("main", "", "fv-room");
   main.append(connecting, closed, nameEntry.form, lobby, stage, controller);
   app.replaceChildren(top, main);
+  const roomLayout = createRoomLayout({
+    playerName: () => social.playerName(undefined) ?? undefined,
+    slotColor: (slot) => (slot % 2 ? "#ff2e9d" : "#16e7ff"),
+    slotLabel: (slot) => `${slot % 2 ? "Pink" : "Cyan"} · Slot ${slot + 1}`,
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
+    element: lobby,
+    roster,
+    capacity: 2,
+    join: nameEntry.form,
+    addAI: addBot,
+    modes: [modePicker.element],
+    settings: [scoringPicker.element, botTitle, botPicker.element],
+    actions: [lobbyNote, tvLink, start],
+  });
   lobby.hidden = true;
   stage.hidden = true;
   controller.hidden = true;
@@ -747,6 +769,7 @@ function room(solo: boolean): void {
     roster.update(
       next.lobby.members.map((member) => ({
         id: member.id,
+        slot: member.slot,
         name: member.you ? `${member.name} (you)` : member.name,
         color: sideColor(member.slot % 2),
         status: member.bot
@@ -781,6 +804,7 @@ function room(solo: boolean): void {
     );
     scoringPicker.update(view.settings.scoring, next.lobby.editable);
     modePicker.update(view.settings.team, next.lobby.editable);
+    roomLayout.update(next.lobby.members.length, view.settings.team * 2);
     botPicker.update(view.settings.bot, next.lobby.editable);
     botTitle.hidden = botPicker.element.hidden =
       !next.lobby.hasBot && !next.lobby.fill;
@@ -881,9 +905,13 @@ function room(solo: boolean): void {
         analytics.track("Point Scored", { ...point });
       settings = roomSettings;
       const next = present(frame, viewer);
-      if (next.askName && remembered && !joinSent) {
+      if (next.askName && remembered && !joinSent && !viewer.host) {
         joinSent = true;
-        runtime.command({ type: "join", name: remembered });
+        runtime.command({
+          type: "join",
+          slot: requestedRoomSlot(nameEntry.form),
+          name: remembered,
+        });
       }
       if (next.seated) joinSent = false;
       render(next, frame);

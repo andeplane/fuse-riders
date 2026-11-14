@@ -707,6 +707,7 @@ export function createFuseVolleyGame(
     matchSettings: (room) => room.play,
     seating: {
       capacity: CAPACITY,
+      capacityFor: (room) => seatsFor(room.settings),
       maxWatchers: MAX_WATCHERS,
       seatName,
       isAvatar,

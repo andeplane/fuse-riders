@@ -1,5 +1,7 @@
 # The room is the join screen
 
+Current menu/lobby behavior supersedes the creator-admission description below: the shared main menu's Play opens a room with the host unseated. The host uses Join beside Add AI to take a slot; appearance is optional and collapsed. Invited Riders devices still join on arrival, and recovery of an existing seat is unchanged. See [shared game menus](shared-game-menus.md). The historical rules change and its validation requirements below remain relevant.
+
 > Design note for rules `fuse-p2p-49`. Follows Phase F (ten colours and unique identity, `fuse-p2p-48`) and O4
 > (switching sides, no fold change). It removes the join card, which those two left with nothing to do.
 

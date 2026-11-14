@@ -1,3 +1,4 @@
+import { openPlayOptions } from "./lib/main-menu.js";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { launchSelected } from "./lib/browser.js";
@@ -31,17 +32,19 @@ try {
     });
   }
   await tv.goto(new URL("?mute&benchmark=1", base).href);
+  await openPlayOptions(tv);
   await tv
     .locator(".landing-mode label", {
       has: tv.getByRole("radio", { name: "Shared TV", exact: true }),
     })
     .click();
+  await openPlayOptions(tv);
   await tv.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
   await tv.waitForURL(/room=/);
   const invite = new URL(tv.url());
   invite.searchParams.set("mute", "1");
   invite.searchParams.set("benchmark", "1");
-  await tv.getByRole("button", { name: "ROOM SETTINGS", exact: true }).click();
+  await tv.getByRole("button", { name: "Game settings", exact: true }).click();
   await tv.getByLabel("Match length").fill("1"); // saves on input
   await tv.getByRole("button", { name: "CLOSE", exact: true }).click();
   for (const [page, name] of [
