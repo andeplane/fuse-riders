@@ -15,11 +15,13 @@ import {
   type GameEvent,
 } from "../src/engine/index.js";
 import {
+  ATTACK,
   DEFAULT_SETTINGS,
   PLAY,
   PRESS,
   SEAT,
   killerFuseGame,
+  type AttackEntry,
   type Entry,
   type PlayEntry,
   type PressEntry,
@@ -39,6 +41,11 @@ class Probe extends KillerFuseRuntime {
   presses(): PressEntry[] {
     return this.log().filter(
       (entry): entry is PressEntry => entry[2] === PRESS,
+    );
+  }
+  attacks(): AttackEntry[] {
+    return this.log().filter(
+      (entry): entry is AttackEntry => entry[2] === ATTACK,
     );
   }
   seats(): Entry[] {
@@ -247,6 +254,70 @@ test("a press is stamped with the next log tick and the third of it that the clo
       `a press at ${ms} ms`,
     );
   });
+});
+
+test("an attack is stamped the way a flap is, and both buttons share one rising gesture stream", () => {
+  const { runtime, at } = solo();
+  const { matchId } = room(runtime);
+  assert.deepEqual(runtime.attacks(), [], "nothing until the button is hit");
+  at(134); // the last third of log tick 2, so the entry is stamped for tick 3
+  assert.ok(runtime.attack());
+  assert.deepEqual(runtime.attacks().at(-1)!.slice(1), [
+    3,
+    ATTACK,
+    matchId,
+    1,
+    1,
+    2,
+  ]);
+  // The flap after it takes the next ordinal, not the first: one stream carries both gestures.
+  at(150);
+  assert.ok(runtime.press());
+  assert.deepEqual(runtime.presses().at(-1)!.slice(1), [
+    4,
+    PRESS,
+    matchId,
+    1,
+    2,
+    0,
+  ]);
+  at(167);
+  assert.ok(runtime.attack());
+  assert.deepEqual(runtime.attacks().at(-1)!.slice(1), [
+    4,
+    ATTACK,
+    matchId,
+    1,
+    3,
+    1,
+  ]);
+});
+
+test("an attack reaches this device's Queen, and a device that plays nothing attacks nothing", () => {
+  const { bench, runtime } = solo();
+  bench.run(8_300); // the first game's countdown (8 s) is out and she is flying
+  const queen = () => room(runtime).world!.units[0]!;
+  assert.equal(queen().attack, 0, "she has not struck");
+  assert.ok(runtime.attack());
+  bench.run(100);
+  assert.ok(
+    queen().attack > 0 || queen().attackBuffer > 0,
+    "the fold struck with the attack edge, or holds it until there is room",
+  );
+  // Outside a running game there is nothing to strike with, and no ordinal is spent.
+  assert.ok(runtime.command({ type: "action", action: "lobby" }));
+  bench.run(100);
+  const logged = runtime.attacks().length;
+  assert.equal(runtime.attack(), false);
+  assert.equal(runtime.attacks().length, logged);
+  assert.ok(runtime.command({ type: "action", action: "start" }));
+  bench.run(100);
+  assert.ok(runtime.attack());
+  assert.equal(
+    runtime.attacks().at(-1)![5],
+    logged + 1,
+    "the ordinal rose by one, not by the refused press",
+  );
 });
 
 test("a tap shorter than a log tick flaps the Queen, and held bits reach the fold", () => {
