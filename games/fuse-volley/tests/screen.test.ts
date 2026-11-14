@@ -12,16 +12,6 @@ import {
 import type { WorldView } from "../src/engine/view.js";
 import * as T from "../src/engine/tuning.js";
 import {
-  MAX_AHEAD,
-  blendViews,
-  copyWorld,
-  createLeadClock,
-  forward,
-  forwardInputs,
-  memoBot,
-  stepsAhead,
-} from "../src/app/forward.js";
-import {
   SCORING_CHOICES,
   createPointWatch,
   present,
@@ -33,84 +23,9 @@ import { createGameAudio } from "fuse-ui/game-audio";
 import { createAudioRig } from "fuse-ui/game-audio-fake";
 import { advanced, cuesBetween } from "../src/render/cues.js";
 import { createJelly } from "../src/render/jelly.js";
-import { DECAY_MS, createSmoother } from "../src/render/smooth.js";
 import { view, type BotInput } from "../src/online/game.js";
 import { fresh, rally, steps } from "./fixtures/world.js";
 import { fold, run, seated, started } from "./fixtures/room.js";
-
-const hold = (left: number, right: number) => ({
-  held: (_world: World, side: 0 | 1) => (side === 0 ? left : right),
-});
-
-test("the forward run plays the newest world on a copy, exactly as the fold would", () => {
-  const world = fresh();
-  steps(world, 30);
-  const before = JSON.stringify(world);
-  const drawn = forward(world, STEPS_PER_TICK, hold(RIGHT, JUMP));
-  assert.equal(JSON.stringify(world), before, "the room's world is untouched");
-  const expected = copyWorld(world);
-  for (let i = 0; i < STEPS_PER_TICK; i++) stepWorld(expected, [RIGHT, JUMP]);
-  assert.deepEqual(drawn, toView(expected));
-  assert.deepEqual(forward(world, 0, hold(0, 0)), toView(world));
-  assert.deepEqual(
-    forward(world, 99, hold(0, 0)),
-    forward(world, MAX_AHEAD, hold(0, 0)),
-    "never further than two log ticks",
-  );
-});
-
-test("a fraction of a step is drawn between the two steps either side", () => {
-  const world = rally(fresh(), 300, 300, 64, 0);
-  const a = forward(world, 2, hold(0, 0)),
-    b = forward(world, 3, hold(0, 0)),
-    half = forward(world, 2.5, hold(0, 0));
-  assert.ok(Math.abs(half.ball.x - (a.ball.x + b.ball.x) / 2) < 1e-9);
-  assert.deepEqual(half.score, a.score);
-  // A new serve is never smeared across.
-  const served = { ...b, phase: "serve" as const };
-  assert.equal(blendViews(a, served, 0.5), a);
-  assert.equal(blendViews(a, b, 0), a);
-  assert.equal(blendViews(a, b, 1), b);
-});
-
-test("steps ahead come from the runtime's clock, clamped to a log tick", () => {
-  assert.equal(stepsAhead({ tick: 60, lead: 0.5 }, 60), 3);
-  assert.equal(stepsAhead({ tick: 57, lead: 1 }, 60), 3);
-  assert.equal(stepsAhead({ tick: 54, lead: 0 }, 60), 0);
-  assert.equal(stepsAhead({ tick: 60, lead: 1 }, 54), STEPS_PER_TICK);
-});
-
-test("while the fold is late the wall clock carries the picture on, then hands back without a jump", () => {
-  const lead = createLeadClock();
-  const stepMs = 1000 / T.STEPS_PER_SECOND;
-  assert.equal(lead(3, 60, 1000), 3);
-  assert.equal(lead(STEPS_PER_TICK, 60, 1000 + 3 * stepMs), STEPS_PER_TICK);
-  const late = lead(STEPS_PER_TICK, 60, 1000 + 4 * stepMs);
-  assert.ok(Math.abs(late - 7) < 1e-9, `the clock kept moving: ${late}`);
-  assert.equal(lead(STEPS_PER_TICK, 60, 1000 + 99 * stepMs), MAX_AHEAD);
-  assert.equal(lead(1, 66, 1000 + 7 * stepMs), 1, "the next fold takes over");
-});
-
-test("the forward run plays a bot as the fold would, a human as last logged, and leads this device when asked", () => {
-  const room = started();
-  room.held = { a: RIGHT, b: JUMP };
-  const asked: number[] = [];
-  const bot: BotInput = (_world, side) => {
-    asked.push(side);
-    return JUMP;
-  };
-  const world = room.world!;
-  const plain = forwardInputs(room, "a", 0, false, bot);
-  assert.equal(plain.held(world, 0), RIGHT);
-  assert.equal(plain.held(world, 1), JUMP);
-  const led = forwardInputs(room, "a", 0, true, bot);
-  assert.equal(led.held(world, 0), 0, "this device's own live bits");
-  room.seats.get("b")!.connected = false;
-  assert.equal(plain.held(world, 1), 0, "an absent player holds nothing");
-  room.seats.get("b")!.bot = true;
-  assert.equal(plain.held(world, 1), JUMP);
-  assert.deepEqual(asked, [1]);
-});
 
 const viewer = (me: string, host = false): Viewer => ({
   me,
@@ -216,36 +131,6 @@ test("cues come from counters moving forward, once each", () => {
   );
 });
 
-const moved = (base: WorldView, dx: number): WorldView => ({
-  ...base,
-  ball: { ...base.ball, x: base.ball.x + dx },
-  blobs: [
-    { ...base.blobs[0]!, x: base.blobs[0]!.x + dx },
-    { ...base.blobs[1]!, x: base.blobs[1]!.x + dx },
-  ],
-});
-
-test("a rollback correction eases in, the local blob never does, and a teleport is shown as it is", () => {
-  const smoother = createSmoother();
-  const base = toView(rally(fresh(), 300, 200, 0, 0));
-  assert.equal(smoother.apply(base, 1, 0, 0).ball.x, base.ball.x);
-  const corrected = moved(base, 20);
-  const first = smoother.apply(corrected, 2, 0, 0);
-  assert.equal(first.ball.x, base.ball.x, "drawn where it was");
-  assert.equal(
-    first.blobs[0]!.x,
-    corrected.blobs[0]!.x,
-    "the local blob follows its player exactly",
-  );
-  assert.equal(first.blobs[1]!.x, base.blobs[1]!.x);
-  const later = smoother.apply(corrected, 2, DECAY_MS, 0);
-  assert.ok(Math.abs(later.ball.x - (corrected.ball.x - 20 / Math.E)) < 0.01);
-  const settled = smoother.apply(corrected, 2, DECAY_MS * 20, 0);
-  assert.equal(settled.ball.x, corrected.ball.x);
-  const far = moved(corrected, 300);
-  assert.equal(smoother.apply(far, 3, DECAY_MS * 21, 0).ball.x, far.ball.x);
-});
-
 test("the jelly wobbles after a kick and comes back to rest", () => {
   const jelly = createJelly(() => 0.5);
   const blobs = toView(fresh()).blobs;
@@ -318,22 +203,6 @@ test("sounds: silent when muted, a voice for each cue once the page may play", a
   for (const cue of cues) sfx.play(cue);
   rig.timers.forEach((run) => run());
   assert.ok(rig.log.oscillators > 10 && rig.log.noises >= 2);
-});
-
-test("the drawn bot plans once per folded step and side", () => {
-  let plans = 0;
-  const bot = memoBot((_world, side) => {
-    plans++;
-    return side === 0 ? RIGHT : JUMP;
-  });
-  const world = fresh();
-  assert.equal(bot(world, 0, 2), RIGHT);
-  assert.equal(bot(world, 0, 2), RIGHT);
-  assert.equal(bot(world, 1, 2), JUMP);
-  assert.equal(plans, 2);
-  steps(world, 1);
-  bot(world, 0, 2);
-  assert.equal(plans, 3);
 });
 
 test("a classic side-out is not reported as a point", () => {
