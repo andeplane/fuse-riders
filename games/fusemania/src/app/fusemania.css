@@ -1182,3 +1182,10 @@ body:has(.fui-top-bar) .fm-ts {
     max-height: 44rem;
   }
 }
+/* A started song that waits for its audio: said over the field, without the urgency of the sound prompt. */
+.fm-hold {
+  color: var(--fui-ink);
+  background: var(--fui-cyan);
+  box-shadow: 0 0 2rem color-mix(in srgb, var(--fui-cyan) 55%, transparent);
+  animation: none;
+}
