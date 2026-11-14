@@ -1,0 +1,73 @@
+/**
+ * The chart lab's transport keys, as pure functions: which key seeks how far, which focused control keeps its own
+ * keys, and where the view must sit to show the playhead.
+ */
+
+/** The parts of a keyboard event the transport reads. */
+export interface TransportKey {
+  readonly key: string;
+  readonly shiftKey: boolean;
+  readonly altKey: boolean;
+  readonly metaKey: boolean;
+  readonly ctrlKey: boolean;
+}
+
+export const SEEK_STEP = 0.5;
+export const SEEK_SHIFT = 2;
+export const SEEK_ALT = 5;
+
+/**
+ * Seconds a key press seeks: ← back and → forward by 0.5 s, 2 s with shift, 5 s with option/alt (alt wins over
+ * shift). Undefined for any other key, and with ⌘ or ctrl held, which belong to the browser (back, forward).
+ */
+export function seekDelta(event: TransportKey): number | undefined {
+  if (event.metaKey || event.ctrlKey) return undefined;
+  const direction =
+    event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
+  if (!direction) return undefined;
+  const step = event.altKey
+    ? SEEK_ALT
+    : event.shiftKey
+      ? SEEK_SHIFT
+      : SEEK_STEP;
+  return direction * step;
+}
+
+/** The focused element, as far as the transport keys care. */
+export interface KeyTarget {
+  readonly tagName: string;
+  readonly type?: string;
+  readonly isContentEditable?: boolean;
+}
+
+/**
+ * Whether the focused control needs the keys itself: anywhere text is typed (the notes field, a text input). Buttons,
+ * checkboxes, sliders and menus do not, so space and the arrows still drive playback after clicking one.
+ */
+export function typingIn(target: KeyTarget | null): boolean {
+  if (!target) return false;
+  if (target.isContentEditable) return true;
+  if (target.tagName === "TEXTAREA") return true;
+  if (target.tagName !== "INPUT") return false;
+  return !["checkbox", "range", "button", "file", "radio"].includes(
+    target.type ?? "text",
+  );
+}
+
+/**
+ * The view's top time that shows the playhead: unchanged while the playhead is comfortably in view, otherwise the
+ * playhead 30% down the view, where playback keeps it.
+ */
+export function revealTop(
+  playhead: number,
+  topTime: number,
+  viewSeconds: number,
+): number {
+  const margin = viewSeconds * 0.08;
+  if (
+    playhead >= topTime + margin &&
+    playhead <= topTime + viewSeconds - margin
+  )
+    return topTime;
+  return playhead - viewSeconds * 0.3;
+}

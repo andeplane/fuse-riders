@@ -164,6 +164,31 @@ body.chart-lab {
   padding: 0 5px;
   font-size: 11px;
 }
+.lab-keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  color: #9aa3c5;
+  font-size: 12px;
+  background: #080e26;
+  border-bottom: 1px solid #1f2a5c;
+}
+.lab-keys kbd {
+  min-width: 14px;
+  padding: 1px 5px;
+  text-align: center;
+  color: #dfe6ff;
+  font: inherit;
+  background: #121b44;
+  border: 1px solid #2b3a7a;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+}
+.lab-keys-gap {
+  width: 12px;
+}
 .lab-help p {
   color: #9aa3c5;
 }

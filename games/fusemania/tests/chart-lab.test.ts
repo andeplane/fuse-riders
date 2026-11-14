@@ -30,6 +30,13 @@ import {
   type LabNote,
 } from "../src/lab/notes.js";
 
+import {
+  revealTop,
+  seekDelta,
+  typingIn,
+  type TransportKey,
+} from "../src/lab/playback.js";
+
 const sine = (hz: number, seconds: number, rate = LAB_RATE) =>
   Float32Array.from({ length: Math.round(seconds * rate) }, (_, i) =>
     Math.sin((2 * Math.PI * hz * i) / rate),
@@ -205,4 +212,59 @@ test("a note reads as one line for a chat", () => {
     describeNote(note({ lowHz: 1200, highHz: 3400, chart: "Hard" })),
     "final-chase 0:42.10–0:44.50 (beats 102.80–108.80) · 1.20 kHz–3.40 kHz · Hard · [melody, 16ths]: the lead line runs 16ths here",
   );
+});
+
+const press = (
+  key: string,
+  held: Partial<TransportKey> = {},
+): TransportKey => ({
+  key,
+  shiftKey: false,
+  altKey: false,
+  metaKey: false,
+  ctrlKey: false,
+  ...held,
+});
+
+test("chart lab: the arrow keys seek 0.5 s, 2 s with shift and 5 s with option", () => {
+  assert.equal(seekDelta(press("ArrowLeft")), -0.5);
+  assert.equal(seekDelta(press("ArrowRight")), 0.5);
+  assert.equal(seekDelta(press("ArrowLeft", { shiftKey: true })), -2);
+  assert.equal(seekDelta(press("ArrowRight", { shiftKey: true })), 2);
+  assert.equal(seekDelta(press("ArrowLeft", { altKey: true })), -5);
+  assert.equal(seekDelta(press("ArrowRight", { altKey: true })), 5);
+  assert.equal(
+    seekDelta(press("ArrowLeft", { altKey: true, shiftKey: true })),
+    -5,
+  );
+});
+
+test("chart lab: other keys, and the browser's own ⌘/ctrl arrows, do not seek", () => {
+  assert.equal(seekDelta(press(" ")), undefined);
+  assert.equal(seekDelta(press("ArrowUp")), undefined);
+  assert.equal(seekDelta(press("ArrowLeft", { metaKey: true })), undefined);
+  assert.equal(seekDelta(press("ArrowRight", { ctrlKey: true })), undefined);
+});
+
+test("chart lab: text fields keep their keys, other controls give them to playback", () => {
+  assert.equal(typingIn(null), false);
+  assert.equal(typingIn({ tagName: "BODY" }), false);
+  assert.equal(typingIn({ tagName: "TEXTAREA" }), true);
+  assert.equal(typingIn({ tagName: "INPUT", type: "text" }), true);
+  assert.equal(typingIn({ tagName: "INPUT" }), true);
+  assert.equal(typingIn({ tagName: "DIV", isContentEditable: true }), true);
+  for (const type of ["checkbox", "range", "file"])
+    assert.equal(typingIn({ tagName: "INPUT", type }), false, type);
+  assert.equal(typingIn({ tagName: "BUTTON", type: "button" }), false);
+  assert.equal(typingIn({ tagName: "SELECT", type: "select-one" }), false);
+});
+
+test("chart lab: the view moves only when the playhead leaves it", () => {
+  // A 10 s view from 20 s: a playhead in the middle stays put.
+  assert.equal(revealTop(25, 20, 10), 20);
+  // Above, below, and inside the edge margin: the playhead lands 30% down.
+  assert.equal(revealTop(12, 20, 10), 9);
+  assert.equal(revealTop(40, 20, 10), 37);
+  assert.equal(revealTop(20.2, 20, 10), 17.2);
+  assert.equal(revealTop(29.9, 20, 10), 26.9);
 });

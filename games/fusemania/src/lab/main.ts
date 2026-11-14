@@ -46,6 +46,7 @@ import {
   type Spectra,
 } from "./spectrum.js";
 import type { SpectrumReply, SpectrumRequest } from "./spectrum-worker.js";
+import { revealTop, seekDelta, typingIn } from "./playback.js";
 
 const BASE = import.meta.env.BASE_URL;
 const NOTES_KEY = "fusemania-lab:notes";
@@ -118,6 +119,35 @@ const playButton = button(
   () => togglePlay(),
   "Play or pause (space)",
 );
+const key = (text: string) => el("kbd", { textContent: text });
+const keyLegend = el(
+  "div",
+  { className: "lab-keys", title: "Keyboard: playback and seeking" },
+  key("space"),
+  " play / pause",
+  el("span", { className: "lab-keys-gap" }),
+  key("←"),
+  key("→"),
+  " 0.5 s",
+  el("span", { className: "lab-keys-gap" }),
+  key("⇧"),
+  key("←"),
+  key("→"),
+  " 2 s",
+  el("span", { className: "lab-keys-gap" }),
+  key("⌥"),
+  key("←"),
+  key("→"),
+  " 5 s",
+  el("span", { className: "lab-keys-gap" }),
+  key("↑"),
+  key("↓"),
+  " scroll",
+  el("span", { className: "lab-keys-gap" }),
+  key("+"),
+  key("−"),
+  " zoom",
+);
 const speedSelect = el("select", {
   title: "Playback speed (the pitch drops with it)",
 });
@@ -181,7 +211,7 @@ const helpBox = el(
   el("h2", { textContent: "How to use" }),
   el("p", {
     textContent:
-      "Scroll to move through the song, ctrl/⌘ + scroll (or + and −) to zoom. Space plays from the playhead; click the ruler or the spectrogram to move it.",
+      "Scroll to move through the song, ctrl/⌘ + scroll (or + and −) to zoom. Space plays and pauses at the playhead (the white line); ← and → move it back and forward by 0.5 s, 2 s with shift and 5 s with option, playing or paused. Click the ruler or the spectrogram to put it somewhere else.",
   }),
   el("p", {
     textContent:
@@ -237,6 +267,7 @@ app.append(
     notesInput,
   ),
   chips,
+  keyLegend,
   el("main", { className: "lab-main" }, stage, side),
 );
 
@@ -278,6 +309,8 @@ let startSong = 0;
 let rate = 1;
 let scheduledUntil = 0;
 let tickBuffer: AudioBuffer | undefined;
+/** Ticks scheduled on the audio clock and not yet heard; a stop or a seek silences them. */
+const pendingTicks = new Set<AudioBufferSourceNode>();
 let follow = true;
 
 function readStoredNotes(): NotesFile {
@@ -960,6 +993,15 @@ function stop(): void {
     } catch {
       /* already ended */
     }
+    for (const tick of pendingTicks) {
+      tick.onended = null;
+      try {
+        tick.stop();
+      } catch {
+        /* already ended */
+      }
+    }
+    pendingTicks.clear();
   }
   playButton.textContent = "▶ Play";
   draw();
@@ -1005,6 +1047,8 @@ function scheduleTicks(): void {
     const tick = audioContext.createBufferSource();
     tick.buffer = tickBuffer;
     tick.connect(audioContext.destination);
+    tick.onended = () => pendingTicks.delete(tick);
+    pendingTicks.add(tick);
     tick.start(when);
   }
   scheduledUntil = horizon;
@@ -1029,6 +1073,15 @@ function seek(time: number): void {
   playhead = Math.max(0, Math.min(duration, time));
   if (playing) play();
   else draw();
+}
+
+/** A seek from the keyboard: moves the playhead from where it is heard, and brings the view back to it. */
+function seekBy(seconds: number): void {
+  seek(heardTime() + seconds);
+  follow = true;
+  topTime = revealTop(playhead, topTime, viewSeconds());
+  clampView();
+  draw();
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -1539,17 +1592,18 @@ tickSelect.onchange = () => {
 };
 
 window.addEventListener("keydown", (event) => {
-  const target = event.target as HTMLElement | null;
-  if (
-    target &&
-    ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) &&
-    (target as HTMLInputElement).type !== "checkbox" &&
-    (target as HTMLInputElement).type !== "range"
-  )
-    return;
+  const target = event.target instanceof HTMLElement ? event.target : null;
+  if (typingIn(target)) return;
+  const delta = seekDelta(event);
+  // A focused button, menu or slider would take space and the arrows for itself: playback owns them here.
+  if ((event.key === " " || delta !== undefined) && target !== document.body)
+    target?.blur();
   if (event.key === " ") {
     event.preventDefault();
-    togglePlay();
+    if (!event.repeat) togglePlay();
+  } else if (delta !== undefined) {
+    event.preventDefault();
+    seekBy(delta);
   } else if (event.key === "+" || event.key === "=") zoom(1.25);
   else if (event.key === "-") zoom(0.8);
   else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
