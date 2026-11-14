@@ -1,5 +1,6 @@
 import type {
   WebampPlayer,
+  WebampPlaylistTrack,
   WebampStatus,
   WebampTrack,
 } from "../winamp/webampPlayer";
@@ -11,14 +12,24 @@ export type FakeWebampPlayer = WebampPlayer & {
   disposed: boolean;
   /** The playlist index of the loaded track, -1 before anything loads. */
   currentIndex: number;
+  /** Loads the track at `index` without starting it, as a click in Webamp's playlist would. */
+  setCurrentTrack(index: number): void;
+  /** What a user does in Webamp's own eject dialog: the files join the queue as blob tracks and the first starts. */
+  pickFiles(names: string[]): void;
+  /** The user closes Webamp from its own title bar. */
+  pressClose(): void;
+  /** The user presses Webamp's own minimize button. */
+  pressMinimize(): void;
 };
 
 export function createFakeWebampPlayer(): FakeWebampPlayer {
   let status: WebampStatus = "STOPPED";
-  const listeners = new Set<(track: { url: string } | null) => void>();
+  const trackListeners = new Set<(track: { url: string } | null) => void>();
+  const closeListeners = new Set<() => void>();
+  const minimizeListeners = new Set<() => void>();
   const notify = () => {
     const current = player.tracks[player.currentIndex];
-    listeners.forEach((listener) =>
+    trackListeners.forEach((listener) =>
       listener(current ? { url: current.url } : null),
     );
   };
@@ -32,12 +43,6 @@ export function createFakeWebampPlayer(): FakeWebampPlayer {
     },
     appendTracks(tracks) {
       player.tracks.push(...tracks);
-    },
-    setTracksToPlay(tracks) {
-      player.tracks = [...tracks];
-      player.currentIndex = tracks.length > 0 ? 0 : -1;
-      status = tracks.length > 0 ? "PLAYING" : "STOPPED";
-      notify();
     },
     play() {
       status = "PLAYING";
@@ -69,16 +74,45 @@ export function createFakeWebampPlayer(): FakeWebampPlayer {
       player.currentIndex = index;
       notify();
     },
-    getPlaylistTracks: () => player.tracks,
+    pickFiles(names) {
+      const first = player.tracks.length;
+      player.tracks.push(
+        ...names.map((name) => ({ url: `blob:${name}`, defaultName: name })),
+      );
+      player.currentIndex = first;
+      status = "PLAYING";
+      notify();
+    },
+    getPlaylistTracks: (): WebampPlaylistTrack[] =>
+      player.tracks.map((track) => ({
+        url: track.url,
+        defaultName: track.defaultName ?? null,
+      })),
     getMediaStatus: () => status,
     onTrackDidChange(callback) {
-      listeners.add(callback);
-      return () => listeners.delete(callback);
+      trackListeners.add(callback);
+      return () => trackListeners.delete(callback);
+    },
+    onClose(callback) {
+      closeListeners.add(callback);
+      return () => closeListeners.delete(callback);
+    },
+    onMinimize(callback) {
+      minimizeListeners.add(callback);
+      return () => minimizeListeners.delete(callback);
+    },
+    pressClose() {
+      [...closeListeners].forEach((listener) => listener());
+    },
+    pressMinimize() {
+      [...minimizeListeners].forEach((listener) => listener());
     },
     dispose() {
       player.disposed = true;
       status = "STOPPED";
-      listeners.clear();
+      trackListeners.clear();
+      closeListeners.clear();
+      minimizeListeners.clear();
     },
   };
   return player;

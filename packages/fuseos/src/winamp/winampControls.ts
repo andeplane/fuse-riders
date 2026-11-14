@@ -1,6 +1,6 @@
 import type { WebampPlayer } from "./webampPlayer";
 
-/** What one Winamp window is doing right now: how many tracks are queued, their display names in playlist order, the loaded one's name and whether it is playing. */
+/** What Winamp is doing right now: how many tracks are queued, their display names in playlist order, the loaded one's name and whether it is playing. */
 export type WinampStatus = {
   trackCount: number;
   /** Every queued track's display name, in playlist order. */
@@ -10,9 +10,10 @@ export type WinampStatus = {
 };
 
 /**
- * The transport a Winamp window drives, over the same Webamp instance the mouse uses. The window's view model
- * publishes one in the Winamp registry so the Office Assistant ("play music") presses exactly the buttons a
- * user sees. Picking a local file still needs the user's own file dialog, which nothing can drive.
+ * The transport the desktop's Winamp drives, over the same Webamp instance the mouse uses. The
+ * player publishes one in the Winamp registry so the Office Assistant ("play music") presses
+ * exactly the buttons a user sees. Picking a local file still needs the user's own file dialog
+ * (Webamp's eject button), which nothing can drive.
  */
 export interface WinampControls {
   status(): WinampStatus;
@@ -23,22 +24,33 @@ export interface WinampControls {
   previous(): void;
 }
 
-/** `trackNames` maps a track's url (blob: or a site path) to the name it was created from, since Webamp only ever hands back the url. */
+/**
+ * `trackNames` maps a track's url to the name it was queued under (the soundtrack's "Title (Game)"),
+ * since Webamp only ever hands back the url; a file the user picked in Webamp's own dialog carries
+ * its file name from Webamp instead.
+ */
 export function createWinampControls(
   player: WebampPlayer,
   trackNames: Map<string, string>,
 ): { controls: WinampControls; dispose: () => void } {
   let currentUrl: string | undefined;
+  const nameOf = (track: { url: string; defaultName?: string | null }) =>
+    trackNames.get(track.url) ?? track.defaultName ?? track.url;
   const unsubscribe = player.onTrackDidChange((track) => {
     currentUrl = track?.url;
   });
   const controls: WinampControls = {
     status: () => {
       const playlist = player.getPlaylistTracks();
+      const current = playlist.find((track) => track.url === currentUrl);
       return {
         trackCount: playlist.length,
-        tracks: playlist.map((track) => trackNames.get(track.url) ?? track.url),
-        currentTrack: currentUrl ? trackNames.get(currentUrl) : undefined,
+        tracks: playlist.map(nameOf),
+        currentTrack: current
+          ? nameOf(current)
+          : currentUrl
+            ? trackNames.get(currentUrl)
+            : undefined,
         playing: player.getMediaStatus() === "PLAYING",
       };
     },

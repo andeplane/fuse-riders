@@ -5,6 +5,7 @@ import {
   DEFAULT_STATE,
   isAppState,
   isControlPanelApplet,
+  mergeInstance,
   nextWindowId,
   parseAppState,
   sameInstance,
@@ -103,6 +104,12 @@ describe(appStateReducer.name, () => {
     );
     expect(applets.windows).toHaveLength(2);
     expect(sameInstance({ kind: "about" }, { kind: "about" })).toBe(true);
+    const explorer = { kind: "explorer", location: "C:" } as const;
+    expect(sameInstance(explorer, explorer)).toBe(true);
+    expect(sameInstance(explorer, { kind: "explorer", location: "A:" })).toBe(
+      false,
+    );
+
     expect(sameInstance({ kind: "wallpaper" }, { kind: "about" })).toBe(false);
     expect(sameInstance({ kind: "retroFolder" }, { kind: "retroFolder" })).toBe(
       true,
@@ -157,6 +164,46 @@ describe(appStateReducer.name, () => {
       kind: "paint",
       maximized: false,
     });
+  });
+
+  it("re-opens the Display dialog on the tab asked for and adds files to the one Notepad++ as tabs", () => {
+    const display = appStateReducer(DEFAULT_STATE, {
+      type: "open",
+      content: { kind: "controlpanel", applet: "display" },
+    });
+    const onTab = appStateReducer(display, {
+      type: "open",
+      content: { kind: "controlpanel", applet: "display", tab: "screensaver" },
+    });
+    expect(onTab.windows).toEqual([
+      { ...display.windows[0], tab: "screensaver" },
+    ]);
+    // Without a tab the window is left on whichever tab it shows.
+    expect(
+      appStateReducer(onTab, {
+        type: "open",
+        content: { kind: "controlpanel", applet: "display" },
+      }).windows,
+    ).toEqual(onTab.windows);
+
+    const notepad = appStateReducer(DEFAULT_STATE, {
+      type: "open",
+      content: {
+        kind: "notepadpp",
+        paths: ["README.md"],
+        activePath: "README.md",
+      },
+    });
+    const more = appStateReducer(notepad, {
+      type: "open",
+      content: { kind: "notepadpp", paths: ["README.md", "AGENTS.md"] },
+    });
+    expect(more.windows).toHaveLength(1);
+    expect(more.windows[0]).toMatchObject({
+      paths: ["README.md", "AGENTS.md"],
+      activePath: "README.md",
+    });
+    expect(mergeInstance(paint("w1"), { kind: "paint" })).toEqual(paint("w1"));
   });
 
   it("re-focuses an existing window when opened with the same id", () => {

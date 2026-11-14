@@ -38,12 +38,76 @@ export interface PaintSurface {
 
 const TEXT_FONT = '16px "Pixelated MS Sans Serif", Arial, sans-serif';
 
-function decode(blob: Blob): Promise<{
-  source: CanvasImageSource;
+/** The part of a canvas element the surface drives: its size and the two encoders. */
+export type PaintCanvas = {
+  width: number;
+  height: number;
+  toBlob(
+    callback: (blob: Blob | null) => void,
+    type: string,
+    quality: number,
+  ): void;
+  toDataURL(type: string, quality: number): string;
+};
+
+/** The part of a 2D context the surface drives; a canvas copy is drawn like any other image source. */
+export interface PaintContext2D {
+  fillStyle: string | CanvasGradient | CanvasPattern;
+  strokeStyle: string | CanvasGradient | CanvasPattern;
+  lineWidth: number;
+  lineCap: CanvasLineCap;
+  lineJoin: CanvasLineJoin;
+  font: string;
+  textBaseline: CanvasTextBaseline;
+  fillRect(x: number, y: number, width: number, height: number): void;
+  strokeRect(x: number, y: number, width: number, height: number): void;
+  beginPath(): void;
+  moveTo(x: number, y: number): void;
+  lineTo(x: number, y: number): void;
+  stroke(): void;
+  fill(): void;
+  ellipse(
+    x: number,
+    y: number,
+    radiusX: number,
+    radiusY: number,
+    rotation: number,
+    startAngle: number,
+    endAngle: number,
+  ): void;
+  fillText(text: string, x: number, y: number): void;
+  getImageData(x: number, y: number, width: number, height: number): ImageData;
+  putImageData(image: ImageData, dx: number, dy: number): void;
+  save(): void;
+  restore(): void;
+  translate(x: number, y: number): void;
+  scale(x: number, y: number): void;
+  rotate(angle: number): void;
+  drawImage(
+    image: CanvasImageSource | PaintCanvas,
+    dx: number,
+    dy: number,
+  ): void;
+}
+
+/** A decoded picture: what to draw, how big it is, and how to let go of it. */
+export type DecodedImage = {
+  source: CanvasImageSource | PaintCanvas;
   width: number;
   height: number;
   release: () => void;
-}> {
+};
+
+/** The browser pieces behind a canvas surface, injectable so the surface runs over typed fakes in tests. */
+export type CanvasSurfaceDeps = {
+  /** The 2D context of a canvas, or null where the browser has none. */
+  context: (canvas: PaintCanvas) => PaintContext2D | null;
+  /** A fresh, detached canvas for copies during flips and rotations. */
+  createCanvas: () => PaintCanvas;
+  decode: (blob: Blob) => Promise<DecodedImage>;
+};
+
+export function decodeImage(blob: Blob): Promise<DecodedImage> {
   if (typeof createImageBitmap === "function") {
     return createImageBitmap(blob).then((bitmap) => ({
       source: bitmap,
@@ -70,12 +134,24 @@ function decode(blob: Blob): Promise<{
   });
 }
 
+export const browserCanvasDeps: CanvasSurfaceDeps = {
+  context: (canvas) =>
+    canvas instanceof HTMLCanvasElement
+      ? canvas.getContext("2d", { willReadFrequently: true })
+      : null,
+  createCanvas: () => document.createElement("canvas"),
+  decode: decodeImage,
+};
+
 class CanvasPaintSurface implements PaintSurface {
-  private readonly context: CanvasRenderingContext2D;
+  private readonly context: PaintContext2D;
   private readonly pixels = new WeakMap<PaintSnapshot, ImageData>();
 
-  constructor(private readonly canvas: HTMLCanvasElement) {
-    const context = canvas.getContext("2d", { willReadFrequently: true });
+  constructor(
+    private readonly canvas: PaintCanvas,
+    private readonly deps: CanvasSurfaceDeps,
+  ) {
+    const context = deps.context(canvas);
     if (!context) throw new Error("Canvas 2D is not available");
     this.context = context;
     this.clear("#ffffff");
@@ -235,7 +311,7 @@ class CanvasPaintSurface implements PaintSurface {
   }
 
   async loadImage(blob: Blob): Promise<Size> {
-    const decoded = await decode(blob);
+    const decoded = await this.deps.decode(blob);
     try {
       this.reset({ width: decoded.width, height: decoded.height }, "#ffffff");
       this.context.drawImage(decoded.source, 0, 0);
@@ -245,15 +321,18 @@ class CanvasPaintSurface implements PaintSurface {
     return this.size();
   }
 
-  private copy(): HTMLCanvasElement {
-    const copy = document.createElement("canvas");
+  private copy(): PaintCanvas {
+    const copy = this.deps.createCanvas();
     copy.width = this.canvas.width;
     copy.height = this.canvas.height;
-    copy.getContext("2d")?.drawImage(this.canvas, 0, 0);
+    this.deps.context(copy)?.drawImage(this.canvas, 0, 0);
     return copy;
   }
 }
 
-export function createCanvasSurface(canvas: HTMLCanvasElement): PaintSurface {
-  return new CanvasPaintSurface(canvas);
+export function createCanvasSurface(
+  canvas: PaintCanvas,
+  deps: CanvasSurfaceDeps = browserCanvasDeps,
+): PaintSurface {
+  return new CanvasPaintSurface(canvas, deps);
 }

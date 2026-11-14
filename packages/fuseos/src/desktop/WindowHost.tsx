@@ -2,15 +2,17 @@ import { useContext, useEffect } from "react";
 
 import { AboutDialog } from "../about/AboutDialog";
 import { ControlPanelWindow } from "../controlpanel/ControlPanelWindow";
+import { ExplorerWindow } from "../explorer/ExplorerWindow";
 import { WallpaperWindow } from "../controlpanel/WallpaperWindow";
 import { FuseGameWindow } from "../fusegames/FuseGameWindow";
 import { FuseGamesContext } from "../fusegames/registry";
 import { LauncherWindow } from "../launcher/LauncherWindow";
+import { NotepadPlusPlusWindow } from "../notepadpp/NotepadPlusPlusWindow";
 import { PaintWindow } from "../paint/PaintWindow";
 import { GameWindow } from "../retro/GameWindow";
 import { RetroFolderWindow } from "../retro/RetroFolderWindow";
 import type { WindowState } from "../state/appState";
-import { WinampWindow } from "../winamp/WinampWindow";
+import { WinampPlayer } from "../winamp/WinampPlayer";
 import { MessageBox } from "../windows/MessageBox";
 import { useWindowCommands } from "../windows/useWindowCommands";
 import { WindowChrome } from "../windows/WindowChrome";
@@ -66,7 +68,18 @@ function WindowContent({
     case "paint":
       return <PaintWindow windowId={window.id} />;
     case "winamp":
-      return <WinampWindow windowId={window.id} />;
+      // Frameless: `WinampPlayer` draws it on the desktop layer, not in a frame.
+      return null;
+    case "explorer":
+      return <ExplorerWindow windowId={window.id} location={window.location} />;
+    case "notepadpp":
+      return (
+        <NotepadPlusPlusWindow
+          windowId={window.id}
+          paths={window.paths}
+          activePath={window.activePath}
+        />
+      );
     case "launcher":
       return <LauncherWindow windowId={window.id} active={active} />;
   }
@@ -85,6 +98,7 @@ export function WindowHost({ windows, activeId }: WindowHostProps) {
   const { rectFor, setRect, pruneRects, compact } =
     useContext(WindowManagerContext);
   const commands = useWindowCommands();
+  const winamp = windows.find((window) => window.kind === "winamp");
   // Window ids are reused after a close; forget the old rectangle so the next window with that id opens at its own size.
   useEffect(
     () => pruneRects(windows.map((window) => window.id)),
@@ -94,7 +108,7 @@ export function WindowHost({ windows, activeId }: WindowHostProps) {
   return (
     <>
       {windows.map((window, index) => {
-        if (window.minimized) return null;
+        if (window.minimized || window.kind === "winamp") return null;
         const meta = windowMeta(window, games);
         const active = window.id === activeId;
         const activate = () => {
@@ -133,6 +147,10 @@ export function WindowHost({ windows, activeId }: WindowHostProps) {
           </WindowFrame>
         );
       })}
+      {/* Winamp is Webamp's own windows on a desktop-sized layer, above the frames; minimized keeps it playing unseen. */}
+      {winamp ? (
+        <WinampPlayer windowId={winamp.id} minimized={winamp.minimized} />
+      ) : null}
     </>
   );
 }

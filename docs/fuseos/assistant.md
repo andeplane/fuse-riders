@@ -91,7 +91,7 @@ The desktop registers two tools (`src/assistant/desktopTools.ts`):
 | Marker                                        | Does                                                                                                                                                              |
 | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `[open:<id>]`                                 | Opens a Fuse game (its portal id), a retro game (`doom`, `keen1`, ...), or an app: `paint`, `winamp`, `settings`, `display`, `about`. Names and aliases work too. |
-| `[music:<play\|pause\|stop\|next\|previous>]` | Drives the open Winamp window's transport; `play` opens Winamp when none is open.                                                                                 |
+| `[music:<play\|pause\|stop\|next\|previous>]` | Drives the running Winamp's transport; `play` opens Winamp when none is open and presses Play once it has loaded.                                                 |
 
 ### Adding a tool
 
@@ -100,26 +100,35 @@ is mounted without touching the assistant. The API is in
 `src/assistant/assistantToolsContext.ts` (types re-exported from
 `src/llm/tools.ts`):
 
+Notepad++ registers the real one (`src/notepadpp/assistantEditTool.ts`,
+`useNotepadEditTool` in `NotepadPlusPlusWindow.tsx`): while the window is open,
+the prompt lists the open files and carries the active one's text (truncated to
+`MAX_PROMPT_FILE_CHARS`, the local models have a small context), so "add a line
+about yourself to the readme" comes back as a reply with the new file in a
+fenced block and `[edit:README.md]`. The tool writes the block through
+`EditorCommands.writeFile` to the browser's overlay (what File > Save writes),
+the open tab follows unless it has unsaved typing, and Clippy says the change
+is on "your C: drive, which is this browser and nowhere else". Only a path open
+in Notepad++ may be edited, and a marker without a code block changes nothing.
+`[edit:undo]` puts back what the last edit replaced: the earlier saved copy, or
+the committed text (a revert) when there was none.
+
+A window registers a tool like this:
+
 ```ts
 import { useMemo } from "react";
 import type { AssistantTool } from "../assistant/assistantToolsContext";
 import { useRegisterAssistantTool } from "../assistant/assistantToolsContext";
 
-function NotepadWindow({ editor }: { editor: EditorCommands }) {
+function SomeWindow() {
   const tool = useMemo<AssistantTool>(
     () => ({
-      name: "edit",
-      describe: () =>
-        "[edit:<path>] followed by a fenced code block replaces that file's content.",
-      sentence: ({ arg }) => `Editing ${arg}`,
-      run: async ({ arg, body }) => {
-        if (body === undefined)
-          return { ok: false, sentence: "No code block followed the marker" };
-        await editor.writeFile(arg, body);
-        return { ok: true, sentence: `Saved ${arg} on your C: drive` };
-      },
+      name: "example",
+      describe: () => "[example:<arg>] does something with arg.",
+      sentence: ({ arg }) => `Doing ${arg}`,
+      run: ({ arg }) => ({ ok: true, sentence: `Did ${arg}` }),
     }),
-    [editor],
+    [],
   );
   useRegisterAssistantTool(tool);
   ...
@@ -161,6 +170,9 @@ The pure parts are in `src/llm/tools.ts`: `parseToolMarkers`,
   model switch, a mid-answer failure.
 - `src/assistant/assistantToolsContext.test.tsx`: a window registering an
   `[edit:<path>]` tool that receives its code block.
+- `src/notepadpp/assistantEditTool.test.tsx`: the real edit tool over a fake
+  editor (prompt line, write, undo, refusals) and, on the desktop, Clippy
+  rewriting the open README and undoing it.
 - `src/controlpanel/AssistantApplet.test.tsx`: the model picker, download
   status and Forget model.
 - `tests/fuseos-lazy.test.ts`: the lazy-loading guard, source and build.

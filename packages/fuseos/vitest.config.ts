@@ -19,9 +19,9 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "json-summary", "html"],
       include: ["src/**"],
-      exclude: ["src/__mocks__/**", "src/main.tsx", "src/**/*.d.ts"],
-      // Phase A's skeleton; Phase C raises these to 95/95/95/85 once the Phase B packages land.
-      thresholds: { lines: 60, statements: 60, functions: 60, branches: 60 },
+      // Only the entry point (browser wiring), the LLM worker (runs in a Worker) and the test fakes are out.
+      exclude: ["src/__mocks__/**", "src/main.tsx", "src/llm/llmWorker.ts"],
+      thresholds: { lines: 95, statements: 95, functions: 95, branches: 85 },
     },
   },
 });

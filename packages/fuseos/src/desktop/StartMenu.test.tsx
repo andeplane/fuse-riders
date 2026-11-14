@@ -72,7 +72,7 @@ describe("StartMenu", () => {
     ).toHaveAttribute("src", "/fuse-riders/fuseos/game-icons/fuseball-16.png");
   });
 
-  it("lists the Control Panel applets under Settings and the accessories with Notepad++ pending", async () => {
+  it("lists the Control Panel applets under Settings and the accessories in registry order", async () => {
     const user = userEvent.setup();
     renderWithProviders(<Desktop />);
     const menu = await openStartMenu(user);
@@ -103,14 +103,19 @@ describe("StartMenu", () => {
       within(accessories)
         .getAllByRole("menuitem")
         .map((item) => item.textContent),
-    ).toEqual(["Paint", "Winamp", "Notepad++", "Change desktop background"]);
+    ).toEqual([
+      "Paint",
+      "Winamp",
+      "Notepad++",
+      "Windows Explorer",
+      "Change desktop background",
+    ]);
     expect(
       within(accessories).getByRole("menuitem", { name: "Notepad++" }),
-    ).toBeDisabled();
-    // Nothing registers My Computer in this build either: the item is there, disabled.
+    ).toBeEnabled();
     expect(
       within(menu).getByRole("menuitem", { name: "My Computer" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
   });
 
   it("opens a registered program and fills My Computer from the registry", async () => {
@@ -179,7 +184,7 @@ describe("StartMenu", () => {
 
     await user.keyboard("{ArrowDown}");
     expect(
-      within(menu).getByRole("menuitem", { name: "Settings" }),
+      within(menu).getByRole("menuitem", { name: "My Computer" }),
     ).toHaveFocus();
     await user.keyboard("{ArrowUp}{ArrowUp}");
     expect(
@@ -226,10 +231,10 @@ describe("StartMenu", () => {
 
     await choose(user, "Programs", "Accessories", "Winamp");
     expect(
-      await screen.findByRole("dialog", { name: "Winamp" }),
+      await screen.findByRole("region", { name: "Winamp" }),
     ).toBeInTheDocument();
     await choose(user, "Programs", "Accessories", "Winamp");
-    expect(screen.getAllByRole("dialog", { name: "Winamp" })).toHaveLength(1);
+    expect(screen.getAllByRole("region", { name: "Winamp" })).toHaveLength(1);
 
     await choose(user, "Programs", "Accessories", "Change desktop background");
     expect(

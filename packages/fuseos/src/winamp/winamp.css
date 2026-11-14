@@ -1,37 +1,18 @@
+/* Winamp runs frameless on the desktop: Webamp's own skin, title bars and dragging, nothing of
+   FuseOS around it. The layer covers the desktop and lets the pointer through everywhere except
+   Webamp's windows, so the icons and windows underneath stay usable. */
+.winamp-layer {
+  pointer-events: none;
+}
+
+.winamp-layer .window,
+.winamp-layer .winamp-status {
+  pointer-events: auto;
+}
+
 /* The skin already provides its own edges. 98.css's generic .window padding and
    shadow would otherwise enlarge every internal panel beyond Webamp's bounds. */
-.winamp-embed #webamp .window {
+.winamp-layer #webamp .window {
   padding: 0;
   box-shadow: none;
-}
-
-.winamp-video-player {
-  background: #232238;
-  color: #d7d7b4;
-  border: 2px groove #696574;
-}
-
-.winamp-video-player > p:first-child {
-  color: #c8c5a7;
-  font-weight: bold;
-  text-align: center;
-  letter-spacing: 1px;
-}
-
-.winamp-video-player [role="listbox"] {
-  background: #08090c;
-}
-
-.win98 .winamp-video-player [role="option"] {
-  color: #00ef30;
-}
-
-.winamp-video-player .status-bar-field {
-  background: #08090c;
-  color: #00ef30;
-}
-
-.winamp-youtube-native #equalizer-button {
-  pointer-events: none;
-  opacity: 0.4;
 }

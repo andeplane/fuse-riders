@@ -12,7 +12,7 @@ import {
 import { Desktop } from "./Desktop";
 
 describe(Desktop.name, () => {
-  it("boots to a desktop with Fusteam, one icon per Fuse game, then Paint, Winamp and Control Panel, a taskbar and the clock", () => {
+  it("boots to a desktop with Fusteam, My Computer, one icon per Fuse game, then Paint, Winamp and Control Panel, a taskbar and the clock", () => {
     renderWithProviders(<Desktop />);
     const icons = within(screen.getByRole("list", { name: "Desktop icons" }));
     expect(
@@ -21,6 +21,7 @@ describe(Desktop.name, () => {
         .map((item) => item.lastElementChild?.textContent),
     ).toEqual([
       "Fusteam",
+      "My Computer",
       "Fuseball",
       "Fuse Riders",
       "Fuse Birds",
@@ -85,8 +86,9 @@ describe(Desktop.name, () => {
     });
     const menu = await screen.findByRole("menu", { name: "Context menu" });
     await user.click(within(menu).getByRole("menuitem", { name: "Open" }));
+    // Winamp is frameless: Webamp's own windows on a desktop layer, not a FuseOS dialog.
     expect(
-      await screen.findByRole("dialog", { name: "Winamp" }),
+      await screen.findByRole("region", { name: "Winamp" }),
     ).toBeInTheDocument();
 
     screen.getByRole("button", { name: "Control Panel" }).focus();
