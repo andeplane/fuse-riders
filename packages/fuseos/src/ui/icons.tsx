@@ -133,6 +133,37 @@ export type Win98IconProps = {
   className?: string;
 };
 
+/** A bitmap icon served by the site: a 64x64 image shown at 32px, and a 32x32 one (`smallSrc`) shown at 16px. */
+export type ImageIcon = { kind: "image"; src: string; smallSrc: string };
+
+/** Anything the desktop, Start menu, a title bar or the taskbar can show as an icon. */
+export type IconRef = IconName | ImageIcon;
+
+export type AppIconProps = {
+  icon: IconRef;
+  size?: 16 | 32;
+  className?: string;
+};
+
+/** Draws an `IconRef`: a named icon from the set, or a bitmap at its native size for the slot. */
+export function AppIcon({ icon, size = 16, className }: AppIconProps) {
+  if (typeof icon === "string")
+    return <Win98Icon name={icon} size={size} className={className} />;
+  return (
+    <img
+      src={size === 32 ? icon.src : icon.smallSrc}
+      width={size}
+      height={size}
+      alt=""
+      aria-hidden
+      draggable={false}
+      data-icon="image"
+      className={className}
+      style={{ flexShrink: 0 }}
+    />
+  );
+}
+
 export function Win98Icon({ name, size = 16, className }: Win98IconProps) {
   const Icon = ICONS[name];
   return (

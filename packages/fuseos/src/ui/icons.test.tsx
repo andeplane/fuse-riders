@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 
-import { Win98Icon } from "./icons";
+import { AppIcon, Win98Icon } from "./icons";
 
 describe(Win98Icon.name, () => {
   it("renders an svg with the requested size", () => {
@@ -43,5 +43,36 @@ describe(Win98Icon.name, () => {
     expect(container.querySelector("svg")?.getAttribute("data-icon")).toBe(
       "winamp",
     );
+  });
+});
+
+describe(AppIcon.name, () => {
+  const image = {
+    kind: "image",
+    src: "/fuseos/game-icons/fuseball.png",
+    smallSrc: "/fuseos/game-icons/fuseball-16.png",
+  } as const;
+
+  it("draws a named icon from the set", () => {
+    const { container } = render(<AppIcon icon="computer" size={32} />);
+    const svg = container.querySelector("svg");
+    expect(svg?.getAttribute("data-icon")).toBe("computer");
+    expect(svg?.getAttribute("width")).toBe("32");
+  });
+
+  it("draws a bitmap icon with the small file at 16px and the large one at 32px, hidden from assistive tech", () => {
+    const small = render(<AppIcon icon={image} />).container.querySelector(
+      "img",
+    );
+    expect(small).toHaveAttribute("src", image.smallSrc);
+    expect(small).toHaveAttribute("width", "16");
+    expect(small).toHaveAttribute("alt", "");
+    expect(small).toHaveAttribute("aria-hidden", "true");
+    const large = render(
+      <AppIcon icon={image} size={32} className="x" />,
+    ).container.querySelector("img");
+    expect(large).toHaveAttribute("src", image.src);
+    expect(large).toHaveAttribute("height", "32");
+    expect(large).toHaveClass("x");
   });
 });

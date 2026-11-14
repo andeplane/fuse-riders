@@ -1,3 +1,4 @@
+import { createTopBar } from "fuse-ui";
 import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
@@ -135,7 +136,21 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     search: location.search,
   });
   bar.append(portal.element, brand, social.element(), ...extra);
-  return bar;
+  return createTopBar({
+    element: bar,
+    gameId: GAME,
+    sound: {
+      forcedMute: query.has("mute"),
+      enabled: () =>
+        store.getItem(names.music) !== "0" ||
+        store.getItem(names.effects) !== "0",
+      setEnabled: (on) => {
+        if (query.has("mute")) return;
+        store.setItem(names.music, on ? "1" : "0");
+        store.setItem(names.effects, on ? "1" : "0");
+      },
+    },
+  });
 }
 function keyHelp(): HTMLElement {
   const box = el("div", "", "fa-keys");
@@ -267,27 +282,7 @@ function room(solo: boolean): void {
   });
   // Sound: this browser's MUSIC and EFFECTS choices, kept; `?mute` silences the page and leaves them alone.
   const muted = query.has("mute"),
-    audio = new AxeAudio(new WebAudioBackend(), store, names, muted);
-  const soundToggle = (
-    label: string,
-    on: () => boolean,
-    set: (on: boolean) => void,
-  ) => {
-    const toggle = button("", "fa-sound");
-    const show = () => {
-      setText(toggle, `${label} ${on() ? "ON" : "OFF"}`);
-      toggle.setAttribute("aria-pressed", String(on()));
-    };
-    toggle.disabled = muted;
-    if (muted) toggle.title = "Silenced by ?mute";
-    toggle.onclick = () => {
-      set(!on());
-      show();
-      toggle.blur(); // Space or Enter steers the hero, never toggles it again.
-    };
-    show();
-    return toggle;
-  };
+    audio = new AxeAudio(new WebAudioBackend(true), store, names, muted);
   // Browsers hold audio until a gesture; every gesture retries, since a phone can suspend it again later.
   for (const type of ["pointerdown", "keydown", "touchend"] as const)
     window.addEventListener(type, () => audio.unlock(), {
@@ -298,18 +293,25 @@ function room(solo: boolean): void {
     el("strong", code, "fa-code"),
     status.element,
     tvInvite,
-    soundToggle(
-      "♫ MUSIC",
-      () => audio.music,
-      (on) => audio.setMusic(on),
-    ),
-    soundToggle(
-      "EFFECTS",
-      () => audio.effects,
-      (on) => audio.setEffects(on),
-    ),
     menu.element,
   ]);
+
+  createTopBar({
+    element: top,
+    sound: {
+      enabled: () => audio.music || audio.effects,
+      forcedMute: muted,
+      setEnabled: (on) => {
+        audio.setMusic(on);
+        audio.setEffects(on);
+        if (on) audio.unlock();
+      },
+    },
+    onOpenChange: (open) => {
+      if (open) letGo();
+    },
+  });
+  const modalOpen = () => Boolean(document.querySelector("dialog[open]"));
 
   // The lobby: who is here and which hero each plays; this device's pick, and the host's START.
   const lobby = el("section", "", "fa-lobby"),
@@ -430,7 +432,7 @@ function room(solo: boolean): void {
   for (const side of ["up", "down", "left", "right"])
     dpadPad.append(el("i", "", `fa-dpad-${side}`));
   const dpad = new DPad(dpadPad, (bits) => {
-    if (menu.isOpen() && bits !== 0) return;
+    if ((menu.isOpen() || modalOpen()) && bits !== 0) return;
     controls.hold("dpad", bits);
     dpadPad.dataset.dir = directionName(bits);
   });
@@ -439,7 +441,7 @@ function room(solo: boolean): void {
     window.addEventListener(type, (event) => dpad.lift(event.pointerId));
   const fightPads = createControllerRow({
     buttons: padButtons((source, bits) => {
-      if (!menu.isOpen()) controls.hold(source, bits);
+      if (!menu.isOpen() && !modalOpen()) controls.hold(source, bits);
     }),
     className: "fui-controller fa-buttons",
   }).element;
@@ -589,7 +591,9 @@ function room(solo: boolean): void {
     // A room that has ended draws nothing more, so its loop ends with it.
     if (over) return;
     // A hidden page, or the phone's MENU open over the pads, reads no gamepad: it must not steer from behind them.
-    gamepads.poll(!document.hidden && !phone.blocked() && !menu.isOpen());
+    gamepads.poll(
+      !document.hidden && !phone.blocked() && !menu.isOpen() && !modalOpen(),
+    );
     const world = stage.hidden ? null : drawn(runtime.frameTiming());
     if (world) {
       scene.draw(native, world, Math.floor((now * 60) / 1000), model?.hud);
@@ -881,7 +885,9 @@ function room(solo: boolean): void {
     target instanceof HTMLTextAreaElement ||
     (target instanceof HTMLButtonElement && !model?.playing);
   document.addEventListener("keydown", (event) => {
-    if (controls.down(event, menu.isOpen() || typing(event.target)))
+    if (
+      controls.down(event, menu.isOpen() || modalOpen() || typing(event.target))
+    )
       event.preventDefault();
   });
   document.addEventListener("keyup", (event) => {

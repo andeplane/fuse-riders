@@ -28,9 +28,9 @@ five-player sustained soak content already covered by
 
 ## Prerequisites
 
-- **Public URL**: <https://andeplane.github.io/fuse-riders/>. Immediately
+- **Public URL**: <https://andeplane.github.io/fuse-games/>. Immediately
   before each test session, fetch
-  `https://andeplane.github.io/fuse-riders/release.json` and record
+  `https://andeplane.github.io/fuse-games/release.json` and record
   `gitRevision`, `verifiedCiRun`, `apiOrigin` and `builtAt` — this is the
   build under test, not whatever commit is currently on `main`. Cross-check
   against [ROADMAP.md](ROADMAP.md) / [PUBLIC-BETA-2026-09-14.md](PUBLIC-BETA-2026-09-14.md)

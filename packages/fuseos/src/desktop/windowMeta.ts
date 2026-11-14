@@ -1,12 +1,12 @@
 import type { FuseGameRegistry } from "../fusegames/registry";
 import { GAMES } from "../retro/games";
 import type { WindowState } from "../state/appState";
-import type { IconName } from "../ui/icons";
+import type { IconRef } from "../ui/icons";
 import type { Size } from "../windows/windowManager";
 
 export type WindowMeta = {
   title: string;
-  icon: IconName;
+  icon: IconRef;
   resizable: boolean;
   size?: Size;
 };
@@ -34,16 +34,18 @@ export const OS_NAME = "FuseOS";
 /** Title bar text and icon for each window kind. */
 export function windowMeta(
   window: WindowState,
-  games: Pick<FuseGameRegistry, "find">,
+  games: Pick<FuseGameRegistry, "find" | "icon">,
 ): WindowMeta {
   switch (window.kind) {
-    case "fusegame":
+    case "fusegame": {
+      const game = games.find(window.gameId);
       return {
-        title: games.find(window.gameId)?.name ?? window.gameId,
-        icon: "fusegame",
+        title: game?.name ?? window.gameId,
+        icon: (game && games.icon(game)) ?? "fusegame",
         resizable: true,
         size: FUSE_GAME_WINDOW_SIZE,
       };
+    }
     case "retro":
       return {
         title: GAMES[window.game].name,

@@ -1,73 +1,49 @@
 /*
- * The FuseOS boot screen: the splash picture over black, the progress band scrolling along the
- * bottom edge the way the Windows 95 boot screen's did. Class names carry the fuseos- prefix so
- * nothing in styles.css applies here by accident.
+ * The Windows 98 style boot screen: the cloud splash (`assets/boot-splash.jpg`) over its sky
+ * blue, and the blue band sliding along the bottom edge forever. Class names carry the boot-
+ * prefix and live here, next to the component, so nothing in styles.css applies by accident.
  */
 
-.fuseos-boot {
+.boot-splash {
+  animation: boot-fade-in 700ms ease-out both;
+}
+
+/* The bar along the bottom edge: a blue gradient block that slides across forever. */
+.boot-bar {
+  height: 12px;
   background: #000;
-  color: #dfe9ff;
-  font-family: "Pixelated MS Sans Serif", Arial, sans-serif;
-}
-
-.fuseos-boot-splash {
-  width: min(100%, 960px);
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: fuseos-boot-fade-in 700ms ease-out both;
-}
-
-.fuseos-boot-splash svg {
-  max-height: 100%;
-}
-
-.fuseos-boot-status {
-  margin: 0 0 18px;
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  text-shadow: 0 0 10px rgba(22, 231, 255, 0.6);
-  animation: fuseos-boot-fade-in 900ms ease-out both;
-}
-
-/* The bar along the bottom edge: black, with a neon band sliding across it forever. */
-.fuseos-boot-bar {
-  height: 14px;
-  width: 100%;
-  background: #000;
-  border-top: 2px solid #1a1a3f;
   overflow: hidden;
 }
 
-.fuseos-boot-band {
-  width: 22%;
+.boot-bar-glow {
+  width: 20%;
   height: 100%;
   background: linear-gradient(
     90deg,
     transparent 0%,
-    #16e7ff 30%,
-    #ffffff 50%,
-    #ff2e9d 70%,
+    #0b2a6b 25%,
+    #4a8fff 50%,
+    #9ec5ff 60%,
+    #4a8fff 70%,
+    #0b2a6b 85%,
     transparent 100%
   );
-  animation: fuseos-boot-slide 1.6s linear infinite;
+  animation: boot-bar-slide 1.8s linear infinite;
 }
 
-@keyframes fuseos-boot-slide {
+@keyframes boot-bar-slide {
   from {
     transform: translateX(-100%);
   }
   to {
-    transform: translateX(455%);
+    transform: translateX(500%);
   }
 }
 
-@keyframes fuseos-boot-fade-in {
+@keyframes boot-fade-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -77,13 +53,12 @@
 
 /* A still band for people who asked their system for less motion; the screen still reads as "loading". */
 @media (prefers-reduced-motion: reduce) {
-  .fuseos-boot-band {
+  .boot-bar-glow {
     width: 100%;
     animation: none;
   }
 
-  .fuseos-boot-splash,
-  .fuseos-boot-status {
+  .boot-splash {
     animation: none;
   }
 }

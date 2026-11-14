@@ -136,9 +136,7 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
     entrance.searchParams.set("mute", "");
     await host.goto(entrance.href);
     await openPlayOptions(host);
-    await host
-      .getByRole("button", { name: "CREATE ROOM", exact: true })
-      .click();
+    await host.getByRole("button", { name: "Host room", exact: true }).click();
     await host.waitForURL(/room=/);
     await takeHostSeat(host, "Host");
     await host.locator(".room-riders > .room-rider").first().waitFor();

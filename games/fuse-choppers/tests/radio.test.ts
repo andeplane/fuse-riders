@@ -67,6 +67,21 @@ function setup({ muted = false, autoStart = false, saved = "null" } = {}) {
     },
   };
 }
+test("master mute resumes the selected playing radio and cannot override preview mute", () => {
+  const active = setup({ autoStart: true });
+  active.radio.unlock();
+  assert.equal(active.plays, 1);
+  active.radio.setMuted(true);
+  assert.ok(active.pauses > 0);
+  active.radio.setMuted(false);
+  assert.equal(active.plays, 2);
+  active.radio.destroy();
+  const preview = setup({ muted: true, autoStart: true });
+  preview.radio.setMuted(false);
+  preview.radio.unlock();
+  assert.equal(preview.plays, 0);
+  preview.radio.destroy();
+});
 
 test("desktop unlock starts once; touch is opt-in and pause survives navigation", () => {
   const desktop = setup({ autoStart: true });

@@ -34,6 +34,17 @@ class Player implements MusicPlayer {
     this.loads++;
   }
 }
+test("master mute preserves an opted-in radio for unmute", () => {
+  const { document } = parseHTML("<html><body></body></html>");
+  const player = new Player(),
+    radio = createRadio(document, "/", player);
+  radio.element.querySelector("button")!.click();
+  radio.setMuted(true);
+  assert.equal(player.pauses, 1);
+  radio.setMuted(false);
+  assert.equal(player.plays, 2);
+  radio.destroy();
+});
 
 test("radio is opt-in, advances shared tracks, suppresses controllers and disposes playback", async () => {
   const { document } = parseHTML("<html><body></body></html>");
@@ -41,12 +52,17 @@ test("radio is opt-in, advances shared tracks, suppresses controllers and dispos
     radio = createRadio(document, "/arcade/", player);
   const [toggle, next] = radio.element.querySelectorAll("button");
   assert.equal(player.plays, 0);
-  assert.equal(player.src, "/arcade/music/pixel-sax-parade.m4a");
+  assert.equal(
+    player.src,
+    "",
+    "the common player does not fetch before opt-in",
+  );
   next!.click();
   assert.equal(player.plays, 0);
-  assert.match(player.src, /coin-op/);
+  assert.equal(player.src, "", "choosing while paused does not fetch a song");
   toggle!.click();
   assert.equal(player.plays, 1);
+  assert.match(player.src, /coin-op/);
   const audio = document.createElement("audio");
   player.onended!.call(audio, new Event("ended"));
   assert.equal(player.plays, 2);

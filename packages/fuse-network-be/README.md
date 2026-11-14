@@ -14,20 +14,22 @@ startGcpRoomService({
 });
 ```
 
-| Route                       |                                                                                                                               |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `POST /api/rooms`           | new room → `{ code, token }`; the token is the creator's identity; `?gameId=` names the game (see below)                      |
-| `GET /api/rooms/:code/ws`   | first frame `{"type":"auth","token","gameId"?}`, then admission, roster, `signal` forwarding, `time` probes and lease renewal |
-| `GET /api/rooms/:code/ice`  | STUN servers, members only (`Authorization: Bearer <token>`)                                                                  |
-| `POST /api/rooms/:code/end` | creator ends the room (`Authorization: Bearer <token>`)                                                                       |
-| `GET /healthz`              | gateway state                                                                                                                 |
+| Route                       |                                                                                                                                         |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/rooms`           | new room → `{ code, token }`; the token is the creator's identity; `?gameId=` names the game (see below)                                |
+| `GET /api/rooms/:code/ws`   | first frame `{"type":"auth","token","gameId"?,"resume"?}`, then admission, roster, `signal` forwarding, `time` probes and lease renewal |
+| `GET /api/rooms/:code/ice`  | STUN servers, members only (`Authorization: Bearer <token>`)                                                                            |
+| `POST /api/rooms/:code/end` | creator ends the room (`Authorization: Bearer <token>`)                                                                                 |
+| `GET /healthz`              | gateway state                                                                                                                           |
 
 Pieces, for other hosts: `RoomStore` (rules, over a `RoomDatabase`), `RoomGateway` (sockets, over a `RoomBus`),
 `createRoomServer` (HTTP + upgrade). `MemoryRoomDatabase`/`LocalRoomBus` and `FirestoreRoomDatabase`/`PubSubRoomBus`
-are the two provided pairs. `RoomStoreDependencies.maxGuests` and `fullMessage` set capacity (default: the creator
-plus five). When constructing `FirestoreRoomDatabase` directly, pass the same `maxGuests` as its third argument
-so stored metadata validation uses the admission limit; `startGcpRoomService` does this automatically. Limits must
-be non-negative safe integers below `Number.MAX_SAFE_INTEGER`. The Google client libraries are optional peers, needed only for `fuse-network-be/gcp`.
+are the two provided pairs. `RoomStoreDependencies.maxGuests` sets capacity (default: the creator plus five),
+`gameMaxGuests` sets it per game id where a game needs another size, and `fullMessage` is what a refused member is
+told (default `Room full`). When constructing `FirestoreRoomDatabase` directly, pass the same limits as its third
+argument (a number, or `roomGuestLimits(maxGuests, gameMaxGuests)`) so stored metadata validation uses the admission
+limit; `startGcpRoomService` does this automatically. Limits must be non-negative safe integers below
+`Number.MAX_SAFE_INTEGER`. The Google client libraries are optional peers, needed only for `fuse-network-be/gcp`.
 
 A room serves one game. `RoomStoreDependencies.gameIds` (and the same option on both services) lists the games the
 service hosts, default `LEGACY_GAME_ID` (`fuse-riders`) alone. A room is created for the `gameId` in the creation
@@ -35,7 +37,17 @@ query and stores it; a socket whose `auth` frame names another game is refused a
 an unhosted game cannot create a room. An absent `gameId` means `LEGACY_GAME_ID` on both sides, so clients and
 services from before rooms carried a game keep working with each other.
 
-Origin checks are not authentication; tokens are. Requests, query strings and frames are never logged.
+A dropped socket does not cost a member its seat. A socket that ends without a close frame, and every socket of
+an instance that is stopping, leaves its seat held for `RESUME_GRACE_MS` (8 s); a page that reconnects naming its
+connection id (`resume` in the first frame) is welcomed back under it and no other member is told, so the WebRTC
+links that page has stay up. A seat nobody resumed lapses with its lease and is pruned by any instance serving the
+room, which is when the others hear of it. See "Resuming a connection" in
+[PROTOCOL.md](../../docs/online/PROTOCOL.md).
+
+Origin checks are not authentication; tokens are. Requests, query strings and frames are never logged. `/ice` and
+`/end` read the room for any caller, so each address may make 30 of each at once and one more every two seconds
+(`AddressBudget`, kept per instance with no database call); past that they answer `429`. A page refused `/ice`
+uses the same STUN servers it would have been given.
 
 Room lifetime follows active membership: admission and valid member heartbeats
 extend the 90-second reconnect grace, including when the creator has left. A

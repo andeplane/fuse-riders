@@ -1,8 +1,8 @@
 # Fuse Riders
 
-## [Browse all games →](https://andeplane.github.io/fuse-riders/)
+## [Browse all games →](https://andeplane.github.io/fuse-games/)
 
-The site root is **FuseOS** (`packages/fuseos`), a Windows 95 desktop with an icon for each game listed in `games/<id>/portal.json`; a game opens in a window of its own, and `?open=<id>` boots straight into one. [Play Fuse Riders directly](https://andeplane.github.io/fuse-riders/fuse-riders/). Every game's app launcher has an **ALL GAMES** link back to the desktop. Existing root `?room=…`, `?solo=1` and `?display=1` links still open Riders.
+The site root is **FuseOS** (`packages/fuseos`), a Windows 95 desktop with an icon for each game listed in `games/<id>/portal.json`; a game opens in a window of its own, and `?open=<id>` boots straight into one. [Play Fuse Riders directly](https://andeplane.github.io/fuse-games/fuse-riders/). Every game's app launcher has an **ALL GAMES** link back to the desktop. Existing root `?room=…`, `?solo=1` and `?display=1` links still open Riders.
 
 **Play solo or with friends.** Every game shares the same main menu and lobby. **Play** creates a room; use **Join** to take a slot, **Add AI** for opponents and **Game settings** below the QR code for match options. **Join a room · Solo & local play** retains room-code entry, **PLAY SOLO** and **PLAY LOCAL** where supported. Solo and local controller play use no room service or WebRTC; refreshing starts a fresh run. In a room every device simulates the game, so any rider can refresh or drop and rejoin while the others keep playing. Online gameplay requires a direct WebRTC connection; unsupported networks show a retry state. Physical-phone qualification is still pending.
 
@@ -87,6 +87,15 @@ over the terrain on a bike that hangs from its wheels on springs, eat every appl
 follows Elasto Mania's (`docs/design/elasto-fuse-mechanics.md`); the twelve levels are its own. Ride alone against the
 clock, or race up to five riders through one level or the whole tour, online or on a shared TV with phones as
 controllers. See [games/elasto-fuse/README.md](games/elasto-fuse/README.md).
+
+## Fusemania
+
+**Fusemania** is a four-arrow rhythm game at `/fusemania/` (locally **http://localhost:8787/fusemania/**): hit the
+arrows on the beat of every song in the Fuse soundtrack, at four levels each. Charts are standard StepMania simfiles
+(`.sm` and `.ssc`), and a player can load their own. The arrows follow the audio clock and every key is judged at the
+song time it was pressed, so the timing holds on any frame rate and across a rollback. Play alone for a grade, or up
+to five in a room: Score Attack, or a Battle with power-ups that bend, hide and booby-trap the rivals' arrows. See
+[games/fusemania/README.md](games/fusemania/README.md).
 
 ## Menus and round controls
 
@@ -278,7 +287,7 @@ The online beta is deployed on **GitHub Pages, Cloud Run, Firestore (room metada
 
 The supported hosting model is GitHub Pages plus the Cloud Run room service; consult the deployment inventory for recorded endpoints and verify current external state before claiming publication. Local server processes and LAN addresses are ephemeral; read startup output rather than reusing a recorded PID or IP.
 
-See [GCP deployment instructions](docs/online/GCP-DEPLOY.md) and [the direct-only decision](docs/adr/035-direct-gameplay-only.md). The public [Play link](https://andeplane.github.io/fuse-riders/) connects to `https://fuse-riders-gateway-oaaqztec5a-ew.a.run.app`. The [deployment inventory](docs/online/GCP-INVENTORY.md) records the exact frontend/backend source, immutable image, runtime identity and completed public service checks.
+See [GCP deployment instructions](docs/online/GCP-DEPLOY.md) and [the direct-only decision](docs/adr/035-direct-gameplay-only.md). The public [Play link](https://andeplane.github.io/fuse-games/) connects to `https://fuse-riders-gateway-oaaqztec5a-ew.a.run.app`. The [deployment inventory](docs/online/GCP-INVENTORY.md) records the exact frontend/backend source, immutable image, runtime identity and completed public service checks.
 
 Release only through the GCP/Pages flow above. Complete the roadmap's review and verification requirements first, deploy a preview of the tested artifact, and verify it before promoting anything to production. See [the browser-hosted topology and the local stack](docs/online/DEPLOYMENT.md). Verify current provider quotas/pricing before enabling paid services. Keep claim URLs, room/host capabilities, cloud credentials and raw secret-bearing logs out of git, copied invites and public diagnostics.
 
@@ -332,7 +341,7 @@ rivalries. Atomic transactions keep profiles, Elo, per-match receipts and rivalr
 re-credit them. A room-incarnation/match-id/round claim prevents conflicting round variants from rating twice.
 
 **Deployment prerequisite:** apply the new ranked/Elo indexes in `firestore.indexes.json` and wait for readiness before
-shipping the gateway. [Issue #261](https://github.com/andeplane/fuse-riders/issues/261) owns automated configuration CD.
+shipping the gateway. [Issue #261](https://github.com/andeplane/fuse-games/issues/261) owns automated configuration CD.
 Client/service should ship together because peer checkpoints now carry optional combat counters; refresh peers before
 new games. See [the design and rollout notes](docs/design/PLAYER-STATS.md).
 
@@ -670,4 +679,4 @@ Accepted, not fixed:
 - **A request with no `Origin` header skips the origin check**, as on every other route. Origin checks stop other
   websites, not scripts; the credentials are what authenticate.
 
-Repository: [andeplane/fuse-riders](https://github.com/andeplane/fuse-riders). Contributions should use coherent atomic commits with relevant checks, documented evidence, and explicit limitations.
+Repository: [andeplane/fuse-games](https://github.com/andeplane/fuse-games). Contributions should use coherent atomic commits with relevant checks, documented evidence, and explicit limitations.

@@ -3,7 +3,7 @@ import type { Server } from "node:http";
 import { Firestore } from "@google-cloud/firestore";
 import { PubSub } from "@google-cloud/pubsub";
 import type { AuthClient } from "google-auth-library";
-import { RoomStore } from "../room-store.js";
+import { RoomStore, roomGuestLimits } from "../room-store.js";
 import { RoomGateway } from "../gateway.js";
 import { createRoomServer, type HttpExtension } from "../http.js";
 import { rateLimitAddress } from "../client-address.js";
@@ -25,7 +25,9 @@ export interface GcpRoomServiceOptions {
   defaultPrefix: string;
   /** Explicit credentials for a local smoke; Cloud Run uses its service account. */
   authClient?: AuthClient;
+  /** Room capacity, per game where a game needs its own, and its refusal text; see `RoomStoreDependencies`. */
   maxGuests?: number;
+  gameMaxGuests?: Readonly<Record<string, number>>;
   fullMessage?: string;
   /** The games this service hosts; see `RoomStoreDependencies.gameIds`. */
   gameIds?: readonly string[];
@@ -68,12 +70,13 @@ export function startGcpRoomService(options: GcpRoomServiceOptions): Server {
   const database = new FirestoreRoomDatabase(
     firestore,
     prefix,
-    options.maxGuests,
+    roomGuestLimits(options.maxGuests, options.gameMaxGuests),
   );
   const store = new RoomStore(database, {
     now: () => Date.now(),
     id: randomUUID,
     maxGuests: options.maxGuests,
+    gameMaxGuests: options.gameMaxGuests,
     fullMessage: options.fullMessage,
     gameIds: options.gameIds,
   });

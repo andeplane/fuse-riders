@@ -2,7 +2,7 @@ import { useContext } from "react";
 
 import { FuseGamesContext } from "../fusegames/registry";
 import type { WindowState } from "../state/appState";
-import { Win98Icon } from "../ui/icons";
+import { AppIcon, Win98Icon } from "../ui/icons";
 
 import { Clock } from "./Clock";
 import { windowMeta } from "./windowMeta";
@@ -56,7 +56,7 @@ export function Taskbar({
               aria-pressed={active}
               onClick={() => onWindowButton(window.id)}
             >
-              <Win98Icon name={meta.icon} />
+              <AppIcon icon={meta.icon} />
               <span className="truncate">{meta.title}</span>
             </button>
           );

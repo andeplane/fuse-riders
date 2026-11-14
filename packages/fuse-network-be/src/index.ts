@@ -3,6 +3,7 @@ export * from "./room-bus.js";
 export * from "./gateway.js";
 export * from "./http.js";
 export * from "./socket-auth.js";
+export * from "./address-budget.js";
 export * from "./client-address.js";
 export * from "./signal.js";
 export * from "./memory-database.js";

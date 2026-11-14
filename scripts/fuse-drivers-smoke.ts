@@ -1,4 +1,4 @@
-import { openPlayOptions } from "./lib/main-menu.js";
+import { openPlayOptions, takeHostSeat } from "./lib/main-menu.js";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { launchSelected } from "./lib/browser.js";
@@ -48,14 +48,12 @@ try {
     .getByRole("checkbox", { name: "Shared TV + phone controllers" })
     .check();
   await openPlayOptions(host);
-  await host.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
+  await host.getByRole("button", { name: "Host room", exact: true }).click();
   await host.waitForURL(/room=/);
   const code = new URL(host.url()).searchParams.get("room")!;
-  await host.getByPlaceholder("Your name").fill("Ada");
-  await host.getByRole("button", { name: "Join", exact: true }).click();
+  await takeHostSeat(host, "Ada");
   await peer.goto(new URL(`fuse-drivers/?room=${code}&mute`, origin).href);
-  await peer.getByPlaceholder("Your name").fill("Bo");
-  await peer.getByRole("button", { name: "Join", exact: true }).click();
+  await takeHostSeat(peer, "Bo");
   await host.locator(".fui-roster-name", { hasText: "Bo" }).waitFor();
   const displayUrl = await host
     .getByRole("link", { name: "OPEN TV DISPLAY" })

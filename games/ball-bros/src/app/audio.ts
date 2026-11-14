@@ -7,6 +7,11 @@ export class Audio {
     public muted: boolean,
     private readonly open: () => AudioContext = () => new AudioContext(),
   ) {}
+  setMuted(muted: boolean): void {
+    this.muted = muted;
+    if (muted) void this.context?.suspend();
+    else this.unlock();
+  }
   unlock(): void {
     if (!this.muted) {
       try {

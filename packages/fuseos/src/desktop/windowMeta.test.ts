@@ -17,18 +17,25 @@ const window = (content: WindowContent): WindowState => ({
 });
 
 describe(windowMeta.name, () => {
-  it("names a Fuse game window after the game, falling back to the id", () => {
+  it("names a Fuse game window after the game with its icon, falling back to the id and the generic icon", () => {
     expect(
       windowMeta(window({ kind: "fusegame", gameId: "fuseball" }), games),
     ).toEqual({
       title: "Fuseball",
-      icon: "fusegame",
+      icon: {
+        kind: "image",
+        src: "/fuse-riders/fuseos/game-icons/fuseball.png",
+        smallSrc: "/fuse-riders/fuseos/game-icons/fuseball-16.png",
+      },
       resizable: true,
       size: FUSE_GAME_WINDOW_SIZE,
     });
     expect(
-      windowMeta(window({ kind: "fusegame", gameId: "gone" }), games).title,
-    ).toBe("gone");
+      windowMeta(window({ kind: "fusegame", gameId: "fuse-riders" }), games),
+    ).toMatchObject({ title: "Fuse Riders", icon: "fusegame" });
+    expect(
+      windowMeta(window({ kind: "fusegame", gameId: "gone" }), games),
+    ).toMatchObject({ title: "gone", icon: "fusegame" });
   });
 
   it("gives each retro game its own icon and size", () => {

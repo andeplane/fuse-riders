@@ -3,7 +3,7 @@
  * with exact operations only (`math.ts`), so every device computes the same bits. A change to what any of it does,
  * the levels included, must bump `RULES` and re-record the golden (`tests/golden.test.ts`) in the same commit.
  */
-export const RULES = "elasto-fuse-1";
+export const RULES = "elasto-fuse-5";
 export * from "./input.js";
 export {
   DEAD,
@@ -13,7 +13,10 @@ export {
   createWorld,
   isLevel,
   levelOf,
+  advanceRider,
   ranking,
+  settleRace,
+  stepRider,
   stepWorld,
   type Phase,
   type Rider,
@@ -35,7 +38,9 @@ export { compile, inAir, levelProblem, type Level } from "./level.js";
 export { resetBike, stepBike, type Bike } from "./bike.js";
 export {
   CAPACITY,
+  CLOSE_LAG,
   COUNTDOWN,
+  RIDER_AHEAD,
   SOLO_COUNTDOWN,
   RACE_GRACE,
   RACE_LIMIT,
