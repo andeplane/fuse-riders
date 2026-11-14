@@ -26,10 +26,15 @@ Three levels: easy, medium and hard (`BOT_LEVELS`). They differ in how well a bo
 | `smart`      | 65   | 75     | 96   | Chance, in percent, that a decision is the considered one, not a lapse                                     |
 | `lead`       | 0    | 4      | 8    | Steps of the target's motion a hunter aims ahead by                                                        |
 | `flee`       | 0    | 70     | 70   | How far, in pixels, a Worker starts running from a military unit; 0 never runs                             |
-| `soldier`    | 50   | 50     | 50   | Chance, in percent, that a team's first Worker plans to become a Warrior                                   |
-| `rider`      | 40   | 35     | 30   | Chance, in percent, that a team's second Worker plans to ride the snail                                    |
+| `soldier`    | 50   | 50     | 60   | Chance, in percent, that a team's first Worker plans to become a Warrior                                   |
+| `rider`      | 40   | 35     | 15   | Chance, in percent, that a team's second Worker plans to ride the snail                                    |
 | `swing`      | 8    | 30     | 100  | Chance, in percent per step, that a flyer takes an opening to attack or dive that it sees                  |
 | `parry`      | 0    | 10     | 90   | Chance, in percent per step, that a flyer meets a sword coming at it with its own                          |
+| `contest`    | 0    | 300    | 200  | How far along toward the enemy's goal, in thousandths of the way, a free snail is ridden back; 0 never     |
+| `duel`       | no   | yes    | yes  | Whether a Queen with every egg goes for an enemy Queen that cannot answer                                  |
+| `carriers`   | 99   | 4      | 4    | Filled holes in the enemy hive from which flyers hunt berry carriers before anyone else; 99 never          |
+| `press`      | 99   | 8      | 8    | Filled holes in the enemy hive from which a Queen with a life to spare drops her caution; 99 never         |
+| `muster`     | 99   | 99     | 10   | Filled holes in the enemy hive from which a team without a Warrior turns its next berry into one; 99 never |
 
 A bot steers at where its target was when it last decided, so the reaction delay is also how stale its picture of the world is. Each bot also draws, once per round, how far it overestimates its sword's reach (half a unit to two units), so bots of one level do not all swing from the same distance.
 
@@ -42,11 +47,14 @@ At the start of a round each Worker bot draws a plan: the first Worker of a team
 In order, the first that applies:
 
 1. A military enemy within `flee` range: run away from it, jumping when it is close (considered decisions only, and not while invulnerable).
-2. Carrying a berry: a soldier takes it to the quickest warrior gate its team may use and stands still in it until the gate lets it out; a rider that has no speed yet does the same at a speed gate; anyone else banks it in the empty hole of its own hive that is quickest to touch.
+2. Carrying a berry: a soldier, or anyone on a team with no Warrior once the enemy hive has `muster` holes filled, takes it to the quickest warrior gate its team may use and stands still in it until the gate lets it out; a rider that has no speed yet does the same at a speed gate; anyone else banks it in the empty hole of its own hive that is quickest to touch.
 3. An enemy is riding the snail: the free Worker of the team that can reach the snail's mouth soonest walks into it, which halts the snail for the length of a meal.
-4. A rider whose snail is free: go and mount it.
-5. Otherwise fetch the berry that is quickest to reach, from a pile or lying loose.
-6. No berries left: ride the snail if it is free, else wait at the spawn.
+4. The snail stands free at least `contest` of the way toward the enemy's goal: the free Worker that reaches it soonest mounts it and rides it back.
+5. A rider whose snail is free: go and mount it.
+6. Otherwise fetch the berry that is quickest to reach, from a pile or lying loose.
+7. No berries left: ride the snail if it is free, else wait at the spawn.
+
+Distances are the real ones: a Worker counts the walk to each launch point and from each landing, goes the long way round a floor that spans the screen when a block stands in the short way, and treats a platform a block cuts in two as two places.
 
 A Worker on its way somewhere hops over the snail, since standing on it mounts, hops off if it mounted by accident, and hops over an enemy in its path rather than bump into it.
 
@@ -55,12 +63,19 @@ A Worker on its way somewhere hops over the snail, since standing on it mounts, 
 A decision that is not "considered" is a lapse. A Warrior in a lapse charges the nearest enemy, whatever it is. A Queen in a lapse drifts back over her own hive: she has the game to lose. A considered decision goes, in order:
 
 1. An enemy is riding the snail: hunt the rider. A Queen on her last life does not.
-2. A ready enemy sword too close: get away from it, sideways and up. "Ready" is a fighter whose attack is off cooldown or already lethal. A flyer whose own sword is ready stands its ground; one whose sword is cooling down gives way inside `awareness` range. A Queen always keeps 8 u from a ready sword, and looks further with every egg she has lost.
-3. Queen only: leave the line of a ready sword (level with it and within 4 u) and the column under the other Queen. A dash only goes sideways and a dive only down, so a step up, down or aside is enough.
-4. Warriors whose Queen is on her last life stay with her and meet whoever comes within 90 px of her.
-5. Queen only: claim the nearest gate her team does not own that no enemy fighter guards, unless a Worker to kill is closer. A gate with someone standing in it comes first; speed gates come last.
-6. Hunt: the enemy Queen first, then the nearest Warrior, then the nearest Worker (preferring one standing in a gate, then one carrying a berry). A target a bot teammate already hunts is left to it. A Queen goes for the other Queen only from within 40 px or while the other's sword is not ready, and not at all once she has lost an egg; on her last life she leaves Warriors alone too.
-7. Otherwise hover over the own hive.
+2. A ready enemy sword too close: get away from it, sideways and up. "Ready" is a fighter whose attack is off cooldown or already lethal. A flyer whose own sword is ready stands its ground; one whose sword is cooling down gives way inside `awareness` range. A Queen always keeps 8 u from a ready sword, which also keeps her out of the line of a dash and out from under a diving Queen, and looks further with every egg she has lost. The Queen she is duelling (below) does not count.
+3. Warriors whose Queen is on her last life stay with her and meet whoever comes within 90 px of her.
+4. Queen only: claim the nearest gate her team does not own that no enemy fighter guards, unless a Worker to kill is closer. A gate with someone standing in it comes first; speed gates come last.
+5. Hunt, in this order, leaving a target a bot teammate already hunts to it:
+   - the nearest berry carrier, once the enemy hive has `carriers` holes filled;
+   - the enemy Queen;
+   - the nearest Warrior;
+   - the nearest Worker, preferring one standing in a gate, then one carrying a berry.
+6. Otherwise hover over the own hive.
+
+A Queen is choosier about the enemy Queen than a Warrior is. With every egg left she goes for her when the other cannot answer (a duel, levels with `duel`): the other's sword is cooling down, she stands on a floor, where a dive from above meets no sword, or she faces away. Otherwise only from within 40 px. Once she has lost an egg she leaves the other Queen to her Warriors, and on her last life she leaves Warriors and carriers alone too. The exception is a hive about to be lost: from `press` filled holes a Queen with more than one egg plays as if she had lost none, and takes the duel against a ready sword as well.
+
+A Warrior that is over or under its target aims for a point 2 u beside it, since a sword only reaches sideways; a Queen comes in above a fighter or a rider to dive.
 
 So a bot Queen does not follow the plain target order: she evades and claims gates first.
 
@@ -78,21 +93,21 @@ Once it has decided to strike, a bot goes on wanting to for 10 steps, so a press
 
 Both tables are derived from the map and the tuning with integer arithmetic, once, and cached. They are not round state: every peer derives the same tables.
 
-- **Workers** use a graph of ledge-to-ledge moves. The graph is found, not drawn: from sample points along every platform, each plausible move (walk off, short jump, full jump, with a direction before and after the top of the arc) is flown through the real `moveUnit`. A move is kept only if it lands on the same platform from a pixel either side of its launch point too. Shortest routes are precomputed. A bot walks to a move's launch point, stops, and replays the same controls. There is one graph for plain Workers and one for speed Workers. Hive holes and piles that take a jump to touch are reached by the same kind of recorded move.
-- **Flyers** use a grid of cells with a shortest path between every pair of free cells, and head for the next cell on the way, or straight at the target once it is in the next cell. A flyer flaps when coasting would leave it below where it wants to be, and lets itself fall only as fast as it can still brake.
+- **Workers** use a graph of ledge-to-ledge moves. The graph is found, not drawn: from sample points along every platform, each plausible move (walk off, short jump, full jump, with a direction before and after the top of the arc) is flown through the real `moveUnit`. A move is kept only if it lands on the same platform from a pixel either side of its launch point too. Routes are precomputed per move: for every move and platform, the steps from that move's landing point to the platform, with every walk between a landing and the next launch counted at its real length. A bot takes the move that makes the whole way shortest from where it stands, so two moves can never send it back and forth. A bot walks to a move's launch point, stops, and replays the same controls. There is one graph for plain Workers and one for speed Workers. Hive holes and piles that take a jump to touch are reached by the same kind of recorded move.
+- **Flyers** use a grid of cells with a shortest path between every pair of free cells, and head for the next cell on the way, or straight at the target once it is in the next cell. A point inside a platform or in a gap too low to fly in stands for the nearest free cell in plain sight of it, not one on the far side of a platform. A flyer standing right over its next point walks off the nearer end of its platform. A flyer flaps when coasting would leave it below where it wants to be, and lets itself fall only as fast as it can still brake.
 
 Both are mirror-symmetric: the Worker graph keeps a move only together with its mirror image, and the grid search looks at a right-half target's neighbours in mirrored order, so neither team gets better routes.
 
 ## Tests
 
-`tests/bot-decisions.test.ts` puts a bot in a set situation and checks the decision it makes, and that the levels are ordered. `tests/bot-nav.test.ts` checks the navigation tables are their own mirror image on every map. `tests/bot-soak.test.ts` plays whole games on every map at every level with invariants checked on every step, checks a lone Worker fills its hive, a lone soldier becomes a Warrior, a lone rider rides home and a lone Queen claims gates, and runs the level ladder. `tests/engine-lessons.test.ts` checks that passive bots do nothing.
+`tests/bot-decisions.test.ts` puts a bot in a set situation and checks the decision it makes, and that the levels are ordered. `tests/bot-nav.test.ts` checks the navigation tables are their own mirror image on every map, that the route table agrees with itself (every move leaves less of the way than the one before it), the walks round blocks, and that a flyer in a gap is sent to a cell it can see. `tests/bot-soak.test.ts` plays whole games on every map at every level with invariants checked on every step, checks a lone Worker fills its hive, a lone soldier becomes a Warrior, a lone rider rides home and a lone Queen claims gates, runs the level ladder (the stronger level wins at least 28 of 40) and requires hard bots to beat a Queen whose player holds nothing in at least 27 of 30 games, at least 21 of them by military. `tests/engine-lessons.test.ts` checks that passive bots do nothing and that a learner alone finishes every lesson's objective on every map.
 
 ## Known weaknesses
 
-- Bots do not coordinate beyond the two Worker plans, the one-Worker snail stall, not doubling up on a target, and Warriors guarding a last-egg Queen. They never escort a rider or a berry carrier, and never guard a gate on purpose.
+- Bots do not coordinate beyond the two Worker plans, the one-Worker snail stall and ride-back, the mustered Warrior, not doubling up on a target, and Warriors guarding a last-egg Queen. They never escort a rider or a berry carrier, and never guard a gate on purpose.
 - Bots never kick a loose berry toward a hive on purpose. Kick-ins happen by accident.
 - A Queen never uses a gate claim to cancel a Worker's offer on purpose; she only prefers gates that are in use.
-- A Queen a person leaves standing is often not killed: bot Queens are careful, and Warriors are few, so such games are mostly decided by the snail or the hive.
+- Hard bots still bank too steadily on maps 2 and 3 for the military share the original has; see [balance.md](balance.md).
 - No bot flaps during a Warrior's dash to bend it, and none uses a head bounce on purpose.
 - Worker bots only make moves that are in the graph, so they do not improvise a jump from where they happen to stand.
 - The levels were tuned on bot-against-bot games only; see [balance.md](balance.md) for how far apart they are.

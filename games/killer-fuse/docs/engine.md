@@ -2,7 +2,7 @@
 
 The rules of Killer Fuse live in `games/killer-fuse/src/engine`, a headless simulation with no rendering, no network and no clock. The page, the online layer (`src/online`) and the headless runner (`scripts/killer-fuse-sim.ts`) all drive the same `stepRound`. The bots are described in [bots.md](bots.md) and the measured results in [balance.md](balance.md).
 
-Since rules version `killer-fuse-4` the engine follows Killer Queen Black throughout: its movement, its sword combat with an attack button, and its timings. One Black unit ("u") is 11 art pixels here. What is deliberately ours, and what could not be checked against the original, is listed under "Deliberate differences" and "Not verified" below.
+Since rules version `killer-fuse-4` (now `killer-fuse-5`, which changed only the bots and the lesson berry) the engine follows Killer Queen Black throughout: its movement, its sword combat with an attack button, and its timings. One Black unit ("u") is 11 art pixels here. What is deliberately ours, and what could not be checked against the original, is listed under "Deliberate differences" and "Not verified" below.
 
 ## Determinism
 
@@ -23,7 +23,7 @@ Everything is exported from `src/engine/index.ts`.
 
 | Export                                                         | What it is                                                                                   |
 | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `RULES = "killer-fuse-4"`                                      | Bumped on any behaviour change; peers on different rules refuse each other                   |
+| `RULES = "killer-fuse-5"`                                      | Bumped on any behaviour change; peers on different rules refuse each other                   |
 | `TICK_HZ = 60`, `MAX_PLAYERS = 6`, `S = 1024`, `UNIT = 11 * S` | Step rate, seats, subpixels per art pixel, one Black unit                                    |
 | `teamOf(slot)`, `isQueenSlot(slot)`                            | `slot % 2` and `slot < 2`: slots 0 and 1 are the Queens, 2 to 5 the Workers                  |
 | `createRound(options: RoundOptions): Round`                    | A new round: `{ seed, mapId?, botLevel?, humans?, teamLevels?, passive?, lesson? }`          |
@@ -148,7 +148,7 @@ Controls are a stick, a jump / flap button and an attack button. `pressed` and `
 Two options make a round fit for a lesson; both are deterministic and travel as room settings (see [online.md](online.md) for the room).
 
 - `passive: true`: every bot holds no controls. Nobody attacks the learner, the enemy Queen stays where she hatches, and bots draw nothing from the random stream.
-- `lesson`: `"berries"` and `"warrior"` lay one berry at rest two units from seat 2's spawn, on its own platform and clear of the other spawns (on map 2, whose spawn ledge is too short, the berry falls from beside the ledge to the level below). `"snail"` starts the snail a quarter of the way from Cyan's goal, facing it. `"queen"` changes nothing on the map. Gates are neutral at the start of every round and passive Queens claim none, so a warrior gate is always free.
+- `lesson`: `"berries"` and `"warrior"` lay one berry at rest two units from seat 2's spawn, on its own platform and clear of the other spawns (on map 2, whose spawn ledge is too short, the berry rests on the platform below that spot, where walking off the ledge lands the learner on it). `"snail"` starts the snail a quarter of the way from Cyan's goal, facing it. `"queen"` changes nothing on the map. Gates are neutral at the start of every round and passive Queens claim none, so a warrior gate is always free.
 
 The lessons are made for a Cyan learner: seat 2 for the Worker lessons, seat 0 for the Queen's.
 
@@ -212,9 +212,8 @@ A map is data (`maps.ts`): solid rectangles, hive holes per team, gates, berry p
 node --import tsx --test games/killer-fuse/tests/*.test.ts
 ```
 
-Line coverage of `src/engine` is 99.7% and branch coverage 98.9% (c8 over the engine, bot and architecture tests).
+Line coverage of `src/engine` is 100% and branch coverage 99.1% (c8 over the engine, bot and architecture tests).
 
 ## Open points
 
 - No person's play has been measured. Every figure in [balance.md](balance.md) comes from bots.
-- A Queen a person leaves standing is often not killed by bots before the snail or the hive decides the game.

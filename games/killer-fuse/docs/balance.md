@@ -1,43 +1,47 @@
 # Killer Fuse balance
 
-What the headless runner measures when bots play each other at rules `killer-fuse-4`, against the targets in [BRIEF.md](BRIEF.md). Every number here comes from bots; no person's play has been measured. Since this round the rules and values are Killer Queen Black's and were not tuned toward the targets: only the bots were. Several targets are missed, and they are listed as misses below.
+What the headless runner measures when bots play each other at rules `killer-fuse-5`, against the targets in [BRIEF.md](BRIEF.md). Every number here comes from bots; no person's play has been measured. The rules and values are Killer Queen Black's and were not tuned toward the targets: only the bots were. The targets that are still missed are listed as misses below.
 
 ## How to measure
 
 ```sh
-pnpm exec tsx scripts/killer-fuse-sim.ts --games 300 --level hard [--level-b medium] [--map 1] [--seed 20001] [--max-seconds 300] [--json]
+pnpm exec tsx scripts/killer-fuse-sim.ts --games 300 --level hard [--level-b medium] [--map 1] [--seed 20001] [--max-seconds 300] [--idle-queen] [--json]
 ```
 
 - Game `i` is seeded `seed + i`, so a run is reproducible.
 - With `--level-b` the two teams play at different levels and swap screen sides every game.
+- With `--idle-queen` side B's Queen is a seat whose player holds nothing, and side B swaps screen sides every game.
 - Every game is played twice and the two final state hashes must match; the run fails otherwise.
 - A game undecided after `--max-seconds` is counted as a timeout and left out of the win and length figures. At the default of 300 s that is exactly the games the engine's own clock would decide (by eggs, then berries, then the snail, then a coin flip).
 
-All results below are from revision `cced7bb3`, 300 games per row, seeds 20001 to 20300. With 300 games a share near 50% is uncertain by about 6 points either way (95%).
+All results below are from revision `c5003446`, 300 games per row, seeds 20001 to 20300, unless a row says otherwise. With 300 games a share near 50% is uncertain by about 6 points either way (95%), and one near 70% by about 5.
 
 ## Targets and results on map 1
 
-Hard against hard on map 1, "Day", is the reference matchup.
+Hard against hard on map 1, "Day", is the reference matchup. "Before" is revision `89834711` (rules `killer-fuse-4`).
 
-| Target                                                               | Measured           | Met              |
-| -------------------------------------------------------------------- | ------------------ | ---------------- |
-| Win mix 62 / 24 / 14 military, economy, snail, each within 10 points | 47.3 / 20.7 / 32.0 | No               |
-| Median game 68 to 84 s                                               | 61.0 s             | No               |
-| Side balance 47 to 53% for the left team                             | 51.3%              | Yes              |
-| 3 to 4 Queen deaths per game                                         | 2.53               | No               |
-| Hard beats medium in at least 70%                                    | 73.3%              | Yes              |
-| Medium beats easy in at least 70%                                    | 70.0%              | Yes, on the line |
-| No games reaching the clock                                          | 0 of 300           | Yes              |
+| Target                                                               | Before             | Now                | Met                                           |
+| -------------------------------------------------------------------- | ------------------ | ------------------ | --------------------------------------------- |
+| Win mix 62 / 24 / 14 military, economy, snail, each within 10 points | 47.3 / 20.7 / 32.0 | 71.7 / 17.7 / 10.7 | Yes at 300 games; military 1.5 over at 10,000 |
+| Median game 68 to 84 s                                               | 61.0 s             | 73.2 s             | Yes                                           |
+| Side balance 47 to 53% for the left team                             | 51.3%              | 51.7%              | Yes (50.2% over 10,000 games)                 |
+| 3 to 4 Queen deaths per game                                         | 2.53               | 3.45               | Yes                                           |
+| Hard beats medium in at least 70%                                    | 73.3%              | 86.3%              | Yes                                           |
+| Medium beats easy in at least 70%                                    | 70.0%              | 78.7%              | Yes                                           |
+| No games reaching the clock                                          | 0 of 300           | 0 of 300           | Yes                                           |
+| Hard bots beat a Queen whose player holds nothing, mostly by eggs    | 66.8%, 46% by eggs | 93.0%, 89% by eggs | Yes                                           |
 
 ```
 Killer Fuse, map 1: 300 games, hard against hard, seeds 20001..20300
 decided 300, timeouts 0
-side wins: left (team 0) 154 (51.3%), right (team 1) 146 (48.7%)
-win kinds: military 142 (47.3%), economy 62 (20.7%), snail 96 (32%)
-length: median 61 s, mean 67.5 s, p90 111.3 s
-per game: Queen deaths 2.53, other kills 10.95, berries banked 10.73 (kicked in 0.15), gate uses 2.55, snail mounts 2.44, snail meals 0.24
+side wins: left (team 0) 155 (51.7%), right (team 1) 145 (48.3%)
+win kinds: military 215 (71.7%), economy 53 (17.7%), snail 32 (10.7%)
+length: median 73.2 s, mean 77.7 s, p90 124.4 s
+per game: Queen deaths 3.45, other kills 14.41, berries banked 12.28 (kicked in 0.15), gate uses 3.13, snail mounts 2.3, snail meals 0.26
 determinism: every seed played twice, final hashes equal
 ```
+
+Over 10,000 games (seeds 100001 to 110000, each played once) the same matchup reads 73.5 / 15.2 / 11.3, median 72.5 s, 3.49 Queen deaths, left side 50.2%. The 300-game mix is inside its own noise of that; the larger sample puts the military share 11.5 points above the target, so that one figure is a miss by 1.5 points.
 
 ## Every matchup, every map
 
@@ -45,55 +49,85 @@ determinism: every seed played twice, final hashes equal
 
 | Map | Matchup         | Stronger wins | Mix                | Median | p90     | QD   | Side  | Clock |
 | --- | --------------- | ------------- | ------------------ | ------ | ------- | ---- | ----- | ----- |
-| 1   | hard v hard     |               | 47.3 / 20.7 / 32.0 | 61.0 s | 111.3 s | 2.53 | 51.3% | 0     |
-| 1   | medium v medium |               | 40.0 / 18.7 / 41.3 | 48.5 s | 82.0 s  | 2.27 | 45.7% | 0     |
-| 1   | easy v easy     |               | 36.0 / 12.7 / 51.3 | 52.2 s | 83.9 s  | 2.30 | 50.0% | 0     |
-| 1   | hard v medium   | 73.3%         | 35.7 / 24.3 / 40.0 | 54.7 s | 89.6 s  | 2.10 | 48.0% | 0     |
-| 1   | medium v easy   | 70.0%         | 36.0 / 18.3 / 45.7 | 47.2 s | 80.1 s  | 2.17 | 46.7% | 0     |
-| 1   | hard v easy     | 83.3%         | 35.3 / 30.3 / 34.3 | 54.7 s | 84.6 s  | 1.79 | 48.7% | 0     |
-| 2   | hard v hard     |               | 25.6 / 46.5 / 27.9 | 78.6 s | 121.2 s | 1.71 | 52.2% | 3     |
-| 2   | medium v medium |               | 44.7 / 18.0 / 37.3 | 55.6 s | 84.3 s  | 2.13 | 55.0% | 0     |
-| 2   | easy v easy     |               | 40.3 / 19.0 / 40.7 | 62.2 s | 92.4 s  | 2.29 | 51.3% | 0     |
-| 2   | hard v medium   | 84.3%         | 38.3 / 35.7 / 26.0 | 62.5 s | 89.0 s  | 1.84 | 51.7% | 0     |
-| 2   | medium v easy   | 75.7%         | 40.7 / 23.7 / 35.7 | 56.4 s | 90.4 s  | 2.07 | 53.0% | 0     |
-| 2   | hard v easy     | 95.7%         | 42.0 / 37.7 / 20.3 | 57.4 s | 85.1 s  | 1.81 | 49.7% | 0     |
-| 3   | hard v hard     |               | 35.9 / 46.6 / 17.4 | 83.7 s | 126.3 s | 2.31 | 53.4% | 2     |
-| 3   | medium v medium |               | 63.3 / 21.7 / 15.0 | 71.2 s | 105.4 s | 2.86 | 47.3% | 0     |
-| 3   | easy v easy     |               | 59.0 / 20.3 / 20.7 | 73.7 s | 99.6 s  | 2.91 | 51.7% | 0     |
-| 3   | hard v medium   | 87.0%         | 54.3 / 34.3 / 11.3 | 68.1 s | 107.6 s | 2.40 | 51.0% | 0     |
-| 3   | medium v easy   | 88.3%         | 56.7 / 33.0 / 10.3 | 64.5 s | 102.7 s | 2.55 | 49.0% | 0     |
-| 3   | hard v easy     | 98.7%         | 52.3 / 37.0 / 10.7 | 58.8 s | 88.9 s  | 2.12 | 49.3% | 0     |
+| 1   | hard v hard     |               | 71.7 / 17.7 / 10.7 | 73.2 s | 124.4 s | 3.45 | 51.7% | 0     |
+| 1   | medium v medium |               | 49.0 / 17.3 / 33.7 | 53.3 s | 87.7 s  | 2.82 | 49.3% | 0     |
+| 1   | easy v easy     |               | 35.7 / 15.7 / 48.7 | 56.1 s | 85.4 s  | 2.31 | 49.3% | 0     |
+| 1   | hard v medium   | 86.3%         | 66.3 / 19.7 / 14.0 | 52.2 s | 95.1 s  | 3.10 | 51.0% | 0     |
+| 1   | medium v easy   | 78.7%         | 46.0 / 17.7 / 36.3 | 48.6 s | 78.4 s  | 2.46 | 46.7% | 0     |
+| 1   | hard v easy     | 98.0%         | 72.7 / 18.7 / 8.7  | 39.1 s | 80.2 s  | 2.76 | 49.3% | 0     |
+| 2   | hard v hard     |               | 51.7 / 37.0 / 11.3 | 94.3 s | 137.3 s | 3.02 | 49.3% | 0     |
+| 2   | medium v medium |               | 37.7 / 24.7 / 37.7 | 62.0 s | 110.2 s | 2.36 | 55.7% | 0     |
+| 2   | easy v easy     |               | 34.0 / 20.3 / 45.7 | 61.1 s | 96.9 s  | 2.12 | 53.3% | 0     |
+| 2   | hard v medium   | 90.3%         | 56.0 / 32.3 / 11.7 | 65.8 s | 108.5 s | 2.67 | 51.7% | 0     |
+| 2   | medium v easy   | 73.3%         | 40.3 / 23.7 / 36.0 | 56.7 s | 89.8 s  | 2.23 | 51.3% | 0     |
+| 2   | hard v easy     | 96.7%         | 66.3 / 20.3 / 13.3 | 43.0 s | 82.7 s  | 2.61 | 51.3% | 0     |
+| 3   | hard v hard     |               | 47.3 / 41.7 / 11.0 | 78.8 s | 111.1 s | 2.95 | 53.0% | 0     |
+| 3   | medium v medium |               | 58.3 / 20.3 / 21.3 | 67.2 s | 93.5 s  | 3.06 | 47.3% | 0     |
+| 3   | easy v easy     |               | 40.7 / 24.7 / 34.7 | 72.2 s | 90.5 s  | 2.55 | 47.0% | 0     |
+| 3   | hard v medium   | 90.0%         | 66.3 / 25.7 / 8.0  | 61.4 s | 93.4 s  | 2.99 | 52.0% | 0     |
+| 3   | medium v easy   | 93.0%         | 55.3 / 25.7 / 19.0 | 56.9 s | 82.3 s  | 2.63 | 52.3% | 0     |
+| 3   | hard v easy     | 99.7%         | 72.3 / 22.7 / 5.0  | 42.2 s | 71.0 s  | 2.68 | 49.7% | 0     |
 
-The levels are ordered on every map: hard beats medium in 73 to 87%, medium beats easy in 70 to 88%, hard beats easy in 83 to 99%.
+The levels are ordered on every map: hard beats medium in 86 to 90%, medium beats easy in 73 to 93%, hard beats easy in 97 to 100%.
+
+### A Queen whose player holds nothing
+
+Hard bots on both teams, one team's Queen seat held by a player who presses nothing (`--idle-queen`).
+
+| Map | Bots' team wins | Mix               | Median | QD   | Clock |
+| --- | --------------- | ----------------- | ------ | ---- | ----- |
+| 1   | 93.0%           | 92.6 / 3.0 / 4.3  | 30.6 s | 3.15 | 1     |
+| 2   | 96.3%           | 85.7 / 11.3 / 3.0 | 31.5 s | 2.96 | 0     |
+| 3   | 95.0%           | 81.9 / 11.0 / 7.0 | 46.8 s | 2.81 | 1     |
+
+The team with the idle Queen still has two hard Workers, who win the remaining games in all three ways.
+
+### Side balance over 10,000 games
+
+Seeds 100001 to 110000, each game played once. The 95% range at this size is about 1 point either way.
+
+| Map | Matchup         | Left team wins |
+| --- | --------------- | -------------- |
+| 1   | hard v hard     | 50.2%          |
+| 1   | medium v medium | 50.2%          |
+| 2   | medium v medium | 50.6%          |
+
+No side bias. The 45.7% and 55.0% that single 300-game rows read at the last revision (and the 55.7% map 2 medium reads in the table above) are noise.
 
 ## What misses, and what is not shown
 
-- **Military wins are too few and snail wins too many on map 1** (47 / 21 / 32 against 62 / 24 / 14). With sword combat a kill takes a timed attack that connects, and two ready swords glance instead of killing, so Queens die less often than under the old contact rule: 2.5 deaths per game against a target of 3 to 4. Careful bot Queens add to this.
-- **Map 1's median is 61 s**, below the 68 to 84 s range.
-- **Maps 2 and 3 are economy maps at hard** (46.5% and 46.6% economy). Hard Queens survive (1.7 and 2.3 deaths per game) and hard Workers bank steadily.
-- **A few hard games reach the clock on maps 2 and 3**: 3 and 2 of 300. The engine decides those by eggs, berries, then the snail.
-- **Weaker levels win almost only by the snail.** On map 1 all 50 of easy's wins against hard, and 51 of medium's 80 against hard, are snail wins. A team that loses fights can still ride.
-- **Medium beats easy on map 1 in exactly 70.0%** of 300 games, which is on the line and inside the noise of it.
-- **Side balance is not shown at this sample size.** Single rows read 45.7% (map 1 medium) and 55.0% (map 2 medium); with 300 games the 95% range is about 6 points, so neither proves a bias and neither rules one out. The rules and the navigation tables are mirror-symmetric (tested). Earlier rules were checked over 10,000 games per row; this revision was not.
-- **Nothing was measured over more than 300 games per row** at this revision, and nothing with people.
+- **Map 1's military share is slightly high**: 73.5% over 10,000 games against a band that ends at 72%. Economy (15.2%) and snail (11.3%) are inside their bands. The 300-game row (71.7%) is inside.
+- **Maps 2 and 3 are still short of military wins at hard**: 51.7 / 37.0 / 11.3 and 47.3 / 41.7 / 11.0 against 62 / 24 / 14. Military is 10 and 15 points low and economy 13 and 18 points high. Before this round they read 25.6 / 46.5 / 27.9 and 35.9 / 46.6 / 17.4. Both maps put the piles close to the hives, and hard Workers bank faster than Warriors can stop them.
+- **Map 2's median is 94 s**, above the 68 to 84 s range; map 3's is 78.8 s, inside it.
+- **Queen deaths on map 3 are 2.95 per game**, just under 3; map 2 reads 3.02.
+- **Weaker levels still win mostly by the snail among themselves**: medium against medium on map 1 is 49 / 17 / 34 and easy against easy 36 / 16 / 49. Easy bots do not contest the snail at all, and medium ones start later than hard ones. Against hard, the snail is no longer the way through: easy's 6 wins of 300 on map 1 are all by snail, where it was 50.
+- **One idle-Queen game in 300 reaches the clock** on maps 1 and 3.
+- **The lever settings trade map 1 against maps 2 and 3.** More early Warriors on hard (`soldier`, `muster`) raise the military share on every map together. The values kept (`soldier` 60, `muster` 10) put map 1 at the top of its band to bring maps 2 and 3 as close as they come. With `soldier` 50 and no muster rule map 1 read 62.7 / 26.3 / 11.0, nearly on target, and maps 2 and 3 read 40.3 / 49.7 / 10.0 and 37.7 / 51.7 / 10.7. Getting all three maps inside the bands would take a change to the maps (pile distance, hive holes), which are the ported arcade maps and were left alone.
+- **Nothing was measured with people.**
 
 ## How the rounds compare
 
 Hard against hard. The earlier rows are the figures recorded when each revision was current; their runs were not repeated for this document, and the earliest used other maps.
 
-| Revision                       | Rules                                                            | Map | Mix (military / economy / snail) | Median  | Left wins |
-| ------------------------------ | ---------------------------------------------------------------- | --- | -------------------------------- | ------- | --------- |
-| Round 3, before Black's values | Contact combat, our own movement values                          | 1   | 60.3 / 25.1 / 14.6               | 78.0 s  | 49.8%     |
-| `cbd74362`                     | Black's movement, berries, gates and snail; still contact combat | 1   | 9.3 / 68.0 / 22.7                | 97.5 s  | 52.3%     |
-| `cbd74362`                     |                                                                  | 2   | 22.4 / 36.5 / 41.1               | 100.0 s |           |
-| `cbd74362`                     |                                                                  | 3   | 10.7 / 80.0 / 9.3                | 69.8 s  |           |
-| `cced7bb3`                     | Sword combat with the attack button (`killer-fuse-4`)            | 1   | 47.3 / 20.7 / 32.0               | 61.0 s  | 51.3%     |
-| `cced7bb3`                     |                                                                  | 2   | 25.6 / 46.5 / 27.9               | 78.6 s  | 52.2%     |
-| `cced7bb3`                     |                                                                  | 3   | 35.9 / 46.6 / 17.4               | 83.7 s  | 53.4%     |
+| Revision                       | Rules                                                            | Map | Mix (military / economy / snail) | Median  | QD   | Left wins |
+| ------------------------------ | ---------------------------------------------------------------- | --- | -------------------------------- | ------- | ---- | --------- |
+| Round 3, before Black's values | Contact combat, our own movement values                          | 1   | 60.3 / 25.1 / 14.6               | 78.0 s  |      | 49.8%     |
+| `cbd74362`                     | Black's movement, berries, gates and snail; still contact combat | 1   | 9.3 / 68.0 / 22.7                | 97.5 s  |      | 52.3%     |
+| `cbd74362`                     |                                                                  | 2   | 22.4 / 36.5 / 41.1               | 100.0 s |      |           |
+| `cbd74362`                     |                                                                  | 3   | 10.7 / 80.0 / 9.3                | 69.8 s  |      |           |
+| `89834711`                     | Sword combat with the attack button (`killer-fuse-4`)            | 1   | 47.3 / 20.7 / 32.0               | 61.0 s  | 2.53 | 51.3%     |
+| `89834711`                     |                                                                  | 2   | 25.6 / 46.5 / 27.9               | 78.6 s  | 1.71 | 52.2%     |
+| `89834711`                     |                                                                  | 3   | 35.9 / 46.6 / 17.4               | 83.7 s  | 2.31 | 53.4%     |
+| `c5003446`                     | Same rules, better bots (`killer-fuse-5`)                        | 1   | 71.7 / 17.7 / 10.7               | 73.2 s  | 3.45 | 51.7%     |
+| `c5003446`                     |                                                                  | 2   | 51.7 / 37.0 / 11.3               | 94.3 s  | 3.02 | 49.3%     |
+| `c5003446`                     |                                                                  | 3   | 47.3 / 41.7 / 11.0               | 78.8 s  | 2.95 | 53.0%     |
 
-At `cbd74362` hard beat medium in 85.3% and medium beat easy in 77.7% on map 1; now 73.3% and 70.0%.
+What changed in the bots between the last two revisions, in the order it mattered:
 
-What the table says: Black's movement with the old contact combat nearly removed military wins, because flight became slow and deliberate while a kill still needed a height advantage at contact. Sword combat brought them back to about half of the target share on map 1.
+1. **Snail defence.** A free snail standing a fifth of the way toward the enemy's goal (three tenths for medium) is ridden back by the nearest free Worker, and hard teams plan a rider less often (15% of rounds, from 30%). Snail wins on map 1 fell from 32% to 11%.
+2. **Queens fight.** A Queen with every egg goes for an enemy Queen that cannot answer: one standing on a floor, facing away, or with her sword cooling down. A Queen with a life to spare drops her caution once the enemy hive has 8 berries. Queen deaths rose from 2.5 to 3.5 per game, and a Queen whose player holds nothing now dies in nearly every game.
+3. **Economy defence.** From 4 berries in the enemy hive, flyers hunt carriers first. A hard team with no Warrior buys one with its next berry once the enemy hive has 10; hard first Workers plan to be Warriors in 60% of rounds, from 50%.
+4. **Bots that got stuck.** Games against an idle Queen that ran to the clock led to five navigation faults, all fixed: Workers going back and forth across the screen seam between two platforms, Workers walking into a block that splits a platform, a Warrior hovering on top of a standing target its sword could not reach, a Queen standing on a ledge directly over her next point, and a Queen pressed against the underside of a platform. A detector for a bot that keeps one goal within 12 px for 12 s finds none in 200 games per map.
 
 ## Flight: how fast the button must be pressed
 
