@@ -34,6 +34,27 @@ describe(WindowChrome.name, () => {
     expect(screen.getByText("body")).toBeInTheDocument();
   });
 
+  it("omits Minimize when the window is not minimizable", () => {
+    render(
+      <WindowChrome
+        title="Oops"
+        icon="warning"
+        active
+        maximized={false}
+        resizable={false}
+        minimizable={false}
+        onMinimize={() => undefined}
+        onToggleMaximize={() => undefined}
+        onClose={() => undefined}
+        onActivate={() => undefined}
+      >
+        <p>body</p>
+      </WindowChrome>,
+    );
+    expect(screen.queryByLabelText("Minimize")).toBeNull();
+    expect(screen.getByLabelText("Close")).toBeInTheDocument();
+  });
+
   it("shows Restore when maximized and marks inactive windows", () => {
     render(
       <WindowChrome
