@@ -187,6 +187,7 @@ describe(isAppState.name, () => {
     );
     expect(isAppState(window({ kind: "fusegame", gameId: "" }))).toBe(false);
     expect(isAppState(window({ kind: "retro", game: "doom" }))).toBe(true);
+    expect(isAppState(window({ kind: "taskmanager" }))).toBe(true);
     expect(isAppState(window({ kind: "retro", game: "pong" }))).toBe(false);
     expect(isAppState(window({ kind: "controlpanel", applet: "games" }))).toBe(
       true,

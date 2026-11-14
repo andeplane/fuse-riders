@@ -74,7 +74,13 @@ describe("StartMenu", () => {
       within(accessories)
         .getAllByRole("menuitem")
         .map((item) => item.textContent),
-    ).toEqual(["Paint", "Winamp", "Notepad++", "Change desktop background"]);
+    ).toEqual([
+      "Paint",
+      "Winamp",
+      "Notepad++",
+      "Task Manager",
+      "Change desktop background",
+    ]);
     expect(
       within(accessories).getByRole("menuitem", { name: "Notepad++" }),
     ).toBeDisabled();

@@ -4,6 +4,7 @@ import type { WindowContent, WindowState } from "../state/appState";
 import {
   FUSE_GAME_WINDOW_SIZE,
   PAINT_WINDOW_SIZE,
+  TASK_MANAGER_WINDOW_SIZE,
   WINAMP_WINDOW_SIZE,
   windowMeta,
 } from "./windowMeta";
@@ -68,6 +69,12 @@ describe(windowMeta.name, () => {
     expect(windowMeta(window({ kind: "wallpaper" }), games).resizable).toBe(
       false,
     );
+    expect(windowMeta(window({ kind: "taskmanager" }), games)).toEqual({
+      title: "FuseOS Task Manager",
+      icon: "taskmanager",
+      resizable: true,
+      size: TASK_MANAGER_WINDOW_SIZE,
+    });
     expect(windowMeta(window({ kind: "about" }), games).title).toBe(
       "About FuseOS",
     );

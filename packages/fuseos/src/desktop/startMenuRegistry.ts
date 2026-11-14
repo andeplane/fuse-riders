@@ -1,5 +1,6 @@
 import { createContext } from "react";
 
+import { TASK_MANAGER_REGISTRATION } from "../taskmanager/taskManagerRegistration";
 import type { IconName } from "../ui/icons";
 import type { WindowCommands } from "../windows/useWindowCommands";
 
@@ -50,6 +51,7 @@ export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
     label: "My Computer",
     icon: "computer",
   },
+  TASK_MANAGER_REGISTRATION,
 ];
 
 /** The registrations in force; tests hand in their own list. */

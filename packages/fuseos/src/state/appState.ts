@@ -49,6 +49,11 @@ export interface WinampWindowContent {
   kind: "winamp";
 }
 
+/** Task Manager (Ctrl+Shift+Esc): open windows, frame rates, heap. Reused when already open. */
+export interface TaskManagerWindowContent {
+  kind: "taskmanager";
+}
+
 export type WindowContent =
   | FuseGameWindowContent
   | RetroGameWindowContent
@@ -57,7 +62,8 @@ export type WindowContent =
   | AboutWindowContent
   | DialogWindowContent
   | PaintWindowContent
-  | WinampWindowContent;
+  | WinampWindowContent
+  | TaskManagerWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -208,6 +214,7 @@ function isWindowContent(
     case "wallpaper":
     case "about":
     case "winamp":
+    case "taskmanager":
       return true;
     case "dialog":
       return (

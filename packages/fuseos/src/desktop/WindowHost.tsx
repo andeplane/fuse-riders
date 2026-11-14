@@ -8,6 +8,7 @@ import { FuseGamesContext } from "../fusegames/registry";
 import { PaintWindow } from "../paint/PaintWindow";
 import { GameWindow } from "../retro/GameWindow";
 import type { WindowState } from "../state/appState";
+import { TaskManagerWindow } from "../taskmanager/TaskManagerWindow";
 import { WinampWindow } from "../winamp/WinampWindow";
 import { MessageBox } from "../windows/MessageBox";
 import { useWindowCommands } from "../windows/useWindowCommands";
@@ -62,6 +63,8 @@ function WindowContent({
       return <PaintWindow windowId={window.id} />;
     case "winamp":
       return <WinampWindow windowId={window.id} />;
+    case "taskmanager":
+      return <TaskManagerWindow windowId={window.id} />;
   }
 }
 

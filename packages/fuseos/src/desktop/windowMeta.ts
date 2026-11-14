@@ -23,6 +23,9 @@ export const WINAMP_WINDOW_SIZE: Size = { width: 320, height: 440 };
 /** A Fuse game opens at the size its lobby is laid out for; the window clamps to the desktop. */
 export const FUSE_GAME_WINDOW_SIZE: Size = { width: 1024, height: 700 };
 
+/** Room for the task list with its buttons, or three frame-rate graphs over the heap graph. */
+export const TASK_MANAGER_WINDOW_SIZE: Size = { width: 440, height: 600 };
+
 export const OS_NAME = "FuseOS";
 
 /** Title bar text and icon for each window kind. */
@@ -76,6 +79,13 @@ export function windowMeta(
         icon: "winamp",
         resizable: false,
         size: WINAMP_WINDOW_SIZE,
+      };
+    case "taskmanager":
+      return {
+        title: `${OS_NAME} Task Manager`,
+        icon: "taskmanager",
+        resizable: true,
+        size: TASK_MANAGER_WINDOW_SIZE,
       };
   }
 }
