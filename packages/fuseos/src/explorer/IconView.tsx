@@ -15,6 +15,17 @@ export type EntryViewProps = {
   onContextMenu: (entry: DiskEntry, position: MenuPosition) => void;
 };
 
+/** The three icon arrangements of View: 32px icons in a grid, 16px icons in rows, or 16px icons in columns. */
+export type IconLayout = "large" | "small" | "list";
+
+export const ICON_LAYOUT_LABELS: Record<IconLayout, string> = {
+  large: "Large icons",
+  small: "Small icons",
+  list: "List",
+};
+
+export type IconViewProps = EntryViewProps & { layout: IconLayout };
+
 export const MODIFIED_LABEL = "Saved copy on this computer";
 
 /** Right click selects and opens the entry's menu; the pane behind must not also open its own. */
@@ -32,7 +43,7 @@ export function entryContextMenu(
 export function ModifiedMark({ entry }: { entry: DiskEntry }) {
   return entry.modified ? (
     <span
-      className="ml-0.5 font-bold text-[navy]"
+      className="explorer-modified-mark"
       role="img"
       aria-label={MODIFIED_LABEL}
       title={MODIFIED_LABEL}
@@ -45,15 +56,16 @@ export function ModifiedMark({ entry }: { entry: DiskEntry }) {
 export function IconView({
   entries,
   selected,
+  layout,
   onSelect,
   onOpen,
   onContextMenu,
-}: EntryViewProps) {
+}: IconViewProps) {
   return (
     <ul
-      className="flex flex-wrap content-start gap-1 p-2"
+      className={`explorer-icons explorer-icons-${layout}`}
       role="listbox"
-      aria-label="Large icons"
+      aria-label={ICON_LAYOUT_LABELS[layout]}
     >
       {entries.map((entry) => {
         const isSelected = selected === entry.location;
@@ -62,15 +74,13 @@ export function IconView({
             key={entry.location}
             role="option"
             aria-selected={isSelected}
-            className="flex w-20 cursor-default flex-col items-center gap-1 p-1 text-center"
+            className="explorer-icon-item"
             onClick={() => onSelect(entry)}
             onDoubleClick={() => onOpen(entry)}
             onContextMenu={entryContextMenu(entry, onContextMenu)}
           >
-            <Win98Icon name={entry.icon} size={32} />
-            <span
-              className={`max-w-full break-words px-0.5 leading-tight ${isSelected ? "selected-label" : ""}`}
-            >
+            <Win98Icon name={entry.icon} size={layout === "large" ? 32 : 16} />
+            <span className="explorer-item-label">
               {entry.name}
               <ModifiedMark entry={entry} />
             </span>

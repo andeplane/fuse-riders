@@ -34,6 +34,8 @@ describe(deepLinkContents.name, () => {
           "settings",
           "about",
           "fusteam",
+          "mycomputer",
+          "explorer",
           "nope",
         ],
         games,
@@ -46,6 +48,8 @@ describe(deepLinkContents.name, () => {
       { kind: "controlpanel", applet: "home" },
       { kind: "about" },
       { kind: "launcher" },
+      { kind: "explorer", location: "" },
+      { kind: "explorer", location: "" },
     ]);
   });
 

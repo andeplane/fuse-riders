@@ -75,8 +75,8 @@ describe("the disk's window kinds", () => {
     const games = createTestGames();
     const meta = (window: WindowState) => windowMeta(window, games);
     expect(meta({ ...base, kind: "explorer", location: MY_COMPUTER })).toEqual({
-      title: "My Computer",
-      icon: "computer",
+      title: "Exploring - My Computer",
+      icon: "explorer",
       resizable: true,
       size: EXPLORER_WINDOW_SIZE,
     });

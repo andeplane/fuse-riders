@@ -1,3 +1,4 @@
+import { MY_COMPUTER } from "../disk/diskPath";
 import { isGameId } from "../retro/gameIds";
 
 import type { WindowContent } from "./appState";
@@ -12,6 +13,8 @@ const APPS: Record<string, WindowContent> = {
   settings: { kind: "controlpanel", applet: "home" },
   about: { kind: "about" },
   fusteam: { kind: "launcher" },
+  mycomputer: { kind: "explorer", location: MY_COMPUTER },
+  explorer: { kind: "explorer", location: MY_COMPUTER },
 };
 
 /** Something that knows which Fuse games exist; the registry in production, a fixture in tests. */
