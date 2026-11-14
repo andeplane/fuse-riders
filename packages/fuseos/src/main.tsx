@@ -9,6 +9,12 @@ import {
   withoutOpenParam,
 } from "./state/deepLink";
 import { LocalStorageStateStore } from "./state/stateStore";
+import { parseFoldParam, withoutFoldParam } from "./system32/demoTrigger";
+import type { System32Deps } from "./system32/system32Deps";
+import {
+  defaultSystem32Deps,
+  System32DepsContext,
+} from "./system32/system32Deps";
 import { WEBAMP_EMBED_OPTIONS } from "./winamp/webampLayout";
 import type { WinampDeps } from "./winamp/winampDepsContext";
 import {
@@ -34,6 +40,17 @@ if (initialOpen.length > 0)
     withoutOpenParam(window.location.href),
   );
 
+// `?fold=now|stage:N|bsod` plays the SYSTEM32 gag for a demo or a screenshot; dropped from the
+// address the same way so the fake restart, or a reload, boots a healthy desktop.
+const foldDemo = parseFoldParam(search);
+if (foldDemo)
+  window.history.replaceState(
+    window.history.state,
+    "",
+    withoutFoldParam(window.location.href),
+  );
+const system32Deps: System32Deps = { ...defaultSystem32Deps, demo: foldDemo };
+
 // Webamp ships its own React and the classic skin inlined; loaded only when a Winamp window opens.
 const winampDeps: WinampDeps = {
   ...defaultWinampDeps,
@@ -48,7 +65,9 @@ export function mountFuseOs(container: HTMLElement): void {
   ReactDOM.createRoot(container).render(
     <FuseGamesContext.Provider value={games}>
       <WinampDepsContext.Provider value={winampDeps}>
-        <App store={new LocalStorageStateStore()} initialOpen={initialOpen} />
+        <System32DepsContext.Provider value={system32Deps}>
+          <App store={new LocalStorageStateStore()} initialOpen={initialOpen} />
+        </System32DepsContext.Provider>
       </WinampDepsContext.Provider>
     </FuseGamesContext.Provider>,
   );

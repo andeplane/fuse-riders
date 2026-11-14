@@ -6,6 +6,7 @@ import { DisplayViewportProvider } from "./desktop/DisplayViewportProvider";
 import type { WindowContent } from "./state/appState";
 import { AppStateProvider } from "./state/AppStateProvider";
 import type { StateStore } from "./state/stateStore";
+import { System32Provider } from "./system32/System32Provider";
 import { WindowManagerProvider } from "./windows/WindowManagerProvider";
 
 export type ShellProps = {
@@ -22,7 +23,7 @@ export function Shell({ store, initialOpen, children }: ShellProps) {
       <DesktopUiProvider>
         <DisplayViewportProvider>
           <WindowManagerProvider>
-            {children ?? <Desktop />}
+            <System32Provider>{children ?? <Desktop />}</System32Provider>
           </WindowManagerProvider>
         </DisplayViewportProvider>
       </DesktopUiProvider>
