@@ -1,4 +1,4 @@
-import type { Options } from 'webamp';
+import type { Options } from "webamp";
 
 /** Webamp's classic panels are 275x116, including the playlist's default size. */
 export const WEBAMP_EMBED_SIZE = { width: 275, height: 348 };

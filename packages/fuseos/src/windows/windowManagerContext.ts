@@ -1,6 +1,6 @@
-import { createContext } from 'react';
+import { createContext } from "react";
 
-import type { Rect, RectState, Size } from './windowManager';
+import type { Rect, RectState, Size } from "./windowManager";
 
 export type WindowManager = {
   rects: RectState;

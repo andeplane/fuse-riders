@@ -15,7 +15,11 @@ export type AppProps = {
 };
 
 /** The boot screen, then the desktop. Everything the desktop depends on is provided around this by `main.tsx` (or a test). */
-export function App({ store, initialOpen, bootHoldMs = BOOT_HOLD_MS }: AppProps) {
+export function App({
+  store,
+  initialOpen,
+  bootHoldMs = BOOT_HOLD_MS,
+}: AppProps) {
   const holding = useBootHold(bootHoldMs);
   if (holding) return <BootScreen />;
   return <Shell store={store} initialOpen={initialOpen} />;

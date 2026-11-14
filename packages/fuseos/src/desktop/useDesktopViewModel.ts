@@ -59,7 +59,10 @@ export function useDesktopViewModel(): DesktopViewModel {
   // Single-instance windows (Winamp, the wallpaper picker, a game) are focused rather than duplicated:
   // true when an open window matched and was brought to the front.
   const focusExisting = useCallback(
-    (kind: WindowKind, matches: (window: WindowState) => boolean = () => true) => {
+    (
+      kind: WindowKind,
+      matches: (window: WindowState) => boolean = () => true,
+    ) => {
       const existing = state.windows.find(
         (window) => window.kind === kind && matches(window),
       );

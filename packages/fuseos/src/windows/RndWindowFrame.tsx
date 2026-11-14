@@ -1,10 +1,24 @@
-import { Rnd } from 'react-rnd';
+import { Rnd } from "react-rnd";
 
-import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, TASKBAR_HEIGHT } from './windowManager';
-import type { WindowFrameProps } from './windowsDepsContext';
+import {
+  MIN_WINDOW_HEIGHT,
+  MIN_WINDOW_WIDTH,
+  TASKBAR_HEIGHT,
+} from "./windowManager";
+import type { WindowFrameProps } from "./windowsDepsContext";
 
 /** Draggable and resizable frame backed by react-rnd. Not used in tests (needs layout). */
-export function RndWindowFrame({ id, rect, maximized, resizable = true, scale = 1, zIndex, onFocus, onRectChange, children }: WindowFrameProps) {
+export function RndWindowFrame({
+  id,
+  rect,
+  maximized,
+  resizable = true,
+  scale = 1,
+  zIndex,
+  onFocus,
+  onRectChange,
+  children,
+}: WindowFrameProps) {
   if (maximized) {
     return (
       <div
@@ -31,7 +45,9 @@ export function RndWindowFrame({ id, rect, maximized, resizable = true, scale = 
       dragHandleClassName="title-bar"
       style={{ zIndex }}
       onMouseDown={onFocus}
-      onDragStop={(_event, data) => onRectChange({ ...rect, x: data.x, y: data.y })}
+      onDragStop={(_event, data) =>
+        onRectChange({ ...rect, x: data.x, y: data.y })
+      }
       onResizeStop={(_event, _direction, element, _delta, position) =>
         onRectChange({
           x: position.x,

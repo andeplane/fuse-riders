@@ -78,12 +78,12 @@ Unlike the DOS games (`docs/games/README.md`) and the Office Assistant
 Both the published npm bundle and this app's built `dist/assets/webamp.bundle.min-*.js`
 were grepped for the patterns that have broken other vendored libraries here:
 
-| Check | Result |
-| --- | --- |
-| `eval(` | None |
-| `new Function(` | One, inside a bundled `setimmediate` polyfill's fallback branch (`typeof e !== 'function'` before calling it); every caller in the bundle passes a real function, so the branch is dead code |
-| `new Worker(` / Blob-backed workers | None. jszip's internal streaming classes are named `*Worker` but are plain JS classes, not the browser `Worker` API |
-| `data:application/wasm` | None; Webamp uses the Web Audio API and canvas 2D, no WebAssembly |
+| Check                                     | Result                                                                                                                                                                                                                                                                                                                             |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `eval(`                                   | None                                                                                                                                                                                                                                                                                                                               |
+| `new Function(`                           | One, inside a bundled `setimmediate` polyfill's fallback branch (`typeof e !== 'function'` before calling it); every caller in the bundle passes a real function, so the branch is dead code                                                                                                                                       |
+| `new Worker(` / Blob-backed workers       | None. jszip's internal streaming classes are named `*Worker` but are plain JS classes, not the browser `Worker` API                                                                                                                                                                                                                |
+| `data:application/wasm`                   | None; Webamp uses the Web Audio API and canvas 2D, no WebAssembly                                                                                                                                                                                                                                                                  |
 | Runtime `fetch`/XHR to a third party host | None reachable from this app's configuration: `fetch` only runs for an `initialSkin.url` (never set), a track's own `url` (a same-origin-policy-visible `https://*.cognitedata.com` CDF download link, or a `blob:` object URL for a local file — never a third party host), or a Butterchurn preset URL (Milkdrop is not enabled) |
 
 The only third-party string left in the bundle is an "About Webamp" link to
@@ -96,7 +96,7 @@ or navigated to automatically.
 (above). Playing a track is a different directive: Webamp loads audio through
 a plain `<audio>` element (`this._audio.src = <url>`,
 `createMediaElementSource(this._audio)` for the visualiser and EQ — confirmed
-by grepping the bundle, not guessed), so a track's *load* is governed by the
+by grepping the bundle, not guessed), so a track's _load_ is governed by the
 browser's **`media-src`** directive, not `script-src`.
 
 **The production baseline is `media-src 'self'`** (Cognite's CSP reference,
@@ -120,14 +120,17 @@ this app); this PR adds the same source to `media-src`:
   "permissions": {
     "network": [
       { "sources": ["'wasm-unsafe-eval'"], "directives": ["script-src"] },
-      { "sources": ["https://*.cognitedata.com"], "directives": ["img-src", "media-src"] }
+      {
+        "sources": ["https://*.cognitedata.com"],
+        "directives": ["img-src", "media-src"]
+      }
     ]
   }
 }
 ```
 
 That is the whole fix: no service worker, no proxy, no vendoring. It could
-not be verified against a live *deployment* (this app's own iframe headers
+not be verified against a live _deployment_ (this app's own iframe headers
 inside Fusion cannot be read without auth), but the CSP reference's own
 "Source formats" section, read together with the confirmed download-link
 shape above, makes this the documented, supported way to extend the policy —

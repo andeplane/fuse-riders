@@ -1,5 +1,5 @@
-@import 'tailwindcss';
-@import '98.css/dist/98.css' layer(base);
+@import "tailwindcss";
+@import "98.css/dist/98.css" layer(base);
 
 /*
  * Control Panel, Display, Font size: Small fonts / Large fonts scales the whole chrome from
@@ -28,7 +28,7 @@
 
 @layer components {
   .win98 {
-    font-family: 'Pixelated MS Sans Serif', Arial, sans-serif;
+    font-family: "Pixelated MS Sans Serif", Arial, sans-serif;
     font-size: calc(11px * var(--win98-font-scale, 1));
     -webkit-font-smoothing: none;
     color: #222;
@@ -47,7 +47,7 @@
   .win98 ul.tree-view,
   .win98 .window,
   .win98 .title-bar,
-  .win98 li[role='tab'] {
+  .win98 li[role="tab"] {
     font-size: calc(11px * var(--win98-font-scale, 1));
   }
 
@@ -73,7 +73,9 @@
   }
 
   .win98 button.toolbar-button:hover:not(:disabled) {
-    box-shadow: inset -1px -1px #0a0a0a, inset 1px 1px #fff;
+    box-shadow:
+      inset -1px -1px #0a0a0a,
+      inset 1px 1px #fff;
   }
 
   .win98 button.toolbar-button:disabled {
@@ -81,7 +83,9 @@
   }
 
   .win98 button.toolbar-button.pressed {
-    box-shadow: inset 1px 1px #0a0a0a, inset -1px -1px #fff;
+    box-shadow:
+      inset 1px 1px #0a0a0a,
+      inset -1px -1px #fff;
     background: repeating-conic-gradient(#fff 0 25%, silver 0 50%) 0 0 / 2px 2px;
   }
 
@@ -102,11 +106,19 @@
   }
 
   .raised {
-    box-shadow: inset -1px -1px #0a0a0a, inset 1px 1px #fff, inset -2px -2px grey, inset 2px 2px #dfdfdf;
+    box-shadow:
+      inset -1px -1px #0a0a0a,
+      inset 1px 1px #fff,
+      inset -2px -2px grey,
+      inset 2px 2px #dfdfdf;
   }
 
   .sunken {
-    box-shadow: inset -1px -1px #fff, inset 1px 1px grey, inset -2px -2px #dfdfdf, inset 2px 2px #0a0a0a;
+    box-shadow:
+      inset -1px -1px #fff,
+      inset 1px 1px grey,
+      inset -2px -2px #dfdfdf,
+      inset 2px 2px #0a0a0a;
   }
 
   .boot-screen {
@@ -114,7 +126,7 @@
   }
 
   .boot-title {
-    font-family: 'Inter', 'Space Grotesk', Arial, sans-serif;
+    font-family: "Inter", "Space Grotesk", Arial, sans-serif;
     text-shadow: 0 0 24px rgba(74, 143, 255, 0.6);
     animation: boot-fade-in 900ms ease-out both;
   }
@@ -135,7 +147,11 @@
   .boot-progress-bar {
     width: 33%;
     height: 100%;
-    background: repeating-linear-gradient(90deg, #4a8fff 0 8px, #1c4fa8 8px 10px);
+    background: repeating-linear-gradient(
+      90deg,
+      #4a8fff 0 8px,
+      #1c4fa8 8px 10px
+    );
     animation: boot-slide 1.4s linear infinite;
   }
 
@@ -169,7 +185,7 @@
   }
 
   .boot-title {
-    font-family: 'Inter', 'Space Grotesk', Arial, sans-serif;
+    font-family: "Inter", "Space Grotesk", Arial, sans-serif;
     letter-spacing: -0.02em;
     text-shadow: 0 0 28px rgba(74, 143, 255, 0.45);
     animation: boot-fade-in 900ms ease-out both;
@@ -190,7 +206,16 @@
   .boot-bar-glow {
     width: 20%;
     height: 100%;
-    background: linear-gradient(90deg, transparent 0%, #0b2a6b 25%, #4a8fff 50%, #9ec5ff 60%, #4a8fff 70%, #0b2a6b 85%, transparent 100%);
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      #0b2a6b 25%,
+      #4a8fff 50%,
+      #9ec5ff 60%,
+      #4a8fff 70%,
+      #0b2a6b 85%,
+      transparent 100%
+    );
     animation: boot-bar-slide 1.8s linear infinite;
   }
 
@@ -234,7 +259,7 @@
 
   .assistant-balloon::before,
   .assistant-balloon::after {
-    content: '';
+    content: "";
     position: absolute;
     right: 28px;
     width: 0;
@@ -282,7 +307,7 @@
   }
 
   .assistant-tool::before {
-    content: '▸ ';
+    content: "▸ ";
   }
 
   .assistant-tool-running {

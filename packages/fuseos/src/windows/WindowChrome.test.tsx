@@ -1,10 +1,10 @@
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
-import { WindowChrome } from './WindowChrome';
+import { WindowChrome } from "./WindowChrome";
 
 describe(WindowChrome.name, () => {
-  it('renders the title and wires the controls', async () => {
+  it("renders the title and wires the controls", async () => {
     const onMinimize = vi.fn();
     const onToggleMaximize = vi.fn();
     const onClose = vi.fn();
@@ -20,19 +20,21 @@ describe(WindowChrome.name, () => {
         onActivate={() => undefined}
       >
         <p>body</p>
-      </WindowChrome>
+      </WindowChrome>,
     );
-    expect(screen.getByRole('dialog', { name: 'My Computer' })).toBeInTheDocument();
-    await userEvent.click(screen.getByLabelText('Minimize'));
-    await userEvent.click(screen.getByLabelText('Maximize'));
-    await userEvent.click(screen.getByLabelText('Close'));
+    expect(
+      screen.getByRole("dialog", { name: "My Computer" }),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText("Minimize"));
+    await userEvent.click(screen.getByLabelText("Maximize"));
+    await userEvent.click(screen.getByLabelText("Close"));
     expect(onMinimize).toHaveBeenCalled();
     expect(onToggleMaximize).toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
-    expect(screen.getByText('body')).toBeInTheDocument();
+    expect(screen.getByText("body")).toBeInTheDocument();
   });
 
-  it('shows Restore when maximized and marks inactive windows', () => {
+  it("shows Restore when maximized and marks inactive windows", () => {
     render(
       <WindowChrome
         title="t"
@@ -45,13 +47,15 @@ describe(WindowChrome.name, () => {
         onActivate={() => undefined}
       >
         x
-      </WindowChrome>
+      </WindowChrome>,
     );
-    expect(screen.getByLabelText('Restore')).toBeInTheDocument();
-    expect(screen.getByRole('dialog').querySelector('.title-bar')).toHaveClass('inactive');
+    expect(screen.getByLabelText("Restore")).toBeInTheDocument();
+    expect(screen.getByRole("dialog").querySelector(".title-bar")).toHaveClass(
+      "inactive",
+    );
   });
 
-  it('hides the maximize button for fixed size windows', () => {
+  it("hides the maximize button for fixed size windows", () => {
     render(
       <WindowChrome
         title="t"
@@ -65,16 +69,32 @@ describe(WindowChrome.name, () => {
         onActivate={() => undefined}
       >
         x
-      </WindowChrome>
+      </WindowChrome>,
     );
-    expect(screen.queryByLabelText('Maximize')).toBeNull();
+    expect(screen.queryByLabelText("Maximize")).toBeNull();
   });
 });
 
-it('does not maximize a fixed-size utility by double-clicking its title', async () => {
+it("does not maximize a fixed-size utility by double-clicking its title", async () => {
   const maximize = vi.fn();
-  render(<WindowChrome title="Fixed utility" icon="winamp" active maximized={false} resizable={false} onMinimize={() => undefined} onToggleMaximize={maximize} onClose={() => undefined} onActivate={() => undefined}>Body</WindowChrome>);
-  await userEvent.dblClick(screen.getByText('Fixed utility'));
+  render(
+    <WindowChrome
+      title="Fixed utility"
+      icon="winamp"
+      active
+      maximized={false}
+      resizable={false}
+      onMinimize={() => undefined}
+      onToggleMaximize={maximize}
+      onClose={() => undefined}
+      onActivate={() => undefined}
+    >
+      Body
+    </WindowChrome>,
+  );
+  await userEvent.dblClick(screen.getByText("Fixed utility"));
   expect(maximize).not.toHaveBeenCalled();
-  expect(screen.queryByRole('button', { name: 'Maximize' })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Maximize" }),
+  ).not.toBeInTheDocument();
 });

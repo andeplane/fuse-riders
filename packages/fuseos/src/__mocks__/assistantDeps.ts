@@ -1,8 +1,12 @@
-import { useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from "react";
 
-import type { AssistantDeps, ChatHandle, ChatOptions } from '../assistant/assistantDepsContext';
-import type { SpriteAgent, SpriteAnimation } from '../assistant/spritePlayer';
-import type { ChatMessage } from '../llm/llmChat';
+import type {
+  AssistantDeps,
+  ChatHandle,
+  ChatOptions,
+} from "../assistant/assistantDepsContext";
+import type { SpriteAgent, SpriteAnimation } from "../assistant/spritePlayer";
+import type { ChatMessage } from "../llm/llmChat";
 
 function twoFrames(x: number): SpriteAnimation {
   return {
@@ -13,14 +17,32 @@ function twoFrames(x: number): SpriteAnimation {
   };
 }
 
-const NAMES = ['RestPose', 'Greeting', 'GoodBye', 'Wave', 'Thinking', 'Searching', 'Processing', 'CheckingSomething', 'Explain', 'Congratulate', 'GetAttention', 'Alert', 'Writing', 'Idle1_1', 'IdleSnooze'];
+const NAMES = [
+  "RestPose",
+  "Greeting",
+  "GoodBye",
+  "Wave",
+  "Thinking",
+  "Searching",
+  "Processing",
+  "CheckingSomething",
+  "Explain",
+  "Congratulate",
+  "GetAttention",
+  "Alert",
+  "Writing",
+  "Idle1_1",
+  "IdleSnooze",
+];
 
 /** A tiny Clippy frame table with the animations the assistant asks for, two frames each. */
 export const FAKE_SPRITE_AGENT: SpriteAgent = {
   overlayCount: 1,
-  sounds: ['1'],
+  sounds: ["1"],
   framesize: [124, 93],
-  animations: Object.fromEntries(NAMES.map((name, index) => [name, twoFrames(index * 248)])),
+  animations: Object.fromEntries(
+    NAMES.map((name, index) => [name, twoFrames(index * 248)]),
+  ),
 };
 
 export type FakeTimer = { id: number; callback: () => void; ms: number };
@@ -40,18 +62,35 @@ export type FakeChatController = {
   abort: () => void;
 };
 
-type ChatState = { messages: ChatMessage[]; isStreaming: boolean; progress: string | null; error: string | null };
+type ChatState = {
+  messages: ChatMessage[];
+  isStreaming: boolean;
+  progress: string | null;
+  error: string | null;
+};
 
 let messageSeq = 0;
 
-export function fakeMessage(role: 'user' | 'assistant', text: string, extra: Partial<ChatMessage> = {}): ChatMessage {
+export function fakeMessage(
+  role: "user" | "assistant",
+  text: string,
+  extra: Partial<ChatMessage> = {},
+): ChatMessage {
   messageSeq += 1;
   return { id: `fake-${messageSeq}`, role, text, ...extra };
 }
 
 /** A chat hook that never touches the network: `send` appends the user message and the scripted reply. */
-export function createFakeChat(): { useChat: (options: ChatOptions) => ChatHandle; controller: FakeChatController } {
-  let state: ChatState = { messages: [], isStreaming: false, progress: null, error: null };
+export function createFakeChat(): {
+  useChat: (options: ChatOptions) => ChatHandle;
+  controller: FakeChatController;
+} {
+  let state: ChatState = {
+    messages: [],
+    isStreaming: false,
+    progress: null,
+    error: null,
+  };
   const listeners = new Set<() => void>();
   const update = (patch: Partial<ChatState>) => {
     state = { ...state, ...patch };
@@ -65,14 +104,27 @@ export function createFakeChat(): { useChat: (options: ChatOptions) => ChatHandl
     setStreaming: (isStreaming) => update({ isStreaming }),
     setProgress: (progress) => update({ progress }),
     setError: (error) => update({ error }),
-    reset: vi.fn(() => update({ messages: [], isStreaming: false, progress: null, error: null })),
+    reset: vi.fn(() =>
+      update({ messages: [], isStreaming: false, progress: null, error: null }),
+    ),
     abort: vi.fn(() => update({ isStreaming: false, progress: null })),
   };
   const send = async (text: string) => {
     controller.sent.push(text);
-    update({ messages: [...state.messages, fakeMessage('user', text)], isStreaming: true, progress: 'Agent thinking' });
+    update({
+      messages: [...state.messages, fakeMessage("user", text)],
+      isStreaming: true,
+      progress: "Agent thinking",
+    });
     const reply = await controller.reply(text);
-    update({ messages: [...state.messages, fakeMessage('assistant', reply.text ?? '', reply)], isStreaming: false, progress: null });
+    update({
+      messages: [
+        ...state.messages,
+        fakeMessage("assistant", reply.text ?? "", reply),
+      ],
+      isStreaming: false,
+      progress: null,
+    });
   };
   const useChat = (options: ChatOptions): ChatHandle => {
     controller.lastOptions = options;
@@ -81,9 +133,14 @@ export function createFakeChat(): { useChat: (options: ChatOptions) => ChatHandl
         listeners.add(listener);
         return () => listeners.delete(listener);
       },
-      () => state
+      () => state,
     );
-    return { ...current, send, reset: controller.reset, abort: controller.abort };
+    return {
+      ...current,
+      send,
+      reset: controller.reset,
+      abort: controller.abort,
+    };
   };
   return { useChat, controller };
 }
@@ -96,14 +153,16 @@ export type TestAssistantDeps = AssistantDeps & {
 };
 
 /** Offline, deterministic deps: the tiny frame table, manual timers, fixed randomness and the fake chat. */
-export function createTestAssistantDeps(overrides: Partial<AssistantDeps> = {}): TestAssistantDeps {
+export function createTestAssistantDeps(
+  overrides: Partial<AssistantDeps> = {},
+): TestAssistantDeps {
   const timers: FakeTimer[] = [];
   let nextId = 1;
   const { useChat, controller } = createFakeChat();
   return {
     loadAgent: vi.fn(async () => FAKE_SPRITE_AGENT),
-    loadSounds: vi.fn(async () => ({ '1': 'data:audio/mpeg;base64,AAAA' })),
-    spriteUrl: 'https://fuseos.test/fuse-riders/fuseos/clippy/map.png',
+    loadSounds: vi.fn(async () => ({ "1": "data:audio/mpeg;base64,AAAA" })),
+    spriteUrl: "https://fuseos.test/fuse-riders/fuseos/clippy/map.png",
     playSound: vi.fn(),
     setTimeout: (callback, ms) => {
       const id = nextId;

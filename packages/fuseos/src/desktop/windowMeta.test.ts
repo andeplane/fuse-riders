@@ -18,23 +18,29 @@ const window = (content: WindowContent): WindowState => ({
 
 describe(windowMeta.name, () => {
   it("names a Fuse game window after the game, falling back to the id", () => {
-    expect(windowMeta(window({ kind: "fusegame", gameId: "fuseball" }), games)).toEqual({
+    expect(
+      windowMeta(window({ kind: "fusegame", gameId: "fuseball" }), games),
+    ).toEqual({
       title: "Fuseball",
       icon: "fusegame",
       resizable: true,
       size: FUSE_GAME_WINDOW_SIZE,
     });
-    expect(windowMeta(window({ kind: "fusegame", gameId: "gone" }), games).title).toBe(
-      "gone",
-    );
+    expect(
+      windowMeta(window({ kind: "fusegame", gameId: "gone" }), games).title,
+    ).toBe("gone");
   });
 
   it("gives each retro game its own icon and size", () => {
     const doom = windowMeta(window({ kind: "retro", game: "doom" }), games);
-    expect(doom).toMatchObject({ title: "DOOM", icon: "doom", resizable: true });
-    expect(windowMeta(window({ kind: "retro", game: "solitaire" }), games).icon).toBe(
-      "solitaire",
-    );
+    expect(doom).toMatchObject({
+      title: "DOOM",
+      icon: "doom",
+      resizable: true,
+    });
+    expect(
+      windowMeta(window({ kind: "retro", game: "solitaire" }), games).icon,
+    ).toBe("solitaire");
   });
 
   it("describes the apps and dialogs", () => {
@@ -52,16 +58,27 @@ describe(windowMeta.name, () => {
       resizable: false,
       size: WINAMP_WINDOW_SIZE,
     });
-    expect(windowMeta(window({ kind: "controlpanel", applet: "home" }), games)).toEqual({
+    expect(
+      windowMeta(window({ kind: "controlpanel", applet: "home" }), games),
+    ).toEqual({
       title: "Control Panel",
       icon: "settings",
       resizable: true,
     });
-    expect(windowMeta(window({ kind: "wallpaper" }), games).resizable).toBe(false);
-    expect(windowMeta(window({ kind: "about" }), games).title).toBe("About FuseOS");
+    expect(windowMeta(window({ kind: "wallpaper" }), games).resizable).toBe(
+      false,
+    );
+    expect(windowMeta(window({ kind: "about" }), games).title).toBe(
+      "About FuseOS",
+    );
     expect(
       windowMeta(
-        window({ kind: "dialog", title: "Oops", message: "m", icon: "warning" }),
+        window({
+          kind: "dialog",
+          title: "Oops",
+          message: "m",
+          icon: "warning",
+        }),
         games,
       ),
     ).toEqual({ title: "Oops", icon: "warning", resizable: false });

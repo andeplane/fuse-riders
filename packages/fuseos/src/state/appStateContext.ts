@@ -1,8 +1,8 @@
-import type { Dispatch } from 'react';
-import { createContext } from 'react';
+import type { Dispatch } from "react";
+import { createContext } from "react";
 
-import type { AppAction, AppState } from './appState';
-import { DEFAULT_STATE } from './appState';
+import type { AppAction, AppState } from "./appState";
+import { DEFAULT_STATE } from "./appState";
 
 export type AppStore = { state: AppState; dispatch: Dispatch<AppAction> };
 
@@ -12,7 +12,10 @@ export const AppStateContext = createContext<AppStore>({
 });
 
 export type AppStateDeps = {
-  setTimeout: (callback: () => void, ms: number) => ReturnType<typeof globalThis.setTimeout>;
+  setTimeout: (
+    callback: () => void,
+    ms: number,
+  ) => ReturnType<typeof globalThis.setTimeout>;
   clearTimeout: (handle: ReturnType<typeof globalThis.setTimeout>) => void;
   syncDelayMs: number;
 };
@@ -23,4 +26,5 @@ export const defaultAppStateDeps: AppStateDeps = {
   syncDelayMs: 150,
 };
 
-export const AppStateDepsContext = createContext<AppStateDeps>(defaultAppStateDeps);
+export const AppStateDepsContext =
+  createContext<AppStateDeps>(defaultAppStateDeps);

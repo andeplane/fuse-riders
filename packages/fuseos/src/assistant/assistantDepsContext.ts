@@ -53,7 +53,9 @@ export const defaultAssistantDeps: AssistantDeps = {
   loadAgent: async () => {
     const data = await fetchJson(assetUrl(`${CLIPPY_ASSETS}/agent.json`));
     if (!isSpriteAgent(data))
-      throw new Error(`${CLIPPY_ASSETS}/agent.json is not a Clippy frame table`);
+      throw new Error(
+        `${CLIPPY_ASSETS}/agent.json is not a Clippy frame table`,
+      );
     return data;
   },
   loadSounds: async () => {

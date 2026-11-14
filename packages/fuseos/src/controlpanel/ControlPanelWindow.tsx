@@ -1,15 +1,34 @@
-import type { ControlPanelApplet } from '../state/appState';
-import { Win98Icon } from '../ui/icons';
+import type { ControlPanelApplet } from "../state/appState";
+import { Win98Icon } from "../ui/icons";
 
-import { APPLETS } from './applets';
-import { useControlPanelViewModel } from './useControlPanelViewModel';
+import { APPLETS } from "./applets";
+import { useControlPanelViewModel } from "./useControlPanelViewModel";
 
-function Home({ openApplet }: { openApplet: (applet: ControlPanelApplet) => void }) {
+function Home({
+  openApplet,
+}: {
+  openApplet: (applet: ControlPanelApplet) => void;
+}) {
   return (
-    <ul className="flex flex-wrap gap-2 bg-white p-3 sunken-panel" role="listbox" aria-label="Control Panel applets">
+    <ul
+      className="flex flex-wrap gap-2 bg-white p-3 sunken-panel"
+      role="listbox"
+      aria-label="Control Panel applets"
+    >
       {APPLETS.map((applet) => (
-        <li key={applet.applet} role="option" aria-selected={false} className="flex w-24 flex-col items-center gap-1 text-center" title={applet.description}>
-          <button type="button" className="flat flex flex-col items-center gap-1" style={{ minWidth: 0 }} onClick={() => openApplet(applet.applet)}>
+        <li
+          key={applet.applet}
+          role="option"
+          aria-selected={false}
+          className="flex w-24 flex-col items-center gap-1 text-center"
+          title={applet.description}
+        >
+          <button
+            type="button"
+            className="flat flex flex-col items-center gap-1"
+            style={{ minWidth: 0 }}
+            onClick={() => openApplet(applet.applet)}
+          >
             <Win98Icon name={applet.icon} size={32} />
             <span>{applet.label}</span>
           </button>
@@ -25,21 +44,25 @@ export function ControlPanelWindow({ windowId }: { windowId: string }) {
   return (
     <div className="window-body flex min-h-0 flex-1 flex-col gap-3">
       <menu role="tablist" aria-label="Control Panel sections">
-        <li role="presentation" aria-selected={vm.applet === 'home'}>
+        <li role="presentation" aria-selected={vm.applet === "home"}>
           <a
             href="#"
             role="tab"
-            aria-selected={vm.applet === 'home'}
+            aria-selected={vm.applet === "home"}
             onClick={(event) => {
               event.preventDefault();
-              vm.openApplet('home');
+              vm.openApplet("home");
             }}
           >
             Control Panel
           </a>
         </li>
         {APPLETS.map((applet) => (
-          <li key={applet.applet} role="presentation" aria-selected={vm.applet === applet.applet}>
+          <li
+            key={applet.applet}
+            role="presentation"
+            aria-selected={vm.applet === applet.applet}
+          >
             <a
               href="#"
               role="tab"
@@ -55,7 +78,11 @@ export function ControlPanelWindow({ windowId }: { windowId: string }) {
         ))}
       </menu>
       <div className="window min-h-0 flex-1 overflow-auto p-3" role="tabpanel">
-        {active ? <active.Component windowId={windowId} /> : <Home openApplet={vm.openApplet} />}
+        {active ? (
+          <active.Component windowId={windowId} />
+        ) : (
+          <Home openApplet={vm.openApplet} />
+        )}
       </div>
       <div className="flex shrink-0 justify-end">
         <button type="button" onClick={vm.close}>

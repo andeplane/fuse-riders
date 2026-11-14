@@ -1,4 +1,4 @@
-import { createContext } from 'react';
+import { createContext } from "react";
 
 /**
  * Where a wallpaper came from: browsed from a file, a camera photo, "Set as
@@ -6,7 +6,7 @@ import { createContext } from 'react';
  * memory only (not persisted), so a reload with a stored wallpaper reports
  * 'file' since the original source is not known.
  */
-export type WallpaperSource = 'file' | 'camera' | 'paint' | 'none';
+export type WallpaperSource = "file" | "camera" | "paint" | "none";
 
 /** Where the wallpaper lives: per browser, never shared through links. */
 export interface WallpaperStore {
@@ -14,16 +14,20 @@ export interface WallpaperStore {
   set(dataUrl: string | undefined): void;
 }
 
-export const WALLPAPER_KEY = 'industrial-os.wallpaper';
+export const WALLPAPER_KEY = "industrial-os.wallpaper";
 
 /** localStorage backed store; every access is guarded because storage can be unavailable. */
 export class LocalStorageWallpaperStore implements WallpaperStore {
-  constructor(private readonly storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | undefined = safeLocalStorage()) {}
+  constructor(
+    private readonly storage:
+      | Pick<Storage, "getItem" | "setItem" | "removeItem">
+      | undefined = safeLocalStorage(),
+  ) {}
 
   get(): string | undefined {
     try {
       const value = this.storage?.getItem(WALLPAPER_KEY);
-      return value && value.startsWith('data:image/') ? value : undefined;
+      return value && value.startsWith("data:image/") ? value : undefined;
     } catch {
       return undefined;
     }
@@ -41,7 +45,7 @@ export class LocalStorageWallpaperStore implements WallpaperStore {
 
 function safeLocalStorage(): Storage | undefined {
   try {
-    return typeof localStorage === 'undefined' ? undefined : localStorage;
+    return typeof localStorage === "undefined" ? undefined : localStorage;
   } catch {
     return undefined;
   }
@@ -57,4 +61,6 @@ export class MemoryWallpaperStore implements WallpaperStore {
   }
 }
 
-export const WallpaperStoreContext = createContext<WallpaperStore>(new LocalStorageWallpaperStore());
+export const WallpaperStoreContext = createContext<WallpaperStore>(
+  new LocalStorageWallpaperStore(),
+);

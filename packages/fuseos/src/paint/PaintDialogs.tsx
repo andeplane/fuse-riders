@@ -1,25 +1,55 @@
-import type { ReactNode } from 'react';
+import type { ReactNode } from "react";
 
-import { matchShortcut } from '../lib/shortcuts';
-import { Win98Icon } from '../ui/icons';
+import { matchShortcut } from "../lib/shortcuts";
+import { Win98Icon } from "../ui/icons";
 
 /** A modal Win98 dialog box drawn over the Paint window body. */
-export function PaintModal({ title, children }: { title: string; children: ReactNode }) {
+export function PaintModal({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
   return (
-    <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/20" data-testid="paint-modal">
-      <section role="dialog" aria-label={title} aria-modal="true" className="window flex max-h-full w-[420px] max-w-full flex-col">
+    <div
+      className="absolute inset-0 z-30 flex items-center justify-center bg-black/20"
+      data-testid="paint-modal"
+    >
+      <section
+        role="dialog"
+        aria-label={title}
+        aria-modal="true"
+        className="window flex max-h-full w-[420px] max-w-full flex-col"
+      >
         <header className="title-bar">
           <div className="title-bar-text">{title}</div>
         </header>
-        <div className="window-body flex min-h-0 flex-col gap-3">{children}</div>
+        <div className="window-body flex min-h-0 flex-col gap-3">
+          {children}
+        </div>
       </section>
     </div>
   );
 }
 
-export type ConfirmDialogProps = { title: string; message: string; icon: 'warning' | 'info'; yesLabel?: string; onYes: () => void; onNo: () => void };
+export type ConfirmDialogProps = {
+  title: string;
+  message: string;
+  icon: "warning" | "info";
+  yesLabel?: string;
+  onYes: () => void;
+  onNo: () => void;
+};
 
-export function ConfirmDialog({ title, message, icon, yesLabel = 'Yes', onYes, onNo }: ConfirmDialogProps) {
+export function ConfirmDialog({
+  title,
+  message,
+  icon,
+  yesLabel = "Yes",
+  onYes,
+  onNo,
+}: ConfirmDialogProps) {
   return (
     <PaintModal title={title}>
       <div className="flex items-start gap-3">
@@ -47,7 +77,12 @@ export type TextDialogProps = {
 };
 
 /** The Text tool's dialog: replaces the native browser prompt, so it never blocks the page and a script can type into it too. */
-export function TextDialog({ value, onChange, onSubmit, onCancel }: TextDialogProps) {
+export function TextDialog({
+  value,
+  onChange,
+  onSubmit,
+  onCancel,
+}: TextDialogProps) {
   return (
     <PaintModal title="Text">
       <form
@@ -65,7 +100,7 @@ export function TextDialog({ value, onChange, onSubmit, onCancel }: TextDialogPr
           value={value}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={(event) => {
-            if (matchShortcut(event, 'paint.textCancel')) onCancel();
+            if (matchShortcut(event, "paint.textCancel")) onCancel();
           }}
           autoFocus
         />

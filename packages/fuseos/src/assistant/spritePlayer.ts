@@ -25,25 +25,25 @@ export type SpriteAgent = {
 };
 
 function isFrame(value: unknown): value is SpriteFrame {
-  if (typeof value !== 'object' || value === null) return false;
+  if (typeof value !== "object" || value === null) return false;
   const frame: Record<string, unknown> = { ...value };
-  return typeof frame.duration === 'number';
+  return typeof frame.duration === "number";
 }
 
 function isAnimation(value: unknown): value is SpriteAnimation {
-  if (typeof value !== 'object' || value === null) return false;
+  if (typeof value !== "object" || value === null) return false;
   const animation: Record<string, unknown> = { ...value };
   return Array.isArray(animation.frames) && animation.frames.every(isFrame);
 }
 
 export function isSpriteAgent(value: unknown): value is SpriteAgent {
-  if (typeof value !== 'object' || value === null) return false;
+  if (typeof value !== "object" || value === null) return false;
   const agent: Record<string, unknown> = { ...value };
   return (
-    typeof agent.overlayCount === 'number' &&
+    typeof agent.overlayCount === "number" &&
     Array.isArray(agent.framesize) &&
     agent.framesize.length === 2 &&
-    typeof agent.animations === 'object' &&
+    typeof agent.animations === "object" &&
     agent.animations !== null &&
     Object.values(agent.animations).every(isAnimation)
   );
@@ -54,7 +54,12 @@ export function isSpriteAgent(value: unknown): value is SpriteAgent {
  * weighted random pick among the branches (the remaining weight stays on the
  * next frame); when exiting, the exit branch; at the end, undefined.
  */
-export function nextFrameIndex(animation: SpriteAnimation, index: number, exiting: boolean, random: () => number): number | undefined {
+export function nextFrameIndex(
+  animation: SpriteAnimation,
+  index: number,
+  exiting: boolean,
+  random: () => number,
+): number | undefined {
   const frame = animation.frames[index];
   if (!frame) return undefined;
   if (exiting && frame.exitBranch !== undefined) return frame.exitBranch;
@@ -69,19 +74,29 @@ export function nextFrameIndex(animation: SpriteAnimation, index: number, exitin
 }
 
 /** The style for one overlay of a frame: where the sprite sheet is shifted to, or hidden. */
-export function overlayPosition(frame: SpriteFrame | undefined, overlay: number): { x: number; y: number } | undefined {
+export function overlayPosition(
+  frame: SpriteFrame | undefined,
+  overlay: number,
+): { x: number; y: number } | undefined {
   const image = frame?.images?.[overlay];
   // `|| 0` keeps -0 out of the style.
   return image ? { x: -image[0] || 0, y: -image[1] || 0 } : undefined;
 }
 
 /** The idle animations the clip plays on its own while nothing happens. */
-export function idleAnimations(agent: Pick<SpriteAgent, 'animations'>): string[] {
-  return Object.keys(agent.animations).filter((name) => name.startsWith('Idle'));
+export function idleAnimations(
+  agent: Pick<SpriteAgent, "animations">,
+): string[] {
+  return Object.keys(agent.animations).filter((name) =>
+    name.startsWith("Idle"),
+  );
 }
 
 /** A random member of the list, or undefined for an empty one. */
-export function pickRandom<T>(items: readonly T[], random: () => number): T | undefined {
+export function pickRandom<T>(
+  items: readonly T[],
+  random: () => number,
+): T | undefined {
   if (items.length === 0) return undefined;
   return items[Math.min(items.length - 1, Math.floor(random() * items.length))];
 }

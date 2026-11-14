@@ -1,5 +1,9 @@
-import type { PaintSnapshot, PaintSurface, ShapeStyle } from '../paint/paintSurface';
-import type { Box, Point, Size } from '../paint/paintTools';
+import type {
+  PaintSnapshot,
+  PaintSurface,
+  ShapeStyle,
+} from "../paint/paintSurface";
+import type { Box, Point, Size } from "../paint/paintTools";
 
 /** Records every drawing call as a line of text so tests can assert on what was painted. */
 export class FakePaintSurface implements PaintSurface {
@@ -7,7 +11,7 @@ export class FakePaintSurface implements PaintSurface {
   width = 640;
   height = 400;
   /** What `colorAt` answers. */
-  pixelColor = '#ff0000';
+  pixelColor = "#ff0000";
   /** Size reported (and applied) when an image blob is loaded. */
   nextImageSize: Size = { width: 320, height: 200 };
   private readonly snapshots = new WeakMap<PaintSnapshot, string[]>();
@@ -53,15 +57,15 @@ export class FakePaintSurface implements PaintSurface {
     this.height = snapshot.height;
     this.ops = [...ops];
   }
-  flip(axis: 'horizontal' | 'vertical'): void {
+  flip(axis: "horizontal" | "vertical"): void {
     this.ops.push(`flip ${axis}`);
   }
   rotate(): void {
     [this.width, this.height] = [this.height, this.width];
-    this.ops.push('rotate');
+    this.ops.push("rotate");
   }
   async toBlob(mimeType: string): Promise<Blob> {
-    return new Blob([this.ops.join('\n')], { type: mimeType });
+    return new Blob([this.ops.join("\n")], { type: mimeType });
   }
   toDataUrl(mimeType: string): string {
     return `data:${mimeType};base64,FAKE`;
@@ -69,7 +73,7 @@ export class FakePaintSurface implements PaintSurface {
   async loadImage(blob: Blob): Promise<Size> {
     this.width = this.nextImageSize.width;
     this.height = this.nextImageSize.height;
-    this.ops = [`image ${blob.type || 'blob'} ${this.width}x${this.height}`];
+    this.ops = [`image ${blob.type || "blob"} ${this.width}x${this.height}`];
     return this.size();
   }
 }
@@ -79,5 +83,5 @@ function boxText(box: Box): string {
 }
 
 function styleText(style: ShapeStyle): string {
-  return `${style.stroke ?? '-'}/${style.fill ?? '-'} ${style.size}`;
+  return `${style.stroke ?? "-"}/${style.fill ?? "-"} ${style.size}`;
 }

@@ -1,7 +1,7 @@
-import { WEBAMP_EMBED_OPTIONS, WEBAMP_EMBED_SIZE } from './webampLayout';
+import { WEBAMP_EMBED_OPTIONS, WEBAMP_EMBED_SIZE } from "./webampLayout";
 
-describe('embedded Winamp layout', () => {
-  it('fits all three classic panels inside the mount without clipping the main transport', () => {
+describe("embedded Winamp layout", () => {
+  it("fits all three classic panels inside the mount without clipping the main transport", () => {
     const panels = Object.values(WEBAMP_EMBED_OPTIONS.windowLayout);
     const left = Math.min(...panels.map((panel) => panel.position.left));
     const top = Math.min(...panels.map((panel) => panel.position.top));

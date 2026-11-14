@@ -1,8 +1,8 @@
-import { createContext } from 'react';
+import { createContext } from "react";
 
-import type { MediaErrorInfo } from './mediaErrorReporting';
-import { subscribeMediaErrors } from './mediaErrorReporting';
-import type { WebampPlayer } from './webampPlayer';
+import type { MediaErrorInfo } from "./mediaErrorReporting";
+import { subscribeMediaErrors } from "./mediaErrorReporting";
+import type { WebampPlayer } from "./webampPlayer";
 
 /**
  * Winamp's dependencies, injected so tests and demo mode never load the `webamp`

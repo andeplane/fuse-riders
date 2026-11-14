@@ -1,12 +1,12 @@
-import type { ReactNode } from 'react';
-import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from "react";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-import { DisplayViewportContext } from '../desktop/displayViewportContext';
+import { DisplayViewportContext } from "../desktop/displayViewportContext";
 
-import type { Rect, RectState, Size } from './windowManager';
-import { clampRect, defaultRect } from './windowManager';
-import { WindowManagerContext } from './windowManagerContext';
-import { WindowsDepsContext } from './windowsDepsContext';
+import type { Rect, RectState, Size } from "./windowManager";
+import { clampRect, defaultRect } from "./windowManager";
+import { WindowManagerContext } from "./windowManagerContext";
+import { WindowsDepsContext } from "./windowsDepsContext";
 
 /** Owns window rectangles (local only; positions are not shared through links). */
 export function WindowManagerProvider({ children }: { children: ReactNode }) {
@@ -16,18 +16,25 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
   const display = useContext(DisplayViewportContext);
   const viewport = display?.viewport ?? available;
 
-  useEffect(() => subscribeViewport(() => setViewport(getViewport())), [getViewport, subscribeViewport]);
+  useEffect(
+    () => subscribeViewport(() => setViewport(getViewport())),
+    [getViewport, subscribeViewport],
+  );
 
   const rectFor = useCallback(
     (id: string, index: number, size?: Size, fixed = false) => {
       const rect = rects[id] ?? defaultRect(index, viewport, size);
       return clampRect(fixed && size ? { ...rect, ...size } : rect, viewport);
     },
-    [rects, viewport]
+    [rects, viewport],
   );
   const setRect = useCallback(
-    (id: string, rect: Rect) => setRects((previous) => ({ ...previous, [id]: clampRect(rect, viewport) })),
-    [viewport]
+    (id: string, rect: Rect) =>
+      setRects((previous) => ({
+        ...previous,
+        [id]: clampRect(rect, viewport),
+      })),
+    [viewport],
   );
 
   const pruneRects = useCallback((openIds: readonly string[]) => {
@@ -40,6 +47,13 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const value = useMemo(() => ({ rects, viewport, rectFor, setRect, pruneRects }), [rects, viewport, rectFor, setRect, pruneRects]);
-  return <WindowManagerContext.Provider value={value}>{children}</WindowManagerContext.Provider>;
+  const value = useMemo(
+    () => ({ rects, viewport, rectFor, setRect, pruneRects }),
+    [rects, viewport, rectFor, setRect, pruneRects],
+  );
+  return (
+    <WindowManagerContext.Provider value={value}>
+      {children}
+    </WindowManagerContext.Provider>
+  );
 }

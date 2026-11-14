@@ -1,7 +1,7 @@
-import type { PaintSession } from './paintSession';
-import type { PaintAction, PaintDialog, PaintState } from './paintState';
-import type { PaintTool, Point, Size } from './paintTools';
-import { DEFAULT_CANVAS_SIZE, PAINT_TOOLS } from './paintTools';
+import type { PaintSession } from "./paintSession";
+import type { PaintAction, PaintDialog, PaintState } from "./paintState";
+import type { PaintTool, Point, Size } from "./paintTools";
+import { DEFAULT_CANVAS_SIZE, PAINT_TOOLS } from "./paintTools";
 
 /** What a Paint window is doing right now: the toolbox, the palette, the canvas and the dialog it shows. */
 export type PaintStatus = {
@@ -12,7 +12,7 @@ export type PaintStatus = {
   background: string;
   unsaved: boolean;
   canUndo: boolean;
-  dialog: PaintDialog['kind'];
+  dialog: PaintDialog["kind"];
 };
 
 /**
@@ -58,11 +58,12 @@ export type PaintControlsDeps = {
 
 export function createPaintControls(deps: PaintControlsDeps): PaintControls {
   const { session, getState, dispatch, setFile, openFile } = deps;
-  const changed = (size?: Size) => dispatch({ type: 'changed', undoDepth: session.undoDepth, size });
+  const changed = (size?: Size) =>
+    dispatch({ type: "changed", undoDepth: session.undoDepth, size });
   const startNew = () => {
     session.newImage(DEFAULT_CANVAS_SIZE, getState().background);
     setFile(undefined);
-    dispatch({ type: 'loaded', key: undefined, size: DEFAULT_CANVAS_SIZE });
+    dispatch({ type: "loaded", key: undefined, size: DEFAULT_CANVAS_SIZE });
   };
   return {
     status() {
@@ -79,32 +80,46 @@ export function createPaintControls(deps: PaintControlsDeps): PaintControls {
       };
     },
     setTool(tool) {
-      dispatch({ type: 'setTool', tool });
-      dispatch({ type: 'status', status: PAINT_TOOLS.find((item) => item.tool === tool)?.label ?? '' });
+      dispatch({ type: "setTool", tool });
+      dispatch({
+        type: "status",
+        status: PAINT_TOOLS.find((item) => item.tool === tool)?.label ?? "",
+      });
     },
     setBrushSize(size) {
-      dispatch({ type: 'setBrushSize', size });
+      dispatch({ type: "setBrushSize", size });
     },
     setForeground(color) {
-      dispatch({ type: 'setForeground', color });
+      dispatch({ type: "setForeground", color });
     },
     setBackground(color) {
-      dispatch({ type: 'setBackground', color });
+      dispatch({ type: "setBackground", color });
     },
     pointerDown(at, button, options) {
       const state = getState();
-      if (state.tool === 'text') {
+      if (state.tool === "text") {
         const color = button === 2 ? state.background : state.foreground;
         if (options?.text !== undefined) {
           // A script gives the text directly: place it without opening the Text dialog.
           if (session.placeText(at, options.text, color)) changed();
         } else {
-          dispatch({ type: 'dialog', dialog: { kind: 'text', at, color, text: '' } });
+          dispatch({
+            type: "dialog",
+            dialog: { kind: "text", at, color, text: "" },
+          });
         }
         return;
       }
-      const result = session.begin(state.tool, at, button, { foreground: state.foreground, background: state.background, brushSize: state.brushSize });
-      if (result.picked) dispatch({ type: button === 2 ? 'setBackground' : 'setForeground', color: result.picked });
+      const result = session.begin(state.tool, at, button, {
+        foreground: state.foreground,
+        background: state.background,
+        brushSize: state.brushSize,
+      });
+      if (result.picked)
+        dispatch({
+          type: button === 2 ? "setBackground" : "setForeground",
+          color: result.picked,
+        });
       if (result.changed) changed();
     },
     pointerMove(at) {
@@ -114,35 +129,43 @@ export function createPaintControls(deps: PaintControlsDeps): PaintControls {
       if (session.end(at)) changed();
     },
     newImage() {
-      if (getState().dirty) dispatch({ type: 'dialog', dialog: { kind: 'confirmDiscard', next: 'new' } });
+      if (getState().dirty)
+        dispatch({
+          type: "dialog",
+          dialog: { kind: "confirmDiscard", next: "new" },
+        });
       else startNew();
     },
     openImage() {
-      if (getState().dirty) dispatch({ type: 'dialog', dialog: { kind: 'confirmDiscard', next: 'open' } });
+      if (getState().dirty)
+        dispatch({
+          type: "dialog",
+          dialog: { kind: "confirmDiscard", next: "open" },
+        });
       else openFile();
     },
     confirmDiscard() {
       const dialog = getState().dialog;
-      if (dialog.kind !== 'confirmDiscard') return;
-      dispatch({ type: 'dialog', dialog: { kind: 'none' } });
-      if (dialog.next === 'new') startNew();
+      if (dialog.kind !== "confirmDiscard") return;
+      dispatch({ type: "dialog", dialog: { kind: "none" } });
+      if (dialog.next === "new") startNew();
       else openFile();
     },
     setDialogText(text) {
       const dialog = getState().dialog;
-      if (dialog.kind !== 'text') return;
-      dispatch({ type: 'dialog', dialog: { ...dialog, text } });
+      if (dialog.kind !== "text") return;
+      dispatch({ type: "dialog", dialog: { ...dialog, text } });
     },
     submitText() {
       const dialog = getState().dialog;
-      if (dialog.kind !== 'text') return;
-      dispatch({ type: 'dialog', dialog: { kind: 'none' } });
+      if (dialog.kind !== "text") return;
+      dispatch({ type: "dialog", dialog: { kind: "none" } });
       if (session.placeText(dialog.at, dialog.text, dialog.color)) changed();
     },
     cancelText() {
       const dialog = getState().dialog;
-      if (dialog.kind !== 'text') return;
-      dispatch({ type: 'dialog', dialog: { kind: 'none' } });
+      if (dialog.kind !== "text") return;
+      dispatch({ type: "dialog", dialog: { kind: "none" } });
     },
   };
 }

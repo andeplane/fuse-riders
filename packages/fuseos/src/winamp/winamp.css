@@ -18,11 +18,11 @@
   letter-spacing: 1px;
 }
 
-.winamp-video-player [role='listbox'] {
+.winamp-video-player [role="listbox"] {
   background: #08090c;
 }
 
-.win98 .winamp-video-player [role='option'] {
+.win98 .winamp-video-player [role="option"] {
   color: #00ef30;
 }
 
@@ -31,4 +31,7 @@
   color: #00ef30;
 }
 
-.winamp-youtube-native #equalizer-button { pointer-events: none; opacity: 0.4; }
+.winamp-youtube-native #equalizer-button {
+  pointer-events: none;
+  opacity: 0.4;
+}

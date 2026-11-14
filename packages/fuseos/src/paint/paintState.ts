@@ -1,14 +1,14 @@
-import type { PaintTool, Point, Size } from './paintTools';
-import { DEFAULT_CANVAS_SIZE } from './paintTools';
+import type { PaintTool, Point, Size } from "./paintTools";
+import { DEFAULT_CANVAS_SIZE } from "./paintTools";
 
 /** The Win98 dialog a Paint window is showing, if any. Transient, never persisted. */
 export type PaintDialog =
-  | { kind: 'none' }
+  | { kind: "none" }
   /** Discard the changes before New or Open. */
-  | { kind: 'confirmDiscard'; next: 'new' | 'open' }
+  | { kind: "confirmDiscard"; next: "new" | "open" }
   /** The Text tool was clicked at `at`; `color` is the foreground or background at click time, `text` the draft typed so far. */
-  | { kind: 'text'; at: Point; color: string; text: string }
-  | { kind: 'busy'; message: string };
+  | { kind: "text"; at: Point; color: string; text: string }
+  | { kind: "busy"; message: string };
 
 export type PaintState = {
   tool: PaintTool;
@@ -25,56 +25,82 @@ export type PaintState = {
   status: string;
 };
 
-export const DEFAULT_STATUS = 'For Help, click Help Topics on the Help Menu.';
+export const DEFAULT_STATUS = "For Help, click Help Topics on the Help Menu.";
 
 export const INITIAL_PAINT_STATE: PaintState = {
-  tool: 'pencil',
+  tool: "pencil",
   brushSize: 5,
-  foreground: '#000000',
-  background: '#ffffff',
+  foreground: "#000000",
+  background: "#ffffff",
   dirty: false,
   undoDepth: 0,
   size: DEFAULT_CANVAS_SIZE,
   loadedKey: undefined,
-  dialog: { kind: 'none' },
+  dialog: { kind: "none" },
   status: DEFAULT_STATUS,
 };
 
 export type PaintAction =
-  | { type: 'setTool'; tool: PaintTool }
-  | { type: 'setBrushSize'; size: number }
-  | { type: 'setForeground'; color: string }
-  | { type: 'setBackground'; color: string }
+  | { type: "setTool"; tool: PaintTool }
+  | { type: "setBrushSize"; size: number }
+  | { type: "setForeground"; color: string }
+  | { type: "setBackground"; color: string }
   /** The canvas changed by a user action; `size` when the operation changed it. */
-  | { type: 'changed'; undoDepth: number; size?: Size }
-  | { type: 'undone'; undoDepth: number; size: Size }
+  | { type: "changed"; undoDepth: number; size?: Size }
+  | { type: "undone"; undoDepth: number; size: Size }
   /** A file (or a blank image) now fills the canvas; nothing to undo or save. */
-  | { type: 'loaded'; key: string | undefined; size: Size }
-  | { type: 'saved'; key: string; name: string }
-  | { type: 'dialog'; dialog: PaintDialog }
-  | { type: 'status'; status: string };
+  | { type: "loaded"; key: string | undefined; size: Size }
+  | { type: "saved"; key: string; name: string }
+  | { type: "dialog"; dialog: PaintDialog }
+  | { type: "status"; status: string };
 
-export function paintReducer(state: PaintState, action: PaintAction): PaintState {
+export function paintReducer(
+  state: PaintState,
+  action: PaintAction,
+): PaintState {
   switch (action.type) {
-    case 'setTool':
+    case "setTool":
       return { ...state, tool: action.tool };
-    case 'setBrushSize':
+    case "setBrushSize":
       return { ...state, brushSize: action.size };
-    case 'setForeground':
+    case "setForeground":
       return { ...state, foreground: action.color };
-    case 'setBackground':
+    case "setBackground":
       return { ...state, background: action.color };
-    case 'changed':
-      return { ...state, dirty: true, undoDepth: action.undoDepth, size: action.size ?? state.size };
-    case 'undone':
-      return { ...state, undoDepth: action.undoDepth, size: action.size, dirty: true };
-    case 'loaded':
-      return { ...state, dirty: false, undoDepth: 0, size: action.size, loadedKey: action.key, dialog: { kind: 'none' } };
-    case 'saved':
-      return { ...state, dirty: false, loadedKey: action.key, dialog: { kind: 'none' }, status: `Saved ${action.name}` };
-    case 'dialog':
+    case "changed":
+      return {
+        ...state,
+        dirty: true,
+        undoDepth: action.undoDepth,
+        size: action.size ?? state.size,
+      };
+    case "undone":
+      return {
+        ...state,
+        undoDepth: action.undoDepth,
+        size: action.size,
+        dirty: true,
+      };
+    case "loaded":
+      return {
+        ...state,
+        dirty: false,
+        undoDepth: 0,
+        size: action.size,
+        loadedKey: action.key,
+        dialog: { kind: "none" },
+      };
+    case "saved":
+      return {
+        ...state,
+        dirty: false,
+        loadedKey: action.key,
+        dialog: { kind: "none" },
+        status: `Saved ${action.name}`,
+      };
+    case "dialog":
       return { ...state, dialog: action.dialog };
-    case 'status':
+    case "status":
       return { ...state, status: action.status };
   }
 }

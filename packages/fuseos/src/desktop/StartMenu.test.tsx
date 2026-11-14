@@ -52,7 +52,9 @@ describe("StartMenu", () => {
     ).toBeInTheDocument();
 
     await choose(user, "Programs", "Accessories", "Winamp");
-    expect(await screen.findByRole("dialog", { name: "Winamp" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("dialog", { name: "Winamp" }),
+    ).toBeInTheDocument();
     await choose(user, "Programs", "Accessories", "Winamp");
     expect(screen.getAllByRole("dialog", { name: "Winamp" })).toHaveLength(1);
 
@@ -68,18 +70,23 @@ describe("StartMenu", () => {
     );
 
     await choose(user, "Programs", "Games", "Retro Games", "Minesweeper");
-    expect(await screen.findByRole("dialog", { name: "Minesweeper" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("dialog", { name: "Minesweeper" }),
+    ).toBeInTheDocument();
 
     await choose(user, "Settings", "Display");
-    const controlPanel = await screen.findByRole("dialog", { name: "Control Panel" });
-    expect(within(controlPanel).getByRole("tab", { name: "Display" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    const controlPanel = await screen.findByRole("dialog", {
+      name: "Control Panel",
+    });
+    expect(
+      within(controlPanel).getByRole("tab", { name: "Display" }),
+    ).toHaveAttribute("aria-selected", "true");
     await choose(user, "Settings", "Keyboard");
     expect(
-      within(screen.getAllByRole("dialog", { name: "Control Panel" })[1] ?? controlPanel)
-        .getByRole("tab", { name: "Keyboard" }),
+      within(
+        screen.getAllByRole("dialog", { name: "Control Panel" })[1] ??
+          controlPanel,
+      ).getByRole("tab", { name: "Keyboard" }),
     ).toHaveAttribute("aria-selected", "true");
   });
 
@@ -89,19 +96,23 @@ describe("StartMenu", () => {
     await choose(user, "Help", "Help Topics");
     expect(desktopDeps.openExternal).toHaveBeenCalledWith(HELP_URL);
 
-    expect(screen.getByRole("complementary", { name: "Office Assistant" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("complementary", { name: "Office Assistant" }),
+    ).toBeInTheDocument();
     await choose(user, "Help", "Office Assistant");
     expect(
       screen.queryByRole("complementary", { name: "Office Assistant" }),
     ).not.toBeInTheDocument();
     expect(store.load().assistantHidden).toBe(true);
     await choose(user, "Help", "Office Assistant");
-    expect(screen.getByRole("complementary", { name: "Office Assistant" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("complementary", { name: "Office Assistant" }),
+    ).toBeInTheDocument();
 
     await choose(user, "Help", "About FuseOS");
-    expect(await screen.findByRole("dialog", { name: "About FuseOS" })).toHaveTextContent(
-      "A Windows 95 desktop for the Fuse games",
-    );
+    expect(
+      await screen.findByRole("dialog", { name: "About FuseOS" }),
+    ).toHaveTextContent("A Windows 95 desktop for the Fuse games");
   });
 
   it("shuts down, wakes up and restarts through the injected reload", async () => {

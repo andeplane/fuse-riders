@@ -23,7 +23,10 @@ import {
   WallpaperStoreContext,
 } from "../desktop/wallpaperStore";
 import type { FuseGameRegistry } from "../fusegames/registry";
-import { createFuseGameRegistry, FuseGamesContext } from "../fusegames/registry";
+import {
+  createFuseGameRegistry,
+  FuseGamesContext,
+} from "../fusegames/registry";
 import type { PaintControls } from "../paint/paintControls";
 import type { PaintDeps } from "../paint/paintDepsContext";
 import { PaintDepsContext } from "../paint/paintDepsContext";
@@ -265,11 +268,15 @@ export function createWrapper(options: ProviderOptions = {}) {
               <MediaDepsContext.Provider value={mediaDeps}>
                 <GamesDepsContext.Provider value={gamesDeps}>
                   <WallpaperStoreContext.Provider value={wallpaperStore}>
-                    <DisplayPrefsStoreContext.Provider value={displayPrefsStore}>
+                    <DisplayPrefsStoreContext.Provider
+                      value={displayPrefsStore}
+                    >
                       <FuseOsPrefsStoreContext.Provider value={prefsStore}>
                         <PaintDepsContext.Provider value={paintDeps}>
                           <PaintPrefsStoreContext.Provider value={paintPrefs}>
-                            <PaintRegistryContext.Provider value={paintRegistry}>
+                            <PaintRegistryContext.Provider
+                              value={paintRegistry}
+                            >
                               <WinampDepsContext.Provider value={winampDeps}>
                                 <WinampRegistryContext.Provider
                                   value={winampRegistry}

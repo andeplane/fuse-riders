@@ -1,7 +1,7 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from "react";
 
-import { DesktopDepsContext } from './desktopDepsContext';
-import { formatClock } from './formatClock';
+import { DesktopDepsContext } from "./desktopDepsContext";
+import { formatClock } from "./formatClock";
 
 export function Clock() {
   const { now, subscribeClock } = useContext(DesktopDepsContext);

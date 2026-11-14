@@ -1,8 +1,8 @@
-import type { ComponentType, ReactNode } from 'react';
-import { createContext } from 'react';
+import type { ComponentType, ReactNode } from "react";
+import { createContext } from "react";
 
-import { RndWindowFrame } from './RndWindowFrame';
-import type { Rect, Size } from './windowManager';
+import { RndWindowFrame } from "./RndWindowFrame";
+import type { Rect, Size } from "./windowManager";
 
 export type WindowFrameProps = {
   id: string;
@@ -28,9 +28,10 @@ export const defaultWindowsDeps: WindowsDeps = {
   WindowFrame: RndWindowFrame,
   getViewport: () => ({ width: window.innerWidth, height: window.innerHeight }),
   subscribeViewport: (onChange) => {
-    window.addEventListener('resize', onChange);
-    return () => window.removeEventListener('resize', onChange);
+    window.addEventListener("resize", onChange);
+    return () => window.removeEventListener("resize", onChange);
   },
 };
 
-export const WindowsDepsContext = createContext<WindowsDeps>(defaultWindowsDeps);
+export const WindowsDepsContext =
+  createContext<WindowsDeps>(defaultWindowsDeps);

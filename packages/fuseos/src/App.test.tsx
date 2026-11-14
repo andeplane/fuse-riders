@@ -26,7 +26,9 @@ describe(App.name, () => {
       expect(
         screen.queryByRole("main", { name: "Starting FuseOS" }),
       ).not.toBeInTheDocument();
-      expect(screen.getByRole("dialog", { name: "Fuseball" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("dialog", { name: "Fuseball" }),
+      ).toBeInTheDocument();
       expect(screen.getByTitle("Fuseball")).toHaveAttribute(
         "src",
         "/fuse-riders/fuseball/",
@@ -41,6 +43,8 @@ describe(App.name, () => {
     render(<App store={new MemoryStateStore()} bootHoldMs={0} />, {
       wrapper: Wrapper,
     });
-    expect(screen.getByRole("toolbar", { name: "Taskbar" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("toolbar", { name: "Taskbar" }),
+    ).toBeInTheDocument();
   });
 });

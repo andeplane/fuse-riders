@@ -1,12 +1,18 @@
-import { useContext, useEffect, useRef } from 'react';
+import { useContext, useEffect, useRef } from "react";
 
-import { GamesDepsContext } from '../gamesDepsContext';
+import { GamesDepsContext } from "../gamesDepsContext";
 
-import { CARD_SHEET_PATH, spriteOffset } from './cardSprite';
-import type { Cascade } from './cascade';
-import { CARD_HEIGHT, CARD_WIDTH, cascadeOrder, createCascade, stepCascade } from './cascade';
-import { foundationPosition } from './solitaireLayout';
-import type { Card } from './solitaireRules';
+import { CARD_SHEET_PATH, spriteOffset } from "./cardSprite";
+import type { Cascade } from "./cascade";
+import {
+  CARD_HEIGHT,
+  CARD_WIDTH,
+  cascadeOrder,
+  createCascade,
+  stepCascade,
+} from "./cascade";
+import { foundationPosition } from "./solitaireLayout";
+import type { Card } from "./solitaireRules";
 
 export type WinCascadeProps = { foundations: Card[][]; onDone: () => void };
 
@@ -33,16 +39,16 @@ export function WinCascade({ foundations, onDone }: WinCascadeProps) {
     const height = canvas.clientHeight || FALLBACK_HEIGHT;
     canvas.width = width;
     canvas.height = height;
-    const context = canvas.getContext('2d');
+    const context = canvas.getContext("2d");
     const sheet = new Image();
     sheet.src = deps.resolveUrl(CARD_SHEET_PATH);
     let cascade: Cascade = createCascade(
       cascadeOrder(
         foundations,
-        foundations.map((_, i) => foundationPosition(i))
+        foundations.map((_, i) => foundationPosition(i)),
       ),
       width,
-      height
+      height,
     );
     let finished = false;
     const finish = () => {
@@ -56,7 +62,17 @@ export function WinCascade({ foundations, onDone }: WinCascadeProps) {
       if (context && sheet.complete && sheet.naturalWidth > 0) {
         cascade.trail.forEach((flying) => {
           const offset = spriteOffset(flying.card);
-          context.drawImage(sheet, offset.x * 2, offset.y * 2, CARD_WIDTH * 2, CARD_HEIGHT * 2, Math.round(flying.x), Math.round(flying.y), CARD_WIDTH, CARD_HEIGHT);
+          context.drawImage(
+            sheet,
+            offset.x * 2,
+            offset.y * 2,
+            CARD_WIDTH * 2,
+            CARD_HEIGHT * 2,
+            Math.round(flying.x),
+            Math.round(flying.y),
+            CARD_WIDTH,
+            CARD_HEIGHT,
+          );
         });
       }
       if (cascade.done) finish();
@@ -67,5 +83,12 @@ export function WinCascade({ foundations, onDone }: WinCascadeProps) {
     };
   }, [deps, foundations]);
 
-  return <canvas ref={canvasRef} aria-label="Winning cascade" className="absolute inset-0 block h-full w-full" onClick={onDone} />;
+  return (
+    <canvas
+      ref={canvasRef}
+      aria-label="Winning cascade"
+      className="absolute inset-0 block h-full w-full"
+      onClick={onDone}
+    />
+  );
 }

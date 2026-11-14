@@ -1,6 +1,6 @@
-import { createContext } from 'react';
+import { createContext } from "react";
 
-import type { ImageMimeType } from './paintTools';
+import type { ImageMimeType } from "./paintTools";
 
 /** What Save As remembers between sessions: per browser, never shared through links. */
 export type PaintPrefs = { format?: ImageMimeType };
@@ -10,16 +10,19 @@ export interface PaintPrefsStore {
   set(prefs: PaintPrefs): void;
 }
 
-export const PAINT_PREFS_KEY = 'fuseos.paint';
+export const PAINT_PREFS_KEY = "fuseos.paint";
 
 function parsePrefs(raw: string | null | undefined): PaintPrefs {
   if (!raw) return {};
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== 'object' || parsed === null) return {};
+    if (typeof parsed !== "object" || parsed === null) return {};
     const record: Record<string, unknown> = { ...parsed };
     return {
-      format: record.format === 'image/png' || record.format === 'image/jpeg' ? record.format : undefined,
+      format:
+        record.format === "image/png" || record.format === "image/jpeg"
+          ? record.format
+          : undefined,
     };
   } catch {
     return {};
@@ -28,7 +31,10 @@ function parsePrefs(raw: string | null | undefined): PaintPrefs {
 
 /** localStorage backed store; every access is guarded because storage can be unavailable. */
 export class LocalStoragePaintPrefsStore implements PaintPrefsStore {
-  constructor(private readonly storage: Pick<Storage, 'getItem' | 'setItem'> | undefined = safeLocalStorage()) {}
+  constructor(
+    private readonly storage:
+      Pick<Storage, "getItem" | "setItem"> | undefined = safeLocalStorage(),
+  ) {}
 
   get(): PaintPrefs {
     try {
@@ -49,7 +55,7 @@ export class LocalStoragePaintPrefsStore implements PaintPrefsStore {
 
 function safeLocalStorage(): Storage | undefined {
   try {
-    return typeof localStorage === 'undefined' ? undefined : localStorage;
+    return typeof localStorage === "undefined" ? undefined : localStorage;
   } catch {
     return undefined;
   }
@@ -65,4 +71,6 @@ export class MemoryPaintPrefsStore implements PaintPrefsStore {
   }
 }
 
-export const PaintPrefsStoreContext = createContext<PaintPrefsStore>(new LocalStoragePaintPrefsStore());
+export const PaintPrefsStoreContext = createContext<PaintPrefsStore>(
+  new LocalStoragePaintPrefsStore(),
+);

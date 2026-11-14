@@ -48,7 +48,15 @@ export function useWindowCommands(): WindowCommands {
     [open],
   );
   return useMemo(
-    () => ({ open, close, focus, minimize, toggleMaximize, showError, showInfo }),
+    () => ({
+      open,
+      close,
+      focus,
+      minimize,
+      toggleMaximize,
+      showError,
+      showInfo,
+    }),
     [open, close, focus, minimize, toggleMaximize, showError, showInfo],
   );
 }

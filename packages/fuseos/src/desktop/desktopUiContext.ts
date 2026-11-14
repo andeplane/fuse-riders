@@ -1,14 +1,21 @@
-import { createContext } from 'react';
+import { createContext } from "react";
 
-import type { AssistantOptions } from '../assistant/assistantOptionsStore';
-import { DEFAULT_ASSISTANT_OPTIONS } from '../assistant/assistantOptionsStore';
-import type { AssistantAction, AssistantState } from '../assistant/assistantState';
-import { INITIAL_ASSISTANT_STATE } from '../assistant/assistantState';
-import type { MenuPosition } from '../windows/menuPosition';
+import type { AssistantOptions } from "../assistant/assistantOptionsStore";
+import { DEFAULT_ASSISTANT_OPTIONS } from "../assistant/assistantOptionsStore";
+import type {
+  AssistantAction,
+  AssistantState,
+} from "../assistant/assistantState";
+import { INITIAL_ASSISTANT_STATE } from "../assistant/assistantState";
+import type { MenuPosition } from "../windows/menuPosition";
 
-import type { ColorMode, DesktopArea } from './displayModes';
-import { DEFAULT_BACKGROUND_COLOR, DEFAULT_ICON_SPACING_X, DEFAULT_ICON_SPACING_Y } from './displayPrefsStore';
-import type { WallpaperSource } from './wallpaperStore';
+import type { ColorMode, DesktopArea } from "./displayModes";
+import {
+  DEFAULT_BACKGROUND_COLOR,
+  DEFAULT_ICON_SPACING_X,
+  DEFAULT_ICON_SPACING_Y,
+} from "./displayPrefsStore";
+import type { WallpaperSource } from "./wallpaperStore";
 
 /** The context menu of a desktop icon. */
 export type DesktopIconMenu = { iconId: string; position: MenuPosition };
@@ -65,16 +72,16 @@ export const DesktopUiContext = createContext<DesktopUi>({
   iconMenu: null,
   setIconMenu: () => undefined,
   wallpaper: undefined,
-  wallpaperSource: 'none',
+  wallpaperSource: "none",
   setWallpaper: () => undefined,
   backgroundColor: DEFAULT_BACKGROUND_COLOR,
   setBackgroundColor: () => undefined,
   iconSpacingX: DEFAULT_ICON_SPACING_X,
   iconSpacingY: DEFAULT_ICON_SPACING_Y,
   setIconSpacing: () => undefined,
-  colorMode: 'true-color',
+  colorMode: "true-color",
   setColorMode: () => undefined,
-  desktopArea: 'current',
+  desktopArea: "current",
   setDesktopArea: () => undefined,
   largeFonts: false,
   setLargeFonts: () => undefined,

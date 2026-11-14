@@ -1,6 +1,8 @@
 import { deepLinkContents, parseOpenParam, withoutOpenParam } from "./deepLink";
 
-const games = { has: (id: string) => id === "fuseball" || id === "fuse-riders" };
+const games = {
+  has: (id: string) => id === "fuseball" || id === "fuse-riders",
+};
 
 describe(parseOpenParam.name, () => {
   it("reads a comma separated, case insensitive, deduplicated list", () => {
@@ -33,9 +35,9 @@ describe(deepLinkContents.name, () => {
   });
 
   it("prefers a Fuse game over a retro game of the same id", () => {
-    expect(
-      deepLinkContents(["doom"], { has: (id) => id === "doom" }),
-    ).toEqual([{ kind: "fusegame", gameId: "doom" }]);
+    expect(deepLinkContents(["doom"], { has: (id) => id === "doom" })).toEqual([
+      { kind: "fusegame", gameId: "doom" },
+    ]);
   });
 });
 

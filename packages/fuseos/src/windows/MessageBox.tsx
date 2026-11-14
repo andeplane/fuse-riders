@@ -1,6 +1,10 @@
-import { Win98Icon } from '../ui/icons';
+import { Win98Icon } from "../ui/icons";
 
-export type MessageBoxProps = { message: string; icon: 'warning' | 'info'; onOk: () => void };
+export type MessageBoxProps = {
+  message: string;
+  icon: "warning" | "info";
+  onOk: () => void;
+};
 
 /** Body of a Win98 message box. */
 export function MessageBox({ message, icon, onOk }: MessageBoxProps) {

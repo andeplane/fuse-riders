@@ -1,4 +1,4 @@
-import type { Card } from './solitaireRules';
+import type { Card } from "./solitaireRules";
 
 /**
  * The winning cascade: one card at a time flies off a foundation, bounces
@@ -9,7 +9,13 @@ import type { Card } from './solitaireRules';
 export const CARD_WIDTH = 71;
 export const CARD_HEIGHT = 96;
 
-export type FlyingCard = { card: Card; x: number; y: number; vx: number; vy: number };
+export type FlyingCard = {
+  card: Card;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+};
 
 export type CascadeSource = { card: Card; x: number; y: number };
 
@@ -30,7 +36,10 @@ const MIN_SPEED = 3;
 const MAX_SPEED = 8;
 
 /** Takes the top card of each foundation in turn, kings first, like the original. */
-export function cascadeOrder(foundations: Card[][], positions: { x: number; y: number }[]): CascadeSource[] {
+export function cascadeOrder(
+  foundations: Card[][],
+  positions: { x: number; y: number }[],
+): CascadeSource[] {
   const order: CascadeSource[] = [];
   const height = Math.max(0, ...foundations.map((pile) => pile.length));
   for (let depth = 1; depth <= height; depth += 1) {
@@ -43,14 +52,24 @@ export function cascadeOrder(foundations: Card[][], positions: { x: number; y: n
   return order;
 }
 
-export function createCascade(queue: CascadeSource[], width: number, height: number): Cascade {
+export function createCascade(
+  queue: CascadeSource[],
+  width: number,
+  height: number,
+): Cascade {
   return { queue, trail: [], width, height, done: queue.length === 0 };
 }
 
 function launch(source: CascadeSource, random: () => number): FlyingCard {
   const direction = random() < 0.5 ? -1 : 1;
   const speed = MIN_SPEED + random() * (MAX_SPEED - MIN_SPEED);
-  return { card: source.card, x: source.x, y: source.y, vx: speed * direction, vy: -random() * 6 };
+  return {
+    card: source.card,
+    x: source.x,
+    y: source.y,
+    vx: speed * direction,
+    vy: -random() * 6,
+  };
 }
 
 /** One frame: gravity, a bounce off the bottom edge, the next card when this one has left. */
@@ -73,5 +92,11 @@ export function stepCascade(cascade: Cascade, random: () => number): Cascade {
   }
   const moved: FlyingCard = { ...flying, x: flying.x + flying.vx, y, vy };
   const gone = moved.x + CARD_WIDTH < 0 || moved.x > cascade.width;
-  return { ...cascade, queue, flying: gone ? undefined : moved, trail: [moved], done: gone && queue.length === 0 };
+  return {
+    ...cascade,
+    queue,
+    flying: gone ? undefined : moved,
+    trail: [moved],
+    done: gone && queue.length === 0,
+  };
 }

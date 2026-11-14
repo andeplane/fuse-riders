@@ -2,12 +2,7 @@ import type { GameId } from "../retro/gameIds";
 import { isGameId } from "../retro/gameIds";
 
 export type ControlPanelApplet =
-  | "home"
-  | "display"
-  | "system"
-  | "assistant"
-  | "keyboard"
-  | "games";
+  "home" | "display" | "system" | "assistant" | "keyboard" | "games";
 
 /** A Fuse game (`games/<id>/`, listed in the portal) running in an iframe window. */
 export interface FuseGameWindowContent {

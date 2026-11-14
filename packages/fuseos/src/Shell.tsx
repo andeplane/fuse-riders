@@ -21,7 +21,9 @@ export function Shell({ store, initialOpen, children }: ShellProps) {
     <AppStateProvider store={store} initialOpen={initialOpen}>
       <DesktopUiProvider>
         <DisplayViewportProvider>
-          <WindowManagerProvider>{children ?? <Desktop />}</WindowManagerProvider>
+          <WindowManagerProvider>
+            {children ?? <Desktop />}
+          </WindowManagerProvider>
         </DisplayViewportProvider>
       </DesktopUiProvider>
     </AppStateProvider>

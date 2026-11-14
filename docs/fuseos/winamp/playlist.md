@@ -6,14 +6,14 @@ artist/label uploads below were checked using YouTube's public oEmbed endpoint.
 An oEmbed response confirms the video's identity and provides an embed; it does
 not guarantee playback for every country, browser, account, or future date.
 
-| Artist | Song | Official upload |
-| --- | --- | --- |
-| Cher | Believe | https://www.youtube.com/watch?v=nZXRV4MezEw |
-| Britney Spears | ...Baby One More Time | https://www.youtube.com/watch?v=C-u5WLJ9Yk4 |
-| Eiffel 65 | Blue (Da Ba Dee) | https://www.youtube.com/watch?v=68ugkg9RePc |
-| Backstreet Boys | I Want It That Way | https://www.youtube.com/watch?v=4fndeDfaWCg |
-| Aqua | Barbie Girl | https://www.youtube.com/watch?v=ZyhrYis509A |
-| Daft Punk | Around the World | https://www.youtube.com/watch?v=K0HSD_i2DvA |
+| Artist          | Song                  | Official upload                             |
+| --------------- | --------------------- | ------------------------------------------- |
+| Cher            | Believe               | https://www.youtube.com/watch?v=nZXRV4MezEw |
+| Britney Spears  | ...Baby One More Time | https://www.youtube.com/watch?v=C-u5WLJ9Yk4 |
+| Eiffel 65       | Blue (Da Ba Dee)      | https://www.youtube.com/watch?v=68ugkg9RePc |
+| Backstreet Boys | I Want It That Way    | https://www.youtube.com/watch?v=4fndeDfaWCg |
+| Aqua            | Barbie Girl           | https://www.youtube.com/watch?v=ZyhrYis509A |
+| Daft Punk       | Around the World      | https://www.youtube.com/watch?v=K0HSD_i2DvA |
 
 The visible player is 480×270, YouTube's recommended minimum 16:9 size. Its own
 controls and branding remain available. Initial loading cues the playlist without

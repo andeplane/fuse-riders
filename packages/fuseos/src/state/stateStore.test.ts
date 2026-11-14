@@ -1,6 +1,10 @@
 import type { AppState } from "./appState";
 import { DEFAULT_STATE } from "./appState";
-import { LocalStorageStateStore, MemoryStateStore, STATE_KEY } from "./stateStore";
+import {
+  LocalStorageStateStore,
+  MemoryStateStore,
+  STATE_KEY,
+} from "./stateStore";
 
 const state: AppState = {
   version: 1,
@@ -32,7 +36,9 @@ describe(LocalStorageStateStore.name, () => {
     const store = new LocalStorageStateStore(storage);
     store.save(state);
     expect([...storage.items.keys()]).toEqual([STATE_KEY]);
-    expect(store.load().windows.map((window) => window.kind)).toEqual(["paint"]);
+    expect(store.load().windows.map((window) => window.kind)).toEqual([
+      "paint",
+    ]);
   });
 
   it("falls back to the default without storage, with a corrupt entry or when storage throws", () => {
@@ -59,6 +65,8 @@ describe(MemoryStateStore.name, () => {
     expect(store.load()).toBe(DEFAULT_STATE);
     store.save(state);
     expect(store.saved).toBe(1);
-    expect(store.load().windows.map((window) => window.kind)).toEqual(["paint"]);
+    expect(store.load().windows.map((window) => window.kind)).toEqual([
+      "paint",
+    ]);
   });
 });

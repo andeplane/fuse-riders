@@ -22,9 +22,14 @@ describe(defaultGameLaunch.name, () => {
       "window",
     );
     expect(
-      defaultGameLaunch({ finePointer: true, viewportWidth: WINDOW_LAUNCH_MIN_WIDTH }),
+      defaultGameLaunch({
+        finePointer: true,
+        viewportWidth: WINDOW_LAUNCH_MIN_WIDTH,
+      }),
     ).toBe("window");
-    expect(defaultGameLaunch({ finePointer: true, viewportWidth: 899 })).toBe("tab");
+    expect(defaultGameLaunch({ finePointer: true, viewportWidth: 899 })).toBe(
+      "tab",
+    );
     expect(defaultGameLaunch({ finePointer: false, viewportWidth: 1440 })).toBe(
       "tab",
     );
@@ -45,7 +50,10 @@ describe(LocalStorageFuseOsPrefsStore.name, () => {
     store.set({ gameLaunch: "tab" });
     expect([...storage.items.keys()]).toEqual([FUSEOS_PREFS_KEY]);
     expect(store.get()).toEqual({ gameLaunch: "tab" });
-    storage.items.set(FUSEOS_PREFS_KEY, JSON.stringify({ gameLaunch: "popup" }));
+    storage.items.set(
+      FUSEOS_PREFS_KEY,
+      JSON.stringify({ gameLaunch: "popup" }),
+    );
     expect(store.get()).toEqual({});
     storage.items.set(FUSEOS_PREFS_KEY, "nope");
     expect(store.get()).toEqual({});

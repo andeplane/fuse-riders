@@ -15,7 +15,12 @@
     "noEmit": true,
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
-    "types": ["vitest/globals", "@testing-library/jest-dom", "vite/client", "node"]
+    "types": [
+      "vitest/globals",
+      "@testing-library/jest-dom",
+      "vite/client",
+      "node"
+    ]
   },
   "include": ["src", "vitest.config.ts", "vitest.setup.ts"]
 }

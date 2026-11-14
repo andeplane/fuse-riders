@@ -20,7 +20,10 @@ const paint = (id: string): WindowState => ({
 function open(state: AppState, content: WindowState["kind"]): AppState {
   switch (content) {
     case "paint":
-      return appStateReducer(state, { type: "open", content: { kind: "paint" } });
+      return appStateReducer(state, {
+        type: "open",
+        content: { kind: "paint" },
+      });
     case "winamp":
       return appStateReducer(state, {
         type: "open",
@@ -102,7 +105,10 @@ describe(appStateReducer.name, () => {
       patch: (window) =>
         window.kind === "paint" ? { ...window, fileName: "cat.png" } : window,
     });
-    expect(state.windows[0]).toMatchObject({ kind: "paint", fileName: "cat.png" });
+    expect(state.windows[0]).toMatchObject({
+      kind: "paint",
+      fileName: "cat.png",
+    });
   });
 
   it("hides and shows the Office Assistant, leaving nothing in the state while shown", () => {
@@ -121,7 +127,10 @@ describe(appStateReducer.name, () => {
   it("replaces the state", () => {
     const next: AppState = { version: 1, windows: [paint("w4")] };
     expect(
-      appStateReducer(open(DEFAULT_STATE, "paint"), { type: "replace", state: next }),
+      appStateReducer(open(DEFAULT_STATE, "paint"), {
+        type: "replace",
+        state: next,
+      }),
     ).toBe(next);
   });
 });
@@ -136,7 +145,9 @@ describe(parseAppState.name, () => {
       DEFAULT_STATE,
     );
     expect(
-      parseAppState(JSON.stringify({ version: 1, windows: [{ kind: "explorer" }] })),
+      parseAppState(
+        JSON.stringify({ version: 1, windows: [{ kind: "explorer" }] }),
+      ),
     ).toBe(DEFAULT_STATE);
   });
 
@@ -144,9 +155,17 @@ describe(parseAppState.name, () => {
     let state = open(open(DEFAULT_STATE, "fusegame"), "paint");
     state = appStateReducer(state, {
       type: "open",
-      content: { kind: "dialog", title: "Oops", message: "No", icon: "warning" },
+      content: {
+        kind: "dialog",
+        title: "Oops",
+        message: "No",
+        icon: "warning",
+      },
     });
-    state = appStateReducer(state, { type: "setAssistantHidden", hidden: true });
+    state = appStateReducer(state, {
+      type: "setAssistantHidden",
+      hidden: true,
+    });
     const parsed = parseAppState(serializeAppState(state));
     expect(parsed.windows.map((window) => window.kind)).toEqual([
       "fusegame",
@@ -179,10 +198,14 @@ describe(isAppState.name, () => {
     expect(isAppState(window({ kind: "about" }))).toBe(true);
     expect(isAppState(window({ kind: "winamp" }))).toBe(true);
     expect(
-      isAppState(window({ kind: "dialog", title: "t", message: "m", icon: "info" })),
+      isAppState(
+        window({ kind: "dialog", title: "t", message: "m", icon: "info" }),
+      ),
     ).toBe(true);
     expect(
-      isAppState(window({ kind: "dialog", title: "t", message: "m", icon: "x" })),
+      isAppState(
+        window({ kind: "dialog", title: "t", message: "m", icon: "x" }),
+      ),
     ).toBe(false);
     expect(isAppState(window({ kind: "paint" }))).toBe(true);
     expect(isAppState(window({ kind: "paint", fileName: "a.png" }))).toBe(true);
@@ -193,9 +216,9 @@ describe(isAppState.name, () => {
   it("rejects a bad envelope", () => {
     expect(isAppState(null)).toBe(false);
     expect(isAppState({ version: 1 })).toBe(false);
-    expect(isAppState({ version: 1, windows: [], assistantHidden: "yes" })).toBe(
-      false,
-    );
+    expect(
+      isAppState({ version: 1, windows: [], assistantHidden: "yes" }),
+    ).toBe(false);
     expect(isAppState({ version: 1, windows: [{ id: 1 }] })).toBe(false);
   });
 

@@ -1,7 +1,7 @@
-import { createContext } from 'react';
+import { createContext } from "react";
 
-import type { PaintSurface } from './paintSurface';
-import { createCanvasSurface } from './paintSurface';
+import type { PaintSurface } from "./paintSurface";
+import { createCanvasSurface } from "./paintSurface";
 
 /** Browser pieces Paint needs, injected so tests run without a 2D context. */
 export type PaintDeps = {

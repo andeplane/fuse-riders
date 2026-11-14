@@ -1,4 +1,4 @@
-export type MediaErrorCause = 'csp' | 'unknown';
+export type MediaErrorCause = "csp" | "unknown";
 
 /**
  * What went wrong loading a track: a definitive CSP report naming the blocked directive, or
@@ -7,7 +7,11 @@ export type MediaErrorCause = 'csp' | 'unknown';
  * retry a CDF track once with a freshly resolved download URL before treating it as a real
  * failure (an expired signed URL looks identical to a broken file otherwise).
  */
-export type MediaErrorInfo = { cause: MediaErrorCause; directive?: string; element?: HTMLMediaElement };
+export type MediaErrorInfo = {
+  cause: MediaErrorCause;
+  directive?: string;
+  element?: HTMLMediaElement;
+};
 
 /**
  * Listens for local media (`blob:` object URL) playback failures anywhere on the page.
@@ -27,18 +31,21 @@ export type MediaErrorInfo = { cause: MediaErrorCause; directive?: string; eleme
  *
  * Returns an unsubscribe.
  */
-export function subscribeMediaErrors(onError: (info: MediaErrorInfo) => void): () => void {
+export function subscribeMediaErrors(
+  onError: (info: MediaErrorInfo) => void,
+): () => void {
   const handleViolation = (event: SecurityPolicyViolationEvent) => {
     const directive = event.effectiveDirective || event.violatedDirective;
-    if (directive.startsWith('media-src')) onError({ cause: 'csp', directive });
+    if (directive.startsWith("media-src")) onError({ cause: "csp", directive });
   };
   const handleError = (event: Event) => {
-    if (event.target instanceof HTMLMediaElement) onError({ cause: 'unknown', element: event.target });
+    if (event.target instanceof HTMLMediaElement)
+      onError({ cause: "unknown", element: event.target });
   };
-  document.addEventListener('securitypolicyviolation', handleViolation);
-  window.addEventListener('error', handleError, true);
+  document.addEventListener("securitypolicyviolation", handleViolation);
+  window.addEventListener("error", handleError, true);
   return () => {
-    document.removeEventListener('securitypolicyviolation', handleViolation);
-    window.removeEventListener('error', handleError, true);
+    document.removeEventListener("securitypolicyviolation", handleViolation);
+    window.removeEventListener("error", handleError, true);
   };
 }

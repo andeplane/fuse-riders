@@ -40,7 +40,9 @@ describe(AppStateProvider.name, () => {
   it("seeds from the store and opens the deep link's windows on top, before the first render", () => {
     const store = new MemoryStateStore({
       version: 1,
-      windows: [{ id: "w1", kind: "winamp", minimized: false, maximized: false }],
+      windows: [
+        { id: "w1", kind: "winamp", minimized: false, maximized: false },
+      ],
     });
     render(
       <AppStateProvider
@@ -69,6 +71,8 @@ describe(AppStateProvider.name, () => {
     expect(store.saved).toBe(1);
     act(() => deps.fire());
     expect(store.saved).toBe(2);
-    expect(store.load().windows.map((window) => window.kind)).toEqual(["paint"]);
+    expect(store.load().windows.map((window) => window.kind)).toEqual([
+      "paint",
+    ]);
   });
 });

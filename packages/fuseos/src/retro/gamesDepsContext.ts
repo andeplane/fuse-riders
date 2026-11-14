@@ -1,6 +1,6 @@
-import { createContext } from 'react';
+import { createContext } from "react";
 
-import { publicUrl } from './publicUrl';
+import { publicUrl } from "./publicUrl";
 
 /** Browser and asset dependencies of the games, injected so tests never load a page or a timer. */
 export type GamesDeps = {
@@ -16,7 +16,8 @@ export type GamesDeps = {
 };
 
 export const defaultGamesDeps: GamesDeps = {
-  resolveUrl: (path) => publicUrl(path, import.meta.env.BASE_URL, document.baseURI),
+  resolveUrl: (path) =>
+    publicUrl(path, import.meta.env.BASE_URL, document.baseURI),
   now: () => Date.now(),
   subscribeSeconds: (onTick) => {
     const handle = window.setInterval(onTick, 250);

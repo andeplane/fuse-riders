@@ -1,20 +1,30 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties } from "react";
 
-export type WinampLogoProps = { width?: number | string; height?: number | string; className?: string; style?: CSSProperties };
+export type WinampLogoProps = {
+  width?: number | string;
+  height?: number | string;
+  className?: string;
+  style?: CSSProperties;
+};
 
 /**
  * The Winamp lightning bolt, drawn rather than bitmapped so it stays crisp at 16 and 32 pixels.
  * A generic speaker icon read as "some audio thing"; this is the mark people recognise on a
  * Windows 98 desktop. Webamp draws the real skin inside the window — this is only the icon.
  */
-export function WinampLogo({ width = 16, height = 16, className, style }: WinampLogoProps) {
+export function WinampLogo({
+  width = 16,
+  height = 16,
+  className,
+  style,
+}: WinampLogoProps) {
   return (
     <svg
       width={width}
       height={height}
       viewBox="0 0 32 32"
       className={className}
-      style={{ imageRendering: 'pixelated', ...style }}
+      style={{ imageRendering: "pixelated", ...style }}
       aria-hidden
       focusable="false"
       data-icon="winamp"

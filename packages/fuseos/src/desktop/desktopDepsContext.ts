@@ -21,4 +21,5 @@ export const defaultDesktopDeps: DesktopDeps = {
   },
 };
 
-export const DesktopDepsContext = createContext<DesktopDeps>(defaultDesktopDeps);
+export const DesktopDepsContext =
+  createContext<DesktopDeps>(defaultDesktopDeps);

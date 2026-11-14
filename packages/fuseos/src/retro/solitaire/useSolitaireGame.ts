@@ -1,9 +1,18 @@
-import { useContext, useEffect, useMemo, useReducer } from 'react';
+import { useContext, useEffect, useMemo, useReducer } from "react";
 
-import { GamesDepsContext } from '../gamesDepsContext';
+import { GamesDepsContext } from "../gamesDepsContext";
 
-import type { Location, SolitaireOptions, SolitaireState } from './solitaireRules';
-import { DEFAULT_OPTIONS, deal, scoreText, solitaireReducer } from './solitaireRules';
+import type {
+  Location,
+  SolitaireOptions,
+  SolitaireState,
+} from "./solitaireRules";
+import {
+  DEFAULT_OPTIONS,
+  deal,
+  scoreText,
+  solitaireReducer,
+} from "./solitaireRules";
 
 export type SolitaireGame = {
   state: SolitaireState;
@@ -26,12 +35,18 @@ export type SolitaireGame = {
  */
 export function useSolitaireGame(initial?: SolitaireState): SolitaireGame {
   const deps = useContext(GamesDepsContext);
-  const [state, dispatch] = useReducer(solitaireReducer, initial, (seed) => seed ?? deal(DEFAULT_OPTIONS, deps.random));
+  const [state, dispatch] = useReducer(
+    solitaireReducer,
+    initial,
+    (seed) => seed ?? deal(DEFAULT_OPTIONS, deps.random),
+  );
 
-  const ticking = state.status === 'playing' && state.options.timed;
+  const ticking = state.status === "playing" && state.options.timed;
   useEffect(() => {
     if (!ticking) return undefined;
-    return deps.subscribeSeconds(() => dispatch({ type: 'tick', now: deps.now() }));
+    return deps.subscribeSeconds(() =>
+      dispatch({ type: "tick", now: deps.now() }),
+    );
   }, [ticking, deps]);
 
   return useMemo(
@@ -39,14 +54,18 @@ export function useSolitaireGame(initial?: SolitaireState): SolitaireGame {
       state,
       score: scoreText(state),
       time: String(state.elapsed),
-      deal: () => dispatch({ type: 'deal', random: deps.random }),
-      draw: () => dispatch({ type: 'draw', now: deps.now() }),
-      move: (from: Location, count: number, to: Location) => dispatch({ type: 'move', from, count, to, now: deps.now() }),
-      autoMove: (from: Location) => dispatch({ type: 'autoMove', from, now: deps.now() }),
-      undo: () => dispatch({ type: 'undo' }),
-      setOptions: (options: SolitaireOptions) => dispatch({ type: 'setOptions', options, random: deps.random }),
-      setCardBack: (cardBack: number) => dispatch({ type: 'setCardBack', cardBack }),
+      deal: () => dispatch({ type: "deal", random: deps.random }),
+      draw: () => dispatch({ type: "draw", now: deps.now() }),
+      move: (from: Location, count: number, to: Location) =>
+        dispatch({ type: "move", from, count, to, now: deps.now() }),
+      autoMove: (from: Location) =>
+        dispatch({ type: "autoMove", from, now: deps.now() }),
+      undo: () => dispatch({ type: "undo" }),
+      setOptions: (options: SolitaireOptions) =>
+        dispatch({ type: "setOptions", options, random: deps.random }),
+      setCardBack: (cardBack: number) =>
+        dispatch({ type: "setCardBack", cardBack }),
     }),
-    [state, deps]
+    [state, deps],
   );
 }

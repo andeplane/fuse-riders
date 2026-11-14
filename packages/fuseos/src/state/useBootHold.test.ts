@@ -1,9 +1,9 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook } from "@testing-library/react";
 
-import { useBootHold } from './useBootHold';
+import { useBootHold } from "./useBootHold";
 
 describe(useBootHold.name, () => {
-  it('holds until the injected timer fires', () => {
+  it("holds until the injected timer fires", () => {
     let fire: (() => void) | undefined;
     const deps = {
       setTimeout: vi.fn((callback: () => void) => {
@@ -21,7 +21,7 @@ describe(useBootHold.name, () => {
     expect(deps.clearTimeout).toHaveBeenCalled();
   });
 
-  it('does not hold when the minimum is zero', () => {
+  it("does not hold when the minimum is zero", () => {
     const { result } = renderHook(() => useBootHold(0));
     expect(result.current).toBe(false);
   });

@@ -26,7 +26,11 @@ describe(FuseGameWindow.name, () => {
 
   it("passes ?mute through to the game when the OS was opened muted", () => {
     renderWithProviders(
-      <FuseGameWindow gameId="fuse-riders" active onActivate={() => undefined} />,
+      <FuseGameWindow
+        gameId="fuse-riders"
+        active
+        onActivate={() => undefined}
+      />,
       { muted: true },
     );
     expect(screen.getByTitle("Fuse Riders")).toHaveAttribute(
@@ -39,7 +43,11 @@ describe(FuseGameWindow.name, () => {
     const user = userEvent.setup();
     const onActivate = vi.fn();
     renderWithProviders(
-      <FuseGameWindow gameId="fuseball" active={false} onActivate={onActivate} />,
+      <FuseGameWindow
+        gameId="fuseball"
+        active={false}
+        onActivate={onActivate}
+      />,
     );
     await user.click(screen.getByRole("button", { name: "Activate Fuseball" }));
     expect(onActivate).toHaveBeenCalledTimes(1);
@@ -70,7 +78,9 @@ describe(FuseGameWindow.name, () => {
         ],
       },
     });
-    expect(screen.getByRole("dialog", { name: "Fuse Birds" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Fuse Birds" }),
+    ).toBeInTheDocument();
     const icons = within(screen.getByRole("list", { name: "Desktop icons" }));
     await user.dblClick(icons.getByRole("button", { name: "Fuseball" }));
     await user.dblClick(icons.getByRole("button", { name: "Fuseball" }));

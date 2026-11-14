@@ -70,10 +70,7 @@ export type OfficeAssistantViewModel = {
 };
 
 /** Loads something once the character is shown; a failed load leaves it undefined (the sprite then shows a still). */
-function useLoaded<T>(
-  load: () => Promise<T>,
-  enabled: boolean,
-): T | undefined {
+function useLoaded<T>(load: () => Promise<T>, enabled: boolean): T | undefined {
   const [value, setValue] = useState<T | undefined>(undefined);
   useEffect(() => {
     if (!enabled || value !== undefined) return undefined;
@@ -100,8 +97,12 @@ export function useOfficeAssistantViewModel(): OfficeAssistantViewModel {
   const deps = useContext(AssistantDepsContext);
   const games = useContext(FuseGamesContext);
   const commands = useWindowCommands();
-  const { assistant, assistantDispatch, assistantOptions, setAssistantOptions } =
-    ui;
+  const {
+    assistant,
+    assistantDispatch,
+    assistantOptions,
+    setAssistantOptions,
+  } = ui;
 
   const visible = !state.assistantHidden;
 

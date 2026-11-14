@@ -3,11 +3,18 @@ import ReactDOM from "react-dom/client";
 
 import { App } from "./App";
 import { createFuseGameRegistry, FuseGamesContext } from "./fusegames/registry";
-import { deepLinkContents, parseOpenParam, withoutOpenParam } from "./state/deepLink";
+import {
+  deepLinkContents,
+  parseOpenParam,
+  withoutOpenParam,
+} from "./state/deepLink";
 import { LocalStorageStateStore } from "./state/stateStore";
 import { WEBAMP_EMBED_OPTIONS } from "./winamp/webampLayout";
 import type { WinampDeps } from "./winamp/winampDepsContext";
-import { defaultWinampDeps, WinampDepsContext } from "./winamp/winampDepsContext";
+import {
+  defaultWinampDeps,
+  WinampDepsContext,
+} from "./winamp/winampDepsContext";
 
 import "./styles.css";
 

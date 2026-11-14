@@ -8,9 +8,7 @@ import type { OfficeAssistantViewModel } from "./useOfficeAssistantViewModel";
 function Message({ message }: { message: ChatMessage }) {
   return (
     <li
-      className={
-        message.role === "user" ? "assistant-user" : "assistant-atlas"
-      }
+      className={message.role === "user" ? "assistant-user" : "assistant-atlas"}
       data-role={message.role}
     >
       {message.role === "user" ? (
@@ -60,7 +58,11 @@ export function AssistantBalloon({ vm }: { vm: OfficeAssistantViewModel }) {
       </header>
 
       {vm.speech ? (
-        <p className="assistant-speech" role="status" data-kind={vm.speech.kind}>
+        <p
+          className="assistant-speech"
+          role="status"
+          data-kind={vm.speech.kind}
+        >
           {vm.speech.text}
         </p>
       ) : null}

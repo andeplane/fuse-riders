@@ -15,7 +15,9 @@ export function AboutDialog({ windowId }: { windowId: string }) {
         <Win98Icon name="computer" size={32} />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <p className="text-base font-bold">{OS_NAME}</p>
-          <p>Copyright &copy; {year} {MADE_BY}</p>
+          <p>
+            Copyright &copy; {year} {MADE_BY}
+          </p>
           <p>
             A Windows 95 desktop for the Fuse games: every game on the desktop
             opens in a window of its own, and the retro games under Start,

@@ -1,7 +1,7 @@
-import type { ReactNode } from 'react';
+import type { ReactNode } from "react";
 
-import type { IconName } from '../ui/icons';
-import { Win98Icon } from '../ui/icons';
+import type { IconName } from "../ui/icons";
+import { Win98Icon } from "../ui/icons";
 
 export type WindowChromeProps = {
   title: string;
@@ -34,10 +34,13 @@ export function WindowChrome({
       role="dialog"
       aria-label={title}
       className="window flex h-full w-full flex-col"
-      data-active={active ? 'true' : 'false'}
+      data-active={active ? "true" : "false"}
       onMouseDown={onActivate}
     >
-      <header className={`title-bar shrink-0 ${active ? '' : 'inactive'}`} onDoubleClick={resizable ? onToggleMaximize : undefined}>
+      <header
+        className={`title-bar shrink-0 ${active ? "" : "inactive"}`}
+        onDoubleClick={resizable ? onToggleMaximize : undefined}
+      >
         <div className="title-bar-text flex items-center gap-1 overflow-hidden whitespace-nowrap">
           <Win98Icon name={icon} />
           <span className="truncate">{title}</span>
@@ -45,7 +48,11 @@ export function WindowChrome({
         <div className="title-bar-controls">
           <button type="button" aria-label="Minimize" onClick={onMinimize} />
           {resizable ? (
-            <button type="button" aria-label={maximized ? 'Restore' : 'Maximize'} onClick={onToggleMaximize} />
+            <button
+              type="button"
+              aria-label={maximized ? "Restore" : "Maximize"}
+              onClick={onToggleMaximize}
+            />
           ) : null}
           <button type="button" aria-label="Close" onClick={onClose} />
         </div>

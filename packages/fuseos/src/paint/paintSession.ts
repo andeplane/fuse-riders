@@ -1,6 +1,11 @@
-import type { PaintSnapshot, PaintSurface } from './paintSurface';
-import type { PaintTool, Point, Size } from './paintTools';
-import { DEFAULT_CANVAS_SIZE, boxBetween, isFreehandTool, isShapeTool } from './paintTools';
+import type { PaintSnapshot, PaintSurface } from "./paintSurface";
+import type { PaintTool, Point, Size } from "./paintTools";
+import {
+  DEFAULT_CANVAS_SIZE,
+  boxBetween,
+  isFreehandTool,
+  isShapeTool,
+} from "./paintTools";
 
 export const MAX_UNDO = 20;
 
@@ -10,7 +15,14 @@ export type StrokeSettings = {
   brushSize: number;
 };
 
-type ActiveStroke = { tool: PaintTool; color: string; size: number; start: Point; last: Point; before: PaintSnapshot };
+type ActiveStroke = {
+  tool: PaintTool;
+  color: string;
+  size: number;
+  start: Point;
+  last: Point;
+  before: PaintSnapshot;
+};
 
 export type BeginResult = { changed: boolean; picked?: string };
 
@@ -48,18 +60,34 @@ export class PaintSession {
   }
 
   /** Pointer down: starts a stroke, or applies one-shot tools (fill, picker). The Text tool is placed through `placeText`. */
-  begin(tool: PaintTool, at: Point, button: number, settings: StrokeSettings): BeginResult {
+  begin(
+    tool: PaintTool,
+    at: Point,
+    button: number,
+    settings: StrokeSettings,
+  ): BeginResult {
     const surface = this.surface;
     if (!surface) return { changed: false };
-    const color = tool === 'eraser' ? settings.background : button === 2 ? settings.background : settings.foreground;
-    if (tool === 'picker') return { changed: false, picked: surface.colorAt(at) };
-    if (tool === 'fill') {
+    const color =
+      tool === "eraser"
+        ? settings.background
+        : button === 2
+          ? settings.background
+          : settings.foreground;
+    if (tool === "picker")
+      return { changed: false, picked: surface.colorAt(at) };
+    if (tool === "fill") {
       this.push();
       surface.fill(at, color);
       return { changed: true };
     }
-    if (tool === 'text') return { changed: false };
-    const size = tool === 'pencil' ? 1 : tool === 'eraser' ? settings.brushSize + 4 : settings.brushSize;
+    if (tool === "text") return { changed: false };
+    const size =
+      tool === "pencil"
+        ? 1
+        : tool === "eraser"
+          ? settings.brushSize + 4
+          : settings.brushSize;
     const before = this.push();
     this.stroke = { tool, color, size, start: at, last: at, before };
     if (isFreehandTool(tool)) surface.drawLine(at, at, color, size);
@@ -86,7 +114,12 @@ export class PaintSession {
   end(at: Point): boolean {
     const stroke = this.stroke;
     if (!stroke) return false;
-    if (!isFreehandTool(stroke.tool) || at.x !== stroke.last.x || at.y !== stroke.last.y) this.move(at);
+    if (
+      !isFreehandTool(stroke.tool) ||
+      at.x !== stroke.last.x ||
+      at.y !== stroke.last.y
+    )
+      this.move(at);
     this.stroke = undefined;
     return true;
   }
@@ -115,7 +148,7 @@ export class PaintSession {
     this.surface.clear(color);
   }
 
-  flip(axis: 'horizontal' | 'vertical'): void {
+  flip(axis: "horizontal" | "vertical"): void {
     if (!this.surface) return;
     this.push();
     this.surface.flip(axis);
@@ -136,14 +169,14 @@ export class PaintSession {
 
   /** Draws a decoded file; forgets the undo history. */
   async loadImage(blob: Blob): Promise<Size> {
-    if (!this.surface) throw new Error('No canvas to draw on');
+    if (!this.surface) throw new Error("No canvas to draw on");
     this.undoStack = [];
     this.stroke = undefined;
     return this.surface.loadImage(blob);
   }
 
   toBlob(mimeType: string): Promise<Blob> {
-    if (!this.surface) return Promise.reject(new Error('No canvas to save'));
+    if (!this.surface) return Promise.reject(new Error("No canvas to save"));
     return this.surface.toBlob(mimeType);
   }
 
@@ -164,16 +197,20 @@ export class PaintSession {
     if (!stroke || !surface) return;
     const box = boxBetween(stroke.start, to);
     switch (stroke.tool) {
-      case 'line':
+      case "line":
         surface.drawLine(stroke.start, to, stroke.color, stroke.size);
         return;
-      case 'rect':
+      case "rect":
         surface.drawRect(box, { stroke: stroke.color, size: stroke.size });
         return;
-      case 'filledRect':
-        surface.drawRect(box, { stroke: stroke.color, fill: stroke.color, size: stroke.size });
+      case "filledRect":
+        surface.drawRect(box, {
+          stroke: stroke.color,
+          fill: stroke.color,
+          size: stroke.size,
+        });
         return;
-      case 'ellipse':
+      case "ellipse":
         surface.drawEllipse(box, { stroke: stroke.color, size: stroke.size });
         return;
       default:

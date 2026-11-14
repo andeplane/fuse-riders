@@ -37,7 +37,11 @@ describe(createFuseGameRegistry.name, () => {
       muted: true,
     });
     expect(muted.embedUrl(game)).toBe("./fuseball/?mute");
-    const empty = createFuseGameRegistry({ games: FIXTURE_GAMES, base: "", muted: false });
+    const empty = createFuseGameRegistry({
+      games: FIXTURE_GAMES,
+      base: "",
+      muted: false,
+    });
     expect(empty.embedUrl(game)).toBe("./fuseball/");
   });
 

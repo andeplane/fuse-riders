@@ -1,6 +1,6 @@
-import type { Box, Point, Size } from './paintTools';
-import { floodFill } from './paintTools';
-import { parseHexColor, toHexColor } from './palette';
+import type { Box, Point, Size } from "./paintTools";
+import { floodFill } from "./paintTools";
+import { parseHexColor, toHexColor } from "./palette";
 
 /** Opaque handle to a copy of the pixels, for undo and shape previews. */
 export interface PaintSnapshot {
@@ -27,7 +27,7 @@ export interface PaintSurface {
   colorAt(at: Point): string;
   snapshot(): PaintSnapshot;
   restore(snapshot: PaintSnapshot): void;
-  flip(axis: 'horizontal' | 'vertical'): void;
+  flip(axis: "horizontal" | "vertical"): void;
   /** Rotates 90 degrees clockwise; width and height swap. */
   rotate(): void;
   toBlob(mimeType: string): Promise<Blob>;
@@ -38,17 +38,33 @@ export interface PaintSurface {
 
 const TEXT_FONT = '16px "Pixelated MS Sans Serif", Arial, sans-serif';
 
-function decode(blob: Blob): Promise<{ source: CanvasImageSource; width: number; height: number; release: () => void }> {
-  if (typeof createImageBitmap === 'function') {
-    return createImageBitmap(blob).then((bitmap) => ({ source: bitmap, width: bitmap.width, height: bitmap.height, release: () => bitmap.close() }));
+function decode(blob: Blob): Promise<{
+  source: CanvasImageSource;
+  width: number;
+  height: number;
+  release: () => void;
+}> {
+  if (typeof createImageBitmap === "function") {
+    return createImageBitmap(blob).then((bitmap) => ({
+      source: bitmap,
+      width: bitmap.width,
+      height: bitmap.height,
+      release: () => bitmap.close(),
+    }));
   }
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(blob);
     const image = new Image();
-    image.onload = () => resolve({ source: image, width: image.naturalWidth, height: image.naturalHeight, release: () => URL.revokeObjectURL(url) });
+    image.onload = () =>
+      resolve({
+        source: image,
+        width: image.naturalWidth,
+        height: image.naturalHeight,
+        release: () => URL.revokeObjectURL(url),
+      });
     image.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error('Could not decode the image'));
+      reject(new Error("Could not decode the image"));
     };
     image.src = url;
   });
@@ -59,10 +75,10 @@ class CanvasPaintSurface implements PaintSurface {
   private readonly pixels = new WeakMap<PaintSnapshot, ImageData>();
 
   constructor(private readonly canvas: HTMLCanvasElement) {
-    const context = canvas.getContext('2d', { willReadFrequently: true });
-    if (!context) throw new Error('Canvas 2D is not available');
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) throw new Error("Canvas 2D is not available");
     this.context = context;
-    this.clear('#ffffff');
+    this.clear("#ffffff");
   }
 
   size(): Size {
@@ -85,8 +101,8 @@ class CanvasPaintSurface implements PaintSurface {
     context.strokeStyle = color;
     context.fillStyle = color;
     context.lineWidth = size;
-    context.lineCap = 'round';
-    context.lineJoin = 'round';
+    context.lineCap = "round";
+    context.lineJoin = "round";
     context.beginPath();
     context.moveTo(from.x, from.y);
     context.lineTo(to.x, to.y);
@@ -102,7 +118,7 @@ class CanvasPaintSurface implements PaintSurface {
     if (style.stroke) {
       context.strokeStyle = style.stroke;
       context.lineWidth = style.size;
-      context.lineJoin = 'miter';
+      context.lineJoin = "miter";
       context.strokeRect(box.x, box.y, box.width, box.height);
     }
   }
@@ -110,7 +126,15 @@ class CanvasPaintSurface implements PaintSurface {
   drawEllipse(box: Box, style: ShapeStyle): void {
     const context = this.context;
     context.beginPath();
-    context.ellipse(box.x + box.width / 2, box.y + box.height / 2, box.width / 2, box.height / 2, 0, 0, Math.PI * 2);
+    context.ellipse(
+      box.x + box.width / 2,
+      box.y + box.height / 2,
+      box.width / 2,
+      box.height / 2,
+      0,
+      0,
+      Math.PI * 2,
+    );
     if (style.fill) {
       context.fillStyle = style.fill;
       context.fill();
@@ -125,7 +149,7 @@ class CanvasPaintSurface implements PaintSurface {
   drawText(at: Point, text: string, color: string, font?: string): void {
     const context = this.context;
     context.font = font ?? TEXT_FONT;
-    context.textBaseline = 'top';
+    context.textBaseline = "top";
     context.fillStyle = color;
     context.fillText(text, at.x, at.y);
   }
@@ -133,7 +157,8 @@ class CanvasPaintSurface implements PaintSurface {
   fill(at: Point, color: string): void {
     const { width, height } = this.size();
     const image = this.context.getImageData(0, 0, width, height);
-    if (floodFill(image.data, width, height, at, parseHexColor(color))) this.context.putImageData(image, 0, 0);
+    if (floodFill(image.data, width, height, at, parseHexColor(color)))
+      this.context.putImageData(image, 0, 0);
   }
 
   colorAt(at: Point): string {
@@ -153,19 +178,22 @@ class CanvasPaintSurface implements PaintSurface {
   restore(snapshot: PaintSnapshot): void {
     const image = this.pixels.get(snapshot);
     if (!image) return;
-    if (snapshot.width !== this.canvas.width || snapshot.height !== this.canvas.height) {
+    if (
+      snapshot.width !== this.canvas.width ||
+      snapshot.height !== this.canvas.height
+    ) {
       this.canvas.width = snapshot.width;
       this.canvas.height = snapshot.height;
     }
     this.context.putImageData(image, 0, 0);
   }
 
-  flip(axis: 'horizontal' | 'vertical'): void {
+  flip(axis: "horizontal" | "vertical"): void {
     const copy = this.copy();
     const { width, height } = this.size();
     const context = this.context;
     context.save();
-    if (axis === 'horizontal') {
+    if (axis === "horizontal") {
       context.translate(width, 0);
       context.scale(-1, 1);
     } else {
@@ -191,7 +219,14 @@ class CanvasPaintSurface implements PaintSurface {
 
   toBlob(mimeType: string): Promise<Blob> {
     return new Promise((resolve, reject) => {
-      this.canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Could not encode the image'))), mimeType, 0.92);
+      this.canvas.toBlob(
+        (blob) =>
+          blob
+            ? resolve(blob)
+            : reject(new Error("Could not encode the image")),
+        mimeType,
+        0.92,
+      );
     });
   }
 
@@ -202,7 +237,7 @@ class CanvasPaintSurface implements PaintSurface {
   async loadImage(blob: Blob): Promise<Size> {
     const decoded = await decode(blob);
     try {
-      this.reset({ width: decoded.width, height: decoded.height }, '#ffffff');
+      this.reset({ width: decoded.width, height: decoded.height }, "#ffffff");
       this.context.drawImage(decoded.source, 0, 0);
     } finally {
       decoded.release();
@@ -211,10 +246,10 @@ class CanvasPaintSurface implements PaintSurface {
   }
 
   private copy(): HTMLCanvasElement {
-    const copy = document.createElement('canvas');
+    const copy = document.createElement("canvas");
     copy.width = this.canvas.width;
     copy.height = this.canvas.height;
-    copy.getContext('2d')?.drawImage(this.canvas, 0, 0);
+    copy.getContext("2d")?.drawImage(this.canvas, 0, 0);
     return copy;
   }
 }

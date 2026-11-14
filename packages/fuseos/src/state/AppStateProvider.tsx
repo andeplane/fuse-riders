@@ -51,6 +51,8 @@ export function AppStateProvider({
 
   const value = useMemo(() => ({ state, dispatch }), [state]);
   return (
-    <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>
+    <AppStateContext.Provider value={value}>
+      {children}
+    </AppStateContext.Provider>
   );
 }

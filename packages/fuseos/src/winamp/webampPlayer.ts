@@ -6,7 +6,7 @@
  */
 export type WebampTrack = { url: string; defaultName?: string };
 
-export type WebampStatus = 'PLAYING' | 'PAUSED' | 'STOPPED';
+export type WebampStatus = "PLAYING" | "PAUSED" | "STOPPED";
 
 export interface WebampPlayer {
   /** Mounts the skinned player as a child of `node`, centred within it. */
@@ -22,7 +22,9 @@ export interface WebampPlayer {
   getPlaylistTracks(): { url: string }[];
   getMediaStatus(): WebampStatus;
   /** Fires whenever the loaded track changes; null when playback stops with nothing loaded. */
-  onTrackDidChange(callback: (track: { url: string } | null) => void): () => void;
+  onTrackDidChange(
+    callback: (track: { url: string } | null) => void,
+  ): () => void;
   /** Stops audio and releases what Webamp can; the package itself documents that a full teardown is not possible. */
   dispose(): void;
 }

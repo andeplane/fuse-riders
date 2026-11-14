@@ -1,4 +1,4 @@
-import { SHORTCUTS, SHORTCUT_SCOPES } from '../lib/shortcuts';
+import { SHORTCUTS, SHORTCUT_SCOPES } from "../lib/shortcuts";
 
 /**
  * Control Panel, Keyboard: every shortcut the desktop understands, grouped by scope and read
@@ -26,7 +26,9 @@ export function KeyboardApplet() {
               <tbody>
                 {shortcuts.map((shortcut) => (
                   <tr key={shortcut.id}>
-                    <td className="font-mono whitespace-nowrap">{shortcut.keys}</td>
+                    <td className="font-mono whitespace-nowrap">
+                      {shortcut.keys}
+                    </td>
                     <td>{shortcut.description}</td>
                   </tr>
                 ))}

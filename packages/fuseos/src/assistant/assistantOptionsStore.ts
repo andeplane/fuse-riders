@@ -1,4 +1,4 @@
-import { createContext } from 'react';
+import { createContext } from "react";
 
 /** The Office Assistant's Options: per browser, never shared through links. */
 export type AssistantOptions = {
@@ -14,24 +14,33 @@ export type AssistantOptions = {
   greeted: boolean;
 };
 
-export const DEFAULT_ASSISTANT_OPTIONS: AssistantOptions = { showTips: true, narrate: true, animate: true, sounds: false, greeted: false };
+export const DEFAULT_ASSISTANT_OPTIONS: AssistantOptions = {
+  showTips: true,
+  narrate: true,
+  animate: true,
+  sounds: false,
+  greeted: false,
+};
 
 export interface AssistantOptionsStore {
   get(): AssistantOptions;
   set(options: AssistantOptions): void;
 }
 
-export const ASSISTANT_OPTIONS_KEY = 'fuseos.assistant';
+export const ASSISTANT_OPTIONS_KEY = "fuseos.assistant";
 
 function flag(value: unknown, fallback: boolean): boolean {
-  return typeof value === 'boolean' ? value : fallback;
+  return typeof value === "boolean" ? value : fallback;
 }
 
-export function parseAssistantOptions(raw: string | null | undefined): AssistantOptions {
+export function parseAssistantOptions(
+  raw: string | null | undefined,
+): AssistantOptions {
   if (!raw) return DEFAULT_ASSISTANT_OPTIONS;
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== 'object' || parsed === null) return DEFAULT_ASSISTANT_OPTIONS;
+    if (typeof parsed !== "object" || parsed === null)
+      return DEFAULT_ASSISTANT_OPTIONS;
     const record: Record<string, unknown> = { ...parsed };
     return {
       showTips: flag(record.showTips, DEFAULT_ASSISTANT_OPTIONS.showTips),
@@ -47,11 +56,16 @@ export function parseAssistantOptions(raw: string | null | undefined): Assistant
 
 /** localStorage backed store; every access is guarded because storage can be unavailable. */
 export class LocalStorageAssistantOptionsStore implements AssistantOptionsStore {
-  constructor(private readonly storage: Pick<Storage, 'getItem' | 'setItem'> | undefined = safeLocalStorage()) {}
+  constructor(
+    private readonly storage:
+      Pick<Storage, "getItem" | "setItem"> | undefined = safeLocalStorage(),
+  ) {}
 
   get(): AssistantOptions {
     try {
-      return parseAssistantOptions(this.storage?.getItem(ASSISTANT_OPTIONS_KEY));
+      return parseAssistantOptions(
+        this.storage?.getItem(ASSISTANT_OPTIONS_KEY),
+      );
     } catch {
       return DEFAULT_ASSISTANT_OPTIONS;
     }
@@ -68,7 +82,7 @@ export class LocalStorageAssistantOptionsStore implements AssistantOptionsStore 
 
 function safeLocalStorage(): Storage | undefined {
   try {
-    return typeof localStorage === 'undefined' ? undefined : localStorage;
+    return typeof localStorage === "undefined" ? undefined : localStorage;
   } catch {
     return undefined;
   }
@@ -84,4 +98,5 @@ export class MemoryAssistantOptionsStore implements AssistantOptionsStore {
   }
 }
 
-export const AssistantOptionsStoreContext = createContext<AssistantOptionsStore>(new LocalStorageAssistantOptionsStore());
+export const AssistantOptionsStoreContext =
+  createContext<AssistantOptionsStore>(new LocalStorageAssistantOptionsStore());
