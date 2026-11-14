@@ -1,3 +1,4 @@
+import { createTopBar } from "fuse-ui";
 import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
@@ -111,7 +112,7 @@ function header() {
     el("span", "A FUSE GAME", "eyebrow"),
     sound,
   );
-  return h;
+  return createTopBar({ element: h, gameId: GAME });
 }
 function handbook() {
   const d = el("dialog", "", "handbook");

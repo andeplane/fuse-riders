@@ -83,6 +83,7 @@ function page(...parts: HTMLElement[]): HTMLElement {
     search: location.search,
   });
   bar.append(portal.element, brand, social.element());
+  ui.createTopBar({ element: bar, brand, gameId: GAME });
   root.append(bar, ...parts);
   document.body.append(root);
   return bar;

@@ -6,6 +6,7 @@ import { reportPlay } from "./analytics.js";
 import "./style.css";
 import "./presentation.css";
 import { createAppPortal } from "fuse-ui/portal";
+import { createTopBar } from "fuse-ui";
 import { createGameMenu, createRoundControls } from "fuse-ui";
 import { createRadio } from "fuse-ui/radio";
 import { EffectsAudio, browserToneSink } from "./audio.js";
@@ -297,6 +298,10 @@ homeBar.append(
   social.element(),
 );
 el<HTMLAnchorElement>("study").href = `?showcase=1${muted ? "&mute" : ""}`;
+el("home").textContent = "HOOK HAVOK";
+const gameHeader = homeBar.closest<HTMLElement>("header")!;
+gameHeader.replaceChildren(homeBar);
+createTopBar({ element: gameHeader, brand: el("home"), gameId: "hook-havok" });
 const tuning = el<HTMLFormElement>("tuning");
 const experiment = el<HTMLSelectElement>("experiment");
 experiment.add(new Option("Arena ricochets · gentle", "ricochet"));

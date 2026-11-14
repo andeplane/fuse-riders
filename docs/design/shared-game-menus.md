@@ -1,5 +1,7 @@
 # Shared game menus and rooms
 
+Every game uses the shared top bar for game identity, a fixed-size account/rating control and a hamburger. The header overlays the current scene without an opaque background or a separate layout row. Existing game-owned audio, settings, friends, match-history and leaderboard controls live in its menu and retain their handlers. Account labels mirror the game's existing account panel, so ratings remain keyed by game and asynchronous sign-in/Elo updates do not resize the header. Craft preserves the stateful header while reconciling room updates, keeping open menus and focus intact.
+
 Every game uses `fuse-ui`'s main menu: Play creates a room; How to play and About open focused dialogs; Settings appears when a game has preferences. A secondary action retains joining by code and existing solo/local modes. Credits are shared across games.
 
 The room layout places its public invitation and game-settings action on the left, with numbered slots on the right. Each open slot contains Join and, where supported, Add AI. Missing names open a dialog; signed-in or remembered names join directly. Team games color and label the slots. Occupied players retain their actual numbered slots, including gaps after removal. On phones these stack. The component moves existing controls rather than owning room commands. Game adapters retain capacity, permission checks, names, teams, selection and settings validation. Roster updates explicitly notify the layout; there is no DOM polling.

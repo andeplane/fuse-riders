@@ -2,6 +2,7 @@ import { social } from "./social.js";
 import "fuse-ui/portal.css";
 import "./entrance.css";
 import { createAppPortal } from "fuse-ui/portal";
+import { createTopBar } from "fuse-ui";
 import { createMainMenu } from "fuse-ui";
 
 interface EntranceOptions {
@@ -61,6 +62,8 @@ export function createEntrance(o: EntranceOptions) {
     home,
     social.element(),
   );
+  home.textContent = "HOOK HAVOK";
+  createTopBar({ element: bar, brand: home, gameId: "hook-havok" });
   const placements = Object.entries({
     start: o.start,
     status: o.status,
@@ -165,6 +168,7 @@ export function createEntrance(o: EntranceOptions) {
   function show() {
     menu.startBackground();
     bar.append(social.element());
+    createTopBar({ element: bar, brand: home, gameId: "hook-havok" });
     root.hidden = false;
     root.setAttribute("role", "main");
     o.main.inert = true;
@@ -200,6 +204,8 @@ export function createEntrance(o: EntranceOptions) {
       close();
       placements.forEach((p) => p.marker.after(p.node));
       roomSocialParent?.append(social.element());
+      const roomBar = roomSocialParent?.closest<HTMLElement>(".fui-top-bar");
+      if (roomBar) createTopBar({ element: roomBar, gameId: "hook-havok" });
       root.hidden = true;
       root.removeAttribute("role");
       o.main.inert = false;

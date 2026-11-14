@@ -1,3 +1,4 @@
+import { createTopBar } from "fuse-ui";
 import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import { startGameAnalytics } from "fuse-ui/play-metrics";
@@ -146,7 +147,7 @@ function header(): HTMLElement {
     el("span", "", "ff-top-gap"),
     ...sound.toggles(),
   );
-  return top;
+  return createTopBar({ element: top, gameId: GAME_ID });
 }
 
 function landing(error = ""): void {

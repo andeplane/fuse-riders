@@ -1,0 +1,198 @@
+.fui-top-bar.fui-top-bar {
+  position: fixed;
+  inset: max(12px, env(safe-area-inset-top)) 20px auto;
+  z-index: 40;
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 48px;
+  min-height: 48px;
+  max-width: none;
+  width: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none;
+  color: #e8f5ff;
+  box-sizing: border-box;
+}
+.fui-top-bar-left,
+.fui-top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  height: 48px;
+}
+.fui-top-bar-left {
+  flex: 1;
+}
+.fui-top-bar-brand.fui-top-bar-brand {
+  display: block !important;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  max-width: 340px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 18px;
+  line-height: 24px;
+  text-decoration: none;
+}
+.fui-top-bar-brand small {
+  display: none;
+}
+.fui-top-bar .fui-portal-toggle {
+  width: 44px;
+  height: 44px;
+  padding: 8px;
+  box-sizing: border-box;
+}
+.fui-top-bar .fui-top-bar-toggle,
+.fui-top-bar .fui-top-bar-account {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  height: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
+  margin: 0;
+  border: 1px solid #57718c;
+  border-radius: 8px;
+  padding: 4px 12px;
+  background: #07111dcc;
+  color: #e8f5ff;
+  font:
+    600 13px/16px system-ui,
+    sans-serif;
+  box-shadow: none;
+  transform: none;
+}
+.fui-top-bar .fui-top-bar-toggle {
+  width: 44px;
+  padding: 10px;
+}
+.fui-top-bar .fui-top-bar-account {
+  width: 176px;
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+.fui-top-bar-account-source.fui-top-bar-account-source {
+  display: none !important;
+}
+.fui-top-bar-context {
+  position: absolute;
+  top: 56px;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+}
+.fui-top-bar-context > * {
+  pointer-events: auto;
+}
+.fui-top-bar-menu.fui-top-bar-menu {
+  position: fixed;
+  inset: 76px 20px auto auto;
+  width: min(350px, calc(100vw - 32px));
+  max-height: calc(100svh - 96px);
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid #365370;
+  border-radius: 12px;
+  background: #0b192bf5;
+  color: #e8f5ff;
+  box-shadow: 0 12px 30px #0006;
+}
+.fui-top-bar-menu::backdrop {
+  background: #03081244;
+}
+.fui-top-bar-actions {
+  display: grid;
+  gap: 10px;
+}
+.fui-top-bar-actions > :is(div, nav, section) {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+}
+.fui-top-bar-menu .game-top-menu {
+  display: grid !important;
+  position: static !important;
+  width: 100%;
+}
+body.at-entrance .shell > .fui-top-bar {
+  display: none !important;
+}
+.fui-top-bar-menu :is(button, a) {
+  box-sizing: border-box;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 10px 14px;
+  font:
+    600 14px/20px system-ui,
+    sans-serif;
+  white-space: normal;
+  text-align: left;
+  transform: none !important;
+}
+.fui-top-bar-menu [hidden],
+.fui-top-bar [hidden] {
+  display: none !important;
+}
+.fui-top-bar-menu .fui-game-menu-panel {
+  position: static;
+  width: 100%;
+  max-height: none;
+  box-shadow: none;
+}
+body:has(.fui-top-bar) {
+  isolation: isolate;
+}
+body:has(.fui-top-bar) .fui-main-menu:has(> .fui-attract) {
+  isolation: auto;
+  background: transparent;
+  min-height: 100svh;
+  box-sizing: border-box;
+  padding-top: 88px;
+}
+body:has(.fui-top-bar) .fui-main-menu > .fui-attract {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+body:has(.fui-top-bar) .fui-main-menu:has(> .fui-attract)::after {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+@media (max-width: 600px) {
+  .fui-top-bar.fui-top-bar {
+    left: 12px;
+    right: 12px;
+    gap: 8px;
+  }
+  .fui-top-bar-left,
+  .fui-top-bar-right {
+    gap: 6px;
+  }
+  .fui-top-bar-brand.fui-top-bar-brand {
+    font-size: 13px;
+    max-width: 120px;
+  }
+  .fui-top-bar .fui-top-bar-account {
+    width: 108px;
+    font-size: 12px;
+  }
+  .fui-top-bar-menu.fui-top-bar-menu {
+    right: 12px;
+  }
+}

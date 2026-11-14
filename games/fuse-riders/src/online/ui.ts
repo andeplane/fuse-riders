@@ -13,7 +13,7 @@ import { createAccountPanel } from "./account-panel.js";
 import { createFriendsPanel } from "./friends-panel.js";
 import { isRiderAvatarId } from "../engine/avatar-id.js";
 import { validRiderName } from "../engine/rider-name.js";
-import { createTopMenuToggle } from "./top-menu-toggle.js";
+import { createTopBar } from "fuse-ui";
 import { requestedRoomSlot } from "fuse-ui";
 import {
   accountUsername,
@@ -1017,24 +1017,23 @@ export async function startOnline(): Promise<void> {
     }
     const { desktop, sideStandings: side } = screen;
     // Keep the same account control visible beside MENU during full-screen phone play.
-    const accountParent = screen.mobile.active ? app : topMenu;
+    const accountParent = topMenu;
     if (roomAccount.button.parentElement !== accountParent)
       accountParent.append(roomAccount.button);
     // Desktop play keeps the standings in a fixed column right of the arena (its width lives in online.css), so the game bar holds actions only.
-    const rosterParent = side ? app : desktop ? header : scoreboard;
+    const rosterParent = side ? app : desktop ? headerContext : scoreboard;
     if (roster.parentElement !== rosterParent) {
       if (side) app.append(roster);
-      else if (desktop) header.insertBefore(roster, topMenu);
+      else if (desktop) headerContext.append(roster);
       else scoreboard.append(roster);
     }
     const actionsParent = screen.lobbyCard
       ? lobbyFooter
       : desktop
-        ? header
+        ? headerContext
         : footer;
     if (hostControls.parentElement !== actionsParent) {
-      if (actionsParent === header) header.insertBefore(hostControls, topMenu);
-      else actionsParent.append(hostControls);
+      actionsParent.append(hostControls);
     }
     const aiParent = screen.lobbyCard
       ? sharedLobby.querySelector<HTMLElement>(".fui-room-join")
@@ -1166,9 +1165,18 @@ export async function startOnline(): Promise<void> {
   header.append(topMenu);
   // One ☰ instead of two wrapped rows of buttons where the viewport is too short to spare them; top-menu.css decides
   // where that is, and the sheet it opens floats over the page so the lobby keeps its height either way.
-  const topMenuToggle = createTopMenuToggle(header, topMenu);
-  header.append(topMenuToggle.button);
   topMenu.append(results, menu, help);
+  createTopBar({
+    element: header,
+    brand: title,
+    account: roomAccount.button,
+    gameId: GAME_ID,
+  });
+  const headerContext = header.querySelector<HTMLElement>(
+    ".fui-top-bar-context",
+  )!;
+  const topBarDialog =
+    header.querySelector<HTMLDialogElement>(".fui-top-bar-menu")!;
   for (const extra of [
     topRadio,
     topMusic,
@@ -1187,7 +1195,6 @@ export async function startOnline(): Promise<void> {
     "pagehide",
     () => {
       roomAccount.dispose();
-      topMenuToggle.dispose();
       window.removeEventListener("focus", refreshAccount);
       document.removeEventListener("visibilitychange", refreshAccount);
     },
@@ -2160,6 +2167,7 @@ export async function startOnline(): Promise<void> {
     if (
       dialogs.current() !== undefined ||
       roomAccount.dialog.open ||
+      topBarDialog.open ||
       roomEnded ||
       !(manages || solo)
     )
@@ -2234,7 +2242,7 @@ export async function startOnline(): Promise<void> {
       !roomEnded &&
       !mobileLayout.blocked() &&
       dialogs.current() === undefined &&
-      !roomAccount.dialog.open &&
+      !(roomAccount.dialog.open || topBarDialog.open) &&
       !document.hidden &&
       !leftButton.disabled &&
       !Boolean(
@@ -2277,7 +2285,7 @@ export async function startOnline(): Promise<void> {
           !roomEnded &&
           !mobileLayout.blocked() &&
           dialogs.current() === undefined &&
-          !roomAccount.dialog.open &&
+          !(roomAccount.dialog.open || topBarDialog.open) &&
           !document.hidden &&
           !Boolean(
             document.activeElement?.closest(
@@ -2333,7 +2341,7 @@ export async function startOnline(): Promise<void> {
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) clearControls();
   });
-  for (const modal of [...dialogElements, roomAccount.dialog])
+  for (const modal of [...dialogElements, roomAccount.dialog, topBarDialog])
     modal.addEventListener("focusin", clearControls);
   document.addEventListener("focusin", () => {
     if (
@@ -2348,7 +2356,7 @@ export async function startOnline(): Promise<void> {
     if (open !== undefined) clearControls();
   });
   new MutationObserver(() => {
-    if (roomAccount.dialog.open) clearControls();
+    if (roomAccount.dialog.open || topBarDialog.open) clearControls();
   }).observe(roomAccount.dialog, {
     attributes: true,
     attributeFilter: ["open"],
@@ -2464,7 +2472,7 @@ export async function startOnline(): Promise<void> {
         !document.hidden &&
         !roomEnded &&
         dialogs.current() === undefined &&
-        !roomAccount.dialog.open &&
+        !(roomAccount.dialog.open || topBarDialog.open) &&
         !Boolean(
           document.activeElement?.closest(
             'input,textarea,select,[contenteditable]:not([contenteditable="false"])',

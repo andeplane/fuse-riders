@@ -1,3 +1,4 @@
+import { createTopBar } from "fuse-ui";
 import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import { AVATAR_ATLAS } from "fuse-ui/assets";
@@ -261,7 +262,7 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     search: location.search,
   });
   bar.append(portal.element, logo(), social.element(), radioButton(), ...extra);
-  return bar;
+  return createTopBar({ element: bar, gameId: GAME });
 }
 
 function keyHelp(): HTMLElement {

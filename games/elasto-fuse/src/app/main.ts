@@ -8,6 +8,7 @@ import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
 import "./elasto-fuse.css";
 import QRCode from "qrcode";
+import { createTopBar } from "fuse-ui";
 import {
   PeerTransport,
   createEndpoints,
@@ -193,7 +194,7 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     search: location.search,
   });
   bar.append(portal.element, logo(), social.element(), ...extra);
-  return bar;
+  return createTopBar({ element: bar, gameId: GAME });
 }
 
 function keyHelp(): HTMLElement {

@@ -3,6 +3,7 @@
  * PLAY SOLO, SETTINGS, the app portal and the account panel all live here. The room itself is `ui.ts`'s: the landing
  * page talks to it through `LandingHost`, and leaving for a room keeps the document (and so the music) alive.
  */
+import { createTopBar } from "fuse-ui";
 import {
   button,
   createAppPortal,
@@ -324,6 +325,12 @@ export function showLanding(host: LandingHost): void {
     friendsPanel.button,
     accountPanel.button,
   );
+  createTopBar({
+    element: top,
+    brand,
+    account: accountPanel.button,
+    gameId: GAME_ID,
+  });
   friendsPanel.banner.classList.add("friends-invite-banner");
   card.append(accountPanel.dialog, friendsPanel.dialog);
   const playOptions = node("div", "", "fui-landing");

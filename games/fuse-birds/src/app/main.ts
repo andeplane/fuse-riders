@@ -28,6 +28,7 @@ import {
   el,
 } from "fuse-ui";
 import { createAppPortal } from "fuse-ui/portal";
+import { createTopBar } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import { createModalInputGate } from "fuse-ui/modal-input";
 import { createPlayMetrics, startGameAnalytics } from "fuse-ui/play-metrics";
@@ -203,6 +204,7 @@ function landing(): void {
   );
   const header = el("header", "", "birds-top");
   header.append(portal(), brand(), social.element());
+  createTopBar({ element: header, gameId: GAME });
   const mainMenu = createMainMenu({
     background: async (host, signal) =>
       (await import("./attract.js")).createAttract(host, signal),
@@ -257,6 +259,7 @@ function room(code: string, display: boolean, practice = false): void {
   });
   page.addEventListener("pointerdown", () => audio.unlock());
   header.append(portal(), brand(), codeLabel, message, menu);
+  createTopBar({ element: header, gameId: GAME });
   const lobby = el("section", "", "birds-lobby birds-card"),
     members = el("ul", "", "birds-roster"),
     start = button("START BATTLE", "fui-button-primary");

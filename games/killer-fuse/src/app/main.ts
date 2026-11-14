@@ -8,6 +8,7 @@ import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
 import "./killer-fuse.css";
 import QRCode from "qrcode";
+import { createTopBar } from "fuse-ui";
 import {
   PeerTransport,
   createEndpoints,
@@ -183,7 +184,7 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     search: location.search,
   });
   bar.append(portal.element, brand, social.element(), ...extra);
-  return bar;
+  return createTopBar({ element: bar, gameId: GAME });
 }
 
 /** The art sheets, fetched once for the page's pictures; none when the manifest cannot be had. */

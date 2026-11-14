@@ -7,7 +7,7 @@ import "./screens.css";
 import { validRoomCode } from "fuse-network-fe";
 import { uuid } from "fuse-netcode";
 import { createAppPortal, type AppPortal } from "fuse-ui/portal";
-import { createGameMenu, createRoundControls } from "fuse-ui";
+import { createGameMenu, createRoundControls, createTopBar } from "fuse-ui";
 import Phaser from "phaser";
 import {
   RoundScene,
@@ -81,7 +81,12 @@ async function boot(): Promise<void> {
   document.body.append(root);
   audio.mountToggle(); // After `#screen`, so screens.css can hide it mid-round.
   const portal = mountPortal();
-  portal.element.append(social.element());
+  const top = portal.element.parentElement!;
+  const brand = document.createElement("a");
+  brand.textContent = "FUSE BOMBERS";
+  brand.href = import.meta.env.BASE_URL;
+  top.append(brand, social.element());
+  createTopBar({ element: top, brand, gameId: GAME });
   let flow: Flow | undefined;
   const menu = createGameMenu({
     title: "FUSE BOMBERS",

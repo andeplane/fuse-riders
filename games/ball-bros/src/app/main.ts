@@ -2,6 +2,7 @@ import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
 import "fuse-ui/social.css";
+import { createTopBar } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import { createPlayMetrics, startGameAnalytics } from "fuse-ui/play-metrics";
 import "./style.css";
@@ -137,6 +138,19 @@ function render() {
     });
   }
   root.querySelector("header")?.append(social.element());
+  const top = root.querySelector<HTMLElement>("header");
+  if (top) {
+    const brand =
+      ([...top.children].find((node) => node.tagName === "A") as
+        HTMLElement | undefined) ??
+      top.querySelector<HTMLElement>(".fui-top-bar-brand");
+    if (brand) brand.textContent = "BALL BROS";
+    createTopBar({
+      element: top,
+      brand: brand ?? undefined,
+      gameId: "ball-bros",
+    });
+  }
 }
 window.addEventListener("popstate", render);
 installLifecycle(window, {

@@ -1,3 +1,4 @@
+import { createTopBar } from "fuse-ui";
 import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
@@ -82,7 +83,7 @@ function header(): HTMLElement {
     brand,
     social.element(),
   );
-  return bar;
+  return createTopBar({ element: bar, gameId: GAME });
 }
 
 function landing(): void {

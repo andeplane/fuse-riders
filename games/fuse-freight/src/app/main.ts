@@ -1,3 +1,4 @@
+import { createTopBar } from "fuse-ui";
 import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
@@ -231,7 +232,7 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     search: location.search,
   });
   bar.append(portal.element, logo(), social.element(), ...extra);
-  return bar;
+  return createTopBar({ element: bar, gameId: GAME });
 }
 
 /** Canvases that animate while shown: the splash's depot, the rules panels and the lobby's bays. */
