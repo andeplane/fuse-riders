@@ -161,6 +161,8 @@ export const CHECK_DELAY_MS = 1_500;
 export const FAKE_SHARE_DELAY_MS = 8_000;
 export const SEARCH_DELAY_MS = 900;
 export const TICK_MS = 500;
+/** Where a doomed download resumes from: nearly done, as the Incomplete\ folder always was. */
+export const RESUME_AT = 0.985;
 /** How many results a search keeps, like a hub's flood limit. */
 export const SEARCH_LIMIT = 500;
 const MAX_CHAT = 300;
@@ -800,12 +802,23 @@ export class DcClient {
       this.schedule(key, 1_200, () => {
         const current = this.item(id);
         if (!current) return;
-        // Fast enough to watch it crawl to 99% in 15-25 s, whatever the size.
+        // A resumed transfer (the Incomplete\ folder already holds 98.5%) that crawls to 99% in 15-25 s
+        // at a believable 2003 speed, then never gets the last percent.
         const seconds = randomInt(this.deps.random, 15, 25);
+        const downloaded = Math.max(
+          current.downloaded,
+          Math.floor(current.size * RESUME_AT),
+        );
         this.patchItem(id, {
           state: "running",
           startedAt: this.deps.now(),
-          speed: Math.max(1, Math.round((current.size * 0.99) / seconds)),
+          downloaded,
+          speed: Math.max(
+            1,
+            Math.round(
+              (Math.floor(current.size * 0.99) - downloaded) / seconds,
+            ),
+          ),
         });
         this.ensureTicking();
       });

@@ -9,6 +9,7 @@ import {
   DcClient,
   FAKE_SHARE_DELAY_MS,
   KICK_DELAY_MS,
+  RESUME_AT,
   SEARCH_DELAY_MS,
 } from "./dcClient";
 import { MiB } from "./format";
@@ -396,7 +397,11 @@ describe("DcClient downloads", () => {
     clock.advance(1_200);
     const running = client.getState().queue[0];
     expect(running?.state).toBe("running");
-    expect(running?.speed).toBe(Math.round((JOKE.size * 0.99) / 15));
+    const resumed = Math.floor(JOKE.size * RESUME_AT);
+    expect(running?.downloaded).toBe(resumed);
+    expect(running?.speed).toBe(
+      Math.round((Math.floor(JOKE.size * 0.99) - resumed) / 15),
+    );
     clock.advance(500);
     expect(client.getState().queue[0]?.status).toMatch(
       /^Downloaded .* \(\d+\.\d%\) in 1s$/,
@@ -410,7 +415,7 @@ describe("DcClient downloads", () => {
       downloaded: Math.floor(JOKE.size * 0.99),
     });
     expect(client.getState().downloadedTotal).toBe(
-      Math.floor(JOKE.size * 0.99),
+      Math.floor(JOKE.size * 0.99) - Math.floor(JOKE.size * RESUME_AT),
     );
     expect(client.getState().finished).toEqual([]);
   });

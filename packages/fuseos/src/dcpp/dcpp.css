@@ -446,6 +446,10 @@
   outline: none;
 }
 
+.dcpp .dc-tree button svg {
+  flex: none;
+}
+
 .dc-tree li[aria-selected="true"] > button {
   background: var(--dc-select);
   color: var(--dc-select-text);
