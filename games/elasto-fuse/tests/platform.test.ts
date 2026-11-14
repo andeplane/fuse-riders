@@ -66,11 +66,11 @@ test("a confirmed match adds to an account's totals, and stored totals are read 
   const standing = elastoFuseRegistration.emptyTotals();
   elastoFuseRegistration.addTotals(
     standing,
-    elastoFuseRegistration.credit(rider(0, 1, 17, 2)),
+    elastoFuseRegistration.credit(rider(0, 1, 17, 2), []),
   );
   elastoFuseRegistration.addTotals(
     standing,
-    elastoFuseRegistration.credit(rider(1, 2, 5, 1)),
+    elastoFuseRegistration.credit(rider(1, 2, 5, 1), []),
   );
   assert.deepEqual(standing.totals, {
     matches: 2,

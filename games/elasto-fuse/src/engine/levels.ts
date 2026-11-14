@@ -124,7 +124,7 @@ const row = (from: number, to: number, gap: number, up: number): Spot[] => {
   return spots;
 };
 
-/** Flat out: holding the gas is enough here, and nowhere else. */
+/** Flat: nothing to learn but the gas, which loops the bike over backwards when it is floored from a standstill. */
 const warmUp = level({
   id: "warm-up",
   name: "Warm Up",

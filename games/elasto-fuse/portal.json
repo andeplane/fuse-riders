@@ -1,6 +1,7 @@
 {
   "name": "Elasto Fuse",
-  "tagline": "A new Fuse game.",
+  "tagline": "Springy bike trials",
   "mark": "EF",
-  "accent": "#16e7ff"
+  "accent": "#ffe46b",
+  "screenshot": "gallery/elasto-fuse.jpg"
 }
