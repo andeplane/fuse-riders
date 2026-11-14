@@ -81,3 +81,13 @@ test("Pig stays off the desktop: no icon for a game without a portal entry", () 
     .filter((id) => !existsSync(new URL(`${id}/portal.json`, gamesRoot)));
   assert.deepEqual([...new Set(stray)], []);
 });
+
+test("every portal game's browser tab icon is its FuseOS icon", () => {
+  for (const id of portalGames()) {
+    const html = readFileSync(new URL(`${id}/index.html`, gamesRoot), "utf8");
+    assert.ok(
+      html.includes(`href="/fuseos/game-icons/${id}.png"`),
+      `games/${id}/index.html links its FuseOS icon as the favicon`,
+    );
+  }
+});
