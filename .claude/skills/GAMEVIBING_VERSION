@@ -1,0 +1,22 @@
+# Vendored by scripts/sync-gamevibing.sh; do not edit by hand.
+source: https://github.com/andeplane/gamevibing.git
+commit: d814d4a343064a49489eaddc6105c3e6ece2d6aa
+skill: game-2d
+skill: game-art-review
+skill: game-asset-pipeline
+skill: game-audio
+skill: game-building-generation
+skill: game-characters-animation
+skill: game-debug-tools
+skill: game-design-fun
+skill: game-dev-index
+skill: game-direction-workflow
+skill: game-engine-choice
+skill: game-materials-shaders
+skill: game-multiplayer
+skill: game-npc-ai
+skill: game-particles-vfx
+skill: game-performance-optimization
+skill: game-physics
+skill: game-voxels
+skill: game-world-generation

@@ -35,9 +35,9 @@ pnpm config:plan -- --account YOUR_AUTHORIZED_GOOGLE_ACCOUNT
 
 The check is offline; the plan reads the real project and checks the Google redirect without signing anyone in.
 It prints only drift categories and resource identifiers. It never prints OAuth secrets or password hash configuration.
-After merge and successful main CI, `backend.yml` installs the pinned CLI (`npm ci --prefix tools/firebase`),
+After merge, `backend.yml` installs the pinned CLI (`npm ci --prefix tools/firebase`),
 authenticates through the existing main-only workload identity, and runs `scripts/deploy-cloud.sh`.
-Configuration is verified before the image build and gateway update. The release artifacts contain the source SHA,
+The script submits the image build, waits for the commit's CD gate to pass, and then applies and verifies configuration before the gateway update. The release artifacts contain the source SHA,
 configuration digest and verification timestamp. They are evidence of configuration readiness, not proof of a completed browser login.
 
 ## One-time IAM bootstrap

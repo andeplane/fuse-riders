@@ -1,21 +1,30 @@
 name: CI
-# The pull-request gate, kept under about two minutes. The heavy suite (coverage, the browser matrix and the
-# whole-recording replays at full stride) is CD's: cd.yml runs this same workflow for main pushes, one run at a
-# time, and both deployments wait for it. A pull request runs that suite too only when labelled `full-ci`.
+# The pull-request gate, kept under about two minutes. cd.yml calls this same workflow for every main push, for
+# the gate alone, which both deployments wait for. suite.yml calls it with `release` once a week for the heavy
+# suite (coverage, the browser matrix and the whole-recording replays at full stride). A pull request runs that
+# suite too only when labelled `full-ci`.
 on:
   pull_request:
     # `labeled` is not a default type: without it, adding `full-ci` to an open pull
     # request would not start the release jobs until the next push. `unlabeled` re-checks
     # `verify` when `full-ci` comes off.
     types: [opened, synchronize, reopened, labeled, unlabeled]
+  # A dispatch runs the release jobs too.
   workflow_dispatch:
-  # cd.yml. Called, `github.event_name` is the caller's (`push`), so the release jobs below run.
+  # cd.yml (the gate) and suite.yml (`release: true`, the gate and then the release jobs, weekly).
   workflow_call:
+    inputs:
+      release:
+        description: Also run the release jobs (coverage, the browser matrix) and check every replay tick.
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
-  # Called from CD, `github.workflow` is "CD", whose own single group already serialises its runs.
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # A pull request's runs share a group so a new push cancels the old run. Anything else gets a group per
+  # commit: called from cd.yml a shared group would let a newer push replace a waiting gate, and the
+  # deployment of that commit waits for its own gate. suite.yml serialises itself with its own group.
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   # Cancel superseded pull-request runs, never a CD run: a cancelled run withholds its deployment.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
@@ -26,8 +35,8 @@ jobs:
   # What sets this gate's wall clock is mostly not its work. Measured over 25 green pull-request runs
   # (2026-10-11..17): the jobs' own work ended about 100-130 s after the run started, but `verify` finished at a
   # median of about 600 s and up to 40 minutes, because each job first waits for a runner. The account has about
-  # 20 runners, shared with every other pull request and with CD, whose release jobs alone were about 25 jobs per
-  # main push. So CD runs one main push at a time, its release jobs wait for this gate and the browser matrix is
+  # 20 runners, shared with every other pull request and with the release jobs, about 25 jobs per run.
+  # So suite.yml runs one suite at a time, its release jobs wait for this gate and the browser matrix is
   # capped (`max-parallel`), leaving runners free for pull requests; and this gate is shaped to need as few
   # runner slots and runner-seconds as it can for the same checks:
   #
@@ -40,7 +49,7 @@ jobs:
   #   queue for no gain. Before changing the width, measure both halves: the shard balance
   #   AND how much queueing the extra jobs draw. Refresh the timings from a run's `test-timings-*` artifacts:
   #   `gh run download <run> -p 'test-timings-*' -D t && pnpm exec tsx scripts/run-tests.ts --merge-timings t`.
-  #   Take them from a pull-request run: CD replays every tick, so its replay files look four times heavier.
+  #   Take them from a pull-request run: suite.yml replays every tick, so its replay files look four times heavier.
   # - Every checkout leaves out the screenshots, videos and recorded evidence under docs/ (about 410 of the
   #   tree's 560 MB); nothing a check, test, build or smoke runs reads them. Coverage keeps its full checkout.
   checks:
@@ -98,10 +107,14 @@ jobs:
       # the whole suite.
       TEST_SHARD: ${{ matrix.shard }}/5
       TEST_TIMINGS_OUT: artifacts/test-timings-${{ matrix.shard }}.json
-      # The two whole-recording replays fold all 15,776 ticks either way; on a pull request they check one tick
-      # in ten instead of every one, which is a quarter of the time. A main push and the release suite leave
+      # The two whole-recording replays fold all 15,776 ticks either way; on the gate (a pull request, and
+      # cd.yml's run for a main push) they check one tick in ten instead of every one, which is a quarter of
+      # the time; a `full-ci` pull request does too. suite.yml, a dispatch and the local release suite leave
       # this at 1 and check every tick. See games/fuse-riders/tests/fixtures/replay-budget.ts.
-      FUSE_REPLAY_STRIDE: ${{ github.event_name == 'pull_request' && '10' || '1' }}
+      FUSE_REPLAY_STRIDE: ${{ (inputs.release || github.event_name == 'workflow_dispatch') && '1' || '10' }}
+      # The gate leaves the files that take minutes each to the release jobs' runs (SUITE_ONLY in
+      # scripts/lib/test-shards.ts): a shard is never faster than its slowest file.
+      TEST_GATE: ${{ (inputs.release || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-ci')) && '0' || '1' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -132,9 +145,10 @@ jobs:
           overwrite: true
 
   # One stable check name for the whole gate: green only when `checks` and every shard passed and, when the release
-  # jobs ran (CD, a dispatch or `full-ci`), coverage and every smoke passed too. A branch rule waits on this, never
-  # on the shards, so the matrix can be resized without touching the rule. A red main does not hold pull requests
-  # back: CD's failure withholds the deployment, and the fix forward merges like any other change.
+  # jobs ran (suite.yml, a dispatch or `full-ci`), coverage and every smoke passed too. A branch rule waits on this,
+  # never on the shards, so the matrix can be resized without touching the rule. A red main does not hold pull
+  # requests back: a failed gate in cd.yml withholds the deployment, a failed suite.yml does not, and either way
+  # the fix forward merges like any other change.
   verify:
     needs: [checks, unit, coverage, e2e]
     if: always()
@@ -144,7 +158,7 @@ jobs:
       - name: Every gate passed
         env:
           GATE: ${{ needs.checks.result }} ${{ needs.unit.result }}
-          RELEASE: ${{ github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci') }}
+          RELEASE: ${{ inputs.release || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-ci') }}
           PROOF: ${{ needs.coverage.result }} ${{ needs.e2e.result }}
         run: |
           test "$GATE" = "success success"
@@ -152,11 +166,11 @@ jobs:
             test "$PROOF" = "success success" || { echo "::error::The release jobs did not pass (coverage, e2e: $PROOF)."; exit 1; }
           fi
 
-  # The release jobs: coverage and the browser matrix. CD runs them for every main push it verifies, after the
-  # gate above passed, and a pull request runs them only when labelled `full-ci`.
+  # The release jobs: coverage and the browser matrix. suite.yml runs them weekly on main, after the gate above
+  # passed, and a pull request runs them only when labelled `full-ci`.
   coverage-unit:
     needs: [checks, unit]
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci')
+    if: inputs.release || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-ci')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -188,7 +202,7 @@ jobs:
 
   coverage-browser:
     needs: [checks, unit]
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci')
+    if: inputs.release || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-ci')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -221,7 +235,7 @@ jobs:
 
   coverage:
     needs: [coverage-unit, coverage-browser]
-    if: always() && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci'))
+    if: always() && (inputs.release || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-ci'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -260,9 +274,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # The browser matrix. It runs on the way to production rather than in front of every push to a
-  # pull request. Deployment still waits for it: backend.yml (and Pages after it) gates on CD's
-  # conclusion for a main push.
+  # The browser matrix. It runs weekly on main (suite.yml) rather than in front of every push to a
+  # pull request or to main. Deployment does not wait for it: backend.yml (and Pages after it) gates on cd.yml's
+  # gate alone, so a failure here is found after the release and fixed forward.
   #
   # Run it on a pull request before merging, for a change to the renderer, the online runtime,
   # the controller or any other browser-facing path: add the `full-ci` label, dispatch this
@@ -275,9 +289,7 @@ jobs:
   # doing so.
   plan:
     needs: [checks, unit]
-    if: >-
-      github.event_name != 'pull_request' ||
-      contains(github.event.pull_request.labels.*.name, 'full-ci')
+    if: inputs.release || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-ci')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -303,9 +315,9 @@ jobs:
     strategy:
       # Every smoke reports, so one run shows everything that is broken rather than the first thing.
       fail-fast: false
-      # Leaves runners for pull requests' gates while CD runs: with coverage's six collectors this is twelve of
-      # the account's twenty. The longest smokes sort early (`home`, `determinism`), so the cap costs CD a minute
-      # or two rather than a wave.
+      # Leaves runners for pull requests' gates while the suite runs: with coverage's six collectors this is twelve
+      # of the account's twenty. The longest smokes sort early (`home`, `determinism`), so the cap costs the suite
+      # a minute or two rather than a wave.
       max-parallel: 6
       matrix:
         id: ${{ fromJson(needs.plan.outputs.ids) }}
@@ -316,8 +328,8 @@ jobs:
       # scripts/ci-smoke.sh comments on the `flaky-test` issue when a smoke on main passes only on retry.
       issues: write
     env:
-      # Only main pushes report flakes to the issue, so pull-request smoke code never sees an issue-writing token.
-      GH_TOKEN: ${{ github.event_name == 'push' && github.token || '' }}
+      # Only runs on main (the weekly suite, a dispatch) report flakes to the issue, so pull-request smoke code never sees an issue-writing token.
+      GH_TOKEN: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.token || '' }}
       # A two-core runner drives several browser contexts at once, some on software GL, so the
       # deadlines these smokes were written against are not deadlines here: three different steps
       # timed out on three consecutive runs whose code was fine. Scaling them keeps every assertion
@@ -387,10 +399,7 @@ jobs:
   # One stable check name for the whole matrix: green only when every smoke passed.
   e2e:
     needs: [smoke]
-    if: >-
-      always() &&
-      (github.event_name != 'pull_request' ||
-      contains(github.event.pull_request.labels.*.name, 'full-ci'))
+    if: always() && (inputs.release || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-ci'))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

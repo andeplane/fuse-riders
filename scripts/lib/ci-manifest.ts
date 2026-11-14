@@ -66,7 +66,7 @@ export interface CiManifest {
   verify: VerifyStep[];
   /**
    * Steps a pull request does not wait on: the coverage gate, which instruments every module and costs about
-   * 60% on top of the same tests. A main push runs it before anything deploys, and so does the release suite.
+   * 60% on top of the same tests. The weekly release suite (.github/workflows/suite.yml) runs it, and so does `full-ci`.
    */
   release: VerifyStep[];
   smokes: Smoke[];

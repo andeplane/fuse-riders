@@ -1,24 +1,27 @@
 name: CD
-# Everything a main push proves before it deploys: ci.yml's gate and then its release jobs (coverage, the whole
-# browser matrix, the whole-recording replays at full stride). backend.yml deploys on this workflow's success and
-# Pages follows the backend.
+# What a main push proves before it deploys: ci.yml's gate (format, lint, configuration, the build and the unit
+# shards), the same checks a pull request waits on, run again on the merged commit. That is about two minutes.
+# backend.yml starts on the same push, builds the image meanwhile and waits for this run to succeed before it
+# changes anything in production (scripts/deploy-cloud.sh); Pages follows the backend.
 #
-# One run at a time, newest commit wins: while a run is going, a further push waits, and a still newer push replaces
-# the waiting one. The newest commit contains every older one, so the run that goes ahead deploys them all; the
-# replaced runs end cancelled, which deploys nothing and counts as no verdict. That keeps CD to one suite's worth of
-# runners however fast main moves, so pull requests' gates are not queued behind it.
+# The heavy suite (coverage, the whole browser matrix, the whole-recording replays at full stride) is
+# suite.yml's. It runs against main once a week, not in front of a deployment: a red suite is a regression
+# to fix forward, not a withheld release.
+#
+# One run per commit, and none replaces another: backend.yml waits for the run of its own commit, so a run
+# cancelled for a newer push would fail that commit's deployment for nothing. The gate is seven short jobs.
 on:
   push:
     branches: [main]
 permissions:
   contents: read
 concurrency:
-  group: cd
+  group: cd-${{ github.sha }}
   cancel-in-progress: false
 jobs:
   ci:
     uses: ./.github/workflows/ci.yml
     permissions:
       contents: read
-      # ci.yml's smokes comment on the `flaky-test` issue when a smoke on main passes only on retry.
+      # A called workflow gets no more than its caller grants, and ci.yml's smoke job (skipped here) asks for this.
       issues: write

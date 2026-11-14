@@ -5,3 +5,5 @@ artifacts/
 # Retained measurement evidence must keep its original bytes and hashes.
 docs/**/*.json
 pnpm-lock.yaml
+# Vendored from andeplane/gamevibing by scripts/sync-gamevibing.sh; keep upstream bytes.
+.claude/skills/game-*/

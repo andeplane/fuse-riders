@@ -14,4 +14,20 @@ These JPEGs are resized copies of existing browser gameplay captures in the repo
 | fuse-lane.jpg     | games/fuse-lane/docs/screenshots/desktop-week.png                            |
 | hook-havok.jpg    | games/hook-havok/docs/evidence/art-production-pull.png                       |
 
-Set `screenshot` to `gallery/<id>.jpg` in the game's `portal.json`. A new manifest is picked up automatically; a game without an image gets its lettermark until a gameplay capture is added.
+The images below are captured from real play by `scripts/gallery-capture.ts`, which drives each game's own menus into a solo or bot match in a 1200×750 browser and saves the frame:
+
+```sh
+pnpm build
+pnpm gallery:capture             # every game with a recipe
+pnpm gallery:capture fuseball    # only this one
+```
+
+| Image               | Recipe            |
+| ------------------- | ----------------- |
+| ball-bros.jpg       | `ball-bros`       |
+| fuse-birds.jpg      | `fuse-birds`      |
+| fuse-front.jpg      | `fuse-front`      |
+| fuseball.jpg        | `fuseball`        |
+| graveyard-shift.jpg | `graveyard-shift` |
+
+Every game on the portal needs an image: `tests/gallery-screenshots.test.ts` fails for a `portal.json` without a `screenshot`, or one that names a missing file. For a new game, add a recipe to `scripts/gallery-capture.ts`, run `pnpm gallery:capture <id>`, look at the result, and set `screenshot` to `gallery/<id>.jpg` in the game's `portal.json`. To refresh one of the copied images above from live play, add a recipe for it the same way.
