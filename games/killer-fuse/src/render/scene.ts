@@ -567,6 +567,12 @@ export class Scene {
             color: this.sprites.ramp(unit.team)[2] ?? "#fff",
             offsets: RIM,
           });
+        else if (unit.dashing && unit.kind === "queen")
+          // Flat out she is four pixels of body: a bright edge in her colour keeps her the biggest thing in a fight.
+          this.rim(ctx, unit, pose.frame, { x, y: at.y }, flip, {
+            color: this.sprites.ramp(unit.team)[3] ?? "#fff",
+            offsets: RIM,
+          });
         if (pose.flash && pose.sheet !== base) {
           // The white silhouette over the sprite, not instead of it: the unit stays readable while it blinks.
           this.sprites.draw(ctx, base, pose.frame, x, at.y, flip);
@@ -955,7 +961,8 @@ export class Scene {
       // White that grows as it fades: a core for a clash, the whole sky round a dying Queen.
       const t = flare.age / flare.life;
       const radius = Math.max(1, Math.round(flare.radius * (0.25 + 0.75 * t)));
-      ctx.globalAlpha = 1 - t;
+      // Gone fast: what it lit up shows through before it has finished growing.
+      ctx.globalAlpha = (1 - t) ** 2;
       ctx.fillStyle = "#ffffff";
       const x = Math.round(flare.x),
         y = Math.round(flare.y);

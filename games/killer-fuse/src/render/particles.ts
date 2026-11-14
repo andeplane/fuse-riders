@@ -129,7 +129,7 @@ export const DIVE_COLORS: readonly string[] = [
   "#ff2e9d",
 ];
 /** Specks a second, and the least and most seconds each lives. */
-export const DIVE_STREAM = { rate: 150, life: [0.3, 0.5] } as const;
+export const DIVE_STREAM = { rate: 300, life: [0.3, 0.5] } as const;
 
 /** `count` specks of the dive stream somewhere along a body `height` tall whose feet are at (x, y). */
 export function diveStream(
@@ -140,7 +140,7 @@ export function diveStream(
   random: () => number,
 ): Particle[] {
   const [least, most] = DIVE_STREAM.life;
-  return Array.from({ length: count }, () => ({
+  return Array.from({ length: count }, (_, index) => ({
     x: x + (random() - 0.5) * 5,
     y: y - random() * height,
     vx: (random() - 0.5) * 10,
@@ -149,7 +149,8 @@ export function diveStream(
     life: least + random() * (most - least),
     color: DIVE_COLORS[0] ?? "#ffffff",
     colors: DIVE_COLORS,
-    size: 1,
+    // Every third is a fat one, so the stream still reads at game scale.
+    size: index % 3 === 0 ? 2 : 1,
     gravity: 0,
   }));
 }

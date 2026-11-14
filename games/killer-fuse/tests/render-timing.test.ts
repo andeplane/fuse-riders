@@ -81,7 +81,7 @@ test("an after-image is left every 20 ms of movement and lives 200 ms", () => {
 });
 
 test("a dive streams specks that rise and turn from yellow to magenta", () => {
-  assert.equal(DIVE_STREAM.rate, 150);
+  assert.equal(DIVE_STREAM.rate, 300);
   const specks = diveStream(100, 80, 20, 12, sequence());
   assert.equal(specks.length, 12);
   for (const speck of specks) {
@@ -91,6 +91,11 @@ test("a dive streams specks that rise and turn from yellow to magenta", () => {
     assert.ok(speck.y <= 80 && speck.y >= 60, "along the body");
     assert.ok(Math.abs(speck.x - 100) <= 2.5);
   }
+  assert.deepEqual(
+    specks.slice(0, 4).map((speck) => speck.size),
+    [2, 1, 1, 2],
+    "every third is a fat one",
+  );
   const [speck] = specks;
   assert.ok(speck);
   assert.equal(particleColor(speck), DIVE_COLORS[0]);

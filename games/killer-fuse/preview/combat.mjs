@@ -210,7 +210,7 @@ try {
     const diving = (view) => view.units.find((u) => u.diving && !u.dead);
     if (await find(map, diving)) {
       for (let i = 0; i < 3; i += 1) {
-        await play(i === 0 ? 1 : 3);
+        await play(i === 0 ? 0 : 3);
         await closeup(`${tag}-dive-${i}`, diving);
       }
     }
@@ -343,6 +343,31 @@ try {
         await closeup(`${tag}-hatch-${i}`, fixed);
       }
     }
+  }
+  // The three endings, each on the first map and seed that ends that way: the moment it is won, the hexagon
+  // closing and the picture it settles on.
+  if (!process.argv.includes("--no-endings")) {
+    const found = new Set();
+    for (const map of [1, 2, 3])
+      for (let seed = 1; seed <= 8 && found.size < 3; seed += 1) {
+        const kind = await page.evaluate(
+          ([m, s]) => {
+            const game = window.__game;
+            game.restart({ map: m, seed: s, level: "hard" });
+            game.until("victory", 60 * 60 * 8);
+            return game.view().winner?.kind ?? null;
+          },
+          [map, seed],
+        );
+        if (!kind || found.has(kind)) continue;
+        found.add(kind);
+        let shown = 0;
+        for (const at of [20, 70, 100, 200]) {
+          await play(at - shown);
+          shown = at;
+          await whole(`ending-${kind}-m${map}-${at}`);
+        }
+      }
   }
   if (errors.length > 0) throw new Error(errors.join("\n"));
 } finally {
