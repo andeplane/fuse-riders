@@ -5,6 +5,7 @@ import {
   MAP_IDS,
   isCircle,
   isMapId,
+  moverBoxAt,
   stepWorld,
   type Circle,
   type MapDef,
@@ -79,6 +80,7 @@ test("every map has its own id and name, and a new one is only ever added at the
       "bouncerate",
       "portforward",
       "backdoor",
+      "stacktrace",
     ],
   );
   for (const id of MAP_IDS) {
@@ -225,6 +227,18 @@ for (const map of maps) {
           run(120);
           if (world.phase !== "play") continue;
           const { ball } = world;
+          // Lying on a mover it goes where the mover goes, which is at rest: a rider can ride up beside it.
+          const riding = map.movers.some((mover) => {
+            const box = moverBoxAt(mover, world.clock);
+            return (
+              Math.abs(ball.x - box.cx) <= box.hw &&
+              Math.abs(ball.y + BALL * 4096 - (box.cy - box.hh)) <= 4096
+            );
+          });
+          if (riding) {
+            rested++;
+            continue;
+          }
           if (ball.x !== was.x || ball.y !== was.y) {
             // Still on the move after forty seconds: only by falling, round and round an arena open top to bottom.
             assert.ok(

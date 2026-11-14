@@ -3,6 +3,8 @@
  * from its `seed`: `arenaOf(view)`) and
  * the sizes and timings it draws to. Everything here is in pixels and micro-steps.
  *
+ * A mover is drawn where `moverPlace(mover, view.clock)` has it: the view's clock is all its state.
+ *
  * A solid may run past the field's edge on an axis that wraps (see `maps.ts`): draw it again one field back.
  */
 export {
@@ -12,6 +14,9 @@ export {
   mapOf,
   arenaOf,
   isCircle,
+  moverPlace,
+  type Ledge,
+  type Mover,
   type MapId,
   type ArenaId,
   type MapDef,

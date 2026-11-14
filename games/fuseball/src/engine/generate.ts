@@ -1,13 +1,6 @@
 import { inShape, apart } from "./collide.js";
 import { drift, freshBarriers } from "./gadgets.js";
-import {
-  boxesOf,
-  isCircle,
-  isSeed,
-  type MapDef,
-  type Rect,
-  type Goal,
-} from "./maps.js";
+import { isCircle, isSeed, type MapDef, type Rect, type Goal } from "./maps.js";
 import { SUB } from "./math.js";
 
 const W = 640,
@@ -113,6 +106,8 @@ export function levelCandidate(seed: number): MapDef {
     barriers: [],
     bumpers: [],
     portals: [],
+    ledges: [],
+    movers: [],
   };
 }
 
@@ -179,7 +174,6 @@ function reachable(map: MapDef): boolean {
 
 /** The same drop grid as handmade-map tests, using the engine's autonomous ball flight. */
 function deadRest(map: MapDef): string | undefined {
-  const boxes = boxesOf(map);
   for (let x = 10; x < W; x += 20)
     for (let y = 15; y < H; y += 30) {
       if (
@@ -197,7 +191,7 @@ function deadRest(map: MapDef): string | undefined {
         for (let step = 0; step < 4920; step++) {
           const beforeX = ball.x,
             beforeY = ball.y;
-          drift(ball, boxes, map, barriers);
+          const by = drift(ball, map, barriers, step + 1);
           if (step === 4799) {
             lastX = ball.x;
             lastY = ball.y;
@@ -206,7 +200,11 @@ function deadRest(map: MapDef): string | undefined {
             scored = true;
             break;
           }
-          still = ball.x === beforeX && ball.y === beforeY ? still + 1 : 0;
+          // Lying on a mover is at rest too: it has gone only as far as the mover took it.
+          still =
+            ball.x === beforeX + by.x && ball.y === beforeY + by.y
+              ? still + 1
+              : 0;
           if (still >= 120) break;
         }
         if (scored) continue;
@@ -227,6 +225,241 @@ function deadRest(map: MapDef): string | undefined {
       }
     }
   return;
+}
+
+const overlap = (a: Rect, b: Rect, margin = 0): boolean =>
+  a.x < b.x + b.w + margin &&
+  b.x < a.x + a.w + margin &&
+  a.y < b.y + b.h + margin &&
+  b.y < a.y + a.h + margin;
+const around = (x: number, y: number, r: number): Rect =>
+  rect(x - r, y - r, 2 * r, 2 * r);
+const even = (r: Rect): boolean =>
+  [r.x, r.y, r.w, r.h].every((n) => Number.isInteger(n) && n % 2 === 0) &&
+  r.w > 0 &&
+  r.h > 0;
+const inField = (r: Rect): boolean =>
+  r.x >= 0 && r.y >= 0 && r.x + r.w <= W && r.y + r.h <= H;
+/** Everything a mover passes over, end to end. */
+export const sweepOf = (mover: MapDef["movers"][number]): Rect =>
+  rect(
+    Math.min(mover.x, mover.x + mover.travel.x),
+    Math.min(mover.y, mover.y + mover.travel.y),
+    mover.w + Math.abs(mover.travel.x),
+    mover.h + Math.abs(mover.travel.y),
+  );
+/** Room for a rider between a mover at the end of its travel and whatever is past it, so nothing is crushed. */
+const CRUSH = 2 * RIDER + 4;
+
+/**
+ * What is wrong with a map's gadgets: each kind on whole even pixels inside the field, clear of the solids and of
+ * each other by enough that the ball is never wedged, and its own mirror image left to right.
+ */
+export function gadgetFaults(map: MapDef): string[] {
+  const faults: string[] = [];
+  const mirrored = (
+    rects: readonly Rect[],
+    same: (a: Rect, b: Rect) => boolean,
+  ) => rects.every((r) => rects.some((other) => same(flip(r), other)));
+  const sameRect = (a: Rect, b: Rect) =>
+    a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+
+  for (const kind of ["field", "gate"] as const) {
+    const barriers = map.barriers.filter((b) => b.kind === kind);
+    if (!mirrored(barriers, sameRect)) faults.push("barrier symmetry");
+  }
+  for (const barrier of map.barriers) {
+    if (!even(barrier) || !inField(barrier)) faults.push("barrier");
+    if (barrier.kind === "field" && !(barrier.hits >= 2 && barrier.hits <= 9))
+      faults.push("field hits");
+    if (map.solids.some((solid) => overlap(barrier, solid)))
+      faults.push("barrier in a solid");
+  }
+
+  for (const bumper of map.bumpers) {
+    const box = around(bumper.x, bumper.y, bumper.r);
+    if (
+      ![bumper.x, bumper.y, bumper.r].every(Number.isInteger) ||
+      bumper.r < BALL ||
+      !inField(box)
+    )
+      faults.push("bumper");
+    if (
+      !map.bumpers.some(
+        (o) => o.x === W - bumper.x && o.y === bumper.y && o.r === bumper.r,
+      )
+    )
+      faults.push("bumper symmetry");
+    // Clear of every solid by more than the ball, so the ball is never wedged between the two.
+    if (
+      [...map.solids, ...map.ledges, ...map.movers.map(sweepOf)].some((solid) =>
+        overlap(box, solid, 2 * BALL + 2),
+      )
+    )
+      faults.push("bumper near a solid");
+    if (
+      map.goals.some((goal) =>
+        overlap(box, isCircle(goal) ? around(goal.x, goal.y, goal.r) : goal),
+      )
+    )
+      faults.push("bumper in a goal");
+    if (
+      map.bumpers.some(
+        (o) =>
+          o !== bumper &&
+          squared(o.x - bumper.x) + squared(o.y - bumper.y) <=
+            squared(o.r + bumper.r + 2 * BALL),
+      )
+    )
+      faults.push("bumpers too close");
+    if (
+      squared(bumper.x - map.ballAnchor.x) +
+        squared(bumper.y - map.ballAnchor.y) <=
+        squared(bumper.r + BALL) ||
+      map.spawns.some(
+        (spawn) =>
+          squared(bumper.x - spawn.x) + squared(bumper.y - spawn.y) <=
+          squared(bumper.r + 2 * BALL + RIDER),
+      )
+    )
+      faults.push("bumper on a mark");
+  }
+
+  const ends = map.portals.flatMap((portal) =>
+    [portal.a, portal.b].map((end) => ({ ...end, r: portal.r })),
+  );
+  const pairKey = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+    [`${a.x},${a.y}`, `${b.x},${b.y}`].sort().join(">");
+  const pairs = new Set(map.portals.map((p) => pairKey(p.a, p.b)));
+  for (const portal of map.portals) {
+    if (
+      !pairs.has(
+        pairKey(
+          { x: W - portal.a.x, y: portal.a.y },
+          { x: W - portal.b.x, y: portal.b.y },
+        ),
+      )
+    )
+      faults.push("portal symmetry");
+    if (portal.hue !== 0 && portal.hue !== 1) faults.push("portal");
+  }
+  for (const end of ends) {
+    const box = around(end.x, end.y, BALL);
+    if (
+      ![end.x, end.y, end.r].every(Number.isInteger) ||
+      end.r < BALL + 4 ||
+      !inField(around(end.x, end.y, end.r))
+    )
+      faults.push("portal");
+    // A ball arriving at an end's centre is not inside a solid, a goal, a gadget or another portal.
+    if (
+      [
+        ...map.solids,
+        ...map.ledges,
+        ...map.barriers,
+        ...map.movers.map(sweepOf),
+      ].some((solid) => overlap(box, solid))
+    )
+      faults.push("portal in a solid");
+    if (
+      map.goals.some((goal) =>
+        overlap(
+          around(end.x, end.y, end.r),
+          isCircle(goal) ? around(goal.x, goal.y, goal.r) : goal,
+        ),
+      )
+    )
+      faults.push("portal in a goal");
+    if (
+      ends.some(
+        (o) =>
+          o !== end &&
+          squared(o.x - end.x) + squared(o.y - end.y) <= squared(o.r + end.r),
+      ) ||
+      map.bumpers.some(
+        (o) =>
+          squared(o.x - end.x) + squared(o.y - end.y) <=
+          squared(o.r + end.r + BALL),
+      )
+    )
+      faults.push("portal too close");
+  }
+
+  if (!mirrored(map.ledges, sameRect)) faults.push("ledge symmetry");
+  for (const ledge of map.ledges) {
+    if (!even(ledge) || !inField(ledge) || ledge.w < 2 * RIDER + 6)
+      faults.push("ledge");
+    if (
+      [...map.solids, ...map.barriers].some((solid) => overlap(ledge, solid)) ||
+      map.ledges.some((o) => o !== ledge && overlap(ledge, o, 2 * BALL))
+    )
+      faults.push("ledge in a solid");
+    if (
+      map.goals.some((goal) =>
+        overlap(ledge, isCircle(goal) ? around(goal.x, goal.y, goal.r) : goal),
+      )
+    )
+      faults.push("ledge in a goal");
+  }
+
+  for (const mover of map.movers) {
+    const { travel, period, dwell } = mover,
+      sweep = sweepOf(mover),
+      far = Math.abs(travel.x) + Math.abs(travel.y);
+    if (
+      !even(mover) ||
+      ![travel.x, travel.y, period, dwell].every(
+        (n) => Number.isInteger(n) && n % 2 === 0,
+      ) ||
+      dwell < 0 ||
+      (travel.x !== 0) === (travel.y !== 0) ||
+      // No faster than a pixel a step, and never so slow a ride is a wait.
+      period < 2 * (far + dwell) ||
+      period > 1800 ||
+      !inField(sweep) ||
+      mover.w < 2 * RIDER + 6
+    )
+      faults.push("mover");
+    if (
+      !map.movers.some(
+        (o) =>
+          sameRect(o, flip(mover)) &&
+          o.travel.x === -travel.x &&
+          o.travel.y === travel.y &&
+          o.period === period &&
+          o.dwell === dwell,
+      )
+    )
+      faults.push("mover symmetry");
+    // Past either end of its travel there is room for a rider, so nothing is crushed against a solid.
+    const reach = rect(
+      sweep.x - (travel.x ? CRUSH : 0),
+      sweep.y - (travel.y ? CRUSH : 0),
+      sweep.w + (travel.x ? 2 * CRUSH : 0),
+      sweep.h + (travel.y ? 2 * CRUSH : 0),
+    );
+    if (
+      [...map.solids, ...map.ledges, ...map.barriers].some((solid) =>
+        overlap(reach, solid),
+      ) ||
+      map.movers.some((o) => o !== mover && overlap(reach, sweepOf(o)))
+    )
+      faults.push("mover in a solid");
+    if (
+      map.goals.some((goal) =>
+        overlap(sweep, isCircle(goal) ? around(goal.x, goal.y, goal.r) : goal),
+      )
+    )
+      faults.push("mover in a goal");
+    if (
+      overlap(sweep, around(map.ballAnchor.x, map.ballAnchor.y, BALL)) ||
+      map.spawns.some((spawn) =>
+        overlap(sweep, around(spawn.x, spawn.y, RIDER)),
+      )
+    )
+      faults.push("mover on a mark");
+  }
+  return faults;
 }
 
 /** Shared acceptance checks for written and generated maps. Empty means playable. */
@@ -307,6 +540,7 @@ export function levelFaults(map: MapDef): string[] {
   }
   if (![0, 1].every((team) => map.goals.some((g) => g.team === team)))
     faults.push("goals");
+  faults.push(...gadgetFaults(map));
   const opening = (length: number, open: (at: number) => boolean) => {
     let best = 0,
       run = 0;

@@ -9,6 +9,7 @@ import {
   VIEW_W,
   isCircle,
   mapOf,
+  moverPlace,
   type Circle,
   type Goal,
   type MapDef,
@@ -26,6 +27,7 @@ import {
   GADGET_DARK,
   GRID,
   INK,
+  LEDGE,
   NIGHT,
   PIXEL_FONT,
   PORTAL,
@@ -450,6 +452,56 @@ export function createScene(
         }
       }
     });
+
+    // A ledge is only its top edge: a bright line with open slats under it, so it reads as something to come up
+    // through, not a wall.
+    for (const ledge of map.ledges) {
+      g.fillStyle = hexA(LEDGE, 0.1);
+      g.fillRect(ledge.x, ledge.y, ledge.w, ledge.h);
+      g.fillStyle = LEDGE;
+      g.fillRect(ledge.x, ledge.y, ledge.w, 2);
+      g.fillStyle = hexA(LEDGE, 0.55);
+      for (let x = ledge.x + 2; x < ledge.x + ledge.w - 3; x += 8)
+        g.fillRect(x, ledge.y + 2, 4, ledge.h - 2);
+      g.fillStyle = WHITE;
+      g.fillRect(ledge.x, ledge.y, 2, 2);
+      g.fillRect(ledge.x + ledge.w - 2, ledge.y, 2, 2);
+    }
+
+    // A mover is a solid on a rail: the rail shows where it goes, and its end lights say which way it is going.
+    for (const mover of map.movers) {
+      const at = moverPlace(mover, view.clock),
+        upright = mover.travel.y !== 0,
+        going = moverPlace(mover, view.clock + 1),
+        ahead = upright ? going.y - at.y : going.x - at.x,
+        mx = mover.x + mover.w / 2,
+        my = mover.y + mover.h / 2;
+      g.fillStyle = hexA(LEDGE, 0.22);
+      const far = Math.abs(upright ? mover.travel.y : mover.travel.x),
+        sign = Math.sign(upright ? mover.travel.y : mover.travel.x);
+      for (let d = 0; d <= far; d += 6)
+        if (upright) g.fillRect(mx - 0.5, my + sign * d - 1, 1, 2);
+        else g.fillRect(mx + sign * d - 1, my - 0.5, 2, 1);
+      g.fillStyle = EDGE_DIM;
+      g.fillRect(at.x, at.y, mover.w, mover.h);
+      g.fillStyle = SOLID;
+      g.fillRect(at.x + 1, at.y + 2, mover.w - 2, mover.h - 3);
+      g.fillStyle = LEDGE;
+      g.fillRect(at.x, at.y, mover.w, 2);
+      // The lights at the end it is heading for burn brighter.
+      const light = (x: number, y: number, lead: boolean) => {
+        g.fillStyle = hexA(LEDGE, lead ? 1 : 0.35);
+        g.fillRect(x, y, 3, 3);
+      };
+      const low = at.y + mover.h - 5;
+      if (upright) {
+        light(at.x + 3, ahead < 0 ? at.y + 3 : low, true);
+        light(at.x + mover.w - 6, ahead < 0 ? at.y + 3 : low, true);
+      } else {
+        light(at.x + 3, at.y + 4, ahead < 0);
+        light(at.x + mover.w - 6, at.y + 4, ahead > 0);
+      }
+    }
 
     for (const bumper of map.bumpers) {
       const beat = 0.5 + 0.5 * Math.sin(now / 240 + bumper.x),

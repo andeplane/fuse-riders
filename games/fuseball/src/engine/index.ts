@@ -2,7 +2,7 @@
  * Fuseball's engine: deterministic integer rules with no imports from outside this folder. A change to what any of
  * it does must bump `RULES` and re-record the golden (`tests/golden.test.ts`) in the same commit.
  */
-export const RULES = "fuseball-6";
+export const RULES = "fuseball-7";
 export * from "./input.js";
 export * from "./world.js";
 export {
@@ -15,6 +15,12 @@ export {
   isMapId,
   isSeed,
   isCircle,
+  boxesAt,
+  moverBoxAt,
+  moverOffset,
+  moverPlace,
+  type Ledge,
+  type Mover,
   type MapId,
   type ArenaId,
   type MapDef,
@@ -61,5 +67,10 @@ export {
   SLOW_HOLD_TICKS,
   TICKS_PER_SECOND,
 } from "./tuning.js";
-export { generateLevel, fallbackLevel, levelFaults } from "./generate.js";
+export {
+  generateLevel,
+  fallbackLevel,
+  levelFaults,
+  gadgetFaults,
+} from "./generate.js";
 export { freshBarriers, barrierUp, type BarrierState } from "./gadgets.js";

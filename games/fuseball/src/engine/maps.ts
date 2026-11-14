@@ -44,6 +44,7 @@ export const MAP_IDS = [
   "bouncerate",
   "portforward",
   "backdoor",
+  "stacktrace",
 ] as const;
 /** A hand-made arena: fixed data below. */
 export type ArenaId = (typeof MAP_IDS)[number];
@@ -90,6 +91,32 @@ export interface Portal {
   hue: 0 | 1;
 }
 
+/**
+ * A ledge is a one-way platform: riders and the ball come up through it from below and land on it from above. Only
+ * its top edge is there; `h` is how thick it is drawn. A rider holding down drops through it.
+ */
+export type Ledge = Rect;
+/**
+ * A mover is a solid that travels: from where it is written down to `travel` pixels away and back, at a steady
+ * speed, once every `period` micro-steps, waiting `dwell` micro-steps at each end. It travels along one axis, and
+ * where it is depends on the world's step count alone, so it has no state of its own. Whatever stands or lies on it
+ * is carried along.
+ */
+export interface Mover extends Rect {
+  travel: Pt;
+  period: number;
+  dwell: number;
+}
+/** How far along its travel a mover is on `step`, out of `of`: out, a wait, back, a wait. */
+function along(mover: Mover, step: number): { at: number; of: number } {
+  const half = mover.period / 2,
+    of = half - mover.dwell,
+    phase = ((step % mover.period) + mover.period) % mover.period,
+    gone = phase < half ? phase : phase - half,
+    moved = gone < of ? gone : of;
+  return { at: phase < half ? moved : of - moved, of };
+}
+
 export interface MapDef {
   id: MapId;
   name: string;
@@ -107,14 +134,19 @@ export interface MapDef {
   barriers: readonly Barrier[];
   bumpers: readonly Bumper[];
   portals: readonly Portal[];
+  ledges: readonly Ledge[];
+  /** Movers are solids too: `boxesAt` has them where they are on a given step. */
+  movers: readonly Mover[];
 }
+type Gadgets = "barriers" | "bumpers" | "portals" | "ledges" | "movers";
 /** A map as it is written down: the gadgets it does not have are left out. */
-type MapSpec = Omit<MapDef, "barriers" | "bumpers" | "portals"> &
-  Partial<Pick<MapDef, "barriers" | "bumpers" | "portals">>;
+type MapSpec = Omit<MapDef, Gadgets> & Partial<Pick<MapDef, Gadgets>>;
 const arena = (spec: MapSpec): MapDef => ({
   barriers: [],
   bumpers: [],
   portals: [],
+  ledges: [],
+  movers: [],
   ...spec,
 });
 
@@ -530,6 +562,62 @@ const backdoor: MapDef = arena({
   ],
 });
 
+/**
+ * Stack Trace is a closed box. Each goal is an alcove high in a side wall, and beside each wall a lift goes up and
+ * down: it waits a second at the top of its ride, level with the alcove's sill, so a ball lying on it can be rolled in. Up the
+ * middle is a stack of ledges that riders and the ball come up through and land on; the ball starts on the top one.
+ */
+const stacktrace: MapDef = arena({
+  id: "stacktrace",
+  name: "Stack Trace",
+  wrapX: false,
+  wrapY: false,
+  solids: [
+    rect(0, 0, 640, 12),
+    rect(0, 348, 640, 12),
+    rect(0, 12, 24, 78),
+    rect(0, 90, 6, 80),
+    rect(0, 170, 24, 178),
+    rect(616, 12, 24, 78),
+    rect(634, 90, 6, 80),
+    rect(616, 170, 24, 178),
+  ],
+  goals: [
+    { team: 0, ...rect(616, 90, 18, 80) },
+    { team: 1, ...rect(6, 90, 18, 80) },
+  ],
+  clouds: [
+    { x: 66, y: 130, r: 40 },
+    { x: 574, y: 130, r: 40 },
+  ],
+  spawns: [
+    { x: 200, y: 339 },
+    { x: 440, y: 339 },
+  ],
+  ballAnchor: { x: 320, y: 110 },
+  ledges: [
+    rect(270, 140, 100, 6),
+    rect(240, 210, 160, 6),
+    rect(270, 280, 100, 6),
+    rect(130, 244, 80, 6),
+    rect(430, 244, 80, 6),
+  ],
+  movers: [
+    {
+      ...rect(24, 310, 64, 10),
+      travel: { x: 0, y: -140 },
+      period: 840,
+      dwell: 120,
+    },
+    {
+      ...rect(552, 310, 64, 10),
+      travel: { x: 0, y: -140 },
+      period: 840,
+      dwell: 120,
+    },
+  ],
+});
+
 export const MAPS: Readonly<Record<ArenaId, MapDef>> = {
   gridlock,
   downlink,
@@ -542,6 +630,7 @@ export const MAPS: Readonly<Record<ArenaId, MapDef>> = {
   bouncerate,
   portforward,
   backdoor,
+  stacktrace,
 };
 
 /**
@@ -586,7 +675,9 @@ export const boxOf = (rect: Rect): Box => ({
 });
 /** Derived once per arena and dropped with it: a memo keyed by the arena itself, so it holds nothing alive. */
 const BOXES = new WeakMap<MapDef, readonly Box[]>(),
-  BARRIER_BOXES = new WeakMap<MapDef, readonly Box[]>();
+  BARRIER_BOXES = new WeakMap<MapDef, readonly Box[]>(),
+  LEDGE_BOXES = new WeakMap<MapDef, readonly Box[]>(),
+  MOVED = new WeakMap<MapDef, { step: number; boxes: readonly Box[] }>();
 /** The map's solids in sub-units. */
 export function boxesOf(map: MapDef): readonly Box[] {
   let boxes = BOXES.get(map);
@@ -597,5 +688,54 @@ export function boxesOf(map: MapDef): readonly Box[] {
 export function barrierBoxesOf(map: MapDef): readonly Box[] {
   let boxes = BARRIER_BOXES.get(map);
   if (!boxes) BARRIER_BOXES.set(map, (boxes = map.barriers.map(boxOf)));
+  return boxes;
+}
+/** The map's ledges in sub-units: only the top face of each box is there. */
+export function ledgeBoxesOf(map: MapDef): readonly Box[] {
+  let boxes = LEDGE_BOXES.get(map);
+  if (!boxes) LEDGE_BOXES.set(map, (boxes = map.ledges.map(boxOf)));
+  return boxes;
+}
+
+/**
+ * How far a mover is from where it is written down on micro-step `step`, in sub-units: out along `travel`, a wait,
+ * and back. Whole numbers in, whole numbers out, and a mirrored mover is mirrored.
+ */
+export function moverOffset(mover: Mover, step: number): Pt {
+  const { at, of } = along(mover, step),
+    // Truncated toward zero either way, so a travel of −n is the mirror image of a travel of n.
+    out = (pixels: number) => Math.trunc((pixels * SUB * at) / of) + 0;
+  return { x: out(mover.travel.x), y: out(mover.travel.y) };
+}
+/**
+ * Where a mover's top left corner is on step `step`, in pixels, for whoever draws it: `step` may be a fraction
+ * between two steps, and the answer is one too. The rules never read this.
+ */
+export function moverPlace(mover: Mover, step: number): Pt {
+  const { at, of } = along(mover, step);
+  return {
+    x: mover.x + (mover.travel.x * at) / of,
+    y: mover.y + (mover.travel.y * at) / of,
+  };
+}
+/** A mover as a box where it is on micro-step `step`. */
+export function moverBoxAt(mover: Mover, step: number): Box {
+  const box = boxOf(mover),
+    off = moverOffset(mover, step);
+  return { ...box, cx: box.cx + off.x, cy: box.cy + off.y };
+}
+/**
+ * Everything solid on micro-step `step`: the map's solids, then its movers where they are then. A memo of the last
+ * step asked for, since a step is asked for many times over; with no movers it is the solids themselves.
+ */
+export function boxesAt(map: MapDef, step: number): readonly Box[] {
+  if (map.movers.length === 0) return boxesOf(map);
+  const known = MOVED.get(map);
+  if (known && known.step === step) return known.boxes;
+  const boxes = [
+    ...boxesOf(map),
+    ...map.movers.map((mover) => moverBoxAt(mover, step)),
+  ];
+  MOVED.set(map, { step, boxes });
   return boxes;
 }

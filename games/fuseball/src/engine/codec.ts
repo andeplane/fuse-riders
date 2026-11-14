@@ -25,11 +25,11 @@ import {
  * decoder that checks every one against the bounds and the consistency the simulation keeps. `decodeWorld` returns
  * a whole new world or nothing; it never changes what it was given and never returns a half-checked one.
  */
-const VERSION = 3;
+const VERSION = 4;
 const RIDER_FIELDS = 14,
   BUBBLE_FIELDS = 5,
   BALL_FIELDS = 7,
-  WORLD_FIELDS = 17,
+  WORLD_FIELDS = 18,
   PACE_FIELDS = 4;
 
 const int = (value: unknown, low: number, high: number): value is number =>
@@ -106,6 +106,7 @@ export function encodeWorld(world: World): unknown[] {
     [world.speed, world.budget, world.linger, world.freeze],
     world.barriers.map((barrier) => [barrier.left, barrier.timer]),
     world.seed,
+    world.clock,
   ];
 }
 
@@ -316,6 +317,7 @@ export function decodeWorld(raw: unknown): World | undefined {
     rawPace,
     rawBarriers,
     seed,
+    clock,
   ] = raw;
   if (
     version !== VERSION ||
@@ -324,6 +326,9 @@ export function decodeWorld(raw: unknown): World | undefined {
     !isSeed(seed) ||
     (mapIndex !== RANDOM_INDEX && seed !== 0) ||
     !int(step, 0, T.MAX_STEP) ||
+    // The movers' clock runs only while a point is in motion, so never ahead of the steps there have been.
+    !int(clock, 0, step) ||
+    (PHASES[phaseIndex as number] === "countdown" && clock !== 0) ||
     !int(phaseIndex, 0, PHASES.length - 1) ||
     !int(phaseSteps, 0, T.MAX_STEP) ||
     !int(score0, 0, T.TARGET) ||
@@ -357,6 +362,7 @@ export function decodeWorld(raw: unknown): World | undefined {
     mapId,
     seed,
     step,
+    clock,
     phase,
     phaseSteps,
     score: [score0, score1],

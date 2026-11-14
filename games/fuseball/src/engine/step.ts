@@ -1,6 +1,8 @@
 import {
   apart,
+  carried,
   inShape,
+  landLedges,
   resolveSolids,
   settle,
   type Body,
@@ -10,7 +12,13 @@ import {
 import { meetGadgets } from "./gadgets.js";
 import { BTN, DOWN, LEFT, RIGHT, isInput } from "./input.js";
 import { SUB, abs, clamp, div, isqrt, toward } from "./math.js";
-import { arenaOf, boxesOf, type Box } from "./maps.js";
+import {
+  arenaOf,
+  boxesAt,
+  ledgeBoxesOf,
+  type Box,
+  type MapDef,
+} from "./maps.js";
 import * as T from "./tuning.js";
 import {
   resetPoint,
@@ -145,14 +153,16 @@ function hold(body: Body, radius: number, fromX: number, fromY: number): void {
   body.y = fromY + held.y;
 }
 
-/** Gravity, running and drag, then the move and the solids. */
+/** A mover's carry, then gravity, running and drag, then the move, the ledges and the solids. */
 function moveRider(
   rider: Rider,
   bits: number,
   boxes: readonly Box[],
-  space: Space,
+  space: MapDef,
+  step: number,
 ): void {
   const stick = stickOf(bits);
+  carried(rider, T.RIDER_R, space, step, T.CARRY_SLOP);
   if (rider.slide > 0) rider.vx = rider.facing * slideSpeed(rider.slide);
   else {
     if (stick) {
@@ -173,7 +183,21 @@ function moveRider(
   rider.vy = clamp(rider.vy, -T.MAX_RISE, T.MAX_FALL);
   rider.x += rider.vx;
   rider.y += rider.vy;
-  rider.grounded = resolveSolids(rider, T.RIDER_R, boxes, space, 0, 1).ground;
+  const touch: Touch = { hit: false, ground: false, impact: 0 };
+  // Holding down drops a rider through a ledge; one in a slide is holding down to slide and stays on it.
+  if (!(bits & DOWN) || rider.slide > 0)
+    landLedges(
+      rider,
+      T.RIDER_R,
+      ledgeBoxesOf(space),
+      space,
+      0,
+      1,
+      T.LEDGE_SLOP,
+      touch,
+    );
+  rider.grounded =
+    resolveSolids(rider, T.RIDER_R, boxes, space, 0, 1).ground || touch.ground;
 }
 
 /** Two riders in contact are pushed apart by the same amount and trade their speed along the line between them. */
@@ -201,17 +225,19 @@ function bumpRiders(a: Rider, b: Rider, space: Space): void {
   b.vy += iy;
 }
 
-/**
- * The ball: gravity, the solids, then every rider touching it, all measured from where the solids left it, then the
- * bubbles, and the solids again so that nothing can push the ball into one.
- */
-function moveBall(world: World, boxes: readonly Box[], space: Space): void {
-  const ball = world.ball;
-  ball.vy += T.BALL_GRAVITY;
-  ball.vx = clamp(ball.vx, -T.BALL_MAX, T.BALL_MAX);
-  ball.vy = clamp(ball.vy, -T.BALL_MAX, T.BALL_MAX);
-  ball.x += ball.vx;
-  ball.y += ball.vy;
+/** The ball after its own move: the ledges it lands on, then the solids. `drift` in `gadgets.ts` does the same. */
+function fall(ball: Body, boxes: readonly Box[], space: MapDef): Touch {
+  const landed: Touch = { hit: false, ground: false, impact: 0 };
+  landLedges(
+    ball,
+    T.BALL_R,
+    ledgeBoxesOf(space),
+    space,
+    T.BALL_BOUNCE_NUM,
+    T.BALL_BOUNCE_DEN,
+    T.LEDGE_SLOP,
+    landed,
+  );
   const touch = resolveSolids(
     ball,
     T.BALL_R,
@@ -220,6 +246,26 @@ function moveBall(world: World, boxes: readonly Box[], space: Space): void {
     T.BALL_BOUNCE_NUM,
     T.BALL_BOUNCE_DEN,
   );
+  return {
+    hit: touch.hit || landed.hit,
+    ground: touch.ground || landed.ground,
+    impact: Math.max(touch.impact, landed.impact),
+  };
+}
+
+/**
+ * The ball: gravity, the solids, then every rider touching it, all measured from where the solids left it, then the
+ * bubbles, and the solids again so that nothing can push the ball into one.
+ */
+function moveBall(world: World, boxes: readonly Box[], space: MapDef): void {
+  const ball = world.ball;
+  carried(ball, T.BALL_R, space, world.clock, T.CARRY_SLOP);
+  ball.vy += T.BALL_GRAVITY;
+  ball.vx = clamp(ball.vx, -T.BALL_MAX, T.BALL_MAX);
+  ball.vy = clamp(ball.vy, -T.BALL_MAX, T.BALL_MAX);
+  ball.x += ball.vx;
+  ball.y += ball.vy;
+  const touch = fall(ball, boxes, space);
   if (touch.hit) {
     ball.vx -= div(ball.vx, T.BALL_SCRUB);
     ball.vy -= div(ball.vy, T.BALL_SCRUB);
@@ -411,7 +457,6 @@ export function stepWorld(
   if (world.phase === "over" || world.step >= T.MAX_STEP) return;
   world.step++;
   const map = arenaOf(world),
-    boxes = boxesOf(map),
     [a, b] = world.riders;
   const held = (rider: Rider): number => {
     const bits = inputs.get(rider.id);
@@ -446,6 +491,9 @@ export function stepWorld(
     return;
   }
 
+  // Something moves this step, so the movers do too.
+  world.clock++;
+  const boxes = boxesAt(map, world.clock);
   const lift: Lift = { riders: 0, vx: 0, slot: -1 };
   control(world, a, bitsA, map, lift);
   control(world, b, bitsB, map, lift);
@@ -460,8 +508,8 @@ export function stepWorld(
   if (!(bitsA & BTN)) world.bubbles[0].hard = false;
   if (!(bitsB & BTN)) world.bubbles[1].hard = false;
 
-  if (!a.zapped) moveRider(a, bitsA, boxes, map);
-  if (!b.zapped) moveRider(b, bitsB, boxes, map);
+  if (!a.zapped) moveRider(a, bitsA, boxes, map, world.clock);
+  if (!b.zapped) moveRider(b, bitsB, boxes, map, world.clock);
   const ax = a.x,
     ay = a.y,
     bx = b.x,

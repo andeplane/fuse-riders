@@ -31,7 +31,7 @@ test("the validation flight follows the live engine's unattended ball", () => {
     const ball = { ...world.ball },
       barriers = world.barriers.map((state) => ({ ...state }));
     for (let step = 0; step < 1200; step++) {
-      drift(ball, boxesOf(map), map, barriers);
+      drift(ball, map, barriers, world.clock + 1);
       stepWorld(world, new Map());
       if (world.phase !== "play") break;
       assert.deepEqual(
