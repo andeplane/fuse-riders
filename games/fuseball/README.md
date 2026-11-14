@@ -61,11 +61,11 @@ The integer PRNG in `src/engine/generate.ts` decides wrap independently per axis
 
 Candidates pass `levelFaults`, also tested against all handmade arenas: even-pixel solids and mirrored geometry, free supported spawns and ball anchor, goals on the far side with ball clearance, free-space reachability, rider-wide wrap openings and a ball-drop grid (20 × 30 pixel spacing, three horizontal launch speeds). The drop check uses the engine's ball flight for up to 4920 micro-steps and rejects rest positions without room for a rider beside or above the ball. A rejected candidate advances the seed by a fixed uint32 increment; after eight failures generation returns an independently tested original fallback. The requested seed stays the level's identity even after retries.
 
-Room settings are exactly `{ display, mapId, seed }`, with a uint32 seed for Random and zero for handmade maps. Match settings freeze the seed at start. Codec version 3 stores Random as map index 255 and appends its seed; checkpoint recovery checks that the world agrees with the match settings. No geometry or generator state travels over the mesh: peers, late joiners and bots reconstruct the same arena under `RULES = "fuseball-6"`. This changes the rules and checkpoint contract; mixed old/new clients must reload to play together.
+Room settings are exactly `{ display, mapId, seed }`, with a uint32 seed for Random and zero for handmade maps. Match settings freeze the seed at start. The codec (version 4) stores Random as map index 255 and appends its seed; checkpoint recovery checks that the world agrees with the match settings. No geometry or generator state travels over the mesh: peers, late joiners and bots reconstruct the same arena under `RULES = "fuseball-6"`. This changes the rules and checkpoint contract; mixed old/new clients must reload to play together.
 
 `tests/generate.test.ts` sweeps 34 seeds including both uint32 extremes, exercises rejection and cache eviction, and checks bot scoring from both slots across all four goal families. Generated layouts also have replay goldens, codec and render tests, and a lossy-mesh/late-join regression in `tests/runtime.test.ts`.
 
-Production serves Fuseball's rooms only when `fuseball` is in the `EXTRA_GAME_IDS` repository variable; until then the page offers solo.
+Production serves Fuseball's rooms, like every game registered in `service/history.ts`.
 
 ## Run it locally
 

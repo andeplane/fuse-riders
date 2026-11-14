@@ -71,4 +71,4 @@ new game's `src/game/`.
    page's own frame loop, reading `frameTiming()`.
 4. Platform: racing stats instead of Pig's rolls and busts.
 5. Measure the step budget, then the browser smoke.
-6. Production only after `EXTRA_GAME_IDS` includes the id; until then the page offers solo against bots.
+6. Production serves its rooms once its registration is in `GAMES` and the merge deploys.

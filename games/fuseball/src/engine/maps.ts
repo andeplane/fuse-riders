@@ -103,6 +103,7 @@ export type Ledge = Rect;
  * is carried along.
  */
 export interface Mover extends Rect {
+  /** `travel`, `period` and `dwell` are whole even numbers (`gadgetFaults` checks), so every position is too. */
   travel: Pt;
   period: number;
   dwell: number;

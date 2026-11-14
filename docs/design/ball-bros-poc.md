@@ -6,7 +6,7 @@ The engine is independent of app/net/render code. Base-local blocks and paddle a
 
 Use the existing RoomRuntime even for solo. All controls and geometry are checkpointed and hashed; only trails, particles and sound are cosmetic. Phaser owns presentation only, with its loop disabled and one app-owned presentation frame. The engine uses pinned JS trigonometry. A new game-specific rules version/golden records behavioral changes without changing Fuse Riders' rules.
 
-Phase 1 includes service registration and a visible game link. Phase 2 adds online admission, multiplayer controls/recovery and shared screens. Production remains gated by EXTRA_GAME_IDS. Phase 3 adds shared avatars/music and power-ups. Phase 4 adds a moving late-round formation and neutral pressure balls. Phase 5 adds selectable deterministic arenas. Ranked reporting remains out of scope.
+Phase 1 includes service registration and a visible game link. Phase 2 adds online admission, multiplayer controls/recovery and shared screens. Production was gated by EXTRA_GAME_IDS (since 2026-11-14 production serves every registered game; the `EXTRA_GAME_IDS` gate is gone). Phase 3 adds shared avatars/music and power-ups. Phase 4 adds a moving late-round formation and neutral pressure balls. Phase 5 adds selectable deterministic arenas. Ranked reporting remains out of scope.
 
 ## Phase 5: arena variants
 

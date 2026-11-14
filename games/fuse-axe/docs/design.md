@@ -428,8 +428,7 @@ Known gaps and follow-ups, none blocking play:
 - **Small art nits:** an enraged boss's planted foot slides a little (walk strips are timed to the calm pace); some limbs
   are drawn longer than their bones.
 - **Audio:** a rollback flicker of an enemy frozen by a spell can sound its cue twice.
-- **Production:** online rooms need `fuse-axe` in the `EXTRA_GAME_IDS` repository variable, which names `dice,fuse-craft`
-  as of 2026-10-11; until then the page offers solo only.
+- **Production:** online rooms are served like every registered game (no `EXTRA_GAME_IDS` since 2026-11-14).
 
 ### For the playtest
 

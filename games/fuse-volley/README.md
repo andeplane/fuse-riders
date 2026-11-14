@@ -54,7 +54,6 @@ Developer flags: `?mute`, `?autopilot` (this device plays with the bot's answers
 with the keys held right now rather than the ones last logged), `?trace` (keeps drawn positions on
 `window.fuseVolleyTrace` for smoothness checks).
 
-Production serves its rooms only once `fuse-volley` is in `EXTRA_GAME_IDS`
-([GCP deploy](../../docs/online/GCP-DEPLOY.md)).
+Production serves its rooms, like every game registered in `service/history.ts`.
 
 Checks: `pnpm exec tsx --test games/fuse-volley/tests/*.test.ts`.
