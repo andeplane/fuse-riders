@@ -2,6 +2,7 @@ import { useCallback, useContext, useEffect, useRef, useState } from "react";
 
 import { useWindowCommands } from "../windows/useWindowCommands";
 
+import { FUSE_TRACKS, fuseSoundtrack } from "./fuseTracks";
 import type { MediaErrorInfo } from "./mediaErrorReporting";
 import type { WebampPlayer } from "./webampPlayer";
 import { createWinampControls } from "./winampControls";
@@ -15,8 +16,12 @@ export type WinampViewModel = {
   attachContainer: (node: HTMLDivElement | null) => void;
   loadState: WinampLoadState;
   errorMessage: string | undefined;
-  /** Adds locally picked files to the playlist as object URLs; starts playing if the playlist was empty. */
+  /** How many tracks the Fuse soundtrack holds, for the window's caption. */
+  soundtrackLength: number;
+  /** Adds locally picked files to the playlist as object URLs; unless something is already playing, the first of them starts. */
   addFiles: (files: FileList | File[]) => void;
+  /** Replaces whatever is queued with the Fuse soundtrack and plays it from the top (a button press, so autoplay rules allow it). */
+  playSoundtrack: () => void;
   close: () => void;
 };
 
@@ -36,10 +41,12 @@ function playbackErrorMessage(name: string, info: MediaErrorInfo): string {
 }
 
 /**
- * Loads Webamp on first mount, renders it into the window body and publishes its transport in the Winamp
- * registry. Tracks come from the user's own machine (object URLs, revoked when the window closes); the Fuse
- * soundtrack playlist is Phase B's (B3). Reopening creates a fresh player. A track that fails to load shows a
- * Win98 message box naming the likely cause, since Webamp's own API cannot tell them apart.
+ * Loads Webamp on first mount, renders it into the window body with the Fuse soundtrack queued (every game's
+ * file-backed music, `fuseTracks.ts`; queued, not playing, since nothing may sound before the user presses
+ * something) and publishes its transport in the Winamp registry for the Office Assistant. Local files the user
+ * picks join the queue as object URLs, revoked when the window closes or the soundtrack replaces them. Reopening
+ * creates a fresh player. A track that fails to load shows a Win98 message box naming the likely cause, since
+ * Webamp's own API cannot tell them apart.
  */
 export function useWinampViewModel(windowId: string): WinampViewModel {
   const deps = useContext(WinampDepsContext);
@@ -94,6 +101,9 @@ export function useWinampViewModel(windowId: string): WinampViewModel {
           currentUrlRef.current = track?.url;
         });
         registry.set(windowId, controls);
+        const queued = fuseSoundtrack(deps.base);
+        queued.forEach(({ track, name }) => names.set(track.url, name));
+        player.appendTracks(queued.map(({ track }) => track));
         if (nodeRef.current) await player.renderInto(nodeRef.current);
         if (!cancelled) setReadyState("ready");
       })
@@ -126,7 +136,7 @@ export function useWinampViewModel(windowId: string): WinampViewModel {
       const player = playerRef.current;
       const list = Array.from(files);
       if (!player || list.length === 0) return;
-      const wasEmpty = player.getPlaylistTracks().length === 0;
+      const firstIndex = player.getPlaylistTracks().length;
       const tracks = list.map((file) => {
         const url = deps.createObjectURL(file);
         urlsRef.current.add(url);
@@ -134,16 +144,35 @@ export function useWinampViewModel(windowId: string): WinampViewModel {
         return { url, defaultName: file.name };
       });
       player.appendTracks(tracks);
-      if (wasEmpty) player.play();
+      // Picking a file is a gesture, so it may sound; but never interrupt a track that is already playing.
+      if (player.getMediaStatus() !== "PLAYING") {
+        player.setCurrentTrack(firstIndex);
+        player.play();
+      }
     },
     [deps],
   );
+
+  const playSoundtrack = useCallback(() => {
+    const player = playerRef.current;
+    if (!player) return;
+    const queued = fuseSoundtrack(deps.base);
+    // The local files leave the playlist, so their object URLs can go too; the names map keeps every url it has
+    // seen, which costs nothing and keeps a late error for one of them attributable.
+    urlsRef.current.forEach((url) => deps.revokeObjectURL(url));
+    urlsRef.current.clear();
+    doneUrlsRef.current.clear();
+    queued.forEach(({ track, name }) => namesRef.current.set(track.url, name));
+    player.setTracksToPlay(queued.map(({ track }) => track));
+  }, [deps]);
 
   return {
     attachContainer,
     loadState,
     errorMessage,
+    soundtrackLength: FUSE_TRACKS.length,
     addFiles,
+    playSoundtrack,
     close: () => commands.close(windowId),
   };
 }

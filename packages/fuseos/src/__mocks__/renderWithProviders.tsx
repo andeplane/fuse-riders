@@ -231,6 +231,7 @@ export function createTestWinampDeps(
     revokeObjectURL: vi.fn(),
     // Never fires spontaneously; a test simulating a playback failure overrides this and calls the callback itself.
     subscribeMediaErrors: vi.fn(() => () => undefined),
+    base: TEST_BASE,
     ...overrides,
   };
 }
