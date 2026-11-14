@@ -94,14 +94,14 @@ function plan(world: World, side: Side, target: number, jump: boolean): number {
   for (let i = 0; i < REACH; i++) {
     if (i % T.STEPS_PER_TICK === 0) {
       const x = own(side, ghost.blobs[side].x);
-      bits =
-        target > x + SLACK ? forward : target < x - SLACK ? back : 0;
+      bits = target > x + SLACK ? forward : target < x - SLACK ? back : 0;
       const blob = ghost.blobs[side];
       if (jump && (i === 0 || (blob.air && blob.vy > 0))) bits |= JUMP;
     }
     const inputs: [number, number] = side === 0 ? [bits, 0] : [0, bits];
     stepWorld(ghost, inputs);
-    if (ghost.pointCounter !== points) return ghost.lastFault === side ? -1000 : 1000;
+    if (ghost.pointCounter !== points)
+      return ghost.lastFault === side ? -1000 : 1000;
     if (ghost.hitCounter !== hits && ghost.lastTouch === side) {
       const land = landing(ghost, side, T.BALL_FLOOR / T.BU);
       if (land === undefined) return 0;

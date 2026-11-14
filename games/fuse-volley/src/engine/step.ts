@@ -112,7 +112,10 @@ export function collide(world: World): void {
     }
     ball.live = true;
     // A contact where the ball is already leaving along the normal is a graze: it bounces but is not a touch.
-    if (T.GRAZE_DEN * (ball.vx * dx + ball.vy * dy) <= T.GRAZE_NUM * d * speed) {
+    if (
+      T.GRAZE_DEN * (ball.vx * dx + ball.vy * dy) <=
+      T.GRAZE_NUM * d * speed
+    ) {
       blob.contact = true;
       world.blobs[otherSide(blob.side)].touches = 0;
     }
@@ -145,8 +148,7 @@ export function stepBall(world: World): void {
   ball.x += ball.vx;
   ball.y += ball.vy;
   let gravity = T.BALL_GRAVITY + (world.step & 1);
-  if (ball.vy < 0)
-    gravity -= div(div(-ball.vy, T.DRAG_DIV), T.DRAG_SHIFT_DIV);
+  if (ball.vy < 0) gravity -= div(div(-ball.vy, T.DRAG_DIV), T.DRAG_SHIFT_DIV);
   if (ball.live) ball.vy -= gravity;
   if (ball.y < T.BALL_FLOOR) {
     const impact = -ball.vy;
@@ -253,7 +255,8 @@ export function countTouches(world: World): void {
         pointAgainst(world, blob.side, true);
     } else if (blob.contact) {
       blob.hold++;
-      if (playing && blob.hold > T.MAX_HOLD) pointAgainst(world, blob.side, true);
+      if (playing && blob.hold > T.MAX_HOLD)
+        pointAgainst(world, blob.side, true);
     }
     blob.prevContact = blob.contact;
     blob.contact = false;
@@ -264,7 +267,10 @@ export function countTouches(world: World): void {
 const grounded = (world: World): boolean =>
   !world.blobs[0].air && !world.blobs[1].air;
 
-export function stepWorld(world: World, inputs: readonly [number, number]): void {
+export function stepWorld(
+  world: World,
+  inputs: readonly [number, number],
+): void {
   if (world.phase === "over" || world.step >= T.MAX_STEP) return;
   const bits = (side: Side) => {
     const held = inputs[side];

@@ -33,8 +33,7 @@ const tuple = (value: unknown, length: number): value is unknown[] =>
   Array.isArray(value) && value.length === length;
 const counter = (value: unknown): value is number =>
   int(value, 0, T.COUNTER - 1);
-const uint32 = (value: unknown): value is number =>
-  int(value, 1, 0xffff_ffff);
+const uint32 = (value: unknown): value is number => int(value, 1, 0xffff_ffff);
 /** A blob's id: the member or bot id the room seats, as an opaque short string. */
 export const riderId = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0 && value.length <= 64;
@@ -173,8 +172,7 @@ function consistent(world: World): boolean {
   // Timers: a serve counts up to its timeout, the settle counts down, nothing else has one.
   if (phase === "serve" && phaseSteps >= T.SERVE_TIMEOUT) return false;
   if (phase === "dead" && phaseSteps > T.DEAD_STEPS) return false;
-  if ((phase === "rally" || phase === "over") && phaseSteps !== 0)
-    return false;
+  if ((phase === "rally" || phase === "over") && phaseSteps !== 0) return false;
   // A serve hovers, still, over the server's half; every other phase has gravity on.
   if (phase === "serve") {
     if (

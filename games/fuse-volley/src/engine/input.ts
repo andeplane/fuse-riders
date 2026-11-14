@@ -17,7 +17,5 @@ export const isInput = (value: unknown): value is number =>
 
 /** The same controls seen in a mirror: left and right swapped. */
 export function mirrored(bits: number): number {
-  return (
-    (bits & JUMP) | (bits & LEFT ? RIGHT : 0) | (bits & RIGHT ? LEFT : 0)
-  );
+  return (bits & JUMP) | (bits & LEFT ? RIGHT : 0) | (bits & RIGHT ? LEFT : 0);
 }
