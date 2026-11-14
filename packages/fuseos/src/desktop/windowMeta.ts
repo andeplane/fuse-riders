@@ -23,6 +23,9 @@ export const WINAMP_WINDOW_SIZE: Size = { width: 320, height: 440 };
 /** A Fuse game opens at the size its lobby is laid out for; the window clamps to the desktop. */
 export const FUSE_GAME_WINDOW_SIZE: Size = { width: 1024, height: 700 };
 
+/** A tall narrow buddy list, as ICQ and MSN Messenger were laid out. */
+export const FRIENDS_WINDOW_SIZE: Size = { width: 320, height: 540 };
+
 export const OS_NAME = "FuseOS";
 
 /** Title bar text and icon for each window kind. */
@@ -76,6 +79,13 @@ export function windowMeta(
         icon: "winamp",
         resizable: false,
         size: WINAMP_WINDOW_SIZE,
+      };
+    case "friends":
+      return {
+        title: "Fuse Messenger",
+        icon: "messenger",
+        resizable: true,
+        size: FRIENDS_WINDOW_SIZE,
       };
   }
 }

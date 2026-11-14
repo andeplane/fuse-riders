@@ -1,4 +1,5 @@
 import { OfficeAssistant } from "../assistant/OfficeAssistant";
+import { FriendsTray } from "../friends/FriendsTray";
 import { ContextMenu } from "../windows/ContextMenu";
 
 import { DesktopIcon } from "./DesktopIcon";
@@ -80,6 +81,7 @@ export function Desktop() {
         onStart={() => vm.setStartMenuOpen(!vm.startMenuOpen)}
         startButtonProps={{ "data-start-menu": true }}
         onWindowButton={vm.onTaskbarButton}
+        tray={<FriendsTray />}
       />
       {vm.iconMenu ? (
         <ContextMenu

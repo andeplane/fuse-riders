@@ -11,6 +11,7 @@ const APPS: Record<string, WindowContent> = {
   winamp: { kind: "winamp" },
   settings: { kind: "controlpanel", applet: "home" },
   about: { kind: "about" },
+  friends: { kind: "friends" },
 };
 
 /** Something that knows which Fuse games exist; the registry in production, a fixture in tests. */

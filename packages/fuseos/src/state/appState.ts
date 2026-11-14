@@ -9,6 +9,13 @@ export interface FuseGameWindowContent {
   kind: "fusegame";
   /** The game's portal id, e.g. "fuseball". Validated against the registry when the window renders, not here. */
   gameId: string;
+  /** A room to join on open (`?room=`), e.g. from a friend's "Join game"; absent opens the game's own landing page. */
+  room?: string;
+}
+
+/** Fuse Messenger, the buddy list (Start > Programs > Fuse Messenger, the tray icon, `?open=friends`). One instance. */
+export interface FriendsWindowContent {
+  kind: "friends";
 }
 
 /** One of the retro games under Start > Programs > Games (DOS bundles, vendored web games, Minesweeper, Solitaire). */
@@ -57,7 +64,8 @@ export type WindowContent =
   | AboutWindowContent
   | DialogWindowContent
   | PaintWindowContent
-  | WinampWindowContent;
+  | WinampWindowContent
+  | FriendsWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -176,6 +184,11 @@ export function activeWindowId(state: AppState): string | null {
   return null;
 }
 
+/** A room code as the room service issues them (`fuse-network-protocol`): two letters, two digits. */
+export function isRoomCode(value: unknown): value is string {
+  return typeof value === "string" && /^[A-Z]{2}[0-9]{2}$/.test(value);
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -200,7 +213,11 @@ function isWindowContent(
 ): value is Record<string, unknown> & WindowContent {
   switch (value.kind) {
     case "fusegame":
-      return typeof value.gameId === "string" && value.gameId.length > 0;
+      return (
+        typeof value.gameId === "string" &&
+        value.gameId.length > 0 &&
+        (value.room === undefined || isRoomCode(value.room))
+      );
     case "retro":
       return isGameId(value.game);
     case "controlpanel":
@@ -208,6 +225,7 @@ function isWindowContent(
     case "wallpaper":
     case "about":
     case "winamp":
+    case "friends":
       return true;
     case "dialog":
       return (

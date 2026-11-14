@@ -3,6 +3,7 @@ import { useContext, useEffect } from "react";
 import { AboutDialog } from "../about/AboutDialog";
 import { ControlPanelWindow } from "../controlpanel/ControlPanelWindow";
 import { WallpaperWindow } from "../controlpanel/WallpaperWindow";
+import { FriendsWindow } from "../friends/FriendsWindow";
 import { FuseGameWindow } from "../fusegames/FuseGameWindow";
 import { FuseGamesContext } from "../fusegames/registry";
 import { PaintWindow } from "../paint/PaintWindow";
@@ -31,6 +32,7 @@ function WindowContent({
       return (
         <FuseGameWindow
           gameId={window.gameId}
+          room={window.room}
           active={active}
           onActivate={() => commands.focus(window.id)}
         />
@@ -62,6 +64,8 @@ function WindowContent({
       return <PaintWindow windowId={window.id} />;
     case "winamp":
       return <WinampWindow windowId={window.id} />;
+    case "friends":
+      return <FriendsWindow windowId={window.id} />;
   }
 }
 

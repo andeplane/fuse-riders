@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useContext } from "react";
 
 import { FuseGamesContext } from "../fusegames/registry";
@@ -14,6 +15,8 @@ export type TaskbarProps = {
   onStart: () => void;
   onWindowButton: (id: string) => void;
   startButtonProps?: Record<string, boolean | string>;
+  /** The system tray, left of the clock (Fuse Messenger's icon and its toasts). */
+  tray?: ReactNode;
 };
 
 export function Taskbar({
@@ -23,6 +26,7 @@ export function Taskbar({
   onStart,
   onWindowButton,
   startButtonProps,
+  tray,
 }: TaskbarProps) {
   const games = useContext(FuseGamesContext);
   return (
@@ -62,7 +66,8 @@ export function Taskbar({
           );
         })}
       </div>
-      <div className="status-field-border flex h-5 items-center">
+      <div className="status-field-border flex h-5 items-center gap-1">
+        {tray}
         <Clock />
       </div>
     </div>

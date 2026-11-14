@@ -14,7 +14,7 @@ describe("START_MENU_REGISTRATIONS", () => {
     });
   });
 
-  it("holds the placeholders for Notepad++ and My Computer until their packages land", () => {
+  it("holds the placeholders for Notepad++ and My Computer until their packages land, and Fuse Messenger", () => {
     expect(
       START_MENU_REGISTRATIONS.map((entry) => [
         entry.slot,
@@ -24,6 +24,7 @@ describe("START_MENU_REGISTRATIONS", () => {
     ).toEqual([
       ["accessories", "notepadpp", false],
       ["my-computer", "my-computer", false],
+      ["programs", "friends", true],
     ]);
   });
 });

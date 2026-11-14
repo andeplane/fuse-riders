@@ -50,7 +50,18 @@ export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
     label: "My Computer",
     icon: "computer",
   },
+  {
+    slot: "programs",
+    id: "friends",
+    label: "Fuse Messenger",
+    icon: "messenger",
+    // One instance: a fixed id brings an open window to the front instead of opening another.
+    open: (commands) => commands.open({ kind: "friends" }, FRIENDS_WINDOW_ID),
+  },
 ];
+
+/** The buddy list's window id; never one `nextWindowId` hands out (`w<n>`), so it is the same window every time. */
+export const FRIENDS_WINDOW_ID = "friends";
 
 /** The registrations in force; tests hand in their own list. */
 export const StartMenuRegistryContext = createContext<

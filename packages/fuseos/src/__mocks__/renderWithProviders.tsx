@@ -22,6 +22,11 @@ import {
   MemoryWallpaperStore,
   WallpaperStoreContext,
 } from "../desktop/wallpaperStore";
+import { createDemoPresenceService } from "../friends/demoPresenceService";
+import type { FriendsDeps } from "../friends/friendsDepsContext";
+import { FriendsDepsContext } from "../friends/friendsDepsContext";
+import type { PresenceService } from "../friends/presenceService";
+import { PresenceServiceContext } from "../friends/presenceService";
 import type { FuseGameRegistry } from "../fusegames/registry";
 import {
   createFuseGameRegistry,
@@ -129,7 +134,51 @@ export type ProviderOptions = {
   /** Defaults to a fresh store, i.e. a first visit: the greeting shows. */
   assistantOptions?: MemoryAssistantOptionsStore;
   systemProbe?: SystemProbe;
+  /** Defaults to the demo presence service, signed out, over the manual scheduler in `friendsDeps`. */
+  presence?: PresenceService;
+  friendsDeps?: Partial<FriendsDeps>;
 };
+
+/** A scheduler a test fires by hand: `timers.fire()` runs every pending callback in order. */
+export type ManualTimers = {
+  schedule: FriendsDeps["schedule"];
+  /** Runs what is due (everything, or only what was scheduled within `withinMs`). */
+  fire: (withinMs?: number) => void;
+  pending: () => number;
+};
+
+export function createManualTimers(): ManualTimers {
+  let pending: { id: number; delayMs: number; callback: () => void }[] = [];
+  let nextId = 0;
+  return {
+    schedule: (callback, delayMs) => {
+      const id = nextId++;
+      pending.push({ id, delayMs, callback });
+      return () => {
+        pending = pending.filter((timer) => timer.id !== id);
+      };
+    },
+    fire: (withinMs = Number.POSITIVE_INFINITY) => {
+      const due = pending.filter((timer) => timer.delayMs <= withinMs);
+      pending = pending.filter((timer) => timer.delayMs > withinMs);
+      for (const timer of due) timer.callback();
+    },
+    pending: () => pending.length,
+  };
+}
+
+export function createTestFriendsDeps(
+  timers: ManualTimers,
+  overrides: Partial<FriendsDeps> = {},
+): FriendsDeps {
+  return {
+    now: () => Date.UTC(1998, 5, 25, 12, 34),
+    schedule: timers.schedule,
+    playAlert: vi.fn(),
+    copyText: vi.fn(async () => undefined),
+    ...overrides,
+  };
+}
 
 export const immediateAppStateDeps: AppStateDeps = {
   setTimeout: (callback) => {
@@ -258,60 +307,76 @@ export function createWrapper(options: ProviderOptions = {}) {
   const winampDeps = createTestWinampDeps(winampPlayers, options.winampDeps);
   const winampRegistry = new Map<string, WinampControls>();
   const systemProbe = options.systemProbe ?? TEST_SYSTEM_PROBE;
+  const timers = createManualTimers();
+  const friendsDeps = createTestFriendsDeps(timers, options.friendsDeps);
+  const presence =
+    options.presence ??
+    createDemoPresenceService({
+      schedule: friendsDeps.schedule,
+      signedIn: false,
+    });
 
   function Wrapper({ children }: { children: ReactNode }) {
     return (
       <FuseGamesContext.Provider value={games}>
-        <AppStateDepsContext.Provider value={immediateAppStateDeps}>
-          <WindowsDepsContext.Provider value={testWindowsDeps}>
-            <DesktopDepsContext.Provider value={desktopDeps}>
-              <MediaDepsContext.Provider value={mediaDeps}>
-                <GamesDepsContext.Provider value={gamesDeps}>
-                  <WallpaperStoreContext.Provider value={wallpaperStore}>
-                    <DisplayPrefsStoreContext.Provider
-                      value={displayPrefsStore}
-                    >
-                      <FuseOsPrefsStoreContext.Provider value={prefsStore}>
-                        <PaintDepsContext.Provider value={paintDeps}>
-                          <PaintPrefsStoreContext.Provider value={paintPrefs}>
-                            <PaintRegistryContext.Provider
-                              value={paintRegistry}
-                            >
-                              <WinampDepsContext.Provider value={winampDeps}>
-                                <WinampRegistryContext.Provider
-                                  value={winampRegistry}
+        <PresenceServiceContext.Provider value={presence}>
+          <FriendsDepsContext.Provider value={friendsDeps}>
+            <AppStateDepsContext.Provider value={immediateAppStateDeps}>
+              <WindowsDepsContext.Provider value={testWindowsDeps}>
+                <DesktopDepsContext.Provider value={desktopDeps}>
+                  <MediaDepsContext.Provider value={mediaDeps}>
+                    <GamesDepsContext.Provider value={gamesDeps}>
+                      <WallpaperStoreContext.Provider value={wallpaperStore}>
+                        <DisplayPrefsStoreContext.Provider
+                          value={displayPrefsStore}
+                        >
+                          <FuseOsPrefsStoreContext.Provider value={prefsStore}>
+                            <PaintDepsContext.Provider value={paintDeps}>
+                              <PaintPrefsStoreContext.Provider
+                                value={paintPrefs}
+                              >
+                                <PaintRegistryContext.Provider
+                                  value={paintRegistry}
                                 >
-                                  <AssistantDepsContext.Provider
-                                    value={assistantDeps}
+                                  <WinampDepsContext.Provider
+                                    value={winampDeps}
                                   >
-                                    <AssistantOptionsStoreContext.Provider
-                                      value={assistantOptions}
+                                    <WinampRegistryContext.Provider
+                                      value={winampRegistry}
                                     >
-                                      <SystemProbeContext.Provider
-                                        value={() => systemProbe}
+                                      <AssistantDepsContext.Provider
+                                        value={assistantDeps}
                                       >
-                                        <Shell
-                                          store={store}
-                                          initialOpen={options.initialOpen}
+                                        <AssistantOptionsStoreContext.Provider
+                                          value={assistantOptions}
                                         >
-                                          {children}
-                                        </Shell>
-                                      </SystemProbeContext.Provider>
-                                    </AssistantOptionsStoreContext.Provider>
-                                  </AssistantDepsContext.Provider>
-                                </WinampRegistryContext.Provider>
-                              </WinampDepsContext.Provider>
-                            </PaintRegistryContext.Provider>
-                          </PaintPrefsStoreContext.Provider>
-                        </PaintDepsContext.Provider>
-                      </FuseOsPrefsStoreContext.Provider>
-                    </DisplayPrefsStoreContext.Provider>
-                  </WallpaperStoreContext.Provider>
-                </GamesDepsContext.Provider>
-              </MediaDepsContext.Provider>
-            </DesktopDepsContext.Provider>
-          </WindowsDepsContext.Provider>
-        </AppStateDepsContext.Provider>
+                                          <SystemProbeContext.Provider
+                                            value={() => systemProbe}
+                                          >
+                                            <Shell
+                                              store={store}
+                                              initialOpen={options.initialOpen}
+                                            >
+                                              {children}
+                                            </Shell>
+                                          </SystemProbeContext.Provider>
+                                        </AssistantOptionsStoreContext.Provider>
+                                      </AssistantDepsContext.Provider>
+                                    </WinampRegistryContext.Provider>
+                                  </WinampDepsContext.Provider>
+                                </PaintRegistryContext.Provider>
+                              </PaintPrefsStoreContext.Provider>
+                            </PaintDepsContext.Provider>
+                          </FuseOsPrefsStoreContext.Provider>
+                        </DisplayPrefsStoreContext.Provider>
+                      </WallpaperStoreContext.Provider>
+                    </GamesDepsContext.Provider>
+                  </MediaDepsContext.Provider>
+                </DesktopDepsContext.Provider>
+              </WindowsDepsContext.Provider>
+            </AppStateDepsContext.Provider>
+          </FriendsDepsContext.Provider>
+        </PresenceServiceContext.Provider>
       </FuseGamesContext.Provider>
     );
   }
@@ -319,6 +384,9 @@ export function createWrapper(options: ProviderOptions = {}) {
     Wrapper,
     store,
     games,
+    presence,
+    friendsDeps,
+    timers,
     desktopDeps,
     mediaDeps,
     gamesDeps,

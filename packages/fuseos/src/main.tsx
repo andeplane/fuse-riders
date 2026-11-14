@@ -2,6 +2,19 @@ import { PORTAL_GAMES } from "fuse-ui/portal";
 import ReactDOM from "react-dom/client";
 
 import { App } from "./App";
+import { createUhOhSound } from "./friends/alertSound";
+import { createDemoPresenceService } from "./friends/demoPresenceService";
+import type { FriendsDeps } from "./friends/friendsDepsContext";
+import {
+  defaultFriendsDeps,
+  FriendsDepsContext,
+} from "./friends/friendsDepsContext";
+import { PresenceServiceContext } from "./friends/presenceService";
+import {
+  apiUrlFor,
+  createRealPresenceService,
+} from "./friends/realPresenceService";
+import { createSwitchablePresenceService } from "./friends/switchablePresenceService";
 import { createFuseGameRegistry, FuseGamesContext } from "./fusegames/registry";
 import {
   deepLinkContents,
@@ -43,12 +56,33 @@ const winampDeps: WinampDeps = {
   },
 };
 
+// Fuse Messenger: the live friend list over the room service's friends routes, with the scripted demo behind
+// File > Demo buddies. Sign-in and the SDK behind it load on the first click that needs them, never at boot.
+const presence = createSwitchablePresenceService(
+  createRealPresenceService({
+    fetch: window.fetch.bind(window),
+    apiUrl: apiUrlFor(import.meta.env.VITE_API_ORIGIN, window.location.origin),
+  }),
+  () => createDemoPresenceService({ schedule: defaultFriendsDeps.schedule }),
+);
+const friendsDeps: FriendsDeps = {
+  ...defaultFriendsDeps,
+  playAlert: muted ? () => undefined : createUhOhSound(),
+};
+
 export function mountFuseOs(container: HTMLElement): void {
   // No React.StrictMode: its double mount in development restarts every embedded game twice.
   ReactDOM.createRoot(container).render(
     <FuseGamesContext.Provider value={games}>
       <WinampDepsContext.Provider value={winampDeps}>
-        <App store={new LocalStorageStateStore()} initialOpen={initialOpen} />
+        <PresenceServiceContext.Provider value={presence}>
+          <FriendsDepsContext.Provider value={friendsDeps}>
+            <App
+              store={new LocalStorageStateStore()}
+              initialOpen={initialOpen}
+            />
+          </FriendsDepsContext.Provider>
+        </PresenceServiceContext.Provider>
       </WinampDepsContext.Provider>
     </FuseGamesContext.Provider>,
   );
