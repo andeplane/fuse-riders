@@ -69,7 +69,7 @@ import type { Cue } from "../render/cues.js";
 import { createScene } from "../render/scene.js";
 import { createSmoother } from "../render/smooth.js";
 import { browserImages, loadArt } from "./art.js";
-import { createSfx } from "./audio.js";
+import { createSfx, VOLLEY_SONGS } from "./audio.js";
 import {
   HeldControls,
   PadSet,
@@ -257,6 +257,7 @@ function header(
     ...extra,
   );
   return createTopBar({
+    music: VOLLEY_SONGS,
     element: bar,
     gameId: GAME,
     onOpenChange,

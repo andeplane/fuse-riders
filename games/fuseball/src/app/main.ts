@@ -68,7 +68,7 @@ import {
   teamColor,
 } from "../render/palette.js";
 import { createScene, guarded, solidCopies } from "../render/scene.js";
-import { createSfx } from "./audio.js";
+import { createSfx, FUSEBALL_SONGS } from "./audio.js";
 import {
   HeldControls,
   PadSet,
@@ -245,6 +245,7 @@ function header(
     ...extra,
   );
   return createTopBar({
+    music: FUSEBALL_SONGS,
     element: bar,
     gameId: GAME,
     onOpenChange,

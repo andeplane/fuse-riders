@@ -54,7 +54,7 @@ import { slotColor, slotName } from "../render/palette.js";
 import { createScene } from "../render/scene.js";
 import { createSmoother } from "../render/smooth.js";
 import { browserCanvas, browserImages, browserTint, loadArt } from "./art.js";
-import { createSfx } from "./audio.js";
+import { createSfx, ELASTO_SONGS } from "./audio.js";
 import {
   HeldControls,
   PadSet,
@@ -212,6 +212,7 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     ...extra,
   );
   return createTopBar({
+    music: ELASTO_SONGS,
     element: bar,
     gameId: GAME,
     sound: audioControl.sound,
@@ -363,6 +364,7 @@ function room(solo: boolean): void {
     menu.element,
   ]);
   createTopBar({
+    music: ELASTO_SONGS,
     element: top,
     onOpenChange: (open) => {
       if (open) {
