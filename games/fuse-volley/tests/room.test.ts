@@ -5,9 +5,11 @@ import {
   BOT,
   JOIN,
   PRESENCE,
+  SETTINGS,
   SPECTATOR,
   type StreamEntries,
 } from "fuse-netcode";
+import { matchResult } from "../src/online/result.js";
 import {
   DEFAULT_SETTINGS,
   PLAY,
@@ -241,4 +243,60 @@ test("the game names itself, its rules and four seats, with one bot for solo (th
   assert.equal(fuseVolleyGame.seating?.solo.bots, 1);
   assert.equal(createFuseVolleyGame(botInput, 3).seating?.solo.bots, 3);
   assert.equal(fuseVolleyGame.maxSteps, STEPS_PER_TICK);
+});
+
+test("doubles takes four seats in seat order, plays them as two sides and reports both winners", () => {
+  const settings = {
+    display: false,
+    scoring: "rally" as const,
+    bot: 1 as const,
+    doubles: true,
+  };
+  const room = seated(settings);
+  // Two seats are not a doubles match.
+  fold(room, { a: [[ACTION, "start", "m1"]] });
+  assert.equal(room.stage, "lobby");
+  fold(room, {
+    a: [
+      [JOIN, "c", "Cy", 2, "robot", 1],
+      [JOIN, "d", "Di", 3, "robot", 1],
+    ],
+  });
+  fold(room, { a: [[ACTION, "start", "m2"]] });
+  assert.equal(room.stage, "running");
+  assert.deepEqual(
+    room.roster.map((entrant) => [entrant.id, entrant.slot]),
+    [
+      ["a", 0],
+      ["b", 1],
+      ["c", 2],
+      ["d", 3],
+    ],
+  );
+  assert.deepEqual(
+    room.world!.blobs.map((blob) => blob.side),
+    [0, 1, 0, 1],
+  );
+  const restored = decode(encode(room), room.tick);
+  assert.ok(restored);
+  assert.equal(hash(restored), hash(room));
+  finish(room, 1);
+  const result = matchResult(room)!;
+  assert.deepEqual(
+    result.players.map((player) => [player.playerId, player.matchPlacement]),
+    [
+      ["a", 1],
+      ["b", 2],
+      ["c", 1],
+      ["d", 2],
+    ],
+  );
+  assert.equal(result.winnerId, undefined, "two winners, no single one");
+  assert.ok(decode(encode(room), room.tick));
+  // Back to singles with four seated: the rematch waits in the lobby.
+  fold(room, {
+    a: [[SETTINGS, { ...settings, doubles: false }]],
+  });
+  fold(room, { a: [[ACTION, "rematch", "m3"]] });
+  assert.equal(room.stage, "lobby");
 });
