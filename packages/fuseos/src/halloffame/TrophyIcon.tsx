@@ -17,7 +17,7 @@ const METALS = {
 } as const;
 
 /**
- * A 16-colour trophy, drawn on a 16x16 grid so it reads at both icon sizes, like the Win95 shell's own
+ * A 16-colour trophy, drawn on a 16x16 grid so it reads at both icon sizes, like the Win98 shell's own
  * bitmaps. @react95/icons has no trophy, so the Hall of Fame brings its own.
  */
 export function TrophyIcon({

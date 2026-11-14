@@ -8,7 +8,7 @@ export const FALLBACK_CULPRIT = "EXPLORER.EXE";
 const DOS_STEM = 8;
 
 /**
- * A game id as its Windows 95 executable: upper case, letters and digits only, and squeezed
+ * A game id as its Windows 98 executable: upper case, letters and digits only, and squeezed
  * into 8.3 the way VFAT does it ("fuse-riders" -> "FUSERI~1.EXE").
  */
 export function executableName(gameId: string): string {
@@ -44,7 +44,7 @@ export type BsodMessage = {
   prompt: string;
 };
 
-/** The words of the Windows 95 fatal exception screen, blaming `culprit`. */
+/** The words of the Windows 98 fatal exception screen, blaming `culprit`. */
 export function bsodMessage(culprit: string): BsodMessage {
   return {
     title: "Windows",

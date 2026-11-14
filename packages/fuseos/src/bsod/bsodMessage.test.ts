@@ -45,7 +45,7 @@ describe("pickCulprit", () => {
 });
 
 describe("bsodMessage", () => {
-  it("is the Windows 95 fatal exception text, naming the VXD and the culprit", () => {
+  it("is the Windows 98 fatal exception text, naming the VXD and the culprit", () => {
     const message = bsodMessage("FUSEBALL.EXE");
     expect(message.title).toBe("Windows");
     expect(message.summary).toBe(

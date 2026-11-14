@@ -11,7 +11,7 @@ export type BsodScreenProps = {
 };
 
 /**
- * The Windows 95 Blue Screen of Death, over everything. It takes the keyboard focus while it
+ * The Windows 98 Blue Screen of Death, over everything. It takes the keyboard focus while it
  * is up (so "any key" reaches the OS document even when a game iframe had the focus, e.g.
  * when raised from the Run dialog) and gives it back to whatever had it on the way out.
  */

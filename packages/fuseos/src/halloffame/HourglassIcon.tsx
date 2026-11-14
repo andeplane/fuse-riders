@@ -1,4 +1,4 @@
-/** The Win95 "busy" hourglass, on a 16x16 grid; shown in place of the list while a leaderboard loads. */
+/** The Win98 "busy" hourglass, on a 16x16 grid; shown in place of the list while a leaderboard loads. */
 export function HourglassIcon({ size = 32 }: { size?: number }) {
   return (
     <svg

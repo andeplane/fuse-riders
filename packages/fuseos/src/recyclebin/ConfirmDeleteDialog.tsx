@@ -15,7 +15,7 @@ export type ConfirmDeleteDialogProps = {
   onNo: () => void;
 };
 
-/** The dialog's title, as Windows 95 chose it by the number of files. */
+/** The dialog's title, as Windows 98 chose it by the number of files. */
 export function confirmDeleteTitle(confirmation: DeleteConfirmation): string {
   return confirmation.kind === "one"
     ? "Confirm File Delete"
