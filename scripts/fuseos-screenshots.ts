@@ -236,21 +236,11 @@ export async function captureScreenshots(
   await closeAll();
 
   await shot("pipes-preview", async () => {
-    await startMenu(page, ["Settings", "Control Panel"]);
+    // Start > Settings > Screen Saver opens Display Properties on its Screen Saver tab.
+    await startMenu(page, ["Settings", "Screen Saver"]);
     const window = osWindow(page, "Control Panel");
     await window.waitFor();
-    const tab = window.getByRole("tab", { name: /screen ?saver/i });
-    if (!(await isPresent(tab))) {
-      await closeAll();
-      throw new Skipped("TODO(B10): no Screen Saver applet on this build");
-    }
-    await tab.click();
-    const preview = window.getByRole("button", { name: /preview/i });
-    if (!(await isPresent(preview))) {
-      await closeAll();
-      throw new Skipped("TODO(B10): the Screen Saver applet has no Preview");
-    }
-    await preview.click();
+    await window.getByRole("button", { name: "Preview" }).click();
     // three.js and the pipes module load lazily; a few seconds of pipes is the picture.
     await page.waitForTimeout(5_000);
   });

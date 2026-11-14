@@ -32,7 +32,6 @@ const GAME_ID = "fuseball";
 const GAME_NAME = "Fuseball";
 const base = process.env.HOME_URL ?? "http://127.0.0.1:5179/";
 const shots = new ScreenshotDirectory("artifacts/fuseos");
-const todo: string[] = [];
 
 const browser = await launchSelected("chrome", { headless: true });
 try {
@@ -83,10 +82,9 @@ try {
   assert.equal((await recordedOpens(page)).length, 0, "no tab opened yet");
   console.log(`PASS ${GAME_NAME} window embeds ${src}`);
 
-  // Pop out (B2): the title bar sends the live game URL to a new tab.
-  const popOut = gameWindow.getByRole("button", { name: /pop out/i });
-  if (await isPresent(popOut)) {
-    await popOut.click();
+  // Pop out: the toolbar sends the live game URL to a new tab and closes the window.
+  await gameWindow.getByRole("button", { name: /pop out/i }).click();
+  {
     const opens = await recordedOpens(page);
     assert.equal(opens.length, 1, "Pop out opens one tab");
     assert.ok(
@@ -94,17 +92,16 @@ try {
       `Pop out opens the game, got ${opens[0]!.url}`,
     );
     console.log(`PASS Pop out -> ${opens[0]!.url}`);
-  } else todo.push("TODO(B2): no Pop out button on the game window yet");
-  await closeWindow(gameWindow);
+  }
+  if (await isPresent(gameWindow)) await closeWindow(gameWindow);
 
   // Settings > Games: launching in a tab goes through window.open, never a window on the desktop.
   const controlPanel = await controlPanelTab(page, "Games");
   await shots.save(page, "control-panel-games");
-  const tabChoice = controlPanel
-    .getByRole("radio", { name: /tab/i })
-    .or(controlPanel.getByRole("option", { name: /tab/i }));
-  if (await isPresent(tabChoice)) {
-    await tabChoice.first().click();
+  await controlPanel
+    .getByRole("radio", { name: "Always a new browser tab" })
+    .click();
+  {
     await closeWindow(controlPanel);
     const before = (await recordedOpens(page)).length;
     await desktopIcon(page, GAME_NAME).dblclick();
@@ -130,15 +127,8 @@ try {
     console.log(`PASS tab launch -> ${launch.url}`);
     // Back to windows so the rest of the smoke, and a reused profile, see the default.
     const again = await controlPanelTab(page, "Games");
-    await again
-      .getByRole("radio", { name: /window/i })
-      .or(again.getByRole("option", { name: /window/i }))
-      .first()
-      .click();
+    await again.getByRole("radio", { name: "A window inside FuseOS" }).click();
     await closeWindow(again);
-  } else {
-    todo.push("TODO(B2): the Games applet has no window/tab launch choice yet");
-    await closeWindow(controlPanel);
   }
 
   // A deep link opens its window on boot and is consumed from the address.
@@ -154,7 +144,6 @@ try {
   console.log("PASS ?open=paint restores Paint");
 
   assert.deepEqual(errors, [], "page errors");
-  for (const line of todo) console.log(line);
   console.log(`Screenshots: ${shots.taken.join(", ")}`);
   await context.close();
 } finally {

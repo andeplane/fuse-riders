@@ -33,8 +33,8 @@ the state of the desktop lives under the `fuseos.state` key in `localStorage`.
 | `src/desktop`                   | Desktop, icons, taskbar, Start menu, window host and titles (`windowMeta.ts` holds `OS_NAME`)   |
 | `src/windows`                   | Window frames, manager and `IframeGame`                                                         |
 | `src/fusegames`                 | The game registry built from `portal.json` and the game window                                  |
-| `src/retro`                     | The DOS and web retro games ([docs](games/README.md))                                           |
-| `src/winamp`                    | Webamp in a window ([docs](winamp/README.md))                                                   |
+| `src/retro`                     | The DOS and web retro games ([docs](retro-games.md))                                            |
+| `src/winamp`                    | Webamp on the desktop ([docs](winamp.md))                                                       |
 | `src/assistant`, `src/llm`      | Clippy and the in-browser language model behind him ([docs](assistant/README.md))               |
 | `src/paint`, `src/controlpanel` | Paint and the Control Panel applets                                                             |
 | `src/about`                     | The About sheet: version, copyright and credits                                                 |
@@ -61,7 +61,7 @@ the version (`src/about/version.ts`, kept equal to
 `src/about/credits.ts`: 98.css, the React95 icons, react-rnd, Webamp, js-dos,
 clippyjs, WebLLM, CodeMirror, 1j01's 3D Pipes, the shareware publishers,
 skifree.js, micropolisJS, the Vector Playing Cards and the games' soundtracks.
-The licence texts of the bundled games are under [games](games/README.md).
+The licence texts of the bundled games are under [licenses](licenses/) and listed in [retro-games.md](retro-games.md).
 
 ## Branding
 
