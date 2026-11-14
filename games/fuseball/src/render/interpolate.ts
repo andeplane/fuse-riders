@@ -53,6 +53,7 @@ export function blend(
   return {
     ...newer,
     step: mix(older.step, newer.step),
+    clock: mix(older.clock, newer.clock),
     remaining:
       older.phase === newer.phase
         ? mix(older.remaining, newer.remaining)

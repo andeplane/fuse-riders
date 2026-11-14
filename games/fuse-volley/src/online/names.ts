@@ -27,4 +27,4 @@ export const isAvatar = (value: unknown): value is string =>
   AVATAR_ATLAS.frames.some((id) => id === value);
 
 /** A bot's seat name, by the slot it takes. */
-export const BOT_NAMES = ["Wobble", "Jelly"] as const;
+export const BOT_NAMES = ["Wobble", "Jelly", "Gloop", "Squish"] as const;

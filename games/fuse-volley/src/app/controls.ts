@@ -224,10 +224,10 @@ export class PadSet {
 export function autopilotBits(
   room: { stage: string; world: World | null | undefined } | undefined,
   me: string,
-  bot: (world: World, side: 0 | 1) => number = (world, side) =>
-    botInput(world, side, 2),
+  bot: (world: World, slot: number) => number = (world, slot) =>
+    botInput(world, slot, 2),
 ): number {
   if (room?.stage !== "running" || !room.world) return 0;
-  const mine = room.world.blobs.find((blob) => blob.id === me);
-  return mine ? bot(room.world, mine.side) : 0;
+  const slot = room.world.blobs.findIndex((blob) => blob.id === me);
+  return slot >= 0 ? bot(room.world, slot) : 0;
 }

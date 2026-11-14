@@ -29,8 +29,32 @@ const GOLDEN: {
   rules: string;
   hashes: Record<Scoring, string[]>;
   bots: Record<Scoring, string[]>;
+  /** Two a side on the wide court: the pilots, then the bots (hard and normal against easy and normal). */
+  doubles: { pilots: string[]; bots: string[] };
 } = {
-  rules: "fuse-volley-2",
+  doubles: {
+    pilots: [
+      "692e8d88",
+      "36c7d18f",
+      "24cbbbb5",
+      "3507ac8b",
+      "5fc929e8",
+      "7d99b543",
+      "c21f5f4b",
+    ],
+    bots: [
+      "0d7d7905",
+      "f8f5d3a1",
+      "44baf032",
+      "9f87995d",
+      "dac2636a",
+      "be738071",
+      "b77f7e22",
+      "94b450a8",
+      "5367a090",
+    ],
+  },
+  rules: "fuse-volley-3",
   hashes: {
     rally: [
       "7a4b3e99",
@@ -101,8 +125,9 @@ function fnv(text: string): string {
 }
 
 /** Mostly under the ball on its own side, sometimes wandering; jumps by the roll. */
-function pilot(world: World, side: 0 | 1, roll: number): number {
-  const me = world.blobs[side],
+function pilot(world: World, slot: number, roll: number): number {
+  const me = world.blobs[slot]!,
+    side = me.side,
     bx = world.ball.x / T.BU;
   const behind = side === 0 ? -14 : 14;
   let bits = bx + behind > me.x ? RIGHT : LEFT;
@@ -115,17 +140,24 @@ function pilot(world: World, side: 0 | 1, roll: number): number {
 const TICKS = 12_000,
   EVERY = 300;
 
-function record(bots = false): Record<Scoring, string[]> {
+function record(bots = false, blobs = 2): Record<Scoring, string[]> {
   const recorded = { rally: [] as string[], classic: [] as string[] };
   for (const scoring of ["rally", "classic"] as const) {
-    const world = createWorld(["bot:1", "bot:2"], scoring, 20261114),
+    const world = createWorld(
+        ["bot:1", "bot:2", "bot:3", "bot:4"].slice(0, blobs),
+        scoring,
+        20261114,
+      ),
       next = scripted(20261114),
       hashes = recorded[scoring];
     const hash = () => hashes.push(fnv(JSON.stringify(encodeWorld(world))));
     for (let tick = 1; tick <= TICKS && world.phase !== "over"; tick++) {
-      const inputs: [number, number] = bots
-        ? [botInput(world, 0, 2), botInput(world, 1, 0)]
-        : [pilot(world, 0, next()), pilot(world, 1, next())];
+      const levels = [2, 0, 1, 1] as const;
+      const inputs = world.blobs.map((_, slot) =>
+        bots
+          ? botInput(world, slot, levels[slot]!)
+          : pilot(world, slot, next()),
+      );
       for (let i = 0; i < T.STEPS_PER_TICK; i++) stepWorld(world, inputs);
       if (tick % EVERY === 0) hash();
     }
@@ -136,9 +168,13 @@ function record(bots = false): Record<Scoring, string[]> {
 
 test("recorded matches replay to their recorded hashes under the current rules", () => {
   const hashes = record(),
-    bots = record(true);
+    bots = record(true),
+    doubles = {
+      pilots: record(false, 4).rally,
+      bots: record(true, 4).rally,
+    };
   if (process.env.GOLDEN_RECORD)
-    console.log(JSON.stringify({ rules: RULES, hashes, bots }));
+    console.log(JSON.stringify({ rules: RULES, hashes, bots, doubles }));
   assert.equal(
     RULES,
     GOLDEN.rules,
@@ -153,5 +189,10 @@ test("recorded matches replay to their recorded hashes under the current rules",
     bots,
     GOLDEN.bots,
     "the bot's play changed: bump RULES and re-record, or fix the regression",
+  );
+  assert.deepEqual(
+    doubles,
+    GOLDEN.doubles,
+    "doubles changed: bump RULES and re-record, or fix the regression",
   );
 });

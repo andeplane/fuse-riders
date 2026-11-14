@@ -1,6 +1,6 @@
 # Fuse Volley
 
-Fuse Volley is jelly-blob beach volleyball for two, served at `/fuse-volley/` (locally
+Fuse Volley is jelly-blob beach volleyball for two or four, served at `/fuse-volley/` (locally
 **http://localhost:8787/fuse-volley/?mute**). Two blobs, one ball, one net: bounce the ball over to the other side
 and keep it off your own sand. Play a friend online, on one TV with phones as the controllers, or a bot.
 
@@ -13,6 +13,14 @@ and keep it off your own sand. Play a friend online, on one TV with phones as th
 - **Hold jump to jump higher.** A tap is a hop; held, the blob rises about twice as high.
 - **Serving.** The server's ball hovers over its half until a blob touches it, or drops by itself after five seconds.
 - **The net** is a post with a round top: the ball bounces off it, and a blob cannot cross it.
+
+## Doubles (2 V 2)
+
+Pick **2 V 2** under PLAYERS in the lobby (or on the landing page for solo): two blobs a side on a court 1.75 times
+as wide. Seats alternate sides, so seats 1 and 3 play cyan and 2 and 4 pink; START fills empty seats with bots. The
+three touches are the side's, however the two teammates split them. Teammates are solid to each other: running into
+one shoves it, two pushing stand still, and you get past by jumping over its head (land on the head and you pop off).
+A flat hit from the back line only just carries over the net, so the back blob usually passes to the front.
 
 ## Scoring
 

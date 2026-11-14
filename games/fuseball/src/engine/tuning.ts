@@ -134,3 +134,11 @@ export const FIELD_KICK = 8704,
 export const COUNTER = 0x10000;
 /** The last step a world may reach: 207 days of play. */
 export const MAX_STEP = 0x7fff_ffff;
+
+/**
+ * Ledges and movers. A body lands on a ledge when its underside was no more than `LEDGE_SLOP` below the top before
+ * it moved, so a shove from a rider does not drop it through but a hard stamp does. A body is on a mover, and is
+ * carried by it, when its underside is within `CARRY_SLOP` of the top.
+ */
+export const LEDGE_SLOP = px(3),
+  CARRY_SLOP = px(1);

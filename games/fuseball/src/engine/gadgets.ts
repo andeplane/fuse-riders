@@ -1,12 +1,20 @@
 import {
   apart,
+  carried,
+  landLedges,
   resolveSolids,
   settle,
   type Body,
   type Touch,
 } from "./collide.js";
 import { SUB, abs, clamp, div, isqrt, toward } from "./math.js";
-import { barrierBoxesOf, type Box, type MapDef } from "./maps.js";
+import {
+  barrierBoxesOf,
+  boxesAt,
+  ledgeBoxesOf,
+  type Box,
+  type MapDef,
+} from "./maps.js";
 import * as T from "./tuning.js";
 
 /**
@@ -156,33 +164,47 @@ export function meetGadgets(
 }
 
 /**
- * One micro-step of a ball nobody touches: gravity, the solids and the gadgets, as `step.ts` moves it. `barriers`
- * is the flight's own copy of the fields and gates, which it wears down and opens as the real ones would be. The
- * bot reads a ball's flight with it, and the level generator drops balls with it to see where they come to rest.
- * The bot's approximate forecast retains tiny velocities, as its planner did before generation was introduced;
- * validation uses the live engine's rest threshold. Snapping the forecast changes its landing estimates.
+ * One micro-step of a ball nobody touches, as `step.ts` moves it on micro-step `step`: a mover's carry, gravity,
+ * the ledges, the solids and the gadgets. `barriers` is the flight's own copy of the fields and gates, which it
+ * wears down and opens as the real ones would be. The bot reads a ball's flight with it, and the level generator
+ * drops balls with it to see where they come to rest. The bot's approximate forecast retains tiny velocities, as
+ * its planner did before generation was introduced; validation uses the live engine's rest threshold. Snapping the
+ * forecast changes its landing estimates. Returns how far a mover carried the ball, so a ball lying on one can be
+ * told from one that is still going somewhere.
  */
 export function drift(
   ball: Body,
-  boxes: readonly Box[],
   map: MapDef,
   barriers: BarrierState[],
+  step: number,
   snapAtRest = true,
-): void {
+): { x: number; y: number } {
+  const by = carried(ball, T.BALL_R, map, step, T.CARRY_SLOP);
   ball.vy += T.BALL_GRAVITY;
   ball.vx = clamp(ball.vx, -T.BALL_MAX, T.BALL_MAX);
   ball.vy = clamp(ball.vy, -T.BALL_MAX, T.BALL_MAX);
   ball.x += ball.vx;
   ball.y += ball.vy;
+  const landed: Touch = { hit: false, ground: false, impact: 0 };
+  landLedges(
+    ball,
+    T.BALL_R,
+    ledgeBoxesOf(map),
+    map,
+    T.BALL_BOUNCE_NUM,
+    T.BALL_BOUNCE_DEN,
+    T.LEDGE_SLOP,
+    landed,
+  );
   const touch = resolveSolids(
     ball,
     T.BALL_R,
-    boxes,
+    boxesAt(map, step),
     map,
     T.BALL_BOUNCE_NUM,
     T.BALL_BOUNCE_DEN,
   );
-  if (touch.hit) {
+  if (touch.hit || landed.hit) {
     ball.vx -= div(ball.vx, T.BALL_SCRUB);
     ball.vy -= div(ball.vy, T.BALL_SCRUB);
     if (snapAtRest) {
@@ -192,4 +214,5 @@ export function drift(
   }
   meetGadgets(map, barriers, ball);
   settle(ball, T.BALL_R, map);
+  return by;
 }
