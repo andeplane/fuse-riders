@@ -38,6 +38,7 @@ import { Winmine1 } from "@react95/icons/Winmine1";
 import type { ComponentType, SVGProps } from "react";
 
 import { WinampLogo } from "../assets/WinampLogo";
+import { FusteamLogo } from "../launcher/FusteamLogo";
 
 /** Every icon the desktop can show; a name rather than a component so window state stays serializable. */
 export type IconName =
@@ -83,7 +84,8 @@ export type IconName =
   | "notepadpp"
   | "textFile"
   | "codeFile"
-  | "unknownFile";
+  | "unknownFile"
+  | "fusteam";
 
 type IconVariant = "32x32_4" | "16x16_4";
 type IconProps = Omit<SVGProps<SVGSVGElement>, "ref">;
@@ -146,6 +148,7 @@ const ICONS: Record<IconName, IconComponent> = {
   textFile: Shell323,
   codeFile: Shell322,
   unknownFile: Shell321,
+  fusteam: FusteamLogo,
 };
 
 export type Win98IconProps = {

@@ -16,7 +16,12 @@ import {
   installRoomLifecycle,
   validRoomCode,
 } from "fuse-network-fe";
-import { MAX_PACKET_BYTES, uuid } from "fuse-netcode";
+import {
+  MAX_PACKET_BYTES,
+  createLeadClock,
+  ticksAhead,
+  uuid,
+} from "fuse-netcode";
 import {
   button,
   createAppPortal,
@@ -43,6 +48,14 @@ import { freightGame, type View } from "../online/game.js";
 import { seatName } from "../online/names.js";
 import { FreightRuntime, type FreightCallbacks } from "../online/runtime.js";
 import { blend, fraction } from "../render/interpolate.js";
+import type { WorldView } from "../engine/index.js";
+import {
+  createCueLatch,
+  createSmoother,
+  forward,
+  forwardInputs,
+  memoBot,
+} from "./forward.js";
 import { createScene, effectKey, VIEW_H, VIEW_W } from "../render/scene.js";
 import { seatColor } from "../render/palette.js";
 import {
@@ -123,10 +136,14 @@ const names = keys(GAME);
 const query = new URLSearchParams(location.search);
 const muted = mutedByQuery(location.search);
 const autopilot = query.has("autopilot");
+/** `?lead=off` draws the old way, a tick behind the clock and blended, to compare the feel against. */
+const drawAhead = query.get("lead") !== "off";
+/** `?probe` publishes where this device's train was last drawn, for the press-to-picture measurement. */
+const probe = query.has("probe");
 const app = document.querySelector<HTMLElement>("#app")!;
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
-/** A link within the game that keeps this page's developer flags: `mute` and `autopilot`. */
-const DEV_FLAGS = ["mute", "autopilot"] as const;
+/** A link within the game that keeps this page's developer flags: `mute`, `autopilot`, `lead` and `probe`. */
+const DEV_FLAGS = ["mute", "autopilot", "lead", "probe"] as const;
 const withFlags = (path: string) => {
   const kept = DEV_FLAGS.filter((flag) => query.has(flag)).map((flag) =>
     query.get(flag) ? `${flag}=${encodeURIComponent(query.get(flag)!)}` : flag,
@@ -725,11 +742,62 @@ function room(solo: boolean): void {
   };
   new ResizeObserver(fit).observe(screen);
   let model: Model | undefined;
-  animations.add((now) => {
+  // ---- drawing: the newest folded world played forward to the clock, once per animation frame ----
+  const smoother = createSmoother(),
+    leadClock = createLeadClock(),
+    drawBot = memoBot(botInput),
+    latch = createCueLatch();
+  /** What to draw now: the forward run when the newest frame is the room's newest world, otherwise the two frames blended. */
+  const picture = (now: number): WorldView | undefined => {
     const timing = runtime.frameTiming();
-    if (!timing?.newer.world || stage.hidden) return;
-    const alpha = fraction(timing.older?.tick, timing.newer.tick, timing.tick);
-    const world = blend(timing.older?.world, timing.newer.world, alpha);
+    const newer = timing?.newer.world;
+    if (!timing || !newer) return undefined;
+    const state = runtime.roomState();
+    if (
+      !drawAhead ||
+      state?.stage !== "running" ||
+      !state.world ||
+      state.world.step !== newer.step
+    )
+      return blend(
+        timing.older?.world,
+        newer,
+        fraction(timing.older?.tick, timing.newer.tick, timing.tick),
+      );
+    const ahead = leadClock(ticksAhead(timing), timing.newer.logTick, now);
+    return latch(
+      smoother.apply(
+        forward(
+          state.world,
+          ahead,
+          forwardInputs(
+            state,
+            runtime.self,
+            runtime.heldNow,
+            // A bot answers the world it sees, and what this device holds changes that world ahead of the fold.
+            drawBot((timing.revision ?? 0) * 64 + runtime.heldNow),
+          ),
+        ),
+        timing.revision ?? 0,
+        newer.step,
+        { ...state.held },
+        now,
+        runtime.self,
+      ),
+    );
+  };
+  animations.add((now) => {
+    const world = stage.hidden ? undefined : picture(now);
+    if (!world) return;
+    if (probe) {
+      const mine = world.trains.find((t) => t.id === viewer.me);
+      Reflect.set(window, "__fuseFreightProbe", {
+        at: performance.now(),
+        step: world.step,
+        hx: mine?.hx,
+        hy: mine?.hy,
+      });
+    }
     g.setTransform(scale, 0, 0, scale, 0, 0);
     scene.draw({
       world,

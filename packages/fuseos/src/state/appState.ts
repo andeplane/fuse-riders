@@ -73,6 +73,11 @@ export interface NotepadPlusPlusWindowContent {
 
 /** An image from the C: drive, shown read-only (Paint's URL import is Phase B5's; this is the fallback viewer). */
 
+/** Fusteam, the game launcher (`src/launcher`): opens on every boot, one instance, focused rather than duplicated. */
+export interface LauncherWindowContent {
+  kind: "launcher";
+}
+
 export type WindowContent =
   | FuseGameWindowContent
   | RetroGameWindowContent
@@ -84,7 +89,8 @@ export type WindowContent =
   | PaintWindowContent
   | WinampWindowContent
   | ExplorerWindowContent
-  | NotepadPlusPlusWindowContent;
+  | NotepadPlusPlusWindowContent
+  | LauncherWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -123,10 +129,10 @@ export function nextWindowId(windows: readonly WindowState[]): string {
 
 /**
  * Whether `content` would open the same window as `existing`: the single-instance programs (Winamp, the
- * wallpaper picker, About, the Retro Games folder, Notepad++ with its tabs), one window per retro game, per
- * Fuse game, per Control Panel applet, per Explorer location and per picture. Paint and dialogs open as many
- * times as asked. `open` focuses the existing window instead of adding another, whatever asked: an icon, the
- * Start menu, Clippy or a `?open=` deep link over a stored desktop that already holds it.
+ * wallpaper picker, About, the Retro Games folder, Fusteam, Notepad++ with its tabs), one window per retro
+ * game, per Fuse game, per Control Panel applet, per Explorer location and per picture. Paint and dialogs open
+ * as many times as asked. `open` focuses the existing window instead of adding another, whatever asked: an
+ * icon, the Start menu, Clippy or a `?open=` deep link over a stored desktop that already holds it.
  */
 export function sameInstance(
   content: WindowContent,
@@ -137,6 +143,7 @@ export function sameInstance(
     case "wallpaper":
     case "about":
     case "retroFolder":
+    case "launcher":
       return existing.kind === content.kind;
     case "retro":
       return existing.kind === "retro" && existing.game === content.game;
@@ -314,6 +321,7 @@ function isWindowContent(
     case "about":
     case "winamp":
     case "retroFolder":
+    case "launcher":
       return true;
     case "dialog":
       return (
