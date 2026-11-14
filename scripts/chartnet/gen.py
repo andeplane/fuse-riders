@@ -180,8 +180,10 @@ def eval_packs():
     songs, _ = load("cache", stats_)
     _, _, te = split(songs)
     rule = json.loads((SP / "rulegen" / "out.json").read_text())
-    res = {d: {"human": [], "learned": [], "learned_rulegrid": [], "rule": []} for d in DIFFS}
-    f1s = {d: {k: [0, 0, 0] for k in ("learned", "learned_rulegrid", "rule")} for d in DIFFS}
+    hyb_path = SP / "rulegen" / "out_hybrid.json"
+    hybrid = json.loads(hyb_path.read_text()) if hyb_path.exists() else {}
+    res = {d: {"human": [], "learned": [], "learned_rulegrid": [], "rule": [], "hybrid": []} for d in DIFFS}
+    f1s = {d: {k: [0, 0, 0] for k in ("learned", "learned_rulegrid", "rule", "hybrid")} for d in DIFFS}
     tol = 2
     for s in te:
         r = rule.get(s.key)
@@ -204,14 +206,16 @@ def eval_packs():
                 res[d][name].append(stats(rows))
                 a, b, cc = f1(np.array([int(round(t * FPS)) for _, t, _ in rows]), true, tol)
                 f1s[d][name] = [x + y for x, y in zip(f1s[d][name], (a, b, cc))]
-            if r:
+            for name, src in (("rule", r), ("hybrid", hybrid.get(s.key))):
+                if not src:
+                    continue
                 rd = "Easy" if d == "Beginner" else d
-                rc = next((x for x in r["charts"] if x["difficulty"] == rd), None)
+                rc = next((x for x in src["charts"] if x["difficulty"] == rd), None)
                 if rc:
-                    res[d]["rule"].append(stats(rc["rows"]))
-                    pred = np.array([int(round(t * FPS)) for _, t, _ in rc["rows"]])
+                    res[d][name].append(stats(rc["rows"]))
+                    pred = np.array([int(round(t * FPS)) for _, t, row in rc["rows"] if any(x in "124" for x in row)])
                     a, b, cc = f1(pred, true, tol)
-                    f1s[d]["rule"] = [x + y for x, y in zip(f1s[d]["rule"], (a, b, cc))]
+                    f1s[d][name] = [x + y for x, y in zip(f1s[d][name], (a, b, cc))]
     out = {}
     for d in DIFFS:
         out[d] = {"stats": {k: mean_stats(v) for k, v in res[d].items() if v}, "f1": {}}
@@ -254,5 +258,39 @@ def fuse():
     print(json.dumps(out, indent=1))
 
 
+def placement():
+    """Learned rhythm only, as beats per difficulty, for scripts/chartnet/hybrid.ts (the rule generator's arrows)."""
+    stats_, om, _, thr = models()
+    songs, _ = load("cache_fuse", stats_)
+    out = {}
+    for s in songs:
+        tm = timing(s.meta)
+        swing = any(abs((b * 3) - round(b * 3)) < 1e-3 and abs(b * 2 - round(b * 2)) > 1e-3
+                    for c in s.meta["charts"] for b, _, _ in c["rows"])
+        out[s.key] = {}
+        for d in FUSE_DIFFS:
+            prob = predict(om, s, d)
+            n_target = int(TARGET_NPS[d] * 0.9 * len(s.feats) / FPS)
+            out[s.key][d] = [round(b, 4) for b in place(prob, tm, d, thr, n_target=n_target, swing=swing)]
+        print(s.key, {d: len(v) for d, v in out[s.key].items()}, flush=True)
+    Path(sys.argv[2]).write_text(json.dumps(out, sort_keys=True) + "\n")
+
+
+def placement_eval():
+    """Learned rhythm for the held-out pack songs on the rule generator's own beat grid (rulegen/out.json)."""
+    stats_, om, _, thr = models()
+    songs, _ = load("cache", stats_)
+    _, _, te = split(songs)
+    rule = json.loads((SP / "rulegen" / "out.json").read_text())
+    out = {}
+    for s in te:
+        r = rule.get(s.key)
+        if not r:
+            continue
+        s.phase = beat_phase(r, len(s.feats))
+        out[s.key] = {d: [round(b, 4) for b in place(predict(om, s, d), timing(r), d, thr)] for d in FUSE_DIFFS}
+    (SP / "rulegen" / "placement.json").write_text(json.dumps(out))
+
+
 if __name__ == "__main__":
-    {"eval": eval_packs, "fuse": fuse}[sys.argv[1]]()
+    {"eval": eval_packs, "fuse": fuse, "placement": placement, "placement-eval": placement_eval}[sys.argv[1]]()

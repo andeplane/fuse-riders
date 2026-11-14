@@ -334,12 +334,14 @@ interface Row {
 }
 
 /**
- * The rows of one difficulty. `base` is the easier chart's rows, all of which are kept.
+ * The rows of one difficulty. `base` is the easier chart's rows, all of which are kept. `placement`, when given,
+ * replaces the rhythm this function would choose (the slots that carry a step); jumps and freezes are still added here.
  */
 function pickRows(
   song: Song,
   difficulty: Difficulty,
   base: ReadonlySet<number>,
+  placement?: readonly number[],
 ): Row[] {
   const tuning = TUNING[difficulty];
   const reference = referenceFor(difficulty);
@@ -565,7 +567,13 @@ function pickRows(
     fill(scale);
   }
 
-  const slots = [...chosen].sort((a, b) => a - b);
+  const slots = (
+    placement
+      ? [...new Set(placement)].filter(
+          (slot) => slot >= song.first && slot <= song.last,
+        )
+      : [...chosen]
+  ).sort((a, b) => a - b);
   const index = new Map(slots.map((slot, at) => [slot, at]));
   const rows: Row[] = slots.map((slot) => ({ slot, jump: false }));
   const clearOf = (at: number): number =>
@@ -1247,13 +1255,25 @@ export function chartStats(analysis: Analysis, chart: Chart): ChartStats {
   };
 }
 
-/** The four charts of a song, easiest first. */
-export function generateCharts(analysis: Analysis): Chart[] {
+/**
+ * The four charts of a song, easiest first. `placement` (beats, per difficulty) swaps in another rhythm, such as a learned
+ * model's (`scripts/chartnet`); the arrows, jumps, freezes and mines are still this generator's.
+ */
+export function generateCharts(
+  analysis: Analysis,
+  placement?: Partial<Record<Difficulty, readonly number[]>>,
+): Chart[] {
   const song = readSong(analysis);
   const charts: Chart[] = [];
   let base = new Set<number>();
   for (const difficulty of DIFFICULTIES) {
-    const rows = pickRows(song, difficulty, base);
+    const beats = placement?.[difficulty];
+    const rows = pickRows(
+      song,
+      difficulty,
+      base,
+      beats?.map((beat) => Math.round(beat * song.slotsPerBeat)),
+    );
     base = new Set(rows.map((row) => row.slot));
     const notes = placeSteps(song, difficulty, rows);
     const { mines } = TUNING[difficulty];

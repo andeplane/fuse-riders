@@ -90,7 +90,8 @@ export const MODE_CHOICES = [
 const LEVELS = ["beginner", "easy", "medium", "hard", "challenge", "edit"];
 /** The difficulty a chart's name stands for, which picks its colour: `other` for a name that is none of them. */
 export function chartLevel(name: string): string {
-  const level = name.toLowerCase();
+  // An alternate chart ("Hard ChartNet") takes its difficulty's colour.
+  const level = name.toLowerCase().split(" ")[0] ?? "";
   return LEVELS.includes(level) ? level : "other";
 }
 

@@ -17,7 +17,7 @@ export interface SongSource {
   readonly ssc: string;
 }
 export interface ChartInfo {
-  /** `Easy`, `Medium`, `Hard`, `Challenge`… as the simfile names it. */
+  /** `Easy`, `Medium`, `Hard`, `Challenge`… as the simfile names it; an alternate adds its description, `Hard ChartNet`. */
   name: string;
   meter: number;
   /** Notes that get a judgment. */
@@ -84,15 +84,27 @@ const playable = (steps: Steps): boolean =>
   steps.lastMs + END_PAD_MS + LATE_MS < MAX_SONG_MS;
 
 function entryOf(source: SongSource, sim: Simfile): Entry | undefined {
+  // A second chart of a difficulty the file already has (a ChartNet chart, say) is an alternate: it is named after
+  // its description too and comes after the song's own charts, so their indexes, and the default, stay put.
+  const seen = new Set<string>();
   const charts = sim.charts
     .filter((chart) => chart.stepsType === "dance-single")
-    .map((chart) => ({ chart, steps: compileSteps(chart, sim.timing) }))
+    .map((chart) => {
+      const level = chart.difficulty.toLowerCase();
+      const alternate = seen.has(level);
+      seen.add(level);
+      const name = alternate
+        ? `${chart.difficulty} ${chart.description || "Alt"}`
+        : chart.difficulty;
+      return { chart, name, alternate, steps: compileSteps(chart, sim.timing) };
+    })
     .filter(
-      (item): item is { chart: typeof item.chart; steps: Steps } =>
+      (item): item is typeof item & { steps: Steps } =>
         item.steps !== undefined && playable(item.steps),
     )
     .sort(
       (a, b) =>
+        Number(a.alternate) - Number(b.alternate) ||
         rank(a.chart.difficulty) - rank(b.chart.difficulty) ||
         a.chart.meter - b.chart.meter,
     );
@@ -109,8 +121,8 @@ function entryOf(source: SongSource, sim: Simfile): Entry | undefined {
       bpm: [Math.min(...tempos), Math.max(...tempos)],
       sampleStart: sim.sampleStart,
       sampleLength: sim.sampleLength,
-      charts: charts.map(({ chart, steps }) => ({
-        name: chart.difficulty,
+      charts: charts.map(({ chart, name, steps }) => ({
+        name,
         meter: chart.meter,
         steps: steps.steps,
         holds: steps.holds,

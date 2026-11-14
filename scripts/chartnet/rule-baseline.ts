@@ -1,14 +1,25 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { analyzeFile } from "../lib/fusemania/analyze.js";
-import { generateCharts } from "../lib/fusemania/generate.js";
+import { generateCharts, type Difficulty } from "../lib/fusemania/generate.js";
 import { beatSeconds } from "../lib/fusemania/analysis.js";
 /**
  * The rule-based generator on held-out pack songs, for `gen.py eval`:
- *   pnpm exec tsx scripts/chartnet/rule-baseline.ts <jobs.json> <out.json>
+ *   pnpm exec tsx scripts/chartnet/rule-baseline.ts <jobs.json> <out.json> [placement.json]
+ *
+ * With a placement (beats per song and difficulty, from `gen.py placement-eval`) it is the hybrid instead: the learned
+ * rhythm with this generator's arrows.
  */
-const [jobsPath, outPath] = process.argv.slice(2);
+const [jobsPath, outPath, placementPath] = process.argv.slice(2);
 if (!jobsPath || !outPath)
-  throw new Error("usage: rule-baseline.ts <jobs.json> <out.json>");
+  throw new Error(
+    "usage: rule-baseline.ts <jobs.json> <out.json> [placement.json]",
+  );
+const placement = placementPath
+  ? (JSON.parse(readFileSync(placementPath, "utf8")) as Record<
+      string,
+      Partial<Record<Difficulty, number[]>>
+    >)
+  : {};
 const jobs = JSON.parse(readFileSync(jobsPath, "utf8")) as {
   key: string;
   file: string;
@@ -18,7 +29,7 @@ for (const { key, file } of jobs) {
   const t0 = Date.now();
   try {
     const a = analyzeFile(key, file);
-    const charts = generateCharts(a);
+    const charts = generateCharts(a, placement[key]);
     out[key] = {
       offset: a.offset,
       bpms: a.bpms,
