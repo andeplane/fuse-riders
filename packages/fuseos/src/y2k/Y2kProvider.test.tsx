@@ -134,8 +134,8 @@ describe(Y2kProvider.name, () => {
     jump(deps, COUNTDOWN_MS + ROLLOVER_MS);
     expect(screen.getByTestId("y2k-glitch")).toBeInTheDocument();
     jump(deps, GLITCH_MS);
-    // The title shows twice: on the window and on its taskbar button.
-    expect(screen.getAllByText(Y2K_WARNING_TITLE)).toHaveLength(2);
+    // A message box has no taskbar button: the title shows once, on the box.
+    expect(screen.getAllByText(Y2K_WARNING_TITLE)).toHaveLength(1);
     expect(screen.getByText(/rolled over to 01\/01\/1900/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "OK" })).toBeInTheDocument();
     expect(deps.notices).toEqual([Y2K_CLIPPY_LINE]);
@@ -143,7 +143,7 @@ describe(Y2kProvider.name, () => {
     expect(screen.getByText(Y2K_CLIPPY_LINE)).toBeInTheDocument();
     jump(deps, TOTAL_MS);
     // The box is a window of its own and stays until OK; the clock is back.
-    expect(screen.getAllByText(Y2K_WARNING_TITLE)).toHaveLength(2);
+    expect(screen.getAllByText(Y2K_WARNING_TITLE)).toHaveLength(1);
     expect(screen.getByRole("toolbar", { name: "Taskbar" })).toHaveTextContent(
       /\d{1,2}:\d{2} [AP]M/,
     );

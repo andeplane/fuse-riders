@@ -165,6 +165,7 @@ describe(WebAudioSoundService.name, () => {
 
   it("drops sounds asked for before the first gesture, except the start-up chime, which waits for it", async () => {
     const { service, context, gestures } = setup();
+    service.setEvent("startup", true);
     const dropped = service.play("floppy");
     expect(dropped.audible).toBe(false);
     const startup = service.play("startup");
@@ -177,8 +178,19 @@ describe(WebAudioSoundService.name, () => {
     expect(context.gains[0]?.gain.value).toBe(0.8);
   });
 
+  it("keeps the start-up chime silent by default, even after the first gesture", async () => {
+    const { service, context, gestures } = setup();
+    expect(service.isEnabled("startup")).toBe(false);
+    expect(service.play("startup").audible).toBe(false);
+    gestures.click();
+    await flush();
+    expect(context.sources).toHaveLength(0);
+    expect(service.isEnabled("ding")).toBe(true);
+  });
+
   it("a deferred sound can be stopped before it ever starts", async () => {
     const { service, context, gestures } = setup();
+    service.setEvent("startup", true);
     const startup = service.play("startup");
     startup.stop();
     await expect(startup.finished).resolves.toBeUndefined();

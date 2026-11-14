@@ -120,10 +120,7 @@ test("every slot says what its role does, where the player chooses", () => {
   assert.equal(roleHint(1), QUEEN_HINT);
   for (const slot of [2, 3, 4, 5]) assert.equal(roleHint(slot), WORKER_HINT);
   for (let slot = 0; slot < ROOM_CAPACITY; slot++)
-    assert.ok(
-      slotLabel(slot).includes(roleHint(slot).toUpperCase()),
-      slotLabel(slot),
-    );
+    assert.ok(slotLabel(slot).includes(roleHint(slot)), slotLabel(slot));
   // The fuller lines beside the slots answer the question a Queen asked: how do I ride the snail?
   assert.equal(ROLE_LEGEND.length, 2);
   assert.match(ROLE_LEGEND[0]!, /^QUEEN/);

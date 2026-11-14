@@ -47,13 +47,26 @@ describe("SoundsApplet", () => {
       "sound-seek",
       "sound-modem",
     ]);
+    const startup = within(events).getByRole("checkbox", {
+      name: /Start FuseOS/,
+    });
+    expect(startup).not.toBeChecked();
+    await user.click(startup);
+    expect(startup).toBeChecked();
+    expect(prefs.get().events.startup).toBe(true);
+    expect(sounds.isEnabled("startup")).toBe(true);
+    await user.click(startup);
+    expect(sounds.isEnabled("startup")).toBe(false);
     const modem = within(events).getByRole("checkbox", {
       name: /Dial-up modem/,
     });
     expect(modem).toBeChecked();
     await user.click(modem);
     expect(modem).not.toBeChecked();
-    expect(prefs.get()).toEqual({ master: true, events: { modem: false } });
+    expect(prefs.get()).toEqual({
+      master: true,
+      events: { startup: false, modem: false },
+    });
     expect(sounds.isEnabled("modem")).toBe(false);
     await user.click(modem);
     expect(prefs.get().events.modem).toBe(true);
