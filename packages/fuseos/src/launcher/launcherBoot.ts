@@ -1,4 +1,4 @@
-import type { AppState, WindowState } from "../state/appState";
+import type { AppState } from "../state/appState";
 import { appStateReducer } from "../state/appState";
 import type { StateStore } from "../state/stateStore";
 import type { Size } from "../windows/windowManager";
@@ -7,20 +7,18 @@ import { LAUNCHER_WINDOW_ID, shouldMaximizeLauncher } from "./launcherFacts";
 
 /**
  * The state as the desktop boots it: the one launcher window on top, restored, not minimized. A stored launcher
- * keeps its size state; a new one opens maximized on a display it would not fit.
+ * (by kind, whatever id a `?open=fusteam` link once gave it) keeps its size state; a new one opens maximized on a
+ * display it would not fit. The reducer's own `open` does both.
  */
 export function withLauncherOnTop(state: AppState, viewport: Size): AppState {
-  // By kind, not id: a launcher a `?open=fusteam` link once opened was stored under a generated id.
-  const existing = state.windows.find((window) => window.kind === "launcher");
-  if (existing)
-    return appStateReducer(state, { type: "focus", id: existing.id });
-  const launcher: WindowState = {
-    id: LAUNCHER_WINDOW_ID,
-    kind: "launcher",
-    minimized: false,
-    maximized: shouldMaximizeLauncher(viewport),
-  };
-  return { ...state, windows: [...state.windows, launcher] };
+  return appStateReducer(state, {
+    type: "open",
+    content: { kind: "launcher" },
+    options: {
+      id: LAUNCHER_WINDOW_ID,
+      maximized: shouldMaximizeLauncher(viewport),
+    },
+  });
 }
 
 /**

@@ -71,7 +71,7 @@ export function useDesktopViewModel(): DesktopViewModel {
 
   // A window here (focused rather than duplicated) or a browser tab, as the Games applet says.
   const openFuseGame = launcher.launch;
-  // Single-instance windows (Winamp, the wallpaper picker) are the reducer's business: `open` focuses an existing one.
+  // Single-instance windows (Winamp, the wallpaper picker, Fusteam) are the reducer's business: `open` focuses an existing one.
   const openWallpaper = useCallback(
     () => commands.open({ kind: "wallpaper" }),
     [commands],

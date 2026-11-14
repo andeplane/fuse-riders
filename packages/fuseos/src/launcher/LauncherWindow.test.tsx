@@ -171,9 +171,7 @@ describe("LauncherWindow", () => {
 
   it("launches in a tab on a touch device when nothing is chosen, and in a window with a mouse", async () => {
     const user = userEvent.setup();
-    const touch = renderLauncher({
-      launchDevice: PHONE_DEVICE,
-    });
+    const touch = renderLauncher({ launchDevice: PHONE_DEVICE });
     await user.click(
       touch.inside.getByRole("button", { name: "Play Fuseball" }),
     );

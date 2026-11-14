@@ -1,8 +1,8 @@
 import { useCallback, useContext, useMemo, useState } from "react";
 
 import { DesktopDepsContext } from "../desktop/desktopDepsContext";
-import { useDesktopViewModel } from "../desktop/useDesktopViewModel";
 import { FuseGamesContext } from "../fusegames/registry";
+import { useFuseGameLauncher } from "../fusegames/useFuseGameLauncher";
 import type { ImageIcon } from "../ui/icons";
 import { useWindowCommands } from "../windows/useWindowCommands";
 
@@ -32,7 +32,7 @@ export type LauncherGame = {
   /** The game's bitmap icon when it ships one; the row draws an accent tile otherwise. */
   icon: ImageIcon | undefined;
   screenshotUrl: string | undefined;
-  /** The game's own page, for the LINKS column and for a launch in a tab. */
+  /** The game's own page, for the LINKS column. */
   url: string;
 };
 
@@ -52,7 +52,7 @@ export type LauncherViewModel = {
   /** Up and down the list, stopping at the ends like the old client. */
   selectNext: () => void;
   selectPrevious: () => void;
-  /** PLAY, Enter or a double click: the selected game, through the desktop's own launch path. */
+  /** PLAY, Enter or a double click: the selected game, through `useFuseGameLauncher` (a window here or a browser tab). */
   play: () => void;
   playGame: (gameId: string) => void;
   /** ADD A GAME...: the joke message box. */
@@ -67,7 +67,7 @@ export function useLauncherViewModel(): LauncherViewModel {
   const desktopDeps = useContext(DesktopDepsContext);
   const launcherDeps = useContext(LauncherDepsContext);
   const commands = useWindowCommands();
-  const { openFuseGame } = useDesktopViewModel();
+  const { launch } = useFuseGameLauncher();
 
   const games = useMemo<LauncherGame[]>(
     () =>
@@ -114,12 +114,13 @@ export function useLauncherViewModel(): LauncherViewModel {
     (gameId: string) => {
       const game = games.find((candidate) => candidate.id === gameId);
       if (!game) return;
-      openFuseGame(game.id);
-      const now = desktopDeps.now();
-      launcherDeps.lastPlayed.record(game.id, now);
+      // The Games applet's choice (or the device's default): a window on this desktop, focused when already
+      // open, or a browser tab; the launch is reported there.
+      launch(game.id);
+      launcherDeps.lastPlayed.record(game.id, desktopDeps.now());
       setLastPlayed(launcherDeps.lastPlayed.get());
     },
-    [games, launcherDeps, desktopDeps, openFuseGame],
+    [games, launch, launcherDeps, desktopDeps],
   );
   const play = useCallback(() => {
     if (selected) playGame(selected.id);

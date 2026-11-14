@@ -147,7 +147,7 @@ export type ProviderOptions = {
   initialState?: AppState;
   /** A store of the test's own (a boot decorator, say); wins over `initialState`. */
   store?: StateStore;
-  /** Defaults to an empty last-played map. */
+  /** Defaults to an empty last-played map; where PLAY opens a game follows `launchDevice` and `prefsStore`. */
   launcherDeps?: Partial<LauncherDeps>;
   /** What a deep link asked for. */
   initialOpen?: readonly WindowContent[];
@@ -330,6 +330,7 @@ export function createTestScreenSaverDeps(
   };
 }
 
+/** Launcher deps with an empty in-memory last-played map; where a game opens comes from `launchDevice` and `prefsStore`. */
 export function createTestLauncherDeps(
   overrides: Partial<LauncherDeps> = {},
 ): LauncherDeps {
