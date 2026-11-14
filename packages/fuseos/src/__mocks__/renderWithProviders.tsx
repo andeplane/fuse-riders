@@ -57,6 +57,7 @@ import { WindowsDepsContext } from "../windows/windowsDepsContext";
 
 import type { TestAssistantDeps } from "./assistantDeps";
 import { createTestAssistantDeps } from "./assistantDeps";
+import { FakePaintFileDeps } from "./paintFiles";
 import { FakePaintSurface } from "./paintSurface";
 import type { FakeWebampPlayer } from "./webampPlayer";
 import { createFakeWebampPlayer } from "./webampPlayer";
@@ -201,7 +202,7 @@ export function createTestGamesDeps(
   };
 }
 
-/** Paint deps that never touch a canvas; every surface created is collected in `surfaces`. */
+/** Paint deps that never touch a canvas, a file picker or downloads; every surface created is collected in `surfaces`. */
 export function createTestPaintDeps(
   surfaces: FakePaintSurface[],
   overrides: Partial<PaintDeps> = {},
@@ -212,6 +213,7 @@ export function createTestPaintDeps(
       surfaces.push(surface);
       return surface;
     }),
+    files: new FakePaintFileDeps(),
     ...overrides,
   };
 }
