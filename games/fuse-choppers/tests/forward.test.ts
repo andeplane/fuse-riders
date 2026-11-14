@@ -141,7 +141,7 @@ test("a press shows on the local chopper at once, part of the way into the tick"
   assert.deepEqual(forward(world, 0, holding({ c0: UP })), toView(world));
 });
 
-test("the forward run never shows a crash, or the round it ends, before the room has folded it", () => {
+test("the forward run never shows a crash or the end of the countdown before the room has folded it", () => {
   // Classic lift with nobody climbing: every chopper falls to the floor.
   const world = playing(3);
   let before = copyWorld(world);

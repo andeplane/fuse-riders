@@ -179,6 +179,7 @@ export function createCueLatch(): (view: WorldView) => WorldView {
     }
     if (!view.fx.length) return view;
     let same = true;
+    const fresh: Shown[] = [];
     const fx = view.fx.filter((each) => {
       const key = effectKey(each);
       if (kept.has(key)) return true;
@@ -197,9 +198,11 @@ export function createCueLatch(): (view: WorldView) => WorldView {
         return false;
       }
       kept.add(key);
-      shown.push(each);
+      fresh.push(each);
       return true;
     });
+    // Only an effect from an earlier frame has twins: two sparks that are new together are two sparks.
+    shown.push(...fresh);
     // Effects live under a second: what was shown long ago can neither return nor have a twin.
     if (shown.length > 200) {
       shown = shown.filter((each) => view.step - each.at <= 120);

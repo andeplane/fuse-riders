@@ -774,7 +774,8 @@ function room(solo: boolean): void {
             state,
             runtime.self,
             runtime.heldNow,
-            drawBot(timing.revision ?? 0),
+            // A bot answers the world it sees, and what this device holds changes that world ahead of the fold.
+            drawBot((timing.revision ?? 0) * 64 + runtime.heldNow),
           ),
         ),
         timing.revision ?? 0,
