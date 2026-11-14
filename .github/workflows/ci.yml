@@ -413,6 +413,7 @@ jobs:
           name: browser-evidence-${{ matrix.id }}
           path: |
             artifacts/*.png
+            artifacts/fuseos/*.png
             artifacts/room-service.log
             artifacts/flaky/*.log
             artifacts/shared-room-smoke.json
