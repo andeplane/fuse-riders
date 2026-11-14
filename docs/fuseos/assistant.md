@@ -174,11 +174,13 @@ Measured in headless Chrome with WebGPU on an M4 (26 scripted requests against
 the fake desktop, one to three tool calls each, pass = exactly the right calls
 and an answer):
 
-| Variant                                    | Pass  | Per request |
-| ------------------------------------------ | ----- | ----------- |
-| Qwen 2.5 1.5B, plain `{"tool","args"}`     | 19/26 | 2.4 s       |
-| the same with batched `{"calls":[…]}`      | 18/26 | 2.4 s       |
-| the same with a leading `"thought"` string | 16/26 | 3.5 s       |
+| Variant                                         | Pass  | Per request |
+| ----------------------------------------------- | ----- | ----------- |
+| Qwen 2.5 1.5B, plain `{"tool","args"}`          | 19/26 | 2.4 s       |
+| the same with the checklist (what ships)        | 22/26 | 2.6 s       |
+| plain, with batched `{"calls":[…]}`             | 18/26 | 2.4 s       |
+| plain, with the request's parts numbered for it | 17/26 | 2.0 s       |
+| plain, with a leading `"thought"` string        | 16/26 | 3.5 s       |
 
 Hermes 3 (Llama 3.2 3B, 1.8 GB) was tried by hand on the live desktop and was
 worse than the 1.5B Qwen: it kept calling tools nobody asked for (it edited a
