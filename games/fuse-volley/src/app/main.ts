@@ -844,6 +844,8 @@ function room(solo: boolean): void {
     ([0, 1] as const).forEach((team) => {
       const node = sideNodes[team]!;
       const members = next.sides.filter((side) => side.side === team);
+      // A team keeps its colour on either side (three teams of two move about).
+      node.style.setProperty("--c", sideColor(members[0]?.team ?? team));
       setText(
         node,
         teamLabel(
