@@ -1,3 +1,4 @@
+import { generateLevel } from "./generate.js";
 import { SUB } from "./math.js";
 
 /**
@@ -44,9 +45,26 @@ export const MAP_IDS = [
   "portforward",
   "backdoor",
 ] as const;
-export type MapId = (typeof MAP_IDS)[number];
+/** A hand-made arena: fixed data below. */
+export type ArenaId = (typeof MAP_IDS)[number];
+/**
+ * The one map that is not written down: a level rolled from a seed by `generate.ts`. A checkpoint carries it as
+ * `RANDOM_INDEX` and its seed, so it stays out of `MAP_IDS`, whose order is the wire format of the hand-made ones.
+ */
+export const RANDOM = "random";
+export const RANDOM_INDEX = 255;
+export type MapId = ArenaId | typeof RANDOM;
 export const isMapId = (value: unknown): value is MapId =>
-  typeof value === "string" && (MAP_IDS as readonly string[]).includes(value);
+  typeof value === "string" &&
+  (value === RANDOM || (MAP_IDS as readonly string[]).includes(value));
+/** A level's seed: any unsigned 32-bit integer. Every one of them rolls a playable level. */
+export const MAX_SEED = 0xffff_ffff;
+export const isSeed = (value: unknown): value is number =>
+  typeof value === "number" &&
+  Number.isInteger(value) &&
+  !Object.is(value, -0) &&
+  value >= 0 &&
+  value <= MAX_SEED;
 
 /**
  * Gadgets: things in an arena that act on the ball and only on the ball. Riders fly through every one of them, as
@@ -512,7 +530,7 @@ const backdoor: MapDef = arena({
   ],
 });
 
-export const MAPS: Readonly<Record<MapId, MapDef>> = {
+export const MAPS: Readonly<Record<ArenaId, MapDef>> = {
   gridlock,
   downlink,
   halo,
@@ -525,7 +543,32 @@ export const MAPS: Readonly<Record<MapId, MapDef>> = {
   portforward,
   backdoor,
 };
-export const mapOf = (id: MapId): MapDef => MAPS[id];
+
+/**
+ * Rolled levels, by seed. Rolling one is a pure function of its seed, so this is a memo and not state: the newest
+ * few are kept and the oldest dropped, and a seed that was dropped rolls to the same level again.
+ */
+const ROLLED_KEPT = 8;
+const rolled = new Map<number, MapDef>();
+function rolledLevel(seed: number): MapDef {
+  const known = rolled.get(seed);
+  if (known) return known;
+  const level = generateLevel(seed);
+  if (rolled.size >= ROLLED_KEPT)
+    for (const oldest of rolled.keys()) {
+      rolled.delete(oldest);
+      break;
+    }
+  rolled.set(seed, level);
+  return level;
+}
+
+/** The arena `id` names. Only the random one reads `seed`: a seed that is not one rolls as seed 0. */
+export const mapOf = (id: MapId, seed = 0): MapDef =>
+  id === RANDOM ? rolledLevel(isSeed(seed) ? seed : 0) : MAPS[id];
+/** The arena a world or a view of one is played in. */
+export const arenaOf = (at: { mapId: MapId; seed: number }): MapDef =>
+  mapOf(at.mapId, at.seed);
 
 /** A solid as the collision code wants it: centre and half extents, in sub-units. */
 export interface Box {
@@ -534,21 +577,25 @@ export interface Box {
   hw: number;
   hh: number;
 }
-const boxOf = (rect: Rect): Box => ({
+export const boxOf = (rect: Rect): Box => ({
   // Every rect has even sides, so the centre is a whole number of sub-units.
   cx: (rect.x * SUB * 2 + rect.w * SUB) / 2,
   cy: (rect.y * SUB * 2 + rect.h * SUB) / 2,
   hw: (rect.w * SUB) / 2,
   hh: (rect.h * SUB) / 2,
 });
-const BOXES = new Map<MapId, readonly Box[]>(
-  MAP_IDS.map((id) => [id, MAPS[id].solids.map(boxOf)]),
-);
-/** The map's solids in sub-units; fixed data derived once from `MAPS`. */
-export const boxesOf = (id: MapId): readonly Box[] => BOXES.get(id) ?? [];
-const BARRIER_BOXES = new Map<MapId, readonly Box[]>(
-  MAP_IDS.map((id) => [id, MAPS[id].barriers.map(boxOf)]),
-);
+/** Derived once per arena and dropped with it: a memo keyed by the arena itself, so it holds nothing alive. */
+const BOXES = new WeakMap<MapDef, readonly Box[]>(),
+  BARRIER_BOXES = new WeakMap<MapDef, readonly Box[]>();
+/** The map's solids in sub-units. */
+export function boxesOf(map: MapDef): readonly Box[] {
+  let boxes = BOXES.get(map);
+  if (!boxes) BOXES.set(map, (boxes = map.solids.map(boxOf)));
+  return boxes;
+}
 /** The map's barriers in sub-units, in the order of `MapDef.barriers`. */
-export const barrierBoxesOf = (id: MapId): readonly Box[] =>
-  BARRIER_BOXES.get(id) ?? [];
+export function barrierBoxesOf(map: MapDef): readonly Box[] {
+  let boxes = BARRIER_BOXES.get(map);
+  if (!boxes) BARRIER_BOXES.set(map, (boxes = map.barriers.map(boxOf)));
+  return boxes;
+}

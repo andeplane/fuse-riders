@@ -62,8 +62,7 @@ The same service serves **Fuse Drivers**, top-down offroad racing for 2–5 driv
 `/fuse-drivers/` (locally **http://localhost:8787/fuse-drivers/**). The whole track is on one screen, the
 throttle is always on, and weapons, ramps, mud and oil decide as much as the racing line. It has solo
 against the computer, rooms with a QR invite, and a shared TV with phones as controllers. See
-[games/fuse-drivers/README.md](games/fuse-drivers/README.md). Production serves its rooms only once its id
-is in `EXTRA_GAME_IDS` ([GCP deploy](docs/online/GCP-DEPLOY.md)); until then its page offers solo only.
+[games/fuse-drivers/README.md](games/fuse-drivers/README.md).
 
 ## Fuseball
 
@@ -71,9 +70,7 @@ The same service serves **Fuseball**, a neon arena ball duel for two riders (or 
 (locally **http://localhost:8787/fuseball/**). Knock the ball into the goal in your own colour to score and zap the
 other rider; air-jump as often as you like, each jump leaving a bubble that bumps the ball away; first to three wins.
 It has solo against a bot, rooms with a QR invite, three wrap-around arenas chosen in the lobby, and a shared TV with
-phones as stick-and-button controllers. See [games/fuseball/README.md](games/fuseball/README.md). Production serves
-its rooms only once its id is in `EXTRA_GAME_IDS` ([GCP deploy](docs/online/GCP-DEPLOY.md)); until then its page
-offers solo only.
+phones as stick-and-button controllers. See [games/fuseball/README.md](games/fuseball/README.md).
 
 ## Fuse Volley
 
@@ -81,9 +78,7 @@ offers solo only.
 **http://localhost:8787/fuse-volley/**): bounce the ball over the net and keep it off your own sand, three touches at
 most. It has solo against a bot at three levels, rooms with a QR invite, quick (every rally scores, to 11) or classic
 (only the server scores, to 15) scoring chosen in the lobby, keyboard, touch and gamepad controls, and a shared TV with
-phones as controllers. See [games/fuse-volley/README.md](games/fuse-volley/README.md). Production serves its rooms
-only once its id is in `EXTRA_GAME_IDS` ([GCP deploy](docs/online/GCP-DEPLOY.md)); until then solo works and creating
-a room says the game is not open yet.
+phones as controllers. See [games/fuse-volley/README.md](games/fuse-volley/README.md).
 
 ## Menus and round controls
 
@@ -102,9 +97,9 @@ Control reminders appear at each round's countdown or opening phase. Games witho
 
 ## Pig, the second game
 
-**Ball Bros POC** is also available at `/ball-bros/`, listed in the shared app portal: solo against four bots or online rooms for up to five players, with orbital/radial paddles, destructible bases, power-ups and one-hit cores. Shared-screen rooms offer a TV view and phone controllers. Classic Circuit keeps the field clean, Crossfire opens attack lanes in the armor, and Ricochet Reactor adds five neutral center bumpers. At 01:00 remaining, Fuse Frenzy moves the base formation and adds neutral pressure balls. See [its controls and verification](games/ball-bros/README.md). It remains unranked. Production rooms remain gated by `EXTRA_GAME_IDS=ball-bros`.
+**Ball Bros POC** is also available at `/ball-bros/`, listed in the shared app portal: solo against four bots or online rooms for up to five players, with orbital/radial paddles, destructible bases, power-ups and one-hit cores. Shared-screen rooms offer a TV view and phone controllers. Classic Circuit keeps the field clean, Crossfire opens attack lanes in the armor, and Ricochet Reactor adds five neutral center bumpers. At 01:00 remaining, Fuse Frenzy moves the base formation and adds neutral pressure balls. See [its controls and verification](games/ball-bros/README.md). It remains unranked.
 
-The same service serves **Pig**, a dice game for 2–5 players and bots, at `/dice/` (locally **http://localhost:8787/dice/**). It is the platform's demo, so the app portal (the dot-grid button at the top left of every game, listing each game with a `portal.json`) leaves it out. Roll a die as often as you like, every roll adding to your turn; a 1 loses the turn, **HOLD** banks it. First to 50 wins the round, two rounds win the match. It has solo against bots, rooms with a QR invite, and a shared TV (`?room=CODE&display=1`) with phones as ROLL/HOLD controllers. It is the template for new games: see [games/dice/README.md](games/dice/README.md). Production serves its rooms only once `EXTRA_GAME_IDS=dice` is set ([GCP deploy](docs/online/GCP-DEPLOY.md)); until then its page offers solo only.
+The same service serves **Pig**, a dice game for 2–5 players and bots, at `/dice/` (locally **http://localhost:8787/dice/**). It is the platform's demo, so the app portal (the dot-grid button at the top left of every game, listing each game with a `portal.json`) leaves it out. Roll a die as often as you like, every roll adding to your turn; a 1 loses the turn, **HOLD** banks it. First to 50 wins the round, two rounds win the match. It has solo against bots, rooms with a QR invite, and a shared TV (`?room=CODE&display=1`) with phones as ROLL/HOLD controllers. It is the template for new games: see [games/dice/README.md](games/dice/README.md).
 
 ## How to play
 

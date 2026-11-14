@@ -46,7 +46,7 @@ This copies this folder to `games/snake-eyes` with every id and name renamed (`"
 
 1. Run `npm install`. The root workspaces include `games/*`.
 2. Add `COPY games/snake-eyes/package.json ./games/snake-eyes/` to `Dockerfile.cloud` beside the dice line.
-3. Register its backend: add `snakeEyesRegistration` from `snake-eyes/platform` to `GAMES` in `service/history.ts`. The dev service then serves its rooms. In production, add its id to `EXTRA_GAME_IDS` once it may go live ([GCP deploy](../../docs/online/GCP-DEPLOY.md)).
+3. Register its backend: add `snakeEyesRegistration` from `snake-eyes/platform` to `GAMES` in `service/history.ts`. The dev service and production both serve every game in `GAMES`, so its rooms open online when the pull request merges and deploys; there is no variable to set. `tests/registered-games.test.ts` fails if this step is missed.
 4. Change the rules in `src/game/`, keep `rules` in `game.ts` at `<id>-<n>`, and bump `n` when a change would make two builds disagree.
 5. Edit `portal.json` (name, tagline, a one-to-three-character `mark`, `accent` colour). It puts the game on the app portal, the dot-grid button top left in every game. Pig has none because it is the demo.
 6. Update `CONTROLS`, `TOUCH_CONTROLS` and `GOAL` in `src/app/main.ts` for the new game. Keep the shared menu and round controls guide so players can learn its controls at each round start.
