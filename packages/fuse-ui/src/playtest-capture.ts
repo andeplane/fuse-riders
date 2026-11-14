@@ -65,8 +65,7 @@ export async function capturePlaytestPage(document: Document): Promise<string> {
   // A frozen DOM is rendered off screen. Capturing the live tree after awaiting assets would risk a later frame.
   const mount = document.createElement("div");
   mount.dataset.fuiPlaytest = "capture";
-  mount.style.cssText =
-    "position:fixed;left:-100000px;top:0;pointer-events:none;";
+  mount.style.cssText = `position:fixed;left:-100000px;top:0;pointer-events:none;contain:layout paint style;transform:translateZ(0);overflow:hidden;width:${view.innerWidth}px;height:${view.innerHeight}px;`;
   clone.style.width = `${view.innerWidth}px`;
   clone.style.height = `${view.innerHeight}px`;
   clone.style.overflow = "hidden";
