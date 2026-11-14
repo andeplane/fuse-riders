@@ -47,6 +47,9 @@ export const NETWORK_WINDOW_SIZE: Size = { width: 640, height: 420 };
 /** A tall narrow buddy list, as ICQ and MSN Messenger were laid out. */
 export const FRIENDS_WINDOW_SIZE: Size = { width: 320, height: 540 };
 
+/** Room for the game picker, a dozen rows of the list and the status bar. */
+export const HALL_OF_FAME_WINDOW_SIZE: Size = { width: 560, height: 420 };
+
 export const OS_NAME = "FuseOS";
 
 /** Title bar text and icon for each window kind. */
@@ -163,6 +166,13 @@ export function windowMeta(
         icon: "messenger",
         resizable: true,
         size: FRIENDS_WINDOW_SIZE,
+      };
+    case "halloffame":
+      return {
+        title: "Hall of Fame",
+        icon: "trophy",
+        resizable: true,
+        size: HALL_OF_FAME_WINDOW_SIZE,
       };
   }
 }

@@ -105,6 +105,13 @@ export interface RoomGameWindowContent {
   code: string;
 }
 
+/** Start > Programs > Hall of Fame: one Fuse game's leaderboard. The picked game is kept so a reload shows it again. */
+export interface HallOfFameWindowContent {
+  kind: "halloffame";
+  /** A portal game id; absent (or no longer installed) means the first game. */
+  gameId?: string;
+}
+
 export type WindowContent =
   | FuseGameWindowContent
   | NetworkWindowContent
@@ -122,7 +129,8 @@ export type WindowContent =
   | LauncherWindowContent
   | DialUpWindowContent
   | FriendsWindowContent
-  | DefragWindowContent;
+  | DefragWindowContent
+  | HallOfFameWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -189,6 +197,7 @@ export function sameInstance(
     case "network":
     case "friends":
     case "defrag":
+    case "halloffame":
       return existing.kind === content.kind;
     case "roomgame":
       return (
@@ -421,6 +430,8 @@ function isWindowContent(
         value.then === undefined ||
         (isRecord(value.then) && isWindowContent(value.then))
       );
+    case "halloffame":
+      return value.gameId === undefined || typeof value.gameId === "string";
     default:
       return false;
   }

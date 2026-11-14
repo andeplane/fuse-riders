@@ -37,6 +37,7 @@ describe("START_MENU_REGISTRATIONS", () => {
       ["accessories", "dialup", true],
       ["programs", "network-neighborhood", true],
       ["programs", "friends", true],
+      ["programs", "halloffame", true],
     ]);
   });
 
@@ -75,6 +76,7 @@ describe("START_MENU_REGISTRATIONS", () => {
       { kind: "dialup" },
       [{ kind: "network" }, { id: "network-neighborhood" }],
       [{ kind: "friends" }, { id: "friends" }],
+      [{ kind: "halloffame" }, { id: "halloffame" }],
     ]);
   });
 

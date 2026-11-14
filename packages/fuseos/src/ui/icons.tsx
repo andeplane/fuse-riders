@@ -48,6 +48,7 @@ import type { ComponentType, SVGProps } from "react";
 import { WinampLogo } from "../assets/WinampLogo";
 import { DefragIcon } from "../defrag/DefragIcon";
 import { FusteamLogo } from "../launcher/FusteamLogo";
+import { TrophyIcon } from "../halloffame/TrophyIcon";
 
 /** Every icon the desktop can show; a name rather than a component so window state stays serializable. */
 export type IconName =
@@ -103,7 +104,8 @@ export type IconName =
   | "printers"
   | "controlPanelFolder"
   | "dialUp"
-  | "scheduledTasks";
+  | "scheduledTasks"
+  | "trophy";
 
 type IconVariant = "32x32_4" | "16x16_4";
 type IconProps = Omit<SVGProps<SVGSVGElement>, "ref">;
@@ -176,6 +178,7 @@ const ICONS: Record<IconName, IconComponent> = {
   controlPanelFolder: FolderSettings,
   dialUp: Shell3234,
   scheduledTasks: Shell3237,
+  trophy: TrophyIcon,
 };
 
 export type Win98IconProps = {
