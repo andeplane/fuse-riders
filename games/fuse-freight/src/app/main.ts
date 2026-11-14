@@ -34,6 +34,7 @@ import {
   createPageMessage,
   createRoomLayout,
   createRoster,
+  createSharedTvOption,
   createRoundControls,
   createSubPage,
   el,
@@ -305,13 +306,6 @@ function landing(): void {
   document.body.classList.add("ff-landing-page");
   audio.mood("menu");
   const splash = el("section", "", "ff-splash");
-  const shared = el("label", "", "ff-shared"),
-    toggle = el("input");
-  toggle.type = "checkbox";
-  toggle.checked = store.getItem(names.shared) === "1";
-  toggle.onchange = () =>
-    store.setItem(names.shared, toggle.checked ? "1" : "0");
-  shared.append(toggle, el("span", "Shared TV: phones are the controllers"));
   const card = createLandingCard({
     background: async (host) =>
       (await import("./attract.js")).createAttract(host),
@@ -338,7 +332,6 @@ function landing(): void {
       location.href = withFlags(endpoints.appUrl(`?room=${code}`));
     },
   });
-  card.create.after(shared);
   card.menu.help.append(keyHelp());
   const back = el("a", "All games", "ff-back");
   back.href = import.meta.env.BASE_URL + (muted ? "?mute" : "");
@@ -421,7 +414,22 @@ function room(solo: boolean): void {
   };
 
   // ---- the page ----
-  const status = createNotice({ className: "ff-status" });
+  // How the room is doing sits at the lobby's foot, and beside the menu while a match is on the screen (a link that
+  // is retrying or a driver who lags is said there, as it always was); what went wrong is said above the room.
+  const status = createNotice({ className: "ff-status" }),
+    live = createNotice({ className: "ff-live" }),
+    problem = createNotice({ className: "ff-alert" });
+  const say = (text: string, tone: "info" | "error") => {
+    if (tone === "error") {
+      status.clear();
+      live.clear();
+      problem.show(text, "error");
+    } else {
+      problem.clear();
+      status.show(text, "info");
+      live.show(text, "info");
+    }
+  };
   // Returning to the lobby ends play for everyone, so keep an explicit second action.
   const lobbyConfirm = el("dialog", "", "ff-lobby-confirm");
   const cancelLobby = button("CANCEL"),
@@ -449,11 +457,9 @@ function room(solo: boolean): void {
     },
   });
   const roundControls = createRoundControls(controllerGuide);
-  const top = header([
-    el("strong", solo ? "SOLO" : code, "ff-code"),
-    status.element,
-    menu.element,
-  ]);
+  // The room's code is on its invitation, and in the lobby its state is at the lobby's foot: the bar holds the
+  // state only while a match is on.
+  const top = header([live.element, menu.element]);
   createTopBar({
     element: top,
     onOpenChange: (open) => {
@@ -472,8 +478,25 @@ function room(solo: boolean): void {
     roster = createRoster({ emptyText: "No drivers yet" }),
     addBot = button("+ ADD BOT", "ff-add-bot"),
     start = button("START THE TRAINS ▶", "fui-button-primary ff-start"),
-    lobbyNote = el("p", "", "fui-lobby-note"),
-    tvLink = button("OPEN TV SCREEN", "ff-tv");
+    lobbyNote = el("p", "", "fui-lobby-note");
+  // Shared TV is the room's choice, made in the room: the host turns it on here and opens the screen beside it.
+  // The choice is remembered for the next room this device creates.
+  const sharedTv = createSharedTvOption({
+    className: "ff-tv-option",
+    onChange: (display) => {
+      const sent = runtime.command({
+        type: "settings",
+        settings: { ...settings, display },
+      });
+      if (sent) store.setItem(names.shared, display ? "1" : "0");
+      return sent;
+    },
+    onOpenScreen: () =>
+      window.open(
+        withFlags(endpoints.appUrl(`?room=${code}&display=1`)),
+        "_blank",
+      ),
+  });
   const bays = pictureCanvas(480, 190, "ff-bays");
   const bayPainter = createBays(bays.g, make);
   let bayState: { slot: number; taken: boolean; you: boolean }[] = [
@@ -522,11 +545,6 @@ function room(solo: boolean): void {
       slot: requestedRoomSlot(addBot),
     });
   start.onclick = () => runtime.command({ type: "action", action: "start" });
-  tvLink.onclick = () =>
-    window.open(
-      withFlags(endpoints.appUrl(`?room=${code}&display=1`)),
-      "_blank",
-    );
 
   // Depot rules: the host's to change.
   let settings: Settings = { ...DEFAULT_SETTINGS };
@@ -569,7 +587,7 @@ function room(solo: boolean): void {
     ROUND_SECONDS.map((seconds) => [seconds, `${seconds} seconds`] as const),
   );
   const lobbyActions = el("div", "", "ff-lobby-actions");
-  lobbyActions.append(tvLink, start);
+  lobbyActions.append(start);
   const depotRules = el("div", "", "ff-depot-rules");
   depotRules.append(
     el("h2", "DEPOT RULES", "fui-lobby-title"),
@@ -705,6 +723,7 @@ function room(solo: boolean): void {
   const main = el("main", "", "ff-room");
   // The name form stands above every screen: a newcomer mid-match picks a name and drives from the next round.
   main.append(
+    problem.element,
     connecting,
     closed,
     nameEntry.form,
@@ -726,7 +745,14 @@ function room(solo: boolean): void {
     join: nameEntry.form,
     addAI: addBot,
     settings: [rules, lobbyRules],
-    actions: [lobbyNote, tvLink, start],
+    actions: [lobbyNote],
+    // Back, Settings and START lead the room and stay there; the invitation and the drivers scroll under them.
+    actionsInHeader: true,
+    extras: [sharedTv.element],
+    status: status.element,
+    ...(solo
+      ? { compact: true, heading: "Solo vs bots" }
+      : { heading: "Room" }),
   });
   lobby.hidden = true;
   lobbyRules.hidden = true;
@@ -890,7 +916,8 @@ function room(solo: boolean): void {
       next.lobby.members.map((member) => ({
         id: member.id,
         slot: member.slot,
-        name: member.you ? `${member.name} (you)` : member.name,
+        // Alone with the bots there is nobody to tell apart from: the seat reads "You", not "You (you)".
+        name: member.you && !solo ? `${member.name} (you)` : member.name,
         color: seatColor(member.slot),
         status: member.bot
           ? "AI DRIVER"
@@ -920,12 +947,7 @@ function room(solo: boolean): void {
     start.disabled = !next.lobby.canStart;
     setText(lobbyNote, next.lobby.note);
     lobbyNote.hidden = !next.lobby.note;
-    tvLink.hidden = !(
-      view.settings.display &&
-      viewer.host &&
-      !display &&
-      !solo
-    );
+    sharedTv.update(view.settings.display, viewer.host && !display && !solo);
     showWins(view.settings.wins, next.lobby.editable);
     showSeconds(view.settings.seconds, next.lobby.editable);
     const touchGuide = coarse() || next.screen === "controller";
@@ -1150,17 +1172,17 @@ function room(solo: boolean): void {
     },
     status(text) {
       const shown = roomFailure(text);
-      status.show(shown, shown === text ? "info" : "error");
+      say(shown, shown === text ? "info" : "error");
     },
     ready(id, host) {
       viewer.me = id;
       viewer.host = host;
     },
     kicked() {
-      status.show("The host removed you from the room", "error");
+      say("The host removed you from the room", "error");
     },
     ended() {
-      status.show("Room ended", "error");
+      say("Room ended", "error");
       over = true;
       controls.clear();
       for (const part of [
@@ -1177,7 +1199,7 @@ function room(solo: boolean): void {
         .then(async (response) => {
           const body = (await response.json()) as { error?: unknown };
           if (roomFailure(String(body.error ?? "")) === NOT_OPEN)
-            status.show(NOT_OPEN, "error");
+            say(NOT_OPEN, "error");
         })
         .catch(() => {
           /* offline: "Room ended" stands */

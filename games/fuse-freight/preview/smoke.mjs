@@ -235,16 +235,15 @@ try {
     isMobile: true,
   };
   const sharedHost = await open("fuse-freight/?mute&autopilot");
-  await sharedHost.locator(".ff-shared input").check();
   await sharedHost.getByRole("button", { name: "CREATE ROOM" }).click();
   await sharedHost.waitForURL(/room=[A-Z0-9]+/);
   const sharedCode = new URL(sharedHost.url()).searchParams.get("room");
   await seat(sharedHost, "Host");
-  assert.ok(
-    await sharedHost
-      .getByRole("button", { name: "OPEN TV SCREEN" })
-      .isVisible(),
-  );
+  // Shared TV is the host's choice in the room, under the invitation.
+  await sharedHost.getByRole("checkbox", { name: /Shared TV/ }).check();
+  await sharedHost
+    .getByRole("button", { name: "OPEN TV SCREEN" })
+    .waitFor({ timeout: 5_000 });
   const tv = await open(`fuse-freight/?room=${sharedCode}&display=1&mute`, {
     viewport: { width: 1600, height: 900 },
   });

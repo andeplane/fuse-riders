@@ -95,19 +95,56 @@ body.fui-app button {
   color: var(--ff-cream);
   text-shadow: 0 2px 0 #3a3044;
 }
-.ff-code {
-  font-family: var(--ff-pixel);
-  font-size: 0.75rem;
-  color: var(--ff-brass-light);
-  padding: 0.35rem 0.6rem;
-  border: 0.125rem solid var(--ff-brass-dark);
-  border-radius: 0.3rem;
-  background: rgba(0, 0, 0, 0.35);
+/* What went wrong, said above the room wherever the driver is. */
+.ff-alert {
+  margin: 0.75rem auto 0;
+  padding: 0 1rem;
+  color: var(--ff-red);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  text-align: center;
 }
-.ff-status {
+/* During a match it floats over the top of the yard: a line that appears must not push the screen or the pads
+   out from under a thumb. */
+.ff-room:is([data-screen="play"], [data-screen="controller"]) > .ff-alert {
+  position: fixed;
+  z-index: var(--fui-z-overlay);
+  top: 4.25rem;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - 2rem);
+  margin: 0;
+  padding: 0.5rem 1rem;
+  border: 1px solid currentColor;
+  border-radius: 0.5rem;
+  background: #0b0620f2;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+/* The room's state beside the menu while a match is on; in the lobby it is the line at the lobby's foot. */
+.ff-live {
   font-size: 0.8rem;
   color: var(--ff-muted);
   max-width: 22rem;
+}
+body:has(.ff-lobby:not([hidden])) .ff-live {
+  display: none !important;
+}
+/* The yard fills the screen under the bar, so the strip below the bar is the scoreboard's: where the bar has room,
+   the line sits in the bar itself, before the buttons. */
+@media (min-width: 900px) {
+  .ff-top .fui-top-bar-context {
+    inset: 0 24.5rem 0 17.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+  .ff-live {
+    overflow: hidden;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 .ff-back {
   color: var(--ff-muted);
@@ -266,19 +303,6 @@ body.fui-app button {
 .ff-landing-card .fui-landing-tagline {
   color: var(--ff-muted);
   font-size: 0.9rem;
-}
-.ff-shared {
-  display: flex;
-  gap: 0.6rem;
-  align-items: center;
-  font-size: 0.85rem;
-  color: var(--ff-muted);
-}
-.ff-shared input {
-  width: 1.1rem;
-  height: 1.1rem;
-  min-height: 0;
-  accent-color: var(--ff-brass);
 }
 .ff-keys {
   display: grid;
@@ -513,9 +537,14 @@ body.fui-app button {
   padding: 0.9rem 1.2rem;
   flex: 1;
 }
-.fui-app .ff-tv {
-  font-family: var(--ff-pixel);
-  font-size: 0.6rem;
+@media (max-width: 640px) {
+  /* The long label keeps its own width on a phone, whole; Settings takes what is left of the row. */
+  .ff-lobby.fui-room-actions-top
+    > .fui-room-head
+    > .fui-page-actions
+    > .fui-room-primary-action {
+    flex: 0 0 auto;
+  }
 }
 
 /* ---- the depot screen ---- */
@@ -1177,7 +1206,7 @@ body.fui-app button {
   color: var(--ff-muted);
 }
 
-/* A narrow phone: a two-row header, the status line below the brand. */
+/* A narrow phone: a tighter header, and a smaller status line in the strip below it. */
 @media (max-width: 30rem) {
   .ff-top {
     gap: 0.4rem 0.5rem;
@@ -1187,9 +1216,7 @@ body.fui-app button {
   .ff-brand {
     font-size: 0.8rem;
   }
-  .ff-status {
-    order: 5;
-    flex-basis: 100%;
+  .ff-live {
     font-size: 0.7rem;
   }
 }
