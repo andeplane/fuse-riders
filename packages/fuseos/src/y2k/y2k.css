@@ -1,0 +1,98 @@
+/* The millennium bug: the taskbar clock and the desktop during the glitch phase. */
+
+.y2k-clock {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.y2k-clock-garbled {
+  animation: y2k-jitter 120ms steps(2, end) infinite;
+}
+
+.y2k-glitch {
+  overflow: hidden;
+  animation: y2k-flicker 180ms steps(1, end) infinite;
+}
+
+/* Torn horizontal bands racing down the screen, as a failing CRT would draw them. */
+.y2k-glitch-bands {
+  position: absolute;
+  inset: -20% 0;
+  background: repeating-linear-gradient(
+    180deg,
+    transparent 0 19px,
+    rgba(255, 255, 255, 0.7) 19px 24px,
+    transparent 24px 47px,
+    rgba(0, 255, 255, 0.5) 47px 50px,
+    transparent 50px 73px,
+    rgba(0, 0, 0, 0.8) 73px 79px
+  );
+  mix-blend-mode: difference;
+  animation: y2k-tear 260ms linear infinite;
+}
+
+/* Whole-screen colour inversion, flashing in and out. */
+.y2k-glitch-invert {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  mix-blend-mode: difference;
+  animation: y2k-invert 340ms steps(1, end) infinite;
+}
+
+@keyframes y2k-flicker {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  35% {
+    opacity: 0.2;
+  }
+  70% {
+    opacity: 0.85;
+  }
+}
+
+@keyframes y2k-tear {
+  from {
+    transform: translateY(0) skewX(0deg);
+  }
+  50% {
+    transform: translateY(14px) skewX(-6deg);
+  }
+  to {
+    transform: translateY(32px) skewX(3deg);
+  }
+}
+
+@keyframes y2k-invert {
+  0%,
+  60%,
+  100% {
+    opacity: 0;
+  }
+  10%,
+  30% {
+    opacity: 1;
+  }
+}
+
+@keyframes y2k-jitter {
+  from {
+    transform: translate(0, 0);
+  }
+  to {
+    transform: translate(1px, -1px);
+  }
+}
+
+/* Belt and braces: the provider already skips the overlay and the jitter, but the browser setting wins regardless. */
+@media (prefers-reduced-motion: reduce) {
+  .y2k-glitch {
+    display: none;
+  }
+
+  .y2k-clock-garbled {
+    animation: none;
+  }
+}

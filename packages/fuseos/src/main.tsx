@@ -47,6 +47,7 @@ import {
   WinampDepsContext,
 } from "./winamp/winampDepsContext";
 import { defaultWindowsDeps } from "./windows/windowsDepsContext";
+import { createBrowserY2kDeps, Y2kDepsContext } from "./y2k/y2kDeps";
 
 import "./styles.css";
 
@@ -116,6 +117,9 @@ const friendsDeps: FriendsDeps = {
   playAlert: muted ? () => undefined : createUhOhSound(),
 };
 
+// The millennium bug strikes at local midnight; `?y2k=now` plays it on boot for a demo.
+const y2kDeps = createBrowserY2kDeps({ search });
+
 export function mountFuseOs(container: HTMLElement): void {
   // Reports the desktop's opening now, and every game launch from here on; the deep link's windows count too.
   const analytics = createBrowserOsAnalytics();
@@ -131,7 +135,9 @@ export function mountFuseOs(container: HTMLElement): void {
             <SoundServiceContext.Provider value={sounds}>
               <PresenceServiceContext.Provider value={presence}>
                 <FriendsDepsContext.Provider value={friendsDeps}>
-                  <App store={store} initialOpen={initialOpen} />
+                  <Y2kDepsContext.Provider value={y2kDeps}>
+                    <App store={store} initialOpen={initialOpen} />
+                  </Y2kDepsContext.Provider>
                 </FriendsDepsContext.Provider>
               </PresenceServiceContext.Provider>
             </SoundServiceContext.Provider>
