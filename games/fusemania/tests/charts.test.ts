@@ -61,6 +61,29 @@ const BOUNDS = [
   },
 ] as const;
 
+/** The covers' originals: the density and meter each cover's Challenge aims at (`charts/covers-challenge.json`). */
+const coverTargets = (): Map<string, { nps: number; meter: number }> => {
+  const parsed: unknown = JSON.parse(
+    read("games/fusemania/charts/covers-challenge.json"),
+  );
+  const targets = new Map<string, { nps: number; meter: number }>();
+  if (typeof parsed !== "object" || parsed === null) return targets;
+  for (const [id, value] of Object.entries(parsed))
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      "nps" in value &&
+      "meter" in value &&
+      typeof value.nps === "number" &&
+      typeof value.meter === "number"
+    )
+      targets.set(id, { nps: value.nps, meter: value.meter });
+  return targets;
+};
+const COVERS = coverTargets();
+/** A cover's Challenge carries its original's meter, held to 11 to 15. */
+const COVER_CHALLENGE_METER = [11, 15] as const;
+
 const stepsOf = (chart: SimChart): ChartNote[] =>
   chart.notes.filter((note) => note.kind !== "mine");
 /** The beats that carry a step, in order: a jump is one row. */
@@ -116,10 +139,21 @@ test("every song has Easy, Medium, Hard and Challenge, each harder than the last
       const bound = BOUNDS[index]!;
       const where = `${data.id} ${chart.difficulty}`;
       assert.equal(chart.stepsType, "dance-single", where);
+      const cover = COVERS.get(data.id);
+      const meters =
+        cover && bound.name === "Challenge"
+          ? COVER_CHALLENGE_METER
+          : bound.meter;
       assert.ok(
-        chart.meter >= bound.meter[0] && chart.meter <= bound.meter[1],
+        chart.meter >= meters[0] && chart.meter <= meters[1],
         `${where}: meter ${chart.meter}`,
       );
+      if (cover && bound.name === "Challenge")
+        assert.equal(
+          chart.meter,
+          Math.min(15, Math.max(11, cover.meter)),
+          `${where}: not its original's meter`,
+        );
       assert.ok(chart.meter >= meter, `${where}: meter falls`);
       const count = stepsOf(chart).length;
       assert.ok(count > notes, `${where}: ${count} notes after ${notes}`);
@@ -220,10 +254,21 @@ test("every generated chart starts after two seconds, ends inside the song and k
           (to - from) / (timing.timeAt(rows[from]! + 4) - times[from]!),
         );
       }
+      // A cover's Challenge is as busy as its original's hardest chart, which may be calmer than Fuse's own.
+      const cover =
+        chart.difficulty === "Challenge" ? COVERS.get(data.id) : undefined;
+      const least = cover
+        ? Math.min(bound.average[0], 0.85 * cover.nps)
+        : bound.average[0];
       assert.ok(
-        average >= bound.average[0] && average <= bound.average[1],
+        average >= least && average <= bound.average[1],
         `${where}: ${average.toFixed(2)} rows a second on average`,
       );
+      if (cover)
+        assert.ok(
+          average <= 1.25 * cover.nps,
+          `${where}: ${average.toFixed(2)} rows a second, its original has ${cover.nps}`,
+        );
       assert.ok(
         peak >= bound.peak[0] && peak <= bound.peak[1],
         `${where}: ${peak.toFixed(2)} rows a second at its busiest`,
@@ -402,8 +447,14 @@ test("ChartNet's charts end inside the song, keep a lead-in and keep to their di
       }
       const average =
         (rows.length - 1) / (times[times.length - 1]! - times[0]!);
+      // A cover's Challenge is as busy as its original's hardest chart, which may be calmer than Fuse's own.
+      const cover =
+        chart.difficulty === "Challenge" ? COVERS.get(data.id) : undefined;
+      const least = cover
+        ? Math.min(bound.average[0], 0.85 * cover.nps)
+        : bound.average[0];
       assert.ok(
-        average >= bound.average[0] && average <= bound.average[1],
+        average >= least && average <= bound.average[1],
         `${where}: ${average.toFixed(2)} rows a second on average`,
       );
       assert.ok(peak <= bound.peak, `${where}: ${peak} rows in one second`);

@@ -112,13 +112,13 @@ export const SONGS: readonly SongSpec[] = [
     "rain-of-sorrow-night-mix",
     "Rain of Sorrow (Night Mix)",
   ),
+  packed("ddr-jazz-mix", "the-least-100sec", "The Least 100sec"),
   packed("ddr-jazz-mix", "the-legend-of-max", "The Legend of MAX"),
+  packed("ddr-jazz-mix", "xenon", "Xenon"),
   // ITG JAZZ MIX: Fuse's jazzy chiptune covers.
   packed("itg-jazz-mix", "determinator", "Determinator"),
   packed("itg-jazz-mix", "monolith", "Monolith"),
   packed("itg-jazz-mix", "temple-of-boom", "Temple of Boom"),
-  packed("itg-jazz-mix", "the-least-100sec", "The Least 100sec"),
-  packed("itg-jazz-mix", "xenon", "Xenon"),
 ];
 
 export const songById = (id: string): SongSpec | undefined =>

@@ -47,7 +47,9 @@ export const PACKS_DATA: readonly {
       "paranoia-survivor-max",
       "rain-of-sorrow",
       "rain-of-sorrow-night-mix",
+      "the-least-100sec",
       "the-legend-of-max",
+      "xenon",
     ],
   },
   {
@@ -57,8 +59,6 @@ export const PACKS_DATA: readonly {
       "determinator",
       "monolith",
       "temple-of-boom",
-      "the-least-100sec",
-      "xenon",
     ],
   },
 ];

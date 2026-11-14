@@ -281,7 +281,7 @@ const GAME_TRACKS: readonly FuseTrack[] = [
     path: "music/ddr-jazz-mix/the-legend-of-max.mp3",
     duration: 180.0,
   },
-  // Fusemania's ITG JAZZ MIX: Fuse's jazzy chiptune covers.
+  // Fusemania's ITG JAZZ MIX, then two more of its DDR JAZZ MIX.
   {
     id: "itg-jazz-mix-determinator",
     title: "Determinator",
@@ -304,17 +304,17 @@ const GAME_TRACKS: readonly FuseTrack[] = [
     duration: 171.192,
   },
   {
-    id: "itg-jazz-mix-the-least-100sec",
+    id: "ddr-jazz-mix-the-least-100sec",
     title: "The Least 100sec",
     games: ["fusemania"],
-    path: "music/itg-jazz-mix/the-least-100sec.mp3",
+    path: "music/ddr-jazz-mix/the-least-100sec.mp3",
     duration: 118.44,
   },
   {
-    id: "itg-jazz-mix-xenon",
+    id: "ddr-jazz-mix-xenon",
     title: "Xenon",
     games: ["fusemania"],
-    path: "music/itg-jazz-mix/xenon.mp3",
+    path: "music/ddr-jazz-mix/xenon.mp3",
     duration: 159.624,
   },
 ];
