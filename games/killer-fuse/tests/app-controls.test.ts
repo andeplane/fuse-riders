@@ -593,3 +593,22 @@ test("a hidden tab lets go of the controls, as losing focus does: a phone fires 
     [],
   );
 });
+test("a report cancels a gamepad and held buttons or axes cannot resume until neutral", () => {
+  const { log, controls } = rig();
+  const pads = new Pads(controls);
+  pads.poll([pad([-1, 0], [0, 1])]);
+  pads.cancel();
+  controls.release();
+  const count = log.length;
+  pads.poll([pad([-1, 0], [0, 1])]);
+  assert.equal(controls.value(), 0);
+  assert.equal(
+    log.length,
+    count,
+    "closing must not flap or attack from a held pad",
+  );
+  pads.poll([pad([0, 0])]);
+  pads.poll([pad([-1, 0], [0])]);
+  assert.equal(controls.value(), INPUT_LEFT | INPUT_HELD);
+  assert.equal(log.at(-1), "press");
+});
