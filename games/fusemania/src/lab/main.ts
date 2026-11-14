@@ -75,6 +75,7 @@ const BASE = import.meta.env.BASE_URL;
 const NOTES_KEY = "fusemania-lab:notes";
 const SHOWN_KEY = "fusemania-lab:shown";
 const EDITS_KEY = (song: string) => `fusemania-lab:edits:${song}`;
+const MARKER_KEY = (song: string) => `fusemania-lab:marker:${song}`;
 const HEADER = 30;
 const RULER = 58;
 const LANE = 30;
@@ -151,6 +152,12 @@ const keyLegend = el(
   key("→"),
   " 10 s",
   el("span", { className: "lab-keys-gap" }),
+  key("x"),
+  " set marker",
+  el("span", { className: "lab-keys-gap" }),
+  key("enter"),
+  " back to marker",
+  el("span", { className: "lab-keys-gap" }),
   key("↑"),
   key("↓"),
   " scroll",
@@ -222,7 +229,7 @@ const helpBox = el(
   el("h2", { textContent: "How to use" }),
   el("p", {
     textContent:
-      "Scroll to move through the song, ctrl/⌘ + scroll (or + and −) to zoom. Space plays and pauses at the playhead (the white line); ← and → move it back and forward by 0.5 s, 3 s with shift and 10 s with option (as in VLC), playing or paused. Click the ruler or the spectrogram to put it somewhere else.",
+      "Press x to drop a marker at the playhead (the yellow line) and enter to jump back to it, as often as you like. Scroll to move through the song, ctrl/⌘ + scroll (or + and −) to zoom. Space plays and pauses at the playhead (the white line); ← and → move it back and forward by 0.5 s, 3 s with shift and 10 s with option (as in VLC), playing or paused. Click the ruler or the spectrogram to put it somewhere else.",
   }),
   el("p", {
     textContent:
@@ -332,6 +339,8 @@ let tickBuffer: AudioBuffer | undefined;
 /** Ticks scheduled on the audio clock and not yet heard; a stop or a seek silences them. */
 const pendingTicks = new Set<AudioBufferSourceNode>();
 let follow = true;
+/** A place in the song to come back to: `x` sets it at the playhead, enter returns to it. Kept per song. */
+let marker: number | undefined;
 /** In local development the URL remembers the playhead (`#t=…`), so a reload carries on from there. */
 let resumeAt = import.meta.env.DEV ? parseResume(location.hash) : undefined;
 if (import.meta.env.DEV)
@@ -384,6 +393,8 @@ async function loadSong(id: string): Promise<void> {
   tiles = [];
   playhead = 0;
   topTime = -0.5;
+  const marked = Number(load(MARKER_KEY(data.id)) ?? NaN);
+  marker = Number.isFinite(marked) && marked >= 0 ? marked : undefined;
   playBuffer = undefined;
   sim = parseSimfile(data.ssc);
   const edited = load(EDITS_KEY(data.id));
@@ -799,6 +810,15 @@ function draw(): void {
     g.fillStyle = "rgba(59,255,208,0.7)";
     g.fillRect(listening.from - 1, HEADER, 1, height - HEADER);
     g.fillRect(listening.to, HEADER, 1, height - HEADER);
+  }
+
+  // The marker to come back to.
+  if (marker !== undefined) {
+    const my = yOf(marker);
+    g.fillStyle = "#ffe46b";
+    g.fillRect(RULER - 10, my - 1, width, 2);
+    g.font = "bold 10px ui-monospace, monospace";
+    g.fillText(`x ${marker.toFixed(2)}s`, 2, my + 11);
   }
 
   // Playhead.
@@ -1866,6 +1886,21 @@ window.addEventListener("keydown", (event) => {
   } else if (delta !== undefined) {
     event.preventDefault();
     seekBy(delta);
+  } else if (
+    event.key.toLowerCase() === "x" &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.altKey
+  ) {
+    // Mark this moment, to come back to with enter.
+    marker = Math.max(0, heardTime());
+    save(MARKER_KEY(songId), marker.toFixed(3));
+    draw();
+  } else if (event.key === "Enter" && marker !== undefined) {
+    // Back to the marker (in the note's text box enter saves the note instead; it never reaches here).
+    event.preventDefault();
+    if (target !== document.body) target?.blur();
+    seekBy(marker - heardTime());
   } else if (event.key === "+" || event.key === "=") zoom(1.25);
   else if (event.key === "-") zoom(0.8);
   else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
