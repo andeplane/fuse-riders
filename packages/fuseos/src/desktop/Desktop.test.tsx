@@ -29,6 +29,7 @@ describe(Desktop.name, () => {
       "Paint",
       "Winamp",
       "Napster",
+      "mIRC",
       "Control Panel",
       "Network Neighborhood",
     ]);

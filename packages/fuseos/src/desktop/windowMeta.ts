@@ -61,6 +61,9 @@ export const TASK_MANAGER_WINDOW_SIZE: Size = { width: 440, height: 600 };
 /** Room for the banner, the tab bar, the Search form above a dozen result rows, and the status bar. */
 export const NAPSTER_WINDOW_SIZE: Size = { width: 780, height: 610 };
 
+/** Room for the toolbar, the switchbar and a channel window with its nicklist. */
+export const MIRC_WINDOW_SIZE: Size = { width: 760, height: 540 };
+
 export const OS_NAME = "FuseOS";
 
 /** Title bar text and icon for each window kind. */
@@ -162,6 +165,13 @@ export function windowMeta(
     }
     case "defrag":
       return { ...defragWindowMeta(window), icon: "defrag", resizable: false };
+    case "mirc":
+      return {
+        title: window.caption ?? "mIRC",
+        icon: "mirc",
+        resizable: true,
+        size: MIRC_WINDOW_SIZE,
+      };
     case "launcher":
       return {
         title: LAUNCHER_TITLE,

@@ -15,6 +15,7 @@ import {
 } from "../fusegames/FuseGameWindow";
 import { FuseGamesContext } from "../fusegames/registry";
 import { LauncherWindow } from "../launcher/LauncherWindow";
+import { MircWindow } from "../mirc/MircWindow";
 import { NapsterWindow } from "../napster/NapsterWindow";
 import { NotepadPlusPlusWindow } from "../notepadpp/NotepadPlusPlusWindow";
 import { NetworkWindow } from "../network/NetworkWindow";
@@ -122,6 +123,8 @@ function WindowContent({
       return <HallOfFameWindow windowId={window.id} gameId={window.gameId} />;
     case "taskmanager":
       return <TaskManagerWindow windowId={window.id} />;
+    case "mirc":
+      return <MircWindow windowId={window.id} />;
   }
 }
 

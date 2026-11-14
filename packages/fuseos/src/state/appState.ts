@@ -91,6 +91,12 @@ export interface NapsterWindowContent {
   kind: "napster";
 }
 
+/** mIRC (`src/mirc`): an IRC client on simulated networks (docs/fuseos/mirc.md). One instance; `caption` mirrors a maximized child's title. */
+export interface MircWindowContent {
+  kind: "mirc";
+  caption?: string;
+}
+
 /** Dial-Up Networking's "Connect To" dialog (`sounds/dialup`); on connect it closes and opens `then`, when given. */
 export interface DialUpWindowContent {
   kind: "dialup";
@@ -142,7 +148,8 @@ export type WindowContent =
   | DefragWindowContent
   | HallOfFameWindowContent
   | TaskManagerWindowContent
-  | NapsterWindowContent;
+  | NapsterWindowContent
+  | MircWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -212,6 +219,7 @@ export function sameInstance(
     case "defrag":
     case "halloffame":
     case "taskmanager":
+    case "mirc":
       return existing.kind === content.kind;
     case "roomgame":
       return (
@@ -435,6 +443,8 @@ function isWindowContent(
       return typeof value.location === "string";
     case "defrag":
       return isDefragWindowContent(value);
+    case "mirc":
+      return value.caption === undefined || typeof value.caption === "string";
     case "notepadpp":
       return (
         Array.isArray(value.paths) &&

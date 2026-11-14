@@ -132,6 +132,12 @@ export function useDesktopViewModel(): DesktopViewModel {
       open: () => commands.open({ kind: "napster" }),
     },
     {
+      id: "mirc",
+      label: "mIRC",
+      icon: "mirc",
+      open: () => commands.open({ kind: "mirc" }),
+    },
+    {
       id: "control-panel",
       label: "Control Panel",
       icon: "settings",

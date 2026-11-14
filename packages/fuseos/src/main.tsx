@@ -48,6 +48,7 @@ import {
 } from "./winamp/winampDepsContext";
 import { defaultWindowsDeps } from "./windows/windowsDepsContext";
 import { createBrowserY2kDeps, Y2kDepsContext } from "./y2k/y2kDeps";
+import { browserMircDeps, MircDepsContext } from "./mirc/mircDeps";
 
 import "./styles.css";
 
@@ -137,7 +138,9 @@ export function mountFuseOs(container: HTMLElement): void {
               <PresenceServiceContext.Provider value={presence}>
                 <FriendsDepsContext.Provider value={friendsDeps}>
                   <Y2kDepsContext.Provider value={y2kDeps}>
-                    <App store={store} initialOpen={initialOpen} />
+                    <MircDepsContext.Provider value={browserMircDeps()}>
+                      <App store={store} initialOpen={initialOpen} />
+                    </MircDepsContext.Provider>
                   </Y2kDepsContext.Provider>
                 </FriendsDepsContext.Provider>
               </PresenceServiceContext.Provider>
