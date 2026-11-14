@@ -45,6 +45,10 @@ export class GraveyardRuntime extends RoomRuntime<
     this.append(PLAY, r.matchId, r.round, this.bits);
     this.sendPackets(this.deps.now());
   }
+  /** What this device holds right now, logged or not: the screen leads its own hunter with it. */
+  get heldNow(): number {
+    return this.bits;
+  }
   readyUp(): void {
     const r = this.world?.state;
     if (!r || r.stage === "running" || !this.player()?.connected) return;

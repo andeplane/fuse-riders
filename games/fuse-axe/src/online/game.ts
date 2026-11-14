@@ -364,7 +364,7 @@ function finish(room: Room, outcome: Outcome): void {
  * The seat playing the hero in `slot` of `kind`: the slot's rider, if it plays that hero. In a run every hero has one
  * (`consistent`); between stages the netcode gives up a seat that leaves, and a newcomer may take the slot.
  */
-function playerOf(
+export function playerOf(
   room: Room,
   slot: number,
   kind: HeroKind,

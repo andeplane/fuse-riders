@@ -34,6 +34,8 @@ export class FuseDriversRuntime extends RoomRuntime<
   /** The bitmask this device last logged; -1 before it has logged any, so the first press always sends. */
   private held = -1;
   private heldScope = "";
+  /** What this device's driver holds right now, logged or not: the screen leads its own truck with it. */
+  private live = 0;
 
   constructor(
     code: string,
@@ -46,6 +48,7 @@ export class FuseDriversRuntime extends RoomRuntime<
 
   /** Logs the controls when they differ from the ones last logged. */
   drive(input: TruckInput): void {
+    this.live = packControls(input);
     const room = this.world?.state;
     const seat = this.player();
     if (
@@ -81,6 +84,10 @@ export class FuseDriversRuntime extends RoomRuntime<
 
   protected override absentControls(): void {
     if (this.held !== -1) this.resetControls();
+  }
+
+  get heldNow(): number {
+    return this.live;
   }
 
   /** The newest simulated room, for the receipts a device reports; the screen renders from the view. */
