@@ -25,7 +25,10 @@ import {
   createNameEntry,
   createNotice,
   createRadioGroup,
+  createRoomLayout,
+  createRoster,
   el,
+  requestedRoomSlot,
 } from "fuse-ui";
 import { MAPS } from "../engine/index.js";
 import {
@@ -94,9 +97,15 @@ import {
   present,
   seatTitle,
   type PageModel,
-  type SeatModel,
   type Viewer,
 } from "./presenter.js";
+import {
+  ROOM_CAPACITY,
+  roomSeatRows,
+  slotColor,
+  slotLabel,
+  type RoomSeatRow,
+} from "./room-model.js";
 import { dueReports, sendReport } from "./reports.js";
 import {
   NOT_OPEN,
@@ -214,21 +223,106 @@ function holdToFlapToggle(): HTMLElement {
   return label;
 }
 
+/** A labelled checkbox in the game's own style; the handler is given the new state. */
+function checkbox(
+  text: string,
+  checked: boolean,
+  onChange: (on: boolean) => void,
+): HTMLElement {
+  const label = el("label", "", "kf-shared"),
+    box = el("input");
+  box.type = "checkbox";
+  box.checked = checked;
+  box.onchange = () => onChange(box.checked);
+  label.append(box, el("span", text));
+  return label;
+}
+
+/** `?mute` (previews, smoke runs) silences the page whatever was stored, and writes no choice of its own. */
+const forcedMute = query.has("mute");
+interface SoundChoices {
+  muted: boolean;
+  musicOn: boolean;
+  effectsOn: boolean;
+}
+interface SoundButtons {
+  mute: HTMLButtonElement;
+  music: HTMLButtonElement;
+  effects: HTMLButtonElement;
+}
+/** This device's stored sound choices, with `?mute` overriding the master one. */
+const soundChoices = (): SoundChoices => ({
+  muted: forcedMute || store.getItem(MUTED) === "1",
+  musicOn: store.getItem(MUSIC_ON) !== "0",
+  effectsOn: store.getItem(EFFECTS_ON) !== "0",
+});
+/** The three sound buttons' text and pressed state; the master switch hushes the other two. */
+function showSoundChoices(
+  buttons: SoundButtons,
+  { muted, musicOn, effectsOn }: SoundChoices,
+): void {
+  buttons.mute.textContent = muted ? "SOUND OFF" : "SOUND ON";
+  buttons.mute.setAttribute("aria-pressed", String(muted));
+  buttons.mute.title = muted ? "Turn the sound on" : "Turn the sound off";
+  buttons.music.textContent = musicOn ? "MUSIC" : "MUSIC OFF";
+  buttons.music.setAttribute("aria-pressed", String(!musicOn));
+  buttons.music.title = musicOn ? "Turn the music off" : "Turn the music on";
+  buttons.effects.textContent = effectsOn ? "SFX" : "SFX OFF";
+  buttons.effects.setAttribute("aria-pressed", String(!effectsOn));
+  buttons.effects.title = effectsOn
+    ? "Turn the sound effects off"
+    : "Turn the sound effects on";
+  for (const toggle of [buttons.music, buttons.effects])
+    toggle.disabled = muted;
+}
+
+/** The row of sound buttons, each writing its choice to this device's storage. */
+function soundRow(onChange: () => void = () => undefined): HTMLElement {
+  const row = el("div", "", "kf-sound"),
+    buttons: SoundButtons = {
+      mute: button("", "kf-mute"),
+      music: button("", "kf-mute kf-sub-toggle"),
+      effects: button("", "kf-mute kf-sub-toggle"),
+    };
+  const show = () => showSoundChoices(buttons, soundChoices());
+  const write = (key: string, on: boolean) => {
+    store.setItem(key, on ? "1" : "0");
+    show();
+    onChange();
+  };
+  buttons.mute.onclick = () => write(MUTED, !soundChoices().muted);
+  buttons.music.onclick = () => write(MUSIC_ON, !soundChoices().musicOn);
+  buttons.effects.onclick = () => write(EFFECTS_ON, !soundChoices().effectsOn);
+  show();
+  row.append(buttons.mute, buttons.music, buttons.effects);
+  return row;
+}
+
 /**
- * How to play: a button for the landing page and the lobby that opens the whole guide in a dialog (Escape or CLOSE
- * shuts it). `#how-to-play` in the address opens it on load.
+ * The main menu's Settings: this device's preferences. The sound switches and Hold to flap belong to the device, and
+ * Shared TV decides what the next room this device creates will be.
  */
-function howToPlay(): HTMLElement {
-  const open = button("HOW TO PLAY", "kf-how-open"),
-    dialog = el("dialog", "", "fui-dialog kf-how"),
-    bar = el("div", "", "fui-dialog-bar"),
-    title = el("h2", "HOW TO PLAY", "fui-dialog-title kf-how-title"),
-    close = button("CLOSE", "fui-dialog-close"),
-    body = el("div", "", "fui-dialog-body kf-how-body");
-  title.id = "kf-how-title";
-  dialog.setAttribute("aria-labelledby", title.id);
-  open.setAttribute("aria-haspopup", "dialog");
-  bar.append(title, close);
+function preferences(): HTMLElement[] {
+  return [
+    el("p", "SOUND", "kf-pref-title"),
+    soundRow(),
+    el("p", "CONTROLS", "kf-pref-title"),
+    holdToFlapToggle(),
+    el("p", "ROOMS", "kf-pref-title"),
+    checkbox(
+      "Shared TV: phones are the controllers",
+      store.getItem(names.shared) === "1",
+      (on) => store.setItem(names.shared, on ? "1" : "0"),
+    ),
+  ];
+}
+
+/**
+ * The whole guide, as fresh nodes: the goal, the three ways to win, the units, the rules and the controls. The
+ * lobby's own dialog and the shared main menu's How to play each show their own copy. The unit pictures are painted
+ * as soon as the art manifest is in.
+ */
+function guideNodes(): HTMLElement[] {
   const list = (rows: readonly { name: string; how: string }[]) => {
     const items = el("dl", "", "kf-how-list");
     for (const row of rows) items.append(el("dt", row.name), el("dd", row.how));
@@ -259,7 +353,12 @@ function howToPlay(): HTMLElement {
     group.append(el("h4", DEVICE_NAMES[device]), rows);
     controls.append(group);
   }
-  body.append(
+  void loadManifest().then((art) => {
+    const drawn = unitIcons(art, ART_URL, 0, 48);
+    for (const { art: name, slot } of icons)
+      if (!slot.style.backgroundImage) paint(slot, drawn[name]);
+  });
+  return [
     el("p", GOAL, "kf-how-goal"),
     el("h3", "THREE WAYS TO WIN"),
     list(WINS),
@@ -274,17 +373,30 @@ function howToPlay(): HTMLElement {
     controls,
     el("h4", HOLD_TO_FLAP.label.toUpperCase()),
     el("p", HOLD_TO_FLAP.how, "kf-how-goal"),
-  );
+  ];
+}
+
+/**
+ * How to play: a button for the lobby that opens the whole guide in a dialog (Escape or CLOSE shuts it).
+ * `#how-to-play` in the address opens it on load.
+ */
+function howToPlay(): HTMLElement {
+  const open = button("HOW TO PLAY", "kf-how-open"),
+    dialog = el("dialog", "", "fui-dialog kf-how"),
+    bar = el("div", "", "fui-dialog-bar"),
+    title = el("h2", "HOW TO PLAY", "fui-dialog-title kf-how-title"),
+    close = button("CLOSE", "fui-dialog-close"),
+    body = el("div", "", "fui-dialog-body kf-how-body");
+  title.id = "kf-how-title";
+  dialog.setAttribute("aria-labelledby", title.id);
+  open.setAttribute("aria-haspopup", "dialog");
+  bar.append(title, close);
+  body.append(...guideNodes());
   dialog.append(bar, body);
   const show = () => {
     if (dialog.open) return;
     dialog.showModal();
     close.focus();
-    void loadManifest().then((art) => {
-      const drawn = unitIcons(art, ART_URL, 0, 48);
-      for (const { art: name, slot } of icons)
-        if (!slot.style.backgroundImage) paint(slot, drawn[name]);
-    });
   };
   open.onclick = show;
   close.onclick = () => dialog.close();
@@ -326,15 +438,13 @@ function tutorialList(): HTMLElement {
   return box;
 }
 
+/** The silent bot-against-bot demo behind the main menu and the lobby; it is loaded only when one is shown. */
+const demoBackground = async (host: HTMLElement, signal: AbortSignal) =>
+  (await import("./attract.js")).createAttract(host, ART_URL, signal);
+
 function landing(): void {
-  const shared = el("label", "", "kf-shared"),
-    toggle = el("input");
-  toggle.type = "checkbox";
-  toggle.checked = store.getItem(names.shared) === "1";
-  toggle.onchange = () =>
-    store.setItem(names.shared, toggle.checked ? "1" : "0");
-  shared.append(toggle, el("span", "Shared TV: phones are the controllers"));
   const card = createLandingCard({
+    background: demoBackground,
     title: "KILLER FUSE",
     tagline:
       "Three against three in one arena. Kill the Queen, fill the hive or ride the snail home. Bots play every empty seat.",
@@ -358,43 +468,20 @@ function landing(): void {
       location.href = withFlags(endpoints.appUrl(`?room=${code}`));
     },
   });
-  card.create.after(shared);
+  // Join by code, PLAY SOLO WITH BOTS and the tutorial stay together behind the menu's secondary action.
+  card.create.parentElement!.after(tutorialList());
+  card.menu.help.append(...guideNodes());
+  card.menu.addSettings(...preferences());
   const back = el("a", "← FUSE RIDERS", "kf-back");
   back.href = import.meta.env.BASE_URL;
-  const page = el("main", "", "kf-landing");
-  page.append(card.element, howToPlay(), tutorialList());
-  app.replaceChildren(header([back]), page);
-}
-
-/** One seat of the lobby: its role, who holds it, and the button that takes it or asks for it. */
-function createSeatCard(act: (seat: SeatModel) => void) {
-  const root = el("article", "", "kf-seat"),
-    role = el("small", "", "kf-seat-role"),
-    name = el("strong", "", "kf-seat-name"),
-    note = el("p", "", "kf-seat-note"),
-    action = button("", "kf-seat-action");
-  root.append(role, name, note, action);
-  let shown: SeatModel | undefined;
-  action.onclick = () => shown && act(shown);
-  return {
-    root,
-    render(seat: SeatModel) {
-      shown = seat;
-      root.dataset.kind = seat.kind;
-      root.dataset.role = seat.role.toLowerCase();
-      role.textContent = seat.role;
-      name.textContent =
-        seat.kind === "you"
-          ? `${seat.name} (you)`
-          : seat.kind === "away"
-            ? `${seat.name} (away)`
-            : seat.name;
-      note.textContent = seat.note;
-      note.hidden = !seat.note;
-      action.textContent = seat.label;
-      action.hidden = seat.action === "none";
-    },
-  };
+  // The shared menu is the page: it fills the window so the demo behind it does too.
+  app.replaceChildren(header([back]), card.element);
+  // `#how-to-play` in the address still opens the guide, now the menu's own dialog.
+  if (location.hash === "#how-to-play")
+    queueMicrotask(() => {
+      for (const entry of card.menu.element.querySelectorAll("button"))
+        if (entry.textContent === "How to play") entry.click();
+    });
 }
 
 function room(solo: boolean): void {
@@ -490,31 +577,18 @@ function room(solo: boolean): void {
   tipBox.append(tipTitle, tipHints, tipText);
   let lobbySince = performance.now(),
     tipShown = "";
-  // `?mute` (previews, smoke runs) silences the page whatever was stored, and writes no choice of its own.
-  const forcedMute = query.has("mute");
-  let muted = forcedMute || store.getItem(MUTED) === "1";
-  let musicOn = store.getItem(MUSIC_ON) !== "0";
-  let effectsOn = store.getItem(EFFECTS_ON) !== "0";
+  let { muted, musicOn, effectsOn } = soundChoices();
   const music = new Music(browserMusicDeps(MUSIC_URL), { muted, on: musicOn });
   const mute = button("", "kf-mute"),
     musicToggle = button("", "kf-mute kf-sub-toggle"),
     effectsToggle = button("", "kf-mute kf-sub-toggle");
   /** The effects are hushed by the master switch too; the arena's own bed stops once a music file plays. */
   const effectsMuted = () => muted || !effectsOn;
-  const showSound = () => {
-    mute.textContent = muted ? "SOUND OFF" : "SOUND ON";
-    mute.setAttribute("aria-pressed", String(muted));
-    mute.title = muted ? "Turn the sound on" : "Turn the sound off";
-    musicToggle.textContent = musicOn ? "MUSIC" : "MUSIC OFF";
-    musicToggle.setAttribute("aria-pressed", String(!musicOn));
-    musicToggle.title = musicOn ? "Turn the music off" : "Turn the music on";
-    effectsToggle.textContent = effectsOn ? "SFX" : "SFX OFF";
-    effectsToggle.setAttribute("aria-pressed", String(!effectsOn));
-    effectsToggle.title = effectsOn
-      ? "Turn the sound effects off"
-      : "Turn the sound effects on";
-    for (const toggle of [musicToggle, effectsToggle]) toggle.disabled = muted;
-  };
+  const showSound = () =>
+    showSoundChoices(
+      { mute, music: musicToggle, effects: effectsToggle },
+      { muted, musicOn, effectsOn },
+    );
   /** Pushes the current choices to the music and, when there is an arena, to it as well. */
   const applySound = () => {
     showSound();
@@ -556,9 +630,9 @@ function room(solo: boolean): void {
   sound.append(mute, musicToggle, effectsToggle);
   const top = header([codeChip, status.element, sound, menu.element]);
 
-  // Lobby: invitation, the two teams, settings, start.
+  // Lobby: the shared room layout — invitation and settings on the left, the six numbered seats on the right.
   const lobby = el("section", "", "kf-lobby"),
-    teams = el("div", "", "kf-teams"),
+    roster = createRoster({ emptyText: "Nobody has taken a seat yet" }),
     watchers = el("p", "", "kf-watchers"),
     takeSeat = button("JOIN THE GAME", "kf-take-seat"),
     settingsBox = el("div", "", "kf-settings"),
@@ -578,22 +652,9 @@ function room(solo: boolean): void {
   let settings: Settings = DEFAULT_SETTINGS;
   const change = (patch: Partial<Settings>) =>
     runtime.command({ type: "settings", settings: { ...settings, ...patch } });
-  const cards = [0, 1].map((team) => {
-    const column = el("div", "", `kf-team kf-team-${team ? "pink" : "cyan"}`);
-    column.append(el("h3", team ? "PINK" : "CYAN", "kf-team-name"));
-    const own = [0, 1, 2].map(() =>
-      createSeatCard((seat) => {
-        // Asking for the seat this device holds takes a wish back.
-        const mine = model?.arena.localSlot ?? -1;
-        runtime.seat(
-          seat.action === "withdraw" && mine >= 0 ? mine : seat.slot,
-        );
-      }),
-    );
-    column.append(...own.map((card) => card.root));
-    teams.append(column);
-    return own;
-  });
+  // The seats people hold, as the layout last showed them, and the swap button each row carries.
+  let seatRows: readonly RoomSeatRow[] = [];
+  const seatActions = new Map<string, HTMLButtonElement>();
   const levelGroup = createRadioGroup({
     legend: "BOTS",
     name: "kf-bots",
@@ -632,20 +693,15 @@ function room(solo: boolean): void {
     { group: mapGroup, value: (s: Settings) => String(s.map) },
     { group: winsGroup, value: (s: Settings) => String(s.wins) },
   ];
-  settingsBox.append(...groups.map(({ group }) => group.element));
-  lobbyActions.append(tvLink, start);
-  lobby.append(
-    el("h2", "PICK A SEAT", "fui-lobby-title"),
-    teams,
-    watchers,
-    takeSeat,
-    settingsBox,
-    settingsLine,
-    lobbyNote,
-    lobbyActions,
-    tipBox,
-    howToPlay(),
+  // Shared TV is a room setting too: the host can turn the phones-as-controllers mode on from the same dialog.
+  const sharedTv = checkbox(
+    "Shared TV: phones are the controllers",
+    DEFAULT_SETTINGS.display,
+    (display) => change({ display }),
   );
+  const sharedTvBox = sharedTv.querySelector("input")!;
+  settingsBox.append(...groups.map(({ group }) => group.element), sharedTv);
+  lobbyActions.append(tvLink, start);
   start.onclick = () => runtime.command({ type: "action", action: "start" });
   tvLink.onclick = () =>
     window.open(
@@ -656,6 +712,11 @@ function room(solo: boolean): void {
   const remembered = seatName(
     social.playerName(store.getItem(names.name)) ?? "",
   );
+  /** The slot admission dialog the shared layout parks the form in; a command answered, it has done its job. */
+  function closeAdmission(): void {
+    const dialog = nameEntry.form.closest("dialog");
+    if (dialog instanceof HTMLDialogElement && dialog.open) dialog.close();
+  }
   const nameEntry = createNameEntry({
     normalize: (raw) => seatName(raw) ?? "",
     initial: social.playerName(store.getItem(names.name)) ?? "",
@@ -663,7 +724,16 @@ function room(solo: boolean): void {
     buttonText: "JOIN",
     onSubmit: (name) => {
       store.setItem(names.name, name);
-      runtime.command({ type: "join", name });
+      const slot = requestedRoomSlot(nameEntry.form);
+      // A seated player tapping an open slot moves there; anyone else takes it by joining.
+      if (model?.seated && slot !== undefined) runtime.seat(slot);
+      else
+        runtime.command({
+          type: "join",
+          name,
+          ...(slot === undefined ? {} : { slot }),
+        });
+      closeAdmission();
     },
     secondary: {
       text: "WATCH",
@@ -671,6 +741,7 @@ function room(solo: boolean): void {
       onSubmit: (name) => {
         store.setItem(names.name, name);
         runtime.command({ type: "spectate", name });
+        closeAdmission();
       },
     },
   });
@@ -739,6 +810,21 @@ function room(solo: boolean): void {
   main.tabIndex = -1;
   main.append(nameEntry.form, lobby, arena);
   app.replaceChildren(top, main);
+  // The shared room: the invitation and the game settings on the left, the six numbered seats on the right. The
+  // layout moves the page's own controls; the commands, permissions and validation stay here.
+  const roomLayout = createRoomLayout({
+    element: lobby,
+    title: "PLAYERS",
+    roster,
+    capacity: ROOM_CAPACITY,
+    join: nameEntry.form,
+    settings: [settingsBox, settingsLine],
+    actions: [watchers, takeSeat, lobbyNote, lobbyActions, tipBox, howToPlay()],
+    background: demoBackground,
+    slotColor,
+    slotLabel,
+    playerName: () => social.playerName(undefined) ?? undefined,
+  });
   arena.hidden = true;
   nameEntry.form.hidden = true;
 
@@ -804,12 +890,50 @@ function room(solo: boolean): void {
     main.dataset.screen = next.screen;
     lobby.hidden = next.screen !== "lobby";
     arena.hidden = next.screen !== "arena";
-    nameEntry.form.hidden = !next.askName;
-    nameEntry.submit.hidden = !next.canJoin;
-    // Lobby.
-    next.lobby.teams.forEach((team, index) =>
-      team.seats.forEach((seat, row) => cards[index]![row]!.render(seat)),
+    // The form is the slots' Join: a device without a seat joins through it, and one that holds a seat uses the same
+    // action to move to another open slot while the room waits in the lobby.
+    nameEntry.form.hidden = !(
+      next.askName ||
+      (next.screen === "lobby" && (next.seated || next.watching))
     );
+    nameEntry.submit.hidden = !next.canJoin;
+    // Lobby: one row per person, in the numbered slot they hold.
+    seatRows = roomSeatRows(next);
+    roster.update(
+      seatRows.map(({ id, slot, name, status, color }) => ({
+        id,
+        slot,
+        name,
+        status,
+        color,
+      })),
+    );
+    for (const [id, action] of seatActions)
+      if (!seatRows.some((row) => row.id === id)) {
+        action.remove();
+        seatActions.delete(id);
+      }
+    for (const row of seatRows) {
+      const entry = roster.row(row.id);
+      if (!entry) continue;
+      let action = seatActions.get(row.id);
+      if (!action) {
+        action = button("", "kf-seat-action");
+        action.onclick = () => {
+          const seat = seatRows.find((other) => other.id === row.id);
+          if (!seat) return;
+          // Asking for the seat this device holds takes a wish back.
+          const mine = model?.arena.localSlot ?? -1;
+          runtime.seat(
+            seat.action === "withdraw" && mine >= 0 ? mine : seat.slot,
+          );
+        };
+        seatActions.set(row.id, action);
+      }
+      if (action.parentElement !== entry) entry.append(action);
+      action.textContent = row.label;
+      action.hidden = row.action === "none";
+    }
     watchers.textContent = next.lobby.watchers.length
       ? `Watching: ${next.lobby.watchers.join(", ")}`
       : "";
@@ -822,6 +946,8 @@ function room(solo: boolean): void {
     for (const { group, value } of groups)
       for (const input of group.inputs)
         input.checked = input.value === value(settings);
+    if (sharedTvBox.checked !== settings.display)
+      sharedTvBox.checked = settings.display;
     start.hidden = !next.lobby.showStart;
     start.disabled = !next.lobby.canStart;
     lobbyNote.textContent = next.lobby.note;
@@ -1000,8 +1126,15 @@ function room(solo: boolean): void {
       main.dataset.round = String(frame.round);
       main.dataset.winner = frame.stage === "over" ? String(frame.winner) : "";
       // A page that loads into a room with a name remembered from before (a reload frees a lobby seat) joins under
-      // it once; a name typed on this page joins only through JOIN.
-      if (next.askName && next.canJoin && remembered && !joinSent) {
+      // it once; a name typed on this page joins only through JOIN. Creating a room is not taking a seat, so the
+      // host picks a slot from the layout like everyone else.
+      if (
+        next.askName &&
+        next.canJoin &&
+        remembered &&
+        !joinSent &&
+        (solo || !next.host)
+      ) {
         joinSent = true;
         runtime.command({ type: "join", name: remembered });
       }
@@ -1213,6 +1346,7 @@ function room(solo: boolean): void {
       driver.close();
       music.destroy();
       menu.dispose();
+      roomLayout.dispose();
     },
     reload: () => location.reload(),
   });

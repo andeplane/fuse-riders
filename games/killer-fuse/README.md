@@ -16,10 +16,11 @@ pnpm build
 npx tsx service/dev.ts --port 8890     # serves dist/ and the room service
 ```
 
-Open `http://localhost:8890/killer-fuse/?mute` and pick one of:
+Open `http://localhost:8890/killer-fuse/?mute`. The shared main menu opens with a silent six-bot demo playing behind it:
 
-- **PLAY SOLO WITH BOTS** (`?solo=1`): you and five bots, no room service.
-- **CREATE ROOM**: a room with a QR invite. Others join by the code or the link, everyone picks a seat, and the creator sets the bot level, the map and the set length, then starts. Tick **Shared TV** first to play on one screen: **OPEN TV SCREEN** opens `?room=CODE&display=1`, and every phone becomes a controller.
+- **Play** creates a room with a QR invite. Others join by the code or the link. The room lists its six numbered seats — Cyan and Pink, the Queens first — and **Join** takes one; a seated player taps another open seat to move there. Empty seats are played by the engine's bots, so one person can start. **Game settings** holds the bot level, the map, the set length and **Shared TV**; with Shared TV on, **OPEN TV SCREEN** opens `?room=CODE&display=1` and every phone becomes a controller.
+- **How to play** and **About** open the guide and the credits; **Settings** holds this device's sound, Hold to flap and Shared TV choices.
+- **Join a room · Solo & local play** keeps joining by code, **PLAY SOLO WITH BOTS** (`?solo=1`) and the tutorial lessons (`?solo=1&tutorial=<id>`).
 
 `pnpm dev` does the build and starts the service on port 8787 in one step.
 
@@ -39,15 +40,15 @@ Arrows move, Space flaps, X attacks, hold Down to dive.
 
 ## Layout
 
-| Path              | What it is                                                                                                              |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `src/engine/`     | The deterministic 60 Hz simulation, the maps and the bots ([engine](docs/engine.md), [bots](docs/bots.md))              |
-| `src/online/`     | The game behind the rollback netcode: entries, the fold, checkpoints, results ([online](docs/online.md))                |
-| `src/render/`     | The Canvas 2D arena view, effects and sound, behind the contract in `api.ts`                                            |
-| `src/app/`        | The page: `presenter.ts` (view to screen, pure), `controls.ts`, `arena.ts`, `reports.ts`, `metrics.ts`, `main.ts` (DOM) |
-| `src/platform.ts` | The `GameRegistration` for `fuse-platform`, exported as `killer-fuse/platform`                                          |
-| `public/`         | The art, shipped to `dist/killer-fuse/` by the build                                                                    |
-| `tests/`          | `engine-*`, `bot-*`, `online-*`, `render-*` and `app-*`                                                                 |
+| Path              | What it is                                                                                                                                                                                                        |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/engine/`     | The deterministic 60 Hz simulation, the maps and the bots ([engine](docs/engine.md), [bots](docs/bots.md))                                                                                                        |
+| `src/online/`     | The game behind the rollback netcode: entries, the fold, checkpoints, results ([online](docs/online.md))                                                                                                          |
+| `src/render/`     | The Canvas 2D arena view, effects and sound, behind the contract in `api.ts`                                                                                                                                      |
+| `src/app/`        | The page: `presenter.ts` (view to screen, pure), `room-model.ts` (the shared layout's slots and rows), `attract-match.ts` (the menu demo), `controls.ts`, `arena.ts`, `reports.ts`, `metrics.ts`, `main.ts` (DOM) |
+| `src/platform.ts` | The `GameRegistration` for `fuse-platform`, exported as `killer-fuse/platform`                                                                                                                                    |
+| `public/`         | The art, shipped to `dist/killer-fuse/` by the build                                                                                                                                                              |
+| `tests/`          | `engine-*`, `bot-*`, `online-*`, `render-*` and `app-*`                                                                                                                                                           |
 
 The page draws every frame from the room's view, never from events: a rollback can change what happened after it was shown, and only the view carries the correction.
 

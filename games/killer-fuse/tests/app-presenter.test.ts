@@ -103,6 +103,11 @@ test("the lobby: two teams of three seats, bots in the empty ones, start and set
   );
   assert.equal(seats[0]!.name, "Ada");
   assert.equal(seats[2]!.name, "Bolt (bot)");
+  // The holder's member id travels with the seat; a slot the engine plays names nobody.
+  assert.deepEqual(
+    seats.map((seat) => seat.id),
+    ["a", "b", "", "", "", ""],
+  );
   assert.equal(host.seated, true);
   assert.equal(host.host, true);
   assert.equal(host.askName, false);

@@ -53,6 +53,8 @@ export const seatTitle = (slot: number): string =>
 export type SeatAction = "none" | "take" | "ask" | "accept" | "withdraw";
 export interface SeatModel {
   slot: number;
+  /** The member holding the seat; "" where a bot plays it, since no bot is ever seated. */
+  id: string;
   team: number;
   role: "QUEEN" | "WORKER";
   /** The person's name, or the bot's. */
@@ -153,7 +155,12 @@ function seats(view: View, viewer: Viewer): SeatModel[] {
     const holder = view.seats.find(
         (seat) => !seat.watcher && seat.slot === slot,
       ),
-      base = { slot, team: teamOfSlot(slot), role: roleOf(slot) };
+      base = {
+        slot,
+        id: holder?.id ?? "",
+        team: teamOfSlot(slot),
+        role: roleOf(slot),
+      };
     if (!holder)
       return {
         ...base,

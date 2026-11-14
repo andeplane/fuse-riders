@@ -115,6 +115,7 @@ const RECIPES: Record<string, Recipe> = {
     await page.keyboard.up("ArrowRight");
   },
   "killer-fuse": async (page) => {
+    await openPlayOptions(page);
     await page
       .getByRole("button", { name: "PLAY SOLO WITH BOTS", exact: true })
       .click();

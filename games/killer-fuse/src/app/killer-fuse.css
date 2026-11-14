@@ -96,15 +96,7 @@ body.kf-page {
   }
 }
 
-/* Landing */
-.kf-landing {
-  display: grid;
-  align-content: start;
-  gap: var(--fui-space-4);
-  width: min(40rem, 100%);
-  margin: 4vh auto 0;
-  padding-bottom: var(--fui-space-5);
-}
+/* Landing: the shared main menu fills the page, with the demo behind it. */
 .kf-page .fui-landing-title {
   color: var(--kf-gold);
   text-shadow: 0 0 1rem #ffc93c66;
@@ -236,77 +228,42 @@ body.kf-page {
   width: min(32rem, 100%);
   margin: 0 auto;
 }
+/* The lobby is the shared room layout (`fui-room-layout`); these only tint its parts for the two teams. */
 .kf-lobby {
-  display: grid;
-  gap: var(--fui-space-4);
-  width: min(44rem, 100%);
-  margin: 0 auto;
-}
-.kf-teams {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--fui-space-3);
-}
-.kf-team {
-  display: grid;
-  align-content: start;
-  gap: var(--fui-space-2);
-  padding: var(--fui-space-3);
-  background: var(--fui-panel);
-  border: 2px solid var(--team);
-  border-radius: var(--fui-radius-panel);
-}
-.kf-team-cyan {
-  --team: var(--kf-cyan);
-}
-.kf-team-pink {
-  --team: var(--kf-pink);
-}
-.kf-team-name {
-  margin: 0;
-  color: var(--team);
-  font: 0.75rem var(--fui-font-pixel);
-  text-align: center;
-}
-.kf-seat {
-  display: grid;
-  gap: var(--fui-space-1);
   min-width: 0;
-  padding: var(--fui-space-2);
-  background: #ffffff0a;
-  border: 1px solid #ffffff1f;
-  border-radius: var(--fui-radius-small);
 }
-.kf-seat[data-kind="you"] {
-  border-color: var(--team);
-  box-shadow: 0 0 0.75rem color-mix(in srgb, var(--team) 40%, transparent);
-}
-.kf-seat[data-kind="bot"] .kf-seat-name,
-.kf-seat[data-kind="away"] .kf-seat-name {
-  color: var(--fui-text-dim);
-}
-.kf-seat-role {
-  color: var(--team);
-  font: 0.5rem var(--fui-font-pixel);
+.kf-lobby .fui-slot-label {
+  font: 0.5rem/1.6 var(--fui-font-pixel);
   letter-spacing: 0.0625rem;
 }
-.kf-seat[data-role="queen"] .kf-seat-role::before {
-  content: "♛ ";
-}
-.kf-seat-name {
+.kf-lobby .fui-roster-name {
+  color: var(--rider-color, inherit);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.kf-seat-note {
-  margin: 0;
-  color: var(--kf-gold);
+.kf-lobby .fui-roster-status {
+  color: var(--fui-text-muted);
   font-size: 0.75rem;
+}
+.kf-lobby .fui-slot-occupant .fui-roster-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fui-space-2);
 }
 .fui-app .kf-seat-action {
   min-height: 2.25rem;
   padding: 0 var(--fui-space-2);
   font: 0.5rem var(--fui-font-pixel);
+}
+/* The device's preferences in the main menu's Settings dialog. */
+.kf-pref-title {
+  margin: var(--fui-space-2) 0 0;
+  color: var(--kf-gold);
+  font: 0.5rem var(--fui-font-pixel);
+  letter-spacing: 0.0625rem;
 }
 .kf-watchers,
 .kf-settings-line {
@@ -840,12 +797,6 @@ body.kf-display .kf-seat-line {
 }
 
 @media (max-width: 30rem) {
-  .kf-teams {
-    gap: var(--fui-space-2);
-  }
-  .kf-team {
-    padding: var(--fui-space-2);
-  }
   .kf-how-list {
     grid-template-columns: minmax(0, 1fr);
   }
