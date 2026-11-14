@@ -76,7 +76,9 @@ const ride = (level: Level, bits: number, steps: number) => {
 test("the service's constants are the engine's", () => {
   assert.equal(basics.CAPACITY, CAPACITY);
   assert.equal(basics.LEVEL_COUNT, LEVEL_COUNT);
-  assert.equal(LEVELS.length, 503);
+  assert.equal(LEVELS.length, 557);
+  assert.equal(LEVELS[0]!.name, "Warm Up");
+  assert.equal(LEVELS[53]!.name, "Apple Harvest");
   assert.match(RULES, /^elasto-fuse-\d+$/);
 });
 
@@ -198,7 +200,10 @@ test("a race counts down, then every rider rides its own run", () => {
   assert.equal(world.riders[0]!.bike.fvx, 0, "nobody moves before the start");
   steps(world, 1, [GAS, 0]);
   assert.equal(world.phase, "racing");
-  steps(world, 400, [GAS, 0]);
+  for (const bits of rideBits(LEVELS[0]!.id)) {
+    stepWorld(world, [bits, 0], [true, true]);
+    if (world.riders[0]!.taken) break;
+  }
   const [a, b] = world.riders;
   assert.ok(a!.bike.fx > b!.bike.fx + 3);
   assert.equal(a!.taken, 1n, "a ate its first apple");
@@ -208,14 +213,18 @@ test("a race counts down, then every rider rides its own run", () => {
 
 test("a restart puts the rider back with its apples, and counts; held through, it restarts once", () => {
   const world = race(["a"]);
-  steps(world, 400, [GAS]);
+  for (const bits of rideBits(LEVELS[0]!.id)) {
+    stepWorld(world, [bits], [true]);
+    if (world.riders[0]!.taken) break;
+  }
   assert.equal(world.riders[0]!.taken, 1n);
+  const before = world.step;
   steps(world, 5, [RESTART]);
   const rider = world.riders[0]!;
   assert.equal(rider.taken, 0n);
   assert.equal(rider.deaths, 1);
   assert.equal(rider.run, 4);
-  assert.equal(world.step, 405, "the race clock runs on");
+  assert.equal(world.step, before + 5, "the race clock runs on");
 });
 
 test("a crash waits, then restarts by itself; the first home wins and the race closes after the grace", () => {
@@ -241,9 +250,13 @@ test("a crash waits, then restarts by itself; the first home wins and the race c
   assert.equal(world.phase, "racing");
   steps(world, 1, [0, 0]);
   assert.equal(world.phase, "over");
-  const before = JSON.stringify(world);
+  const before = JSON.stringify(encodeWorld(world));
   steps(world, 10, [GAS, GAS]);
-  assert.equal(JSON.stringify(world), before, "a closed race does not move");
+  assert.equal(
+    JSON.stringify(encodeWorld(world)),
+    before,
+    "a closed race does not move",
+  );
 });
 
 test("the race does not wait for a rider nobody is steering, and closes at the limit regardless", () => {
@@ -270,12 +283,12 @@ test("a world survives its checkpoint exactly and plays on identically; a bad on
       JSON.parse(JSON.stringify(encodeWorld(world))) as unknown,
     );
     // A checkpoint carries no negative zero, so compare what a checkpoint can tell apart.
-    assert.equal(JSON.stringify(copy), JSON.stringify(world));
+    assert.deepEqual(encodeWorld(copy!), encodeWorld(world));
   }
   const copy = decodeWorld(encodeWorld(world))!;
   steps(world, 200, [GAS, BRAKE]);
   steps(copy, 200, [GAS, BRAKE]);
-  assert.equal(JSON.stringify(copy), JSON.stringify(world));
+  assert.deepEqual(encodeWorld(copy), encodeWorld(world));
   const fields = encodeWorld(world);
   const broken = (change: (fields: unknown[]) => void) => {
     const list = JSON.parse(JSON.stringify(fields)) as unknown[];
@@ -284,12 +297,12 @@ test("a world survives its checkpoint exactly and plays on identically; a bad on
   };
   assert.ok(broken(() => {}));
   assert.equal(
-    broken((f) => (f[0] = 2)),
+    broken((f) => (f[0] = -1)),
     undefined,
     "version",
   );
   assert.equal(
-    broken((f) => (f[1] = 99)),
+    broken((f) => (f[1] = LEVELS.length)),
     undefined,
     "level",
   );

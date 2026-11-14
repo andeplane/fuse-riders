@@ -74,7 +74,7 @@ test("entries: play names a match and carries six held bits; management uses the
   assert.ok(!isEntry([0, 1, PLAY, "m1", GAS]));
   assert.ok(isEntry([1, 1, JOIN, "a", "Ada", 0, "robot", 1]));
   assert.ok(isEntry([1, 1, SETTINGS, { display: false, level: 2 }]));
-  assert.ok(!isEntry([1, 1, SETTINGS, { display: false, level: 99 }]));
+  assert.ok(!isEntry([1, 1, SETTINGS, { display: false, level: LEVEL_COUNT }]));
   assert.ok(!isEntry([1, 1, JOIN, "__proto__", "Ada", 0, "robot", 1]));
 });
 
@@ -169,7 +169,7 @@ test("held bits ride from one entry on; another match's entry and an away seat h
   assert.deepEqual(room.held, { a: GAS });
   run(room, 3);
   assert.deepEqual(room.held, { a: GAS });
-  fold(room, { a: [[PRESENCE, "a", false]] });
+  fold(room, { a: [[PRESENCE, "a", false, 1]] });
   assert.deepEqual(room.held, {}, "an away seat holds nothing");
 });
 
@@ -257,8 +257,8 @@ test("a checkpoint restores every stage and plays on identically", () => {
   assert.equal(hash(copy), hash(room));
   check(room);
   const one = started(single);
+  fold(one, { a: [[PRESENCE, "b", false, 1]] });
   rideHome(one, "a");
-  rideHome(one, "b");
   assert.equal(one.stage, "over");
   check(one);
   assert.deepEqual([...stages].sort(), ["between", "lobby", "over", "running"]);

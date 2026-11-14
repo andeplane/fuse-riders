@@ -203,16 +203,15 @@ function keyHelp(): HTMLElement {
   return list;
 }
 
-/** The levels as buttons, with the tour first when `tour` is set; `onPick` hears a choice, `update` shows the room's. */
+/** A compact native picker with keyboard type-ahead, shared by solo and rooms. */
 function createLevelPicker(tour: boolean, onPick: (level: number) => void) {
-  const element = el("div", "", "ef-levels");
-  element.setAttribute("role", "group");
-  element.setAttribute("aria-label", "Level");
-  const buttons = new Map<number, HTMLButtonElement>();
+  const element = el("label", "", "ef-level-picker");
+  const select = el("select");
+  element.append(el("span", tour ? "Race level" : "Starting level"), select);
   for (const choice of LEVEL_CHOICES) {
     if (choice.level === TOUR && !tour) continue;
-    const node = button("", "ef-level");
-    node.dataset.level = String(choice.level);
+    const node = el("option");
+    node.value = String(choice.level);
     const best =
       choice.level === TOUR
         ? undefined
@@ -222,20 +221,15 @@ function createLevelPicker(tour: boolean, onPick: (level: number) => void) {
         ? choice.title
         : `${choice.level + 1} ${choice.title}`,
     );
-    if (best !== undefined && !tour)
-      node.append(el("br"), el("small", clockText(best)));
-    node.title = choice.title;
-    node.onclick = () => onPick(choice.level);
-    buttons.set(choice.level, node);
-    element.append(node);
+    if (best !== undefined && !tour) node.append(` · ${clockText(best)}`);
+    select.append(node);
   }
+  select.onchange = () => onPick(Number(select.value));
   return {
     element,
     update(selected: number, editable: boolean) {
-      for (const [level, node] of buttons) {
-        node.setAttribute("aria-pressed", String(level === selected));
-        node.disabled = !editable && level !== selected;
-      }
+      select.value = String(selected);
+      select.disabled = !editable;
     },
   };
 }
@@ -254,7 +248,7 @@ function landing(): void {
       (await import("./attract.js")).createAttract(host),
     title: "ELASTO FUSE",
     tagline:
-      "A springy motorbike, every Elasto Mania track. Eat every apple, then touch the flower, and keep your head off the ground. Chase your best times alone, or race up to four friends: online, or on one TV with phones as controllers.",
+      "A springy motorbike, the original 54-level campaign and hundreds of extra tracks. Eat every apple, then touch the flower, and keep your head off the ground. Chase your best times alone, or race up to four friends.",
     soloText: "PLAY SOLO",
     async onCreate() {
       const room = await createRoom(endpoints.apiUrl, fetch, GAME).catch(
@@ -284,8 +278,8 @@ function landing(): void {
   });
   picker.update(level, true);
   const rules = el("section", "", "ef-landing-rules");
-  rules.append(el("h2", "SOLO MAP", "fui-lobby-title"), picker.element);
-  card.menu.addSettings(rules);
+  rules.append(picker.element);
+  card.solo?.before(rules);
   card.menu.help.append(keyHelp());
   const back = el("a", "← ALL GAMES", "ef-back");
   back.href = import.meta.env.BASE_URL + (muted ? "?mute" : "");
@@ -527,7 +521,8 @@ function room(solo: boolean): void {
     roster,
     capacity: CAPACITY,
     join: nameEntry.form,
-    settings: [mapTitle, levelPicker.element, keyHelp()],
+    settings: [keyHelp()],
+    modes: [mapTitle, levelPicker.element],
     actions: [lobbyNote, lobbyActions],
   });
   lobby.hidden = true;

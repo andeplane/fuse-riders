@@ -97,9 +97,9 @@ const fakeStore = (): Store & { data: Map<string, string> } => {
 
 test("the forward run plays the newest world on a copy, exactly as the fold would", () => {
   const world = racing(40, [GAS, 0]);
-  const before = JSON.stringify(world);
+  const before = structuredClone(world);
   const drawn = forward(world, STEPS_PER_TICK, everyone([GAS, 0]));
-  assert.equal(JSON.stringify(world), before, "the room's world is untouched");
+  assert.deepEqual(world, before, "the room's world is untouched");
   const expected = copyWorld(world);
   for (let i = 0; i < STEPS_PER_TICK; i++)
     stepWorld(expected, [GAS, 0], [true, true]);
@@ -242,11 +242,11 @@ const viewer = (me: string, extra: Partial<Viewer> = {}): Viewer => ({
 
 test("the lobby offers the tour and every level, and one rider is enough to start", () => {
   assert.equal(LEVEL_CHOICES[0]!.level, TOUR);
-  assert.equal(LEVEL_CHOICES[0]!.title, "TOUR · ALL 12 MAPS");
+  assert.equal(LEVEL_CHOICES[0]!.title, `TOUR · ALL ${LEVELS.length} MAPS`);
   assert.equal(LEVEL_CHOICES.length, LEVELS.length + 1);
   assert.equal(LEVEL_CHOICES[1]!.title, LEVELS[0]!.name.toUpperCase());
   assert.equal(levelFrom("3", 0), 3);
-  for (const bad of [null, "", "x", "-1", "12", "1.5"])
+  for (const bad of [null, "", "x", "-1", String(LEVELS.length), "1.5"])
     assert.equal(levelFrom(bad, 7), 7, String(bad));
 
   const room = seated();

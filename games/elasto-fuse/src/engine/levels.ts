@@ -1,5 +1,6 @@
 import type { Level, LevelObject, ObjectKind, Point } from "./level.js";
 import { RAW_LEVELS } from "./levels-data.js";
+import { CAMPAIGN } from "./campaign-data.js";
 
 const KINDS: readonly ObjectKind[] = ["apple", "flower", "killer"];
 
@@ -11,13 +12,14 @@ const points = (flat: readonly number[]): Point[] => {
 };
 
 /**
- * The tour's levels: every level from Elasto Mania v1.0, converted from its `POT06` file by
- * `scripts/elasto-fuse-levels.ts` and held in `levels-data.ts`. Coordinates are y up in the engine's world units, the
- * original game's own scale (a wheel is 0.4 units), so the imported geometry keeps the feel it had. The start is the
- * bike's left wheel and the bike faces left, as in the original. They are rules data: changing one changes `RULES`.
+ * The original 54-level campaign in canonical order, followed by the imported external tracks.
+ * `elasto-fuse-campaign.ts` extracts the internal levels from Elma.res; `elasto-fuse-levels.ts` imports external
+ * POT06 files. Coordinates are y up in the original game's scale (a wheel is 0.4 units).
+ * These are rules data: changing their geometry or ordering changes `RULES`.
  */
-export const LEVELS: readonly Level[] = RAW_LEVELS.map(
-  ([id, name, polygons, start, objects]) => ({
+export const LEVELS: readonly Level[] = [
+  ...CAMPAIGN,
+  ...RAW_LEVELS.map(([id, name, polygons, start, objects]) => ({
     id,
     name,
     polygons: polygons.map(points),
@@ -28,6 +30,6 @@ export const LEVELS: readonly Level[] = RAW_LEVELS.map(
       x,
       y,
     })),
-  }),
-);
+  })),
+];
 export const LEVEL_COUNT = LEVELS.length;

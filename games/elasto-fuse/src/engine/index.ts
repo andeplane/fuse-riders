@@ -3,7 +3,7 @@
  * with exact operations only (`math.ts`), so every device computes the same bits. A change to what any of it does,
  * the levels included, must bump `RULES` and re-record the golden (`tests/golden.test.ts`) in the same commit.
  */
-export const RULES = "elasto-fuse-2";
+export const RULES = "elasto-fuse-3";
 export * from "./input.js";
 export {
   DEAD,
