@@ -124,26 +124,29 @@ test("the forward run never crosses a change of the contest's phase", () => {
   assert.equal(confirmed(drawn, hookGame.view(r)).contest.phase, "countdown");
 });
 
-test("the bots' plan is asked once per folded tick and revision, and leaves the minds it would have", () => {
+test("the bots' plan for the folded tick is asked once per tick and revision; a guessed tick's plan is never kept", () => {
   const r = room(DEFAULT_TUNING, 2, false);
   let asked = 0;
   const memo = memoBots((arena) => {
     asked++;
     return planBots(arena);
   });
+  const at = (revision = 0) => memo(revision, r.simulation.tick);
   const exact = forward(r, 2, holding());
   for (let frame = 0; frame < 5; frame++)
-    forward(r, 0.2 * frame, holding({}, memo(0)));
+    forward(r, 0.2 * frame, holding({}, at()));
   assert.equal(asked, 1);
-  // Late-fold frames play into a second tick: one more answer, not one per frame, and the same picture.
-  for (let frame = 0; frame < 5; frame++)
-    forward(r, 1.2 + 0.1 * frame, holding({}, memo(0)));
-  assert.equal(asked, 2);
-  assert.deepEqual(forward(r, 2, holding({}, memo(0))), exact);
+  // A second tick starts from a guess: asked for each time, with the minds the first plan left, so the same picture.
+  assert.deepEqual(forward(r, 2, holding({}, at())), exact);
   assert.equal(asked, 2);
   // A rollback replaced the room at the same tick: its answer is asked for again.
-  forward(r, 0.5, holding({}, memo(1)));
+  forward(r, 0.5, holding({}, at(1)));
   assert.equal(asked, 3);
+  // The room folds the next tick: its plan is asked of the room, not taken from the guess made at that tick.
+  foldTick(r, host, stream([]));
+  const next = forward(r, 1, holding());
+  assert.deepEqual(forward(r, 1, holding({}, at(1))), next);
+  assert.equal(asked, 4);
 });
 
 test("outcomes are shown as the room folded them, while a keeper's own doing is shown as played forward", () => {

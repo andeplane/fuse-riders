@@ -109,37 +109,36 @@ export function forward(
 
 /**
  * The bots' plan for a folded room is the same every frame until the next tick is folded or a rollback replaces it,
- * and planning is the most expensive thing the forward run does: ask once per revision and tick. Planning also moves
- * each bot's mind on, so a remembered answer puts the minds it left onto the copy being played.
+ * and planning is the most expensive thing the forward run does: ask once per revision and folded tick (`base`, the
+ * arena tick the run starts from). Planning also moves each bot's mind on, so a remembered answer puts the minds it
+ * left onto the copy being played. A later tick of the run starts from a guess (it depends on what this device holds
+ * right now), so its plan is asked for afresh and never kept: the room's next fold must not find a guess in its place.
  */
 export function memoBots(
   ask: (arena: Arena) => Map<string, Input> = planBots,
-): (revision: number) => ForwardInputs["bots"] {
-  const cache = new Map<
-    string,
-    { inputs: Map<string, Input>; minds: Map<string, Mind> }
-  >();
-  return (revision) => (arena) => {
-    const key = `${revision}:${arena.tick}`;
-    const known = cache.get(key);
-    if (known) {
+): (revision: number, base: number) => ForwardInputs["bots"] {
+  let key = "",
+    known: { inputs: Map<string, Input>; minds: Map<string, Mind> } | undefined;
+  return (revision, base) => (arena) => {
+    if (arena.tick !== base) return ask(arena);
+    const id = `${revision}:${base}`;
+    if (known && id === key) {
       for (const keeper of arena.keepers) {
         const mind = known.minds.get(keeper.id);
         if (mind && keeper.mind) keeper.mind = structuredClone(mind);
       }
       return known.inputs;
     }
-    // Old ticks are never asked for again: a handful of entries is all a frame needs.
-    if (cache.size >= 8) cache.clear();
     const inputs = ask(arena);
-    cache.set(key, {
+    key = id;
+    known = {
       inputs,
       minds: new Map(
         arena.keepers.flatMap((keeper) =>
           keeper.mind ? [[keeper.id, structuredClone(keeper.mind)]] : [],
         ),
       ),
-    });
+    };
     return inputs;
   };
 }
@@ -393,7 +392,11 @@ export function createPicture(): (
           forward(
             room,
             leadClock(ticksAhead(timing), timing.newer.logTick, nowMs),
-            { me, live: lead.held, bots: bots(revision) },
+            {
+              me,
+              live: lead.held,
+              bots: bots(revision, room.simulation.tick),
+            },
           ),
           timing.newer,
         ),
