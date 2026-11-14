@@ -119,7 +119,7 @@ function flight(
     barriers = world.barriers.map((barrier) => ({ ...barrier }));
   let meet: { x: number; y: number } | undefined;
   for (let step = 1; step <= steps; step++) {
-    drift(ball, boxes, map, barriers);
+    drift(ball, boxes, map, barriers, false);
     const goal = map.goals.find((each) => inShape(ball.x, ball.y, each, map));
     if (goal) return { ...(meet ?? ball), into: goal.team };
     if (rider && !meet && step % STRIDE === 0) {
