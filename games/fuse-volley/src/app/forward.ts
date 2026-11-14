@@ -1,6 +1,7 @@
 import {
   STEPS_PER_SECOND,
   STEPS_PER_TICK,
+  cloneWorld,
   stepWorld,
   toView,
   type Side,
@@ -27,14 +28,7 @@ export interface ForwardInputs {
 export const MAX_AHEAD = STEPS_PER_TICK * 2;
 
 /** A copy of the world deep enough for `stepWorld` to run on without touching the original. */
-export function copyWorld(world: World): World {
-  return {
-    ...world,
-    ball: { ...world.ball },
-    blobs: world.blobs.map((blob) => ({ ...blob })),
-    score: [world.score[0], world.score[1]],
-  };
-}
+export const copyWorld = (world: World): World => cloneWorld(world);
 
 const mix = (a: number, b: number, t: number) => a + (b - a) * t;
 

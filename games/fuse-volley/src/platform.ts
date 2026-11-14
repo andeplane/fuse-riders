@@ -113,14 +113,15 @@ export function parseFuseVolleyStats(
 }
 
 /**
- * The whole field: two blobs on the two sides, or four in doubles (slots 0 and 2 on the left, 1 and 3 on the right),
+ * The whole field: two, four or six blobs on the two sides (even slots on the left, odd ones on the right),
  * one side of which won by two (or at the score cap) ahead of the other. Teammates share their side's points and
  * result.
  */
 export function validFuseVolleyField(
   players: readonly FuseVolleyStats[],
 ): boolean {
-  if (players.length !== 2 && players.length !== 4) return false;
+  if (players.length !== 2 && players.length !== 4 && players.length !== 6)
+    return false;
   const slots = new Set(players.map((player) => player.slot));
   if (
     slots.size !== players.length ||

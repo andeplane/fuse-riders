@@ -61,19 +61,22 @@ export interface Settings {
   scoring: Scoring;
   /** How well bots play: 0 easy, 1 normal, 2 hard. */
   bot: BotLevel;
-  /** Two blobs a side on the wide court, four seats; otherwise one a side, two seats. */
-  doubles: boolean;
+  /** Blobs a side: 1 (two seats), 2 on the wide court (four seats) or 3 in lanes (six seats). */
+  team: Team;
 }
+export type Team = 1 | 2 | 3;
+export const TEAMS: readonly Team[] = [1, 2, 3];
+const isTeam = (value: unknown): value is Team =>
+  value === 1 || value === 2 || value === 3;
 export const DEFAULT_SETTINGS: Settings = {
   display: false,
   scoring: "rally",
   bot: 1,
-  doubles: false,
+  team: 1,
 };
-const SETTING_KEYS = ["display", "scoring", "bot", "doubles"];
-/** Seats a match under `settings` takes: two, or four for doubles. */
-export const seatsFor = (settings: Settings): number =>
-  settings.doubles ? 4 : 2;
+const SETTING_KEYS = ["display", "scoring", "bot", "team"];
+/** Seats a match under `settings` takes: two a blob a side. */
+export const seatsFor = (settings: Settings): number => settings.team * 2;
 /** The settings boundary, for a logged entry, a command and a checkpoint alike: exactly the four fields, each checked. */
 export function parseSettings(raw: unknown): Settings | undefined {
   if (!plain(raw)) return;
@@ -83,15 +86,15 @@ export function parseSettings(raw: unknown): Settings | undefined {
     !SETTING_KEYS.every((key) => Object.hasOwn(raw, key))
   )
     return;
-  const { display, scoring, bot, doubles } = raw;
+  const { display, scoring, bot, team } = raw;
   if (
     typeof display !== "boolean" ||
-    typeof doubles !== "boolean" ||
+    !isTeam(team) ||
     !SCORINGS.some((known) => known === scoring) ||
     !isBotLevel(bot)
   )
     return;
-  return { display, scoring: scoring as Scoring, bot, doubles };
+  return { display, scoring: scoring as Scoring, bot, team };
 }
 
 export const PLAY = 0;
@@ -130,7 +133,7 @@ export const sideOf = (slot: number): Side => (slot % 2 === 0 ? 0 : 1);
 export interface Decided {
   /** The game clock (`simulationTick`) as of the deciding tick: a report waits until it is confirmed. */
   clock: number;
-  /** The winning side's first blob (its slot is the side); doubles, its teammate won too. */
+  /** The winning side's first blob (its slot is the side); two or three a side, its teammates won too. */
   winner: string;
   /** The humans still seated when it ended, sorted: who can attest the result. */
   finishers: string[];
@@ -145,7 +148,7 @@ export interface Room extends ManagedRoom<Settings> {
   play: Settings;
   /** Each rider's held bits, from the latest entry its seat logged this match; absent when nothing is held. */
   held: Record<string, number>;
-  /** The match's players in blob slot order (two or four); empty in the lobby. */
+  /** The match's players in blob slot order (two, four or six); empty in the lobby. */
   roster: Entrant[];
   decided: Decided | null;
   world: World | null;
@@ -242,7 +245,7 @@ function resetMatch(room: Room, matchId: string): void {
   room.world = null;
 }
 /**
- * Starts a match for the seats, in seat order (so in doubles seats 0 and 2 play the left side), or leaves the room in
+ * Starts a match for the seats, in seat order (so seats alternate sides: 0, 2 and 4 play the left), or leaves the room in
  * its lobby when it does not have exactly the seats the match's settings take.
  */
 function beginMatch(room: Room): void {
@@ -493,7 +496,10 @@ function decodeHeld(raw: unknown): Record<string, number> | undefined {
 function decodeRoster(raw: unknown): Entrant[] | undefined {
   if (
     !Array.isArray(raw) ||
-    (raw.length !== 0 && raw.length !== 2 && raw.length !== 4)
+    (raw.length !== 0 &&
+      raw.length !== 2 &&
+      raw.length !== 4 &&
+      raw.length !== 6)
   )
     return;
   const roster: Entrant[] = [];
@@ -674,7 +680,7 @@ export type FuseVolleyGame = RollbackGame<Room, Entry, View, never, Settings>;
  */
 export function createFuseVolleyGame(
   bot: BotInput = botInput,
-  /** Bots a solo room seats beside its player: 1 for one a side, 3 for doubles. */
+  /** Bots a solo room seats beside its player: 1 for one a side, 3 two a side, 5 three a side. */
   soloBots = 1,
 ): FuseVolleyGame {
   return {

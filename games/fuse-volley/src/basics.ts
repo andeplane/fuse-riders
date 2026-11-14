@@ -4,8 +4,8 @@
  * which may not import from outside its folder; `tests/engine.test.ts` holds the two in step.
  */
 export const GAME_ID = "fuse-volley";
-/** Seats per room: one blob a side, or two a side for doubles, bots included. */
-export const CAPACITY = 4;
+/** Seats per room: one, two or three blobs a side, bots included. */
+export const CAPACITY = 6;
 /** Points that win a match, by scoring rule; both need a lead of two. */
 export const RALLY_TARGET = 11;
 export const CLASSIC_TARGET = 15;

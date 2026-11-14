@@ -49,18 +49,20 @@ import {
   type Bodies,
 } from "./fixtures/room.js";
 
-test("settings are exactly a display flag, a scoring rule, a bot level and the doubles flag", () => {
+test("settings are exactly a display flag, a scoring rule, a bot level and the team size", () => {
   assert.deepEqual(parseSettings(DEFAULT_SETTINGS), DEFAULT_SETTINGS);
   assert.equal(DEFAULT_SETTINGS.scoring, "rally");
   assert.deepEqual(
-    parseSettings({ display: true, scoring: "classic", bot: 2, doubles: true }),
-    { display: true, scoring: "classic", bot: 2, doubles: true },
+    parseSettings({ display: true, scoring: "classic", bot: 2, team: 2 }),
+    { display: true, scoring: "classic", bot: 2, team: 2 },
   );
   for (const bad of [
     null,
     [],
     { display: true, scoring: "classic", bot: 2 },
-    { display: true, scoring: "classic", bot: 2, doubles: 1 },
+    { display: true, scoring: "classic", bot: 2, doubles: true },
+    { display: true, scoring: "classic", bot: 2, team: 4 },
+    { display: true, scoring: "classic", bot: 2, team: "3" },
     { display: true, scoring: "classic", bot: 3 },
     { display: true, scoring: "golden", bot: 1 },
     { display: "yes", scoring: "rally", bot: 1 },
@@ -89,7 +91,7 @@ test("a match needs both seats; it starts with the lobby's scoring, seeded by it
     display: false,
     scoring: "classic",
     bot: 0,
-    doubles: false,
+    team: 1,
   });
   assert.equal(room.stage, "running");
   assert.equal(room.world!.scoring, "classic");
@@ -137,7 +139,7 @@ test("a bot seat answers through the injected bot, with the lobby's level, once 
     display: false,
     scoring: "rally",
     bot: 2,
-    doubles: false,
+    team: 1,
   });
   fold(room, {
     a: [
@@ -210,7 +212,7 @@ test("a corrupt checkpoint is refused whole, and refusing it changes nothing", (
     [
       "a scoring the world is not playing",
       room,
-      at(4, { display: false, scoring: "classic", bot: 1, doubles: false }),
+      at(4, { display: false, scoring: "classic", bot: 1, team: 1 }),
     ],
     ["held bits for a stranger", room, at(5, [["z", RIGHT]])],
     ["held bits past the mask", room, at(5, [["a", 8]])],
@@ -236,10 +238,10 @@ test("a corrupt checkpoint is refused whole, and refusing it changes nothing", (
   assert.equal(decode(encode(room), -1), undefined);
 });
 
-test("the game names itself, its rules and four seats, with one bot for solo (three for solo doubles)", () => {
+test("the game names itself, its rules and six seats, with one bot for solo (three or five for solo teams)", () => {
   assert.equal(fuseVolleyGame.id, "fuse-volley");
-  assert.equal(fuseVolleyGame.rules, "fuse-volley-3");
-  assert.equal(fuseVolleyGame.seating?.capacity, 4);
+  assert.equal(fuseVolleyGame.rules, "fuse-volley-4");
+  assert.equal(fuseVolleyGame.seating?.capacity, 6);
   assert.equal(fuseVolleyGame.seating?.solo.bots, 1);
   assert.equal(createFuseVolleyGame(botInput, 3).seating?.solo.bots, 3);
   assert.equal(fuseVolleyGame.maxSteps, STEPS_PER_TICK);
@@ -250,7 +252,7 @@ test("doubles takes four seats in seat order, plays them as two sides and report
     display: false,
     scoring: "rally" as const,
     bot: 1 as const,
-    doubles: true,
+    team: 2 as const,
   };
   const room = seated(settings);
   // Two seats are not a doubles match.
@@ -295,8 +297,64 @@ test("doubles takes four seats in seat order, plays them as two sides and report
   assert.ok(decode(encode(room), room.tick));
   // Back to singles with four seated: the rematch waits in the lobby.
   fold(room, {
-    a: [[SETTINGS, { ...settings, doubles: false }]],
+    a: [[SETTINGS, { ...settings, team: 1 }]],
   });
   fold(room, { a: [[ACTION, "rematch", "m3"]] });
   assert.equal(room.stage, "lobby");
+});
+
+test("three a side takes six seats in seat order, alternating sides, and reports three winners", () => {
+  const settings = {
+    display: false,
+    scoring: "rally" as const,
+    bot: 1 as const,
+    team: 3 as const,
+  };
+  const room = seated(settings);
+  fold(room, {
+    a: [
+      [JOIN, "c", "Cy", 2, "robot", 1],
+      [JOIN, "d", "Di", 3, "robot", 1],
+    ],
+  });
+  // Four seats are not a three-a-side match.
+  fold(room, { a: [[ACTION, "start", "m1"]] });
+  assert.equal(room.stage, "lobby");
+  fold(room, {
+    a: [
+      [JOIN, "e", "Ed", 4, "robot", 1],
+      [JOIN, "f", "Fi", 5, "robot", 1],
+    ],
+  });
+  fold(room, { a: [[ACTION, "start", "m2"]] });
+  assert.equal(room.stage, "running");
+  assert.deepEqual(
+    room.world!.blobs.map((blob) => [blob.id, blob.side]),
+    [
+      ["a", 0],
+      ["b", 1],
+      ["c", 0],
+      ["d", 1],
+      ["e", 0],
+      ["f", 1],
+    ],
+  );
+  const restored = decode(encode(room), room.tick);
+  assert.ok(restored);
+  assert.equal(hash(restored), hash(room));
+  finish(room, 0);
+  const result = matchResult(room)!;
+  assert.deepEqual(
+    result.players.map((player) => [player.playerId, player.matchPlacement]),
+    [
+      ["a", 2],
+      ["b", 1],
+      ["c", 2],
+      ["d", 1],
+      ["e", 2],
+      ["f", 1],
+    ],
+  );
+  assert.equal(result.winnerId, undefined, "three winners, no single one");
+  assert.ok(decode(encode(room), room.tick));
 });
