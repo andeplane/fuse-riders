@@ -1568,6 +1568,8 @@ function renderSelection(): void {
       event.preventDefault();
       saveNote();
     }
+    // Escape leaves the text box (what was typed stays), so space and the arrows drive playback again.
+    if (event.key === "Escape") text.blur();
     event.stopPropagation();
   });
   selectionBox.replaceChildren(
