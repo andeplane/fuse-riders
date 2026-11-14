@@ -8,9 +8,13 @@ import {
   FINISHED,
   INPUT_MASK,
   RACE_LIMIT,
+  RESTART,
   RIDER_AHEAD,
   STEPS_PER_SECOND,
   STEPS_PER_TICK,
+  TURN,
+  VOLT_LEFT,
+  VOLT_RIGHT,
 } from "../engine/index.js";
 import {
   PLAY,
@@ -28,6 +32,8 @@ export type ElastoFuseCallbacks = Callbacks<View, never, Settings>;
 export const heldBits = (bits: number): number => bits & INPUT_MASK;
 
 const STEP_MS = 1000 / STEPS_PER_SECOND;
+/** The bits that act when they go down. */
+const PRESSES = TURN | VOLT_LEFT | VOLT_RIGHT | RESTART;
 /** Steps between two words of how far this device's bike has run while nothing it holds changes: one a log tick. */
 export const HEARTBEAT = STEPS_PER_TICK;
 /** The most steps one frame runs the bike on: a page that froze for longer loses the time, the bike does not leap. */
@@ -61,6 +67,11 @@ export class ElastoFuseRuntime extends RoomRuntime<
   Settings
 > {
   private bits = 0;
+  /**
+   * Presses held since before the race started: they were not pressed in it, so they are not logged until let go.
+   * A turn or a restart still down from the countdown, or from the result before, does nothing at the start.
+   */
+  private stale = 0;
   /** The race or rest the held bits were last logged for, and the bits. */
   private sent = { key: "", bits: 0 };
   /** The race this device's clock runs for, when its step 0 is, and the last whole step seen and logged. */
@@ -82,6 +93,7 @@ export class ElastoFuseRuntime extends RoomRuntime<
     // The bike first runs up to now on what was held: the new bits take hold on the step the clock is in.
     this.flush();
     this.bits = heldBits(bits);
+    this.stale &= this.bits;
     this.flush();
   }
   /** This device's seat in the race being run, if it rides in it. */
@@ -107,10 +119,12 @@ export class ElastoFuseRuntime extends RoomRuntime<
       world = room.world!,
       now = this.deps.now();
     if (room.stage === "between") {
-      const key = `${room.matchId}:${room.round}:rest`;
-      if (this.sent.key === key && this.sent.bits === this.bits) return;
-      this.sent = { key, bits: this.bits };
-      this.log(room, key, 0);
+      this.stale = this.bits & PRESSES;
+      const key = `${room.matchId}:${room.round}:rest`,
+        bits = this.bits & ~this.stale;
+      if (this.sent.key === key && this.sent.bits === bits) return;
+      this.sent = { key, bits };
+      this.log(room, key, 0, bits);
       return;
     }
     const key = `${room.matchId}:${room.round}`,
@@ -151,23 +165,26 @@ export class ElastoFuseRuntime extends RoomRuntime<
       race.goAt = now - rider.step * STEP_MS;
       at = rider.step;
     }
+    // Still counting down: whatever is down now was down before the start.
+    if (at < 0) this.stale = this.bits & PRESSES;
+    const bits = this.bits & ~this.stale;
     at = Math.max(0, at);
     race.last = at;
     const done =
       world.phase === "over" ||
       rider.status === FINISHED ||
       rider.step >= world.close;
-    const changed = this.sent.key !== key || this.sent.bits !== this.bits;
+    const changed = this.sent.key !== key || this.sent.bits !== bits;
     if (!changed && (done || at < race.logged + HEARTBEAT)) return;
-    this.sent = { key, bits: this.bits };
+    this.sent = { key, bits };
     race.logged = at;
-    this.log(room, key, at);
+    this.log(room, key, at, bits);
   }
-  private log(room: Room, key: string, at: number): void {
+  private log(room: Room, key: string, at: number, bits: number): void {
     const tick = this.recorder.next();
     this.logged = this.logged.filter((entry) => entry.tick > room.tick);
-    this.logged.push({ tick, key, at, bits: this.bits });
-    this.recorder.at(tick, [PLAY, room.matchId, this.bits, at, room.round]);
+    this.logged.push({ tick, key, at, bits });
+    this.recorder.at(tick, [PLAY, room.matchId, bits, at, room.round]);
     this.sendPackets(this.deps.now());
   }
   /**
@@ -215,6 +232,7 @@ export class ElastoFuseRuntime extends RoomRuntime<
   /** The log was reset (a resync): forget what was logged, not what is held, so `flush` logs the keys still down. */
   protected resetControls(): void {
     this.sent = { key: "", bits: 0 };
+    this.stale = 0;
     this.race = { key: "", goAt: 0, last: 0, logged: -1 };
     this.logged = [];
   }

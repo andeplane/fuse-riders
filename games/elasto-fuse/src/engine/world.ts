@@ -153,7 +153,8 @@ export function stepRider(
 
 /**
  * Runs the rider in `slot` on with `held` until its own clock reads `upTo`, or it runs no further. A rider's first
- * step starts from nothing held, whenever its device took the bits up: a bit held through the start is pressed on it.
+ * step starts from nothing held, whenever its device took the bits up; a device leaves a press it held through the
+ * start out of what it logs (`ElastoFuseRuntime`), so a turn held at the start does not turn.
  */
 export function advanceRider(
   world: World,

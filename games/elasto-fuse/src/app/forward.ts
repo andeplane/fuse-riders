@@ -157,7 +157,14 @@ export function createGhosts(): (
     last = nowMs;
     return world.riders.map((rider, slot) => {
       const seat = room.seats.get(rider.id);
-      if (rider.id === me || !seat || seat.bot || !seat.connected) {
+      // A rider that has not set off is on the start, not a step past it.
+      if (
+        rider.id === me ||
+        !seat ||
+        seat.bot ||
+        !seat.connected ||
+        rider.step === 0
+      ) {
         clocks[slot] = rider.step;
         return undefined;
       }

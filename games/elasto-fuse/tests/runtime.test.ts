@@ -179,7 +179,8 @@ test("a device that joins mid-race recovers the world from a peer and watches on
   );
 });
 
-test("a key acts on the step of this device's clock it goes down on, and the bike drawn is the bike the room then computes", () => {
+/** A solo room on a clock the test moves: `wait` passes time a frame at a time (the room's loop, then the screen). */
+function soloRide() {
   let now = 0,
     pass: (() => void) | undefined;
   const dependencies: RuntimeDependencies = {
@@ -200,7 +201,9 @@ test("a key acts on the step of this device's clock it goes down on, and the bik
     { humanName: "Ada", humanAvatar: "fox", dependencies },
   );
   runtime.start();
-  /** Time passes a frame at a time: the room's loop, then the screen asking where the bike is. */
+  const skip = (ms: number) => {
+    now += ms;
+  };
   const wait = (ms: number) => {
     for (let t = 0; t < ms; t += 5) {
       now += 5;
@@ -208,15 +211,34 @@ test("a key acts on the step of this device's clock it goes down on, and the bik
       runtime.localRide();
     }
   };
-  const level = runtime.roomState()!.world!.level;
+  return { runtime, wait, skip, loop: () => pass?.() };
+}
+
+test("a press held through the countdown was not pressed in the race", () => {
+  const { runtime, wait } = soloRide();
   assert.ok(runtime.localRide()!.step < 0, "counting down on its own clock");
+  // The gas is held at the start; the turn is not there until it is let go and pressed again.
+  runtime.input(GAS | TURN);
+  while (runtime.localRide()!.step < 30) wait(5);
+  assert.equal(runtime.roomState()!.held.solo, GAS);
+  assert.equal(runtime.heldNow, GAS | TURN);
+  runtime.input(GAS);
+  runtime.input(GAS | TURN);
+  wait(100);
+  assert.equal(runtime.roomState()!.held.solo, GAS | TURN);
+  runtime.stop();
+});
+
+test("a key acts on the step of this device's clock it goes down on, and the bike drawn is the bike the room then computes", () => {
+  const { runtime, wait, skip, loop } = soloRide();
+  const level = runtime.roomState()!.world!.level;
   while (runtime.localRide()!.step < 30) wait(5);
   const rider = () => runtime.roomState()!.world!.riders[0]!;
   assert.ok(rider().step > 0, "the room hears how far the bike has run");
   assert.ok(rider().step <= runtime.localRide()!.step);
 
   // The key goes down between two frames: it holds from the step the clock is in, not from a tick of the room.
-  now += 7;
+  skip(7);
   const at = Math.floor(runtime.localRide()!.step);
   runtime.input(GAS);
   const ride = runtime.localRide()!;
@@ -243,8 +265,8 @@ test("a key acts on the step of this device's clock it goes down on, and the bik
 
   // A page that froze loses the time: the bike does not leap on.
   const before = Math.floor(runtime.localRide()!.step);
-  now += 5_000;
-  pass?.();
+  skip(5_000);
+  loop();
   const after = runtime.localRide()!.step;
   assert.ok(after - before <= MOST_CATCH_UP + 1);
   runtime.stop();
