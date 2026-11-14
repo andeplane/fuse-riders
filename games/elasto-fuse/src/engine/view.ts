@@ -45,8 +45,10 @@ export interface RiderView {
   gravity: number;
   /** Steps the current run has lasted; the finishing run's length once finished. */
   run: number;
-  /** The race step it finished on, or 0. */
+  /** The step of its own clock it finished on, or 0. */
   finish: number;
+  /** Race steps it has run: its own clock. */
+  step: number;
   /** 1 for the leader; finishers first. */
   place: number;
   deaths: number;
@@ -114,6 +116,7 @@ export function toView(world: World): WorldView {
         gravity: b.gravity,
         run: rider.run,
         finish: rider.finish,
+        step: rider.step,
         place: places.indexOf(slot) + 1,
         deaths: rider.deaths,
         wait: rider.wait,
