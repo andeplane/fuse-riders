@@ -50,6 +50,15 @@ export function removeTap(taps: readonly Tap[], tap: Tap): Tap[] {
   return index < 0 ? [...taps] : taps.filter((_, i) => i !== index);
 }
 
+/** The taps outside the time span `[start, end]`: what is left after deleting a selection. */
+export function removeSpan(
+  taps: readonly Tap[],
+  start: number,
+  end: number,
+): Tap[] {
+  return taps.filter((tap) => tap.time < start || tap.time > end);
+}
+
 export const writeTaps = (file: TapsFile): string =>
   `${JSON.stringify(file, null, 2)}\n`;
 

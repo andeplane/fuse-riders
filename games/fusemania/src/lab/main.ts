@@ -58,6 +58,7 @@ import { NOTES_UPLOAD_PATH, writeNotesUpload } from "./notes-upload.js";
 import {
   addTap,
   parseTaps,
+  removeSpan,
   removeTap,
   tapColumn,
   writeTaps,
@@ -171,6 +172,9 @@ const keyLegend = el(
   el("span", { className: "lab-keys-gap" }),
   key("⌘Z"),
   " undo tap",
+  el("span", { className: "lab-keys-gap" }),
+  key("⌫"),
+  " delete taps in a selection dragged over Custom",
   el("span", { className: "lab-keys-gap" }),
   key("x"),
   " set marker",
@@ -1381,6 +1385,23 @@ function undoTap(): void {
   say(`removed the tap at ${tap.time.toFixed(2)} s`);
 }
 
+/** Deletes the Custom chart's taps inside the selection, when the selection was dragged over that chart. */
+function deleteSelectedTaps(): boolean {
+  if (!selection || selection.chart !== "Custom") return false;
+  const left = removeSpan(taps, selection.start, selection.end);
+  const gone = taps.length - left.length;
+  taps = left;
+  tapHistory = tapHistory.filter((tap) => left.includes(tap));
+  selection = undefined;
+  flux = undefined;
+  rebuildCharts();
+  saveTaps();
+  renderSelection();
+  draw();
+  say(`deleted ${gone} tap${gone === 1 ? "" : "s"}`);
+  return true;
+}
+
 function clearTaps(): void {
   if (!taps.length) return;
   taps = [];
@@ -1748,6 +1769,13 @@ function renderSelection(): void {
     }
     // Escape leaves the text box (what was typed stays), so space and the arrows drive playback again.
     if (event.key === "Escape") text.blur();
+    // With nothing typed, delete removes the Custom taps in the selection instead of editing text.
+    if (
+      (event.key === "Backspace" || event.key === "Delete") &&
+      !text.value &&
+      deleteSelectedTaps()
+    )
+      event.preventDefault();
     event.stopPropagation();
   });
   selectionBox.replaceChildren(
@@ -2036,6 +2064,11 @@ window.addEventListener("keydown", (event) => {
   } else if (delta !== undefined) {
     event.preventDefault();
     seekBy(delta);
+  } else if (
+    (event.key === "Backspace" || event.key === "Delete") &&
+    deleteSelectedTaps()
+  ) {
+    event.preventDefault();
   } else if (
     event.key.toLowerCase() === "z" &&
     (event.metaKey || event.ctrlKey) &&

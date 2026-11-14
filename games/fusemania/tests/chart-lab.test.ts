@@ -55,6 +55,7 @@ import { join } from "node:path";
 import {
   addTap,
   parseTaps,
+  removeSpan,
   removeTap,
   tapColumn,
   writeTaps,
@@ -586,4 +587,18 @@ test("chart lab: undo takes one tap away and leaves the rest", () => {
   assert.deepEqual(removeTap([a, b], { time: 9, beat: 9, column: 0 }), [a, b]);
   // Pressed twice at the same moment: one goes.
   assert.deepEqual(removeTap([a, a, b], a), [a, b]);
+});
+
+test("chart lab: deleting a selection removes the taps inside it, ends included", () => {
+  const taps = [1, 2, 3, 4].map((time) => ({
+    time,
+    beat: time * 2,
+    column: 0,
+  }));
+  assert.deepEqual(
+    removeSpan(taps, 2, 3).map((tap) => tap.time),
+    [1, 4],
+  );
+  assert.deepEqual(removeSpan(taps, 5, 6), taps);
+  assert.deepEqual(removeSpan(taps, 0, 9), []);
 });
