@@ -23,6 +23,12 @@ export const WINAMP_WINDOW_SIZE: Size = { width: 320, height: 440 };
 /** A Fuse game opens at the size its lobby is laid out for; the window clamps to the desktop. */
 export const FUSE_GAME_WINDOW_SIZE: Size = { width: 1024, height: 700 };
 
+/** Room for the five Explorer columns and a dozen rows above the status bar. */
+export const RECYCLE_BIN_WINDOW_SIZE: Size = { width: 640, height: 380 };
+
+/** The classic 4:3 Media Player: a small screen, the seek bar and the transport buttons. */
+export const MEDIA_PLAYER_WINDOW_SIZE: Size = { width: 400, height: 340 };
+
 export const OS_NAME = "FuseOS";
 
 /** Title bar text and icon for each window kind. */
@@ -76,6 +82,20 @@ export function windowMeta(
         icon: "winamp",
         resizable: false,
         size: WINAMP_WINDOW_SIZE,
+      };
+    case "recyclebin":
+      return {
+        title: "Recycle Bin",
+        icon: "recycle",
+        resizable: true,
+        size: RECYCLE_BIN_WINDOW_SIZE,
+      };
+    case "mediaplayer":
+      return {
+        title: `${window.file} - Windows Media Player`,
+        icon: "mediaplayer",
+        resizable: false,
+        size: MEDIA_PLAYER_WINDOW_SIZE,
       };
   }
 }

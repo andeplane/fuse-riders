@@ -5,7 +5,9 @@ import { ControlPanelWindow } from "../controlpanel/ControlPanelWindow";
 import { WallpaperWindow } from "../controlpanel/WallpaperWindow";
 import { FuseGameWindow } from "../fusegames/FuseGameWindow";
 import { FuseGamesContext } from "../fusegames/registry";
+import { MediaPlayerWindow } from "../mediaplayer/MediaPlayerWindow";
 import { PaintWindow } from "../paint/PaintWindow";
+import { RecycleBinWindow } from "../recyclebin/RecycleBinWindow";
 import { GameWindow } from "../retro/GameWindow";
 import type { WindowState } from "../state/appState";
 import { WinampWindow } from "../winamp/WinampWindow";
@@ -62,6 +64,16 @@ function WindowContent({
       return <PaintWindow windowId={window.id} />;
     case "winamp":
       return <WinampWindow windowId={window.id} />;
+    case "recyclebin":
+      return <RecycleBinWindow windowId={window.id} />;
+    case "mediaplayer":
+      return (
+        <MediaPlayerWindow
+          windowId={window.id}
+          file={window.file}
+          launches={window.launches}
+        />
+      );
   }
 }
 

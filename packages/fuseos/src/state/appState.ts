@@ -49,6 +49,20 @@ export interface WinampWindowContent {
   kind: "winamp";
 }
 
+/** The Recycle Bin's Explorer-style window. Reused when already open. */
+export interface RecycleBinWindowContent {
+  kind: "recyclebin";
+}
+
+/** A fake Windows Media Player "playing" one of the Recycle Bin's video files. */
+export interface MediaPlayerWindowContent {
+  kind: "mediaplayer";
+  /** The file name shown in the title bar and the codec error. */
+  file: string;
+  /** The Fuse game this "video" turns out to be, launched once it has "buffered"; absent means the codec is missing. */
+  launches?: string;
+}
+
 export type WindowContent =
   | FuseGameWindowContent
   | RetroGameWindowContent
@@ -57,7 +71,9 @@ export type WindowContent =
   | AboutWindowContent
   | DialogWindowContent
   | PaintWindowContent
-  | WinampWindowContent;
+  | WinampWindowContent
+  | RecycleBinWindowContent
+  | MediaPlayerWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -217,6 +233,14 @@ function isWindowContent(
       );
     case "paint":
       return value.fileName === undefined || typeof value.fileName === "string";
+    case "recyclebin":
+      return true;
+    case "mediaplayer":
+      return (
+        typeof value.file === "string" &&
+        value.file.length > 0 &&
+        (value.launches === undefined || typeof value.launches === "string")
+      );
     default:
       return false;
   }

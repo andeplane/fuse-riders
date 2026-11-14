@@ -15,11 +15,14 @@ import { Jgdwmie101 } from "@react95/icons/Jgdwmie101";
 import { Joy102 } from "@react95/icons/Joy102";
 import { KeyboardMouse } from "@react95/icons/KeyboardMouse";
 import { Lights100 } from "@react95/icons/Lights100";
+import { Mplayer10 } from "@react95/icons/Mplayer10";
+import { Mplayer11 } from "@react95/icons/Mplayer11";
 import { Mspaint } from "@react95/icons/Mspaint";
 import { Network } from "@react95/icons/Network";
 import { Progman22 } from "@react95/icons/Progman22";
 import { Progman33 } from "@react95/icons/Progman33";
 import { RecycleEmpty } from "@react95/icons/RecycleEmpty";
+import { RecycleFull } from "@react95/icons/RecycleFull";
 import { Settings } from "@react95/icons/Settings";
 import { Shell3242 } from "@react95/icons/Shell3242";
 import { Sol1 } from "@react95/icons/Sol1";
@@ -69,7 +72,10 @@ export type IconName =
   | "micropolis"
   | "solitaire"
   | "paint"
-  | "winamp";
+  | "winamp"
+  | "recycleFull"
+  | "mediaplayer"
+  | "video";
 
 type IconVariant = "32x32_4" | "16x16_4";
 type IconProps = Omit<SVGProps<SVGSVGElement>, "ref">;
@@ -125,6 +131,9 @@ const ICONS: Record<IconName, IconComponent> = {
   solitaire: Sol1,
   paint: Mspaint,
   winamp: WinampLogo,
+  recycleFull: RecycleFull,
+  mediaplayer: Mplayer10,
+  video: Mplayer11,
 };
 
 export type Win98IconProps = {

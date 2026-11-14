@@ -27,6 +27,8 @@ import {
   createFuseGameRegistry,
   FuseGamesContext,
 } from "../fusegames/registry";
+import type { MediaPlayerDeps } from "../mediaplayer/mediaPlayerDepsContext";
+import { MediaPlayerDepsContext } from "../mediaplayer/mediaPlayerDepsContext";
 import type { PaintControls } from "../paint/paintControls";
 import type { PaintDeps } from "../paint/paintDepsContext";
 import { PaintDepsContext } from "../paint/paintDepsContext";
@@ -35,6 +37,10 @@ import {
   PaintPrefsStoreContext,
 } from "../paint/paintPrefsStore";
 import { PaintRegistryContext } from "../paint/paintRegistryContext";
+import {
+  MemoryRecycleBinStore,
+  RecycleBinStoreContext,
+} from "../recyclebin/recycleBinStore";
 import type { GamesDeps } from "../retro/gamesDepsContext";
 import { GamesDepsContext } from "../retro/gamesDepsContext";
 import {
@@ -129,7 +135,41 @@ export type ProviderOptions = {
   /** Defaults to a fresh store, i.e. a first visit: the greeting shows. */
   assistantOptions?: MemoryAssistantOptionsStore;
   systemProbe?: SystemProbe;
+  /** Defaults to a full bin. */
+  recycleBinStore?: MemoryRecycleBinStore;
+  /** Defaults to a manual scheduler (`mediaPlayerTimers.fire()` advances the fake player one tick). */
+  mediaPlayerDeps?: Partial<MediaPlayerDeps>;
 };
+
+/** The media player's scheduled ticks, fired by the test rather than a clock. */
+export class ManualScheduler {
+  private pending: (() => void)[] = [];
+
+  schedule = (callback: () => void, _ms: number): (() => void) => {
+    this.pending.push(callback);
+    return () => {
+      this.pending = this.pending.filter((entry) => entry !== callback);
+    };
+  };
+
+  get size(): number {
+    return this.pending.length;
+  }
+
+  /** Runs every pending callback once (each may schedule the next). */
+  fire(): void {
+    const batch = this.pending;
+    this.pending = [];
+    for (const callback of batch) callback();
+  }
+}
+
+export function createTestMediaPlayerDeps(
+  scheduler: ManualScheduler,
+  overrides: Partial<MediaPlayerDeps> = {},
+): MediaPlayerDeps {
+  return { schedule: scheduler.schedule, ...overrides };
+}
 
 export const immediateAppStateDeps: AppStateDeps = {
   setTimeout: (callback) => {
@@ -258,6 +298,13 @@ export function createWrapper(options: ProviderOptions = {}) {
   const winampDeps = createTestWinampDeps(winampPlayers, options.winampDeps);
   const winampRegistry = new Map<string, WinampControls>();
   const systemProbe = options.systemProbe ?? TEST_SYSTEM_PROBE;
+  const recycleBinStore =
+    options.recycleBinStore ?? new MemoryRecycleBinStore();
+  const mediaPlayerTimers = new ManualScheduler();
+  const mediaPlayerDeps = createTestMediaPlayerDeps(
+    mediaPlayerTimers,
+    options.mediaPlayerDeps,
+  );
 
   function Wrapper({ children }: { children: ReactNode }) {
     return (
@@ -290,12 +337,20 @@ export function createWrapper(options: ProviderOptions = {}) {
                                       <SystemProbeContext.Provider
                                         value={() => systemProbe}
                                       >
-                                        <Shell
-                                          store={store}
-                                          initialOpen={options.initialOpen}
+                                        <RecycleBinStoreContext.Provider
+                                          value={recycleBinStore}
                                         >
-                                          {children}
-                                        </Shell>
+                                          <MediaPlayerDepsContext.Provider
+                                            value={mediaPlayerDeps}
+                                          >
+                                            <Shell
+                                              store={store}
+                                              initialOpen={options.initialOpen}
+                                            >
+                                              {children}
+                                            </Shell>
+                                          </MediaPlayerDepsContext.Provider>
+                                        </RecycleBinStoreContext.Provider>
                                       </SystemProbeContext.Provider>
                                     </AssistantOptionsStoreContext.Provider>
                                   </AssistantDepsContext.Provider>
@@ -334,6 +389,9 @@ export function createWrapper(options: ProviderOptions = {}) {
     winampDeps,
     winampPlayers,
     winampRegistry,
+    recycleBinStore,
+    mediaPlayerDeps,
+    mediaPlayerTimers,
   };
 }
 
