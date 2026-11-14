@@ -4,12 +4,12 @@ import { PRESENCE } from "fuse-netcode";
 import { FINISHED } from "../src/engine/index.js";
 import { dueReports, sendReport, type DueReport } from "../src/app/reports.js";
 import { matchResult, roundResult } from "../src/online/result.js";
-import type { Room } from "../src/online/game.js";
+import { DEFAULT_SETTINGS, type Room } from "../src/online/game.js";
 import { fold, started } from "./fixtures/room.js";
 
 /** A one-level match between `a` and `b`, over, `a` home first. */
 function finished(): Room {
-  const room = started({ display: false, level: 0 });
+  const room = started({ ...DEFAULT_SETTINGS, count: 1 });
   const world = room.world!;
   while (world.phase === "countdown") fold(room);
   world.step = 960;
@@ -63,10 +63,10 @@ test("a device that did not finish the match owes nothing", () => {
   for (const id of ["", "tv", "bot:1", "z"])
     assert.deepEqual(dueReports(room, id, clock + 99, new Set()), [], id);
   // A race still running, or a lobby, owes nothing.
-  const running = started({ display: false, level: 0 });
+  const running = started({ ...DEFAULT_SETTINGS, count: 1 });
   assert.deepEqual(dueReports(running, "a", 1e9, new Set()), []);
   // A rider who left before the end is not among the finishers.
-  const left = started({ display: false, level: 0 });
+  const left = started({ ...DEFAULT_SETTINGS, count: 1 });
   const world = left.world!;
   while (world.phase === "countdown") fold(left);
   fold(left, { a: [[PRESENCE, "b", false, 1]] });

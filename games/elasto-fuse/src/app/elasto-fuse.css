@@ -144,6 +144,12 @@ body.elasto-fuse-page {
 }
 
 /* The level picker: on the landing page and in the lobby */
+.fui-room-modes > .ef-series-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--fui-space-3);
+  margin-bottom: var(--fui-space-3);
+}
 .ef-level-picker {
   display: grid;
   gap: var(--fui-space-2);
