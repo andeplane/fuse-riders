@@ -42,6 +42,31 @@ test("a v4-mapped IPv6 address is the IPv4 address it wraps", () => {
     assert.equal(rateLimitAddress(address), "203.0.113.7", address);
 });
 
+test("gateway address identities remain distinct when extensions normalize again", () => {
+  for (const address of [
+    "203.0.113.7",
+    "::ffff:203.0.113.7",
+    "2001:db8:1111::1",
+    "2001:db8:2222::1",
+    "::1",
+    "invalid",
+  ]) {
+    const key = rateLimitAddress(address);
+    assert.equal(rateLimitAddress(key), key);
+  }
+  assert.notEqual(
+    rateLimitAddress(rateLimitAddress("2001:db8:1111::1")),
+    rateLimitAddress(rateLimitAddress("2001:db8:2222::1")),
+  );
+  for (const invalid of [
+    "2001:db8::/48",
+    "2001:db8:1:2::1/64",
+    "203.0.113.7/64",
+    "2001:db8:1:gggg::/64",
+  ])
+    assert.equal(rateLimitAddress(invalid), "unknown");
+});
+
 test("anything that is not an address shares one identity instead of minting budgets", () => {
   for (const garbage of [
     "",

@@ -446,3 +446,24 @@ test("the cheap admission gate bounds concurrent requests per normalized address
   await Promise.all(active);
   assert.equal(await gate.run("127.0.0.1", async () => "released"), "released");
 });
+
+test("already normalized IPv6 gateway identities retain independent admission budgets", async () => {
+  const gate = new TelemetryAdmission(() => NOW);
+  const releases: Array<() => void> = [];
+  const active = Array.from({ length: 4 }, () =>
+    gate.run(
+      "2001:db8:1111:0::/64",
+      () => new Promise<void>((resolve) => releases.push(resolve)),
+    ),
+  );
+  await assert.rejects(
+    gate.run("2001:db8:1111::2", async () => {}),
+    (error: unknown) => error instanceof RoomError && error.status === 429,
+  );
+  assert.equal(
+    await gate.run("2001:db8:2222:0::/64", async () => "independent"),
+    "independent",
+  );
+  for (const release of releases) release();
+  await Promise.all(active);
+});
