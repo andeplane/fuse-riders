@@ -76,6 +76,7 @@ test("every map has its own id and name, and a new one is only ever added at the
       "cornercase",
       "coredump",
       "bruteforce",
+      "bouncerate",
     ],
   );
   for (const id of MAP_IDS) {

@@ -40,6 +40,7 @@ export const MAP_IDS = [
   "cornercase",
   "coredump",
   "bruteforce",
+  "bouncerate",
 ] as const;
 export type MapId = (typeof MAP_IDS)[number];
 export const isMapId = (value: unknown): value is MapId =>
@@ -378,6 +379,51 @@ const bruteforce: MapDef = arena({
   ],
 });
 
+/**
+ * Bounce Rate is a closed box: nothing wraps. Each goal is an alcove in a side wall with a bumper standing guard
+ * in front of it, so a straight shot comes back and the ball has to be slipped in over or under. Three more
+ * bumpers hang about the middle, and the ball starts on a perch between them.
+ */
+const bouncerate: MapDef = arena({
+  id: "bouncerate",
+  name: "Bounce Rate",
+  wrapX: false,
+  wrapY: false,
+  solids: [
+    rect(0, 0, 640, 12),
+    rect(0, 348, 640, 12),
+    rect(0, 12, 24, 198),
+    rect(0, 210, 6, 80),
+    rect(0, 290, 24, 58),
+    rect(616, 12, 24, 198),
+    rect(634, 210, 6, 80),
+    rect(616, 290, 24, 58),
+    rect(280, 150, 80, 10),
+    rect(110, 296, 70, 10),
+    rect(460, 296, 70, 10),
+  ],
+  goals: [
+    { team: 0, ...rect(616, 210, 18, 80) },
+    { team: 1, ...rect(6, 210, 18, 80) },
+  ],
+  clouds: [
+    { x: 62, y: 250, r: 44 },
+    { x: 578, y: 250, r: 44 },
+  ],
+  spawns: [
+    { x: 210, y: 339 },
+    { x: 430, y: 339 },
+  ],
+  ballAnchor: { x: 320, y: 120 },
+  bumpers: [
+    { x: 62, y: 250, r: 12 },
+    { x: 578, y: 250, r: 12 },
+    { x: 236, y: 104, r: 14 },
+    { x: 404, y: 104, r: 14 },
+    { x: 320, y: 236, r: 14 },
+  ],
+});
+
 export const MAPS: Readonly<Record<MapId, MapDef>> = {
   gridlock,
   downlink,
@@ -387,6 +433,7 @@ export const MAPS: Readonly<Record<MapId, MapDef>> = {
   cornercase,
   coredump,
   bruteforce,
+  bouncerate,
 };
 export const mapOf = (id: MapId): MapDef => MAPS[id];
 

@@ -334,3 +334,63 @@ test("the bot breaks its field and then scores through it, from either side", ()
     assert.ok(at(world.ball.x) >= 0);
   }
 });
+
+// ---- bumpers ----
+
+test("a bumper throws the ball away from its centre, every time, and is never used up", () => {
+  const world = empty("bouncerate"),
+    bumper = MAPS.bouncerate.bumpers[2]!;
+  for (const [dx, dy] of [
+    [-40, 0],
+    [40, 0],
+    [0, -40],
+    [30, -30],
+    [-30, 30],
+  ] as const) {
+    // Sent straight at its centre from each side in turn.
+    ballAt(world, bumper.x + dx, bumper.y + dy, -dx / 20, -dy / 20);
+    const before = world.ball.bounces;
+    until(world, () => world.ball.bounces !== before, new Map(), 60);
+    assert.notEqual(world.ball.bounces, before, `from ${dx},${dy}: it bumped`);
+    const away = world.ball.vx * dx + world.ball.vy * dy;
+    assert.ok(away > 0, `from ${dx},${dy}: thrown back the way it came`);
+    const gap = Math.hypot(
+      at(world.ball.x) - bumper.x,
+      at(world.ball.y) - bumper.y,
+    );
+    assert.ok(gap >= bumper.r + BALL - 0.01, "and pushed clear of it");
+    assert.ok(Math.hypot(world.ball.vx, world.ball.vy) >= 4000, "smartly");
+  }
+  assert.equal(world.phase, "play");
+});
+
+test("a rider flies straight through a bumper", () => {
+  const world = playing("bouncerate"),
+    bumper = MAPS.bouncerate.bumpers[4]!;
+  world.riders[1].zapped = true;
+  ballAt(world, 100, 100);
+  place(world, 0, bumper.x - 40, bumper.y);
+  world.riders[0].vx = 3 * SUB;
+  steps(world, 30, held(RIGHT));
+  assert.ok(at(world.riders[0].x) > bumper.x + 20);
+  assert.ok(world.riders[0].vx > 0, "never turned back");
+});
+
+test("on Bounce Rate a straight shot at a goal comes back off its guard, and one slipped over it goes in", () => {
+  for (const team of [0, 1] as const) {
+    const map = MAPS.bouncerate,
+      guard = map.bumpers[team === 0 ? 1 : 0]!,
+      toward = team === 0 ? 1 : -1;
+    const straight = empty("bouncerate");
+    ballAt(straight, guard.x - toward * 60, guard.y, toward * 3, -0.25);
+    steps(straight, 90);
+    assert.equal(straight.phase, "play", "the guard sent it back");
+    assert.ok((at(straight.ball.x) - guard.x) * toward < 0);
+
+    const over = empty("bouncerate");
+    ballAt(over, guard.x - toward * 60, guard.y - 34, toward * 3, 0);
+    until(over, () => over.phase !== "play", new Map(), 200);
+    assert.equal(over.phase, "zap", "over the guard and in");
+    assert.equal(over.lastScorer, team);
+  }
+});

@@ -30,6 +30,7 @@ export const MAP_BLURBS: Readonly<Record<MapId, string>> = {
   cornercase: "Wraps top to bottom. The goals are the corner pockets.",
   coredump: "Wraps top to bottom. Both goals are pits in the middle.",
   bruteforce: "A force field guards each goal. Three hits break it.",
+  bouncerate: "A closed box of bumpers. One guards each goal.",
 };
 
 export interface Side {
