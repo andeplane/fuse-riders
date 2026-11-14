@@ -1,0 +1,578 @@
+/*
+ * Fusteam: the 2004 Steam client's olive "green skin", as an homage. The values are the
+ * original client's scheme: GreenBG 76 88 68 for the window, DarkGreenBG 62 70 55 for inset
+ * panes, DullGreen 216 222 211 for text, Maize 196 181 80 for headings and hover, MaizeBG
+ * 145 134 60 for the selected row, BorderDark 40 46 34 for the unlit side of every bevel.
+ * The light side is a touch brighter than the original's neutral grey so it reads on the olive.
+ */
+:root {
+  --fst-bg: #4c5844;
+  --fst-bg-light: #5a6a50;
+  --fst-bg-dark: #3e4637;
+  --fst-text: #d8ded3;
+  --fst-text-muted: #a0aa95;
+  --fst-text-dim: #889180;
+  --fst-maize: #c4b550;
+  --fst-maize-bg: #91863c;
+  --fst-border-light: #7f8c75;
+  --fst-border-dark: #282e22;
+  --fst-black: #1a1e16;
+  --fst-font:
+    Tahoma, Verdana, "DejaVu Sans", "Pixelated MS Sans Serif", Arial, sans-serif;
+}
+
+/* ---- The window's own chrome: same olive as the body, title text in the bar, _ and X at the right. ---- */
+
+.win98 .window:has(.fst-root) {
+  background: var(--fst-bg);
+  color: var(--fst-text);
+  box-shadow:
+    inset -1px -1px var(--fst-border-dark),
+    inset 1px 1px var(--fst-border-light),
+    inset -2px -2px var(--fst-bg-dark),
+    inset 2px 2px var(--fst-bg-light);
+  padding: 3px;
+}
+
+.win98 .window:has(.fst-root) > .title-bar {
+  background: var(--fst-bg);
+  color: var(--fst-text);
+  padding: 4px 3px 2px 5px;
+}
+
+.win98 .window:has(.fst-root) > .title-bar.inactive {
+  background: var(--fst-bg);
+}
+
+.win98 .window:has(.fst-root) > .title-bar .title-bar-text {
+  color: var(--fst-text);
+  font-family: var(--fst-font);
+  font-size: 12px;
+  font-weight: 400;
+  gap: 6px;
+}
+
+.win98 .window:has(.fst-root) > .title-bar.inactive .title-bar-text {
+  color: var(--fst-text-dim);
+}
+
+.win98 .window:has(.fst-root) > .title-bar .title-bar-controls button {
+  background-color: var(--fst-bg);
+  box-shadow: none;
+  min-width: 18px;
+  min-height: 14px;
+  margin-left: 4px;
+  opacity: 0.9;
+}
+
+.win98
+  .window:has(.fst-root)
+  > .title-bar
+  .title-bar-controls
+  button:not(:disabled):active {
+  box-shadow:
+    inset 1px 1px var(--fst-border-dark),
+    inset -1px -1px var(--fst-border-light);
+}
+
+.win98 .window:has(.fst-root) > .title-bar .title-bar-controls button:hover {
+  opacity: 1;
+}
+
+/* The old client had no maximize box; a double click on the title still toggles it. */
+.win98
+  .window:has(.fst-root)
+  > .title-bar
+  .title-bar-controls
+  button[aria-label="Maximize"],
+.win98
+  .window:has(.fst-root)
+  > .title-bar
+  .title-bar-controls
+  button[aria-label="Restore"] {
+  display: none;
+}
+
+.win98
+  .window:has(.fst-root)
+  > .title-bar
+  .title-bar-controls
+  button[aria-label="Minimize"] {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg width='8' height='3' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%23d8ded3' d='M0 0h8v3H0z'/%3E%3C/svg%3E");
+  background-position: bottom 2px left 5px;
+}
+
+.win98
+  .window:has(.fst-root)
+  > .title-bar
+  .title-bar-controls
+  button[aria-label="Close"] {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg width='9' height='9' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l7 7M8 1L1 8' stroke='%23d8ded3' stroke-width='2'/%3E%3C/svg%3E");
+  background-position: center;
+}
+
+/* ---- Body ---- */
+
+.fst-root {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--fst-bg);
+  color: var(--fst-text);
+  font-family: var(--fst-font);
+  font-size: 11px;
+  line-height: 1.3;
+  -webkit-font-smoothing: antialiased;
+}
+
+.fst-root a {
+  color: var(--fst-text-muted);
+}
+
+/* Tabs: a flat strip; the selected tab lifts a shade and joins the page below it. */
+.fst-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px 6px 0;
+  border-bottom: 1px solid var(--fst-border-light);
+}
+
+.fst-tab {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  margin-bottom: -1px;
+  padding: 4px 14px 5px;
+  background: var(--fst-bg-dark);
+  color: var(--fst-text-muted);
+  font: inherit;
+  font-size: 11px;
+  border: none;
+  border-radius: 0;
+  box-shadow:
+    inset 1px 1px var(--fst-border-light),
+    inset -1px 0 var(--fst-border-dark);
+  text-shadow: none;
+  cursor: default;
+}
+
+.fst-tab:hover {
+  color: var(--fst-maize);
+}
+
+.fst-tab.selected {
+  background: var(--fst-bg-light);
+  color: var(--fst-text);
+  padding-bottom: 6px;
+  box-shadow:
+    inset 1px 1px var(--fst-border-light),
+    inset -1px 0 var(--fst-border-dark);
+}
+
+.fst-tab:focus-visible {
+  outline: 1px dotted var(--fst-text);
+  outline-offset: -3px;
+}
+
+.fst-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--fst-bg);
+}
+
+.fst-games {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+  padding: 8px 8px 6px;
+}
+
+.fst-heading {
+  margin: 0 0 4px;
+  color: var(--fst-maize);
+  font-family: var(--fst-font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.fst-list-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* MY GAMES: a sunken dark pane, one 20px row per game. */
+.fst-list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 2px;
+  list-style: none;
+  overflow-y: auto;
+  background: var(--fst-bg-dark);
+  box-shadow:
+    inset 1px 1px var(--fst-border-dark),
+    inset -1px -1px var(--fst-border-light);
+  scrollbar-color: var(--fst-border-light) var(--fst-bg-dark);
+}
+
+.fst-list:focus-visible {
+  outline: 1px dotted var(--fst-text);
+  outline-offset: -3px;
+}
+
+.fst-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+  padding: 0 4px;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.fst-row:hover {
+  color: var(--fst-maize);
+}
+
+.fst-row.selected {
+  background: var(--fst-maize-bg);
+  color: #fff;
+}
+
+.fst-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The old list's Status column: every game here is ready. */
+.fst-row-status {
+  flex-shrink: 0;
+  color: var(--fst-text-dim);
+  font-size: 10px;
+}
+
+.fst-row.selected .fst-row-status {
+  color: var(--fst-text);
+}
+
+/* Column header over the list, like the client's list box header. */
+.fst-list-head {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 6px;
+  background: var(--fst-bg-dark);
+  color: var(--fst-text-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow:
+    inset 1px 1px var(--fst-border-light),
+    inset -1px -1px var(--fst-border-dark);
+}
+
+.fst-tile {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  box-shadow:
+    inset 1px 1px rgba(255, 255, 255, 0.5),
+    0 0 0 1px var(--fst-border-dark);
+}
+
+.fst-muted {
+  color: var(--fst-text-muted);
+}
+
+/* The detail pane: screenshot, name, tagline, PLAY with the facts, LINKS to the right. */
+.fst-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  scrollbar-color: var(--fst-border-light) var(--fst-bg);
+}
+
+.fst-detail.fst-empty {
+  justify-content: center;
+  align-items: center;
+}
+
+.fst-shot {
+  flex-shrink: 0;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 56%;
+  background: #000;
+  border: 1px solid var(--fst-border-light);
+  outline: 1px solid var(--fst-border-dark);
+  box-sizing: border-box;
+}
+
+.fst-shot-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fst-shot-missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-family: Arial, sans-serif;
+  font-size: 64px;
+  font-weight: 700;
+  letter-spacing: 4px;
+}
+
+.fst-name {
+  margin: 10px 0 0;
+  color: var(--fst-text);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 20px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  -webkit-font-smoothing: antialiased;
+}
+
+.fst-tagline {
+  margin: 2px 0 0;
+  color: var(--fst-text-muted);
+  font-size: 12px;
+}
+
+.fst-detail-row {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--fst-border-dark);
+  box-shadow: inset 0 1px var(--fst-border-light);
+}
+
+.fst-facts {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.fst-dl {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 10px;
+  row-gap: 3px;
+  margin: 2px 0 0;
+  align-content: start;
+}
+
+.fst-dl dt {
+  color: var(--fst-text-muted);
+}
+
+.fst-dl dd {
+  margin: 0;
+}
+
+.fst-status {
+  color: var(--fst-maize);
+  font-weight: 700;
+}
+
+.fst-links {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+  min-width: 110px;
+  padding-left: 16px;
+  border-left: 1px solid var(--fst-border-dark);
+  box-shadow: inset 1px 0 var(--fst-border-light);
+}
+
+.fst-link {
+  color: var(--fst-text-muted);
+  text-decoration: underline;
+}
+
+.fst-link:hover {
+  color: var(--fst-maize);
+}
+
+.fst-link:focus-visible {
+  outline: 1px dotted var(--fst-text);
+}
+
+/* Buttons: the client's flat bevelled push button; text turns maize on hover, sinks on press. */
+.fst-button,
+.fst-play {
+  min-width: 0;
+  min-height: 23px;
+  padding: 3px 12px;
+  background: var(--fst-bg);
+  color: var(--fst-text);
+  font-family: var(--fst-font);
+  font-size: 11px;
+  border: none;
+  border-radius: 0;
+  box-shadow:
+    inset -1px -1px var(--fst-border-dark),
+    inset 1px 1px var(--fst-border-light);
+  text-shadow: none;
+  cursor: default;
+}
+
+.fst-button:hover,
+.fst-play:hover {
+  color: var(--fst-maize);
+}
+
+.fst-button:not(:disabled):active,
+.fst-play:not(:disabled):active {
+  box-shadow:
+    inset 1px 1px var(--fst-border-dark),
+    inset -1px -1px var(--fst-border-light);
+  color: var(--fst-text-dim);
+  text-shadow: none;
+}
+
+.fst-button:focus-visible,
+.fst-play:focus-visible {
+  outline: 1px dotted var(--fst-text);
+  outline-offset: -4px;
+}
+
+/* PLAY: the black action bar of the old store page, with the default-button ring. */
+.fst-play {
+  min-width: 120px;
+  min-height: 34px;
+  padding: 6px 18px;
+  background: var(--fst-black);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  box-shadow:
+    inset -1px -1px #000,
+    inset 1px 1px var(--fst-bg-light),
+    0 0 0 1px #000;
+}
+
+.fst-play:not(:disabled):active {
+  background: #000;
+  box-shadow:
+    inset 1px 1px #000,
+    inset -1px -1px var(--fst-bg-light),
+    0 0 0 1px #000;
+  color: var(--fst-text-dim);
+}
+
+/* Friends, Servers, News: a note in a sunken pane. */
+.fst-placeholder {
+  flex: 1;
+  min-height: 0;
+  padding: 8px;
+  overflow-y: auto;
+}
+
+.fst-panel {
+  padding: 10px 12px;
+  background: var(--fst-bg-dark);
+  box-shadow:
+    inset 1px 1px var(--fst-border-dark),
+    inset -1px -1px var(--fst-border-light);
+}
+
+.fst-panel p {
+  margin: 0;
+  color: var(--fst-text-muted);
+}
+
+.fst-panel p + p {
+  margin-top: 6px;
+}
+
+/* Bottom bar: the wordmark where VALVE's logo sat, the buttons at the right. */
+.fst-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 7px 8px 6px;
+  border-top: 1px solid var(--fst-border-dark);
+  box-shadow: inset 0 1px var(--fst-border-light);
+}
+
+.fst-spacer {
+  flex: 1;
+}
+
+.fst-wordmark {
+  display: inline-block;
+  padding: 2px 7px 1px 9px;
+  border: 1px solid var(--fst-text-dim);
+  border-radius: 2px;
+  color: var(--fst-text-muted);
+  font-family: Verdana, Tahoma, Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-shadow:
+    1px 1px var(--fst-border-dark),
+    -1px -1px var(--fst-bg-light);
+  box-shadow:
+    1px 1px var(--fst-border-dark),
+    -1px -1px var(--fst-bg-light);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* A phone, or a narrow window: the list stacks above the details and the facts stack too. */
+@container (max-width: 640px) {
+  .fst-games {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .fst-list {
+    max-height: 132px;
+  }
+
+  .fst-detail-row {
+    flex-direction: column;
+  }
+
+  .fst-facts {
+    flex-direction: column;
+  }
+
+  .fst-links {
+    padding-left: 0;
+    border-left: none;
+    box-shadow: none;
+  }
+
+  .fst-tabs {
+    overflow-x: auto;
+  }
+
+  .fst-tab {
+    padding-inline: 10px;
+  }
+}
