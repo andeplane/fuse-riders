@@ -38,6 +38,10 @@ export interface FilterLike extends NodeLike {
   type: BiquadFilterType;
   frequency: ParamLike;
 }
+/** A node that moves a sound between the left and right speakers; `pan` runs from -1 (left) to 1 (right). */
+export interface PannerLike extends NodeLike {
+  pan: ParamLike;
+}
 export interface BufferLike {
   /** Seconds of audio. */
   readonly duration: number;
@@ -66,6 +70,8 @@ export interface AudioLike {
   createGain(): GainLike;
   createOscillator(): OscillatorLike;
   createBiquadFilter(): FilterLike;
+  /** Missing in a few old browsers: a song is then never panned. */
+  createStereoPanner?(): PannerLike;
   createBuffer(
     channels: number,
     length: number,
@@ -201,7 +207,16 @@ export interface ClockedSong {
    */
   play(at: number, offset: number): void;
   stop(): void;
+  /**
+   * Shapes this song alone, for an effect a game puts on its music: `level` (0 to 1) scales how loud it is and `pan`
+   * (-1 left to 1 right) moves it between the speakers. Both are eased over `SHAPE_EASE` seconds so a frame-by-frame
+   * caller makes no clicks. Only loudness changes, per ear: nothing is delayed, so the song stays on the clock. The
+   * shape is the song's own and outlives `stop`; `shape(1, 0)` is the song as it is.
+   */
+  shape(level: number, pan: number): void;
 }
+/** How long a `ClockedSong.shape` takes to arrive, in seconds. */
+export const SHAPE_EASE = 0.04;
 /** Decoded songs kept for replay; a decoded song is tens of megabytes, so only the latest few stay. */
 export const SONG_CACHE = 3;
 
@@ -375,6 +390,16 @@ export function createGameAudio(
 
   const clockedSong = (audio: AudioLike, buffer: BufferLike): ClockedSong => {
     let source: BufferSourceLike | undefined;
+    // The song's own way to the music bus, made on the first `shape`: a gain, then a panner where there is one.
+    let shaper: { gain: GainLike; panner: PannerLike | undefined } | undefined;
+    let shaped = { level: 1, pan: 0 };
+    const way = (): NodeLike | undefined => shaper?.gain ?? duckBus;
+    const ease = (param: ParamLike, value: number) => {
+      const now = audio.currentTime;
+      param.cancelScheduledValues(now);
+      param.setValueAtTime(param.value, now);
+      param.linearRampToValueAtTime(value, now + SHAPE_EASE);
+    };
     const release = () => {
       clocked.delete(song);
       syncMusic();
@@ -410,7 +435,7 @@ export function createGameAudio(
         }
         const next = audio.createBufferSource();
         next.buffer = buffer;
-        next.connect(duckBus);
+        next.connect(way() ?? duckBus);
         next.onended = () => {
           if (source !== next) return;
           source = undefined;
@@ -430,6 +455,33 @@ export function createGameAudio(
         old.stop();
         old.disconnect();
         release();
+      },
+      shape(level, pan) {
+        const to = {
+          level: Number.isFinite(level) ? Math.min(1, Math.max(0, level)) : 1,
+          pan: Number.isFinite(pan) ? Math.min(1, Math.max(-1, pan)) : 0,
+        };
+        if (to.level === shaped.level && to.pan === shaped.pan) return;
+        if (!shaper) {
+          // Nothing is in the way of a song that was never shaped.
+          if (!duckBus) return;
+          const gain = audio.createGain(),
+            panner = audio.createStereoPanner?.();
+          gain.gain.value = 1;
+          if (panner) {
+            panner.pan.value = 0;
+            gain.connect(panner);
+            panner.connect(duckBus);
+          } else gain.connect(duckBus);
+          shaper = { gain, panner };
+          if (source) {
+            source.disconnect();
+            source.connect(gain);
+          }
+        }
+        shaped = to;
+        ease(shaper.gain.gain, to.level);
+        if (shaper.panner) ease(shaper.panner.pan, to.pan);
       },
     };
     return song;

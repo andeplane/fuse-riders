@@ -4,11 +4,13 @@ import {
   COLUMNS,
   DOUBLE,
   DRUNK,
+  FADE,
   FLIP,
   HIDDEN,
   ITEM_KINDS,
   LAG,
   MINES,
+  PINGPONG,
   SHIELD,
   STAR,
   TORNADO,
@@ -446,6 +448,35 @@ function glyph(g: Pen, kind: number, s: number): void {
       g.lineTo(-0.18 * s, 0.02 * s);
       g.closePath();
       g.stroke();
+      break;
+    case FADE:
+      // A speaker, and bars that get shorter: the sound going away.
+      g.beginPath();
+      g.moveTo(-0.24 * s, -0.07 * s);
+      g.lineTo(-0.15 * s, -0.07 * s);
+      g.lineTo(-0.05 * s, -0.17 * s);
+      g.lineTo(-0.05 * s, 0.17 * s);
+      g.lineTo(-0.15 * s, 0.07 * s);
+      g.lineTo(-0.24 * s, 0.07 * s);
+      g.closePath();
+      g.fill();
+      for (const [x, h] of [
+        [0.04, 0.15],
+        [0.13, 0.09],
+        [0.22, 0.04],
+      ] as const)
+        line(g, [x * s, -h * s, x * s, h * s]);
+      break;
+    case PINGPONG:
+      // A ball between two ears.
+      for (const side of [-1, 1]) {
+        g.beginPath();
+        g.arc(side * 0.1 * s, 0, 0.15 * s, -Math.PI / 3, Math.PI / 3, side < 0);
+        g.stroke();
+      }
+      g.beginPath();
+      g.arc(0, 0, 0.05 * s, 0, Math.PI * 2);
+      g.fill();
       break;
   }
 }

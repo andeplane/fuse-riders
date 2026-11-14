@@ -12,6 +12,7 @@ export {
   DOUBLE,
   DROPPED,
   DRUNK,
+  FADE,
   FLIP,
   FULL_RATING,
   GOOD,
@@ -27,6 +28,7 @@ export {
   MISS,
   NO_ITEM,
   PERFECT,
+  PINGPONG,
   SCORE_MODE,
   SHIELD,
   STAR,
@@ -34,6 +36,7 @@ export {
   TURBO,
   WAVE,
   WINDOWS,
+  hitsOne,
   isAttack,
 } from "./rules.js";
 export { HOLD, MINE, ROLL, TAP, type StepNote, type Steps } from "./steps.js";
@@ -69,6 +72,8 @@ export const ITEM_NAMES = [
   "DOUBLE",
   "STAR",
   "SHIELD",
+  "FADE",
+  "PING-PONG",
 ] as const;
 
 /** One line on what each power-up does, by its number. */
@@ -87,4 +92,6 @@ export const ITEM_HINTS = [
   "Your notes score double",
   "Every note is Marvelous for you",
   "Blocks the next attack on you",
+  "One rival's music fades away",
+  "One rival's music bounces from ear to ear",
 ] as const;

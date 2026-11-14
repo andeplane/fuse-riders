@@ -143,7 +143,7 @@ test("each item moves smoothly with the gap, the strong ones up and the mild one
 test("flip is rare for a clear leader and common for a rider well behind", () => {
   assert.ok(shares(-1000)[FLIP]! < 0.01);
   assert.ok(shares(0)[FLIP]! > 0.05);
-  assert.ok(shares(1000)[FLIP]! > 0.11);
+  assert.ok(shares(1000)[FLIP]! > 0.1);
   // Half a gap is halfway there, not all or nothing.
   assert.ok(shares(-500)[FLIP]! > shares(-1000)[FLIP]!);
   assert.ok(shares(-500)[FLIP]! < shares(0)[FLIP]!);

@@ -78,15 +78,26 @@ export const NO_ITEM = 0,
   LAG = 10,
   DOUBLE = 11,
   STAR = 12,
-  SHIELD = 13;
-export const ITEM_KINDS = 14;
+  SHIELD = 13,
+  FADE = 14,
+  PINGPONG = 15;
+export const ITEM_KINDS = 16;
 /** Whether an item is thrown at the others (true) or used on its holder. */
-export const isAttack = (item: number): boolean => item >= DRUNK && item <= LAG;
+export const isAttack = (item: number): boolean =>
+  (item >= DRUNK && item <= LAG) || item === FADE || item === PINGPONG;
+/**
+ * The attacks on the ears land on one rival, picked by the match's seed, not on all of them. They change only what
+ * that rival's own device plays: nothing about the notes, the judging or the clock.
+ */
+export const hitsOne = (item: number): boolean =>
+  item === FADE || item === PINGPONG;
 /** How long each lasts once it takes hold. */
 export const ITEM_MS: readonly number[] = [
   0, 9000, 9000, 8000, 8000, 8000, 7000, 7000, 6000, 9000, 8000, 10_000, 5000,
-  20_000,
+  20_000, 5000, 9000,
 ];
+/** A fade lasts `ITEM_MS[FADE]` plus up to this much more, by the match's seed: five to ten seconds. */
+export const FADE_EXTRA_MS = 5000;
 /** An attack takes hold this long after it is thrown: a warning on the victim's screen, and time for the throw to reach every device. */
 export const ATTACK_LEAD_MS = 1200;
 /** How much of a rider's taps a mine attack turns into mines, out of 100. */
@@ -104,17 +115,18 @@ export const MAX_EFFECTS = 12;
  * - `ITEM_BASE` is how common each item is between riders who are level.
  * - `ITEM_POWER` rates each from 1 to 10: for an attack, how hard it is for the rider it lands on to keep hitting
  *   notes (Flip mirrors the columns and is close to the worst; Wave only sways them); for an item used on its holder,
- *   how much it is worth (Star plays for you; Shield only matters if somebody throws).
+ *   how much it is worth (Star plays for you; Shield only matters if somebody throws). The two on the ears: Fade
+ *   takes the music away but leaves the arrows (6); Ping-pong only throws the music from ear to ear (3).
  *
  * A rider who is behind draws the high-power items more often and the low-power ones less, a rider who is ahead the
  * other way round, and by how much follows the score gap (see `itemEdge` and `itemWeights` in `play.ts`).
  */
-//                                        -  DRU WAV BOO TOR HID FLI TUR BLA MIN LAG DOU STA SHI
+//                                        -  DRU WAV BOO TOR HID FLI TUR BLA MIN LAG DOU STA SHI FAD PIN
 export const ITEM_BASE: readonly number[] = [
-  0, 10, 10, 10, 10, 10, 8, 10, 8, 10, 8, 10, 8, 10,
+  0, 10, 10, 10, 10, 10, 8, 10, 8, 10, 8, 10, 8, 10, 8, 8,
 ];
 export const ITEM_POWER: readonly number[] = [
-  0, 3, 2, 6, 5, 6, 10, 4, 8, 7, 7, 8, 9, 2,
+  0, 3, 2, 6, 5, 6, 10, 4, 8, 7, 7, 8, 9, 2, 6, 3,
 ];
 /**
  * How far a full gap tilts the table, out of 1000: at 900 a power-10 item is 1.9 times as likely for a rider a full
