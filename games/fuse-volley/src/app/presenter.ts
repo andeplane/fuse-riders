@@ -329,7 +329,7 @@ export function createPointWatch(): (view: View, me: string) => PointReport[] {
     if (mySide === undefined) return [];
     const mine = winner === mySide,
       toBot = view.roster.some(
-        (entrant) => entrant.slot === winner && entrant.bot,
+        (entrant) => sideOf(entrant.slot) === winner && entrant.bot,
       );
     if (!mine && !toBot) return [];
     return [

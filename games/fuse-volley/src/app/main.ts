@@ -728,6 +728,7 @@ function room(solo: boolean): void {
     main.dataset.phase = view.world?.phase ?? "";
     main.dataset.score = view.world ? view.world.score.join("-") : "";
     main.dataset.riding = String(next.riding);
+    main.dataset.doubles = String(view.world?.court.team === 2);
     lobby.hidden = next.screen !== "lobby";
     stage.hidden = next.screen !== "play";
     controller.hidden = next.screen !== "controller";
