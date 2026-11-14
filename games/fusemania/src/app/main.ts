@@ -569,6 +569,8 @@ function landing(): void {
   const select = el("section", "", "fm-landing-select");
   select.append(picker.element);
   card.soloDetails.append(select, own);
+  // A select that is opened again starts with the speeds put away.
+  card.menu.dialog.addEventListener("close", () => optionsMenu.close());
   card.solo?.classList.add("fui-button-primary", "fm-solo-play");
   const settings = settingsPanel(() => {
     help.dispatchEvent(new Event("fm-refresh"));
@@ -591,6 +593,8 @@ function landing(): void {
       !picker.element.isConnected ||
       picker.element.offsetParent === null ||
       otherDialogOpen() ||
+      // The speeds are open over the select: their keys are not the carousel's.
+      !optionsMenu.panel.hidden ||
       menu.isOpen() ||
       event.target instanceof HTMLInputElement ||
       event.target instanceof HTMLTextAreaElement ||

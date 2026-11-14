@@ -196,6 +196,10 @@ export function createMainMenu(options: MainMenuOptions) {
       content.forEach((node) => owned.add(node));
       open("Single player", content);
       dialog.close.before(...barActions);
+      // Enter right after opening plays: the action that starts the game is the last in the bar.
+      const start = barActions[barActions.length - 1];
+      if (start instanceof (doc.defaultView?.HTMLElement ?? HTMLElement))
+        start.focus();
     } else if (options.onSinglePlayer)
       void run(
         options.onSinglePlayer,
